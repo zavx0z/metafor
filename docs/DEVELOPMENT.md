@@ -2,8 +2,8 @@
 
 # Development
 
-This document records the practical development mode of MetaFor before full inter-domain protocols exist.
-It does not replace [Architecture](./ARCHITECTURE.md) and does not cancel the protocol layer described in [Protocol](./PROTOCOL.md).
+This document records the practical development mode of MetaFor before full inter-domain Force channels are stabilized.
+It does not replace [Architecture](./ARCHITECTURE.md) and does not cancel the Force layer described in [Force](./FORCE.md).
 Its role is to keep architectural invariants distinct from temporary development tactics.
 
 ## Fast Technical Entry
@@ -23,7 +23,7 @@ Recommended reading order for repository work:
 
 1. [Ontology](./ONTOLOGY.md)
 2. [Architecture](./ARCHITECTURE.md)
-3. [Protocol](./PROTOCOL.md)
+3. [Force](./FORCE.md)
 4. [Topology](./TOPOLOGY.md)
 5. then return to this document for the current development mode.
 
@@ -37,7 +37,7 @@ MetaFor is built as a three-domain system:
 
 These domains are architecturally isolated.
 They must not be treated as internal layers of one runtime module.
-In mature form they may live in different processes and communicate only through protocols.
+In mature form they may live in different processes and communicate only through Force channels.
 
 Until the main functionality of the domains is proven, premature transport channels create more complexity than value.
 
@@ -47,7 +47,7 @@ The current development mode is therefore:
 - production code gets no direct inter-domain imports,
 - end-to-end checks happen only in tests,
 - relative imports across domains are acceptable only in tests,
-- stable protocols are designed after the core domain logic is proven.
+- stable Force channels are designed after the core domain logic is proven.
 
 ## Architectural invariant
 
@@ -66,12 +66,12 @@ Therefore:
 1. direct production imports from one domain into another are forbidden,
 2. direct calls into another domain's internal API are forbidden in production code,
 3. no domain should become a transport shortcut for another,
-4. inter-domain communication must appear only as protocol channels,
+4. inter-domain communication must appear only as Force channels,
 5. until such channels exist, the domains are finished separately.
 
-## Why it is simpler to avoid protocols before protocols
+## Why Force Channels Should Not Outrun Domains
 
-When core functionality is still unstable, a protocol fixes an external contract too early.
+When core functionality is still unstable, a Force channel fixes an external contract too early.
 If that contract is fixed before the domains themselves are proven, the project risks:
 
 - cementing the wrong exchange shape,
@@ -86,12 +86,12 @@ So the temporary order is:
 2. verify compatibility in tests,
 3. only then formalize durable transport channels.
 
-This does not reject protocols as an architectural goal.
-It only says protocols must not outrun validated domain logic.
+This does not reject Force channels as an architectural goal.
+It only says Force channels must not outrun validated domain logic.
 
 ## Temporary integration mode
 
-Before protocols exist, only one end-to-end verification path is allowed:
+Before Force channels exist, only one end-to-end verification path is allowed:
 
 - integration tests,
 - relative imports across domains only inside tests,
@@ -112,7 +112,7 @@ The following is not acceptable:
 - moving this temporary assembly into production code,
 - turning test assembly into a permanent architectural rule,
 - presenting direct imports as a normal communication path,
-- hiding the absence of a protocol behind internal neighbor calls.
+- hiding the absence of a Force channel behind internal neighbor calls.
 
 ## Environment lifecycle and worker responsibility
 
@@ -139,8 +139,8 @@ Until real channels exist, the order should stay:
 1. a domain implements its own responsibility,
 2. the domain is tested on its own level,
 3. an integration test temporarily assembles the domains through relative imports,
-4. once the core functionality stabilizes, the protocol is formalized,
-5. the temporary assembly is removed or demoted to protocol verification.
+4. once the core functionality stabilizes, the Force channel is formalized,
+5. the temporary assembly is removed or demoted to Force-channel verification.
 
 ## What this gives
 
@@ -150,7 +150,7 @@ This development mode helps:
 - prevent temporary glue from becoming a permanent dependency,
 - validate core functionality faster,
 - localize errors more clearly,
-- avoid premature protocol design,
+- avoid premature Force-channel design,
 - move to real channels only after the domain form becomes stable.
 
 ## The boundary of what is allowed
@@ -165,12 +165,12 @@ This development mode helps:
 
 - direct production imports across domains,
 - exporting one domain's internals as another domain's API,
-- production assembly without a protocol,
+- production assembly without a Force channel,
 - turning the testing path into an architectural norm.
 
-## When to move to protocols
+## When To Move To Force Channels
 
-Move to protocols only after:
+Move to Force channels only after:
 
 1. the hidden functionality of `Dark` is stable,
 2. the fixation and state-computation functionality of `Boundary` is stable,

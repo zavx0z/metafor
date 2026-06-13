@@ -1,5 +1,5 @@
 import type { Reactions } from "./reactions.ts"
-import {emitGravitonAdd} from "../../protocol.ts"
+import {emitGravitonAdd} from "../../force.ts"
 
 /**
  * Sub-ORM для таблицы `reaction_read` (PK (reaction, field)).

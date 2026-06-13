@@ -1,4 +1,4 @@
-import { createProtocolChannel } from "store/protocol"
+import {force} from "store"
 
 export type PhotonPayload = { value: string; path: string }
 
@@ -10,9 +10,9 @@ export interface DarkPhotonSubscription {
   close(): void
 }
 
-export interface DarkElectromagnetismProtocol {
-  emitGluonPatches(patches: Array<{ op: "replace"; path: string; value: unknown }>): void
-  emitHiggsPatches(patches: Array<{ op: "replace"; path: string; value: unknown }>): void
+export interface DarkElectromagnetismForce {
+  emitGluonParts(parts: Array<{ op: "replace"; path: string; value: unknown }>): void
+  emitHiggsParts(parts: Array<{ op: "replace"; path: string; value: unknown }>): void
   emitGluonReplace(wimpFieldId: string, value: unknown): void
   emitHiggsReplace(wimpFieldId: string, value: unknown): void
   close(): void
@@ -30,12 +30,12 @@ export const subscribeDarkPhotons = (
   listener?: (message: PhotonPayload) => void,
   options: { channelName?: string } = {},
 ): DarkPhotonSubscription => {
-  const channel = createProtocolChannel(options.channelName)
+  void options
 
-  channel.onmessage = (event) => {
-    for (const patch of event.data.patches) {
-      if (patch.part !== "photon") continue
-      const message: PhotonPayload = { path: patch.path, value: String(patch.value ?? "") }
+  force.onmessage = (event) => {
+    for (const part of event.data.parts) {
+      if (part.part !== "photon") continue
+      const message: PhotonPayload = { path: part.path, value: String(part.value ?? "") }
 
       darkPhoton$.messages.push(message)
       listener?.(message)
@@ -44,41 +44,41 @@ export const subscribeDarkPhotons = (
 
   return {
     close() {
-      channel.close()
+      force.onmessage = null
     },
   }
 }
 
-const createReplacePatch = (wimpFieldId: string, value: unknown): { op: "replace"; path: string; value: unknown } => ({
+const createReplacePart = (wimpFieldId: string, value: unknown): { op: "replace"; path: string; value: unknown } => ({
   op: "replace",
   path: `/field/${wimpFieldId}`,
   value,
 })
 
-export const createDarkElectromagnetismProtocol = (
+export const createDarkElectromagnetismForce = (
   options: { channelName?: string } = {},
-): DarkElectromagnetismProtocol => {
-  const channel = createProtocolChannel(options.channelName)
-  const emitGluonPatches = (patches: Array<{ op: "replace"; path: string; value: unknown }>): void => {
-    channel.postMessage({ patches: patches.map((patch) => ({ part: "gluon", ...patch })) })
+): DarkElectromagnetismForce => {
+  void options
+  const emitGluonParts = (parts: Array<{ op: "replace"; path: string; value: unknown }>): void => {
+    force.postMessage({ parts: parts.map((part) => ({ part: "gluon", ...part })) })
   }
-  const emitHiggsPatches = (patches: Array<{ op: "replace"; path: string; value: unknown }>): void => {
-    channel.postMessage({ patches: patches.map((patch) => ({ part: "higgs", ...patch })) })
+  const emitHiggsParts = (parts: Array<{ op: "replace"; path: string; value: unknown }>): void => {
+    force.postMessage({ parts: parts.map((part) => ({ part: "higgs", ...part })) })
   }
 
   return {
-    emitGluonPatches,
-    emitHiggsPatches,
+    emitGluonParts,
+    emitHiggsParts,
     emitGluonReplace(wimpFieldId, value) {
-      emitGluonPatches([createReplacePatch(wimpFieldId, value)])
+      emitGluonParts([createReplacePart(wimpFieldId, value)])
     },
 
     emitHiggsReplace(wimpFieldId, value) {
-      emitHiggsPatches([createReplacePatch(wimpFieldId, value)])
+      emitHiggsParts([createReplacePart(wimpFieldId, value)])
     },
 
     close() {
-      channel.close()
+      // Store owns force transport lifecycle.
     },
   }
 }

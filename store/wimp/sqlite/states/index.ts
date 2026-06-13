@@ -1,6 +1,6 @@
 import type { Wimp } from "../wimp.ts"
 import { State } from "./state.ts"
-import {emitGravitonAdd} from "../../../protocol.ts"
+import {emitGravitonAdd} from "../../../force.ts"
 
 export class States {
   readonly #wimp: Wimp

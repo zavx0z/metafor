@@ -1,8 +1,9 @@
 import { openDbSqliteBackend } from "store/db"
-import { closeBoundaryProtocolChannels, writeRuntimeFromDb } from "../boundary"
+import {force} from "store"
+import {writeRuntimeFromDb} from "../boundary"
 
 export async function resetBoundaryForTest(): Promise<void> {
-  closeBoundaryProtocolChannels()
+  force.onmessage = null
   const backend = openDbSqliteBackend()
 
   try {

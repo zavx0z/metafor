@@ -27,7 +27,7 @@ describe("workspaceFilesPayload", () => {
     expect(payload.workspacePath).toBe("")
     expect(payload.files.map((file) => file.path)).toContain("dark/server.spec.ts")
     expect(payload.files.map((file) => file.path)).toContain("dark/server.ts")
-    expect(payload.files.map((file) => file.path)).toContain("store/protocol.ts")
+    expect(payload.files.map((file) => file.path)).toContain("store/force.ts")
     expect(payload.files.map((file) => file.path)).toContain("store/sqlite.ts")
     expect(payload.files.map((file) => file.path)).toContain("store/index.ts")
     expect(payload.files.map((file) => file.path)).not.toContain("dark/weak/index.ts")
@@ -58,10 +58,10 @@ describe("workspaceFilesPayload", () => {
     expect(dark.workspacePath).toBe("")
     expect(interpreter.workspacePath).toBe("")
     expect(dark.files.map((file) => file.path)).toContain("dark/server.spec.ts")
-    expect(dark.files.map((file) => file.path)).toContain("store/protocol.ts")
+    expect(dark.files.map((file) => file.path)).toContain("store/force.ts")
     expect(interpreter.files.map((file) => file.path)).toContain("pkg/interpreter/src/syntax.test.ts")
     expect(interpreter.files.map((file) => file.path)).not.toContain("dark/server.spec.ts")
-    expect(interpreter.files.map((file) => file.path)).not.toContain("store/protocol.ts")
+    expect(interpreter.files.map((file) => file.path)).not.toContain("store/force.ts")
   })
 
   test("falls back to command path when modulePath is unavailable", () => {
@@ -81,7 +81,7 @@ describe("workspaceFilesPayload", () => {
 
   test("filters imported catalog by query", () => {
     const cwd = testWorkspace()
-    const payload = workspaceFilesPayload(new URL("http://127.0.0.1/processes/dark-server.spec.ts/modules?q=protocol&limit=500"), {
+    const payload = workspaceFilesPayload(new URL("http://127.0.0.1/processes/dark-server.spec.ts/modules?q=force&limit=500"), {
       cwd,
       module: {
         id: "dark-server.spec.ts",
@@ -91,7 +91,7 @@ describe("workspaceFilesPayload", () => {
       },
     })
 
-    expect(payload.files.map((file) => file.path)).toEqual(["store/protocol.ts"])
+    expect(payload.files.map((file) => file.path)).toEqual(["store/force.ts"])
   })
 })
 
@@ -109,15 +109,15 @@ function testWorkspace(): string {
     name: "@metafor/dark",
     dependencies: {store: "workspace:*"},
   }))
-  writeFile(cwd, "dark/server.spec.ts", "import {METAFOR_BROADCAST_CHANNEL} from 'store/protocol'\nawait import('./server.ts')\ntest('dark', () => METAFOR_BROADCAST_CHANNEL)")
-  writeFile(cwd, "dark/server.ts", "import {METAFOR_BROADCAST_CHANNEL} from 'store/protocol'\nimport {MetaFor} from '..'\nimport {open} from 'store/sqlite'\nexport {METAFOR_BROADCAST_CHANNEL, MetaFor, open}")
+  writeFile(cwd, "dark/server.spec.ts", "import {METAFOR_FORCE_CHANNEL} from 'store/force'\nawait import('./server.ts')\ntest('dark', () => METAFOR_FORCE_CHANNEL)")
+  writeFile(cwd, "dark/server.ts", "import {METAFOR_FORCE_CHANNEL} from 'store/force'\nimport {MetaFor} from '..'\nimport {open} from 'store/sqlite'\nexport {METAFOR_FORCE_CHANNEL, MetaFor, open}")
   writeFile(cwd, "dark/weak/index.ts", "export {}")
   writeFile(cwd, "store/package.json", JSON.stringify({
     name: "store",
-    exports: {".": "./index.ts", "./protocol": "./protocol.ts", "./sqlite": "./sqlite.ts"},
+    exports: {".": "./index.ts", "./force": "./force.ts", "./sqlite": "./sqlite.ts"},
   }))
   writeFile(cwd, "store/index.ts", "export type Store = {ready: boolean}")
-  writeFile(cwd, "store/protocol.ts", "export const METAFOR_BROADCAST_CHANNEL = 'metafor.protocol'")
+  writeFile(cwd, "store/force.ts", "export const METAFOR_FORCE_CHANNEL = 'metafor.force'")
   writeFile(cwd, "store/sqlite.ts", "import type {Store} from './index.ts'\nexport const open = async (): Promise<Store> => ({ready: true})")
   writeFile(cwd, "pkg/interpreter/package.json", "{}")
   writeFile(cwd, "pkg/interpreter/src/syntax.test.ts", "test('syntax', () => {})")

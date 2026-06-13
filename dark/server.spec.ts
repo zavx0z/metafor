@@ -2,10 +2,8 @@ import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import {SQL} from "bun"
 import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
-import {createProtocolChannel, type ProtocolChannel} from "store/protocol"
 
-describe("dark/server разворачивает дерево zavx0z/git по gravity-патчу", () => {
-  let outbound: ProtocolChannel
+describe("dark/server разворачивает дерево zavx0z/git по gravity part", () => {
   let storePath: string
 
   beforeAll(async () => {
@@ -22,23 +20,15 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
 
     process.env.STORE_PATH = storePath
     await import("./server.ts")
-
-    outbound = createProtocolChannel()
-    outbound.onmessage = (event) => {
-      for (const patch of event.data.patches) {
-        console.log(`[dark/server.spec] patch ${JSON.stringify(patch)}`)
-      }
-    }
   })
 
   afterAll(() => {
-    outbound.close()
     // НЕ удаляем storePath — файл остаётся в dark/tmp/boundary.sqlite для ручного осмотра
   })
 
   test("после add zavx0z/git store содержит каноническое дерево git", async () => {
-    outbound.postMessage({
-      patches: [{part: "graviton", op: "add", path: "zavx0z/git"}],
+    globalThis.store.postMessage({
+      parts: [{part: "graviton", op: "add", path: "zavx0z/git"}],
     })
 
     // ждём пока Dark материализует root wimp + child wimps в БД
@@ -98,8 +88,8 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
     const sql = new SQL(`sqlite://${storePath}`)
     const before = await waitForActorCountStable(sql)
 
-    outbound.postMessage({
-      patches: [{part: "graviton", op: "add", path: "zavx0z/git"}],
+    globalThis.store.postMessage({
+      parts: [{part: "graviton", op: "add", path: "zavx0z/git"}],
     })
 
     // даём server'у тик — если бы он начал загрузку, он бы уехал в matter()

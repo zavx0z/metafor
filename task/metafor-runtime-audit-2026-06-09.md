@@ -197,14 +197,14 @@ store.actor + store.wimp + store.topology -> process target
 ### 6. Документы и task-файлы частично исторические
 
 Некоторые документы все еще описывают `store/db` как активный слой или говорят,
-что протоколы еще не введены.
+что Force-каналы еще не были введены.
 
 Факт на 2026-06-09:
 
 - `store/db` в коде отсутствует;
 - новый store частично работает;
 - `Dark` уже пишет в новый store;
-- protocol types и channels существуют;
+- Force types и channel существуют;
 - app/runtime еще не переведен.
 
 Старые документы полезны как история, но не должны быть текущим планом без
@@ -273,7 +273,7 @@ Dark materializes store -> Boundary observes store -> Bulk executes process -> B
    новый store.
 6. Поднять один вертикальный сценарий process execution на `zavx0z/git`:
    state enters process -> Boundary emits photon -> Bulk executes action ->
-   Bulk emits W result -> Boundary applies patches/unlocks -> value/state visible
+   Bulk emits W result -> Boundary applies parts/unlocks -> value/state visible
    in store and UI.
 
 ## Чего Не Делать

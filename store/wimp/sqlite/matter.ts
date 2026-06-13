@@ -13,7 +13,7 @@ import type {
   WimpParticleRow,
 } from "./matter.t.ts"
 import type {Wimp} from "./wimp.ts"
-import {emitGravitonAdd} from "../../protocol.ts"
+import {emitGravitonAdd} from "../../force.ts"
 
 const hasMatter = async (sql: SQL, src: string): Promise<boolean> => {
   const rows = await sql`SELECT 1 AS one FROM matter_particle WHERE wimp = ${src} LIMIT 1`

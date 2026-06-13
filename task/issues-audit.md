@@ -16,14 +16,14 @@
 
 **Что сделано на текущем этапе.**
 
-- Per-row sync events теперь идут через единый `METAFOR_BROADCAST_CHANNEL` как protocol patches с `part: "graviton"` и техническим path `/db-sync`.
+- Per-row sync events теперь идут через единый `METAFOR_FORCE_CHANNEL` как Force parts с `part: "graviton"` и техническим path `/db-sync`.
 - `dark.worker` пишет per-row через `mirroredStore` (`pkg/db/instance-store-mirror.ts`); каждый `insertParticleShell` / `insertFieldOrbit` публикует event.
 - Browser держит свой `createIdbDbInstanceStore({databaseName:"metafor-app-instance"})` и applies events через тот же `DbInstanceStore` API.
 - Lerp/easeOutCubic уже есть в `bulk/web/index.ts updateAnimatedRecords` и применяется при transition scale/opacity.
 
 **Гэп.**
 
-- Client больше не копит sync events в локальную Promise-очередь; обработка идёт напрямую из protocol patches.
+- Client больше не копит sync events в локальную Promise-очередь; обработка идёт напрямую из Force parts.
 - На барьер делает batch refresh: `refreshViewportFromLocalStore(rootSrc)` → `selectAllParticleShells + selectAllFieldOrbits + bulkViewport.applyWorld({rootSrc, particles, fields})`. Внутри `applyWorldRowsToScene` пересобирает множество (`upsertShellRecord` для каждой row), а потом удаляет «нелишние» через diff `nextShellIds`.
 - То есть инфраструктурно per-row есть, но контракт viewport-а — `applyWorld(world: DbWorldRows)` — целое множество за раз.
 
@@ -35,8 +35,8 @@
   - `removeParticleShell(particleId: string): void`
   - `removeFieldOrbit(fieldId: string): void`
 - Внутри они делают то же что `applySnapshotToScene` для одного row (есть уже `upsertShellRecord` / `upsertFieldRecord` / `removeShellRecord` / `removeFieldRecord` — нужно вынести в публичный API).
-- В `app/web/client.ts` на каждый patch `/db-sync` сразу применяется IDB mirror. Следующий шаг — звать нужный метод viewport-а без чтения IDB.
-- `/structural` patch должен стать сигналом «render frame settled» (для метрик / снятия submit-disabled), а не trigger-ом для full re-apply.
+- В `app/web/client.ts` на каждый part `/db-sync` сразу применяется IDB mirror. Следующий шаг — звать нужный метод viewport-а без чтения IDB.
+- `/structural` part должен стать сигналом «render frame settled» (для метрик / снятия submit-disabled), а не trigger-ом для full re-apply.
 - `applyWorld(world)` остаётся как convenience для тестов/первичной заливки, но в runtime не зовётся.
 
 **Связанные коммиты.** `1ff16f62`, `415de9bf`, `10e0129c`, `cc552e10`, `0fd219a9`.
@@ -71,17 +71,17 @@
 
 ---
 
-## #65 — Упрощение протокольного взаимодействия до минимальной событийной модели
+## #65 — Упрощение Force-взаимодействия до минимальной событийной модели
 
-**Цель issue.** Зонтичная — последовательное упрощение протокола до минимальной событийной модели без ложной адресности и без дублирования транспортной информации.
+**Цель issue.** Зонтичная — последовательное упрощение Force до минимальной событийной модели без ложной адресности и без дублирования транспортной информации.
 
 **Что сделано.**
 
-- `METAFOR_PROTOCOL_KIND`, `protocol`, `target` больше не входят в protocol payload.
-- Текущий envelope не содержит `channel`, `source`, `boson` и не содержит общий `part`: частица находится внутри каждого patch.
+- `METAFOR_PROTOCOL_KIND`, `protocol`, `target` больше не входят в Force payload.
+- Текущий envelope не содержит `channel`, `source`, `boson` и не содержит общий `part`: частица находится внутри каждого part.
 - Валидаторы и тесты выровнены.
 
-**Гэп.** Нет по минимизации payload. Если origin снова понадобится, он должен появиться как metadata transport layer, а не как поле protocol message.
+**Гэп.** Нет по минимизации payload. Если origin снова понадобится, он должен появиться как metadata transport layer, а не как поле Force message.
 
 **Что нужно для закрытия.** Закрыть issue после smoke-проверки runtime path.
 
@@ -93,26 +93,26 @@
 
 **Что сделано.**
 
-- `store/protocol.ts` определяет один `METAFOR_BROADCAST_CHANNEL` и `Part`.
-- W/Z идут через patches с отдельными `part`: `w`, `+z`, `-z`.
-- Z coordination patch `{ part:"+z"|"-z", op:"test", value:{ coordination:"claim"|"accept"|"reject"|"release" }, wimpId, processId, executorId? }` — neutral mediation.
-- W result patches `{ part:"w", op:"replace"|"test", value?:{ kind:"result" }, wimpId, processId, ... }` — active transition с патчами.
+- `store/force.ts` определяет один `METAFOR_FORCE_CHANNEL` и `Part`.
+- W/Z идут через parts с отдельными `part`: `w`, `+z`, `-z`.
+- Z coordination part `{ part:"+z"|"-z", op:"test", value:{ coordination:"claim"|"accept"|"reject"|"release" }, wimpId, processId, executorId? }` — neutral mediation.
+- W result parts `{ part:"w", op:"replace"|"test", value?:{ kind:"result" }, wimpId, processId, ... }` — active transition с result parts.
 - `boundary/boundary.ts unlock(indexes: number[])` снимает блок с бран по индексам.
 - `boundary/boundary.ts` имеет `applyWeakResultPacket()` и `subscribeBoundaryWeakResultBroadcast()` — приём W-result envelope и unlock после apply (по docstring модуля).
-- `bulk/em/index.ts` публикует `+z` для `claim/accept`, `-z` для `reject/release`, `w` для result patches.
-- `app/web/runtime/bulk.process.ts` уже отправляет `+z/-z` coordination patches и `w` result patches вокруг исполнения process.
+- `bulk/em/index.ts` публикует `+z` для `claim/accept`, `-z` для `reject/release`, `w` для result parts.
+- `app/web/runtime/bulk.process.ts` уже отправляет `+z/-z` coordination parts и `w` result parts вокруг исполнения process.
 - `boundary/weak/cpu/step.ts` ставит `brane.lock = true` при step.
 
 **Гэп.**
 
-- Единый protocol channel мирится server-ом в UI, а `subscribeBoundaryWeakResultBroadcast()` группирует W result patches.
+- Единый Force channel мирится server-ом в UI, а `subscribeBoundaryWeakResultBroadcast()` группирует W result parts.
 - Boundary-side Z arbitration (`claim` → `accept`/`reject` → `release`) ещё не подключён к lock-state: `+z/-z` публикуются, но Boundary пока не принимает решение по claim/release.
 - Нет smoke-сценария полного Weak path.
 
 **Что нужно для закрытия.**
 
-- В `boundary/boundary.ts` или отдельном `boundary/weak/protocol-bridge.ts`:
-  - Subscriber на Z coordination patches: на `claim` от bulk-executor — проверка lock и accept/reject. На `release` — `unlock([braneIndex])`.
+- В `boundary/boundary.ts` или отдельном `boundary/weak/force-bridge.ts`:
+  - Subscriber на Z coordination parts: на `claim` от bulk-executor — проверка lock и accept/reject. На `release` — `unlock([braneIndex])`.
   - Smoke-тест, который проходит `Photon -> +z claim/accept -> w result -> -z release`.
 
 ---
@@ -141,7 +141,7 @@
 
 ---
 
-## #57 — TODO: остаётся ли DB reset-from-zero основным режимом или нужен compare/update protocol
+## #57 — TODO: остаётся ли DB reset-from-zero основным режимом или нужен compare/update Force path
 
 **Текущий код.** `app/web/server.ts createRuntime → terminateRuntime → resetAppRuntimeFiles → rmSync(.sqlite, .sqlite-shm, .sqlite-wal)`. Полный wipe файла на каждый materialize.
 
@@ -167,7 +167,7 @@
 **Когда станет недостаточно.**
 
 - Динамический rename одной meta-field без переписи всей wimp.
-- Frame-by-frame patch state без переписи всех processes/reactions.
+- Frame-by-frame part state без переписи всех processes/reactions.
 
 **Связь с #58 (identity).** Per-entity write requires per-entity stable id. Сейчас `meta.id = src` — нормально, но при rename это ломается.
 
@@ -222,7 +222,7 @@
 | 31 | Общий Dark pipeline | ✅ закрыт по существу | Закрыть на GitHub | — |
 | 53 | web-gpu-engine как Bulk-инспектор | ✅ активно используется | (видение, оставить open) | — |
 | 64 | Weak W/+Z/-Z поверх Boundary lock | ⚠️ bridge частично есть | Boundary-side Z arbitration + smoke | — |
-| 65 | Минимизация протокола | ✅ закрыт по существу | Закрыть на GitHub после smoke-проверки | — |
+| 65 | Минимизация Force | ✅ закрыт по существу | Закрыть на GitHub после smoke-проверки | — |
 | 66 | DSL ↔ DB round-trip | ❌ половина (forward есть, reverse нет) | `pkg/dsl-emit` + round-trip тесты | #58 |
 | 68 | Self-authoring мультивселенная | 📌 видение | — | — |
 | 73 | Каноническая dark-проекция из SQLite | ⚠️ ~50% | `loadMeta` через реляционные `meta_*` таблицы, не `readMetaDsl` | — |
@@ -243,7 +243,7 @@
 - **#73 dark на SQLite-проекцию** — убирает дуальность DSL/SQLite в Dark; вытесняет даже `MetaDSL` из публичных типов.
 
 **Средний приоритет (косметика и расширения).**
-- **#65 минимизация протокола** — низкий риск, но широкий refactor.
+- **#65 минимизация Force** — низкий риск, но широкий refactor.
 - **#64 W/+Z/-Z поверх lock** — закрывает белое пятно weak-flow.
 
 **Низкий приоритет (требуют архитектурного анализа).**

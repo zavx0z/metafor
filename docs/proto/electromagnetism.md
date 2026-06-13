@@ -1,9 +1,9 @@
-[README](../../README.md) | [Protocol](../PROTOCOL.md) | **English** | [Русский](./electromagnetism.ru.md)
+[README](../../README.md) | [Force](../FORCE.md) | **English** | [Русский](./electromagnetism.ru.md)
 
 # Electromagnetism
 
-`electromagnetism.md` expands the protocol reading of `Electromagnetism`.
-The general distinction between force, `Boson`, channel subtype, and `Impulse` is defined in the [root protocol](../PROTOCOL.md).
+`electromagnetism.md` expands the force reading of `Electromagnetism`.
+The general distinction between force, `Boson`, channel subtype, and `Impulse` is defined in the [root Force](../FORCE.md).
 
 ## Force and channel
 
@@ -35,7 +35,7 @@ That is why `Photon` belongs to inter-component relation, state delivery, and ma
 - propagation of observable signal,
 - relation of active system parts through manifested transport.
 
-## Protocol distinctions
+## Force distinctions
 
 - `Electromagnetism` is not the common channel of all forces.
 - `Photon` transports `State`, but does not replace ordinary `Field` change through `Gluon`.

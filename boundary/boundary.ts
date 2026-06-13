@@ -8,7 +8,7 @@
  * - `write()` — запись канонической boundary-структуры в доменный store
  * - `gravity$` — долгоживущая UUID-композиция и адресация runtime
  * - `addRuntimeWimp()` / `removeRuntimeWimp()` — мутация composition-слоя без немедленного rebuild
- * - `applyStructuralPatchFromDb()` — обработка UUID-addressed structural patch и barrier
+ * - `applyStructuralPartFromDb()` — обработка UUID-addressed structural part и barrier
  * - `rebuildRuntime()` — транзакционная пересборка derived runtime из текущей composition в `gravity$`
  * - `update()` — обновление полей, вычисление следующего перехода и write-back в bound DB backend
  * - `applyWeakResultPacket()` / `subscribeBoundaryWeakResultBroadcast()` — приём единого W-result envelope и unlock после apply
@@ -51,13 +51,12 @@ import { createStoredStringInterner, normalizeFieldValue, assembleStoredBoundary
 import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@boundary/weak"
 import type { WeakHeapUpdate } from "./weak/weak.t"
 import { createEmptyDbData, type DbBackend, type DbData } from "store/db/core"
-import { createProtocolChannel, type ProtocolChannel, type ProtocolMessage, type ProtocolPatch } from "store/protocol"
-import { gravityCH } from "@boundary/gravity/channel.ts"
+import {force, type ForceMessage, type ForceSurface, type Particle} from "store"
 
-export type BoundaryStructuralPatch = { op: "add" | "remove" | "test"; path: string; value?: unknown }
-type BoundaryValuePatch = { op: "replace"; path: string; value: unknown }
+export type BoundaryStructuralPart = { op: "add" | "remove" | "test"; path: string; value?: unknown }
+type BoundaryValuePart = { op: "replace"; path: string; value: unknown }
 type BoundaryChannelOptions = { channelName?: string }
-type BoundaryWeakResultPayload = { wimpId: string; processId: string; patches: BoundaryValuePatch[] }
+type BoundaryWeakResultPayload = { wimpId: string; processId: string; parts: BoundaryValuePart[] }
 
 export interface BoundaryBroadcastSubscription {
   close(): Promise<void>
@@ -76,10 +75,8 @@ const updateGate: AsyncGate = { pending: null }
 /** Последний успешно materialized runtime-fragment, соответствующий текущему `boundary$`. */
 let loadedRuntimeFragment: DbData = createEmptyDbData()
 let activeDbBackend: DbBackend | null = null
-let protocolChannel: ProtocolChannel | null = null
-let protocolChannelName: string | undefined
-const WIMP_PATCH_PATH_PREFIX = "/wimp/"
-const FIELD_PATCH_PATH_PREFIX = "/field/"
+const WIMP_PART_PATH_PREFIX = "/wimp/"
+const FIELD_PART_PATH_PREFIX = "/field/"
 
 const runExclusive = async <T>(gate: AsyncGate, task: () => Promise<T>): Promise<T> => {
   const prev = gate.pending
@@ -100,8 +97,8 @@ const runExclusive = async <T>(gate: AsyncGate, task: () => Promise<T>): Promise
 }
 
 const createSubscription = (
-  channel: ProtocolChannel,
-  onMessage: (message: ProtocolMessage) => Promise<void> | void,
+  channel: ForceSurface,
+  onMessage: (message: ForceMessage) => Promise<void> | void,
 ): BoundaryBroadcastSubscription => {
   channel.onmessage = (event) => {
     void (async () => {
@@ -111,7 +108,7 @@ const createSubscription = (
 
   return {
     close() {
-      channel.close()
+      channel.onmessage = null
     },
   }
 }
@@ -194,34 +191,28 @@ const requireRuntimeFieldAddress = (wimpFieldId: string): [braneIndex: number, r
   return [braneIndex, runtimeFieldIndex]
 }
 
-const collectPatchedValues = (patches: BoundaryValuePatch[], kind: "gluon" | "higgs"): Record<string, unknown> => {
+const collectPartValues = (parts: BoundaryValuePart[], kind: "gluon" | "higgs"): Record<string, unknown> => {
   const values: Record<string, unknown> = {}
 
-  for (const patch of patches) {
-    const wimpFieldId = requireFieldPatchId(patch.path)
+  for (const part of parts) {
+    const wimpFieldId = requireFieldPartId(part.path)
     const isTopology = strong$.topologyWimpFieldIds.has(wimpFieldId)
 
     if (kind === "gluon" && isTopology) {
-      throw new Error(`Gluon patch cannot target topology field ${wimpFieldId}`)
+      throw new Error(`Gluon part cannot target topology field ${wimpFieldId}`)
     }
     if (kind === "higgs" && !isTopology) {
-      throw new Error(`Higgs patch must target topology field ${wimpFieldId}`)
+      throw new Error(`Higgs part must target topology field ${wimpFieldId}`)
     }
 
-    values[wimpFieldId] = patch.value
+    values[wimpFieldId] = part.value
   }
 
   return values
 }
 
-const getProtocolChannel = (): ProtocolChannel => {
-  protocolChannel ??= createProtocolChannel(protocolChannelName)
-  return protocolChannel
-}
-
 const publishPhotonChanges = (changes: [number, number][]): void => {
   if (changes.length === 0) return
-  const channel = getProtocolChannel()
 
   for (const [braneIndex, stateIndex] of changes) {
     const uuid = gravity$.getWimpId(braneIndex)
@@ -230,7 +221,7 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
     const stateName = boundary$.getStateName(braneIndex, stateIndex)
     if (!stateName) continue
 
-    channel.postMessage({ patches: [{ part: "photon", op: "replace", path: uuid, value: stateName }] })
+    force.postMessage({ parts: [{ part: "photon", op: "replace", path: uuid, value: stateName }] })
   }
 }
 
@@ -300,14 +291,14 @@ const removeRuntimeWimpFromGravity = (wimpId: string): void => {
   gravity$.structuralDirty = true
 }
 
-const requireWimpPatchId = (path: string): string => {
-  if (!path.startsWith(WIMP_PATCH_PATH_PREFIX)) {
-    throw new Error(`Unsupported Boundary structural patch path: ${path}`)
+const requireWimpPartId = (path: string): string => {
+  if (!path.startsWith(WIMP_PART_PATH_PREFIX)) {
+    throw new Error(`Unsupported Boundary structural part path: ${path}`)
   }
 
-  const wimpId = path.slice(WIMP_PATCH_PATH_PREFIX.length)
+  const wimpId = path.slice(WIMP_PART_PATH_PREFIX.length)
   if (!wimpId) {
-    throw new Error(`Boundary structural patch path is missing wimp uuid: ${path}`)
+    throw new Error(`Boundary structural part path is missing wimp uuid: ${path}`)
   }
 
   return wimpId
@@ -319,14 +310,14 @@ const isEmptyBarrierValue = (value: unknown): boolean => {
   return Object.keys(value).length === 0
 }
 
-const requireFieldPatchId = (path: string): string => {
-  if (!path.startsWith(FIELD_PATCH_PATH_PREFIX)) {
-    throw new Error(`Unsupported Boundary field patch path: ${path}`)
+const requireFieldPartId = (path: string): string => {
+  if (!path.startsWith(FIELD_PART_PATH_PREFIX)) {
+    throw new Error(`Unsupported Boundary field part path: ${path}`)
   }
 
-  const wimpFieldId = path.slice(FIELD_PATCH_PATH_PREFIX.length)
+  const wimpFieldId = path.slice(FIELD_PART_PATH_PREFIX.length)
   if (!wimpFieldId) {
-    throw new Error(`Boundary field patch path is missing field uuid: ${path}`)
+    throw new Error(`Boundary field part path is missing field uuid: ${path}`)
   }
 
   return wimpFieldId
@@ -522,10 +513,10 @@ export function subscribeBoundaryGravityBroadcast(
     runtimeOptions.entanglement = options.entanglement
   }
 
-  return createSubscription(gravityCH, async (message) => {
-    for (const patch of message.patches) {
-      if (patch.part !== "graviton") continue
-      await applyStructuralPatchFromDb(backend, patch as BoundaryStructuralPatch, runtimeOptions)
+  return createSubscription(force, async (message) => {
+    for (const part of message.parts) {
+      if (part.part !== "graviton") continue
+      await applyStructuralPartFromDb(backend, part as BoundaryStructuralPart, runtimeOptions)
     }
   })
 }
@@ -538,26 +529,26 @@ export function removeRuntimeWimp(wimpId: string): void {
   removeRuntimeWimpFromGravity(wimpId)
 }
 
-export async function applyStructuralPatchFromDb(
+export async function applyStructuralPartFromDb(
   backend: DbBackend,
-  patch: BoundaryStructuralPatch,
+  part: BoundaryStructuralPart,
   options: BoundaryDbRuntimeOptions = {},
 ): Promise<[number, number][]> {
-  if (patch.op === "add") {
-    addRuntimeWimpToGravity(requireWimpPatchId(patch.path))
+  if (part.op === "add") {
+    addRuntimeWimpToGravity(requireWimpPartId(part.path))
     return []
   }
 
-  if (patch.op === "remove") {
-    removeRuntimeWimpFromGravity(requireWimpPatchId(patch.path))
+  if (part.op === "remove") {
+    removeRuntimeWimpFromGravity(requireWimpPartId(part.path))
     return []
   }
 
-  if (patch.op === "test" && patch.path === "" && isEmptyBarrierValue(patch.value)) {
+  if (part.op === "test" && part.path === "" && isEmptyBarrierValue(part.value)) {
     return await rebuildRuntime(backend, options)
   }
 
-  throw new Error(`Unsupported Boundary structural patch: ${patch.op} ${patch.path}`)
+  throw new Error(`Unsupported Boundary structural part: ${part.op} ${part.path}`)
 }
 
 function requireInitializedStore(store$: BoundaryStore): void {
@@ -664,11 +655,11 @@ export async function setValues(values: Record<string, unknown>): Promise<[numbe
   return await update(Array.from(groupedUpdates, ([braneIndex, fieldUpdates]) => [braneIndex, fieldUpdates]))
 }
 
-const applyValuePatches = async (
-  patches: BoundaryValuePatch[],
+const applyValueParts = async (
+  parts: BoundaryValuePart[],
   kind: "gluon" | "higgs",
 ): Promise<[number, number][]> => {
-  return await setValues(collectPatchedValues(patches, kind))
+  return await setValues(collectPartValues(parts, kind))
 }
 
 export async function applyWeakResultPacket(message: BoundaryWeakResultPayload): Promise<[number, number][]> {
@@ -699,8 +690,8 @@ export async function applyWeakResultPacket(message: BoundaryWeakResultPayload):
 
   const fieldUpdates: Array<[fieldIndex: number, value: unknown]> = []
 
-  for (const patch of message.patches) {
-    const wimpFieldId = requireFieldPatchId(patch.path)
+  for (const part of message.parts) {
+    const wimpFieldId = requireFieldPartId(part.path)
     const [ownerBraneIndex, runtimeFieldIndex] = requireRuntimeFieldAddress(wimpFieldId)
     if (ownerBraneIndex === undefined) {
       throw new Error(`Boundary weak result field is not materialized: ${wimpFieldId}`)
@@ -710,7 +701,7 @@ export async function applyWeakResultPacket(message: BoundaryWeakResultPayload):
         `Boundary weak result field ${wimpFieldId} belongs to brane ${ownerBraneIndex}, expected ${braneIndex}`,
       )
     }
-    fieldUpdates.push([runtimeFieldIndex, patch.value])
+    fieldUpdates.push([runtimeFieldIndex, part.value])
   }
 
   return await update([[braneIndex, fieldUpdates, false]], {
@@ -718,37 +709,37 @@ export async function applyWeakResultPacket(message: BoundaryWeakResultPayload):
   })
 }
 
-const toBoundaryValuePatch = (patch: ProtocolPatch): BoundaryValuePatch | null => {
-  if (patch.op !== "replace") return null
-  return { op: "replace", path: patch.path, value: patch.value }
+const toBoundaryValuePart = (part: Particle): BoundaryValuePart | null => {
+  if (part.op !== "replace") return null
+  return { op: "replace", path: part.path, value: part.value }
 }
 
-const collectWeakResultPackets = (patches: ProtocolPatch[]): BoundaryWeakResultPayload[] => {
+const collectWeakResultPackets = (parts: Particle[]): BoundaryWeakResultPayload[] => {
   const packets = new Map<string, BoundaryWeakResultPayload>()
 
-  for (const patch of patches) {
-    if (patch.part !== "w") continue
-    if (patch.op !== "replace" && !isWeakResultMarker(patch)) continue
-    const wimpId = typeof patch.wimpId === "string" ? patch.wimpId : null
-    const processId = typeof patch.processId === "string" ? patch.processId : null
+  for (const part of parts) {
+    if (part.part !== "w") continue
+    if (part.op !== "replace" && !isWeakResultMarker(part)) continue
+    const wimpId = typeof part.wimpId === "string" ? part.wimpId : null
+    const processId = typeof part.processId === "string" ? part.processId : null
     if (!wimpId || !processId) continue
 
     const key = `${wimpId}\0${processId}`
     let packet = packets.get(key)
     if (!packet) {
-      packet = { wimpId, processId, patches: [] }
+      packet = { wimpId, processId, parts: [] }
       packets.set(key, packet)
     }
-    if (patch.op === "replace") {
-      packet.patches.push({ op: "replace", path: patch.path, value: patch.value })
+    if (part.op === "replace") {
+      packet.parts.push({ op: "replace", path: part.path, value: part.value })
     }
   }
 
   return [...packets.values()]
 }
 
-const isWeakResultMarker = (patch: ProtocolPatch): boolean =>
-  patch.op === "test" && (patch.kind === "result" || (isRecord(patch.value) && patch.value.kind === "result"))
+const isWeakResultMarker = (part: Particle): boolean =>
+  part.op === "test" && (part.kind === "result" || (isRecord(part.value) && part.value.kind === "result"))
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -757,13 +748,13 @@ const subscribeBoundaryValueBroadcast = (
   kind: "gluon" | "higgs",
   options: BoundaryChannelOptions = {},
 ): BoundaryValueBroadcastSubscription => {
-  const channel = createProtocolChannel(options.channelName)
-  return createSubscription(channel, async (message) => {
-    const patches = message.patches
-      .filter((patch) => patch.part === kind)
-      .map(toBoundaryValuePatch)
-      .filter((patch): patch is BoundaryValuePatch => patch !== null)
-    await applyValuePatches(patches, kind)
+  void options
+  return createSubscription(force, async (message) => {
+    const parts = message.parts
+      .filter((part) => part.part === kind)
+      .map(toBoundaryValuePart)
+      .filter((part): part is BoundaryValuePart => part !== null)
+    await applyValueParts(parts, kind)
   })
 }
 
@@ -782,8 +773,9 @@ export function subscribeBoundaryHiggsBroadcast(
 export function subscribeBoundaryWeakResultBroadcast(
   options: BoundaryChannelOptions = {},
 ): BoundaryWeakBroadcastSubscription {
-  return createSubscription(createProtocolChannel(options.channelName), async (message) => {
-    for (const packet of collectWeakResultPackets(message.patches)) {
+  void options
+  return createSubscription(force, async (message) => {
+    for (const packet of collectWeakResultPackets(message.parts)) {
       await applyWeakResultPacket(packet)
     }
   })
@@ -803,18 +795,6 @@ export function unlock(indexes: number[]): void {
   }
 
   weakHeapUpdate(weakUpdates)
-}
-
-export function closeBoundaryProtocolChannels(): void {
-  protocolChannel?.close()
-  protocolChannel = null
-  protocolChannelName = undefined
-}
-
-export function configureBoundaryProtocolBroadcast(options: BoundaryChannelOptions = {}): void {
-  protocolChannel?.close()
-  protocolChannel = null
-  protocolChannelName = options.channelName
 }
 
 export type { PreparedData } from "./boundary.t"

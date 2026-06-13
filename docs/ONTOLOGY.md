@@ -199,7 +199,7 @@ Each belongs to its own force or topology channel and must not be merged with th
 ### Graviton
 
 `Graviton` is the `Boson` subtype and channel of `Gravity`.
-It is not the force itself; it names the unit of the internal protocol of relation, localization, and organization.
+It is not the force itself; it names the internal force unit of relation, localization, and organization.
 
 - In `Dark`, it carries hidden structural determination of relation and localization.
 - In `Boundary`, it is not directly observable and appears through consequences.
@@ -264,7 +264,7 @@ It defines what exactly gets transported, fixed, or applied.
 - In `Boundary`, it expresses canonically fixed content of change on the boundary.
 - In `Bulk`, it expresses the content of the applied change that accompanies execution.
 
-See [Protocol](./PROTOCOL.md), [Strong](./proto/strong.md), and [Higgs](./proto/higgs.md) for the protocol reading of these channels.
+See [Force](./FORCE.md), [Strong](./proto/strong.md), and [Higgs](./proto/higgs.md) for the Force reading of these channels.
 
 ### Identity
 
@@ -448,7 +448,7 @@ Ontologically, the reading is:
 - `Gravity` gives the relational and localization frame in which change receives place in `Dark`, `Boundary`, and `Bulk`,
 - `Dark` observes the global effects of `Electromagnetism`, Higgs change, and `Gravity` without becoming their execution center.
 
-See [Protocol](./PROTOCOL.md) and the detailed documents in [`docs/proto/`](./proto/).
+See [Force](./FORCE.md) and the detailed documents in [`docs/proto/`](./proto/).
 
 ## Final rule of interpretation
 

@@ -1,4 +1,4 @@
-import { createProtocolChannel, type ProtocolChannel, type ProtocolMessage, type ProtocolPatch } from "store/protocol"
+import {force, type ForceMessage, type Particle} from "store"
 
 export type PhotonPayload = { value: string; path: string }
 export type WeakCoordinationKind = "claim" | "accept" | "reject" | "release"
@@ -10,39 +10,38 @@ export interface BulkSubscription {
 export type BulkPhotonSubscription = BulkSubscription
 export type BulkWeakCoordinationSubscription = BulkSubscription
 
-export interface BulkWeakProtocolOptions {
+export interface BulkWeakForceOptions {
   channelName?: string
 }
 
-export interface BulkWeakProtocol {
+export interface BulkWeakForce {
   emitZ(coordination: WeakCoordinationKind, wimpId: string, processId: string, executorId?: string): void
   emitZClaim(wimpId: string, processId: string, executorId?: string): void
   emitZAccept(wimpId: string, processId: string, executorId?: string): void
   emitZReject(wimpId: string, processId: string, executorId?: string): void
   emitZRelease(wimpId: string, processId: string, executorId?: string): void
-  emitWSuccessPatches(wimpId: string, processId: string, patches?: Array<{ op: "replace"; path: string; value: unknown }>): void
-  emitWErrorPatches(wimpId: string, processId: string, patches?: Array<{ op: "replace"; path: string; value: unknown }>): void
+  emitWSuccessParts(wimpId: string, processId: string, parts?: Array<{ op: "replace"; path: string; value: unknown }>): void
+  emitWErrorParts(wimpId: string, processId: string, parts?: Array<{ op: "replace"; path: string; value: unknown }>): void
   emitWSuccessValues(wimpId: string, processId: string, values?: Record<string, unknown>): void
   emitWErrorValues(wimpId: string, processId: string, values?: Record<string, unknown>): void
   close(): void
 }
 
 const createSubscription = (
-  channel: ProtocolChannel,
-  onMessage: (message: ProtocolMessage) => void,
+  onMessage: (message: ForceMessage) => void,
 ): BulkSubscription => {
-  channel.onmessage = (event) => {
+  force.onmessage = (event) => {
     onMessage(event.data)
   }
 
   return {
     close() {
-      channel.close()
+      force.onmessage = null
     },
   }
 }
 
-const createWeakResultFieldPatches = (values: Record<string, unknown>): Array<{ op: "replace"; path: string; value: unknown }> =>
+const createWeakResultFieldParts = (values: Record<string, unknown>): Array<{ op: "replace"; path: string; value: unknown }> =>
   Object.entries(values).map(([wimpFieldId, value]) => ({
     op: "replace",
     path: `/field/${wimpFieldId}`,
@@ -53,10 +52,11 @@ export const subscribeBulkPhotons = (
   listener?: (message: PhotonPayload) => void,
   options: { channelName?: string } = {},
 ): BulkPhotonSubscription => {
-  return createSubscription(createProtocolChannel(options.channelName), (message) => {
-    for (const patch of message.patches) {
-      if (patch.part !== "photon") continue
-      listener?.({ path: patch.path, value: String(patch.value ?? "") })
+  void options
+  return createSubscription((message) => {
+    for (const part of message.parts) {
+      if (part.part !== "photon") continue
+      listener?.({ path: part.path, value: String(part.value ?? "") })
     }
   })
 }
@@ -65,33 +65,34 @@ export const subscribeBulkWeakCoordination = (
   listener?: (message: { wimpId: string; processId: string; coordination: WeakCoordinationKind; executorId?: string }) => void,
   options: { channelName?: string } = {},
 ): BulkWeakCoordinationSubscription => {
-  return createSubscription(createProtocolChannel(options.channelName), (message) => {
-    for (const patch of message.patches) {
-      if (patch.part !== "+z" && patch.part !== "-z") continue
-      const coordination = weakCoordinationFromPatch(patch)
+  void options
+  return createSubscription((message) => {
+    for (const part of message.parts) {
+      if (part.part !== "+z" && part.part !== "-z") continue
+      const coordination = weakCoordinationFromPart(part)
       if (!coordination) continue
-      const weak = weakPatchMeta(patch)
+      const weak = weakPartMeta(part)
       if (!weak) continue
       listener?.({ ...weak, coordination })
     }
   })
 }
 
-export const createBulkWeakProtocol = (options: BulkWeakProtocolOptions = {}): BulkWeakProtocol => {
-  const channel = createProtocolChannel(options.channelName)
+export const createBulkWeakForce = (options: BulkWeakForceOptions = {}): BulkWeakForce => {
+  void options
   const emitZ = (
     coordination: WeakCoordinationKind,
     wimpId: string,
     processId: string,
     executorId?: string,
   ): void => {
-    channel.postMessage({ patches: [createBulkZPatch(coordination, wimpId, processId, executorId)] })
+    force.postMessage({ parts: [createBulkZPart(coordination, wimpId, processId, executorId)] })
   }
-  const emitW = (wimpId: string, processId: string, patches: Array<{ op: "replace"; path: string; value: unknown }>): void => {
-    channel.postMessage({ patches: createBulkWPatches(wimpId, processId, patches) })
+  const emitW = (wimpId: string, processId: string, parts: Array<{ op: "replace"; path: string; value: unknown }>): void => {
+    force.postMessage({ parts: createBulkWParts(wimpId, processId, parts) })
   }
   const emitWValues = (wimpId: string, processId: string, values: Record<string, unknown>): void => {
-    emitW(wimpId, processId, createWeakResultFieldPatches(values))
+    emitW(wimpId, processId, createWeakResultFieldParts(values))
   }
 
   return {
@@ -113,12 +114,12 @@ export const createBulkWeakProtocol = (options: BulkWeakProtocolOptions = {}): B
       emitZ("release", wimpId, processId, executorId)
     },
 
-    emitWSuccessPatches(wimpId, processId, patches = []) {
-      emitW(wimpId, processId, patches)
+    emitWSuccessParts(wimpId, processId, parts = []) {
+      emitW(wimpId, processId, parts)
     },
 
-    emitWErrorPatches(wimpId, processId, patches = []) {
-      emitW(wimpId, processId, patches)
+    emitWErrorParts(wimpId, processId, parts = []) {
+      emitW(wimpId, processId, parts)
     },
 
     emitWSuccessValues(wimpId, processId, values = {}) {
@@ -130,7 +131,7 @@ export const createBulkWeakProtocol = (options: BulkWeakProtocolOptions = {}): B
     },
 
     close() {
-      channel.close()
+      // Store owns force transport lifecycle.
     },
   }
 }
@@ -141,28 +142,28 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const isWeakCoordinationKind = (value: unknown): value is WeakCoordinationKind =>
   value === "claim" || value === "accept" || value === "reject" || value === "release"
 
-const weakCoordinationFromPatch = (patch: ProtocolPatch): WeakCoordinationKind | null => {
-  if (isWeakCoordinationKind(patch.coordination)) return patch.coordination
-  if (isRecord(patch.value) && isWeakCoordinationKind(patch.value.coordination)) return patch.value.coordination
+const weakCoordinationFromPart = (part: Particle): WeakCoordinationKind | null => {
+  if (isWeakCoordinationKind(part.coordination)) return part.coordination
+  if (isRecord(part.value) && isWeakCoordinationKind(part.value.coordination)) return part.value.coordination
   return null
 }
 
-const weakPatchMeta = (patch: ProtocolPatch): { wimpId: string; processId: string; executorId?: string } | null => {
-  const wimpId = typeof patch.wimpId === "string" ? patch.wimpId : null
-  const processId = typeof patch.processId === "string" ? patch.processId : null
-  const executorId = typeof patch.executorId === "string" ? patch.executorId : undefined
+const weakPartMeta = (part: Particle): { wimpId: string; processId: string; executorId?: string } | null => {
+  const wimpId = typeof part.wimpId === "string" ? part.wimpId : null
+  const processId = typeof part.processId === "string" ? part.processId : null
+  const executorId = typeof part.executorId === "string" ? part.executorId : undefined
   if (!wimpId || !processId) return null
   return { wimpId, processId, ...(executorId !== undefined ? { executorId } : {}) }
 }
 
 const createWeakPath = (wimpId: string, processId: string): string => `/wimp/${wimpId}/process/${processId}`
 
-const createBulkZPatch = (
+const createBulkZPart = (
   coordination: WeakCoordinationKind,
   wimpId: string,
   processId: string,
   executorId?: string,
-): ProtocolPatch => ({
+): Particle => ({
   part: zPart(coordination),
   op: "test",
   path: createWeakPath(wimpId, processId),
@@ -173,18 +174,18 @@ const createBulkZPatch = (
   ...(executorId !== undefined ? { executorId } : {}),
 })
 
-const createBulkWPatches = (
+const createBulkWParts = (
   wimpId: string,
   processId: string,
-  patches: Array<{ op: "replace"; path: string; value: unknown }>,
-): ProtocolPatch[] => {
-  if (patches.length === 0) {
+  parts: Array<{ op: "replace"; path: string; value: unknown }>,
+): Particle[] => {
+  if (parts.length === 0) {
     return [{ part: "w", op: "test", path: createWeakPath(wimpId, processId), value: { kind: "result" }, kind: "result", wimpId, processId }]
   }
 
-  return patches.map((patch) => ({
+  return parts.map((part) => ({
     part: "w",
-    ...patch,
+    ...part,
     wimpId,
     processId,
   }))

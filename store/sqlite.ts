@@ -4,14 +4,24 @@ import {StoreActorSqlite} from "@store/actor/sqlite"
 import {StoreTopologySqlite} from "@store/topology/sqlite"
 
 import type {Store} from "./index.ts"
-import {closeProtocolChannel, emitProtocolPatches, type JsonPatchOperation, type Part, type ProtocolPatch} from "./protocol.ts"
+import {
+  closeForceChannel,
+  emitForceMessage,
+  emitForceParts,
+  getForceOnMessage,
+  setForceOnMessage,
+  type ForceMessageHandler,
+  type ParticleOperation,
+  type Part,
+  type Particle,
+} from "./force.ts"
 
 export type StorePart = Part
 
-export type StorePatch = ProtocolPatch
+export type StoreParticle = Particle
 
 export type StoreUpdateMessage = {
-  patches: StorePatch[]
+  parts: StoreParticle[]
 }
 
 type Tx = SQL | ReservedSQL
@@ -20,7 +30,7 @@ const decodeSegment = (segment: string): string => segment.replace(/~1/g, "/").r
 
 const splitPath = (path: string): string[] => {
   if (path === "") return []
-  if (!path.startsWith("/")) throw new Error(`Patch path must start with "/": "${path}"`)
+  if (!path.startsWith("/")) throw new Error(`Particle path must start with "/": "${path}"`)
   return path.slice(1).split("/").map(decodeSegment)
 }
 
@@ -28,52 +38,52 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
 const requireRecord = (value: unknown, path: string): Record<string, unknown> => {
-  if (!isRecord(value)) throw new Error(`Patch ${path} requires object value`)
+  if (!isRecord(value)) throw new Error(`Particle ${path} requires object value`)
   return value
 }
 
 const optionalString = (value: unknown, key: string, path: string): string | null => {
   const v = (value as Record<string, unknown>)[key]
   if (v === undefined || v === null) return null
-  if (typeof v !== "string") throw new Error(`Patch ${path}: "${key}" must be string`)
+  if (typeof v !== "string") throw new Error(`Particle ${path}: "${key}" must be string`)
   return v
 }
 
 const optionalNumber = (value: unknown, key: string, path: string): number | null => {
   const v = (value as Record<string, unknown>)[key]
   if (v === undefined || v === null) return null
-  if (typeof v !== "number") throw new Error(`Patch ${path}: "${key}" must be number`)
+  if (typeof v !== "number") throw new Error(`Particle ${path}: "${key}" must be number`)
   return v
 }
 
 const optionalBoolean = (value: unknown, key: string, path: string): boolean | null => {
   const v = (value as Record<string, unknown>)[key]
   if (v === undefined || v === null) return null
-  if (typeof v !== "boolean") throw new Error(`Patch ${path}: "${key}" must be boolean`)
+  if (typeof v !== "boolean") throw new Error(`Particle ${path}: "${key}" must be boolean`)
   return v
 }
 
 const requireString = (value: unknown, key: string, path: string): string => {
   const v = optionalString(value, key, path)
-  if (v === null) throw new Error(`Patch ${path}: "${key}" is required`)
+  if (v === null) throw new Error(`Particle ${path}: "${key}" is required`)
   return v
 }
 
 const requireNumber = (value: unknown, key: string, path: string): number => {
   const v = optionalNumber(value, key, path)
-  if (v === null) throw new Error(`Patch ${path}: "${key}" is required`)
+  if (v === null) throw new Error(`Particle ${path}: "${key}" is required`)
   return v
 }
 
-const notSupported = (op: JsonPatchOperation, path: string, part: StorePart): never => {
-  throw new Error(`Patch op "${op}" is not supported for "${path}" (part=${part})`)
+const notSupported = (op: ParticleOperation, path: string, part: StorePart): never => {
+  throw new Error(`Particle op "${op}" is not supported for "${path}" (part=${part})`)
 }
 
 // =============================================================================
 // graviton — declaration + actor structural row
 // =============================================================================
 
-const applyWimpRow = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
+const applyWimpRow = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>
   const src = segs[1]!
   if (op === "remove") {
@@ -103,7 +113,7 @@ const applyWimpRow = async (tx: Tx, op: JsonPatchOperation, segs: string[], valu
   notSupported(op, `/wimp/${src}`, "graviton")
 }
 
-const applyWimpMass = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
+const applyWimpMass = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/mass/<uuid>
   const [, src, , uuid] = segs as [string, string, string, string]
   const path = `/wimp/${src}/mass/${uuid}`
@@ -128,7 +138,7 @@ const applyWimpMass = async (tx: Tx, op: JsonPatchOperation, segs: string[], val
   `
 }
 
-const applyField = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
+const applyField = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/field/<uuid>
   const [, src, , uuid] = segs as [string, string, string, string]
   const path = `/wimp/${src}/field/${uuid}`
@@ -148,7 +158,7 @@ const applyField = async (tx: Tx, op: JsonPatchOperation, segs: string[], value:
   `
 }
 
-const applyFieldDefaultMarker = async (tx: Tx, op: JsonPatchOperation, segs: string[]): Promise<void> => {
+const applyFieldDefaultMarker = async (tx: Tx, op: ParticleOperation, segs: string[]): Promise<void> => {
   // /wimp/<src>/field/<uuid>/default
   const [, src, , fieldUuid] = segs as [string, string, string, string]
   const path = `/wimp/${src}/field/${fieldUuid}/default`
@@ -160,7 +170,7 @@ const applyFieldDefaultMarker = async (tx: Tx, op: JsonPatchOperation, segs: str
   await tx`INSERT INTO field_default (field) VALUES (${fieldUuid})`
 }
 
-const applyFieldDefaultScalar = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
+const applyFieldDefaultScalar = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/field/<uuid>/default/scalar
   const [, src, , fieldUuid] = segs as [string, string, string, string]
   const path = `/wimp/${src}/field/${fieldUuid}/default/scalar`
@@ -183,14 +193,14 @@ const applyFieldDefaultScalar = async (tx: Tx, op: JsonPatchOperation, segs: str
   }
   if (kind === "boolean") {
     const b = optionalBoolean(v, "boolean", path)
-    if (b === null) throw new Error(`Patch ${path}: "boolean" is required`)
+    if (b === null) throw new Error(`Particle ${path}: "boolean" is required`)
     await tx`INSERT INTO field_boolean_default (field, default_value) VALUES (${fieldUuid}, ${b ? 1 : 0})`
     return
   }
-  throw new Error(`Patch ${path}: unknown scalar default kind "${kind}"`)
+  throw new Error(`Particle ${path}: unknown scalar default kind "${kind}"`)
 }
 
-const applyFieldDefaultItem = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
+const applyFieldDefaultItem = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/field/<fieldUuid>/default/item/<itemUuid>
   const [, src, , fieldUuid, , , itemUuid] = segs as [string, string, string, string, string, string, string]
   const path = `/wimp/${src}/field/${fieldUuid}/default/item/${itemUuid}`
@@ -206,7 +216,7 @@ const applyFieldDefaultItem = async (tx: Tx, op: JsonPatchOperation, segs: strin
   `
 }
 
-const applyFieldDefaultVariant = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
+const applyFieldDefaultVariant = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/field/<fieldUuid>/default/variant
   const [, src, , fieldUuid] = segs as [string, string, string, string]
   const path = `/wimp/${src}/field/${fieldUuid}/default/variant`
@@ -219,7 +229,7 @@ const applyFieldDefaultVariant = async (tx: Tx, op: JsonPatchOperation, segs: st
   await tx`INSERT INTO field_enum_default (field, variant) VALUES (${fieldUuid}, ${requireString(v, "variant", path)})`
 }
 
-const applyFieldEnumVariant = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
+const applyFieldEnumVariant = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/field/<fieldUuid>/variant/<variantUuid>
   const [, src, , fieldUuid, , variantUuid] = segs as [string, string, string, string, string, string]
   const path = `/wimp/${src}/field/${fieldUuid}/variant/${variantUuid}`
@@ -235,7 +245,7 @@ const applyFieldEnumVariant = async (tx: Tx, op: JsonPatchOperation, segs: strin
   `
 }
 
-const applyState = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
+const applyState = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/state/<uuid>
   const [, src, , uuid] = segs as [string, string, string, string]
   const path = `/wimp/${src}/state/${uuid}`
@@ -251,7 +261,7 @@ const applyState = async (tx: Tx, op: JsonPatchOperation, segs: string[], value:
   `
 }
 
-const applyTransition = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
+const applyTransition = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/transition/<uuid>
   const [, src, , uuid] = segs as [string, string, string, string]
   const path = `/wimp/${src}/transition/${uuid}`
@@ -267,7 +277,7 @@ const applyTransition = async (tx: Tx, op: JsonPatchOperation, segs: string[], v
   `
 }
 
-const applyCondition = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
+const applyCondition = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/transition/<transitionUuid>/condition/<uuid>
   const [, src, , transitionUuid, , uuid] = segs as [string, string, string, string, string, string]
   const path = `/wimp/${src}/transition/${transitionUuid}/condition/${uuid}`
@@ -283,7 +293,7 @@ const applyCondition = async (tx: Tx, op: JsonPatchOperation, segs: string[], va
   `
 }
 
-const applyConditionPredicate = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
+const applyConditionPredicate = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/transition/<transitionUuid>/condition/<conditionUuid>/predicate/<uuid>
   const [, src, , transitionUuid, , conditionUuid, , uuid] = segs as [string, string, string, string, string, string, string, string]
   const path = `/wimp/${src}/transition/${transitionUuid}/condition/${conditionUuid}/predicate/${uuid}`
@@ -308,7 +318,7 @@ const applyConditionPredicate = async (tx: Tx, op: JsonPatchOperation, segs: str
   `
 }
 
-const applyConditionListItem = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
+const applyConditionListItem = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/transition/<t>/condition/<c>/predicate/<p>/item/<order>
   const [, src, , transitionUuid, , conditionUuid, , predicateUuid, , orderRaw] = segs as [
     string, string, string, string, string, string, string, string, string, string,
@@ -333,7 +343,7 @@ const applyConditionListItem = async (tx: Tx, op: JsonPatchOperation, segs: stri
   `
 }
 
-const applyProcess = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
+const applyProcess = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/process/<uuid>
   const [, src, , uuid] = segs as [string, string, string, string]
   const path = `/wimp/${src}/process/${uuid}`
@@ -350,7 +360,7 @@ const applyProcess = async (tx: Tx, op: JsonPatchOperation, segs: string[], valu
   `
 }
 
-const applyProcessEnv = async (tx: Tx, op: JsonPatchOperation, segs: string[]): Promise<void> => {
+const applyProcessEnv = async (tx: Tx, op: ParticleOperation, segs: string[]): Promise<void> => {
   // /wimp/<src>/process/<uuid>/env/<env>
   const [, src, , processUuid, , env] = segs as [string, string, string, string, string, string]
   const path = `/wimp/${src}/process/${processUuid}/env/${env}`
@@ -362,7 +372,7 @@ const applyProcessEnv = async (tx: Tx, op: JsonPatchOperation, segs: string[]): 
   await tx`INSERT INTO process_env (process, env) VALUES (${processUuid}, ${env})`
 }
 
-const applyProcessAction = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
+const applyProcessAction = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/process/<uuid>/action
   const [, src, , processUuid] = segs as [string, string, string, string]
   const path = `/wimp/${src}/process/${processUuid}/action`
@@ -380,7 +390,7 @@ const applyProcessAction = async (tx: Tx, op: JsonPatchOperation, segs: string[]
   `
 }
 
-const applyProcessFinally = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
+const applyProcessFinally = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/process/<uuid>/finally
   const [, src, , processUuid] = segs as [string, string, string, string]
   const path = `/wimp/${src}/process/${processUuid}/finally`
@@ -395,7 +405,7 @@ const applyProcessFinally = async (tx: Tx, op: JsonPatchOperation, segs: string[
 
 const applyProcessActionField = async (
   tx: Tx,
-  op: JsonPatchOperation,
+  op: ParticleOperation,
   segs: string[],
   table: "process_action_read" | "process_action_write",
 ): Promise<void> => {
@@ -420,7 +430,7 @@ const applyProcessActionField = async (
   }
 }
 
-const applyProcessFinallyRead = async (tx: Tx, op: JsonPatchOperation, segs: string[]): Promise<void> => {
+const applyProcessFinallyRead = async (tx: Tx, op: ParticleOperation, segs: string[]): Promise<void> => {
   // /wimp/<src>/process/<uuid>/finally-read/<fieldUuid>
   const [, src, , processUuid, , fieldUuid] = segs as [string, string, string, string, string, string]
   const path = `/wimp/${src}/process/${processUuid}/finally-read/${fieldUuid}`
@@ -432,7 +442,7 @@ const applyProcessFinallyRead = async (tx: Tx, op: JsonPatchOperation, segs: str
   await tx`INSERT INTO process_finally_read (process, field) VALUES (${processUuid}, ${fieldUuid})`
 }
 
-const applyReaction = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
+const applyReaction = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/reaction/<uuid>
   const [, src, , uuid] = segs as [string, string, string, string]
   const path = `/wimp/${src}/reaction/${uuid}`
@@ -452,7 +462,7 @@ const applyReaction = async (tx: Tx, op: JsonPatchOperation, segs: string[], val
 
 const applyReactionLink = async (
   tx: Tx,
-  op: JsonPatchOperation,
+  op: ParticleOperation,
   segs: string[],
   table: "reaction_state" | "reaction_read" | "reaction_write",
   rightCol: "state" | "field",
@@ -481,7 +491,7 @@ const applyReactionLink = async (
   void rightCol // structural marker — column is selected by table
 }
 
-const applyMatterBinding = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
+const applyMatterBinding = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/binding/<uuid>
   const [, src, , uuid] = segs as [string, string, string, string]
   const path = `/wimp/${src}/binding/${uuid}`
@@ -502,7 +512,7 @@ const applyMatterBinding = async (tx: Tx, op: JsonPatchOperation, segs: string[]
   `
 }
 
-const applyMatterBindingDep = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
+const applyMatterBindingDep = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/binding/<bindingUuid>/dep/<order>
   const [, src, , bindingUuid, , orderRaw] = segs as [string, string, string, string, string, string]
   const order = Number(orderRaw)
@@ -519,7 +529,7 @@ const applyMatterBindingDep = async (tx: Tx, op: JsonPatchOperation, segs: strin
   `
 }
 
-const applyMatterParticle = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
+const applyMatterParticle = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/particle/<uuid>
   const [, src, , uuid] = segs as [string, string, string, string]
   const path = `/wimp/${src}/particle/${uuid}`
@@ -537,7 +547,7 @@ const applyMatterParticle = async (tx: Tx, op: JsonPatchOperation, segs: string[
   `
 }
 
-const applyMatterParticleKind = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
+const applyMatterParticleKind = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/particle/<uuid>/(wimp|fuzzy|axion|macho)
   const [, src, , particleUuid, kind] = segs as [string, string, string, string, string]
   const path = `/wimp/${src}/particle/${particleUuid}/${kind}`
@@ -546,7 +556,7 @@ const applyMatterParticleKind = async (tx: Tx, op: JsonPatchOperation, segs: str
     else if (kind === "fuzzy") await tx`DELETE FROM matter_particle_fuzzy WHERE particle = ${particleUuid}`
     else if (kind === "axion") await tx`DELETE FROM matter_particle_axion WHERE particle = ${particleUuid}`
     else if (kind === "macho") await tx`DELETE FROM matter_particle_macho WHERE particle = ${particleUuid}`
-    else throw new Error(`Patch ${path}: unknown particle kind`)
+    else throw new Error(`Particle ${path}: unknown particle kind`)
     return
   }
   if (op !== "add") return notSupported(op, path, "graviton")
@@ -580,10 +590,10 @@ const applyMatterParticleKind = async (tx: Tx, op: JsonPatchOperation, segs: str
     `
     return
   }
-  throw new Error(`Patch ${path}: unknown particle kind "${kind}"`)
+  throw new Error(`Particle ${path}: unknown particle kind "${kind}"`)
 }
 
-const applyActorRow = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
+const applyActorRow = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
   // /actor/<uuid>
   const uuid = segs[1]!
   const path = `/actor/${uuid}`
@@ -618,7 +628,7 @@ const applyActorRow = async (tx: Tx, op: JsonPatchOperation, segs: string[], val
   notSupported(op, path, "graviton")
 }
 
-const applyTopologyRow = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
+const applyTopologyRow = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
   // /topology/<uuid>
   const uuid = segs[1]!
   const path = `/topology/${uuid}`
@@ -630,7 +640,7 @@ const applyTopologyRow = async (tx: Tx, op: JsonPatchOperation, segs: string[], 
     const v = requireRecord(value, path)
     const kind = requireString(v, "kind", path)
     if (kind !== "fuzzy" && kind !== "axion" && kind !== "macho") {
-      throw new Error(`Patch ${path}: unknown topology kind "${kind}"`)
+      throw new Error(`Particle ${path}: unknown topology kind "${kind}"`)
     }
     await tx`
       INSERT INTO topology (uuid, parent_actor, parent_topology, kind, position)
@@ -645,74 +655,74 @@ const applyTopologyRow = async (tx: Tx, op: JsonPatchOperation, segs: string[], 
   notSupported(op, path, "graviton")
 }
 
-const applyGravitonPatch = async (tx: Tx, patch: StorePatch): Promise<void> => {
-  if (patch.op === "test") return
-  if (patch.op === "move" || patch.op === "copy") {
-    throw new Error(`Patch op "${patch.op}" is not supported by graviton`)
+const applyGravitonParticle = async (tx: Tx, particle: StoreParticle): Promise<void> => {
+  if (particle.op === "test") return
+  if (particle.op === "move" || particle.op === "copy") {
+    throw new Error(`Particle op "${particle.op}" is not supported by graviton`)
   }
-  const segs = splitPath(patch.path)
-  const value = "value" in patch ? patch.value : undefined
+  const segs = splitPath(particle.path)
+  const value = "value" in particle ? particle.value : undefined
 
   if (segs[0] === "actor") {
-    if (segs.length === 2) return applyActorRow(tx, patch.op, segs, value)
-    throw new Error(`Unknown graviton path: ${patch.path}`)
+    if (segs.length === 2) return applyActorRow(tx, particle.op, segs, value)
+    throw new Error(`Unknown graviton path: ${particle.path}`)
   }
 
   if (segs[0] === "topology") {
-    if (segs.length === 2) return applyTopologyRow(tx, patch.op, segs, value)
-    throw new Error(`Unknown graviton path: ${patch.path}`)
+    if (segs.length === 2) return applyTopologyRow(tx, particle.op, segs, value)
+    throw new Error(`Unknown graviton path: ${particle.path}`)
   }
 
-  if (segs[0] !== "wimp") throw new Error(`Unknown graviton path: ${patch.path}`)
+  if (segs[0] !== "wimp") throw new Error(`Unknown graviton path: ${particle.path}`)
 
-  if (segs.length === 2) return applyWimpRow(tx, patch.op, segs, value)
-  if (segs.length === 4 && segs[2] === "mass") return applyWimpMass(tx, patch.op, segs, value)
-  if (segs.length === 4 && segs[2] === "field") return applyField(tx, patch.op, segs, value)
+  if (segs.length === 2) return applyWimpRow(tx, particle.op, segs, value)
+  if (segs.length === 4 && segs[2] === "mass") return applyWimpMass(tx, particle.op, segs, value)
+  if (segs.length === 4 && segs[2] === "field") return applyField(tx, particle.op, segs, value)
   if (segs.length === 5 && segs[2] === "field" && segs[4] === "default")
-    return applyFieldDefaultMarker(tx, patch.op, segs)
+    return applyFieldDefaultMarker(tx, particle.op, segs)
   if (segs.length === 6 && segs[2] === "field" && segs[4] === "default" && segs[5] === "scalar")
-    return applyFieldDefaultScalar(tx, patch.op, segs, value)
+    return applyFieldDefaultScalar(tx, particle.op, segs, value)
   if (segs.length === 6 && segs[2] === "field" && segs[4] === "default" && segs[5] === "variant")
-    return applyFieldDefaultVariant(tx, patch.op, segs, value)
+    return applyFieldDefaultVariant(tx, particle.op, segs, value)
   if (segs.length === 7 && segs[2] === "field" && segs[4] === "default" && segs[5] === "item")
-    return applyFieldDefaultItem(tx, patch.op, segs, value)
+    return applyFieldDefaultItem(tx, particle.op, segs, value)
   if (segs.length === 6 && segs[2] === "field" && segs[4] === "variant")
-    return applyFieldEnumVariant(tx, patch.op, segs, value)
-  if (segs.length === 4 && segs[2] === "state") return applyState(tx, patch.op, segs, value)
-  if (segs.length === 4 && segs[2] === "transition") return applyTransition(tx, patch.op, segs, value)
+    return applyFieldEnumVariant(tx, particle.op, segs, value)
+  if (segs.length === 4 && segs[2] === "state") return applyState(tx, particle.op, segs, value)
+  if (segs.length === 4 && segs[2] === "transition") return applyTransition(tx, particle.op, segs, value)
   if (segs.length === 6 && segs[2] === "transition" && segs[4] === "condition")
-    return applyCondition(tx, patch.op, segs, value)
+    return applyCondition(tx, particle.op, segs, value)
   if (segs.length === 8 && segs[2] === "transition" && segs[4] === "condition" && segs[6] === "predicate")
-    return applyConditionPredicate(tx, patch.op, segs, value)
+    return applyConditionPredicate(tx, particle.op, segs, value)
   if (segs.length === 10 && segs[2] === "transition" && segs[4] === "condition" && segs[6] === "predicate" && segs[8] === "item")
-    return applyConditionListItem(tx, patch.op, segs, value)
-  if (segs.length === 4 && segs[2] === "process") return applyProcess(tx, patch.op, segs, value)
+    return applyConditionListItem(tx, particle.op, segs, value)
+  if (segs.length === 4 && segs[2] === "process") return applyProcess(tx, particle.op, segs, value)
   if (segs.length === 6 && segs[2] === "process" && segs[4] === "env")
-    return applyProcessEnv(tx, patch.op, segs)
+    return applyProcessEnv(tx, particle.op, segs)
   if (segs.length === 5 && segs[2] === "process" && segs[4] === "action")
-    return applyProcessAction(tx, patch.op, segs, value)
+    return applyProcessAction(tx, particle.op, segs, value)
   if (segs.length === 5 && segs[2] === "process" && segs[4] === "finally")
-    return applyProcessFinally(tx, patch.op, segs, value)
+    return applyProcessFinally(tx, particle.op, segs, value)
   if (segs.length === 7 && segs[2] === "process" && segs[4] === "read")
-    return applyProcessActionField(tx, patch.op, segs, "process_action_read")
+    return applyProcessActionField(tx, particle.op, segs, "process_action_read")
   if (segs.length === 7 && segs[2] === "process" && segs[4] === "write")
-    return applyProcessActionField(tx, patch.op, segs, "process_action_write")
+    return applyProcessActionField(tx, particle.op, segs, "process_action_write")
   if (segs.length === 6 && segs[2] === "process" && segs[4] === "finally-read")
-    return applyProcessFinallyRead(tx, patch.op, segs)
-  if (segs.length === 4 && segs[2] === "reaction") return applyReaction(tx, patch.op, segs, value)
+    return applyProcessFinallyRead(tx, particle.op, segs)
+  if (segs.length === 4 && segs[2] === "reaction") return applyReaction(tx, particle.op, segs, value)
   if (segs.length === 6 && segs[2] === "reaction" && segs[4] === "state")
-    return applyReactionLink(tx, patch.op, segs, "reaction_state", "state")
+    return applyReactionLink(tx, particle.op, segs, "reaction_state", "state")
   if (segs.length === 6 && segs[2] === "reaction" && segs[4] === "read")
-    return applyReactionLink(tx, patch.op, segs, "reaction_read", "field")
+    return applyReactionLink(tx, particle.op, segs, "reaction_read", "field")
   if (segs.length === 6 && segs[2] === "reaction" && segs[4] === "write")
-    return applyReactionLink(tx, patch.op, segs, "reaction_write", "field")
-  if (segs.length === 4 && segs[2] === "binding") return applyMatterBinding(tx, patch.op, segs, value)
+    return applyReactionLink(tx, particle.op, segs, "reaction_write", "field")
+  if (segs.length === 4 && segs[2] === "binding") return applyMatterBinding(tx, particle.op, segs, value)
   if (segs.length === 6 && segs[2] === "binding" && segs[4] === "dep")
-    return applyMatterBindingDep(tx, patch.op, segs, value)
-  if (segs.length === 4 && segs[2] === "particle") return applyMatterParticle(tx, patch.op, segs, value)
-  if (segs.length === 5 && segs[2] === "particle") return applyMatterParticleKind(tx, patch.op, segs, value)
+    return applyMatterBindingDep(tx, particle.op, segs, value)
+  if (segs.length === 4 && segs[2] === "particle") return applyMatterParticle(tx, particle.op, segs, value)
+  if (segs.length === 5 && segs[2] === "particle") return applyMatterParticleKind(tx, particle.op, segs, value)
 
-  throw new Error(`Unknown graviton path: ${patch.path}`)
+  throw new Error(`Unknown graviton path: ${particle.path}`)
 }
 
 // =============================================================================
@@ -726,7 +736,7 @@ const writeValueScalar = async (tx: Tx, uuid: string, kind: string, v: Record<st
       return
     case "boolean": {
       const b = optionalBoolean(v, "boolean", path)
-      if (b === null) throw new Error(`Patch ${path}: "boolean" is required for kind=boolean`)
+      if (b === null) throw new Error(`Particle ${path}: "boolean" is required for kind=boolean`)
       await tx`INSERT INTO value_boolean (value, boolean) VALUES (${uuid}, ${b ? 1 : 0})`
       return
     }
@@ -740,7 +750,7 @@ const writeValueScalar = async (tx: Tx, uuid: string, kind: string, v: Record<st
       await tx`INSERT INTO value_enum (value, variant) VALUES (${uuid}, ${requireString(v, "variant", path)})`
       return
     default:
-      throw new Error(`Patch ${path}: unknown value kind "${kind}"`)
+      throw new Error(`Particle ${path}: unknown value kind "${kind}"`)
   }
 }
 
@@ -751,7 +761,7 @@ const clearValueScalarTables = async (tx: Tx, uuid: string): Promise<void> => {
   await tx`DELETE FROM value_enum WHERE value = ${uuid}`
 }
 
-const applyValueRow = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
+const applyValueRow = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
   // /value/<uuid>
   const uuid = segs[1]!
   const path = `/value/${uuid}`
@@ -777,7 +787,7 @@ const applyValueRow = async (tx: Tx, op: JsonPatchOperation, segs: string[], val
   notSupported(op, path, "gluon")
 }
 
-const applyValueItem = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
+const applyValueItem = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
   // /value/<uuid>/item/<position>
   const valueUuid = segs[1]!
   const position = Number(segs[3])
@@ -802,7 +812,7 @@ const applyValueItem = async (tx: Tx, op: JsonPatchOperation, segs: string[], va
   notSupported(op, path, "gluon")
 }
 
-const applyActorValue = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
+const applyActorValue = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
   // /actor/<actorUuid>/value/<fieldUuid>
   const actorUuid = segs[1]!
   const fieldUuid = segs[3]!
@@ -824,28 +834,28 @@ const applyActorValue = async (tx: Tx, op: JsonPatchOperation, segs: string[], v
   notSupported(op, path, "gluon")
 }
 
-const applyGluonPatch = async (tx: Tx, patch: StorePatch): Promise<void> => {
-  if (patch.op === "test") return
-  if (patch.op === "move" || patch.op === "copy") {
-    throw new Error(`Patch op "${patch.op}" is not supported by gluon`)
+const applyGluonParticle = async (tx: Tx, particle: StoreParticle): Promise<void> => {
+  if (particle.op === "test") return
+  if (particle.op === "move" || particle.op === "copy") {
+    throw new Error(`Particle op "${particle.op}" is not supported by gluon`)
   }
-  const segs = splitPath(patch.path)
-  const value = "value" in patch ? patch.value : undefined
+  const segs = splitPath(particle.path)
+  const value = "value" in particle ? particle.value : undefined
 
-  if (segs[0] === "value" && segs.length === 2) return applyValueRow(tx, patch.op, segs, value)
+  if (segs[0] === "value" && segs.length === 2) return applyValueRow(tx, particle.op, segs, value)
   if (segs[0] === "value" && segs.length === 4 && segs[2] === "item")
-    return applyValueItem(tx, patch.op, segs, value)
+    return applyValueItem(tx, particle.op, segs, value)
   if (segs[0] === "actor" && segs.length === 4 && segs[2] === "value")
-    return applyActorValue(tx, patch.op, segs, value)
+    return applyActorValue(tx, particle.op, segs, value)
 
-  throw new Error(`Unknown gluon path: ${patch.path}`)
+  throw new Error(`Unknown gluon path: ${particle.path}`)
 }
 
 // =============================================================================
 // photon — actor state
 // =============================================================================
 
-const applyActorState = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
+const applyActorState = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
   // /actor/<uuid>/state
   const actorUuid = segs[1]!
   const path = `/actor/${actorUuid}/state`
@@ -869,51 +879,51 @@ const applyActorState = async (tx: Tx, op: JsonPatchOperation, segs: string[], v
   notSupported(op, path, "photon")
 }
 
-const applyPhotonPatch = async (tx: Tx, patch: StorePatch): Promise<void> => {
-  if (patch.op === "test") return
-  if (patch.op === "move" || patch.op === "copy") {
-    throw new Error(`Patch op "${patch.op}" is not supported by photon`)
+const applyPhotonParticle = async (tx: Tx, particle: StoreParticle): Promise<void> => {
+  if (particle.op === "test") return
+  if (particle.op === "move" || particle.op === "copy") {
+    throw new Error(`Particle op "${particle.op}" is not supported by photon`)
   }
-  const segs = splitPath(patch.path)
-  const value = "value" in patch ? patch.value : undefined
+  const segs = splitPath(particle.path)
+  const value = "value" in particle ? particle.value : undefined
 
   if (segs[0] === "actor" && segs.length === 3 && segs[2] === "state")
-    return applyActorState(tx, patch.op, segs, value)
+    return applyActorState(tx, particle.op, segs, value)
 
-  throw new Error(`Unknown photon path: ${patch.path}`)
+  throw new Error(`Unknown photon path: ${particle.path}`)
 }
 
 // =============================================================================
 // dispatcher
 // =============================================================================
 
-const applyOnePatch = async (tx: Tx, patch: StorePatch): Promise<void> => {
-  switch (patch.part) {
+const applyOneParticle = async (tx: Tx, particle: StoreParticle): Promise<void> => {
+  switch (particle.part) {
     case "graviton":
-      return applyGravitonPatch(tx, patch)
+      return applyGravitonParticle(tx, particle)
     case "gluon":
-      return applyGluonPatch(tx, patch)
+      return applyGluonParticle(tx, particle)
     case "photon":
-      return applyPhotonPatch(tx, patch)
+      return applyPhotonParticle(tx, particle)
     case "higgs":
-      throw new Error(`Patch part "higgs" is not implemented yet`)
+      throw new Error(`Particle part "higgs" is not implemented yet`)
     case "w":
-      throw new Error(`Patch part "w" is not implemented yet`)
+      throw new Error(`Particle part "w" is not implemented yet`)
     case "-z":
-      throw new Error(`Patch part "-z" is not implemented yet`)
+      throw new Error(`Particle part "-z" is not implemented yet`)
     case "+z":
-      throw new Error(`Patch part "+z" is not implemented yet`)
+      throw new Error(`Particle part "+z" is not implemented yet`)
   }
 }
 
 const buildApplyMessage = (sql: SQL) => async (message: StoreUpdateMessage): Promise<void> => {
-  if (message.patches.length === 0) return
+  if (message.parts.length === 0) return
   await sql.begin(async (tx) => {
-    for (const patch of message.patches) {
-      await applyOnePatch(tx, patch)
+    for (const part of message.parts) {
+      await applyOneParticle(tx, part)
     }
   })
-  emitProtocolPatches(message.patches)
+  emitForceParts(message.parts)
 }
 
 export const open = async (filename?: string): Promise<Store> => {
@@ -934,13 +944,22 @@ export const open = async (filename?: string): Promise<Store> => {
   const actor = await StoreActorSqlite.open(sql)
 
   return {
+    get onmessage(): ForceMessageHandler {
+      return getForceOnMessage()
+    },
+    set onmessage(handler: ForceMessageHandler) {
+      setForceOnMessage(handler)
+    },
     wimp: await StoreWimpSqlite.open(sql),
     actor,
     topology,
+    postMessage(message: StoreUpdateMessage) {
+      emitForceMessage(message)
+    },
     update: buildApplyMessage(sql),
     async close() {
       try {
-        closeProtocolChannel()
+        closeForceChannel()
         if (fileBacked) await sql.unsafe("PRAGMA wal_checkpoint(TRUNCATE);")
         await sql.close()
       } catch {

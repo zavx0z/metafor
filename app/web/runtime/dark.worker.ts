@@ -1,6 +1,6 @@
 import { MetaFor } from "../../../metafor.ts"
 import { openDbSqliteBackend } from "store/db"
-import { createProtocolChannel } from "store/protocol"
+import {force} from "store"
 import {
 	createMirroredActorStore,
 	createSqliteDbActorStore,
@@ -46,10 +46,10 @@ type DarkWorkerScope = typeof globalThis & {
 }
 
 const darkWorker = globalThis as DarkWorkerScope
-const protocolChannel = createProtocolChannel()
+const forceChannel = force
 const dbSyncChannel = {
 	postMessage(message: unknown) {
-		protocolChannel.postMessage({ patches: [{ part: "graviton", op: "replace", path: "/db-sync", value: message }] })
+		forceChannel.postMessage({ parts: [{ part: "graviton", op: "replace", path: "/db-sync", value: message }] })
 	},
 	close() {},
 } as BroadcastChannel
@@ -296,7 +296,7 @@ const publishStructuralSignal = async (
 	const store = ensureActorStore(dbFilename)
 
 	// Layout сразу пишет per-row в `store`, который через mirror публикует sync-events
-	// в единый protocol channel — server потом мирорит их в WS клиентам.
+	// в единый force channel — server потом мирорит их в WS клиентам.
 	await streamDbWorldRows(
 		src,
 		descriptorRoots.map((descriptor) => cloneParticleDescriptor(descriptor)),
@@ -305,8 +305,8 @@ const publishStructuralSignal = async (
 	)
 
 	// Барьер: «всё применено, можно перерисовывать».
-	protocolChannel.postMessage({
-		patches: [{ part: "graviton", op: "test", path: "/structural", value: { rootSrc: src, scope: { kind: "world" } } }],
+	forceChannel.postMessage({
+		parts: [{ part: "graviton", op: "test", path: "/structural", value: { rootSrc: src, scope: { kind: "world" } } }],
 	})
 }
 

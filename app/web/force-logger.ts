@@ -5,7 +5,7 @@ const MAX_LOG_ENTRIES = 160
 
 let logEntries: string[] = []
 let logContent: HTMLElement | null = null
-let protocolCounter: HTMLElement | null = null
+let forceCounter: HTMLElement | null = null
 let connectionBadge: HTMLElement | null = null
 const workerBadges = new Map<WorkerName, HTMLElement>()
 
@@ -52,9 +52,9 @@ const setBadgeState = (element: HTMLElement | null, value: string, tone: WorkerS
 	element.dataset.tone = tone
 }
 
-export const initProtocolLogger = (): void => {
-	logContent = document.getElementById("protocol-log-content")
-	protocolCounter = document.getElementById("protocol-counter")
+export const initForceLogger = (): void => {
+	logContent = document.getElementById("force-log-content")
+	forceCounter = document.getElementById("force-counter")
 	connectionBadge = document.getElementById("connection-badge")
 
 	workerBadges.set("dark", document.getElementById("worker-dark") as HTMLElement)
@@ -90,13 +90,13 @@ export const setWorkerStatus = (
 	}
 }
 
-export const appendProtocolMessage = (channel: string, message: unknown): void => {
-	appendLog(`protocol:${channel}`, message)
+export const appendForceMessage = (channel: string, message: unknown): void => {
+	appendLog(`force:${channel}`, message)
 
-	if (protocolCounter) {
-		const current = Number(protocolCounter.dataset.count ?? "0") + 1
-		protocolCounter.dataset.count = String(current)
-		protocolCounter.textContent = `${current} protocol messages`
+	if (forceCounter) {
+		const current = Number(forceCounter.dataset.count ?? "0") + 1
+		forceCounter.dataset.count = String(current)
+		forceCounter.textContent = `${current} force messages`
 	}
 }
 

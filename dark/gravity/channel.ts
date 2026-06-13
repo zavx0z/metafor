@@ -1,28 +1,28 @@
-import { createProtocolChannel, type ProtocolPatch } from "store/protocol"
+import {force, type Particle} from "store"
 
-export const gravityCH = createProtocolChannel()
+export const gravityCH = force
 
-type GravitonPatch = Pick<ProtocolPatch, "op" | "path" | "value" | "from">
+type GravitonPart = Pick<Particle, "op" | "path" | "value" | "from">
 
-export interface DarkGravityProtocol {
-  emitPatches(patches: GravitonPatch[]): void
+export interface DarkGravityForce {
+  emitParts(parts: GravitonPart[]): void
   emitAdd(wimpId: string): void
   emitRemove(wimpId: string): void
   emitBarrier(value?: null | "" | Record<string, never>): void
   close(): void
 }
 
-function emitPatches(patches: GravitonPatch[]): void {
-  gravityCH.postMessage({ patches: patches.map((patch) => ({ part: "graviton", ...patch })) })
+function emitParts(parts: GravitonPart[]): void {
+  force.postMessage({ parts: parts.map((item) => ({ part: "graviton", ...item })) })
 }
 
 export function emitAdd(wimpId: string) {
-  emitPatches([{ op: "add", path: `/wimp/${wimpId}` }])
+  emitParts([{ op: "add", path: `/wimp/${wimpId}` }])
 }
 
 export function emitRemove(wimpId: string) {
-  emitPatches([{ op: "remove", path: `/wimp/${wimpId}` }])
+  emitParts([{ op: "remove", path: `/wimp/${wimpId}` }])
 }
 export function emitBarrier(value = null) {
-  emitPatches([{ op: "test", path: "", value }])
+  emitParts([{ op: "test", path: "", value }])
 }

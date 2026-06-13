@@ -1,9 +1,9 @@
-[README](../../README.md) | [Protocol](../PROTOCOL.md) | **English** | [Русский](./higgs.ru.md)
+[README](../../README.md) | [Force](../FORCE.md) | **English** | [Русский](./higgs.ru.md)
 
 # Higgs
 
-`higgs.md` expands the protocol reading of topology-field change in MetaFor.
-The general distinction between force, `Boson`, channel subtype, and `Impulse` is defined in the [root protocol](../PROTOCOL.md).
+`higgs.md` expands the force reading of topology-field change in MetaFor.
+The general distinction between force, `Boson`, channel subtype, and `Impulse` is defined in the [root Force](../FORCE.md).
 
 ## Higgs fields and the change channel
 
@@ -77,8 +77,8 @@ This prevents reading an array as a simple value-box inside unchanged topology.
 
 ## Restrictions on topology-fields
 
-- `enum` is not patched as an ordinary value and changes only as topology selection,
-- `array` is not patched as an ordinary value and changes only as topology multiplicity,
+- `enum` is not parted as an ordinary value and changes only as topology selection,
+- `array` is not parted as an ordinary value and changes only as topology multiplicity,
 - `array` does not participate in entanglement,
 - `array` is not mutated by external reactions,
 - `array` may change only through the internal process of the atom itself,

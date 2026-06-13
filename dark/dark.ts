@@ -1,5 +1,4 @@
 import {MetaFor, type FieldDefinition, type FieldKey, type SRC} from ".."
-import {createProtocolChannel} from "store/protocol"
 import type {AnyField, Wimp} from "@store/wimp/sqlite"
 import type {ActorValueRecord, ValueItemRecord, ValueRecord} from "@store/actor"
 import type {MatterParticlePlan} from "@dark/types/dark"
@@ -14,14 +13,14 @@ import {finalizeFieldValues, resolveFieldInits, type Continuation} from "./conti
 
 export type ParticleRef = { kind: "actor"; uuid: string } | { kind: "topology"; uuid: string }
 
-const protocol = createProtocolChannel()
-
-protocol.onmessage = (event) => {
-  for (const patch of event.data.patches) {
-    if (patch.part !== "graviton") continue
-    if (patch.op !== "add") continue
-    if (patch.value !== undefined) continue
-    void matter(patch.path).catch(() => {})
+export const listenDarkForce = (): void => {
+  store.onmessage = (event) => {
+    for (const part of event.data.parts) {
+      if (part.part !== "graviton") continue
+      if (part.op !== "add") continue
+      if (part.value !== undefined) continue
+      void matter(part.path).catch(() => {})
+    }
   }
 }
 
@@ -89,7 +88,7 @@ interface PendingChildWimp {
 /**
  * Послойный проход одной wimp.
  *
- * Создаёт root actor, эмитит actor patch, затем BFS по plan-tree:
+ * Создаёт root actor, эмитит actor part, затем BFS по plan-tree:
  * на каждой итерации обрабатывает все entries текущего фронтира — для topology-узлов
  * пишет row + emit, для wimp-узлов накапливает pending. По завершении слоя — yield-ит
  * накопленные pending child wimps наружу. Внешний оркестратор обязан рекурсивно

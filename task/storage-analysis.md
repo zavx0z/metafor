@@ -3,8 +3,8 @@
 > Актуальность: исторический аудит до текущего разворота на `store`.
 > Текущий план и состояние на 2026-04-26 см. в `task/store-unification.md`.
 > Протокольный транспорт после актуализации 2026-06 использует один
-> `METAFOR_BROADCAST_CHANNEL`, а смысловая частица хранится в `part` каждого
-> patch. Разделы про отдельные BroadcastChannel-каналы ниже описывают старое
+> `METAFOR_FORCE_CHANNEL`, а смысловая частица хранится в `part` каждого
+> part. Разделы про отдельные BroadcastChannel-каналы ниже описывают старое
 > состояние.
 
 > **Цель документа.** Свести в одно место (а) что было задумано про store/db с самого начала, (б) что было сделано на каждой эпохе, (в) что мы имеем сейчас в `arch`, (г) что хочет user сегодня, (д) разрыв между «хочу» и «имеем», (е) кандидаты-варианты, как закрыть разрыв.
@@ -230,14 +230,14 @@ export interface DbInstanceStore {
 #### Sync-канал и барьер
 
 ```ts
-// store/protocol.ts
-export const METAFOR_BROADCAST_CHANNEL = "metafor.protocol"
+// store/force.ts
+export const METAFOR_FORCE_CHANNEL = "metafor.force"
 export type Part = "graviton" | "photon" | "gluon" | "higgs" | "w" | "-z" | "+z"
-export type JsonPatchOperation = "add" | "remove" | "replace" | "move" | "copy" | "test"
+export type ParticleOperation = "add" | "remove" | "replace" | "move" | "copy" | "test"
 
-export type ProtocolPatch = {
+export type Particle = {
   part: Part
-  op: JsonPatchOperation
+  op: ParticleOperation
   path: string
   value?: unknown
   from?: string
@@ -263,14 +263,14 @@ dark.worker (bun)                                client (browser)
   │        → SQLite INSERT                         │
   │        → publish DbSyncMessage{insert-particle}│
   │                                                │
-  ├─ postProtocolPatches([{                       │
+  ├─ postParticlees([{                       │
   │     part:"graviton", path:"/structural", …}]) │
   │                                                │
   ▼                                                │
-BroadcastChannel("metafor.protocol")               │
+BroadcastChannel("metafor.force")               │
   │                                                │
 server.ts: валидирует и                            │
-WebSocket.send({type:"protocol", patches})         │
+WebSocket.send({type:"force", parts})         │
   │                                                │
   ▼                                                ▼
                                   socket.onmessage:
@@ -401,7 +401,7 @@ export { dbRequiredBackendIndexes, createEmptyDbData, normalizeDbData, readDbDat
 
 > вообще нужно на web idxdb аналогично сделать хранилищем как в server sqlite … и механизм синхронизации до момента отправки сигналов … от снепшотов нужно избавляться в пользу db
 
-Это уже сделано на уровне `DbInstanceStore` — снапшоты выпилены, per-row sync идёт через единый protocol channel как `/db-sync` patch, structural barrier идёт как `/structural` patch. Но **аналогичного per-row sync для `DbBackend` пока нет** — boundary в браузере (`metafor-web`) живёт через `openDbIndexedDbBackend`, наполняется как? — не через стрим из bun-стороны, а через свою materialize-цепочку (нужно проверить отдельно).
+Это уже сделано на уровне `DbInstanceStore` — снапшоты выпилены, per-row sync идёт через единый Force channel как `/db-sync` part, structural barrier идёт как `/structural` part. Но **аналогичного per-row sync для `DbBackend` пока нет** — boundary в браузере (`metafor-web`) живёт через `openDbIndexedDbBackend`, наполняется как? — не через стрим из bun-стороны, а через свою materialize-цепочку (нужно проверить отдельно).
 
 ### 3.3. Source of truth — DB, не in-memory snapshot
 
@@ -595,13 +595,13 @@ WAL включается в (2) и (3), не в (1). PRAGMA `synchronous=NORMAL`
 
 **Активные в app/web client:** только `metafor-app-instance` + `metafor-app-web-ui`. `metafor-web` — standalone путь boundary, в основном flow не открывается.
 
-### 8.3. Protocol channel (`store/protocol.ts`)
+### 8.3. Force channel (`store/force.ts`)
 
 | Transport | Payload | Cемантика |
 |---|---|---|
-| `METAFOR_BROADCAST_CHANNEL` | `{patches: ProtocolPatch[]}` | единый runtime transport |
+| `METAFOR_FORCE_CHANNEL` | `{parts: Particle[]}` | единый runtime Force transport |
 
-Смысловой маршрут задаётся не физическим каналом, а `part` внутри каждого patch:
+Смысловой маршрут задаётся не физическим каналом, а `part` внутри каждого part:
 
 | `part` / path | Семантика |
 |---|---|
@@ -843,7 +843,7 @@ const canonicalizeMetaGraph = async (dbFilename, rootSrc) => {
   │   Внутри matter():                               │
   │     для каждой раскрытой Wimp:                   │
   │       store.wimp/topology/actor writes           │
-  │       protocol patches                           │
+  │       Force parts                           │
   └─────────────────────────────────────────────────┘
                               │
                               ▼
@@ -1303,7 +1303,7 @@ SERVER (Bun)                                BROWSER
 
 ### 11.12. Что **остаётся**
 
-- `store/protocol.ts` — корневые имена каналов без shared payload types.
+- `store/force.ts` — корневые имена каналов без shared payload types.
 - `dark.worker.ts` `canonicalizeMetaGraph` — упрощается: вместо 3-stage (`relation` → `readDarkParticleModel` → `matter`) остаётся один stage `matter` с per-row writes в общий store. `readMetaDsl` остаётся как JS-import.
 - `boundary/database.ts` operational caches — это derived проекции от store; остаются.
 - BroadcastChannel-каналы — `db-sync` обобщается, остальные без изменений.

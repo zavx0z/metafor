@@ -77,7 +77,7 @@ DSL / MetaFor source
   но не владеет всей БД как своей приватной памятью.
 - `Bulk` получает manifested form из общей world-form, не через внутренности
   `Boundary`.
-- Protocol patches сигналят о случившемся изменении, но не являются payload
+- Force parts сигналят о случившемся изменении, но не являются payload
   переносом мира.
 
 ## Роли слоёв
@@ -163,7 +163,7 @@ Authoring DB отвечает за редактирование логики, ro
 - `store.actor` — instance actor/value/state слой;
 - `store.topology` — topology-узлы;
 - `store/sqlite` — один SQLite handle под несколькими схемами;
-- `store.update(...)` — inbound patch application.
+- `store.update(...)` — inbound part application.
 
 Но этого ещё недостаточно как финальной DB-архитектуры.
 
@@ -248,7 +248,7 @@ Identity нельзя считать закрытой.
 По `#57` нужно отдельно решить:
 
 - остаётся ли полный rebuild допустимым только для clean boot;
-- нужен ли compare/update protocol для live DB;
+- нужен ли compare/update Force path для live DB;
 - где граница между rematerialization, relayout и render-only update;
 - как сохранить continuity Bulk scene и не сбрасывать world identity при каждом
   изменении settings.
@@ -258,7 +258,7 @@ Identity нельзя считать закрытой.
 - `src changed` -> new materialization;
 - layout changed -> relayout only;
 - render settings changed -> rerender only;
-- field/state changed -> protocol/runtime update.
+- field/state changed -> force/runtime update.
 
 ## Granularity write path
 
@@ -311,7 +311,7 @@ Dark materialization
   -> canonical DB rows
   -> Boundary read/update/write-back
   -> Bulk render projection
-  -> app/web protocol or smoke path
+  -> app/web Force or smoke path
 ```
 
 Полный UI можно не чинить первым шагом, но нельзя проектировать DB так, будто
@@ -457,7 +457,7 @@ Render projection должна жить в Bulk/render module или в явно
 
 - `docs/ARCHITECTURE.ru.md`
 - `docs/ONTOLOGY.ru.md`
-- `docs/PROTOCOL.ru.md`
+- `docs/FORCE.ru.md`
 - `docs/TOPOLOGY.ru.md`
 - `docs/DEVELOPMENT.ru.md`
 - `store/README.md`
@@ -475,13 +475,13 @@ Render projection должна жить в Bulk/render module или в явно
 
 Обязательные GitHub issues:
 
-- `#51` — общая БД и patch как сигнал;
+- `#51` — общая БД и part как сигнал;
 - `#53` — Bulk на базе web-gpu-engine;
 - `#56` — granular write path;
 - `#57` — reset-from-zero vs compare/update;
 - `#58` — identity для rename/restructure;
 - `#64` — Weak W/Z поверх Boundary lock;
-- `#65` — минимальная событийная protocol model;
+- `#65` — минимальная событийная Force model;
 - `#66` — DSL <-> DB authoring round-trip;
 - `#68` — self-authoring мультивселенная;
 - `#73` — Dark materialization из SQLite/particle rows;

@@ -1,9 +1,9 @@
-[README](../../README.md) | [Protocol](../PROTOCOL.md) | **English** | [Русский](./strong.ru.md)
+[README](../../README.md) | [Force](../FORCE.md) | **English** | [Русский](./strong.ru.md)
 
 # Strong
 
-`strong.md` expands the protocol reading of `Strong`.
-The general distinction between force, `Boson`, channel subtype, and `Impulse` is defined in the [root protocol](../PROTOCOL.md).
+`strong.md` expands the force reading of `Strong`.
+The general distinction between force, `Boson`, channel subtype, and `Impulse` is defined in the [root Force](../FORCE.md).
 
 ## Force and channel
 
@@ -52,7 +52,7 @@ This means:
 That distinction is primary relative to AST.
 AST may unfold `enum` and `array` in concrete contracts, but it does not turn them into ordinary fields.
 
-## Ordinary Field Protocol
+## Ordinary Field Force
 
 In MetaFor, ordinary `Field` is the bearer of value.
 If an ordinary value changes, that change is carried through `Gluon`.
@@ -117,7 +117,7 @@ update({ visible: true })
 
 The change goes through `green-antiblue gluon` because an ordinary `boolean` changes.
 
-## Protocol distinctions
+## Force distinctions
 
 - `Strong` does not transport `State`; `Photon` does that.
 - `Strong` does not change topology-fields; `Higgs boson` does that.

@@ -96,10 +96,10 @@ Issue-driven архитектурная карта зафиксирована в
 
 - `#68` задаёт главный вектор: MetaFor должен стать self-authoring мультивселенной, а не проектом с внешним визуальным редактором.
 - `#53` фиксирует `Bulk` как пространственный manifested слой на базе `web-gpu-engine`, но не как отдельный источник истины.
-- `#51` фиксирует модель: общая БД является общим миром для `Dark`, `Boundary` и `Bulk`, а patch не переносит данные, а только сигналит о том, что нужно перечитать мир из БД.
+- `#51` фиксирует модель: общая БД является общим миром для `Dark`, `Boundary` и `Bulk`, а part не переносит данные, а только сигналит о том, что нужно перечитать мир из БД.
 - `#60` фиксирует `gravity$` как долгоживущий store состава и адресации, а `boundary$` как derived runtime-store.
 - `#64` фиксирует lock ownership за `Boundary`, `Z` как канал координации исполнителя, а `W` как единый result envelope процесса.
-- `#65` требует держать протокол минимальным и событийным, без ложной адресности и transport-overhead внутри payload.
+- `#65` требует держать Force минимальным и событийным, без ложной адресности и transport-overhead внутри payload.
 - `#56`, `#57`, `#58` оставляют открытыми фундаментальные вопросы: гранулярность DB write path, режим жизни БД и identity-модель для живого мира.
 
 Из этого для `Boundary` прямо следует:
@@ -124,7 +124,7 @@ import {
   addRuntimeWimp,
   removeRuntimeWimp,
   rebuildRuntime,
-  applyStructuralPatchFromDb,
+  applyStructuralPartFromDb,
   subscribeBoundaryGluonBroadcast,
   subscribeBoundaryHiggsBroadcast,
   subscribeBoundaryWeakResultBroadcast,
@@ -133,10 +133,10 @@ import {
 
 `write()` записывает каноническую структуру. `setValues()` — внешний UUID-addressed intake для ordinary/topology field updates. `update()` остаётся runtime-функцией по индексам уже materialized слоя. Когда Boundary загружен из DB, runtime write-back пишет изменившиеся canonical `field_values`/`wimp_states` обратно в тот же backend. `unlock()` снимает блокировку.
 `write(data)` остаётся отдельным bootstrap/bypass path и сознательно очищает `gravity$`, потому что в этом режиме нет UUID-composition из DB.
-Для DB-пути `add/remove` мутируют `gravity$`, а `test ""` barrier через `applyStructuralPatchFromDb(...)`
+Для DB-пути `add/remove` мутируют `gravity$`, а `test ""` barrier через `applyStructuralPartFromDb(...)`
 или явный `rebuildRuntime(backend)` пересобирает `boundary$` и обновляет `uuid <-> braneIndex`.
 UUID field addressing и topology/ordinary field routing живут в `strong$`, а `brane/stateIndex -> metaStateId` для write-back живёт в `weak$`.
-Существующая `lock/unlock` семантика Boundary остаётся как была. `Photon`, W, `+Z` и `-Z` идут через единый protocol channel: конкретная частица указывается в каждом patch через `part`. Для Weak используются отдельные частицы: `part: "+z"` и `part: "-z"` обслуживают coordination-patches исполнителя в `Bulk`, `part: "w"` возвращает result-patches в `Boundary`; `subscribeBoundaryWeakResultBroadcast()` группирует W result patches по `wimpId/processId`, применяет UUID field patches за один проход и только потом снимает `lock`.
+Существующая `lock/unlock` семантика Boundary остаётся как была. `Photon`, W, `+Z` и `-Z` идут через единый Force channel: конкретная частица указывается в каждом Particle через `part`. Для Weak используются отдельные частицы: `part: "+z"` и `part: "-z"` обслуживают coordination-parts исполнителя в `Bulk`, `part: "w"` возвращает result-parts в `Boundary`; `subscribeBoundaryWeakResultBroadcast()` группирует W result parts по `wimpId/processId`, применяет UUID field parts за один проход и только потом снимает `lock`.
 
 В контексте визуализации это означает, что `Boundary` уже сейчас способен служить источником:
 

@@ -112,7 +112,7 @@ describe("app/web bulk process runtime", () => {
     })
   })
 
-  test("executeAppBulkProcessTarget выполняет error handler и возвращает UUID-addressed error patch", async () => {
+  test("executeAppBulkProcessTarget выполняет error handler и возвращает UUID-addressed error part", async () => {
     const target = createTarget({
       meta: {
         id: "meta:commit",

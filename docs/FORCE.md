@@ -1,8 +1,8 @@
-[README](../README.md) | **English** | [Русский](./PROTOCOL.ru.md)
+[README](../README.md) | **English** | [Русский](./FORCE.ru.md)
 
-# Protocol
+# Force
 
-This document is the root entry point into the protocol layer of MetaFor.
+This document is the root entry point into the force layer of MetaFor.
 It gives the common order of forces, channels, and the transportable content of change.
 Detailed readings of separate forces and the topology-field channel are expanded in [Gravity](./proto/gravity.md), [Electromagnetism](./proto/electromagnetism.md), [Strong](./proto/strong.md), [Weak](./proto/weak.md), and [Higgs](./proto/higgs.md).
 
@@ -10,11 +10,11 @@ Detailed readings of separate forces and the topology-field channel are expanded
 
 [Ontology](./ONTOLOGY.md) defines what exists in the system.
 [Architecture](./ARCHITECTURE.md) defines how that ontology is projected into code.
-Protocol defines how force acts through a channel and how change receives a transportable form.
+The Force layer defines how force acts through a channel and how change receives a transportable form.
 
 This layer deepens ontology and architecture without redistributing their responsibilities.
 Canonicalization, deduplication, interning, and compaction remain the responsibility of `Boundary × Strong`.
-The distinction between ordinary data-fields and topology-fields remains primary and is not retroactively created by protocol.
+The distinction between ordinary data-fields and topology-fields remains primary and is not retroactively created by force.
 
 ## Central distinctions
 
@@ -44,10 +44,10 @@ Each subtype belongs to its own force or to the dedicated topology-field channel
 `Impulse` is the content of change.
 It is not a force, not a `Boson`, and not a channel.
 
-In the serializable architectural projection, `Impulse` may be expressed as `JSON Patch`.
+In the serializable architectural projection, `Impulse` may be expressed through `ParticleOperation` and payload fields.
 That does not turn it into the carrier itself.
 
-The protocol relation is therefore:
+The force relation is therefore:
 
 - force defines the character of transformation,
 - `Boson` defines the general type of channel,
@@ -56,11 +56,11 @@ The protocol relation is therefore:
 
 ## Transport and `part`
 
-MetaFor uses one physical transport channel: `METAFOR_BROADCAST_CHANNEL`.
-Runtime protocol must not create separate physical channels for `gravity`, `gluon`, `higgs`, `weak`, and so on.
+MetaFor uses one physical transport channel: `METAFOR_FORCE_CHANNEL`.
+Runtime force must not create separate physical channels for `gravity`, `gluon`, `higgs`, `weak`, and so on.
 
-The semantic particle is stored inside each patch through the `part` field.
-One patch carries exactly one particle:
+Each `Particle` carries its semantic channel in the `part` field.
+One `Particle` represents exactly one force part:
 
 ```ts
 { part: "graviton", op: "add", path: "zavx0z/git" }
@@ -72,10 +72,10 @@ One patch carries exactly one particle:
 { part: "-z", op: "test", path: "/wimp/<uuid>/process/<uuid>", value: { coordination: "release" } }
 ```
 
-In runtime protocol, root/source `path` is written as a direct source path without a leading `/`.
-Structural `/wimp/...` paths remain store patches.
+In runtime force, root/source `path` is written as a direct source path without a leading `/`.
+Structural `/wimp/...` paths remain store parts.
 
-A `patches` batch may contain different `part` values, but routing is always read from the patch itself, not from the envelope.
+A `parts` batch may contain different `part` values, but routing is always read from the Particle itself, not from the envelope.
 The envelope must not duplicate `part`, `channel`, `source`, or `boson`.
 
 The transport layer does not build custom queues on top of `BroadcastChannel`.
@@ -84,7 +84,7 @@ If ordering, deduplication, replay, or integrity is required, it belongs to the 
 ## Store commit and domain signals
 
 `Store` holds the full canonical form of the world.
-A lightweight protocol patch with `uuid`, `part`, and revision is not a payload
+A lightweight Force `Particle` with `uuid`, `part`, and revision is not a payload
 for rebuilding another `Store`; it only tells domains that an already committed
 part of the world changed and should be read from `Store`.
 
@@ -101,7 +101,7 @@ domain full change
   -> commit(txId / revision / parents)
   -> commit envelope:
        writes  - data for Store replicas that need to apply the change
-       signals - lightweight protocol patches for domain reaction
+       signals - lightweight force parts for domain reaction
 ```
 
 On the receiving side, delivery to domains is ordered in reverse:
@@ -113,42 +113,42 @@ receive commit envelope
   -> deliver signals to Dark / Boundary / Bulk subscribers
 ```
 
-`store-sync` and domain protocol must not be split into two independent streams,
+`store-sync` and domain force must not be split into two independent streams,
 because then `Boundary` or `Bulk` may receive a signal before the local `Store`
 replica contains the data that the signal points to.
 If replication is not needed, the commit envelope may carry no external
-`writes`, but the domain patch must still be born only after the local commit.
+`writes`, but the domain Force part must still be born only after the local commit.
 
-Consequence: sending the domain patch signal belongs to the `Store`/commit layer,
+Consequence: sending the domain Force part belongs to the `Store`/commit layer,
 not to the caller that has already written the data.
-The protocol transport module lives in `store/protocol`; subscriptions and direct
+The force transport module lives in `store/force`; subscriptions and direct
 low-level channels import it from there, not from the project root.
 The current startup surface for emitting a domain signal after a Store write is
 embedded into ORM write methods: `actor.create`, `topology.create`,
 `wimp.states.add`, `wimp.processes.add`, `wimp.matter.*`, and related sub-ORM
-methods create the protocol signal after the SQL write. This surface should later
+methods create the force signal after the SQL write. This surface should later
 collapse into the full commit envelope, but callers must no longer create their
-own `BroadcastChannel` or manually send a second patch.
+own `BroadcastChannel` or manually send a second Force part.
 A domain, agent, UI, or any other participant in the environment must not perform
 two manual actions:
 
 ```text
 write Store
-send protocol patch separately
+send Force part separately
 ```
 
 An environment participant should have one semantic entrypoint: change a field
 value, state, or context. Inside that entrypoint, the environment performs the
 store transaction, creates the commit envelope, and delivers `signals` as
-protocol patches only after commit.
+force parts only after commit.
 
 If an API requires a participant to both mutate the database and manually send a
-patch, the runtime contract is not finished yet: patch sending must be moved into
+Force part, the runtime contract is not finished yet: Force part sending must be moved into
 the store/commit path.
 
 ## Field types
 
-Protocol distinguishes:
+Force distinguishes:
 
 - ordinary data-fields,
 - topology-fields.
@@ -176,11 +176,11 @@ The restrictions for topology-fields are:
 - `array` is not mutated by external reactions,
 - `array` may change only through the atom's internal process and only by passing through a change of `State`.
 
-The formal topology model, typed topology addressing, and topology-level entanglement addressing live in [Topology](./TOPOLOGY.md) so protocol does not replace the hidden-world assembly model.
+The formal topology model, typed topology addressing, and topology-level entanglement addressing live in [Topology](./TOPOLOGY.md) so force does not replace the hidden-world assembly model.
 
 ## Global symmetry
 
-MetaFor protocol symmetry is:
+MetaFor force symmetry is:
 
 - `Gravity -> Graviton`
 - `Electromagnetism -> Photon`
@@ -188,7 +188,7 @@ MetaFor protocol symmetry is:
 - `Higgs field change -> Higgs boson`
 - `Weak -> W boson / Z boson`
 
-This mapping should be read consistently across ontology, architecture, and protocol.
+This mapping should be read consistently across ontology, architecture, and force.
 
 ## Force interactions
 
@@ -196,7 +196,7 @@ This mapping should be read consistently across ontology, architecture, and prot
 
 `Gravity` is responsible for relation, localization invariants, addressability, and structural organization.
 Its `Dark` projection appears as hidden connectivity and inner geometry, its `Boundary` projection as flattening geometry and index space, and its `Bulk` projection as manifested arrangement and spatial localization.
-Its channel is `Graviton`, which belongs to the internal structural protocol rather than to the observable signal layer.
+Its channel is `Graviton`, which belongs to the internal structural force rather than to the observable signal layer.
 
 See [Gravity](./proto/gravity.md).
 

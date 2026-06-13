@@ -38,8 +38,8 @@ This means:
 1. `Dark`, `Boundary`, and `Bulk` must not be read as internal subpackages of one runtime module,
 2. domains must not become direct production dependencies of each other,
 3. domains should be thinkable as capable of living in different processes,
-4. inter-domain communication must appear only through protocols,
-5. the absence of a protocol does not justify direct cross-domain imports.
+4. inter-domain communication must appear only through Force channels,
+5. the absence of a Force channel does not justify direct cross-domain imports.
 
 Therefore:
 
@@ -152,7 +152,7 @@ It is built as the volumetric manifestation of hidden `Dark` connectivity, but i
 Role:
 
 1. hidden hierarchy,
-2. the `Graviton` channel as the inner protocol of relation and localization in hidden organization,
+2. the `Graviton` channel as the inner Force unit of relation and localization in hidden organization,
 3. schema organization,
 4. deep structural localization of hidden structure,
 5. geometry of hidden versions and their continuity.
@@ -412,7 +412,7 @@ It is not a force and does not coincide with `Impulse`.
 `Graviton` is the subtype of `Boson` that belongs to `Gravity`.
 
 1. `Graviton` is not identical to the force `Gravity`.
-2. It belongs to the structural protocol of relation, localization, and organization.
+2. It belongs to the structural Force channel of relation, localization, and organization.
 3. In the architectural reading of `Dark`, hidden organization and addressability are one domain projection of `Graviton`, not the whole meaning of `Gravity`.
 4. Its consequences may be manifested, but it is not an observable event of the level of `Photon`.
 
@@ -480,7 +480,7 @@ At the same time:
 8. active transition goes through `W boson`,
 9. neutral mediation goes through `Z boson`.
 
-See [Protocol](./PROTOCOL.md), [Strong](./proto/strong.md), and [Higgs](./proto/higgs.md) for the detailed channel reading.
+See [Force](./FORCE.md), [Strong](./proto/strong.md), and [Higgs](./proto/higgs.md) for the detailed channel reading.
 
 ### Identity and Index
 
@@ -524,7 +524,7 @@ This means:
 3. `Bulk` is the manifestation projection,
 4. a common hidden basis does not cancel domain autonomy,
 5. a common hidden basis does not permit direct runtime imports between domains,
-6. until protocols exist, inter-domain coherence is proven only in tests.
+6. until Force channels exist, inter-domain coherence is proven only in tests.
 
 At the same time `Dark` remains the hidden builder and holder of connectivity and of the Dark projection of gravitational relations and localization.
 It may observe global structural effects arriving through `Photon`, `Higgs boson`, and `Graviton`, but must not become the common execution center.
@@ -541,11 +541,11 @@ The contract between them is:
 3. common ontological source in `Dark` does not mean shared runtime data ownership,
 4. `DSL` and `AST` are not passed from one lower domain to another as shared runtime ownership,
 5. crossing the boundary between `Bulk` and `Boundary` happens only through the force-channel that matches the character of change,
-6. `Photon` transports `State`, `Gluon` changes ordinary `Field`, `Higgs boson` changes topology-fields, `Graviton` carries relation and localization protocol, `W boson` carries active transition, `Z boson` holds neutral mediation, and `Impulse` gives the content of that transfer,
+6. `Photon` transports `State`, `Gluon` changes ordinary `Field`, `Higgs boson` changes topology-fields, `Graviton` carries relation and localization force, `W boson` carries active transition, `Z boson` holds neutral mediation, and `Impulse` gives the content of that transfer,
 7. `Boundary` does not execute `Bulk` processes,
 8. `Bulk` is not the source of truth for `Boundary` state,
 9. direct production imports between them are forbidden,
-10. until a protocol exists, relative imports between them are acceptable only in tests.
+10. until a Force channel exists, relative imports between them are acceptable only in tests.
 
 ## TAKT as the quantum of system state and execution rhythm
 
@@ -627,4 +627,4 @@ This projection should be read under the following rules:
 4. `Dark` does not absorb deduplication from `Boundary × Strong`,
 5. `Dark` does not absorb execution from `Bulk`,
 6. file proximity of domains inside one repository does not cancel process and architectural isolation,
-7. production code must not use this file proximity as a replacement for protocol.
+7. production code must not use this file proximity as a replacement for a Force channel.

@@ -1,9 +1,9 @@
-[README](../../README.md) | [Protocol](../PROTOCOL.md) | **English** | [Русский](./weak.ru.md)
+[README](../../README.md) | [Force](../FORCE.md) | **English** | [Русский](./weak.ru.md)
 
 # Weak
 
-`weak.md` expands the protocol reading of `Weak`.
-The general distinction between force, `Boson`, channel subtype, and `Impulse` is defined in the [root protocol](../PROTOCOL.md).
+`weak.md` expands the force reading of `Weak`.
+The general distinction between force, `Boson`, channel subtype, and `Impulse` is defined in the [root Force](../FORCE.md).
 
 ## Force and channels
 
@@ -51,10 +51,10 @@ It only separates active passage from neutral transitional mediation inside one 
 - execution of process,
 - lifecycle after state change.
 
-## Protocol distinctions
+## Force distinctions
 
 - `Weak` does not transport observable state across the system; `Photon` does that.
 - `Weak` does not change ordinary `Field` values as the force of retention; `Gluon` does that.
 - `Weak` does not change topology-fields; `Higgs boson` does that.
 - `Weak` does not hold hidden geometry and addressability; `Graviton` does that.
-- `W boson` and `Z boson` together complete the weak symmetry of MetaFor protocol channels.
+- `W boson` and `Z boson` together complete the weak symmetry of MetaFor Force channels.

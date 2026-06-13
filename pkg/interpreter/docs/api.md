@@ -331,7 +331,7 @@ curl -sS -X POST 'http://127.0.0.1:6500/processes/dark-server.spec.ts/action' \
   "root": "/repo",
   "workspacePath": "",
   "entrypoint": "/repo/dark/server.spec.ts",
-  "modules": [{"path":"dark/server.spec.ts"}, {"path":"dark/server.ts"}, {"path":"store/protocol.ts"}]
+  "modules": [{"path":"dark/server.spec.ts"}, {"path":"dark/server.ts"}, {"path":"store/force.ts"}]
 }
 ```
 

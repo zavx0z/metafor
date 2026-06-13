@@ -7,7 +7,7 @@ MetaFor is still in an architectural formation stage, so contribution should sta
 ## Before You Change Anything
 
 - Read the relevant document in [`docs/`](docs/), especially [Ontology](ONTOLOGY.md), [Architecture](ARCHITECTURE.md), and [Development](DEVELOPMENT.md).
-- Preserve the current `arch` terminology: `Dark`, `Boundary`, `Bulk`, `Field`, `Brane`, protocol channels, and the distinction between ordinary fields and topology fields.
+- Preserve the current `arch` terminology: `Dark`, `Boundary`, `Bulk`, `Field`, `Brane`, Force channels, and the distinction between ordinary fields and topology fields.
 - Do not reintroduce older `qTp` framing as a semantic replacement for the current branch.
 
 ## Documentation Contributions
@@ -19,7 +19,7 @@ MetaFor is still in an architectural formation stage, so contribution should sta
 ## Code Contributions
 
 - Do not turn domains into direct runtime dependencies of each other.
-- Treat `Dark`, `Boundary`, and `Bulk` as isolated domains that will eventually communicate through protocols.
+- Treat `Dark`, `Boundary`, and `Bulk` as isolated domains that will eventually communicate through Force channels.
 - Relative imports across domains may be acceptable in tests, but not as a production shortcut.
 
 ## Verification

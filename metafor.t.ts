@@ -4,7 +4,7 @@ import type { MatterDeclaration, MatterSchema } from "./matter.t.ts"
 import type { ReactionsSchema } from "./reactions.t.ts"
 import type { Superposition, SuperpositionInputCheck, SuperpositionStateKeys } from "./superposition.t.ts"
 import type { ReactionsDeclaration } from "./reactions.t.ts"
-import type { JsonPatchOperation } from "./store/protocol.ts"
+import type { ParticleOperation } from "./store/index.ts"
 
 export type SRC = string
 export type FieldKey = string
@@ -14,9 +14,9 @@ export interface BulkSchema {
   view: string
 }
 
-export type Patch = {
+export type ReactionPart = {
   from?: string
-  op: JsonPatchOperation
+  op: ParticleOperation
   path: string
   value?: any
 }
@@ -217,9 +217,9 @@ export type MetaForFn = (
            *   ["idle", "loading"], // Состояния, в которых активна реакция
            *   {
            *     filter: (args) => args.meta.tag === "roadmap" && args.impulses[0]?.op === "replace",
-           *     update: ({ update, field, patch }) => {
+           *     update: ({ update, field, part }) => {
            *       update({
-           *         lastMessage: patch.value,
+           *         lastMessage: part.value,
            *         messageCount: field.messageCount + 1
            *       })
            *     },

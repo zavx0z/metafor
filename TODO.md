@@ -30,11 +30,11 @@
 - [ ] Проверить, что IDB не является snapshot cache, а повторяет публичный store contract.
 - [ ] Обновить `app/web/client.ts` после появления нового browser-facing store/projection API.
 
-## 5. Protocol cleanup
+## 5. Force cleanup
 
-- [x] Сверить `task/issues-audit.md` с protocol-модулем; runtime transport перенесён в `store/protocol`.
-- [x] Решить судьбу `channel`, `source`, `boson` в protocol envelope.
-- [x] Перевести runtime protocol на один `METAFOR_BROADCAST_CHANNEL` и `part` внутри каждого patch.
+- [x] Сверить `task/issues-audit.md` с Force-модулем; runtime Force transport перенесён в `store/force`.
+- [x] Решить судьбу `channel`, `source`, `boson` в Force envelope.
+- [x] Перевести runtime Force на один `METAFOR_FORCE_CHANNEL` и `part` внутри каждого `Particle`.
 - [ ] Довести W/+Z/-Z bridge: Boundary-side Z arbitration и smoke-сценарий.
 
 ## 6. Interpreter TODO HUD
@@ -43,7 +43,7 @@
 - [x] Использовать markdown checkbox `- [ ]` / `- [x]` как данные файла TODO.
 - [x] Подсвечивать пункты как состояние HUD-панели для попадания в `/context.hud.todo.highlightedItems`.
 - [x] Не смешивать todo state с process runtime state: todo находится в `hud.todo`.
-- [x] Убрать устаревший `source.open` кейс со старым shared protocol bare specifier: shared protocol package удалён, protocol теперь `store/protocol`.
+- [x] Убрать устаревший `source.open` кейс со старым shared force bare specifier: shared force package удалён, Force теперь `store/force`.
 - [x] После удаления файлов или директорий через apply_patch обновлять файловую панель интерпретатора без ручной перезагрузки.
 - [ ] Доработать TerminalPane autoscroll/scrollback: когда пользователь скроллит вверх, а в терминал продолжают поступать новые данные, текст не должен перекрываться или визуально разваливаться; viewport должен оставаться на месте, а автоскролл должен включаться только после возврата в самый низ и без просадки производительности.
 

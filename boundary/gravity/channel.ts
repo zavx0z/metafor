@@ -1,3 +1,3 @@
-import { createProtocolChannel } from "store/protocol"
+import {force} from "store"
 
-export const gravityCH = createProtocolChannel()
+export const gravityCH = force

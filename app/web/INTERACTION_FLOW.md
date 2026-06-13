@@ -3,7 +3,7 @@
 ## Участники
 
 - `app/web/server.ts` поднимает `dark`, `boundary` и `bulk` worker-ы на общем file-backed SQLite backend `app/web/tmp/metafor-app.sqlite`
-- `dark` materialize-ит graph/meta/wimp structure в DB и шлёт protocol patches через единый channel
+- `dark` materialize-ит graph/meta/wimp structure в DB и шлёт Force parts через единый channel
 - `boundary` держит materialized runtime, пишет state/field changes обратно в DB и публикует `Photon`
 - `bulk` слушает `Photon`, claim-ит process через `part: "+z"`, release/reject отдаёт через `part: "-z"`, исполняет action и возвращает W-result через `part: "w"`
 
@@ -12,13 +12,13 @@
 1. Клиент открывает `/ws` и шлёт `{ type: "materialize", src }`
 2. Server пересоздаёт runtime и очищает `metafor-app.sqlite`
 3. `dark` materialize-ит meta graph в DB
-4. `boundary` получает structural patches, проходит barrier rebuild и поднимает runtime поверх той же SQLite
-5. UI получает snapshot и protocol stream уже из server-side runtime
+4. `boundary` получает structural parts, проходит barrier rebuild и поднимает runtime поверх той же SQLite
+5. UI получает snapshot и Force stream уже из server-side runtime
 
 ## Value / State Flow
 
-1. Клиент шлёт через `/ws` `{ type: "protocol", patches }`, где каждый patch содержит `part`
-2. Server bridge публикует `{ patches }` в единый protocol channel
+1. Клиент шлёт через `/ws` `{ type: "force", parts }`, где каждый part содержит `part`
+2. Server bridge публикует `{ parts }` в единый Force channel
 3. `boundary.setValues()` обновляет runtime field values, пишет их в SQLite и делает `weakRunStep()`
 4. Если state сменился, `boundary` публикует `Photon`
 5. Если state не сменился, но update затронул process-bound state, `boundary` всё равно retrigger-ит текущий state
@@ -28,12 +28,12 @@
 ## Bulk x Weak
 
 1. `bulk` получает `Photon`
-2. Отправляет coordination patch `part: "+z", op: "test", value: { coordination: "claim" }`
+2. Отправляет coordination part `part: "+z", op: "test", value: { coordination: "claim" }`
 3. Исполняет action module из meta process
 4. Возвращает:
-   - `part: "w"` field patches, если process дал success patches
+   - `part: "w"` field parts, если process дал success parts
    - `part: "w"` result/error marker, если process вернул domain error
-5. `boundary.applyWeakResultPacket()` применяет patches, снимает lock, пишет DB и, если нужно, двигает brane в следующий state
+5. `boundary.applyWeakResultPacket()` применяет parts, снимает lock, пишет DB и, если нужно, двигает brane в следующий state
 
 ## Пример `git commit -m hi`
 

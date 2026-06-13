@@ -1,16 +1,16 @@
 import {
-	appendProtocolMessage,
+	appendForceMessage,
 	appendWorkerLog,
-	initProtocolLogger,
+	initForceLogger,
 	setConnectionStatus,
 	setWorkerStatus,
-} from "./protocol-logger.ts"
+} from "./force-logger.ts"
 import {
 	applyDbSyncMessage,
 	createIdbDbActorStore,
 	type DbActorStore,
 } from "@store/actor"
-import type { ProtocolPatch } from "store/protocol"
+import type { Particle } from "store"
 import { createBulkViewport, type BulkViewportController, type BulkViewportStats } from "../../bulk/web/index.ts"
 import {
 	APP_WEB_LAYOUT_SETTING_KEYS,
@@ -29,9 +29,9 @@ type WorkerStatusMessage = {
 	error?: string
 }
 
-type ProtocolMessage = {
-	type: "protocol"
-	patches: ProtocolPatch[]
+type ForceMessage = {
+	type: "force"
+	parts: Particle[]
 }
 
 type ClientMaterializePayload = {
@@ -67,7 +67,7 @@ const toWorkerMeta = (meta: {
 	return nextMeta
 }
 
-initProtocolLogger()
+initForceLogger()
 
 const form = document.getElementById("control-form") as HTMLFormElement
 const srcInput = document.getElementById("src-input") as HTMLInputElement
@@ -106,8 +106,8 @@ const refreshViewportFromLocalStore = async (rootSrc: string): Promise<void> => 
 	bulkViewport?.applyWorld({ rootSrc, particles, fields })
 }
 
-const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
-const socket = new WebSocket(`${protocol}//${window.location.host}/ws`)
+const socketScheme = window.location.protocol === "https:" ? "wss:" : "ws:"
+const socket = new WebSocket(`${socketScheme}//${window.location.host}/ws`)
 
 const updateBulkStats = (stats: BulkViewportStats): void => {
 	const rootSrc = stats.rootSrc ? `${stats.rootSrc}: ` : ""
@@ -389,11 +389,12 @@ socket.onmessage = (event) => {
 		return
 	}
 
-	if (message.type === "protocol") {
-		appendProtocolMessage("protocol", message.patches)
-		for (const patch of message.patches) {
-			if (patch.part === "graviton" && patch.path === "/db-sync") {
-				const sync = patch.value as Parameters<typeof applyDbSyncMessage>[1]
+	if (message.type === "force") {
+		const forceMessage = message as ForceMessage
+		appendForceMessage("force", forceMessage.parts)
+		for (const part of forceMessage.parts) {
+			if (part.part === "graviton" && part.path === "/db-sync") {
+				const sync = part.value as Parameters<typeof applyDbSyncMessage>[1]
 				void (async () => {
 					const store = localStore ?? (await localStoreReady)
 					await applyDbSyncMessage(store, sync)
@@ -402,8 +403,8 @@ socket.onmessage = (event) => {
 				})
 				continue
 			}
-			if (patch.part === "graviton" && patch.path === "/structural") {
-				const signal = patch.value as { rootSrc?: unknown }
+			if (part.part === "graviton" && part.path === "/structural") {
+				const signal = part.value as { rootSrc?: unknown }
 				const rootSrc = signal.rootSrc
 				if (typeof rootSrc !== "string") continue
 				void (async () => {
@@ -417,7 +418,7 @@ socket.onmessage = (event) => {
 				})
 				continue
 			}
-			bulkViewport?.handleProtocol(patch.part, patch)
+			bulkViewport?.handleForce(part.part, part)
 		}
 		return
 	}

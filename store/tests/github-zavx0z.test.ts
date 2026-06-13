@@ -3,8 +3,7 @@ import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
 import {SQL} from "bun"
 import {matter} from "../../dark/index.ts"
-import {createProtocolChannel, type ProtocolMessage, type ProtocolPatch} from "../protocol.ts"
-import type {Store} from "../index.ts"
+import type {Particle, Store} from "../index.ts"
 import {open} from "../sqlite.ts"
 
 const requiredRow = <T>(row: T | undefined, message: string): T => {
@@ -15,20 +14,12 @@ const requiredRow = <T>(row: T | undefined, message: string): T => {
 const tmpDir = join(import.meta.dir, "..", "tmp")
 const sqliteFilename = join(tmpDir, "github-zavx0z-full-tree.sqlite")
 
-const isProtocolMessage = (message: unknown): message is ProtocolMessage =>
-  typeof message === "object"
-  && message !== null
-  && Array.isArray((message as {patches?: unknown}).patches)
-
-const flattenProtocolPatches = (messages: unknown[]): ProtocolPatch[] =>
-  messages.flatMap((message) => isProtocolMessage(message) ? message.patches : [])
-
-const waitForPatches = async (predicate: () => boolean): Promise<void> => {
+const waitForParts = async (predicate: () => boolean): Promise<void> => {
   const deadline = Date.now() + 1000
 
   while (!predicate()) {
     if (Date.now() > deadline) {
-      throw new Error("Expected gravity patches")
+      throw new Error("Expected gravity parts")
     }
     await new Promise((resolve) => setTimeout(resolve, 0))
   }
@@ -48,12 +39,11 @@ describe("store/tests github/zavx0z startup load", () => {
     sql = new SQL(`sqlite://${sqliteFilename}`)
   })
 
-  test("matter() пишет всё дерево zavx0z/git через patch-flow и публикует gravity-сообщения", async () => {
-    const channel = createProtocolChannel()
-    const messages: unknown[] = []
+  test("matter() пишет всё дерево zavx0z/git через force-flow и публикует gravity-сообщения", async () => {
+    const parts: Particle[] = []
 
-    channel.onmessage = (event: MessageEvent<unknown>) => {
-      messages.push(event.data)
+    store.onmessage = (event) => {
+      parts.push(...event.data.parts)
     }
 
     await matter("zavx0z/git")
@@ -79,12 +69,11 @@ describe("store/tests github/zavx0z startup load", () => {
         ORDER BY position, uuid
     `
 
-    await waitForPatches(() => {
-      const patches = flattenProtocolPatches(messages)
-      return patches.filter((patch) => patch.part === "graviton" && patch.op === "add" && patch.value === "actor").length
+    await waitForParts(() => {
+      return parts.filter((part) => part.part === "graviton" && part.op === "add" && part.value === "actor").length
         >= actorRows.length
     })
-    channel.close()
+    store.onmessage = null
 
     expect(metaRows.map((row) => row.src)).toContain("zavx0z/git")
     expect(metaRows.map((row) => row.src)).toContain("zavx0z/git-start")
@@ -122,11 +111,10 @@ describe("store/tests github/zavx0z startup load", () => {
     expect(await commit.values.count()).toBeGreaterThan(0)
     expect((await commit.state())?.metaState).not.toBeNull()
 
-    const patches = flattenProtocolPatches(messages)
-    const actorPatches = patches.filter((patch) => patch.part === "graviton" && patch.op === "add" && patch.value === "actor")
-    const topologyPatches = patches.filter((patch) => patch.part === "graviton" && patch.op === "add" && patch.value === "topology")
-    expect(actorPatches.map((patch) => patch.path).sort()).toEqual(actorRows.map((row) => row.uuid).sort())
-    expect(topologyPatches.map((patch) => patch.path).sort()).toEqual(topologyRows.map((row) => row.uuid).sort())
+    const actorParts = parts.filter((part) => part.part === "graviton" && part.op === "add" && part.value === "actor")
+    const topologyParts = parts.filter((part) => part.part === "graviton" && part.op === "add" && part.value === "topology")
+    expect(actorParts.map((part) => part.path).sort()).toEqual(actorRows.map((row) => row.uuid).sort())
+    expect(topologyParts.map((part) => part.path).sort()).toEqual(topologyRows.map((row) => row.uuid).sort())
 
     await sql.close()
     await store.close()

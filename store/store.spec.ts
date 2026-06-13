@@ -3,8 +3,8 @@ import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
 import {SQL} from "bun"
 import {open} from "./sqlite.ts"
-import type {StorePart, StorePatch} from "./sqlite.ts"
-import {createProtocolChannel, type ProtocolPatch} from "./protocol.ts"
+import type {StorePart, StoreParticle} from "./sqlite.ts"
+import type {Particle} from "./index.ts"
 import {BooleanValue, EnumValue} from "@store/actor"
 import type {Store} from "./index.ts"
 
@@ -48,7 +48,7 @@ describe("store/sqlite smoke", () => {
     expect(tables).toContain("value_list_item")
   })
 
-  test("graviton-патчи декларации, чтение через ORM", async () => {
+  test("graviton parts декларации, чтение через ORM", async () => {
     const flagUuid = crypto.randomUUID()
     const statusUuid = crypto.randomUUID()
     const idleVariantUuid = crypto.randomUUID()
@@ -118,7 +118,7 @@ describe("store/sqlite smoke", () => {
     expect(await status.default()).toBe("idle")
   })
 
-  test("actor-патчи: graviton+gluon+photon, чтение через ORM", async () => {
+  test("actor parts: graviton+gluon+photon, чтение через ORM", async () => {
     const flagUuid = crypto.randomUUID()
     const statusUuid = crypto.randomUUID()
     const idleVariantUuid = crypto.randomUUID()
@@ -193,18 +193,17 @@ describe("store/sqlite smoke", () => {
     expect(owners.map((o) => o.actor).sort()).toEqual([actorUuid, actor2Uuid].sort())
   })
 
-  test("update() публикует примененные patches после записи", async () => {
-    const channel = createProtocolChannel()
-    const received: ProtocolPatch[] = []
-    channel.onmessage = (event) => {
-      received.push(...event.data.patches)
+  test("update() публикует примененные parts после записи", async () => {
+    const received: Particle[] = []
+    store.onmessage = (event) => {
+      received.push(...event.data.parts)
     }
 
-    const patch: StorePatch = {part: "graviton", op: "add", path: `/wimp/${enc(SRC)}`, value: {name: "smoke"}}
+    const part: StoreParticle = {part: "graviton", op: "add", path: `/wimp/${enc(SRC)}`, value: {name: "smoke"}}
 
     try {
-      await store.update({patches: [patch]})
-      await waitFor(() => received.some((item) => item.part === patch.part && item.op === patch.op && item.path === patch.path))
+      await store.update({parts: [part]})
+      await waitFor(() => received.some((item) => item.part === part.part && item.op === part.op && item.path === part.path))
 
       const row = (
         await sql<Array<{name: string | null}>>`
@@ -215,7 +214,7 @@ describe("store/sqlite smoke", () => {
       )[0]
       expect(row?.name).toBe("smoke")
     } finally {
-      channel.close()
+      store.onmessage = null
     }
   })
 
@@ -230,7 +229,7 @@ const enc = (s: string): string => s.replace(/~/g, "~0").replace(/\//g, "~1")
 const waitFor = async (predicate: () => boolean): Promise<void> => {
   const deadline = Date.now() + 1000
   while (!predicate()) {
-    if (Date.now() > deadline) throw new Error("Expected protocol patch")
+    if (Date.now() > deadline) throw new Error("Expected force part")
     await new Promise((resolve) => setTimeout(resolve, 0))
   }
 }
@@ -238,7 +237,7 @@ const waitFor = async (predicate: () => boolean): Promise<void> => {
 const update = async (
   store: Store,
   part: StorePart,
-  patches: Array<Omit<StorePatch, "part">>,
+  parts: Array<Omit<StoreParticle, "part">>,
 ): Promise<void> => {
-  await store.update({patches: patches.map((patch) => ({part, ...patch}) as StorePatch)})
+  await store.update({parts: parts.map((item) => ({part, ...item}) as StoreParticle)})
 }

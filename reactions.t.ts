@@ -1,19 +1,19 @@
 import type { Fields, Update, Values } from "./fields.t.ts"
 import type { Condition, ConditionOptional, CondNumberRequired, CondStringRequired } from "./superposition.t.ts"
-import type { Mass, Patch, Self } from "./metafor.t.ts"
+import type { Mass, ReactionPart, Self } from "./metafor.t.ts"
 
 export type ReactionParams = {
   meta: string
   atom: string
   timestamp: number
-  patch: Patch
+  part: ReactionPart
   self: Self
 }
 
 /**
  * Декларативные условия фильтрации реакций
  *
- * Плоская структура с расширенными возможностями для meta и patch.
+ * Плоская структура с расширенными возможностями для meta и part.
  * Позволяет фильтровать события по различным критериям.
  *
  * @example
@@ -159,7 +159,7 @@ export type ReactionFilterConditions = {
   */
   timestamp?: CondNumberRequired
   /**
-   # Фильтрация по операции патча
+   # Фильтрация по операции part
 
    Доступные операции:
    | Операция       | Описание                              |
@@ -183,7 +183,7 @@ export type ReactionFilterConditions = {
   */
   op?: "replace" | "add" | "remove" | "test"
   /**
-   # Фильтрация по пути патча
+   # Фильтрация по пути part
 
    Доступные пути:
    | Путь           | Описание                              |
@@ -206,7 +206,7 @@ export type ReactionFilterConditions = {
   */
   path?: "/context" | "/state" | "/"
   /**
-   # Фильтрация по значению патча
+   # Фильтрация по значению part
 
    Поддерживает все типы значений с расширенными условиями сравнения.
 
@@ -351,12 +351,12 @@ export type ReactionFilterConditions = {
  * const reaction: Reaction<MyFields, "idle" | "loading"> = {
  *   label: "Обработка сообщений",
  *   desc: "Обрабатывает входящие сообщения от пользователей",
- *   filter: ({ meta, patch }) => {
- *     return meta === "user" && patch.op === "replace"
+ *   filter: ({ meta, part }) => {
+ *     return meta === "user" && part.op === "replace"
  *   },
- *   update: ({ update, value, patch }) => {
+ *   update: ({ update, value, part }) => {
  *     update({
- *       lastMessage: patch.value,
+ *       lastMessage: part.value,
  *       messageCount: value.messageCount + 1
  *     })
  *   }
@@ -390,8 +390,8 @@ export type Reaction<ɸ extends Fields, 𝛴 extends string, m extends Mass> = {
  *     ["idle", "loading"], // Суперпозиции
  *     reaction({ label: "Обработка сообщений" })
  *       .filter(({ self }) => ({ meta: "user", atom: self.atom.split("/")[1] }))
- *       .equal(({ update, patch }) => {
- *         update({ lastMessage: patch.value })
+ *       .equal(({ update, part }) => {
+ *         update({ lastMessage: part.value })
  *       })
  *   ]
  * ]
@@ -413,8 +413,8 @@ export type ReactionsDeclaration<ɸ extends Fields, 𝛴 extends string, m exten
      * - `meta` - название компонента-отправителя из MetaFor("label") (строка, регулярное выражение, объект с условиями)
      * - `atom` - идентификатор актора-отправителя
      * - `path` - путь к изменяемому полю ("/fields", "/state", "/")
-     * - `op` - операция патча ("add", "remove", "replace")
-     * - `value` - значение патча (с поддержкой расширенных условий для строк, чисел, булевых, массивов)
+     * - `op` - операция part ("add", "remove", "replace")
+     * - `value` - значение part (с поддержкой расширенных условий для строк, чисел, булевых, массивов)
      * - `timestamp` - временная метка события
      *
      * Функция фильтра получает доступ к `self` (идентификатор актора) и `value` (текущие значения полей),
@@ -431,7 +431,7 @@ export type ReactionsDeclaration<ɸ extends Fields, 𝛴 extends string, m exten
      *     path: "/fields",
      *     value: { gt: 0 }
      *   }))
-     *   .equal(({ update, patch }) => update({ lastMessage: patch.value }))
+     *   .equal(({ update, part }) => update({ lastMessage: part.value }))
      * ```
      */
     filter: (filter: (params: { self: Self; value: Values<ɸ> }) => ReactionFilterConditions) => {
@@ -446,26 +446,26 @@ export type ReactionsDeclaration<ɸ extends Fields, 𝛴 extends string, m exten
        * - `meta` - название компонента-отправителя из MetaFor("label")
        * - `atom` - идентификатор актора-отправителя
        * - `timestamp` - временная метка события
-       * - `patch` - JSON Patch с данными изменения
+       * - `part` - Force part с данными изменения
        * - `state` - текущее состояние
        * - `self` - полный идентификатор актора
        *
        * Функция может использовать `update()` для изменения полей, обращаться к `mass`
-       * для работы с внешним состоянием, анализировать `patch` для получения данных события.
+       * для работы с внешним состоянием, анализировать `part` для получения данных события.
        *
        * @param reaction - Функция обработки события, вызываемая при срабатывании реакции
        * @returns Объект реакции с методом `registerStates` для регистрации состояний
        *
        * @example
        * ```typescript
-       * .equal(({ update, value, patch, mass }) => {
+       * .equal(({ update, value, part, mass }) => {
        *   // Обновление контекста
        *   update({
-       *     lastMessage: patch.value,
+       *     lastMessage: part.value,
        *     messageCount: value.messageCount + 1
        *   })
        *   // Работа с mass объектом
-       *   mass.log.push({ message: patch.value, time: Date.now() })
+       *   mass.log.push({ message: part.value, time: Date.now() })
        * })
        * ```
        */
@@ -529,13 +529,13 @@ export type ReactionsSchema = {
  *   meta,      // имя meta
  *   atom,      // ID атома
  *   timestamp, // Временная метка
- *   patch,     // Патч данных
+ *   part,     // Force part данных
  *   state,     // Текущее состояние
  *   self       // Полный идентификатор атома
  * }) => {
  *   // Обработка события
  *   update({
- *     lastMessage: patch.value,
+ *     lastMessage: part.value,
  *     messageCount: value.messageCount + 1
  *   })
  * }
@@ -555,8 +555,8 @@ export type ReactionAction<ɸ extends Fields, 𝛴 extends string, m extends Mas
   atom: string
   /** Временная метка */
   timestamp: number
-  /** Патч для применения к актору */
-  patch: Patch
+  /** Force part для применения к актору */
+  part: ReactionPart
   /** Текущее состояние */
   state: 𝛴
   /** Идентификатор актора */

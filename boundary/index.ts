@@ -1,11 +1,9 @@
 export {
   FieldType,
   addRuntimeWimp,
-  applyStructuralPatchFromDb,
+  applyStructuralPartFromDb,
   applyWeakResultPacket,
   boundary$,
-  closeBoundaryProtocolChannels,
-  configureBoundaryProtocolBroadcast,
   flattenBoundaryData,
   gravity$,
   listRuntimeWimpIds,
@@ -29,7 +27,7 @@ export {
 export type {
   BoundaryBroadcastSubscription,
   BoundaryGravityBroadcastSubscription,
-  BoundaryStructuralPatch,
+  BoundaryStructuralPart,
   BoundaryValueBroadcastSubscription,
   BoundaryWeakBroadcastSubscription,
   BoundaryGravityStore,

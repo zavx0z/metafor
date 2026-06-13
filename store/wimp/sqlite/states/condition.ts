@@ -1,6 +1,6 @@
 import type { Transition } from "./transition.ts"
 import { Predicate } from "./predicate.ts"
-import {emitGravitonAdd} from "../../../protocol.ts"
+import {emitGravitonAdd} from "../../../force.ts"
 
 /**
  * Резолвит `field.uuid` по ключу поля внутри текущей wimp.

@@ -2,11 +2,12 @@ import type {Actor, ActorRecord, ActorRoots, AnyValue, ActorFieldValue, ActorRow
 import type {AnyTopology, TopologyInput, TopologyRecord} from "@store/topology"
 import type {Wimp} from "@store/wimp/sqlite"
 import type {StoreUpdateMessage} from "./sqlite.ts"
+import type {ForceSurface} from "./force.ts"
 
-export {METAFOR_BROADCAST_CHANNEL, createProtocolChannel} from "./protocol.ts"
-export type {JsonPatchOperation, Part, ProtocolChannel, ProtocolMessage, ProtocolPatch} from "./protocol.ts"
+export {METAFOR_FORCE_CHANNEL, force} from "./force.ts"
+export type {Force, ForceMessage, ForceMessageHandler, ForceSurface, ParticleOperation, Part, Particle} from "./force.ts"
 export {open} from "./sqlite.ts"
-export type {StorePart, StorePatch, StoreUpdateMessage} from "./sqlite.ts"
+export type {StorePart, StoreParticle, StoreUpdateMessage} from "./sqlite.ts"
 
 export interface WimpApi {
   /**
@@ -50,15 +51,15 @@ export interface TopologyApi {
   childrenOfActor(actorUuid: string): Promise<AnyTopology[]>
 }
 
-export interface Store {
+export interface Store extends ForceSurface {
   readonly wimp: WimpApi
   readonly actor: ActorApi
   readonly topology: TopologyApi
 
   /**
-   * Inbound API для приёма sync-патчей от других процессов.
+   * Inbound API для приёма force parts от других процессов.
    * Domain-код (Dark/Boundary/Bulk) должен использовать ORM-методы (`wimp.create`, `actor.create`, etc.),
-   * не этот канал. `update` переводит JSON Patch в соответствующие SQL-операции.
+   * не этот канал. `update` переводит parts в соответствующие SQL-операции.
    */
   update(message: StoreUpdateMessage): Promise<void>
 

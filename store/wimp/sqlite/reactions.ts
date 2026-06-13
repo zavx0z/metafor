@@ -1,6 +1,6 @@
 import type { Wimp } from "./wimp.ts"
 import { Reaction } from "./reaction.ts"
-import {emitGravitonAdd} from "../../protocol.ts"
+import {emitGravitonAdd} from "../../force.ts"
 
 /**
  * Коллекция реакций для одного wimp.

@@ -62,7 +62,7 @@ export interface BulkViewportStats {
 /** Публичный API bulk viewport для `app/web`. */
 export interface BulkViewportController {
 	dispose(): void
-	handleProtocol(_channel: string, _message: unknown): void
+	handleForce(_channel: string, _message: unknown): void
 	setLayoutSettings(settings: Partial<AppWebLayoutSettings>): void
 	setRenderSettings(settings: Partial<AppWebRenderSettings>): void
 	setSize(width: number, height: number): void
@@ -1763,7 +1763,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			setHoveredPickTarget(null)
 			viewPoint.dispose()
 		},
-		handleProtocol(_channel: string, _message: unknown) {
+		handleForce(_channel: string, _message: unknown) {
 			return
 		},
 		setLayoutSettings(settings: Partial<AppWebLayoutSettings>) {

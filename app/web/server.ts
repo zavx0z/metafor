@@ -2,7 +2,7 @@ import { build, file, serve } from "bun"
 import { mkdirSync, rmSync } from "node:fs"
 import { dirname, join, normalize } from "node:path"
 import type { AppWebLayoutSettings } from "./settings.ts"
-import { createProtocolChannel, type ProtocolPatch } from "store/protocol"
+import {force, type Particle} from "store"
 
 const ROOT = normalize(join(import.meta.dir, "../../"))
 const APP_CHANNEL = "app-web"
@@ -52,9 +52,9 @@ type ClientRelayoutMessage = {
 	layoutSettings?: Partial<AppWebLayoutSettings>
 }
 
-type ClientProtocolBridgePayload = {
-	type: "protocol"
-	patches: ProtocolPatch[]
+type ClientForceBridgePayload = {
+	type: "force"
+	parts: Particle[]
 }
 
 type AppRuntime = {
@@ -76,7 +76,7 @@ const workerStates: Record<WorkerName, WorkerStatus> = {
 
 let runtime: AppRuntime | null = null
 let runtimeLock: Promise<AppRuntime> | null = null
-const protocolInput = createProtocolChannel()
+const forceInput = force
 
 const workerEntry = (relativePath: string): string => join(ROOT, relativePath)
 
@@ -110,26 +110,26 @@ const toWorkerMeta = (meta: {
 	return nextMeta
 }
 
-const valuePatchPayload = (value: unknown): ProtocolPatch | null => {
+const valuePartPayload = (value: unknown): Particle | null => {
 	if (!value || typeof value !== "object") return null
-	const patch = value as { part?: unknown; op?: unknown; path?: unknown; value?: unknown }
-	return (patch.part === "gluon" || patch.part === "higgs") && patch.op === "replace" && typeof patch.path === "string" && "value" in patch
-		? { part: patch.part, op: "replace", path: patch.path, value: patch.value }
+	const part = value as { part?: unknown; op?: unknown; path?: unknown; value?: unknown }
+	return (part.part === "gluon" || part.part === "higgs") && part.op === "replace" && typeof part.path === "string" && "value" in part
+		? { part: part.part, op: "replace", path: part.path, value: part.value }
 		: null
 }
 
-const clientProtocolBridgePayload = (value: unknown): ClientProtocolBridgePayload | null => {
+const clientForceBridgePayload = (value: unknown): ClientForceBridgePayload | null => {
 	if (!value || typeof value !== "object") return null
 	const message = value as {
 		type?: unknown
-		patches?: unknown
+		parts?: unknown
 	}
-	if (message.type !== "protocol") return null
-	if (!Array.isArray(message.patches)) return null
-	const patches = message.patches.map(valuePatchPayload)
-	if (patches.some((patch) => patch === null)) return null
+	if (message.type !== "force") return null
+	if (!Array.isArray(message.parts)) return null
+	const parts = message.parts.map(valuePartPayload)
+	if (parts.some((part) => part === null)) return null
 
-	return { type: "protocol", patches: patches as ProtocolPatch[] }
+	return { type: "force", parts: parts as Particle[] }
 }
 
 const attachWorker = (
@@ -226,12 +226,12 @@ const getOrCreateRuntime = async (): Promise<AppRuntime> => {
 	return await runtimeLock
 }
 
-const protocolMirror = createProtocolChannel()
-protocolMirror.onmessage = (event) => {
-	const patches = event.data.patches
+const forceMirror = force
+forceMirror.onmessage = (event) => {
+	const parts = event.data.parts
 	publish({
-		type: "protocol",
-		patches,
+		type: "force",
+		parts,
 	})
 }
 
@@ -264,13 +264,13 @@ const server = serve({
 			let payload:
 				| ClientMaterializeMessage
 				| ClientRelayoutMessage
-				| ClientProtocolBridgePayload
+				| ClientForceBridgePayload
 				| null = null
 			try {
 				payload = JSON.parse(String(message)) as
 					| ClientMaterializeMessage
 					| ClientRelayoutMessage
-					| ClientProtocolBridgePayload
+					| ClientForceBridgePayload
 			} catch {
 				return
 			}
@@ -280,10 +280,10 @@ const server = serve({
 			}
 
 			void (async () => {
-				const protocolBridgePayload = clientProtocolBridgePayload(payload)
-				if (protocolBridgePayload !== null) {
+				const forceBridgePayload = clientForceBridgePayload(payload)
+				if (forceBridgePayload !== null) {
 					await getOrCreateRuntime()
-					protocolInput.postMessage({ patches: protocolBridgePayload.patches })
+					forceInput.postMessage({ parts: forceBridgePayload.parts })
 					return
 				}
 

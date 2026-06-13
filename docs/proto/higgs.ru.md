@@ -1,9 +1,9 @@
-[README](../README.ru.md) | [Протокол](../PROTOCOL.ru.md) | [English](./higgs.md) | **Русский**
+[README](../README.ru.md) | [Force](../FORCE.ru.md) | [English](./higgs.md) | **Русский**
 
 # Higgs
 
-`higgs.md` разворачивает протокольное чтение изменения полей topology в MetaFor.
-Общие различения силы, `Boson`, подтипа канала и `Impulse` заданы в [корневом протоколе](../PROTOCOL.ru.md).
+`higgs.md` разворачивает силовое чтение изменения полей topology в MetaFor.
+Общие различения силы, `Boson`, подтипа канала и `Impulse` заданы в [корневом Force](../FORCE.ru.md).
 
 ## Поля Higgs и канал изменения
 

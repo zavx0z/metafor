@@ -1,5 +1,5 @@
 import type { Process } from "./process.ts"
-import {emitGravitonAdd} from "../../../protocol.ts"
+import {emitGravitonAdd} from "../../../force.ts"
 
 type ReadPhase = "action" | "success" | "error"
 type WritePhase = "success" | "error"

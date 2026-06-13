@@ -1,9 +1,9 @@
-[README](../../README.md) | [Protocol](../PROTOCOL.md) | **English** | [Русский](./gravity.ru.md)
+[README](../../README.md) | [Force](../FORCE.md) | **English** | [Русский](./gravity.ru.md)
 
 # Gravity
 
-`gravity.md` expands the protocol reading of `Gravity`.
-The general distinction between force, `Boson`, channel subtype, and `Impulse` is defined in the [root protocol](../PROTOCOL.md).
+`gravity.md` expands the force reading of `Gravity`.
+The general distinction between force, `Boson`, channel subtype, and `Impulse` is defined in the [root Force](../FORCE.md).
 
 ## Force and channel
 
@@ -36,7 +36,7 @@ Through `Graviton`, entities receive locality, relation, connectivity, and geome
 - spatial arrangement of execution,
 - observable localization of manifested form.
 
-## Protocol distinctions
+## Force distinctions
 
 - `Gravity` does not transport `State` in observable form; `Photon` does that.
 - `Gravity` does not change ordinary `Field` values; `Gluon` does that.

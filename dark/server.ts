@@ -1,5 +1,5 @@
 import {open} from "store/sqlite"
-import "./dark.ts"
+import {listenDarkForce} from "./dark.ts"
 
 /**
  * Server bootstrap Dark: открывает SQLite store и корректно закрывает его
@@ -8,6 +8,7 @@ import "./dark.ts"
 const STORE_PATH = process.env.STORE_PATH ?? "./boundary.sqlite"
 
 globalThis.store = await open(STORE_PATH)
+listenDarkForce()
 
 const shutdown = async (signal: string): Promise<void> => {
   await globalThis.store.close()

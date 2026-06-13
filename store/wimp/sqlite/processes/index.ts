@@ -1,7 +1,7 @@
 import type { Wimp } from "../wimp.ts"
 import type { ProcessType as ProcessTypeEnum } from "../../../../process.t.ts"
 import { Process } from "./process.ts"
-import {emitGravitonAdd} from "../../../protocol.ts"
+import {emitGravitonAdd} from "../../../force.ts"
 
 /** String-литералы значений `enum ProcessType` из metafor DSL — единый источник истины. */
 export type ProcessType = `${ProcessTypeEnum}`

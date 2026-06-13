@@ -116,8 +116,8 @@ Each public document links to its English and Russian counterpart.
 - [Ontology](docs/ONTOLOGY.md) defines what exists in MetaFor across `Dark`, `Boundary`, and `Bulk`.
 - [Architecture](docs/ARCHITECTURE.md) maps that ontology into domain responsibilities, invariants, and repository projection.
 - [Topology](docs/TOPOLOGY.md) formalizes hidden connectivity in `Dark`.
-- [Protocol](docs/PROTOCOL.md) explains forces, bosonic channels, and the transport form of change.
-- [Development](docs/DEVELOPMENT.md) records the current practical development mode before full inter-domain protocols exist.
+- [Force](docs/FORCE.md) explains forces, bosonic channels, and the transport form of change.
+- [Development](docs/DEVELOPMENT.md) records the current practical development mode before full inter-domain Force channels are stabilized.
 - [DAO](docs/DAO.md) explains why collective governance is central to MetaFor and how the TON-based admission direction for inheritable meta-NFT is intended to protect the shared space from becoming only a corporate or state-controlled asset.
 
 ## Participation Paths

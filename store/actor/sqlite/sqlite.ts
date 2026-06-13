@@ -7,7 +7,7 @@ import {Actor, ActorRoots, decodeActorRow} from "./actor.ts"
 import {Value, type AnyValue} from "./value.ts"
 import type {ActorRecord, ActorRows} from "./actor.t.ts"
 import {ActorFieldValue} from "./actor_value.ts"
-import {emitGravitonAdd} from "../../protocol.ts"
+import {emitGravitonAdd} from "../../force.ts"
 
 export class StoreActorSqlite {
   readonly roots: ActorRoots

@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs"
 import { dirname, isAbsolute, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
-import { createBulkWeakProtocol, subscribeBulkPhotons, type PhotonPayload } from "@bulk/em"
+import { createBulkWeakForce, subscribeBulkPhotons, type PhotonPayload } from "@bulk/em"
 import { executeProcess, loadAction } from "@bulk/weak"
 import type {
   DbBackend,
@@ -166,9 +166,9 @@ const collectHandlerValues = async (
 
   const collected: Record<string, unknown> = {}
   const handler = compileInlineHandler(handlerSrc)
-  const update = (patch: Record<string, unknown>): Record<string, unknown> => {
-    Object.assign(collected, structuredClone(patch))
-    return patch
+  const update = (part: Record<string, unknown>): Record<string, unknown> => {
+    Object.assign(collected, structuredClone(part))
+    return part
   }
 
   await Promise.resolve(handler({ ...params, update }))
@@ -353,7 +353,7 @@ export const createAppBulkProcessRuntime = ({
   openTargetBackend,
 }: AppBulkProcessRuntimeOptions): AppBulkProcessRuntime => {
   const inFlight = new Set<string>()
-  const protocol = createBulkWeakProtocol()
+  const weakForce = createBulkWeakForce()
   const subscription = subscribeBulkPhotons((message) => {
     void (async () => {
       let target: AppBulkProcessTarget | null = null
@@ -365,13 +365,13 @@ export const createAppBulkProcessRuntime = ({
 
         inFlightKey = `${target.wimpId}:${target.process.id}`
         if (inFlight.has(inFlightKey)) {
-          protocol.emitZReject(target.wimpId, target.process.id, executorId)
+          weakForce.emitZReject(target.wimpId, target.process.id, executorId)
           return
         }
 
         inFlight.add(inFlightKey)
-        protocol.emitZClaim(target.wimpId, target.process.id, executorId)
-        protocol.emitZAccept(target.wimpId, target.process.id, executorId)
+        weakForce.emitZClaim(target.wimpId, target.process.id, executorId)
+        weakForce.emitZAccept(target.wimpId, target.process.id, executorId)
         log({
           type: "bulk-process-start",
           wimpId: target.wimpId,
@@ -382,9 +382,9 @@ export const createAppBulkProcessRuntime = ({
 
         const result = await executeAppBulkProcessTarget(target)
         if (result.boson === "w+") {
-          protocol.emitWSuccessValues(target.wimpId, target.process.id, result.values)
+          weakForce.emitWSuccessValues(target.wimpId, target.process.id, result.values)
         } else {
-          protocol.emitWErrorValues(target.wimpId, target.process.id, result.values)
+          weakForce.emitWErrorValues(target.wimpId, target.process.id, result.values)
         }
 
         log({
@@ -402,11 +402,11 @@ export const createAppBulkProcessRuntime = ({
           error: message,
         })
         if (target) {
-          protocol.emitWErrorValues(target.wimpId, target.process.id, {})
+          weakForce.emitWErrorValues(target.wimpId, target.process.id, {})
         }
       } finally {
         if (target) {
-          protocol.emitZRelease(target.wimpId, target.process.id, executorId)
+          weakForce.emitZRelease(target.wimpId, target.process.id, executorId)
         }
         if (inFlightKey) {
           inFlight.delete(inFlightKey)
@@ -418,7 +418,7 @@ export const createAppBulkProcessRuntime = ({
   return {
     close() {
       subscription.close()
-      protocol.close()
+      weakForce.close()
     },
   }
 }

@@ -142,7 +142,7 @@ Key invariants:
 
 - `Dark`, `Boundary`, and `Bulk` are isolated domains.
 - Production code must not use direct runtime imports across domains.
-- Inter-domain communication belongs to protocol channels, not direct imports.
+- Inter-domain communication belongs to Force channels, not direct imports.
 - `Boundary` is the flattening boundary.
 - `Field` is the imprint layer after flattening and the bearer of values and differences.
 
@@ -155,7 +155,7 @@ Before making code, architecture, or documentation changes:
 3. For architectural work, always review:
    - `docs/ONTOLOGY.md` / `docs/ONTOLOGY.ru.md`
    - `docs/ARCHITECTURE.md` / `docs/ARCHITECTURE.ru.md`
-   - `docs/PROTOCOL.md` / `docs/PROTOCOL.ru.md`
+   - `docs/FORCE.md` / `docs/FORCE.ru.md`
    - `docs/DEVELOPMENT.md` / `docs/DEVELOPMENT.ru.md`
 
 ## Terminology Discipline

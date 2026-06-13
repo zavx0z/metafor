@@ -1,9 +1,9 @@
-[README](../README.ru.md) | [Протокол](../PROTOCOL.ru.md) | [English](./electromagnetism.md) | **Русский**
+[README](../README.ru.md) | [Force](../FORCE.ru.md) | [English](./electromagnetism.md) | **Русский**
 
 # Electromagnetism
 
-`electromagnetism.md` разворачивает протокольное чтение `Electromagnetism`.
-Общие различения силы, `Boson`, подтипа канала и `Impulse` заданы в [корневом протоколе](../PROTOCOL.ru.md).
+`electromagnetism.md` разворачивает силовое чтение `Electromagnetism`.
+Общие различения силы, `Boson`, подтипа канала и `Impulse` заданы в [корневом Force](../FORCE.ru.md).
 
 ## Сила и канал
 
@@ -35,7 +35,7 @@
 - распространение наблюдаемого сигнала,
 - связь активных частей системы через проявленный перенос.
 
-## Протокольные различия
+## Силовые различия
 
 - `Electromagnetism` не является общим каналом всех сил.
 - `Photon` переносит `State`, но не подменяет изменение значений обычных `Field` через `Gluon`.

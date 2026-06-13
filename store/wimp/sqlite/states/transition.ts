@@ -1,6 +1,6 @@
 import type { State } from "./state.ts"
 import { Conditions } from "./condition.ts"
-import {emitGravitonAdd} from "../../../protocol.ts"
+import {emitGravitonAdd} from "../../../force.ts"
 
 export class Transition {
   readonly conditions: Conditions
