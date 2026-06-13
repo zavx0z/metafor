@@ -164,6 +164,7 @@ SQLite HUD API:
 - CLI args ending with `.sqlite` считаются входами SQLite HUD, а не runnable modules.
 - HUD можно открыть до появления файла базы; UI ждет и повторяет чтение, пока runtime не создаст `.sqlite`.
 - `GET /sqlite?path=<file.sqlite>&table=<name>` возвращает tables, schema и rows.
+- `GET /sqlite/fingerprint?path=<file.sqlite>` возвращает дешевую версию database по stat основного файла и `-wal`; `-shm` есть в diagnostic `files`, но не участвует в `version`, потому что чтение SQLite само может менять shared-memory файл. UI использует `version` для авто-refresh без полного reread на каждом тике.
 - `POST /sqlite/open` с `{"path":"dark/tmp/boundary.sqlite"}` открывает database в SQLite HUD.
 - `GET /hud/sqlite` возвращает состояние SQLite HUD; `/hud/sqlite/dock|show|toggle` управляют сворачиванием.
 - `POST /sqlite/cell` с `{"path","table","rowid","column","value"}` редактирует одну ячейку по SQLite `rowid`. Views read-only.

@@ -9,12 +9,30 @@ export type SqliteDatabasePayload = {
   ok: true
   path: string
   label: string
+  version: string
   selectedTable: string | null
   limit: number
   offset: number
   tables: SqliteTableSummary[]
   schema: SqliteColumnInfo[]
   rows: JsonObject[]
+}
+
+export type SqliteDatabaseFingerprint = {
+  ok: true
+  path: string
+  label: string
+  version: string
+  files: SqliteDatabaseFileFingerprint[]
+}
+
+type SqliteDatabaseFileFingerprint = {
+  role: "main" | "wal" | "shm"
+  path: string
+  exists: boolean
+  size: number | null
+  mtimeMs: number | null
+  ctimeMs: number | null
 }
 
 type SqliteTableSummary = {
@@ -75,6 +93,7 @@ export function sqliteDatabasePayload(url: URL): SqliteDatabasePayload {
     const stat = statSync(path)
     if (stat.mtimeMs < notBefore) throw new Error(`sqlite database not ready: ${path}`)
   }
+  const fingerprint = sqliteDatabaseFingerprint(path)
   const selectedTable = optionalParam(url.searchParams.get("table"))
   const limit = clampInt(Number(url.searchParams.get("limit") ?? 80), 1, 250)
   const offset = clampInt(Number(url.searchParams.get("offset") ?? 0), 0, 1_000_000)
@@ -90,7 +109,8 @@ export function sqliteDatabasePayload(url: URL): SqliteDatabasePayload {
     return {
       ok: true,
       path,
-      label: sqliteDatabaseLabel(path),
+      label: fingerprint.label,
+      version: fingerprint.version,
       selectedTable: table,
       limit,
       offset,
@@ -100,6 +120,48 @@ export function sqliteDatabasePayload(url: URL): SqliteDatabasePayload {
     }
   } finally {
     db.close()
+  }
+}
+
+export function sqliteDatabaseFingerprint(input: string, cwd = process.cwd()): SqliteDatabaseFingerprint {
+  const path = sqliteDatabasePath(input, cwd)
+  const files = [
+    sqliteDatabaseFileFingerprint("main", path),
+    sqliteDatabaseFileFingerprint("wal", `${path}-wal`),
+    sqliteDatabaseFileFingerprint("shm", `${path}-shm`),
+  ]
+  return {
+    ok: true,
+    path,
+    label: sqliteDatabaseLabel(path, cwd),
+    version: files
+      .filter((file) => file.role !== "shm")
+      .map((file) => `${file.role}:${file.exists ? 1 : 0}:${file.size ?? -1}:${file.mtimeMs ?? -1}:${file.ctimeMs ?? -1}`)
+      .join("|"),
+    files,
+  }
+}
+
+function sqliteDatabaseFileFingerprint(role: SqliteDatabaseFileFingerprint["role"], path: string): SqliteDatabaseFileFingerprint {
+  try {
+    const stat = statSync(path)
+    return {
+      role,
+      path,
+      exists: stat.isFile(),
+      size: stat.isFile() ? stat.size : null,
+      mtimeMs: stat.isFile() ? stat.mtimeMs : null,
+      ctimeMs: stat.isFile() ? stat.ctimeMs : null,
+    }
+  } catch {
+    return {
+      role,
+      path,
+      exists: false,
+      size: null,
+      mtimeMs: null,
+      ctimeMs: null,
+    }
   }
 }
 

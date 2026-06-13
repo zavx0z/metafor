@@ -38,7 +38,7 @@ import {createPtySessionManager, parsePtyClientMessage, type PtySocketData, type
 import type {InterpreterModule, InterpreterModuleManager, StartupModuleOptions} from "./module.ts"
 import type {BreakpointSpec} from "./target.ts"
 import {workspaceFilesPayload, type WorkspaceFilesModuleContext} from "./workspace-files.ts"
-import {sqliteDatabaseInputPath, sqliteDatabasePayload, sqliteJsonError, updateSqliteCell} from "./sqlite-db.ts"
+import {sqliteDatabaseFingerprint, sqliteDatabaseInputPath, sqliteDatabasePayload, sqliteJsonError, updateSqliteCell} from "./sqlite-db.ts"
 import {
   deleteTodoMarkdownItem,
   insertTodoMarkdownItem,
@@ -659,6 +659,13 @@ async function handleRoute(
       return sqliteJsonError(error)
     }
   }
+  if (method === "GET" && path === "/sqlite/fingerprint") {
+    try {
+      return jsonResponse(sqliteDatabaseFingerprint(url.searchParams.get("path") ?? ""))
+    } catch (error) {
+      return sqliteJsonError(error)
+    }
+  }
   if (method === "POST" && path === "/sqlite/open") return await openSqliteDisplayFromBody(req, dispatchUiHostCommand)
   if (method === "POST" && path === "/sqlite/cell") {
     try {
@@ -764,6 +771,7 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "POST", path: "/hud/sqlite/show", description: "развернуть SQLite HUD"},
     {method: "POST", path: "/hud/sqlite/toggle", description: "переключить SQLite HUD"},
     {method: "GET", path: "/sqlite?path=<file.sqlite>&table=<name>&notBefore=<iso>", description: "просмотреть SQLite database tables/schema/rows; notBefore отсекает файл предыдущего запуска"},
+    {method: "GET", path: "/sqlite/fingerprint?path=<file.sqlite>", description: "дешевый fingerprint SQLite database по main/WAL для UI refresh; SHM только diagnostic"},
     {method: "POST", path: "/sqlite/open", description: "{path} — открыть SQLite database в HUD"},
     {method: "POST", path: "/sqlite/cell", description: "{path, table, rowid, column, value} — обновить SQLite cell по rowid"},
     {method: "GET", path: "/events?since=<iso>&limit=<n>", description: "хвост event-лога"},

@@ -3,7 +3,7 @@ import {Database} from "bun:sqlite"
 import {mkdtempSync, rmSync} from "node:fs"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
-import {sqliteDatabasePayload} from "./sqlite-db.ts"
+import {sqliteDatabaseFingerprint, sqliteDatabasePayload} from "./sqlite-db.ts"
 
 const tmpRoots: string[] = []
 
@@ -31,6 +31,7 @@ describe("sqliteDatabasePayload", () => {
     const payload = sqliteDatabasePayload(new URL(`http://127.0.0.1/sqlite?path=${encodeURIComponent(path)}`))
 
     expect(payload.selectedTable).toBe("item")
+    expect(typeof payload.version).toBe("string")
     expect(payload.rows).toEqual([{__rowid: 1, name: "alpha"}])
   })
 
@@ -40,5 +41,24 @@ describe("sqliteDatabasePayload", () => {
 
     expect(() => sqliteDatabasePayload(new URL(`http://127.0.0.1/sqlite?path=${encodeURIComponent(path)}&notBefore=${notBefore}`)))
       .toThrow("sqlite database not ready")
+  })
+
+  test("fingerprint tracks WAL writes", () => {
+    const root = mkdtempSync(join(tmpdir(), "metafor-sqlite-"))
+    tmpRoots.push(root)
+    const path = join(root, "wal.sqlite")
+    const db = new Database(path)
+    try {
+      db.exec("PRAGMA journal_mode = WAL")
+      db.exec("CREATE TABLE item (name TEXT NOT NULL)")
+      const before = sqliteDatabaseFingerprint(path)
+      db.run("INSERT INTO item (name) VALUES (?)", ["alpha"])
+      const after = sqliteDatabaseFingerprint(path)
+
+      expect(before.files.some((file) => file.role === "wal" && file.exists)).toBe(true)
+      expect(after.version).not.toBe(before.version)
+    } finally {
+      db.close()
+    }
   })
 })

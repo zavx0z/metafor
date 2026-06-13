@@ -84,6 +84,7 @@ POST   /hud/sqlite/show
 POST   /hud/sqlite/dock
 POST   /hud/sqlite/toggle
 GET    /sqlite?path=<file.sqlite>&table=<name>
+GET    /sqlite/fingerprint?path=<file.sqlite>
 POST   /sqlite/open
 POST   /sqlite/cell
 
@@ -202,7 +203,7 @@ POST   /sqlite/cell
 
 `GET /hud/sqlite` возвращает состояние панели, включая активную базу, `rect`, `dockPlacement`, список открытых баз и выбранные строки текущей таблицы.
 
-`GET /sqlite?path=<file.sqlite>&table=<name>` возвращает tables, schema и rows для просмотра таблицы. `POST /sqlite/open` с `{"path":"dark/tmp/boundary.sqlite"}` открывает базу в HUD.
+`GET /sqlite?path=<file.sqlite>&table=<name>` возвращает tables, schema и rows для просмотра таблицы. `version` в payload строится по основному файлу и `-wal`; `-shm` возвращается в diagnostic `files`, но не участвует в версии, потому что чтение SQLite само может менять shared-memory файл. UI сравнивает `version` с `GET /sqlite/fingerprint?path=<file.sqlite>` и перечитывает rows только при изменении. `POST /sqlite/open` с `{"path":"dark/tmp/boundary.sqlite"}` открывает базу в HUD.
 
 `POST /sqlite/cell` редактирует одну ячейку по SQLite `rowid`:
 
@@ -387,6 +388,7 @@ SQLite routes:
 
 ```text
 GET  /sqlite?path=<file.sqlite>&table=<name>
+GET  /sqlite/fingerprint?path=<file.sqlite>
 POST /sqlite/open
 POST /sqlite/cell
 ```

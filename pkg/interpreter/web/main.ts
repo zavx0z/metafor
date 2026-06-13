@@ -314,12 +314,19 @@ type SqliteDatabasePayload = {
   ok: true
   path: string
   label: string
+  version: string
   selectedTable: string | null
   limit: number
   offset: number
   tables: SqliteTableSummary[]
   schema: SqliteColumnInfo[]
   rows: Array<Record<string, SqliteCellValue>>
+}
+type SqliteDatabaseFingerprintPayload = {
+  ok: true
+  path: string
+  label: string
+  version: string
 }
 type SqliteSelectedRowContext = {
   rowId: string
@@ -372,9 +379,11 @@ type SqliteDisplayController = {
   requestedPath: string
   path: string
   label: string
+  version: string | null
   selectedTable: string | null
   payload: SqliteDatabasePayload | null
   loading: Promise<void> | null
+  refreshCheck: Promise<void> | null
   suppressTableSelectionOpen: boolean
   tables: FileListPane
   rows: SqliteTablePane
@@ -604,6 +613,7 @@ const SQLITE_DOCK_LONG = 108
 const SQLITE_DOCK_MARGIN = 8
 const SQLITE_DOCK_LONG_PRESS_MS = 360
 const SQLITE_CONTEXT_SELECTED_ROW_LIMIT = 20
+const SQLITE_AUTO_REFRESH_INTERVAL_MS = 1_000
 const HOST_TERMINAL_BRAND_LABEL = "Codex"
 const HOST_TERMINAL_MODEL_LABEL = "GPT 5,5"
 const HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE = 22
@@ -677,6 +687,7 @@ let todoHudRectPreview: UiSurfaceRect | null = null
 let sqliteHudDocked = readStoredSqliteHudDocked()
 let sqliteDockPlacement: HostTerminalDockPlacement | null = readStoredSqliteDockPlacement() ?? DEFAULT_SQLITE_DOCK_PLACEMENT
 let sqliteHudRectPreview: UiSurfaceRect | null = null
+let sqliteAutoRefreshTimer: number | null = null
 let activeSqliteHudId: string | null = null
 let voiceHudPane: VoiceInputHud | null = null
 let voiceInputClient: VoiceInputClient | null = null
@@ -757,6 +768,7 @@ document.addEventListener("visibilitychange", () => {
 
 installVoiceServiceMonitor()
 installHudNotificationSoundUnlock()
+installSqliteAutoRefresh()
 connect()
 void initEngine()
 
@@ -1220,6 +1232,7 @@ function activateSqliteHudController(id: string): void {
   sqliteDockPane?.requestRender()
   relayoutHudSurfaces()
   updateSqliteContext()
+  void refreshActiveSqliteDisplayIfChanged()
 }
 
 function showSqliteHudController(id: string): void {
@@ -1295,9 +1308,11 @@ function refreshSqliteDisplaysAfterTargetRestart(startedAt: string): void {
 async function refreshSqliteDisplay(controller: SqliteDisplayController, table = controller.selectedTable, notBefore?: string): Promise<SqliteDatabasePayload | null> {
   let payload: SqliteDatabasePayload | null = null
   let missing = false
-  const loading = (async () => {
+  let loading!: Promise<void>
+  loading = (async () => {
     controller.rows.setStatus("Loading SQLite database")
     payload = await fetchSqlitePayload(controller.path, table ?? undefined, notBefore)
+    if (controller.loading !== loading) return
     applySqlitePayload(controller, payload)
   })()
   controller.loading = loading
@@ -1360,6 +1375,42 @@ async function fetchSqlitePayload(path: string, table?: string, notBefore?: stri
   return payload
 }
 
+async function fetchSqliteFingerprint(path: string): Promise<SqliteDatabaseFingerprintPayload> {
+  const params = new URLSearchParams({path})
+  const response = await fetch(`/sqlite/fingerprint?${params.toString()}`)
+  if (!response.ok) throw await sqliteResponseError(response)
+  const payload = await response.json() as SqliteDatabaseFingerprintPayload
+  if (payload?.ok !== true || typeof payload.version !== "string") throw new Error("sqlite fingerprint is invalid")
+  return payload
+}
+
+function activeSqliteAutoRefreshController(): SqliteDisplayController | null {
+  if (document.visibilityState === "hidden" || sqliteHudDocked) return null
+  const controller = activeSqliteController()
+  if (controller === null || controller.payload === null) return null
+  return controller
+}
+
+async function refreshActiveSqliteDisplayIfChanged(): Promise<void> {
+  const controller = activeSqliteAutoRefreshController()
+  if (controller === null || controller.loading !== null || controller.refreshCheck !== null) return
+  let refreshCheck!: Promise<void>
+  refreshCheck = (async () => {
+    const fingerprint = await fetchSqliteFingerprint(controller.path)
+    if (controller.refreshCheck !== refreshCheck) return
+    if (controller.version !== null && fingerprint.version === controller.version) return
+    await refreshSqliteDisplay(controller, controller.selectedTable)
+  })()
+  controller.refreshCheck = refreshCheck
+  try {
+    await refreshCheck
+  } catch (error) {
+    if (!isSqliteMissingError(error)) console.error(error)
+  } finally {
+    if (controller.refreshCheck === refreshCheck) controller.refreshCheck = null
+  }
+}
+
 async function sqliteResponseError(response: Response): Promise<Error> {
   const text = await response.text()
   try {
@@ -1376,8 +1427,10 @@ async function sqliteResponseError(response: Response): Promise<Error> {
 }
 
 function applySqlitePayload(controller: SqliteDisplayController, payload: SqliteDatabasePayload): void {
+  controller.loading = null
   controller.path = payload.path
   controller.label = payload.label
+  controller.version = payload.version
   controller.selectedTable = payload.selectedTable
   controller.payload = payload
   controller.suppressTableSelectionOpen = true
@@ -1395,6 +1448,7 @@ function applySqlitePayload(controller: SqliteDisplayController, payload: Sqlite
 function clearSqlitePayload(controller: SqliteDisplayController, status: string): void {
   controller.selectedTable = null
   controller.payload = null
+  controller.version = null
   controller.suppressTableSelectionOpen = true
   try {
     controller.tables.setTitle(controller.label)
@@ -1478,6 +1532,13 @@ function isSqliteMissingError(error: unknown): boolean {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms))
+}
+
+function installSqliteAutoRefresh(): void {
+  if (sqliteAutoRefreshTimer !== null) return
+  sqliteAutoRefreshTimer = window.setInterval(() => {
+    void refreshActiveSqliteDisplayIfChanged()
+  }, SQLITE_AUTO_REFRESH_INTERVAL_MS)
 }
 
 function setHudTerminalDocked(docked: boolean): unknown {
@@ -5671,6 +5732,7 @@ function setSqliteHudDocked(docked: boolean): void {
   }
   relayoutHudSurfaces()
   updateSqliteContext()
+  if (!docked) void refreshActiveSqliteDisplayIfChanged()
 }
 
 function relayoutHudSurfaces(): void {
@@ -5854,9 +5916,11 @@ function createSqliteDisplayController(id: string, path: string): SqliteDisplayC
     requestedPath: path,
     path,
     label,
+    version: null,
     selectedTable: null,
     payload: null,
     loading: null,
+    refreshCheck: null,
     suppressTableSelectionOpen: false,
     tables: new FileListPane({
       title: label,
