@@ -1,7 +1,7 @@
 import {afterEach, beforeEach, describe, expect, test} from "bun:test"
 import {SQL} from "bun"
 import type {Store} from "../store/index.ts"
-import {open} from "../store/server.ts"
+import {open} from "../store/sqlite.ts"
 import {matter} from "./index.ts"
 
 describe("wimp normalization", () => {

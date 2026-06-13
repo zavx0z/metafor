@@ -45,7 +45,7 @@ projection и валидирует её в `boundary/strong/entangled.ts`.
 
 1. Сделать SQLite actor store рабочим.
 2. Подготовить store fixture, который создаёт meta + actors + shared values.
-3. Написать read-only `boundary/database.store.ts` поверх `store/server`.
+3. Написать read-only `boundary/database.store.ts` поверх `store/sqlite`.
 4. Перенести `boundary/tests/database.test.ts` на store fixture.
 5. После read-path перенести write-back на `actor.value.*`, `actor.link.*`,
    `actor.state.*`.

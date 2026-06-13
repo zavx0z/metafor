@@ -1,4 +1,4 @@
-import { createProtocolChannel, type ProtocolPatch } from "../../protocol.ts"
+import { createProtocolChannel, type ProtocolPatch } from "store/protocol"
 
 export const gravityCH = createProtocolChannel()
 

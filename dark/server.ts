@@ -1,9 +1,9 @@
-import {open} from "store/server"
+import {open} from "store/sqlite"
 import "./dark.ts"
 
 /**
- * Server bootstrap Dark: открывает server store и корректно закрывает его
- * при остановке процесса. Протокол принадлежит домену Dark.
+ * Server bootstrap Dark: открывает SQLite store и корректно закрывает его
+ * при остановке процесса. Протокольные сигналы рождаются в ORM.
  */
 const STORE_PATH = process.env.STORE_PATH ?? "./boundary.sqlite"
 

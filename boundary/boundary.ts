@@ -51,7 +51,7 @@ import { createStoredStringInterner, normalizeFieldValue, assembleStoredBoundary
 import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@boundary/weak"
 import type { WeakHeapUpdate } from "./weak/weak.t"
 import { createEmptyDbData, type DbBackend, type DbData } from "store/db/core"
-import { createProtocolChannel, type ProtocolChannel, type ProtocolMessage, type ProtocolPatch } from "../protocol.ts"
+import { createProtocolChannel, type ProtocolChannel, type ProtocolMessage, type ProtocolPatch } from "store/protocol"
 import { gravityCH } from "@boundary/gravity/channel.ts"
 
 export type BoundaryStructuralPatch = { op: "add" | "remove" | "test"; path: string; value?: unknown }

@@ -3,9 +3,9 @@ import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
 import {SQL} from "bun"
 import {matter} from "../../dark/index.ts"
-import {createProtocolChannel, type ProtocolMessage, type ProtocolPatch} from "../../protocol.ts"
+import {createProtocolChannel, type ProtocolMessage, type ProtocolPatch} from "../protocol.ts"
 import type {Store} from "../index.ts"
-import {open} from "../server.ts"
+import {open} from "../sqlite.ts"
 
 const requiredRow = <T>(row: T | undefined, message: string): T => {
   if (row === undefined) throw new Error(message)

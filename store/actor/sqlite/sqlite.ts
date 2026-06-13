@@ -7,6 +7,7 @@ import {Actor, ActorRoots, decodeActorRow} from "./actor.ts"
 import {Value, type AnyValue} from "./value.ts"
 import type {ActorRecord, ActorRows} from "./actor.t.ts"
 import {ActorFieldValue} from "./actor_value.ts"
+import {emitGravitonAdd} from "../../protocol.ts"
 
 export class StoreActorSqlite {
   readonly roots: ActorRoots
@@ -41,7 +42,9 @@ export class StoreActorSqlite {
   /** Записывает актора одной транзакцией: row + values + actor_state. */
   async create(rows: ActorRows): Promise<Actor> {
     await Actor.writeRows(this.sql, rows)
-    return new Actor(this.sql, rows.actor.uuid)
+    const actor = new Actor(this.sql, rows.actor.uuid)
+    emitGravitonAdd(rows.actor.uuid, "actor")
+    return actor
   }
 
   async get(uuid: string): Promise<Actor | null> {

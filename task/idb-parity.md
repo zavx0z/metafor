@@ -5,7 +5,8 @@
 ## Проверенный текущий факт
 
 В `store/` сейчас нет `store/browser.ts`, `@store/meta/idb` или
-`@store/actor/idb`. `store/package.json` экспортирует только `./server`.
+`@store/actor/idb`. `store/package.json` экспортирует SQLite entrypoint
+через `./sqlite`.
 
 Единственный текущий IndexedDB path в проекте — UI settings:
 `app/web/ui-settings-idb.ts`. Старые browser imports `store/db/browser` уже
@@ -32,7 +33,7 @@ import { open } from "store/browser"
 const store = await open(...)
 ```
 
-Поведение должно совпадать с `store/server` для:
+Поведение должно совпадать с `store/sqlite` для:
 
 - meta create/get/delete;
 - actor create/get/delete;

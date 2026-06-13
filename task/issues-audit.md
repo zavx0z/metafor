@@ -93,7 +93,7 @@
 
 **Что сделано.**
 
-- `protocol.ts` определяет один `METAFOR_BROADCAST_CHANNEL` и `Part`.
+- `store/protocol.ts` определяет один `METAFOR_BROADCAST_CHANNEL` и `Part`.
 - W/Z идут через patches с отдельными `part`: `w`, `+z`, `-z`.
 - Z coordination patch `{ part:"+z"|"-z", op:"test", value:{ coordination:"claim"|"accept"|"reject"|"release" }, wimpId, processId, executorId? }` — neutral mediation.
 - W result patches `{ part:"w", op:"replace"|"test", value?:{ kind:"result" }, wimpId, processId, ... }` — active transition с патчами.

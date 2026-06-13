@@ -1,4 +1,5 @@
 import type { Process } from "./process.ts"
+import {emitGravitonAdd} from "../../../protocol.ts"
 
 /**
  * Sub-ORM для таблицы `process_env`.
@@ -10,11 +11,13 @@ export class ProcessEnvs {
   async add(env: string): Promise<void> {
     const sql = this.process.processes.wimp.sql
     const processUuid = await this.process.uuid()
+    const existing = await this.has(env)
     await sql`
       INSERT INTO process_env (process, env)
       VALUES (${processUuid}, ${env})
       ON CONFLICT (process, env) DO NOTHING
     `
+    if (!existing) emitGravitonAdd(`${processUuid}/env/${env}`, "process_env")
   }
 
   async remove(env: string): Promise<void> {

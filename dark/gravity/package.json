@@ -5,6 +5,7 @@
   "private": true,
   "dependencies": {
     "@dark/types": "workspace:*",
-    "@store/wimp": "workspace:*"
+    "@store/wimp": "workspace:*",
+    "store": "workspace:*"
   }
 }

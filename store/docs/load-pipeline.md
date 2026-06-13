@@ -46,12 +46,12 @@ zavx0z/git -> github/zavx0z/git/meta.ts
 Целевой runtime должен открывать единый store:
 
 ```ts
-import { open } from "store/server"
+import { open } from "store/sqlite"
 
-const store = await open({ filename: "metafor.sqlite" })
+const store = await open("metafor.sqlite")
 ```
 
-`store/server.ts` открывает один SQLite handle и применяет две схемы на одной
+`store/sqlite.ts` открывает один SQLite handle и применяет схемы на одной
 БД:
 
 ```text
@@ -306,7 +306,7 @@ This is the intended store-filling pipeline, but current code still has gaps:
 
 Implementation order for this pipeline:
 
-1. Keep `store/server.open()` green with integration smoke.
+1. Keep `store/sqlite.open()` green with integration smoke.
 2. Use `store.meta.create(src, dsl)` as the only meta write path.
 3. Add a store materializer that converts Dark runtime plans to `ActorRows`.
 4. Replace `Wimp.save()` / `toDbBundle()` persistence with that materializer.

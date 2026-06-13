@@ -1,4 +1,4 @@
-import { createProtocolChannel } from "../../protocol.ts"
+import { createProtocolChannel } from "store/protocol"
 
 export type PhotonPayload = { value: string; path: string }
 

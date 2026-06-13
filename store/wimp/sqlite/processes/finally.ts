@@ -1,4 +1,5 @@
 import type { Process } from "./process.ts"
+import {emitGravitonAdd} from "../../../protocol.ts"
 
 /**
  * Sub-ORM для таблицы `process_finally_read` (PK (process, field)).
@@ -11,11 +12,15 @@ export class FinallyRead {
     const sql = this.finallyPhase.process.processes.wimp.sql
     const src = this.finallyPhase.process.processes.wimp.src
     const processUuid = await this.finallyPhase.process.uuid()
+    const existing = await this.has(fieldKey)
     await sql`
       INSERT OR IGNORE INTO process_finally_read (process, field)
       SELECT ${processUuid}, field.uuid
       FROM field WHERE field.wimp = ${src} AND field.key = ${fieldKey}
     `
+    if (!existing && await this.has(fieldKey)) {
+      emitGravitonAdd(`${processUuid}/finally/read/${fieldKey}`, "process_finally_read")
+    }
   }
 
   async remove(fieldKey: string): Promise<void> {
@@ -100,6 +105,7 @@ export class ProcessFinally {
     }
 
     await sql`INSERT INTO process_finally (process, before) VALUES (${processUuid}, ${beforeSrc})`
+    emitGravitonAdd(`${processUuid}/finally`, "process_finally")
   }
 
   async before(): Promise<string | null> {

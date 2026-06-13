@@ -4,6 +4,7 @@ import topologyFuzzyStateSql from "./topology_fuzzy_state.sql" with {type: "text
 import {buildTopology, decodeTopologyRow} from "./topology.ts"
 import type {AnyTopology} from "./topology.ts"
 import type {TopologyInput, TopologyRecord} from "./topology.t.ts"
+import {emitGravitonAdd} from "../../protocol.ts"
 
 export class StoreTopologySqlite {
   private constructor(private readonly sql: SQL) {}
@@ -37,6 +38,7 @@ export class StoreTopologySqlite {
       INSERT INTO topology (uuid, parent_actor, parent_topology, kind, position)
       VALUES (${input.uuid}, ${input.parentActor}, ${input.parentTopology}, ${input.kind}, ${position})
     `
+    emitGravitonAdd(input.uuid, "topology")
     return buildTopology(this.sql, {...input, position})
   }
 

@@ -81,6 +81,71 @@ The envelope must not duplicate `part`, `channel`, `source`, or `boson`.
 The transport layer does not build custom queues on top of `BroadcastChannel`.
 If ordering, deduplication, replay, or integrity is required, it belongs to the store transaction, revision/domain tick, or runtime owner rather than to a subscriber-side Promise queue.
 
+## Store commit and domain signals
+
+`Store` holds the full canonical form of the world.
+A lightweight protocol patch with `uuid`, `part`, and revision is not a payload
+for rebuilding another `Store`; it only tells domains that an already committed
+part of the world changed and should be read from `Store`.
+
+In a distributed system, multiple physical `Store` replicas may exist: server
+SQLite databases, browser IndexedDB replicas, or other runtime nodes.
+If another `Store` must receive a change, the unit of transfer is the same
+causal commit, not a separate independent sync channel.
+
+Correct order:
+
+```text
+domain full change
+  -> local Store transaction
+  -> commit(txId / revision / parents)
+  -> commit envelope:
+       writes  - data for Store replicas that need to apply the change
+       signals - lightweight protocol patches for domain reaction
+```
+
+On the receiving side, delivery to domains is ordered in reverse:
+
+```text
+receive commit envelope
+  -> apply writes into local Store transaction
+  -> commit local Store
+  -> deliver signals to Dark / Boundary / Bulk subscribers
+```
+
+`store-sync` and domain protocol must not be split into two independent streams,
+because then `Boundary` or `Bulk` may receive a signal before the local `Store`
+replica contains the data that the signal points to.
+If replication is not needed, the commit envelope may carry no external
+`writes`, but the domain patch must still be born only after the local commit.
+
+Consequence: sending the domain patch signal belongs to the `Store`/commit layer,
+not to the caller that has already written the data.
+The protocol transport module lives in `store/protocol`; subscriptions and direct
+low-level channels import it from there, not from the project root.
+The current startup surface for emitting a domain signal after a Store write is
+embedded into ORM write methods: `actor.create`, `topology.create`,
+`wimp.states.add`, `wimp.processes.add`, `wimp.matter.*`, and related sub-ORM
+methods create the protocol signal after the SQL write. This surface should later
+collapse into the full commit envelope, but callers must no longer create their
+own `BroadcastChannel` or manually send a second patch.
+A domain, agent, UI, or any other participant in the environment must not perform
+two manual actions:
+
+```text
+write Store
+send protocol patch separately
+```
+
+An environment participant should have one semantic entrypoint: change a field
+value, state, or context. Inside that entrypoint, the environment performs the
+store transaction, creates the commit envelope, and delivers `signals` as
+protocol patches only after commit.
+
+If an API requires a participant to both mutate the database and manually send a
+patch, the runtime contract is not finished yet: patch sending must be moved into
+the store/commit path.
+
 ## Field types
 
 Protocol distinguishes:

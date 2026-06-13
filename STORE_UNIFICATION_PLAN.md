@@ -162,7 +162,7 @@ Authoring DB отвечает за редактирование логики, ro
 - `store.wimp` — декларативный meta/wimp слой;
 - `store.actor` — instance actor/value/state слой;
 - `store.topology` — topology-узлы;
-- `store/server` — один SQLite handle под несколькими схемами;
+- `store/sqlite` — один SQLite handle под несколькими схемами;
 - `store.update(...)` — inbound patch application.
 
 Но этого ещё недостаточно как финальной DB-архитектуры.
@@ -339,7 +339,7 @@ ORM storage.
 
 Минимально нужно добиться:
 
-- `store/server.open()` стабильно открывает одну file-backed SQLite DB;
+- `store/sqlite.open()` стабильно открывает одну file-backed SQLite DB;
 - `store.wimp` создаёт canonical declaration rows;
 - `store.actor` создаёт actor/value/state rows;
 - shared value работает как canonical shared state;

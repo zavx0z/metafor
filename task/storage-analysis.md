@@ -230,7 +230,7 @@ export interface DbInstanceStore {
 #### Sync-канал и барьер
 
 ```ts
-// protocol.ts
+// store/protocol.ts
 export const METAFOR_BROADCAST_CHANNEL = "metafor.protocol"
 export type Part = "graviton" | "photon" | "gluon" | "higgs" | "w" | "-z" | "+z"
 export type JsonPatchOperation = "add" | "remove" | "replace" | "move" | "copy" | "test"
@@ -595,7 +595,7 @@ WAL включается в (2) и (3), не в (1). PRAGMA `synchronous=NORMAL`
 
 **Активные в app/web client:** только `metafor-app-instance` + `metafor-app-web-ui`. `metafor-web` — standalone путь boundary, в основном flow не открывается.
 
-### 8.3. Protocol channel (`protocol.ts`)
+### 8.3. Protocol channel (`store/protocol.ts`)
 
 | Transport | Payload | Cемантика |
 |---|---|---|
@@ -1303,7 +1303,7 @@ SERVER (Bun)                                BROWSER
 
 ### 11.12. Что **остаётся**
 
-- `protocol.ts` — корневые имена каналов без shared payload types.
+- `store/protocol.ts` — корневые имена каналов без shared payload types.
 - `dark.worker.ts` `canonicalizeMetaGraph` — упрощается: вместо 3-stage (`relation` → `readDarkParticleModel` → `matter`) остаётся один stage `matter` с per-row writes в общий store. `readMetaDsl` остаётся как JS-import.
 - `boundary/database.ts` operational caches — это derived проекции от store; остаются.
 - BroadcastChannel-каналы — `db-sync` обобщается, остальные без изменений.

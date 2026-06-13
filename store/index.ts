@@ -1,7 +1,12 @@
 import type {Actor, ActorRecord, ActorRoots, AnyValue, ActorFieldValue, ActorRows} from "@store/actor"
 import type {AnyTopology, TopologyInput, TopologyRecord} from "@store/topology"
 import type {Wimp} from "@store/wimp/sqlite"
-import type {StoreUpdateMessage} from "./server.ts"
+import type {StoreUpdateMessage} from "./sqlite.ts"
+
+export {METAFOR_BROADCAST_CHANNEL, createProtocolChannel} from "./protocol.ts"
+export type {JsonPatchOperation, Part, ProtocolChannel, ProtocolMessage, ProtocolPatch} from "./protocol.ts"
+export {open} from "./sqlite.ts"
+export type {StorePart, StorePatch, StoreUpdateMessage} from "./sqlite.ts"
 
 export interface WimpApi {
   /**

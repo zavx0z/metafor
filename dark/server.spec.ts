@@ -2,7 +2,7 @@ import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import {SQL} from "bun"
 import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
-import {createProtocolChannel, type ProtocolChannel} from "../protocol.ts"
+import {createProtocolChannel, type ProtocolChannel} from "store/protocol"
 
 describe("dark/server разворачивает дерево zavx0z/git по gravity-патчу", () => {
   let outbound: ProtocolChannel

@@ -1,5 +1,6 @@
 import type { Wimp } from "../wimp.ts"
 import { State } from "./state.ts"
+import {emitGravitonAdd} from "../../../protocol.ts"
 
 export class States {
   readonly #wimp: Wimp
@@ -40,6 +41,7 @@ export class States {
 
     const uuid = crypto.randomUUID()
     await sql`INSERT INTO state (uuid, wimp, name, position) VALUES (${uuid}, ${src}, ${name}, ${position})`
+    emitGravitonAdd(uuid, "state")
     return new State(this, name)
   }
 

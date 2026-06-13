@@ -1,4 +1,5 @@
 import type { Process } from "./process.ts"
+import {emitGravitonAdd} from "../../../protocol.ts"
 
 type ReadPhase = "action" | "success" | "error"
 type WritePhase = "success" | "error"
@@ -14,11 +15,15 @@ export class ActionRead {
     const sql = this.action.process.processes.wimp.sql
     const src = this.action.process.processes.wimp.src
     const processUuid = await this.action.process.uuid()
+    const existing = await this.has(phase, fieldKey)
     await sql`
       INSERT OR IGNORE INTO process_action_read (process, field, phase)
       SELECT ${processUuid}, field.uuid, ${phase}
       FROM field WHERE field.wimp = ${src} AND field.key = ${fieldKey}
     `
+    if (!existing && await this.has(phase, fieldKey)) {
+      emitGravitonAdd(`${processUuid}/action/read/${phase}/${fieldKey}`, "process_action_read")
+    }
   }
 
   async remove(phase: ReadPhase, fieldKey: string): Promise<void> {
@@ -97,11 +102,15 @@ export class ActionWrite {
     const sql = this.action.process.processes.wimp.sql
     const src = this.action.process.processes.wimp.src
     const processUuid = await this.action.process.uuid()
+    const existing = await this.has(phase, fieldKey)
     await sql`
       INSERT OR IGNORE INTO process_action_write (process, field, phase)
       SELECT ${processUuid}, field.uuid, ${phase}
       FROM field WHERE field.wimp = ${src} AND field.key = ${fieldKey}
     `
+    if (!existing && await this.has(phase, fieldKey)) {
+      emitGravitonAdd(`${processUuid}/action/write/${phase}/${fieldKey}`, "process_action_write")
+    }
   }
 
   async remove(phase: WritePhase, fieldKey: string): Promise<void> {
@@ -221,6 +230,7 @@ export class ProcessAction {
       INSERT INTO process_action (process, action, action_import_specifier, action_wrapper_src, success, error)
       VALUES (${processUuid}, ${input.src}, ${importSpecifier}, ${wrapperSrc}, ${success}, ${error})
     `
+    emitGravitonAdd(`${processUuid}/action`, "process_action")
   }
 
   async setSuccess(src: string | null): Promise<void> {

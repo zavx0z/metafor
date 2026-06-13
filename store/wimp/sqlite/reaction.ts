@@ -1,4 +1,5 @@
 import type { Reactions } from "./reactions.ts"
+import {emitGravitonAdd} from "../../protocol.ts"
 
 /**
  * Sub-ORM для таблицы `reaction_read` (PK (reaction, field)).
@@ -11,11 +12,15 @@ export class ReactionRead {
     const sql = this.reaction.reactions.wimp.sql
     const src = this.reaction.reactions.wimp.src
     const reactionUuid = await this.reaction.uuid()
+    const existing = await this.has(fieldKey)
     await sql`
       INSERT OR IGNORE INTO reaction_read (reaction, field)
       SELECT ${reactionUuid}, field.uuid
       FROM field WHERE field.wimp = ${src} AND field.key = ${fieldKey}
     `
+    if (!existing && await this.has(fieldKey)) {
+      emitGravitonAdd(`${reactionUuid}/read/${fieldKey}`, "reaction_read")
+    }
   }
 
   async remove(fieldKey: string): Promise<void> {
@@ -83,11 +88,15 @@ export class ReactionWrite {
     const sql = this.reaction.reactions.wimp.sql
     const src = this.reaction.reactions.wimp.src
     const reactionUuid = await this.reaction.uuid()
+    const existing = await this.has(fieldKey)
     await sql`
       INSERT OR IGNORE INTO reaction_write (reaction, field)
       SELECT ${reactionUuid}, field.uuid
       FROM field WHERE field.wimp = ${src} AND field.key = ${fieldKey}
     `
+    if (!existing && await this.has(fieldKey)) {
+      emitGravitonAdd(`${reactionUuid}/write/${fieldKey}`, "reaction_write")
+    }
   }
 
   async remove(fieldKey: string): Promise<void> {
@@ -156,11 +165,15 @@ export class ReactionStates {
     const sql = this.reaction.reactions.wimp.sql
     const src = this.reaction.reactions.wimp.src
     const reactionUuid = await this.reaction.uuid()
+    const existing = await this.has(stateName)
     await sql`
       INSERT OR IGNORE INTO reaction_state (reaction, state)
       SELECT ${reactionUuid}, state.uuid
       FROM state WHERE state.wimp = ${src} AND state.name = ${stateName}
     `
+    if (!existing && await this.has(stateName)) {
+      emitGravitonAdd(`${reactionUuid}/state/${stateName}`, "reaction_state")
+    }
   }
 
   async remove(stateName: string): Promise<void> {

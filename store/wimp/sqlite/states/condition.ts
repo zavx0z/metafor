@@ -1,5 +1,6 @@
 import type { Transition } from "./transition.ts"
 import { Predicate } from "./predicate.ts"
+import {emitGravitonAdd} from "../../../protocol.ts"
 
 /**
  * Резолвит `field.uuid` по ключу поля внутри текущей wimp.
@@ -103,6 +104,7 @@ export class Predicates {
               ${valueKind}, ${valueBoolean}, ${valueNumber}, ${valueText},
               ${valueVariant})
     `
+    emitGravitonAdd(uuid, "predicate")
     return new Predicate(this.condition, uuid)
   }
 
@@ -169,6 +171,7 @@ export class Conditions {
       INSERT INTO condition (uuid, transition, field, position)
       VALUES (${uuid}, ${transitionUuid}, ${fieldUuid}, ${position})
     `
+    emitGravitonAdd(uuid, "condition")
     return new Condition(this.transition, fieldKey)
   }
 

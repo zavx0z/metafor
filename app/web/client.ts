@@ -10,7 +10,7 @@ import {
 	createIdbDbActorStore,
 	type DbActorStore,
 } from "@store/actor"
-import type { ProtocolPatch } from "../../protocol.ts"
+import type { ProtocolPatch } from "store/protocol"
 import { createBulkViewport, type BulkViewportController, type BulkViewportStats } from "../../bulk/web/index.ts"
 import {
 	APP_WEB_LAYOUT_SETTING_KEYS,

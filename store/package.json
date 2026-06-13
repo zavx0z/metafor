@@ -3,7 +3,8 @@
   "type": "module",
   "exports": {
     ".": "./index.ts",
-    "./server": "./server.ts"
+    "./protocol": "./protocol.ts",
+    "./sqlite": "./sqlite.ts"
   },
   "private": true,
   "dependencies": {

@@ -27,8 +27,8 @@ describe("workspaceFilesPayload", () => {
     expect(payload.workspacePath).toBe("")
     expect(payload.files.map((file) => file.path)).toContain("dark/server.spec.ts")
     expect(payload.files.map((file) => file.path)).toContain("dark/server.ts")
-    expect(payload.files.map((file) => file.path)).toContain("protocol.ts")
-    expect(payload.files.map((file) => file.path)).toContain("store/server.ts")
+    expect(payload.files.map((file) => file.path)).toContain("store/protocol.ts")
+    expect(payload.files.map((file) => file.path)).toContain("store/sqlite.ts")
     expect(payload.files.map((file) => file.path)).toContain("store/index.ts")
     expect(payload.files.map((file) => file.path)).not.toContain("dark/weak/index.ts")
     expect(payload.files.some((file) => file.path.startsWith("pkg/interpreter/"))).toBe(false)
@@ -58,10 +58,10 @@ describe("workspaceFilesPayload", () => {
     expect(dark.workspacePath).toBe("")
     expect(interpreter.workspacePath).toBe("")
     expect(dark.files.map((file) => file.path)).toContain("dark/server.spec.ts")
-    expect(dark.files.map((file) => file.path)).toContain("protocol.ts")
+    expect(dark.files.map((file) => file.path)).toContain("store/protocol.ts")
     expect(interpreter.files.map((file) => file.path)).toContain("pkg/interpreter/src/syntax.test.ts")
     expect(interpreter.files.map((file) => file.path)).not.toContain("dark/server.spec.ts")
-    expect(interpreter.files.map((file) => file.path)).not.toContain("protocol.ts")
+    expect(interpreter.files.map((file) => file.path)).not.toContain("store/protocol.ts")
   })
 
   test("falls back to command path when modulePath is unavailable", () => {
@@ -91,7 +91,7 @@ describe("workspaceFilesPayload", () => {
       },
     })
 
-    expect(payload.files.map((file) => file.path)).toEqual(["protocol.ts"])
+    expect(payload.files.map((file) => file.path)).toEqual(["store/protocol.ts"])
   })
 })
 
@@ -105,20 +105,20 @@ function testWorkspace(): string {
   }))
   writeFile(cwd, "action.spec.ts", "test('root', () => {})")
   writeFile(cwd, "index.ts", "export const MetaFor = () => null")
-  writeFile(cwd, "protocol.ts", "export const METAFOR_BROADCAST_CHANNEL = 'metafor.protocol'")
   writeFile(cwd, "dark/package.json", JSON.stringify({
     name: "@metafor/dark",
     dependencies: {store: "workspace:*"},
   }))
-  writeFile(cwd, "dark/server.spec.ts", "import {METAFOR_BROADCAST_CHANNEL} from '../protocol.ts'\nawait import('./server.ts')\ntest('dark', () => METAFOR_BROADCAST_CHANNEL)")
-  writeFile(cwd, "dark/server.ts", "import {METAFOR_BROADCAST_CHANNEL} from '../protocol.ts'\nimport {MetaFor} from '..'\nimport {open} from 'store/server'\nexport {METAFOR_BROADCAST_CHANNEL, MetaFor, open}")
+  writeFile(cwd, "dark/server.spec.ts", "import {METAFOR_BROADCAST_CHANNEL} from 'store/protocol'\nawait import('./server.ts')\ntest('dark', () => METAFOR_BROADCAST_CHANNEL)")
+  writeFile(cwd, "dark/server.ts", "import {METAFOR_BROADCAST_CHANNEL} from 'store/protocol'\nimport {MetaFor} from '..'\nimport {open} from 'store/sqlite'\nexport {METAFOR_BROADCAST_CHANNEL, MetaFor, open}")
   writeFile(cwd, "dark/weak/index.ts", "export {}")
   writeFile(cwd, "store/package.json", JSON.stringify({
     name: "store",
-    exports: {".": "./index.ts", "./server": "./server.ts"},
+    exports: {".": "./index.ts", "./protocol": "./protocol.ts", "./sqlite": "./sqlite.ts"},
   }))
   writeFile(cwd, "store/index.ts", "export type Store = {ready: boolean}")
-  writeFile(cwd, "store/server.ts", "import type {Store} from './index.ts'\nexport const open = async (): Promise<Store> => ({ready: true})")
+  writeFile(cwd, "store/protocol.ts", "export const METAFOR_BROADCAST_CHANNEL = 'metafor.protocol'")
+  writeFile(cwd, "store/sqlite.ts", "import type {Store} from './index.ts'\nexport const open = async (): Promise<Store> => ({ready: true})")
   writeFile(cwd, "pkg/interpreter/package.json", "{}")
   writeFile(cwd, "pkg/interpreter/src/syntax.test.ts", "test('syntax', () => {})")
   writeFile(cwd, "pkg/interpreter/src/server.ts", "export {}")

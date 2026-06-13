@@ -2,5 +2,8 @@
   "name": "@bulk/em",
   "type": "module",
   "main": "index.ts",
-  "private": true
+  "private": true,
+  "dependencies": {
+    "store": "workspace:*"
+  }
 }

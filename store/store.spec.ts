@@ -2,14 +2,15 @@ import {afterEach, beforeEach, describe, expect, test} from "bun:test"
 import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
 import {SQL} from "bun"
-import {open} from "./server.ts"
-import type {StorePart, StorePatch} from "./server.ts"
+import {open} from "./sqlite.ts"
+import type {StorePart, StorePatch} from "./sqlite.ts"
+import {createProtocolChannel, type ProtocolPatch} from "./protocol.ts"
 import {BooleanValue, EnumValue} from "@store/actor"
 import type {Store} from "./index.ts"
 
 const SRC = "owner/smoke"
 
-describe("store/server smoke", () => {
+describe("store/sqlite smoke", () => {
   let store: Store
   let sql: SQL
   let filename: string
@@ -192,6 +193,32 @@ describe("store/server smoke", () => {
     expect(owners.map((o) => o.actor).sort()).toEqual([actorUuid, actor2Uuid].sort())
   })
 
+  test("update() публикует примененные patches после записи", async () => {
+    const channel = createProtocolChannel()
+    const received: ProtocolPatch[] = []
+    channel.onmessage = (event) => {
+      received.push(...event.data.patches)
+    }
+
+    const patch: StorePatch = {part: "graviton", op: "add", path: `/wimp/${enc(SRC)}`, value: {name: "smoke"}}
+
+    try {
+      await store.update({patches: [patch]})
+      await waitFor(() => received.some((item) => item.part === patch.part && item.op === patch.op && item.path === patch.path))
+
+      const row = (
+        await sql<Array<{name: string | null}>>`
+          SELECT name
+          FROM wimp
+          WHERE src = ${SRC}
+        `
+      )[0]
+      expect(row?.name).toBe("smoke")
+    } finally {
+      channel.close()
+    }
+  })
+
   test("close() идемпотентен — повторный вызов не падает", async () => {
     await store.close()
     expect(true).toBe(true)
@@ -199,6 +226,14 @@ describe("store/server smoke", () => {
 })
 
 const enc = (s: string): string => s.replace(/~/g, "~0").replace(/\//g, "~1")
+
+const waitFor = async (predicate: () => boolean): Promise<void> => {
+  const deadline = Date.now() + 1000
+  while (!predicate()) {
+    if (Date.now() > deadline) throw new Error("Expected protocol patch")
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  }
+}
 
 const update = async (
   store: Store,

@@ -1,6 +1,6 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
-import {createProtocolChannel, type ProtocolPatch} from "../../protocol.ts"
-import {open} from "../../store/server.ts"
+import {createProtocolChannel, type ProtocolPatch} from "store/protocol"
+import {open} from "../../store/sqlite.ts"
 import {matter} from "../index.ts"
 
 const waitForPatches = async (predicate: () => boolean): Promise<void> => {

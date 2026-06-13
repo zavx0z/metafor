@@ -2,7 +2,7 @@ import { build, file, serve } from "bun"
 import { mkdirSync, rmSync } from "node:fs"
 import { dirname, join, normalize } from "node:path"
 import type { AppWebLayoutSettings } from "./settings.ts"
-import { createProtocolChannel, type ProtocolPatch } from "../../protocol.ts"
+import { createProtocolChannel, type ProtocolPatch } from "store/protocol"
 
 const ROOT = normalize(join(import.meta.dir, "../../"))
 const APP_CHANNEL = "app-web"

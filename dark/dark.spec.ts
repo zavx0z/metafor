@@ -4,7 +4,7 @@ import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
 import type {Actor} from "@store/actor"
 import type {Store} from "../store/index.ts"
-import {open} from "../store/server.ts"
+import {open} from "../store/sqlite.ts"
 import {matter} from "./index.ts"
 
 const src = "zavx0z/git"

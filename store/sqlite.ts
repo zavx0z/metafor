@@ -4,17 +4,11 @@ import {StoreActorSqlite} from "@store/actor/sqlite"
 import {StoreTopologySqlite} from "@store/topology/sqlite"
 
 import type {Store} from "./index.ts"
-import type {JsonPatchOperation, Part} from "../protocol.ts"
+import {closeProtocolChannel, emitProtocolPatches, type JsonPatchOperation, type Part, type ProtocolPatch} from "./protocol.ts"
 
 export type StorePart = Part
 
-export type StorePatch = {
-  part: StorePart
-  op: JsonPatchOperation
-  path: string
-  value?: unknown
-  from?: string
-}
+export type StorePatch = ProtocolPatch
 
 export type StoreUpdateMessage = {
   patches: StorePatch[]
@@ -919,6 +913,7 @@ const buildApplyMessage = (sql: SQL) => async (message: StoreUpdateMessage): Pro
       await applyOnePatch(tx, patch)
     }
   })
+  emitProtocolPatches(message.patches)
 }
 
 export const open = async (filename?: string): Promise<Store> => {
@@ -945,6 +940,7 @@ export const open = async (filename?: string): Promise<Store> => {
     update: buildApplyMessage(sql),
     async close() {
       try {
+        closeProtocolChannel()
         if (fileBacked) await sql.unsafe("PRAGMA wal_checkpoint(TRUNCATE);")
         await sql.close()
       } catch {

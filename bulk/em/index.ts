@@ -1,4 +1,4 @@
-import { createProtocolChannel, type ProtocolChannel, type ProtocolMessage, type ProtocolPatch } from "../../protocol.ts"
+import { createProtocolChannel, type ProtocolChannel, type ProtocolMessage, type ProtocolPatch } from "store/protocol"
 
 export type PhotonPayload = { value: string; path: string }
 export type WeakCoordinationKind = "claim" | "accept" | "reject" | "release"

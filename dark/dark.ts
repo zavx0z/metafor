@@ -1,5 +1,5 @@
 import {MetaFor, type FieldDefinition, type FieldKey, type SRC} from ".."
-import {createProtocolChannel} from "../protocol.ts"
+import {createProtocolChannel} from "store/protocol"
 import type {AnyField, Wimp} from "@store/wimp/sqlite"
 import type {ActorValueRecord, ValueItemRecord, ValueRecord} from "@store/actor"
 import type {MatterParticlePlan} from "@dark/types/dark"
@@ -124,10 +124,7 @@ async function* matterWimp(
     }
     await fillWeakDynamics(wimp, dsl)
     matterRelations = await fillGravityMatter(wimp, dsl)
-
-    protocol.postMessage({
-      patches: [{part: "graviton", op: "add", path: src, value: "wimp"}],
-    })
+    await wimp.commit()
   }
 
   // ACTOR: переходим от Wimp-декларации к runtime-экземпляру.
@@ -176,10 +173,6 @@ async function* matterWimp(
   }
   await store.actor.create(actorData)
 
-  protocol.postMessage({
-    patches: [{part: "graviton", op: "add", path: actorUuid, value: "actor"}],
-  })
-
   const fieldValuesSnapshot = new Map<FieldKey, unknown>()
   const fieldTypesSnapshot = new Map<FieldKey, string>()
   for (const [key, init] of finalValues) {
@@ -223,9 +216,6 @@ async function* matterWimp(
             parentActor: entry.parent.kind === "actor" ? entry.parent.uuid : null,
             parentTopology: entry.parent.kind === "topology" ? entry.parent.uuid : null,
             kind: entry.plan.kind,
-          })
-          protocol.postMessage({
-            patches: [{part: "graviton", op: "add", path: topologyUuid, value: "topology"}],
           })
           for (const child of entry.plan.children ?? []) {
             next.push({plan: child, parent: {kind: "topology", uuid: topologyUuid}})

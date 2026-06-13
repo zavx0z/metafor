@@ -23,7 +23,7 @@ MetaFor сейчас находится в середине миграции с 
 
 ### Store
 
-`store/server.open()` поднимает единую SQLite БД с декларативным `wimp`-слоем,
+`store/sqlite.open()` поднимает единую SQLite БД с декларативным `wimp`-слоем,
 runtime `actor/value/state`-слоем и `topology`.
 
 Проверено:
@@ -262,7 +262,7 @@ Dark materializes store -> Boundary observes store -> Bulk executes process -> B
 Порядок работ:
 
 1. Обновить `app/web/runtime/dark.worker.ts` на текущий `dark/index.ts` /
-   `dark/dark.ts` путь через `store/server.open()`, без `store/db`.
+   `dark/dark.ts` путь через `store/sqlite.open()`, без `store/db`.
 2. Вынести render-row API из `@store/actor` в отдельный Bulk/render projection
    слой и обновить `app/web/client.ts`, `bulk/web`, `bulk/gravity/layout`.
 3. Сделать Boundary adapter поверх нового store:

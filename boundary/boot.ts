@@ -1,6 +1,6 @@
 import { applyStructuralPatchFromDb, applyWeakResultPacket, setValues } from "./boundary.ts"
 import type { DbBackend } from "store/db/core"
-import { createProtocolChannel, type ProtocolChannel, type ProtocolPatch } from "../protocol.ts"
+import { createProtocolChannel, type ProtocolChannel, type ProtocolPatch } from "store/protocol"
 
 export type OpenBoundaryDb = () => Promise<DbBackend> | DbBackend
 

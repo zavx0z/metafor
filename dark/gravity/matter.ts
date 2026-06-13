@@ -7,9 +7,6 @@ import type {
 } from "../../store/wimp/sqlite/matter.t.ts"
 import type { MatterParticlePlan } from "../types/dark.ts"
 import { MatterChildren, type Matter, type MatterParticle, type Wimp } from "@store/wimp/sqlite"
-import {createProtocolChannel} from "../../protocol.ts"
-
-const protocol = createProtocolChannel()
 
 const createContinuationSrc = (expr: string | undefined, value: string | number): string => {
   if (!expr) return String(value)
@@ -219,10 +216,6 @@ async function insertParticleRecursive(
       inserted = await collection.macho({ collectionBinding: particle.collectionBinding })
     }
   }
-
-  protocol.postMessage({
-    patches: [{part: "graviton", op: "add", path: inserted.uuid, value: inserted.kind}],
-  })
 
   if (Array.isArray(particle.children)) {
     for (const child of particle.children) {

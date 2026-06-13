@@ -1,6 +1,6 @@
 import { MetaFor } from "../../../metafor.ts"
 import { openDbSqliteBackend } from "store/db"
-import { createProtocolChannel } from "../../../protocol.ts"
+import { createProtocolChannel } from "store/protocol"
 import {
 	createMirroredActorStore,
 	createSqliteDbActorStore,

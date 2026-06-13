@@ -10,7 +10,7 @@
 
 В текущем `HEAD` нет `store/db`. Новый store состоит из:
 
-- `store/server.ts` — server-side entrypoint, открывает одну `Bun.SQL` SQLite и применяет `metaSchemaSql + actorSchemaSql`.
+- `store/sqlite.ts` — server-side SQLite entrypoint, открывает одну `Bun.SQL` SQLite и применяет `metaSchemaSql + actorSchemaSql`.
 - `@store/meta/sqlite` — нормализованная DSL/meta схема.
 - `@store/actor/sqlite` — actor/value/state слой.
 
@@ -19,7 +19,7 @@
 ```json
 {
   "exports": {
-    "./server": "./server.ts"
+    "./sqlite": "./sqlite.ts"
   }
 }
 ```
@@ -44,7 +44,7 @@ Meta-слой умеет:
 
 ### Что сейчас сломано
 
-1. `store/server.open()` падает на actor DDL:
+1. `store/sqlite.open()` падает на actor DDL:
 
 ```text
 SQLiteError: no such column: variant
@@ -356,7 +356,7 @@ provenance независимо от link-row.
 Публичный API должен быть единым:
 
 ```ts
-import { open } from "store/server"
+import { open } from "store/sqlite"
 // позже:
 import { open } from "store/browser"
 
@@ -376,10 +376,10 @@ store.actor
 
 Чтобы SQLite-store был полнофункциональным, нужно закрыть:
 
-1. `store/server.open()` должен стабильно открывать БД.
+1. `store/sqlite.open()` должен стабильно открывать БД.
 2. `store/package.json` должен экспортировать нужные subpath-ы:
-   - `.` или `./server`;
-   - `./server`;
+   - `.` или `./sqlite`;
+   - `./sqlite`;
    - возможно `./fixture` только для тестов;
    - не возвращать `store/db`.
 3. `@store/meta` и `@store/actor` должны иметь общие типы, не привязанные к `bun:SQL` в публичном уровне.
@@ -565,7 +565,7 @@ Browser IDB применяет те же операции. Boundary/Bulk на к
 - fixture db helpers;
 - dark/web and boundary/web browser db stubs.
 
-Их нельзя чинить косметически. Нужно заменить на реальные `store/server` / будущий `store/browser` paths.
+Их нельзя чинить косметически. Нужно заменить на реальные `store/sqlite` / будущий `store/browser` paths.
 
 ### Шаг 5 — IDB parity
 

@@ -1,4 +1,4 @@
-import {open} from "../store/server.ts"
+import {open} from "../store/sqlite.ts"
 import {matter} from "./dark.ts"
 export {matter}
 

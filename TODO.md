@@ -13,7 +13,7 @@
 
 - [ ] Вынести Bulk render row types/API из `@store/actor` в Bulk/render projection.
 - [ ] Сделать read-only Boundary adapter из `store.wimp + store.actor + store.topology` в Boundary runtime data.
-- [ ] Перевести `app/web/runtime/dark.worker.ts` на текущий `store/server.open()` путь.
+- [ ] Перевести `app/web/runtime/dark.worker.ts` на текущий `store/sqlite.open()` путь.
 - [ ] Перевести `app/web/runtime/boundary.worker.ts` с `store/db` на новый Boundary adapter.
 - [ ] Перевести `app/web/runtime/bulk.process.ts` resolver с `DbBackend` на новый store/projection path.
 - [ ] Собрать вертикальный smoke: Dark пишет store, Boundary читает fragment, Bulk получает projection, process выполняет переход.
@@ -32,7 +32,7 @@
 
 ## 5. Protocol cleanup
 
-- [x] Сверить `task/issues-audit.md` с текущим корневым `protocol.ts`.
+- [x] Сверить `task/issues-audit.md` с protocol-модулем; runtime transport перенесён в `store/protocol`.
 - [x] Решить судьбу `channel`, `source`, `boson` в protocol envelope.
 - [x] Перевести runtime protocol на один `METAFOR_BROADCAST_CHANNEL` и `part` внутри каждого patch.
 - [ ] Довести W/+Z/-Z bridge: Boundary-side Z arbitration и smoke-сценарий.
@@ -43,7 +43,7 @@
 - [x] Использовать markdown checkbox `- [ ]` / `- [x]` как данные файла TODO.
 - [x] Подсвечивать пункты как состояние HUD-панели для попадания в `/context.hud.todo.highlightedItems`.
 - [x] Не смешивать todo state с process runtime state: todo находится в `hud.todo`.
-- [x] Убрать устаревший `source.open` кейс со старым shared protocol bare specifier: shared protocol package удалён, protocol теперь корневой `protocol.ts`.
+- [x] Убрать устаревший `source.open` кейс со старым shared protocol bare specifier: shared protocol package удалён, protocol теперь `store/protocol`.
 - [x] После удаления файлов или директорий через apply_patch обновлять файловую панель интерпретатора без ручной перезагрузки.
 - [ ] Доработать TerminalPane autoscroll/scrollback: когда пользователь скроллит вверх, а в терминал продолжают поступать новые данные, текст не должен перекрываться или визуально разваливаться; viewport должен оставаться на месте, а автоскролл должен включаться только после возврата в самый низ и без просадки производительности.
 

@@ -4,7 +4,7 @@ import type { MatterDeclaration, MatterSchema } from "./matter.t.ts"
 import type { ReactionsSchema } from "./reactions.t.ts"
 import type { Superposition, SuperpositionInputCheck, SuperpositionStateKeys } from "./superposition.t.ts"
 import type { ReactionsDeclaration } from "./reactions.t.ts"
-import type { JsonPatchOperation } from "./protocol.ts"
+import type { JsonPatchOperation } from "./store/protocol.ts"
 
 export type SRC = string
 export type FieldKey = string

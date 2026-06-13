@@ -1,6 +1,7 @@
 import type { Wimp } from "../wimp.ts"
 import type { ProcessType as ProcessTypeEnum } from "../../../../process.t.ts"
 import { Process } from "./process.ts"
+import {emitGravitonAdd} from "../../../protocol.ts"
 
 /** String-литералы значений `enum ProcessType` из metafor DSL — единый источник истины. */
 export type ProcessType = `${ProcessTypeEnum}`
@@ -42,6 +43,7 @@ export class Processes {
       INSERT INTO process (uuid, wimp, key, type, label, desc)
       VALUES (${uuid}, ${src}, ${input.key}, ${input.type}, ${input.label ?? null}, ${input.desc ?? null})
     `
+    emitGravitonAdd(uuid, "process")
     return new Process(this, input.key)
   }
 

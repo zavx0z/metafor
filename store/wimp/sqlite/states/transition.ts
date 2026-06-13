@@ -1,5 +1,6 @@
 import type { State } from "./state.ts"
 import { Conditions } from "./condition.ts"
+import {emitGravitonAdd} from "../../../protocol.ts"
 
 export class Transition {
   readonly conditions: Conditions
@@ -81,6 +82,7 @@ export class Transitions {
       INSERT INTO transition (uuid, from_state, to_state, position)
       VALUES (${uuid}, ${fromUuid}, ${targetRow.uuid}, ${position})
     `
+    emitGravitonAdd(uuid, "transition")
     return new Transition(this.state, toName)
   }
 
