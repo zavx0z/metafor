@@ -7,8 +7,6 @@ import {fillWeakDynamics} from "@dark/weak"
 import {loadMeta} from "./load.ts"
 import {finalizeFieldValues, resolveFieldInits, type Continuation} from "./continuation.ts"
 
-// DSL-файлы `github/.../meta.ts` обращаются к `MetaFor(...)` как к глобальной функции,
-// поэтому Dark регистрирует её до первого dynamic import меты.
 ;(globalThis as unknown as {MetaFor: typeof MetaFor}).MetaFor = MetaFor
 
 store.onmessage = (event) => {
@@ -45,9 +43,10 @@ export async function matter(
   parent: ParticleRef | null = null,
   continuation: Continuation | undefined = undefined,
 ): Promise<void> {
-  if (parent === null && await store.wimp.get(src)) return
+  const declarationExists = await store.wimp.exists(src)
+  if (parent === null && declarationExists) return
 
-  const generator = matterWimp(src, parent, continuation)
+  const generator = matterWimp(src, parent, continuation, declarationExists)
 
   while (true) {
     const result = await generator.next()
@@ -72,17 +71,19 @@ async function* matterWimp(
   src: SRC,
   parent: ParticleRef | null,
   continuation: Continuation | undefined,
+  declarationExists: boolean,
 ): AsyncGenerator<PendingChildWimp[], void, void> {
-  const existing = await store.wimp.get(src)
   const dsl = await loadMeta(src)
-  const created = existing === null
-  const wimp = existing ?? await store.wimp.create(src, {
-    name: dsl.name ?? null,
-    desc: dsl.desc ?? null,
-    bulk: dsl.bulk ?? null,
-    mass: dsl.mass,
-    fields: dsl.fields,
-  })
+  const created = !declarationExists
+  const wimp = created
+    ? await store.wimp.create(src, {
+        name: dsl.name ?? null,
+        desc: dsl.desc ?? null,
+        bulk: dsl.bulk ?? null,
+        mass: dsl.mass,
+        fields: dsl.fields,
+      })
+    : store.wimp.ref(src)
 
   // WIMP: наполняем декларацию сущности в Store.
   // Один и тот же child wimp может упоминаться несколько раз в matter-дереве

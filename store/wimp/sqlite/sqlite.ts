@@ -214,6 +214,25 @@ export class StoreWimpSqlite {
   }
 
   /**
+   * Возвращает ORM-ссылку без SQL-проверки существования.
+   */
+  ref(src: string): Wimp {
+    return new Wimp(this.sql, src)
+  }
+
+  /**
+   * Дешевая проверка существования декларации без создания ORM-объекта.
+   */
+  async exists(src: string): Promise<boolean> {
+    const row = (
+      await this.sql<Array<{ok: number}>>`
+        SELECT 1 AS ok FROM wimp WHERE src = ${src} LIMIT 1
+      `
+    )[0]
+    return row !== undefined
+  }
+
+  /**
    * Создаёт wimp-декларацию одним ORM-входом.
    * Все параметры опциональны; после SQL commit Store отправляет batch `particles`.
    */
@@ -239,11 +258,6 @@ export class StoreWimpSqlite {
   }
 
   async get(src: string): Promise<Wimp | null> {
-    const row = (
-      await this.sql<Array<{ok: number}>>`
-        SELECT 1 AS ok FROM wimp WHERE src = ${src} LIMIT 1
-      `
-    )[0]
-    return row ? new Wimp(this.sql, src) : null
+    return await this.exists(src) ? this.ref(src) : null
   }
 }

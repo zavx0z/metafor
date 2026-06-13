@@ -113,6 +113,14 @@ describe("sqlite ddl", () => {
     expect(parts.some((part) => part.path.includes("/mass/"))).toBe(true)
   })
 
+  test("wimp.exists проверяет декларацию без ORM get", async () => {
+    expect(await wimps.exists("alpha/meta")).toBe(false)
+
+    await wimps.create("alpha/meta")
+
+    expect(await wimps.exists("alpha/meta")).toBe(true)
+  })
+
   test("создаёт meta-level таблицы и индексы из sql-модулей dsl без trigger-слоя", async () => {
     const tables = (
       (await db`SELECT name
