@@ -74,6 +74,14 @@ bun run interpreter ./module.spec.ts -timeout=2147483647
 
 MetaFor UI является основным frontend интерпретатора. Подключение к WebStorm/DevTools в этом workflow не используется.
 
+## API-Редактирование Source
+
+Когда агент или внешний host меняет код через `POST /processes/:id/source` или `POST /processes/:id/apply_patch`, UI получает `source-patched` и переводит соответствующий process display на измененный файл.
+
+Переход выбирает первый измененный не-delete файл из patch payload, открывает его в source editor, раскрывает и выделяет файл в file tree и ставит cursor на первую измененную строку. Если patch не содержит line changes, cursor ставится на строку 1.
+
+Если в target editor уже есть несохраненный dirty state или идет сохранение, авто-переход пропускается: API patch уже применен на диске, но UI не должен молча перетирать локальный редактор.
+
 ## SQLite HUD
 
 SQLite HUD открывается из CLI входа `.sqlite` или через `POST /sqlite/open`. Панель можно свернуть и развернуть через `/hud/sqlite/dock|show|toggle`; свернутое состояние живет в HUD dock как отдельная вкладка, наравне с TODO и host terminal.

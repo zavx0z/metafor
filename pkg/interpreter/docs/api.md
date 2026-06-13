@@ -275,6 +275,8 @@ Selectors для `/space/focus`, `/processes/resolve` и `/processes/focus`:
 
 `DELETE /processes/:id` останавливает runtime process, удаляет его из списка процессов и синхронизирует UI так, чтобы display этого module исчез из Space.
 
+API-редактирование source через `POST /processes/:id/source` или `POST /processes/:id/apply_patch` рассылает `source-patched`. UI process display с этим `:id` должен открыть первый измененный не-delete файл в source editor, раскрыть и выделить его в file tree и поставить cursor на первую измененную строку (`lineChanges[0].newStart`, иначе строка 1). Если в редакторе есть несохраненные изменения или идет сохранение, авто-переход пропускается, чтобы не перетереть локальный dirty state.
+
 `POST /processes` запускает новый process:
 
 ```json

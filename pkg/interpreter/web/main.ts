@@ -6376,10 +6376,51 @@ function handleSourcePatched(msg: Extract<ServerMessage, {type: "source-patched"
     if (controller.sourceDirty || controller.sourceSaving) continue
     void refreshOpenSourceFromDisk(controller, sourceUrl)
   }
+  void openSourcePatchedTarget(msg)
 }
 
 function sourcePatchChangesWorkspaceFileTree(msg: Extract<ServerMessage, {type: "source-patched"}>): boolean {
   return msg.files.some((file) => file.operation === "add" || file.operation === "delete" || file.operation === "move")
+}
+
+type SourcePatchedEditorTarget = {
+  sourceUrl: string
+  line: number
+  column: number
+}
+
+function sourcePatchedEditorTarget(files: readonly SourcePatchedFile[]): SourcePatchedEditorTarget | null {
+  const file = files.find((item) => item.operation !== "delete" && sourcePatchedFileSourceUrl(item) !== null)
+  if (file === undefined) return null
+  const sourceUrl = sourcePatchedFileSourceUrl(file)
+  if (sourceUrl === null) return null
+  const firstChange = file.lineChanges?.[0]
+  const line = firstChange === undefined ? 1 : Math.max(1, Math.floor(firstChange.newStart))
+  return {sourceUrl, line, column: 0}
+}
+
+function sourcePatchedFileSourceUrl(file: SourcePatchedFile): string | null {
+  const sourceUrl = file.sourceUrl.trim()
+  if (sourceUrl.length > 0) return sourceUrl
+  const path = file.path.trim()
+  return path.length === 0 ? null : path
+}
+
+async function openSourcePatchedTarget(msg: Extract<ServerMessage, {type: "source-patched"}>): Promise<void> {
+  const controller = moduleDisplays.get(msg.moduleId)
+  if (controller === undefined || controller.sourceDirty || controller.sourceSaving) return
+  const target = sourcePatchedEditorTarget(msg.files)
+  if (target === null) return
+  uiCanvas?.focusDisplay(moduleDisplayId(controller.id))
+  const result = await openWorkspaceSource(controller, target.sourceUrl, {
+    line: target.line,
+    column: target.column,
+    revealInWorkspace: true,
+  })
+  if (!result.ok) return
+  uiCanvas?.setFocused(controller.source)
+  uiCanvas?.inputProxy?.focus()
+  queuePublishModuleContext(controller)
 }
 
 function applySourcePatchedBreakpoints(msg: Extract<ServerMessage, {type: "source-patched"}>): void {

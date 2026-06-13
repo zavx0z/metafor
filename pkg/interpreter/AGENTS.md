@@ -123,6 +123,12 @@ Process API:
 - `DELETE /processes/:id/breakpoint` удаляет точку останова из process.
 - `POST /processes/:id/action` выполняет process action.
 
+API-редактирование source:
+
+- `POST /processes/:id/source` и `POST /processes/:id/apply_patch` после успешной правки должны приводить UI к отредактированному файлу в process display `:id`.
+- На `source-patched` открывай первый измененный не-delete файл в source editor, раскрывай/выделяй его в file tree и ставь cursor на первую измененную строку (`lineChanges[0].newStart`, fallback строка 1).
+- Не перетирай локальный dirty editor: если target source dirty или saving, авто-переход нужно пропустить.
+
 Space API:
 
 - `GET /space` возвращает `mode`, `activeDisplayId` и `displays[]`.
