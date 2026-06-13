@@ -13,6 +13,9 @@ type BrowserKeyboardLock = {
   lock?: (keyCodes?: string[]) => Promise<void>
   unlock?: () => void
 }
+type DisplayHoverOutlinePaneOpts = {
+  onBrowserFullscreenLayoutChange?: (activeDisplayId: UiDisplayId | null) => void
+}
 type FlightControl = {
   button: Rect
   hit: Rect
@@ -251,13 +254,26 @@ export class DisplayHoverOutlinePane extends UiSurface {
   #lastDisplayDistanceMm: number | null = null
   #cameraMotionHoldUntilMs = 0
   #leaveAnimation: LeaveAnimation | null = null
+  readonly #onBrowserFullscreenLayoutChange: ((activeDisplayId: UiDisplayId | null) => void) | undefined
+  readonly #handleBrowserFullscreenChange = (): void => {
+    unlockBrowserFullscreenEscape()
+    if (this.canvas?.displayMode !== "near") return
+    this.#repositionNearDisplayAfterFullscreen(this.canvas.activeDisplayId)
+  }
 
-  constructor() {
+  constructor(opts: DisplayHoverOutlinePaneOpts = {}) {
     super({bgColor: null, borderColor: null})
+    this.#onBrowserFullscreenLayoutChange = opts.onBrowserFullscreenLayoutChange
+    document.addEventListener("fullscreenchange", this.#handleBrowserFullscreenChange)
   }
 
   acceptsPointerEvents(): boolean {
     return true
+  }
+
+  override dispose(): void {
+    document.removeEventListener("fullscreenchange", this.#handleBrowserFullscreenChange)
+    super.dispose()
   }
 
   containsPointer(localX: number, localY: number): boolean {
@@ -623,18 +639,12 @@ export class DisplayHoverOutlinePane extends UiSurface {
   #toggleBrowserFullscreen(): void {
     if (document.fullscreenElement !== null) {
       void document.exitFullscreen()
-        .then(() => unlockBrowserFullscreenEscape())
         .catch(() => {})
       return
     }
 
-    const shouldRepositionNearDisplay = this.canvas?.displayMode === "near"
-    const activeDisplayId = shouldRepositionNearDisplay ? this.canvas?.activeDisplayId ?? null : null
     void document.documentElement.requestFullscreen()
-      .then(async () => {
-        await lockBrowserFullscreenEscape()
-        if (shouldRepositionNearDisplay) this.#repositionNearDisplayAfterFullscreen(activeDisplayId)
-      })
+      .then(() => lockBrowserFullscreenEscape())
       .catch(() => {})
   }
 
@@ -643,9 +653,12 @@ export class DisplayHoverOutlinePane extends UiSurface {
       window.requestAnimationFrame(() => {
         const canvas = this.canvas
         if (canvas === null || canvas.displayMode !== "near") return
-        canvas.handleResize()
         const displayId = activeDisplayId ?? canvas.activeDisplayId
-        if (displayId !== null) canvas.focusDisplay(displayId)
+        this.#onBrowserFullscreenLayoutChange?.(displayId)
+        if (this.#onBrowserFullscreenLayoutChange === undefined) {
+          canvas.handleResize()
+          if (displayId !== null) canvas.focusDisplay(displayId)
+        }
       })
     })
   }

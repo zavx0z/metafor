@@ -2164,7 +2164,9 @@ async function initEngine(): Promise<void> {
         farDistanceMm: 1200,
       },
     })
-    displayHoverOutlinePane = new DisplayHoverOutlinePane()
+    displayHoverOutlinePane = new DisplayHoverOutlinePane({
+      onBrowserFullscreenLayoutChange: handleBrowserFullscreenDisplayLayoutChange,
+    })
     const todoStored = readStoredTodoPanelState()
     todoPane = new ToDoPane({
       title: "TODO.md",
@@ -2245,6 +2247,12 @@ async function initEngine(): Promise<void> {
 function handleEngineResize(): void {
   uiCanvas?.handleResize()
   syncModuleDisplays()
+}
+
+function handleBrowserFullscreenDisplayLayoutChange(activeDisplayId: string | null): void {
+  handleEngineResize()
+  const displayId = activeDisplayId ?? uiCanvas?.activeDisplayId ?? null
+  if (displayId !== null) uiCanvas?.focusDisplay(displayId)
 }
 
 function installEnginePanes(): void {
