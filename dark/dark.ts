@@ -28,8 +28,8 @@ store.onmessage = (event) => {
  * и разворачивает дерево через store ORM: создаёт actor + topology rows,
  * рекурсивно материализует дочерние wimps.
  *
- * Внутренняя рекурсия тоже передаёт только `SRC`: multi-mount получает существующий
- * `Wimp` внутри `matterWimp` и создаёт новые actor rows для того же child src.
+ * Внутренняя рекурсия тоже передаёт только `SRC`: если декларация уже есть,
+ * `matter` выходит до `matterWimp`.
  *
  * Обход дерева — послойный: на каждом BFS-слое топологии родительской wimp сначала
  * создаются все topology-узлы слоя, затем рекурсивно материализуются child wimps этого
@@ -43,10 +43,9 @@ export async function matter(
   parent: ParticleRef | null = null,
   continuation: Continuation | undefined = undefined,
 ): Promise<void> {
-  const declarationExists = await store.wimp.exists(src)
-  if (parent === null && declarationExists) return
+  if (await store.wimp.exists(src)) return
 
-  const generator = matterWimp(src, parent, continuation, declarationExists)
+  const generator = matterWimp(src, parent, continuation)
 
   while (true) {
     const result = await generator.next()
@@ -71,40 +70,19 @@ async function* matterWimp(
   src: SRC,
   parent: ParticleRef | null,
   continuation: Continuation | undefined,
-  declarationExists: boolean,
 ): AsyncGenerator<PendingChildWimp[], void, void> {
   const dsl = await loadMeta(src)
-  const created = !declarationExists
-  const wimp = created
-    ? await store.wimp.create(src, {
-        name: dsl.name ?? null,
-        desc: dsl.desc ?? null,
-        bulk: dsl.bulk ?? null,
-        mass: dsl.mass,
-        fields: dsl.fields,
-      })
-    : store.wimp.ref(src)
+  const wimp = await store.wimp.create(src, {
+    name: dsl.name ?? null,
+    desc: dsl.desc ?? null,
+    bulk: dsl.bulk ?? null,
+    mass: dsl.mass,
+    fields: dsl.fields,
+  })
 
   // WIMP: наполняем декларацию сущности в Store.
-  // Один и тот же child wimp может упоминаться несколько раз в matter-дереве
-  // (multi-mount под разными topology-узлами). Декларация в store — одна на src;
-  // повторные вызовы matterWimp создают только новые actor rows, fill пропускают.
-  let matterRelations: Awaited<ReturnType<typeof fillGravityMatter>>
-  if (!created && await wimp.fields.exists()) {
-    matterRelations = await wimp.matter.all()
-  } else {
-    if (!created) {
-      await wimp.name.set(dsl.name ?? null)
-      await wimp.desc.set(dsl.desc ?? null)
-      await wimp.bulk.set(dsl.bulk ?? null)
-      if (dsl.mass !== undefined) await wimp.mass.set(dsl.mass)
-      for (const [key, {type, ...definition}] of Object.entries(dsl.fields)) {
-        await wimp.fields.add(type, {key, ...definition})
-      }
-    }
-    await fillWeakDynamics(wimp, dsl)
-    matterRelations = await fillGravityMatter(wimp, dsl)
-  }
+  await fillWeakDynamics(wimp, dsl)
+  const matterRelations = await fillGravityMatter(wimp, dsl)
 
   // ACTOR: переходим от Wimp-декларации к runtime-экземпляру.
   // fieldSchemas — схема полей Wimp; finalValues — значения полей Actor.

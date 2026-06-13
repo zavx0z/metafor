@@ -10,9 +10,6 @@ export {open} from "./sqlite.ts"
 export type {StorePart, StoreParticle, StoreUpdateMessage} from "./sqlite.ts"
 
 export interface WimpApi {
-  /** Возвращает ORM-ссылку без SQL-проверки существования. */
-  ref(src: string): Wimp
-
   /** Дешевая проверка существования декларации без создания ORM-объекта. */
   exists(src: string): Promise<boolean>
 

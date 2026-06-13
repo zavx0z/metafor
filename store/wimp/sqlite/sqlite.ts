@@ -214,13 +214,6 @@ export class StoreWimpSqlite {
   }
 
   /**
-   * Возвращает ORM-ссылку без SQL-проверки существования.
-   */
-  ref(src: string): Wimp {
-    return new Wimp(this.sql, src)
-  }
-
-  /**
    * Дешевая проверка существования декларации без создания ORM-объекта.
    */
   async exists(src: string): Promise<boolean> {
@@ -258,6 +251,6 @@ export class StoreWimpSqlite {
   }
 
   async get(src: string): Promise<Wimp | null> {
-    return await this.exists(src) ? this.ref(src) : null
+    return await this.exists(src) ? new Wimp(this.sql, src) : null
   }
 }
