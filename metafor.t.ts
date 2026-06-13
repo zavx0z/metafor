@@ -14,6 +14,38 @@ export interface BulkSchema {
   view: string
 }
 
+/**
+ * Часть MetaDSL, подготовленная для создания WIMP в Store.
+ *
+ * @prop name — имя WIMP-декларации.
+ * @prop desc — описание WIMP-декларации.
+ * @prop bulk — bulk/view-настройки декларации.
+ * @prop mass — mass-данные декларации.
+ * @prop fields — поля декларации с ключами, уже разложенные из object-map.
+ * @prop states — состояния декларации с именами, уже разложенные из object-map.
+ * @prop processes — процессы декларации с ключами, уже разложенные из object-map.
+ * @prop reactions — реакции декларации с ключами и привязкой к состояниям.
+ */
+export type MetaCreateDSL<m extends Mass = {}> = {
+  name?: string | null | undefined
+  desc?: string | null | undefined
+  bulk?: BulkSchema | null | undefined
+  mass?: m
+  fields?: readonly (FieldDefinition & {key: FieldKey})[] | undefined
+  states?: readonly {name: string; transitions?: unknown}[] | undefined
+  processes?: readonly {key: string; declaration: ProcessesSchema[string]}[] | undefined
+  reactions?: readonly {
+    key: string
+    label: string
+    desc?: string | null | undefined
+    cond: string
+    src: string
+    read?: readonly string[] | undefined
+    write?: readonly string[] | undefined
+    states?: readonly string[] | undefined
+  }[] | undefined
+}
+
 export type ReactionPart = {
   from?: string
   op: ParticleOperation
@@ -436,6 +468,8 @@ export interface MetaDSL<ɸ extends Fields = Fields, 𝛴 extends string = strin
   bulk?: BulkSchema
   /** Масса */
   mass?: m
+  /** Подготовленная SQL-create часть DSL */
+  create: MetaCreateDSL<m>
 }
 
 export type MetaSchema<ɸ extends Fields = Fields, 𝛴 extends string = string, m extends Mass = {}> = MetaDSL<ɸ, 𝛴, m>

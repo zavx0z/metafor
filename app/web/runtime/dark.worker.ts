@@ -12,8 +12,6 @@ import { StoreWimpSqlite, type MatterRelationParticle } from "@store/wimp/sqlite
 import { SQL } from "bun"
 import { matter } from "../../../dark/dark.ts"
 import { projectStoreMatterParticles, fillGravityMatter } from "@dark/gravity"
-import { fillStrongStructure } from "@dark/strong"
-import { fillWeakDynamics } from "@dark/weak"
 import { loadMeta } from "../../../dark/load.ts"
 import { disposeMetaDbContext } from "../../../dark/load.context.ts"
 import { Axion, Fuzzy, Macho, Wimp } from "../../../dark/strong/index.ts"
@@ -334,9 +332,7 @@ const canonicalizeMetaGraph = async (
 		if (!src || loaded.has(src)) continue
 
 		const dsl = await loadMeta(src)
-		const wimp = await metaStore.create(src)
-		await fillStrongStructure(wimp, dsl)
-		await fillWeakDynamics(wimp, dsl)
+		const wimp = await metaStore.create(src, dsl.create)
 		const relations = await fillGravityMatter(wimp, dsl)
 		loaded.add(src)
 

@@ -94,16 +94,45 @@ describe("sqlite ddl", () => {
       desc: "Demo",
       bulk: {view: ".root {}"},
       mass: {title: "draft"},
-      fields: {
-        title: {type: "string", required: true, default: "draft"},
-        status: {type: "enum", required: true, values: ["open", "closed"], default: "open"},
-      },
+      fields: [
+        {key: "title", type: "string", required: true, default: "draft"},
+        {key: "status", type: "enum", required: true, values: ["open", "closed"], default: "open"},
+      ],
+      states: [
+        {name: "idle", transitions: {done: {title: "draft"}}},
+        {name: "done"},
+      ],
+      processes: [
+        {
+          key: "submit",
+          declaration: {
+            type: "action",
+            env: ["server"],
+            action: {src: "./submit.ts", read: ["title"]},
+            success: {src: "() => {}", read: ["status"], write: ["title"]},
+          },
+        },
+      ],
+      reactions: [
+        {
+          key: "on-status",
+          label: "On status",
+          cond: "() => true",
+          src: "() => {}",
+          read: ["title"],
+          write: ["status"],
+          states: ["idle"],
+        },
+      ],
     })
 
     expect(await wimp.name.get()).toBe("Alpha")
     expect(await wimp.desc.get()).toBe("Demo")
     expect(await wimp.fields.count()).toBe(2)
     expect(await wimp.mass.exists()).toBe(true)
+    expect(await wimp.states.count()).toBe(2)
+    expect(await wimp.processes.count()).toBe(1)
+    expect(await wimp.reactions.count()).toBe(1)
 
     expect(messages.length).toBe(1)
     const parts = messages[0]!.parts

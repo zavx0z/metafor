@@ -15,8 +15,6 @@
   "dependencies": {
     "@dark/types": "workspace:*",
     "@dark/gravity": "workspace:*",
-    "@dark/strong": "workspace:*",
-    "@dark/weak": "workspace:*",
     "@dark/em": "workspace:*",
     "@store/wimp": "workspace:*",
     "store": "workspace:*"

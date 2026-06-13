@@ -51,6 +51,9 @@
     },
     "boundary/gravity": {
       "name": "@boundary/gravity",
+      "dependencies": {
+        "store": "workspace:*",
+      },
     },
     "boundary/strong": {
       "name": "@boundary/strong",
@@ -79,6 +82,9 @@
     },
     "bulk/em": {
       "name": "@bulk/em",
+      "dependencies": {
+        "store": "workspace:*",
+      },
     },
     "bulk/gravity": {
       "name": "@bulk/gravity",
@@ -109,9 +115,7 @@
       "dependencies": {
         "@dark/em": "workspace:*",
         "@dark/gravity": "workspace:*",
-        "@dark/strong": "workspace:*",
         "@dark/types": "workspace:*",
-        "@dark/weak": "workspace:*",
         "@store/wimp": "workspace:*",
         "store": "workspace:*",
       },
@@ -120,6 +124,7 @@
       "name": "@dark/em",
       "dependencies": {
         "@dark/types": "workspace:*",
+        "store": "workspace:*",
       },
     },
     "dark/gravity": {
@@ -127,6 +132,7 @@
       "dependencies": {
         "@dark/types": "workspace:*",
         "@store/wimp": "workspace:*",
+        "store": "workspace:*",
       },
     },
     "dark/strong": {
@@ -140,15 +146,6 @@
     },
     "dark/types": {
       "name": "@dark/types",
-    },
-    "dark/weak": {
-      "name": "@dark/weak",
-      "dependencies": {
-        "@dark/gravity": "workspace:*",
-        "@dark/strong": "workspace:*",
-        "@dark/types": "workspace:*",
-        "@store/wimp": "workspace:*",
-      },
     },
     "fixture": {
       "name": "fixture",
@@ -870,8 +867,6 @@
     "@dark/strong": ["@dark/strong@workspace:dark/strong"],
 
     "@dark/types": ["@dark/types@workspace:dark/types"],
-
-    "@dark/weak": ["@dark/weak@workspace:dark/weak"],
 
     "@develar/schema-utils": ["@develar/schema-utils@2.6.5", "", { "dependencies": { "ajv": "^6.12.0", "ajv-keywords": "^3.4.1" } }, "sha512-0cp4PsWQ/9avqTVMCtZ+GirikIA36ikvjtHweU4/j8yLtgObI0+JUPhYFScgwlteveGB1rt3Cm8UhN04XayDig=="],
 

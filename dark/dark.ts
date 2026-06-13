@@ -3,7 +3,6 @@ import type {AnyField} from "@store/wimp/sqlite"
 import type {ActorValueRecord, ValueItemRecord, ValueRecord} from "@store/actor"
 import type {BfsEntry, ParticleRef, PendingChildWimp} from "@dark/types/dark"
 import {projectStoreMatterParticles, fillGravityMatter} from "@dark/gravity"
-import {fillWeakDynamics} from "@dark/weak"
 import {loadMeta} from "./load.ts"
 import {finalizeFieldValues, resolveFieldInits, type Continuation} from "./continuation.ts"
 
@@ -37,8 +36,11 @@ store.onmessage = (event) => {
  *
  * `parent`/`continuation` — внутренние параметры рекурсии, caller'ам передавать не нужно.
  */
-export async function matter(src: SRC): Promise<void>
-export async function matter(
+export async function matter(src: SRC): Promise<void> {
+  await materializeMatter(src, null, undefined)
+}
+
+async function materializeMatter(
   src: SRC,
   parent: ParticleRef | null = null,
   continuation: Continuation | undefined = undefined,
@@ -51,7 +53,7 @@ export async function matter(
     const result = await generator.next()
     if (result.done) return
     for (const pending of result.value) {
-      await matter(pending.src, pending.parent, pending.continuation)
+      await materializeMatter(pending.src, pending.parent, pending.continuation)
     }
   }
 }
@@ -72,16 +74,9 @@ async function* matterWimp(
   continuation: Continuation | undefined,
 ): AsyncGenerator<PendingChildWimp[], void, void> {
   const dsl = await loadMeta(src)
-  const wimp = await store.wimp.create(src, {
-    name: dsl.name ?? null,
-    desc: dsl.desc ?? null,
-    bulk: dsl.bulk ?? null,
-    mass: dsl.mass,
-    fields: dsl.fields,
-  })
+  const wimp = await store.wimp.create(src, dsl.create)
 
   // WIMP: наполняем декларацию сущности в Store.
-  await fillWeakDynamics(wimp, dsl)
   const matterRelations = await fillGravityMatter(wimp, dsl)
 
   // ACTOR: переходим от Wimp-декларации к runtime-экземпляру.

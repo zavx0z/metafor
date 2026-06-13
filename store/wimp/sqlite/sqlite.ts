@@ -16,17 +16,13 @@ import finallySchemaSql from "./processes/finally.sql" with {type: "text"}
 import reactionsSchemaSql from "./reactions.sql" with {type: "text"}
 import matterSchemaSql from "./matter.sql" with {type: "text"}
 import {SQL} from "bun"
+import {buildWimpCreateSql} from "./create.ts"
 import {Wimp} from "./wimp.ts"
 import {emitForceParts, type Particle} from "../../force.ts"
-import type {FieldDefinition, FieldKey, MetaDSL} from "../../../metafor.t.ts"
+import type {WimpCreateInput} from "./create.t.ts"
+import type {FieldDefinition} from "../../../metafor.t.ts"
 
-export type WimpCreateInput = {
-  name?: string | null | undefined
-  desc?: string | null | undefined
-  bulk?: MetaDSL["bulk"] | null | undefined
-  mass?: MetaDSL["mass"]
-  fields?: Record<FieldKey, FieldDefinition> | undefined
-}
+export type {WimpCreateInput} from "./create.t.ts"
 
 type FieldRow = {
   uuid: string
@@ -226,23 +222,12 @@ export class StoreWimpSqlite {
   }
 
   /**
-   * Создаёт wimp-декларацию одним ORM-входом.
-   * Все параметры опциональны; после SQL commit Store отправляет batch `particles`.
+   * Создаёт wimp-декларацию одним prepared input.
+   * Запись идёт одной транзакцией и одним SQL batch; после commit Store отправляет batch `particles`.
    */
   async create(src: string, input: WimpCreateInput = {}): Promise<Wimp> {
     await this.sql.begin(async (tx) => {
-      await tx`DELETE FROM wimp WHERE src = ${src}`
-      await tx`
-        INSERT INTO wimp (src, name, desc, view_css)
-        VALUES (${src}, ${input.name ?? null}, ${input.desc ?? null}, ${input.bulk?.view ?? null})
-      `
-
-      const wimp = new Wimp(tx as SQL, src)
-      if (input.mass !== undefined) await wimp.mass.set(input.mass)
-
-      for (const [key, {type, ...definition}] of Object.entries(input.fields ?? {})) {
-        await wimp.fields.add(type, {key, ...definition})
-      }
+      await (tx as SQL).unsafe(buildWimpCreateSql(src, input))
     })
 
     const wimp = new Wimp(this.sql, src)

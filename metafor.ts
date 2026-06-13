@@ -118,23 +118,50 @@ globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
                 superposition: normalizedSuperposition,
                 fields: fields,
                 mass: mass || ({} as m),
+                create: {
+                  name,
+                  desc: desc ?? null,
+                  bulk: null,
+                  mass: mass || ({} as m),
+                  fields: Object.entries(fields).map(([key, definition]) => ({key, ...definition})),
+                  states: Object.entries(normalizedSuperposition).map(([name, transitions]) => ({name, transitions})),
+                },
               }
               if (desc) schema.desc = desc
               return {
                 processes(process: ProcessesDeclaration<ɸ, 𝛴, m, ψ> = () => []) {
                   const processes = processesSchema(process)
-                  if (processes) schema.processes = processes
+                  if (processes) {
+                    schema.processes = processes
+                    schema.create.processes = Object.entries(processes).map(([key, declaration]) => ({key, declaration}))
+                  }
                   return {
                     reactions(reaction: ReactionsDeclaration<ɸ, 𝛴, m> = () => []) {
                       const reactions = reactionsSchema(reaction)
-                      if (reactions) schema.reactions = reactions
+                      if (reactions) {
+                        schema.reactions = reactions
+                        schema.create.reactions = Object.entries(reactions.reactions).map(([key, config]) => ({
+                          key,
+                          label: config.label,
+                          desc: config.desc ?? null,
+                          cond: config.cond,
+                          src: config.src,
+                          read: config.read ?? [],
+                          write: config.write ?? [],
+                          states: Object.entries(reactions.superposition)
+                            .filter(([, reactionIds]) => reactionIds.includes(key))
+                            .map(([state]) => state),
+                        }))
+                      }
                       return {
                         matter(matter?: MatterDeclaration<ɸ, m, 𝛴>) {
                           if (matter) schema.matter = parseMatter(matter)
                           return {
                             bulk(bulk?: BulkDeclaration): MetaDSL<ɸ, 𝛴, m> {
-                              if (bulk && "view" in bulk)
+                              if (bulk && "view" in bulk) {
                                 schema.bulk = { view: serializeStyle(bulk.view as any) } as BulkSchema
+                                schema.create.bulk = schema.bulk
+                              }
                               validateMatter(schema.matter, schema.fields, schema.name)
                               return schema
                             },
