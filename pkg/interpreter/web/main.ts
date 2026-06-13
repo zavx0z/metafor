@@ -792,7 +792,14 @@ function handleServerMessage(msg: ServerMessage): void {
   switch (msg.type) {
     case "hello":
       applyModuleSnapshots(msg.modules ?? [])
-      for (const path of msg.sqliteDatabases ?? []) void openSqliteDisplay({path, reveal: false}).catch((error) => console.error(error))
+      const notBefore = earliestModuleTargetStartedAt(msg.modules ?? [])
+      for (const path of msg.sqliteDatabases ?? []) {
+        void openSqliteDisplay({
+          path,
+          reveal: false,
+          ...(notBefore === undefined ? {} : {notBefore}),
+        }).catch((error) => console.error(error))
+      }
       return
     case "modules":
       applyModuleSnapshots(msg.modules)
@@ -901,13 +908,16 @@ async function executeUiHostCommand(command: string, params: unknown): Promise<u
     case "hud.todo.toggle":
       return setHudTodoDocked(!todoHudDocked)
     case "hud.sqlite.get":
-      return hudSqlitePayload()
+      return await refreshedHudSqlitePayload()
     case "hud.sqlite.dock":
-      return setHudSqliteDocked(true)
+      setSqliteHudDocked(true)
+      return await refreshedHudSqlitePayload()
     case "hud.sqlite.show":
-      return setHudSqliteDocked(false)
+      setSqliteHudDocked(false)
+      return await refreshedHudSqlitePayload()
     case "hud.sqlite.toggle":
-      return setHudSqliteDocked(!sqliteHudDocked)
+      setSqliteHudDocked(!sqliteHudDocked)
+      return await refreshedHudSqlitePayload()
     case "sqlite.open":
       return await openSqliteDisplay(sqliteOpenParams(params))
     default:
@@ -1133,6 +1143,7 @@ async function openInterpreterSelectedSource(controller: ModuleDisplayController
 type SqliteOpenParams = {
   path: string
   table?: string
+  notBefore?: string
   reveal?: boolean
 }
 
@@ -1145,9 +1156,10 @@ type SourceOpenOptions = {
 async function openSqliteDisplay(input: string | SqliteOpenParams): Promise<unknown> {
   const path = typeof input === "string" ? input : input.path
   const table = typeof input === "string" ? undefined : input.table
+  const notBefore = typeof input === "string" ? undefined : input.notBefore
   const reveal = typeof input === "string" ? true : input.reveal !== false
   try {
-    const payload = await fetchSqlitePayload(path, table)
+    const payload = await fetchSqlitePayload(path, table, notBefore)
     const controller = ensureSqliteDisplayController(payload.path)
     applySqlitePayload(controller, payload)
     if (reveal) showSqliteHudController(controller.id)
@@ -1161,7 +1173,7 @@ async function openSqliteDisplay(input: string | SqliteOpenParams): Promise<unkn
     clearSqlitePayload(controller, `Waiting for SQLite database: ${sqliteInitialLabel(path)}`)
     if (reveal) showSqliteHudController(controller.id)
     else activateSqliteHudController(controller.id)
-    waitForSqliteDatabase(controller, path, table)
+    waitForSqliteDatabase(controller, path, table, notBefore)
     return sqliteDisplayPayload(controller)
   }
 }
@@ -1262,10 +1274,12 @@ function sqliteOpenParams(params: unknown): SqliteOpenParams {
     ?? stringParam(body["database"])
   if (path === undefined) throw new Error("sqlite.open requires path")
   const table = stringParam(body["table"])
+  const notBefore = stringParam(body["notBefore"])
   const reveal = booleanParam(body["reveal"])
   return {
     path,
     ...(table === undefined ? {} : {table}),
+    ...(notBefore === undefined ? {} : {notBefore}),
     ...(reveal === undefined ? {} : {reveal}),
   }
 }
@@ -1500,8 +1514,11 @@ function hudTodoPayload(): unknown {
   }
 }
 
-function setHudSqliteDocked(docked: boolean): unknown {
-  setSqliteHudDocked(docked)
+async function refreshedHudSqlitePayload(): Promise<unknown> {
+  const controller = activeSqliteController()
+  if (controller !== null && controller.loading === null) {
+    await refreshSqliteDisplay(controller, controller.selectedTable).catch(() => undefined)
+  }
   return hudSqlitePayload()
 }
 
@@ -2038,6 +2055,16 @@ function normalizeStoredInterpreterDisplayPositions(value: unknown): Map<string,
     if (position !== null) positions.set(displayId, position)
   }
   return positions
+}
+
+function earliestModuleTargetStartedAt(modules: readonly ModulePaneSnapshot[]): string | undefined {
+  let earliest: string | undefined
+  for (const module of modules) {
+    const startedAt = module.target.startedAt
+    if (startedAt === null) continue
+    if (earliest === undefined || Date.parse(startedAt) < Date.parse(earliest)) earliest = startedAt
+  }
+  return earliest
 }
 
 function applyModuleSnapshots(modules: ModulePaneSnapshot[]): void {
