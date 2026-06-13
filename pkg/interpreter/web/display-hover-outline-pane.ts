@@ -20,9 +20,11 @@ type FlightControl = {
 type ReturnDockControl = {
   island: Rect
   button: Rect
+  fullscreenButton: Rect
   hit: Rect
   center: Point
   buttonCenter: Point
+  fullscreenButtonCenter: Point
   size: number
 }
 type LeaveAnimation = {
@@ -69,6 +71,7 @@ const FLIGHT_BUTTON_HIT_PAD_PX = 28
 const RETURN_DOCK_KEY = "display-return-dock"
 const RETURN_DOCK_BRIDGE_KEY = "display-return-dock-bridge"
 const RETURN_BUTTON_KEY = "display-return-button"
+const FULLSCREEN_BUTTON_KEY = "display-fullscreen-button"
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
@@ -186,6 +189,11 @@ function averageQuadDelta(a: Quad, b: Quad): number {
 
 function pointInRect(point: Point, rect: Rect): boolean {
   return point.x >= rect.x && point.x <= rect.x + rect.w && point.y >= rect.y && point.y <= rect.y + rect.h
+}
+
+function requestBrowserFullscreen(): void {
+  if (document.fullscreenElement !== null) return
+  void document.documentElement.requestFullscreen().catch(() => {})
 }
 
 export class DisplayHoverOutlinePane extends UiSurface {
@@ -600,18 +608,26 @@ export class DisplayHoverOutlinePane extends UiSurface {
     const size = 38
     const buttonX = this.rectW / 2 - size / 2
     const buttonY = islandY - size - 11
+    const buttonGap = 12
+    let fullscreenButtonX = buttonX + size + buttonGap
+    if (fullscreenButtonX + size > this.rectW - 8) fullscreenButtonX = buttonX - size - buttonGap
+    if (fullscreenButtonX < 8) fullscreenButtonX = buttonX
     const hitPad = 28
+    const maxX = Math.max(islandX + islandW, buttonX + size, fullscreenButtonX + size)
+    const minX = Math.min(islandX, buttonX, fullscreenButtonX)
     return {
       island: {x: islandX, y: islandY, w: islandW, h: islandH},
       button: {x: buttonX, y: buttonY, w: size, h: size},
+      fullscreenButton: {x: fullscreenButtonX, y: buttonY, w: size, h: size},
       hit: {
-        x: Math.min(islandX, buttonX) - hitPad,
+        x: minX - hitPad,
         y: buttonY - hitPad,
-        w: Math.max(islandX + islandW, buttonX + size) - Math.min(islandX, buttonX) + hitPad * 2,
+        w: maxX - minX + hitPad * 2,
         h: islandY + islandH - buttonY + hitPad * 2,
       },
       center: {x: this.rectW / 2, y: islandY + islandH / 2},
       buttonCenter: {x: this.rectW / 2, y: buttonY + size / 2},
+      fullscreenButtonCenter: {x: fullscreenButtonX + size / 2, y: buttonY + size / 2},
       size,
     }
   }
@@ -665,8 +681,9 @@ export class DisplayHoverOutlinePane extends UiSurface {
     const islandHit = canReturn ? this.hitState(dock.island.x, dock.island.y, dock.island.w, dock.island.h, RETURN_DOCK_KEY) : {hovered: false, pressed: false}
     const bridgeHit = canReturn ? this.hitState(dock.hit.x, dock.hit.y, dock.hit.w, dock.hit.h, RETURN_DOCK_BRIDGE_KEY) : {hovered: false, pressed: false}
     const buttonHit = canReturn ? this.hitState(dock.button.x, dock.button.y, dock.button.w, dock.button.h, RETURN_BUTTON_KEY) : {hovered: false, pressed: false}
+    const fullscreenHit = canReturn ? this.hitState(dock.fullscreenButton.x, dock.fullscreenButton.y, dock.fullscreenButton.w, dock.fullscreenButton.h, FULLSCREEN_BUTTON_KEY) : {hovered: false, pressed: false}
     const now = performance.now()
-    const dockActive = islandHit.hovered || islandHit.pressed || bridgeHit.hovered || bridgeHit.pressed || buttonHit.hovered || buttonHit.pressed
+    const dockActive = islandHit.hovered || islandHit.pressed || bridgeHit.hovered || bridgeHit.pressed || buttonHit.hovered || buttonHit.pressed || fullscreenHit.hovered || fullscreenHit.pressed
     if (dockActive || this.#returnDockPinned) this.#returnDockGraceUntilMs = now + RETURN_DOCK_TRANSFER_DEBOUNCE_MS
     const expanded = canReturn && (this.#returnDockPinned || dockActive || now < this.#returnDockGraceUntilMs)
     this.#returnDockExpanded = expanded
@@ -729,6 +746,28 @@ export class DisplayHoverOutlinePane extends UiSurface {
     this.#drawFlightCorners(dock.button, dock.size, strength)
     drawIconCentered(this, uiIcons.zoomOut, dock.buttonCenter.x, dock.buttonCenter.y, clamp(dock.size * 0.64, 18, 26), {
       opacity: 0.9 * strength,
+      z: LOCK_Z + 0.1,
+    })
+
+    this.hit(dock.fullscreenButton.x, dock.fullscreenButton.y, dock.fullscreenButton.w, dock.fullscreenButton.h, () => {
+      requestBrowserFullscreen()
+    }, {
+      key: FULLSCREEN_BUTTON_KEY,
+      cursor: "pointer",
+      activeCursor: "pointer",
+    })
+
+    const fullscreenStrength = fullscreenHit.pressed ? 1.18 : fullscreenHit.hovered ? 1 : 0.82
+    this.#drawLockLine(
+      {x: dock.fullscreenButtonCenter.x, y: dock.fullscreenButton.y + dock.fullscreenButton.h},
+      {x: dock.center.x, y: dock.island.y},
+      fade(LOCK_DIM, 0.42 * fullscreenStrength),
+      1.1,
+      LOCK_Z + 0.02,
+    )
+    this.#drawFlightCorners(dock.fullscreenButton, dock.size, fullscreenStrength)
+    drawIconCentered(this, uiIcons.expand, dock.fullscreenButtonCenter.x, dock.fullscreenButtonCenter.y, clamp(dock.size * 0.6, 18, 25), {
+      opacity: 0.9 * fullscreenStrength,
       z: LOCK_Z + 0.1,
     })
   }
