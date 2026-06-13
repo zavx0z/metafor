@@ -161,6 +161,8 @@ SQLite HUD API:
 - `POST /sqlite/open` с `{"path":"dark/tmp/boundary.sqlite"}` открывает database в SQLite HUD.
 - `GET /hud/sqlite` возвращает состояние SQLite HUD; `/hud/sqlite/dock|show|toggle` управляют сворачиванием.
 - `POST /sqlite/cell` с `{"path","table","rowid","column","value"}` редактирует одну ячейку по SQLite `rowid`. Views read-only.
+- UI-выделение в SQLite таблице построчное: один клик выбирает всю строку, `Shift` выбирает диапазон, `Cmd/Ctrl` добавляет или снимает отдельные строки, двойной клик по editable cell открывает редактор.
+- `context.hud.sqlite` содержит активную базу, выбранную таблицу и компактный snapshot выбранных строк (`selectedRowIds`, `selectedRowCount`, `selectedRows`, `selectionTruncated`). Не клади в context весь SQLite payload или все rows таблицы.
 
 Display selectors:
 

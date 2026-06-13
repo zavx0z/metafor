@@ -10,6 +10,7 @@ Interpreter
     terminal
     voice/status
     todo
+    sqlite
   Space
     viewpoint
     displays[]              # визуальные поверхности
@@ -78,6 +79,10 @@ POST   /hud/todo/show
 POST   /hud/todo/dock
 POST   /hud/todo/toggle
 
+GET    /hud/sqlite
+POST   /hud/sqlite/show
+POST   /hud/sqlite/dock
+POST   /hud/sqlite/toggle
 GET    /sqlite?path=<file.sqlite>&table=<name>
 POST   /sqlite/open
 POST   /sqlite/cell
@@ -120,6 +125,26 @@ GET    /console?since=<iso|seq>&limit=<n>
           {"kind": "task", "line": 12, "text": "Сделать Boundary adapter", "checked": false}
         ],
         "highlightedText": "- [ ] Сделать Boundary adapter"
+      },
+      "sqlite": {
+        "activeId": "boundary-vsor4",
+        "docked": false,
+        "path": "/repo/dark/tmp/boundary.sqlite",
+        "label": "dark/tmp/boundary.sqlite",
+        "selectedTable": "actor",
+        "ready": true,
+        "loading": false,
+        "selectedRowIds": ["rowid:13"],
+        "selectedRowCount": 1,
+        "selectedRows": [
+          {
+            "rowId": "rowid:13",
+            "rowIndex": 12,
+            "rowid": 13,
+            "values": {"__rowid": 13, "uuid": "57afa333-fa6b-4875-8cca-42dbf476ed51"}
+          }
+        ],
+        "selectionTruncated": false
       }
     }
   }
@@ -129,6 +154,8 @@ GET    /console?since=<iso|seq>&limit=<n>
 Позиции в `source.cursor` и `source.selection`: `line` - 1-based, `column` - 0-based. `selection.end.column` end-exclusive.
 
 `context.hud.todo` - состояние HUD ToDoPane. `highlightedItems` содержит пункты `TODO.md`, которые человек подсветил в панели, чтобы агент понимал, о чем сейчас речь. Это состояние панели, а не данные файла.
+
+`context.hud.sqlite` - компактное состояние SQLite HUD. В context попадают активная база, таблица и выбранные человеком строки. Это не dump базы и не полный payload таблицы: `selectedRows` ограничен первыми 20 выбранными строками, а при превышении лимита выставляется `selectionTruncated:true`.
 
 `origin:"ui"` означает, что context пришел от UI-host и включает реальные caret, selection и scopes detail. `origin:"runtime"` означает fallback из текущей точки исполнения.
 
@@ -158,6 +185,32 @@ GET    /hud/todo/panel
 POST   /hud/todo/highlight      # {id} или {ids:[...]}
 POST   /hud/todo/show|dock|toggle
 ```
+
+## SQLite HUD
+
+CLI args, заканчивающиеся на `.sqlite`, считаются входами SQLite HUD, а не runnable modules. HUD можно открыть до появления файла базы: UI ждет, пока runtime создаст файл, и перечитывает payload.
+
+```text
+GET    /hud/sqlite
+POST   /hud/sqlite/show
+POST   /hud/sqlite/dock
+POST   /hud/sqlite/toggle
+GET    /sqlite?path=<file.sqlite>&table=<name>
+POST   /sqlite/open
+POST   /sqlite/cell
+```
+
+`GET /hud/sqlite` возвращает состояние панели, включая активную базу, `rect`, `dockPlacement`, список открытых баз и выбранные строки текущей таблицы.
+
+`GET /sqlite?path=<file.sqlite>&table=<name>` возвращает tables, schema и rows для просмотра таблицы. `POST /sqlite/open` с `{"path":"dark/tmp/boundary.sqlite"}` открывает базу в HUD.
+
+`POST /sqlite/cell` редактирует одну ячейку по SQLite `rowid`:
+
+```json
+{"path":"/repo/dark/tmp/boundary.sqlite","table":"actor","rowid":13,"column":"position","value":1}
+```
+
+Views считаются read-only. В UI один клик выбирает строку целиком, `Shift` выбирает диапазон, `Cmd` на macOS и `Ctrl` на других системах добавляют или снимают отдельные строки. Редактирование ячейки открывается двойным кликом по editable cell.
 
 ## Space
 

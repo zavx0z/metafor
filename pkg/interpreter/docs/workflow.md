@@ -74,6 +74,20 @@ bun run interpreter ./module.spec.ts -timeout=2147483647
 
 MetaFor UI является основным frontend интерпретатора. Подключение к WebStorm/DevTools в этом workflow не используется.
 
+## SQLite HUD
+
+SQLite HUD открывается из CLI входа `.sqlite` или через `POST /sqlite/open`. Панель можно свернуть и развернуть через `/hud/sqlite/dock|show|toggle`; свернутое состояние живет в HUD dock как отдельная вкладка, наравне с TODO и host terminal.
+
+Таблица ведет себя как row-based inspector:
+
+- один клик выбирает строку целиком;
+- `Shift` расширяет выделение диапазоном от anchor-строки;
+- `Cmd` на macOS и `Ctrl` на других системах добавляют или снимают отдельные строки;
+- двойной клик по editable cell открывает локальный редактор ячейки;
+- обычный одиночный клик не должен начинать редактирование.
+
+Выделенные строки публикуются в `GET /context` как `context.hud.sqlite`. Snapshot содержит активную базу, выбранную таблицу, `selectedRowIds`, `selectedRowCount` и первые выбранные строки в `selectedRows`. Это намеренно компактный контекст для агента, а не полный dump таблицы; при превышении лимита выбранных строк выставляется `selectionTruncated:true`.
+
 ## Runtime-Слой
 
 Runtime-слой интерпретатора:
