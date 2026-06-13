@@ -2,9 +2,15 @@ import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import {SQL} from "bun"
 import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
+import type {ForceMessageHandler} from "../store/index.ts"
+
+const logBroadcastMessage = (event: MessageEvent<unknown>): void => {
+  console.log("[broadcast:metafor.force]", JSON.stringify(event.data, null, 2))
+}
 
 describe("dark/server разворачивает дерево zavx0z/git по gravity part", () => {
   let storePath: string
+  let previousOnMessage: ForceMessageHandler = null
 
   beforeAll(async () => {
     // Файл не удаляем после теста, чтобы результат разложения git можно было осмотреть руками.
@@ -20,6 +26,16 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
 
     process.env.STORE_PATH = storePath
     await import("./server.ts")
+
+    previousOnMessage = globalThis.store.onmessage
+    globalThis.store.onmessage = function (event) {
+      logBroadcastMessage(event)
+      return previousOnMessage?.call(this, event)
+    }
+  })
+
+  afterAll(() => {
+    if (globalThis.store) globalThis.store.onmessage = previousOnMessage
   })
 
   test("после add zavx0z/git store содержит каноническое дерево git", async () => {
