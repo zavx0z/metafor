@@ -2251,8 +2251,14 @@ function handleEngineResize(): void {
 
 function handleBrowserFullscreenDisplayLayoutChange(activeDisplayId: string | null): void {
   handleEngineResize()
+  refitVoiceHudPlacement()
   const displayId = activeDisplayId ?? uiCanvas?.activeDisplayId ?? null
   if (displayId !== null) uiCanvas?.focusDisplay(displayId)
+}
+
+function refitVoiceHudPlacement(): void {
+  if (voiceHudPane === null) return
+  uiCanvas?.clearSurfaceRect(voiceHudPane)
 }
 
 function installEnginePanes(): void {
