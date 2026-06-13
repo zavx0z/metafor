@@ -1,4 +1,5 @@
 export { StoreWimpSqlite } from "./sqlite.ts"
+export type { WimpCreateInput } from "./sqlite.ts"
 
 // ORM-классы. Корневой entry-point `@store/wimp` re-export-ит их.
 export { Wimp } from "./wimp.ts"

@@ -6,7 +6,6 @@ import {Reactions} from "./reactions.ts"
 import {Matter} from "./matter.ts"
 import {Mass} from "./mass.ts"
 import {Bulk} from "./bulk.ts"
-import {emitGravitonAdd} from "../../force.ts"
 
 export class Wimp {
   readonly fields: Fields
@@ -34,9 +33,6 @@ export class Wimp {
     this.desc = new Desc(this)
   }
 
-  async commit(): Promise<void> {
-    emitGravitonAdd(this.src, "wimp")
-  }
 }
 
 export abstract class WimpScalar<T> {

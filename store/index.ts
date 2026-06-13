@@ -1,6 +1,6 @@
 import type {Actor, ActorRecord, ActorRoots, AnyValue, ActorFieldValue, ActorRows} from "@store/actor"
 import type {AnyTopology, TopologyInput, TopologyRecord} from "@store/topology"
-import type {Wimp} from "@store/wimp/sqlite"
+import type {Wimp, WimpCreateInput} from "@store/wimp/sqlite"
 import type {StoreUpdateMessage} from "./sqlite.ts"
 import type {ForceSurface} from "./force.ts"
 
@@ -11,10 +11,10 @@ export type {StorePart, StoreParticle, StoreUpdateMessage} from "./sqlite.ts"
 
 export interface WimpApi {
   /**
-   * Создаёт минимальную row в `wimp` (только `src`, остальные поля null).
-   * Идемпотентно по `src` (DELETE+INSERT).
+   * Создаёт wimp-декларацию одним ORM-входом.
+   * Все параметры опциональны; Store после записи отправляет `particles`.
    */
-  create(src: string): Promise<Wimp>
+  create(src: string, input?: WimpCreateInput): Promise<Wimp>
 
   get(src: string): Promise<Wimp | null>
 }

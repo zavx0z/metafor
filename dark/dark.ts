@@ -1,7 +1,7 @@
 import {MetaFor, type FieldDefinition, type FieldKey, type SRC} from ".."
-import type {AnyField, Wimp} from "@store/wimp/sqlite"
+import type {AnyField} from "@store/wimp/sqlite"
 import type {ActorValueRecord, ValueItemRecord, ValueRecord} from "@store/actor"
-import type {MatterParticlePlan} from "@dark/types/dark"
+import type {BfsEntry, ParticleRef, PendingChildWimp} from "@dark/types/dark"
 import {projectStoreMatterParticles, fillGravityMatter} from "@dark/gravity"
 import {fillWeakDynamics} from "@dark/weak"
 import {loadMeta} from "./load.ts"
@@ -11,76 +11,51 @@ import {finalizeFieldValues, resolveFieldInits, type Continuation} from "./conti
 // поэтому Dark регистрирует её до первого dynamic import меты.
 ;(globalThis as unknown as {MetaFor: typeof MetaFor}).MetaFor = MetaFor
 
-export type ParticleRef = { kind: "actor"; uuid: string } | { kind: "topology"; uuid: string }
-
 store.onmessage = (event) => {
   for (const part of event.data.parts) {
     if (part.part !== "graviton") continue
     if (part.op !== "add") continue
+    if (part.path.startsWith("/")) continue
     if (part.value !== undefined) continue
     void matter(part.path).catch(() => {})
   }
 }
 
-const buildValueRecord = async (
-  uuid: string,
-  raw: unknown,
-  fieldType: string,
-  field: AnyField,
-  fieldKey: FieldKey,
-): Promise<{ record: ValueRecord; items: ValueItemRecord[] }> => {
-  if (raw === null || raw === undefined) return {record: {uuid, kind: "null"}, items: []}
-  switch (fieldType) {
-    case "boolean":
-      return {record: {uuid, kind: "boolean", boolean: Boolean(raw)}, items: []}
-    case "number":
-      return {record: {uuid, kind: "number", number: Number(raw)}, items: []}
-    case "string":
-      return {record: {uuid, kind: "string", text: String(raw)}, items: []}
-    case "enum": {
-      if (field.type !== "enum") throw new Error(`expected enum field for "${fieldKey}"`)
-      const variantUuid = await field.variantUuid(String(raw))
-      if (!variantUuid) {
-        throw new Error(`Unknown enum variant "${String(raw)}" for field "${fieldKey}"`)
-      }
-      return {record: {uuid, kind: "enum", variant: variantUuid}, items: []}
-    }
-    case "array": {
-      const items: ValueItemRecord[] = Array.isArray(raw)
-        ? raw.map((item, position) => ({value: uuid, position, itemValue: String(item)}))
-        : []
-      return {record: {uuid, kind: "list"}, items}
+/**
+ * Публичный entrypoint Dark.
+ *
+ * Использует `globalThis.store`, установленный в `dark/server.ts` либо в `dark/web.ts`.
+ * Вызовы всегда передают только `SRC`; `Wimp` ORM создаётся внутри `matterWimp`,
+ * затем наполняется доменными слоями через тонкие fill-функции (strong/weak/gravity)
+ * и разворачивает дерево через store ORM: создаёт actor + topology rows,
+ * рекурсивно материализует дочерние wimps.
+ *
+ * Внутренняя рекурсия тоже передаёт только `SRC`: multi-mount получает существующий
+ * `Wimp` внутри `matterWimp` и создаёт новые actor rows для того же child src.
+ *
+ * Обход дерева — послойный: на каждом BFS-слое топологии родительской wimp сначала
+ * создаются все topology-узлы слоя, затем рекурсивно материализуются child wimps этого
+ * же слоя, и только потом обход переходит к следующему слою.
+ *
+ * `parent`/`continuation` — внутренние параметры рекурсии, caller'ам передавать не нужно.
+ */
+export async function matter(src: SRC): Promise<void>
+export async function matter(
+  src: SRC,
+  parent: ParticleRef | null = null,
+  continuation: Continuation | undefined = undefined,
+): Promise<void> {
+  if (parent === null && await store.wimp.get(src)) return
+
+  const generator = matterWimp(src, parent, continuation)
+
+  while (true) {
+    const result = await generator.next()
+    if (result.done) return
+    for (const pending of result.value) {
+      await matter(pending.src, pending.parent, pending.continuation)
     }
   }
-  throw new Error(`Unsupported field type for value emission: ${fieldType}`)
-}
-
-const resolveSourceValueUuid = async (
-  parentActorUuid: string,
-  parentFieldKey: FieldKey,
-): Promise<string> => {
-  const head = await store.actor.head(parentActorUuid)
-  if (!head) throw new Error(`parent actor ${parentActorUuid} not found`)
-  const parentWimp = await store.wimp.get(head.wimp)
-  if (!parentWimp) throw new Error(`parent wimp ${head.wimp} not found`)
-  const parentField = await parentWimp.fields.get({key: parentFieldKey})
-  if (!parentField) throw new Error(`parent field "${parentFieldKey}" missing in wimp ${head.wimp}`)
-  const parentFieldUuid = await parentField.uuid()
-  const link = await store.actor.link.get(parentActorUuid, parentFieldUuid)
-  if (!link) throw new Error(`parent actor_value missing for (${parentActorUuid}, ${parentFieldKey})`)
-  const value = await link.value()
-  return value.uuid
-}
-
-interface BfsEntry {
-  plan: MatterParticlePlan
-  parent: ParticleRef
-}
-
-interface PendingChildWimp {
-  src: string
-  parent: ParticleRef
-  continuation: Continuation
 }
 
 /**
@@ -94,34 +69,40 @@ interface PendingChildWimp {
  * как BFS перейдёт к следующему слою топологии.
  */
 async function* matterWimp(
-  wimp: Wimp,
+  src: SRC,
   parent: ParticleRef | null,
   continuation: Continuation | undefined,
 ): AsyncGenerator<PendingChildWimp[], void, void> {
-  const src = wimp.src
+  const existing = await store.wimp.get(src)
   const dsl = await loadMeta(src)
+  const created = existing === null
+  const wimp = existing ?? await store.wimp.create(src, {
+    name: dsl.name ?? null,
+    desc: dsl.desc ?? null,
+    bulk: dsl.bulk ?? null,
+    mass: dsl.mass,
+    fields: dsl.fields,
+  })
 
   // WIMP: наполняем декларацию сущности в Store.
-  await wimp.name.set(dsl.name ?? null)
-  await wimp.desc.set(dsl.desc ?? null)
-  await wimp.bulk.set(dsl.bulk ?? null)
-  if (dsl.mass !== undefined) {
-    await wimp.mass.set(dsl.mass)
-  }
-
   // Один и тот же child wimp может упоминаться несколько раз в matter-дереве
   // (multi-mount под разными topology-узлами). Декларация в store — одна на src;
   // повторные вызовы matterWimp создают только новые actor rows, fill пропускают.
   let matterRelations: Awaited<ReturnType<typeof fillGravityMatter>>
-  if (await wimp.fields.exists()) {
+  if (!created && await wimp.fields.exists()) {
     matterRelations = await wimp.matter.all()
   } else {
-    for (const [key, {type, ...definition}] of Object.entries(dsl.fields)) {
-      await wimp.fields.add(type, {key, ...definition})
+    if (!created) {
+      await wimp.name.set(dsl.name ?? null)
+      await wimp.desc.set(dsl.desc ?? null)
+      await wimp.bulk.set(dsl.bulk ?? null)
+      if (dsl.mass !== undefined) await wimp.mass.set(dsl.mass)
+      for (const [key, {type, ...definition}] of Object.entries(dsl.fields)) {
+        await wimp.fields.add(type, {key, ...definition})
+      }
     }
     await fillWeakDynamics(wimp, dsl)
     matterRelations = await fillGravityMatter(wimp, dsl)
-    await wimp.commit()
   }
 
   // ACTOR: переходим от Wimp-декларации к runtime-экземпляру.
@@ -227,53 +208,54 @@ async function* matterWimp(
   }
 }
 
-/**
- * Публичный entrypoint Dark.
- *
- * Использует `globalThis.store`, установленный в `dark/server.ts` либо в `dark/web.ts`.
- * Root-вызов принимает `SRC`, создаёт минимальный `Wimp` только если его ещё нет,
- * затем наполняет его доменными слоями через тонкие fill-функции (strong/weak/gravity)
- * и разворачивает дерево через store ORM: создаёт actor + topology rows,
- * рекурсивно материализует дочерние wimps.
- *
- * Внутренняя рекурсия принимает уже созданный `Wimp`, чтобы multi-mount мог создавать
- * новые actor rows для того же child src под разными topology-узлами.
- *
- * Обход дерева — послойный: на каждом BFS-слое топологии родительской wimp сначала
- * создаются все topology-узлы слоя, затем рекурсивно материализуются child wimps этого
- * же слоя, и только потом обход переходит к следующему слою.
- *
- * `parent`/`continuation` — внутренние параметры рекурсии, caller'ам передавать не нужно.
- */
-export async function matter(src: SRC): Promise<void>
-export async function matter(wimp: Wimp, parent?: ParticleRef | null, continuation?: Continuation): Promise<void>
-export async function matter(
-  root: SRC | Wimp,
-  parent: ParticleRef | null = null,
-  continuation: Continuation | undefined = undefined,
-): Promise<void> {
-  let wimp: Wimp
-  if (typeof root === "string") {
-    const existing = await store.wimp.get(root)
-    if (existing) return
-    wimp = await store.wimp.create(root)
-  } else {
-    wimp = root
-  }
-
-  const generator = matterWimp(wimp, parent, continuation)
-
-  while (true) {
-    const result = await generator.next()
-    if (result.done) return
-    for (const pending of result.value) {
-      // Multi-mount: один и тот же child src может встречаться несколько раз в matter-дереве.
-      // store.wimp.create destructive (DELETE+INSERT) — берём existing если есть.
-      let childWimp = await store.wimp.get(pending.src)
-      if (!childWimp) childWimp = await store.wimp.create(pending.src)
-      await matter(childWimp, pending.parent, pending.continuation)
+const buildValueRecord = async (
+  uuid: string,
+  raw: unknown,
+  fieldType: string,
+  field: AnyField,
+  fieldKey: FieldKey,
+): Promise<{ record: ValueRecord; items: ValueItemRecord[] }> => {
+  if (raw === null || raw === undefined) return {record: {uuid, kind: "null"}, items: []}
+  switch (fieldType) {
+    case "boolean":
+      return {record: {uuid, kind: "boolean", boolean: Boolean(raw)}, items: []}
+    case "number":
+      return {record: {uuid, kind: "number", number: Number(raw)}, items: []}
+    case "string":
+      return {record: {uuid, kind: "string", text: String(raw)}, items: []}
+    case "enum": {
+      if (field.type !== "enum") throw new Error(`expected enum field for "${fieldKey}"`)
+      const variantUuid = await field.variantUuid(String(raw))
+      if (!variantUuid) {
+        throw new Error(`Unknown enum variant "${String(raw)}" for field "${fieldKey}"`)
+      }
+      return {record: {uuid, kind: "enum", variant: variantUuid}, items: []}
+    }
+    case "array": {
+      const items: ValueItemRecord[] = Array.isArray(raw)
+        ? raw.map((item, position) => ({value: uuid, position, itemValue: String(item)}))
+        : []
+      return {record: {uuid, kind: "list"}, items}
     }
   }
+  throw new Error(`Unsupported field type for value emission: ${fieldType}`)
+}
+
+const resolveSourceValueUuid = async (
+  parentActorUuid: string,
+  parentFieldKey: FieldKey,
+): Promise<string> => {
+  const head = await store.actor.head(parentActorUuid)
+  if (!head) throw new Error(`parent actor ${parentActorUuid} not found`)
+  const parentWimp = await store.wimp.get(head.wimp)
+  if (!parentWimp) throw new Error(`parent wimp ${head.wimp} not found`)
+  const parentField = await parentWimp.fields.get({key: parentFieldKey})
+  if (!parentField) throw new Error(`parent field "${parentFieldKey}" missing in wimp ${head.wimp}`)
+  const parentFieldUuid = await parentField.uuid()
+  const link = await store.actor.link.get(parentActorUuid, parentFieldUuid)
+  if (!link) throw new Error(`parent actor_value missing for (${parentActorUuid}, ${parentFieldKey})`)
+  const value = await link.value()
+  return value.uuid
 }
 
 export type {Continuation, FieldInit} from "./continuation.ts"

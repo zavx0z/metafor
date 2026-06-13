@@ -1,3 +1,5 @@
+import type {Continuation} from "../continuation.ts"
+
 export type MatterBindingValue =
   | string
   | boolean
@@ -40,3 +42,16 @@ export type MatterParticlePlan =
   | MatterParticleFuzzyPlan
   | MatterParticleAxionPlan
   | MatterParticleMachoPlan
+
+export type ParticleRef = { kind: "actor"; uuid: string } | { kind: "topology"; uuid: string }
+
+export interface BfsEntry {
+  plan: MatterParticlePlan
+  parent: ParticleRef
+}
+
+export interface PendingChildWimp {
+  src: string
+  parent: ParticleRef
+  continuation: Continuation
+}
