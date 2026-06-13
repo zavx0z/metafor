@@ -99,6 +99,7 @@ type SourcePatchReplayResult = {
   target?: ModuleSnapshot["target"]
 }
 type HudTodoContextStore = {context: JsonObject | null}
+type HudSqliteContextStore = {context: JsonObject | null}
 
 class UiHostCommandError extends Error {
   readonly status: number
@@ -127,6 +128,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
   const pendingUiHostRequests = new Map<number, UiHostPendingRequest>()
   const moduleContexts: ModuleContextStore = new Map()
   const hudTodoContext: HudTodoContextStore = {context: null}
+  const hudSqliteContext: HudSqliteContextStore = {context: null}
 
   if (!isLoopbackHost(options.host)) {
     const warning = "/processes can execute local commands; bind the interpreter to loopback unless this is intentional"
@@ -283,11 +285,15 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
         return
       }
       if (message !== undefined && messageType === "module-context") {
-        acceptModuleContext(message, moduleContexts, hudTodoContext, options, ws.data.id)
+        acceptModuleContext(message, moduleContexts, hudTodoContext, hudSqliteContext, options, ws.data.id)
         return
       }
       if (message !== undefined && messageType === "hud-todo-context") {
         acceptHudTodoContext(message, hudTodoContext, options, ws.data.id)
+        return
+      }
+      if (message !== undefined && messageType === "hud-sqlite-context") {
+        acceptHudSqliteContext(message, hudSqliteContext, options, ws.data.id)
         return
       }
 
@@ -381,7 +387,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
 
       const start = Date.now()
       try {
-        const response = await handleRoute(method, path, url, req, options, moduleContexts, hudTodoContext, broadcast, dispatchUiHostCommand)
+        const response = await handleRoute(method, path, url, req, options, moduleContexts, hudTodoContext, hudSqliteContext, broadcast, dispatchUiHostCommand)
         options.logger.event("http.request", {
           method,
           path,
@@ -431,6 +437,7 @@ function acceptModuleContext(
   message: JsonObject,
   contexts: ModuleContextStore,
   hudTodo: HudTodoContextStore,
+  hudSqlite: HudSqliteContextStore,
   options: HttpServerOptions,
   clientId: number,
 ): void {
@@ -445,8 +452,11 @@ function acceptModuleContext(
     receivedAt: new Date().toISOString(),
   }
   contexts.set(moduleId, nextContext)
-  const todo = asObject(asObject(nextContext["hud"])?.["todo"])
+  const hud = asObject(nextContext["hud"])
+  const todo = asObject(hud?.["todo"])
   if (todo !== undefined) hudTodo.context = todo
+  const sqlite = asObject(hud?.["sqlite"])
+  if (sqlite !== undefined) hudSqlite.context = sqlite
   options.logger.event("module.context", {clientId, moduleId})
 }
 
@@ -463,6 +473,22 @@ function acceptHudTodoContext(
     receivedAt: new Date().toISOString(),
   }
   options.logger.event("hud.todo.context", {clientId})
+}
+
+function acceptHudSqliteContext(
+  message: JsonObject,
+  hudSqlite: HudSqliteContextStore,
+  options: HttpServerOptions,
+  clientId: number,
+): void {
+  const context = asObject(message["context"])
+  hudSqlite.context = context === undefined
+    ? null
+    : {
+        ...context,
+        receivedAt: new Date().toISOString(),
+      }
+  options.logger.event("hud.sqlite.context", {clientId})
 }
 
 function rejectPendingUiHostRequestsForClient(clientId: number, pending: Map<number, UiHostPendingRequest>): void {
@@ -596,6 +622,7 @@ async function handleRoute(
   options: HttpServerOptions,
   moduleContexts: ModuleContextStore,
   hudTodoContext: HudTodoContextStore,
+  hudSqliteContext: HudSqliteContextStore,
   broadcast: (payload: JsonObject) => void,
   dispatchUiHostCommand: UiHostCommandDispatcher,
 ): Promise<Response> {
@@ -604,7 +631,7 @@ async function handleRoute(
   if (method === "GET" && path === "/space") return await dispatchUiHostRoute("space.get", {}, dispatchUiHostCommand)
   if (method === "POST" && path === "/space/focus") return await dispatchUiHostRouteFromBody("space.focus", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/space/frame") return await dispatchUiHostRouteFromBody("space.frame", req, dispatchUiHostCommand)
-  if (method === "GET" && path === "/context") return jsonResponse(contextPayload(options, moduleContexts, hudTodoContext))
+  if (method === "GET" && path === "/context") return jsonResponse(contextPayload(options, moduleContexts, hudTodoContext, hudSqliteContext))
   if (method === "GET" && path === "/hud/terminal") return await dispatchUiHostRoute("hud.terminal.get", {}, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/terminal/dock") return await dispatchUiHostRouteFromBody("hud.terminal.dock", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/terminal/show") return await dispatchUiHostRouteFromBody("hud.terminal.show", req, dispatchUiHostCommand)
@@ -652,7 +679,7 @@ async function handleRoute(
   const processAction = /^\/processes\/([^/]+)\/action$/.exec(path)
   if (method === "POST" && processAction !== null) return await processActionRoute(decodePathParam(processAction[1]!), req, options, dispatchUiHostCommand)
   const processContext = /^\/processes\/([^/]+)\/context$/.exec(path)
-  if (method === "GET" && processContext !== null) return getProcessContext(decodePathParam(processContext[1]!), options, moduleContexts, hudTodoContext)
+  if (method === "GET" && processContext !== null) return getProcessContext(decodePathParam(processContext[1]!), options, moduleContexts, hudTodoContext, hudSqliteContext)
   const processModules = /^\/processes\/([^/]+)\/modules$/.exec(path)
   if (method === "GET" && processModules !== null) return getProcessModules(decodePathParam(processModules[1]!), url, options)
   const processSource = /^\/processes\/([^/]+)\/source$/.exec(path)
@@ -871,8 +898,8 @@ function workspaceFilesModuleContextForSnapshot(snapshot: ModuleSnapshot): Works
   }
 }
 
-function contextPayload(options: HttpServerOptions, contexts: ModuleContextStore, hudTodo: HudTodoContextStore): JsonObject {
-  const contextsPayload = processContextsPayload(options, contexts, hudTodo)
+function contextPayload(options: HttpServerOptions, contexts: ModuleContextStore, hudTodo: HudTodoContextStore, hudSqlite: HudSqliteContextStore): JsonObject {
+  const contextsPayload = processContextsPayload(options, contexts, hudTodo, hudSqlite)
   const active = contextsPayload.find((item) => asObject(item.context["display"])?.["active"] === true) ?? contextsPayload[0] ?? null
   if (active === null) return {ok: true, context: null}
   return {
@@ -885,16 +912,16 @@ function contextPayload(options: HttpServerOptions, contexts: ModuleContextStore
   }
 }
 
-function processContextsPayload(options: HttpServerOptions, contexts: ModuleContextStore, hudTodo: HudTodoContextStore): Array<{processId: string; moduleId: string; label: string; context: JsonObject}> {
+function processContextsPayload(options: HttpServerOptions, contexts: ModuleContextStore, hudTodo: HudTodoContextStore, hudSqlite: HudSqliteContextStore): Array<{processId: string; moduleId: string; label: string; context: JsonObject}> {
   return options.modules.snapshots().map((module) => ({
     processId: module.id,
     moduleId: module.id,
     label: module.label,
-    context: contextWithHudTodo(contextForModule(module, contexts), hudTodo),
+    context: contextWithHud(contextForModule(module, contexts), hudTodo, hudSqlite),
   }))
 }
 
-function getProcessContext(processId: string, options: HttpServerOptions, contexts: ModuleContextStore, hudTodo: HudTodoContextStore): Response {
+function getProcessContext(processId: string, options: HttpServerOptions, contexts: ModuleContextStore, hudTodo: HudTodoContextStore, hudSqlite: HudSqliteContextStore): Response {
   const module = moduleForProcessId(processId, options)
   if (module === undefined) return processNotFoundResponse(processId)
   const snapshot = module.snapshot()
@@ -904,7 +931,7 @@ function getProcessContext(processId: string, options: HttpServerOptions, contex
     processId: snapshot.id,
     moduleId: snapshot.id,
     label: snapshot.label,
-    context: contextWithHudTodo(contextForModule(snapshot, contexts), hudTodo),
+    context: contextWithHud(contextForModule(snapshot, contexts), hudTodo, hudSqlite),
   })
 }
 
@@ -930,15 +957,15 @@ function contextForModule(module: ModuleSnapshot, contexts: ModuleContextStore):
   return contexts.get(module.id) ?? runtimeFallbackContext(module)
 }
 
-function contextWithHudTodo(context: JsonObject, hudTodo: HudTodoContextStore): JsonObject {
-  if (hudTodo.context === null) return context
+function contextWithHud(context: JsonObject, hudTodo: HudTodoContextStore, hudSqlite: HudSqliteContextStore): JsonObject {
+  if (hudTodo.context === null && hudSqlite.context === null) return context
   const hud = asObject(context["hud"]) ?? {}
+  const nextHud: JsonObject = {...hud}
+  if (hudTodo.context !== null) nextHud["todo"] = hudTodo.context
+  if (hudSqlite.context !== null) nextHud["sqlite"] = hudSqlite.context
   return {
     ...context,
-    hud: {
-      ...hud,
-      todo: hudTodo.context,
-    },
+    hud: nextHud,
   }
 }
 

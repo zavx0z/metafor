@@ -17,11 +17,27 @@ export type TableColumn<Row> = {
   getValue?: (row: Row, rowIndex: number) => unknown
 }
 
+export type TableRowId = string | number
+
 export type TableCellContext<Row> = {
   row: Row
   rowIndex: number
+  rowId: TableRowId
+  selected: boolean
   column: TableColumn<Row>
   columnIndex: number
+  value: unknown
+}
+
+export type TableRowPointerContext<Row> = {
+  row: Row
+  rowIndex: number
+  rowId: TableRowId
+  selected: boolean
+  event: MouseEvent | undefined
+  cell: TableCellContext<Row> | null
+  column: TableColumn<Row> | null
+  columnIndex: number | null
   value: unknown
 }
 
@@ -30,10 +46,23 @@ export type TableHeaderContext<Row> = {
   columnIndex: number
 }
 
+export type TableSelectionGesture = {
+  metaKey?: boolean
+  ctrlKey?: boolean
+  shiftKey?: boolean
+}
+
+export type TableSelectionUpdate = {
+  selectedRowIds: readonly TableRowId[]
+  anchorRowId: TableRowId
+}
+
 export type TableProps<Row> = {
   key?: string
   columns: readonly TableColumn<Row>[]
   rows: readonly Row[]
+  selectedRowIds?: readonly TableRowId[]
+  getRowId?: (row: Row, rowIndex: number) => TableRowId
   rowHeight?: number
   headerHeight?: number
   fontPx?: number
@@ -47,6 +76,9 @@ export type TableProps<Row> = {
   isCellInteractive?: (ctx: TableCellContext<Row>) => boolean
   cellCursor?: string | ((ctx: TableCellContext<Row>) => string)
   onCellClick?: (ctx: TableCellContext<Row>) => void
+  rowCursor?: string | ((ctx: TableRowPointerContext<Row>) => string)
+  onRowClick?: (ctx: TableRowPointerContext<Row>) => void
+  onRowDoubleClick?: (ctx: TableRowPointerContext<Row>) => void
 }
 
 const DEFAULT_TABLE_ROW_H = 24
@@ -63,8 +95,46 @@ const TABLE_HEADER_TEXT_Z = Z.TEXT + 0.06
 const TABLE_HEADER_EDGE_COVER_PX = 3
 const TABLE_BODY_TEXT_TOP_INSET_PX = TABLE_HEADER_EDGE_COVER_PX + 1
 const TABLE_ROW_STRIPE_FILL = withAlpha(palette.bgPanelDim, 0.44)
+const TABLE_ROW_HOVER_FILL = withAlpha(palette.bgHot, 0.30)
+const TABLE_ROW_SELECTED_FILL = withAlpha(palette.activeRowFill, 0.68)
 const TABLE_HEADER_BACKDROP_FILL = withAlpha(palette.bgToolbar, 0.62)
 const TABLE_HEADER_FILL = withAlpha(palette.bgPanel, 0.58)
+
+export function normalizeTableSelection(rowIds: readonly TableRowId[], selectedRowIds: readonly TableRowId[]): TableRowId[] {
+  const known = new Set(rowIds)
+  const next: TableRowId[] = []
+  for (const id of selectedRowIds) {
+    if (!known.has(id) || next.includes(id)) continue
+    next.push(id)
+  }
+  return next
+}
+
+export function tableSelectionAfterClick(
+  rowIds: readonly TableRowId[],
+  currentSelectedRowIds: readonly TableRowId[],
+  clickedRowId: TableRowId,
+  anchorRowId: TableRowId | null,
+  gesture: TableSelectionGesture = {},
+): TableSelectionUpdate {
+  const selected = uniqueRowIds(currentSelectedRowIds)
+  const additive = gesture.metaKey === true || gesture.ctrlKey === true
+  if (gesture.shiftKey === true) {
+    const rangeIds = tableRangeRowIds(rowIds, anchorRowId ?? selected[selected.length - 1] ?? clickedRowId, clickedRowId)
+    if (rangeIds.length === 0) return {selectedRowIds: [clickedRowId], anchorRowId: clickedRowId}
+    if (additive) return {selectedRowIds: uniqueRowIds([...selected, ...rangeIds]), anchorRowId: anchorRowId ?? clickedRowId}
+    return {selectedRowIds: rangeIds, anchorRowId: anchorRowId ?? clickedRowId}
+  }
+
+  if (additive) {
+    const next = selected.includes(clickedRowId)
+      ? selected.filter((id) => id !== clickedRowId)
+      : [...selected, clickedRowId]
+    return {selectedRowIds: next, anchorRowId: clickedRowId}
+  }
+
+  return {selectedRowIds: [clickedRowId], anchorRowId: clickedRowId}
+}
 
 export function Table<Row>(host: UiSurface, x: number, y: number, width: number, height: number, props: TableProps<Row>): void {
   if (width <= 0 || height <= 0) return
@@ -219,11 +289,21 @@ function renderTableRow<Row>(
   let columnX = x - ctx.scrollLeft
   const fontPx = props.fontPx ?? DEFAULT_TABLE_FONT_PX
   const padX = props.cellPaddingX ?? DEFAULT_TABLE_CELL_PAD_X
+  const rowId = tableRowId(row, rowIndex, props)
+  const selected = props.selectedRowIds?.includes(rowId) === true
+  const rowHitKey = `${key}:row:${String(rowId)}`
+  const rowHitY = Math.max(y, bodyY)
+  const rowHitH = Math.min(y + rowH, bodyY + bodyH) - rowHitY
+  if (rowHitH > 0) {
+    const state = host.hitState(x, rowHitY, Math.max(1, ctx.viewportWidth), rowHitH, rowHitKey)
+    if (selected) host.drawRect(x, rowHitY, Math.max(1, ctx.viewportWidth), rowHitH, TABLE_ROW_SELECTED_FILL, TABLE_BODY_BG_Z + 0.01)
+    else if (state.hovered) host.drawRect(x, rowHitY, Math.max(1, ctx.viewportWidth), rowHitH, TABLE_ROW_HOVER_FILL, TABLE_BODY_BG_Z + 0.01)
+  }
   for (let columnIndex = 0; columnIndex < props.columns.length; columnIndex += 1) {
     const column = props.columns[columnIndex]!
     const w = Math.max(1, column.width)
     const value = tableColumnValue(row, rowIndex, column)
-    const cellCtx: TableCellContext<Row> = {row, rowIndex, column, columnIndex, value}
+    const cellCtx: TableCellContext<Row> = {row, rowIndex, rowId, selected, column, columnIndex, value}
     const textY = y + 7
     if (textY >= bodyY + TABLE_BODY_TEXT_TOP_INSET_PX && textY < bodyY + bodyH) {
       host.drawText(props.getCellText?.(cellCtx) ?? defaultCellText(value), columnX + padX, textY, {
@@ -249,12 +329,70 @@ function renderTableRow<Row>(
     }
     columnX += w
   }
+  if ((props.onRowClick !== undefined || props.onRowDoubleClick !== undefined) && rowHitH > 0) {
+    const rowCursor = typeof props.rowCursor === "string" ? props.rowCursor : "pointer"
+    host.hit(x, rowHitY, Math.max(1, ctx.viewportWidth), rowHitH, () => {}, {
+      key: rowHitKey,
+      cursor: rowCursor,
+      onPointerDown: (localX, _localY, event) => {
+        if (event?.button !== undefined && event.button !== 0) return
+        event?.preventDefault()
+        const pointerCtx = tableRowPointerContext(row, rowIndex, rowId, selected, props, ctx, x, localX, event)
+        props.onRowClick?.(pointerCtx)
+        if ((event?.detail ?? 1) >= 2) props.onRowDoubleClick?.(pointerCtx)
+      },
+    })
+  }
 }
 
 function tableColumnValue<Row>(row: Row, rowIndex: number, column: TableColumn<Row>): unknown {
   if (column.getValue !== undefined) return column.getValue(row, rowIndex)
   if (row !== null && typeof row === "object" && column.key in row) return (row as Record<string, unknown>)[column.key]
   return undefined
+}
+
+function tableRowId<Row>(row: Row, rowIndex: number, props: TableProps<Row>): TableRowId {
+  return props.getRowId?.(row, rowIndex) ?? rowIndex
+}
+
+function tableRowPointerContext<Row>(
+  row: Row,
+  rowIndex: number,
+  rowId: TableRowId,
+  selected: boolean,
+  props: TableProps<Row>,
+  ctx: DivScrollContext,
+  tableX: number,
+  localX: number,
+  event: MouseEvent | undefined,
+): TableRowPointerContext<Row> {
+  let columnX = tableX - ctx.scrollLeft
+  for (let columnIndex = 0; columnIndex < props.columns.length; columnIndex += 1) {
+    const column = props.columns[columnIndex]!
+    const w = Math.max(1, column.width)
+    if (localX >= columnX && localX <= columnX + w) {
+      const value = tableColumnValue(row, rowIndex, column)
+      const cell: TableCellContext<Row> = {row, rowIndex, rowId, selected, column, columnIndex, value}
+      return {row, rowIndex, rowId, selected, event, cell, column, columnIndex, value}
+    }
+    columnX += w
+  }
+  return {row, rowIndex, rowId, selected, event, cell: null, column: null, columnIndex: null, value: undefined}
+}
+
+function uniqueRowIds(ids: readonly TableRowId[]): TableRowId[] {
+  const out: TableRowId[] = []
+  for (const id of ids) if (!out.includes(id)) out.push(id)
+  return out
+}
+
+function tableRangeRowIds(rowIds: readonly TableRowId[], from: TableRowId, to: TableRowId): TableRowId[] {
+  const a = rowIds.indexOf(from)
+  const b = rowIds.indexOf(to)
+  if (a < 0 || b < 0) return []
+  const start = Math.min(a, b)
+  const end = Math.max(a, b)
+  return rowIds.slice(start, end + 1)
 }
 
 function defaultCellText(value: unknown): string {

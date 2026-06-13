@@ -19,7 +19,7 @@ import {
   type UiRuntimeViewPointVector,
   type UiSurfaceRect,
 } from "@ui/elements"
-import {Button, IconButton, Switcher, Table, TextField, VoiceInputHud, focusTextField, tableScrollTo, type TableCellContext, type TableColumn, type TextFieldEditState, type VoiceInputHudDeactivationMode, type VoiceInputHudPhraseGroupId, type VoiceInputHudServiceState} from "@ui/components"
+import {Button, IconButton, Switcher, Table, TextField, VoiceInputHud, focusTextField, normalizeTableSelection, tableScrollTo, tableSelectionAfterClick, type TableCellContext, type TableColumn, type TableRowId, type TableRowPointerContext, type TextFieldEditState, type VoiceInputHudDeactivationMode, type VoiceInputHudPhraseGroupId, type VoiceInputHudServiceState} from "@ui/components"
 import {HudSideTab, type HudSideTabEdge} from "@ui/hud"
 import {
   EditorPane,
@@ -259,6 +259,7 @@ type ModuleCurrentContext = {
   }
   hud: {
     todo: ToDoPaneContextSnapshot | null
+    sqlite: SqliteHudContextSnapshot | null
   }
 }
 
@@ -319,6 +320,31 @@ type SqliteDatabasePayload = {
   tables: SqliteTableSummary[]
   schema: SqliteColumnInfo[]
   rows: Array<Record<string, SqliteCellValue>>
+}
+type SqliteSelectedRowContext = {
+  rowId: string
+  rowIndex: number
+  rowid: number | null
+  values: Record<string, SqliteCellValue>
+}
+type SqliteRowSelectionContext = {
+  selectedRowIds: string[]
+  selectedRowCount: number
+  selectedRows: SqliteSelectedRowContext[]
+  selectionTruncated: boolean
+}
+type SqliteHudContextSnapshot = {
+  activeId: string
+  docked: boolean
+  path: string
+  label: string
+  selectedTable: string | null
+  ready: boolean
+  loading: boolean
+  selectedRowIds: string[]
+  selectedRowCount: number
+  selectedRows: SqliteSelectedRowContext[]
+  selectionTruncated: boolean
 }
 type SqliteCellEditSession = {
   rowid: number
@@ -577,6 +603,7 @@ const SQLITE_DOCK_SHORT = 34
 const SQLITE_DOCK_LONG = 108
 const SQLITE_DOCK_MARGIN = 8
 const SQLITE_DOCK_LONG_PRESS_MS = 360
+const SQLITE_CONTEXT_SELECTED_ROW_LIMIT = 20
 const HOST_TERMINAL_BRAND_LABEL = "Codex"
 const HOST_TERMINAL_MODEL_LABEL = "GPT 5,5"
 const HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE = 22
@@ -1180,6 +1207,7 @@ function activateSqliteHudController(id: string): void {
   sqliteHudPane?.requestRender()
   sqliteDockPane?.requestRender()
   relayoutHudSurfaces()
+  updateSqliteContext()
 }
 
 function showSqliteHudController(id: string): void {
@@ -1347,6 +1375,7 @@ function applySqlitePayload(controller: SqliteDisplayController, payload: Sqlite
     controller.suppressTableSelectionOpen = false
   }
   controller.rows.setPayload(payload)
+  updateSqliteContext()
 }
 
 function clearSqlitePayload(controller: SqliteDisplayController, status: string): void {
@@ -1361,10 +1390,12 @@ function clearSqlitePayload(controller: SqliteDisplayController, status: string)
     controller.suppressTableSelectionOpen = false
   }
   controller.rows.clearPayload(status)
+  updateSqliteContext()
 }
 
 function sqliteDisplayPayload(controller: SqliteDisplayController): unknown {
   const frame = sqliteHudPane === null || uiCanvas === null ? null : uiCanvas.surfaceFrame(sqliteHudPane)
+  const selection = controller.rows.contextSnapshot()
   return {
     id: controller.id,
     hud: true,
@@ -1379,6 +1410,10 @@ function sqliteDisplayPayload(controller: SqliteDisplayController): unknown {
     loading: controller.loading !== null,
     tables: controller.payload?.tables ?? [],
     rowCount: controller.payload?.rows.length ?? 0,
+    selectedRowIds: selection.selectedRowIds,
+    selectedRowCount: selection.selectedRowCount,
+    selectedRows: selection.selectedRows,
+    selectionTruncated: selection.selectionTruncated,
   }
 }
 
@@ -1491,6 +1526,39 @@ function hudSqlitePayload(): unknown {
         loading: item.loading !== null,
         active: activeSqliteHudId === item.id,
       })),
+  }
+}
+
+function updateSqliteContext(): void {
+  const context = sqliteContextSnapshot()
+  publishSqliteContext(context)
+  queuePublishAllModuleContexts()
+}
+
+function publishSqliteContext(context: SqliteHudContextSnapshot | null): void {
+  if (socket === undefined || socket.readyState !== WebSocket.OPEN) return
+  socket.send(JSON.stringify({
+    type: "hud-sqlite-context",
+    context,
+  }))
+}
+
+function sqliteContextSnapshot(): SqliteHudContextSnapshot | null {
+  const controller = activeSqliteController()
+  if (controller === null) return null
+  const selection = controller.rows.contextSnapshot()
+  return {
+    activeId: controller.id,
+    docked: sqliteHudDocked,
+    path: controller.path,
+    label: controller.label,
+    selectedTable: controller.selectedTable,
+    ready: controller.payload !== null,
+    loading: controller.loading !== null,
+    selectedRowIds: selection.selectedRowIds,
+    selectedRowCount: selection.selectedRowCount,
+    selectedRows: selection.selectedRows,
+    selectionTruncated: selection.selectionTruncated,
   }
 }
 
@@ -1691,6 +1759,7 @@ function moduleCurrentContextPayload(controller: ModuleDisplayController): Modul
     },
     hud: {
       todo: todoContextSnapshot(),
+      sqlite: sqliteContextSnapshot(),
     },
   }
 }
@@ -2389,24 +2458,30 @@ class WorkspaceFilesChromePane extends UiSurface {
 class SqliteTablePane extends UiSurface {
   #payload: SqliteDatabasePayload | null = null
   #status = "Open SQLite database"
+  #selectedRowIds: string[] = []
+  #selectionAnchorRowId: string | null = null
   #editSession: SqliteCellEditSession | null = null
   #editInput: TextFieldEditState = {value: "", cursor: 0, selectionAnchor: null}
   readonly #onCellEdit: (rowid: number, column: string, value: SqliteCellValue) => void
+  readonly #onSelectionChange: () => void
 
-  constructor(onCellEdit: (rowid: number, column: string, value: SqliteCellValue) => void) {
+  constructor(onCellEdit: (rowid: number, column: string, value: SqliteCellValue) => void, onSelectionChange: () => void) {
     super({bgColor: HUD_CODE_BG, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
     this.node.name = "SqliteTablePane"
     this.#onCellEdit = onCellEdit
+    this.#onSelectionChange = onSelectionChange
   }
 
   setPayload(payload: SqliteDatabasePayload): void {
     const tableChanged = this.#payload?.path !== payload.path || this.#payload.selectedTable !== payload.selectedTable
     this.#payload = payload
     this.#status = payload.selectedTable === null ? "No tables" : `${payload.selectedTable} · ${payload.rows.length} rows`
+    const selectionChanged = tableChanged ? this.#clearSelectionState() : this.#normalizeSelectionState()
     if (tableChanged) {
       tableScrollTo(this, SQLITE_TABLE_SCROLL_KEY, {left: 0, top: 0})
       this.#closeEdit({blur: false})
     }
+    if (selectionChanged) this.#onSelectionChange()
     this.requestRender()
   }
 
@@ -2418,9 +2493,48 @@ class SqliteTablePane extends UiSurface {
   clearPayload(status: string): void {
     this.#payload = null
     this.#status = status
+    const selectionChanged = this.#clearSelectionState()
     tableScrollTo(this, SQLITE_TABLE_SCROLL_KEY, {left: 0, top: 0})
     this.#closeEdit({blur: false})
+    if (selectionChanged) this.#onSelectionChange()
     this.requestRender()
+  }
+
+  selectedRowIds(): readonly string[] {
+    return [...this.#selectedRowIds]
+  }
+
+  contextSnapshot(limit = SQLITE_CONTEXT_SELECTED_ROW_LIMIT): SqliteRowSelectionContext {
+    const payload = this.#payload
+    if (payload === null) {
+      return {
+        selectedRowIds: [],
+        selectedRowCount: 0,
+        selectedRows: [],
+        selectionTruncated: false,
+      }
+    }
+    const selected = new Set(this.#selectedRowIds)
+    const selectedRows: SqliteSelectedRowContext[] = []
+    for (let rowIndex = 0; rowIndex < payload.rows.length; rowIndex += 1) {
+      const row = payload.rows[rowIndex]!
+      const rowId = sqliteRowSelectionId(row, rowIndex)
+      if (!selected.has(rowId)) continue
+      if (selectedRows.length < limit) {
+        selectedRows.push({
+          rowId,
+          rowIndex,
+          rowid: sqliteRowId(row["__rowid"]),
+          values: {...row},
+        })
+      }
+    }
+    return {
+      selectedRowIds: [...this.#selectedRowIds],
+      selectedRowCount: this.#selectedRowIds.length,
+      selectedRows,
+      selectionTruncated: selectedRows.length < this.#selectedRowIds.length,
+    }
   }
 
   protected render(): void {
@@ -2433,7 +2547,8 @@ class SqliteTablePane extends UiSurface {
       material: this.materials.text,
       maxWidthPx: Math.max(1, this.rectW - 78 - pad),
     })
-    this.drawText(this.#status, pad, 34, {
+    const status = this.#statusLabel()
+    this.drawText(status, pad, 34, {
       fontPx: 11,
       material: payload === null ? this.materials.muted : this.materials.green,
       maxWidthPx: Math.max(1, this.rectW - pad * 2),
@@ -2474,16 +2589,67 @@ class SqliteTablePane extends UiSurface {
       rowHeight: 24,
       headerHeight: 27,
       emptyLabel: "No rows",
+      getRowId: (row, rowIndex) => sqliteRowSelectionId(row, rowIndex),
+      selectedRowIds: this.#selectedRowIds,
       getHeaderMaterial: ({column}) => column.key === "__rowid" ? this.materials.muted : this.materials.cyan,
       getCellText: ({value}) => sqliteCellLabel(value as SqliteCellValue | undefined),
       getCellMaterial: ({column, value}) => column.key === "__rowid"
         ? this.materials.muted
         : value === null || value === undefined ? this.materials.muted : this.materials.text,
-      isCellInteractive: ({row, column}) => editableTable && column.key !== "__rowid" && sqliteRowId(row["__rowid"]) !== null,
-      cellCursor: "text",
-      onCellClick: (ctx) => this.#editCell(ctx),
+      onRowClick: (ctx) => this.#selectRow(ctx),
+      ...(editableTable ? {onRowDoubleClick: (ctx: TableRowPointerContext<Record<string, SqliteCellValue>>) => this.#editRowCell(ctx)} : {}),
     })
     if (this.#editSession !== null) this.#renderEditOverlay()
+  }
+
+  #statusLabel(): string {
+    if (this.#payload === null || this.#selectedRowIds.length === 0) return this.#status
+    return `${this.#status} · ${this.#selectedRowIds.length} selected`
+  }
+
+  #selectRow(ctx: TableRowPointerContext<Record<string, SqliteCellValue>>): void {
+    const payload = this.#payload
+    if (payload === null) return
+    const rowIds = sqlitePayloadRowIds(payload)
+    const update = tableSelectionAfterClick(rowIds, this.#selectedRowIds, String(ctx.rowId), this.#selectionAnchorRowId, ctx.event)
+    this.#applySelection(update.selectedRowIds.map(String), String(update.anchorRowId))
+  }
+
+  #editRowCell(ctx: TableRowPointerContext<Record<string, SqliteCellValue>>): void {
+    if (ctx.cell === null) return
+    this.#editCell(ctx.cell)
+  }
+
+  #applySelection(selectedRowIds: readonly string[], anchorRowId: string): void {
+    const payload = this.#payload
+    const rowIds = payload === null ? [] : sqlitePayloadRowIds(payload)
+    const next = normalizeTableSelection(rowIds, selectedRowIds).map(String)
+    const nextAnchor = next.includes(anchorRowId) ? anchorRowId : next[0] ?? null
+    if (sameStringArray(next, this.#selectedRowIds) && nextAnchor === this.#selectionAnchorRowId) return
+    this.#selectedRowIds = next
+    this.#selectionAnchorRowId = nextAnchor
+    this.#onSelectionChange()
+    this.requestRender()
+  }
+
+  #normalizeSelectionState(): boolean {
+    const payload = this.#payload
+    const rowIds = payload === null ? [] : sqlitePayloadRowIds(payload)
+    const next = normalizeTableSelection(rowIds, this.#selectedRowIds).map(String)
+    const nextAnchor = this.#selectionAnchorRowId !== null && next.includes(this.#selectionAnchorRowId)
+      ? this.#selectionAnchorRowId
+      : next[0] ?? null
+    if (sameStringArray(next, this.#selectedRowIds) && nextAnchor === this.#selectionAnchorRowId) return false
+    this.#selectedRowIds = next
+    this.#selectionAnchorRowId = nextAnchor
+    return true
+  }
+
+  #clearSelectionState(): boolean {
+    if (this.#selectedRowIds.length === 0 && this.#selectionAnchorRowId === null) return false
+    this.#selectedRowIds = []
+    this.#selectionAnchorRowId = null
+    return true
   }
 
   #editCell(ctx: TableCellContext<Record<string, SqliteCellValue>>): void {
@@ -2674,6 +2840,15 @@ function sqliteTableColumnWidths(surface: UiSurface, payload: SqliteDatabasePayl
   })
 }
 
+function sqlitePayloadRowIds(payload: SqliteDatabasePayload): TableRowId[] {
+  return payload.rows.map((row, rowIndex) => sqliteRowSelectionId(row, rowIndex))
+}
+
+function sqliteRowSelectionId(row: Record<string, SqliteCellValue>, rowIndex: number): string {
+  const rowid = sqliteRowId(row["__rowid"])
+  return rowid === null ? `index:${rowIndex}` : `rowid:${rowid}`
+}
+
 function sqliteRowId(value: SqliteCellValue | undefined): number | null {
   if (typeof value === "number" && Number.isInteger(value)) return value
   if (typeof value === "string" && /^\d+$/.test(value)) return Number(value)
@@ -2710,6 +2885,12 @@ function sqliteCellInputValue(raw: string, previous: SqliteCellValue): SqliteCel
     if (/^false$/i.test(clean)) return false
   }
   return raw
+}
+
+function sameStringArray(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false
+  return true
 }
 
 class HostTerminalDockPane extends UiSurface {
@@ -5401,6 +5582,7 @@ function setSqliteDockPlacement(placement: HostTerminalDockPlacement): void {
   writeStoredSqliteDockPlacement(placement)
   sqliteDockPane?.requestRender()
   relayoutHudSurfaces()
+  updateSqliteContext()
 }
 
 function setHostTerminalHudDocked(docked: boolean): void {
@@ -5447,6 +5629,7 @@ function setSqliteHudDocked(docked: boolean): void {
     controller.rows.requestRender()
   }
   relayoutHudSurfaces()
+  updateSqliteContext()
 }
 
 function relayoutHudSurfaces(): void {
@@ -5658,7 +5841,7 @@ function createSqliteDisplayController(id: string, path: string): SqliteDisplayC
       void updateSqliteDisplayCell(controller, rowid, column, value).catch((error) => {
         controller.rows.setStatus(error instanceof Error ? error.message : String(error))
       })
-    }),
+    }, () => updateSqliteContext()),
   } satisfies SqliteDisplayController)
   controller.tables.node.name = `SqliteTables:${id}`
   controller.rows.node.name = `SqliteRows:${id}`
