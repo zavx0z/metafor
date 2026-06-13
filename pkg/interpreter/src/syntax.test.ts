@@ -42,6 +42,16 @@ describe("syntax tokenizer", () => {
     expect(tokenFor(line, tokens[0]!, "'x'")?.c).toBe("s")
   })
 
+  test("uses json tokenizer for package.json paths", () => {
+    const line = '    "zavx0z:clean": "for dir in zavx0z/*/; do rm -f \\"$dir\\"/git*.json; done"'
+    const tokens = tokenizeSource(line, {path: "package.json"})
+    const separator = line.indexOf(": ", line.indexOf('"zavx0z:clean"') + '"zavx0z:clean"'.length)
+
+    expect(tokenFor(line, tokens[0]!, '"zavx0z:clean"')?.c).toBe("t")
+    expect(tokenFor(line, tokens[0]!, '"for dir in zavx0z/*/; do rm -f \\"$dir\\"/git*.json; done"')?.c).toBe("s")
+    expect(tokens[0]!.find((token) => token.s <= separator && token.e > separator)?.c).toBe("p")
+  })
+
   test("highlights template literal expressions as TypeScript", () => {
     const line = "const db = new SQL(`sqlite://${storePath}`)"
     const tokens = tokenize(line)

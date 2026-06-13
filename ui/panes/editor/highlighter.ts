@@ -1,5 +1,6 @@
 import {cssHighlighter} from "./languages/css.ts"
 import {htmlHighlighter} from "./languages/html.ts"
+import {jsonHighlighter} from "./languages/json.ts"
 import {plaintextHighlighter} from "./languages/plaintext.ts"
 import {sqliteHighlighter} from "./languages/sqlite.ts"
 import {typescriptHighlighter} from "./languages/typescript.ts"
@@ -17,6 +18,7 @@ const registry: LanguageHighlighter[] = [
   sqliteHighlighter,
   cssHighlighter,
   htmlHighlighter,
+  jsonHighlighter,
 ]
 
 export function registerLanguageHighlighter(highlighter: LanguageHighlighter): void {

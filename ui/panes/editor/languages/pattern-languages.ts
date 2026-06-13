@@ -300,6 +300,23 @@ const cssGrammar: PatternGrammar = {
   "punctuation": /[(){};:,]/,
 }
 
+const jsonString = /"(?:\\(?:["\\/bfnrt]|u[\dA-Fa-f]{4}|[\s\S])|[^"\\\r\n])*"/
+
+const jsonGrammar: PatternGrammar = {
+  "property": {
+    pattern: RegExp(`${jsonString.source}(?=\\s*:)`),
+    greedy: true,
+  },
+  "string": {
+    pattern: jsonString,
+    greedy: true,
+  },
+  "number": /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[Ee][+-]?\d+)?/,
+  "boolean": /\b(?:false|true)\b/,
+  "keyword": /\bnull\b/,
+  "punctuation": /[{}[\],:]/,
+}
+
 insertBefore(markupGrammar, "cdata", {
   "style": {
     pattern: /(<style\b[^>]*>)[\s\S]*?(?=<\/style>)/i,
@@ -349,12 +366,13 @@ const sqlGrammar: PatternGrammar = {
   "punctuation": /[;[\]()`,.]/,
 }
 
-export type PatternLanguageId = "typescript" | "javascript" | "markup" | "css" | "sql"
+export type PatternLanguageId = "typescript" | "javascript" | "markup" | "css" | "json" | "sql"
 
 export const patternLanguages: Record<PatternLanguageId, PatternGrammar> = {
   typescript: typescriptGrammar,
   javascript: javascriptGrammar,
   markup: markupGrammar,
   css: cssGrammar,
+  json: jsonGrammar,
   sql: sqlGrammar,
 }

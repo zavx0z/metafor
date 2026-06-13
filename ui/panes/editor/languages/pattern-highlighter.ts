@@ -110,8 +110,14 @@ export function tokenizeSqlitePattern(lines: readonly string[]): EditorTokens {
   return tokenizePattern(lines, "sql")
 }
 
+export function tokenizeJsonPattern(lines: readonly string[]): EditorTokens {
+  return tokenizePattern(lines, "json")
+}
+
 export function tokenizeSourcePattern(lines: readonly string[], opts: {path?: string} = {}): EditorTokens {
-  return isSqlitePath(opts.path) ? tokenizeSqlitePattern(lines) : tokenizeTypeScriptPattern(lines)
+  if (isJsonPath(opts.path)) return tokenizeJsonPattern(lines)
+  if (isSqlitePath(opts.path)) return tokenizeSqlitePattern(lines)
+  return tokenizeTypeScriptPattern(lines)
 }
 
 export function tokenizePatternRangeTokens(source: string, base: number, language: PatternLanguageId): RangeToken[] {
@@ -599,4 +605,10 @@ function isSqlitePath(path: string | undefined): boolean {
   if (path === undefined) return false
   const clean = path.split("?")[0]?.split("#")[0] ?? path
   return clean.endsWith(".sql") || clean.endsWith(".sqlite")
+}
+
+function isJsonPath(path: string | undefined): boolean {
+  if (path === undefined) return false
+  const clean = path.split("?")[0]?.split("#")[0] ?? path
+  return clean.endsWith(".json")
 }

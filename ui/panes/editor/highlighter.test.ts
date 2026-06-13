@@ -22,10 +22,12 @@ describe("resolveLanguageHighlighter", () => {
   test("resolves HTML and CSS by id and file extensions", () => {
     expect(resolveLanguageHighlighter({languageId: "html"}).id).toBe("html")
     expect(resolveLanguageHighlighter({languageId: "css"}).id).toBe("css")
+    expect(resolveLanguageHighlighter({languageId: "json"}).id).toBe("json")
     expect(resolveLanguageHighlighter({languageId: "sqlite"}).id).toBe("sqlite")
     expect(resolveLanguageHighlighter({languageId: "sql"}).id).toBe("sqlite")
     expect(resolveLanguageHighlighter({path: "proposal.html"}).id).toBe("html")
     expect(resolveLanguageHighlighter({path: "theme.css"}).id).toBe("css")
+    expect(resolveLanguageHighlighter({path: "package.json"}).id).toBe("json")
     expect(resolveLanguageHighlighter({path: "query.sql"}).id).toBe("sqlite")
   })
 
