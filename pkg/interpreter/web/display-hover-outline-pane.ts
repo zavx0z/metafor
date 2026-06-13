@@ -685,12 +685,12 @@ export class DisplayHoverOutlinePane extends UiSurface {
     const islandY = this.rectH - 30
     if (islandY < 64) return null
     const size = 38
-    const buttonX = this.rectW / 2 - size / 2
     const buttonY = islandY - size - 11
     const buttonGap = 12
-    let fullscreenButtonX = buttonX + size + buttonGap
-    if (fullscreenButtonX + size > this.rectW - 8) fullscreenButtonX = buttonX - size - buttonGap
-    if (fullscreenButtonX < 8) fullscreenButtonX = buttonX
+    const buttonGroupW = size * 2 + buttonGap
+    const buttonGroupX = clamp(this.rectW / 2 - buttonGroupW / 2, 8, Math.max(8, this.rectW - buttonGroupW - 8))
+    const buttonX = buttonGroupX
+    const fullscreenButtonX = buttonGroupX + size + buttonGap
     const hitPad = 28
     const maxX = Math.max(islandX + islandW, buttonX + size, fullscreenButtonX + size)
     const minX = Math.min(islandX, buttonX, fullscreenButtonX)
@@ -705,7 +705,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
         h: islandY + islandH - buttonY + hitPad * 2,
       },
       center: {x: this.rectW / 2, y: islandY + islandH / 2},
-      buttonCenter: {x: this.rectW / 2, y: buttonY + size / 2},
+      buttonCenter: {x: buttonX + size / 2, y: buttonY + size / 2},
       fullscreenButtonCenter: {x: fullscreenButtonX + size / 2, y: buttonY + size / 2},
       size,
     }
