@@ -2,12 +2,12 @@
 
 Документ описывает **физическую раскладку** DSL-описания компонента в реляционную форму. Это полный канонический slice того, что писатель компонента положил в `MetaFor(...)...`. Никакой runtime-памяти — только декларации.
 
-`MetaFor(...).bulk()` оставляет в `MetaDSL` две проекции одной декларации:
-- raw-поля `fields` / `superposition` / `processes` / `reactions` / `matter` для анализа Dark, Gravity и runtime;
-- `create` — подготовленную write-проекцию для `StoreWimpSqlite.create(src, dsl.create)`.
+`MetaFor(...).bulk()` возвращает `MetaDSL` сразу в write-ready форме:
+`fields`, `superposition`, `processes` и `reactions` остаются верхними ключами DSL,
+но ключи object-map уже встроены внутрь элементов массивов.
 
-Store при создании WIMP читает именно `dsl.create`: ключи уже вложены в элементы
-массивов, поэтому ORM не делает дополнительный слой преобразования raw DSL.
+Store при создании WIMP читает сам `dsl`: ORM не делает дополнительный слой
+преобразования raw DSL.
 
 **33 таблицы** в 6 логических группах. Все каскадно связаны через FK на корень `meta(src)` — удаление меты по `src` чистит всю её декларацию.
 
@@ -84,7 +84,7 @@ Default-массив разложен поэлементно: одна стро�
 
 **Алгоритм заполнения fields**:
 
-1. Для каждого `field` из `meta.create.fields`:
+1. Для каждого `field` из `meta.fields`:
    1. INSERT `field` с `type`, `required`, `label`
    2. Если type = `enum`: для каждого `values[i]` — INSERT `field_enum_variant`
    3. Если есть `default`:
@@ -158,7 +158,7 @@ Default-массив разложен поэлементно: одна стро�
 
 **Алгоритм заполнения superposition**:
 
-1. Для каждого `state` из `meta.create.states`:
+1. Для каждого `state` из `meta.superposition`:
    1. INSERT `superposition` с `position` = индекс
 2. Возвращается mapping `{ stateName → uuid }`.
 3. Для каждой пары `state.name` / `state.transitions`:
@@ -231,7 +231,7 @@ Default-массив разложен поэлементно: одна стро�
 
 **Алгоритм заполнения processes**:
 
-1. Для каждого `process` из `meta.create.processes`:
+1. Для каждого `process` из `meta.processes`:
    1. INSERT `process` с `type` = `action` или `finally`
    2. INSERT `process_env` для каждого окружения
    3. Если `action`:
@@ -270,7 +270,7 @@ Default-массив разложен поэлементно: одна стро�
 
 **Алгоритм заполнения reactions**:
 
-1. Для каждой `reaction` из `meta.create.reactions`:
+1. Для каждой `reaction` из `meta.reactions`:
    1. INSERT `reaction`
    2. Для каждого state из `reaction.states` — INSERT `reaction_superposition`
    3. Готовые `reaction.read` / `reaction.write` → INSERT `reaction_read` / `reaction_write`

@@ -23,7 +23,7 @@ const resolveMetaBranchSrcs = (meta: MetaDSL, node: { src: string | { data?: str
   const firstPath = paths[0]
   if (!firstPath || !firstPath.startsWith("/value/")) return []
 
-  const field = meta.fields?.[firstPath.slice("/value/".length)]
+  const field = meta.fields?.find((field) => field.key === firstPath.slice("/value/".length))
   if (!field || field.type !== "enum") return []
 
   return (field.values ?? []).map((variant) => createContinuationSrc(source.expr, variant))

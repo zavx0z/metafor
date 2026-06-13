@@ -332,7 +332,7 @@ const canonicalizeMetaGraph = async (
 		if (!src || loaded.has(src)) continue
 
 		const dsl = await loadMeta(src)
-		const wimp = await metaStore.create(src, dsl.create)
+		const wimp = await metaStore.create(src, dsl)
 		const relations = await fillGravityMatter(wimp, dsl)
 		loaded.add(src)
 

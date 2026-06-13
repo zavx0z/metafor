@@ -2,7 +2,7 @@ import type { Fields, Field, Update, Values } from "./fields.t.ts"
 import type { ProcessesDeclaration, ProcessesSchema } from "./process.t.ts"
 import type { MatterDeclaration, MatterSchema } from "./matter.t.ts"
 import type { ReactionsSchema } from "./reactions.t.ts"
-import type { Superposition, SuperpositionInputCheck, SuperpositionStateKeys } from "./superposition.t.ts"
+import type { SuperpositionInputCheck, SuperpositionStateKeys } from "./superposition.t.ts"
 import type { ReactionsDeclaration } from "./reactions.t.ts"
 import type { ParticleOperation } from "./store/index.ts"
 
@@ -15,35 +15,55 @@ export interface BulkSchema {
 }
 
 /**
- * Часть MetaDSL, подготовленная для создания WIMP в Store.
+ * Подготовленное поле DSL с ключом, встроенным в значение.
  *
- * @prop name — имя WIMP-декларации.
- * @prop desc — описание WIMP-декларации.
- * @prop bulk — bulk/view-настройки декларации.
- * @prop mass — mass-данные декларации.
- * @prop fields — поля декларации с ключами, уже разложенные из object-map.
- * @prop states — состояния декларации с именами, уже разложенные из object-map.
- * @prop processes — процессы декларации с ключами, уже разложенные из object-map.
- * @prop reactions — реакции декларации с ключами и привязкой к состояниям.
+ * @prop key — ключ поля внутри декларации WIMP.
  */
-export type MetaCreateDSL<m extends Mass = {}> = {
-  name?: string | null | undefined
+export type MetaFieldDSL = FieldDefinition & {key: FieldKey}
+
+/**
+ * Подготовленное состояние DSL с именем, встроенным в значение.
+ *
+ * @prop name — имя состояния внутри декларации WIMP.
+ * @prop transitions — описание переходов из этого состояния.
+ */
+export type MetaSuperpositionDSL = {
+  name: string
+  transitions?: unknown
+}
+
+/**
+ * Подготовленный процесс DSL с ключом, встроенным в значение.
+ *
+ * @prop key — ключ процесса внутри декларации WIMP.
+ * @prop declaration — распарсенная декларация процесса.
+ */
+export type MetaProcessDSL = {
+  key: string
+  declaration: ProcessesSchema[string]
+}
+
+/**
+ * Подготовленная реакция DSL с ключом и состояниями, встроенными в значение.
+ *
+ * @prop key — ключ реакции внутри декларации WIMP.
+ * @prop label — человекочитаемое имя реакции.
+ * @prop desc — опциональное описание реакции.
+ * @prop cond — исходник условия реакции.
+ * @prop src — исходник update-функции реакции.
+ * @prop read — ключи полей, которые реакция читает.
+ * @prop write — ключи полей, которые реакция пишет.
+ * @prop states — имена состояний, в которых реакция активна.
+ */
+export type MetaReactionDSL = {
+  key: string
+  label: string
   desc?: string | null | undefined
-  bulk?: BulkSchema | null | undefined
-  mass?: m
-  fields?: readonly (FieldDefinition & {key: FieldKey})[] | undefined
-  states?: readonly {name: string; transitions?: unknown}[] | undefined
-  processes?: readonly {key: string; declaration: ProcessesSchema[string]}[] | undefined
-  reactions?: readonly {
-    key: string
-    label: string
-    desc?: string | null | undefined
-    cond: string
-    src: string
-    read?: readonly string[] | undefined
-    write?: readonly string[] | undefined
-    states?: readonly string[] | undefined
-  }[] | undefined
+  cond: string
+  src: string
+  read?: readonly string[] | undefined
+  write?: readonly string[] | undefined
+  states?: readonly string[] | undefined
 }
 
 export type ReactionPart = {
@@ -443,8 +463,8 @@ export interface BulkDeclaration {
  * ```typescript
  * const schema: MetaDSL = {
  *   name: "user-profile",
- *   fields: { name: field.string.required("") },
- *   superposition: { idle: { loading: {} } },
+ *   fields: [{ key: "name", type: "string", required: true, default: "" }],
+ *   superposition: [{ name: "idle", transitions: { loading: {} } }],
  *   mass: { users: [] }
  * }
  * ```
@@ -455,21 +475,19 @@ export interface MetaDSL<ɸ extends Fields = Fields, 𝛴 extends string = strin
   /** Описание компонента */
   desc?: string
   /** Суперпозиция состояний и переходов */
-  superposition: Superposition<𝛴, ɸ>
+  superposition: readonly MetaSuperpositionDSL[]
   /** Снимок процессов */
-  processes?: ProcessesSchema
+  processes?: readonly MetaProcessDSL[]
   /** Снимок реакций */
-  reactions?: ReactionsSchema
+  reactions?: readonly MetaReactionDSL[]
   /** Схема полей */
-  fields: ɸ
+  fields: readonly MetaFieldDSL[]
   /** Сериализованная matter как ParseNode[] из @metafor/template */
   matter?: MatterSchema
   /** Канонический bulk-слой */
   bulk?: BulkSchema
   /** Масса */
   mass?: m
-  /** Подготовленная SQL-create часть DSL */
-  create: MetaCreateDSL<m>
 }
 
 export type MetaSchema<ɸ extends Fields = Fields, 𝛴 extends string = string, m extends Mass = {}> = MetaDSL<ɸ, 𝛴, m>

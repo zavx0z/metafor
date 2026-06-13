@@ -21,7 +21,6 @@
     "boundary/**/*",
     "bulk",
     "bulk/**/*",
-    "app/space",
     "github/**/*",
     "store",
     "store/**/*"

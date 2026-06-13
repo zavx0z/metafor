@@ -149,12 +149,13 @@ export const finalizeFieldValues = (
 ): Map<FieldKey, FieldInit> => {
   const initMap = new Map<FieldKey, FieldInit>()
   for (const init of fieldInits ?? []) {
-    if (!Object.prototype.hasOwnProperty.call(fieldSchemas, init.key)) continue
+    if (!fieldSchemas.some((field) => field.key === init.key)) continue
     initMap.set(init.key, init)
   }
 
   const finalValues = new Map<FieldKey, FieldInit>()
-  for (const [key, schema] of Object.entries(fieldSchemas)) {
+  for (const schema of fieldSchemas) {
+    const key = schema.key
     const init = initMap.get(key)
     if (init !== undefined) {
       // Источник применим только для ordinary↔ordinary связи; топологические поля исключены.

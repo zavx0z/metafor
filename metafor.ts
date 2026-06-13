@@ -113,34 +113,26 @@ globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
           }
           return {
             mass<m extends Mass>(mass?: m) {
+              const dslFields = Object.entries(fields).map(([key, definition]) => ({key, ...definition}))
+              const dslSuperposition = Object.entries(normalizedSuperposition).map(([name, transitions]) => ({name, transitions}))
               const schema: MetaDSL<ɸ, 𝛴, m> = {
                 name,
-                superposition: normalizedSuperposition,
-                fields: fields,
+                superposition: dslSuperposition,
+                fields: dslFields,
                 mass: mass || ({} as m),
-                create: {
-                  name,
-                  desc: desc ?? null,
-                  bulk: null,
-                  mass: mass || ({} as m),
-                  fields: Object.entries(fields).map(([key, definition]) => ({key, ...definition})),
-                  states: Object.entries(normalizedSuperposition).map(([name, transitions]) => ({name, transitions})),
-                },
               }
               if (desc) schema.desc = desc
               return {
                 processes(process: ProcessesDeclaration<ɸ, 𝛴, m, ψ> = () => []) {
                   const processes = processesSchema(process)
                   if (processes) {
-                    schema.processes = processes
-                    schema.create.processes = Object.entries(processes).map(([key, declaration]) => ({key, declaration}))
+                    schema.processes = Object.entries(processes).map(([key, declaration]) => ({key, declaration}))
                   }
                   return {
                     reactions(reaction: ReactionsDeclaration<ɸ, 𝛴, m> = () => []) {
                       const reactions = reactionsSchema(reaction)
                       if (reactions) {
-                        schema.reactions = reactions
-                        schema.create.reactions = Object.entries(reactions.reactions).map(([key, config]) => ({
+                        schema.reactions = Object.entries(reactions.reactions).map(([key, config]) => ({
                           key,
                           label: config.label,
                           desc: config.desc ?? null,
@@ -160,9 +152,8 @@ globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
                             bulk(bulk?: BulkDeclaration): MetaDSL<ɸ, 𝛴, m> {
                               if (bulk && "view" in bulk) {
                                 schema.bulk = { view: serializeStyle(bulk.view as any) } as BulkSchema
-                                schema.create.bulk = schema.bulk
                               }
-                              validateMatter(schema.matter, schema.fields, schema.name)
+                              validateMatter(schema.matter, fields, schema.name)
                               return schema
                             },
                           }

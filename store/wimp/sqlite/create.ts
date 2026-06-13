@@ -1,4 +1,4 @@
-import type {WimpCreateFieldInput, WimpCreateInput, WimpCreateProcessInput, WimpCreateReactionInput, WimpCreateStateInput} from "./create.t.ts"
+import type {WimpCreateFieldInput, WimpCreateInput, WimpCreateProcessInput, WimpCreateReactionInput, WimpCreateSuperpositionInput} from "./create.t.ts"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -309,7 +309,7 @@ const pushStateRows = (
   rows: CreateRows,
   src: string,
   fieldUuids: Map<string, string>,
-  states: readonly WimpCreateStateInput[],
+  states: readonly WimpCreateSuperpositionInput[],
 ): Map<string, string> => {
   const stateUuids = new Map<string, string>()
 
@@ -446,7 +446,7 @@ export const buildWimpCreateSql = (src: string, input: WimpCreateInput): string 
 
   if (input.mass !== undefined) pushMassRows(rows, src, input.mass, null, null, null)
   const fieldUuids = pushFieldRows(rows, src, input.fields ?? [])
-  const stateUuids = pushStateRows(rows, src, fieldUuids, input.states ?? [])
+  const stateUuids = pushStateRows(rows, src, fieldUuids, input.superposition ?? [])
   pushProcessRows(rows, src, fieldUuids, input.processes ?? [])
   pushReactionRows(rows, src, fieldUuids, stateUuids, input.reactions ?? [])
 

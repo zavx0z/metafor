@@ -74,14 +74,15 @@ async function* matterWimp(
   continuation: Continuation | undefined,
 ): AsyncGenerator<PendingChildWimp[], void, void> {
   const dsl = await loadMeta(src)
-  const wimp = await store.wimp.create(src, dsl.create)
+  const wimp = await store.wimp.create(src, dsl)
 
-  // WIMP: наполняем декларацию сущности в Store.
+  // GRAVITY: фиксируем matter-связи WIMP в Store.
   const matterRelations = await fillGravityMatter(wimp, dsl)
 
   // ACTOR: переходим от Wimp-декларации к runtime-экземпляру.
   // fieldSchemas — схема полей Wimp; finalValues — значения полей Actor.
-  const fieldSchemas = dsl.fields ?? {}
+  const fieldSchemas = dsl.fields ?? []
+  const fieldSchemaByKey = new Map(fieldSchemas.map((field) => [field.key, field]))
   const finalValues = finalizeFieldValues(fieldSchemas, continuation?.fieldInits)
 
   const actorUuid = crypto.randomUUID()
@@ -94,7 +95,7 @@ async function* matterWimp(
     const field = await wimp.fields.get({key})
     if (!field) throw new Error(`Field "${key}" is not registered for "${src}"`)
     const fieldUuid = await field.uuid()
-    const schema = fieldSchemas[key]
+    const schema = fieldSchemaByKey.get(key)
     if (!schema) throw new Error(`Field schema "${key}" missing in DSL for "${src}"`)
 
     let valueUuid: string
@@ -129,7 +130,7 @@ async function* matterWimp(
   const fieldTypesSnapshot = new Map<FieldKey, string>()
   for (const [key, init] of finalValues) {
     fieldValuesSnapshot.set(key, init.value)
-    fieldTypesSnapshot.set(key, fieldSchemas[key]!.type)
+    fieldTypesSnapshot.set(key, fieldSchemaByKey.get(key)!.type)
   }
 
   const plans = projectStoreMatterParticles(matterRelations)
