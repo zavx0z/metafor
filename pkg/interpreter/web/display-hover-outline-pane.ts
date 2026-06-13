@@ -1,5 +1,5 @@
 import {Color} from "@metafor/engine"
-import {UiSurface, Z, drawIconCentered, uiIcons} from "@ui/elements"
+import {UiSurface, Z, drawIconCentered, uiIcons, type UiDisplayId} from "@ui/elements"
 
 type Point = {x: number; y: number}
 type Quad = {
@@ -9,6 +9,10 @@ type Quad = {
   bottomLeft: Point
 }
 type Rect = {x: number; y: number; w: number; h: number}
+type BrowserKeyboardLock = {
+  lock?: (keyCodes?: string[]) => Promise<void>
+  unlock?: () => void
+}
 type FlightControl = {
   button: Rect
   hit: Rect
@@ -191,9 +195,41 @@ function pointInRect(point: Point, rect: Rect): boolean {
   return point.x >= rect.x && point.x <= rect.x + rect.w && point.y >= rect.y && point.y <= rect.y + rect.h
 }
 
-function requestBrowserFullscreen(): void {
-  if (document.fullscreenElement !== null) return
-  void document.documentElement.requestFullscreen().catch(() => {})
+let browserFullscreenEscapeLockInstalled = false
+let browserFullscreenEscapeLocked = false
+
+function browserKeyboardLock(): BrowserKeyboardLock | null {
+  return (navigator as Navigator & {keyboard?: BrowserKeyboardLock}).keyboard ?? null
+}
+
+function installBrowserFullscreenEscapeLockHooks(): void {
+  if (browserFullscreenEscapeLockInstalled) return
+  browserFullscreenEscapeLockInstalled = true
+  window.addEventListener("keydown", (event) => {
+    if (!browserFullscreenEscapeLocked || document.fullscreenElement === null) return
+    if (event.key === "Escape" || event.code === "Escape") event.preventDefault()
+  }, {capture: true})
+  document.addEventListener("fullscreenchange", () => {
+    if (document.fullscreenElement === null) unlockBrowserFullscreenEscape()
+  })
+}
+
+async function lockBrowserFullscreenEscape(): Promise<void> {
+  const keyboard = browserKeyboardLock()
+  if (keyboard?.lock === undefined || keyboard.unlock === undefined) return
+  installBrowserFullscreenEscapeLockHooks()
+  try {
+    await keyboard.lock(["Escape"])
+    browserFullscreenEscapeLocked = true
+  } catch {
+    browserFullscreenEscapeLocked = false
+  }
+}
+
+function unlockBrowserFullscreenEscape(): void {
+  if (!browserFullscreenEscapeLocked) return
+  browserFullscreenEscapeLocked = false
+  browserKeyboardLock()?.unlock?.()
 }
 
 export class DisplayHoverOutlinePane extends UiSurface {
@@ -584,6 +620,36 @@ export class DisplayHoverOutlinePane extends UiSurface {
     this.#lastButtonProgress = 1
   }
 
+  #toggleBrowserFullscreen(): void {
+    if (document.fullscreenElement !== null) {
+      void document.exitFullscreen()
+        .then(() => unlockBrowserFullscreenEscape())
+        .catch(() => {})
+      return
+    }
+
+    const shouldRepositionNearDisplay = this.canvas?.displayMode === "near"
+    const activeDisplayId = shouldRepositionNearDisplay ? this.canvas?.activeDisplayId ?? null : null
+    void document.documentElement.requestFullscreen()
+      .then(async () => {
+        await lockBrowserFullscreenEscape()
+        if (shouldRepositionNearDisplay) this.#repositionNearDisplayAfterFullscreen(activeDisplayId)
+      })
+      .catch(() => {})
+  }
+
+  #repositionNearDisplayAfterFullscreen(activeDisplayId: UiDisplayId | null): void {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const canvas = this.canvas
+        if (canvas === null || canvas.displayMode !== "near") return
+        canvas.handleResize()
+        const displayId = activeDisplayId ?? canvas.activeDisplayId
+        if (displayId !== null) canvas.focusDisplay(displayId)
+      })
+    })
+  }
+
   #drawLockedReticle(quad: Quad, displaySizePx: number, strength: number): void {
     this.#drawCornerLock(quad.topLeft, quad.topRight, quad.bottomLeft, displaySizePx, strength)
     this.#drawCornerLock(quad.topRight, quad.topLeft, quad.bottomRight, displaySizePx, strength)
@@ -750,7 +816,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
     })
 
     this.hit(dock.fullscreenButton.x, dock.fullscreenButton.y, dock.fullscreenButton.w, dock.fullscreenButton.h, () => {
-      requestBrowserFullscreen()
+      this.#toggleBrowserFullscreen()
     }, {
       key: FULLSCREEN_BUTTON_KEY,
       cursor: "pointer",
@@ -766,7 +832,8 @@ export class DisplayHoverOutlinePane extends UiSurface {
       LOCK_Z + 0.02,
     )
     this.#drawFlightCorners(dock.fullscreenButton, dock.size, fullscreenStrength)
-    drawIconCentered(this, uiIcons.expand, dock.fullscreenButtonCenter.x, dock.fullscreenButtonCenter.y, clamp(dock.size * 0.6, 18, 25), {
+    const fullscreenIcon = document.fullscreenElement === null ? uiIcons.expand : uiIcons.collapse
+    drawIconCentered(this, fullscreenIcon, dock.fullscreenButtonCenter.x, dock.fullscreenButtonCenter.y, clamp(dock.size * 0.6, 18, 25), {
       opacity: 0.9 * fullscreenStrength,
       z: LOCK_Z + 0.1,
     })
