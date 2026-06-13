@@ -98,7 +98,7 @@ describe("sqlite ddl", () => {
         {key: "title", type: "string", required: true, default: "draft"},
         {key: "status", type: "enum", required: true, values: ["open", "closed"], default: "open"},
       ],
-      states: [
+      superposition: [
         {name: "idle", transitions: {done: {title: "draft"}}},
         {name: "done"},
       ],

@@ -15,7 +15,7 @@ export type WimpCreateFieldInput = FieldDefinition & {key: FieldKey}
  * @prop name — имя состояния внутри одного WIMP.
  * @prop transitions — описание переходов из этого состояния в другие состояния.
  */
-export type WimpCreateStateInput = {
+export type WimpCreateSuperpositionInput = {
   name: string
   transitions?: unknown
 }
@@ -62,7 +62,7 @@ export type WimpCreateReactionInput = {
  * @prop bulk — bulk/view-настройки декларации.
  * @prop mass — mass-данные декларации, раскладываемые в `wimp_mass_value`.
  * @prop fields — подготовленные поля декларации.
- * @prop states — подготовленные состояния декларации.
+ * @prop superposition — подготовленные состояния декларации.
  * @prop processes — подготовленные процессы декларации.
  * @prop reactions — подготовленные реакции декларации.
  */
@@ -72,7 +72,7 @@ export type WimpCreateInput = {
   bulk?: MetaDSL["bulk"] | null | undefined
   mass?: MetaDSL["mass"]
   fields?: readonly WimpCreateFieldInput[] | undefined
-  states?: readonly WimpCreateStateInput[] | undefined
+  superposition?: readonly WimpCreateSuperpositionInput[] | undefined
   processes?: readonly WimpCreateProcessInput[] | undefined
   reactions?: readonly WimpCreateReactionInput[] | undefined
 }
