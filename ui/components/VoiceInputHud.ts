@@ -207,6 +207,7 @@ export class VoiceInputHud extends UiSurface {
     }
     super.onPointerDown(event, localX, localY)
     if (event.button !== 0 || this.pressedHit === null) return
+    if (this.options.onMove === undefined) return
     const point = this.#canvasPoint(event)
     const frame = this.canvas?.surfaceFrame(this)
     if (point === null || frame === undefined || frame === null) return
@@ -332,7 +333,10 @@ export class VoiceInputHud extends UiSurface {
     this.#settingsOpen = false
     const compact = this.#compactRectBeforeSettings
     this.#compactRectBeforeSettings = null
-    if (compact !== null) this.canvas?.setSurfaceRect(this, compact)
+    if (compact !== null) {
+      if (this.options.onMove === undefined) this.canvas?.clearSurfaceRect(this)
+      else this.canvas?.setSurfaceRect(this, compact)
+    }
     this.requestRender()
   }
 

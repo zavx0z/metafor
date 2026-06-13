@@ -563,7 +563,6 @@ const VOICE_DEACTIVATION_FUZZY_STORAGE_KEY = "metafor.interpreter.voice.deactiva
 const VOICE_STOP_FUZZY_STORAGE_KEY = "metafor.interpreter.voice.stopFuzzy:v1"
 const VOICE_DEACTIVATION_MODE_STORAGE_KEY = "metafor.interpreter.voice.deactivationMode:v1"
 const VOICE_RECOGNITION_TIMEOUT_STORAGE_KEY = "metafor.interpreter.voice.recognitionTimeoutSeconds:v1"
-const VOICE_HUD_RECT_STORAGE_KEY = "metafor.interpreter.voice.hudRect:v1"
 const VOICE_SIGNAL_VOLUME_LEGACY_STORAGE_KEY = "metafor.interpreter.voice.signalVolume:v1"
 const VOICE_SIGNAL_VOLUME_STORAGE_KEY = "metafor.interpreter.voice.signalVolume:v2"
 const HOST_TERMINAL_AGENT_SOUND_ENABLED_STORAGE_KEY = "metafor.interpreter.hostTerminal.agentSoundEnabled:v1"
@@ -663,7 +662,7 @@ type VoiceHudAnchorPlacement = {
 
 const DEFAULT_HOST_TERMINAL_HUD_RECT: UiSurfaceRect = {x: 643, y: 60, w: 755, h: 943}
 const DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "top", offset: 858}
-const DEFAULT_VOICE_HUD_RECT: UiSurfaceRect = {x: 1783, y: 960, w: VOICE_HUD_W, h: VOICE_HUD_H}
+const PINNED_VOICE_HUD_ANCHOR: VoiceHudAnchorPlacement = {horizontal: "right", vertical: "bottom", offsetX: 0, offsetY: 0}
 const DEFAULT_TODO_HUD_RECT: UiSurfaceRect = {x: 16, y: 72, w: 430, h: 560}
 const DEFAULT_TODO_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "left", offset: 260}
 const DEFAULT_SQLITE_HUD_RECT: UiSurfaceRect = {x: 482, y: 96, w: 960, h: 640}
@@ -2261,7 +2260,6 @@ async function initEngine(): Promise<void> {
     })
     voiceHudPane = new VoiceInputHud({
       onToggle: () => void toggleVoiceInput(),
-      onMove: storeVoiceHudRect,
       settings: () => ({
         title: t("voiceInput"),
         debugTabLabel: t("voiceDebugTab"),
@@ -5536,35 +5534,6 @@ function storeSqliteHudRectAndRelayout(rect: UiSurfaceRect): void {
   relayoutHudSurfaces()
 }
 
-function readStoredVoiceHudPlacement(): VoiceHudAnchorPlacement | UiSurfaceRect | null {
-  try {
-    const raw = localStorage.getItem(VOICE_HUD_RECT_STORAGE_KEY)
-    if (raw === null) return null
-    const parsed = JSON.parse(raw) as unknown
-    const anchor = normalizeStoredVoiceHudAnchor(parsed)
-    if (anchor !== null) return anchor
-    return normalizeStoredPaneRect(parsed)
-  } catch {
-    return null
-  }
-}
-
-function storeVoiceHudRect(rect: UiSurfaceRect): void {
-  const normalized = normalizeStoredPaneRect({...rect, w: VOICE_HUD_W, h: VOICE_HUD_H})
-  if (normalized === null) return
-  const metrics = viewportDisplayMetrics()
-  const placement = voiceHudAnchorFromRect(normalized, metrics.pixelWidth, metrics.pixelHeight)
-  writeStoredVoiceHudAnchor(placement)
-}
-
-function writeStoredVoiceHudAnchor(placement: VoiceHudAnchorPlacement): void {
-  try {
-    localStorage.setItem(VOICE_HUD_RECT_STORAGE_KEY, JSON.stringify(placement))
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
-}
-
 function readStoredHostTerminalHudDocked(): boolean {
   try {
     return localStorage.getItem(HOST_TERMINAL_HUD_DOCKED_STORAGE_KEY) === "1"
@@ -5796,30 +5765,6 @@ function normalizeStoredPaneRect(value: unknown): UiSurfaceRect | null {
 
 function finiteStoredNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null
-}
-
-function normalizeStoredVoiceHudAnchor(value: unknown): VoiceHudAnchorPlacement | null {
-  if (typeof value !== "object" || value === null) return null
-  const record = value as Record<string, unknown>
-  const horizontal = record.horizontal
-  const vertical = record.vertical
-  const offsetX = finiteStoredNumber(record.offsetX)
-  const offsetY = finiteStoredNumber(record.offsetY)
-  if (!isVoiceHudHorizontalAnchor(horizontal) || !isVoiceHudVerticalAnchor(vertical) || offsetX === null || offsetY === null) return null
-  return {
-    horizontal,
-    vertical,
-    offsetX: Math.max(0, Math.round(offsetX)),
-    offsetY: Math.max(0, Math.round(offsetY)),
-  }
-}
-
-function isVoiceHudHorizontalAnchor(value: unknown): value is VoiceHudHorizontalAnchor {
-  return value === "left" || value === "right"
-}
-
-function isVoiceHudVerticalAnchor(value: unknown): value is VoiceHudVerticalAnchor {
-  return value === "top" || value === "bottom"
 }
 
 function viewportDisplayMetrics(): DisplayLayoutMetrics {
@@ -7922,14 +7867,7 @@ function hostTerminalAgentSignalButtonX(terminal: UiSurfaceRect): number {
 }
 
 function voiceHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
-  const stored = readStoredVoiceHudPlacement()
-  if (stored !== null) {
-    if (isVoiceHudAnchorPlacement(stored)) return voiceHudRectFromAnchor(stored, w, h)
-    const placement = voiceHudAnchorFromRect(stored, w, h)
-    writeStoredVoiceHudAnchor(placement)
-    return voiceHudRectFromAnchor(placement, w, h)
-  }
-  return voiceHudRectFromAnchor(voiceHudAnchorFromRect(DEFAULT_VOICE_HUD_RECT, w, h), w, h)
+  return voiceHudRectFromAnchor(PINNED_VOICE_HUD_ANCHOR, w, h)
 }
 
 function clampVoiceHudRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): UiSurfaceRect {
@@ -7960,25 +7898,6 @@ function voiceHudRectFromAnchor(anchor: VoiceHudAnchorPlacement, boundsW: number
     ? frame.margin + anchor.offsetY
     : frame.bh - frame.margin - frame.rectH - anchor.offsetY
   return clampVoiceHudRect({x, y, w: frame.rectW, h: frame.rectH}, boundsW, boundsH)
-}
-
-function voiceHudAnchorFromRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): VoiceHudAnchorPlacement {
-  const frame = voiceHudFrameForBounds(boundsW, boundsH)
-  const clamped = clampVoiceHudRect(rect, boundsW, boundsH)
-  const leftOffset = Math.max(0, clamped.x - frame.margin)
-  const rightOffset = Math.max(0, frame.bw - frame.margin - clamped.x - clamped.w)
-  const topOffset = Math.max(0, clamped.y - frame.margin)
-  const bottomOffset = Math.max(0, frame.bh - frame.margin - clamped.y - clamped.h)
-  return {
-    horizontal: leftOffset <= rightOffset ? "left" : "right",
-    vertical: topOffset <= bottomOffset ? "top" : "bottom",
-    offsetX: Math.round(Math.min(leftOffset, rightOffset)),
-    offsetY: Math.round(Math.min(topOffset, bottomOffset)),
-  }
-}
-
-function isVoiceHudAnchorPlacement(value: VoiceHudAnchorPlacement | UiSurfaceRect): value is VoiceHudAnchorPlacement {
-  return "horizontal" in value && "vertical" in value
 }
 
 function hostTerminalDockRect({w, h}: {w: number; h: number}): UiSurfaceRect {
