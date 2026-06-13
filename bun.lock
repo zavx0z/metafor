@@ -30,15 +30,6 @@
         "electron-builder": "^25.1.8",
       },
     },
-    "app/web": {
-      "name": "@app/web",
-      "dependencies": {
-        "@bulk/gravity": "workspace:*",
-        "@store/actor": "workspace:*",
-        "@store/wimp": "workspace:*",
-        "store": "workspace:*",
-      },
-    },
     "boundary": {
       "name": "@metafor/boundary",
       "version": "0.0.1",
@@ -843,8 +834,6 @@
     "7zip-bin": ["7zip-bin@5.2.0", "", {}, "sha512-ukTPVhqG4jNzMro2qA9HSCSSVJN3aN7tlb+hfqYCt3ER0yWroeA2VR38MNrOHLQ/cVj+DaIMad0kFCtWWowh/A=="],
 
     "@app/space": ["@app/space@workspace:app/space"],
-
-    "@app/web": ["@app/web@workspace:app/web"],
 
     "@boundary/gravity": ["@boundary/gravity@workspace:boundary/gravity"],
 
