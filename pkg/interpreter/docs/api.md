@@ -113,7 +113,8 @@ GET    /console?since=<iso|seq>&limit=<n>
       "state": "paused",
       "location": "r/dark/server.ts:41",
       "cursor": {"line": 41, "column": 0},
-      "selection": null
+      "selection": null,
+      "selections": []
     },
     "currentFrame": {"index": 0, "url": "r/dark/server.ts", "line": 41, "column": 5},
     "scopes": {"expanded": [], "detail": null},
@@ -152,7 +153,7 @@ GET    /console?since=<iso|seq>&limit=<n>
 }
 ```
 
-Позиции в `source.cursor` и `source.selection`: `line` - 1-based, `column` - 0-based. `selection.end.column` end-exclusive.
+Позиции в `source.cursor`, `source.selection` и `source.selections[]`: `line` - 1-based, `column` - 0-based. `selection.end.column` / `selections[].end.column` end-exclusive. `source.selection` - первичное выделение для обратной совместимости; `source.selections` содержит все активные выделения, включая первичное.
 
 `context.hud.todo` - состояние HUD ToDoPane. `highlightedItems` содержит пункты `TODO.md`, которые человек подсветил в панели, чтобы агент понимал, о чем сейчас речь. Это состояние панели, а не данные файла.
 

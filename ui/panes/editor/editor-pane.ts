@@ -29,8 +29,6 @@ import {
 import type {EditorToken, EditorTokens, EditorTokenize, LanguageHighlighter} from "./tokens.ts"
 import {
   compareTextPosition,
-  copySelectedText,
-  copyTextSelectionOrFallback,
   orderedTextSelection,
   readClipboardText,
   sameTextPosition,
@@ -73,6 +71,18 @@ export type EditorSelectionSnapshot = {
   /** Ordered range, if selection exists. 0-based, end-exclusive column. */
   range: TextSelectionRange | null
   /** Selected text, if selection exists. */
+  text: string
+  /** All active selections, including the primary selection above. */
+  selections: EditorSelectionEntry[]
+}
+
+export type EditorSelectionEntry = {
+  /** Raw anchor/focus positions for this selection. 0-based. */
+  anchor: TextPosition
+  focus: TextPosition
+  /** Ordered range. 0-based, end-exclusive column. */
+  range: TextSelectionRange
+  /** Text inside this selection. */
   text: string
 }
 
@@ -164,7 +174,15 @@ const EDITOR_SCROLL_KEY = "editor-pane:scroll"
 
 type CursorPos = TextPosition
 type SelectionRange = TextSelectionRange
-type Snapshot = {lines: string[]; cline: number; ccol: number; selectionAnchor: CursorPos | null; selectionFocus: CursorPos | null}
+type Snapshot = {
+  lines: string[]
+  cline: number
+  ccol: number
+  selectionAnchor: CursorPos | null
+  selectionFocus: CursorPos | null
+  secondarySelections: EditorSelectionSlot[]
+}
+type EditorSelectionSlot = {anchor: CursorPos; focus: CursorPos}
 type ColumnHitBias = "nearest" | "floor" | "ceil"
 type LineWidthCache = {scale: number; widths: number[]}
 type SelectionMenuAction = "copy" | "cut" | "selectAll"
@@ -233,8 +251,10 @@ export class EditorPane extends UiSurface {
   #ccol = 0
   #selectionAnchor: CursorPos | null = null
   #selectionFocus: CursorPos | null = null
+  #secondarySelections: EditorSelectionSlot[] = []
   #dragSelecting = false
   #dragExtendsSelection = false
+  #dragAddsSelection = false
   #dragAnchorLocalX = 0
   #dragAnchorLocalY = 0
   #selectionMenuOpen = false
@@ -448,6 +468,7 @@ export class EditorPane extends UiSurface {
   setSelection(anchorLine: number, anchorCol: number, focusLine: number, focusCol: number): void {
     const anchor = this.#clampPosition({line: anchorLine, col: anchorCol})
     const focus = this.#clampPosition({line: focusLine, col: focusCol})
+    this.#secondarySelections = []
     this.#selectionAnchor = anchor
     this.#selectionFocus = focus
     this.#cline = focus.line
@@ -475,7 +496,7 @@ export class EditorPane extends UiSurface {
   }
 
   hasSelection(): boolean {
-    return this.#selectionRange() !== null
+    return this.#selectionSlots().length > 0
   }
 
   getSelectedText(): string {
@@ -486,6 +507,7 @@ export class EditorPane extends UiSurface {
     const anchor = this.#selectionAnchor === null ? null : {...this.#selectionAnchor}
     const focus = this.#selectionFocus === null ? null : {...this.#selectionFocus}
     const range = this.#selectionRange()
+    const selections = this.#selectionEntries()
     return {
       cursor: this.#currentPos(),
       anchor,
@@ -494,7 +516,8 @@ export class EditorPane extends UiSurface {
         start: {...range.start},
         end: {...range.end},
       },
-      text: this.#selectedText() ?? "",
+      text: this.#primarySelectedText() ?? "",
+      selections,
     }
   }
 
@@ -656,9 +679,20 @@ export class EditorPane extends UiSurface {
   #clearSelectionState(): void {
     this.#selectionAnchor = null
     this.#selectionFocus = null
+    this.#secondarySelections = []
     this.#dragSelecting = false
     this.#dragExtendsSelection = false
+    this.#dragAddsSelection = false
     this.#closeTransientSelectionMenu()
+  }
+
+  #clearPrimarySelectionState(): void {
+    this.#selectionAnchor = null
+    this.#selectionFocus = null
+    this.#dragSelecting = false
+    this.#dragExtendsSelection = false
+    this.#dragAddsSelection = false
+    if (this.#secondarySelections.length === 0) this.#closeTransientSelectionMenu()
   }
 
   #setSelectionMenuOpen(open: boolean, sticky: boolean): void {
@@ -681,7 +715,63 @@ export class EditorPane extends UiSurface {
   }
 
   #selectedText(): string | null {
+    const selections = this.#selectionEntries()
+    if (selections.length === 0) return null
+    return selections.map((selection) => selection.text).join("\n")
+  }
+
+  #primarySelectedText(): string | null {
     return textFromRange(this.#lines, this.#selectionRange())
+  }
+
+  #selectionSlots(): Array<EditorSelectionSlot & {range: SelectionRange}> {
+    const out: Array<EditorSelectionSlot & {range: SelectionRange}> = []
+    for (const slot of this.#secondarySelections) {
+      const range = orderedTextSelection(slot.anchor, slot.focus)
+      if (range !== null) out.push({
+        anchor: {...slot.anchor},
+        focus: {...slot.focus},
+        range: copySelectionRange(range),
+      })
+    }
+    const primaryRange = this.#selectionRange()
+    if (primaryRange !== null && this.#selectionAnchor !== null && this.#selectionFocus !== null) {
+      if (!out.some((slot) => sameSelectionRange(slot.range, primaryRange))) {
+        out.push({
+          anchor: {...this.#selectionAnchor},
+          focus: {...this.#selectionFocus},
+          range: copySelectionRange(primaryRange),
+        })
+      }
+    }
+    return out
+  }
+
+  #selectionEntries(): EditorSelectionEntry[] {
+    return this.#selectionSlots()
+      .map((slot) => ({
+        anchor: {...slot.anchor},
+        focus: {...slot.focus},
+        range: copySelectionRange(slot.range),
+        text: textFromRange(this.#lines, slot.range) ?? "",
+      }))
+      .sort((a, b) => this.#comparePosition(a.range.start, b.range.start) || this.#comparePosition(a.range.end, b.range.end))
+  }
+
+  #addCurrentSelectionToSecondary(): void {
+    const range = this.#selectionRange()
+    if (range === null || this.#selectionAnchor === null || this.#selectionFocus === null) return
+    this.#addSecondarySelection(this.#selectionAnchor, this.#selectionFocus)
+  }
+
+  #addSecondarySelection(anchor: CursorPos, focus: CursorPos): void {
+    const range = orderedTextSelection(anchor, focus)
+    if (range === null) return
+    if (this.#secondarySelections.some((slot) => {
+      const secondaryRange = orderedTextSelection(slot.anchor, slot.focus)
+      return secondaryRange !== null && sameSelectionRange(secondaryRange, range)
+    })) return
+    this.#secondarySelections.push({anchor: {...anchor}, focus: {...focus}})
   }
 
   #emitSelectionChange(): void {
@@ -691,6 +781,7 @@ export class EditorPane extends UiSurface {
   #setCursorPosition(pos: CursorPos, opts: {extendSelection: boolean; scroll?: "nearest" | "center" | false}): void {
     const next = this.#clampPosition(pos)
     if (opts.extendSelection) {
+      this.#secondarySelections = []
       if (this.#selectionAnchor === null) this.#selectionAnchor = this.#currentPos()
       this.#selectionFocus = next
     } else {
@@ -878,12 +969,8 @@ export class EditorPane extends UiSurface {
   }
 
   async #copySelectionOrCurrentLine(): Promise<boolean> {
-    return await copyTextSelectionOrFallback({
-      lines: this.#lines,
-      anchor: this.#selectionAnchor,
-      focus: this.#selectionFocus,
-      fallbackText: this.#lines[this.#cline] ?? "",
-    })
+    const selected = this.#selectedText()
+    return await writeClipboardText(selected ?? this.#lines[this.#cline] ?? "", "clipboard copy")
   }
 
   async #cutSelectionOrCurrentLine(): Promise<boolean> {
@@ -911,11 +998,9 @@ export class EditorPane extends UiSurface {
   }
 
   async #copySelectedTextToClipboard(): Promise<boolean> {
-    return await copySelectedText({
-      lines: this.#lines,
-      anchor: this.#selectionAnchor,
-      focus: this.#selectionFocus,
-    })
+    const selected = this.#selectedText()
+    if (selected === null) return false
+    return await writeClipboardText(selected, "clipboard copy")
   }
 
   async #cutSelectedTextToClipboard(): Promise<boolean> {
@@ -963,18 +1048,22 @@ export class EditorPane extends UiSurface {
     if (this.#beginFrameInteraction(_event, localX, localY)) return
     const pos = this.#positionFromLocal(localX, localY)
     if (pos === null) return
+    const additiveSelection = isAdditiveSelectionPointer(_event)
     if (_event.detail >= 2 && !_event.shiftKey) {
-      this.#selectWordAt(pos)
+      this.#selectWordAt(pos, additiveSelection)
       return
     }
     this.#dragSelecting = true
     this.#dragExtendsSelection = _event.shiftKey
+    this.#dragAddsSelection = additiveSelection && !_event.shiftKey
     this.#dragAnchorLocalX = localX
     this.#dragAnchorLocalY = localY
     this.#pauseCursorBlinkForSelection()
     if (_event.shiftKey) {
       this.#setCursorPosition(pos, {extendSelection: true})
     } else {
+      if (this.#dragAddsSelection) this.#addCurrentSelectionToSecondary()
+      else this.#secondarySelections = []
       const next = this.#clampPosition(pos)
       const prevLeft = this.#scrollLeftPx
       const prevTop = this.#scrollTopPx
@@ -989,14 +1078,16 @@ export class EditorPane extends UiSurface {
     this.#pingCursor()
   }
 
-  #selectWordAt(pos: CursorPos): void {
+  #selectWordAt(pos: CursorPos, additive = false): void {
     const next = this.#clampPosition(pos)
     const line = this.#lines[next.line] ?? ""
     const word = wordRangeAt(line, next.col, isEditorWordChar)
     if (word === null) {
-      this.#setCursorPosition(next, {extendSelection: false})
+      if (!additive) this.#setCursorPosition(next, {extendSelection: false})
       return
     }
+    if (additive) this.#addCurrentSelectionToSecondary()
+    else this.#secondarySelections = []
     this.#applyDragSelection({line: next.line, col: word.start}, {line: next.line, col: word.end})
   }
 
@@ -1086,7 +1177,10 @@ export class EditorPane extends UiSurface {
     const wasDragSelecting = this.#dragSelecting
     if (this.#dragSelecting) this.#updateDragSelection(localX, localY)
     this.#dragSelecting = false
-    if (this.#selectionRange() === null) this.#clearSelectionState()
+    if (this.#selectionRange() === null) {
+      if (this.#secondarySelections.length > 0) this.#clearPrimarySelectionState()
+      else this.#clearSelectionState()
+    }
     if (wasDragSelecting) this.#resumeCursorBlinkAfterSelection()
     this.#requestInteractiveRender(prevLeft, prevTop)
   }
@@ -1121,6 +1215,10 @@ export class EditorPane extends UiSurface {
       ccol: this.#ccol,
       selectionAnchor: this.#selectionAnchor === null ? null : {...this.#selectionAnchor},
       selectionFocus: this.#selectionFocus === null ? null : {...this.#selectionFocus},
+      secondarySelections: this.#secondarySelections.map((selection) => ({
+        anchor: {...selection.anchor},
+        focus: {...selection.focus},
+      })),
     }
   }
 
@@ -1136,6 +1234,10 @@ export class EditorPane extends UiSurface {
     this.#ccol = s.ccol
     this.#selectionAnchor = s.selectionAnchor === null ? null : {...s.selectionAnchor}
     this.#selectionFocus = s.selectionFocus === null ? null : {...s.selectionFocus}
+    this.#secondarySelections = s.secondarySelections.map((selection) => ({
+      anchor: {...selection.anchor},
+      focus: {...selection.focus},
+    }))
   }
 
   #undo(): void {
@@ -1157,6 +1259,7 @@ export class EditorPane extends UiSurface {
   #selectAll(): void {
     const endLine = this.#lines.length - 1
     const endCol = this.#lines[endLine]?.length ?? 0
+    this.#secondarySelections = []
     this.#selectionAnchor = {line: 0, col: 0}
     this.#selectionFocus = {line: endLine, col: endCol}
     this.#cline = endLine
@@ -1919,8 +2022,12 @@ export class EditorPane extends UiSurface {
   }
 
   #renderSelectionForLine(lineIndex: number, lineText: string, codeStartX: number, rowY: number, codeMaxPx: number): void {
-    const range = this.#selectionRange()
-    if (range === null) return
+    for (const selection of this.#selectionSlots()) {
+      this.#renderSelectionRangeForLine(selection.range, lineIndex, lineText, codeStartX, rowY, codeMaxPx)
+    }
+  }
+
+  #renderSelectionRangeForLine(range: SelectionRange, lineIndex: number, lineText: string, codeStartX: number, rowY: number, codeMaxPx: number): void {
     if (lineIndex < range.start.line || lineIndex > range.end.line) return
 
     const startCol = lineIndex === range.start.line ? range.start.col : 0
@@ -1948,24 +2055,27 @@ export class EditorPane extends UiSurface {
   }
 
   #isPointInSelection(localX: number, localY: number): boolean {
-    const range = this.#selectionRange()
-    if (range === null) return false
     const lineIndex = this.#lineFromLocalY(localY)
-    if (lineIndex === null || lineIndex < range.start.line || lineIndex > range.end.line) return false
+    if (lineIndex === null) return false
     const lineText = this.#lines[lineIndex] ?? ""
     const codeStartX = this.#codeStartX()
     const codeMaxPx = this.#codeMaxPx()
-    const startCol = lineIndex === range.start.line ? range.start.col : 0
-    const endCol = lineIndex === range.end.line ? range.end.col : lineText.length
-    let x1 = codeStartX + this.#colToPx(lineText, startCol) - this.#scrollLeftPx
-    let x2 = codeStartX + this.#colToPx(lineText, endCol) - this.#scrollLeftPx
-    if (lineIndex < range.end.line && endCol === lineText.length) x2 += Math.max(5, this.#getCharWidth() * 0.65)
-    if (lineText.length === 0 && lineIndex > range.start.line && lineIndex < range.end.line) x2 = x1 + Math.max(5, this.#getCharWidth() * 0.65)
-    const minX = codeStartX
-    const maxX = codeStartX + codeMaxPx
-    x1 = Math.max(minX, Math.min(maxX, x1))
-    x2 = Math.max(minX, Math.min(maxX, x2))
-    return localX >= Math.min(x1, x2) && localX <= Math.max(x1, x2)
+    for (const selection of this.#selectionSlots()) {
+      const range = selection.range
+      if (lineIndex < range.start.line || lineIndex > range.end.line) continue
+      const startCol = lineIndex === range.start.line ? range.start.col : 0
+      const endCol = lineIndex === range.end.line ? range.end.col : lineText.length
+      let x1 = codeStartX + this.#colToPx(lineText, startCol) - this.#scrollLeftPx
+      let x2 = codeStartX + this.#colToPx(lineText, endCol) - this.#scrollLeftPx
+      if (lineIndex < range.end.line && endCol === lineText.length) x2 += Math.max(5, this.#getCharWidth() * 0.65)
+      if (lineText.length === 0 && lineIndex > range.start.line && lineIndex < range.end.line) x2 = x1 + Math.max(5, this.#getCharWidth() * 0.65)
+      const minX = codeStartX
+      const maxX = codeStartX + codeMaxPx
+      x1 = Math.max(minX, Math.min(maxX, x1))
+      x2 = Math.max(minX, Math.min(maxX, x2))
+      if (localX >= Math.min(x1, x2) && localX <= Math.max(x1, x2)) return true
+    }
+    return false
   }
 
   #renderSelectionMenu(): void {
@@ -2298,6 +2408,21 @@ function pointInRect(x: number, y: number, rect: {x: number; y: number; w: numbe
 
 function isSecondaryPointer(event: MouseEvent): boolean {
   return event.button === 2 || (event.ctrlKey && event.button === 0)
+}
+
+function isAdditiveSelectionPointer(event: MouseEvent): boolean {
+  return event.altKey || event.metaKey
+}
+
+function copySelectionRange(range: TextSelectionRange): TextSelectionRange {
+  return {
+    start: {...range.start},
+    end: {...range.end},
+  }
+}
+
+function sameSelectionRange(a: TextSelectionRange, b: TextSelectionRange): boolean {
+  return sameTextPosition(a.start, b.start) && sameTextPosition(a.end, b.end)
 }
 
 function isEditorWordChar(ch: string): boolean {

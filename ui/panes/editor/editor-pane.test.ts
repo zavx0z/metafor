@@ -19,6 +19,15 @@ describe("EditorPane selection", () => {
           end: {line: 1, col: 2},
         },
         text: "pha\nbe",
+        selections: [{
+          anchor: {line: 0, col: 2},
+          focus: {line: 1, col: 2},
+          range: {
+            start: {line: 0, col: 2},
+            end: {line: 1, col: 2},
+          },
+          text: "pha\nbe",
+        }],
       })
     } finally {
       editor.dispose()
@@ -43,6 +52,15 @@ describe("EditorPane selection", () => {
           end: {line: 0, col: 4},
         },
         text: "lph",
+        selections: [{
+          anchor: {line: 0, col: 1},
+          focus: {line: 0, col: 4},
+          range: {
+            start: {line: 0, col: 1},
+            end: {line: 0, col: 4},
+          },
+          text: "lph",
+        }],
       })
     } finally {
       editor.dispose()
@@ -202,6 +220,52 @@ describe("EditorPane selection", () => {
     }
   })
 
+  test("adds word selections with alt double click", () => {
+    const editor = new EditorPane()
+    try {
+      editor.setText("alpha beta gamma")
+      const y = firstEditorLineY()
+
+      editor.onPointerDown({shiftKey: false, altKey: false, detail: 2} as MouseEvent, 60, y)
+      editor.onPointerUp({shiftKey: false, altKey: false, detail: 2} as MouseEvent, 60, y)
+      editor.onPointerDown({shiftKey: false, altKey: true, detail: 2} as MouseEvent, 30, y)
+      editor.onPointerUp({shiftKey: false, altKey: true, detail: 2} as MouseEvent, 30, y)
+
+      const snapshot = editor.getSelectionSnapshot()
+      expect(snapshot.text).toBe("beta")
+      expect(editor.getSelectedText()).toBe("alpha\nbeta")
+      expect(snapshot.selections.length).toBe(2)
+      expect(snapshot.selections.map((selection) => selection.text)).toEqual(["alpha", "beta"])
+      expect(snapshot.range).toEqual({start: {line: 0, col: 6}, end: {line: 0, col: 10}})
+    } finally {
+      editor.dispose()
+    }
+  })
+
+  test("adds dragged selections while alt is held", () => {
+    const editor = new EditorPane()
+    try {
+      editor.setText("abcdef ghijkl")
+      setEditorTestSize(editor)
+      editor.setSelection(0, 1, 0, 4)
+      const codeX = firstEditorCodeX()
+      const charW = 13 * 0.62
+      const y = firstEditorLineY()
+
+      editor.onPointerDown({shiftKey: false, altKey: true} as MouseEvent, codeX + charW * 8.1, y)
+      editor.onPointerMove({shiftKey: false, altKey: true} as MouseEvent, codeX + charW * 11.2, y)
+      editor.onPointerUp({shiftKey: false, altKey: true} as MouseEvent, codeX + charW * 11.2, y)
+
+      const snapshot = editor.getSelectionSnapshot()
+      expect(snapshot.text).toBe("hij")
+      expect(editor.getSelectedText()).toBe("bcd\nhij")
+      expect(snapshot.selections.map((selection) => selection.text)).toEqual(["bcd", "hij"])
+      expect(snapshot.range).toEqual({start: {line: 0, col: 8}, end: {line: 0, col: 11}})
+    } finally {
+      editor.dispose()
+    }
+  })
+
   test("replaces selection when inserting text", () => {
     const editor = new EditorPane()
     try {
@@ -235,6 +299,10 @@ function firstEditorLineY(): number {
 
 function firstEditorCodeX(): number {
   return 54
+}
+
+function setEditorTestSize(editor: EditorPane): void {
+  Object.assign(editor as unknown as {rectW: number; rectH: number}, {rectW: 520, rectH: 260})
 }
 
 function pressEnter(editor: EditorPane): void {

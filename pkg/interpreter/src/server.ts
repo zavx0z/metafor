@@ -1009,6 +1009,7 @@ function runtimeFallbackContext(module: ModuleSnapshot): JsonObject {
       identity: null,
       cursor,
       selection: null,
+      selections: [],
     },
     activeFrameIndex: frame === null ? null : 0,
     currentFrame: frame === null ? null : {

@@ -228,6 +228,7 @@ type SourceSelectionContext = {
 type SourceInteractionContext = {
   cursor: SourceContextPosition
   selection: SourceSelectionContext | null
+  selections: SourceSelectionContext[]
 }
 type ModuleCurrentContext = {
   processId: string
@@ -247,6 +248,7 @@ type ModuleCurrentContext = {
     dirty: boolean
     cursor: SourceContextPosition
     selection: SourceSelectionContext | null
+    selections: SourceSelectionContext[]
   }
   activeFrameIndex: number | null
   currentFrame: Pick<FrameSnapshot, "index" | "function" | "url" | "line" | "column" | "sourceKind" | "scriptId"> | null
@@ -421,6 +423,7 @@ type ProcessWorkspaceInfo = {
       dirty: boolean
       cursor: SourceContextPosition | null
       selection: SourceSelectionContext | null
+      selections: SourceSelectionContext[]
     }
     context: ModuleCurrentContext | null
     activeFrameIndex: number | null
@@ -1732,6 +1735,7 @@ function processWorkspaceInfo(moduleId: string, display: ModuleDisplayInfo | nul
         dirty: controller?.sourceDirty ?? false,
         cursor: controller?.sourceContext.cursor ?? null,
         selection: controller?.sourceContext.selection ?? null,
+        selections: controller?.sourceContext.selections ?? [],
       },
       context: controller === undefined ? null : moduleCurrentContextPayload(controller),
       activeFrameIndex: controller?.activeFrameIndex ?? null,
@@ -1763,6 +1767,7 @@ function emptySourceInteractionContext(): SourceInteractionContext {
   return {
     cursor: {line: 1, column: 0},
     selection: null,
+    selections: [],
   }
 }
 
@@ -1774,6 +1779,13 @@ function sourceContextPosition(pos: {line: number; col: number}): SourceContextP
 }
 
 function sourceContextFromEditorSnapshot(snapshot: EditorSelectionSnapshot): SourceInteractionContext {
+  const selections = snapshot.selections.map((selection) => ({
+    anchor: sourceContextPosition(selection.anchor),
+    focus: sourceContextPosition(selection.focus),
+    start: sourceContextPosition(selection.range.start),
+    end: sourceContextPosition(selection.range.end),
+    text: selection.text,
+  }))
   return {
     cursor: sourceContextPosition(snapshot.cursor),
     selection: snapshot.range === null || snapshot.anchor === null || snapshot.focus === null
@@ -1785,6 +1797,7 @@ function sourceContextFromEditorSnapshot(snapshot: EditorSelectionSnapshot): Sou
           end: sourceContextPosition(snapshot.range.end),
           text: snapshot.text,
         },
+    selections,
   }
 }
 
@@ -1825,6 +1838,7 @@ function moduleCurrentContextPayload(controller: ModuleDisplayController): Modul
       dirty: controller.sourceDirty,
       cursor: controller.sourceContext.cursor,
       selection: controller.sourceContext.selection,
+      selections: controller.sourceContext.selections,
     },
     activeFrameIndex: controller.activeFrameIndex,
     currentFrame: currentFrameContext(currentFrame),
