@@ -6,6 +6,7 @@ import type {JsonObject} from "./types.ts"
 export type CommandContext = {
   client: ProtocolClient
   snapshots: SnapshotStore
+  setBreakpointsActive?: (active: boolean) => Promise<unknown> | unknown
 }
 
 export async function executeCommand(context: CommandContext, command: JsonObject, cmd: string): Promise<unknown> {
@@ -20,6 +21,13 @@ export async function executeCommand(context: CommandContext, command: JsonObjec
       return await context.client.request("Debugger.pause")
     case "resume":
       return await resumeCommand(context)
+    case "breakpointsActive":
+    case "setBreakpointsActive":
+      return await setBreakpointsActiveCommand(context, command)
+    case "muteBreakpoints":
+      return await setBreakpointsActive(context, false)
+    case "unmuteBreakpoints":
+      return await setBreakpointsActive(context, true)
     case "frames":
       return {
         paused: context.snapshots.paused,
@@ -116,4 +124,16 @@ async function resumeCommand(context: CommandContext): Promise<unknown> {
   const result = await context.client.request("Debugger.resume")
   context.snapshots.markRunning()
   return result
+}
+
+async function setBreakpointsActiveCommand(context: CommandContext, command: JsonObject): Promise<unknown> {
+  const active = asBoolean(command["active"])
+  if (active === undefined) throw new Error("breakpoints active must be a boolean")
+  return await setBreakpointsActive(context, active)
+}
+
+async function setBreakpointsActive(context: CommandContext, active: boolean): Promise<unknown> {
+  if (context.setBreakpointsActive !== undefined) return await context.setBreakpointsActive(active)
+  const result = await context.client.request("Debugger.setBreakpointsActive", {active})
+  return {active, result}
 }

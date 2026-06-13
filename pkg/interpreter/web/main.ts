@@ -150,6 +150,7 @@ type ModulePaneSnapshot = {
   protocolUrl: string
   connection: ConnectionInfo
   paused: boolean
+  breakpointsActive: boolean
   scriptCount: number
   hasDump: boolean
   dump: InterpreterDump | null
@@ -409,6 +410,7 @@ type ProcessWorkspaceInfo = {
     protocolUrl: string
     connection: ConnectionInfo
     paused: boolean
+    breakpointsActive: boolean
     scriptCount: number
     hasDump: boolean
     target: Omit<ModulePaneSnapshot["target"], "output"> & {
@@ -442,6 +444,7 @@ type ProcessWorkspaceInfo = {
     pause: boolean
     resume: boolean
     step: boolean
+    setBreakpointsActive: boolean
     evaluate: boolean
     sourceOpen: boolean
     restart: boolean
@@ -1044,6 +1047,19 @@ async function runProcessAction(params: unknown): Promise<unknown> {
       reply = await runModuleInterpreterCommand(controller, "step", {kind}, kind === "over" ? t("stepOver") : kind === "into" ? t("stepInto") : t("stepOut"))
       break
     }
+    case "breakpointsActive":
+    case "setBreakpointsActive": {
+      const active = booleanParam(actionParams["active"])
+      if (active === undefined) throw new Error("breakpoints active must be a boolean")
+      reply = await runModuleInterpreterCommand(controller, "setBreakpointsActive", {active}, active ? t("unmuteBreakpoints") : t("muteBreakpoints"))
+      break
+    }
+    case "muteBreakpoints":
+      reply = await runModuleInterpreterCommand(controller, "muteBreakpoints", {}, t("muteBreakpoints"))
+      break
+    case "unmuteBreakpoints":
+      reply = await runModuleInterpreterCommand(controller, "unmuteBreakpoints", {}, t("unmuteBreakpoints"))
+      break
     case "eval":
     case "evaluate":
       reply = await evaluateInterpreterExpression(controller, actionParams)
@@ -1719,6 +1735,7 @@ function processWorkspaceInfo(moduleId: string, display: ModuleDisplayInfo | nul
       protocolUrl: module.protocolUrl,
       connection: module.connection,
       paused: module.paused,
+      breakpointsActive: module.breakpointsActive,
       scriptCount: module.scriptCount,
       hasDump: module.hasDump,
       target: {
@@ -1753,6 +1770,7 @@ function processWorkspaceInfo(moduleId: string, display: ModuleDisplayInfo | nul
       pause: commandIdle && connected && targetRunning && !module.paused,
       resume: commandIdle && pausedWithContext,
       step: commandIdle && pausedWithContext,
+      setBreakpointsActive: commandIdle && connected,
       evaluate: commandIdle && controller !== undefined && canAcceptTerminalInput(controller),
       sourceOpen: controller !== undefined,
       restart: commandIdle && module.target.command.length > 0,
@@ -6687,10 +6705,13 @@ function updateModuleHeaderControls(controller: ModuleDisplayController, module:
   const canPause = commandIdle && canControlExecution && !module.paused
   const canResume = commandIdle && canControlExecution && module.paused
   const canStep = commandIdle && canControlExecution && module.paused
+  const canToggleBreakpointsActive = commandIdle && contextConnected
   const canRestart = commandIdle && module.target.command.length > 0
   const canStop = commandIdle && targetRunning
   const canShowExecutionPoint = commandIdle && canControlExecution && module.paused && controller.dump !== undefined && controller.dump.frames.length > 0
   const actionUnavailableTooltip = t("runtimeActionUnavailable")
+  const breakpointsActive = module.breakpointsActive
+  const nextBreakpointsActive = !breakpointsActive
 
   controller.terminal.setHeaderControls({
     primary: [
@@ -6735,8 +6756,21 @@ function updateModuleHeaderControls(controller: ModuleDisplayController, module:
         tone: stepButtonTone(runKind),
         disabled: !canStep,
         disabledTooltip: actionUnavailableTooltip,
-        dividerAfter: true,
         action: () => void runModuleInterpreterCommand(controller, "step", {kind: "out"}, t("stepOut")),
+      },
+      {
+        label: breakpointsActive ? t("muteBreakpoints") : t("unmuteBreakpoints"),
+        iconSrc: breakpointsActive ? uiIcons.breakpointMute : uiIcons.breakpoint,
+        tone: breakpointsActive ? "neutral" : "warn",
+        disabled: !canToggleBreakpointsActive,
+        disabledTooltip: actionUnavailableTooltip,
+        dividerAfter: true,
+        action: () => void runModuleInterpreterCommand(
+          controller,
+          nextBreakpointsActive ? "unmuteBreakpoints" : "muteBreakpoints",
+          {},
+          nextBreakpointsActive ? t("unmuteBreakpoints") : t("muteBreakpoints"),
+        ),
       },
       {
         label: t("restartTarget"),

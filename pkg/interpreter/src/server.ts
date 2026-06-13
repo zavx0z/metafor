@@ -325,7 +325,11 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
         const result = await executeCommand({
           client: module.client,
           snapshots: module.snapshots,
+          setBreakpointsActive: (active) => module.runtime.setBreakpointsActive(active),
         }, params, cmd)
+        if (cmd === "breakpointsActive" || cmd === "setBreakpointsActive" || cmd === "muteBreakpoints" || cmd === "unmuteBreakpoints") {
+          broadcast({type: "module", module: module.snapshot()})
+        }
         ws.send(JSON.stringify({type: "result", requestId, ok: true, result}))
       } catch (error) {
         ws.send(JSON.stringify({type: "result", requestId, ok: false, error: serializeError(error)}))
@@ -741,7 +745,7 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "GET", path: "/processes/:id", description: "рабочий payload process: content + runtime/ui state/capabilities"},
     {method: "POST", path: "/processes/:id/focus", description: "сфокусировать конкретный process"},
     {method: "DELETE", path: "/processes/:id", description: "остановить runtime process и убрать его display из Space"},
-    {method: "POST", path: "/processes/:id/action", description: "{action, params?} — выполнить pause|resume|step|evaluate|source.open|source.openSelection|restart|stop|close|showExecutionPoint"},
+    {method: "POST", path: "/processes/:id/action", description: "{action, params?} — выполнить pause|resume|step|setBreakpointsActive|muteBreakpoints|unmuteBreakpoints|evaluate|source.open|source.openSelection|restart|stop|close|showExecutionPoint"},
     {method: "GET", path: "/processes/:id/context", description: "текущий context конкретного process"},
     {method: "GET", path: "/processes/:id/modules?q=<text>&limit=<n>", description: "каталог кода в контексте process"},
     {method: "GET", path: "/processes/:id/source?scriptId=<id>", description: "исходник в контексте process"},
@@ -1147,6 +1151,7 @@ function processPayload(snapshot: ModuleSnapshot): JsonObject {
       protocolUrl: snapshot.protocolUrl,
       connection: snapshot.connection,
       paused: snapshot.paused,
+      breakpointsActive: snapshot.breakpointsActive,
       scriptCount: snapshot.scriptCount,
       hasDump: snapshot.hasDump,
       target: snapshot.target,

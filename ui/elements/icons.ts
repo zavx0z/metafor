@@ -26,6 +26,8 @@ const applySvg = iconSvg("<path d=\"m5 13 4 4L19 7\"/>")
 const languageSvg = iconSvg("<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M3 12h18\"/><path d=\"M12 3a14 14 0 0 1 0 18\"/><path d=\"M12 3a14 14 0 0 0 0 18\"/>")
 const copySvg = iconSvg("<path d=\"M9 9h10v10H9z\"/><path d=\"M5 15V5h10\"/>")
 const executionPointSvg = iconSvg("<path d=\"M12 3v4\"/><path d=\"M12 17v4\"/><path d=\"M3 12h4\"/><path d=\"M17 12h4\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/>")
+const breakpointSvg = iconSvg("<circle cx=\"12\" cy=\"12\" r=\"6\"/><path d=\"M12 6v12\"/><path d=\"M6 12h12\"/>")
+const breakpointMuteSvg = iconSvg("<circle cx=\"12\" cy=\"12\" r=\"6\"/><path d=\"M4 4l16 16\"/>")
 const expandSvg = iconSvg("<path d=\"M8 3H3v5\"/><path d=\"M16 3h5v5\"/><path d=\"M21 16v5h-5\"/><path d=\"M3 16v5h5\"/><path d=\"M3 3l6 6\"/><path d=\"M21 3l-6 6\"/><path d=\"M21 21l-6-6\"/><path d=\"M3 21l6-6\"/>")
 const collapseSvg = iconSvg("<path d=\"M9 3v6H3\"/><path d=\"M15 3v6h6\"/><path d=\"M21 15h-6v6\"/><path d=\"M3 15h6v6\"/>")
 const plusSvg = iconSvg("<path d=\"M12 5v14\"/><path d=\"M5 12h14\"/>")
@@ -54,6 +56,8 @@ export const uiIcons = {
   language: languageSvg,
   copy: copySvg,
   executionPoint: executionPointSvg,
+  breakpoint: breakpointSvg,
+  breakpointMute: breakpointMuteSvg,
   expand: expandSvg,
   collapse: collapseSvg,
   plus: plusSvg,

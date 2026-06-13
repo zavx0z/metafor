@@ -71,6 +71,22 @@ describe("executeCommand", () => {
     expect(markedRunning).toBe(true)
   })
 
+  test("toggles breakpoint activation without removing breakpoints", async () => {
+    const activeStates: boolean[] = []
+    const ctx = context({
+      setBreakpointsActive(active: boolean): unknown {
+        activeStates.push(active)
+        return {active}
+      },
+    })
+
+    const result = await executeCommand(ctx, {active: false}, "setBreakpointsActive")
+
+    expect(result).toEqual({active: false})
+    expect(activeStates).toEqual([false])
+    expect((ctx.client as never as {requests: unknown[]}).requests).toEqual([])
+  })
+
   test("steps over by continuing to the next source location in the current frame", async () => {
     let markedRunning = false
     const ctx = context({
