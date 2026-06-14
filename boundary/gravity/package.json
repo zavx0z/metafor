@@ -1,9 +1,0 @@
-{
-  "name": "@boundary/gravity",
-  "type": "module",
-  "main": "index.ts",
-  "private": true,
-  "dependencies": {
-    "store": "workspace:*"
-  }
-}

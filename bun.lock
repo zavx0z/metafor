@@ -20,38 +20,38 @@
     "app/application": {
       "name": "@app/application",
       "dependencies": {
-        "@metafor/boundary": "workspace:*",
+        "@metafor/energy": "workspace:*",
         "@metafor/dark": "workspace:*",
         "store": "workspace:*",
       },
     },
-    "boundary": {
-      "name": "@metafor/boundary",
+    "energy": {
+      "name": "@metafor/energy",
       "version": "0.0.1",
       "dependencies": {
-        "@boundary/gravity": "workspace:*",
-        "@boundary/strong": "workspace:*",
-        "@boundary/weak": "workspace:*",
+        "@energy/gravity": "workspace:*",
+        "@energy/strong": "workspace:*",
+        "@energy/weak": "workspace:*",
         "store": "workspace:*",
       },
     },
-    "boundary/gravity": {
-      "name": "@boundary/gravity",
+    "energy/gravity": {
+      "name": "@energy/gravity",
       "dependencies": {
         "store": "workspace:*",
       },
     },
-    "boundary/strong": {
-      "name": "@boundary/strong",
+    "energy/strong": {
+      "name": "@energy/strong",
       "dependencies": {
-        "@boundary/gravity": "workspace:*",
+        "@energy/gravity": "workspace:*",
       },
     },
-    "boundary/weak": {
-      "name": "@boundary/weak",
+    "energy/weak": {
+      "name": "@energy/weak",
       "dependencies": {
-        "@boundary/gravity": "workspace:*",
-        "@boundary/strong": "workspace:*",
+        "@energy/gravity": "workspace:*",
+        "@energy/strong": "workspace:*",
       },
     },
     "bulk": {
@@ -828,11 +828,11 @@
   "packages": {
     "@app/application": ["@app/application@workspace:app/application"],
 
-    "@boundary/gravity": ["@boundary/gravity@workspace:boundary/gravity"],
+    "@energy/gravity": ["@energy/gravity@workspace:energy/gravity"],
 
-    "@boundary/strong": ["@boundary/strong@workspace:boundary/strong"],
+    "@energy/strong": ["@energy/strong@workspace:energy/strong"],
 
-    "@boundary/weak": ["@boundary/weak@workspace:boundary/weak"],
+    "@energy/weak": ["@energy/weak@workspace:energy/weak"],
 
     "@bulk/em": ["@bulk/em@workspace:bulk/em"],
 
@@ -854,7 +854,7 @@
 
     "@metafor/android": ["@metafor/android@workspace:pkg/android"],
 
-    "@metafor/boundary": ["@metafor/boundary@workspace:boundary"],
+    "@metafor/energy": ["@metafor/energy@workspace:energy"],
 
     "@metafor/bulk": ["@metafor/bulk@workspace:bulk"],
 

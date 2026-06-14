@@ -1,0 +1,9 @@
+{
+  "name": "@energy/strong",
+  "type": "module",
+  "main": "index.ts",
+  "private": true,
+  "dependencies": {
+    "@energy/gravity": "workspace:*"
+  }
+}

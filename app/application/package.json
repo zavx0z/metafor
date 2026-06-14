@@ -3,14 +3,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "interpreter": "cd ../.. && INTERPRETER_HTTP_PORT=6510 BUN_PROTOCOL_URL=ws://127.0.0.1:6511/ INTERPRETER_DUMP_PATH=app/application/tmp/interpreter/state.json bun --hot run pkg/interpreter/interpreter.ts app/application/dark.server.ts -env.STORE_PATH=app/application/tmp/dark.sqlite app/application/boundary.server.ts -env.STORE_PATH=app/application/tmp/boundary.sqlite app/application/tmp/dark.sqlite app/application/tmp/boundary.sqlite",
+    "interpreter": "cd ../.. && INTERPRETER_HTTP_PORT=6510 BUN_PROTOCOL_URL=ws://127.0.0.1:6511/ INTERPRETER_DUMP_PATH=app/application/tmp/interpreter/state.json bun --hot run pkg/interpreter/interpreter.ts app/application/dark.server.ts -env.STORE_PATH=app/application/tmp/dark.sqlite app/application/energy.server.ts -env.STORE_PATH=app/application/tmp/energy.sqlite app/application/tmp/dark.sqlite app/application/tmp/energy.sqlite",
     "dev": "bun run interpreter",
     "dark": "STORE_PATH=tmp/dark.sqlite bun --hot dark.server.ts",
-    "boundary": "STORE_PATH=tmp/boundary.sqlite bun --hot boundary.server.ts"
+    "energy": "STORE_PATH=tmp/energy.sqlite bun --hot energy.server.ts"
   },
   "dependencies": {
     "@metafor/dark": "workspace:*",
-    "@metafor/boundary": "workspace:*",
+    "@metafor/energy": "workspace:*",
     "store": "workspace:*"
   }
 }

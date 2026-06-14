@@ -43,15 +43,15 @@ describe("interpreter module CLI", () => {
     const targets = startupTargetsFromArgs([
       "dark/server.spec.ts",
       "-timeout=2147483647",
-      "boundary/server.spec.ts",
-      "dark/tmp/boundary.sqlite",
+      "energy/server.spec.ts",
+      "dark/tmp/energy.sqlite",
     ], cwd)
 
     expect(targets.modules.map((module) => module.label)).toEqual([
       "dark/server.spec.ts",
-      "boundary/server.spec.ts",
+      "energy/server.spec.ts",
     ])
-    expect(targets.sqliteDatabases).toEqual([join(cwd, "dark/tmp/boundary.sqlite")])
+    expect(targets.sqliteDatabases).toEqual([join(cwd, "dark/tmp/energy.sqlite")])
   })
 
   test("rejects params before the first module path", () => {
