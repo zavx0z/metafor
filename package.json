@@ -41,7 +41,7 @@
   "scripts": {
     "interpreter": "bun --hot run pkg/interpreter/interpreter.ts",
     "interpreter:dark-server": "bun --hot run pkg/interpreter/interpreter.ts dark/server.spec.ts -timeout=2147483647",
-    "interpreter:multi": "bun --hot run pkg/interpreter/interpreter.ts dark/server.spec.ts -timeout=2147483647 energy/server.spec.ts dark/tmp/energy.sqlite",
+    "interpreter:multi": "bun --hot run pkg/interpreter/interpreter.ts dark/server.spec.ts -timeout=2147483647 energy/server.spec.ts dark/tmp/boundary.sqlite",
     "workspace.app.web": "bun --hot run pkg/interpreter/interpreter.ts app/web/server.ts app/web/tmp/metafor-app.sqlite",
     "workspace.application": "INTERPRETER_HTTP_PORT=6510 BUN_PROTOCOL_URL=ws://127.0.0.1:6511/ INTERPRETER_DUMP_PATH=app/application/tmp/interpreter/state.json bun --hot run pkg/interpreter/interpreter.ts app/application/energy.server.ts -env.BOUNDARY_PATH=app/application/tmp/energy.sqlite app/application/dark.server.ts -env.BOUNDARY_PATH=app/application/tmp/dark.sqlite app/application/tmp/dark.sqlite app/application/tmp/energy.sqlite",
     "voice:assets": "bun --filter @metafor/voice assets",
