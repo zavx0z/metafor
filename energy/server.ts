@@ -1,14 +1,11 @@
-import {open} from "@metafor/boundary/sqlite"
-import type {Boundary} from "@metafor/boundary"
+import {force, type ForceSurface} from "@metafor/boundary"
 
-const BOUNDARY_PATH = process.env.BOUNDARY_PATH ?? "./energy.sqlite"
+;(globalThis as typeof globalThis & {force: ForceSurface}).force = force
 
-;(globalThis as typeof globalThis & {boundary: Boundary}).boundary = await open(BOUNDARY_PATH)
-
-const shutdown = async (): Promise<void> => {
-  await globalThis.boundary.close()
+const shutdown = (): void => {
+  force.close()
   process.exit(0)
 }
 
-process.on("SIGINT", () => void shutdown())
-process.on("SIGTERM", () => void shutdown())
+process.on("SIGINT", shutdown)
+process.on("SIGTERM", shutdown)

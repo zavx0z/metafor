@@ -4,7 +4,7 @@ import {open} from "@metafor/boundary/sqlite"
  * Server bootstrap Dark: открывает SQLite boundary и корректно закрывает его
  * при остановке процесса. Протокольные сигналы рождаются в ORM.
  */
-const BOUNDARY_PATH = process.env.BOUNDARY_PATH ?? "./dark.sqlite"
+const BOUNDARY_PATH = process.env.BOUNDARY_PATH ?? "./boundary.sqlite"
 
 globalThis.boundary = await open(BOUNDARY_PATH)
 await import("./dark.ts")

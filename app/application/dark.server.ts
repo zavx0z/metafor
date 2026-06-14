@@ -3,7 +3,7 @@ import type {ServerWebSocket} from "bun"
 
 type ForceSocketData = {kind: "force"}
 
-const BOUNDARY_PATH = process.env.BOUNDARY_PATH ?? "./dark.sqlite"
+const BOUNDARY_PATH = process.env.BOUNDARY_PATH ?? "./boundary.sqlite"
 
 for (const path of [BOUNDARY_PATH, `${BOUNDARY_PATH}-wal`, `${BOUNDARY_PATH}-shm`]) rmSync(path, {force: true})
 
@@ -27,9 +27,8 @@ peer.addEventListener("message", (event) => {
   void boundary.absorb(JSON.parse(String(event.data)))
 })
 peer.addEventListener("error", () => peer.close())
-peer.addEventListener("open", () => {
-  boundary.emit({parts: [{part: "graviton", op: "test", path: "wimp", value: "zavx0z/git"}]})
-}, {once: true})
+
+boundary.emit({parts: [{part: "graviton", op: "test", path: "wimp", value: "zavx0z/git"}]})
 
 Bun.serve<ForceSocketData>({
   hostname: "127.0.0.1",

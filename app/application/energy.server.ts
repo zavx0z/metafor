@@ -1,32 +1,19 @@
-import {rmSync} from "node:fs"
 import type {ServerWebSocket} from "bun"
+import {force} from "@metafor/boundary"
 
 type ForceSocketData = {kind: "force"}
-
-const BOUNDARY_PATH = process.env.BOUNDARY_PATH ?? "./energy.sqlite"
-
-for (const path of [BOUNDARY_PATH, `${BOUNDARY_PATH}-wal`, `${BOUNDARY_PATH}-shm`]) rmSync(path, {force: true})
 
 await import("@metafor/energy/server")
 
 const port = Number(process.env.APPLICATION_ENERGY_PORT ?? 7102)
-const peerUrl = process.env.APPLICATION_DARK_URL
-const boundary = globalThis.boundary
 const sockets = new Set<ServerWebSocket<ForceSocketData>>()
-const peer = peerUrl ? new WebSocket(peerUrl) : null
 
-boundary.entropy((event) => {
+force.entropy((event) => {
   const payload = JSON.stringify(event.data)
   for (const socket of sockets) {
     if (socket.readyState === WebSocket.OPEN) socket.send(payload)
   }
-  if (peer?.readyState === WebSocket.OPEN) peer.send(payload)
 })
-
-peer?.addEventListener("message", (event) => {
-  void boundary.absorb(JSON.parse(String(event.data)))
-})
-peer?.addEventListener("error", () => peer.close())
 
 Bun.serve<ForceSocketData>({
   hostname: "127.0.0.1",
@@ -40,7 +27,7 @@ Bun.serve<ForceSocketData>({
       sockets.add(socket)
     },
     message(_socket, data) {
-      void boundary.absorb(JSON.parse(String(data)))
+      force.absorb(JSON.parse(String(data)))
     },
     close(socket) {
       sockets.delete(socket)
