@@ -1,7 +1,7 @@
 import { Wimp } from "@dark/strong"
 import type { DarkParticle } from "@dark/types"
-import { openDbMaterializationWriter, openDbSqliteBackend, type DbData } from "store/db"
-import { readDbSqliteData } from "store/db/fixture"
+import { openDbMaterializationWriter, openDbSqliteBackend, type DbData } from "@metafor/boundary/db"
+import { readDbSqliteData } from "@metafor/boundary/db/fixture"
 
 /**
  * Собирает плоский список всех `Wimp`, достижимых от корня.

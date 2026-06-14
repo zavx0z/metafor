@@ -1,12 +1,12 @@
-import {open} from "store/sqlite"
-import type {Store} from "store"
+import {open} from "@metafor/boundary/sqlite"
+import type {Boundary} from "@metafor/boundary"
 
-const STORE_PATH = process.env.STORE_PATH ?? "./energy.sqlite"
+const BOUNDARY_PATH = process.env.BOUNDARY_PATH ?? "./energy.sqlite"
 
-;(globalThis as typeof globalThis & {store: Store}).store = await open(STORE_PATH)
+;(globalThis as typeof globalThis & {boundary: Boundary}).boundary = await open(BOUNDARY_PATH)
 
 const shutdown = async (): Promise<void> => {
-  await globalThis.store.close()
+  await globalThis.boundary.close()
   process.exit(0)
 }
 

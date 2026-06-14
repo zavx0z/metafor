@@ -1,13 +1,9 @@
 {
-  "name": "@store/wimp",
-  "module": "index.ts",
+  "name": "@boundary/topology",
   "type": "module",
   "exports": {
     ".": "./index.ts",
     "./sqlite": "./sqlite/index.ts"
-  },
-  "dependencies": {
-    "@dark/types": "workspace:*"
   },
   "private": true
 }

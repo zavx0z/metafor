@@ -1,13 +1,13 @@
-import type {Actor, ActorRecord, ActorRoots, AnyValue, ActorFieldValue, ActorRows} from "@store/actor"
-import type {AnyTopology, TopologyInput, TopologyRecord} from "@store/topology"
-import type {Wimp, WimpCreateInput} from "@store/wimp/sqlite"
-import type {StoreUpdateMessage} from "./sqlite.ts"
+import type {Actor, ActorRecord, ActorRoots, AnyValue, ActorFieldValue, ActorRows} from "@boundary/actor"
+import type {AnyTopology, TopologyInput, TopologyRecord} from "@boundary/topology"
+import type {Wimp, WimpCreateInput} from "@boundary/wimp/sqlite"
+import type {BoundaryUpdateMessage} from "./sqlite.ts"
 import type {ForceSurface} from "./force.ts"
 
 export {METAFOR_FORCE_CHANNEL, force} from "./force.ts"
 export type {Force, ForceBinding, ForceMessage, ForceMessageListener, ForceSurface, ParticleOperation, Part, Particle} from "./force.ts"
 export {open} from "./sqlite.ts"
-export type {StorePart, StoreParticle, StoreUpdateMessage} from "./sqlite.ts"
+export type {BoundaryPart, BoundaryParticle, BoundaryUpdateMessage} from "./sqlite.ts"
 
 export interface WimpApi {
   /** Дешевая проверка существования декларации без создания ORM-объекта. */
@@ -15,7 +15,7 @@ export interface WimpApi {
 
   /**
    * Создаёт wimp-декларацию одним ORM-входом.
-   * Все параметры опциональны; Store после записи отправляет `particles`.
+   * Все параметры опциональны; Boundary после записи отправляет `particles`.
    */
   create(src: string, input?: WimpCreateInput): Promise<Wimp>
 
@@ -59,7 +59,7 @@ export interface TopologyApi {
   childrenOfActor(actorUuid: string): Promise<AnyTopology[]>
 }
 
-export interface Store extends ForceSurface {
+export interface Boundary extends ForceSurface {
   readonly wimp: WimpApi
   readonly actor: ActorApi
   readonly topology: TopologyApi

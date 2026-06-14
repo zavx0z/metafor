@@ -3,10 +3,10 @@ import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
 import {SQL} from "bun"
 import {open} from "./sqlite.ts"
-import type {StoreParticle} from "./sqlite.ts"
+import type {BoundaryParticle} from "./sqlite.ts"
 import type {Particle} from "./index.ts"
-import {BooleanValue, EnumValue} from "@store/actor"
-import type {Store} from "./index.ts"
+import {BooleanValue, EnumValue} from "@boundary/actor"
+import type {Boundary} from "./index.ts"
 
 const SRC = "owner/smoke"
 
@@ -15,21 +15,21 @@ const wimpPartSrc = (part: Particle): unknown => {
   return (part.value as {wimp?: {src?: unknown}}).wimp?.src
 }
 
-describe("store/sqlite smoke", () => {
-  let store: Store
+describe("boundary/sqlite smoke", () => {
+  let boundary: Boundary
   let sql: SQL
   let filename: string
 
   beforeEach(async () => {
     mkdirSync(join(import.meta.dir, "tmp"), {recursive: true})
-    filename = join(import.meta.dir, "tmp", `store-${crypto.randomUUID()}.sqlite`)
-    store = await open(filename)
+    filename = join(import.meta.dir, "tmp", `boundary-${crypto.randomUUID()}.sqlite`)
+    boundary = await open(filename)
     sql = new SQL(`sqlite://${filename}`)
   })
 
   afterEach(async () => {
     await sql.close()
-    await store.close()
+    await boundary.close()
     rmSync(filename, {force: true})
     rmSync(`${filename}-shm`, {force: true})
     rmSync(`${filename}-wal`, {force: true})
@@ -81,19 +81,19 @@ describe("store/sqlite smoke", () => {
 
   test("wimp.create пишет декларацию и отправляет graviton-сигнал source", async () => {
     const received: Particle[] = []
-    const subscription = store.observe((event) => {
+    const subscription = boundary.observe((event) => {
       received.push(...event.data.parts)
     })
 
     try {
-      await store.wimp.create(SRC, {
+      await boundary.wimp.create(SRC, {
         name: "smoke",
         mass: {title: "draft"},
         fields: [{key: "flag", type: "boolean", label: "Flag", default: false}],
         superposition: [{name: "idle"}],
       })
 
-      const meta = await store.wimp.get(SRC)
+      const meta = await boundary.wimp.get(SRC)
       if (!meta) throw new Error("meta missing")
       expect(await meta.name.get()).toBe("smoke")
       expect(await meta.mass.exists()).toBe(true)
@@ -118,22 +118,22 @@ describe("store/sqlite smoke", () => {
   test("observe поддерживает несколько независимых слушателей", async () => {
     const first: Particle[] = []
     const second: Particle[] = []
-    const firstSubscription = store.observe((event) => {
+    const firstSubscription = boundary.observe((event) => {
       first.push(...event.data.parts)
     })
-    const secondSubscription = store.observe((event) => {
+    const secondSubscription = boundary.observe((event) => {
       second.push(...event.data.parts)
     })
 
     try {
-      await store.wimp.create("owner/multi-a")
+      await boundary.wimp.create("owner/multi-a")
 
       expect(first.some((part) => part.part === "graviton" && part.path === "wimp" && wimpPartSrc(part) === "owner/multi-a")).toBe(true)
       expect(second.some((part) => part.part === "graviton" && part.path === "wimp" && wimpPartSrc(part) === "owner/multi-a")).toBe(true)
 
       const firstLength = first.length
       firstSubscription.close()
-      await store.wimp.create("owner/multi-b")
+      await boundary.wimp.create("owner/multi-b")
 
       expect(first).toHaveLength(firstLength)
       expect(second.some((part) => part.part === "graviton" && part.path === "wimp" && wimpPartSrc(part) === "owner/multi-b")).toBe(true)
@@ -144,7 +144,7 @@ describe("store/sqlite smoke", () => {
   })
 
   test("actor snapshot: graviton/actor с полным value читается через ORM", async () => {
-    await store.wimp.create(SRC, {
+    await boundary.wimp.create(SRC, {
       name: "smoke",
       fields: [
         {key: "flag", type: "boolean"},
@@ -162,7 +162,7 @@ describe("store/sqlite smoke", () => {
     const valueFlag = "v-flag"
     const valueStatus = "v-status"
 
-    await store.absorb({
+    await boundary.absorb({
       parts: [{
         part: "graviton",
         op: "add",
@@ -183,7 +183,7 @@ describe("store/sqlite smoke", () => {
       }],
     })
 
-    const actor = await store.actor.get(actorUuid)
+    const actor = await boundary.actor.get(actorUuid)
     if (!actor) throw new Error("actor missing")
     expect(actor.uuid).toBe(actorUuid)
     expect(await actor.wimp()).toBe(SRC)
@@ -207,7 +207,7 @@ describe("store/sqlite smoke", () => {
     const valueFlag2 = "v-flag-2"
     const valueStatus2 = "v-status-2"
 
-    await store.absorb({
+    await boundary.absorb({
       parts: [{
         part: "graviton",
         op: "add",
@@ -229,7 +229,7 @@ describe("store/sqlite smoke", () => {
     })
 
     // share: actor2.flag → valueFlag (тот же, что у actor1)
-    await store.absorb({
+    await boundary.absorb({
       parts: [{
         part: "graviton",
         op: "replace",
@@ -250,7 +250,7 @@ describe("store/sqlite smoke", () => {
       }],
     })
 
-    const actor2 = (await store.actor.get(actor2Uuid))!
+    const actor2 = (await boundary.actor.get(actor2Uuid))!
     const link2 = (await actor2.values.get({field: flagUuid}))!
     const sharedValue = await link2.value()
     expect(sharedValue.uuid).toBe(valueFlag)
@@ -259,12 +259,12 @@ describe("store/sqlite smoke", () => {
   })
 
   test("absorb() обновляет БД и не выпускает входящие particles в entropy", async () => {
-    await store.wimp.create(SRC)
+    await boundary.wimp.create(SRC)
     const observed: Particle[] = []
     const outgoing: Particle[] = []
-    const observedBinding = store.observe((event) => observed.push(...event.data.parts))
-    const entropyBinding = store.entropy((event) => outgoing.push(...event.data.parts))
-    const part: StoreParticle = {
+    const observedBinding = boundary.observe((event) => observed.push(...event.data.parts))
+    const entropyBinding = boundary.entropy((event) => outgoing.push(...event.data.parts))
+    const part: BoundaryParticle = {
       part: "graviton",
       op: "add",
       path: "actor",
@@ -278,7 +278,7 @@ describe("store/sqlite smoke", () => {
     }
 
     try {
-      await store.absorb({parts: [part]})
+      await boundary.absorb({parts: [part]})
       await waitFor(() => observed.some((item) => item.part === part.part && item.op === part.op && item.path === part.path))
       expect(outgoing).toEqual([])
 
@@ -297,13 +297,13 @@ describe("store/sqlite smoke", () => {
   })
 
   test("absorb() принимает wimp-сигнал без записи meta", async () => {
-    const part: StoreParticle = {part: "graviton", op: "add", path: "wimp", value: SRC}
+    const part: BoundaryParticle = {part: "graviton", op: "add", path: "wimp", value: SRC}
     const observed: Particle[] = []
-    const binding = store.observe((event) => observed.push(...event.data.parts))
+    const binding = boundary.observe((event) => observed.push(...event.data.parts))
 
     try {
-      await store.absorb({parts: [part]})
-      expect(await store.wimp.exists(SRC)).toBe(false)
+      await boundary.absorb({parts: [part]})
+      expect(await boundary.wimp.exists(SRC)).toBe(false)
       expect(observed).toEqual([part])
     } finally {
       binding.close()
@@ -311,7 +311,7 @@ describe("store/sqlite smoke", () => {
   })
 
   test("close() идемпотентен — повторный вызов не падает", async () => {
-    await store.close()
+    await boundary.close()
     expect(true).toBe(true)
   })
 })

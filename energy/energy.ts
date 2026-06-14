@@ -50,8 +50,8 @@ import { FieldType } from "@energy/gravity"
 import { createStoredStringInterner, normalizeFieldValue, assembleStoredEnergyData, strong$ } from "@energy/strong"
 import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@energy/weak"
 import type { WeakHeapUpdate } from "./weak/weak.t"
-import { createEmptyDbData, type DbBackend, type DbData } from "store/db/core"
-import {force, type ForceMessage, type ForceSurface, type Particle} from "store"
+import { createEmptyDbData, type DbBackend, type DbData } from "@metafor/boundary/db/core"
+import {force, type ForceMessage, type ForceSurface, type Particle} from "@metafor/boundary"
 
 export type EnergyStructuralPart = { op: "add" | "remove" | "test"; path: string; value?: unknown }
 type EnergyValuePart = { op: "replace"; path: string; value: unknown }

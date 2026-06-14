@@ -1,6 +1,6 @@
 import { SQL } from "bun"
 import { describe, expect, test, beforeEach, afterEach } from "bun:test"
-import { StoreWimpSqlite } from "./sqlite.ts"
+import { BoundaryWimpSqlite } from "./sqlite.ts"
 import {force, type ForceMessage} from "../../force.ts"
 
 const metaforDslTableNames = [
@@ -70,12 +70,12 @@ const metaforDslIndexNames = [
 
 describe("sqlite ddl", () => {
   let db: SQL
-  let wimps: StoreWimpSqlite
+  let wimps: BoundaryWimpSqlite
 
   beforeEach(async () => {
     db = new SQL("sqlite::memory:")
     await db.unsafe("PRAGMA foreign_keys = ON;")
-    wimps = await StoreWimpSqlite.open(db)
+    wimps = await BoundaryWimpSqlite.open(db)
   })
 
   afterEach(async () => {

@@ -27,9 +27,9 @@ describe("workspaceFilesPayload", () => {
     expect(payload.workspacePath).toBe("")
     expect(payload.files.map((file) => file.path)).toContain("dark/server.spec.ts")
     expect(payload.files.map((file) => file.path)).toContain("dark/server.ts")
-    expect(payload.files.map((file) => file.path)).toContain("store/force.ts")
-    expect(payload.files.map((file) => file.path)).toContain("store/sqlite.ts")
-    expect(payload.files.map((file) => file.path)).toContain("store/index.ts")
+    expect(payload.files.map((file) => file.path)).toContain("boundary/force.ts")
+    expect(payload.files.map((file) => file.path)).toContain("boundary/sqlite.ts")
+    expect(payload.files.map((file) => file.path)).toContain("boundary/index.ts")
     expect(payload.files.map((file) => file.path)).not.toContain("dark/weak/index.ts")
     expect(payload.files.some((file) => file.path.startsWith("pkg/interpreter/"))).toBe(false)
   })
@@ -58,10 +58,10 @@ describe("workspaceFilesPayload", () => {
     expect(dark.workspacePath).toBe("")
     expect(interpreter.workspacePath).toBe("")
     expect(dark.files.map((file) => file.path)).toContain("dark/server.spec.ts")
-    expect(dark.files.map((file) => file.path)).toContain("store/force.ts")
+    expect(dark.files.map((file) => file.path)).toContain("boundary/force.ts")
     expect(interpreter.files.map((file) => file.path)).toContain("pkg/interpreter/src/syntax.test.ts")
     expect(interpreter.files.map((file) => file.path)).not.toContain("dark/server.spec.ts")
-    expect(interpreter.files.map((file) => file.path)).not.toContain("store/force.ts")
+    expect(interpreter.files.map((file) => file.path)).not.toContain("boundary/force.ts")
   })
 
   test("falls back to command path when modulePath is unavailable", () => {
@@ -91,7 +91,7 @@ describe("workspaceFilesPayload", () => {
       },
     })
 
-    expect(payload.files.map((file) => file.path)).toEqual(["store/force.ts"])
+    expect(payload.files.map((file) => file.path)).toEqual(["boundary/force.ts"])
   })
 })
 
@@ -101,24 +101,24 @@ function testWorkspace(): string {
   writeFile(cwd, "package.json", JSON.stringify({
     name: "metafor-test",
     exports: {".": "./index.ts"},
-    workspaces: ["dark", "pkg/*", "store"],
+    workspaces: ["dark", "pkg/*", "boundary"],
   }))
   writeFile(cwd, "action.spec.ts", "test('root', () => {})")
   writeFile(cwd, "index.ts", "export const MetaFor = () => null")
   writeFile(cwd, "dark/package.json", JSON.stringify({
     name: "@metafor/dark",
-    dependencies: {store: "workspace:*"},
+    dependencies: {"@metafor/boundary": "workspace:*"},
   }))
-  writeFile(cwd, "dark/server.spec.ts", "import {METAFOR_FORCE_CHANNEL} from 'store/force'\nawait import('./server.ts')\ntest('dark', () => METAFOR_FORCE_CHANNEL)")
-  writeFile(cwd, "dark/server.ts", "import {METAFOR_FORCE_CHANNEL} from 'store/force'\nimport {MetaFor} from '..'\nimport {open} from 'store/sqlite'\nexport {METAFOR_FORCE_CHANNEL, MetaFor, open}")
+  writeFile(cwd, "dark/server.spec.ts", "import {METAFOR_FORCE_CHANNEL} from '@metafor/boundary/force'\nawait import('./server.ts')\ntest('dark', () => METAFOR_FORCE_CHANNEL)")
+  writeFile(cwd, "dark/server.ts", "import {METAFOR_FORCE_CHANNEL} from '@metafor/boundary/force'\nimport {MetaFor} from '..'\nimport {open} from '@metafor/boundary/sqlite'\nexport {METAFOR_FORCE_CHANNEL, MetaFor, open}")
   writeFile(cwd, "dark/weak/index.ts", "export {}")
-  writeFile(cwd, "store/package.json", JSON.stringify({
-    name: "store",
+  writeFile(cwd, "boundary/package.json", JSON.stringify({
+    name: "@metafor/boundary",
     exports: {".": "./index.ts", "./force": "./force.ts", "./sqlite": "./sqlite.ts"},
   }))
-  writeFile(cwd, "store/index.ts", "export type Store = {ready: boolean}")
-  writeFile(cwd, "store/force.ts", "export const METAFOR_FORCE_CHANNEL = 'metafor.force'")
-  writeFile(cwd, "store/sqlite.ts", "import type {Store} from './index.ts'\nexport const open = async (): Promise<Store> => ({ready: true})")
+  writeFile(cwd, "boundary/index.ts", "export type Boundary = {ready: boolean}")
+  writeFile(cwd, "boundary/force.ts", "export const METAFOR_FORCE_CHANNEL = 'metafor.force'")
+  writeFile(cwd, "boundary/sqlite.ts", "import type {Boundary} from './index.ts'\nexport const open = async (): Promise<Boundary> => ({ready: true})")
   writeFile(cwd, "pkg/interpreter/package.json", "{}")
   writeFile(cwd, "pkg/interpreter/src/syntax.test.ts", "test('syntax', () => {})")
   writeFile(cwd, "pkg/interpreter/src/server.ts", "export {}")

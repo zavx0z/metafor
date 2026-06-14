@@ -5,7 +5,7 @@
   "private": true,
   "dependencies": {
     "@dark/types": "workspace:*",
-    "@store/wimp": "workspace:*",
-    "store": "workspace:*"
+    "@boundary/wimp": "workspace:*",
+    "@metafor/boundary": "workspace:*"
   }
 }

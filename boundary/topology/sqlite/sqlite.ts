@@ -6,10 +6,10 @@ import type {AnyTopology} from "./topology.ts"
 import type {TopologyInput, TopologyRecord} from "./topology.t.ts"
 import {emitForceParts} from "../../force.ts"
 
-export class StoreTopologySqlite {
+export class BoundaryTopologySqlite {
   private constructor(private readonly sql: SQL) {}
 
-  static async open(sql: SQL): Promise<StoreTopologySqlite> {
+  static async open(sql: SQL): Promise<BoundaryTopologySqlite> {
     await sql.unsafe(
       [topologySql, topologyFuzzyStateSql]
         .map((sql) => sql.trim())
@@ -17,7 +17,7 @@ export class StoreTopologySqlite {
         .join("\n\n")
         .trim(),
     )
-    return new StoreTopologySqlite(sql)
+    return new BoundaryTopologySqlite(sql)
   }
 
   /**

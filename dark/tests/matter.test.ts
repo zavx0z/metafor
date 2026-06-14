@@ -2,32 +2,32 @@ import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import {SQL} from "bun"
 import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
-import type {Actor} from "@store/actor"
-import type {Store} from "../../store/index.ts"
-import {open} from "../../store/sqlite.ts"
+import type {Actor} from "@boundary/actor"
+import type {Boundary} from "@metafor/boundary"
+import {open} from "@metafor/boundary/sqlite"
 import {matter} from "../index.ts"
 
-let store: Awaited<ReturnType<typeof open>>
+let boundary: Awaited<ReturnType<typeof open>>
 let sql: SQL
 let root: Actor
 let tmpFile: string
 
-describe("matter() — runtime tree через store", () => {
+describe("matter() — runtime tree через boundary", () => {
   beforeAll(async () => {
     const tmpDir = join(import.meta.dir, "tmp")
     mkdirSync(tmpDir, {recursive: true})
     tmpFile = join(tmpDir, `matter-${crypto.randomUUID()}.sqlite`)
-    store = await open(tmpFile)
-    globalThis.store = store
+    boundary = await open(tmpFile)
+    globalThis.boundary = boundary
     sql = new SQL(`sqlite://${tmpFile}`)
     await matter("zavx0z/git")
-    const roots = await store.actor.roots.all()
+    const roots = await boundary.actor.roots.all()
     if (roots.length === 0) throw new Error("root actor not created")
     root = roots[0]!
   })
   afterAll(async () => {
     await sql.close()
-    await store.close()
+    await boundary.close()
     rmSync(tmpFile, {force: true})
     rmSync(`${tmpFile}-shm`, {force: true})
     rmSync(`${tmpFile}-wal`, {force: true})
@@ -55,14 +55,14 @@ describe("matter() — runtime tree через store", () => {
     })
   })
 
-  describe("декларация в store", () => {
-    test("каждая meta из дерева — единственная запись в store.meta", async () => {
+  describe("декларация в boundary", () => {
+    test("каждая meta из дерева — единственная запись в boundary.meta", async () => {
       const distinctSrcs = (
         await sql<Array<{wimp: string}>>`SELECT DISTINCT wimp FROM actor`
       ).map((r) => r.wimp)
       for (const src of distinctSrcs) {
-        const meta = await store.wimp.get(src)
-        expect(meta, `meta для "${src}" должна существовать в store`).not.toBeNull()
+        const meta = await boundary.wimp.get(src)
+        expect(meta, `meta для "${src}" должна существовать в boundary`).not.toBeNull()
       }
     })
   })

@@ -9,7 +9,7 @@ import type {ActorRecord, ActorRows} from "./actor.t.ts"
 import {ActorFieldValue} from "./actor_value.ts"
 import {emitForceParts} from "../../force.ts"
 
-export class StoreActorSqlite {
+export class BoundaryActorSqlite {
   readonly roots: ActorRoots
   readonly value: {
     get(uuid: string): Promise<AnyValue | null>
@@ -28,7 +28,7 @@ export class StoreActorSqlite {
     }
   }
 
-  static async open(sql: SQL): Promise<StoreActorSqlite> {
+  static async open(sql: SQL): Promise<BoundaryActorSqlite> {
     await sql.unsafe(
       [actorSql, valueSql, actorValueSql, stateSql]
         .map((sql) => sql.trim())
@@ -36,7 +36,7 @@ export class StoreActorSqlite {
         .join("\n\n")
         .trim(),
     )
-    return new StoreActorSqlite(sql)
+    return new BoundaryActorSqlite(sql)
   }
 
   /** Записывает actor snapshot одной транзакцией: head + values + actor_state. */

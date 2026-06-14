@@ -1,16 +1,16 @@
-import {open} from "store/sqlite"
+import {open} from "@metafor/boundary/sqlite"
 
 /**
- * Server bootstrap Dark: открывает SQLite store и корректно закрывает его
+ * Server bootstrap Dark: открывает SQLite boundary и корректно закрывает его
  * при остановке процесса. Протокольные сигналы рождаются в ORM.
  */
-const STORE_PATH = process.env.STORE_PATH ?? "./dark.sqlite"
+const BOUNDARY_PATH = process.env.BOUNDARY_PATH ?? "./dark.sqlite"
 
-globalThis.store = await open(STORE_PATH)
+globalThis.boundary = await open(BOUNDARY_PATH)
 await import("./dark.ts")
 
 const shutdown = async (signal: string): Promise<void> => {
-  await globalThis.store.close()
+  await globalThis.boundary.close()
   process.exit(0)
 }
 

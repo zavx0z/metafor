@@ -1,4 +1,4 @@
-export {StoreWimpSqlite} from "./sqlite/index.ts"
+export {BoundaryWimpSqlite} from "./sqlite/index.ts"
 export {Wimp} from "./sqlite/wimp.ts"
 export {Field} from "./sqlite/fields/field.ts"
 export type {FieldType} from "./sqlite/fields/field.ts"

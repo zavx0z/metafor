@@ -14,6 +14,6 @@
     "@energy/gravity": "workspace:*",
     "@energy/strong": "workspace:*",
     "@energy/weak": "workspace:*",
-    "store": "workspace:*"
+    "@metafor/boundary": "workspace:*"
   }
 }

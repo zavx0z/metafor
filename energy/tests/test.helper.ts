@@ -1,5 +1,5 @@
-import { openDbSqliteBackend } from "store/db"
-import {force} from "store"
+import { openDbSqliteBackend } from "@metafor/boundary/db"
+import {force} from "@metafor/boundary"
 import {writeRuntimeFromDb} from "../energy"
 
 export async function resetEnergyForTest(): Promise<void> {

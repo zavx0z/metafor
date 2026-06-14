@@ -3,7 +3,7 @@ import type {
   MatterRelationBindingValue,
   MatterRelationChild,
   MatterRelationParticle,
-} from "../../store/wimp/sqlite/matter.t.ts"
+} from "@boundary/wimp/sqlite"
 import type { MatterParticlePlan } from "../types/dark.ts"
 
 const createContinuationSrc = (expr: string | undefined, value: string | number): string => {
@@ -124,12 +124,12 @@ const projectTemplateMatterNode = (meta: MetaDSL, node: NodeType): MatterRelatio
 export const projectTemplateMatterRelations = (meta: MetaDSL): MatterRelationParticle[] =>
   (meta.matter ?? []).flatMap((node) => projectTemplateMatterNode(meta, node))
 
-const projectStoreMatterParticle = (particle: MatterRelationParticle): MatterParticlePlan => {
+const projectBoundaryMatterParticle = (particle: MatterRelationParticle): MatterParticlePlan => {
   const children =
     particle.children !== undefined && particle.children.length > 0
       ? particle.children.map((child) => ({
           edgeSlot: child.edgeSlot,
-          particle: projectStoreMatterParticle(child.particle),
+          particle: projectBoundaryMatterParticle(child.particle),
         }))
       : undefined
 
@@ -164,5 +164,5 @@ const projectStoreMatterParticle = (particle: MatterRelationParticle): MatterPar
   }
 }
 
-export const projectStoreMatterParticles = (particles: MatterRelationParticle[]): MatterParticlePlan[] =>
-  particles.map(projectStoreMatterParticle)
+export const projectBoundaryMatterParticles = (particles: MatterRelationParticle[]): MatterParticlePlan[] =>
+  particles.map(projectBoundaryMatterParticle)

@@ -261,7 +261,7 @@ export class Actor {
   /**
    * Возвращает `parentActor`/`parentTopology` UUID. Если у актора есть родитель-actor —
    * вернётся `Actor`-ORM. Если родитель — topology-узел, нужно получать его через
-   * `store.topology.get(parentTopology)` (избегаем cross-package import).
+   * `boundary.topology.get(parentTopology)` (избегаем cross-package import).
    */
   async parentRef(): Promise<{kind: "actor"; uuid: string} | {kind: "topology"; uuid: string} | null> {
     const row = (

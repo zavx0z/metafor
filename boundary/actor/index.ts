@@ -16,6 +16,6 @@ export {
   NullValue,
   NumberValue,
   StringValue,
-  StoreActorSqlite,
+  BoundaryActorSqlite,
   Value,
 } from "./sqlite/index.ts"

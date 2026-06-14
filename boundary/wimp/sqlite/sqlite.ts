@@ -56,10 +56,10 @@ const collectWimpCreateParticles = async (sql: SQL, src: string): Promise<Partic
   {part: "graviton", op: "add", path: "wimp", value: await wimpSnapshot(sql, src)},
 ]
 
-export class StoreWimpSqlite {
+export class BoundaryWimpSqlite {
   private constructor(private readonly sql: SQL) {}
 
-  static async open(sql: SQL): Promise<StoreWimpSqlite> {
+  static async open(sql: SQL): Promise<BoundaryWimpSqlite> {
     await sql.unsafe(
       [
         wimpSchemaSql,
@@ -85,7 +85,7 @@ export class StoreWimpSqlite {
         .join("\n\n")
         .trim(),
     )
-    return new StoreWimpSqlite(sql)
+    return new BoundaryWimpSqlite(sql)
   }
 
   /**
@@ -102,7 +102,7 @@ export class StoreWimpSqlite {
 
   /**
    * Создаёт wimp-декларацию одним prepared input.
-   * Запись идёт одной транзакцией и одним SQL batch; после commit Store отправляет batch `particles`.
+   * Запись идёт одной транзакцией и одним SQL batch; после commit Boundary отправляет batch `particles`.
    */
   async create(src: string, input: WimpCreateInput = {}): Promise<Wimp> {
     await this.sql.begin(async (tx) => {

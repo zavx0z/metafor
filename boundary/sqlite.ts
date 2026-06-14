@@ -1,11 +1,11 @@
 import {SQL, type ReservedSQL} from "bun"
 import {mkdirSync} from "node:fs"
 import {dirname} from "node:path"
-import {StoreWimpSqlite} from "@store/wimp/sqlite"
-import {StoreActorSqlite} from "@store/actor/sqlite"
-import {StoreTopologySqlite} from "@store/topology/sqlite"
+import {BoundaryWimpSqlite} from "@boundary/wimp/sqlite"
+import {BoundaryActorSqlite} from "@boundary/actor/sqlite"
+import {BoundaryTopologySqlite} from "@boundary/topology/sqlite"
 
-import type {Store} from "./index.ts"
+import type {Boundary} from "./index.ts"
 import {
   absorbForceMessage,
   closeForceChannel,
@@ -19,12 +19,12 @@ import {
   type Particle,
 } from "./force.ts"
 
-export type StorePart = Part
+export type BoundaryPart = Part
 
-export type StoreParticle = Particle
+export type BoundaryParticle = Particle
 
-export type StoreUpdateMessage = {
-  parts: StoreParticle[]
+export type BoundaryUpdateMessage = {
+  parts: BoundaryParticle[]
 }
 
 type Tx = SQL | ReservedSQL
@@ -84,7 +84,7 @@ const requireNumber = (value: unknown, key: string, path: string): number => {
   return v
 }
 
-const notSupported = (op: ParticleOperation, path: string, part: StorePart): never => {
+const notSupported = (op: ParticleOperation, path: string, part: BoundaryPart): never => {
   throw new Error(`Particle op "${op}" is not supported for "${path}" (part=${part})`)
 }
 
@@ -270,7 +270,7 @@ const applyTopologySnapshot = async (
   `
 }
 
-const applyGravitonParticle = async (tx: Tx, particle: StoreParticle): Promise<boolean> => {
+const applyGravitonParticle = async (tx: Tx, particle: BoundaryParticle): Promise<boolean> => {
   if (particle.op === "test") return false
   if (particle.op === "move" || particle.op === "copy") {
     throw new Error(`Particle op "${particle.op}" is not supported by graviton`)
@@ -336,7 +336,7 @@ const clearValueScalarTables = async (tx: Tx, uuid: string): Promise<void> => {
 // dispatcher
 // =============================================================================
 
-const applyOneParticle = async (tx: Tx, particle: StoreParticle): Promise<boolean> => {
+const applyOneParticle = async (tx: Tx, particle: BoundaryParticle): Promise<boolean> => {
   switch (particle.part) {
     case "graviton":
       return applyGravitonParticle(tx, particle)
@@ -353,7 +353,7 @@ const applyOneParticle = async (tx: Tx, particle: StoreParticle): Promise<boolea
   }
 }
 
-const applyMessageToDatabase = async (sql: SQL, message: StoreUpdateMessage): Promise<boolean> => {
+const applyMessageToDatabase = async (sql: SQL, message: BoundaryUpdateMessage): Promise<boolean> => {
   if (message.parts.length === 0) return false
   let applied = false
   await sql.begin(async (tx) => {
@@ -364,7 +364,7 @@ const applyMessageToDatabase = async (sql: SQL, message: StoreUpdateMessage): Pr
   return applied
 }
 
-export const open = async (filename?: string): Promise<Store> => {
+export const open = async (filename?: string): Promise<Boundary> => {
   const fileBacked = filename !== undefined && filename !== ":memory:"
 
   if (fileBacked) {
@@ -382,8 +382,8 @@ export const open = async (filename?: string): Promise<Store> => {
   // ВАЖНО: topology поднимаем ДО actor — у actor есть FK parent_topology → topology(uuid).
   // SQLite позволяет создавать circular FK при foreign_keys=ON, но table-target должна
   // существовать к моменту первого INSERT.
-  const topology = await StoreTopologySqlite.open(sql)
-  const actor = await StoreActorSqlite.open(sql)
+  const topology = await BoundaryTopologySqlite.open(sql)
+  const actor = await BoundaryActorSqlite.open(sql)
   let absorbQueue = Promise.resolve()
 
   return {
@@ -393,13 +393,13 @@ export const open = async (filename?: string): Promise<Store> => {
     entropy(listener: ForceMessageListener): ForceBinding {
       return entropyForceMessage(listener)
     },
-    wimp: await StoreWimpSqlite.open(sql),
+    wimp: await BoundaryWimpSqlite.open(sql),
     actor,
     topology,
-    emit(message: StoreUpdateMessage) {
+    emit(message: BoundaryUpdateMessage) {
       emitForceMessage(message)
     },
-    absorb(message: StoreUpdateMessage) {
+    absorb(message: BoundaryUpdateMessage) {
       const task = absorbQueue.then(async () => {
         await applyMessageToDatabase(sql, message)
         absorbForceMessage(message)

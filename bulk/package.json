@@ -13,7 +13,7 @@
     "@bulk/strong": "workspace:*",
     "@bulk/weak": "workspace:*",
     "@bulk/em": "workspace:*",
-    "@store/actor": "workspace:*",
-    "store": "workspace:*"
+    "@boundary/actor": "workspace:*",
+    "@metafor/boundary": "workspace:*"
   }
 }

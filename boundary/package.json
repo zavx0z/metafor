@@ -1,5 +1,5 @@
 {
-  "name": "store",
+  "name": "@metafor/boundary",
   "type": "module",
   "exports": {
     ".": "./index.ts",
@@ -8,8 +8,8 @@
   },
   "private": true,
   "dependencies": {
-    "@store/actor": "workspace:*",
-    "@store/topology": "workspace:*",
-    "@store/wimp": "workspace:*"
+    "@boundary/actor": "workspace:*",
+    "@boundary/topology": "workspace:*",
+    "@boundary/wimp": "workspace:*"
   }
 }

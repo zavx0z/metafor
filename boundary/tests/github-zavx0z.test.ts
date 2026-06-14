@@ -3,7 +3,7 @@ import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
 import {SQL} from "bun"
 import {matter} from "../../dark/index.ts"
-import type {Particle, Store} from "../index.ts"
+import type {Particle, Boundary} from "../index.ts"
 import {open} from "../sqlite.ts"
 
 const requiredRow = <T>(row: T | undefined, message: string): T => {
@@ -31,8 +31,8 @@ const particleUuid = (part: Particle): unknown => {
   return value.actor?.uuid ?? value.uuid
 }
 
-describe("store/tests github/zavx0z startup load", () => {
-  let store: Store
+describe("boundary/tests github/zavx0z startup load", () => {
+  let boundary: Boundary
   let sql: SQL
 
   beforeEach(async () => {
@@ -40,14 +40,14 @@ describe("store/tests github/zavx0z startup load", () => {
     rmSync(sqliteFilename, {force: true})
     rmSync(`${sqliteFilename}-shm`, {force: true})
     rmSync(`${sqliteFilename}-wal`, {force: true})
-    store = await open(sqliteFilename)
-    globalThis.store = store
+    boundary = await open(sqliteFilename)
+    globalThis.boundary = boundary
     sql = new SQL(`sqlite://${sqliteFilename}`)
   })
 
   test("matter() пишет всё дерево zavx0z/git через force-flow и публикует gravity-сообщения", async () => {
     const parts: Particle[] = []
-    const subscription = store.observe((event) => {
+    const subscription = boundary.observe((event) => {
       parts.push(...event.data.parts)
     })
 
@@ -87,12 +87,12 @@ describe("store/tests github/zavx0z startup load", () => {
       expect(actorStateRows.length).toBe(actorRows.length)
       expect(actorRows.length).toBeGreaterThan(20)
 
-      const roots = await store.actor.roots.all()
+      const roots = await boundary.actor.roots.all()
       expect(roots).toHaveLength(1)
       expect(await roots[0]!.wimp()).toBe("zavx0z/git")
       // Wimp-под-Wimp напрямую может не быть (всё дерево идёт через topology Fuzzy/Axion).
       // Проверяем через topology: у root должны быть дочерние topology-узлы.
-      const rootTopology = await store.topology.childrenOfActor(roots[0]!.uuid)
+      const rootTopology = await boundary.topology.childrenOfActor(roots[0]!.uuid)
       expect(rootTopology.length).toBeGreaterThan(0)
 
       const rootOperationField = requiredRow(
@@ -112,7 +112,7 @@ describe("store/tests github/zavx0z startup load", () => {
 
       const commitActor = actorRows.find((row) => row.wimp === "zavx0z/git-history-commit")
       if (!commitActor) throw new Error("zavx0z/git-history-commit actor was not materialized")
-      const commit = (await store.actor.get(commitActor.uuid))!
+      const commit = (await boundary.actor.get(commitActor.uuid))!
       expect(await commit.values.count()).toBeGreaterThan(0)
       expect((await commit.state())?.metaState).not.toBeNull()
 
@@ -125,7 +125,7 @@ describe("store/tests github/zavx0z startup load", () => {
     } finally {
       subscription.close()
       await sql.close()
-      await store.close()
+      await boundary.close()
     }
   })
 })

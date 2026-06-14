@@ -1,34 +1,34 @@
 import {MetaFor, type FieldDefinition, type FieldKey, type SRC} from ".."
-import type {ForceBinding, ForceMessageListener, Store} from "../store/index.ts"
-import type {AnyField} from "@store/wimp/sqlite"
-import type {ActorValueRecord, ValueItemRecord, ValueRecord} from "@store/actor"
+import type {ForceBinding, ForceMessageListener, Boundary} from "@metafor/boundary"
+import type {AnyField} from "@boundary/wimp/sqlite"
+import type {ActorValueRecord, ValueItemRecord, ValueRecord} from "@boundary/actor"
 import type {BfsEntry, ParticleRef, PendingChildWimp} from "@dark/types/dark"
-import {projectStoreMatterParticles, projectTemplateMatterRelations} from "@dark/gravity"
+import {projectBoundaryMatterParticles, projectTemplateMatterRelations} from "@dark/gravity"
 import {loadMeta} from "./load.ts"
 import {finalizeFieldValues, resolveFieldInits, type Continuation} from "./continuation.ts"
 
 ;(globalThis as unknown as {MetaFor: typeof MetaFor}).MetaFor = MetaFor
 
-let observedStore: Store | null = null
+let observedBoundary: Boundary | null = null
 let observedBinding: ForceBinding | null = null
 
 const observeMatterRequests = (): void => {
-  const currentStore = (globalThis as {store?: Store}).store
-  if (!currentStore || observedStore === currentStore) return
+  const currentBoundary = (globalThis as {boundary?: Boundary}).boundary
+  if (!currentBoundary || observedBoundary === currentBoundary) return
   observedBinding?.close()
-  observedStore = currentStore
-  observedBinding = currentStore.observe(handleMatterRequest)
+  observedBoundary = currentBoundary
+  observedBinding = currentBoundary.observe(handleMatterRequest)
 }
 
 const handleMatterRequest: ForceMessageListener = async (event) => {
-  const currentStore = (globalThis as {store?: Store}).store
-  if (!currentStore) return
+  const currentBoundary = (globalThis as {boundary?: Boundary}).boundary
+  if (!currentBoundary) return
   for (const part of event.data.parts) {
     if (part.part !== "graviton") continue
     if (part.op !== "test") continue
     if (part.path !== "wimp") continue
     if (typeof part.value !== "string") continue
-    if (await currentStore.wimp.exists(part.value)) continue
+    if (await currentBoundary.wimp.exists(part.value)) continue
     await matter(part.value)
   }
 }
@@ -38,9 +38,9 @@ observeMatterRequests()
 /**
  * Публичный entrypoint Dark.
  *
- * Использует `globalThis.store`, установленный в `dark/server.ts` либо в `dark/web.ts`.
+ * Использует `globalThis.boundary`, установленный в `dark/server.ts` либо в `dark/web.ts`.
  * Вызовы всегда передают только `SRC`; `Wimp` ORM создаётся внутри `matterWimp`
- * уже с декларационными matter-связями и разворачивает дерево через store ORM: создаёт actor + topology rows,
+ * уже с декларационными matter-связями и разворачивает дерево через boundary ORM: создаёт actor + topology rows,
  * рекурсивно материализует дочерние wimps.
  *
  * Внутренняя рекурсия тоже передаёт только `SRC`: декларация WIMP создаётся один раз,
@@ -58,7 +58,7 @@ export async function matter(
   continuation: Continuation | undefined = undefined,
 ): Promise<void> {
   observeMatterRequests()
-  if (await store.actor.findByParent({wimp: src, parent})) return
+  if (await boundary.actor.findByParent({wimp: src, parent})) return
 
   const generator = matterWimp(src, parent, continuation)
 
@@ -88,7 +88,7 @@ async function* matterWimp(
 ): AsyncGenerator<PendingChildWimp[], void, void> {
   const dsl = await loadMeta(src)
   const declarationMatterRelations = projectTemplateMatterRelations(dsl)
-  const wimp = (await store.wimp.get(src)) ?? (await store.wimp.create(src, {...dsl, matter: declarationMatterRelations}))
+  const wimp = (await boundary.wimp.get(src)) ?? (await boundary.wimp.create(src, {...dsl, matter: declarationMatterRelations}))
   const matterRelations = await wimp.matter.all()
 
   // ACTOR: переходим от Wimp-декларации к runtime-экземпляру.
@@ -136,7 +136,7 @@ async function* matterWimp(
     valueItems,
     state: {actor: actorUuid, metaState: initialState},
   }
-  await store.actor.create(actorData)
+  await boundary.actor.create(actorData)
 
   const fieldValuesSnapshot = new Map<FieldKey, unknown>()
   const fieldTypesSnapshot = new Map<FieldKey, string>()
@@ -145,7 +145,7 @@ async function* matterWimp(
     fieldTypesSnapshot.set(key, fieldSchemaByKey.get(key)!.type)
   }
 
-  const plans = projectStoreMatterParticles(matterRelations)
+  const plans = projectBoundaryMatterParticles(matterRelations)
   if (plans.length === 0) return
 
   let frontier: BfsEntry[] = plans.map((plan) => ({plan, parent: {kind: "actor", uuid: actorUuid}}))
@@ -176,7 +176,7 @@ async function* matterWimp(
         case "axion":
         case "macho": {
           const topologyUuid = crypto.randomUUID()
-          await store.topology.create({
+          await boundary.topology.create({
             uuid: topologyUuid,
             parentActor: entry.parent.kind === "actor" ? entry.parent.uuid : null,
             parentTopology: entry.parent.kind === "topology" ? entry.parent.uuid : null,
@@ -232,14 +232,14 @@ const resolveSourceValueUuid = async (
   parentActorUuid: string,
   parentFieldKey: FieldKey,
 ): Promise<string> => {
-  const head = await store.actor.head(parentActorUuid)
+  const head = await boundary.actor.head(parentActorUuid)
   if (!head) throw new Error(`parent actor ${parentActorUuid} not found`)
-  const parentWimp = await store.wimp.get(head.wimp)
+  const parentWimp = await boundary.wimp.get(head.wimp)
   if (!parentWimp) throw new Error(`parent wimp ${head.wimp} not found`)
   const parentField = await parentWimp.fields.get({key: parentFieldKey})
   if (!parentField) throw new Error(`parent field "${parentFieldKey}" missing in wimp ${head.wimp}`)
   const parentFieldUuid = await parentField.uuid()
-  const link = await store.actor.link.get(parentActorUuid, parentFieldUuid)
+  const link = await boundary.actor.link.get(parentActorUuid, parentFieldUuid)
   if (!link) throw new Error(`parent actor_value missing for (${parentActorUuid}, ${parentFieldKey})`)
   const value = await link.value()
   return value.uuid

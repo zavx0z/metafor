@@ -13,7 +13,7 @@ export const decodeTopologyRow = (row: Record<string, unknown>): TopologyRecord 
 /**
  * Дочерние topology-узлы, у которых parent — этот topology-узел.
  * Дочерние Wimp под этим topology лежат в `actor` table — читать через
- * `store.actor.<...>` параллельно.
+ * `boundary.actor.<...>` параллельно.
  */
 export class TopologyChildren {
   constructor(

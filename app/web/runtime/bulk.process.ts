@@ -9,7 +9,7 @@ import type {
   DbMetaProcessRecord,
   DbMetaRows,
   DbWimpRows,
-} from "store/db/core"
+} from "@metafor/boundary/db/core"
 import type { Self } from "../../../index.ts"
 
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url))

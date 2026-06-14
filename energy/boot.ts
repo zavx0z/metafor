@@ -1,6 +1,6 @@
 import { applyStructuralPartFromDb, applyWeakResultPacket, setValues } from "./energy.ts"
-import type { DbBackend } from "store/db/core"
-import {force, type ForceSurface, type Particle} from "store"
+import type { DbBackend } from "@metafor/boundary/db/core"
+import {force, type ForceSurface, type Particle} from "@metafor/boundary"
 
 export type OpenEnergyDb = () => Promise<DbBackend> | DbBackend
 

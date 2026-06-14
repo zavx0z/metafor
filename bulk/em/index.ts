@@ -1,4 +1,4 @@
-import {force, type ForceMessage, type Particle} from "store"
+import {force, type ForceMessage, type Particle} from "@metafor/boundary"
 
 export type PhotonPayload = { value: string; path: string }
 export type WeakCoordinationKind = "claim" | "accept" | "reject" | "release"
@@ -131,7 +131,7 @@ export const createBulkWeakForce = (options: BulkWeakForceOptions = {}): BulkWea
     },
 
     close() {
-      // Store owns force transport lifecycle.
+      // Boundary owns force transport lifecycle.
     },
   }
 }

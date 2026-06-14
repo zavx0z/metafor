@@ -11,7 +11,7 @@ import {
   type DbWimpEdgeRecord,
   type DbWimpFieldRecord,
   type DbWimpRows,
-} from "store/db/core"
+} from "@metafor/boundary/db/core"
 import { FieldType, flattenEnergyData, type BraneValue, type Collapse, type Data, type Field } from "@energy/gravity"
 import { assembleStoredEnergyData, type PreparedEntanglementProjection } from "@energy/strong"
 import type { PreparedData } from "./energy.t.ts"

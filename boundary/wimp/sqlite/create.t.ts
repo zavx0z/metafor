@@ -56,7 +56,7 @@ export type WimpCreateReactionInput = {
 }
 
 /**
- * Полный prepared input для `StoreWimpSqlite.create()`.
+ * Полный prepared input для `BoundaryWimpSqlite.create()`.
  *
  * @prop name — имя WIMP-декларации.
  * @prop desc — описание WIMP-декларации.

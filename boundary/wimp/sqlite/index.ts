@@ -1,7 +1,7 @@
-export { StoreWimpSqlite } from "./sqlite.ts"
+export { BoundaryWimpSqlite } from "./sqlite.ts"
 export type { WimpCreateInput } from "./sqlite.ts"
 
-// ORM-классы. Корневой entry-point `@store/wimp` re-export-ит их.
+// ORM-классы. Корневой entry-point `@boundary/wimp` re-export-ит их.
 export { Wimp } from "./wimp.ts"
 export { Field } from "./fields/field.ts"
 export type { FieldType } from "./fields/field.ts"
@@ -33,5 +33,11 @@ export {
   MatterMachoParticle,
   MatterChildren,
 } from "./matter.ts"
-export type { MatterRelationParticle, EdgeSlot, BindingValue } from "./matter.t.ts"
+export type {
+  BindingValue,
+  EdgeSlot,
+  MatterRelationBindingValue,
+  MatterRelationChildEdgeSlot,
+  MatterRelationParticle,
+} from "./matter.t.ts"
 export { Mass } from "./mass.ts"

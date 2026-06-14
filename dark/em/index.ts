@@ -1,4 +1,4 @@
-import {force} from "store"
+import {force} from "@metafor/boundary"
 
 export type PhotonPayload = { value: string; path: string }
 
@@ -78,7 +78,7 @@ export const createDarkElectromagnetismForce = (
     },
 
     close() {
-      // Store owns force transport lifecycle.
+      // Boundary owns force transport lifecycle.
     },
   }
 }
