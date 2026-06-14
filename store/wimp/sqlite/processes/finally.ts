@@ -19,7 +19,7 @@ export class FinallyRead {
       FROM field WHERE field.wimp = ${src} AND field.key = ${fieldKey}
     `
     if (!existing && await this.has(fieldKey)) {
-      emitGravitonAdd(`${processUuid}/finally/read/${fieldKey}`, "process_finally_read")
+      emitGravitonAdd("process_finally_read", `${processUuid}/finally/read/${fieldKey}`)
     }
   }
 
@@ -105,7 +105,7 @@ export class ProcessFinally {
     }
 
     await sql`INSERT INTO process_finally (process, before) VALUES (${processUuid}, ${beforeSrc})`
-    emitGravitonAdd(`${processUuid}/finally`, "process_finally")
+    emitGravitonAdd("process_finally", `${processUuid}/finally`)
   }
 
   async before(): Promise<string | null> {

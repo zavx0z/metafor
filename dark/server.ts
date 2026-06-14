@@ -7,7 +7,8 @@ import {open} from "store/sqlite"
 const STORE_PATH = process.env.STORE_PATH ?? "./boundary.sqlite"
 
 globalThis.store = await open(STORE_PATH)
-await import("./dark.ts")
+const {installDarkForceListener} = await import("./dark.ts")
+installDarkForceListener(globalThis.store)
 
 const shutdown = async (signal: string): Promise<void> => {
   await globalThis.store.close()

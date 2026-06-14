@@ -124,6 +124,22 @@ describe("sqlite ddl", () => {
           states: ["idle"],
         },
       ],
+      matter: [
+        {
+          kind: "fuzzy",
+          fuzzyKind: "dynamic-meta",
+          children: [
+            {
+              edgeSlot: "branch",
+              particle: {
+                kind: "wimp",
+                src: "alpha/child",
+                fieldsBinding: {data: "/value/status", expr: "{ status: _[0] }"},
+              },
+            },
+          ],
+        },
+      ],
     })
 
     expect(await wimp.name.get()).toBe("Alpha")
@@ -133,6 +149,23 @@ describe("sqlite ddl", () => {
     expect(await wimp.states.count()).toBe(2)
     expect(await wimp.processes.count()).toBe(1)
     expect(await wimp.reactions.count()).toBe(1)
+    expect(await wimp.matter.count()).toBe(1)
+    expect(await wimp.matter.all()).toEqual([
+      {
+        kind: "fuzzy",
+        fuzzyKind: "dynamic-meta",
+        children: [
+          {
+            edgeSlot: "branch",
+            particle: {
+              kind: "wimp",
+              src: "alpha/child",
+              fieldsBinding: {data: "/value/status", expr: "{ status: _[0] }"},
+            },
+          },
+        ],
+      },
+    ])
 
     expect(messages.length).toBe(1)
     const parts = messages[0]!.parts

@@ -104,7 +104,7 @@ export class Predicates {
               ${valueKind}, ${valueBoolean}, ${valueNumber}, ${valueText},
               ${valueVariant})
     `
-    emitGravitonAdd(uuid, "predicate")
+    emitGravitonAdd("predicate", uuid)
     return new Predicate(this.condition, uuid)
   }
 
@@ -171,7 +171,7 @@ export class Conditions {
       INSERT INTO condition (uuid, transition, field, position)
       VALUES (${uuid}, ${transitionUuid}, ${fieldUuid}, ${position})
     `
-    emitGravitonAdd(uuid, "condition")
+    emitGravitonAdd("condition", uuid)
     return new Condition(this.transition, fieldKey)
   }
 

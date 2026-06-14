@@ -19,7 +19,7 @@ export class ReactionRead {
       FROM field WHERE field.wimp = ${src} AND field.key = ${fieldKey}
     `
     if (!existing && await this.has(fieldKey)) {
-      emitGravitonAdd(`${reactionUuid}/read/${fieldKey}`, "reaction_read")
+      emitGravitonAdd("reaction_read", `${reactionUuid}/read/${fieldKey}`)
     }
   }
 
@@ -95,7 +95,7 @@ export class ReactionWrite {
       FROM field WHERE field.wimp = ${src} AND field.key = ${fieldKey}
     `
     if (!existing && await this.has(fieldKey)) {
-      emitGravitonAdd(`${reactionUuid}/write/${fieldKey}`, "reaction_write")
+      emitGravitonAdd("reaction_write", `${reactionUuid}/write/${fieldKey}`)
     }
   }
 
@@ -172,7 +172,7 @@ export class ReactionStates {
       FROM state WHERE state.wimp = ${src} AND state.name = ${stateName}
     `
     if (!existing && await this.has(stateName)) {
-      emitGravitonAdd(`${reactionUuid}/state/${stateName}`, "reaction_state")
+      emitGravitonAdd("reaction_state", `${reactionUuid}/state/${stateName}`)
     }
   }
 

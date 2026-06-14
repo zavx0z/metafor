@@ -1,6 +1,7 @@
 import type {ParsedDestroy} from "../../../finally.t.ts"
 import type {FieldDefinition, FieldKey, MetaDSL} from "../../../metafor.t.ts"
 import type {ParsedProcess} from "../../../process.t.ts"
+import type {MatterRelationParticle} from "./matter.t.ts"
 
 /**
  * Подготовленное описание поля для SQL-create WIMP.
@@ -65,6 +66,7 @@ export type WimpCreateReactionInput = {
  * @prop superposition — подготовленные состояния декларации.
  * @prop processes — подготовленные процессы декларации.
  * @prop reactions — подготовленные реакции декларации.
+ * @prop matter — подготовленное дерево matter-связей декларации.
  */
 export type WimpCreateInput = {
   name?: string | null | undefined
@@ -75,4 +77,5 @@ export type WimpCreateInput = {
   superposition?: readonly WimpCreateSuperpositionInput[] | undefined
   processes?: readonly WimpCreateProcessInput[] | undefined
   reactions?: readonly WimpCreateReactionInput[] | undefined
+  matter?: readonly MatterRelationParticle[] | undefined
 }

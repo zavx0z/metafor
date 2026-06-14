@@ -63,8 +63,10 @@ Each `Particle` carries its semantic channel in the `part` field.
 One `Particle` represents exactly one force part:
 
 ```ts
-{ part: "graviton", op: "add", path: "zavx0z/git" }
 { part: "graviton", op: "add", path: "wimp", value: "zavx0z/git" }
+{ part: "graviton", op: "add", path: "matter", value: "<matter_particle_uuid>" }
+{ part: "graviton", op: "add", path: "actor", value: "<actor_uuid>" }
+{ part: "graviton", op: "add", path: "topology", value: "<topology_uuid>" }
 { part: "gluon", op: "replace", path: "/field/<uuid>", value: 42 }
 { part: "higgs", op: "replace", path: "/field/<uuid>", value: "branch" }
 { part: "photon", op: "replace", path: "/wimp/<uuid>", value: "ready" }
@@ -73,10 +75,12 @@ One `Particle` represents exactly one force part:
 { part: "-z", op: "test", path: "/wimp/<uuid>/process/<uuid>", value: { coordination: "release" } }
 ```
 
-In runtime force, root/source `path` is written as a direct source path without a leading `/`.
 `part` carries the force carrier, while the domain signal type is written in `path`.
 A WIMP signal does not encode `/wimp/...`: it is written as `{ part: "graviton", op: "add", path: "wimp", value: src }`.
 Here `value` is not the WIMP payload, only the source id; receivers read the full declaration from Store by that `src`.
+Other Store entities follow the same order: `path` is the domain area (`actor`,
+`topology`, `matter`, `state`, `process`, and so on), while `value` is the id/key
+used by the receiver to reread the full row or subtree from Store.
 
 A `parts` batch may contain different `part` values, but routing is always read from the Particle itself, not from the envelope.
 The envelope must not duplicate `part`, `channel`, `source`, or `boson`.

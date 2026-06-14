@@ -36,6 +36,11 @@ export interface ActorApi {
 
   get(uuid: string): Promise<Actor | null>
 
+  findByParent(input: {
+    wimp: string
+    parent: {kind: "actor"; uuid: string} | {kind: "topology"; uuid: string} | null
+  }): Promise<Actor | null>
+
   head(uuid: string): Promise<ActorRecord | null>
 
   readonly roots: ActorRoots

@@ -17,7 +17,7 @@ export class ProcessEnvs {
       VALUES (${processUuid}, ${env})
       ON CONFLICT (process, env) DO NOTHING
     `
-    if (!existing) emitGravitonAdd(`${processUuid}/env/${env}`, "process_env")
+    if (!existing) emitGravitonAdd("process_env", `${processUuid}/env/${env}`)
   }
 
   async remove(env: string): Promise<void> {

@@ -63,8 +63,10 @@ Force фиксирует, как сила действует через кана
 Один `Particle` представляет ровно один Force part:
 
 ```ts
-{ part: "graviton", op: "add", path: "zavx0z/git" }
 { part: "graviton", op: "add", path: "wimp", value: "zavx0z/git" }
+{ part: "graviton", op: "add", path: "matter", value: "<matter_particle_uuid>" }
+{ part: "graviton", op: "add", path: "actor", value: "<actor_uuid>" }
+{ part: "graviton", op: "add", path: "topology", value: "<topology_uuid>" }
 { part: "gluon", op: "replace", path: "/field/<uuid>", value: 42 }
 { part: "higgs", op: "replace", path: "/field/<uuid>", value: "branch" }
 { part: "photon", op: "replace", path: "/wimp/<uuid>", value: "ready" }
@@ -73,10 +75,12 @@ Force фиксирует, как сила действует через кана
 { part: "-z", op: "test", path: "/wimp/<uuid>/process/<uuid>", value: { coordination: "release" } }
 ```
 
-В runtime Force `path` для root/source пишется как прямой source path без ведущего `/`.
 `part` хранит force carrier, а доменный тип сигнала пишется в `path`.
 WIMP-сигнал не кодирует `/wimp/...`: он пишется как `{ part: "graviton", op: "add", path: "wimp", value: src }`.
 `value` здесь не payload WIMP, а только source-id; получатель читает полную декларацию из Store по этому `src`.
+Для остальных Store-сущностей действует тот же порядок: `path` — доменная область
+(`actor`, `topology`, `matter`, `state`, `process` и т.п.), `value` — id/ключ,
+по которому получатель перечитывает полную строку или поддерево из Store.
 
 Batch `parts` может содержать разные `part`, но маршрутизация всегда читается с самого Particle, а не с envelope.
 Envelope не должен дублировать `part`, `channel`, `source` или `boson`.

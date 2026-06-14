@@ -43,7 +43,7 @@ export class Processes {
       INSERT INTO process (uuid, wimp, key, type, label, desc)
       VALUES (${uuid}, ${src}, ${input.key}, ${input.type}, ${input.label ?? null}, ${input.desc ?? null})
     `
-    emitGravitonAdd(uuid, "process")
+    emitGravitonAdd("process", uuid)
     return new Process(this, input.key)
   }
 

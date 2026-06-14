@@ -485,7 +485,7 @@ export class MatterChildren {
       input.fieldsBinding,
       input.massBinding,
     )
-    emitGravitonAdd(uuid, "wimp")
+    emitGravitonAdd("matter", uuid)
     return new MatterWimpParticle(this.particle.matter, uuid, input.src)
   }
 
@@ -501,7 +501,7 @@ export class MatterChildren {
       input.fuzzyKind,
       input.predicateBinding,
     )
-    emitGravitonAdd(uuid, "fuzzy")
+    emitGravitonAdd("matter", uuid)
     return new MatterFuzzyParticle(this.particle.matter, uuid, input.fuzzyKind)
   }
 
@@ -515,7 +515,7 @@ export class MatterChildren {
       input.edgeSlot,
       input.predicateBinding,
     )
-    emitGravitonAdd(uuid, "axion")
+    emitGravitonAdd("matter", uuid)
     return new MatterAxionParticle(this.particle.matter, uuid)
   }
 
@@ -529,7 +529,7 @@ export class MatterChildren {
       input.edgeSlot,
       input.collectionBinding,
     )
-    emitGravitonAdd(uuid, "macho")
+    emitGravitonAdd("matter", uuid)
     return new MatterMachoParticle(this.particle.matter, uuid)
   }
 
@@ -559,7 +559,7 @@ export class Matter {
     massBinding?: BindingValue | undefined
   }): Promise<MatterWimpParticle> {
     const uuid = await insertWimpAt(this.parent, null, "root", input.src, input.fieldsBinding, input.massBinding)
-    emitGravitonAdd(uuid, "wimp")
+    emitGravitonAdd("matter", uuid)
     return new MatterWimpParticle(this, uuid, input.src)
   }
 
@@ -568,19 +568,19 @@ export class Matter {
     predicateBinding?: BindingValue | undefined
   }): Promise<MatterFuzzyParticle> {
     const uuid = await insertFuzzyAt(this.parent, null, "root", input.fuzzyKind, input.predicateBinding)
-    emitGravitonAdd(uuid, "fuzzy")
+    emitGravitonAdd("matter", uuid)
     return new MatterFuzzyParticle(this, uuid, input.fuzzyKind)
   }
 
   async axion(input: {predicateBinding: BindingValue}): Promise<MatterAxionParticle> {
     const uuid = await insertAxionAt(this.parent, null, "root", input.predicateBinding)
-    emitGravitonAdd(uuid, "axion")
+    emitGravitonAdd("matter", uuid)
     return new MatterAxionParticle(this, uuid)
   }
 
   async macho(input: {collectionBinding: BindingValue}): Promise<MatterMachoParticle> {
     const uuid = await insertMachoAt(this.parent, null, "root", input.collectionBinding)
-    emitGravitonAdd(uuid, "macho")
+    emitGravitonAdd("matter", uuid)
     return new MatterMachoParticle(this, uuid)
   }
 

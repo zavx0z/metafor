@@ -27,9 +27,9 @@ describe("wimp normalization", () => {
     const firstFieldUuid = await firstWimp!.fields.get({key: "operation"})
     expect(firstFieldUuid).not.toBeNull()
 
-    // Вторая попытка той же src через matter():
-    // matter() видит существующий wimp и пропускает повторное создание/наполнение —
-    // декларация в БД не перезаписывается.
+    // Вторая попытка той же root src через matter():
+    // matter() видит существующий root actor и пропускает повторный runtime instance —
+    // декларация WIMP в БД не перезаписывается.
     await matter("zavx0z/git")
 
     const secondWimp = await store.wimp.get("zavx0z/git")

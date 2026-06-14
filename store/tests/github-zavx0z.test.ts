@@ -70,7 +70,7 @@ describe("store/tests github/zavx0z startup load", () => {
     `
 
     await waitForParts(() => {
-      return parts.filter((part) => part.part === "graviton" && part.op === "add" && part.value === "actor").length
+      return parts.filter((part) => part.part === "graviton" && part.op === "add" && part.path === "actor").length
         >= actorRows.length
     })
     store.onmessage = null
@@ -111,10 +111,10 @@ describe("store/tests github/zavx0z startup load", () => {
     expect(await commit.values.count()).toBeGreaterThan(0)
     expect((await commit.state())?.metaState).not.toBeNull()
 
-    const actorParts = parts.filter((part) => part.part === "graviton" && part.op === "add" && part.value === "actor")
-    const topologyParts = parts.filter((part) => part.part === "graviton" && part.op === "add" && part.value === "topology")
-    expect(actorParts.map((part) => part.path).sort()).toEqual(actorRows.map((row) => row.uuid).sort())
-    expect(topologyParts.map((part) => part.path).sort()).toEqual(topologyRows.map((row) => row.uuid).sort())
+    const actorParts = parts.filter((part) => part.part === "graviton" && part.op === "add" && part.path === "actor")
+    const topologyParts = parts.filter((part) => part.part === "graviton" && part.op === "add" && part.path === "topology")
+    expect(actorParts.map((part) => part.value).sort()).toEqual(actorRows.map((row) => row.uuid).sort())
+    expect(topologyParts.map((part) => part.value).sort()).toEqual(topologyRows.map((row) => row.uuid).sort())
 
     await sql.close()
     await store.close()

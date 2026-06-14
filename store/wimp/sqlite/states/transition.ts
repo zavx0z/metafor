@@ -82,7 +82,7 @@ export class Transitions {
       INSERT INTO transition (uuid, from_state, to_state, position)
       VALUES (${uuid}, ${fromUuid}, ${targetRow.uuid}, ${position})
     `
-    emitGravitonAdd(uuid, "transition")
+    emitGravitonAdd("transition", uuid)
     return new Transition(this.state, toName)
   }
 

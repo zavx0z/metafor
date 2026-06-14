@@ -1,4 +1,5 @@
 import type {WimpCreateFieldInput, WimpCreateInput, WimpCreateProcessInput, WimpCreateReactionInput, WimpCreateSuperpositionInput} from "./create.t.ts"
+import type {EdgeSlot, MatterRelationBindingValue, MatterRelationParticle} from "./matter.t.ts"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -31,6 +32,13 @@ type CreateRows = {
   reactionStates: SqlValue[][]
   reactionRead: SqlValue[][]
   reactionWrite: SqlValue[][]
+  matterBindings: SqlValue[][]
+  matterBindingDeps: SqlValue[][]
+  matterParticles: SqlValue[][]
+  matterParticleWimps: SqlValue[][]
+  matterParticleFuzzies: SqlValue[][]
+  matterParticleAxions: SqlValue[][]
+  matterParticleMachos: SqlValue[][]
 }
 
 const createRows = (): CreateRows => ({
@@ -59,6 +67,13 @@ const createRows = (): CreateRows => ({
   reactionStates: [],
   reactionRead: [],
   reactionWrite: [],
+  matterBindings: [],
+  matterBindingDeps: [],
+  matterParticles: [],
+  matterParticleWimps: [],
+  matterParticleFuzzies: [],
+  matterParticleAxions: [],
+  matterParticleMachos: [],
 })
 
 const sqlValue = (value: SqlValue): string => {
@@ -425,12 +440,92 @@ const pushReactionRows = (
   }
 }
 
+const matterBindingPaths = (value: MatterRelationBindingValue): string[] => {
+  if (typeof value === "string" || value.data === undefined) return []
+  return Array.isArray(value.data) ? value.data : [value.data]
+}
+
+const pushMatterBindingRows = (
+  rows: CreateRows,
+  src: string,
+  value: MatterRelationBindingValue | undefined,
+): string | null => {
+  if (value === undefined) return null
+
+  const uuid = crypto.randomUUID()
+  if (typeof value === "string") {
+    rows.matterBindings.push([uuid, src, "static", "text", value, null, null])
+    return uuid
+  }
+
+  const paths = matterBindingPaths(value)
+  rows.matterBindings.push([
+    uuid,
+    src,
+    value.expr !== undefined ? "dynamic" : "variable",
+    null,
+    null,
+    null,
+    value.expr ?? null,
+  ])
+
+  for (let index = 0; index < paths.length; index++) {
+    rows.matterBindingDeps.push([uuid, index, paths[index]!])
+  }
+
+  return uuid
+}
+
+const pushMatterParticleRows = (
+  rows: CreateRows,
+  src: string,
+  particle: MatterRelationParticle,
+  parentParticle: string | null,
+  edgeSlot: EdgeSlot,
+  particleOrder: number,
+): string => {
+  const uuid = crypto.randomUUID()
+  rows.matterParticles.push([uuid, src, parentParticle, particle.kind, edgeSlot, particleOrder])
+
+  if (particle.kind === "wimp") {
+    rows.matterParticleWimps.push([
+      uuid,
+      particle.src,
+      pushMatterBindingRows(rows, src, particle.fieldsBinding),
+      pushMatterBindingRows(rows, src, particle.massBinding),
+    ])
+  } else if (particle.kind === "fuzzy") {
+    rows.matterParticleFuzzies.push([
+      uuid,
+      particle.fuzzyKind,
+      pushMatterBindingRows(rows, src, particle.predicateBinding),
+    ])
+  } else if (particle.kind === "axion") {
+    rows.matterParticleAxions.push([uuid, pushMatterBindingRows(rows, src, particle.predicateBinding)])
+  } else {
+    rows.matterParticleMachos.push([uuid, pushMatterBindingRows(rows, src, particle.collectionBinding)])
+  }
+
+  for (let index = 0; index < (particle.children?.length ?? 0); index++) {
+    const child = particle.children![index]!
+    pushMatterParticleRows(rows, src, child.particle, uuid, child.edgeSlot, index)
+  }
+
+  return uuid
+}
+
+const pushMatterRows = (rows: CreateRows, src: string, matter: readonly MatterRelationParticle[]): void => {
+  for (let index = 0; index < matter.length; index++) {
+    pushMatterParticleRows(rows, src, matter[index]!, null, "root", index)
+  }
+}
+
 /**
  * Строит один SQL batch для создания WIMP-декларации.
  *
  * Функция не обращается к базе и не создает ORM-объекты. Она только переводит
  * `WimpCreateInput` в порядок `INSERT`-statement'ов, согласованный с FK-связями
- * таблиц: сначала корневой `wimp`, затем mass/fields/states/processes/reactions
+ * таблиц: сначала корневой `wimp`, затем mass/fields/states/processes/reactions/matter
  * и их дочерние строки.
  *
  * Если WIMP с таким `src` уже существует, batch должен упасть на `UNIQUE`, а не
@@ -449,6 +544,7 @@ export const buildWimpCreateSql = (src: string, input: WimpCreateInput): string 
   const stateUuids = pushStateRows(rows, src, fieldUuids, input.superposition ?? [])
   pushProcessRows(rows, src, fieldUuids, input.processes ?? [])
   pushReactionRows(rows, src, fieldUuids, stateUuids, input.reactions ?? [])
+  pushMatterRows(rows, src, input.matter ?? [])
 
   return [
     `INSERT INTO wimp (src, name, desc, view_css)\nVALUES (${[src, input.name ?? null, input.desc ?? null, input.bulk?.view ?? null].map(sqlValue).join(", ")});`,
@@ -477,6 +573,13 @@ export const buildWimpCreateSql = (src: string, input: WimpCreateInput): string 
     insertRowsSql("reaction_read", ["reaction", "field"], rows.reactionRead, {orIgnore: true}),
     insertRowsSql("reaction_write", ["reaction", "field"], rows.reactionWrite, {orIgnore: true}),
     insertRowsSql("reaction_state", ["reaction", "state"], rows.reactionStates, {orIgnore: true}),
+    insertRowsSql("matter_binding", ["uuid", "wimp", "binding_kind", "literal_kind", "literal_text", "literal_boolean", "expr"], rows.matterBindings),
+    insertRowsSql("matter_binding_dep", ["binding", "dep_order", "path"], rows.matterBindingDeps),
+    insertRowsSql("matter_particle", ["uuid", "wimp", "parent_particle", "particle_kind", "edge_slot", "particle_order"], rows.matterParticles),
+    insertRowsSql("matter_particle_wimp", ["particle", "src", "fields_binding", "mass_binding"], rows.matterParticleWimps),
+    insertRowsSql("matter_particle_fuzzy", ["particle", "fuzzy_kind", "predicate_binding"], rows.matterParticleFuzzies),
+    insertRowsSql("matter_particle_axion", ["particle", "predicate_binding"], rows.matterParticleAxions),
+    insertRowsSql("matter_particle_macho", ["particle", "collection_binding"], rows.matterParticleMachos),
   ]
     .filter((statement): statement is string => statement !== null)
     .join("\n\n")

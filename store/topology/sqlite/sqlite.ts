@@ -38,7 +38,7 @@ export class StoreTopologySqlite {
       INSERT INTO topology (uuid, parent_actor, parent_topology, kind, position)
       VALUES (${input.uuid}, ${input.parentActor}, ${input.parentTopology}, ${input.kind}, ${position})
     `
-    emitGravitonAdd(input.uuid, "topology")
+    emitGravitonAdd("topology", input.uuid)
     return buildTopology(this.sql, {...input, position})
   }
 

@@ -22,7 +22,7 @@ export class ActionRead {
       FROM field WHERE field.wimp = ${src} AND field.key = ${fieldKey}
     `
     if (!existing && await this.has(phase, fieldKey)) {
-      emitGravitonAdd(`${processUuid}/action/read/${phase}/${fieldKey}`, "process_action_read")
+      emitGravitonAdd("process_action_read", `${processUuid}/action/read/${phase}/${fieldKey}`)
     }
   }
 
@@ -109,7 +109,7 @@ export class ActionWrite {
       FROM field WHERE field.wimp = ${src} AND field.key = ${fieldKey}
     `
     if (!existing && await this.has(phase, fieldKey)) {
-      emitGravitonAdd(`${processUuid}/action/write/${phase}/${fieldKey}`, "process_action_write")
+      emitGravitonAdd("process_action_write", `${processUuid}/action/write/${phase}/${fieldKey}`)
     }
   }
 
@@ -230,7 +230,7 @@ export class ProcessAction {
       INSERT INTO process_action (process, action, action_import_specifier, action_wrapper_src, success, error)
       VALUES (${processUuid}, ${input.src}, ${importSpecifier}, ${wrapperSrc}, ${success}, ${error})
     `
-    emitGravitonAdd(`${processUuid}/action`, "process_action")
+    emitGravitonAdd("process_action", `${processUuid}/action`)
   }
 
   async setSuccess(src: string | null): Promise<void> {

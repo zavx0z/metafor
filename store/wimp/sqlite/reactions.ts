@@ -45,7 +45,7 @@ export class Reactions {
       INSERT INTO reaction (uuid, wimp, key, label, desc, cond_source, update_source)
       VALUES (${uuid}, ${src}, ${input.key}, ${input.label}, ${input.desc ?? null}, ${input.cond}, ${input.src})
     `
-    emitGravitonAdd(uuid, "reaction")
+    emitGravitonAdd("reaction", uuid)
     return new Reaction(this, input.key)
   }
 

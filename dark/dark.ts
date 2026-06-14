@@ -2,33 +2,41 @@ import {MetaFor, type FieldDefinition, type FieldKey, type SRC} from ".."
 import type {AnyField} from "@store/wimp/sqlite"
 import type {ActorValueRecord, ValueItemRecord, ValueRecord} from "@store/actor"
 import type {BfsEntry, ParticleRef, PendingChildWimp} from "@dark/types/dark"
-import {projectStoreMatterParticles, fillGravityMatter} from "@dark/gravity"
+import {projectStoreMatterParticles, projectTemplateMatterRelations} from "@dark/gravity"
 import {loadMeta} from "./load.ts"
 import {finalizeFieldValues, resolveFieldInits, type Continuation} from "./continuation.ts"
 
 ;(globalThis as unknown as {MetaFor: typeof MetaFor}).MetaFor = MetaFor
 
-store.onmessage = (event) => {
-  for (const part of event.data.parts) {
-    if (part.part !== "graviton") continue
-    if (part.op !== "add") continue
-    if (part.path !== "wimp") continue
-    if (typeof part.value !== "string") continue
-    void matter(part.value).catch(() => {})
+export function installDarkForceListener(target = globalThis.store): void {
+  target.onmessage = (event) => {
+    for (const part of event.data.parts) {
+      if (part.part !== "graviton") continue
+      if (part.op !== "add") continue
+      if (part.path !== "wimp") continue
+      if (typeof part.value !== "string") continue
+      void materializeUnknownWimp(part.value).catch(() => {})
+    }
   }
+}
+
+if (globalThis.store !== undefined) installDarkForceListener(globalThis.store)
+
+async function materializeUnknownWimp(src: SRC): Promise<void> {
+  if (await store.wimp.exists(src)) return
+  await matter(src)
 }
 
 /**
  * Публичный entrypoint Dark.
  *
  * Использует `globalThis.store`, установленный в `dark/server.ts` либо в `dark/web.ts`.
- * Вызовы всегда передают только `SRC`; `Wimp` ORM создаётся внутри `matterWimp`,
- * затем наполняется доменными слоями через тонкие fill-функции (strong/weak/gravity)
- * и разворачивает дерево через store ORM: создаёт actor + topology rows,
+ * Вызовы всегда передают только `SRC`; `Wimp` ORM создаётся внутри `matterWimp`
+ * уже с декларационными matter-связями и разворачивает дерево через store ORM: создаёт actor + topology rows,
  * рекурсивно материализует дочерние wimps.
  *
- * Внутренняя рекурсия тоже передаёт только `SRC`: если декларация уже есть,
- * `matter` выходит до `matterWimp`.
+ * Внутренняя рекурсия тоже передаёт только `SRC`: декларация WIMP создаётся один раз,
+ * а runtime actor пропускается только если такой WIMP уже стоит под тем же parent.
  *
  * Обход дерева — послойный: на каждом BFS-слое топологии родительской wimp сначала
  * создаются все topology-узлы слоя, затем рекурсивно материализуются child wimps этого
@@ -45,7 +53,7 @@ async function materializeMatter(
   parent: ParticleRef | null = null,
   continuation: Continuation | undefined = undefined,
 ): Promise<void> {
-  if (await store.wimp.exists(src)) return
+  if (await store.actor.findByParent({wimp: src, parent})) return
 
   const generator = matterWimp(src, parent, continuation)
 
@@ -61,7 +69,7 @@ async function materializeMatter(
 /**
  * Послойный проход одной wimp.
  *
- * Создаёт root actor, эмитит actor part, затем BFS по plan-tree:
+ * Создаёт WIMP-декларацию с matter plan, root actor, эмитит actor part, затем BFS по plan-tree:
  * на каждой итерации обрабатывает все entries текущего фронтира — для topology-узлов
  * пишет row + emit, для wimp-узлов накапливает pending. По завершении слоя — yield-ит
  * накопленные pending child wimps наружу. Внешний оркестратор обязан рекурсивно
@@ -74,10 +82,8 @@ async function* matterWimp(
   continuation: Continuation | undefined,
 ): AsyncGenerator<PendingChildWimp[], void, void> {
   const dsl = await loadMeta(src)
-  const wimp = await store.wimp.create(src, dsl)
-
-  // GRAVITY: фиксируем matter-связи WIMP в Store.
-  const matterRelations = await fillGravityMatter(wimp, dsl)
+  const matterRelations = projectTemplateMatterRelations(dsl)
+  const wimp = (await store.wimp.get(src)) ?? (await store.wimp.create(src, {...dsl, matter: matterRelations}))
 
   // ACTOR: переходим от Wimp-декларации к runtime-экземпляру.
   // fieldSchemas — схема полей Wimp; finalValues — значения полей Actor.

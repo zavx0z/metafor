@@ -1,12 +1,10 @@
 import type { MetaDSL, NodeType } from "../../index.ts"
 import type {
-  EdgeSlot,
   MatterRelationBindingValue,
   MatterRelationChild,
   MatterRelationParticle,
 } from "../../store/wimp/sqlite/matter.t.ts"
 import type { MatterParticlePlan } from "../types/dark.ts"
-import { MatterChildren, type Matter, type MatterParticle, type Wimp } from "@store/wimp/sqlite"
 
 const createContinuationSrc = (expr: string | undefined, value: string | number): string => {
   if (!expr) return String(value)
@@ -163,71 +161,3 @@ export const projectStoreMatterParticles = (particles: MatterRelationParticle[])
         }
     }
   })
-
-async function insertParticleRecursive(
-  collection: Matter | MatterChildren,
-  particle: MatterRelationParticle,
-  edgeSlot?: EdgeSlot,
-): Promise<void> {
-  let inserted: MatterParticle
-
-  if (particle.kind === "wimp") {
-    if (collection instanceof MatterChildren) {
-      const slot = (edgeSlot ?? "child") as "child" | "branch"
-      inserted = await collection.wimp({
-        edgeSlot: slot,
-        src: particle.src,
-        ...(particle.fieldsBinding !== undefined ? { fieldsBinding: particle.fieldsBinding } : {}),
-        ...(particle.massBinding !== undefined ? { massBinding: particle.massBinding } : {}),
-      })
-    } else {
-      inserted = await collection.wimp({
-        src: particle.src,
-        ...(particle.fieldsBinding !== undefined ? { fieldsBinding: particle.fieldsBinding } : {}),
-        ...(particle.massBinding !== undefined ? { massBinding: particle.massBinding } : {}),
-      })
-    }
-  } else if (particle.kind === "fuzzy") {
-    if (collection instanceof MatterChildren) {
-      const slot = (edgeSlot ?? "child") as "child" | "then" | "else" | "branch"
-      inserted = await collection.fuzzy({
-        edgeSlot: slot,
-        fuzzyKind: particle.fuzzyKind,
-        ...(particle.predicateBinding !== undefined ? { predicateBinding: particle.predicateBinding } : {}),
-      })
-    } else {
-      inserted = await collection.fuzzy({
-        fuzzyKind: particle.fuzzyKind,
-        ...(particle.predicateBinding !== undefined ? { predicateBinding: particle.predicateBinding } : {}),
-      })
-    }
-  } else if (particle.kind === "axion") {
-    if (collection instanceof MatterChildren) {
-      const slot = (edgeSlot ?? "child") as "child" | "then" | "else" | "branch"
-      inserted = await collection.axion({ edgeSlot: slot, predicateBinding: particle.predicateBinding })
-    } else {
-      inserted = await collection.axion({ predicateBinding: particle.predicateBinding })
-    }
-  } else {
-    if (collection instanceof MatterChildren) {
-      const slot = (edgeSlot ?? "child") as "child" | "then" | "else" | "branch"
-      inserted = await collection.macho({ edgeSlot: slot, collectionBinding: particle.collectionBinding })
-    } else {
-      inserted = await collection.macho({ collectionBinding: particle.collectionBinding })
-    }
-  }
-
-  if (Array.isArray(particle.children)) {
-    for (const child of particle.children) {
-      await insertParticleRecursive(inserted.children, child.particle, child.edgeSlot)
-    }
-  }
-}
-
-export async function fillGravityMatter(wimp: Wimp, dsl: MetaDSL): Promise<MatterRelationParticle[]> {
-  const relations = projectTemplateMatterRelations(dsl)
-  for (const relation of relations) {
-    await insertParticleRecursive(wimp.matter, relation)
-  }
-  return relations
-}

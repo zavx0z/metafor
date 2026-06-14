@@ -43,7 +43,7 @@ export class StoreActorSqlite {
   async create(rows: ActorRows): Promise<Actor> {
     await Actor.writeRows(this.sql, rows)
     const actor = new Actor(this.sql, rows.actor.uuid)
-    emitGravitonAdd(rows.actor.uuid, "actor")
+    emitGravitonAdd("actor", rows.actor.uuid)
     return actor
   }
 
@@ -54,6 +54,25 @@ export class StoreActorSqlite {
       `
     )[0]
     return row ? new Actor(this.sql, uuid) : null
+  }
+
+  async findByParent(input: {
+    wimp: string
+    parent: {kind: "actor"; uuid: string} | {kind: "topology"; uuid: string} | null
+  }): Promise<Actor | null> {
+    const parentActor = input.parent?.kind === "actor" ? input.parent.uuid : null
+    const parentTopology = input.parent?.kind === "topology" ? input.parent.uuid : null
+    const row = (
+      await this.sql<Array<{uuid: string}>>`
+        SELECT uuid
+        FROM actor
+        WHERE wimp = ${input.wimp}
+          AND parent_actor IS ${parentActor}
+          AND parent_topology IS ${parentTopology}
+        LIMIT 1
+      `
+    )[0]
+    return row ? new Actor(this.sql, row.uuid) : null
   }
 
   async head(uuid: string): Promise<ActorRecord | null> {
