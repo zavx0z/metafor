@@ -1,16 +1,19 @@
 # Application Servers
 
-`@app/application` содержит два минимальных серверных процесса для проверки обмена `ForceMessage` между доменами без browser `IndexedDB` и без `app/web` worker runtime.
+`@app/application` содержит минимальные серверные процессы для проверки обмена `ForceMessage` между доменами без browser `IndexedDB` и без `app/web` worker runtime.
 
-- `dark.server.ts` статически импортирует `@metafor/dark/server` и поверх `globalThis.store` поднимает WebSocket-мост.
-- `boundary.server.ts` поднимает server-side `store/sqlite`, грузит `@metafor/boundary/boot` и поднимает такой же WebSocket-мост.
+- `dark.server.ts` импортирует `@metafor/dark/server`, поверх `globalThis.store` поднимает WebSocket-мост Store и после `zavx0z/git` materialization отправляет стартовый `w` particle в process WebSocket.
+- `boundary.server.ts` импортирует `@metafor/boundary/server` и поднимает такой же WebSocket-мост Store.
+- `process.server.ts` поднимает отдельный WebSocket-слой процессов. Он принимает только particles с `part: "w" | "+z" | "-z"`.
 
-Слой приложения не является доменом. Он только пересылает сообщения:
+Слой приложения не является доменом. Store-мост только пересылает сообщения:
 
 ```text
-store.onmessage -> WebSocket
-WebSocket -> store.postMessage
+store.entropy -> WebSocket
+WebSocket -> store.absorb
 ```
+
+Process-мост не принимает Store-replication particles. `path` у process particle — это путь action-модуля из DSL, сохраненный в `process_action.action`; `value` содержит `uuid` строки `process` из SQLite. Остальной контекст выводится из Store по этому process uuid.
 
 Запуск из корня:
 
@@ -27,7 +30,8 @@ bun run interpreter
 
 Порты по умолчанию:
 
-- Dark WebSocket: `127.0.0.1:7101/ws`;
-- Boundary WebSocket: `127.0.0.1:7102/ws`.
+- Process WebSocket: `127.0.0.1:7103/ws`;
+- Dark Store WebSocket: `127.0.0.1:7101/ws`;
+- Boundary Store WebSocket: `127.0.0.1:7102/ws`.
 
-Путь Dark Store задается через `STORE_PATH`, потому что Store открывает пакетный `@metafor/dark/server` на этапе статического импорта.
+Путь Store задается через `STORE_PATH` на уровне каждого доменного сервера.

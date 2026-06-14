@@ -1,426 +1,429 @@
-[README](../README.md) | **English** | [Русский](./ONTOLOGY.ru.md)
 
-# Ontology
+# Онтология
 
-This document fixes what exists in MetaFor before file layout and code projection.
-It does not begin with file layout and does not depend on the current physical location of modules.
-It fixes the primary reality that code merely projects.
+Этот документ фиксирует, что существует в MetaFor до файловой структуры и кодовой проекции.
+Он не начинается с файловой структуры и не зависит от текущего расположения модулей.
+Он фиксирует первичную реальность системы, которую код затем только проецирует.
 
-## The basic form of ontology
+## Основная форма онтологии
 
-MetaFor ontology is built through three classes of elements:
+Онтология MetaFor строится через три класса элементов:
 
-- domains,
-- forces,
-- entities.
+- домены,
+- силы,
+- сущности.
 
-The system must be read not as a tree but as a multidimensional structure:
+Систему нужно мыслить не как дерево, а как многомерную структуру:
 
-`Domain × Force × Entity`
+`Домен × Сила × Сущность`
 
-## Domains
+## Домены
 
-There are three fundamental domains:
+Существуют три фундаментальных домена:
 
-- `Dark`
-- `Boundary`
-- `Bulk`
+- Dark
+- Boundary
+- Bulk
 
-Domains are modes of existence.
-They are not owners of forces.
+Домены — это режимы существования системы.
+Они не являются владельцами сил.
 
 ### Dark
 
-`Dark` is the domain of hidden connectivity, memory, hierarchy, history, and model evolution.
-It is not a storage layer, not a utility folder, and not a technical middle layer.
-It is the mode of latent connectivity formed from `meta` descriptions.
+Dark — это домен скрытой связности, памяти, иерархии, истории и эволюции модели.
+Это не слой хранения, не служебная папка и не техническая прослойка.
+Это режим существования латентной связности, формируемой из описаний `meta`.
+Если в репозитории выделяется `dark/`, то это только явная проекция этой скрытой непрерывности, а не новый оркестратор времени исполнения.
 
-If the repository contains an explicit `dark/` projection, that should be read only as an explicit technical projection of this hidden continuity, not as a new runtime orchestrator.
+Ключевой инвариант: `Dark` не имеет собственного пространства.
+Он содержит частицы связности и нити связности между ними, из которых затем возможны проекции к `Boundary` и `Bulk`.
 
-The key invariant is strict:
-`Dark` has no space of its own.
-It contains connectivity particles and connectivity threads from which projection toward `Boundary` and `Bulk` becomes possible.
+Частицы связности `Dark`:
 
-The connectivity particles of `Dark` are:
+- `Wimp` — статическая связность,
+- `Fuzzy` — динамическая условная связность,
+- `Macho` — динамическая множественная связность,
+- `Axion` — динамическая логическая связность.
 
-- `Wimp` for static connectivity,
-- `Fuzzy` for dynamic conditional connectivity,
-- `Macho` for dynamic multiple connectivity,
-- `Axion` for dynamic logical connectivity.
+Все четыре сущности относятся к частицам связности `Dark`.
 
 ### Boundary
 
-`Boundary` is the domain of limit, fixation, flattening, canonicalization, and state computation.
-It is the flattening boundary and imprint layer:
-here connectivity receives a fixable imprint as `Field` in a form fit for deterministic computation.
+Boundary — это домен предела, фиксации, уплощения, каноникализации и вычисления состояния.
+Это граница уплощения и слой отпечатка: здесь связность получает фиксируемый отпечаток (`Field`) в форме, пригодной для детерминированного вычисления.
 
 ### Bulk
 
-`Bulk` is the domain of manifestation, execution, process, volume, and unfolding.
-It is where structure receives volumetric manifestation and spatial belonging.
+Bulk — это домен проявления, исполнения, процесса, объёма и разворачивания.
+Это место, где структура получает объёмное проявление и пространственную принадлежность.
 
-The short domain distinction must remain clear:
+Краткое различение доменов должно сохраняться без смешения ролей:
 
-- `Dark` holds hidden connectivity through particles and threads,
-- `Boundary` fixes the imprint of that connectivity as `Field`,
-- `Bulk` manifests volumetric form and spatial belonging.
+- `Dark` удерживает скрытую связность (частицы и нити),
+- `Boundary` фиксирует отпечаток уплощения (`Field`) этой связности,
+- `Bulk` проявляет объёмную форму и пространственную принадлежность.
 
-## Forces
+## Силы
 
-There are four universal forces:
+Существуют четыре универсальные силы:
 
-- `Gravity`
-- `Electromagnetism`
-- `Strong`
-- `Weak`
+- Gravity
+- Electromagnetism
+- Strong
+- Weak
 
-Every domain expresses all four forces.
-Forces do not belong to a specific domain.
+Каждый домен выражает все четыре силы.
+Силы не принадлежат отдельным доменам.
 
-Alongside these forces MetaFor distinguishes a dedicated topology-field layer.
-It does not cancel the four universal forces; it introduces an additional distinction between data and topology.
-Topology-fields are read as Higgs fields, and their change is carried through `Higgs boson`.
+Наряду с этими силами MetaFor различает специальный слой поля topology.
+Он не отменяет четыре универсальные силы, а добавляет отдельное различение между данными и топологией.
+Поля topology читаются как поля Higgs, а их изменение переносится через `Higgs boson`.
 
 ### Gravity
 
-`Gravity` defines relation, localization invariants, structural organization, and rules of addressability.
-In a `meta` declaration, `gravity` describes how the current `meta` is related and localized with respect to other `meta` declarations.
-In `Dark`, that relation is read through `Wimp` supports of static connectivity.
-In `Boundary` and `Bulk`, the same force is read through boundary geometry, indexability, and manifested spatial arrangement.
-Its channel is `Graviton`.
+Gravity задаёт отношение, инварианты локализации, структурную организацию и правила адресуемости.
+В `meta`-декларации `gravity` описывает, как текущая `meta` соотнесена и локализована относительно других `meta`-деклараций.
+В `Dark` это отношение читается через `Wimp`-опоры статической связности.
+В `Boundary` и `Bulk` та же сила читается через геометрию границы, индексируемость и проявленную пространственную раскладку.
+Её каналом является `Graviton`.
 
 ### Electromagnetism
 
-`Electromagnetism` is responsible for observable propagation and state transport.
-It relates parts of the system through `Photon`.
-It is not the universal channel for every force.
+Electromagnetism отвечает за наблюдаемое распространение и перенос состояния.
+Она связывает части системы через `Photon`.
+Она не является общим каналом всех сил.
 
 ### Strong
 
-`Strong` is responsible for retention, cohesion, connectivity, compaction, and stability of form.
-It prevents structure from falling apart.
-Its channel is `Gluon`, through which ordinary `Field` values change.
+Strong отвечает за удержание, сцепление, связность, компактизацию и устойчивость формы.
+Она не даёт структуре распасться.
+Её каналом является `Gluon`, через который изменяются значения обычных `Field`.
 
 ### Weak
 
-`Weak` is responsible for transition, passage, mutation, transformation, and state evolution.
-It carries an entity through change.
-It acts through `W boson` and `Z boson`:
+Weak отвечает за переход, изменение, прохождение, трансформацию и эволюцию состояния.
+Она проводит сущность через изменение.
+Она действует через `W boson` и `Z boson`.
+`W boson` выражает активный проход и смену состояния.
+`Z boson` выражает нейтральную медицию перехода и внутреннюю связку переходных состояний.
 
-- `W boson` expresses active passage and state change,
-- `Z boson` expresses neutral mediation and the inner coupling of transitional states.
+## Сущности
 
-## Entities
-
-Entities are the real elements of the system that manifest through domains and forces.
-Not all entities are primary in the same sense, but all belong to ontology.
+Сущности — это реальные элементы системы, которые проявляются через домены и силы.
+Не все сущности первичны в одинаковой степени, но все они входят в онтологию.
 
 ### Brane
 
-`Brane` is the bearer of configuration, state, and connectivity.
-It gives the carrier of structural existence.
+Brane — это носитель конфигурации, состояния и связности.
+Brane задаёт носитель структурного существования.
 
 ### Field
 
-`Field` is the bearer of values, differences, and inner determination.
-`Brane` and `Field` form a coupled pair of one structure.
-They are ontologically distinct without standing in a parent-child relation.
+Field — это носитель значений, различий и внутренней определённости.
+Field задаёт носитель внутренней определённости структуры.
 
-- In `Dark`, `Brane` and `Field` exist as coupled aspects of one hidden structural unit.
-- In `Boundary`, they exist as coupled aspects of one canonical structural unit.
-- In `Bulk`, they exist as coupled aspects of one manifested and executable structure.
+Brane и Field образуют связанную пару одной структуры.
+Они онтологически различимы, но не находятся в отношении главного и вложенного.
+Ни одна из этих сущностей не должна пониматься как случайный технический помощник другой.
+Одна из них не существует полноценно без другой.
 
-Within `Field`, MetaFor distinguishes two kinds:
+- В `Dark` `Brane` и `Field` существуют как сопряжённые аспекты одной скрытой структурной единицы.
+- В `Boundary` `Brane` и `Field` существуют как сопряжённые аспекты одной канонической структурной единицы.
+- В `Bulk` `Brane` и `Field` существуют как сопряжённые аспекты одной проявленной и исполняемой структуры.
 
-- ordinary data-fields,
-- topology-fields.
+Внутри `Field` нужно различать два рода:
 
-This difference is primary relative to AST and follows from the type nature of the field itself.
-`AST` only unfolds the semantic distinction into a specific serializable contract.
+- обычные поля данных,
+- поля topology.
 
-Topology-fields in MetaFor are Higgs fields by nature:
+Это различие первично по отношению к AST и задаётся типовой природой поля.
+`AST` лишь раскрывает эти семантики в конкретном контракте, но не создаёт категорию заново.
 
-- `enum` is branch selection,
-- `array` is branch multiplicity and branch unfolding.
+Поля topology в MetaFor являются полями Higgs.
+К ним по самой природе типа относятся:
 
-Neither `enum` nor `array` should be read as an ordinary value field.
-Neither belongs to the ordinary field-update regime.
-Their change is topology change carried through `Higgs boson`, not ordinary value mutation.
+- `enum` как выбор ветви,
+- `array` как множественность ветвей и их разворачивание.
 
-Hidden connectivity, `Wimp` / `Fuzzy` / `Macho` / `Axion`, connectivity addressing, and entanglement are formalized separately in [Topology](./TOPOLOGY.md).
+Ни `enum`, ни `array` нельзя читать как обычное поле значения.
+Ни одно из них не принадлежит режиму обычного обновления поля.
+Их изменение является topology change, переносимым через `Higgs boson`, а не обычной мутацией значения.
 
-The remaining fields are ordinary data-fields and stay in the regime of ordinary inner value determination.
+Отдельная формализация скрытой связности `Dark`, частиц `Wimp`/`Fuzzy`/`Macho`/`Axion`, а также адресации связности и переплетения вынесена в [TOPOLOGY.md](./TOPOLOGY.md).
 
-Additional constraints for topology-fields are:
+Остальные поля относятся к обычным полям данных и остаются в режиме обычной внутренней определённости значения.
 
-- `enum` always expresses topology selection, not merely a bounded literal set,
-- `enum` changes only as topology change and must not be patched as an ordinary value,
-- `array` always expresses topology multiplicity and branch unfolding, not an ordinary collection of independent values,
-- `array` changes only as topology change and must not be patched as an ordinary value,
-- `array` does not participate in entanglement,
-- `array` is not mutated by external reactions,
-- `array` changes only through the internal process of the atom and only by passing through `State`,
-- `matter` may read topology only through `state`, `enum`, and `array`, and must not encode topology through ordinary HTML or text nodes.
+Для полей topology действуют дополнительные ограничения:
 
-When `array` unfolds, the atom is no longer read as a single value-holder but as a multiplicity of branches.
+- `enum` всегда выражает выбор topology, а не просто ограниченный литеральный набор,
+- `enum` меняется только как изменение topology и не должен патчиться как обычное значение,
+- `array` всегда выражает множественность / разворачивание ветвей topology, а не обычную коллекцию независимых значений,
+- `array` меняется только как изменение topology и не должен патчиться как обычное значение,
+- `array` не участвует в переплетении,
+- `array` не мутируется внешними реакциями,
+- `array` меняется только внутренним процессом самого атома и только проходя через изменение `State`,
+- `matter` может читать topology только через `state`, `enum` и `array` и не должен кодировать topology обычными HTML-узлами или текстом.
+
+Это нужно для того, чтобы topology не сцеплялась бесконтрольно с внешними реакциями.
+Когда `array` разворачивается, атом перестаёт читаться как единичное значение и начинает читаться как множественность ветвей: атом становится множественностью, а не просто контейнером данных.
 
 ### State
 
-`State` is the current configuration of an entity.
+State — это текущая конфигурация сущности.
 
-- In `Dark`, it means hidden continuity of form between versions, not a runtime snapshot.
-- In `Boundary`, it is computed and determined.
-- In `Bulk`, it is manifested and lived through execution.
+- В `Dark` `State` обозначает скрытую непрерывность формы между версиями, а не текущее состояние исполнения и не снимок времени исполнения границы.
+- В `Boundary` `State` вычисляется и определяется.
+- В `Bulk` `State` проявляется и проживается через исполнение.
 
 ### Transition
 
-`Transition` is passage between states.
+Transition — это проход между состояниями.
 
-- In `Dark`, it is a historical structural shift between versions.
-- In `Boundary`, it is computed.
-- In `Bulk`, it is executed or manifested as action.
+- В `Dark` `Transition` обозначает исторический сдвиг структуры между версиями, а не исполняемое действие.
+- В `Boundary` `Transition` вычисляется.
+- В `Bulk` `Transition` исполняется или проявляется как действие.
 
 ### Process
 
-`Process` is the unfolding of action.
+Process — это разворачивание действия.
 
-- In `Dark`, it is only the historical line of model change.
-- In `Boundary`, it exists only to the degree needed for state computation.
-- In `Bulk`, it exists as execution.
+- В `Dark` `Process` обозначает только историческую линию изменения модели, а не самостоятельный исполняемый процесс и не исполнение времени исполнения объёма.
+- В `Boundary` `Process` присутствует только в мере, необходимой для вычисления состояния.
+- В `Bulk` `Process` существует как исполнение.
 
 ### Boson
 
-`Boson` is the common type of a force-channel and transport unit.
-It is not itself a force and is not identical to `Impulse`.
+Boson — это общий тип силового канала и переносимой единицы.
+Он не является силой и не совпадает с `Impulse`.
 
-The bosonic subtypes of MetaFor are `Graviton`, `Photon`, `Gluon`, `Higgs boson`, `W boson`, and `Z boson`.
-Each belongs to its own force or topology channel and must not be merged with the others.
+Подтипами `Boson` в MetaFor являются `Graviton`, `Photon`, `Gluon`, `Higgs boson`, `W boson` и `Z boson`.
+Каждый такой подтип принадлежит своей силе или специальному каналу поля topology и не должен смешиваться с другими.
 
 ### Graviton
 
-`Graviton` is the `Boson` subtype and channel of `Gravity`.
-It is not the force itself; it names the internal force unit of relation, localization, and organization.
+Graviton — это подтип `Boson` и канал `Gravity`.
+Он не тождественен самой силе, а обозначает внутреннюю силовую единицу отношения, локализации и организации.
 
-- In `Dark`, it carries hidden structural determination of relation and localization.
-- In `Boundary`, it is not directly observable and appears through consequences.
-- In `Bulk`, it also appears only through manifested consequences.
+- В `Dark` `Graviton` обозначает внутренний перенос скрытой структурной определённости отношения и локализации.
+- В `Boundary` `Graviton` не наблюдается напрямую и проявляется только через следствия внутреннего устройства.
+- В `Bulk` `Graviton` также не является явным событием и читается только по его проявленным последствиям.
 
 ### Photon
 
-`Photon` is the `Boson` subtype and channel of `Electromagnetism`.
-It transports `State` in observable form.
+Photon — это подтип `Boson` и канал `Electromagnetism`.
+Он переносит `State` в наблюдаемой форме.
 
-- In `Dark`, it marks the possibility of projecting state into observable propagation.
-- In `Boundary`, it fixes state transfer on the boundary.
-- In `Bulk`, it brings state into manifested dynamics, event, or action.
+- В `Dark` `Photon` обозначает возможность вынесения состояния в явное распространение.
+- В `Boundary` `Photon` фиксирует перенос состояния на границе.
+- В `Bulk` `Photon` приносит состояние в проявленную динамику, событие или действие.
 
 ### Gluon
 
-`Gluon` is the `Boson` subtype and channel of `Strong`.
-It changes ordinary `Field` values without destroying connected form.
+Gluon — это подтип `Boson` и канал `Strong`.
+Он изменяет значения обычных `Field`, не разрушая связность формы.
 
-- In `Dark`, it means internal change of ordinary values inside hidden structure.
-- In `Boundary`, it expresses canonically fixable change of ordinary values.
-- In `Bulk`, it expresses applied change of ordinary values in manifested structure.
+- В `Dark` `Gluon` обозначает внутреннее изменение значений обычных `Field` внутри скрытой структуры.
+- В `Boundary` `Gluon` выражает канонически фиксируемое изменение значений обычных `Field`.
+- В `Bulk` `Gluon` выражает применяемое изменение значений обычных `Field` в проявленной структуре.
 
-`Gluon` belongs only to ordinary data-fields.
-It does not change topology-fields and does not replace `Higgs boson`.
+При этом `Gluon` относится только к обычным полям данных.
+Он не изменяет поля topology и не подменяет канал `Higgs boson`.
 
 ### Higgs boson
 
-`Higgs boson` is the `Boson` subtype and channel of topology-field change.
-It neither transports `State` nor changes ordinary `Field` values.
-It changes the branching, selection, and multiplicity of structure itself.
+Higgs boson — это подтип `Boson` и канал изменения полей topology.
+Он не переносит `State` и не изменяет обычные значения `Field`.
+Он изменяет саму форму ветвления, выбора и множественности структуры.
 
-- In `Dark`, it marks hidden reconfiguration of topology-fields and globally visible changes in the topology/gravity frame.
-- In `Boundary`, it expresses canonically fixed topology selection and branch multiplicity.
-- In `Bulk`, it expresses manifested structural reconfiguration that changes the branch set itself.
+- В `Dark` `Higgs boson` обозначает скрытую перестройку полей topology и глобально наблюдаемое изменение topology/gravity-каркаса.
+- В `Boundary` `Higgs boson` выражает канонически фиксируемую смену выбора topology или множественности ветвей.
+- В `Bulk` `Higgs boson` выражает проявленную структурную реконфигурацию, которая меняет состав ветвей, а не просто значение в уже существующей ветви.
 
 ### W boson
 
-`W boson` is the `Boson` subtype and `Weak` channel for active transition.
-It carries mutation, passage, and state change.
+W boson — это подтип `Boson` и канал `Weak` для активного перехода.
+Он проводит мутацию, прохождение и смену состояния.
 
-- In `Dark`, it marks active shift between latent structural versions.
-- In `Boundary`, it expresses the computed passage from one admissible state to another.
-- In `Bulk`, it unfolds the active transition as executable action.
+- В `Dark` `W boson` обозначает активный сдвиг между латентными структурными версиями.
+- В `Boundary` `W boson` выражает вычисленный проход из одного допустимого состояния в другое.
+- В `Bulk` `W boson` разворачивает активный переход в исполняемое действие.
 
 ### Z boson
 
-`Z boson` is the `Boson` subtype and `Weak` channel for neutral mediation of transition.
-It holds the inner coupling of transitional states and keeps the logic of passage coherent.
+Z boson — это подтип `Boson` и канал `Weak` для нейтральной медиции перехода.
+Он удерживает внутреннюю связку переходных состояний и согласует саму логику прохождения.
 
-- In `Dark`, it marks the hidden coupling between transitional configurations.
-- In `Boundary`, it expresses computed neutral mediation of transition conditions.
-- In `Bulk`, it accompanies execution as inner coupling of transitional states.
+- В `Dark` `Z boson` обозначает скрытую связку между переходными конфигурациями.
+- В `Boundary` `Z boson` выражает вычисляемую нейтральную медицию условий перехода.
+- В `Bulk` `Z boson` сопровождает исполнение как внутреннее сопряжение переходных состояний.
 
 ### Impulse
 
-`Impulse` is the composition and content of change.
-It is not a force, not a `Boson`, and not the carrier.
-It defines what exactly gets transported, fixed, or applied.
+Impulse — это состав и содержимое изменения.
+Он не является силой, не является `Boson` и не является переносчиком.
+Он задаёт то, что именно переносится, фиксируется или применяется.
 
-- In `Dark`, it expresses hidden reconfiguration and relations between versions.
-- In `Boundary`, it expresses canonically fixed content of change on the boundary.
-- In `Bulk`, it expresses the content of the applied change that accompanies execution.
+- В `Dark` `Impulse` выражает состав скрытой реконфигурации и отношение между версиями структуры.
+- В `Boundary` `Impulse` выражает канонически зафиксированное содержимое изменения на границе.
+- В `Bulk` `Impulse` выражает содержимое применяемого изменения, сопровождающего исполнение.
 
-See [Force](./FORCE.md), [Strong](./proto/strong.md), and [Higgs](./proto/higgs.md) for the Force reading of these channels.
+Подробное силовое описание силовых каналов задано в [корневом Force](./FORCE.md), а различие обычных полей и полей topology вынесено в [раздел Strong](./proto/strong.md) и [раздел Higgs](./proto/higgs.md).
 
 ### Identity
 
-`Identity` is the persistence of an entity across change and across hidden historical continuity.
-It is not identical to a runtime address and is not reducible to local fixation inside one domain.
+Identity — это устойчивость сущности сквозь изменение и сквозь скрытую историческую непрерывность.
+Она не тождественна адресу времени исполнения и не сводится к локальной фиксации внутри одного домена.
 
 ### Index
 
-`Index` is the geometric runtime address inside the current configuration.
-It is not stable identity and must not be lifted into `Dark` without explicit ontological grounds.
+Index — это геометрический адрес времени исполнения внутри текущей конфигурации.
+Он не является стабильной идентичностью и не должен без основания подниматься в `Dark`.
 
-## Force manifestations by domain
+## Проявление сил по доменам
 
 ### Dark × Gravity
 
-- hidden hierarchy,
-- the inner `Graviton` channel,
-- latent structure,
-- organization of schemas,
-- deep structural localization of the hidden world,
-- organization of hidden relations and version geometry.
+- скрытая иерархия,
+- внутренний канал `Graviton`,
+- латентная структура,
+- организация схем,
+- глубокая структурная локализация скрытого мира,
+- организация скрытых связей и геометрии версий.
 
 ### Dark × Higgs
 
-- topology-fields as hidden Higgs fields,
-- branch selection through `enum`,
-- multiplicity and unfolding through `array`,
-- domain-visible topology reconfiguration,
-- hidden reconfiguration of the topology/gravity frame without turning `Dark` into a runtime orchestrator.
+- поля topology как скрытые поля Higgs,
+- выбор ветви через `enum`,
+- множественность / разворачивание ветвей через `array`,
+- наблюдаемая на уровне домена перестройка topology,
+- скрытая реконфигурация topology/gravity-каркаса без превращения `Dark` в оркестратор времени исполнения.
 
 ### Dark × Electromagnetism
 
-- projection of `State` into observable propagation,
-- transfer of state as `Photon`,
-- relation of domain states through observable signal,
-- propagation of manifested change.
+- вынесение `State` в наблюдаемое распространение,
+- перенос состояния как `Photon`,
+- связь доменных состояний через наблюдаемый сигнал,
+- распространение проявляемого изменения.
 
 ### Dark × Strong
 
-- retention of hidden continuity,
-- change of ordinary `Field` values through `Gluon`,
-- schema coherence,
-- continuity of the chain of fixed states,
-- retention of latent structural frame,
-- coherence of historical continuity.
+- удержание скрытой непрерывности,
+- изменение значений обычных `Field` через `Gluon`,
+- согласованность схем,
+- связность цепочки зафиксированных состояний,
+- удержание латентной структурной рамки,
+- согласованность исторической непрерывности.
 
 ### Dark × Weak
 
-- evolution of the hidden model,
-- active passage of hidden structure through `W boson`,
-- neutral transitional mediation through `Z boson`,
-- mutation and transformation of schemas,
-- transition between latent structural versions,
-- reconfiguration of hidden organization through structured changes.
+- эволюция скрытой модели,
+- активный проход скрытой структуры через `W boson`,
+- нейтральная переходная медиция через `Z boson`,
+- мутация и преобразование схем,
+- переходы между латентными структурными версиями,
+- перестройка скрытой организации через структурированные изменения.
 
 ### Boundary × Gravity
 
-- flattening,
-- geometry of boundary,
-- index space,
-- form of state-space,
-- organization of structure on the boundary.
+- уплощение,
+- геометрия границы,
+- индексное пространство,
+- форма пространства состояний,
+- организация структуры на границе.
 
 ### Boundary × Electromagnetism
 
-- transport of `State` as `Photon`,
-- fixation of `Impulse` on the boundary,
-- signal transfer on the boundary,
-- serializable transport of change.
+- перенос `State` как `Photon`,
+- фиксация `Impulse` на границе,
+- передача сигнала на границе,
+- сериализуемый транспорт изменения.
 
 ### Boundary × Higgs
 
-- canonical fixation of topology selection,
-- canonical fixation of branch multiplicity,
-- distinction between data-field and topology-field on the contract boundary,
-- prohibition of external reactive mutation of `array`.
+- каноническая фиксация выбора topology,
+- каноническая фиксация множественности ветвей,
+- различение поля данных и поля topology на контрактной границе,
+- недопустимость внешней реактивной мутации `array`.
 
 ### Boundary × Strong
 
-- cohesion of canonical structure,
-- change of ordinary `Field` values through `Gluon`,
-- deduplication,
-- interning,
-- compaction,
-- retention of compact form on the boundary.
+- связность канонической структуры,
+- изменение значений обычных `Field` через `Gluon`,
+- дедупликация,
+- интернирование,
+- уплотнение,
+- удержание компактной формы на границе.
 
 ### Boundary × Weak
 
-- computation of conditions,
-- transition logic,
-- active transition step through `W boson`,
-- neutral mediation of transitional state through `Z boson`,
-- state evolution,
-- computation step of transition.
+- вычисление условий,
+- логика переходов,
+- активный шаг перехода через `W boson`,
+- нейтральная медиция переходного состояния через `Z boson`,
+- эволюция состояния,
+- шаг вычисления перехода.
 
 ### Bulk × Gravity
 
-- organization of manifested space,
-- mass and volume of manifested form,
-- geometry of executable forms,
-- spatial arrangement of what is manifested.
+- организация проявленного пространства,
+- масса и объём проявленной формы,
+- геометрия исполняемых форм,
+- пространственная раскладка проявленного.
 
 ### Bulk × Higgs
 
-- manifested topology reconfiguration,
-- unfolding of an atom into branch multiplicity,
-- change of branch set through `Higgs boson`,
-- reading structural reconfiguration as an observable consequence of topology-field change.
+- проявленная перестройка topology,
+- разворачивание атома в множественность ветвей,
+- изменение состава ветвей через `Higgs boson`,
+- чтение структурной реконфигурации как наблюдаемого следствия изменения поля topology.
 
 ### Bulk × Electromagnetism
 
-- receipt of `Photon`,
-- transport of `State` between active parts of the system,
-- unfolding of delivered `Impulse` into event or action,
-- event propagation,
-- interaction delivery,
-- relation between active parts of the system.
+- приём `Photon`,
+- перенос `State` между активными частями системы,
+- разворачивание доставленного `Impulse` в событие или действие,
+- распространение событий,
+- доставка взаимодействия,
+- связь между активными частями системы.
 
 ### Bulk × Strong
 
-- retention of manifested structure,
-- change of ordinary `Field` values through `Gluon`,
-- stability of composite forms,
-- cohesion of process-bearing configurations.
+- удержание проявленной структуры,
+- изменение значений обычных `Field` через `Gluon`,
+- устойчивость составных форм,
+- связность процессо-несущих конфигураций.
 
 ### Bulk × Weak
 
-- execution of processes,
-- active manifested transition through `W boson`,
-- inner coupling of transitional states through `Z boson`,
-- manifested transition,
-- unfolding of state into action.
+- исполнение процессов,
+- активный проявленный переход через `W boson`,
+- внутреннее сопряжение переходных состояний через `Z boson`,
+- проявленный переход,
+- разворачивание состояния в действие.
 
-## Address and identity
+## Адрес и идентичность
 
-MetaFor ontology distinguishes:
+Онтология MetaFor различает:
 
-- runtime address,
-- stable identity.
+- адрес времени исполнения,
+- стабильную идентичность.
 
-Runtime address is expressed as index.
-Stable identity is expressed through UUID.
-It is UUID that keeps one entity coherent between `Dark`, `Boundary`, and `Bulk`.
+Адрес времени исполнения выражается индексом.
+Стабильная идентичность выражается через UUID.
+Именно UUID удерживает согласованность одной и той же сущности между `Dark`, `Boundary` и `Bulk`.
 
-- `Index` is the local geometric address in `Boundary` or `Bulk` during execution.
-- `UUID` is stable identity across hidden continuity and reconfiguration.
+- Index — локальный геометрический адрес в `Boundary` или `Bulk` во время исполнения.
+- UUID — устойчивая идентичность сквозь скрытую непрерывность и реконфигурацию.
 
-They must not be mixed.
+Они не должны смешиваться.
 
-## Forces, channels, and the content of change
+## Силы, каналы и содержимое изменения
 
-Force defines the mode of transformation.
-`Boson` defines the type of force-channel.
-`Impulse` defines the content of change.
+Сила задаёт способ преобразования.
+`Boson` задаёт тип силового канала.
+`Impulse` задаёт содержимое изменения.
 
-The canonical mapping is:
+Каноническое соответствие таково:
 
 - `Gravity -> Graviton`
 - `Electromagnetism -> Photon`
@@ -428,40 +431,46 @@ The canonical mapping is:
 - `Higgs field change -> Higgs boson`
 - `Weak -> W boson / Z boson`
 
-This means:
+При этом:
 
-- `Graviton` holds relation, localization, and geometry,
-- `Photon` transports `State`,
-- `Gluon` changes ordinary `Field` values,
-- `Higgs boson` changes topology-fields,
-- `W boson` carries active transition and mutation of state,
-- `Z boson` holds neutral mediation of transition and the bond of transitional states,
-- `Impulse` carries the content of the transported, fixed, or applied change.
+- `Graviton` удерживает отношение, локализацию и геометрию,
+- `Photon` переносит `State`,
+- `Gluon` изменяет значения обычных `Field`,
+- `Higgs boson` изменяет поля topology,
+- `W boson` проводит активный переход и мутацию состояния,
+- `Z boson` удерживает нейтральную медицию перехода и связку переходных состояний,
+- `Impulse` задаёт содержимое переносимого, фиксируемого или применяемого изменения.
 
-Ontologically, the reading is:
+Онтологически это читается так:
 
-- `Dark × Weak` defines hidden reconfiguration and model evolution,
-- `Dark × Strong` holds coherence of schemas, fixed states, and historical line,
-- `Dark × Higgs` holds topology-fields and observes their global structural consequences,
-- `Boundary × Strong` retains canonicalization, deduplication, interning, and compaction,
-- `Bulk` manifests or executes delivered change,
-- `Gravity` gives the relational and localization frame in which change receives place in `Dark`, `Boundary`, and `Bulk`,
-- `Dark` observes the global effects of `Electromagnetism`, Higgs change, and `Gravity` without becoming their execution center.
+- `Dark × Weak` определяет скрытую реконфигурацию и эволюцию модели,
+- `Dark × Strong` удерживает согласованность схем, зафиксированных состояний и исторической линии,
+- `Dark × Higgs` удерживает поля topology и наблюдает их глобальные структурные следствия,
+- `Graviton` выражает скрытый канал `Gravity`,
+- `Photon` выражает перенос `State` в `Electromagnetism`,
+- `Gluon` выражает изменение значений обычных `Field` в `Strong`,
+- `Higgs boson` выражает изменение полей topology,
+- `W boson` и `Z boson` выражают два канала `Weak`: активный проход и нейтральную медицию перехода,
+- `Impulse` задаёт содержимое переносимого изменения,
+- `Boundary × Strong` сохраняет за собой каноникализацию, дедупликацию, интернирование и уплотнение,
+- `Bulk` проявляет или исполняет доставленное изменение,
+- `Gravity` задаёт рамку отношения и локализации, в которой изменение получает место в `Dark`, `Boundary` и `Bulk`,
+- `Dark` наблюдает глобальные следствия `Electromagnetism`, изменения поля Higgs и `Gravity`, не становясь центром их исполнения.
 
-See [Force](./FORCE.md) and the detailed documents in [`docs/proto/`](./proto/).
+Подробный Force-слой этих соответствий задан в [корневом Force](./FORCE.md), а детальные разборы вынесены в [Gravity](./proto/gravity.md), [Electromagnetism](./proto/electromagnetism.md), [Strong](./proto/strong.md), [Weak](./proto/weak.md) и [Higgs](./proto/higgs.md).
 
-## Final rule of interpretation
+## Финальное правило интерпретации
 
-The file system is not the source of ontological truth.
-It is only a technical projection.
+Файловая система не является источником истины для онтологии.
+Она является только технической проекцией.
 
-The ontological reality of `Dark` does not depend on the completeness of its file projection.
-An explicit `dark/` projection should hold continuity of `DSL/AST` and the contracts of lower domains without replacing `Boundary` or `Bulk`.
+Онтологическая реальность `Dark` не зависит от полноты его файловой проекции.
+Явная проекция `dark/` должна удерживать непрерывность `DSL/AST` и контракты нижестоящих доменов, не подменяя `Boundary` или `Bulk`.
 
-MetaFor ontology must describe:
+Онтология MetaFor должна описывать:
 
-- what exists,
-- in which domains it exists,
-- through which forces it is transformed,
-- how entities manifest in `Dark`, `Boundary`, and `Bulk`,
-- and how to understand the system independently of accidental code organization.
+- что существует,
+- в каких доменах это существует,
+- через какие силы это преобразуется,
+- как сущности проявляются в `Dark`, `Boundary` и `Bulk`,
+- и как понимать систему независимо от случайной кодовой организации.

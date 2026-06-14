@@ -1,14 +1,14 @@
 # @metafor/android
 
-Standalone Android screen/control package for local ADB devices.
+Самостоятельный пакет для просмотра экрана Android и управления локальными устройствами через ADB.
 
-## Runtime Dependencies
+## Runtime-зависимости
 
-- `adb` from Android Platform Tools.
-- `scrcpy` for native low-latency mirroring experiments.
-- A connected Android device with USB Debugging enabled and authorized.
+- `adb` из Android Platform Tools.
+- `scrcpy` для экспериментов с нативным зеркалированием с низкой задержкой.
+- Подключённое Android-устройство с включённой и подтверждённой USB Debugging.
 
-macOS install:
+Установка на macOS:
 
 ```bash
 # MacPorts
@@ -19,43 +19,35 @@ brew install --cask android-platform-tools
 brew install scrcpy
 ```
 
-Check the device:
+Проверить устройство:
 
 ```bash
 adb devices -l
 ```
 
-If multiple entries are present, the package picks the first `device` entry and
-ignores `offline` emulators. To pin a device explicitly:
+Если найдено несколько записей, пакет выбирает первую запись со статусом `device` и игнорирует `offline`-эмуляторы. Чтобы явно закрепить устройство:
 
 ```bash
 ANDROID_SERIAL=12697154CV000558 PORT=3007 bun --hot src/standalone.ts
 ```
 
-## Run
+## Запуск
 
 ```bash
 PORT=3007 bun --hot src/standalone.ts
 ```
 
-Open:
+Открыть:
 
 ```text
 http://127.0.0.1:3007/
 ```
 
-The browser UI uses `/android/h264` for realtime raw H.264 video from
-`adb exec-out screenrecord --output-format=h264`, decoded in Chrome via
-WebCodecs. `/android/stream` remains an ADB screenshot fallback for browsers
-without WebCodecs or if video startup fails.
+Браузерный UI использует `/android/h264` для realtime-потока raw H.264 из `adb exec-out screenrecord --output-format=h264`, который декодируется в Chrome через WebCodecs. `/android/stream` остаётся fallback-режимом со скриншотами ADB для браузеров без WebCodecs или на случай сбоя запуска видео.
 
-`scrcpy --record` was verified to write valid video files, but it does not
-flush a usable live browser stream through stdout/FIFO on macOS scrcpy 3.3.
-Scrcpy is kept as a native mirroring/debug dependency, not the browser video
-transport. The package server helpers are kept separate from host apps, so
-admin/proposal does not need Android-specific routes or UI.
+`scrcpy --record` проверен и корректно записывает видеофайлы, но на macOS scrcpy 3.3 не отдаёт пригодный live browser stream через stdout/FIFO. Поэтому `scrcpy` остаётся нативной зависимостью для зеркалирования и отладки, но не используется как браузерный видеотранспорт. Серверные helper-ы пакета отделены от host-приложений, поэтому `admin/proposal` не нужны Android-специфичные routes или UI.
 
-Video tuning:
+Настройка видео:
 
 ```bash
 ANDROID_SERIAL=12697154CV000558

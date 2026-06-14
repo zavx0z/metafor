@@ -1,630 +1,710 @@
-[README](../README.md) | **English** | [Русский](./ARCHITECTURE.ru.md)
 
-# Architecture
+# Архитектура
 
-This document describes the architectural projection of MetaFor and fixes its invariants.
-It translates ontology into domain responsibilities and repository projection.
-Operational planning is outside the scope of this document.
+Этот документ описывает архитектурную проекцию MetaFor и фиксирует её инварианты.
+Он переводит онтологию в доменные ответственности и файловую проекцию репозитория.
+Оперативное планирование не входит в рамки этого документа.
 
-## Rule of architectural reading
+## Правило архитектурного чтения
 
-MetaFor architecture should be read as a projection of ontology:
+Архитектура MetaFor читается как проекция онтологии:
 
-`Domain × Force × Entity`
+`Домен × Сила × Сущность`
 
-This means:
+Это значит:
 
-1. first determine the domain,
-2. then the role of force inside that domain,
-3. then the entity and its contract,
-4. only after that speak about files and directories.
+1. сначала определяется домен,
+2. затем роль силы внутри домена,
+3. затем сущность и её контракт,
+4. и только после этого допустимо говорить о файлах и директориях.
 
-The architectural reading stands on three domains:
+Архитектурное чтение опирается на три домена:
 
-- `Dark` as the domain of hidden connectivity, particles and threads of connectivity, historical continuity, fixed states, structured changes, and model evolution,
-- `Boundary` as the domain of fixation, flattening, and canonicalization,
-- `Bulk` as the domain of manifestation, execution, and observable form.
+- `Dark` — домен скрытой связности: частиц и нитей связности, исторической непрерывности, зафиксированных состояний, структурированных изменений и эволюции модели,
+- `Boundary` — домен фиксации, уплощения и каноникализации,
+- `Bulk` — домен проявления, исполнения и наблюдаемой формы.
 
-`Dark` is not identical to runtime `Boundary`.
-`Dark` is not identical to runtime `Bulk`.
-`Dark` is not just a grouping of files.
+`Dark` не тождественен исполняемому `Boundary`.
+`Dark` не тождественен исполняемому `Bulk`.
+`Dark` не является простой группировкой файлов.
 
-## Domain isolation
+## Изоляция доменов
 
-Domain isolation is an architectural invariant.
+Изоляция доменов является архитектурным инвариантом.
 
-This means:
+Это значит:
 
-1. `Dark`, `Boundary`, and `Bulk` must not be read as internal subpackages of one runtime module,
-2. domains must not become direct production dependencies of each other,
-3. domains should be thinkable as capable of living in different processes,
-4. inter-domain communication must appear only through Force channels,
-5. the absence of a Force channel does not justify direct cross-domain imports.
+1. `Dark`, `Boundary` и `Bulk` не должны читаться как внутренние подпакеты одного модуля времени исполнения,
+2. домены не должны становиться прямыми рабочими зависимостями друг друга,
+3. домены должны мыслиться как способные жить в разных процессах,
+4. междоменная связь должна оформляться только через Force-каналы,
+5. отсутствие Force-канала не даёт права заменять его прямым междоменным импортом.
 
-Therefore:
+Следовательно:
 
-- production code must not directly import one domain into another,
-- relative imports across domains are acceptable only in tests,
-- temporary testing glue must not become architectural norm,
-- no domain should export its internals as the production API of another domain.
+- production-код не должен содержать прямых рабочих импортов одного домена в другой,
+- относительные импорты между доменами допустимы только в тестах,
+- временная тестовая склейка не должна превращаться в архитектурную норму,
+- ни один домен не должен экспортировать свои внутренности как рабочее API другого домена.
 
-The current temporary development mode is fixed in [Development](./DEVELOPMENT.md).
+Подробный режим такой временной разработки зафиксирован в [DEVELOPMENT.md](./DEVELOPMENT.md).
 
-## Scheme of architectural reading
+## Схема архитектурного чтения
 
-One of the basic architectural readings distinguishes four levels:
+Одно из базовых архитектурных чтений системы различает четыре уровня:
 
-1. `DSL` gives the declarative description of an entity.
-2. `AST` gives the serializable technical contract.
-3. `Dark` gives the layer of hidden connectivity and structural continuity: particles and threads of connectivity, schema history, fixed states, structured changes, historical memory, and version organization.
-4. `Boundary` and `Bulk` are parallel domain projections of that hidden basis.
+В этом чтении:
 
-This reading concerns architectural meaning, not a mandatory runtime stage order.
+1. `DSL` задаёт декларативное описание сущности.
+2. `AST` задаёт сериализуемый технический контракт.
+3. `Dark` задаёт слой скрытой связности и структурной непрерывности: частицы и нити связности, историю схем, зафиксированные состояния, структурированные изменения, историческую память и версионную организацию модели.
+4. `Boundary` и `Bulk` читаются как параллельные доменные проекции этого скрытого основания.
 
-The distinction between ordinary data-fields and topology-fields is primary relative to AST:
-`enum` and `array` belong to topology by nature, while AST only unfolds the distinction into a serializable contract.
-They must not be treated as ordinary value fields.
+Это чтение относится к архитектурному смыслу, а не к обязательной последовательности исполняемых стадий.
+Типовое различие между обычными полями данных и полями topology первично по отношению к AST:
+`enum` и `array` принадлежат topology по своей природе, а AST только разворачивает это различие в сериализуемом контракте.
+Их нельзя читать как обычные поля значений.
+Отдельная формализация скрытого слоя связности `Dark`, его частиц, нитей и адресации связности вынесена в [TOPOLOGY.md](./TOPOLOGY.md).
+Онтологически `Boundary` и `Bulk` имеют общий источник в `Dark`, но технически каждый домен самостоятельно загружает свои `DSL/AST`-контракты и сохраняет собственное владение данными во время исполнения.
+Междоменное взаимодействие распределено по силовым каналам и не сводится к одному `Electromagnetism`-каналу.
+Нейтральные shared-пакеты могут удерживать переиспользуемые контракты или проекции, но не должны становиться скрытым владельцем доменной истины.
+На текущем этапе это означает:
 
-The hidden connectivity layer of `Dark`, including particles, threads, and addressing, is formalized separately in [Topology](./TOPOLOGY.md).
+- `Dark` владеет канонической доменной ORM-моделью и объектным графом,
+- `shared/orm` зарезервирован под общие ORM-абстракции, которые пока не принадлежат конкретному домену,
+- `store/db` владеет канонической реляционной DB-моделью и DB helper API,
+- `Dark` владеет экспортом своего object graph в канонический `DbData`,
+- CPU-side derived adapter, lookup maps, grouping, projection/view и runtime preparation собираются в памяти уже после чтения relational DB,
+- `Boundary` потребляет эти shared DB-данные через собственный derived database API и не становится владельцем общего DB-контракта.
+Такое чтение не требует отдельного оркестратора времени исполнения `Dark`, но допускает минимальную явную репозиторную проекцию `dark/`, если она нужна для фиксации скрытой непрерывности и её рабочих контрактов.
 
-Ontologically, `Boundary` and `Bulk` share the same source in `Dark`, but technically each domain loads its own `DSL/AST` contracts and retains its own data ownership at runtime.
-Inter-domain interaction is distributed across force-channels and cannot be reduced to one `Electromagnetism` channel.
-
-Neutral shared packages may host reusable contracts or projections, but they must not become hidden owners of domain truth.
-At this stage:
-
-- `Dark` owns the canonical domain ORM and object graph,
-- `shared/orm` is reserved for generic ORM-level abstractions that are not yet owned by a specific domain,
-- `store/db` owns the canonical relational DB model and DB helper API,
-- `Dark` owns the export of its object graph into canonical `DbData`,
-- CPU-side derived adapters, lookups, grouping, projections, and runtime preparation are rebuilt in memory after reading the relational DB,
-- `Boundary` consumes that canonical DB data through its own derived database API and does not become the owner of the shared DB contract.
-
-## Domains
+## Домены
 
 ### Dark
 
-`Dark` is the domain of hidden connectivity, hierarchy, memory, fixed states, structured changes, and model evolution.
+Dark — домен скрытой связности, иерархии, памяти, зафиксированных состояний, структурированных изменений и эволюции модели.
 
-`Dark` must not:
+Dark не должен:
 
-1. be read as a synonym for runtime `Boundary`,
-2. be read as a synonym for runtime `Bulk`,
-3. collapse into a nameless storage layer with no ontological responsibility,
-4. absorb boundary canonicalization or `Bulk` execution,
-5. import `Boundary` or `Bulk` as runtime production dependencies.
+1. читаться как синоним исполняемого `Boundary`,
+2. читаться как синоним исполняемого `Bulk`,
+3. превращаться в безымянный слой хранения без собственной онтологической ответственности,
+4. поглощать каноникализацию границы или исполнение домена `Bulk`,
+5. импортировать `Boundary` или `Bulk` как свои рабочие зависимости времени исполнения.
 
-`Dark` must:
+Dark должен:
 
-1. hold the hidden structural frame,
-2. hold schema history and historical continuity,
-3. be the place of hidden model evolution,
-4. provide the basis for parallel projection toward `Boundary` and `Bulk`,
-5. remain an isolated domain rather than an internal helper layer of lower domains.
+1. удерживать скрытую структурную рамку,
+2. удерживать историю схем и историческую непрерывность,
+3. быть местом скрытой эволюции модели,
+4. задавать основание для параллельной проекции к `Boundary` и `Bulk`,
+5. оставаться изолированным доменом, а не внутренним вспомогательным слоем нижестоящих доменов.
 
 ### Boundary
 
-`Boundary` is the domain of fixation, canonicalization, indexing, and state computation.
-It is the flattening boundary and the layer of imprint fixation:
-here connectivity receives a fixable imprint as `Field` in a form fit for deterministic computation.
+Boundary — домен фиксации, каноникализации, индексации и вычисления состояния.
+Это граница уплощения и слой фиксации отпечатка: здесь связность получает фиксируемый отпечаток (`Field`) в форме, пригодной для детерминированного вычисления.
 
-`Boundary` must not:
+Boundary не должен:
 
-1. know the processes of `Bulk`,
-2. execute application actions,
-3. contain top-level semantic ownership,
-4. import `Dark` or `Bulk` as direct runtime production dependencies.
+1. знать о процессах домена `Bulk`,
+2. исполнять прикладные действия,
+3. содержать семантику верхнего уровня,
+4. импортировать `Dark` или `Bulk` как свои прямые рабочие зависимости времени исполнения.
 
-`Boundary` must:
+Boundary должен:
 
-1. bring structure into canonical form,
-2. hold a compact representation,
-3. compute state transition,
-4. provide addressable execution space,
-5. remain the domain of fixation rather than the hidden origin of the world,
-6. preserve its own data ownership even with a common ontological source in `Dark`.
+1. приводить структуру к канонической форме,
+2. удерживать компактное представление,
+3. вычислять переход состояния,
+4. обеспечивать адресуемое пространство исполнения,
+5. оставаться доменом фиксации, а не скрытого происхождения мира,
+6. сохранять собственное владение данными границы даже при общем онтологическом источнике в `Dark`.
 
 ### Bulk
 
-`Bulk` is the domain of manifestation, composition, execution, and interaction delivery.
-It is built as the volumetric manifestation of hidden `Dark` connectivity, but it is neither identical to `Dark` nor a second hidden ontology.
+Bulk — домен проявления, композиции, исполнения и доставки взаимодействия.
+Он строится как объёмное проявление скрытой связности `Dark`, но не тождественен `Dark` и не является отдельной скрытой онтологией.
 
-`Bulk` must not:
+Bulk не должен:
 
-1. duplicate state computation of `Boundary`,
-2. become a second source of truth for canonical domain storage,
-3. replace `DSL` or `AST`,
-4. import `Dark` or `Boundary` as direct runtime production dependencies.
+1. дублировать вычисление состояния домена `Boundary`,
+2. становиться вторым источником истины для канонического доменного хранилища,
+3. подменять собой `DSL` или `AST`,
+4. импортировать `Dark` или `Boundary` как свои прямые рабочие зависимости времени исполнения.
 
-`Bulk` must:
+Bulk должен:
 
-1. assemble the manifested set of actors,
-2. connect them with manifested structural connectivity and binding,
-3. interpret state change as execution,
-4. unfold intention into process,
-5. remain the domain of manifestation rather than hidden historical memory,
-6. preserve its own runtime data and process ownership.
+1. собирать проявленный набор акторов,
+2. связывать их с проявленной структурной связностью и привязкой,
+3. интерпретировать изменение состояния как исполнение,
+4. разворачивать намерение в процесс,
+5. оставаться доменом проявления, а не скрытой исторической памяти модели,
+6. сохранять собственное владение данными времени исполнения и процессами.
 
-## Force projection by domain
+## Силовая проекция по доменам
 
 ### Dark × Gravity
 
-Role:
+Роль:
 
-1. hidden hierarchy,
-2. the `Graviton` channel as the inner Force unit of relation and localization in hidden organization,
-3. schema organization,
-4. deep structural localization of hidden structure,
-5. geometry of hidden versions and their continuity.
+1. скрытая иерархия,
+2. канал `Graviton` как внутренняя Force-единица отношения и локализации внутри скрытой организации,
+3. организация схем,
+4. глубокая структурная локализация скрытой структуры,
+5. геометрия скрытых версий и их преемственности.
 
-Here belong:
+Здесь находятся:
 
-1. organization of the hidden network of schema connectivity, fixed states, and versions,
-2. latent hierarchy of the model,
-3. `Graviton` as the carrier of the Dark projection of gravitational relations and localization invariants,
-4. structural distinguishability that must not be confused with runtime index.
+1. организация скрытой сети связности схем, зафиксированных состояний и версий,
+2. латентная иерархия модели,
+3. `Graviton` как носитель `Dark`-проекции гравитационных отношений и инвариантов локализации,
+4. структурная различимость, которую нельзя смешивать с индексом времени исполнения.
 
 ### Dark × Higgs
 
-Role:
+Роль:
 
-1. topology-fields as hidden Higgs fields,
-2. branch selection through `enum`,
-3. branch multiplicity and unfolding through `array`,
-4. topology change as distinct from ordinary field mutation,
-5. coordination of topology change with the Dark projection of gravity.
+1. поля topology как скрытые поля Higgs,
+2. выбор ветви через `enum`,
+3. множественность / разворачивание ветвей через `array`,
+4. изменение topology как не-обычная мутация поля,
+5. согласование изменения topology с `Dark`-проекцией gravity.
 
-Here belong:
+Здесь находятся:
 
-1. the rules of topology-fields in hidden structure,
-2. the restrictions on `enum` as topology selection and on `array` as inner multiplicity of branches,
-3. observation of global structural consequences of topology change,
-4. reading an atom as multiplicity once branches are unfolded,
-5. hidden retention of topology and its localization frame without turning `Dark` into a runtime orchestrator.
+1. правила поля topology скрытой структуры,
+2. ограничения на `enum` как на выбор topology и на `array` как на внутреннюю множественность ветвей,
+3. наблюдение глобальных структурных следствий изменения поля topology,
+4. чтение атома как множественности, когда разворачивание ветвей уже произошло,
+5. скрытое удержание topology и её рамки локализации без превращения `Dark` в оркестратор времени исполнения.
 
-In `matter`, this means the hidden graph may be expressed only through actor-topology nodes.
-`state`, `enum`, and `array` may shape `Wimp` / `Fuzzy` / `Macho` / `Axion` structure, while plain HTML and text do not belong to `Dark × Higgs`.
+В `matter` это означает, что скрытый граф может выражаться только через topology-узлы акторов.
+`state`, `enum` и `array` могут перестраивать структуру `Wimp` / `Fuzzy` / `Macho` / `Axion`, а обычный HTML и текст не принадлежат проекции `Dark × Higgs`.
 
 ### Dark × Strong
 
-Role:
+Роль:
 
-1. persistence of structural memory,
-2. coherence of schemas,
-3. change of ordinary `Field` values through `Gluon` without connectivity break,
-4. coherence of fixed states and historical continuity,
-5. retention of the hidden structural frame,
-6. hidden stability of identity.
+1. постоянство структурной памяти,
+2. согласованность схем,
+3. изменение значений обычных `Field` через `Gluon` без разрыва связности,
+4. согласованность зафиксированных состояний и исторической преемственности,
+5. удержание скрытой структурной рамки,
+6. скрытая устойчивость идентичности.
+
+Здесь находятся:
+
+1. механизмы удержания непрерывности скрытой модели,
+2. согласованность семейства схем,
+3. изменение значений обычных `Field` внутри удерживаемой структуры,
+4. историческая связность зафиксированных состояний и линий структурированных изменений,
+5. всё, что удерживает латентную форму как одну непрерывную структуру.
 
 ### Dark × Weak
 
-Role:
+Роль:
 
-1. schema evolution,
-2. active hidden transition through `W boson`,
-3. neutral transitional mediation through `Z boson`,
-4. mutation and transformation of hidden structure,
-5. reconfiguration of hidden organization through structured changes,
-6. change of the model before its projections into `Boundary` and `Bulk`.
+1. эволюция схем,
+2. активный скрытый переход через `W boson`,
+3. нейтральная переходная медиция через `Z boson`,
+4. мутация и преобразование скрытой структуры,
+5. перестройка скрытой организации через структурированные изменения,
+6. изменение модели до её проекций в `Boundary` и `Bulk`.
+
+Здесь находятся:
+
+1. правила перехода между латентными версиями,
+2. скрытая реконфигурация модели,
+3. `W boson` как активный проход через скрытое изменение состояния,
+4. `Z boson` как нейтральная связка переходных состояний,
+5. эволюция структуры как истории изменений, а не как процесс исполнения.
 
 ### Dark × Electromagnetism
 
-Role:
+Роль:
 
-1. projection toward other domains,
-2. transport of `State` in observable form through `Photon`,
-3. signaling hidden change as a state signal,
-4. propagation of state-born updates,
-5. transport of domain state into projections,
-6. exposure of `Impulse` as the content of state change.
+1. проекция к другим доменам,
+2. перенос `State` в наблюдаемой форме через `Photon`,
+3. сообщение скрытого изменения как сигнала состояния,
+4. распространение обновлений, порождённых состоянием,
+5. перенос доменного состояния в проекции,
+6. вынесение `Impulse` как содержимого изменения состояния.
+
+Здесь находятся:
+
+1. `Photon`, через который состояние проецируется в `Boundary` и `Bulk`,
+2. `Impulse` как содержимое переносимого изменения состояния,
+3. доменная связь между скрытой непрерывностью и её наблюдаемыми проекциями,
+4. наблюдение глобальных state-сигналов без превращения `Dark` в центр исполнения.
 
 ### Boundary × Gravity
 
-Role:
+Роль:
 
-1. flattening,
-2. geometry of the boundary,
-3. index space,
-4. addressability,
-5. distribution of entities in execution space.
+1. уплощение,
+2. геометрия границы,
+3. индексное пространство,
+4. адресуемость,
+5. раскладка сущностей в пространстве исполнения.
+
+Здесь находятся:
+
+1. уплощение входной структуры до геометрии границы,
+2. раскладка `Brane` и `Field` в пространстве `Boundary`,
+3. индексные связи,
+4. структура адресуемого состояния.
 
 ### Boundary × Strong
 
-Role:
+Роль:
 
-1. canonicalization,
-2. change of ordinary `Field` values through `Gluon`,
-3. deduplication,
-4. interning,
-5. compaction,
-6. retention of coherent boundary form.
+1. каноникализация,
+2. изменение значений обычных `Field` через `Gluon`,
+3. дедупликация,
+4. интернирование,
+5. уплотнение,
+6. удержание связной формы границы.
+
+Здесь находятся:
+
+1. подготовка хранимого представления,
+2. материализация запутанности в контракт `Boundary`,
+3. каноническое изменение значений обычных `Field`,
+4. все механизмы сохранения компактной и устойчивой формы данных.
 
 ### Boundary × Higgs
 
-Role:
+Роль:
 
-1. canonical fixation of topology-fields,
-2. topology selection through `enum`,
-3. branch multiplicity through `array`,
-4. rejection of the ordinary field-update regime for both `enum` and `array`,
-5. prohibition of external reactive mutation of `array`,
-6. distinction between topology change and ordinary field update.
+1. каноническая фиксация полей topology,
+2. выбор topology через `enum`,
+3. множественность ветвей через `array`,
+4. отказ от режима обычного обновления поля для `enum` и `array`,
+5. запрет внешней реактивной мутации `array`,
+6. различение изменения topology и изменения обычного поля.
 
-Architecturally this layer fixes the contract of topology-fields on the boundary.
-`Higgs boson` does not transport `State` and does not change ordinary `Field`; it determines which branch exists and how many branches must be manifested as topology change rather than ordinary value mutation.
+Архитектурно этот слой фиксирует контракты поля topology на границе.
+Здесь `Higgs boson` не переносит `State` и не меняет обычные `Field`, а определяет, какая ветвь существует и сколько ветвей должно быть проявлено как изменение topology, а не как обычная мутация значения.
 
 ### Boundary × Weak
 
-Role:
+Роль:
 
-1. computation of conditions,
-2. transition logic,
-3. active transition through `W boson`,
-4. neutral mediation of transition logic through `Z boson`,
-5. state evolution,
-6. computation step.
+1. вычисление условий,
+2. логика переходов,
+3. активный переход через `W boson`,
+4. нейтральная медиция переходной логики через `Z boson`,
+5. эволюция состояния,
+6. шаг вычисления.
+
+Архитектурно этот слой образует слой `Weak` домена `Boundary`.
+Здесь `W boson` проводит допустимый шаг смены состояния, а `Z boson` удерживает нейтральную связку условий такого перехода.
+Техническое имя конкретного модуля может быть любым, но архитектурная роль остаётся `Boundary × Weak`.
 
 ### Boundary × Electromagnetism
 
-Role:
+Роль:
 
-1. transfer of `State` as `Photon`,
-2. serialization,
-3. fixation of `Impulse`,
-4. synchronization contract,
-5. signal transfer on the boundary.
+1. перенос `State` как `Photon`,
+2. сериализация,
+3. фиксация `Impulse`,
+4. контракт синхронизации,
+5. сигнальная передача на границе.
+
+Здесь находится перенос состояния через наблюдаемый `Photon` и фиксация его содержимого в `Impulse`.
 
 ### Bulk × Gravity
 
-Role:
+Роль:
 
-1. manifested structural organization,
-2. geometry of actors,
-3. manifested hierarchy,
-4. relation between identity and index,
-5. manifested mass, volume, and structural differences of actors.
+1. проявленная структурная организация,
+2. геометрия акторов,
+3. проявленная иерархия,
+4. соотнесение идентичности и индекса,
+5. проявленная масса, объём и структурные различия акторов.
+
+Здесь формируется проявленная структура акторов.
 
 ### Bulk × Strong
 
-Role:
+Роль:
 
-1. stable binding,
-2. change of ordinary `Field` values through `Gluon`,
-3. projection of entanglement,
-4. retention of coherence in composite manifested structure.
+1. устойчивая привязка,
+2. изменение значений обычных `Field` через `Gluon`,
+3. проекция запутанности,
+4. удержание связности составной проявленной структуры.
+
+Здесь связываются:
+
+1. структурная организация акторов,
+2. привязка времени исполнения,
+3. изменение значений обычных `Field` в проявленной структуре,
+4. контракт запутанности для `Boundary`.
 
 ### Bulk × Higgs
 
-Role:
+Роль:
 
-1. manifested structural reconfiguration,
-2. unfolding of branch multiplicity,
-3. topology change through `Higgs boson`,
-4. reading unfolded branches as the composition of the manifested world.
+1. проявленная структурная реконфигурация,
+2. разворачивание множественности ветвей,
+3. изменение topology через `Higgs boson`,
+4. чтение развёрнутых ветвей как состава проявленного мира.
+
+Здесь изменение поля topology уже видно как перестройку состава ветвей.
+Это не обычное обновление значения и не доставка `State`, а изменение самой topology проявленного набора акторов.
 
 ### Bulk × Weak
 
-Role:
+Роль:
 
-1. process execution,
-2. active manifested transition through `W boson`,
-3. inner coupling of transitional states through `Z boson`,
-4. lifecycle after state change,
-5. handling of intention,
-6. completion of the tact after execution.
+1. исполнение процессов,
+2. активный проявленный переход через `W boson`,
+3. внутреннее сопряжение переходных состояний через `Z boson`,
+4. жизненный цикл после изменения состояния,
+5. обработка намерения,
+6. завершение такта после исполнения.
+
+Здесь `W boson` разворачивает переход состояния как действие, а `Z boson` сопровождает внутреннюю логику переходного сопряжения.
 
 ### Bulk × Electromagnetism
 
-Role:
+Роль:
 
-1. delivery of events,
-2. signal propagation,
-3. distributed interaction,
-4. transport of changes between active parts of the system.
+1. доставка событий,
+2. распространение сигнала,
+3. распределённое взаимодействие,
+4. перенос изменений между активными частями системы.
 
-## Entities and their boundaries
+Это слой связи, а не слой вычисления состояния.
 
-In code projection an entity is first fixed at the domain level.
-When there is an explicit `store.ts`, that store becomes the place where the entity is held.
+## Сущности и их границы
 
-This means:
+В кодовой проекции сущность фиксируется прежде всего на доменном уровне.
+При наличии явного `store.ts` именно он становится местом удержания сущности.
 
-1. domain storage is the holder of the entity,
-2. force modules do not own the entity as the source of truth,
-3. force modules read, connect, change, or execute what is held in domain storage,
-4. `store.t.ts` gives the type contract of that entity at the domain level.
+Это значит:
+
+1. доменное хранилище является местом удержания сущности,
+2. силовые модули не владеют сущностью как источником истины,
+3. силовые модули читают, связывают, изменяют или исполняют то, что удерживается доменным хранилищем,
+4. `store.t.ts` задаёт типовой контракт этой сущности на уровне домена.
+
+В репозитории это явно выражено для `boundary/store.ts`.
+Для `Bulk` и архитектурного чтения `Dark` допустима распределённая файловая проекция: сущность принадлежит домену, а не силе.
 
 ### Brane
 
-`Brane` is the bearer of configuration, state, and connectivity.
+Brane — носитель конфигурации, состояния и связности.
 
-1. In `Dark` it exists as a hidden structural unit and bearer of hidden continuity.
-2. In `Boundary` it exists as a canonical structural unit.
-3. In `Bulk` it exists as a manifested participant in volumetric structure and execution.
+1. В `Dark` она существует как скрытая структурная единица и носитель скрытой непрерывности.
+2. В `Boundary` она существует как каноническая структурная единица.
+3. В `Bulk` она существует как проявленный участник объёмной структуры и исполнения.
 
 ### Field
 
-`Field` is the entity coupled to `Brane` that gives values, differences, and inner determination.
+Field — сопряжённая `Brane` сущность, задающая значения, различия и внутреннюю определённость.
 
-1. `Brane` and `Field` form a coupled pair of one structural unit.
-2. `Field` must not be understood as a subordinate helper of `Brane`.
-3. In `Dark`, `Field` expresses the inner determination of the hidden structural unit.
-4. In `Boundary`, `Field` expresses the inner determination of the canonical unit and the imprint fixed after flattening.
-5. In `Bulk`, `Field` expresses the inner determination of the manifested and executable unit.
+1. `Brane` и `Field` образуют связанную пару одной структурной единицы.
+2. `Field` не должен пониматься как случайный технический помощник или подчинённая деталь `Brane`.
+3. В `Dark` `Field` выражает внутреннюю определённость скрытой структурной единицы.
+4. В `Boundary` `Field` выражает внутреннюю определённость канонической единицы.
+5. В `Bulk` `Field` выражает внутреннюю определённость проявленной и исполняемой единицы.
 
-Architecturally, `Field` splits into:
+Архитектурно `Field` делится на:
 
-1. ordinary data-fields,
-2. topology-fields.
+1. обычные поля данных,
+2. поля topology.
 
-`enum` and `array` are topology-fields by type nature.
-`enum` gives topology selection and is not a generic bounded literal field.
-`array` gives topology multiplicity and branch unfolding and is not a generic mutable collection.
-Neither `enum` nor `array` is an ordinary value field.
-Neither belongs to the ordinary field-update regime.
-Both change as topology change through `Higgs boson`, not as ordinary value mutation.
-`array` does not participate in entanglement, is not mutated by external reactions, and may change only through the atom's internal process by way of state change.
+`enum` и `array` относятся к полям topology по своей типовой природе.
+`enum` задаёт выбор topology и не является просто ограниченным литеральным полем.
+`array` задаёт множественность ветвей / разворачивание ветвей и не является обычной изменяемой коллекцией.
+Ни `enum`, ни `array` не являются обычными полями значений.
+Ни одно из них не принадлежит режиму обычного обновления поля.
+Оба меняются как изменение topology через `Higgs boson`, а не как обычная мутация значения.
+`array` не участвует в переплетении, не мутируется внешними реакциями и может меняться только внутренним процессом атома через изменение `State`.
 
 ### State
 
-1. In `Dark`, `State` means hidden continuity of form between versions rather than the current runtime state.
-2. In `Boundary`, `State` is computed and canonicalized.
-3. In `Bulk`, `State` is interpreted and executed without ceasing to be part of the domain entity.
+1. В `Dark` `State` обозначает скрытую непрерывность формы между версиями, а не текущее состояние исполнения.
+2. В `Boundary` `State` вычисляется и канонизируется.
+3. В `Bulk` `State` интерпретируется и исполняется, но не перестаёт быть частью доменной сущности.
 
 ### Transition
 
-1. In `Dark`, `Transition` means the historical shift of structure between versions rather than executable action.
-2. In `Boundary`, `Transition` is computed.
-3. In `Bulk`, `Transition` unfolds as execution.
+1. В `Dark` `Transition` обозначает исторический сдвиг структуры между версиями, а не исполняемое действие.
+2. В `Boundary` `Transition` вычисляется.
+3. В `Bulk` `Transition` разворачивается как исполнение.
 
 ### Process
 
-`Process` belongs first of all to `Bulk × Weak`.
-At the same time, the three-domain reading distinguishes hidden and manifested sides of process.
+Process относится прежде всего к `Bulk × Weak`.
+При этом трёхдоменное чтение различает его скрытую и проявленную стороны.
 
-1. In `Dark`, `Process` is read only as the historical line of model change.
-2. `Boundary` knows only the form of process needed to compute the state contract.
-3. `Bulk` unfolds process as action.
+1. В `Dark` `Process` читается только как историческая линия изменения модели, а не как самостоятельный процесс исполнения.
+2. `Boundary` знает только ту форму процесса, которая нужна для вычисления контракта состояния.
+3. `Bulk` разворачивает процесс как действие.
 
 ### Boson
 
-`Boson` is the common architectural type of force-channel and transport unit.
-It is not a force and does not coincide with `Impulse`.
+Boson — общий архитектурный тип силового канала и переносимой единицы.
+Он не является силой и не совпадает с `Impulse`.
 
-1. `Gravity` uses `Graviton`.
-2. `Electromagnetism` uses `Photon`.
-3. `Strong` uses `Gluon`.
-4. topology-field change uses `Higgs boson`.
-5. `Weak` uses `W boson` and `Z boson`.
-6. `Boson` subtypes belong to different forces or to the topology-field channel and do not collapse into one another.
+1. `Gravity` использует `Graviton`.
+2. `Electromagnetism` использует `Photon`.
+3. `Strong` использует `Gluon`.
+4. изменение поля topology использует `Higgs boson`.
+5. `Weak` использует `W boson` и `Z boson`.
+6. Подтипы `Boson` принадлежат разным силам или каналу поля topology и не схлопываются друг в друга.
 
 ### Photon
 
-`Photon` is the subtype of `Boson` that belongs to `Electromagnetism`.
+Photon — подтип `Boson`, принадлежащий `Electromagnetism`.
 
-1. `State` is transported through `Photon`.
-2. Between `Boundary` and `Bulk`, observable state transfer is read as `Photon`.
-3. In `Boundary`, `Photon` is fixed as the arrival signal of state.
-4. In `Bulk`, `Photon` unfolds delivered state into event or action.
+1. Через `Photon` переносится `State`.
+2. Между `Boundary` и `Bulk` наблюдаемый перенос состояния читается как `Photon`.
+3. В `Boundary` `Photon` фиксируется как сигнал прихода состояния.
+4. В `Bulk` `Photon` разворачивает доставленное состояние в событие или действие.
 
 ### Graviton
 
-`Graviton` is the subtype of `Boson` that belongs to `Gravity`.
+Graviton — подтип `Boson`, принадлежащий `Gravity`.
 
-1. `Graviton` is not identical to the force `Gravity`.
-2. It belongs to the structural Force channel of relation, localization, and organization.
-3. In the architectural reading of `Dark`, hidden organization and addressability are one domain projection of `Graviton`, not the whole meaning of `Gravity`.
-4. Its consequences may be manifested, but it is not an observable event of the level of `Photon`.
+1. `Graviton` не тождественен силе `Gravity`.
+2. Он относится к структурному Force-каналу отношения, локализации и организации.
+3. В архитектурном чтении `Dark` скрытая организация и адресуемость являются только одной доменной проекцией `Graviton`, а не полным смыслом `Gravity`.
+4. Его последствия могут быть проявлены, но сам он не является наблюдаемым событием уровня `Photon`.
 
 ### Gluon
 
-`Gluon` is the subtype of `Boson` that belongs to `Strong`.
+Gluon — подтип `Boson`, принадлежащий `Strong`.
 
-1. `Gluon` is not identical to the force `Strong`.
-2. Ordinary `Field` values change through `Gluon`.
-3. In `Boundary`, `Gluon` fixes the canonical change of ordinary value.
-4. In `Bulk`, `Gluon` unfolds the applied change of ordinary value.
-5. `Gluon` does not change topology-fields and does not replace `Higgs boson`.
+1. `Gluon` не тождественен самой силе `Strong`.
+2. Через `Gluon` изменяются значения обычных `Field`.
+3. В `Boundary` `Gluon` фиксирует каноническое изменение значения обычного поля.
+4. В `Bulk` `Gluon` разворачивает применяемое изменение значения обычного поля.
+5. `Gluon` не изменяет поля topology и не подменяет `Higgs boson`.
 
 ### Higgs boson
 
-`Higgs boson` is the subtype of `Boson` that belongs to topology-field change.
+Higgs boson — подтип `Boson`, принадлежащий изменению поля topology.
 
-1. Topology-fields change through `Higgs boson`.
-2. `Higgs boson` does not transport `State`.
-3. `Higgs boson` does not change ordinary field values.
-4. It changes branch selection and branch multiplicity.
-5. In the architectural reading, `Dark` can observe the global structural consequences of this change together with `Electromagnetism` and `Gravity`, but it must not become a runtime orchestrator.
+1. Через `Higgs boson` изменяются поля topology.
+2. `Higgs boson` не переносит `State`.
+3. `Higgs boson` не изменяет значения обычных полей.
+4. Через него меняются выбор ветви и множественность ветвей.
+5. В архитектурном чтении `Dark` наблюдает глобальные структурные следствия такого изменения вместе с `Electromagnetism` и `Gravity`, но не превращается в оркестратор времени исполнения.
 
 ### W boson
 
-`W boson` is the subtype of `Boson` that belongs to `Weak`.
+W boson — подтип `Boson`, принадлежащий `Weak`.
 
-1. `W boson` carries active transition between states.
-2. In `Boundary`, it belongs to the computed step of state change.
-3. In `Bulk`, it unfolds the transition as executable action.
-4. It is not the channel of observable propagation on the level of `Photon`.
+1. `W boson` проводит активный переход между состояниями.
+2. В `Boundary` он относится к вычисленному шагу смены состояния.
+3. В `Bulk` он разворачивает переход как исполняемое действие.
+4. Он не является каналом наблюдаемого распространения уровня `Photon`.
 
 ### Z boson
 
-`Z boson` is the subtype of `Boson` that belongs to `Weak`.
+Z boson — подтип `Boson`, принадлежащий `Weak`.
 
-1. `Z boson` holds neutral mediation of transition and the inner coupling of transitional states.
-2. In `Boundary`, it belongs to coordination of transition conditions.
-3. In `Bulk`, it accompanies transition as inner transitional coupling.
-4. It does not replace `Photon` and does not turn `Weak` into a distributed signal channel.
+1. `Z boson` удерживает нейтральную медицию перехода и внутреннюю связку переходных состояний.
+2. В `Boundary` он относится к согласованию условий перехода.
+3. В `Bulk` он сопровождает переход как внутреннее переходное сопряжение.
+4. Он не подменяет `Photon` и не превращает `Weak` в канал распределённого сигнала.
 
 ### Impulse
 
-`Impulse` is the content of change rather than the transport unit.
-It is not a force and not a subtype of `Boson`.
-In serializable architectural projection it may be expressed as `JSON Patch`.
+Impulse — содержимое изменения, а не переносимая единица.
+Он не является силой и не является подтипом `Boson`.
+В архитектурной сериализуемой проекции `Impulse` может быть выражен как `JSON Patch`.
 
-It must remain:
+Он должен оставаться:
 
-1. structured,
-2. comparable,
-3. serializable,
-4. applicable step by step,
-5. distinct from the transfer mechanism itself.
+1. структурированным,
+2. сравнимым,
+3. пригодным для сериализации,
+4. пригодным для поэтапного применения,
+5. отделённым от самого механизма переноса.
 
-At the same time:
+При этом:
 
-1. in `Dark`, `Impulse` expresses the composition of hidden reconfiguration,
-2. in `Boundary`, `Impulse` fixes the canonical form of change content on the boundary,
-3. in `Bulk`, `Impulse` accompanies execution as the content of applied change,
-4. `State` transport goes through `Photon`,
-5. ordinary `Field` change goes through `Gluon`,
-6. topology-field change goes through `Higgs boson`,
-7. relation and localization are held through `Graviton`,
-8. active transition goes through `W boson`,
-9. neutral mediation goes through `Z boson`.
+1. в `Dark` `Impulse` выражает состав скрытой реконфигурации,
+2. в `Boundary` `Impulse` фиксирует каноническую форму содержимого изменения на границе,
+3. в `Bulk` `Impulse` сопровождает исполнение как содержимое применяемого изменения,
+4. перенос `State` идёт через `Photon`,
+5. изменение значений обычных `Field` идёт через `Gluon`,
+6. изменение полей topology идёт через `Higgs boson`,
+7. отношение и локализация удерживаются через `Graviton`,
+8. активный переход проводится через `W boson`,
+9. нейтральная медиция перехода удерживается через `Z boson`,
+10. дедупликация не переносится из `Boundary × Strong` в `Dark`.
 
-See [Force](./FORCE.md), [Strong](./proto/strong.md), and [Higgs](./proto/higgs.md) for the detailed channel reading.
+Подробный силовой разбор каналов задан в [корневом Force](./FORCE.md), а различие обычных полей и полей topology вынесено в [раздел Strong](./proto/strong.md) и [раздел Higgs](./proto/higgs.md).
 
-### Identity and Index
+### Identity и Index
 
-The architecture must strictly distinguish:
+Нужно жёстко различать:
 
-1. `UUID` as stable identity,
-2. `Index` as a local runtime address of the current configuration.
+1. `UUID` как устойчивую идентичность,
+2. `Index` как локальный адрес времени исполнения текущей конфигурации.
 
-They must not replace one another.
-Both contracts are fixed at the domain level rather than spread across force-modules.
-`UUID` expresses the stable identity of one and the same entity and keeps coherence between `Dark`, `Boundary`, and `Bulk`.
-`Index` remains execution geometry in `Boundary` or `Bulk` and does not rise into the hidden domain without separate ontological grounds.
+Они не должны смешиваться и не должны подменять друг друга.
+Оба контракта фиксируются на доменном уровне, а не размазываются по силовым модулям.
+`UUID` выражает устойчивую идентичность одной и той же сущности и тем самым удерживает согласованность между `Dark`, `Boundary` и `Bulk`.
+`Index` остаётся геометрией исполнения в `Boundary` или `Bulk` и не поднимается в скрытый домен без отдельного онтологического основания.
 
-## Architectural contracts
+## Архитектурные контракты
 
 ### DSL
 
-`DSL` is responsible only for declaration.
+DSL отвечает только за декларацию.
 
 ### AST
 
-`AST` is responsible only for the serializable contract.
+AST отвечает только за сериализуемый контракт.
 
-### Dark (architecturally)
+### Dark (архитектурно)
 
-`Dark` is responsible for hidden structural continuity.
-Architecturally it includes schema history, hidden hierarchy, fixed states, structured changes, and model evolution.
+`Dark` отвечает за скрытую структурную непрерывность.
+Сюда архитектурно относятся история схем, скрытая иерархия, зафиксированные состояния, структурированные изменения и эволюция модели.
 
-This reading does not depend on the presence of a large explicit file projection of `Dark`.
-If such a projection exists, it should stay minimal and must not become a new execution center.
+Это архитектурное чтение не сводится к наличию отдельной файловой проекции `Dark`.
+Если такая проекция выделяется, она должна оставаться минимальной и не превращаться в новый центр времени исполнения.
 
-### Projection of `Dark` into `Boundary` and `Bulk`
+### Проекция `Dark` в `Boundary` и `Bulk`
 
-`Boundary` and `Bulk` are architecturally parallel because both are rooted in the same hidden structural world.
-Ontologically their source is common, but technically their loading is independent.
+`Boundary` и `Bulk` архитектурно параллельны, потому что укоренены в одном скрытом структурном мире.
+Онтологически их источник общий, технически их загрузка независима.
 
-This means:
+Это значит:
 
-1. `Dark` is not a supra-domain execution orchestrator,
-2. `Boundary` is the fixation projection,
-3. `Bulk` is the manifestation projection,
-4. a common hidden basis does not cancel domain autonomy,
-5. a common hidden basis does not permit direct runtime imports between domains,
-6. until Force channels exist, inter-domain coherence is proven only in tests.
+1. `Dark` не является сверх-доменным оркестратором исполнения,
+2. `Boundary` соответствует проекции фиксации,
+3. `Bulk` соответствует проекции проявления,
+4. общая скрытая основа не отменяет автономию доменов,
+5. общая скрытая основа не разрешает прямой импорт между доменами во время исполнения,
+6. до появления Force-каналов междоменная согласованность доказывается только тестами.
 
-At the same time `Dark` remains the hidden builder and holder of connectivity and of the Dark projection of gravitational relations and localization.
-It may observe global structural effects arriving through `Photon`, `Higgs boson`, and `Graviton`, but must not become the common execution center.
+Одновременно `Dark` остаётся скрытым держателем связности и `Dark`-проекции гравитационных отношений и локализации.
+Он может наблюдать глобальные структурные эффекты, приходящие через `Photon`, `Higgs boson` и `Graviton`, но не должен становиться общим центром исполнения.
+
+В текущем коде это означает следующее:
+
+1. `boundary/boundary.ts` остаётся оркестратором канонической записи и перехода состояния.
+2. `boundary/strong` остаётся слоем канонической сборки Boundary-store и не содержит активного runtime dump/restore-пути.
+3. `dark/gravity/index.ts` временно использует `meta.json` как источник загрузки, а `bulk/gravity/load.ts` уже читает контракт, принадлежащий `Dark`, вместо прямого владения источником.
+4. Первые явные группы владения `Dark` — хранилище структуры связности, поиск path/address, связанное плоское представление и контракты проекций в `Boundary` и `Bulk`.
+5. Эти проекции не должны оформляться как прямые рабочие импорты между доменами до появления Force-канала.
 
 ### Bulk <-> Boundary
 
-`Bulk` and `Boundary` are architecturally parallel.
-One domain is not the loader or internal stage of the other.
+`Bulk` и `Boundary` архитектурно параллельны.
+Один домен не является загрузчиком или внутренней стадией другого.
 
-The contract between them is:
+Архитектурный контракт между ними такой:
 
-1. `Bulk` consumes its own `DSL/AST` contract provided by `Dark`,
-2. `Boundary` consumes its own structural contract provided by `Dark`,
-3. common ontological source in `Dark` does not mean shared runtime data ownership,
-4. `DSL` and `AST` are not passed from one lower domain to another as shared runtime ownership,
-5. crossing the boundary between `Bulk` and `Boundary` happens only through the force-channel that matches the character of change,
-6. `Photon` transports `State`, `Gluon` changes ordinary `Field`, `Higgs boson` changes topology-fields, `Graviton` carries relation and localization force, `W boson` carries active transition, `Z boson` holds neutral mediation, and `Impulse` gives the content of that transfer,
-7. `Boundary` does not execute `Bulk` processes,
-8. `Bulk` is not the source of truth for `Boundary` state,
-9. direct production imports between them are forbidden,
-10. until a Force channel exists, relative imports between them are acceptable only in tests.
+1. `Bulk` самостоятельно потребляет свой контракт `DSL/AST`, предоставленный `Dark`.
+2. `Boundary` самостоятельно потребляет свой структурный контракт, предоставленный `Dark`.
+3. Общий онтологический источник в `Dark` не означает общего владения данными во время исполнения.
+4. `DSL` и `AST` не передаются из одного нижестоящего домена в другой как общее владение в исполнении.
+5. Пересечение границы между `Bulk` и `Boundary` проходит через силовой канал, соответствующий характеру изменения.
+6. `Photon` переносит `State`, `Gluon` изменяет значения обычных `Field`, `Higgs boson` изменяет поля topology, `Graviton` несёт силу отношения и локализации, `W boson` проводит активный переход, `Z boson` удерживает нейтральную медицию перехода; `Impulse` задаёт содержимое такого переноса.
+7. `Boundary` не исполняет процессы домена `Bulk`.
+8. `Bulk` не является источником истины для состояния домена `Boundary`.
+9. прямой рабочий импорт `Boundary` в `Bulk` и `Bulk` в `Boundary` запрещён.
+10. до появления Force-канала относительные импорты между ними допустимы только внутри тестов.
 
-## TAKT as the quantum of system state and execution rhythm
+## TAKT как квант состояния системы и ритм исполнения
 
-`TAKT` is not a separate domain and not a separate force.
+`TAKT` не является отдельным доменом и не является отдельной силой.
 
-Architecturally, `TAKT` is read as:
+Архитектурно `TAKT` читается как:
 
-1. the minimal quantum of the integral state of the system,
-2. the unit of shared execution rhythm,
-3. the completed cycle of passage from one coherent system state to the next.
+1. минимальный квант целостного состояния системы,
+2. единица общего ритма исполнения,
+3. завершённый цикл перехода от одного согласованного состояния системы к следующему.
 
-Inside one `TAKT`:
+Внутри одного `TAKT`:
 
-1. the system starts from one coherent hidden continuity and its current domain projections,
-2. `Boundary` computes the admissible transition,
-3. inter-domain change is transferred through the corresponding force-channel,
-4. `Bulk` unfolds execution of that transition,
-5. the system reaches the next coherent state compatible with both hidden continuity and manifested execution.
+1. система исходит из одной согласованной скрытой непрерывности и её текущих доменных проекций,
+2. `Boundary` вычисляет допустимый переход,
+3. междоменное изменение переносится через соответствующий силовой канал,
+4. `Bulk` разворачивает исполнение этого перехода,
+5. система приходит к следующему согласованному состоянию, совместимому и со скрытой непрерывностью, и с проявленным исполнением.
+
+Важно:
+
+1. `TAKT` относится не к локальному обработчику, а к состоянию системы в целом,
+2. внутри одного `TAKT` не должно появляться конкурирующих источников истины,
+3. пересечение доменной границы допускается только через силовые каналы и не сводится к одному `Electromagnetism`,
+4. `TAKT` завершён только тогда, когда переход не только вычислен, но и доведён до следующей устойчивой точки системы.
 
 ## Lock
 
-`Lock` is neither a separate domain nor a separate force.
-It is a marker of the transitional boundary between state computation and further unfolding of execution.
+Lock — это не отдельный домен и не отдельная сила.
+Это маркер переходной границы между вычислением состояния и дальнейшим разворачиванием исполнения.
 
-Architecturally, only the following matters:
+Архитектурно важно только следующее:
 
-1. `Boundary` fixes the moment of the computed transition,
-2. `Bulk` decides how execution continues after that transition,
-3. `Lock` must not blur the boundary between computation and execution.
+1. Boundary фиксирует момент вычисленного перехода.
+2. Bulk решает, как продолжить исполнение после этого перехода.
+3. Lock не должен размывать границу между вычислением и исполнением.
 
-## Orchestrators
+## Оркестраторы
 
-Orchestrators exist at the domain level in both `Bulk` and `Boundary`.
-Each domain has its own orchestrator.
+Оркестраторы существуют на доменном уровне и в `Bulk`, и в `Boundary`.
+Каждый домен имеет свой собственный оркестратор.
 
-They:
+Они:
 
-1. do not create a new domain,
-2. do not replace force,
-3. do not move domain responsibility into an outer supra-domain center.
+1. не образуют новый домен,
+2. не подменяют собой силу,
+3. не выносят доменную ответственность во внешний наддоменный центр.
 
-Their role is to gather the contracts of their domain into one executable path without destroying the reading through `Domain × Force × Entity`.
+Их задача — собирать контракты своего домена в один исполняемый путь, не разрушая чтение через `Домен × Сила × Сущность`.
 
-## File projection
+## Файловая проекция
 
-The file system should strive to be read by role rather than by historical naming.
-Ontology remains broader than the current repository tree.
+Файловая система должна стремиться к чтению по ролям, а не по историческим именам.
+Онтология при этом шире конкретного дерева репозитория.
 
-The current repository projection is:
+Текущая файловая проекция репозитория:
 
 ```text
-metafor/dsl/      # declaration
-metafor/ast/      # serializable contract
+metafor/dsl/      # декларация
+metafor/ast/      # сериализуемый контракт
 
-dark/             # Dark domain and ownership of hidden connectivity/store/path/address
-  gravity/        # schema loading, path formation, preparation of connectivity structure
-  strong/         # cohesion of connectivity, retention of relations, connected flat form
-  weak/           # path of structural transformation, preparation of transition
-  em/             # projection and export contracts
+dark/             # домен Dark и владение скрытой связностью/store/path/address
+  gravity/        # загрузка схемы, формирование path, подготовка структуры связности
+  strong/         # сцепление связности, удержание отношений, связанная плоская форма
+  weak/           # путь структурного преобразования, подготовка перехода
+  em/             # контракты проекции/экспорта
 
-boundary/         # Boundary domain: flattening boundary and imprint fixation layer
-  gravity/        # geometry, index space, arrangement, flattening
-  strong/         # canonicalization, compaction, entanglement materialization
-  weak/           # state transition, weak change
-  em/             # transfer of change, serialization, signal
+boundary/         # домен Boundary: граница уплощения и слой фиксации отпечатка
+  gravity/        # геометрия, индексное пространство, раскладка, уплощение
+  strong/         # канонизация, уплотнение, материализация запутанности
+  weak/           # переход состояния, слабое изменение
+  em/             # перенос изменения, сериализация, сигнал
 
-bulk/             # Bulk domain in code projection
-  gravity/        # structural organization of actors, hierarchy, addressability
-  strong/         # binding, projection of entanglement
-  weak/           # process execution, continuation after transition
-  em/             # event delivery, signal propagation
+bulk/             # домен Bulk в кодовой проекции
+  gravity/        # структурная организация акторов, иерархия, адресуемость
+  strong/         # связывание, проекция запутанности
+  weak/           # исполнение процесса, ход после перехода
+  em/             # доставка события, распространение сигнала
 ```
 
-This projection should be read under the following rules:
+Эта проекция читается при следующих правилах:
 
-1. `Dark` keeps architectural status even with a distributed file projection,
-2. `dark/*` packages, when explicitly present, serve as structural anchors of `Dark` roles rather than functional duplicates of `Boundary` or `Bulk`,
-3. boundary snapshot remains in `Boundary × Strong` while it describes canonical boundary form and restoration,
-4. `Dark` does not absorb deduplication from `Boundary × Strong`,
-5. `Dark` does not absorb execution from `Bulk`,
-6. file proximity of domains inside one repository does not cancel process and architectural isolation,
-7. production code must not use this file proximity as a replacement for a Force channel.
+1. `Dark` сохраняет архитектурный статус и при распределённой файловой проекции,
+2. силовые пакеты `dark/*`, если они выделены, служат структурным якорем ролей `Dark`, а не функциональным дублем `Boundary` или `Bulk`,
+3. снимок границы остаётся в `Boundary × Strong`, пока он описывает каноническую форму границы и её восстановление,
+4. `Dark` не поглощает дедупликацию из `Boundary × Strong`,
+5. `Dark` не поглощает исполнение из `Bulk`,
+6. файловая близость доменов в одном репозитории не отменяет их процессную и архитектурную изоляцию,
+7. production-код не должен использовать эту файловую близость как замену Force-каналу.
+
+В текущей файловой проекции `dark/` уже удерживает `dark/store`, загрузку связности, поиск path/address и контракты проекции для нижестоящих доменов.
+Каноникализация границы и исполнение домена `Bulk` в неё не входят.
+
+Конкретные технические имена и оперативное планирование не описываются здесь.

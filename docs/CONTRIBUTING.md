@@ -1,35 +1,34 @@
-# Contributing to MetaFor
+# Вклад в MetaFor
 
-**English** | [Русский](CONTRIBUTING.ru.md)
 
-MetaFor is still in an architectural formation stage, so contribution should stay conservative and explicit.
+MetaFor пока находится в стадии архитектурного формирования, поэтому вклад должен быть осторожным, явным и проверяемым.
 
-## Before You Change Anything
+## Перед любыми изменениями
 
-- Read the relevant document in [`docs/`](docs/), especially [Ontology](ONTOLOGY.md), [Architecture](ARCHITECTURE.md), and [Development](DEVELOPMENT.md).
-- Preserve the current `arch` terminology: `Dark`, `Boundary`, `Bulk`, `Field`, `Brane`, Force channels, and the distinction between ordinary fields and topology fields.
-- Do not reintroduce older `qTp` framing as a semantic replacement for the current branch.
+- Прочитайте релевантный документ из [`docs/`](docs/), особенно [Онтологию](ONTOLOGY.md), [Архитектуру](ARCHITECTURE.md) и [Разработку](DEVELOPMENT.md).
+- Сохраняйте текущую терминологию ветки `arch`: `Dark`, `Boundary`, `Bulk`, `Field`, `Brane`, Force-каналы и различие между обычными полями данных и полями topology.
+- Не возвращайте старый `qTp` как смысловую замену текущей архитектуре.
 
-## Documentation Contributions
+## Вклад в документацию
 
-- Keep the public documentation bilingual when you touch the public entry surface.
-- Add or preserve top-level language switches between English and Russian counterparts.
-- Prefer small, verifiable edits over large conceptual rewrites.
+- Если вы меняете публичный входной слой документации, ведите его на русском языке как основном источнике.
+- Не добавляйте англоязычные дубликаты без отдельной необходимости; если нужен новый Markdown-документ, пишите его по-русски.
+- Предпочитайте небольшие проверяемые изменения крупной концептуальной переработке.
 
-## Code Contributions
+## Вклад в код
 
-- Do not turn domains into direct runtime dependencies of each other.
-- Treat `Dark`, `Boundary`, and `Bulk` as isolated domains that will eventually communicate through Force channels.
-- Relative imports across domains may be acceptable in tests, but not as a production shortcut.
+- Не превращайте домены в прямые зависимости времени исполнения друг от друга.
+- Рассматривайте `Dark`, `Boundary` и `Bulk` как изолированные домены, которые в зрелой форме будут связываться через Force-каналы.
+- Относительные импорты между доменами могут быть допустимы в тестах, но не как сокращение для production-кода.
 
-## Verification
+## Проверка
 
-- Run the smallest relevant local verification for the files you changed.
-- For Markdown changes, run `bun run lint:md`.
-- If you touch code, prefer targeted checks in the affected workspace instead of unrelated broad changes.
+- Запускайте минимальную релевантную локальную проверку для изменённых файлов.
+- Для Markdown-изменений используйте `bun run lint:md`.
+- Если вы меняете код, предпочитайте точечные проверки в затронутом workspace вместо несвязанных массовых прогонов.
 
-## Pull Requests and Discussions
+## Pull Request и обсуждение
 
-- Explain the architectural intent of the change in plain language.
-- Link the relevant document or invariant when a change depends on ontology or architecture.
-- If the change introduces a new concept, document it before treating it as established repository truth.
+- Описывайте архитектурный смысл изменения простым языком.
+- Ссылайтесь на релевантный документ или инвариант, если изменение зависит от онтологии или архитектуры.
+- Если изменение вводит новое понятие, сначала зафиксируйте его в документации, а потом рассматривайте как установленную истину репозитория.

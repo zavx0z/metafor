@@ -1,36 +1,36 @@
 # @metafor/voice
 
-Bun FFI bridge to the Vosk C API for Russian command recognition, plus a local web playground.
+Bun FFI bridge к Vosk C API для распознавания русских голосовых команд и локальный web playground.
 
-The package loads a Russian Vosk model, accepts 16-bit mono PCM, reads Vosk JSON recognition results, normalizes spoken English tech terms through Russian phonetic aliases, and dispatches matched commands from Bun.
+Пакет загружает русскую модель Vosk, принимает 16-bit mono PCM, читает JSON-результаты Vosk, нормализует произнесённые английские технические термины через русские фонетические aliases и запускает найденные команды из Bun.
 
-## Files
+## Файлы
 
-- `src/vosk.ts` loads `libvosk` with `bun:ffi` and wraps model/recognizer lifecycle.
-- `src/commands.ts` matches Russian command phrases, phonetic aliases, and small recognition errors with Levenshtein distance.
-- `src/wav.ts` extracts PCM from a simple 16-bit mono WAV file.
-- `src/web/server.ts` serves the browser playground and streams microphone PCM over WebSocket.
-- `examples/recognize-file.ts` recognizes a WAV or raw PCM file.
-- `examples/recognize-mic.ts` captures a local macOS microphone through ffmpeg.
+- `src/vosk.ts` загружает `libvosk` через `bun:ffi` и оборачивает lifecycle модели/recognizer-а.
+- `src/commands.ts` сопоставляет русские командные фразы, фонетические aliases и небольшие ошибки распознавания через Levenshtein distance.
+- `src/wav.ts` извлекает PCM из простого 16-bit mono WAV-файла.
+- `src/web/server.ts` обслуживает браузерный playground и стримит microphone PCM через WebSocket.
+- `examples/recognize-file.ts` распознаёт WAV или raw PCM файл.
+- `examples/recognize-mic.ts` захватывает локальный macOS microphone через ffmpeg.
 
-## Runtime Prerequisites
+## Runtime-требования
 
-Local native/runtime assets are expected next to this package:
+Локальные native/runtime assets ожидаются рядом с пакетом:
 
 - `lib/libvosk.dylib`
 - `models/ru`
-- optional `bin/ffmpeg`
-- optional `samples/*.wav`
+- опционально `bin/ffmpeg`
+- опционально `samples/*.wav`
 
-These assets are intentionally ignored by Git because they are large and machine-specific. You can also point to them explicitly:
+Эти assets намеренно игнорируются Git, потому что они большие и зависят от машины. Их также можно указать явно.
 
-Download the Vosk native library and the small Russian model:
+Скачать native-библиотеку Vosk и малую русскую модель:
 
 ```sh
 bun run voice:assets
 ```
 
-From this package directly:
+Прямо из этого пакета:
 
 ```sh
 bun run assets
@@ -41,64 +41,64 @@ export VOSK_LIB="$PWD/lib/libvosk.dylib"
 export VOSK_MODEL="$PWD/models/ru"
 ```
 
-Audio sent to Vosk must be 16-bit mono PCM. WAV input is parsed automatically; raw PCM needs `--raw-pcm --sample-rate`.
+Audio, отправляемое в Vosk, должно быть 16-bit mono PCM. WAV input разбирается автоматически; для raw PCM нужны `--raw-pcm --sample-rate`.
 
 ## Web Playground
 
-From this package:
+Из этого пакета:
 
 ```sh
 bun run playground
 ```
 
-From the production workspace root:
+Из корня production workspace:
 
 ```sh
 bun --filter @metafor/voice playground
 ```
 
-or:
+или:
 
 ```sh
 bun run voice:playground
 ```
 
-Then open:
+Затем открыть:
 
 ```text
 http://127.0.0.1:4765
 ```
 
-The playground has two recognition engines:
+В playground есть два движка распознавания:
 
-- `Local Vosk` streams microphone PCM to the local Bun/Vosk server at `/ws`.
-- `Remote ASR` streams the same PCM to a configurable WebSocket URL. The default is `ws://127.0.0.1:8877/ws`, intended for an SSH tunnel to `ai-srv`.
+- `Local Vosk` стримит microphone PCM в локальный Bun/Vosk server на `/ws`.
+- `Remote ASR` стримит тот же PCM на настраиваемый WebSocket URL. По умолчанию используется `ws://127.0.0.1:8877/ws`, рассчитанный на SSH tunnel к `ai-srv`.
 
-The playground server starts and monitors the `ai-srv` SSH tunnel automatically:
+Playground server автоматически запускает и наблюдает SSH tunnel к `ai-srv`:
 
 ```sh
 ssh -N -L 127.0.0.1:8877:127.0.0.1:8787 ai-srv
 ```
 
-If the tunnel process exits or `/health` stops responding, the server restarts it. Disable the managed tunnel with:
+Если tunnel process завершается или `/health` перестаёт отвечать, server перезапускает его. Отключить managed tunnel:
 
 ```sh
 VOICE_ASR_TUNNEL=0 bun run voice:playground
 ```
 
-Manual tunnel startup is still available for diagnostics:
+Ручной запуск tunnel остаётся доступен для диагностики:
 
 ```sh
 bun run voice:asr:tunnel
 ```
 
-Check both local voice endpoints:
+Проверить оба локальных voice endpoint:
 
 ```sh
 bun run voice:health
 ```
 
-The remote ASR service accepts a context prompt from the playground's `Context` field and passes it to Whisper as `initial_prompt`.
+Remote ASR service принимает context prompt из поля `Context` в playground и передаёт его в Whisper как `initial_prompt`.
 
 Environment:
 
@@ -118,7 +118,7 @@ VOICE_ASR_TUNNEL_HEALTH_URL=http://127.0.0.1:8877/health
 VOICE_ASR_TUNNEL_STARTUP_GRACE_MS=12000
 ```
 
-The browser captures microphone audio, asks for a 16 kHz `AudioContext`, converts mono float samples to 16-bit PCM, streams chunks to `/ws`, and renders partial/final recognition plus command matches.
+Браузер захватывает microphone audio, запрашивает 16 kHz `AudioContext`, конвертирует mono float samples в 16-bit PCM, стримит chunks в `/ws` и отображает partial/final recognition вместе с command matches.
 
 ## CLI
 
@@ -127,25 +127,25 @@ bun run recognize ./speech.wav
 bun run recognize ./speech.pcm --raw-pcm --sample-rate 16000
 ```
 
-Local native smoke test:
+Локальный native smoke test:
 
 ```sh
 bun run smoke
 ```
 
-From the workspace root:
+Из корня workspace:
 
 ```sh
 bun run voice:smoke
 ```
 
-Local generated sample:
+Локально сгенерированный sample:
 
 ```sh
 bun run recognize:sample
 ```
 
-Live microphone capture on macOS:
+Live microphone capture на macOS:
 
 ```sh
 bun run recognize:mic --list-devices
@@ -153,25 +153,25 @@ bun run recognize:mic --device ":0"
 bun run recognize:mic --device ":0" --partial
 ```
 
-The first microphone run may require macOS Microphone permission for the terminal running Bun. If `--list-devices` shows no audio devices or `Input/output error`, grant that permission in System Settings and retry.
+Первый запуск microphone может потребовать macOS Microphone permission для терминала, в котором работает Bun. Если `--list-devices` не показывает audio devices или возвращает `Input/output error`, выдайте разрешение в System Settings и повторите.
 
-By default, recognizers use a small Russian grammar containing command phrases plus `[unk]`. Use `--no-grammar` in the CLI or `VOICE_GRAMMAR=0` in the playground server to run against the full model vocabulary.
+По умолчанию recognizer-ы используют малую русскую grammar с командными фразами и `[unk]`. Используйте `--no-grammar` в CLI или `VOICE_GRAMMAR=0` в playground server, чтобы работать с полным словарём модели.
 
-## Commands
+## Команды
 
-Default commands are in `src/commands.ts`:
+Команды по умолчанию находятся в `src/commands.ts`:
 
 - `lights.on`: `включи свет`, `зажги свет`
 - `door.open`: `открой дверь`
-- `github.open`: `открой github`, recognized as `открой гитхаб` or `открой гит хаб`
-- `bun.run`: `запусти bun`, recognized as `запусти бан`
-- `webgpu.check`: `проверь webgpu`, recognized as `проверь веб джи пи ю`
+- `github.open`: `открой github`, распознаётся как `открой гитхаб` или `открой гит хаб`
+- `bun.run`: `запусти bun`, распознаётся как `запусти бан`
+- `webgpu.check`: `проверь webgpu`, распознаётся как `проверь веб джи пи ю`
 
-Replace each command's `run()` function with the package-side action you need.
+Замените функцию `run()` каждой команды на нужное package-side действие.
 
-## Phonetic Aliases
+## Фонетические Aliases
 
-Default aliases are in `src/commands.ts`:
+Aliases по умолчанию находятся в `src/commands.ts`:
 
 ```ts
 {
@@ -186,10 +186,10 @@ Default aliases are in `src/commands.ts`:
 }
 ```
 
-After aliases are normalized, command matching tries exact match, phrase containment, then a guarded Levenshtein fallback. The fallback rejects the common unsafe pair `включи/выключи`.
+После нормализации aliases command matching сначала пробует exact match, затем phrase containment, затем guarded Levenshtein fallback. Fallback отклоняет частую небезопасную пару `включи/выключи`.
 
-## Important Details
+## Важные детали
 
-Bun does not convert JavaScript strings to C strings for pointer arguments. `src/vosk.ts` encodes model paths and grammar JSON as null-terminated UTF-8 buffers before passing them to FFI.
+Bun не конвертирует JavaScript strings в C strings для pointer arguments. `src/vosk.ts` кодирует пути модели и grammar JSON как null-terminated UTF-8 buffers перед передачей в FFI.
 
-Vosk returns JSON strings such as `{ "text": "открой гит хаб" }` or `{ "partial": "открой" }`. Commands are dispatched only from final utterance results, not from unstable partial text.
+Vosk возвращает JSON strings вида `{ "text": "открой гит хаб" }` или `{ "partial": "открой" }`. Команды запускаются только из финальных utterance results, а не из нестабильного partial text.

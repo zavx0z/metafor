@@ -1,6 +1,6 @@
-# **⚛️ Meta for...**
+# **⚛️ Мета для...**
 
-## Quick Start
+## Быстрый старт
 
 ```bash
 # Using npm
@@ -10,60 +10,59 @@ npm create metafor my-meta
 bun create metafor my-meta
 ```
 
-## Usage
+## Использование
 
-### Create Meta
+### Создать Мета
 
 ```bash
 bun create metafor auth
 ```
 
-Creates a Meta with basic error handling template.
+Создаётся Мета с базовым шаблоном для обработки ошибок.
 
-## Options
+## Опции
 
-| Option              | Description              | Default             |
-|---------------------|--------------------------|---------------------|
-| `-n, --name <name>` | Meta name                | positional argument |
-| `-d, --desc <desc>` | Meta description         | `"MetaFor {name}"`  |
-| `--dir <dir>`       | Output directory         | `.`                 |
-| `-l, --lang <lang>` | Output language (ru\|en) | auto-detect         |
+| Option              | Description             | Default             |
+|---------------------|-------------------------|---------------------|
+| `-n, --name <name>` | Имя Мета                | positional argument |
+| `-d, --desc <desc>` | Описание Мета           | `"MetaFor {name}"`  |
+| `--dir <dir>`       | Директория для создания | `.`                 |
+| `-l, --lang <lang>` | Язык вывода (ru\|en)    | автодетект          |
 
-## Examples
+## Примеры
 
 ```bash
-# Create with description
-bun create metafor auth -d "Authentication"
+# Создать с описанием
+bun create metafor auth -d "Авторизация"
 
-# Create in custom directory
+# Создать в другой директории
 bun create metafor player --dir components
 
-# Create with full name
-bun create metafor git-commit -d "Commit"
+# Создать с полным именем
+bun create metafor git-commit -d "Коммит"
 
-# Force English language
+# Принудительно английский язык
 bun create metafor auth -l en
 ```
 
-## Generated Structure
+## Структура
 
 ```text
 my-meta/
 ├── src/
-│   └── meta.ts          # Meta
-├── package.json         # Configuration
+│   └── meta.ts          # Мета
+├── package.json         # Конфигурация
 ├── .gitignore          # Git ignore
-└── index.html          # HTML template
+└── index.html          # HTML шаблон
 ```
 
-## Requirements
+## Требования
 
-- NodeType.js >= 18 or Bun >= 1.0.0
+- NodeType.js >= 18 или Bun >= 1.0.0
 
-## License
+## Лицензия
 
 MIT
 
 ---
 
-**Other languages:** [Русский](README.ru.md)

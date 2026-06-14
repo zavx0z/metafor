@@ -1,12 +1,12 @@
-# MetaFor Agent Context
+# Контекст агента MetaFor
 
-## Project Overview
+## Обзор проекта
 
-MetaFor is an open-source environment for common AGI.
-It treats intelligence not as an isolated model in a flat interface, but as a shared digital environment where people, agents, interfaces, memory, applications, devices, space, and action can coexist.
+MetaFor - open-source среда для общего AGI.
+Она рассматривает интеллект не как изолированную модель в плоском интерфейсе, а как общую цифровую среду, где люди, агенты, интерфейсы, память, приложения, устройства, пространство и действие могут сосуществовать.
 
-The current `arch` branch documentation is the source of truth.
-Для существенной работы также читай `AGENT_MEMORY.ru.md` как долговечный живой контекст текущего стартового доведения.
+Текущая документация ветки `arch` является источником истины.
+Для существенной работы также читай `AGENT_MEMORY.md` как долговечный живой контекст текущего стартового доведения.
 
 ## Живой общий контекст
 
@@ -18,7 +18,7 @@ The current `arch` branch documentation is the source of truth.
 Предпочтительный порядок:
 
 1. `AGENT.md` - правила, которые будущие агенты обязаны соблюдать.
-2. `AGENT_MEMORY.ru.md` - живая память текущего стартового доведения.
+2. `AGENT_MEMORY.md` - живая память текущего стартового доведения.
 3. `docs/` - публичные или архитектурные объяснения.
 4. Package-local `AGENTS.md` / docs - поведение конкретного пакета.
 5. Состояние интерпретатора, процессы, снапшоты или тесты - когда знание является исполняемым поведением.
@@ -59,108 +59,108 @@ The current `arch` branch documentation is the source of truth.
 
 Не говори, что система только "пытается" это сделать, если репозиторий или контекст пользователя говорят, что основание уже реализовано и сейчас связывается, уточняется или доводится до связного стартового состояния.
 
-## Interpreter API Edit Discipline
+## Дисциплина правок через Interpreter API
 
-When the interpreter is running or the work is happening inside the interpreter/debugger session, do not edit repository files by habit with local patching tools. Assume the interpreter API is available by default; use `/context` or the relevant `/processes/:id/...` endpoint and map the target file to the active process/display/source context. Do not call `/health` as routine preflight.
+Когда интерпретатор запущен или работа идёт внутри interpreter/debugger session, не редактируй файлы репозитория по привычке локальными patch-инструментами. По умолчанию считай, что interpreter API доступен; используй `/context` или нужный endpoint `/processes/:id/...` и сопоставляй целевой файл с активным process/display/source context. Не вызывай `/health` как обычный preflight.
 
-If the target file belongs to an active process, an open interpreter source, or the current shared debugging context, edits must go through the interpreter API only:
+Если целевой файл относится к активному процессу, открытому source интерпретатора или текущему общему debugging context, правки должны идти только через interpreter API:
 
 - `POST /processes/:id/apply_patch` for raw patches;
 - `POST /processes/:id/source` for full source replacement.
 
-Before every such edit, state the route being used: `Правлю через interpreter API: <processId>`. Do not use local `apply_patch`, `sed`, shell writes, editor writes, or formatter writes for those files. Use local edits only after explicitly confirming the file is outside the active interpreter context or when the interpreter API cannot address that file and the user accepts the fallback. Use `/health` only as diagnostics after an API failure, missing process, restart/close, or unknown context.
+Перед каждой такой правкой явно называй маршрут: `Правлю через interpreter API: <processId>`. Не используй локальный `apply_patch`, `sed`, shell-write, редактор или formatter для этих файлов. Локальные правки допустимы только после явного подтверждения, что файл вне активного interpreter context, или когда interpreter API не может адресовать этот файл и пользователь принимает fallback. `/health` используй только как диагностику после API failure, отсутствующего process, restart/close или неизвестного context.
 
-## Communication
+## Общение
 
-The user is Russian-speaking.
-When communicating directly with the user, prefer Russian and use fewer unnecessary anglicisms in discussion.
-Keep terminology accurate, but avoid English wording when a clear Russian equivalent exists.
+Пользователь говорит по-русски.
+В прямом общении с пользователем предпочитай русский язык и избегай лишних англицизмов.
+Терминологию сохраняй точной, но не используй английскую формулировку там, где есть ясный русский эквивалент.
 
-## Local Browser Discipline
+## Дисциплина локального браузера
 
-- Reuse the existing Google Chrome window and active tab for local inspection unless the user explicitly asks for a new tab, a new window, or a separate profile.
-- For local URLs, prefer `@meta/chrome` `POST /navigate` on the current tab. Do not launch Chrome with `--app`, `--new-window`, or a temporary `--user-data-dir` for ordinary checks.
-- Before opening anything in Chrome, inspect existing windows/tabs through `@meta/chrome` and carry the selected `windowId`/`tabIndex` through later calls.
-- Do not use Puppeteer, Playwright, or other browser automation libraries for local browser work. Use the `@meta/chrome`, `@meta/screen`, and related REST APIs instead.
-- If the browser REST services are unavailable, report that blocker and do not fall back to Puppeteer or Playwright.
-- Do not start a separate CDP Chrome profile (`bun run cdp`) unless CDP-only functionality is required and the user approves it.
-- If duplicate app-mode Chrome instances already exist, report them and ask before closing or killing any process.
+- Используй существующее окно Google Chrome и активную вкладку для локальной проверки, если пользователь явно не попросил новую вкладку, новое окно или отдельный профиль.
+- Для локальных URL предпочитай `@meta/chrome` `POST /navigate` в текущей вкладке. Не запускай Chrome с `--app`, `--new-window` или временным `--user-data-dir` для обычных проверок.
+- Перед открытием чего-либо в Chrome проверь существующие окна/вкладки через `@meta/chrome` и дальше используй выбранные `windowId`/`tabIndex`.
+- Не используй Puppeteer, Playwright или другие browser automation libraries для локальной работы с браузером. Используй `@meta/chrome`, `@meta/screen` и связанные REST API.
+- Если browser REST services недоступны, сообщи об этом blocker-е и не переходи на Puppeteer или Playwright.
+- Не запускай отдельный CDP Chrome profile (`bun run cdp`), если CDP-only функциональность не нужна и пользователь не одобрил это.
+- Если уже есть дублирующиеся app-mode Chrome instances, сообщи о них и спроси перед закрытием или kill process.
 
 ## WebGPU Engine (`pkg/engine`)
 
-The engine is a custom WebGPU renderer — no WebGL fallback.
+Engine - кастомный WebGPU renderer без WebGL fallback.
 
-**Coordinate system contract** (`pkg/engine/CONTRACT.md`):
-- **Z-up, Right-Handed** — engineering / CAD convention (same as Blender)
-- **+X** → right, **+Y** → depth (into screen), **+Z** → up
-- **Unit**: 1 world unit = 1 mm. All positions, radii, distances, camera distances, and grid sizes must be in mm.
+**Контракт системы координат** (`pkg/engine/CONTRACT.md`):
+- **Z-up, Right-Handed** - инженерная / CAD convention, как в Blender.
+- **+X** -> вправо, **+Y** -> глубина в экран, **+Z** -> вверх.
+- **Unit**: 1 world unit = 1 mm. Все позиции, радиусы, расстояния, camera distances и grid sizes должны быть в mm.
 - **Depth clip space**: [0, 1] (WebGPU NDC).
-- `store/db` stores data already in Z-up and mm. `bulk` and `app` layers must NOT re-convert axes or units — that belongs inside the engine layer only.
+- `store/db` хранит данные уже в Z-up и mm. Слои `bulk` и `app` не должны повторно конвертировать оси или единицы; это относится только к engine layer.
 
 **Canvas**:
-- One `HTMLCanvasElement` per `Renderer`, exposed as `renderer.canvas`.
+- Один `HTMLCanvasElement` на `Renderer`, доступный как `renderer.canvas`.
 - WebGPU context: `alphaMode: 'premultiplied'`.
-- To capture a frame from JS: `renderer.canvas.toDataURL('image/png')`.
+- Захват кадра из JS: `renderer.canvas.toDataURL('image/png')`.
 - Via `@meta/chrome` eval: `return document.querySelector('canvas').toDataURL('image/png')`.
 
-**Key abstractions** (`pkg/engine/src/`):
+**Ключевые абстракции** (`pkg/engine/src/`):
 
-| Class | File | Role |
+| Class | File | Роль |
 |---|---|---|
 | `Renderer` | `renderer/index.ts` | WebGPU device, pipelines, multi-pass render |
-| `ViewPoint` | `core/ViewPoint.ts` | Unified camera + trackball (replaces Camera + OrbitControls) |
-| `Object3D` | `core/Object3D.ts` | Base scene node: `position`, `rotation`, `quaternion`, `scale`, `modelMatrix`, `matrixWorld` |
-| `Scene` | `scenes/Scene.ts` | Root scene graph container |
+| `ViewPoint` | `core/ViewPoint.ts` | Единая camera + trackball вместо Camera + OrbitControls |
+| `Object3D` | `core/Object3D.ts` | Базовый scene node: `position`, `rotation`, `quaternion`, `scale`, `modelMatrix`, `matrixWorld` |
+| `Scene` | `scenes/Scene.ts` | Root container scene graph |
 | `Mesh` | `core/Mesh.ts` | Geometry + material |
-| `InstancedMesh` | `core/InstancedMesh.ts` | GPU instancing, one `Matrix4` per instance |
+| `InstancedMesh` | `core/InstancedMesh.ts` | GPU instancing, один `Matrix4` на instance |
 | `WireframeInstancedMesh` | `core/WireframeInstancedMesh.ts` | Instanced wireframe lines, per-instance color + glow |
-| `BufferGeometry` | `core/BufferGeometry.ts` | GPU buffer attributes (position, normal, index) |
+| `BufferGeometry` | `core/BufferGeometry.ts` | GPU buffer attributes: position, normal, index |
 
-**Render pipelines** (all WGSL shaders in `renderer/shaders/`):
-- `basicMeshPipeline` — flat color, no lighting
-- `staticMeshPipeline` — Lambert diffuse lighting
-- `instancedMeshPipeline` — instanced basic/Lambert
-- `linePipeline` — single lines (basic or glow)
-- `instancedLinePipeline` — instanced lines with glow
-- `textStencilPipeline` / `textCoverPipeline` — 3D text
+**Render pipelines**: все WGSL shaders лежат в `renderer/shaders/`.
+- `basicMeshPipeline` - flat color без lighting.
+- `staticMeshPipeline` - Lambert diffuse lighting.
+- `instancedMeshPipeline` - instanced basic/Lambert.
+- `linePipeline` - одиночные lines, basic или glow.
+- `instancedLinePipeline` - instanced lines with glow.
+- `textStencilPipeline` / `textCoverPipeline` - 3D text.
 
-**When reading screenshots of the viewport**: Z is vertical (up). Positive Z = above ground. Grid aligns to XY plane. Camera trackball orbits around a target point. Distances on screen correspond to mm in world space.
+**При чтении screenshot-ов viewport-а**: Z вертикален и направлен вверх. Положительный Z находится над ground. Grid выровнен по XY plane. Camera trackball вращается вокруг target point. Расстояния на экране соответствуют mm в world space.
 
-## Core Architectural Reading
+## Базовое архитектурное чтение
 
-Always read the system as:
+Всегда читай систему как:
 
 `Domain × Force × Entity`
 
-The three fundamental domains are:
+Три базовых домена:
 
-- `Dark` — hidden connectivity, memory, hierarchy, history, model evolution
-- `Boundary` — flattening, fixation, canonicalization, state computation
-- `Bulk` — manifestation, execution, process, volume, spatial form
+- `Dark` - скрытая связность, память, иерархия, история, эволюция модели.
+- `Boundary` - уплощение, фиксация, каноникализация, вычисление состояния.
+- `Bulk` - проявление, исполнение, процесс, объём, пространственная форма.
 
-Key invariants:
+Ключевые инварианты:
 
-- `Dark`, `Boundary`, and `Bulk` are isolated domains.
-- Production code must not use direct runtime imports across domains.
-- Inter-domain communication belongs to Force channels, not direct imports.
-- `Boundary` is the flattening boundary.
-- `Field` is the imprint layer after flattening and the bearer of values and differences.
+- `Dark`, `Boundary` и `Bulk` являются изолированными доменами.
+- Production-код не должен использовать прямые runtime imports между доменами.
+- Междоменное взаимодействие принадлежит Force channels, а не прямым imports.
+- `Boundary` - граница уплощения.
+- `Field` - слой отпечатка после уплощения и носитель значений и различий.
 
-## Required Reading Order
+## Обязательный порядок чтения
 
-Before making code, architecture, or documentation changes:
+Перед изменениями кода, архитектуры или документации:
 
-1. Start with `README.md` or `README.ru.md`.
-2. Read the relevant documents in `docs/`.
-3. For architectural work, always review:
-   - `docs/ONTOLOGY.md` / `docs/ONTOLOGY.ru.md`
-   - `docs/ARCHITECTURE.md` / `docs/ARCHITECTURE.ru.md`
-   - `docs/FORCE.md` / `docs/FORCE.ru.md`
-   - `docs/DEVELOPMENT.md` / `docs/DEVELOPMENT.ru.md`
+1. Начни с `README.md`.
+2. Прочитай релевантные документы в `docs/`.
+3. Для архитектурной работы всегда пересматривай:
+   - `docs/ONTOLOGY.md`
+   - `docs/ARCHITECTURE.md`
+   - `docs/FORCE.md`
+   - `docs/DEVELOPMENT.md`
 
-## Terminology Discipline
+## Дисциплина терминологии
 
-Always preserve the current `arch` terminology:
+Всегда сохраняй текущую терминологию `arch`:
 
 - `Dark`, `Boundary`, `Bulk`
 - `Brane`, `Field`
@@ -169,21 +169,21 @@ Always preserve the current `arch` terminology:
 - `Impulse`
 - `TAKT`
 
-Do not replace these with older framework-era or `qTp` terms.
+Не заменяй эти понятия старыми терминами framework-эпохи или `qTp`.
 
-## Topology-Field Rules
+## Правила topology-полей
 
-Topology-fields are distinct from ordinary data-fields:
+Topology-поля отличаются от обычных data-fields:
 
-- `enum` is branch selection
-- `array` is branch multiplicity and unfolding
-- topology-field change goes through `Higgs boson`, not `Gluon`
-- `array` does not participate in entanglement
-- `array` changes only through the internal process of the atom via `State`
+- `enum` - выбор ветви.
+- `array` - множественность ветвей и разворачивание.
+- изменение topology-field проходит через `Higgs boson`, а не через `Gluon`.
+- `array` не участвует в entanglement.
+- `array` меняется только через внутренний процесс atom через `State`.
 
-## Development Commands
+## Команды разработки
 
-Use the repository root for common tasks:
+Для общих задач используй корень репозитория:
 
 - `bun install`
 - `bun run dev`
@@ -192,7 +192,7 @@ Use the repository root for common tasks:
 - `bun run space:build`
 - `bun run lint:md`
 
-Prefer the smallest relevant verification for the files you change.
+Предпочитай самую маленькую релевантную проверку для изменённых файлов.
 
 ## Interpreter Editing Rule
 
@@ -213,19 +213,19 @@ Prefer the smallest relevant verification for the files you change.
 
 Если агент завершил пункт из `TODO.md`, он обязан отметить этот пункт выполненным в TODO-списке и убедиться, что обновление видно в HUD ToDoPane или в `/context.hud.todo`. Нельзя оставлять выполненную работу как незакрытый пункт.
 
-## Cross-Domain Rules
+## Междоменные правила
 
-- Production code: direct imports across domains are forbidden.
-- Test code: relative imports across domains are allowed for integration tests.
-- Temporary test orchestration is allowed.
-- Exporting one domain's internals as another domain's API is forbidden.
+- Production-код: прямые imports между доменами запрещены.
+- Test-код: относительные imports между доменами допустимы для integration tests.
+- Временная test orchestration допустима.
+- Экспорт внутренних частей одного домена как API другого домена запрещён.
 
-## Documentation Discipline
+## Дисциплина документации
 
-- Treat the current `arch` documentation as the source of truth.
-- Preserve bilingual navigation on the public documentation surface.
-- If documentation is edited, update both language versions immediately and keep them structurally mirrored.
-- Prefer small, verifiable edits over large conceptual rewrites.
+- Считай текущую документацию `arch` источником истины.
+- Публичная документация ведётся на русском языке как основном источнике.
+- Если старый английский Markdown-документ не имеет русской версии, переведи его на русский вместо добавления второго файла.
+- Предпочитай маленькие проверяемые правки большим концептуальным переписываниям.
 
 ## Commit Discipline
 
@@ -245,13 +245,13 @@ Prefer the smallest relevant verification for the files you change.
   - `### Исправления в тестах:` only when the diff touches `*.test.*` or `*.spec.*`
 - For the actual `git commit`, use the one-line subject unless the user explicitly asks for an extended commit body.
 
-## Contribution Context
+## Контекст участия
 
-Before changing architecture or semantics:
+Перед изменением архитектуры или семантики:
 
-1. Preserve current `arch` terminology.
-2. Explain architectural intent in plain language.
-3. Link relevant documents or invariants when a change depends on ontology or architecture.
-4. Keep public documentation bilingual.
+1. Сохраняй текущую терминологию `arch`.
+2. Объясняй архитектурный смысл простым языком.
+3. Ссылайся на релевантные документы или инварианты, если изменение зависит от онтологии или архитектуры.
+4. Веди публичную документацию на русском языке как основном источнике.
 
-See `CONTRIBUTING.md` and `CONTRIBUTING.ru.md` for repository guidance.
+См. `docs/CONTRIBUTING.md` для правил участия в репозитории.

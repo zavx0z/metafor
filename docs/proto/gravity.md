@@ -1,45 +1,44 @@
-[README](../../README.md) | [Force](../FORCE.md) | **English** | [Русский](./gravity.ru.md)
 
 # Gravity
 
-`gravity.md` expands the force reading of `Gravity`.
-The general distinction between force, `Boson`, channel subtype, and `Impulse` is defined in the [root Force](../FORCE.md).
+`gravity.md` разворачивает силовое чтение `Gravity`.
+Общие различения силы, `Boson`, подтипа канала и `Impulse` заданы в [корневом Force](../FORCE.md).
 
-## Force and channel
+## Сила и канал
 
-`Gravity` is responsible for relation, localization invariants, structural organization, and addressability.
-`Graviton` is the `Boson` subtype and channel of `Gravity`.
-It is not identical to the force itself and it is not an observable signal on the level of `Photon`.
+`Gravity` отвечает за отношение, инварианты локализации, структурную организацию и адресуемость.
+`Graviton` является подтипом `Boson` и каналом `Gravity`.
+Он не тождественен самой силе и не является наблюдаемым сигналом уровня `Photon`.
 
-Through `Graviton`, entities receive locality, relation, connectivity, and geometric distinguishability.
+Через `Graviton` сущности получают локальность, отношение, связность и геометрическую различимость.
 
-## Reading by domain
+## Чтение по доменам
 
 ### Dark
 
-- hidden hierarchy,
-- relation and localization invariants of hidden structure,
-- addressability of the hidden world,
-- organization of schemas, versions, and their continuity.
+- скрытая иерархия,
+- отношения и инварианты локализации скрытой структуры,
+- адресуемость скрытого мира,
+- организация схем, версий и их преемственности.
 
 ### Boundary
 
-- consequences of hidden organization on the boundary,
-- geometry of `Boundary`,
-- index space,
-- localization of addressable state.
+- следствия скрытой организации на границе,
+- геометрия `Boundary`,
+- индексное пространство,
+- локализация адресуемого состояния.
 
 ### Bulk
 
-- manifested structural arrangement,
-- geometry of actors,
-- spatial arrangement of execution,
-- observable localization of manifested form.
+- проявленная структурная раскладка,
+- геометрия акторов,
+- пространственная раскладка исполнения,
+- наблюдаемая локализация проявленной формы.
 
-## Force distinctions
+## Силовые различия
 
-- `Gravity` does not transport `State` in observable form; `Photon` does that.
-- `Gravity` does not change ordinary `Field` values; `Gluon` does that.
-- `Gravity` does not change topology-fields; `Higgs boson` does that.
-- `Gravity` does not carry transition between states; `Weak` does that through `W boson` and `Z boson`.
-- `Gravity` gives the relational and localization frame in which the other changes receive place, addressability, and structural coherence.
+- `Gravity` не переносит `State` в наблюдаемой форме; это делает `Photon`.
+- `Gravity` не изменяет значения обычных `Field`; это делает `Gluon`.
+- `Gravity` не изменяет поля topology; это делает `Higgs boson`.
+- `Gravity` не проводит переход между состояниями; это делает `Weak` через `W boson` и `Z boson`.
+- `Gravity` задаёт рамку отношения и локализации, в которой остальные изменения получают место, адресуемость и структурную согласованность.

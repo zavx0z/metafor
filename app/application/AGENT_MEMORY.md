@@ -34,3 +34,17 @@ socket.message = (_socket, data) => store.absorb(JSON.parse(String(data)))
 - `part: "graviton", path: "actor"` — `value` содержит полный actor snapshot: `actor`, `values`, `valueRecords`, `valueItems`, `state`.
 - `part: "graviton", path: "fuzzy" | "axion" | "macho"` — `value` содержит topology snapshot: `uuid`, `parentActor`, `parentTopology`, `position`.
 - Остальные `part` пока проходят через `observe()` как доменные сигналы, но не интерпретируются через DB-path.
+
+## Process WebSocket
+
+Процессный слой сейчас отделен от Store-синхронизации отдельным сервером `process.server.ts`.
+
+Правила:
+
+- process WebSocket принимает только `part: "w" | "+z" | "-z"`;
+- Store-replication particles (`graviton`, `gluon`, `photon`, `higgs`) туда не отправлять;
+- старые slash-path вида `/wimp/<uuid>/process/<uuid>` не использовать;
+- `path` у process particle — путь к action-модулю процесса из DSL (`process_action.action`);
+- `value` содержит только `uuid` строки `process` из SQLite; `wimp`, `key`, `actor`, `importSpecifier`, `wrapperSrc` выводятся из Store по process uuid и path.
+
+Стартовый `zavx0z/git` пока остается хардкодом в `dark.server.ts`: после materialization Dark отправляет `w/test` в process WebSocket.

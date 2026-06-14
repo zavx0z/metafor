@@ -455,11 +455,11 @@ Render projection должна жить в Bulk/render module или в явно
 
 Обязательные локальные документы:
 
-- `docs/ARCHITECTURE.ru.md`
-- `docs/ONTOLOGY.ru.md`
-- `docs/FORCE.ru.md`
-- `docs/TOPOLOGY.ru.md`
-- `docs/DEVELOPMENT.ru.md`
+- `docs/ARCHITECTURE.md`
+- `docs/ONTOLOGY.md`
+- `docs/FORCE.md`
+- `docs/TOPOLOGY.md`
+- `docs/DEVELOPMENT.md`
 - `store/README.md`
 - `store/actor/README.md`
 - `store/docs/load-pipeline.md`
