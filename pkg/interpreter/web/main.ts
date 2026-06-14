@@ -85,6 +85,7 @@ import {
   DEFAULT_VOICE_STOP_PHRASES,
   VoiceInputClient,
   VOICE_STOP_COMMAND_DETAIL,
+  cleanupVoiceText,
   normalizeVoicePhrases,
   type VoiceDeactivationMode,
   type VoiceInputChunk,
@@ -570,6 +571,7 @@ const VOICE_DEACTIVATION_FUZZY_STORAGE_KEY = "metafor.interpreter.voice.deactiva
 const VOICE_STOP_FUZZY_STORAGE_KEY = "metafor.interpreter.voice.stopFuzzy:v1"
 const VOICE_DEACTIVATION_MODE_STORAGE_KEY = "metafor.interpreter.voice.deactivationMode:v1"
 const VOICE_RECOGNITION_TIMEOUT_STORAGE_KEY = "metafor.interpreter.voice.recognitionTimeoutSeconds:v1"
+const VOICE_AUTO_SEND_STORAGE_KEY = "metafor.interpreter.voice.autoSend:v1"
 const VOICE_SIGNAL_VOLUME_LEGACY_STORAGE_KEY = "metafor.interpreter.voice.signalVolume:v1"
 const VOICE_SIGNAL_VOLUME_STORAGE_KEY = "metafor.interpreter.voice.signalVolume:v2"
 const HOST_TERMINAL_AGENT_SOUND_ENABLED_STORAGE_KEY = "metafor.interpreter.hostTerminal.agentSoundEnabled:v1"
@@ -586,6 +588,7 @@ const DEFAULT_VOICE_WAKE_URL = "ws://127.0.0.1:4765/ws"
 const DEFAULT_VOICE_SIGNAL_VOLUME = 0.2
 const DEFAULT_VOICE_DEACTIVATION_MODE: VoiceDeactivationMode = "phrase-timeout"
 const DEFAULT_VOICE_RECOGNITION_TIMEOUT_SECONDS = 3
+const DEFAULT_VOICE_AUTO_SEND_ENABLED = true
 const DEFAULT_HOST_TERMINAL_AGENT_SOUND_ENABLED = true
 const DEFAULT_HOST_TERMINAL_AGENT_SOUND_VOLUME = 1
 const MAX_VOICE_SIGNAL_VOLUME = 3
@@ -715,6 +718,9 @@ let voiceAutoWakeInFlight = false
 let voiceAutoWakePaused = false
 let voiceAutoEnterCount = 0
 let voiceAutoEnterAt: Date | null = null
+let voiceAutoSendTarget: VoiceInputTarget | null = null
+let voiceAutoSendText = ""
+let voiceNextFlushMode: "auto" | "draft" = "auto"
 let voiceWakePreviewText = ""
 let voiceWakePreviewAt: Date | null = null
 const voiceWakePreviewHistory: Array<{text: string; at: Date}> = []
@@ -2302,6 +2308,9 @@ async function initEngine(): Promise<void> {
         recognitionTimeoutUnitLabel: t("voiceRecognitionTimeoutUnit"),
         recognitionTimeoutDownLabel: t("voiceRecognitionTimeoutDown"),
         recognitionTimeoutUpLabel: t("voiceRecognitionTimeoutUp"),
+        autoSendLabel: t("voiceAutoSend"),
+        autoSendHint: t("voiceAutoSendHint"),
+        autoSendValue: readVoiceAutoSendEnabled(),
         signalVolumeLabel: t("voiceMicSignalVolume"),
         signalVolumeValue: readVoiceSignalVolume(),
         signalVolumeMaxValue: MAX_VOICE_SIGNAL_VOLUME,
@@ -2322,6 +2331,7 @@ async function initEngine(): Promise<void> {
       onRemovePhrase: removeVoicePhrase,
       onResetPhrases: resetVoicePhrases,
       onSignalVolumeChange: storeVoiceSignalVolume,
+      onAutoSendChange: storeVoiceAutoSendEnabled,
       onDeactivationModeChange: storeVoiceDeactivationMode,
       onRecognitionTimeoutChange: storeVoiceRecognitionTimeoutSeconds,
       onPhraseFuzzyChange: storeVoiceFuzzyTolerance,
@@ -3679,7 +3689,7 @@ function agentSignalIcon(enabled: boolean): string {
 
 function setVoiceActiveTarget(target: VoiceInputTarget): void {
   const changed = voiceActiveTarget?.kind !== target.kind || voiceActiveTarget.controller !== target.controller
-  if (changed) preserveVoicePartialAsTerminalInput()
+  if (changed) clearVoicePartialPreview()
   voiceActiveTarget = target
   updateVoiceHud()
   if (changed && !voiceAutoWakeInFlight) scheduleVoiceAutoWake()
@@ -3712,17 +3722,26 @@ function handleVoiceStatus(status: VoiceInputStatus, detail?: string): void {
   const previousStatus = voiceHudStatus
   if (status === "idle" && detail === VOICE_STOP_COMMAND_DETAIL) voiceAutoWakePaused = true
   const voiceSignal = voiceSignalForStatusChange(previousStatus, status, detail)
+  const voiceTransportError = status === "error" && isVoiceServiceErrorText(detail ?? "")
   if (status === "error") {
     voiceLastErrorText = voiceReadableDetail(detail ?? voiceStatusDetail(status))
     voiceLastErrorAt = new Date()
   }
-  if (status === "idle") clearVoiceWakePreview()
-  if (shouldSubmitVoicePartialForCompletedCommit(previousStatus, status)) {
-    submitVoicePartialPreview()
+  if (voiceTransportError) {
+    pauseVoiceAutoWake()
+    discardVoiceAutoSendBuffer()
+    clearVoicePartialPreview()
+    clearVoiceWakePreview()
+  } else if (shouldHandleCompletedVoiceCommit(previousStatus, status)) {
+    handleCompletedVoiceCommit(status)
+  } else if (shouldFlushVoiceBufferForDeactivation(previousStatus, status)) {
+    flushVoiceInputForDeactivation()
   } else if (shouldPreserveVoicePartialForStatus(previousStatus, status, detail)) {
     preserveVoicePartialAsTerminalInput()
-  } else if (status !== "error" && status !== "committing" && (status !== "listening" || detail === undefined || detail === "")) {
-    preserveVoicePartialAsTerminalInput()
+  }
+  if (status === "idle") {
+    flushVoiceAutoSendBuffer()
+    clearVoiceWakePreview()
   }
   updateVoiceHud(status, detail)
   if (voiceSignal !== null) playVoiceSignal(voiceSignal)
@@ -3754,6 +3773,7 @@ async function toggleVoiceInput(): Promise<void> {
         return
       }
       voiceAutoWakePaused = false
+      voiceNextFlushMode = "draft"
       await client.sleepToWake()
       return
     }
@@ -3819,6 +3839,13 @@ function scheduleVoiceAutoWake(delayMs = 0): void {
   }, delayMs)
 }
 
+function pauseVoiceAutoWake(): void {
+  voiceAutoWakePaused = true
+  if (voiceAutoWakeTimer === null) return
+  window.clearTimeout(voiceAutoWakeTimer)
+  voiceAutoWakeTimer = null
+}
+
 async function ensureVoiceAutoWake(): Promise<void> {
   if (voiceAutoWakePaused || voiceAutoWakeInFlight) return
   if (voiceActiveTarget === null && hostTerminal !== null) setVoiceActiveTarget({kind: "host", controller: hostTerminal})
@@ -3840,13 +3867,11 @@ function handleVoiceInputChunk(chunk: VoiceInputChunk): void {
   if (messages.length === 0) return
   voiceLastChunkText = messages.join("\n\n")
   voiceLastChunkAt = new Date()
-  let inserted = false
   if (target !== null) {
-    for (const message of messages) inserted = insertVoiceMessageForTarget(target, message) || inserted
+    queueVoiceAutoSendMessages(target, messages)
   } else {
     flashVoiceHudError(t("voiceNoActiveInput"))
   }
-  if (inserted && target !== null) clearVoicePartialPreviewForTarget(target, "discard")
   renderVoiceHud()
 }
 
@@ -3872,7 +3897,7 @@ function recordVoiceWakePreview(text: string, at: Date): void {
 function handleVoicePartial(raw: string): void {
   const target = voiceActiveTarget
   if (target === null || !voiceTargetCanAcceptInput(target)) {
-    preserveVoicePartialAsTerminalInput()
+    clearVoicePartialPreview()
     return
   }
 
@@ -3883,14 +3908,14 @@ function handleVoicePartial(raw: string): void {
 
   voiceLastPartialText = text
   voiceLastPartialAt = new Date()
+  showVoicePartialPreview(target, voicePreviewWithBufferedInput(target, text))
   if (target.kind === "module") showModuleTerminalPrompt(target.controller)
-  showVoicePartialPreview(target, text)
   renderVoiceHud()
 }
 
 function showVoicePartialPreview(target: VoiceInputTarget, text: string): void {
   if (voicePartialPreviewTarget !== null && !sameVoiceInputTarget(voicePartialPreviewTarget, target)) {
-    if (!preserveVoicePartialAsTerminalInput()) return
+    clearVoicePartialPreview()
   }
   voicePartialPreviewTarget = target
   voicePartialPreviewText = text
@@ -3911,7 +3936,7 @@ function clearVoiceWakePreview(): void {
   voiceWakePreviewHistory.splice(0)
 }
 
-function clearVoicePartialPreviewForTarget(target: VoiceInputTarget, mode: "preserve" | "discard" = "preserve"): void {
+function clearVoicePartialPreviewForTarget(target: VoiceInputTarget, mode: "preserve" | "discard" = "discard"): void {
   if (voicePartialPreviewTarget === null || !sameVoiceInputTarget(voicePartialPreviewTarget, target)) return
   if (mode === "discard") clearVoicePartialPreview()
   else preserveVoicePartialAsTerminalInput()
@@ -3926,8 +3951,21 @@ function voicePreviewTerminals(target: VoiceInputTarget): TerminalPane[] {
   return [target.controller.terminal]
 }
 
-function shouldSubmitVoicePartialForCompletedCommit(previousStatus: VoiceInputStatus, status: VoiceInputStatus): boolean {
-  return previousStatus === "committing" && status === "listening" && voicePartialPreviewTarget !== null && cleanupVoiceInputText(voicePartialPreviewText).length > 0
+function shouldHandleCompletedVoiceCommit(previousStatus: VoiceInputStatus, status: VoiceInputStatus): boolean {
+  return previousStatus === "committing" && (status === "listening" || status === "waitingWake" || status === "idle")
+}
+
+function shouldFlushVoiceBufferForDeactivation(previousStatus: VoiceInputStatus, status: VoiceInputStatus): boolean {
+  return status === "waitingWake" && (previousStatus === "listening" || previousStatus === "committing")
+}
+
+function handleCompletedVoiceCommit(status: VoiceInputStatus): void {
+  const finishedDictation = status === "waitingWake" || status === "idle"
+  if (finishedDictation) flushVoiceAutoSendBuffer()
+}
+
+function flushVoiceInputForDeactivation(): void {
+  flushVoiceAutoSendBuffer()
 }
 
 function shouldPreserveVoicePartialForStatus(previousStatus: VoiceInputStatus, status: VoiceInputStatus, detail?: string): boolean {
@@ -3962,26 +4000,84 @@ function preserveVoicePartialAsTerminalInput(): boolean {
   return true
 }
 
-function submitVoicePartialPreview(): boolean {
-  const target = voicePartialPreviewTarget
-  const text = cleanupVoiceInputText(voicePartialPreviewText)
-  if (target === null || text.length === 0) return false
-  const inserted = insertVoiceMessageForTarget(target, text)
-  if (inserted) clearVoicePartialPreview()
-  return inserted
+function queueVoiceAutoSendMessages(target: VoiceInputTarget, messages: readonly string[]): boolean {
+  return queueVoiceAutoSendText(target, messages.join(" "))
 }
 
-function insertVoiceMessage(raw: string): void {
+function queueVoiceAutoSendText(target: VoiceInputTarget, raw: string): boolean {
   const text = cleanupVoiceInputText(raw)
-  if (!text) return
+  if (text.length === 0) return false
+  if (voiceAutoSendTarget !== null && !sameVoiceInputTarget(voiceAutoSendTarget, target)) {
+    flushVoiceAutoSendBuffer()
+  }
+  voiceAutoSendTarget = target
+  voiceAutoSendText = mergeVoiceInputText(voiceAutoSendText, text)
+  showVoicePartialPreview(target, voiceAutoSendText)
+  updateVoiceHud(undefined, `${t("voiceDrafted")}: ${voiceAutoSendText}`)
+  return true
+}
 
-  const target = voiceActiveTarget
-  if (target === null) {
-    flashVoiceHudError(t("voiceNoActiveInput"))
-    return
+function flushVoiceAutoSendBuffer(): boolean {
+  const target = voiceAutoSendTarget
+  const text = cleanupVoiceInputText(voiceAutoSendText)
+  const mode = voiceNextFlushMode
+  voiceAutoSendTarget = null
+  voiceAutoSendText = ""
+  voiceNextFlushMode = "auto"
+  if (target === null || text.length === 0) return false
+
+  const handled = mode !== "draft" && readVoiceAutoSendEnabled()
+    ? insertVoiceMessageForTarget(target, text)
+    : stageVoiceMessagesForTarget(target, [text])
+  if (handled) clearVoicePartialPreviewForTarget(target, "discard")
+  return handled
+}
+
+function discardVoiceAutoSendBuffer(): void {
+  voiceAutoSendTarget = null
+  voiceAutoSendText = ""
+}
+
+function mergeVoiceInputText(base: string, addition: string): string {
+  const left = cleanupVoiceInputText(base)
+  const right = cleanupVoiceInputText(addition)
+  if (!left) return right
+  if (!right) return left
+  const leftKey = voiceInputCompareKey(left)
+  const rightKey = voiceInputCompareKey(right)
+  if (!rightKey || leftKey === rightKey || leftKey.endsWith(` ${rightKey}`)) return left
+  if (rightKey.startsWith(`${leftKey} `)) return right
+  return `${left} ${right}`
+}
+
+function voicePreviewWithBufferedInput(target: VoiceInputTarget, partialText: string): string {
+  if (voiceAutoSendTarget === null || !sameVoiceInputTarget(voiceAutoSendTarget, target)) return partialText
+  return mergeVoiceInputText(voiceAutoSendText, partialText)
+}
+
+function stageVoiceMessagesForTarget(target: VoiceInputTarget, messages: readonly string[]): boolean {
+  const text = cleanupVoiceInputText(messages.join(" "))
+  if (text.length === 0) return false
+  if (target.kind === "host") {
+    if (!voiceTargetCanAcceptInput(target)) {
+      flashVoiceHudError(t("voiceNoActiveInput"))
+      return false
+    }
+    const body = sanitizeHostTerminalVoiceInput(text)
+    if (body.length === 0) return false
+    sendHostTerminalInput(target.controller, body, "api", body)
+    updateVoiceHud(undefined, `${t("voiceDrafted")}: ${text}`)
+    return true
   }
 
-  insertVoiceMessageForTarget(target, text)
+  if (!canAcceptTerminalInput(target.controller)) {
+    flashVoiceHudError(t("voiceNoActiveInput"))
+    return false
+  }
+  showModuleTerminalPrompt(target.controller)
+  appendModuleTerminalInputText(target.controller, text)
+  updateVoiceHud(undefined, `${t("voiceDrafted")}: ${text}`)
+  return true
 }
 
 function insertVoiceMessageForTarget(target: VoiceInputTarget, text: string): boolean {
@@ -4050,7 +4146,7 @@ function voiceMessagesFromChunk(chunk: VoiceInputChunk): string[] {
   return byParagraph.length > 0 ? byParagraph : byPause
 }
 
-const VOICE_MESSAGE_PAUSE_SECONDS = 0.65
+const VOICE_MESSAGE_PAUSE_SECONDS = 1.6
 
 function voiceMessagesFromSegments(segments: VoiceInputSegment[]): string[] {
   const messages: string[] = []
@@ -4092,12 +4188,23 @@ function splitVoiceParagraphs(text: string): string[] {
 }
 
 function cleanupVoiceInputText(text: string): string {
-  const cleaned = text.replace(/\s+/g, " ").trim()
+  const cleaned = cleanupVoiceText(text).replace(/\s+/g, " ").trim()
   return voiceTextHasContent(cleaned) ? cleaned : ""
 }
 
 function voiceTextHasContent(text: string): boolean {
   return /[\p{L}\p{N}]/u.test(text)
+}
+
+function voiceInputCompareKey(text: string): string {
+  return cleanupVoiceInputText(text)
+    .toLocaleLowerCase("ru-RU")
+    .replace(/ё/g, "е")
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim()
 }
 
 function updateVoiceLevel(level: number): void {
@@ -4194,8 +4301,9 @@ function voiceServiceLine(): string {
 }
 
 function voiceAutoEnterLine(): string {
-  if (voiceAutoEnterAt === null) return `${t("voiceAutoEnter")}: 0`
-  return `${formatHudTime(voiceAutoEnterAt)} · ${t("voiceAutoEnter")} #${voiceAutoEnterCount}`
+  const mode = readVoiceAutoSendEnabled() ? t("voiceAutoSendOn") : t("voiceAutoSendOff")
+  if (voiceAutoEnterAt === null) return `${mode} · ${t("voiceAutoEnter")}: 0`
+  return `${mode} · ${formatHudTime(voiceAutoEnterAt)} · ${t("voiceAutoEnter")} #${voiceAutoEnterCount}`
 }
 
 function voiceSettingsLiveLine(): string {
@@ -4225,6 +4333,7 @@ function voiceDebugLines(): string[] {
     `${ru ? "последняя ошибка" : "last error"}: ${debugVoiceText(voiceLastErrorText)}`,
     `${ru ? "ошибка время" : "error at"}: ${formatDebugTime(voiceLastErrorAt)}`,
     `${ru ? "громкость микрофона" : "mic signal volume"}: ${Math.round(readVoiceSignalVolume() * 100)}%`,
+    `${ru ? "автоотправка" : "auto-send"}: ${readVoiceAutoSendEnabled() ? "on" : "off"}`,
     `${ru ? "режим деактивации" : "deactivation mode"}: ${readVoiceDeactivationMode()}`,
     `${ru ? "тайм-аут распознавания" : "recognition timeout"}: ${readVoiceRecognitionTimeoutSeconds()}s`,
     `${ru ? "левенштейн" : "levenshtein"}: a ${Math.round(readVoiceFuzzyTolerance("activation") * 100)}% · d ${Math.round(readVoiceFuzzyTolerance("deactivation") * 100)}% · s ${Math.round(readVoiceFuzzyTolerance("stop") * 100)}%`,
@@ -4702,6 +4811,25 @@ function storeHostTerminalAgentSoundEnabled(enabled: boolean): void {
     // Storage can be disabled in private contexts.
   }
   hostTerminalAgentSignalPane?.requestRender()
+}
+
+function readVoiceAutoSendEnabled(): boolean {
+  try {
+    const raw = localStorage.getItem(VOICE_AUTO_SEND_STORAGE_KEY)
+    if (raw === null) return DEFAULT_VOICE_AUTO_SEND_ENABLED
+    return raw !== "0"
+  } catch {
+    return DEFAULT_VOICE_AUTO_SEND_ENABLED
+  }
+}
+
+function storeVoiceAutoSendEnabled(enabled: boolean): void {
+  try {
+    localStorage.setItem(VOICE_AUTO_SEND_STORAGE_KEY, enabled ? "1" : "0")
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+  renderVoiceHud()
 }
 
 function readHostTerminalAgentSoundVolume(): number {

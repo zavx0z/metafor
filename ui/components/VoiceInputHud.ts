@@ -1,5 +1,6 @@
 import {UiSurface, button, drawIconCentered, input, palette, type UiSurfaceRect} from "@ui/elements"
 import {Color} from "@metafor/engine"
+import {Switcher} from "./Switcher.ts"
 
 export type VoiceInputHudStatus = "idle" | "connecting" | "waitingWake" | "listening" | "committing" | "error"
 export type VoiceInputHudServiceState = "unknown" | "ok" | "down"
@@ -48,6 +49,9 @@ export type VoiceInputHudSettings = {
   recognitionTimeoutUnitLabel: string
   recognitionTimeoutDownLabel: string
   recognitionTimeoutUpLabel: string
+  autoSendLabel: string
+  autoSendHint: string
+  autoSendValue: boolean
   signalVolumeLabel: string
   signalVolumeValue: number
   signalVolumeMaxValue: number
@@ -73,6 +77,7 @@ export type VoiceInputHudOptions = {
   onRemovePhrase(groupId: VoiceInputHudPhraseGroupId, phrase: string): void
   onResetPhrases(groupId: VoiceInputHudPhraseGroupId): void
   onSignalVolumeChange(value: number): void
+  onAutoSendChange(value: boolean): void
   onDeactivationModeChange(value: VoiceInputHudDeactivationMode): void
   onRecognitionTimeoutChange(value: number): void
   onPhraseFuzzyChange(groupId: VoiceInputHudPhraseGroupId, value: number): void
@@ -409,6 +414,7 @@ export class VoiceInputHud extends UiSurface {
       z: 0.46,
     })
     y += 20
+    y = this.#drawAutoSendControl(settings, left, y, Math.max(1, right - left)) + 12
     y = this.#drawSignalVolumeControl(settings, left, y, Math.max(1, right - left)) + 12
     this.drawRect(left, y, Math.max(1, right - left), 1, fade(palette.borderDim, 0.72), 0.2)
     y += 10
@@ -483,6 +489,31 @@ export class VoiceInputHud extends UiSurface {
       w,
       onChange: (value) => this.options.onSignalVolumeChange(value),
     })
+  }
+
+  #drawAutoSendControl(settings: VoiceInputHudSettings, x: number, y: number, w: number): number {
+    const switchW = 44
+    const switchH = 22
+    this.drawText(settings.autoSendLabel, x, y, {
+      fontPx: 9,
+      material: this.materials.text,
+      maxWidthPx: Math.max(1, w - switchW - 12),
+      z: 0.46,
+    })
+    this.drawText(settings.autoSendHint, x, y + 14, {
+      fontPx: 8,
+      material: this.materials.muted,
+      maxWidthPx: Math.max(1, w - switchW - 12),
+      z: 0.46,
+    })
+    Switcher(this, x + w - switchW, y + 3, switchW, switchH, {
+      key: "voice-auto-send",
+      checked: settings.autoSendValue,
+      color: "primary",
+      tooltip: settings.autoSendHint,
+      onChange: (checked) => this.options.onAutoSendChange(checked),
+    })
+    return y + 34
   }
 
   #activePhraseGroup(groups: readonly VoiceInputHudPhraseGroup[]): VoiceInputHudPhraseGroup | null {

@@ -1,10 +1,14 @@
 import {describe, expect, test} from "bun:test"
 import {
+  cleanupVoiceText,
+  createVoiceInputDeliveryState,
   createWakeRecognitionGrammar,
   DEFAULT_VOICE_DEACTIVATION_PHRASES,
   isActivationPhrase,
   isDeactivationPhrase,
   isFastActivationPartial,
+  prepareVoiceInputChunkForDelivery,
+  trimStableVoiceTranscriptPrefix,
 } from "./voice-input.ts"
 
 describe("voice activation matching", () => {
@@ -90,5 +94,67 @@ describe("voice activation matching", () => {
     expect(isDeactivationPhrase("отключу микрофон", ["отключи микрофон"], 0)).toBe(true)
     expect(isDeactivationPhrase("вырубить микрофон", ["выруби микрофон"], 0)).toBe(true)
     expect(isDeactivationPhrase("вырублю микрофон", ["выруби микрофон"], 0)).toBe(true)
+  })
+})
+
+describe("voice dictation cleanup", () => {
+  test("drops subtitle boilerplate from ASR noise", () => {
+    expect(cleanupVoiceText("Субтитры сделал DimaTorzok")).toBe("")
+    expect(cleanupVoiceText("Текст для агента. Продолжение следует...")).toBe("Текст для агента.")
+    expect(cleanupVoiceText("Редактор субтитров: DimaTorzok")).toBe("")
+  })
+
+  test("deduplicates adjacent repeated paragraphs", () => {
+    expect(cleanupVoiceText("Делай коммит\n\nДелай коммит")).toBe("Делай коммит")
+  })
+
+  test("deduplicates adjacent repeated phrases inside realtime text", () => {
+    expect(cleanupVoiceText("В реал тайм. В реал тайм ввод")).toBe("В реал тайм ввод")
+    expect(cleanupVoiceText("Проверка. Проверка автоматического текста")).toBe("Проверка автоматического текста")
+    expect(cleanupVoiceText("Для проверки я прочитаю.Для проверки я прочитаю. твое сообщение."))
+      .toBe("Для проверки я прочитаю. твое сообщение.")
+    expect(cleanupVoiceText(
+      "Пусть текст меняется. Самом начале, когда я разговаривал, такое чувство. Самом начале, когда я разговаривал, такое чувство, что таймаут срабатывает.",
+    ))
+      .toBe("Пусть текст меняется. Самом начале, когда я разговаривал, такое чувство, что таймаут срабатывает.")
+  })
+
+  test("deduplicates a long repeated realtime prefix with continuation", () => {
+    expect(cleanupVoiceText(
+      "Сейчас я проверяю голосовой ввод в реальном времени. Текст должен появляться постепенно. без повторов и разрывов. После завершения диктовки сообщение должно... автоматически если я сделаю короткую паузу микрофон не должен подключитьсяСейчас я проверяю голосовой ввод в реальном времени. Текст должен появляться постепенно. без повторов и разрывов. После завершения диктовки сообщение должно... автоматически если я сделаю короткую паузу микрофон не должен подключиться слишком рано",
+    ))
+      .toBe("Сейчас я проверяю голосовой ввод в реальном времени. Текст должен появляться постепенно. без повторов и разрывов. После завершения диктовки сообщение должно... автоматически если я сделаю короткую паузу микрофон не должен подключиться слишком рано")
+  })
+
+  test("trims stable transcript prefix from the next ASR chunk", () => {
+    const stable = "Давай проверим. Пиши в терминал."
+    expect(trimStableVoiceTranscriptPrefix("Пиши в терминал, я проскроллю.", stable)).toBe("я проскроллю.")
+  })
+
+  test("does not trim a weak one-word overlap", () => {
+    expect(trimStableVoiceTranscriptPrefix("Открой туду", "Открой терминал")).toBe("Открой туду")
+  })
+
+  test("delivers a final and committed duplicate only once", () => {
+    const state = createVoiceInputDeliveryState()
+    const chunk = {text: "Текст не дублировался", messages: [], segments: []}
+
+    expect(prepareVoiceInputChunkForDelivery(chunk, state, 1)?.text).toBe("Текст не дублировался")
+    expect(prepareVoiceInputChunkForDelivery(chunk, state, 1)).toBeNull()
+  })
+
+  test("suppresses a full repeated chunk from the next commit", () => {
+    const state = createVoiceInputDeliveryState()
+    const chunk = {text: "Последнее сообщение не должно дублироваться", messages: [], segments: []}
+
+    expect(prepareVoiceInputChunkForDelivery(chunk, state, 1)?.text).toBe("Последнее сообщение не должно дублироваться")
+    expect(prepareVoiceInputChunkForDelivery(chunk, state, 2)).toBeNull()
+  })
+
+  test("delivers only the new tail when ASR repeats previous text", () => {
+    const state = createVoiceInputDeliveryState()
+
+    expect(prepareVoiceInputChunkForDelivery({text: "Текст не рвался", messages: [], segments: []}, state, 1)?.text).toBe("Текст не рвался")
+    expect(prepareVoiceInputChunkForDelivery({text: "Текст не рвался и не дублировался", messages: [], segments: []}, state, 2)?.text).toBe("и не дублировался")
   })
 })

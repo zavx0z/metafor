@@ -95,6 +95,7 @@ export const DEFAULT_VOICE_STOP_PHRASES = [
   "совсем выруби микрофон",
 ] as const
 const VOICE_RMS_THRESHOLD = 0.012
+const VOICE_TIMEOUT_ACTIVITY_RMS_THRESHOLD = 0.004
 const VOICE_WAKE_BASE_GAIN = 2.8
 const VOICE_WAKE_MAX_GAIN = 6
 const VOICE_WAKE_TARGET_RMS = 0.055
@@ -104,9 +105,18 @@ const SILENCE_COMMIT_MS = 1_550
 const MIN_COMMIT_AUDIO_MS = 1_500
 const MIN_COMMIT_INTERVAL_MS = 2_200
 const COMMIT_TIMEOUT_MS = 15_000
+const DEACTIVATION_COMMIT_TIMEOUT_MS = 3_000
 const FINAL_SETTLE_MS = 450
 const STOP_COMMAND_ARM_DELAY_MS = 1_800
 const MAX_QUEUED_PCM_BYTES = 8 * 1024 * 1024
+const MAX_DELIVERED_TRANSCRIPT_CHARS = 8_000
+const MAX_REPEATED_VOICE_TOKEN_RUN = 120
+
+export type VoiceInputDeliveryState = {
+  transcript: string
+  lastCommitId: number
+  lastSignature: string
+}
 
 export class VoiceInputClient {
   #commandWs: WebSocket | null = null
@@ -133,7 +143,11 @@ export class VoiceInputClient {
   #pcmSinceCommitBytes = 0
   #queuedPcmAfterCommit: ArrayBuffer[] = []
   #pendingCommittedChunk: VoiceInputChunk | null = null
+  #pendingCommittedChunkCommitId = 0
   #pendingChunkFlushTimer: number | null = null
+  #commitGeneration = 0
+  #commitWaiters: Array<() => void> = []
+  #deliveryState = createVoiceInputDeliveryState()
 
   constructor(private readonly options: VoiceInputClientOptions) {}
 
@@ -227,6 +241,7 @@ export class VoiceInputClient {
       this.#setStatus("waitingWake", WAKE_WORD)
       return
     }
+    await this.#commitCurrentChunkBeforeAsrShutdown()
     this.#sendAsr({type: "stop"})
     this.#disconnectAsrSocket()
     this.#asrEnabled = false
@@ -461,9 +476,10 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     if (msg.type === "partial") {
       const text = recognitionText(msg)
       this.#setStatus("listening", compactDetail(text))
+      if (cleanupVoiceText(text).length > 0) this.#touchRecognitionActivity()
       const partial = removeCommandTextFromString(text, this.#asrControlPhrases(), (groupId) => this.#phraseFuzzyTolerance(groupId))
-      if (partial.text) this.#touchRecognitionActivity()
-      if (partial.text || partial.command === null) this.options.onPartial(partial.text)
+      const partialText = trimStableVoiceTranscriptPrefix(partial.text, this.#deliveryState.transcript)
+      if (partialText || partial.command === null) this.options.onPartial(partialText)
       return
     }
 
@@ -474,8 +490,9 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       if (voiceChunkHasText(chunk)) {
         this.#touchRecognitionActivity()
         this.#pendingCommittedChunk = chunk
+        this.#pendingCommittedChunkCommitId = this.#commitPending ? this.#commitGeneration : 0
         if (result.command === null) {
-          this.options.onPartial(voiceChunkPreviewText(chunk))
+          this.options.onPartial(voiceChunkPreviewForDelivery(chunk, this.#deliveryState))
           this.#schedulePendingChunkFlush()
         }
       }
@@ -487,20 +504,9 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     }
 
     if (msg.type === "committed") {
-      const phraseGroups = this.#asrControlPhrases()
-      const result = removeCommandText(chunkFromAsrMessage(msg, phraseGroups), phraseGroups, (groupId) => this.#phraseFuzzyTolerance(groupId))
-      const committedChunk = result.chunk
-      if (voiceChunkHasText(committedChunk)) {
-        this.#touchRecognitionActivity()
-        this.#pendingCommittedChunk = committedChunk
-      }
       this.#clearPendingChunkFlushTimer()
       this.#flushPendingCommittedChunk()
       this.#finishCommit()
-      if (result.command !== null) {
-        this.#executeControlCommand(result.command)
-        return
-      }
       if (!this.#stopRequested) this.#setStatus("listening")
       return
     }
@@ -531,12 +537,14 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     const now = performance.now()
     const rms = rmsLevel(samples)
     this.options.onLevel(rms)
-    if (this.#status !== "listening" || this.#stream === null) return
+    if ((this.#status !== "listening" && this.#status !== "committing") || this.#stream === null) return
+    if (rms >= VOICE_TIMEOUT_ACTIVITY_RMS_THRESHOLD) this.#lastRecognitionAt = now
     if (rms >= VOICE_RMS_THRESHOLD) {
       this.#hasSpeechSinceCommit = true
       this.#lastSpeechAt = now
       this.#lastRecognitionAt = now
     }
+    if (this.#status !== "listening") return
 
     const sampleRate = this.#audioContext?.sampleRate ?? TARGET_SAMPLE_RATE
     const minCommitBytes = Math.round(sampleRate * 2 * (MIN_COMMIT_AUDIO_MS / 1000))
@@ -594,6 +602,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
 
   #beginCommit(): void {
     this.#commitPending = true
+    this.#commitGeneration += 1
     this.#clearCommitTimer()
     this.#commitTimer = window.setTimeout(() => {
       if (!this.#commitPending) return
@@ -609,6 +618,44 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#commitPending = false
     this.#clearCommitTimer()
     this.#flushQueuedPcm()
+    this.#resolveCommitWaiters()
+  }
+
+  async #commitCurrentChunkBeforeAsrShutdown(): Promise<void> {
+    if (this.#asrWs?.readyState !== WebSocket.OPEN) {
+      this.#flushPendingCommittedChunk()
+      return
+    }
+    if (!this.#commitPending) {
+      this.#beginCommit()
+      this.#hasSpeechSinceCommit = false
+      this.#lastCommitAt = performance.now()
+      this.#pcmSinceCommitBytes = 0
+      this.#sendAsr({type: "commit"})
+      this.#setStatus("committing", "deactivation commit")
+    }
+    await this.#waitForCommitSettled(DEACTIVATION_COMMIT_TIMEOUT_MS)
+    this.#flushPendingCommittedChunk()
+  }
+
+  #waitForCommitSettled(timeoutMs: number): Promise<void> {
+    if (!this.#commitPending) return Promise.resolve()
+    return new Promise((resolve) => {
+      let settled = false
+      const done = (): void => {
+        if (settled) return
+        settled = true
+        window.clearTimeout(timer)
+        resolve()
+      }
+      const timer = window.setTimeout(done, timeoutMs)
+      this.#commitWaiters.push(done)
+    })
+  }
+
+  #resolveCommitWaiters(): void {
+    const waiters = this.#commitWaiters.splice(0)
+    for (const waiter of waiters) waiter()
   }
 
   #clearCommitTimer(): void {
@@ -619,12 +666,16 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
 
   #resetCommitState(): void {
     this.#clearCommitTimer()
+    this.#resolveCommitWaiters()
     this.#clearPendingChunkFlushTimer()
     this.#commitPending = false
     this.#pendingCommittedChunk = null
+    this.#pendingCommittedChunkCommitId = 0
     this.#hasSpeechSinceCommit = false
     this.#lastSpeechAt = performance.now()
     this.#lastCommitAt = 0
+    this.#commitGeneration = 0
+    resetVoiceInputDeliveryState(this.#deliveryState)
     this.#pcmSinceCommitBytes = 0
     this.#queuedPcmAfterCommit = []
   }
@@ -652,6 +703,14 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     if (!this.#asrEnabled || this.#stopRequested || !deactivationModeAllowsTimeout(this.options.deactivationMode())) return
     const timeoutMs = clampRecognitionTimeoutMs(this.options.recognitionTimeoutMs())
     if (timeoutMs <= 0) return
+    if (this.#commitPending) {
+      this.#clearRecognitionTimeoutTimer()
+      this.#recognitionTimeoutTimer = window.setTimeout(() => {
+        this.#recognitionTimeoutTimer = null
+        this.#handleRecognitionTimeout()
+      }, timeoutMs)
+      return
+    }
     const elapsed = performance.now() - this.#lastRecognitionAt
     if (elapsed < timeoutMs) {
       this.#scheduleRecognitionTimeoutCheck()
@@ -693,18 +752,12 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
 
   #recoverAsrFailure(error: unknown): void {
     const message = error instanceof Error ? error.message : String(error)
+    this.#flushPendingCommittedChunk()
     this.#disconnectAsrSocket()
     this.#asrEnabled = false
     this.#asrActivatedAt = 0
     this.#wakeMatched = false
     this.#clearRecognitionTimeoutTimer()
-    this.#resetCommitState()
-
-    if (!this.#stopRequested && this.#stream !== null && this.#commandWs?.readyState === WebSocket.OPEN) {
-      this.#setStatus("waitingWake", message)
-      return
-    }
-
     this.#cleanup()
     this.#setStatus("error", message)
   }
@@ -753,8 +806,12 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
   #flushPendingCommittedChunk(): void {
     this.#clearPendingChunkFlushTimer()
     const chunk = this.#pendingCommittedChunk
+    const commitId = this.#pendingCommittedChunkCommitId
     this.#pendingCommittedChunk = null
-    if (chunk !== null && voiceChunkHasText(chunk)) this.options.onChunk(chunk)
+    this.#pendingCommittedChunkCommitId = 0
+    if (chunk === null || !voiceChunkHasText(chunk)) return
+    const deliveryChunk = prepareVoiceInputChunkForDelivery(chunk, this.#deliveryState, commitId)
+    if (deliveryChunk !== null) this.options.onChunk(deliveryChunk)
   }
 
   #schedulePendingChunkFlush(): void {
@@ -860,6 +917,48 @@ function voiceChunkPreviewText(chunk: VoiceInputChunk): string {
   if (chunk.messages.length > 0) return chunk.messages.join("\n\n")
   if (chunk.text) return chunk.text
   return chunk.segments.map((segment) => segment.text ?? "").filter(Boolean).join(" ")
+}
+
+function voiceChunkDeliveryText(chunk: VoiceInputChunk): string {
+  if (chunk.messages.length > 0) return chunk.messages.join(" ")
+  if (chunk.text) return chunk.text
+  return chunk.segments.map((segment) => segment.text ?? "").filter(Boolean).join(" ")
+}
+
+function voiceChunkPreviewForDelivery(chunk: VoiceInputChunk, state: VoiceInputDeliveryState): string {
+  return trimStableVoiceTranscriptPrefix(cleanupVoiceText(voiceChunkPreviewText(chunk)), state.transcript)
+}
+
+export function createVoiceInputDeliveryState(): VoiceInputDeliveryState {
+  return {
+    transcript: "",
+    lastCommitId: 0,
+    lastSignature: "",
+  }
+}
+
+function resetVoiceInputDeliveryState(state: VoiceInputDeliveryState): void {
+  state.transcript = ""
+  state.lastCommitId = 0
+  state.lastSignature = ""
+}
+
+export function prepareVoiceInputChunkForDelivery(
+  chunk: VoiceInputChunk,
+  state: VoiceInputDeliveryState,
+  commitId = 0,
+): VoiceInputChunk | null {
+  const text = trimStableVoiceTranscriptPrefix(cleanupVoiceText(voiceChunkDeliveryText(chunk)), state.transcript)
+  if (!text) return null
+
+  const signature = normalizeVoiceTranscriptForCompare(text)
+  if (!signature) return null
+  if (commitId > 0 && state.lastCommitId === commitId && state.lastSignature === signature) return null
+
+  state.transcript = appendDeliveredVoiceTranscript(state.transcript, text)
+  state.lastCommitId = commitId
+  state.lastSignature = signature
+  return {text, messages: [], segments: []}
 }
 
 function stripControlCommandText(text: string, phraseGroups: VoiceCommandPhraseGroups, toleranceFor: VoicePhraseTolerance): VoiceControlText {
@@ -1013,19 +1112,27 @@ function applyWakeAudioGain(samples: Float32Array): Float32Array {
   return amplified
 }
 
-function cleanupVoiceText(text: string): string {
-  return text
+export function cleanupVoiceText(text: string): string {
+  const paragraphs = text
     .replace(/\r\n?/g, "\n")
+    .replace(/(^|[\n.!?…]\s*)субтитры[^\n.!?…]*(?:[.!?…]+)?/giu, "$1")
+    .replace(/(^|[\n.!?…]\s*)редактор\s+субтитров[^\n.!?…]*(?:[.!?…]+)?/giu, "$1")
+    .replace(/(^|[\n.!?…]\s*)продолжение\s+следует[^\n.!?…]*(?:[.!?…]+)?/giu, "$1")
+    .replace(/(^|[\n.!?…]\s*)subtitles[^\n.!?…]*(?:[.!?…]+)?/giu, "$1")
     .split(/\n\s*\n+/)
     .map((paragraph) => cleanupVoiceParagraph(paragraph))
     .filter(Boolean)
-    .join("\n\n")
+  return dedupeAdjacentVoiceParagraphs(paragraphs).join("\n\n")
 }
 
 function cleanupVoiceParagraph(paragraph: string): string {
-  const cleaned = paragraph
-    .replace(/продолжение\s+следует/giu, " ")
+  const cleaned = dedupeAdjacentRepeatedVoiceTokenRuns(
+    paragraph
+      .replace(/продолжение\s+следует(?:[.!?…]+)?/giu, " ")
+      .replace(/([а-яё])([А-ЯЁ])/gu, "$1 $2"),
+  )
     .replace(/\s+/g, " ")
+    .replace(/\s+([,.;:!?…])/g, "$1")
     .trim()
   return isNoisePhrase(cleaned) ? "" : cleaned
 }
@@ -1041,8 +1148,137 @@ function stripPhrasePrefix(text: string, phrases: readonly string[], fallback: r
 function isNoisePhrase(text: string): boolean {
   const normalized = normalizeWakeText(text)
   return normalized === "продолжение следует"
+    || normalized.includes("dimatorzok")
     || normalized.startsWith("субтитры")
     || normalized.startsWith("редактор субтитров")
+    || normalized.startsWith("subtitles")
+}
+
+function dedupeAdjacentVoiceParagraphs(paragraphs: string[]): string[] {
+  const out: string[] = []
+  let previousKey = ""
+  for (const paragraph of paragraphs) {
+    const key = normalizeVoiceTranscriptForCompare(paragraph)
+    if (!key || key === previousKey) continue
+    out.push(paragraph)
+    previousKey = key
+  }
+  return out
+}
+
+function dedupeAdjacentRepeatedVoiceTokenRuns(text: string): string {
+  let out = text
+  for (let iteration = 0; iteration < 8; iteration += 1) {
+    const range = findAdjacentRepeatedVoiceTokenRun(out)
+    if (range === null) break
+    out = removeVoiceTextRange(out, range.start, range.end)
+  }
+  return out
+}
+
+function findAdjacentRepeatedVoiceTokenRun(text: string): {start: number; end: number} | null {
+  const tokens = voiceTranscriptTokens(text)
+  for (let index = 0; index < tokens.length; index += 1) {
+    const maxRunLength = Math.min(MAX_REPEATED_VOICE_TOKEN_RUN, Math.floor((tokens.length - index) / 2))
+    for (let runLength = maxRunLength; runLength >= 1; runLength -= 1) {
+      if (!voiceTokenRunMatches(tokens, index, runLength)) continue
+      if (!voiceRepeatedTokenRunCanBeRemoved(text, tokens, index, runLength)) continue
+      return {start: tokens[index]!.start, end: tokens[index + runLength]!.start}
+    }
+  }
+  return null
+}
+
+function voiceRepeatedTokenRunCanBeRemoved(
+  text: string,
+  tokens: Array<{start: number; end: number}>,
+  index: number,
+  runLength: number,
+): boolean {
+  if (runLength >= 3) return true
+  const nextTokenIndex = index + runLength * 2
+  if (nextTokenIndex >= tokens.length) return false
+  const firstRunEnd = tokens[index + runLength - 1]!.end
+  const secondRunStart = tokens[index + runLength]!.start
+  return /[.!?…]/u.test(text.slice(firstRunEnd, secondRunStart))
+}
+
+function voiceTokenRunMatches(tokens: Array<{value: string}>, index: number, runLength: number): boolean {
+  for (let offset = 0; offset < runLength; offset += 1) {
+    if (tokens[index + offset]?.value !== tokens[index + runLength + offset]?.value) return false
+  }
+  return true
+}
+
+function removeVoiceTextRange(text: string, start: number, end: number): string {
+  const before = text.slice(0, start).replace(/\s+$/u, "")
+  const after = text.slice(end).replace(/^\s+/u, "")
+  if (!before) return after
+  if (!after) return before
+  return `${before} ${after}`.replace(/\s+([,.;:!?…])/gu, "$1")
+}
+
+export function trimStableVoiceTranscriptPrefix(text: string, stableTranscript: string): string {
+  const cleaned = cleanupVoiceText(text)
+  if (!cleaned) return ""
+
+  const overlap = stableVoiceTranscriptOverlap(stableTranscript, cleaned)
+  const textTokenCount = voiceTranscriptTokens(cleaned).length
+  const minimumOverlap = Math.min(3, textTokenCount)
+  if (overlap < minimumOverlap) return cleaned
+  return cleanupVoiceText(removeFirstVoiceTranscriptTokens(cleaned, overlap))
+}
+
+function stableVoiceTranscriptOverlap(stableTranscript: string, text: string): number {
+  const stableTokens = voiceTranscriptTokens(stableTranscript)
+  const textTokens = voiceTranscriptTokens(text)
+  const max = Math.min(80, stableTokens.length, textTokens.length)
+  for (let count = max; count > 0; count -= 1) {
+    let same = true
+    for (let index = 0; index < count; index += 1) {
+      if (stableTokens[stableTokens.length - count + index]?.value !== textTokens[index]?.value) {
+        same = false
+        break
+      }
+    }
+    if (same) return count
+  }
+  return 0
+}
+
+function removeFirstVoiceTranscriptTokens(text: string, count: number): string {
+  if (count <= 0) return text
+  const tokens = voiceTranscriptTokens(text)
+  if (count >= tokens.length) return ""
+  return text.slice(tokens[count]!.start).replace(/^[\s,.;:!?…-]+/, "").trim()
+}
+
+function appendDeliveredVoiceTranscript(stableTranscript: string, text: string): string {
+  const next = cleanupVoiceText([stableTranscript, text].filter(Boolean).join(" "))
+  if (next.length <= MAX_DELIVERED_TRANSCRIPT_CHARS) return next
+  return next.slice(next.length - MAX_DELIVERED_TRANSCRIPT_CHARS).replace(/^[\p{L}\p{N}]*\s*/u, "").trim()
+}
+
+function normalizeVoiceTranscriptForCompare(text: string): string {
+  return voiceTranscriptTokens(text).map((token) => token.value).join(" ")
+}
+
+function voiceTranscriptTokens(text: string): Array<{value: string; start: number; end: number}> {
+  const tokens: Array<{value: string; start: number; end: number}> = []
+  const source = String(text)
+  const pattern = /[\p{L}\p{N}]+/gu
+  for (const match of source.matchAll(pattern)) {
+    const raw = match[0] ?? ""
+    const value = raw
+      .toLocaleLowerCase("ru-RU")
+      .replace(/ё/g, "е")
+      .normalize("NFKD")
+      .replace(/\p{M}/gu, "")
+    if (!value) continue
+    const start = match.index ?? 0
+    tokens.push({value, start, end: start + raw.length})
+  }
+  return tokens
 }
 
 function compactDetail(text: string): string {
