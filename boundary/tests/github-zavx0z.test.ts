@@ -69,6 +69,7 @@ describe("boundary/tests github/zavx0z startup load", () => {
         FROM actor_state
         ORDER BY actor
     `
+      const runtime = await boundary.energyRuntime()
       const topologyRows = await sql<Array<{uuid: string; kind: string}>>`
         SELECT uuid, kind
         FROM topology
@@ -86,6 +87,12 @@ describe("boundary/tests github/zavx0z startup load", () => {
       expect(metaRows.map((row) => row.src)).toContain("zavx0z/git-error")
       expect(actorStateRows.length).toBe(actorRows.length)
       expect(actorRows.length).toBeGreaterThan(20)
+      expect(runtime.version).toBe(1)
+      expect(runtime.wimpIds).toHaveLength(actorRows.length)
+      expect(runtime.data.branes).toHaveLength(actorRows.length)
+      expect(runtime.data.fields.length).toBeGreaterThan(0)
+      expect(runtime.strong.runtimeFieldIndexByWimpFieldId.length).toBe(runtime.data.fields.length)
+      expect(runtime.weak.stateMetaStateIdsByBraneIndex).toHaveLength(actorRows.length)
 
       const roots = await boundary.actor.roots.all()
       expect(roots).toHaveLength(1)
