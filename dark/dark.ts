@@ -8,23 +8,15 @@ import {finalizeFieldValues, resolveFieldInits, type Continuation} from "./conti
 
 ;(globalThis as unknown as {MetaFor: typeof MetaFor}).MetaFor = MetaFor
 
-export function installDarkForceListener(target = globalThis.store): void {
-  target.onmessage = (event) => {
-    for (const part of event.data.parts) {
-      if (part.part !== "graviton") continue
-      if (part.op !== "add") continue
-      if (part.path !== "wimp") continue
-      if (typeof part.value !== "string") continue
-      void materializeUnknownWimp(part.value).catch(() => {})
-    }
+store.onmessage = async (event) => {
+  for (const part of event.data.parts) {
+    if (part.part !== "graviton") continue
+    if (part.op !== "add") continue
+    if (part.path !== "wimp") continue
+    if (typeof part.value !== "string") continue
+    if (await store.wimp.exists(part.value)) continue
+    await matter(part.value)
   }
-}
-
-if (globalThis.store !== undefined) installDarkForceListener(globalThis.store)
-
-async function materializeUnknownWimp(src: SRC): Promise<void> {
-  if (await store.wimp.exists(src)) return
-  await matter(src)
 }
 
 /**
@@ -44,11 +36,7 @@ async function materializeUnknownWimp(src: SRC): Promise<void> {
  *
  * `parent`/`continuation` — внутренние параметры рекурсии, caller'ам передавать не нужно.
  */
-export async function matter(src: SRC): Promise<void> {
-  await materializeMatter(src, null, undefined)
-}
-
-async function materializeMatter(
+export async function matter(
   src: SRC,
   parent: ParticleRef | null = null,
   continuation: Continuation | undefined = undefined,
@@ -61,7 +49,7 @@ async function materializeMatter(
     const result = await generator.next()
     if (result.done) return
     for (const pending of result.value) {
-      await materializeMatter(pending.src, pending.parent, pending.continuation)
+      await matter(pending.src, pending.parent, pending.continuation)
     }
   }
 }

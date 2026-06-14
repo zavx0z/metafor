@@ -1,4 +1,6 @@
 import {SQL, type ReservedSQL} from "bun"
+import {mkdirSync} from "node:fs"
+import {dirname} from "node:path"
 import {StoreWimpSqlite} from "@store/wimp/sqlite"
 import {StoreActorSqlite} from "@store/actor/sqlite"
 import {StoreTopologySqlite} from "@store/topology/sqlite"
@@ -369,6 +371,10 @@ const buildApplyMessage = (sql: SQL) => async (message: StoreUpdateMessage): Pro
 
 export const open = async (filename?: string): Promise<Store> => {
   const fileBacked = filename !== undefined && filename !== ":memory:"
+
+  if (fileBacked) {
+    mkdirSync(dirname(filename), {recursive: true})
+  }
 
   const sql = new SQL(fileBacked ? `sqlite://${filename}` : "sqlite::memory:")
   await sql.unsafe("PRAGMA foreign_keys = ON;")

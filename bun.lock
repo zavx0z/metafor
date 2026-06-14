@@ -17,6 +17,14 @@
         "typescript": "^6.0.2",
       },
     },
+    "app/application": {
+      "name": "@app/application",
+      "dependencies": {
+        "@metafor/boundary": "workspace:*",
+        "@metafor/dark": "workspace:*",
+        "store": "workspace:*",
+      },
+    },
     "boundary": {
       "name": "@metafor/boundary",
       "version": "0.0.1",
@@ -818,6 +826,8 @@
     },
   },
   "packages": {
+    "@app/application": ["@app/application@workspace:app/application"],
+
     "@boundary/gravity": ["@boundary/gravity@workspace:boundary/gravity"],
 
     "@boundary/strong": ["@boundary/strong@workspace:boundary/strong"],

@@ -1,0 +1,16 @@
+{
+  "name": "@app/application",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "interpreter": "cd ../.. && INTERPRETER_HTTP_PORT=6510 BUN_PROTOCOL_URL=ws://127.0.0.1:6511/ STORE_PATH=app/application/tmp/dark.sqlite INTERPRETER_DUMP_PATH=app/application/tmp/interpreter/state.json APPLICATION_BOUNDARY_STORE=app/application/tmp/boundary.sqlite bun --hot run pkg/interpreter/interpreter.ts app/application/dark.server.ts app/application/boundary.server.ts app/application/tmp/dark.sqlite app/application/tmp/boundary.sqlite",
+    "dev": "bun run interpreter",
+    "dark": "STORE_PATH=tmp/dark.sqlite bun --hot dark.server.ts",
+    "boundary": "bun --hot boundary.server.ts"
+  },
+  "dependencies": {
+    "@metafor/dark": "workspace:*",
+    "@metafor/boundary": "workspace:*",
+    "store": "workspace:*"
+  }
+}
