@@ -1,6 +1,7 @@
-import { build, file, serve } from "bun"
+import { file, serve } from "bun"
 import { join, normalize } from "node:path"
 import {force} from "store"
+import index from "./index.html"
 import type {
 	ClientForceBridgePayload,
 	Particle,
@@ -24,11 +25,6 @@ const tls = TLS_KEY_FILE && TLS_CERT_FILE
 			...(TLS_PASSPHRASE ? { passphrase: TLS_PASSPHRASE } : {}),
 		}
 	: undefined
-
-const buildEntrypoint = async (entrypoint: string): Promise<Response> =>
-	new Response((await build({ entrypoints: [entrypoint] })).outputs[0], {
-		headers: { "Content-Type": "application/javascript" },
-	})
 
 const publish = (payload: unknown): void => {
 	server.publish(APP_CHANNEL, JSON.stringify(payload))
@@ -69,9 +65,7 @@ const server = serve({
 	port: APP_PORT,
 	...(tls ? { tls } : {}),
 	routes: {
-		"/": () => new Response(file(join(import.meta.dir, "index.html"))),
-		"/client.js": async () => await buildEntrypoint(join(import.meta.dir, "client.ts")),
-		"/bulk.js": async () => await buildEntrypoint(join(ROOT, "bulk/web/index.ts")),
+		"/": index,
 		"/engine-static/JetBrainsMono-Bold.ttf": () => new Response(file(join(ROOT, "pkg/engine/static/JetBrainsMono-Bold.ttf"))),
 		"/ws": {
 			GET(req, wsServer) {

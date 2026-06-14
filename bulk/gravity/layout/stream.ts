@@ -18,12 +18,12 @@ export type DbWorldRowSink = Pick<
 /**
  * Строит row-набор world-структуры из particle-descriptors и сразу пишет его per-row в `sink`.
  *
- * Замена связки `buildDbWorldRows` + ручного цикла insert: dark.worker не держит
+ * Замена связки `buildDbWorldRows` + ручного цикла insert: материализатор не держит
  * промежуточный `DbWorldRows` объект, потребитель видит только row-emit-flow.
  *
  * Текущая реализация выполняет full layout pass + scale-pass в памяти и только финальный
  * flatten делает per-row в sink — это ещё не настоящий single-pass streaming, но ground для
- * него и устранение `DbWorldRows` из публичного API dark.worker-а.
+ * него и устранение `DbWorldRows` из публичного API материализатора.
  */
 export const streamDbWorldRows = async (
   rootSrc: string,

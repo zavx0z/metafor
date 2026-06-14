@@ -11,8 +11,6 @@
   },
   "dependencies": {
     "@bulk/gravity": "workspace:*",
-    "@store/actor": "workspace:*",
-    "@store/wimp": "workspace:*",
     "store": "workspace:*"
   }
 }

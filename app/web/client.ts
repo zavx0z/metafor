@@ -2,13 +2,7 @@ import {
 	appendForceMessage,
 	initForceLogger,
 	setConnectionStatus,
-	setWorkerStatus,
 } from "./force-logger.ts"
-import {
-	applyDbSyncMessage,
-	createIdbDbActorStore,
-	type DbActorStore,
-} from "@store/actor"
 import type { Particle } from "store"
 import { createBulkViewport, type BulkViewportController, type BulkViewportStats } from "../../bulk/web/index.ts"
 import {
@@ -19,14 +13,6 @@ import {
 	type AppWebRenderSettings,
 } from "./settings.ts"
 import { loadPersistedAppWebUiSettings, savePersistedAppWebUiSettings } from "./ui-settings-idb.ts"
-
-type WorkerStatusMessage = {
-	type: "worker-status"
-	worker: "dark" | "boundary" | "bulk"
-	status: "idle" | "ready" | "started" | "done" | "error"
-	src?: string
-	error?: string
-}
 
 type ForceMessage = {
 	type: "force"
@@ -43,21 +29,6 @@ type ClientRelayoutPayload = {
 	type: "relayout"
 	src: string
 	layoutSettings: Partial<AppWebLayoutSettings>
-}
-
-type SnapshotMessage = {
-	type: "snapshot"
-	workers: Record<string, "idle" | "ready" | "started" | "done" | "error">
-}
-
-const toWorkerMeta = (meta: {
-	src: string | undefined
-	error: string | undefined
-}): { src?: string; error?: string } => {
-	const nextMeta: { src?: string; error?: string } = {}
-	if (meta.src !== undefined) nextMeta.src = meta.src
-	if (meta.error !== undefined) nextMeta.error = meta.error
-	return nextMeta
 }
 
 initForceLogger()
@@ -81,23 +52,6 @@ const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement
 const bulkCounter = document.getElementById("bulk-counter") as HTMLSpanElement
 let bulkViewport: BulkViewportController | null = null
 let initialMaterializationRequested = false
-let localStore: DbActorStore | null = null
-
-const localStoreReady: Promise<DbActorStore> = createIdbDbActorStore({
-	databaseName: "metafor-app-instance",
-}).then((store) => {
-	localStore = store
-	return store
-})
-
-const refreshViewportFromLocalStore = async (rootSrc: string): Promise<void> => {
-	const store = localStore ?? (await localStoreReady)
-	const [particles, fields] = await Promise.all([
-		store.selectAllParticleShells(rootSrc),
-		store.selectAllFieldOrbits(rootSrc),
-	])
-	bulkViewport?.applyWorld({ rootSrc, particles, fields })
-}
 
 const socketScheme = window.location.protocol === "https:" ? "wss:" : "ws:"
 const socket = new WebSocket(`${socketScheme}//${window.location.host}/ws`)
@@ -372,43 +326,19 @@ socket.onclose = () => {
 socket.onmessage = (event) => {
 	const message = JSON.parse(String(event.data)) as any
 
-	if (message.type === "worker-status") {
-		if (message.worker === "dark" && message.status === "error") {
-			pendingSceneState = null
-		}
-		if (message.worker === "dark" && (message.status === "done" || message.status === "error")) {
-			submitButton.disabled = socket.readyState !== WebSocket.OPEN
-		}
-		return
-	}
-
 	if (message.type === "force") {
 		const forceMessage = message as ForceMessage
 		appendForceMessage("force", forceMessage.parts)
 		for (const part of forceMessage.parts) {
-			if (part.part === "graviton" && part.path === "/db-sync") {
-				const sync = part.value as Parameters<typeof applyDbSyncMessage>[1]
-				void (async () => {
-					const store = localStore ?? (await localStoreReady)
-					await applyDbSyncMessage(store, sync)
-				})().catch((error) => {
-					console.error("db-sync apply error:", error)
-				})
-				continue
-			}
 			if (part.part === "graviton" && part.path === "/structural") {
 				const signal = part.value as { rootSrc?: unknown }
 				const rootSrc = signal.rootSrc
 				if (typeof rootSrc !== "string") continue
-				void (async () => {
-					if (pendingSceneState && pendingSceneState.src === rootSrc) {
-						lastAppliedSceneState = pendingSceneState
-						pendingSceneState = null
-					}
-					await refreshViewportFromLocalStore(rootSrc)
-				})().catch((error) => {
-					console.error("structural barrier error:", error)
-				})
+				if (pendingSceneState && pendingSceneState.src === rootSrc) {
+					lastAppliedSceneState = pendingSceneState
+					pendingSceneState = null
+					submitButton.disabled = socket.readyState !== WebSocket.OPEN
+				}
 				continue
 			}
 			bulkViewport?.handleForce(part.part, part)
