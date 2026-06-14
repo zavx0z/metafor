@@ -23,6 +23,7 @@ import {resolveLanguageHighlighter} from "./highlighter.ts"
 import {
   createEditorTokenMaterials,
   normalizeEditorTokensForLine,
+  renderEditorTextRuns,
   renderEditorTokenizedLine,
   type EditorTokenMaterialMap,
 } from "./token-renderer.ts"
@@ -636,14 +637,21 @@ export class EditorPane extends UiSurface {
     const widths = new Array<number>(line.length + 1)
     widths[0] = 0
     let width = 0
+    let visualColumn = 0
     for (let i = 0; i < line.length; i++) {
       const code = line.codePointAt(i) ?? 0
       if (line[i] === " ") {
         width += spaceWidth
+        visualColumn += 1
+      } else if (line[i] === "\t") {
+        const columns = tabAdvanceColumns(visualColumn, INDENT_GUIDE_STEP_COLUMNS)
+        width += columns * spaceWidth
+        visualColumn += columns
       } else {
         const gid = this.font.mapCharToGlyph(code)
         const metric = this.font.getHMetric(gid)
         width += metric.advanceWidth * fontScale + letterSpacing
+        visualColumn += 1
       }
       widths[i + 1] = width
       if (code > 0xffff && i + 1 < line.length) {
@@ -1977,14 +1985,17 @@ export class EditorPane extends UiSurface {
     }
     const animOffset = this.#animOffsetFor(lineIndex, slice.start)
     if (!isFinite(animOffset)) return
-    this.drawText(visText, drawX + animOffset, textY, {
+    renderEditorTextRuns({
+      pane: this,
+      text: visText,
+      startX: drawX + animOffset,
+      y: textY,
       fontPx: this.#fontPx,
       material: this.#lineMaterial,
+      maxPx: maxW,
       letterSpacingPx: CODE_LETTER_SPACING_PX,
       spaceAdvancePx: this.#getSpaceWidth(),
-      maxWidthPx: maxW,
-      fit: false,
-      measure: false,
+      columnX: (startCol) => this.#colToPx(visText, startCol),
     })
   }
 
@@ -2276,13 +2287,17 @@ function leadingIndentColumns(line: string, tabSize: number): number {
       continue
     }
     if (ch === "\t") {
-      const size = Math.max(1, Math.floor(tabSize))
-      columns += size - columns % size
+      columns += tabAdvanceColumns(columns, tabSize)
       continue
     }
     break
   }
   return columns
+}
+
+function tabAdvanceColumns(column: number, tabSize: number): number {
+  const size = Math.max(1, Math.floor(tabSize))
+  return size - column % size
 }
 
 function structuralEditTokens(line: string, inBlockComment: boolean): {tokens: EditorIndentEditToken[]; inBlockComment: boolean} {

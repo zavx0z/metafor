@@ -1,5 +1,7 @@
 import {describe, expect, test} from "bun:test"
-import {normalizeEditorTokensForLine} from "./token-renderer.ts"
+import type {TextMaterial} from "@metafor/engine"
+import type {UiSurface} from "@ui/elements"
+import {normalizeEditorTokensForLine, renderEditorTextRuns} from "./token-renderer.ts"
 
 describe("normalizeEditorTokensForLine", () => {
   test("sorts, clamps and removes invalid ranges", () => {
@@ -30,5 +32,31 @@ describe("normalizeEditorTokensForLine", () => {
     expect(tokens).toEqual([
       {s: 5, e: 16, c: "t", fg: "#c77dbb"},
     ])
+  })
+})
+
+describe("renderEditorTextRuns", () => {
+  test("keeps tab characters out of drawText", () => {
+    const calls: Array<{text: string; x: number; maxWidthPx: number | undefined}> = []
+    const pane = {
+      drawText: (text: string, x: number, _y: number, opts: {maxWidthPx?: number}) => {
+        calls.push({text, x, maxWidthPx: opts.maxWidthPx})
+        return 0
+      },
+      measureText: (text: string) => text.length * 10,
+    } as unknown as UiSurface
+
+    renderEditorTextRuns({
+      pane,
+      text: "\t\tready",
+      startX: 100,
+      y: 20,
+      fontPx: 13,
+      material: {} as TextMaterial,
+      maxPx: 400,
+      columnX: (col) => [0, 20, 40, 50, 60, 70, 80, 90][col] ?? col * 10,
+    })
+
+    expect(calls).toEqual([{text: "ready", x: 140, maxWidthPx: 360}])
   })
 })
