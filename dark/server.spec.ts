@@ -1,8 +1,10 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
-import {SQL} from "bun"
+import {SQL, type ServerWebSocket} from "bun"
 import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
-import type {ForceMessageHandler} from "../store/index.ts"
+import type {ForceMessage, ForceMessageHandler} from "../store/index.ts"
+
+type ForceSocketData = {kind: "force"}
 
 const logBroadcastMessage = (event: MessageEvent<unknown>): void => {
   console.log("[force]", JSON.stringify(event.data, null, 2))
@@ -11,6 +13,11 @@ const logBroadcastMessage = (event: MessageEvent<unknown>): void => {
 describe("dark/server разворачивает дерево zavx0z/git по gravity part", () => {
   let storePath: string
   let previousOnMessage: ForceMessageHandler = null
+  let forceBridge: ReturnType<typeof Bun.serve<ForceSocketData>> | null = null
+  let forceClient: WebSocket | null = null
+  const forceSockets = new Set<ServerWebSocket<ForceSocketData>>()
+  const storeMessages: ForceMessage[] = []
+  const forceMessages: ForceMessage[] = []
 
   beforeAll(async () => {
     // Файл не удаляем после теста, чтобы результат разложения git можно было осмотреть руками.
@@ -27,21 +34,61 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
     process.env.STORE_PATH = storePath
     await import("./server.ts")
 
+    forceBridge = Bun.serve<ForceSocketData>({
+      hostname: "127.0.0.1",
+      port: 0,
+      fetch(req, server) {
+        const url = new URL(req.url)
+        if (url.pathname !== "/ws") return new Response("ok")
+
+        const upgraded = server.upgrade(req, {data: {kind: "force"}})
+        return upgraded ? undefined : new Response("WebSocket upgrade failed", {status: 426})
+      },
+      websocket: {
+        open(ws) {
+          forceSockets.add(ws)
+        },
+        close(ws) {
+          forceSockets.delete(ws)
+        },
+      },
+    })
+
+    const bridgeUrl = new URL(forceBridge.url)
+    bridgeUrl.protocol = "ws:"
+    bridgeUrl.pathname = "/ws"
+    forceClient = new WebSocket(bridgeUrl)
+    forceClient.addEventListener("message", (event) => {
+      forceMessages.push(JSON.parse(String(event.data)) as ForceMessage)
+    })
+    await waitForWebSocketOpen(forceClient)
+
     previousOnMessage = globalThis.store.onmessage
     globalThis.store.onmessage = function (event) {
       logBroadcastMessage(event)
+      storeMessages.push(event.data)
+      broadcastForceMessage(forceSockets, event.data)
       return previousOnMessage?.call(this, event)
     }
   })
 
-  afterAll(() => {
+  afterAll(async () => {
     if (globalThis.store) globalThis.store.onmessage = previousOnMessage
+    forceClient?.close()
+    forceSockets.clear()
+    await forceBridge?.stop(true)
   })
 
   test("после add wimp zavx0z/git store содержит каноническое дерево git", async () => {
-    globalThis.store.postMessage({
+    const inputMessage: ForceMessage = {
       parts: [{part: "graviton", op: "add", path: "wimp", value: "zavx0z/git"}],
-    })
+    }
+    globalThis.store.postMessage(inputMessage)
+
+    const bridgedMessage = await waitForForceMessage(forceMessages, (message) =>
+      message.parts.some((part) => part.part === "graviton" && part.op === "add" && part.path === "wimp" && part.value === "zavx0z/git"),
+    )
+    expect(bridgedMessage).toEqual(inputMessage)
 
     // ждём пока Dark материализует root wimp + child wimps в БД
     const sql = new SQL(`sqlite://${storePath}`)
@@ -66,6 +113,17 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
       await new Promise((resolve) => setTimeout(resolve, 50))
     }
     expect(materialized, "Dark должен был материализовать дерево zavx0z/git").toBe(true)
+
+    const actorMessage = storeMessages.find((message) =>
+      message.parts.some((part) => part.part === "graviton" && part.op === "add" && part.path === "actor"),
+    )
+    expect(actorMessage, "Store должен был отправить runtime actor part").toBeDefined()
+    const actorMessagePayload = JSON.stringify(actorMessage)
+    const bridgedActorMessage = await waitForForceMessage(
+      forceMessages,
+      (message) => JSON.stringify(message) === actorMessagePayload,
+    )
+    expect(bridgedActorMessage).toEqual(actorMessage)
 
     try {
       const wimpRows = await sql<Array<{src: string}>>`SELECT src FROM wimp ORDER BY src`
@@ -115,6 +173,42 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
 
 async function actorCount(sql: SQL): Promise<number> {
   return (await sql<Array<{count: number}>>`SELECT COUNT(*) AS count FROM actor`)[0]?.count ?? 0
+}
+
+function broadcastForceMessage(sockets: Set<ServerWebSocket<ForceSocketData>>, message: ForceMessage): void {
+  const payload = JSON.stringify(message)
+  for (const socket of sockets) {
+    if (socket.readyState === WebSocket.OPEN) socket.send(payload)
+  }
+}
+
+async function waitForWebSocketOpen(socket: WebSocket): Promise<void> {
+  if (socket.readyState === WebSocket.OPEN) return
+
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error("force bridge websocket did not open")), 5_000)
+    socket.addEventListener("open", () => {
+      clearTimeout(timeout)
+      resolve()
+    }, {once: true})
+    socket.addEventListener("error", () => {
+      clearTimeout(timeout)
+      reject(new Error("force bridge websocket failed"))
+    }, {once: true})
+  })
+}
+
+async function waitForForceMessage(
+  messages: ForceMessage[],
+  predicate: (message: ForceMessage) => boolean,
+): Promise<ForceMessage> {
+  const deadline = Date.now() + 5_000
+  while (Date.now() < deadline) {
+    const message = messages.find(predicate)
+    if (message) return message
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  throw new Error("force bridge did not receive expected message")
 }
 
 async function waitForActorCountStable(sql: SQL): Promise<number> {
