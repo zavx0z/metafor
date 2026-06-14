@@ -11,6 +11,6 @@
   "private": true,
   "dependencies": {
     "@boundary/actor": "workspace:*",
-    "@metafor/boundary": "workspace:*"
+    "boundary": "workspace:*"
   }
 }

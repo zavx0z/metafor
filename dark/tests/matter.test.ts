@@ -3,8 +3,8 @@ import {SQL} from "bun"
 import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
 import type {Actor} from "@boundary/actor"
-import type {Boundary} from "@metafor/boundary"
-import {open} from "@metafor/boundary/sqlite"
+import type {Boundary} from "boundary"
+import {open} from "boundary/sqlite"
 import {matter} from "../index.ts"
 
 let boundary: Awaited<ReturnType<typeof open>>

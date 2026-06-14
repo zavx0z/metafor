@@ -3,7 +3,7 @@ import {
 	initForceLogger,
 	setConnectionStatus,
 } from "./force-logger.ts"
-import type { Particle } from "@metafor/boundary"
+import type { Particle } from "boundary"
 import { createBulkViewport, type BulkViewportController, type BulkViewportStats } from "../../bulk/web/index.ts"
 import {
 	APP_WEB_LAYOUT_SETTING_KEYS,

@@ -1,3 +1,3 @@
-import {force} from "@metafor/boundary"
+import {force} from "boundary"
 
 export const gravityCH = force

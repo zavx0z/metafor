@@ -1,5 +1,5 @@
 {
-  "name": "@metafor/bulk",
+  "name": "bulk",
   "version": "0.0.1",
   "type": "module",
   "main": "index.ts",
@@ -14,6 +14,6 @@
     "@bulk/weak": "workspace:*",
     "@bulk/em": "workspace:*",
     "@boundary/actor": "workspace:*",
-    "@metafor/boundary": "workspace:*"
+    "boundary": "workspace:*"
   }
 }

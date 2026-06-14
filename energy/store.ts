@@ -1,7 +1,7 @@
 /**
- * `@energy/energy/store` — derived materialized runtime store Energy.
+ * `energy/store` — derived materialized runtime store Energy.
  *
- * Заполняется в `@energy/energy` после rebuild из `gravity$`,
+ * Заполняется в `energy` после rebuild из `gravity$`,
  * читается слабым вычислительным слоем.
  *
  * @property fields {@link EnergyStore.fields|каноническая схема полей}

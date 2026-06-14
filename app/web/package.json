@@ -11,6 +11,6 @@
   },
   "dependencies": {
     "@bulk/gravity": "workspace:*",
-    "@metafor/boundary": "workspace:*"
+    "boundary": "workspace:*"
   }
 }

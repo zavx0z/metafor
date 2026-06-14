@@ -4,8 +4,8 @@
 `ForceMessage` между доменами без браузерного `IndexedDB` и без старого
 воркер-рантайма `app/web`.
 
-- `dark.server.ts` импортирует `@metafor/dark/server`, открывает `Boundary` SQLite и материализует `zavx0z/git`.
-- `energy.server.ts` импортирует `@metafor/energy/server` и поднимает
+- `dark.server.ts` импортирует `dark/server`, открывает `Boundary` SQLite и материализует `zavx0z/git`.
+- `energy.server.ts` импортирует `energy/server` и поднимает
   рантайм-WebSocket без доступа к `Boundary`/SQLite.
 
 Слой приложения не является доменом. Он только держит два процесса и WebSocket-транспорт:

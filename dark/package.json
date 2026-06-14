@@ -1,5 +1,5 @@
 {
-  "name": "@metafor/dark",
+  "name": "dark",
   "version": "0.0.1",
   "type": "module",
   "main": "index.ts",
@@ -17,6 +17,6 @@
     "@dark/gravity": "workspace:*",
     "@dark/em": "workspace:*",
     "@boundary/wimp": "workspace:*",
-    "@metafor/boundary": "workspace:*"
+    "boundary": "workspace:*"
   }
 }

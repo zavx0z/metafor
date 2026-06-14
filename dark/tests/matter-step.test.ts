@@ -1,6 +1,6 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
-import type {Particle} from "@metafor/boundary"
-import {open} from "@metafor/boundary/sqlite"
+import type {Particle} from "boundary"
+import {open} from "boundary/sqlite"
 import {matter} from "../index.ts"
 
 const waitForParts = async (predicate: () => boolean): Promise<void> => {

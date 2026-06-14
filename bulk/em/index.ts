@@ -1,4 +1,4 @@
-import {force, type ForceMessage, type Particle} from "@metafor/boundary"
+import {force, type ForceMessage, type Particle} from "boundary"
 
 export type PhotonPayload = { value: string; path: string }
 export type WeakCoordinationKind = "claim" | "accept" | "reject" | "release"

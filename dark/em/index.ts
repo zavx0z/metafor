@@ -1,4 +1,4 @@
-import {force} from "@metafor/boundary"
+import {force} from "boundary"
 
 export type PhotonPayload = { value: string; path: string }
 

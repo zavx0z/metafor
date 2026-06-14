@@ -7,6 +7,6 @@
     "@dark/gravity": "workspace:*",
     "@dark/types": "workspace:*",
     "@boundary/wimp": "workspace:*",
-    "@metafor/boundary": "workspace:*"
+    "boundary": "workspace:*"
   }
 }

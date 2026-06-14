@@ -1,17 +1,10 @@
-import { afterEach, describe, expect, test } from "bun:test"
-import { openDbMaterializationWriter, openDbSqliteBackend } from "@metafor/boundary/db"
+import { describe, expect, test } from "bun:test"
 import { flattenEnergyData, FieldType } from "../gravity"
 import { assembleStoredEnergyData } from "../strong"
 import { weak$ } from "../weak"
-import { energy$, addRuntimeWimp, gravity$, rebuildRuntime, removeRuntimeWimp, update, write } from "../energy"
-import { createDbFixture } from "fixture/db.fixture.ts"
-import { resetEnergyForTest } from "./test.helper"
+import { energy$, gravity$, update, write } from "../energy"
 
 describe("energy domain layers", () => {
-  afterEach(async () => {
-    await resetEnergyForTest()
-  })
-
   test("gravity и strong собирают канонический energy-store", () => {
     const flattened = flattenEnergyData({
       fields: [{ type: FieldType.F32 }],
@@ -61,35 +54,5 @@ describe("energy domain layers", () => {
     const changes = await update([[0, [[0, 20]]]])
     expect(changes).toEqual([[0, 1]])
     expect(energy$.states).toEqual([1])
-  })
-
-  test("db путь живёт через gravity composition и transactional rebuild, без dump/restore", async () => {
-    const fixture = createDbFixture()
-    const backend = openDbSqliteBackend()
-    const writer = openDbMaterializationWriter(backend)
-
-    try {
-      await fixture.root.save(writer)
-      await fixture.child.save(writer)
-
-      addRuntimeWimp(fixture.root.id)
-      expect(energy$.branes).toEqual([])
-      expect(gravity$.structuralDirty).toBe(true)
-
-      addRuntimeWimp(fixture.child.id)
-      expect(energy$.branes).toEqual([])
-
-      await rebuildRuntime(backend)
-      expect(energy$.branes).toHaveLength(2)
-      expect(energy$.sharedBlocks).toHaveLength(1)
-
-      removeRuntimeWimp(fixture.child.id)
-      await rebuildRuntime(backend)
-
-      expect(energy$.branes).toHaveLength(1)
-      expect(energy$.sharedBlocks).toEqual([])
-    } finally {
-      backend.close()
-    }
   })
 })

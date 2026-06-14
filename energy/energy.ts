@@ -1,16 +1,13 @@
 /**
- * @energy/energy — доменный оркестратор детерминированного перехода состояний.
+ * energy — доменный оркестратор детерминированного перехода состояний.
  *
  * @packageDocumentation
  *
  * ## Ответственность
  *
  * - `write()` — запись канонической energy-структуры в доменный store
- * - `gravity$` — долгоживущая UUID-композиция и адресация runtime
- * - `addRuntimeWimp()` / `removeRuntimeWimp()` — мутация composition-слоя без немедленного rebuild
- * - `applyStructuralPartFromDb()` — обработка UUID-addressed structural part и barrier
- * - `rebuildRuntime()` — транзакционная пересборка derived runtime из текущей composition в `gravity$`
- * - `update()` — обновление полей, вычисление следующего перехода и write-back в bound DB backend
+ * - `gravity$` — runtime-адресация materialized branes
+ * - `update()` — обновление полей и вычисление следующего перехода
  * - `applyWeakResultPacket()` / `subscribeEnergyWeakResultBroadcast()` — приём единого W-result envelope и unlock после apply
  * - `unlock()` — снятие блокировки с бран
  *
@@ -20,14 +17,11 @@
  * `@energy/gravity`, собирает канонический store через `@energy/strong`
  * и оркестрирует вычисление перехода через `@energy/weak`.
  *
- * Поверх DB Energy держит два разных слоя:
- * - `gravity$` — composition/addressing слой, который владеет UUID-набором и
- *   текущим соответствием `uuid <-> braneIndex`,
- * - `energy$` — derived materialized runtime store, который пересобирается
- *   только на structural barrier.
+ * Energy работает с уже подготовленным runtime-снимком. Persistent Boundary DB
+ * принадлежит Dark, а Energy держит только runtime-состояние процесса.
  *
  * Energy НЕ содержит:
- * - source graph loading и primary addressing — это `@metafor/dark`
+ * - source graph loading и primary addressing — это `dark`
  * - раскладку структуры и проверку входа — это `@energy/gravity`
  * - канонизацию и сборку store-формы — это `@energy/strong`
  * - вычисление перехода и backend-адаптеры — это `@energy/weak`
@@ -37,23 +31,11 @@ import { gravity$ } from "@energy/gravity/store.ts"
 import { energy$ } from "./store"
 import type { EnergyFieldValueRecord, EnergyStore } from "./store.t"
 import type { PreparedData } from "./energy.t"
-import {
-  prepareEnergyRuntimeData,
-  prepareEnergyRuntimeForceData,
-  prepareEnergyRuntimeLoadedFragmentFromDbOperational,
-  prepareEnergyRuntimeStore,
-  prepareEnergyRuntimeStoreFromDb,
-} from "./database"
-import type { EnergyDbRuntimeOptions } from "./database.t"
 import { flattenEnergyData, validateData, type Data } from "@energy/gravity"
-import { FieldType } from "@energy/gravity"
 import { createStoredStringInterner, normalizeFieldValue, assembleStoredEnergyData, strong$ } from "@energy/strong"
 import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@energy/weak"
-import type { WeakHeapUpdate } from "./weak/weak.t"
-import { createEmptyDbData, type DbBackend, type DbData } from "@metafor/boundary/db/core"
-import {force, type ForceMessage, type ForceSurface, type Particle} from "@metafor/boundary"
+import {force, type ForceMessage, type ForceSurface, type Particle} from "boundary"
 
-export type EnergyStructuralPart = { op: "add" | "remove" | "test"; path: string; value?: unknown }
 type EnergyValuePart = { op: "replace"; path: string; value: unknown }
 type EnergyChannelOptions = { channelName?: string }
 type EnergyWeakResultPayload = { wimpId: string; processId: string; parts: EnergyValuePart[] }
@@ -62,7 +44,6 @@ export interface EnergyBroadcastSubscription {
   close(): Promise<void>
 }
 
-export type EnergyGravityBroadcastSubscription = EnergyBroadcastSubscription
 export type EnergyValueBroadcastSubscription = EnergyBroadcastSubscription
 export type EnergyWeakBroadcastSubscription = EnergyBroadcastSubscription
 
@@ -72,10 +53,6 @@ type AsyncGate = {
 
 const writeGate: AsyncGate = { pending: null }
 const updateGate: AsyncGate = { pending: null }
-/** Последний успешно materialized runtime-fragment, соответствующий текущему `energy$`. */
-let loadedRuntimeFragment: DbData = createEmptyDbData()
-let activeDbBackend: DbBackend | null = null
-const WIMP_PART_PATH_PREFIX = "/wimp/"
 const FIELD_PART_PATH_PREFIX = "/field/"
 
 const runExclusive = async <T>(gate: AsyncGate, task: () => Promise<T>): Promise<T> => {
@@ -107,7 +84,7 @@ const createSubscription = (
   })
 
   return {
-    close() {
+    async close() {
       subscription.close()
     },
   }
@@ -143,38 +120,18 @@ const applyPreparedData = (prepared: PreparedData): void => {
   energy$.stateNames = prepared.stateNames
 }
 
-const collectRuntimeWimpIdsInBraneOrder = (fragment: DbData): string[] =>
-  [...fragment.wimps].sort((left, right) => left.wimpOrder - right.wimpOrder).map((row) => row.id)
-
-const clearGravityComposition = (): void => {
+const clearRuntimeAddressing = (): void => {
   gravity$.activeWimpIds = []
   gravity$.wimpIdToBraneIndex.clear()
   gravity$.braneIndexToWimpId = []
   gravity$.structuralDirty = false
 }
 
-const replaceGravityComposition = (wimpIds: Iterable<string>): void => {
-  gravity$.activeWimpIds = Array.from(new Set(wimpIds))
-  gravity$.structuralDirty = true
-}
-
-const refreshGravityAddressing = (fragment: DbData): void => {
-  const orderedWimpIds = collectRuntimeWimpIdsInBraneOrder(fragment)
-  gravity$.wimpIdToBraneIndex = new Map(orderedWimpIds.map((wimpId, braneIndex) => [wimpId, braneIndex] as const))
-  gravity$.braneIndexToWimpId = orderedWimpIds
-}
-
-const clearLoadedRuntimeState = (): void => {
-  loadedRuntimeFragment = createEmptyDbData()
-  clearGravityComposition()
-  activeDbBackend = null
+const clearRuntimeState = (): void => {
+  applyPreparedData(createEmptyPreparedData())
+  clearRuntimeAddressing()
   strong$.reset()
-  weak$.stateMetaStateIdsByBraneIndex = []
-  weak$.stateProcessIdsByBraneIndex = []
-}
-
-const bindRuntimePersistence = (backend: DbBackend): void => {
-  activeDbBackend = backend
+  weak$.reset()
 }
 
 const requireRuntimeFieldAddress = (wimpFieldId: string): [braneIndex: number, runtimeFieldIndex: number] => {
@@ -242,74 +199,6 @@ const syncProcessLocksForChanges = (changes: [number, number][]): void => {
   }
 }
 
-const denormalizeRuntimeValue = (runtimeFieldIndex: number, value: unknown): unknown => {
-  const field = energy$.fields[runtimeFieldIndex]
-  if (!field) {
-    throw new Error(`Energy runtime field not defined: ${runtimeFieldIndex}`)
-  }
-
-  if (field.enum) {
-    if (typeof value !== "number") {
-      throw new Error(`Energy enum field ${runtimeFieldIndex} must be encoded as number`)
-    }
-    return structuredClone(field.enum[value] ?? value)
-  }
-
-  if (field.type === FieldType.STRING_PTR) {
-    if (typeof value !== "number") {
-      throw new Error(`Energy string field ${runtimeFieldIndex} must be encoded as string-table index`)
-    }
-    return energy$.stringTable[value] ?? ""
-  }
-
-  if (field.type === FieldType.ARRAY_PTR && field.elementType === "string") {
-    if (!Array.isArray(value)) {
-      throw new Error(`Energy string array field ${runtimeFieldIndex} must be encoded as array`)
-    }
-    return value.map((item) => {
-      if (typeof item !== "number") {
-        throw new Error(`Energy string array field ${runtimeFieldIndex} must contain string-table indexes`)
-      }
-      return energy$.stringTable[item] ?? ""
-    })
-  }
-
-  return structuredClone(value)
-}
-
-const addRuntimeWimpToGravity = (wimpId: string): void => {
-  if (gravity$.hasWimp(wimpId)) return
-  // Composition меняется сразу, но maps остаются от последнего materialized runtime до barrier rebuild.
-  gravity$.activeWimpIds = [...gravity$.activeWimpIds, wimpId]
-  gravity$.structuralDirty = true
-}
-
-const removeRuntimeWimpFromGravity = (wimpId: string): void => {
-  if (!gravity$.hasWimp(wimpId)) return
-  // Composition меняется сразу, но maps остаются от последнего materialized runtime до barrier rebuild.
-  gravity$.activeWimpIds = gravity$.activeWimpIds.filter((candidate) => candidate !== wimpId)
-  gravity$.structuralDirty = true
-}
-
-const requireWimpPartId = (path: string): string => {
-  if (!path.startsWith(WIMP_PART_PATH_PREFIX)) {
-    throw new Error(`Unsupported Energy structural part path: ${path}`)
-  }
-
-  const wimpId = path.slice(WIMP_PART_PATH_PREFIX.length)
-  if (!wimpId) {
-    throw new Error(`Energy structural part path is missing wimp uuid: ${path}`)
-  }
-
-  return wimpId
-}
-
-const isEmptyBarrierValue = (value: unknown): boolean => {
-  if (value === undefined || value === null || value === "") return true
-  if (typeof value !== "object") return false
-  return Object.keys(value).length === 0
-}
-
 const requireFieldPartId = (path: string): string => {
   if (!path.startsWith(FIELD_PART_PATH_PREFIX)) {
     throw new Error(`Unsupported Energy field part path: ${path}`)
@@ -323,102 +212,14 @@ const requireFieldPartId = (path: string): string => {
   return wimpFieldId
 }
 
-const applyRuntimeForceData = (fragment: DbData): void => {
-  const forceData = prepareEnergyRuntimeForceData(fragment)
-  strong$.runtimeFieldIndexByWimpFieldId = forceData.runtimeFieldIndexByWimpFieldId
-  strong$.wimpFieldIdsByRuntimeFieldIndex = forceData.wimpFieldIdsByRuntimeFieldIndex
-  strong$.braneIndexByWimpFieldId = forceData.braneIndexByWimpFieldId
-  strong$.topologyWimpFieldIds = forceData.topologyWimpFieldIds
-  weak$.stateMetaStateIdsByBraneIndex = forceData.stateMetaStateIdsByBraneIndex
-  weak$.stateProcessIdsByBraneIndex = forceData.stateProcessIdsByBraneIndex
-}
-
 const getCurrentBraneProcessId = (braneIndex: number): string | undefined => {
   const stateIndex = energy$.states[braneIndex]
   if (stateIndex === undefined) return undefined
   return weak$.stateProcessIdsByBraneIndex[braneIndex]?.[stateIndex]
 }
 
-const rebuildRuntimeFromFragment = async (
-  fragment: DbData,
-  options: EnergyDbRuntimeOptions,
-): Promise<[number, number][]> => {
-  const prepared =
-    fragment.wimps.length === 0 ? createEmptyPreparedData() : prepareEnergyRuntimeStore(fragment, options)
-  const changes = await writePreparedData(prepared)
-  // Пока rebuild не завершился успешно, gravity maps продолжают описывать
-  // предыдущее materialized runtime. Обновляем fragment и addressing только здесь.
-  loadedRuntimeFragment = fragment
-  refreshGravityAddressing(fragment)
-  applyRuntimeForceData(fragment)
-  gravity$.structuralDirty = false
-  return changes
-}
-
-const persistRuntimeChanges = async (changes: [number, number][], weakUpdates: WeakHeapUpdate[]): Promise<void> => {
-  const backend = activeDbBackend
-  if (!backend) return
-
-  const nextFieldValues = new Map<number, unknown>()
-  const nextStateByBraneIndex = new Map<number, number>()
-
-  for (const update of weakUpdates) {
-    if (update.kind === "field") {
-      const value = energy$.getFieldValue(update.braneIndex, update.fieldIndex)
-      if (value !== undefined) {
-        nextFieldValues.set(update.fieldIndex, denormalizeRuntimeValue(update.fieldIndex, value))
-      }
-    }
-  }
-
-  for (const [braneIndex, stateIndex] of changes) {
-    nextStateByBraneIndex.set(braneIndex, stateIndex)
-  }
-
-  for (const [runtimeFieldIndex, value] of nextFieldValues.entries()) {
-    const wimpFieldIds = strong$.wimpFieldIdsByRuntimeFieldIndex[runtimeFieldIndex] ?? []
-    if (wimpFieldIds.length === 0) {
-      throw new Error(
-        `Energy runtime persistence missing canonical field mapping for runtime field ${runtimeFieldIndex}`,
-      )
-    }
-    await Promise.all(wimpFieldIds.map((wimpFieldId) => backend.setFieldValue(wimpFieldId, value)))
-  }
-
-  for (const [braneIndex, stateIndex] of nextStateByBraneIndex.entries()) {
-    const wimpId = gravity$.getWimpId(braneIndex)
-    const metaStateId = weak$.stateMetaStateIdsByBraneIndex[braneIndex]?.[stateIndex]
-    if (!wimpId) {
-      throw new Error(`Energy runtime persistence missing UUID mapping for brane ${braneIndex}`)
-    }
-    if (!metaStateId) {
-      throw new Error(
-        `Energy runtime persistence missing canonical state mapping for brane ${braneIndex} state ${stateIndex}`,
-      )
-    }
-    await backend.setWimpState(wimpId, metaStateId)
-  }
-
-  await backend.flush()
-}
-
 export function prepareData(data: Data): PreparedData {
   return assembleStoredEnergyData(flattenEnergyData(data))
-}
-
-export function prepareRuntimeData(data: DbData, options: EnergyDbRuntimeOptions = {}): Data {
-  return prepareEnergyRuntimeData(data, options)
-}
-
-export function prepareRuntimeStore(data: DbData, options: EnergyDbRuntimeOptions = {}): PreparedData {
-  return prepareEnergyRuntimeStore(data, options)
-}
-
-export async function prepareRuntimeFromDb(
-  backend: DbBackend,
-  options: EnergyDbRuntimeOptions = {},
-): Promise<PreparedData> {
-  return await prepareEnergyRuntimeStoreFromDb(backend, options)
 }
 
 export function listRuntimeWimpIds(): string[] {
@@ -473,82 +274,8 @@ export async function write(data: Data): Promise<[number, number][]> {
    * `write(data)` остаётся отдельным bootstrap/bypass path и не порождает UUID-composition.
    * Для такого режима `gravity$` очищается, а materialized runtime пишется напрямую.
    */
-  clearLoadedRuntimeState()
+  clearRuntimeState()
   return await writePreparedData(assembleStoredEnergyData(flattenEnergyData(data)))
-}
-
-export async function writeRuntimeFromDb(
-  backend: DbBackend,
-  options: EnergyDbRuntimeOptions = {},
-): Promise<[number, number][]> {
-  const fragment = await prepareEnergyRuntimeLoadedFragmentFromDbOperational(backend)
-  replaceGravityComposition(collectRuntimeWimpIdsInBraneOrder(fragment))
-  bindRuntimePersistence(backend)
-  return await rebuildRuntimeFromFragment(fragment, options)
-}
-
-export async function rebuildRuntime(
-  backend: DbBackend,
-  options: EnergyDbRuntimeOptions = {},
-): Promise<[number, number][]> {
-  if (!gravity$.structuralDirty) {
-    // Barrier без structural изменений не трогает materialized runtime и addressing.
-    return []
-  }
-
-  const nextFragment = await prepareEnergyRuntimeLoadedFragmentFromDbOperational(
-    backend,
-    gravity$.activeWimpIds,
-  )
-  bindRuntimePersistence(backend)
-  return await rebuildRuntimeFromFragment(nextFragment, options)
-}
-
-export function subscribeEnergyGravityBroadcast(
-  backend: DbBackend,
-  options: EnergyDbRuntimeOptions = {},
-): EnergyGravityBroadcastSubscription {
-  const runtimeOptions: EnergyDbRuntimeOptions = {}
-  if (options.entanglement !== undefined) {
-    runtimeOptions.entanglement = options.entanglement
-  }
-
-  return createSubscription(force, async (message) => {
-    for (const part of message.parts) {
-      if (part.part !== "graviton") continue
-      await applyStructuralPartFromDb(backend, part as EnergyStructuralPart, runtimeOptions)
-    }
-  })
-}
-
-export function addRuntimeWimp(wimpId: string): void {
-  addRuntimeWimpToGravity(wimpId)
-}
-
-export function removeRuntimeWimp(wimpId: string): void {
-  removeRuntimeWimpFromGravity(wimpId)
-}
-
-export async function applyStructuralPartFromDb(
-  backend: DbBackend,
-  part: EnergyStructuralPart,
-  options: EnergyDbRuntimeOptions = {},
-): Promise<[number, number][]> {
-  if (part.op === "add") {
-    addRuntimeWimpToGravity(requireWimpPartId(part.path))
-    return []
-  }
-
-  if (part.op === "remove") {
-    removeRuntimeWimpFromGravity(requireWimpPartId(part.path))
-    return []
-  }
-
-  if (part.op === "test" && part.path === "" && isEmptyBarrierValue(part.value)) {
-    return await rebuildRuntime(backend, options)
-  }
-
-  throw new Error(`Unsupported Energy structural part: ${part.op} ${part.path}`)
 }
 
 function requireInitializedStore(store$: EnergyStore): void {
@@ -632,7 +359,6 @@ export async function update(
           ]
 
     syncProcessLocksForChanges(photonTargets)
-    await persistRuntimeChanges(changes, weakUpdates)
     publishPhotonChanges(photonTargets)
     return changes
   })

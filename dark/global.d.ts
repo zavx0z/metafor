@@ -1,4 +1,4 @@
-import type {Boundary} from "@metafor/boundary"
+import type {Boundary} from "boundary"
 
 declare global {
   /**

@@ -1,4 +1,4 @@
-import {open} from "@metafor/boundary/sqlite"
+import {open} from "boundary/sqlite"
 
 /**
  * Server bootstrap Dark: открывает SQLite boundary и корректно закрывает его

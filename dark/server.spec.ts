@@ -2,7 +2,7 @@ import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import {SQL, type ServerWebSocket} from "bun"
 import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
-import type {ForceBinding, ForceMessage} from "@metafor/boundary"
+import type {ForceBinding, ForceMessage} from "boundary"
 
 type ForceSocketData = {kind: "force"}
 

@@ -1,5 +1,5 @@
 import {MetaFor, type FieldDefinition, type FieldKey, type SRC} from ".."
-import type {ForceBinding, ForceMessageListener, Boundary} from "@metafor/boundary"
+import type {ForceBinding, ForceMessageListener, Boundary} from "boundary"
 import type {AnyField} from "@boundary/wimp/sqlite"
 import type {ActorValueRecord, ValueItemRecord, ValueRecord} from "@boundary/actor"
 import type {BfsEntry, ParticleRef, PendingChildWimp} from "@dark/types/dark"

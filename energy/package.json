@@ -1,19 +1,17 @@
 {
-  "name": "@metafor/energy",
+  "name": "energy",
   "version": "0.0.1",
   "type": "module",
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",
-    "./boot": "./boot.ts",
-    "./server": "./server.ts",
-    "./web": "./web.ts"
+    "./server": "./server.ts"
   },
   "private": true,
   "dependencies": {
     "@energy/gravity": "workspace:*",
     "@energy/strong": "workspace:*",
     "@energy/weak": "workspace:*",
-    "@metafor/boundary": "workspace:*"
+    "boundary": "workspace:*"
   }
 }

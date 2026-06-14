@@ -20,13 +20,13 @@
     "app/application": {
       "name": "@app/application",
       "dependencies": {
-        "@metafor/boundary": "workspace:*",
-        "@metafor/dark": "workspace:*",
-        "@metafor/energy": "workspace:*",
+        "boundary": "workspace:*",
+        "dark": "workspace:*",
+        "energy": "workspace:*",
       },
     },
     "boundary": {
-      "name": "@metafor/boundary",
+      "name": "boundary",
       "dependencies": {
         "@boundary/actor": "workspace:*",
         "@boundary/topology": "workspace:*",
@@ -46,7 +46,7 @@
       },
     },
     "bulk": {
-      "name": "@metafor/bulk",
+      "name": "bulk",
       "version": "0.0.1",
       "dependencies": {
         "@boundary/actor": "workspace:*",
@@ -54,20 +54,20 @@
         "@bulk/gravity": "workspace:*",
         "@bulk/strong": "workspace:*",
         "@bulk/weak": "workspace:*",
-        "@metafor/boundary": "workspace:*",
+        "boundary": "workspace:*",
       },
     },
     "bulk/em": {
       "name": "@bulk/em",
       "dependencies": {
-        "@metafor/boundary": "workspace:*",
+        "boundary": "workspace:*",
       },
     },
     "bulk/gravity": {
       "name": "@bulk/gravity",
       "dependencies": {
         "@boundary/actor": "workspace:*",
-        "@metafor/boundary": "workspace:*",
+        "boundary": "workspace:*",
       },
     },
     "bulk/strong": {
@@ -87,21 +87,21 @@
       },
     },
     "dark": {
-      "name": "@metafor/dark",
+      "name": "dark",
       "version": "0.0.1",
       "dependencies": {
         "@boundary/wimp": "workspace:*",
         "@dark/em": "workspace:*",
         "@dark/gravity": "workspace:*",
         "@dark/types": "workspace:*",
-        "@metafor/boundary": "workspace:*",
+        "boundary": "workspace:*",
       },
     },
     "dark/em": {
       "name": "@dark/em",
       "dependencies": {
         "@dark/types": "workspace:*",
-        "@metafor/boundary": "workspace:*",
+        "boundary": "workspace:*",
       },
     },
     "dark/gravity": {
@@ -109,7 +109,7 @@
       "dependencies": {
         "@boundary/wimp": "workspace:*",
         "@dark/types": "workspace:*",
-        "@metafor/boundary": "workspace:*",
+        "boundary": "workspace:*",
       },
     },
     "dark/strong": {
@@ -118,26 +118,26 @@
         "@boundary/wimp": "workspace:*",
         "@dark/gravity": "workspace:*",
         "@dark/types": "workspace:*",
-        "@metafor/boundary": "workspace:*",
+        "boundary": "workspace:*",
       },
     },
     "dark/types": {
       "name": "@dark/types",
     },
     "energy": {
-      "name": "@metafor/energy",
+      "name": "energy",
       "version": "0.0.1",
       "dependencies": {
         "@energy/gravity": "workspace:*",
         "@energy/strong": "workspace:*",
         "@energy/weak": "workspace:*",
-        "@metafor/boundary": "workspace:*",
+        "boundary": "workspace:*",
       },
     },
     "energy/gravity": {
       "name": "@energy/gravity",
       "dependencies": {
-        "@metafor/boundary": "workspace:*",
+        "boundary": "workspace:*",
       },
     },
     "energy/strong": {
@@ -156,7 +156,7 @@
     "fixture": {
       "name": "fixture",
       "devDependencies": {
-        "@metafor/boundary": "workspace:*",
+        "boundary": "workspace:*",
       },
       "peerDependencies": {
         "typescript": "^5",
@@ -860,14 +860,6 @@
 
     "@metafor/android": ["@metafor/android@workspace:pkg/android"],
 
-    "@metafor/boundary": ["@metafor/boundary@workspace:boundary"],
-
-    "@metafor/bulk": ["@metafor/bulk@workspace:bulk"],
-
-    "@metafor/dark": ["@metafor/dark@workspace:dark"],
-
-    "@metafor/energy": ["@metafor/energy@workspace:energy"],
-
     "@metafor/engine": ["@metafor/engine@workspace:pkg/engine"],
 
     "@metafor/interpreter": ["@metafor/interpreter@workspace:pkg/interpreter"],
@@ -1200,7 +1192,11 @@
 
     "balanced-match": ["balanced-match@4.0.4", "", {}, "sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA=="],
 
+    "boundary": ["boundary@workspace:boundary"],
+
     "brace-expansion": ["brace-expansion@5.0.5", "", { "dependencies": { "balanced-match": "^4.0.2" } }, "sha512-VZznLgtwhn+Mact9tfiwx64fA9erHH/MCXEUfB/0bX/6Fz6ny5EGTXYltMocqg4xFAQZtnO3DHWWXi8RiuN7cQ=="],
+
+    "bulk": ["bulk@workspace:bulk"],
 
     "bun-types": ["bun-types@1.3.11", "", { "dependencies": { "@types/node": "*" } }, "sha512-1KGPpoxQWl9f6wcZh57LvrPIInQMn2TQ7jsgxqpRzg+l0QPOFvJVH7HmvHo/AiPgwXy+/Thf6Ov3EdVn1vOabg=="],
 
@@ -1222,9 +1218,13 @@
 
     "create-metafor": ["create-metafor@workspace:create-metafor"],
 
+    "dark": ["dark@workspace:dark"],
+
     "dts-bundle-generator": ["dts-bundle-generator@9.5.1", "https://registry.yarnpkg.com/dts-bundle-generator/-/dts-bundle-generator-9.5.1.tgz", { "dependencies": { "typescript": ">=5.0.2", "yargs": "^17.6.0" }, "bin": { "dts-bundle-generator": "dist/bin/dts-bundle-generator.js" } }, "sha512-DxpJOb2FNnEyOzMkG11sxO2dmxPjthoVWxfKqWYJ/bI/rT1rvTMktF5EKjAYrRZu6Z6t3NhOUZ0sZ5ZXevOfbA=="],
 
     "emoji-regex": ["emoji-regex@8.0.0", "https://registry.yarnpkg.com/emoji-regex/-/emoji-regex-8.0.0.tgz", {}, "sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A=="],
+
+    "energy": ["energy@workspace:energy"],
 
     "entities": ["entities@4.5.0", "https://registry.yarnpkg.com/entities/-/entities-4.5.0.tgz", {}, "sha512-V0hjH4dGPh9Ao5p0MoRY6BVqtwCjhz6vI5LT8AJ55H+4g9/4vbHx1I54fS0XuclLhDHArPQCiMjDxjaL8fPxhw=="],
 

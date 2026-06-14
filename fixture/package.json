@@ -2,7 +2,7 @@
   "name": "fixture",
   "private": true,
   "devDependencies": {
-    "@metafor/boundary": "workspace:*"
+    "boundary": "workspace:*"
   },
   "peerDependencies": {
     "typescript": "^5"

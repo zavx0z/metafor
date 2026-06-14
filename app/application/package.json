@@ -9,8 +9,8 @@
     "energy": "bun --hot energy.server.ts"
   },
   "dependencies": {
-    "@metafor/dark": "workspace:*",
-    "@metafor/energy": "workspace:*",
-    "@metafor/boundary": "workspace:*"
+    "dark": "workspace:*",
+    "energy": "workspace:*",
+    "boundary": "workspace:*"
   }
 }

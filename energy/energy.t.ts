@@ -1,5 +1,5 @@
 /**
- * Типы для @energy/energy.
+ * Типы для energy.
  *
  * @packageDocumentation
  */

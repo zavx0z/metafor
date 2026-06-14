@@ -4,6 +4,6 @@
   "main": "index.ts",
   "private": true,
   "dependencies": {
-    "@metafor/boundary": "workspace:*"
+    "boundary": "workspace:*"
   }
 }

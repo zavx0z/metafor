@@ -1,4 +1,4 @@
-/** Типы для `@energy/energy/store`. */
+/** Типы для `energy/store`. */
 
 import type { ConditionOperator, FieldTypeValue } from "@energy/gravity"
 

@@ -1,9 +1,9 @@
-import type {ServerWebSocket} from "bun"
-import {force} from "@metafor/boundary"
+import type {Server, ServerWebSocket} from "bun"
+import {force} from "boundary"
 
 type ForceSocketData = {kind: "force"}
 
-await import("@metafor/energy/server")
+await import("energy/server")
 
 const port = Number(process.env.APPLICATION_ENERGY_PORT ?? 7102)
 const sockets = new Set<ServerWebSocket<ForceSocketData>>()
@@ -19,7 +19,7 @@ Bun.serve<ForceSocketData>({
   hostname: "127.0.0.1",
   port,
   routes: {
-    "/ws": (req, server) =>
+    "/ws": (req: Request, server: Server<ForceSocketData>) =>
       server.upgrade(req, {data: {kind: "force"}}) ? undefined : new Response("WebSocket upgrade failed", {status: 426}),
   },
   websocket: {

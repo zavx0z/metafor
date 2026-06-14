@@ -82,8 +82,8 @@ Dark -> персистентная форма Boundary -> Force/рантайм-�
 Текущий публичный вход Boundary должен читаться через персистентный API:
 
 ```ts
-import { open } from "@metafor/boundary/sqlite"
-import { force } from "@metafor/boundary/force"
+import { open } from "boundary/sqlite"
+import { force } from "boundary/force"
 ```
 
 Внутренние ORM-области:

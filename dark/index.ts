@@ -1,4 +1,4 @@
-import {open} from "@metafor/boundary/sqlite"
+import {open} from "boundary/sqlite"
 import {matter} from "./dark.ts"
 export {matter}
 

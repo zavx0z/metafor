@@ -4,7 +4,7 @@ import type { MatterDeclaration, MatterSchema } from "./matter.t.ts"
 import type { ReactionsSchema } from "./reactions.t.ts"
 import type { SuperpositionInputCheck, SuperpositionStateKeys } from "./superposition.t.ts"
 import type { ReactionsDeclaration } from "./reactions.t.ts"
-import type { ParticleOperation } from "@metafor/boundary"
+import type { ParticleOperation } from "boundary"
 
 export type SRC = string
 export type FieldKey = string

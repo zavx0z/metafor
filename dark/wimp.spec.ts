@@ -1,7 +1,7 @@
 import {afterEach, beforeEach, describe, expect, test} from "bun:test"
 import {SQL} from "bun"
-import type {Boundary} from "@metafor/boundary"
-import {open} from "@metafor/boundary/sqlite"
+import type {Boundary} from "boundary"
+import {open} from "boundary/sqlite"
 import {matter} from "./index.ts"
 import {loadMeta} from "./load.ts"
 

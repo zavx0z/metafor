@@ -1,4 +1,4 @@
-import type { Particle } from "@metafor/boundary"
+import type { Particle } from "boundary"
 
 export type { Particle }
 
