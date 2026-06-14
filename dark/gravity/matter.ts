@@ -124,40 +124,45 @@ const projectTemplateMatterNode = (meta: MetaDSL, node: NodeType): MatterRelatio
 export const projectTemplateMatterRelations = (meta: MetaDSL): MatterRelationParticle[] =>
   (meta.matter ?? []).flatMap((node) => projectTemplateMatterNode(meta, node))
 
-export const projectStoreMatterParticles = (particles: MatterRelationParticle[]): MatterParticlePlan[] =>
-  particles.map((particle): MatterParticlePlan => {
-    const children =
-      particle.children !== undefined && particle.children.length > 0
-        ? projectStoreMatterParticles(particle.children.map((child) => child.particle))
-        : undefined
+const projectStoreMatterParticle = (particle: MatterRelationParticle): MatterParticlePlan => {
+  const children =
+    particle.children !== undefined && particle.children.length > 0
+      ? particle.children.map((child) => ({
+          edgeSlot: child.edgeSlot,
+          particle: projectStoreMatterParticle(child.particle),
+        }))
+      : undefined
 
-    switch (particle.kind) {
-      case "wimp":
-        return {
-          kind: "wimp",
-          src: particle.src,
-          ...(particle.fieldsBinding !== undefined ? { fieldsBinding: particle.fieldsBinding } : {}),
-          ...(particle.massBinding !== undefined ? { massBinding: particle.massBinding } : {}),
-          ...(children !== undefined ? { children } : {}),
-        }
-      case "fuzzy":
-        return {
-          kind: "fuzzy",
-          fuzzyKind: particle.fuzzyKind,
-          ...(particle.predicateBinding !== undefined ? { predicateBinding: particle.predicateBinding } : {}),
-          ...(children !== undefined ? { children } : {}),
-        }
-      case "axion":
-        return {
-          kind: "axion",
-          predicateBinding: particle.predicateBinding,
-          ...(children !== undefined ? { children } : {}),
-        }
-      case "macho":
-        return {
-          kind: "macho",
-          collectionBinding: particle.collectionBinding,
-          ...(children !== undefined ? { children } : {}),
-        }
-    }
-  })
+  switch (particle.kind) {
+    case "wimp":
+      return {
+        kind: "wimp",
+        src: particle.src,
+        ...(particle.fieldsBinding !== undefined ? { fieldsBinding: particle.fieldsBinding } : {}),
+        ...(particle.massBinding !== undefined ? { massBinding: particle.massBinding } : {}),
+        ...(children !== undefined ? { children } : {}),
+      }
+    case "fuzzy":
+      return {
+        kind: "fuzzy",
+        fuzzyKind: particle.fuzzyKind,
+        ...(particle.predicateBinding !== undefined ? { predicateBinding: particle.predicateBinding } : {}),
+        ...(children !== undefined ? { children } : {}),
+      }
+    case "axion":
+      return {
+        kind: "axion",
+        predicateBinding: particle.predicateBinding,
+        ...(children !== undefined ? { children } : {}),
+      }
+    case "macho":
+      return {
+        kind: "macho",
+        collectionBinding: particle.collectionBinding,
+        ...(children !== undefined ? { children } : {}),
+      }
+  }
+}
+
+export const projectStoreMatterParticles = (particles: MatterRelationParticle[]): MatterParticlePlan[] =>
+  particles.map(projectStoreMatterParticle)

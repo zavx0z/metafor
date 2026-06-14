@@ -1,4 +1,5 @@
 import type {Continuation} from "../continuation.ts"
+import type {MatterRelationChildEdgeSlot} from "../../store/wimp/sqlite/matter.t.ts"
 
 export type MatterBindingValue =
   | string
@@ -15,26 +16,26 @@ export interface MatterParticleWimpPlan {
   src: string
   fieldsBinding?: MatterRelationBindingValue
   massBinding?: MatterRelationBindingValue
-  children?: MatterParticlePlan[]
+  children?: MatterParticlePlanChild[]
 }
 
 export interface MatterParticleFuzzyPlan {
   kind: "fuzzy"
   fuzzyKind: "dynamic-meta" | "cond"
   predicateBinding?: MatterRelationBindingValue
-  children?: MatterParticlePlan[]
+  children?: MatterParticlePlanChild[]
 }
 
 export interface MatterParticleAxionPlan {
   kind: "axion"
   predicateBinding: MatterRelationBindingValue
-  children?: MatterParticlePlan[]
+  children?: MatterParticlePlanChild[]
 }
 
 export interface MatterParticleMachoPlan {
   kind: "macho"
   collectionBinding: MatterRelationBindingValue
-  children?: MatterParticlePlan[]
+  children?: MatterParticlePlanChild[]
 }
 
 export type MatterParticlePlan =
@@ -42,6 +43,11 @@ export type MatterParticlePlan =
   | MatterParticleFuzzyPlan
   | MatterParticleAxionPlan
   | MatterParticleMachoPlan
+
+export interface MatterParticlePlanChild {
+  edgeSlot: MatterRelationChildEdgeSlot
+  particle: MatterParticlePlan
+}
 
 export type ParticleRef = { kind: "actor"; uuid: string } | { kind: "topology"; uuid: string }
 

@@ -3,6 +3,7 @@ import {SQL} from "bun"
 import type {Store} from "../store/index.ts"
 import {open} from "../store/sqlite.ts"
 import {matter} from "./index.ts"
+import {loadMeta} from "./load.ts"
 
 describe("wimp normalization", () => {
   let store: Awaited<ReturnType<typeof open>>
@@ -39,5 +40,16 @@ describe("wimp normalization", () => {
 
     // Поле operation должно сохраниться.
     expect(secondFieldUuid?.key).toBe("operation")
+  })
+
+  test("materialization читает matter relation из store, а не повторно из DSL", async () => {
+    const dsl = await loadMeta("zavx0z/git")
+    await store.wimp.create("zavx0z/git", {...dsl, matter: []})
+
+    await matter("zavx0z/git")
+
+    const roots = await store.actor.roots.all()
+    expect(roots).toHaveLength(1)
+    expect(await store.topology.childrenOfActor(roots[0]!.uuid)).toHaveLength(0)
   })
 })

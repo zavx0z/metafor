@@ -82,8 +82,9 @@ async function* matterWimp(
   continuation: Continuation | undefined,
 ): AsyncGenerator<PendingChildWimp[], void, void> {
   const dsl = await loadMeta(src)
-  const matterRelations = projectTemplateMatterRelations(dsl)
-  const wimp = (await store.wimp.get(src)) ?? (await store.wimp.create(src, {...dsl, matter: matterRelations}))
+  const declarationMatterRelations = projectTemplateMatterRelations(dsl)
+  const wimp = (await store.wimp.get(src)) ?? (await store.wimp.create(src, {...dsl, matter: declarationMatterRelations}))
+  const matterRelations = await wimp.matter.all()
 
   // ACTOR: переходим от Wimp-декларации к runtime-экземпляру.
   // fieldSchemas — схема полей Wimp; finalValues — значения полей Actor.
@@ -177,7 +178,7 @@ async function* matterWimp(
             kind: entry.plan.kind,
           })
           for (const child of entry.plan.children ?? []) {
-            next.push({plan: child, parent: {kind: "topology", uuid: topologyUuid}})
+            next.push({plan: child.particle, parent: {kind: "topology", uuid: topologyUuid}})
           }
           break
         }
