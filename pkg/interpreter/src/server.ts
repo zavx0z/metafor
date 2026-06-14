@@ -1029,6 +1029,7 @@ function runtimeFallbackContext(module: ModuleSnapshot): JsonObject {
       focused: false,
       pendingInput: "",
       promptVisible: false,
+      selection: null,
     },
   }
 }

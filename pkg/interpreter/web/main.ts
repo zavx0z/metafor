@@ -40,6 +40,7 @@ import {
   type PaneFrameDrag,
   type PaneFrameInteractionOpts,
   type TerminalInputSource,
+  type TerminalSelectionSnapshot,
   type TerminalPaneOpts,
   type TerminalSize,
   type TerminalStatusKind,
@@ -231,6 +232,7 @@ type SourceInteractionContext = {
   selection: SourceSelectionContext | null
   selections: SourceSelectionContext[]
 }
+type TerminalSelectionContext = TerminalSelectionSnapshot
 type ModuleCurrentContext = {
   processId: string
   moduleId: string
@@ -259,6 +261,7 @@ type ModuleCurrentContext = {
     focused: boolean
     pendingInput: string
     promptVisible: boolean
+    selection: TerminalSelectionContext | null
   }
   hud: {
     todo: ToDoPaneContextSnapshot | null
@@ -435,6 +438,7 @@ type ProcessWorkspaceInfo = {
       focused: boolean
       pendingInput: string
       promptVisible: boolean
+      selection: TerminalSelectionContext | null
       textTail: string[]
     }
     activeCommand: ActiveInterpreterCommand | null
@@ -1761,6 +1765,7 @@ function processWorkspaceInfo(moduleId: string, display: ModuleDisplayInfo | nul
         focused: controller?.terminal.isFocused() ?? false,
         pendingInput: controller?.terminalInput.buffer ?? "",
         promptVisible: controller?.terminalInput.promptVisible ?? false,
+        selection: controller?.terminal.selectionSnapshot() ?? null,
         textTail: controller === undefined ? [] : terminalTextTail(controller.terminal, 20),
       },
       activeCommand: controller?.activeCommand ?? null,
@@ -1865,6 +1870,7 @@ function moduleCurrentContextPayload(controller: ModuleDisplayController): Modul
       focused: controller.terminal.isFocused(),
       pendingInput: controller.terminalInput.buffer,
       promptVisible: controller.terminalInput.promptVisible,
+      selection: controller.terminal.selectionSnapshot(),
     },
     hud: {
       todo: todoContextSnapshot(),

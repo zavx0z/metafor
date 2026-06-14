@@ -29,6 +29,13 @@ describe("TerminalPane selection", () => {
       terminal.setSelection(0, 2, 1, 2)
       expect(terminal.hasSelection()).toBe(true)
       expect(terminal.getSelectedText()).toBe("pha\nbe")
+      expect(terminal.selectionSnapshot()).toEqual({
+        anchor: {line: 0, col: 2},
+        focus: {line: 1, col: 2},
+        start: {line: 0, col: 2},
+        end: {line: 1, col: 2},
+        text: "pha\nbe",
+      })
     } finally {
       terminal.dispose()
     }

@@ -41,6 +41,18 @@ export type TerminalStatusKind = "idle" | "connected" | "running" | "disconnecte
 
 export type TerminalInputSource = "keyboard" | "paste" | "api"
 
+export type TerminalSelectionSnapshot = {
+  /** 0-based terminal output line. */
+  anchor: TextPosition
+  /** 0-based terminal output line. */
+  focus: TextPosition
+  /** 0-based terminal output line. */
+  start: TextPosition
+  /** 0-based terminal output line. */
+  end: TextPosition
+  text: string
+}
+
 export type TerminalHeaderControl = {
   label: string
   iconSrc: string
@@ -509,6 +521,18 @@ class TerminalOutputPane extends UiSurface {
 
   getSelectedText(): string {
     return this.#selectedText() ?? ""
+  }
+
+  selectionSnapshot(): TerminalSelectionSnapshot | null {
+    const range = this.#selectionRange()
+    if (range === null || this.#selectionAnchor === null || this.#selectionFocus === null) return null
+    return {
+      anchor: {...this.#selectionAnchor},
+      focus: {...this.#selectionFocus},
+      start: {...range.start},
+      end: {...range.end},
+      text: this.#selectedText() ?? "",
+    }
   }
 
   clearSelection(): void {
