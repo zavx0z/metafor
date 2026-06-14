@@ -86,7 +86,7 @@ MetaFor UI является основным frontend интерпретатор
 
 SQLite HUD открывается из CLI входа `.sqlite` или через `POST /sqlite/open`. Панель можно свернуть и развернуть через `/hud/sqlite/dock|show|toggle`; свернутое состояние живет в HUD dock как отдельная вкладка, наравне с TODO и host terminal.
 
-Открытая SQLite-панель обновляет выбранную таблицу автоматически: UI раз в секунду проверяет дешевый `/sqlite/fingerprint` для основного файла database и его `-wal`, а полный `/sqlite` payload перечитывает только если `version` изменился. `-shm` отдается только диагностически, потому что обычное чтение SQLite может менять shared-memory файл. Свернутая панель не поллит database.
+Открытая SQLite-панель обновляет выбранную таблицу автоматически по server-push событию. Сервер регистрирует watcher для открытого SQLite path, проверяет дешевый fingerprint main database и `-wal` после файлового события и отправляет UI `sqlite-changed` через `/ws`, если `version` изменился. UI не поллит `/sqlite/fingerprint`; полный `/sqlite` payload перечитывается только по `sqlite-changed` или явному действию пользователя. `-shm` отдается только диагностически, потому что обычное чтение SQLite может менять shared-memory файл. Свернутая панель не перечитывает database до раскрытия.
 
 Таблица ведет себя как row-based inspector:
 

@@ -204,7 +204,7 @@ POST   /sqlite/cell
 
 `GET /hud/sqlite` возвращает состояние панели, включая активную базу, `rect`, `dockPlacement`, список открытых баз и выбранные строки текущей таблицы.
 
-`GET /sqlite?path=<file.sqlite>&table=<name>` возвращает tables, schema и rows для просмотра таблицы. `version` в данных строится по основному файлу и `-wal`; `-shm` возвращается в diagnostic `files`, но не участвует в версии, потому что чтение SQLite само может менять shared-memory файл. UI сравнивает `version` с `GET /sqlite/fingerprint?path=<file.sqlite>` и перечитывает rows только при изменении. `POST /sqlite/open` с `{"path":"dark/tmp/boundary.sqlite"}` открывает базу в HUD.
+`GET /sqlite?path=<file.sqlite>&table=<name>` возвращает tables, schema и rows для просмотра таблицы. `version` в данных строится по основному файлу и `-wal`; `-shm` возвращается в diagnostic `files`, но не участвует в версии, потому что чтение SQLite само может менять shared-memory файл. Сервер регистрирует watcher на database path и через `/ws` отправляет событие `sqlite-changed`, когда fingerprint main/WAL меняется. UI не поллит `/sqlite/fingerprint`: он перечитывает rows только по `sqlite-changed` или по явному действию пользователя. `POST /sqlite/open` с `{"path":"dark/tmp/boundary.sqlite"}` открывает базу в HUD.
 
 `POST /sqlite/cell` редактирует одну ячейку по SQLite `rowid`:
 
@@ -415,6 +415,12 @@ GET  /hud/terminal/sessions
 
 ```json
 {"type":"command","moduleId":"syntax","cmd":"resume","params":{},"requestId":2}
+```
+
+SQLite HUD получает server-push событие, когда watcher на сервере видит изменение main database или WAL:
+
+```json
+{"type":"sqlite-changed","path":"/repo/dark/tmp/boundary.sqlite","label":"dark/tmp/boundary.sqlite","version":"main:...|wal:...","available":true}
 ```
 
 Публичный agent-facing API должен использовать REST-маршруты `/context`, `/space` и `/processes/:id/...`.

@@ -82,7 +82,9 @@ function parseModuleParams(params: string[]): {params: string[]; env: Record<str
   for (const param of params) {
     const match = /^--?env\.([A-Za-z_][A-Za-z0-9_]*)=(.*)$/.exec(param)
     if (match) {
-      env[match[1]] = match[2]
+      const [, key, value] = match
+      if (key === undefined || value === undefined) continue
+      env[key] = value
       continue
     }
     rest.push(param)

@@ -13,8 +13,8 @@
  */
 
 import type {ServerWebSocket, WebSocketHandler} from "bun"
-import {existsSync, statSync, openSync, readSync, closeSync, readFileSync, writeFileSync} from "node:fs"
-import {join, relative, resolve} from "node:path"
+import {existsSync, statSync, openSync, readSync, closeSync, readFileSync, writeFileSync, watch, type FSWatcher} from "node:fs"
+import {basename, dirname, join, relative, resolve} from "node:path"
 import {fileURLToPath} from "node:url"
 import indexHtml from "../web/index.html"
 
@@ -38,7 +38,7 @@ import {createPtySessionManager, parsePtyClientMessage, type PtySocketData, type
 import type {InterpreterModule, InterpreterModuleManager, StartupModuleOptions} from "./module.ts"
 import type {BreakpointSpec} from "./target.ts"
 import {workspaceFilesPayload, type WorkspaceFilesModuleContext} from "./workspace-files.ts"
-import {sqliteDatabaseFingerprint, sqliteDatabaseInputPath, sqliteDatabasePayload, sqliteJsonError, updateSqliteCell} from "./sqlite-db.ts"
+import {sqliteDatabaseFingerprint, sqliteDatabaseInputPath, sqliteDatabasePayload, sqliteJsonError, updateSqliteCell, type SqliteDatabaseFingerprint, type SqliteDatabasePayload} from "./sqlite-db.ts"
 import {
   deleteTodoMarkdownItem,
   insertTodoMarkdownItem,
@@ -75,6 +75,7 @@ type WsClientData = UiWsClientData | TerminalWsClientData
 const NDJSON_TAIL_DEFAULT_LIMIT = 200
 const NDJSON_TAIL_MAX_LIMIT = 5_000
 const UI_HOST_COMMAND_TIMEOUT_MS = 8_000
+const SQLITE_WATCH_DEBOUNCE_MS = 140
 const VALID_STOP_SIGNALS = new Set(["SIGTERM", "SIGKILL", "SIGINT", "SIGHUP", "SIGQUIT"])
 type InterpreterTerminalSessionManager = ReturnType<typeof createPtySessionManager>
 type UiHostCommandDispatcher = (command: string, params: JsonObject) => Promise<JsonObject>
@@ -100,6 +101,14 @@ type SourcePatchReplayResult = {
 }
 type HudTodoContextStore = {context: JsonObject | null}
 type HudSqliteContextStore = {context: JsonObject | null}
+type SqliteWatchEntry = {
+  path: string
+  label: string
+  version: string | null
+  timer: ReturnType<typeof setTimeout> | null
+  watchers: FSWatcher[]
+  watchedTargets: Set<string>
+}
 
 class UiHostCommandError extends Error {
   readonly status: number
@@ -117,6 +126,145 @@ const terminalSessionsGlobal = globalThis as typeof globalThis & {
 function interpreterTerminalSessions(): InterpreterTerminalSessionManager {
   terminalSessionsGlobal.__metaforInterpreterTerminalSessions ??= createPtySessionManager()
   return terminalSessionsGlobal.__metaforInterpreterTerminalSessions
+}
+
+function createSqliteWatchRegistry(
+  broadcast: (payload: JsonObject) => void,
+  logger: EventLogger,
+): {
+  register(input: string): string | null
+  acceptPayload(payload: Pick<SqliteDatabasePayload, "path" | "label" | "version">): void
+  acceptFingerprint(fingerprint: SqliteDatabaseFingerprint): void
+} {
+  const entries = new Map<string, SqliteWatchEntry>()
+
+  const register = (input: string): string | null => {
+    let path: string
+    try {
+      path = sqliteDatabaseInputPath(input)
+    } catch (error) {
+      logger.event("sqlite.watch.invalid_path", {path: input, error: serializeError(error)})
+      return null
+    }
+    if (entries.has(path)) return path
+
+    const entry: SqliteWatchEntry = {
+      path,
+      label: basename(path),
+      version: null,
+      timer: null,
+      watchers: [],
+      watchedTargets: new Set(),
+    }
+    entries.set(path, entry)
+    primeSqliteWatchEntry(entry)
+    installSqliteWatchers(entry)
+    logger.event("sqlite.watch.started", {path})
+    return path
+  }
+
+  const acceptPayload = (payload: Pick<SqliteDatabasePayload, "path" | "label" | "version">): void => {
+    register(payload.path)
+    const entry = entries.get(payload.path)
+    if (entry === undefined) return
+    entry.label = payload.label
+    if (entry.version === payload.version) return
+    entry.version = payload.version
+    broadcast(sqliteChangedPayload(entry, true))
+  }
+
+  const acceptFingerprint = (fingerprint: SqliteDatabaseFingerprint): void => {
+    register(fingerprint.path)
+    const entry = entries.get(fingerprint.path)
+    if (entry === undefined) return
+    entry.label = fingerprint.label
+    entry.version = fingerprint.version
+  }
+
+  const primeSqliteWatchEntry = (entry: SqliteWatchEntry): void => {
+    try {
+      const fingerprint = sqliteDatabaseFingerprint(entry.path)
+      entry.label = fingerprint.label
+      entry.version = fingerprint.version
+    } catch {
+      entry.version = null
+    }
+  }
+
+  const installSqliteWatchers = (entry: SqliteWatchEntry): void => {
+    const base = basename(entry.path)
+    const interested = new Set([base, `${base}-wal`, `${base}-journal`])
+    addSqliteWatcher(entry, dirname(entry.path), (filename) => filename === null || interested.has(filename))
+    installSqliteFileWatchers(entry)
+  }
+
+  const installSqliteFileWatchers = (entry: SqliteWatchEntry): void => {
+    if (existsSync(entry.path)) addSqliteWatcher(entry, entry.path)
+    if (existsSync(`${entry.path}-wal`)) addSqliteWatcher(entry, `${entry.path}-wal`)
+  }
+
+  const addSqliteWatcher = (
+    entry: SqliteWatchEntry,
+    target: string,
+    accepts: (filename: string | null) => boolean = () => true,
+  ): void => {
+    if (entry.watchedTargets.has(target)) return
+    try {
+      const watcher = watch(target, {persistent: false}, (_event, filename) => {
+        const name = filename === null ? null : String(filename)
+        if (!accepts(name)) return
+        scheduleSqliteWatchCheck(entry)
+      })
+      entry.watchers.push(watcher)
+      entry.watchedTargets.add(target)
+    } catch (error) {
+      logger.event("sqlite.watch.failed", {path: entry.path, target, error: serializeError(error)})
+    }
+  }
+
+  const scheduleSqliteWatchCheck = (entry: SqliteWatchEntry): void => {
+    if (entry.timer !== null) clearTimeout(entry.timer)
+    entry.timer = setTimeout(() => {
+      entry.timer = null
+      checkSqliteWatchEntry(entry)
+    }, SQLITE_WATCH_DEBOUNCE_MS)
+  }
+
+  const checkSqliteWatchEntry = (entry: SqliteWatchEntry): void => {
+    try {
+      const fingerprint = sqliteDatabaseFingerprint(entry.path)
+      installSqliteFileWatchers(entry)
+      entry.label = fingerprint.label
+      if (entry.version === fingerprint.version) return
+      entry.version = fingerprint.version
+      broadcast(sqliteChangedPayload(entry, true))
+      logger.event("sqlite.watch.changed", {path: entry.path, version: entry.version})
+    } catch (error) {
+      if (entry.version === null) return
+      entry.version = null
+      broadcast({
+        type: "sqlite-changed",
+        path: entry.path,
+        label: entry.label,
+        version: null,
+        available: false,
+        error: serializeError(error),
+      })
+      logger.event("sqlite.watch.missing", {path: entry.path, error: serializeError(error)})
+    }
+  }
+
+  return {register, acceptPayload, acceptFingerprint}
+}
+
+function sqliteChangedPayload(entry: SqliteWatchEntry, available: boolean): JsonObject {
+  return {
+    type: "sqlite-changed",
+    path: entry.path,
+    label: entry.label,
+    version: entry.version,
+    available,
+  }
 }
 
 export function startHttpServer(options: HttpServerOptions): HttpServer {
@@ -143,6 +291,8 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
       if (client.readyState === 1) client.send(text)
     }
   }
+  const sqliteWatchRegistry = createSqliteWatchRegistry(broadcast, options.logger)
+  for (const path of options.startupSqliteDatabases ?? []) sqliteWatchRegistry.register(path)
 
   const dispatchUiHostCommand: UiHostCommandDispatcher = (command, params) => {
     const client = [...wsClients].find((item) => item.readyState === WebSocket.OPEN)
@@ -391,7 +541,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
 
       const start = Date.now()
       try {
-        const response = await handleRoute(method, path, url, req, options, moduleContexts, hudTodoContext, hudSqliteContext, broadcast, dispatchUiHostCommand)
+        const response = await handleRoute(method, path, url, req, options, moduleContexts, hudTodoContext, hudSqliteContext, broadcast, dispatchUiHostCommand, sqliteWatchRegistry)
         options.logger.event("http.request", {
           method,
           path,
@@ -600,7 +750,11 @@ async function dispatchUiHostRoute(command: string, params: JsonObject, dispatch
   }
 }
 
-async function openSqliteDisplayFromBody(req: Request, dispatch: UiHostCommandDispatcher): Promise<Response> {
+async function openSqliteDisplayFromBody(
+  req: Request,
+  dispatch: UiHostCommandDispatcher,
+  sqliteWatchRegistry: ReturnType<typeof createSqliteWatchRegistry>,
+): Promise<Response> {
   const parsed = await readJsonObject(req)
   if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
   const rawPath = asString(parsed.body["path"])
@@ -609,9 +763,11 @@ async function openSqliteDisplayFromBody(req: Request, dispatch: UiHostCommandDi
     ?? asString(parsed.body["database"])
   if (rawPath === undefined) return jsonResponse({ok: false, error: "sqlite.open requires path"}, 400)
   try {
+    const path = sqliteDatabaseInputPath(rawPath)
+    sqliteWatchRegistry.register(path)
     return await dispatchUiHostRoute("sqlite.open", {
       ...parsed.body,
-      path: sqliteDatabaseInputPath(rawPath),
+      path,
     }, dispatch)
   } catch (error) {
     return sqliteJsonError(error)
@@ -629,6 +785,7 @@ async function handleRoute(
   hudSqliteContext: HudSqliteContextStore,
   broadcast: (payload: JsonObject) => void,
   dispatchUiHostCommand: UiHostCommandDispatcher,
+  sqliteWatchRegistry: ReturnType<typeof createSqliteWatchRegistry>,
 ): Promise<Response> {
   if (method === "GET" && path === "/") return jsonResponse({service: "@metafor/interpreter", routes: routeIndex()})
   if (method === "GET" && path === "/health") return jsonResponse(healthPayload(options))
@@ -658,22 +815,30 @@ async function handleRoute(
   if (method === "DELETE" && todoItem !== null) return deleteTodoItem(decodePathParam(todoItem[1]!), broadcast)
   if (method === "GET" && path === "/sqlite") {
     try {
-      return jsonResponse(sqliteDatabasePayload(url))
+      sqliteWatchRegistry.register(url.searchParams.get("path") ?? "")
+      const payload = sqliteDatabasePayload(url)
+      sqliteWatchRegistry.acceptPayload(payload)
+      return jsonResponse(payload)
     } catch (error) {
       return sqliteJsonError(error)
     }
   }
   if (method === "GET" && path === "/sqlite/fingerprint") {
     try {
-      return jsonResponse(sqliteDatabaseFingerprint(url.searchParams.get("path") ?? ""))
+      sqliteWatchRegistry.register(url.searchParams.get("path") ?? "")
+      const fingerprint = sqliteDatabaseFingerprint(url.searchParams.get("path") ?? "")
+      sqliteWatchRegistry.acceptFingerprint(fingerprint)
+      return jsonResponse(fingerprint)
     } catch (error) {
       return sqliteJsonError(error)
     }
   }
-  if (method === "POST" && path === "/sqlite/open") return await openSqliteDisplayFromBody(req, dispatchUiHostCommand)
+  if (method === "POST" && path === "/sqlite/open") return await openSqliteDisplayFromBody(req, dispatchUiHostCommand, sqliteWatchRegistry)
   if (method === "POST" && path === "/sqlite/cell") {
     try {
-      return jsonResponse(await updateSqliteCell(req))
+      const payload = await updateSqliteCell(req)
+      sqliteWatchRegistry.acceptPayload(payload)
+      return jsonResponse(payload)
     } catch (error) {
       return sqliteJsonError(error)
     }
@@ -775,7 +940,7 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "POST", path: "/hud/sqlite/show", description: "развернуть SQLite HUD"},
     {method: "POST", path: "/hud/sqlite/toggle", description: "переключить SQLite HUD"},
     {method: "GET", path: "/sqlite?path=<file.sqlite>&table=<name>&notBefore=<iso>", description: "просмотреть SQLite database tables/schema/rows; notBefore отсекает файл предыдущего запуска"},
-    {method: "GET", path: "/sqlite/fingerprint?path=<file.sqlite>", description: "дешевый fingerprint SQLite database по main/WAL для UI refresh; SHM только diagnostic"},
+    {method: "GET", path: "/sqlite/fingerprint?path=<file.sqlite>", description: "дешевый fingerprint SQLite database по main/WAL для diagnostics/server watcher; SHM только diagnostic"},
     {method: "POST", path: "/sqlite/open", description: "{path} — открыть SQLite database в HUD"},
     {method: "POST", path: "/sqlite/cell", description: "{path, table, rowid, column, value} — обновить SQLite cell по rowid"},
     {method: "GET", path: "/events?since=<iso>&limit=<n>", description: "хвост event-лога"},
