@@ -1,4 +1,4 @@
-import {force, type Particle} from "store"
+import {force, type Particle} from "@metafor/boundary"
 
 export const gravityCH = force
 

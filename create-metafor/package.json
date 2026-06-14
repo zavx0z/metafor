@@ -43,7 +43,7 @@
     "clean": "rm -rf dist"
   },
   "devDependencies": {
-    "@store/wimp": "workspace:*"
+    "@boundary/wimp": "workspace:*"
   },
   "type": "module"
 }

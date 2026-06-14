@@ -2,15 +2,15 @@ import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import {SQL} from "bun"
 import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
-import type {Actor} from "@store/actor"
-import type {Store} from "../store/index.ts"
-import {open} from "../store/sqlite.ts"
+import type {Actor} from "@boundary/actor"
+import type {Boundary} from "@metafor/boundary"
+import {open} from "@metafor/boundary/sqlite"
 import {matter} from "./index.ts"
 
 const src = "zavx0z/git"
 
-describe("matter(zavx0z/git) → store", () => {
-  let store: Awaited<ReturnType<typeof open>>
+describe("matter(zavx0z/git) → boundary", () => {
+  let boundary: Awaited<ReturnType<typeof open>>
   let sql: SQL
   let root: Actor
   let tmpFile: string
@@ -19,18 +19,18 @@ describe("matter(zavx0z/git) → store", () => {
     const tmpDir = join(import.meta.dir, "tmp")
     mkdirSync(tmpDir, {recursive: true})
     tmpFile = join(tmpDir, `dark-spec-${crypto.randomUUID()}.sqlite`)
-    store = await open(tmpFile)
-    globalThis.store = store
+    boundary = await open(tmpFile)
+    globalThis.boundary = boundary
     sql = new SQL(`sqlite://${tmpFile}`)
     await matter(src)
-    const roots = await store.actor.roots.all()
+    const roots = await boundary.actor.roots.all()
     if (roots.length === 0) throw new Error("root actor not created")
     root = roots[0]!
   })
 
   afterAll(async () => {
     await sql.close()
-    await store.close()
+    await boundary.close()
     rmSync(tmpFile, {force: true})
     rmSync(`${tmpFile}-shm`, {force: true})
     rmSync(`${tmpFile}-wal`, {force: true})
@@ -45,19 +45,19 @@ describe("matter(zavx0z/git) → store", () => {
   })
 
   test("у root есть topology-узлы Fuzzy и Axion (первый слой git)", async () => {
-    const topology = await store.topology.childrenOfActor(root.uuid)
+    const topology = await boundary.topology.childrenOfActor(root.uuid)
     const kinds = topology.map((t) => t.kind).sort()
     expect(kinds).toEqual(["axion", "fuzzy"])
   })
 
   test("Fuzzy раскрыт на статические Wimp-ветви соответствующие values enum operation", async () => {
-    const topology = await store.topology.childrenOfActor(root.uuid)
+    const topology = await boundary.topology.childrenOfActor(root.uuid)
     const fuzzy = topology.find((t) => t.kind === "fuzzy")
     if (!fuzzy) throw new Error("fuzzy missing")
-    const branches = await store
+    const branches = await boundary
       .actor.head(root.uuid) // sanity
       .then(() =>
-        store.wimp
+        boundary.wimp
           .get(src)
           .then((w) => w!.fields.get({key: "operation"}))
           .then((field) =>
@@ -78,7 +78,7 @@ describe("matter(zavx0z/git) → store", () => {
   })
 
   test("под Axion ровно один child wimp — zavx0z/git-error", async () => {
-    const topology = await store.topology.childrenOfActor(root.uuid)
+    const topology = await boundary.topology.childrenOfActor(root.uuid)
     const axion = topology.find((t) => t.kind === "axion")
     if (!axion) throw new Error("axion missing")
     const wimps = await sql<Array<{wimp: string}>>`
@@ -91,7 +91,7 @@ describe("matter(zavx0z/git) → store", () => {
   test("entanglement: поле args дочернего git-start должно share value.uuid с args корневого git", async () => {
     // Под fuzzy → wimp git-start. У wimp git-start есть поле args (мapping от parent).
     // root.args значение null (default), и git-start.args тоже null — но через shared value.uuid.
-    const topology = await store.topology.childrenOfActor(root.uuid)
+    const topology = await boundary.topology.childrenOfActor(root.uuid)
     const fuzzy = topology.find((t) => t.kind === "fuzzy")!
     const startRow = (
       await sql<Array<{uuid: string}>>`
@@ -114,8 +114,8 @@ describe("matter(zavx0z/git) → store", () => {
     expect(rootArgsField).toBeDefined()
     expect(startArgsField).toBeDefined()
 
-    const rootLink = await store.actor.link.get(root.uuid, rootArgsField!)
-    const startLink = await store.actor.link.get(startRow.uuid, startArgsField!)
+    const rootLink = await boundary.actor.link.get(root.uuid, rootArgsField!)
+    const startLink = await boundary.actor.link.get(startRow.uuid, startArgsField!)
     const rootValue = await rootLink!.value()
     const startValue = await startLink!.value()
     // entanglement через shared value.uuid

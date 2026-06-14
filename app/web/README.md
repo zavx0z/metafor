@@ -1,4 +1,4 @@
-# Web
+# Веб
 
 ```bash
 bun run dev
@@ -6,11 +6,11 @@ bun run dev
 
 Открой `http://localhost:3000`.
 
-- `app/web/client.ts` только импортирует `../../bulk`, а серверный runtime поднимает `dark`/`boundary`/`bulk` worker-ы отдельно от браузерного viewport
-- `dark/web.ts` загружает dark-домен в worker и открывает browser `IndexedDB` backend
-- `boundary/web.ts` загружает boundary-домен в worker, открывает browser `IndexedDB` backend и поднимает Force subscriptions внутри worker
-- `app/web/server.ts` поднимает server-side `boundary`, `dark` и `bulk` worker-ы поверх общего file-backed SQLite backend (`app/web/tmp/metafor-app.sqlite`) c `WAL`, зеркалит единый Force channel в UI, принимает входные parts с `part: "gluon" | "higgs"` через `/ws` и исполняет `Bulk × Weak` процессы по `Photon -> +Z/-Z/W`
-- Подробный разбор materialize/force/process handoff: `app/web/INTERACTION_FLOW.md`
+- `app/web/client.ts` только импортирует `../../bulk`, а серверный рантайм поднимает `dark`/`boundary`/`bulk` отдельно от браузерного видового клиента.
+- `Dark` может работать совместно с `Boundary`: он открывает boundary-хранилище и материализует каноническую форму.
+- `Energy` и `Bulk` не открывают `Boundary`/SQLite и не синхронизируют базу. Это рантайм-слои.
+- `Bulk` должен получать события проекции/рантайма в реальном времени и вести собственный рантайм проекции; `AppWeb` получает уже готовые события рендера / строки мира.
+- Подробный разбор передачи materialize/force/process: `app/web/INTERACTION_FLOW.md`
 
 ## TLS
 
@@ -42,7 +42,7 @@ app/web/tls/privkey.pem
 
 Продление — повторным запуском того же скрипта (`certbot` сам пропустит, если срок ещё есть, благодаря `--keep-until-expiring`). Для автоматики — `cron` или `systemd timer` раз в сутки.
 
-### Self-signed сертификат (по IP или для dev)
+### Самоподписанный сертификат (по IP или для разработки)
 
 Let's Encrypt **не выпускает на голые IP**. Для доступа по IP или для локальной разработки — self-signed через `scripts/tls-selfsigned.sh` (требуется `openssl`).
 

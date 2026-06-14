@@ -1,0 +1,9 @@
+{
+  "name": "@boundary/actor",
+  "type": "module",
+  "exports": {
+    ".": "./index.ts",
+    "./sqlite": "./sqlite/index.ts"
+  },
+  "private": true
+}

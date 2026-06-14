@@ -4,7 +4,7 @@ import type {
   DbParticleKind,
   DbParticleShellRow,
   DbWorldRows,
-} from "@store/actor"
+} from "@boundary/actor"
 import { resolveLevelGeometry, type LevelGeometry } from "../level"
 import type { BulkLayoutSettings } from "./settings.t"
 import {

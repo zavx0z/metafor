@@ -16,7 +16,7 @@
     "@dark/types": "workspace:*",
     "@dark/gravity": "workspace:*",
     "@dark/em": "workspace:*",
-    "@store/wimp": "workspace:*",
-    "store": "workspace:*"
+    "@boundary/wimp": "workspace:*",
+    "@metafor/boundary": "workspace:*"
   }
 }

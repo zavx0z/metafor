@@ -10,7 +10,7 @@
   },
   "private": true,
   "dependencies": {
-    "@store/actor": "workspace:*",
-    "store": "workspace:*"
+    "@boundary/actor": "workspace:*",
+    "@metafor/boundary": "workspace:*"
   }
 }

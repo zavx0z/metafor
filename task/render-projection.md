@@ -1,47 +1,36 @@
-# Render projection — граница store и визуального слоя
+# Рендер-Проекция
 
-Дата: 2026-04-26. Детализация к `task/store-unification.md`.
+Дата актуализации: 2026-06-14.
 
-## Проверенный текущий факт
+Рендер-проекция принадлежит рантайму `Bulk`.
+Она не является частью персистентного `Boundary` и не должна импортироваться из
+`boundary.actor`.
 
-`bulk/web` и `bulk/gravity/layout` сейчас импортируют render-row типы из
-`@store/actor`:
+## Инварианты
 
-- `DbParticleShellRow`;
-- `DbFieldOrbitRow`;
-- `DbWorldRows`;
-- `DbActorStore`.
+- `Dark` материализует структуру в `Boundary`.
+- `Boundary` фиксирует персистентные `wimp`/`actor`/`topology`.
+- `Energy` получает рантайм-данные и ведёт переход состояния.
+- `Bulk` получает события проекции/рантайма и проявляет сцену.
+- `Bulk` не читает `Boundary`/SQLite как скрытый загрузчик.
+- `AppWeb` получает готовые события рендера / строки мира и остаётся вьюпорт-клиентом.
 
-Текущий `@store/actor` этих типов не экспортирует. Это не просто missing export:
-render rows больше не должны быть частью canonical actor store.
+## Контракт Проекции
 
-## Где сейчас живёт layout/render config
+Проекция должна быть отдельным Bulk-контрактом:
 
-- Domain layout law: `bulk/gravity/layout/settings.t.ts` (`BulkLayoutSettings`).
-- Snapshot config: `bulk/gravity/layout/settings.ts`.
-- App/web viewport/camera constants: `app/web/settings.ts`
-  (`appWebLayoutConfig.viewport`).
-- User UI settings persisted in IDB: `app/web/ui-settings-idb.ts`.
-- Transient viewport runtime state lives in `bulk/web/index.ts`.
+- shell carriers;
+- field orbits;
+- parent/depth/topology relation;
+- layout coordinates в Z-up/mm;
+- colors/labels/visibility;
+- инкрементальные события upsert/remove.
 
-## Target boundary
-
-Canonical store:
-
-- `store.meta` — декларации;
-- `store.actor` — actors, values, links, state.
-
-Render projection:
-
-- reads `meta + actor + layout settings`;
-- produces `DbWorldRows` or incremental row events;
-- may cache rows in browser/server for performance;
-- is invalidated by store events;
-- is not source of truth.
+Эти данные могут кешироваться внутри рантайма `Bulk` или серверной проекции,
+но не становятся персистентной истиной.
 
 ## Следующий шаг
 
-Вернуть render-row types/API в Bulk/render module, не в `@store/actor`.
-После этого `app/web/client.ts`, `app/web/runtime/dark.worker.ts` и
-`bulk/gravity/layout/*` должны перестать ожидать `createIdbDbActorStore` /
-`createSqliteDbActorStore` от canonical actor package.
+Собрать минимальный модуль рендер-проекции `Bulk` и перевести `bulk/web`,
+`bulk/gravity/layout` и `app/web` на него без чтения БД `Boundary` и без
+браузерного IDB-зеркала.

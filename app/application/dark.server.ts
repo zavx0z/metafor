@@ -3,19 +3,19 @@ import type {ServerWebSocket} from "bun"
 
 type ForceSocketData = {kind: "force"}
 
-const STORE_PATH = process.env.STORE_PATH ?? "./dark.sqlite"
+const BOUNDARY_PATH = process.env.BOUNDARY_PATH ?? "./boundary.sqlite"
 
-for (const path of [STORE_PATH, `${STORE_PATH}-wal`, `${STORE_PATH}-shm`]) rmSync(path, {force: true})
+for (const path of [BOUNDARY_PATH, `${BOUNDARY_PATH}-wal`, `${BOUNDARY_PATH}-shm`]) rmSync(path, {force: true})
 
 await import("@metafor/dark/server")
 
 const port = Number(process.env.APPLICATION_DARK_PORT ?? 7101)
-const peerUrl = process.env.APPLICATION_BOUNDARY_URL ?? "ws://127.0.0.1:7102/ws"
-const store = globalThis.store
+const peerUrl = process.env.APPLICATION_ENERGY_URL ?? "ws://127.0.0.1:7102/ws"
+const boundary = globalThis.boundary
 const sockets = new Set<ServerWebSocket<ForceSocketData>>()
 const peer = new WebSocket(peerUrl)
 
-store.entropy((event) => {
+boundary.entropy((event) => {
   const payload = JSON.stringify(event.data)
   for (const socket of sockets) {
     if (socket.readyState === WebSocket.OPEN) socket.send(payload)
@@ -24,12 +24,11 @@ store.entropy((event) => {
 })
 
 peer.addEventListener("message", (event) => {
-  void store.absorb(JSON.parse(String(event.data)))
+  void boundary.absorb(JSON.parse(String(event.data)))
 })
 peer.addEventListener("error", () => peer.close())
-peer.addEventListener("open", () => {
-  store.emit({parts: [{part: "graviton", op: "test", path: "wimp", value: "zavx0z/git"}]})
-}, {once: true})
+
+boundary.emit({parts: [{part: "graviton", op: "test", path: "wimp", value: "zavx0z/git"}]})
 
 Bun.serve<ForceSocketData>({
   hostname: "127.0.0.1",
@@ -43,7 +42,7 @@ Bun.serve<ForceSocketData>({
       sockets.add(socket)
     },
     message(_socket, data) {
-      void store.absorb(JSON.parse(String(data)))
+      void boundary.absorb(JSON.parse(String(data)))
     },
     close(socket) {
       sockets.delete(socket)

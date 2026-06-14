@@ -1,35 +1,68 @@
-export {
-  FieldType,
-  addRuntimeWimp,
-  applyStructuralPartFromDb,
-  applyWeakResultPacket,
-  boundary$,
-  flattenBoundaryData,
-  gravity$,
-  listRuntimeWimpIds,
-  prepareData,
-  prepareRuntimeData,
-  prepareRuntimeFromDb,
-  prepareRuntimeStore,
-  rebuildRuntime,
-  removeRuntimeWimp,
-  setValues,
-  strong$,
-  subscribeBoundaryGluonBroadcast,
-  subscribeBoundaryGravityBroadcast,
-  subscribeBoundaryHiggsBroadcast,
-  subscribeBoundaryWeakResultBroadcast,
-  unlock,
-  update,
-  write,
-  writeRuntimeFromDb,
-} from "./boundary.ts"
-export type {
-  BoundaryBroadcastSubscription,
-  BoundaryGravityBroadcastSubscription,
-  BoundaryStructuralPart,
-  BoundaryValueBroadcastSubscription,
-  BoundaryWeakBroadcastSubscription,
-  BoundaryGravityStore,
-  PreparedData,
-} from "./boundary.ts"
+import type {Actor, ActorRecord, ActorRoots, AnyValue, ActorFieldValue, ActorRows} from "@boundary/actor"
+import type {AnyTopology, TopologyInput, TopologyRecord} from "@boundary/topology"
+import type {Wimp, WimpCreateInput} from "@boundary/wimp/sqlite"
+import type {BoundaryUpdateMessage} from "./sqlite.ts"
+import type {ForceSurface} from "./force.ts"
+
+export {METAFOR_FORCE_CHANNEL, force} from "./force.ts"
+export type {Force, ForceBinding, ForceMessage, ForceMessageListener, ForceSurface, ParticleOperation, Part, Particle} from "./force.ts"
+export {open} from "./sqlite.ts"
+export type {BoundaryPart, BoundaryParticle, BoundaryUpdateMessage} from "./sqlite.ts"
+
+export interface WimpApi {
+  /** Дешевая проверка существования декларации без создания ORM-объекта. */
+  exists(src: string): Promise<boolean>
+
+  /**
+   * Создаёт wimp-декларацию одним ORM-входом.
+   * Все параметры опциональны; Boundary после записи отправляет `particles`.
+   */
+  create(src: string, input?: WimpCreateInput): Promise<Wimp>
+
+  get(src: string): Promise<Wimp | null>
+}
+
+export interface ValueApi {
+  get(uuid: string): Promise<AnyValue | null>
+}
+
+export interface LinkApi {
+  get(actor: string, field: string): Promise<ActorFieldValue | null>
+}
+
+export interface ActorApi {
+  /** Записывает actor snapshot одной транзакцией: head + values + actor_state. */
+  create(rows: ActorRows): Promise<Actor>
+
+  get(uuid: string): Promise<Actor | null>
+
+  findByParent(input: {
+    wimp: string
+    parent: {kind: "actor"; uuid: string} | {kind: "topology"; uuid: string} | null
+  }): Promise<Actor | null>
+
+  head(uuid: string): Promise<ActorRecord | null>
+
+  readonly roots: ActorRoots
+  readonly value: ValueApi
+  readonly link: LinkApi
+}
+
+export interface TopologyApi {
+  /** Создаёт topology-узел (Fuzzy/Axion/Macho). Position вычисляется автоматически. */
+  create(input: TopologyInput): Promise<AnyTopology>
+
+  get(uuid: string): Promise<AnyTopology | null>
+
+  head(uuid: string): Promise<TopologyRecord | null>
+
+  childrenOfActor(actorUuid: string): Promise<AnyTopology[]>
+}
+
+export interface Boundary extends ForceSurface {
+  readonly wimp: WimpApi
+  readonly actor: ActorApi
+  readonly topology: TopologyApi
+
+  close(): Promise<void>
+}

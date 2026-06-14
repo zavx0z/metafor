@@ -1,19 +1,15 @@
 {
   "name": "@metafor/boundary",
-  "version": "0.0.1",
   "type": "module",
-  "main": "index.ts",
   "exports": {
     ".": "./index.ts",
-    "./boot": "./boot.ts",
-    "./server": "./server.ts",
-    "./web": "./web.ts"
+    "./force": "./force.ts",
+    "./sqlite": "./sqlite.ts"
   },
   "private": true,
   "dependencies": {
-    "@boundary/gravity": "workspace:*",
-    "@boundary/strong": "workspace:*",
-    "@boundary/weak": "workspace:*",
-    "store": "workspace:*"
+    "@boundary/actor": "workspace:*",
+    "@boundary/topology": "workspace:*",
+    "@boundary/wimp": "workspace:*"
   }
 }

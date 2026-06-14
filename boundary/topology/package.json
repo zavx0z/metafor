@@ -1,0 +1,9 @@
+{
+  "name": "@boundary/topology",
+  "type": "module",
+  "exports": {
+    ".": "./index.ts",
+    "./sqlite": "./sqlite/index.ts"
+  },
+  "private": true
+}

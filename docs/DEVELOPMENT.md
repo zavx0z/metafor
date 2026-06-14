@@ -1,181 +1,206 @@
-[README](../README.md) | **English** | [Русский](./DEVELOPMENT.ru.md)
 
-# Development
+# Разработка
 
-This document records the practical development mode of MetaFor before full inter-domain Force channels are stabilized.
-It does not replace [Architecture](./ARCHITECTURE.md) and does not cancel the Force layer described in [Force](./FORCE.md).
-Its role is to keep architectural invariants distinct from temporary development tactics.
+Этот документ фиксирует практический режим разработки MetaFor до стабилизации полноценных междоменных Force-каналов.
+Он не подменяет [ARCHITECTURE.md](./ARCHITECTURE.md) и не отменяет Force-слой из [FORCE.md](./FORCE.md).
+Его задача - не смешивать архитектурные инварианты с временной тактикой разработки.
 
-## Fast Technical Entry
+## Краткий технический вход
 
-If you come to MetaFor as a developer first, keep this minimum model in view:
+Если вы заходите в MetaFor прежде всего как разработчик, держите перед собой такой минимальный каркас:
 
-- read the system as `Domain × Force × Entity`,
-- `Dark`, `Boundary`, and `Bulk` are parallel domains rather than runtime layers of one module,
-- `Gravity`, `Electromagnetism`, `Strong`, and `Weak` are universal forces expressed in every domain,
-- `gravity` is a relation and localization invariant across domains, not only hidden `Dark` connectivity,
-- `Boundary` is the flattening boundary and `Field` is the imprint layer after flattening,
-- `Dark` owns the domain ORM and the export of its object graph, `shared/orm` stays generic, and `store/db` owns the flat DB-shaped shared data model,
-- `enum` and `array` are topology-fields and must not be treated as ordinary value fields,
-- `matter` is actor topology only: branch choice there may use only `state`, `enum`, and `array`, while HTML/text belong outside `matter`.
+- систему нужно читать как `Домен × Сила × Сущность`,
+- `Dark`, `Boundary`, `Energy` и `Bulk` - это параллельные доменные проекции, а не слои исполнения одного модуля,
+- `Gravity`, `Electromagnetism`, `Strong` и `Weak` - универсальные силы, выражающиеся в каждом домене,
+- `gravity` - это инвариант отношения и локализации между доменами, а не только скрытая связность `Dark`,
+- `Boundary` - это персистентная граница уплощения, а `Field` - слой отпечатка после уплощения,
+- `Dark` может работать с `Boundary`, потому что материализация фиксируется в boundary-базе,
+- `Energy` и `Bulk` не читают `Boundary`/SQLite и получают рантайм-данные через Force/WebSocket,
+- `enum` и `array` - это поля topology, и их нельзя читать как обычные поля значений,
+- `matter` - это только topology акторов: выбор ветвей там допустим только по `state`, `enum` и `array`, а HTML и текст должны жить вне `matter`.
 
-Recommended reading order for repository work:
+Рекомендуемый порядок чтения для работы с репозиторием:
 
-1. [Ontology](./ONTOLOGY.md)
-2. [Architecture](./ARCHITECTURE.md)
+1. [Онтология](./ONTOLOGY.md)
+2. [Архитектура](./ARCHITECTURE.md)
 3. [Force](./FORCE.md)
 4. [Topology](./TOPOLOGY.md)
-5. then return to this document for the current development mode.
+5. затем вернитесь к этому документу за текущим режимом разработки.
 
-## Purpose
+## Назначение
 
-MetaFor is built as a three-domain system:
+MetaFor строится как система доменных проекций:
 
 - `Dark`,
 - `Boundary`,
+- `Energy`,
 - `Bulk`.
 
-These domains are architecturally isolated.
-They must not be treated as internal layers of one runtime module.
-In mature form they may live in different processes and communicate only through Force channels.
+Эти домены архитектурно изолированы.
+Они не должны мыслиться как внутренние слои одного модуля исполнения.
+Они должны мыслиться как отдельные домены, которые в зрелой форме могут жить в разных процессах и связываться только через Force-каналы.
 
-Until the main functionality of the domains is proven, premature transport channels create more complexity than value.
+Но до тех пор, пока основной функционал доменов не доведён и не проверен, преждевременная реализация междоменных каналов создаёт больше сложности, чем пользы.
 
-The current development mode is therefore:
+Поэтому текущий режим разработки таков:
 
-- domains remain isolated,
-- production code gets no direct inter-domain imports,
-- end-to-end checks happen only in tests,
-- relative imports across domains are acceptable only in tests,
-- stable Force channels are designed after the core domain logic is proven.
+- домены остаются изолированными,
+- production-код не получает прямых междоменных импортов, кроме явно
+  зафиксированной пары `Dark` -> `Boundary`,
+- сквозная проверка делается только в тестах,
+- относительные импорты между доменами допустимы только в тестах,
+- Force-каналы реализуются после того, как основной функционал доменов доказан и стабилизирован.
 
-## Architectural invariant
+## Архитектурный инвариант
 
-The system should be read as:
+Нужно читать систему так:
 
-- `Dark` as the hidden domain,
-- `Boundary` as the domain of fixation and canonicalization,
-- `Bulk` as the domain of manifestation and execution.
+- `Dark` — скрытый домен,
+- `Boundary` — домен фиксации и каноникализации,
+- `Energy` — домен рантайм-перехода и изменения состояния,
+- `Bulk` — домен проявления и исполнения.
 
-These are not subpackages of one common runtime.
-They are not stages of one linear pipeline.
-They are not internal libraries for one another.
+Это не подпакеты одной общей среды исполнения.
+Это не этапы одного линейного конвейера.
+Это не внутренние библиотеки друг для друга.
 
-Therefore:
+Следовательно:
 
-1. direct production imports from one domain into another are forbidden,
-2. direct calls into another domain's internal API are forbidden in production code,
-3. no domain should become a transport shortcut for another,
-4. inter-domain communication must appear only as Force channels,
-5. until such channels exist, the domains are finished separately.
+1. прямой рабочий импорт одного домена в другой запрещён, кроме явно
+   зафиксированной пары `Dark` -> `Boundary`,
+2. прямой вызов внутреннего API другого домена в production-коде запрещён,
+3. ни один домен не должен становиться транспортным обходом для другого,
+4. междоменная связь должна оформляться только как Force-канал,
+5. до появления такого канала домены дорабатываются по отдельности.
 
-## Why Force Channels Should Not Outrun Domains
+## Почему Force-каналы не должны опережать домены
 
-When core functionality is still unstable, a Force channel fixes an external contract too early.
-If that contract is fixed before the domains themselves are proven, the project risks:
+Пока основной функционал ещё не доведён, Force-каналы слишком рано фиксируют внешний контракт.
+Если зафиксировать его до того, как сами домены проверены, возникает риск:
 
-- cementing the wrong exchange shape,
-- making debugging harder by adding transport noise,
-- hiding missing domain functionality behind an integration layer,
-- fixing the channel instead of fixing the domain,
-- introducing infrastructure complexity before the domain logic is defensible.
+- зацементировать неправильную форму обмена,
+- усложнить отладку транспортным слоем,
+- скрыть реальную нехватку функционала внутри домена,
+- начать чинить канал вместо того, чтобы чинить сам домен,
+- получить лишнюю инфраструктурную сложность до того, как доказана доменная логика.
 
-So the temporary order is:
+Поэтому временно проще и правильнее:
 
-1. bring `Dark`, `Boundary`, and `Bulk` to a minimally working state separately,
-2. verify compatibility in tests,
-3. only then formalize durable transport channels.
+1. сначала довести `Dark`, `Boundary`, `Energy` и `Bulk` до минимально рабочего состояния по отдельности,
+2. затем проверить их совместимость в тестах,
+3. только после этого формализовать устойчивые каналы передачи данных.
 
-This does not reject Force channels as an architectural goal.
-It only says Force channels must not outrun validated domain logic.
+Это не отменяет Force-каналы как архитектурную цель.
+Это только означает, что Force-каналы не должны опережать проверку доменной логики.
 
-## Temporary integration mode
+## Временный режим интеграционной разработки
 
-Before Force channels exist, only one end-to-end verification path is allowed:
+До появления Force-каналов допустим только один способ сквозной проверки:
 
-- integration tests,
-- relative imports across domains only inside tests,
-- explicit orchestration assembly for tests,
-- no inter-domain imports in production code.
+- интеграционные тесты,
+- относительные импорты между доменами только внутри тестов,
+- явная тестовая оркестрационная сборка,
+- отсутствие междоменных импортов в production-коде.
 
-The repository currently uses `@github/zavx0z/git` as the shared place where such integration scenarios are exercised.
+Все тесты используют `@github/zavx0z/git`:
 
-The following is acceptable:
+- любые тесты импортируют домены через `@github/zavx0z/git`,
+- на этом репозитории отрабатывается интеграция всех доменов,
+- `@github/zavx0z/git` выступает как единый источник тестовых сценариев.
 
-- load `Dark` in a test,
-- prepare a `Boundary` scenario in the same test,
-- prepare a `Bulk` scenario in the same test,
-- prove that the same logic stays coherent across all three domains.
+То есть допустимо:
 
-The following is not acceptable:
+- в тесте загрузить `Dark`,
+- в том же тесте подготовить сценарий для `Boundary`,
+- в том же тесте подготовить сценарий для `Energy` и `Bulk`,
+- проверить, что одна и та же логика согласованно проходит через персистентную границу и рантайм-домены.
 
-- moving this temporary assembly into production code,
-- turning test assembly into a permanent architectural rule,
-- presenting direct imports as a normal communication path,
-- hiding the absence of a Force channel behind internal neighbor calls.
+Но недопустимо:
 
-## Environment lifecycle and worker responsibility
+- переносить такую склейку в production-код,
+- делать тестовую склейку постоянным архитектурным правилом,
+- выдавать относительный импорт между доменами за нормальный способ связи,
+- маскировать отсутствие Force-канала прямым вызовом внутренностей соседнего домена.
 
-Since MetaFor domains should be thought of as isolated environments that may live in separate workers or processes, a full lifecycle reset is not an internal responsibility of the domain itself.
+## Жизненный Цикл Среды И Ответственность Воркера
 
-This means:
+Так как домены MetaFor должны мыслиться как изолированные среды, способные жить в отдельных воркерах и процессах, полный жизненный цикл их состояния не является внутренней ответственностью домена.
 
-- a domain store should not expose production-grade full reset operations,
-- snapshot and restore should not become the main production API of a domain,
-- domain restart should not be expressed as an internal runtime shortcut.
+Это означает:
 
-If a clean restart is needed, it should happen at the outer execution environment:
+- хранилище домена не должно нести production-операции полного сброса,
+- хранилище домена не должно нести production-операции snapshot/restore,
+- перезапуск домена не должен выражаться как внутренний API исполнения домена.
 
-- destroy the worker,
-- create a new worker,
-- start the domain again in a clean environment.
+Если требуется полный сброс состояния или чистый перезапуск, это делается только на уровне внешней среды выполнения:
 
-Consequently, reset, clear, restore, and snapshot belong to test-only or harness-level infrastructure, not to the main production communication path.
+- воркер уничтожается,
+- создаётся новый воркер,
+- домен стартует заново в чистой среде.
 
-## Practical rule
+Следовательно, `reset` / `clear` / `restore` / `snapshot` относятся не к основной рабочей логике домена, а к чисто тестовой инфраструктуре и инфраструктуре обвязки.
 
-Until real channels exist, the order should stay:
+Такие операции допустимы:
 
-1. a domain implements its own responsibility,
-2. the domain is tested on its own level,
-3. an integration test temporarily assembles the domains through relative imports,
-4. once the core functionality stabilizes, the Force channel is formalized,
-5. the temporary assembly is removed or demoted to Force-channel verification.
+- в `fixture/`,
+- в тестовой оркестрационной обвязке,
+- во внешнем слое исполнения и тестовой обвязки.
 
-## What this gives
+Но они не должны экспортироваться как основной production API домена и не должны становиться частью междоменной рабочей связи.
 
-This development mode helps:
+Иными словами:
 
-- preserve hard architectural isolation,
-- prevent temporary glue from becoming a permanent dependency,
-- validate core functionality faster,
-- localize errors more clearly,
-- avoid premature Force-channel design,
-- move to real channels only after the domain form becomes stable.
+- жизненный цикл хранилища внутри воркера управляется снаружи,
+- уничтожение состояния = уничтожение воркера,
+- чистый запуск = новый воркер,
+- а не внутренний reset домена.
 
-## The boundary of what is allowed
+## Практическое правило
 
-### Allowed
+До появления полноценных Force-каналов нужно придерживаться такого порядка:
 
-- relative imports across domains in tests,
-- temporary orchestration glue in tests,
-- verification of a shared scenario without a formal transport layer.
+1. домен реализует собственную ответственность внутри себя,
+2. домен тестируется на собственном уровне,
+3. затем пишется интеграционный тест, который временно склеивает домены через относительные импорты,
+4. после стабилизации основного функционала формализуется Force-канал,
+5. тестовая склейка удаляется или уходит на уровень проверки Force-канала.
 
-### Not allowed
+## Что это даёт
 
-- direct production imports across domains,
-- exporting one domain's internals as another domain's API,
-- production assembly without a Force channel,
-- turning the testing path into an architectural norm.
+Такой режим разработки позволяет:
 
-## When To Move To Force Channels
+- сохранить жёсткую архитектурную изоляцию,
+- не превращать временный код в постоянную междоменную зависимость,
+- быстрее проверять основной функционал,
+- легче локализовать ошибки,
+- не проектировать Force-канал раньше времени,
+- перейти к реальным каналам только после появления устойчивой доменной формы.
 
-Move to Force channels only after:
+## Граница допустимого
 
-1. the hidden functionality of `Dark` is stable,
-2. the fixation and state-computation functionality of `Boundary` is stable,
-3. the execution functionality of `Bulk` is stable,
-4. the end-to-end path is already proven in tests,
-5. the actual required channel is clear enough to formalize.
+Нужно жёстко различать:
 
-Only then does the transport layer stop being speculation and become the expression of a validated contract.
+### Допустимо
+
+- относительные импорты между доменами в тестах,
+- временная оркестрационная склейка в тестах,
+- проверка общего сценария без оформленного транспортного слоя.
+
+### Недопустимо
+
+- прямые рабочие импорты между доменами,
+- экспорт внутренностей одного домена как API другого домена,
+- production-склейка доменов без Force-канала,
+- превращение тестового пути в архитектурную норму.
+
+## Когда переходить к Force-каналам
+
+Переход к Force-каналам должен происходить не в начале, а после того, как:
+
+1. у `Dark` стабилизирован основной скрытый функционал,
+2. у `Boundary` стабилизирован основной функционал фиксации и вычисления состояния,
+3. у `Bulk` стабилизирован основной функционал исполнения,
+4. сквозной путь уже доказан тестами,
+5. стало ясно, какой именно канал действительно нужен между доменами.
+
+Только после этого транспортный слой перестаёт быть гаданием и становится оформлением уже проверенного контракта.

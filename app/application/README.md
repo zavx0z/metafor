@@ -1,16 +1,25 @@
-# Application Servers
+# Серверы Приложения
 
-`@app/application` содержит два минимальных серверных процесса для проверки обмена `ForceMessage` между доменами без browser `IndexedDB` и без `app/web` worker runtime.
+`@app/application` содержит минимальные серверные процессы для проверки обмена
+`ForceMessage` между доменами без браузерного `IndexedDB` и без старого
+воркер-рантайма `app/web`.
 
-- `dark.server.ts` статически импортирует `@metafor/dark/server` и поверх `globalThis.store` поднимает WebSocket-мост.
-- `boundary.server.ts` поднимает server-side `store/sqlite`, грузит `@metafor/boundary/boot` и поднимает такой же WebSocket-мост.
+- `dark.server.ts` импортирует `@metafor/dark/server`, открывает `Boundary` SQLite и материализует `zavx0z/git`.
+- `energy.server.ts` импортирует `@metafor/energy/server` и поднимает
+  рантайм-WebSocket без доступа к `Boundary`/SQLite.
 
-Слой приложения не является доменом. Он только пересылает сообщения:
+Слой приложения не является доменом. Он только держит два процесса и WebSocket-транспорт:
 
 ```text
-store.onmessage -> WebSocket
-WebSocket -> store.postMessage
+Dark + Boundary -> Boundary entropy -> WebSocket
+WebSocket -> Boundary absorb
+
+WebSocket -> Energy force.absorb -> рантайм Energy
+Energy force.entropy -> WebSocket
 ```
+
+`Energy` не открывает базу и не синхронизирует SQLite. Все данные, нужные ему
+для рантайма, должны приходить через Force-данные.
 
 Запуск из корня:
 
@@ -27,7 +36,8 @@ bun run interpreter
 
 Порты по умолчанию:
 
-- Dark WebSocket: `127.0.0.1:7101/ws`;
-- Boundary WebSocket: `127.0.0.1:7102/ws`.
+- WebSocket `Dark`/`Boundary`: `127.0.0.1:7101/ws`;
+- рантайм-WebSocket `Energy`: `127.0.0.1:7102/ws`.
 
-Путь Dark Store задается через `STORE_PATH`, потому что Store открывает пакетный `@metafor/dark/server` на этапе статического импорта.
+Путь `Boundary` задаётся через `BOUNDARY_PATH` только для `Dark`/`Boundary`.
+Для `Energy` путь базы не задаётся.

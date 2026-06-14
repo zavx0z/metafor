@@ -1,6 +1,6 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
-import type {Particle} from "store"
-import {open} from "../../store/sqlite.ts"
+import type {Particle} from "@metafor/boundary"
+import {open} from "@metafor/boundary/sqlite"
 import {matter} from "../index.ts"
 
 const waitForParts = async (predicate: () => boolean): Promise<void> => {
@@ -19,13 +19,13 @@ const particleUuid = (part: Particle): unknown => {
 
 describe("dark matter — force parts", () => {
   const parts: Particle[] = []
-  let store: Awaited<ReturnType<typeof open>>
-  let subscription: ReturnType<typeof store.observe>
+  let boundary: Awaited<ReturnType<typeof open>>
+  let subscription: ReturnType<typeof boundary.observe>
 
   beforeAll(async () => {
-    store = await open(":memory:")
-    globalThis.store = store
-    subscription = store.observe((event) => parts.push(...event.data.parts))
+    boundary = await open(":memory:")
+    globalThis.boundary = boundary
+    subscription = boundary.observe((event) => parts.push(...event.data.parts))
     await matter("zavx0z/git")
     await waitForParts(() => {
       const actorCount = parts.filter((part) => part.part === "graviton" && part.op === "add" && part.path === "actor").length
@@ -38,7 +38,7 @@ describe("dark matter — force parts", () => {
 
   afterAll(async () => {
     subscription.close()
-    await store.close()
+    await boundary.close()
   })
 
   const actorParts = (): Particle[] =>
@@ -50,7 +50,7 @@ describe("dark matter — force parts", () => {
     )
 
   test("первый actor part соответствует root actor", async () => {
-    const roots = await store.actor.roots.all()
+    const roots = await boundary.actor.roots.all()
     expect(roots).toHaveLength(1)
     expect(actorParts()[0] ? particleUuid(actorParts()[0]!) : undefined).toBe(roots[0]!.uuid)
   })

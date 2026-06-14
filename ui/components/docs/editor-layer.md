@@ -1,53 +1,53 @@
-# Editor Layer Audit
+# Аудит Editor Layer
 
-## Current Placement
+## Текущее размещение
 
-1. Source display and editable draft UI both use `EditorPane` from `@ui/panes`.
-2. `EditorPane` owns text mutation, cursor movement, clipboard, undo/redo, optional tokenization, save/change callbacks, read-only navigation, source execution-line highlighting and gutter rendering. Scroll state comes from `@ui/elements` `div`.
-3. Interpreter runtime state (`paused`, `running`, `loading`, `disconnected`) stays in `pkg/interpreter/web/main.ts`; the shared component only receives title text, source text, tokens/language and an optional execution line.
-4. The former interpreter-local `pkg/interpreter/web/source-pane.ts` was removed so code/source rendering has one implementation.
-5. To keep interpreter stable, do not change `pkg/interpreter/src/*`, the `/source` REST shape, `/ws` commands/results, inspector attach flow, current-line semantics, frames/scopes/console command behavior or `bun run interpreter` startup.
+1. Отображение source и редактируемый draft UI используют `EditorPane` из `@ui/panes`.
+2. `EditorPane` владеет изменением текста, движением курсора, clipboard, undo/redo, опциональной токенизацией, callbacks сохранения и изменения, read-only навигацией, подсветкой текущей исполняемой строки source и отрисовкой gutter. Scroll state приходит из `@ui/elements` `div`.
+3. Runtime-состояние интерпретатора (`paused`, `running`, `loading`, `disconnected`) остаётся в `pkg/interpreter/web/main.ts`; общий компонент получает только title, source text, tokens/language и опциональную execution line.
+4. Прежний локальный для интерпретатора `pkg/interpreter/web/source-pane.ts` удалён, чтобы code/source rendering имел одну реализацию.
+5. Для стабильности интерпретатора не менять `pkg/interpreter/src/*`, REST-форму `/source`, команды и результаты `/ws`, attach-flow инспектора, semantics текущей строки, поведение frames/scopes/console command и запуск `bun run interpreter`.
 
-## First Extraction
+## Первое выделение
 
-The editor layer now starts under `ui/panes/editor/`:
+Editor layer теперь начинается в `ui/panes/editor/`:
 
-- `tokens.ts` defines `EditorToken`, `EditorTokens`, `EditorTokenize` and `LanguageHighlighter`.
-- `highlighter.ts` provides a small highlighter registry and resolver by language id or file extension.
-- `languages/plaintext.ts` is the no-op fallback.
-- `languages/typescript.ts` is a lightweight TypeScript/JavaScript tokenizer with the same compact token categories used by the interpreter source viewer.
-- `token-renderer.ts` contains shared token material creation and tokenized-line rendering.
-- `source-pane-base.ts` contains source-view helper types and filename-to-highlighter fallback for viewers.
-- `editor-pane.ts` contains `EditorPane`; the old `ui/panes/editor-pane.ts` remains a compatibility re-export.
+- `tokens.ts` определяет `EditorToken`, `EditorTokens`, `EditorTokenize` и `LanguageHighlighter`.
+- `highlighter.ts` предоставляет небольшой registry highlighter-ов и resolver по language id или расширению файла.
+- `languages/plaintext.ts` остаётся no-op fallback.
+- `languages/typescript.ts` содержит лёгкий TypeScript/JavaScript tokenizer с теми же компактными категориями token-ов, которые использует source viewer интерпретатора.
+- `token-renderer.ts` содержит создание shared token material и rendering tokenized-line.
+- `source-pane-base.ts` содержит helper-типы source-view и filename-to-highlighter fallback для viewer-ов.
+- `editor-pane.ts` содержит `EditorPane`; старый `ui/panes/editor-pane.ts` остаётся compatibility re-export.
 
-The interpreter source viewer now configures `EditorPane` with `readOnly: true`, `showCaret: false` and `introAnimation: false`. Interpreter-specific paused/running/disconnected labels are handled outside the component.
+Source viewer интерпретатора теперь настраивает `EditorPane` с `readOnly: true`, `showCaret: false` и `introAnimation: false`. Специфичные для интерпретатора labels `paused/running/disconnected` обрабатываются вне компонента.
 
-## UI Pass
+## UI-проход
 
-- Shared widget primitives in `ui/components/internal/renderers.ts` now use rounded control chrome through the existing `Pane.drawRoundedRect` primitive.
-- `ui/elements/theme.ts` exposes shared `radii` tokens for controls and panes.
-- `Pane` accepts `borderRadiusPx`, so interpreter panes and `EditorPane` can use the same rounded pane chrome without custom per-pane background meshes.
-- `ConsolePane` now extends `@ui/elements` `UiSurface` instead of owning manual background/border meshes. It uses the shared palette, div scroll, clipping and rounded pane chrome, with content aligned to the source code column and no bottom padding.
-- `VirtualInput` no longer marks the focused hidden textarea with `aria-hidden`, avoiding Chrome's focused-descendant accessibility warning.
+- Shared widget primitives в `ui/components/internal/renderers.ts` теперь используют rounded control chrome через существующий primitive `Pane.drawRoundedRect`.
+- `ui/elements/theme.ts` экспортирует shared `radii` tokens для controls и panes.
+- `Pane` принимает `borderRadiusPx`, поэтому interpreter panes и `EditorPane` могут использовать одинаковый rounded pane chrome без кастомных background meshes на каждый pane.
+- `ConsolePane` теперь наследуется от `@ui/elements` `UiSurface` вместо собственного ручного управления background/border meshes. Он использует shared palette, div scroll, clipping и rounded pane chrome, выравнивает content по колонке source code и не добавляет нижний padding.
+- `VirtualInput` больше не помечает focused hidden textarea через `aria-hidden`, чтобы не получать Chrome accessibility warning о focused descendant.
 
-## Verification
+## Проверка
 
-- `bun test ui/elements ui/components` passes: 35 tests.
-- `bun test pkg/interpreter` passes: 17 tests.
-- `bun run --filter @ui/elements typecheck` passes.
-- `bun run --filter @ui/panes typecheck` passes.
-- `bun run --filter @metafor/interpreter typecheck` passes.
+- `bun test ui/elements ui/components` проходит: 35 tests.
+- `bun test pkg/interpreter` проходит: 17 tests.
+- `bun run --filter @ui/elements typecheck` проходит.
+- `bun run --filter @ui/panes typecheck` проходит.
+- `bun run --filter @metafor/interpreter typecheck` проходит.
 
-The previous strict optional-property failures were fixed without changing public engine APIs:
+Предыдущие strict optional-property ошибки исправлены без изменения публичных engine API:
 
-- `pkg/engine/src/geometries/TexturedPlaneGeometry.ts` now only forwards defined optional fields to `PlaneGeometry`.
-- `pkg/engine/src/materials/ImageMaterial.ts` models `onTextureChange` as an explicit `(() => void) | undefined` property.
+- `pkg/engine/src/geometries/TexturedPlaneGeometry.ts` теперь передаёт в `PlaneGeometry` только определённые optional fields.
+- `pkg/engine/src/materials/ImageMaterial.ts` описывает `onTextureChange` как явное свойство `(() => void) | undefined`.
 
-Additional editor-layer tests cover highlighter resolution/registration, source path extraction, TypeScript token categories and token-range normalization.
+Дополнительные tests editor-layer покрывают highlighter resolution/registration, извлечение source path, TypeScript token categories и token-range normalization.
 
 Runtime smoke:
 
-- `bun run interpreter` starts the sidecar on `http://127.0.0.1:6500/`.
-- Starting the default target through `/target/run` connects Bun Inspector on `ws://127.0.0.1:6499/`.
-- Reloading the web UI while already paused now re-applies the saved dump after `UiRuntime` initialization, so frames/scopes/source all render.
-- `/ws` command path was smoke-tested with `eval` on frame 0 and returned `2`.
+- `bun run interpreter` запускает sidecar на `http://127.0.0.1:6500/`.
+- Запуск default target через `/target/run` подключает Bun Inspector на `ws://127.0.0.1:6499/`.
+- Reload web UI при уже остановленном процессе теперь повторно применяет сохранённый dump после инициализации `UiRuntime`, поэтому frames/scopes/source отображаются.
+- Командный путь `/ws` проверен smoke-тестом через `eval` на frame 0 и вернул `2`.

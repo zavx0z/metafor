@@ -2,7 +2,7 @@ import { join, isAbsolute, dirname } from "node:path"
 import { unlinkSync, existsSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import { SQL } from "bun"
-import { StoreWimpSqlite } from "@store/wimp/sqlite"
+import { BoundaryWimpSqlite } from "@boundary/wimp/sqlite"
 
 /**
  * Фикстура для подготовки SQLite базы данных MetaDSL.
@@ -38,6 +38,6 @@ export async function createMetaforSqliteFixture(dbPath = "meta.sqlite") {
   const sql = new SQL(`sqlite://${absolutePath}`)
   await sql.unsafe("PRAGMA foreign_keys = ON;")
   await sql.unsafe("PRAGMA journal_mode = WAL;")
-  await StoreWimpSqlite.open(sql)
+  await BoundaryWimpSqlite.open(sql)
   return sql
 }

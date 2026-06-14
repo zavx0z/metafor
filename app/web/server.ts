@@ -1,6 +1,6 @@
 import { file, serve } from "bun"
 import { join, normalize } from "node:path"
-import {force} from "store"
+import {force} from "@metafor/boundary"
 import index from "./index.html"
 import type {
 	ClientForceBridgePayload,

@@ -1,152 +1,154 @@
 # MetaFor
 
 <div align="center">
-  <img src="docs/img/metafor.gif" alt="MetaFor animated overview" width="444" />
+  <img src="docs/img/metafor.gif" alt="Анимированный обзор MetaFor" width="444" />
 </div>
 
-**English** | [Русский](docs/README.ru.md)
 
-**MetaFor is a space of digital consciousness extending our universe.**
+**MetaFor - пространство цифрового сознания, расширяющее нашу вселенную.**
 
-MetaFor is a long-term open-source system uniting our universe and digital reality in one space.
-It is not a wrapper around current models, but a logically grounded architectural system built in the image and likeness of our universe.
-MetaFor is designed so that humans, devices, the applications running on those devices, agents, [AGI](https://en.wikipedia.org/wiki/Artificial_general_intelligence), memory, interfaces, space, and action exist within one shared space.
-Here intelligence is not a model behind a chat window or API. It lives in an environment, accumulates structure, inhabits space, and acts within it.
-Its horizon is not a chatbot shell. It is a spatial [virtual reality](https://en.wikipedia.org/wiki/Virtual_reality) and [augmented reality](https://en.wikipedia.org/wiki/Augmented_reality) environment where worlds become parts of a multi-metaverse and human presence, agent activity, application logic, and devices remain legible within one spatial system.
+MetaFor - это долгосрочная открытая система, объединяющая нашу вселенную и цифровую реальность в одном пространстве.
+Это не обвязка вокруг текущих моделей, а логически выверенная архитектурная система, построенная по образу и подобию нашей вселенной.
+MetaFor устроен так, чтобы люди, устройства, приложения, работающие на этих устройствах, агенты, [AGI](https://www.unesco.org/ru/articles/glossariy-po-teme-iskusstvennyy-intellekt-0), память, интерфейсы, пространство и действие существовали в едином пространстве.
+Здесь интеллект - не модель за окном чата или API. Он живёт в среде, накапливает структуру, занимает пространство и действует в нём.
+Его горизонт - не оболочка чат-бота. Это пространственная среда [виртуальной реальности](https://ru.wikipedia.org/wiki/Виртуальная_реальность) и [дополненной реальности](https://ru.wikipedia.org/wiki/Дополненная_реальность), где миры становятся частями мульти-метавселенной, а человеческое присутствие, активность агентов, логика приложений и устройства остаются читаемыми в пределах одной пространственной системы.
 
-That is why MetaFor is not framed as an AI wrapper, agent starter kit, or closed product around a model.
-In MetaFor, intelligence exists together with memory, embodiment, interaction, and manifested process instead of being reduced to a flat tool surface.
-The architecture is grounded in physical principles because the environment itself should carry law, limitation, boundary, relation, and manifestation.
-Of the many approaches explored during the project, the [holographic principle](https://en.wikipedia.org/wiki/Holographic_principle) became the strongest architectural fit for MetaFor.
+Именно поэтому MetaFor не задуман как очередная AI-обвязка, стартовый набор для агентных систем или закрытый продукт вокруг модели.
+В MetaFor интеллект существует вместе с памятью, воплощением, взаимодействием и проявленным процессом, а не сводится к плоской инструментальной поверхности.
+Архитектура опирается на физические принципы, потому что сама среда должна нести закон, ограничение, границу, связь и проявление.
+Из многих направлений, которые рассматривались в ходе проекта, именно [голографический принцип](https://ru.wikipedia.org/wiki/Голографический_принцип) оказался для MetaFor самым сильным архитектурным соответствием.
 
-## Author and Long Path
+## Автор и длинный путь
 
-MetaFor was initiated and continues to be developed by a single author, [Vladimir Filipenko (zavx0z)](https://career.habr.com/zavx0z).
-This direction began about 14 years ago and has passed through repeated rewrites, competing programming models, dead ends, prototypes, and full architectural resets.
-Across that time the project searched for a more general model of digital organization, effectively a "model of everything" suitable for intelligence, structure, process, and world-like computation.
+MetaFor был начат и продолжает развиваться одним автором - [Vladimir Filipenko (zavx0z)](https://career.habr.com/zavx0z).
+Это направление возникло около 14 лет назад и прошло через многократные переписывания, конкурирующие программные модели, тупики, прототипы и полные архитектурные перезапуски.
+На всём этом пути проект искал более общую модель цифровой организации, фактически "модель всего", пригодную для интеллекта, структуры, процесса и вычислительной среды, устроенной как мир.
 
-Many ideas that are now broadly discussed in AGI, agent systems, and adjacent industries were explored here much earlier as working hypotheses and code projections rather than as reactions to a market cycle.
-That is not presented as a claim of completion or superiority.
-It explains why MetaFor has an unusually long internal history and why its current form should be read as the mature architectural consolidation of that path rather than as a template assembled around current trends.
+Многие идеи, которые сегодня широко обсуждаются в AGI, агентных системах и смежных индустриях, здесь исследовались заметно раньше как рабочие гипотезы и кодовые проекции, а не как реакция на очередной рыночный цикл.
+Это не подаётся как заявление о завершённости или превосходстве.
+Это объясняет, почему у MetaFor такая длинная внутренняя история и почему его нынешнюю форму нужно читать как зрелую архитектурную консолидацию этого пути, а не как шаблон, собранный вокруг текущего тренда.
 
-## Professional Grounding
+## Профессиональная опора
 
-The scale of this project should not be mistaken for detachment from engineering reality.
-MetaFor stands on a strong engineering background.
-Vladimir Filipenko (zavx0z) worked at the Moscow Institute of Physics and Technology (MIPT), in the Engineering Center, as a senior engineer, participated in automotive autopilot development, designed the architecture of unmanned trains, and developed surveillance systems end to end, from the imaging sensor matrix to the video wall.
+Важно не путать масштаб этого проекта с отрывом от инженерной реальности.
+За MetaFor стоит автор с сильным инженерным опытом.
+Vladimir Filipenko (zavx0z) работал в МФТИ, в Инжиниринговом центре, старшим инженером, участвовал в разработке автопилота автомобилей, разработал архитектуру беспилотных поездов, а также разрабатывал системы наблюдения - от матрицы до видео-стены.
 
-That is why the link to [career.habr.com/zavx0z](https://career.habr.com/zavx0z) is included here not as decoration, but as a factual reference for the author's professional background.
-This project was not accompanied by years of public self-presentation not because the background was missing, but because those years were spent working, providing for and raising his children, and continuing MetaFor alongside that work.
+Именно поэтому ссылка на профиль [career.habr.com/zavx0z](https://career.habr.com/zavx0z) дана здесь не формально, а как фактическая опора для понимания профессионального фона автора.
+Этот проект долго не сопровождался публичной самопрезентацией не потому, что за ним не стояло реального опыта, а потому, что годы уходили на работу, обеспечение и воспитание детей и параллельное развитие MetaFor.
 
-## Why Physics Matters Here
+## Почему здесь важна физика
 
-During that long search, different approaches were compared and projected into code, including:
+Во время этого долгого поиска в код сопоставлялись и проецировались разные подходы:
 
-- quantum field theory,
-- cosmological models,
-- broader physical principles,
-- neural-network perspectives,
-- biotechnological perspectives,
-- other approaches relevant to the organization of complex systems.
+- квантовая теория поля,
+- космологические модели,
+- более широкие физические принципы,
+- нейросетевые перспективы,
+- биотехнологические перспективы,
+- другие подходы, важные для организации сложных систем.
 
-Among those directions, the [holographic principle](https://en.wikipedia.org/wiki/Holographic_principle) proved to be the strongest architectural fit for MetaFor.
-Not as decorative language and not as a literal physics simulator, but as the clearest discipline for thinking hidden organization, inscription on a boundary, and manifested volumetric form.
-That fit is what gives MetaFor its present architectural gravity.
+Среди этих направлений именно [голографический принцип](https://ru.wikipedia.org/wiki/Голографический_принцип) оказался для MetaFor самым сильным архитектурным соответствием.
+Не как декоративный язык и не как буквальный симулятор физики, а как наиболее строгая дисциплина для мышления о скрытой организации, записи на границе и проявленной объёмной форме.
+Именно это соответствие и даёт MetaFor его нынешний архитектурный вектор.
 
-## Long-Term Motivation
+## Долгосрочная мотивация
 
-Behind MetaFor there is also a deeper personal horizon.
-For Vladimir Filipenko (zavx0z), the project is not only an [AGI](https://en.wikipedia.org/wiki/Artificial_general_intelligence) environment. It is also a long search for a computational environment that might eventually become deep enough to make digital immortality of human consciousness possible.
+У MetaFor есть и более глубокий личный горизонт.
+Для Vladimir Filipenko (zavx0z) проект - это не только среда для [AGI](https://www.unesco.org/ru/articles/glossariy-po-teme-iskusstvennyy-intellekt-0). Это ещё и долгий поиск вычислительной среды, которая когда-нибудь может оказаться достаточно глубокой, чтобы сделать цифровое бессмертие человеческого сознания возможным.
 
-This is not presented as a solved outcome, an existing capability, or a guaranteed future result.
-It is a personal motivation, a long-term hypothesis, and a research direction.
-The working intuition is that the co-development of AGI and humanity inside a common environment may eventually open a path toward digital immortality of personhood, if such a path proves technically real at all.
+Это не подаётся как уже решённый результат, существующая возможность или гарантированный будущий исход.
+Это личная мотивация, долгосрочная гипотеза и исследовательское направление.
+Рабочая интуиция состоит в том, что совместное развитие AGI и человечества внутри общей среды может со временем открыть путь к цифровому бессмертию личности, если такой путь вообще окажется технически реален.
 
-## Personal Position
+## Личная позиция
 
-Vladimir Filipenko (zavx0z) is Russian, with Ukrainian roots and a Ukrainian surname.
-His position is explicit: he is against any military action, against any killing, and against any use of technology as an instrument for destroying or suppressing human life.
+Vladimir Filipenko (zavx0z) - русский с украинскими корнями и украинской фамилией.
+Его позиция принципиальна: он против любых военных действий, против любого убийства и против любого использования технологий как инструмента уничтожения и подавления человеческой жизни.
 
-He is also against the trajectory in which AI corporations merge with governments to make killing, control, and domination more efficient.
-MetaFor is intended for the opposite trajectory: a space where the co-development of humanity and AGI strengthens life rather than serving organized destruction.
-If you support this position, give the repository a [star](https://github.com/zavx0z/metafor) as a sign of support.
+Он также против траектории, в которой корпорации, разрабатывающие ИИ, объединяются с правительствами ради более эффективного убийства, контроля и доминирования над жизнями людей.
+MetaFor задуман для противоположной траектории: как пространство, в котором совместное развитие человека и AGI усиливает жизнь, а не служит организованному уничтожению.
+Если вы поддерживаете эту позицию, поставьте репозиторию [звезду](https://github.com/zavx0z/metafor) в знак поддержки.
 
-## Architectural Consequence
+## Архитектурное следствие
 
-Within that framing, MetaFor currently resolves into three domains:
+Внутри этой рамки текущий стартовый контур MetaFor разворачивается в четыре
+рабочие доменные проекции:
 
-- `Dark` as hidden connectivity, hidden organization, memory, and model evolution,
-- `Boundary` as the flattening boundary where structure receives an addressable imprint as `Field`,
-- `Bulk` as manifested volumetric execution, process, composition, and spatial form.
+- `Dark` как скрытая связность, скрытая организация, память и эволюция модели,
+- `Boundary` как персистентная граница уплощения, где структура получает адресуемый
+  реляционный отпечаток в виде `Field`,
+- `Energy` как рантайм, где протекают переход, время и изменение
+  состояния,
+- `Bulk` как проявленное объёмное исполнение, процесс, композиция и пространственная форма.
 
-These are not decorative metaphors and not the primary hook of the project.
-They are the architectural consequence of the longer search described above and are formalized in the current ontology and architecture documents.
+Это не декоративные метафоры и не главная входная загадка проекта.
+Это архитектурное следствие более длинного поиска, описанного выше, и оно формализовано в текущих документах по онтологии и архитектуре.
 
-## Why the Name MetaFor
+## Почему проект называется MetaFor
 
-The name carries two meanings at once.
+В имени сразу заложены два смысла.
 
-The first is `meta-for`: a meta-description for what exists, how it connects, how it changes, and how it manifests.
-The second is its resonance with `metaphor`: not as decoration, but as a disciplined way to project deep structural principles into code and architecture.
+Первый - это `meta-for`: мета-описание для того, что существует, как связано, как меняется и как проявляется.
+Второй - это созвучие со словом `metaphor`: не как украшение, а как дисциплинированный способ переносить глубокие структурные принципы в код и архитектуру.
 
-That double meaning matters because MetaFor is intended not only as software, but as a coherent description and construction of an environment for intelligence.
+Этот двойной смысл важен, потому что MetaFor задуман не только как программное обеспечение, но и как согласованное описание и построение среды для интеллекта.
 
-## Governance and Participation
+## Управление и участие
 
-MetaFor also takes a clear position on governance.
-When AGI becomes real in the world, people should not remain only passive users of systems controlled from above.
-They need participation, authorship, inheritance, and ownership inside the environment itself.
+MetaFor занимает и прямую позицию по поводу управления.
+Когда AGI станет реальностью в мире, люди не должны остаться только пассивными пользователями систем, которыми управляют сверху.
+Им нужны участие, авторство, наследование и владение внутри самой среды.
 
-That is why [DAO](https://ethereum.org/dao/) belongs to the long-term horizon of the project.
-The [TON](https://ton.org/en/)-based admission and governance direction around inheritable meta-NFT is not presented as a solved technical promise or guarantee of any existential outcome.
-It is intended as a long-term layer for ecosystem participation, identity, admission, and collective permission in the shared space.
-In that sense, an [`SBT`](https://docs.ton.org/standard/tokens/nft/sbt) on TON can be read as an entry ticket into the long-term horizon of potential digital immortality pursued by the project. It is not proof, delivery, or guarantee of that outcome.
+Поэтому [DAO](https://ru.wikipedia.org/wiki/Децентрализованная_автономная_организация) входит в долгосрочный горизонт проекта.
+Направление, связанное с [TON](https://ton.org/en/) и допуском наследуемых meta-NFT, не подаётся как решённое техническое обещание или гарантия какого-либо экзистенциального исхода.
+Оно рассматривается как долгосрочный слой экосистемного участия, идентичности, допуска и коллективного разрешения внутри общего пространства.
+В этом смысле [`SBT`](https://docs.ton.org/standard/tokens/nft/sbt) на TON можно читать как входной билет в долгосрочный горизонт потенциального цифрового бессмертия, к которому направлен проект. Но не как доказательство, реализацию или гарантию такого результата.
 
-## Current Status
+## Текущий статус
 
-MetaFor is in an open architectural formation stage.
-The repository already reflects a mature architectural consolidation, especially in the current documentation layer. The project is not presented as a stable production platform.
+MetaFor находится в стадии открытого архитектурного формирования.
+Репозиторий уже отражает зрелую архитектурную консолидацию, особенно в текущем слое документации. Но проект не описывается как стабильная production-платформа.
 
-## Documentation
+## Документация
 
-The public documentation layer is bilingual.
-Each public document links to its English and Russian counterpart.
+Публичный слой документации ведётся на русском языке как основном источнике.
 
-- [Philosophy](docs/PHILOSOPHY.md) explains the worldview of the project and why metaphor is used as architectural discipline.
-- [Ontology](docs/ONTOLOGY.md) defines what exists in MetaFor across `Dark`, `Boundary`, and `Bulk`.
-- [Architecture](docs/ARCHITECTURE.md) maps that ontology into domain responsibilities, invariants, and repository projection.
-- [Topology](docs/TOPOLOGY.md) formalizes hidden connectivity in `Dark`.
-- [Force](docs/FORCE.md) explains forces, bosonic channels, and the transport form of change.
-- [Development](docs/DEVELOPMENT.md) records the current practical development mode before full inter-domain Force channels are stabilized.
-- [DAO](docs/DAO.md) explains why collective governance is central to MetaFor and how the TON-based admission direction for inheritable meta-NFT is intended to protect the shared space from becoming only a corporate or state-controlled asset.
+- [Философия](docs/PHILOSOPHY.md) объясняет мировоззренческую рамку проекта и роль метафоры как архитектурной дисциплины.
+- [Онтология](docs/ONTOLOGY.md) фиксирует, что существует в MetaFor в доменах `Dark`, `Boundary`, `Energy` и `Bulk`.
+- [Архитектура](docs/ARCHITECTURE.md) переводит онтологию в доменные ответственности, инварианты и файловую проекцию.
+- [Topology](docs/TOPOLOGY.md) формализует скрытую связность `Dark`.
+- [Force](docs/FORCE.md) объясняет силы, boson-каналы и переносимую форму изменения.
+- [Разработка](docs/DEVELOPMENT.md) фиксирует текущий практический режим разработки до стабилизации полноценных междоменных Force-каналов.
+- [DAO](docs/DAO.md) объясняет, почему коллективное управление принципиально для MetaFor и как направление с TON для допуска наследуемых meta-NFT призвано защищать общее пространство от превращения в актив, которым управляют только корпорации или государственные структуры.
 
-## Participation Paths
+## Пути участия
 
-### For understanding and discussion
+### Для понимания и обсуждения
 
-If you want to understand the project more deeply, discuss its ideas, architecture, physics parallels, cosmology, neural-network perspectives, AGI direction, or bring your own questions and proposals, use [Discussions](https://github.com/zavx0z/metafor/discussions).
+Если вы хотите глубже понять проект, обсудить его идеи, архитектуру, физические параллели, космологию, нейросетевые перспективы, направление AGI или предложить свои вопросы и гипотезы, используйте [Discussions](https://github.com/zavx0z/metafor/discussions).
 
-### For concrete work
+### Для конкретной работы
 
-If you want to define a concrete task, discuss a specific change, or join the practical work of the project, use [Issues](https://github.com/zavx0z/metafor/issues) and the active [Project](https://github.com/zavx0z/metafor/projects/2).
+Если вы хотите поставить конкретную задачу, обсудить изменение или включиться в практическую работу по проекту, используйте [Issues](https://github.com/zavx0z/metafor/issues) и активный [Project](https://github.com/zavx0z/metafor/projects/2).
 
-- [Issues](https://github.com/zavx0z/metafor/issues) - concrete tasks, problems, bug reports, changes, and expected result boundaries.
-- [Project](https://github.com/zavx0z/metafor/projects/2) - current task state, priorities, and delivery flow.
+- [Issues](https://github.com/zavx0z/metafor/issues) - конкретные задачи, проблемы, сообщения об ошибках, изменения и границы ожидаемого результата.
+- [Project](https://github.com/zavx0z/metafor/projects/2) - текущее состояние задач, приоритеты и маршрут поставки.
 
-## Development Entry
+## Точка входа в разработку
 
-If you are approaching MetaFor as a repository contributor rather than as a first-time reader, continue with:
+Если вы пришли в MetaFor как участник репозитория, а не как первый читатель проекта, дальше переходите в:
 
-- [Development](docs/DEVELOPMENT.md) for the fast technical entry, current development mode, and architectural constraints,
-- [Contributing](docs/CONTRIBUTING.md) for contribution expectations and repository discipline.
+- [Разработку](docs/DEVELOPMENT.md) для быстрого технического входа, текущего режима разработки и архитектурных ограничений,
+- [Вклад](docs/CONTRIBUTING.md) для правил участия и дисциплины репозитория.
 
-## Contact
+## Контакты
 
-For direct contact:
+Для прямой связи:
 
 - Email: [zavx0z@yahoo.com](mailto:zavx0z@yahoo.com)
 - Telegram: [@zavx0z](https://t.me/zavx0z)
 
-## License
+## Лицензия
 
-MetaFor is licensed under [GNU Affero General Public License v3.0 or later](docs/LICENSE).
+MetaFor распространяется под лицензией [GNU Affero General Public License v3.0 or later](LICENSE).

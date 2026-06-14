@@ -35,7 +35,7 @@ describe("syntax tokenizer", () => {
 
   test("uses sqlite tokenizer for .sql paths", () => {
     const line = "SELECT src FROM wimp WHERE src = 'x'"
-    const tokens = tokenizeSource(line, {path: "store/wimp.sql"})
+    const tokens = tokenizeSource(line, {path: "boundary/wimp.sql"})
 
     expect(tokenFor(line, tokens[0]!, "SELECT")?.c).toBe("k")
     expect(tokenFor(line, tokens[0]!, "FROM")?.c).toBe("k")

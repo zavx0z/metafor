@@ -1,125 +1,124 @@
-[README](../../README.md) | [Force](../FORCE.md) | **English** | [Русский](./strong.ru.md)
 
 # Strong
 
-`strong.md` expands the force reading of `Strong`.
-The general distinction between force, `Boson`, channel subtype, and `Impulse` is defined in the [root Force](../FORCE.md).
+`strong.md` разворачивает силовое чтение `Strong`.
+Общие различения силы, `Boson`, подтипа канала и `Impulse` заданы в [корневом Force](../FORCE.md).
 
-## Force and channel
+## Сила и канал
 
-`Strong` is responsible for retention, cohesion, connectivity, compaction, and form stability.
-`Gluon` is the `Boson` subtype and channel of `Strong`.
-It changes ordinary `Field` values without destroying the connectivity of form.
+`Strong` отвечает за удержание, сцепление, связность, компактизацию и устойчивость формы.
+`Gluon` является подтипом `Boson` и каналом `Strong`.
+Он изменяет значения обычных `Field`, не разрушая связность формы.
 
-`Gluon` describes the force-mechanism of that change, but it does not replace the architectural responsibilities of `Boundary × Strong`.
-Canonicalization, deduplication, interning, and compaction remain boundary responsibilities.
+`Gluon` описывает силовой механизм такого изменения, но не подменяет архитектурные обязанности `Boundary × Strong`.
+Каноникализация, дедупликация, интернирование и уплотнение остаются за границей.
 
-## Reading by domain
+## Чтение по доменам
 
 ### Dark
 
-- retention of hidden continuity,
-- coherence of schemas,
-- historical connectivity of fixed states,
-- change of ordinary `Field` values inside retained structure.
+- удержание скрытой непрерывности,
+- согласованность схем,
+- историческая связность зафиксированных состояний,
+- изменение значений обычных `Field` внутри удерживаемой структуры.
 
 ### Boundary
 
-- canonical change of ordinary `Field` values,
-- connectivity of compact form,
-- preparation of stable representation on the boundary,
-- retention of the canonical structural frame.
+- каноническое изменение значений обычных `Field`,
+- связность компактной формы,
+- подготовка устойчивого представления на границе,
+- удержание канонической структурной рамки.
 
 ### Bulk
 
-- applied change of ordinary `Field` values,
-- stability of composite manifested structure,
-- cohesion of process-bearing configurations,
-- retention of binding and cohesion in execution.
+- применяемое изменение значений обычных `Field`,
+- устойчивость составной проявленной структуры,
+- связность процессо-несущих конфигураций,
+- удержание привязки и сцепления в исполнении.
 
-## The action boundary of `Gluon`
+## Граница действия `Gluon`
 
-`Strong` works only with ordinary data-fields.
-It is not the channel of topology change.
+`Strong` работает только с обычными полями данных.
+Он не является каналом изменения topology.
 
-This means:
+Это означает:
 
-- `string`, `number`, and `boolean` are ordinary data-fields,
-- `enum` and `array` are not ordinary data-fields,
-- `enum` and `array` belong to topology-fields by type nature,
-- topology-fields are served not by `Gluon`, but by `Higgs boson`.
+- `string`, `number` и `boolean` относятся к обычным полям данных,
+- `enum` и `array` не относятся к обычным полям данных,
+- `enum` и `array` принадлежат полям topology по своей типовой природе,
+- поля topology обслуживаются не `Gluon`, а `Higgs boson`.
 
-That distinction is primary relative to AST.
-AST may unfold `enum` and `array` in concrete contracts, but it does not turn them into ordinary fields.
+Такое различие первично по отношению к AST.
+AST может разворачивать `enum` и `array` в конкретных контрактах, но не делает их обычными полями.
 
-## Ordinary Field Force
+## Force обычного поля
 
-In MetaFor, ordinary `Field` is the bearer of value.
-If an ordinary value changes, that change is carried through `Gluon`.
+В MetaFor обычный `Field` является носителем значения.
+Если изменяется обычное значение, это изменение проводится через `Gluon`.
 
-In other words:
+Иначе говоря:
 
-- `Field` is the bearer of ordinary value,
-- `Value` is the current content of the ordinary field,
-- `Gluon` is the carrier of change for that value,
-- `Strong` is the force that holds the change and prevents it from destroying form.
+- `Field` — носитель обычного значения,
+- `Value` — текущее содержимое обычного поля,
+- `Gluon` — переносчик изменения этого значения,
+- `Strong` — сила, которая удерживает такое изменение и не даёт ему разрушить форму.
 
-## Canonical correspondence
+## Каноническое соответствие
 
-The agreed mapping for ordinary data-fields is:
+Ниже дана согласованная раскладка для обычных полей данных.
 
-| Gluon class | Gluon state      | `Field` kind | Semantic role       |
-| ----------- | ---------------- | ------------ | ------------------- |
-| Colored     | `red-antigreen`  | `string`     | free text scalar    |
-| Colored     | `blue-antired`   | `number`     | free numeric scalar |
-| Colored     | `green-antiblue` | `boolean`    | free boolean scalar |
+| Класс глюона | Состояние глюона | Вид `Field` | Семантическая роль     |
+| ------------ | ---------------- | ----------- | ---------------------- |
+| Colored      | `red-antigreen`  | `string`    | free text scalar       |
+| Colored      | `blue-antired`   | `number`    | free numeric scalar    |
+| Colored      | `green-antiblue` | `boolean`   | free boolean scalar    |
 
-## Why `enum` and `array` are outside `Strong`
+## Почему `enum` и `array` выведены из `Strong`
 
-Historically, `enum` and `array` could be read as special value forms.
-The current ontological distinction is stricter:
+Раньше `enum` и `array` могли читаться как специальные формы значения.
+Текущее онтологическое различение строже:
 
-- `enum` always gives branch selection and is not a generic bounded literal field,
-- `array` always gives branch multiplicity and branch expansion and is not a generic mutable collection,
-- neither `enum` nor `array` belongs to the ordinary field-update regime,
-- topology branch is not an ordinary value,
-- topology change must not be mixed with value change inside an already existing branch.
+- `enum` всегда задаёт выбор ветви и не является просто полем с ограниченным набором литералов,
+- `array` всегда задаёт множественность ветвей и их разворачивание и не является обычной изменяемой коллекцией,
+- ни `enum`, ни `array` не принадлежат режиму обычного обновления поля,
+- ветвь topology не является обычным значением,
+- изменение topology не должно смешиваться с изменением значения внутри уже существующей ветви.
 
-That is why:
+Именно поэтому:
 
-- `Photon` does not replace `Gluon`,
-- `Gluon` does not replace `Higgs boson`,
-- ordinary field update and topology-field change are different events.
+- `Photon` не подменяет `Gluon`,
+- `Gluon` не подменяет `Higgs boson`,
+- обычное обновление поля и изменение поля topology читаются как разные события.
 
-## Examples of ordinary updates
+## Примеры обычных обновлений
 
-Example 1. String update:
+Пример 1. Обновление строки:
 
 ```js
 update({ title: "MetaFor" })
 ```
 
-The change goes through `red-antigreen gluon` because an ordinary `string` changes.
+Здесь изменение проходит через `red-antigreen gluon`, потому что обновляется обычный `string`.
 
-Example 2. Numeric update:
+Пример 2. Обновление числа:
 
 ```js
 update({ priority: 3 })
 ```
 
-The change goes through `blue-antired gluon` because an ordinary `number` changes.
+Здесь работает `blue-antired gluon`, потому что обновляется обычный `number`.
 
-Example 3. Boolean update:
+Пример 3. Обновление булева значения:
 
 ```js
 update({ visible: true })
 ```
 
-The change goes through `green-antiblue gluon` because an ordinary `boolean` changes.
+Здесь действует `green-antiblue gluon`, потому что обновляется обычный `boolean`.
 
-## Force distinctions
+## Силовые различия
 
-- `Strong` does not transport `State`; `Photon` does that.
-- `Strong` does not change topology-fields; `Higgs boson` does that.
-- `Strong` does not hold hidden geometry and addressability; `Graviton` does that.
-- `Strong` holds the ordinary determinacy of value inside already existing structure.
+- `Strong` не переносит `State`; это делает `Photon`.
+- `Strong` не изменяет поля topology; это делает `Higgs boson`.
+- `Strong` не удерживает скрытую геометрию и адресуемость; это делает `Graviton`.
+- `Strong` удерживает обычную определённость значения внутри уже существующей структуры.

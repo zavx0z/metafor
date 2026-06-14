@@ -2,7 +2,7 @@ import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import {SQL, type ServerWebSocket} from "bun"
 import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
-import type {ForceBinding, ForceMessage} from "../store/index.ts"
+import type {ForceBinding, ForceMessage} from "@metafor/boundary"
 
 type ForceSocketData = {kind: "force"}
 
@@ -11,27 +11,27 @@ const logBroadcastMessage = (event: MessageEvent<unknown>): void => {
 }
 
 describe("dark/server разворачивает дерево zavx0z/git по gravity part", () => {
-  let storePath: string
-  let storeSubscription: ForceBinding | null = null
+  let boundaryPath: string
+  let boundarySubscription: ForceBinding | null = null
   let forceBridge: ReturnType<typeof Bun.serve<ForceSocketData>> | null = null
   let forceClient: WebSocket | null = null
   const forceSockets = new Set<ServerWebSocket<ForceSocketData>>()
-  const storeMessages: ForceMessage[] = []
+  const boundaryMessages: ForceMessage[] = []
   const forceMessages: ForceMessage[] = []
 
   beforeAll(async () => {
     // Файл не удаляем после теста, чтобы результат разложения git можно было осмотреть руками.
     const tmpDir = join(import.meta.dir, "tmp")
     mkdirSync(tmpDir, {recursive: true})
-    storePath = join(tmpDir, "boundary.sqlite")
+    boundaryPath = join(tmpDir, "boundary.sqlite")
 
     // Предыдущий аварийный запуск мог оставить sqlite sidecar-файлы на диске.
-    // Чистим их перед импортом server.ts, потому что server.ts открывает store на этапе import.
-    rmSync(storePath, {force: true})
-    rmSync(`${storePath}-shm`, {force: true})
-    rmSync(`${storePath}-wal`, {force: true})
+    // Чистим их перед импортом server.ts, потому что server.ts открывает boundary на этапе import.
+    rmSync(boundaryPath, {force: true})
+    rmSync(`${boundaryPath}-shm`, {force: true})
+    rmSync(`${boundaryPath}-wal`, {force: true})
 
-    process.env.STORE_PATH = storePath
+    process.env.BOUNDARY_PATH = boundaryPath
     await import("./server.ts")
 
     forceBridge = Bun.serve<ForceSocketData>({
@@ -63,25 +63,25 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
     })
     await waitForWebSocketOpen(forceClient)
 
-    storeSubscription = globalThis.store.entropy((event) => {
+    boundarySubscription = globalThis.boundary.entropy((event) => {
       logBroadcastMessage(event)
-      storeMessages.push(event.data)
+      boundaryMessages.push(event.data)
       broadcastForceMessage(forceSockets, event.data)
     })
   })
 
   afterAll(async () => {
-    storeSubscription?.close()
+    boundarySubscription?.close()
     forceClient?.close()
     forceSockets.clear()
     await forceBridge?.stop(true)
   })
 
-  test("после test wimp zavx0z/git store содержит каноническое дерево git", async () => {
+  test("после test wimp zavx0z/git boundary содержит каноническое дерево git", async () => {
     const inputMessage: ForceMessage = {
       parts: [{part: "graviton", op: "test", path: "wimp", value: "zavx0z/git"}],
     }
-    globalThis.store.emit(inputMessage)
+    globalThis.boundary.emit(inputMessage)
 
     const bridgedMessage = await waitForForceMessage(forceMessages, (message) =>
       message.parts.some((part) => part.part === "graviton" && part.op === "test" && part.path === "wimp" && part.value === "zavx0z/git"),
@@ -89,7 +89,7 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
     expect(bridgedMessage).toEqual(inputMessage)
 
     // ждём пока Dark материализует root wimp + child wimps в БД
-    const sql = new SQL(`sqlite://${storePath}`)
+    const sql = new SQL(`sqlite://${boundaryPath}`)
     const deadline = Date.now() + 30_000
     let materialized = false
     while (Date.now() < deadline) {
@@ -112,10 +112,10 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
     }
     expect(materialized, "Dark должен был материализовать дерево zavx0z/git").toBe(true)
 
-    const actorMessage = storeMessages.find((message) =>
+    const actorMessage = boundaryMessages.find((message) =>
       message.parts.some((part) => part.part === "graviton" && part.op === "add" && part.path === "actor"),
     )
-    expect(actorMessage, "Store должен был отправить runtime actor part").toBeDefined()
+    expect(actorMessage, "Boundary должен был отправить runtime actor part").toBeDefined()
     const actorMessagePayload = JSON.stringify(actorMessage)
     const bridgedActorMessage = await waitForForceMessage(
       forceMessages,
@@ -153,10 +153,10 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
   }, 60_000)
 
   test("повторный test wimp zavx0z/git идемпотентен — server пропускает уже залитый root", async () => {
-    const sql = new SQL(`sqlite://${storePath}`)
+    const sql = new SQL(`sqlite://${boundaryPath}`)
     const before = await waitForActorCountStable(sql)
 
-    globalThis.store.emit({
+    globalThis.boundary.emit({
       parts: [{part: "graviton", op: "test", path: "wimp", value: "zavx0z/git"}],
     })
 

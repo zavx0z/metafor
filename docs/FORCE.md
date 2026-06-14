@@ -1,34 +1,33 @@
-[README](../README.md) | **English** | [Русский](./FORCE.ru.md)
 
 # Force
 
-This document is the root entry point into the force layer of MetaFor.
-It gives the common order of forces, channels, and the transportable content of change.
-Detailed readings of separate forces and the topology-field channel are expanded in [Gravity](./proto/gravity.md), [Electromagnetism](./proto/electromagnetism.md), [Strong](./proto/strong.md), [Weak](./proto/weak.md), and [Higgs](./proto/higgs.md).
+Этот документ является корневой точкой входа в Force-слой MetaFor.
+Он задаёт общий строй сил, каналов и содержимого изменения.
+Детальные разборы отдельных сил и канала изменения полей topology вынесены в [Gravity](./proto/gravity.md), [Electromagnetism](./proto/electromagnetism.md), [Strong](./proto/strong.md), [Weak](./proto/weak.md) и [Higgs](./proto/higgs.md).
 
-## Purpose
+## Назначение
 
-[Ontology](./ONTOLOGY.md) defines what exists in the system.
-[Architecture](./ARCHITECTURE.md) defines how that ontology is projected into code.
-The Force layer defines how force acts through a channel and how change receives a transportable form.
+[ONTOLOGY.md](./ONTOLOGY.md) фиксирует, что существует в системе.
+[ARCHITECTURE.md](./ARCHITECTURE.md) фиксирует, как это выражается в кодовой проекции.
+Force фиксирует, как сила действует через канал и как изменение получает переносимую форму.
 
-This layer deepens ontology and architecture without redistributing their responsibilities.
-Canonicalization, deduplication, interning, and compaction remain the responsibility of `Boundary × Strong`.
-The distinction between ordinary data-fields and topology-fields remains primary and is not retroactively created by force.
+Этот слой углубляет онтологию и архитектуру, но не перераспределяет их обязанности.
+Каноникализация, дедупликация, интернирование и уплотнение остаются за `Boundary × Strong`.
+Типовое различие между обычными полями данных и полями topology остаётся первичным и не определяется самим Force-слоем задним числом.
 
-## Central distinctions
+## Центральные различия
 
-### Force
+### Сила
 
-Force defines the character of transformation.
-It is not the transportable unit and it is not identical to the content of change.
+Сила задаёт характер преобразования.
+Она не является переносимой единицей и не совпадает с содержимым изменения.
 
 ### Boson
 
-`Boson` is the common type of force-channel and transport unit.
-It is not itself a force.
+`Boson` является общим типом силового канала и переносимой единицы.
+Он не является силой.
 
-The bosonic subtypes in MetaFor are:
+Подтипами `Boson` в Force-слое MetaFor являются:
 
 - `Graviton`,
 - `Photon`,
@@ -37,30 +36,30 @@ The bosonic subtypes in MetaFor are:
 - `W boson`,
 - `Z boson`.
 
-Each subtype belongs to its own force or to the dedicated topology-field channel and must not collapse into the others.
+Каждый такой подтип принадлежит своей силе или отдельному каналу изменения полей topology и не должен смешиваться с другими.
 
 ### Impulse
 
-`Impulse` is the content of change.
-It is not a force, not a `Boson`, and not a channel.
+`Impulse` является содержимым изменения.
+Он не является силой, не является `Boson` и не является каналом.
 
-In the serializable architectural projection, `Impulse` may be expressed through `ParticleOperation` and payload fields.
-That does not turn it into the carrier itself.
+В архитектурной сериализуемой проекции `Impulse` может быть выражен через `ParticleOperation` и поля данных.
+Это не превращает его в переносчик.
 
-The force relation is therefore:
+Силовая связка читается так:
 
-- force defines the character of transformation,
-- `Boson` defines the general type of channel,
-- a bosonic subtype defines the concrete force-channel,
-- `Impulse` defines the content of change.
+- сила задаёт характер преобразования,
+- `Boson` задаёт общий тип канала,
+- подтип `Boson` задаёт конкретный силовой канал,
+- `Impulse` задаёт содержимое изменения.
 
-## Transport and `part`
+## Транспорт и `part`
 
-MetaFor uses one physical transport channel: `METAFOR_FORCE_CHANNEL`.
-Runtime force must not create separate physical channels for `gravity`, `gluon`, `higgs`, `weak`, and so on.
+Физический транспорт MetaFor использует один `BroadcastChannel`: `METAFOR_FORCE_CHANNEL`.
+Отдельных физических каналов `gravity`, `gluon`, `higgs`, `weak` и т.п. в рантайме Force быть не должно.
 
-Each `Particle` carries its semantic channel in the `part` field.
-One `Particle` represents exactly one force part:
+Каждый `Particle` несёт смысловой канал в поле `part`.
+Один `Particle` представляет ровно один Force part:
 
 ```ts
 { part: "graviton", op: "add", path: "wimp", value: "zavx0z/git" }
@@ -70,124 +69,120 @@ One `Particle` represents exactly one force part:
 { part: "gluon", op: "replace", path: "/field/<uuid>", value: 42 }
 { part: "higgs", op: "replace", path: "/field/<uuid>", value: "branch" }
 { part: "photon", op: "replace", path: "/wimp/<uuid>", value: "ready" }
-{ part: "w", op: "test", path: "/wimp/<uuid>/process/<uuid>", value: { kind: "result" } }
-{ part: "+z", op: "test", path: "/wimp/<uuid>/process/<uuid>", value: { coordination: "claim" } }
-{ part: "-z", op: "test", path: "/wimp/<uuid>/process/<uuid>", value: { coordination: "release" } }
+{ part: "w", op: "test", path: "./actions/detect", value: { process: "<uuid>", data: {} } }
+{ part: "+z", op: "test", path: "./actions/detect", value: { process: "<uuid>", coordination: "claim" } }
+{ part: "-z", op: "test", path: "./actions/detect", value: { process: "<uuid>", coordination: "release" } }
 ```
 
-`part` carries the force carrier, while the domain signal type is written in `path`.
-A WIMP signal does not encode `/wimp/...`: it is written as `{ part: "graviton", op: "add", path: "wimp", value: src }`.
-Here `value` is not the WIMP payload, only the source id; receivers read the full declaration from Store by that `src`.
-Other Store entities follow the same order: `path` is the domain area (`actor`,
-`topology`, `matter`, `state`, `process`, and so on), while `value` is the id/key
-used by the receiver to reread the full row or subtree from Store.
+`part` хранит носитель силы, а доменный тип сигнала пишется в `path`.
+WIMP-сигнал не кодирует `/wimp/...`: он пишется как `{ part: "graviton", op: "add", path: "wimp", value: src }`.
+Для `Dark`/`Boundary` это может быть лёгкий control-сигнал, потому что `Dark`
+имеет доступ к `Boundary`.
+Для `Energy` и `Bulk` такой порядок запрещён: они не читают `Boundary` и не
+являются репликами БД. Поэтому частица, обращённая к рантайму, должна нести
+самодостаточные данные.
 
-A `parts` batch may contain different `part` values, but routing is always read from the Particle itself, not from the envelope.
-The envelope must not duplicate `part`, `channel`, `source`, or `boson`.
+Пакет `parts` может содержать разные `part`, но маршрутизация всегда читается с самого Particle, а не с конверта.
+Конверт не должен дублировать `part`, `channel`, `source` или `boson`.
 
-The transport layer does not build custom queues on top of `BroadcastChannel`.
-If ordering, deduplication, replay, or integrity is required, it belongs to the store transaction, revision/domain tick, or runtime owner rather than to a subscriber-side Promise queue.
+Транспортный слой не строит собственные очереди поверх `BroadcastChannel`.
+Если нужен порядок, дедупликация, повторное воспроизведение или целостность, это обязанность транзакции Boundary, revision/domain tick или владельца рантайма, а не Promise-очереди подписчика.
 
-## Store commit and domain signals
+## Коммит Boundary И Рантайм-Данные
 
-`Store` holds the full canonical form of the world.
-A lightweight Force `Particle` with `uuid`, `part`, and revision is not a payload
-for rebuilding another `Store`; it only tells domains that an already committed
-part of the world changed and should be read from `Store`.
+`Boundary` хранит каноническую персистентную форму мира, доступную `Dark`.
+`Energy` и `Bulk` не имеют доступа к `Boundary`/SQLite и не должны получать
+сигнал, который требует последующего чтения БД.
 
-In a distributed system, multiple physical `Store` replicas may exist: server
-SQLite databases, browser IndexedDB replicas, or other runtime nodes.
-If another `Store` must receive a change, the unit of transfer is the same
-causal commit, not a separate independent sync channel.
+Главное различие:
 
-Correct order:
+- `Dark`/`Boundary` могут использовать лёгкие сигналы и перечитывать персистентную форму.
+- `Energy`/`Bulk` получают рантайм-данные и ведут собственное состояние/проекцию в рантайме.
+- WebSocket между доменами не является синхронизацией базы.
+- Если рантайм получил только UUID без данных, это ошибка контракта, а не повод читать `Boundary`.
+
+Правильный порядок для персистентного слоя:
 
 ```text
-domain full change
-  -> local Store transaction
-  -> commit(txId / revision / parents)
-  -> commit envelope:
-       writes  - data for Store replicas that need to apply the change
-       signals - lightweight force parts for domain reaction
+полное доменное изменение
+  -> локальная транзакция Boundary
+  -> коммит(txId / revision / parents)
+  -> сигналы Boundary entropy
 ```
 
-On the receiving side, delivery to domains is ordered in reverse:
+Правильный порядок для рантайм-слоя:
 
 ```text
-receive commit envelope
-  -> apply writes into local Store transaction
-  -> commit local Store
-  -> deliver signals to Dark / Boundary / Bulk subscribers
+получить рантайм-данные частицы/проекции
+  -> применить к рантайм-состоянию/проекции
+  -> испустить рантайм-частицы Force при локальном изменении рантайм-состояния
 ```
 
-`store-sync` and domain force must not be split into two independent streams,
-because then `Boundary` or `Bulk` may receive a signal before the local `Store`
-replica contains the data that the signal points to.
-If replication is not needed, the commit envelope may carry no external
-`writes`, but the domain Force part must still be born only after the local commit.
+Нельзя строить `Energy` или `Bulk` как вторую `Boundary`-реплику. Если им
+нужны данные, эти данные должны быть частью рантайм-данных или данных проекции.
 
-Consequence: sending the domain Force part belongs to the `Store`/commit layer,
-not to the caller that has already written the data.
-The force transport module lives in `store/force`; subscriptions and direct
-low-level channels import it from there, not from the project root.
-The current startup surface for emitting a domain signal after a Store write is
-embedded into ORM write methods: `actor.create`, `topology.create`,
-`wimp.states.add`, `wimp.processes.add`, `wimp.matter.*`, and related sub-ORM
-methods create the force signal after the SQL write. This surface should later
-collapse into the full commit envelope, but callers must no longer create their
-own `BroadcastChannel` or manually send a second Force part.
-A domain, agent, UI, or any other participant in the environment must not perform
-two manual actions:
+Следствие: отправка доменной частицы Force принадлежит слою `Boundary`/коммита, а
+не вызывающей стороне, которая уже записала данные.
+Транспортный модуль Force живёт в `boundary/force`; подписки и прямые
+низкоуровневые каналы импортируются оттуда, а не из корня проекта.
+Текущая стартовая поверхность для доменного emit после Boundary-записи встроена в
+ORM write-методы: `actor.create`, `topology.create`, `wimp.states.add`,
+`wimp.processes.add`, `wimp.matter.*` и связанные sub-ORM методы рождают
+Force part после SQL-записи. Дальше эта поверхность должна схлопываться в
+полноценный конверт коммита, но вызывающая сторона уже не должна сама создавать
+`BroadcastChannel` или вручную слать второй Force part.
+Домен, агент, UI или другой участник среды не должен выполнять двойное ручное
+действие:
 
 ```text
-write Store
+write Boundary
 send Force part separately
 ```
 
-An environment participant should have one semantic entrypoint: change a field
-value, state, or context. Inside that entrypoint, the environment performs the
-store transaction, creates the commit envelope, and delivers `signals` as
-force parts only after commit.
+Для участника среды должен существовать один смысловой вход: изменить значение
+поля, состояние или контекст. Внутри этого входа среда выполняет транзакцию
+Boundary, формирует конверт коммита и только после коммита доставляет
+`signals` как Force parts.
 
-If an API requires a participant to both mutate the database and manually send a
-Force part, the runtime contract is not finished yet: Force part sending must be moved into
-the store/commit path.
+Если API требует от участника одновременно менять БД и вручную слать Force part, это
+означает, что рантайм-контракт ещё не доведён: отправку Force part нужно перенести в
+путь Boundary/коммита или сделать рантайм-данные самодостаточными.
 
-## Field types
+## Типы полей
 
-Force distinguishes:
+Force различает:
 
-- ordinary data-fields,
-- topology-fields.
+- обычные поля данных,
+- поля topology.
 
-`enum` and `array` belong to topology-fields by their type nature.
-This is a primary model category, not an after-the-fact conclusion from contract shape.
-The contract only unfolds topology semantics that already exists.
+`enum` и `array` относятся к полям topology по своей типовой природе.
+Это первичная категория модели, а не постфактум-вывод из формы контракта.
+Контракт только разворачивает уже существующую topology-семантику.
 
-Topology-fields in MetaFor are read as Higgs fields:
+Поля topology в MetaFor читаются как поля Higgs:
 
-- `enum` always expresses topology selection,
-- `array` always expresses topology multiplicity or branch expansion.
+- `enum` всегда выражает выбор topology,
+- `array` всегда выражает множественность topology и разворачивание ветвей.
 
-Neither `enum` nor `array` should be read as an ordinary value field.
-Neither belongs to the ordinary field-update regime.
-Both change only as topology change through `Higgs boson`, not as ordinary value mutation.
+Ни `enum`, ни `array` нельзя читать как обычное поле значения.
+Ни одно из них не принадлежит режиму обычного обновления поля.
+Оба меняются только как изменение topology через `Higgs boson`, а не как обычная мутация значения.
 
-The restrictions for topology-fields are:
+Ограничения полей topology таковы:
 
-- `enum` is not a generic bounded literal field,
-- `enum` changes as topology selection rather than ordinary value mutation,
-- `array` is not a generic mutable collection,
-- `array` changes as topology multiplicity rather than ordinary value mutation,
-- `array` does not participate in entanglement,
-- `array` is not mutated by external reactions,
-- `array` may change only through the atom's internal process and only by passing through a change of `State`.
+- `enum` не является просто ограниченным литеральным полем,
+- `enum` меняется как выбор topology, а не как обычная мутация значения,
+- `array` не является обычной изменяемой коллекцией,
+- `array` меняется как множественность topology, а не как обычная мутация значения,
+- `array` не участвует в entanglement,
+- `array` не мутируется внешними реакциями,
+- `array` может меняться только внутренним процессом атома и только проходя через изменение `State`.
 
-The formal topology model, typed topology addressing, and topology-level entanglement addressing live in [Topology](./TOPOLOGY.md) so force does not replace the hidden-world assembly model.
+Формальная topology-модель, типизированная topology-адресация и topology-уровневая адресация entanglement вынесены в [TOPOLOGY.md](./TOPOLOGY.md), чтобы Force не подменял архитектурную сборку скрытого мира.
 
-## Global symmetry
+## Глобальная симметрия
 
-MetaFor force symmetry is:
+Силовая симметрия MetaFor задаётся так:
 
 - `Gravity -> Graviton`
 - `Electromagnetism -> Photon`
@@ -195,63 +190,63 @@ MetaFor force symmetry is:
 - `Higgs field change -> Higgs boson`
 - `Weak -> W boson / Z boson`
 
-This mapping should be read consistently across ontology, architecture, and force.
+Это соответствие должно читаться единообразно в онтологии, архитектуре и Forceе.
 
-## Force interactions
+## Силовые взаимодействия
 
 ### Gravity
 
-`Gravity` is responsible for relation, localization invariants, addressability, and structural organization.
-Its `Dark` projection appears as hidden connectivity and inner geometry, its `Boundary` projection as flattening geometry and index space, and its `Bulk` projection as manifested arrangement and spatial localization.
-Its channel is `Graviton`, which belongs to the internal structural force rather than to the observable signal layer.
+`Gravity` отвечает за отношение, инварианты локализации, адресуемость и структурную организацию.
+Её `Dark`-проекция проявляется как скрытая связность и внутренняя геометрия, `Boundary`-проекция — как геометрия персистентного уплощения, `Energy`-проекция — как рантайм-локализация перехода, а `Bulk`-проекция — как проявленная раскладка и пространственная локализация.
+Её каналом является `Graviton`, который относится к внутреннему структурному Forceу, а не к наблюдаемому сигналу.
 
-See [Gravity](./proto/gravity.md).
+Подробный разбор вынесен в [Gravity](./proto/gravity.md).
 
 ### Electromagnetism
 
-`Electromagnetism` is responsible for observable propagation and the transport of `State`.
-Its channel is `Photon`, which brings state into a signaled, boundary-visible, and manifested form.
+`Electromagnetism` отвечает за наблюдаемое распространение и перенос `State`.
+Её каналом является `Photon`, который приносит состояние в сигнальную, гранично-видимую и проявленную форму.
 
-See [Electromagnetism](./proto/electromagnetism.md).
+Подробный разбор вынесен в [Electromagnetism](./proto/electromagnetism.md).
 
 ### Strong
 
-`Strong` is responsible for retention, cohesion, connectivity, compaction, and form stability.
-Its channel is `Gluon`, through which ordinary `Field` values change.
+`Strong` отвечает за удержание, сцепление, связность и устойчивость формы.
+Её каналом является `Gluon`, через который изменяются значения обычных `Field`.
 
-`Gluon` does not replace the architectural role of `Boundary × Strong`.
-Canonicalization, deduplication, interning, and compaction remain boundary responsibilities.
-
-See [Strong](./proto/strong.md).
+При этом `Gluon` не заменяет архитектурную роль `Boundary × Strong`.
+Каноникализация, дедупликация, интернирование и уплотнение остаются отдельной обязанностью границы.
+Глюонный октет и соответствия типам `Field` вынесены в [Strong](./proto/strong.md).
 
 ### Higgs
 
-`Higgs` in MetaFor names topology-field change.
-Its channel is `Higgs boson`, which changes topology-fields as Higgs fields.
+`Higgs` в MetaFor обозначает изменение полей topology.
+Его каналом является `Higgs boson`, который изменяет поля topology как поля Higgs.
 
-The distinction is:
+Здесь важно различать:
 
-- `Photon` transports `State`,
-- `Gluon` changes ordinary `Field`,
-- `Higgs boson` changes topology-fields,
-- `Graviton` holds the relation and localization frame in which those changes receive place.
+- `Photon` переносит `State`,
+- `Gluon` изменяет обычные `Field`,
+- `Higgs boson` изменяет поля topology,
+- `Graviton` удерживает рамку отношения и локализации, в которой эти изменения получают место.
 
-See [Higgs](./proto/higgs.md).
+Подробный разбор вынесен в [Higgs](./proto/higgs.md).
 
 ### Weak
 
-`Weak` is responsible for transition, passage, mutation, and mediation of state.
-Its channels are `W boson` and `Z boson`.
+`Weak` отвечает за переход, прохождение, мутацию и медицию состояния.
+Её каналы — `W boson` и `Z boson`.
 
-`W boson` belongs to active transition.
-`Z boson` belongs to neutral mediation and the inner coupling of transitional states.
+`W boson` относится к активному переходу.
+`Z boson` относится к нейтральной медиции и внутренней связке переходных состояний.
+Это не превращает `Weak` в сигнальный канал уровня `Photon`.
 
-See [Weak](./proto/weak.md).
+Подробный разбор вынесен в [Weak](./proto/weak.md).
 
-## Detailed documents
+## Детальные документы
 
-- [Gravity](./proto/gravity.md) covers relation, localization invariants, addressability, and structural organization across domains.
-- [Electromagnetism](./proto/electromagnetism.md) covers observable propagation, signal, and the transport of `State`.
-- [Strong](./proto/strong.md) covers ordinary `Field` updates, retention of form, and the action boundary of `Gluon`.
-- [Higgs](./proto/higgs.md) covers topology-fields as Higgs fields, branch selection, branch multiplicity, and `Higgs boson`.
-- [Weak](./proto/weak.md) covers active transition, neutral mediation, and the distinction between `W boson` and `Z boson`.
+- [Gravity](./proto/gravity.md) — отношение, инварианты локализации, адресуемость и структурная организация по доменным проекциям.
+- [Electromagnetism](./proto/electromagnetism.md) — наблюдаемое распространение, сигнал и перенос `State`.
+- [Strong](./proto/strong.md) — изменение значений обычных `Field`, удержание формы и границы действия `Gluon`.
+- [Higgs](./proto/higgs.md) — поля topology как поля Higgs, выбор ветви, множественность ветвей и `Higgs boson`.
+- [Weak](./proto/weak.md) — активный переход, нейтральная медиция и различие между `W boson` и `Z boson`.

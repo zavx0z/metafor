@@ -11,7 +11,7 @@ function inlineSourceStepMap(): string {
   const source = [
     "const before = 1",
     "",
-    "globalThis.store = await open(STORE_PATH)",
+    "globalThis.boundary = await open(BOUNDARY_PATH)",
     "",
     "const decodeSegment = (s: string): string => s.replace(/~1/g, \"/\")",
     "",

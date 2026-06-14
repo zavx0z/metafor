@@ -1,5 +1,5 @@
 import type {Continuation} from "../continuation.ts"
-import type {MatterRelationChildEdgeSlot} from "../../store/wimp/sqlite/matter.t.ts"
+import type {MatterRelationChildEdgeSlot} from "@boundary/wimp/sqlite"
 
 export type MatterBindingValue =
   | string

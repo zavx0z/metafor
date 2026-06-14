@@ -1,9 +1,9 @@
-import {open} from "../store/sqlite.ts"
+import {open} from "@metafor/boundary/sqlite"
 import {matter} from "./dark.ts"
 export {matter}
 
 if (typeof self !== "undefined" && "postMessage" in self) {
-  globalThis.store = await open(":memory:")
+  globalThis.boundary = await open(":memory:")
 
   self.onmessage = async (event: MessageEvent<{src?: string}>) => {
     const {src} = event.data
