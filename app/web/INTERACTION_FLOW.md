@@ -1,52 +1,50 @@
-# App Web Interaction Flow
+# Поток Взаимодействия AppWeb
 
 ## Участники
 
-- `app/web/server.ts` поднимает `dark`, `boundary` и `bulk` worker-ы на общем file-backed SQLite backend `app/web/tmp/metafor-app.sqlite`
-- `dark` materialize-ит graph/meta/wimp structure в DB и шлёт Force parts через единый channel
-- `boundary` держит materialized runtime, пишет state/field changes обратно в DB и публикует `Photon`
-- `bulk` слушает `Photon`, claim-ит process через `part: "+z"`, release/reject отдаёт через `part: "-z"`, исполняет action и возвращает W-result через `part: "w"`
+- `Dark` работает совместно с `Boundary`: открывает boundary-хранилище, материализует graph/wimp/actor/topology и рождает Force-частицы.
+- `Energy` не имеет доступа к `Boundary`/SQLite. Он получает рантайм-частицы, ведёт состояние рантайма и публикует свои события обратно через Force.
+- `Bulk` не имеет доступа к `Boundary`/SQLite. Он получает рендер/рантайм-проекцию в реальном времени, ведёт рантайм проекции, исполняет действие и возвращает частицы результата.
+- `app/web` остаётся видовым клиентом: он не становится источником истины и не хранит рантайм-БД в браузерном `IndexedDB`.
 
-## Materialize
+## Материализация
 
 1. Клиент открывает `/ws` и шлёт `{ type: "materialize", src }`
-2. Server пересоздаёт runtime и очищает `metafor-app.sqlite`
-3. `dark` materialize-ит meta graph в DB
-4. `boundary` получает structural parts, проходит barrier rebuild и поднимает runtime поверх той же SQLite
-5. UI получает snapshot и Force stream уже из server-side runtime
+2. Сервер просит `Dark` материализовать `src` в `Boundary`
+3. `Dark` пишет каноническую форму в `Boundary` и публикует полный Force-поток
+4. `Energy` и `Bulk` получают нужные им рантайм-данные через Force и собирают свои рантайм-формы
+5. UI получает рендер-проекцию / события мира от рантайма, а не читает базу
 
-## Value / State Flow
+## Поток Значений И Состояния
 
 1. Клиент шлёт через `/ws` `{ type: "force", parts }`, где каждый part содержит `part`
-2. Server bridge публикует `{ parts }` в единый Force channel
-3. `boundary.setValues()` обновляет runtime field values, пишет их в SQLite и делает `weakRunStep()`
-4. Если state сменился, `boundary` публикует `Photon`
-5. Если state не сменился, но update затронул process-bound state, `boundary` всё равно retrigger-ит текущий state
-6. Retrigger считается не только для прямой браны, но и для всех бран, которые делят тот же runtime field через `source` / entanglement
-7. Для W result retrigger не делается только для той же браны, которая только что завершила свой process; соседние process-bound браны retrigger-ятся
+2. Серверный мост публикует `{ parts }` в единый Force-канал
+3. `Energy` применяет рантайм-значения и делает weak-step без обратной записи в SQLite
+4. Если state сменился, `Energy` публикует `Photon`
+5. `Bulk` применяет `Photon`/события проекции и обновляет проявленную форму
 
-## Bulk x Weak
+## Bulk × Weak
 
 1. `bulk` получает `Photon`
-2. Отправляет coordination part `part: "+z", op: "test", value: { coordination: "claim" }`
-3. Исполняет action module из meta process
+2. Отправляет координационную частицу `part: "+z", op: "test", value: { coordination: "claim" }`
+3. Исполняет action module из рантайм-данных / контекста процесса, не читая `Boundary`
 4. Возвращает:
-   - `part: "w"` field parts, если process дал success parts
-   - `part: "w"` result/error marker, если process вернул domain error
-5. `boundary.applyWeakResultPacket()` применяет parts, снимает lock, пишет DB и, если нужно, двигает brane в следующий state
+   - `part: "w"` field parts, если процесс дал успешные частицы
+   - `part: "w"` маркер результата/ошибки, если процесс вернул доменную ошибку
+5. `Energy` применяет W-result, снимает рантайм-lock и при необходимости двигает состояние
 
 ## Пример `git commit -m hi`
 
 1. `zavx0z/git.command` получает `git commit -m hi`
-2. Root process `определение операции` пишет `operation=history` и `args="-m hi"`
-3. Shared `args` доезжает до `zavx0z/git-history-commit`
-4. `boundary` retrigger-ит child state `парсинг опций`
-5. Child process парсит `-m hi`, пишет `message="hi"` и переводит brane в `коммит с сообщением`
-6. Commit action запускает реальный `git commit -m hi`
-7. Если git возвращает stderr, это приходит как domain error в `error` field и brane переходит в `ошибка`
+2. Корневой процесс `определение операции` пишет `operation=history` и `args="-m hi"`
+3. Общие `args` доезжают до `zavx0z/git-history-commit`
+4. `Energy` повторно запускает child state `парсинг опций` в рантайме
+5. Дочерний процесс парсит `-m hi`, пишет `message="hi"` и переводит brane в `коммит с сообщением`
+6. Действие коммита запускает реальный `git commit -m hi`
+7. Если git возвращает stderr, это приходит как доменная ошибка в поле `error`, и brane переходит в `ошибка`
 
-## Storage Notes
+## Заметки О Хранении
 
-- SQLite работает в file-backed режиме с `WAL`
-- После persist вызывается `flush()` / `wal_checkpoint`, чтобы следующий worker видел свежие данные
-- Истина для state и field values теперь одна: file DB, а не отдельные in-memory копии по worker-ам
+- SQLite/Boundary принадлежит `Dark` + `Boundary`.
+- `Energy` и `Bulk` не являются SQLite-репликами.
+- Рантайм-истина `Energy`/`Bulk` принадлежит рантайм-слоям и восстанавливается из Force-данных, а не через синхронизацию БД.

@@ -1,19 +1,25 @@
-# Application Servers
+# Серверы Приложения
 
-`@app/application` содержит минимальные серверные процессы для проверки обмена `ForceMessage` между доменами без browser `IndexedDB` и без `app/web` worker runtime.
+`@app/application` содержит минимальные серверные процессы для проверки обмена
+`ForceMessage` между доменами без браузерного `IndexedDB` и без старого
+воркер-рантайма `app/web`.
 
-- `dark.server.ts` импортирует `@metafor/dark/server`, поверх `globalThis.store` поднимает WebSocket-мост Store и после `zavx0z/git` materialization отправляет стартовый `w` particle в process WebSocket.
-- `boundary.server.ts` импортирует `@metafor/boundary/server` и поднимает такой же WebSocket-мост Store.
-- `process.server.ts` поднимает отдельный WebSocket-слой процессов. Он принимает только particles с `part: "w" | "+z" | "-z"`.
+- `dark.server.ts` импортирует `@metafor/dark/server`, открывает `Boundary` SQLite и материализует `zavx0z/git`.
+- `energy.server.ts` импортирует `@metafor/energy/server` и поднимает
+  рантайм-WebSocket без доступа к `Boundary`/SQLite.
 
-Слой приложения не является доменом. Store-мост только пересылает сообщения:
+Слой приложения не является доменом. Он только держит два процесса и WebSocket-транспорт:
 
 ```text
-store.entropy -> WebSocket
-WebSocket -> store.absorb
+Dark + Boundary -> Boundary entropy -> WebSocket
+WebSocket -> Boundary absorb
+
+WebSocket -> Energy force.absorb -> рантайм Energy
+Energy force.entropy -> WebSocket
 ```
 
-Process-мост не принимает Store-replication particles. `path` у process particle — это путь action-модуля из DSL, сохраненный в `process_action.action`; `value` содержит `uuid` строки `process` из SQLite. Остальной контекст выводится из Store по этому process uuid.
+`Energy` не открывает базу и не синхронизирует SQLite. Все данные, нужные ему
+для рантайма, должны приходить через Force-данные.
 
 Запуск из корня:
 
@@ -30,8 +36,8 @@ bun run interpreter
 
 Порты по умолчанию:
 
-- Process WebSocket: `127.0.0.1:7103/ws`;
-- Dark Store WebSocket: `127.0.0.1:7101/ws`;
-- Boundary Store WebSocket: `127.0.0.1:7102/ws`.
+- WebSocket `Dark`/`Boundary`: `127.0.0.1:7101/ws`;
+- рантайм-WebSocket `Energy`: `127.0.0.1:7102/ws`.
 
-Путь Store задается через `STORE_PATH` на уровне каждого доменного сервера.
+Путь `Boundary` задаётся через `BOUNDARY_PATH` только для `Dark`/`Boundary`.
+Для `Energy` путь базы не задаётся.

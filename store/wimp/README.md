@@ -1,20 +1,26 @@
-# meta — реляционное хранилище DSL
+# wimp/meta — Персистентные Декларации Boundary
 
-Документ описывает **физическую раскладку** DSL-описания компонента в реляционную форму. Это полный канонический slice того, что писатель компонента положил в `MetaFor(...)...`. Никакой runtime-памяти — только декларации.
+> Обновление 2026-06-14: прежний `store` переименован в `Boundary`.
+> Этот документ описывает декларативный слой WIMP/meta персистентного Boundary.
+> Для `Energy` и `Bulk` Force-сообщения должны нести самодостаточные рантайм-данные;
+> они не читают Boundary по `src`.
 
-`MetaFor(...).bulk()` возвращает `MetaDSL` сразу в write-ready форме:
+Документ описывает **физическую раскладку** DSL-описания компонента в реляционную форму. Это полный канонический срез того, что писатель компонента положил в `MetaFor(...)...`. Никакого рантайм-состояния — только декларации.
+
+`MetaFor(...).bulk()` возвращает `MetaDSL` сразу в форме, готовой к записи:
 `fields`, `superposition`, `processes` и `reactions` остаются верхними ключами DSL,
 но ключи object-map уже встроены внутрь элементов массивов.
 
-Store при создании WIMP читает сам `dsl`: ORM не делает дополнительный слой
+Boundary при создании WIMP читает сам `dsl`: ORM не делает дополнительный слой
 преобразования raw DSL.
 
 ## Force-сигнал create
 
-После SQL commit `wimp.create(src, input)` отправляет один `Particle`:
+После SQL-коммита `wimp.create(src, input)` отправляет один `Particle`:
 `{ part: "graviton", op: "add", path: "wimp", value: src }`.
-`value` здесь не payload WIMP, а только source-id. Получатель читает полную
-декларацию из Store по `src`; `path` не содержит `/wimp/...`.
+`value` здесь не данные WIMP, а только source-id. `Dark`/`Boundary`-получатель
+читает полную декларацию из Boundary по `src`; `path` не содержит `/wimp/...`.
+Для `Energy` и `Bulk` такой сигнал не является достаточными рантайм-данными.
 
 **33 таблицы** в 6 логических группах. Все каскадно связаны через FK на корень `meta(src)` — удаление меты по `src` чистит всю её декларацию.
 
@@ -97,7 +103,7 @@ Default-массив разложен поэлементно: одна стро�
    3. Если есть `default`:
       - INSERT `field_default` (маркер)
       - В зависимости от типа: INSERT в одну из `field_*_default`-таблиц или, для array, серию `field_array_default_item`
-2. Возвращается mapping `{ key → field.uuid }` для дальнейших ссылок (superposition, processes, reactions, matter-bindings).
+2. Возвращается маппинг `{ key → field.uuid }` для дальнейших ссылок (superposition, processes, reactions, matter-bindings).
 
 ---
 
@@ -167,7 +173,7 @@ Default-массив разложен поэлементно: одна стро�
 
 1. Для каждого `state` из `meta.superposition`:
    1. INSERT `superposition` с `position` = индекс
-2. Возвращается mapping `{ stateName → uuid }`.
+2. Возвращается маппинг `{ stateName → uuid }`.
 3. Для каждой пары `state.name` / `state.transitions`:
    - Для каждого `[toState, conditionsObject]`:
      1. INSERT `transition`
@@ -339,11 +345,11 @@ Type-specific подтаблицы. Одна строка на каждую ча
 Matter в DSL — это вложенное дерево узлов разного вида. Создание идёт в **два прохода**:
 
 1. **Pass 1: bindings**.
-   Обход дерева, для каждого encountered binding-выражения (fields, mass, predicate, collection):
+   Обход дерева, для каждого найденного binding-выражения (fields, mass, predicate, collection):
    1. Парсинг выражения → `binding_kind`, `expr`, список depend-paths
    2. INSERT `matter_binding`
    3. Для каждого dep-path → INSERT `matter_binding_dep` с `dep_order`
-   4. Сохранить `binding.uuid` в локальном mapping для второго прохода
+   4. Сохранить `binding.uuid` в локальном маппинге для второго прохода
 
 2. **Pass 2: particles**.
    Рекурсивный обход дерева сверху вниз, с stack-ом `parent_particle`:
@@ -361,18 +367,18 @@ Slot `then`/`else` используется для `cond`-fuzzy узлов (дв
 
 1. **`meta`** — корневая запись (все остальные ссылаются на `meta(src)`)
 2. **`meta_mass_value`** — рекурсивный обход mass-дерева
-3. **`field` + варианты + defaults** — собирается mapping `key → field.uuid`
-4. **`superposition`** — собирается mapping `name → superposition.uuid`
-5. **`transition` + `condition` + `condition_predicate` + `condition_list_item`** — используют оба mapping-а из шагов 3 и 4
+3. **`field` + варианты + defaults** — собирается маппинг `key → field.uuid`
+4. **`superposition`** — собирается маппинг `name → superposition.uuid`
+5. **`transition` + `condition` + `condition_predicate` + `condition_list_item`** — используют оба маппинга из шагов 3 и 4
 6. **`process` + `process_env` + `process_action`/`process_finally` + `*_read`/`*_write`** — ссылается на `field.uuid` из шага 3
 7. **`reaction` + `reaction_superposition` + `reaction_read`/`reaction_write`** — ссылается на `field.uuid` (шаг 3) и `superposition.uuid` (шаг 4)
-8. **`matter_binding` + `matter_binding_dep`** — pass 1 для matter
-9. **`matter_particle` + type-specific подтаблицы** — pass 2 для matter
+8. **`matter_binding` + `matter_binding_dep`** — первый проход для matter
+9. **`matter_particle` + типизированные подтаблицы** — второй проход для matter
 
 **Транзакционность**: вся запись меты — одна SQL-транзакция. Либо записалось целиком, либо ничего.
 Force-сигнал WIMP рождается после этой транзакции один раз в форме
 `{ part: "graviton", op: "add", path: "wimp", value: src }`; внутренние
-`matter_particle` строки не дублируют этот commit отдельными сигналами.
+`matter_particle` строки не дублируют этот коммит отдельными сигналами.
 
 **Идемпотентность**: повторная запись той же меты по тому же `src` сначала делает `DELETE FROM meta WHERE src = ?`. Каскадные FK с `ON DELETE CASCADE` снимают всё дерево автоматически. Затем идёт обычная вставка.
 
@@ -382,17 +388,17 @@ Force-сигнал WIMP рождается после этой транзакц�
 
 Чтение организовано симметрично записи: один корневой запрос по `src`, потом адресные подзапросы по дочерним таблицам. Никогда не делается полный дамп — потребитель запрашивает то, что ему нужно (только fields, или только superposition, или только matter), и получает ровно эту часть.
 
-Сборка runtime-объекта `Meta` из реляционных строк — отдельный модуль чтения (`read.ts`), который собирает структурный объект из 33-таблиц-снимка по адресу `src`.
+Сборка рантайм-объекта `Meta` из реляционных строк — отдельный модуль чтения (`read.ts`), который собирает структурный объект из 33-таблиц-снимка по адресу `src`.
 
 ---
 
-## Что хранится здесь vs где-то ещё
+## Что Хранится Здесь И Что Живёт В Других Местах
 
 В этой группе хранится **только декларация** компонента. Здесь нет:
 - Текущих значений полей (это `view`)
 - Состояния запущенного экземпляра (это `view`)
 - Привязки к конкретному инстансу (это `view`)
 - Render-данных (это `actor`)
-- Production-импортов модулей (исходники процессов хранятся как **текст**, импорт — runtime concern)
+- Production-импортов модулей (исходники процессов хранятся как **текст**, импорт — ответственность рантайма)
 
 Декларация **не зависит** от того, сколько экземпляров компонента сейчас живёт. Один и тот же `meta(src)` обслуживает любое число `view_wimps`, ссылающихся на него.

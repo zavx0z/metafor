@@ -2,7 +2,7 @@
 
 ## Обзор проекта
 
-MetaFor - open-source среда для общего AGI.
+MetaFor - открытая среда для общего AGI.
 Она рассматривает интеллект не как изолированную модель в плоском интерфейсе, а как общую цифровую среду, где люди, агенты, интерфейсы, память, приложения, устройства, пространство и действие могут сосуществовать.
 
 Текущая документация ветки `arch` является источником истины.
@@ -35,7 +35,7 @@ MetaFor - open-source среда для общего AGI.
 Повторы и исправления нужно читать как живой устный поток: последнее уточнение важнее предыдущей формулировки.
 
 Интерпретатор - не просто временный UI и не просто отладчик.
-Это первый рабочий interpreter world: общий живой контекст, где source, runtime, fields, state, actions, patches, terminal output, breakpoints и внимание к процессу можно наблюдать и менять без глобальной остановки системы.
+Это первый рабочий мир интерпретатора: общий живой контекст, где исходный код, рантайм, поля, состояние, действия, патчи, вывод терминала, точки останова и внимание к процессу можно наблюдать и менять без глобальной остановки системы.
 
 Разработку MetaFor нужно читать через физику полей и контекста, а не через выполнение команд как первичную модель:
 
@@ -52,7 +52,7 @@ MetaFor - open-source среда для общего AGI.
 Цикл:
 
 1. Прочитать текущий долговечный контекст перед архитектурными или смысловыми изменениями.
-2. Работать через interpreter/API/source так, как требует активный контекст.
+2. Работать через интерпретатор, API и исходный код так, как требует активный контекст.
 3. Когда становится понятен новый инвариант, исправление или практика, записать минимальный долговечный патч.
 4. Проверить, что патч виден в том месте, которое будут читать будущие агенты.
 5. Продолжать разработку из обновленного контекста, а не из памяти текущего чата.
@@ -61,14 +61,14 @@ MetaFor - open-source среда для общего AGI.
 
 ## Дисциплина правок через Interpreter API
 
-Когда интерпретатор запущен или работа идёт внутри interpreter/debugger session, не редактируй файлы репозитория по привычке локальными patch-инструментами. По умолчанию считай, что interpreter API доступен; используй `/context` или нужный endpoint `/processes/:id/...` и сопоставляй целевой файл с активным process/display/source context. Не вызывай `/health` как обычный preflight.
+Когда интерпретатор запущен или работа идёт внутри сессии интерпретатора/отладчика, не редактируй файлы репозитория по привычке локальными patch-инструментами. По умолчанию считай, что interpreter API доступен; используй `/context` или нужный endpoint `/processes/:id/...` и сопоставляй целевой файл с активным контекстом процесса, отображения и исходного кода. Не вызывай `/health` как обычную предварительную проверку.
 
-Если целевой файл относится к активному процессу, открытому source интерпретатора или текущему общему debugging context, правки должны идти только через interpreter API:
+Если целевой файл относится к активному процессу, открытому source интерпретатора или текущему общему отладочному контексту, правки должны идти только через interpreter API:
 
-- `POST /processes/:id/apply_patch` for raw patches;
-- `POST /processes/:id/source` for full source replacement.
+- `POST /processes/:id/apply_patch` для raw-патчей;
+- `POST /processes/:id/source` для полной замены исходного кода.
 
-Перед каждой такой правкой явно называй маршрут: `Правлю через interpreter API: <processId>`. Не используй локальный `apply_patch`, `sed`, shell-write, редактор или formatter для этих файлов. Локальные правки допустимы только после явного подтверждения, что файл вне активного interpreter context, или когда interpreter API не может адресовать этот файл и пользователь принимает fallback. `/health` используй только как диагностику после API failure, отсутствующего process, restart/close или неизвестного context.
+Перед каждой такой правкой явно называй маршрут: `Правлю через interpreter API: <processId>`. Не используй локальный `apply_patch`, `sed`, shell-write, редактор или formatter для этих файлов. Локальные правки допустимы только после явного подтверждения, что файл вне активного контекста интерпретатора, или когда interpreter API не может адресовать этот файл и пользователь принимает запасной путь. `/health` используй только как диагностику после ошибки API, отсутствующего процесса, перезапуска/закрытия или неизвестного контекста.
 
 ## Общение
 
@@ -81,50 +81,50 @@ MetaFor - open-source среда для общего AGI.
 - Используй существующее окно Google Chrome и активную вкладку для локальной проверки, если пользователь явно не попросил новую вкладку, новое окно или отдельный профиль.
 - Для локальных URL предпочитай `@meta/chrome` `POST /navigate` в текущей вкладке. Не запускай Chrome с `--app`, `--new-window` или временным `--user-data-dir` для обычных проверок.
 - Перед открытием чего-либо в Chrome проверь существующие окна/вкладки через `@meta/chrome` и дальше используй выбранные `windowId`/`tabIndex`.
-- Не используй Puppeteer, Playwright или другие browser automation libraries для локальной работы с браузером. Используй `@meta/chrome`, `@meta/screen` и связанные REST API.
-- Если browser REST services недоступны, сообщи об этом blocker-е и не переходи на Puppeteer или Playwright.
-- Не запускай отдельный CDP Chrome profile (`bun run cdp`), если CDP-only функциональность не нужна и пользователь не одобрил это.
-- Если уже есть дублирующиеся app-mode Chrome instances, сообщи о них и спроси перед закрытием или kill process.
+- Не используй Puppeteer, Playwright или другие библиотеки автоматизации браузера для локальной работы с браузером. Используй `@meta/chrome`, `@meta/screen` и связанные REST API.
+- Если браузерные REST-сервисы недоступны, сообщи об этом блокере и не переходи на Puppeteer или Playwright.
+- Не запускай отдельный CDP-профиль Chrome (`bun run cdp`), если CDP-only функциональность не нужна и пользователь не одобрил это.
+- Если уже есть дублирующиеся app-mode экземпляры Chrome, сообщи о них и спроси перед закрытием или завершением процесса.
 
-## WebGPU Engine (`pkg/engine`)
+## WebGPU-Движок (`pkg/engine`)
 
-Engine - кастомный WebGPU renderer без WebGL fallback.
+Движок - кастомный WebGPU-рендерер без WebGL fallback.
 
 **Контракт системы координат** (`pkg/engine/CONTRACT.md`):
-- **Z-up, Right-Handed** - инженерная / CAD convention, как в Blender.
+- **Z-up, Right-Handed** - инженерная / CAD-конвенция, как в Blender.
 - **+X** -> вправо, **+Y** -> глубина в экран, **+Z** -> вверх.
-- **Unit**: 1 world unit = 1 mm. Все позиции, радиусы, расстояния, camera distances и grid sizes должны быть в mm.
+- **Unit**: 1 world unit = 1 mm. Все позиции, радиусы, расстояния камеры и размеры сетки должны быть в mm.
 - **Depth clip space**: [0, 1] (WebGPU NDC).
-- `store/db` хранит данные уже в Z-up и mm. Слои `bulk` и `app` не должны повторно конвертировать оси или единицы; это относится только к engine layer.
+- `Boundary` хранит персистентные данные уже в Z-up и mm. Слои `bulk` и `app` не должны повторно конвертировать оси или единицы; это относится только к слою движка.
 
 **Canvas**:
 - Один `HTMLCanvasElement` на `Renderer`, доступный как `renderer.canvas`.
 - WebGPU context: `alphaMode: 'premultiplied'`.
 - Захват кадра из JS: `renderer.canvas.toDataURL('image/png')`.
-- Via `@meta/chrome` eval: `return document.querySelector('canvas').toDataURL('image/png')`.
+- Через eval в `@meta/chrome`: `return document.querySelector('canvas').toDataURL('image/png')`.
 
 **Ключевые абстракции** (`pkg/engine/src/`):
 
-| Class | File | Роль |
+| Класс | Файл | Роль |
 |---|---|---|
-| `Renderer` | `renderer/index.ts` | WebGPU device, pipelines, multi-pass render |
-| `ViewPoint` | `core/ViewPoint.ts` | Единая camera + trackball вместо Camera + OrbitControls |
-| `Object3D` | `core/Object3D.ts` | Базовый scene node: `position`, `rotation`, `quaternion`, `scale`, `modelMatrix`, `matrixWorld` |
-| `Scene` | `scenes/Scene.ts` | Root container scene graph |
-| `Mesh` | `core/Mesh.ts` | Geometry + material |
-| `InstancedMesh` | `core/InstancedMesh.ts` | GPU instancing, один `Matrix4` на instance |
-| `WireframeInstancedMesh` | `core/WireframeInstancedMesh.ts` | Instanced wireframe lines, per-instance color + glow |
-| `BufferGeometry` | `core/BufferGeometry.ts` | GPU buffer attributes: position, normal, index |
+| `Renderer` | `renderer/index.ts` | WebGPU-устройство, пайплайны, многопроходный рендер |
+| `ViewPoint` | `core/ViewPoint.ts` | Единая камера + trackball вместо Camera + OrbitControls |
+| `Object3D` | `core/Object3D.ts` | Базовый узел сцены: `position`, `rotation`, `quaternion`, `scale`, `modelMatrix`, `matrixWorld` |
+| `Scene` | `scenes/Scene.ts` | Корневой контейнер графа сцены |
+| `Mesh` | `core/Mesh.ts` | Геометрия + материал |
+| `InstancedMesh` | `core/InstancedMesh.ts` | GPU-инстансинг, один `Matrix4` на экземпляр |
+| `WireframeInstancedMesh` | `core/WireframeInstancedMesh.ts` | Инстансированные wireframe-линии, цвет и glow на экземпляр |
+| `BufferGeometry` | `core/BufferGeometry.ts` | GPU-атрибуты буфера: position, normal, index |
 
-**Render pipelines**: все WGSL shaders лежат в `renderer/shaders/`.
-- `basicMeshPipeline` - flat color без lighting.
+**Рендер-пайплайны**: все WGSL shaders лежат в `renderer/shaders/`.
+- `basicMeshPipeline` - плоский цвет без освещения.
 - `staticMeshPipeline` - Lambert diffuse lighting.
-- `instancedMeshPipeline` - instanced basic/Lambert.
-- `linePipeline` - одиночные lines, basic или glow.
-- `instancedLinePipeline` - instanced lines with glow.
+- `instancedMeshPipeline` - инстансированный basic/Lambert.
+- `linePipeline` - одиночные линии, basic или glow.
+- `instancedLinePipeline` - инстансированные линии с glow.
 - `textStencilPipeline` / `textCoverPipeline` - 3D text.
 
-**При чтении screenshot-ов viewport-а**: Z вертикален и направлен вверх. Положительный Z находится над ground. Grid выровнен по XY plane. Camera trackball вращается вокруг target point. Расстояния на экране соответствуют mm в world space.
+**При чтении скриншотов видового клиента**: Z вертикален и направлен вверх. Положительный Z находится над землёй. Сетка выровнена по плоскости XY. Camera trackball вращается вокруг целевой точки. Расстояния на экране соответствуют mm в мировом пространстве.
 
 ## Базовое архитектурное чтение
 
@@ -132,18 +132,20 @@ Engine - кастомный WebGPU renderer без WebGL fallback.
 
 `Domain × Force × Entity`
 
-Три базовых домена:
+Текущие рабочие доменные проекции:
 
 - `Dark` - скрытая связность, память, иерархия, история, эволюция модели.
-- `Boundary` - уплощение, фиксация, каноникализация, вычисление состояния.
+- `Boundary` - персистентное уплощение, фиксация, каноникализация.
+- `Energy` - рантайм времени, перехода и изменения состояния.
 - `Bulk` - проявление, исполнение, процесс, объём, пространственная форма.
 
 Ключевые инварианты:
 
-- `Dark`, `Boundary` и `Bulk` являются изолированными доменами.
-- Production-код не должен использовать прямые runtime imports между доменами.
-- Междоменное взаимодействие принадлежит Force channels, а не прямым imports.
-- `Boundary` - граница уплощения.
+- `Dark`, `Boundary`, `Energy` и `Bulk` являются изолированными доменными проекциями.
+- Production-код не должен использовать прямые рантайм-импорты между доменами, кроме явно зафиксированной пары `Dark` -> `Boundary`.
+- `Energy` и `Bulk` не читают `Boundary`/SQLite как DB/ORM-зависимость.
+- Междоменное взаимодействие принадлежит Force-каналам, а не прямым импортам.
+- `Boundary` - персистентная граница уплощения.
 - `Field` - слой отпечатка после уплощения и носитель значений и различий.
 
 ## Обязательный порядок чтения
@@ -162,7 +164,7 @@ Engine - кастомный WebGPU renderer без WebGL fallback.
 
 Всегда сохраняй текущую терминологию `arch`:
 
-- `Dark`, `Boundary`, `Bulk`
+- `Dark`, `Boundary`, `Energy`, `Bulk`
 - `Brane`, `Field`
 - `State`, `Transition`, `Process`
 - `Graviton`, `Photon`, `Gluon`, `Higgs boson`, `W boson`, `Z boson`
@@ -194,22 +196,22 @@ Topology-поля отличаются от обычных data-fields:
 
 Предпочитай самую маленькую релевантную проверку для изменённых файлов.
 
-## Interpreter Editing Rule
+## Правило Редактирования Через Интерпретатор
 
 Когда человек и агент совместно работают над кодом, который открыт или запущен в интерпретаторе, все изменения этого кода выполняются **только через API интерпретатора**. Это строгое правило, а не рекомендация.
 
 - `POST /processes/:id/apply_patch` для raw `apply_patch`;
-- `POST /processes/:id/source` для сохранения полного текста source.
+- `POST /processes/:id/source` для сохранения полного текста исходного кода.
 
-Перед правкой кода сначала прочитай `GET /context` и определи текущий `processId` и `source.identity.sourceUrl` / `source.identity.scriptUrl`. Если файл относится к текущему process/display или открыт в source интерпретатора, не правь его локальным `apply_patch`, `sed`, редактором, форматтером или shell-write командой в обход интерпретатора.
+Перед правкой кода сначала прочитай `GET /context` и определи текущий `processId` и `source.identity.sourceUrl` / `source.identity.scriptUrl`. Если файл относится к текущему процессу/отображению или открыт в source интерпретатора, не правь его локальным `apply_patch`, `sed`, редактором, форматтером или shell-write командой в обход интерпретатора.
 
 После правки через API проверь, что интерпретатор получил изменение: `source-patched`, replay/restart при необходимости, новый `/context` или `GET /processes/:id/source`.
 
-Иначе интерпретатор не видит patch-flow, не обновляет breakpoints, source-patched/replay и текущий runtime/source context.
+Иначе интерпретатор не видит поток патчей, не обновляет точки останова, `source-patched`/replay и текущий рантайм/source-контекст.
 
-Обычные локальные инструменты можно использовать для документации, правил, внешних meta-файлов и кода, который не является текущим совместно отлаживаемым process.
+Обычные локальные инструменты можно использовать для документации, правил, внешних meta-файлов и кода, который не является текущим совместно отлаживаемым процессом.
 
-## TODO Discipline
+## Дисциплина TODO
 
 Если агент завершил пункт из `TODO.md`, он обязан отметить этот пункт выполненным в TODO-списке и убедиться, что обновление видно в HUD ToDoPane или в `/context.hud.todo`. Нельзя оставлять выполненную работу как незакрытый пункт.
 
@@ -227,23 +229,23 @@ Topology-поля отличаются от обычных data-fields:
 - Если старый английский Markdown-документ не имеет русской версии, переведи его на русский вместо добавления второго файла.
 - Предпочитай маленькие проверяемые правки большим концептуальным переписываниям.
 
-## Commit Discipline
+## Дисциплина Коммитов
 
-- Treat the staged diff as the only source of truth for commit wording.
-- Analyze only added and removed lines; file context is only for locating the change.
-- Never describe code, methods, classes, or documents as changed if they are not touched in the diff.
-- Prefer separate commits for separate concerns. Documentation and agent-rule changes should be committed separately from production code and tests unless they are inseparable.
-- Classify changes by priority: `feat` -> `fix` -> `refactor` -> `type` -> `test` -> `docs`.
-- Build the commit subject as `[type/type] scope - description` and keep it within 72 characters when possible.
-- If multiple types are used, keep the description in the same semantic order as the types.
-- Use repository-native scopes when possible: `dark`, `boundary`, `bulk`, `metafor`, `app`, `docs`, `agents`, `tests`, `repo`.
-- Treat `package.json`, `bunfig.toml`, `tsconfig*`, scripts, and dependency updates as `refactor`-side changes unless the diff clearly introduces a new feature or fixes a bug.
-- Treat `*.test.*` and `*.spec.*` changes as `test`; do not classify package or script changes as test fixes.
-- When the user asks for a detailed commit description, format it in Markdown with sections only when they are non-empty:
-  - `### Основные изменения:` for `feat`, `fix`, and behavior-relevant `type`
-  - `### Улучшения кода:` for `refactor`, config, scripts, and dependencies
-  - `### Исправления в тестах:` only when the diff touches `*.test.*` or `*.spec.*`
-- For the actual `git commit`, use the one-line subject unless the user explicitly asks for an extended commit body.
+- Считай staged diff единственным источником истины для текста коммита.
+- Анализируй только добавленные и удалённые строки; контекст файла нужен только для понимания места изменения.
+- Не описывай код, методы, классы или документы как изменённые, если они не затронуты в diff.
+- Предпочитай отдельные коммиты для разных смыслов. Документацию и правила агентов коммить отдельно от production-кода и тестов, если они не связаны неразрывно.
+- Классифицируй изменения по приоритету: `feat` -> `fix` -> `refactor` -> `type` -> `test` -> `docs`.
+- Строй subject коммита как `[type/type] scope - description` и держи его в пределах 72 символов, когда это возможно.
+- Если используется несколько типов, держи описание в том же смысловом порядке.
+- Используй родные для репозитория scope, когда возможно: `dark`, `boundary`, `bulk`, `metafor`, `app`, `docs`, `agents`, `tests`, `repo`.
+- `package.json`, `bunfig.toml`, `tsconfig*`, scripts и обновления зависимостей считай refactor-изменениями, если diff явно не добавляет feature или не чинит bug.
+- Изменения `*.test.*` и `*.spec.*` считай `test`; не классифицируй package или script changes как исправления тестов.
+- Когда пользователь просит подробное описание коммита, форматируй его в Markdown с секциями только там, где они не пустые:
+  - `### Основные изменения:` для `feat`, `fix` и влияющих на поведение `type`;
+  - `### Улучшения кода:` для `refactor`, конфигурации, скриптов и зависимостей;
+  - `### Исправления в тестах:` только когда diff затрагивает `*.test.*` или `*.spec.*`.
+- Для реального `git commit` используй однострочный subject, если пользователь явно не попросил расширенное тело коммита.
 
 ## Контекст участия
 

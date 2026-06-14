@@ -20,11 +20,11 @@ Interpreter
     breakpoints[]
 ```
 
-`process` - текущий live-запуск кода. Сейчас это отдельный Bun process с `pid`, inspect target, lifecycle `start/stop/restart`, своим stack/scopes/source и своими breakpoints. В будущей actor-модели это же имя остается корректным: actor/process будет исполняемой сущностью, а не UI display.
+`process` - текущий живой запуск кода. Сейчас это отдельный Bun process с `pid`, inspect target, жизненным циклом `start/stop/restart`, своим стеком, областями видимости, исходным кодом и точками останова. В будущей actor-модели это же имя остается корректным: actor/process будет исполняемой сущностью, а не UI-display.
 
 `display` - только визуальная поверхность в `Space`. Через display можно сфокусировать или разложить рабочие поверхности, но разработческие действия идут через `/processes/:id/...`.
 
-`module` - source/code unit. Module catalog живет внутри process context: `/processes/:id/modules`.
+`module` - единица исходного кода. Каталог модулей живет внутри контекста process: `/processes/:id/modules`.
 
 ## REST
 
@@ -94,7 +94,7 @@ GET    /console?since=<iso|seq>&limit=<n>
 
 ## Текущий Context
 
-`GET /context` возвращает один текущий context: то, что сейчас активно видно или выбрано в среде. Это главный endpoint для запроса вроде "смотри на значение".
+`GET /context` возвращает один текущий контекст: то, что сейчас активно видно или выбрано в среде. Это главный endpoint для запроса вроде "смотри на значение".
 
 ```json
 {
@@ -157,9 +157,9 @@ GET    /console?since=<iso|seq>&limit=<n>
 
 `context.hud.todo` - состояние HUD ToDoPane. `highlightedItems` содержит пункты `TODO.md`, которые человек подсветил в панели, чтобы агент понимал, о чем сейчас речь. Это состояние панели, а не данные файла.
 
-`context.hud.sqlite` - компактное состояние SQLite HUD. В context попадают активная база, таблица и выбранные человеком строки. Это не dump базы и не полный payload таблицы: `selectedRows` ограничен первыми 20 выбранными строками, а при превышении лимита выставляется `selectionTruncated:true`.
+`context.hud.sqlite` - компактное состояние SQLite HUD. В context попадают активная база, таблица и выбранные человеком строки. Это не дамп базы и не полный набор данных таблицы: `selectedRows` ограничен первыми 20 выбранными строками, а при превышении лимита выставляется `selectionTruncated:true`.
 
-`origin:"ui"` означает, что context пришел от UI-host и включает реальные caret, selection и scopes detail. `origin:"runtime"` означает fallback из текущей точки исполнения.
+`origin:"ui"` означает, что context пришел от UI-host и включает реальные caret, selection и детализацию scopes. `origin:"runtime"` означает запасной вариант из текущей точки исполнения.
 
 ## TODO HUD
 
@@ -190,7 +190,7 @@ POST   /hud/todo/show|dock|toggle
 
 ## SQLite HUD
 
-CLI args, заканчивающиеся на `.sqlite`, считаются входами SQLite HUD, а не runnable modules. HUD можно открыть до появления файла базы: UI ждет, пока runtime создаст файл, и перечитывает payload.
+CLI-аргументы, заканчивающиеся на `.sqlite`, считаются входами SQLite HUD, а не запускаемыми модулями. HUD можно открыть до появления файла базы: UI ждет, пока рантайм создаст файл, и перечитывает данные.
 
 ```text
 GET    /hud/sqlite
@@ -204,7 +204,7 @@ POST   /sqlite/cell
 
 `GET /hud/sqlite` возвращает состояние панели, включая активную базу, `rect`, `dockPlacement`, список открытых баз и выбранные строки текущей таблицы.
 
-`GET /sqlite?path=<file.sqlite>&table=<name>` возвращает tables, schema и rows для просмотра таблицы. `version` в payload строится по основному файлу и `-wal`; `-shm` возвращается в diagnostic `files`, но не участвует в версии, потому что чтение SQLite само может менять shared-memory файл. UI сравнивает `version` с `GET /sqlite/fingerprint?path=<file.sqlite>` и перечитывает rows только при изменении. `POST /sqlite/open` с `{"path":"dark/tmp/boundary.sqlite"}` открывает базу в HUD.
+`GET /sqlite?path=<file.sqlite>&table=<name>` возвращает tables, schema и rows для просмотра таблицы. `version` в данных строится по основному файлу и `-wal`; `-shm` возвращается в diagnostic `files`, но не участвует в версии, потому что чтение SQLite само может менять shared-memory файл. UI сравнивает `version` с `GET /sqlite/fingerprint?path=<file.sqlite>` и перечитывает rows только при изменении. `POST /sqlite/open` с `{"path":"dark/tmp/boundary.sqlite"}` открывает базу в HUD.
 
 `POST /sqlite/cell` редактирует одну ячейку по SQLite `rowid`:
 
@@ -273,11 +273,11 @@ Selectors для `/space/focus`, `/processes/resolve` и `/processes/focus`:
 }
 ```
 
-`GET /processes/:id` возвращает рабочий payload process: `content`, `runtime`, `ui` и `capabilities`.
+`GET /processes/:id` возвращает рабочие данные process: `content`, `runtime`, `ui` и `capabilities`.
 
-`DELETE /processes/:id` останавливает runtime process, удаляет его из списка процессов и синхронизирует UI так, чтобы display этого module исчез из Space.
+`DELETE /processes/:id` останавливает рантайм-процесс, удаляет его из списка процессов и синхронизирует UI так, чтобы display этого module исчез из Space.
 
-API-редактирование source через `POST /processes/:id/source` или `POST /processes/:id/apply_patch` рассылает `source-patched`. UI process display с этим `:id` должен открыть первый измененный не-delete файл в source editor, раскрыть и выделить его в file tree и поставить cursor на первую измененную строку (`lineChanges[0].newStart`, иначе строка 1). Если в редакторе есть несохраненные изменения или идет сохранение, авто-переход пропускается, чтобы не перетереть локальный dirty state.
+API-редактирование исходного кода через `POST /processes/:id/source` или `POST /processes/:id/apply_patch` рассылает `source-patched`. UI process display с этим `:id` должен открыть первый измененный не-delete файл в редакторе исходного кода, раскрыть и выделить его в дереве файлов и поставить курсор на первую измененную строку (`lineChanges[0].newStart`, иначе строка 1). Если в редакторе есть несохраненные изменения или идет сохранение, авто-переход пропускается, чтобы не перетереть локальное dirty-состояние.
 
 `POST /processes` запускает новый process:
 
@@ -333,7 +333,7 @@ curl -sS -X POST 'http://127.0.0.1:6500/processes/dark-server.spec.ts/action' \
   "root": "/repo",
   "workspacePath": "",
   "entrypoint": "/repo/dark/server.spec.ts",
-  "modules": [{"path":"dark/server.spec.ts"}, {"path":"dark/server.ts"}, {"path":"store/force.ts"}]
+  "modules": [{"path":"dark/server.spec.ts"}, {"path":"dark/server.ts"}, {"path":"boundary/force.ts"}]
 }
 ```
 
@@ -345,11 +345,11 @@ POST /processes/:id/source       # JSON {sourceUrl, text}
 POST /processes/:id/apply_patch  # raw apply_patch text/plain
 ```
 
-`POST /processes/:id/source` и `POST /processes/:id/apply_patch` применяют изменения через серверную реализацию apply_patch, сдвигают точки останова process, рассылают `source-patched` и replay затронутых запусков, когда это нужно.
+`POST /processes/:id/source` и `POST /processes/:id/apply_patch` применяют изменения через серверную реализацию apply_patch, сдвигают точки останова process, рассылают `source-patched` и повторно воспроизводят затронутые запуски, когда это нужно.
 
 ## Точки Останова
 
-Точки останова принадлежат process, а не общему source module.
+Точки останова принадлежат process, а не общему модулю исходного кода.
 
 ```text
 GET    /processes/:id/breakpoints
@@ -372,11 +372,11 @@ type BreakpointSpec = {
 
 `line` - 1-based строка редактора. `column` - 0-based колонка. Интерпретатор переводит source-координаты через `sourceMapURL` из `Debugger.scriptParsed`.
 
-`POST` и `DELETE` рассылают UI событие `breakpoints-changed`; редактор обновляет runtime registrations и localStorage specs из ответа process, поэтому внешний API не оставляет stale-маркер в gutter.
+`POST` и `DELETE` рассылают UI событие `breakpoints-changed`; редактор обновляет рантайм-регистрации и localStorage specs из ответа process, поэтому внешний API не оставляет устаревший маркер в gutter.
 
 ## SQLite
 
-CLI-аргументы, заканчивающиеся на `.sqlite`, считаются входами display, а не запускаемыми process. Display можно создать до появления файла; UI ждет и повторяет чтение, пока runtime не создаст database.
+CLI-аргументы, заканчивающиеся на `.sqlite`, считаются входами display, а не запускаемыми process. Display можно создать до появления файла; UI ждет и повторяет чтение, пока рантайм не создаст базу данных.
 
 ```sh
 bun --hot run pkg/interpreter/interpreter.ts \
@@ -411,10 +411,10 @@ GET  /hud/terminal/sessions
 
 ## WebSocket `/ws`
 
-Внутренние WS events пока остаются `moduleId`-scoped, потому что текущий Bun runtime manager устроен вокруг запущенных module targets:
+Внутренние WS-события пока остаются scoped по `moduleId`, потому что текущий Bun runtime manager устроен вокруг запущенных module targets:
 
 ```json
 {"type":"command","moduleId":"syntax","cmd":"resume","params":{},"requestId":2}
 ```
 
-Публичный agent-facing API должен использовать REST routes `/context`, `/space` и `/processes/:id/...`.
+Публичный agent-facing API должен использовать REST-маршруты `/context`, `/space` и `/processes/:id/...`.

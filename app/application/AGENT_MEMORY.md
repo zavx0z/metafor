@@ -1,50 +1,49 @@
 # Память Application
 
-## Стандарт синхронизации Store через WebSocket
+## Текущая граница доменов
 
-Главная цель: один доменный формат particles, без отдельного DB-patch формата и без `inbound`-флагов.
+Главная архитектурная фиксация: `Dark` и `Boundary` могут работать совместно.
+`Dark` имеет доступ к `Boundary`, потому что именно через него материализуется
+каноническая boundary-база.
 
-Стор должен различать не формат сообщения, а направление:
+`Energy` и `Bulk` не имеют доступа к `Boundary` как к БД/ORM. Они являются
+рантайм-слоями: получают данные в реальном времени через Force/WebSocket,
+ведут свою рантайм-форму и не перечитывают SQLite.
 
-- `observe(listener)` — внутреннее наблюдение всех событий для доменов.
-- `entropy(listener)` — только локально рожденные изменения, которые нужно отправлять наружу.
-- `emit(message)` — локально родить событие: идет в `observe` и `entropy`.
-- `absorb(message)` — принять событие извне: обновить локальную БД/контекст и отправить только в `observe`, не в `entropy`.
+Следствие: particle, который уходит в `Energy` или `Bulk`, должен нести
+достаточно рантайм-данных сам по себе. Нельзя слать туда только `uuid` с
+ожиданием, что рантайм полезет в `Boundary` за полной строкой.
 
-WebSocket-мост должен быть простым:
+## WebSocket Boundary
 
-```ts
-store.entropy((event) => send(event.data))
-socket.message = (_socket, data) => store.absorb(JSON.parse(String(data)))
+WebSocket остаётся транспортом Force-сообщений. Это не синхронизация базы.
+
+Для `Dark`/`Boundary` допустим путь:
+
+```text
+Dark -> Boundary ORM/SQLite -> Boundary entropy -> WebSocket
+WebSocket -> Boundary absorb
 ```
 
+Для `Energy`/`Bulk` путь другой:
+
+```text
+WebSocket -> рантайм force.absorb -> состояние рантайма
+рантайм force.entropy -> WebSocket
+```
+
+Там нет `Boundary_PATH`, `Boundary.open()`, очистки SQLite-sidecar или обратной
+записи в БД.
+
+## Force-Частицы
+
 Правила:
 
-- Входящие patches не должны отправляться обратно на peer.
-- Исходящие patches должны рождаться только из локальных изменений.
 - Не вводить второй стандарт вида `/actor/...` только для БД.
-- Все patches остаются доменными particles.
+- Все сообщения остаются доменными частицами.
 - `graviton`, `photon`, `gluon`, `higgs`, `w`, `-z`, `+z` — это `part`, а не путь и не уровень БД.
-- Для записи удаленной БД particle должен нести достаточно данных, а не только UUID.
-- `topology` как внешний path не использовать; сейчас разворачивать в `fuzzy` / `axion` / `macho`.
+- `topology` как внешний path не использовать; разворачивать в `fuzzy` / `axion` / `macho`.
+- Для рантайм-получателей (`Energy`, `Bulk`) не использовать чтение БД как часть протокола.
 
-Текущий payload, который `absorb()` может применить к SQLite без запросов к peer:
-
-- `part: "graviton", path: "wimp"` — `value` содержит meta snapshot: `wimp`, `fields`, `enumVariants`, `states`.
-- `part: "graviton", path: "actor"` — `value` содержит полный actor snapshot: `actor`, `values`, `valueRecords`, `valueItems`, `state`.
-- `part: "graviton", path: "fuzzy" | "axion" | "macho"` — `value` содержит topology snapshot: `uuid`, `parentActor`, `parentTopology`, `position`.
-- Остальные `part` пока проходят через `observe()` как доменные сигналы, но не интерпретируются через DB-path.
-
-## Process WebSocket
-
-Процессный слой сейчас отделен от Store-синхронизации отдельным сервером `process.server.ts`.
-
-Правила:
-
-- process WebSocket принимает только `part: "w" | "+z" | "-z"`;
-- Store-replication particles (`graviton`, `gluon`, `photon`, `higgs`) туда не отправлять;
-- старые slash-path вида `/wimp/<uuid>/process/<uuid>` не использовать;
-- `path` у process particle — путь к action-модулю процесса из DSL (`process_action.action`);
-- `value` содержит только `uuid` строки `process` из SQLite; `wimp`, `key`, `actor`, `importSpecifier`, `wrapperSrc` выводятся из Store по process uuid и path.
-
-Стартовый `zavx0z/git` пока остается хардкодом в `dark.server.ts`: после materialization Dark отправляет `w/test` в process WebSocket.
+Стартовый `zavx0z/git` пока остаётся хардкодом в `dark.server.ts`: Dark
+материализует его в `Boundary` и после этого отдаёт Force-поток наружу.
