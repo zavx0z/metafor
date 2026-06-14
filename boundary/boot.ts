@@ -34,7 +34,7 @@ export const bootBoundaryDomain = (openDb: OpenBoundaryDb): void => {
     await setValues(values)
   }
 
-  force.onmessage = (event) => {
+  force.subscribe((event) => {
     void (async () => {
       const parts = event.data.parts
       const backend = await db
@@ -54,7 +54,7 @@ export const bootBoundaryDomain = (openDb: OpenBoundaryDb): void => {
         await applyWeakResultPacket(message)
       }
     })()
-  }
+  })
 
   boundaryWorker.__metaforBoundaryRuntime = {
     db,

@@ -10,9 +10,9 @@ import {
   closeForceChannel,
   emitForceMessage,
   emitForceParts,
-  getForceOnMessage,
-  setForceOnMessage,
-  type ForceMessageHandler,
+  subscribeForceMessage,
+  type ForceMessageListener,
+  type ForceSubscription,
   type ParticleOperation,
   type Part,
   type Particle,
@@ -391,11 +391,8 @@ export const open = async (filename?: string): Promise<Store> => {
   const actor = await StoreActorSqlite.open(sql)
 
   return {
-    get onmessage(): ForceMessageHandler {
-      return getForceOnMessage()
-    },
-    set onmessage(handler: ForceMessageHandler) {
-      setForceOnMessage(handler)
+    subscribe(listener: ForceMessageListener): ForceSubscription {
+      return subscribeForceMessage(listener)
     },
     wimp: await StoreWimpSqlite.open(sql),
     actor,

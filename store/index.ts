@@ -5,7 +5,7 @@ import type {StoreUpdateMessage} from "./sqlite.ts"
 import type {ForceSurface} from "./force.ts"
 
 export {METAFOR_FORCE_CHANNEL, force} from "./force.ts"
-export type {Force, ForceMessage, ForceMessageHandler, ForceSurface, ParticleOperation, Part, Particle} from "./force.ts"
+export type {Force, ForceMessage, ForceMessageListener, ForceSubscription, ForceSurface, ParticleOperation, Part, Particle} from "./force.ts"
 export {open} from "./sqlite.ts"
 export type {StorePart, StoreParticle, StoreUpdateMessage} from "./sqlite.ts"
 

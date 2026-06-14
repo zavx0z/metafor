@@ -14,11 +14,12 @@ const waitForParts = async (predicate: () => boolean): Promise<void> => {
 describe("dark matter — force parts", () => {
   const parts: Particle[] = []
   let store: Awaited<ReturnType<typeof open>>
+  let subscription: ReturnType<typeof store.subscribe>
 
   beforeAll(async () => {
     store = await open(":memory:")
     globalThis.store = store
-    store.onmessage = (event) => parts.push(...event.data.parts)
+    subscription = store.subscribe((event) => parts.push(...event.data.parts))
     await matter("zavx0z/git")
     await waitForParts(() => {
       const actorCount = parts.filter((part) => part.part === "graviton" && part.op === "add" && part.path === "actor").length
@@ -28,7 +29,7 @@ describe("dark matter — force parts", () => {
   })
 
   afterAll(async () => {
-    store.onmessage = null
+    subscription.close()
     await store.close()
   })
 

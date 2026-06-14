@@ -100,15 +100,15 @@ const createSubscription = (
   channel: ForceSurface,
   onMessage: (message: ForceMessage) => Promise<void> | void,
 ): BoundaryBroadcastSubscription => {
-  channel.onmessage = (event) => {
+  const subscription = channel.subscribe((event) => {
     void (async () => {
       await onMessage(event.data)
     })()
-  }
+  })
 
   return {
     close() {
-      channel.onmessage = null
+      subscription.close()
     },
   }
 }

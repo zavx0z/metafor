@@ -76,35 +76,66 @@ describe("store/sqlite smoke", () => {
 
   test("wimp.create пишет декларацию и отправляет graviton-сигнал source", async () => {
     const received: Particle[] = []
-    store.onmessage = (event) => {
+    const subscription = store.subscribe((event) => {
       received.push(...event.data.parts)
-    }
-
-    await store.wimp.create(SRC, {
-      name: "smoke",
-      mass: {title: "draft"},
-      fields: [{key: "flag", type: "boolean", label: "Flag", default: false}],
-      superposition: [{name: "idle"}],
     })
 
-    const meta = await store.wimp.get(SRC)
-    if (!meta) throw new Error("meta missing")
-    expect(await meta.name.get()).toBe("smoke")
-    expect(await meta.mass.exists()).toBe(true)
-    expect(await meta.fields.count()).toBe(1)
-    expect(await meta.states.count()).toBe(1)
+    try {
+      await store.wimp.create(SRC, {
+        name: "smoke",
+        mass: {title: "draft"},
+        fields: [{key: "flag", type: "boolean", label: "Flag", default: false}],
+        superposition: [{name: "idle"}],
+      })
 
-    const flag = await meta.fields.get({key: "flag"})
-    if (!flag) throw new Error("flag field missing")
-    if (flag.type !== "boolean") throw new Error("expected boolean field")
-    expect(await flag.default()).toBe(false)
-    expect(await flag.label()).toBe("Flag")
+      const meta = await store.wimp.get(SRC)
+      if (!meta) throw new Error("meta missing")
+      expect(await meta.name.get()).toBe("smoke")
+      expect(await meta.mass.exists()).toBe(true)
+      expect(await meta.fields.count()).toBe(1)
+      expect(await meta.states.count()).toBe(1)
 
-    const signal = received.find(
-      (part) => part.part === "graviton" && part.op === "add" && part.path === "wimp" && part.value === SRC,
-    )
-    expect(signal).toBeDefined()
-    store.onmessage = null
+      const flag = await meta.fields.get({key: "flag"})
+      if (!flag) throw new Error("flag field missing")
+      if (flag.type !== "boolean") throw new Error("expected boolean field")
+      expect(await flag.default()).toBe(false)
+      expect(await flag.label()).toBe("Flag")
+
+      const signal = received.find(
+        (part) => part.part === "graviton" && part.op === "add" && part.path === "wimp" && part.value === SRC,
+      )
+      expect(signal).toBeDefined()
+    } finally {
+      subscription.close()
+    }
+  })
+
+  test("subscribe поддерживает несколько независимых слушателей", async () => {
+    const first: Particle[] = []
+    const second: Particle[] = []
+    const firstSubscription = store.subscribe((event) => {
+      first.push(...event.data.parts)
+    })
+    const secondSubscription = store.subscribe((event) => {
+      second.push(...event.data.parts)
+    })
+
+    try {
+      await store.wimp.create("owner/multi-a")
+
+      expect(first.some((part) => part.part === "graviton" && part.path === "wimp" && part.value === "owner/multi-a")).toBe(true)
+      expect(second.some((part) => part.part === "graviton" && part.path === "wimp" && part.value === "owner/multi-a")).toBe(true)
+
+      const firstLength = first.length
+      firstSubscription.close()
+      await store.wimp.create("owner/multi-b")
+
+      expect(first).toHaveLength(firstLength)
+      expect(second.some((part) => part.part === "graviton" && part.path === "wimp" && part.value === "owner/multi-b")).toBe(true)
+    } finally {
+      firstSubscription.close()
+      secondSubscription.close()
+    }
   })
 
   test("actor parts: graviton+gluon+photon, чтение через ORM", async () => {
@@ -179,9 +210,9 @@ describe("store/sqlite smoke", () => {
 
   test("update() публикует примененные parts после записи", async () => {
     const received: Particle[] = []
-    store.onmessage = (event) => {
+    const subscription = store.subscribe((event) => {
       received.push(...event.data.parts)
-    }
+    })
 
     await store.wimp.create(SRC)
     const part: StoreParticle = {part: "graviton", op: "add", path: "/actor/actor-published", value: {wimp: SRC, position: 0}}
@@ -199,7 +230,7 @@ describe("store/sqlite smoke", () => {
       )[0]
       expect(row?.wimp).toBe(SRC)
     } finally {
-      store.onmessage = null
+      subscription.close()
     }
   })
 

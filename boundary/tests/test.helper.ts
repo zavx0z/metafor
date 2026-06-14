@@ -3,7 +3,7 @@ import {force} from "store"
 import {writeRuntimeFromDb} from "../boundary"
 
 export async function resetBoundaryForTest(): Promise<void> {
-  force.onmessage = null
+  force.close()
   const backend = openDbSqliteBackend()
 
   try {

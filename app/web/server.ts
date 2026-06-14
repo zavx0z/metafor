@@ -52,14 +52,13 @@ const clientForceBridgePayload = (value: unknown): ClientForceBridgePayload | nu
 	return { type: "force", parts: parts as Particle[] }
 }
 
-const forceMirror = force
-forceMirror.onmessage = (event) => {
+force.subscribe((event) => {
 	const parts = event.data.parts
 	publish({
 		type: "force",
 		parts,
 	})
-}
+})
 
 const server = serve({
 	port: APP_PORT,

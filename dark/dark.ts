@@ -8,7 +8,7 @@ import {finalizeFieldValues, resolveFieldInits, type Continuation} from "./conti
 
 ;(globalThis as unknown as {MetaFor: typeof MetaFor}).MetaFor = MetaFor
 
-store.onmessage = async (event) => {
+store.subscribe(async (event) => {
   for (const part of event.data.parts) {
     if (part.part !== "graviton") continue
     if (part.op !== "add") continue
@@ -17,7 +17,7 @@ store.onmessage = async (event) => {
     if (await store.wimp.exists(part.value)) continue
     await matter(part.value)
   }
-}
+})
 
 /**
  * Публичный entrypoint Dark.

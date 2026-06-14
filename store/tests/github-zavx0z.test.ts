@@ -41,82 +41,83 @@ describe("store/tests github/zavx0z startup load", () => {
 
   test("matter() пишет всё дерево zavx0z/git через force-flow и публикует gravity-сообщения", async () => {
     const parts: Particle[] = []
-
-    store.onmessage = (event) => {
+    const subscription = store.subscribe((event) => {
       parts.push(...event.data.parts)
-    }
+    })
 
-    await matter("zavx0z/git")
+    try {
+      await matter("zavx0z/git")
 
-    const metaRows = await sql<Array<{src: string}>>`
+      const metaRows = await sql<Array<{src: string}>>`
         SELECT src
         FROM wimp
         ORDER BY src
     `
-    const actorRows = await sql<Array<{uuid: string; parent_actor: string | null; parent_topology: string | null; wimp: string}>>`
+      const actorRows = await sql<Array<{uuid: string; parent_actor: string | null; parent_topology: string | null; wimp: string}>>`
         SELECT uuid, parent_actor, parent_topology, wimp
         FROM actor
         ORDER BY position, uuid
     `
-    const actorStateRows = await sql<Array<{actor: string; metaState: string | null}>>`
+      const actorStateRows = await sql<Array<{actor: string; metaState: string | null}>>`
         SELECT actor, metaState
         FROM actor_state
         ORDER BY actor
     `
-    const topologyRows = await sql<Array<{uuid: string; kind: string}>>`
+      const topologyRows = await sql<Array<{uuid: string; kind: string}>>`
         SELECT uuid, kind
         FROM topology
         ORDER BY position, uuid
     `
 
-    await waitForParts(() => {
-      return parts.filter((part) => part.part === "graviton" && part.op === "add" && part.path === "actor").length
-        >= actorRows.length
-    })
-    store.onmessage = null
+      await waitForParts(() => {
+        return parts.filter((part) => part.part === "graviton" && part.op === "add" && part.path === "actor").length
+          >= actorRows.length
+      })
 
-    expect(metaRows.map((row) => row.src)).toContain("zavx0z/git")
-    expect(metaRows.map((row) => row.src)).toContain("zavx0z/git-start")
-    expect(metaRows.map((row) => row.src)).toContain("zavx0z/git-history-commit")
-    expect(metaRows.map((row) => row.src)).toContain("zavx0z/git-error")
-    expect(actorStateRows.length).toBe(actorRows.length)
-    expect(actorRows.length).toBeGreaterThan(20)
+      expect(metaRows.map((row) => row.src)).toContain("zavx0z/git")
+      expect(metaRows.map((row) => row.src)).toContain("zavx0z/git-start")
+      expect(metaRows.map((row) => row.src)).toContain("zavx0z/git-history-commit")
+      expect(metaRows.map((row) => row.src)).toContain("zavx0z/git-error")
+      expect(actorStateRows.length).toBe(actorRows.length)
+      expect(actorRows.length).toBeGreaterThan(20)
 
-    const roots = await store.actor.roots.all()
-    expect(roots).toHaveLength(1)
-    expect(await roots[0]!.wimp()).toBe("zavx0z/git")
-    // Wimp-под-Wimp напрямую может не быть (всё дерево идёт через topology Fuzzy/Axion).
-    // Проверяем через topology: у root должны быть дочерние topology-узлы.
-    const rootTopology = await store.topology.childrenOfActor(roots[0]!.uuid)
-    expect(rootTopology.length).toBeGreaterThan(0)
+      const roots = await store.actor.roots.all()
+      expect(roots).toHaveLength(1)
+      expect(await roots[0]!.wimp()).toBe("zavx0z/git")
+      // Wimp-под-Wimp напрямую может не быть (всё дерево идёт через topology Fuzzy/Axion).
+      // Проверяем через topology: у root должны быть дочерние topology-узлы.
+      const rootTopology = await store.topology.childrenOfActor(roots[0]!.uuid)
+      expect(rootTopology.length).toBeGreaterThan(0)
 
-    const rootOperationField = requiredRow(
-      (
-        await sql<Array<{uuid: string}>>`
+      const rootOperationField = requiredRow(
+        (
+          await sql<Array<{uuid: string}>>`
             SELECT uuid
             FROM field
             WHERE wimp = ${"zavx0z/git"}
               AND key = ${"operation"}
             LIMIT 1
         `
-      )[0],
-      "operation field not found",
-    ).uuid
-    const rootOperation = await (await roots[0]!.values.get({field: rootOperationField}))?.value()
-    expect(rootOperation?.kind).toBe("null")
+        )[0],
+        "operation field not found",
+      ).uuid
+      const rootOperation = await (await roots[0]!.values.get({field: rootOperationField}))?.value()
+      expect(rootOperation?.kind).toBe("null")
 
-    const commitActor = actorRows.find((row) => row.wimp === "zavx0z/git-history-commit")
-    if (!commitActor) throw new Error("zavx0z/git-history-commit actor was not materialized")
-    const commit = (await store.actor.get(commitActor.uuid))!
-    expect(await commit.values.count()).toBeGreaterThan(0)
-    expect((await commit.state())?.metaState).not.toBeNull()
+      const commitActor = actorRows.find((row) => row.wimp === "zavx0z/git-history-commit")
+      if (!commitActor) throw new Error("zavx0z/git-history-commit actor was not materialized")
+      const commit = (await store.actor.get(commitActor.uuid))!
+      expect(await commit.values.count()).toBeGreaterThan(0)
+      expect((await commit.state())?.metaState).not.toBeNull()
 
-    const actorParts = parts.filter((part) => part.part === "graviton" && part.op === "add" && part.path === "actor")
-    const topologyParts = parts.filter((part) => part.part === "graviton" && part.op === "add" && part.path === "topology")
-    expect(actorParts.map((part) => part.value).sort()).toEqual(actorRows.map((row) => row.uuid).sort())
-    expect(topologyParts.map((part) => part.value).sort()).toEqual(topologyRows.map((row) => row.uuid).sort())
-
-    await sql.close()
-    await store.close()
+      const actorParts = parts.filter((part) => part.part === "graviton" && part.op === "add" && part.path === "actor")
+      const topologyParts = parts.filter((part) => part.part === "graviton" && part.op === "add" && part.path === "topology")
+      expect(actorParts.map((part) => part.value).sort()).toEqual(actorRows.map((row) => row.uuid).sort())
+      expect(topologyParts.map((part) => part.value).sort()).toEqual(topologyRows.map((row) => row.uuid).sort())
+    } finally {
+      subscription.close()
+      await sql.close()
+      await store.close()
+    }
   })
 })

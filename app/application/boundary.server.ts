@@ -1,7 +1,7 @@
 import type {ServerWebSocket} from "bun"
 import {bootBoundaryDomain} from "@metafor/boundary/boot"
 import {open} from "store/sqlite"
-import type {ForceMessage, ForceMessageHandler, Store} from "store"
+import type {ForceMessage, Store} from "store"
 
 type ForceSocketData = {kind: "force"}
 
@@ -36,11 +36,9 @@ const receive = (data: string | Buffer): void => {
   post(JSON.parse(String(data)) as ForceMessage)
 }
 
-const previousOnMessage = store.onmessage
-store.onmessage = function (event) {
+store.subscribe((event) => {
   if (inbound === 0) send(event.data)
-  return previousOnMessage?.call(this, event)
-} satisfies NonNullable<ForceMessageHandler>
+})
 
 peer?.addEventListener("message", (event) => receive(String(event.data)))
 peer?.addEventListener("error", () => peer.close())

@@ -87,44 +87,71 @@ describe("sqlite ddl", () => {
 
   test("wimp.create принимает опциональные параметры и отправляет particles после записи", async () => {
     const messages: ForceMessage[] = []
-    force.onmessage = (event) => messages.push(event.data)
+    const subscription = force.subscribe((event) => messages.push(event.data))
 
-    const wimp = await wimps.create("alpha/meta", {
-      name: "Alpha",
-      desc: "Demo",
-      bulk: {view: ".root {}"},
-      mass: {title: "draft"},
-      fields: [
-        {key: "title", type: "string", required: true, default: "draft"},
-        {key: "status", type: "enum", required: true, values: ["open", "closed"], default: "open"},
-      ],
-      superposition: [
-        {name: "idle", transitions: {done: {title: "draft"}}},
-        {name: "done"},
-      ],
-      processes: [
-        {
-          key: "submit",
-          declaration: {
-            type: "action",
-            env: ["server"],
-            action: {src: "./submit.ts", read: ["title"]},
-            success: {src: "() => {}", read: ["status"], write: ["title"]},
+    try {
+      const wimp = await wimps.create("alpha/meta", {
+        name: "Alpha",
+        desc: "Demo",
+        bulk: {view: ".root {}"},
+        mass: {title: "draft"},
+        fields: [
+          {key: "title", type: "string", required: true, default: "draft"},
+          {key: "status", type: "enum", required: true, values: ["open", "closed"], default: "open"},
+        ],
+        superposition: [
+          {name: "idle", transitions: {done: {title: "draft"}}},
+          {name: "done"},
+        ],
+        processes: [
+          {
+            key: "submit",
+            declaration: {
+              type: "action",
+              env: ["server"],
+              action: {src: "./submit.ts", read: ["title"]},
+              success: {src: "() => {}", read: ["status"], write: ["title"]},
+            },
           },
-        },
-      ],
-      reactions: [
-        {
-          key: "on-status",
-          label: "On status",
-          cond: "() => true",
-          src: "() => {}",
-          read: ["title"],
-          write: ["status"],
-          states: ["idle"],
-        },
-      ],
-      matter: [
+        ],
+        reactions: [
+          {
+            key: "on-status",
+            label: "On status",
+            cond: "() => true",
+            src: "() => {}",
+            read: ["title"],
+            write: ["status"],
+            states: ["idle"],
+          },
+        ],
+        matter: [
+          {
+            kind: "fuzzy",
+            fuzzyKind: "dynamic-meta",
+            children: [
+              {
+                edgeSlot: "branch",
+                particle: {
+                  kind: "wimp",
+                  src: "alpha/child",
+                  fieldsBinding: {data: "/value/status", expr: "{ status: _[0] }"},
+                },
+              },
+            ],
+          },
+        ],
+      })
+
+      expect(await wimp.name.get()).toBe("Alpha")
+      expect(await wimp.desc.get()).toBe("Demo")
+      expect(await wimp.fields.count()).toBe(2)
+      expect(await wimp.mass.exists()).toBe(true)
+      expect(await wimp.states.count()).toBe(2)
+      expect(await wimp.processes.count()).toBe(1)
+      expect(await wimp.reactions.count()).toBe(1)
+      expect(await wimp.matter.count()).toBe(1)
+      expect(await wimp.matter.all()).toEqual([
         {
           kind: "fuzzy",
           fuzzyKind: "dynamic-meta",
@@ -139,38 +166,15 @@ describe("sqlite ddl", () => {
             },
           ],
         },
-      ],
-    })
+      ])
 
-    expect(await wimp.name.get()).toBe("Alpha")
-    expect(await wimp.desc.get()).toBe("Demo")
-    expect(await wimp.fields.count()).toBe(2)
-    expect(await wimp.mass.exists()).toBe(true)
-    expect(await wimp.states.count()).toBe(2)
-    expect(await wimp.processes.count()).toBe(1)
-    expect(await wimp.reactions.count()).toBe(1)
-    expect(await wimp.matter.count()).toBe(1)
-    expect(await wimp.matter.all()).toEqual([
-      {
-        kind: "fuzzy",
-        fuzzyKind: "dynamic-meta",
-        children: [
-          {
-            edgeSlot: "branch",
-            particle: {
-              kind: "wimp",
-              src: "alpha/child",
-              fieldsBinding: {data: "/value/status", expr: "{ status: _[0] }"},
-            },
-          },
-        ],
-      },
-    ])
-
-    expect(messages.length).toBe(1)
-    const parts = messages[0]!.parts
-    expect(parts).toHaveLength(1)
-    expect(parts[0]).toEqual({part: "graviton", op: "add", path: "wimp", value: "alpha/meta"})
+      expect(messages.length).toBe(1)
+      const parts = messages[0]!.parts
+      expect(parts).toHaveLength(1)
+      expect(parts[0]).toEqual({part: "graviton", op: "add", path: "wimp", value: "alpha/meta"})
+    } finally {
+      subscription.close()
+    }
   })
 
   test("wimp.exists проверяет декларацию без ORM get", async () => {

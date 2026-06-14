@@ -16,10 +16,14 @@ export type ForceMessage = {
   parts: Particle[]
 }
 
-export type ForceMessageHandler = ((this: BroadcastChannel, ev: MessageEvent<ForceMessage>) => unknown) | null
+export type ForceMessageListener = (this: BroadcastChannel, ev: MessageEvent<ForceMessage>) => unknown
+
+export interface ForceSubscription {
+  close(): void
+}
 
 export interface ForceSurface {
-  onmessage: ForceMessageHandler
+  subscribe(listener: ForceMessageListener): ForceSubscription
   postMessage(message: ForceMessage): void
 }
 
@@ -35,21 +39,34 @@ export type TypedBroadcastChannel<TMessage> = Omit<BroadcastChannel, "onmessage"
 export type ForceChannel = TypedBroadcastChannel<ForceMessage>
 
 let forceChannel: ForceChannel | null = null
+const forceListeners = new Set<ForceMessageListener>()
+
+const dispatchForceEvent = (event: MessageEvent<ForceMessage>): void => {
+  const channel = getForceChannel()
+  for (const listener of [...forceListeners]) listener.call(channel, event)
+}
 
 const getForceChannel = (): ForceChannel => {
-  forceChannel ??= new BroadcastChannel(METAFOR_FORCE_CHANNEL) as ForceChannel
+  if (forceChannel === null) {
+    forceChannel = new BroadcastChannel(METAFOR_FORCE_CHANNEL) as ForceChannel
+    forceChannel.onmessage = dispatchForceEvent
+  }
   return forceChannel
 }
 
-export const getForceOnMessage = (): ForceMessageHandler => getForceChannel().onmessage
+export const subscribeForceMessage = (listener: ForceMessageListener): ForceSubscription => {
+  forceListeners.add(listener)
+  getForceChannel()
 
-export const setForceOnMessage = (handler: ForceMessageHandler): void => {
-  getForceChannel().onmessage = handler
+  return {
+    close() {
+      forceListeners.delete(listener)
+    },
+  }
 }
 
 const dispatchForceMessage = (message: ForceMessage): void => {
-  const channel = getForceChannel()
-  channel.onmessage?.call(channel, {data: message} as MessageEvent<ForceMessage>)
+  dispatchForceEvent({data: message} as MessageEvent<ForceMessage>)
 }
 
 export const emitForceMessage = (message: ForceMessage): void => {
@@ -68,14 +85,12 @@ export const emitGravitonAdd = (path: string, value?: unknown): void => {
 export const closeForceChannel = (): void => {
   forceChannel?.close()
   forceChannel = null
+  forceListeners.clear()
 }
 
 export const force: Force = {
-  get onmessage(): ForceMessageHandler {
-    return getForceOnMessage()
-  },
-  set onmessage(handler: ForceMessageHandler) {
-    setForceOnMessage(handler)
+  subscribe(listener: ForceMessageListener): ForceSubscription {
+    return subscribeForceMessage(listener)
   },
   postMessage(message: ForceMessage): void {
     emitForceMessage(message)

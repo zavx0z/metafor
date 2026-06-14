@@ -32,7 +32,7 @@ export const subscribeDarkPhotons = (
 ): DarkPhotonSubscription => {
   void options
 
-  force.onmessage = (event) => {
+  const subscription = force.subscribe((event) => {
     for (const part of event.data.parts) {
       if (part.part !== "photon") continue
       const message: PhotonPayload = { path: part.path, value: String(part.value ?? "") }
@@ -40,11 +40,11 @@ export const subscribeDarkPhotons = (
       darkPhoton$.messages.push(message)
       listener?.(message)
     }
-  }
+  })
 
   return {
     close() {
-      force.onmessage = null
+      subscription.close()
     },
   }
 }

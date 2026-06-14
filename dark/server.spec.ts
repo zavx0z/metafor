@@ -2,7 +2,7 @@ import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import {SQL, type ServerWebSocket} from "bun"
 import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
-import type {ForceMessage, ForceMessageHandler} from "../store/index.ts"
+import type {ForceMessage, ForceSubscription} from "../store/index.ts"
 
 type ForceSocketData = {kind: "force"}
 
@@ -12,7 +12,7 @@ const logBroadcastMessage = (event: MessageEvent<unknown>): void => {
 
 describe("dark/server разворачивает дерево zavx0z/git по gravity part", () => {
   let storePath: string
-  let previousOnMessage: ForceMessageHandler = null
+  let storeSubscription: ForceSubscription | null = null
   let forceBridge: ReturnType<typeof Bun.serve<ForceSocketData>> | null = null
   let forceClient: WebSocket | null = null
   const forceSockets = new Set<ServerWebSocket<ForceSocketData>>()
@@ -63,17 +63,15 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
     })
     await waitForWebSocketOpen(forceClient)
 
-    previousOnMessage = globalThis.store.onmessage
-    globalThis.store.onmessage = function (event) {
+    storeSubscription = globalThis.store.subscribe((event) => {
       logBroadcastMessage(event)
       storeMessages.push(event.data)
       broadcastForceMessage(forceSockets, event.data)
-      return previousOnMessage?.call(this, event)
-    }
+    })
   })
 
   afterAll(async () => {
-    if (globalThis.store) globalThis.store.onmessage = previousOnMessage
+    storeSubscription?.close()
     forceClient?.close()
     forceSockets.clear()
     await forceBridge?.stop(true)

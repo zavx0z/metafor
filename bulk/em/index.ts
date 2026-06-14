@@ -30,13 +30,13 @@ export interface BulkWeakForce {
 const createSubscription = (
   onMessage: (message: ForceMessage) => void,
 ): BulkSubscription => {
-  force.onmessage = (event) => {
+  const subscription = force.subscribe((event) => {
     onMessage(event.data)
-  }
+  })
 
   return {
     close() {
-      force.onmessage = null
+      subscription.close()
     },
   }
 }
