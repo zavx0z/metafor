@@ -1,8 +1,18 @@
 import { build, file, serve } from "bun"
 import { mkdirSync, rmSync } from "node:fs"
 import { dirname, join, normalize } from "node:path"
-import type { AppWebLayoutSettings } from "./settings.ts"
-import {force, type Particle} from "store"
+import {force} from "store"
+import type {
+	AppRuntime,
+	ClientForceBridgePayload,
+	ClientMaterializeMessage,
+	ClientRelayoutMessage,
+	Particle,
+	WorkerLogMessage,
+	WorkerName,
+	WorkerStatus,
+	WorkerStatusMessage,
+} from "./server.t.ts"
 
 const ROOT = normalize(join(import.meta.dir, "../../"))
 const APP_CHANNEL = "app-web"
@@ -23,45 +33,6 @@ const tls = TLS_KEY_FILE && TLS_CERT_FILE
 			...(TLS_PASSPHRASE ? { passphrase: TLS_PASSPHRASE } : {}),
 		}
 	: undefined
-
-type WorkerName = "dark" | "boundary" | "bulk"
-type WorkerStatus = "idle" | "ready" | "started" | "done" | "error"
-
-type WorkerStatusMessage = {
-	type: "worker-status"
-	worker: WorkerName
-	status: WorkerStatus
-	src?: string
-	error?: string
-}
-
-type WorkerLogMessage = {
-	type: "log"
-	message: unknown
-}
-
-type ClientMaterializeMessage = {
-	type: "materialize"
-	src: string
-	layoutSettings?: Partial<AppWebLayoutSettings>
-}
-
-type ClientRelayoutMessage = {
-	type: "relayout"
-	src: string
-	layoutSettings?: Partial<AppWebLayoutSettings>
-}
-
-type ClientForceBridgePayload = {
-	type: "force"
-	parts: Particle[]
-}
-
-type AppRuntime = {
-	bulk: Worker
-	boundary: Worker
-	dark: Worker
-}
 
 const buildEntrypoint = async (entrypoint: string): Promise<Response> =>
 	new Response((await build({ entrypoints: [entrypoint] })).outputs[0], {
