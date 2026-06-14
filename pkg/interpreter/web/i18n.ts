@@ -79,7 +79,6 @@ export const text = {
   resume: {ru: "Продолжить", en: "Resume"},
   restartTarget: {ru: "Перезапустить модуль", en: "Restart module"},
   runExpression: {ru: "Выполнить выражение", en: "Run expression"},
-  runtimeActionUnavailable: {ru: "команда недоступна в текущем состоянии", en: "command unavailable in current state"},
   scopeValue: {ru: "значение scope", en: "scope value"},
   showExecutionPoint: {ru: "Показать точку остановки", en: "Show execution point"},
   showVerbose: {ru: "Показать события", en: "Show events"},

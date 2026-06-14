@@ -193,6 +193,39 @@ describe("logicalBreakpointParams", () => {
     }
   })
 
+  test("keeps breakpoints muted after arming pending breakpoints", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "metafor-bp-"))
+    try {
+      const requests: Array<{method: string; params: Record<string, unknown> | undefined}> = []
+      const client = {
+        async request(method: string, params?: Record<string, unknown>): Promise<unknown> {
+          requests.push({method, params})
+          if (method === "Debugger.setBreakpointByUrl") {
+            return {
+              breakpointId: "runtime:1",
+              locations: [{scriptId: "future", lineNumber: 1, columnNumber: 0}],
+            }
+          }
+          return {}
+        },
+      } as unknown as ProtocolClient
+      const logger = new EventLogger(join(dir, "events.log"))
+      const store = new BreakpointStore({client, logger})
+      store.setBreakpointsActiveState(false)
+      const registration = store.add({urlRegex: "server\\.js$", line: 2})
+
+      await store.armPendingByUrl([registration.id])
+
+      const activeRequests = requests.filter((request) => request.method === "Debugger.setBreakpointsActive")
+      expect(activeRequests).toEqual([{
+        method: "Debugger.setBreakpointsActive",
+        params: {active: false},
+      }])
+    } finally {
+      rmSync(dir, {recursive: true, force: true})
+    }
+  })
+
   test("removes pre-armed local runtime breakpoint after scriptId source-map install", async () => {
     const dir = mkdtempSync(join(tmpdir(), "metafor-bp-"))
     try {

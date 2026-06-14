@@ -324,6 +324,10 @@ function normalizeModulePath(modulePath: string | undefined): string | null {
   return next === undefined || next.length === 0 ? null : next
 }
 
+function socketNotOpenError(error: unknown, method: string): boolean {
+  return error instanceof Error && error.message === `protocol socket is not open for ${method}`
+}
+
 type InterpreterRuntimeOptions = {
   moduleId: string
   config: InterpreterConfig
@@ -378,13 +382,41 @@ class InterpreterRuntime {
   }
 
   async setBreakpointsActive(active: boolean): Promise<unknown> {
-    const result = await this.#client.request("Debugger.setBreakpointsActive", {active})
+    if (this.#client.socketState !== "connected") {
+      this.#storeBreakpointsActive(active)
+      this.#logger.event("breakpoint.active.deferred", {
+        moduleId: this.#moduleId,
+        active,
+        socketState: this.#client.socketState,
+      })
+      return {active, deferred: true}
+    }
+
+    try {
+      const result = await this.#client.request("Debugger.setBreakpointsActive", {active})
+      this.#storeBreakpointsActive(active)
+      return {active, result}
+    } catch (error) {
+      if (socketNotOpenError(error, "Debugger.setBreakpointsActive")) {
+        this.#storeBreakpointsActive(active)
+        this.#logger.event("breakpoint.active.deferred", {
+          moduleId: this.#moduleId,
+          active,
+          error: serializeError(error),
+        })
+        return {active, deferred: true}
+      }
+      throw error
+    }
+  }
+
+  #storeBreakpointsActive(active: boolean): void {
     this.#breakpointsActive = active
+    this.#breakpoints.setBreakpointsActiveState(active)
     this.#logger.event("breakpoint.active.changed", {
       moduleId: this.#moduleId,
       active,
     })
-    return {active, result}
   }
 
   async maintainConnection(): Promise<void> {
@@ -547,6 +579,7 @@ class InterpreterRuntime {
     await this.#requestSetup("Console.enable")
     await this.#requestSetup("Debugger.enable")
     await this.#requestSetup("Debugger.setAsyncStackTraceDepth", {depth: 200})
+    this.#breakpoints.setBreakpointsActiveState(this.#breakpointsActive)
     await this.#requestSetup("Debugger.setBreakpointsActive", {active: this.#breakpointsActive})
     await this.#requestSetup("Debugger.setPauseOnDebuggerStatements", {enabled: true})
     await this.#requestSetup("Debugger.setPauseOnExceptions", {state: "none"})

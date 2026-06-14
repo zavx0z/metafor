@@ -58,7 +58,6 @@ export type TerminalHeaderControl = {
   iconSrc: string
   tone?: Tone
   disabled?: boolean
-  disabledTooltip?: string
   dividerAfter?: boolean
   action(): void
 }
@@ -747,7 +746,7 @@ class TerminalOutputPane extends UiSurface {
       controlIconButton(this, cursor, y, HEADER_CONTROL_W_PX, HEADER_CONTROL_H_PX, {
         label: b.label,
         iconSrc: b.iconSrc,
-        tooltip: b.disabled === true ? b.disabledTooltip ?? b.label : b.label,
+        tooltip: b.label,
         tone: b.tone ?? "neutral",
         ...(b.disabled === undefined ? {} : {disabled: b.disabled}),
         action: b.action,

@@ -50,6 +50,7 @@ export class BreakpointStore {
   #client: ProtocolClient
   #logger: EventLogger
   #nextId = 1
+  #breakpointsActive = true
   #breakpoints = new Map<string, TrackedBreakpoint>()
 
   constructor(options: {
@@ -62,6 +63,10 @@ export class BreakpointStore {
 
   get registrations(): BreakpointRegistration[] {
     return [...this.#breakpoints.values()].map(publicRegistration)
+  }
+
+  setBreakpointsActiveState(active: boolean): void {
+    this.#breakpointsActive = active
   }
 
   reset(): void {
@@ -254,7 +259,7 @@ export class BreakpointStore {
         url: script.url,
         result,
       })
-      await this.#activateBreakpoints()
+      await this.#restoreBreakpointsActive()
       return true
     } catch (error) {
       this.#logger.event("breakpoint.install_by_url.failed", {
@@ -297,7 +302,7 @@ export class BreakpointStore {
         url: logicalBreakpointUrl(params),
         result,
       }, `logical:${breakpointId}`)
-      await this.#activateBreakpoints()
+      await this.#restoreBreakpointsActive()
       return true
     } catch (error) {
       this.#logger.event("breakpoint.logical_by_url.failed", {
@@ -338,7 +343,7 @@ export class BreakpointStore {
         result,
       }
       this.#rememberInstalled(tracked, installed)
-      await this.#activateBreakpoints()
+      await this.#restoreBreakpointsActive()
       this.#logger.event("breakpoint.installed", {
         id: tracked.id,
         spec: tracked.spec,
@@ -445,11 +450,11 @@ export class BreakpointStore {
     }
   }
 
-  async #activateBreakpoints(): Promise<void> {
+  async #restoreBreakpointsActive(): Promise<void> {
     try {
-      await this.#client.request("Debugger.setBreakpointsActive", {active: true})
+      await this.#client.request("Debugger.setBreakpointsActive", {active: this.#breakpointsActive})
     } catch (error) {
-      this.#logger.event("breakpoint.activate.failed", {error: serializeError(error)})
+      this.#logger.event("breakpoint.active.restore.failed", {active: this.#breakpointsActive, error: serializeError(error)})
     }
   }
 }

@@ -508,6 +508,7 @@ type ModuleDisplayController = {
   agentOutputLineCount: number
   agentTerminalTargetStartedAt: string | null
   activeCommand: ActiveInterpreterCommand | null
+  breakpointsActiveCommand: ActiveInterpreterCommand | null
   verboseVisible: boolean
   contextPublishQueued: boolean
   terminalInput: {
@@ -1722,6 +1723,7 @@ function processWorkspaceInfo(moduleId: string, display: ModuleDisplayInfo | nul
     ?? null
   const {output: _output, ...targetWithoutOutput} = module.target
   const commandIdle = controller?.activeCommand === null
+  const breakpointsCommandIdle = controller?.breakpointsActiveCommand === null
   const targetRunning = module.target.state === "starting" || module.target.state === "running"
   const targetFinished = module.target.state === "exited" || module.target.state === "failed"
   const connected = module.connection.state === "connected"
@@ -1781,7 +1783,7 @@ function processWorkspaceInfo(moduleId: string, display: ModuleDisplayInfo | nul
       pause: commandIdle && connected && targetRunning && !module.paused,
       resume: commandIdle && pausedWithContext,
       step: commandIdle && pausedWithContext,
-      setBreakpointsActive: commandIdle && connected,
+      setBreakpointsActive: commandIdle && breakpointsCommandIdle,
       evaluate: commandIdle && controller !== undefined && canAcceptTerminalInput(controller),
       sourceOpen: controller !== undefined,
       restart: commandIdle && module.target.command.length > 0,
@@ -2249,8 +2251,12 @@ function rejectPendingRequests(error: string): void {
     pendingRequests.delete(requestId)
   }
   for (const controller of moduleDisplays.values()) {
-    if (controller.activeCommand === null) continue
+    const hadPendingCommand = controller.activeCommand !== null || controller.breakpointsActiveCommand !== null
     controller.activeCommand = null
+    controller.breakpointsActiveCommand = null
+    if (!hadPendingCommand) continue
+    const snapshot = moduleSnapshots.get(controller.id)
+    if (snapshot !== undefined) updateModuleHeaderControls(controller, snapshot)
   }
 }
 
@@ -6167,6 +6173,7 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
     agentOutputLineCount: 0,
     agentTerminalTargetStartedAt: module.target.startedAt,
     activeCommand: null,
+    breakpointsActiveCommand: null,
     verboseVisible: readModuleVerboseVisible(module.id),
     contextPublishQueued: false,
     workspaceFiles,
@@ -6836,14 +6843,14 @@ function updateModuleHeaderControls(controller: ModuleDisplayController, module:
   const contextConnected = module.connection.state === "connected"
   const canControlExecution = contextConnected && targetRunning
   const commandIdle = controller.activeCommand === null
+  const breakpointsCommandIdle = controller.breakpointsActiveCommand === null
   const canPause = commandIdle && canControlExecution && !module.paused
   const canResume = commandIdle && canControlExecution && module.paused
   const canStep = commandIdle && canControlExecution && module.paused
-  const canToggleBreakpointsActive = commandIdle && contextConnected
+  const canToggleBreakpointsActive = commandIdle && breakpointsCommandIdle
   const canRestart = commandIdle && module.target.command.length > 0
   const canStop = commandIdle && targetRunning
   const canShowExecutionPoint = commandIdle && canControlExecution && module.paused && controller.dump !== undefined && controller.dump.frames.length > 0
-  const actionUnavailableTooltip = t("runtimeActionUnavailable")
   const breakpointsActive = module.breakpointsActive
   const nextBreakpointsActive = !breakpointsActive
 
@@ -6852,83 +6859,72 @@ function updateModuleHeaderControls(controller: ModuleDisplayController, module:
       runKind === "live"
         ? {
           label: t("pause"),
-          iconSrc: uiIcons.pause,
+          iconSrc: uiIcons.debugPause,
           tone: pauseButtonTone(runKind),
           dividerAfter: true,
           disabled: !canPause,
-          disabledTooltip: actionUnavailableTooltip,
           action: () => void runModuleInterpreterCommand(controller, "pause", {}, t("pause")),
         }
         : {
           label: t("resume"),
-          iconSrc: uiIcons.resume,
+          iconSrc: uiIcons.debugResume,
           tone: resumeButtonTone(runKind),
           dividerAfter: true,
           disabled: !canResume,
-          disabledTooltip: actionUnavailableTooltip,
           action: () => void runModuleInterpreterCommand(controller, "resume", {}, t("resume")),
         },
       {
         label: t("stepOver"),
-        iconSrc: uiIcons.stepOver,
+        iconSrc: uiIcons.debugStepOver,
         tone: stepButtonTone(runKind),
         disabled: !canStep,
-        disabledTooltip: actionUnavailableTooltip,
         action: () => void runModuleInterpreterCommand(controller, "step", {kind: "over"}, t("stepOver")),
       },
       {
         label: t("stepInto"),
-        iconSrc: uiIcons.stepInto,
+        iconSrc: uiIcons.debugStepInto,
         tone: stepButtonTone(runKind),
         disabled: !canStep,
-        disabledTooltip: actionUnavailableTooltip,
         action: () => void runModuleInterpreterCommand(controller, "step", {kind: "into"}, t("stepInto")),
       },
       {
         label: t("stepOut"),
-        iconSrc: uiIcons.stepOut,
+        iconSrc: uiIcons.debugStepOut,
         tone: stepButtonTone(runKind),
         disabled: !canStep,
-        disabledTooltip: actionUnavailableTooltip,
         action: () => void runModuleInterpreterCommand(controller, "step", {kind: "out"}, t("stepOut")),
       },
       {
-        label: breakpointsActive ? t("muteBreakpoints") : t("unmuteBreakpoints"),
-        iconSrc: breakpointsActive ? uiIcons.breakpointMute : uiIcons.breakpoint,
-        tone: breakpointsActive ? "neutral" : "warn",
-        disabled: !canToggleBreakpointsActive,
-        disabledTooltip: actionUnavailableTooltip,
-        dividerAfter: true,
-        action: () => void runModuleInterpreterCommand(
-          controller,
-          nextBreakpointsActive ? "unmuteBreakpoints" : "muteBreakpoints",
-          {},
-          nextBreakpointsActive ? t("unmuteBreakpoints") : t("muteBreakpoints"),
-        ),
-      },
-      {
         label: t("restartTarget"),
-        iconSrc: uiIcons.restart,
+        iconSrc: uiIcons.debugRestart,
         tone: "neutral",
         disabled: !canRestart,
-        disabledTooltip: actionUnavailableTooltip,
         action: () => void restartModule(controller.id),
       },
       {
-        label: t("showExecutionPoint"),
-        iconSrc: uiIcons.executionPoint,
-        tone: canShowExecutionPoint ? "paused" : "neutral",
-        disabled: !canShowExecutionPoint,
-        disabledTooltip: t("waitingFrames"),
-        action: () => showModuleExecutionPoint(controller),
-      },
-      {
         label: t("stopTarget"),
-        iconSrc: uiIcons.stop,
+        iconSrc: uiIcons.debugStop,
         tone: "warn",
         disabled: !canStop,
-        disabledTooltip: actionUnavailableTooltip,
+        dividerAfter: true,
         action: () => void stopModule(controller.id),
+      },
+      {
+        label: breakpointsActive ? t("muteBreakpoints") : t("unmuteBreakpoints"),
+        iconSrc: breakpointsActive ? uiIcons.breakpointActive : uiIcons.breakpointDisabled,
+        tone: breakpointsActive ? "warn" : "neutral",
+        disabled: !canToggleBreakpointsActive,
+        action: () => void runModuleBreakpointsActiveCommand(
+          controller,
+          nextBreakpointsActive,
+        ),
+      },
+      {
+        label: t("showExecutionPoint"),
+        iconSrc: uiIcons.debugExecutionPoint,
+        tone: canShowExecutionPoint ? "paused" : "neutral",
+        disabled: !canShowExecutionPoint,
+        action: () => showModuleExecutionPoint(controller),
       },
     ],
     secondary: [
@@ -7199,6 +7195,36 @@ async function runModuleInterpreterCommand(controller: ModuleDisplayController, 
     const nextSnapshot = moduleSnapshots.get(controller.id)
     if (nextSnapshot !== undefined) updateModuleHeaderControls(controller, nextSnapshot)
     syncModuleTerminalInput(controller)
+  }
+}
+
+async function runModuleBreakpointsActiveCommand(controller: ModuleDisplayController, active: boolean): Promise<CommandReply> {
+  if (controller.breakpointsActiveCommand !== null) {
+    return {ok: false, error: `${t("commandAlreadyRunning")}: ${controller.breakpointsActiveCommand.label}`}
+  }
+  const label = active ? t("unmuteBreakpoints") : t("muteBreakpoints")
+  const command: ActiveInterpreterCommand = {
+    cmd: active ? "unmuteBreakpoints" : "muteBreakpoints",
+    label,
+    startedAt: performance.now(),
+  }
+  controller.breakpointsActiveCommand = command
+  const snapshot = moduleSnapshots.get(controller.id)
+  if (snapshot !== undefined) updateModuleHeaderControls(controller, snapshot)
+  try {
+    const response = await send(command.cmd, {}, controller.id)
+    if (!response.ok) {
+      appendModuleTerminal(controller, {
+        ts: new Date().toISOString(),
+        level: "error",
+        text: `[ui] ${label}: ${response.error ?? "unknown error"}`,
+      })
+    }
+    return response
+  } finally {
+    if (controller.breakpointsActiveCommand === command) controller.breakpointsActiveCommand = null
+    const nextSnapshot = moduleSnapshots.get(controller.id)
+    if (nextSnapshot !== undefined) updateModuleHeaderControls(controller, nextSnapshot)
   }
 }
 
