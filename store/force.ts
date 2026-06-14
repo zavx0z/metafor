@@ -18,13 +18,15 @@ export type ForceMessage = {
 
 export type ForceMessageListener = (this: BroadcastChannel, ev: MessageEvent<ForceMessage>) => unknown
 
-export interface ForceSubscription {
+export interface ForceBinding {
   close(): void
 }
 
 export interface ForceSurface {
-  subscribe(listener: ForceMessageListener): ForceSubscription
-  postMessage(message: ForceMessage): void
+  observe(listener: ForceMessageListener): ForceBinding
+  entropy(listener: ForceMessageListener): ForceBinding
+  emit(message: ForceMessage): void | Promise<void>
+  absorb(message: ForceMessage): void | Promise<void>
 }
 
 export interface Force extends ForceSurface {
@@ -39,39 +41,53 @@ export type TypedBroadcastChannel<TMessage> = Omit<BroadcastChannel, "onmessage"
 export type ForceChannel = TypedBroadcastChannel<ForceMessage>
 
 let forceChannel: ForceChannel | null = null
-const forceListeners = new Set<ForceMessageListener>()
+const forceObservers = new Set<ForceMessageListener>()
+const forceEntropy = new Set<ForceMessageListener>()
 
-const dispatchForceEvent = (event: MessageEvent<ForceMessage>): void => {
+const dispatchForceObservers = (event: MessageEvent<ForceMessage>): void => {
   const channel = getForceChannel()
-  for (const listener of [...forceListeners]) listener.call(channel, event)
+  for (const listener of [...forceObservers]) listener.call(channel, event)
+}
+
+const dispatchForceEntropy = (event: MessageEvent<ForceMessage>): void => {
+  const channel = getForceChannel()
+  for (const listener of [...forceEntropy]) listener.call(channel, event)
 }
 
 const getForceChannel = (): ForceChannel => {
   if (forceChannel === null) {
     forceChannel = new BroadcastChannel(METAFOR_FORCE_CHANNEL) as ForceChannel
-    forceChannel.onmessage = dispatchForceEvent
+    forceChannel.onmessage = dispatchForceObservers
   }
   return forceChannel
 }
 
-export const subscribeForceMessage = (listener: ForceMessageListener): ForceSubscription => {
-  forceListeners.add(listener)
+const bindForceListener = (listeners: Set<ForceMessageListener>, listener: ForceMessageListener): ForceBinding => {
+  listeners.add(listener)
   getForceChannel()
 
   return {
     close() {
-      forceListeners.delete(listener)
+      listeners.delete(listener)
     },
   }
 }
 
-const dispatchForceMessage = (message: ForceMessage): void => {
-  dispatchForceEvent({data: message} as MessageEvent<ForceMessage>)
+export const observeForceMessage = (listener: ForceMessageListener): ForceBinding =>
+  bindForceListener(forceObservers, listener)
+
+export const entropyForceMessage = (listener: ForceMessageListener): ForceBinding =>
+  bindForceListener(forceEntropy, listener)
+
+export const absorbForceMessage = (message: ForceMessage): void => {
+  dispatchForceObservers({data: message} as MessageEvent<ForceMessage>)
 }
 
 export const emitForceMessage = (message: ForceMessage): void => {
+  const event = {data: message} as MessageEvent<ForceMessage>
   getForceChannel().postMessage(message)
-  dispatchForceMessage(message)
+  dispatchForceObservers(event)
+  dispatchForceEntropy(event)
 }
 
 export const emitForceParts = (parts: Particle[]): void => {
@@ -85,15 +101,22 @@ export const emitGravitonAdd = (path: string, value?: unknown): void => {
 export const closeForceChannel = (): void => {
   forceChannel?.close()
   forceChannel = null
-  forceListeners.clear()
+  forceObservers.clear()
+  forceEntropy.clear()
 }
 
 export const force: Force = {
-  subscribe(listener: ForceMessageListener): ForceSubscription {
-    return subscribeForceMessage(listener)
+  observe(listener: ForceMessageListener): ForceBinding {
+    return observeForceMessage(listener)
   },
-  postMessage(message: ForceMessage): void {
+  entropy(listener: ForceMessageListener): ForceBinding {
+    return entropyForceMessage(listener)
+  },
+  emit(message: ForceMessage): void {
     emitForceMessage(message)
+  },
+  absorb(message: ForceMessage): void {
+    absorbForceMessage(message)
   },
   close(): void {
     closeForceChannel()

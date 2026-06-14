@@ -7,12 +7,13 @@ import {StoreTopologySqlite} from "@store/topology/sqlite"
 
 import type {Store} from "./index.ts"
 import {
+  absorbForceMessage,
   closeForceChannel,
+  entropyForceMessage,
   emitForceMessage,
-  emitForceParts,
-  subscribeForceMessage,
+  observeForceMessage,
+  type ForceBinding,
   type ForceMessageListener,
-  type ForceSubscription,
   type ParticleOperation,
   type Part,
   type Particle,
@@ -27,14 +28,7 @@ export type StoreUpdateMessage = {
 }
 
 type Tx = SQL | ReservedSQL
-
-const decodeSegment = (segment: string): string => segment.replace(/~1/g, "/").replace(/~0/g, "~")
-
-const splitPath = (path: string): string[] => {
-  if (path === "") return []
-  if (!path.startsWith("/")) throw new Error(`Particle path must start with "/": "${path}"`)
-  return path.slice(1).split("/").map(decodeSegment)
-}
+type TopologyDomainPath = "fuzzy" | "axion" | "macho"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -65,6 +59,19 @@ const optionalBoolean = (value: unknown, key: string, path: string): boolean | n
   return v
 }
 
+const optionalObject = (value: unknown, key: string, path: string): Record<string, unknown> | null => {
+  const v = (value as Record<string, unknown>)[key]
+  if (v === undefined || v === null) return null
+  if (!isRecord(v)) throw new Error(`Particle ${path}: "${key}" must be object`)
+  return v
+}
+
+const requireArray = (value: unknown, key: string, path: string): unknown[] => {
+  const v = (value as Record<string, unknown>)[key]
+  if (!Array.isArray(v)) throw new Error(`Particle ${path}: "${key}" must be array`)
+  return v
+}
+
 const requireString = (value: unknown, key: string, path: string): string => {
   const v = optionalString(value, key, path)
   if (v === null) throw new Error(`Particle ${path}: "${key}" is required`)
@@ -81,95 +88,216 @@ const notSupported = (op: ParticleOperation, path: string, part: StorePart): nev
   throw new Error(`Particle op "${op}" is not supported for "${path}" (part=${part})`)
 }
 
+const applyWimpSnapshot = async (tx: Tx, op: ParticleOperation, value: unknown): Promise<void> => {
+  const path = "wimp"
+  const snapshot = requireRecord(value, path)
+  const wimp = requireRecord(snapshot.wimp, path)
+  const src = requireString(wimp, "src", path)
+
+  if (op === "remove") {
+    await tx`DELETE FROM wimp WHERE src = ${src}`
+    return
+  }
+  if (op !== "add" && op !== "replace") {
+    notSupported(op, path, "graviton")
+  }
+
+  await tx`
+    INSERT INTO wimp (src, name, desc, view_css)
+    VALUES (${src}, ${optionalString(wimp, "name", path)}, ${optionalString(wimp, "desc", path)}, ${optionalString(wimp, "view", path)})
+    ON CONFLICT (src) DO UPDATE SET
+      name = excluded.name,
+      desc = excluded.desc,
+      view_css = excluded.view_css
+  `
+
+  for (const item of requireArray(snapshot, "fields", path)) {
+    const field = requireRecord(item, path)
+    await tx`
+      INSERT INTO field (uuid, wimp, key, type, required, label)
+      VALUES (${requireString(field, "uuid", path)}, ${requireString(field, "wimp", path)}, ${requireString(field, "key", path)}, ${requireString(field, "type", path)}, ${optionalBoolean(field, "required", path) ? 1 : 0}, ${optionalString(field, "label", path)})
+      ON CONFLICT (uuid) DO UPDATE SET
+        wimp = excluded.wimp,
+        key = excluded.key,
+        type = excluded.type,
+        required = excluded.required,
+        label = excluded.label
+    `
+  }
+
+  for (const item of requireArray(snapshot, "enumVariants", path)) {
+    const variant = requireRecord(item, path)
+    await tx`
+      INSERT INTO field_enum_variant (uuid, field, position, item_value)
+      VALUES (${requireString(variant, "uuid", path)}, ${requireString(variant, "field", path)}, ${requireNumber(variant, "position", path)}, ${requireString(variant, "itemValue", path)})
+      ON CONFLICT (uuid) DO UPDATE SET
+        field = excluded.field,
+        position = excluded.position,
+        item_value = excluded.item_value
+    `
+  }
+
+  for (const item of requireArray(snapshot, "states", path)) {
+    const state = requireRecord(item, path)
+    await tx`
+      INSERT INTO state (uuid, wimp, name, position)
+      VALUES (${requireString(state, "uuid", path)}, ${requireString(state, "wimp", path)}, ${requireString(state, "name", path)}, ${requireNumber(state, "position", path)})
+      ON CONFLICT (uuid) DO UPDATE SET
+        wimp = excluded.wimp,
+        name = excluded.name,
+        position = excluded.position
+    `
+  }
+}
+
 // =============================================================================
-// graviton — actor/topology structural rows
+// graviton — domain structural particles
 // =============================================================================
 
-const applyActorRow = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
-  // /actor/<uuid>
-  const uuid = segs[1]!
-  const path = `/actor/${uuid}`
+const applyActorSnapshot = async (tx: Tx, op: ParticleOperation, value: unknown): Promise<void> => {
+  const path = "actor"
+  const snapshot = requireRecord(value, path)
+  const actor = requireRecord(snapshot.actor, path)
+  const uuid = requireString(actor, "uuid", path)
+
   if (op === "remove") {
     await tx`DELETE FROM actor WHERE uuid = ${uuid}`
     return
   }
-  if (op === "add") {
-    const v = requireRecord(value, path)
-    await tx`
-      INSERT INTO actor (uuid, parent_actor, parent_topology, wimp, position)
-      VALUES (${uuid},
-              ${optionalString(v, "parentActor", path)},
-              ${optionalString(v, "parentTopology", path)},
-              ${requireString(v, "wimp", path)},
-              ${requireNumber(v, "position", path)})
-    `
-    return
+  if (op !== "add" && op !== "replace") {
+    notSupported(op, path, "graviton")
   }
-  if (op === "replace") {
-    const v = requireRecord(value, path)
+
+  const parentActor = optionalString(actor, "parentActor", path)
+  const parentTopology = optionalString(actor, "parentTopology", path)
+  const position = optionalNumber(actor, "position", path) ?? (
+    (await tx<Array<{count: number}>>`
+      SELECT COUNT(*) AS count FROM actor
+      WHERE parent_actor IS ${parentActor}
+        AND parent_topology IS ${parentTopology}
+    `)[0]?.count ?? 0
+  )
+  const oldValueIds = (await tx<Array<{value: string}>>`SELECT value FROM actor_value WHERE actor = ${uuid}`)
+    .map((link) => link.value)
+
+  await tx`DELETE FROM actor WHERE uuid = ${uuid}`
+  await tx`
+    INSERT INTO actor (uuid, parent_actor, parent_topology, wimp, position)
+    VALUES (${uuid}, ${parentActor}, ${parentTopology}, ${requireString(actor, "wimp", path)}, ${Number(position)})
+  `
+
+  for (const item of requireArray(snapshot, "valueRecords", path)) {
+    const record = requireRecord(item, path)
+    const valueUuid = requireString(record, "uuid", path)
+    const kind = requireString(record, "kind", path)
     await tx`
-      UPDATE actor
-      SET parent_actor = ${optionalString(v, "parentActor", path)},
-          parent_topology = ${optionalString(v, "parentTopology", path)},
-          wimp = ${requireString(v, "wimp", path)},
-          position = ${requireNumber(v, "position", path)}
-      WHERE uuid = ${uuid}
+      INSERT INTO value (uuid, kind) VALUES (${valueUuid}, ${kind})
+      ON CONFLICT (uuid) DO UPDATE SET kind = excluded.kind
     `
-    return
+    await clearValueScalarTables(tx, valueUuid)
+    await writeValueScalar(tx, valueUuid, kind, record, path)
   }
-  notSupported(op, path, "graviton")
+
+  const listValueIds = new Set(
+    requireArray(snapshot, "valueRecords", path)
+      .map((item) => requireRecord(item, path))
+      .filter((record) => requireString(record, "kind", path) === "list")
+      .map((record) => requireString(record, "uuid", path)),
+  )
+  for (const valueUuid of listValueIds) await tx`DELETE FROM value_list_item WHERE value = ${valueUuid}`
+  for (const item of requireArray(snapshot, "valueItems", path)) {
+    const valueItem = requireRecord(item, path)
+    await tx`
+      INSERT INTO value_list_item (value, position, item_value)
+      VALUES (${requireString(valueItem, "value", path)}, ${requireNumber(valueItem, "position", path)}, ${requireString(valueItem, "itemValue", path)})
+      ON CONFLICT (value, position) DO UPDATE SET item_value = excluded.item_value
+    `
+  }
+
+  for (const item of requireArray(snapshot, "values", path)) {
+    const link = requireRecord(item, path)
+    await tx`
+      INSERT INTO actor_value (actor, field, value)
+      VALUES (${requireString(link, "actor", path)}, ${requireString(link, "field", path)}, ${requireString(link, "value", path)})
+    `
+  }
+
+  const state = optionalObject(snapshot, "state", path)
+  if (state !== null) {
+    await tx`
+      INSERT INTO actor_state (actor, metaState)
+      VALUES (${requireString(state, "actor", path)}, ${optionalString(state, "metaState", path)})
+    `
+  }
+
+  for (const valueId of oldValueIds) {
+    await tx`
+      DELETE FROM value WHERE uuid = ${valueId} AND NOT EXISTS (SELECT 1 FROM actor_value WHERE value = uuid)
+    `
+  }
 }
 
-const applyTopologyRow = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
-  // /topology/<uuid>
-  const uuid = segs[1]!
-  const path = `/topology/${uuid}`
+const applyTopologySnapshot = async (
+  tx: Tx,
+  op: ParticleOperation,
+  kind: TopologyDomainPath,
+  value: unknown,
+): Promise<void> => {
+  const path = kind
+  const topology = requireRecord(value, path)
+  const uuid = requireString(topology, "uuid", path)
   if (op === "remove") {
     await tx`DELETE FROM topology WHERE uuid = ${uuid}`
     return
   }
-  if (op === "add") {
-    const v = requireRecord(value, path)
-    const kind = requireString(v, "kind", path)
-    if (kind !== "fuzzy" && kind !== "axion" && kind !== "macho") {
-      throw new Error(`Particle ${path}: unknown topology kind "${kind}"`)
-    }
-    await tx`
-      INSERT INTO topology (uuid, parent_actor, parent_topology, kind, position)
-      VALUES (${uuid},
-              ${optionalString(v, "parentActor", path)},
-              ${optionalString(v, "parentTopology", path)},
-              ${kind},
-              ${requireNumber(v, "position", path)})
-    `
-    return
+  if (op !== "add" && op !== "replace") {
+    notSupported(op, path, "graviton")
   }
-  notSupported(op, path, "graviton")
+
+  const parentActor = optionalString(topology, "parentActor", path)
+  const parentTopology = optionalString(topology, "parentTopology", path)
+  const position = optionalNumber(topology, "position", path) ?? (
+    (await tx<Array<{count: number}>>`
+      SELECT COUNT(*) AS count FROM topology
+      WHERE parent_actor IS ${parentActor}
+        AND parent_topology IS ${parentTopology}
+    `)[0]?.count ?? 0
+  )
+  await tx`DELETE FROM topology WHERE uuid = ${uuid}`
+  await tx`
+    INSERT INTO topology (uuid, parent_actor, parent_topology, kind, position)
+    VALUES (${uuid}, ${parentActor}, ${parentTopology}, ${kind}, ${Number(position)})
+  `
 }
 
-const applyGravitonParticle = async (tx: Tx, particle: StoreParticle): Promise<void> => {
-  if (particle.op === "test") return
+const applyGravitonParticle = async (tx: Tx, particle: StoreParticle): Promise<boolean> => {
+  if (particle.op === "test") return false
   if (particle.op === "move" || particle.op === "copy") {
     throw new Error(`Particle op "${particle.op}" is not supported by graviton`)
   }
-  const segs = splitPath(particle.path)
   const value = "value" in particle ? particle.value : undefined
 
-  if (segs[0] === "actor") {
-    if (segs.length === 2) return applyActorRow(tx, particle.op, segs, value)
-    throw new Error(`Unknown graviton path: ${particle.path}`)
+  if (particle.path === "wimp") {
+    if (typeof value !== "object" || value === null) return false
+    await applyWimpSnapshot(tx, particle.op, value)
+    return true
   }
 
-  if (segs[0] === "topology") {
-    if (segs.length === 2) return applyTopologyRow(tx, particle.op, segs, value)
-    throw new Error(`Unknown graviton path: ${particle.path}`)
+  if (particle.path === "actor") {
+    await applyActorSnapshot(tx, particle.op, value)
+    return true
   }
 
-  throw new Error(`Unknown graviton path: ${particle.path}`)
+  if (particle.path === "fuzzy" || particle.path === "axion" || particle.path === "macho") {
+    await applyTopologySnapshot(tx, particle.op, particle.path, value)
+    return true
+  }
+
+  return false
 }
 
 // =============================================================================
-// gluon — value records, value items, actor↔value links
+// value helpers for actor snapshots
 // =============================================================================
 
 const writeValueScalar = async (tx: Tx, uuid: string, kind: string, v: Record<string, unknown>, path: string): Promise<void> => {
@@ -204,169 +332,36 @@ const clearValueScalarTables = async (tx: Tx, uuid: string): Promise<void> => {
   await tx`DELETE FROM value_enum WHERE value = ${uuid}`
 }
 
-const applyValueRow = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
-  // /value/<uuid>
-  const uuid = segs[1]!
-  const path = `/value/${uuid}`
-  if (op === "remove") {
-    await tx`DELETE FROM value WHERE uuid = ${uuid}`
-    return
-  }
-  if (op === "add") {
-    const v = requireRecord(value, path)
-    const kind = requireString(v, "kind", path)
-    await tx`INSERT INTO value (uuid, kind) VALUES (${uuid}, ${kind})`
-    await writeValueScalar(tx, uuid, kind, v, path)
-    return
-  }
-  if (op === "replace") {
-    const v = requireRecord(value, path)
-    const kind = requireString(v, "kind", path)
-    await tx`UPDATE value SET kind = ${kind} WHERE uuid = ${uuid}`
-    await clearValueScalarTables(tx, uuid)
-    await writeValueScalar(tx, uuid, kind, v, path)
-    return
-  }
-  notSupported(op, path, "gluon")
-}
-
-const applyValueItem = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
-  // /value/<uuid>/item/<position>
-  const valueUuid = segs[1]!
-  const position = Number(segs[3])
-  const path = `/value/${valueUuid}/item/${position}`
-  if (op === "remove") {
-    await tx`DELETE FROM value_list_item WHERE value = ${valueUuid} AND position = ${position}`
-    return
-  }
-  if (op === "add") {
-    const v = requireRecord(value, path)
-    await tx`
-      INSERT INTO value_list_item (value, position, item_value)
-      VALUES (${valueUuid}, ${position}, ${requireString(v, "text", path)})
-    `
-    return
-  }
-  if (op === "replace") {
-    const v = requireRecord(value, path)
-    await tx`UPDATE value_list_item SET item_value = ${requireString(v, "text", path)} WHERE value = ${valueUuid} AND position = ${position}`
-    return
-  }
-  notSupported(op, path, "gluon")
-}
-
-const applyActorValue = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
-  // /actor/<actorUuid>/value/<fieldUuid>
-  const actorUuid = segs[1]!
-  const fieldUuid = segs[3]!
-  const path = `/actor/${actorUuid}/value/${fieldUuid}`
-  if (op === "remove") {
-    await tx`DELETE FROM actor_value WHERE actor = ${actorUuid} AND field = ${fieldUuid}`
-    return
-  }
-  const v = requireRecord(value, path)
-  const valueUuid = requireString(v, "value", path)
-  if (op === "add") {
-    await tx`INSERT INTO actor_value (actor, field, value) VALUES (${actorUuid}, ${fieldUuid}, ${valueUuid})`
-    return
-  }
-  if (op === "replace") {
-    await tx`UPDATE actor_value SET value = ${valueUuid} WHERE actor = ${actorUuid} AND field = ${fieldUuid}`
-    return
-  }
-  notSupported(op, path, "gluon")
-}
-
-const applyGluonParticle = async (tx: Tx, particle: StoreParticle): Promise<void> => {
-  if (particle.op === "test") return
-  if (particle.op === "move" || particle.op === "copy") {
-    throw new Error(`Particle op "${particle.op}" is not supported by gluon`)
-  }
-  const segs = splitPath(particle.path)
-  const value = "value" in particle ? particle.value : undefined
-
-  if (segs[0] === "value" && segs.length === 2) return applyValueRow(tx, particle.op, segs, value)
-  if (segs[0] === "value" && segs.length === 4 && segs[2] === "item")
-    return applyValueItem(tx, particle.op, segs, value)
-  if (segs[0] === "actor" && segs.length === 4 && segs[2] === "value")
-    return applyActorValue(tx, particle.op, segs, value)
-
-  throw new Error(`Unknown gluon path: ${particle.path}`)
-}
-
-// =============================================================================
-// photon — actor state
-// =============================================================================
-
-const applyActorState = async (tx: Tx, op: ParticleOperation, segs: string[], value: unknown): Promise<void> => {
-  // /actor/<uuid>/state
-  const actorUuid = segs[1]!
-  const path = `/actor/${actorUuid}/state`
-  if (op === "remove") {
-    await tx`DELETE FROM actor_state WHERE actor = ${actorUuid}`
-    return
-  }
-  const v = requireRecord(value, path)
-  const metaState = optionalString(v, "metaState", path)
-  if (op === "add") {
-    await tx`INSERT INTO actor_state (actor, metaState) VALUES (${actorUuid}, ${metaState})`
-    return
-  }
-  if (op === "replace") {
-    await tx`
-      INSERT INTO actor_state (actor, metaState) VALUES (${actorUuid}, ${metaState})
-      ON CONFLICT (actor) DO UPDATE SET metaState = excluded.metaState
-    `
-    return
-  }
-  notSupported(op, path, "photon")
-}
-
-const applyPhotonParticle = async (tx: Tx, particle: StoreParticle): Promise<void> => {
-  if (particle.op === "test") return
-  if (particle.op === "move" || particle.op === "copy") {
-    throw new Error(`Particle op "${particle.op}" is not supported by photon`)
-  }
-  const segs = splitPath(particle.path)
-  const value = "value" in particle ? particle.value : undefined
-
-  if (segs[0] === "actor" && segs.length === 3 && segs[2] === "state")
-    return applyActorState(tx, particle.op, segs, value)
-
-  throw new Error(`Unknown photon path: ${particle.path}`)
-}
-
 // =============================================================================
 // dispatcher
 // =============================================================================
 
-const applyOneParticle = async (tx: Tx, particle: StoreParticle): Promise<void> => {
+const applyOneParticle = async (tx: Tx, particle: StoreParticle): Promise<boolean> => {
   switch (particle.part) {
     case "graviton":
       return applyGravitonParticle(tx, particle)
     case "gluon":
-      return applyGluonParticle(tx, particle)
     case "photon":
-      return applyPhotonParticle(tx, particle)
     case "higgs":
-      throw new Error(`Particle part "higgs" is not implemented yet`)
+      return false
     case "w":
-      throw new Error(`Particle part "w" is not implemented yet`)
+      return false
     case "-z":
-      throw new Error(`Particle part "-z" is not implemented yet`)
+      return false
     case "+z":
-      throw new Error(`Particle part "+z" is not implemented yet`)
+      return false
   }
 }
 
-const buildApplyMessage = (sql: SQL) => async (message: StoreUpdateMessage): Promise<void> => {
-  if (message.parts.length === 0) return
+const applyMessageToDatabase = async (sql: SQL, message: StoreUpdateMessage): Promise<boolean> => {
+  if (message.parts.length === 0) return false
+  let applied = false
   await sql.begin(async (tx) => {
     for (const part of message.parts) {
-      await applyOneParticle(tx, part)
+      applied = await applyOneParticle(tx, part) || applied
     }
   })
-  emitForceParts(message.parts)
+  return applied
 }
 
 export const open = async (filename?: string): Promise<Store> => {
@@ -389,18 +384,29 @@ export const open = async (filename?: string): Promise<Store> => {
   // существовать к моменту первого INSERT.
   const topology = await StoreTopologySqlite.open(sql)
   const actor = await StoreActorSqlite.open(sql)
+  let absorbQueue = Promise.resolve()
 
   return {
-    subscribe(listener: ForceMessageListener): ForceSubscription {
-      return subscribeForceMessage(listener)
+    observe(listener: ForceMessageListener): ForceBinding {
+      return observeForceMessage(listener)
+    },
+    entropy(listener: ForceMessageListener): ForceBinding {
+      return entropyForceMessage(listener)
     },
     wimp: await StoreWimpSqlite.open(sql),
     actor,
     topology,
-    postMessage(message: StoreUpdateMessage) {
+    emit(message: StoreUpdateMessage) {
       emitForceMessage(message)
     },
-    update: buildApplyMessage(sql),
+    absorb(message: StoreUpdateMessage) {
+      const task = absorbQueue.then(async () => {
+        await applyMessageToDatabase(sql, message)
+        absorbForceMessage(message)
+      })
+      absorbQueue = task.catch(() => {})
+      return task
+    },
     async close() {
       try {
         closeForceChannel()

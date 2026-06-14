@@ -3,12 +3,17 @@ import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
 import {SQL} from "bun"
 import {open} from "./sqlite.ts"
-import type {StorePart, StoreParticle} from "./sqlite.ts"
+import type {StoreParticle} from "./sqlite.ts"
 import type {Particle} from "./index.ts"
 import {BooleanValue, EnumValue} from "@store/actor"
 import type {Store} from "./index.ts"
 
 const SRC = "owner/smoke"
+
+const wimpPartSrc = (part: Particle): unknown => {
+  if (typeof part.value !== "object" || part.value === null || Array.isArray(part.value)) return part.value
+  return (part.value as {wimp?: {src?: unknown}}).wimp?.src
+}
 
 describe("store/sqlite smoke", () => {
   let store: Store
@@ -76,7 +81,7 @@ describe("store/sqlite smoke", () => {
 
   test("wimp.create пишет декларацию и отправляет graviton-сигнал source", async () => {
     const received: Particle[] = []
-    const subscription = store.subscribe((event) => {
+    const subscription = store.observe((event) => {
       received.push(...event.data.parts)
     })
 
@@ -102,7 +107,7 @@ describe("store/sqlite smoke", () => {
       expect(await flag.label()).toBe("Flag")
 
       const signal = received.find(
-        (part) => part.part === "graviton" && part.op === "add" && part.path === "wimp" && part.value === SRC,
+        (part) => part.part === "graviton" && part.op === "add" && part.path === "wimp" && wimpPartSrc(part) === SRC,
       )
       expect(signal).toBeDefined()
     } finally {
@@ -110,35 +115,35 @@ describe("store/sqlite smoke", () => {
     }
   })
 
-  test("subscribe поддерживает несколько независимых слушателей", async () => {
+  test("observe поддерживает несколько независимых слушателей", async () => {
     const first: Particle[] = []
     const second: Particle[] = []
-    const firstSubscription = store.subscribe((event) => {
+    const firstSubscription = store.observe((event) => {
       first.push(...event.data.parts)
     })
-    const secondSubscription = store.subscribe((event) => {
+    const secondSubscription = store.observe((event) => {
       second.push(...event.data.parts)
     })
 
     try {
       await store.wimp.create("owner/multi-a")
 
-      expect(first.some((part) => part.part === "graviton" && part.path === "wimp" && part.value === "owner/multi-a")).toBe(true)
-      expect(second.some((part) => part.part === "graviton" && part.path === "wimp" && part.value === "owner/multi-a")).toBe(true)
+      expect(first.some((part) => part.part === "graviton" && part.path === "wimp" && wimpPartSrc(part) === "owner/multi-a")).toBe(true)
+      expect(second.some((part) => part.part === "graviton" && part.path === "wimp" && wimpPartSrc(part) === "owner/multi-a")).toBe(true)
 
       const firstLength = first.length
       firstSubscription.close()
       await store.wimp.create("owner/multi-b")
 
       expect(first).toHaveLength(firstLength)
-      expect(second.some((part) => part.part === "graviton" && part.path === "wimp" && part.value === "owner/multi-b")).toBe(true)
+      expect(second.some((part) => part.part === "graviton" && part.path === "wimp" && wimpPartSrc(part) === "owner/multi-b")).toBe(true)
     } finally {
       firstSubscription.close()
       secondSubscription.close()
     }
   })
 
-  test("actor parts: graviton+gluon+photon, чтение через ORM", async () => {
+  test("actor snapshot: graviton/actor с полным value читается через ORM", async () => {
     await store.wimp.create(SRC, {
       name: "smoke",
       fields: [
@@ -157,12 +162,26 @@ describe("store/sqlite smoke", () => {
     const valueFlag = "v-flag"
     const valueStatus = "v-status"
 
-    await update(store, "graviton", [{op: "add", path: `/actor/${actorUuid}`, value: {parent: null, wimp: SRC, position: 0}}])
-    await update(store, "gluon", [{op: "add", path: `/value/${valueFlag}`, value: {kind: "boolean", boolean: true}}])
-    await update(store, "gluon", [{op: "add", path: `/value/${valueStatus}`, value: {kind: "enum", variant: idleVariantUuid}}])
-    await update(store, "gluon", [{op: "add", path: `/actor/${actorUuid}/value/${flagUuid}`, value: {value: valueFlag}}])
-    await update(store, "gluon", [{op: "add", path: `/actor/${actorUuid}/value/${statusUuid}`, value: {value: valueStatus}}])
-    await update(store, "photon", [{op: "add", path: `/actor/${actorUuid}/state`, value: {metaState: idleStateUuid}}])
+    await store.absorb({
+      parts: [{
+        part: "graviton",
+        op: "add",
+        path: "actor",
+        value: {
+          actor: {uuid: actorUuid, parentActor: null, parentTopology: null, wimp: SRC, position: 0},
+          values: [
+            {actor: actorUuid, field: flagUuid, value: valueFlag},
+            {actor: actorUuid, field: statusUuid, value: valueStatus},
+          ],
+          valueRecords: [
+            {uuid: valueFlag, kind: "boolean", boolean: true},
+            {uuid: valueStatus, kind: "enum", variant: idleVariantUuid},
+          ],
+          valueItems: [],
+          state: {actor: actorUuid, metaState: idleStateUuid},
+        },
+      }],
+    })
 
     const actor = await store.actor.get(actorUuid)
     if (!actor) throw new Error("actor missing")
@@ -188,17 +207,48 @@ describe("store/sqlite smoke", () => {
     const valueFlag2 = "v-flag-2"
     const valueStatus2 = "v-status-2"
 
-    await update(store, "graviton", [{op: "add", path: `/actor/${actor2Uuid}`, value: {parent: null, wimp: SRC, position: 1}}])
-    await update(store, "gluon", [{op: "add", path: `/value/${valueFlag2}`, value: {kind: "boolean", boolean: true}}])
-    await update(store, "gluon", [{op: "add", path: `/value/${valueStatus2}`, value: {kind: "enum", variant: idleVariantUuid}}])
-    await update(store, "gluon", [{op: "add", path: `/actor/${actor2Uuid}/value/${flagUuid}`, value: {value: valueFlag2}}])
-    await update(store, "gluon", [{op: "add", path: `/actor/${actor2Uuid}/value/${statusUuid}`, value: {value: valueStatus2}}])
-    await update(store, "photon", [{op: "add", path: `/actor/${actor2Uuid}/state`, value: {metaState: idleStateUuid}}])
+    await store.absorb({
+      parts: [{
+        part: "graviton",
+        op: "add",
+        path: "actor",
+        value: {
+          actor: {uuid: actor2Uuid, parentActor: null, parentTopology: null, wimp: SRC, position: 1},
+          values: [
+            {actor: actor2Uuid, field: flagUuid, value: valueFlag2},
+            {actor: actor2Uuid, field: statusUuid, value: valueStatus2},
+          ],
+          valueRecords: [
+            {uuid: valueFlag2, kind: "boolean", boolean: true},
+            {uuid: valueStatus2, kind: "enum", variant: idleVariantUuid},
+          ],
+          valueItems: [],
+          state: {actor: actor2Uuid, metaState: idleStateUuid},
+        },
+      }],
+    })
 
     // share: actor2.flag → valueFlag (тот же, что у actor1)
-    await update(store, "gluon", [{op: "replace", path: `/actor/${actor2Uuid}/value/${flagUuid}`, value: {value: valueFlag}}])
-    // удаляем осиротевший valueFlag2
-    await update(store, "gluon", [{op: "remove", path: `/value/${valueFlag2}`}])
+    await store.absorb({
+      parts: [{
+        part: "graviton",
+        op: "replace",
+        path: "actor",
+        value: {
+          actor: {uuid: actor2Uuid, parentActor: null, parentTopology: null, wimp: SRC, position: 1},
+          values: [
+            {actor: actor2Uuid, field: flagUuid, value: valueFlag},
+            {actor: actor2Uuid, field: statusUuid, value: valueStatus2},
+          ],
+          valueRecords: [
+            {uuid: valueFlag, kind: "boolean", boolean: true},
+            {uuid: valueStatus2, kind: "enum", variant: idleVariantUuid},
+          ],
+          valueItems: [],
+          state: {actor: actor2Uuid, metaState: idleStateUuid},
+        },
+      }],
+    })
 
     const actor2 = (await store.actor.get(actor2Uuid))!
     const link2 = (await actor2.values.get({field: flagUuid}))!
@@ -208,18 +258,29 @@ describe("store/sqlite smoke", () => {
     expect(owners.map((o) => o.actor).sort()).toEqual([actorUuid, actor2Uuid].sort())
   })
 
-  test("update() публикует примененные parts после записи", async () => {
-    const received: Particle[] = []
-    const subscription = store.subscribe((event) => {
-      received.push(...event.data.parts)
-    })
-
+  test("absorb() обновляет БД и не выпускает входящие particles в entropy", async () => {
     await store.wimp.create(SRC)
-    const part: StoreParticle = {part: "graviton", op: "add", path: "/actor/actor-published", value: {wimp: SRC, position: 0}}
+    const observed: Particle[] = []
+    const outgoing: Particle[] = []
+    const observedBinding = store.observe((event) => observed.push(...event.data.parts))
+    const entropyBinding = store.entropy((event) => outgoing.push(...event.data.parts))
+    const part: StoreParticle = {
+      part: "graviton",
+      op: "add",
+      path: "actor",
+      value: {
+        actor: {uuid: "actor-published", parentActor: null, parentTopology: null, wimp: SRC, position: 0},
+        values: [],
+        valueRecords: [],
+        valueItems: [],
+        state: {actor: "actor-published", metaState: null},
+      },
+    }
 
     try {
-      await store.update({parts: [part]})
-      await waitFor(() => received.some((item) => item.part === part.part && item.op === part.op && item.path === part.path))
+      await store.absorb({parts: [part]})
+      await waitFor(() => observed.some((item) => item.part === part.part && item.op === part.op && item.path === part.path))
+      expect(outgoing).toEqual([])
 
       const row = (
         await sql<Array<{wimp: string}>>`
@@ -230,20 +291,23 @@ describe("store/sqlite smoke", () => {
       )[0]
       expect(row?.wimp).toBe(SRC)
     } finally {
-      subscription.close()
+      observedBinding.close()
+      entropyBinding.close()
     }
   })
 
-  test("graviton wimp signal не является store.update write", async () => {
+  test("absorb() принимает wimp-сигнал без записи meta", async () => {
     const part: StoreParticle = {part: "graviton", op: "add", path: "wimp", value: SRC}
+    const observed: Particle[] = []
+    const binding = store.observe((event) => observed.push(...event.data.parts))
 
-    await expect(store.update({parts: [part]})).rejects.toThrow("Particle path must start")
-  })
-
-  test("graviton больше не принимает старый /wimp path", async () => {
-    const part: StoreParticle = {part: "graviton", op: "add", path: "/wimp/owner~1smoke", value: {name: "smoke"}}
-
-    await expect(store.update({parts: [part]})).rejects.toThrow("Unknown graviton path")
+    try {
+      await store.absorb({parts: [part]})
+      expect(await store.wimp.exists(SRC)).toBe(false)
+      expect(observed).toEqual([part])
+    } finally {
+      binding.close()
+    }
   })
 
   test("close() идемпотентен — повторный вызов не падает", async () => {
@@ -258,12 +322,4 @@ const waitFor = async (predicate: () => boolean): Promise<void> => {
     if (Date.now() > deadline) throw new Error("Expected force part")
     await new Promise((resolve) => setTimeout(resolve, 0))
   }
-}
-
-const update = async (
-  store: Store,
-  part: StorePart,
-  parts: Array<Omit<StoreParticle, "part">>,
-): Promise<void> => {
-  await store.update({parts: parts.map((item) => ({part, ...item}) as StoreParticle)})
 }

@@ -25,6 +25,12 @@ const waitForParts = async (predicate: () => boolean): Promise<void> => {
   }
 }
 
+const particleUuid = (part: Particle): unknown => {
+  if (typeof part.value !== "object" || part.value === null || Array.isArray(part.value)) return part.value
+  const value = part.value as {uuid?: unknown; actor?: {uuid?: unknown}}
+  return value.actor?.uuid ?? value.uuid
+}
+
 describe("store/tests github/zavx0z startup load", () => {
   let store: Store
   let sql: SQL
@@ -41,7 +47,7 @@ describe("store/tests github/zavx0z startup load", () => {
 
   test("matter() пишет всё дерево zavx0z/git через force-flow и публикует gravity-сообщения", async () => {
     const parts: Particle[] = []
-    const subscription = store.subscribe((event) => {
+    const subscription = store.observe((event) => {
       parts.push(...event.data.parts)
     })
 
@@ -111,9 +117,11 @@ describe("store/tests github/zavx0z startup load", () => {
       expect((await commit.state())?.metaState).not.toBeNull()
 
       const actorParts = parts.filter((part) => part.part === "graviton" && part.op === "add" && part.path === "actor")
-      const topologyParts = parts.filter((part) => part.part === "graviton" && part.op === "add" && part.path === "topology")
-      expect(actorParts.map((part) => part.value).sort()).toEqual(actorRows.map((row) => row.uuid).sort())
-      expect(topologyParts.map((part) => part.value).sort()).toEqual(topologyRows.map((row) => row.uuid).sort())
+      const topologyParts = parts.filter((part) =>
+        part.part === "graviton" && part.op === "add" && (part.path === "fuzzy" || part.path === "axion" || part.path === "macho")
+      )
+      expect(actorParts.map(particleUuid).sort()).toEqual(actorRows.map((row) => row.uuid).sort())
+      expect(topologyParts.map(particleUuid).sort()).toEqual(topologyRows.map((row) => row.uuid).sort())
     } finally {
       subscription.close()
       await sql.close()

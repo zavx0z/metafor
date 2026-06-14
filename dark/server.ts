@@ -4,7 +4,7 @@ import {open} from "store/sqlite"
  * Server bootstrap Dark: открывает SQLite store и корректно закрывает его
  * при остановке процесса. Протокольные сигналы рождаются в ORM.
  */
-const STORE_PATH = process.env.STORE_PATH ?? "./boundary.sqlite"
+const STORE_PATH = process.env.STORE_PATH ?? "./dark.sqlite"
 
 globalThis.store = await open(STORE_PATH)
 await import("./dark.ts")

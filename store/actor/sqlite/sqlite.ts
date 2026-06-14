@@ -7,7 +7,7 @@ import {Actor, ActorRoots, decodeActorRow} from "./actor.ts"
 import {Value, type AnyValue} from "./value.ts"
 import type {ActorRecord, ActorRows} from "./actor.t.ts"
 import {ActorFieldValue} from "./actor_value.ts"
-import {emitGravitonAdd} from "../../force.ts"
+import {emitForceParts} from "../../force.ts"
 
 export class StoreActorSqlite {
   readonly roots: ActorRoots
@@ -39,11 +39,11 @@ export class StoreActorSqlite {
     return new StoreActorSqlite(sql)
   }
 
-  /** Записывает актора одной транзакцией: row + values + actor_state. */
+  /** Записывает actor snapshot одной транзакцией: head + values + actor_state. */
   async create(rows: ActorRows): Promise<Actor> {
     await Actor.writeRows(this.sql, rows)
     const actor = new Actor(this.sql, rows.actor.uuid)
-    emitGravitonAdd("actor", rows.actor.uuid)
+    emitForceParts([{part: "graviton", op: "add", path: "actor", value: await actor.rows()}])
     return actor
   }
 

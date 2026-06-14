@@ -23,7 +23,38 @@ import type {WimpCreateInput} from "./create.t.ts"
 
 export type {WimpCreateInput} from "./create.t.ts"
 
-const collectWimpCreateParticles = (src: string): Particle[] => [{part: "graviton", op: "add", path: "wimp", value: src}]
+type WimpSnapshot = {
+  wimp: {src: string; name: string | null; desc: string | null; view: string | null}
+  fields: Array<{uuid: string; wimp: string; key: string; type: string; required: boolean; label: string | null}>
+  enumVariants: Array<{uuid: string; field: string; position: number; itemValue: string}>
+  states: Array<{uuid: string; wimp: string; name: string; position: number}>
+}
+
+const wimpSnapshot = async (sql: SQL, src: string): Promise<WimpSnapshot> => {
+  const wimp = (await sql<Array<{src: string; name: string | null; desc: string | null; view_css: string | null}>>`
+    SELECT src, name, desc, view_css FROM wimp WHERE src = ${src} LIMIT 1
+  `)[0]
+  if (!wimp) throw new Error(`wimp ${src} missing after create`)
+
+  const fields = (await sql<Array<{uuid: string; wimp: string; key: string; type: string; required: number; label: string | null}>>`
+    SELECT uuid, wimp, key, type, required, label FROM field WHERE wimp = ${src} ORDER BY rowid
+  `).map((field) => ({...field, required: field.required === 1}))
+  const enumVariants = await sql<Array<{uuid: string; field: string; position: number; itemValue: string}>>`
+    SELECT uuid, field, position, item_value AS itemValue
+    FROM field_enum_variant
+    WHERE field IN (SELECT uuid FROM field WHERE wimp = ${src})
+    ORDER BY field, position
+  `
+  const states = await sql<Array<{uuid: string; wimp: string; name: string; position: number}>>`
+    SELECT uuid, wimp, name, position FROM state WHERE wimp = ${src} ORDER BY position
+  `
+
+  return {wimp: {src: wimp.src, name: wimp.name, desc: wimp.desc, view: wimp.view_css}, fields, enumVariants, states}
+}
+
+const collectWimpCreateParticles = async (sql: SQL, src: string): Promise<Particle[]> => [
+  {part: "graviton", op: "add", path: "wimp", value: await wimpSnapshot(sql, src)},
+]
 
 export class StoreWimpSqlite {
   private constructor(private readonly sql: SQL) {}
@@ -79,7 +110,7 @@ export class StoreWimpSqlite {
     })
 
     const wimp = new Wimp(this.sql, src)
-    emitForceParts(collectWimpCreateParticles(src))
+    emitForceParts(await collectWimpCreateParticles(this.sql, src))
     return wimp
   }
 

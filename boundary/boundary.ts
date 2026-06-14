@@ -100,7 +100,7 @@ const createSubscription = (
   channel: ForceSurface,
   onMessage: (message: ForceMessage) => Promise<void> | void,
 ): BoundaryBroadcastSubscription => {
-  const subscription = channel.subscribe((event) => {
+  const subscription = channel.observe((event) => {
     void (async () => {
       await onMessage(event.data)
     })()
@@ -221,7 +221,7 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
     const stateName = boundary$.getStateName(braneIndex, stateIndex)
     if (!stateName) continue
 
-    force.postMessage({ parts: [{ part: "photon", op: "replace", path: uuid, value: stateName }] })
+    force.emit({ parts: [{ part: "photon", op: "replace", path: uuid, value: stateName }] })
   }
 }
 

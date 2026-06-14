@@ -7,6 +7,7 @@ export type CliStartupModule = {
   modulePath: string
   command: string[]
   cwd: string
+  env?: Record<string, string>
   pauseOnStart: boolean
   inspectMode: InspectMode
 }
@@ -56,7 +57,8 @@ export function startupModulesFromArgs(rawArgs: string[], cwd = process.cwd()): 
 function startupModuleFromPath(inputPath: string, params: string[], cwd: string): CliStartupModule {
   const resolvedPath = resolveStartupPath(inputPath, cwd)
   const label = displayPath(resolvedPath, cwd)
-  const normalizedParams = params.map(normalizeModuleParam)
+  const parsedParams = parseModuleParams(params)
+  const normalizedParams = parsedParams.params.map(normalizeModuleParam)
   const command = isTestModulePath(resolvedPath)
     ? ["bun", "test", ...normalizedParams, resolvedPath]
     : ["bun", resolvedPath, ...normalizedParams]
@@ -67,9 +69,26 @@ function startupModuleFromPath(inputPath: string, params: string[], cwd: string)
     modulePath: resolvedPath,
     command,
     cwd,
+    ...(Object.keys(parsedParams.env).length === 0 ? {} : {env: parsedParams.env}),
     pauseOnStart: inspectMode === "brk",
     inspectMode,
   }
+}
+
+function parseModuleParams(params: string[]): {params: string[]; env: Record<string, string>} {
+  const env: Record<string, string> = {}
+  const rest: string[] = []
+
+  for (const param of params) {
+    const match = /^--?env\.([A-Za-z_][A-Za-z0-9_]*)=(.*)$/.exec(param)
+    if (match) {
+      env[match[1]] = match[2]
+      continue
+    }
+    rest.push(param)
+  }
+
+  return {params: rest, env}
 }
 
 function isSqliteDatabaseArg(path: string): boolean {

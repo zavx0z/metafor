@@ -32,7 +32,7 @@ export const subscribeDarkPhotons = (
 ): DarkPhotonSubscription => {
   void options
 
-  const subscription = force.subscribe((event) => {
+  const subscription = force.observe((event) => {
     for (const part of event.data.parts) {
       if (part.part !== "photon") continue
       const message: PhotonPayload = { path: part.path, value: String(part.value ?? "") }
@@ -60,10 +60,10 @@ export const createDarkElectromagnetismForce = (
 ): DarkElectromagnetismForce => {
   void options
   const emitGluonParts = (parts: Array<{ op: "replace"; path: string; value: unknown }>): void => {
-    force.postMessage({ parts: parts.map((part) => ({ part: "gluon", ...part })) })
+    force.emit({ parts: parts.map((part) => ({ part: "gluon", ...part })) })
   }
   const emitHiggsParts = (parts: Array<{ op: "replace"; path: string; value: unknown }>): void => {
-    force.postMessage({ parts: parts.map((part) => ({ part: "higgs", ...part })) })
+    force.emit({ parts: parts.map((part) => ({ part: "higgs", ...part })) })
   }
 
   return {

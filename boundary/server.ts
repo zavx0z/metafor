@@ -1,8 +1,14 @@
-import { bootBoundaryDomain } from "./boot.ts"
-import { openDbSqliteBackend } from "store/db"
+import {open} from "store/sqlite"
+import type {Store} from "store"
 
-bootBoundaryDomain(() =>
-  openDbSqliteBackend({
-    filename: "metafor-server.sqlite",
-  }),
-)
+const STORE_PATH = process.env.STORE_PATH ?? "./boundary.sqlite"
+
+;(globalThis as typeof globalThis & {store: Store}).store = await open(STORE_PATH)
+
+const shutdown = async (): Promise<void> => {
+  await globalThis.store.close()
+  process.exit(0)
+}
+
+process.on("SIGINT", () => void shutdown())
+process.on("SIGTERM", () => void shutdown())

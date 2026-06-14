@@ -52,7 +52,7 @@ const clientForceBridgePayload = (value: unknown): ClientForceBridgePayload | nu
 	return { type: "force", parts: parts as Particle[] }
 }
 
-force.subscribe((event) => {
+force.observe((event) => {
 	const parts = event.data.parts
 	publish({
 		type: "force",
@@ -91,7 +91,7 @@ const server = serve({
 
 			const forceBridgePayload = clientForceBridgePayload(payload)
 			if (forceBridgePayload === null) return
-			force.postMessage({ parts: forceBridgePayload.parts })
+			force.emit({ parts: forceBridgePayload.parts })
 		},
 	},
 })

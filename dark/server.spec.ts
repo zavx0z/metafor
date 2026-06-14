@@ -2,7 +2,7 @@ import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import {SQL, type ServerWebSocket} from "bun"
 import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
-import type {ForceMessage, ForceSubscription} from "../store/index.ts"
+import type {ForceBinding, ForceMessage} from "../store/index.ts"
 
 type ForceSocketData = {kind: "force"}
 
@@ -12,7 +12,7 @@ const logBroadcastMessage = (event: MessageEvent<unknown>): void => {
 
 describe("dark/server разворачивает дерево zavx0z/git по gravity part", () => {
   let storePath: string
-  let storeSubscription: ForceSubscription | null = null
+  let storeSubscription: ForceBinding | null = null
   let forceBridge: ReturnType<typeof Bun.serve<ForceSocketData>> | null = null
   let forceClient: WebSocket | null = null
   const forceSockets = new Set<ServerWebSocket<ForceSocketData>>()
@@ -63,7 +63,7 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
     })
     await waitForWebSocketOpen(forceClient)
 
-    storeSubscription = globalThis.store.subscribe((event) => {
+    storeSubscription = globalThis.store.entropy((event) => {
       logBroadcastMessage(event)
       storeMessages.push(event.data)
       broadcastForceMessage(forceSockets, event.data)
@@ -77,14 +77,14 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
     await forceBridge?.stop(true)
   })
 
-  test("после add wimp zavx0z/git store содержит каноническое дерево git", async () => {
+  test("после test wimp zavx0z/git store содержит каноническое дерево git", async () => {
     const inputMessage: ForceMessage = {
-      parts: [{part: "graviton", op: "add", path: "wimp", value: "zavx0z/git"}],
+      parts: [{part: "graviton", op: "test", path: "wimp", value: "zavx0z/git"}],
     }
-    globalThis.store.postMessage(inputMessage)
+    globalThis.store.emit(inputMessage)
 
     const bridgedMessage = await waitForForceMessage(forceMessages, (message) =>
-      message.parts.some((part) => part.part === "graviton" && part.op === "add" && part.path === "wimp" && part.value === "zavx0z/git"),
+      message.parts.some((part) => part.part === "graviton" && part.op === "test" && part.path === "wimp" && part.value === "zavx0z/git"),
     )
     expect(bridgedMessage).toEqual(inputMessage)
 
@@ -152,12 +152,12 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
     }
   }, 60_000)
 
-  test("повторный add wimp zavx0z/git идемпотентен — server пропускает уже залитый root", async () => {
+  test("повторный test wimp zavx0z/git идемпотентен — server пропускает уже залитый root", async () => {
     const sql = new SQL(`sqlite://${storePath}`)
     const before = await waitForActorCountStable(sql)
 
-    globalThis.store.postMessage({
-      parts: [{part: "graviton", op: "add", path: "wimp", value: "zavx0z/git"}],
+    globalThis.store.emit({
+      parts: [{part: "graviton", op: "test", path: "wimp", value: "zavx0z/git"}],
     })
 
     // даём server'у тик — если бы он начал загрузку, он бы уехал в matter()

@@ -5,7 +5,7 @@ import type {StoreUpdateMessage} from "./sqlite.ts"
 import type {ForceSurface} from "./force.ts"
 
 export {METAFOR_FORCE_CHANNEL, force} from "./force.ts"
-export type {Force, ForceMessage, ForceMessageListener, ForceSubscription, ForceSurface, ParticleOperation, Part, Particle} from "./force.ts"
+export type {Force, ForceBinding, ForceMessage, ForceMessageListener, ForceSurface, ParticleOperation, Part, Particle} from "./force.ts"
 export {open} from "./sqlite.ts"
 export type {StorePart, StoreParticle, StoreUpdateMessage} from "./sqlite.ts"
 
@@ -31,7 +31,7 @@ export interface LinkApi {
 }
 
 export interface ActorApi {
-  /** Записывает актора одной транзакцией: row + values + actor_state. */
+  /** Записывает actor snapshot одной транзакцией: head + values + actor_state. */
   create(rows: ActorRows): Promise<Actor>
 
   get(uuid: string): Promise<Actor | null>
@@ -63,13 +63,6 @@ export interface Store extends ForceSurface {
   readonly wimp: WimpApi
   readonly actor: ActorApi
   readonly topology: TopologyApi
-
-  /**
-   * Inbound API для приёма force parts от других процессов.
-   * Domain-код (Dark/Boundary/Bulk) должен использовать ORM-методы (`wimp.create`, `actor.create`, etc.),
-   * не этот канал. `update` переводит parts в соответствующие SQL-операции.
-   */
-  update(message: StoreUpdateMessage): Promise<void>
 
   close(): Promise<void>
 }

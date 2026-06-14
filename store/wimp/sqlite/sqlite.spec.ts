@@ -87,7 +87,7 @@ describe("sqlite ddl", () => {
 
   test("wimp.create принимает опциональные параметры и отправляет particles после записи", async () => {
     const messages: ForceMessage[] = []
-    const subscription = force.subscribe((event) => messages.push(event.data))
+    const subscription = force.observe((event) => messages.push(event.data))
 
     try {
       const wimp = await wimps.create("alpha/meta", {
@@ -171,7 +171,13 @@ describe("sqlite ddl", () => {
       expect(messages.length).toBe(1)
       const parts = messages[0]!.parts
       expect(parts).toHaveLength(1)
-      expect(parts[0]).toEqual({part: "graviton", op: "add", path: "wimp", value: "alpha/meta"})
+      expect(parts[0]?.part).toBe("graviton")
+      expect(parts[0]?.op).toBe("add")
+      expect(parts[0]?.path).toBe("wimp")
+      expect((parts[0]?.value as {wimp?: {src?: string}}).wimp?.src).toBe("alpha/meta")
+      expect((parts[0]?.value as {fields?: unknown[]}).fields).toHaveLength(2)
+      expect((parts[0]?.value as {enumVariants?: unknown[]}).enumVariants).toHaveLength(2)
+      expect((parts[0]?.value as {states?: unknown[]}).states).toHaveLength(2)
     } finally {
       subscription.close()
     }

@@ -30,7 +30,7 @@ export interface BulkWeakForce {
 const createSubscription = (
   onMessage: (message: ForceMessage) => void,
 ): BulkSubscription => {
-  const subscription = force.subscribe((event) => {
+  const subscription = force.observe((event) => {
     onMessage(event.data)
   })
 
@@ -86,10 +86,10 @@ export const createBulkWeakForce = (options: BulkWeakForceOptions = {}): BulkWea
     processId: string,
     executorId?: string,
   ): void => {
-    force.postMessage({ parts: [createBulkZPart(coordination, wimpId, processId, executorId)] })
+    force.emit({ parts: [createBulkZPart(coordination, wimpId, processId, executorId)] })
   }
   const emitW = (wimpId: string, processId: string, parts: Array<{ op: "replace"; path: string; value: unknown }>): void => {
-    force.postMessage({ parts: createBulkWParts(wimpId, processId, parts) })
+    force.emit({ parts: createBulkWParts(wimpId, processId, parts) })
   }
   const emitWValues = (wimpId: string, processId: string, values: Record<string, unknown>): void => {
     emitW(wimpId, processId, createWeakResultFieldParts(values))

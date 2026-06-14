@@ -34,7 +34,7 @@ export const bootBoundaryDomain = (openDb: OpenBoundaryDb): void => {
     await setValues(values)
   }
 
-  force.subscribe((event) => {
+  force.observe((event) => {
     void (async () => {
       const parts = event.data.parts
       const backend = await db

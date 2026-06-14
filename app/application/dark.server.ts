@@ -1,57 +1,49 @@
-import "@metafor/dark/server"
+import {rmSync} from "node:fs"
 import type {ServerWebSocket} from "bun"
-import type {ForceMessage} from "store"
 
 type ForceSocketData = {kind: "force"}
+
+const STORE_PATH = process.env.STORE_PATH ?? "./dark.sqlite"
+
+for (const path of [STORE_PATH, `${STORE_PATH}-wal`, `${STORE_PATH}-shm`]) rmSync(path, {force: true})
+
+await import("@metafor/dark/server")
 
 const port = Number(process.env.APPLICATION_DARK_PORT ?? 7101)
 const peerUrl = process.env.APPLICATION_BOUNDARY_URL ?? "ws://127.0.0.1:7102/ws"
 const store = globalThis.store
 const sockets = new Set<ServerWebSocket<ForceSocketData>>()
 const peer = new WebSocket(peerUrl)
-let inbound = 0
 
-const send = (message: ForceMessage): void => {
-  const payload = JSON.stringify(message)
+store.entropy((event) => {
+  const payload = JSON.stringify(event.data)
   for (const socket of sockets) {
     if (socket.readyState === WebSocket.OPEN) socket.send(payload)
   }
   if (peer.readyState === WebSocket.OPEN) peer.send(payload)
-}
-
-const post = (message: ForceMessage): void => {
-  inbound += 1
-  try {
-    store.postMessage(message)
-  } finally {
-    inbound -= 1
-  }
-}
-
-const receive = (data: string | Buffer): void => {
-  post(JSON.parse(String(data)) as ForceMessage)
-}
-
-store.subscribe((event) => {
-  if (inbound === 0) send(event.data)
 })
 
-peer.addEventListener("message", (event) => receive(String(event.data)))
+peer.addEventListener("message", (event) => {
+  void store.absorb(JSON.parse(String(event.data)))
+})
 peer.addEventListener("error", () => peer.close())
+peer.addEventListener("open", () => {
+  store.emit({parts: [{part: "graviton", op: "test", path: "wimp", value: "zavx0z/git"}]})
+}, {once: true})
 
 Bun.serve<ForceSocketData>({
   hostname: "127.0.0.1",
   port,
-  fetch(req, server) {
-    if (new URL(req.url).pathname !== "/ws") return new Response("WebSocket upgrade failed", {status: 426})
-    return server.upgrade(req, {data: {kind: "force"}}) ? undefined : new Response("WebSocket upgrade failed", {status: 426})
+  routes: {
+    "/ws": (req, server) =>
+      server.upgrade(req, {data: {kind: "force"}}) ? undefined : new Response("WebSocket upgrade failed", {status: 426}),
   },
   websocket: {
     open(socket) {
       sockets.add(socket)
     },
     message(_socket, data) {
-      receive(data)
+      void store.absorb(JSON.parse(String(data)))
     },
     close(socket) {
       sockets.delete(socket)

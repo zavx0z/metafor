@@ -13,7 +13,7 @@ export interface DarkGravityForce {
 }
 
 function emitParts(parts: ForcePartInput[]): void {
-  force.postMessage({parts})
+  force.emit({parts})
 }
 
 export function emitAdd(wimpId: string) {

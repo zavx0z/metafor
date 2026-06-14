@@ -1,4 +1,5 @@
 import {MetaFor, type FieldDefinition, type FieldKey, type SRC} from ".."
+import type {ForceBinding, ForceMessageListener, Store} from "../store/index.ts"
 import type {AnyField} from "@store/wimp/sqlite"
 import type {ActorValueRecord, ValueItemRecord, ValueRecord} from "@store/actor"
 import type {BfsEntry, ParticleRef, PendingChildWimp} from "@dark/types/dark"
@@ -8,16 +9,31 @@ import {finalizeFieldValues, resolveFieldInits, type Continuation} from "./conti
 
 ;(globalThis as unknown as {MetaFor: typeof MetaFor}).MetaFor = MetaFor
 
-store.subscribe(async (event) => {
+let observedStore: Store | null = null
+let observedBinding: ForceBinding | null = null
+
+const observeMatterRequests = (): void => {
+  const currentStore = (globalThis as {store?: Store}).store
+  if (!currentStore || observedStore === currentStore) return
+  observedBinding?.close()
+  observedStore = currentStore
+  observedBinding = currentStore.observe(handleMatterRequest)
+}
+
+const handleMatterRequest: ForceMessageListener = async (event) => {
+  const currentStore = (globalThis as {store?: Store}).store
+  if (!currentStore) return
   for (const part of event.data.parts) {
     if (part.part !== "graviton") continue
-    if (part.op !== "add") continue
+    if (part.op !== "test") continue
     if (part.path !== "wimp") continue
     if (typeof part.value !== "string") continue
-    if (await store.wimp.exists(part.value)) continue
+    if (await currentStore.wimp.exists(part.value)) continue
     await matter(part.value)
   }
-})
+}
+
+observeMatterRequests()
 
 /**
  * Публичный entrypoint Dark.
@@ -41,6 +57,7 @@ export async function matter(
   parent: ParticleRef | null = null,
   continuation: Continuation | undefined = undefined,
 ): Promise<void> {
+  observeMatterRequests()
   if (await store.actor.findByParent({wimp: src, parent})) return
 
   const generator = matterWimp(src, parent, continuation)
@@ -59,7 +76,7 @@ export async function matter(
  *
  * Создаёт WIMP-декларацию с matter plan, root actor, эмитит actor part, затем BFS по plan-tree:
  * на каждой итерации обрабатывает все entries текущего фронтира — для topology-узлов
- * пишет row + emit, для wimp-узлов накапливает pending. По завершении слоя — yield-ит
+ * пишет topology particle, для wimp-узлов накапливает pending. По завершении слоя — yield-ит
  * накопленные pending child wimps наружу. Внешний оркестратор обязан рекурсивно
  * материализовать их перед `next()`, чтобы дочерние actors встали в БД до того,
  * как BFS перейдёт к следующему слою топологии.

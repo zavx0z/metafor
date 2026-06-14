@@ -11,19 +11,27 @@ const waitForParts = async (predicate: () => boolean): Promise<void> => {
   }
 }
 
+const particleUuid = (part: Particle): unknown => {
+  if (typeof part.value !== "object" || part.value === null || Array.isArray(part.value)) return part.value
+  const value = part.value as {uuid?: unknown; actor?: {uuid?: unknown}}
+  return value.actor?.uuid ?? value.uuid
+}
+
 describe("dark matter — force parts", () => {
   const parts: Particle[] = []
   let store: Awaited<ReturnType<typeof open>>
-  let subscription: ReturnType<typeof store.subscribe>
+  let subscription: ReturnType<typeof store.observe>
 
   beforeAll(async () => {
     store = await open(":memory:")
     globalThis.store = store
-    subscription = store.subscribe((event) => parts.push(...event.data.parts))
+    subscription = store.observe((event) => parts.push(...event.data.parts))
     await matter("zavx0z/git")
     await waitForParts(() => {
       const actorCount = parts.filter((part) => part.part === "graviton" && part.op === "add" && part.path === "actor").length
-      const topologyCount = parts.filter((part) => part.part === "graviton" && part.op === "add" && part.path === "topology").length
+      const topologyCount = parts.filter((part) =>
+        part.part === "graviton" && part.op === "add" && (part.path === "fuzzy" || part.path === "axion" || part.path === "macho")
+      ).length
       return actorCount > 20 && topologyCount > 0
     })
   })
@@ -37,12 +45,14 @@ describe("dark matter — force parts", () => {
     parts.filter((part) => part.part === "graviton" && part.op === "add" && part.path === "actor")
 
   const topologyParts = (): Particle[] =>
-    parts.filter((part) => part.part === "graviton" && part.op === "add" && part.path === "topology")
+    parts.filter((part) =>
+      part.part === "graviton" && part.op === "add" && (part.path === "fuzzy" || part.path === "axion" || part.path === "macho")
+    )
 
   test("первый actor part соответствует root actor", async () => {
     const roots = await store.actor.roots.all()
     expect(roots).toHaveLength(1)
-    expect(actorParts()[0]?.value).toBe(roots[0]!.uuid)
+    expect(actorParts()[0] ? particleUuid(actorParts()[0]!) : undefined).toBe(roots[0]!.uuid)
   })
 
   test("публикует actor parts для рекурсивно materialized child wimps", () => {
@@ -54,7 +64,7 @@ describe("dark matter — force parts", () => {
   })
 
   test("каждый runtime particle uuid уникален в parts", () => {
-    const uuids = [...actorParts(), ...topologyParts()].map((part) => part.value)
+    const uuids = [...actorParts(), ...topologyParts()].map(particleUuid)
     expect(new Set(uuids).size).toBe(uuids.length)
   })
 })
