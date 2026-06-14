@@ -19,6 +19,9 @@ import {handleActiveInputKey, insertActiveInputText} from "./input.ts"
 
 export type UiSurfaceRect = {x: number; y: number; w: number; h: number; visible?: boolean}
 export type UiSurfaceLayoutFn = (canvas: {w: number; h: number}) => UiSurfaceRect
+export type UiSurfaceLayerOpts = {
+  zIndex?: number
+}
 export type UiRuntimeRelayoutScope = "space" | "hud" | "all"
 export type UiRuntimeRelayoutOpts = {
   scope?: UiRuntimeRelayoutScope
@@ -93,6 +96,8 @@ type SurfaceSlot = {
   pixelScale?: number
   target: "display" | "hud"
   displayId?: UiDisplayId
+  order: number
+  zIndex: number
 }
 
 type DisplaySlot = {
@@ -238,6 +243,7 @@ export class UiRuntime {
   readonly #surfaces: SurfaceSlot[] = []
   readonly #displaySlots = new Map<UiDisplayId, DisplaySlot>()
   readonly #surfaceDisplayId: UiDisplayId = "__surface__"
+  #surfaceOrder = 0
   #activeDisplayId: UiDisplayId | null = null
   #focused: UiSurfaceNode | null = null
   #pixelWidth = 800
@@ -397,15 +403,15 @@ export class UiRuntime {
   }
 
   /** Регистрирует surface. layout-функция вызывается на каждом resize. */
-  addSurface(surface: UiSurfaceNode, layout: UiSurfaceLayoutFn): void {
+  addSurface(surface: UiSurfaceNode, layout: UiSurfaceLayoutFn, opts: UiSurfaceLayerOpts = {}): void {
     if (this.#displaySpaceEnabled && this.display === null) {
       throw new Error("addSurface requires an explicit UIDisplay in display-space mode")
     }
-    this.addSurfaceToDisplay(this.#surfaceDisplayId, surface, layout)
+    this.addSurfaceToDisplay(this.#surfaceDisplayId, surface, layout, opts)
   }
 
   /** Регистрирует surface на конкретном UIDisplay внутри общего Space. */
-  addSurfaceToDisplay(displayId: UiDisplayId, surface: UiSurfaceNode, layout: UiSurfaceLayoutFn): void {
+  addSurfaceToDisplay(displayId: UiDisplayId, surface: UiSurfaceNode, layout: UiSurfaceLayoutFn, opts: UiSurfaceLayerOpts = {}): void {
     const displaySlot = this.#displaySlots.get(displayId)
     if (this.#displaySpaceEnabled && displaySlot === undefined) {
       throw new Error(`UIDisplay not found: ${displayId}`)
@@ -417,19 +423,36 @@ export class UiRuntime {
     else displaySlot.display.add(surface.node)
     const metrics = this.#surfaceMetrics("display", displayId)
     const rect = layout({w: metrics.w, h: metrics.h})
-    this.#surfaces.push({surface, layout, rect, target: "display", displayId})
+    this.#surfaces.push({
+      surface,
+      layout,
+      rect,
+      target: "display",
+      displayId,
+      order: this.#surfaceOrder++,
+      zIndex: opts.zIndex ?? 0,
+    })
+    this.#sortSurfaceSlots()
     this.#applyLayout({scope: "space"})
     this.requestRender()
   }
 
   /** Регистрирует HUD-surface поверх Space в camera/head-locked слое. */
-  addHudSurface(surface: UiSurfaceNode, layout: UiSurfaceLayoutFn): void {
+  addHudSurface(surface: UiSurfaceNode, layout: UiSurfaceLayoutFn, opts: UiSurfaceLayerOpts = {}): void {
     surface.attachCanvas(this)
     surface.setFramebufferClipSpace?.("screen")
     this.hud.add(surface.node)
     const metrics = this.#surfaceMetrics("hud")
     const rect = layout({w: metrics.w, h: metrics.h})
-    this.#surfaces.push({surface, layout, rect, target: "hud"})
+    this.#surfaces.push({
+      surface,
+      layout,
+      rect,
+      target: "hud",
+      order: this.#surfaceOrder++,
+      zIndex: opts.zIndex ?? 0,
+    })
+    this.#sortSurfaceSlots()
     this.#applyLayout({scope: "hud"})
     this.requestRender()
   }
@@ -1271,6 +1294,31 @@ export class UiRuntime {
 
   // ────────────────────────── Internal layout ──────────────────────────
 
+  #sortSurfaceSlots(): void {
+    this.#surfaces.sort((a, b) => a.zIndex - b.zIndex || a.order - b.order)
+    this.#syncSurfaceNodeOrder()
+  }
+
+  #syncSurfaceNodeOrder(): void {
+    const parents = new Set<Object3D>()
+    for (const slot of this.#surfaces) {
+      const parent = this.#surfaceParent(slot)
+      if (parent !== null) parents.add(parent)
+    }
+
+    for (const parent of parents) {
+      for (const slot of this.#surfaces) {
+        if (this.#surfaceParent(slot) === parent) parent.add(slot.surface.node)
+      }
+    }
+  }
+
+  #surfaceParent(slot: SurfaceSlot): Object3D | null {
+    if (slot.target === "hud") return this.hud
+    const displaySlot = this.#displaySlots.get(slot.displayId ?? this.#surfaceDisplayId)
+    return displaySlot?.display ?? this.space
+  }
+
   #applyLayout(opts: UiRuntimeRelayoutOpts = {}): void {
     this.#applyDisplayGeometry()
     this.space.updateWorldMatrix()
@@ -1412,7 +1460,7 @@ export class UiRuntime {
     target?: SurfaceSlot["target"],
     displayId?: UiDisplayId,
   ): SurfaceSlot | undefined {
-    // Reverse iteration — последняя добавленная surface перекрывает предыдущие.
+    // Reverse iteration — верхний zIndex перекрывает нижний; order сохраняет старую семантику.
     for (let i = this.#surfaces.length - 1; i >= 0; i--) {
       const slot = this.#surfaces[i]!
       if (target !== undefined && slot.target !== target) continue

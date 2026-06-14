@@ -654,6 +654,7 @@ const HUD_CODE_BG = withAlpha(palette.bgCode, 0.62)
 const HUD_LOCAL_BACKDROP_BG = withAlpha(palette.bg, 0.24)
 const HUD_MODAL_SHADOW_BG = withAlpha(palette.bgInput, 0.32)
 const HUD_MODAL_BG = withAlpha(palette.bgElevated, 0.78)
+const HUD_LAYER_TOP = 1_000
 
 type HudNotificationKind = "activation" | "deactivation" | "stop" | "agent"
 
@@ -2381,12 +2382,12 @@ function refitVoiceHudPlacement(): void {
 
 function installEnginePanes(): void {
   if (uiCanvas === null || displayHoverOutlinePane === null) return
-  uiCanvas.addHudSurface(displayHoverOutlinePane, ({w, h}) => ({x: 0, y: 0, w, h}))
+  uiCanvas.addHudSurface(displayHoverOutlinePane, ({w, h}) => ({x: 0, y: 0, w, h}), {zIndex: HUD_LAYER_TOP})
   if (todoPane !== null) {
     uiCanvas.addHudSurface(todoPane, todoHudRect)
   }
   todoDockPane ??= new TodoDockPane(() => setTodoHudDocked(false))
-  uiCanvas.addHudSurface(todoDockPane, todoDockRect)
+  uiCanvas.addHudSurface(todoDockPane, todoDockRect, {zIndex: HUD_LAYER_TOP})
   sqliteHudPane ??= new SqliteHudFramePane(
     () => activeSqliteController()?.label ?? "SQLite",
     () => activeSqliteController()?.path ?? "",
@@ -2398,13 +2399,13 @@ function installEnginePanes(): void {
   uiCanvas.addHudSurface(host.hudTerminal, hostTerminalHudRect)
   if (host.socket === null) connectHostTerminal(host)
   hostTerminalAgentSignalPane ??= new HostTerminalAgentSignalPane()
-  uiCanvas.addHudSurface(hostTerminalAgentSignalPane, hostTerminalAgentSignalRect)
+  uiCanvas.addHudSurface(hostTerminalAgentSignalPane, hostTerminalAgentSignalRect, {zIndex: HUD_LAYER_TOP})
   hostTerminalDockPane ??= new HostTerminalDockPane(() => setHostTerminalHudDocked(false))
-  uiCanvas.addHudSurface(hostTerminalDockPane, hostTerminalDockRect)
+  uiCanvas.addHudSurface(hostTerminalDockPane, hostTerminalDockRect, {zIndex: HUD_LAYER_TOP})
   sqliteDockPane ??= new SqliteDockPane(() => setSqliteHudDocked(false))
-  uiCanvas.addHudSurface(sqliteDockPane, sqliteDockRect)
+  uiCanvas.addHudSurface(sqliteDockPane, sqliteDockRect, {zIndex: HUD_LAYER_TOP})
   if (voiceHudPane !== null) {
-    uiCanvas.addHudSurface(voiceHudPane, voiceHudRect)
+    uiCanvas.addHudSurface(voiceHudPane, voiceHudRect, {zIndex: HUD_LAYER_TOP})
   }
   updateVoiceHud()
   scheduleVoiceAutoWake(500)
