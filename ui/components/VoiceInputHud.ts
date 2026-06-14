@@ -37,7 +37,10 @@ export type VoiceInputHudPhraseGroup = {
 
 export type VoiceInputHudSettings = {
   title: string
+  generalTabLabel: string
   debugTabLabel: string
+  fullStopLabel: string
+  fullStopHint: string
   phraseGroups: VoiceInputHudPhraseGroup[]
   deactivationModeLabel: string
   deactivationModeValue: VoiceInputHudDeactivationMode
@@ -73,6 +76,7 @@ export type VoiceInputHudOptions = {
   onToggle(): void
   onMove?(rect: UiSurfaceRect): void
   settings(): VoiceInputHudSettings
+  onFullStop(): void
   onAddPhrase(groupId: VoiceInputHudPhraseGroupId, phrase: string): void
   onRemovePhrase(groupId: VoiceInputHudPhraseGroupId, phrase: string): void
   onResetPhrases(groupId: VoiceInputHudPhraseGroupId): void
@@ -90,7 +94,7 @@ const COMPACT_H = 128
 const BUTTON_SIZE = 58
 const SETTINGS_W = 460
 const SETTINGS_H = 760
-type VoiceInputHudTab = VoiceInputHudPhraseGroupId | "debug"
+type VoiceInputHudTab = "general" | VoiceInputHudPhraseGroupId | "debug"
 
 export class VoiceInputHud extends UiSurface {
   #press: {
@@ -105,7 +109,7 @@ export class VoiceInputHud extends UiSurface {
   #settingsOpen = false
   #compactRectBeforeSettings: UiSurfaceRect | null = null
   #settingsContextToggleAt = 0
-  #settingsTab: VoiceInputHudTab = "activation"
+  #settingsTab: VoiceInputHudTab = "general"
   #phraseDrafts = new Map<VoiceInputHudPhraseGroupId, string>()
   #soundPulseStartedAt = 0
   #soundPulseRaf: number | null = null
@@ -319,6 +323,7 @@ export class VoiceInputHud extends UiSurface {
   #openSettings(): void {
     const frame = this.canvas?.surfaceFrame(this)
     this.#settingsOpen = true
+    this.#settingsTab = "general"
     if (frame !== undefined && frame !== null) {
       this.#compactRectBeforeSettings = {...frame.rect}
       const center = this.#buttonCenterForRect(frame.rect.w, frame.rect.h, false)
@@ -414,13 +419,11 @@ export class VoiceInputHud extends UiSurface {
       z: 0.46,
     })
     y += 20
-    y = this.#drawAutoSendControl(settings, left, y, Math.max(1, right - left)) + 12
-    y = this.#drawSignalVolumeControl(settings, left, y, Math.max(1, right - left)) + 12
-    this.drawRect(left, y, Math.max(1, right - left), 1, fade(palette.borderDim, 0.72), 0.2)
-    y += 10
 
     y = this.#drawSettingsTabs(settings, left, y, Math.max(1, right - left)) + 12
-    if (this.#settingsTab === "debug") {
+    if (this.#settingsTab === "general") {
+      this.#drawGeneralSettings(settings, left, right, y, rect.y + rect.h - 47)
+    } else if (this.#settingsTab === "debug") {
       this.#drawDebugTab(settings.debugLines, left, y, Math.max(1, right - left), rect.y + rect.h - 47)
     } else {
       const group = this.#activePhraseGroup(settings.phraseGroups)
@@ -444,6 +447,7 @@ export class VoiceInputHud extends UiSurface {
   #drawSettingsTabs(settings: VoiceInputHudSettings, x: number, y: number, w: number): number {
     const gap = 6
     const tabs: Array<{id: VoiceInputHudTab; label: string}> = [
+      {id: "general", label: settings.generalTabLabel},
       ...settings.phraseGroups.map((group) => ({id: group.id, label: group.title})),
       {id: "debug", label: settings.debugTabLabel},
     ]
@@ -473,6 +477,36 @@ export class VoiceInputHud extends UiSurface {
         fontSize: 10,
       },
     })
+  }
+
+  #drawGeneralSettings(settings: VoiceInputHudSettings, left: number, right: number, y: number, maxY: number): number {
+    const w = Math.max(1, right - left)
+    if (y + 48 <= maxY) {
+      button(this, left, y, w, 34, {
+        key: "voice-full-stop",
+        children: settings.fullStopLabel,
+        tooltip: settings.fullStopHint,
+        onClick: () => this.options.onFullStop(),
+        style: {
+          background: "rgba(96, 32, 38, 0.54)",
+          borderColor: "rgba(255, 112, 112, 0.58)",
+          borderRadius: 7,
+          color: "text",
+          fontSize: 10,
+        },
+      })
+      this.drawText(settings.fullStopHint, left, y + 41, {
+        fontPx: 8,
+        material: this.materials.muted,
+        maxWidthPx: w,
+        z: 0.46,
+      })
+      y += 62
+    }
+
+    y = this.#drawAutoSendControl(settings, left, y, w) + 12
+    y = this.#drawSignalVolumeControl(settings, left, y, w) + 14
+    return y
   }
 
   #drawSignalVolumeControl(settings: VoiceInputHudSettings, x: number, y: number, w: number): number {

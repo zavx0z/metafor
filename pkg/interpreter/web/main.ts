@@ -2298,7 +2298,10 @@ async function initEngine(): Promise<void> {
       onToggle: () => void toggleVoiceInput(),
       settings: () => ({
         title: t("voiceInput"),
+        generalTabLabel: t("voiceGeneralSettings"),
         debugTabLabel: t("voiceDebugTab"),
+        fullStopLabel: t("voiceFullStop"),
+        fullStopHint: t("voiceFullStopHint"),
         phraseGroups: voicePhraseGroupsForHud(),
         deactivationModeLabel: t("voiceDeactivationMode"),
         deactivationModeValue: voiceHudDeactivationMode(readVoiceDeactivationMode()),
@@ -2333,6 +2336,7 @@ async function initEngine(): Promise<void> {
         liveLine: voiceSettingsLiveLine(),
         debugLines: voiceDebugLines(),
       }),
+      onFullStop: fullyStopVoiceInput,
       onAddPhrase: addVoicePhrase,
       onRemovePhrase: removeVoicePhrase,
       onResetPhrases: resetVoicePhrases,
@@ -3800,6 +3804,20 @@ async function toggleVoiceInput(): Promise<void> {
   } finally {
     focusVoiceTarget()
   }
+}
+
+function fullyStopVoiceInput(): void {
+  voiceAutoWakePaused = true
+  if (voiceAutoWakeTimer !== null) {
+    window.clearTimeout(voiceAutoWakeTimer)
+    voiceAutoWakeTimer = null
+  }
+  voiceNextFlushMode = "draft"
+  voiceInputClient?.stop(VOICE_STOP_COMMAND_DETAIL)
+  discardVoiceAutoSendBuffer()
+  clearVoicePartialPreview()
+  clearVoiceWakePreview()
+  renderVoiceHud()
 }
 
 function focusVoiceTarget(): void {
