@@ -64,6 +64,7 @@ Force фиксирует, как сила действует через кана
 
 ```ts
 { part: "graviton", op: "add", path: "zavx0z/git" }
+{ part: "graviton", op: "add", path: "wimp", value: "zavx0z/git" }
 { part: "gluon", op: "replace", path: "/field/<uuid>", value: 42 }
 { part: "higgs", op: "replace", path: "/field/<uuid>", value: "branch" }
 { part: "photon", op: "replace", path: "/wimp/<uuid>", value: "ready" }
@@ -73,7 +74,9 @@ Force фиксирует, как сила действует через кана
 ```
 
 В runtime Force `path` для root/source пишется как прямой source path без ведущего `/`.
-Структурные `/wimp/...` остаются store parts.
+`part` хранит force carrier, а доменный тип сигнала пишется в `path`.
+WIMP-сигнал не кодирует `/wimp/...`: он пишется как `{ part: "graviton", op: "add", path: "wimp", value: src }`.
+`value` здесь не payload WIMP, а только source-id; получатель читает полную декларацию из Store по этому `src`.
 
 Batch `parts` может содержать разные `part`, но маршрутизация всегда читается с самого Particle, а не с envelope.
 Envelope не должен дублировать `part`, `channel`, `source` или `boson`.

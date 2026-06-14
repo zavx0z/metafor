@@ -64,6 +64,7 @@ One `Particle` represents exactly one force part:
 
 ```ts
 { part: "graviton", op: "add", path: "zavx0z/git" }
+{ part: "graviton", op: "add", path: "wimp", value: "zavx0z/git" }
 { part: "gluon", op: "replace", path: "/field/<uuid>", value: 42 }
 { part: "higgs", op: "replace", path: "/field/<uuid>", value: "branch" }
 { part: "photon", op: "replace", path: "/wimp/<uuid>", value: "ready" }
@@ -73,7 +74,9 @@ One `Particle` represents exactly one force part:
 ```
 
 In runtime force, root/source `path` is written as a direct source path without a leading `/`.
-Structural `/wimp/...` paths remain store parts.
+`part` carries the force carrier, while the domain signal type is written in `path`.
+A WIMP signal does not encode `/wimp/...`: it is written as `{ part: "graviton", op: "add", path: "wimp", value: src }`.
+Here `value` is not the WIMP payload, only the source id; receivers read the full declaration from Store by that `src`.
 
 A `parts` batch may contain different `part` values, but routing is always read from the Particle itself, not from the envelope.
 The envelope must not duplicate `part`, `channel`, `source`, or `boson`.

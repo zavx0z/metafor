@@ -9,6 +9,13 @@
 Store при создании WIMP читает сам `dsl`: ORM не делает дополнительный слой
 преобразования raw DSL.
 
+## Force-сигнал create
+
+После SQL commit `wimp.create(src, input)` отправляет один `Particle`:
+`{ part: "graviton", op: "add", path: "wimp", value: src }`.
+`value` здесь не payload WIMP, а только source-id. Получатель читает полную
+декларацию из Store по `src`; `path` не содержит `/wimp/...`.
+
 **33 таблицы** в 6 логических группах. Все каскадно связаны через FK на корень `meta(src)` — удаление меты по `src` чистит всю её декларацию.
 
 ---

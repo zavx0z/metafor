@@ -136,10 +136,8 @@ describe("sqlite ddl", () => {
 
     expect(messages.length).toBe(1)
     const parts = messages[0]!.parts
-    expect(parts[0]).toMatchObject({part: "graviton", op: "add", path: "/wimp/alpha~1meta"})
-    expect(parts.every((part) => part.path.startsWith("/wimp/alpha~1meta"))).toBe(true)
-    expect(parts.some((part) => part.path.includes("/field/") && (part.value as {key?: string} | undefined)?.key === "title")).toBe(true)
-    expect(parts.some((part) => part.path.includes("/mass/"))).toBe(true)
+    expect(parts).toHaveLength(1)
+    expect(parts[0]).toEqual({part: "graviton", op: "add", path: "wimp", value: "alpha/meta"})
   })
 
   test("wimp.exists проверяет декларацию без ORM get", async () => {

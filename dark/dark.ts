@@ -12,9 +12,9 @@ store.onmessage = (event) => {
   for (const part of event.data.parts) {
     if (part.part !== "graviton") continue
     if (part.op !== "add") continue
-    if (part.path.startsWith("/")) continue
-    if (part.value !== undefined) continue
-    void matter(part.path).catch(() => {})
+    if (part.path !== "wimp") continue
+    if (typeof part.value !== "string") continue
+    void matter(part.value).catch(() => {})
   }
 }
 

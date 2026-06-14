@@ -30,6 +30,32 @@ describe("store/sqlite smoke", () => {
     rmSync(`${filename}-wal`, {force: true})
   })
 
+  const fieldUuid = async (key: string): Promise<string> => {
+    const row = (
+      await sql<Array<{uuid: string}>>`SELECT uuid FROM field WHERE wimp = ${SRC} AND key = ${key} LIMIT 1`
+    )[0]
+    if (!row) throw new Error(`field ${key} missing`)
+    return row.uuid
+  }
+
+  const enumVariantUuid = async (field: string, value: string): Promise<string> => {
+    const row = (
+      await sql<Array<{uuid: string}>>`
+        SELECT uuid FROM field_enum_variant WHERE field = ${field} AND item_value = ${value} LIMIT 1
+      `
+    )[0]
+    if (!row) throw new Error(`enum variant ${value} missing`)
+    return row.uuid
+  }
+
+  const stateUuid = async (name: string): Promise<string> => {
+    const row = (
+      await sql<Array<{uuid: string}>>`SELECT uuid FROM state WHERE wimp = ${SRC} AND name = ${name} LIMIT 1`
+    )[0]
+    if (!row) throw new Error(`state ${name} missing`)
+    return row.uuid
+  }
+
   test("open() поднимает обе схемы — meta и actor — на одной БД", async () => {
     const tables = (
       await sql<Array<{ name: string }>>`
@@ -48,62 +74,25 @@ describe("store/sqlite smoke", () => {
     expect(tables).toContain("value_list_item")
   })
 
-  test("graviton parts декларации, чтение через ORM", async () => {
-    const flagUuid = crypto.randomUUID()
-    const statusUuid = crypto.randomUUID()
-    const idleVariantUuid = crypto.randomUUID()
-    const readyVariantUuid = crypto.randomUUID()
-    const idleStateUuid = crypto.randomUUID()
-    const readyStateUuid = crypto.randomUUID()
+  test("wimp.create пишет декларацию и отправляет graviton-сигнал source", async () => {
+    const received: Particle[] = []
+    store.onmessage = (event) => {
+      received.push(...event.data.parts)
+    }
 
-    await update(store, "graviton", [{op: "add", path: `/wimp/${enc(SRC)}`, value: {name: "smoke"}}])
-
-    await update(store, "graviton", [
-      {op: "add", path: `/wimp/${enc(SRC)}/field/${flagUuid}`, value: {key: "flag", type: "boolean", label: "Flag"}},
-    ])
-    await update(store, "graviton", [{op: "add", path: `/wimp/${enc(SRC)}/field/${flagUuid}/default`, value: {}}])
-    await update(store, "graviton", [
-      {
-        op: "add",
-        path: `/wimp/${enc(SRC)}/field/${flagUuid}/default/scalar`,
-        value: {kind: "boolean", boolean: false},
-      },
-    ])
-
-    await update(store, "graviton", [{op: "add", path: `/wimp/${enc(SRC)}/field/${statusUuid}`, value: {key: "status", type: "enum"}}])
-    await update(store, "graviton", [
-      {
-        op: "add",
-        path: `/wimp/${enc(SRC)}/field/${statusUuid}/variant/${idleVariantUuid}`,
-        value: {position: 0, item_value: "idle"},
-      },
-    ])
-    await update(store, "graviton", [
-      {
-        op: "add",
-        path: `/wimp/${enc(SRC)}/field/${statusUuid}/variant/${readyVariantUuid}`,
-        value: {position: 1, item_value: "ready"},
-      },
-    ])
-    await update(store, "graviton", [{op: "add", path: `/wimp/${enc(SRC)}/field/${statusUuid}/default`, value: {}}])
-    await update(store, "graviton", [
-      {
-        op: "add",
-        path: `/wimp/${enc(SRC)}/field/${statusUuid}/default/variant`,
-        value: {variant: idleVariantUuid},
-      },
-    ])
-
-    await update(store, "graviton", [{op: "add", path: `/wimp/${enc(SRC)}/state/${idleStateUuid}`, value: {name: "idle", position: 0}}])
-    await update(store, "graviton", [
-      {op: "add", path: `/wimp/${enc(SRC)}/state/${readyStateUuid}`, value: {name: "ready", position: 1}},
-    ])
+    await store.wimp.create(SRC, {
+      name: "smoke",
+      mass: {title: "draft"},
+      fields: [{key: "flag", type: "boolean", label: "Flag", default: false}],
+      superposition: [{name: "idle"}],
+    })
 
     const meta = await store.wimp.get(SRC)
     if (!meta) throw new Error("meta missing")
     expect(await meta.name.get()).toBe("smoke")
-    expect(await meta.fields.count()).toBe(2)
-    expect(await meta.states.count()).toBe(2)
+    expect(await meta.mass.exists()).toBe(true)
+    expect(await meta.fields.count()).toBe(1)
+    expect(await meta.states.count()).toBe(1)
 
     const flag = await meta.fields.get({key: "flag"})
     if (!flag) throw new Error("flag field missing")
@@ -111,31 +100,26 @@ describe("store/sqlite smoke", () => {
     expect(await flag.default()).toBe(false)
     expect(await flag.label()).toBe("Flag")
 
-    const status = await meta.fields.get({key: "status"})
-    if (!status) throw new Error("status field missing")
-    if (status.type !== "enum") throw new Error("expected enum field")
-    expect((await status.variants.all()).map((v) => v.value)).toEqual(["idle", "ready"])
-    expect(await status.default()).toBe("idle")
+    const signal = received.find(
+      (part) => part.part === "graviton" && part.op === "add" && part.path === "wimp" && part.value === SRC,
+    )
+    expect(signal).toBeDefined()
+    store.onmessage = null
   })
 
   test("actor parts: graviton+gluon+photon, чтение через ORM", async () => {
-    const flagUuid = crypto.randomUUID()
-    const statusUuid = crypto.randomUUID()
-    const idleVariantUuid = crypto.randomUUID()
-    const idleStateUuid = crypto.randomUUID()
-
-    // декларация (минимум)
-    await update(store, "graviton", [{op: "add", path: `/wimp/${enc(SRC)}`, value: {name: "smoke"}}])
-    await update(store, "graviton", [{op: "add", path: `/wimp/${enc(SRC)}/field/${flagUuid}`, value: {key: "flag", type: "boolean"}}])
-    await update(store, "graviton", [{op: "add", path: `/wimp/${enc(SRC)}/field/${statusUuid}`, value: {key: "status", type: "enum"}}])
-    await update(store, "graviton", [
-      {
-        op: "add",
-        path: `/wimp/${enc(SRC)}/field/${statusUuid}/variant/${idleVariantUuid}`,
-        value: {position: 0, item_value: "idle"},
-      },
-    ])
-    await update(store, "graviton", [{op: "add", path: `/wimp/${enc(SRC)}/state/${idleStateUuid}`, value: {name: "idle", position: 0}}])
+    await store.wimp.create(SRC, {
+      name: "smoke",
+      fields: [
+        {key: "flag", type: "boolean"},
+        {key: "status", type: "enum", values: ["idle"]},
+      ],
+      superposition: [{name: "idle"}],
+    })
+    const flagUuid = (await fieldUuid("flag"))
+    const statusUuid = (await fieldUuid("status"))
+    const idleVariantUuid = (await enumVariantUuid(statusUuid, "idle"))
+    const idleStateUuid = (await stateUuid("idle"))
 
     // actor-1
     const actorUuid = "actor-1"
@@ -199,23 +183,36 @@ describe("store/sqlite smoke", () => {
       received.push(...event.data.parts)
     }
 
-    const part: StoreParticle = {part: "graviton", op: "add", path: `/wimp/${enc(SRC)}`, value: {name: "smoke"}}
+    await store.wimp.create(SRC)
+    const part: StoreParticle = {part: "graviton", op: "add", path: "/actor/actor-published", value: {wimp: SRC, position: 0}}
 
     try {
       await store.update({parts: [part]})
       await waitFor(() => received.some((item) => item.part === part.part && item.op === part.op && item.path === part.path))
 
       const row = (
-        await sql<Array<{name: string | null}>>`
-          SELECT name
-          FROM wimp
-          WHERE src = ${SRC}
+        await sql<Array<{wimp: string}>>`
+          SELECT wimp
+          FROM actor
+          WHERE uuid = ${"actor-published"}
         `
       )[0]
-      expect(row?.name).toBe("smoke")
+      expect(row?.wimp).toBe(SRC)
     } finally {
       store.onmessage = null
     }
+  })
+
+  test("graviton wimp signal не является store.update write", async () => {
+    const part: StoreParticle = {part: "graviton", op: "add", path: "wimp", value: SRC}
+
+    await expect(store.update({parts: [part]})).rejects.toThrow("Particle path must start")
+  })
+
+  test("graviton больше не принимает старый /wimp path", async () => {
+    const part: StoreParticle = {part: "graviton", op: "add", path: "/wimp/owner~1smoke", value: {name: "smoke"}}
+
+    await expect(store.update({parts: [part]})).rejects.toThrow("Unknown graviton path")
   })
 
   test("close() идемпотентен — повторный вызов не падает", async () => {
@@ -223,8 +220,6 @@ describe("store/sqlite smoke", () => {
     expect(true).toBe(true)
   })
 })
-
-const enc = (s: string): string => s.replace(/~/g, "~0").replace(/\//g, "~1")
 
 const waitFor = async (predicate: () => boolean): Promise<void> => {
   const deadline = Date.now() + 1000

@@ -5,7 +5,7 @@ import {join} from "node:path"
 import type {ForceMessageHandler} from "../store/index.ts"
 
 const logBroadcastMessage = (event: MessageEvent<unknown>): void => {
-  console.log("[broadcast:metafor.force]", JSON.stringify(event.data, null, 2))
+  console.log("[force]", JSON.stringify(event.data, null, 2))
 }
 
 describe("dark/server разворачивает дерево zavx0z/git по gravity part", () => {
@@ -38,9 +38,9 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
     if (globalThis.store) globalThis.store.onmessage = previousOnMessage
   })
 
-  test("после add zavx0z/git store содержит каноническое дерево git", async () => {
+  test("после add wimp zavx0z/git store содержит каноническое дерево git", async () => {
     globalThis.store.postMessage({
-      parts: [{part: "graviton", op: "add", path: "zavx0z/git"}],
+      parts: [{part: "graviton", op: "add", path: "wimp", value: "zavx0z/git"}],
     })
 
     // ждём пока Dark материализует root wimp + child wimps в БД
@@ -96,12 +96,12 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
     }
   }, 60_000)
 
-  test("повторный add zavx0z/git идемпотентен — server пропускает уже залитый root", async () => {
+  test("повторный add wimp zavx0z/git идемпотентен — server пропускает уже залитый root", async () => {
     const sql = new SQL(`sqlite://${storePath}`)
     const before = await waitForActorCountStable(sql)
 
     globalThis.store.postMessage({
-      parts: [{part: "graviton", op: "add", path: "zavx0z/git"}],
+      parts: [{part: "graviton", op: "add", path: "wimp", value: "zavx0z/git"}],
     })
 
     // даём server'у тик — если бы он начал загрузку, он бы уехал в matter()
