@@ -815,12 +815,10 @@ function handleServerMessage(msg: ServerMessage): void {
   switch (msg.type) {
     case "hello":
       applyModuleSnapshots(msg.modules ?? [])
-      const notBefore = earliestModuleTargetStartedAt(msg.modules ?? [])
       for (const path of msg.sqliteDatabases ?? []) {
         void openSqliteDisplay({
           path,
           reveal: false,
-          ...(notBefore === undefined ? {} : {notBefore}),
         }).catch((error) => console.error(error))
       }
       return
@@ -2126,16 +2124,6 @@ function normalizeStoredInterpreterDisplayPositions(value: unknown): Map<string,
     if (position !== null) positions.set(displayId, position)
   }
   return positions
-}
-
-function earliestModuleTargetStartedAt(modules: readonly ModulePaneSnapshot[]): string | undefined {
-  let earliest: string | undefined
-  for (const module of modules) {
-    const startedAt = module.target.startedAt
-    if (startedAt === null) continue
-    if (earliest === undefined || Date.parse(startedAt) < Date.parse(earliest)) earliest = startedAt
-  }
-  return earliest
 }
 
 function applyModuleSnapshots(modules: ModulePaneSnapshot[]): void {
@@ -6274,6 +6262,9 @@ async function refreshWorkspaceFiles(controller: ModuleDisplayController): Promi
       controller.workspaceFiles.expandedIds = normalizeWorkspaceExpandedIds(storedState.expandedIds, items)
       controller.workspaceFiles.selectedIds = normalizeFileListSelection(storedState.selectedIds, items, "multiple")
       applyWorkspaceFilesToModuleDisplay(controller)
+      void openInitialWorkspaceSource(controller).catch((error) => {
+        console.warn(`initial source open failed for ${controller.id}:`, error)
+      })
     } catch (error) {
       console.warn(`workspace files refresh failed for ${controller.id}:`, error)
       controller.workspaceFiles.root = null
@@ -6302,6 +6293,45 @@ function applyWorkspaceFilesToModuleDisplay(controller: ModuleDisplayController)
   } finally {
     state.suppressSelectionOpen = false
   }
+}
+
+async function openInitialWorkspaceSource(controller: ModuleDisplayController): Promise<void> {
+  if (!shouldOpenInitialWorkspaceSource(controller)) return
+  const sourceUrl = initialWorkspaceSourceUrl(controller)
+  if (sourceUrl === null) return
+  await openWorkspaceSource(controller, sourceUrl, {revealInWorkspace: true})
+}
+
+function shouldOpenInitialWorkspaceSource(controller: ModuleDisplayController): boolean {
+  if (controller.sourceDirty || controller.sourceSaving) return false
+  if (controller.sourceTextKey.length > 0 || controller.sourceLocation.length > 0) return false
+  if (controller.sourceRuntimeState === "loading" || controller.sourceRuntimeState === "paused") return false
+  const snapshot = moduleSnapshots.get(controller.id)
+  return !(snapshot?.paused === true && snapshot.dump !== null)
+}
+
+function initialWorkspaceSourceUrl(controller: ModuleDisplayController): string | null {
+  const selectedFiles = controller.workspaceFiles.selectedIds
+    .map((id) => findWorkspaceFileItem(controller.workspaceFiles.items, id))
+    .filter((item): item is FileListItem => item?.kind === "file")
+  if (selectedFiles.length === 1) return workspaceFileSourceUrl(controller, selectedFiles[0]!)
+
+  const modulePath = controller.workspaceFiles.modulePath
+  if (modulePath !== null && modulePath.trim().length > 0) {
+    const moduleFileId = workspaceFileIdForSources(controller.workspaceFiles, [modulePath])
+    const moduleFile = moduleFileId === null ? null : findWorkspaceFileItem(controller.workspaceFiles.items, moduleFileId)
+    if (moduleFile?.kind === "file") return workspaceFileSourceUrl(controller, moduleFile)
+  }
+  return null
+}
+
+function findWorkspaceFileItem(items: readonly FileListItem[], id: string): FileListItem | null {
+  for (const item of items) {
+    if (item.id === id) return item
+    const child = item.children === undefined ? null : findWorkspaceFileItem(item.children, id)
+    if (child !== null) return child
+  }
+  return null
 }
 
 function setWorkspaceFilesExpandedIds(controller: ModuleDisplayController, ids: readonly string[]): void {
