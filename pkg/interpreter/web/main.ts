@@ -2330,7 +2330,7 @@ async function initEngine(): Promise<void> {
     void loadTodoPane()
     uiCanvas.handleResize()
     syncModuleDisplays()
-    displayHoverOutlinePane.restoreBrowserFullscreenAfterReload()
+    displayHoverOutlinePane.refitBrowserFullscreenAfterReload()
     resizeObserver = new ResizeObserver(handleEngineResize)
     resizeObserver.observe(engineCanvas)
     requestAnimationFrame(handleEngineResize)

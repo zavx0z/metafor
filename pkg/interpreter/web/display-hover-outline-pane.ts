@@ -79,8 +79,7 @@ const RETURN_DOCK_KEY = "display-return-dock"
 const RETURN_DOCK_BRIDGE_KEY = "display-return-dock-bridge"
 const RETURN_BUTTON_KEY = "display-return-button"
 const FULLSCREEN_BUTTON_KEY = "display-fullscreen-button"
-const BROWSER_FULLSCREEN_RESTORE_STORAGE_KEY = "metafor.interpreter.browserFullscreen.restore:v1"
-const BROWSER_FULLSCREEN_RESTORE_CLEAR_DELAY_MS = 4000
+const BROWSER_FULLSCREEN_REFIT_STORAGE_KEY = "metafor.interpreter.browserFullscreen.refit:v1"
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
@@ -202,67 +201,41 @@ function pointInRect(point: Point, rect: Rect): boolean {
 
 let browserFullscreenEscapeLockInstalled = false
 let browserFullscreenEscapeLocked = false
-let browserFullscreenRestoreLifecycleInstalled = false
-let browserFullscreenRestoreWanted = readBrowserFullscreenRestoreWanted()
-let browserFullscreenRestorePending = false
-let browserFullscreenRestoreClearTimer: number | null = null
+let browserFullscreenRefitLifecycleInstalled = false
 
 function browserKeyboardLock(): BrowserKeyboardLock | null {
   return (navigator as Navigator & {keyboard?: BrowserKeyboardLock}).keyboard ?? null
 }
 
-function readBrowserFullscreenRestoreWanted(): boolean {
+function readBrowserFullscreenRefitRequested(): boolean {
   try {
-    return sessionStorage.getItem(BROWSER_FULLSCREEN_RESTORE_STORAGE_KEY) === "1"
+    return sessionStorage.getItem(BROWSER_FULLSCREEN_REFIT_STORAGE_KEY) === "1"
   } catch {
     return false
   }
 }
 
-function writeBrowserFullscreenRestoreWanted(wanted: boolean): void {
-  browserFullscreenRestoreWanted = wanted
+function writeBrowserFullscreenRefitRequested(requested: boolean): void {
   try {
-    if (wanted) {
-      sessionStorage.setItem(BROWSER_FULLSCREEN_RESTORE_STORAGE_KEY, "1")
+    if (requested) {
+      sessionStorage.setItem(BROWSER_FULLSCREEN_REFIT_STORAGE_KEY, "1")
     } else {
-      sessionStorage.removeItem(BROWSER_FULLSCREEN_RESTORE_STORAGE_KEY)
+      sessionStorage.removeItem(BROWSER_FULLSCREEN_REFIT_STORAGE_KEY)
     }
   } catch {
     // Session storage can be unavailable in restricted contexts.
   }
 }
 
-function clearBrowserFullscreenRestoreTimer(): void {
-  if (browserFullscreenRestoreClearTimer === null) return
-  window.clearTimeout(browserFullscreenRestoreClearTimer)
-  browserFullscreenRestoreClearTimer = null
+function persistBrowserFullscreenRefitBeforeUnload(): void {
+  writeBrowserFullscreenRefitRequested(document.fullscreenElement !== null)
 }
 
-function markBrowserFullscreenRestoreWanted(wanted: boolean): void {
-  clearBrowserFullscreenRestoreTimer()
-  writeBrowserFullscreenRestoreWanted(wanted)
-}
-
-function scheduleBrowserFullscreenRestoreClear(): void {
-  if (!browserFullscreenRestoreWanted) return
-  clearBrowserFullscreenRestoreTimer()
-  browserFullscreenRestoreClearTimer = window.setTimeout(() => {
-    browserFullscreenRestoreClearTimer = null
-    if (document.fullscreenElement !== null || browserFullscreenRestorePending) return
-    writeBrowserFullscreenRestoreWanted(false)
-  }, BROWSER_FULLSCREEN_RESTORE_CLEAR_DELAY_MS)
-}
-
-function persistBrowserFullscreenRestoreBeforeUnload(): void {
-  if (document.fullscreenElement === null && !browserFullscreenRestoreWanted && !browserFullscreenRestorePending) return
-  writeBrowserFullscreenRestoreWanted(true)
-}
-
-function installBrowserFullscreenRestoreLifecycleHooks(): void {
-  if (browserFullscreenRestoreLifecycleInstalled) return
-  browserFullscreenRestoreLifecycleInstalled = true
-  window.addEventListener("beforeunload", persistBrowserFullscreenRestoreBeforeUnload)
-  window.addEventListener("pagehide", persistBrowserFullscreenRestoreBeforeUnload)
+function installBrowserFullscreenRefitLifecycleHooks(): void {
+  if (browserFullscreenRefitLifecycleInstalled) return
+  browserFullscreenRefitLifecycleInstalled = true
+  window.addEventListener("beforeunload", persistBrowserFullscreenRefitBeforeUnload)
+  window.addEventListener("pagehide", persistBrowserFullscreenRefitBeforeUnload)
 }
 
 function installBrowserFullscreenEscapeLockHooks(): void {
@@ -295,16 +268,14 @@ function unlockBrowserFullscreenEscape(): void {
   browserKeyboardLock()?.unlock?.()
 }
 
-async function requestBrowserFullscreen(rememberIntent: boolean): Promise<boolean> {
+async function requestBrowserFullscreen(): Promise<boolean> {
   if (!document.fullscreenEnabled) return false
   if (document.fullscreenElement !== null) {
-    if (rememberIntent) markBrowserFullscreenRestoreWanted(true)
     void lockBrowserFullscreenEscape()
     return true
   }
   try {
     await document.documentElement.requestFullscreen()
-    if (rememberIntent) markBrowserFullscreenRestoreWanted(true)
     void lockBrowserFullscreenEscape()
     return true
   } catch {
@@ -332,43 +303,22 @@ export class DisplayHoverOutlinePane extends UiSurface {
   #cameraMotionHoldUntilMs = 0
   #leaveAnimation: LeaveAnimation | null = null
   readonly #onBrowserFullscreenLayoutChange: ((activeDisplayId: UiDisplayId | null) => void) | undefined
-  #browserFullscreenRestoreGestureInstalled = false
   readonly #handleBrowserFullscreenChange = (): void => {
     if (document.fullscreenElement !== null) {
-      browserFullscreenRestorePending = false
-      this.#removeBrowserFullscreenRestoreGestureHooks()
-      markBrowserFullscreenRestoreWanted(true)
-    } else if (browserFullscreenRestorePending) {
-      unlockBrowserFullscreenEscape()
-      markBrowserFullscreenRestoreWanted(true)
+      writeBrowserFullscreenRefitRequested(false)
     } else {
       unlockBrowserFullscreenEscape()
-      scheduleBrowserFullscreenRestoreClear()
+      writeBrowserFullscreenRefitRequested(false)
     }
     if (this.canvas?.displayMode !== "near") return
     this.#repositionNearDisplayAfterFullscreen(this.canvas.activeDisplayId)
     this.requestRender()
   }
-  readonly #handleBrowserFullscreenRestoreGesture = (event: Event): void => {
-    if (event instanceof KeyboardEvent && (event.key === "Escape" || event.code === "Escape")) return
-    if (!browserFullscreenRestorePending || document.fullscreenElement !== null) {
-      this.#removeBrowserFullscreenRestoreGestureHooks()
-      return
-    }
-    this.#repositionNearDisplayAfterFullscreen(this.canvas?.activeDisplayId ?? null)
-    void requestBrowserFullscreen(true).then((ok) => {
-      if (!ok) return
-      browserFullscreenRestorePending = false
-      this.#removeBrowserFullscreenRestoreGestureHooks()
-      this.#repositionNearDisplayAfterFullscreen(this.canvas?.activeDisplayId ?? null)
-      this.requestRender()
-    })
-  }
 
   constructor(opts: DisplayHoverOutlinePaneOpts = {}) {
     super({bgColor: null, borderColor: null})
     this.#onBrowserFullscreenLayoutChange = opts.onBrowserFullscreenLayoutChange
-    installBrowserFullscreenRestoreLifecycleHooks()
+    installBrowserFullscreenRefitLifecycleHooks()
     document.addEventListener("fullscreenchange", this.#handleBrowserFullscreenChange)
   }
 
@@ -378,25 +328,13 @@ export class DisplayHoverOutlinePane extends UiSurface {
 
   override dispose(): void {
     document.removeEventListener("fullscreenchange", this.#handleBrowserFullscreenChange)
-    this.#removeBrowserFullscreenRestoreGestureHooks()
     super.dispose()
   }
 
-  restoreBrowserFullscreenAfterReload(): void {
-    if (!readBrowserFullscreenRestoreWanted()) return
-    browserFullscreenRestorePending = true
-    markBrowserFullscreenRestoreWanted(true)
+  refitBrowserFullscreenAfterReload(): void {
+    if (!readBrowserFullscreenRefitRequested()) return
+    writeBrowserFullscreenRefitRequested(false)
     this.#repositionNearDisplayAfterFullscreen(this.canvas?.activeDisplayId ?? null)
-    void requestBrowserFullscreen(true).then((ok) => {
-      if (ok) {
-        browserFullscreenRestorePending = false
-        this.#removeBrowserFullscreenRestoreGestureHooks()
-        this.#repositionNearDisplayAfterFullscreen(this.canvas?.activeDisplayId ?? null)
-        this.requestRender()
-        return
-      }
-      this.#installBrowserFullscreenRestoreGestureHooks()
-    })
   }
 
   containsPointer(localX: number, localY: number): boolean {
@@ -761,30 +699,13 @@ export class DisplayHoverOutlinePane extends UiSurface {
 
   #toggleBrowserFullscreen(): void {
     if (document.fullscreenElement !== null) {
-      markBrowserFullscreenRestoreWanted(false)
-      browserFullscreenRestorePending = false
-      this.#removeBrowserFullscreenRestoreGestureHooks()
+      writeBrowserFullscreenRefitRequested(false)
       void document.exitFullscreen()
         .catch(() => {})
       return
     }
 
-    browserFullscreenRestorePending = false
-    void requestBrowserFullscreen(true)
-  }
-
-  #installBrowserFullscreenRestoreGestureHooks(): void {
-    if (this.#browserFullscreenRestoreGestureInstalled) return
-    this.#browserFullscreenRestoreGestureInstalled = true
-    window.addEventListener("pointerup", this.#handleBrowserFullscreenRestoreGesture)
-    window.addEventListener("keydown", this.#handleBrowserFullscreenRestoreGesture, {capture: true})
-  }
-
-  #removeBrowserFullscreenRestoreGestureHooks(): void {
-    if (!this.#browserFullscreenRestoreGestureInstalled) return
-    this.#browserFullscreenRestoreGestureInstalled = false
-    window.removeEventListener("pointerup", this.#handleBrowserFullscreenRestoreGesture)
-    window.removeEventListener("keydown", this.#handleBrowserFullscreenRestoreGesture, {capture: true})
+    void requestBrowserFullscreen()
   }
 
   #repositionNearDisplayAfterFullscreen(activeDisplayId: UiDisplayId | null): void {
