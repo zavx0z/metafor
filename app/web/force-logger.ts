@@ -99,7 +99,3 @@ export const appendForceMessage = (channel: string, message: unknown): void => {
 		forceCounter.textContent = `${current} force messages`
 	}
 }
-
-export const appendWorkerLog = (worker: string, message: unknown): void => {
-	appendLog(`${worker} log`, message)
-}

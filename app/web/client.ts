@@ -1,6 +1,5 @@
 import {
 	appendForceMessage,
-	appendWorkerLog,
 	initForceLogger,
 	setConnectionStatus,
 	setWorkerStatus,
@@ -49,12 +48,6 @@ type ClientRelayoutPayload = {
 type SnapshotMessage = {
 	type: "snapshot"
 	workers: Record<string, "idle" | "ready" | "started" | "done" | "error">
-}
-
-type LogMessage = {
-	type: "log"
-	worker: string
-	message: unknown
 }
 
 const toWorkerMeta = (meta: {

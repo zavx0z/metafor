@@ -29,9 +29,6 @@ bulkWorker.onmessage = (event: MessageEvent<BulkBootMessage>) => {
 				openDbSqliteBackend({
 					filename: message.dbFilename,
 				}),
-			log(payload) {
-				bulkWorker.postMessage({ type: "log", message: payload })
-			},
 		})
 
 		booted = true

@@ -50,13 +50,10 @@ export interface AppBulkProcessRuntime {
 export interface AppBulkProcessRuntimeOptions {
   backend: DbBackend
   executorId?: string
-  log?: (message: unknown) => void
   openTargetBackend?: () => DbBackend | Promise<DbBackend>
 }
 
 const inlineHandlerCache = new Map<string, Function>()
-
-const defaultLog = (_message: unknown): void => {}
 
 const toRecord = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {}
@@ -349,7 +346,6 @@ export const executeAppBulkProcessTarget = async (
 export const createAppBulkProcessRuntime = ({
   backend,
   executorId = "app-web-bulk",
-  log = defaultLog,
   openTargetBackend,
 }: AppBulkProcessRuntimeOptions): AppBulkProcessRuntime => {
   const inFlight = new Set<string>()
@@ -372,13 +368,6 @@ export const createAppBulkProcessRuntime = ({
         inFlight.add(inFlightKey)
         weakForce.emitZClaim(target.wimpId, target.process.id, executorId)
         weakForce.emitZAccept(target.wimpId, target.process.id, executorId)
-        log({
-          type: "bulk-process-start",
-          wimpId: target.wimpId,
-          processId: target.process.id,
-          processKey: target.process.processKey,
-          meta: target.meta.src,
-        })
 
         const result = await executeAppBulkProcessTarget(target)
         if (result.boson === "w+") {
@@ -387,20 +376,7 @@ export const createAppBulkProcessRuntime = ({
           weakForce.emitWErrorValues(target.wimpId, target.process.id, result.values)
         }
 
-        log({
-          type: "bulk-process-done",
-          boson: result.boson,
-          wimpId: target.wimpId,
-          processId: target.process.id,
-          values: result.values,
-        })
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        log({
-          type: "bulk-process-error",
-          ...(target ? { wimpId: target.wimpId, processId: target.process.id } : {}),
-          error: message,
-        })
         if (target) {
           weakForce.emitWErrorValues(target.wimpId, target.process.id, {})
         }
