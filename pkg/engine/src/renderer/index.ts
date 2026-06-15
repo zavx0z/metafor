@@ -101,6 +101,7 @@ export class Renderer {
   private instancedLinePipeline: GPURenderPipeline | null = null
   private textStencilPipeline: GPURenderPipeline | null = null
   private textCoverPipeline: GPURenderPipeline | null = null
+  private textDepthCoverPipeline: GPURenderPipeline | null = null
   private imagePipeline: GPURenderPipeline | null = null
   private roundedPipeline: GPURenderPipeline | null = null
   private uiBasicMeshPipeline: GPURenderPipeline | null = null
@@ -946,28 +947,35 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       multisample: {count: this.sampleCount},
     })
 
-    this.textCoverPipeline = await this.device.createRenderPipelineAsync({
-      layout: pipelineLayout,
-      vertex: {
-        module: textShaderModule,
-        entryPoint: "vs_main",
-        buffers: [{arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]}],
-      },
-      fragment: {
-        module: textShaderModule,
-        entryPoint: "fs_cover",
-        targets: [{format: this.presentationFormat}],
-      },
-      primitive: {topology: "triangle-list", cullMode: "none"},
-      depthStencil: {
-        depthWriteEnabled: false,
-        depthCompare: "less",
-        format: "depth24plus-stencil8",
-        stencilFront: TEXT_COVER_FACE_STATE,
-        stencilBack: TEXT_COVER_FACE_STATE,
-      },
-      multisample: {count: this.sampleCount},
-    })
+    const presentationFormat = this.presentationFormat
+    if (!presentationFormat) throw new Error("Renderer presentation format is not initialized")
+
+    const createTextCoverPipeline = (depthWriteEnabled: boolean): Promise<GPURenderPipeline> =>
+      this.device!.createRenderPipelineAsync({
+        layout: pipelineLayout,
+        vertex: {
+          module: textShaderModule,
+          entryPoint: "vs_main",
+          buffers: [{arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]}],
+        },
+        fragment: {
+          module: textShaderModule,
+          entryPoint: "fs_cover",
+          targets: [{format: presentationFormat}],
+        },
+        primitive: {topology: "triangle-list", cullMode: "none"},
+        depthStencil: {
+          depthWriteEnabled,
+          depthCompare: "less",
+          format: "depth24plus-stencil8",
+          stencilFront: TEXT_COVER_FACE_STATE,
+          stencilBack: TEXT_COVER_FACE_STATE,
+        },
+        multisample: {count: this.sampleCount},
+      })
+
+    this.textCoverPipeline = await createTextCoverPipeline(false)
+    this.textDepthCoverPipeline = await createTextCoverPipeline(true)
 
   }
 
@@ -1137,6 +1145,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       this.instancedLinePipeline &&
       this.textStencilPipeline &&
       this.textCoverPipeline &&
+      this.textDepthCoverPipeline &&
       this.imagePipeline &&
       this.uiImagePipeline &&
       this.roundedPipeline &&
@@ -1531,7 +1540,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
           pipeline = this.textStencilPipeline
           break
         case "text-cover":
-          pipeline = this.textCoverPipeline
+          pipeline = (item.object as Text).material.depthWrite ? this.textDepthCoverPipeline : this.textCoverPipeline
           break
         default:
           pipeline = null

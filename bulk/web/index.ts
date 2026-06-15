@@ -346,7 +346,7 @@ const createSurfaceLabelNode = (spec: LabelSpec, font: TrueTypeFont): SurfaceLab
 		text: spec.text,
 		font,
 		baseFontSize,
-		material: new TextMaterial({ color: spec.color.clone(), opacity: 1 }),
+		material: new TextMaterial({ color: spec.color.clone(), opacity: 1, depthWrite: true }),
 		curveRadiusMm: resolveCanonicalCurveRadius(spec),
 		limits: SURFACE_ARC_LIMITS,
 		minScale: MIN_SURFACE_LABEL_FIT_SCALE,
