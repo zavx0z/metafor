@@ -1,5 +1,4 @@
 import {MetaFor, type FieldDefinition, type FieldKey, type SRC} from ".."
-import type {ForceBinding, ForceMessageListener, Boundary} from "boundary"
 import type {AnyField} from "@boundary/wimp/sqlite"
 import type {ActorValueRecord, ValueItemRecord, ValueRecord} from "@boundary/actor"
 import type {BfsEntry, ParticleRef, PendingChildWimp} from "@dark/types/dark"
@@ -9,31 +8,16 @@ import {finalizeFieldValues, resolveFieldInits, type Continuation} from "./conti
 
 ;(globalThis as unknown as {MetaFor: typeof MetaFor}).MetaFor = MetaFor
 
-let observedBoundary: Boundary | null = null
-let observedBinding: ForceBinding | null = null
-
-const observeMatterRequests = (): void => {
-  const currentBoundary = (globalThis as {boundary?: Boundary}).boundary
-  if (!currentBoundary || observedBoundary === currentBoundary) return
-  observedBinding?.close()
-  observedBoundary = currentBoundary
-  observedBinding = currentBoundary.observe(handleMatterRequest)
-}
-
-const handleMatterRequest: ForceMessageListener = async (event) => {
-  const currentBoundary = (globalThis as {boundary?: Boundary}).boundary
-  if (!currentBoundary) return
+boundary.observe(async (event) => {
   for (const part of event.data.parts) {
     if (part.part !== "graviton") continue
     if (part.op !== "test") continue
     if (part.path !== "wimp") continue
     if (typeof part.value !== "string") continue
-    if (await currentBoundary.wimp.exists(part.value)) continue
+    if (await boundary.wimp.exists(part.value)) continue
     await matter(part.value)
   }
-}
-
-observeMatterRequests()
+})
 
 /**
  * Публичный entrypoint Dark.
@@ -57,7 +41,6 @@ export async function matter(
   parent: ParticleRef | null = null,
   continuation: Continuation | undefined = undefined,
 ): Promise<void> {
-  observeMatterRequests()
   if (await boundary.actor.findByParent({wimp: src, parent})) return
 
   const generator = matterWimp(src, parent, continuation)
