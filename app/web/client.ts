@@ -3,9 +3,9 @@ import {
 	initForceLogger,
 	setConnectionStatus,
 } from "./force-logger.ts"
-import type { Particle } from "boundary"
+import type { BoundaryBulkRuntimeSnapshot, Particle } from "boundary"
 import { createBulkViewport, type BulkViewportController, type BulkViewportStats } from "bulk/web"
-import type { DbWorldRows } from "@bulk/gravity/layout"
+import { buildBoundaryWorldRows } from "./world.ts"
 import {
 	APP_WEB_LAYOUT_SETTING_KEYS,
 	APP_WEB_RENDER_SETTING_KEYS,
@@ -20,10 +20,10 @@ type ForceMessage = {
 	parts: Particle[]
 }
 
-type WorldMessage = {
-	type: "world"
+type SnapshotMessage = {
+	type: "snapshot"
 	src: string
-	world: DbWorldRows
+	snapshot: BoundaryBulkRuntimeSnapshot
 }
 
 type ErrorMessage = {
@@ -64,7 +64,8 @@ const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement
 const bulkCounter = document.getElementById("bulk-counter") as HTMLSpanElement
 let bulkViewport: BulkViewportController | null = null
 let initialMaterializationRequested = false
-let pendingWorldMessage: WorldMessage | null = null
+let pendingSnapshotMessage: SnapshotMessage | null = null
+let currentSnapshot: BoundaryBulkRuntimeSnapshot | null = null
 
 const socketScheme = window.location.protocol === "https:" ? "wss:" : "ws:"
 const socket = new WebSocket(`${socketScheme}//${window.location.host}/ws`)
@@ -74,18 +75,34 @@ const updateBulkStats = (stats: BulkViewportStats): void => {
 	bulkCounter.textContent = `${rootSrc}${stats.shellCount} shells / ${stats.fieldCount} fields`
 }
 
-const applyWorldMessage = (message: WorldMessage): void => {
+const applySnapshotWorld = (
+	src: string,
+	snapshot: BoundaryBulkRuntimeSnapshot,
+	layoutSettings: Partial<AppWebLayoutSettings>,
+): void => {
 	if (!bulkViewport) {
-		pendingWorldMessage = message
 		return
 	}
 
-	bulkViewport.applyWorld(message.world)
-	if (pendingSceneState && pendingSceneState.src === message.src) {
+	bulkViewport.applyWorld(buildBoundaryWorldRows(snapshot, src, layoutSettings))
+	if (pendingSceneState && pendingSceneState.src === src) {
 		lastAppliedSceneState = pendingSceneState
 		pendingSceneState = null
 	}
 	submitButton.disabled = socket.readyState !== WebSocket.OPEN
+}
+
+const applySnapshotMessage = (message: SnapshotMessage): void => {
+	currentSnapshot = message.snapshot
+	if (!bulkViewport) {
+		pendingSnapshotMessage = message
+		return
+	}
+
+	const layoutSettings = pendingSceneState?.src === message.src
+		? pendingSceneState.layoutSettings
+		: createUiSettingsSnapshot().layoutSettings
+	applySnapshotWorld(message.src, message.snapshot, layoutSettings)
 }
 
 const parsePositiveNumber = (input: HTMLInputElement, fallback: number): number => {
@@ -310,10 +327,10 @@ const initBulkViewport = async (): Promise<void> => {
 	const initialPayload = createMaterializePayload()
 	bulkViewport.setLayoutSettings(initialPayload.layoutSettings)
 	bulkViewport.setRenderSettings(createUiSettingsSnapshot().renderSettings)
-	if (pendingWorldMessage) {
-		const worldMessage = pendingWorldMessage
-		pendingWorldMessage = null
-		applyWorldMessage(worldMessage)
+	if (pendingSnapshotMessage) {
+		const snapshotMessage = pendingSnapshotMessage
+		pendingSnapshotMessage = null
+		applySnapshotMessage(snapshotMessage)
 	}
 
 	const resizeObserver = new ResizeObserver((entries) => {
@@ -357,13 +374,99 @@ socket.onclose = () => {
 	submitButton.disabled = true
 }
 
+type ActorRowsMessage = {
+	actor: BoundaryBulkRuntimeSnapshot["actors"][number]
+	values: BoundaryBulkRuntimeSnapshot["actorValues"]
+	valueRecords: Array<{
+		uuid: string
+		kind: BoundaryBulkRuntimeSnapshot["values"][number]["kind"]
+		boolean?: boolean
+		number?: number
+		text?: string
+		variant?: string
+	}>
+	valueItems: BoundaryBulkRuntimeSnapshot["valueItems"]
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+	typeof value === "object" && value !== null
+
+const upsertByUuid = <T extends {uuid: string}>(rows: T[], row: T): T[] =>
+	[...rows.filter((item) => item.uuid !== row.uuid), row]
+
+const actorRowsMessage = (value: unknown): ActorRowsMessage | null => {
+	if (!isRecord(value) || !isRecord(value.actor) || !Array.isArray(value.values) || !Array.isArray(value.valueRecords)) return null
+	return {
+		actor: value.actor as ActorRowsMessage["actor"],
+		values: value.values as ActorRowsMessage["values"],
+		valueRecords: value.valueRecords as ActorRowsMessage["valueRecords"],
+		valueItems: Array.isArray(value.valueItems) ? value.valueItems as ActorRowsMessage["valueItems"] : [],
+	}
+}
+
+const applyActorRowsPart = (snapshot: BoundaryBulkRuntimeSnapshot, value: unknown): boolean => {
+	const rows = actorRowsMessage(value)
+	if (!rows) return false
+	const enumValueByVariant = new Map(snapshot.fieldEnumVariants.map((variant) => [variant.uuid, variant.itemValue] as const))
+	const valueIds = new Set(rows.values.map((row) => row.value))
+	snapshot.actors = upsertByUuid(snapshot.actors, rows.actor)
+	snapshot.actorValues = [
+		...snapshot.actorValues.filter((row) => row.actor !== rows.actor.uuid),
+		...rows.values,
+	]
+	snapshot.values = [
+		...snapshot.values.filter((row) => !valueIds.has(row.uuid)),
+		...rows.valueRecords.map((row) => ({
+			uuid: row.uuid,
+			kind: row.kind,
+			booleanValue: typeof row.boolean === "boolean" ? (row.boolean ? 1 : 0) : null,
+			numberValue: typeof row.number === "number" ? row.number : null,
+			textValue: typeof row.text === "string" ? row.text : null,
+			enumValue: typeof row.variant === "string" ? enumValueByVariant.get(row.variant) ?? row.variant : null,
+		})),
+	]
+	snapshot.valueItems = [
+		...snapshot.valueItems.filter((row) => !valueIds.has(row.value)),
+		...rows.valueItems,
+	]
+	return true
+}
+
+const applyTopologyPart = (snapshot: BoundaryBulkRuntimeSnapshot, part: Particle): boolean => {
+	if (part.path !== "fuzzy" && part.path !== "axion" && part.path !== "macho") return false
+	if (!isRecord(part.value) || typeof part.value.uuid !== "string") return false
+	const topology = part.value
+	const uuid = topology.uuid as string
+	if (part.op === "remove") {
+		snapshot.topologies = snapshot.topologies.filter((row) => row.uuid !== uuid)
+		return true
+	}
+	if (part.op !== "add" && part.op !== "replace") return false
+	snapshot.topologies = upsertByUuid(snapshot.topologies, {
+		uuid,
+		parentActor: typeof topology.parentActor === "string" ? topology.parentActor : null,
+		parentTopology: typeof topology.parentTopology === "string" ? topology.parentTopology : null,
+		kind: part.path,
+		position: typeof topology.position === "number" ? topology.position : 0,
+	})
+	return true
+}
+
+const applyForcePartToSnapshot = (snapshot: BoundaryBulkRuntimeSnapshot, part: Particle): boolean => {
+	if (part.part !== "graviton") return false
+	if (part.path === "actor") return applyActorRowsPart(snapshot, part.value)
+	return applyTopologyPart(snapshot, part)
+}
+
 socket.onmessage = (event) => {
-	const message = JSON.parse(String(event.data)) as ForceMessage | WorldMessage | ErrorMessage
+	const message = JSON.parse(String(event.data)) as ForceMessage | SnapshotMessage | ErrorMessage
 
 	if (message.type === "force") {
 		const forceMessage = message as ForceMessage
 		appendForceMessage("force", forceMessage.parts)
+		let snapshotChanged = false
 		for (const part of forceMessage.parts) {
+			if (currentSnapshot && applyForcePartToSnapshot(currentSnapshot, part)) snapshotChanged = true
 			if (part.part === "graviton" && part.path === "/structural") {
 				const signal = part.value as { rootSrc?: unknown }
 				const rootSrc = signal.rootSrc
@@ -377,11 +480,14 @@ socket.onmessage = (event) => {
 			}
 			bulkViewport?.handleForce(part.part, part)
 		}
+		if (snapshotChanged && currentSnapshot && lastAppliedSceneState) {
+			applySnapshotWorld(lastAppliedSceneState.src, currentSnapshot, lastAppliedSceneState.layoutSettings)
+		}
 		return
 	}
 
-	if (message.type === "world") {
-		applyWorldMessage(message)
+	if (message.type === "snapshot") {
+		applySnapshotMessage(message)
 		return
 	}
 
@@ -411,12 +517,10 @@ form.addEventListener("submit", (event) => {
 		layoutSettings: payload.layoutSettings,
 	}
 
-	const scenePayload: ClientMaterializePayload | ClientRelayoutPayload = needsMaterialize
-		? payload
-		: {
-			type: "relayout",
-			src: payload.src,
-			layoutSettings: payload.layoutSettings,
-		}
-	socket.send(JSON.stringify(scenePayload))
+	if (needsRelayout && currentSnapshot) {
+		applySnapshotWorld(payload.src, currentSnapshot, payload.layoutSettings)
+		return
+	}
+
+	socket.send(JSON.stringify(payload))
 })

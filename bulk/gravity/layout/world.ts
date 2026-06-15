@@ -4,6 +4,8 @@ export type DbParticleKind = "wimp" | "fuzzy" | "axion" | "macho"
 
 export type DbFieldValueKind = "text" | "number" | "bool" | "other"
 
+export type DbParticleActivity = "neutral" | "active" | "inactive"
+
 export interface DbParticleShellRow {
   particleId: string
   parentParticleId: string | null
@@ -22,6 +24,7 @@ export interface DbParticleShellRow {
   colorR: number
   colorG: number
   colorB: number
+  activity?: DbParticleActivity
 }
 
 export interface DbFieldOrbitRow {

@@ -1,4 +1,5 @@
-import type { DbWorldRows, BulkLayoutSettings } from "@bulk/gravity/layout"
+import type { BulkLayoutSettings } from "@bulk/gravity/layout"
+import type { BoundaryBulkRuntimeSnapshot } from "boundary"
 
 export type ClientMaterializePayload = {
 	type: "materialize"
@@ -14,8 +15,8 @@ export type ClientRelayoutPayload = {
 
 export type ClientMessage = ClientMaterializePayload | ClientRelayoutPayload
 
-export type ServerWorldPayload = {
-	type: "world"
+export type ServerSnapshotPayload = {
+	type: "snapshot"
 	src: string
-	world: DbWorldRows
+	snapshot: BoundaryBulkRuntimeSnapshot
 }

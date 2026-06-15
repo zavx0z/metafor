@@ -1,5 +1,6 @@
 import type {
   DbFieldValueKind,
+  DbParticleActivity,
   DbParticleKind,
   DbWorldFieldDescriptor,
   DbWorldParticleDescriptor,
@@ -16,6 +17,7 @@ type ActorRow = BoundaryBulkRuntimeSnapshot["actors"][number]
 type TopologyRow = BoundaryBulkRuntimeSnapshot["topologies"][number]
 type MatterParticleRow = BoundaryBulkRuntimeSnapshot["matterParticles"][number]
 type FieldRow = BoundaryBulkRuntimeSnapshot["fields"][number]
+type FieldEnumVariantRow = BoundaryBulkRuntimeSnapshot["fieldEnumVariants"][number]
 type ValueRow = BoundaryBulkRuntimeSnapshot["values"][number]
 type ValueListItemRow = BoundaryBulkRuntimeSnapshot["valueItems"][number]
 type MatterBindingPathRow = BoundaryBulkRuntimeSnapshot["matterTopologyBindingPaths"][number]
@@ -120,6 +122,7 @@ export function buildBoundaryWorldRows(
   const wimpBySrc = new Map(wimps.map((wimp) => [wimp.src, wimp] as const))
   const fieldsByWimp = group(fields, (field) => field.wimp)
   const fieldByWimpKey = new Map(fields.map((field) => [`${field.wimp}\0${field.key}`, field] as const))
+  const enumVariantsByField = group(snapshot.fieldEnumVariants, (variant) => variant.field)
   const actorValueByActorField = new Map(actorValues.map((row) => [`${row.actor}\0${row.field}`, row.value] as const))
   const valuesById = new Map(values.map((value) => [value.uuid, value] as const))
   const valueItemsById = group(valueItems, (item) => item.value)
@@ -135,6 +138,9 @@ export function buildBoundaryWorldRows(
   const matterChildWimpBindingPathsByParticle = group(matterChildWimpBindingPaths, (row) => row.particle)
   const structuralFieldKeys = new Set<string>()
   const topologyLabelById = new Map<string, string>()
+  const topologyPlanById = new Map<string, MatterParticleRow>()
+  const topologyActorById = new Map<string, ActorRow>()
+  const activityByParticleId = new Map<string, DbParticleActivity>()
 
   const collectStructuralFieldKeys = (rows: MatterBindingPathRow[]): void => {
     for (const row of rows) {
@@ -175,21 +181,55 @@ export function buildBoundaryWorldRows(
       firstFieldLabelFromPaths(wimp, childPaths)
   }
 
-  const assignTopologyLabels = (wimp: string, runtimeTopologies: TopologyRow[], parentMatterParticle: string | null): void => {
+  const actorFieldValueText = (actor: ActorRow, fieldKey: string): string | null => {
+    const field = fieldByWimpKey.get(`${actor.wimp}\0${fieldKey}`)
+    if (!field) return null
+    return valueText(actorValueByActorField.get(`${actor.uuid}\0${field.uuid}`), valuesById, valueItemsById)
+  }
+
+  const enumValuePosition = (field: FieldRow, value: string | null): number | null => {
+    if (value === null) return null
+    return enumVariantsByField.get(field.uuid)?.find((variant: FieldEnumVariantRow) => variant.itemValue === value)?.position ?? null
+  }
+
+  const assignTopologyLabels = (actor: ActorRow, runtimeTopologies: TopologyRow[], parentMatterParticle: string | null): void => {
+    const wimp = actor.wimp
     const plans = matterTopologyChildren(wimp, parentMatterParticle)
     const runtime = sortByPosition(runtimeTopologies)
     for (let index = 0; index < runtime.length; index++) {
       const topology = runtime[index]!
       const plan = plans[index]
       if (!plan) continue
+      topologyPlanById.set(topology.uuid, plan)
+      topologyActorById.set(topology.uuid, actor)
       const label = topologyPlanLabel(wimp, plan)
       if (label !== null) topologyLabelById.set(topology.uuid, label)
-      assignTopologyLabels(wimp, topologiesByParentTopology.get(topology.uuid) ?? [], plan.uuid)
+      assignTopologyLabels(actor, topologiesByParentTopology.get(topology.uuid) ?? [], plan.uuid)
     }
   }
 
   for (const actor of actors) {
-    assignTopologyLabels(actor.wimp, topologiesByParentActor.get(actor.uuid) ?? [], null)
+    assignTopologyLabels(actor, topologiesByParentActor.get(actor.uuid) ?? [], null)
+  }
+
+  for (const topology of topologies) {
+    if (topology.kind !== "fuzzy") continue
+    const plan = topologyPlanById.get(topology.uuid)
+    const actor = topologyActorById.get(topology.uuid)
+    if (!plan || !actor) continue
+    const branchPlans = sortMatterParticles(matterParticlesByWimpParent.get(`${plan.wimp}\0${plan.uuid}`) ?? [])
+      .filter((particle) => particle.edgeSlot === "branch" && particle.particleKind === "wimp")
+    if (branchPlans.length === 0) continue
+    const fieldKey = sortBindingPaths(matterTopologyBindingPathsByParticle.get(plan.uuid) ?? [])
+      .map((row) => fieldKeyFromMatterPath(row.path))
+      .find((key): key is string => key !== null)
+    if (!fieldKey) continue
+    const field = fieldByWimpKey.get(`${actor.wimp}\0${fieldKey}`)
+    const activeIndex = field?.type === "enum" ? enumValuePosition(field, actorFieldValueText(actor, fieldKey)) : null
+    const branchActors = sortByPosition(actorsByParentTopology.get(topology.uuid) ?? [])
+    branchActors.forEach((branchActor, index) => {
+      activityByParticleId.set(branchActor.uuid, activeIndex !== null && index === activeIndex ? "active" : "inactive")
+    })
   }
 
   const descriptorField = (actor: ActorRow, field: FieldRow): DbWorldFieldDescriptor => {
@@ -207,6 +247,7 @@ export function buildBoundaryWorldRows(
   const childDescriptors = (
     parent: {kind: "actor"; uuid: string} | {kind: "topology"; uuid: string},
     visited: Set<string>,
+    inheritedActivity: DbParticleActivity,
   ): DbWorldParticleDescriptor[] => {
     const childActors = parent.kind === "actor" ? actorsByParentActor.get(parent.uuid) ?? [] : actorsByParentTopology.get(parent.uuid) ?? []
     const childTopologies = parent.kind === "actor"
@@ -214,13 +255,14 @@ export function buildBoundaryWorldRows(
       : topologiesByParentTopology.get(parent.uuid) ?? []
 
     return [
-      ...sortByPosition(childTopologies).map((topology) => topologyDescriptor(topology, visited)),
-      ...sortByPosition(childActors).map((actor) => actorDescriptor(actor, visited)),
+      ...sortByPosition(childTopologies).map((topology) => topologyDescriptor(topology, visited, inheritedActivity)),
+      ...sortByPosition(childActors).map((actor) => actorDescriptor(actor, visited, inheritedActivity)),
     ]
   }
 
-  const actorDescriptor = (actor: ActorRow, visited: Set<string>): DbWorldParticleDescriptor => {
+  const actorDescriptor = (actor: ActorRow, visited: Set<string>, inheritedActivity: DbParticleActivity = "neutral"): DbWorldParticleDescriptor => {
     const key = `actor:${actor.uuid}`
+    const activity = activityByParticleId.get(actor.uuid) ?? inheritedActivity
     if (visited.has(key)) {
       return {
         particleId: actor.uuid,
@@ -229,6 +271,7 @@ export function buildBoundaryWorldRows(
         metaSrc: actor.wimp,
         label: wimpBySrc.get(actor.wimp)?.name ?? actor.wimp,
         ...actorColor,
+        activity,
         fields: [],
         children: [],
       }
@@ -242,16 +285,18 @@ export function buildBoundaryWorldRows(
       metaSrc: actor.wimp,
       label: wimpBySrc.get(actor.wimp)?.name ?? actor.wimp,
       ...actorColor,
+      activity,
       fields: (fieldsByWimp.get(actor.wimp) ?? [])
         .filter((field) => !structuralFieldKeys.has(`${actor.wimp}\0${field.key}`))
         .map((field) => descriptorField(actor, field)),
-      children: childDescriptors({kind: "actor", uuid: actor.uuid}, visited),
+      children: childDescriptors({kind: "actor", uuid: actor.uuid}, visited, activity),
     }
   }
 
-  const topologyDescriptor = (topology: TopologyRow, visited: Set<string>): DbWorldParticleDescriptor => {
+  const topologyDescriptor = (topology: TopologyRow, visited: Set<string>, inheritedActivity: DbParticleActivity = "neutral"): DbWorldParticleDescriptor => {
     const key = `topology:${topology.uuid}`
     const label = topologyLabelById.get(topology.uuid) ?? ""
+    const activity = activityByParticleId.get(topology.uuid) ?? inheritedActivity
     if (visited.has(key)) {
       return {
         particleId: topology.uuid,
@@ -260,6 +305,7 @@ export function buildBoundaryWorldRows(
         metaSrc: null,
         label,
         ...topologyColors[topology.kind],
+        activity,
         fields: [],
         children: [],
       }
@@ -273,8 +319,9 @@ export function buildBoundaryWorldRows(
       metaSrc: null,
       label,
       ...topologyColors[topology.kind],
+      activity,
       fields: [],
-      children: childDescriptors({kind: "topology", uuid: topology.uuid}, visited),
+      children: childDescriptors({kind: "topology", uuid: topology.uuid}, visited, activity),
     }
   }
 

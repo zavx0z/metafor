@@ -1,6 +1,7 @@
 import type {
   DbFieldOrbitRow,
   DbFieldValueKind,
+  DbParticleActivity,
   DbParticleKind,
   DbParticleShellRow,
   DbWorldRows,
@@ -37,6 +38,7 @@ export interface DbWorldParticleDescriptor {
   colorR: number
   colorG: number
   colorB: number
+  activity?: DbParticleActivity
   fields: DbWorldFieldDescriptor[]
   children: DbWorldParticleDescriptor[]
 }
@@ -339,6 +341,7 @@ const createOuterRequirementOrbitItems = (
       colorR: child.descriptor.colorR,
       colorG: child.descriptor.colorG,
       colorB: child.descriptor.colorB,
+      activity: child.descriptor.activity ?? "neutral",
       children: [],
       fields: [],
       depthFromRoot: child.depthFromRoot,
@@ -464,6 +467,7 @@ const materializeCanonicalShellNode = (
     colorR: descriptor.colorR,
     colorG: descriptor.colorG,
     colorB: descriptor.colorB,
+    activity: descriptor.activity ?? "neutral",
     children: nestedChildren,
     fields,
     depthFromRoot,
@@ -498,6 +502,7 @@ const flattenShellNode = (
     colorR: node.colorR,
     colorG: node.colorG,
     colorB: node.colorB,
+    activity: node.activity ?? "neutral",
   })
 
   node.fields.forEach((field, fieldOrder) => {
@@ -869,6 +874,7 @@ export const scaleDbWorldRowsToRootOuterDiameter = (
         colorR: child.colorR,
         colorG: child.colorG,
         colorB: child.colorB,
+        activity: child.activity ?? "neutral",
         children: [],
         fields: [],
         depthFromRoot: child.depth,

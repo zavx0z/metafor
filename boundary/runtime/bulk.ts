@@ -40,6 +40,13 @@ export type BoundaryBulkRuntimeField = {
   label: string | null
 }
 
+export type BoundaryBulkRuntimeFieldEnumVariant = {
+  uuid: string
+  field: string
+  position: number
+  itemValue: string
+}
+
 export type BoundaryBulkRuntimeActorValue = {
   actor: string
   field: string
@@ -78,6 +85,7 @@ export type BoundaryBulkRuntimeSnapshot = {
   topologies: BoundaryBulkRuntimeTopology[]
   wimps: BoundaryBulkRuntimeWimp[]
   fields: BoundaryBulkRuntimeField[]
+  fieldEnumVariants: BoundaryBulkRuntimeFieldEnumVariant[]
   actorValues: BoundaryBulkRuntimeActorValue[]
   values: BoundaryBulkRuntimeValue[]
   valueItems: BoundaryBulkRuntimeValueListItem[]
@@ -107,6 +115,11 @@ export async function bulkRuntime(sql: SQL): Promise<BoundaryBulkRuntimeSnapshot
   `
   const wimps = await sql<BoundaryBulkRuntimeWimp[]>`SELECT src, name FROM wimp`
   const fields = await sql<BoundaryBulkRuntimeField[]>`SELECT uuid, wimp, key, type, label FROM field ORDER BY wimp, rowid`
+  const fieldEnumVariants = await sql<BoundaryBulkRuntimeFieldEnumVariant[]>`
+    SELECT uuid, field, position, item_value AS itemValue
+      FROM field_enum_variant
+     ORDER BY field, position
+  `
   const actorValues = await sql<BoundaryBulkRuntimeActorValue[]>`SELECT actor, field, value FROM actor_value ORDER BY actor, field`
   const values = await sql<BoundaryBulkRuntimeValue[]>`
     SELECT value.uuid,
@@ -183,6 +196,7 @@ export async function bulkRuntime(sql: SQL): Promise<BoundaryBulkRuntimeSnapshot
     topologies,
     wimps,
     fields,
+    fieldEnumVariants,
     actorValues,
     values,
     valueItems,

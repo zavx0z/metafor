@@ -2,12 +2,11 @@ import {file, serve, type Server, type ServerWebSocket} from "bun"
 import {join} from "node:path"
 import "dark/server"
 import index from "./index.html"
-import {buildBoundaryWorldRows} from "./world.ts"
 import type {
 	ClientMessage,
 	ClientMaterializePayload,
 	ClientRelayoutPayload,
-	ServerWorldPayload,
+	ServerSnapshotPayload,
 } from "./server.t.ts"
 
 type AppWebSocketData = {kind: "app-web"}
@@ -15,13 +14,12 @@ type AppWebSocketData = {kind: "app-web"}
 const boundary = globalThis.boundary
 const sockets = new Set<ServerWebSocket<AppWebSocketData>>()
 
-const buildWorld = async (
+const buildSnapshot = async (
 	message: ClientMaterializePayload | ClientRelayoutPayload,
-): Promise<ServerWorldPayload> => {
+): Promise<ServerSnapshotPayload> => {
 	const src = message.src.trim() || "zavx0z/git"
 	const snapshot = await boundary.bulkRuntime()
-	const world = buildBoundaryWorldRows(snapshot, src, message.layoutSettings ?? {})
-	return {type: "world", src, world}
+	return {type: "snapshot", src, snapshot}
 }
 
 boundary.entropy((event) => {
@@ -70,7 +68,7 @@ const server = serve<AppWebSocketData>({
 			}
 
 			if (payload.type === "materialize" || payload.type === "relayout") {
-				void buildWorld(payload)
+				void buildSnapshot(payload)
 					.then((world) => ws.send(JSON.stringify(world)))
 					.catch((error) => {
 						ws.send(JSON.stringify({type: "error", error: error instanceof Error ? error.message : String(error)}))

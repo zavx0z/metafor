@@ -456,12 +456,42 @@ const getSphereWireframeGeometry = (radius: number, depth: number): BufferGeomet
 }
 
 const createShellMaterial = (shell: DbParticleShellRow): LineGlowMaterial =>
-	new LineGlowMaterial({
+	new LineGlowMaterial(resolveShellVisualState(shell))
+
+const mixColor = (left: Color, right: Color, amount: number): Color =>
+	new Color(
+		left.r + (right.r - left.r) * amount,
+		left.g + (right.g - left.g) * amount,
+		left.b + (right.b - left.b) * amount,
+		left.a + (right.a - left.a) * amount,
+	)
+
+const resolveShellVisualState = (shell: DbParticleShellRow): { color: Color; glowColor: Color; glowIntensity: number; opacity: number } => {
+	const glowIntensity = shell.kind === "wimp" ? 1.4 : 1.15
+	const opacity = activeRenderSettings.wireframeOpacity
+	if (shell.activity === "active") {
+		return {
+			color: THEME_SECONDARY.clone(),
+			glowColor: THEME_SECONDARY_GLOW.clone(),
+			glowIntensity: glowIntensity * 1.25,
+			opacity: Math.min(1, opacity * 1.08),
+		}
+	}
+	if (shell.activity === "inactive") {
+		return {
+			color: mixColor(THEME_PRIMARY, ROOT_BACKGROUND, 0.62),
+			glowColor: mixColor(THEME_PRIMARY_GLOW, ROOT_BACKGROUND, 0.72),
+			glowIntensity: glowIntensity * 0.35,
+			opacity: opacity * 0.34,
+		}
+	}
+	return {
 		color: THEME_PRIMARY.clone(),
-		glowIntensity: shell.kind === "wimp" ? 1.4 : 1.15,
 		glowColor: THEME_PRIMARY_GLOW.clone(),
-		opacity: activeRenderSettings.wireframeOpacity,
-	})
+		glowIntensity,
+		opacity,
+	}
+}
 
 const createFieldMaterial = (orbit: DbFieldOrbitRow): LineGlowMaterial => {
 	const theme = getFieldThemeColor(orbit.fieldValueKind)
@@ -671,10 +701,11 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			record.snapshot.shellTube || getShellFallback().tube,
 			record.snapshot.depth,
 		)
-		record.pickTarget.baseColor.copy(THEME_PRIMARY)
-		record.pickTarget.baseGlowColor = THEME_PRIMARY_GLOW.clone()
-		record.pickTarget.baseGlowIntensity = record.snapshot.kind === "wimp" ? 1.4 : 1.15
-		record.pickTarget.baseOpacity = activeRenderSettings.wireframeOpacity
+		const visual = resolveShellVisualState(record.snapshot)
+		record.pickTarget.baseColor.copy(visual.color)
+		record.pickTarget.baseGlowColor = visual.glowColor.clone()
+		record.pickTarget.baseGlowIntensity = visual.glowIntensity
+		record.pickTarget.baseOpacity = visual.opacity
 		syncPickTargetMaterialState(record.pickTarget)
 	}
 

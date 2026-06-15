@@ -21,6 +21,7 @@ export type { DbWorldFieldDescriptor, DbWorldParticleDescriptor } from "./snapsh
 export type {
   DbFieldOrbitRow,
   DbFieldValueKind,
+  DbParticleActivity,
   DbParticleKind,
   DbParticleShellRow,
   DbWorldRows,
