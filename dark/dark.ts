@@ -2,7 +2,7 @@ import {MetaFor, type FieldDefinition, type FieldKey, type SRC} from ".."
 import type {AnyField} from "@boundary/wimp/sqlite"
 import type {ActorValueRecord, ValueItemRecord, ValueRecord} from "@boundary/actor"
 import type {BfsEntry, ParticleRef, PendingChildWimp} from "@dark/types/dark"
-import {projectBoundaryMatterParticles, projectTemplateMatterRelations} from "@dark/gravity"
+import {projectBoundaryMatterParticles} from "@dark/gravity"
 import {loadMeta} from "./load.ts"
 import {finalizeFieldValues, resolveFieldInits, type Continuation} from "./continuation.ts"
 
@@ -70,8 +70,7 @@ async function* matterWimp(
   continuation: Continuation | undefined,
 ): AsyncGenerator<PendingChildWimp[], void, void> {
   const dsl = await loadMeta(src)
-  const declarationMatterRelations = projectTemplateMatterRelations(dsl)
-  const wimp = (await boundary.wimp.get(src)) ?? (await boundary.wimp.create(src, {...dsl, matter: declarationMatterRelations}))
+  const wimp = (await boundary.wimp.get(src)) ?? (await boundary.wimp.create(src, dsl))
   const matterRelations = await wimp.matter.all()
 
   // ACTOR: переходим от Wimp-декларации к runtime-экземпляру.

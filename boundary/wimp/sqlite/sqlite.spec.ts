@@ -541,6 +541,12 @@ describe("sqlite ddl", () => {
     await db`INSERT INTO matter_particle_fuzzy(particle, fuzzy_kind, predicate_binding)
              VALUES (${"particle:alpha:fuzzy"}, ${"cond"}, ${"binding:predicate"})`
 
+    await db`INSERT INTO matter_particle(uuid, wimp, parent_particle, particle_kind, edge_slot, particle_order)
+             VALUES (${"particle:alpha:dynamic"}, ${"alpha/meta"}, ${null}, ${"fuzzy"}, ${"root"}, ${1})`
+
+    await db`INSERT INTO matter_particle_fuzzy(particle, fuzzy_kind, predicate_binding)
+             VALUES (${"particle:alpha:dynamic"}, ${"dynamic-meta"}, ${"binding:predicate"})`
+
     await db`INSERT INTO matter_particle_wimp(particle, src, fields_binding, mass_binding)
              VALUES (${"particle:beta:wimp"}, ${"beta/root"}, ${"binding:src"}, ${null})`
 
@@ -561,8 +567,8 @@ describe("sqlite ddl", () => {
     const fuzzyCount = ((await db`SELECT COUNT(*) as count FROM matter_particle_fuzzy`) as Array<{ count: number }>)[0]!
     const wimpCount = ((await db`SELECT COUNT(*) as count FROM matter_particle_wimp`) as Array<{ count: number }>)[0]!
 
-    expect(particleCount.count).toBe(3)
-    expect(fuzzyCount.count).toBe(1)
+    expect(particleCount.count).toBe(4)
+    expect(fuzzyCount.count).toBe(2)
     expect(wimpCount.count).toBe(1)
   })
 })

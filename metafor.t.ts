@@ -482,7 +482,7 @@ export interface MetaDSL<ɸ extends Fields = Fields, 𝛴 extends string = strin
   reactions?: readonly MetaReactionDSL[]
   /** Схема полей */
   fields: readonly MetaFieldDSL[]
-  /** Сериализованная matter как ParseNode[] из @metafor/template */
+  /** Нормализованная matter-проекция, готовая для записи WIMP-декларации */
   matter?: MatterSchema
   /** Канонический bulk-слой */
   bulk?: BulkSchema

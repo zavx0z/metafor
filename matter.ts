@@ -1,8 +1,9 @@
 import { parse } from "@metafor/template"
 import type { Fields } from "./fields.t.ts"
-import type { MatterDeclaration, MatterFields, MatterSchema, NodeCondition, NodeLogical, NodeMeta, NodeType } from "./matter.t.ts"
+import type { MatterDeclaration, MatterFields, MatterSchema, MatterTemplateSchema, NodeCondition, NodeLogical, NodeMap, NodeMeta, NodeType } from "./matter.t.ts"
 import type { Mass } from "./metafor.t.ts"
 import type { State } from "./superposition.t.ts"
+import type { MatterRelationBindingValue, MatterRelationChild, MatterRelationParticle } from "@boundary/wimp/sqlite"
 
 type TopologyBasis = "state" | "enum" | "array" | "ordinary" | "mass" | "unknown"
 
@@ -222,11 +223,133 @@ const normalizeMatterNode = (node: NodeType): NodeType => {
   }
 }
 
+const createContinuationSrc = (expr: string | undefined, value: string | number): string => {
+  if (!expr) return String(value)
+
+  const escaped = expr.replaceAll("\\", "\\\\").replaceAll("`", "\\`")
+  return String(new Function("_", `return \`${escaped}\``)([value]))
+}
+
+const resolveMetaBranchSrcs = (fields: MatterFields, node: { src: string | { data?: string | string[]; expr?: string } }): string[] => {
+  if (typeof node.src === "string") return [node.src]
+
+  const source = node.src
+  const paths = source.data !== undefined ? (Array.isArray(source.data) ? source.data : [source.data]) : []
+  const firstKey = paths[0]
+  if (!firstKey || firstKey.startsWith("/") || firstKey.startsWith("[") || firstKey.startsWith(".")) return []
+
+  const field = fields[firstKey]
+  if (!field || field.type !== "enum") return []
+
+  return (field.values ?? []).map((variant) => createContinuationSrc(source.expr, variant))
+}
+
+const childRelations = (fields: MatterFields, children: NodeType[] | undefined): MatterRelationChild[] | undefined => {
+  if (!Array.isArray(children) || children.length === 0) return
+
+  const relations = children.flatMap((child) => projectMatterNode(fields, child))
+  return relations.length > 0
+    ? relations.map((particle): MatterRelationChild => ({edgeSlot: "child", particle}))
+    : undefined
+}
+
+const projectMatterNode = (fields: MatterFields, node: NodeType): MatterRelationParticle[] => {
+  if (node.type === "meta") {
+    const metaNode = node as {
+      src: string | { data?: string | string[]; expr?: string }
+      fields?: MatterRelationBindingValue
+      mass?: MatterRelationBindingValue
+      child?: NodeType[]
+    }
+    const children = childRelations(fields, metaNode.child)
+
+    if (typeof metaNode.src === "string") {
+      return [
+        {
+          kind: "wimp",
+          src: metaNode.src,
+          ...(metaNode.fields !== undefined ? {fieldsBinding: metaNode.fields} : {}),
+          ...(metaNode.mass !== undefined ? {massBinding: metaNode.mass} : {}),
+          ...(children !== undefined ? {children} : {}),
+        },
+      ]
+    }
+
+    return [
+      {
+        kind: "fuzzy",
+        fuzzyKind: "dynamic-meta",
+        predicateBinding: metaNode.src,
+        children: resolveMetaBranchSrcs(fields, metaNode).map((src): MatterRelationChild => ({
+          edgeSlot: "branch",
+          particle: {
+            kind: "wimp",
+            src,
+            ...(metaNode.fields !== undefined ? {fieldsBinding: metaNode.fields} : {}),
+            ...(metaNode.mass !== undefined ? {massBinding: metaNode.mass} : {}),
+            ...(children !== undefined ? {children} : {}),
+          },
+        })),
+      },
+    ]
+  }
+
+  if (node.type === "cond") {
+    const conditionNode = node as NodeCondition
+    const thenParticle = conditionNode.child?.[0] ? projectMatterNode(fields, conditionNode.child[0])[0] : undefined
+    const elseParticle = conditionNode.child?.[1] ? projectMatterNode(fields, conditionNode.child[1])[0] : undefined
+    const children: MatterRelationChild[] = []
+    if (thenParticle) children.push({edgeSlot: "then", particle: thenParticle})
+    if (elseParticle) children.push({edgeSlot: "else", particle: elseParticle})
+
+    return [
+      {
+        kind: "fuzzy",
+        fuzzyKind: "cond",
+        predicateBinding: conditionNode.expr !== undefined ? {data: conditionNode.data, expr: conditionNode.expr} : {data: conditionNode.data},
+        ...(children.length > 0 ? {children} : {}),
+      },
+    ]
+  }
+
+  if (node.type === "log") {
+    const logicalNode = node as NodeLogical
+    const children = childRelations(fields, logicalNode.child)
+    return [
+      {
+        kind: "axion",
+        predicateBinding: logicalNode.expr !== undefined ? {data: logicalNode.data, expr: logicalNode.expr} : {data: logicalNode.data},
+        ...(children !== undefined ? {children} : {}),
+      },
+    ]
+  }
+
+  if (node.type === "map") {
+    const mapNode = node as NodeMap
+    const children = childRelations(fields, mapNode.child)
+    return [
+      {
+        kind: "macho",
+        collectionBinding: {data: mapNode.data},
+        ...(children !== undefined ? {children} : {}),
+      },
+    ]
+  }
+
+  return []
+}
+
 export const parseMatter = <ɸ extends Fields = Fields, m extends Mass = Mass, 𝛴 extends State = State>(
   matter: MatterDeclaration<ɸ, m, 𝛴>,
-): MatterSchema => parse(matter).map(normalizeMatterNode)
+  fields: MatterFields,
+  metaName?: string,
+): MatterSchema => {
+  const nodes = parse(matter).map(normalizeMatterNode)
+  validateMatter(nodes, fields, metaName)
+  return nodes.flatMap((node) => projectMatterNode(fields, node))
+}
 
-export function validateMatter(matter: MatterSchema | undefined, fields: MatterFields, metaName?: string): void {
+export function validateMatter(matter: MatterTemplateSchema | undefined, fields: MatterFields, metaName?: string): void {
   if (!matter) return
 
   matter.forEach((node, index) => {

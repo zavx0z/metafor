@@ -21,12 +21,13 @@ describe("matter validation", () => {
       )
       .bulk()
 
-    const condition = schema.matter?.find((node) => node.type === "cond") as any
-    const dynamicMeta = condition.child.find((node: any) => node.type === "meta" && typeof node.src === "object")
+    const condition = schema.matter?.find((particle) => particle.kind === "fuzzy" && particle.fuzzyKind === "cond") as any
+    const dynamicMeta = condition.children.find((child: any) => child.particle.kind === "fuzzy" && child.particle.fuzzyKind === "dynamic-meta").particle
+    const dynamicChild = dynamicMeta.children[0].particle
 
-    expect(condition.data).toBe("mode")
-    expect(dynamicMeta.src.data).toBe("mode")
-    expect(dynamicMeta.fields.data).toBe("title")
+    expect(condition.predicateBinding.data).toBe("mode")
+    expect(dynamicMeta.predicateBinding.data).toBe("mode")
+    expect(dynamicChild.fieldsBinding.data).toBe("title")
   })
 
   test("разрешает topology в matter только через state, enum и array", () => {

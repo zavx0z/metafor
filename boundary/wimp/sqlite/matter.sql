@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS matter_particle_fuzzy
     FOREIGN KEY (particle) REFERENCES matter_particle (uuid) ON DELETE CASCADE,
     FOREIGN KEY (predicate_binding) REFERENCES matter_binding (uuid) ON DELETE CASCADE,
     CHECK (
-        (fuzzy_kind = 'dynamic-meta' AND predicate_binding IS NULL) OR
+        fuzzy_kind = 'dynamic-meta' OR
         (fuzzy_kind = 'cond' AND predicate_binding IS NOT NULL)
         )
 );

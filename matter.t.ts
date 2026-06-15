@@ -2,6 +2,7 @@ import type { Fields, Update, Values } from "./fields.t.ts"
 import type { FieldDefinition } from "./metafor.t.ts"
 import type { Mass } from "./metafor.t.ts"
 import type { State } from "./superposition.t.ts"
+import type { MatterRelationParticle } from "@boundary/wimp/sqlite"
 import type { NodeType as TemplateNodeType } from "@metafor/template/node/index.t.ts"
 import type { NodeMeta as TemplateNodeMeta } from "@metafor/template/node/meta.t.ts"
 import type { NodeCondition as TemplateNodeCondition } from "@metafor/template/node/condition.t.ts"
@@ -14,9 +15,11 @@ export type NodeCondition = TemplateNodeCondition
 export type NodeLogical = TemplateNodeLogical
 export type NodeMap = TemplateNodeMap
 
-export type MatterSchema = NodeType[]
+export type MatterTemplateSchema = NodeType[]
 
-export type MatterFieldDefinition = Pick<FieldDefinition, "type">
+export type MatterSchema = MatterRelationParticle[]
+
+export type MatterFieldDefinition = Pick<FieldDefinition, "type" | "values">
 
 export type MatterFields = Record<string, MatterFieldDefinition>
 

@@ -139,7 +139,9 @@ export function buildBoundaryWorldRows(
   const collectStructuralFieldKeys = (rows: MatterBindingPathRow[]): void => {
     for (const row of rows) {
       const key = fieldKeyFromMatterPath(row.path)
-      if (key !== null) structuralFieldKeys.add(`${row.wimp}\0${key}`)
+      if (key === null) continue
+      const field = fieldByWimpKey.get(`${row.wimp}\0${key}`)
+      if (field?.type === "enum" || field?.type === "array") structuralFieldKeys.add(`${row.wimp}\0${key}`)
     }
   }
 
@@ -154,7 +156,8 @@ export function buildBoundaryWorldRows(
     const key = fieldKeyFromMatterPath(path)
     if (!key) return null
     const field = fieldByWimpKey.get(`${wimp}\0${key}`)
-    return field?.label ?? field?.key ?? key
+    const label = field?.label?.trim()
+    return label && label.length > 0 ? label : field?.key ?? key
   }
 
   const firstFieldLabelFromPaths = (wimp: string, paths: string[]): string | null => {
@@ -168,8 +171,8 @@ export function buildBoundaryWorldRows(
   const topologyPlanLabel = (wimp: string, plan: MatterParticleRow): string | null => {
     const childPaths = sortBindingPaths(matterChildWimpBindingPathsByParticle.get(plan.uuid) ?? [])
       .map((row) => row.path)
-    return firstFieldLabelFromPaths(wimp, childPaths) ??
-      firstFieldLabelFromPaths(wimp, sortBindingPaths(matterTopologyBindingPathsByParticle.get(plan.uuid) ?? []).map((row) => row.path))
+    return firstFieldLabelFromPaths(wimp, sortBindingPaths(matterTopologyBindingPathsByParticle.get(plan.uuid) ?? []).map((row) => row.path)) ??
+      firstFieldLabelFromPaths(wimp, childPaths)
   }
 
   const assignTopologyLabels = (wimp: string, runtimeTopologies: TopologyRow[], parentMatterParticle: string | null): void => {
@@ -248,7 +251,7 @@ export function buildBoundaryWorldRows(
 
   const topologyDescriptor = (topology: TopologyRow, visited: Set<string>): DbWorldParticleDescriptor => {
     const key = `topology:${topology.uuid}`
-    const label = topologyLabelById.get(topology.uuid) ?? topology.kind
+    const label = topologyLabelById.get(topology.uuid) ?? ""
     if (visited.has(key)) {
       return {
         particleId: topology.uuid,

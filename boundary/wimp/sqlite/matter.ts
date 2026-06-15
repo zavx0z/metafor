@@ -120,11 +120,12 @@ const insertDynamicMetaFuzzyParticle = async (
   parentParticle: string | null,
   edgeSlot: EdgeSlot,
   particleOrder: number,
+  predicateBinding: string | null,
 ): Promise<string> => {
   const particleUuid = await insertParticle(sql, wimpSrc, "fuzzy", parentParticle, edgeSlot, particleOrder)
   await sql`
     INSERT INTO matter_particle_fuzzy (particle, fuzzy_kind, predicate_binding)
-    VALUES (${particleUuid}, ${"dynamic-meta"}, ${null})
+    VALUES (${particleUuid}, ${"dynamic-meta"}, ${predicateBinding})
   `
   return particleUuid
 }
@@ -382,7 +383,8 @@ const insertFuzzyAt = async (
       requireBinding(predicateBinding, `Condition particle for meta "${wimp.src}" requires predicate binding`),
     )
   }
-  return insertDynamicMetaFuzzyParticle(wimp.sql, wimp.src, parentParticle, edgeSlot, particleOrder)
+  const predicateBinding = await insertBinding(wimp.sql, wimp.src, predicateBindingValue)
+  return insertDynamicMetaFuzzyParticle(wimp.sql, wimp.src, parentParticle, edgeSlot, particleOrder, predicateBinding ?? null)
 }
 
 const insertAxionAt = async (

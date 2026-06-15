@@ -77,7 +77,7 @@
  */
 import { fieldSchema } from "./fields.ts"
 import type { Fields, Field } from "./fields.t.ts"
-import { parseMatter, validateMatter } from "./matter.ts"
+import { parseMatter } from "./matter.ts"
 
 import { validateNoUnconditionalCycles } from "./superposition.ts"
 import type { SuperpositionInput, SuperpositionInputCheck, SuperpositionStateKeys } from "./superposition.t.ts"
@@ -147,13 +147,12 @@ globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
                       }
                       return {
                         matter(matter?: MatterDeclaration<ɸ, m, 𝛴>) {
-                          if (matter) schema.matter = parseMatter(matter)
+                          if (matter) schema.matter = parseMatter(matter, fields, name)
                           return {
                             bulk(bulk?: BulkDeclaration): MetaDSL<ɸ, 𝛴, m> {
                               if (bulk && "view" in bulk) {
                                 schema.bulk = { view: serializeStyle(bulk.view as any) } as BulkSchema
                               }
-                              validateMatter(schema.matter, fields, schema.name)
                               return schema
                             },
                           }

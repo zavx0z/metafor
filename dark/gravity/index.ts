@@ -1,1 +1,1 @@
-export {projectTemplateMatterRelations, projectBoundaryMatterParticles} from "./matter.ts"
+export {projectBoundaryMatterParticles} from "./matter.ts"
