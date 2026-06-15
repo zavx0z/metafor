@@ -37,6 +37,7 @@ export type {
   BindingValue,
   EdgeSlot,
   MatterRelationBindingValue,
+  MatterRelationChild,
   MatterRelationChildEdgeSlot,
   MatterRelationParticle,
 } from "./matter.t.ts"

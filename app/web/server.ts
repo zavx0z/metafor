@@ -1,9 +1,8 @@
 import {file, serve, type Server, type ServerWebSocket} from "bun"
-import {mkdirSync} from "node:fs"
-import {dirname, join, normalize} from "node:path"
+import {join} from "node:path"
+import "dark/server"
 import index from "./index.html"
 import {buildBoundaryWorldRows} from "./world.ts"
-import type {Boundary} from "boundary"
 import type {
 	ClientMessage,
 	ClientMaterializePayload,
@@ -13,33 +12,8 @@ import type {
 
 type AppWebSocketData = {kind: "app-web"}
 
-const ROOT = normalize(join(import.meta.dir, "../../"))
-const DEFAULT_PORT = 3000
-const configuredPort = Number(Bun.env.PORT ?? DEFAULT_PORT)
-const APP_PORT = Number.isFinite(configuredPort) && configuredPort > 0 ? configuredPort : DEFAULT_PORT
-const BOUNDARY_PATH = Bun.env.BOUNDARY_PATH ?? join(import.meta.dir, "tmp/boundary.sqlite")
-const DARK_SERVER_SPECIFIER: string = "dark/server"
-
-mkdirSync(dirname(BOUNDARY_PATH), {recursive: true})
-process.env.BOUNDARY_PATH = BOUNDARY_PATH
-
-await import(DARK_SERVER_SPECIFIER)
-
-const boundary = (globalThis as typeof globalThis & {boundary: Boundary}).boundary
+const boundary = globalThis.boundary
 const sockets = new Set<ServerWebSocket<AppWebSocketData>>()
-
-const TLS_KEY_FILE = Bun.env.TLS_KEY_FILE
-const TLS_CERT_FILE = Bun.env.TLS_CERT_FILE
-const TLS_CA_FILE = Bun.env.TLS_CA_FILE
-const TLS_PASSPHRASE = Bun.env.TLS_PASSPHRASE
-const tls = TLS_KEY_FILE && TLS_CERT_FILE
-	? {
-			key: file(TLS_KEY_FILE),
-			cert: file(TLS_CERT_FILE),
-			...(TLS_CA_FILE ? {ca: file(TLS_CA_FILE)} : {}),
-			...(TLS_PASSPHRASE ? {passphrase: TLS_PASSPHRASE} : {}),
-		}
-	: undefined
 
 const buildWorld = async (
 	message: ClientMaterializePayload | ClientRelayoutPayload,
@@ -50,27 +24,32 @@ const buildWorld = async (
 	return {type: "world", src, world}
 }
 
-const broadcast = (payload: unknown): void => {
-	const message = JSON.stringify(payload)
-	for (const socket of sockets) {
-		if (socket.readyState === WebSocket.OPEN) socket.send(message)
-	}
-}
-
 boundary.entropy((event) => {
-	broadcast({
+	const message = JSON.stringify({
 		type: "force",
 		parts: event.data.parts,
 	})
+	for (const socket of sockets) {
+		if (socket.readyState === WebSocket.OPEN) socket.send(message)
+	}
 })
 
 const server = serve<AppWebSocketData>({
-	port: APP_PORT,
-	...(tls ? {tls} : {}),
+	port: Number(Bun.env.PORT ?? 3000),
+	...(Bun.env.TLS_KEY_FILE && Bun.env.TLS_CERT_FILE
+		? {
+				tls: {
+					key: file(Bun.env.TLS_KEY_FILE),
+					cert: file(Bun.env.TLS_CERT_FILE),
+					...(Bun.env.TLS_CA_FILE ? {ca: file(Bun.env.TLS_CA_FILE)} : {}),
+					...(Bun.env.TLS_PASSPHRASE ? {passphrase: Bun.env.TLS_PASSPHRASE} : {}),
+				},
+			}
+		: {}),
 	routes: {
 		"/": index,
 		"/health": () => Response.json({ok: true}),
-		"/engine-static/JetBrainsMono-Bold.ttf": () => new Response(file(join(ROOT, "pkg/engine/static/JetBrainsMono-Bold.ttf"))),
+		"/engine-static/JetBrainsMono-Bold.ttf": () => new Response(file(join(import.meta.dir, "../../pkg/engine/static/JetBrainsMono-Bold.ttf"))),
 		"/ws": (req: Request, wsServer: Server<AppWebSocketData>) =>
 			wsServer.upgrade(req, {data: {kind: "app-web"}}) ? undefined : new Response("WebSocket upgrade failed", {status: 426}),
 	},
@@ -105,4 +84,4 @@ const server = serve<AppWebSocketData>({
 	},
 })
 
-console.log(`${tls ? "https" : "http"}://${server.hostname}:${server.port}`)
+console.log(server.url.href)
