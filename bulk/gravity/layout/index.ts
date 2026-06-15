@@ -1,11 +1,11 @@
 /**
- * `@bulk/gravity/layout` — top-down закон раскладки shell-иерархии в Bulk × Gravity.
+ * `@bulk/gravity/layout` — bottom-up закон раскладки shell-иерархии в Bulk × Gravity.
  *
  * Слой отвечает за:
- * - типы и нормализацию `BulkLayoutSettings` (закон уменьшения вглубь, размеры root)
+ * - типы и нормализацию `BulkLayoutSettings` (root-размеры; depth задаёт minimum, а не потолок)
  * - проекцию контракта в `LevelGeometrySettings` (см. `@bulk/gravity/level`)
  * - построение `DbWorldRows` из дескрипторов particle-дерева
- * - равномерный scale row-набора к фиксированному внешнему диаметру root
+ * - равномерный scale row-набора к фиксированному внешнему диаметру root без повторного reflow
  *
  * `DbWorldRows` пока используется как промежуточная in-memory форма. Streaming-материализация
  * напрямую в DB заменит её на per-row write через `DbActorStore`.

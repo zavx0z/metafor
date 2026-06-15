@@ -1,9 +1,8 @@
 import type { LevelGeometrySettings } from "../level"
 import type { BulkLayoutSettings, BulkLayoutSnapshotConfig } from "./settings.t"
 
-/** Базовый top-down закон размеров для root-shell и внутренних уровней. */
+/** Базовые размеры root-shell; внутренние shell-ы могут расширяться от содержимого. */
 export const DEFAULT_BULK_LAYOUT_SETTINGS: BulkLayoutSettings = {
-  levelSizeMultiplier: 2,
   rootInnerDiameterMm: 1000,
   rootSphereRadiusMm: 1470,
 }
@@ -18,7 +17,7 @@ export const DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG: BulkLayoutSnapshotConfig = {
 }
 
 /**
- * Нормализует частичные layout-настройки в безопасный top-down контракт.
+ * Нормализует частичные layout-настройки в безопасный bottom-up контракт.
  *
  * Некорректные и неположительные значения заменяются на {@link DEFAULT_BULK_LAYOUT_SETTINGS}.
  */
@@ -26,10 +25,6 @@ export const normalizeBulkLayoutSettings = (
   settings: Partial<BulkLayoutSettings> = {},
   config: BulkLayoutSnapshotConfig = DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG,
 ): BulkLayoutSettings => ({
-  levelSizeMultiplier:
-    Number.isFinite(settings.levelSizeMultiplier) && (settings.levelSizeMultiplier ?? 0) > 0
-      ? settings.levelSizeMultiplier!
-      : DEFAULT_BULK_LAYOUT_SETTINGS.levelSizeMultiplier,
   rootInnerDiameterMm:
     Number.isFinite(settings.rootInnerDiameterMm) && (settings.rootInnerDiameterMm ?? 0) > 0
       ? settings.rootInnerDiameterMm!
@@ -51,7 +46,6 @@ export const toLevelGeometrySettings = (
   config: BulkLayoutSnapshotConfig = DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG,
   rootOuterDiameterMm: number = config.rootOuterDiameterMm,
 ): LevelGeometrySettings => ({
-  levelSizeMultiplier: layout.levelSizeMultiplier,
   rootInnerDiameterMm: layout.rootInnerDiameterMm,
   rootSphereRadiusMm: layout.rootSphereRadiusMm,
   rootOuterDiameterMm,

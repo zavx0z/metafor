@@ -1,12 +1,11 @@
 /**
- * Top-down закон размеров shell-иерархии для materialization в Bulk × Gravity.
+ * Bottom-up закон размеров shell-иерархии для materialization в Bulk × Gravity.
  *
- * Эти настройки задают общий каркас manifested-геометрии: как уменьшаются shell-ы
- * от root-уровня вглубь, какой размер у root-тора и его peer-сферы.
+ * Эти настройки задают root-размеры manifested-геометрии. Масштаб уровней задаёт
+ * минимальный canonical-размер в `@bulk/gravity/level`; фактический shell может
+ * расшириться, если вложенные торы и сферы требуют больше места.
  */
 export interface BulkLayoutSettings {
-  /** Коэффициент уменьшения canonical shell size от root-уровня вглубь. Должен быть `> 0`. */
-  levelSizeMultiplier: number
   /** Внутренний диаметр root-тора в миллиметрах. То же отношение переносится на внутренние уровни. */
   rootInnerDiameterMm: number
   /** Диаметр peer-sphere на root-уровне в миллиметрах в пределах level-contract. */
