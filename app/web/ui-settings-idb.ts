@@ -68,15 +68,15 @@ const completeTransaction = async (transaction: IDBTransaction): Promise<void> =
     transaction.onabort = () => reject(transaction.error ?? new Error("IndexedDB transaction aborted"))
   })
 
-const pickNumericSettings = <T extends string>(keys: readonly T[], value: unknown): Partial<Record<T, number>> => {
+const pickKnownSettings = <T extends string>(keys: readonly T[], value: unknown): Partial<Record<T, boolean | number>> => {
   if (!value || typeof value !== "object") return {}
 
   const record = value as Record<string, unknown>
-  const next: Partial<Record<T, number>> = {}
+  const next: Partial<Record<T, boolean | number>> = {}
 
   for (const key of keys) {
     const candidate = record[key]
-    if (typeof candidate === "number" && Number.isFinite(candidate)) {
+    if (typeof candidate === "boolean" || (typeof candidate === "number" && Number.isFinite(candidate))) {
       next[key] = candidate
     }
   }
@@ -87,15 +87,15 @@ const pickNumericSettings = <T extends string>(keys: readonly T[], value: unknow
 const toPersistedRecord = (snapshot: AppWebUiSettingsSnapshot): PersistedAppWebUiSettingsRecord => ({
   id: APP_WEB_UI_SETTINGS_ID,
   revision: APP_CONFIG_REVISION,
-  layoutSettings: pickNumericSettings(APP_WEB_LAYOUT_SETTING_KEYS, snapshot.layoutSettings),
-  renderSettings: pickNumericSettings(APP_WEB_RENDER_SETTING_KEYS, snapshot.renderSettings),
+  layoutSettings: pickKnownSettings(APP_WEB_LAYOUT_SETTING_KEYS, snapshot.layoutSettings) as Partial<AppWebLayoutSettings>,
+  renderSettings: pickKnownSettings(APP_WEB_RENDER_SETTING_KEYS, snapshot.renderSettings) as Partial<AppWebRenderSettings>,
 })
 
 const seedDefaultsRecord = (): PersistedAppWebUiSettingsRecord => ({
   id: APP_WEB_UI_SETTINGS_ID,
   revision: APP_CONFIG_REVISION,
-  layoutSettings: pickNumericSettings(APP_WEB_LAYOUT_SETTING_KEYS, APP_CONFIG_DEFAULTS.layout),
-  renderSettings: pickNumericSettings(APP_WEB_RENDER_SETTING_KEYS, APP_CONFIG_DEFAULTS.render),
+  layoutSettings: pickKnownSettings(APP_WEB_LAYOUT_SETTING_KEYS, APP_CONFIG_DEFAULTS.layout) as Partial<AppWebLayoutSettings>,
+  renderSettings: pickKnownSettings(APP_WEB_RENDER_SETTING_KEYS, APP_CONFIG_DEFAULTS.render) as Partial<AppWebRenderSettings>,
 })
 
 export const loadPersistedAppWebUiSettings = async (
@@ -127,14 +127,14 @@ export const loadPersistedAppWebUiSettings = async (
     }
 
     return {
-      layoutSettings: pickNumericSettings(
+      layoutSettings: pickKnownSettings(
         APP_WEB_LAYOUT_SETTING_KEYS,
         (rawRecord as Partial<PersistedAppWebUiSettingsRecord>).layoutSettings,
-      ),
-      renderSettings: pickNumericSettings(
+      ) as Partial<AppWebLayoutSettings>,
+      renderSettings: pickKnownSettings(
         APP_WEB_RENDER_SETTING_KEYS,
         (rawRecord as Partial<PersistedAppWebUiSettingsRecord>).renderSettings,
-      ),
+      ) as Partial<AppWebRenderSettings>,
     }
   } finally {
     database.close()

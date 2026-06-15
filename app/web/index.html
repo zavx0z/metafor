@@ -187,6 +187,14 @@
         background: transparent;
       }
 
+      .setting-checkbox {
+        width: 18px;
+        height: 18px;
+        margin: 3px 0;
+        padding: 0;
+        accent-color: var(--accent);
+      }
+
       input,
       button {
         border: 1px solid var(--line);
@@ -381,16 +389,22 @@
 
             <div class="settings-cards">
               <section class="settings-card">
-                <h3>Геометрия</h3>
+                <h3>Космос</h3>
                 <div class="settings-group">
-                  <div class="setting-field" data-setting-key="levelSizeMultiplier">
+                  <div class="setting-field" data-setting-key="animationEnabled">
                     <div class="setting-label-row">
-                      <label for="level-size-input" class="setting-label-text"></label>
+                      <label for="animation-enabled-input" class="setting-label-text"></label>
                       <span class="setting-value" data-setting-value></span>
                       <button class="setting-help" type="button">!</button>
                     </div>
-                    <input class="setting-range" id="level-size-input" type="range" step="0.1" min="1.1" max="4" value="2" />
+                    <input class="setting-checkbox" id="animation-enabled-input" type="checkbox" checked />
                   </div>
+                </div>
+              </section>
+
+              <section class="settings-card">
+                <h3>Геометрия</h3>
+                <div class="settings-group">
                   <div class="setting-field" data-setting-key="rootInnerDiameterMm">
                     <div class="setting-label-row">
                       <label for="root-inner-diameter-input" class="setting-label-text"></label>
@@ -406,6 +420,14 @@
                       <button class="setting-help" type="button">!</button>
                     </div>
                     <input class="setting-range" id="root-sphere-radius-input" type="range" step="10" min="10" max="4000" value="200" />
+                  </div>
+                  <div class="setting-field" data-setting-key="orbitEdgeGapMm">
+                    <div class="setting-label-row">
+                      <label for="orbit-edge-gap-input" class="setting-label-text"></label>
+                      <span class="setting-value" data-setting-value></span>
+                      <button class="setting-help" type="button">!</button>
+                    </div>
+                    <input class="setting-range" id="orbit-edge-gap-input" type="range" step="1" min="0" max="1000" value="0" />
                   </div>
                 </div>
               </section>

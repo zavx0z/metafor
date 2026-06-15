@@ -4,7 +4,6 @@ import type { LevelSettings } from "./settings.t"
 
 const SETTINGS: LevelSettings = {
   geometry: {
-    levelSizeMultiplier: 2,
     rootInnerDiameterMm: 1000,
     rootSphereRadiusMm: 200,
     rootOuterDiameterMm: 4000,
@@ -46,7 +45,7 @@ describe("bulk/gravity/level/memo", () => {
     expect(override).not.toBe(canonical)
     expect(override.outerRadiusMm).toBeCloseTo(1500, 6)
     expect(canonical.outerRadiusMm).toBeCloseTo(
-      SETTINGS.geometry.rootOuterDiameterMm / 2 / SETTINGS.geometry.levelSizeMultiplier,
+      SETTINGS.geometry.rootOuterDiameterMm / 4,
       6,
     )
   })

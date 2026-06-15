@@ -31,16 +31,16 @@ describe("app/web ui settings indexeddb", () => {
     })
   })
 
-  test("сохраняет и восстанавливает только известные numeric ui-настройки", async () => {
+  test("сохраняет и восстанавливает только известные ui-настройки", async () => {
     const target = createIndexedDbTarget()
 
     await savePersistedAppWebUiSettings(
       {
         layoutSettings: {
-          levelSizeMultiplier: 1.6,
           rootInnerDiameterMm: 1440,
         },
         renderSettings: {
+          animationEnabled: false,
           detailDensityFactor: 2.4,
           labelVisibleLevels: 5,
           torusCrossRingRotationDeg: -33,
@@ -52,10 +52,10 @@ describe("app/web ui settings indexeddb", () => {
 
     expect(await loadPersistedAppWebUiSettings(target)).toEqual({
       layoutSettings: {
-        levelSizeMultiplier: 1.6,
         rootInnerDiameterMm: 1440,
       },
       renderSettings: {
+        animationEnabled: false,
         detailDensityFactor: 2.4,
         labelVisibleLevels: 5,
         torusCrossRingRotationDeg: -33,
@@ -64,7 +64,7 @@ describe("app/web ui settings indexeddb", () => {
     })
   })
 
-  test("при revision записи равной текущему APP_CONFIG_REVISION фильтрует мусор и возвращает чистые числа", async () => {
+  test("при revision записи равной текущему APP_CONFIG_REVISION фильтрует мусор и возвращает чистые значения", async () => {
     const target = createIndexedDbTarget()
 
     const database = target.indexedDb.open(target.databaseName, 1)
@@ -86,11 +86,11 @@ describe("app/web ui settings indexeddb", () => {
         id: "display_settings",
         revision: APP_CONFIG_REVISION,
         layoutSettings: {
-          levelSizeMultiplier: 2.2,
           rootInnerDiameterMm: "bad",
           hacked: 999,
         },
         renderSettings: {
+          animationEnabled: true,
           torusTubularSegments: 44,
           wireframeOpacity: null,
           injected: "bad",
@@ -108,10 +108,9 @@ describe("app/web ui settings indexeddb", () => {
     }
 
     expect(await loadPersistedAppWebUiSettings(target)).toEqual({
-      layoutSettings: {
-        levelSizeMultiplier: 2.2,
-      },
+      layoutSettings: {},
       renderSettings: {
+        animationEnabled: true,
         torusTubularSegments: 44,
       },
     })
@@ -137,7 +136,7 @@ describe("app/web ui settings indexeddb", () => {
       tx.objectStore("ui_settings").put({
         id: "display_settings",
         revision: APP_CONFIG_REVISION - 1,
-        layoutSettings: { levelSizeMultiplier: 999 },
+        layoutSettings: { rootInnerDiameterMm: 999 },
         renderSettings: { torusTubularSegments: 999 },
       })
       await new Promise<void>((resolve, reject) => {

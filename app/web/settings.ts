@@ -47,14 +47,14 @@ export interface AppWebLayoutConfig {
 }
 
 export type AppWebSettingSection = "layout" | "render"
-export type AppWebSettingGroup = "detail" | "geometry" | "labels" | "torus"
+export type AppWebSettingGroup = "animation" | "detail" | "geometry" | "labels" | "torus"
 export type AppWebLayoutSettingKey = keyof AppWebLayoutSettings
 export type AppWebRenderSettingKey = keyof AppWebRenderSettings
 export type AppWebSettingKey = AppWebLayoutSettingKey | AppWebRenderSettingKey
 
-/** Метаданные одной числовой настройки `app/web`, доступной по стабильному ключу. */
-export interface AppWebNumericSettingConfig {
-  defaultValue: number
+/** Метаданные одной UI-настройки `app/web`, доступной по стабильному ключу. */
+export interface AppWebSettingConfig {
+  defaultValue: boolean | number
   /** Короткое пояснение для пользователя, которое показывается рядом с настройкой. */
   description: string
   group: AppWebSettingGroup
@@ -63,6 +63,7 @@ export interface AppWebNumericSettingConfig {
   min?: number
   section: AppWebSettingSection
   step?: number
+  type?: "checkbox" | "range"
 }
 
 /** Реэкспорт layout-defaults из единого app-config-а. */
@@ -105,7 +106,16 @@ export const appWebLayoutConfig: AppWebLayoutConfig = {
 export const DEFAULT_APP_WEB_RENDER_SETTINGS: AppWebRenderSettings = APP_CONFIG_DEFAULTS.render
 
 /** Классификация настроек `app/web` по ключам. Используется UI и runtime-слоями как единая карта. */
-export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebNumericSettingConfig> = {
+export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebSettingConfig> = {
+  // Запуск постоянного движения космораскладки.
+  animationEnabled: {
+    group: "animation",
+    section: "render",
+    type: "checkbox",
+    label: "Движение космоса",
+    defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.animationEnabled,
+    description: "Запускает космораскладку: объекты вращаются вокруг оси и по орбитам вокруг родителя. Если выключено — постоянный цикл останавливается, а сцена рендерится по запросу.",
+  },
   // Базовая детализация wireframe у root-уровня.
   detailDensityFactor: {
     group: "detail",
@@ -205,16 +215,16 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebNumericSett
     max: 1,
     step: 0.01,
   },
-  // Масштаб уменьшения shell-ов от root вглубь иерархии.
-  levelSizeMultiplier: {
+  // Зазор между краями объектов на орбитах.
+  orbitEdgeGapMm: {
     group: "geometry",
     section: "layout",
-    label: "Размер по уровням",
-    defaultValue: DEFAULT_APP_WEB_LAYOUT_SETTINGS.levelSizeMultiplier,
-    description: "Показывает, во сколько раз каждый внутренний уровень меньше предыдущего.",
-    min: 1.1,
-    max: 4,
-    step: 0.1,
+    label: "Зазор орбит, мм",
+    defaultValue: DEFAULT_APP_WEB_LAYOUT_SETTINGS.orbitEdgeGapMm,
+    description: "Задает расстояние между краями объектов на орбитах и от внутренней кромки parent-тора до первого объекта.",
+    min: 0,
+    max: 1000,
+    step: 1,
   },
   // Внутренний диаметр root-тора и базовое отношение отверстия для внутренних уровней.
   rootInnerDiameterMm: {
@@ -253,13 +263,14 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebNumericSett
 
 /** Список layout-ключей, которые должны уходить в `dark` и layout-law snapshot-а. */
 export const APP_WEB_LAYOUT_SETTING_KEYS = [
-  "levelSizeMultiplier",
+  "orbitEdgeGapMm",
   "rootInnerDiameterMm",
   "rootSphereRadiusMm",
 ] as const satisfies readonly AppWebLayoutSettingKey[]
 
 /** Список render-ключей, которые должны применяться только в WebGPU viewport. */
 export const APP_WEB_RENDER_SETTING_KEYS = [
+  "animationEnabled",
   "detailDensityFactor",
   "detailLevelMultiplier",
   "labelVisibleLevels",
@@ -334,6 +345,10 @@ export const toLevelSettings = (
 export const normalizeAppWebRenderSettings = (
   settings: Partial<AppWebRenderSettings> = {},
 ): AppWebRenderSettings => ({
+  animationEnabled:
+    typeof settings.animationEnabled === "boolean"
+      ? settings.animationEnabled
+      : DEFAULT_APP_WEB_RENDER_SETTINGS.animationEnabled,
   detailDensityFactor:
     Number.isFinite(settings.detailDensityFactor) && (settings.detailDensityFactor ?? 0) > 0
       ? settings.detailDensityFactor!

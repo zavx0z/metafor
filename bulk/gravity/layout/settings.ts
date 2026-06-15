@@ -3,6 +3,7 @@ import type { BulkLayoutSettings, BulkLayoutSnapshotConfig } from "./settings.t"
 
 /** Базовые размеры root-shell; внутренние shell-ы могут расширяться от содержимого. */
 export const DEFAULT_BULK_LAYOUT_SETTINGS: BulkLayoutSettings = {
+  orbitEdgeGapMm: 0,
   rootInnerDiameterMm: 1000,
   rootSphereRadiusMm: 1470,
 }
@@ -25,6 +26,10 @@ export const normalizeBulkLayoutSettings = (
   settings: Partial<BulkLayoutSettings> = {},
   config: BulkLayoutSnapshotConfig = DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG,
 ): BulkLayoutSettings => ({
+  orbitEdgeGapMm:
+    Number.isFinite(settings.orbitEdgeGapMm) && (settings.orbitEdgeGapMm ?? 0) >= 0
+      ? settings.orbitEdgeGapMm!
+      : DEFAULT_BULK_LAYOUT_SETTINGS.orbitEdgeGapMm,
   rootInnerDiameterMm:
     Number.isFinite(settings.rootInnerDiameterMm) && (settings.rootInnerDiameterMm ?? 0) > 0
       ? settings.rootInnerDiameterMm!

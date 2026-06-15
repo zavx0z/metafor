@@ -47,12 +47,13 @@ initForceLogger()
 
 const form = document.getElementById("control-form") as HTMLFormElement
 const srcInput = document.getElementById("src-input") as HTMLInputElement
+const animationEnabledInput = document.getElementById("animation-enabled-input") as HTMLInputElement
 const detailDensityInput = document.getElementById("detail-density-input") as HTMLInputElement
 const detailLevelInput = document.getElementById("detail-level-input") as HTMLInputElement
 const labelVisibleLevelsInput = document.getElementById("label-visible-levels-input") as HTMLInputElement
 const labelFontSizeInput = document.getElementById("label-font-size-input") as HTMLInputElement
 const labelSurfaceOffsetInput = document.getElementById("label-surface-offset-input") as HTMLInputElement
-const levelSizeInput = document.getElementById("level-size-input") as HTMLInputElement
+const orbitEdgeGapInput = document.getElementById("orbit-edge-gap-input") as HTMLInputElement
 const rootInnerDiameterInput = document.getElementById("root-inner-diameter-input") as HTMLInputElement
 const rootSphereRadiusInput = document.getElementById("root-sphere-radius-input") as HTMLInputElement
 const torusCrossRingRotationInput = document.getElementById("torus-cross-ring-rotation-input") as HTMLInputElement
@@ -121,12 +122,13 @@ const parseNonNegativeNumber = (input: HTMLInputElement, fallback: number): numb
 }
 
 const settingInputs = {
+	animationEnabled: animationEnabledInput,
 	detailDensityFactor: detailDensityInput,
 	detailLevelMultiplier: detailLevelInput,
 	labelVisibleLevels: labelVisibleLevelsInput,
 	labelFontSizeMm: labelFontSizeInput,
 	labelSurfaceOffsetMm: labelSurfaceOffsetInput,
-	levelSizeMultiplier: levelSizeInput,
+	orbitEdgeGapMm: orbitEdgeGapInput,
 	rootInnerDiameterMm: rootInnerDiameterInput,
 	rootSphereRadiusMm: rootSphereRadiusInput,
 	torusCrossRingRotationDeg: torusCrossRingRotationInput,
@@ -148,7 +150,9 @@ const closeAllSettingTooltips = (): void => {
 	}
 }
 
-const formatSettingValue = (rawValue: string, step?: number): string => {
+const formatSettingValue = (input: HTMLInputElement, step?: number): string => {
+	if (input.type === "checkbox") return input.checked ? "вкл" : "выкл"
+	const rawValue = input.value
 	const value = Number(rawValue)
 	if (!Number.isFinite(value)) return rawValue
 	if (!Number.isFinite(step) || step === undefined) return String(value)
@@ -159,14 +163,15 @@ const formatSettingValue = (rawValue: string, step?: number): string => {
 const updateSettingValuePreview = (key: SettingInputKey): void => {
 	const value = settingValueElements[key]
 	if (!value) return
-	value.textContent = formatSettingValue(settingInputs[key].value, APP_WEB_SETTINGS_BY_KEY[key].step)
+	value.textContent = formatSettingValue(settingInputs[key], APP_WEB_SETTINGS_BY_KEY[key].step)
 }
 
 const readSettingValue = (key: SettingInputKey): AppWebLayoutSettings[keyof AppWebLayoutSettings] | AppWebRenderSettings[keyof AppWebRenderSettings] => {
 	const input = settingInputs[key]
 	const config = APP_WEB_SETTINGS_BY_KEY[key]
-	const fallback = config.defaultValue
-	if (key === "labelSurfaceOffsetMm") return parseNonNegativeNumber(input, fallback)
+	if (input.type === "checkbox") return input.checked
+	const fallback = typeof config.defaultValue === "number" ? config.defaultValue : 0
+	if (key === "labelSurfaceOffsetMm" || key === "orbitEdgeGapMm") return parseNonNegativeNumber(input, fallback)
 	if (key === "torusCrossRingRotationDeg") return parseFiniteNumber(input, fallback)
 	return parsePositiveNumber(input, fallback)
 }
@@ -216,8 +221,13 @@ const flushPersistUiSettings = (): void => {
 	})
 }
 
-const applyPersistedSettingValue = (key: SettingInputKey, value: number | undefined): void => {
-	if (!Number.isFinite(value)) return
+const applyPersistedSettingValue = (key: SettingInputKey, value: boolean | number | undefined): void => {
+	if (typeof value !== "boolean" && !Number.isFinite(value)) return
+	if (settingInputs[key].type === "checkbox") {
+		settingInputs[key].checked = value === true
+		updateSettingValuePreview(key)
+		return
+	}
 	settingInputs[key].value = String(value)
 	updateSettingValuePreview(key)
 }
@@ -246,7 +256,7 @@ const applySettingUiMetadata = (): void => {
 		const value = field?.querySelector("[data-setting-value]") as HTMLSpanElement | null
 		let tooltip = field?.querySelector(".setting-tooltip") as HTMLDivElement | null
 		if (label) label.textContent = config.label
-		if (input) {
+		if (input && input.type !== "checkbox") {
 			if (config.min !== undefined) input.min = String(config.min)
 			if (config.max !== undefined) input.max = String(config.max)
 			if (config.step !== undefined) input.step = String(config.step)
@@ -281,15 +291,20 @@ const applySettingUiMetadata = (): void => {
 				help.dataset.tooltipBound = "true"
 			}
 		}
-		if (config.step !== undefined) input.step = String(config.step)
-		if (config.min !== undefined) input.min = String(config.min)
-		if (config.max !== undefined) input.max = String(config.max)
-		// Browser кэширует value range-инпутов между перезагрузками, поэтому
-		// перезаписываем явно дефолтом — persisted-IDB значение перезапишет позже.
-		input.value = String(config.defaultValue)
+		if (input.type !== "checkbox") {
+			if (config.step !== undefined) input.step = String(config.step)
+			if (config.min !== undefined) input.min = String(config.min)
+			if (config.max !== undefined) input.max = String(config.max)
+			// Browser кэширует value range-инпутов между перезагрузками, поэтому
+			// перезаписываем явно дефолтом — persisted-IDB значение перезапишет позже.
+			input.value = String(config.defaultValue)
+		} else {
+			input.checked = config.defaultValue === true
+		}
 		settingValueElements[key] = value
 		updateSettingValuePreview(key)
-		input.addEventListener("input", () => {
+		const eventName = input.type === "checkbox" ? "change" : "input"
+		input.addEventListener(eventName, () => {
 			updateSettingValuePreview(key)
 			schedulePersistUiSettings()
 			if (config.section === "render") {

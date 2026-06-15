@@ -3,7 +3,6 @@ import { resolveLevelGeometry, resolveLevelScale, resolveOuterRadiusFromSphereRa
 import type { LevelGeometrySettings } from "./settings.t"
 
 const BASE: LevelGeometrySettings = {
-  levelSizeMultiplier: 2,
   rootInnerDiameterMm: 1000,
   rootSphereRadiusMm: 200,
   rootOuterDiameterMm: 4000,
@@ -27,14 +26,14 @@ describe("bulk/gravity/level/geometry", () => {
     expect(root.levelScale).toBe(1)
   })
 
-  test("глубина уменьшает размер по закону levelSizeMultiplier", () => {
+  test("глубина уменьшает размер по фрактальному закону", () => {
     const root = resolveLevelGeometry({ depth: 0, settings: BASE })
     const child = resolveLevelGeometry({ depth: 1, settings: BASE })
     const grand = resolveLevelGeometry({ depth: 2, settings: BASE })
 
-    expect(child.outerRadiusMm).toBeCloseTo(root.outerRadiusMm / BASE.levelSizeMultiplier, 6)
-    expect(grand.outerRadiusMm).toBeCloseTo(root.outerRadiusMm / BASE.levelSizeMultiplier ** 2, 6)
-    expect(child.levelScale).toBeCloseTo(1 / BASE.levelSizeMultiplier, 6)
+    expect(child.outerRadiusMm).toBeCloseTo(root.outerRadiusMm / 2, 6)
+    expect(grand.outerRadiusMm).toBeCloseTo(root.outerRadiusMm / 4, 6)
+    expect(child.levelScale).toBeCloseTo(0.5, 6)
   })
 
   test("outerRadiusMm override использует его напрямую без surfaceScale-хака", () => {
@@ -54,13 +53,13 @@ describe("bulk/gravity/level/geometry", () => {
 
     expect(root.sphereRadiusMm).toBeGreaterThanOrEqual(root.sphereMinDiameterMm / 2)
     expect(root.sphereRadiusMm).toBeLessThanOrEqual(root.sphereMaxDiameterMm / 2)
-    expect(child.sphereRadiusMm).toBeCloseTo(root.sphereRadiusMm / BASE.levelSizeMultiplier, 6)
+    expect(child.sphereRadiusMm).toBeCloseTo(root.sphereRadiusMm / 2, 6)
   })
 
   test("resolveLevelScale согласован с geometry", () => {
     for (const depth of [0, 1, 2, 3]) {
       const g = resolveLevelGeometry({ depth, settings: BASE })
-      const s = resolveLevelScale(depth, BASE)
+      const s = resolveLevelScale(depth)
       expect(g.levelScale).toBeCloseTo(s, 10)
     }
   })

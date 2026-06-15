@@ -16,6 +16,7 @@ export interface AppConfigLayout extends BulkLayoutSettings {}
 
 /** Настройки рендера viewport-а (детализация, подписи, тор, прозрачность). */
 export interface AppConfigRender {
+  animationEnabled: boolean
   detailDensityFactor: number
   detailLevelMultiplier: number
   labelVisibleLevels: number
@@ -39,16 +40,17 @@ export interface AppConfig {
  * у всех уже открывавших страницу. Бампать ВСЕГДА при изменении любого значения
  * в {@link APP_CONFIG_DEFAULTS}.
  */
-export const APP_CONFIG_REVISION = 3
+export const APP_CONFIG_REVISION = 6
 
 /** Дефолты, которые seedятся в IDB при первом open и применяются после bump revision. */
 export const APP_CONFIG_DEFAULTS: AppConfig = {
   layout: {
-    levelSizeMultiplier: 2,
+    orbitEdgeGapMm: 0,
     rootInnerDiameterMm: 1000,
     rootSphereRadiusMm: 1470,
   },
   render: {
+    animationEnabled: true,
     detailDensityFactor: 2,
     detailLevelMultiplier: 1,
     labelVisibleLevels: 2,

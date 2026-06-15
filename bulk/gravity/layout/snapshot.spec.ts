@@ -208,6 +208,27 @@ describe("bulk/gravity/layout snapshot", () => {
     expectSnapshotNoSiblingIntersections(snapshot)
   })
 
+  test("orbitEdgeGapMm задает зазор от внутренней кромки тора до первого объекта", () => {
+    const snapshot = createDbWorldRowsFromParticleDescriptors(
+      "root",
+      [createParticle("root", [], ["field-a", "field-b", "field-c"])],
+      {
+        orbitEdgeGapMm: 24,
+        rootInnerDiameterMm: 1000,
+        rootSphereRadiusMm: 200,
+      },
+    )
+    const root = getParticle(snapshot, "root")
+    const innerRadius = getInnerRadius(root)
+    const minInnerGap = Math.min(
+      ...snapshot.fields.map((field) => Math.hypot(field.localX, field.localY) - field.sphereRadius - innerRadius),
+    )
+
+    expect(minInnerGap).toBeCloseTo(24, 6)
+    expectSnapshotContentInsideParents(snapshot)
+    expectSnapshotNoSiblingIntersections(snapshot)
+  })
+
   test("root inner ratio переносится на фактические размеры shell-ов", () => {
     const snapshot = createDbWorldRowsFromParticleDescriptors(
       "root",

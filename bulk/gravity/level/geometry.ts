@@ -7,10 +7,10 @@ const MIN_DIMENSION_MM = 0.001
 const normalizeDepth = (depth: number): number =>
   Number.isFinite(depth) && depth > 0 ? Math.floor(depth) : 0
 
-/** `1 / pow(levelSizeMultiplier, normalizedDepth)` — единый закон уменьшения размера вглубь. */
-export const resolveLevelScale = (depth: number, settings: LevelGeometrySettings): number => {
+/** `2 ** -normalizedDepth` — единый фрактальный закон уменьшения размера вглубь. */
+export const resolveLevelScale = (depth: number): number => {
   const normalizedDepth = normalizeDepth(depth)
-  return 1 / Math.pow(settings.levelSizeMultiplier, normalizedDepth)
+  return 2 ** -normalizedDepth
 }
 
 /**
@@ -26,7 +26,7 @@ export const resolveLevelGeometry = ({
   outerRadiusMm,
 }: ResolveLevelGeometryOptions): LevelGeometry => {
   const normalizedDepth = normalizeDepth(depth)
-  const levelScale = resolveLevelScale(normalizedDepth, settings)
+  const levelScale = resolveLevelScale(normalizedDepth)
 
   const canonicalOuterDiameterMm = settings.rootOuterDiameterMm * levelScale
   const outerDiameterMm =

@@ -16,8 +16,6 @@ import {
 
 const snapshotLayoutConfig = DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5))
-const CONTENT_LAYOUT_EPSILON_MM = 0.001
-const MAX_CONTENT_LAYOUT_ITERATIONS = 32
 
 /** Входной дескриптор ordinary field до shell-materialization в actor rows. */
 export interface DbWorldFieldDescriptor {
@@ -196,33 +194,17 @@ const resolveContentAwareLevelGeometry = (
   const canonicalMetrics = getCanonicalLevelGeometry(depthFromRoot, settings)
   if (orbitItems.length === 0) return canonicalMetrics
 
-  const maxExtent = Math.max(...orbitItems.map((item) => item.extent))
   const phase = hashAngle(orbitItems.map((item) => (item.kind === "shell" ? item.shell.particleId : item.field.id)).join("\0"))
-  const paddingMm = Math.max(canonicalMetrics.paddingMm, maxExtent * 0.12)
-  let outerRadius = canonicalMetrics.outerRadiusMm
-  let levelMetrics = canonicalMetrics
-
-  for (let iteration = 0; iteration < MAX_CONTENT_LAYOUT_ITERATIONS; iteration += 1) {
-    levelMetrics = getSurfaceLevelGeometry(depthFromRoot, settings, { outerRadiusMm: outerRadius })
-    const placement = placeOrbitItemsByBands(orbitItems, {
-      paddingMm,
-      phase,
-      startOuterBoundary: levelMetrics.innerRadiusMm,
-    })
-    const nextOuterRadius = Math.max(canonicalMetrics.outerRadiusMm, placement.outerBoundary)
-    const tolerance = Math.max(CONTENT_LAYOUT_EPSILON_MM, outerRadius * 1e-6)
-
-    if (Math.abs(nextOuterRadius - outerRadius) <= tolerance) {
-      outerRadius = nextOuterRadius
-      break
-    }
-
-    outerRadius = nextOuterRadius
-  }
-
-  levelMetrics = getSurfaceLevelGeometry(depthFromRoot, settings, { outerRadiusMm: outerRadius })
+  const orbitEdgeGapMm = settings.orbitEdgeGapMm
+  const localEnvelope = placeOrbitItemsByBands(orbitItems, {
+    paddingMm: orbitEdgeGapMm,
+    phase,
+  })
+  const innerOuterRatio = canonicalMetrics.innerRadiusMm / Math.max(canonicalMetrics.outerRadiusMm, 1e-6)
+  const outerRadius = Math.max(0.001, localEnvelope.outerBoundary / Math.max(1 - innerOuterRatio, 1e-6))
+  const levelMetrics = getSurfaceLevelGeometry(depthFromRoot, settings, { outerRadiusMm: outerRadius })
   placeOrbitItemsByBands(orbitItems, {
-    paddingMm,
+    paddingMm: orbitEdgeGapMm,
     phase,
     startOuterBoundary: levelMetrics.innerRadiusMm,
   })
@@ -387,6 +369,7 @@ export const createDbWorldRowsFromParticleDescriptors = (
       extent: shell.outerRadius,
     })),
     {
+      paddingMm: resolvedSettings.orbitEdgeGapMm,
       phase: mainRoot ? hashAngle(mainRoot.particleId) : 0,
       startOuterBoundary: mainRoot?.outerRadius ?? 0,
     },

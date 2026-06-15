@@ -102,13 +102,14 @@ import {
 	THEME_SECONDARY_GLOW,
 	THEME_TERTIARY,
 	THEME_TERTIARY_GLOW,
-	THEME_WARNING,
-	THEME_WARNING_GLOW,
 } from "./constants"
 import { computeLerpFactor, easeOutCubic, getDistanceToSegmentPx, mixScalar } from "./math"
 
 const torusWireframeCache = new Map<string, BufferGeometry>()
 const sphereWireframeCache = new Map<string, BufferGeometry>()
+const LABEL_TEXT_COLOR = new Color(1, 1, 1)
+const COSMOS_ORBIT_RAD_PER_MS = (Math.PI * 2) / 180_000
+const COSMOS_AXIS_RAD_PER_MS = (Math.PI * 2) / 90_000
 let activeLayoutSettings: AppWebLayoutSettings = { ...DEFAULT_APP_WEB_LAYOUT_SETTINGS }
 let activeRenderSettings: AppWebRenderSettings = { ...DEFAULT_APP_WEB_RENDER_SETTINGS }
 let levelResolver: LevelResolver = createLevelResolver(
@@ -118,6 +119,8 @@ let levelResolver: LevelResolver = createLevelResolver(
 const rebuildLevelResolver = (): void => {
 	levelResolver = createLevelResolver(toLevelSettings(activeLayoutSettings, activeRenderSettings))
 }
+
+const isCosmosMotionEnabled = (): boolean => activeRenderSettings.animationEnabled
 
 type HoverablePickTarget = BulkPickTarget & {
 	baseColor: Color
@@ -138,6 +141,7 @@ type ViewNavigationState = {
 type ShellRenderRecord = {
 	baseShellScale: number
 	container: Object3D
+	cosmosOrbitAngle: number
 	currentTransitionScale: number
 	material: LineGlowMaterial
 	pickTarget: HoverablePickTarget
@@ -147,6 +151,7 @@ type ShellRenderRecord = {
 }
 
 type FieldRenderRecord = {
+	cosmosOrbitAngle: number
 	currentTransitionScale: number
 	depth: number
 	material: LineGlowMaterial
@@ -346,7 +351,7 @@ const createSurfaceLabelNode = (spec: LabelSpec, font: TrueTypeFont): SurfaceLab
 		text: spec.text,
 		font,
 		baseFontSize,
-		material: new TextMaterial({ color: spec.color.clone(), opacity: 1, depthWrite: true }),
+		material: new TextMaterial({ color: LABEL_TEXT_COLOR, opacity: 1, depthWrite: true }),
 		curveRadiusMm: resolveCanonicalCurveRadius(spec),
 		limits: SURFACE_ARC_LIMITS,
 		minScale: MIN_SURFACE_LABEL_FIT_SCALE,
@@ -464,6 +469,8 @@ const mixColor = (left: Color, right: Color, amount: number): Color =>
 		left.a + (right.a - left.a) * amount,
 	)
 
+const brightenColor = (color: Color, amount: number): Color => mixColor(color, new Color(1, 1, 1, color.a), amount)
+
 const resolveShellVisualState = (shell: DbParticleShellRow): { color: Color; glowColor: Color; glowIntensity: number; opacity: number } => {
 	const baseColor = particleColor(shell)
 	const glowIntensity = shell.kind === "wimp" ? 1.4 : 1.15
@@ -576,6 +583,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const reusableTubeCenter = new Vector3()
 	const reusableScaledOffset = new Vector3()
 	const reusableLabelMatrix = new Matrix4()
+	const reusableCosmosAxis = new Vector3(0, 0, 1)
+	const reusableCosmosSpin = new Quaternion()
 
 	const viewPoint = new ViewPoint({
 		element: options.canvas,
@@ -608,11 +617,14 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const applyHoverMaterial = (target: HoverablePickTarget): void => {
-		target.material.color.copy(THEME_WARNING)
-		target.material.glowIntensity = Math.max(target.baseGlowIntensity * 1.6, target.baseGlowIntensity + 0.45)
+		const hoverColor = brightenColor(target.baseColor, 0.24)
+		const hoverGlowColor = brightenColor(target.baseGlowColor ?? target.baseColor, 0.34)
+		hoverGlowColor.a = Math.max(target.baseGlowColor?.a ?? 0.12, 0.16)
+		target.material.color.copy(hoverColor)
+		target.material.glowIntensity = Math.max(target.baseGlowIntensity * 1.35, target.baseGlowIntensity + 0.24)
 		target.material.opacity = Math.min(1, target.baseOpacity + 0.08)
-		if (target.material.glowColor) target.material.glowColor.copy(THEME_WARNING_GLOW)
-		else target.material.glowColor = THEME_WARNING_GLOW.clone()
+		if (target.material.glowColor) target.material.glowColor.copy(hoverGlowColor)
+		else target.material.glowColor = hoverGlowColor
 	}
 
 	const getPickTargetKey = (target: BulkPickTarget | null): string | null => {
@@ -757,6 +769,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		const record: ShellRenderRecord = {
 			baseShellScale: shell.shellScale,
 			container,
+			cosmosOrbitAngle: 0,
 			currentTransitionScale: 1,
 			material,
 			pickTarget,
@@ -795,6 +808,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		}
 
 		const record: FieldRenderRecord = {
+			cosmosOrbitAngle: 0,
 			currentTransitionScale: 1,
 			depth,
 			material,
@@ -1011,7 +1025,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			const visual = createSurfaceLabelNode(spec, labelFont!)
 			container.add(visual.container)
 			container.frustumCulled = false
-			container.scale.set(LABEL_INITIAL_SCALE, LABEL_INITIAL_SCALE, LABEL_INITIAL_SCALE)
+			const initialScale = LABEL_INITIAL_SCALE
+			container.scale.set(initialScale, initialScale, initialScale)
 			container.updateMatrix()
 			visual.material.opacity = 0
 			labelsLayer.add(container)
@@ -1019,8 +1034,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				anchorObject: spec.anchorObject,
 				container,
 				coverCenterX: visual.coverCenterX,
-				currentOpacity: 0,
-				currentScale: LABEL_INITIAL_SCALE,
+				currentOpacity: visual.material.opacity,
+				currentScale: initialScale,
 				extents: visual.extents,
 				initialCoverPositions: visual.initialCoverPositions,
 				initialStencilPositions: visual.initialStencilPositions,
@@ -1504,7 +1519,11 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 		for (const record of labelRecords.values()) {
 			const nextScale = mixScalar(record.currentScale, 1, scaleFactor)
-			const nextOpacity = mixScalar(record.currentOpacity, 1, computeLerpFactor(deltaMs, LABEL_FADE_IN_MS))
+			const nextOpacity = mixScalar(
+				record.currentOpacity,
+				1,
+				computeLerpFactor(deltaMs, LABEL_FADE_IN_MS),
+			)
 			record.currentScale = Math.abs(nextScale - 1) <= 1e-3 ? 1 : nextScale
 			record.currentOpacity = Math.abs(nextOpacity - 1) <= 1e-3 ? 1 : nextOpacity
 			record.container.scale.set(record.currentScale, record.currentScale, record.currentScale)
@@ -1537,6 +1556,50 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		}
 
 		return hasPendingMotion
+	}
+
+	const updateCosmosAnimation = (deltaMs: number): boolean => {
+		if (!isCosmosMotionEnabled() || deltaMs <= 0) return false
+
+		const orbitStep = COSMOS_ORBIT_RAD_PER_MS * deltaMs
+		const axisStep = COSMOS_AXIS_RAD_PER_MS * deltaMs
+
+		for (const record of shellRecords.values()) {
+			const direction = record.snapshot.depth % 2 === 0 ? 1 : -1
+			const depthFactor = 1 / Math.max(1, record.snapshot.depth + 1)
+			const orbitRadius = Math.hypot(record.targetLocalPosition.x, record.targetLocalPosition.y)
+			record.cosmosOrbitAngle = wrapAngle(record.cosmosOrbitAngle + orbitStep * direction * depthFactor)
+			if (orbitRadius > 1e-6) {
+				const baseAngle = Math.atan2(record.targetLocalPosition.y, record.targetLocalPosition.x)
+				record.container.position.set(
+					Math.cos(baseAngle + record.cosmosOrbitAngle) * orbitRadius,
+					Math.sin(baseAngle + record.cosmosOrbitAngle) * orbitRadius,
+					record.targetLocalPosition.z,
+				)
+			}
+			record.torus.rotation.z = wrapAngle(record.torus.rotation.z + axisStep * direction)
+			record.torus.updateMatrix()
+			record.container.updateMatrix()
+		}
+
+		for (const record of fieldRecords.values()) {
+			const direction = record.depth % 2 === 0 ? 1 : -1
+			const orbitRadius = Math.hypot(record.targetLocalPosition.x, record.targetLocalPosition.y)
+			record.cosmosOrbitAngle = wrapAngle(record.cosmosOrbitAngle + orbitStep * direction)
+			if (orbitRadius > 1e-6) {
+				const baseAngle = Math.atan2(record.targetLocalPosition.y, record.targetLocalPosition.x)
+				record.node.position.set(
+					Math.cos(baseAngle + record.cosmosOrbitAngle) * orbitRadius,
+					Math.sin(baseAngle + record.cosmosOrbitAngle) * orbitRadius,
+					record.targetLocalPosition.z,
+				)
+			}
+			reusableCosmosSpin.setFromAxisAngle(reusableCosmosAxis, axisStep * 1.35 * direction)
+			record.node.quaternion.premultiply(reusableCosmosSpin).normalize()
+			record.node.updateMatrix()
+		}
+
+		return shellRecords.size > 0 || fieldRecords.size > 0
 	}
 
 	const updateLabelTrackers = (): void => {
@@ -1749,6 +1812,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		lastAnimationTimestamp = timestamp
 
 		const hasPendingMotion = updateAnimatedRecords(deltaMs)
+		const hasCosmosMotion = updateCosmosAnimation(deltaMs)
 		updateSceneWorldState()
 		applyNavigationFrame(deltaMs)
 
@@ -1767,7 +1831,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		updateLabelTrackers()
 		space.updateWorldMatrix()
 		renderer.render(space, viewPoint)
-		if (navigationState || hasPendingMotion || timestamp < renderWakeUntilMs) {
+		if (navigationState || hasPendingMotion || hasCosmosMotion || timestamp < renderWakeUntilMs) {
 			frameHandle = requestAnimationFrame(animate)
 		}
 	}
@@ -1808,11 +1872,16 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		},
 		setRenderSettings(settings: Partial<AppWebRenderSettings>) {
 			const nextBaseDepth = settings.baseDepth !== undefined ? settings.baseDepth : activeRenderSettings.baseDepth
+			const wasCosmosMotionEnabled = activeRenderSettings.animationEnabled
 			activeRenderSettings = normalizeAppWebRenderSettings({
 				...activeRenderSettings,
 				...settings,
 				baseDepth: nextBaseDepth,
 			})
+			if (wasCosmosMotionEnabled && !activeRenderSettings.animationEnabled) {
+				for (const record of shellRecords.values()) record.cosmosOrbitAngle = 0
+				for (const record of fieldRecords.values()) record.cosmosOrbitAngle = 0
+			}
 			rebuildLevelResolver()
 			if (settings.baseDepth !== undefined) activeShellParticleId = null
 			torusWireframeCache.clear()

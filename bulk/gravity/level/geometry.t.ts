@@ -4,12 +4,12 @@ import type { LevelGeometrySettings } from "./settings.t"
  * Геометрия одного уровня бран.
  *
  * Чистый набор размеров в миллиметрах без смешения с render/label параметрами.
- * Все значения следуют единому `levelScale`-закону: либо из канонического снижения по глубине,
+ * Все значения следуют единому фрактальному `levelScale`-закону: либо из канонического снижения по глубине,
  * либо из фактического `outerRadiusMm` снимка (без двойного masштабирования через `surfaceScale`).
  */
 export interface LevelGeometry {
   depth: number
-  /** `1 / pow(levelSizeMultiplier, depth)` — масштаб канонического размера относительно корня. */
+  /** `2 ** -depth` — фрактальный масштаб канонического размера относительно корня. */
   levelScale: number
   outerDiameterMm: number
   outerRadiusMm: number
