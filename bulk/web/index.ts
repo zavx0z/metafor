@@ -1,4 +1,4 @@
-import type { DbFieldOrbitRow, DbFieldValueKind, DbParticleShellRow, DbWorldRows } from "@boundary/actor"
+import type { DbFieldOrbitRow, DbFieldValueKind, DbParticleShellRow, DbWorldRows } from "@bulk/gravity/layout"
 import {
 	appWebLayoutConfig,
 	DEFAULT_APP_WEB_LAYOUT_SETTINGS,

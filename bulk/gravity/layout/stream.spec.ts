@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { DbFieldOrbitRow, DbParticleShellRow } from "@boundary/actor"
+import type { DbFieldOrbitRow, DbParticleShellRow } from "./world"
 import { streamDbWorldRows, type DbWorldRowSink } from "./stream"
 import type { DbWorldParticleDescriptor } from "./snapshot"
 

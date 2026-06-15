@@ -25,6 +25,15 @@
         "energy": "workspace:*",
       },
     },
+    "app/web": {
+      "name": "@app/web",
+      "dependencies": {
+        "@bulk/gravity": "workspace:*",
+        "boundary": "workspace:*",
+        "bulk": "workspace:*",
+        "dark": "workspace:*",
+      },
+    },
     "boundary": {
       "name": "boundary",
       "dependencies": {
@@ -827,6 +836,8 @@
   },
   "packages": {
     "@app/application": ["@app/application@workspace:app/application"],
+
+    "@app/web": ["@app/web@workspace:app/web"],
 
     "@boundary/actor": ["@boundary/actor@workspace:boundary/actor"],
 

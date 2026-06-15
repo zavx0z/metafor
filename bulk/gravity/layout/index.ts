@@ -18,10 +18,17 @@ export {
   toLevelGeometrySettings,
 } from "./settings"
 export type { DbWorldFieldDescriptor, DbWorldParticleDescriptor } from "./snapshot"
+export type {
+  DbFieldOrbitRow,
+  DbFieldValueKind,
+  DbParticleKind,
+  DbParticleShellRow,
+  DbWorldRows,
+  DbWorldRowSink,
+} from "./world"
 export {
   createDbWorldRowsFromParticleDescriptors,
   enforceRootShellLayoutSettings,
   scaleDbWorldRowsToRootOuterDiameter,
 } from "./snapshot"
-export type { DbWorldRowSink } from "./stream"
 export { streamDbWorldRows } from "./stream"

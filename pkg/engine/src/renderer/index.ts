@@ -27,7 +27,7 @@ import {GlassMaterial} from "../materials/GlassMaterial"
 import {TextureLoader} from "../loaders/TextureLoader"
 
 if (import.meta.hot) {
-  import.meta.hot.accept([
+  (import.meta.hot.accept as unknown as (dependencies: string[], callback: () => void) => void)([
     "./shaders/mesh_basic.wgsl",
     "./shaders/mesh_static.wgsl",
     "./shaders/mesh_skinned.wgsl",

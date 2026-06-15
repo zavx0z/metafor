@@ -51,7 +51,7 @@
     "pkg/engine/server.ts",
     "pkg/engine/global.d.ts",
     "app/space/**/*",
-    "app/web/**/*",
+    "app/web/runtime/**/*",
     "tests/tmp/**/*",
     ".idea/**/*",
     ".cursor/**/*",

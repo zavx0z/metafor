@@ -1,19 +1,10 @@
-import type { DbActorStore } from "@boundary/actor"
 import {
   createDbWorldRowsFromParticleDescriptors,
   scaleDbWorldRowsToRootOuterDiameter,
   type DbWorldParticleDescriptor,
 } from "./snapshot"
 import type { BulkLayoutSettings } from "./settings.t"
-
-/**
- * Лёгкий sink-API: подмножество {@link DbActorStore}, нужное layout-builder-у для
- * потоковой записи row-ов. Реализуется и SQLite, и IDB store-ом, либо тестовым stub-ом.
- */
-export type DbWorldRowSink = Pick<
-  DbActorStore,
-  "clearWorld" | "insertParticleShell" | "insertFieldOrbit"
->
+import type { DbWorldRowSink } from "./world"
 
 /**
  * Строит row-набор world-структуры из particle-descriptors и сразу пишет его per-row в `sink`.

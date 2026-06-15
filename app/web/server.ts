@@ -1,10 +1,16 @@
-import { file, serve } from "bun"
-import { join, normalize } from "node:path"
-import {force} from "boundary"
+import {SQL, file, serve} from "bun"
+import {mkdirSync} from "node:fs"
+import {dirname, join, normalize} from "node:path"
 import index from "./index.html"
+import {buildBoundaryWorldRows} from "./world.ts"
+import type {Boundary} from "boundary"
 import type {
 	ClientForceBridgePayload,
+	ClientMessage,
+	ClientMaterializePayload,
+	ClientRelayoutPayload,
 	Particle,
+	ServerWorldPayload,
 } from "./server.t.ts"
 
 const ROOT = normalize(join(import.meta.dir, "../../"))
@@ -12,6 +18,16 @@ const APP_CHANNEL = "app-web"
 const DEFAULT_PORT = 3000
 const configuredPort = Number(Bun.env.PORT ?? DEFAULT_PORT)
 const APP_PORT = Number.isFinite(configuredPort) && configuredPort > 0 ? configuredPort : DEFAULT_PORT
+const BOUNDARY_PATH = Bun.env.BOUNDARY_PATH ?? join(import.meta.dir, "tmp/boundary.sqlite")
+const DARK_SERVER_SPECIFIER = "dark/server"
+
+mkdirSync(dirname(BOUNDARY_PATH), {recursive: true})
+process.env.BOUNDARY_PATH = BOUNDARY_PATH
+
+await import(DARK_SERVER_SPECIFIER)
+
+const boundary = (globalThis as typeof globalThis & {boundary: Boundary}).boundary
+const worldSql = new SQL(`sqlite://${BOUNDARY_PATH}`)
 
 const TLS_KEY_FILE = Bun.env.TLS_KEY_FILE
 const TLS_CERT_FILE = Bun.env.TLS_CERT_FILE
@@ -21,20 +37,26 @@ const tls = TLS_KEY_FILE && TLS_CERT_FILE
 	? {
 			key: file(TLS_KEY_FILE),
 			cert: file(TLS_CERT_FILE),
-			...(TLS_CA_FILE ? { ca: file(TLS_CA_FILE) } : {}),
-			...(TLS_PASSPHRASE ? { passphrase: TLS_PASSPHRASE } : {}),
+			...(TLS_CA_FILE ? {ca: file(TLS_CA_FILE)} : {}),
+			...(TLS_PASSPHRASE ? {passphrase: TLS_PASSPHRASE} : {}),
 		}
 	: undefined
+
+const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
 const publish = (payload: unknown): void => {
 	server.publish(APP_CHANNEL, JSON.stringify(payload))
 }
 
+const send = (ws: {send(message: string): unknown}, payload: unknown): void => {
+	ws.send(JSON.stringify(payload))
+}
+
 const valuePartPayload = (value: unknown): Particle | null => {
 	if (!value || typeof value !== "object") return null
-	const part = value as { part?: unknown; op?: unknown; path?: unknown; value?: unknown }
+	const part = value as {part?: unknown; op?: unknown; path?: unknown; value?: unknown}
 	return (part.part === "gluon" || part.part === "higgs") && part.op === "replace" && typeof part.path === "string" && "value" in part
-		? { part: part.part, op: "replace", path: part.path, value: part.value }
+		? {part: part.part, op: "replace", path: part.path, value: part.value}
 		: null
 }
 
@@ -49,27 +71,81 @@ const clientForceBridgePayload = (value: unknown): ClientForceBridgePayload | nu
 	const parts = message.parts.map(valuePartPayload)
 	if (parts.some((part) => part === null)) return null
 
-	return { type: "force", parts: parts as Particle[] }
+	return {type: "force", parts: parts as Particle[]}
 }
 
-force.observe((event) => {
-	const parts = event.data.parts
+const countWorldRows = async (): Promise<{actors: number; topologies: number}> => {
+	const actors = (await worldSql<Array<{count: number}>>`SELECT COUNT(*) AS count FROM actor`)[0]?.count ?? 0
+	const topologies = (await worldSql<Array<{count: number}>>`SELECT COUNT(*) AS count FROM topology`)[0]?.count ?? 0
+	return {actors, topologies}
+}
+
+const hasRootActor = async (src: string): Promise<boolean> => {
+	const row = (await worldSql<Array<{ok: number}>>`
+		SELECT 1 AS ok
+		  FROM actor
+		 WHERE wimp = ${src}
+		   AND parent_actor IS NULL
+		   AND parent_topology IS NULL
+		 LIMIT 1
+	`)[0]
+	return row !== undefined
+}
+
+const waitForBoundaryWorld = async (src: string): Promise<void> => {
+	const deadline = Date.now() + 30_000
+	let lastSignature = ""
+	let stableSince = 0
+
+	while (Date.now() < deadline) {
+		const [rootReady, counts] = await Promise.all([hasRootActor(src), countWorldRows()])
+		const signature = `${counts.actors}:${counts.topologies}`
+
+		if (rootReady && signature === lastSignature) {
+			if (stableSince !== 0 && Date.now() - stableSince >= 500) return
+			if (stableSince === 0) stableSince = Date.now()
+		} else {
+			lastSignature = signature
+			stableSince = rootReady ? Date.now() : 0
+		}
+
+		await delay(50)
+	}
+
+	throw new Error(`Boundary world for ${src} did not stabilize`)
+}
+
+const materializeWorld = async (
+	message: ClientMaterializePayload | ClientRelayoutPayload,
+): Promise<ServerWorldPayload> => {
+	const src = message.src.trim() || "zavx0z/git"
+	if (message.type === "materialize") {
+		boundary.emit({parts: [{part: "graviton", op: "test", path: "wimp", value: src}]})
+		await waitForBoundaryWorld(src)
+	}
+
+	const world = await buildBoundaryWorldRows(worldSql, src, message.layoutSettings ?? {})
+	return {type: "world", src, world}
+}
+
+boundary.entropy((event) => {
 	publish({
 		type: "force",
-		parts,
+		parts: event.data.parts,
 	})
 })
 
 const server = serve({
 	port: APP_PORT,
-	...(tls ? { tls } : {}),
+	...(tls ? {tls} : {}),
 	routes: {
 		"/": index,
+		"/health": () => Response.json({ok: true}),
 		"/engine-static/JetBrainsMono-Bold.ttf": () => new Response(file(join(ROOT, "pkg/engine/static/JetBrainsMono-Bold.ttf"))),
 		"/ws": {
 			GET(req, wsServer) {
 				if (wsServer.upgrade(req)) return
-				return new Response("Upgrade failed", { status: 400 })
+				return new Response("Upgrade failed", {status: 400})
 			},
 		},
 	},
@@ -77,10 +153,10 @@ const server = serve({
 		open(ws) {
 			ws.subscribe(APP_CHANNEL)
 		},
-		message(_ws, message) {
-			let payload: ClientForceBridgePayload | null = null
+		message(ws, message) {
+			let payload: ClientMessage | null = null
 			try {
-				payload = JSON.parse(String(message)) as ClientForceBridgePayload
+				payload = JSON.parse(String(message)) as ClientMessage
 			} catch {
 				return
 			}
@@ -89,9 +165,18 @@ const server = serve({
 				return
 			}
 
+			if (payload.type === "materialize" || payload.type === "relayout") {
+				void materializeWorld(payload)
+					.then((world) => send(ws, world))
+					.catch((error) => {
+						send(ws, {type: "error", error: error instanceof Error ? error.message : String(error)})
+					})
+				return
+			}
+
 			const forceBridgePayload = clientForceBridgePayload(payload)
 			if (forceBridgePayload === null) return
-			force.emit({ parts: forceBridgePayload.parts })
+			boundary.emit({parts: forceBridgePayload.parts})
 		},
 	},
 })

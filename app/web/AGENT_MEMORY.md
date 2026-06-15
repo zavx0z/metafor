@@ -10,6 +10,10 @@
 
 Последняя зафиксированная чистка: `6d5a9bd8 Clean stale AppWeb worker runtime`.
 
+Текущий рабочий проход: AppWeb снова подключён к workspace и визуализация поднята через серверный `Boundary`.
+Сервер `app/web/server.ts` импортирует `dark/server`, задаёт `BOUNDARY_PATH`, отправляет `graviton/test/wimp`, читает заполненный Boundary SQLite и отдаёт браузеру `world`-сообщение. Клиент применяет его через `bulkViewport.applyWorld()`.
+Проверенный результат: `http://127.0.0.1:3000/`, root `zavx0z/git`, `85 shells / 96 fields`.
+
 Что уже удалено и не нужно восстанавливать:
 
 - `app/web/runtime/dark.worker.ts`;
@@ -33,11 +37,14 @@ WebSocket -> события рендера / строки мира -> bulkViewpo
 
 ## Следующий технический слой
 
-Следующий осмысленный проход не в `AppWeb`, а в рендер-проекции Bulk:
+В этом проходе уже сделано:
 
 - вынести render-row типы из `@boundary/actor`;
 - завести явный контракт рендер-проекции Bulk;
 - убрать из `bulk/web` и `bulk/gravity/layout` ожидание `DbWorldRows`, `DbParticleShellRow`, `DbFieldOrbitRow`, `DbActorStore` из `@boundary/actor`;
+
+Следующий осмысленный проход не в `AppWeb`, а в рендер-проекции Bulk:
+
 - убрать из рантайма Bulk прямое чтение `Boundary`/БД; проекция должна приходить потоком Force/событий рендера и жить в рантайме Bulk;
 - после этого сервер сможет отдавать рендер-проекцию напрямую, без браузерного DB-index.
 

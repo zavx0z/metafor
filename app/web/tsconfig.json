@@ -1,3 +1,11 @@
 {
-  "extends": "../../tsconfig.json"
+  "extends": "../../tsconfig.json",
+  "include": [
+    "../../types/**/*.d.ts",
+    "**/*.ts"
+  ],
+  "exclude": [
+    "runtime/**/*",
+    "tmp/**/*"
+  ]
 }

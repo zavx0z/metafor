@@ -4,7 +4,8 @@ import {
 	setConnectionStatus,
 } from "./force-logger.ts"
 import type { Particle } from "boundary"
-import { createBulkViewport, type BulkViewportController, type BulkViewportStats } from "../../bulk/web/index.ts"
+import { createBulkViewport, type BulkViewportController, type BulkViewportStats } from "bulk/web"
+import type { DbWorldRows } from "@bulk/gravity/layout"
 import {
 	APP_WEB_LAYOUT_SETTING_KEYS,
 	APP_WEB_RENDER_SETTING_KEYS,
@@ -17,6 +18,17 @@ import { loadPersistedAppWebUiSettings, savePersistedAppWebUiSettings } from "./
 type ForceMessage = {
 	type: "force"
 	parts: Particle[]
+}
+
+type WorldMessage = {
+	type: "world"
+	src: string
+	world: DbWorldRows
+}
+
+type ErrorMessage = {
+	type: "error"
+	error: string
 }
 
 type ClientMaterializePayload = {
@@ -52,6 +64,7 @@ const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement
 const bulkCounter = document.getElementById("bulk-counter") as HTMLSpanElement
 let bulkViewport: BulkViewportController | null = null
 let initialMaterializationRequested = false
+let pendingWorldMessage: WorldMessage | null = null
 
 const socketScheme = window.location.protocol === "https:" ? "wss:" : "ws:"
 const socket = new WebSocket(`${socketScheme}//${window.location.host}/ws`)
@@ -59,6 +72,20 @@ const socket = new WebSocket(`${socketScheme}//${window.location.host}/ws`)
 const updateBulkStats = (stats: BulkViewportStats): void => {
 	const rootSrc = stats.rootSrc ? `${stats.rootSrc}: ` : ""
 	bulkCounter.textContent = `${rootSrc}${stats.shellCount} shells / ${stats.fieldCount} fields`
+}
+
+const applyWorldMessage = (message: WorldMessage): void => {
+	if (!bulkViewport) {
+		pendingWorldMessage = message
+		return
+	}
+
+	bulkViewport.applyWorld(message.world)
+	if (pendingSceneState && pendingSceneState.src === message.src) {
+		lastAppliedSceneState = pendingSceneState
+		pendingSceneState = null
+	}
+	submitButton.disabled = socket.readyState !== WebSocket.OPEN
 }
 
 const parsePositiveNumber = (input: HTMLInputElement, fallback: number): number => {
@@ -283,6 +310,11 @@ const initBulkViewport = async (): Promise<void> => {
 	const initialPayload = createMaterializePayload()
 	bulkViewport.setLayoutSettings(initialPayload.layoutSettings)
 	bulkViewport.setRenderSettings(createUiSettingsSnapshot().renderSettings)
+	if (pendingWorldMessage) {
+		const worldMessage = pendingWorldMessage
+		pendingWorldMessage = null
+		applyWorldMessage(worldMessage)
+	}
 
 	const resizeObserver = new ResizeObserver((entries) => {
 		const entry = entries[0]
@@ -303,6 +335,7 @@ void initBulkViewport().catch((error) => {
 
 socket.onopen = async () => {
 	await persistedUiSettingsReady
+	setConnectionStatus(true)
 	submitButton.disabled = false
 	if (!initialMaterializationRequested) {
 		initialMaterializationRequested = true
@@ -320,11 +353,12 @@ socket.onopen = async () => {
 }
 
 socket.onclose = () => {
+	setConnectionStatus(false)
 	submitButton.disabled = true
 }
 
 socket.onmessage = (event) => {
-	const message = JSON.parse(String(event.data)) as any
+	const message = JSON.parse(String(event.data)) as ForceMessage | WorldMessage | ErrorMessage
 
 	if (message.type === "force") {
 		const forceMessage = message as ForceMessage
@@ -343,6 +377,17 @@ socket.onmessage = (event) => {
 			}
 			bulkViewport?.handleForce(part.part, part)
 		}
+		return
+	}
+
+	if (message.type === "world") {
+		applyWorldMessage(message)
+		return
+	}
+
+	if (message.type === "error") {
+		appendForceMessage("error", message.error)
+		submitButton.disabled = socket.readyState !== WebSocket.OPEN
 		return
 	}
 }
