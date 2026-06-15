@@ -1,9 +1,10 @@
+import {normalizeMatterBindingPath} from "@boundary/wimp/sqlite"
 import type { Fields, NodeMeta } from "../../index.ts"
 
 const getFieldValues = (path: string, fields?: Fields): Array<string | number> => {
-  if (!fields || !path.startsWith("/value/")) return []
+  if (!fields) return []
 
-  return [...(fields[path.slice("/value/".length)]?.values ?? [])]
+  return [...(fields[normalizeMatterBindingPath(path)]?.values ?? [])]
 }
 
 const createContinuationSrc = (node: NodeMeta, value: string | number): string => {

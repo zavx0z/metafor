@@ -135,7 +135,7 @@ describe("sqlite ddl", () => {
                 particle: {
                   kind: "wimp",
                   src: "alpha/child",
-                  fieldsBinding: {data: "/value/status", expr: "{ status: _[0] }"},
+                  fieldsBinding: {data: "status", expr: "{ status: _[0] }"},
                 },
               },
             ],
@@ -161,7 +161,7 @@ describe("sqlite ddl", () => {
               particle: {
                 kind: "wimp",
                 src: "alpha/child",
-                fieldsBinding: {data: "/value/status", expr: "{ status: _[0] }"},
+                fieldsBinding: {data: "status", expr: "{ status: _[0] }"},
               },
             },
           ],

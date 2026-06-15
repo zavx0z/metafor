@@ -10,7 +10,7 @@ import {
   createDbWorldRowsFromParticleDescriptors,
   scaleDbWorldRowsToRootOuterDiameter,
 } from "@bulk/gravity/layout"
-import type {BoundaryBulkRuntimeSnapshot} from "boundary"
+import {normalizeMatterBindingPath, type BoundaryBulkRuntimeSnapshot} from "boundary"
 
 type ActorRow = BoundaryBulkRuntimeSnapshot["actors"][number]
 type TopologyRow = BoundaryBulkRuntimeSnapshot["topologies"][number]
@@ -92,8 +92,10 @@ const sortMatterParticles = (rows: MatterParticleRow[]): MatterParticleRow[] =>
 const sortBindingPaths = <T extends {depOrder: number; childOrder?: number}>(rows: T[]): T[] =>
   [...rows].sort((left, right) => (left.childOrder ?? 0) - (right.childOrder ?? 0) || left.depOrder - right.depOrder)
 
-const fieldKeyFromValuePath = (path: string): string | null =>
-  path.startsWith("/value/") ? path.slice("/value/".length) : null
+const fieldKeyFromMatterPath = (path: string): string | null => {
+  const key = normalizeMatterBindingPath(path)
+  return key.startsWith("/") || key.startsWith("[") ? null : key
+}
 
 export function buildBoundaryWorldRows(
   snapshot: BoundaryBulkRuntimeSnapshot,
@@ -136,7 +138,7 @@ export function buildBoundaryWorldRows(
 
   const collectStructuralFieldKeys = (rows: MatterBindingPathRow[]): void => {
     for (const row of rows) {
-      const key = fieldKeyFromValuePath(row.path)
+      const key = fieldKeyFromMatterPath(row.path)
       if (key !== null) structuralFieldKeys.add(`${row.wimp}\0${key}`)
     }
   }
@@ -149,7 +151,7 @@ export function buildBoundaryWorldRows(
       .filter((particle) => particle.particleKind !== "wimp")
 
   const fieldLabelFromPath = (wimp: string, path: string): string | null => {
-    const key = fieldKeyFromValuePath(path)
+    const key = fieldKeyFromMatterPath(path)
     if (!key) return null
     const field = fieldByWimpKey.get(`${wimp}\0${key}`)
     return field?.label ?? field?.key ?? key

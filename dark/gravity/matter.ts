@@ -1,10 +1,12 @@
-import type { MetaDSL, NodeType } from "../../index.ts"
-import type {
-  MatterRelationBindingValue,
-  MatterRelationChild,
-  MatterRelationParticle,
+import {
+  normalizeMatterBindingPath,
+  normalizeMatterBindingValue,
+  type MatterRelationBindingValue,
+  type MatterRelationChild,
+  type MatterRelationParticle,
 } from "@boundary/wimp/sqlite"
 import type { MatterParticlePlan } from "../types/dark.ts"
+import type { MetaDSL, NodeType } from "../../index.ts"
 
 const createContinuationSrc = (expr: string | undefined, value: string | number): string => {
   if (!expr) return String(value)
@@ -17,15 +19,18 @@ const resolveMetaBranchSrcs = (meta: MetaDSL, node: { src: string | { data?: str
   if (typeof node.src === "string") return [node.src]
 
   const source = node.src
-  const paths = source.data !== undefined ? (Array.isArray(source.data) ? source.data : [source.data]) : []
-  const firstPath = paths[0]
-  if (!firstPath || !firstPath.startsWith("/value/")) return []
+  const paths = source.data !== undefined ? (Array.isArray(source.data) ? source.data : [source.data]).map(normalizeMatterBindingPath) : []
+  const firstKey = paths[0]
+  if (!firstKey) return []
 
-  const field = meta.fields?.find((field) => field.key === firstPath.slice("/value/".length))
+  const field = meta.fields?.find((field) => field.key === firstKey)
   if (!field || field.type !== "enum") return []
 
   return (field.values ?? []).map((variant) => createContinuationSrc(source.expr, variant))
 }
+
+const binding = (data: string | string[], expr: string | undefined): MatterRelationBindingValue =>
+  normalizeMatterBindingValue(expr !== undefined ? {data, expr} : {data})
 
 const childRelations = (meta: MetaDSL, children: NodeType[] | undefined): MatterRelationChild[] | undefined => {
   if (!Array.isArray(children) || children.length === 0) return
@@ -45,14 +50,16 @@ const projectTemplateMatterNode = (meta: MetaDSL, node: NodeType): MatterRelatio
       child?: NodeType[]
     }
     const children = childRelations(meta, metaNode.child)
+    const fieldsBinding = metaNode.fields !== undefined ? normalizeMatterBindingValue(metaNode.fields) : undefined
+    const massBinding = metaNode.mass !== undefined ? normalizeMatterBindingValue(metaNode.mass) : undefined
 
     if (typeof metaNode.src === "string") {
       return [
         {
           kind: "wimp",
           src: metaNode.src,
-          ...(metaNode.fields !== undefined ? { fieldsBinding: metaNode.fields } : {}),
-          ...(metaNode.mass !== undefined ? { massBinding: metaNode.mass } : {}),
+          ...(fieldsBinding !== undefined ? { fieldsBinding } : {}),
+          ...(massBinding !== undefined ? { massBinding } : {}),
           ...(children !== undefined ? { children } : {}),
         },
       ]
@@ -67,8 +74,8 @@ const projectTemplateMatterNode = (meta: MetaDSL, node: NodeType): MatterRelatio
           particle: {
             kind: "wimp",
             src,
-            ...(metaNode.fields !== undefined ? { fieldsBinding: metaNode.fields } : {}),
-            ...(metaNode.mass !== undefined ? { massBinding: metaNode.mass } : {}),
+            ...(fieldsBinding !== undefined ? { fieldsBinding } : {}),
+            ...(massBinding !== undefined ? { massBinding } : {}),
             ...(children !== undefined ? { children } : {}),
           },
         })),
@@ -88,7 +95,7 @@ const projectTemplateMatterNode = (meta: MetaDSL, node: NodeType): MatterRelatio
       {
         kind: "fuzzy",
         fuzzyKind: "cond",
-        predicateBinding: conditionNode.expr !== undefined ? { data: conditionNode.data, expr: conditionNode.expr } : { data: conditionNode.data },
+        predicateBinding: binding(conditionNode.data, conditionNode.expr),
         ...(children.length > 0 ? { children } : {}),
       },
     ]
@@ -100,7 +107,7 @@ const projectTemplateMatterNode = (meta: MetaDSL, node: NodeType): MatterRelatio
     return [
       {
         kind: "axion",
-        predicateBinding: logicalNode.expr !== undefined ? { data: logicalNode.data, expr: logicalNode.expr } : { data: logicalNode.data },
+        predicateBinding: binding(logicalNode.data, logicalNode.expr),
         ...(children !== undefined ? { children } : {}),
       },
     ]
@@ -112,7 +119,7 @@ const projectTemplateMatterNode = (meta: MetaDSL, node: NodeType): MatterRelatio
     return [
       {
         kind: "macho",
-        collectionBinding: { data: mapNode.data },
+        collectionBinding: normalizeMatterBindingValue({ data: mapNode.data }),
         ...(children !== undefined ? { children } : {}),
       },
     ]

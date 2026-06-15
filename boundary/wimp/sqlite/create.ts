@@ -1,5 +1,6 @@
 import type {WimpCreateFieldInput, WimpCreateInput, WimpCreateProcessInput, WimpCreateReactionInput, WimpCreateSuperpositionInput} from "./create.t.ts"
 import type {EdgeSlot, MatterRelationBindingValue, MatterRelationParticle} from "./matter.t.ts"
+import {normalizeMatterBindingPath} from "./binding.ts"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -442,7 +443,7 @@ const pushReactionRows = (
 
 const matterBindingPaths = (value: MatterRelationBindingValue): string[] => {
   if (typeof value === "string" || value.data === undefined) return []
-  return Array.isArray(value.data) ? value.data : [value.data]
+  return (Array.isArray(value.data) ? value.data : [value.data]).map(normalizeMatterBindingPath)
 }
 
 const pushMatterBindingRows = (

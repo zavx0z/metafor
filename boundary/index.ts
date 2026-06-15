@@ -7,6 +7,7 @@ import type {BoundaryBulkRuntimeSnapshot} from "./runtime/bulk.ts"
 import type {BoundaryEnergyRuntimeSnapshot} from "./runtime/energy.ts"
 
 export {FORCE, force} from "./force.ts"
+export {normalizeMatterBindingPath, normalizeMatterBindingValue} from "@boundary/wimp/sqlite"
 export type {Force, ForceBinding, ForceMessage, ForceMessageListener, ForceSurface, ParticleOperation, Part, Particle} from "./force.ts"
 export {open} from "./sqlite.ts"
 export type {BoundaryPart, BoundaryParticle, BoundaryUpdateMessage} from "./sqlite.ts"
