@@ -34,17 +34,28 @@ export type DivProps = Omit<InteractiveElementProps, "children"> & {
 type DivScrollState = {
   top: number
   left: number
+  targetTop: number
+  targetLeft: number
+  animationRafId: number | null
+  lastWheelTopAt: number | null
+  lastWheelLeftAt: number | null
+  smoothPixelTopUntil: number
+  smoothPixelLeftUntil: number
   dragY: {startY: number; startTop: number} | null
   dragX: {startX: number; startLeft: number} | null
 }
 
 const scrollStates = new WeakMap<UiSurface, Map<string, DivScrollState>>()
 const WHEEL_LINE_PX = 40
-const TRACKPAD_LINEAR_PX = 12
-const TRACKPAD_LINEAR_SPEED = 1.35
-const TRACKPAD_LOG_SPEED = 4.5
-const TRACKPAD_MAX_STEP_PX = 34
-const WHEEL_MAX_STEP_PX = 72
+const DOM_DELTA_PIXEL = 0
+const DOM_DELTA_LINE = 1
+const DOM_DELTA_PAGE = 2
+const PIXEL_WHEEL_MOMENTUM_GAP_MS = 28
+const PIXEL_WHEEL_NEW_GESTURE_GAP_MS = 180
+const PIXEL_WHEEL_MOMENTUM_MIN_DELTA_PX = 8
+const PIXEL_WHEEL_MOMENTUM_CHAIN_MS = 90
+const SMOOTH_SCROLL_FOLLOW = 0.42
+const SMOOTH_SCROLL_SNAP_PX = 0.5
 
 export function divScrollTo(surface: UiSurface, key: string, next: {left?: number; top?: number}): void {
   const state = divScrollState(surface, key)
@@ -52,14 +63,18 @@ export function divScrollTo(surface: UiSurface, key: string, next: {left?: numbe
   if (next.left !== undefined && Number.isFinite(next.left)) {
     const left = Math.max(0, next.left)
     if (left !== state.left) {
+      stopDivScrollAnimation(state)
       state.left = left
+      state.targetLeft = left
       changed = true
     }
   }
   if (next.top !== undefined && Number.isFinite(next.top)) {
     const top = Math.max(0, next.top)
     if (top !== state.top) {
+      stopDivScrollAnimation(state)
       state.top = top
+      state.targetTop = top
       changed = true
     }
   }
@@ -277,6 +292,8 @@ function divScrollLayout(
   const maxScrollY = Math.max(0, contentH - viewportH)
   state.left = clamp(state.left, 0, maxScrollX)
   state.top = clamp(state.top, 0, maxScrollY)
+  state.targetLeft = clamp(state.targetLeft, 0, maxScrollX)
+  state.targetTop = clamp(state.targetTop, 0, maxScrollY)
   return {
     x: opts.x,
     y: opts.y,
@@ -314,18 +331,12 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
             : !layout.showY
               ? event.deltaY
               : 0
-        const next = clamp(state.left + wheelDeltaPxFor(delta, event.deltaMode, layout.viewportW), 0, layout.maxScrollX)
-        if (next === state.left) return
+        if (!applyWheelScroll(surface, state, "left", wheelDeltaPxFor(delta, event.deltaMode, layout.viewportW), event.deltaMode, layout.maxScrollX, event.timeStamp)) return
         event.preventDefault()
-        state.left = next
-        surface.requestRender()
         return
       }
-      const next = clamp(state.top + wheelDeltaPxFor(event.deltaY, event.deltaMode, layout.viewportH), 0, layout.maxScrollY)
-      if (next === state.top) return
+      if (!applyWheelScroll(surface, state, "top", wheelDeltaPxFor(event.deltaY, event.deltaMode, layout.viewportH), event.deltaMode, layout.maxScrollY, event.timeStamp)) return
       event.preventDefault()
-      state.top = next
-      surface.requestRender()
     }, layout.key)
   }
 
@@ -348,7 +359,9 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
       onPointerDown: (_localX, localY) => {
         const localTrackY = localY - scrollbarY
         const direction = localTrackY < thumb.y ? -1 : 1
+        stopDivScrollAnimation(state)
         state.top = clamp(state.top + direction * layout.viewportH * 0.85, 0, layout.maxScrollY)
+        state.targetTop = state.top
         surface.requestRender()
       },
     })
@@ -357,6 +370,7 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
       cursor: "grab",
       activeCursor: "grabbing",
       onPointerDown: (_localX, localY) => {
+        stopDivScrollAnimation(state)
         state.dragY = {startY: localY, startTop: state.top}
       },
       onPointerMove: (_localX, localY) => {
@@ -365,6 +379,7 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
         const contentRange = Math.max(1, layout.contentH - layout.viewportH)
         const next = state.dragY.startTop + ((localY - state.dragY.startY) / range) * contentRange
         state.top = clamp(next, 0, layout.maxScrollY)
+        state.targetTop = state.top
         surface.requestRender()
       },
       onPointerUp: () => {
@@ -400,7 +415,9 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
       onPointerDown: (localX) => {
         const localTrackX = localX - scrollbarX
         const direction = localTrackX < thumb.y ? -1 : 1
+        stopDivScrollAnimation(state)
         state.left = clamp(state.left + direction * layout.viewportW * 0.85, 0, layout.maxScrollX)
+        state.targetLeft = state.left
         surface.requestRender()
       },
     })
@@ -409,6 +426,7 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
       cursor: "grab",
       activeCursor: "grabbing",
       onPointerDown: (localX) => {
+        stopDivScrollAnimation(state)
         state.dragX = {startX: localX, startLeft: state.left}
       },
       onPointerMove: (localX) => {
@@ -417,6 +435,7 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
         const contentRange = Math.max(1, layout.contentW - layout.viewportW)
         const next = state.dragX.startLeft + ((localX - state.dragX.startX) / range) * contentRange
         state.left = clamp(next, 0, layout.maxScrollX)
+        state.targetLeft = state.left
         surface.requestRender()
       },
       onPointerUp: () => {
@@ -447,10 +466,30 @@ function divScrollState(surface: UiSurface, key: string): DivScrollState {
   }
   let state = byKey.get(key)
   if (state === undefined) {
-    state = {top: 0, left: 0, dragY: null, dragX: null}
+    state = {
+      top: 0,
+      left: 0,
+      targetTop: 0,
+      targetLeft: 0,
+      animationRafId: null,
+      lastWheelTopAt: null,
+      lastWheelLeftAt: null,
+      smoothPixelTopUntil: 0,
+      smoothPixelLeftUntil: 0,
+      dragY: null,
+      dragX: null,
+    }
     byKey.set(key, state)
   }
+  state.top ??= 0
   state.left ??= 0
+  state.targetTop ??= state.top
+  state.targetLeft ??= state.left
+  state.animationRafId ??= null
+  state.lastWheelTopAt ??= null
+  state.lastWheelLeftAt ??= null
+  state.smoothPixelTopUntil ??= 0
+  state.smoothPixelLeftUntil ??= 0
   state.dragY ??= null
   state.dragX ??= null
   return state
@@ -475,16 +514,108 @@ function scrollbarEdgeInset(radius: number, axisSize: number): number {
   return Math.ceil(Math.min(radius, axisSize / 2))
 }
 
-function wheelDeltaPxFor(delta: number, deltaMode: number, viewportH: number): number {
-  const sign = Math.sign(delta)
-  if (sign === 0) return 0
-  if (deltaMode === WheelEvent.DOM_DELTA_PAGE) return sign * Math.min(viewportH, WHEEL_MAX_STEP_PX)
-  if (deltaMode === WheelEvent.DOM_DELTA_LINE) return sign * Math.min(Math.abs(delta) * WHEEL_LINE_PX, WHEEL_MAX_STEP_PX)
+export function wheelDeltaPxFor(delta: number, deltaMode: number, pageSizePx: number): number {
+  if (!Number.isFinite(delta) || delta === 0) return 0
+  if (deltaMode === DOM_DELTA_PIXEL) return delta
+  if (deltaMode === DOM_DELTA_PAGE) return delta * Math.max(1, pageSizePx)
+  if (deltaMode === DOM_DELTA_LINE) return delta * WHEEL_LINE_PX
+  return delta
+}
 
-  const px = Math.abs(delta)
-  if (px <= TRACKPAD_LINEAR_PX) return delta * TRACKPAD_LINEAR_SPEED
+export function shouldSmoothWheelDelta(
+  deltaPx: number,
+  deltaMode: number,
+  opts: {eventAtMs?: number; lastEventAtMs?: number | null; smoothUntilMs?: number} = {},
+): boolean {
+  if (!Number.isFinite(deltaPx) || deltaPx === 0) return false
+  if (deltaMode !== DOM_DELTA_PIXEL) return true
+  const eventAtMs = opts.eventAtMs
+  if (!isFiniteNumber(eventAtMs)) return false
+  if (eventAtMs <= (opts.smoothUntilMs ?? 0)) return true
+  const lastEventAtMs = opts.lastEventAtMs
+  if (!isFiniteNumber(lastEventAtMs)) return false
+  const gapMs = eventAtMs - lastEventAtMs
+  return gapMs >= PIXEL_WHEEL_MOMENTUM_GAP_MS
+    && gapMs <= PIXEL_WHEEL_NEW_GESTURE_GAP_MS
+    && Math.abs(deltaPx) >= PIXEL_WHEEL_MOMENTUM_MIN_DELTA_PX
+}
 
-  const linear = TRACKPAD_LINEAR_PX * TRACKPAD_LINEAR_SPEED
-  const compressed = linear + Math.log1p(px - TRACKPAD_LINEAR_PX) * TRACKPAD_LOG_SPEED
-  return sign * Math.min(compressed, TRACKPAD_MAX_STEP_PX)
+export function smoothScrollStep(current: number, target: number): number {
+  if (!Number.isFinite(current)) return Number.isFinite(target) ? target : 0
+  if (!Number.isFinite(target)) return current
+  const delta = target - current
+  if (Math.abs(delta) <= SMOOTH_SCROLL_SNAP_PX) return target
+  return current + delta * SMOOTH_SCROLL_FOLLOW
+}
+
+function applyWheelScroll(surface: UiSurface, state: DivScrollState, axis: "left" | "top", deltaPx: number, deltaMode: number, maxScroll: number, eventTimeStamp: number | undefined): boolean {
+  if (!Number.isFinite(deltaPx) || deltaPx === 0) return false
+  const targetKey = axis === "left" ? "targetLeft" : "targetTop"
+  const lastWheelAtKey = axis === "left" ? "lastWheelLeftAt" : "lastWheelTopAt"
+  const smoothPixelUntilKey = axis === "left" ? "smoothPixelLeftUntil" : "smoothPixelTopUntil"
+  const eventAtMs = wheelEventTimeMs(eventTimeStamp)
+  const current = state[axis]
+  const currentTarget = state[targetKey]
+  const smooth = shouldSmoothWheelDelta(deltaPx, deltaMode, {
+    eventAtMs,
+    lastEventAtMs: state[lastWheelAtKey],
+    smoothUntilMs: state[smoothPixelUntilKey],
+  })
+  const next = clamp((smooth ? currentTarget : current) + deltaPx, 0, maxScroll)
+  state[lastWheelAtKey] = eventAtMs
+  state[smoothPixelUntilKey] = smooth && deltaMode === DOM_DELTA_PIXEL
+    ? eventAtMs + PIXEL_WHEEL_MOMENTUM_CHAIN_MS
+    : 0
+  if (next === current && next === currentTarget) return false
+  state[targetKey] = next
+
+  if (smooth) {
+    startDivScrollAnimation(surface, state)
+    return true
+  }
+
+  stopDivScrollAnimation(state)
+  state[axis] = next
+  surface.requestRender()
+  return true
+}
+
+function wheelEventTimeMs(eventTimeStamp: number | undefined): number {
+  if (isFiniteNumber(eventTimeStamp)) return eventTimeStamp
+  if (typeof performance !== "undefined" && typeof performance.now === "function") return performance.now()
+  return Date.now()
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value)
+}
+
+function startDivScrollAnimation(surface: UiSurface, state: DivScrollState): void {
+  if (state.animationRafId !== null) return
+  if (typeof requestAnimationFrame !== "function") {
+    state.left = state.targetLeft
+    state.top = state.targetTop
+    surface.requestRender()
+    return
+  }
+
+  const tick = () => {
+    state.animationRafId = null
+    const nextLeft = smoothScrollStep(state.left, state.targetLeft)
+    const nextTop = smoothScrollStep(state.top, state.targetTop)
+    const changed = nextLeft !== state.left || nextTop !== state.top
+    state.left = nextLeft
+    state.top = nextTop
+    if (changed) surface.requestRender()
+    if (state.left !== state.targetLeft || state.top !== state.targetTop) {
+      state.animationRafId = requestAnimationFrame(tick)
+    }
+  }
+  state.animationRafId = requestAnimationFrame(tick)
+}
+
+function stopDivScrollAnimation(state: DivScrollState): void {
+  if (state.animationRafId === null) return
+  if (typeof cancelAnimationFrame === "function") cancelAnimationFrame(state.animationRafId)
+  state.animationRafId = null
 }
