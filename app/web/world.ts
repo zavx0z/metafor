@@ -28,6 +28,15 @@ type TopologyRow = {
   position: number
 }
 
+type MatterParticleRow = {
+  uuid: string
+  wimp: string
+  parentParticle: string | null
+  particleKind: DbParticleKind
+  edgeSlot: "root" | "child" | "then" | "else" | "branch"
+  particleOrder: number
+}
+
 type WimpRow = {
   src: string
   name: string | null
@@ -60,6 +69,16 @@ type ValueListItemRow = {
   value: string
   position: number
   itemValue: string
+}
+
+type MatterBindingPathRow = {
+  particle: string
+  depOrder: number
+  path: string
+}
+
+type MatterChildBindingPathRow = MatterBindingPathRow & {
+  childOrder: number
 }
 
 const actorColor = {colorR: 0.4, colorG: 0.45, colorB: 0.98}
@@ -116,6 +135,26 @@ const valueText = (
 const sortByPosition = <T extends {position: number}>(rows: T[]): T[] =>
   [...rows].sort((left, right) => left.position - right.position)
 
+const matterEdgeSlotOrder: Record<MatterParticleRow["edgeSlot"], number> = {
+  root: 0,
+  branch: 0,
+  child: 0,
+  then: 0,
+  else: 1,
+}
+
+const sortMatterParticles = (rows: MatterParticleRow[]): MatterParticleRow[] =>
+  [...rows].sort((left, right) =>
+    matterEdgeSlotOrder[left.edgeSlot] - matterEdgeSlotOrder[right.edgeSlot] ||
+    left.particleOrder - right.particleOrder,
+  )
+
+const sortBindingPaths = <T extends {depOrder: number; childOrder?: number}>(rows: T[]): T[] =>
+  [...rows].sort((left, right) => (left.childOrder ?? 0) - (right.childOrder ?? 0) || left.depOrder - right.depOrder)
+
+const fieldKeyFromValuePath = (path: string): string | null =>
+  path.startsWith("/value/") ? path.slice("/value/".length) : null
+
 export async function buildBoundaryWorldRows(
   sql: SQL,
   rootSrc: string,
@@ -162,11 +201,53 @@ export async function buildBoundaryWorldRows(
       FROM value_list_item
      ORDER BY value, position
   `
+  const matterParticles = await sql<MatterParticleRow[]>`
+    SELECT uuid,
+           wimp,
+           parent_particle AS parentParticle,
+           particle_kind AS particleKind,
+           edge_slot AS edgeSlot,
+           particle_order AS particleOrder
+      FROM matter_particle
+     ORDER BY wimp, rowid
+  `
+  const matterTopologyBindingPaths = await sql<MatterBindingPathRow[]>`
+    SELECT matter_particle_fuzzy.particle AS particle,
+           matter_binding_dep.dep_order AS depOrder,
+           matter_binding_dep.path AS path
+      FROM matter_particle_fuzzy
+      JOIN matter_binding_dep ON matter_binding_dep.binding = matter_particle_fuzzy.predicate_binding
+    UNION ALL
+    SELECT matter_particle_axion.particle AS particle,
+           matter_binding_dep.dep_order AS depOrder,
+           matter_binding_dep.path AS path
+      FROM matter_particle_axion
+      JOIN matter_binding_dep ON matter_binding_dep.binding = matter_particle_axion.predicate_binding
+    UNION ALL
+    SELECT matter_particle_macho.particle AS particle,
+           matter_binding_dep.dep_order AS depOrder,
+           matter_binding_dep.path AS path
+      FROM matter_particle_macho
+      JOIN matter_binding_dep ON matter_binding_dep.binding = matter_particle_macho.collection_binding
+     ORDER BY particle, depOrder
+  `
+  const matterChildWimpBindingPaths = await sql<MatterChildBindingPathRow[]>`
+    SELECT matter_particle.parent_particle AS particle,
+           matter_particle.particle_order AS childOrder,
+           matter_binding_dep.dep_order AS depOrder,
+           matter_binding_dep.path AS path
+      FROM matter_particle
+      JOIN matter_particle_wimp ON matter_particle_wimp.particle = matter_particle.uuid
+      JOIN matter_binding_dep ON matter_binding_dep.binding = matter_particle_wimp.fields_binding
+     WHERE matter_particle.parent_particle IS NOT NULL
+     ORDER BY particle, childOrder, depOrder
+  `
 
   const actorById = new Map(actors.map((actor) => [actor.uuid, actor] as const))
   const topologyById = new Map(topologies.map((topology) => [topology.uuid, topology] as const))
   const wimpBySrc = new Map(wimps.map((wimp) => [wimp.src, wimp] as const))
   const fieldsByWimp = group(fields, (field) => field.wimp)
+  const fieldByWimpKey = new Map(fields.map((field) => [`${field.wimp}\0${field.key}`, field] as const))
   const actorValueByActorField = new Map(actorValues.map((row) => [`${row.actor}\0${row.field}`, row.value] as const))
   const valuesById = new Map(values.map((value) => [value.uuid, value] as const))
   const valueItemsById = group(valueItems, (item) => item.value)
@@ -174,6 +255,56 @@ export async function buildBoundaryWorldRows(
   const actorsByParentTopology = group(actors, (actor) => actor.parentTopology)
   const topologiesByParentActor = group(topologies, (topology) => topology.parentActor)
   const topologiesByParentTopology = group(topologies, (topology) => topology.parentTopology)
+  const matterParticlesByWimpParent = group(
+    matterParticles,
+    (particle) => `${particle.wimp}\0${particle.parentParticle ?? ""}`,
+  )
+  const matterTopologyBindingPathsByParticle = group(matterTopologyBindingPaths, (row) => row.particle)
+  const matterChildWimpBindingPathsByParticle = group(matterChildWimpBindingPaths, (row) => row.particle)
+  const topologyLabelById = new Map<string, string>()
+
+  const matterTopologyChildren = (wimp: string, parentParticle: string | null): MatterParticleRow[] =>
+    sortMatterParticles(matterParticlesByWimpParent.get(`${wimp}\0${parentParticle ?? ""}`) ?? [])
+      .filter((particle) => particle.particleKind !== "wimp")
+
+  const fieldLabelFromPath = (wimp: string, path: string): string | null => {
+    const key = fieldKeyFromValuePath(path)
+    if (!key) return null
+    const field = fieldByWimpKey.get(`${wimp}\0${key}`)
+    return field?.label ?? field?.key ?? key
+  }
+
+  const firstFieldLabelFromPaths = (wimp: string, paths: string[]): string | null => {
+    for (const path of paths) {
+      const label = fieldLabelFromPath(wimp, path)
+      if (label !== null) return label
+    }
+    return null
+  }
+
+  const topologyPlanLabel = (wimp: string, plan: MatterParticleRow): string | null => {
+    const childPaths = sortBindingPaths(matterChildWimpBindingPathsByParticle.get(plan.uuid) ?? [])
+      .map((row) => row.path)
+    return firstFieldLabelFromPaths(wimp, childPaths) ??
+      firstFieldLabelFromPaths(wimp, sortBindingPaths(matterTopologyBindingPathsByParticle.get(plan.uuid) ?? []).map((row) => row.path))
+  }
+
+  const assignTopologyLabels = (wimp: string, runtimeTopologies: TopologyRow[], parentMatterParticle: string | null): void => {
+    const plans = matterTopologyChildren(wimp, parentMatterParticle)
+    const runtime = sortByPosition(runtimeTopologies)
+    for (let index = 0; index < runtime.length; index++) {
+      const topology = runtime[index]!
+      const plan = plans[index]
+      if (!plan) continue
+      const label = topologyPlanLabel(wimp, plan)
+      if (label !== null) topologyLabelById.set(topology.uuid, label)
+      assignTopologyLabels(wimp, topologiesByParentTopology.get(topology.uuid) ?? [], plan.uuid)
+    }
+  }
+
+  for (const actor of actors) {
+    assignTopologyLabels(actor.wimp, topologiesByParentActor.get(actor.uuid) ?? [], null)
+  }
 
   const descriptorField = (actor: ActorRow, field: FieldRow): DbWorldFieldDescriptor => {
     const kind = fieldValueKind(field.type)
@@ -232,13 +363,14 @@ export async function buildBoundaryWorldRows(
 
   const topologyDescriptor = (topology: TopologyRow, visited: Set<string>): DbWorldParticleDescriptor => {
     const key = `topology:${topology.uuid}`
+    const label = topologyLabelById.get(topology.uuid) ?? topology.kind
     if (visited.has(key)) {
       return {
         particleId: topology.uuid,
         kind: topology.kind,
         src: null,
         metaSrc: null,
-        label: topology.kind,
+        label,
         ...topologyColors[topology.kind],
         fields: [],
         children: [],
@@ -251,7 +383,7 @@ export async function buildBoundaryWorldRows(
       kind: topology.kind,
       src: null,
       metaSrc: null,
-      label: topology.kind,
+      label,
       ...topologyColors[topology.kind],
       fields: [],
       children: childDescriptors({kind: "topology", uuid: topology.uuid}, visited),
