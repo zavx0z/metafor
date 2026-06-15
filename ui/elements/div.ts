@@ -37,25 +37,35 @@ type DivScrollState = {
   targetTop: number
   targetLeft: number
   animationRafId: number | null
-  lastWheelTopAt: number | null
-  lastWheelLeftAt: number | null
-  smoothPixelTopUntil: number
-  smoothPixelLeftUntil: number
+  animationLastAtMs: number | null
+  pendingTop: number
+  pendingLeft: number
+  wheelTauTopMs: number
+  wheelTauLeftMs: number
+  maxScrollTop: number
+  maxScrollLeft: number
+  wheelAxis: ScrollAxis
+  lastWheelAtMs: number | null
   dragY: {startY: number; startTop: number} | null
   dragX: {startX: number; startLeft: number} | null
 }
+
+export type ScrollAxis = "x" | "y" | null
 
 const scrollStates = new WeakMap<UiSurface, Map<string, DivScrollState>>()
 const WHEEL_LINE_PX = 40
 const DOM_DELTA_PIXEL = 0
 const DOM_DELTA_LINE = 1
 const DOM_DELTA_PAGE = 2
-const PIXEL_WHEEL_MOMENTUM_GAP_MS = 28
-const PIXEL_WHEEL_NEW_GESTURE_GAP_MS = 180
-const PIXEL_WHEEL_MOMENTUM_MIN_DELTA_PX = 8
-const PIXEL_WHEEL_MOMENTUM_CHAIN_MS = 90
-const SMOOTH_SCROLL_FOLLOW = 0.42
-const SMOOTH_SCROLL_SNAP_PX = 0.5
+const WHEEL_PIXEL_TAU_MS = 42
+const WHEEL_LINE_TAU_MS = 72
+const WHEEL_PAGE_TAU_MS = 100
+const WHEEL_ANIMATION_DEFAULT_FRAME_MS = 1000 / 60
+const WHEEL_ANIMATION_MAX_FRAME_MS = 34
+const WHEEL_PENDING_SNAP_PX = 0.35
+const WHEEL_AXIS_EVENT_SEPARATION_MS = 28
+const WHEEL_AXIS_UNLOCK_PERCENT = 1.9
+const WHEEL_AXIS_UNLOCK_MIN_PX = 6
 
 export function divScrollTo(surface: UiSurface, key: string, next: {left?: number; top?: number}): void {
   const state = divScrollState(surface, key)
@@ -290,10 +300,18 @@ function divScrollLayout(
   const state = divScrollState(surface, key)
   const maxScrollX = Math.max(0, contentW - viewportW)
   const maxScrollY = Math.max(0, contentH - viewportH)
-  state.left = clamp(state.left, 0, maxScrollX)
-  state.top = clamp(state.top, 0, maxScrollY)
-  state.targetLeft = clamp(state.targetLeft, 0, maxScrollX)
-  state.targetTop = clamp(state.targetTop, 0, maxScrollY)
+  const left = clamp(state.left, 0, maxScrollX)
+  const top = clamp(state.top, 0, maxScrollY)
+  if (left !== state.left) state.pendingLeft = 0
+  if (top !== state.top) state.pendingTop = 0
+  state.left = left
+  state.top = top
+  state.targetLeft = clamp(state.left + state.pendingLeft, 0, maxScrollX)
+  state.targetTop = clamp(state.top + state.pendingTop, 0, maxScrollY)
+  state.pendingLeft = state.targetLeft - state.left
+  state.pendingTop = state.targetTop - state.top
+  state.maxScrollLeft = maxScrollX
+  state.maxScrollTop = maxScrollY
   return {
     x: opts.x,
     y: opts.y,
@@ -322,21 +340,15 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
   const {state, style} = layout
   if ((layout.showX && layout.maxScrollX > 0) || (layout.showY && layout.maxScrollY > 0)) {
     surface.wheel(layout.x, layout.y, layout.width, layout.height, (event) => {
-      const horizontal = layout.showX && (event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY) || !layout.showY)
-      if (horizontal) {
-        const delta = event.shiftKey && event.deltaY !== 0
-          ? event.deltaY
-          : event.deltaX !== 0
-            ? event.deltaX
-            : !layout.showY
-              ? event.deltaY
-              : 0
-        if (!applyWheelScroll(surface, state, "left", wheelDeltaPxFor(delta, event.deltaMode, layout.viewportW), event.deltaMode, layout.maxScrollX, event.timeStamp)) return
-        event.preventDefault()
-        return
-      }
-      if (!applyWheelScroll(surface, state, "top", wheelDeltaPxFor(event.deltaY, event.deltaMode, layout.viewportH), event.deltaMode, layout.maxScrollY, event.timeStamp)) return
-      event.preventDefault()
+      const eventAtMs = wheelEventTimeMs(event.timeStamp)
+      const delta = wheelDeltasForEvent(event, layout)
+      const locked = applyWheelAxisLock(delta.x, delta.y, nextWheelAxis(delta.x, delta.y, state.wheelAxis, state.lastWheelAtMs, eventAtMs))
+      state.wheelAxis = locked.axis
+      state.lastWheelAtMs = eventAtMs
+      let handled = false
+      if (locked.x !== 0) handled = applyWheelScroll(surface, state, "left", locked.x, event.deltaMode, layout.maxScrollX, eventAtMs) || handled
+      if (locked.y !== 0) handled = applyWheelScroll(surface, state, "top", locked.y, event.deltaMode, layout.maxScrollY, eventAtMs) || handled
+      if (handled) event.preventDefault()
     }, layout.key)
   }
 
@@ -472,10 +484,15 @@ function divScrollState(surface: UiSurface, key: string): DivScrollState {
       targetTop: 0,
       targetLeft: 0,
       animationRafId: null,
-      lastWheelTopAt: null,
-      lastWheelLeftAt: null,
-      smoothPixelTopUntil: 0,
-      smoothPixelLeftUntil: 0,
+      animationLastAtMs: null,
+      pendingTop: 0,
+      pendingLeft: 0,
+      wheelTauTopMs: WHEEL_PIXEL_TAU_MS,
+      wheelTauLeftMs: WHEEL_PIXEL_TAU_MS,
+      maxScrollTop: 0,
+      maxScrollLeft: 0,
+      wheelAxis: null,
+      lastWheelAtMs: null,
       dragY: null,
       dragX: null,
     }
@@ -486,10 +503,15 @@ function divScrollState(surface: UiSurface, key: string): DivScrollState {
   state.targetTop ??= state.top
   state.targetLeft ??= state.left
   state.animationRafId ??= null
-  state.lastWheelTopAt ??= null
-  state.lastWheelLeftAt ??= null
-  state.smoothPixelTopUntil ??= 0
-  state.smoothPixelLeftUntil ??= 0
+  state.animationLastAtMs ??= null
+  state.pendingTop ??= 0
+  state.pendingLeft ??= 0
+  state.wheelTauTopMs ??= WHEEL_PIXEL_TAU_MS
+  state.wheelTauLeftMs ??= WHEEL_PIXEL_TAU_MS
+  state.maxScrollTop ??= 0
+  state.maxScrollLeft ??= 0
+  state.wheelAxis ??= null
+  state.lastWheelAtMs ??= null
   state.dragY ??= null
   state.dragX ??= null
   return state
@@ -522,61 +544,85 @@ export function wheelDeltaPxFor(delta: number, deltaMode: number, pageSizePx: nu
   return delta
 }
 
-export function shouldSmoothWheelDelta(
-  deltaPx: number,
-  deltaMode: number,
-  opts: {eventAtMs?: number; lastEventAtMs?: number | null; smoothUntilMs?: number} = {},
-): boolean {
-  if (!Number.isFinite(deltaPx) || deltaPx === 0) return false
-  if (deltaMode !== DOM_DELTA_PIXEL) return true
-  const eventAtMs = opts.eventAtMs
-  if (!isFiniteNumber(eventAtMs)) return false
-  if (eventAtMs <= (opts.smoothUntilMs ?? 0)) return true
-  const lastEventAtMs = opts.lastEventAtMs
-  if (!isFiniteNumber(lastEventAtMs)) return false
-  const gapMs = eventAtMs - lastEventAtMs
-  return gapMs >= PIXEL_WHEEL_MOMENTUM_GAP_MS
-    && gapMs <= PIXEL_WHEEL_NEW_GESTURE_GAP_MS
-    && Math.abs(deltaPx) >= PIXEL_WHEEL_MOMENTUM_MIN_DELTA_PX
+export function wheelQueueTauMs(deltaMode: number): number {
+  if (deltaMode === DOM_DELTA_PAGE) return WHEEL_PAGE_TAU_MS
+  if (deltaMode === DOM_DELTA_LINE) return WHEEL_LINE_TAU_MS
+  return WHEEL_PIXEL_TAU_MS
 }
 
-export function smoothScrollStep(current: number, target: number): number {
-  if (!Number.isFinite(current)) return Number.isFinite(target) ? target : 0
-  if (!Number.isFinite(target)) return current
-  const delta = target - current
-  if (Math.abs(delta) <= SMOOTH_SCROLL_SNAP_PX) return target
-  return current + delta * SMOOTH_SCROLL_FOLLOW
-}
-
-function applyWheelScroll(surface: UiSurface, state: DivScrollState, axis: "left" | "top", deltaPx: number, deltaMode: number, maxScroll: number, eventTimeStamp: number | undefined): boolean {
-  if (!Number.isFinite(deltaPx) || deltaPx === 0) return false
-  const targetKey = axis === "left" ? "targetLeft" : "targetTop"
-  const lastWheelAtKey = axis === "left" ? "lastWheelLeftAt" : "lastWheelTopAt"
-  const smoothPixelUntilKey = axis === "left" ? "smoothPixelLeftUntil" : "smoothPixelTopUntil"
-  const eventAtMs = wheelEventTimeMs(eventTimeStamp)
-  const current = state[axis]
-  const currentTarget = state[targetKey]
-  const smooth = shouldSmoothWheelDelta(deltaPx, deltaMode, {
-    eventAtMs,
-    lastEventAtMs: state[lastWheelAtKey],
-    smoothUntilMs: state[smoothPixelUntilKey],
-  })
-  const next = clamp((smooth ? currentTarget : current) + deltaPx, 0, maxScroll)
-  state[lastWheelAtKey] = eventAtMs
-  state[smoothPixelUntilKey] = smooth && deltaMode === DOM_DELTA_PIXEL
-    ? eventAtMs + PIXEL_WHEEL_MOMENTUM_CHAIN_MS
-    : 0
-  if (next === current && next === currentTarget) return false
-  state[targetKey] = next
-
-  if (smooth) {
-    startDivScrollAnimation(surface, state)
-    return true
+export function integrateQueuedScroll(current: number, pending: number, elapsedMs: number, tauMs: number, maxScroll: number): {value: number; pending: number} {
+  if (!Number.isFinite(current)) return {value: 0, pending: 0}
+  const currentPending = Number.isFinite(pending) ? pending : 0
+  if (Math.abs(currentPending) <= WHEEL_PENDING_SNAP_PX) {
+    const value = clamp(current + currentPending, 0, maxScroll)
+    return {value, pending: 0}
   }
 
-  stopDivScrollAnimation(state)
-  state[axis] = next
-  surface.requestRender()
+  const dt = clamp(elapsedMs, 1, WHEEL_ANIMATION_MAX_FRAME_MS) / 1000
+  const tauSeconds = Math.max(0.001, tauMs / 1000)
+  const consume = 1 - Math.exp(-dt / tauSeconds)
+  const step = currentPending * consume
+  const rawValue = current + step
+  const value = clamp(rawValue, 0, maxScroll)
+  let nextPending = currentPending - (value - current)
+  if (value !== rawValue || Math.abs(nextPending) <= WHEEL_PENDING_SNAP_PX) nextPending = 0
+  return {value, pending: nextPending}
+}
+
+function wheelDeltasForEvent(event: WheelEvent, layout: DivScrollLayout): {x: number; y: number} {
+  let x = wheelDeltaPxFor(event.deltaX, event.deltaMode, layout.viewportW)
+  let y = wheelDeltaPxFor(event.deltaY, event.deltaMode, layout.viewportH)
+  if (event.shiftKey && y !== 0) {
+    x = y
+    y = 0
+  }
+  if (!layout.showX && layout.showY && y === 0 && x !== 0) {
+    y = x
+    x = 0
+  }
+  if (!layout.showY && layout.showX && x === 0 && y !== 0) {
+    x = y
+    y = 0
+  }
+  if (!layout.showX) x = 0
+  if (!layout.showY) y = 0
+  return {x, y}
+}
+
+export function nextWheelAxis(deltaX: number, deltaY: number, previousAxis: ScrollAxis, lastEventAtMs: number | null, eventAtMs: number): ScrollAxis {
+  const x = Math.abs(deltaX)
+  const y = Math.abs(deltaY)
+  if (x === 0 && y === 0) return previousAxis
+  let axis = previousAxis
+  const newScroll = !isFiniteNumber(lastEventAtMs) || eventAtMs - lastEventAtMs > WHEEL_AXIS_EVENT_SEPARATION_MS
+  if (newScroll) {
+    axis = x > y ? "x" : "y"
+  } else if (Math.max(x, y) >= WHEEL_AXIS_UNLOCK_MIN_PX) {
+    if (axis === "y" && x > y && x >= y * WHEEL_AXIS_UNLOCK_PERCENT) axis = null
+    else if (axis === "x" && y > x && y >= x * WHEEL_AXIS_UNLOCK_PERCENT) axis = null
+  }
+  return axis
+}
+
+export function applyWheelAxisLock(deltaX: number, deltaY: number, axis: ScrollAxis): {x: number; y: number; axis: ScrollAxis} {
+  if (axis === "x") return {x: deltaX, y: 0, axis}
+  if (axis === "y") return {x: 0, y: deltaY, axis}
+  return {x: deltaX, y: deltaY, axis}
+}
+
+function applyWheelScroll(surface: UiSurface, state: DivScrollState, axis: "left" | "top", deltaPx: number, deltaMode: number, maxScroll: number, eventAtMs: number): boolean {
+  if (!Number.isFinite(deltaPx) || deltaPx === 0) return false
+  const pendingKey = axis === "left" ? "pendingLeft" : "pendingTop"
+  const targetKey = axis === "left" ? "targetLeft" : "targetTop"
+  const tauKey = axis === "left" ? "wheelTauLeftMs" : "wheelTauTopMs"
+  const current = state[axis]
+  const target = clamp(current + state[pendingKey] + deltaPx, 0, maxScroll)
+  const nextPending = target - current
+  if (nextPending === state[pendingKey]) return false
+  state[targetKey] = target
+  state[pendingKey] = nextPending
+  state[tauKey] = wheelQueueTauMs(deltaMode)
+  startDivScrollAnimation(surface, state, eventAtMs)
   return true
 }
 
@@ -590,32 +636,55 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value)
 }
 
-function startDivScrollAnimation(surface: UiSurface, state: DivScrollState): void {
+function startDivScrollAnimation(surface: UiSurface, state: DivScrollState, eventAtMs = animationTimeMs()): void {
   if (state.animationRafId !== null) return
   if (typeof requestAnimationFrame !== "function") {
     state.left = state.targetLeft
     state.top = state.targetTop
+    state.pendingLeft = 0
+    state.pendingTop = 0
+    state.animationLastAtMs = null
     surface.requestRender()
     return
   }
+  state.animationLastAtMs = eventAtMs
 
-  const tick = () => {
+  const tick = (timestamp: number) => {
     state.animationRafId = null
-    const nextLeft = smoothScrollStep(state.left, state.targetLeft)
-    const nextTop = smoothScrollStep(state.top, state.targetTop)
-    const changed = nextLeft !== state.left || nextTop !== state.top
-    state.left = nextLeft
-    state.top = nextTop
+    const now = isFiniteNumber(timestamp) ? timestamp : animationTimeMs()
+    const previous = state.animationLastAtMs ?? now - WHEEL_ANIMATION_DEFAULT_FRAME_MS
+    const elapsedMs = clamp(now - previous, 1, WHEEL_ANIMATION_MAX_FRAME_MS)
+    state.animationLastAtMs = now
+    const nextLeft = integrateQueuedScroll(state.left, state.pendingLeft, elapsedMs, state.wheelTauLeftMs, state.maxScrollLeft)
+    const nextTop = integrateQueuedScroll(state.top, state.pendingTop, elapsedMs, state.wheelTauTopMs, state.maxScrollTop)
+    const changed = nextLeft.value !== state.left || nextTop.value !== state.top
+    state.left = nextLeft.value
+    state.top = nextTop.value
+    state.pendingLeft = nextLeft.pending
+    state.pendingTop = nextTop.pending
+    state.targetLeft = state.left + state.pendingLeft
+    state.targetTop = state.top + state.pendingTop
     if (changed) surface.requestRender()
-    if (state.left !== state.targetLeft || state.top !== state.targetTop) {
+    if (state.pendingLeft !== 0 || state.pendingTop !== 0) {
       state.animationRafId = requestAnimationFrame(tick)
+    } else {
+      state.animationLastAtMs = null
     }
   }
   state.animationRafId = requestAnimationFrame(tick)
 }
 
 function stopDivScrollAnimation(state: DivScrollState): void {
-  if (state.animationRafId === null) return
-  if (typeof cancelAnimationFrame === "function") cancelAnimationFrame(state.animationRafId)
+  if (state.animationRafId !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(state.animationRafId)
   state.animationRafId = null
+  state.animationLastAtMs = null
+  state.pendingLeft = 0
+  state.pendingTop = 0
+  state.wheelAxis = null
+  state.lastWheelAtMs = null
+}
+
+function animationTimeMs(): number {
+  if (typeof performance !== "undefined" && typeof performance.now === "function") return performance.now()
+  return Date.now()
 }

@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {shouldSmoothWheelDelta, smoothScrollStep, wheelDeltaPxFor} from "./div.ts"
+import {applyWheelAxisLock, integrateQueuedScroll, nextWheelAxis, wheelDeltaPxFor, wheelQueueTauMs} from "./div.ts"
 
 describe("div wheel delta normalization", () => {
   test("keeps pixel deltas unchanged", () => {
@@ -25,24 +25,48 @@ describe("div wheel delta normalization", () => {
 })
 
 describe("div wheel smoothing", () => {
-  test("smooths only non-pixel wheel deltas", () => {
-    expect(shouldSmoothWheelDelta(12, 0)).toBe(false)
-    expect(shouldSmoothWheelDelta(64, 0)).toBe(false)
-    expect(shouldSmoothWheelDelta(480, 0)).toBe(false)
-    expect(shouldSmoothWheelDelta(40, 1)).toBe(true)
-    expect(shouldSmoothWheelDelta(480, 2)).toBe(true)
+  test("uses wheel-mode-specific queue time constants", () => {
+    expect(wheelQueueTauMs(0)).toBe(42)
+    expect(wheelQueueTauMs(1)).toBe(72)
+    expect(wheelQueueTauMs(2)).toBe(100)
   })
 
-  test("smooths pixel momentum after a short wheel gap", () => {
-    expect(shouldSmoothWheelDelta(24, 0, {eventAtMs: 112, lastEventAtMs: 100})).toBe(false)
-    expect(shouldSmoothWheelDelta(24, 0, {eventAtMs: 136, lastEventAtMs: 100})).toBe(true)
-    expect(shouldSmoothWheelDelta(4, 0, {eventAtMs: 136, lastEventAtMs: 100})).toBe(false)
-    expect(shouldSmoothWheelDelta(24, 0, {eventAtMs: 340, lastEventAtMs: 100})).toBe(false)
-    expect(shouldSmoothWheelDelta(4, 0, {eventAtMs: 150, smoothUntilMs: 180})).toBe(true)
+  test("integrates queued wheel distance without adding extra acceleration", () => {
+    const first = integrateQueuedScroll(0, 26, 16, 42, 1000)
+    expect(first.value).toBeGreaterThan(0)
+    expect(first.value).toBeLessThan(26)
+    expect(first.pending).toBeGreaterThan(0)
+    expect(first.value + first.pending).toBeCloseTo(26, 6)
+
+    const second = integrateQueuedScroll(first.value, first.pending, 16, 42, 1000)
+    expect(second.value).toBeGreaterThan(first.value)
+    expect(second.pending).toBeLessThan(first.pending)
+    expect(second.value + second.pending).toBeCloseTo(26, 6)
   })
 
-  test("moves toward the target and snaps near the end", () => {
-    expect(smoothScrollStep(0, 100)).toBe(42)
-    expect(smoothScrollStep(99.6, 100)).toBe(100)
+  test("snaps tiny pending distance and clamps at bounds", () => {
+    expect(integrateQueuedScroll(10, 0.2, 16, 42, 1000)).toEqual({value: 10.2, pending: 0})
+    expect(integrateQueuedScroll(999, 500, 16, 42, 1000)).toEqual({value: 1000, pending: 0})
+  })
+})
+
+describe("div wheel axis lock", () => {
+  test("starts a gesture on the dominant axis", () => {
+    expect(nextWheelAxis(2, 12, null, null, 100)).toBe("y")
+    expect(nextWheelAxis(12, 2, null, null, 100)).toBe("x")
+  })
+
+  test("keeps axis through small cross-axis noise", () => {
+    expect(nextWheelAxis(5, 3, "y", 100, 112)).toBe("y")
+    expect(applyWheelAxisLock(5, 3, "y")).toEqual({x: 0, y: 3, axis: "y"})
+  })
+
+  test("unlocks when the cross-axis movement clearly dominates", () => {
+    expect(nextWheelAxis(12, 4, "y", 100, 112)).toBe(null)
+    expect(nextWheelAxis(4, 12, "x", 100, 112)).toBe(null)
+  })
+
+  test("starts a new gesture after the separation window", () => {
+    expect(nextWheelAxis(12, 4, "y", 100, 140)).toBe("x")
   })
 })
