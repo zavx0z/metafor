@@ -11,7 +11,7 @@
 Последняя зафиксированная чистка: `6d5a9bd8 Clean stale AppWeb worker runtime`.
 
 Текущий рабочий проход: AppWeb снова подключён к workspace и визуализация поднята через серверный `Boundary`.
-Сервер `app/web/server.ts` импортирует `dark/server`, задаёт `BOUNDARY_PATH`, отправляет `graviton/test/wimp`, получает самодостаточный снимок через `boundary.bulkRuntime()` и отдаёт браузеру `world`-сообщение. Клиент применяет его через `bulkViewport.applyWorld()`.
+Сервер `app/web/server.ts` импортирует `dark/server`, задаёт `BOUNDARY_PATH`, получает самодостаточный снимок уже наполненной базы через `boundary.bulkRuntime()` и отдаёт браузеру `world`-сообщение. Клиент применяет его через `bulkViewport.applyWorld()`.
 Проверенный результат: `http://127.0.0.1:3000/`, root `zavx0z/git`, `85 shells / 83 fields` после исключения структурных `macho`/`fuzzy` из обычных полей.
 
 Что уже удалено и не нужно восстанавливать:
