@@ -279,18 +279,16 @@ const getSphereDetail = (_radius: number, depth: number): { widthSegments: numbe
 	}
 }
 
-const getFieldThemeColor = (fieldValueKind: DbFieldValueKind): { color: Color; glowColor: Color } => {
-	switch (fieldValueKind) {
-		case "number":
-			return { color: THEME_PRIMARY, glowColor: THEME_PRIMARY_GLOW }
-		case "text":
-			return { color: THEME_SECONDARY, glowColor: THEME_SECONDARY_GLOW }
-		case "bool":
-			return { color: THEME_TERTIARY, glowColor: THEME_TERTIARY_GLOW }
-		default:
-			return { color: THEME_WARNING, glowColor: THEME_WARNING_GLOW }
-	}
-}
+const particleColor = (row: { colorR: number; colorG: number; colorB: number }): Color =>
+	new Color(row.colorR, row.colorG, row.colorB)
+
+const glowColor = (color: Color, alpha: number = 0.14): Color =>
+	new Color(
+		color.r + (1 - color.r) * 0.7,
+		color.g + (1 - color.g) * 0.7,
+		color.b + (1 - color.b) * 0.7,
+		alpha,
+	)
 
 const normalizeLabelText = (value: string | null | undefined): string | null => {
 	if (typeof value !== "string") return null
@@ -467,38 +465,39 @@ const mixColor = (left: Color, right: Color, amount: number): Color =>
 	)
 
 const resolveShellVisualState = (shell: DbParticleShellRow): { color: Color; glowColor: Color; glowIntensity: number; opacity: number } => {
+	const baseColor = particleColor(shell)
 	const glowIntensity = shell.kind === "wimp" ? 1.4 : 1.15
 	const opacity = activeRenderSettings.wireframeOpacity
 	if (shell.activity === "active") {
 		return {
-			color: THEME_SECONDARY.clone(),
-			glowColor: THEME_SECONDARY_GLOW.clone(),
+			color: mixColor(baseColor, new Color(1, 1, 1), 0.18),
+			glowColor: glowColor(baseColor, 0.18),
 			glowIntensity: glowIntensity * 1.25,
 			opacity: Math.min(1, opacity * 1.08),
 		}
 	}
 	if (shell.activity === "inactive") {
 		return {
-			color: mixColor(THEME_PRIMARY, ROOT_BACKGROUND, 0.62),
-			glowColor: mixColor(THEME_PRIMARY_GLOW, ROOT_BACKGROUND, 0.72),
+			color: mixColor(mixColor(baseColor, new Color(1, 1, 1), 0.24), ROOT_BACKGROUND, 0.28),
+			glowColor: glowColor(mixColor(baseColor, new Color(1, 1, 1), 0.3), 0.08),
 			glowIntensity: glowIntensity * 0.35,
-			opacity: opacity * 0.34,
+			opacity,
 		}
 	}
 	return {
-		color: THEME_PRIMARY.clone(),
-		glowColor: THEME_PRIMARY_GLOW.clone(),
+		color: baseColor,
+		glowColor: glowColor(baseColor),
 		glowIntensity,
 		opacity,
 	}
 }
 
 const createFieldMaterial = (orbit: DbFieldOrbitRow): LineGlowMaterial => {
-	const theme = getFieldThemeColor(orbit.fieldValueKind)
+	const color = particleColor(orbit)
 	return new LineGlowMaterial({
-		color: theme.color.clone(),
+		color,
 		glowIntensity: 1,
-		glowColor: theme.glowColor.clone(),
+		glowColor: glowColor(color, 0.12),
 		opacity: activeRenderSettings.wireframeOpacity * 0.95,
 	})
 }
@@ -711,9 +710,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const refreshFieldRecordGeometryAndMaterial = (record: FieldRenderRecord): void => {
 		record.node.geometry = getSphereWireframeGeometry(record.snapshot.sphereRadius, record.depth)
-		const theme = getFieldThemeColor(record.snapshot.fieldValueKind)
-		record.pickTarget.baseColor.copy(theme.color)
-		record.pickTarget.baseGlowColor = theme.glowColor.clone()
+		const color = particleColor(record.snapshot)
+		record.pickTarget.baseColor.copy(color)
+		record.pickTarget.baseGlowColor = glowColor(color, 0.12)
 		record.pickTarget.baseGlowIntensity = 1
 		record.pickTarget.baseOpacity = activeRenderSettings.wireframeOpacity * 0.95
 		syncPickTargetMaterialState(record.pickTarget)
@@ -946,7 +945,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 		return {
 			anchorObject: record.container,
-			color: THEME_PRIMARY.clone(),
+			color: particleColor(record.snapshot),
 			depth: record.snapshot.depth,
 			key: `shell:${record.snapshot.particleId}`,
 			kind: "shell",
@@ -974,7 +973,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 		return {
 			anchorObject: record.node,
-			color: getFieldThemeColor(record.snapshot.fieldValueKind).color.clone(),
+			color: particleColor(record.snapshot),
 			depth: record.depth,
 			key: `field:${record.snapshot.id}`,
 			kind: "field",
