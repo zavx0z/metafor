@@ -40,6 +40,23 @@ type EnergyValuePart = { op: "replace"; path: string; value: unknown }
 type EnergyChannelOptions = { channelName?: string }
 type EnergyWeakResultPayload = { wimpId: string; processId: string; parts: EnergyValuePart[] }
 
+export type EnergyRuntimeSnapshot = {
+  ok: true
+  version: 1
+  wimpIds: string[]
+  data: Data
+  strong: {
+    runtimeFieldIndexByWimpFieldId: Array<[string, number]>
+    wimpFieldIdsByRuntimeFieldIndex: string[][]
+    braneIndexByWimpFieldId: Array<[string, number]>
+    topologyWimpFieldIds: string[]
+  }
+  weak: {
+    stateMetaStateIdsByBraneIndex: string[][]
+    stateProcessIdsByBraneIndex: Array<Array<string | null | undefined>>
+  }
+}
+
 export interface EnergyBroadcastSubscription {
   close(): Promise<void>
 }
@@ -105,7 +122,7 @@ const createEmptyPreparedData = (): PreparedData => ({
   stateNames: [],
 })
 
-const applyPreparedData = (prepared: PreparedData): void => {
+export const applyPreparedData = (prepared: PreparedData): void => {
   energy$.fields = prepared.fields
   energy$.stringTable = prepared.stringTable
   energy$.sharedBlocks = prepared.sharedBlocks
@@ -224,6 +241,32 @@ export function prepareData(data: Data): PreparedData {
 
 export function listRuntimeWimpIds(): string[] {
   return [...gravity$.activeWimpIds]
+}
+
+export async function loadRuntimeSnapshot(snapshot: EnergyRuntimeSnapshot): Promise<void> {
+  const prepared = assembleStoredEnergyData(flattenEnergyData(snapshot.data))
+  applyPreparedData(prepared)
+
+  if (prepared.fields.length > 0 || prepared.branes.length > 0) {
+    await weakInit(energy$)
+  } else {
+    weak$.reset()
+  }
+
+  gravity$.activeWimpIds = [...snapshot.wimpIds]
+  gravity$.braneIndexToWimpId = [...snapshot.wimpIds]
+  gravity$.wimpIdToBraneIndex = new Map(snapshot.wimpIds.map((wimpId, braneIndex) => [wimpId, braneIndex] as const))
+  gravity$.structuralDirty = false
+
+  strong$.runtimeFieldIndexByWimpFieldId = new Map(snapshot.strong.runtimeFieldIndexByWimpFieldId)
+  strong$.wimpFieldIdsByRuntimeFieldIndex = snapshot.strong.wimpFieldIdsByRuntimeFieldIndex.map((ids) => [...ids])
+  strong$.braneIndexByWimpFieldId = new Map(snapshot.strong.braneIndexByWimpFieldId)
+  strong$.topologyWimpFieldIds = new Set(snapshot.strong.topologyWimpFieldIds)
+
+  weak$.stateMetaStateIdsByBraneIndex = snapshot.weak.stateMetaStateIdsByBraneIndex.map((ids) => [...ids])
+  weak$.stateProcessIdsByBraneIndex = snapshot.weak.stateProcessIdsByBraneIndex.map((ids) =>
+    ids.map((id) => id ?? undefined),
+  )
 }
 
 type EnergyUpdateOptions = {
@@ -379,6 +422,39 @@ export async function setValues(values: Record<string, unknown>): Promise<[numbe
   }
 
   return await update(Array.from(groupedUpdates, ([braneIndex, fieldUpdates]) => [braneIndex, fieldUpdates]))
+}
+
+const runtimeFieldIdFromPartPath = (path: string): string =>
+  path.startsWith(FIELD_PART_PATH_PREFIX) ? path.slice(FIELD_PART_PATH_PREFIX.length) : path
+
+export async function applyRuntimeValueParts(parts: Particle[]): Promise<[number, number][]> {
+  if (!weak$.initialized) return []
+
+  const stringInterner = createStoredStringInterner(energy$.stringTable)
+  const updates: Array<{kind: "field"; braneIndex: number; fieldIndex: number}> = []
+
+  for (const part of parts) {
+    if ((part.part !== "gluon" && part.part !== "higgs") || part.op !== "replace") continue
+
+    const wimpFieldId = runtimeFieldIdFromPartPath(part.path)
+    const braneIndex = strong$.braneIndexByWimpFieldId.get(wimpFieldId)
+    const fieldIndex = strong$.runtimeFieldIndexByWimpFieldId.get(wimpFieldId)
+    if (braneIndex === undefined || fieldIndex === undefined) continue
+
+    const field = energy$.fields[fieldIndex]
+    const record = energy$.getField(braneIndex, fieldIndex)
+    if (!field || !record) continue
+
+    record.value = normalizeFieldValue(part.value, field, stringInterner)
+    updates.push({kind: "field", braneIndex, fieldIndex})
+  }
+
+  if (updates.length === 0) return []
+
+  weakHeapUpdate(updates)
+  const changes = await weakRunStep()
+  publishPhotonChanges(changes)
+  return changes
 }
 
 const applyValueParts = async (

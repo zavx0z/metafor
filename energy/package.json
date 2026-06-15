@@ -4,8 +4,7 @@
   "type": "module",
   "main": "index.ts",
   "exports": {
-    ".": "./index.ts",
-    "./server": "./server.ts"
+    ".": "./index.ts"
   },
   "private": true,
   "dependencies": {

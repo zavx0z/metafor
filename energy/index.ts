@@ -1,10 +1,13 @@
 export {
   FieldType,
+  applyPreparedData,
+  applyRuntimeValueParts,
   applyWeakResultPacket,
   energy$,
   flattenEnergyData,
   gravity$,
   listRuntimeWimpIds,
+  loadRuntimeSnapshot,
   prepareData,
   setValues,
   strong$,
@@ -20,5 +23,6 @@ export type {
   EnergyValueBroadcastSubscription,
   EnergyWeakBroadcastSubscription,
   EnergyGravityStore,
+  EnergyRuntimeSnapshot,
   PreparedData,
 } from "./energy.ts"

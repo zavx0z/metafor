@@ -65,7 +65,7 @@ const createServerDomainStore = (): EnergyStore => {
   return store
 }
 
-describe("energy server domain smoke", () => {
+describe("energy domain smoke", () => {
   test("исполняет простой переход состояния в Energy Weak runtime", async () => {
     const runtime = new CPUWeakRuntime(createServerDomainStore())
 
