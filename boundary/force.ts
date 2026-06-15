@@ -1,4 +1,4 @@
-export const METAFOR_FORCE_CHANNEL = "metafor.force"
+export const FORCE = "force"
 
 export type Part = "graviton" | "photon" | "gluon" | "higgs" | "w" | "-z" | "+z"
 export type ParticleOperation = "add" | "remove" | "replace" | "move" | "copy" | "test"
@@ -56,7 +56,7 @@ const dispatchForceEntropy = (event: MessageEvent<ForceMessage>): void => {
 
 const getForceChannel = (): ForceChannel => {
   if (forceChannel === null) {
-    forceChannel = new BroadcastChannel(METAFOR_FORCE_CHANNEL) as ForceChannel
+    forceChannel = new BroadcastChannel(FORCE) as ForceChannel
     forceChannel.onmessage = dispatchForceObservers
   }
   return forceChannel

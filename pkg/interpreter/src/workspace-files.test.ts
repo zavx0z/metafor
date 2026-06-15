@@ -109,15 +109,15 @@ function testWorkspace(): string {
     name: "dark",
     dependencies: {"boundary": "workspace:*"},
   }))
-  writeFile(cwd, "dark/server.spec.ts", "import {METAFOR_FORCE_CHANNEL} from 'boundary/force'\nawait import('./server.ts')\ntest('dark', () => METAFOR_FORCE_CHANNEL)")
-  writeFile(cwd, "dark/server.ts", "import {METAFOR_FORCE_CHANNEL} from 'boundary/force'\nimport {MetaFor} from '..'\nimport {open} from 'boundary/sqlite'\nexport {METAFOR_FORCE_CHANNEL, MetaFor, open}")
+  writeFile(cwd, "dark/server.spec.ts", "import {FORCE} from 'boundary/force'\nawait import('./server.ts')\ntest('dark', () => FORCE)")
+  writeFile(cwd, "dark/server.ts", "import {FORCE} from 'boundary/force'\nimport {MetaFor} from '..'\nimport {open} from 'boundary/sqlite'\nexport {FORCE, MetaFor, open}")
   writeFile(cwd, "dark/weak/index.ts", "export {}")
   writeFile(cwd, "boundary/package.json", JSON.stringify({
     name: "boundary",
     exports: {".": "./index.ts", "./force": "./force.ts", "./sqlite": "./sqlite.ts"},
   }))
   writeFile(cwd, "boundary/index.ts", "export type Boundary = {ready: boolean}")
-  writeFile(cwd, "boundary/force.ts", "export const METAFOR_FORCE_CHANNEL = 'metafor.force'")
+  writeFile(cwd, "boundary/force.ts", "export const FORCE = 'force'")
   writeFile(cwd, "boundary/sqlite.ts", "import type {Boundary} from './index.ts'\nexport const open = async (): Promise<Boundary> => ({ready: true})")
   writeFile(cwd, "pkg/interpreter/package.json", "{}")
   writeFile(cwd, "pkg/interpreter/src/syntax.test.ts", "test('syntax', () => {})")

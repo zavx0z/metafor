@@ -5,7 +5,7 @@ import type {BoundaryUpdateMessage} from "./sqlite.ts"
 import type {ForceSurface} from "./force.ts"
 import type {BoundaryEnergyRuntimeSnapshot} from "./runtime/energy.ts"
 
-export {METAFOR_FORCE_CHANNEL, force} from "./force.ts"
+export {FORCE, force} from "./force.ts"
 export type {Force, ForceBinding, ForceMessage, ForceMessageListener, ForceSurface, ParticleOperation, Part, Particle} from "./force.ts"
 export {open} from "./sqlite.ts"
 export type {BoundaryPart, BoundaryParticle, BoundaryUpdateMessage} from "./sqlite.ts"

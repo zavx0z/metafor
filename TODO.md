@@ -33,7 +33,7 @@
 
 - [x] Удалить устаревший `task/issues-audit.md`; рантайм-транспорт Force перенесён в `boundary/force`.
 - [x] Решить судьбу `channel`, `source`, `boson` в Force-конверте.
-- [x] Перевести рантайм Force на один `METAFOR_FORCE_CHANNEL` и `part` внутри каждого `Particle`.
+- [x] Перевести рантайм Force на один `FORCE` и `part` внутри каждого `Particle`.
 - [ ] Довести W/+Z/-Z bridge: Boundary-side Z arbitration и сквозной сценарий.
 
 ## 6. TODO HUD Интерпретатора

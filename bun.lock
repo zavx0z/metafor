@@ -140,14 +140,10 @@
         "@energy/gravity": "workspace:*",
         "@energy/strong": "workspace:*",
         "@energy/weak": "workspace:*",
-        "boundary": "workspace:*",
       },
     },
     "energy/gravity": {
       "name": "@energy/gravity",
-      "dependencies": {
-        "boundary": "workspace:*",
-      },
     },
     "energy/strong": {
       "name": "@energy/strong",

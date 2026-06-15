@@ -55,7 +55,7 @@ Force фиксирует, как сила действует через кана
 
 ## Транспорт и `part`
 
-Физический транспорт MetaFor использует один `BroadcastChannel`: `METAFOR_FORCE_CHANNEL`.
+Физический транспорт MetaFor использует один `BroadcastChannel`: `FORCE`.
 Отдельных физических каналов `gravity`, `gluon`, `higgs`, `weak` и т.п. в рантайме Force быть не должно.
 
 Каждый `Particle` несёт смысловой канал в поле `part`.

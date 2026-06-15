@@ -10,7 +10,6 @@
   "dependencies": {
     "@energy/gravity": "workspace:*",
     "@energy/strong": "workspace:*",
-    "@energy/weak": "workspace:*",
-    "boundary": "workspace:*"
+    "@energy/weak": "workspace:*"
   }
 }

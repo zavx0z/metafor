@@ -1,6 +1,5 @@
 import type {Server, ServerWebSocket} from "bun"
-import {force, type Particle} from "boundary"
-import {applyRuntimeValueParts, energy$, loadRuntimeSnapshot, type EnergyRuntimeSnapshot} from "energy"
+import {applyRuntimeValueParts, energy$, force, loadRuntimeSnapshot, type EnergyParticle, type EnergyRuntimeSnapshot} from "energy"
 
 type ForceSocketData = {kind: "force"}
 
@@ -32,7 +31,7 @@ const loadRuntimeFromDark = async (): Promise<void> => {
 }
 
 force.observe((event) => {
-  void applyRuntimeValueParts(event.data.parts as Particle[]).catch((error) => {
+  void applyRuntimeValueParts(event.data.parts as EnergyParticle[]).catch((error) => {
     console.error(`[energy] force message failed: ${error instanceof Error ? error.message : String(error)}`)
   })
 })

@@ -18,6 +18,16 @@ export {
   update,
   write,
 } from "./energy.ts"
+export {
+  FORCE,
+  absorbForceMessage,
+  closeForceChannel,
+  emitForceMessage,
+  emitForceParts,
+  force,
+  entropyForceMessage,
+  observeForceMessage,
+} from "./channel.ts"
 export type {
   EnergyBroadcastSubscription,
   EnergyValueBroadcastSubscription,
@@ -26,3 +36,13 @@ export type {
   EnergyRuntimeSnapshot,
   PreparedData,
 } from "./energy.ts"
+export type {
+  EnergyForce,
+  EnergyForceBinding,
+  EnergyForceChannel,
+  EnergyForceMessage,
+  EnergyForceMessageListener,
+  EnergyForceSurface,
+  EnergyParticle,
+  TypedEnergyBroadcastChannel,
+} from "./channel.ts"

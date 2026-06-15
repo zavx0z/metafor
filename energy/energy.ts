@@ -31,13 +31,12 @@ import { gravity$ } from "@energy/gravity/store.ts"
 import { energy$ } from "./store"
 import type { EnergyFieldValueRecord, EnergyStore } from "./store.t"
 import type { PreparedData } from "./energy.t"
+import {force, type EnergyForceMessage, type EnergyParticle} from "./channel"
 import { flattenEnergyData, validateData, type Data } from "@energy/gravity"
 import { createStoredStringInterner, normalizeFieldValue, assembleStoredEnergyData, strong$ } from "@energy/strong"
 import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@energy/weak"
-import {force, type ForceMessage, type ForceSurface, type Particle} from "boundary"
 
 type EnergyValuePart = { op: "replace"; path: string; value: unknown }
-type EnergyChannelOptions = { channelName?: string }
 type EnergyWeakResultPayload = { wimpId: string; processId: string; parts: EnergyValuePart[] }
 
 export type EnergyRuntimeSnapshot = {
@@ -91,10 +90,9 @@ const runExclusive = async <T>(gate: AsyncGate, task: () => Promise<T>): Promise
 }
 
 const createSubscription = (
-  channel: ForceSurface,
-  onMessage: (message: ForceMessage) => Promise<void> | void,
+  onMessage: (message: EnergyForceMessage) => Promise<void> | void,
 ): EnergyBroadcastSubscription => {
-  const subscription = channel.observe((event) => {
+  const subscription = force.observe((event) => {
     void (async () => {
       await onMessage(event.data)
     })()
@@ -187,6 +185,7 @@ const collectPartValues = (parts: EnergyValuePart[], kind: "gluon" | "higgs"): R
 
 const publishPhotonChanges = (changes: [number, number][]): void => {
   if (changes.length === 0) return
+  const parts: EnergyParticle[] = []
 
   for (const [braneIndex, stateIndex] of changes) {
     const uuid = gravity$.getWimpId(braneIndex)
@@ -195,8 +194,11 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
     const stateName = energy$.getStateName(braneIndex, stateIndex)
     if (!stateName) continue
 
-    force.emit({ parts: [{ part: "photon", op: "replace", path: uuid, value: stateName }] })
+    parts.push({ part: "photon", op: "replace", path: uuid, value: stateName })
   }
+
+  if (parts.length === 0) return
+  force.emit({parts})
 }
 
 const syncProcessLocksForChanges = (changes: [number, number][]): void => {
@@ -427,7 +429,7 @@ export async function setValues(values: Record<string, unknown>): Promise<[numbe
 const runtimeFieldIdFromPartPath = (path: string): string =>
   path.startsWith(FIELD_PART_PATH_PREFIX) ? path.slice(FIELD_PART_PATH_PREFIX.length) : path
 
-export async function applyRuntimeValueParts(parts: Particle[]): Promise<[number, number][]> {
+export async function applyRuntimeValueParts(parts: EnergyParticle[]): Promise<[number, number][]> {
   if (!weak$.initialized) return []
 
   const stringInterner = createStoredStringInterner(energy$.stringTable)
@@ -511,12 +513,12 @@ export async function applyWeakResultPacket(message: EnergyWeakResultPayload): P
   })
 }
 
-const toEnergyValuePart = (part: Particle): EnergyValuePart | null => {
+const toEnergyValuePart = (part: EnergyParticle): EnergyValuePart | null => {
   if (part.op !== "replace") return null
   return { op: "replace", path: part.path, value: part.value }
 }
 
-const collectWeakResultPackets = (parts: Particle[]): EnergyWeakResultPayload[] => {
+const collectWeakResultPackets = (parts: EnergyParticle[]): EnergyWeakResultPayload[] => {
   const packets = new Map<string, EnergyWeakResultPayload>()
 
   for (const part of parts) {
@@ -540,7 +542,7 @@ const collectWeakResultPackets = (parts: Particle[]): EnergyWeakResultPayload[] 
   return [...packets.values()]
 }
 
-const isWeakResultMarker = (part: Particle): boolean =>
+const isWeakResultMarker = (part: EnergyParticle): boolean =>
   part.op === "test" && (part.kind === "result" || (isRecord(part.value) && part.value.kind === "result"))
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -548,10 +550,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const subscribeEnergyValueBroadcast = (
   kind: "gluon" | "higgs",
-  options: EnergyChannelOptions = {},
 ): EnergyValueBroadcastSubscription => {
-  void options
-  return createSubscription(force, async (message) => {
+  return createSubscription(async (message) => {
     const parts = message.parts
       .filter((part) => part.part === kind)
       .map(toEnergyValuePart)
@@ -560,23 +560,16 @@ const subscribeEnergyValueBroadcast = (
   })
 }
 
-export function subscribeEnergyGluonBroadcast(
-  options: EnergyChannelOptions = {},
-): EnergyValueBroadcastSubscription {
-  return subscribeEnergyValueBroadcast("gluon", options)
+export function subscribeEnergyGluonBroadcast(): EnergyValueBroadcastSubscription {
+  return subscribeEnergyValueBroadcast("gluon")
 }
 
-export function subscribeEnergyHiggsBroadcast(
-  options: EnergyChannelOptions = {},
-): EnergyValueBroadcastSubscription {
-  return subscribeEnergyValueBroadcast("higgs", options)
+export function subscribeEnergyHiggsBroadcast(): EnergyValueBroadcastSubscription {
+  return subscribeEnergyValueBroadcast("higgs")
 }
 
-export function subscribeEnergyWeakResultBroadcast(
-  options: EnergyChannelOptions = {},
-): EnergyWeakBroadcastSubscription {
-  void options
-  return createSubscription(force, async (message) => {
+export function subscribeEnergyWeakResultBroadcast(): EnergyWeakBroadcastSubscription {
+  return createSubscription(async (message) => {
     for (const packet of collectWeakResultPackets(message.parts)) {
       await applyWeakResultPacket(packet)
     }
