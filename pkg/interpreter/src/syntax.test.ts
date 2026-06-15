@@ -52,6 +52,36 @@ describe("syntax tokenizer", () => {
     expect(tokens[0]!.find((token) => token.s <= separator && token.e > separator)?.c).toBe("p")
   })
 
+  test("uses html, css and xml tokenizers for source paths", () => {
+    const html = '<style>.pane { color: #fff; background: rgba(12, 18, 30, 0.78); grid-template-columns: 1fr auto auto; }</style><script>const total: number = calc(2)</script>'
+    const htmlTokens = tokenizeSource(html, {path: "app/index.html"})[0]!
+    expect(tokenFor(html, htmlTokens, "<")?.fg).toBe("#d5b778")
+    expect(tokenFor(html, htmlTokens, ".pane")?.c).toBe("t")
+    expect(tokenFor(html, htmlTokens, "#fff")?.bg).toBe("#fff")
+    expect(tokenFor(html, htmlTokens, "rgba")?.c).toBe("f")
+    expect(tokenFor(html, htmlTokens, "rgba")?.bg).toBe("rgba(12, 18, 30, 0.78)")
+    expect(tokenFor(html, htmlTokens, "grid-template-columns")?.c).toBe("t")
+    expect(tokenFor(html, htmlTokens, "auto")?.c).toBe("k")
+    expect(tokenFor(html, htmlTokens, "number")?.c).toBe("t")
+    expect(tokenFor(html, htmlTokens, "calc")?.c).toBe("f")
+
+    const css = ".pane { color: #ffcc00; background: rgba(12, 18, 30, 0.78); grid-template-columns: 1fr auto auto; display: flex; }"
+    const cssTokens = tokenizeSource(css, {path: "app/style.css"})[0]!
+    expect(tokenFor(css, cssTokens, ".pane")?.c).toBe("t")
+    expect(tokenFor(css, cssTokens, "#ffcc00")?.bg).toBe("#ffcc00")
+    expect(tokenFor(css, cssTokens, "rgba")?.c).toBe("f")
+    expect(tokenFor(css, cssTokens, "rgba")?.bg).toBe("rgba(12, 18, 30, 0.78)")
+    expect(tokenFor(css, cssTokens, "grid-template-columns")?.c).toBe("t")
+    expect(tokenFor(css, cssTokens, "auto")?.c).toBe("k")
+    expect(tokenFor(css, cssTokens, "flex")?.c).toBe("k")
+
+    const xml = '<svg><style>.pane { color: #fff; }</style></svg>'
+    const xmlTokens = tokenizeSource(xml, {path: "icon.svg"})[0]!
+    expect(tokenFor(xml, xmlTokens, "<")?.fg).toBe("#d5b778")
+    expect(tokenFor(xml, xmlTokens, ".pane")).toBeUndefined()
+    expect(tokenFor(xml, xmlTokens, "#fff")?.bg).toBeUndefined()
+  })
+
   test("highlights template literal expressions as TypeScript", () => {
     const line = "const db = new SQL(`sqlite://${storePath}`)"
     const tokens = tokenize(line)

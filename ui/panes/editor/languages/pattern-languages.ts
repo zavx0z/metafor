@@ -165,7 +165,7 @@ insertBefore(typescriptGrammar, "function", {
   },
 })
 
-const markupGrammar: PatternGrammar = {
+const xmlGrammar: PatternGrammar = {
   "comment": {
     pattern: /<!--(?:(?!<!--)[\s\S])*?-->/,
     greedy: true,
@@ -203,7 +203,7 @@ const markupGrammar: PatternGrammar = {
       "tag": {
         pattern: /^<\/?[^\s>\/]+/,
         inside: {
-          "punctuation": /^<\/?/,
+          "tag-punctuation": /^<\/?/,
           "namespace": /^[^\s>\/:]+:/,
         },
       },
@@ -226,7 +226,7 @@ const markupGrammar: PatternGrammar = {
           ],
         },
       },
-      "punctuation": /\/?>/,
+      "tag-punctuation": /\/?>/,
       "attr-name": {
         pattern: /[^\s>\/]+/,
         inside: {
@@ -243,6 +243,8 @@ const markupGrammar: PatternGrammar = {
     /&#x?[\da-f]{1,8};/i,
   ],
 }
+
+const htmlGrammar = extendGrammar(xmlGrammar, {})
 
 const cssString = /(?:"(?:\\(?:\r\n|[\s\S])|[^"\\\r\n])*"|'(?:\\(?:\r\n|[\s\S])|[^'\\\r\n])*')/
 
@@ -287,11 +289,11 @@ const cssGrammar: PatternGrammar = {
   },
   "hex-color": /#[\da-f]{3,8}\b/i,
   "number": /\b\d+(?:\.\d+)?(?:%|[a-z]+)?\b/i,
-  "keyword": /\b(?:absolute|auto|block|center|fixed|flex|grid|inherit|initial|inline|none|relative|solid|sticky|unset)\b/i,
   "property": {
     pattern: /(^|[^-\w\xA0-\uFFFF])(?!\s)[-_a-z\xA0-\uFFFF](?:(?!\s)[-\w\xA0-\uFFFF])*(?=\s*:)/i,
     lookbehind: true,
   },
+  "keyword": /\b(?:absolute|auto|block|center|fixed|flex|grid|inherit|initial|inline|none|relative|solid|sticky|unset)\b/i,
   "important": /!important\b/i,
   "function": {
     pattern: /(^|[^-a-z0-9])[-a-z0-9]+(?=\()/i,
@@ -317,7 +319,7 @@ const jsonGrammar: PatternGrammar = {
   "punctuation": /[{}[\],:]/,
 }
 
-insertBefore(markupGrammar, "cdata", {
+insertBefore(htmlGrammar, "cdata", {
   "style": {
     pattern: /(<style\b[^>]*>)[\s\S]*?(?=<\/style>)/i,
     lookbehind: true,
@@ -328,7 +330,7 @@ insertBefore(markupGrammar, "cdata", {
     pattern: /(<script\b[^>]*>)[\s\S]*?(?=<\/script>)/i,
     lookbehind: true,
     greedy: true,
-    inside: javascriptGrammar,
+    inside: typescriptGrammar,
   },
   "inline-template": /{{[\s\S]*?}}/,
 })
@@ -366,12 +368,13 @@ const sqlGrammar: PatternGrammar = {
   "punctuation": /[;[\]()`,.]/,
 }
 
-export type PatternLanguageId = "typescript" | "javascript" | "markup" | "css" | "json" | "sql"
+export type PatternLanguageId = "typescript" | "javascript" | "markup" | "xml" | "css" | "json" | "sql"
 
 export const patternLanguages: Record<PatternLanguageId, PatternGrammar> = {
   typescript: typescriptGrammar,
   javascript: javascriptGrammar,
-  markup: markupGrammar,
+  markup: htmlGrammar,
+  xml: xmlGrammar,
   css: cssGrammar,
   json: jsonGrammar,
   sql: sqlGrammar,

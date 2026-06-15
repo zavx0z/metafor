@@ -43,6 +43,7 @@ const SCOPE_MAP: Record<string, readonly string[]> = {
   "string": ["string"],
   "string-property": ["variable.other.property", "support.variable.property"],
   "tag": ["entity.name.tag"],
+  "tag-punctuation": ["punctuation.definition.tag", "entity.name.tag"],
   "template-string": ["string.template", "string"],
   "url": ["string"],
   "variable": ["variable.other.readwrite", "variable"],
@@ -87,6 +88,7 @@ const CATEGORY_MAP: Record<string, string> = {
   "string": "s",
   "string-property": "t",
   "tag": "k",
+  "tag-punctuation": "p",
   "template-string": "s",
   "url": "s",
   "variable": "d",
@@ -114,7 +116,18 @@ export function tokenizeJsonPattern(lines: readonly string[]): EditorTokens {
   return tokenizePattern(lines, "json")
 }
 
+export function tokenizeXmlPattern(lines: readonly string[]): EditorTokens {
+  return tokenizePattern(lines, "xml")
+}
+
+export function tokenizeHtmlPattern(lines: readonly string[]): EditorTokens {
+  return tokenizePattern(lines, "markup")
+}
+
 export function tokenizeSourcePattern(lines: readonly string[], opts: {path?: string} = {}): EditorTokens {
+  if (isHtmlPath(opts.path)) return tokenizeHtmlPattern(lines)
+  if (isCssPath(opts.path)) return tokenizePattern(lines, "css")
+  if (isXmlPath(opts.path)) return tokenizeXmlPattern(lines)
   if (isJsonPath(opts.path)) return tokenizeJsonPattern(lines)
   if (isSqlitePath(opts.path)) return tokenizeSqlitePattern(lines)
   return tokenizeTypeScriptPattern(lines)
@@ -124,6 +137,7 @@ export function tokenizePatternRangeTokens(source: string, base: number, languag
   const grammar = patternLanguages[language]
   const tokens: RangeToken[] = []
   flattenPatternTokens(tokenizePatternText(source, grammar), base, undefined, tokens)
+  if (language === "css" || language === "markup") applyCssColorFunctionSwatches(source, base, tokens)
   if (language === "typescript" || language === "javascript") {
     applySemanticIdentifierOverlays(source, base, tokens)
     applyTemplateLiteralOverlays(source, base, tokens, "typescript")
@@ -155,6 +169,17 @@ function pushPatternToken(out: RangeToken[], s: number, e: number, types: readon
   const fg = colorForTypes(types)
   const bg = types.includes("hex-color") ? text : undefined
   pushRange(out, s, e, categoryForTypes(types), bg, fg)
+}
+
+function applyCssColorFunctionSwatches(source: string, base: number, tokens: RangeToken[]): void {
+  const colorRe = /\brgba?\(\s*(?:(?:[+-]?(?:\d+(?:\.\d+)?|\.\d+)%?)\s*(?:,\s*|\s+)){2}[+-]?(?:\d+(?:\.\d+)?|\.\d+)%?(?:\s*(?:,\s*|\/\s*)[+-]?(?:\d+(?:\.\d+)?|\.\d+)%?)?\s*\)/gi
+  for (const match of source.matchAll(colorRe)) {
+    const text = match[0]
+    const start = base + (match.index ?? 0)
+    const nameEnd = start + (text.startsWith("rgba") ? 4 : 3)
+    const token = tokens.find((item) => item.s === start && item.e === nameEnd && item.c === "f")
+    if (token !== undefined) token.bg = text
+  }
 }
 
 function colorForTypes(types: readonly string[]): string | undefined {
@@ -599,6 +624,24 @@ function lineOffsets(lines: readonly string[]): number[] {
 
 function rangesOverlap(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
   return aStart < bEnd && bStart < aEnd
+}
+
+function isHtmlPath(path: string | undefined): boolean {
+  if (path === undefined) return false
+  const clean = path.split("?")[0]?.split("#")[0] ?? path
+  return clean.endsWith(".html") || clean.endsWith(".htm")
+}
+
+function isCssPath(path: string | undefined): boolean {
+  if (path === undefined) return false
+  const clean = path.split("?")[0]?.split("#")[0] ?? path
+  return clean.endsWith(".css")
+}
+
+function isXmlPath(path: string | undefined): boolean {
+  if (path === undefined) return false
+  const clean = path.split("?")[0]?.split("#")[0] ?? path
+  return clean.endsWith(".xml") || clean.endsWith(".svg")
 }
 
 function isSqlitePath(path: string | undefined): boolean {

@@ -2020,12 +2020,18 @@ export class EditorPane extends UiSurface {
       },
       chunkX: (startCol) => this.#colToPx(text, startCol),
       animOffsetFor: (absoluteColumn) => this.#animOffsetFor(lineIndex, absoluteColumn),
-      drawTokenBackground: (x, bgY, w, h, bg) => {
-        const color = parseHexColor(bg)
+      drawTokenBackground: (_tokenX, bgY, _tokenW, _h, bg, slotX, slotW) => {
+        const color = parseCssColor(bg)
         if (color !== null) {
+          const swatchW = Math.max(2, Math.floor(slotW - 2))
+          if (swatchW < 2) return
+          const swatchX = Math.round(slotX + Math.max(1, Math.floor((slotW - swatchW) / 2)))
+          const swatchY = Math.round(bgY - (this.#linePx - this.#fontPx) / 2)
+          const swatchH = Math.max(1, Math.round(this.#linePx))
           this.withLayer("contentUnderlay", () => {
-            this.drawRect(x, bgY, w, h, palette.bgInput, Z.CONTAINER)
-            this.drawRect(x, bgY, w, h, color, Z.ELEMENT)
+            this.drawRect(swatchX - 1, swatchY, swatchW + 2, swatchH, palette.borderDim, Z.CONTAINER)
+            this.drawRect(swatchX, swatchY + 1, swatchW, Math.max(1, swatchH - 2), palette.bgInput, Z.SEPARATOR)
+            this.drawRect(swatchX, swatchY + 1, swatchW, Math.max(1, swatchH - 2), color, Z.ELEMENT)
           })
         }
       },
@@ -2460,12 +2466,17 @@ function introAnimSeed(lineIndex: number, absCol: number): number {
 }
 
 /**
- * Парсит CSS-hex (#RGB / #RGBA / #RRGGBB / #RRGGBBAA). Невалидный hex → null.
+ * Парсит CSS color literal для swatch. Невалидный цвет → null.
  * Не выбрасывает — вызывается на каждом render-кадре.
  */
+function parseCssColor(text: string): Color | null {
+  return parseHexColor(text) ?? parseRgbColor(text)
+}
+
 function parseHexColor(text: string): Color | null {
-  if (text.length === 0 || text[0] !== "#") return null
-  const hex = text.slice(1)
+  const raw = text.trim()
+  if (raw.length === 0 || raw[0] !== "#") return null
+  const hex = raw.slice(1)
   if (!/^[0-9a-fA-F]+$/.test(hex)) return null
   const n = hex.length
   const dup = (c: string): number => parseInt(c + c, 16) / 255
@@ -2475,4 +2486,48 @@ function parseHexColor(text: string): Color | null {
   if (n === 6) return new Color(hh(hex[0]!, hex[1]!), hh(hex[2]!, hex[3]!), hh(hex[4]!, hex[5]!), 1)
   if (n === 8) return new Color(hh(hex[0]!, hex[1]!), hh(hex[2]!, hex[3]!), hh(hex[4]!, hex[5]!), hh(hex[6]!, hex[7]!))
   return null
+}
+
+function parseRgbColor(text: string): Color | null {
+  const match = /^rgba?\((.*)\)$/i.exec(text.trim())
+  if (match === null) return null
+  const parts = parseRgbColorParts(match[1] ?? "")
+  if (parts.length < 3 || parts.length > 4) return null
+  const r = parseRgbChannel(parts[0]!)
+  const g = parseRgbChannel(parts[1]!)
+  const b = parseRgbChannel(parts[2]!)
+  const a = parts[3] === undefined ? 1 : parseAlphaChannel(parts[3])
+  if (r === null || g === null || b === null || a === null) return null
+  return new Color(r, g, b, a)
+}
+
+function parseRgbColorParts(body: string): string[] {
+  const raw = body.trim()
+  if (raw.length === 0) return []
+  if (raw.includes(",")) return raw.split(",").map((part) => part.trim()).filter((part) => part.length > 0)
+  const [channels, alpha] = raw.split("/", 2).map((part) => part.trim())
+  const parts = (channels ?? "").split(/\s+/).filter((part) => part.length > 0)
+  if (alpha !== undefined && alpha.length > 0) parts.push(alpha)
+  return parts
+}
+
+function parseRgbChannel(text: string): number | null {
+  const value = parseCssNumber(text)
+  if (value === null) return null
+  return value.percent ? clamp01(value.value / 100) : clamp01(value.value / 255)
+}
+
+function parseAlphaChannel(text: string): number | null {
+  const value = parseCssNumber(text)
+  if (value === null) return null
+  return value.percent ? clamp01(value.value / 100) : clamp01(value.value)
+}
+
+function parseCssNumber(text: string): {value: number; percent: boolean} | null {
+  const raw = text.trim()
+  const match = /^([+-]?(?:\d+(?:\.\d+)?|\.\d+))(%?)$/.exec(raw)
+  if (match === null) return null
+  const value = Number.parseFloat(match[1]!)
+  if (!Number.isFinite(value)) return null
+  return {value, percent: match[2] === "%"}
 }

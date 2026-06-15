@@ -16,14 +16,15 @@ export const cssHighlighter: LanguageHighlighter = {
 }
 
 function applyCssColorSwatches(lines: readonly string[], tokens: EditorTokens): void {
-  const hexRe = /#[0-9a-fA-F]{3,8}\b/g
+  const colorRe = /#[0-9a-fA-F]{3,8}\b|\brgba?\(\s*(?:(?:[+-]?(?:\d+(?:\.\d+)?|\.\d+)%?)\s*(?:,\s*|\s+)){2}[+-]?(?:\d+(?:\.\d+)?|\.\d+)%?(?:\s*(?:,\s*|\/\s*)[+-]?(?:\d+(?:\.\d+)?|\.\d+)%?)?\s*\)/gi
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
     const line = lines[lineIndex] ?? ""
-    for (const match of line.matchAll(hexRe)) {
+    for (const match of line.matchAll(colorRe)) {
       const s = match.index ?? 0
       const text = match[0]
-      if (![4, 5, 7, 9].includes(text.length)) continue
-      const token = findToken(tokens[lineIndex] ?? [], s, s + text.length)
+      if (text.startsWith("#") && ![4, 5, 7, 9].includes(text.length)) continue
+      const tokenEnd = text.startsWith("#") ? s + text.length : s + (text.toLowerCase().startsWith("rgba") ? 4 : 3)
+      const token = findToken(tokens[lineIndex] ?? [], s, tokenEnd)
       if (token !== undefined) token.bg = text
     }
   }

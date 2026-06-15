@@ -29,7 +29,7 @@ export type RenderEditorTokenLineOpts = {
   chunkWidth?: (startCol: number, endCol: number, text: string) => number
   chunkX?: (startCol: number) => number
   animOffsetFor?: (absoluteColumn: number) => number
-  drawTokenBackground?: (x: number, y: number, w: number, h: number, bg: string) => void
+  drawTokenBackground?: (x: number, y: number, w: number, h: number, bg: string, slotX: number, slotW: number) => void
 }
 
 export type RenderEditorTextRunsOpts = {
@@ -90,7 +90,8 @@ export function renderEditorTokenizedLine(opts: RenderEditorTokenLineOpts): void
     }
     const drawX = chunkX + offset
     if (bg !== undefined && w > 0) {
-      opts.drawTokenBackground?.(drawX, opts.y, w, opts.fontPx + 2, bg)
+      const slot = colorSwatchSlot(opts, chunkColStart, drawX, offset)
+      if (slot !== null) opts.drawTokenBackground?.(drawX, opts.y, w, opts.fontPx + 2, bg, slot.x, slot.w)
     }
     renderEditorTextRuns({
       pane: opts.pane,
@@ -167,6 +168,23 @@ export function renderEditorTextRuns(opts: RenderEditorTextRunsOpts): void {
     i += width
   }
   flush(opts.text.length)
+}
+
+function colorSwatchSlot(opts: RenderEditorTokenLineOpts, tokenColStart: number, tokenX: number, offset: number): {x: number; w: number} | null {
+  if (tokenColStart <= 0 || !isEditorWhitespace(opts.text[tokenColStart - 1] ?? "")) return null
+  let slotStart = tokenColStart - 1
+  while (slotStart > 0 && isEditorWhitespace(opts.text[slotStart - 1] ?? "")) slotStart--
+  const slotW = opts.chunkWidth?.(slotStart, tokenColStart, opts.text.slice(slotStart, tokenColStart))
+    ?? opts.pane.measureText(opts.text.slice(slotStart, tokenColStart), opts.fontPx, opts.letterSpacingPx, opts.spaceAdvancePx)
+  if (slotW <= 0) return null
+  const slotX = opts.chunkX === undefined
+    ? tokenX - slotW
+    : opts.startX + opts.chunkX(slotStart) + offset
+  return {x: slotX, w: slotW}
+}
+
+function isEditorWhitespace(ch: string): boolean {
+  return ch === " " || ch === "\t"
 }
 
 function isDrawableEditorTextCodePoint(code: number): boolean {

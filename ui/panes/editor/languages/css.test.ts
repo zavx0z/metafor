@@ -5,7 +5,7 @@ import type {EditorToken} from "../tokens.ts"
 describe("tokenizeCss", () => {
   test("highlights selectors, properties, values, numbers, colors, and comments", () => {
     const lines = [
-      ".pane { color: #ffcc00; margin: 12px; display: flex; }",
+      ".pane { color: #ffcc00; background: rgba(12, 18, 30, 0.78); margin: 12px; grid-template-columns: 1fr auto auto; display: flex; }",
       "/* theme */",
     ]
     const tokens = tokenizeCss(lines)
@@ -14,7 +14,13 @@ describe("tokenizeCss", () => {
     expect(tokenFor(lines[0]!, tokens[0]!, "color")?.c).toBe("t")
     expect(tokenFor(lines[0]!, tokens[0]!, "#ffcc00")?.c).toBe("n")
     expect(tokenFor(lines[0]!, tokens[0]!, "#ffcc00")?.bg).toBe("#ffcc00")
+    expect(tokenFor(lines[0]!, tokens[0]!, "rgba")?.c).toBe("f")
+    expect(tokenFor(lines[0]!, tokens[0]!, "rgba")?.bg).toBe("rgba(12, 18, 30, 0.78)")
     expect(tokenFor(lines[0]!, tokens[0]!, "12px")?.c).toBe("n")
+    expect(tokenFor(lines[0]!, tokens[0]!, "grid-template-columns")?.c).toBe("t")
+    expect(tokenFor(lines[0]!, tokens[0]!, "1fr")?.c).toBe("n")
+    expect(tokenFor(lines[0]!, tokens[0]!, "auto")?.c).toBe("k")
+    expect(tokens[0]!.some((token) => lines[0]!.slice(token.s, token.e) === "grid" && token.c === "k")).toBe(false)
     expect(tokenFor(lines[0]!, tokens[0]!, "flex")?.c).toBe("k")
     expect(tokenFor(lines[1]!, tokens[1]!, "/* theme */")?.c).toBe("c")
   })

@@ -1,7 +1,7 @@
 import {describe, expect, test} from "bun:test"
 import type {TextMaterial} from "@metafor/engine"
 import type {UiSurface} from "@ui/elements"
-import {normalizeEditorTokensForLine, renderEditorTextRuns} from "./token-renderer.ts"
+import {normalizeEditorTokensForLine, renderEditorTextRuns, renderEditorTokenizedLine} from "./token-renderer.ts"
 
 describe("normalizeEditorTokensForLine", () => {
   test("sorts, clamps and removes invalid ranges", () => {
@@ -58,5 +58,30 @@ describe("renderEditorTextRuns", () => {
     })
 
     expect(calls).toEqual([{text: "ready", x: 140, maxWidthPx: 360}])
+  })
+})
+
+describe("renderEditorTokenizedLine", () => {
+  test("places color swatches in the whitespace before the token", () => {
+    const backgrounds: Array<{x: number; w: number; slotX: number; slotW: number}> = []
+    const pane = {
+      drawText: () => 0,
+      measureText: (text: string) => text.length * 10,
+    } as unknown as UiSurface
+
+    renderEditorTokenizedLine({
+      pane,
+      text: "color: #fff;",
+      tokens: [{s: 7, e: 11, c: "n", bg: "#fff"}],
+      startX: 100,
+      y: 20,
+      fontPx: 13,
+      maxPx: 400,
+      materials: new Map(),
+      fallbackMaterial: {} as TextMaterial,
+      drawTokenBackground: (x, _y, w, _h, _bg, slotX, slotW) => backgrounds.push({x, w, slotX, slotW}),
+    })
+
+    expect(backgrounds).toEqual([{x: 170, w: 40, slotX: 160, slotW: 10}])
   })
 })
