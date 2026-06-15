@@ -10,7 +10,7 @@ import {
   createDbWorldRowsFromParticleDescriptors,
   scaleDbWorldRowsToRootOuterDiameter,
 } from "@bulk/gravity/layout"
-import {normalizeMatterBindingPath, type BoundaryBulkRuntimeSnapshot} from "boundary"
+import type {BoundaryBulkRuntimeSnapshot} from "boundary"
 
 type ActorRow = BoundaryBulkRuntimeSnapshot["actors"][number]
 type TopologyRow = BoundaryBulkRuntimeSnapshot["topologies"][number]
@@ -93,8 +93,8 @@ const sortBindingPaths = <T extends {depOrder: number; childOrder?: number}>(row
   [...rows].sort((left, right) => (left.childOrder ?? 0) - (right.childOrder ?? 0) || left.depOrder - right.depOrder)
 
 const fieldKeyFromMatterPath = (path: string): string | null => {
-  const key = normalizeMatterBindingPath(path)
-  return key.startsWith("/") || key.startsWith("[") ? null : key
+  if (path.startsWith("/") || path.startsWith("[") || path.startsWith(".")) return null
+  return path
 }
 
 export function buildBoundaryWorldRows(

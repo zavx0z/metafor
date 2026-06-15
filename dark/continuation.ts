@@ -1,5 +1,5 @@
 import type {FieldDefinition, FieldKey, MetaDSL} from "../index.ts"
-import {normalizeMatterBindingPath, type MatterRelationBindingValue} from "@boundary/wimp/sqlite"
+import type {MatterRelationBindingValue} from "@boundary/wimp/sqlite"
 
 /**
  * Описание начальной инициализации поля при материализации child wimp.
@@ -30,9 +30,8 @@ const evaluateAstExpression = (expr: string, values: unknown[]): unknown =>
   new Function("_", `return (${expr})`)(values)
 
 const extractFieldKey = (path: string): FieldKey | undefined => {
-  const key = normalizeMatterBindingPath(path)
-  if (key.startsWith("/") || key.startsWith("[")) return undefined
-  return key || undefined
+  if (path.startsWith("/") || path.startsWith("[") || path.startsWith(".")) return undefined
+  return path || undefined
 }
 
 const toFieldObject = (value: unknown): Record<string, unknown> => {

@@ -1,5 +1,4 @@
 export { BoundaryWimpSqlite } from "./sqlite.ts"
-export {normalizeMatterBindingPath, normalizeMatterBindingValue} from "./binding.ts"
 export type { WimpCreateInput } from "./sqlite.ts"
 
 // ORM-классы. Корневой entry-point `@boundary/wimp` re-export-ит их.

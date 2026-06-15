@@ -8,7 +8,7 @@ describe("resolveContinuationSources", () => {
       type: "meta",
       tag: "meta-for",
       src: {
-        data: "/value/operation",
+        data: "operation",
         expr: "zavx0z/git-history-${_[0]}",
       },
     }

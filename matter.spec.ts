@@ -2,6 +2,33 @@ import { describe, expect, test } from "bun:test"
 import { MetaFor } from "./metafor.ts"
 
 describe("matter validation", () => {
+  test("нормализует template field paths на границе DSL", () => {
+    const schema = MetaFor("normalized-matter")
+      .fields((field) => ({
+        mode: field.enum("card", "table").required("card"),
+        title: field.string.required("draft"),
+      }))
+      .superposition({ idle: null })
+      .mass({})
+      .processes()
+      .reactions()
+      .matter(
+        ({ value, html }) => html`
+          ${value.mode === "card"
+            ? html`<meta-for src="demo/${value.mode}" fields=${{ title: value.title }} />`
+            : html`<meta-for src="demo/table" />`}
+        `,
+      )
+      .bulk()
+
+    const condition = schema.matter?.find((node) => node.type === "cond") as any
+    const dynamicMeta = condition.child.find((node: any) => node.type === "meta" && typeof node.src === "object")
+
+    expect(condition.data).toBe("mode")
+    expect(dynamicMeta.src.data).toBe("mode")
+    expect(dynamicMeta.fields.data).toBe("title")
+  })
+
   test("разрешает topology в matter только через state, enum и array", () => {
     expect(() =>
       MetaFor("valid-matter")

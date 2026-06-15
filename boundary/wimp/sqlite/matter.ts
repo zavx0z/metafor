@@ -13,7 +13,6 @@ import type {
   WimpParticleRow,
 } from "./matter.t.ts"
 import type {Wimp} from "./wimp.ts"
-import {normalizeMatterBindingPath} from "./binding.ts"
 import {emitGravitonAdd} from "../../force.ts"
 
 const hasMatter = async (sql: SQL, src: string): Promise<boolean> => {
@@ -23,7 +22,7 @@ const hasMatter = async (sql: SQL, src: string): Promise<boolean> => {
 
 const toBindingPaths = (value: BindingValue): string[] => {
   if (!value || typeof value !== "object" || !("data" in value) || value.data === undefined) return []
-  return (Array.isArray(value.data) ? value.data : [value.data]).map(normalizeMatterBindingPath)
+  return Array.isArray(value.data) ? value.data : [value.data]
 }
 
 const insertBinding = async (sql: SQL, src: string, value: BindingValue | undefined): Promise<string | undefined> => {

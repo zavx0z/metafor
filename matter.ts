@@ -8,13 +8,34 @@ type TopologyBasis = "state" | "enum" | "array" | "ordinary" | "mass" | "unknown
 
 const HUB_ADDRESS_RE = /^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_/-]+$/
 
-const isFieldPath = (path: string): boolean => path.startsWith("/value/") || path.startsWith("/fields/")
+const FIELD_PATH_PREFIXES = ["/value/", "/fields/"] as const
+
+type BindingLike = string | {
+  data?: string | string[]
+  expr?: string
+}
+
+const normalizeMatterPath = (path: string): string => {
+  const prefix = FIELD_PATH_PREFIXES.find((item) => path.startsWith(item))
+  if (!prefix) return path
+
+  const suffix = path.slice(prefix.length)
+  const [key] = suffix.split(/[./\[]/, 1)
+  return key || path
+}
+
+const normalizeMatterData = <T extends string | string[]>(data: T): T =>
+  (Array.isArray(data) ? data.map(normalizeMatterPath) : normalizeMatterPath(data)) as T
+
+const normalizeMatterBinding = <T extends BindingLike | undefined>(value: T): T => {
+  if (value === undefined || typeof value === "string" || value.data === undefined) return value
+  const binding = value as Exclude<BindingLike, string>
+  return {...binding, data: normalizeMatterData(binding.data!)} as T
+}
 
 const extractFieldKey = (path: string): string | undefined => {
-  if (!isFieldPath(path)) return
-
-  const suffix = path.startsWith("/value/") ? path.slice("/value/".length) : path.slice("/fields/".length)
-  const [key] = suffix.split(/[./\[]/, 1)
+  const key = normalizeMatterPath(path)
+  if (key.startsWith("/") || key.startsWith("[") || key.startsWith(".")) return
   return key || undefined
 }
 
@@ -168,9 +189,42 @@ const validateNode = (node: NodeType, fields: MatterFields, location: string): v
   }
 }
 
+const normalizeMatterNode = (node: NodeType): NodeType => {
+  switch (node.type) {
+    case "meta":
+      return {
+        ...node,
+        src: normalizeMatterBinding(node.src),
+        ...(node.fields !== undefined ? {fields: normalizeMatterBinding(node.fields)} : {}),
+        ...(node.mass !== undefined ? {mass: normalizeMatterBinding(node.mass)} : {}),
+        ...(node.child !== undefined ? {child: node.child.map(normalizeMatterNode)} : {}),
+      }
+    case "log":
+      return {
+        ...node,
+        data: normalizeMatterData(node.data),
+        child: node.child.map(normalizeMatterNode),
+      }
+    case "cond":
+      return {
+        ...node,
+        data: normalizeMatterData(node.data),
+        child: node.child.map(normalizeMatterNode),
+      }
+    case "map":
+      return {
+        ...node,
+        data: normalizeMatterPath(node.data),
+        child: node.child.map(normalizeMatterNode),
+      }
+    default:
+      return node
+  }
+}
+
 export const parseMatter = <ɸ extends Fields = Fields, m extends Mass = Mass, 𝛴 extends State = State>(
   matter: MatterDeclaration<ɸ, m, 𝛴>,
-): MatterSchema => parse(matter)
+): MatterSchema => parse(matter).map(normalizeMatterNode)
 
 export function validateMatter(matter: MatterSchema | undefined, fields: MatterFields, metaName?: string): void {
   if (!matter) return
