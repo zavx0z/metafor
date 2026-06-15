@@ -1,9 +1,9 @@
-import {SQL, file, serve} from "bun"
+import {file, serve} from "bun"
 import {mkdirSync} from "node:fs"
 import {dirname, join, normalize} from "node:path"
 import index from "./index.html"
 import {buildBoundaryWorldRows} from "./world.ts"
-import type {Boundary} from "boundary"
+import type {Boundary, BoundaryBulkRuntimeSnapshot} from "boundary"
 import type {
 	ClientForceBridgePayload,
 	ClientMessage,
@@ -27,7 +27,6 @@ process.env.BOUNDARY_PATH = BOUNDARY_PATH
 await import(DARK_SERVER_SPECIFIER)
 
 const boundary = (globalThis as typeof globalThis & {boundary: Boundary}).boundary
-const worldSql = new SQL(`sqlite://${BOUNDARY_PATH}`)
 
 const TLS_KEY_FILE = Bun.env.TLS_KEY_FILE
 const TLS_CERT_FILE = Bun.env.TLS_CERT_FILE
@@ -74,35 +73,28 @@ const clientForceBridgePayload = (value: unknown): ClientForceBridgePayload | nu
 	return {type: "force", parts: parts as Particle[]}
 }
 
-const countWorldRows = async (): Promise<{actors: number; topologies: number}> => {
-	const actors = (await worldSql<Array<{count: number}>>`SELECT COUNT(*) AS count FROM actor`)[0]?.count ?? 0
-	const topologies = (await worldSql<Array<{count: number}>>`SELECT COUNT(*) AS count FROM topology`)[0]?.count ?? 0
-	return {actors, topologies}
-}
+const bulkSnapshotSignature = (snapshot: BoundaryBulkRuntimeSnapshot): string =>
+	`${snapshot.actors.length}:${snapshot.topologies.length}`
 
-const hasRootActor = async (src: string): Promise<boolean> => {
-	const row = (await worldSql<Array<{ok: number}>>`
-		SELECT 1 AS ok
-		  FROM actor
-		 WHERE wimp = ${src}
-		   AND parent_actor IS NULL
-		   AND parent_topology IS NULL
-		 LIMIT 1
-	`)[0]
-	return row !== undefined
-}
+const hasRootActor = (snapshot: BoundaryBulkRuntimeSnapshot, src: string): boolean =>
+	snapshot.actors.some((actor) =>
+		actor.wimp === src &&
+		actor.parentActor === null &&
+		actor.parentTopology === null,
+	)
 
-const waitForBoundaryWorld = async (src: string): Promise<void> => {
+const waitForBoundaryWorld = async (src: string): Promise<BoundaryBulkRuntimeSnapshot> => {
 	const deadline = Date.now() + 30_000
 	let lastSignature = ""
 	let stableSince = 0
 
 	while (Date.now() < deadline) {
-		const [rootReady, counts] = await Promise.all([hasRootActor(src), countWorldRows()])
-		const signature = `${counts.actors}:${counts.topologies}`
+		const snapshot = await boundary.bulkRuntime()
+		const rootReady = hasRootActor(snapshot, src)
+		const signature = bulkSnapshotSignature(snapshot)
 
 		if (rootReady && signature === lastSignature) {
-			if (stableSince !== 0 && Date.now() - stableSince >= 500) return
+			if (stableSince !== 0 && Date.now() - stableSince >= 500) return snapshot
 			if (stableSince === 0) stableSince = Date.now()
 		} else {
 			lastSignature = signature
@@ -119,12 +111,15 @@ const materializeWorld = async (
 	message: ClientMaterializePayload | ClientRelayoutPayload,
 ): Promise<ServerWorldPayload> => {
 	const src = message.src.trim() || "zavx0z/git"
+	let snapshot: BoundaryBulkRuntimeSnapshot
 	if (message.type === "materialize") {
 		boundary.emit({parts: [{part: "graviton", op: "test", path: "wimp", value: src}]})
-		await waitForBoundaryWorld(src)
+		snapshot = await waitForBoundaryWorld(src)
+	} else {
+		snapshot = await boundary.bulkRuntime()
 	}
 
-	const world = await buildBoundaryWorldRows(worldSql, src, message.layoutSettings ?? {})
+	const world = buildBoundaryWorldRows(snapshot, src, message.layoutSettings ?? {})
 	return {type: "world", src, world}
 }
 

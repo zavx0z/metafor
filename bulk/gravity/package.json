@@ -8,9 +8,5 @@
     "./level": "./level/index.ts",
     "./text": "./text/index.ts"
   },
-  "private": true,
-  "dependencies": {
-    "@boundary/actor": "workspace:*",
-    "boundary": "workspace:*"
-  }
+  "private": true
 }

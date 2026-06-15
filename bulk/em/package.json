@@ -2,8 +2,5 @@
   "name": "@bulk/em",
   "type": "module",
   "main": "index.ts",
-  "private": true,
-  "dependencies": {
-    "boundary": "workspace:*"
-  }
+  "private": true
 }

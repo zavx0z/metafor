@@ -4,6 +4,7 @@ import {dirname} from "node:path"
 import {BoundaryWimpSqlite} from "@boundary/wimp/sqlite"
 import {BoundaryActorSqlite} from "@boundary/actor/sqlite"
 import {BoundaryTopologySqlite} from "@boundary/topology/sqlite"
+import {bulkRuntime as buildBulkRuntime} from "./runtime/bulk.ts"
 import {energyRuntime as buildEnergyRuntime} from "./runtime/energy.ts"
 
 import type {Boundary} from "./index.ts"
@@ -397,6 +398,9 @@ export const open = async (filename?: string): Promise<Boundary> => {
     wimp: await BoundaryWimpSqlite.open(sql),
     actor,
     topology,
+    bulkRuntime() {
+      return buildBulkRuntime(sql)
+    },
     energyRuntime() {
       return buildEnergyRuntime(sql)
     },

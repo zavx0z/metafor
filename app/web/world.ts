@@ -10,76 +10,16 @@ import {
   createDbWorldRowsFromParticleDescriptors,
   scaleDbWorldRowsToRootOuterDiameter,
 } from "@bulk/gravity/layout"
-import type {SQL} from "bun"
+import type {BoundaryBulkRuntimeSnapshot} from "boundary"
 
-type ActorRow = {
-  uuid: string
-  parentActor: string | null
-  parentTopology: string | null
-  wimp: string
-  position: number
-}
-
-type TopologyRow = {
-  uuid: string
-  parentActor: string | null
-  parentTopology: string | null
-  kind: DbParticleKind
-  position: number
-}
-
-type MatterParticleRow = {
-  uuid: string
-  wimp: string
-  parentParticle: string | null
-  particleKind: DbParticleKind
-  edgeSlot: "root" | "child" | "then" | "else" | "branch"
-  particleOrder: number
-}
-
-type WimpRow = {
-  src: string
-  name: string | null
-}
-
-type FieldRow = {
-  uuid: string
-  wimp: string
-  key: string
-  type: "string" | "number" | "boolean" | "array" | "enum"
-  label: string | null
-}
-
-type ActorValueRow = {
-  actor: string
-  field: string
-  value: string
-}
-
-type ValueRow = {
-  uuid: string
-  kind: "null" | "boolean" | "number" | "string" | "enum" | "list"
-  booleanValue: number | null
-  numberValue: number | null
-  textValue: string | null
-  enumValue: string | null
-}
-
-type ValueListItemRow = {
-  value: string
-  position: number
-  itemValue: string
-}
-
-type MatterBindingPathRow = {
-  particle: string
-  depOrder: number
-  path: string
-}
-
-type MatterChildBindingPathRow = MatterBindingPathRow & {
-  childOrder: number
-}
+type ActorRow = BoundaryBulkRuntimeSnapshot["actors"][number]
+type TopologyRow = BoundaryBulkRuntimeSnapshot["topologies"][number]
+type MatterParticleRow = BoundaryBulkRuntimeSnapshot["matterParticles"][number]
+type FieldRow = BoundaryBulkRuntimeSnapshot["fields"][number]
+type ValueRow = BoundaryBulkRuntimeSnapshot["values"][number]
+type ValueListItemRow = BoundaryBulkRuntimeSnapshot["valueItems"][number]
+type MatterBindingPathRow = BoundaryBulkRuntimeSnapshot["matterTopologyBindingPaths"][number]
+type MatterChildBindingPathRow = BoundaryBulkRuntimeSnapshot["matterChildWimpBindingPaths"][number]
 
 const actorColor = {colorR: 0.4, colorG: 0.45, colorB: 0.98}
 const topologyColors: Record<DbParticleKind, {colorR: number; colorG: number; colorB: number}> = {
@@ -155,93 +95,23 @@ const sortBindingPaths = <T extends {depOrder: number; childOrder?: number}>(row
 const fieldKeyFromValuePath = (path: string): string | null =>
   path.startsWith("/value/") ? path.slice("/value/".length) : null
 
-export async function buildBoundaryWorldRows(
-  sql: SQL,
+export function buildBoundaryWorldRows(
+  snapshot: BoundaryBulkRuntimeSnapshot,
   rootSrc: string,
   settings: Partial<BulkLayoutSettings> = {},
-): Promise<DbWorldRows> {
-  const actors = await sql<ActorRow[]>`
-    SELECT uuid,
-           parent_actor AS parentActor,
-           parent_topology AS parentTopology,
-           wimp,
-           position
-      FROM actor
-     ORDER BY rowid
-  `
-  const topologies = await sql<TopologyRow[]>`
-    SELECT uuid,
-           parent_actor AS parentActor,
-           parent_topology AS parentTopology,
-           kind,
-           position
-      FROM topology
-     ORDER BY rowid
-  `
-  const wimps = await sql<WimpRow[]>`SELECT src, name FROM wimp`
-  const fields = await sql<FieldRow[]>`SELECT uuid, wimp, key, type, label FROM field ORDER BY wimp, rowid`
-  const actorValues = await sql<ActorValueRow[]>`SELECT actor, field, value FROM actor_value ORDER BY actor, field`
-  const values = await sql<ValueRow[]>`
-    SELECT value.uuid,
-           value.kind,
-           value_boolean.boolean AS booleanValue,
-           value_number.number AS numberValue,
-           value_string.text AS textValue,
-           field_enum_variant.item_value AS enumValue
-      FROM value
-      LEFT JOIN value_boolean ON value_boolean.value = value.uuid
-      LEFT JOIN value_number ON value_number.value = value.uuid
-      LEFT JOIN value_string ON value_string.value = value.uuid
-      LEFT JOIN value_enum ON value_enum.value = value.uuid
-      LEFT JOIN field_enum_variant ON field_enum_variant.uuid = value_enum.variant
-     ORDER BY value.rowid
-  `
-  const valueItems = await sql<ValueListItemRow[]>`
-    SELECT value, position, item_value AS itemValue
-      FROM value_list_item
-     ORDER BY value, position
-  `
-  const matterParticles = await sql<MatterParticleRow[]>`
-    SELECT uuid,
-           wimp,
-           parent_particle AS parentParticle,
-           particle_kind AS particleKind,
-           edge_slot AS edgeSlot,
-           particle_order AS particleOrder
-      FROM matter_particle
-     ORDER BY wimp, rowid
-  `
-  const matterTopologyBindingPaths = await sql<MatterBindingPathRow[]>`
-    SELECT matter_particle_fuzzy.particle AS particle,
-           matter_binding_dep.dep_order AS depOrder,
-           matter_binding_dep.path AS path
-      FROM matter_particle_fuzzy
-      JOIN matter_binding_dep ON matter_binding_dep.binding = matter_particle_fuzzy.predicate_binding
-    UNION ALL
-    SELECT matter_particle_axion.particle AS particle,
-           matter_binding_dep.dep_order AS depOrder,
-           matter_binding_dep.path AS path
-      FROM matter_particle_axion
-      JOIN matter_binding_dep ON matter_binding_dep.binding = matter_particle_axion.predicate_binding
-    UNION ALL
-    SELECT matter_particle_macho.particle AS particle,
-           matter_binding_dep.dep_order AS depOrder,
-           matter_binding_dep.path AS path
-      FROM matter_particle_macho
-      JOIN matter_binding_dep ON matter_binding_dep.binding = matter_particle_macho.collection_binding
-     ORDER BY particle, depOrder
-  `
-  const matterChildWimpBindingPaths = await sql<MatterChildBindingPathRow[]>`
-    SELECT matter_particle.parent_particle AS particle,
-           matter_particle.particle_order AS childOrder,
-           matter_binding_dep.dep_order AS depOrder,
-           matter_binding_dep.path AS path
-      FROM matter_particle
-      JOIN matter_particle_wimp ON matter_particle_wimp.particle = matter_particle.uuid
-      JOIN matter_binding_dep ON matter_binding_dep.binding = matter_particle_wimp.fields_binding
-     WHERE matter_particle.parent_particle IS NOT NULL
-     ORDER BY particle, childOrder, depOrder
-  `
+): DbWorldRows {
+  const {
+    actors,
+    topologies,
+    wimps,
+    fields,
+    actorValues,
+    values,
+    valueItems,
+    matterParticles,
+    matterTopologyBindingPaths,
+    matterChildWimpBindingPaths,
+  } = snapshot
 
   const actorById = new Map(actors.map((actor) => [actor.uuid, actor] as const))
   const topologyById = new Map(topologies.map((topology) => [topology.uuid, topology] as const))
@@ -261,7 +131,18 @@ export async function buildBoundaryWorldRows(
   )
   const matterTopologyBindingPathsByParticle = group(matterTopologyBindingPaths, (row) => row.particle)
   const matterChildWimpBindingPathsByParticle = group(matterChildWimpBindingPaths, (row) => row.particle)
+  const structuralFieldKeys = new Set<string>()
   const topologyLabelById = new Map<string, string>()
+
+  const collectStructuralFieldKeys = (rows: MatterBindingPathRow[]): void => {
+    for (const row of rows) {
+      const key = fieldKeyFromValuePath(row.path)
+      if (key !== null) structuralFieldKeys.add(`${row.wimp}\0${key}`)
+    }
+  }
+
+  collectStructuralFieldKeys(matterTopologyBindingPaths)
+  collectStructuralFieldKeys(matterChildWimpBindingPaths)
 
   const matterTopologyChildren = (wimp: string, parentParticle: string | null): MatterParticleRow[] =>
     sortMatterParticles(matterParticlesByWimpParent.get(`${wimp}\0${parentParticle ?? ""}`) ?? [])
@@ -356,7 +237,9 @@ export async function buildBoundaryWorldRows(
       metaSrc: actor.wimp,
       label: wimpBySrc.get(actor.wimp)?.name ?? actor.wimp,
       ...actorColor,
-      fields: (fieldsByWimp.get(actor.wimp) ?? []).map((field) => descriptorField(actor, field)),
+      fields: (fieldsByWimp.get(actor.wimp) ?? [])
+        .filter((field) => !structuralFieldKeys.has(`${actor.wimp}\0${field.key}`))
+        .map((field) => descriptorField(actor, field)),
       children: childDescriptors({kind: "actor", uuid: actor.uuid}, visited),
     }
   }

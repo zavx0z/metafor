@@ -68,8 +68,9 @@ describe("boundary/tests github/zavx0z startup load", () => {
         SELECT actor, metaState
         FROM actor_state
         ORDER BY actor
-    `
+      `
       const runtime = await boundary.energyRuntime()
+      const bulkRuntime = await boundary.bulkRuntime()
       const topologyRows = await sql<Array<{uuid: string; kind: string}>>`
         SELECT uuid, kind
         FROM topology
@@ -93,6 +94,12 @@ describe("boundary/tests github/zavx0z startup load", () => {
       expect(runtime.data.fields.length).toBeGreaterThan(0)
       expect(runtime.strong.runtimeFieldIndexByWimpFieldId.length).toBe(runtime.data.fields.length)
       expect(runtime.weak.stateMetaStateIdsByBraneIndex).toHaveLength(actorRows.length)
+      expect(bulkRuntime.version).toBe(1)
+      expect(bulkRuntime.actors).toHaveLength(actorRows.length)
+      expect(bulkRuntime.topologies).toHaveLength(topologyRows.length)
+      expect(bulkRuntime.fields.length).toBeGreaterThan(0)
+      expect(bulkRuntime.values.length).toBeGreaterThan(0)
+      expect(bulkRuntime.matterParticles.length).toBeGreaterThan(0)
 
       const roots = await boundary.actor.roots.all()
       expect(roots).toHaveLength(1)

@@ -77,6 +77,15 @@ Dark -> персистентная форма Boundary -> Force/рантайм-�
 4. `Energy` и `Bulk` не читают БД Boundary.
 5. Если рантайм-получателю нужен процесс, actor, field или value, это должно быть в данных сообщения.
 
+Для восстановления после старта Boundary может подготовить самодостаточные
+снимки из своей персистентной формы:
+
+- `boundary.energyRuntime()` — данные для рантайм-перехода `Energy`;
+- `boundary.bulkRuntime()` — данные для восстановления проекции `Bulk`.
+
+Эти методы находятся в Boundary именно потому, что только Boundary читает SQLite.
+Получатели работают уже со снимком и не получают DB/ORM-зависимость.
+
 ## Публичный вход
 
 Текущий публичный вход Boundary должен читаться через персистентный API:
@@ -91,6 +100,7 @@ import { force } from "boundary/force"
 - `boundary.wimp`;
 - `boundary.actor`;
 - `boundary.topology`;
+- `boundary.energyRuntime()` / `boundary.bulkRuntime()` для самодостаточного восстановления runtime-слоёв;
 - `boundary.onmessage` / `boundary.postMessage` для Force-поверхности.
 
 Старые рантайм-экспорты вида `gravity$`, `strong$`, `weak$`, `update`,

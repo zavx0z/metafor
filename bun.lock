@@ -58,26 +58,17 @@
       "name": "bulk",
       "version": "0.0.1",
       "dependencies": {
-        "@boundary/actor": "workspace:*",
         "@bulk/em": "workspace:*",
         "@bulk/gravity": "workspace:*",
         "@bulk/strong": "workspace:*",
         "@bulk/weak": "workspace:*",
-        "boundary": "workspace:*",
       },
     },
     "bulk/em": {
       "name": "@bulk/em",
-      "dependencies": {
-        "boundary": "workspace:*",
-      },
     },
     "bulk/gravity": {
       "name": "@bulk/gravity",
-      "dependencies": {
-        "@boundary/actor": "workspace:*",
-        "boundary": "workspace:*",
-      },
     },
     "bulk/strong": {
       "name": "@bulk/strong",

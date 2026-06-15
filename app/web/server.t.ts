@@ -1,7 +1,13 @@
-import type { Particle } from "boundary"
 import type { DbWorldRows, BulkLayoutSettings } from "@bulk/gravity/layout"
 
-export type { Particle }
+export type Particle = {
+	part: "graviton" | "photon" | "gluon" | "higgs" | "w" | "-z" | "+z"
+	op: "add" | "remove" | "replace" | "move" | "copy" | "test"
+	path: string
+	value?: unknown
+	from?: string
+	[key: string]: unknown
+}
 
 export type ClientForceBridgePayload = {
 	type: "force"

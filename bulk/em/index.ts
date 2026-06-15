@@ -1,4 +1,75 @@
-import {force, type ForceMessage, type Particle} from "boundary"
+export const FORCE = "force"
+
+export type Part = "graviton" | "photon" | "gluon" | "higgs" | "w" | "-z" | "+z"
+export type ParticleOperation = "add" | "remove" | "replace" | "move" | "copy" | "test"
+
+export type Particle = {
+  part: Part
+  op: ParticleOperation
+  path: string
+  value?: unknown
+  from?: string
+  [key: string]: unknown
+}
+
+export type ForceMessage = {
+  parts: Particle[]
+}
+
+type ForceMessageListener = (this: BroadcastChannel, ev: MessageEvent<ForceMessage>) => unknown
+type ForceBinding = { close(): void }
+type ForceChannel = Omit<BroadcastChannel, "onmessage" | "postMessage"> & {
+  onmessage: ((this: BroadcastChannel, ev: MessageEvent<ForceMessage>) => unknown) | null
+  postMessage(message: ForceMessage): void
+}
+
+let forceChannel: ForceChannel | null = null
+const forceObservers = new Set<ForceMessageListener>()
+const forceEntropy = new Set<ForceMessageListener>()
+
+const getForceChannel = (): ForceChannel => {
+  if (forceChannel === null) {
+    forceChannel = new BroadcastChannel(FORCE) as ForceChannel
+    forceChannel.onmessage = dispatchForceObservers
+  }
+  return forceChannel
+}
+
+const dispatchForceObservers = (event: MessageEvent<ForceMessage>): void => {
+  const channel = getForceChannel()
+  for (const listener of [...forceObservers]) listener.call(channel, event)
+}
+
+const dispatchForceEntropy = (event: MessageEvent<ForceMessage>): void => {
+  const channel = getForceChannel()
+  for (const listener of [...forceEntropy]) listener.call(channel, event)
+}
+
+const bindForceListener = (listeners: Set<ForceMessageListener>, listener: ForceMessageListener): ForceBinding => {
+  listeners.add(listener)
+  getForceChannel()
+
+  return {
+    close() {
+      listeners.delete(listener)
+    },
+  }
+}
+
+const force = {
+  observe(listener: ForceMessageListener): ForceBinding {
+    return bindForceListener(forceObservers, listener)
+  },
+  entropy(listener: ForceMessageListener): ForceBinding {
+    return bindForceListener(forceEntropy, listener)
+  },
+  emit(message: ForceMessage): void {
+    const event = {data: message} as MessageEvent<ForceMessage>
+    getForceChannel().postMessage(message)
+    dispatchForceObservers(event)
+    dispatchForceEntropy(event)
+  },
+}
 
 export type PhotonPayload = { value: string; path: string }
 export type WeakCoordinationKind = "claim" | "accept" | "reject" | "release"
@@ -131,7 +202,7 @@ export const createBulkWeakForce = (options: BulkWeakForceOptions = {}): BulkWea
     },
 
     close() {
-      // Boundary owns force transport lifecycle.
+      // Force is a shared domain channel; a weak force handle must not close it globally.
     },
   }
 }

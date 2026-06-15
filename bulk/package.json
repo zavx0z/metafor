@@ -12,8 +12,6 @@
     "@bulk/gravity": "workspace:*",
     "@bulk/strong": "workspace:*",
     "@bulk/weak": "workspace:*",
-    "@bulk/em": "workspace:*",
-    "@boundary/actor": "workspace:*",
-    "boundary": "workspace:*"
+    "@bulk/em": "workspace:*"
   }
 }
