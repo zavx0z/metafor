@@ -196,7 +196,7 @@ type EditorVisibleLine = {
   isCurrent: boolean
   isExecution: boolean
 }
-type EditorIndentGuideRange = {
+export type EditorIndentGuideRange = {
   column: number
   startLine: number
   endLine: number
@@ -1747,45 +1747,7 @@ export class EditorPane extends UiSurface {
   }
 
   #indentGuideRanges(): EditorIndentGuideRange[] {
-    const ranges: EditorIndentGuideRange[] = []
-    const stack: EditorIndentGuideStackItem[] = []
-    let inBlockComment = false
-
-    for (let lineIndex = 0; lineIndex < this.#lines.length; lineIndex++) {
-      const line = this.#lines[lineIndex] ?? ""
-      const scan = structuralIndentTokens(line, inBlockComment)
-      inBlockComment = scan.inBlockComment
-      for (const token of scan.tokens) {
-        if (token === "{" || token === "[") {
-          const openerIndent = leadingIndentColumns(line, INDENT_GUIDE_STEP_COLUMNS)
-          stack.push({
-            column: this.#indentGuideColumnForBlock(lineIndex, openerIndent),
-            startLine: lineIndex + 1,
-            opener: token,
-          })
-          continue
-        }
-
-        const opener = token === "}" ? "{" : "["
-        for (let i = stack.length - 1; i >= 0; i--) {
-          const item = stack[i]!
-          if (item.opener !== opener) continue
-          stack.splice(i, 1)
-          if (item.startLine <= lineIndex) ranges.push({column: item.column, startLine: item.startLine, endLine: lineIndex, includesEndLine: false})
-          break
-        }
-      }
-    }
-
-    const endLine = Math.max(0, this.#lines.length - 1)
-    for (const item of stack) {
-      if (item.startLine <= endLine) ranges.push({column: item.column, startLine: item.startLine, endLine, includesEndLine: true})
-    }
-    return mergeIndentGuideRanges(ranges)
-  }
-
-  #indentGuideColumnForBlock(_lineIndex: number, openerIndent: number): number {
-    return Math.max(0, openerIndent)
+    return editorIndentGuideRangesForLines(this.#lines)
   }
 
   #indentGuideColumnToPx(col: number): number {
@@ -2408,14 +2370,97 @@ function structuralIndentTokens(line: string, inBlockComment: boolean): {tokens:
   return {tokens: out, inBlockComment}
 }
 
+export function editorIndentGuideRangesForLines(lines: readonly string[]): EditorIndentGuideRange[] {
+  return mergeIndentGuideRanges([
+    ...structuralIndentGuideRanges(lines),
+    ...leadingWhitespaceIndentGuideRanges(lines),
+  ])
+}
+
+function structuralIndentGuideRanges(lines: readonly string[]): EditorIndentGuideRange[] {
+  const ranges: EditorIndentGuideRange[] = []
+  const stack: EditorIndentGuideStackItem[] = []
+  let inBlockComment = false
+
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const line = lines[lineIndex] ?? ""
+    const scan = structuralIndentTokens(line, inBlockComment)
+    inBlockComment = scan.inBlockComment
+    for (const token of scan.tokens) {
+      if (token === "{" || token === "[") {
+        const openerIndent = leadingIndentColumns(line, INDENT_GUIDE_STEP_COLUMNS)
+        stack.push({
+          column: Math.max(0, openerIndent),
+          startLine: lineIndex + 1,
+          opener: token,
+        })
+        continue
+      }
+
+      const opener = token === "}" ? "{" : "["
+      for (let i = stack.length - 1; i >= 0; i--) {
+        const item = stack[i]!
+        if (item.opener !== opener) continue
+        stack.splice(i, 1)
+        if (item.startLine <= lineIndex) ranges.push({column: item.column, startLine: item.startLine, endLine: lineIndex, includesEndLine: false})
+        break
+      }
+    }
+  }
+
+  const endLine = Math.max(0, lines.length - 1)
+  for (const item of stack) {
+    if (item.startLine <= endLine) ranges.push({column: item.column, startLine: item.startLine, endLine, includesEndLine: true})
+  }
+  return ranges
+}
+
+function leadingWhitespaceIndentGuideRanges(lines: readonly string[]): EditorIndentGuideRange[] {
+  const ranges: EditorIndentGuideRange[] = []
+  const active = new Map<number, EditorIndentGuideRange>()
+
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const line = lines[lineIndex] ?? ""
+    if (line.trim().length === 0) {
+      for (const range of active.values()) range.endLine = lineIndex
+      continue
+    }
+
+    const indent = leadingIndentColumns(line, INDENT_GUIDE_STEP_COLUMNS)
+    const columns = new Set<number>()
+    for (let column = INDENT_GUIDE_STEP_COLUMNS; column <= indent; column += INDENT_GUIDE_STEP_COLUMNS) {
+      columns.add(column)
+    }
+
+    for (const [column, range] of [...active]) {
+      if (columns.has(column)) {
+        range.endLine = lineIndex
+        continue
+      }
+      if (range.startLine <= range.endLine) ranges.push({...range})
+      active.delete(column)
+    }
+
+    for (const column of columns) {
+      if (active.has(column)) continue
+      active.set(column, {column, startLine: lineIndex, endLine: lineIndex, includesEndLine: true})
+    }
+  }
+
+  for (const range of active.values()) {
+    if (range.startLine <= range.endLine) ranges.push({...range})
+  }
+  return ranges
+}
+
 function mergeIndentGuideRanges(ranges: readonly EditorIndentGuideRange[]): EditorIndentGuideRange[] {
   const sorted = [...ranges].sort((a, b) => a.column - b.column || a.startLine - b.startLine || a.endLine - b.endLine)
   const out: EditorIndentGuideRange[] = []
   for (const range of sorted) {
     const prev = out[out.length - 1]
-    if (prev !== undefined && prev.column === range.column && prev.includesEndLine && range.startLine <= prev.endLine + 1) {
+    if (prev !== undefined && prev.column === range.column && range.startLine <= prev.endLine + 1) {
       prev.endLine = Math.max(prev.endLine, range.endLine)
-      prev.includesEndLine = range.includesEndLine
+      prev.includesEndLine = prev.includesEndLine || range.includesEndLine
       continue
     }
     out.push({...range})

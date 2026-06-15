@@ -1,6 +1,21 @@
 import {describe, expect, test} from "bun:test"
 import {PANE_FRAME} from "../pane-frame.ts"
-import {EditorPane} from "./editor-pane.ts"
+import {EditorPane, editorIndentGuideRangesForLines} from "./editor-pane.ts"
+
+describe("EditorPane indent guides", () => {
+  test("uses leading whitespace for XML-like indentation", () => {
+    const ranges = editorIndentGuideRangesForLines([
+      "<root>",
+      "  <item>",
+      "    <name>Alpha</name>",
+      "  </item>",
+      "</root>",
+    ])
+
+    expect(ranges).toContainEqual({column: 2, startLine: 1, endLine: 3, includesEndLine: true})
+    expect(ranges).toContainEqual({column: 4, startLine: 2, endLine: 2, includesEndLine: true})
+  })
+})
 
 describe("EditorPane selection", () => {
   test("tracks selected text across lines", () => {
