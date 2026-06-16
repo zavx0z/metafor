@@ -37,8 +37,9 @@ import {
   type EditorBreakpoint,
   type EditorSelectionSnapshot,
   type EditorTokens,
-  type FileListItem,
-  type AndroidPaneSwipe,
+	  type FileListItem,
+	  type AndroidPaneStatusKind,
+	  type AndroidPaneSwipe,
   type PaneFrameDrag,
   type PaneFrameInteractionOpts,
   type TerminalInputSource,
@@ -717,6 +718,7 @@ let androidHudRectPreview: UiSurfaceRect | null = null
 let androidFrameRefreshTimer: number | null = null
 let androidFrameRefreshInFlight = false
 let androidRtcClient: AndroidRtcClient | null = null
+let androidControlStatusUntil = 0
 let todoHudDocked = readStoredTodoHudDocked()
 let todoDockPlacement: HostTerminalDockPlacement | null = readStoredTodoDockPlacement() ?? DEFAULT_TODO_DOCK_PLACEMENT
 let todoHudRectPreview: UiSurfaceRect | null = null
@@ -966,6 +968,8 @@ async function executeUiHostCommand(command: string, params: unknown): Promise<u
     case "hud.android.refresh":
       await refreshAndroidFrame()
       return hudAndroidPayload()
+    case "hud.android.control":
+      return sendAndroidControlCommand(params)
     case "hud.todo.get":
       return hudTodoPayload()
     case "hud.todo.highlight":
@@ -2556,12 +2560,17 @@ function connectAndroidRtc(): void {
       frameSrc: ANDROID_RTC_FRAME_SRC,
       onFrame: (frame) => {
         androidPane?.setFrame(frame)
-        androidPane?.setStatus("connected", `${frame.width}x${frame.height} rtc`)
+        if (Date.now() >= androidControlStatusUntil) androidPane?.setStatus("connected", `${frame.width}x${frame.height} rtc`)
       },
-      onStatus: (kind, label) => androidPane?.setStatus(kind, label),
+      onStatus: setAndroidRtcStatus,
     })
   }
   androidRtcClient.connect()
+}
+
+function setAndroidRtcStatus(kind: AndroidPaneStatusKind, label: string): void {
+  androidPane?.setStatus(kind, label)
+  if (/\b(ok|failed)$/.test(label)) androidControlStatusUntil = Date.now() + 1_200
 }
 
 async function sendAndroidTap(x: number, y: number): Promise<void> {
@@ -2578,6 +2587,18 @@ async function sendAndroidKey(code: string): Promise<void> {
 
 async function sendAndroidLaunchPackage(packageName: string): Promise<void> {
   await sendAndroidControlOrFallback({type: "launch", packageName}, "/android/key", {code: "KEYCODE_HOME"})
+}
+
+function sendAndroidControlCommand(params: unknown): unknown {
+  const command = androidControlCommandFromParams(params)
+  if (androidRtcClient?.send(command) !== true) throw new Error("android rtc control channel is not open")
+  androidControlStatusUntil = Date.now() + 700
+  androidPane?.setStatus("connected", "rtc command")
+  return {
+    sent: true,
+    command,
+    android: hudAndroidPayload(),
+  }
 }
 
 async function sendAndroidControlOrFallback(command: AndroidRtcCommand, fallbackPath: string, fallbackBody: Record<string, unknown>): Promise<void> {
@@ -2604,6 +2625,46 @@ async function postAndroidCommand(path: string, body: Record<string, unknown>): 
     androidPane.setStatus("error", error instanceof Error ? error.message : String(error))
     scheduleAndroidFrameRefresh(1_500)
   }
+}
+
+function androidControlCommandFromParams(params: unknown): AndroidRtcCommand {
+  if (typeof params !== "object" || params === null || Array.isArray(params)) throw new Error("android control command must be an object")
+  const record = params as Record<string, unknown>
+  const type = record.type
+  if (type === "tap") {
+    return {
+      type,
+      x: requiredFiniteNumber(record.x, "x"),
+      y: requiredFiniteNumber(record.y, "y"),
+    }
+  }
+  if (type === "swipe") {
+    const command: AndroidRtcCommand = {
+      type,
+      x1: requiredFiniteNumber(record.x1, "x1"),
+      y1: requiredFiniteNumber(record.y1, "y1"),
+      x2: requiredFiniteNumber(record.x2, "x2"),
+      y2: requiredFiniteNumber(record.y2, "y2"),
+    }
+    if (record.durationMs !== undefined) command.durationMs = requiredFiniteNumber(record.durationMs, "durationMs")
+    return command
+  }
+  if (type === "key") {
+    const code = record.code
+    if (typeof code !== "string" || code.length === 0) throw new Error("android key command requires code")
+    return {type, code}
+  }
+  if (type === "launch") {
+    const packageName = record.packageName
+    if (typeof packageName !== "string" || packageName.length === 0) throw new Error("android launch command requires packageName")
+    return {type, packageName}
+  }
+  throw new Error("unsupported android control command")
+}
+
+function requiredFiniteNumber(value: unknown, name: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`android control command requires numeric ${name}`)
+  return value
 }
 
 function androidDimension(value: unknown): number | null {

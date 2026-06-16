@@ -109,11 +109,10 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
   }
 
   function send(command: AndroidRtcCommand): boolean {
-    const payload = JSON.stringify(command)
     let sent = false
     for (const peer of peers.values()) {
       if (peer.channel?.readyState !== "open") continue
-      peer.channel.send(payload)
+      peer.channel.send(JSON.stringify({...command, id: crypto.randomUUID()}))
       sent = true
     }
     return sent
@@ -195,6 +194,14 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
       opts.onStatus("connected", "rtc control")
       channel.send(JSON.stringify({type: "hello", peerId, role: "interpreter"}))
     })
+    channel.addEventListener("message", (event) => {
+      if (typeof event.data !== "string") return
+      const message = parseControlMessage(event.data)
+      if (message === null) return
+      if (message.type === "control-result") {
+        opts.onStatus(message.ok ? "connected" : "error", `${message.command} ${message.ok ? "ok" : "failed"}`)
+      }
+    })
     channel.addEventListener("close", () => {
       if (peer.channel === channel) peer.channel = null
     })
@@ -271,6 +278,24 @@ function parseSignal(raw: string): AndroidRtcSignal | null {
     const type = (parsed as {type?: unknown}).type
     if (typeof type !== "string") return null
     return parsed as AndroidRtcSignal
+  } catch {
+    return null
+  }
+}
+
+function parseControlMessage(raw: string): {type: "control-result"; command: string; ok: boolean} | null {
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null
+    const type = (parsed as {type?: unknown}).type
+    if (type !== "control-result") return null
+    const command = (parsed as {command?: unknown}).command
+    const ok = (parsed as {ok?: unknown}).ok
+    return {
+      type,
+      command: typeof command === "string" && command.length > 0 ? command : "control",
+      ok: ok === true,
+    }
   } catch {
     return null
   }

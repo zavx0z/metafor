@@ -314,13 +314,33 @@ public final class MainActivity extends Activity {
         String text = new String(bytes, StandardCharsets.UTF_8);
         try {
           JSONObject command = new JSONObject(text);
-          boolean ok = AndroidControlAccessibilityService.execute(command);
-          setStatus("control " + command.optString("type", "?") + " " + ok);
+          runOnUiThread(() -> executeControlCommand(channel, command));
         } catch (Exception error) {
           setStatus("control error " + error.getMessage());
         }
       }
     });
+  }
+
+  private void executeControlCommand(DataChannel channel, JSONObject command) {
+    boolean ok = AndroidControlAccessibilityService.execute(command);
+    String commandType = command.optString("type", "?");
+    setStatus("control " + commandType + " " + ok);
+    try {
+      JSONObject result = new JSONObject();
+      result.put("type", "control-result");
+      result.put("ok", ok);
+      result.put("command", commandType);
+      result.put("accessibility", AndroidControlAccessibilityService.isReady());
+      String id = command.optString("id", "");
+      if (!id.isEmpty()) result.put("id", id);
+      channel.send(new DataChannel.Buffer(
+        ByteBuffer.wrap(result.toString().getBytes(StandardCharsets.UTF_8)),
+        false
+      ));
+    } catch (Exception error) {
+      setStatus("control ack error " + error.getMessage());
+    }
   }
 
   private void sendIce(String to, IceCandidate candidate) {

@@ -959,6 +959,7 @@ async function handleRoute(
   if (method === "POST" && path === "/hud/android/show") return await dispatchUiHostRouteFromBody("hud.android.show", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/android/toggle") return await dispatchUiHostRouteFromBody("hud.android.toggle", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/android/refresh") return await dispatchUiHostRoute("hud.android.refresh", {}, dispatchUiHostCommand)
+  if (method === "POST" && path === "/hud/android/control") return await dispatchUiHostRouteFromBody("hud.android.control", req, dispatchUiHostCommand)
   if (method === "GET" && (path === "/android/size" || path === "/android/screencap")) return await proxyAndroidRequest(req, path)
   if (method === "POST" && (path === "/android/tap" || path === "/android/swipe" || path === "/android/key")) return await proxyAndroidRequest(req, path)
   if (method === "GET" && path === "/hud/todo") return todoMarkdownResponse()
@@ -1096,6 +1097,7 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "POST", path: "/hud/android/dock", description: "свернуть Android HUD"},
     {method: "POST", path: "/hud/android/toggle", description: "переключить Android HUD"},
     {method: "POST", path: "/hud/android/refresh", description: "обновить Android frame"},
+    {method: "POST", path: "/hud/android/control", description: "отправить Android command через WebRTC datachannel без ADB"},
     {method: "WS", path: "/hud/android/webrtc/signaling", description: "WebRTC signaling для Android APK video/datachannel"},
     {method: "GET", path: "/android/size", description: "proxy к Android panel API: размер устройства"},
     {method: "GET", path: "/android/screencap", description: "proxy к Android panel API: текущий PNG frame"},
