@@ -6,6 +6,15 @@ bun run dev
 
 Открой `http://localhost:3000`.
 
+Для доступа с Android или другого MacBook в той же сети:
+
+```bash
+bun --filter @app/web tls:selfsigned
+bun --filter @app/web dev:tls
+```
+
+После запуска сервер напечатает LAN URL вида `https://192.168.x.x:3000/`.
+
 - `app/web/client.ts` импортирует `bulk/web` как пакет и остаётся тонким браузерным видовым клиентом.
 - `app/web/server.ts` статически импортирует `dark/server`, берёт `boundary` из `globalThis`, получает снимок уже наполненной базы через `boundary.bulkRuntime()` и отдаёт браузеру готовые строки мира. `BOUNDARY_PATH` передаётся при запуске и подхватывается самим `Boundary`.
 - `Dark` может работать совместно с `Boundary`: он открывает boundary-хранилище и материализует каноническую форму.
@@ -22,6 +31,24 @@ bun run dev
 - `TLS_CA_FILE` — цепочка промежуточных CA (опционально)
 - `TLS_PASSPHRASE` — пароль к приватному ключу (опционально)
 - `PORT` — порт прослушивания (по умолчанию `3000`)
+- `HOST` — адрес прослушивания (`127.0.0.1` по умолчанию, для сети используй `0.0.0.0`)
+
+### WebRTC
+
+`app/web` поднимает WebRTC signaling по тому же origin:
+
+```
+wss://<host>:<port>/hud/webrtc/signaling
+```
+
+Клиент автоматически входит в комнату `app-web` и поднимает `RTCDataChannel` к другим открытым вкладкам app/web. WebRTC data channel шифруется самим протоколом, но для Android/микрофона страница всё равно должна быть загружена с secure origin (`https://...`), иначе браузер заблокирует `getUserMedia`.
+
+В консоли браузера:
+
+```js
+window.metaforWebRtc.peers()
+window.metaforWebRtc.sendAll({ type: "ping" })
+```
 
 ### Выпуск сертификата Let's Encrypt (по домену)
 
@@ -52,6 +79,9 @@ Let's Encrypt **не выпускает на голые IP**. Для досту�
 # сертификат на IP
 IP=1.2.3.4 bun --filter @app/web tls:selfsigned
 
+# автоопределение localhost + hostname + LAN IP
+bun --filter @app/web tls:selfsigned
+
 # несколько IP и hostname
 IP=1.2.3.4,192.168.1.10 HOST=metafor.local,localhost bun --filter @app/web tls:selfsigned
 
@@ -73,4 +103,10 @@ HOST=localhost bun --filter @app/web tls:selfsigned
 TLS_KEY_FILE=app/web/tls/privkey.pem \
 TLS_CERT_FILE=app/web/tls/fullchain.pem \
 bun run dev
+```
+
+Из workspace-скрипта проще:
+
+```bash
+bun --filter @app/web dev:tls
 ```

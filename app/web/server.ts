@@ -1,5 +1,7 @@
 import {file, serve, type Server, type ServerWebSocket} from "bun"
+import {randomUUID} from "node:crypto"
 import {existsSync, readFileSync, statSync, writeFileSync} from "node:fs"
+import {networkInterfaces} from "node:os"
 import {join, resolve} from "node:path"
 import "dark/server"
 import {createPtySessionManager, parsePtyClientMessage, type PtySocketData} from "@metafor/pty/server"
@@ -12,7 +14,13 @@ import type {
 	ServerSnapshotPayload,
 } from "./server.t.ts"
 
-type AppWebSocketData = {kind: "app-web"} | ({kind: "terminal"} & PtySocketData)
+type RtcSignalSocketData = {
+	kind: "rtc-signal"
+	room: string
+	peerId: string
+	connectedAt: number
+}
+type AppWebSocketData = {kind: "app-web"} | ({kind: "terminal"} & PtySocketData) | RtcSignalSocketData
 type TodoMarkdownPayload = {
 	ok: true
 	path: string
@@ -40,10 +48,14 @@ type InterpreterVoiceSettingsPayload = {
 
 const boundary = globalThis.boundary
 const sockets = new Set<ServerWebSocket<AppWebSocketData>>()
+const rtcRooms = new Map<string, Map<string, ServerWebSocket<AppWebSocketData>>>()
 const terminalSessions = createPtySessionManager({
 	cwd: process.cwd(),
 	shell: Bun.env.SHELL || "/bin/zsh",
 })
+const HOST = Bun.env.HOST ?? Bun.env.APP_WEB_HOST ?? "127.0.0.1"
+const PORT = Number(Bun.env.PORT ?? 3000)
+const TLS_ENABLED = Boolean(Bun.env.TLS_KEY_FILE && Bun.env.TLS_CERT_FILE)
 const CHROME_API_URL = Bun.env.METAFOR_CHROME_API_URL ?? "http://localhost:7880"
 const INTERPRETER_ORIGIN_PORT = Bun.env.METAFOR_INTERPRETER_PORT ?? "6500"
 const VOICE_LOCAL_STORAGE_KEYS = [
@@ -86,7 +98,8 @@ boundary.entropy((event) => {
 })
 
 const server = serve<AppWebSocketData>({
-	port: Number(Bun.env.PORT ?? 3000),
+	hostname: HOST,
+	port: PORT,
 	...(Bun.env.TLS_KEY_FILE && Bun.env.TLS_CERT_FILE
 		? {
 				tls: {
@@ -114,6 +127,20 @@ const server = serve<AppWebSocketData>({
 			if (session !== null && session.length > 0) data.sessionId = session
 			return wsServer.upgrade(req, {data}) ? undefined : new Response("WebSocket upgrade failed", {status: 426})
 		},
+		"/hud/webrtc/signaling": (req: Request, wsServer: Server<AppWebSocketData>) => {
+			const url = new URL(req.url)
+			const room = sanitizeRtcId(url.searchParams.get("room") ?? "app-web")
+			const peerId = sanitizeRtcId(url.searchParams.get("peer") ?? randomUUID())
+			if (room === null || peerId === null) return jsonResponse({ok: false, error: "invalid WebRTC room or peer id"}, 400)
+			return wsServer.upgrade(req, {
+				data: {
+					kind: "rtc-signal",
+					room,
+					peerId,
+					connectedAt: Date.now(),
+				},
+			}) ? undefined : new Response("WebRTC signaling upgrade failed", {status: 426})
+		},
 		"/hud/todo": (req: Request) => {
 			if (req.method !== "GET") return new Response("Method Not Allowed", {status: 405})
 			return todoMarkdownResponse()
@@ -134,21 +161,29 @@ const server = serve<AppWebSocketData>({
 	},
 	websocket: {
 		open(ws) {
-			if (ws.data.kind === "terminal") {
-				try {
-					terminalSessions.attach(ws as ServerWebSocket<PtySocketData>)
+			if (ws.data.kind === "rtc-signal") {
+				attachRtcSignalSocket(ws)
+				return
+				}
+				if (ws.data.kind === "terminal") {
+					try {
+						terminalSessions.attach(ws as ServerWebSocket<PtySocketData>)
 				} catch (error) {
 					if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({
 						type: "terminal.error",
 						message: error instanceof Error ? error.message : "shell failed",
 					}))
 					ws.close(1011, "shell failed")
+					}
+					return
 				}
+				sockets.add(ws)
+			},
+		message(ws, message) {
+			if (ws.data.kind === "rtc-signal") {
+				handleRtcSignalMessage(ws, message)
 				return
 			}
-			sockets.add(ws)
-		},
-		message(ws, message) {
 			if (ws.data.kind === "terminal") {
 				const payload = parsePtyClientMessage(message)
 				const session = ws.data.session
@@ -186,6 +221,10 @@ const server = serve<AppWebSocketData>({
 			}
 		},
 		close(ws) {
+			if (ws.data.kind === "rtc-signal") {
+				detachRtcSignalSocket(ws)
+				return
+			}
 			if (ws.data.kind === "terminal") {
 				ws.data.session?.detach(ws as ServerWebSocket<PtySocketData>)
 				delete ws.data.session
@@ -398,4 +437,117 @@ function jsonResponse(value: unknown, status = 200): Response {
 	})
 }
 
-console.log(server.url.href)
+function attachRtcSignalSocket(ws: ServerWebSocket<AppWebSocketData>): void {
+	if (ws.data.kind !== "rtc-signal") return
+	const peers = rtcRoomPeers(ws.data.room)
+	const requestedPeerId = ws.data.peerId
+	let peerId = requestedPeerId
+	while (peers.has(peerId)) peerId = `${requestedPeerId}-${randomUUID().slice(0, 8)}`
+	ws.data.peerId = peerId
+	const existingPeers = [...peers.keys()]
+	peers.set(peerId, ws)
+	sendRtcJson(ws, {
+		type: "hello",
+		room: ws.data.room,
+		peerId,
+		peers: existingPeers,
+	})
+	broadcastRtcSignal(ws.data.room, peerId, {
+		type: "peer-joined",
+		peerId,
+	})
+}
+
+function detachRtcSignalSocket(ws: ServerWebSocket<AppWebSocketData>): void {
+	if (ws.data.kind !== "rtc-signal") return
+	const {room, peerId} = ws.data
+	const peers = rtcRooms.get(room)
+	if (peers === undefined) return
+	if (peers.get(peerId) === ws) peers.delete(peerId)
+	if (peers.size === 0) {
+		rtcRooms.delete(room)
+		return
+	}
+	broadcastRtcSignal(room, peerId, {
+		type: "peer-left",
+		peerId,
+	})
+}
+
+function handleRtcSignalMessage(ws: ServerWebSocket<AppWebSocketData>, message: string | Buffer<ArrayBuffer>): void {
+	if (ws.data.kind !== "rtc-signal" || typeof message !== "string" || message.length > 256 * 1024) return
+	let payload: Record<string, unknown>
+	try {
+		const parsed = JSON.parse(message) as unknown
+		if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return
+		payload = parsed as Record<string, unknown>
+	} catch {
+		return
+	}
+	const to = typeof payload.to === "string" ? sanitizeRtcId(payload.to) : null
+	const envelope = {
+		...payload,
+		from: ws.data.peerId,
+		room: ws.data.room,
+	}
+	if (to !== null) {
+		const target = rtcRooms.get(ws.data.room)?.get(to)
+		if (target !== undefined && target.readyState === WebSocket.OPEN) sendRtcJson(target, envelope)
+		return
+	}
+	broadcastRtcSignal(ws.data.room, ws.data.peerId, envelope)
+}
+
+function rtcRoomPeers(room: string): Map<string, ServerWebSocket<AppWebSocketData>> {
+	const existing = rtcRooms.get(room)
+	if (existing !== undefined) return existing
+	const next = new Map<string, ServerWebSocket<AppWebSocketData>>()
+	rtcRooms.set(room, next)
+	return next
+}
+
+function broadcastRtcSignal(room: string, fromPeerId: string, payload: Record<string, unknown>): void {
+	const peers = rtcRooms.get(room)
+	if (peers === undefined) return
+	for (const [peerId, socket] of peers) {
+		if (peerId === fromPeerId || socket.readyState !== WebSocket.OPEN) continue
+		sendRtcJson(socket, payload)
+	}
+}
+
+function sendRtcJson(ws: ServerWebSocket<AppWebSocketData>, payload: Record<string, unknown>): void {
+	ws.send(JSON.stringify(payload))
+}
+
+function sanitizeRtcId(value: string): string | null {
+	const normalized = value.trim()
+	if (!/^[A-Za-z0-9_.:-]{1,96}$/.test(normalized)) return null
+	return normalized
+}
+
+function printServerUrls(): void {
+	const protocol = TLS_ENABLED ? "https" : "http"
+	const port = server.port
+	const urls = new Set<string>()
+	urls.add(server.url.href)
+	if (HOST === "0.0.0.0" || HOST === "::") {
+		urls.add(`${protocol}://localhost:${port}/`)
+		for (const address of localNetworkAddresses()) urls.add(`${protocol}://${address}:${port}/`)
+	}
+	console.log(`[app/web] ${TLS_ENABLED ? "HTTPS/WebRTC" : "HTTP/WebRTC"} listening`)
+	for (const url of urls) console.log(`[app/web] ${url}`)
+	console.log(`[app/web] WebRTC signaling: ${protocol === "https" ? "wss" : "ws"}://<host>:${port}/hud/webrtc/signaling`)
+}
+
+function localNetworkAddresses(): string[] {
+	const addresses: string[] = []
+	for (const interfaces of Object.values(networkInterfaces())) {
+		for (const item of interfaces ?? []) {
+			if (item.family !== "IPv4" || item.internal) continue
+			addresses.push(item.address)
+		}
+	}
+	return addresses
+}
+
+printServerUrls()

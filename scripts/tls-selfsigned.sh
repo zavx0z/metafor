@@ -9,8 +9,8 @@
 #   HOST=localhost ./scripts/tls-selfsigned.sh
 #
 # Переменные:
-#   IP    — один или несколько IP через запятую (опционально, если задан HOST)
-#   HOST  — один или несколько hostname через запятую (опционально, если задан IP)
+#   IP    — один или несколько IP через запятую (опционально; автоопределение LAN IP по умолчанию)
+#   HOST  — один или несколько hostname через запятую (опционально; localhost + hostname по умолчанию)
 #   DAYS  — срок жизни сертификата (по умолчанию 3650 = 10 лет)
 #
 # Результат: app/web/tls/fullchain.pem + app/web/tls/privkey.pem
@@ -19,15 +19,42 @@
 
 set -euo pipefail
 
-if [ -z "${IP:-}" ] && [ -z "${HOST:-}" ]; then
-	echo "IP или HOST обязателен. Пример: IP=1.2.3.4 ./scripts/tls-selfsigned.sh" >&2
-	exit 1
-fi
-
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT_DIR="${OUT_DIR:-$ROOT/app/web/tls}"
 DAYS="${DAYS:-3650}"
 mkdir -p "$OUT_DIR"
+
+detect_lan_ips() {
+	{
+		if command -v ipconfig >/dev/null 2>&1; then
+			for iface in en0 en1 en2 bridge100; do
+				ipconfig getifaddr "$iface" 2>/dev/null || true
+			done
+		fi
+		if command -v ip >/dev/null 2>&1; then
+			ip -4 addr show scope global 2>/dev/null | awk '{if ($1 == "inet") {split($2, a, "/"); print a[1]}}'
+		elif command -v ifconfig >/dev/null 2>&1; then
+			ifconfig 2>/dev/null | awk '{if ($1 == "inet" && $2 !~ /^127\\./) print $2}'
+		fi
+	} | awk 'NF && !seen[$0]++'
+}
+
+default_hosts() {
+	{
+		echo "localhost"
+		hostname -s 2>/dev/null || true
+		hostname 2>/dev/null || true
+	} | awk 'NF && !seen[$0]++'
+}
+
+if [ -z "${IP:-}" ]; then
+	IP="$(printf "127.0.0.1\n"; detect_lan_ips | grep -v '^127\.')"
+	IP="$(printf "%s\n" "$IP" | awk 'NF && !seen[$0]++' | paste -sd, -)"
+fi
+
+if [ -z "${HOST:-}" ]; then
+	HOST="$(default_hosts | paste -sd, -)"
+fi
 
 # Собираем SAN
 SAN=""

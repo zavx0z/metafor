@@ -74,6 +74,7 @@ export interface BulkViewportStats {
 export interface BulkViewportController {
 	dispose(): void
 	handleForce(_channel: string, _message: unknown): void
+	setAnimationSuspended(suspended: boolean): void
 	setLayoutSettings(settings: Partial<AppWebLayoutSettings>): void
 	setRenderSettings(settings: Partial<AppWebRenderSettings>): void
 	setSize(width: number, height: number): void
@@ -145,8 +146,6 @@ let levelResolver: LevelResolver = createLevelResolver(
 const rebuildLevelResolver = (): void => {
 	levelResolver = createLevelResolver(toLevelSettings(activeLayoutSettings, activeRenderSettings))
 }
-
-const isCosmosMotionEnabled = (): boolean => activeRenderSettings.animationEnabled
 
 type HoverablePickTarget = BulkPickTarget & {
 	baseColor: Color
@@ -575,6 +574,7 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 	#focused: UiSurfaceNode | null = null
 	#pressedSlot: BulkHudSurfaceSlot | null = null
 	#hoveredSlot: BulkHudSurfaceSlot | null = null
+	#activeTouchId: number | null = null
 	#disposed = false
 
 	readonly #handleWheel = (event: WheelEvent): void => this.#onWheel(event)
@@ -582,6 +582,10 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 	readonly #handleMouseDown = (event: MouseEvent): void => this.#onMouseDown(event)
 	readonly #handleMouseUp = (event: MouseEvent): void => this.#onMouseUp(event)
 	readonly #handleMouseLeave = (): void => this.#onMouseLeave()
+	readonly #handleTouchStart = (event: TouchEvent): void => this.#onTouchStart(event)
+	readonly #handleTouchMove = (event: TouchEvent): void => this.#onTouchMove(event)
+	readonly #handleTouchEnd = (event: TouchEvent): void => this.#onTouchEnd(event)
+	readonly #handleTouchCancel = (event: TouchEvent): void => this.#onTouchCancel(event)
 	readonly #handleContextMenu = (event: MouseEvent): void => this.#onContextMenu(event)
 	readonly #handleKey = (event: KeyboardEvent): void => this.#onKey(event)
 	readonly #handleWindowKey = (event: KeyboardEvent): void => this.#onWindowKey(event)
@@ -644,6 +648,10 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 		this.canvas.removeEventListener("mousemove", this.#handleMouseMove, true)
 		this.canvas.removeEventListener("mousedown", this.#handleMouseDown, true)
 		this.canvas.removeEventListener("mouseleave", this.#handleMouseLeave, true)
+		this.canvas.removeEventListener("touchstart", this.#handleTouchStart, true)
+		window.removeEventListener("touchmove", this.#handleTouchMove, true)
+		window.removeEventListener("touchend", this.#handleTouchEnd, true)
+		window.removeEventListener("touchcancel", this.#handleTouchCancel, true)
 		this.canvas.removeEventListener("contextmenu", this.#handleContextMenu, true)
 		this.canvas.removeEventListener("keydown", this.#handleKey, true)
 		window.removeEventListener("mouseup", this.#handleMouseUp, true)
@@ -718,6 +726,10 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 		this.canvas.addEventListener("mousemove", this.#handleMouseMove, true)
 		this.canvas.addEventListener("mousedown", this.#handleMouseDown, true)
 		this.canvas.addEventListener("mouseleave", this.#handleMouseLeave, true)
+		this.canvas.addEventListener("touchstart", this.#handleTouchStart, {capture: true, passive: false})
+		window.addEventListener("touchmove", this.#handleTouchMove, {capture: true, passive: false})
+		window.addEventListener("touchend", this.#handleTouchEnd, {capture: true, passive: false})
+		window.addEventListener("touchcancel", this.#handleTouchCancel, {capture: true, passive: false})
 		this.canvas.addEventListener("contextmenu", this.#handleContextMenu, true)
 		this.canvas.addEventListener("keydown", this.#handleKey, true)
 		window.addEventListener("mouseup", this.#handleMouseUp, true)
@@ -787,11 +799,37 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 		return {x: event.clientX - rect.left, y: event.clientY - rect.top}
 	}
 
+	#localCoordsFromTouch(touch: Touch): {x: number; y: number} {
+		const rect = this.canvas.getBoundingClientRect()
+		return {x: touch.clientX - rect.left, y: touch.clientY - rect.top}
+	}
+
+	#mouseEventFromTouch(type: "mousedown" | "mousemove" | "mouseup", touch: Touch): MouseEvent {
+		return new MouseEvent(type, {
+			bubbles: true,
+			cancelable: true,
+			button: 0,
+			buttons: type === "mouseup" ? 0 : 1,
+			clientX: touch.clientX,
+			clientY: touch.clientY,
+			screenX: touch.screenX,
+			screenY: touch.screenY,
+		})
+	}
+
+	#changedTouch(event: TouchEvent): Touch | null {
+		if (this.#activeTouchId === null) return event.changedTouches[0] ?? null
+		for (const touch of event.changedTouches) {
+			if (touch.identifier === this.#activeTouchId) return touch
+		}
+		return null
+	}
+
 	#positionInputProxy(clientX: number, clientY: number): void {
 		this.inputProxy?.setCaretViewport(clientX, clientY)
 	}
 
-	#claimPointerEvent(event: MouseEvent | WheelEvent): void {
+	#claimPointerEvent(event: MouseEvent | WheelEvent | TouchEvent): void {
 		event.stopImmediatePropagation()
 	}
 
@@ -840,9 +878,67 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 		const slot = this.#pressedSlot
 		if (slot === null) return
 		this.#pressedSlot = null
+		this.#activeTouchId = null
 		this.#claimPointerEvent(event)
 		const local = this.#localCoords(event)
 		slot.surface.onPointerUp?.(event, local.x - slot.rect.x, local.y - slot.rect.y)
+	}
+
+	#onTouchStart(event: TouchEvent): void {
+		if (this.#activeTouchId !== null || event.changedTouches.length === 0) return
+		const touch = event.changedTouches[0]!
+		const local = this.#localCoordsFromTouch(touch)
+		const slot = this.#surfaceAt(local.x, local.y)
+		if (slot === undefined) {
+			this.setFocused(null)
+			return
+		}
+		event.preventDefault()
+		this.#claimPointerEvent(event)
+		this.inputProxy?.focus()
+		this.#positionInputProxy(touch.clientX, touch.clientY)
+		this.setFocused(slot.surface)
+		this.#pressedSlot = slot
+		this.#activeTouchId = touch.identifier
+		slot.surface.onPointerDown?.(this.#mouseEventFromTouch("mousedown", touch), local.x - slot.rect.x, local.y - slot.rect.y)
+	}
+
+	#onTouchMove(event: TouchEvent): void {
+		if (this.#activeTouchId === null) return
+		const touch = this.#changedTouch(event)
+		const slot = this.#pressedSlot
+		if (touch === null || slot === null) return
+		event.preventDefault()
+		this.#claimPointerEvent(event)
+		const local = this.#localCoordsFromTouch(touch)
+		slot.surface.onPointerMove?.(this.#mouseEventFromTouch("mousemove", touch), local.x - slot.rect.x, local.y - slot.rect.y)
+	}
+
+	#onTouchEnd(event: TouchEvent): void {
+		const touch = this.#changedTouch(event)
+		const slot = this.#pressedSlot
+		if (touch === null || slot === null) return
+		this.#pressedSlot = null
+		this.#activeTouchId = null
+		event.preventDefault()
+		this.#claimPointerEvent(event)
+		const local = this.#localCoordsFromTouch(touch)
+		slot.surface.onPointerUp?.(this.#mouseEventFromTouch("mouseup", touch), local.x - slot.rect.x, local.y - slot.rect.y)
+	}
+
+	#onTouchCancel(event: TouchEvent): void {
+		if (this.#activeTouchId === null) return
+		const touch = this.#changedTouch(event)
+		const slot = this.#pressedSlot
+		this.#pressedSlot = null
+		this.#activeTouchId = null
+		if (slot === null) return
+		event.preventDefault()
+		this.#claimPointerEvent(event)
+		const mouseEvent = touch === null
+			? new MouseEvent("mouseup", {bubbles: true, cancelable: true, button: 0, buttons: 0})
+			: this.#mouseEventFromTouch("mouseup", touch)
+		slot.surface.onPointerUp?.(mouseEvent, -1, -1)
 	}
 
 	#onMouseLeave(): void {
@@ -949,6 +1045,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	let frameHandle = 0
 	let renderWakeUntilMs = 0
 	let lastAnimationTimestamp = 0
+	let animationSuspended = false
 
 	const shellRecords = new Map<string, ShellRenderRecord>()
 	const fieldRecords = new Map<string, FieldRenderRecord>()
@@ -1844,36 +1941,41 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const updateAnimatedRecords = (deltaMs: number): boolean => {
 		let hasPendingMotion = false
+		const freezeCosmosPose = activeRenderSettings.animationEnabled && animationSuspended
 		const positionFactor = computeLerpFactor(deltaMs, POSITION_SMOOTHING_MS)
 		const scaleFactor = computeLerpFactor(deltaMs, SCALE_SMOOTHING_MS)
 
 		for (const record of shellRecords.values()) {
-			const nextX = mixScalar(record.container.position.x, record.targetLocalPosition.x, positionFactor)
-			const nextY = mixScalar(record.container.position.y, record.targetLocalPosition.y, positionFactor)
-			const nextZ = mixScalar(record.container.position.z, record.targetLocalPosition.z, positionFactor)
 			const nextScale = mixScalar(record.currentTransitionScale, 1, scaleFactor)
-			record.container.position.set(nextX, nextY, nextZ)
+			if (!freezeCosmosPose) {
+				const nextX = mixScalar(record.container.position.x, record.targetLocalPosition.x, positionFactor)
+				const nextY = mixScalar(record.container.position.y, record.targetLocalPosition.y, positionFactor)
+				const nextZ = mixScalar(record.container.position.z, record.targetLocalPosition.z, positionFactor)
+				record.container.position.set(nextX, nextY, nextZ)
+				if (Math.abs(record.container.position.x - record.targetLocalPosition.x) > 0.01) hasPendingMotion = true
+				if (Math.abs(record.container.position.y - record.targetLocalPosition.y) > 0.01) hasPendingMotion = true
+				if (Math.abs(record.container.position.z - record.targetLocalPosition.z) > 0.01) hasPendingMotion = true
+			}
 			record.currentTransitionScale =
 				Math.abs(nextScale - 1) <= 1e-3 ? 1 : nextScale
-			if (Math.abs(record.container.position.x - record.targetLocalPosition.x) > 0.01) hasPendingMotion = true
-			if (Math.abs(record.container.position.y - record.targetLocalPosition.y) > 0.01) hasPendingMotion = true
-			if (Math.abs(record.container.position.z - record.targetLocalPosition.z) > 0.01) hasPendingMotion = true
 			if (record.currentTransitionScale !== 1) hasPendingMotion = true
 			applyShellRecordScale(record)
 			record.container.updateMatrix()
 		}
 
 		for (const record of fieldRecords.values()) {
-			const nextX = mixScalar(record.node.position.x, record.targetLocalPosition.x, positionFactor)
-			const nextY = mixScalar(record.node.position.y, record.targetLocalPosition.y, positionFactor)
-			const nextZ = mixScalar(record.node.position.z, record.targetLocalPosition.z, positionFactor)
 			const nextScale = mixScalar(record.currentTransitionScale, 1, scaleFactor)
-			record.node.position.set(nextX, nextY, nextZ)
+			if (!freezeCosmosPose) {
+				const nextX = mixScalar(record.node.position.x, record.targetLocalPosition.x, positionFactor)
+				const nextY = mixScalar(record.node.position.y, record.targetLocalPosition.y, positionFactor)
+				const nextZ = mixScalar(record.node.position.z, record.targetLocalPosition.z, positionFactor)
+				record.node.position.set(nextX, nextY, nextZ)
+				if (Math.abs(record.node.position.x - record.targetLocalPosition.x) > 0.01) hasPendingMotion = true
+				if (Math.abs(record.node.position.y - record.targetLocalPosition.y) > 0.01) hasPendingMotion = true
+				if (Math.abs(record.node.position.z - record.targetLocalPosition.z) > 0.01) hasPendingMotion = true
+			}
 			record.currentTransitionScale =
 				Math.abs(nextScale - 1) <= 1e-3 ? 1 : nextScale
-			if (Math.abs(record.node.position.x - record.targetLocalPosition.x) > 0.01) hasPendingMotion = true
-			if (Math.abs(record.node.position.y - record.targetLocalPosition.y) > 0.01) hasPendingMotion = true
-			if (Math.abs(record.node.position.z - record.targetLocalPosition.z) > 0.01) hasPendingMotion = true
 			if (record.currentTransitionScale !== 1) hasPendingMotion = true
 			applyFieldRecordScale(record)
 			record.node.updateMatrix()
@@ -1944,7 +2046,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const updateCosmosAnimation = (deltaMs: number): boolean => {
-		if (!isCosmosMotionEnabled() || deltaMs <= 0) return false
+		if (!activeRenderSettings.animationEnabled || animationSuspended || deltaMs <= 0) return false
 
 		const orbitStep = COSMOS_ORBIT_RAD_PER_MS * deltaMs
 		const axisStep = COSMOS_AXIS_RAD_PER_MS * deltaMs
@@ -2248,6 +2350,12 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		},
 		handleForce(_channel: string, _message: unknown) {
 			return
+		},
+		setAnimationSuspended(suspended: boolean) {
+			if (animationSuspended === suspended) return
+			animationSuspended = suspended
+			lastAnimationTimestamp = 0
+			if (!suspended && activeRenderSettings.animationEnabled) requestRenderLoop()
 		},
 		setLayoutSettings(settings: Partial<AppWebLayoutSettings>) {
 			activeLayoutSettings = normalizeAppWebLayoutSettings({

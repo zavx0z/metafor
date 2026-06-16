@@ -1,6 +1,7 @@
 import type {BoundaryBulkRuntimeSnapshot, Particle} from "boundary"
 import {createBulkViewport, type BulkViewportController, type BulkViewportStats} from "bulk/web"
 import {buildBoundaryWorldRows} from "./world.ts"
+import {installAppWebRtcMesh} from "./webrtc.ts"
 import {
 	APP_WEB_LAYOUT_SETTING_KEYS,
 	DEFAULT_APP_WEB_LAYOUT_SETTINGS,
@@ -56,12 +57,20 @@ let activeSettings: AppWebHudSettingsSnapshot = {
 }
 let lastAppliedSceneState: {layoutSettings: Partial<AppWebLayoutSettings>; src: string} | null = null
 let pendingSceneState: {layoutSettings: Partial<AppWebLayoutSettings>; src: string} | null = null
+let voiceDictationActive = false
 
 const socketScheme = window.location.protocol === "https:" ? "wss:" : "ws:"
 const socket = new WebSocket(`${socketScheme}//${window.location.host}/ws`)
+installAppWebRtcMesh()
 
 const updateBulkStats = (stats: BulkViewportStats): void => {
 	hud?.setStats(stats)
+}
+
+const setVoiceDictationActive = (active: boolean): void => {
+	if (voiceDictationActive === active) return
+	voiceDictationActive = active
+	bulkViewport?.setAnimationSuspended(active)
 }
 
 const applySnapshotWorld = (
@@ -196,6 +205,7 @@ const initBulkViewport = async (): Promise<void> => {
 	})
 	bulkViewport.setLayoutSettings(activeSettings.layoutSettings)
 	bulkViewport.setRenderSettings(activeSettings.renderSettings)
+	bulkViewport.setAnimationSuspended(voiceDictationActive)
 	hud = installAppWebHud({
 		viewport: bulkViewport,
 		initialSrc: "zavx0z/git",
@@ -203,6 +213,7 @@ const initBulkViewport = async (): Promise<void> => {
 		onApply: applyHudRequest,
 		onRenderSettingsChange: applyRenderSettingsFromHud,
 		onSettingsPersist: schedulePersistUiSettings,
+		onVoiceDictationActiveChange: setVoiceDictationActive,
 	})
 	hud.setConnectionStatus(socket.readyState === WebSocket.OPEN)
 

@@ -75,6 +75,7 @@ export type AppWebHudOptions = {
 	onApply(src: string, settings: AppWebHudSettingsSnapshot): void
 	onRenderSettingsChange(settings: Partial<AppWebRenderSettings>): void
 	onSettingsPersist(settings: AppWebHudSettingsSnapshot): void
+	onVoiceDictationActiveChange(active: boolean): void
 }
 
 export type AppWebHudController = {
@@ -87,11 +88,34 @@ export type AppWebHudController = {
 }
 
 type DockKind = "codex" | "settings" | "todo" | "fullscreen"
+type DockPanelKind = Exclude<DockKind, "fullscreen">
 type SettingsTab = "scene" | "geometry" | "render" | "voice"
 
 type DockPlacement = {
 	edge: HudSideTabEdge
 	offset: number
+}
+
+type DockNodeTransition = {
+	kind: DockPanelKind
+	surface: UiSurface
+	baseRect: UiSurfaceRect
+	fromRect: UiSurfaceRect
+	toRect: UiSurfaceRect
+	extras: DockExtraTransition[]
+	bounds: {w: number; h: number}
+	pixelScale: number
+	targetDocked: boolean
+	startedAt: number
+	durationMs: number
+	rafId: number | null
+}
+
+type DockExtraTransition = {
+	surface: UiSurface
+	baseRect: UiSurfaceRect
+	fromRect: UiSurfaceRect
+	toRect: UiSurfaceRect
 }
 
 type TerminalController = {
@@ -181,6 +205,9 @@ const DEFAULT_VOICE_DEACTIVATION_FUZZY = 0.05
 const DEFAULT_VOICE_STOP_FUZZY = 0.06
 const VOICE_MESSAGE_PAUSE_SECONDS = 1.6
 const VOICE_SIGNAL_COOLDOWN_MS = 900
+const VOICE_AUTO_WAKE_RETRY_MS = 3_000
+const VOICE_HUD_ERROR_MS = 2_400
+const VOICE_METER_RENDER_MS = 80
 const AGENT_READY_SOUND_IDLE_MS = 2500
 const AGENT_READY_SOUND_COOLDOWN_MS = 1200
 const CODEX_TITLE = "Codex"
@@ -189,6 +216,13 @@ const DOCK_SHORT = 40
 const DOCK_MARGIN = 8
 const DOCK_LONG_PRESS_MS = 320
 const DOCK_DRAG_THRESHOLD_PX = 6
+const DOCK_TRANSITION_MS = 260
+const HUD_PANEL_Z = 20
+const HUD_TODO_PANEL_Z = 22
+const HUD_SETTINGS_PANEL_Z = 24
+const HUD_AGENT_SIGNAL_Z = 41
+const HUD_VOICE_Z = 50
+const HUD_DOCK_Z = 60
 const SETTINGS_SCROLL_KEY = "app-web-settings-pane:scroll"
 const SETTINGS_MIN_W = 360
 const SETTINGS_MIN_H = PANE_FRAME.headerHeight + 260
@@ -221,6 +255,7 @@ class AppWebHud implements AppWebHudController {
 	readonly #onApply: AppWebHudOptions["onApply"]
 	readonly #onRenderSettingsChange: AppWebHudOptions["onRenderSettingsChange"]
 	readonly #onSettingsPersist: AppWebHudOptions["onSettingsPersist"]
+	readonly #onVoiceDictationActiveChange: AppWebHudOptions["onVoiceDictationActiveChange"]
 	readonly #settingsPane: AppWebSettingsPane
 	readonly #codexDock: AppWebDockPane
 	readonly #settingsDock: AppWebDockPane
@@ -242,6 +277,7 @@ class AppWebHud implements AppWebHudController {
 	#settingsDockPlacement: DockPlacement | null = readStoredDockPlacement(SETTINGS_DOCK_PLACEMENT_STORAGE_KEY)
 	#todoDockPlacement: DockPlacement | null = readStoredDockPlacement(TODO_DOCK_PLACEMENT_STORAGE_KEY)
 	#fullscreenDockPlacement: DockPlacement | null = readStoredDockPlacement(FULLSCREEN_DOCK_PLACEMENT_STORAGE_KEY)
+	#dockTransition: DockNodeTransition | null = null
 	#fullscreen = document.fullscreenElement !== null
 	#voiceClient: VoiceInputClient | null = null
 	#voiceStatus: VoiceInputStatus = "idle"
@@ -251,7 +287,24 @@ class AppWebHud implements AppWebHudController {
 	#voiceServiceDetail = "ASR не проверен"
 	#voiceServiceCheckInFlight = false
 	#voiceRectOverride: UiSurfaceRect | null = readStoredRect(VOICE_RECT_STORAGE_KEY)
+	#voiceAutoWakeTimer: number | null = null
+	#voiceAutoWakeInFlight = false
+	#voiceAutoWakePaused = false
+	#voiceMeterTimer: number | null = null
+	#voiceDictationActive = false
+	#voiceHudErrorTimer: number | null = null
 	#voiceWakeLines: string[] = []
+	#voiceWakePreviewText = ""
+	#voiceWakePreviewAt: Date | null = null
+	#voiceLastPartialText = ""
+	#voiceLastPartialAt: Date | null = null
+	#voiceLastChunkText = ""
+	#voiceLastChunkAt: Date | null = null
+	#voiceLastErrorText = ""
+	#voiceLastErrorAt: Date | null = null
+	#voiceAutoEnterCount = 0
+	#voiceAutoEnterAt: Date | null = null
+	#voiceServiceCheckedAt: Date | null = null
 	#voiceAutoSendText = ""
 	#voiceNextFlushMode: "auto" | "draft" = "auto"
 	#voicePartialPreviewText = ""
@@ -261,6 +314,7 @@ class AppWebHud implements AppWebHudController {
 		this.#onApply = options.onApply
 		this.#onRenderSettingsChange = options.onRenderSettingsChange
 		this.#onSettingsPersist = options.onSettingsPersist
+		this.#onVoiceDictationActiveChange = options.onVoiceDictationActiveChange
 		this.#src = options.initialSrc
 		this.#settings = cloneSettings(options.initialSettings)
 		this.#settingsPane = new AppWebSettingsPane(this)
@@ -285,22 +339,22 @@ class AppWebHud implements AppWebHudController {
 		this.#todoDock = new AppWebDockPane(this, "todo")
 		this.#fullscreenDock = new AppWebDockPane(this, "fullscreen")
 
-		this.#viewport.hud.addSurface(this.#terminal.pane, (bounds) => this.#codexRect(bounds), {zIndex: 20})
-		this.#viewport.hud.addSurface(this.#settingsPane, (bounds) => this.#settingsRect(bounds), {zIndex: 24})
-		this.#viewport.hud.addSurface(this.#todoPane, (bounds) => this.#todoRect(bounds), {zIndex: 22})
-		this.#viewport.hud.addSurface(this.#agentSignalPane, (bounds) => this.#agentSignalRect(bounds), {zIndex: 41})
-		this.#viewport.hud.addSurface(this.#codexDock, (bounds) => this.#dockRect("codex", bounds), {zIndex: 40})
-		this.#viewport.hud.addSurface(this.#settingsDock, (bounds) => this.#dockRect("settings", bounds), {zIndex: 40})
-		this.#viewport.hud.addSurface(this.#todoDock, (bounds) => this.#dockRect("todo", bounds), {zIndex: 40})
-		this.#viewport.hud.addSurface(this.#fullscreenDock, (bounds) => this.#dockRect("fullscreen", bounds), {zIndex: 40})
-		this.#viewport.hud.addSurface(this.#voiceHud, (bounds) => this.#voiceRect(bounds), {zIndex: 50})
+		this.#viewport.hud.addSurface(this.#terminal.pane, (bounds) => this.#codexRect(bounds), {zIndex: HUD_PANEL_Z})
+		this.#viewport.hud.addSurface(this.#settingsPane, (bounds) => this.#settingsRect(bounds), {zIndex: HUD_SETTINGS_PANEL_Z})
+		this.#viewport.hud.addSurface(this.#todoPane, (bounds) => this.#todoRect(bounds), {zIndex: HUD_TODO_PANEL_Z})
+		this.#viewport.hud.addSurface(this.#agentSignalPane, (bounds) => this.#agentSignalRect(bounds), {zIndex: HUD_AGENT_SIGNAL_Z})
+		this.#viewport.hud.addSurface(this.#voiceHud, (bounds) => this.#voiceRect(bounds), {zIndex: HUD_VOICE_Z})
+		this.#viewport.hud.addSurface(this.#codexDock, (bounds) => this.#dockRect("codex", bounds), {zIndex: HUD_DOCK_Z})
+		this.#viewport.hud.addSurface(this.#settingsDock, (bounds) => this.#dockRect("settings", bounds), {zIndex: HUD_DOCK_Z})
+		this.#viewport.hud.addSurface(this.#todoDock, (bounds) => this.#dockRect("todo", bounds), {zIndex: HUD_DOCK_Z})
+		this.#viewport.hud.addSurface(this.#fullscreenDock, (bounds) => this.#dockRect("fullscreen", bounds), {zIndex: HUD_DOCK_Z})
 
 		document.addEventListener("fullscreenchange", () => this.#handleFullscreenChange())
 		this.#connectTerminal()
 		void this.#loadTodo()
 		void this.#checkVoiceService()
 		this.#updateVoiceHud()
-		void this.#importInterpreterVoiceSettings()
+		void this.#importInterpreterVoiceSettings().finally(() => this.#scheduleVoiceAutoWake(500))
 		installHudNotificationSoundUnlock()
 	}
 
@@ -414,6 +468,14 @@ class AppWebHud implements AppWebHudController {
 	}
 
 	setDocked(kind: DockKind, docked: boolean): void {
+		if (kind === "fullscreen") return
+		if (this.#startDockTransition(kind, docked)) return
+		this.#finishDockTransition(true)
+		this.#applyDockedState(kind, docked)
+		this.#viewport.hud.relayout()
+	}
+
+	#applyDockedState(kind: DockPanelKind, docked: boolean): void {
 		if (kind === "codex") {
 			this.#codexDocked = docked
 			writeStoredBoolean(CODEX_DOCKED_STORAGE_KEY, docked)
@@ -424,7 +486,173 @@ class AppWebHud implements AppWebHudController {
 			this.#todoDocked = docked
 			writeStoredBoolean(TODO_DOCKED_STORAGE_KEY, docked)
 		}
+	}
+
+	#startDockTransition(kind: DockPanelKind, docked: boolean): boolean {
+		if (this.#panelDocked(kind) === docked && this.#dockTransition?.kind !== kind) return false
+		this.#finishDockTransition(true)
+		const panel = this.#panelSurface(kind)
+		const dock = this.#dockSurface(kind)
+		if (panel === null || dock === null) return false
+
+		if (docked) {
+			const panelFrame = this.#viewport.hud.surfaceFrame(panel)
+			if (panelFrame === null || panelFrame.rect.visible === false) return false
+			const targetRect = dockRectForPlacement(kind, this.dockPlacement(kind, panelFrame.bounds), panelFrame.bounds)
+			this.#runDockTransition({
+				kind,
+				surface: panel,
+				baseRect: panelFrame.rect,
+				fromRect: panelFrame.rect,
+				toRect: targetRect,
+				extras: this.#dockTransitionExtras(kind, panelFrame.rect, panelFrame.rect, targetRect),
+				bounds: panelFrame.bounds,
+				pixelScale: inferHudNodePixelScale(panel.node.position.x, panel.node.position.y, panelFrame.rect, panelFrame.bounds),
+				targetDocked: true,
+				startedAt: performance.now(),
+				durationMs: DOCK_TRANSITION_MS,
+				rafId: null,
+			})
+			return true
+		}
+
+		const dockFrame = this.#viewport.hud.surfaceFrame(dock)
+		if (dockFrame === null || dockFrame.rect.visible === false) return false
+		this.#applyDockedState(kind, false)
 		this.#viewport.hud.relayout()
+		const panelFrame = this.#viewport.hud.surfaceFrame(panel)
+		if (panelFrame === null || panelFrame.rect.visible === false) return false
+		const transition: DockNodeTransition = {
+			kind,
+			surface: panel,
+			baseRect: panelFrame.rect,
+			fromRect: dockFrame.rect,
+			toRect: panelFrame.rect,
+			extras: this.#dockTransitionExtras(kind, panelFrame.rect, dockFrame.rect, panelFrame.rect),
+			bounds: panelFrame.bounds,
+			pixelScale: inferHudNodePixelScale(panel.node.position.x, panel.node.position.y, panelFrame.rect, panelFrame.bounds),
+			targetDocked: false,
+			startedAt: performance.now(),
+			durationMs: DOCK_TRANSITION_MS,
+			rafId: null,
+		}
+		this.#applyDockTransitionFrame(transition, 0)
+		this.#runDockTransition(transition)
+		return true
+	}
+
+	#runDockTransition(transition: DockNodeTransition): void {
+		this.#dockTransition = transition
+		this.#viewport.hud.relayout()
+		this.#applyDockTransitionFrame(transition, 0)
+		const step = (now: number): void => {
+			if (this.#dockTransition !== transition) return
+			const t = clampNumber((now - transition.startedAt) / transition.durationMs, 0, 1)
+			const eased = dockTransitionEase(t)
+			this.#applyDockTransitionFrame(transition, eased)
+			if (t < 1) {
+				transition.rafId = requestAnimationFrame(step)
+				return
+			}
+			this.#completeDockTransition(transition)
+		}
+		transition.rafId = requestAnimationFrame(step)
+	}
+
+	#completeDockTransition(transition: DockNodeTransition): void {
+		if (this.#dockTransition !== transition) return
+		this.#dockTransition = null
+		this.#resetDockTransitionNodes(transition)
+		this.#applyDockedState(transition.kind, transition.targetDocked)
+		this.#viewport.hud.relayout()
+	}
+
+	#finishDockTransition(commitTarget: boolean): void {
+		const transition = this.#dockTransition
+		if (transition === null) return
+		if (transition.rafId !== null) cancelAnimationFrame(transition.rafId)
+		this.#dockTransition = null
+		this.#resetDockTransitionNodes(transition)
+		if (commitTarget) this.#applyDockedState(transition.kind, transition.targetDocked)
+		this.#viewport.hud.relayout()
+	}
+
+	#applyDockTransitionFrame(transition: DockNodeTransition, t: number): void {
+		this.#applyDockSurfaceNodeRect(
+			transition.surface,
+			transition.baseRect,
+			interpolateRect(transition.fromRect, transition.toRect, t),
+			transition.bounds,
+			transition.pixelScale,
+			false,
+		)
+		for (const extra of transition.extras) {
+			this.#applyDockSurfaceNodeRect(
+				extra.surface,
+				extra.baseRect,
+				interpolateRect(extra.fromRect, extra.toRect, t),
+				transition.bounds,
+				transition.pixelScale,
+				true,
+			)
+		}
+		this.#viewport.hud.requestRender()
+	}
+
+	#applyDockSurfaceNodeRect(surface: UiSurface, baseRect: UiSurfaceRect, rect: UiSurfaceRect, bounds: {w: number; h: number}, pixelScale: number, forceVisible: boolean): void {
+		if (forceVisible) surface.node.visible = true
+		surface.node.scale.set(
+			rect.w / Math.max(1, baseRect.w),
+			rect.h / Math.max(1, baseRect.h),
+			1,
+		)
+		surface.node.position.x = (rect.x - bounds.w / 2) * pixelScale
+		surface.node.position.y = (bounds.h / 2 - rect.y) * pixelScale
+		surface.node.updateMatrix()
+	}
+
+	#resetDockTransitionNodes(transition: DockNodeTransition): void {
+		this.#resetDockNodeTransform(transition.surface)
+		for (const extra of transition.extras) this.#resetDockNodeTransform(extra.surface)
+	}
+
+	#resetDockNodeTransform(surface: UiSurface): void {
+		surface.node.scale.set(1, 1, 1)
+		surface.node.updateMatrix()
+	}
+
+	#dockTransitionExtras(kind: DockPanelKind, basePanelRect: UiSurfaceRect, fromPanelRect: UiSurfaceRect, toPanelRect: UiSurfaceRect): DockExtraTransition[] {
+		if (kind !== "codex") return []
+		const frame = this.#viewport.hud.surfaceFrame(this.#agentSignalPane)
+		if (frame === null || frame.rect.visible === false) return []
+		return [{
+			surface: this.#agentSignalPane,
+			baseRect: frame.rect,
+			fromRect: projectChildRectBetweenParents(basePanelRect, frame.rect, fromPanelRect),
+			toRect: projectChildRectBetweenParents(basePanelRect, frame.rect, toPanelRect),
+		}]
+	}
+
+	#panelDocked(kind: DockPanelKind): boolean {
+		if (kind === "codex") return this.#codexDocked
+		if (kind === "settings") return this.#settingsDocked
+		return this.#todoDocked
+	}
+
+	#panelSurface(kind: DockPanelKind): UiSurface | null {
+		if (kind === "codex") return this.#terminal.pane
+		if (kind === "settings") return this.#settingsPane
+		return this.#todoPane
+	}
+
+	#dockSurface(kind: DockPanelKind): UiSurface | null {
+		if (kind === "codex") return this.#codexDock
+		if (kind === "settings") return this.#settingsDock
+		return this.#todoDock
+	}
+
+	dockTransitionActive(kind: DockKind): boolean {
+		return kind !== "fullscreen" && this.#dockTransition?.kind === kind
 	}
 
 	isDocked(kind: DockKind): boolean {
@@ -608,6 +836,7 @@ class AppWebHud implements AppWebHudController {
 			this.#setTerminalStatus("connected", "connected")
 			this.#terminal.pane.setInputEnabled(true)
 			if (this.#terminal.size !== null) this.#sendTerminal({type: "terminal.resize", size: this.#terminal.size})
+			this.#scheduleVoiceAutoWake()
 		})
 		socket.addEventListener("message", (event) => {
 			if (this.#terminal.socket !== socket) return
@@ -656,7 +885,13 @@ class AppWebHud implements AppWebHudController {
 			: `${body}\r`
 		this.#clearVoicePartialPreview()
 		this.#sendTerminalInput(payload, "api", body)
+		this.#recordVoiceAutoEnter()
 		return true
+	}
+
+	#recordVoiceAutoEnter(): void {
+		this.#voiceAutoEnterCount += 1
+		this.#voiceAutoEnterAt = new Date()
 	}
 
 	#stageVoiceDraft(text: string): boolean {
@@ -715,6 +950,7 @@ class AppWebHud implements AppWebHudController {
 			writeStoredString(CODEX_SESSION_STORAGE_KEY, message.sessionId)
 			this.#setTerminalStatus("connected", shellLabel(message.shell))
 			if (this.#terminal.size !== null) this.#sendTerminal({type: "terminal.resize", size: this.#terminal.size})
+			this.#scheduleVoiceAutoWake()
 			return
 		}
 		if (message.type === "terminal.status") {
@@ -916,20 +1152,17 @@ class AppWebHud implements AppWebHudController {
 			onStatus: (status, detail) => this.#handleVoiceStatus(status, detail),
 			onWake: (text) => {
 				const cleaned = cleanupVoiceInputText(text)
-				if (cleaned) this.#voiceWakeLines = [`${formatTime(new Date())} · ${cleaned}`, ...this.#voiceWakeLines].slice(0, 5)
+				if (cleaned) this.#recordVoiceWakePreview(cleaned)
 				this.#updateVoiceHud("connecting", readVoiceInputUrl())
 			},
 			onCommandText: (text) => {
 				const cleaned = cleanupVoiceInputText(text)
-				if (cleaned) this.#voiceWakeLines = [`${formatTime(new Date())} · ${cleaned}`, ...this.#voiceWakeLines].slice(0, 5)
+				if (cleaned) this.#recordVoiceWakePreview(cleaned)
 				this.#updateVoiceHud()
 			},
 			onPartial: (text) => this.#handleVoicePartial(text),
 			onChunk: (chunk) => this.#handleVoiceChunk(chunk),
-			onLevel: (level) => {
-				this.#voiceLevel = level
-				this.#updateVoiceHud()
-			},
+			onLevel: (level) => this.#updateVoiceLevel(level),
 		})
 		return this.#voiceClient
 	}
@@ -938,34 +1171,43 @@ class AppWebHud implements AppWebHudController {
 		const client = this.#ensureVoiceClient()
 		try {
 			if (client.active) {
-				if (client.status === "waitingWake") await client.startDictation()
+				if (client.status === "waitingWake") {
+					this.#voiceAutoWakePaused = false
+					await client.startDictation()
+				}
 				else {
+					this.#voiceAutoWakePaused = false
 					this.#voiceNextFlushMode = "draft"
 					await client.sleepToWake()
 				}
 				return
 			}
+			this.#voiceAutoWakePaused = false
 			if (this.#terminal.socket?.readyState !== WebSocket.OPEN) {
-				this.#handleVoiceStatus("error", "Codex terminal не подключен")
+				this.#flashVoiceHudError("Codex terminal не подключен")
 				return
 			}
 			const serviceOk = await this.#checkVoiceService()
 			if (!serviceOk) {
-				this.#handleVoiceStatus("error", this.#voiceServiceDetail)
+				this.#flashVoiceHudError(this.#voiceServiceDetail)
 				return
 			}
 			await client.startDictation()
 		} catch (error) {
-			this.#handleVoiceStatus("error", error instanceof Error ? error.message : String(error))
+			this.#flashVoiceHudError(error instanceof Error ? error.message : String(error))
+		} finally {
+			this.#focusVoiceTerminal()
 		}
 	}
 
 	#stopVoice(): void {
+		this.#pauseVoiceAutoWake()
 		this.#voiceNextFlushMode = "draft"
 		const wasActive = this.#voiceClient?.active === true
 		this.#voiceClient?.stop(VOICE_STOP_COMMAND_DETAIL)
 		this.#discardVoiceAutoSendBuffer()
 		this.#clearVoicePartialPreview()
+		this.#clearVoiceWakePreview()
 		if (!wasActive) this.#handleVoiceStatus("idle", VOICE_STOP_COMMAND_DETAIL)
 		else this.#updateVoiceHud("idle", VOICE_STOP_COMMAND_DETAIL)
 	}
@@ -974,25 +1216,56 @@ class AppWebHud implements AppWebHudController {
 		const previousStatus = this.#voiceStatus
 		const voiceSignal = voiceSignalForStatusChange(previousStatus, status, detail)
 		const transportError = status === "error" && isVoiceServiceErrorText(detail)
+		this.#setVoiceDictationActive(voiceStatusNeedsRenderHold(status))
+		if (status === "idle" && detail === VOICE_STOP_COMMAND_DETAIL) this.#voiceAutoWakePaused = true
 		if (transportError) {
+			this.#pauseVoiceAutoWake()
 			this.#discardVoiceAutoSendBuffer()
 			this.#clearVoicePartialPreview()
+			this.#clearVoiceWakePreview()
 		} else if (shouldFlushVoiceBufferForStatus(previousStatus, status)) {
 			this.#flushVoiceAutoSendBuffer()
 		} else if (shouldPreserveVoicePartialForStatus(previousStatus, status, detail)) {
 			this.#preserveVoicePartialAsTerminalInput()
 		}
+		if (status === "idle") {
+			this.#flushVoiceAutoSendBuffer()
+			this.#clearVoiceWakePreview()
+		}
 		this.#voiceStatus = status
-		this.#voiceDetail = detail
+		this.#voiceDetail = voiceReadableDetail(detail || voiceStatusLine(status))
 		if (status === "error") {
-			this.#voiceServiceState = "down"
-			this.#voiceServiceDetail = detail || "ASR недоступен"
+			this.#voiceLastErrorText = this.#voiceDetail || "ошибка голоса"
+			this.#voiceLastErrorAt = new Date()
+			if (transportError) {
+				this.#voiceServiceState = "down"
+				this.#voiceServiceDetail = this.#voiceDetail || "ASR недоступен"
+			}
 		} else if (status === "listening" || status === "waitingWake" || status === "committing") {
 			this.#voiceServiceState = "ok"
 			this.#voiceServiceDetail = "ASR работает"
 		}
 		this.#updateVoiceHud()
 		if (voiceSignal !== null) this.#playVoiceSignal(voiceSignal)
+	}
+
+	#flashVoiceHudError(detail: string): void {
+		if (this.#voiceHudErrorTimer !== null) window.clearTimeout(this.#voiceHudErrorTimer)
+		this.#setVoiceDictationActive(false)
+		const message = voiceReadableDetail(detail)
+		this.#voiceLastErrorText = message || "ошибка голоса"
+		this.#voiceLastErrorAt = new Date()
+		this.#voiceStatus = "error"
+		this.#voiceDetail = message
+		this.#updateVoiceHud("error", message)
+		this.#voiceHudErrorTimer = window.setTimeout(() => {
+			this.#voiceHudErrorTimer = null
+			const status = this.#voiceClient?.status ?? "idle"
+			if (status === "error") return
+			this.#voiceStatus = status
+			this.#voiceDetail = voiceStatusLine(status)
+			this.#updateVoiceHud(status)
+		}, VOICE_HUD_ERROR_MS)
 	}
 
 	#playVoiceSignal(kind: HudNotificationKind): void {
@@ -1002,6 +1275,48 @@ class AppWebHud implements AppWebHudController {
 		voiceSignalLastPlayedAt.set(kind, now)
 		this.#voiceHud.flashSoundIndicator()
 		playHudNotificationSound(kind, this.#voiceClient)
+	}
+
+	#focusVoiceTerminal(): void {
+		this.#viewport.hud.setFocused(this.#terminal.pane)
+	}
+
+	#setVoiceDictationActive(active: boolean): void {
+		if (this.#voiceDictationActive === active) return
+		this.#voiceDictationActive = active
+		this.#onVoiceDictationActiveChange(active)
+	}
+
+	#recordVoiceWakePreview(text: string): void {
+		const now = new Date()
+		this.#voiceWakePreviewText = text
+		this.#voiceWakePreviewAt = now
+		const line = `${formatTime(now)} · ${text}`
+		if (this.#voiceWakeLines[0]?.endsWith(` · ${text}`)) this.#voiceWakeLines[0] = line
+		else this.#voiceWakeLines = [line, ...this.#voiceWakeLines].slice(0, 5)
+	}
+
+	#clearVoiceWakePreview(): void {
+		this.#voiceWakePreviewText = ""
+		this.#voiceWakePreviewAt = null
+		this.#voiceWakeLines = []
+	}
+
+	#updateVoiceLevel(level: number): void {
+		if (this.#voiceStatus === "waitingWake") {
+			if (this.#voiceLevel !== 0) {
+				this.#voiceLevel = 0
+				this.#updateVoiceHud()
+			}
+			return
+		}
+		const next = clampNumber(level * 12, 0, 1)
+		this.#voiceLevel = this.#voiceLevel * 0.72 + next * 0.28
+		if (this.#voiceMeterTimer !== null) return
+		this.#voiceMeterTimer = window.setTimeout(() => {
+			this.#voiceMeterTimer = null
+			this.#updateVoiceHud()
+		}, VOICE_METER_RENDER_MS)
 	}
 
 	async #checkVoiceService(): Promise<boolean> {
@@ -1014,12 +1329,14 @@ class AppWebHud implements AppWebHudController {
 			const compute = typeof data?.computeType === "string" ? data.computeType : ""
 			this.#voiceServiceState = "ok"
 			this.#voiceServiceDetail = ["ASR работает", model, [device, compute].filter(Boolean).join("/")].filter(Boolean).join(" · ")
+			this.#voiceServiceCheckedAt = new Date()
 			this.#updateVoiceHud()
 			return true
 		} catch (error) {
 			this.#voiceServiceState = "down"
 			this.#voiceServiceDetail = `ASR недоступен: ${endpointLabel(readVoiceInputUrl())}`
 			if (error instanceof Error) this.#voiceServiceDetail = `${this.#voiceServiceDetail} · ${error.message}`
+			this.#voiceServiceCheckedAt = new Date()
 			this.#updateVoiceHud()
 			return false
 		} finally {
@@ -1027,9 +1344,39 @@ class AppWebHud implements AppWebHudController {
 		}
 	}
 
+	#scheduleVoiceAutoWake(delayMs = 0): void {
+		if (this.#voiceAutoWakePaused || this.#voiceAutoWakeTimer !== null) return
+		this.#voiceAutoWakeTimer = window.setTimeout(() => {
+			this.#voiceAutoWakeTimer = null
+			void this.#ensureVoiceAutoWake()
+		}, delayMs)
+	}
+
+	#pauseVoiceAutoWake(): void {
+		this.#voiceAutoWakePaused = true
+		if (this.#voiceAutoWakeTimer === null) return
+		window.clearTimeout(this.#voiceAutoWakeTimer)
+		this.#voiceAutoWakeTimer = null
+	}
+
+	async #ensureVoiceAutoWake(): Promise<void> {
+		if (this.#voiceAutoWakePaused || this.#voiceAutoWakeInFlight) return
+		const client = this.#ensureVoiceClient()
+		if (client.active) return
+		this.#voiceAutoWakeInFlight = true
+		try {
+			const started = await this.#startVoiceWake(false)
+			if (!started && !this.#voiceAutoWakePaused) this.#scheduleVoiceAutoWake(VOICE_AUTO_WAKE_RETRY_MS)
+		} finally {
+			this.#voiceAutoWakeInFlight = false
+		}
+	}
+
 	#handleVoicePartial(raw: string): void {
 		const text = cleanupVoiceInputText(raw)
 		if (!text) return
+		this.#voiceLastPartialText = text
+		this.#voiceLastPartialAt = new Date()
 		const preview = mergeVoiceInputText(this.#voiceAutoSendText, text)
 		this.#voicePartialPreviewText = preview
 		this.#terminal.pane.setInputPreview(preview)
@@ -1041,6 +1388,8 @@ class AppWebHud implements AppWebHudController {
 		if (messages.length === 0) return
 		const text = cleanupVoiceInputText(messages.join(" "))
 		if (!text) return
+		this.#voiceLastChunkText = text
+		this.#voiceLastChunkAt = new Date()
 		this.#queueVoiceAutoSendText(text)
 		this.#updateVoiceHud(this.#voiceStatus, text)
 	}
@@ -1050,11 +1399,11 @@ class AppWebHud implements AppWebHudController {
 			status,
 			statusLine: voiceStatusLine(status),
 			targetLine: `${CODEX_TITLE} terminal`,
-			autoEnterLine: readVoiceAutoSendEnabled() ? "auto-send" : "manual draft",
-			detailLine: detail || "готов к диктовке",
-			serviceLine: this.#voiceServiceDetail,
+			autoEnterLine: this.#voiceAutoSendLine(),
+			detailLine: voiceReadableDetail(detail || "готов к диктовке"),
+			serviceLine: this.#voiceServiceLine(),
 			serviceState: this.#voiceServiceState,
-			level: this.#voiceLevel,
+			level: status === "listening" || status === "committing" ? this.#voiceLevel : 0,
 		})
 	}
 
@@ -1095,17 +1444,50 @@ class AppWebHud implements AppWebHudController {
 			fuzzyLooseLabel: "50% мягко",
 			wakeEndpoint: endpointLabel(readVoiceWakeUrl()),
 			inputEndpoint: endpointLabel(readVoiceInputUrl()),
-			serviceLine: this.#voiceServiceDetail,
-			liveLine: `${voiceStatusLine(this.#voiceStatus)} · ${this.#voiceDetail || "нет деталей"}`,
-			debugLines: [
-				`status: ${this.#voiceStatus}`,
-					`wake: ${readVoiceWakeUrl()}`,
-					`asr: ${readVoiceInputUrl()}`,
-					`level: ${Math.round(this.#voiceLevel * 100)}%`,
-					`sound: ${hudNotificationDebugLine()}`,
-				],
-			}
+			serviceLine: this.#voiceServiceLine(),
+			liveLine: this.#voiceSettingsLiveLine(),
+			debugLines: this.#voiceDebugLines(),
 		}
+	}
+
+	#voiceAutoSendLine(): string {
+		const mode = readVoiceAutoSendEnabled() ? "auto-send" : "manual draft"
+		if (this.#voiceAutoEnterAt === null) return `${mode} · sent: 0`
+		return `${mode} · ${formatTime(this.#voiceAutoEnterAt)} · sent #${this.#voiceAutoEnterCount}`
+	}
+
+	#voiceServiceLine(): string {
+		const time = this.#voiceServiceCheckedAt === null ? "--:--:--" : formatTime(this.#voiceServiceCheckedAt)
+		return `${time} · ${this.#voiceServiceDetail}`
+	}
+
+	#voiceSettingsLiveLine(): string {
+		if (this.#voiceStatus === "waitingWake") return `wake-up: ${debugVoiceText(this.#voiceWakePreviewText)}`
+		if (this.#voiceStatus === "listening" || this.#voiceStatus === "committing") return `asr: ${debugVoiceText(this.#voiceLastPartialText)}`
+		return "голос: -"
+	}
+
+	#voiceDebugLines(): string[] {
+		return [
+			`status: ${this.#voiceStatus}`,
+			`detail: ${this.#voiceDetail || "-"}`,
+			`wake: ${readVoiceWakeUrl()}`,
+			`asr: ${readVoiceInputUrl()}`,
+			`wake heard: ${debugVoiceText(this.#voiceWakePreviewText)}`,
+			`wake at: ${formatDebugTime(this.#voiceWakePreviewAt)}`,
+			`partial chars: ${this.#voiceLastPartialText.length}`,
+			`partial: ${debugVoiceText(this.#voiceLastPartialText)}`,
+			`partial at: ${formatDebugTime(this.#voiceLastPartialAt)}`,
+			`chunk chars: ${this.#voiceLastChunkText.length}`,
+			`chunk: ${debugVoiceText(this.#voiceLastChunkText)}`,
+			`chunk at: ${formatDebugTime(this.#voiceLastChunkAt)}`,
+			`dictation render hold: ${this.#voiceDictationActive ? "on" : "off"}`,
+			`last error: ${debugVoiceText(this.#voiceLastErrorText)}`,
+			`error at: ${formatDebugTime(this.#voiceLastErrorAt)}`,
+			`level: ${Math.round(this.#voiceLevel * 100)}%`,
+			`sound: ${hudNotificationDebugLine()}`,
+		]
+	}
 
 	#addVoicePhrase(groupId: VoiceInputHudPhraseGroupId, phrase: string): void {
 		storeVoicePhrases(groupId, [...readVoicePhrases(groupId), phrase])
@@ -1171,12 +1553,12 @@ class AppWebHud implements AppWebHudController {
 		if (client.active) return true
 		if (client.status === "error") client.reset()
 		if (this.#terminal.socket?.readyState !== WebSocket.OPEN) {
-			if (reportErrors) this.#handleVoiceStatus("error", "Codex terminal не подключен")
+			if (reportErrors) this.#flashVoiceHudError("Codex terminal не подключен")
 			return false
 		}
 		const serviceOk = await this.#checkVoiceService()
 		if (!serviceOk) {
-			if (reportErrors) this.#handleVoiceStatus("error", this.#voiceServiceDetail)
+			if (reportErrors) this.#flashVoiceHudError(this.#voiceServiceDetail)
 			return false
 		}
 		try {
@@ -1184,7 +1566,9 @@ class AppWebHud implements AppWebHudController {
 			return true
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error)
-			if (reportErrors) this.#handleVoiceStatus("error", message)
+			if (/permission denied|notallowederror|not allowed/i.test(message)) this.#pauseVoiceAutoWake()
+			if (reportErrors) this.#flashVoiceHudError(message)
+			else this.#handleVoiceStatus("error", message)
 			return false
 		}
 	}
@@ -1192,8 +1576,9 @@ class AppWebHud implements AppWebHudController {
 	#restartVoiceCommandRecognizerAfterSettingsChange(): void {
 		const client = this.#voiceClient
 		if (client?.status !== "waitingWake") return
+		this.#voiceAutoWakePaused = false
 		client.stop()
-		void this.#startVoiceWake(false)
+		this.#scheduleVoiceAutoWake()
 	}
 
 	#codexRect(bounds: {w: number; h: number}): UiSurfaceRect {
@@ -1227,6 +1612,7 @@ class AppWebHud implements AppWebHudController {
 	}
 
 	#agentSignalRect(bounds: {w: number; h: number}): UiSurfaceRect {
+		if (this.#dockTransition?.kind === "codex") return hiddenRect()
 		const terminal = this.#codexRect(bounds)
 		if (terminal.visible === false) return hiddenRect()
 		const open = this.#agentSignalPane.isOpen()
@@ -1269,7 +1655,8 @@ class AppWebHud implements AppWebHudController {
 	}
 
 	#dockRect(kind: DockKind, bounds: {w: number; h: number}): UiSurfaceRect {
-		if (!this.isDocked(kind) || bounds.w < 80 || bounds.h < 80) return hiddenRect()
+		if (bounds.w < 80 || bounds.h < 80) return hiddenRect()
+		if (!this.isDocked(kind) && !this.dockTransitionActive(kind)) return hiddenRect()
 		return dockRectForPlacement(kind, this.dockPlacement(kind, bounds), bounds)
 	}
 
@@ -1960,8 +2347,8 @@ class AppWebDockPane extends UiSurface {
 	}
 
 	override onPointerLeave(): void {
+		if (this.#press !== null) return
 		super.onPointerLeave()
-		this.#cancelPress()
 	}
 
 	override onDeactivate(): void {
@@ -1976,6 +2363,7 @@ class AppWebDockPane extends UiSurface {
 
 	#restoreFromClick(): void {
 		if (this.#suppressClick) return
+		if (this.hud.dockTransitionActive(this.kind)) return
 		this.hud.toggleDockAction(this.kind)
 	}
 
@@ -2149,6 +2537,45 @@ function sameDockPlacement(left: DockPlacement, right: DockPlacement): boolean {
 	return left.edge === right.edge && Math.abs(left.offset - right.offset) < 0.5
 }
 
+function interpolateRect(from: UiSurfaceRect, to: UiSurfaceRect, t: number): UiSurfaceRect {
+	return {
+		x: lerp(from.x, to.x, t),
+		y: lerp(from.y, to.y, t),
+		w: Math.max(1, lerp(from.w, to.w, t)),
+		h: Math.max(1, lerp(from.h, to.h, t)),
+	}
+}
+
+function projectChildRectBetweenParents(sourceParent: UiSurfaceRect, child: UiSurfaceRect, targetParent: UiSurfaceRect): UiSurfaceRect {
+	const sourceW = Math.max(1, sourceParent.w)
+	const sourceH = Math.max(1, sourceParent.h)
+	return {
+		x: targetParent.x + ((child.x - sourceParent.x) / sourceW) * targetParent.w,
+		y: targetParent.y + ((child.y - sourceParent.y) / sourceH) * targetParent.h,
+		w: Math.max(1, (child.w / sourceW) * targetParent.w),
+		h: Math.max(1, (child.h / sourceH) * targetParent.h),
+	}
+}
+
+function dockTransitionEase(t: number): number {
+	const clamped = clampNumber(t, 0, 1)
+	return clamped < 0.5
+		? 4 * clamped * clamped * clamped
+		: 1 - Math.pow(-2 * clamped + 2, 3) / 2
+}
+
+function inferHudNodePixelScale(nodeX: number, nodeY: number, rect: UiSurfaceRect, bounds: {w: number; h: number}): number {
+	const dx = rect.x - bounds.w / 2
+	if (Math.abs(dx) > 0.001) return Math.abs(nodeX / dx)
+	const dy = bounds.h / 2 - rect.y
+	if (Math.abs(dy) > 0.001) return Math.abs(nodeY / dy)
+	return 0.001
+}
+
+function lerp(from: number, to: number, t: number): number {
+	return from + (to - from) * t
+}
+
 function defaultVoiceRect(bounds: {w: number; h: number}): UiSurfaceRect {
 	const frame = voiceFrameForBounds(bounds.w, bounds.h)
 	return {
@@ -2189,6 +2616,33 @@ function voiceStatusLine(status: VoiceInputStatus): string {
 	if (status === "committing") return "распознавание"
 	if (status === "error") return "ошибка голоса"
 	return "микрофон выключен"
+}
+
+function voiceReadableDetail(detail: string): string {
+	const text = detail.trim()
+	if (!text) return ""
+	if (/websocket failed|websocket closed|failed to construct/i.test(text)) return `ASR недоступен: ${voiceSocketErrorEndpoint(text) ?? endpointLabel(readVoiceInputUrl())}`
+	if (/permission denied|notallowederror|not allowed/i.test(text)) return "нет доступа к микрофону"
+	if (/notfounderror|not found|device not found/i.test(text)) return "микрофон не найден"
+	if (/commit timeout/i.test(text)) return "таймаут распознавания фрагмента"
+	if (text === VOICE_STOP_COMMAND_DETAIL) return "остановлено голосовой командой"
+	return text
+}
+
+function voiceSocketErrorEndpoint(text: string): string | null {
+	const match = text.match(/wss?:\/\/\S+/i)
+	if (match === null) return null
+	return endpointLabel(match[0]!)
+}
+
+function debugVoiceText(text: string): string {
+	const cleaned = cleanupVoiceInputText(text)
+	if (cleaned.length === 0) return "-"
+	return cleaned.length <= 74 ? cleaned : `${cleaned.slice(0, 71)}...`
+}
+
+function formatDebugTime(date: Date | null): string {
+	return date === null ? "-" : formatTime(date)
 }
 
 function voiceSignalForStatusChange(previousStatus: VoiceInputStatus, nextStatus: VoiceInputStatus, detail?: string): HudNotificationKind | null {
@@ -2781,6 +3235,10 @@ function shouldPreserveVoicePartialForStatus(previousStatus: VoiceInputStatus, s
 	if (previousStatus !== "listening" && previousStatus !== "committing") return false
 	if (status === "error") return isVoiceConnectionLossDetail(detail)
 	return status === "waitingWake" && isVoiceConnectionLossDetail(detail)
+}
+
+function voiceStatusNeedsRenderHold(status: VoiceInputStatus): boolean {
+	return status === "connecting" || status === "listening" || status === "committing"
 }
 
 function isVoiceConnectionLossDetail(detail: string | undefined): boolean {
