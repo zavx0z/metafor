@@ -7,6 +7,8 @@ export interface TextureEntry {
   height: number
   texture: GPUTexture | null
   error: unknown
+  device?: GPUDevice
+  pendingBitmap?: ImageBitmap | undefined
 }
 
 const cache = new Map<string, TextureEntry>()
@@ -33,7 +35,13 @@ export class TextureLoader {
     }
 
     const existing = cache.get(src)
-    if (existing) return existing
+    if (existing) {
+      existing.device = device
+      if (existing.pendingBitmap !== undefined) {
+        void replaceTextureFromBitmap(device, existing, existing.pendingBitmap)
+      }
+      return existing
+    }
 
     const entry: TextureEntry = {
       src,
@@ -42,11 +50,40 @@ export class TextureLoader {
       height: 1,
       texture: null,
       error: null,
+      device,
     }
     cache.set(src, entry)
 
     void loadTexture(device, entry)
     return entry
+  }
+
+  static replaceBitmap(src: string, bitmap: ImageBitmap): void {
+    let entry = cache.get(src)
+    if (entry === undefined) {
+      entry = {
+        src,
+        status: "loading",
+        width: bitmap.width || 1,
+        height: bitmap.height || 1,
+        texture: null,
+        error: null,
+        pendingBitmap: bitmap,
+      }
+      cache.set(src, entry)
+      notify(src)
+      return
+    }
+
+    entry.pendingBitmap?.close?.()
+    entry.pendingBitmap = bitmap
+    const device = entry.device
+    if (device === undefined || entry.status === "loading") {
+      entry.status = "loading"
+      notify(src)
+      return
+    }
+    void replaceTextureFromBitmap(device, entry, bitmap)
   }
 
   static fallback(device: GPUDevice): GPUTexture {
@@ -69,31 +106,57 @@ export class TextureLoader {
 
 async function loadTexture(device: GPUDevice, entry: TextureEntry): Promise<void> {
   try {
+    const pending = entry.pendingBitmap
+    if (pending !== undefined) {
+      await replaceTextureFromBitmap(device, entry, pending)
+      return
+    }
     const response = await fetch(entry.src)
     if (!response.ok) throw new Error(`HTTP ${response.status} while loading ${entry.src}`)
-    const blob = await response.blob()
-    const bitmap = await decodeBitmap(blob)
-    const texture = device.createTexture({
-      label: `TextureLoader:${entry.src}`,
-      size: { width: bitmap.width, height: bitmap.height },
-      format: "rgba8unorm",
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
-    })
-    device.queue.copyExternalImageToTexture(
-      { source: bitmap },
-      { texture },
-      { width: bitmap.width, height: bitmap.height },
-    )
-    entry.width = bitmap.width
-    entry.height = bitmap.height
-    entry.texture = texture
-    entry.status = "ready"
-    bitmap.close?.()
+    await replaceTextureFromBitmap(device, entry, await decodeBitmap(await response.blob()))
   } catch (err) {
     entry.status = "failed"
     entry.error = err
     console.warn("[TextureLoader] failed to load texture:", entry.src, err)
   } finally {
+    notify(entry.src)
+  }
+}
+
+async function replaceTextureFromBitmap(device: GPUDevice, entry: TextureEntry, bitmap: ImageBitmap): Promise<void> {
+  entry.status = "loading"
+  entry.device = device
+  try {
+    const width = Math.max(1, bitmap.width)
+    const height = Math.max(1, bitmap.height)
+    let texture = entry.texture
+    if (texture === null || entry.width !== width || entry.height !== height) {
+      texture?.destroy()
+      texture = device.createTexture({
+        label: `TextureLoader:${entry.src}`,
+        size: {width, height},
+        format: "rgba8unorm",
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+      })
+      entry.texture = texture
+    }
+    device.queue.copyExternalImageToTexture(
+      {source: bitmap},
+      {texture},
+      {width, height},
+    )
+    entry.width = width
+    entry.height = height
+    delete entry.pendingBitmap
+    entry.error = null
+    entry.status = "ready"
+  } catch (err) {
+    entry.status = "failed"
+    entry.error = err
+    throw err
+  } finally {
+    bitmap.close?.()
+    if (entry.pendingBitmap === bitmap) delete entry.pendingBitmap
     notify(entry.src)
   }
 }

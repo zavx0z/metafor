@@ -70,11 +70,20 @@ type TerminalWsClientData = PtySocketData & {
   id: number
 }
 
-type WsClientData = UiWsClientData | TerminalWsClientData
+type RtcSignalWsClientData = {
+  kind: "rtc-signal"
+  id: number
+  room: string
+  peerId: string
+  connectedAt: number
+}
+
+type WsClientData = UiWsClientData | TerminalWsClientData | RtcSignalWsClientData
 
 const NDJSON_TAIL_DEFAULT_LIMIT = 200
 const NDJSON_TAIL_MAX_LIMIT = 5_000
 const UI_HOST_COMMAND_TIMEOUT_MS = 8_000
+const ANDROID_API_URL = process.env.METAFOR_ANDROID_API_URL ?? "http://127.0.0.1:3007"
 const SQLITE_WATCH_DEBOUNCE_MS = 140
 const VALID_STOP_SIGNALS = new Set(["SIGTERM", "SIGKILL", "SIGINT", "SIGHUP", "SIGQUIT"])
 type InterpreterTerminalSessionManager = ReturnType<typeof createPtySessionManager>
@@ -109,6 +118,8 @@ type SqliteWatchEntry = {
   watchers: FSWatcher[]
   watchedTargets: Set<string>
 }
+
+const rtcRooms = new Map<string, Map<string, ServerWebSocket<RtcSignalWsClientData>>>()
 
 class UiHostCommandError extends Error {
   readonly status: number
@@ -378,6 +389,10 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
 
   const websocket: WebSocketHandler<WsClientData> = {
     open(ws): void {
+      if (ws.data.kind === "rtc-signal") {
+        attachRtcSignalSocket(ws as ServerWebSocket<RtcSignalWsClientData>)
+        return
+      }
       if (ws.data.kind === "terminal") {
         options.logger.event("terminal.client.opened", {id: ws.data.id})
         try {
@@ -403,6 +418,10 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
       ws.send(JSON.stringify(hello))
     },
     async message(ws, raw): Promise<void> {
+      if (ws.data.kind === "rtc-signal") {
+        handleRtcSignalMessage(ws as ServerWebSocket<RtcSignalWsClientData>, raw)
+        return
+      }
       if (ws.data.kind === "terminal") {
         const payload = parsePtyClientMessage(raw)
         const session = ws.data.session
@@ -486,6 +505,10 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
       }
     },
     close(ws): void {
+      if (ws.data.kind === "rtc-signal") {
+        detachRtcSignalSocket(ws as ServerWebSocket<RtcSignalWsClientData>)
+        return
+      }
       if (ws.data.kind === "terminal") {
         ws.data.session?.detach(ws as ServerWebSocket<TerminalWsClientData>)
         delete ws.data.session
@@ -530,6 +553,23 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
           connectedAt: Date.now(),
           replay: url.searchParams.get("replay") !== "0",
           ...(requestedSession === null ? {} : {sessionId: requestedSession}),
+        }
+        const upgraded = server.upgrade(req, {data})
+        if (upgraded) return undefined
+        return jsonResponse({ok: false, error: "expected websocket upgrade"}, 426)
+      }
+      if (path === "/hud/android/webrtc/signaling") {
+        if (!isAllowedWebSocketOrigin(req, url)) return jsonResponse({ok: false, error: "forbidden origin"}, 403)
+        const room = sanitizeRtcId(url.searchParams.get("room") ?? "android-display")
+        const peerId = sanitizeRtcId(url.searchParams.get("peer") ?? `peer-${nextWsClientId}`)
+        if (room === null || peerId === null) return jsonResponse({ok: false, error: "invalid WebRTC room or peer id"}, 400)
+        const id = nextWsClientId++
+        const data: RtcSignalWsClientData = {
+          kind: "rtc-signal",
+          id,
+          room,
+          peerId,
+          connectedAt: Date.now(),
         }
         const upgraded = server.upgrade(req, {data})
         if (upgraded) return undefined
@@ -654,6 +694,92 @@ function rejectPendingUiHostRequestsForClient(clientId: number, pending: Map<num
   }
 }
 
+function attachRtcSignalSocket(ws: ServerWebSocket<RtcSignalWsClientData>): void {
+  const peers = rtcRoomPeers(ws.data.room)
+  const requestedPeerId = ws.data.peerId
+  let peerId = requestedPeerId
+  while (peers.has(peerId)) peerId = `${requestedPeerId}-${crypto.randomUUID().slice(0, 8)}`
+  ws.data.peerId = peerId
+  const existingPeers = [...peers.keys()]
+  peers.set(peerId, ws)
+  sendRtcJson(ws, {
+    type: "hello",
+    room: ws.data.room,
+    peerId,
+    peers: existingPeers,
+  })
+  broadcastRtcSignal(ws.data.room, peerId, {
+    type: "peer-joined",
+    peerId,
+  })
+}
+
+function detachRtcSignalSocket(ws: ServerWebSocket<RtcSignalWsClientData>): void {
+  const {room, peerId} = ws.data
+  const peers = rtcRooms.get(room)
+  if (peers === undefined) return
+  if (peers.get(peerId) === ws) peers.delete(peerId)
+  if (peers.size === 0) {
+    rtcRooms.delete(room)
+    return
+  }
+  broadcastRtcSignal(room, peerId, {
+    type: "peer-left",
+    peerId,
+  })
+}
+
+function handleRtcSignalMessage(ws: ServerWebSocket<RtcSignalWsClientData>, message: string | Buffer<ArrayBuffer>): void {
+  if (typeof message !== "string" || message.length > 256 * 1024) return
+  let payload: Record<string, unknown>
+  try {
+    const parsed = JSON.parse(message) as unknown
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return
+    payload = parsed as Record<string, unknown>
+  } catch {
+    return
+  }
+  const to = typeof payload.to === "string" ? sanitizeRtcId(payload.to) : null
+  const envelope = {
+    ...payload,
+    from: ws.data.peerId,
+    room: ws.data.room,
+  }
+  if (to !== null) {
+    const target = rtcRooms.get(ws.data.room)?.get(to)
+    if (target !== undefined && target.readyState === WebSocket.OPEN) sendRtcJson(target, envelope)
+    return
+  }
+  broadcastRtcSignal(ws.data.room, ws.data.peerId, envelope)
+}
+
+function rtcRoomPeers(room: string): Map<string, ServerWebSocket<RtcSignalWsClientData>> {
+  const existing = rtcRooms.get(room)
+  if (existing !== undefined) return existing
+  const next = new Map<string, ServerWebSocket<RtcSignalWsClientData>>()
+  rtcRooms.set(room, next)
+  return next
+}
+
+function broadcastRtcSignal(room: string, fromPeerId: string, payload: Record<string, unknown>): void {
+  const peers = rtcRooms.get(room)
+  if (peers === undefined) return
+  for (const [peerId, socket] of peers) {
+    if (peerId === fromPeerId || socket.readyState !== WebSocket.OPEN) continue
+    sendRtcJson(socket, payload)
+  }
+}
+
+function sendRtcJson(ws: ServerWebSocket<RtcSignalWsClientData>, payload: Record<string, unknown>): void {
+  ws.send(JSON.stringify(payload))
+}
+
+function sanitizeRtcId(value: string): string | null {
+  const normalized = value.trim()
+  if (!/^[A-Za-z0-9_.:-]{1,96}$/.test(normalized)) return null
+  return normalized
+}
+
 async function dispatchUiHostRouteFromBody(command: string, req: Request, dispatch: UiHostCommandDispatcher): Promise<Response> {
   const parsed = await readJsonObject(req)
   if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
@@ -774,6 +900,33 @@ async function openSqliteDisplayFromBody(
   }
 }
 
+async function proxyAndroidRequest(req: Request, path: string): Promise<Response> {
+  const incomingUrl = new URL(req.url)
+  const target = new URL(`${path}${incomingUrl.search}`, ANDROID_API_URL)
+  const headers = new Headers()
+  const contentType = req.headers.get("content-type")
+  if (contentType !== null) headers.set("content-type", contentType)
+  try {
+    const init: RequestInit = {
+      method: req.method,
+      headers,
+    }
+    if (req.method !== "GET" && req.method !== "HEAD") init.body = await req.arrayBuffer()
+    const upstream = await fetch(target, init)
+    const responseHeaders = new Headers()
+    const upstreamContentType = upstream.headers.get("content-type")
+    if (upstreamContentType !== null) responseHeaders.set("content-type", upstreamContentType)
+    responseHeaders.set("cache-control", upstream.headers.get("cache-control") ?? "no-store")
+    return new Response(await upstream.arrayBuffer(), {
+      status: upstream.status,
+      statusText: upstream.statusText,
+      headers: responseHeaders,
+    })
+  } catch (error) {
+    return jsonResponse({ok: false, androidApi: ANDROID_API_URL, error: serializeError(error)}, 502)
+  }
+}
+
 async function handleRoute(
   method: string,
   path: string,
@@ -797,6 +950,17 @@ async function handleRoute(
   if (method === "POST" && path === "/hud/terminal/dock") return await dispatchUiHostRouteFromBody("hud.terminal.dock", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/terminal/show") return await dispatchUiHostRouteFromBody("hud.terminal.show", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/terminal/toggle") return await dispatchUiHostRouteFromBody("hud.terminal.toggle", req, dispatchUiHostCommand)
+  if (method === "GET" && path === "/hud/terminal/network") return await dispatchUiHostRoute("hud.terminal.network.get", {}, dispatchUiHostCommand)
+  if (method === "POST" && path === "/hud/terminal/network/dock") return await dispatchUiHostRouteFromBody("hud.terminal.network.dock", req, dispatchUiHostCommand)
+  if (method === "POST" && path === "/hud/terminal/network/show") return await dispatchUiHostRouteFromBody("hud.terminal.network.show", req, dispatchUiHostCommand)
+  if (method === "POST" && path === "/hud/terminal/network/toggle") return await dispatchUiHostRouteFromBody("hud.terminal.network.toggle", req, dispatchUiHostCommand)
+  if (method === "GET" && path === "/hud/android") return await dispatchUiHostRoute("hud.android.get", {}, dispatchUiHostCommand)
+  if (method === "POST" && path === "/hud/android/dock") return await dispatchUiHostRouteFromBody("hud.android.dock", req, dispatchUiHostCommand)
+  if (method === "POST" && path === "/hud/android/show") return await dispatchUiHostRouteFromBody("hud.android.show", req, dispatchUiHostCommand)
+  if (method === "POST" && path === "/hud/android/toggle") return await dispatchUiHostRouteFromBody("hud.android.toggle", req, dispatchUiHostCommand)
+  if (method === "POST" && path === "/hud/android/refresh") return await dispatchUiHostRoute("hud.android.refresh", {}, dispatchUiHostCommand)
+  if (method === "GET" && (path === "/android/size" || path === "/android/screencap")) return await proxyAndroidRequest(req, path)
+  if (method === "POST" && (path === "/android/tap" || path === "/android/swipe" || path === "/android/key")) return await proxyAndroidRequest(req, path)
   if (method === "GET" && path === "/hud/todo") return todoMarkdownResponse()
   if (method === "PUT" && path === "/hud/todo") return await replaceTodoMarkdown(req, broadcast)
   if (method === "POST" && path === "/hud/todo/items") return await createTodoItem(req, broadcast)
@@ -923,6 +1087,21 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "POST", path: "/hud/terminal/dock", description: "свернуть host terminal HUD"},
     {method: "POST", path: "/hud/terminal/show", description: "развернуть host terminal HUD"},
     {method: "POST", path: "/hud/terminal/toggle", description: "переключить host terminal HUD"},
+    {method: "GET", path: "/hud/terminal/network", description: "состояние второй network terminal HUD"},
+    {method: "POST", path: "/hud/terminal/network/show", description: "развернуть вторую network terminal HUD"},
+    {method: "POST", path: "/hud/terminal/network/dock", description: "свернуть вторую network terminal HUD"},
+    {method: "POST", path: "/hud/terminal/network/toggle", description: "переключить вторую network terminal HUD"},
+    {method: "GET", path: "/hud/android", description: "состояние Android HUD"},
+    {method: "POST", path: "/hud/android/show", description: "развернуть Android HUD"},
+    {method: "POST", path: "/hud/android/dock", description: "свернуть Android HUD"},
+    {method: "POST", path: "/hud/android/toggle", description: "переключить Android HUD"},
+    {method: "POST", path: "/hud/android/refresh", description: "обновить Android frame"},
+    {method: "WS", path: "/hud/android/webrtc/signaling", description: "WebRTC signaling для Android APK video/datachannel"},
+    {method: "GET", path: "/android/size", description: "proxy к Android panel API: размер устройства"},
+    {method: "GET", path: "/android/screencap", description: "proxy к Android panel API: текущий PNG frame"},
+    {method: "POST", path: "/android/tap", description: "{x,y} — proxy Android tap"},
+    {method: "POST", path: "/android/swipe", description: "{x1,y1,x2,y2,durationMs?} — proxy Android swipe"},
+    {method: "POST", path: "/android/key", description: "{code} — proxy Android keyevent"},
     {method: "WS", path: "/hud/terminal/stream", description: "host PTY terminal stream"},
     {method: "GET", path: "/hud/terminal/sessions", description: "host PTY session diagnostics"},
     {method: "GET", path: "/hud/todo", description: "прочитать TODO.md и parsed items для HUD ToDoPane"},

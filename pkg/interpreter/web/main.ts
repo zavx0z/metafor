@@ -24,6 +24,7 @@ import {HudSideTab, type HudSideTabEdge} from "@ui/hud"
 import {
   EditorPane,
   FileListPane,
+  AndroidPane,
   TerminalPane,
   ToDoPane,
   beginPaneFrameDrag,
@@ -37,6 +38,7 @@ import {
   type EditorSelectionSnapshot,
   type EditorTokens,
   type FileListItem,
+  type AndroidPaneSwipe,
   type PaneFrameDrag,
   type PaneFrameInteractionOpts,
   type TerminalInputSource,
@@ -79,6 +81,7 @@ import {
   type WorkspaceFilesContextSnapshot,
 } from "./workspace-files.ts"
 import {formatTerminalExpressionResult} from "./terminal-value-format.ts"
+import {createAndroidRtcClient, type AndroidRtcClient, type AndroidRtcCommand} from "./android-rtc.ts"
 import {
   DEFAULT_VOICE_ACTIVATION_PHRASES,
   DEFAULT_VOICE_DEACTIVATION_PHRASES,
@@ -515,10 +518,15 @@ type ModuleDisplayController = {
 
 type HostTerminalController = {
   hudTerminal: TerminalPane
+  title: string
+  sessionStorageKey: string
+  initialCommand: string | null
+  initialCommandSent: boolean
   socket: WebSocket | null
   sessionId: string | null
   terminalSize: TerminalSize | null
   connectionState: PtyStatusKind
+  statusLabel: string
   terminalState: PtyTerminalState | null
   localEchoId: number
   agentNotifyArmed: boolean
@@ -549,6 +557,11 @@ const HOST_TERMINAL_SESSION_STORAGE_KEY = "metafor.interpreter.hostTerminal.sess
 const HOST_TERMINAL_HUD_RECT_STORAGE_KEY = "metafor.interpreter.hostTerminal.hudRect:v1"
 const HOST_TERMINAL_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.hostTerminal.hudDocked:v1"
 const HOST_TERMINAL_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.hostTerminal.dockPlacement:v1"
+const NETWORK_TERMINAL_SESSION_STORAGE_KEY = "metafor.interpreter.networkTerminal.sessionId:v1"
+const NETWORK_TERMINAL_HUD_RECT_STORAGE_KEY = "metafor.interpreter.networkTerminal.hudRect:v1"
+const NETWORK_TERMINAL_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.networkTerminal.hudDocked:v1"
+const ANDROID_HUD_RECT_STORAGE_KEY = "metafor.interpreter.android.hudRect:v1"
+const ANDROID_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.android.hudDocked:v1"
 const TODO_HUD_RECT_STORAGE_KEY = "metafor.interpreter.todo.hudRect:v1"
 const TODO_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.todo.hudDocked:v1"
 const TODO_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.todo.dockPlacement:v1"
@@ -606,6 +619,9 @@ const HOST_TERMINAL_DOCK_SHORT = 36
 const HOST_TERMINAL_DOCK_LONG = 128
 const HOST_TERMINAL_DOCK_MARGIN = 8
 const HOST_TERMINAL_DOCK_LONG_PRESS_MS = 360
+const ANDROID_HUD_MIN_W = 300
+const ANDROID_HUD_MIN_H = 360
+const ANDROID_FRAME_REFRESH_MS = 850
 const TODO_HUD_MIN_W = 320
 const TODO_HUD_MIN_H = 220
 const TODO_DOCK_SHORT = 34
@@ -667,6 +683,10 @@ type VoiceHudAnchorPlacement = {
 
 const DEFAULT_HOST_TERMINAL_HUD_RECT: UiSurfaceRect = {x: 643, y: 60, w: 755, h: 943}
 const DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "top", offset: 858}
+const DEFAULT_NETWORK_TERMINAL_HUD_RECT: UiSurfaceRect = {x: 24, y: 520, w: 1080, h: 560}
+const NETWORK_TERMINAL_INITIAL_COMMAND = "tmux attach -t metafor-app-web-net\r"
+const DEFAULT_ANDROID_HUD_RECT: UiSurfaceRect = {x: 24, y: 80, w: 390, h: 720}
+const ANDROID_RTC_FRAME_SRC = "metafor:android-rtc-frame"
 const PINNED_VOICE_HUD_ANCHOR: VoiceHudAnchorPlacement = {horizontal: "right", vertical: "bottom", offsetX: 0, offsetY: 0}
 const DEFAULT_TODO_HUD_RECT: UiSurfaceRect = {x: 16, y: 72, w: 430, h: 560}
 const DEFAULT_TODO_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "left", offset: 260}
@@ -679,15 +699,24 @@ let displayHoverOutlinePane: DisplayHoverOutlinePane | null = null
 let todoPane: ToDoPane | null = null
 let todoDockPane: TodoDockPane | null = null
 let todoContext: ToDoPaneContextSnapshot | null = null
+let androidPane: AndroidPane | null = null
 let sqliteHudPane: SqliteHudFramePane | null = null
 let sqliteDockPane: SqliteDockPane | null = null
 let hostTerminal: HostTerminalController | null = null
+let networkHostTerminal: HostTerminalController | null = null
 let hostTerminalDockPane: HostTerminalDockPane | null = null
 let hostTerminalAgentSignalPane: HostTerminalAgentSignalPane | null = null
 let hostTerminalStatusLabelForLayout = t("terminalConnecting")
 let hostTerminalHudDocked = readStoredHostTerminalHudDocked()
 let hostTerminalDockPlacement: HostTerminalDockPlacement | null = readStoredHostTerminalDockPlacement() ?? DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT
 let hostTerminalHudRectPreview: UiSurfaceRect | null = null
+let networkHostTerminalHudDocked = readStoredNetworkTerminalHudDocked()
+let networkHostTerminalHudRectPreview: UiSurfaceRect | null = null
+let androidHudDocked = readStoredAndroidHudDocked()
+let androidHudRectPreview: UiSurfaceRect | null = null
+let androidFrameRefreshTimer: number | null = null
+let androidFrameRefreshInFlight = false
+let androidRtcClient: AndroidRtcClient | null = null
 let todoHudDocked = readStoredTodoHudDocked()
 let todoDockPlacement: HostTerminalDockPlacement | null = readStoredTodoDockPlacement() ?? DEFAULT_TODO_DOCK_PLACEMENT
 let todoHudRectPreview: UiSurfaceRect | null = null
@@ -918,6 +947,25 @@ async function executeUiHostCommand(command: string, params: unknown): Promise<u
       return setHudTerminalDocked(false)
     case "hud.terminal.toggle":
       return setHudTerminalDocked(!hostTerminalHudDocked)
+    case "hud.terminal.network.get":
+      return networkTerminalPayload()
+    case "hud.terminal.network.dock":
+      return setNetworkTerminalDocked(true)
+    case "hud.terminal.network.show":
+      return setNetworkTerminalDocked(false)
+    case "hud.terminal.network.toggle":
+      return setNetworkTerminalDocked(!networkHostTerminalHudDocked)
+    case "hud.android.get":
+      return hudAndroidPayload()
+    case "hud.android.show":
+      return setHudAndroidDocked(false)
+    case "hud.android.dock":
+      return setHudAndroidDocked(true)
+    case "hud.android.toggle":
+      return setHudAndroidDocked(!androidHudDocked)
+    case "hud.android.refresh":
+      await refreshAndroidFrame()
+      return hudAndroidPayload()
     case "hud.todo.get":
       return hudTodoPayload()
     case "hud.todo.highlight":
@@ -1544,7 +1592,7 @@ function hudTerminalPayload(): unknown {
   const frame = controller === null || uiCanvas === null ? null : uiCanvas.surfaceFrame(controller.hudTerminal)
   return {
     docked: hostTerminalHudDocked,
-    sessionId: controller?.sessionId ?? readStoredHostTerminalSessionId(),
+    sessionId: controller?.sessionId ?? readStoredHostTerminalSessionId(HOST_TERMINAL_SESSION_STORAGE_KEY),
     status: controller?.connectionState ?? "idle",
     statusLabel: hostTerminalStatusLabelForLayout,
     rect: frame?.rect ?? null,
@@ -1629,6 +1677,43 @@ function sqliteContextSnapshot(): SqliteHudContextSnapshot | null {
     selectedRowCount: selection.selectedRowCount,
     selectedRows: selection.selectedRows,
     selectionTruncated: selection.selectionTruncated,
+  }
+}
+
+function networkTerminalPayload(): unknown {
+  const controller = networkHostTerminal
+  const frame = controller === null || uiCanvas === null ? null : uiCanvas.surfaceFrame(controller.hudTerminal)
+  return {
+    docked: networkHostTerminalHudDocked,
+    sessionId: controller?.sessionId ?? readStoredHostTerminalSessionId(NETWORK_TERMINAL_SESSION_STORAGE_KEY),
+    status: controller?.connectionState ?? "idle",
+    statusLabel: controller?.statusLabel ?? t("terminalConnecting"),
+    rect: frame?.rect ?? null,
+  }
+}
+
+function setHudAndroidDocked(docked: boolean): unknown {
+  setAndroidHudDocked(docked)
+  return hudAndroidPayload()
+}
+
+function hudAndroidPayload(): unknown {
+  const frame = androidPane === null || uiCanvas === null ? null : uiCanvas.surfaceFrame(androidPane)
+  const androidFrame = androidPane?.frameSnapshot() ?? null
+  return {
+    docked: androidHudDocked,
+    rect: frame?.rect ?? null,
+    rtc: {
+      peerId: androidRtcClient?.peerId ?? null,
+      peers: androidRtcClient?.peers() ?? [],
+    },
+    frame: androidFrame === null
+      ? null
+      : {
+          width: androidFrame.width,
+          height: androidFrame.height,
+          capturedAt: androidFrame.capturedAt ?? null,
+        },
   }
 }
 
@@ -2247,6 +2332,19 @@ async function initEngine(): Promise<void> {
       onFrameRectChange: storeTodoHudRectAndRelayout,
       onFrameDockRequest: () => setTodoHudDocked(true),
     })
+    androidPane = new AndroidPane({
+      title: "Android",
+      draggable: true,
+      resizable: true,
+      onRefresh: () => connectAndroidRtc(),
+      onTap: (x, y) => void sendAndroidTap(x, y),
+      onSwipe: (swipe) => void sendAndroidSwipe(swipe),
+      onKey: (code) => void sendAndroidKey(code),
+      onLaunchPackage: (packageName) => void sendAndroidLaunchPackage(packageName),
+      onFrameRectPreview: previewAndroidHudRect,
+      onFrameRectChange: storeAndroidHudRectAndRelayout,
+      onFrameDockRequest: () => setAndroidHudDocked(true),
+    })
     voiceHudPane = new VoiceInputHud({
       onToggle: () => void toggleVoiceInput(),
       settings: () => ({
@@ -2350,6 +2448,13 @@ function installEnginePanes(): void {
   const host = ensureHostTerminalController()
   uiCanvas.addHudSurface(host.hudTerminal, hostTerminalHudRect)
   if (host.socket === null) connectHostTerminal(host)
+  const networkTerminal = ensureNetworkHostTerminalController()
+  uiCanvas.addHudSurface(networkTerminal.hudTerminal, networkTerminalHudRect)
+  if (!networkHostTerminalHudDocked && networkTerminal.socket === null) connectHostTerminal(networkTerminal)
+  if (androidPane !== null) {
+    uiCanvas.addHudSurface(androidPane, androidHudRect)
+    if (!androidHudDocked) connectAndroidRtc()
+  }
   hostTerminalAgentSignalPane ??= new HostTerminalAgentSignalPane()
   uiCanvas.addHudSurface(hostTerminalAgentSignalPane, hostTerminalAgentSignalRect, {zIndex: HUD_LAYER_TOP})
   hostTerminalDockPane ??= new HostTerminalDockPane(() => setHostTerminalHudDocked(false))
@@ -2406,6 +2511,116 @@ async function updateTodoItemChecked(id: string, checked: boolean): Promise<void
     console.warn("TODO checkbox update failed:", error)
     void loadTodoPane()
   }
+}
+
+async function refreshAndroidFrame(): Promise<void> {
+  if (androidPane === null) return
+  if (androidFrameRefreshInFlight) return
+  androidFrameRefreshInFlight = true
+  androidPane.setStatus("running", "capturing")
+  try {
+    const sizeResponse = await fetch("/android/size", {cache: "no-store"})
+    if (!sizeResponse.ok) throw new Error(await sizeResponse.text())
+    const size = await sizeResponse.json() as {w?: unknown; h?: unknown; width?: unknown; height?: unknown}
+    const width = androidDimension(size.w ?? size.width)
+    const height = androidDimension(size.h ?? size.height)
+    if (width === null || height === null) throw new Error("android size response is invalid")
+    androidPane.setDeviceSize(width, height)
+    const frameResponse = await fetch(`/android/screencap?t=${Date.now()}`, {cache: "no-store"})
+    if (!frameResponse.ok) throw new Error(await frameResponse.text())
+    const src = await blobToDataUrl(await frameResponse.blob())
+    androidPane.setFrame({src, width, height, capturedAt: Date.now()})
+    androidPane.setStatus("connected", `${width}x${height}`)
+    scheduleAndroidFrameRefresh(ANDROID_FRAME_REFRESH_MS)
+  } catch (error) {
+    androidPane.setStatus("error", error instanceof Error ? error.message : String(error))
+    scheduleAndroidFrameRefresh(2_000)
+  } finally {
+    androidFrameRefreshInFlight = false
+  }
+}
+
+function scheduleAndroidFrameRefresh(delayMs: number): void {
+  if (androidPane === null || androidHudDocked) return
+  if (androidFrameRefreshTimer !== null) window.clearTimeout(androidFrameRefreshTimer)
+  androidFrameRefreshTimer = window.setTimeout(() => {
+    androidFrameRefreshTimer = null
+    void refreshAndroidFrame()
+  }, Math.max(0, delayMs))
+}
+
+function connectAndroidRtc(): void {
+  if (androidPane === null) return
+  if (androidRtcClient === null) {
+    androidRtcClient = createAndroidRtcClient({
+      frameSrc: ANDROID_RTC_FRAME_SRC,
+      onFrame: (frame) => {
+        androidPane?.setFrame(frame)
+        androidPane?.setStatus("connected", `${frame.width}x${frame.height} rtc`)
+      },
+      onStatus: (kind, label) => androidPane?.setStatus(kind, label),
+    })
+  }
+  androidRtcClient.connect()
+}
+
+async function sendAndroidTap(x: number, y: number): Promise<void> {
+  await sendAndroidControlOrFallback({type: "tap", x, y}, "/android/tap", {x, y})
+}
+
+async function sendAndroidSwipe(swipe: AndroidPaneSwipe): Promise<void> {
+  await sendAndroidControlOrFallback({type: "swipe", ...swipe}, "/android/swipe", swipe)
+}
+
+async function sendAndroidKey(code: string): Promise<void> {
+  await sendAndroidControlOrFallback({type: "key", code}, "/android/key", {code})
+}
+
+async function sendAndroidLaunchPackage(packageName: string): Promise<void> {
+  await sendAndroidControlOrFallback({type: "launch", packageName}, "/android/key", {code: "KEYCODE_HOME"})
+}
+
+async function sendAndroidControlOrFallback(command: AndroidRtcCommand, fallbackPath: string, fallbackBody: Record<string, unknown>): Promise<void> {
+  if (androidRtcClient?.send(command) === true) {
+    androidPane?.setStatus("connected", "rtc command")
+    return
+  }
+  await postAndroidCommand(fallbackPath, fallbackBody)
+}
+
+async function postAndroidCommand(path: string, body: Record<string, unknown>): Promise<void> {
+  if (androidPane === null) return
+  androidPane.setStatus("running", "command")
+  try {
+    const response = await fetch(path, {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify(body),
+    })
+    if (!response.ok) throw new Error(await response.text())
+    androidPane.setStatus("connected", "command sent")
+    scheduleAndroidFrameRefresh(120)
+  } catch (error) {
+    androidPane.setStatus("error", error instanceof Error ? error.message : String(error))
+    scheduleAndroidFrameRefresh(1_500)
+  }
+}
+
+function androidDimension(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return null
+  return Math.round(value)
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.addEventListener("load", () => {
+      if (typeof reader.result === "string") resolve(reader.result)
+      else reject(new Error("android frame is not a data URL"))
+    })
+    reader.addEventListener("error", () => reject(reader.error ?? new Error("android frame read failed")))
+    reader.readAsDataURL(blob)
+  })
 }
 
 function updateTodoContext(context: ToDoPaneContextSnapshot): void {
@@ -2465,8 +2680,15 @@ function storeTodoPanelState(state: ToDoPanePanelStateSnapshot): void {
 function toggleLocale(): void {
   toggleUiLocale()
   if (hostTerminal !== null) {
+    hostTerminal.title = hostTerminalTitle()
     for (const pane of hostTerminalPanes(hostTerminal)) {
-      pane.setTitle(hostTerminalTitle())
+      pane.setTitle(hostTerminal.title)
+      pane.requestRender()
+    }
+  }
+  if (networkHostTerminal !== null) {
+    for (const pane of hostTerminalPanes(networkHostTerminal)) {
+      pane.setTitle(networkHostTerminal.title)
       pane.requestRender()
     }
   }
@@ -5202,6 +5424,7 @@ function ensureHostTerminalController(): HostTerminalController {
   if (hostTerminal !== null) return hostTerminal
   const controller = {} as HostTerminalController
   const hudTerminal = createHostTerminalPane(controller, "InterpreterHostTerminalHud", {
+    title: hostTerminalTitle(),
     fontPx: 12,
     linePx: 17,
     draggable: true,
@@ -5213,10 +5436,15 @@ function ensureHostTerminalController(): HostTerminalController {
   })
   Object.assign(controller, {
     hudTerminal,
+    title: hostTerminalTitle(),
+    sessionStorageKey: HOST_TERMINAL_SESSION_STORAGE_KEY,
+    initialCommand: null,
+    initialCommandSent: false,
     socket: null,
-    sessionId: readStoredHostTerminalSessionId(),
+    sessionId: readStoredHostTerminalSessionId(HOST_TERMINAL_SESSION_STORAGE_KEY),
     terminalSize: null,
     connectionState: "idle" as PtyStatusKind,
+    statusLabel: t("terminalConnecting"),
     terminalState: null,
     localEchoId: 0,
     agentNotifyArmed: false,
@@ -5228,8 +5456,48 @@ function ensureHostTerminalController(): HostTerminalController {
   hostTerminal = controller
   if (!hostTerminalUnloadInstalled) {
     hostTerminalUnloadInstalled = true
-    window.addEventListener("beforeunload", () => hostTerminal?.socket?.close())
+    window.addEventListener("beforeunload", () => {
+      hostTerminal?.socket?.close()
+      networkHostTerminal?.socket?.close()
+    })
   }
+  return controller
+}
+
+function ensureNetworkHostTerminalController(): HostTerminalController {
+  if (networkHostTerminal !== null) return networkHostTerminal
+  const controller = {} as HostTerminalController
+  const hudTerminal = createHostTerminalPane(controller, "InterpreterNetworkTerminalHud", {
+    title: "Network · tmux",
+    fontPx: 12,
+    linePx: 17,
+    draggable: true,
+    resizable: true,
+    onResize: (size) => resizeHostTerminalFromPane(controller, hudTerminal, size),
+    onFrameRectPreview: previewNetworkTerminalHudRect,
+    onFrameRectChange: storeNetworkTerminalHudRectAndRelayout,
+    onFrameDockRequest: () => setNetworkTerminalDocked(true),
+  })
+  Object.assign(controller, {
+    hudTerminal,
+    title: "Network · tmux",
+    sessionStorageKey: NETWORK_TERMINAL_SESSION_STORAGE_KEY,
+    initialCommand: NETWORK_TERMINAL_INITIAL_COMMAND,
+    initialCommandSent: false,
+    socket: null,
+    sessionId: readStoredHostTerminalSessionId(NETWORK_TERMINAL_SESSION_STORAGE_KEY),
+    terminalSize: null,
+    connectionState: "idle" as PtyStatusKind,
+    statusLabel: t("terminalConnecting"),
+    terminalState: null,
+    localEchoId: 0,
+    agentNotifyArmed: false,
+    agentNotifySawOutput: false,
+    agentNotifyLastOutputAt: 0,
+    agentNotifyLastPlayedAt: 0,
+    agentNotifyTimer: null,
+  } satisfies HostTerminalController)
+  networkHostTerminal = controller
   return controller
 }
 
@@ -5237,6 +5505,7 @@ function createHostTerminalPane(
   controller: HostTerminalController,
   name: string,
   opts: {
+    title: string
     fontPx: number
     linePx: number
     fitToRect?: boolean
@@ -5251,7 +5520,7 @@ function createHostTerminalPane(
 ): TerminalPane {
   let terminal: TerminalPane | null = null
   const terminalOpts: TerminalPaneOpts = {
-    title: hostTerminalTitle(),
+    title: opts.title,
     status: t("terminalConnecting"),
     statusKind: "idle",
     fontPx: opts.fontPx,
@@ -5428,11 +5697,15 @@ function handleHostTerminalMessage(controller: HostTerminalController, event: Me
   if (message.type === "terminal.ready") {
     controller.sessionId = message.sessionId
     updateHostTerminalState(controller, message.state)
-    writeStoredHostTerminalSessionId(message.sessionId)
+    writeStoredHostTerminalSessionId(controller.sessionStorageKey, message.sessionId)
     setHostTerminalStatus(controller, "connected", shellLabel(message.shell))
     if (voiceActiveTarget === null) setVoiceActiveTarget({kind: "host", controller})
     else scheduleVoiceAutoWake()
     if (controller.terminalSize !== null) sendHostTerminal(controller, {type: "terminal.resize", size: controller.terminalSize})
+    if (controller.initialCommand !== null && !controller.initialCommandSent && !message.restored) {
+      controller.initialCommandSent = true
+      window.setTimeout(() => sendHostTerminalInput(controller, controller.initialCommand ?? "", "api"), 80)
+    }
     return
   }
 
@@ -5520,8 +5793,11 @@ function playAgentReadySignal(): void {
 }
 
 function setHostTerminalStatus(controller: HostTerminalController, kind: PtyStatusKind, label: string): void {
-  hostTerminalStatusLabelForLayout = label
-  hostTerminalAgentSignalPane?.requestRender()
+  controller.statusLabel = label
+  if (controller === hostTerminal) {
+    hostTerminalStatusLabelForLayout = label
+    hostTerminalAgentSignalPane?.requestRender()
+  }
   controller.connectionState = kind
   const paneKind = statusKindForHostTerminal(kind)
   for (const pane of hostTerminalPanes(controller)) pane.setStatus(paneKind, label)
@@ -5560,18 +5836,18 @@ function shellLabel(shell: string): string {
   return parts[parts.length - 1] || shell
 }
 
-function readStoredHostTerminalSessionId(): string | null {
+function readStoredHostTerminalSessionId(storageKey: string): string | null {
   try {
-    const value = localStorage.getItem(HOST_TERMINAL_SESSION_STORAGE_KEY)
+    const value = localStorage.getItem(storageKey)
     return value === null || value.length < 8 ? null : value
   } catch {
     return null
   }
 }
 
-function writeStoredHostTerminalSessionId(value: string): void {
+function writeStoredHostTerminalSessionId(storageKey: string, value: string): void {
   try {
-    localStorage.setItem(HOST_TERMINAL_SESSION_STORAGE_KEY, value)
+    localStorage.setItem(storageKey, value)
   } catch {
     // Storage can be disabled in private contexts.
   }
@@ -5603,6 +5879,64 @@ function previewHostTerminalHudRect(rect: UiSurfaceRect): void {
 function storeHostTerminalHudRectAndRelayout(rect: UiSurfaceRect): void {
   hostTerminalHudRectPreview = null
   storeHostTerminalHudRect(rect)
+  relayoutHudSurfaces()
+}
+
+function readStoredNetworkTerminalHudRect(): UiSurfaceRect | null {
+  try {
+    return parseStoredPaneRect(localStorage.getItem(NETWORK_TERMINAL_HUD_RECT_STORAGE_KEY))
+  } catch {
+    return null
+  }
+}
+
+function storeNetworkTerminalHudRect(rect: UiSurfaceRect): void {
+  const normalized = normalizeStoredPaneRect(rect)
+  if (normalized === null) return
+  try {
+    localStorage.setItem(NETWORK_TERMINAL_HUD_RECT_STORAGE_KEY, JSON.stringify(normalized))
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+}
+
+function previewNetworkTerminalHudRect(rect: UiSurfaceRect): void {
+  networkHostTerminalHudRectPreview = rect
+  relayoutHudSurfaces()
+}
+
+function storeNetworkTerminalHudRectAndRelayout(rect: UiSurfaceRect): void {
+  networkHostTerminalHudRectPreview = null
+  storeNetworkTerminalHudRect(rect)
+  relayoutHudSurfaces()
+}
+
+function readStoredAndroidHudRect(): UiSurfaceRect | null {
+  try {
+    return parseStoredPaneRect(localStorage.getItem(ANDROID_HUD_RECT_STORAGE_KEY))
+  } catch {
+    return null
+  }
+}
+
+function storeAndroidHudRect(rect: UiSurfaceRect): void {
+  const normalized = normalizeStoredPaneRect(rect)
+  if (normalized === null) return
+  try {
+    localStorage.setItem(ANDROID_HUD_RECT_STORAGE_KEY, JSON.stringify(normalized))
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+}
+
+function previewAndroidHudRect(rect: UiSurfaceRect): void {
+  androidHudRectPreview = rect
+  relayoutHudSurfaces()
+}
+
+function storeAndroidHudRectAndRelayout(rect: UiSurfaceRect): void {
+  androidHudRectPreview = null
+  storeAndroidHudRect(rect)
   relayoutHudSurfaces()
 }
 
@@ -5675,6 +6009,40 @@ function readStoredHostTerminalHudDocked(): boolean {
 function writeStoredHostTerminalHudDocked(docked: boolean): void {
   try {
     localStorage.setItem(HOST_TERMINAL_HUD_DOCKED_STORAGE_KEY, docked ? "1" : "0")
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+}
+
+function readStoredNetworkTerminalHudDocked(): boolean {
+  try {
+    const value = localStorage.getItem(NETWORK_TERMINAL_HUD_DOCKED_STORAGE_KEY)
+    return value === null ? true : value === "1"
+  } catch {
+    return true
+  }
+}
+
+function writeStoredNetworkTerminalHudDocked(docked: boolean): void {
+  try {
+    localStorage.setItem(NETWORK_TERMINAL_HUD_DOCKED_STORAGE_KEY, docked ? "1" : "0")
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+}
+
+function readStoredAndroidHudDocked(): boolean {
+  try {
+    const value = localStorage.getItem(ANDROID_HUD_DOCKED_STORAGE_KEY)
+    return value === null ? true : value === "1"
+  } catch {
+    return true
+  }
+}
+
+function writeStoredAndroidHudDocked(docked: boolean): void {
+  try {
+    localStorage.setItem(ANDROID_HUD_DOCKED_STORAGE_KEY, docked ? "1" : "0")
   } catch {
     // Storage can be disabled in private contexts.
   }
@@ -5813,6 +6181,46 @@ function setHostTerminalHudDocked(docked: boolean): void {
   }
   controller?.hudTerminal.requestRender()
   hostTerminalDockPane?.requestRender()
+  relayoutHudSurfaces()
+}
+
+function setNetworkTerminalDocked(docked: boolean): unknown {
+  const controller = ensureNetworkHostTerminalController()
+  if (networkHostTerminalHudDocked !== docked) {
+    networkHostTerminalHudDocked = docked
+    writeStoredNetworkTerminalHudDocked(docked)
+  }
+  if (!docked) {
+    if (controller.socket === null) connectHostTerminal(controller)
+    controller.hudTerminal.focus()
+  } else if (uiCanvas !== null && controller.hudTerminal.isFocused()) {
+    uiCanvas.setFocused(null)
+    uiCanvas.inputProxy?.blur()
+  }
+  controller.hudTerminal.requestRender()
+  relayoutHudSurfaces()
+  return networkTerminalPayload()
+}
+
+function setAndroidHudDocked(docked: boolean): void {
+  if (androidHudDocked === docked) return
+  androidHudDocked = docked
+  writeStoredAndroidHudDocked(docked)
+  if (docked) {
+    if (androidFrameRefreshTimer !== null) {
+      window.clearTimeout(androidFrameRefreshTimer)
+      androidFrameRefreshTimer = null
+    }
+    if (androidPane !== null && uiCanvas !== null) {
+      uiCanvas.setFocused(null)
+      uiCanvas.inputProxy?.blur()
+    }
+    androidRtcClient?.disconnect()
+  } else {
+    uiCanvas?.setFocused(androidPane)
+    connectAndroidRtc()
+  }
+  androidPane?.requestRender()
   relayoutHudSurfaces()
 }
 
@@ -7990,6 +8398,24 @@ function hostTerminalHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   return clampHostTerminalHudRect(DEFAULT_HOST_TERMINAL_HUD_RECT, w, h)
 }
 
+function networkTerminalHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
+  if (networkHostTerminalHudDocked) return hiddenRect()
+  if (w < HOST_TERMINAL_HUD_MIN_W || h < HOST_TERMINAL_HUD_MIN_H) return hiddenRect()
+  if (networkHostTerminalHudRectPreview !== null) return clampHostTerminalHudRect(networkHostTerminalHudRectPreview, w, h)
+  const stored = readStoredNetworkTerminalHudRect()
+  if (stored !== null) return clampHostTerminalHudRect(stored, w, h)
+  return clampHostTerminalHudRect(DEFAULT_NETWORK_TERMINAL_HUD_RECT, w, h)
+}
+
+function androidHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
+  if (androidHudDocked) return hiddenRect()
+  if (w < ANDROID_HUD_MIN_W || h < ANDROID_HUD_MIN_H) return hiddenRect()
+  if (androidHudRectPreview !== null) return clampAndroidHudRect(androidHudRectPreview, w, h)
+  const stored = readStoredAndroidHudRect()
+  if (stored !== null) return clampAndroidHudRect(stored, w, h)
+  return clampAndroidHudRect(DEFAULT_ANDROID_HUD_RECT, w, h)
+}
+
 function todoHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   if (todoHudDocked) return hiddenRect()
   if (w < TODO_HUD_MIN_W || h < TODO_HUD_MIN_H) return hiddenRect()
@@ -8365,6 +8791,21 @@ function clampHostTerminalHudRect(rect: UiSurfaceRect, boundsW: number, boundsH:
   const bh = Math.max(1, Math.round(boundsH))
   const minW = Math.min(HOST_TERMINAL_HUD_PANEL_MIN_W, bw)
   const minH = Math.min(HOST_TERMINAL_HUD_PANEL_MIN_H, bh)
+  const rectW = clampNumber(rect.w, minW, bw)
+  const rectH = clampNumber(rect.h, minH, bh)
+  return {
+    x: clampNumber(rect.x, 0, Math.max(0, bw - rectW)),
+    y: clampNumber(rect.y, 0, Math.max(0, bh - rectH)),
+    w: rectW,
+    h: rectH,
+  }
+}
+
+function clampAndroidHudRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): UiSurfaceRect {
+  const bw = Math.max(1, Math.round(boundsW))
+  const bh = Math.max(1, Math.round(boundsH))
+  const minW = Math.min(ANDROID_HUD_MIN_W, bw)
+  const minH = Math.min(ANDROID_HUD_MIN_H, bh)
   const rectW = clampNumber(rect.w, minW, bw)
   const rectH = clampNumber(rect.h, minH, bh)
   return {
