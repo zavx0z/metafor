@@ -1,0 +1,3074 @@
+import type {BulkViewportController, BulkViewportStats} from "bulk/web"
+import {Color} from "@metafor/engine"
+import {
+	UiSurface,
+	Z,
+	div,
+	palette,
+	radii,
+	uiIcons,
+	type DivScrollContext,
+	type UiSurfaceRect,
+} from "@ui/elements"
+import {
+	Button,
+	IconButton,
+	Switcher,
+	TextField,
+	VoiceInputHud,
+	type VoiceInputHudDeactivationMode,
+	type VoiceInputHudPhraseGroupId,
+	type VoiceInputHudServiceState,
+} from "@ui/components"
+import {HudSideTab, type HudSideTabEdge} from "@ui/hud"
+import {
+	TerminalPane,
+	ToDoPane,
+	PANE_FRAME,
+	beginPaneFrameDrag,
+	paneBodyRect,
+	paneFrameCursor,
+	paneFrameDragRect,
+	paneFrameHit,
+	paneHeaderRuleRect,
+	type PaneFrameDrag,
+	type PaneFrameInteractionOpts,
+	type PaneRect,
+	type TerminalInputSource,
+	type TerminalSize,
+	type TerminalStatusKind,
+	type ToDoPanePanelStateSnapshot,
+} from "@ui/panes"
+import type {PtyClientMessage, PtyServerMessage, PtyStatusKind, PtyTerminalState} from "@metafor/pty/server"
+import {
+	DEFAULT_VOICE_ACTIVATION_PHRASES,
+	DEFAULT_VOICE_DEACTIVATION_PHRASES,
+	DEFAULT_VOICE_STOP_PHRASES,
+	VOICE_STOP_COMMAND_DETAIL,
+	VoiceInputClient,
+	cleanupVoiceText,
+	normalizeVoicePhrases,
+	type VoiceDeactivationMode,
+	type VoiceInputChunk,
+	type VoiceInputSegment,
+	type VoiceInputSignalTone,
+	type VoiceInputStatus,
+} from "../../pkg/interpreter/web/voice-input.ts"
+import {
+	APP_WEB_LAYOUT_SETTING_KEYS,
+	APP_WEB_RENDER_SETTING_KEYS,
+	APP_WEB_SETTINGS_BY_KEY,
+	type AppWebLayoutSettings,
+	type AppWebRenderSettings,
+	type AppWebSettingKey,
+} from "./settings.ts"
+
+export type AppWebHudSettingsSnapshot = {
+	layoutSettings: Partial<AppWebLayoutSettings>
+	renderSettings: Partial<AppWebRenderSettings>
+}
+
+export type AppWebHudOptions = {
+	viewport: BulkViewportController
+	initialSrc: string
+	initialSettings: AppWebHudSettingsSnapshot
+	onApply(src: string, settings: AppWebHudSettingsSnapshot): void
+	onRenderSettingsChange(settings: Partial<AppWebRenderSettings>): void
+	onSettingsPersist(settings: AppWebHudSettingsSnapshot): void
+}
+
+export type AppWebHudController = {
+	currentSrc(): string
+	settingsSnapshot(): AppWebHudSettingsSnapshot
+	setBusy(busy: boolean): void
+	setConnectionStatus(online: boolean): void
+	setStats(stats: BulkViewportStats): void
+	setTodoMarkdown(text: string, path: string): void
+}
+
+type DockKind = "codex" | "settings" | "todo" | "fullscreen"
+type SettingsTab = "scene" | "geometry" | "render" | "voice"
+
+type DockPlacement = {
+	edge: HudSideTabEdge
+	offset: number
+}
+
+type TerminalController = {
+	pane: TerminalPane
+	socket: WebSocket | null
+	sessionId: string | null
+	size: TerminalSize | null
+	state: PtyTerminalState | null
+	statusLabel: string
+	localEchoId: number
+	agentNotifyArmed: boolean
+	agentNotifySawOutput: boolean
+	agentNotifyLastOutputAt: number
+	agentNotifyLastPlayedAt: number
+	agentNotifyTimer: ReturnType<typeof setTimeout> | null
+}
+
+const STORAGE_PREFIX = "metafor.app-web.hud"
+const CODEX_SESSION_STORAGE_KEY = `${STORAGE_PREFIX}.codex.sessionId:v1`
+const CODEX_DOCKED_STORAGE_KEY = `${STORAGE_PREFIX}.codex.docked:v1`
+const CODEX_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.codex.rect:v1`
+const CODEX_DOCK_PLACEMENT_STORAGE_KEY = `${STORAGE_PREFIX}.codex.dockPlacement:v2`
+const SETTINGS_DOCKED_STORAGE_KEY = `${STORAGE_PREFIX}.settings.docked:v1`
+const SETTINGS_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.settings.rect:v2`
+const SETTINGS_DOCK_PLACEMENT_STORAGE_KEY = `${STORAGE_PREFIX}.settings.dockPlacement:v2`
+const TODO_DOCKED_STORAGE_KEY = `${STORAGE_PREFIX}.todo.docked:v1`
+const TODO_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.todo.rect:v1`
+const TODO_DOCK_PLACEMENT_STORAGE_KEY = `${STORAGE_PREFIX}.todo.dockPlacement:v2`
+const TODO_PANEL_STATE_STORAGE_KEY = `${STORAGE_PREFIX}.todo.panelState:v1`
+const FULLSCREEN_DOCK_PLACEMENT_STORAGE_KEY = `${STORAGE_PREFIX}.fullscreen.dockPlacement:v1`
+const VOICE_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.voice.rect:v1`
+const VOICE_INPUT_URL_STORAGE_KEY = "metafor.interpreter.voice.url"
+const VOICE_WAKE_URL_STORAGE_KEY = "metafor.interpreter.voice.wakeUrl"
+const VOICE_INPUT_CONTEXT_STORAGE_KEY = "metafor.interpreter.voice.context"
+const VOICE_WAKE_PHRASES_STORAGE_KEY = "metafor.interpreter.voice.wakePhrases:v1"
+const VOICE_ACTIVATION_PHRASES_STORAGE_KEY = "metafor.interpreter.voice.activationPhrases:v1"
+const VOICE_DEACTIVATION_PHRASES_STORAGE_KEY = "metafor.interpreter.voice.deactivationPhrases:v1"
+const VOICE_STOP_PHRASES_STORAGE_KEY = "metafor.interpreter.voice.stopPhrases:v1"
+const VOICE_ACTIVATION_FUZZY_STORAGE_KEY = "metafor.interpreter.voice.activationFuzzy:v1"
+const VOICE_DEACTIVATION_FUZZY_STORAGE_KEY = "metafor.interpreter.voice.deactivationFuzzy:v1"
+const VOICE_STOP_FUZZY_STORAGE_KEY = "metafor.interpreter.voice.stopFuzzy:v1"
+const VOICE_DEACTIVATION_MODE_STORAGE_KEY = "metafor.interpreter.voice.deactivationMode:v1"
+const VOICE_RECOGNITION_TIMEOUT_STORAGE_KEY = "metafor.interpreter.voice.recognitionTimeoutSeconds:v1"
+const VOICE_AUTO_SEND_STORAGE_KEY = "metafor.interpreter.voice.autoSend:v1"
+const VOICE_SIGNAL_VOLUME_LEGACY_STORAGE_KEY = "metafor.interpreter.voice.signalVolume:v1"
+const VOICE_SIGNAL_VOLUME_STORAGE_KEY = "metafor.interpreter.voice.signalVolume:v2"
+const HOST_TERMINAL_AGENT_SOUND_ENABLED_STORAGE_KEY = "metafor.interpreter.hostTerminal.agentSoundEnabled:v1"
+const HOST_TERMINAL_AGENT_SOUND_VOLUME_STORAGE_KEY = "metafor.interpreter.hostTerminal.agentSoundVolume:v1"
+const HOST_TERMINAL_AGENT_SOUND_VOLUME_LEGACY_STORAGE_KEY = "metafor.interpreter.voice.agentReadyVolume:v1"
+const VOICE_SETTINGS_STORAGE_KEYS = [
+	VOICE_INPUT_URL_STORAGE_KEY,
+	VOICE_WAKE_URL_STORAGE_KEY,
+	VOICE_INPUT_CONTEXT_STORAGE_KEY,
+	VOICE_WAKE_PHRASES_STORAGE_KEY,
+	VOICE_ACTIVATION_PHRASES_STORAGE_KEY,
+	VOICE_DEACTIVATION_PHRASES_STORAGE_KEY,
+	VOICE_STOP_PHRASES_STORAGE_KEY,
+	VOICE_ACTIVATION_FUZZY_STORAGE_KEY,
+	VOICE_DEACTIVATION_FUZZY_STORAGE_KEY,
+	VOICE_STOP_FUZZY_STORAGE_KEY,
+	VOICE_DEACTIVATION_MODE_STORAGE_KEY,
+	VOICE_RECOGNITION_TIMEOUT_STORAGE_KEY,
+	VOICE_AUTO_SEND_STORAGE_KEY,
+	VOICE_SIGNAL_VOLUME_LEGACY_STORAGE_KEY,
+	VOICE_SIGNAL_VOLUME_STORAGE_KEY,
+	HOST_TERMINAL_AGENT_SOUND_ENABLED_STORAGE_KEY,
+	HOST_TERMINAL_AGENT_SOUND_VOLUME_STORAGE_KEY,
+	HOST_TERMINAL_AGENT_SOUND_VOLUME_LEGACY_STORAGE_KEY,
+] as const
+
+type HudNotificationKind = "activation" | "deactivation" | "stop" | "agent"
+
+const DEFAULT_VOICE_INPUT_URL = "ws://127.0.0.1:8877/ws"
+const DEFAULT_VOICE_WAKE_URL = "ws://127.0.0.1:4765/ws"
+const DEFAULT_VOICE_AUTO_SEND_ENABLED = true
+const DEFAULT_VOICE_DEACTIVATION_MODE: VoiceDeactivationMode = "phrase-timeout"
+const DEFAULT_VOICE_RECOGNITION_TIMEOUT_SECONDS = 3
+const DEFAULT_VOICE_SIGNAL_VOLUME = 0.2
+const DEFAULT_HOST_TERMINAL_AGENT_SOUND_ENABLED = true
+const DEFAULT_HOST_TERMINAL_AGENT_SOUND_VOLUME = 1
+const MAX_VOICE_SIGNAL_VOLUME = 3
+const MAX_HOST_TERMINAL_AGENT_SOUND_VOLUME = 1
+const MIN_VOICE_RECOGNITION_TIMEOUT_SECONDS = 3
+const MAX_VOICE_RECOGNITION_TIMEOUT_SECONDS = 60
+const DEFAULT_VOICE_ACTIVATION_FUZZY = 0.05
+const DEFAULT_VOICE_DEACTIVATION_FUZZY = 0.05
+const DEFAULT_VOICE_STOP_FUZZY = 0.06
+const VOICE_MESSAGE_PAUSE_SECONDS = 1.6
+const VOICE_SIGNAL_COOLDOWN_MS = 900
+const AGENT_READY_SOUND_IDLE_MS = 2500
+const AGENT_READY_SOUND_COOLDOWN_MS = 1200
+const CODEX_TITLE = "Codex"
+const CODEX_MODEL = "GPT-5"
+const DOCK_SHORT = 40
+const DOCK_MARGIN = 8
+const DOCK_LONG_PRESS_MS = 320
+const DOCK_DRAG_THRESHOLD_PX = 6
+const SETTINGS_SCROLL_KEY = "app-web-settings-pane:scroll"
+const SETTINGS_MIN_W = 360
+const SETTINGS_MIN_H = PANE_FRAME.headerHeight + 260
+const AGENT_SIGNAL_BUTTON_SIZE = 22
+const AGENT_SIGNAL_HEADER_Y = 8
+const AGENT_SIGNAL_HEADER_GAP = 8
+const AGENT_SIGNAL_HEADER_TEXT_X = 16
+const AGENT_SIGNAL_STATUS_MIN_W = 96
+const AGENT_SIGNAL_STATUS_MAX_W = 210
+const AGENT_SIGNAL_PANEL_W = 300
+const AGENT_SIGNAL_PANEL_H = 112
+const VOICE_HUD_W = 128
+const VOICE_HUD_H = 128
+const VOICE_HUD_MARGIN = 8
+const VOICE_SERVICE_CHECK_TIMEOUT_MS = 2500
+const HUD_PANEL_BG = new Color(palette.bg.r, palette.bg.g, palette.bg.b, 0.68)
+let hudNotificationAudioContext: AudioContext | null = null
+let hudNotificationSoundUnlockInstalled = false
+let hudNotificationLastLine = ""
+let hudNotificationLastAt: Date | null = null
+const hudNotificationAudioElements = new Map<HudNotificationKind, HTMLAudioElement>()
+const voiceSignalLastPlayedAt = new Map<HudNotificationKind, number>()
+
+export function installAppWebHud(options: AppWebHudOptions): AppWebHudController {
+	return new AppWebHud(options)
+}
+
+class AppWebHud implements AppWebHudController {
+	readonly #viewport: BulkViewportController
+	readonly #onApply: AppWebHudOptions["onApply"]
+	readonly #onRenderSettingsChange: AppWebHudOptions["onRenderSettingsChange"]
+	readonly #onSettingsPersist: AppWebHudOptions["onSettingsPersist"]
+	readonly #settingsPane: AppWebSettingsPane
+	readonly #codexDock: AppWebDockPane
+	readonly #settingsDock: AppWebDockPane
+	readonly #todoDock: AppWebDockPane
+	readonly #fullscreenDock: AppWebDockPane
+	readonly #todoPane: ToDoPane
+	readonly #agentSignalPane: AppWebAgentSignalPane
+	readonly #voiceHud: VoiceInputHud
+	readonly #terminal: TerminalController
+	#src: string
+	#settings: AppWebHudSettingsSnapshot
+	#stats: BulkViewportStats = {shellCount: 0, fieldCount: 0}
+	#connected = false
+	#busy = true
+	#codexDocked = readStoredBoolean(CODEX_DOCKED_STORAGE_KEY, false)
+	#settingsDocked = readStoredBoolean(SETTINGS_DOCKED_STORAGE_KEY, false)
+	#todoDocked = readStoredBoolean(TODO_DOCKED_STORAGE_KEY, true)
+	#codexDockPlacement: DockPlacement | null = readStoredDockPlacement(CODEX_DOCK_PLACEMENT_STORAGE_KEY)
+	#settingsDockPlacement: DockPlacement | null = readStoredDockPlacement(SETTINGS_DOCK_PLACEMENT_STORAGE_KEY)
+	#todoDockPlacement: DockPlacement | null = readStoredDockPlacement(TODO_DOCK_PLACEMENT_STORAGE_KEY)
+	#fullscreenDockPlacement: DockPlacement | null = readStoredDockPlacement(FULLSCREEN_DOCK_PLACEMENT_STORAGE_KEY)
+	#fullscreen = document.fullscreenElement !== null
+	#voiceClient: VoiceInputClient | null = null
+	#voiceStatus: VoiceInputStatus = "idle"
+	#voiceDetail = ""
+	#voiceLevel = 0
+	#voiceServiceState: VoiceInputHudServiceState = "unknown"
+	#voiceServiceDetail = "ASR не проверен"
+	#voiceServiceCheckInFlight = false
+	#voiceRectOverride: UiSurfaceRect | null = readStoredRect(VOICE_RECT_STORAGE_KEY)
+	#voiceWakeLines: string[] = []
+	#voiceAutoSendText = ""
+	#voiceNextFlushMode: "auto" | "draft" = "auto"
+	#voicePartialPreviewText = ""
+
+	constructor(options: AppWebHudOptions) {
+		this.#viewport = options.viewport
+		this.#onApply = options.onApply
+		this.#onRenderSettingsChange = options.onRenderSettingsChange
+		this.#onSettingsPersist = options.onSettingsPersist
+		this.#src = options.initialSrc
+		this.#settings = cloneSettings(options.initialSettings)
+		this.#settingsPane = new AppWebSettingsPane(this)
+		const todoState = readStoredTodoPanelState()
+		this.#todoPane = new ToDoPane({
+			title: "TODO.md",
+			path: "TODO.md",
+			draggable: true,
+			resizable: true,
+			highlightedIds: todoState.highlightedIds,
+			expandedCompletedIds: todoState.expandedCompletedIds,
+			onPanelStateChange: (state) => writeStoredJson(TODO_PANEL_STATE_STORAGE_KEY, state),
+			onItemCheckedChange: (id, checked) => void this.#patchTodoItem(id, checked),
+			onFrameRectChange: (rect) => writeStoredRect(TODO_RECT_STORAGE_KEY, rect),
+			onFrameDockRequest: () => this.setDocked("todo", true),
+		})
+		this.#agentSignalPane = new AppWebAgentSignalPane(this)
+		this.#terminal = this.#createTerminalController()
+		this.#voiceHud = this.#createVoiceHud()
+		this.#codexDock = new AppWebDockPane(this, "codex")
+		this.#settingsDock = new AppWebDockPane(this, "settings")
+		this.#todoDock = new AppWebDockPane(this, "todo")
+		this.#fullscreenDock = new AppWebDockPane(this, "fullscreen")
+
+		this.#viewport.hud.addSurface(this.#terminal.pane, (bounds) => this.#codexRect(bounds), {zIndex: 20})
+		this.#viewport.hud.addSurface(this.#settingsPane, (bounds) => this.#settingsRect(bounds), {zIndex: 24})
+		this.#viewport.hud.addSurface(this.#todoPane, (bounds) => this.#todoRect(bounds), {zIndex: 22})
+		this.#viewport.hud.addSurface(this.#agentSignalPane, (bounds) => this.#agentSignalRect(bounds), {zIndex: 41})
+		this.#viewport.hud.addSurface(this.#codexDock, (bounds) => this.#dockRect("codex", bounds), {zIndex: 40})
+		this.#viewport.hud.addSurface(this.#settingsDock, (bounds) => this.#dockRect("settings", bounds), {zIndex: 40})
+		this.#viewport.hud.addSurface(this.#todoDock, (bounds) => this.#dockRect("todo", bounds), {zIndex: 40})
+		this.#viewport.hud.addSurface(this.#fullscreenDock, (bounds) => this.#dockRect("fullscreen", bounds), {zIndex: 40})
+		this.#viewport.hud.addSurface(this.#voiceHud, (bounds) => this.#voiceRect(bounds), {zIndex: 50})
+
+		document.addEventListener("fullscreenchange", () => this.#handleFullscreenChange())
+		this.#connectTerminal()
+		void this.#loadTodo()
+		void this.#checkVoiceService()
+		this.#updateVoiceHud()
+		void this.#importInterpreterVoiceSettings()
+		installHudNotificationSoundUnlock()
+	}
+
+	currentSrc(): string {
+		return this.#src
+	}
+
+	settingsSnapshot(): AppWebHudSettingsSnapshot {
+		return cloneSettings(this.#settings)
+	}
+
+	setBusy(busy: boolean): void {
+		if (this.#busy === busy) return
+		this.#busy = busy
+		this.#settingsPane.requestRender()
+	}
+
+	setConnectionStatus(online: boolean): void {
+		if (this.#connected === online) return
+		this.#connected = online
+		this.#settingsPane.requestRender()
+	}
+
+	setStats(stats: BulkViewportStats): void {
+		this.#stats = stats
+		this.#settingsPane.requestRender()
+	}
+
+	setTodoMarkdown(text: string, path: string): void {
+		this.#todoPane.setMarkdown(text, path)
+	}
+
+	statsLine(): string {
+		const root = this.#stats.rootSrc ? `${this.#stats.rootSrc}: ` : ""
+		return `${root}${this.#stats.shellCount} shells / ${this.#stats.fieldCount} fields`
+	}
+
+	connectionLine(): string {
+		return this.#connected ? "socket online" : "socket offline"
+	}
+
+	terminalStatusLabel(): string {
+		return this.#terminal.statusLabel
+	}
+
+	agentSoundEnabled(): boolean {
+		return readHostTerminalAgentSoundEnabled()
+	}
+
+	setAgentSoundEnabled(enabled: boolean): void {
+		writeHostTerminalAgentSoundEnabled(enabled)
+		this.#agentSignalPane.requestRender()
+	}
+
+	agentSoundVolume(): number {
+		return readHostTerminalAgentSoundVolume()
+	}
+
+	setAgentSoundVolume(value: number): void {
+		writeHostTerminalAgentSoundVolume(Math.round(clampHostTerminalAgentSoundVolume(value) * 20) / 20)
+		this.#agentSignalPane.requestRender()
+	}
+
+	setVoiceAutoSendEnabled(enabled: boolean): void {
+		writeVoiceAutoSendEnabled(enabled)
+		this.#voiceHud.requestRender()
+		this.#settingsPane.requestRender()
+	}
+
+	setVoiceSignalVolume(value: number): void {
+		writeVoiceSignalVolume(value)
+		this.#voiceHud.requestRender()
+		this.#settingsPane.requestRender()
+	}
+
+	setVoiceRecognitionTimeoutSeconds(value: number): void {
+		writeVoiceRecognitionTimeoutSeconds(value)
+		this.#voiceClient?.refreshDeactivationSettings()
+		this.#voiceHud.requestRender()
+		this.#settingsPane.requestRender()
+	}
+
+	setVoiceDeactivationMode(value: VoiceInputHudDeactivationMode): void {
+		writeVoiceDeactivationMode(value)
+		this.#voiceClient?.refreshDeactivationSettings()
+		this.#voiceHud.requestRender()
+		this.#settingsPane.requestRender()
+	}
+
+	relayout(): void {
+		this.#viewport.hud.relayout()
+	}
+
+	busy(): boolean {
+		return this.#busy
+	}
+
+	srcDraft(): string {
+		return this.#src
+	}
+
+	setSrcDraft(value: string): void {
+		this.#src = value
+		this.#settingsPane.requestRender()
+	}
+
+	apply(): void {
+		this.#busy = true
+		this.#settingsPane.requestRender()
+		this.#onApply(this.#src.trim() || "zavx0z/git", this.settingsSnapshot())
+	}
+
+	setDocked(kind: DockKind, docked: boolean): void {
+		if (kind === "codex") {
+			this.#codexDocked = docked
+			writeStoredBoolean(CODEX_DOCKED_STORAGE_KEY, docked)
+		} else if (kind === "settings") {
+			this.#settingsDocked = docked
+			writeStoredBoolean(SETTINGS_DOCKED_STORAGE_KEY, docked)
+		} else if (kind === "todo") {
+			this.#todoDocked = docked
+			writeStoredBoolean(TODO_DOCKED_STORAGE_KEY, docked)
+		}
+		this.#viewport.hud.relayout()
+	}
+
+	isDocked(kind: DockKind): boolean {
+		if (kind === "codex") return this.#codexDocked
+		if (kind === "settings") return this.#settingsDocked
+		if (kind === "fullscreen") return true
+		return this.#todoDocked
+	}
+
+	dockLabel(kind: DockKind): string {
+		if (kind === "codex") return CODEX_TITLE
+		if (kind === "settings") return "Settings"
+		if (kind === "fullscreen") return ""
+		return "TODO"
+	}
+
+	dockIcon(kind: DockKind): string {
+		if (kind === "codex") return uiIcons.codex
+		if (kind === "settings") return uiIcons.manual
+		if (kind === "fullscreen") return this.#fullscreen ? uiIcons.collapse : uiIcons.expand
+		return uiIcons.apply
+	}
+
+	dockTooltip(kind: DockKind): string {
+		if (kind === "fullscreen") return this.#fullscreen ? "Выйти из полного экрана" : "Полный экран"
+		return this.dockLabel(kind)
+	}
+
+	dockEdge(kind: DockKind): HudSideTabEdge {
+		return this.#dockPlacementRaw(kind)?.edge ?? defaultDockPlacement(kind, {w: 1, h: 1}).edge
+	}
+
+	dockPlacement(kind: DockKind, bounds: {w: number; h: number}): DockPlacement {
+		return this.#dockPlacementRaw(kind) ?? defaultDockPlacement(kind, bounds)
+	}
+
+	setDockPlacement(kind: DockKind, placement: DockPlacement): void {
+		const previous = this.#dockPlacementRaw(kind)
+		if (previous !== null && sameDockPlacement(previous, placement)) return
+		if (kind === "codex") {
+			this.#codexDockPlacement = placement
+			writeStoredDockPlacement(CODEX_DOCK_PLACEMENT_STORAGE_KEY, placement)
+			this.#codexDock.requestRender()
+		} else if (kind === "settings") {
+			this.#settingsDockPlacement = placement
+			writeStoredDockPlacement(SETTINGS_DOCK_PLACEMENT_STORAGE_KEY, placement)
+			this.#settingsDock.requestRender()
+		} else if (kind === "todo") {
+			this.#todoDockPlacement = placement
+			writeStoredDockPlacement(TODO_DOCK_PLACEMENT_STORAGE_KEY, placement)
+			this.#todoDock.requestRender()
+		} else {
+			this.#fullscreenDockPlacement = placement
+			writeStoredDockPlacement(FULLSCREEN_DOCK_PLACEMENT_STORAGE_KEY, placement)
+			this.#fullscreenDock.requestRender()
+		}
+		this.#viewport.hud.relayout()
+	}
+
+	setDockPlacementFromPoint(kind: DockKind, point: {x: number; y: number}, bounds: {w: number; h: number}): void {
+		this.setDockPlacement(kind, dockPlacementFromPoint(kind, point, bounds))
+	}
+
+	setSetting(key: AppWebSettingKey, value: boolean | number): void {
+		const config = APP_WEB_SETTINGS_BY_KEY[key]
+		if (typeof config.defaultValue === "boolean") {
+			if (typeof value !== "boolean") return
+			if (config.section === "render") {
+				this.#settings.renderSettings = {...this.#settings.renderSettings, [key]: value}
+				this.#onRenderSettingsChange(this.#settings.renderSettings)
+			} else {
+				this.#settings.layoutSettings = {...this.#settings.layoutSettings, [key]: value}
+			}
+		} else {
+			const next = clampSettingValue(key, Number(value))
+			if (config.section === "render") {
+				this.#settings.renderSettings = {...this.#settings.renderSettings, [key]: next}
+				this.#onRenderSettingsChange(this.#settings.renderSettings)
+			} else {
+				this.#settings.layoutSettings = {...this.#settings.layoutSettings, [key]: next}
+			}
+		}
+		this.#onSettingsPersist(this.settingsSnapshot())
+		this.#settingsPane.requestRender()
+	}
+
+	settingValue(key: AppWebSettingKey): boolean | number {
+		const config = APP_WEB_SETTINGS_BY_KEY[key]
+		if (config.section === "render") {
+			return this.#settings.renderSettings[key as keyof AppWebRenderSettings] ?? config.defaultValue
+		}
+		return this.#settings.layoutSettings[key as keyof AppWebLayoutSettings] ?? config.defaultValue
+	}
+
+	stepSetting(key: AppWebSettingKey, direction: -1 | 1): void {
+		const config = APP_WEB_SETTINGS_BY_KEY[key]
+		if (typeof config.defaultValue === "boolean") {
+			this.setSetting(key, !(this.settingValue(key) === true))
+			return
+		}
+		const step = config.step ?? 1
+		this.setSetting(key, Number(this.settingValue(key)) + step * direction)
+	}
+
+	toggleDockAction(kind: DockKind): void {
+		if (kind === "fullscreen") {
+			void this.#toggleFullscreen()
+			return
+		}
+		this.setDocked(kind, false)
+	}
+
+	async #toggleFullscreen(): Promise<void> {
+		try {
+			if (document.fullscreenElement === null) await document.documentElement.requestFullscreen()
+			else await document.exitFullscreen()
+		} catch (error) {
+			console.warn("fullscreen toggle failed:", error)
+		}
+		this.#handleFullscreenChange()
+	}
+
+	#handleFullscreenChange(): void {
+		const next = document.fullscreenElement !== null
+		if (this.#fullscreen === next) return
+		this.#fullscreen = next
+		this.#fullscreenDock.requestRender()
+		this.#viewport.hud.relayout()
+	}
+
+	#createTerminalController(): TerminalController {
+		const controller = {} as TerminalController
+		const pane = new TerminalPane({
+			title: `${CODEX_TITLE} · ${CODEX_MODEL}`,
+			status: "connecting",
+			statusKind: "idle",
+			fontPx: 12,
+			linePx: 17,
+			maxScrollback: 10000,
+			respondToTerminalQueries: false,
+			draggable: true,
+			resizable: true,
+			inputEnabled: false,
+			onInput: (data, source) => this.#sendTerminalInput(data, source),
+			onResize: (size) => this.#resizeTerminal(size),
+			onFocusChange: (focused) => {
+				if (!focused) return
+				this.#viewport.hud.setFocused(pane)
+			},
+			onFrameRectChange: (rect) => writeStoredRect(CODEX_RECT_STORAGE_KEY, rect),
+			onFrameDockRequest: () => this.setDocked("codex", true),
+		})
+		Object.assign(controller, {
+			pane,
+			socket: null,
+			sessionId: readStoredString(CODEX_SESSION_STORAGE_KEY),
+			size: null,
+			state: null,
+			statusLabel: "connecting",
+			localEchoId: 0,
+			agentNotifyArmed: false,
+			agentNotifySawOutput: false,
+			agentNotifyLastOutputAt: 0,
+			agentNotifyLastPlayedAt: 0,
+			agentNotifyTimer: null,
+		} satisfies TerminalController)
+		return controller
+	}
+
+	#connectTerminal(): void {
+		if (this.#terminal.socket !== null) this.#terminal.socket.close()
+		this.#terminal.socket = null
+		this.#terminal.state = null
+		this.#disarmAgentReadyNotification()
+		this.#terminal.pane.setInputEnabled(false)
+		this.#setTerminalStatus("idle", "connecting")
+		const socket = new WebSocket(this.#terminalUrl())
+		this.#terminal.socket = socket
+		socket.addEventListener("open", () => {
+			if (this.#terminal.socket !== socket) return
+			this.#setTerminalStatus("connected", "connected")
+			this.#terminal.pane.setInputEnabled(true)
+			if (this.#terminal.size !== null) this.#sendTerminal({type: "terminal.resize", size: this.#terminal.size})
+		})
+		socket.addEventListener("message", (event) => {
+			if (this.#terminal.socket !== socket) return
+			this.#handleTerminalMessage(String(event.data))
+		})
+		socket.addEventListener("close", () => {
+			if (this.#terminal.socket !== socket) return
+			this.#terminal.socket = null
+			this.#disarmAgentReadyNotification()
+			this.#terminal.pane.setInputEnabled(false)
+			this.#setTerminalStatus("disconnected", "closed")
+		})
+		socket.addEventListener("error", () => {
+			if (this.#terminal.socket !== socket) return
+			this.#disarmAgentReadyNotification()
+			this.#terminal.pane.setInputEnabled(false)
+			this.#setTerminalStatus("error", "websocket")
+		})
+	}
+
+	#terminalUrl(): string {
+		const protocol = location.protocol === "https:" ? "wss:" : "ws:"
+		const url = new URL(`${protocol}//${location.host}/hud/terminal/stream`)
+		url.searchParams.set("replay", "1")
+		if (this.#terminal.sessionId !== null) url.searchParams.set("session", this.#terminal.sessionId)
+		return url.toString()
+	}
+
+	#sendTerminalInput(data: string, source: TerminalInputSource, localEchoText = data): void {
+		if (source === "keyboard" || source === "paste") this.#clearVoicePartialPreview()
+		if (isTerminalSubmitInput(data)) this.#armAgentReadyNotification()
+		const localEchoId = this.#tryTerminalLocalEcho(localEchoText, source) ? ++this.#terminal.localEchoId : undefined
+		this.#sendTerminal({
+			type: "input.write",
+			data,
+			source,
+			...(localEchoId === undefined ? {} : {localEchoId}),
+		})
+	}
+
+	#sendVoiceSubmit(text: string): boolean {
+		const body = sanitizeCodexTerminalVoiceInput(text)
+		if (body.length === 0) return false
+		const payload = this.#terminal.state?.bracketedPaste
+			? `\x1b[200~${body}\x1b[201~\r`
+			: `${body}\r`
+		this.#clearVoicePartialPreview()
+		this.#sendTerminalInput(payload, "api", body)
+		return true
+	}
+
+	#stageVoiceDraft(text: string): boolean {
+		const body = sanitizeCodexTerminalVoiceInput(text)
+		if (body.length === 0) return false
+		this.#clearVoicePartialPreview()
+		this.#sendTerminalInput(body, "api", body)
+		return true
+	}
+
+	#tryTerminalLocalEcho(data: string, source: TerminalInputSource): boolean {
+		const state = this.#terminal.state
+		if (
+			(source !== "keyboard" && source !== "api") ||
+			this.#terminal.socket?.readyState !== WebSocket.OPEN ||
+			state === null ||
+			!state.localEcho ||
+			!this.#terminal.pane.getTerminalState().localEcho
+		) return false
+		return this.#terminal.pane.tryLocalEcho(data)
+	}
+
+	#sendTerminal(message: PtyClientMessage): void {
+		if (this.#terminal.socket?.readyState === WebSocket.OPEN) {
+			this.#terminal.socket.send(JSON.stringify(message))
+		}
+	}
+
+	#resizeTerminal(size: TerminalSize): void {
+		const next = {cols: Math.max(1, Math.round(size.cols)), rows: Math.max(1, Math.round(size.rows))}
+		if (this.#terminal.size?.cols === next.cols && this.#terminal.size.rows === next.rows) return
+		this.#terminal.size = next
+		this.#sendTerminal({type: "terminal.resize", size: next})
+	}
+
+	#handleTerminalMessage(raw: string): void {
+		const message = parseTerminalMessage(raw)
+		if (message === null) return
+		if (message.type === "terminal.write") {
+			this.#terminal.pane.writeAuthoritative(message.data)
+			if (message.state !== undefined) this.#updateTerminalState(message.state, message.data.length > 0)
+			return
+		}
+		if (message.type === "terminal.state") {
+			this.#updateTerminalState(message.state)
+			return
+		}
+		if (message.type === "terminal.local-echo") {
+			this.#updateTerminalState(message.state)
+			if (!message.accepted) this.#terminal.pane.rejectLocalEcho()
+			return
+		}
+		if (message.type === "terminal.ready") {
+			this.#terminal.sessionId = message.sessionId
+			this.#updateTerminalState(message.state)
+			writeStoredString(CODEX_SESSION_STORAGE_KEY, message.sessionId)
+			this.#setTerminalStatus("connected", shellLabel(message.shell))
+			if (this.#terminal.size !== null) this.#sendTerminal({type: "terminal.resize", size: this.#terminal.size})
+			return
+		}
+		if (message.type === "terminal.status") {
+			this.#setTerminalStatus(statusKindForPane(message.status.kind), message.status.label)
+			return
+		}
+		if (message.type === "terminal.exit") {
+			this.#disarmAgentReadyNotification()
+			this.#terminal.pane.setInputEnabled(false)
+			this.#setTerminalStatus("disconnected", "exited")
+			this.#terminal.pane.writeln(`\x1b[90mprocess exited: code=${message.code ?? "null"} signal=${message.signal ?? "null"}\x1b[0m`)
+			return
+		}
+		this.#disarmAgentReadyNotification()
+		this.#terminal.pane.setInputEnabled(false)
+		this.#setTerminalStatus("error", "error")
+		this.#terminal.pane.writeln(`\x1b[31m${message.message}\x1b[0m`)
+	}
+
+	#setTerminalStatus(kind: TerminalStatusKind, label: string): void {
+		this.#terminal.statusLabel = label
+		this.#terminal.pane.setStatus(kind, label)
+		this.#agentSignalPane.requestRender()
+	}
+
+	#updateTerminalState(state: PtyTerminalState, output = false): void {
+		this.#terminal.state = state
+		if (!this.#terminal.agentNotifyArmed) return
+		if (output) {
+			this.#terminal.agentNotifySawOutput = true
+			this.#terminal.agentNotifyLastOutputAt = performance.now()
+		}
+		if (this.#terminal.agentNotifySawOutput) this.#scheduleAgentReadyNotificationCheck()
+	}
+
+	#armAgentReadyNotification(): void {
+		this.#clearAgentReadyNotificationTimer()
+		this.#terminal.agentNotifyArmed = true
+		this.#terminal.agentNotifySawOutput = false
+		this.#terminal.agentNotifyLastOutputAt = 0
+	}
+
+	#disarmAgentReadyNotification(): void {
+		this.#clearAgentReadyNotificationTimer()
+		this.#terminal.agentNotifyArmed = false
+		this.#terminal.agentNotifySawOutput = false
+		this.#terminal.agentNotifyLastOutputAt = 0
+	}
+
+	#scheduleAgentReadyNotificationCheck(): void {
+		this.#clearAgentReadyNotificationTimer()
+		const elapsed = performance.now() - this.#terminal.agentNotifyLastOutputAt
+		const delay = Math.max(0, AGENT_READY_SOUND_IDLE_MS - elapsed)
+		this.#terminal.agentNotifyTimer = setTimeout(() => {
+			this.#terminal.agentNotifyTimer = null
+			this.#maybePlayAgentReadyNotification()
+		}, delay)
+	}
+
+	#clearAgentReadyNotificationTimer(): void {
+		if (this.#terminal.agentNotifyTimer === null) return
+		clearTimeout(this.#terminal.agentNotifyTimer)
+		this.#terminal.agentNotifyTimer = null
+	}
+
+	#maybePlayAgentReadyNotification(): void {
+		if (!this.#terminal.agentNotifyArmed || !this.#terminal.agentNotifySawOutput) return
+		const state = this.#terminal.state
+		if (state === null || !state.cursorVisible) {
+			this.#scheduleAgentReadyNotificationCheck()
+			return
+		}
+		const elapsed = performance.now() - this.#terminal.agentNotifyLastOutputAt
+		if (elapsed < AGENT_READY_SOUND_IDLE_MS) {
+			this.#scheduleAgentReadyNotificationCheck()
+			return
+		}
+
+		const now = performance.now()
+		this.#terminal.agentNotifyArmed = false
+		this.#clearAgentReadyNotificationTimer()
+		if (now - this.#terminal.agentNotifyLastPlayedAt < AGENT_READY_SOUND_COOLDOWN_MS) return
+		this.#terminal.agentNotifyLastPlayedAt = now
+		this.#playAgentReadySignal()
+	}
+
+	#playAgentReadySignal(): void {
+		playHudNotificationSound("agent", this.#voiceClient)
+	}
+
+	async #loadTodo(): Promise<void> {
+		try {
+			const response = await fetch("/hud/todo")
+			if (!response.ok) throw new Error(await response.text())
+			const payload = await response.json() as {text: string; path: string}
+			this.setTodoMarkdown(payload.text, payload.path)
+		} catch (error) {
+			this.setTodoMarkdown(`# TODO недоступен\n\n- [ ] ${error instanceof Error ? error.message : String(error)}`, "TODO.md")
+		}
+	}
+
+	async #patchTodoItem(id: string, checked: boolean): Promise<void> {
+		try {
+			const response = await fetch(`/hud/todo/items/${encodeURIComponent(id)}`, {
+				method: "PATCH",
+				headers: {"content-type": "application/json"},
+				body: JSON.stringify({checked}),
+			})
+			if (!response.ok) throw new Error(await response.text())
+			const payload = await response.json() as {text: string; path: string}
+			this.setTodoMarkdown(payload.text, payload.path)
+		} catch (error) {
+			console.error("todo update error:", error)
+		}
+	}
+
+	async #importInterpreterVoiceSettings(): Promise<void> {
+		try {
+			const response = await fetch("/hud/voice/settings")
+			if (!response.ok) return
+			const payload = await response.json() as {ok?: boolean; values?: unknown}
+			if (payload.ok !== true) return
+			const values = asVoiceSettingsValues(payload.values) ?? {}
+			let changed = false
+			for (const key of VOICE_SETTINGS_STORAGE_KEYS) {
+				const next = values[key]
+				const previous = localStorage.getItem(key)
+				if (next === undefined) {
+					if (previous !== null) {
+						localStorage.removeItem(key)
+						changed = true
+					}
+					continue
+				}
+				if (previous === next) continue
+				localStorage.setItem(key, next)
+				changed = true
+			}
+			if (!changed) return
+			this.#voiceClient?.refreshDeactivationSettings()
+			this.#voiceHud.requestRender()
+			this.#updateVoiceHud()
+		} catch {
+			// The bridge is optional; app-web keeps using local/default voice settings.
+		}
+	}
+
+	#createVoiceHud(): VoiceInputHud {
+		return new VoiceInputHud({
+			onToggle: () => void this.#toggleVoice(),
+			onMove: (rect) => {
+				this.#voiceRectOverride = rect
+				writeStoredRect(VOICE_RECT_STORAGE_KEY, rect)
+			},
+			settings: () => this.#voiceSettings(),
+			onFullStop: () => this.#stopVoice(),
+			onAddPhrase: (groupId, phrase) => this.#addVoicePhrase(groupId, phrase),
+			onRemovePhrase: (groupId, phrase) => this.#removeVoicePhrase(groupId, phrase),
+			onResetPhrases: (groupId) => this.#resetVoicePhrases(groupId),
+			onSignalVolumeChange: (value) => {
+				writeVoiceSignalVolume(value)
+				this.#voiceHud.requestRender()
+			},
+			onAutoSendChange: (value) => {
+				writeVoiceAutoSendEnabled(value)
+				this.#voiceHud.requestRender()
+			},
+			onDeactivationModeChange: (value) => {
+				writeVoiceDeactivationMode(value)
+				this.#voiceClient?.refreshDeactivationSettings()
+				this.#voiceHud.requestRender()
+			},
+			onRecognitionTimeoutChange: (value) => {
+				writeVoiceRecognitionTimeoutSeconds(value)
+				this.#voiceClient?.refreshDeactivationSettings()
+				this.#voiceHud.requestRender()
+			},
+			onPhraseFuzzyChange: (groupId, value) => {
+				writeVoiceFuzzyTolerance(groupId, value)
+				this.#restartVoiceCommandRecognizerAfterSettingsChange()
+				this.#voiceHud.requestRender()
+			},
+		})
+	}
+
+	#ensureVoiceClient(): VoiceInputClient {
+		if (this.#voiceClient !== null) return this.#voiceClient
+		this.#voiceClient = new VoiceInputClient({
+			url: readVoiceInputUrl,
+			wakeUrl: readVoiceWakeUrl,
+			activationPhrases: () => readVoicePhrases("activation"),
+			deactivationPhrases: () => readVoicePhrases("deactivation"),
+			stopPhrases: () => readVoicePhrases("stop"),
+			phraseFuzzyTolerance: readVoiceFuzzyTolerance,
+			deactivationMode: () => readVoiceDeactivationMode(),
+			recognitionTimeoutMs: () => readVoiceRecognitionTimeoutSeconds() * 1000,
+			language: "ru",
+			context: () => voiceContextWithTerminal(this.#terminal.pane.toText()),
+			onStatus: (status, detail) => this.#handleVoiceStatus(status, detail),
+			onWake: (text) => {
+				const cleaned = cleanupVoiceInputText(text)
+				if (cleaned) this.#voiceWakeLines = [`${formatTime(new Date())} · ${cleaned}`, ...this.#voiceWakeLines].slice(0, 5)
+				this.#updateVoiceHud("connecting", readVoiceInputUrl())
+			},
+			onCommandText: (text) => {
+				const cleaned = cleanupVoiceInputText(text)
+				if (cleaned) this.#voiceWakeLines = [`${formatTime(new Date())} · ${cleaned}`, ...this.#voiceWakeLines].slice(0, 5)
+				this.#updateVoiceHud()
+			},
+			onPartial: (text) => this.#handleVoicePartial(text),
+			onChunk: (chunk) => this.#handleVoiceChunk(chunk),
+			onLevel: (level) => {
+				this.#voiceLevel = level
+				this.#updateVoiceHud()
+			},
+		})
+		return this.#voiceClient
+	}
+
+	async #toggleVoice(): Promise<void> {
+		const client = this.#ensureVoiceClient()
+		try {
+			if (client.active) {
+				if (client.status === "waitingWake") await client.startDictation()
+				else {
+					this.#voiceNextFlushMode = "draft"
+					await client.sleepToWake()
+				}
+				return
+			}
+			if (this.#terminal.socket?.readyState !== WebSocket.OPEN) {
+				this.#handleVoiceStatus("error", "Codex terminal не подключен")
+				return
+			}
+			const serviceOk = await this.#checkVoiceService()
+			if (!serviceOk) {
+				this.#handleVoiceStatus("error", this.#voiceServiceDetail)
+				return
+			}
+			await client.startDictation()
+		} catch (error) {
+			this.#handleVoiceStatus("error", error instanceof Error ? error.message : String(error))
+		}
+	}
+
+	#stopVoice(): void {
+		this.#voiceNextFlushMode = "draft"
+		const wasActive = this.#voiceClient?.active === true
+		this.#voiceClient?.stop(VOICE_STOP_COMMAND_DETAIL)
+		this.#discardVoiceAutoSendBuffer()
+		this.#clearVoicePartialPreview()
+		if (!wasActive) this.#handleVoiceStatus("idle", VOICE_STOP_COMMAND_DETAIL)
+		else this.#updateVoiceHud("idle", VOICE_STOP_COMMAND_DETAIL)
+	}
+
+	#handleVoiceStatus(status: VoiceInputStatus, detail = ""): void {
+		const previousStatus = this.#voiceStatus
+		const voiceSignal = voiceSignalForStatusChange(previousStatus, status, detail)
+		const transportError = status === "error" && isVoiceServiceErrorText(detail)
+		if (transportError) {
+			this.#discardVoiceAutoSendBuffer()
+			this.#clearVoicePartialPreview()
+		} else if (shouldFlushVoiceBufferForStatus(previousStatus, status)) {
+			this.#flushVoiceAutoSendBuffer()
+		} else if (shouldPreserveVoicePartialForStatus(previousStatus, status, detail)) {
+			this.#preserveVoicePartialAsTerminalInput()
+		}
+		this.#voiceStatus = status
+		this.#voiceDetail = detail
+		if (status === "error") {
+			this.#voiceServiceState = "down"
+			this.#voiceServiceDetail = detail || "ASR недоступен"
+		} else if (status === "listening" || status === "waitingWake" || status === "committing") {
+			this.#voiceServiceState = "ok"
+			this.#voiceServiceDetail = "ASR работает"
+		}
+		this.#updateVoiceHud()
+		if (voiceSignal !== null) this.#playVoiceSignal(voiceSignal)
+	}
+
+	#playVoiceSignal(kind: HudNotificationKind): void {
+		const now = performance.now()
+		const lastPlayedAt = voiceSignalLastPlayedAt.get(kind) ?? 0
+		if (now - lastPlayedAt < VOICE_SIGNAL_COOLDOWN_MS) return
+		voiceSignalLastPlayedAt.set(kind, now)
+		this.#voiceHud.flashSoundIndicator()
+		playHudNotificationSound(kind, this.#voiceClient)
+	}
+
+	async #checkVoiceService(): Promise<boolean> {
+		if (this.#voiceServiceCheckInFlight) return this.#voiceServiceState === "ok"
+		this.#voiceServiceCheckInFlight = true
+		try {
+			const data = await probeVoiceService(readVoiceInputUrl())
+			const model = typeof data?.model === "string" ? data.model : ""
+			const device = typeof data?.device === "string" ? data.device : ""
+			const compute = typeof data?.computeType === "string" ? data.computeType : ""
+			this.#voiceServiceState = "ok"
+			this.#voiceServiceDetail = ["ASR работает", model, [device, compute].filter(Boolean).join("/")].filter(Boolean).join(" · ")
+			this.#updateVoiceHud()
+			return true
+		} catch (error) {
+			this.#voiceServiceState = "down"
+			this.#voiceServiceDetail = `ASR недоступен: ${endpointLabel(readVoiceInputUrl())}`
+			if (error instanceof Error) this.#voiceServiceDetail = `${this.#voiceServiceDetail} · ${error.message}`
+			this.#updateVoiceHud()
+			return false
+		} finally {
+			this.#voiceServiceCheckInFlight = false
+		}
+	}
+
+	#handleVoicePartial(raw: string): void {
+		const text = cleanupVoiceInputText(raw)
+		if (!text) return
+		const preview = mergeVoiceInputText(this.#voiceAutoSendText, text)
+		this.#voicePartialPreviewText = preview
+		this.#terminal.pane.setInputPreview(preview)
+		this.#updateVoiceHud("listening", preview)
+	}
+
+	#handleVoiceChunk(chunk: VoiceInputChunk): void {
+		const messages = voiceMessagesFromChunk(chunk)
+		if (messages.length === 0) return
+		const text = cleanupVoiceInputText(messages.join(" "))
+		if (!text) return
+		this.#queueVoiceAutoSendText(text)
+		this.#updateVoiceHud(this.#voiceStatus, text)
+	}
+
+	#updateVoiceHud(status = this.#voiceStatus, detail = this.#voiceDetail): void {
+		this.#voiceHud.setSnapshot({
+			status,
+			statusLine: voiceStatusLine(status),
+			targetLine: `${CODEX_TITLE} terminal`,
+			autoEnterLine: readVoiceAutoSendEnabled() ? "auto-send" : "manual draft",
+			detailLine: detail || "готов к диктовке",
+			serviceLine: this.#voiceServiceDetail,
+			serviceState: this.#voiceServiceState,
+			level: this.#voiceLevel,
+		})
+	}
+
+	#voiceSettings() {
+		return {
+			title: "Голосовой ввод",
+			generalTabLabel: "Общие",
+			debugTabLabel: "Отладка",
+			fullStopLabel: "Полностью выключить микрофон",
+			fullStopHint: "Закрывает ASR и wake-up до ручного запуска.",
+			phraseGroups: voicePhraseGroups(this.#voiceWakeLines),
+			deactivationModeLabel: "Режим деактивации",
+			deactivationModeValue: voiceHudDeactivationMode(readVoiceDeactivationMode()),
+			deactivationModeOptions: [
+				{value: "phrase" as const, label: "Фразы"},
+				{value: "timeout" as const, label: "Тайм-аут"},
+				{value: "phrase-timeout" as const, label: "Оба"},
+			],
+			recognitionTimeoutLabel: "Тайм-аут без распознавания",
+			recognitionTimeoutValue: readVoiceRecognitionTimeoutSeconds(),
+			recognitionTimeoutMinValue: MIN_VOICE_RECOGNITION_TIMEOUT_SECONDS,
+			recognitionTimeoutMaxValue: MAX_VOICE_RECOGNITION_TIMEOUT_SECONDS,
+			recognitionTimeoutUnitLabel: "с",
+			recognitionTimeoutDownLabel: "Короче",
+			recognitionTimeoutUpLabel: "Дольше",
+			autoSendLabel: "Автоотправка",
+			autoSendHint: "Готовый чанк сразу отправляется в Codex.",
+			autoSendValue: readVoiceAutoSendEnabled(),
+			signalVolumeLabel: "Звук микрофона",
+			signalVolumeValue: readVoiceSignalVolume(),
+			signalVolumeMaxValue: MAX_VOICE_SIGNAL_VOLUME,
+			signalVolumeDownLabel: "Тише",
+			signalVolumeUpLabel: "Громче",
+			fuzzyDownLabel: "Строже",
+			fuzzyUpLabel: "Мягче",
+			fuzzyHintLabel: "Больше % = мягче, но выше риск ложного срабатывания.",
+			fuzzyStrictLabel: "0% точно",
+			fuzzyLooseLabel: "50% мягко",
+			wakeEndpoint: endpointLabel(readVoiceWakeUrl()),
+			inputEndpoint: endpointLabel(readVoiceInputUrl()),
+			serviceLine: this.#voiceServiceDetail,
+			liveLine: `${voiceStatusLine(this.#voiceStatus)} · ${this.#voiceDetail || "нет деталей"}`,
+			debugLines: [
+				`status: ${this.#voiceStatus}`,
+					`wake: ${readVoiceWakeUrl()}`,
+					`asr: ${readVoiceInputUrl()}`,
+					`level: ${Math.round(this.#voiceLevel * 100)}%`,
+					`sound: ${hudNotificationDebugLine()}`,
+				],
+			}
+		}
+
+	#addVoicePhrase(groupId: VoiceInputHudPhraseGroupId, phrase: string): void {
+		storeVoicePhrases(groupId, [...readVoicePhrases(groupId), phrase])
+		this.#restartVoiceCommandRecognizerAfterSettingsChange()
+		this.#voiceHud.requestRender()
+	}
+
+	#removeVoicePhrase(groupId: VoiceInputHudPhraseGroupId, phrase: string): void {
+		const target = voicePhraseKey(phrase)
+		if (target === undefined) return
+		storeVoicePhrases(groupId, readVoicePhrases(groupId).filter((item) => voicePhraseKey(item) !== target))
+		this.#restartVoiceCommandRecognizerAfterSettingsChange()
+		this.#voiceHud.requestRender()
+	}
+
+	#resetVoicePhrases(groupId: VoiceInputHudPhraseGroupId): void {
+		storeVoicePhrases(groupId, defaultVoicePhrases(groupId))
+		this.#restartVoiceCommandRecognizerAfterSettingsChange()
+		this.#voiceHud.requestRender()
+	}
+
+	#queueVoiceAutoSendText(raw: string): boolean {
+		const text = cleanupVoiceInputText(raw)
+		if (text.length === 0) return false
+		this.#voiceAutoSendText = mergeVoiceInputText(this.#voiceAutoSendText, text)
+		this.#voicePartialPreviewText = this.#voiceAutoSendText
+		this.#terminal.pane.setInputPreview(this.#voiceAutoSendText)
+		return true
+	}
+
+	#flushVoiceAutoSendBuffer(): boolean {
+		const text = cleanupVoiceInputText(this.#voiceAutoSendText)
+		const mode = this.#voiceNextFlushMode
+		this.#voiceAutoSendText = ""
+		this.#voiceNextFlushMode = "auto"
+		if (text.length === 0) return false
+		const handled = mode !== "draft" && readVoiceAutoSendEnabled()
+			? this.#sendVoiceSubmit(text)
+			: this.#stageVoiceDraft(text)
+		if (handled) this.#clearVoicePartialPreview()
+		return handled
+	}
+
+	#discardVoiceAutoSendBuffer(): void {
+		this.#voiceAutoSendText = ""
+	}
+
+	#clearVoicePartialPreview(): void {
+		if (!this.#voicePartialPreviewText && !this.#voiceAutoSendText) return
+		this.#voicePartialPreviewText = ""
+		this.#terminal.pane.clearInputPreview()
+	}
+
+	#preserveVoicePartialAsTerminalInput(): boolean {
+		const text = cleanupVoiceInputText(this.#voicePartialPreviewText)
+		if (text.length === 0) return false
+		this.#discardVoiceAutoSendBuffer()
+		return this.#stageVoiceDraft(text)
+	}
+
+	async #startVoiceWake(reportErrors: boolean): Promise<boolean> {
+		const client = this.#ensureVoiceClient()
+		if (client.active) return true
+		if (client.status === "error") client.reset()
+		if (this.#terminal.socket?.readyState !== WebSocket.OPEN) {
+			if (reportErrors) this.#handleVoiceStatus("error", "Codex terminal не подключен")
+			return false
+		}
+		const serviceOk = await this.#checkVoiceService()
+		if (!serviceOk) {
+			if (reportErrors) this.#handleVoiceStatus("error", this.#voiceServiceDetail)
+			return false
+		}
+		try {
+			await client.start()
+			return true
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error)
+			if (reportErrors) this.#handleVoiceStatus("error", message)
+			return false
+		}
+	}
+
+	#restartVoiceCommandRecognizerAfterSettingsChange(): void {
+		const client = this.#voiceClient
+		if (client?.status !== "waitingWake") return
+		client.stop()
+		void this.#startVoiceWake(false)
+	}
+
+	#codexRect(bounds: {w: number; h: number}): UiSurfaceRect {
+		if (this.#codexDocked) return hiddenRect()
+		return readStoredRect(CODEX_RECT_STORAGE_KEY) ?? {
+			x: Math.max(12, bounds.w - Math.min(760, bounds.w - 24) - 16),
+			y: Math.max(96, bounds.h - Math.min(360, bounds.h - 120) - 18),
+			w: Math.min(760, bounds.w - 24),
+			h: Math.min(360, bounds.h - 120),
+		}
+	}
+
+	#settingsRect(bounds: {w: number; h: number}): UiSurfaceRect {
+		if (this.#settingsDocked) return hiddenRect()
+		return readStoredRect(SETTINGS_RECT_STORAGE_KEY) ?? {
+			x: 16,
+			y: 92,
+			w: Math.min(480, Math.max(SETTINGS_MIN_W, bounds.w - 32)),
+			h: Math.min(680, Math.max(SETTINGS_MIN_H, bounds.h - 126)),
+		}
+	}
+
+	#todoRect(bounds: {w: number; h: number}): UiSurfaceRect {
+		if (this.#todoDocked) return hiddenRect()
+		return readStoredRect(TODO_RECT_STORAGE_KEY) ?? {
+			x: Math.max(16, bounds.w - 440),
+			y: 96,
+			w: Math.min(420, Math.max(260, bounds.w - 32)),
+			h: Math.min(520, Math.max(320, bounds.h - 140)),
+		}
+	}
+
+	#agentSignalRect(bounds: {w: number; h: number}): UiSurfaceRect {
+		const terminal = this.#codexRect(bounds)
+		if (terminal.visible === false) return hiddenRect()
+		const open = this.#agentSignalPane.isOpen()
+		const buttonX = this.#agentSignalButtonX(terminal)
+		const buttonY = terminal.y + AGENT_SIGNAL_HEADER_Y
+		if (!open) return {x: buttonX, y: buttonY, w: AGENT_SIGNAL_BUTTON_SIZE, h: AGENT_SIGNAL_BUTTON_SIZE}
+		const panelW = Math.min(AGENT_SIGNAL_PANEL_W, Math.max(1, terminal.w - AGENT_SIGNAL_HEADER_TEXT_X * 2))
+		const panelH = Math.min(
+			AGENT_SIGNAL_BUTTON_SIZE + 6 + AGENT_SIGNAL_PANEL_H,
+			Math.max(1, terminal.h - AGENT_SIGNAL_HEADER_Y - 6),
+		)
+		return {
+			x: clampNumber(
+				buttonX - (panelW - AGENT_SIGNAL_BUTTON_SIZE),
+				terminal.x + AGENT_SIGNAL_HEADER_TEXT_X,
+				Math.max(terminal.x + AGENT_SIGNAL_HEADER_TEXT_X, terminal.x + terminal.w - panelW - AGENT_SIGNAL_HEADER_TEXT_X),
+			),
+			y: buttonY,
+			w: panelW,
+			h: panelH,
+		}
+	}
+
+	#agentSignalButtonX(terminal: UiSurfaceRect): number {
+		const statusW = Math.min(
+			AGENT_SIGNAL_STATUS_MAX_W,
+			Math.max(AGENT_SIGNAL_STATUS_MIN_W, Math.ceil(this.#terminal.statusLabel.length * 7) + 32),
+		)
+		const dockButtonX = terminal.x
+			+ terminal.w
+			- AGENT_SIGNAL_HEADER_TEXT_X
+			- statusW
+			- AGENT_SIGNAL_HEADER_GAP
+			- AGENT_SIGNAL_BUTTON_SIZE
+		return clampNumber(
+			dockButtonX - AGENT_SIGNAL_HEADER_GAP - AGENT_SIGNAL_BUTTON_SIZE,
+			terminal.x + AGENT_SIGNAL_HEADER_TEXT_X,
+			terminal.x + terminal.w - AGENT_SIGNAL_HEADER_TEXT_X - AGENT_SIGNAL_BUTTON_SIZE,
+		)
+	}
+
+	#dockRect(kind: DockKind, bounds: {w: number; h: number}): UiSurfaceRect {
+		if (!this.isDocked(kind) || bounds.w < 80 || bounds.h < 80) return hiddenRect()
+		return dockRectForPlacement(kind, this.dockPlacement(kind, bounds), bounds)
+	}
+
+	#dockPlacementRaw(kind: DockKind): DockPlacement | null {
+		if (kind === "codex") return this.#codexDockPlacement
+		if (kind === "settings") return this.#settingsDockPlacement
+		if (kind === "todo") return this.#todoDockPlacement
+		return this.#fullscreenDockPlacement
+	}
+
+	#voiceRect(bounds: {w: number; h: number}): UiSurfaceRect {
+		return clampVoiceRect(this.#voiceRectOverride ?? defaultVoiceRect(bounds), bounds.w, bounds.h)
+	}
+}
+
+class AppWebSettingsPane extends UiSurface {
+	#frameDrag: PaneFrameDrag | null = null
+	#tab: SettingsTab = "scene"
+
+	constructor(private readonly hud: AppWebHud) {
+		super({bgColor: null, borderColor: null})
+		this.node.name = "AppWebSettingsPane"
+	}
+
+	protected render(): void {
+		const w = Math.max(SETTINGS_MIN_W, this.rectW)
+		const h = Math.max(SETTINGS_MIN_H, this.rectH)
+		this.drawRoundedRect(0, 0, w, h, {
+			radius: radii.pane,
+			fill: HUD_PANEL_BG,
+			border: palette.borderDim,
+			borderWidth: 1,
+			z: Z.CONTAINER,
+		})
+		this.#renderHeader(w)
+		const body = paneBodyRect(w, h, {headerHeight: PANE_FRAME.headerHeight, insetX: 10, topGap: 8, bottomInset: 10})
+		this.#renderBody(body)
+	}
+
+	#renderHeader(w: number): void {
+		const dockButtonSize = 22
+		const dockButtonX = w - PANE_FRAME.headerTextX - dockButtonSize
+		this.drawText("Settings", PANE_FRAME.headerTextX, PANE_FRAME.headerTextY, {
+			fontPx: 13,
+			material: this.materials.cyan,
+			maxWidthPx: Math.max(1, dockButtonX - PANE_FRAME.headerTextX - 12),
+			z: Z.TEXT,
+		})
+		this.drawText("app/web", PANE_FRAME.headerTextX + 86, PANE_FRAME.headerTextY + 1, {
+			fontPx: 10,
+			material: this.materials.muted,
+			maxWidthPx: Math.max(1, dockButtonX - PANE_FRAME.headerTextX - 98),
+			z: Z.TEXT,
+		})
+		IconButton(this, dockButtonX, 7, dockButtonSize, dockButtonSize, {
+			label: "Свернуть настройки",
+			iconSrc: uiIcons.minus,
+			action: () => this.hud.setDocked("settings", true),
+		})
+		const rule = paneHeaderRuleRect(w, PANE_FRAME.headerHeight, PANE_FRAME.bodyInsetX)
+		this.drawRect(rule.x, rule.y, rule.w, rule.h, palette.borderDim, Z.SEPARATOR)
+	}
+
+	#renderBody(rect: UiSurfaceRect): void {
+		const tabsH = 30
+		this.#drawTabs(rect.x, rect.y, rect.w, tabsH)
+		const scrollRect = {
+			x: rect.x,
+			y: rect.y + tabsH + 8,
+			w: rect.w,
+			h: Math.max(1, rect.h - tabsH - 8),
+		}
+		div(this, scrollRect.x, scrollRect.y, scrollRect.w, scrollRect.h, {
+			key: `${SETTINGS_SCROLL_KEY}:${this.#tab}`,
+			scrollContentHeight: Math.max(scrollRect.h, this.#contentHeight()),
+			style: {
+				background: null,
+				borderColor: null,
+				borderRadius: 0,
+				padding: 0,
+				overflowY: "auto",
+				scrollbarWidth: 4,
+			},
+			children: (ctx) => this.#renderScrolled(scrollRect, ctx),
+		})
+	}
+
+	#drawTabs(x: number, y: number, w: number, h: number): void {
+		const tabs: Array<{id: SettingsTab; label: string}> = [
+			{id: "scene", label: "Сцена"},
+			{id: "geometry", label: "Геометрия"},
+			{id: "render", label: "Рендер"},
+			{id: "voice", label: "Голос"},
+		]
+		const gap = 6
+		const tabW = Math.max(1, (w - gap * (tabs.length - 1)) / tabs.length)
+		for (const [index, tab] of tabs.entries()) {
+			const active = this.#tab === tab.id
+			Button(this, x + index * (tabW + gap), y, tabW, h, {
+				label: tab.label,
+				size: "small",
+				variant: active ? "contained" : "outlined",
+				color: active ? "primary" : "neutral",
+				radius: 7,
+				action: () => {
+					this.#tab = tab.id
+					this.requestRender()
+				},
+			})
+		}
+	}
+
+	#renderScrolled(rect: UiSurfaceRect, ctx: DivScrollContext): void {
+		const x = rect.x + 2
+		let y = rect.y + 4 - ctx.scrollTop
+		const w = Math.max(1, rect.w - 10)
+		if (this.#tab === "scene") {
+			this.#renderScene(x, y, w)
+			return
+		}
+		if (this.#tab === "geometry") {
+			this.#drawSection("Геометрия", APP_WEB_LAYOUT_SETTING_KEYS, x, y, w)
+			return
+		}
+		if (this.#tab === "render") {
+			y = this.#drawSection("Космос", ["animationEnabled"], x, y, w)
+			y = this.#drawSection("Детализация", ["detailDensityFactor", "detailLevelMultiplier", "wireframeOpacity"], x, y, w)
+			y = this.#drawSection("Тор", ["torusCrossRingRotationDeg", "torusRadialSegments", "torusTubularSegments"], x, y, w)
+			this.#drawSection("Подписи", ["labelVisibleLevels", "labelFontSizeMm", "labelSurfaceOffsetMm"], x, y, w)
+			return
+		}
+		this.#renderVoice(x, y, w)
+	}
+
+	#renderScene(x: number, y: number, w: number): number {
+		this.#drawStatusRow(x, y, w)
+		y += 54
+		TextField(this, x, y, w, 34, {
+			key: "app-web-root-src",
+			value: this.hud.srcDraft(),
+			placeholder: "Root SRC",
+			submitOnEnter: true,
+			onChange: (value) => this.hud.setSrcDraft(value),
+			onSubmit: () => this.hud.apply(),
+			sx: {fontSize: 12, borderRadius: 8, background: "bgInput", borderColor: "borderDim", color: "text"},
+		})
+		y += 44
+		Button(this, x, y, w, 34, {
+			label: this.hud.busy() ? "Считаю сцену" : "Пересчитать сцену",
+			disabled: this.hud.busy(),
+			color: "primary",
+			variant: "contained",
+			radius: 8,
+			action: () => this.hud.apply(),
+		})
+		y += 52
+		return this.#drawSection("Быстрый рендер", ["animationEnabled", "wireframeOpacity", "labelVisibleLevels"], x, y, w)
+	}
+
+	#drawStatusRow(x: number, y: number, w: number): void {
+		const online = this.hud.connectionLine().includes("online")
+		this.drawRoundedRect(x, y, w, 42, {
+			radius: 8,
+			fill: new Color(0.05, 0.07, 0.10, 0.62),
+			border: palette.borderDim,
+			borderWidth: 1,
+			z: Z.ELEMENT,
+		})
+		this.drawText(this.hud.connectionLine(), x + 10, y + 8, {
+			fontPx: 10,
+			material: online ? this.materials.green : this.materials.muted,
+			maxWidthPx: Math.max(1, w - 20),
+			z: Z.TEXT,
+		})
+		this.drawText(this.hud.statsLine(), x + 10, y + 24, {
+			fontPx: 10,
+			material: this.materials.muted,
+			maxWidthPx: Math.max(1, w - 20),
+			z: Z.TEXT,
+		})
+	}
+
+	#renderVoice(x: number, y: number, w: number): number {
+		y = this.#drawBooleanRow("Автоотправка", "Отправлять распознанный текст в Codex автоматически.", readVoiceAutoSendEnabled(), x, y, w, (checked) => this.hud.setVoiceAutoSendEnabled(checked))
+		y = this.#drawNumberControl({
+			key: "voice-signal-volume",
+			label: "Звук микрофона",
+			value: readVoiceSignalVolume(),
+			min: 0,
+			max: MAX_VOICE_SIGNAL_VOLUME,
+			step: 0.1,
+			x,
+			y,
+			w,
+			format: (value) => `${Math.round(value * 100)}%`,
+			onChange: (value) => this.hud.setVoiceSignalVolume(Math.round(value * 20) / 20),
+		}) + 12
+		y = this.#drawNumberControl({
+			key: "voice-recognition-timeout",
+			label: "Тайм-аут распознавания",
+			value: readVoiceRecognitionTimeoutSeconds(),
+			min: MIN_VOICE_RECOGNITION_TIMEOUT_SECONDS,
+			max: MAX_VOICE_RECOGNITION_TIMEOUT_SECONDS,
+			step: 1,
+			x,
+			y,
+			w,
+			format: (value) => `${Math.round(value)} c`,
+			onChange: (value) => this.hud.setVoiceRecognitionTimeoutSeconds(value),
+		}) + 12
+		y = this.#drawDeactivationMode(x, y, w) + 12
+		y = this.#drawBooleanRow("Сигнал агента", "Звук после окончания вывода агента.", this.hud.agentSoundEnabled(), x, y, w, (checked) => this.hud.setAgentSoundEnabled(checked))
+		return this.#drawNumberControl({
+			key: "agent-sound-volume",
+			label: "Звук окончания",
+			value: this.hud.agentSoundVolume(),
+			min: 0,
+			max: MAX_HOST_TERMINAL_AGENT_SOUND_VOLUME,
+			step: 0.1,
+			x,
+			y,
+			w,
+			format: (value) => `${Math.round(value * 100)}%`,
+			onChange: (value) => this.hud.setAgentSoundVolume(value),
+		})
+	}
+
+	#drawSection(title: string, keys: readonly AppWebSettingKey[], x: number, y: number, w: number): number {
+		this.drawText(title, x, y, {fontPx: 11, material: this.materials.cyan, maxWidthPx: w, z: Z.TEXT})
+		y += 19
+		for (const key of keys) y = this.#drawSetting(key, x, y, w)
+		return y + 14
+	}
+
+	#drawSetting(key: AppWebSettingKey, x: number, y: number, w: number): number {
+		const config = APP_WEB_SETTINGS_BY_KEY[key]
+		const value = this.hud.settingValue(key)
+		if (typeof config.defaultValue === "boolean") {
+			return this.#drawBooleanRow(config.label, config.description, value === true, x, y, w, (checked) => this.hud.setSetting(key, checked))
+		}
+		const min = typeof config.min === "number" ? config.min : 0
+		const max = typeof config.max === "number" ? config.max : Math.max(1, Number(config.defaultValue) * 2)
+		return this.#drawNumberControl({
+			key: `app-web-setting:${key}`,
+			label: config.label,
+			value: Number(value),
+			min,
+			max,
+			step: config.step ?? 1,
+			x,
+			y,
+			w,
+			format: (next) => formatSettingValue(next, config.step),
+			onChange: (next) => this.hud.setSetting(key, next),
+		})
+	}
+
+	#drawBooleanRow(label: string, description: string, checked: boolean, x: number, y: number, w: number, onChange: (checked: boolean) => void): number {
+		this.drawText(label, x, y + 3, {
+			fontPx: 10,
+			material: this.materials.text,
+			maxWidthPx: Math.max(1, w - 64),
+			z: Z.TEXT,
+		})
+		this.drawText(description, x, y + 18, {
+			fontPx: 8,
+			material: this.materials.muted,
+			maxWidthPx: Math.max(1, w - 64),
+			z: Z.TEXT,
+		})
+		Switcher(this, x + w - 50, y + 7, 44, 22, {
+			checked,
+			key: `settings-switch:${label}`,
+			tooltip: label,
+			onChange,
+		})
+		return y + 42
+	}
+
+	#drawNumberControl(opts: {
+		key: string
+		label: string
+		value: number
+		min: number
+		max: number
+		step: number
+		x: number
+		y: number
+		w: number
+		format(value: number): string
+		onChange(value: number): void
+	}): number {
+		const min = Math.min(opts.min, opts.max)
+		const max = Math.max(opts.min, opts.max)
+		const value = clampNumber(Number.isFinite(opts.value) ? opts.value : min, min, max)
+		const range = Math.max(1, max - min)
+		const ratio = clampNumber((value - min) / range, 0, 1)
+		this.drawText(opts.label, opts.x, opts.y + 3, {
+			fontPx: 10,
+			material: this.materials.text,
+			maxWidthPx: Math.max(1, opts.w - 120),
+			z: Z.TEXT,
+		})
+		this.drawText(opts.format(value), opts.x + opts.w - 106, opts.y + 3, {
+			fontPx: 10,
+			material: this.materials.muted,
+			maxWidthPx: 52,
+			z: Z.TEXT,
+		})
+		const buttonW = 24
+		IconButton(this, opts.x + opts.w - 50, opts.y, buttonW, 22, {
+			label: `${opts.label}: меньше`,
+			iconSrc: uiIcons.minus,
+			action: () => this.#setNumberValue(value - opts.step, min, max, opts.onChange),
+		})
+		IconButton(this, opts.x + opts.w - 24, opts.y, buttonW, 22, {
+			label: `${opts.label}: больше`,
+			iconSrc: uiIcons.plus,
+			action: () => this.#setNumberValue(value + opts.step, min, max, opts.onChange),
+		})
+		const trackY = opts.y + 28
+		this.drawRoundedRect(opts.x, trackY, opts.w, 5, {radius: 3, fill: palette.borderDim, border: null, opacity: 0.42, z: Z.ELEMENT})
+		this.drawRoundedRect(opts.x, trackY, Math.max(3, opts.w * ratio), 5, {radius: 3, fill: palette.cyan, border: null, opacity: 0.62, z: Z.ELEMENT + 0.01})
+		const knobX = opts.x + opts.w * ratio
+		this.drawRoundedRect(knobX - 5, trackY - 4, 10, 13, {
+			radius: 5,
+			fill: palette.cyan,
+			border: palette.borderBright,
+			borderWidth: 1,
+			opacity: 0.86,
+			z: Z.ELEMENT + 0.04,
+		})
+		const setFromPointer = (localX: number): void => {
+			const next = min + ((localX - opts.x) / opts.w) * range
+			this.#setNumberValue(next, min, max, opts.onChange)
+		}
+		this.hit(opts.x - 4, opts.y + 22, opts.w + 8, 18, () => undefined, {
+			key: `${opts.key}:track`,
+			cursor: "pointer",
+			onPointerDown: (localX) => setFromPointer(localX),
+			onPointerMove: (localX) => setFromPointer(localX),
+		})
+		return opts.y + 46
+	}
+
+	#drawDeactivationMode(x: number, y: number, w: number): number {
+		this.drawText("Режим деактивации", x, y, {
+			fontPx: 10,
+			material: this.materials.text,
+			maxWidthPx: w,
+			z: Z.TEXT,
+		})
+		const options: Array<{value: VoiceInputHudDeactivationMode; label: string}> = [
+			{value: "phrase", label: "Фразы"},
+			{value: "timeout", label: "Тайм-аут"},
+			{value: "phrase-timeout", label: "Оба"},
+		]
+		const current = voiceHudDeactivationMode(readVoiceDeactivationMode())
+		const gap = 6
+		const buttonW = Math.max(1, (w - gap * (options.length - 1)) / options.length)
+		for (const [index, option] of options.entries()) {
+			const active = current === option.value
+			Button(this, x + index * (buttonW + gap), y + 18, buttonW, 28, {
+				label: option.label,
+				size: "small",
+				variant: active ? "contained" : "outlined",
+				color: active ? "primary" : "neutral",
+				radius: 7,
+				action: () => this.hud.setVoiceDeactivationMode(option.value),
+			})
+		}
+		return y + 56
+	}
+
+	#setNumberValue(value: number, min: number, max: number, onChange: (value: number) => void): void {
+		onChange(clampNumber(value, min, max))
+		this.requestRender()
+	}
+
+	#contentHeight(): number {
+		if (this.#tab === "scene") return 244
+		if (this.#tab === "geometry") return 36 + APP_WEB_LAYOUT_SETTING_KEYS.length * 46
+		if (this.#tab === "render") return 80 + APP_WEB_RENDER_SETTING_KEYS.length * 46
+		return 320
+	}
+
+	#frameInteractionOpts(): PaneFrameInteractionOpts {
+		return {
+			showHeader: true,
+			movable: true,
+			resizable: true,
+			minW: SETTINGS_MIN_W,
+			minH: SETTINGS_MIN_H,
+		}
+	}
+
+	#beginFrameInteraction(event: MouseEvent, localX: number, localY: number): boolean {
+		const opts = this.#frameInteractionOpts()
+		const kind = paneFrameHit(localX, localY, this.rectW, this.rectH, opts)
+		if (kind === null) return false
+		const frame = this.canvas?.surfaceFrame(this)
+		if (frame === undefined || frame === null) return false
+		this.#frameDrag = beginPaneFrameDrag(kind, event, frame.rect, opts)
+		event.preventDefault()
+		const cursor = paneFrameCursor(kind, true)
+		const canvasElement = this.canvas?.canvas
+		if (cursor !== null && canvasElement !== undefined) canvasElement.style.cursor = cursor
+		return true
+	}
+
+	#updateFrameInteraction(event: MouseEvent): boolean {
+		const drag = this.#frameDrag
+		const frame = this.canvas?.surfaceFrame(this)
+		if (drag === null || frame === undefined || frame === null) return false
+		const next = paneFrameDragRect(drag, event, frame.bounds)
+		this.canvas?.setSurfaceRect(this, next)
+		const cursor = paneFrameCursor(drag.kind, true)
+		const canvasElement = this.canvas?.canvas
+		if (cursor !== null && canvasElement !== undefined) canvasElement.style.cursor = cursor
+		return true
+	}
+
+	#endFrameInteraction(event: MouseEvent, localX: number, localY: number): boolean {
+		if (this.#frameDrag === null) return false
+		this.#updateFrameInteraction(event)
+		const frame = this.canvas?.surfaceFrame(this)
+		this.#frameDrag = null
+		this.#syncFrameCursor(localX, localY)
+		if (frame !== undefined && frame !== null) writeStoredRect(SETTINGS_RECT_STORAGE_KEY, frame.rect as PaneRect)
+		return true
+	}
+
+	#syncFrameCursor(localX: number, localY: number): void {
+		if (this.canvas === null || this.pressedHit !== null || this.hoveredHit !== null) return
+		const kind = paneFrameHit(localX, localY, this.rectW, this.rectH, this.#frameInteractionOpts())
+		const cursor = paneFrameCursor(kind, false)
+		const canvasElement = this.canvas.canvas
+		if (canvasElement !== undefined) canvasElement.style.cursor = cursor ?? "default"
+	}
+
+	override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
+		super.onPointerDown(event, localX, localY)
+		if (this.pressedHit !== null) return
+		this.#beginFrameInteraction(event, localX, localY)
+	}
+
+	override onPointerMove(event: MouseEvent, localX: number, localY: number): void {
+		if (this.#updateFrameInteraction(event)) return
+		super.onPointerMove(event, localX, localY)
+		this.#syncFrameCursor(localX, localY)
+	}
+
+	override onPointerUp(event: MouseEvent, localX: number, localY: number): void {
+		if (this.#endFrameInteraction(event, localX, localY)) return
+		super.onPointerUp(event, localX, localY)
+		this.#syncFrameCursor(localX, localY)
+	}
+
+	override onPointerLeave(): void {
+		if (this.#frameDrag !== null) return
+		super.onPointerLeave()
+	}
+
+	override onDeactivate(): void {
+		this.#frameDrag = null
+		super.onDeactivate()
+	}
+}
+
+class AppWebAgentSignalPane extends UiSurface {
+	#open = false
+
+	constructor(private readonly hud: AppWebHud) {
+		super({bgColor: null, borderColor: null})
+		this.node.name = "AppWebAgentSignalPane"
+	}
+
+	isOpen(): boolean {
+		return this.#open
+	}
+
+	protected render(): void {
+		if (this.#open) this.#drawPanel()
+		this.#drawToggleButton()
+	}
+
+	#drawToggleButton(): void {
+		const size = AGENT_SIGNAL_BUTTON_SIZE
+		const x = Math.max(0, this.rectW - size)
+		IconButton(this, x, 0, size, size, {
+			label: "Сигнал агента",
+			iconSrc: agentSignalIcon(this.hud.agentSoundEnabled()),
+			action: () => this.#setOpen(!this.#open),
+		})
+	}
+
+	#drawPanel(): void {
+		const w = this.rectW
+		const panelY = this.#panelY()
+		const panelH = Math.max(1, this.rectH - panelY)
+		const pad = 12
+		const enabled = this.hud.agentSoundEnabled()
+		const volume = this.hud.agentSoundVolume()
+		this.drawRoundedRect(0, panelY, w, panelH, {
+			radius: 8,
+			fill: HUD_PANEL_BG,
+			border: palette.borderDim,
+			borderWidth: 1,
+			z: Z.CONTAINER,
+		})
+		this.drawText("Сигнал агента", pad, panelY + 10, {
+			fontPx: 11,
+			material: this.materials.text,
+			maxWidthPx: Math.max(1, w - pad * 2 - AGENT_SIGNAL_BUTTON_SIZE - 8),
+			z: Z.TEXT,
+		})
+		const switchW = 44
+		const switchH = 22
+		const switchX = Math.max(pad, w - pad - switchW)
+		const switchY = panelY + 38
+		this.drawText("Звук после окончания вывода агента.", pad, panelY + 43, {
+			fontPx: 9,
+			material: this.materials.muted,
+			maxWidthPx: Math.max(1, switchX - pad - 10),
+			z: Z.TEXT,
+		})
+		Switcher(this, switchX, switchY, switchW, switchH, {
+			checked: enabled,
+			color: "primary",
+			key: "app-web-agent-signal-enabled",
+			tooltip: "Сигнал агента",
+			onChange: (checked) => this.hud.setAgentSoundEnabled(checked),
+			sx: {zIndex: Z.ELEMENT + 0.1},
+		})
+		this.#drawVolumeControl(pad, panelY + 76, Math.max(1, w - pad * 2), volume)
+	}
+
+	#drawVolumeControl(x: number, y: number, w: number, value: number): void {
+		const clamped = clampHostTerminalAgentSoundVolume(value)
+		const ratio = MAX_HOST_TERMINAL_AGENT_SOUND_VOLUME <= 0 ? 0 : clamped / MAX_HOST_TERMINAL_AGENT_SOUND_VOLUME
+		this.drawText(`Громкость: ${Math.round(clamped * 100)}%`, x, y - 17, {
+			fontPx: 9,
+			material: this.materials.muted,
+			maxWidthPx: Math.max(1, w),
+			z: Z.TEXT,
+		})
+		const buttonW = 28
+		IconButton(this, x, y, buttonW, 22, {
+			label: "Сигнал агента тише",
+			iconSrc: uiIcons.minus,
+			action: () => this.hud.setAgentSoundVolume(clamped - 0.1),
+		})
+		IconButton(this, x + w - buttonW, y, buttonW, 22, {
+			label: "Сигнал агента громче",
+			iconSrc: uiIcons.plus,
+			action: () => this.hud.setAgentSoundVolume(clamped + 0.1),
+		})
+
+		const trackX = x + buttonW + 10
+		const trackW = Math.max(1, w - buttonW * 2 - 20)
+		const trackY = y + 8
+		this.drawRoundedRect(trackX, trackY, trackW, 6, {
+			radius: 3,
+			fill: palette.borderDim,
+			border: null,
+			opacity: 0.42,
+			z: Z.ELEMENT,
+		})
+		this.drawRoundedRect(trackX, trackY, Math.max(3, trackW * ratio), 6, {
+			radius: 3,
+			fill: palette.cyan,
+			border: null,
+			opacity: 0.64,
+			z: Z.ELEMENT + 0.02,
+		})
+		const knobX = trackX + trackW * ratio
+		this.drawRoundedRect(knobX - 5, trackY - 4, 10, 14, {
+			radius: 5,
+			fill: palette.cyan,
+			border: palette.borderBright,
+			borderWidth: 1,
+			opacity: 0.86,
+			z: Z.ELEMENT + 0.04,
+		})
+		const setFromPointer = (localX: number): void => {
+			this.hud.setAgentSoundVolume(((localX - trackX) / trackW) * MAX_HOST_TERMINAL_AGENT_SOUND_VOLUME)
+		}
+		this.hit(trackX - 4, y, trackW + 8, 22, () => undefined, {
+			key: "app-web-agent-signal-volume-track",
+			cursor: "pointer",
+			onPointerDown: (localX) => setFromPointer(localX),
+			onPointerMove: (localX) => setFromPointer(localX),
+		})
+	}
+
+	#setOpen(open: boolean): void {
+		if (this.#open === open) return
+		this.#open = open
+		this.hud.relayout()
+		this.requestRender()
+	}
+
+	#panelY(): number {
+		return AGENT_SIGNAL_BUTTON_SIZE + 6
+	}
+}
+
+class AppWebDockPane extends UiSurface {
+	#press: {
+		dragging: boolean
+		lastX: number
+		lastY: number
+		startX: number
+		startY: number
+		timer: ReturnType<typeof setTimeout> | null
+	} | null = null
+	#suppressClick = false
+
+	constructor(private readonly hud: AppWebHud, private readonly kind: DockKind) {
+		super({bgColor: null, borderColor: null})
+		this.node.name = `AppWebDockPane:${kind}`
+	}
+
+	protected render(): void {
+		HudSideTab(this, {
+			rect: {x: 0, y: 0, w: this.rectW, h: this.rectH},
+			key: `app-web-dock:${this.kind}`,
+			edge: this.hud.dockEdge(this.kind),
+			icon: this.hud.dockIcon(this.kind),
+			label: this.hud.dockLabel(this.kind),
+			tooltip: this.hud.dockTooltip(this.kind),
+			onClick: () => this.#restoreFromClick(),
+		})
+	}
+
+	override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
+		super.onPointerDown(event, localX, localY)
+		if (event.button !== 0 || this.pressedHit === null) return
+		const point = this.#canvasPoint(event)
+		if (point === null) return
+		const press = {
+			dragging: false,
+			lastX: point.x,
+			lastY: point.y,
+			startX: point.x,
+			startY: point.y,
+			timer: null as ReturnType<typeof setTimeout> | null,
+		}
+		press.timer = setTimeout(() => {
+			if (this.#press !== press) return
+			press.dragging = true
+			this.#moveDockToCanvasPoint({x: press.lastX, y: press.lastY})
+		}, DOCK_LONG_PRESS_MS)
+		this.#press = press
+	}
+
+	override onPointerMove(event: MouseEvent, localX: number, localY: number): void {
+		const press = this.#press
+		if (press === null) {
+			super.onPointerMove(event, localX, localY)
+			return
+		}
+		const point = this.#canvasPoint(event)
+		if (point !== null) {
+			press.lastX = point.x
+			press.lastY = point.y
+			if (!press.dragging && Math.hypot(press.lastX - press.startX, press.lastY - press.startY) >= DOCK_DRAG_THRESHOLD_PX) {
+				press.dragging = true
+			}
+		}
+		if (!press.dragging) {
+			super.onPointerMove(event, localX, localY)
+			return
+		}
+		event.preventDefault()
+		this.#moveDockToCanvasPoint({x: press.lastX, y: press.lastY})
+		if (this.canvas?.canvas !== undefined) this.canvas.canvas.style.cursor = "grabbing"
+	}
+
+	override onPointerUp(event: MouseEvent, localX: number, localY: number): void {
+		const press = this.#press
+		this.#press = null
+		if (press?.timer !== null && press?.timer !== undefined) clearTimeout(press.timer)
+		const wasDragging = press?.dragging === true
+		if (wasDragging) this.#suppressClick = true
+		super.onPointerUp(event, localX, localY)
+		if (wasDragging) this.#suppressClick = false
+	}
+
+	override onPointerLeave(): void {
+		super.onPointerLeave()
+		this.#cancelPress()
+	}
+
+	override onDeactivate(): void {
+		super.onDeactivate()
+		this.#cancelPress()
+	}
+
+	override dispose(): void {
+		this.#cancelPress()
+		super.dispose()
+	}
+
+	#restoreFromClick(): void {
+		if (this.#suppressClick) return
+		this.hud.toggleDockAction(this.kind)
+	}
+
+	#cancelPress(): void {
+		const press = this.#press
+		this.#press = null
+		if (press?.timer !== null && press?.timer !== undefined) clearTimeout(press.timer)
+	}
+
+	#moveDockToCanvasPoint(point: {x: number; y: number}): void {
+		const frame = this.canvas?.surfaceFrame(this)
+		if (frame === undefined || frame === null) return
+		this.hud.setDockPlacementFromPoint(this.kind, point, frame.bounds)
+	}
+
+	#canvasPoint(event: MouseEvent): {x: number; y: number} | null {
+		const canvas = this.canvas?.canvas
+		if (canvas === undefined) return null
+		const rect = canvas.getBoundingClientRect()
+		return {x: event.clientX - rect.left, y: event.clientY - rect.top}
+	}
+}
+
+function cloneSettings(settings: AppWebHudSettingsSnapshot): AppWebHudSettingsSnapshot {
+	return {
+		layoutSettings: {...settings.layoutSettings},
+		renderSettings: {...settings.renderSettings},
+	}
+}
+
+function clampSettingValue(key: AppWebSettingKey, value: number): number {
+	const config = APP_WEB_SETTINGS_BY_KEY[key]
+	const min = typeof config.min === "number" ? config.min : Number.NEGATIVE_INFINITY
+	const max = typeof config.max === "number" ? config.max : Number.POSITIVE_INFINITY
+	const clamped = clampNumber(Number.isFinite(value) ? value : Number(config.defaultValue), min, max)
+	const step = config.step
+	if (step === undefined || step <= 0) return clamped
+	const rounded = Math.round(clamped / step) * step
+	return Math.abs(step - Math.round(step)) < 1e-9 ? Math.round(rounded) : Number(rounded.toFixed(3))
+}
+
+function formatSettingValue(value: number, step?: number): string {
+	if (!Number.isFinite(value)) return ""
+	if (step !== undefined && Math.abs(step - Math.round(step)) >= 1e-9) return String(Number(value.toFixed(2)))
+	return String(Math.round(value))
+}
+
+function statusKindForPane(kind: PtyStatusKind): TerminalStatusKind {
+	if (kind === "running") return "running"
+	if (kind === "connected") return "connected"
+	if (kind === "disconnected") return "disconnected"
+	if (kind === "error") return "error"
+	return "idle"
+}
+
+function parseTerminalMessage(raw: string): PtyServerMessage | null {
+	try {
+		const value = JSON.parse(raw) as PtyServerMessage
+		if (typeof value === "object" && value !== null && "type" in value) return value
+	} catch {
+		return null
+	}
+	return null
+}
+
+function shellLabel(shell: string): string {
+	const parts = shell.split("/")
+	return parts[parts.length - 1] || shell
+}
+
+function isTerminalSubmitInput(data: string): boolean {
+	return data.includes("\r") || data.includes("\n")
+}
+
+const agentSignalIconCache = new Map<string, string>()
+
+function agentSignalIcon(enabled: boolean): string {
+	const key = enabled ? "on" : "off"
+	const cached = agentSignalIconCache.get(key)
+	if (cached !== undefined) return cached
+	const stroke = enabled ? "#6fd3ff" : "#8b96a6"
+	const slash = enabled
+		? ""
+		: `<path d="M290 910 910 290" stroke="#ff7f6f" stroke-width="92" stroke-linecap="round"/>`
+	const source = `<svg width="1200" height="1200" viewBox="0 0 1200 1200" xmlns="http://www.w3.org/2000/svg"><g fill="none" stroke="${stroke}" stroke-width="86" stroke-linecap="round" stroke-linejoin="round"><path d="M210 690H380L610 870V330L380 510H210v180Z"/><path d="M725 455c66 86 66 204 0 290"/><path d="M850 350c132 146 132 354 0 500"/></g>${slash}</svg>`
+	const icon = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(source)}`
+	agentSignalIconCache.set(key, icon)
+	return icon
+}
+
+function dockRectForPlacement(kind: DockKind, placement: DockPlacement, bounds: {w: number; h: number}): UiSurfaceRect {
+	const vertical = placement.edge === "left" || placement.edge === "right"
+	const long = dockLong(kind)
+	const dockW = vertical
+		? Math.min(DOCK_SHORT, Math.max(1, bounds.w - DOCK_MARGIN))
+		: Math.min(long, Math.max(1, bounds.w - DOCK_MARGIN * 2))
+	const dockH = vertical
+		? Math.min(long, Math.max(1, bounds.h - DOCK_MARGIN * 2))
+		: Math.min(DOCK_SHORT, Math.max(1, bounds.h - DOCK_MARGIN))
+	if (vertical) {
+		const centerY = clampNumber(
+			placement.offset,
+			DOCK_MARGIN + dockH / 2,
+			Math.max(DOCK_MARGIN + dockH / 2, bounds.h - DOCK_MARGIN - dockH / 2),
+		)
+		return {
+			x: placement.edge === "left" ? 0 : Math.max(0, bounds.w - dockW),
+			y: centerY - dockH / 2,
+			w: dockW,
+			h: dockH,
+		}
+	}
+	const centerX = clampNumber(
+		placement.offset,
+		DOCK_MARGIN + dockW / 2,
+		Math.max(DOCK_MARGIN + dockW / 2, bounds.w - DOCK_MARGIN - dockW / 2),
+	)
+	return {
+		x: centerX - dockW / 2,
+		y: placement.edge === "top" ? 0 : Math.max(0, bounds.h - dockH),
+		w: dockW,
+		h: dockH,
+	}
+}
+
+function defaultDockPlacement(kind: DockKind, bounds: {w: number; h: number}): DockPlacement {
+	const placement = defaultDockPlacementRaw(kind, bounds)
+	const rect = dockRectForPlacement(kind, placement, bounds)
+	return {
+		edge: placement.edge,
+		offset: placement.edge === "left" || placement.edge === "right" ? rect.y + rect.h / 2 : rect.x + rect.w / 2,
+	}
+}
+
+function defaultDockPlacementRaw(kind: DockKind, bounds: {w: number; h: number}): DockPlacement {
+	if (kind === "codex") return {edge: "bottom", offset: Math.max(0, bounds.w / 2)}
+	if (kind === "settings") return {edge: "top", offset: Math.max(0, bounds.w / 2)}
+	if (kind === "fullscreen") return {edge: "top", offset: Math.max(0, bounds.w / 2 + 108)}
+	return {edge: "left", offset: Math.max(0, bounds.h - 70)}
+}
+
+function dockPlacementFromPoint(kind: DockKind, point: {x: number; y: number}, bounds: {w: number; h: number}): DockPlacement {
+	const distances: Array<{edge: HudSideTabEdge; distance: number}> = [
+		{edge: "left", distance: point.x},
+		{edge: "right", distance: bounds.w - point.x},
+		{edge: "top", distance: point.y},
+		{edge: "bottom", distance: bounds.h - point.y},
+	]
+	let best = distances[0]!
+	for (const item of distances.slice(1)) {
+		if (item.distance < best.distance) best = item
+	}
+	const rect = dockRectForPlacement(kind, {
+		edge: best.edge,
+		offset: best.edge === "left" || best.edge === "right" ? point.y : point.x,
+	}, bounds)
+	return {
+		edge: best.edge,
+		offset: best.edge === "left" || best.edge === "right" ? rect.y + rect.h / 2 : rect.x + rect.w / 2,
+	}
+}
+
+function dockLong(kind: DockKind): number {
+	if (kind === "codex") return 184
+	if (kind === "settings") return 142
+	if (kind === "todo") return 126
+	return 48
+}
+
+function sameDockPlacement(left: DockPlacement, right: DockPlacement): boolean {
+	return left.edge === right.edge && Math.abs(left.offset - right.offset) < 0.5
+}
+
+function defaultVoiceRect(bounds: {w: number; h: number}): UiSurfaceRect {
+	const frame = voiceFrameForBounds(bounds.w, bounds.h)
+	return {
+		x: frame.bw - frame.margin - frame.rectW,
+		y: frame.bh - frame.margin - frame.rectH,
+		w: frame.rectW,
+		h: frame.rectH,
+	}
+}
+
+function clampVoiceRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): UiSurfaceRect {
+	const frame = voiceFrameForBounds(boundsW, boundsH)
+	return {
+		x: clampNumber(rect.x, frame.margin, Math.max(frame.margin, frame.bw - frame.margin - frame.rectW)),
+		y: clampNumber(rect.y, frame.margin, Math.max(frame.margin, frame.bh - frame.margin - frame.rectH)),
+		w: frame.rectW,
+		h: frame.rectH,
+	}
+}
+
+function voiceFrameForBounds(boundsW: number, boundsH: number): {bw: number; bh: number; margin: number; rectW: number; rectH: number} {
+	const bw = Math.max(1, Math.round(boundsW))
+	const bh = Math.max(1, Math.round(boundsH))
+	const margin = bw >= 32 && bh >= 32 ? VOICE_HUD_MARGIN : 0
+	const rectW = Math.min(VOICE_HUD_W, Math.max(1, bw - margin * 2))
+	const rectH = Math.min(VOICE_HUD_H, Math.max(1, bh - margin * 2))
+	return {bw, bh, margin, rectW, rectH}
+}
+
+function hiddenRect(): UiSurfaceRect {
+	return {x: 0, y: 0, w: 1, h: 1, visible: false}
+}
+
+function voiceStatusLine(status: VoiceInputStatus): string {
+	if (status === "connecting") return "подключение голоса"
+	if (status === "waitingWake") return "жду wake-up"
+	if (status === "listening") return "диктовка активна"
+	if (status === "committing") return "распознавание"
+	if (status === "error") return "ошибка голоса"
+	return "микрофон выключен"
+}
+
+function voiceSignalForStatusChange(previousStatus: VoiceInputStatus, nextStatus: VoiceInputStatus, detail?: string): HudNotificationKind | null {
+	if (nextStatus === "listening" && previousStatus !== "listening" && previousStatus !== "committing") return "activation"
+	if (nextStatus === "waitingWake" && (previousStatus === "listening" || previousStatus === "committing")) return "deactivation"
+	if (nextStatus === "idle" && detail === VOICE_STOP_COMMAND_DETAIL) return "stop"
+	return null
+}
+
+function voiceHudDeactivationMode(mode: VoiceDeactivationMode): VoiceInputHudDeactivationMode {
+	if (mode === "timeout") return "timeout"
+	if (mode === "phrase") return "phrase"
+	return "phrase-timeout"
+}
+
+function installHudNotificationSoundUnlock(): void {
+	if (hudNotificationSoundUnlockInstalled) return
+	hudNotificationSoundUnlockInstalled = true
+	const unlock = (): void => {
+		primeHudNotificationAudioElements()
+		primeHudNotificationAudioContext()
+	}
+	window.addEventListener("pointerdown", unlock, {capture: true})
+	window.addEventListener("keydown", unlock, {capture: true})
+	window.addEventListener("touchstart", unlock, {capture: true})
+}
+
+function playHudNotificationSound(kind: HudNotificationKind, voiceClient: VoiceInputClient | null): void {
+	if (kind === "agent" && !readHostTerminalAgentSoundEnabled()) {
+		recordHudNotificationSound(kind, "disabled")
+		return
+	}
+	const volume = hudNotificationVolume(kind)
+	if (volume <= 0) {
+		recordHudNotificationSound(kind, "muted")
+		return
+	}
+	if (kind !== "agent") {
+		const signalKind: VoiceInputSignalTone = kind
+		if (voiceClient?.playSignalTone(signalKind, volume, (playedKind, method, error) => {
+			recordHudNotificationSound(playedKind, method, error)
+		}) === true) return
+	}
+	playBrowserHudNotificationSound(kind, volume)
+}
+
+function hudNotificationVolume(kind: HudNotificationKind): number {
+	return kind === "agent" ? readHostTerminalAgentSoundVolume() : readVoiceSignalVolume()
+}
+
+function playBrowserHudNotificationSound(kind: HudNotificationKind, volume: number): void {
+	if (playHudNotificationWebAudioTone(kind, volume, (reason) => playHudNotificationHtmlAudio(kind, reason, volume))) return
+	playHudNotificationHtmlAudio(kind, "no webaudio", volume)
+}
+
+function ensureHudNotificationAudioContext(): AudioContext | null {
+	if (hudNotificationAudioContext !== null) return hudNotificationAudioContext
+	try {
+		hudNotificationAudioContext = new AudioContext()
+		return hudNotificationAudioContext
+	} catch {
+		return null
+	}
+}
+
+function playHudNotificationWebAudioTone(kind: HudNotificationKind, volume: number, onError?: (reason: string) => void): boolean {
+	const context = ensureHudNotificationAudioContext()
+	if (context === null) return false
+	const play = (): void => {
+		const start = context.currentTime + 0.005
+		const spec = hudNotificationTone(kind)
+		const end = start + spec.duration
+		const gain = context.createGain()
+		const tone = context.createOscillator()
+		tone.type = spec.type
+		tone.frequency.setValueAtTime(spec.startHz, start)
+		tone.frequency.exponentialRampToValueAtTime(spec.endHz, end)
+		const peakGain = spec.gain * clampNumber(volume, 0, MAX_VOICE_SIGNAL_VOLUME)
+		gain.gain.setValueAtTime(0.0001, start)
+		gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, peakGain), start + 0.018)
+		gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, peakGain * 0.42), start + spec.duration * 0.45)
+		gain.gain.exponentialRampToValueAtTime(0.0001, end)
+		tone.connect(gain)
+		gain.connect(context.destination)
+		tone.start(start)
+		tone.stop(end + 0.03)
+		tone.addEventListener("ended", () => {
+			tone.disconnect()
+			gain.disconnect()
+		}, {once: true})
+		recordHudNotificationSound(kind, `webaudio · ${context.state}`)
+	}
+	if (context.state === "suspended") {
+		let settled = false
+		const fallbackTimer = window.setTimeout(() => {
+			if (settled) return
+			settled = true
+			onError?.("resume timeout")
+		}, 180)
+		void context.resume()
+			.then(() => {
+				if (settled) return
+				settled = true
+				window.clearTimeout(fallbackTimer)
+				if (context.state !== "running") {
+					onError?.(`context ${context.state}`)
+					return
+				}
+				play()
+			})
+			.catch((error) => {
+				if (settled) return
+				settled = true
+				window.clearTimeout(fallbackTimer)
+				recordHudNotificationSound(kind, "webaudio blocked", error)
+				onError?.("resume blocked")
+			})
+		return true
+	}
+	play()
+	return true
+}
+
+function playHudNotificationHtmlAudio(kind: HudNotificationKind, reason = "fallback", volume = hudNotificationVolume(kind)): void {
+	const audio = ensureHudNotificationAudioElement(kind)
+	if (audio !== null) {
+		try {
+			audio.pause()
+			audio.currentTime = 0
+		} catch {
+			// Some browsers reject seeking before media metadata is ready.
+		}
+		audio.muted = false
+		audio.volume = htmlNotificationVolume(volume)
+		void audio.play()
+			.then(() => recordHudNotificationSound(kind, `html · ${reason}`))
+			.catch((error) => recordHudNotificationSound(kind, "html blocked", error))
+		return
+	}
+	recordHudNotificationSound(kind, "html unavailable", reason)
+}
+
+function ensureHudNotificationAudioElement(kind: HudNotificationKind): HTMLAudioElement | null {
+	const cached = hudNotificationAudioElements.get(kind)
+	if (cached !== undefined) return cached
+	try {
+		const audio = new Audio(hudNotificationWavDataUrl(kind))
+		audio.preload = "auto"
+		audio.volume = htmlNotificationVolume(hudNotificationVolume(kind))
+		hudNotificationAudioElements.set(kind, audio)
+		return audio
+	} catch {
+		return null
+	}
+}
+
+function primeHudNotificationAudioElements(): void {
+	for (const kind of hudNotificationKinds()) primeHudNotificationAudioElement(kind)
+}
+
+function primeHudNotificationAudioElement(kind: HudNotificationKind): void {
+	const audio = ensureHudNotificationAudioElement(kind)
+	if (audio === null) return
+	const restore = (): void => {
+		try {
+			audio.pause()
+			audio.currentTime = 0
+		} catch {
+			// Best-effort unlock.
+		}
+		audio.muted = false
+		audio.volume = htmlNotificationVolume(hudNotificationVolume(kind))
+	}
+	audio.muted = true
+	audio.volume = 0
+	try {
+		audio.currentTime = 0
+	} catch {
+		// Best-effort unlock; restore handles state after the play attempt.
+	}
+	void audio.play().then(restore).catch(restore)
+}
+
+function primeHudNotificationAudioContext(): void {
+	const context = ensureHudNotificationAudioContext()
+	if (context === null) return
+	const prime = (): void => {
+		try {
+			const source = context.createBufferSource()
+			source.buffer = context.createBuffer(1, 1, context.sampleRate)
+			source.connect(context.destination)
+			source.start()
+			source.addEventListener("ended", () => source.disconnect(), {once: true})
+		} catch {
+			// Audio unlock is best-effort; actual playback has the HTMLAudio fallback.
+		}
+	}
+	if (context.state === "suspended") {
+		void context.resume().then(prime).catch(() => undefined)
+		return
+	}
+	prime()
+}
+
+function syncHudNotificationAudioVolume(kind: HudNotificationKind): void {
+	const audio = hudNotificationAudioElements.get(kind)
+	if (audio === undefined) return
+	audio.volume = htmlNotificationVolume(hudNotificationVolume(kind))
+}
+
+function htmlNotificationVolume(volume: number): number {
+	return Math.min(1, clampNumber(volume, 0, MAX_VOICE_SIGNAL_VOLUME) * 0.9)
+}
+
+function hudNotificationKinds(): HudNotificationKind[] {
+	return ["activation", "deactivation", "stop", "agent"]
+}
+
+function hudNotificationTone(kind: HudNotificationKind): {
+	startHz: number
+	endHz: number
+	duration: number
+	gain: number
+	type: OscillatorType
+} {
+	if (kind === "activation") return {startHz: 640, endHz: 960, duration: 0.24, gain: 0.34, type: "triangle"}
+	if (kind === "deactivation") return {startHz: 740, endHz: 430, duration: 0.22, gain: 0.32, type: "sine"}
+	if (kind === "stop") return {startHz: 360, endHz: 210, duration: 0.34, gain: 0.38, type: "square"}
+	return {startHz: 520, endHz: 520, duration: 0.12, gain: 0.22, type: "sine"}
+}
+
+function hudNotificationWavDataUrl(kind: HudNotificationKind): string {
+	const sampleRate = 44_100
+	const tone = hudNotificationTone(kind)
+	const sampleCount = Math.floor(sampleRate * tone.duration)
+	const bytes = new Uint8Array(44 + sampleCount * 2)
+	const view = new DataView(bytes.buffer)
+	writeAscii(bytes, 0, "RIFF")
+	view.setUint32(4, 36 + sampleCount * 2, true)
+	writeAscii(bytes, 8, "WAVE")
+	writeAscii(bytes, 12, "fmt ")
+	view.setUint32(16, 16, true)
+	view.setUint16(20, 1, true)
+	view.setUint16(22, 1, true)
+	view.setUint32(24, sampleRate, true)
+	view.setUint32(28, sampleRate * 2, true)
+	view.setUint16(32, 2, true)
+	view.setUint16(34, 16, true)
+	writeAscii(bytes, 36, "data")
+	view.setUint32(40, sampleCount * 2, true)
+	let phase = 0
+	for (let index = 0; index < sampleCount; index += 1) {
+		const t = index / sampleRate
+		const progress = t / tone.duration
+		const frequency = tone.startHz * Math.pow(tone.endHz / tone.startHz, progress)
+		const attack = Math.min(1, t / 0.025)
+		const release = Math.min(1, Math.max(0, (tone.duration - t) / 0.09))
+		const envelope = Math.sin(Math.min(1, progress) * Math.PI) * Math.min(attack, release)
+		const wave = tone.type === "square" ? Math.sign(Math.sin(phase)) : Math.sin(phase)
+		const sample = wave * envelope * Math.min(0.95, tone.gain + 0.44)
+		phase += (Math.PI * 2 * frequency) / sampleRate
+		view.setInt16(44 + index * 2, Math.round(sample * 32767), true)
+	}
+	return `data:audio/wav;base64,${base64Bytes(bytes)}`
+}
+
+function recordHudNotificationSound(kind: HudNotificationKind, method: string, error?: unknown): void {
+	hudNotificationLastAt = new Date()
+	const errorText = error instanceof Error ? error.message : typeof error === "string" ? error : ""
+	hudNotificationLastLine = [kind, method, errorText].filter(Boolean).join(" · ")
+}
+
+function hudNotificationDebugLine(): string {
+	if (!hudNotificationLastLine) return "-"
+	return `${formatTime(hudNotificationLastAt ?? new Date())} · ${hudNotificationLastLine}`
+}
+
+function writeAscii(bytes: Uint8Array, offset: number, value: string): void {
+	for (let index = 0; index < value.length; index += 1) bytes[offset + index] = value.charCodeAt(index)
+}
+
+function base64Bytes(bytes: Uint8Array): string {
+	let binary = ""
+	const chunkSize = 0x8000
+	for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+		const chunk = bytes.subarray(offset, offset + chunkSize)
+		binary += String.fromCharCode(...chunk)
+	}
+	return btoa(binary)
+}
+
+function readVoiceInputUrl(): string {
+	return readStoredString(VOICE_INPUT_URL_STORAGE_KEY) ?? DEFAULT_VOICE_INPUT_URL
+}
+
+function readVoiceWakeUrl(): string {
+	return readStoredString(VOICE_WAKE_URL_STORAGE_KEY) ?? DEFAULT_VOICE_WAKE_URL
+}
+
+function readVoiceInputContext(): string {
+	return readStoredString(VOICE_INPUT_CONTEXT_STORAGE_KEY) ?? ""
+}
+
+function voiceContextWithTerminal(terminalText: string): string {
+	return [readVoiceInputContext(), terminalText.slice(-6000)]
+		.map((item) => item.trim())
+		.filter(Boolean)
+		.join("\n\n")
+		.slice(-8000)
+}
+
+function readVoiceAutoSendEnabled(): boolean {
+	try {
+		const raw = localStorage.getItem(VOICE_AUTO_SEND_STORAGE_KEY)
+		if (raw === null) return DEFAULT_VOICE_AUTO_SEND_ENABLED
+		return raw !== "0" && raw !== "false"
+	} catch {
+		return DEFAULT_VOICE_AUTO_SEND_ENABLED
+	}
+}
+
+function writeVoiceAutoSendEnabled(enabled: boolean): void {
+	const next = enabled ? "1" : "0"
+	try {
+		localStorage.setItem(VOICE_AUTO_SEND_STORAGE_KEY, next)
+	} catch {
+		// Storage can be disabled.
+	}
+	syncInterpreterVoiceSettings({[VOICE_AUTO_SEND_STORAGE_KEY]: next})
+}
+
+function readVoiceSignalVolume(): number {
+	try {
+		const raw = localStorage.getItem(VOICE_SIGNAL_VOLUME_STORAGE_KEY)
+		if (raw === null) {
+			const legacy = readLegacyVoiceSignalVolume()
+			return legacy === null ? DEFAULT_VOICE_SIGNAL_VOLUME : clampVoiceSignalVolume(legacy * MAX_VOICE_SIGNAL_VOLUME)
+		}
+		const value = Number(raw)
+		return Number.isFinite(value) ? clampVoiceSignalVolume(value) : DEFAULT_VOICE_SIGNAL_VOLUME
+	} catch {
+		return DEFAULT_VOICE_SIGNAL_VOLUME
+	}
+}
+
+function readLegacyVoiceSignalVolume(): number | null {
+	try {
+		const raw = localStorage.getItem(VOICE_SIGNAL_VOLUME_LEGACY_STORAGE_KEY)
+		if (raw === null) return null
+		const value = Number(raw)
+		return Number.isFinite(value) ? clampNumber(value, 0, 1) : null
+	} catch {
+		return null
+	}
+}
+
+function writeVoiceSignalVolume(value: number): void {
+	const next = String(clampVoiceSignalVolume(value))
+	try {
+		localStorage.setItem(VOICE_SIGNAL_VOLUME_STORAGE_KEY, next)
+	} catch {
+		// Storage can be disabled.
+	}
+	syncHudNotificationAudioVolume("activation")
+	syncHudNotificationAudioVolume("deactivation")
+	syncHudNotificationAudioVolume("stop")
+	syncInterpreterVoiceSettings({[VOICE_SIGNAL_VOLUME_STORAGE_KEY]: next})
+}
+
+function clampVoiceSignalVolume(value: number): number {
+	return clampNumber(value, 0, MAX_VOICE_SIGNAL_VOLUME)
+}
+
+function readHostTerminalAgentSoundEnabled(): boolean {
+	try {
+		const raw = localStorage.getItem(HOST_TERMINAL_AGENT_SOUND_ENABLED_STORAGE_KEY)
+		if (raw === null) return DEFAULT_HOST_TERMINAL_AGENT_SOUND_ENABLED
+		return raw !== "0" && raw !== "false"
+	} catch {
+		return DEFAULT_HOST_TERMINAL_AGENT_SOUND_ENABLED
+	}
+}
+
+function writeHostTerminalAgentSoundEnabled(enabled: boolean): void {
+	const next = enabled ? "1" : "0"
+	try {
+		localStorage.setItem(HOST_TERMINAL_AGENT_SOUND_ENABLED_STORAGE_KEY, next)
+	} catch {
+		// Storage can be disabled.
+	}
+	syncInterpreterVoiceSettings({[HOST_TERMINAL_AGENT_SOUND_ENABLED_STORAGE_KEY]: next})
+}
+
+function readHostTerminalAgentSoundVolume(): number {
+	try {
+		const raw = localStorage.getItem(HOST_TERMINAL_AGENT_SOUND_VOLUME_STORAGE_KEY)
+		if (raw === null) {
+			const legacy = localStorage.getItem(HOST_TERMINAL_AGENT_SOUND_VOLUME_LEGACY_STORAGE_KEY)
+			if (legacy === null) return DEFAULT_HOST_TERMINAL_AGENT_SOUND_VOLUME
+			const legacyValue = Number(legacy)
+			return Number.isFinite(legacyValue) ? clampHostTerminalAgentSoundVolume(legacyValue) : DEFAULT_HOST_TERMINAL_AGENT_SOUND_VOLUME
+		}
+		const value = Number(raw)
+		return Number.isFinite(value) ? clampHostTerminalAgentSoundVolume(value) : DEFAULT_HOST_TERMINAL_AGENT_SOUND_VOLUME
+	} catch {
+		return DEFAULT_HOST_TERMINAL_AGENT_SOUND_VOLUME
+	}
+}
+
+function writeHostTerminalAgentSoundVolume(value: number): void {
+	const next = String(clampHostTerminalAgentSoundVolume(value))
+	try {
+		localStorage.setItem(HOST_TERMINAL_AGENT_SOUND_VOLUME_STORAGE_KEY, next)
+	} catch {
+		// Storage can be disabled.
+	}
+	syncHudNotificationAudioVolume("agent")
+	syncInterpreterVoiceSettings({[HOST_TERMINAL_AGENT_SOUND_VOLUME_STORAGE_KEY]: next})
+}
+
+function clampHostTerminalAgentSoundVolume(value: number): number {
+	return clampNumber(value, 0, MAX_HOST_TERMINAL_AGENT_SOUND_VOLUME)
+}
+
+function readVoiceDeactivationMode(): VoiceDeactivationMode {
+	const raw = readStoredString(VOICE_DEACTIVATION_MODE_STORAGE_KEY)
+	if (raw === "phrase" || raw === "timeout" || raw === "phrase-timeout") return raw
+	return DEFAULT_VOICE_DEACTIVATION_MODE
+}
+
+function writeVoiceDeactivationMode(value: VoiceInputHudDeactivationMode): void {
+	writeStoredString(VOICE_DEACTIVATION_MODE_STORAGE_KEY, value)
+	syncInterpreterVoiceSettings({[VOICE_DEACTIVATION_MODE_STORAGE_KEY]: value})
+}
+
+function readVoiceRecognitionTimeoutSeconds(): number {
+	return clampVoiceRecognitionTimeoutSeconds(readStoredNumber(VOICE_RECOGNITION_TIMEOUT_STORAGE_KEY, DEFAULT_VOICE_RECOGNITION_TIMEOUT_SECONDS))
+}
+
+function writeVoiceRecognitionTimeoutSeconds(value: number): void {
+	const next = String(clampVoiceRecognitionTimeoutSeconds(value))
+	writeStoredString(VOICE_RECOGNITION_TIMEOUT_STORAGE_KEY, next)
+	syncInterpreterVoiceSettings({[VOICE_RECOGNITION_TIMEOUT_STORAGE_KEY]: next})
+}
+
+function clampVoiceRecognitionTimeoutSeconds(value: number): number {
+	return Math.round(clampNumber(value, MIN_VOICE_RECOGNITION_TIMEOUT_SECONDS, MAX_VOICE_RECOGNITION_TIMEOUT_SECONDS))
+}
+
+function voicePhraseGroups(wakeLines: string[]) {
+	return [
+		{
+			id: "activation" as const,
+			title: "Активация",
+			description: "Запускает диктовку.",
+			whenLine: "Когда: микрофон ждет wake-up фразу.",
+			effectLine: "Что происходит: включается ASR-диктовка.",
+			phrases: readVoicePhrases("activation"),
+			addLabel: "Добавить",
+			placeholder: "Фраза активации",
+			resetLabel: "Сброс",
+			fuzzyLabel: "Допустимая ошибка",
+			fuzzyValue: readVoiceFuzzyTolerance("activation"),
+			receivedLabel: "Wake-up получает",
+			receivedLines: wakeLines.length > 0 ? wakeLines : ["пока нет данных"],
+		},
+		{
+			id: "deactivation" as const,
+			title: "Деактивация",
+			description: "Гасит диктовку, wake-up остается.",
+			whenLine: "Когда: диктовка уже активна.",
+			effectLine: "Что происходит: ASR гаснет, wake-up остается.",
+			phrases: readVoicePhrases("deactivation"),
+			addLabel: "Добавить",
+			placeholder: "Фраза деактивации",
+			resetLabel: "Сброс",
+			fuzzyLabel: "Допустимая ошибка",
+			fuzzyValue: readVoiceFuzzyTolerance("deactivation"),
+		},
+		{
+			id: "stop" as const,
+			title: "Остановка",
+			description: "Полностью выключает голос.",
+			whenLine: "Когда: нужно полностью выключить голос.",
+			effectLine: "Что происходит: ASR, wake-up и микрофон закрываются.",
+			phrases: readVoicePhrases("stop"),
+			addLabel: "Добавить",
+			placeholder: "Фраза остановки",
+			resetLabel: "Сброс",
+			fuzzyLabel: "Допустимая ошибка",
+			fuzzyValue: readVoiceFuzzyTolerance("stop"),
+		},
+	]
+}
+
+function readVoicePhrases(groupId: VoiceInputHudPhraseGroupId): string[] {
+	try {
+		const raw = readVoicePhraseStorage(groupId)
+		if (raw !== null) {
+			const parsed = JSON.parse(raw) as unknown
+			if (Array.isArray(parsed)) {
+				const phrases = normalizeVoicePhrases(parsed.map((item) => String(item)))
+				if (phrases.length > 0) return phrases
+			}
+		}
+	} catch {
+		// Storage can be disabled or manually edited.
+	}
+	return [...defaultVoicePhrases(groupId)]
+}
+
+function readVoicePhraseStorage(groupId: VoiceInputHudPhraseGroupId): string | null {
+	const raw = localStorage.getItem(voicePhraseStorageKey(groupId))
+	if (raw !== null || groupId !== "activation") return raw
+	return localStorage.getItem(VOICE_WAKE_PHRASES_STORAGE_KEY)
+}
+
+function storeVoicePhrases(groupId: VoiceInputHudPhraseGroupId, phrases: readonly string[]): void {
+	const normalized = normalizeVoicePhrases(phrases)
+	const next = normalized.length > 0 ? normalized : [...defaultVoicePhrases(groupId)]
+	const key = voicePhraseStorageKey(groupId)
+	const raw = JSON.stringify(next)
+	writeStoredString(key, raw)
+	syncInterpreterVoiceSettings({[key]: raw})
+}
+
+function defaultVoicePhrases(groupId: VoiceInputHudPhraseGroupId): readonly string[] {
+	if (groupId === "activation") return DEFAULT_VOICE_ACTIVATION_PHRASES
+	if (groupId === "deactivation") return DEFAULT_VOICE_DEACTIVATION_PHRASES
+	return DEFAULT_VOICE_STOP_PHRASES
+}
+
+function voicePhraseStorageKey(groupId: VoiceInputHudPhraseGroupId): string {
+	if (groupId === "activation") return VOICE_ACTIVATION_PHRASES_STORAGE_KEY
+	if (groupId === "deactivation") return VOICE_DEACTIVATION_PHRASES_STORAGE_KEY
+	return VOICE_STOP_PHRASES_STORAGE_KEY
+}
+
+function voicePhraseKey(phrase: string): string | undefined {
+	const normalized = normalizeVoicePhrases([phrase])[0]
+	if (normalized === undefined) return undefined
+	return normalized.toLocaleLowerCase("ru-RU").replace(/ё/g, "е")
+}
+
+function readVoiceFuzzyTolerance(groupId: VoiceInputHudPhraseGroupId): number {
+	try {
+		const raw = localStorage.getItem(voiceFuzzyStorageKey(groupId))
+		if (raw === null) return defaultVoiceFuzzyTolerance(groupId)
+		const value = Number(raw)
+		return Number.isFinite(value) ? clampVoiceFuzzyTolerance(value) : defaultVoiceFuzzyTolerance(groupId)
+	} catch {
+		return defaultVoiceFuzzyTolerance(groupId)
+	}
+}
+
+function writeVoiceFuzzyTolerance(groupId: VoiceInputHudPhraseGroupId, value: number): void {
+	const key = voiceFuzzyStorageKey(groupId)
+	const next = String(clampVoiceFuzzyTolerance(value))
+	try {
+		localStorage.setItem(key, next)
+	} catch {
+		// Storage can be disabled.
+	}
+	syncInterpreterVoiceSettings({[key]: next})
+}
+
+function voiceFuzzyStorageKey(groupId: VoiceInputHudPhraseGroupId): string {
+	if (groupId === "activation") return VOICE_ACTIVATION_FUZZY_STORAGE_KEY
+	if (groupId === "deactivation") return VOICE_DEACTIVATION_FUZZY_STORAGE_KEY
+	return VOICE_STOP_FUZZY_STORAGE_KEY
+}
+
+function defaultVoiceFuzzyTolerance(groupId: VoiceInputHudPhraseGroupId): number {
+	if (groupId === "activation") return DEFAULT_VOICE_ACTIVATION_FUZZY
+	if (groupId === "deactivation") return DEFAULT_VOICE_DEACTIVATION_FUZZY
+	return DEFAULT_VOICE_STOP_FUZZY
+}
+
+function clampVoiceFuzzyTolerance(value: number): number {
+	return clampNumber(value, 0, 0.5)
+}
+
+function shouldFlushVoiceBufferForStatus(previousStatus: VoiceInputStatus, status: VoiceInputStatus): boolean {
+	if (status === "idle") return true
+	if (status === "waitingWake" && (previousStatus === "listening" || previousStatus === "committing")) return true
+	return false
+}
+
+function shouldPreserveVoicePartialForStatus(previousStatus: VoiceInputStatus, status: VoiceInputStatus, detail?: string): boolean {
+	if (previousStatus !== "listening" && previousStatus !== "committing") return false
+	if (status === "error") return isVoiceConnectionLossDetail(detail)
+	return status === "waitingWake" && isVoiceConnectionLossDetail(detail)
+}
+
+function isVoiceConnectionLossDetail(detail: string | undefined): boolean {
+	if (detail === undefined || detail.length === 0) return false
+	return /websocket|socket|closed|failed|asr|недоступ|закрыт/i.test(detail)
+}
+
+function isVoiceServiceErrorText(text: string): boolean {
+	return /ASR недоступен|ASR unavailable|websocket failed|websocket closed/i.test(text)
+}
+
+function voiceMessagesFromChunk(chunk: VoiceInputChunk): string[] {
+	if (chunk.messages.length > 1) return chunk.messages.map(cleanupVoiceInputText).filter(Boolean)
+
+	const byPause = voiceMessagesFromSegments(chunk.segments)
+	if (byPause.length > 1) return byPause
+
+	const source = chunk.messages[0] ?? chunk.text
+	const byParagraph = splitVoiceParagraphs(source)
+	return byParagraph.length > 0 ? byParagraph : byPause
+}
+
+function voiceMessagesFromSegments(segments: VoiceInputSegment[]): string[] {
+	const messages: string[] = []
+	let current = ""
+	let lastEnd: number | null = null
+
+	for (const segment of segments) {
+		const text = cleanupVoiceInputText(segment.text ?? "")
+		if (!text) continue
+
+		const start = segment.start
+		const end = segment.end
+		const hasPause =
+			current.length > 0 &&
+			typeof start === "number" &&
+			typeof lastEnd === "number" &&
+			start - lastEnd >= VOICE_MESSAGE_PAUSE_SECONDS
+
+		if (hasPause) {
+			messages.push(current)
+			current = text
+		} else {
+			current = current ? `${current} ${text}` : text
+		}
+
+		if (typeof end === "number") lastEnd = end
+	}
+
+	if (current) messages.push(current)
+	return messages
+}
+
+function splitVoiceParagraphs(text: string): string[] {
+	return String(text)
+		.replace(/\r\n?/g, "\n")
+		.split(/\n\s*\n+/)
+		.map(cleanupVoiceInputText)
+		.filter(Boolean)
+}
+
+function sanitizeCodexTerminalVoiceInput(text: string): string {
+	return cleanupVoiceInputText(text)
+		.replace(/\x1b\[201~/g, "")
+		.replace(/\x1b/g, "")
+}
+
+function cleanupVoiceInputText(text: string): string {
+	const cleaned = cleanupVoiceText(text).replace(/\s+/g, " ").trim()
+	return voiceTextHasContent(cleaned) ? cleaned : ""
+}
+
+function voiceTextHasContent(text: string): boolean {
+	return /[\p{L}\p{N}]/u.test(text)
+}
+
+function mergeVoiceInputText(base: string, addition: string): string {
+	const left = cleanupVoiceInputText(base)
+	const right = cleanupVoiceInputText(addition)
+	if (!left) return right
+	if (!right) return left
+	const leftKey = voiceInputCompareKey(left)
+	const rightKey = voiceInputCompareKey(right)
+	if (!rightKey || leftKey === rightKey || leftKey.endsWith(` ${rightKey}`)) return left
+	if (rightKey.startsWith(`${leftKey} `)) return right
+	return `${left} ${right}`
+}
+
+function voiceInputCompareKey(text: string): string {
+	return cleanupVoiceInputText(text)
+		.toLocaleLowerCase("ru-RU")
+		.replace(/ё/g, "е")
+		.normalize("NFKD")
+		.replace(/\p{M}/gu, "")
+		.replace(/[^\p{L}\p{N}]+/gu, " ")
+		.replace(/\s+/g, " ")
+		.trim()
+}
+
+function asVoiceSettingsValues(value: unknown): Partial<Record<typeof VOICE_SETTINGS_STORAGE_KEYS[number], string>> | null {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) return null
+	const next: Partial<Record<typeof VOICE_SETTINGS_STORAGE_KEYS[number], string>> = {}
+	for (const [key, item] of Object.entries(value)) {
+		if (isVoiceSettingsStorageKey(key) && typeof item === "string") next[key] = item
+	}
+	return next
+}
+
+function syncInterpreterVoiceSettings(values: Record<string, string | null>): void {
+	const next: Record<string, string | null> = {}
+	for (const [key, value] of Object.entries(values)) {
+		if (!isVoiceSettingsStorageKey(key)) continue
+		next[key] = value
+	}
+	if (Object.keys(next).length === 0) return
+	void fetch("/hud/voice/settings", {
+		method: "POST",
+		headers: {"content-type": "application/json"},
+		body: JSON.stringify({values: next}),
+	}).catch(() => undefined)
+}
+
+function isVoiceSettingsStorageKey(key: string): key is typeof VOICE_SETTINGS_STORAGE_KEYS[number] {
+	return (VOICE_SETTINGS_STORAGE_KEYS as readonly string[]).includes(key)
+}
+
+function endpointLabel(raw: string): string {
+	try {
+		const url = new URL(raw)
+		return `${url.hostname}:${url.port || (url.protocol === "wss:" ? "443" : "80")}`
+	} catch {
+		return raw
+	}
+}
+
+function probeVoiceService(rawUrl: string): Promise<Record<string, unknown> | null> {
+	return new Promise((resolve, reject) => {
+		let settled = false
+		let openFallback: number | null = null
+		const ws = new WebSocket(rawUrl)
+		const timeout = window.setTimeout(() => finish(null, new Error("timeout")), VOICE_SERVICE_CHECK_TIMEOUT_MS)
+
+		const finish = (data: Record<string, unknown> | null, error?: Error): void => {
+			if (settled) return
+			settled = true
+			window.clearTimeout(timeout)
+			if (openFallback !== null) window.clearTimeout(openFallback)
+			if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) ws.close()
+			if (error !== undefined) reject(error)
+			else resolve(data)
+		}
+
+		ws.addEventListener("open", () => {
+			openFallback = window.setTimeout(() => finish(null), 350)
+		})
+		ws.addEventListener("message", (event) => {
+			if (typeof event.data !== "string") return
+			try {
+				const msg = JSON.parse(event.data) as {type?: string; config?: unknown}
+				if (msg.type === "ready") {
+					finish(typeof msg.config === "object" && msg.config !== null ? msg.config as Record<string, unknown> : null)
+				}
+			} catch {
+				finish(null)
+			}
+		})
+		ws.addEventListener("error", () => finish(null, new Error("websocket failed")))
+		ws.addEventListener("close", () => finish(null, new Error("websocket closed")))
+	})
+}
+
+function formatTime(date: Date): string {
+	return date.toLocaleTimeString("ru-RU", {hour12: false})
+}
+
+function readStoredTodoPanelState(): ToDoPanePanelStateSnapshot {
+	return readStoredObject(TODO_PANEL_STATE_STORAGE_KEY, {highlightedIds: [], expandedCompletedIds: []})
+}
+
+function readStoredDockPlacement(key: string): DockPlacement | null {
+	try {
+		const raw = localStorage.getItem(key)
+		if (raw === null) return null
+		const value = JSON.parse(raw) as Partial<DockPlacement>
+		if (!isDockEdge(value.edge) || typeof value.offset !== "number" || !Number.isFinite(value.offset)) return null
+		return {edge: value.edge, offset: value.offset}
+	} catch {
+		return null
+	}
+}
+
+function writeStoredDockPlacement(key: string, placement: DockPlacement): void {
+	writeStoredJson(key, placement)
+}
+
+function isDockEdge(value: unknown): value is HudSideTabEdge {
+	return value === "left" || value === "right" || value === "top" || value === "bottom"
+}
+
+function readStoredRect(key: string): UiSurfaceRect | null {
+	const value = readStoredObject<Partial<UiSurfaceRect>>(key)
+	const x = value.x
+	const y = value.y
+	const w = value.w
+	const h = value.h
+	if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(w) || !Number.isFinite(h)) return null
+	return {x: x as number, y: y as number, w: w as number, h: h as number}
+}
+
+function writeStoredRect(key: string, rect: UiSurfaceRect): void {
+	writeStoredJson(key, {x: rect.x, y: rect.y, w: rect.w, h: rect.h})
+}
+
+function readStoredBoolean(key: string, fallback: boolean): boolean {
+	try {
+		const raw = localStorage.getItem(key)
+		if (raw === "true" || raw === "1") return true
+		if (raw === "false" || raw === "0") return false
+	} catch {
+		return fallback
+	}
+	return fallback
+}
+
+function writeStoredBoolean(key: string, value: boolean): void {
+	try {
+		localStorage.setItem(key, value ? "1" : "0")
+	} catch {
+		// Storage can be disabled.
+	}
+}
+
+function readStoredNumber(key: string, fallback: number): number {
+	try {
+		const value = Number(localStorage.getItem(key))
+		return Number.isFinite(value) ? value : fallback
+	} catch {
+		return fallback
+	}
+}
+
+function writeStoredNumber(key: string, value: number): void {
+	try {
+		localStorage.setItem(key, String(value))
+	} catch {
+		// Storage can be disabled.
+	}
+}
+
+function readStoredString(key: string): string | null {
+	try {
+		const value = localStorage.getItem(key)
+		return value && value.length > 0 ? value : null
+	} catch {
+		return null
+	}
+}
+
+function writeStoredString(key: string, value: string): void {
+	try {
+		localStorage.setItem(key, value)
+	} catch {
+		// Storage can be disabled.
+	}
+}
+
+function readStoredObject<T extends object>(key: string, fallback: T): T
+function readStoredObject<T extends object>(key: string): Partial<T>
+function readStoredObject<T extends object>(key: string, fallback?: T): T | Partial<T> {
+	try {
+		const raw = localStorage.getItem(key)
+		if (!raw) return fallback ?? {}
+		const value = JSON.parse(raw)
+		if (typeof value === "object" && value !== null) return value as T
+	} catch {
+		return fallback ?? {}
+	}
+	return fallback ?? {}
+}
+
+function writeStoredJson(key: string, value: unknown): void {
+	try {
+		localStorage.setItem(key, JSON.stringify(value))
+	} catch {
+		// Storage can be disabled.
+	}
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+	return Math.max(min, Math.min(max, value))
+}

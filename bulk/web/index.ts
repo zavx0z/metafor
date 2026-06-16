@@ -36,6 +36,17 @@ import {
 	ViewPoint,
 } from "@metafor/engine"
 import {
+	HUD,
+	VirtualInput,
+	handleActiveInputKey,
+	insertActiveInputText,
+	type UiRuntime,
+	type UiSurfaceLayoutFn,
+	type UiSurfaceLayerOpts,
+	type UiSurfaceNode,
+	type UiSurfaceRect,
+} from "@ui/elements"
+import {
 	resolveBulkHoverPriorityTarget,
 	resolveBulkPickHit,
 	resolveBulkPickHits,
@@ -67,6 +78,21 @@ export interface BulkViewportController {
 	setRenderSettings(settings: Partial<AppWebRenderSettings>): void
 	setSize(width: number, height: number): void
 	applyWorld(world: DbWorldRows): void
+	readonly hud: BulkViewportHudController
+}
+
+/** HUD-слой поверх того же renderer/space, что и bulk viewport. */
+export interface BulkViewportHudController {
+	readonly canvas: HTMLCanvasElement
+	readonly renderer: Renderer
+	readonly inputProxy: VirtualInput | null
+	addSurface(surface: UiSurfaceNode, layout: UiSurfaceLayoutFn, opts?: UiSurfaceLayerOpts): void
+	clearSurfaceRect(surface: UiSurfaceNode): void
+	relayout(): void
+	requestRender(): void
+	setFocused(surface: UiSurfaceNode | null): void
+	setSurfaceRect(surface: UiSurfaceNode, rect: UiSurfaceRect): UiSurfaceRect | null
+	surfaceFrame(surface: UiSurfaceNode): {rect: UiSurfaceRect; bounds: {w: number; h: number}} | null
 }
 
 type BulkViewportOptions = {
@@ -523,6 +549,363 @@ const createWorkspaceGrid = (): GridHelper => {
 	return grid
 }
 
+type BulkHudSurfaceSlot = {
+	surface: UiSurfaceNode
+	layout: UiSurfaceLayoutFn
+	rect: UiSurfaceRect
+	rectOverride?: UiSurfaceRect
+	pixelScale?: number
+	order: number
+	zIndex: number
+}
+
+class BulkViewportHudRuntime implements BulkViewportHudController {
+	readonly canvas: HTMLCanvasElement
+	readonly renderer: Renderer
+	readonly inputProxy: VirtualInput | null
+	readonly #hud: HUD
+	readonly #viewPoint: ViewPoint
+	readonly #font: TrueTypeFont
+	readonly #requestFrame: (wakeMs?: number) => void
+	readonly #surfaces: BulkHudSurfaceSlot[] = []
+	#surfaceOrder = 0
+	#width = 1
+	#height = 1
+	#pixelScale = 1
+	#focused: UiSurfaceNode | null = null
+	#pressedSlot: BulkHudSurfaceSlot | null = null
+	#hoveredSlot: BulkHudSurfaceSlot | null = null
+	#disposed = false
+
+	readonly #handleWheel = (event: WheelEvent): void => this.#onWheel(event)
+	readonly #handleMouseMove = (event: MouseEvent): void => this.#onMouseMove(event)
+	readonly #handleMouseDown = (event: MouseEvent): void => this.#onMouseDown(event)
+	readonly #handleMouseUp = (event: MouseEvent): void => this.#onMouseUp(event)
+	readonly #handleMouseLeave = (): void => this.#onMouseLeave()
+	readonly #handleContextMenu = (event: MouseEvent): void => this.#onContextMenu(event)
+	readonly #handleKey = (event: KeyboardEvent): void => this.#onKey(event)
+	readonly #handleWindowKey = (event: KeyboardEvent): void => this.#onWindowKey(event)
+	readonly #handleWindowBlur = (): void => this.setFocused(null)
+	readonly #handleVisibilityChange = (): void => {
+		if (document.visibilityState !== "visible") this.setFocused(null)
+	}
+
+	constructor(
+		canvas: HTMLCanvasElement,
+		renderer: Renderer,
+		viewPoint: ViewPoint,
+		font: TrueTypeFont,
+		requestFrame: (wakeMs?: number) => void,
+	) {
+		this.canvas = canvas
+		this.renderer = renderer
+		this.#viewPoint = viewPoint
+		this.#font = font
+		this.#requestFrame = requestFrame
+		this.#hud = new HUD({distanceMm: 600})
+		this.inputProxy = new VirtualInput(canvas.parentElement ?? document.body)
+		this.inputProxy.onKey((event) => this.#onKey(event))
+		this.inputProxy.onText((text) => this.#onInputText(text))
+		this.#attachInputListeners()
+	}
+
+	get overlay(): HUD {
+		return this.#hud
+	}
+
+	addSurface(surface: UiSurfaceNode, layout: UiSurfaceLayoutFn, opts: UiSurfaceLayerOpts = {}): void {
+		surface.attachCanvas(this as unknown as UiRuntime)
+		surface.setFramebufferClipSpace?.("screen")
+		this.#hud.add(surface.node)
+		const rect = layout({w: this.#width, h: this.#height})
+		this.#surfaces.push({
+			surface,
+			layout,
+			rect,
+			order: this.#surfaceOrder++,
+			zIndex: opts.zIndex ?? 0,
+		})
+		this.#sortSurfaceSlots()
+		this.#applyLayout()
+		this.requestRender()
+	}
+
+	clearSurfaceRect(surface: UiSurfaceNode): void {
+		const slot = this.#slotForSurface(surface)
+		if (slot === null || slot.rectOverride === undefined) return
+		delete slot.rectOverride
+		this.#applyLayout()
+		this.requestRender()
+	}
+
+	dispose(): void {
+		this.#disposed = true
+		this.canvas.removeEventListener("wheel", this.#handleWheel, true)
+		this.canvas.removeEventListener("mousemove", this.#handleMouseMove, true)
+		this.canvas.removeEventListener("mousedown", this.#handleMouseDown, true)
+		this.canvas.removeEventListener("mouseleave", this.#handleMouseLeave, true)
+		this.canvas.removeEventListener("contextmenu", this.#handleContextMenu, true)
+		this.canvas.removeEventListener("keydown", this.#handleKey, true)
+		window.removeEventListener("mouseup", this.#handleMouseUp, true)
+		window.removeEventListener("keydown", this.#handleWindowKey, true)
+		window.removeEventListener("blur", this.#handleWindowBlur)
+		document.removeEventListener("visibilitychange", this.#handleVisibilityChange)
+		this.setFocused(null)
+		this.#pressedSlot = null
+		this.#hoveredSlot = null
+		this.inputProxy?.dispose()
+		for (const slot of this.#surfaces) {
+			slot.surface.dispose?.()
+			this.#hud.remove(slot.surface.node)
+		}
+		this.#surfaces.length = 0
+	}
+
+	flushPendingRender(): void {
+		for (const slot of this.#surfaces) slot.surface.flushPendingRender?.()
+	}
+
+	handleSize(width: number, height: number): void {
+		const nextW = Math.max(1, Math.floor(width))
+		const nextH = Math.max(1, Math.floor(height))
+		this.#width = nextW
+		this.#height = nextH
+		const physicalHeight = 2 * this.#hud.distanceMm * Math.tan(this.#viewPoint.fov / 2)
+		this.#pixelScale = physicalHeight / nextH
+		this.#applyLayout()
+		this.requestRender()
+	}
+
+	relayout(): void {
+		this.#applyLayout()
+		this.requestRender()
+	}
+
+	requestRender(): void {
+		if (this.#disposed) return
+		this.#requestFrame()
+	}
+
+	setFocused(surface: UiSurfaceNode | null): void {
+		if (this.#focused === surface) return
+		this.#focused?.onDeactivate?.()
+		this.#focused = surface
+		surface?.onActivate?.()
+		this.requestRender()
+	}
+
+	setSurfaceRect(surface: UiSurfaceNode, rect: UiSurfaceRect): UiSurfaceRect | null {
+		const slot = this.#slotForSurface(surface)
+		if (slot === null) return null
+		const next = clampBulkHudSurfaceRect(rect, this.#width, this.#height)
+		slot.rectOverride = next
+		this.#applySurfaceSlotRect(slot, next, false)
+		this.requestRender()
+		return {...next}
+	}
+
+	surfaceFrame(surface: UiSurfaceNode): {rect: UiSurfaceRect; bounds: {w: number; h: number}} | null {
+		const slot = this.#slotForSurface(surface)
+		if (slot === null) return null
+		return {
+			rect: {...slot.rect},
+			bounds: {w: this.#width, h: this.#height},
+		}
+	}
+
+	#attachInputListeners(): void {
+		this.canvas.addEventListener("wheel", this.#handleWheel, {capture: true, passive: false})
+		this.canvas.addEventListener("mousemove", this.#handleMouseMove, true)
+		this.canvas.addEventListener("mousedown", this.#handleMouseDown, true)
+		this.canvas.addEventListener("mouseleave", this.#handleMouseLeave, true)
+		this.canvas.addEventListener("contextmenu", this.#handleContextMenu, true)
+		this.canvas.addEventListener("keydown", this.#handleKey, true)
+		window.addEventListener("mouseup", this.#handleMouseUp, true)
+		window.addEventListener("keydown", this.#handleWindowKey, true)
+		window.addEventListener("blur", this.#handleWindowBlur)
+		document.addEventListener("visibilitychange", this.#handleVisibilityChange)
+		this.canvas.tabIndex = -1
+	}
+
+	#applyLayout(): void {
+		for (const slot of this.#surfaces) {
+			const layoutRect = slot.layout({w: this.#width, h: this.#height})
+			const nextRect = layoutRect.visible === false || slot.rectOverride === undefined
+				? layoutRect
+				: clampBulkHudSurfaceRect(slot.rectOverride, this.#width, this.#height)
+			if (layoutRect.visible !== false && slot.rectOverride !== undefined) slot.rectOverride = nextRect
+			this.#applySurfaceSlotRect(slot, nextRect, true)
+		}
+	}
+
+	#applySurfaceSlotRect(slot: BulkHudSurfaceSlot, rect: UiSurfaceRect, forceSetRect: boolean): void {
+		const previous = slot.rect
+		const previousScale = slot.pixelScale
+		slot.rect = rect
+		slot.pixelScale = this.#pixelScale
+		const visible = rect.visible !== false && rect.w > 0 && rect.h > 0
+		slot.surface.node.visible = visible
+		if (!visible) return
+
+		slot.surface.node.position.x = (rect.x - this.#width / 2) * this.#pixelScale
+		slot.surface.node.position.y = (this.#height / 2 - rect.y) * this.#pixelScale
+		slot.surface.node.updateMatrix()
+
+		const sizeChanged = previous.w !== rect.w || previous.h !== rect.h || previous.visible === false || rect.visible === false
+		const scaleChanged = previousScale === undefined || previousScale !== this.#pixelScale
+		if (forceSetRect || sizeChanged || scaleChanged) {
+			slot.surface.setRect(rect, this.#pixelScale, this.#font)
+		} else if (previous.x !== rect.x || previous.y !== rect.y) {
+			slot.surface.moveRect?.(rect, this.#pixelScale, this.#font) ?? slot.surface.setRect(rect, this.#pixelScale, this.#font)
+		}
+	}
+
+	#sortSurfaceSlots(): void {
+		this.#surfaces.sort((a, b) => a.zIndex - b.zIndex || a.order - b.order)
+		for (const slot of this.#surfaces) this.#hud.add(slot.surface.node)
+	}
+
+	#surfaceAt(localX: number, localY: number): BulkHudSurfaceSlot | undefined {
+		for (let i = this.#surfaces.length - 1; i >= 0; i -= 1) {
+			const slot = this.#surfaces[i]!
+			if (slot.surface.acceptsPointerEvents?.() === false) continue
+			const rect = slot.rect
+			if (slot.surface.node.visible === false || rect.visible === false || rect.w <= 0 || rect.h <= 0) continue
+			if (localX < rect.x || localX > rect.x + rect.w || localY < rect.y || localY > rect.y + rect.h) continue
+			if (slot.surface.containsPointer?.(localX - rect.x, localY - rect.y) === false) continue
+			return slot
+		}
+		return undefined
+	}
+
+	#slotForSurface(surface: UiSurfaceNode): BulkHudSurfaceSlot | null {
+		return this.#surfaces.find((slot) => slot.surface === surface) ?? null
+	}
+
+	#localCoords(event: MouseEvent | WheelEvent): {x: number; y: number} {
+		const rect = this.canvas.getBoundingClientRect()
+		return {x: event.clientX - rect.left, y: event.clientY - rect.top}
+	}
+
+	#positionInputProxy(clientX: number, clientY: number): void {
+		this.inputProxy?.setCaretViewport(clientX, clientY)
+	}
+
+	#claimPointerEvent(event: MouseEvent | WheelEvent): void {
+		event.stopImmediatePropagation()
+	}
+
+	#onWheel(event: WheelEvent): void {
+		const local = this.#localCoords(event)
+		const slot = this.#surfaceAt(local.x, local.y)
+		if (slot === undefined) return
+		event.preventDefault()
+		this.#claimPointerEvent(event)
+		slot.surface.onWheel?.(event, local.x - slot.rect.x, local.y - slot.rect.y)
+	}
+
+	#onMouseMove(event: MouseEvent): void {
+		const local = this.#localCoords(event)
+		const slot = this.#pressedSlot ?? this.#surfaceAt(local.x, local.y)
+		if (slot === undefined) {
+			this.#hoveredSlot?.surface.onPointerLeave?.()
+			this.#hoveredSlot = null
+			return
+		}
+		this.#claimPointerEvent(event)
+		if (this.#pressedSlot === null && slot !== this.#hoveredSlot) {
+			this.#hoveredSlot?.surface.onPointerLeave?.()
+			this.#hoveredSlot = slot
+		}
+		slot.surface.onPointerMove?.(event, local.x - slot.rect.x, local.y - slot.rect.y)
+	}
+
+	#onMouseDown(event: MouseEvent): void {
+		const local = this.#localCoords(event)
+		const slot = this.#surfaceAt(local.x, local.y)
+		if (slot === undefined) {
+			this.setFocused(null)
+			return
+		}
+		event.preventDefault()
+		this.#claimPointerEvent(event)
+		this.inputProxy?.focus()
+		this.#positionInputProxy(event.clientX, event.clientY)
+		this.setFocused(slot.surface)
+		this.#pressedSlot = slot
+		slot.surface.onPointerDown?.(event, local.x - slot.rect.x, local.y - slot.rect.y)
+	}
+
+	#onMouseUp(event: MouseEvent): void {
+		const slot = this.#pressedSlot
+		if (slot === null) return
+		this.#pressedSlot = null
+		this.#claimPointerEvent(event)
+		const local = this.#localCoords(event)
+		slot.surface.onPointerUp?.(event, local.x - slot.rect.x, local.y - slot.rect.y)
+	}
+
+	#onMouseLeave(): void {
+		this.#hoveredSlot?.surface.onPointerLeave?.()
+		this.#hoveredSlot = null
+	}
+
+	#onContextMenu(event: MouseEvent): void {
+		const local = this.#localCoords(event)
+		const slot = this.#surfaceAt(local.x, local.y)
+		if (slot === undefined) return
+		event.preventDefault()
+		this.#claimPointerEvent(event)
+		slot.surface.onContextMenu?.(event, local.x - slot.rect.x, local.y - slot.rect.y)
+	}
+
+	#onKey(event: KeyboardEvent): void {
+		const focused = this.#focused
+		if (focused === null) return
+		focused.onKey?.(event)
+		if (!event.defaultPrevented) handleActiveInputKey(focused as Parameters<typeof handleActiveInputKey>[0], event)
+	}
+
+	#onWindowKey(event: KeyboardEvent): void {
+		if (this.#focused === null || this.inputProxy?.isFocused() === true) return
+		if (!isBulkHudKeyFallbackTarget(event.target, this.canvas)) return
+		this.#onKey(event)
+	}
+
+	#onInputText(text: string): void {
+		const focused = this.#focused
+		if (focused === null) return
+		focused.onInputText?.(text)
+		insertActiveInputText(focused as Parameters<typeof insertActiveInputText>[0], text)
+	}
+}
+
+function clampBulkHudSurfaceRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): UiSurfaceRect {
+	const bw = Math.max(1, Math.floor(boundsW))
+	const bh = Math.max(1, Math.floor(boundsH))
+	const w = clampBulkHudNumber(finiteBulkHudNumber(rect.w, 1), 1, bw)
+	const h = clampBulkHudNumber(finiteBulkHudNumber(rect.h, 1), 1, bh)
+	const x = clampBulkHudNumber(finiteBulkHudNumber(rect.x, 0), 0, Math.max(0, bw - w))
+	const y = clampBulkHudNumber(finiteBulkHudNumber(rect.y, 0), 0, Math.max(0, bh - h))
+	return rect.visible === false ? {x, y, w, h, visible: false} : {x, y, w, h}
+}
+
+function clampBulkHudNumber(value: number, min: number, max: number): number {
+	return Math.max(min, Math.min(max, value))
+}
+
+function finiteBulkHudNumber(value: number, fallback: number): number {
+	return Number.isFinite(value) ? value : fallback
+}
+
+function isBulkHudKeyFallbackTarget(target: EventTarget | null, canvas: HTMLCanvasElement): boolean {
+	if (target === null || target === window || target === document || target === document.body || target === document.documentElement) return true
+	if (target === canvas) return true
+	if (!(target instanceof HTMLElement)) return false
+	if (target.closest("textarea,input,select,[contenteditable='true']") !== null) return false
+	return target === canvas.parentElement || target.contains(canvas)
+}
+
 export const createBulkViewport = async (options: BulkViewportOptions): Promise<BulkViewportController> => {
 	const renderer = new Renderer()
 	await renderer.init(options.canvas)
@@ -535,7 +918,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	activeRenderSettings = normalizeAppWebRenderSettings(activeRenderSettings)
 	activeLayoutSettings = normalizeAppWebLayoutSettings(activeLayoutSettings)
 	rebuildLevelResolver()
-	const labelFont = await TrueTypeFont.fromUrl("/engine-static/JetBrainsMono-Bold.ttf").catch(() => null)
+	const uiFont = await TrueTypeFont.fromUrl("/engine-static/JetBrainsMono-Bold.ttf")
+	const labelFont = uiFont
 	const viewportConfig = getViewportConfig()
 	const raycaster = new Raycaster()
 	const space = new Space()
@@ -602,6 +986,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		if (frameHandle !== 0) return
 		frameHandle = requestAnimationFrame(animate)
 	}
+	let hudRuntime: BulkViewportHudRuntime
 
 	const resetHoverMaterial = (target: HoverablePickTarget): void => {
 		target.material.color.copy(target.baseColor)
@@ -1829,13 +2214,16 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		}
 
 		updateLabelTrackers()
+		hudRuntime.flushPendingRender()
 		space.updateWorldMatrix()
-		renderer.render(space, viewPoint)
+		renderer.renderFrame(space, hudRuntime.overlay, viewPoint)
 		if (navigationState || hasPendingMotion || hasCosmosMotion || timestamp < renderWakeUntilMs) {
 			frameHandle = requestAnimationFrame(animate)
 		}
 	}
 
+	hudRuntime = new BulkViewportHudRuntime(options.canvas, renderer, viewPoint, uiFont, requestRenderLoop)
+	hudRuntime.handleSize(options.width, options.height)
 	requestRenderLoop()
 
 	return {
@@ -1855,6 +2243,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			document.removeEventListener("mousemove", wakeRenderFromDocumentMouseMove)
 			document.removeEventListener("mouseup", wakeRenderFromDocumentMouseUp)
 			setHoveredPickTarget(null)
+			hudRuntime.dispose()
 			viewPoint.dispose()
 		},
 		handleForce(_channel: string, _message: unknown) {
@@ -1892,10 +2281,12 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			renderer.setPixelRatio(window.devicePixelRatio || 1)
 			renderer.setSize(width, height)
 			viewPoint.setAspectRatio(width / height)
+			hudRuntime.handleSize(width, height)
 			requestRenderLoop(INPUT_RENDER_WAKE_MS)
 		},
 		applyWorld(nextWorld: DbWorldRows) {
 			applyWorldRowsToScene(nextWorld)
 		},
+		hud: hudRuntime,
 	}
 }

@@ -29,6 +29,12 @@
       "name": "@app/web",
       "dependencies": {
         "@bulk/gravity": "workspace:*",
+        "@metafor/engine": "workspace:*",
+        "@metafor/pty": "workspace:*",
+        "@ui/components": "workspace:*",
+        "@ui/elements": "workspace:*",
+        "@ui/hud": "workspace:*",
+        "@ui/panes": "workspace:*",
         "boundary": "workspace:*",
         "bulk": "workspace:*",
         "dark": "workspace:*",
@@ -62,6 +68,8 @@
         "@bulk/gravity": "workspace:*",
         "@bulk/strong": "workspace:*",
         "@bulk/weak": "workspace:*",
+        "@metafor/engine": "workspace:*",
+        "@ui/elements": "workspace:*",
       },
     },
     "bulk/em": {
