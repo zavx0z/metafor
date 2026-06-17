@@ -1902,6 +1902,7 @@ class AppWebHud implements AppWebHudController {
 				}
 				else {
 					this.#voiceAutoWakePaused = false
+					this.#voiceNextFlushMode = "draft"
 					await client.sleepToWake()
 				}
 				return
