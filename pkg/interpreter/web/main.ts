@@ -25,9 +25,11 @@ import {
   EditorPane,
   FileListPane,
   AndroidPane,
+  NetworkWatchPane,
   TerminalPane,
   ToDoPane,
   beginPaneFrameDrag,
+  networkWatchSectionsFromLines,
   normalizeFileListSelection,
   paneFrameCursor,
   paneFrameDragRect,
@@ -37,9 +39,11 @@ import {
   type EditorBreakpoint,
   type EditorSelectionSnapshot,
   type EditorTokens,
-	  type FileListItem,
-	  type AndroidPaneStatusKind,
-	  type AndroidPaneSwipe,
+  type FileListItem,
+  type AndroidPaneStatusKind,
+  type AndroidPaneSwipe,
+  type NetworkWatchPaneSnapshot,
+  type NetworkWatchServiceKey,
   type PaneFrameDrag,
   type PaneFrameInteractionOpts,
   type TerminalInputSource,
@@ -695,13 +699,7 @@ type VoiceHudAnchorPlacement = {
   offsetY: number
 }
 
-type NetworkServiceKey = "tls" | "redirect"
-type NetworkWatchSections = {
-  time: string
-  listen: string[]
-  tmux: string[]
-  other: string[]
-}
+type NetworkServiceKey = NetworkWatchServiceKey
 
 const DEFAULT_HOST_TERMINAL_HUD_RECT: UiSurfaceRect = {x: 643, y: 60, w: 755, h: 943}
 const DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "top", offset: 858}
@@ -731,7 +729,7 @@ let sqliteDockPane: SqliteDockPane | null = null
 let hostTerminal: HostTerminalController | null = null
 let networkHostTerminal: HostTerminalController | null = null
 let hostTerminalDockPane: HostTerminalDockPane | null = null
-let networkDisplayControlsPane: NetworkDisplayControlsPane | null = null
+let networkDisplayControlsPane: NetworkWatchPane | null = null
 let networkDisplayTerminal: TerminalPane | null = null
 let networkDisplayInstalled = false
 let hostTerminalAgentSignalPane: HostTerminalAgentSignalPane | null = null
@@ -3589,184 +3587,6 @@ class HostTerminalDockPane extends UiSurface {
   }
 }
 
-class NetworkDisplayControlsPane extends UiSurface {
-  constructor() {
-    super({bgColor: HUD_PANEL_BG, borderColor: withAlpha(palette.border, 0.72)})
-    this.node.name = "NetworkDisplayControlsPane"
-  }
-
-  protected render(): void {
-    const pad = 14
-    const h = this.rectH
-    this.drawRoundedRect(0, 0, this.rectW, h, {
-      radius: 0,
-      fill: HUD_PANEL_BG,
-      border: withAlpha(palette.border, 0.74),
-      borderWidth: 1,
-      opacity: 0.98,
-      z: Z.CONTAINER,
-    })
-    this.drawText("Network tmux", pad, 12, {
-      fontPx: 16,
-      material: this.materials.cyan,
-      maxWidthPx: 180,
-    })
-    this.drawText(`session ${NETWORK_TERMINAL_TMUX_SESSION}:network`, pad, 36, {
-      fontPx: 11,
-      material: this.materials.muted,
-      maxWidthPx: 360,
-    })
-    this.drawText(networkActionStatus, pad, 58, {
-      fontPx: 11,
-      material: this.materials.muted,
-      maxWidthPx: 360,
-    })
-
-    const controlsX = Math.min(Math.max(390, this.rectW * 0.33), Math.max(0, this.rectW - 560))
-    let x = controlsX
-    x = this.#switchRow(x, 12, "TLS", "tls", "app/web HTTPS pane") + 20
-    x = this.#switchRow(x, 12, "80", "redirect", "HTTP to HTTPS redirect pane") + 20
-
-    x = controlsX
-    x = this.#button(x, 54, 84, "Layout", "Rebuild tmux panes", () => {
-      networkServiceSwitches = {tls: true, redirect: true}
-      void runNetworkAction("layout")
-    }) + 10
-    x = this.#button(x, 54, 64, "Clear", "Clear pane scrollback", () => void runNetworkAction("clear")) + 10
-    this.#button(x, 54, 78, "Refresh", "Refresh network status", () => scheduleNetworkStatusRefresh(0))
-
-    const metaX = Math.max(controlsX + 420, this.rectW - 290)
-    if (metaX + 260 <= this.rectW - pad) {
-      this.drawText("panes: tls | redirect", metaX, 18, {
-        fontPx: 11,
-        material: this.materials.muted,
-        maxWidthPx: this.rectW - metaX - pad,
-      })
-      this.drawText("ports: 443 https, 80 redirect", metaX, 42, {
-        fontPx: 11,
-        material: this.materials.muted,
-        maxWidthPx: this.rectW - metaX - pad,
-      })
-    }
-
-    this.#drawNetworkStatus(pad, 88, Math.max(1, this.rectW - pad * 2), Math.max(1, this.rectH - 100))
-  }
-
-  #drawNetworkStatus(x: number, y: number, w: number, h: number): void {
-    this.drawRoundedRect(x, y, w, h, {
-      radius: 6,
-      fill: new Color(0.02, 0.04, 0.07, 0.52),
-      border: withAlpha(palette.border, 0.46),
-      borderWidth: 1,
-      z: Z.ELEMENT,
-    })
-    const sections = networkWatchSections()
-    const updated = networkStatusUpdatedAt === null ? "loading" : formatHudTime(networkStatusUpdatedAt)
-    const title = networkStatusRefreshInFlight
-      ? `Network Watch · ${sections.time} · updated ${updated} · updating`
-      : `Network Watch · ${sections.time} · updated ${updated}`
-    this.drawText(title, x + 10, y + 8, {
-      fontPx: 10,
-      material: this.materials.cyan,
-      maxWidthPx: Math.max(1, w - 20),
-    })
-
-    const bodyX = x + 10
-    const bodyY = y + 28
-    const bodyW = Math.max(1, w - 20)
-    const bodyH = Math.max(1, h - 38)
-    const gap = 10
-    if (bodyW >= 760) {
-      const columnW = Math.max(1, Math.floor((bodyW - gap) / 2))
-      this.#drawNetworkSection("LISTEN", sections.listen, bodyX, bodyY, columnW, bodyH)
-      this.#drawNetworkSection("TMUX", sections.tmux, bodyX + columnW + gap, bodyY, Math.max(1, bodyW - columnW - gap), bodyH)
-      return
-    }
-
-    const topH = Math.max(1, Math.floor((bodyH - gap) * 0.56))
-    this.#drawNetworkSection("LISTEN", sections.listen, bodyX, bodyY, bodyW, topH)
-    this.#drawNetworkSection("TMUX", sections.tmux, bodyX, bodyY + topH + gap, bodyW, Math.max(1, bodyH - topH - gap))
-  }
-
-  #drawNetworkSection(title: string, lines: string[], x: number, y: number, w: number, h: number): void {
-    this.drawRoundedRect(x, y, w, h, {
-      radius: 5,
-      fill: new Color(0.01, 0.02, 0.04, 0.36),
-      border: withAlpha(palette.border, 0.34),
-      borderWidth: 1,
-      z: Z.ELEMENT + 0.01,
-    })
-    this.drawText(`${title} · ${lines.length}`, x + 8, y + 7, {
-      fontPx: 10,
-      material: this.materials.cyan,
-      maxWidthPx: Math.max(1, w - 16),
-    })
-
-    const content = lines.length > 0 ? lines : ["no entries"]
-    const lineH = 13
-    const maxLines = Math.max(1, Math.floor((h - 29) / lineH))
-    const visible = content.slice(0, maxLines)
-    let lineY = y + 24
-    for (const line of visible) {
-      this.drawText(line, x + 8, lineY, {
-        fontPx: 9,
-        material: this.#networkLineMaterial(line),
-        maxWidthPx: Math.max(1, w - 16),
-      })
-      lineY += lineH
-    }
-    const hidden = content.length - visible.length
-    if (hidden > 0) {
-      this.drawText(`+${hidden} more`, x + 8, Math.max(y + 24, y + h - 15), {
-        fontPx: 9,
-        material: this.materials.orange,
-        maxWidthPx: Math.max(1, w - 16),
-      })
-    }
-  }
-
-  #networkLineMaterial(line: string) {
-    const trimmed = line.trim()
-    if (trimmed.includes("failed") || trimmed.includes("no entries") || trimmed.includes("no interesting")) return this.materials.orange
-    if (trimmed.includes("active") || trimmed.includes(":443") || trimmed.includes(":80")) return this.materials.green
-    if (trimmed.includes("idle")) return this.materials.muted
-    return this.materials.text
-  }
-
-  #switchRow(x: number, y: number, label: string, key: NetworkServiceKey, tooltip: string): number {
-    const labelW = Math.max(34, Math.ceil(this.measureText(label, 11)) + 2)
-    this.drawText(label, x, y + 5, {
-      fontPx: 11,
-      material: networkServiceSwitches[key] ? this.materials.text : this.materials.muted,
-      maxWidthPx: labelW,
-    })
-    const switchX = x + labelW + 7
-    Switcher(this, switchX, y + 3, 38, 18, {
-      checked: networkServiceSwitches[key],
-      color: "success",
-      tooltip,
-      onChange: (checked) => {
-        networkServiceSwitches = {...networkServiceSwitches, [key]: checked}
-        void runNetworkAction(networkActionForSwitch(key, checked))
-      },
-    })
-    return switchX + 42
-  }
-
-  #button(x: number, y: number, w: number, label: string, tooltip: string, action: () => void): number {
-    Button(this, x, y, w, 26, {
-      label,
-      variant: "outlined",
-      color: "neutral",
-      size: "small",
-      radius: 7,
-      tooltip,
-      action,
-    })
-    return x + w
-  }
-}
-
 function networkActionForSwitch(key: NetworkServiceKey, checked: boolean): string {
   if (key === "tls") return checked ? "start:tls" : "stop:tls"
   return checked ? "start:redirect" : "stop:redirect"
@@ -3786,7 +3606,7 @@ async function postNetworkAction(action: string): Promise<{response: Response; p
 
 async function runNetworkAction(action: string): Promise<void> {
   networkActionStatus = `running ${action}`
-  networkDisplayControlsPane?.requestRender()
+  updateNetworkWatchPane()
   try {
     const {response, payload} = await postNetworkAction(action)
     if (!response.ok || payload.ok === false) {
@@ -3798,7 +3618,7 @@ async function runNetworkAction(action: string): Promise<void> {
   } catch (error) {
     networkActionStatus = `${action} failed: ${error instanceof Error ? error.message : String(error)}`
   } finally {
-    networkDisplayControlsPane?.requestRender()
+    updateNetworkWatchPane()
     scheduleNetworkStatusRefresh(0)
   }
 }
@@ -3819,7 +3639,7 @@ function scheduleNetworkStatusRefresh(delayMs: number): void {
 async function refreshNetworkStatus(): Promise<void> {
   if (networkStatusRefreshInFlight) return
   networkStatusRefreshInFlight = true
-  networkDisplayControlsPane?.requestRender()
+  updateNetworkWatchPane()
   try {
     const {response, payload} = await postNetworkAction("status")
     if (!response.ok || payload.ok === false) {
@@ -3833,7 +3653,7 @@ async function refreshNetworkStatus(): Promise<void> {
     networkStatusLines = [`status failed: ${error instanceof Error ? error.message : String(error)}`]
   } finally {
     networkStatusRefreshInFlight = false
-    networkDisplayControlsPane?.requestRender()
+    updateNetworkWatchPane()
     if (networkDisplayInstalled) scheduleNetworkStatusRefresh(NETWORK_STATUS_REFRESH_MS)
   }
 }
@@ -3853,30 +3673,18 @@ function networkStatusLinesFromOutput(stdout: string): string[] {
   return lines.length > 0 ? lines : ["no network status"]
 }
 
-function networkWatchSections(): NetworkWatchSections {
-  const sections: NetworkWatchSections = {time: "--", listen: [], tmux: [], other: []}
-  let section: keyof Pick<NetworkWatchSections, "listen" | "tmux" | "other"> = "other"
-  for (const line of networkStatusLines) {
-    const trimmed = line.trim()
-    if (trimmed.startsWith("[TIME]")) {
-      sections.time = trimmed.replace(/^\[TIME\]\s*/, "")
-      continue
-    }
-    if (trimmed === "[LISTEN]") {
-      section = "listen"
-      continue
-    }
-    if (trimmed === "[TMUX]") {
-      section = "tmux"
-      continue
-    }
-    sections[section].push(trimmed)
+function networkWatchPaneSnapshot(): NetworkWatchPaneSnapshot {
+  return {
+    actionStatus: networkActionStatus,
+    services: {...networkServiceSwitches},
+    refreshing: networkStatusRefreshInFlight,
+    updatedAt: networkStatusUpdatedAt,
+    sections: networkWatchSectionsFromLines(networkStatusLines),
   }
-  if (sections.listen.length === 0 && sections.tmux.length === 0 && sections.other.length > 0) {
-    sections.listen = sections.other
-    sections.other = []
-  }
-  return sections
+}
+
+function updateNetworkWatchPane(): void {
+  networkDisplayControlsPane?.setSnapshot(networkWatchPaneSnapshot())
 }
 
 class TodoDockPane extends UiSurface {
@@ -5956,7 +5764,30 @@ function ensureNetworkDisplay(): void {
 
   if (!networkDisplayInstalled) {
     networkDisplayInstalled = true
-    networkDisplayControlsPane ??= new NetworkDisplayControlsPane()
+    networkDisplayControlsPane ??= new NetworkWatchPane({
+      title: "NetworkMux",
+      sessionLabel: `${NETWORK_TERMINAL_TMUX_SESSION}:network`,
+      actions: {
+        setTlsEnabled: (enabled) => {
+          networkServiceSwitches = {...networkServiceSwitches, tls: enabled}
+          updateNetworkWatchPane()
+          void runNetworkAction(networkActionForSwitch("tls", enabled))
+        },
+        setRedirectEnabled: (enabled) => {
+          networkServiceSwitches = {...networkServiceSwitches, redirect: enabled}
+          updateNetworkWatchPane()
+          void runNetworkAction(networkActionForSwitch("redirect", enabled))
+        },
+        rebuildLayout: () => {
+          networkServiceSwitches = {tls: true, redirect: true}
+          updateNetworkWatchPane()
+          void runNetworkAction("layout")
+        },
+        clearPanes: () => void runNetworkAction("clear"),
+        refresh: () => scheduleNetworkStatusRefresh(0),
+      },
+    })
+    updateNetworkWatchPane()
     uiCanvas.createDisplay({
       id: NETWORK_DISPLAY_ID,
       widthMm: metrics.widthMm,
