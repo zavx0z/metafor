@@ -525,7 +525,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
   const server = Bun.serve({
     hostname: options.host,
     port: options.port,
-    development: {hmr: false},
+    development: false,
     routes: {
       "/": indexHtml,
     },
@@ -814,6 +814,53 @@ async function processActionRoute(processId: string, req: Request, options: Http
   return await dispatchUiHostRoute("processes.action", processRouteParams(processId, parsed.body), dispatch)
 }
 
+async function networkActionRoute(req: Request): Promise<Response> {
+  const parsed = await readJsonObject(req)
+  if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
+  const action = asString(parsed.body["action"]) ?? asString(parsed.body["cmd"]) ?? asString(parsed.body["command"])
+  if (action === undefined) return jsonResponse({ok: false, error: "network action must be a string"}, 400)
+  if (!isNetworkAction(action)) return jsonResponse({ok: false, action, error: "unknown network action"}, 400)
+  const started = Date.now()
+  const script = resolve(process.cwd(), "app/web/network-tmux.ts")
+  const result = Bun.spawnSync([process.execPath, script, action], {
+    cwd: process.cwd(),
+    stdout: "pipe",
+    stderr: "pipe",
+    env: {
+      ...process.env,
+      NETWORK_TMUX_SESSION: asString(parsed.body["session"]) ?? "metafor-app-web-net",
+      NETWORK_TMUX_WINDOW: asString(parsed.body["window"]) ?? "network",
+    },
+  })
+  const stdout = new TextDecoder().decode(result.stdout)
+  const stderr = new TextDecoder().decode(result.stderr)
+  return jsonResponse({
+    ok: result.exitCode === 0,
+    action,
+    exitCode: result.exitCode,
+    durationMs: Date.now() - started,
+    stdout,
+    stderr,
+  }, result.exitCode === 0 ? 200 : 500)
+}
+
+function isNetworkAction(action: string): boolean {
+  return [
+    "layout",
+    "status",
+    "start:tls",
+    "stop:tls",
+    "start:redirect",
+    "stop:redirect",
+    "start:ports",
+    "stop:ports",
+    "debug:prod",
+    "stop:debug",
+    "tail",
+    "clear",
+  ].includes(action)
+}
+
 async function closeProcess(processId: string, _params: JsonObject, options: HttpServerOptions): Promise<Response> {
   try {
     const removed = await options.modules.remove(processId)
@@ -964,6 +1011,7 @@ async function handleRoute(
   if (method === "POST" && path === "/hud/terminal/network/dock") return await dispatchUiHostRouteFromBody("hud.terminal.network.dock", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/terminal/network/show") return await dispatchUiHostRouteFromBody("hud.terminal.network.show", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/terminal/network/toggle") return await dispatchUiHostRouteFromBody("hud.terminal.network.toggle", req, dispatchUiHostCommand)
+  if (method === "POST" && (path === "/space/network/action" || path === "/hud/network/action")) return await networkActionRoute(req)
   if (method === "GET" && path === "/hud/android") return await dispatchUiHostRoute("hud.android.get", {}, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/android/dock") return await dispatchUiHostRouteFromBody("hud.android.dock", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/android/show") return await dispatchUiHostRouteFromBody("hud.android.show", req, dispatchUiHostCommand)
@@ -1104,9 +1152,10 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "POST", path: "/hud/terminal/show", description: "развернуть host terminal HUD"},
     {method: "POST", path: "/hud/terminal/toggle", description: "переключить host terminal HUD"},
     {method: "GET", path: "/hud/terminal/network", description: "состояние второй network terminal HUD"},
-    {method: "POST", path: "/hud/terminal/network/show", description: "развернуть вторую network terminal HUD"},
-    {method: "POST", path: "/hud/terminal/network/dock", description: "свернуть вторую network terminal HUD"},
-    {method: "POST", path: "/hud/terminal/network/toggle", description: "переключить вторую network terminal HUD"},
+    {method: "POST", path: "/hud/terminal/network/show", description: "сфокусировать network display в Space"},
+    {method: "POST", path: "/hud/terminal/network/dock", description: "оставить network tmux в Space без плавающего HUD"},
+    {method: "POST", path: "/hud/terminal/network/toggle", description: "сфокусировать network display в Space"},
+    {method: "POST", path: "/space/network/action", description: "{action} — управлять tmux network layout: layout/status/start:tls/stop:tls/start:redirect/stop:redirect/start:ports/stop:ports/debug:prod/stop:debug/tail/clear"},
     {method: "GET", path: "/hud/android", description: "состояние Android HUD"},
     {method: "POST", path: "/hud/android/show", description: "развернуть Android HUD"},
     {method: "POST", path: "/hud/android/dock", description: "свернуть Android HUD"},

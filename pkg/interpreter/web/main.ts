@@ -379,7 +379,10 @@ type ModuleDisplayInfo = DisplayInfoBase & {
   kind: "module"
   moduleId: string
 }
-type DisplayInfo = ModuleDisplayInfo
+type NetworkDisplayInfo = DisplayInfoBase & {
+  kind: "network"
+}
+type DisplayInfo = ModuleDisplayInfo | NetworkDisplayInfo
 type SqliteDisplayController = {
   id: string
   requestedPath: string
@@ -566,6 +569,7 @@ const NETWORK_TERMINAL_SESSION_STORAGE_KEY = "metafor.interpreter.networkTermina
 const NETWORK_TERMINAL_SESSION_KEY = "interpreter:network-terminal"
 const NETWORK_TERMINAL_TMUX_SESSION = "metafor-app-web-net"
 const NETWORK_TERMINAL_TMUX_FALLBACK_COMMAND = `exec tmux new-session -A -s ${NETWORK_TERMINAL_TMUX_SESSION}\r`
+const NETWORK_DISPLAY_ID = "network:tmux"
 const NETWORK_TERMINAL_HUD_RECT_STORAGE_KEY = "metafor.interpreter.networkTerminal.hudRect:v1"
 const NETWORK_TERMINAL_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.networkTerminal.hudDocked:v1"
 const NETWORK_TERMINAL_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.networkTerminal.dockPlacement:v1"
@@ -692,6 +696,8 @@ type VoiceHudAnchorPlacement = {
   offsetY: number
 }
 
+type NetworkServiceKey = "tls" | "redirect" | "ports" | "debug"
+
 const DEFAULT_HOST_TERMINAL_HUD_RECT: UiSurfaceRect = {x: 643, y: 60, w: 755, h: 943}
 const DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "top", offset: 858}
 const DEFAULT_NETWORK_TERMINAL_HUD_RECT: UiSurfaceRect = {x: 24, y: 520, w: 1080, h: 560}
@@ -720,6 +726,9 @@ let hostTerminal: HostTerminalController | null = null
 let networkHostTerminal: HostTerminalController | null = null
 let hostTerminalDockPane: HostTerminalDockPane | null = null
 let networkTerminalDockPane: HostTerminalDockPane | null = null
+let networkDisplayControlsPane: NetworkDisplayControlsPane | null = null
+let networkDisplayTerminal: TerminalPane | null = null
+let networkDisplayInstalled = false
 let hostTerminalAgentSignalPane: HostTerminalAgentSignalPane | null = null
 let hostTerminalStatusLabelForLayout = t("terminalConnecting")
 let hostTerminalHudDocked = readStoredHostTerminalHudDocked()
@@ -728,6 +737,8 @@ let hostTerminalHudRectPreview: UiSurfaceRect | null = null
 let networkHostTerminalHudDocked = readStoredNetworkTerminalHudDocked()
 let networkTerminalDockPlacement: HostTerminalDockPlacement | null = readStoredNetworkTerminalDockPlacement() ?? DEFAULT_NETWORK_TERMINAL_DOCK_PLACEMENT
 let networkHostTerminalHudRectPreview: UiSurfaceRect | null = null
+let networkServiceSwitches: Record<NetworkServiceKey, boolean> = {tls: true, redirect: true, ports: true, debug: false}
+let networkActionStatus = "ready"
 let androidHudDocked = readStoredAndroidHudDocked()
 let androidHudRectPreview: UiSurfaceRect | null = null
 let secondaryAndroidHudDocked = readStoredSecondaryAndroidHudDocked()
@@ -973,9 +984,9 @@ async function executeUiHostCommand(command: string, params: unknown): Promise<u
     case "hud.terminal.network.dock":
       return setNetworkTerminalDocked(true)
     case "hud.terminal.network.show":
-      return setNetworkTerminalDocked(false)
+      return focusNetworkDisplay()
     case "hud.terminal.network.toggle":
-      return setNetworkTerminalDocked(!networkHostTerminalHudDocked)
+      return focusNetworkDisplay()
     case "hud.android.get":
       return hudAndroidPayload()
     case "hud.android.show":
@@ -1057,6 +1068,8 @@ function focusSpace(params: unknown): unknown {
   if (controller !== undefined) {
     scrollAgentModuleTerminalToBottom(controller)
     queuePublishModuleContext(controller)
+  } else if (display.kind === "network") {
+    networkDisplayTerminal?.focus()
   }
   return {
     resolved: display,
@@ -1715,9 +1728,9 @@ function sqliteContextSnapshot(): SqliteHudContextSnapshot | null {
 
 function networkTerminalPayload(): unknown {
   const controller = networkHostTerminal
-  const frame = controller === null || uiCanvas === null ? null : uiCanvas.surfaceFrame(controller.hudTerminal)
+  const frame = networkDisplayTerminal === null || uiCanvas === null ? null : uiCanvas.surfaceFrame(networkDisplayTerminal)
   return {
-    docked: networkHostTerminalHudDocked,
+    docked: true,
     sessionId: controller?.sessionId ?? readStoredHostTerminalSessionId(NETWORK_TERMINAL_SESSION_STORAGE_KEY),
     status: controller?.connectionState ?? "idle",
     statusLabel: controller?.statusLabel ?? t("terminalConnecting"),
@@ -1800,6 +1813,16 @@ function displayInfos(): DisplayInfo[] {
   const runtimeDisplays = new Map(uiCanvas.displaySnapshots().map((display) => [display.id, display]))
   const displays: DisplayInfo[] = []
   let order = 0
+  const networkDisplay = runtimeDisplays.get(NETWORK_DISPLAY_ID)
+  if (networkDisplay !== undefined) {
+    displays.push({
+      ...networkDisplay,
+      displayId: NETWORK_DISPLAY_ID,
+      kind: "network",
+      label: "Network",
+      order: order++,
+    })
+  }
   for (const moduleId of moduleOrder) {
     const displayId = moduleDisplayId(moduleId)
     const runtimeDisplay = runtimeDisplays.get(displayId)
@@ -2521,8 +2544,8 @@ function installEnginePanes(): void {
   uiCanvas.addHudSurface(host.hudTerminal, hostTerminalHudRect)
   if (host.socket === null) connectHostTerminal(host)
   const networkTerminal = ensureNetworkHostTerminalController()
-  uiCanvas.addHudSurface(networkTerminal.hudTerminal, networkTerminalHudRect)
-  if (!networkHostTerminalHudDocked && networkTerminal.socket === null) connectHostTerminal(networkTerminal)
+  ensureNetworkDisplay()
+  if (networkTerminal.socket === null) connectHostTerminal(networkTerminal)
   if (androidPane !== null) {
     uiCanvas.addHudSurface(androidPane, androidHudRect)
     if (!androidHudDocked) connectAndroidRtc()
@@ -2540,7 +2563,7 @@ function installEnginePanes(): void {
     label: "Network",
     tooltip: "Network · tmux",
     edge: currentNetworkTerminalDockEdge,
-    restore: () => setNetworkTerminalDocked(false),
+    restore: () => focusNetworkDisplay(),
     moveTo: (point, bounds) => setNetworkTerminalDockPlacement(hostTerminalDockPlacementFromPoint(point, bounds)),
   })
   uiCanvas.addHudSurface(networkTerminalDockPane, networkTerminalDockRect, {zIndex: HUD_LAYER_TOP})
@@ -3564,6 +3587,134 @@ class HostTerminalDockPane extends UiSurface {
     if (canvas === undefined) return null
     const rect = canvas.getBoundingClientRect()
     return {x: event.clientX - rect.left, y: event.clientY - rect.top}
+  }
+}
+
+class NetworkDisplayControlsPane extends UiSurface {
+  constructor() {
+    super({bgColor: HUD_PANEL_BG, borderColor: withAlpha(palette.border, 0.72)})
+    this.node.name = "NetworkDisplayControlsPane"
+  }
+
+  protected render(): void {
+    const pad = 14
+    const h = this.rectH
+    this.drawRoundedRect(0, 0, this.rectW, h, {
+      radius: 0,
+      fill: HUD_PANEL_BG,
+      border: withAlpha(palette.border, 0.74),
+      borderWidth: 1,
+      opacity: 0.98,
+      z: Z.CONTAINER,
+    })
+    this.drawText("Network tmux", pad, 12, {
+      fontPx: 16,
+      material: this.materials.cyan,
+      maxWidthPx: 180,
+    })
+    this.drawText(`session ${NETWORK_TERMINAL_TMUX_SESSION}:network`, pad, 36, {
+      fontPx: 11,
+      material: this.materials.muted,
+      maxWidthPx: 360,
+    })
+    this.drawText(networkActionStatus, pad, 58, {
+      fontPx: 11,
+      material: this.materials.muted,
+      maxWidthPx: 360,
+    })
+
+    const controlsX = Math.min(Math.max(390, this.rectW * 0.33), Math.max(0, this.rectW - 560))
+    let x = controlsX
+    x = this.#switchRow(x, 12, "TLS", "tls", "app/web HTTPS pane") + 20
+    x = this.#switchRow(x, 12, "80", "redirect", "HTTP to HTTPS redirect pane") + 20
+    x = this.#switchRow(x, 12, "Ports", "ports", "ports/watch pane") + 20
+    x = this.#switchRow(x, 12, "Debug", "debug", "app/web prod debug via interpreter") + 22
+
+    x = controlsX
+    x = this.#button(x, 54, 84, "Layout", "Rebuild tmux panes", () => {
+      networkServiceSwitches = {tls: true, redirect: true, ports: true, debug: false}
+      void runNetworkAction("layout")
+    }) + 10
+    x = this.#button(x, 54, 78, "Status", "Print tmux pane status", () => void runNetworkAction("status")) + 10
+    x = this.#button(x, 54, 64, "Tail", "Capture recent tmux output", () => void runNetworkAction("tail")) + 10
+    this.#button(x, 54, 64, "Clear", "Clear pane scrollback", () => void runNetworkAction("clear"))
+
+    const metaX = Math.max(controlsX + 420, this.rectW - 290)
+    if (metaX + 260 <= this.rectW - pad) {
+      this.drawText("panes: tls | redirect | ports | prod debug", metaX, 18, {
+        fontPx: 11,
+        material: this.materials.muted,
+        maxWidthPx: this.rectW - metaX - pad,
+      })
+      this.drawText("ports: 443 https, 80 redirect, 3443 debug", metaX, 42, {
+        fontPx: 11,
+        material: this.materials.muted,
+        maxWidthPx: this.rectW - metaX - pad,
+      })
+    }
+  }
+
+  #switchRow(x: number, y: number, label: string, key: NetworkServiceKey, tooltip: string): number {
+    const labelW = Math.max(34, Math.ceil(this.measureText(label, 11)) + 2)
+    this.drawText(label, x, y + 5, {
+      fontPx: 11,
+      material: networkServiceSwitches[key] ? this.materials.text : this.materials.muted,
+      maxWidthPx: labelW,
+    })
+    const switchX = x + labelW + 7
+    Switcher(this, switchX, y + 3, 38, 18, {
+      checked: networkServiceSwitches[key],
+      color: key === "debug" ? "warning" : "success",
+      tooltip,
+      onChange: (checked) => {
+        networkServiceSwitches = {...networkServiceSwitches, [key]: checked}
+        void runNetworkAction(networkActionForSwitch(key, checked))
+      },
+    })
+    return switchX + 42
+  }
+
+  #button(x: number, y: number, w: number, label: string, tooltip: string, action: () => void): number {
+    Button(this, x, y, w, 26, {
+      label,
+      variant: "outlined",
+      color: "neutral",
+      size: "small",
+      radius: 7,
+      tooltip,
+      action,
+    })
+    return x + w
+  }
+}
+
+function networkActionForSwitch(key: NetworkServiceKey, checked: boolean): string {
+  if (key === "tls") return checked ? "start:tls" : "stop:tls"
+  if (key === "redirect") return checked ? "start:redirect" : "stop:redirect"
+  if (key === "ports") return checked ? "start:ports" : "stop:ports"
+  return checked ? "debug:prod" : "stop:debug"
+}
+
+async function runNetworkAction(action: string): Promise<void> {
+  networkActionStatus = `running ${action}`
+  networkDisplayControlsPane?.requestRender()
+  try {
+    const response = await fetch("/space/network/action", {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify({action}),
+    })
+    const payload = await response.json().catch(() => ({})) as {ok?: boolean; durationMs?: number; stderr?: string; error?: string}
+    if (!response.ok || payload.ok === false) {
+      const message = payload.error ?? payload.stderr ?? `${response.status}`
+      networkActionStatus = `${action} failed: ${String(message).slice(0, 64)}`
+    } else {
+      networkActionStatus = `${action} ok ${payload.durationMs ?? 0}ms`
+    }
+  } catch (error) {
+    networkActionStatus = `${action} failed: ${error instanceof Error ? error.message : String(error)}`
+  } finally {
+    networkDisplayControlsPane?.requestRender()
   }
 }
 
@@ -5555,9 +5706,8 @@ function syncModuleDisplays(): void {
 
   const displayMetrics = viewportDisplayMetrics()
   const moduleDisplayIdList = orderedModules.map((module) => moduleDisplayId(module.id))
-  const displayIds = moduleDisplayIdList
-  const totalW = displayIds.length * displayMetrics.widthMm
-    + Math.max(0, displayIds.length - 1) * MODULE_DISPLAY_GAP_MM
+  const totalW = moduleDisplayIdList.length * displayMetrics.widthMm
+    + Math.max(0, moduleDisplayIdList.length - 1) * MODULE_DISPLAY_GAP_MM
   let cursorX = -totalW / 2
 
   for (const module of orderedModules) {
@@ -5589,6 +5739,11 @@ function syncModuleDisplays(): void {
       uiCanvas.setDisplayCenter(displayId, center)
     }
   }
+  ensureNetworkDisplay()
+
+  const displayIds = networkDisplayInstalled
+    ? [NETWORK_DISPLAY_ID, ...moduleDisplayIdList]
+    : moduleDisplayIdList
 
   const frameKey = displayIds.map((id, index) => {
     return `${id}:${index}:${Math.round(displayMetrics.widthMm)}x${Math.round(displayMetrics.heightMm)}:${displayMetrics.pixelWidth}x${displayMetrics.pixelHeight}`
@@ -5629,6 +5784,62 @@ function removeModuleDisplay(moduleId: string): void {
     if (nextDisplayId !== null) uiCanvas.focusDisplay(nextDisplayId)
   }
   uiCanvas?.removeDisplay(displayId)
+}
+
+function ensureNetworkDisplay(): void {
+  if (uiCanvas === null) return
+  const metrics = viewportDisplayMetrics()
+  const center = displayCenterWithStored(NETWORK_DISPLAY_ID, networkDisplayFallbackCenter(metrics))
+  const controller = ensureNetworkHostTerminalController()
+  ensureNetworkDisplayTerminal(controller)
+
+  if (!networkDisplayInstalled) {
+    networkDisplayInstalled = true
+    networkDisplayControlsPane ??= new NetworkDisplayControlsPane()
+    uiCanvas.createDisplay({
+      id: NETWORK_DISPLAY_ID,
+      widthMm: metrics.widthMm,
+      heightMm: metrics.heightMm,
+      pixelWidth: metrics.pixelWidth,
+      pixelHeight: metrics.pixelHeight,
+      centerMm: center,
+      background: 0x020617,
+      border: 0x0891b2,
+    })
+    uiCanvas.addSurfaceToDisplay(NETWORK_DISPLAY_ID, networkDisplayControlsPane, networkDisplayControlsRect)
+    if (networkDisplayTerminal !== null) {
+      uiCanvas.addSurfaceToDisplay(NETWORK_DISPLAY_ID, networkDisplayTerminal, networkDisplayTerminalRect)
+    }
+  } else {
+    uiCanvas.resizeDisplay(NETWORK_DISPLAY_ID, metrics)
+    uiCanvas.setDisplayCenter(NETWORK_DISPLAY_ID, center)
+  }
+}
+
+function networkDisplayFallbackCenter(metrics: DisplayLayoutMetrics): UiRuntimeViewPointVector {
+  const moduleMetrics = viewportDisplayMetrics()
+  const moduleCount = moduleOrder.length
+  if (moduleCount === 0) return {x: 0, y: MODULE_DISPLAY_CENTER_Y_MM, z: MODULE_DISPLAY_CENTER_Z_MM}
+  const moduleTotalW = moduleCount * moduleMetrics.widthMm + Math.max(0, moduleCount - 1) * MODULE_DISPLAY_GAP_MM
+  return {
+    x: moduleTotalW / 2 + MODULE_DISPLAY_GAP_MM + metrics.widthMm / 2,
+    y: MODULE_DISPLAY_CENTER_Y_MM,
+    z: MODULE_DISPLAY_CENTER_Z_MM,
+  }
+}
+
+function ensureNetworkDisplayTerminal(controller: HostTerminalController): TerminalPane {
+  if (networkDisplayTerminal !== null) return networkDisplayTerminal
+  const terminal = createHostTerminalPane(controller, "InterpreterNetworkTerminalDisplay", {
+    title: "Network · tmux",
+    fontPx: 12,
+    linePx: 17,
+    fitToRect: true,
+    scrollX: true,
+    onResize: (size) => resizeHostTerminalFromPane(controller, terminal, size),
+  })
+  networkDisplayTerminal = terminal
+  return terminal
 }
 
 function restoreInterpreterViewPointOnce(frameKey: string): boolean {
@@ -5754,6 +5965,7 @@ function createHostTerminalPane(
     linePx: opts.linePx,
     maxScrollback: 10000,
     respondToTerminalQueries: false,
+    terminalQueryMode: "cursor",
     cursorWhenBlurred: true,
     draggable: opts.draggable ?? false,
     resizable: opts.resizable ?? false,
@@ -5792,6 +6004,7 @@ function resizeHostTerminalFromPane(controller: HostTerminalController, pane: Te
 }
 
 function hostTerminalResizeOwner(controller: HostTerminalController): TerminalPane {
+  if (controller === networkHostTerminal && networkDisplayTerminal !== null) return networkDisplayTerminal
   return controller.hudTerminal
 }
 
@@ -6035,6 +6248,7 @@ function setHostTerminalStatus(controller: HostTerminalController, kind: PtyStat
 }
 
 function hostTerminalPanes(controller: HostTerminalController): TerminalPane[] {
+  if (controller === networkHostTerminal && networkDisplayTerminal !== null) return [networkDisplayTerminal]
   return [controller.hudTerminal]
 }
 
@@ -6491,21 +6705,27 @@ function setHostTerminalHudDocked(docked: boolean): void {
 }
 
 function setNetworkTerminalDocked(docked: boolean): unknown {
+  if (!docked) return focusNetworkDisplay()
   const controller = ensureNetworkHostTerminalController()
-  if (networkHostTerminalHudDocked !== docked) {
-    networkHostTerminalHudDocked = docked
-    writeStoredNetworkTerminalHudDocked(docked)
+  if (!networkHostTerminalHudDocked) {
+    networkHostTerminalHudDocked = true
+    writeStoredNetworkTerminalHudDocked(true)
   }
-  if (!docked) {
-    if (controller.socket === null) connectHostTerminal(controller)
-    controller.hudTerminal.focus()
-  } else if (uiCanvas !== null && controller.hudTerminal.isFocused()) {
+  if (uiCanvas !== null && controller.hudTerminal.isFocused()) {
     uiCanvas.setFocused(null)
     uiCanvas.inputProxy?.blur()
   }
-  controller.hudTerminal.requestRender()
   networkTerminalDockPane?.requestRender()
   relayoutHudSurfaces()
+  return networkTerminalPayload()
+}
+
+function focusNetworkDisplay(): unknown {
+  const controller = ensureNetworkHostTerminalController()
+  ensureNetworkDisplay()
+  if (controller.socket === null) connectHostTerminal(controller)
+  uiCanvas?.focusDisplay(NETWORK_DISPLAY_ID)
+  networkDisplayTerminal?.focus()
   return networkTerminalPayload()
 }
 
@@ -8734,6 +8954,20 @@ function networkTerminalHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   const stored = readStoredNetworkTerminalHudRect()
   if (stored !== null) return clampHostTerminalHudRect(stored, w, h)
   return clampHostTerminalHudRect(DEFAULT_NETWORK_TERMINAL_HUD_RECT, w, h)
+}
+
+function networkDisplayControlsRect({w}: {w: number; h: number}): UiSurfaceRect {
+  return {x: 0, y: 0, w, h: 96}
+}
+
+function networkDisplayTerminalRect({w, h}: {w: number; h: number}): UiSurfaceRect {
+  const headerH = 96
+  return {
+    x: 0,
+    y: headerH,
+    w,
+    h: Math.max(1, h - headerH),
+  }
 }
 
 function androidHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {

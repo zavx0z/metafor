@@ -107,6 +107,7 @@ boundary.entropy((event) => {
 const server = serve<AppWebSocketData>({
 	hostname: HOST,
 	port: PORT,
+	development: false,
 	...(Bun.env.TLS_KEY_FILE && Bun.env.TLS_CERT_FILE
 		? {
 				tls: {

@@ -42,6 +42,7 @@ export type FileListPaneOpts = {
   onDirectoryToggle?: (item: FileListItem, expanded: boolean) => void
   onFrameRectPreview?: (rect: PaneRect) => void
   onFrameRectChange?: (rect: PaneRect) => void
+  onFrameDockRequest?: () => void
 }
 
 export type FileListPaneThemeName = "intellij" | "material"
@@ -230,6 +231,7 @@ export class FileListPane extends UiSurface {
   #onDirectoryToggle: ((item: FileListItem, expanded: boolean) => void) | undefined
   #onFrameRectPreview: ((rect: PaneRect) => void) | undefined
   #onFrameRectChange: ((rect: PaneRect) => void) | undefined
+  #onFrameDockRequest: (() => void) | undefined
 
   #titleMaterial: TextMaterial
   #statusMaterial: TextMaterial
@@ -259,6 +261,7 @@ export class FileListPane extends UiSurface {
     this.#onDirectoryToggle = opts.onDirectoryToggle
     this.#onFrameRectPreview = opts.onFrameRectPreview
     this.#onFrameRectChange = opts.onFrameRectChange
+    this.#onFrameDockRequest = opts.onFrameDockRequest
   }
 
   setTheme(theme: FileListPaneThemeInput): void {
@@ -534,9 +537,12 @@ export class FileListPane extends UiSurface {
   #renderHeader(): void {
     const buttonSize = 22
     const hasDirectoryButton = this.#onOpenDirectoryRequest !== undefined
+    const hasDockButton = this.#onFrameDockRequest !== undefined
     const status = this.#headerStatus(this.#rows())
     const statusW = Math.max(72, Math.min(180, this.rectW * 0.34))
-    const statusX = this.rectW - PANE_FRAME.headerTextX - statusW
+    const dockButtonX = this.rectW - PANE_FRAME.headerTextX - buttonSize
+    const statusRight = hasDockButton ? dockButtonX - 6 : this.rectW - PANE_FRAME.headerTextX
+    const statusX = statusRight - statusW
     const buttonX = hasDirectoryButton ? statusX - buttonSize - 6 : statusX
     const titleW = Math.max(1, (hasDirectoryButton ? buttonX : statusX) - PANE_FRAME.headerTextX - 8)
     span(this, PANE_FRAME.headerTextX, PANE_FRAME.headerTextY - 3, titleW, 22, {
@@ -548,6 +554,13 @@ export class FileListPane extends UiSurface {
         label: "Open directory",
         iconSrc: uiIcons.plus,
         action: () => this.#onOpenDirectoryRequest?.(),
+      })
+    }
+    if (hasDockButton) {
+      IconButton(this, dockButtonX, 7, buttonSize, buttonSize, {
+        label: "Dock",
+        iconSrc: uiIcons.minus,
+        action: () => this.#onFrameDockRequest?.(),
       })
     }
     span(this, statusX, PANE_FRAME.headerTextY - 3, statusW, 22, {

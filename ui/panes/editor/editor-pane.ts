@@ -18,7 +18,7 @@
 
 import {Color, TextMaterial} from "@metafor/engine"
 import {UiSurface, Z, div, divScrollTo, palette, radii, type DivScrollContext} from "@ui/elements"
-import {Button, autoButtonWidth} from "@ui/components"
+import {Button, IconButton, autoButtonWidth, uiIcons} from "@ui/components"
 import {resolveLanguageHighlighter} from "./highlighter.ts"
 import {
   createEditorTokenMaterials,
@@ -130,6 +130,7 @@ export type EditorOpts = {
   resizable?: boolean
   /** Emits the final pane frame after header move or edge resize. Persistence belongs to the host app. */
   onFrameRectChange?: (rect: PaneRect) => void
+  onFrameDockRequest?: () => void
 }
 
 const HEADER_H_PX = PANE_FRAME.headerHeight
@@ -272,6 +273,7 @@ export class EditorPane extends UiSurface {
   #onSelectionChange: ((snapshot: EditorSelectionSnapshot) => void) | undefined
   #onBreakpointToggle: ((line: number) => void) | undefined
   #onFrameRectChange: ((rect: PaneRect) => void) | undefined
+  #onFrameDockRequest: (() => void) | undefined
   #draggable: boolean
   #resizable: boolean
   #breakpoints = new Map<number, EditorBreakpoint>()
@@ -327,6 +329,7 @@ export class EditorPane extends UiSurface {
     this.#onSelectionChange = opts.onSelectionChange
     this.#onBreakpointToggle = opts.onBreakpointToggle
     this.#onFrameRectChange = opts.onFrameRectChange
+    this.#onFrameDockRequest = opts.onFrameDockRequest
     this.#draggable = opts.draggable ?? false
     this.#resizable = opts.resizable ?? false
     this.#breakpoints = normalizeBreakpoints(opts.breakpoints ?? [])
@@ -1634,11 +1637,23 @@ export class EditorPane extends UiSurface {
 
   protected render(): void {
     // Header
+    const dockButtonSize = 22
+    const dockButtonX = this.rectW - PANE_FRAME.headerTextX - dockButtonSize
+    const titleMaxW = this.#onFrameDockRequest === undefined
+      ? this.rectW - 32
+      : Math.max(1, dockButtonX - PANE_FRAME.headerTextX - 8)
     this.drawText(this.#title, PANE_FRAME.headerTextX, PANE_FRAME.headerTextY, {
       fontPx: this.#titleFontPx,
       material: this.#titleMaterial,
-      maxWidthPx: this.rectW - 32,
+      maxWidthPx: titleMaxW,
     })
+    if (this.#onFrameDockRequest !== undefined) {
+      IconButton(this, dockButtonX, 7, dockButtonSize, dockButtonSize, {
+        label: "Dock",
+        iconSrc: uiIcons.minus,
+        action: this.#onFrameDockRequest,
+      })
+    }
     const rule = paneHeaderRuleRect(this.rectW, HEADER_H_PX)
     this.drawRect(rule.x, rule.y, rule.w, rule.h, palette.borderDim, Z.SEPARATOR)
 

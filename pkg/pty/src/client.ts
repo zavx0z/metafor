@@ -24,6 +24,7 @@ const terminal = new TerminalPane({
   linePx: 18,
   maxScrollback: 10000,
   respondToTerminalQueries: false,
+  terminalQueryMode: "cursor",
   cursorWhenBlurred: true,
   onInput: (data, source) => sendInput(data, source),
   onResize: (size) => {

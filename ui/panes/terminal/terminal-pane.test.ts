@@ -330,9 +330,48 @@ describe("TerminalPane control sequences", () => {
     }
   })
 
+  test("keeps insert and delete line operations inside the scroll region", () => {
+    const terminal = new TerminalPane({cols: 8, rows: 4, fitToRect: false})
+    try {
+      terminal.write("aaaa\r\nbbbb\r\ncccc\r\ndddd")
+      terminal.write("\x1b[2;3r\x1b[2;1H\x1b[LII")
+      expect(terminal.toText()).toBe("aaaa\nII\nbbbb\ndddd")
+
+      terminal.write("\x1b[2;3r\x1b[2;1H\x1b[M")
+      expect(terminal.toText()).toBe("aaaa\nbbbb\n\ndddd")
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("keeps cursor position when erasing the display", () => {
+    const terminal = new TerminalPane({cols: 8, rows: 3, fitToRect: false})
+    try {
+      terminal.write("abc\x1b[2JZ")
+      expect(terminal.toText()).toBe("   Z")
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("honors DEC origin and autowrap modes", () => {
+    const terminal = new TerminalPane({cols: 4, rows: 4, fitToRect: false})
+    try {
+      terminal.write("aaaa\r\nbbbb\r\ncccc\r\ndddd")
+      terminal.write("\x1b[2;3r\x1b[?6h\x1b[1;1HOO")
+      expect(terminal.toText()).toBe("aaaa\nOObb\ncccc\ndddd")
+
+      terminal.clear()
+      terminal.write("\x1b[?7l12345\x1b[?7hZ")
+      expect(terminal.toText()).toBe("1234\nZ")
+    } finally {
+      terminal.dispose()
+    }
+  })
+
   test("answers terminal cursor-position and device-attributes queries through input callback", () => {
     const responses: string[] = []
-    const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false, onInput: (data) => responses.push(data)})
+    const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false, showHeader: false, onInput: (data) => responses.push(data)})
     try {
       terminal.write("\x1b[2;3H\x1b[6n\x1b[c")
       expect(responses).toEqual(["\x1b[2;3R", "\x1b[?1;2c"])
@@ -373,6 +412,77 @@ describe("TerminalPane control sequences", () => {
     }
   })
 
+  test("can answer only cursor-position queries when PTY server owns other probes", () => {
+    const responses: string[] = []
+    const terminal = new TerminalPane({
+      cols: 20,
+      rows: 4,
+      fitToRect: false,
+      respondToTerminalQueries: false,
+      terminalQueryMode: "cursor",
+      onInput: (data) => responses.push(data),
+    })
+    try {
+      terminal.write("\x1b[2;3H\x1b[6n\x1b[c\x1b]11;?\x1b\\")
+
+      expect(responses).toEqual(["\x1b[2;3R"])
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("sends SGR mouse events when terminal mouse tracking is enabled", () => {
+    const responses: string[] = []
+    const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false, showHeader: false, onInput: (data) => responses.push(data)})
+    try {
+      Object.assign(terminal as unknown as {rectW: number; rectH: number}, {rectW: 300, rectH: 180})
+      terminal.write("\x1b[?1000;1002;1006h")
+      terminal.onPointerDown({button: 0, shiftKey: false, altKey: false, ctrlKey: false, detail: 1, preventDefault: () => {}} as MouseEvent, 20, 20)
+      terminal.onPointerMove({button: 0, shiftKey: false, altKey: false, ctrlKey: false, preventDefault: () => {}} as MouseEvent, 32, 20)
+      terminal.onPointerUp({button: 0, shiftKey: false, altKey: false, ctrlKey: false, preventDefault: () => {}} as MouseEvent, 32, 20)
+
+      expect(responses[0]).toMatch(/^\x1b\[<0;\d+;\d+M$/)
+      expect(responses[1]).toMatch(/^\x1b\[<32;\d+;\d+M$/)
+      expect(responses[2]).toMatch(/^\x1b\[<0;\d+;\d+m$/)
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("keeps Shift mouse gestures for terminal text selection", () => {
+    const responses: string[] = []
+    const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false, showHeader: false, onInput: (data) => responses.push(data)})
+    try {
+      Object.assign(terminal as unknown as {rectW: number; rectH: number}, {rectW: 300, rectH: 180})
+      terminal.write("alpha beta\r\nsecond")
+      terminal.write("\x1b[?1000;1002;1006h")
+      terminal.onPointerDown({button: 0, shiftKey: true, altKey: false, ctrlKey: false, detail: 1, preventDefault: () => {}} as MouseEvent, 20, 20)
+      terminal.onPointerMove({button: 0, shiftKey: true, altKey: false, ctrlKey: false, preventDefault: () => {}} as MouseEvent, 20, 60)
+      terminal.onPointerUp({button: 0, shiftKey: true, altKey: false, ctrlKey: false, preventDefault: () => {}} as MouseEvent, 20, 60)
+
+      expect(responses).toEqual([])
+      expect(terminal.hasSelection()).toBe(true)
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("sends SGR wheel events to mouse-aware terminal apps", () => {
+    const responses: string[] = []
+    const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false, showHeader: false, onInput: (data) => responses.push(data)})
+    try {
+      Object.assign(terminal as unknown as {rectW: number; rectH: number}, {rectW: 300, rectH: 180})
+      terminal.write("\x1b[?1000;1006h")
+      terminal.onWheel({deltaY: -80, shiftKey: false, altKey: false, ctrlKey: false, preventDefault: () => {}} as WheelEvent, 20, 20)
+      terminal.onWheel({deltaY: 80, shiftKey: false, altKey: false, ctrlKey: false, preventDefault: () => {}} as WheelEvent, 20, 20)
+
+      expect(responses[0]).toMatch(/^\x1b\[<64;\d+;\d+M$/)
+      expect(responses[1]).toMatch(/^\x1b\[<65;\d+;\d+M$/)
+    } finally {
+      terminal.dispose()
+    }
+  })
+
   test("keeps ANSI foreground, background, and truecolor styles", () => {
     const terminal = new TerminalPane({cols: 24, rows: 5, fitToRect: false})
     try {
@@ -386,6 +496,21 @@ describe("TerminalPane control sequences", () => {
       expect(styles[1]?.[0]?.fg).toEqual({kind: "ansi", index: 2})
       expect(styles[2]?.[0]?.bg).toEqual({kind: "rgb", r: 0, g: 95, b: 0})
       expect(styles[3]?.[0]?.fg).toEqual({kind: "rgb", r: 255, g: 0, b: 0})
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("keeps xterm underline color styles", () => {
+    const terminal = new TerminalPane({cols: 12, rows: 2, fitToRect: false})
+    try {
+      terminal.write("\x1b[4;58;2;10;20;30munder\x1b[59mline")
+
+      const styles = terminal.getStyleSnapshot()
+      expect(styles[0]?.[0]?.underline).toBe(true)
+      expect(styles[0]?.[0]?.underlineColor).toEqual({kind: "rgb", r: 10, g: 20, b: 30})
+      expect(styles[0]?.[5]?.underline).toBe(true)
+      expect(styles[0]?.[5]?.underlineColor).toBeNull()
     } finally {
       terminal.dispose()
     }

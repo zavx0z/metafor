@@ -437,6 +437,7 @@ class AppWebHud implements AppWebHudController {
 			},
 			onItemOpen: (item) => void this.#openWorkspaceItem(item),
 			onFrameRectChange: (rect) => writeStoredRect(WORKSPACE_FILES_RECT_STORAGE_KEY, rect),
+			onFrameDockRequest: () => this.setDocked("workspace", true),
 		})
 		this.#workspaceEditor = new EditorPane({
 			title: "Inspector",
@@ -451,6 +452,7 @@ class AppWebHud implements AppWebHudController {
 			onChange: (text) => this.#handleWorkspaceEditorChange(text),
 			onSave: (text) => void this.#saveWorkspaceEditor(text),
 			onFrameRectChange: (rect) => writeStoredRect(WORKSPACE_EDITOR_RECT_STORAGE_KEY, rect),
+			onFrameDockRequest: () => this.setDocked("workspace", true),
 		})
 		this.#androidPane = new AndroidPane({
 			title: "Android",
@@ -1169,6 +1171,7 @@ class AppWebHud implements AppWebHudController {
 			linePx: 17,
 			maxScrollback: 10000,
 			respondToTerminalQueries: false,
+			terminalQueryMode: "cursor",
 			cursorWhenBlurred: true,
 			draggable: true,
 			resizable: true,
