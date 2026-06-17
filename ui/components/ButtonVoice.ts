@@ -57,15 +57,18 @@ export function ButtonVoice(host: UiSurface, x: number, y: number, size: number,
     key: props.key ?? `button-voice:${x}:${y}:${buttonSize}`,
     tooltip: props.tooltip ?? "Голосовой ввод",
     onClick: props.onClick,
-    style: (state) => ({
-      background: state === "hover" ? "rgba(18, 28, 42, 0.82)" : "rgba(10, 16, 24, 0.72)",
-      borderColor: error ? "red" : connecting ? "orange" : active ? "cyan" : waiting ? "border" : "borderDim",
-      borderRadius: buttonSize / 2,
-      borderWidth: active || connecting || error ? 1.2 : 1,
-      glassTint: active || soundPulse > 0 ? "cyan" : null,
-      glassTintOpacity: active ? 0.08 : soundPulse > 0 ? 0.06 * soundPulse : 0,
-      zIndex: 0.3,
-    }),
+    style: (state) => {
+      const borderColor = error ? "red" : connecting ? "orange" : active ? "cyan" : waiting ? "border" : null
+      return {
+        background: state === "hover" ? "rgba(18, 28, 42, 0.82)" : "rgba(10, 16, 24, 0.72)",
+        borderColor,
+        borderRadius: buttonSize / 2,
+        borderWidth: borderColor === null ? 0 : active || connecting || error ? 1.2 : 1,
+        glassTint: active || soundPulse > 0 ? "cyan" : null,
+        glassTintOpacity: active ? 0.08 : soundPulse > 0 ? 0.06 * soundPulse : 0,
+        zIndex: 0.3,
+      }
+    },
     children: (state) => drawIconCentered(host, micIcon(iconColor), centerX, centerY, Math.max(14, Math.min(22, Math.round(buttonSize * 0.42))), {
       opacity: state === "hover" || active || soundPulse > 0 ? 0.96 : waiting || connecting ? 0.84 : 0.72,
       z: 0.55,
