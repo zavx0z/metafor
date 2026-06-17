@@ -297,7 +297,6 @@ const CODEX_COMPOSER_MIN_W = 420
 const CODEX_COMPOSER_MIN_H = 220
 const CODEX_COMPOSER_GAP = 8
 const CODEX_COMPOSER_PAD = 12
-const CODEX_COMPOSER_INPUT_H = 170
 const CODEX_COMPOSER_HEADER_BUTTON_SIZE = 24
 const CODEX_COMPOSER_MAX_ATTACHMENT_BYTES = 16 * 1024 * 1024
 const CODEX_TITLE = "Codex"
@@ -2360,7 +2359,7 @@ class AppWebHud implements AppWebHudController {
 
 	#codexEditorRectForComposer(composer: UiSurfaceRect): UiSurfaceRect {
 		if (composer.visible === false) return hiddenRect()
-		const editorH = codexComposerEditorHeight(composer.h)
+		const editorH = codexComposerEditorHeight(composer.h, this.#codexAttachments.length > 0)
 		return {
 			x: composer.x + CODEX_COMPOSER_PAD,
 			y: composer.y + PANE_FRAME.headerHeight + PANE_FRAME.bodyTopGap,
@@ -2496,8 +2495,10 @@ class AppWebCodexComposerPane extends UiSurface {
 		})
 		this.#renderHeader(w)
 		const bodyW = Math.max(1, w - pad * 2)
-		const footerY = PANE_FRAME.headerHeight + PANE_FRAME.bodyTopGap + codexComposerEditorHeight(h) + 10
-		this.#drawFooter(pad, footerY, bodyW, h - pad)
+		if (this.hud.codexAttachments().length > 0) {
+			const footerY = PANE_FRAME.headerHeight + PANE_FRAME.bodyTopGap + codexComposerEditorHeight(h, true) + 8
+			this.#drawFooter(pad, footerY, bodyW, h - pad)
+		}
 		if (this.hud.codexDropActive()) this.#drawDropOverlay(w, h)
 	}
 
@@ -3934,11 +3935,10 @@ function formatAttachmentSize(size: number): string {
 	return `${Math.round(size / (1024 * 102.4)) / 10} MB`
 }
 
-function codexComposerEditorHeight(composerH: number): number {
+function codexComposerEditorHeight(composerH: number, hasFooter: boolean): number {
 	const editorTop = PANE_FRAME.headerHeight + PANE_FRAME.bodyTopGap
-	const footerSpace = CODEX_COMPOSER_PAD + 20
-	const maxByComposer = Math.max(82, composerH - editorTop - footerSpace)
-	return Math.min(CODEX_COMPOSER_INPUT_H, maxByComposer)
+	const footerSpace = hasFooter ? CODEX_COMPOSER_PAD + 30 : CODEX_COMPOSER_PAD
+	return Math.max(82, composerH - editorTop - footerSpace)
 }
 
 function processStatusLabel(process: WorkspaceProcess): string {
