@@ -7,8 +7,6 @@ const cwd = process.cwd()
 const panes = {
   tls: 0,
   redirect: 1,
-  ports: 2,
-  debug: 3,
 } as const
 
 const action = process.argv[2] ?? "layout"
@@ -26,8 +24,6 @@ async function run(name: string): Promise<void> {
     rebuildLayout()
     startTls()
     startRedirect()
-    startPorts()
-    writeDebugPrompt()
     selectNetworkWindow()
     return
   }
@@ -56,26 +52,6 @@ async function run(name: string): Promise<void> {
     stopPane("redirect")
     return
   }
-  if (name === "start:ports") {
-    ensureLayout()
-    startPorts()
-    return
-  }
-  if (name === "stop:ports") {
-    ensureLayout()
-    stopPane("ports")
-    return
-  }
-  if (name === "debug:prod") {
-    ensureLayout()
-    startDebugProd()
-    return
-  }
-  if (name === "stop:debug") {
-    ensureLayout()
-    stopDebugProd()
-    return
-  }
   if (name === "tail") {
     ensureLayout()
     tailNetworkLogs()
@@ -98,8 +74,6 @@ function rebuildLayout(): void {
     killWindow(windowName)
     killWindow("https-443")
     killWindow("http-80")
-    killWindow("ports")
-    killWindow("debug-prod")
   }
   if (tmuxOk(["has-session", "-t", session])) {
     sourceProfile()
@@ -108,15 +82,9 @@ function rebuildLayout(): void {
     tmux(["-f", METAFOR_TMUX_CONFIG_PATH, "new-session", "-d", "-s", session, "-n", windowName, "-c", cwd])
   }
   tmux(["split-window", "-h", "-t", targetPane("tls"), "-c", cwd])
-  tmux(["select-pane", "-t", targetPane("tls")])
-  tmux(["split-window", "-v", "-t", targetPane("tls"), "-c", cwd])
-  tmux(["select-pane", "-t", targetPane("redirect")])
-  tmux(["split-window", "-v", "-t", targetPane("redirect"), "-c", cwd])
-  tmux(["select-layout", "-t", targetWindow(), "tiled"])
+  tmux(["select-layout", "-t", targetWindow(), "even-horizontal"])
   titlePane("tls", "app-web tls")
   titlePane("redirect", "http redirect")
-  titlePane("ports", "ports watch")
-  titlePane("debug", "prod debug")
 }
 
 function ensureLayout(): void {
@@ -144,48 +112,12 @@ function startRedirect(): void {
   runPane("redirect", `${serviceEnvPrefix()} HOST=0.0.0.0 PORT=80 bun app/web/network-redirect.ts`)
 }
 
-function startPorts(): void {
-  runPane("ports", `${serviceEnvPrefix()} bun app/web/network-tmux.ts watch:ports`)
-}
-
-function startDebugProd(): void {
-  const env = {
-    BOUNDARY_PATH: "app/web/tmp/boundary.sqlite",
-    HOST: "0.0.0.0",
-    PORT: "3443",
-    TLS_KEY_FILE: "app/web/tls/privkey.pem",
-    TLS_CERT_FILE: "app/web/tls/fullchain.pem",
-    COLORTERM: "truecolor",
-    CLICOLOR: "1",
-    FORCE_COLOR: "3",
-    LANG: "en_US.UTF-8",
-    LC_CTYPE: "en_US.UTF-8",
-  }
-  runPane("debug", [
-    `${serviceEnvPrefix()} printf '\\033[35m[debug]\\033[0m restarting interpreter process \\033[36mapp-web-prod-debug\\033[0m\\n'`,
-    "curl -sS -X POST http://127.0.0.1:6500/processes/app-web-prod-debug/action -H 'content-type: application/json' -d '{\"action\":\"stop\"}' >/dev/null || true",
-    "curl -sS -X POST http://127.0.0.1:6500/processes -H 'content-type: application/json' -d '{\"id\":\"app-web-prod-debug\",\"label\":\"app/web prod debug\",\"command\":[\"bun\",\"app/web/server.ts\"],\"cwd\":\"" + jsonEscape(cwd) + "\",\"env\":" + shellJson(env) + ",\"pauseOnStart\":true}'",
-    "printf '\\n\\033[32m[debug]\\033[0m process ready, open interpreter process \\033[36mapp-web-prod-debug\\033[0m\\n'",
-  ].join("; "))
-}
-
-function stopDebugProd(): void {
-  runPane("debug", [
-    "curl -sS -X POST http://127.0.0.1:6500/processes/app-web-prod-debug/action -H 'content-type: application/json' -d '{\"action\":\"stop\"}'",
-    "printf '\\n[debug-prod] stop requested\\n'",
-  ].join("; "))
-}
-
-function writeDebugPrompt(): void {
-  runPane("debug", `${serviceEnvPrefix()} printf '\\033[36m+--------------------------------------+\\033[0m\\n\\033[36m| MetaFor app/web prod debug           |\\033[0m\\n\\033[36m+--------------------------------------+\\033[0m\\n\\033[90mUse the Debug switch to run app/web/server.ts via /processes with pauseOnStart.\\033[0m\\n'`)
-}
-
 function tailNetworkLogs(): void {
-  runPane("ports", "tmux capture-pane -t " + shellQuote(targetWindow()) + " -p -S -120")
+  console.log(tmux(["capture-pane", "-t", targetWindow(), "-p", "-S", "-120"]))
 }
 
 function status(): void {
-  runPane("ports", `${serviceEnvPrefix()} bun app/web/network-tmux.ts watch:ports`)
+  writeNetworkWatch()
 }
 
 function clearPanes(): void {
@@ -318,18 +250,6 @@ function tmux(args: string[]): string {
     throw new Error(`tmux ${args.join(" ")} failed: ${stderr || stdout}`)
   }
   return stdout
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", "'\\''")}'`
-}
-
-function shellJson(value: unknown): string {
-  return JSON.stringify(value).replaceAll("\\", "\\\\").replaceAll("'", "'\\''")
-}
-
-function jsonEscape(value: string): string {
-  return value.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")
 }
 
 function serviceEnvPrefix(): string {
