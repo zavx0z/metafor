@@ -47,6 +47,10 @@ export function workspaceFileTree(paths: readonly string[]): FileListItem[] {
   for (const rawPath of paths) {
     const path = normalizeWorkspaceFilePath(rawPath)
     if (path === null) continue
+    if (isWorkspaceDirectoryMarker(rawPath)) {
+      addWorkspaceDirectory(root, path)
+      continue
+    }
     const parts = path.split("/")
     const fileName = parts.pop()
     if (fileName === undefined || fileName.length === 0) continue
@@ -69,6 +73,25 @@ export function workspaceFileTree(paths: readonly string[]): FileListItem[] {
     })
   }
   return workspaceTreeChildren(root)
+}
+
+function addWorkspaceDirectory(root: WorkspaceTreeNode, path: string): void {
+  const parts = path.split("/")
+  let node = root
+  let currentPath = ""
+  for (const part of parts) {
+    currentPath = currentPath.length === 0 ? part : `${currentPath}/${part}`
+    let child = node.dirs.get(part)
+    if (child === undefined) {
+      child = {id: currentPath, name: part, dirs: new Map(), files: []}
+      node.dirs.set(part, child)
+    }
+    node = child
+  }
+}
+
+function isWorkspaceDirectoryMarker(path: string): boolean {
+  return path.trim().replaceAll("\\", "/").endsWith("/")
 }
 
 export function workspaceDirectoryIds(items: readonly FileListItem[]): string[] {

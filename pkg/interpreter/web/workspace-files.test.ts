@@ -11,6 +11,7 @@ import {
 describe("interpreter workspace files", () => {
   test("builds a sorted workspace tree and directory id list", () => {
     const items = workspaceFileTree([
+      "github/",
       "src/view/main.ts",
       "README.md",
       "src/model.ts",
@@ -18,8 +19,8 @@ describe("interpreter workspace files", () => {
       "../outside.ts",
     ])
 
-    expect(items.map((item) => item.id)).toEqual(["src", "README.md"])
-    expect(workspaceDirectoryIds(items)).toEqual(["src", "src/view"])
+    expect(items.map((item) => item.id)).toEqual(["github", "src", "README.md"])
+    expect(workspaceDirectoryIds(items)).toEqual(["github", "src", "src/view"])
   })
 
   test("resolves source URLs to workspace file ids", () => {

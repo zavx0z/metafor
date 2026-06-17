@@ -25,6 +25,7 @@ describe("workspaceFilesPayload", () => {
 
     expect(payload.root).toBe(cwd)
     expect(payload.workspacePath).toBe("")
+    expect(payload.files.map((file) => file.path)).toContain("github/")
     expect(payload.files.map((file) => file.path)).toContain("dark/server.spec.ts")
     expect(payload.files.map((file) => file.path)).toContain("dark/server.ts")
     expect(payload.files.map((file) => file.path)).toContain("boundary/force.ts")
@@ -119,6 +120,7 @@ function testWorkspace(): string {
   writeFile(cwd, "boundary/index.ts", "export type Boundary = {ready: boolean}")
   writeFile(cwd, "boundary/force.ts", "export const FORCE = 'force'")
   writeFile(cwd, "boundary/sqlite.ts", "import type {Boundary} from './index.ts'\nexport const open = async (): Promise<Boundary> => ({ready: true})")
+  writeFile(cwd, "github/person/meta.ts", "export const meta = 'person'")
   writeFile(cwd, "pkg/interpreter/package.json", "{}")
   writeFile(cwd, "pkg/interpreter/src/syntax.test.ts", "test('syntax', () => {})")
   writeFile(cwd, "pkg/interpreter/src/server.ts", "export {}")

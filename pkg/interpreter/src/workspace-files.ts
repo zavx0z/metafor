@@ -76,7 +76,10 @@ export function workspaceFilesPayload(url: URL, options: WorkspaceFilesPayloadOp
   const root = workspaceRootForLaunch(options.module, targetPath, cwd)
   const query = (url.searchParams.get("q") ?? "").trim().toLowerCase()
   const limit = clampWorkspaceLimit(url.searchParams.get("limit") === null ? 120 : Number(url.searchParams.get("limit")))
-  const paths = (targetPath === undefined ? collectWorkspaceFiles(root, query) : collectImportedWorkspaceFiles(root, targetPath, query))
+  const paths = mergeWorkspaceCatalogPaths([
+    collectWorkspaceRootDirectories(root, query),
+    targetPath === undefined ? collectWorkspaceFiles(root, query) : collectImportedWorkspaceFiles(root, targetPath, query),
+  ])
     .sort((a, b) => fileRank(a) - fileRank(b) || a.localeCompare(b))
     .slice(0, limit)
 
@@ -87,6 +90,24 @@ export function workspaceFilesPayload(url: URL, options: WorkspaceFilesPayloadOp
     ...(targetPath === undefined ? {} : {modulePath: targetPath}),
     files: paths.map((path) => ({path})),
   }
+}
+
+function collectWorkspaceRootDirectories(root: string, query: string): string[] {
+  let entries: Dirent[]
+  try {
+    entries = readdirSync(root, {withFileTypes: true})
+  } catch {
+    return []
+  }
+  const dirs: string[] = []
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue
+    if (entry.name.startsWith(".") && entry.name !== ".storybook") continue
+    if (WORKSPACE_SKIP_DIRS.has(entry.name)) continue
+    if (query.length > 0 && !entry.name.toLowerCase().includes(query)) continue
+    dirs.push(`${entry.name}/`)
+  }
+  return dirs
 }
 
 function workspaceRootForLaunch(module: WorkspaceFilesModuleContext | undefined, targetPath: string | undefined, cwd: string): string {
@@ -188,6 +209,10 @@ function collectImportedWorkspaceFiles(root: string, entrypoint: string, query: 
   }
 
   return [...files]
+}
+
+function mergeWorkspaceCatalogPaths(groups: readonly string[][]): string[] {
+  return [...new Set(groups.flat())]
 }
 
 type WorkspacePackage = {
