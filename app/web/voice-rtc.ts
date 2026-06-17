@@ -28,12 +28,15 @@ type VoiceRtcRelayPeer = {
 	outboundFlushTimer: number | null
 	queuedPcmAfterCommit: ArrayBuffer[]
 	commitPending: boolean
+	audioStarted: boolean
+	audioBytes: number
 }
 
 const VOICE_RTC_ROOM = "app-web-voice"
 const VOICE_RTC_RELAY_PEER_PREFIX = "voice-relay"
 const VOICE_RTC_APP_PEER_PREFIX = "app-web-voice"
 const VOICE_RTC_CONNECT_TIMEOUT_MS = 2500
+const VOICE_RTC_MEDIA_TIMEOUT_MS = 1800
 const TARGET_RELAY_SAMPLE_RATE = 16_000
 const PCM_FLUSH_BYTES = 4096
 const PCM_FLUSH_MS = 120
@@ -60,7 +63,9 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 	#channel: RTCDataChannel | null = null
 	#fallbackWs: WebSocket | null = null
 	#connectTimer: number | null = null
+	#mediaTimer: number | null = null
 	#remotePeerId = ""
+	#lastStartPayload: string | null = null
 
 	constructor(url: string, context: VoiceInputAsrSocketContext) {
 		super()
@@ -76,6 +81,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 
 	close(): void {
 		this.#clearConnectTimer()
+		this.#clearMediaTimer()
 		this.#readyState = WebSocket.CLOSING
 		this.#fallbackWs?.close()
 		this.#fallbackWs = null
@@ -92,15 +98,20 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 
 	send(data: string | ArrayBuffer | Blob | ArrayBufferView<ArrayBuffer>): void {
 		if (this.#fallbackWs !== null) {
-			this.#fallbackWs.send(data)
+			if (this.#fallbackWs.readyState === WebSocket.OPEN) this.#fallbackWs.send(data)
 			return
 		}
 		if (typeof data !== "string") return
 		if (this.#channel?.readyState !== "open") return
+		const payload = safeJsonParse(data)
+		if (asJsonRecord(payload)?.["type"] === "start") {
+			this.#lastStartPayload = data
+			this.#startMediaTimer()
+		}
 		this.#channel.send(JSON.stringify({
 			type: "asr-control",
 			url: this.url,
-			payload: safeJsonParse(data),
+			payload,
 		}))
 	}
 
@@ -180,7 +191,6 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 		channel.addEventListener("open", () => {
 			this.#clearConnectTimer()
 			this.#readyState = WebSocket.OPEN
-			this.#context.onTransport("p2p")
 			channel.send(JSON.stringify({
 				type: "hello",
 				peerId: this.#peerId,
@@ -192,6 +202,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 			this.dispatchEvent(new Event("open"))
 		})
 		channel.addEventListener("message", (event) => {
+			if (typeof event.data === "string" && this.#handleRelayStatus(event.data)) return
 			this.dispatchEvent(new MessageEvent("message", {data: event.data}))
 		})
 		channel.addEventListener("error", () => this.#startFallback())
@@ -203,6 +214,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 	#startFallback(): void {
 		if (this.#fallbackWs !== null || this.#readyState === WebSocket.CLOSING || this.#readyState === WebSocket.CLOSED) return
 		this.#clearConnectTimer()
+		this.#clearMediaTimer()
 		this.#channel?.close()
 		this.#channel = null
 		this.#connection?.close()
@@ -215,6 +227,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 		ws.addEventListener("open", () => {
 			this.#readyState = WebSocket.OPEN
 			this.#context.onTransport("ws")
+			if (this.#lastStartPayload !== null) ws.send(this.#lastStartPayload)
 			this.dispatchEvent(new Event("open"))
 		})
 		ws.addEventListener("message", (event) => this.dispatchEvent(new MessageEvent("message", {data: event.data})))
@@ -235,6 +248,27 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 		if (this.#connectTimer === null) return
 		window.clearTimeout(this.#connectTimer)
 		this.#connectTimer = null
+	}
+
+	#startMediaTimer(): void {
+		this.#clearMediaTimer()
+		this.#mediaTimer = window.setTimeout(() => this.#startFallback(), VOICE_RTC_MEDIA_TIMEOUT_MS)
+	}
+
+	#clearMediaTimer(): void {
+		if (this.#mediaTimer === null) return
+		window.clearTimeout(this.#mediaTimer)
+		this.#mediaTimer = null
+	}
+
+	#handleRelayStatus(raw: string): boolean {
+		const message = asJsonRecord(safeJsonParse(raw))
+		if (message?.["type"] !== "relay-status") return false
+		if (message["state"] === "audio") {
+			this.#clearMediaTimer()
+			this.#context.onTransport("p2p")
+		}
+		return true
 	}
 }
 
@@ -310,6 +344,8 @@ class VoiceRtcRelay {
 			outboundFlushTimer: null,
 			queuedPcmAfterCommit: [],
 			commitPending: false,
+			audioStarted: false,
+			audioBytes: 0,
 		}
 		this.#peers.set(remotePeerId, peer)
 
@@ -411,6 +447,7 @@ class VoiceRtcRelay {
 			...payload,
 			sampleRate: audioContext.sampleRate,
 		})
+		this.#sendRelayStatus(peer, "asr-open", {sampleRate: audioContext.sampleRate})
 		await this.#startRelayCapture(peer)
 	}
 
@@ -443,6 +480,7 @@ class VoiceRtcRelay {
 		peer.sourceNode.connect(peer.captureNode)
 		peer.captureNode.connect(peer.sinkNode)
 		peer.sinkNode.connect(audioContext.destination)
+		this.#sendRelayStatus(peer, "media-capture", {sampleRate: audioContext.sampleRate})
 	}
 
 	async #createCaptureNode(peer: VoiceRtcRelayPeer, context: AudioContext): Promise<AudioWorkletNode> {
@@ -483,6 +521,11 @@ registerProcessor("voice-rtc-capture", VoiceRtcCaptureProcessor);
 	}
 
 	#enqueueOutboundPcm(peer: VoiceRtcRelayPeer, pcm: ArrayBuffer): void {
+		peer.audioBytes += pcm.byteLength
+		if (!peer.audioStarted) {
+			peer.audioStarted = true
+			this.#sendRelayStatus(peer, "audio", {bytes: peer.audioBytes})
+		}
 		peer.outboundPcmChunks.push(pcm)
 		peer.outboundPcmBytes += pcm.byteLength
 		if (peer.outboundPcmBytes >= PCM_FLUSH_BYTES) {
@@ -536,12 +579,23 @@ registerProcessor("voice-rtc-capture", VoiceRtcCaptureProcessor);
 		}))
 	}
 
+	#sendRelayStatus(peer: VoiceRtcRelayPeer, state: string, payload: Record<string, unknown> = {}): void {
+		if (peer.channel?.readyState !== "open") return
+		peer.channel.send(JSON.stringify({
+			type: "relay-status",
+			state,
+			...payload,
+		}))
+	}
+
 	#stopAsr(peer: VoiceRtcRelayPeer, closeSocket: boolean): void {
 		this.#stopRelayCapture(peer)
 		if (closeSocket) peer.asrWs?.close()
 		peer.asrWs = null
 		peer.commitPending = false
 		peer.queuedPcmAfterCommit = []
+		peer.audioStarted = false
+		peer.audioBytes = 0
 	}
 
 	#stopRelayCapture(peer: VoiceRtcRelayPeer): void {
