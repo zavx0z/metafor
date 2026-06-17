@@ -10,7 +10,7 @@ describe("terminalEnv", () => {
     expect(env.CLICOLOR).toBe("1")
     expect(env.COLORFGBG).toBe("15;0")
     expect(env.CLICOLOR_FORCE).toBeUndefined()
-    expect(env.FORCE_COLOR).toBeUndefined()
+    expect(env.FORCE_COLOR).toBe("3")
     expect(env.TERM_PROGRAM).toBe("iTerm.app")
     expect(env.TERM_PROGRAM_VERSION).toBe("3.5")
     expect(env.NO_COLOR).toBeUndefined()
@@ -28,7 +28,7 @@ describe("terminalEnv", () => {
 
     expect(env.COLORFGBG).toBe("7;0")
     expect(env.CLICOLOR_FORCE).toBeUndefined()
-    expect(env.FORCE_COLOR).toBeUndefined()
+    expect(env.FORCE_COLOR).toBe("3")
     expect(env.TERM_PROGRAM).toBe("WezTerm")
     expect(env.TERM_PROGRAM_VERSION).toBe("20260401")
   })

@@ -1182,8 +1182,9 @@ class TerminalOutputPane extends UiSurface {
   override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
     this.focus()
     if (!this.#isBodyPoint(localX, localY)) {
-      if (this.#beginFrameInteraction(event, localX, localY)) return
       super.onPointerDown(event, localX, localY)
+      if (this.pressedHit !== null) return
+      if (this.#beginFrameInteraction(event, localX, localY)) return
       return
     }
     if (this.#handleTerminalMouseDown(event, localX, localY)) return
@@ -2275,18 +2276,20 @@ function keyToTerminalInput(event: KeyboardEvent, mode: TerminalKeyboardMode = d
   const keypad = keypadToTerminalInput(event, mode)
   if (keypad !== null) return keypad
   if (key === "Tab" && event.shiftKey) return "\x1b[Z"
+  const backspace = isBackspaceKey(event)
+  const forwardDelete = isForwardDeleteKey(event)
   if (event.ctrlKey && !event.altKey && !event.metaKey) {
-    if (key === "Backspace") return "\x17"
+    if (backspace) return "\x17"
     const control = ctrlShortcutToTerminalInput(event)
     if (control !== null) return control
   }
-  if (event.altKey && !event.ctrlKey && !event.metaKey && key === "Backspace") return "\x1b\x7f"
-  if (event.altKey && !event.ctrlKey && !event.metaKey && key === "Delete") return "\x1bd"
+  if (event.altKey && !event.ctrlKey && !event.metaKey && backspace) return "\x1b\x7f"
+  if (event.altKey && !event.ctrlKey && !event.metaKey && forwardDelete) return "\x1bd"
   if (event.altKey && key.length === 1 && !event.ctrlKey && !event.metaKey) return `\x1b${key}`
   if (event.metaKey) return null
   if (key === "Enter" && event.shiftKey && !event.ctrlKey && !event.altKey) return "\n"
   if (key === "Enter") return "\r"
-  if (key === "Backspace") return "\x7f"
+  if (backspace) return "\x7f"
   if (key === "Tab") return "\t"
   if (key === "Escape") return "\x1b"
   const special = specialKeyToTerminalInput(event, mode)
@@ -2294,6 +2297,14 @@ function keyToTerminalInput(event: KeyboardEvent, mode: TerminalKeyboardMode = d
   if (event.ctrlKey) return null
   if (key.length === 1) return key
   return null
+}
+
+function isBackspaceKey(event: KeyboardEvent): boolean {
+  return event.key === "Backspace" || event.code === "Backspace"
+}
+
+function isForwardDeleteKey(event: KeyboardEvent): boolean {
+  return event.key === "Delete" && event.code !== "Backspace"
 }
 
 function shortcutLetter(event: KeyboardEvent): string | null {

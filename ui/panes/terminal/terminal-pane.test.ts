@@ -249,6 +249,7 @@ describe("TerminalPane focus", () => {
       cols: 20,
       rows: 4,
       fitToRect: false,
+      draggable: true,
       onFrameDockRequest: () => {
         dockRequests += 1
       },
@@ -696,6 +697,27 @@ describe("TerminalPane control sequences", () => {
       expect(ctrlBackspace.defaultPrevented).toBe(true)
       expect(altDelete.defaultPrevented).toBe(true)
       expect(ctrlW.defaultPrevented).toBe(true)
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("maps macOS delete-labeled backspace to terminal erase", () => {
+    const responses: string[] = []
+    const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false, onInput: (data) => responses.push(data)})
+    try {
+      const backspace = keyEvent("Backspace")
+      const macDeleteLabelBackspace = keyEvent("Delete", {code: "Backspace"})
+      const forwardDelete = keyEvent("Delete", {code: "Delete"})
+
+      terminal.onKey(backspace)
+      terminal.onKey(macDeleteLabelBackspace)
+      terminal.onKey(forwardDelete)
+
+      expect(responses).toEqual(["\x7f", "\x7f", "\x1b[3~"])
+      expect(backspace.defaultPrevented).toBe(true)
+      expect(macDeleteLabelBackspace.defaultPrevented).toBe(true)
+      expect(forwardDelete.defaultPrevented).toBe(true)
     } finally {
       terminal.dispose()
     }

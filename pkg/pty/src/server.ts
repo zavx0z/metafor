@@ -823,6 +823,7 @@ export function terminalEnv(base: Record<string, string | undefined> = process.e
     COLORTERM: "truecolor",
     CLICOLOR: "1",
     COLORFGBG: base.COLORFGBG ?? DEFAULT_COLORFGBG,
+    FORCE_COLOR: base.FORCE_COLOR ?? "3",
     PROMPT_EOL_MARK: "",
     TERM: "xterm-256color",
     TERM_PROGRAM: base.TERM_PROGRAM ?? DEFAULT_TERM_PROGRAM,
@@ -830,7 +831,6 @@ export function terminalEnv(base: Record<string, string | undefined> = process.e
   }
   delete env.NO_COLOR
   delete env.CLICOLOR_FORCE
-  delete env.FORCE_COLOR
   if (env.LANG === undefined || env.LANG === "C.UTF-8") env.LANG = "en_US.UTF-8"
   if (env.LC_ALL === "C.UTF-8") delete env.LC_ALL
   if (env.LC_CTYPE === "C.UTF-8") env.LC_CTYPE = "en_US.UTF-8"
