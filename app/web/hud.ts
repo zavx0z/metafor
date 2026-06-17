@@ -608,6 +608,7 @@ class AppWebHud implements AppWebHudController {
 	}
 
 	toggleVoiceInput(): void {
+		this.#focusCodexComposer()
 		void this.#toggleVoice()
 	}
 
@@ -1501,6 +1502,7 @@ class AppWebHud implements AppWebHudController {
 		this.#voiceComposerGeneratedDraft = nextDraft
 		if (this.#codexDraft === nextDraft) return true
 		this.#setCodexDraft(nextDraft)
+		this.#focusCodexComposer()
 		return true
 	}
 
@@ -1918,7 +1920,7 @@ class AppWebHud implements AppWebHudController {
 		} catch (error) {
 			this.#flashVoiceHudError(error instanceof Error ? error.message : String(error))
 		} finally {
-			this.#focusVoiceTerminal()
+			this.#focusCodexComposer()
 		}
 	}
 
@@ -1997,10 +1999,6 @@ class AppWebHud implements AppWebHudController {
 		voiceSignalLastPlayedAt.set(kind, now)
 		this.#voiceHud.flashSoundIndicator()
 		playHudNotificationSound(kind, this.#voiceClient)
-	}
-
-	#focusVoiceTerminal(): void {
-		this.#viewport.hud.setFocused(this.#terminal.pane)
 	}
 
 	#setVoiceDictationActive(active: boolean): void {
