@@ -1,7 +1,7 @@
 import {Color, TextMaterial} from "@metafor/engine"
 import {Button, Switcher, uiIcons} from "@ui/components"
-import {UiSurface, Z, palette, radii, type UiSurfaceRect} from "@ui/elements"
-import {PANE_FRAME, paneBodyRect, paneHeaderRuleRect} from "./pane-frame.ts"
+import {UiSurface, Z, palette, type UiSurfaceRect} from "@ui/elements"
+import {PANE_FRAME, paneBodyRect} from "./pane-frame.ts"
 
 export type NetworkWatchServiceKey = "tls" | "redirect"
 
@@ -53,9 +53,6 @@ type PaneEntry = {
   command: string
 }
 
-const NETWORK_PANEL_BG = withAlpha(palette.bg, 0.68)
-const NETWORK_STATUS_BG = new Color(0.02, 0.04, 0.07, 0.52)
-const NETWORK_SECTION_BG = new Color(0.01, 0.02, 0.04, 0.36)
 const EMPTY_SECTIONS: NetworkWatchSections = {time: "--", listen: [], tmux: [], other: []}
 const NETWORK_HEADER_H = PANE_FRAME.headerHeight
 const NETWORK_MIN_W = 360
@@ -77,7 +74,7 @@ export class NetworkWatchPane extends UiSurface {
   }
 
   constructor(opts: NetworkWatchPaneOpts = {}) {
-    super({bgColor: NETWORK_PANEL_BG, borderColor: null})
+    super({bgColor: null, borderColor: null})
     this.node.name = "NetworkWatchPane"
     this.#title = opts.title ?? "NetworkMux"
     this.#sessionLabel = opts.sessionLabel ?? "network"
@@ -106,13 +103,6 @@ export class NetworkWatchPane extends UiSurface {
   protected render(): void {
     const w = Math.max(NETWORK_MIN_W, this.rectW)
     const h = Math.max(NETWORK_MIN_H, this.rectH)
-    this.drawRoundedRect(0, 0, w, h, {
-      radius: radii.pane,
-      fill: NETWORK_PANEL_BG,
-      border: null,
-      z: Z.CONTAINER,
-    })
-
     this.#renderHeader(w)
     const body = paneBodyRect(w, h, {headerHeight: NETWORK_HEADER_H, insetX: 8, topGap: 8, bottomInset: 8})
     this.#renderBody(body)
@@ -140,8 +130,6 @@ export class NetworkWatchPane extends UiSurface {
       maxWidthPx: Math.max(1, w - pad - titleW - 12),
     })
 
-    const rule = paneHeaderRuleRect(w, NETWORK_HEADER_H, PANE_FRAME.bodyInsetX)
-    this.drawRect(rule.x, rule.y, rule.w, rule.h, palette.borderDim)
   }
 
   #renderBody(rect: UiSurfaceRect): void {
@@ -196,12 +184,6 @@ export class NetworkWatchPane extends UiSurface {
   }
 
   #drawNetworkStatus(x: number, y: number, w: number, h: number): void {
-    this.drawRoundedRect(x, y, w, h, {
-      radius: 6,
-      fill: NETWORK_STATUS_BG,
-      border: null,
-      z: Z.ELEMENT,
-    })
     const sections = this.#snapshot.sections
     const updated = this.#snapshot.updatedAt === null ? "loading" : formatPaneTime(this.#snapshot.updatedAt)
     const suffix = this.#snapshot.refreshing ? "updating" : "stable"
@@ -236,12 +218,6 @@ export class NetworkWatchPane extends UiSurface {
   }
 
   #drawNetworkSection(title: string, kind: "listen" | "tmux", lines: string[], x: number, y: number, w: number, h: number): void {
-    this.drawRoundedRect(x, y, w, h, {
-      radius: 5,
-      fill: NETWORK_SECTION_BG,
-      border: null,
-      z: Z.ELEMENT + 0.01,
-    })
     this.drawText(`${title} | ${lines.length}`, x + 8, y + 7, {
       fontPx: 10,
       material: this.materials.cyan,
