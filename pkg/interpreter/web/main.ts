@@ -700,6 +700,8 @@ type NetworkServiceKey = "tls" | "redirect"
 const DEFAULT_HOST_TERMINAL_HUD_RECT: UiSurfaceRect = {x: 643, y: 60, w: 755, h: 943}
 const DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "top", offset: 858}
 const DEFAULT_NETWORK_TERMINAL_HUD_RECT: UiSurfaceRect = {x: 24, y: 520, w: 1080, h: 560}
+const NETWORK_DISPLAY_CONTROLS_MAX_H = 244
+const NETWORK_STATUS_REFRESH_MS = 2500
 const DEFAULT_ANDROID_HUD_RECT: UiSurfaceRect = {x: 24, y: 80, w: 390, h: 720}
 const DEFAULT_SECONDARY_ANDROID_HUD_RECT: UiSurfaceRect = {x: 430, y: 80, w: 390, h: 720}
 const ANDROID_RTC_FRAME_SRC = "metafor:android-rtc-frame"
@@ -735,6 +737,10 @@ let networkHostTerminalHudDocked = readStoredNetworkTerminalHudDocked()
 let networkHostTerminalHudRectPreview: UiSurfaceRect | null = null
 let networkServiceSwitches: Record<NetworkServiceKey, boolean> = {tls: true, redirect: true}
 let networkActionStatus = "ready"
+let networkStatusLines: string[] = []
+let networkStatusUpdatedAt: Date | null = null
+let networkStatusRefreshTimer: number | null = null
+let networkStatusRefreshInFlight = false
 let androidHudDocked = readStoredAndroidHudDocked()
 let androidHudRectPreview: UiSurfaceRect | null = null
 let secondaryAndroidHudDocked = readStoredSecondaryAndroidHudDocked()
@@ -3635,6 +3641,46 @@ class NetworkDisplayControlsPane extends UiSurface {
         maxWidthPx: this.rectW - metaX - pad,
       })
     }
+
+    this.#drawNetworkStatus(pad, 88, Math.max(1, this.rectW - pad * 2), Math.max(1, this.rectH - 100))
+  }
+
+  #drawNetworkStatus(x: number, y: number, w: number, h: number): void {
+    this.drawRoundedRect(x, y, w, h, {
+      radius: 6,
+      fill: new Color(0.02, 0.04, 0.07, 0.52),
+      border: withAlpha(palette.border, 0.46),
+      borderWidth: 1,
+      z: Z.ELEMENT,
+    })
+    const updated = networkStatusUpdatedAt === null ? "loading" : formatHudTime(networkStatusUpdatedAt)
+    const title = networkStatusRefreshInFlight ? `Network status · ${updated} · updating` : `Network status · ${updated}`
+    this.drawText(title, x + 10, y + 8, {
+      fontPx: 10,
+      material: this.materials.cyan,
+      maxWidthPx: Math.max(1, w - 20),
+    })
+
+    const lines = networkStatusLines.length > 0 ? networkStatusLines : ["status loading..."]
+    const lineH = 12
+    const maxLines = Math.max(1, Math.floor((h - 30) / lineH))
+    let lineY = y + 25
+    for (const line of lines.slice(0, maxLines)) {
+      const trimmed = line.trim()
+      const material = trimmed.startsWith("[")
+        ? this.materials.cyan
+        : trimmed.includes("no interesting") || trimmed.includes("failed")
+          ? this.materials.orange
+          : trimmed.includes("active") || trimmed.includes(":443") || trimmed.includes(":80")
+            ? this.materials.green
+            : this.materials.muted
+      this.drawText(line, x + 10, lineY, {
+        fontPx: 9,
+        material,
+        maxWidthPx: Math.max(1, w - 20),
+      })
+      lineY += lineH
+    }
   }
 
   #switchRow(x: number, y: number, label: string, key: NetworkServiceKey, tooltip: string): number {
@@ -3676,16 +3722,23 @@ function networkActionForSwitch(key: NetworkServiceKey, checked: boolean): strin
   return checked ? "start:redirect" : "stop:redirect"
 }
 
+type NetworkActionPayload = {ok?: boolean; durationMs?: number; stdout?: string; stderr?: string; error?: string}
+
+async function postNetworkAction(action: string): Promise<{response: Response; payload: NetworkActionPayload}> {
+  const response = await fetch("/space/network/action", {
+    method: "POST",
+    headers: {"content-type": "application/json"},
+    body: JSON.stringify({action}),
+  })
+  const payload = await response.json().catch(() => ({})) as NetworkActionPayload
+  return {response, payload}
+}
+
 async function runNetworkAction(action: string): Promise<void> {
   networkActionStatus = `running ${action}`
   networkDisplayControlsPane?.requestRender()
   try {
-    const response = await fetch("/space/network/action", {
-      method: "POST",
-      headers: {"content-type": "application/json"},
-      body: JSON.stringify({action}),
-    })
-    const payload = await response.json().catch(() => ({})) as {ok?: boolean; durationMs?: number; stderr?: string; error?: string}
+    const {response, payload} = await postNetworkAction(action)
     if (!response.ok || payload.ok === false) {
       const message = payload.error ?? payload.stderr ?? `${response.status}`
       networkActionStatus = `${action} failed: ${String(message).slice(0, 64)}`
@@ -3696,7 +3749,58 @@ async function runNetworkAction(action: string): Promise<void> {
     networkActionStatus = `${action} failed: ${error instanceof Error ? error.message : String(error)}`
   } finally {
     networkDisplayControlsPane?.requestRender()
+    scheduleNetworkStatusRefresh(0)
   }
+}
+
+function ensureNetworkStatusRefresh(): void {
+  if (networkStatusRefreshTimer !== null || networkStatusRefreshInFlight) return
+  scheduleNetworkStatusRefresh(networkStatusLines.length === 0 ? 0 : NETWORK_STATUS_REFRESH_MS)
+}
+
+function scheduleNetworkStatusRefresh(delayMs: number): void {
+  if (networkStatusRefreshTimer !== null) window.clearTimeout(networkStatusRefreshTimer)
+  networkStatusRefreshTimer = window.setTimeout(() => {
+    networkStatusRefreshTimer = null
+    void refreshNetworkStatus()
+  }, delayMs)
+}
+
+async function refreshNetworkStatus(): Promise<void> {
+  if (networkStatusRefreshInFlight) return
+  networkStatusRefreshInFlight = true
+  networkDisplayControlsPane?.requestRender()
+  try {
+    const {response, payload} = await postNetworkAction("status")
+    if (!response.ok || payload.ok === false) {
+      const message = payload.error ?? payload.stderr ?? `${response.status}`
+      networkStatusLines = [`status failed: ${String(message).slice(0, 160)}`]
+    } else {
+      networkStatusLines = networkStatusLinesFromOutput(payload.stdout ?? "")
+      networkStatusUpdatedAt = new Date()
+    }
+  } catch (error) {
+    networkStatusLines = [`status failed: ${error instanceof Error ? error.message : String(error)}`]
+  } finally {
+    networkStatusRefreshInFlight = false
+    networkDisplayControlsPane?.requestRender()
+    if (networkDisplayInstalled) scheduleNetworkStatusRefresh(NETWORK_STATUS_REFRESH_MS)
+  }
+}
+
+function networkStatusLinesFromOutput(stdout: string): string[] {
+  const lines = stdout
+    .replace(/\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, "")
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter((line) => {
+      const trimmed = line.trim()
+      if (trimmed.length === 0) return false
+      if (/^\+-+\+$/.test(trimmed)) return false
+      if (/^\|\s*MetaFor network/.test(trimmed)) return false
+      return true
+    })
+  return lines.length > 0 ? lines : ["no network status"]
 }
 
 class TodoDockPane extends UiSurface {
@@ -5795,6 +5899,7 @@ function ensureNetworkDisplay(): void {
     uiCanvas.resizeDisplay(NETWORK_DISPLAY_ID, metrics)
     uiCanvas.setDisplayCenter(NETWORK_DISPLAY_ID, center)
   }
+  ensureNetworkStatusRefresh()
 }
 
 function networkDisplayFallbackCenter(metrics: DisplayLayoutMetrics): UiRuntimeViewPointVector {
@@ -8903,18 +9008,22 @@ function networkTerminalHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   return clampHostTerminalHudRect(DEFAULT_NETWORK_TERMINAL_HUD_RECT, w, h)
 }
 
-function networkDisplayControlsRect({w}: {w: number; h: number}): UiSurfaceRect {
-  return {x: 0, y: 0, w, h: 96}
+function networkDisplayControlsRect({w, h}: {w: number; h: number}): UiSurfaceRect {
+  return {x: 0, y: 0, w, h: networkDisplayControlsHeight(h)}
 }
 
 function networkDisplayTerminalRect({w, h}: {w: number; h: number}): UiSurfaceRect {
-  const headerH = 96
+  const headerH = networkDisplayControlsHeight(h)
   return {
     x: 0,
     y: headerH,
     w,
     h: Math.max(1, h - headerH),
   }
+}
+
+function networkDisplayControlsHeight(displayH: number): number {
+  return Math.min(NETWORK_DISPLAY_CONTROLS_MAX_H, Math.max(120, Math.floor(displayH * 0.34)))
 }
 
 function androidHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
