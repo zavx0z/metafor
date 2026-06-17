@@ -2341,6 +2341,10 @@ class AppWebHud implements AppWebHudController {
 
 	#codexEditorRect(bounds: {w: number; h: number}): UiSurfaceRect {
 		const composer = this.#codexComposerRect(bounds)
+		return this.#codexEditorRectForComposer(composer)
+	}
+
+	#codexEditorRectForComposer(composer: UiSurfaceRect): UiSurfaceRect {
 		if (composer.visible === false) return hiddenRect()
 		const editorH = codexComposerEditorHeight(composer.h)
 		return {
@@ -2349,6 +2353,15 @@ class AppWebHud implements AppWebHudController {
 			w: Math.max(1, composer.w - CODEX_COMPOSER_PAD * 2),
 			h: editorH,
 		}
+	}
+
+	syncCodexEditorToComposer(composer: UiSurfaceRect, mode: "drag" | "release"): void {
+		if (mode === "drag") {
+			this.#viewport.hud.setSurfaceRect(this.#codexEditor, this.#codexEditorRectForComposer(composer))
+			return
+		}
+		this.#viewport.hud.clearSurfaceRect(this.#codexEditor)
+		this.#viewport.hud.relayout()
 	}
 
 	#settingsRect(bounds: {w: number; h: number}): UiSurfaceRect {
@@ -2625,7 +2638,8 @@ class AppWebCodexComposerPane extends UiSurface {
 		const frame = this.canvas?.surfaceFrame(this)
 		if (drag === null || frame === undefined || frame === null) return false
 		const next = paneFrameDragRect(drag, event, frame.bounds)
-		this.canvas?.setSurfaceRect(this, next)
+		const applied = this.canvas?.setSurfaceRect(this, next) ?? next
+		this.hud.syncCodexEditorToComposer(applied, "drag")
 		const cursor = paneFrameCursor(drag.kind, true)
 		const canvasElement = this.canvas?.canvas
 		if (cursor !== null && canvasElement !== undefined) canvasElement.style.cursor = cursor
@@ -2638,7 +2652,10 @@ class AppWebCodexComposerPane extends UiSurface {
 		const frame = this.canvas?.surfaceFrame(this)
 		this.#frameDrag = null
 		this.#syncFrameCursor(localX, localY)
-		if (frame !== undefined && frame !== null) writeStoredRect(CODEX_COMPOSER_RECT_STORAGE_KEY, frame.rect as PaneRect)
+		if (frame !== undefined && frame !== null) {
+			writeStoredRect(CODEX_COMPOSER_RECT_STORAGE_KEY, frame.rect as PaneRect)
+			this.hud.syncCodexEditorToComposer(frame.rect, "release")
+		}
 		return true
 	}
 
