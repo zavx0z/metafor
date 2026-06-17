@@ -1,7 +1,6 @@
 import type {BoundaryBulkRuntimeSnapshot, Particle} from "boundary"
 import {createBulkViewport, type BulkViewportController, type BulkViewportStats} from "bulk/web"
 import {buildBoundaryWorldRows} from "./world.ts"
-import {installAppWebRtcMesh} from "./webrtc.ts"
 import {
 	APP_WEB_LAYOUT_SETTING_KEYS,
 	DEFAULT_APP_WEB_LAYOUT_SETTINGS,
@@ -67,7 +66,6 @@ let voiceDictationActive = false
 
 const socketScheme = window.location.protocol === "https:" ? "wss:" : "ws:"
 const socket = new WebSocket(`${socketScheme}//${window.location.host}/ws`)
-installAppWebRtcMesh()
 
 const updateBulkStats = (stats: BulkViewportStats): void => {
 	hud?.setStats(stats)

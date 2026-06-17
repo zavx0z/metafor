@@ -339,6 +339,9 @@ class TerminalOutputPane extends UiSurface {
   #dragAnchorLocalX = 0
   #dragAnchorLocalY = 0
   #attr: TerminalAttr = cloneAttr(DEFAULT_ATTR)
+  #defaultFg: TerminalColor = DEFAULT_FG
+  #defaultBg: TerminalColor | null = null
+  #cursorFill = CURSOR_FILL
   #wordWrapBuffer: TerminalCell[] = []
   #parserMode: ParserMode = "text"
   #sequence = ""
@@ -588,7 +591,7 @@ class TerminalOutputPane extends UiSurface {
   }
 
   getStyleSnapshot(): TerminalStyleCell[][] {
-    return [...this.#scrollback, ...this.#screen].map((line) => terminalStyleCells(line))
+    return [...this.#scrollback, ...this.#screen].map((line) => terminalStyleCells(line, this.#defaultBg))
   }
 
   scrollToBottom(): void {
@@ -847,6 +850,9 @@ class TerminalOutputPane extends UiSurface {
 
   #renderLine(lineIndex: number, line: TerminalCell[], x: number, y: number, isCursorLine: boolean): void {
     const charW = this.#getCharWidth()
+    if (this.#defaultBg !== null) {
+      this.drawRect(x, y + 1, this.#cols * charW, this.#linePx, colorToColor(this.#defaultBg), Z.ELEMENT - 0.03)
+    }
     if (isCursorLine && this.#focused && this.#cursorLineHighlight && this.#cursorEnabled) {
       this.drawRect(x, y + 1, this.#cols * charW, this.#linePx, this.#cursorLineFill, Z.ELEMENT - 0.02)
     }
@@ -945,7 +951,7 @@ class TerminalOutputPane extends UiSurface {
     const cursorCol = clampInt(this.#cursorCol, 0, this.#cols - 1)
     this.drawRoundedRect(x + cursorCol * charW, y + 2, Math.max(2, charW), Math.max(4, this.#linePx - 3), {
       radius: 2,
-      fill: CURSOR_FILL,
+      fill: this.#cursorFill,
       z: Z.TEXT + 0.03,
     })
   }
@@ -1658,10 +1664,45 @@ class TerminalOutputPane extends UiSurface {
   }
 
   #dispatchOsc(raw: string): void {
+    if (this.#applyOscTerminalColor(raw)) {
+      this.requestRender()
+      return
+    }
     if (!this.shouldAnswerTerminalQuery("color")) return
-    if (raw === "10;?") this.emitTerminalResponse(`\x1b]10;${oscRgb(palette.text)}\x1b\\`)
-    else if (raw === "11;?") this.emitTerminalResponse(`\x1b]11;${oscRgb(TERMINAL_BG)}\x1b\\`)
-    else if (raw === "12;?") this.emitTerminalResponse(`\x1b]12;${oscRgb(CURSOR_FILL)}\x1b\\`)
+    if (raw === "10;?") this.emitTerminalResponse(`\x1b]10;${oscRgb(colorToColor(this.#defaultFg))}\x1b\\`)
+    else if (raw === "11;?") this.emitTerminalResponse(`\x1b]11;${oscRgb(this.#defaultBg === null ? TERMINAL_BG : colorToColor(this.#defaultBg))}\x1b\\`)
+    else if (raw === "12;?") this.emitTerminalResponse(`\x1b]12;${oscRgb(this.#cursorFill)}\x1b\\`)
+  }
+
+  #applyOscTerminalColor(raw: string): boolean {
+    if (raw === "110") {
+      this.#defaultFg = DEFAULT_FG
+      this.#materials.delete(colorKey(DEFAULT_FG))
+      return true
+    }
+    if (raw === "111") {
+      this.#defaultBg = null
+      return true
+    }
+    if (raw === "112") {
+      this.#cursorFill = CURSOR_FILL
+      return true
+    }
+    const separator = raw.indexOf(";")
+    if (separator < 0) return false
+    const code = raw.slice(0, separator)
+    if (code !== "10" && code !== "11" && code !== "12") return false
+    const color = parseOscTerminalColor(raw.slice(separator + 1))
+    if (color === null) return false
+    if (code === "10") {
+      this.#defaultFg = color
+      this.#materials.delete(colorKey(DEFAULT_FG))
+    } else if (code === "11") {
+      this.#defaultBg = color
+    } else {
+      this.#cursorFill = colorToColor(color)
+    }
+    return true
   }
 
   #dispatchCsi(raw: string, final: string): void {
@@ -2014,11 +2055,12 @@ class TerminalOutputPane extends UiSurface {
   }
 
   #materialFor(color: TerminalColor): TextMaterial {
-    if (color.kind === "default") return this.materials.text
-    const key = colorKey(color)
+    const rendered = color.kind === "default" ? this.#defaultFg : color
+    if (rendered.kind === "default") return this.materials.text
+    const key = color.kind === "default" ? `default:${colorKey(rendered)}` : colorKey(rendered)
     let material = this.#materials.get(key)
     if (material === undefined) {
-      material = new TextMaterial({color: colorToColor(color)})
+      material = new TextMaterial({color: colorToColor(rendered)})
       this.#materials.set(key, material)
     }
     return material
@@ -2562,6 +2604,33 @@ function oscRgb(color: Color): string {
   return `rgb:${part(color.r)}/${part(color.g)}/${part(color.b)}`
 }
 
+function parseOscTerminalColor(value: string): TerminalColor | null {
+  const trimmed = value.trim()
+  const hex = /^#?([0-9a-f]{6})$/i.exec(trimmed)
+  if (hex !== null) {
+    const raw = hex[1]!
+    return {
+      kind: "rgb",
+      r: Number.parseInt(raw.slice(0, 2), 16),
+      g: Number.parseInt(raw.slice(2, 4), 16),
+      b: Number.parseInt(raw.slice(4, 6), 16),
+    }
+  }
+  const rgb = /^rgb:([0-9a-f]{1,4})\/([0-9a-f]{1,4})\/([0-9a-f]{1,4})$/i.exec(trimmed)
+  if (rgb === null) return null
+  const channel = (raw: string): number => {
+    const max = (1 << (raw.length * 4)) - 1
+    const parsed = Number.parseInt(raw, 16)
+    return clampInt(Math.round((parsed / max) * 255), 0, 255)
+  }
+  return {
+    kind: "rgb",
+    r: channel(rgb[1]!),
+    g: channel(rgb[2]!),
+    b: channel(rgb[3]!),
+  }
+}
+
 function cloneAttr(attr: TerminalAttr): TerminalAttr {
   return {
     fg: cloneColor(attr.fg),
@@ -2588,12 +2657,12 @@ function cloneColor(color: TerminalColor): TerminalColor {
   return {kind: "rgb", r: color.r, g: color.g, b: color.b}
 }
 
-function terminalStyleCells(line: readonly TerminalCell[]): TerminalStyleCell[] {
+function terminalStyleCells(line: readonly TerminalCell[], defaultBg: TerminalColor | null): TerminalStyleCell[] {
   return line.map((cell) => ({
     ch: cell.ch,
     width: cell.width,
     fg: cloneColor(displayFg(cell.attr)),
-    bg: cloneNullableColor(displayBg(cell)),
+    bg: cloneNullableColor(displayBg(cell) ?? defaultBg),
     underlineColor: cloneNullableColor(cell.attr.underlineColor),
     bold: cell.attr.bold,
     dim: cell.attr.dim,

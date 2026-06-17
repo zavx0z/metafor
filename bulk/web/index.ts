@@ -575,12 +575,14 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 	#pressedSlot: BulkHudSurfaceSlot | null = null
 	#hoveredSlot: BulkHudSurfaceSlot | null = null
 	#activeTouchId: number | null = null
+	#claimNextClick = false
 	#disposed = false
 
 	readonly #handleWheel = (event: WheelEvent): void => this.#onWheel(event)
 	readonly #handleMouseMove = (event: MouseEvent): void => this.#onMouseMove(event)
 	readonly #handleMouseDown = (event: MouseEvent): void => this.#onMouseDown(event)
 	readonly #handleMouseUp = (event: MouseEvent): void => this.#onMouseUp(event)
+	readonly #handleClick = (event: MouseEvent): void => this.#onClick(event)
 	readonly #handleMouseLeave = (): void => this.#onMouseLeave()
 	readonly #handleTouchStart = (event: TouchEvent): void => this.#onTouchStart(event)
 	readonly #handleTouchMove = (event: TouchEvent): void => this.#onTouchMove(event)
@@ -648,6 +650,7 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 		this.canvas.removeEventListener("mousemove", this.#handleMouseMove, true)
 		this.canvas.removeEventListener("mousedown", this.#handleMouseDown, true)
 		this.canvas.removeEventListener("mouseleave", this.#handleMouseLeave, true)
+		this.canvas.removeEventListener("click", this.#handleClick, true)
 		this.canvas.removeEventListener("touchstart", this.#handleTouchStart, true)
 		window.removeEventListener("touchmove", this.#handleTouchMove, true)
 		window.removeEventListener("touchend", this.#handleTouchEnd, true)
@@ -726,6 +729,7 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 		this.canvas.addEventListener("mousemove", this.#handleMouseMove, true)
 		this.canvas.addEventListener("mousedown", this.#handleMouseDown, true)
 		this.canvas.addEventListener("mouseleave", this.#handleMouseLeave, true)
+		this.canvas.addEventListener("click", this.#handleClick, true)
 		this.canvas.addEventListener("touchstart", this.#handleTouchStart, {capture: true, passive: false})
 		window.addEventListener("touchmove", this.#handleTouchMove, {capture: true, passive: false})
 		window.addEventListener("touchend", this.#handleTouchEnd, {capture: true, passive: false})
@@ -862,11 +866,13 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 		const local = this.#localCoords(event)
 		const slot = this.#surfaceAt(local.x, local.y)
 		if (slot === undefined) {
+			this.#claimNextClick = false
 			this.setFocused(null)
 			return
 		}
 		event.preventDefault()
 		this.#claimPointerEvent(event)
+		this.#claimNextClick = true
 		this.inputProxy?.focus()
 		this.#positionInputProxy(event.clientX, event.clientY)
 		this.setFocused(slot.surface)
@@ -882,6 +888,15 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 		this.#claimPointerEvent(event)
 		const local = this.#localCoords(event)
 		slot.surface.onPointerUp?.(event, local.x - slot.rect.x, local.y - slot.rect.y)
+	}
+
+	#onClick(event: MouseEvent): void {
+		const local = this.#localCoords(event)
+		const clickedHud = this.#surfaceAt(local.x, local.y) !== undefined
+		if (!this.#claimNextClick && !clickedHud) return
+		this.#claimNextClick = false
+		event.preventDefault()
+		this.#claimPointerEvent(event)
 	}
 
 	#onTouchStart(event: TouchEvent): void {
@@ -993,6 +1008,26 @@ function finiteBulkHudNumber(value: number, fallback: number): number {
 	return Number.isFinite(value) ? value : fallback
 }
 
+async function initRendererWithRetry(renderer: Renderer, canvas: HTMLCanvasElement): Promise<void> {
+	const attempts = 3
+	let lastError: unknown = null
+	for (let attempt = 1; attempt <= attempts; attempt++) {
+		try {
+			await renderer.init(canvas)
+			return
+		} catch (error) {
+			lastError = error
+			console.warn(`[app-web] WebGPU init attempt ${attempt}/${attempts} failed:`, error)
+			if (attempt < attempts) await sleep(250 * attempt)
+		}
+	}
+	throw lastError instanceof Error ? lastError : new Error(String(lastError))
+}
+
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 function isBulkHudKeyFallbackTarget(target: EventTarget | null, canvas: HTMLCanvasElement): boolean {
 	if (target === null || target === window || target === document || target === document.body || target === document.documentElement) return true
 	if (target === canvas) return true
@@ -1003,7 +1038,7 @@ function isBulkHudKeyFallbackTarget(target: EventTarget | null, canvas: HTMLCanv
 
 export const createBulkViewport = async (options: BulkViewportOptions): Promise<BulkViewportController> => {
 	const renderer = new Renderer()
-	await renderer.init(options.canvas)
+	await initRendererWithRetry(renderer, options.canvas)
 	if (!renderer.canvas) {
 		throw new Error("Не удалось инициализировать WebGPU canvas в bulk viewport")
 	}

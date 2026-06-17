@@ -17,16 +17,20 @@ setw -g mode-keys vi
 
 set-environment -g -u NO_COLOR
 set-environment -g -u CLICOLOR_FORCE
+set-environment -g -u FORCE_COLOR
 set-environment -g -u LC_ALL
 set-environment -g COLORTERM "truecolor"
 set-environment -g CLICOLOR "1"
-set-environment -g FORCE_COLOR "3"
+set-environment -g COLORFGBG "15;0"
+set-environment -g TERM_PROGRAM "iTerm.app"
+set-environment -g TERM_PROGRAM_VERSION "3.5"
 set-environment -g LANG "en_US.UTF-8"
 set-environment -g LC_CTYPE "en_US.UTF-8"
 
 set -g default-terminal "tmux-256color"
-set -as terminal-overrides ",xterm-256color:RGB,tmux-256color:RGB,screen-256color:RGB"
-set -as terminal-features ",xterm-256color:RGB,tmux-256color:RGB,screen-256color:RGB"
+set -g allow-passthrough on
+set -g terminal-overrides "xterm*:RGB:bce,tmux*:RGB:bce,screen*:RGB:bce"
+set -g terminal-features "xterm*:RGB:clipboard:ccolour:cstyle:focus:title,tmux*:RGB:clipboard:ccolour:cstyle:focus:title,screen*:RGB:clipboard:ccolour:cstyle:focus:title"
 
 set -g status on
 set -g status-position bottom

@@ -46,6 +46,7 @@ if (import.meta.hot) {
 const UNIFORM_ALIGNMENT = 256
 const MAX_RENDERABLES = 5000
 const MAX_LIGHTS = 4 // Максимальное количество источников света
+const WEBGPU_INIT_TIMEOUT_MS = 5000
 
 // Размер данных для одного объекта: mat4x4 (64) + mat4x4 (64) + vec4 (16) + u32 (4) + 3*padding(12) = 160. Выравниваем до 256.
 const PER_OBJECT_UNIFORM_SIZE = Math.ceil((64 + 64 + 16 + 4) / UNIFORM_ALIGNMENT) * UNIFORM_ALIGNMENT
@@ -155,10 +156,10 @@ export class Renderer {
   public async init(canvas?: HTMLCanvasElement): Promise<void> {
     if (!navigator.gpu) throw new Error("WebGPU не поддерживается браузером.")
 
-    const adapter = await navigator.gpu.requestAdapter()
+    const adapter = await withWebGpuInitTimeout(navigator.gpu.requestAdapter(), "WebGPU adapter")
     if (!adapter) throw new Error("Не удалось получить WebGPU адаптер.")
 
-    this.device = await adapter.requestDevice()
+    this.device = await withWebGpuInitTimeout(adapter.requestDevice(), "WebGPU device")
 
     this.canvas = canvas || document.createElement("canvas")
     this.context = this.canvas.getContext("webgpu")
@@ -2079,6 +2080,20 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 function clamp01(value: number): number {
   if (!Number.isFinite(value)) return 1
   return Math.min(1, Math.max(0, value))
+}
+
+async function withWebGpuInitTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | null = null
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error(`${label} init timed out after ${WEBGPU_INIT_TIMEOUT_MS}ms`)), WEBGPU_INIT_TIMEOUT_MS)
+      }),
+    ])
+  } finally {
+    if (timeout !== null) clearTimeout(timeout)
+  }
 }
 
 function isRadialBackdropMaterial(material: unknown): material is RadialBackdropMaterial {

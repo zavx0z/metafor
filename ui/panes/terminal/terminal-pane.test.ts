@@ -1,4 +1,4 @@
-import {describe, expect, test} from "bun:test"
+import {beforeAll, describe, expect, test} from "bun:test"
 import {TrueTypeFont} from "@metafor/engine"
 import {LogViewerPane, TerminalPane} from "./terminal-pane.ts"
 
@@ -20,6 +20,10 @@ function installRafStub(): () => void {
     globalThis.cancelAnimationFrame = previousCancel
   }
 }
+
+beforeAll(() => {
+  installRafStub()
+})
 
 describe("TerminalPane selection", () => {
   test("tracks selected terminal text across lines", () => {
@@ -511,6 +515,28 @@ describe("TerminalPane control sequences", () => {
       expect(styles[0]?.[0]?.underlineColor).toEqual({kind: "rgb", r: 10, g: 20, b: 30})
       expect(styles[0]?.[5]?.underline).toBe(true)
       expect(styles[0]?.[5]?.underlineColor).toBeNull()
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("applies OSC terminal default background colors", () => {
+    const responses: string[] = []
+    const terminal = new TerminalPane({cols: 6, rows: 2, fitToRect: false, onInput: (data) => responses.push(data)})
+    try {
+      terminal.write("\x1b]11;#123456\x07A")
+
+      let styles = terminal.getStyleSnapshot()
+      expect(styles[0]?.[0]?.ch).toBe("A")
+      expect(styles[0]?.[0]?.bg).toEqual({kind: "rgb", r: 18, g: 52, b: 86})
+      expect(styles[0]?.[1]?.bg).toEqual({kind: "rgb", r: 18, g: 52, b: 86})
+
+      terminal.write("\x1b]11;?\x1b\\")
+      expect(responses.at(-1)).toBe("\x1b]11;rgb:1212/3434/5656\x1b\\")
+
+      terminal.write("\x1b]111\x1b\\")
+      styles = terminal.getStyleSnapshot()
+      expect(styles[0]?.[0]?.bg).toBeNull()
     } finally {
       terminal.dispose()
     }

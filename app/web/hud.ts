@@ -37,6 +37,7 @@ import {
 	type PaneFrameDrag,
 	type PaneFrameInteractionOpts,
 	type PaneRect,
+	type TerminalHeaderControls,
 	type TerminalInputSource,
 	type TerminalSize,
 	type TerminalStatusKind,
@@ -298,10 +299,7 @@ const SETTINGS_MIN_W = 360
 const SETTINGS_MIN_H = PANE_FRAME.headerHeight + 260
 const AGENT_SIGNAL_BUTTON_SIZE = 22
 const AGENT_SIGNAL_HEADER_Y = 8
-const AGENT_SIGNAL_HEADER_GAP = 8
 const AGENT_SIGNAL_HEADER_TEXT_X = 16
-const AGENT_SIGNAL_STATUS_MIN_W = 96
-const AGENT_SIGNAL_STATUS_MAX_W = 210
 const AGENT_SIGNAL_PANEL_W = 300
 const AGENT_SIGNAL_PANEL_H = 112
 const ANDROID_RTC_FRAME_SRC = "metafor:app-web-android-rtc-frame"
@@ -493,7 +491,6 @@ class AppWebHud implements AppWebHudController {
 
 		document.addEventListener("fullscreenchange", () => this.#handleFullscreenChange())
 		this.#connectTerminal()
-		if (!this.#androidDocked) this.#connectAndroidRtc()
 		void this.#loadTodo()
 		void this.#refreshWorkspaceProcesses()
 		void this.#checkVoiceService()
@@ -554,6 +551,7 @@ class AppWebHud implements AppWebHudController {
 
 	setAgentSoundEnabled(enabled: boolean): void {
 		writeHostTerminalAgentSoundEnabled(enabled)
+		this.#updateCodexHeaderControls()
 		this.#agentSignalPane.requestRender()
 	}
 
@@ -563,6 +561,7 @@ class AppWebHud implements AppWebHudController {
 
 	setAgentSoundVolume(value: number): void {
 		writeHostTerminalAgentSoundVolume(Math.round(clampHostTerminalAgentSoundVolume(value) * 20) / 20)
+		this.#updateCodexHeaderControls()
 		this.#agentSignalPane.requestRender()
 	}
 
@@ -1167,6 +1166,7 @@ class AppWebHud implements AppWebHudController {
 			title: `${CODEX_TITLE} · ${CODEX_MODEL}`,
 			status: "connecting",
 			statusKind: "idle",
+			headerControls: this.#codexHeaderControls(),
 			fontPx: 12,
 			linePx: 17,
 			maxScrollback: 10000,
@@ -1200,6 +1200,24 @@ class AppWebHud implements AppWebHudController {
 			agentNotifyTimer: null,
 		} satisfies TerminalController)
 		return controller
+	}
+
+	#codexHeaderControls(): TerminalHeaderControls {
+		const enabled = this.agentSoundEnabled()
+		return {
+			secondary: [
+				{
+					label: "Сигнал агента",
+					iconSrc: agentSignalIcon(enabled),
+					tone: enabled ? "live" : "neutral",
+					action: () => this.#agentSignalPane.toggle(),
+				},
+			],
+		}
+	}
+
+	#updateCodexHeaderControls(): void {
+		this.#terminal.pane.setHeaderControls(this.#codexHeaderControls())
 	}
 
 	#connectTerminal(): void {
@@ -2069,45 +2087,25 @@ class AppWebHud implements AppWebHudController {
 
 	#agentSignalRect(bounds: {w: number; h: number}): UiSurfaceRect {
 		if (this.#dockTransition?.kind === "codex") return hiddenRect()
+		if (!this.#agentSignalPane.isOpen()) return hiddenRect()
 		const terminal = this.#codexRect(bounds)
 		if (terminal.visible === false) return hiddenRect()
-		const open = this.#agentSignalPane.isOpen()
-		const buttonX = this.#agentSignalButtonX(terminal)
-		const buttonY = terminal.y + AGENT_SIGNAL_HEADER_Y
-		if (!open) return {x: buttonX, y: buttonY, w: AGENT_SIGNAL_BUTTON_SIZE, h: AGENT_SIGNAL_BUTTON_SIZE}
 		const panelW = Math.min(AGENT_SIGNAL_PANEL_W, Math.max(1, terminal.w - AGENT_SIGNAL_HEADER_TEXT_X * 2))
 		const panelH = Math.min(
-			AGENT_SIGNAL_BUTTON_SIZE + 6 + AGENT_SIGNAL_PANEL_H,
-			Math.max(1, terminal.h - AGENT_SIGNAL_HEADER_Y - 6),
+			AGENT_SIGNAL_PANEL_H,
+			Math.max(1, terminal.h - AGENT_SIGNAL_HEADER_Y - AGENT_SIGNAL_BUTTON_SIZE - 10),
 		)
+		const panelY = terminal.y + AGENT_SIGNAL_HEADER_Y + AGENT_SIGNAL_BUTTON_SIZE + 6
 		return {
 			x: clampNumber(
-				buttonX - (panelW - AGENT_SIGNAL_BUTTON_SIZE),
+				terminal.x + terminal.w - panelW - AGENT_SIGNAL_HEADER_TEXT_X,
 				terminal.x + AGENT_SIGNAL_HEADER_TEXT_X,
 				Math.max(terminal.x + AGENT_SIGNAL_HEADER_TEXT_X, terminal.x + terminal.w - panelW - AGENT_SIGNAL_HEADER_TEXT_X),
 			),
-			y: buttonY,
+			y: panelY,
 			w: panelW,
 			h: panelH,
 		}
-	}
-
-	#agentSignalButtonX(terminal: UiSurfaceRect): number {
-		const statusW = Math.min(
-			AGENT_SIGNAL_STATUS_MAX_W,
-			Math.max(AGENT_SIGNAL_STATUS_MIN_W, Math.ceil(this.#terminal.statusLabel.length * 7) + 32),
-		)
-		const dockButtonX = terminal.x
-			+ terminal.w
-			- AGENT_SIGNAL_HEADER_TEXT_X
-			- statusW
-			- AGENT_SIGNAL_HEADER_GAP
-			- AGENT_SIGNAL_BUTTON_SIZE
-		return clampNumber(
-			dockButtonX - AGENT_SIGNAL_HEADER_GAP - AGENT_SIGNAL_BUTTON_SIZE,
-			terminal.x + AGENT_SIGNAL_HEADER_TEXT_X,
-			terminal.x + terminal.w - AGENT_SIGNAL_HEADER_TEXT_X - AGENT_SIGNAL_BUTTON_SIZE,
-		)
 	}
 
 	#dockRect(kind: DockKind, bounds: {w: number; h: number}): UiSurfaceRect {
@@ -2596,25 +2594,18 @@ class AppWebAgentSignalPane extends UiSurface {
 		return this.#open
 	}
 
-	protected render(): void {
-		if (this.#open) this.#drawPanel()
-		this.#drawToggleButton()
+	toggle(): void {
+		this.#setOpen(!this.#open)
 	}
 
-	#drawToggleButton(): void {
-		const size = AGENT_SIGNAL_BUTTON_SIZE
-		const x = Math.max(0, this.rectW - size)
-		IconButton(this, x, 0, size, size, {
-			label: "Сигнал агента",
-			iconSrc: agentSignalIcon(this.hud.agentSoundEnabled()),
-			action: () => this.#setOpen(!this.#open),
-		})
+	protected render(): void {
+		if (this.#open) this.#drawPanel()
 	}
 
 	#drawPanel(): void {
 		const w = this.rectW
-		const panelY = this.#panelY()
-		const panelH = Math.max(1, this.rectH - panelY)
+		const panelY = 0
+		const panelH = Math.max(1, this.rectH)
 		const pad = 12
 		const enabled = this.hud.agentSoundEnabled()
 		const volume = this.hud.agentSoundVolume()
@@ -2628,7 +2619,7 @@ class AppWebAgentSignalPane extends UiSurface {
 		this.drawText("Сигнал агента", pad, panelY + 10, {
 			fontPx: 11,
 			material: this.materials.text,
-			maxWidthPx: Math.max(1, w - pad * 2 - AGENT_SIGNAL_BUTTON_SIZE - 8),
+			maxWidthPx: Math.max(1, w - pad * 2 - 56),
 			z: Z.TEXT,
 		})
 		const switchW = 44
@@ -2715,10 +2706,6 @@ class AppWebAgentSignalPane extends UiSurface {
 		this.#open = open
 		this.hud.relayout()
 		this.requestRender()
-	}
-
-	#panelY(): number {
-		return AGENT_SIGNAL_BUTTON_SIZE + 6
 	}
 }
 
