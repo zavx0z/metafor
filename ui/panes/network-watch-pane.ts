@@ -1,6 +1,7 @@
 import {Color, TextMaterial} from "@metafor/engine"
 import {Button, Switcher, uiIcons} from "@ui/components"
-import {UiSurface, Z, palette} from "@ui/elements"
+import {UiSurface, Z, palette, radii, type UiSurfaceRect} from "@ui/elements"
+import {PANE_FRAME, paneBodyRect, paneHeaderRuleRect} from "./pane-frame.ts"
 
 export type NetworkWatchServiceKey = "tls" | "redirect"
 
@@ -14,6 +15,7 @@ export type NetworkWatchSections = {
 export type NetworkWatchPaneSnapshot = {
   actionStatus: string
   services: Record<NetworkWatchServiceKey, boolean>
+  productViaInterpreter: boolean
   autoRefresh: boolean
   autoRefreshActive: boolean
   refreshing: boolean
@@ -24,6 +26,7 @@ export type NetworkWatchPaneSnapshot = {
 export type NetworkWatchPaneActions = {
   setTlsEnabled(enabled: boolean): void
   setRedirectEnabled(enabled: boolean): void
+  setProductViaInterpreter(enabled: boolean): void
   setAutoRefreshEnabled(enabled: boolean): void
   rebuildLayout(): void
   clearPanes(): void
@@ -54,6 +57,9 @@ const NETWORK_PANEL_BG = withAlpha(palette.bg, 0.68)
 const NETWORK_STATUS_BG = new Color(0.02, 0.04, 0.07, 0.52)
 const NETWORK_SECTION_BG = new Color(0.01, 0.02, 0.04, 0.36)
 const EMPTY_SECTIONS: NetworkWatchSections = {time: "--", listen: [], tmux: [], other: []}
+const NETWORK_HEADER_H = PANE_FRAME.headerHeight
+const NETWORK_MIN_W = 360
+const NETWORK_MIN_H = PANE_FRAME.headerHeight + 220
 
 export class NetworkWatchPane extends UiSurface {
   #title: string
@@ -62,6 +68,7 @@ export class NetworkWatchPane extends UiSurface {
   #snapshot: NetworkWatchPaneSnapshot = {
     actionStatus: "ready",
     services: {tls: true, redirect: true},
+    productViaInterpreter: false,
     autoRefresh: true,
     autoRefreshActive: false,
     refreshing: false,
@@ -70,7 +77,7 @@ export class NetworkWatchPane extends UiSurface {
   }
 
   constructor(opts: NetworkWatchPaneOpts = {}) {
-    super({bgColor: NETWORK_PANEL_BG, borderColor: withAlpha(palette.border, 0.72)})
+    super({bgColor: NETWORK_PANEL_BG, borderColor: null})
     this.node.name = "NetworkWatchPane"
     this.#title = opts.title ?? "NetworkMux"
     this.#sessionLabel = opts.sessionLabel ?? "network"
@@ -81,6 +88,7 @@ export class NetworkWatchPane extends UiSurface {
     this.#snapshot = {
       actionStatus: snapshot.actionStatus,
       services: {...snapshot.services},
+      productViaInterpreter: snapshot.productViaInterpreter,
       autoRefresh: snapshot.autoRefresh,
       autoRefreshActive: snapshot.autoRefreshActive,
       refreshing: snapshot.refreshing,
@@ -96,64 +104,78 @@ export class NetworkWatchPane extends UiSurface {
   }
 
   protected render(): void {
-    const w = Math.max(1, this.rectW)
-    const h = Math.max(1, this.rectH)
-    const pad = 14
-    const compact = w < 760
-    const narrow = w < 600
-    const headerH = narrow ? 154 : compact ? 124 : 88
-
+    const w = Math.max(NETWORK_MIN_W, this.rectW)
+    const h = Math.max(NETWORK_MIN_H, this.rectH)
     this.drawRoundedRect(0, 0, w, h, {
-      radius: 0,
+      radius: radii.pane,
       fill: NETWORK_PANEL_BG,
-      border: withAlpha(palette.border, 0.74),
-      borderWidth: 1,
-      opacity: 0.98,
+      border: null,
       z: Z.CONTAINER,
     })
 
-    this.#drawHeader(pad, w, compact, narrow)
-    this.#drawNetworkStatus(pad, headerH, Math.max(1, w - pad * 2), Math.max(1, h - headerH - 12))
+    this.#renderHeader(w)
+    const body = paneBodyRect(w, h, {headerHeight: NETWORK_HEADER_H, insetX: 8, topGap: 8, bottomInset: 8})
+    this.#renderBody(body)
   }
 
-  #drawHeader(pad: number, w: number, compact: boolean, narrow: boolean): void {
+  #renderHeader(w: number): void {
     const statusMaterial = this.#snapshot.actionStatus.includes("failed") ? this.materials.orange : this.materials.muted
-    this.drawText(this.#title, pad, 12, {
-      fontPx: 16,
-      material: this.materials.cyan,
-      maxWidthPx: compact ? Math.max(1, w - pad * 2) : 220,
-    })
-    this.drawText(this.#sessionLabel, pad, 36, {
-      fontPx: 11,
-      material: this.materials.muted,
-      maxWidthPx: compact ? Math.max(1, w - pad * 2) : 360,
-    })
+    const pad = PANE_FRAME.headerTextX
     const autoLabel = this.#snapshot.autoRefresh
       ? this.#snapshot.autoRefreshActive
-        ? "stats auto active"
-        : "stats auto paused"
-      : "stats auto off"
-    this.drawText(`${this.#snapshot.actionStatus} | ${autoLabel}`, pad, 58, {
-      fontPx: 11,
+        ? "stats active"
+        : "stats paused"
+      : "stats off"
+    const productLabel = this.#snapshot.productViaInterpreter ? "interpreter" : "direct"
+    const status = `${this.#sessionLabel} | ${productLabel} | ${autoLabel} | ${this.#snapshot.actionStatus}`
+    const titleW = Math.min(Math.max(110, this.measureText(this.#title, 13) + 14), Math.max(1, w * 0.34))
+    this.drawText(this.#title, pad, PANE_FRAME.headerTextY, {
+      fontPx: 13,
+      material: this.materials.cyan,
+      maxWidthPx: titleW,
+    })
+    this.drawText(status, pad + titleW, PANE_FRAME.headerTextY + 1, {
+      fontPx: 10,
       material: statusMaterial,
-      maxWidthPx: compact ? Math.max(1, w - pad * 2) : 360,
+      maxWidthPx: Math.max(1, w - pad - titleW - 12),
     })
 
-    const controlsX = compact ? pad : Math.min(Math.max(390, w * 0.33), Math.max(pad, w - 560))
-    const switchY = compact ? 84 : 12
-    let x = controlsX
-    x = this.#switchRow(x, switchY, "TLS", this.#snapshot.services.tls, "app/web HTTPS pane", (checked) => {
-      this.#actions?.setTlsEnabled(checked)
-    }) + 20
-    x = this.#switchRow(x, switchY, "80", this.#snapshot.services.redirect, "HTTP to HTTPS redirect pane", (checked) => {
-      this.#actions?.setRedirectEnabled(checked)
-    }) + 20
-    x = this.#switchRow(x, switchY, "Stats", this.#snapshot.autoRefresh, "Auto-refresh port statistics while Network display is fullscreen", (checked) => {
-      this.#actions?.setAutoRefreshEnabled(checked)
-    }) + 20
+    const rule = paneHeaderRuleRect(w, NETWORK_HEADER_H, PANE_FRAME.bodyInsetX)
+    this.drawRect(rule.x, rule.y, rule.w, rule.h, palette.borderDim)
+  }
 
-    const buttonY = narrow ? 116 : compact ? 84 : 54
-    const buttonX = narrow ? pad : compact ? Math.min(x + 4, Math.max(pad, w - 236)) : controlsX
+  #renderBody(rect: UiSurfaceRect): void {
+    const controlsH = this.#drawControls(rect.x + 2, rect.y + 1, Math.max(1, rect.w - 4))
+    const gap = 8
+    this.#drawNetworkStatus(
+      rect.x + 2,
+      rect.y + controlsH + gap,
+      Math.max(1, rect.w - 4),
+      Math.max(1, rect.h - controlsH - gap - 1),
+    )
+  }
+
+  #drawControls(x: number, y: number, w: number): number {
+    const twoRows = w < 680
+    const rowGap = 8
+    const switchY = y + 1
+    let sx = x + 2
+    sx = this.#switchRow(sx, switchY, "TLS", this.#snapshot.services.tls, "app/web HTTPS pane", (checked) => {
+      this.#actions?.setTlsEnabled(checked)
+    }) + 18
+    sx = this.#switchRow(sx, switchY, "80", this.#snapshot.services.redirect, "HTTP to HTTPS redirect pane", (checked) => {
+      this.#actions?.setRedirectEnabled(checked)
+    }) + 18
+    sx = this.#switchRow(sx, switchY, "Interp", this.#snapshot.productViaInterpreter, "Run product server through the interpreter", (checked) => {
+      this.#actions?.setProductViaInterpreter(checked)
+    }) + 18
+    this.#switchRow(sx, switchY, "Stats", this.#snapshot.autoRefresh, "Auto-refresh port statistics while Network display is fullscreen", (checked) => {
+      this.#actions?.setAutoRefreshEnabled(checked)
+    })
+
+    const buttonW = 84 + 10 + 64 + 10 + 78
+    const buttonY = twoRows ? y + 34 : y + 1
+    const buttonX = twoRows ? x + 2 : Math.max(x + 2, x + w - buttonW - 2)
     let bx = buttonX
     bx = this.#button(bx, buttonY, 84, "Layout", "Rebuild panes", uiIcons.restart, () => {
       this.#actions?.rebuildLayout()
@@ -165,18 +187,12 @@ export class NetworkWatchPane extends UiSurface {
       this.#actions?.refresh()
     })
 
-    if (!compact) {
-      const metaX = Math.max(controlsX + 420, w - 290)
-      if (metaX + 260 <= w - pad) {
-        this.#drawServicePill(metaX, 16, 114, "TLS 443", this.#snapshot.services.tls)
-        this.#drawServicePill(metaX + 126, 16, 114, "HTTP 80", this.#snapshot.services.redirect)
-        this.drawText("panes: app-web tls | http redirect", metaX, 48, {
-          fontPx: 10,
-          material: this.materials.muted,
-          maxWidthPx: Math.max(1, w - metaX - pad),
-        })
-      }
+    if (!twoRows && buttonX - sx > 260) {
+      const pillX = sx + 18
+      this.#drawServicePill(pillX, y + 3, 92, "TLS 443", this.#snapshot.services.tls)
+      this.#drawServicePill(pillX + 102, y + 3, 92, "HTTP 80", this.#snapshot.services.redirect)
     }
+    return twoRows ? 64 + rowGap : 32 + rowGap
   }
 
   #drawNetworkStatus(x: number, y: number, w: number, h: number): void {

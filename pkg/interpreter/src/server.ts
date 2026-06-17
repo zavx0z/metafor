@@ -830,6 +830,7 @@ async function networkActionRoute(req: Request): Promise<Response> {
       ...process.env,
       NETWORK_TMUX_SESSION: asString(parsed.body["session"]) ?? "metafor-app-web-net",
       NETWORK_TMUX_WINDOW: asString(parsed.body["window"]) ?? "network",
+      NETWORK_TMUX_TLS_MODE: networkTlsMode(parsed.body["tlsMode"]),
     },
   })
   const stdout = new TextDecoder().decode(result.stdout)
@@ -855,6 +856,10 @@ function isNetworkAction(action: string): boolean {
     "tail",
     "clear",
   ].includes(action)
+}
+
+function networkTlsMode(value: unknown): string {
+  return value === "interpreter" ? "interpreter" : "direct"
 }
 
 async function closeProcess(processId: string, _params: JsonObject, options: HttpServerOptions): Promise<Response> {

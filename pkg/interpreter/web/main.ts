@@ -577,10 +577,13 @@ const NETWORK_DISPLAY_ID = "network:tmux"
 const NETWORK_TERMINAL_HUD_RECT_STORAGE_KEY = "metafor.interpreter.networkTerminal.hudRect:v1"
 const NETWORK_TERMINAL_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.networkTerminal.hudDocked:v1"
 const NETWORK_STATUS_AUTO_REFRESH_STORAGE_KEY = "metafor.interpreter.networkStatus.autoRefresh:v1"
+const NETWORK_PRODUCT_INTERPRETER_STORAGE_KEY = "metafor.interpreter.networkProduct.viaInterpreter:v1"
 const ANDROID_HUD_RECT_STORAGE_KEY = "metafor.interpreter.android.hudRect:v1"
 const ANDROID_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.android.hudDocked:v1"
+const ANDROID_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.android.dockPlacement:v1"
 const SECONDARY_ANDROID_HUD_RECT_STORAGE_KEY = "metafor.interpreter.android.secondary.hudRect:v1"
 const SECONDARY_ANDROID_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.android.secondary.hudDocked:v1"
+const SECONDARY_ANDROID_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.android.secondary.dockPlacement:v1"
 const TODO_HUD_RECT_STORAGE_KEY = "metafor.interpreter.todo.hudRect:v1"
 const TODO_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.todo.hudDocked:v1"
 const TODO_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.todo.dockPlacement:v1"
@@ -641,6 +644,10 @@ const HOST_TERMINAL_DOCK_LONG_PRESS_MS = 360
 const ANDROID_HUD_MIN_W = 300
 const ANDROID_HUD_MIN_H = 360
 const ANDROID_FRAME_REFRESH_MS = 850
+const ANDROID_DOCK_SHORT = 34
+const ANDROID_DOCK_LONG = 108
+const ANDROID_DOCK_MARGIN = 8
+const ANDROID_DOCK_LONG_PRESS_MS = 360
 const TODO_HUD_MIN_W = 320
 const TODO_HUD_MIN_H = 220
 const TODO_DOCK_SHORT = 34
@@ -713,6 +720,8 @@ const NETWORK_DISPLAY_INFO_RATIO = 0.34
 const NETWORK_STATUS_REFRESH_MS = 2500
 const DEFAULT_ANDROID_HUD_RECT: UiSurfaceRect = {x: 24, y: 80, w: 390, h: 720}
 const DEFAULT_SECONDARY_ANDROID_HUD_RECT: UiSurfaceRect = {x: 430, y: 80, w: 390, h: 720}
+const DEFAULT_ANDROID_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "left", offset: 380}
+const DEFAULT_SECONDARY_ANDROID_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "left", offset: 500}
 const ANDROID_RTC_FRAME_SRC = "metafor:android-rtc-frame"
 const SECONDARY_ANDROID_RTC_FRAME_SRC = "metafor:android-rtc-frame:secondary"
 const PINNED_VOICE_HUD_ANCHOR: VoiceHudAnchorPlacement = {horizontal: "right", vertical: "bottom", offsetX: 0, offsetY: 0}
@@ -728,7 +737,9 @@ let todoPane: ToDoPane | null = null
 let todoDockPane: TodoDockPane | null = null
 let todoContext: ToDoPaneContextSnapshot | null = null
 let androidPane: AndroidPane | null = null
+let androidDockPane: HostTerminalDockPane | null = null
 let secondaryAndroidPane: AndroidPane | null = null
+let secondaryAndroidDockPane: HostTerminalDockPane | null = null
 let sqliteHudPane: SqliteHudFramePane | null = null
 let sqliteDockPane: SqliteDockPane | null = null
 let hostTerminal: HostTerminalController | null = null
@@ -745,6 +756,7 @@ let hostTerminalHudRectPreview: UiSurfaceRect | null = null
 let networkHostTerminalHudDocked = readStoredNetworkTerminalHudDocked()
 let networkHostTerminalHudRectPreview: UiSurfaceRect | null = null
 let networkServiceSwitches: Record<NetworkServiceKey, boolean> = {tls: true, redirect: true}
+let networkProductViaInterpreter = readStoredNetworkProductViaInterpreter()
 let networkActionStatus = "ready"
 let networkStatusLines: string[] = []
 let networkStatusUpdatedAt: Date | null = null
@@ -754,8 +766,10 @@ let networkStatusRefreshGeneration = 0
 let networkStatusRefreshAbortController: AbortController | null = null
 let networkStatusAutoRefreshEnabled = readStoredNetworkStatusAutoRefreshEnabled()
 let androidHudDocked = readStoredAndroidHudDocked()
+let androidDockPlacement: HostTerminalDockPlacement | null = readStoredAndroidDockPlacement() ?? DEFAULT_ANDROID_DOCK_PLACEMENT
 let androidHudRectPreview: UiSurfaceRect | null = null
 let secondaryAndroidHudDocked = readStoredSecondaryAndroidHudDocked()
+let secondaryAndroidDockPlacement: HostTerminalDockPlacement | null = readStoredSecondaryAndroidDockPlacement() ?? DEFAULT_SECONDARY_ANDROID_DOCK_PLACEMENT
 let secondaryAndroidHudRectPreview: UiSurfaceRect | null = null
 let androidFrameRefreshTimer: number | null = null
 let androidFrameRefreshInFlight = false
@@ -2577,10 +2591,30 @@ function installEnginePanes(): void {
     uiCanvas.addHudSurface(androidPane, androidHudRect)
     if (!androidHudDocked) connectAndroidRtc()
   }
+  androidDockPane ??= new HostTerminalDockPane({
+    key: "android-dock-restore",
+    label: "Android",
+    tooltip: "Android",
+    icon: uiIcons.phone,
+    edge: currentAndroidDockEdge,
+    restore: () => setAndroidHudDocked(false),
+    moveTo: (point, bounds) => setAndroidDockPlacement(androidDockPlacementFromPoint(point, bounds)),
+  })
+  uiCanvas.addHudSurface(androidDockPane, androidDockRect, {zIndex: HUD_LAYER_TOP})
   if (secondaryAndroidPane !== null) {
     uiCanvas.addHudSurface(secondaryAndroidPane, secondaryAndroidHudRect)
     if (!secondaryAndroidHudDocked) connectSecondaryAndroidRtc()
   }
+  secondaryAndroidDockPane ??= new HostTerminalDockPane({
+    key: "android-secondary-dock-restore",
+    label: "Android 2",
+    tooltip: "Android 2",
+    icon: uiIcons.phone,
+    edge: currentSecondaryAndroidDockEdge,
+    restore: () => setSecondaryAndroidHudDocked(false),
+    moveTo: (point, bounds) => setSecondaryAndroidDockPlacement(secondaryAndroidDockPlacementFromPoint(point, bounds)),
+  })
+  uiCanvas.addHudSurface(secondaryAndroidDockPane, secondaryAndroidDockRect, {zIndex: HUD_LAYER_TOP})
   hostTerminalAgentSignalPane ??= new HostTerminalAgentSignalPane()
   uiCanvas.addHudSurface(hostTerminalAgentSignalPane, hostTerminalAgentSignalRect, {zIndex: HUD_LAYER_TOP})
   hostTerminalDockPane ??= new HostTerminalDockPane(() => setHostTerminalHudDocked(false))
@@ -3476,6 +3510,7 @@ type HostTerminalDockPaneOptions = {
   key: string
   label: string
   tooltip: string
+  icon?: string
   edge(): HudSideTabEdge
   restore(): void
   moveTo(point: {x: number; y: number}, bounds: {w: number; h: number}): void
@@ -3498,6 +3533,7 @@ class HostTerminalDockPane extends UiSurface {
         key: "host-terminal-dock-restore",
         label: HOST_TERMINAL_MODEL_LABEL,
         tooltip: hostTerminalTitle(),
+        icon: uiIcons.codex,
         edge: currentHostTerminalDockEdge,
         restore: options,
         moveTo: (point, bounds) => setHostTerminalDockPlacement(hostTerminalDockPlacementFromPoint(point, bounds)),
@@ -3511,7 +3547,7 @@ class HostTerminalDockPane extends UiSurface {
       rect: {x: 0, y: 0, w: this.rectW, h: this.rectH},
       key: this.#options.key,
       edge: this.#options.edge(),
-      icon: uiIcons.codex,
+      icon: this.#options.icon ?? uiIcons.codex,
       label: this.#options.label,
       tone: "neutral",
       tooltip: this.#options.tooltip,
@@ -3619,7 +3655,10 @@ async function postNetworkAction(action: string, opts: {signal?: AbortSignal} = 
   const requestInit: RequestInit = {
     method: "POST",
     headers: {"content-type": "application/json"},
-    body: JSON.stringify({action}),
+    body: JSON.stringify({
+      action,
+      tlsMode: networkProductViaInterpreter ? "interpreter" : "direct",
+    }),
   }
   if (opts.signal !== undefined) requestInit.signal = opts.signal
   const response = await fetch("/space/network/action", requestInit)
@@ -3740,6 +3779,14 @@ function setNetworkStatusAutoRefreshEnabled(enabled: boolean): void {
   syncNetworkStatusRefresh()
 }
 
+function setNetworkProductViaInterpreter(enabled: boolean): void {
+  if (networkProductViaInterpreter === enabled) return
+  networkProductViaInterpreter = enabled
+  writeStoredNetworkProductViaInterpreter(enabled)
+  updateNetworkWatchPane()
+  void runNetworkAction("start:tls")
+}
+
 function isAbortError(error: unknown): boolean {
   return (error instanceof DOMException || error instanceof Error) && error.name === "AbortError"
 }
@@ -3763,6 +3810,7 @@ function networkWatchPaneSnapshot(): NetworkWatchPaneSnapshot {
   return {
     actionStatus: networkActionStatus,
     services: {...networkServiceSwitches},
+    productViaInterpreter: networkProductViaInterpreter,
     autoRefresh: networkStatusAutoRefreshEnabled,
     autoRefreshActive: networkStatusAutoRefreshActive(),
     refreshing: networkStatusRefreshInFlight,
@@ -5866,6 +5914,7 @@ function ensureNetworkDisplay(): void {
           updateNetworkWatchPane()
           void runNetworkAction(networkActionForSwitch("redirect", enabled))
         },
+        setProductViaInterpreter: setNetworkProductViaInterpreter,
         setAutoRefreshEnabled: setNetworkStatusAutoRefreshEnabled,
         rebuildLayout: () => {
           networkServiceSwitches = {tls: true, redirect: true}
@@ -6604,6 +6653,22 @@ function writeStoredNetworkStatusAutoRefreshEnabled(enabled: boolean): void {
   }
 }
 
+function readStoredNetworkProductViaInterpreter(): boolean {
+  try {
+    return localStorage.getItem(NETWORK_PRODUCT_INTERPRETER_STORAGE_KEY) === "1"
+  } catch {
+    return false
+  }
+}
+
+function writeStoredNetworkProductViaInterpreter(enabled: boolean): void {
+  try {
+    localStorage.setItem(NETWORK_PRODUCT_INTERPRETER_STORAGE_KEY, enabled ? "1" : "0")
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+}
+
 function readStoredAndroidHudDocked(): boolean {
   try {
     const value = localStorage.getItem(ANDROID_HUD_DOCKED_STORAGE_KEY)
@@ -6633,6 +6698,46 @@ function readStoredSecondaryAndroidHudDocked(): boolean {
 function writeStoredSecondaryAndroidHudDocked(docked: boolean): void {
   try {
     localStorage.setItem(SECONDARY_ANDROID_HUD_DOCKED_STORAGE_KEY, docked ? "1" : "0")
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+}
+
+function readStoredAndroidDockPlacement(): HostTerminalDockPlacement | null {
+  try {
+    const raw = localStorage.getItem(ANDROID_DOCK_PLACEMENT_STORAGE_KEY)
+    if (raw === null) return null
+    const value = JSON.parse(raw) as Partial<HostTerminalDockPlacement>
+    if (!isHostTerminalDockEdge(value.edge) || typeof value.offset !== "number" || !Number.isFinite(value.offset)) return null
+    return {edge: value.edge, offset: value.offset}
+  } catch {
+    return null
+  }
+}
+
+function readStoredSecondaryAndroidDockPlacement(): HostTerminalDockPlacement | null {
+  try {
+    const raw = localStorage.getItem(SECONDARY_ANDROID_DOCK_PLACEMENT_STORAGE_KEY)
+    if (raw === null) return null
+    const value = JSON.parse(raw) as Partial<HostTerminalDockPlacement>
+    if (!isHostTerminalDockEdge(value.edge) || typeof value.offset !== "number" || !Number.isFinite(value.offset)) return null
+    return {edge: value.edge, offset: value.offset}
+  } catch {
+    return null
+  }
+}
+
+function writeStoredAndroidDockPlacement(placement: HostTerminalDockPlacement): void {
+  try {
+    localStorage.setItem(ANDROID_DOCK_PLACEMENT_STORAGE_KEY, JSON.stringify(placement))
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+}
+
+function writeStoredSecondaryAndroidDockPlacement(placement: HostTerminalDockPlacement): void {
+  try {
+    localStorage.setItem(SECONDARY_ANDROID_DOCK_PLACEMENT_STORAGE_KEY, JSON.stringify(placement))
   } catch {
     // Storage can be disabled in private contexts.
   }
@@ -6748,6 +6853,24 @@ function setTodoDockPlacement(placement: HostTerminalDockPlacement): void {
   relayoutHudSurfaces()
 }
 
+function setAndroidDockPlacement(placement: HostTerminalDockPlacement): void {
+  const previous = androidDockPlacement
+  if (previous !== null && previous.edge === placement.edge && Math.abs(previous.offset - placement.offset) < 0.5) return
+  androidDockPlacement = placement
+  writeStoredAndroidDockPlacement(placement)
+  androidDockPane?.requestRender()
+  relayoutHudSurfaces()
+}
+
+function setSecondaryAndroidDockPlacement(placement: HostTerminalDockPlacement): void {
+  const previous = secondaryAndroidDockPlacement
+  if (previous !== null && previous.edge === placement.edge && Math.abs(previous.offset - placement.offset) < 0.5) return
+  secondaryAndroidDockPlacement = placement
+  writeStoredSecondaryAndroidDockPlacement(placement)
+  secondaryAndroidDockPane?.requestRender()
+  relayoutHudSurfaces()
+}
+
 function setSqliteDockPlacement(placement: HostTerminalDockPlacement): void {
   const previous = sqliteDockPlacement
   if (previous !== null && previous.edge === placement.edge && Math.abs(previous.offset - placement.offset) < 0.5) return
@@ -6818,6 +6941,7 @@ function setAndroidHudDocked(docked: boolean): void {
     connectAndroidRtc()
   }
   androidPane?.requestRender()
+  androidDockPane?.requestRender()
   relayoutHudSurfaces()
 }
 
@@ -6836,6 +6960,7 @@ function setSecondaryAndroidHudDocked(docked: boolean): void {
     connectSecondaryAndroidRtc()
   }
   secondaryAndroidPane?.requestRender()
+  secondaryAndroidDockPane?.requestRender()
   relayoutHudSurfaces()
 }
 
@@ -6890,6 +7015,14 @@ function currentHostTerminalDockEdge(): HudSideTabEdge {
 
 function currentTodoDockEdge(): HudSideTabEdge {
   return todoDockPlacement?.edge ?? DEFAULT_TODO_DOCK_PLACEMENT.edge
+}
+
+function currentAndroidDockEdge(): HudSideTabEdge {
+  return androidDockPlacement?.edge ?? DEFAULT_ANDROID_DOCK_PLACEMENT.edge
+}
+
+function currentSecondaryAndroidDockEdge(): HudSideTabEdge {
+  return secondaryAndroidDockPlacement?.edge ?? DEFAULT_SECONDARY_ANDROID_DOCK_PLACEMENT.edge
 }
 
 function currentSqliteDockEdge(): HudSideTabEdge {
@@ -9210,6 +9343,16 @@ function todoDockRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   return todoDockRectForPlacement(todoDockPlacement ?? defaultTodoDockPlacement({w, h}), {w, h})
 }
 
+function androidDockRect({w, h}: {w: number; h: number}): UiSurfaceRect {
+  if (!androidHudDocked || w < 80 || h < 80) return hiddenRect()
+  return androidDockRectForPlacement(androidDockPlacement ?? defaultAndroidDockPlacement({w, h}), {w, h})
+}
+
+function secondaryAndroidDockRect({w, h}: {w: number; h: number}): UiSurfaceRect {
+  if (!secondaryAndroidHudDocked || w < 80 || h < 80) return hiddenRect()
+  return androidDockRectForPlacement(secondaryAndroidDockPlacement ?? defaultSecondaryAndroidDockPlacement({w, h}), {w, h})
+}
+
 function sqliteDockRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   if (!sqliteHudDocked || activeSqliteController() === null || w < 80 || h < 80) return hiddenRect()
   return sqliteDockRectForPlacement(sqliteDockPlacement ?? defaultSqliteDockPlacement({w, h}), {w, h})
@@ -9274,6 +9417,40 @@ function todoDockRectForPlacement(placement: HostTerminalDockPlacement, bounds: 
     placement.offset,
     TODO_DOCK_MARGIN + dockW / 2,
     Math.max(TODO_DOCK_MARGIN + dockW / 2, bounds.w - TODO_DOCK_MARGIN - dockW / 2),
+  )
+  return {
+    x: centerX - dockW / 2,
+    y: placement.edge === "top" ? 0 : Math.max(0, bounds.h - dockH),
+    w: dockW,
+    h: dockH,
+  }
+}
+
+function androidDockRectForPlacement(placement: HostTerminalDockPlacement, bounds: {w: number; h: number}): UiSurfaceRect {
+  const vertical = placement.edge === "left" || placement.edge === "right"
+  const dockW = vertical
+    ? Math.min(ANDROID_DOCK_SHORT, Math.max(1, bounds.w - ANDROID_DOCK_MARGIN))
+    : Math.min(ANDROID_DOCK_LONG, Math.max(1, bounds.w - ANDROID_DOCK_MARGIN * 2))
+  const dockH = vertical
+    ? Math.min(ANDROID_DOCK_LONG, Math.max(1, bounds.h - ANDROID_DOCK_MARGIN * 2))
+    : Math.min(ANDROID_DOCK_SHORT, Math.max(1, bounds.h - ANDROID_DOCK_MARGIN))
+  if (vertical) {
+    const centerY = clampNumber(
+      placement.offset,
+      ANDROID_DOCK_MARGIN + dockH / 2,
+      Math.max(ANDROID_DOCK_MARGIN + dockH / 2, bounds.h - ANDROID_DOCK_MARGIN - dockH / 2),
+    )
+    return {
+      x: placement.edge === "left" ? 0 : Math.max(0, bounds.w - dockW),
+      y: centerY - dockH / 2,
+      w: dockW,
+      h: dockH,
+    }
+  }
+  const centerX = clampNumber(
+    placement.offset,
+    ANDROID_DOCK_MARGIN + dockW / 2,
+    Math.max(ANDROID_DOCK_MARGIN + dockW / 2, bounds.w - ANDROID_DOCK_MARGIN - dockW / 2),
   )
   return {
     x: centerX - dockW / 2,
@@ -9363,6 +9540,34 @@ function defaultTodoDockPlacement(bounds: {w: number; h: number}): HostTerminalD
   }
 }
 
+function defaultAndroidDockPlacement(bounds: {w: number; h: number}): HostTerminalDockPlacement {
+  return defaultAndroidDockPlacementFor(DEFAULT_ANDROID_DOCK_PLACEMENT, bounds)
+}
+
+function defaultSecondaryAndroidDockPlacement(bounds: {w: number; h: number}): HostTerminalDockPlacement {
+  return defaultAndroidDockPlacementFor(DEFAULT_SECONDARY_ANDROID_DOCK_PLACEMENT, bounds)
+}
+
+function defaultAndroidDockPlacementFor(placement: HostTerminalDockPlacement, bounds: {w: number; h: number}): HostTerminalDockPlacement {
+  const vertical = placement.edge === "left" || placement.edge === "right"
+  const dockW = vertical
+    ? Math.min(ANDROID_DOCK_SHORT, Math.max(1, bounds.w - ANDROID_DOCK_MARGIN))
+    : Math.min(ANDROID_DOCK_LONG, Math.max(1, bounds.w - ANDROID_DOCK_MARGIN * 2))
+  const dockH = vertical
+    ? Math.min(ANDROID_DOCK_LONG, Math.max(1, bounds.h - ANDROID_DOCK_MARGIN * 2))
+    : Math.min(ANDROID_DOCK_SHORT, Math.max(1, bounds.h - ANDROID_DOCK_MARGIN))
+  const minOffset = vertical
+    ? ANDROID_DOCK_MARGIN + dockH / 2
+    : ANDROID_DOCK_MARGIN + dockW / 2
+  const maxOffset = vertical
+    ? Math.max(minOffset, bounds.h - ANDROID_DOCK_MARGIN - dockH / 2)
+    : Math.max(minOffset, bounds.w - ANDROID_DOCK_MARGIN - dockW / 2)
+  return {
+    edge: placement.edge,
+    offset: clampNumber(placement.offset, minOffset, maxOffset),
+  }
+}
+
 function defaultSqliteDockPlacement(bounds: {w: number; h: number}): HostTerminalDockPlacement {
   const placement = DEFAULT_SQLITE_DOCK_PLACEMENT
   const vertical = placement.edge === "left" || placement.edge === "right"
@@ -9417,6 +9622,35 @@ function todoDockPlacementFromPoint(point: {x: number; y: number}, bounds: {w: n
     if (item.distance < best.distance) best = item
   }
   const rect = todoDockRectForPlacement({
+    edge: best.edge,
+    offset: best.edge === "left" || best.edge === "right" ? point.y : point.x,
+  }, bounds)
+  return {
+    edge: best.edge,
+    offset: best.edge === "left" || best.edge === "right" ? rect.y + rect.h / 2 : rect.x + rect.w / 2,
+  }
+}
+
+function androidDockPlacementFromPoint(point: {x: number; y: number}, bounds: {w: number; h: number}): HostTerminalDockPlacement {
+  return androidDockPlacementFromPointFor(point, bounds)
+}
+
+function secondaryAndroidDockPlacementFromPoint(point: {x: number; y: number}, bounds: {w: number; h: number}): HostTerminalDockPlacement {
+  return androidDockPlacementFromPointFor(point, bounds)
+}
+
+function androidDockPlacementFromPointFor(point: {x: number; y: number}, bounds: {w: number; h: number}): HostTerminalDockPlacement {
+  const distances: Array<{edge: HudSideTabEdge; distance: number}> = [
+    {edge: "left", distance: point.x},
+    {edge: "right", distance: bounds.w - point.x},
+    {edge: "top", distance: point.y},
+    {edge: "bottom", distance: bounds.h - point.y},
+  ]
+  let best = distances[0]!
+  for (const item of distances.slice(1)) {
+    if (item.distance < best.distance) best = item
+  }
+  const rect = androidDockRectForPlacement({
     edge: best.edge,
     offset: best.edge === "left" || best.edge === "right" ? point.y : point.x,
   }, bounds)

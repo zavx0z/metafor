@@ -6,6 +6,7 @@
     "dev": "BOUNDARY_PATH=tmp/boundary.sqlite bun server --hot",
     "network": "NODE_ENV=production BUN_ENV=production BOUNDARY_PATH=tmp/boundary.sqlite HOST=0.0.0.0 bun server",
     "dev:network": "NODE_ENV=production BUN_ENV=production BOUNDARY_PATH=tmp/boundary.sqlite HOST=0.0.0.0 bun server",
+    "product:interpreter": "cd ../.. && NODE_ENV=production BUN_ENV=production BOUNDARY_PATH=app/web/tmp/boundary.sqlite HOST=0.0.0.0 PORT=443 TLS_KEY_FILE=app/web/tls/privkey.pem TLS_CERT_FILE=app/web/tls/fullchain.pem bun app/web/product-interpreter-launcher.ts run",
     "typecheck": "tsc --noEmit --pretty false",
     "tls": "NODE_ENV=production BUN_ENV=production BOUNDARY_PATH=tmp/boundary.sqlite HOST=0.0.0.0 TLS_KEY_FILE=tls/privkey.pem TLS_CERT_FILE=tls/fullchain.pem bun server",
     "dev:tls": "NODE_ENV=production BUN_ENV=production BOUNDARY_PATH=tmp/boundary.sqlite HOST=0.0.0.0 TLS_KEY_FILE=tls/privkey.pem TLS_CERT_FILE=tls/fullchain.pem bun server",

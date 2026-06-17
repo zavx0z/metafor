@@ -9,6 +9,8 @@ const panes = {
   redirect: 1,
 } as const
 
+type TlsMode = "direct" | "interpreter"
+
 const action = process.argv[2] ?? "layout"
 
 try {
@@ -83,7 +85,7 @@ function rebuildLayout(): void {
   }
   tmux(["split-window", "-v", "-t", targetPane("tls"), "-c", cwd])
   tmux(["select-layout", "-t", targetWindow(), "even-vertical"])
-  titlePane("tls", "app-web tls")
+  titlePane("tls", tlsPaneTitle())
   titlePane("redirect", "http redirect")
 }
 
@@ -105,7 +107,12 @@ function sourceProfile(): void {
 }
 
 function startTls(): void {
-  runPane("tls", `${serviceEnvPrefix()} NODE_ENV=production BUN_ENV=production BOUNDARY_PATH=app/web/tmp/boundary.sqlite HOST=0.0.0.0 PORT=443 TLS_KEY_FILE=app/web/tls/privkey.pem TLS_CERT_FILE=app/web/tls/fullchain.pem bun app/web/server.ts`)
+  titlePane("tls", tlsPaneTitle())
+  if (tlsMode() === "interpreter") {
+    runPane("tls", `${serviceEnvPrefix()} NODE_ENV=production BUN_ENV=production BOUNDARY_PATH=app/web/tmp/boundary.sqlite HOST=0.0.0.0 PORT=443 TLS_KEY_FILE=app/web/tls/privkey.pem TLS_CERT_FILE=app/web/tls/fullchain.pem bun app/web/product-interpreter-launcher.ts run`)
+    return
+  }
+  runPane("tls", `${serviceEnvPrefix()} bun app/web/product-interpreter-launcher.ts stop >/dev/null 2>&1 || true; NODE_ENV=production BUN_ENV=production BOUNDARY_PATH=app/web/tmp/boundary.sqlite HOST=0.0.0.0 PORT=443 TLS_KEY_FILE=app/web/tls/privkey.pem TLS_CERT_FILE=app/web/tls/fullchain.pem bun app/web/server.ts`)
 }
 
 function startRedirect(): void {
@@ -152,6 +159,7 @@ function writeNetworkWatch(): void {
   console.log(`${paint("cyan", "|")} ${paint("bold", "MetaFor network")} ${paint("gray", "ports / processes / tmux panes").padEnd(58)}${paint("cyan", "|")}`)
   console.log(paint("cyan", "+------------------------------------------------------------+"))
   console.log(`${paint("gray", "[TIME]")} ${paint("white", formatDateTime(new Date()))}`)
+  console.log(`${paint("gray", "[MODE]")} tls ${paint("white", tlsMode())}`)
   console.log("")
   console.log(paint("magenta", "[LISTEN]"))
   const listen = listeningPorts()
@@ -254,6 +262,14 @@ function tmux(args: string[]): string {
 
 function serviceEnvPrefix(): string {
   return "unset LC_ALL NO_COLOR CLICOLOR_FORCE; export LANG=en_US.UTF-8 LC_CTYPE=en_US.UTF-8 COLORTERM=truecolor CLICOLOR=1 FORCE_COLOR=3;"
+}
+
+function tlsMode(): TlsMode {
+  return process.env.NETWORK_TMUX_TLS_MODE === "interpreter" ? "interpreter" : "direct"
+}
+
+function tlsPaneTitle(): string {
+  return tlsMode() === "interpreter" ? "app-web tls interp" : "app-web tls"
 }
 
 function interestingPort(port: number): boolean {
