@@ -696,11 +696,17 @@ type VoiceHudAnchorPlacement = {
 }
 
 type NetworkServiceKey = "tls" | "redirect"
+type NetworkWatchSections = {
+  time: string
+  listen: string[]
+  tmux: string[]
+  other: string[]
+}
 
 const DEFAULT_HOST_TERMINAL_HUD_RECT: UiSurfaceRect = {x: 643, y: 60, w: 755, h: 943}
 const DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "top", offset: 858}
 const DEFAULT_NETWORK_TERMINAL_HUD_RECT: UiSurfaceRect = {x: 24, y: 520, w: 1080, h: 560}
-const NETWORK_DISPLAY_CONTROLS_MAX_H = 244
+const NETWORK_DISPLAY_CONTROLS_MAX_H = 420
 const NETWORK_STATUS_REFRESH_MS = 2500
 const DEFAULT_ANDROID_HUD_RECT: UiSurfaceRect = {x: 24, y: 80, w: 390, h: 720}
 const DEFAULT_SECONDARY_ANDROID_HUD_RECT: UiSurfaceRect = {x: 430, y: 80, w: 390, h: 720}
@@ -3626,7 +3632,8 @@ class NetworkDisplayControlsPane extends UiSurface {
       networkServiceSwitches = {tls: true, redirect: true}
       void runNetworkAction("layout")
     }) + 10
-    this.#button(x, 54, 64, "Clear", "Clear pane scrollback", () => void runNetworkAction("clear"))
+    x = this.#button(x, 54, 64, "Clear", "Clear pane scrollback", () => void runNetworkAction("clear")) + 10
+    this.#button(x, 54, 78, "Refresh", "Refresh network status", () => scheduleNetworkStatusRefresh(0))
 
     const metaX = Math.max(controlsX + 420, this.rectW - 290)
     if (metaX + 260 <= this.rectW - pad) {
@@ -3653,34 +3660,77 @@ class NetworkDisplayControlsPane extends UiSurface {
       borderWidth: 1,
       z: Z.ELEMENT,
     })
+    const sections = networkWatchSections()
     const updated = networkStatusUpdatedAt === null ? "loading" : formatHudTime(networkStatusUpdatedAt)
-    const title = networkStatusRefreshInFlight ? `Network status · ${updated} · updating` : `Network status · ${updated}`
+    const title = networkStatusRefreshInFlight
+      ? `Network Watch · ${sections.time} · updated ${updated} · updating`
+      : `Network Watch · ${sections.time} · updated ${updated}`
     this.drawText(title, x + 10, y + 8, {
       fontPx: 10,
       material: this.materials.cyan,
       maxWidthPx: Math.max(1, w - 20),
     })
 
-    const lines = networkStatusLines.length > 0 ? networkStatusLines : ["status loading..."]
-    const lineH = 12
-    const maxLines = Math.max(1, Math.floor((h - 30) / lineH))
-    let lineY = y + 25
-    for (const line of lines.slice(0, maxLines)) {
-      const trimmed = line.trim()
-      const material = trimmed.startsWith("[")
-        ? this.materials.cyan
-        : trimmed.includes("no interesting") || trimmed.includes("failed")
-          ? this.materials.orange
-          : trimmed.includes("active") || trimmed.includes(":443") || trimmed.includes(":80")
-            ? this.materials.green
-            : this.materials.muted
-      this.drawText(line, x + 10, lineY, {
+    const bodyX = x + 10
+    const bodyY = y + 28
+    const bodyW = Math.max(1, w - 20)
+    const bodyH = Math.max(1, h - 38)
+    const gap = 10
+    if (bodyW >= 760) {
+      const columnW = Math.max(1, Math.floor((bodyW - gap) / 2))
+      this.#drawNetworkSection("LISTEN", sections.listen, bodyX, bodyY, columnW, bodyH)
+      this.#drawNetworkSection("TMUX", sections.tmux, bodyX + columnW + gap, bodyY, Math.max(1, bodyW - columnW - gap), bodyH)
+      return
+    }
+
+    const topH = Math.max(1, Math.floor((bodyH - gap) * 0.56))
+    this.#drawNetworkSection("LISTEN", sections.listen, bodyX, bodyY, bodyW, topH)
+    this.#drawNetworkSection("TMUX", sections.tmux, bodyX, bodyY + topH + gap, bodyW, Math.max(1, bodyH - topH - gap))
+  }
+
+  #drawNetworkSection(title: string, lines: string[], x: number, y: number, w: number, h: number): void {
+    this.drawRoundedRect(x, y, w, h, {
+      radius: 5,
+      fill: new Color(0.01, 0.02, 0.04, 0.36),
+      border: withAlpha(palette.border, 0.34),
+      borderWidth: 1,
+      z: Z.ELEMENT + 0.01,
+    })
+    this.drawText(`${title} · ${lines.length}`, x + 8, y + 7, {
+      fontPx: 10,
+      material: this.materials.cyan,
+      maxWidthPx: Math.max(1, w - 16),
+    })
+
+    const content = lines.length > 0 ? lines : ["no entries"]
+    const lineH = 13
+    const maxLines = Math.max(1, Math.floor((h - 29) / lineH))
+    const visible = content.slice(0, maxLines)
+    let lineY = y + 24
+    for (const line of visible) {
+      this.drawText(line, x + 8, lineY, {
         fontPx: 9,
-        material,
-        maxWidthPx: Math.max(1, w - 20),
+        material: this.#networkLineMaterial(line),
+        maxWidthPx: Math.max(1, w - 16),
       })
       lineY += lineH
     }
+    const hidden = content.length - visible.length
+    if (hidden > 0) {
+      this.drawText(`+${hidden} more`, x + 8, Math.max(y + 24, y + h - 15), {
+        fontPx: 9,
+        material: this.materials.orange,
+        maxWidthPx: Math.max(1, w - 16),
+      })
+    }
+  }
+
+  #networkLineMaterial(line: string) {
+    const trimmed = line.trim()
+    if (trimmed.includes("failed") || trimmed.includes("no entries") || trimmed.includes("no interesting")) return this.materials.orange
+    if (trimmed.includes("active") || trimmed.includes(":443") || trimmed.includes(":80")) return this.materials.green
+    if (trimmed.includes("idle")) return this.materials.muted
+    return this.materials.text
   }
 
   #switchRow(x: number, y: number, label: string, key: NetworkServiceKey, tooltip: string): number {
@@ -3801,6 +3851,32 @@ function networkStatusLinesFromOutput(stdout: string): string[] {
       return true
     })
   return lines.length > 0 ? lines : ["no network status"]
+}
+
+function networkWatchSections(): NetworkWatchSections {
+  const sections: NetworkWatchSections = {time: "--", listen: [], tmux: [], other: []}
+  let section: keyof Pick<NetworkWatchSections, "listen" | "tmux" | "other"> = "other"
+  for (const line of networkStatusLines) {
+    const trimmed = line.trim()
+    if (trimmed.startsWith("[TIME]")) {
+      sections.time = trimmed.replace(/^\[TIME\]\s*/, "")
+      continue
+    }
+    if (trimmed === "[LISTEN]") {
+      section = "listen"
+      continue
+    }
+    if (trimmed === "[TMUX]") {
+      section = "tmux"
+      continue
+    }
+    sections[section].push(trimmed)
+  }
+  if (sections.listen.length === 0 && sections.tmux.length === 0 && sections.other.length > 0) {
+    sections.listen = sections.other
+    sections.other = []
+  }
+  return sections
 }
 
 class TodoDockPane extends UiSurface {
@@ -9023,7 +9099,7 @@ function networkDisplayTerminalRect({w, h}: {w: number; h: number}): UiSurfaceRe
 }
 
 function networkDisplayControlsHeight(displayH: number): number {
-  return Math.min(NETWORK_DISPLAY_CONTROLS_MAX_H, Math.max(120, Math.floor(displayH * 0.34)))
+  return Math.min(NETWORK_DISPLAY_CONTROLS_MAX_H, Math.max(220, Math.floor(displayH * 0.42)))
 }
 
 function androidHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
