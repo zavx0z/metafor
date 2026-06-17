@@ -16,10 +16,6 @@ import {
 	Switcher,
 	TextField,
 	VoiceInputHud,
-	createTextFieldState,
-	handleTextFieldKey,
-	insertTextFieldText,
-	type TextFieldEditState,
 	type VoiceInputHudDeactivationMode,
 	type VoiceInputHudPhraseGroupId,
 	type VoiceInputHudServiceState,
@@ -153,12 +149,6 @@ type CodexComposerAttachment = {
 	path: string
 	mime: string
 	size: number
-}
-
-type ComposerTextLine = {
-	text: string
-	start: number
-	end: number
 }
 
 type BrowserWritableFile = {
@@ -299,11 +289,10 @@ const VOICE_HUD_ERROR_MS = 2_400
 const VOICE_METER_RENDER_MS = 80
 const AGENT_READY_SOUND_IDLE_MS = 2500
 const AGENT_READY_SOUND_COOLDOWN_MS = 1200
-const CODEX_COMPOSER_KEY = "app-web-codex-composer-input"
-const CODEX_COMPOSER_H = 154
+const CODEX_COMPOSER_H = 268
 const CODEX_COMPOSER_GAP = 8
 const CODEX_COMPOSER_PAD = 12
-const CODEX_COMPOSER_INPUT_H = 88
+const CODEX_COMPOSER_INPUT_H = 170
 const CODEX_COMPOSER_ACTION_H = 34
 const CODEX_COMPOSER_VOICE_SIZE = 58
 const CODEX_COMPOSER_SEND_W = 108
@@ -364,6 +353,7 @@ class AppWebHud implements AppWebHudController {
 	readonly #agentSignalPane: AppWebAgentSignalPane
 	readonly #voiceHud: VoiceInputHud
 	readonly #codexComposer: AppWebCodexComposerPane
+	readonly #codexEditor: EditorPane
 	readonly #terminal: TerminalController
 	#src: string
 	#settings: AppWebHudSettingsSnapshot
@@ -429,6 +419,7 @@ class AppWebHud implements AppWebHudController {
 	#codexDraft = ""
 	#codexAttachments: CodexComposerAttachment[] = []
 	#codexDropActive = false
+	#codexEditorSyncing = false
 	#codexComposerStatus = ""
 	#codexComposerStatusTimer: number | null = null
 	readonly #codexDragOver = (event: DragEvent): void => this.#handleCodexDragOver(event)
@@ -504,6 +495,7 @@ class AppWebHud implements AppWebHudController {
 		this.#terminal = this.#createTerminalController()
 		this.#voiceHud = this.#createVoiceHud()
 		this.#codexComposer = new AppWebCodexComposerPane(this)
+		this.#codexEditor = this.#createCodexEditor()
 		this.#codexDock = new AppWebDockPane(this, "codex")
 		this.#settingsDock = new AppWebDockPane(this, "settings")
 		this.#todoDock = new AppWebDockPane(this, "todo")
@@ -513,6 +505,7 @@ class AppWebHud implements AppWebHudController {
 
 		this.#viewport.hud.addSurface(this.#terminal.pane, (bounds) => this.#codexRect(bounds), {zIndex: HUD_PANEL_Z})
 		this.#viewport.hud.addSurface(this.#codexComposer, (bounds) => this.#codexComposerRect(bounds), {zIndex: HUD_PANEL_Z + 0.4})
+		this.#viewport.hud.addSurface(this.#codexEditor, (bounds) => this.#codexEditorRect(bounds), {zIndex: HUD_PANEL_Z + 0.5})
 		this.#viewport.hud.addSurface(this.#settingsPane, (bounds) => this.#settingsRect(bounds), {zIndex: HUD_SETTINGS_PANEL_Z})
 		this.#viewport.hud.addSurface(this.#todoPane, (bounds) => this.#todoRect(bounds), {zIndex: HUD_TODO_PANEL_Z})
 		this.#viewport.hud.addSurface(this.#workspaceFiles, (bounds) => this.#workspaceFilesRect(bounds), {zIndex: HUD_PANEL_Z + 2})
@@ -601,12 +594,20 @@ class AppWebHud implements AppWebHudController {
 		return this.#terminal.socket?.readyState === WebSocket.OPEN
 	}
 
-	setCodexDraft(value: string): void {
+	#setCodexDraftFromEditor(value: string): void {
+		if (this.#codexEditorSyncing) return
 		if (this.#codexDraft === value) return
 		if (this.#voiceComposerBaseDraft !== null && value !== this.#voiceComposerGeneratedDraft) {
 			this.#voiceComposerEdited = true
 		}
 		this.#codexDraft = value
+		this.#codexComposer.requestRender()
+	}
+
+	#setCodexDraft(value: string): void {
+		if (this.#codexDraft === value) return
+		this.#codexDraft = value
+		this.#syncCodexEditor()
 		this.#codexComposer.requestRender()
 	}
 
@@ -629,7 +630,7 @@ class AppWebHud implements AppWebHudController {
 		this.#voiceNextFlushMode = "auto"
 		this.#sendTerminalInput(payload, "api", message)
 		this.#resetVoiceComposerDraftTracking()
-		this.#codexDraft = ""
+		this.#setCodexDraft("")
 		this.#codexAttachments = []
 		this.#setCodexComposerStatus("отправлено")
 		this.#focusCodexComposer()
@@ -1329,6 +1330,40 @@ class AppWebHud implements AppWebHudController {
 		return controller
 	}
 
+	#createCodexEditor(): EditorPane {
+		const editor = new EditorPane({
+			title: "Message.md",
+			path: "message.md",
+			fontPx: 12,
+			linePx: 17,
+			titleFontPx: 11,
+			readOnly: false,
+			showCaret: true,
+			introAnimation: false,
+			indentGuides: false,
+			draggable: false,
+			resizable: false,
+			onChange: (text) => this.#setCodexDraftFromEditor(text),
+			onSave: () => this.submitCodexComposer(),
+			onSubmit: () => this.submitCodexComposer(),
+		})
+		editor.setSelectionContextMenuEnabled(true)
+		return editor
+	}
+
+	#syncCodexEditor(): void {
+		if (this.#codexEditorSyncing || this.#codexEditor.getText() === this.#codexDraft) return
+		this.#codexEditorSyncing = true
+		try {
+			this.#codexEditor.setText(this.#codexDraft)
+			const lines = this.#codexDraft.split("\n")
+			const lastLine = Math.max(0, lines.length - 1)
+			this.#codexEditor.setCursor(lastLine, lines[lastLine]?.length ?? 0, {scroll: "nearest"})
+		} finally {
+			this.#codexEditorSyncing = false
+		}
+	}
+
 	#codexHeaderControls(): TerminalHeaderControls {
 		const enabled = this.agentSoundEnabled()
 		return {
@@ -1447,16 +1482,14 @@ class AppWebHud implements AppWebHudController {
 		const nextDraft = mergeCodexComposerDraft(this.#voiceComposerBaseDraft, body)
 		this.#voiceComposerGeneratedDraft = nextDraft
 		if (this.#codexDraft === nextDraft) return true
-		this.#codexDraft = nextDraft
-		this.#codexComposer.requestRender()
+		this.#setCodexDraft(nextDraft)
 		return true
 	}
 
 	#restoreVoiceComposerBaseDraft(): void {
 		if (this.#voiceComposerBaseDraft === null) return
 		if (!this.#voiceComposerEdited && this.#codexDraft === this.#voiceComposerGeneratedDraft) {
-			this.#codexDraft = this.#voiceComposerBaseDraft
-			this.#codexComposer.requestRender()
+			this.#setCodexDraft(this.#voiceComposerBaseDraft)
 		}
 		this.#resetVoiceComposerDraftTracking()
 	}
@@ -1486,8 +1519,7 @@ class AppWebHud implements AppWebHudController {
 	}
 
 	#focusCodexComposer(): void {
-		this.#viewport.hud.setFocused(this.#codexComposer)
-		this.#codexComposer.focusInput()
+		this.#viewport.hud.setFocused(this.#codexEditor)
 	}
 
 	#setCodexComposerStatus(status: string, ttlMs = 2200): void {
@@ -2293,6 +2325,18 @@ class AppWebHud implements AppWebHudController {
 		}
 	}
 
+	#codexEditorRect(bounds: {w: number; h: number}): UiSurfaceRect {
+		const composer = this.#codexComposerRect(bounds)
+		if (composer.visible === false) return hiddenRect()
+		const editorH = codexComposerEditorHeight(composer.h)
+		return {
+			x: composer.x + CODEX_COMPOSER_PAD,
+			y: composer.y + CODEX_COMPOSER_PAD,
+			w: Math.max(1, composer.w - CODEX_COMPOSER_PAD * 2),
+			h: editorH,
+		}
+	}
+
 	#settingsRect(bounds: {w: number; h: number}): UiSurfaceRect {
 		if (this.#settingsDocked) return hiddenRect()
 		return readStoredRect(SETTINGS_RECT_STORAGE_KEY) ?? {
@@ -2404,27 +2448,12 @@ class AppWebHud implements AppWebHudController {
 }
 
 class AppWebCodexComposerPane extends UiSurface {
-	#editState: TextFieldEditState = createTextFieldState()
-	#active = false
-	#cursorVisible = true
-	#blinkTimer: ReturnType<typeof setInterval> | null = null
-
 	constructor(private readonly hud: AppWebHud) {
 		super({bgColor: null, borderColor: null})
 		this.node.name = "AppWebCodexComposerPane"
 	}
 
-	focusInput(): void {
-		const value = this.hud.codexDraft()
-		this.#editState = createTextFieldState(value, value.length)
-		this.#active = true
-		this.canvas?.setFocused(this)
-		this.#startBlink()
-		this.requestRender()
-	}
-
 	protected render(): void {
-		this.#syncEditState()
 		const w = Math.max(1, this.rectW)
 		const h = Math.max(1, this.rectH)
 		const pad = CODEX_COMPOSER_PAD
@@ -2436,37 +2465,9 @@ class AppWebCodexComposerPane extends UiSurface {
 			z: Z.CONTAINER,
 		})
 		const bodyW = Math.max(1, w - pad * 2)
-		this.#drawInputArea(pad, pad, bodyW, CODEX_COMPOSER_INPUT_H)
-		this.#drawFooter(pad, pad + CODEX_COMPOSER_INPUT_H + 10, bodyW, h - pad)
+		const footerY = pad + codexComposerEditorHeight(h) + 10
+		this.#drawFooter(pad, footerY, bodyW, h - pad)
 		if (this.hud.codexDropActive()) this.#drawDropOverlay(w, h)
-	}
-
-	#drawInputArea(x: number, y: number, w: number, h: number): void {
-		const ready = this.hud.codexComposerReady()
-		const active = this.#active && ready
-		this.drawRoundedRect(x, y, w, h, {
-			radius: 8,
-			fill: new Color(0.03, 0.05, 0.08, active ? 0.92 : 0.82),
-			border: active ? palette.cyan : palette.borderDim,
-			borderWidth: active ? 1.15 : 1,
-			z: Z.ELEMENT,
-		})
-		this.hit(x, y, w, h, () => undefined, {
-			key: CODEX_COMPOSER_KEY,
-			cursor: ready ? "text" : "default",
-			onPointerDown: (localX, localY, event) => {
-				if (!ready) return
-				event?.preventDefault()
-				this.#activate()
-				this.#editState = {
-					...this.#stateForDraft(),
-					cursor: this.#cursorFromPoint(localX, localY, x, y, w, h),
-					selectionAnchor: null,
-				}
-				this.requestRender()
-			},
-		})
-		this.#drawDraftText(x + 12, y + 10, Math.max(1, w - 24), Math.max(1, h - 20), active)
 	}
 
 	#drawFooter(x: number, y: number, w: number, maxY: number): void {
@@ -2485,42 +2486,6 @@ class AppWebCodexComposerPane extends UiSurface {
 			radius: 8,
 			action: () => this.hud.submitCodexComposer(),
 		})
-	}
-
-	#drawDraftText(x: number, y: number, w: number, h: number, active: boolean): void {
-		const state = this.#stateForDraft()
-		const value = state.value
-		const fontPx = 13
-		const lineH = 18
-		const maxLines = Math.max(1, Math.floor(h / lineH))
-		const placeholder = this.hud.codexComposerReady() ? "Сообщение Codex" : "Codex не подключен"
-		const lines = composerTextLines(this, value.length === 0 ? placeholder : value, fontPx, w)
-		const cursorLine = value.length === 0 ? 0 : composerCursorLineIndex(lines, state.cursor)
-		const firstLine = Math.max(0, Math.min(cursorLine, Math.max(0, lines.length - maxLines)) - Math.max(0, maxLines - 1))
-		const visible = lines.slice(firstLine, firstLine + maxLines)
-		this.pushClip(x, y, w, h)
-		for (const [index, line] of visible.entries()) {
-			this.drawText(line.text || " ", x, y + index * lineH + 1, {
-				fontPx,
-				material: value.length === 0 ? this.materials.muted : this.materials.text,
-				maxWidthPx: w,
-				z: Z.TEXT,
-			})
-		}
-		if (active && this.#cursorVisible && value.length > 0) this.#drawCursor(lines, firstLine, maxLines, state.cursor, x, y, w, lineH, fontPx)
-		if (active && this.#cursorVisible && value.length === 0) this.drawRect(x, y + 1, 2, fontPx + 2, palette.cyan, Z.TEXT + 0.02)
-		this.popClip()
-	}
-
-	#drawCursor(lines: readonly ComposerTextLine[], firstLine: number, maxLines: number, cursor: number, x: number, y: number, w: number, lineH: number, fontPx: number): void {
-		const lineIndex = composerCursorLineIndex(lines, cursor)
-		if (lineIndex < firstLine || lineIndex >= firstLine + maxLines) return
-		const line = lines[lineIndex]
-		if (line === undefined) return
-		const inLine = clampNumber(cursor - line.start, 0, line.text.length)
-		const cursorX = x + Math.min(w - 2, this.measureText(line.text.slice(0, inLine), fontPx))
-		const cursorY = y + (lineIndex - firstLine) * lineH + 1
-		this.drawRect(Math.round(cursorX), Math.round(cursorY), 2, fontPx + 2, palette.cyan, Z.TEXT + 0.02)
 	}
 
 	#drawAttachmentRow(x: number, y: number, w: number, maxY: number): void {
@@ -2588,113 +2553,6 @@ class AppWebCodexComposerPane extends UiSurface {
 			maxWidthPx: Math.max(1, w - CODEX_COMPOSER_PAD * 2),
 			z: Z.TEXT + 0.2,
 		})
-	}
-
-	onKey(event: KeyboardEvent): void {
-		if (!this.#active) return
-		if (event.key === "Enter" && !event.shiftKey) {
-			event.preventDefault()
-			this.hud.submitCodexComposer()
-			return
-		}
-		if (event.key === "Enter" && event.shiftKey) {
-			event.preventDefault()
-			this.#applyEditState(insertTextFieldText(this.#stateForDraft(), "\n"))
-			return
-		}
-		const result = handleTextFieldKey(this.#stateForDraft(), event, {allowTab: true})
-		if (!result.handled) return
-		if (result.paste) {
-			void this.#pasteClipboard()
-			return
-		}
-		this.#applyEditState(result.state)
-	}
-
-	onInputText(text: string): void {
-		if (!this.#active || text.length === 0) return
-		this.#applyEditState(insertTextFieldText(this.#stateForDraft(), text))
-	}
-
-	override onDeactivate(): void {
-		this.#active = false
-		this.#stopBlink()
-		super.onDeactivate()
-	}
-
-	#activate(): void {
-		this.#active = true
-		this.canvas?.setFocused(this)
-		this.#startBlink()
-	}
-
-	#syncEditState(): void {
-		const value = this.hud.codexDraft()
-		if (this.#editState.value === value) return
-		const previousValue = this.#editState.value
-		const cursorWasAtEnd = this.#editState.cursor === previousValue.length
-		const nextCursor = cursorWasAtEnd && value.startsWith(previousValue)
-			? value.length
-			: Math.min(value.length, this.#editState.cursor)
-		this.#editState = {
-			value,
-			cursor: nextCursor,
-			selectionAnchor: null,
-		}
-	}
-
-	#stateForDraft(): TextFieldEditState {
-		this.#syncEditState()
-		return this.#editState
-	}
-
-	#applyEditState(state: TextFieldEditState): void {
-		this.#editState = state
-		this.hud.setCodexDraft(state.value)
-		this.#cursorVisible = true
-		this.requestRender()
-	}
-
-	async #pasteClipboard(): Promise<void> {
-		try {
-			const text = await navigator.clipboard.readText()
-			if (text.length > 0) this.#applyEditState(insertTextFieldText(this.#stateForDraft(), text))
-		} catch {
-			// Browser clipboard permissions are best-effort; drag/drop image upload is separate.
-		}
-	}
-
-	#cursorFromPoint(localX: number, localY: number, x: number, y: number, w: number, h: number): number {
-		const fontPx = 13
-		const lineH = 18
-		const textX = x + 12
-		const textY = y + 10
-		const textW = Math.max(1, w - 24)
-		const lines = composerTextLines(this, this.#stateForDraft().value, fontPx, textW)
-		const maxLines = Math.max(1, Math.floor(Math.max(1, h - 20) / lineH))
-		const cursorLine = composerCursorLineIndex(lines, this.#stateForDraft().cursor)
-		const firstLine = Math.max(0, Math.min(cursorLine, Math.max(0, lines.length - maxLines)) - Math.max(0, maxLines - 1))
-		const localLine = clampNumber(Math.floor((localY - textY) / lineH), 0, Math.max(0, Math.min(maxLines, lines.length) - 1))
-		const line = lines[firstLine + localLine] ?? lines[lines.length - 1]
-		if (line === undefined) return this.#stateForDraft().value.length
-		return composerCursorInLine(this, line, localX - textX, fontPx)
-	}
-
-	#startBlink(): void {
-		this.#cursorVisible = true
-		if (this.#blinkTimer !== null) return
-		this.#blinkTimer = setInterval(() => {
-			if (!this.#active) return
-			this.#cursorVisible = !this.#cursorVisible
-			this.requestRender()
-		}, 530)
-	}
-
-	#stopBlink(): void {
-		if (this.#blinkTimer !== null) clearInterval(this.#blinkTimer)
-		this.#blinkTimer = null
-		this.#cursorVisible = false
-		this.requestRender()
 	}
 }
 
@@ -3936,50 +3794,10 @@ function formatAttachmentSize(size: number): string {
 	return `${Math.round(size / (1024 * 102.4)) / 10} MB`
 }
 
-function composerTextLines(surface: UiSurface, text: string, fontPx: number, maxWidth: number): ComposerTextLine[] {
-	const normalized = text.replace(/\r\n?/g, "\n")
-	if (normalized.length === 0) return [{text: "", start: 0, end: 0}]
-	const lines: ComposerTextLine[] = []
-	let line = ""
-	let start = 0
-	for (let index = 0; index < normalized.length; index += 1) {
-		const ch = normalized[index]!
-		if (ch === "\n") {
-			lines.push({text: line, start, end: index})
-			line = ""
-			start = index + 1
-			continue
-		}
-		const next = `${line}${ch}`
-		if (line.length > 0 && surface.measureText(next, fontPx) > maxWidth) {
-			lines.push({text: line, start, end: index})
-			line = ch
-			start = index
-			continue
-		}
-		line = next
-	}
-	lines.push({text: line, start, end: normalized.length})
-	return lines
-}
-
-function composerCursorLineIndex(lines: readonly ComposerTextLine[], cursor: number): number {
-	if (lines.length === 0) return 0
-	for (let index = 0; index < lines.length; index += 1) {
-		const line = lines[index]!
-		if (cursor >= line.start && cursor <= line.end) return index
-	}
-	return lines.length - 1
-}
-
-function composerCursorInLine(surface: UiSurface, line: ComposerTextLine, x: number, fontPx: number): number {
-	if (x <= 0 || line.text.length === 0) return line.start
-	for (let index = 1; index <= line.text.length; index += 1) {
-		const left = surface.measureText(line.text.slice(0, index - 1), fontPx)
-		const right = surface.measureText(line.text.slice(0, index), fontPx)
-		if (x < (left + right) / 2) return line.start + index - 1
-	}
-	return line.end
+function codexComposerEditorHeight(composerH: number): number {
+	const footerSpace = CODEX_COMPOSER_ACTION_H + CODEX_COMPOSER_GAP + 18
+	const maxByComposer = Math.max(82, composerH - CODEX_COMPOSER_PAD * 2 - footerSpace)
+	return Math.min(CODEX_COMPOSER_INPUT_H, maxByComposer)
 }
 
 function processStatusLabel(process: WorkspaceProcess): string {

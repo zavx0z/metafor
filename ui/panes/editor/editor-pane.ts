@@ -94,6 +94,8 @@ export type EditorOpts = {
   onChange?: (text: string) => void
   /** Колбэк на явное сохранение (Cmd/Ctrl+S или editor.save()). */
   onSave?: (text: string) => void
+  /** Колбэк на отправку редакторского буфера (Cmd/Ctrl+Enter). */
+  onSubmit?: (text: string) => void
   /** Колбэк на copy/cut из floating-menu выделения. */
   onSelectionClipboard?: (ok: boolean, action: "copy" | "cut") => void
   /** Колбэк на изменение cursor/selection. Позиции 0-based. */
@@ -269,6 +271,7 @@ export class EditorPane extends UiSurface {
   #tokenize: EditorTokenize | undefined
   #onChange: ((text: string) => void) | undefined
   #onSave: ((text: string) => void) | undefined
+  #onSubmit: ((text: string) => void) | undefined
   #onSelectionClipboard: ((ok: boolean, action: "copy" | "cut") => void) | undefined
   #onSelectionChange: ((snapshot: EditorSelectionSnapshot) => void) | undefined
   #onBreakpointToggle: ((line: number) => void) | undefined
@@ -325,6 +328,7 @@ export class EditorPane extends UiSurface {
     this.#tokenize = opts.tokenize ?? resolveEditorTokenize(opts)
     this.#onChange = opts.onChange
     this.#onSave = opts.onSave
+    this.#onSubmit = opts.onSubmit
     this.#onSelectionClipboard = opts.onSelectionClipboard
     this.#onSelectionChange = opts.onSelectionChange
     this.#onBreakpointToggle = opts.onBreakpointToggle
@@ -903,6 +907,7 @@ export class EditorPane extends UiSurface {
       } else if (k === "y") this.#redo()
       else if (k === "a") this.#selectAll()
       else if (k === "s") this.save()
+      else if (event.key === "Enter" && this.#onSubmit !== undefined) this.#onSubmit(this.getText())
       else if (k === "v") void this.#paste()
       else if (k === "c") void this.#copySelectionOrCurrentLine()
       else if (k === "x") void this.#cutSelectionOrCurrentLine()
