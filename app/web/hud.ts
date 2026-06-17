@@ -12,10 +12,12 @@ import {
 } from "@ui/elements"
 import {
 	Button,
+	ButtonVoice,
 	IconButton,
 	Switcher,
 	TextField,
 	VoiceInputHud,
+	type ButtonVoiceSnapshot,
 	type VoiceInputHudDeactivationMode,
 	type VoiceInputHudPhraseGroupId,
 	type VoiceInputHudServiceState,
@@ -296,9 +298,7 @@ const CODEX_COMPOSER_MIN_H = 220
 const CODEX_COMPOSER_GAP = 8
 const CODEX_COMPOSER_PAD = 12
 const CODEX_COMPOSER_INPUT_H = 170
-const CODEX_COMPOSER_ACTION_H = 34
-const CODEX_COMPOSER_VOICE_SIZE = 58
-const CODEX_COMPOSER_SEND_W = 108
+const CODEX_COMPOSER_HEADER_BUTTON_SIZE = 24
 const CODEX_COMPOSER_MAX_ATTACHMENT_BYTES = 16 * 1024 * 1024
 const CODEX_TITLE = "Codex"
 const CODEX_MODEL = "GPT-5"
@@ -311,7 +311,6 @@ const HUD_PANEL_Z = 20
 const HUD_TODO_PANEL_Z = 22
 const HUD_SETTINGS_PANEL_Z = 24
 const HUD_AGENT_SIGNAL_Z = 41
-const HUD_VOICE_Z = 50
 const HUD_DOCK_Z = 60
 const SETTINGS_SCROLL_KEY = "app-web-settings-pane:scroll"
 const SETTINGS_MIN_W = 360
@@ -515,7 +514,6 @@ class AppWebHud implements AppWebHudController {
 		this.#viewport.hud.addSurface(this.#workspaceEditor, (bounds) => this.#workspaceEditorRect(bounds), {zIndex: HUD_PANEL_Z + 3})
 		this.#viewport.hud.addSurface(this.#androidPane, (bounds) => this.#androidRect(bounds), {zIndex: HUD_PANEL_Z + 1})
 		this.#viewport.hud.addSurface(this.#agentSignalPane, (bounds) => this.#agentSignalRect(bounds), {zIndex: HUD_AGENT_SIGNAL_Z})
-		this.#viewport.hud.addSurface(this.#voiceHud, (bounds) => this.#voiceRect(bounds), {zIndex: HUD_VOICE_Z})
 		this.#viewport.hud.addSurface(this.#codexDock, (bounds) => this.#dockRect("codex", bounds), {zIndex: HUD_DOCK_Z})
 		this.#viewport.hud.addSurface(this.#settingsDock, (bounds) => this.#dockRect("settings", bounds), {zIndex: HUD_DOCK_Z})
 		this.#viewport.hud.addSurface(this.#todoDock, (bounds) => this.#dockRect("todo", bounds), {zIndex: HUD_DOCK_Z})
@@ -595,6 +593,22 @@ class AppWebHud implements AppWebHudController {
 
 	codexComposerReady(): boolean {
 		return this.#terminal.socket?.readyState === WebSocket.OPEN
+	}
+
+	voiceButtonSnapshot(): ButtonVoiceSnapshot {
+		return {
+			status: this.#voiceStatus,
+			serviceState: this.#voiceServiceState,
+			level: this.#voiceStatus === "listening" || this.#voiceStatus === "committing" ? this.#voiceLevel : 0,
+		}
+	}
+
+	voiceSoundPulse(): number {
+		return this.#voiceHud.soundPulseAmount()
+	}
+
+	toggleVoiceInput(): void {
+		void this.#toggleVoice()
 	}
 
 	#setCodexDraftFromEditor(value: string): void {
@@ -1813,6 +1827,7 @@ class AppWebHud implements AppWebHudController {
 	#createVoiceHud(): VoiceInputHud {
 		return new VoiceInputHud({
 			onToggle: () => void this.#toggleVoice(),
+			onPulseFrame: () => this.#codexComposer.requestRender(),
 			settings: () => this.#voiceSettings(),
 			onFullStop: () => this.#stopVoice(),
 			onAddPhrase: (groupId, phrase) => this.#addVoicePhrase(groupId, phrase),
@@ -2459,19 +2474,6 @@ class AppWebHud implements AppWebHudController {
 		return this.#fullscreenDockPlacement
 	}
 
-	#voiceRect(bounds: {w: number; h: number}): UiSurfaceRect {
-		if (this.#codexDocked || this.#dockTransition?.kind === "codex") return hiddenRect()
-		const composer = this.#codexComposerRect(bounds)
-		if (composer.visible === false) return hiddenRect()
-		const sendX = composer.x + composer.w - CODEX_COMPOSER_PAD - CODEX_COMPOSER_SEND_W
-		const x = sendX - CODEX_COMPOSER_GAP - CODEX_COMPOSER_VOICE_SIZE
-		return {
-			x: clampNumber(x, composer.x + CODEX_COMPOSER_PAD, composer.x + Math.max(CODEX_COMPOSER_PAD, composer.w - CODEX_COMPOSER_VOICE_SIZE - CODEX_COMPOSER_PAD)),
-			y: composer.y + composer.h - CODEX_COMPOSER_PAD - CODEX_COMPOSER_VOICE_SIZE,
-			w: CODEX_COMPOSER_VOICE_SIZE,
-			h: CODEX_COMPOSER_VOICE_SIZE,
-		}
-	}
 }
 
 class AppWebCodexComposerPane extends UiSurface {
@@ -2501,23 +2503,45 @@ class AppWebCodexComposerPane extends UiSurface {
 	}
 
 	#renderHeader(w: number): void {
-		const dockButtonSize = 22
-		const dockButtonX = w - PANE_FRAME.headerTextX - dockButtonSize
+		const buttonSize = CODEX_COMPOSER_HEADER_BUTTON_SIZE
+		const gap = 5
+		const dockButtonX = w - PANE_FRAME.headerTextX - buttonSize
+		const voiceButtonX = dockButtonX - gap - buttonSize
+		const sendButtonX = voiceButtonX - gap - buttonSize
+		const statusX = PANE_FRAME.headerTextX + 112
 		this.drawText("Codex message", PANE_FRAME.headerTextX, PANE_FRAME.headerTextY, {
 			fontPx: 12,
 			material: this.materials.cyan,
-			maxWidthPx: Math.max(1, dockButtonX - PANE_FRAME.headerTextX - 12),
+			maxWidthPx: Math.max(1, statusX - PANE_FRAME.headerTextX - 8),
 			z: Z.TEXT,
 		})
-		this.drawText("Markdown", PANE_FRAME.headerTextX + 116, PANE_FRAME.headerTextY + 1, {
+		this.drawText(this.hud.codexComposerStatus(), statusX, PANE_FRAME.headerTextY + 1, {
 			fontPx: 10,
 			material: this.materials.muted,
-			maxWidthPx: Math.max(1, dockButtonX - PANE_FRAME.headerTextX - 128),
+			maxWidthPx: Math.max(1, sendButtonX - statusX - 10),
 			z: Z.TEXT,
 		})
-		IconButton(this, dockButtonX, 7, dockButtonSize, dockButtonSize, {
+		const canSubmit = this.hud.codexComposerReady() && codexComposerMessage(this.hud.codexDraft(), this.hud.codexAttachments()).length > 0
+		IconButton(this, sendButtonX, 6, buttonSize, buttonSize, {
+			label: "Отправить",
+			iconSrc: uiIcons.send,
+			disabled: !canSubmit,
+			variant: "text",
+			radius: 7,
+			action: () => this.hud.submitCodexComposer(),
+		})
+		ButtonVoice(this, voiceButtonX, 6, buttonSize, {
+			key: "codex-message-voice",
+			snapshot: this.hud.voiceButtonSnapshot(),
+			soundPulse: this.hud.voiceSoundPulse(),
+			tooltip: "Голосовой ввод",
+			onClick: () => this.hud.toggleVoiceInput(),
+		})
+		IconButton(this, dockButtonX, 6, buttonSize, buttonSize, {
 			label: "Свернуть Codex",
 			iconSrc: uiIcons.minus,
+			variant: "text",
+			radius: 7,
 			action: () => this.hud.setDocked("codex", true),
 		})
 		const rule = paneHeaderRuleRect(w, PANE_FRAME.headerHeight, PANE_FRAME.bodyInsetX)
@@ -2525,26 +2549,11 @@ class AppWebCodexComposerPane extends UiSurface {
 	}
 
 	#drawFooter(x: number, y: number, w: number, maxY: number): void {
-		const sendW = Math.min(CODEX_COMPOSER_SEND_W, Math.max(68, Math.floor(w * 0.22)))
-		const attachments = this.hud.codexAttachments()
-		const canSubmit = this.hud.codexComposerReady() && codexComposerMessage(this.hud.codexDraft(), attachments).length > 0
-		const buttonY = Math.max(y, maxY - CODEX_COMPOSER_ACTION_H)
-		const reservedRight = CODEX_COMPOSER_VOICE_SIZE + CODEX_COMPOSER_GAP + sendW + CODEX_COMPOSER_GAP
-		const infoW = Math.max(1, w - reservedRight)
-		this.#drawAttachmentRow(x, y, infoW, maxY)
-		Button(this, x + w - sendW, buttonY, sendW, CODEX_COMPOSER_ACTION_H, {
-			label: "Отправить",
-			disabled: !canSubmit,
-			color: "primary",
-			variant: "contained",
-			radius: 8,
-			action: () => this.hud.submitCodexComposer(),
-		})
+		this.#drawAttachmentRow(x, y, w, maxY)
 	}
 
 	#drawAttachmentRow(x: number, y: number, w: number, maxY: number): void {
 		const attachments = this.hud.codexAttachments()
-		const status = this.hud.codexComposerStatus()
 		let cx = x
 		let cy = y
 		const gap = 6
@@ -2582,14 +2591,6 @@ class AppWebCodexComposerPane extends UiSurface {
 				cursor: "pointer",
 			})
 			cx += chipW + gap
-		}
-		if (status) {
-			this.drawText(status, x, maxY - 13, {
-				fontPx: 10,
-				material: this.hud.codexComposerReady() ? this.materials.muted : this.materials.orange,
-				maxWidthPx: w,
-				z: Z.TEXT,
-			})
 		}
 	}
 
@@ -3936,7 +3937,7 @@ function formatAttachmentSize(size: number): string {
 
 function codexComposerEditorHeight(composerH: number): number {
 	const editorTop = PANE_FRAME.headerHeight + PANE_FRAME.bodyTopGap
-	const footerSpace = 10 + CODEX_COMPOSER_ACTION_H + CODEX_COMPOSER_PAD
+	const footerSpace = CODEX_COMPOSER_PAD + 20
 	const maxByComposer = Math.max(82, composerH - editorTop - footerSpace)
 	return Math.min(CODEX_COMPOSER_INPUT_H, maxByComposer)
 }

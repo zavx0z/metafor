@@ -1,5 +1,6 @@
-import {UiSurface, button, drawIconCentered, input, palette, type UiSurfaceRect} from "@ui/elements"
+import {UiSurface, button, input, palette, type UiSurfaceRect} from "@ui/elements"
 import {Color} from "@metafor/engine"
+import {ButtonVoice} from "./ButtonVoice.ts"
 import {Switcher} from "./Switcher.ts"
 
 export type VoiceInputHudStatus = "idle" | "connecting" | "waitingWake" | "listening" | "committing" | "error"
@@ -75,6 +76,8 @@ export type VoiceInputHudSettings = {
 export type VoiceInputHudOptions = {
   onToggle(): void
   onMove?(rect: UiSurfaceRect): void
+  buttonSize?: number
+  onPulseFrame?(): void
   settings(): VoiceInputHudSettings
   onFullStop(): void
   onAddPhrase(groupId: VoiceInputHudPhraseGroupId, phrase: string): void
@@ -91,7 +94,7 @@ const VOICE_HUD_LONG_PRESS_MS = 450
 const SOUND_PULSE_MS = 680
 const COMPACT_W = 128
 const COMPACT_H = 128
-const BUTTON_SIZE = 58
+const DEFAULT_BUTTON_SIZE = 58
 const SETTINGS_W = 460
 const SETTINGS_H = 760
 type VoiceInputHudTab = "general" | VoiceInputHudPhraseGroupId | "debug"
@@ -136,60 +139,23 @@ export class VoiceInputHud extends UiSurface {
   flashSoundIndicator(): void {
     this.#soundPulseStartedAt = performance.now()
     this.#scheduleSoundPulseFrame()
+    this.options.onPulseFrame?.()
     this.requestRender()
   }
 
+  soundPulseAmount(): number {
+    return this.#soundPulseAmount()
+  }
+
   protected render(): void {
-    const status = this.#snapshot.status
-    const error = status === "error" || this.#snapshot.serviceState === "down"
+    const buttonSize = this.#buttonSize()
     const buttonRect = this.#buttonRect()
-    const buttonX = buttonRect.x
-    const buttonY = buttonRect.y
-    const centerX = buttonX + buttonRect.w / 2
-    const centerY = buttonY + buttonRect.h / 2
-    const active = status === "listening" || status === "committing"
-    const waiting = status === "waitingWake"
-    const connecting = status === "connecting" || status === "committing"
-    const soundPulse = this.#soundPulseAmount()
-    const iconColor = error
-      ? palette.red
-      : connecting
-        ? palette.orange
-        : active
-          ? palette.cyan
-          : soundPulse > 0
-            ? mixColor(palette.cyan, palette.text, 0.28)
-            : waiting
-              ? fade(palette.cyan, 0.68)
-              : palette.muted
     if (this.#settingsOpen) this.#drawSettingsMenu()
-
-    if (active || waiting) {
-      this.#drawRadialMeter(
-        centerX,
-        centerY,
-        waiting ? BUTTON_SIZE / 2 - 11 : BUTTON_SIZE / 2 + 7,
-        active ? 18 : 0,
-      )
-    }
-    if (soundPulse > 0) this.#drawSoundPulse(centerX, centerY, BUTTON_SIZE, soundPulse)
-
-    button(this, buttonX, buttonY, buttonRect.w, buttonRect.h, {
+    ButtonVoice(this, buttonRect.x, buttonRect.y, buttonSize, {
       key: "voice-input-hud-toggle",
+      snapshot: this.#snapshot,
+      soundPulse: this.#soundPulseAmount(),
       onClick: () => this.#toggleFromClick(),
-      style: (state) => ({
-        background: state === "hover" ? "rgba(18, 28, 42, 0.82)" : "rgba(10, 16, 24, 0.72)",
-        borderColor: error ? "red" : connecting ? "orange" : active ? "cyan" : waiting ? "border" : "borderDim",
-        borderRadius: BUTTON_SIZE / 2,
-        borderWidth: active || connecting || error ? 1.2 : 1,
-        glassTint: active || soundPulse > 0 ? "cyan" : null,
-        glassTintOpacity: active ? 0.08 : soundPulse > 0 ? 0.06 * soundPulse : 0,
-        zIndex: 0.3,
-      }),
-      children: (state) => drawIconCentered(this, micIcon(iconColor), centerX, centerY, 22, {
-        opacity: state === "hover" || active || soundPulse > 0 ? 0.96 : waiting || connecting ? 0.84 : 0.72,
-        z: 0.55,
-      }),
     })
   }
 
@@ -351,21 +317,27 @@ export class VoiceInputHud extends UiSurface {
   }
 
   #buttonRect(): UiSurfaceRect {
+    const buttonSize = this.#buttonSize()
     const center = this.#buttonCenterForRect(this.rectW, this.rectH, this.#settingsOpen)
     return {
-      x: clampNumber(center.x - BUTTON_SIZE / 2, 0, Math.max(0, this.rectW - BUTTON_SIZE)),
-      y: clampNumber(center.y - BUTTON_SIZE / 2, 0, Math.max(0, this.rectH - BUTTON_SIZE)),
-      w: BUTTON_SIZE,
-      h: BUTTON_SIZE,
+      x: clampNumber(center.x - buttonSize / 2, 0, Math.max(0, this.rectW - buttonSize)),
+      y: clampNumber(center.y - buttonSize / 2, 0, Math.max(0, this.rectH - buttonSize)),
+      w: buttonSize,
+      h: buttonSize,
     }
   }
 
   #buttonCenterForRect(w: number, h: number, settingsOpen: boolean): {x: number; y: number} {
-    if (!settingsOpen) return {x: Math.max(BUTTON_SIZE / 2, w / 2), y: Math.max(BUTTON_SIZE / 2, h / 2)}
+    const buttonSize = this.#buttonSize()
+    if (!settingsOpen) return {x: Math.max(buttonSize / 2, w / 2), y: Math.max(buttonSize / 2, h / 2)}
     return {
-      x: Math.max(BUTTON_SIZE / 2, w - COMPACT_W / 2),
-      y: Math.max(BUTTON_SIZE / 2, h - COMPACT_H / 2),
+      x: Math.max(buttonSize / 2, w - COMPACT_W / 2),
+      y: Math.max(buttonSize / 2, h - COMPACT_H / 2),
     }
+  }
+
+  #buttonSize(): number {
+    return clampNumber(this.options.buttonSize ?? DEFAULT_BUTTON_SIZE, 28, 72)
   }
 
   #settingsMenuRect(): UiSurfaceRect {
@@ -1052,32 +1024,13 @@ export class VoiceInputHud extends UiSurface {
       this.#soundPulseRaf = null
       if (this.#soundPulseAmount() <= 0) {
         this.#soundPulseStartedAt = 0
+        this.options.onPulseFrame?.()
         this.requestRender()
         return
       }
+      this.options.onPulseFrame?.()
       this.requestRender()
       this.#scheduleSoundPulseFrame()
-    })
-  }
-
-  #drawSoundPulse(cx: number, cy: number, buttonSize: number, amount: number): void {
-    const progress = 1 - amount
-    const ringSize = buttonSize + 8 + progress * 20
-    const alpha = amount * amount
-    this.drawRoundedRect(cx - ringSize / 2, cy - ringSize / 2, ringSize, ringSize, {
-      radius: ringSize / 2,
-      fill: fade(palette.cyan, 0.045 * alpha),
-      border: fade(palette.cyan, 0.58 * alpha),
-      borderWidth: 1.4,
-      opacity: 1,
-      z: 0.24,
-    })
-    const innerSize = buttonSize - 6
-    this.drawRoundedRect(cx - innerSize / 2, cy - innerSize / 2, innerSize, innerSize, {
-      radius: innerSize / 2,
-      fill: fade(palette.cyan, 0.065 * alpha),
-      border: null,
-      z: 0.26,
     })
   }
 
@@ -1087,60 +1040,10 @@ export class VoiceInputHud extends UiSurface {
     const rect = canvas.getBoundingClientRect()
     return {x: event.clientX - rect.left, y: event.clientY - rect.top}
   }
-
-  #drawRadialMeter(cx: number, cy: number, radius: number, maxBar: number): void {
-    const count = 24
-    const level = Math.max(0, Math.min(1, this.#snapshot.level))
-    for (let index = 0; index < count; index += 1) {
-      const threshold = (index + 1) / count
-      const phase = (index / count) * Math.PI * 2
-      const peak = 0.55 + 0.45 * Math.sin(phase * 3 + level * Math.PI)
-      const amount = Math.max(0.16, Math.min(1, level * (0.55 + peak * 0.65)))
-      const inner = radius
-      const outer = radius + 5 + amount * maxBar
-      const x0 = cx + Math.cos(phase) * inner
-      const y0 = cy + Math.sin(phase) * inner
-      const x1 = cx + Math.cos(phase) * outer
-      const y1 = cy + Math.sin(phase) * outer
-      const color = level >= threshold * 0.78 ? fade(palette.cyan, 0.82) : fade(palette.borderDim, 0.72)
-      this.drawRoundedLine(x0, y0, x1, y1, color, 3, 0.2)
-    }
-  }
-}
-
-const micIconCache = new Map<string, string>()
-
-function micIcon(color: Color): string {
-  const key = `${color.r}:${color.g}:${color.b}:${color.a}`
-  const cached = micIconCache.get(key)
-  if (cached !== undefined) return cached
-  const source = `<svg width="1200" height="1200" viewBox="0 0 1200 1200" xmlns="http://www.w3.org/2000/svg"><g fill="none" stroke="${svgHex(color)}" stroke-opacity="${roundAlpha(color.a)}" stroke-width="84" stroke-linecap="round" stroke-linejoin="round"><rect x="430" y="135" width="340" height="560" rx="170"/><path d="M260 520c0 188 152 340 340 340s340-152 340-340"/><path d="M600 860v205"/><path d="M430 1065h340"/></g></svg>`
-  const icon = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(source)}`
-  micIconCache.set(key, icon)
-  return icon
-}
-
-function svgHex(color: Color): string {
-  const channel = (value: number): string => Math.round(Math.max(0, Math.min(1, value)) * 255).toString(16).padStart(2, "0")
-  return `#${channel(color.r)}${channel(color.g)}${channel(color.b)}`
-}
-
-function roundAlpha(value: number): number {
-  return Math.round(Math.max(0, Math.min(1, value)) * 1000) / 1000
 }
 
 function fade(color: Color, opacity: number): Color {
   return new Color(color.r, color.g, color.b, Math.max(0, Math.min(1, color.a * opacity)))
-}
-
-function mixColor(a: Color, b: Color, t: number): Color {
-  const k = Math.max(0, Math.min(1, t))
-  return new Color(
-    a.r + (b.r - a.r) * k,
-    a.g + (b.g - a.g) * k,
-    a.b + (b.b - a.b) * k,
-    a.a + (b.a - a.a) * k,
-  )
 }
 
 function pointInRect(x: number, y: number, rect: UiSurfaceRect): boolean {
