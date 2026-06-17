@@ -81,8 +81,8 @@ function rebuildLayout(): void {
   } else {
     tmux(["-f", METAFOR_TMUX_CONFIG_PATH, "new-session", "-d", "-s", session, "-n", windowName, "-c", cwd])
   }
-  tmux(["split-window", "-h", "-t", targetPane("tls"), "-c", cwd])
-  tmux(["select-layout", "-t", targetWindow(), "even-horizontal"])
+  tmux(["split-window", "-v", "-t", targetPane("tls"), "-c", cwd])
+  tmux(["select-layout", "-t", targetWindow(), "even-vertical"])
   titlePane("tls", "app-web tls")
   titlePane("redirect", "http redirect")
 }
