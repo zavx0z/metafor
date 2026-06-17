@@ -62,6 +62,7 @@ import {
 	type VoiceInputSegment,
 	type VoiceInputSignalTone,
 	type VoiceInputStatus,
+	type VoiceInputTransport,
 } from "../../pkg/interpreter/web/voice-input.ts"
 import {
 	APP_WEB_LAYOUT_SETTING_KEYS,
@@ -73,6 +74,7 @@ import {
 } from "./settings.ts"
 import {createAndroidRtcClient, type AndroidRtcClient, type AndroidRtcCommand} from "./android-rtc.ts"
 import {DEFAULT_APP_WEB_SCENE_SRC} from "./app-config.ts"
+import {createVoiceRtcAsrSocket} from "./voice-rtc.ts"
 
 export type AppWebHudSettingsSnapshot = {
 	layoutSettings: Partial<AppWebLayoutSettings>
@@ -388,6 +390,7 @@ class AppWebHud implements AppWebHudController {
 	#fullscreen = document.fullscreenElement !== null
 	#voiceClient: VoiceInputClient | null = null
 	#voiceStatus: VoiceInputStatus = "idle"
+	#voiceTransport: VoiceInputTransport = "idle"
 	#voiceDetail = ""
 	#voiceLevel = 0
 	#voiceServiceState: VoiceInputHudServiceState = "unknown"
@@ -604,6 +607,10 @@ class AppWebHud implements AppWebHudController {
 
 	voiceSoundPulse(): number {
 		return this.#voiceHud.soundPulseAmount()
+	}
+
+	voiceTransport(): VoiceInputTransport {
+		return this.#voiceTransport
 	}
 
 	toggleVoiceInput(): void {
@@ -1875,6 +1882,8 @@ class AppWebHud implements AppWebHudController {
 			recognitionTimeoutMs: () => readVoiceRecognitionTimeoutSeconds() * 1000,
 			language: "ru",
 			context: () => voiceContextWithTerminal(this.#terminal.pane.toText()),
+			createAsrSocket: createVoiceRtcAsrSocket,
+			onTransport: (transport) => this.#handleVoiceTransport(transport),
 			onStatus: (status, detail) => this.#handleVoiceStatus(status, detail),
 			onWake: (text) => {
 				const cleaned = cleanupVoiceInputText(text)
@@ -1973,6 +1982,13 @@ class AppWebHud implements AppWebHudController {
 		}
 		this.#updateVoiceHud()
 		if (voiceSignal !== null) this.#playVoiceSignal(voiceSignal)
+	}
+
+	#handleVoiceTransport(transport: VoiceInputTransport): void {
+		if (this.#voiceTransport === transport) return
+		this.#voiceTransport = transport
+		this.#codexComposer.requestRender()
+		this.#voiceHud.requestRender()
 	}
 
 	#flashVoiceHudError(detail: string): void {
@@ -2519,6 +2535,8 @@ class AppWebCodexComposerPane extends UiSurface {
 		const dockButtonX = w - PANE_FRAME.headerTextX - buttonSize
 		const voiceButtonX = dockButtonX - gap - buttonSize
 		const sendButtonX = voiceButtonX - gap - buttonSize
+		const transportW = 58
+		const transportX = sendButtonX - gap - transportW
 		const statusX = PANE_FRAME.headerTextX + 112
 		this.drawText("Codex message", PANE_FRAME.headerTextX, PANE_FRAME.headerTextY, {
 			fontPx: 12,
@@ -2529,9 +2547,10 @@ class AppWebCodexComposerPane extends UiSurface {
 		this.drawText(this.hud.codexComposerStatus(), statusX, PANE_FRAME.headerTextY + 1, {
 			fontPx: 10,
 			material: this.materials.muted,
-			maxWidthPx: Math.max(1, sendButtonX - statusX - 10),
+			maxWidthPx: Math.max(1, transportX - statusX - 10),
 			z: Z.TEXT,
 		})
+		this.#drawTransportIndicator(transportX, 7, transportW, buttonSize - 2)
 		const canSubmit = this.hud.codexComposerReady() && codexComposerMessage(this.hud.codexDraft(), this.hud.codexAttachments()).length > 0
 		IconButton(this, sendButtonX, 6, buttonSize, buttonSize, {
 			label: "Отправить",
@@ -2557,6 +2576,36 @@ class AppWebCodexComposerPane extends UiSurface {
 		})
 		const rule = paneHeaderRuleRect(w, PANE_FRAME.headerHeight, PANE_FRAME.bodyInsetX)
 		this.drawRect(rule.x, rule.y, rule.w, rule.h, palette.borderDim, Z.SEPARATOR)
+	}
+
+	#drawTransportIndicator(x: number, y: number, w: number, h: number): void {
+		const transport = this.hud.voiceTransport()
+		const wsW = 24
+		this.#drawTransportSegment("WS", x, y, wsW, h, transport === "ws", transport === "connecting", false)
+		this.#drawTransportSegment("P2P", x + wsW + 3, y, Math.max(1, w - wsW - 3), h, transport === "p2p", transport === "connecting", true)
+	}
+
+	#drawTransportSegment(label: string, x: number, y: number, w: number, h: number, active: boolean, connecting: boolean, p2p: boolean): void {
+		const fill = active
+			? p2p ? new Color(0.04, 0.16, 0.12, 0.78) : new Color(0.05, 0.11, 0.16, 0.74)
+			: new Color(0.05, 0.06, 0.08, 0.42)
+		const border = active
+			? p2p ? palette.green : palette.cyan
+			: connecting ? palette.borderDim : null
+		this.drawRoundedRect(x, y, w, h, {
+			radius: 5,
+			fill,
+			border,
+			borderWidth: active ? 1 : 0.7,
+			z: Z.ELEMENT,
+		})
+		const textW = this.measureText(label, 8)
+		this.drawText(label, x + Math.max(2, (w - textW) / 2), y + 4, {
+			fontPx: 8,
+			material: active ? p2p ? this.materials.green : this.materials.cyan : this.materials.muted,
+			maxWidthPx: w - 4,
+			z: Z.TEXT,
+		})
 	}
 
 	#drawFooter(x: number, y: number, w: number, maxY: number): void {

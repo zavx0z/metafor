@@ -15,6 +15,7 @@ export type VoiceInputChunk = {
 export type VoiceInputSignalTone = "activation" | "deactivation" | "stop"
 export type VoiceInputPhraseGroupId = "activation" | "deactivation" | "stop"
 export type VoiceDeactivationMode = "phrase" | "timeout" | "phrase-timeout"
+export type VoiceInputTransport = "idle" | "connecting" | "ws" | "p2p"
 
 type VoiceInputClientOptions = {
   url(): string
@@ -27,12 +28,31 @@ type VoiceInputClientOptions = {
   recognitionTimeoutMs(): number
   language: string
   context(): string
+  createAsrSocket?: (url: string, context: VoiceInputAsrSocketContext) => VoiceInputSocket | null
+  onTransport?(transport: VoiceInputTransport): void
   onStatus(status: VoiceInputStatus, detail?: string): void
   onWake(text: string): void
   onCommandText(text: string): void
   onPartial(text: string): void
   onChunk(chunk: VoiceInputChunk): void
   onLevel(level: number): void
+}
+
+export type VoiceInputAsrSocketContext = {
+  stream: MediaStream
+  sampleRate: number
+  language: string
+  context: string
+  onTransport(transport: VoiceInputTransport): void
+}
+
+export type VoiceInputSocket = {
+  readonly readyState: number
+  readonly url: string
+  binaryType: BinaryType
+  addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void
+  close(): void
+  send(data: string | ArrayBuffer | Blob | ArrayBufferView<ArrayBuffer>): void
 }
 
 type AsrMessage = {
@@ -122,7 +142,8 @@ export type VoiceInputDeliveryState = {
 
 export class VoiceInputClient {
   #commandWs: WebSocket | null = null
-  #asrWs: WebSocket | null = null
+  #asrWs: VoiceInputSocket | null = null
+  #asrTransport: VoiceInputTransport = "idle"
   #stream: MediaStream | null = null
   #audioContext: AudioContext | null = null
   #sourceNode: MediaStreamAudioSourceNode | null = null
@@ -337,14 +358,23 @@ export class VoiceInputClient {
   async #connectAsr(url: string): Promise<void> {
     if (this.#asrWs?.readyState === WebSocket.OPEN) return
 
-    const ws = new WebSocket(url)
+    const context = this.options.context().trim()
+    this.#setTransport("connecting")
+    const ws = this.options.createAsrSocket?.(url, {
+      stream: this.#stream ?? new MediaStream(),
+      sampleRate: this.#audioContext?.sampleRate ?? TARGET_SAMPLE_RATE,
+      language: this.options.language,
+      context,
+      onTransport: (transport) => this.#setTransport(transport),
+    }) ?? new WebSocket(url)
     ws.binaryType = "arraybuffer"
     this.#asrWs = ws
 
-    ws.addEventListener("message", (event) => this.#handleAsrMessage(event))
+    ws.addEventListener("message", (event) => this.#handleAsrMessage(event as MessageEvent<unknown>))
     ws.addEventListener("close", () => {
       if (this.#asrWs !== ws) return
       this.#asrWs = null
+      this.#setTransport("idle")
       this.#asrEnabled = false
       this.#asrActivatedAt = 0
       if (this.#stopRequested || this.#status === "idle") return
@@ -352,7 +382,10 @@ export class VoiceInputClient {
     })
 
     await new Promise<void>((resolve, reject) => {
-      ws.addEventListener("open", () => resolve(), {once: true})
+      ws.addEventListener("open", () => {
+        if (this.#asrTransport === "connecting") this.#setTransport(ws instanceof WebSocket ? "ws" : "p2p")
+        resolve()
+      }, {once: true})
       ws.addEventListener("error", () => reject(new Error(`voice ASR websocket failed: ${url}`)), {once: true})
     })
   }
@@ -809,7 +842,14 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     if (this.#asrWs === null) return
     const ws = this.#asrWs
     this.#asrWs = null
+    this.#setTransport("idle")
     if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) ws.close()
+  }
+
+  #setTransport(transport: VoiceInputTransport): void {
+    if (this.#asrTransport === transport) return
+    this.#asrTransport = transport
+    this.options.onTransport?.(transport)
   }
 
   #recoverAsrFailure(error: unknown): void {
