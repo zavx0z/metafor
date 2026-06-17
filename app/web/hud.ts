@@ -423,6 +423,9 @@ class AppWebHud implements AppWebHudController {
 	#voiceAutoSendText = ""
 	#voiceNextFlushMode: "auto" | "draft" = "auto"
 	#voicePartialPreviewText = ""
+	#voiceComposerBaseDraft: string | null = null
+	#voiceComposerGeneratedDraft = ""
+	#voiceComposerEdited = false
 	#codexDraft = ""
 	#codexAttachments: CodexComposerAttachment[] = []
 	#codexDropActive = false
@@ -589,7 +592,6 @@ class AppWebHud implements AppWebHudController {
 
 	codexComposerStatus(): string {
 		if (this.#codexComposerStatus) return this.#codexComposerStatus
-		if (this.#voicePartialPreviewText) return this.#voicePartialPreviewText
 		if (this.#voiceStatus === "listening" || this.#voiceStatus === "committing") return voiceStatusLine(this.#voiceStatus)
 		if (this.#terminal.socket?.readyState !== WebSocket.OPEN) return "Codex terminal не подключен"
 		return this.#terminal.statusLabel
@@ -601,6 +603,9 @@ class AppWebHud implements AppWebHudController {
 
 	setCodexDraft(value: string): void {
 		if (this.#codexDraft === value) return
+		if (this.#voiceComposerBaseDraft !== null && value !== this.#voiceComposerGeneratedDraft) {
+			this.#voiceComposerEdited = true
+		}
 		this.#codexDraft = value
 		this.#codexComposer.requestRender()
 	}
@@ -620,7 +625,10 @@ class AppWebHud implements AppWebHudController {
 			? `\x1b[200~${message}\x1b[201~\r`
 			: `${message}\r`
 		this.#clearVoicePartialPreview()
+		this.#discardVoiceAutoSendBuffer()
+		this.#voiceNextFlushMode = "auto"
 		this.#sendTerminalInput(payload, "api", message)
+		this.#resetVoiceComposerDraftTracking()
 		this.#codexDraft = ""
 		this.#codexAttachments = []
 		this.#setCodexComposerStatus("отправлено")
@@ -1420,11 +1428,43 @@ class AppWebHud implements AppWebHudController {
 		const body = sanitizeCodexTerminalVoiceInput(text)
 		if (body.length === 0) return false
 		this.#clearVoicePartialPreview()
-		this.#codexDraft = mergeCodexComposerDraft(this.#codexDraft, body)
+		this.#applyVoiceComposerText(body)
 		this.#setCodexComposerStatus("голос добавлен в поле")
 		if (opts.focusComposer) this.#focusCodexComposer()
+		this.#resetVoiceComposerDraftTracking()
 		this.#codexComposer.requestRender()
 		return true
+	}
+
+	#applyVoiceComposerText(text: string): boolean {
+		const body = sanitizeCodexTerminalVoiceInput(text)
+		if (body.length === 0) return false
+		if (this.#voiceComposerBaseDraft === null) {
+			this.#voiceComposerBaseDraft = this.#codexDraft
+			this.#voiceComposerGeneratedDraft = this.#codexDraft
+		}
+		if (this.#voiceComposerEdited) return true
+		const nextDraft = mergeCodexComposerDraft(this.#voiceComposerBaseDraft, body)
+		this.#voiceComposerGeneratedDraft = nextDraft
+		if (this.#codexDraft === nextDraft) return true
+		this.#codexDraft = nextDraft
+		this.#codexComposer.requestRender()
+		return true
+	}
+
+	#restoreVoiceComposerBaseDraft(): void {
+		if (this.#voiceComposerBaseDraft === null) return
+		if (!this.#voiceComposerEdited && this.#codexDraft === this.#voiceComposerGeneratedDraft) {
+			this.#codexDraft = this.#voiceComposerBaseDraft
+			this.#codexComposer.requestRender()
+		}
+		this.#resetVoiceComposerDraftTracking()
+	}
+
+	#resetVoiceComposerDraftTracking(): void {
+		this.#voiceComposerBaseDraft = null
+		this.#voiceComposerGeneratedDraft = ""
+		this.#voiceComposerEdited = false
 	}
 
 	#tryTerminalLocalEcho(data: string, source: TerminalInputSource): boolean {
@@ -2010,6 +2050,7 @@ class AppWebHud implements AppWebHudController {
 		this.#voiceLastPartialAt = new Date()
 		const preview = mergeVoiceInputText(this.#voiceAutoSendText, text)
 		this.#voicePartialPreviewText = preview
+		this.#applyVoiceComposerText(preview)
 		this.#codexComposer.requestRender()
 		this.#updateVoiceHud("listening", preview)
 	}
@@ -2146,6 +2187,7 @@ class AppWebHud implements AppWebHudController {
 		if (text.length === 0) return false
 		this.#voiceAutoSendText = mergeVoiceInputText(this.#voiceAutoSendText, text)
 		this.#voicePartialPreviewText = this.#voiceAutoSendText
+		this.#applyVoiceComposerText(this.#voiceAutoSendText)
 		this.#codexComposer.requestRender()
 		return true
 	}
@@ -2157,9 +2199,14 @@ class AppWebHud implements AppWebHudController {
 		this.#voiceNextFlushMode = "auto"
 		if (text.length === 0) return false
 		const autoSendEnabled = readVoiceAutoSendEnabled()
-		const handled = mode !== "draft" && autoSendEnabled
-			? this.#sendVoiceSubmit(text)
-			: this.#stageVoiceDraft(text, {focusComposer: !autoSendEnabled})
+		const voiceComposerEdited = this.#voiceComposerEdited
+		let handled: boolean
+		if (mode !== "draft" && autoSendEnabled && !voiceComposerEdited) {
+			this.#restoreVoiceComposerBaseDraft()
+			handled = this.#sendVoiceSubmit(text)
+		} else {
+			handled = this.#stageVoiceDraft(text, {focusComposer: !autoSendEnabled})
+		}
 		if (handled) this.#clearVoicePartialPreview()
 		return handled
 	}
@@ -2584,9 +2631,14 @@ class AppWebCodexComposerPane extends UiSurface {
 	#syncEditState(): void {
 		const value = this.hud.codexDraft()
 		if (this.#editState.value === value) return
+		const previousValue = this.#editState.value
+		const cursorWasAtEnd = this.#editState.cursor === previousValue.length
+		const nextCursor = cursorWasAtEnd && value.startsWith(previousValue)
+			? value.length
+			: Math.min(value.length, this.#editState.cursor)
 		this.#editState = {
 			value,
-			cursor: Math.min(value.length, this.#editState.cursor),
+			cursor: nextCursor,
 			selectionAnchor: null,
 		}
 	}
