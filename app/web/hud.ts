@@ -1416,13 +1416,13 @@ class AppWebHud implements AppWebHudController {
 		this.#voiceAutoEnterAt = new Date()
 	}
 
-	#stageVoiceDraft(text: string): boolean {
+	#stageVoiceDraft(text: string, opts: {focusComposer?: boolean} = {}): boolean {
 		const body = sanitizeCodexTerminalVoiceInput(text)
 		if (body.length === 0) return false
 		this.#clearVoicePartialPreview()
 		this.#codexDraft = mergeCodexComposerDraft(this.#codexDraft, body)
 		this.#setCodexComposerStatus("голос добавлен в поле")
-		this.#focusCodexComposer()
+		if (opts.focusComposer) this.#focusCodexComposer()
 		this.#codexComposer.requestRender()
 		return true
 	}
@@ -1809,7 +1809,6 @@ class AppWebHud implements AppWebHudController {
 				}
 				else {
 					this.#voiceAutoWakePaused = false
-					this.#voiceNextFlushMode = "draft"
 					await client.sleepToWake()
 				}
 				return
@@ -2157,9 +2156,10 @@ class AppWebHud implements AppWebHudController {
 		this.#voiceAutoSendText = ""
 		this.#voiceNextFlushMode = "auto"
 		if (text.length === 0) return false
-		const handled = mode !== "draft" && readVoiceAutoSendEnabled()
+		const autoSendEnabled = readVoiceAutoSendEnabled()
+		const handled = mode !== "draft" && autoSendEnabled
 			? this.#sendVoiceSubmit(text)
-			: this.#stageVoiceDraft(text)
+			: this.#stageVoiceDraft(text, {focusComposer: !autoSendEnabled})
 		if (handled) this.#clearVoicePartialPreview()
 		return handled
 	}
@@ -2179,7 +2179,7 @@ class AppWebHud implements AppWebHudController {
 		const text = cleanupVoiceInputText(this.#voicePartialPreviewText)
 		if (text.length === 0) return false
 		this.#discardVoiceAutoSendBuffer()
-		return this.#stageVoiceDraft(text)
+		return this.#stageVoiceDraft(text, {focusComposer: false})
 	}
 
 	async #startVoiceWake(reportErrors: boolean): Promise<boolean> {
