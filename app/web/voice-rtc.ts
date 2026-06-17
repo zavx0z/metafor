@@ -1,5 +1,22 @@
 import type {VoiceInputAsrSocketContext, VoiceInputSocket} from "../../pkg/interpreter/web/voice-input.ts"
 
+export type VoiceRtcDebugSnapshot = {
+	state: string
+	appPeerId: string
+	relayPeerId: string
+	sampleRate: number
+	localAudioBytes: number
+	localAudioRms: number
+	relayAudioBytes: number
+	relayAudioRms: number
+	asrMessages: number
+	asrTextMessages: number
+	lastAsrType: string
+	lastAsrText: string
+	fallbackReason: string
+	updatedAt: number
+}
+
 type VoiceRtcSignal =
 	| {type: "hello"; room: string; peerId: string; peers: string[]}
 	| {type: "peer-joined"; peerId: string}
@@ -30,6 +47,10 @@ type VoiceRtcRelayPeer = {
 	commitPending: boolean
 	audioStarted: boolean
 	audioBytes: number
+	audioRms: number
+	lastAudioStatusAt: number
+	asrMessages: number
+	asrTextMessages: number
 }
 
 const VOICE_RTC_ROOM = "app-web-voice"
@@ -45,6 +66,35 @@ const MAX_QUEUED_PCM_BYTES = 8 * 1024 * 1024
 const MAX_PENDING_FALLBACK_PCM_BYTES = 3 * 1024 * 1024
 
 let relay: VoiceRtcRelay | null = null
+let voiceRtcDebug: VoiceRtcDebugSnapshot = {
+	state: "idle",
+	appPeerId: "",
+	relayPeerId: "",
+	sampleRate: 0,
+	localAudioBytes: 0,
+	localAudioRms: 0,
+	relayAudioBytes: 0,
+	relayAudioRms: 0,
+	asrMessages: 0,
+	asrTextMessages: 0,
+	lastAsrType: "",
+	lastAsrText: "",
+	fallbackReason: "",
+	updatedAt: 0,
+}
+const voiceRtcDebugListeners = new Set<() => void>()
+
+export function readVoiceRtcDebugSnapshot(): VoiceRtcDebugSnapshot {
+	return {...voiceRtcDebug}
+}
+
+export function onVoiceRtcDebug(listener: () => void): () => void {
+	voiceRtcDebugListeners.add(listener)
+	return () => voiceRtcDebugListeners.delete(listener)
+}
+
+type VoiceRtcDebugGlobal = typeof globalThis & {__metaVoiceRtcDebug?: () => VoiceRtcDebugSnapshot}
+;(globalThis as VoiceRtcDebugGlobal).__metaVoiceRtcDebug = readVoiceRtcDebugSnapshot
 
 export function createVoiceRtcAsrSocket(url: string, context: VoiceInputAsrSocketContext): VoiceInputSocket | null {
 	if (typeof RTCPeerConnection === "undefined" || typeof WebSocket === "undefined") return null
@@ -77,12 +127,20 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 	#pendingFallbackControls: string[] = []
 	#pendingFallbackPcm: ArrayBuffer[] = []
 	#pendingFallbackPcmBytes = 0
+	#localAudioBytes = 0
+	#lastLocalAudioStatusAt = 0
 
 	constructor(url: string, context: VoiceInputAsrSocketContext) {
 		super()
 		this.url = url
 		this.#context = context
-		this.#connectTimer = window.setTimeout(() => this.#startFallback(), VOICE_RTC_CONNECT_TIMEOUT_MS)
+		updateVoiceRtcDebug({
+			state: "connecting",
+			appPeerId: this.#peerId,
+			sampleRate: context.sampleRate,
+			fallbackReason: "",
+		})
+		this.#connectTimer = window.setTimeout(() => this.#startFallback("signaling timeout"), VOICE_RTC_CONNECT_TIMEOUT_MS)
 		this.#connect()
 	}
 
@@ -125,9 +183,13 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 		}
 		if (this.#channel?.readyState !== "open") return
 		const payload = safeJsonParse(data)
-		if (asJsonRecord(payload)?.["type"] === "start") {
+		const payloadType = asJsonRecord(payload)?.["type"]
+		if (payloadType === "start") {
 			this.#lastStartPayload = data
 			this.#startMediaTimer()
+		} else if (payloadType === "commit") {
+			this.#pendingFallbackControls.push(data)
+			this.#startAsrTextTimer("ASR text timeout after commit")
 		} else {
 			this.#pendingFallbackControls.push(data)
 		}
@@ -147,15 +209,16 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 			if (signal === null) return
 			void this.#handleSignal(signal)
 		})
-		signalSocket.addEventListener("error", () => this.#startFallback())
+		signalSocket.addEventListener("error", () => this.#startFallback("signaling error"))
 		signalSocket.addEventListener("close", () => {
-			if (this.#readyState !== WebSocket.OPEN) this.#startFallback()
+			if (this.#readyState !== WebSocket.OPEN) this.#startFallback("signaling closed")
 		})
 	}
 
 	async #handleSignal(signal: VoiceRtcSignal): Promise<void> {
 		if (signal.type === "hello") {
 			this.#peerId = signal.peerId
+			updateVoiceRtcDebug({appPeerId: signal.peerId, state: "signaling"})
 			for (const peerId of signal.peers) {
 				if (isVoiceRelayPeer(peerId)) await this.#createPeer(peerId, true)
 			}
@@ -166,7 +229,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 			return
 		}
 		if (signal.type === "peer-left") {
-			if (signal.peerId === this.#remotePeerId) this.#startFallback()
+			if (signal.peerId === this.#remotePeerId) this.#startFallback("relay left")
 			return
 		}
 		if (signal.from === this.#peerId) return
@@ -189,6 +252,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 	async #createPeer(remotePeerId: string, initiator: boolean): Promise<RTCPeerConnection> {
 		if (this.#connection !== null) return this.#connection
 		this.#remotePeerId = remotePeerId
+		updateVoiceRtcDebug({relayPeerId: remotePeerId, state: "peer"})
 		const connection = new RTCPeerConnection({iceServers: []})
 		this.#connection = connection
 		for (const track of this.#context.stream.getAudioTracks()) connection.addTrack(track, this.#context.stream)
@@ -197,7 +261,8 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 			this.#sendSignal({type: "ice", to: remotePeerId, candidate: event.candidate.toJSON()})
 		})
 		connection.addEventListener("connectionstatechange", () => {
-			if (connection.connectionState === "failed" || connection.connectionState === "closed") this.#startFallback()
+			updateVoiceRtcDebug({state: `rtc ${connection.connectionState}`})
+			if (connection.connectionState === "failed" || connection.connectionState === "closed") this.#startFallback(`rtc ${connection.connectionState}`)
 		})
 		connection.addEventListener("datachannel", (event) => this.#attachChannel(event.channel))
 		if (initiator) {
@@ -214,6 +279,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 		channel.addEventListener("open", () => {
 			this.#clearConnectTimer()
 			this.#readyState = WebSocket.OPEN
+			updateVoiceRtcDebug({state: "datachannel open"})
 			channel.send(JSON.stringify({
 				type: "hello",
 				peerId: this.#peerId,
@@ -232,14 +298,15 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 			}
 			this.dispatchEvent(new MessageEvent("message", {data: event.data}))
 		})
-		channel.addEventListener("error", () => this.#startFallback())
+		channel.addEventListener("error", () => this.#startFallback("datachannel error"))
 		channel.addEventListener("close", () => {
-			if (this.#fallbackWs === null && this.#readyState === WebSocket.OPEN) this.#startFallback()
+			if (this.#fallbackWs === null && this.#readyState === WebSocket.OPEN) this.#startFallback("datachannel closed")
 		})
 	}
 
-	#startFallback(): void {
+	#startFallback(reason = "fallback"): void {
 		if (this.#fallbackWs !== null || this.#readyState === WebSocket.CLOSING || this.#readyState === WebSocket.CLOSED) return
+		updateVoiceRtcDebug({state: "fallback", fallbackReason: reason})
 		this.#clearConnectTimer()
 		this.#clearMediaTimer()
 		this.#clearAsrTextTimer()
@@ -282,7 +349,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 
 	#startMediaTimer(): void {
 		this.#clearMediaTimer()
-		this.#mediaTimer = window.setTimeout(() => this.#startFallback(), VOICE_RTC_MEDIA_TIMEOUT_MS)
+		this.#mediaTimer = window.setTimeout(() => this.#startFallback("relay media timeout"), VOICE_RTC_MEDIA_TIMEOUT_MS)
 	}
 
 	#clearMediaTimer(): void {
@@ -291,9 +358,10 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 		this.#mediaTimer = null
 	}
 
-	#startAsrTextTimer(): void {
+	#startAsrTextTimer(reason = "ASR text timeout"): void {
 		this.#clearAsrTextTimer()
-		this.#asrTextTimer = window.setTimeout(() => this.#startFallback(), VOICE_RTC_ASR_TEXT_TIMEOUT_MS)
+		updateVoiceRtcDebug({fallbackReason: `waiting: ${reason}`})
+		this.#asrTextTimer = window.setTimeout(() => this.#startFallback(reason), VOICE_RTC_ASR_TEXT_TIMEOUT_MS)
 	}
 
 	#clearAsrTextTimer(): void {
@@ -305,21 +373,27 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 	#handleRelayStatus(raw: string): boolean {
 		const message = asJsonRecord(safeJsonParse(raw))
 		if (message?.["type"] !== "relay-status") return false
+		const state = stringValue(message["state"]) ?? "relay-status"
+		const sampleRate = numberValue(message["sampleRate"])
+		const bytes = numberValue(message["bytes"])
+		const rms = numberValue(message["rms"])
+		updateVoiceRtcDebug({
+			state,
+			...(sampleRate === undefined ? {} : {sampleRate}),
+			...(bytes === undefined ? {} : {relayAudioBytes: bytes}),
+			...(rms === undefined ? {} : {relayAudioRms: rms}),
+		})
 		if (message["state"] === "audio") {
 			this.#clearMediaTimer()
-			this.#startAsrTextTimer()
 			this.#context.onTransport("p2p")
 		}
 		return true
 	}
 
 	#bufferFallbackPcm(data: ArrayBuffer | Blob | ArrayBufferView<ArrayBuffer>): void {
-		const buffer = data instanceof ArrayBuffer
-			? data
-			: ArrayBuffer.isView(data)
-				? data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)
-				: null
+		const buffer = binaryDataToArrayBuffer(data)
 		if (buffer === null) return
+		this.#trackLocalPcm(buffer)
 		this.#pendingFallbackPcm.push(buffer)
 		this.#pendingFallbackPcmBytes += buffer.byteLength
 		while (this.#pendingFallbackPcmBytes > MAX_PENDING_FALLBACK_PCM_BYTES && this.#pendingFallbackPcm.length > 0) {
@@ -353,6 +427,18 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 		this.#pendingFallbackControls = []
 		this.#pendingFallbackPcm = []
 		this.#pendingFallbackPcmBytes = 0
+		updateVoiceRtcDebug({fallbackReason: "p2p text received"})
+	}
+
+	#trackLocalPcm(buffer: ArrayBuffer): void {
+		this.#localAudioBytes += buffer.byteLength
+		const now = performance.now()
+		if (now - this.#lastLocalAudioStatusAt < 500) return
+		this.#lastLocalAudioStatusAt = now
+		updateVoiceRtcDebug({
+			localAudioBytes: this.#localAudioBytes,
+			localAudioRms: pcm16Rms(buffer),
+		})
 	}
 }
 
@@ -445,6 +531,10 @@ class VoiceRtcRelay {
 			commitPending: false,
 			audioStarted: false,
 			audioBytes: 0,
+			audioRms: 0,
+			lastAudioStatusAt: 0,
+			asrMessages: 0,
+			asrTextMessages: 0,
 		}
 		this.#peers.set(remotePeerId, peer)
 
@@ -458,6 +548,7 @@ class VoiceRtcRelay {
 		connection.addEventListener("datachannel", (event) => this.#attachChannel(peer, event.channel))
 		connection.addEventListener("track", (event) => {
 			peer.audioStream = event.streams[0] ?? new MediaStream([event.track])
+			updateVoiceRtcDebug({state: "remote track", relayPeerId: remotePeerId})
 			void this.#startRelayCapture(peer)
 		})
 
@@ -517,18 +608,24 @@ class VoiceRtcRelay {
 		const ws = new WebSocket(url)
 		ws.binaryType = "arraybuffer"
 		peer.asrWs = ws
+		updateVoiceRtcDebug({state: "asr connecting", sampleRate: audioContext.sampleRate})
 		ws.addEventListener("message", (event) => {
 			if (typeof event.data !== "string") return
 			if (peer.channel?.readyState === "open") peer.channel.send(event.data)
+			this.#recordAsrMessage(peer, event.data)
 			const message = safeJsonParse(event.data)
 			if (asJsonRecord(message)?.["type"] === "committed") this.#finishCommit(peer)
 		})
 		ws.addEventListener("close", () => {
 			if (peer.asrWs !== ws) return
 			peer.asrWs = null
+			updateVoiceRtcDebug({state: "asr closed"})
 			this.#stopRelayCapture(peer)
 		})
-		ws.addEventListener("error", () => this.#sendRelayError(peer, "voice relay ASR websocket failed"))
+		ws.addEventListener("error", () => {
+			updateVoiceRtcDebug({state: "asr error", fallbackReason: "relay ASR websocket failed"})
+			this.#sendRelayError(peer, "voice relay ASR websocket failed")
+		})
 
 		try {
 			await new Promise<void>((resolve, reject) => {
@@ -584,7 +681,7 @@ class VoiceRtcRelay {
 		peer.captureNode.port.onmessage = (event: MessageEvent<unknown>) => {
 			const samples = event.data
 			if (!(samples instanceof Float32Array)) return
-			this.#enqueueOutboundPcm(peer, floatToPcm16(samples))
+			this.#enqueueOutboundPcm(peer, floatToPcm16(samples), rmsLevel(samples))
 		}
 		peer.sourceNode.connect(peer.captureNode)
 		peer.captureNode.connect(peer.sinkNode)
@@ -629,11 +726,28 @@ registerProcessor("voice-rtc-capture", VoiceRtcCaptureProcessor);
 		this.#flushOutboundPcm(peer)
 	}
 
-	#enqueueOutboundPcm(peer: VoiceRtcRelayPeer, pcm: ArrayBuffer): void {
+	#recordAsrMessage(peer: VoiceRtcRelayPeer, raw: string): void {
+		const type = asrMessageType(raw)
+		const text = asrMessageText(raw)
+		peer.asrMessages += 1
+		if (text.length > 0) peer.asrTextMessages += 1
+		updateVoiceRtcDebug({
+			state: `asr ${type || "message"}`,
+			asrMessages: peer.asrMessages,
+			asrTextMessages: peer.asrTextMessages,
+			lastAsrType: type,
+			lastAsrText: text,
+		})
+	}
+
+	#enqueueOutboundPcm(peer: VoiceRtcRelayPeer, pcm: ArrayBuffer, rms: number): void {
 		peer.audioBytes += pcm.byteLength
-		if (!peer.audioStarted) {
+		peer.audioRms = rms
+		const now = performance.now()
+		if (!peer.audioStarted || now - peer.lastAudioStatusAt >= 500) {
 			peer.audioStarted = true
-			this.#sendRelayStatus(peer, "audio", {bytes: peer.audioBytes})
+			peer.lastAudioStatusAt = now
+			this.#sendRelayStatus(peer, "audio", {bytes: peer.audioBytes, rms})
 		}
 		peer.outboundPcmChunks.push(pcm)
 		peer.outboundPcmBytes += pcm.byteLength
@@ -689,6 +803,16 @@ registerProcessor("voice-rtc-capture", VoiceRtcCaptureProcessor);
 	}
 
 	#sendRelayStatus(peer: VoiceRtcRelayPeer, state: string, payload: Record<string, unknown> = {}): void {
+		const sampleRate = numberValue(payload["sampleRate"])
+		const bytes = numberValue(payload["bytes"])
+		const rms = numberValue(payload["rms"])
+		updateVoiceRtcDebug({
+			state,
+			relayPeerId: peer.id,
+			...(sampleRate === undefined ? {} : {sampleRate}),
+			...(bytes === undefined ? {} : {relayAudioBytes: bytes}),
+			...(rms === undefined ? {} : {relayAudioRms: rms}),
+		})
 		if (peer.channel?.readyState !== "open") return
 		peer.channel.send(JSON.stringify({
 			type: "relay-status",
@@ -705,6 +829,10 @@ registerProcessor("voice-rtc-capture", VoiceRtcCaptureProcessor);
 		peer.queuedPcmAfterCommit = []
 		peer.audioStarted = false
 		peer.audioBytes = 0
+		peer.audioRms = 0
+		peer.lastAudioStatusAt = 0
+		peer.asrMessages = 0
+		peer.asrTextMessages = 0
 	}
 
 	#stopRelayCapture(peer: VoiceRtcRelayPeer): void {
@@ -808,15 +936,57 @@ function stringValue(value: unknown): string | undefined {
 	return typeof value === "string" ? value : undefined
 }
 
+function numberValue(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value) ? value : undefined
+}
+
+function updateVoiceRtcDebug(patch: Partial<VoiceRtcDebugSnapshot>): void {
+	voiceRtcDebug = {
+		...voiceRtcDebug,
+		...patch,
+		updatedAt: Date.now(),
+	}
+	for (const listener of voiceRtcDebugListeners) listener()
+}
+
+function binaryDataToArrayBuffer(data: ArrayBuffer | Blob | ArrayBufferView<ArrayBuffer>): ArrayBuffer | null {
+	if (data instanceof ArrayBuffer) return data
+	if (ArrayBuffer.isView(data)) return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)
+	return null
+}
+
+function asrMessageType(raw: string): string {
+	const message = asJsonRecord(safeJsonParse(raw))
+	const type = message?.["type"]
+	return typeof type === "string" ? type : ""
+}
+
+function asrMessageText(raw: string): string {
+	const message = asJsonRecord(safeJsonParse(raw))
+	if (message === null) return ""
+	const text = stringValue(message["text"])?.trim()
+	if (text) return text
+	const json = asJsonRecord(message["json"])
+	const jsonText = stringValue(json?.["text"])?.trim() || stringValue(json?.["partial"])?.trim()
+	if (jsonText) return jsonText
+	const messages = message["messages"]
+	if (Array.isArray(messages)) {
+		const joined = messages
+			.map((item) => typeof item === "string" ? item.trim() : "")
+			.filter(Boolean)
+			.join(" ")
+			.trim()
+		if (joined) return joined
+	}
+	return ""
+}
+
 function asrMessageHasText(raw: string): boolean {
 	const message = asJsonRecord(safeJsonParse(raw))
 	if (message === null) return false
 	const type = message["type"]
 	if (type !== "partial" && type !== "result" && type !== "final") return false
-	const text = typeof message["text"] === "string" ? message["text"].trim() : ""
-	if (text.length > 0) return true
-	const messages = message["messages"]
-	return Array.isArray(messages) && messages.some((item) => typeof item === "string" && item.trim().length > 0)
+	return asrMessageText(raw).length > 0
 }
 
 function isVoiceRelayPeer(peerId: string): boolean {
@@ -835,6 +1005,26 @@ function floatToPcm16(samples: Float32Array): ArrayBuffer {
 		view.setInt16(index * 2, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true)
 	}
 	return buffer
+}
+
+function rmsLevel(samples: Float32Array): number {
+	if (samples.length === 0) return 0
+	let sum = 0
+	for (const sample of samples) sum += sample * sample
+	return Math.sqrt(sum / samples.length)
+}
+
+function pcm16Rms(buffer: ArrayBuffer): number {
+	const view = new DataView(buffer)
+	if (view.byteLength < 2) return 0
+	let sum = 0
+	let count = 0
+	for (let offset = 0; offset + 1 < view.byteLength; offset += 2) {
+		const sample = view.getInt16(offset, true) / 0x8000
+		sum += sample * sample
+		count += 1
+	}
+	return count === 0 ? 0 : Math.sqrt(sum / count)
 }
 
 function takeOutboundPcm(peer: VoiceRtcRelayPeer): ArrayBuffer {

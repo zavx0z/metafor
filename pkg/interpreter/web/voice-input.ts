@@ -383,7 +383,7 @@ export class VoiceInputClient {
 
     await new Promise<void>((resolve, reject) => {
       ws.addEventListener("open", () => {
-        if (this.#asrTransport === "connecting") this.#setTransport(ws instanceof WebSocket ? "ws" : "p2p")
+        if (this.#asrTransport === "connecting" && ws instanceof WebSocket) this.#setTransport("ws")
         resolve()
       }, {once: true})
       ws.addEventListener("error", () => reject(new Error(`voice ASR websocket failed: ${url}`)), {once: true})

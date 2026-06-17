@@ -74,7 +74,15 @@ import {
 } from "./settings.ts"
 import {createAndroidRtcClient, type AndroidRtcClient, type AndroidRtcCommand} from "./android-rtc.ts"
 import {DEFAULT_APP_WEB_SCENE_SRC} from "./app-config.ts"
-import {createVoiceRtcAsrSocket, primeVoiceRtcRelayAudio} from "./voice-rtc.ts"
+import {
+	createVoiceRtcAsrSocket,
+	onVoiceRtcDebug,
+	primeVoiceRtcRelayAudio,
+	readVoiceRtcDebugSnapshot,
+	type VoiceRtcDebugSnapshot,
+} from "./voice-rtc.ts"
+
+type VoiceRtcDebugGlobal = typeof globalThis & {__metaVoiceRtcDebug?: () => VoiceRtcDebugSnapshot}
 
 export type AppWebHudSettingsSnapshot = {
 	layoutSettings: Partial<AppWebLayoutSettings>
@@ -398,6 +406,7 @@ class AppWebHud implements AppWebHudController {
 	#voiceServiceState: VoiceInputHudServiceState = "unknown"
 	#voiceServiceDetail = "ASR не проверен"
 	#voiceServiceCheckInFlight = false
+	#voiceRtcDebug: VoiceRtcDebugSnapshot = readVoiceRtcDebugSnapshot()
 	#voiceAutoWakeTimer: number | null = null
 	#voiceAutoWakeInFlight = false
 	#voiceAutoWakePaused = false
@@ -533,7 +542,13 @@ class AppWebHud implements AppWebHudController {
 		void this.#loadTodo()
 		void this.#refreshWorkspaceProcesses()
 		void this.#checkVoiceService()
+		;(globalThis as VoiceRtcDebugGlobal).__metaVoiceRtcDebug = readVoiceRtcDebugSnapshot
 		this.#updateVoiceHud()
+		onVoiceRtcDebug(() => {
+			this.#voiceRtcDebug = readVoiceRtcDebugSnapshot()
+			this.#codexComposer.requestRender()
+			this.#voiceHud.requestRender()
+		})
 		void this.#importInterpreterVoiceSettings().finally(() => this.#scheduleVoiceAutoWake(500))
 		installHudNotificationSoundUnlock()
 	}
@@ -590,7 +605,10 @@ class AppWebHud implements AppWebHudController {
 
 	codexComposerStatus(): string {
 		if (this.#codexComposerStatus) return this.#codexComposerStatus
-		if (this.#voiceStatus === "listening" || this.#voiceStatus === "committing") return voiceStatusLine(this.#voiceStatus)
+		if (this.#voiceStatus === "listening" || this.#voiceStatus === "committing") {
+			const rtcLine = this.#voiceRtcCompactLine()
+			return rtcLine ? `${voiceStatusLine(this.#voiceStatus)} · ${rtcLine}` : voiceStatusLine(this.#voiceStatus)
+		}
 		if (this.#terminal.socket?.readyState !== WebSocket.OPEN) return "Codex terminal не подключен"
 		return this.#terminal.statusLabel
 	}
@@ -2199,6 +2217,19 @@ class AppWebHud implements AppWebHudController {
 		return `${mode} · ${formatTime(this.#voiceAutoEnterAt)} · sent #${this.#voiceAutoEnterCount}`
 	}
 
+	#voiceRtcCompactLine(): string {
+		if (this.#voiceTransport === "idle") return ""
+		const debug = this.#voiceRtcDebug
+		const transport = this.#voiceTransport.toUpperCase()
+		const audio = debug.relayAudioBytes > 0
+			? `audio ${formatDebugBytes(debug.relayAudioBytes)} ${formatDebugPercent(debug.relayAudioRms)}`
+			: debug.localAudioBytes > 0
+				? `local ${formatDebugBytes(debug.localAudioBytes)} ${formatDebugPercent(debug.localAudioRms)}`
+				: debug.state || "-"
+		const asr = debug.asrMessages > 0 ? `ASR ${debug.asrMessages}/${debug.asrTextMessages}` : "ASR -"
+		return `${transport} · ${audio} · ${asr}`
+	}
+
 	#voiceServiceLine(): string {
 		const time = this.#voiceServiceCheckedAt === null ? "--:--:--" : formatTime(this.#voiceServiceCheckedAt)
 		return `${time} · ${this.#voiceServiceDetail}`
@@ -2214,6 +2245,13 @@ class AppWebHud implements AppWebHudController {
 		return [
 			`status: ${this.#voiceStatus}`,
 			`detail: ${this.#voiceDetail || "-"}`,
+			`transport: ${this.#voiceTransport}`,
+			`rtc state: ${this.#voiceRtcDebug.state || "-"}`,
+			`rtc local: ${formatDebugBytes(this.#voiceRtcDebug.localAudioBytes)} · rms ${formatDebugPercent(this.#voiceRtcDebug.localAudioRms)}`,
+			`rtc relay: ${formatDebugBytes(this.#voiceRtcDebug.relayAudioBytes)} · rms ${formatDebugPercent(this.#voiceRtcDebug.relayAudioRms)} · ${this.#voiceRtcDebug.sampleRate || "-"} Hz`,
+			`rtc asr: ${this.#voiceRtcDebug.asrMessages}/${this.#voiceRtcDebug.asrTextMessages} · ${this.#voiceRtcDebug.lastAsrType || "-"}`,
+			`rtc text: ${debugVoiceText(this.#voiceRtcDebug.lastAsrText)}`,
+			`rtc fallback: ${this.#voiceRtcDebug.fallbackReason || "-"}`,
 			`wake: ${readVoiceWakeUrl()}`,
 			`asr: ${readVoiceInputUrl()}`,
 			`wake heard: ${debugVoiceText(this.#voiceWakePreviewText)}`,
@@ -4125,6 +4163,17 @@ function debugVoiceText(text: string): string {
 	const cleaned = cleanupVoiceInputText(text)
 	if (cleaned.length === 0) return "-"
 	return cleaned.length <= 74 ? cleaned : `${cleaned.slice(0, 71)}...`
+}
+
+function formatDebugBytes(value: number): string {
+	if (!Number.isFinite(value) || value <= 0) return "0b"
+	if (value < 1024) return `${Math.round(value)}b`
+	return `${Math.round(value / 1024)}kb`
+}
+
+function formatDebugPercent(value: number): string {
+	if (!Number.isFinite(value) || value <= 0) return "0%"
+	return `${Math.round(value * 100)}%`
 }
 
 function formatDebugTime(date: Date | null): string {
