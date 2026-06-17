@@ -704,7 +704,11 @@ type NetworkServiceKey = NetworkWatchServiceKey
 const DEFAULT_HOST_TERMINAL_HUD_RECT: UiSurfaceRect = {x: 643, y: 60, w: 755, h: 943}
 const DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "top", offset: 858}
 const DEFAULT_NETWORK_TERMINAL_HUD_RECT: UiSurfaceRect = {x: 24, y: 520, w: 1080, h: 560}
-const NETWORK_DISPLAY_CONTROLS_MAX_H = 420
+const NETWORK_DISPLAY_COLUMN_GAP = 8
+const NETWORK_DISPLAY_COLUMN_MIN_W = 920
+const NETWORK_DISPLAY_INFO_MIN_W = 420
+const NETWORK_DISPLAY_INFO_MAX_W = 620
+const NETWORK_DISPLAY_INFO_RATIO = 0.34
 const NETWORK_STATUS_REFRESH_MS = 2500
 const DEFAULT_ANDROID_HUD_RECT: UiSurfaceRect = {x: 24, y: 80, w: 390, h: 720}
 const DEFAULT_SECONDARY_ANDROID_HUD_RECT: UiSurfaceRect = {x: 430, y: 80, w: 390, h: 720}
@@ -8916,21 +8920,40 @@ function networkTerminalHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
 }
 
 function networkDisplayControlsRect({w, h}: {w: number; h: number}): UiSurfaceRect {
-  return {x: 0, y: 0, w, h: networkDisplayControlsHeight(h)}
+  if (!networkDisplayUsesColumns(w)) return {x: 0, y: 0, w, h: networkDisplayControlsFallbackHeight(h)}
+  return {x: 0, y: 0, w: networkDisplayInfoWidth(w), h}
 }
 
 function networkDisplayTerminalRect({w, h}: {w: number; h: number}): UiSurfaceRect {
-  const headerH = networkDisplayControlsHeight(h)
+  if (!networkDisplayUsesColumns(w)) {
+    const headerH = networkDisplayControlsFallbackHeight(h)
+    return {
+      x: 0,
+      y: headerH,
+      w,
+      h: Math.max(1, h - headerH),
+    }
+  }
+  const infoW = networkDisplayInfoWidth(w)
+  const x = infoW + NETWORK_DISPLAY_COLUMN_GAP
   return {
-    x: 0,
-    y: headerH,
-    w,
-    h: Math.max(1, h - headerH),
+    x,
+    y: 0,
+    w: Math.max(1, w - x),
+    h,
   }
 }
 
-function networkDisplayControlsHeight(displayH: number): number {
-  return Math.min(NETWORK_DISPLAY_CONTROLS_MAX_H, Math.max(220, Math.floor(displayH * 0.42)))
+function networkDisplayUsesColumns(displayW: number): boolean {
+  return displayW >= NETWORK_DISPLAY_COLUMN_MIN_W
+}
+
+function networkDisplayInfoWidth(displayW: number): number {
+  return Math.min(NETWORK_DISPLAY_INFO_MAX_W, Math.max(NETWORK_DISPLAY_INFO_MIN_W, Math.floor(displayW * NETWORK_DISPLAY_INFO_RATIO)))
+}
+
+function networkDisplayControlsFallbackHeight(displayH: number): number {
+  return Math.min(420, Math.max(220, Math.floor(displayH * 0.42)))
 }
 
 function androidHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
