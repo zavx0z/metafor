@@ -1910,7 +1910,7 @@ class AppWebHud implements AppWebHudController {
 	}
 
 	#focusVoiceTerminal(): void {
-		this.#focusCodexComposer()
+		this.#viewport.hud.setFocused(this.#terminal.pane)
 	}
 
 	#setVoiceDictationActive(active: boolean): void {
