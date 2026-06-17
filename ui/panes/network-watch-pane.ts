@@ -199,8 +199,7 @@ export class NetworkWatchPane extends UiSurface {
     this.drawRoundedRect(x, y, w, h, {
       radius: 6,
       fill: NETWORK_STATUS_BG,
-      border: withAlpha(palette.border, 0.46),
-      borderWidth: 1,
+      border: null,
       z: Z.ELEMENT,
     })
     const sections = this.#snapshot.sections
@@ -240,8 +239,7 @@ export class NetworkWatchPane extends UiSurface {
     this.drawRoundedRect(x, y, w, h, {
       radius: 5,
       fill: NETWORK_SECTION_BG,
-      border: withAlpha(palette.border, 0.34),
-      borderWidth: 1,
+      border: null,
       z: Z.ELEMENT + 0.01,
     })
     this.drawText(`${title} | ${lines.length}`, x + 8, y + 7, {

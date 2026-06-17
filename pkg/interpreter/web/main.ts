@@ -5934,7 +5934,7 @@ function ensureNetworkDisplay(): void {
       pixelHeight: metrics.pixelHeight,
       centerMm: center,
       background: 0x020617,
-      border: 0x0891b2,
+      border: null,
     })
     uiCanvas.addSurfaceToDisplay(NETWORK_DISPLAY_ID, networkDisplayControlsPane, networkDisplayControlsRect)
     if (networkDisplayTerminal !== null) {
