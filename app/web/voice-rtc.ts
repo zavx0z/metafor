@@ -41,6 +41,7 @@ const TARGET_RELAY_SAMPLE_RATE = 16_000
 const PCM_FLUSH_BYTES = 4096
 const PCM_FLUSH_MS = 120
 const MAX_QUEUED_PCM_BYTES = 8 * 1024 * 1024
+const MAX_PENDING_FALLBACK_PCM_BYTES = 3 * 1024 * 1024
 
 let relay: VoiceRtcRelay | null = null
 
@@ -66,6 +67,9 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 	#mediaTimer: number | null = null
 	#remotePeerId = ""
 	#lastStartPayload: string | null = null
+	#pendingFallbackControls: string[] = []
+	#pendingFallbackPcm: ArrayBuffer[] = []
+	#pendingFallbackPcmBytes = 0
 
 	constructor(url: string, context: VoiceInputAsrSocketContext) {
 		super()
@@ -98,15 +102,26 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 
 	send(data: string | ArrayBuffer | Blob | ArrayBufferView<ArrayBuffer>): void {
 		if (this.#fallbackWs !== null) {
-			if (this.#fallbackWs.readyState === WebSocket.OPEN) this.#fallbackWs.send(data)
+			if (this.#fallbackWs.readyState === WebSocket.OPEN) {
+				this.#fallbackWs.send(data)
+			} else if (typeof data === "string") {
+				this.#queueFallbackControl(data)
+			} else {
+				this.#bufferFallbackPcm(data)
+			}
 			return
 		}
-		if (typeof data !== "string") return
+		if (typeof data !== "string") {
+			this.#bufferFallbackPcm(data)
+			return
+		}
 		if (this.#channel?.readyState !== "open") return
 		const payload = safeJsonParse(data)
 		if (asJsonRecord(payload)?.["type"] === "start") {
 			this.#lastStartPayload = data
 			this.#startMediaTimer()
+		} else {
+			this.#pendingFallbackControls.push(data)
 		}
 		this.#channel.send(JSON.stringify({
 			type: "asr-control",
@@ -228,6 +243,8 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 			this.#readyState = WebSocket.OPEN
 			this.#context.onTransport("ws")
 			if (this.#lastStartPayload !== null) ws.send(this.#lastStartPayload)
+			this.#flushPendingFallbackPcm(ws)
+			this.#flushPendingFallbackControls(ws)
 			this.dispatchEvent(new Event("open"))
 		})
 		ws.addEventListener("message", (event) => this.dispatchEvent(new MessageEvent("message", {data: event.data})))
@@ -266,9 +283,52 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 		if (message?.["type"] !== "relay-status") return false
 		if (message["state"] === "audio") {
 			this.#clearMediaTimer()
+			this.#clearPendingFallback()
 			this.#context.onTransport("p2p")
 		}
 		return true
+	}
+
+	#bufferFallbackPcm(data: ArrayBuffer | Blob | ArrayBufferView<ArrayBuffer>): void {
+		const buffer = data instanceof ArrayBuffer
+			? data
+			: ArrayBuffer.isView(data)
+				? data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)
+				: null
+		if (buffer === null) return
+		this.#pendingFallbackPcm.push(buffer)
+		this.#pendingFallbackPcmBytes += buffer.byteLength
+		while (this.#pendingFallbackPcmBytes > MAX_PENDING_FALLBACK_PCM_BYTES && this.#pendingFallbackPcm.length > 0) {
+			const dropped = this.#pendingFallbackPcm.shift()
+			this.#pendingFallbackPcmBytes -= dropped?.byteLength ?? 0
+		}
+	}
+
+	#queueFallbackControl(data: string): void {
+		const payload = asJsonRecord(safeJsonParse(data))
+		if (payload?.["type"] === "start") {
+			this.#lastStartPayload = data
+			return
+		}
+		this.#pendingFallbackControls.push(data)
+	}
+
+	#flushPendingFallbackPcm(ws: WebSocket): void {
+		for (const pcm of this.#pendingFallbackPcm) ws.send(pcm)
+		this.#pendingFallbackPcm = []
+		this.#pendingFallbackPcmBytes = 0
+	}
+
+	#flushPendingFallbackControls(ws: WebSocket): void {
+		for (const payload of this.#pendingFallbackControls) ws.send(payload)
+		this.#pendingFallbackControls = []
+	}
+
+	#clearPendingFallback(): void {
+		this.#lastStartPayload = null
+		this.#pendingFallbackControls = []
+		this.#pendingFallbackPcm = []
+		this.#pendingFallbackPcmBytes = 0
 	}
 }
 
