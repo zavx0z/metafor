@@ -210,6 +210,7 @@ const CODEX_TERMINAL_SESSION_KEY = "app-web:codex"
 const CODEX_TERMINAL_TMUX_SESSION = "metafor-app-web-codex"
 const CODEX_DOCKED_STORAGE_KEY = `${STORAGE_PREFIX}.codex.docked:v1`
 const CODEX_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.codex.rect:v1`
+const CODEX_COMPOSER_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.codex.composer.rect:v1`
 const CODEX_DOCK_PLACEMENT_STORAGE_KEY = `${STORAGE_PREFIX}.codex.dockPlacement:v2`
 const SETTINGS_DOCKED_STORAGE_KEY = `${STORAGE_PREFIX}.settings.docked:v1`
 const SETTINGS_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.settings.rect:v2`
@@ -290,6 +291,8 @@ const VOICE_METER_RENDER_MS = 80
 const AGENT_READY_SOUND_IDLE_MS = 2500
 const AGENT_READY_SOUND_COOLDOWN_MS = 1200
 const CODEX_COMPOSER_H = 268
+const CODEX_COMPOSER_MIN_W = 420
+const CODEX_COMPOSER_MIN_H = 220
 const CODEX_COMPOSER_GAP = 8
 const CODEX_COMPOSER_PAD = 12
 const CODEX_COMPOSER_INPUT_H = 170
@@ -1340,6 +1343,7 @@ class AppWebHud implements AppWebHudController {
 			readOnly: false,
 			showCaret: true,
 			introAnimation: false,
+			showHeader: false,
 			indentGuides: false,
 			draggable: false,
 			resizable: false,
@@ -2311,15 +2315,25 @@ class AppWebHud implements AppWebHudController {
 		if (this.#codexDocked || this.#dockTransition?.kind === "codex") return hiddenRect()
 		const terminal = this.#codexRect(bounds)
 		if (terminal.visible === false) return hiddenRect()
-		const w = Math.min(Math.max(1, terminal.w), Math.max(1, bounds.w - 24))
-		const h = Math.min(CODEX_COMPOSER_H, Math.max(1, bounds.h - 24))
+		const maxW = Math.max(1, bounds.w - 24)
+		const maxH = Math.max(1, bounds.h - 24)
+		const fallbackW = Math.min(Math.max(1, terminal.w), maxW)
+		const fallbackH = Math.min(CODEX_COMPOSER_H, maxH)
 		const belowY = terminal.y + terminal.h + CODEX_COMPOSER_GAP
-		const y = belowY + h <= bounds.h - 12
+		const fallbackY = belowY + fallbackH <= bounds.h - 12
 			? belowY
-			: Math.max(12, terminal.y - h - CODEX_COMPOSER_GAP)
+			: Math.max(12, terminal.y - fallbackH - CODEX_COMPOSER_GAP)
+		const raw = readStoredRect(CODEX_COMPOSER_RECT_STORAGE_KEY) ?? {
+			x: terminal.x,
+			y: fallbackY,
+			w: fallbackW,
+			h: fallbackH,
+		}
+		const w = clampNumber(raw.w, Math.min(CODEX_COMPOSER_MIN_W, maxW), maxW)
+		const h = clampNumber(raw.h, Math.min(CODEX_COMPOSER_MIN_H, maxH), maxH)
 		return {
-			x: clampNumber(terminal.x, 12, Math.max(12, bounds.w - w - 12)),
-			y: clampNumber(y, 12, Math.max(12, bounds.h - h - 12)),
+			x: clampNumber(raw.x, 12, Math.max(12, bounds.w - w - 12)),
+			y: clampNumber(raw.y, 12, Math.max(12, bounds.h - h - 12)),
 			w,
 			h,
 		}
@@ -2331,7 +2345,7 @@ class AppWebHud implements AppWebHudController {
 		const editorH = codexComposerEditorHeight(composer.h)
 		return {
 			x: composer.x + CODEX_COMPOSER_PAD,
-			y: composer.y + CODEX_COMPOSER_PAD,
+			y: composer.y + PANE_FRAME.headerHeight + PANE_FRAME.bodyTopGap,
 			w: Math.max(1, composer.w - CODEX_COMPOSER_PAD * 2),
 			h: editorH,
 		}
@@ -2448,6 +2462,8 @@ class AppWebHud implements AppWebHudController {
 }
 
 class AppWebCodexComposerPane extends UiSurface {
+	#frameDrag: PaneFrameDrag | null = null
+
 	constructor(private readonly hud: AppWebHud) {
 		super({bgColor: null, borderColor: null})
 		this.node.name = "AppWebCodexComposerPane"
@@ -2464,10 +2480,35 @@ class AppWebCodexComposerPane extends UiSurface {
 			borderWidth: this.hud.codexDropActive() ? 1.3 : 1,
 			z: Z.CONTAINER,
 		})
+		this.#renderHeader(w)
 		const bodyW = Math.max(1, w - pad * 2)
-		const footerY = pad + codexComposerEditorHeight(h) + 10
+		const footerY = PANE_FRAME.headerHeight + PANE_FRAME.bodyTopGap + codexComposerEditorHeight(h) + 10
 		this.#drawFooter(pad, footerY, bodyW, h - pad)
 		if (this.hud.codexDropActive()) this.#drawDropOverlay(w, h)
+	}
+
+	#renderHeader(w: number): void {
+		const dockButtonSize = 22
+		const dockButtonX = w - PANE_FRAME.headerTextX - dockButtonSize
+		this.drawText("Codex message", PANE_FRAME.headerTextX, PANE_FRAME.headerTextY, {
+			fontPx: 12,
+			material: this.materials.cyan,
+			maxWidthPx: Math.max(1, dockButtonX - PANE_FRAME.headerTextX - 12),
+			z: Z.TEXT,
+		})
+		this.drawText("Markdown", PANE_FRAME.headerTextX + 116, PANE_FRAME.headerTextY + 1, {
+			fontPx: 10,
+			material: this.materials.muted,
+			maxWidthPx: Math.max(1, dockButtonX - PANE_FRAME.headerTextX - 128),
+			z: Z.TEXT,
+		})
+		IconButton(this, dockButtonX, 7, dockButtonSize, dockButtonSize, {
+			label: "Свернуть Codex",
+			iconSrc: uiIcons.minus,
+			action: () => this.hud.setDocked("codex", true),
+		})
+		const rule = paneHeaderRuleRect(w, PANE_FRAME.headerHeight, PANE_FRAME.bodyInsetX)
+		this.drawRect(rule.x, rule.y, rule.w, rule.h, palette.borderDim, Z.SEPARATOR)
 	}
 
 	#drawFooter(x: number, y: number, w: number, maxY: number): void {
@@ -2553,6 +2594,88 @@ class AppWebCodexComposerPane extends UiSurface {
 			maxWidthPx: Math.max(1, w - CODEX_COMPOSER_PAD * 2),
 			z: Z.TEXT + 0.2,
 		})
+	}
+
+	#frameInteractionOpts(): PaneFrameInteractionOpts {
+		return {
+			showHeader: true,
+			movable: true,
+			resizable: true,
+			minW: CODEX_COMPOSER_MIN_W,
+			minH: CODEX_COMPOSER_MIN_H,
+		}
+	}
+
+	#beginFrameInteraction(event: MouseEvent, localX: number, localY: number): boolean {
+		const opts = this.#frameInteractionOpts()
+		const kind = paneFrameHit(localX, localY, this.rectW, this.rectH, opts)
+		if (kind === null) return false
+		const frame = this.canvas?.surfaceFrame(this)
+		if (frame === undefined || frame === null) return false
+		this.#frameDrag = beginPaneFrameDrag(kind, event, frame.rect, opts)
+		event.preventDefault()
+		const cursor = paneFrameCursor(kind, true)
+		const canvasElement = this.canvas?.canvas
+		if (cursor !== null && canvasElement !== undefined) canvasElement.style.cursor = cursor
+		return true
+	}
+
+	#updateFrameInteraction(event: MouseEvent): boolean {
+		const drag = this.#frameDrag
+		const frame = this.canvas?.surfaceFrame(this)
+		if (drag === null || frame === undefined || frame === null) return false
+		const next = paneFrameDragRect(drag, event, frame.bounds)
+		this.canvas?.setSurfaceRect(this, next)
+		const cursor = paneFrameCursor(drag.kind, true)
+		const canvasElement = this.canvas?.canvas
+		if (cursor !== null && canvasElement !== undefined) canvasElement.style.cursor = cursor
+		return true
+	}
+
+	#endFrameInteraction(event: MouseEvent, localX: number, localY: number): boolean {
+		if (this.#frameDrag === null) return false
+		this.#updateFrameInteraction(event)
+		const frame = this.canvas?.surfaceFrame(this)
+		this.#frameDrag = null
+		this.#syncFrameCursor(localX, localY)
+		if (frame !== undefined && frame !== null) writeStoredRect(CODEX_COMPOSER_RECT_STORAGE_KEY, frame.rect as PaneRect)
+		return true
+	}
+
+	#syncFrameCursor(localX: number, localY: number): void {
+		if (this.canvas === null || this.pressedHit !== null || this.hoveredHit !== null) return
+		const kind = paneFrameHit(localX, localY, this.rectW, this.rectH, this.#frameInteractionOpts())
+		const cursor = paneFrameCursor(kind, false)
+		const canvasElement = this.canvas.canvas
+		if (canvasElement !== undefined) canvasElement.style.cursor = cursor ?? "default"
+	}
+
+	override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
+		super.onPointerDown(event, localX, localY)
+		if (this.pressedHit !== null) return
+		this.#beginFrameInteraction(event, localX, localY)
+	}
+
+	override onPointerMove(event: MouseEvent, localX: number, localY: number): void {
+		if (this.#updateFrameInteraction(event)) return
+		super.onPointerMove(event, localX, localY)
+		this.#syncFrameCursor(localX, localY)
+	}
+
+	override onPointerUp(event: MouseEvent, localX: number, localY: number): void {
+		if (this.#endFrameInteraction(event, localX, localY)) return
+		super.onPointerUp(event, localX, localY)
+		this.#syncFrameCursor(localX, localY)
+	}
+
+	override onPointerLeave(): void {
+		if (this.#frameDrag !== null) return
+		super.onPointerLeave()
+	}
+
+	override onDeactivate(): void {
+		this.#frameDrag = null
+		super.onDeactivate()
 	}
 }
 
@@ -3795,8 +3918,9 @@ function formatAttachmentSize(size: number): string {
 }
 
 function codexComposerEditorHeight(composerH: number): number {
-	const footerSpace = CODEX_COMPOSER_ACTION_H + CODEX_COMPOSER_GAP + 18
-	const maxByComposer = Math.max(82, composerH - CODEX_COMPOSER_PAD * 2 - footerSpace)
+	const editorTop = PANE_FRAME.headerHeight + PANE_FRAME.bodyTopGap
+	const footerSpace = 10 + CODEX_COMPOSER_ACTION_H + CODEX_COMPOSER_PAD
+	const maxByComposer = Math.max(82, composerH - editorTop - footerSpace)
 	return Math.min(CODEX_COMPOSER_INPUT_H, maxByComposer)
 }
 

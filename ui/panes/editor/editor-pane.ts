@@ -124,6 +124,8 @@ export type EditorOpts = {
   showCaret?: boolean
   /** Run the one-shot text intro animation after setText(). Default true. */
   introAnimation?: boolean
+  /** Show pane header chrome. Disable when embedding the editor inside another pane. */
+  showHeader?: boolean
   /** Show vertical indentation guides in code body. Default true. */
   indentGuides?: boolean
   /** Header drag is opt-in. Default false. */
@@ -283,6 +285,7 @@ export class EditorPane extends UiSurface {
   #readOnly: boolean
   #showCaret: boolean
   #introAnimation: boolean
+  #showHeader: boolean
   #indentGuides: boolean
   #executionLine: number | null = null
   #cursorVisible = true
@@ -340,6 +343,7 @@ export class EditorPane extends UiSurface {
     this.#readOnly = opts.readOnly === true
     this.#showCaret = opts.showCaret ?? !this.#readOnly
     this.#introAnimation = opts.introAnimation ?? true
+    this.#showHeader = opts.showHeader ?? true
     this.#indentGuides = opts.indentGuides ?? true
     this.#tokenMaterials = createEditorTokenMaterials()
     this.#refreshTokens()
@@ -566,13 +570,17 @@ export class EditorPane extends UiSurface {
     return Math.max(1, this.#fontPx * this.pageScaleFactor * 0.62)
   }
 
+  #padTopPx(): number {
+    return this.#showHeader ? PAD_TOP_PX : 0
+  }
+
   #frameInteractionOpts(): PaneFrameInteractionOpts {
     return {
-      showHeader: true,
+      showHeader: this.#showHeader,
       movable: this.#draggable,
       resizable: this.#resizable,
       minW: Math.max(300, PAD_LEFT_PX + GUTTER_MIN_PX + CODE_LEFT_PAD_PX + this.#getCharWidth() * 24 + PAD_RIGHT_PX + SCROLLBAR_W),
-      minH: Math.max(180, PAD_TOP_PX + this.#linePx * 6 + PAD_BOTTOM_PX + SCROLLBAR_W),
+      minH: Math.max(180, this.#padTopPx() + this.#linePx * 6 + PAD_BOTTOM_PX + SCROLLBAR_W),
     }
   }
 
@@ -861,8 +869,9 @@ export class EditorPane extends UiSurface {
   }
 
   #lineFromLocalY(localY: number): number | null {
-    if (localY < PAD_TOP_PX) return null
-    const rowFloat = (localY - PAD_TOP_PX + this.#scrollTopPx) / this.#linePx
+    const padTop = this.#padTopPx()
+    if (localY < padTop) return null
+    const rowFloat = (localY - padTop + this.#scrollTopPx) / this.#linePx
     return Math.max(0, Math.min(this.#lines.length - 1, Math.floor(rowFloat)))
   }
 
@@ -1641,30 +1650,31 @@ export class EditorPane extends UiSurface {
   }
 
   protected render(): void {
-    // Header
-    const dockButtonSize = 22
-    const dockButtonX = this.rectW - PANE_FRAME.headerTextX - dockButtonSize
-    const titleMaxW = this.#onFrameDockRequest === undefined
-      ? this.rectW - 32
-      : Math.max(1, dockButtonX - PANE_FRAME.headerTextX - 8)
-    this.drawText(this.#title, PANE_FRAME.headerTextX, PANE_FRAME.headerTextY, {
-      fontPx: this.#titleFontPx,
-      material: this.#titleMaterial,
-      maxWidthPx: titleMaxW,
-    })
-    if (this.#onFrameDockRequest !== undefined) {
-      IconButton(this, dockButtonX, 7, dockButtonSize, dockButtonSize, {
-        label: "Dock",
-        iconSrc: uiIcons.minus,
-        action: this.#onFrameDockRequest,
+    if (this.#showHeader) {
+      const dockButtonSize = 22
+      const dockButtonX = this.rectW - PANE_FRAME.headerTextX - dockButtonSize
+      const titleMaxW = this.#onFrameDockRequest === undefined
+        ? this.rectW - 32
+        : Math.max(1, dockButtonX - PANE_FRAME.headerTextX - 8)
+      this.drawText(this.#title, PANE_FRAME.headerTextX, PANE_FRAME.headerTextY, {
+        fontPx: this.#titleFontPx,
+        material: this.#titleMaterial,
+        maxWidthPx: titleMaxW,
       })
+      if (this.#onFrameDockRequest !== undefined) {
+        IconButton(this, dockButtonX, 7, dockButtonSize, dockButtonSize, {
+          label: "Dock",
+          iconSrc: uiIcons.minus,
+          action: this.#onFrameDockRequest,
+        })
+      }
+      const rule = paneHeaderRuleRect(this.rectW, HEADER_H_PX)
+      this.drawRect(rule.x, rule.y, rule.w, rule.h, palette.borderDim, Z.SEPARATOR)
     }
-    const rule = paneHeaderRuleRect(this.rectW, HEADER_H_PX)
-    this.drawRect(rule.x, rule.y, rule.w, rule.h, palette.borderDim, Z.SEPARATOR)
 
     const total = this.#lines.length
     const gutter = this.#gutterWidthPx(total)
-    const viewport = paneBodyRect(this.rectW, this.rectH, {headerHeight: HEADER_H_PX})
+    const viewport = paneBodyRect(this.rectW, this.rectH, {headerHeight: HEADER_H_PX, showHeader: this.#showHeader})
     div(this, viewport.x, viewport.y, viewport.w, viewport.h, {
       key: EDITOR_SCROLL_KEY,
       scrollContentWidth: Math.max(1, gutter + CODE_LEFT_PAD_PX + this.#maxLineWidthPx() + 8),
@@ -1718,12 +1728,13 @@ export class EditorPane extends UiSurface {
   }
 
   #renderCurrentLineLayer(layout: EditorViewportLayout): void {
-    this.pushClip(PAD_LEFT_PX, PAD_TOP_PX, layout.contentW, layout.contentH)
+    const padTop = this.#padTopPx()
+    this.pushClip(PAD_LEFT_PX, padTop, layout.contentW, layout.contentH)
     const executionIndex = this.#executionLine === null ? null : this.#executionLine - 1
     const lineIndex = executionIndex ?? this.#cline
     const cRowIdx = lineIndex - layout.startIdx
     if (cRowIdx >= -1 && cRowIdx <= layout.visible) {
-      const hY = PAD_TOP_PX + cRowIdx * this.#linePx - layout.subPx
+      const hY = padTop + cRowIdx * this.#linePx - layout.subPx
       const highlightY = this.#lineHighlightY(hY)
       const highlightH = this.#lineHighlightH()
       if (executionIndex !== null) {
@@ -1747,9 +1758,10 @@ export class EditorPane extends UiSurface {
     if (!this.#indentGuides) return
     const ranges = this.#indentGuideRanges()
     if (ranges.length === 0) return
+    const padTop = this.#padTopPx()
     const firstVisibleLine = layout.startIdx
     const lastVisibleLine = Math.min(this.#lines.length - 1, layout.startIdx + layout.visible + 1)
-    this.pushClip(layout.codeClipX, PAD_TOP_PX, layout.codeClipW, layout.contentH)
+    this.pushClip(layout.codeClipX, padTop, layout.codeClipW, layout.contentH)
     for (const range of ranges) {
       if (range.column === 0) continue
       if (range.endLine < firstVisibleLine || range.startLine > lastVisibleLine) continue
@@ -1775,19 +1787,20 @@ export class EditorPane extends UiSurface {
   }
 
   #rowYForLine(layout: EditorViewportLayout, lineIndex: number): number {
-    return PAD_TOP_PX + (lineIndex - layout.startIdx) * this.#linePx - layout.subPx
+    return this.#padTopPx() + (lineIndex - layout.startIdx) * this.#linePx - layout.subPx
   }
 
   #renderSelectionLayer(layout: EditorViewportLayout): void {
-    this.pushClip(PAD_LEFT_PX, PAD_TOP_PX, layout.contentW, layout.contentH)
+    const padTop = this.#padTopPx()
+    this.pushClip(PAD_LEFT_PX, padTop, layout.contentW, layout.contentH)
     const renderCount = layout.visible + 1
     for (let i = 0; i < renderCount; i++) {
       const lineIndex = layout.startIdx + i
       if (lineIndex >= layout.total) break
       if (lineIndex < 0) continue
-      const rowY = PAD_TOP_PX + i * this.#linePx - layout.subPx
-      if (rowY + this.#linePx < PAD_TOP_PX - 1) continue
-      if (rowY > PAD_TOP_PX + layout.contentH + 1) break
+      const rowY = padTop + i * this.#linePx - layout.subPx
+      if (rowY + this.#linePx < padTop - 1) continue
+      if (rowY > padTop + layout.contentH + 1) break
       const lineText = this.#lines[lineIndex] ?? ""
       this.pushClip(layout.codeClipX, rowY, layout.codeClipW, this.#linePx)
       this.#renderSelectionForLine(lineIndex, lineText, layout.codeStartX, rowY, layout.codeMaxPx)
@@ -1798,8 +1811,9 @@ export class EditorPane extends UiSurface {
 
   #renderCodeTextLayer(layout: EditorViewportLayout): EditorVisibleLine[] {
     const visibleLines = this.#visibleLines(layout)
+    const padTop = this.#padTopPx()
 
-    this.pushClip(PAD_LEFT_PX, PAD_TOP_PX, layout.contentW, layout.contentH)
+    this.pushClip(PAD_LEFT_PX, padTop, layout.contentW, layout.contentH)
     for (const line of visibleLines) {
       this.pushClip(layout.codeClipX, line.rowY, layout.codeClipW, this.#linePx)
       this.#renderCodeLine(line.lineIndex, line.lineText, layout.codeStartX, line.textY, layout.codeMaxPx)
@@ -1813,13 +1827,14 @@ export class EditorPane extends UiSurface {
   #visibleLines(layout: EditorViewportLayout): EditorVisibleLine[] {
     const lines: EditorVisibleLine[] = []
     const renderCount = layout.visible + 1
+    const padTop = this.#padTopPx()
     for (let i = 0; i < renderCount; i++) {
       const lineIndex = layout.startIdx + i
       if (lineIndex >= layout.total) break
       if (lineIndex < 0) continue
-      const rowY = PAD_TOP_PX + i * this.#linePx - layout.subPx
-      if (rowY + this.#linePx < PAD_TOP_PX - 1) continue
-      if (rowY > PAD_TOP_PX + layout.contentH + 1) break
+      const rowY = padTop + i * this.#linePx - layout.subPx
+      if (rowY + this.#linePx < padTop - 1) continue
+      if (rowY > padTop + layout.contentH + 1) break
       const lineText = this.#lines[lineIndex] ?? ""
       lines.push({
         lineIndex,
@@ -1836,17 +1851,18 @@ export class EditorPane extends UiSurface {
   #renderCaretLayer(layout: EditorViewportLayout): void {
     if (!this.#showCaret) return
     if (!this.#cursorVisible) return
+    const padTop = this.#padTopPx()
     const rowIdx = this.#cline - layout.startIdx
     if (rowIdx < -1 || rowIdx > layout.visible) return
-    const rowY = PAD_TOP_PX + rowIdx * this.#linePx - layout.subPx
-    if (rowY + this.#linePx < PAD_TOP_PX - 1 || rowY > PAD_TOP_PX + layout.contentH + 1) return
+    const rowY = padTop + rowIdx * this.#linePx - layout.subPx
+    if (rowY + this.#linePx < padTop - 1 || rowY > padTop + layout.contentH + 1) return
     const lineText = this.#lines[this.#cline] ?? ""
     const cursorAbsX = this.#colToPx(lineText, this.#ccol)
     const curX = Math.round(layout.codeStartX + cursorAbsX - this.#scrollLeftPx)
     if (curX < layout.codeStartX - 1 || curX > layout.codeStartX + layout.codeMaxPx + 1) return
     const caretY = Math.round(rowY + (this.#linePx - this.#fontPx) / 2)
     const caretH = Math.max(1, Math.round(this.#fontPx + CARET_BOTTOM_PAD_PX))
-    this.pushClip(layout.codeClipX - CARET_W_PX, PAD_TOP_PX, layout.codeClipW + CARET_W_PX * 2, layout.contentH)
+    this.pushClip(layout.codeClipX - CARET_W_PX, padTop, layout.codeClipW + CARET_W_PX * 2, layout.contentH)
     this.drawRect(curX + 1, caretY, CARET_W_PX, caretH, palette.cyan, CARET_Z)
     this.popClip()
   }
@@ -1854,7 +1870,7 @@ export class EditorPane extends UiSurface {
   #gutterMetrics(gutter: number, contentH: number): EditorGutterMetrics {
     return {
       x: PAD_LEFT_PX,
-      y: PAD_TOP_PX,
+      y: this.#padTopPx(),
       w: gutter,
       h: contentH,
       ruleX: PAD_LEFT_PX + gutter,
@@ -2147,7 +2163,7 @@ export class EditorPane extends UiSurface {
     x2 = Math.max(minX, Math.min(maxX, x2))
     const anchorX = Math.max(minX, Math.min(maxX, (x1 + x2) / 2))
 
-    const rowY = PAD_TOP_PX + (lineIndex - startIdx) * this.#linePx - subPx
+    const rowY = this.#padTopPx() + (lineIndex - startIdx) * this.#linePx - subPx
     const itemWidths = SELECTION_MENU_ITEMS.map((item) => Math.max(58, autoButtonWidth(this, item.label, 10, 18)))
     const menuContentW = itemWidths.reduce((sum, w) => sum + w, 0) + 6 * (itemWidths.length - 1)
     const maxMenuW = this.rectW - PAD_LEFT_PX - PAD_RIGHT_PX - SCROLLBAR_W - 16
@@ -2158,7 +2174,8 @@ export class EditorPane extends UiSurface {
     const menuX = Math.max(minMenuX, Math.min(maxMenuX, anchorX - menuW / 2))
     const contentBottom = this.rectH - PAD_BOTTOM_PX
     const aboveY = rowY - menuH - 8
-    const menuY = aboveY >= HEADER_H_PX + 4
+    const minMenuY = this.#showHeader ? HEADER_H_PX + 4 : 4
+    const menuY = aboveY >= minMenuY
       ? aboveY
       : Math.min(contentBottom - menuH - 4, rowY + this.#linePx + 8)
     return {x: menuX, y: Math.max(4, menuY), w: menuW, h: menuH, anchorX}
@@ -2189,7 +2206,7 @@ export class EditorPane extends UiSurface {
 
   #viewportContentH(): number {
     if (this.#viewportH > 1) return this.#viewportH
-    return Math.max(1, this.rectH - PAD_TOP_PX - PAD_BOTTOM_PX - SCROLLBAR_W - 10)
+    return Math.max(1, this.rectH - this.#padTopPx() - PAD_BOTTOM_PX - SCROLLBAR_W - 10)
   }
 
   #gutterWidthPx(lineCount: number): number {
