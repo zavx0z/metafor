@@ -46,7 +46,7 @@ if (import.meta.hot) {
 const UNIFORM_ALIGNMENT = 256
 const MAX_RENDERABLES = 5000
 const MAX_LIGHTS = 4 // Максимальное количество источников света
-const WEBGPU_INIT_TIMEOUT_MS = 5000
+const WEBGPU_INIT_TIMEOUT_MS = 15000
 
 // Размер данных для одного объекта: mat4x4 (64) + mat4x4 (64) + vec4 (16) + u32 (4) + 3*padding(12) = 160. Выравниваем до 256.
 const PER_OBJECT_UNIFORM_SIZE = Math.ceil((64 + 64 + 16 + 4) / UNIFORM_ALIGNMENT) * UNIFORM_ALIGNMENT

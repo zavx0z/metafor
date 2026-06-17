@@ -1008,26 +1008,6 @@ function finiteBulkHudNumber(value: number, fallback: number): number {
 	return Number.isFinite(value) ? value : fallback
 }
 
-async function initRendererWithRetry(renderer: Renderer, canvas: HTMLCanvasElement): Promise<void> {
-	const attempts = 3
-	let lastError: unknown = null
-	for (let attempt = 1; attempt <= attempts; attempt++) {
-		try {
-			await renderer.init(canvas)
-			return
-		} catch (error) {
-			lastError = error
-			console.warn(`[app-web] WebGPU init attempt ${attempt}/${attempts} failed:`, error)
-			if (attempt < attempts) await sleep(250 * attempt)
-		}
-	}
-	throw lastError instanceof Error ? lastError : new Error(String(lastError))
-}
-
-function sleep(ms: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
 function isBulkHudKeyFallbackTarget(target: EventTarget | null, canvas: HTMLCanvasElement): boolean {
 	if (target === null || target === window || target === document || target === document.body || target === document.documentElement) return true
 	if (target === canvas) return true
@@ -1038,7 +1018,7 @@ function isBulkHudKeyFallbackTarget(target: EventTarget | null, canvas: HTMLCanv
 
 export const createBulkViewport = async (options: BulkViewportOptions): Promise<BulkViewportController> => {
 	const renderer = new Renderer()
-	await initRendererWithRetry(renderer, options.canvas)
+	await renderer.init(options.canvas)
 	if (!renderer.canvas) {
 		throw new Error("Не удалось инициализировать WebGPU canvas в bulk viewport")
 	}
