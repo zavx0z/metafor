@@ -363,6 +363,7 @@ class AppWebHud implements AppWebHudController {
 	#workspaceProcessEntries = new Map<string, WorkspaceFileEntry>()
 	#workspaceProcesses: WorkspaceProcess[] = []
 	#workspaceAttachedProcessId: string | null = null
+	#workspaceAutoAttached = false
 	#workspaceCurrentEntry: WorkspaceFileEntry | null = null
 	#workspaceEditorDirty = false
 	#workspaceRootLabel = "Local"
@@ -974,11 +975,22 @@ class AppWebHud implements AppWebHudController {
 			const payload = await fetchJson("/hud/interpreter/processes")
 			this.#workspaceProcesses = workspaceProcessesFromPayload(payload)
 			this.#workspaceProcessLabel = this.#workspaceProcesses.length === 0 ? "Bun processes - none" : "Bun processes"
+			const autoAttachProcessId = this.#workspaceAutoAttachProcessId()
+			if (autoAttachProcessId !== null) {
+				this.#workspaceAutoAttached = true
+				await this.#attachWorkspaceProcess(autoAttachProcessId)
+				return
+			}
 			this.#syncWorkspaceFileTree()
 		} catch (error) {
 			this.#workspaceProcessLabel = `Bun processes - ${errorMessage(error)}`
 			this.#syncWorkspaceFileTree()
 		}
+	}
+
+	#workspaceAutoAttachProcessId(): string | null {
+		if (this.#workspaceAutoAttached || this.#workspaceAttachedProcessId !== null) return null
+		return workspacePreferredProcessId(this.#workspaceProcesses)
 	}
 
 	async #attachWorkspaceProcess(processId: string): Promise<void> {
@@ -992,13 +1004,30 @@ class AppWebHud implements AppWebHudController {
 		try {
 			const payload = await fetchJson(`/hud/interpreter/processes/${encodeURIComponent(processId)}/modules?limit=500`)
 			const modules = workspaceProcessModulesFromPayload(payload)
-			this.#workspaceProcessEntries = workspaceEntriesFromProcessModules(modules)
+			this.#workspaceProcessEntries = workspaceEntriesFromProcessModules(await this.#workspaceSourceModules(modules))
 			this.#workspaceProcessLabel = `Attached: ${modules.label}`
 			this.#syncWorkspaceFileTree()
 			if (this.#workspaceDocked) this.setDocked("workspace", false)
 		} catch (error) {
 			this.#workspaceProcessLabel = `Attach failed - ${errorMessage(error)}`
 			this.#syncWorkspaceFileTree()
+		}
+	}
+
+	async #workspaceSourceModules(modules: WorkspaceProcessModules): Promise<WorkspaceProcessModules> {
+		try {
+			const payload = await fetchJson("/hud/source/files?limit=1200")
+			const sourceFiles = workspaceSourceFilesFromPayload(payload)
+			if (sourceFiles.modules.length === 0) return modules
+			return {
+				...modules,
+				root: sourceFiles.root,
+				workspacePath: sourceFiles.workspacePath,
+				modules: sourceFiles.modules,
+			}
+		} catch (error) {
+			console.warn("workspace source files failed:", error)
+			return modules
 		}
 	}
 
@@ -1157,7 +1186,7 @@ class AppWebHud implements AppWebHudController {
 		this.#workspaceEntries = new Map([...this.#workspaceLocalEntries, ...this.#workspaceProcessEntries])
 		this.#workspaceFiles.setTitle("Inspector")
 		this.#workspaceFiles.setItems(items)
-		this.#workspaceFiles.setExpandedIds(workspaceDefaultExpandedIds(items, this.#workspaceAttachedProcessId))
+		this.#workspaceFiles.setExpandedIds(workspaceDefaultExpandedIds(items))
 		this.#workspaceFiles.requestRender()
 	}
 
@@ -3029,6 +3058,16 @@ function workspaceProcessFromPayload(value: unknown): WorkspaceProcess | null {
 	}
 }
 
+function workspacePreferredProcessId(processes: readonly WorkspaceProcess[]): string | null {
+	const appWeb = processes.find((process) =>
+		process.id === "app-web-server.ts" ||
+		process.label === "app/web/server.ts" ||
+		process.modulePath?.endsWith("/app/web/server.ts") === true ||
+		process.modulePath === "app/web/server.ts"
+	)
+	return appWeb?.id ?? (processes.length === 1 ? processes[0]?.id ?? null : null)
+}
+
 function workspaceProcessModulesFromPayload(payload: unknown): WorkspaceProcessModules {
 	const record = asRecord(payload)
 	if (record === null) throw new Error("modules payload must be an object")
@@ -3044,6 +3083,19 @@ function workspaceProcessModulesFromPayload(payload: unknown): WorkspaceProcessM
 		workspacePath: stringValue(record.workspacePath) ?? "",
 		entrypoint: stringValue(record.entrypoint),
 		modules,
+	}
+}
+
+function workspaceSourceFilesFromPayload(payload: unknown): Pick<WorkspaceProcessModules, "root" | "workspacePath" | "modules"> {
+	const record = asRecord(payload)
+	if (record === null) throw new Error("source files payload must be an object")
+	const files = Array.isArray(record.files)
+		? record.files.map((item) => ({path: stringValue(asRecord(item)?.path) ?? ""})).filter((item) => item.path.length > 0)
+		: []
+	return {
+		root: stringValue(record.root) ?? "",
+		workspacePath: stringValue(record.workspacePath) ?? "",
+		modules: files,
 	}
 }
 
@@ -3073,6 +3125,8 @@ function workspaceInspectorItems(options: {
 	processEntries: ReadonlyMap<string, WorkspaceFileEntry>
 	attachedProcessId: string | null
 }): FileListItem[] {
+	const items: FileListItem[] = []
+	if (options.processEntries.size > 0) items.push(...workspaceEntriesToFileItems(options.processEntries, "process"))
 	const runtimeChildren: FileListItem[] = [
 		{id: "workspace:processes:refresh", name: "Refresh processes", kind: "file", statusLabel: "reload"},
 	]
@@ -3091,20 +3145,12 @@ function workspaceInspectorItems(options: {
 			statusLabel: processStatusLabel(process),
 		})
 	}
-	const items: FileListItem[] = [{
+	items.push({
 		id: "workspace:processes",
 		name: options.processLabel,
 		kind: "directory",
 		children: runtimeChildren,
-	}]
-	if (options.processEntries.size > 0) {
-		items.push({
-			id: workspaceProcessRootId(options.attachedProcessId),
-			name: "Runtime source",
-			kind: "directory",
-			children: workspaceEntriesToFileItems(options.processEntries, "process"),
-		})
-	}
+	})
 	if (options.localEntries.size > 0) {
 		items.push({
 			id: "workspace:local:root",
@@ -3127,9 +3173,8 @@ function workspaceProcessActionItems(): FileListItem[] {
 	]
 }
 
-function workspaceDefaultExpandedIds(items: readonly FileListItem[], attachedProcessId: string | null): string[] {
+function workspaceDefaultExpandedIds(items: readonly FileListItem[]): string[] {
 	const ids = ["workspace:processes"]
-	if (attachedProcessId !== null) ids.push(workspaceProcessRootId(attachedProcessId))
 	if (items.some((item) => item.id === "workspace:local:root")) ids.push("workspace:local:root")
 	return ids
 }
@@ -3137,19 +3182,27 @@ function workspaceDefaultExpandedIds(items: readonly FileListItem[], attachedPro
 function workspaceEntriesToFileItems(entries: ReadonlyMap<string, WorkspaceFileEntry>, namespace: "local" | "process"): FileListItem[] {
 	const root: WorkspaceTreeNode = {id: "", name: "", dirs: new Map(), files: []}
 	for (const entry of entries.values()) {
-		const parts = normalizeWorkspacePath(entry.path).split("/").filter((part) => part.length > 0)
+		const normalizedPath = normalizeWorkspacePath(entry.path)
+		const isDirectory = isWorkspaceDirectoryMarker(normalizedPath)
+		const parts = normalizedPath.split("/").filter((part) => part.length > 0)
+		if (parts.length === 0) continue
 		let node = root
-		for (const part of parts.slice(0, -1)) {
-			let child = node.dirs.get(part)
-			if (child === undefined) {
-				child = {id: node.id.length === 0 ? part : `${node.id}/${part}`, name: part, dirs: new Map(), files: []}
-				node.dirs.set(part, child)
-			}
-			node = child
+		for (const part of isDirectory ? parts : parts.slice(0, -1)) {
+			node = workspaceTreeDirectory(node, part)
 		}
+		if (isDirectory) continue
 		node.files.push(entry)
 	}
 	return workspaceTreeChildren(root, namespace)
+}
+
+function workspaceTreeDirectory(node: WorkspaceTreeNode, name: string): WorkspaceTreeNode {
+	let child = node.dirs.get(name)
+	if (child === undefined) {
+		child = {id: node.id.length === 0 ? name : `${node.id}/${name}`, name, dirs: new Map(), files: []}
+		node.dirs.set(name, child)
+	}
+	return child
 }
 
 function workspaceTreeChildren(node: WorkspaceTreeNode, namespace: "local" | "process"): FileListItem[] {
@@ -3239,10 +3292,6 @@ function workspaceProcessItemId(processId: string): string {
 	return `workspace:process:${encodeURIComponent(processId)}`
 }
 
-function workspaceProcessRootId(processId: string | null): string {
-	return `workspace:process:${encodeURIComponent(processId ?? "attached")}:root`
-}
-
 function workspaceProcessIdForItemId(id: string): string | null {
 	if (!id.startsWith("workspace:process:")) return null
 	if (id.includes(":root")) return null
@@ -3277,6 +3326,10 @@ function workspaceAbsolutePath(root: string, path: string): string {
 
 function normalizeWorkspacePath(path: string): string {
 	return path.replaceAll("\\", "/").replace(/^\/+/, "").replace(/\/+/g, "/")
+}
+
+function isWorkspaceDirectoryMarker(path: string): boolean {
+	return path.trim().replaceAll("\\", "/").endsWith("/")
 }
 
 function workspaceBasename(path: string): string {

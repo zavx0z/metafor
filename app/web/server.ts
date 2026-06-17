@@ -1,8 +1,8 @@
 import {file, serve, type Server, type ServerWebSocket} from "bun"
 import {randomUUID} from "node:crypto"
-import {existsSync, readFileSync, statSync, writeFileSync} from "node:fs"
+import {existsSync, readdirSync, readFileSync, statSync, writeFileSync, type Dirent} from "node:fs"
 import {networkInterfaces} from "node:os"
-import {join, resolve} from "node:path"
+import {join, relative, resolve} from "node:path"
 import "dark/server"
 import {createPtySessionManager, parsePtyClientMessage, type PtySocketData} from "@metafor/pty/server"
 import {parseMarkdownTodo, updateTodoMarkdownItem} from "@ui/panes/todo-model"
@@ -66,6 +66,29 @@ const CHROME_API_URL = Bun.env.METAFOR_CHROME_API_URL ?? "http://localhost:7880"
 const INTERPRETER_ORIGIN_PORT = Bun.env.METAFOR_INTERPRETER_PORT ?? "6500"
 const APP_WEB_STARTED_AT = new Date()
 const LOG_COLOR_ENABLED = Bun.env.NO_COLOR === undefined && Bun.env.FORCE_COLOR !== "0"
+const META_SOURCE_DIR = "github"
+const SOURCE_FILE_EXTENSIONS = new Set([
+	".css",
+	".cts",
+	".cjs",
+	".gltf",
+	".html",
+	".js",
+	".json",
+	".jsx",
+	".md",
+	".mjs",
+	".mts",
+	".sql",
+	".ts",
+	".tsx",
+	".toml",
+	".wgsl",
+	".xml",
+	".yaml",
+	".yml",
+])
+const SOURCE_SKIP_DIRS = new Set([".git", "dist", "node_modules", "tmp"])
 const VOICE_LOCAL_STORAGE_KEYS = [
 	"metafor.interpreter.voice.url",
 	"metafor.interpreter.voice.wakeUrl",
@@ -206,6 +229,12 @@ const server = serve<AppWebSocketData>({
 	},
 	fetch: async (req: Request) => {
 		const url = new URL(req.url)
+		if (url.pathname === "/hud/source/files") {
+			const started = Date.now()
+			const response = sourceFilesResponse(req, url)
+			logHttp(req, "source.files", response.status, started)
+			return response
+		}
 		if (url.pathname === "/hud/interpreter/processes" || url.pathname.startsWith("/hud/interpreter/processes/")) {
 			return await proxyInterpreterRequest(req, url)
 		}
@@ -372,6 +401,69 @@ function writeTodoMarkdown(text: string): Response {
 		if (socket.data.kind === "app-web" && socket.readyState === WebSocket.OPEN) socket.send(message)
 	}
 	return jsonResponse(payload)
+}
+
+function sourceFilesResponse(req: Request, url: URL): Response {
+	if (req.method !== "GET") return new Response("Method Not Allowed", {status: 405})
+	const root = process.cwd()
+	const sourceRoot = resolve(root, META_SOURCE_DIR)
+	if (!existsSync(sourceRoot)) return jsonResponse({ok: false, root, error: `${META_SOURCE_DIR} directory not found`}, 404)
+	const limit = clampSourceFileLimit(url.searchParams.get("limit"))
+	const query = (url.searchParams.get("q") ?? "").trim().toLowerCase()
+	const rootMarker = `${META_SOURCE_DIR}/`
+	const paths = [
+		...(query.length === 0 || rootMarker.includes(query) ? [rootMarker] : []),
+		...collectSourceFiles(root, sourceRoot, query),
+	].slice(0, limit)
+	return jsonResponse({
+		ok: true,
+		root,
+		workspacePath: META_SOURCE_DIR,
+		files: paths.map((path) => ({path})),
+	})
+}
+
+function collectSourceFiles(root: string, sourceRoot: string, query: string): string[] {
+	const out: string[] = []
+	const stack = [sourceRoot]
+	while (stack.length > 0) {
+		const dir = stack.pop()!
+		let entries: Dirent[]
+		try {
+			entries = readdirSync(dir, {withFileTypes: true})
+		} catch {
+			continue
+		}
+		entries.sort((a, b) => {
+			if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? 1 : -1
+			return b.name.localeCompare(a.name)
+		})
+		for (const entry of entries) {
+			if (entry.name.startsWith(".") && entry.name !== ".storybook") continue
+			const abs = join(dir, entry.name)
+			if (entry.isDirectory()) {
+				if (!SOURCE_SKIP_DIRS.has(entry.name)) stack.push(abs)
+				continue
+			}
+			if (!entry.isFile()) continue
+			if (!SOURCE_FILE_EXTENSIONS.has(sourceFileExtension(entry.name))) continue
+			const rel = relative(root, abs).replaceAll("\\", "/")
+			if (query.length > 0 && !rel.toLowerCase().includes(query)) continue
+			out.push(rel)
+		}
+	}
+	return out.sort((a, b) => a.localeCompare(b))
+}
+
+function sourceFileExtension(name: string): string {
+	const dot = name.lastIndexOf(".")
+	return dot < 0 ? "" : name.slice(dot).toLowerCase()
+}
+
+function clampSourceFileLimit(value: string | null): number {
+	const limit = value === null ? 1200 : Number(value)
+	if (!Number.isFinite(limit)) return 1200
+	return Math.min(5000, Math.max(1, Math.floor(limit)))
 }
 
 async function readInterpreterVoiceSettingsResponse(): Promise<Response> {
