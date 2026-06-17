@@ -563,6 +563,8 @@ const NETWORK_TERMINAL_HUD_RECT_STORAGE_KEY = "metafor.interpreter.networkTermin
 const NETWORK_TERMINAL_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.networkTerminal.hudDocked:v1"
 const ANDROID_HUD_RECT_STORAGE_KEY = "metafor.interpreter.android.hudRect:v1"
 const ANDROID_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.android.hudDocked:v1"
+const SECONDARY_ANDROID_HUD_RECT_STORAGE_KEY = "metafor.interpreter.android.secondary.hudRect:v1"
+const SECONDARY_ANDROID_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.android.secondary.hudDocked:v1"
 const TODO_HUD_RECT_STORAGE_KEY = "metafor.interpreter.todo.hudRect:v1"
 const TODO_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.todo.hudDocked:v1"
 const TODO_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.todo.dockPlacement:v1"
@@ -687,7 +689,9 @@ const DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "
 const DEFAULT_NETWORK_TERMINAL_HUD_RECT: UiSurfaceRect = {x: 24, y: 520, w: 1080, h: 560}
 const NETWORK_TERMINAL_INITIAL_COMMAND = "tmux attach -t metafor-app-web-net\r"
 const DEFAULT_ANDROID_HUD_RECT: UiSurfaceRect = {x: 24, y: 80, w: 390, h: 720}
+const DEFAULT_SECONDARY_ANDROID_HUD_RECT: UiSurfaceRect = {x: 430, y: 80, w: 390, h: 720}
 const ANDROID_RTC_FRAME_SRC = "metafor:android-rtc-frame"
+const SECONDARY_ANDROID_RTC_FRAME_SRC = "metafor:android-rtc-frame:secondary"
 const PINNED_VOICE_HUD_ANCHOR: VoiceHudAnchorPlacement = {horizontal: "right", vertical: "bottom", offsetX: 0, offsetY: 0}
 const DEFAULT_TODO_HUD_RECT: UiSurfaceRect = {x: 16, y: 72, w: 430, h: 560}
 const DEFAULT_TODO_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "left", offset: 260}
@@ -701,6 +705,7 @@ let todoPane: ToDoPane | null = null
 let todoDockPane: TodoDockPane | null = null
 let todoContext: ToDoPaneContextSnapshot | null = null
 let androidPane: AndroidPane | null = null
+let secondaryAndroidPane: AndroidPane | null = null
 let sqliteHudPane: SqliteHudFramePane | null = null
 let sqliteDockPane: SqliteDockPane | null = null
 let hostTerminal: HostTerminalController | null = null
@@ -715,10 +720,14 @@ let networkHostTerminalHudDocked = readStoredNetworkTerminalHudDocked()
 let networkHostTerminalHudRectPreview: UiSurfaceRect | null = null
 let androidHudDocked = readStoredAndroidHudDocked()
 let androidHudRectPreview: UiSurfaceRect | null = null
+let secondaryAndroidHudDocked = readStoredSecondaryAndroidHudDocked()
+let secondaryAndroidHudRectPreview: UiSurfaceRect | null = null
 let androidFrameRefreshTimer: number | null = null
 let androidFrameRefreshInFlight = false
 let androidRtcClient: AndroidRtcClient | null = null
+let secondaryAndroidRtcClient: AndroidRtcClient | null = null
 let androidControlStatusUntil = 0
+let secondaryAndroidControlStatusUntil = 0
 let todoHudDocked = readStoredTodoHudDocked()
 let todoDockPlacement: HostTerminalDockPlacement | null = readStoredTodoDockPlacement() ?? DEFAULT_TODO_DOCK_PLACEMENT
 let todoHudRectPreview: UiSurfaceRect | null = null
@@ -970,6 +979,16 @@ async function executeUiHostCommand(command: string, params: unknown): Promise<u
       return hudAndroidPayload()
     case "hud.android.control":
       return sendAndroidControlCommand(params)
+    case "hud.android.secondary.get":
+      return secondaryHudAndroidPayload()
+    case "hud.android.secondary.show":
+      return setSecondaryHudAndroidDocked(false)
+    case "hud.android.secondary.dock":
+      return setSecondaryHudAndroidDocked(true)
+    case "hud.android.secondary.toggle":
+      return setSecondaryHudAndroidDocked(!secondaryAndroidHudDocked)
+    case "hud.android.secondary.control":
+      return sendSecondaryAndroidControlCommand(params)
     case "hud.todo.get":
       return hudTodoPayload()
     case "hud.todo.highlight":
@@ -1721,6 +1740,31 @@ function hudAndroidPayload(): unknown {
   }
 }
 
+function setSecondaryHudAndroidDocked(docked: boolean): unknown {
+  setSecondaryAndroidHudDocked(docked)
+  return secondaryHudAndroidPayload()
+}
+
+function secondaryHudAndroidPayload(): unknown {
+  const frame = secondaryAndroidPane === null || uiCanvas === null ? null : uiCanvas.surfaceFrame(secondaryAndroidPane)
+  const androidFrame = secondaryAndroidPane?.frameSnapshot() ?? null
+  return {
+    docked: secondaryAndroidHudDocked,
+    rect: frame?.rect ?? null,
+    rtc: {
+      peerId: secondaryAndroidRtcClient?.peerId ?? null,
+      peers: secondaryAndroidRtcClient?.peers() ?? [],
+    },
+    frame: androidFrame === null
+      ? null
+      : {
+          width: androidFrame.width,
+          height: androidFrame.height,
+          capturedAt: androidFrame.capturedAt ?? null,
+        },
+  }
+}
+
 function setHudTodoHighlight(params: unknown): unknown {
   if (todoPane === null) throw new Error("TODO pane is not ready")
   const ids = todoHighlightIdsFromParams(params)
@@ -2349,6 +2393,19 @@ async function initEngine(): Promise<void> {
       onFrameRectChange: storeAndroidHudRectAndRelayout,
       onFrameDockRequest: () => setAndroidHudDocked(true),
     })
+    secondaryAndroidPane = new AndroidPane({
+      title: "Android 2",
+      draggable: true,
+      resizable: true,
+      onRefresh: () => connectSecondaryAndroidRtc(),
+      onTap: (x, y) => void sendSecondaryAndroidTap(x, y),
+      onSwipe: (swipe) => void sendSecondaryAndroidSwipe(swipe),
+      onKey: (code) => void sendSecondaryAndroidKey(code),
+      onLaunchPackage: (packageName) => void sendSecondaryAndroidLaunchPackage(packageName),
+      onFrameRectPreview: previewSecondaryAndroidHudRect,
+      onFrameRectChange: storeSecondaryAndroidHudRectAndRelayout,
+      onFrameDockRequest: () => setSecondaryAndroidHudDocked(true),
+    })
     voiceHudPane = new VoiceInputHud({
       onToggle: () => void toggleVoiceInput(),
       settings: () => ({
@@ -2459,6 +2516,10 @@ function installEnginePanes(): void {
     uiCanvas.addHudSurface(androidPane, androidHudRect)
     if (!androidHudDocked) connectAndroidRtc()
   }
+  if (secondaryAndroidPane !== null) {
+    uiCanvas.addHudSurface(secondaryAndroidPane, secondaryAndroidHudRect)
+    if (!secondaryAndroidHudDocked) connectSecondaryAndroidRtc()
+  }
   hostTerminalAgentSignalPane ??= new HostTerminalAgentSignalPane()
   uiCanvas.addHudSurface(hostTerminalAgentSignalPane, hostTerminalAgentSignalRect, {zIndex: HUD_LAYER_TOP})
   hostTerminalDockPane ??= new HostTerminalDockPane(() => setHostTerminalHudDocked(false))
@@ -2558,6 +2619,7 @@ function connectAndroidRtc(): void {
   if (androidRtcClient === null) {
     androidRtcClient = createAndroidRtcClient({
       frameSrc: ANDROID_RTC_FRAME_SRC,
+      peerTarget: "primary",
       onFrame: (frame) => {
         androidPane?.setFrame(frame)
         if (Date.now() >= androidControlStatusUntil) androidPane?.setStatus("connected", `${frame.width}x${frame.height} rtc`)
@@ -2571,6 +2633,29 @@ function connectAndroidRtc(): void {
 function setAndroidRtcStatus(kind: AndroidPaneStatusKind, label: string): void {
   androidPane?.setStatus(kind, label)
   if (/\b(ok|failed)$/.test(label)) androidControlStatusUntil = Date.now() + 1_200
+}
+
+function connectSecondaryAndroidRtc(): void {
+  if (secondaryAndroidPane === null) return
+  if (secondaryAndroidRtcClient === null) {
+    secondaryAndroidRtcClient = createAndroidRtcClient({
+      frameSrc: SECONDARY_ANDROID_RTC_FRAME_SRC,
+      peerTarget: "secondary",
+      onFrame: (frame) => {
+        secondaryAndroidPane?.setFrame(frame)
+        if (Date.now() >= secondaryAndroidControlStatusUntil) {
+          secondaryAndroidPane?.setStatus("connected", `${frame.width}x${frame.height} rtc`)
+        }
+      },
+      onStatus: setSecondaryAndroidRtcStatus,
+    })
+  }
+  secondaryAndroidRtcClient.connect()
+}
+
+function setSecondaryAndroidRtcStatus(kind: AndroidPaneStatusKind, label: string): void {
+  secondaryAndroidPane?.setStatus(kind, label)
+  if (/\b(ok|failed)$/.test(label)) secondaryAndroidControlStatusUntil = Date.now() + 1_200
 }
 
 async function sendAndroidTap(x: number, y: number): Promise<void> {
@@ -2599,6 +2684,44 @@ function sendAndroidControlCommand(params: unknown): unknown {
     command,
     android: hudAndroidPayload(),
   }
+}
+
+async function sendSecondaryAndroidTap(x: number, y: number): Promise<void> {
+  sendSecondaryAndroidControl({type: "tap", x, y})
+}
+
+async function sendSecondaryAndroidSwipe(swipe: AndroidPaneSwipe): Promise<void> {
+  sendSecondaryAndroidControl({type: "swipe", ...swipe})
+}
+
+async function sendSecondaryAndroidKey(code: string): Promise<void> {
+  sendSecondaryAndroidControl({type: "key", code})
+}
+
+async function sendSecondaryAndroidLaunchPackage(packageName: string): Promise<void> {
+  sendSecondaryAndroidControl({type: "launch", packageName})
+}
+
+function sendSecondaryAndroidControlCommand(params: unknown): unknown {
+  const command = androidControlCommandFromParams(params)
+  if (sendSecondaryAndroidControl(command) !== true) throw new Error("secondary android rtc control channel is not open")
+  return {
+    sent: true,
+    command,
+    android: secondaryHudAndroidPayload(),
+  }
+}
+
+function sendSecondaryAndroidControl(command: AndroidRtcCommand): boolean {
+  if (secondaryAndroidHudDocked) setSecondaryAndroidHudDocked(false)
+  connectSecondaryAndroidRtc()
+  if (secondaryAndroidRtcClient?.send(command) !== true) {
+    secondaryAndroidPane?.setStatus("error", "rtc control closed")
+    return false
+  }
+  secondaryAndroidControlStatusUntil = Date.now() + 700
+  secondaryAndroidPane?.setStatus("connected", "rtc command")
+  return true
 }
 
 async function sendAndroidControlOrFallback(command: AndroidRtcCommand, fallbackPath: string, fallbackBody: Record<string, unknown>): Promise<void> {
@@ -6001,6 +6124,35 @@ function storeAndroidHudRectAndRelayout(rect: UiSurfaceRect): void {
   relayoutHudSurfaces()
 }
 
+function readStoredSecondaryAndroidHudRect(): UiSurfaceRect | null {
+  try {
+    return parseStoredPaneRect(localStorage.getItem(SECONDARY_ANDROID_HUD_RECT_STORAGE_KEY))
+  } catch {
+    return null
+  }
+}
+
+function storeSecondaryAndroidHudRect(rect: UiSurfaceRect): void {
+  const normalized = normalizeStoredPaneRect(rect)
+  if (normalized === null) return
+  try {
+    localStorage.setItem(SECONDARY_ANDROID_HUD_RECT_STORAGE_KEY, JSON.stringify(normalized))
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+}
+
+function previewSecondaryAndroidHudRect(rect: UiSurfaceRect): void {
+  secondaryAndroidHudRectPreview = rect
+  relayoutHudSurfaces()
+}
+
+function storeSecondaryAndroidHudRectAndRelayout(rect: UiSurfaceRect): void {
+  secondaryAndroidHudRectPreview = null
+  storeSecondaryAndroidHudRect(rect)
+  relayoutHudSurfaces()
+}
+
 function readStoredTodoHudRect(): UiSurfaceRect | null {
   try {
     return parseStoredPaneRect(localStorage.getItem(TODO_HUD_RECT_STORAGE_KEY))
@@ -6104,6 +6256,23 @@ function readStoredAndroidHudDocked(): boolean {
 function writeStoredAndroidHudDocked(docked: boolean): void {
   try {
     localStorage.setItem(ANDROID_HUD_DOCKED_STORAGE_KEY, docked ? "1" : "0")
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+}
+
+function readStoredSecondaryAndroidHudDocked(): boolean {
+  try {
+    const value = localStorage.getItem(SECONDARY_ANDROID_HUD_DOCKED_STORAGE_KEY)
+    return value === null ? true : value === "1"
+  } catch {
+    return true
+  }
+}
+
+function writeStoredSecondaryAndroidHudDocked(docked: boolean): void {
+  try {
+    localStorage.setItem(SECONDARY_ANDROID_HUD_DOCKED_STORAGE_KEY, docked ? "1" : "0")
   } catch {
     // Storage can be disabled in private contexts.
   }
@@ -6282,6 +6451,24 @@ function setAndroidHudDocked(docked: boolean): void {
     connectAndroidRtc()
   }
   androidPane?.requestRender()
+  relayoutHudSurfaces()
+}
+
+function setSecondaryAndroidHudDocked(docked: boolean): void {
+  if (secondaryAndroidHudDocked === docked) return
+  secondaryAndroidHudDocked = docked
+  writeStoredSecondaryAndroidHudDocked(docked)
+  if (docked) {
+    if (secondaryAndroidPane !== null && uiCanvas !== null) {
+      uiCanvas.setFocused(null)
+      uiCanvas.inputProxy?.blur()
+    }
+    secondaryAndroidRtcClient?.disconnect()
+  } else {
+    uiCanvas?.setFocused(secondaryAndroidPane)
+    connectSecondaryAndroidRtc()
+  }
+  secondaryAndroidPane?.requestRender()
   relayoutHudSurfaces()
 }
 
@@ -8475,6 +8662,15 @@ function androidHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   const stored = readStoredAndroidHudRect()
   if (stored !== null) return clampAndroidHudRect(stored, w, h)
   return clampAndroidHudRect(DEFAULT_ANDROID_HUD_RECT, w, h)
+}
+
+function secondaryAndroidHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
+  if (secondaryAndroidHudDocked) return hiddenRect()
+  if (w < ANDROID_HUD_MIN_W || h < ANDROID_HUD_MIN_H) return hiddenRect()
+  if (secondaryAndroidHudRectPreview !== null) return clampAndroidHudRect(secondaryAndroidHudRectPreview, w, h)
+  const stored = readStoredSecondaryAndroidHudRect()
+  if (stored !== null) return clampAndroidHudRect(stored, w, h)
+  return clampAndroidHudRect(DEFAULT_SECONDARY_ANDROID_HUD_RECT, w, h)
 }
 
 function todoHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {

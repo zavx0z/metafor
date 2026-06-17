@@ -54,6 +54,7 @@ export class VirtualInput {
     ta.setAttribute("autocomplete", "off")
     ta.setAttribute("autocapitalize", "off")
     ta.setAttribute("autocorrect", "on") // на macOS включает Touch Bar emoji
+    ta.setAttribute("inputmode", "none")
     ta.setAttribute("spellcheck", "false")
     ta.tabIndex = 0
     parent.appendChild(ta)

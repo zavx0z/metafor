@@ -45,6 +45,11 @@ type InterpreterVoiceSettingsPayload = {
 	origin?: string
 	values?: Record<string, string>
 }
+type AndroidControlCommand =
+	| {type: "tap"; x: number; y: number}
+	| {type: "swipe"; x1: number; y1: number; x2: number; y2: number; durationMs?: number}
+	| {type: "key"; code: string}
+	| {type: "launch"; packageName: string}
 
 const boundary = globalThis.boundary
 const sockets = new Set<ServerWebSocket<AppWebSocketData>>()
@@ -150,9 +155,16 @@ const server = serve<AppWebSocketData>({
 			if (req.method === "POST") return await writeInterpreterVoiceSettingsResponse(req)
 			return new Response("Method Not Allowed", {status: 405})
 		},
+		"/hud/android/control": async (req: Request) => {
+			if (req.method !== "POST") return new Response("Method Not Allowed", {status: 405})
+			return await broadcastAndroidControlResponse(req)
+		},
 	},
 	fetch: async (req: Request) => {
 		const url = new URL(req.url)
+		if (url.pathname === "/hud/interpreter/processes" || url.pathname.startsWith("/hud/interpreter/processes/")) {
+			return await proxyInterpreterRequest(req, url)
+		}
 		const todoItem = /^\/hud\/todo\/items\/([^/]+)$/.exec(url.pathname)
 		if ((req.method === "PATCH" || req.method === "POST") && todoItem !== null) {
 			return await patchTodoItem(decodeURIComponent(todoItem[1]!), req)
@@ -312,6 +324,21 @@ async function writeInterpreterVoiceSettingsResponse(req: Request): Promise<Resp
 	}
 }
 
+async function broadcastAndroidControlResponse(req: Request): Promise<Response> {
+	const parsed = await readJsonObject(req)
+	if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
+	const command = asAndroidControlCommand(parsed.body)
+	if (command === null) return jsonResponse({ok: false, error: "invalid android control command"}, 400)
+	const message = JSON.stringify({type: "hud-android-control", command})
+	let clients = 0
+	for (const socket of sockets) {
+		if (socket.data.kind !== "app-web" || socket.readyState !== WebSocket.OPEN) continue
+		socket.send(message)
+		clients += 1
+	}
+	return jsonResponse({ok: true, clients, command})
+}
+
 async function readInterpreterVoiceSettings(): Promise<InterpreterVoiceSettingsPayload> {
 	const target = await findInterpreterTab()
 	const keysJson = JSON.stringify(VOICE_LOCAL_STORAGE_KEYS)
@@ -382,6 +409,46 @@ async function evalInterpreterVoiceSettings(target: {windowId: number; tabIndex:
 	return origin === undefined ? {values} : {origin, values}
 }
 
+async function proxyInterpreterRequest(req: Request, url: URL): Promise<Response> {
+	const upstreamPath = url.pathname.slice("/hud/interpreter".length) || "/"
+	if (!isAllowedInterpreterProxyPath(upstreamPath)) return jsonResponse({ok: false, error: "interpreter route not allowed"}, 404)
+	const upstream = new URL(`http://127.0.0.1:${INTERPRETER_ORIGIN_PORT}${upstreamPath}`)
+	upstream.search = url.search
+	const headers = new Headers()
+	const contentType = req.headers.get("content-type")
+	if (contentType !== null) headers.set("content-type", contentType)
+	try {
+		const init: RequestInit = {
+			method: req.method,
+			headers,
+			signal: AbortSignal.timeout(8000),
+		}
+		if (req.method !== "GET" && req.method !== "HEAD") init.body = await req.arrayBuffer()
+		const response = await fetch(upstream, {
+			...init,
+		})
+		return new Response(response.body, {
+			status: response.status,
+			statusText: response.statusText,
+			headers: {
+				"content-type": response.headers.get("content-type") ?? "application/json; charset=utf-8",
+			},
+		})
+	} catch (error) {
+		return jsonResponse({
+			ok: false,
+			error: error instanceof Error ? error.message : String(error),
+			hint: `interpreter http api is expected on 127.0.0.1:${INTERPRETER_ORIGIN_PORT}`,
+		}, 502)
+	}
+}
+
+function isAllowedInterpreterProxyPath(path: string): boolean {
+	if (path === "/processes") return true
+	if (path === "/processes/resolve" || path === "/processes/focus") return true
+	return /^\/processes\/[^/]+(?:\/(?:action|breakpoint|breakpoints|context|focus|modules|source))?$/.test(path)
+}
+
 function parseChromeEvalParsed(payload: ChromeEvalPayload): unknown {
 	if (payload.parsed !== undefined && payload.parsed !== null) return payload.parsed
 	if (typeof payload.result !== "string" || payload.result.length === 0) return null
@@ -410,6 +477,37 @@ function asVoiceSettingsValues(value: unknown): Record<string, string> | null {
 		if (isVoiceLocalStorageKey(key) && typeof item === "string") next[key] = item
 	}
 	return next
+}
+
+function asAndroidControlCommand(value: Record<string, unknown>): AndroidControlCommand | null {
+	const type = value["type"]
+	if (type === "tap") {
+		const x = finiteNumber(value["x"])
+		const y = finiteNumber(value["y"])
+		return x === null || y === null ? null : {type, x, y}
+	}
+	if (type === "swipe") {
+		const x1 = finiteNumber(value["x1"])
+		const y1 = finiteNumber(value["y1"])
+		const x2 = finiteNumber(value["x2"])
+		const y2 = finiteNumber(value["y2"])
+		const durationMs = finiteNumber(value["durationMs"])
+		if (x1 === null || y1 === null || x2 === null || y2 === null) return null
+		return durationMs === null ? {type, x1, y1, x2, y2} : {type, x1, y1, x2, y2, durationMs}
+	}
+	if (type === "key") {
+		const code = value["code"]
+		return typeof code === "string" && code.length > 0 ? {type, code} : null
+	}
+	if (type === "launch") {
+		const packageName = value["packageName"]
+		return typeof packageName === "string" && packageName.length > 0 ? {type, packageName} : null
+	}
+	return null
+}
+
+function finiteNumber(value: unknown): number | null {
+	return typeof value === "number" && Number.isFinite(value) ? value : null
 }
 
 function isVoiceLocalStorageKey(key: string): key is typeof VOICE_LOCAL_STORAGE_KEYS[number] {

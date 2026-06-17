@@ -34,6 +34,7 @@ export type AndroidRtcClient = {
 export type AndroidRtcClientOpts = {
   room?: string
   peerId?: string
+  peerTarget?: "primary" | "secondary" | "any"
   frameSrc: string
   minFrameIntervalMs?: number
   onFrame: (frame: AndroidRtcFrame) => void
@@ -47,12 +48,14 @@ type PeerRecord = {
 }
 
 const DEFAULT_ANDROID_RTC_ROOM = "android-display"
+const ANDROID_RTC_SENDER_PEER = "android"
 const DEFAULT_MIN_FRAME_INTERVAL_MS = 50
 const APP_WEB_ANDROID_SIGNALING_URL = "wss://192.168.8.106/hud/webrtc/signaling"
 
 export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcClient {
   const room = opts.room ?? DEFAULT_ANDROID_RTC_ROOM
   const peerId = opts.peerId ?? `interpreter-${crypto.randomUUID()}`
+  const peerTarget = opts.peerTarget ?? "primary"
   const peers = new Map<string, PeerRecord>()
   const video = document.createElement("video")
   video.autoplay = true
@@ -121,11 +124,13 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
   async function handleSignal(signal: AndroidRtcSignal): Promise<void> {
     if (signal.type === "hello") {
       opts.onStatus("running", `rtc room ${signal.peers.length} peers`)
-      for (const remotePeerId of signal.peers) void createPeer(remotePeerId, true)
+      for (const remotePeerId of signal.peers) {
+        if (isTargetAndroidRtcSenderPeer(remotePeerId, peerTarget)) void createPeer(remotePeerId, true)
+      }
       return
     }
     if (signal.type === "peer-joined") {
-      if (signal.peerId !== peerId) void createPeer(signal.peerId, true)
+      if (isTargetAndroidRtcSenderPeer(signal.peerId, peerTarget)) void createPeer(signal.peerId, true)
       return
     }
     if (signal.type === "peer-left") {
@@ -133,6 +138,7 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
       return
     }
     if (signal.from === peerId) return
+    if (!isTargetAndroidRtcSenderPeer(signal.from, peerTarget)) return
     const peer = createPeer(signal.from, false)
     if (signal.type === "offer") {
       await peer.connection.setRemoteDescription(signal.description)
@@ -299,4 +305,15 @@ function parseControlMessage(raw: string): {type: "control-result"; command: str
   } catch {
     return null
   }
+}
+
+function isAndroidRtcSenderPeer(peerId: string): boolean {
+  return peerId === ANDROID_RTC_SENDER_PEER || peerId.startsWith(`${ANDROID_RTC_SENDER_PEER}-`)
+}
+
+function isTargetAndroidRtcSenderPeer(peerId: string, target: "primary" | "secondary" | "any"): boolean {
+  if (!isAndroidRtcSenderPeer(peerId)) return false
+  if (target === "any") return true
+  if (target === "secondary") return peerId !== ANDROID_RTC_SENDER_PEER
+  return peerId === ANDROID_RTC_SENDER_PEER
 }

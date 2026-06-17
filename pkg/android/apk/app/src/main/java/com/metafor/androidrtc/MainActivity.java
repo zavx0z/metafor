@@ -21,6 +21,8 @@ import android.widget.TextView;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import org.json.JSONObject;
 import org.webrtc.DataChannel;
 import org.webrtc.DefaultVideoDecoderFactory;
@@ -54,7 +56,7 @@ public final class MainActivity extends Activity {
   private SignalingClient signaling;
   private EglBase eglBase;
   private PeerConnectionFactory factory;
-  private PeerConnection peerConnection;
+  private final Map<String, PeerConnection> peerConnections = new HashMap<>();
   private VideoCapturer screenCapturer;
   private SurfaceTextureHelper surfaceTextureHelper;
   private VideoSource videoSource;
@@ -144,6 +146,7 @@ public final class MainActivity extends Activity {
   }
 
   private void startScreenCapture(Intent data) {
+    closeAllPeers();
     stopScreenCapture();
     Intent serviceIntent = new Intent(this, ProjectionForegroundService.class);
     ProjectionForegroundService.resetForeground();
@@ -217,7 +220,7 @@ public final class MainActivity extends Activity {
 
       @Override public void onPeerLeft(String peerId) {
         setStatus("peer left " + peerId);
-        closePeer();
+        closePeer(peerId);
       }
 
       @Override public void onOffer(String from, JSONObject description) {
@@ -227,7 +230,7 @@ public final class MainActivity extends Activity {
       @Override public void onAnswer(String from, JSONObject description) {}
 
       @Override public void onIce(String from, JSONObject candidate) {
-        runOnUiThread(() -> addIce(candidate));
+        runOnUiThread(() -> addIce(from, candidate));
       }
     });
     signaling.connect(signalingInput.getText().toString().trim());
@@ -272,13 +275,14 @@ public final class MainActivity extends Activity {
   }
 
   private PeerConnection ensurePeerConnection(String remotePeerId) {
-    if (peerConnection != null) return peerConnection;
+    PeerConnection existing = peerConnections.get(remotePeerId);
+    if (existing != null) return existing;
     PeerConnection.RTCConfiguration config = new PeerConnection.RTCConfiguration(Collections.emptyList());
     config.sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN;
-    peerConnection = factory.createPeerConnection(config, new PeerConnection.Observer() {
+    PeerConnection peerConnection = factory.createPeerConnection(config, new PeerConnection.Observer() {
       @Override public void onSignalingChange(PeerConnection.SignalingState state) {}
       @Override public void onIceConnectionChange(PeerConnection.IceConnectionState state) {
-        setStatus("ice " + state);
+        setStatus("ice " + remotePeerId + " " + state);
       }
       @Override public void onIceConnectionReceivingChange(boolean receiving) {}
       @Override public void onIceGatheringChange(PeerConnection.IceGatheringState state) {}
@@ -295,6 +299,7 @@ public final class MainActivity extends Activity {
       @Override public void onAddTrack(RtpReceiver receiver, MediaStream[] streams) {}
     });
     if (peerConnection == null) throw new IllegalStateException("PeerConnection failed");
+    peerConnections.put(remotePeerId, peerConnection);
     if (localVideoTrack != null) {
       peerConnection.addTrack(localVideoTrack, Collections.singletonList("metafor-screen"));
     }
@@ -360,7 +365,8 @@ public final class MainActivity extends Activity {
     }
   }
 
-  private void addIce(JSONObject object) {
+  private void addIce(String from, JSONObject object) {
+    PeerConnection peerConnection = peerConnections.get(from);
     if (peerConnection == null) return;
     try {
       peerConnection.addIceCandidate(new IceCandidate(
@@ -385,7 +391,7 @@ public final class MainActivity extends Activity {
       signaling.close();
       signaling = null;
     }
-    closePeer();
+    closeAllPeers();
     stopScreenCapture();
     if (factory != null) {
       factory.dispose();
@@ -397,11 +403,16 @@ public final class MainActivity extends Activity {
     }
   }
 
-  private void closePeer() {
-    if (peerConnection != null) {
-      peerConnection.close();
-      peerConnection.dispose();
-      peerConnection = null;
+  private void closePeer(String remotePeerId) {
+    PeerConnection peerConnection = peerConnections.remove(remotePeerId);
+    if (peerConnection == null) return;
+    peerConnection.close();
+    peerConnection.dispose();
+  }
+
+  private void closeAllPeers() {
+    for (String remotePeerId : peerConnections.keySet().toArray(new String[0])) {
+      closePeer(remotePeerId);
     }
   }
 

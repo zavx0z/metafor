@@ -11,6 +11,7 @@ import {
 } from "./settings.ts"
 import {loadPersistedAppWebUiSettings, savePersistedAppWebUiSettings} from "./ui-settings-idb.ts"
 import {installAppWebHud, type AppWebHudController, type AppWebHudSettingsSnapshot} from "./hud.ts"
+import type {AndroidRtcCommand} from "./android-rtc.ts"
 
 type ForceMessage = {
 	type: "force"
@@ -34,6 +35,11 @@ type TodoChangedMessage = {
 		text: string
 		path: string
 	}
+}
+
+type HudAndroidControlMessage = {
+	type: "hud-android-control"
+	command: AndroidRtcCommand
 }
 
 type ClientMaterializePayload = {
@@ -339,7 +345,7 @@ const applyForcePartToSnapshot = (snapshot: BoundaryBulkRuntimeSnapshot, part: P
 }
 
 socket.onmessage = (event) => {
-	const message = JSON.parse(String(event.data)) as ForceMessage | SnapshotMessage | ErrorMessage | TodoChangedMessage
+	const message = JSON.parse(String(event.data)) as ForceMessage | SnapshotMessage | ErrorMessage | TodoChangedMessage | HudAndroidControlMessage
 
 	if (message.type === "force") {
 		const forceMessage = message as ForceMessage
@@ -378,6 +384,11 @@ socket.onmessage = (event) => {
 
 	if (message.type === "hud-todo-changed") {
 		hud?.setTodoMarkdown(message.todo.text, message.todo.path)
+		return
+	}
+
+	if (message.type === "hud-android-control") {
+		hud?.sendAndroidControl(message.command)
 		return
 	}
 }

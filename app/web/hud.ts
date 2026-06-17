@@ -22,6 +22,9 @@ import {
 } from "@ui/components"
 import {HudSideTab, type HudSideTabEdge} from "@ui/hud"
 import {
+	AndroidPane,
+	EditorPane,
+	FileListPane,
 	TerminalPane,
 	ToDoPane,
 	PANE_FRAME,
@@ -37,6 +40,9 @@ import {
 	type TerminalInputSource,
 	type TerminalSize,
 	type TerminalStatusKind,
+	type AndroidPaneStatusKind,
+	type AndroidPaneSwipe,
+	type FileListItem,
 	type ToDoPanePanelStateSnapshot,
 } from "@ui/panes"
 import type {PtyClientMessage, PtyServerMessage, PtyStatusKind, PtyTerminalState} from "@metafor/pty/server"
@@ -62,6 +68,7 @@ import {
 	type AppWebRenderSettings,
 	type AppWebSettingKey,
 } from "./settings.ts"
+import {createAndroidRtcClient, type AndroidRtcClient, type AndroidRtcCommand} from "./android-rtc.ts"
 
 export type AppWebHudSettingsSnapshot = {
 	layoutSettings: Partial<AppWebLayoutSettings>
@@ -81,13 +88,14 @@ export type AppWebHudOptions = {
 export type AppWebHudController = {
 	currentSrc(): string
 	settingsSnapshot(): AppWebHudSettingsSnapshot
+	sendAndroidControl(command: AndroidRtcCommand): boolean
 	setBusy(busy: boolean): void
 	setConnectionStatus(online: boolean): void
 	setStats(stats: BulkViewportStats): void
 	setTodoMarkdown(text: string, path: string): void
 }
 
-type DockKind = "codex" | "settings" | "todo" | "fullscreen"
+type DockKind = "codex" | "settings" | "todo" | "android" | "workspace" | "fullscreen"
 type DockPanelKind = Exclude<DockKind, "fullscreen">
 type SettingsTab = "scene" | "geometry" | "render" | "voice"
 
@@ -133,6 +141,59 @@ type TerminalController = {
 	agentNotifyTimer: ReturnType<typeof setTimeout> | null
 }
 
+type BrowserWritableFile = {
+	write(data: string | Blob | ArrayBuffer): Promise<void>
+	close(): Promise<void>
+}
+
+type BrowserFileHandle = {
+	kind?: "file"
+	name?: string
+	getFile(): Promise<File>
+	createWritable?: () => Promise<BrowserWritableFile>
+}
+
+type BrowserDirectoryHandle = {
+	kind?: "directory"
+	name: string
+	entries?: () => AsyncIterable<[string, BrowserDirectoryHandle | BrowserFileHandle]>
+}
+
+type WorkspaceFileEntry = {
+	file?: File
+	handle?: BrowserFileHandle
+	sourceUrl?: string
+	sourceKind: "local" | "process"
+	processId?: string
+	name: string
+	path: string
+}
+
+type WorkspaceTreeNode = {
+	id: string
+	name: string
+	dirs: Map<string, WorkspaceTreeNode>
+	files: WorkspaceFileEntry[]
+}
+
+type WorkspaceProcess = {
+	id: string
+	label: string
+	modulePath: string | null
+	connection: string
+	paused: boolean
+	protocolUrl: string
+}
+
+type WorkspaceProcessModules = {
+	processId: string
+	label: string
+	root: string
+	workspacePath: string
+	entrypoint: string | null
+	modules: Array<{path: string}>
+}
+
 const STORAGE_PREFIX = "metafor.app-web.hud"
 const CODEX_SESSION_STORAGE_KEY = `${STORAGE_PREFIX}.codex.sessionId:v1`
 const CODEX_DOCKED_STORAGE_KEY = `${STORAGE_PREFIX}.codex.docked:v1`
@@ -145,6 +206,13 @@ const TODO_DOCKED_STORAGE_KEY = `${STORAGE_PREFIX}.todo.docked:v1`
 const TODO_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.todo.rect:v1`
 const TODO_DOCK_PLACEMENT_STORAGE_KEY = `${STORAGE_PREFIX}.todo.dockPlacement:v2`
 const TODO_PANEL_STATE_STORAGE_KEY = `${STORAGE_PREFIX}.todo.panelState:v1`
+const WORKSPACE_DOCKED_STORAGE_KEY = `${STORAGE_PREFIX}.workspace.docked:v1`
+const WORKSPACE_FILES_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.workspace.files.rect:v1`
+const WORKSPACE_EDITOR_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.workspace.editor.rect:v1`
+const WORKSPACE_DOCK_PLACEMENT_STORAGE_KEY = `${STORAGE_PREFIX}.workspace.dockPlacement:v1`
+const ANDROID_DOCKED_STORAGE_KEY = `${STORAGE_PREFIX}.android.docked:v1`
+const ANDROID_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.android.rect:v1`
+const ANDROID_DOCK_PLACEMENT_STORAGE_KEY = `${STORAGE_PREFIX}.android.dockPlacement:v1`
 const FULLSCREEN_DOCK_PLACEMENT_STORAGE_KEY = `${STORAGE_PREFIX}.fullscreen.dockPlacement:v1`
 const VOICE_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.voice.rect:v1`
 const VOICE_INPUT_URL_STORAGE_KEY = "metafor.interpreter.voice.url"
@@ -234,11 +302,13 @@ const AGENT_SIGNAL_STATUS_MIN_W = 96
 const AGENT_SIGNAL_STATUS_MAX_W = 210
 const AGENT_SIGNAL_PANEL_W = 300
 const AGENT_SIGNAL_PANEL_H = 112
+const ANDROID_RTC_FRAME_SRC = "metafor:app-web-android-rtc-frame"
 const VOICE_HUD_W = 128
 const VOICE_HUD_H = 128
 const VOICE_HUD_MARGIN = 8
 const VOICE_SERVICE_CHECK_TIMEOUT_MS = 2500
 const HUD_PANEL_BG = new Color(palette.bg.r, palette.bg.g, palette.bg.b, 0.68)
+const errorMessage = (error: unknown): string => error instanceof Error ? error.message : String(error)
 let hudNotificationAudioContext: AudioContext | null = null
 let hudNotificationSoundUnlockInstalled = false
 let hudNotificationLastLine = ""
@@ -260,8 +330,13 @@ class AppWebHud implements AppWebHudController {
 	readonly #codexDock: AppWebDockPane
 	readonly #settingsDock: AppWebDockPane
 	readonly #todoDock: AppWebDockPane
+	readonly #workspaceDock: AppWebDockPane
+	readonly #androidDock: AppWebDockPane
 	readonly #fullscreenDock: AppWebDockPane
 	readonly #todoPane: ToDoPane
+	readonly #workspaceFiles: FileListPane
+	readonly #workspaceEditor: EditorPane
+	readonly #androidPane: AndroidPane
 	readonly #agentSignalPane: AppWebAgentSignalPane
 	readonly #voiceHud: VoiceInputHud
 	readonly #terminal: TerminalController
@@ -273,11 +348,26 @@ class AppWebHud implements AppWebHudController {
 	#codexDocked = readStoredBoolean(CODEX_DOCKED_STORAGE_KEY, false)
 	#settingsDocked = readStoredBoolean(SETTINGS_DOCKED_STORAGE_KEY, false)
 	#todoDocked = readStoredBoolean(TODO_DOCKED_STORAGE_KEY, true)
+	#workspaceDocked = readStoredBoolean(WORKSPACE_DOCKED_STORAGE_KEY, true)
+	#androidDocked = readStoredBoolean(ANDROID_DOCKED_STORAGE_KEY, true)
 	#codexDockPlacement: DockPlacement | null = readStoredDockPlacement(CODEX_DOCK_PLACEMENT_STORAGE_KEY)
 	#settingsDockPlacement: DockPlacement | null = readStoredDockPlacement(SETTINGS_DOCK_PLACEMENT_STORAGE_KEY)
 	#todoDockPlacement: DockPlacement | null = readStoredDockPlacement(TODO_DOCK_PLACEMENT_STORAGE_KEY)
+	#workspaceDockPlacement: DockPlacement | null = readStoredDockPlacement(WORKSPACE_DOCK_PLACEMENT_STORAGE_KEY)
+	#androidDockPlacement: DockPlacement | null = readStoredDockPlacement(ANDROID_DOCK_PLACEMENT_STORAGE_KEY)
 	#fullscreenDockPlacement: DockPlacement | null = readStoredDockPlacement(FULLSCREEN_DOCK_PLACEMENT_STORAGE_KEY)
 	#dockTransition: DockNodeTransition | null = null
+	#workspaceEntries = new Map<string, WorkspaceFileEntry>()
+	#workspaceLocalEntries = new Map<string, WorkspaceFileEntry>()
+	#workspaceProcessEntries = new Map<string, WorkspaceFileEntry>()
+	#workspaceProcesses: WorkspaceProcess[] = []
+	#workspaceAttachedProcessId: string | null = null
+	#workspaceCurrentEntry: WorkspaceFileEntry | null = null
+	#workspaceEditorDirty = false
+	#workspaceRootLabel = "Local"
+	#workspaceProcessLabel = "Bun processes"
+	#androidRtcClient: AndroidRtcClient | null = null
+	#androidControlStatusUntil = 0
 	#fullscreen = document.fullscreenElement !== null
 	#voiceClient: VoiceInputClient | null = null
 	#voiceStatus: VoiceInputStatus = "idle"
@@ -331,27 +421,77 @@ class AppWebHud implements AppWebHudController {
 			onFrameRectChange: (rect) => writeStoredRect(TODO_RECT_STORAGE_KEY, rect),
 			onFrameDockRequest: () => this.setDocked("todo", true),
 		})
+		this.#workspaceFiles = new FileListPane({
+			title: "Inspector",
+			items: [],
+			selectionMode: "single",
+			showHeader: true,
+			draggable: true,
+			resizable: true,
+			onOpenDirectoryRequest: () => void this.#openWorkspaceDirectory(),
+			onSelectionChange: (_ids, items) => {
+				const item = items[0]
+				if (item !== undefined) void this.#openWorkspaceItem(item)
+			},
+			onItemOpen: (item) => void this.#openWorkspaceItem(item),
+			onFrameRectChange: (rect) => writeStoredRect(WORKSPACE_FILES_RECT_STORAGE_KEY, rect),
+		})
+		this.#workspaceEditor = new EditorPane({
+			title: "Inspector",
+			path: "",
+			fontPx: 12,
+			linePx: 16,
+			readOnly: false,
+			showCaret: true,
+			introAnimation: false,
+			draggable: true,
+			resizable: true,
+			onChange: (text) => this.#handleWorkspaceEditorChange(text),
+			onSave: (text) => void this.#saveWorkspaceEditor(text),
+			onFrameRectChange: (rect) => writeStoredRect(WORKSPACE_EDITOR_RECT_STORAGE_KEY, rect),
+		})
+		this.#androidPane = new AndroidPane({
+			title: "Android",
+			draggable: true,
+			resizable: true,
+			onRefresh: () => this.#connectAndroidRtc(),
+			onTap: (x, y) => this.#sendAndroidControl({type: "tap", x, y}),
+			onSwipe: (swipe) => this.#sendAndroidSwipe(swipe),
+			onKey: (code) => this.#sendAndroidControl({type: "key", code}),
+			onLaunchPackage: (packageName) => this.#sendAndroidControl({type: "launch", packageName}),
+			onFrameRectChange: (rect) => writeStoredRect(ANDROID_RECT_STORAGE_KEY, rect),
+			onFrameDockRequest: () => this.setDocked("android", true),
+		})
 		this.#agentSignalPane = new AppWebAgentSignalPane(this)
 		this.#terminal = this.#createTerminalController()
 		this.#voiceHud = this.#createVoiceHud()
 		this.#codexDock = new AppWebDockPane(this, "codex")
 		this.#settingsDock = new AppWebDockPane(this, "settings")
 		this.#todoDock = new AppWebDockPane(this, "todo")
+		this.#workspaceDock = new AppWebDockPane(this, "workspace")
+		this.#androidDock = new AppWebDockPane(this, "android")
 		this.#fullscreenDock = new AppWebDockPane(this, "fullscreen")
 
 		this.#viewport.hud.addSurface(this.#terminal.pane, (bounds) => this.#codexRect(bounds), {zIndex: HUD_PANEL_Z})
 		this.#viewport.hud.addSurface(this.#settingsPane, (bounds) => this.#settingsRect(bounds), {zIndex: HUD_SETTINGS_PANEL_Z})
 		this.#viewport.hud.addSurface(this.#todoPane, (bounds) => this.#todoRect(bounds), {zIndex: HUD_TODO_PANEL_Z})
+		this.#viewport.hud.addSurface(this.#workspaceFiles, (bounds) => this.#workspaceFilesRect(bounds), {zIndex: HUD_PANEL_Z + 2})
+		this.#viewport.hud.addSurface(this.#workspaceEditor, (bounds) => this.#workspaceEditorRect(bounds), {zIndex: HUD_PANEL_Z + 3})
+		this.#viewport.hud.addSurface(this.#androidPane, (bounds) => this.#androidRect(bounds), {zIndex: HUD_PANEL_Z + 1})
 		this.#viewport.hud.addSurface(this.#agentSignalPane, (bounds) => this.#agentSignalRect(bounds), {zIndex: HUD_AGENT_SIGNAL_Z})
 		this.#viewport.hud.addSurface(this.#voiceHud, (bounds) => this.#voiceRect(bounds), {zIndex: HUD_VOICE_Z})
 		this.#viewport.hud.addSurface(this.#codexDock, (bounds) => this.#dockRect("codex", bounds), {zIndex: HUD_DOCK_Z})
 		this.#viewport.hud.addSurface(this.#settingsDock, (bounds) => this.#dockRect("settings", bounds), {zIndex: HUD_DOCK_Z})
 		this.#viewport.hud.addSurface(this.#todoDock, (bounds) => this.#dockRect("todo", bounds), {zIndex: HUD_DOCK_Z})
+		this.#viewport.hud.addSurface(this.#workspaceDock, (bounds) => this.#dockRect("workspace", bounds), {zIndex: HUD_DOCK_Z})
+		this.#viewport.hud.addSurface(this.#androidDock, (bounds) => this.#dockRect("android", bounds), {zIndex: HUD_DOCK_Z})
 		this.#viewport.hud.addSurface(this.#fullscreenDock, (bounds) => this.#dockRect("fullscreen", bounds), {zIndex: HUD_DOCK_Z})
 
 		document.addEventListener("fullscreenchange", () => this.#handleFullscreenChange())
 		this.#connectTerminal()
+		if (!this.#androidDocked) this.#connectAndroidRtc()
 		void this.#loadTodo()
+		void this.#refreshWorkspaceProcesses()
 		void this.#checkVoiceService()
 		this.#updateVoiceHud()
 		void this.#importInterpreterVoiceSettings().finally(() => this.#scheduleVoiceAutoWake(500))
@@ -364,6 +504,10 @@ class AppWebHud implements AppWebHudController {
 
 	settingsSnapshot(): AppWebHudSettingsSnapshot {
 		return cloneSettings(this.#settings)
+	}
+
+	sendAndroidControl(command: AndroidRtcCommand): boolean {
+		return this.#sendAndroidControl(command)
 	}
 
 	setBusy(busy: boolean): void {
@@ -485,6 +629,14 @@ class AppWebHud implements AppWebHudController {
 		} else if (kind === "todo") {
 			this.#todoDocked = docked
 			writeStoredBoolean(TODO_DOCKED_STORAGE_KEY, docked)
+		} else if (kind === "workspace") {
+			this.#workspaceDocked = docked
+			writeStoredBoolean(WORKSPACE_DOCKED_STORAGE_KEY, docked)
+		} else if (kind === "android") {
+			this.#androidDocked = docked
+			writeStoredBoolean(ANDROID_DOCKED_STORAGE_KEY, docked)
+			if (docked) this.#androidRtcClient?.disconnect()
+			else this.#connectAndroidRtc()
 		}
 	}
 
@@ -622,6 +774,16 @@ class AppWebHud implements AppWebHudController {
 	}
 
 	#dockTransitionExtras(kind: DockPanelKind, basePanelRect: UiSurfaceRect, fromPanelRect: UiSurfaceRect, toPanelRect: UiSurfaceRect): DockExtraTransition[] {
+		if (kind === "workspace") {
+			const frame = this.#viewport.hud.surfaceFrame(this.#workspaceEditor)
+			if (frame === null || frame.rect.visible === false) return []
+			return [{
+				surface: this.#workspaceEditor,
+				baseRect: frame.rect,
+				fromRect: projectChildRectBetweenParents(basePanelRect, frame.rect, fromPanelRect),
+				toRect: projectChildRectBetweenParents(basePanelRect, frame.rect, toPanelRect),
+			}]
+		}
 		if (kind !== "codex") return []
 		const frame = this.#viewport.hud.surfaceFrame(this.#agentSignalPane)
 		if (frame === null || frame.rect.visible === false) return []
@@ -636,19 +798,25 @@ class AppWebHud implements AppWebHudController {
 	#panelDocked(kind: DockPanelKind): boolean {
 		if (kind === "codex") return this.#codexDocked
 		if (kind === "settings") return this.#settingsDocked
-		return this.#todoDocked
+		if (kind === "todo") return this.#todoDocked
+		if (kind === "workspace") return this.#workspaceDocked
+		return this.#androidDocked
 	}
 
 	#panelSurface(kind: DockPanelKind): UiSurface | null {
 		if (kind === "codex") return this.#terminal.pane
 		if (kind === "settings") return this.#settingsPane
-		return this.#todoPane
+		if (kind === "todo") return this.#todoPane
+		if (kind === "workspace") return this.#workspaceFiles
+		return this.#androidPane
 	}
 
 	#dockSurface(kind: DockPanelKind): UiSurface | null {
 		if (kind === "codex") return this.#codexDock
 		if (kind === "settings") return this.#settingsDock
-		return this.#todoDock
+		if (kind === "todo") return this.#todoDock
+		if (kind === "workspace") return this.#workspaceDock
+		return this.#androidDock
 	}
 
 	dockTransitionActive(kind: DockKind): boolean {
@@ -659,12 +827,16 @@ class AppWebHud implements AppWebHudController {
 		if (kind === "codex") return this.#codexDocked
 		if (kind === "settings") return this.#settingsDocked
 		if (kind === "fullscreen") return true
-		return this.#todoDocked
+		if (kind === "todo") return this.#todoDocked
+		if (kind === "workspace") return this.#workspaceDocked
+		return this.#androidDocked
 	}
 
 	dockLabel(kind: DockKind): string {
 		if (kind === "codex") return CODEX_TITLE
 		if (kind === "settings") return "Settings"
+		if (kind === "android") return "Android"
+		if (kind === "workspace") return "Inspector"
 		if (kind === "fullscreen") return ""
 		return "TODO"
 	}
@@ -672,6 +844,8 @@ class AppWebHud implements AppWebHudController {
 	dockIcon(kind: DockKind): string {
 		if (kind === "codex") return uiIcons.codex
 		if (kind === "settings") return uiIcons.manual
+		if (kind === "android") return uiIcons.language
+		if (kind === "workspace") return uiIcons.database
 		if (kind === "fullscreen") return this.#fullscreen ? uiIcons.collapse : uiIcons.expand
 		return uiIcons.apply
 	}
@@ -704,6 +878,14 @@ class AppWebHud implements AppWebHudController {
 			this.#todoDockPlacement = placement
 			writeStoredDockPlacement(TODO_DOCK_PLACEMENT_STORAGE_KEY, placement)
 			this.#todoDock.requestRender()
+		} else if (kind === "workspace") {
+			this.#workspaceDockPlacement = placement
+			writeStoredDockPlacement(WORKSPACE_DOCK_PLACEMENT_STORAGE_KEY, placement)
+			this.#workspaceDock.requestRender()
+		} else if (kind === "android") {
+			this.#androidDockPlacement = placement
+			writeStoredDockPlacement(ANDROID_DOCK_PLACEMENT_STORAGE_KEY, placement)
+			this.#androidDock.requestRender()
 		} else {
 			this.#fullscreenDockPlacement = placement
 			writeStoredDockPlacement(FULLSCREEN_DOCK_PLACEMENT_STORAGE_KEY, placement)
@@ -781,6 +963,198 @@ class AppWebHud implements AppWebHudController {
 		this.#fullscreen = next
 		this.#fullscreenDock.requestRender()
 		this.#viewport.hud.relayout()
+	}
+
+	async #refreshWorkspaceProcesses(): Promise<void> {
+		try {
+			const payload = await fetchJson("/hud/interpreter/processes")
+			this.#workspaceProcesses = workspaceProcessesFromPayload(payload)
+			this.#workspaceProcessLabel = this.#workspaceProcesses.length === 0 ? "Bun processes - none" : "Bun processes"
+			this.#syncWorkspaceFileTree()
+		} catch (error) {
+			this.#workspaceProcessLabel = `Bun processes - ${errorMessage(error)}`
+			this.#syncWorkspaceFileTree()
+		}
+	}
+
+	async #attachWorkspaceProcess(processId: string): Promise<void> {
+		this.#workspaceAttachedProcessId = processId
+		this.#workspaceProcessEntries = new Map()
+		this.#workspaceEditor.setTitle("Inspector")
+		this.#workspaceEditor.setLanguage({path: ""})
+		this.#workspaceEditor.setText("")
+		this.#workspaceCurrentEntry = null
+		this.#workspaceEditorDirty = false
+		try {
+			const payload = await fetchJson(`/hud/interpreter/processes/${encodeURIComponent(processId)}/modules?limit=500`)
+			const modules = workspaceProcessModulesFromPayload(payload)
+			this.#workspaceProcessEntries = workspaceEntriesFromProcessModules(modules)
+			this.#workspaceProcessLabel = `Attached: ${modules.label}`
+			this.#syncWorkspaceFileTree()
+			if (this.#workspaceDocked) this.setDocked("workspace", false)
+		} catch (error) {
+			this.#workspaceProcessLabel = `Attach failed - ${errorMessage(error)}`
+			this.#syncWorkspaceFileTree()
+		}
+	}
+
+	#detachWorkspaceProcess(): void {
+		this.#workspaceAttachedProcessId = null
+		this.#workspaceProcessEntries = new Map()
+		this.#workspaceCurrentEntry = null
+		this.#workspaceEditorDirty = false
+		this.#workspaceProcessLabel = "Bun processes"
+		this.#workspaceEditor.setTitle("Inspector")
+		this.#workspaceEditor.setLanguage({path: ""})
+		this.#workspaceEditor.setText("")
+		this.#syncWorkspaceFileTree()
+		void this.#refreshWorkspaceProcesses()
+	}
+
+	async #runWorkspaceProcessAction(action: string): Promise<void> {
+		const processId = this.#workspaceAttachedProcessId
+		if (processId === null) return
+		try {
+			await fetchJson(`/hud/interpreter/processes/${encodeURIComponent(processId)}/action`, {
+				method: "POST",
+				headers: {"content-type": "application/json"},
+				body: JSON.stringify({action}),
+			})
+			this.#workspaceEditor.setTitle(`Inspector - ${action}`)
+			await this.#refreshWorkspaceProcesses()
+		} catch (error) {
+			this.#workspaceEditor.setTitle(`Action failed - ${errorMessage(error)}`)
+		}
+	}
+
+	async #openWorkspaceDirectory(): Promise<void> {
+		try {
+			const picker = (window as Window & {showDirectoryPicker?: () => Promise<BrowserDirectoryHandle>}).showDirectoryPicker
+			if (picker !== undefined) {
+				const handle = await picker.call(window)
+				const entries = new Map<string, WorkspaceFileEntry>()
+				await collectDirectoryHandleFiles(handle, "", entries)
+				this.#workspaceRootLabel = handle.name || "Local"
+				this.#workspaceLocalEntries = entries
+			} else {
+				const result = await pickDirectoryWithInput()
+				this.#workspaceRootLabel = result.label
+				this.#workspaceLocalEntries = result.entries
+			}
+			this.#workspaceCurrentEntry = null
+			this.#workspaceEditorDirty = false
+			this.#workspaceEditor.setTitle("Inspector")
+			this.#workspaceEditor.setLanguage({path: ""})
+			this.#workspaceEditor.setText("")
+			this.#syncWorkspaceFileTree()
+			if (this.#workspaceDocked) this.setDocked("workspace", false)
+		} catch (error) {
+			if (isAbortError(error)) return
+			this.#workspaceFiles.setTitle(`Inspector - ${errorMessage(error)}`)
+		}
+	}
+
+	async #openWorkspaceItem(item: FileListItem): Promise<void> {
+		if (item.id === "workspace:processes:refresh") {
+			await this.#refreshWorkspaceProcesses()
+			return
+		}
+		if (item.id === "workspace:processes:detach") {
+			this.#detachWorkspaceProcess()
+			return
+		}
+		const action = workspaceProcessActionForItemId(item.id)
+		if (action !== null) {
+			await this.#runWorkspaceProcessAction(action)
+			return
+		}
+		const processId = workspaceProcessIdForItemId(item.id)
+		if (processId !== null) {
+			await this.#attachWorkspaceProcess(processId)
+			return
+		}
+		if (item.kind !== "file") return
+		const entry = this.#workspaceEntries.get(item.id)
+		if (entry === undefined) return
+		await this.#openWorkspaceEntry(entry)
+	}
+
+	async #openWorkspaceEntry(entry: WorkspaceFileEntry): Promise<void> {
+		try {
+			const text = entry.sourceKind === "process"
+				? await this.#readWorkspaceProcessSource(entry)
+				: await this.#readWorkspaceLocalSource(entry)
+			this.#workspaceCurrentEntry = entry
+			this.#workspaceEditorDirty = false
+			this.#workspaceEditor.setTitle(entry.name)
+			this.#workspaceEditor.setLanguage({path: entry.path})
+			this.#workspaceEditor.setText(text)
+			this.#viewport.hud.setFocused(this.#workspaceEditor)
+		} catch (error) {
+			this.#workspaceEditor.setTitle(`Open failed - ${errorMessage(error)}`)
+		}
+	}
+
+	async #readWorkspaceProcessSource(entry: WorkspaceFileEntry): Promise<string> {
+		if (entry.processId === undefined || entry.sourceUrl === undefined) throw new Error("process source is missing")
+		const url = `/hud/interpreter/processes/${encodeURIComponent(entry.processId)}/source?sourceUrl=${encodeURIComponent(entry.sourceUrl)}&tokens=1`
+		const payload = await fetchJson(url)
+		const source = (payload as {scriptSource?: unknown}).scriptSource
+		if (typeof source !== "string") throw new Error("source payload has no scriptSource")
+		return source
+	}
+
+	async #readWorkspaceLocalSource(entry: WorkspaceFileEntry): Promise<string> {
+		if (entry.handle !== undefined) return await (await entry.handle.getFile()).text()
+		if (entry.file !== undefined) return await entry.file.text()
+		throw new Error("local file is missing")
+	}
+
+	#handleWorkspaceEditorChange(_text: string): void {
+		const entry = this.#workspaceCurrentEntry
+		if (entry === null || this.#workspaceEditorDirty) return
+		this.#workspaceEditorDirty = true
+		this.#workspaceEditor.setTitle(`${entry.name} *`)
+	}
+
+	async #saveWorkspaceEditor(text: string): Promise<void> {
+		const entry = this.#workspaceCurrentEntry
+		if (entry === null) return
+		try {
+			if (entry.sourceKind === "process") {
+				if (entry.processId === undefined || entry.sourceUrl === undefined) throw new Error("process source is missing")
+				await fetchJson(`/hud/interpreter/processes/${encodeURIComponent(entry.processId)}/source`, {
+					method: "POST",
+					headers: {"content-type": "application/json"},
+					body: JSON.stringify({sourceUrl: entry.sourceUrl, text}),
+				})
+			} else {
+				const writable = await entry.handle?.createWritable?.()
+				if (writable === undefined) throw new Error("browser did not grant write access for this file")
+				await writable.write(text)
+				await writable.close()
+			}
+			this.#workspaceEditorDirty = false
+			this.#workspaceEditor.setTitle(entry.name)
+		} catch (error) {
+			this.#workspaceEditor.setTitle(`Save failed - ${errorMessage(error)}`)
+		}
+	}
+
+	#syncWorkspaceFileTree(): void {
+		const items = workspaceInspectorItems({
+			localLabel: this.#workspaceRootLabel,
+			localEntries: this.#workspaceLocalEntries,
+			processes: this.#workspaceProcesses,
+			processLabel: this.#workspaceProcessLabel,
+			processEntries: this.#workspaceProcessEntries,
+			attachedProcessId: this.#workspaceAttachedProcessId,
+		})
+		this.#workspaceEntries = new Map([...this.#workspaceLocalEntries, ...this.#workspaceProcessEntries])
+		this.#workspaceFiles.setTitle("Inspector")
+		this.#workspaceFiles.setItems(items)
+		this.#workspaceFiles.setExpandedIds(workspaceDefaultExpandedIds(items, this.#workspaceAttachedProcessId))
+		this.#workspaceFiles.requestRender()
 	}
 
 	#createTerminalController(): TerminalController {
@@ -1065,6 +1439,43 @@ class AppWebHud implements AppWebHudController {
 		} catch (error) {
 			console.error("todo update error:", error)
 		}
+	}
+
+	#connectAndroidRtc(): void {
+		if (this.#androidRtcClient === null) {
+			this.#androidRtcClient = createAndroidRtcClient({
+				frameSrc: ANDROID_RTC_FRAME_SRC,
+				onFrame: (frame) => {
+					this.#androidPane.setFrame(frame)
+					if (Date.now() >= this.#androidControlStatusUntil) {
+						this.#androidPane.setStatus("connected", `${frame.width}x${frame.height} rtc`)
+					}
+				},
+				onStatus: (kind, label) => this.#setAndroidRtcStatus(kind, label),
+			})
+		}
+		this.#androidRtcClient.connect()
+	}
+
+	#setAndroidRtcStatus(kind: AndroidPaneStatusKind, label: string): void {
+		this.#androidPane.setStatus(kind, label)
+		if (/\b(ok|failed)$/.test(label)) this.#androidControlStatusUntil = Date.now() + 1_200
+	}
+
+	#sendAndroidSwipe(swipe: AndroidPaneSwipe): void {
+		this.#sendAndroidControl({type: "swipe", ...swipe})
+	}
+
+	#sendAndroidControl(command: AndroidRtcCommand): boolean {
+		if (this.#androidDocked) this.setDocked("android", false)
+		this.#connectAndroidRtc()
+		if (this.#androidRtcClient?.send(command) !== true) {
+			this.#androidPane.setStatus("error", "rtc control closed")
+			return false
+		}
+		this.#androidControlStatusUntil = Date.now() + 700
+		this.#androidPane.setStatus("connected", "rtc command")
+		return true
 	}
 
 	async #importInterpreterVoiceSettings(): Promise<void> {
@@ -1611,6 +2022,43 @@ class AppWebHud implements AppWebHudController {
 		}
 	}
 
+	#workspaceFilesRect(bounds: {w: number; h: number}): UiSurfaceRect {
+		if (this.#workspaceDocked) return hiddenRect()
+		const width = Math.min(340, Math.max(248, Math.floor(bounds.w * 0.24)))
+		const height = Math.min(720, Math.max(340, bounds.h - 132))
+		return readStoredRect(WORKSPACE_FILES_RECT_STORAGE_KEY) ?? {
+			x: 16,
+			y: 84,
+			w: Math.min(width, Math.max(1, bounds.w - 32)),
+			h: Math.min(height, Math.max(1, bounds.h - 100)),
+		}
+	}
+
+	#workspaceEditorRect(bounds: {w: number; h: number}): UiSurfaceRect {
+		if (this.#workspaceDocked) return hiddenRect()
+		const files = this.#workspaceFilesRect(bounds)
+		const x = Math.min(Math.max(16, bounds.w - 420), files.x + files.w + 10)
+		const width = Math.min(860, Math.max(360, bounds.w - x - 16))
+		return readStoredRect(WORKSPACE_EDITOR_RECT_STORAGE_KEY) ?? {
+			x,
+			y: files.y,
+			w: Math.min(width, Math.max(1, bounds.w - x - 16)),
+			h: files.h,
+		}
+	}
+
+	#androidRect(bounds: {w: number; h: number}): UiSurfaceRect {
+		if (this.#androidDocked) return hiddenRect()
+		const width = Math.min(360, Math.max(300, bounds.w - 32))
+		const height = Math.min(680, Math.max(420, bounds.h - 132))
+		return readStoredRect(ANDROID_RECT_STORAGE_KEY) ?? {
+			x: Math.max(16, bounds.w - width - 16),
+			y: 84,
+			w: width,
+			h: height,
+		}
+	}
+
 	#agentSignalRect(bounds: {w: number; h: number}): UiSurfaceRect {
 		if (this.#dockTransition?.kind === "codex") return hiddenRect()
 		const terminal = this.#codexRect(bounds)
@@ -1664,6 +2112,8 @@ class AppWebHud implements AppWebHudController {
 		if (kind === "codex") return this.#codexDockPlacement
 		if (kind === "settings") return this.#settingsDockPlacement
 		if (kind === "todo") return this.#todoDockPlacement
+		if (kind === "workspace") return this.#workspaceDockPlacement
+		if (kind === "android") return this.#androidDockPlacement
 		return this.#fullscreenDockPlacement
 	}
 
@@ -2502,6 +2952,8 @@ function defaultDockPlacementRaw(kind: DockKind, bounds: {w: number; h: number})
 	if (kind === "codex") return {edge: "bottom", offset: Math.max(0, bounds.w / 2)}
 	if (kind === "settings") return {edge: "top", offset: Math.max(0, bounds.w / 2)}
 	if (kind === "fullscreen") return {edge: "top", offset: Math.max(0, bounds.w / 2 + 108)}
+	if (kind === "android") return {edge: "right", offset: Math.max(0, bounds.h / 2)}
+	if (kind === "workspace") return {edge: "left", offset: Math.max(0, bounds.h / 2)}
 	return {edge: "left", offset: Math.max(0, bounds.h - 70)}
 }
 
@@ -2529,8 +2981,328 @@ function dockPlacementFromPoint(kind: DockKind, point: {x: number; y: number}, b
 function dockLong(kind: DockKind): number {
 	if (kind === "codex") return 184
 	if (kind === "settings") return 142
+	if (kind === "android") return 132
+	if (kind === "workspace") return 150
 	if (kind === "todo") return 126
 	return 48
+}
+
+async function fetchJson(url: string, init?: RequestInit): Promise<unknown> {
+	const response = await fetch(url, init)
+	const text = await response.text()
+	let payload: unknown = null
+	if (text.length > 0) {
+		try {
+			payload = JSON.parse(text) as unknown
+		} catch {
+			payload = text
+		}
+	}
+	if (!response.ok) {
+		const message = typeof payload === "object" && payload !== null && typeof (payload as {error?: unknown}).error === "string"
+			? (payload as {error: string}).error
+			: `${response.status} ${response.statusText}`
+		throw new Error(message)
+	}
+	return payload
+}
+
+function workspaceProcessesFromPayload(payload: unknown): WorkspaceProcess[] {
+	const processes = asRecord(payload)?.processes
+	if (!Array.isArray(processes)) return []
+	return processes.map(workspaceProcessFromPayload).filter((item): item is WorkspaceProcess => item !== null)
+}
+
+function workspaceProcessFromPayload(value: unknown): WorkspaceProcess | null {
+	const record = asRecord(value)
+	if (record === null) return null
+	const id = stringValue(record.id) ?? stringValue(record.processId) ?? stringValue(record.moduleId)
+	if (id === null) return null
+	const runtime = asRecord(record.runtime)
+	const content = asRecord(record.content)
+	return {
+		id,
+		label: stringValue(record.label) ?? id,
+		modulePath: stringValue(content?.modulePath) ?? null,
+		connection: stringValue(runtime?.connection) ?? "unknown",
+		paused: runtime?.paused === true,
+		protocolUrl: stringValue(runtime?.protocolUrl) ?? "",
+	}
+}
+
+function workspaceProcessModulesFromPayload(payload: unknown): WorkspaceProcessModules {
+	const record = asRecord(payload)
+	if (record === null) throw new Error("modules payload must be an object")
+	const processId = stringValue(record.processId) ?? stringValue(record.moduleId)
+	if (processId === null) throw new Error("modules payload has no processId")
+	const modules = Array.isArray(record.modules)
+		? record.modules.map((item) => ({path: stringValue(asRecord(item)?.path) ?? ""})).filter((item) => item.path.length > 0)
+		: []
+	return {
+		processId,
+		label: stringValue(record.label) ?? processId,
+		root: stringValue(record.root) ?? "",
+		workspacePath: stringValue(record.workspacePath) ?? "",
+		entrypoint: stringValue(record.entrypoint),
+		modules,
+	}
+}
+
+function workspaceEntriesFromProcessModules(modules: WorkspaceProcessModules): Map<string, WorkspaceFileEntry> {
+	const entries = new Map<string, WorkspaceFileEntry>()
+	for (const item of modules.modules) {
+		const path = normalizeWorkspacePath(item.path)
+		if (path.length === 0) continue
+		const name = workspaceBasename(path)
+		const id = workspaceProcessFileId(modules.processId, path)
+		entries.set(id, {
+			sourceKind: "process",
+			processId: modules.processId,
+			sourceUrl: workspaceAbsolutePath(modules.root, path),
+			name,
+			path,
+		})
+	}
+	return entries
+}
+
+function workspaceInspectorItems(options: {
+	localLabel: string
+	localEntries: ReadonlyMap<string, WorkspaceFileEntry>
+	processes: readonly WorkspaceProcess[]
+	processLabel: string
+	processEntries: ReadonlyMap<string, WorkspaceFileEntry>
+	attachedProcessId: string | null
+}): FileListItem[] {
+	const runtimeChildren: FileListItem[] = [
+		{id: "workspace:processes:refresh", name: "Refresh processes", kind: "file", statusLabel: "reload"},
+	]
+	if (options.attachedProcessId !== null) {
+		runtimeChildren.push(
+			{id: "workspace:processes:detach", name: "Disconnect", kind: "file", statusLabel: options.attachedProcessId},
+			...workspaceProcessActionItems(),
+		)
+	}
+	for (const process of options.processes) {
+		runtimeChildren.push({
+			id: workspaceProcessItemId(process.id),
+			name: process.label,
+			kind: "file",
+			path: process.protocolUrl,
+			statusLabel: processStatusLabel(process),
+		})
+	}
+	const items: FileListItem[] = [{
+		id: "workspace:processes",
+		name: options.processLabel,
+		kind: "directory",
+		children: runtimeChildren,
+	}]
+	if (options.processEntries.size > 0) {
+		items.push({
+			id: workspaceProcessRootId(options.attachedProcessId),
+			name: "Runtime source",
+			kind: "directory",
+			children: workspaceEntriesToFileItems(options.processEntries, "process"),
+		})
+	}
+	if (options.localEntries.size > 0) {
+		items.push({
+			id: "workspace:local:root",
+			name: options.localLabel,
+			kind: "directory",
+			children: workspaceEntriesToFileItems(options.localEntries, "local"),
+		})
+	}
+	return items
+}
+
+function workspaceProcessActionItems(): FileListItem[] {
+	return [
+		{id: "workspace:processes:action:pause", name: "Pause", kind: "file", statusLabel: "debug"},
+		{id: "workspace:processes:action:resume", name: "Resume", kind: "file", statusLabel: "debug"},
+		{id: "workspace:processes:action:stepOver", name: "Step over", kind: "file", statusLabel: "debug"},
+		{id: "workspace:processes:action:stepInto", name: "Step into", kind: "file", statusLabel: "debug"},
+		{id: "workspace:processes:action:stepOut", name: "Step out", kind: "file", statusLabel: "debug"},
+		{id: "workspace:processes:action:showExecutionPoint", name: "Show execution point", kind: "file", statusLabel: "debug"},
+	]
+}
+
+function workspaceDefaultExpandedIds(items: readonly FileListItem[], attachedProcessId: string | null): string[] {
+	const ids = ["workspace:processes"]
+	if (attachedProcessId !== null) ids.push(workspaceProcessRootId(attachedProcessId))
+	if (items.some((item) => item.id === "workspace:local:root")) ids.push("workspace:local:root")
+	return ids
+}
+
+function workspaceEntriesToFileItems(entries: ReadonlyMap<string, WorkspaceFileEntry>, namespace: "local" | "process"): FileListItem[] {
+	const root: WorkspaceTreeNode = {id: "", name: "", dirs: new Map(), files: []}
+	for (const entry of entries.values()) {
+		const parts = normalizeWorkspacePath(entry.path).split("/").filter((part) => part.length > 0)
+		let node = root
+		for (const part of parts.slice(0, -1)) {
+			let child = node.dirs.get(part)
+			if (child === undefined) {
+				child = {id: node.id.length === 0 ? part : `${node.id}/${part}`, name: part, dirs: new Map(), files: []}
+				node.dirs.set(part, child)
+			}
+			node = child
+		}
+		node.files.push(entry)
+	}
+	return workspaceTreeChildren(root, namespace)
+}
+
+function workspaceTreeChildren(node: WorkspaceTreeNode, namespace: "local" | "process"): FileListItem[] {
+	const dirs: FileListItem[] = [...node.dirs.values()]
+		.sort((a, b) => a.name.localeCompare(b.name))
+		.map((child) => ({
+			id: `workspace:${namespace}:dir:${child.id}`,
+			name: child.name,
+			kind: "directory" as const,
+			children: workspaceTreeChildren(child, namespace),
+		}))
+	const files = node.files
+		.sort((a, b) => a.name.localeCompare(b.name))
+		.map((entry) => {
+			const item: FileListItem = {
+				id: workspaceEntryId(entry),
+				name: entry.name,
+				kind: "file",
+				path: entry.path,
+			}
+			if (entry.sourceKind === "process") item.statusLabel = "runtime"
+			return item
+		})
+	return [...dirs, ...files]
+}
+
+function workspaceEntryId(entry: WorkspaceFileEntry): string {
+	if (entry.sourceKind === "process" && entry.processId !== undefined) return workspaceProcessFileId(entry.processId, entry.path)
+	return `workspace:local:${entry.path}`
+}
+
+async function collectDirectoryHandleFiles(handle: BrowserDirectoryHandle, prefix: string, entries: Map<string, WorkspaceFileEntry>): Promise<void> {
+	const iterator = handle.entries?.()
+	if (iterator === undefined) return
+	for await (const [name, child] of iterator) {
+		const path = prefix.length === 0 ? name : `${prefix}/${name}`
+		if (isBrowserDirectoryHandle(child)) {
+			await collectDirectoryHandleFiles(child, path, entries)
+			continue
+		}
+		if (!isTextWorkspacePath(path)) continue
+		const entry: WorkspaceFileEntry = {
+			sourceKind: "local",
+			handle: child,
+			name,
+			path,
+		}
+		entries.set(workspaceEntryId(entry), entry)
+	}
+}
+
+function pickDirectoryWithInput(): Promise<{label: string; entries: Map<string, WorkspaceFileEntry>}> {
+	return new Promise((resolve, reject) => {
+		const input = document.createElement("input")
+		input.type = "file"
+		input.multiple = true
+		;(input as HTMLInputElement & {webkitdirectory?: boolean}).webkitdirectory = true
+		input.style.position = "fixed"
+		input.style.left = "-10000px"
+		input.style.top = "-10000px"
+		document.body.appendChild(input)
+		input.addEventListener("change", () => {
+			const files = [...(input.files ?? [])]
+			document.body.removeChild(input)
+			if (files.length === 0) {
+				reject(new DOMException("directory selection canceled", "AbortError"))
+				return
+			}
+			const entries = new Map<string, WorkspaceFileEntry>()
+			let label = "Local"
+			for (const file of files) {
+				const webkitPath = (file as File & {webkitRelativePath?: string}).webkitRelativePath ?? file.name
+				const path = normalizeWorkspacePath(webkitPath)
+				if (path.includes("/")) label = path.split("/")[0] ?? label
+				if (!isTextWorkspacePath(path)) continue
+				const rel = path.includes("/") ? path.split("/").slice(1).join("/") : path
+				const entry: WorkspaceFileEntry = {sourceKind: "local", file, name: workspaceBasename(rel), path: rel}
+				entries.set(workspaceEntryId(entry), entry)
+			}
+			resolve({label, entries})
+		}, {once: true})
+		input.click()
+	})
+}
+
+function workspaceProcessItemId(processId: string): string {
+	return `workspace:process:${encodeURIComponent(processId)}`
+}
+
+function workspaceProcessRootId(processId: string | null): string {
+	return `workspace:process:${encodeURIComponent(processId ?? "attached")}:root`
+}
+
+function workspaceProcessIdForItemId(id: string): string | null {
+	if (!id.startsWith("workspace:process:")) return null
+	if (id.includes(":root")) return null
+	const encoded = id.slice("workspace:process:".length)
+	if (encoded.length === 0 || encoded.includes(":")) return null
+	try {
+		return decodeURIComponent(encoded)
+	} catch {
+		return null
+	}
+}
+
+function workspaceProcessFileId(processId: string, path: string): string {
+	return `workspace:process-file:${encodeURIComponent(processId)}:${path}`
+}
+
+function workspaceProcessActionForItemId(id: string): string | null {
+	const prefix = "workspace:processes:action:"
+	return id.startsWith(prefix) ? id.slice(prefix.length) : null
+}
+
+function processStatusLabel(process: WorkspaceProcess): string {
+	const state = process.paused ? "paused" : process.connection
+	return process.modulePath === null ? state : `${state} · ${workspaceBasename(process.modulePath)}`
+}
+
+function workspaceAbsolutePath(root: string, path: string): string {
+	if (path.startsWith("file://") || path.startsWith("/")) return path
+	const cleanRoot = root.endsWith("/") ? root.slice(0, -1) : root
+	return `${cleanRoot}/${path}`
+}
+
+function normalizeWorkspacePath(path: string): string {
+	return path.replaceAll("\\", "/").replace(/^\/+/, "").replace(/\/+/g, "/")
+}
+
+function workspaceBasename(path: string): string {
+	const normalized = normalizeWorkspacePath(path)
+	return normalized.split("/").filter(Boolean).pop() ?? normalized
+}
+
+function isTextWorkspacePath(path: string): boolean {
+	return /\.(?:css|cts|cjs|html|js|json|jsx|md|mjs|mts|sql|ts|tsx|toml|wgsl|xml|yaml|yml)$/i.test(path)
+}
+
+function isBrowserDirectoryHandle(value: BrowserDirectoryHandle | BrowserFileHandle): value is BrowserDirectoryHandle {
+	return value.kind === "directory" || "entries" in value
+}
+
+function isAbortError(error: unknown): boolean {
+	return error instanceof DOMException && error.name === "AbortError"
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+	return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null
+}
+
+function stringValue(value: unknown): string | null {
+	return typeof value === "string" && value.length > 0 ? value : null
 }
 
 function sameDockPlacement(left: DockPlacement, right: DockPlacement): boolean {

@@ -895,7 +895,6 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 		}
 		event.preventDefault()
 		this.#claimPointerEvent(event)
-		this.inputProxy?.focus()
 		this.#positionInputProxy(touch.clientX, touch.clientY)
 		this.setFocused(slot.surface)
 		this.#pressedSlot = slot

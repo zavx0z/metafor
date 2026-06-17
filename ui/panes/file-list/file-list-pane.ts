@@ -1,4 +1,5 @@
 import {Color, TextMaterial} from "@metafor/engine"
+import {IconButton, uiIcons} from "@ui/components"
 import {UiSurface, Z, divScrollPosition, divScrollTo, li, palette, radii, span, textMaterial, ul, type LiElementState} from "@ui/elements"
 import {
   PANE_FRAME,
@@ -37,6 +38,7 @@ export type FileListPaneOpts = {
   onSelectionChange?: (selectedIds: readonly string[], selectedItems: readonly FileListItem[]) => void
   onExpandedChange?: (expandedIds: readonly string[]) => void
   onItemOpen?: (item: FileListItem) => void
+  onOpenDirectoryRequest?: () => void
   onDirectoryToggle?: (item: FileListItem, expanded: boolean) => void
   onFrameRectPreview?: (rect: PaneRect) => void
   onFrameRectChange?: (rect: PaneRect) => void
@@ -224,6 +226,7 @@ export class FileListPane extends UiSurface {
   #onSelectionChange: ((selectedIds: readonly string[], selectedItems: readonly FileListItem[]) => void) | undefined
   #onExpandedChange: ((expandedIds: readonly string[]) => void) | undefined
   #onItemOpen: ((item: FileListItem) => void) | undefined
+  #onOpenDirectoryRequest: (() => void) | undefined
   #onDirectoryToggle: ((item: FileListItem, expanded: boolean) => void) | undefined
   #onFrameRectPreview: ((rect: PaneRect) => void) | undefined
   #onFrameRectChange: ((rect: PaneRect) => void) | undefined
@@ -252,6 +255,7 @@ export class FileListPane extends UiSurface {
     this.#onSelectionChange = opts.onSelectionChange
     this.#onExpandedChange = opts.onExpandedChange
     this.#onItemOpen = opts.onItemOpen
+    this.#onOpenDirectoryRequest = opts.onOpenDirectoryRequest
     this.#onDirectoryToggle = opts.onDirectoryToggle
     this.#onFrameRectPreview = opts.onFrameRectPreview
     this.#onFrameRectChange = opts.onFrameRectChange
@@ -528,13 +532,25 @@ export class FileListPane extends UiSurface {
   }
 
   #renderHeader(): void {
-    span(this, PANE_FRAME.headerTextX, PANE_FRAME.headerTextY - 3, Math.max(1, this.rectW * 0.58), 22, {
+    const buttonSize = 22
+    const hasDirectoryButton = this.#onOpenDirectoryRequest !== undefined
+    const status = this.#headerStatus(this.#rows())
+    const statusW = Math.max(72, Math.min(180, this.rectW * 0.34))
+    const statusX = this.rectW - PANE_FRAME.headerTextX - statusW
+    const buttonX = hasDirectoryButton ? statusX - buttonSize - 6 : statusX
+    const titleW = Math.max(1, (hasDirectoryButton ? buttonX : statusX) - PANE_FRAME.headerTextX - 8)
+    span(this, PANE_FRAME.headerTextX, PANE_FRAME.headerTextY - 3, titleW, 22, {
       children: this.#title,
       style: {fontSize: 13, color: this.#theme.header.title},
     })
-    const status = this.#headerStatus(this.#rows())
-    const statusW = Math.max(72, Math.min(180, this.rectW * 0.34))
-    span(this, this.rectW - PANE_FRAME.headerTextX - statusW, PANE_FRAME.headerTextY - 3, statusW, 22, {
+    if (hasDirectoryButton) {
+      IconButton(this, buttonX, 7, buttonSize, buttonSize, {
+        label: "Open directory",
+        iconSrc: uiIcons.plus,
+        action: () => this.#onOpenDirectoryRequest?.(),
+      })
+    }
+    span(this, statusX, PANE_FRAME.headerTextY - 3, statusW, 22, {
       children: status,
       style: {fontSize: 10, color: this.#theme.header.status, textAlign: "right"},
     })
