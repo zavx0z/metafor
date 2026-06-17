@@ -63,6 +63,8 @@ const PORT = Number(Bun.env.PORT ?? 3000)
 const TLS_ENABLED = Boolean(Bun.env.TLS_KEY_FILE && Bun.env.TLS_CERT_FILE)
 const CHROME_API_URL = Bun.env.METAFOR_CHROME_API_URL ?? "http://localhost:7880"
 const INTERPRETER_ORIGIN_PORT = Bun.env.METAFOR_INTERPRETER_PORT ?? "6500"
+const APP_WEB_STARTED_AT = new Date()
+const LOG_COLOR_ENABLED = Bun.env.NO_COLOR === undefined && Bun.env.FORCE_COLOR !== "0"
 const VOICE_LOCAL_STORAGE_KEYS = [
 	"metafor.interpreter.voice.url",
 	"metafor.interpreter.voice.wakeUrl",
@@ -117,10 +119,18 @@ const server = serve<AppWebSocketData>({
 		: {}),
 	routes: {
 		"/": index,
-		"/health": () => Response.json({ok: true}),
+		"/health": (req: Request) => {
+			const started = Date.now()
+			const response = Response.json({ok: true})
+			if (Bun.env.APP_WEB_LOG_HEALTH === "1") logHttp(req, "health", response.status, started)
+			return response
+		},
 		"/engine-static/JetBrainsMono-Bold.ttf": () => new Response(file(join(import.meta.dir, "../../pkg/engine/static/JetBrainsMono-Bold.ttf"))),
-		"/ws": (req: Request, wsServer: Server<AppWebSocketData>) =>
-			wsServer.upgrade(req, {data: {kind: "app-web"}}) ? undefined : new Response("WebSocket upgrade failed", {status: 426}),
+		"/ws": (req: Request, wsServer: Server<AppWebSocketData>) => {
+			const ok = wsServer.upgrade(req, {data: {kind: "app-web"}})
+			logWsUpgrade(req, "app-web", ok)
+			return ok ? undefined : new Response("WebSocket upgrade failed", {status: 426})
+		},
 		"/hud/terminal/stream": (req: Request, wsServer: Server<AppWebSocketData>) => {
 			const url = new URL(req.url)
 			const data: {kind: "terminal"; replay: boolean; connectedAt: number; sessionId?: string; sessionKey?: string; tmuxSession?: string} = {
@@ -134,34 +144,62 @@ const server = serve<AppWebSocketData>({
 			if (key !== null && key.length > 0) data.sessionKey = key
 			const tmux = url.searchParams.get("tmux")
 			if (tmux !== null && tmux.length > 0) data.tmuxSession = tmux
-			return wsServer.upgrade(req, {data}) ? undefined : new Response("WebSocket upgrade failed", {status: 426})
+			const ok = wsServer.upgrade(req, {data})
+			logWsUpgrade(req, "terminal", ok, terminalUpgradeDetail(data))
+			return ok ? undefined : new Response("WebSocket upgrade failed", {status: 426})
 		},
 		"/hud/webrtc/signaling": (req: Request, wsServer: Server<AppWebSocketData>) => {
 			const url = new URL(req.url)
 			const room = sanitizeRtcId(url.searchParams.get("room") ?? "app-web")
 			const peerId = sanitizeRtcId(url.searchParams.get("peer") ?? randomUUID())
-			if (room === null || peerId === null) return jsonResponse({ok: false, error: "invalid WebRTC room or peer id"}, 400)
-			return wsServer.upgrade(req, {
+			if (room === null || peerId === null) {
+				logHttp(req, "rtc.signal.invalid", 400, Date.now(), "invalid room or peer id")
+				return jsonResponse({ok: false, error: "invalid WebRTC room or peer id"}, 400)
+			}
+			const ok = wsServer.upgrade(req, {
 				data: {
 					kind: "rtc-signal",
 					room,
 					peerId,
 					connectedAt: Date.now(),
 				},
-			}) ? undefined : new Response("WebRTC signaling upgrade failed", {status: 426})
+			})
+			logWsUpgrade(req, "rtc-signal", ok, `room=${room} peer=${peerId}`)
+			return ok ? undefined : new Response("WebRTC signaling upgrade failed", {status: 426})
 		},
 		"/hud/todo": (req: Request) => {
-			if (req.method !== "GET") return new Response("Method Not Allowed", {status: 405})
-			return todoMarkdownResponse()
+			const started = Date.now()
+			if (req.method !== "GET") {
+				logHttp(req, "todo.read", 405, started, "method not allowed")
+				return new Response("Method Not Allowed", {status: 405})
+			}
+			const response = todoMarkdownResponse()
+			logHttp(req, "todo.read", response.status, started)
+			return response
 		},
 		"/hud/voice/settings": async (req: Request) => {
-			if (req.method === "GET") return await readInterpreterVoiceSettingsResponse()
-			if (req.method === "POST") return await writeInterpreterVoiceSettingsResponse(req)
+			const started = Date.now()
+			if (req.method === "GET") {
+				const response = await readInterpreterVoiceSettingsResponse()
+				logHttp(req, "voice.read", response.status, started)
+				return response
+			}
+			if (req.method === "POST") {
+				const response = await writeInterpreterVoiceSettingsResponse(req)
+				logHttp(req, "voice.write", response.status, started)
+				return response
+			}
+			logHttp(req, "voice", 405, started, "method not allowed")
 			return new Response("Method Not Allowed", {status: 405})
 		},
 		"/hud/android/control": async (req: Request) => {
-			if (req.method !== "POST") return new Response("Method Not Allowed", {status: 405})
-			return await broadcastAndroidControlResponse(req)
+			const started = Date.now()
+			if (req.method !== "POST") {
+				logHttp(req, "android", 405, started, "method not allowed")
+				return new Response("Method Not Allowed", {status: 405})
+			}
+			const response = await broadcastAndroidControlResponse(req, started)
+			return response
 		},
 	},
 	fetch: async (req: Request) => {
@@ -171,8 +209,11 @@ const server = serve<AppWebSocketData>({
 		}
 		const todoItem = /^\/hud\/todo\/items\/([^/]+)$/.exec(url.pathname)
 		if ((req.method === "PATCH" || req.method === "POST") && todoItem !== null) {
-			return await patchTodoItem(decodeURIComponent(todoItem[1]!), req)
+			const started = Date.now()
+			const response = await patchTodoItem(decodeURIComponent(todoItem[1]!), req, started)
+			return response
 		}
+		logHttp(req, "not-found", 404, Date.now())
 		return new Response("Not Found", {status: 404})
 	},
 	websocket: {
@@ -183,8 +224,11 @@ const server = serve<AppWebSocketData>({
 				}
 				if (ws.data.kind === "terminal") {
 					try {
-						terminalSessions.attach(ws as ServerWebSocket<PtySocketData>)
+						const session = terminalSessions.attach(ws as ServerWebSocket<PtySocketData>)
+						const info = session.info()
+						appLog("PTY", "attached", `session=${shortId(info.id)} key=${info.key ?? "-"} tmux=${info.tmuxSession ?? "-"} clients=${info.clients}`, "cyan")
 				} catch (error) {
+					appLog("ERR", "terminal attach failed", errorMessage(error), "red")
 					if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({
 						type: "terminal.error",
 						message: error instanceof Error ? error.message : "shell failed",
@@ -194,6 +238,7 @@ const server = serve<AppWebSocketData>({
 					return
 				}
 				sockets.add(ws)
+				appLog("WS", "app client opened", `clients=${sockets.size}`, "green")
 			},
 		message(ws, message) {
 			if (ws.data.kind === "rtc-signal") {
@@ -228,9 +273,15 @@ const server = serve<AppWebSocketData>({
 			}
 
 			if (payload.type === "materialize" || payload.type === "relayout") {
+				const started = Date.now()
+				appLog("WS", "snapshot requested", `type=${payload.type} src=${payload.src.trim() || "zavx0z/git"}`, "cyan")
 				void buildSnapshot(payload)
-					.then((world) => ws.send(JSON.stringify(world)))
+					.then((world) => {
+						appLog("WS", "snapshot ready", `type=${payload.type} in ${Date.now() - started}ms`, "green")
+						ws.send(JSON.stringify(world))
+					})
 					.catch((error) => {
+						appLog("ERR", "snapshot failed", `type=${payload.type} in ${Date.now() - started}ms error=${errorMessage(error)}`, "red")
 						ws.send(JSON.stringify({type: "error", error: error instanceof Error ? error.message : String(error)}))
 					})
 				return
@@ -242,11 +293,17 @@ const server = serve<AppWebSocketData>({
 				return
 			}
 			if (ws.data.kind === "terminal") {
-				ws.data.session?.detach(ws as ServerWebSocket<PtySocketData>)
+				const session = ws.data.session
+				session?.detach(ws as ServerWebSocket<PtySocketData>)
+				if (session !== undefined) {
+					const info = session.info()
+					appLog("PTY", "detached", `session=${shortId(info.id)} key=${info.key ?? "-"} tmux=${info.tmuxSession ?? "-"} clients=${info.clients}`, "gray")
+				}
 				delete ws.data.session
 				return
 			}
 			sockets.delete(ws)
+			appLog("WS", "app client closed", `clients=${sockets.size}`, "gray")
 		},
 	},
 })
@@ -281,15 +338,24 @@ function readTodoMarkdownForEdit(): string {
 	return existsSync(path) ? readFileSync(path, "utf8") : "# MetaFor TODO\n"
 }
 
-async function patchTodoItem(id: string, req: Request): Promise<Response> {
+async function patchTodoItem(id: string, req: Request, started = Date.now()): Promise<Response> {
 	const parsed = await readJsonObject(req)
-	if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
+	if (parsed.error !== undefined) {
+		logHttp(req, "todo.patch", 400, started, `id=${id} error=${parsed.error}`)
+		return jsonResponse({ok: false, error: parsed.error}, 400)
+	}
 	const checked = asBoolean(parsed.body["checked"])
-	if (checked === undefined) return jsonResponse({ok: false, error: "checked must be boolean"}, 400)
+	if (checked === undefined) {
+		logHttp(req, "todo.patch", 400, started, `id=${id} checked=invalid`)
+		return jsonResponse({ok: false, error: "checked must be boolean"}, 400)
+	}
 	try {
 		const result = updateTodoMarkdownItem(readTodoMarkdownForEdit(), id, {checked})
-		return writeTodoMarkdown(result.markdown)
+		const response = writeTodoMarkdown(result.markdown)
+		logHttp(req, "todo.patch", response.status, started, `id=${id} checked=${checked}`)
+		return response
 	} catch (error) {
+		logHttp(req, "todo.patch", 400, started, `id=${id} error=${errorMessage(error)}`)
 		return jsonResponse({ok: false, error: error instanceof Error ? error.message : String(error)}, 400)
 	}
 }
@@ -311,6 +377,7 @@ async function readInterpreterVoiceSettingsResponse(): Promise<Response> {
 		const payload = await readInterpreterVoiceSettings()
 		return jsonResponse({ok: true, ...payload})
 	} catch (error) {
+		appLog("ERR", "voice settings read", errorMessage(error), "red")
 		return jsonResponse({ok: false, error: error instanceof Error ? error.message : String(error)}, 502)
 	}
 }
@@ -324,15 +391,22 @@ async function writeInterpreterVoiceSettingsResponse(req: Request): Promise<Resp
 		const payload = await writeInterpreterVoiceSettings(values)
 		return jsonResponse({ok: true, ...payload})
 	} catch (error) {
+		appLog("ERR", "voice settings write", errorMessage(error), "red")
 		return jsonResponse({ok: false, error: error instanceof Error ? error.message : String(error)}, 502)
 	}
 }
 
-async function broadcastAndroidControlResponse(req: Request): Promise<Response> {
+async function broadcastAndroidControlResponse(req: Request, started = Date.now()): Promise<Response> {
 	const parsed = await readJsonObject(req)
-	if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
+	if (parsed.error !== undefined) {
+		logHttp(req, "android", 400, started, `error=${parsed.error}`)
+		return jsonResponse({ok: false, error: parsed.error}, 400)
+	}
 	const command = asAndroidControlCommand(parsed.body)
-	if (command === null) return jsonResponse({ok: false, error: "invalid android control command"}, 400)
+	if (command === null) {
+		logHttp(req, "android", 400, started, "invalid command")
+		return jsonResponse({ok: false, error: "invalid android control command"}, 400)
+	}
 	const message = JSON.stringify({type: "hud-android-control", command})
 	let clients = 0
 	for (const socket of sockets) {
@@ -340,6 +414,7 @@ async function broadcastAndroidControlResponse(req: Request): Promise<Response> 
 		socket.send(message)
 		clients += 1
 	}
+	logHttp(req, "android", 200, started, `${command.type} clients=${clients}`)
 	return jsonResponse({ok: true, clients, command})
 }
 
@@ -373,6 +448,7 @@ async function writeInterpreterVoiceSettings(values: Record<string, string | nul
 }
 
 async function findInterpreterTab(): Promise<{windowId: number; tabIndex: number}> {
+	const started = Date.now()
 	const response = await fetch(`${CHROME_API_URL}/windows`, {signal: AbortSignal.timeout(1500)})
 	if (!response.ok) throw new Error(`chrome windows ${response.status}`)
 	const payload = await response.json() as ChromeWindowsPayload
@@ -380,9 +456,11 @@ async function findInterpreterTab(): Promise<{windowId: number; tabIndex: number
 		if (window.kind !== "browser" || typeof window.id !== "number") continue
 		for (const tab of window.tabs ?? []) {
 			if (typeof tab.index !== "number" || !isInterpreterTab(tab.url)) continue
+			appLog("EXT", "chrome interpreter tab", `window=${window.id} tab=${tab.index} in ${Date.now() - started}ms`, "cyan")
 			return {windowId: window.id, tabIndex: tab.index}
 		}
 	}
+	appLog("WARN", "chrome interpreter tab", `not found in ${Date.now() - started}ms`, "yellow")
 	throw new Error("interpreter tab not found")
 }
 
@@ -397,6 +475,7 @@ function isInterpreterTab(rawUrl: string | undefined): boolean {
 }
 
 async function evalInterpreterVoiceSettings(target: {windowId: number; tabIndex: number}, js: string): Promise<InterpreterVoiceSettingsPayload> {
+	const started = Date.now()
 	const response = await fetch(`${CHROME_API_URL}/eval`, {
 		method: "POST",
 		headers: {"content-type": "application/json"},
@@ -405,6 +484,7 @@ async function evalInterpreterVoiceSettings(target: {windowId: number; tabIndex:
 	})
 	if (!response.ok) throw new Error(`chrome eval ${response.status}`)
 	const payload = await response.json() as ChromeEvalPayload
+	appLog("EXT", "chrome eval", `window=${target.windowId} tab=${target.tabIndex} status=${response.status} in ${Date.now() - started}ms`, "cyan")
 	const parsed = parseChromeEvalParsed(payload)
 	if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {values: {}}
 	const record = parsed as {origin?: unknown; values?: unknown}
@@ -414,8 +494,12 @@ async function evalInterpreterVoiceSettings(target: {windowId: number; tabIndex:
 }
 
 async function proxyInterpreterRequest(req: Request, url: URL): Promise<Response> {
+	const started = Date.now()
 	const upstreamPath = url.pathname.slice("/hud/interpreter".length) || "/"
-	if (!isAllowedInterpreterProxyPath(upstreamPath)) return jsonResponse({ok: false, error: "interpreter route not allowed"}, 404)
+	if (!isAllowedInterpreterProxyPath(upstreamPath)) {
+		logHttp(req, "interp.proxy", 404, started, `blocked upstream=${upstreamPath}`)
+		return jsonResponse({ok: false, error: "interpreter route not allowed"}, 404)
+	}
 	const upstream = new URL(`http://127.0.0.1:${INTERPRETER_ORIGIN_PORT}${upstreamPath}`)
 	upstream.search = url.search
 	const headers = new Headers()
@@ -431,6 +515,7 @@ async function proxyInterpreterRequest(req: Request, url: URL): Promise<Response
 		const response = await fetch(upstream, {
 			...init,
 		})
+		logHttp(req, "interp.proxy", response.status, started)
 		return new Response(response.body, {
 			status: response.status,
 			statusText: response.statusText,
@@ -439,6 +524,7 @@ async function proxyInterpreterRequest(req: Request, url: URL): Promise<Response
 			},
 		})
 	} catch (error) {
+		logHttp(req, "interp.proxy", 502, started, `upstream=${upstream.pathname}${upstream.search} error=${errorMessage(error)}`)
 		return jsonResponse({
 			ok: false,
 			error: error instanceof Error ? error.message : String(error),
@@ -548,6 +634,7 @@ function attachRtcSignalSocket(ws: ServerWebSocket<AppWebSocketData>): void {
 	ws.data.peerId = peerId
 	const existingPeers = [...peers.keys()]
 	peers.set(peerId, ws)
+	appLog("RTC", "peer joined", `room=${ws.data.room} peer=${peerId} peers=${peers.size}`, "green")
 	sendRtcJson(ws, {
 		type: "hello",
 		room: ws.data.room,
@@ -568,8 +655,10 @@ function detachRtcSignalSocket(ws: ServerWebSocket<AppWebSocketData>): void {
 	if (peers.get(peerId) === ws) peers.delete(peerId)
 	if (peers.size === 0) {
 		rtcRooms.delete(room)
+		appLog("RTC", "room closed", `room=${room} peer=${peerId}`, "gray")
 		return
 	}
+	appLog("RTC", "peer left", `room=${room} peer=${peerId} peers=${peers.size}`, "gray")
 	broadcastRtcSignal(room, peerId, {
 		type: "peer-left",
 		peerId,
@@ -594,9 +683,15 @@ function handleRtcSignalMessage(ws: ServerWebSocket<AppWebSocketData>, message: 
 	}
 	if (to !== null) {
 		const target = rtcRooms.get(ws.data.room)?.get(to)
-		if (target !== undefined && target.readyState === WebSocket.OPEN) sendRtcJson(target, envelope)
+		if (target !== undefined && target.readyState === WebSocket.OPEN) {
+			appLog("RTC", "signal direct", `room=${ws.data.room} from=${ws.data.peerId} to=${to} type=${String(payload.type ?? "-")}`, "cyan")
+			sendRtcJson(target, envelope)
+		} else {
+			appLog("WARN", "signal target missing", `room=${ws.data.room} from=${ws.data.peerId} to=${to}`, "yellow")
+		}
 		return
 	}
+	appLog("RTC", "signal broadcast", `room=${ws.data.room} from=${ws.data.peerId} type=${String(payload.type ?? "-")}`, "cyan")
 	broadcastRtcSignal(ws.data.room, ws.data.peerId, envelope)
 }
 
@@ -627,6 +722,100 @@ function sanitizeRtcId(value: string): string | null {
 	return normalized
 }
 
+type AppLogTone = "cyan" | "gray" | "green" | "magenta" | "red" | "yellow"
+
+function appLog(tag: string, label: string, detail: string, tone: AppLogTone): void {
+	const prefix = paintLog(tone, `[${tag.padEnd(4)}]`)
+	const time = paintLog("gray", formatLogTime(new Date()))
+	console.log(`${prefix} ${time}  ${paintLog(tone, label.padEnd(14))} ${detail}`)
+}
+
+function appLogBanner(): void {
+	console.log("")
+	console.log(paintLog("cyan", "+--------------------------------------+"))
+	console.log(paintLog("cyan", "| MetaFor app/web server               |"))
+	console.log(paintLog("cyan", "+--------------------------------------+"))
+}
+
+function logHttp(req: Request, route: string, status: number, started: number, detail = ""): void {
+	const url = new URL(req.url)
+	const tone = status >= 500 ? "red" : status >= 400 ? "yellow" : "green"
+	const path = compactLogPath(url)
+	const suffix = detail.length > 0 ? ` ${detail}` : ""
+	appLog("HTTP", route, `${status} ${Date.now() - started}ms ${req.method} ${path}${suffix}`, tone)
+}
+
+function logWsUpgrade(req: Request, channel: string, ok: boolean, detail = ""): void {
+	const url = new URL(req.url)
+	const suffix = detail.length > 0 ? ` ${detail}` : ""
+	appLog(ok ? "WS" : "WARN", `${channel} upgrade`, `${compactLogPath(url)} ${ok ? "accepted" : "failed"}${suffix}`, ok ? "green" : "yellow")
+}
+
+function compactLogPath(url: URL): string {
+	const aliases: Array<[string, string]> = [
+		["/hud/interpreter", "/interp"],
+		["/hud/android", "/android"],
+		["/hud/terminal", "/terminal"],
+		["/hud/webrtc", "/rtc"],
+		["/hud/voice", "/voice"],
+		["/hud/todo", "/todo"],
+	]
+	let path = url.pathname
+	for (const [prefix, alias] of aliases) {
+		if (path === prefix || path.startsWith(`${prefix}/`)) {
+			path = `${alias}${path.slice(prefix.length)}`
+			break
+		}
+	}
+	return `${path}${url.search}`
+}
+
+function terminalUpgradeDetail(data: {replay: boolean; sessionId?: string; sessionKey?: string; tmuxSession?: string}): string {
+	return [
+		`replay=${data.replay}`,
+		data.sessionId === undefined ? undefined : `session=${shortId(data.sessionId)}`,
+		data.sessionKey === undefined ? undefined : `key=${data.sessionKey}`,
+		data.tmuxSession === undefined ? undefined : `tmux=${data.tmuxSession}`,
+	].filter((item): item is string => item !== undefined).join(" ")
+}
+
+function shortId(value: string): string {
+	return value.length <= 8 ? value : value.slice(0, 8)
+}
+
+function errorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error)
+}
+
+function formatLogTime(date: Date): string {
+	const hours = String(date.getHours()).padStart(2, "0")
+	const minutes = String(date.getMinutes()).padStart(2, "0")
+	const seconds = String(date.getSeconds()).padStart(2, "0")
+	const ms = String(date.getMilliseconds()).padStart(3, "0")
+	return `${hours}:${minutes}:${seconds}.${ms}`
+}
+
+function formatLogDateTime(date: Date): string {
+	const year = date.getFullYear()
+	const month = String(date.getMonth() + 1).padStart(2, "0")
+	const day = String(date.getDate()).padStart(2, "0")
+	return `${year}-${month}-${day} ${formatLogTime(date)}`
+}
+
+function paintLog(tone: AppLogTone, value: string): string {
+	if (!LOG_COLOR_ENABLED) return value
+	const colors: Record<AppLogTone | "reset", string> = {
+		cyan: "\x1b[36m",
+		gray: "\x1b[90m",
+		green: "\x1b[32m",
+		magenta: "\x1b[35m",
+		red: "\x1b[31m",
+		reset: "\x1b[0m",
+		yellow: "\x1b[33m",
+	}
+	return `${colors[tone]}${value}${colors.reset}`
+}
+
 function printServerUrls(): void {
 	const protocol = TLS_ENABLED ? "https" : "http"
 	const port = server.port
@@ -636,9 +825,20 @@ function printServerUrls(): void {
 		urls.add(`${protocol}://localhost:${port}/`)
 		for (const address of localNetworkAddresses()) urls.add(`${protocol}://${address}:${port}/`)
 	}
-	console.log(`[app/web] ${TLS_ENABLED ? "HTTPS/WebRTC" : "HTTP/WebRTC"} listening`)
-	for (const url of urls) console.log(`[app/web] ${url}`)
-	console.log(`[app/web] WebRTC signaling: ${protocol === "https" ? "wss" : "ws"}://<host>:${port}/hud/webrtc/signaling`)
+	appLogBanner()
+	appLog("OK", `${TLS_ENABLED ? "HTTPS" : "HTTP"} online`, `pid=${process.pid} host=${HOST} port=${port}`, "green")
+	appLog("CFG", "boundary", `path=${Bun.env.BOUNDARY_PATH ?? "(default)"}`, "magenta")
+	if (TLS_ENABLED) {
+		appLog("TLS", "key", Bun.env.TLS_KEY_FILE ?? "-", "green")
+		appLog("TLS", "cert", Bun.env.TLS_CERT_FILE ?? "-", "green")
+	} else {
+		appLog("TLS", "disabled", "plain HTTP", "gray")
+	}
+	appLog("CFG", "chrome api", CHROME_API_URL, "magenta")
+	appLog("CFG", "interpreter api", `http://127.0.0.1:${INTERPRETER_ORIGIN_PORT}`, "magenta")
+	for (const url of urls) appLog("URL", "app entry", url, "cyan")
+	appLog("URL", "rtc signal", `${protocol === "https" ? "wss" : "ws"}://<host>:${port}/hud/webrtc/signaling`, "cyan")
+	appLog("TIME", "started", formatLogDateTime(APP_WEB_STARTED_AT), "gray")
 }
 
 function localNetworkAddresses(): string[] {

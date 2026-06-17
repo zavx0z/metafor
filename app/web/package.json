@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit --pretty false",
     "dev:tls": "BOUNDARY_PATH=tmp/boundary.sqlite HOST=0.0.0.0 TLS_KEY_FILE=tls/privkey.pem TLS_CERT_FILE=tls/fullchain.pem bun server --hot",
     "dev:tls:3333": "BOUNDARY_PATH=tmp/boundary.sqlite HOST=0.0.0.0 PORT=3333 TLS_KEY_FILE=tls/privkey.pem TLS_CERT_FILE=tls/fullchain.pem bun server --hot",
+    "network:redirect": "HOST=0.0.0.0 PORT=80 bun network-redirect.ts",
     "tls:issue": "bash ../../scripts/tls-issue.sh",
     "tls:issue:staging": "STAGING=1 bash ../../scripts/tls-issue.sh",
     "tls:selfsigned": "bash ../../scripts/tls-selfsigned.sh"
