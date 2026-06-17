@@ -547,12 +547,16 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
         if (!isAllowedWebSocketOrigin(req, url)) return jsonResponse({ok: false, error: "forbidden origin"}, 403)
         const id = nextTerminalClientId++
         const requestedSession = url.searchParams.get("session")
+        const sessionKey = url.searchParams.get("key")
+        const tmuxSession = url.searchParams.get("tmux")
         const data: TerminalWsClientData = {
           kind: "terminal",
           id,
           connectedAt: Date.now(),
           replay: url.searchParams.get("replay") !== "0",
           ...(requestedSession === null ? {} : {sessionId: requestedSession}),
+          ...(sessionKey === null ? {} : {sessionKey}),
+          ...(tmuxSession === null ? {} : {tmuxSession}),
         }
         const upgraded = server.upgrade(req, {data})
         if (upgraded) return undefined
@@ -577,6 +581,12 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
       }
       if (method === "GET" && path === "/hud/terminal/sessions") {
         return jsonResponse({sessions: terminalSessions.list()})
+      }
+      if (method === "DELETE" && path.startsWith("/hud/terminal/sessions/")) {
+        const id = decodePathParam(path.slice("/hud/terminal/sessions/".length))
+        return terminalSessions.close(id)
+          ? jsonResponse({ok: true})
+          : jsonResponse({ok: false, error: "terminal session not found"}, 404)
       }
 
       const start = Date.now()

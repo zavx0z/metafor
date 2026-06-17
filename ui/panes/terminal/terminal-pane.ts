@@ -93,6 +93,7 @@ type TerminalOutputPaneOpts = {
   cursorLineHighlight?: boolean
   cursorLineFill?: Color
   showCursor?: boolean
+  cursorWhenBlurred?: boolean
   onResize?: (size: TerminalSize) => void
   onFocusChange?: (focused: boolean) => void
   onFrameRectPreview?: (rect: PaneRect) => void
@@ -295,6 +296,7 @@ class TerminalOutputPane extends UiSurface {
   #cursorLineHighlight: boolean
   #cursorLineFill: Color
   #cursorEnabled: boolean
+  #cursorWhenBlurred: boolean
   #onResize: ((size: TerminalSize) => void) | undefined
   #onFocusChange: ((focused: boolean) => void) | undefined
   #onFrameRectPreview: ((rect: PaneRect) => void) | undefined
@@ -374,6 +376,7 @@ class TerminalOutputPane extends UiSurface {
     this.#cursorLineHighlight = opts.cursorLineHighlight ?? false
     this.#cursorLineFill = opts.cursorLineFill ?? CURSOR_LINE_FILL
     this.#cursorEnabled = opts.showCursor ?? true
+    this.#cursorWhenBlurred = opts.cursorWhenBlurred ?? false
     this.#showCursor = this.#cursorEnabled
     this.#cursorVisible = this.#cursorEnabled
     this.#onResize = opts.onResize
@@ -913,7 +916,9 @@ class TerminalOutputPane extends UiSurface {
   }
 
   #renderCursor(x: number, y: number): void {
-    if (!this.#focused || !this.#cursorEnabled || !this.#showCursor || !this.#cursorVisible || this.#cursorCol >= this.#cols) return
+    const active = this.#focused || this.#cursorWhenBlurred
+    const blinkVisible = this.#focused ? this.#cursorVisible : true
+    if (!active || !this.#cursorEnabled || !this.#showCursor || !blinkVisible || this.#cursorCol >= this.#cols) return
     const charW = this.#getCharWidth()
     this.drawRoundedRect(x + this.#cursorCol * charW, y + 2, Math.max(2, charW), Math.max(4, this.#linePx - 3), {
       radius: 2,
@@ -1223,7 +1228,7 @@ class TerminalOutputPane extends UiSurface {
     this.#focused = false
     this.#onFocusChange?.(false)
     this.#stopCursorBlink()
-    this.#cursorVisible = false
+    this.#cursorVisible = this.#cursorWhenBlurred && this.#cursorEnabled && this.#showCursor
     this.requestRender()
   }
 

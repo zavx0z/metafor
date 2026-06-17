@@ -196,6 +196,8 @@ type WorkspaceProcessModules = {
 
 const STORAGE_PREFIX = "metafor.app-web.hud"
 const CODEX_SESSION_STORAGE_KEY = `${STORAGE_PREFIX}.codex.sessionId:v1`
+const CODEX_TERMINAL_SESSION_KEY = "app-web:codex"
+const CODEX_TERMINAL_TMUX_SESSION = "metafor-app-web-codex"
 const CODEX_DOCKED_STORAGE_KEY = `${STORAGE_PREFIX}.codex.docked:v1`
 const CODEX_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.codex.rect:v1`
 const CODEX_DOCK_PLACEMENT_STORAGE_KEY = `${STORAGE_PREFIX}.codex.dockPlacement:v2`
@@ -1167,6 +1169,7 @@ class AppWebHud implements AppWebHudController {
 			linePx: 17,
 			maxScrollback: 10000,
 			respondToTerminalQueries: false,
+			cursorWhenBlurred: true,
 			draggable: true,
 			resizable: true,
 			inputEnabled: false,
@@ -1235,6 +1238,8 @@ class AppWebHud implements AppWebHudController {
 		const protocol = location.protocol === "https:" ? "wss:" : "ws:"
 		const url = new URL(`${protocol}//${location.host}/hud/terminal/stream`)
 		url.searchParams.set("replay", "1")
+		url.searchParams.set("key", CODEX_TERMINAL_SESSION_KEY)
+		url.searchParams.set("tmux", CODEX_TERMINAL_TMUX_SESSION)
 		if (this.#terminal.sessionId !== null) url.searchParams.set("session", this.#terminal.sessionId)
 		return url.toString()
 	}

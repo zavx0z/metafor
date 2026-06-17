@@ -7,6 +7,8 @@ export type {PtyClientMessage, PtyInputSource, PtyServerMessage, PtyStatusKind, 
 export type PtySocketData = {
   session?: TerminalSession
   sessionId?: string
+  sessionKey?: string
+  tmuxSession?: string
   replay: boolean
   connectedAt: number
 }
@@ -30,6 +32,8 @@ export type PtyServerOptions = {
 
 export type PtySessionInfo = {
   id: string
+  key: string | null
+  tmuxSession: string | null
   shell: string
   cwd: string
   size: PtyTerminalSize
@@ -61,6 +65,7 @@ let buildAssets = new Map<string, Blob>()
 
 export class PtySessionManager {
   readonly #sessions = new Map<string, TerminalSession>()
+  readonly #sessionsByKey = new Map<string, TerminalSession>()
   readonly #options: PtyRuntimeOptions
 
   constructor(options: PtyRuntimeOptions) {
@@ -68,16 +73,33 @@ export class PtySessionManager {
   }
 
   attach(ws: ServerWebSocket<PtySocketData>): TerminalSession {
+    const requestedKey = normalizeSessionKey(ws.data.sessionKey)
     const requestedId = normalizeSessionId(ws.data.sessionId)
-    const existing = requestedId === null ? undefined : this.#sessions.get(requestedId)
+    const existingByKey = requestedKey === null ? undefined : this.#sessionsByKey.get(requestedKey)
+    if (existingByKey !== undefined && !existingByKey.exited) {
+      existingByKey.attach(ws, ws.data.replay)
+      return existingByKey
+    }
+    const existing = requestedKey !== null || requestedId === null ? undefined : this.#sessions.get(requestedId)
     if (existing !== undefined && !existing.exited) {
       existing.attach(ws, ws.data.replay)
       return existing
     }
 
     this.#evictDetachedIfNeeded()
-    const session = new TerminalSession(this.#options, (id) => this.#sessions.delete(id))
+    const session = new TerminalSession(
+      this.#options,
+      (id, key) => {
+        this.#sessions.delete(id)
+        if (key !== null) this.#sessionsByKey.delete(key)
+      },
+      {
+        key: requestedKey,
+        tmuxSession: normalizeTmuxSession(ws.data.tmuxSession),
+      },
+    )
     this.#sessions.set(session.id, session)
+    if (session.key !== null) this.#sessionsByKey.set(session.key, session)
     session.attach(ws, false)
     return session
   }
@@ -91,6 +113,7 @@ export class PtySessionManager {
     if (session === undefined) return false
     session.close()
     this.#sessions.delete(id)
+    if (session.key !== null) this.#sessionsByKey.delete(session.key)
     return true
   }
 
@@ -118,10 +141,12 @@ export class TerminalSession {
   readonly #terminal: Bun.Terminal
   readonly #clients = new Set<ServerWebSocket<PtySocketData>>()
   readonly #options: PtyRuntimeOptions
-  readonly #onDispose: (id: string) => void
+  readonly #onDispose: (id: string, key: string | null) => void
   readonly #scrollback: string[] = []
   readonly #stateTracker = new PtyTerminalStateTracker()
   readonly #probeResponder = new PtyTerminalProbeResponder((data) => this.write(data))
+  readonly #key: string | null
+  readonly #tmuxSession: string | null
   readonly id = crypto.randomUUID()
   readonly createdAt = Date.now()
   #disposeTimer: ReturnType<typeof setTimeout> | null = null
@@ -132,11 +157,13 @@ export class TerminalSession {
   #updatedAt = this.createdAt
   #detachedAt: number | null = null
 
-  constructor(options: PtyRuntimeOptions, onDispose: (id: string) => void) {
+  constructor(options: PtyRuntimeOptions, onDispose: (id: string, key: string | null) => void, sessionOptions: {key?: string | null; tmuxSession?: string | null} = {}) {
     this.#options = options
     this.#onDispose = onDispose
+    this.#key = sessionOptions.key ?? null
+    this.#tmuxSession = sessionOptions.tmuxSession ?? null
     this.#size = clampSize(options.defaultSize, options)
-    this.#proc = Bun.spawn([options.shell, "-l"], {
+    this.#proc = Bun.spawn(this.#spawnCommand(), {
       cwd: options.cwd,
       env: terminalEnv(),
       stdin: "ignore",
@@ -187,6 +214,10 @@ export class TerminalSession {
     return this.#clients.size
   }
 
+  get key(): string | null {
+    return this.#key
+  }
+
   get detachedAt(): number | null {
     return this.#detachedAt
   }
@@ -219,6 +250,7 @@ export class TerminalSession {
       restored,
       replayBytes: replay ? this.#scrollbackBytes : 0,
       state: this.#terminalState(),
+      tmuxSession: this.#tmuxSession,
     })
     send(ws, {
       type: "terminal.status",
@@ -286,12 +318,14 @@ export class TerminalSession {
       }
     }
     this.#clients.clear()
-    this.#onDispose(this.id)
+    this.#onDispose(this.id, this.#key)
   }
 
   info(): PtySessionInfo {
     return {
       id: this.id,
+      key: this.#key,
+      tmuxSession: this.#tmuxSession,
       shell: this.#options.shell,
       cwd: this.#options.cwd,
       size: this.#size,
@@ -348,7 +382,17 @@ export class TerminalSession {
 
   #statusLabel(restored: boolean): string {
     if (this.#exited) return "exited"
-    return restored ? `restored ${basename(this.#options.shell)}` : basename(this.#options.shell)
+    const label = this.#tmuxSession === null ? basename(this.#options.shell) : `tmux:${this.#tmuxSession}`
+    return restored ? `restored ${label}` : label
+  }
+
+  #spawnCommand(): string[] {
+    if (this.#tmuxSession === null) return [this.#options.shell, "-l"]
+    return [
+      this.#options.shell,
+      "-lc",
+      `exec tmux new-session -A -s ${shellQuote(this.#tmuxSession)}`,
+    ]
   }
 }
 
@@ -595,10 +639,14 @@ export function createPtyServer(options: PtyServerOptions = {}): ReturnType<type
       if (url.pathname === "/terminal") {
         if (!isAllowedOrigin(req, url)) return new Response("Forbidden", {status: 403})
         const requestedSession = url.searchParams.get("session")
+        const sessionKey = url.searchParams.get("key")
+        const tmuxSession = url.searchParams.get("tmux")
         const data: PtySocketData = {
           connectedAt: Date.now(),
           replay: url.searchParams.get("replay") !== "0",
           ...(requestedSession === null ? {} : {sessionId: requestedSession}),
+          ...(sessionKey === null ? {} : {sessionKey}),
+          ...(tmuxSession === null ? {} : {tmuxSession}),
         }
         const upgraded = bunServer.upgrade(req, {
           data,
@@ -815,6 +863,20 @@ function normalizeOptions(options: PtyServerOptions): PtyRuntimeOptions {
 function normalizeSessionId(value: string | undefined): string | null {
   if (value === undefined || value.length < 8 || value.length > 128) return null
   return /^[a-zA-Z0-9._:-]+$/.test(value) ? value : null
+}
+
+function normalizeSessionKey(value: string | undefined): string | null {
+  if (value === undefined || value.length < 2 || value.length > 128) return null
+  return /^[a-zA-Z0-9._:-]+$/.test(value) ? value : null
+}
+
+function normalizeTmuxSession(value: string | undefined): string | null {
+  if (value === undefined || value.length < 2 || value.length > 64) return null
+  return /^[a-zA-Z0-9._-]+$/.test(value) ? value : null
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`
 }
 
 function byteLength(value: string): number {

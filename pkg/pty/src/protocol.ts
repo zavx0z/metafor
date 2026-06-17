@@ -22,7 +22,7 @@ export type PtyClientMessage =
   | {type: "terminal.clear"}
 
 export type PtyServerMessage =
-  | {type: "terminal.ready"; shell: string; size: PtyTerminalSize; sessionId: string; restored: boolean; replayBytes: number; state: PtyTerminalState}
+  | {type: "terminal.ready"; shell: string; size: PtyTerminalSize; sessionId: string; restored: boolean; replayBytes: number; state: PtyTerminalState; tmuxSession?: string | null}
   | {type: "terminal.write"; data: string; state?: PtyTerminalState}
   | {type: "terminal.state"; state: PtyTerminalState}
   | {type: "terminal.local-echo"; id: number; accepted: boolean; state: PtyTerminalState}

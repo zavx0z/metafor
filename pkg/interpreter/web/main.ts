@@ -471,7 +471,7 @@ type PtyClientMessage =
   | {type: "terminal.resize"; size: TerminalSize}
   | {type: "terminal.clear"}
 type PtyServerMessage =
-  | {type: "terminal.ready"; shell: string; size: TerminalSize; sessionId: string; restored: boolean; replayBytes: number; state: PtyTerminalState}
+  | {type: "terminal.ready"; shell: string; size: TerminalSize; sessionId: string; restored: boolean; replayBytes: number; state: PtyTerminalState; tmuxSession?: string | null}
   | {type: "terminal.write"; data: string; state?: PtyTerminalState}
   | {type: "terminal.state"; state: PtyTerminalState}
   | {type: "terminal.local-echo"; id: number; accepted: boolean; state: PtyTerminalState}
@@ -521,6 +521,8 @@ type HostTerminalController = {
   hudTerminal: TerminalPane
   title: string
   sessionStorageKey: string
+  sessionKey: string
+  tmuxSession: string
   initialCommand: string | null
   initialCommandSent: boolean
   socket: WebSocket | null
@@ -555,12 +557,18 @@ const MODULE_DISPLAY_GAP_MM = 52
 const MODULE_DISPLAY_CENTER_Y_MM = 0
 const MODULE_DISPLAY_CENTER_Z_MM = 900
 const HOST_TERMINAL_SESSION_STORAGE_KEY = "metafor.interpreter.hostTerminal.sessionId"
+const HOST_TERMINAL_SESSION_KEY = "interpreter:host-terminal"
+const HOST_TERMINAL_TMUX_SESSION = "metafor-interpreter-host"
 const HOST_TERMINAL_HUD_RECT_STORAGE_KEY = "metafor.interpreter.hostTerminal.hudRect:v1"
 const HOST_TERMINAL_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.hostTerminal.hudDocked:v1"
 const HOST_TERMINAL_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.hostTerminal.dockPlacement:v1"
 const NETWORK_TERMINAL_SESSION_STORAGE_KEY = "metafor.interpreter.networkTerminal.sessionId:v1"
+const NETWORK_TERMINAL_SESSION_KEY = "interpreter:network-terminal"
+const NETWORK_TERMINAL_TMUX_SESSION = "metafor-app-web-net"
+const NETWORK_TERMINAL_TMUX_FALLBACK_COMMAND = `exec tmux new-session -A -s ${NETWORK_TERMINAL_TMUX_SESSION}\r`
 const NETWORK_TERMINAL_HUD_RECT_STORAGE_KEY = "metafor.interpreter.networkTerminal.hudRect:v1"
 const NETWORK_TERMINAL_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.networkTerminal.hudDocked:v1"
+const NETWORK_TERMINAL_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.networkTerminal.dockPlacement:v1"
 const ANDROID_HUD_RECT_STORAGE_KEY = "metafor.interpreter.android.hudRect:v1"
 const ANDROID_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.android.hudDocked:v1"
 const SECONDARY_ANDROID_HUD_RECT_STORAGE_KEY = "metafor.interpreter.android.secondary.hudRect:v1"
@@ -687,7 +695,7 @@ type VoiceHudAnchorPlacement = {
 const DEFAULT_HOST_TERMINAL_HUD_RECT: UiSurfaceRect = {x: 643, y: 60, w: 755, h: 943}
 const DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "top", offset: 858}
 const DEFAULT_NETWORK_TERMINAL_HUD_RECT: UiSurfaceRect = {x: 24, y: 520, w: 1080, h: 560}
-const NETWORK_TERMINAL_INITIAL_COMMAND = "tmux attach -t metafor-app-web-net\r"
+const DEFAULT_NETWORK_TERMINAL_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "bottom", offset: 520}
 const DEFAULT_ANDROID_HUD_RECT: UiSurfaceRect = {x: 24, y: 80, w: 390, h: 720}
 const DEFAULT_SECONDARY_ANDROID_HUD_RECT: UiSurfaceRect = {x: 430, y: 80, w: 390, h: 720}
 const ANDROID_RTC_FRAME_SRC = "metafor:android-rtc-frame"
@@ -711,12 +719,14 @@ let sqliteDockPane: SqliteDockPane | null = null
 let hostTerminal: HostTerminalController | null = null
 let networkHostTerminal: HostTerminalController | null = null
 let hostTerminalDockPane: HostTerminalDockPane | null = null
+let networkTerminalDockPane: HostTerminalDockPane | null = null
 let hostTerminalAgentSignalPane: HostTerminalAgentSignalPane | null = null
 let hostTerminalStatusLabelForLayout = t("terminalConnecting")
 let hostTerminalHudDocked = readStoredHostTerminalHudDocked()
 let hostTerminalDockPlacement: HostTerminalDockPlacement | null = readStoredHostTerminalDockPlacement() ?? DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT
 let hostTerminalHudRectPreview: UiSurfaceRect | null = null
 let networkHostTerminalHudDocked = readStoredNetworkTerminalHudDocked()
+let networkTerminalDockPlacement: HostTerminalDockPlacement | null = readStoredNetworkTerminalDockPlacement() ?? DEFAULT_NETWORK_TERMINAL_DOCK_PLACEMENT
 let networkHostTerminalHudRectPreview: UiSurfaceRect | null = null
 let androidHudDocked = readStoredAndroidHudDocked()
 let androidHudRectPreview: UiSurfaceRect | null = null
@@ -1712,6 +1722,7 @@ function networkTerminalPayload(): unknown {
     status: controller?.connectionState ?? "idle",
     statusLabel: controller?.statusLabel ?? t("terminalConnecting"),
     rect: frame?.rect ?? null,
+    dockPlacement: networkTerminalDockPlacement,
   }
 }
 
@@ -2524,6 +2535,15 @@ function installEnginePanes(): void {
   uiCanvas.addHudSurface(hostTerminalAgentSignalPane, hostTerminalAgentSignalRect, {zIndex: HUD_LAYER_TOP})
   hostTerminalDockPane ??= new HostTerminalDockPane(() => setHostTerminalHudDocked(false))
   uiCanvas.addHudSurface(hostTerminalDockPane, hostTerminalDockRect, {zIndex: HUD_LAYER_TOP})
+  networkTerminalDockPane ??= new HostTerminalDockPane({
+    key: "network-terminal-dock-restore",
+    label: "Network",
+    tooltip: "Network · tmux",
+    edge: currentNetworkTerminalDockEdge,
+    restore: () => setNetworkTerminalDocked(false),
+    moveTo: (point, bounds) => setNetworkTerminalDockPlacement(hostTerminalDockPlacementFromPoint(point, bounds)),
+  })
+  uiCanvas.addHudSurface(networkTerminalDockPane, networkTerminalDockRect, {zIndex: HUD_LAYER_TOP})
   sqliteDockPane ??= new SqliteDockPane(() => setSqliteHudDocked(false))
   uiCanvas.addHudSurface(sqliteDockPane, sqliteDockRect, {zIndex: HUD_LAYER_TOP})
   if (voiceHudPane !== null) {
@@ -3411,6 +3431,15 @@ function sameStringArray(a: readonly string[], b: readonly string[]): boolean {
   return true
 }
 
+type HostTerminalDockPaneOptions = {
+  key: string
+  label: string
+  tooltip: string
+  edge(): HudSideTabEdge
+  restore(): void
+  moveTo(point: {x: number; y: number}, bounds: {w: number; h: number}): void
+}
+
 class HostTerminalDockPane extends UiSurface {
   #press: {
     lastX: number
@@ -3419,21 +3448,32 @@ class HostTerminalDockPane extends UiSurface {
     timer: ReturnType<typeof setTimeout> | null
   } | null = null
   #suppressRestoreClick = false
+  readonly #options: HostTerminalDockPaneOptions
 
-  constructor(private readonly onRestore: () => void) {
+  constructor(options: (() => void) | HostTerminalDockPaneOptions) {
     super({bgColor: null, borderColor: null})
+    this.#options = typeof options === "function"
+      ? {
+        key: "host-terminal-dock-restore",
+        label: HOST_TERMINAL_MODEL_LABEL,
+        tooltip: hostTerminalTitle(),
+        edge: currentHostTerminalDockEdge,
+        restore: options,
+        moveTo: (point, bounds) => setHostTerminalDockPlacement(hostTerminalDockPlacementFromPoint(point, bounds)),
+      }
+      : options
     this.node.name = "HostTerminalDockPane"
   }
 
   protected render(): void {
     HudSideTab(this, {
       rect: {x: 0, y: 0, w: this.rectW, h: this.rectH},
-      key: "host-terminal-dock-restore",
-      edge: currentHostTerminalDockEdge(),
+      key: this.#options.key,
+      edge: this.#options.edge(),
       icon: uiIcons.codex,
-      label: HOST_TERMINAL_MODEL_LABEL,
+      label: this.#options.label,
       tone: "neutral",
-      tooltip: hostTerminalTitle(),
+      tooltip: this.#options.tooltip,
       onClick: () => this.#restoreFromClick(),
     })
   }
@@ -3504,7 +3544,7 @@ class HostTerminalDockPane extends UiSurface {
 
   #restoreFromClick(): void {
     if (this.#suppressRestoreClick) return
-    this.onRestore()
+    this.#options.restore()
   }
 
   #cancelPress(): void {
@@ -3516,8 +3556,7 @@ class HostTerminalDockPane extends UiSurface {
   #moveDockToCanvasPoint(point: {x: number; y: number}): void {
     const frame = this.canvas?.surfaceFrame(this)
     if (frame === undefined || frame === null) return
-    const placement = hostTerminalDockPlacementFromPoint(point, frame.bounds)
-    setHostTerminalDockPlacement(placement)
+    this.#options.moveTo(point, frame.bounds)
   }
 
   #canvasPoint(event: MouseEvent): {x: number; y: number} | null {
@@ -5622,6 +5661,8 @@ function ensureHostTerminalController(): HostTerminalController {
     hudTerminal,
     title: hostTerminalTitle(),
     sessionStorageKey: HOST_TERMINAL_SESSION_STORAGE_KEY,
+    sessionKey: HOST_TERMINAL_SESSION_KEY,
+    tmuxSession: HOST_TERMINAL_TMUX_SESSION,
     initialCommand: null,
     initialCommandSent: false,
     socket: null,
@@ -5666,7 +5707,9 @@ function ensureNetworkHostTerminalController(): HostTerminalController {
     hudTerminal,
     title: "Network · tmux",
     sessionStorageKey: NETWORK_TERMINAL_SESSION_STORAGE_KEY,
-    initialCommand: NETWORK_TERMINAL_INITIAL_COMMAND,
+    sessionKey: NETWORK_TERMINAL_SESSION_KEY,
+    tmuxSession: NETWORK_TERMINAL_TMUX_SESSION,
+    initialCommand: NETWORK_TERMINAL_TMUX_FALLBACK_COMMAND,
     initialCommandSent: false,
     socket: null,
     sessionId: readStoredHostTerminalSessionId(NETWORK_TERMINAL_SESSION_STORAGE_KEY),
@@ -5711,6 +5754,7 @@ function createHostTerminalPane(
     linePx: opts.linePx,
     maxScrollback: 10000,
     respondToTerminalQueries: false,
+    cursorWhenBlurred: true,
     draggable: opts.draggable ?? false,
     resizable: opts.resizable ?? false,
     inputEnabled: false,
@@ -5802,6 +5846,8 @@ function hostTerminalWebSocketURL(controller: HostTerminalController): string {
   const protocol = location.protocol === "https:" ? "wss:" : "ws:"
   const url = new URL(`${protocol}//${location.host}/hud/terminal/stream`)
   url.searchParams.set("replay", "1")
+  url.searchParams.set("key", controller.sessionKey)
+  url.searchParams.set("tmux", controller.tmuxSession)
   if (controller.sessionId !== null) url.searchParams.set("session", controller.sessionId)
   return url.toString()
 }
@@ -5886,7 +5932,8 @@ function handleHostTerminalMessage(controller: HostTerminalController, event: Me
     if (voiceActiveTarget === null) setVoiceActiveTarget({kind: "host", controller})
     else scheduleVoiceAutoWake()
     if (controller.terminalSize !== null) sendHostTerminal(controller, {type: "terminal.resize", size: controller.terminalSize})
-    if (controller.initialCommand !== null && !controller.initialCommandSent && !message.restored) {
+    const tmuxReady = message.tmuxSession === controller.tmuxSession
+    if (controller.initialCommand !== null && !controller.initialCommandSent && !tmuxReady && !message.restored) {
       controller.initialCommandSent = true
       window.setTimeout(() => sendHostTerminalInput(controller, controller.initialCommand ?? "", "api"), 80)
     }
@@ -6322,6 +6369,18 @@ function readStoredHostTerminalDockPlacement(): HostTerminalDockPlacement | null
   }
 }
 
+function readStoredNetworkTerminalDockPlacement(): HostTerminalDockPlacement | null {
+  try {
+    const raw = localStorage.getItem(NETWORK_TERMINAL_DOCK_PLACEMENT_STORAGE_KEY)
+    if (raw === null) return null
+    const value = JSON.parse(raw) as Partial<HostTerminalDockPlacement>
+    if (!isHostTerminalDockEdge(value.edge) || typeof value.offset !== "number" || !Number.isFinite(value.offset)) return null
+    return {edge: value.edge, offset: value.offset}
+  } catch {
+    return null
+  }
+}
+
 function readStoredTodoDockPlacement(): HostTerminalDockPlacement | null {
   try {
     const raw = localStorage.getItem(TODO_DOCK_PLACEMENT_STORAGE_KEY)
@@ -6354,6 +6413,14 @@ function writeStoredHostTerminalDockPlacement(placement: HostTerminalDockPlaceme
   }
 }
 
+function writeStoredNetworkTerminalDockPlacement(placement: HostTerminalDockPlacement): void {
+  try {
+    localStorage.setItem(NETWORK_TERMINAL_DOCK_PLACEMENT_STORAGE_KEY, JSON.stringify(placement))
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+}
+
 function writeStoredTodoDockPlacement(placement: HostTerminalDockPlacement): void {
   try {
     localStorage.setItem(TODO_DOCK_PLACEMENT_STORAGE_KEY, JSON.stringify(placement))
@@ -6376,6 +6443,15 @@ function setHostTerminalDockPlacement(placement: HostTerminalDockPlacement): voi
   hostTerminalDockPlacement = placement
   writeStoredHostTerminalDockPlacement(placement)
   hostTerminalDockPane?.requestRender()
+  relayoutHudSurfaces()
+}
+
+function setNetworkTerminalDockPlacement(placement: HostTerminalDockPlacement): void {
+  const previous = networkTerminalDockPlacement
+  if (previous !== null && previous.edge === placement.edge && Math.abs(previous.offset - placement.offset) < 0.5) return
+  networkTerminalDockPlacement = placement
+  writeStoredNetworkTerminalDockPlacement(placement)
+  networkTerminalDockPane?.requestRender()
   relayoutHudSurfaces()
 }
 
@@ -6428,6 +6504,7 @@ function setNetworkTerminalDocked(docked: boolean): unknown {
     uiCanvas.inputProxy?.blur()
   }
   controller.hudTerminal.requestRender()
+  networkTerminalDockPane?.requestRender()
   relayoutHudSurfaces()
   return networkTerminalPayload()
 }
@@ -6519,6 +6596,10 @@ function isHostTerminalDockEdge(value: unknown): value is HudSideTabEdge {
 
 function currentHostTerminalDockEdge(): HudSideTabEdge {
   return hostTerminalDockPlacement?.edge ?? DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT.edge
+}
+
+function currentNetworkTerminalDockEdge(): HudSideTabEdge {
+  return networkTerminalDockPlacement?.edge ?? DEFAULT_NETWORK_TERMINAL_DOCK_PLACEMENT.edge
 }
 
 function currentTodoDockEdge(): HudSideTabEdge {
@@ -8801,6 +8882,11 @@ function hostTerminalDockRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   return hostTerminalDockRectForPlacement(hostTerminalDockPlacement ?? defaultHostTerminalDockPlacement({w, h}), {w, h})
 }
 
+function networkTerminalDockRect({w, h}: {w: number; h: number}): UiSurfaceRect {
+  if (!networkHostTerminalHudDocked || w < 80 || h < 80) return hiddenRect()
+  return hostTerminalDockRectForPlacement(networkTerminalDockPlacement ?? defaultNetworkTerminalDockPlacement({w, h}), {w, h})
+}
+
 function todoDockRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   if (!todoHudDocked || w < 80 || h < 80) return hiddenRect()
   return todoDockRectForPlacement(todoDockPlacement ?? defaultTodoDockPlacement({w, h}), {w, h})
@@ -8935,6 +9021,27 @@ function defaultHostTerminalDockPlacement(bounds: {w: number; h: number}): HostT
       minOffset,
       maxOffset,
     ),
+  }
+}
+
+function defaultNetworkTerminalDockPlacement(bounds: {w: number; h: number}): HostTerminalDockPlacement {
+  const placement = DEFAULT_NETWORK_TERMINAL_DOCK_PLACEMENT
+  const vertical = placement.edge === "left" || placement.edge === "right"
+  const dockW = vertical
+    ? Math.min(HOST_TERMINAL_DOCK_SHORT, Math.max(1, bounds.w - HOST_TERMINAL_DOCK_MARGIN))
+    : Math.min(HOST_TERMINAL_DOCK_LONG, Math.max(1, bounds.w - HOST_TERMINAL_DOCK_MARGIN * 2))
+  const dockH = vertical
+    ? Math.min(HOST_TERMINAL_DOCK_LONG, Math.max(1, bounds.h - HOST_TERMINAL_DOCK_MARGIN * 2))
+    : Math.min(HOST_TERMINAL_DOCK_SHORT, Math.max(1, bounds.h - HOST_TERMINAL_DOCK_MARGIN))
+  const minOffset = vertical
+    ? HOST_TERMINAL_DOCK_MARGIN + dockH / 2
+    : HOST_TERMINAL_DOCK_MARGIN + dockW / 2
+  const maxOffset = vertical
+    ? Math.max(minOffset, bounds.h - HOST_TERMINAL_DOCK_MARGIN - dockH / 2)
+    : Math.max(minOffset, bounds.w - HOST_TERMINAL_DOCK_MARGIN - dockW / 2)
+  return {
+    edge: placement.edge,
+    offset: clampNumber(placement.offset, minOffset, maxOffset),
   }
 }
 

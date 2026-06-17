@@ -123,13 +123,17 @@ const server = serve<AppWebSocketData>({
 			wsServer.upgrade(req, {data: {kind: "app-web"}}) ? undefined : new Response("WebSocket upgrade failed", {status: 426}),
 		"/hud/terminal/stream": (req: Request, wsServer: Server<AppWebSocketData>) => {
 			const url = new URL(req.url)
-			const data: {kind: "terminal"; replay: boolean; connectedAt: number; sessionId?: string} = {
+			const data: {kind: "terminal"; replay: boolean; connectedAt: number; sessionId?: string; sessionKey?: string; tmuxSession?: string} = {
 				kind: "terminal",
 				replay: url.searchParams.get("replay") !== "0",
 				connectedAt: Date.now(),
 			}
 			const session = url.searchParams.get("session")
 			if (session !== null && session.length > 0) data.sessionId = session
+			const key = url.searchParams.get("key")
+			if (key !== null && key.length > 0) data.sessionKey = key
+			const tmux = url.searchParams.get("tmux")
+			if (tmux !== null && tmux.length > 0) data.tmuxSession = tmux
 			return wsServer.upgrade(req, {data}) ? undefined : new Response("WebSocket upgrade failed", {status: 426})
 		},
 		"/hud/webrtc/signaling": (req: Request, wsServer: Server<AppWebSocketData>) => {
