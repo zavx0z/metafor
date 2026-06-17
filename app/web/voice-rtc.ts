@@ -52,6 +52,11 @@ export function createVoiceRtcAsrSocket(url: string, context: VoiceInputAsrSocke
 	return new VoiceRtcAsrSocket(url, context)
 }
 
+export function primeVoiceRtcRelayAudio(): void {
+	if (typeof AudioContext === "undefined") return
+	ensureVoiceRtcRelay().primeAudioContext()
+}
+
 class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 	binaryType: BinaryType = "arraybuffer"
 	readonly url: string
@@ -336,6 +341,7 @@ class VoiceRtcRelay {
 	#peerId = `${VOICE_RTC_RELAY_PEER_PREFIX}-${crypto.randomUUID()}`
 	#socket: WebSocket | null = null
 	#peers = new Map<string, VoiceRtcRelayPeer>()
+	#primedAudioContext: AudioContext | null = null
 
 	connect(): void {
 		if (this.#socket?.readyState === WebSocket.OPEN || this.#socket?.readyState === WebSocket.CONNECTING) return
@@ -354,6 +360,20 @@ class VoiceRtcRelay {
 		socket.addEventListener("error", () => {
 			this.#closeAllPeers()
 		})
+	}
+
+	primeAudioContext(): void {
+		const context = this.#usablePrimedAudioContext()
+		if (context !== null) {
+			if (context.state === "suspended") void context.resume().catch(() => undefined)
+			return
+		}
+		try {
+			this.#primedAudioContext = new AudioContext({sampleRate: TARGET_RELAY_SAMPLE_RATE})
+		} catch {
+			this.#primedAudioContext = new AudioContext()
+		}
+		if (this.#primedAudioContext.state === "suspended") void this.#primedAudioContext.resume().catch(() => undefined)
 	}
 
 	async #handleSignal(signal: VoiceRtcSignal): Promise<void> {
@@ -516,13 +536,23 @@ class VoiceRtcRelay {
 			if (peer.audioContext.state === "suspended") await peer.audioContext.resume()
 			return peer.audioContext
 		}
-		try {
-			peer.audioContext = new AudioContext({sampleRate: TARGET_RELAY_SAMPLE_RATE})
-		} catch {
-			peer.audioContext = new AudioContext()
+		const primed = this.#usablePrimedAudioContext()
+		if (primed !== null) {
+			peer.audioContext = primed
+			this.#primedAudioContext = null
+		} else {
+			try {
+				peer.audioContext = new AudioContext({sampleRate: TARGET_RELAY_SAMPLE_RATE})
+			} catch {
+				peer.audioContext = new AudioContext()
+			}
 		}
 		if (peer.audioContext.state === "suspended") await peer.audioContext.resume()
 		return peer.audioContext
+	}
+
+	#usablePrimedAudioContext(): AudioContext | null {
+		return this.#primedAudioContext !== null && this.#primedAudioContext.state !== "closed" ? this.#primedAudioContext : null
 	}
 
 	async #startRelayCapture(peer: VoiceRtcRelayPeer): Promise<void> {
@@ -696,9 +726,10 @@ registerProcessor("voice-rtc-capture", VoiceRtcCaptureProcessor);
 	}
 }
 
-function ensureVoiceRtcRelay(): void {
+function ensureVoiceRtcRelay(): VoiceRtcRelay {
 	if (relay === null) relay = new VoiceRtcRelay()
 	relay.connect()
+	return relay
 }
 
 function signalingUrl(room: string, peerId: string): string {

@@ -74,7 +74,7 @@ import {
 } from "./settings.ts"
 import {createAndroidRtcClient, type AndroidRtcClient, type AndroidRtcCommand} from "./android-rtc.ts"
 import {DEFAULT_APP_WEB_SCENE_SRC} from "./app-config.ts"
-import {createVoiceRtcAsrSocket} from "./voice-rtc.ts"
+import {createVoiceRtcAsrSocket, primeVoiceRtcRelayAudio} from "./voice-rtc.ts"
 
 export type AppWebHudSettingsSnapshot = {
 	layoutSettings: Partial<AppWebLayoutSettings>
@@ -276,7 +276,7 @@ type HudNotificationKind = "activation" | "deactivation" | "stop" | "agent"
 const DEFAULT_VOICE_INPUT_URL = "ws://127.0.0.1:8877/ws"
 const DEFAULT_VOICE_WAKE_URL = "ws://127.0.0.1:4765/ws"
 const DEFAULT_VOICE_AUTO_SEND_ENABLED = false
-const DEFAULT_CODEX_VOICE_P2P_ENABLED = false
+const DEFAULT_CODEX_VOICE_P2P_ENABLED = true
 const DEFAULT_VOICE_DEACTIVATION_MODE: VoiceDeactivationMode = "phrase-timeout"
 const DEFAULT_VOICE_RECOGNITION_TIMEOUT_SECONDS = 3
 const DEFAULT_VOICE_SIGNAL_VOLUME = 0.2
@@ -1907,6 +1907,7 @@ class AppWebHud implements AppWebHudController {
 	async #toggleVoice(): Promise<void> {
 		const client = this.#ensureVoiceClient()
 		try {
+			if (readCodexVoiceP2PEnabled()) primeVoiceRtcRelayAudio()
 			if (client.active) {
 				if (client.status === "waitingWake") {
 					this.#voiceAutoWakePaused = false
