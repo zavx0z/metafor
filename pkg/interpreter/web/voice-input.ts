@@ -108,6 +108,8 @@ const COMMIT_TIMEOUT_MS = 15_000
 const DEACTIVATION_COMMIT_TIMEOUT_MS = 3_000
 const FINAL_SETTLE_MS = 450
 const STOP_COMMAND_ARM_DELAY_MS = 1_800
+const PCM_FLUSH_BYTES = 4096
+const PCM_FLUSH_MS = 120
 const MAX_QUEUED_PCM_BYTES = 8 * 1024 * 1024
 const MAX_DELIVERED_TRANSCRIPT_CHARS = 8_000
 const MAX_REPEATED_VOICE_TOKEN_RUN = 120
@@ -141,6 +143,9 @@ export class VoiceInputClient {
   #lastRecognitionAt = 0
   #recognitionTimeoutTimer: number | null = null
   #pcmSinceCommitBytes = 0
+  #outboundPcmChunks: ArrayBuffer[] = []
+  #outboundPcmBytes = 0
+  #outboundFlushTimer: number | null = null
   #queuedPcmAfterCommit: ArrayBuffer[] = []
   #pendingCommittedChunk: VoiceInputChunk | null = null
   #pendingCommittedChunkCommitId = 0
@@ -301,6 +306,7 @@ export class VoiceInputClient {
       context: this.options.context().trim(),
       prompt: this.options.context().trim(),
     })
+    this.#flushOutboundPcm()
     this.#flushQueuedPcm()
     this.#setStatus("listening")
     this.#touchRecognitionActivity()
@@ -360,11 +366,10 @@ export class VoiceInputClient {
 
     this.#stream = await navigator.mediaDevices.getUserMedia({
       audio: {
-        channelCount: {ideal: 1},
-        sampleRate: {ideal: TARGET_SAMPLE_RATE},
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false,
+        channelCount: 1,
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
       },
       video: false,
     })
@@ -562,6 +567,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#hasSpeechSinceCommit = false
     this.#lastCommitAt = now
     this.#pcmSinceCommitBytes = 0
+    this.#flushOutboundPcm()
     this.#sendAsr({type: "commit"})
     this.#setStatus("committing")
   }
@@ -569,7 +575,60 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
   #sendPcm(pcm: ArrayBuffer, commandPcm: ArrayBuffer): void {
     if (this.#commandWs?.readyState === WebSocket.OPEN) this.#commandWs.send(commandPcm)
     if (!this.#asrEnabled) return
+    this.#enqueueOutboundPcm(pcm)
+  }
 
+  #enqueueOutboundPcm(pcm: ArrayBuffer): void {
+    this.#outboundPcmChunks.push(pcm)
+    this.#outboundPcmBytes += pcm.byteLength
+    if (this.#outboundPcmBytes >= PCM_FLUSH_BYTES) {
+      this.#flushOutboundPcm()
+      return
+    }
+    if (this.#outboundFlushTimer !== null) return
+    this.#outboundFlushTimer = window.setTimeout(() => {
+      this.#outboundFlushTimer = null
+      this.#flushOutboundPcm()
+    }, PCM_FLUSH_MS)
+  }
+
+  #flushOutboundPcm(): void {
+    if (this.#outboundFlushTimer !== null) {
+      window.clearTimeout(this.#outboundFlushTimer)
+      this.#outboundFlushTimer = null
+    }
+    if (this.#outboundPcmBytes <= 0) return
+    this.#sendAsrPcm(this.#takeOutboundPcm())
+  }
+
+  #takeOutboundPcm(): ArrayBuffer {
+    if (this.#outboundPcmChunks.length === 1) {
+      const [pcm] = this.#outboundPcmChunks
+      this.#outboundPcmChunks = []
+      this.#outboundPcmBytes = 0
+      return pcm!
+    }
+    const payload = new Uint8Array(this.#outboundPcmBytes)
+    let offset = 0
+    for (const pcm of this.#outboundPcmChunks) {
+      payload.set(new Uint8Array(pcm), offset)
+      offset += pcm.byteLength
+    }
+    this.#outboundPcmChunks = []
+    this.#outboundPcmBytes = 0
+    return payload.buffer
+  }
+
+  #clearOutboundPcm(): void {
+    if (this.#outboundFlushTimer !== null) {
+      window.clearTimeout(this.#outboundFlushTimer)
+      this.#outboundFlushTimer = null
+    }
+    this.#outboundPcmChunks = []
+    this.#outboundPcmBytes = 0
+  }
+
+  #sendAsrPcm(pcm: ArrayBuffer): void {
     if (this.#asrWs?.readyState !== WebSocket.OPEN) {
       this.#queuedPcmAfterCommit.push(pcm)
       this.#trimQueuedPcm()
@@ -618,6 +677,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#commitPending = false
     this.#clearCommitTimer()
     this.#flushQueuedPcm()
+    this.#flushOutboundPcm()
     this.#resolveCommitWaiters()
   }
 
@@ -627,6 +687,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       return
     }
     if (!this.#commitPending) {
+      this.#flushOutboundPcm()
       this.#beginCommit()
       this.#hasSpeechSinceCommit = false
       this.#lastCommitAt = performance.now()
@@ -677,6 +738,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#commitGeneration = 0
     resetVoiceInputDeliveryState(this.#deliveryState)
     this.#pcmSinceCommitBytes = 0
+    this.#clearOutboundPcm()
     this.#queuedPcmAfterCommit = []
   }
 
