@@ -244,6 +244,7 @@ const VOICE_DEACTIVATION_MODE_STORAGE_KEY = "metafor.interpreter.voice.deactivat
 const VOICE_RECOGNITION_TIMEOUT_STORAGE_KEY = "metafor.interpreter.voice.recognitionTimeoutSeconds:v1"
 const VOICE_AUTO_SEND_STORAGE_KEY = "metafor.interpreter.voice.autoSend:v1"
 const CODEX_VOICE_AUTO_SEND_STORAGE_KEY = `${STORAGE_PREFIX}.codex.voice.autoSend:v1`
+const CODEX_VOICE_P2P_STORAGE_KEY = `${STORAGE_PREFIX}.codex.voice.p2p:v1`
 const VOICE_SIGNAL_VOLUME_LEGACY_STORAGE_KEY = "metafor.interpreter.voice.signalVolume:v1"
 const VOICE_SIGNAL_VOLUME_STORAGE_KEY = "metafor.interpreter.voice.signalVolume:v2"
 const HOST_TERMINAL_AGENT_SOUND_ENABLED_STORAGE_KEY = "metafor.interpreter.hostTerminal.agentSoundEnabled:v1"
@@ -275,6 +276,7 @@ type HudNotificationKind = "activation" | "deactivation" | "stop" | "agent"
 const DEFAULT_VOICE_INPUT_URL = "ws://127.0.0.1:8877/ws"
 const DEFAULT_VOICE_WAKE_URL = "ws://127.0.0.1:4765/ws"
 const DEFAULT_VOICE_AUTO_SEND_ENABLED = false
+const DEFAULT_CODEX_VOICE_P2P_ENABLED = false
 const DEFAULT_VOICE_DEACTIVATION_MODE: VoiceDeactivationMode = "phrase-timeout"
 const DEFAULT_VOICE_RECOGNITION_TIMEOUT_SECONDS = 3
 const DEFAULT_VOICE_SIGNAL_VOLUME = 0.2
@@ -1882,7 +1884,7 @@ class AppWebHud implements AppWebHudController {
 			recognitionTimeoutMs: () => readVoiceRecognitionTimeoutSeconds() * 1000,
 			language: "ru",
 			context: () => voiceContextWithTerminal(this.#terminal.pane.toText()),
-			createAsrSocket: createVoiceRtcAsrSocket,
+			...(readCodexVoiceP2PEnabled() ? {createAsrSocket: createVoiceRtcAsrSocket} : {}),
 			onTransport: (transport) => this.#handleVoiceTransport(transport),
 			onStatus: (status, detail) => this.#handleVoiceStatus(status, detail),
 			onWake: (text) => {
@@ -4439,6 +4441,10 @@ function voiceContextWithTerminal(terminalText: string): string {
 
 function readCodexVoiceAutoSendEnabled(): boolean {
 	return readStoredBoolean(CODEX_VOICE_AUTO_SEND_STORAGE_KEY, DEFAULT_VOICE_AUTO_SEND_ENABLED)
+}
+
+function readCodexVoiceP2PEnabled(): boolean {
+	return readStoredBoolean(CODEX_VOICE_P2P_STORAGE_KEY, DEFAULT_CODEX_VOICE_P2P_ENABLED)
 }
 
 function writeCodexVoiceAutoSendEnabled(enabled: boolean): void {
