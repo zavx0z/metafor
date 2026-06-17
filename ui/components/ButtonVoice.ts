@@ -58,7 +58,7 @@ export function ButtonVoice(host: UiSurface, x: number, y: number, size: number,
     tooltip: props.tooltip ?? "Голосовой ввод",
     onClick: props.onClick,
     style: (state) => {
-      const borderColor = error ? "red" : connecting ? "orange" : active ? "cyan" : waiting ? "border" : null
+      const borderColor = error ? "red" : connecting ? "orange" : active ? "cyan" : null
       return {
         background: state === "hover" ? "rgba(18, 28, 42, 0.82)" : "rgba(10, 16, 24, 0.72)",
         borderColor,
