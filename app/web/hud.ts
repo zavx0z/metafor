@@ -16,6 +16,7 @@ import {
 	Switcher,
 	TextField,
 	VoiceInputHud,
+	focusTextField,
 	type VoiceInputHudDeactivationMode,
 	type VoiceInputHudPhraseGroupId,
 	type VoiceInputHudServiceState,
@@ -143,6 +144,14 @@ type TerminalController = {
 	agentNotifyTimer: ReturnType<typeof setTimeout> | null
 }
 
+type CodexComposerAttachment = {
+	id: string
+	name: string
+	path: string
+	mime: string
+	size: number
+}
+
 type BrowserWritableFile = {
 	write(data: string | Blob | ArrayBuffer): Promise<void>
 	close(): Promise<void>
@@ -218,7 +227,6 @@ const ANDROID_DOCKED_STORAGE_KEY = `${STORAGE_PREFIX}.android.docked:v1`
 const ANDROID_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.android.rect:v1`
 const ANDROID_DOCK_PLACEMENT_STORAGE_KEY = `${STORAGE_PREFIX}.android.dockPlacement:v1`
 const FULLSCREEN_DOCK_PLACEMENT_STORAGE_KEY = `${STORAGE_PREFIX}.fullscreen.dockPlacement:v1`
-const VOICE_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.voice.rect:v1`
 const VOICE_INPUT_URL_STORAGE_KEY = "metafor.interpreter.voice.url"
 const VOICE_WAKE_URL_STORAGE_KEY = "metafor.interpreter.voice.wakeUrl"
 const VOICE_INPUT_CONTEXT_STORAGE_KEY = "metafor.interpreter.voice.context"
@@ -282,6 +290,14 @@ const VOICE_HUD_ERROR_MS = 2_400
 const VOICE_METER_RENDER_MS = 80
 const AGENT_READY_SOUND_IDLE_MS = 2500
 const AGENT_READY_SOUND_COOLDOWN_MS = 1200
+const CODEX_COMPOSER_KEY = "app-web-codex-composer-input"
+const CODEX_COMPOSER_H = 96
+const CODEX_COMPOSER_GAP = 8
+const CODEX_COMPOSER_PAD = 10
+const CODEX_COMPOSER_INPUT_H = 38
+const CODEX_COMPOSER_VOICE_SIZE = 58
+const CODEX_COMPOSER_SEND_W = 86
+const CODEX_COMPOSER_MAX_ATTACHMENT_BYTES = 16 * 1024 * 1024
 const CODEX_TITLE = "Codex"
 const CODEX_MODEL = "GPT-5"
 const DOCK_SHORT = 40
@@ -304,9 +320,6 @@ const AGENT_SIGNAL_HEADER_TEXT_X = 16
 const AGENT_SIGNAL_PANEL_W = 300
 const AGENT_SIGNAL_PANEL_H = 112
 const ANDROID_RTC_FRAME_SRC = "metafor:app-web-android-rtc-frame"
-const VOICE_HUD_W = 128
-const VOICE_HUD_H = 128
-const VOICE_HUD_MARGIN = 8
 const VOICE_SERVICE_CHECK_TIMEOUT_MS = 2500
 const HUD_PANEL_BG = new Color(palette.bg.r, palette.bg.g, palette.bg.b, 0.68)
 const errorMessage = (error: unknown): string => error instanceof Error ? error.message : String(error)
@@ -340,6 +353,7 @@ class AppWebHud implements AppWebHudController {
 	readonly #androidPane: AndroidPane
 	readonly #agentSignalPane: AppWebAgentSignalPane
 	readonly #voiceHud: VoiceInputHud
+	readonly #codexComposer: AppWebCodexComposerPane
 	readonly #terminal: TerminalController
 	#src: string
 	#settings: AppWebHudSettingsSnapshot
@@ -378,7 +392,6 @@ class AppWebHud implements AppWebHudController {
 	#voiceServiceState: VoiceInputHudServiceState = "unknown"
 	#voiceServiceDetail = "ASR не проверен"
 	#voiceServiceCheckInFlight = false
-	#voiceRectOverride: UiSurfaceRect | null = readStoredRect(VOICE_RECT_STORAGE_KEY)
 	#voiceAutoWakeTimer: number | null = null
 	#voiceAutoWakeInFlight = false
 	#voiceAutoWakePaused = false
@@ -400,6 +413,14 @@ class AppWebHud implements AppWebHudController {
 	#voiceAutoSendText = ""
 	#voiceNextFlushMode: "auto" | "draft" = "auto"
 	#voicePartialPreviewText = ""
+	#codexDraft = ""
+	#codexAttachments: CodexComposerAttachment[] = []
+	#codexDropActive = false
+	#codexComposerStatus = ""
+	#codexComposerStatusTimer: number | null = null
+	readonly #codexDragOver = (event: DragEvent): void => this.#handleCodexDragOver(event)
+	readonly #codexDrop = (event: DragEvent): void => void this.#handleCodexDrop(event)
+	readonly #codexDragLeave = (event: DragEvent): void => this.#handleCodexDragLeave(event)
 
 	constructor(options: AppWebHudOptions) {
 		this.#viewport = options.viewport
@@ -469,6 +490,7 @@ class AppWebHud implements AppWebHudController {
 		this.#agentSignalPane = new AppWebAgentSignalPane(this)
 		this.#terminal = this.#createTerminalController()
 		this.#voiceHud = this.#createVoiceHud()
+		this.#codexComposer = new AppWebCodexComposerPane(this)
 		this.#codexDock = new AppWebDockPane(this, "codex")
 		this.#settingsDock = new AppWebDockPane(this, "settings")
 		this.#todoDock = new AppWebDockPane(this, "todo")
@@ -477,6 +499,7 @@ class AppWebHud implements AppWebHudController {
 		this.#fullscreenDock = new AppWebDockPane(this, "fullscreen")
 
 		this.#viewport.hud.addSurface(this.#terminal.pane, (bounds) => this.#codexRect(bounds), {zIndex: HUD_PANEL_Z})
+		this.#viewport.hud.addSurface(this.#codexComposer, (bounds) => this.#codexComposerRect(bounds), {zIndex: HUD_PANEL_Z + 0.4})
 		this.#viewport.hud.addSurface(this.#settingsPane, (bounds) => this.#settingsRect(bounds), {zIndex: HUD_SETTINGS_PANEL_Z})
 		this.#viewport.hud.addSurface(this.#todoPane, (bounds) => this.#todoRect(bounds), {zIndex: HUD_TODO_PANEL_Z})
 		this.#viewport.hud.addSurface(this.#workspaceFiles, (bounds) => this.#workspaceFilesRect(bounds), {zIndex: HUD_PANEL_Z + 2})
@@ -492,6 +515,9 @@ class AppWebHud implements AppWebHudController {
 		this.#viewport.hud.addSurface(this.#fullscreenDock, (bounds) => this.#dockRect("fullscreen", bounds), {zIndex: HUD_DOCK_Z})
 
 		document.addEventListener("fullscreenchange", () => this.#handleFullscreenChange())
+		document.addEventListener("dragover", this.#codexDragOver, {capture: true})
+		document.addEventListener("drop", this.#codexDrop, {capture: true})
+		document.addEventListener("dragleave", this.#codexDragLeave, {capture: true})
 		this.#connectTerminal()
 		void this.#loadTodo()
 		void this.#refreshWorkspaceProcesses()
@@ -537,6 +563,59 @@ class AppWebHud implements AppWebHudController {
 	statsLine(): string {
 		const root = this.#stats.rootSrc ? `${this.#stats.rootSrc}: ` : ""
 		return `${root}${this.#stats.shellCount} shells / ${this.#stats.fieldCount} fields`
+	}
+
+	codexDraft(): string {
+		return this.#codexDraft
+	}
+
+	codexAttachments(): readonly CodexComposerAttachment[] {
+		return this.#codexAttachments
+	}
+
+	codexDropActive(): boolean {
+		return this.#codexDropActive
+	}
+
+	codexComposerStatus(): string {
+		if (this.#codexComposerStatus) return this.#codexComposerStatus
+		if (this.#voicePartialPreviewText) return this.#voicePartialPreviewText
+		if (this.#voiceStatus === "listening" || this.#voiceStatus === "committing") return voiceStatusLine(this.#voiceStatus)
+		if (this.#terminal.socket?.readyState !== WebSocket.OPEN) return "Codex terminal не подключен"
+		return this.#terminal.statusLabel
+	}
+
+	codexComposerReady(): boolean {
+		return this.#terminal.socket?.readyState === WebSocket.OPEN
+	}
+
+	setCodexDraft(value: string): void {
+		if (this.#codexDraft === value) return
+		this.#codexDraft = value
+		this.#codexComposer.requestRender()
+	}
+
+	removeCodexAttachment(id: string): void {
+		const next = this.#codexAttachments.filter((attachment) => attachment.id !== id)
+		if (next.length === this.#codexAttachments.length) return
+		this.#codexAttachments = next
+		this.#setCodexComposerStatus(next.length > 0 ? `${next.length} влож.` : "")
+		this.#codexComposer.requestRender()
+	}
+
+	submitCodexComposer(): void {
+		const message = codexComposerMessage(this.#codexDraft, this.#codexAttachments)
+		if (message.length === 0 || !this.codexComposerReady()) return
+		const payload = this.#terminal.state?.bracketedPaste
+			? `\x1b[200~${message}\x1b[201~\r`
+			: `${message}\r`
+		this.#clearVoicePartialPreview()
+		this.#sendTerminalInput(payload, "api", message)
+		this.#codexDraft = ""
+		this.#codexAttachments = []
+		this.#setCodexComposerStatus("отправлено")
+		this.#focusCodexComposer()
+		this.#codexComposer.requestRender()
 	}
 
 	connectionLine(): string {
@@ -1262,7 +1341,8 @@ class AppWebHud implements AppWebHudController {
 		socket.addEventListener("open", () => {
 			if (this.#terminal.socket !== socket) return
 			this.#setTerminalStatus("connected", "connected")
-			this.#terminal.pane.setInputEnabled(true)
+			this.#terminal.pane.setInputEnabled(false)
+			this.#codexComposer.requestRender()
 			if (this.#terminal.size !== null) this.#sendTerminal({type: "terminal.resize", size: this.#terminal.size})
 			this.#scheduleVoiceAutoWake()
 		})
@@ -1276,12 +1356,14 @@ class AppWebHud implements AppWebHudController {
 			this.#disarmAgentReadyNotification()
 			this.#terminal.pane.setInputEnabled(false)
 			this.#setTerminalStatus("disconnected", "closed")
+			this.#codexComposer.requestRender()
 		})
 		socket.addEventListener("error", () => {
 			if (this.#terminal.socket !== socket) return
 			this.#disarmAgentReadyNotification()
 			this.#terminal.pane.setInputEnabled(false)
 			this.#setTerminalStatus("error", "websocket")
+			this.#codexComposer.requestRender()
 		})
 	}
 
@@ -1328,7 +1410,10 @@ class AppWebHud implements AppWebHudController {
 		const body = sanitizeCodexTerminalVoiceInput(text)
 		if (body.length === 0) return false
 		this.#clearVoicePartialPreview()
-		this.#sendTerminalInput(body, "api", body)
+		this.#codexDraft = mergeCodexComposerDraft(this.#codexDraft, body)
+		this.#setCodexComposerStatus("голос добавлен в поле")
+		this.#focusCodexComposer()
+		this.#codexComposer.requestRender()
 		return true
 	}
 
@@ -1348,6 +1433,78 @@ class AppWebHud implements AppWebHudController {
 		if (this.#terminal.socket?.readyState === WebSocket.OPEN) {
 			this.#terminal.socket.send(JSON.stringify(message))
 		}
+	}
+
+	#focusCodexComposer(): void {
+		this.#viewport.hud.setFocused(this.#codexComposer)
+		this.#codexComposer.focusInput()
+	}
+
+	#setCodexComposerStatus(status: string, ttlMs = 2200): void {
+		if (this.#codexComposerStatusTimer !== null) {
+			window.clearTimeout(this.#codexComposerStatusTimer)
+			this.#codexComposerStatusTimer = null
+		}
+		this.#codexComposerStatus = status
+		this.#codexComposer.requestRender()
+		if (!status) return
+		this.#codexComposerStatusTimer = window.setTimeout(() => {
+			this.#codexComposerStatusTimer = null
+			this.#codexComposerStatus = ""
+			this.#codexComposer.requestRender()
+		}, ttlMs)
+	}
+
+	#handleCodexDragOver(event: DragEvent): void {
+		if (!this.#dragEventInsideCodexComposer(event)) {
+			this.#setCodexDropActive(false)
+			return
+		}
+		event.preventDefault()
+		event.stopPropagation()
+		if (event.dataTransfer !== null) event.dataTransfer.dropEffect = "copy"
+		this.#setCodexDropActive(true)
+	}
+
+	#handleCodexDragLeave(event: DragEvent): void {
+		if (event.clientX > 0 && event.clientY > 0 && event.clientX < window.innerWidth && event.clientY < window.innerHeight) return
+		this.#setCodexDropActive(false)
+	}
+
+	async #handleCodexDrop(event: DragEvent): Promise<void> {
+		if (!this.#dragEventInsideCodexComposer(event)) return
+		event.preventDefault()
+		event.stopPropagation()
+		this.#setCodexDropActive(false)
+		const files = codexImageDropFiles(event.dataTransfer)
+		if (files.length === 0) {
+			this.#setCodexComposerStatus("нет изображения")
+			return
+		}
+		this.#setCodexComposerStatus("загружаю изображение", 6000)
+		try {
+			const uploaded: CodexComposerAttachment[] = []
+			for (const file of files) uploaded.push(await uploadCodexAttachment(file))
+			this.#codexAttachments = [...this.#codexAttachments, ...uploaded]
+			this.#setCodexComposerStatus(`${this.#codexAttachments.length} влож.`)
+			this.#focusCodexComposer()
+		} catch (error) {
+			this.#setCodexComposerStatus(errorMessage(error), 5000)
+		} finally {
+			this.#codexComposer.requestRender()
+		}
+	}
+
+	#dragEventInsideCodexComposer(event: DragEvent): boolean {
+		const rect = this.#codexComposerRect({w: window.innerWidth, h: window.innerHeight})
+		if (rect.visible === false) return false
+		return event.clientX >= rect.x && event.clientX <= rect.x + rect.w && event.clientY >= rect.y && event.clientY <= rect.y + rect.h
+	}
+
+	#setCodexDropActive(active: boolean): void {
+		if (this.#codexDropActive === active) return
+		this.#codexDropActive = active
+		this.#codexComposer.requestRender()
 	}
 
 	#resizeTerminal(size: TerminalSize): void {
@@ -1404,6 +1561,7 @@ class AppWebHud implements AppWebHudController {
 		this.#terminal.statusLabel = label
 		this.#terminal.pane.setStatus(kind, label)
 		this.#agentSignalPane.requestRender()
+		this.#codexComposer.requestRender()
 	}
 
 	#updateTerminalState(state: PtyTerminalState, output = false): void {
@@ -1568,10 +1726,6 @@ class AppWebHud implements AppWebHudController {
 	#createVoiceHud(): VoiceInputHud {
 		return new VoiceInputHud({
 			onToggle: () => void this.#toggleVoice(),
-			onMove: (rect) => {
-				this.#voiceRectOverride = rect
-				writeStoredRect(VOICE_RECT_STORAGE_KEY, rect)
-			},
 			settings: () => this.#voiceSettings(),
 			onFullStop: () => this.#stopVoice(),
 			onAddPhrase: (groupId, phrase) => this.#addVoicePhrase(groupId, phrase),
@@ -1745,7 +1899,7 @@ class AppWebHud implements AppWebHudController {
 	}
 
 	#focusVoiceTerminal(): void {
-		this.#viewport.hud.setFocused(this.#terminal.pane)
+		this.#focusCodexComposer()
 	}
 
 	#setVoiceDictationActive(active: boolean): void {
@@ -1846,7 +2000,7 @@ class AppWebHud implements AppWebHudController {
 		this.#voiceLastPartialAt = new Date()
 		const preview = mergeVoiceInputText(this.#voiceAutoSendText, text)
 		this.#voicePartialPreviewText = preview
-		this.#terminal.pane.setInputPreview(preview)
+		this.#codexComposer.requestRender()
 		this.#updateVoiceHud("listening", preview)
 	}
 
@@ -1872,6 +2026,7 @@ class AppWebHud implements AppWebHudController {
 			serviceState: this.#voiceServiceState,
 			level: status === "listening" || status === "committing" ? this.#voiceLevel : 0,
 		})
+		this.#codexComposer.requestRender()
 	}
 
 	#voiceSettings() {
@@ -1981,7 +2136,7 @@ class AppWebHud implements AppWebHudController {
 		if (text.length === 0) return false
 		this.#voiceAutoSendText = mergeVoiceInputText(this.#voiceAutoSendText, text)
 		this.#voicePartialPreviewText = this.#voiceAutoSendText
-		this.#terminal.pane.setInputPreview(this.#voiceAutoSendText)
+		this.#codexComposer.requestRender()
 		return true
 	}
 
@@ -2006,6 +2161,7 @@ class AppWebHud implements AppWebHudController {
 		if (!this.#voicePartialPreviewText && !this.#voiceAutoSendText) return
 		this.#voicePartialPreviewText = ""
 		this.#terminal.pane.clearInputPreview()
+		this.#codexComposer.requestRender()
 	}
 
 	#preserveVoicePartialAsTerminalInput(): boolean {
@@ -2050,11 +2206,32 @@ class AppWebHud implements AppWebHudController {
 
 	#codexRect(bounds: {w: number; h: number}): UiSurfaceRect {
 		if (this.#codexDocked) return hiddenRect()
+		const composerSpace = CODEX_COMPOSER_H + CODEX_COMPOSER_GAP
+		const width = Math.min(760, bounds.w - 24)
+		const height = Math.min(360, Math.max(120, bounds.h - 120 - composerSpace))
 		return readStoredRect(CODEX_RECT_STORAGE_KEY) ?? {
-			x: Math.max(12, bounds.w - Math.min(760, bounds.w - 24) - 16),
-			y: Math.max(96, bounds.h - Math.min(360, bounds.h - 120) - 18),
-			w: Math.min(760, bounds.w - 24),
-			h: Math.min(360, bounds.h - 120),
+			x: Math.max(12, bounds.w - width - 16),
+			y: Math.max(96, bounds.h - height - composerSpace - 18),
+			w: width,
+			h: height,
+		}
+	}
+
+	#codexComposerRect(bounds: {w: number; h: number}): UiSurfaceRect {
+		if (this.#codexDocked || this.#dockTransition?.kind === "codex") return hiddenRect()
+		const terminal = this.#codexRect(bounds)
+		if (terminal.visible === false) return hiddenRect()
+		const w = Math.min(Math.max(1, terminal.w), Math.max(1, bounds.w - 24))
+		const h = Math.min(CODEX_COMPOSER_H, Math.max(1, bounds.h - 24))
+		const belowY = terminal.y + terminal.h + CODEX_COMPOSER_GAP
+		const y = belowY + h <= bounds.h - 12
+			? belowY
+			: Math.max(12, terminal.y - h - CODEX_COMPOSER_GAP)
+		return {
+			x: clampNumber(terminal.x, 12, Math.max(12, bounds.w - w - 12)),
+			y: clampNumber(y, 12, Math.max(12, bounds.h - h - 12)),
+			w,
+			h,
 		}
 	}
 
@@ -2154,7 +2331,147 @@ class AppWebHud implements AppWebHudController {
 	}
 
 	#voiceRect(bounds: {w: number; h: number}): UiSurfaceRect {
-		return clampVoiceRect(this.#voiceRectOverride ?? defaultVoiceRect(bounds), bounds.w, bounds.h)
+		if (this.#codexDocked || this.#dockTransition?.kind === "codex") return hiddenRect()
+		const composer = this.#codexComposerRect(bounds)
+		if (composer.visible === false) return hiddenRect()
+		const sendX = composer.x + composer.w - CODEX_COMPOSER_PAD - CODEX_COMPOSER_SEND_W
+		const x = sendX - CODEX_COMPOSER_GAP - CODEX_COMPOSER_VOICE_SIZE
+		return {
+			x: clampNumber(x, composer.x + CODEX_COMPOSER_PAD, composer.x + Math.max(CODEX_COMPOSER_PAD, composer.w - CODEX_COMPOSER_VOICE_SIZE - CODEX_COMPOSER_PAD)),
+			y: composer.y + CODEX_COMPOSER_PAD + Math.max(0, (CODEX_COMPOSER_INPUT_H - CODEX_COMPOSER_VOICE_SIZE) / 2),
+			w: CODEX_COMPOSER_VOICE_SIZE,
+			h: CODEX_COMPOSER_VOICE_SIZE,
+		}
+	}
+}
+
+class AppWebCodexComposerPane extends UiSurface {
+	constructor(private readonly hud: AppWebHud) {
+		super({bgColor: null, borderColor: null})
+		this.node.name = "AppWebCodexComposerPane"
+	}
+
+	focusInput(): void {
+		const value = this.hud.codexDraft()
+		focusTextField(this, CODEX_COMPOSER_KEY, {value, cursor: value.length, selectionAnchor: null})
+		this.requestRender()
+	}
+
+	protected render(): void {
+		const w = Math.max(1, this.rectW)
+		const h = Math.max(1, this.rectH)
+		const pad = CODEX_COMPOSER_PAD
+		this.drawRoundedRect(0, 0, w, h, {
+			radius: 8,
+			fill: new Color(0.04, 0.06, 0.09, 0.74),
+			border: this.hud.codexDropActive() ? palette.cyan : palette.borderDim,
+			borderWidth: this.hud.codexDropActive() ? 1.3 : 1,
+			z: Z.CONTAINER,
+		})
+		this.#drawInputRow(pad, pad, Math.max(1, w - pad * 2))
+		this.#drawAttachmentRow(pad, pad + CODEX_COMPOSER_INPUT_H + 10, Math.max(1, w - pad * 2), h - pad)
+		if (this.hud.codexDropActive()) this.#drawDropOverlay(w, h)
+	}
+
+	#drawInputRow(x: number, y: number, w: number): void {
+		const sendW = Math.min(CODEX_COMPOSER_SEND_W, Math.max(68, Math.floor(w * 0.22)))
+		const reservedRight = CODEX_COMPOSER_VOICE_SIZE + CODEX_COMPOSER_GAP + sendW + CODEX_COMPOSER_GAP
+		const fieldW = Math.max(72, w - reservedRight)
+		const attachments = this.hud.codexAttachments()
+		const canSubmit = this.hud.codexComposerReady() && codexComposerMessage(this.hud.codexDraft(), attachments).length > 0
+		const placeholder = this.hud.codexComposerReady() ? "Сообщение Codex" : "Codex не подключен"
+		TextField(this, x, y, fieldW, CODEX_COMPOSER_INPUT_H, {
+			key: CODEX_COMPOSER_KEY,
+			value: this.hud.codexDraft(),
+			placeholder,
+			submitOnEnter: true,
+			disabled: !this.hud.codexComposerReady(),
+			onChange: (value) => this.hud.setCodexDraft(value),
+			onSubmit: () => this.hud.submitCodexComposer(),
+			sx: {
+				fontSize: 13,
+				borderRadius: 8,
+				background: "bgInput",
+				borderColor: "borderDim",
+				color: "text",
+				paddingX: 12,
+			},
+		})
+		Button(this, x + w - sendW, y, sendW, CODEX_COMPOSER_INPUT_H, {
+			label: "Отправить",
+			disabled: !canSubmit,
+			color: "primary",
+			variant: "contained",
+			radius: 8,
+			action: () => this.hud.submitCodexComposer(),
+		})
+	}
+
+	#drawAttachmentRow(x: number, y: number, w: number, maxY: number): void {
+		const attachments = this.hud.codexAttachments()
+		const status = this.hud.codexComposerStatus()
+		let cx = x
+		let cy = y
+		const gap = 6
+		const chipH = 22
+		for (const attachment of attachments) {
+			if (cy + chipH > maxY - 18) break
+			const label = `${attachment.name} · ${formatAttachmentSize(attachment.size)}`
+			const chipW = Math.min(w, Math.max(96, Math.ceil(this.measureText(label, 10)) + 34))
+			if (cx > x && cx + chipW > x + w) {
+				cx = x
+				cy += chipH + gap
+				if (cy + chipH > maxY - 18) break
+			}
+			this.drawRoundedRect(cx, cy, chipW, chipH, {
+				radius: 7,
+				fill: new Color(0.06, 0.12, 0.15, 0.72),
+				border: palette.borderDim,
+				borderWidth: 1,
+				z: Z.ELEMENT,
+			})
+			this.drawText(label, cx + 9, cy + 5, {
+				fontPx: 10,
+				material: this.materials.text,
+				maxWidthPx: Math.max(1, chipW - 28),
+				z: Z.TEXT,
+			})
+			this.drawText("x", cx + chipW - 16, cy + 5, {
+				fontPx: 10,
+				material: this.materials.muted,
+				maxWidthPx: 8,
+				z: Z.TEXT,
+			})
+			this.hit(cx, cy, chipW, chipH, () => this.hud.removeCodexAttachment(attachment.id), {
+				key: `codex-attachment:${attachment.id}`,
+				cursor: "pointer",
+			})
+			cx += chipW + gap
+		}
+		if (status) {
+			this.drawText(status, x, maxY - 13, {
+				fontPx: 10,
+				material: this.hud.codexComposerReady() ? this.materials.muted : this.materials.orange,
+				maxWidthPx: w,
+				z: Z.TEXT,
+			})
+		}
+	}
+
+	#drawDropOverlay(w: number, h: number): void {
+		this.drawRoundedRect(3, 3, Math.max(1, w - 6), Math.max(1, h - 6), {
+			radius: 7,
+			fill: new Color(0.02, 0.16, 0.18, 0.34),
+			border: palette.cyan,
+			borderWidth: 1,
+			z: Z.CONTAINER + 0.2,
+		})
+		this.drawText("Drop image", CODEX_COMPOSER_PAD, h - 25, {
+			fontPx: 11,
+			material: this.materials.cyan,
+			maxWidthPx: Math.max(1, w - CODEX_COMPOSER_PAD * 2),
+			z: Z.TEXT + 0.2,
+		})
 	}
 }
 
@@ -3313,6 +3630,83 @@ function workspaceProcessActionForItemId(id: string): string | null {
 	return id.startsWith(prefix) ? id.slice(prefix.length) : null
 }
 
+function codexComposerMessage(draft: string, attachments: readonly CodexComposerAttachment[]): string {
+	const body = draft.replace(/\r\n?/g, "\n").trim()
+	if (attachments.length === 0) return body
+	const imageLines = attachments.map((attachment) => `- ${attachment.path}`).join("\n")
+	const imageBlock = `Изображения:\n${imageLines}`
+	return body.length === 0 ? imageBlock : `${body}\n\n${imageBlock}`
+}
+
+function mergeCodexComposerDraft(base: string, addition: string): string {
+	const left = base.trim()
+	const right = addition.trim()
+	if (!left) return right
+	if (!right) return left
+	return `${left}\n${right}`
+}
+
+function codexImageDropFiles(dataTransfer: DataTransfer | null): File[] {
+	if (dataTransfer === null) return []
+	const files = new Map<string, File>()
+	for (const file of Array.from(dataTransfer.files)) {
+		if (codexFileLooksImage(file)) files.set(codexDropFileKey(file), file)
+	}
+	for (const item of Array.from(dataTransfer.items)) {
+		if (item.kind !== "file") continue
+		const file = item.getAsFile()
+		if (file !== null && codexFileLooksImage(file)) files.set(codexDropFileKey(file), file)
+	}
+	return [...files.values()]
+}
+
+function codexFileLooksImage(file: File): boolean {
+	if (file.type.startsWith("image/")) return true
+	return /\.(?:png|jpe?g|gif|webp|heic|heif|tiff?|bmp|svg)$/i.test(file.name)
+}
+
+function codexDropFileKey(file: File): string {
+	return `${file.name}:${file.size}:${file.lastModified}`
+}
+
+async function uploadCodexAttachment(file: File): Promise<CodexComposerAttachment> {
+	if (!codexFileLooksImage(file)) throw new Error("можно прикрепить только изображение")
+	if (file.size > CODEX_COMPOSER_MAX_ATTACHMENT_BYTES) throw new Error("изображение больше 16 MB")
+	const dataBase64 = base64Bytes(new Uint8Array(await file.arrayBuffer()))
+	const response = await fetch("/hud/codex/attachments", {
+		method: "POST",
+		headers: {"content-type": "application/json"},
+		body: JSON.stringify({
+			name: file.name || "image.png",
+			type: file.type || "",
+			size: file.size,
+			dataBase64,
+		}),
+	})
+	const payload = await response.json().catch(() => null)
+	const record = asRecord(payload)
+	if (!response.ok || record?.["ok"] !== true) {
+		const message = typeof record?.["error"] === "string" ? record["error"] : `upload ${response.status}`
+		throw new Error(message)
+	}
+	const attachment = asRecord(record["attachment"])
+	if (attachment === null) throw new Error("attachment response is invalid")
+	const id = stringValue(attachment["id"]) ?? crypto.randomUUID()
+	const name = stringValue(attachment["name"]) ?? (file.name || "image")
+	const path = stringValue(attachment["path"])
+	const mime = stringValue(attachment["mime"]) ?? (file.type || "image/*")
+	const size = typeof attachment["size"] === "number" && Number.isFinite(attachment["size"]) ? attachment["size"] : file.size
+	if (path === null) throw new Error("attachment path is missing")
+	return {id, name, path, mime, size}
+}
+
+function formatAttachmentSize(size: number): string {
+	if (!Number.isFinite(size) || size <= 0) return "0 B"
+	if (size < 1024) return `${Math.round(size)} B`
+	if (size < 1024 * 1024) return `${Math.round(size / 102.4) / 10} KB`
+	return `${Math.round(size / (1024 * 102.4)) / 10} MB`
+}
+
 function processStatusLabel(process: WorkspaceProcess): string {
 	const state = process.paused ? "paused" : process.connection
 	return process.modulePath === null ? state : `${state} · ${workspaceBasename(process.modulePath)}`
@@ -3398,35 +3792,6 @@ function inferHudNodePixelScale(nodeX: number, nodeY: number, rect: UiSurfaceRec
 
 function lerp(from: number, to: number, t: number): number {
 	return from + (to - from) * t
-}
-
-function defaultVoiceRect(bounds: {w: number; h: number}): UiSurfaceRect {
-	const frame = voiceFrameForBounds(bounds.w, bounds.h)
-	return {
-		x: frame.bw - frame.margin - frame.rectW,
-		y: frame.bh - frame.margin - frame.rectH,
-		w: frame.rectW,
-		h: frame.rectH,
-	}
-}
-
-function clampVoiceRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): UiSurfaceRect {
-	const frame = voiceFrameForBounds(boundsW, boundsH)
-	return {
-		x: clampNumber(rect.x, frame.margin, Math.max(frame.margin, frame.bw - frame.margin - frame.rectW)),
-		y: clampNumber(rect.y, frame.margin, Math.max(frame.margin, frame.bh - frame.margin - frame.rectH)),
-		w: frame.rectW,
-		h: frame.rectH,
-	}
-}
-
-function voiceFrameForBounds(boundsW: number, boundsH: number): {bw: number; bh: number; margin: number; rectW: number; rectH: number} {
-	const bw = Math.max(1, Math.round(boundsW))
-	const bh = Math.max(1, Math.round(boundsH))
-	const margin = bw >= 32 && bh >= 32 ? VOICE_HUD_MARGIN : 0
-	const rectW = Math.min(VOICE_HUD_W, Math.max(1, bw - margin * 2))
-	const rectH = Math.min(VOICE_HUD_H, Math.max(1, bh - margin * 2))
-	return {bw, bh, margin, rectW, rectH}
 }
 
 function hiddenRect(): UiSurfaceRect {

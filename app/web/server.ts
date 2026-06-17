@@ -1,8 +1,9 @@
 import {file, serve, type Server, type ServerWebSocket} from "bun"
+import {Buffer} from "node:buffer"
 import {randomUUID} from "node:crypto"
-import {existsSync, readdirSync, readFileSync, statSync, writeFileSync, type Dirent} from "node:fs"
+import {existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync, type Dirent} from "node:fs"
 import {networkInterfaces} from "node:os"
-import {join, relative, resolve} from "node:path"
+import {basename, extname, join, relative, resolve} from "node:path"
 import "dark/server"
 import {createPtySessionManager, parsePtyClientMessage, type PtySocketData} from "@metafor/pty/server"
 import {parseMarkdownTodo, updateTodoMarkdownItem} from "@ui/panes/todo-model"
@@ -67,6 +68,9 @@ const INTERPRETER_ORIGIN_PORT = Bun.env.METAFOR_INTERPRETER_PORT ?? "6500"
 const APP_WEB_STARTED_AT = new Date()
 const LOG_COLOR_ENABLED = Bun.env.NO_COLOR === undefined && Bun.env.FORCE_COLOR !== "0"
 const META_SOURCE_DIR = "github"
+const CODEX_ATTACHMENT_DIR = "app/web/tmp/codex-attachments"
+const CODEX_ATTACHMENT_MAX_BYTES = 16 * 1024 * 1024
+const CODEX_ATTACHMENT_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".heic", ".heif", ".tif", ".tiff", ".bmp", ".svg"])
 const SOURCE_FILE_EXTENSIONS = new Set([
 	".css",
 	".cts",
@@ -233,6 +237,12 @@ const server = serve<AppWebSocketData>({
 			const started = Date.now()
 			const response = sourceFilesResponse(req, url)
 			logHttp(req, "source.files", response.status, started)
+			return response
+		}
+		if (url.pathname === "/hud/codex/attachments") {
+			const started = Date.now()
+			const response = await codexAttachmentResponse(req)
+			logHttp(req, "codex.attachment", response.status, started)
 			return response
 		}
 		if (url.pathname === "/hud/interpreter/processes" || url.pathname.startsWith("/hud/interpreter/processes/")) {
@@ -464,6 +474,77 @@ function clampSourceFileLimit(value: string | null): number {
 	const limit = value === null ? 1200 : Number(value)
 	if (!Number.isFinite(limit)) return 1200
 	return Math.min(5000, Math.max(1, Math.floor(limit)))
+}
+
+async function codexAttachmentResponse(req: Request): Promise<Response> {
+	if (req.method !== "POST") return new Response("Method Not Allowed", {status: 405})
+	const parsed = await readJsonObject(req)
+	if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
+	const name = typeof parsed.body["name"] === "string" ? parsed.body["name"] : "image.png"
+	const mime = typeof parsed.body["type"] === "string" ? parsed.body["type"] : ""
+	const dataBase64 = typeof parsed.body["dataBase64"] === "string" ? parsed.body["dataBase64"] : ""
+	const ext = imageAttachmentExtension(name, mime)
+	if (ext === null) return jsonResponse({ok: false, error: "attachment must be an image"}, 400)
+	const encoded = dataBase64.replace(/^data:[^;]+;base64,/i, "")
+	if (encoded.length === 0) return jsonResponse({ok: false, error: "dataBase64 is required"}, 400)
+	const bytes = Buffer.from(encoded, "base64")
+	if (bytes.length === 0) return jsonResponse({ok: false, error: "attachment is empty"}, 400)
+	if (bytes.length > CODEX_ATTACHMENT_MAX_BYTES) return jsonResponse({ok: false, error: "attachment is larger than 16 MB"}, 413)
+	const dir = resolve(process.cwd(), CODEX_ATTACHMENT_DIR)
+	mkdirSync(dir, {recursive: true})
+	const safeName = safeAttachmentFilename(name, ext)
+	const id = randomUUID()
+	const path = join(dir, `${Date.now()}-${id.slice(0, 8)}-${safeName}`)
+	writeFileSync(path, bytes)
+	return jsonResponse({
+		ok: true,
+		attachment: {
+			id,
+			name: safeName,
+			path,
+			mime: mime.startsWith("image/") ? mime : mimeForImageExtension(ext),
+			size: bytes.length,
+		},
+	})
+}
+
+function imageAttachmentExtension(name: string, mime: string): string | null {
+	const ext = extname(name).toLowerCase()
+	if (CODEX_ATTACHMENT_IMAGE_EXTENSIONS.has(ext)) return ext
+	if (mime === "image/jpeg") return ".jpg"
+	if (mime === "image/png") return ".png"
+	if (mime === "image/gif") return ".gif"
+	if (mime === "image/webp") return ".webp"
+	if (mime === "image/heic") return ".heic"
+	if (mime === "image/heif") return ".heif"
+	if (mime === "image/tiff") return ".tiff"
+	if (mime === "image/bmp") return ".bmp"
+	if (mime === "image/svg+xml") return ".svg"
+	return mime.startsWith("image/") ? ".png" : null
+}
+
+function safeAttachmentFilename(name: string, ext: string): string {
+	const raw = basename(name || `image${ext}`)
+	const cleaned = raw
+		.normalize("NFKD")
+		.replace(/[^\w.-]+/g, "-")
+		.replace(/^-+|-+$/g, "")
+		.slice(0, 96)
+	const fallback = `image${ext}`
+	const filename = cleaned.length > 0 ? cleaned : fallback
+	return CODEX_ATTACHMENT_IMAGE_EXTENSIONS.has(extname(filename).toLowerCase()) ? filename : `${filename}${ext}`
+}
+
+function mimeForImageExtension(ext: string): string {
+	if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg"
+	if (ext === ".gif") return "image/gif"
+	if (ext === ".webp") return "image/webp"
+	if (ext === ".heic") return "image/heic"
+	if (ext === ".heif") return "image/heif"
+	if (ext === ".tif" || ext === ".tiff") return "image/tiff"
+	if (ext === ".bmp") return "image/bmp"
+	if (ext === ".svg") return "image/svg+xml"
+	return "image/png"
 }
 
 async function readInterpreterVoiceSettingsResponse(): Promise<Response> {
