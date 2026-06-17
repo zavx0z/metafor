@@ -14,6 +14,8 @@ export type NetworkWatchSections = {
 export type NetworkWatchPaneSnapshot = {
   actionStatus: string
   services: Record<NetworkWatchServiceKey, boolean>
+  autoRefresh: boolean
+  autoRefreshActive: boolean
   refreshing: boolean
   updatedAt: Date | null
   sections: NetworkWatchSections
@@ -22,6 +24,7 @@ export type NetworkWatchPaneSnapshot = {
 export type NetworkWatchPaneActions = {
   setTlsEnabled(enabled: boolean): void
   setRedirectEnabled(enabled: boolean): void
+  setAutoRefreshEnabled(enabled: boolean): void
   rebuildLayout(): void
   clearPanes(): void
   refresh(): void
@@ -59,6 +62,8 @@ export class NetworkWatchPane extends UiSurface {
   #snapshot: NetworkWatchPaneSnapshot = {
     actionStatus: "ready",
     services: {tls: true, redirect: true},
+    autoRefresh: true,
+    autoRefreshActive: false,
     refreshing: false,
     updatedAt: null,
     sections: EMPTY_SECTIONS,
@@ -76,6 +81,8 @@ export class NetworkWatchPane extends UiSurface {
     this.#snapshot = {
       actionStatus: snapshot.actionStatus,
       services: {...snapshot.services},
+      autoRefresh: snapshot.autoRefresh,
+      autoRefreshActive: snapshot.autoRefreshActive,
       refreshing: snapshot.refreshing,
       updatedAt: snapshot.updatedAt,
       sections: cloneSections(snapshot.sections),
@@ -93,7 +100,8 @@ export class NetworkWatchPane extends UiSurface {
     const h = Math.max(1, this.rectH)
     const pad = 14
     const compact = w < 760
-    const headerH = compact ? 124 : 88
+    const narrow = w < 600
+    const headerH = narrow ? 154 : compact ? 124 : 88
 
     this.drawRoundedRect(0, 0, w, h, {
       radius: 0,
@@ -104,11 +112,11 @@ export class NetworkWatchPane extends UiSurface {
       z: Z.CONTAINER,
     })
 
-    this.#drawHeader(pad, w, compact)
+    this.#drawHeader(pad, w, compact, narrow)
     this.#drawNetworkStatus(pad, headerH, Math.max(1, w - pad * 2), Math.max(1, h - headerH - 12))
   }
 
-  #drawHeader(pad: number, w: number, compact: boolean): void {
+  #drawHeader(pad: number, w: number, compact: boolean, narrow: boolean): void {
     const statusMaterial = this.#snapshot.actionStatus.includes("failed") ? this.materials.orange : this.materials.muted
     this.drawText(this.#title, pad, 12, {
       fontPx: 16,
@@ -120,7 +128,12 @@ export class NetworkWatchPane extends UiSurface {
       material: this.materials.muted,
       maxWidthPx: compact ? Math.max(1, w - pad * 2) : 360,
     })
-    this.drawText(this.#snapshot.actionStatus, pad, 58, {
+    const autoLabel = this.#snapshot.autoRefresh
+      ? this.#snapshot.autoRefreshActive
+        ? "stats auto active"
+        : "stats auto paused"
+      : "stats auto off"
+    this.drawText(`${this.#snapshot.actionStatus} | ${autoLabel}`, pad, 58, {
       fontPx: 11,
       material: statusMaterial,
       maxWidthPx: compact ? Math.max(1, w - pad * 2) : 360,
@@ -135,9 +148,12 @@ export class NetworkWatchPane extends UiSurface {
     x = this.#switchRow(x, switchY, "80", this.#snapshot.services.redirect, "HTTP to HTTPS redirect pane", (checked) => {
       this.#actions?.setRedirectEnabled(checked)
     }) + 20
+    x = this.#switchRow(x, switchY, "Stats", this.#snapshot.autoRefresh, "Auto-refresh port statistics while Network display is fullscreen", (checked) => {
+      this.#actions?.setAutoRefreshEnabled(checked)
+    }) + 20
 
-    const buttonY = compact ? 84 : 54
-    const buttonX = compact ? Math.min(x + 4, Math.max(pad, w - 236)) : controlsX
+    const buttonY = narrow ? 116 : compact ? 84 : 54
+    const buttonX = narrow ? pad : compact ? Math.min(x + 4, Math.max(pad, w - 236)) : controlsX
     let bx = buttonX
     bx = this.#button(bx, buttonY, 84, "Layout", "Rebuild panes", uiIcons.restart, () => {
       this.#actions?.rebuildLayout()

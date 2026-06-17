@@ -576,6 +576,7 @@ const NETWORK_TERMINAL_TMUX_FALLBACK_COMMAND = `exec tmux new-session -A -s ${NE
 const NETWORK_DISPLAY_ID = "network:tmux"
 const NETWORK_TERMINAL_HUD_RECT_STORAGE_KEY = "metafor.interpreter.networkTerminal.hudRect:v1"
 const NETWORK_TERMINAL_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.networkTerminal.hudDocked:v1"
+const NETWORK_STATUS_AUTO_REFRESH_STORAGE_KEY = "metafor.interpreter.networkStatus.autoRefresh:v1"
 const ANDROID_HUD_RECT_STORAGE_KEY = "metafor.interpreter.android.hudRect:v1"
 const ANDROID_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.android.hudDocked:v1"
 const SECONDARY_ANDROID_HUD_RECT_STORAGE_KEY = "metafor.interpreter.android.secondary.hudRect:v1"
@@ -749,6 +750,9 @@ let networkStatusLines: string[] = []
 let networkStatusUpdatedAt: Date | null = null
 let networkStatusRefreshTimer: number | null = null
 let networkStatusRefreshInFlight = false
+let networkStatusRefreshGeneration = 0
+let networkStatusRefreshAbortController: AbortController | null = null
+let networkStatusAutoRefreshEnabled = readStoredNetworkStatusAutoRefreshEnabled()
 let androidHudDocked = readStoredAndroidHudDocked()
 let androidHudRectPreview: UiSurfaceRect | null = null
 let secondaryAndroidHudDocked = readStoredSecondaryAndroidHudDocked()
@@ -837,15 +841,18 @@ for (const link of Array.from(document.querySelectorAll<HTMLLinkElement>('link[r
 }
 
 window.addEventListener("beforeunload", () => {
+  stopNetworkStatusRefresh({abort: true})
   flushInterpreterViewPointStorage()
   flushInterpreterDisplayPositionsStorage()
 })
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") {
+    stopNetworkStatusRefresh({abort: true})
     flushInterpreterViewPointStorage()
     flushInterpreterDisplayPositionsStorage()
     return
   }
+  syncNetworkStatusRefresh()
   refreshVisibleSqliteAfterSkippedServerEvent()
 })
 
@@ -1081,6 +1088,7 @@ function focusSpace(params: unknown): unknown {
   } else if (display.kind === "network") {
     networkDisplayTerminal?.focus()
   }
+  syncNetworkStatusRefresh()
   return {
     resolved: display,
     view,
@@ -1092,6 +1100,7 @@ function frameSpace(): unknown {
   if (uiCanvas === null) throw new Error("ui runtime is not ready")
   const displayIds = displayInfos().map((display) => display.displayId)
   if (displayIds.length > 0) uiCanvas.frameDisplays(displayIds)
+  syncNetworkStatusRefresh()
   return spacePayload()
 }
 
@@ -1113,6 +1122,7 @@ function focusProcess(params: unknown): unknown {
   const focused = uiCanvas.focusDisplay(resolved.displayId)
   if (!focused) throw new Error(`display not found: ${resolved.displayId}`)
   focusProcessTerminal(resolved.moduleId)
+  syncNetworkStatusRefresh()
   const process = processWorkspaceInfo(resolved.moduleId, displayInfoForModule(resolved.moduleId))
   if (process === null) throw new Error(`process not found: ${resolved.moduleId}`)
   return {
@@ -2187,6 +2197,11 @@ function sideParam(value: unknown): DisplaySelectorSide | undefined {
   return value
 }
 
+function handleInterpreterViewPointChange(snapshot: UiRuntimeViewPointSnapshot): void {
+  scheduleInterpreterViewPointStorage(snapshot)
+  syncNetworkStatusRefresh()
+}
+
 function scheduleInterpreterViewPointStorage(snapshot: UiRuntimeViewPointSnapshot): void {
   pendingInterpreterViewPointSnapshot = snapshot
   if (interpreterViewPointStoreTimer !== null) return
@@ -2395,7 +2410,7 @@ async function initEngine(): Promise<void> {
   uiLoading = true
   try {
     uiCanvas = await UiRuntime.create(engineCanvas, {
-      onViewPointChange: scheduleInterpreterViewPointStorage,
+      onViewPointChange: handleInterpreterViewPointChange,
       onDisplayCenterChange: storeInterpreterDisplayPosition,
       virtualDisplay: {
         initial: "near",
@@ -2521,6 +2536,7 @@ async function initEngine(): Promise<void> {
 function handleEngineResize(): void {
   uiCanvas?.handleResize()
   syncModuleDisplays()
+  syncNetworkStatusRefresh()
 }
 
 function handleBrowserFullscreenDisplayLayoutChange(activeDisplayId: string | null): void {
@@ -2528,6 +2544,7 @@ function handleBrowserFullscreenDisplayLayoutChange(activeDisplayId: string | nu
   refitVoiceHudPlacement()
   const displayId = activeDisplayId ?? uiCanvas?.activeDisplayId ?? null
   if (displayId !== null) uiCanvas?.focusDisplay(displayId)
+  syncNetworkStatusRefresh()
 }
 
 function refitVoiceHudPlacement(): void {
@@ -3598,12 +3615,14 @@ function networkActionForSwitch(key: NetworkServiceKey, checked: boolean): strin
 
 type NetworkActionPayload = {ok?: boolean; durationMs?: number; stdout?: string; stderr?: string; error?: string}
 
-async function postNetworkAction(action: string): Promise<{response: Response; payload: NetworkActionPayload}> {
-  const response = await fetch("/space/network/action", {
+async function postNetworkAction(action: string, opts: {signal?: AbortSignal} = {}): Promise<{response: Response; payload: NetworkActionPayload}> {
+  const requestInit: RequestInit = {
     method: "POST",
     headers: {"content-type": "application/json"},
     body: JSON.stringify({action}),
-  })
+  }
+  if (opts.signal !== undefined) requestInit.signal = opts.signal
+  const response = await fetch("/space/network/action", requestInit)
   const payload = await response.json().catch(() => ({})) as NetworkActionPayload
   return {response, payload}
 }
@@ -3623,7 +3642,7 @@ async function runNetworkAction(action: string): Promise<void> {
     networkActionStatus = `${action} failed: ${error instanceof Error ? error.message : String(error)}`
   } finally {
     updateNetworkWatchPane()
-    scheduleNetworkStatusRefresh(0)
+    scheduleNetworkStatusRefresh(0, {force: true})
   }
 }
 
@@ -3632,20 +3651,35 @@ function ensureNetworkStatusRefresh(): void {
   scheduleNetworkStatusRefresh(networkStatusLines.length === 0 ? 0 : NETWORK_STATUS_REFRESH_MS)
 }
 
-function scheduleNetworkStatusRefresh(delayMs: number): void {
+function scheduleNetworkStatusRefresh(delayMs: number, opts: {force?: boolean} = {}): void {
+  const force = opts.force === true
+  if (!networkStatusDisplayActive() || (!force && !networkStatusAutoRefreshActive())) {
+    stopNetworkStatusRefresh({abort: !networkStatusDisplayActive() || !networkStatusAutoRefreshEnabled})
+    return
+  }
   if (networkStatusRefreshTimer !== null) window.clearTimeout(networkStatusRefreshTimer)
   networkStatusRefreshTimer = window.setTimeout(() => {
     networkStatusRefreshTimer = null
-    void refreshNetworkStatus()
+    void refreshNetworkStatus({manual: force})
   }, delayMs)
+  updateNetworkWatchPane()
 }
 
-async function refreshNetworkStatus(): Promise<void> {
+async function refreshNetworkStatus(opts: {manual?: boolean} = {}): Promise<void> {
   if (networkStatusRefreshInFlight) return
+  const manual = opts.manual === true
+  if (!networkStatusDisplayActive() || (!manual && !networkStatusAutoRefreshActive())) {
+    stopNetworkStatusRefresh({abort: !networkStatusDisplayActive() || !networkStatusAutoRefreshEnabled})
+    return
+  }
+  const generation = networkStatusRefreshGeneration
+  const abortController = new AbortController()
+  networkStatusRefreshAbortController = abortController
   networkStatusRefreshInFlight = true
   updateNetworkWatchPane()
   try {
-    const {response, payload} = await postNetworkAction("status")
+    const {response, payload} = await postNetworkAction("status", {signal: abortController.signal})
+    if (generation !== networkStatusRefreshGeneration) return
     if (!response.ok || payload.ok === false) {
       const message = payload.error ?? payload.stderr ?? `${response.status}`
       networkStatusLines = [`status failed: ${String(message).slice(0, 160)}`]
@@ -3654,12 +3688,60 @@ async function refreshNetworkStatus(): Promise<void> {
       networkStatusUpdatedAt = new Date()
     }
   } catch (error) {
+    if (generation !== networkStatusRefreshGeneration || isAbortError(error)) return
     networkStatusLines = [`status failed: ${error instanceof Error ? error.message : String(error)}`]
   } finally {
+    if (generation !== networkStatusRefreshGeneration) return
+    if (networkStatusRefreshAbortController === abortController) networkStatusRefreshAbortController = null
     networkStatusRefreshInFlight = false
     updateNetworkWatchPane()
-    if (networkDisplayInstalled) scheduleNetworkStatusRefresh(NETWORK_STATUS_REFRESH_MS)
+    if (networkStatusAutoRefreshActive()) scheduleNetworkStatusRefresh(NETWORK_STATUS_REFRESH_MS)
   }
+}
+
+function syncNetworkStatusRefresh(): void {
+  if (networkStatusAutoRefreshActive()) {
+    ensureNetworkStatusRefresh()
+  } else {
+    stopNetworkStatusRefresh({abort: !networkStatusDisplayActive() || !networkStatusAutoRefreshEnabled})
+  }
+  updateNetworkWatchPane()
+}
+
+function stopNetworkStatusRefresh(opts: {abort?: boolean} = {}): void {
+  if (networkStatusRefreshTimer !== null) {
+    window.clearTimeout(networkStatusRefreshTimer)
+    networkStatusRefreshTimer = null
+  }
+  if (opts.abort === true && networkStatusRefreshAbortController !== null) {
+    networkStatusRefreshGeneration += 1
+    networkStatusRefreshAbortController.abort()
+    networkStatusRefreshAbortController = null
+    networkStatusRefreshInFlight = false
+  }
+  updateNetworkWatchPane()
+}
+
+function networkStatusDisplayActive(): boolean {
+  return networkDisplayInstalled
+    && document.visibilityState !== "hidden"
+    && uiCanvas?.displayMode === "near"
+    && uiCanvas.activeDisplayId === NETWORK_DISPLAY_ID
+}
+
+function networkStatusAutoRefreshActive(): boolean {
+  return networkStatusAutoRefreshEnabled && networkStatusDisplayActive()
+}
+
+function setNetworkStatusAutoRefreshEnabled(enabled: boolean): void {
+  if (networkStatusAutoRefreshEnabled === enabled) return
+  networkStatusAutoRefreshEnabled = enabled
+  writeStoredNetworkStatusAutoRefreshEnabled(enabled)
+  syncNetworkStatusRefresh()
+}
+
+function isAbortError(error: unknown): boolean {
+  return (error instanceof DOMException || error instanceof Error) && error.name === "AbortError"
 }
 
 function networkStatusLinesFromOutput(stdout: string): string[] {
@@ -3681,6 +3763,8 @@ function networkWatchPaneSnapshot(): NetworkWatchPaneSnapshot {
   return {
     actionStatus: networkActionStatus,
     services: {...networkServiceSwitches},
+    autoRefresh: networkStatusAutoRefreshEnabled,
+    autoRefreshActive: networkStatusAutoRefreshActive(),
     refreshing: networkStatusRefreshInFlight,
     updatedAt: networkStatusUpdatedAt,
     sections: networkWatchSectionsFromLines(networkStatusLines),
@@ -5782,13 +5866,14 @@ function ensureNetworkDisplay(): void {
           updateNetworkWatchPane()
           void runNetworkAction(networkActionForSwitch("redirect", enabled))
         },
+        setAutoRefreshEnabled: setNetworkStatusAutoRefreshEnabled,
         rebuildLayout: () => {
           networkServiceSwitches = {tls: true, redirect: true}
           updateNetworkWatchPane()
           void runNetworkAction("layout")
         },
         clearPanes: () => void runNetworkAction("clear"),
-        refresh: () => scheduleNetworkStatusRefresh(0),
+        refresh: () => scheduleNetworkStatusRefresh(0, {force: true}),
       },
     })
     updateNetworkWatchPane()
@@ -5810,7 +5895,7 @@ function ensureNetworkDisplay(): void {
     uiCanvas.resizeDisplay(NETWORK_DISPLAY_ID, metrics)
     uiCanvas.setDisplayCenter(NETWORK_DISPLAY_ID, center)
   }
-  ensureNetworkStatusRefresh()
+  syncNetworkStatusRefresh()
 }
 
 function networkDisplayFallbackCenter(metrics: DisplayLayoutMetrics): UiRuntimeViewPointVector {
@@ -6502,6 +6587,23 @@ function writeStoredNetworkTerminalHudDocked(docked: boolean): void {
   }
 }
 
+function readStoredNetworkStatusAutoRefreshEnabled(): boolean {
+  try {
+    const value = localStorage.getItem(NETWORK_STATUS_AUTO_REFRESH_STORAGE_KEY)
+    return value === null ? true : value === "1"
+  } catch {
+    return true
+  }
+}
+
+function writeStoredNetworkStatusAutoRefreshEnabled(enabled: boolean): void {
+  try {
+    localStorage.setItem(NETWORK_STATUS_AUTO_REFRESH_STORAGE_KEY, enabled ? "1" : "0")
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+}
+
 function readStoredAndroidHudDocked(): boolean {
   try {
     const value = localStorage.getItem(ANDROID_HUD_DOCKED_STORAGE_KEY)
@@ -6693,6 +6795,7 @@ function focusNetworkDisplay(): unknown {
   if (controller.socket === null) connectHostTerminal(controller)
   uiCanvas?.focusDisplay(NETWORK_DISPLAY_ID)
   networkDisplayTerminal?.focus()
+  syncNetworkStatusRefresh()
   return networkTerminalPayload()
 }
 
