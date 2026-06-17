@@ -1167,13 +1167,40 @@ function dedupeAdjacentVoiceParagraphs(paragraphs: string[]): string[] {
 }
 
 function dedupeAdjacentRepeatedVoiceTokenRuns(text: string): string {
-  let out = text
+  let out = dedupeAdjacentSingleVoiceTokenRepeats(text)
   for (let iteration = 0; iteration < 8; iteration += 1) {
     const range = findAdjacentRepeatedVoiceTokenRun(out)
     if (range === null) break
     out = removeVoiceTextRange(out, range.start, range.end)
   }
   return out
+}
+
+function dedupeAdjacentSingleVoiceTokenRepeats(text: string): string {
+  let out = text
+  for (let iteration = 0; iteration < 8; iteration += 1) {
+    const range = findAdjacentSingleVoiceTokenRepeat(out)
+    if (range === null) break
+    out = removeVoiceTextRange(out, range.start, range.end)
+  }
+  return out
+}
+
+function findAdjacentSingleVoiceTokenRepeat(text: string): {start: number; end: number} | null {
+  const tokens = voiceTranscriptTokens(text)
+  for (let index = 0; index < tokens.length; index += 1) {
+    const value = tokens[index]?.value
+    if (!value) continue
+    let repeatEnd = index + 1
+    while (tokens[repeatEnd]?.value === value) repeatEnd += 1
+    if (repeatEnd - index >= 3) {
+      return {
+        start: tokens[index + 1]!.start,
+        end: tokens[repeatEnd]?.start ?? text.length,
+      }
+    }
+  }
+  return null
 }
 
 function findAdjacentRepeatedVoiceTokenRun(text: string): {start: number; end: number} | null {

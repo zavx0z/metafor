@@ -4725,7 +4725,7 @@ function mergeVoiceInputText(base: string, addition: string): string {
   const rightKey = voiceInputCompareKey(right)
   if (!rightKey || leftKey === rightKey || leftKey.endsWith(` ${rightKey}`)) return left
   if (rightKey.startsWith(`${leftKey} `)) return right
-  return `${left} ${right}`
+  return cleanupVoiceInputText(`${left} ${right}`)
 }
 
 function voicePreviewWithBufferedInput(target: VoiceInputTarget, partialText: string): string {

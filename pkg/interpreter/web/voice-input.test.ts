@@ -126,6 +126,13 @@ describe("voice dictation cleanup", () => {
       .toBe("Сейчас я проверяю голосовой ввод в реальном времени. Текст должен появляться постепенно. без повторов и разрывов. После завершения диктовки сообщение должно... автоматически если я сделаю короткую паузу микрофон не должен подключиться слишком рано")
   })
 
+  test("deduplicates repeated code identifiers separated by operators", () => {
+    expect(cleanupVoiceText(
+      "const editorH == codexComposerEditorHeight == codexComposerEditorHeight == codexComposerEditorHeight ==",
+    ))
+      .toBe("const editorH == codexComposerEditorHeight ==")
+  })
+
   test("trims stable transcript prefix from the next ASR chunk", () => {
     const stable = "Давай проверим. Пиши в терминал."
     expect(trimStableVoiceTranscriptPrefix("Пиши в терминал, я проскроллю.", stable)).toBe("я проскроллю.")

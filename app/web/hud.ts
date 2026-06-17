@@ -1481,10 +1481,12 @@ class AppWebHud implements AppWebHudController {
 		const body = sanitizeCodexTerminalVoiceInput(text)
 		if (body.length === 0) return false
 		this.#clearVoicePartialPreview()
-		this.#applyVoiceComposerText(body)
+		const baseDraft = this.#voiceComposerEdited ? this.#codexDraft : (this.#voiceComposerBaseDraft ?? this.#codexDraft)
+		const nextDraft = mergeCodexComposerDraft(baseDraft, body)
+		this.#resetVoiceComposerDraftTracking()
+		this.#setCodexDraft(nextDraft)
 		this.#setCodexComposerStatus("голос добавлен в поле")
 		if (opts.focusComposer) this.#focusCodexComposer()
-		this.#resetVoiceComposerDraftTracking()
 		this.#codexComposer.requestRender()
 		return true
 	}
@@ -2111,7 +2113,7 @@ class AppWebHud implements AppWebHudController {
 		if (!text) return
 		this.#voiceLastChunkText = text
 		this.#voiceLastChunkAt = new Date()
-		this.#queueVoiceAutoSendText(text)
+		this.#commitVoiceChunkText(text)
 		this.#updateVoiceHud(this.#voiceStatus, text)
 	}
 
@@ -2231,18 +2233,27 @@ class AppWebHud implements AppWebHudController {
 		this.#voiceHud.requestRender()
 	}
 
-	#queueVoiceAutoSendText(raw: string): boolean {
-		const text = cleanupVoiceInputText(raw)
-		if (text.length === 0) return false
-		this.#voiceAutoSendText = mergeVoiceInputText(this.#voiceAutoSendText, text)
-		this.#voicePartialPreviewText = this.#voiceAutoSendText
-		this.#applyVoiceComposerText(this.#voiceAutoSendText)
-		this.#codexComposer.requestRender()
-		return true
-	}
-
 	#flushVoiceAutoSendBuffer(): boolean {
 		const text = cleanupVoiceInputText(this.#voiceAutoSendText)
+		const mode = this.#voiceNextFlushMode
+		this.#voiceAutoSendText = ""
+		this.#voiceNextFlushMode = "auto"
+		if (text.length === 0) return false
+		const autoSendEnabled = readCodexVoiceAutoSendEnabled()
+		const voiceComposerEdited = this.#voiceComposerEdited
+		let handled: boolean
+		if (mode !== "draft" && autoSendEnabled && !voiceComposerEdited) {
+			this.#restoreVoiceComposerBaseDraft()
+			handled = this.#sendVoiceSubmit(text)
+		} else {
+			handled = this.#stageVoiceDraft(text, {focusComposer: !autoSendEnabled || mode === "draft"})
+		}
+		if (handled) this.#clearVoicePartialPreview()
+		return handled
+	}
+
+	#commitVoiceChunkText(raw: string): boolean {
+		const text = cleanupVoiceInputText(raw)
 		const mode = this.#voiceNextFlushMode
 		this.#voiceAutoSendText = ""
 		this.#voiceNextFlushMode = "auto"
@@ -4735,7 +4746,7 @@ function mergeVoiceInputText(base: string, addition: string): string {
 	const rightKey = voiceInputCompareKey(right)
 	if (!rightKey || leftKey === rightKey || leftKey.endsWith(` ${rightKey}`)) return left
 	if (rightKey.startsWith(`${leftKey} `)) return right
-	return `${left} ${right}`
+	return cleanupVoiceInputText(`${left} ${right}`)
 }
 
 function voiceInputCompareKey(text: string): string {
