@@ -37,6 +37,7 @@ const VOICE_RTC_RELAY_PEER_PREFIX = "voice-relay"
 const VOICE_RTC_APP_PEER_PREFIX = "app-web-voice"
 const VOICE_RTC_CONNECT_TIMEOUT_MS = 2500
 const VOICE_RTC_MEDIA_TIMEOUT_MS = 1800
+const VOICE_RTC_ASR_TEXT_TIMEOUT_MS = 4200
 const TARGET_RELAY_SAMPLE_RATE = 16_000
 const PCM_FLUSH_BYTES = 4096
 const PCM_FLUSH_MS = 120
@@ -70,6 +71,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 	#fallbackWs: WebSocket | null = null
 	#connectTimer: number | null = null
 	#mediaTimer: number | null = null
+	#asrTextTimer: number | null = null
 	#remotePeerId = ""
 	#lastStartPayload: string | null = null
 	#pendingFallbackControls: string[] = []
@@ -91,6 +93,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 	close(): void {
 		this.#clearConnectTimer()
 		this.#clearMediaTimer()
+		this.#clearAsrTextTimer()
 		this.#readyState = WebSocket.CLOSING
 		this.#fallbackWs?.close()
 		this.#fallbackWs = null
@@ -223,6 +226,10 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 		})
 		channel.addEventListener("message", (event) => {
 			if (typeof event.data === "string" && this.#handleRelayStatus(event.data)) return
+			if (typeof event.data === "string" && asrMessageHasText(event.data)) {
+				this.#clearAsrTextTimer()
+				this.#clearPendingFallback()
+			}
 			this.dispatchEvent(new MessageEvent("message", {data: event.data}))
 		})
 		channel.addEventListener("error", () => this.#startFallback())
@@ -235,6 +242,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 		if (this.#fallbackWs !== null || this.#readyState === WebSocket.CLOSING || this.#readyState === WebSocket.CLOSED) return
 		this.#clearConnectTimer()
 		this.#clearMediaTimer()
+		this.#clearAsrTextTimer()
 		this.#channel?.close()
 		this.#channel = null
 		this.#connection?.close()
@@ -283,12 +291,23 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 		this.#mediaTimer = null
 	}
 
+	#startAsrTextTimer(): void {
+		this.#clearAsrTextTimer()
+		this.#asrTextTimer = window.setTimeout(() => this.#startFallback(), VOICE_RTC_ASR_TEXT_TIMEOUT_MS)
+	}
+
+	#clearAsrTextTimer(): void {
+		if (this.#asrTextTimer === null) return
+		window.clearTimeout(this.#asrTextTimer)
+		this.#asrTextTimer = null
+	}
+
 	#handleRelayStatus(raw: string): boolean {
 		const message = asJsonRecord(safeJsonParse(raw))
 		if (message?.["type"] !== "relay-status") return false
 		if (message["state"] === "audio") {
 			this.#clearMediaTimer()
-			this.#clearPendingFallback()
+			this.#startAsrTextTimer()
 			this.#context.onTransport("p2p")
 		}
 		return true
@@ -787,6 +806,17 @@ function asJsonRecord(value: unknown): Record<string, unknown> | null {
 
 function stringValue(value: unknown): string | undefined {
 	return typeof value === "string" ? value : undefined
+}
+
+function asrMessageHasText(raw: string): boolean {
+	const message = asJsonRecord(safeJsonParse(raw))
+	if (message === null) return false
+	const type = message["type"]
+	if (type !== "partial" && type !== "result" && type !== "final") return false
+	const text = typeof message["text"] === "string" ? message["text"].trim() : ""
+	if (text.length > 0) return true
+	const messages = message["messages"]
+	return Array.isArray(messages) && messages.some((item) => typeof item === "string" && item.trim().length > 0)
 }
 
 function isVoiceRelayPeer(peerId: string): boolean {
