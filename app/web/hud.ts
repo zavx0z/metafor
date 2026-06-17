@@ -221,7 +221,6 @@ const TODO_DOCKED_STORAGE_KEY = `${STORAGE_PREFIX}.todo.docked:v1`
 const TODO_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.todo.rect:v1`
 const TODO_DOCK_PLACEMENT_STORAGE_KEY = `${STORAGE_PREFIX}.todo.dockPlacement:v2`
 const TODO_PANEL_STATE_STORAGE_KEY = `${STORAGE_PREFIX}.todo.panelState:v1`
-const WORKSPACE_DOCKED_STORAGE_KEY = `${STORAGE_PREFIX}.workspace.docked:v1`
 const WORKSPACE_FILES_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.workspace.files.rect:v1`
 const WORKSPACE_EDITOR_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.workspace.editor.rect:v1`
 const WORKSPACE_DOCK_PLACEMENT_STORAGE_KEY = `${STORAGE_PREFIX}.workspace.dockPlacement:v1`
@@ -242,6 +241,7 @@ const VOICE_STOP_FUZZY_STORAGE_KEY = "metafor.interpreter.voice.stopFuzzy:v1"
 const VOICE_DEACTIVATION_MODE_STORAGE_KEY = "metafor.interpreter.voice.deactivationMode:v1"
 const VOICE_RECOGNITION_TIMEOUT_STORAGE_KEY = "metafor.interpreter.voice.recognitionTimeoutSeconds:v1"
 const VOICE_AUTO_SEND_STORAGE_KEY = "metafor.interpreter.voice.autoSend:v1"
+const CODEX_VOICE_AUTO_SEND_STORAGE_KEY = `${STORAGE_PREFIX}.codex.voice.autoSend:v1`
 const VOICE_SIGNAL_VOLUME_LEGACY_STORAGE_KEY = "metafor.interpreter.voice.signalVolume:v1"
 const VOICE_SIGNAL_VOLUME_STORAGE_KEY = "metafor.interpreter.voice.signalVolume:v2"
 const HOST_TERMINAL_AGENT_SOUND_ENABLED_STORAGE_KEY = "metafor.interpreter.hostTerminal.agentSoundEnabled:v1"
@@ -272,7 +272,7 @@ type HudNotificationKind = "activation" | "deactivation" | "stop" | "agent"
 
 const DEFAULT_VOICE_INPUT_URL = "ws://127.0.0.1:8877/ws"
 const DEFAULT_VOICE_WAKE_URL = "ws://127.0.0.1:4765/ws"
-const DEFAULT_VOICE_AUTO_SEND_ENABLED = true
+const DEFAULT_VOICE_AUTO_SEND_ENABLED = false
 const DEFAULT_VOICE_DEACTIVATION_MODE: VoiceDeactivationMode = "phrase-timeout"
 const DEFAULT_VOICE_RECOGNITION_TIMEOUT_SECONDS = 3
 const DEFAULT_VOICE_SIGNAL_VOLUME = 0.2
@@ -364,7 +364,7 @@ class AppWebHud implements AppWebHudController {
 	#codexDocked = readStoredBoolean(CODEX_DOCKED_STORAGE_KEY, false)
 	#settingsDocked = readStoredBoolean(SETTINGS_DOCKED_STORAGE_KEY, false)
 	#todoDocked = readStoredBoolean(TODO_DOCKED_STORAGE_KEY, true)
-	#workspaceDocked = readStoredBoolean(WORKSPACE_DOCKED_STORAGE_KEY, true)
+	#workspaceDocked = true
 	#androidDocked = readStoredBoolean(ANDROID_DOCKED_STORAGE_KEY, true)
 	#codexDockPlacement: DockPlacement | null = readStoredDockPlacement(CODEX_DOCK_PLACEMENT_STORAGE_KEY)
 	#settingsDockPlacement: DockPlacement | null = readStoredDockPlacement(SETTINGS_DOCK_PLACEMENT_STORAGE_KEY)
@@ -683,7 +683,7 @@ class AppWebHud implements AppWebHudController {
 	}
 
 	setVoiceAutoSendEnabled(enabled: boolean): void {
-		writeVoiceAutoSendEnabled(enabled)
+		writeCodexVoiceAutoSendEnabled(enabled)
 		this.#voiceHud.requestRender()
 		this.#settingsPane.requestRender()
 	}
@@ -751,7 +751,6 @@ class AppWebHud implements AppWebHudController {
 			writeStoredBoolean(TODO_DOCKED_STORAGE_KEY, docked)
 		} else if (kind === "workspace") {
 			this.#workspaceDocked = docked
-			writeStoredBoolean(WORKSPACE_DOCKED_STORAGE_KEY, docked)
 		} else if (kind === "android") {
 			this.#androidDocked = docked
 			writeStoredBoolean(ANDROID_DOCKED_STORAGE_KEY, docked)
@@ -1093,7 +1092,7 @@ class AppWebHud implements AppWebHudController {
 			const autoAttachProcessId = this.#workspaceAutoAttachProcessId()
 			if (autoAttachProcessId !== null) {
 				this.#workspaceAutoAttached = true
-				await this.#attachWorkspaceProcess(autoAttachProcessId)
+				await this.#attachWorkspaceProcess(autoAttachProcessId, {reveal: false})
 				return
 			}
 			this.#syncWorkspaceFileTree()
@@ -1108,7 +1107,8 @@ class AppWebHud implements AppWebHudController {
 		return workspacePreferredProcessId(this.#workspaceProcesses)
 	}
 
-	async #attachWorkspaceProcess(processId: string): Promise<void> {
+	async #attachWorkspaceProcess(processId: string, opts: {reveal?: boolean} = {}): Promise<void> {
+		const reveal = opts.reveal ?? true
 		this.#workspaceAttachedProcessId = processId
 		this.#workspaceProcessEntries = new Map()
 		this.#workspaceEditor.setTitle("Inspector")
@@ -1122,7 +1122,7 @@ class AppWebHud implements AppWebHudController {
 			this.#workspaceProcessEntries = workspaceEntriesFromProcessModules(await this.#workspaceSourceModules(modules))
 			this.#workspaceProcessLabel = `Attached: ${modules.label}`
 			this.#syncWorkspaceFileTree()
-			if (this.#workspaceDocked) this.setDocked("workspace", false)
+			if (reveal && this.#workspaceDocked) this.setDocked("workspace", false)
 		} catch (error) {
 			this.#workspaceProcessLabel = `Attach failed - ${errorMessage(error)}`
 			this.#syncWorkspaceFileTree()
@@ -1839,7 +1839,7 @@ class AppWebHud implements AppWebHudController {
 				this.#voiceHud.requestRender()
 			},
 			onAutoSendChange: (value) => {
-				writeVoiceAutoSendEnabled(value)
+				writeCodexVoiceAutoSendEnabled(value)
 				this.#voiceHud.requestRender()
 			},
 			onDeactivationModeChange: (value) => {
@@ -2153,7 +2153,7 @@ class AppWebHud implements AppWebHudController {
 			recognitionTimeoutUpLabel: "Дольше",
 			autoSendLabel: "Автоотправка",
 			autoSendHint: "Готовый чанк сразу отправляется в Codex.",
-			autoSendValue: readVoiceAutoSendEnabled(),
+			autoSendValue: readCodexVoiceAutoSendEnabled(),
 			signalVolumeLabel: "Звук микрофона",
 			signalVolumeValue: readVoiceSignalVolume(),
 			signalVolumeMaxValue: MAX_VOICE_SIGNAL_VOLUME,
@@ -2173,7 +2173,7 @@ class AppWebHud implements AppWebHudController {
 	}
 
 	#voiceAutoSendLine(): string {
-		const mode = readVoiceAutoSendEnabled() ? "auto-send" : "manual draft"
+		const mode = readCodexVoiceAutoSendEnabled() ? "auto-send" : "manual draft"
 		if (this.#voiceAutoEnterAt === null) return `${mode} · sent: 0`
 		return `${mode} · ${formatTime(this.#voiceAutoEnterAt)} · sent #${this.#voiceAutoEnterCount}`
 	}
@@ -2247,14 +2247,14 @@ class AppWebHud implements AppWebHudController {
 		this.#voiceAutoSendText = ""
 		this.#voiceNextFlushMode = "auto"
 		if (text.length === 0) return false
-		const autoSendEnabled = readVoiceAutoSendEnabled()
+		const autoSendEnabled = readCodexVoiceAutoSendEnabled()
 		const voiceComposerEdited = this.#voiceComposerEdited
 		let handled: boolean
 		if (mode !== "draft" && autoSendEnabled && !voiceComposerEdited) {
 			this.#restoreVoiceComposerBaseDraft()
 			handled = this.#sendVoiceSubmit(text)
 		} else {
-			handled = this.#stageVoiceDraft(text, {focusComposer: !autoSendEnabled})
+			handled = this.#stageVoiceDraft(text, {focusComposer: !autoSendEnabled || mode === "draft"})
 		}
 		if (handled) this.#clearVoicePartialPreview()
 		return handled
@@ -2865,7 +2865,7 @@ class AppWebSettingsPane extends UiSurface {
 	}
 
 	#renderVoice(x: number, y: number, w: number): number {
-		y = this.#drawBooleanRow("Автоотправка", "Отправлять распознанный текст в Codex автоматически.", readVoiceAutoSendEnabled(), x, y, w, (checked) => this.hud.setVoiceAutoSendEnabled(checked))
+		y = this.#drawBooleanRow("Автоотправка", "Отправлять распознанный текст в Codex автоматически.", readCodexVoiceAutoSendEnabled(), x, y, w, (checked) => this.hud.setVoiceAutoSendEnabled(checked))
 		y = this.#drawNumberControl({
 			key: "voice-signal-volume",
 			label: "Звук микрофона",
@@ -4377,24 +4377,12 @@ function voiceContextWithTerminal(terminalText: string): string {
 		.slice(-8000)
 }
 
-function readVoiceAutoSendEnabled(): boolean {
-	try {
-		const raw = localStorage.getItem(VOICE_AUTO_SEND_STORAGE_KEY)
-		if (raw === null) return DEFAULT_VOICE_AUTO_SEND_ENABLED
-		return raw !== "0" && raw !== "false"
-	} catch {
-		return DEFAULT_VOICE_AUTO_SEND_ENABLED
-	}
+function readCodexVoiceAutoSendEnabled(): boolean {
+	return readStoredBoolean(CODEX_VOICE_AUTO_SEND_STORAGE_KEY, DEFAULT_VOICE_AUTO_SEND_ENABLED)
 }
 
-function writeVoiceAutoSendEnabled(enabled: boolean): void {
-	const next = enabled ? "1" : "0"
-	try {
-		localStorage.setItem(VOICE_AUTO_SEND_STORAGE_KEY, next)
-	} catch {
-		// Storage can be disabled.
-	}
-	syncInterpreterVoiceSettings({[VOICE_AUTO_SEND_STORAGE_KEY]: next})
+function writeCodexVoiceAutoSendEnabled(enabled: boolean): void {
+	writeStoredBoolean(CODEX_VOICE_AUTO_SEND_STORAGE_KEY, enabled)
 }
 
 function readVoiceSignalVolume(): number {
