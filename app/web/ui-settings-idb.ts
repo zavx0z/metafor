@@ -1,4 +1,4 @@
-import { APP_CONFIG_DEFAULTS, APP_CONFIG_REVISION } from "./app-config.ts"
+import { APP_CONFIG_DEFAULTS, APP_CONFIG_REVISION, DEFAULT_APP_WEB_SCENE_SRC } from "./app-config.ts"
 import {
   APP_WEB_LAYOUT_SETTING_KEYS,
   APP_WEB_RENDER_SETTING_KEYS,
@@ -7,6 +7,7 @@ import {
 } from "./settings.ts"
 
 export interface AppWebUiSettingsSnapshot {
+  src: string
   layoutSettings: Partial<AppWebLayoutSettings>
   renderSettings: Partial<AppWebRenderSettings>
 }
@@ -84,9 +85,15 @@ const pickKnownSettings = <T extends string>(keys: readonly T[], value: unknown)
   return next
 }
 
+const normalizeSceneSrc = (value: unknown): string => {
+  const src = typeof value === "string" ? value.trim() : ""
+  return src.length > 0 ? src : DEFAULT_APP_WEB_SCENE_SRC
+}
+
 const toPersistedRecord = (snapshot: AppWebUiSettingsSnapshot): PersistedAppWebUiSettingsRecord => ({
   id: APP_WEB_UI_SETTINGS_ID,
   revision: APP_CONFIG_REVISION,
+  src: normalizeSceneSrc(snapshot.src),
   layoutSettings: pickKnownSettings(APP_WEB_LAYOUT_SETTING_KEYS, snapshot.layoutSettings) as Partial<AppWebLayoutSettings>,
   renderSettings: pickKnownSettings(APP_WEB_RENDER_SETTING_KEYS, snapshot.renderSettings) as Partial<AppWebRenderSettings>,
 })
@@ -94,6 +101,7 @@ const toPersistedRecord = (snapshot: AppWebUiSettingsSnapshot): PersistedAppWebU
 const seedDefaultsRecord = (): PersistedAppWebUiSettingsRecord => ({
   id: APP_WEB_UI_SETTINGS_ID,
   revision: APP_CONFIG_REVISION,
+  src: normalizeSceneSrc(APP_CONFIG_DEFAULTS.src),
   layoutSettings: pickKnownSettings(APP_WEB_LAYOUT_SETTING_KEYS, APP_CONFIG_DEFAULTS.layout) as Partial<AppWebLayoutSettings>,
   renderSettings: pickKnownSettings(APP_WEB_RENDER_SETTING_KEYS, APP_CONFIG_DEFAULTS.render) as Partial<AppWebRenderSettings>,
 })
@@ -121,12 +129,14 @@ export const loadPersistedAppWebUiSettings = async (
       writeTransaction.objectStore(APP_WEB_UI_SETTINGS_STORE).put(seed)
       await completeTransaction(writeTransaction)
       return {
+        src: seed.src,
         layoutSettings: { ...seed.layoutSettings },
         renderSettings: { ...seed.renderSettings },
       }
     }
 
     return {
+      src: normalizeSceneSrc((rawRecord as Partial<PersistedAppWebUiSettingsRecord>).src),
       layoutSettings: pickKnownSettings(
         APP_WEB_LAYOUT_SETTING_KEYS,
         (rawRecord as Partial<PersistedAppWebUiSettingsRecord>).layoutSettings,

@@ -274,6 +274,7 @@ export const APP_WEB_RENDER_SETTING_KEYS = [
   "detailDensityFactor",
   "detailLevelMultiplier",
   "labelVisibleLevels",
+  "baseDepth",
   "labelFontSizeMm",
   "labelSurfaceOffsetMm",
   "torusCrossRingRotationDeg",

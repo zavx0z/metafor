@@ -70,6 +70,7 @@ import {
 	type AppWebSettingKey,
 } from "./settings.ts"
 import {createAndroidRtcClient, type AndroidRtcClient, type AndroidRtcCommand} from "./android-rtc.ts"
+import {DEFAULT_APP_WEB_SCENE_SRC} from "./app-config.ts"
 
 export type AppWebHudSettingsSnapshot = {
 	layoutSettings: Partial<AppWebLayoutSettings>
@@ -611,7 +612,7 @@ class AppWebHud implements AppWebHudController {
 	apply(): void {
 		this.#busy = true
 		this.#settingsPane.requestRender()
-		this.#onApply(this.#src.trim() || "zavx0z/git", this.settingsSnapshot())
+		this.#onApply(this.#src.trim() || DEFAULT_APP_WEB_SCENE_SRC, this.settingsSnapshot())
 	}
 
 	setDocked(kind: DockKind, docked: boolean): void {
@@ -2239,7 +2240,7 @@ class AppWebSettingsPane extends UiSurface {
 		}
 		if (this.#tab === "render") {
 			y = this.#drawSection("Космос", ["animationEnabled"], x, y, w)
-			y = this.#drawSection("Детализация", ["detailDensityFactor", "detailLevelMultiplier", "wireframeOpacity"], x, y, w)
+			y = this.#drawSection("Детализация", ["detailDensityFactor", "detailLevelMultiplier", "baseDepth", "wireframeOpacity"], x, y, w)
 			y = this.#drawSection("Тор", ["torusCrossRingRotationDeg", "torusRadialSegments", "torusTubularSegments"], x, y, w)
 			this.#drawSection("Подписи", ["labelVisibleLevels", "labelFontSizeMm", "labelSurfaceOffsetMm"], x, y, w)
 			return
@@ -2495,7 +2496,10 @@ class AppWebSettingsPane extends UiSurface {
 	#contentHeight(): number {
 		if (this.#tab === "scene") return 244
 		if (this.#tab === "geometry") return 36 + APP_WEB_LAYOUT_SETTING_KEYS.length * 46
-		if (this.#tab === "render") return 80 + APP_WEB_RENDER_SETTING_KEYS.length * 46
+		if (this.#tab === "render") {
+			const sectionHeight = (rows: number): number => 19 + rows * 46 + 14
+			return 4 + sectionHeight(1) + sectionHeight(4) + sectionHeight(3) + sectionHeight(3)
+		}
 		return 320
 	}
 

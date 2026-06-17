@@ -8,7 +8,8 @@ import {
 	type AppWebLayoutSettings,
 	type AppWebRenderSettings,
 } from "./settings.ts"
-import {loadPersistedAppWebUiSettings, savePersistedAppWebUiSettings} from "./ui-settings-idb.ts"
+import {DEFAULT_APP_WEB_SCENE_SRC} from "./app-config.ts"
+import {loadPersistedAppWebUiSettings, savePersistedAppWebUiSettings, type AppWebUiSettingsSnapshot} from "./ui-settings-idb.ts"
 import {installAppWebHud, type AppWebHudController, type AppWebHudSettingsSnapshot} from "./hud.ts"
 import type {AndroidRtcCommand} from "./android-rtc.ts"
 
@@ -86,6 +87,7 @@ let activeSettings: AppWebHudSettingsSnapshot = {
 	layoutSettings: {...DEFAULT_APP_WEB_LAYOUT_SETTINGS},
 	renderSettings: {...DEFAULT_APP_WEB_RENDER_SETTINGS},
 }
+let activeSrc = DEFAULT_APP_WEB_SCENE_SRC
 let lastAppliedSceneState: {layoutSettings: Partial<AppWebLayoutSettings>; src: string} | null = null
 let pendingSceneState: {layoutSettings: Partial<AppWebLayoutSettings>; src: string} | null = null
 let voiceDictationActive = false
@@ -141,8 +143,19 @@ const areLayoutSettingsEqual = (
 	return APP_WEB_LAYOUT_SETTING_KEYS.every((key) => left[key] === right[key])
 }
 
+const normalizeSceneSrc = (src: string | null | undefined): string => {
+	const next = src?.trim() ?? ""
+	return next.length > 0 ? next : DEFAULT_APP_WEB_SCENE_SRC
+}
+
+const persistedSettingsSnapshot = (): AppWebUiSettingsSnapshot => ({
+	src: activeSrc,
+	layoutSettings: activeSettings.layoutSettings,
+	renderSettings: activeSettings.renderSettings,
+})
+
 const persistUiSettings = async (): Promise<void> => {
-	await savePersistedAppWebUiSettings(activeSettings)
+	await savePersistedAppWebUiSettings(persistedSettingsSnapshot())
 }
 
 const schedulePersistUiSettings = (settings: AppWebHudSettingsSnapshot): void => {
@@ -172,14 +185,15 @@ const createMaterializePayload = (
 	settings: AppWebHudSettingsSnapshot,
 ): ClientMaterializePayload => ({
 	type: "materialize",
-	src: src.trim() || "zavx0z/git",
+	src: normalizeSceneSrc(src),
 	layoutSettings: settings.layoutSettings,
 })
 
 const applyHudRequest = (src: string, settings: AppWebHudSettingsSnapshot): void => {
 	activeSettings = cloneSettings(settings)
-	flushPersistUiSettings()
 	const payload = createMaterializePayload(src, settings)
+	activeSrc = payload.src
+	flushPersistUiSettings()
 	bulkViewport?.setLayoutSettings(payload.layoutSettings)
 	bulkViewport?.setRenderSettings(settings.renderSettings)
 
@@ -219,7 +233,13 @@ const applyRenderSettingsFromHud = (renderSettings: Partial<AppWebRenderSettings
 	schedulePersistUiSettings(activeSettings)
 }
 
-const loadPersistedAppWebUiSettingsSafe = async (): Promise<AppWebHudSettingsSnapshot | null> => {
+const requestInitialMaterialization = (): void => {
+	if (initialMaterializationRequested || socket.readyState !== WebSocket.OPEN || hud === null || bulkViewport === null) return
+	initialMaterializationRequested = true
+	applyHudRequest(hud.currentSrc(), activeSettings)
+}
+
+const loadPersistedAppWebUiSettingsSafe = async (): Promise<AppWebUiSettingsSnapshot | null> => {
 	try {
 		return await withTimeout(
 			loadPersistedAppWebUiSettings(),
@@ -319,6 +339,7 @@ const initBulkViewport = async (): Promise<void> => {
 	const persisted = await loadPersistedAppWebUiSettingsSafe()
 	markAppWebBoot("client:idb:done", persisted === null ? "defaults" : "persisted")
 	if (persisted !== null) {
+		activeSrc = normalizeSceneSrc(persisted.src)
 		activeSettings = {
 			layoutSettings: {...DEFAULT_APP_WEB_LAYOUT_SETTINGS, ...persisted.layoutSettings},
 			renderSettings: {...DEFAULT_APP_WEB_RENDER_SETTINGS, ...persisted.renderSettings},
@@ -341,7 +362,7 @@ const initBulkViewport = async (): Promise<void> => {
 	markAppWebBoot("client:hud:start")
 	hud = installAppWebHud({
 		viewport: bulkViewport,
-		initialSrc: "zavx0z/git",
+		initialSrc: activeSrc,
 		initialSettings: activeSettings,
 		onApply: applyHudRequest,
 		onRenderSettingsChange: applyRenderSettingsFromHud,
@@ -351,6 +372,7 @@ const initBulkViewport = async (): Promise<void> => {
 	markAppWebBoot("client:hud:done")
 	hideBootOverlay()
 	hud.setConnectionStatus(socket.readyState === WebSocket.OPEN)
+	requestInitialMaterialization()
 
 	if (pendingSnapshotMessage) {
 		const snapshotMessage = pendingSnapshotMessage
@@ -383,11 +405,7 @@ void initBulkViewport().catch((error) => {
 
 socket.onopen = () => {
 	hud?.setConnectionStatus(true)
-	if (!initialMaterializationRequested) {
-		initialMaterializationRequested = true
-		const src = hud?.currentSrc() ?? "zavx0z/git"
-		applyHudRequest(src, activeSettings)
-	}
+	requestInitialMaterialization()
 }
 
 socket.onclose = () => {

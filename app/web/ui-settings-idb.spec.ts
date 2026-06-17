@@ -1,14 +1,14 @@
 import { describe, expect, test } from "bun:test"
 import { IDBFactory } from "fake-indexeddb"
-import { APP_CONFIG_DEFAULTS, APP_CONFIG_REVISION } from "./app-config.ts"
+import { APP_CONFIG_DEFAULTS, APP_CONFIG_REVISION, DEFAULT_APP_WEB_SCENE_SRC } from "./app-config.ts"
 import { APP_WEB_LAYOUT_SETTING_KEYS, APP_WEB_RENDER_SETTING_KEYS } from "./settings.ts"
+import { loadPersistedAppWebUiSettings, savePersistedAppWebUiSettings } from "./ui-settings-idb.ts"
 
 const persistedLayoutDefaults = () =>
   Object.fromEntries(APP_WEB_LAYOUT_SETTING_KEYS.map((key) => [key, APP_CONFIG_DEFAULTS.layout[key]]))
 
 const persistedRenderDefaults = () =>
   Object.fromEntries(APP_WEB_RENDER_SETTING_KEYS.map((key) => [key, APP_CONFIG_DEFAULTS.render[key]]))
-import { loadPersistedAppWebUiSettings, savePersistedAppWebUiSettings } from "./ui-settings-idb.ts"
 
 const createIndexedDbTarget = () => ({
   indexedDb: new IDBFactory(),
@@ -20,12 +20,14 @@ describe("app/web ui settings indexeddb", () => {
     const target = createIndexedDbTarget()
 
     expect(await loadPersistedAppWebUiSettings(target)).toEqual({
+      src: DEFAULT_APP_WEB_SCENE_SRC,
       layoutSettings: persistedLayoutDefaults(),
       renderSettings: persistedRenderDefaults(),
     })
 
     // повторный load возвращает то же самое — IDB уже seeded.
     expect(await loadPersistedAppWebUiSettings(target)).toEqual({
+      src: DEFAULT_APP_WEB_SCENE_SRC,
       layoutSettings: persistedLayoutDefaults(),
       renderSettings: persistedRenderDefaults(),
     })
@@ -36,11 +38,13 @@ describe("app/web ui settings indexeddb", () => {
 
     await savePersistedAppWebUiSettings(
       {
+        src: " zavx0z/custom-scene ",
         layoutSettings: {
           rootInnerDiameterMm: 1440,
         },
         renderSettings: {
           animationEnabled: false,
+          baseDepth: -1,
           detailDensityFactor: 2.4,
           labelVisibleLevels: 5,
           torusCrossRingRotationDeg: -33,
@@ -51,11 +55,13 @@ describe("app/web ui settings indexeddb", () => {
     )
 
     expect(await loadPersistedAppWebUiSettings(target)).toEqual({
+      src: "zavx0z/custom-scene",
       layoutSettings: {
         rootInnerDiameterMm: 1440,
       },
       renderSettings: {
         animationEnabled: false,
+        baseDepth: -1,
         detailDensityFactor: 2.4,
         labelVisibleLevels: 5,
         torusCrossRingRotationDeg: -33,
@@ -85,6 +91,7 @@ describe("app/web ui settings indexeddb", () => {
       const request = store.put({
         id: "display_settings",
         revision: APP_CONFIG_REVISION,
+        src: 42,
         layoutSettings: {
           rootInnerDiameterMm: "bad",
           hacked: 999,
@@ -108,6 +115,7 @@ describe("app/web ui settings indexeddb", () => {
     }
 
     expect(await loadPersistedAppWebUiSettings(target)).toEqual({
+      src: DEFAULT_APP_WEB_SCENE_SRC,
       layoutSettings: {},
       renderSettings: {
         animationEnabled: true,
@@ -136,6 +144,7 @@ describe("app/web ui settings indexeddb", () => {
       tx.objectStore("ui_settings").put({
         id: "display_settings",
         revision: APP_CONFIG_REVISION - 1,
+        src: "old/root",
         layoutSettings: { rootInnerDiameterMm: 999 },
         renderSettings: { torusTubularSegments: 999 },
       })
@@ -148,6 +157,7 @@ describe("app/web ui settings indexeddb", () => {
     }
 
     expect(await loadPersistedAppWebUiSettings(target)).toEqual({
+      src: DEFAULT_APP_WEB_SCENE_SRC,
       layoutSettings: persistedLayoutDefaults(),
       renderSettings: persistedRenderDefaults(),
     })

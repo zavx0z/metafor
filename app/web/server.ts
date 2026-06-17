@@ -13,6 +13,7 @@ import type {
 	ClientRelayoutPayload,
 	ServerSnapshotPayload,
 } from "./server.t.ts"
+import {DEFAULT_APP_WEB_SCENE_SRC} from "./app-config.ts"
 
 type RtcSignalSocketData = {
 	kind: "rtc-signal"
@@ -89,7 +90,7 @@ const VOICE_LOCAL_STORAGE_KEYS = [
 const buildSnapshot = async (
 	message: ClientMaterializePayload | ClientRelayoutPayload,
 ): Promise<ServerSnapshotPayload> => {
-	const src = message.src.trim() || "zavx0z/git"
+	const src = message.src.trim() || DEFAULT_APP_WEB_SCENE_SRC
 	const snapshot = await boundary.bulkRuntime()
 	return {type: "snapshot", src, snapshot}
 }
@@ -275,7 +276,7 @@ const server = serve<AppWebSocketData>({
 
 			if (payload.type === "materialize" || payload.type === "relayout") {
 				const started = Date.now()
-				appLog("WS", "snapshot requested", `type=${payload.type} src=${payload.src.trim() || "zavx0z/git"}`, "cyan")
+				appLog("WS", "snapshot requested", `type=${payload.type} src=${payload.src.trim() || DEFAULT_APP_WEB_SCENE_SRC}`, "cyan")
 				void buildSnapshot(payload)
 					.then((world) => {
 						appLog("WS", "snapshot ready", `type=${payload.type} in ${Date.now() - started}ms`, "green")

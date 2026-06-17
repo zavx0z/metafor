@@ -31,6 +31,7 @@ export interface AppConfigRender {
 
 /** Полный config app/web — то, что попадает в IDB как seed на первом open. */
 export interface AppConfig {
+  src: string
   layout: AppConfigLayout
   render: AppConfigRender
 }
@@ -42,8 +43,12 @@ export interface AppConfig {
  */
 export const APP_CONFIG_REVISION = 6
 
+/** Дефолтный root-source сцены app/web. */
+export const DEFAULT_APP_WEB_SCENE_SRC = "zavx0z/git"
+
 /** Дефолты, которые seedятся в IDB при первом open и применяются после bump revision. */
 export const APP_CONFIG_DEFAULTS: AppConfig = {
+  src: DEFAULT_APP_WEB_SCENE_SRC,
   layout: {
     orbitEdgeGapMm: 0,
     rootInnerDiameterMm: 1000,
