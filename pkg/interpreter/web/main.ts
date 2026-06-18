@@ -753,6 +753,7 @@ const DEFAULT_ANDROID_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "left",
 const DEFAULT_SECONDARY_ANDROID_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "left", offset: 500}
 const ANDROID_RTC_FRAME_SRC = "metafor:android-rtc-frame"
 const SECONDARY_ANDROID_RTC_FRAME_SRC = "metafor:android-rtc-frame:secondary"
+const ANDROID_CONTROL_STATUS_HOLD_MS = 4_000
 const PINNED_VOICE_HUD_ANCHOR: VoiceHudAnchorPlacement = {horizontal: "right", vertical: "bottom", offsetX: 0, offsetY: 0}
 const DEFAULT_TODO_HUD_RECT: UiSurfaceRect = {x: 16, y: 72, w: 430, h: 560}
 const DEFAULT_TODO_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "left", offset: 260}
@@ -2490,6 +2491,7 @@ async function initEngine(): Promise<void> {
       onRefresh: () => connectAndroidRtc(),
       onTap: (x, y) => void sendAndroidTap(x, y),
       onSwipe: (swipe) => void sendAndroidSwipe(swipe),
+      onOpenAccessibility: () => void sendAndroidOpenAccessibility(),
       onKey: (code) => void sendAndroidKey(code),
       onLaunchPackage: (packageName) => void sendAndroidLaunchPackage(packageName),
       onFrameRectPreview: previewAndroidHudRect,
@@ -2503,6 +2505,7 @@ async function initEngine(): Promise<void> {
       onRefresh: () => connectSecondaryAndroidRtc(),
       onTap: (x, y) => void sendSecondaryAndroidTap(x, y),
       onSwipe: (swipe) => void sendSecondaryAndroidSwipe(swipe),
+      onOpenAccessibility: () => void sendSecondaryAndroidOpenAccessibility(),
       onKey: (code) => void sendSecondaryAndroidKey(code),
       onLaunchPackage: (packageName) => void sendSecondaryAndroidLaunchPackage(packageName),
       onFrameRectPreview: previewSecondaryAndroidHudRect,
@@ -2623,7 +2626,7 @@ function installEnginePanes(): void {
   if (networkTerminal.socket === null) connectHostTerminal(networkTerminal)
   if (androidPane !== null) {
     uiCanvas.addHudSurface(androidPane, androidHudRect)
-    if (!androidHudDocked) connectAndroidRtc()
+    connectAndroidRtc()
   }
   androidDockPane ??= new HostTerminalDockPane({
     key: "android-dock-restore",
@@ -2637,7 +2640,7 @@ function installEnginePanes(): void {
   uiCanvas.addHudSurface(androidDockPane, androidDockRect, {zIndex: HUD_LAYER_TOP})
   if (secondaryAndroidPane !== null) {
     uiCanvas.addHudSurface(secondaryAndroidPane, secondaryAndroidHudRect)
-    if (!secondaryAndroidHudDocked) connectSecondaryAndroidRtc()
+    connectSecondaryAndroidRtc()
   }
   secondaryAndroidDockPane ??= new HostTerminalDockPane({
     key: "android-secondary-dock-restore",
@@ -2735,7 +2738,7 @@ async function refreshAndroidFrame(): Promise<void> {
 }
 
 function scheduleAndroidFrameRefresh(delayMs: number): void {
-  if (androidPane === null || androidHudDocked) return
+  if (androidPane === null) return
   if (androidFrameRefreshTimer !== null) window.clearTimeout(androidFrameRefreshTimer)
   androidFrameRefreshTimer = window.setTimeout(() => {
     androidFrameRefreshTimer = null
@@ -2761,7 +2764,7 @@ function connectAndroidRtc(): void {
 
 function setAndroidRtcStatus(kind: AndroidPaneStatusKind, label: string): void {
   androidPane?.setStatus(kind, label)
-  if (/\b(ok|failed)$/.test(label)) androidControlStatusUntil = Date.now() + 1_200
+  if (/\b(ok|failed)\b/.test(label)) androidControlStatusUntil = Date.now() + ANDROID_CONTROL_STATUS_HOLD_MS
 }
 
 function connectSecondaryAndroidRtc(): void {
@@ -2784,7 +2787,7 @@ function connectSecondaryAndroidRtc(): void {
 
 function setSecondaryAndroidRtcStatus(kind: AndroidPaneStatusKind, label: string): void {
   secondaryAndroidPane?.setStatus(kind, label)
-  if (/\b(ok|failed)$/.test(label)) secondaryAndroidControlStatusUntil = Date.now() + 1_200
+  if (/\b(ok|failed)\b/.test(label)) secondaryAndroidControlStatusUntil = Date.now() + ANDROID_CONTROL_STATUS_HOLD_MS
 }
 
 async function sendAndroidTap(x: number, y: number): Promise<void> {
@@ -2793,6 +2796,10 @@ async function sendAndroidTap(x: number, y: number): Promise<void> {
 
 async function sendAndroidSwipe(swipe: AndroidPaneSwipe): Promise<void> {
   await sendAndroidControlOrFallback({type: "swipe", ...swipe}, "/android/swipe", swipe)
+}
+
+async function sendAndroidOpenAccessibility(): Promise<void> {
+  sendAndroidControl({type: "open-accessibility"})
 }
 
 async function sendAndroidKey(code: string): Promise<void> {
@@ -2805,9 +2812,7 @@ async function sendAndroidLaunchPackage(packageName: string): Promise<void> {
 
 function sendAndroidControlCommand(params: unknown): unknown {
   const command = androidControlCommandFromParams(params)
-  if (androidRtcClient?.send(command) !== true) throw new Error("android rtc control channel is not open")
-  androidControlStatusUntil = Date.now() + 700
-  androidPane?.setStatus("connected", "rtc command")
+  if (!sendAndroidControl(command)) throw new Error("android rtc control channel is not open")
   return {
     sent: true,
     command,
@@ -2821,6 +2826,10 @@ async function sendSecondaryAndroidTap(x: number, y: number): Promise<void> {
 
 async function sendSecondaryAndroidSwipe(swipe: AndroidPaneSwipe): Promise<void> {
   sendSecondaryAndroidControl({type: "swipe", ...swipe})
+}
+
+async function sendSecondaryAndroidOpenAccessibility(): Promise<void> {
+  sendSecondaryAndroidControl({type: "open-accessibility"})
 }
 
 async function sendSecondaryAndroidKey(code: string): Promise<void> {
@@ -2842,19 +2851,30 @@ function sendSecondaryAndroidControlCommand(params: unknown): unknown {
 }
 
 function sendSecondaryAndroidControl(command: AndroidRtcCommand): boolean {
-  if (secondaryAndroidHudDocked) setSecondaryAndroidHudDocked(false)
   connectSecondaryAndroidRtc()
-  if (secondaryAndroidRtcClient?.send(command) !== true) {
+  if (secondaryAndroidRtcClient?.send(withAndroidFrameSize(command, secondaryAndroidPane)) !== true) {
     secondaryAndroidPane?.setStatus("error", "rtc control closed")
     return false
   }
-  secondaryAndroidControlStatusUntil = Date.now() + 700
+  secondaryAndroidControlStatusUntil = Date.now() + ANDROID_CONTROL_STATUS_HOLD_MS
   secondaryAndroidPane?.setStatus("connected", "rtc command")
   return true
 }
 
+function sendAndroidControl(command: AndroidRtcCommand): boolean {
+  connectAndroidRtc()
+  if (androidRtcClient?.send(withAndroidFrameSize(command, androidPane)) !== true) {
+    androidPane?.setStatus("error", "rtc control closed")
+    return false
+  }
+  androidControlStatusUntil = Date.now() + ANDROID_CONTROL_STATUS_HOLD_MS
+  androidPane?.setStatus("connected", "rtc command")
+  return true
+}
+
 async function sendAndroidControlOrFallback(command: AndroidRtcCommand, fallbackPath: string, fallbackBody: Record<string, unknown>): Promise<void> {
-  if (androidRtcClient?.send(command) === true) {
+  if (androidRtcClient?.send(withAndroidFrameSize(command, androidPane)) === true) {
+    androidControlStatusUntil = Date.now() + ANDROID_CONTROL_STATUS_HOLD_MS
     androidPane?.setStatus("connected", "rtc command")
     return
   }
@@ -2879,16 +2899,24 @@ async function postAndroidCommand(path: string, body: Record<string, unknown>): 
   }
 }
 
+function withAndroidFrameSize(command: AndroidRtcCommand, pane: AndroidPane | null): AndroidRtcCommand {
+  if (command.type !== "tap" && command.type !== "swipe") return command
+  if (command.frameW !== undefined && command.frameH !== undefined) return command
+  const frame = pane?.frameSnapshot() ?? null
+  if (frame === null) return command
+  return {...command, frameW: frame.width, frameH: frame.height}
+}
+
 function androidControlCommandFromParams(params: unknown): AndroidRtcCommand {
   if (typeof params !== "object" || params === null || Array.isArray(params)) throw new Error("android control command must be an object")
   const record = params as Record<string, unknown>
   const type = record.type
   if (type === "tap") {
-    return {
+    return withAndroidCommandFrameSize(record, {
       type,
       x: requiredFiniteNumber(record.x, "x"),
       y: requiredFiniteNumber(record.y, "y"),
-    }
+    })
   }
   if (type === "swipe") {
     const command: AndroidRtcCommand = {
@@ -2899,7 +2927,7 @@ function androidControlCommandFromParams(params: unknown): AndroidRtcCommand {
       y2: requiredFiniteNumber(record.y2, "y2"),
     }
     if (record.durationMs !== undefined) command.durationMs = requiredFiniteNumber(record.durationMs, "durationMs")
-    return command
+    return withAndroidCommandFrameSize(record, command)
   }
   if (type === "key") {
     const code = record.code
@@ -2911,7 +2939,20 @@ function androidControlCommandFromParams(params: unknown): AndroidRtcCommand {
     if (typeof packageName !== "string" || packageName.length === 0) throw new Error("android launch command requires packageName")
     return {type, packageName}
   }
+  if (type === "open-accessibility") return {type}
   throw new Error("unsupported android control command")
+}
+
+function withAndroidCommandFrameSize<T extends Extract<AndroidRtcCommand, {type: "tap" | "swipe"}>>(
+  record: Record<string, unknown>,
+  command: T,
+): T {
+  if (record.frameW === undefined && record.frameH === undefined) return command
+  return {
+    ...command,
+    frameW: requiredFiniteNumber(record.frameW, "frameW"),
+    frameH: requiredFiniteNumber(record.frameH, "frameH"),
+  }
 }
 
 function requiredFiniteNumber(value: unknown, name: string): number {
@@ -7582,7 +7623,6 @@ function setAndroidHudDocked(docked: boolean): void {
       uiCanvas.setFocused(null)
       uiCanvas.inputProxy?.blur()
     }
-    androidRtcClient?.disconnect()
   } else {
     uiCanvas?.setFocused(androidPane)
     connectAndroidRtc()
@@ -7601,7 +7641,6 @@ function setSecondaryAndroidHudDocked(docked: boolean): void {
       uiCanvas.setFocused(null)
       uiCanvas.inputProxy?.blur()
     }
-    secondaryAndroidRtcClient?.disconnect()
   } else {
     uiCanvas?.setFocused(secondaryAndroidPane)
     connectSecondaryAndroidRtc()

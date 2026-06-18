@@ -353,6 +353,8 @@ const initBulkViewport = async (): Promise<void> => {
 		canvas: bulkCanvas,
 		width: Math.max(1, Math.floor(rect.width)),
 		height: Math.max(1, Math.floor(rect.height)),
+		androidFrameSize: () => hud?.androidFrameSize() ?? null,
+		onAndroidControl: (command) => hud?.sendAndroidControl(command) === true,
 		onStats: updateBulkStats,
 	})
 	markAppWebBoot("client:viewport:done")

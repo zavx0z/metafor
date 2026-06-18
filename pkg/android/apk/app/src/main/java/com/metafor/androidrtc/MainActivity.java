@@ -61,6 +61,7 @@ public final class MainActivity extends Activity {
   private SurfaceTextureHelper surfaceTextureHelper;
   private VideoSource videoSource;
   private VideoTrack localVideoTrack;
+  private boolean signalingReconnectScheduled = false;
 
   @Override protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
@@ -197,17 +198,26 @@ public final class MainActivity extends Activity {
 
   private void connectSignaling() {
     if (signaling != null) signaling.close();
-    signaling = new SignalingClient(new SignalingClient.Listener() {
+    final SignalingClient[] nextRef = new SignalingClient[1];
+    SignalingClient next = new SignalingClient(new SignalingClient.Listener() {
       @Override public void onOpen() {
         setStatus("signaling connected");
       }
 
       @Override public void onClosed(String reason) {
         setStatus("signaling closed " + reason);
+        if (signaling == nextRef[0]) signaling = null;
+        scheduleSignalingReconnect();
       }
 
       @Override public void onError(String message) {
         setStatus("signaling error " + message);
+        SignalingClient current = nextRef[0];
+        if (signaling == current) {
+          signaling = null;
+          current.close();
+        }
+        scheduleSignalingReconnect();
       }
 
       @Override public void onHello(String room, String peerId, org.json.JSONArray peers) {
@@ -233,7 +243,20 @@ public final class MainActivity extends Activity {
         runOnUiThread(() -> addIce(from, candidate));
       }
     });
+    nextRef[0] = next;
+    signaling = next;
     signaling.connect(signalingInput.getText().toString().trim());
+  }
+
+  private void scheduleSignalingReconnect() {
+    if (localVideoTrack == null || signalingReconnectScheduled) return;
+    signalingReconnectScheduled = true;
+    mainHandler.postDelayed(() -> {
+      signalingReconnectScheduled = false;
+      if (localVideoTrack == null || signaling != null) return;
+      setStatus("signaling reconnecting");
+      connectSignaling();
+    }, 1000);
   }
 
   private void acceptOffer(String from, JSONObject description) {
@@ -328,8 +351,18 @@ public final class MainActivity extends Activity {
   }
 
   private void executeControlCommand(DataChannel channel, JSONObject command) {
-    boolean ok = AndroidControlAccessibilityService.execute(command);
     String commandType = command.optString("type", "?");
+    if ("open-accessibility".equals(commandType)) {
+      startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+      sendControlResult(channel, command, commandType, true);
+    } else {
+      AndroidControlAccessibilityService.execute(command, (ok) -> {
+        runOnUiThread(() -> sendControlResult(channel, command, commandType, ok));
+      });
+    }
+  }
+
+  private void sendControlResult(DataChannel channel, JSONObject command, String commandType, boolean ok) {
     setStatus("control " + commandType + " " + ok);
     try {
       JSONObject result = new JSONObject();
@@ -387,6 +420,7 @@ public final class MainActivity extends Activity {
   }
 
   private void closeRtc() {
+    signalingReconnectScheduled = false;
     if (signaling != null) {
       signaling.close();
       signaling = null;

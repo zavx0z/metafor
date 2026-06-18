@@ -3,20 +3,30 @@ package com.metafor.androidrtc;
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.GestureDescription;
 import android.content.Intent;
+import android.util.DisplayMetrics;
 import android.graphics.Path;
 import android.media.AudioManager;
 import android.os.Build;
+import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
 import java.lang.ref.WeakReference;
 import org.json.JSONObject;
 
 public final class AndroidControlAccessibilityService extends AccessibilityService {
   private static WeakReference<AndroidControlAccessibilityService> active = new WeakReference<>(null);
+  private static final int TAP_DURATION_MS = 90;
 
-  static boolean execute(JSONObject command) {
+  interface ControlResultCallback {
+    void onResult(boolean ok);
+  }
+
+  static void execute(JSONObject command, ControlResultCallback callback) {
     AndroidControlAccessibilityService service = active.get();
-    if (service == null) return false;
-    return service.executeCommand(command);
+    if (service == null) {
+      callback.onResult(false);
+      return;
+    }
+    service.executeCommand(command, callback);
   }
 
   static boolean isReady() {
@@ -36,42 +46,102 @@ public final class AndroidControlAccessibilityService extends AccessibilityServi
 
   @Override public void onInterrupt() {}
 
-  private boolean executeCommand(JSONObject command) {
+  private void executeCommand(JSONObject command, ControlResultCallback callback) {
     String type = command.optString("type", "");
     if ("tap".equals(type)) {
-      return gestureTap((float) command.optDouble("x"), (float) command.optDouble("y"));
+      gestureTap(command, (float) command.optDouble("x"), (float) command.optDouble("y"), callback);
+      return;
     }
     if ("swipe".equals(type)) {
-      return gestureSwipe(
+      gestureSwipe(
+        command,
         (float) command.optDouble("x1"),
         (float) command.optDouble("y1"),
         (float) command.optDouble("x2"),
         (float) command.optDouble("y2"),
-        Math.max(50, Math.min(2000, command.optInt("durationMs", 250)))
+        Math.max(50, Math.min(2000, command.optInt("durationMs", 250))),
+        callback
       );
+      return;
     }
     if ("key".equals(type)) {
-      return key(command.optString("code", ""));
+      callback.onResult(key(command.optString("code", "")));
+      return;
     }
     if ("launch".equals(type)) {
-      return launch(command.optString("packageName", ""));
+      callback.onResult(launch(command.optString("packageName", "")));
+      return;
     }
-    return false;
+    callback.onResult(false);
   }
 
-  private boolean gestureTap(float x, float y) {
+  private void gestureTap(JSONObject command, float x, float y, ControlResultCallback callback) {
+    DisplayMetrics metrics = displayMetrics();
     Path path = new Path();
-    path.moveTo(x, y);
-    GestureDescription.StrokeDescription stroke = new GestureDescription.StrokeDescription(path, 0, 1);
-    return dispatchGesture(new GestureDescription.Builder().addStroke(stroke).build(), null, null);
+    path.moveTo(mapX(commandFrameWidth(command), x, metrics), mapY(commandFrameHeight(command), y, metrics));
+    GestureDescription.StrokeDescription stroke = new GestureDescription.StrokeDescription(path, 0, TAP_DURATION_MS);
+    dispatchGestureWithResult(path, stroke, callback);
   }
 
-  private boolean gestureSwipe(float x1, float y1, float x2, float y2, int durationMs) {
+  private void gestureSwipe(JSONObject command, float x1, float y1, float x2, float y2, int durationMs, ControlResultCallback callback) {
+    DisplayMetrics metrics = displayMetrics();
+    float sourceW = commandFrameWidth(command);
+    float sourceH = commandFrameHeight(command);
     Path path = new Path();
-    path.moveTo(x1, y1);
-    path.lineTo(x2, y2);
+    path.moveTo(mapX(sourceW, x1, metrics), mapY(sourceH, y1, metrics));
+    path.lineTo(mapX(sourceW, x2, metrics), mapY(sourceH, y2, metrics));
     GestureDescription.StrokeDescription stroke = new GestureDescription.StrokeDescription(path, 0, durationMs);
-    return dispatchGesture(new GestureDescription.Builder().addStroke(stroke).build(), null, null);
+    dispatchGestureWithResult(path, stroke, callback);
+  }
+
+  private void dispatchGestureWithResult(Path path, GestureDescription.StrokeDescription stroke, ControlResultCallback callback) {
+    boolean accepted = dispatchGesture(
+      new GestureDescription.Builder().addStroke(stroke).build(),
+      new GestureResultCallback() {
+        @Override public void onCompleted(GestureDescription gestureDescription) {
+          callback.onResult(true);
+        }
+
+        @Override public void onCancelled(GestureDescription gestureDescription) {
+          callback.onResult(false);
+        }
+      },
+      null
+    );
+    if (!accepted) callback.onResult(false);
+  }
+
+  private DisplayMetrics displayMetrics() {
+    DisplayMetrics metrics = new DisplayMetrics();
+    WindowManager manager = (WindowManager) getSystemService(WINDOW_SERVICE);
+    if (manager != null) manager.getDefaultDisplay().getRealMetrics(metrics);
+    if (metrics.widthPixels <= 0) metrics.widthPixels = 1;
+    if (metrics.heightPixels <= 0) metrics.heightPixels = 1;
+    return metrics;
+  }
+
+  private float commandFrameWidth(JSONObject command) {
+    double value = command.optDouble("frameW", Double.NaN);
+    return Double.isFinite(value) && value > 0 ? (float) value : displayMetrics().widthPixels;
+  }
+
+  private float commandFrameHeight(JSONObject command) {
+    double value = command.optDouble("frameH", Double.NaN);
+    return Double.isFinite(value) && value > 0 ? (float) value : displayMetrics().heightPixels;
+  }
+
+  private float mapX(float sourceWidth, float x, DisplayMetrics metrics) {
+    float mapped = x * metrics.widthPixels / Math.max(1, sourceWidth);
+    return clamp(mapped, 0, metrics.widthPixels - 1);
+  }
+
+  private float mapY(float sourceHeight, float y, DisplayMetrics metrics) {
+    float mapped = y * metrics.heightPixels / Math.max(1, sourceHeight);
+    return clamp(mapped, 0, metrics.heightPixels - 1);
+  }
+
+  private static float clamp(float value, float min, float max) {
+    return Math.max(min, Math.min(max, value));
   }
 
   private boolean key(String code) {

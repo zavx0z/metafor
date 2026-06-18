@@ -105,6 +105,8 @@ let appFullscreenDebug: AppFullscreenDebugSnapshot = {
 }
 ;(globalThis as AppFullscreenDebugGlobal).__metaFullscreenDebug = () => ({...appFullscreenDebug})
 
+const ANDROID_CONTROL_STATUS_HOLD_MS = 4_000
+
 export type AppWebHudSettingsSnapshot = {
 	layoutSettings: Partial<AppWebLayoutSettings>
 	renderSettings: Partial<AppWebRenderSettings>
@@ -121,6 +123,7 @@ export type AppWebHudOptions = {
 }
 
 export type AppWebHudController = {
+	androidFrameSize(): {height: number; width: number} | null
 	currentSrc(): string
 	settingsSnapshot(): AppWebHudSettingsSnapshot
 	sendAndroidControl(command: AndroidRtcCommand): boolean
@@ -621,6 +624,7 @@ class AppWebHud implements AppWebHudController {
 			onRefresh: () => this.#connectAndroidRtc(),
 			onTap: (x, y) => this.#sendAndroidControl({type: "tap", x, y}),
 			onSwipe: (swipe) => this.#sendAndroidSwipe(swipe),
+			onOpenAccessibility: () => this.#sendAndroidControl({type: "open-accessibility"}),
 			onKey: (code) => this.#sendAndroidControl({type: "key", code}),
 			onLaunchPackage: (packageName) => this.#sendAndroidControl({type: "launch", packageName}),
 			onFrameRectChange: (rect) => writeStoredRect(ANDROID_RECT_STORAGE_KEY, rect),
@@ -660,7 +664,7 @@ class AppWebHud implements AppWebHudController {
 		document.addEventListener("drop", this.#codexDrop, {capture: true})
 		document.addEventListener("dragleave", this.#codexDragLeave, {capture: true})
 		this.#connectTerminal()
-		if (!this.#androidDocked) this.#connectAndroidRtc()
+		this.#connectAndroidRtc()
 		if (readCodexVoiceP2PEnabled()) startVoiceRtcRelay()
 		void this.#loadTodo()
 		void this.#refreshWorkspaceProcesses()
@@ -678,6 +682,11 @@ class AppWebHud implements AppWebHudController {
 
 	currentSrc(): string {
 		return this.#src
+	}
+
+	androidFrameSize(): {height: number; width: number} | null {
+		const frame = this.#androidPane.frameSnapshot()
+		return frame === null ? null : {width: frame.width, height: frame.height}
 	}
 
 	settingsSnapshot(): AppWebHudSettingsSnapshot {
@@ -936,8 +945,7 @@ class AppWebHud implements AppWebHudController {
 		} else if (kind === "android") {
 			this.#androidDocked = docked
 			writeStoredBoolean(ANDROID_DOCKED_STORAGE_KEY, docked)
-			if (docked) this.#androidRtcClient?.disconnect()
-			else this.#connectAndroidRtc()
+			this.#connectAndroidRtc()
 		}
 	}
 
@@ -1963,7 +1971,7 @@ class AppWebHud implements AppWebHudController {
 
 	#setAndroidRtcStatus(kind: AndroidPaneStatusKind, label: string): void {
 		this.#androidPane.setStatus(kind, label)
-		if (/\b(ok|failed)$/.test(label)) this.#androidControlStatusUntil = Date.now() + 1_200
+		if (/\b(ok|failed)\b/.test(label)) this.#androidControlStatusUntil = Date.now() + ANDROID_CONTROL_STATUS_HOLD_MS
 	}
 
 	#sendAndroidSwipe(swipe: AndroidPaneSwipe): void {
@@ -1971,15 +1979,22 @@ class AppWebHud implements AppWebHudController {
 	}
 
 	#sendAndroidControl(command: AndroidRtcCommand): boolean {
-		if (this.#androidDocked) this.setDocked("android", false)
 		this.#connectAndroidRtc()
-		if (this.#androidRtcClient?.send(command) !== true) {
+		if (this.#androidRtcClient?.send(this.#withAndroidFrameSize(command)) !== true) {
 			this.#androidPane.setStatus("error", "rtc control closed")
 			return false
 		}
-		this.#androidControlStatusUntil = Date.now() + 700
+		this.#androidControlStatusUntil = Date.now() + ANDROID_CONTROL_STATUS_HOLD_MS
 		this.#androidPane.setStatus("connected", "rtc command")
 		return true
+	}
+
+	#withAndroidFrameSize(command: AndroidRtcCommand): AndroidRtcCommand {
+		if (command.type !== "tap" && command.type !== "swipe") return command
+		if (command.frameW !== undefined && command.frameH !== undefined) return command
+		const frame = this.#androidPane.frameSnapshot()
+		if (frame === null) return command
+		return {...command, frameW: frame.width, frameH: frame.height}
 	}
 
 	async #importInterpreterVoiceSettings(): Promise<void> {

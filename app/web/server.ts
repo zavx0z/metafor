@@ -63,10 +63,11 @@ type VoiceRtcDebugPayload = {
 	updatedAt: number
 }
 type AndroidControlCommand =
-	| {type: "tap"; x: number; y: number}
-	| {type: "swipe"; x1: number; y1: number; x2: number; y2: number; durationMs?: number}
+	| {type: "tap"; x: number; y: number; frameW?: number; frameH?: number}
+	| {type: "swipe"; x1: number; y1: number; x2: number; y2: number; durationMs?: number; frameW?: number; frameH?: number}
 	| {type: "key"; code: string}
 	| {type: "launch"; packageName: string}
+	| {type: "open-accessibility"}
 type AppClientAsset = {
 	body: ArrayBuffer
 	type: string
@@ -874,7 +875,7 @@ function asAndroidControlCommand(value: Record<string, unknown>): AndroidControl
 	if (type === "tap") {
 		const x = finiteNumber(value["x"])
 		const y = finiteNumber(value["y"])
-		return x === null || y === null ? null : {type, x, y}
+		return x === null || y === null ? null : withAndroidCommandFrameSize(value, {type, x, y})
 	}
 	if (type === "swipe") {
 		const x1 = finiteNumber(value["x1"])
@@ -883,7 +884,8 @@ function asAndroidControlCommand(value: Record<string, unknown>): AndroidControl
 		const y2 = finiteNumber(value["y2"])
 		const durationMs = finiteNumber(value["durationMs"])
 		if (x1 === null || y1 === null || x2 === null || y2 === null) return null
-		return durationMs === null ? {type, x1, y1, x2, y2} : {type, x1, y1, x2, y2, durationMs}
+		const command = durationMs === null ? {type, x1, y1, x2, y2} : {type, x1, y1, x2, y2, durationMs}
+		return withAndroidCommandFrameSize(value, command)
 	}
 	if (type === "key") {
 		const code = value["code"]
@@ -893,7 +895,17 @@ function asAndroidControlCommand(value: Record<string, unknown>): AndroidControl
 		const packageName = value["packageName"]
 		return typeof packageName === "string" && packageName.length > 0 ? {type, packageName} : null
 	}
+	if (type === "open-accessibility") return {type}
 	return null
+}
+
+function withAndroidCommandFrameSize<T extends Extract<AndroidControlCommand, {type: "tap" | "swipe"}>>(
+	value: Record<string, unknown>,
+	command: T,
+): T {
+	const frameW = finiteNumber(value["frameW"])
+	const frameH = finiteNumber(value["frameH"])
+	return frameW === null || frameH === null ? command : {...command, frameW, frameH}
 }
 
 function finiteNumber(value: unknown): number | null {

@@ -18,10 +18,11 @@ export type AndroidRtcFrame = {
 export type AndroidRtcStatusKind = "idle" | "connected" | "running" | "error"
 
 export type AndroidRtcCommand =
-  | {type: "tap"; x: number; y: number}
-  | {type: "swipe"; x1: number; y1: number; x2: number; y2: number; durationMs?: number}
+  | {type: "tap"; x: number; y: number; frameW?: number; frameH?: number}
+  | {type: "swipe"; x1: number; y1: number; x2: number; y2: number; durationMs?: number; frameW?: number; frameH?: number}
   | {type: "key"; code: string}
   | {type: "launch"; packageName: string}
+  | {type: "open-accessibility"}
 
 export type AndroidRtcClient = {
   readonly peerId: string
@@ -50,6 +51,7 @@ type PeerRecord = {
 const DEFAULT_ANDROID_RTC_ROOM = "android-display"
 const ANDROID_RTC_SENDER_PEER = "android"
 const DEFAULT_MIN_FRAME_INTERVAL_MS = 50
+const MAX_PENDING_COMMANDS = 16
 const APP_WEB_ANDROID_SIGNALING_URL = "wss://192.168.8.106/hud/webrtc/signaling"
 
 export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcClient {
@@ -66,6 +68,7 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
   let frameLoopStarted = false
   let frameCopyInFlight = false
   let lastFrameAt = 0
+  let pendingCommands: AndroidRtcCommand[] = []
 
   const api: AndroidRtcClient = {
     get peerId() {
@@ -106,12 +109,24 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     const current = socket
     socket = null
     current?.close()
+    pendingCommands = []
     closeAllPeers()
     video.srcObject = null
     frameLoopStarted = false
   }
 
   function send(command: AndroidRtcCommand): boolean {
+    if (sendToOpenChannels(command)) return true
+    if (socket !== null && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+      pendingCommands.push(command)
+      if (pendingCommands.length > MAX_PENDING_COMMANDS) pendingCommands = pendingCommands.slice(-MAX_PENDING_COMMANDS)
+      opts.onStatus("running", "rtc control queued")
+      return true
+    }
+    return false
+  }
+
+  function sendToOpenChannels(command: AndroidRtcCommand): boolean {
     let sent = false
     for (const peer of peers.values()) {
       if (peer.channel?.readyState !== "open") continue
@@ -119,6 +134,19 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
       sent = true
     }
     return sent
+  }
+
+  function flushPendingCommands(): void {
+    if (pendingCommands.length === 0) return
+    const commands = pendingCommands
+    pendingCommands = []
+    for (let index = 0; index < commands.length; index += 1) {
+      const command = commands[index]!
+      if (!sendToOpenChannels(command)) {
+        pendingCommands = commands.slice(index)
+        return
+      }
+    }
   }
 
   async function handleSignal(signal: AndroidRtcSignal): Promise<void> {
@@ -199,14 +227,14 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     channel.addEventListener("open", () => {
       opts.onStatus("connected", "rtc control")
       channel.send(JSON.stringify({type: "hello", peerId, role: "interpreter"}))
+      flushPendingCommands()
     })
     channel.addEventListener("message", (event) => {
       if (typeof event.data !== "string") return
       const message = parseControlMessage(event.data)
       if (message === null) return
-      if (message.type === "control-result") {
-        opts.onStatus(message.ok ? "connected" : "error", `${message.command} ${message.ok ? "ok" : "failed"}`)
-      }
+      const reason = !message.ok && message.accessibility === false ? " a11y off" : ""
+      opts.onStatus(message.ok ? "connected" : "error", `${message.command} ${message.ok ? "ok" : "failed"}${reason}`)
     })
     channel.addEventListener("close", () => {
       if (peer.channel === channel) peer.channel = null
@@ -289,7 +317,7 @@ function parseSignal(raw: string): AndroidRtcSignal | null {
   }
 }
 
-function parseControlMessage(raw: string): {type: "control-result"; command: string; ok: boolean} | null {
+function parseControlMessage(raw: string): {type: "control-result"; command: string; ok: boolean; accessibility?: boolean} | null {
   try {
     const parsed = JSON.parse(raw) as unknown
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null
@@ -297,10 +325,12 @@ function parseControlMessage(raw: string): {type: "control-result"; command: str
     if (type !== "control-result") return null
     const command = (parsed as {command?: unknown}).command
     const ok = (parsed as {ok?: unknown}).ok
+    const accessibility = (parsed as {accessibility?: unknown}).accessibility
     return {
       type,
       command: typeof command === "string" && command.length > 0 ? command : "control",
       ok: ok === true,
+      ...(typeof accessibility === "boolean" ? {accessibility} : {}),
     }
   } catch {
     return null

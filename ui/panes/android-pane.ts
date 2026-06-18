@@ -38,6 +38,7 @@ export type AndroidPaneOpts = {
   onRefresh?: () => void
   onTap?: (x: number, y: number) => void
   onSwipe?: (swipe: AndroidPaneSwipe) => void
+  onOpenAccessibility?: () => void
   onKey?: (code: string) => void
   onLaunchPackage?: (packageName: string) => void
   onFrameRectPreview?: (rect: PaneRect) => void
@@ -82,6 +83,7 @@ export class AndroidPane extends UiSurface {
   #onRefresh: (() => void) | undefined
   #onTap: ((x: number, y: number) => void) | undefined
   #onSwipe: ((swipe: AndroidPaneSwipe) => void) | undefined
+  #onOpenAccessibility: (() => void) | undefined
   #onKey: ((code: string) => void) | undefined
   #onLaunchPackage: ((packageName: string) => void) | undefined
   #onFrameRectPreview: ((rect: PaneRect) => void) | undefined
@@ -101,6 +103,7 @@ export class AndroidPane extends UiSurface {
     this.#onRefresh = opts.onRefresh
     this.#onTap = opts.onTap
     this.#onSwipe = opts.onSwipe
+    this.#onOpenAccessibility = opts.onOpenAccessibility
     this.#onKey = opts.onKey
     this.#onLaunchPackage = opts.onLaunchPackage
     this.#onFrameRectPreview = opts.onFrameRectPreview
@@ -234,6 +237,7 @@ export class AndroidPane extends UiSurface {
     const buttonH = 28
     const buttonY = y + Math.max(0, (h - buttonH) / 2)
     const keyButtons = [
+      ["A11y", "open-accessibility"],
       ["Chrome", "launch:com.android.chrome"],
       ["Back", "KEYCODE_BACK"],
       ["Home", "KEYCODE_HOME"],
@@ -241,7 +245,7 @@ export class AndroidPane extends UiSurface {
       ["Power", "KEYCODE_POWER"],
     ] as const
     const availableW = Math.max(1, w)
-    const buttonW = Math.max(48, Math.min(78, Math.floor((availableW - gap * (keyButtons.length - 1)) / keyButtons.length)))
+    const buttonW = Math.max(42, Math.min(78, Math.floor((availableW - gap * (keyButtons.length - 1)) / keyButtons.length)))
     let buttonX = x
     for (const [label, code] of keyButtons) {
       Button(this, buttonX, buttonY, buttonW, buttonH, {
@@ -251,7 +255,8 @@ export class AndroidPane extends UiSurface {
         fontPx: 11,
         radius: radii.control,
         action: () => {
-          if (code.startsWith("launch:")) this.#onLaunchPackage?.(code.slice("launch:".length))
+          if (code === "open-accessibility") this.#onOpenAccessibility?.()
+          else if (code.startsWith("launch:")) this.#onLaunchPackage?.(code.slice("launch:".length))
           else this.#onKey?.(code)
         },
       })
