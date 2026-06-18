@@ -169,6 +169,7 @@ export class VoiceInputClient {
   #queuedPcmAfterCommit: ArrayBuffer[] = []
   #pendingCommittedChunk: VoiceInputChunk | null = null
   #pendingCommittedChunkCommitId = 0
+  #lastPartialChunk: VoiceInputChunk | null = null
   #pendingChunkFlushTimer: number | null = null
   #commitGeneration = 0
   #commitWaiters: Array<() => void> = []
@@ -516,6 +517,9 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       if (cleanupVoiceText(text).length > 0) this.#touchRecognitionActivity()
       const partial = removeCommandTextFromString(text, this.#asrControlPhrases(), (groupId) => this.#phraseFuzzyTolerance(groupId))
       const partialText = trimStableVoiceTranscriptPrefix(partial.text, this.#deliveryState.transcript)
+      if (partial.command === null && partialText) {
+        this.#lastPartialChunk = {text: partial.text, messages: [], segments: []}
+      }
       if (partialText || partial.command === null) this.options.onPartial(partialText)
       return
     }
@@ -763,6 +767,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#commitPending = false
     this.#pendingCommittedChunk = null
     this.#pendingCommittedChunkCommitId = 0
+    this.#lastPartialChunk = null
     this.#hasSpeechSinceCommit = false
     this.#lastSpeechAt = performance.now()
     this.#lastCommitAt = 0
@@ -905,10 +910,13 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
 
   #flushPendingCommittedChunk(): void {
     this.#clearPendingChunkFlushTimer()
-    const chunk = this.#pendingCommittedChunk
-    const commitId = this.#pendingCommittedChunkCommitId
+    const pendingChunk = this.#pendingCommittedChunk
+    const fallbackChunk = this.#commitPending ? this.#lastPartialChunk : null
+    const chunk = pendingChunk ?? fallbackChunk
+    const commitId = pendingChunk !== null ? this.#pendingCommittedChunkCommitId : this.#commitGeneration
     this.#pendingCommittedChunk = null
     this.#pendingCommittedChunkCommitId = 0
+    this.#lastPartialChunk = null
     if (chunk === null || !voiceChunkHasText(chunk)) return
     const deliveryChunk = prepareVoiceInputChunkForDelivery(chunk, this.#deliveryState, commitId)
     if (deliveryChunk !== null) this.options.onChunk(deliveryChunk)
