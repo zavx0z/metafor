@@ -7,7 +7,6 @@ import {basename, extname, join, relative, resolve} from "node:path"
 import "dark/server"
 import {createPtySessionManager, parsePtyClientMessage, type PtySocketData} from "@metafor/pty/server"
 import {parseMarkdownTodo, updateTodoMarkdownItem} from "@ui/panes/todo-model"
-import index from "./index.html"
 import type {
 	ClientMessage,
 	ClientMaterializePayload,
@@ -68,6 +67,14 @@ type AndroidControlCommand =
 	| {type: "swipe"; x1: number; y1: number; x2: number; y2: number; durationMs?: number}
 	| {type: "key"; code: string}
 	| {type: "launch"; packageName: string}
+type AppClientAsset = {
+	body: ArrayBuffer
+	type: string
+}
+type AppClientBundle = {
+	assets: Map<string, AppClientAsset>
+	html: AppClientAsset
+}
 
 const boundary = globalThis.boundary
 const sockets = new Set<ServerWebSocket<AppWebSocketData>>()
@@ -129,6 +136,7 @@ const VOICE_LOCAL_STORAGE_KEYS = [
 	"metafor.interpreter.hostTerminal.agentSoundVolume:v1",
 	"metafor.interpreter.voice.agentReadyVolume:v1",
 ] as const
+const APP_CLIENT_BUNDLE = await buildAppClientBundle()
 
 const buildSnapshot = async (
 	message: ClientMaterializePayload | ClientRelayoutPayload,
@@ -163,7 +171,8 @@ const server = serve<AppWebSocketData>({
 			}
 		: {}),
 	routes: {
-		"/": index,
+		"/": () => appClientAssetResponse(APP_CLIENT_BUNDLE.html),
+		"/index.html": () => appClientAssetResponse(APP_CLIENT_BUNDLE.html),
 		"/health": (req: Request) => {
 			const started = Date.now()
 			const response = Response.json({ok: true})
@@ -260,6 +269,8 @@ const server = serve<AppWebSocketData>({
 	},
 	fetch: async (req: Request) => {
 		const url = new URL(req.url)
+		const appClientAsset = APP_CLIENT_BUNDLE.assets.get(url.pathname)
+		if (appClientAsset !== undefined) return appClientAssetResponse(appClientAsset)
 		if (url.pathname === "/hud/source/files") {
 			const started = Date.now()
 			const response = sourceFilesResponse(req, url)
@@ -375,6 +386,42 @@ const server = serve<AppWebSocketData>({
 		},
 	},
 })
+
+async function buildAppClientBundle(): Promise<AppClientBundle> {
+	const result = await Bun.build({
+		entrypoints: [join(import.meta.dir, "index.html")],
+		loader: {".wgsl": "text"},
+		minify: true,
+		target: "browser",
+	})
+	if (!result.success) {
+		const detail = result.logs.map((log) => log.message).join("\n")
+		throw new Error(`Failed to build app/web client bundle${detail.length > 0 ? `:\n${detail}` : ""}`)
+	}
+
+	let html: AppClientAsset | null = null
+	const assets = new Map<string, AppClientAsset>()
+	for (const output of result.outputs) {
+		const pathname = output.path.replace(/^\.\//, "/")
+		const asset: AppClientAsset = {
+			body: await output.arrayBuffer(),
+			type: output.type || "application/octet-stream",
+		}
+		if (pathname === "/index.html") html = asset
+		else assets.set(pathname, asset)
+	}
+	if (html === null) throw new Error("Failed to build app/web client bundle: index.html output missing")
+	return {assets, html}
+}
+
+function appClientAssetResponse(asset: AppClientAsset): Response {
+	return new Response(asset.body.slice(0), {
+		headers: {
+			"cache-control": "no-store",
+			"content-type": asset.type,
+		},
+	})
+}
 
 function todoMarkdownResponse(): Response {
 	const payload = todoMarkdownPayload()
