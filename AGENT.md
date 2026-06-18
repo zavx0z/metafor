@@ -154,7 +154,8 @@ MetaFor - открытая среда для общего AGI.
 
 1. Начни с `README.md`.
 2. Прочитай релевантные документы в `docs/`.
-3. Для архитектурной работы всегда пересматривай:
+3. Прочитай ближайший package/domain `CONTRACT.md`, если он есть. Для сцены, рендера, координат, `ViewPoint`, `GLTFLoader`, `bulk/web` и layout-правок это обязательное предварительное чтение, а не справка после поломки: минимум `pkg/engine/CONTRACT.md` и, для космораскладки, `bulk/gravity/layout/CONTRACT.md`.
+4. Для архитектурной работы всегда пересматривай:
    - `docs/ONTOLOGY.md`
    - `docs/ARCHITECTURE.md`
    - `docs/FORCE.md`
