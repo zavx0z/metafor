@@ -146,6 +146,9 @@ const ANTHROPOMORPH_BOT_SCALE_MM = 260
 const ANTHROPOMORPH_BOT_STAGE_X_MM = 0
 const ANTHROPOMORPH_BOT_STAGE_Y_MM = 0
 const ANTHROPOMORPH_BOT_STAGE_Z_MM = 0
+const ANTHROPOMORPH_BOT_UP_MARKER_X_MM = 520
+const ANTHROPOMORPH_BOT_UP_MARKER_Y_MM = -560
+const ANTHROPOMORPH_BOT_UP_MARKER_HEIGHT_MM = 900
 const ANTHROPOMORPH_BOT_RENDER_WAKE_MS = 3000
 let activeLayoutSettings: AppWebLayoutSettings = { ...DEFAULT_APP_WEB_LAYOUT_SETTINGS }
 let activeRenderSettings: AppWebRenderSettings = { ...DEFAULT_APP_WEB_RENDER_SETTINGS }
@@ -563,6 +566,39 @@ const createAnthropomorphBotLight = (color: Color, intensity: number, position: 
 	light.position.copy(position)
 	light.updateMatrix()
 	return light
+}
+
+const createAnthropomorphBotUpMarker = (): LineSegments => {
+	const height = ANTHROPOMORPH_BOT_UP_MARKER_HEIGHT_MM
+	const arrow = 120
+	const wing = 84
+	const letterX = 145
+	const letterW = 160
+	const letterTop = height - 18
+	const letterBottom = height - 178
+	const vertices = [
+		0, 0, 0, 0, 0, height,
+		0, 0, height, wing, 0, height - arrow,
+		0, 0, height, -wing, 0, height - arrow,
+		0, 0, height, 0, wing, height - arrow,
+		0, 0, height, 0, -wing, height - arrow,
+		letterX - letterW / 2, 0, letterTop, letterX + letterW / 2, 0, letterTop,
+		letterX + letterW / 2, 0, letterTop, letterX - letterW / 2, 0, letterBottom,
+		letterX - letterW / 2, 0, letterBottom, letterX + letterW / 2, 0, letterBottom,
+	]
+	const geometry = new BufferGeometry()
+	geometry.setAttribute("position", new BufferAttribute(new Float32Array(vertices), 3))
+	const marker = new LineSegments(
+		geometry,
+		new LineGlowMaterial({
+			color: new Color(0.38, 0.88, 1),
+			glowColor: new Color(0.38, 0.88, 1),
+			glowIntensity: 2.1,
+			opacity: 0.95,
+		}),
+	)
+	marker.frustumCulled = false
+	return marker
 }
 
 type BulkHudSurfaceSlot = {
@@ -1078,6 +1114,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	let lastAnimationTimestamp = 0
 	let animationSuspended = false
 	let anthropomorphBotRoot: Object3D | null = null
+	let anthropomorphBotUpMarker: Object3D | null = null
 	let anthropomorphBotMixer: AnimationMixer | null = null
 	let anthropomorphBotSkinnedMeshes: SkinnedMesh[] = []
 
@@ -1140,6 +1177,16 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			const fillLight = createAnthropomorphBotLight(new Color(0.45, 0.76, 1), 1.35, new Vector3(-2200, 1800, 2400))
 			space.add(keyLight)
 			space.add(fillLight)
+
+			const upMarker = createAnthropomorphBotUpMarker()
+			upMarker.position.set(
+				ANTHROPOMORPH_BOT_STAGE_X_MM + ANTHROPOMORPH_BOT_UP_MARKER_X_MM,
+				ANTHROPOMORPH_BOT_STAGE_Y_MM + ANTHROPOMORPH_BOT_UP_MARKER_Y_MM,
+				getFloorZ() + ANTHROPOMORPH_BOT_STAGE_Z_MM,
+			)
+			upMarker.updateMatrix()
+			space.add(upMarker)
+			anthropomorphBotUpMarker = upMarker
 
 			if (gltf.animations.length > 0) {
 				const mixer = new AnimationMixer(root)
@@ -2436,7 +2483,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			document.removeEventListener("mouseup", wakeRenderFromDocumentMouseUp)
 			setHoveredPickTarget(null)
 			if (anthropomorphBotRoot !== null) detachObject(anthropomorphBotRoot)
+			if (anthropomorphBotUpMarker !== null) detachObject(anthropomorphBotUpMarker)
 			anthropomorphBotRoot = null
+			anthropomorphBotUpMarker = null
 			anthropomorphBotMixer = null
 			anthropomorphBotSkinnedMeshes = []
 			hudRuntime.dispose()
