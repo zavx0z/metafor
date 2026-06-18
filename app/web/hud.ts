@@ -79,13 +79,31 @@ import {createAndroidRtcClient, type AndroidRtcClient, type AndroidRtcCommand} f
 import {DEFAULT_APP_WEB_SCENE_SRC} from "./app-config.ts"
 import {
 	createVoiceRtcAsrSocket,
+	isVoiceRtcRemoteClient,
 	onVoiceRtcDebug,
 	primeVoiceRtcRelayAudio,
 	readVoiceRtcDebugSnapshot,
+	startVoiceRtcRelay,
 	type VoiceRtcDebugSnapshot,
 } from "./voice-rtc.ts"
 
 type VoiceRtcDebugGlobal = typeof globalThis & {__metaVoiceRtcDebug?: () => VoiceRtcDebugSnapshot}
+type AppFullscreenDebugGlobal = typeof globalThis & {__metaFullscreenDebug?: () => AppFullscreenDebugSnapshot}
+
+type AppFullscreenDebugSnapshot = {
+	state: "idle" | "requesting" | "active" | "exiting" | "failed"
+	target: string
+	error: string
+	updatedAt: number
+}
+
+let appFullscreenDebug: AppFullscreenDebugSnapshot = {
+	state: "idle",
+	target: "",
+	error: "",
+	updatedAt: 0,
+}
+;(globalThis as AppFullscreenDebugGlobal).__metaFullscreenDebug = () => ({...appFullscreenDebug})
 
 export type AppWebHudSettingsSnapshot = {
 	layoutSettings: Partial<AppWebLayoutSettings>
@@ -339,6 +357,104 @@ const ANDROID_RTC_FRAME_SRC = "metafor:app-web-android-rtc-frame"
 const VOICE_SERVICE_CHECK_TIMEOUT_MS = 2500
 const HUD_PANEL_BG = new Color(palette.bg.r, palette.bg.g, palette.bg.b, 0.68)
 const errorMessage = (error: unknown): string => error instanceof Error ? error.message : String(error)
+
+type WebkitFullscreenDocument = Document & {
+	webkitFullscreenElement?: Element | null
+	webkitExitFullscreen?: () => Promise<void> | void
+	webkitCancelFullScreen?: () => Promise<void> | void
+}
+
+type WebkitFullscreenElement = Element & {
+	webkitRequestFullscreen?: () => Promise<void> | void
+	webkitRequestFullScreen?: () => Promise<void> | void
+}
+
+function appFullscreenElement(): Element | null {
+	const webkitDocument = document as WebkitFullscreenDocument
+	return document.fullscreenElement ?? webkitDocument.webkitFullscreenElement ?? null
+}
+
+async function requestAppFullscreen(): Promise<void> {
+	const targets = fullscreenTargetCandidates()
+	let lastError: unknown = null
+	writeAppFullscreenDebug({state: "requesting", target: targets[0]?.id || targets[0]?.tagName || "document", error: ""})
+	for (const target of targets) {
+		try {
+			await requestElementFullscreen(target)
+			writeAppFullscreenDebug({state: "active", target: target.id || target.tagName || "element", error: ""})
+			return
+		} catch (error) {
+			lastError = error
+		}
+	}
+	throw lastError ?? new Error("fullscreen request failed")
+}
+
+async function requestElementFullscreen(target: Element): Promise<void> {
+	if (target.requestFullscreen !== undefined) {
+		try {
+			await target.requestFullscreen({navigationUI: "hide"} as FullscreenOptions)
+			return
+		} catch (error) {
+			if (!isFullscreenOptionsError(error)) throw error
+		}
+		await target.requestFullscreen()
+		return
+	}
+	const webkitTarget = target as WebkitFullscreenElement
+	const request = webkitTarget.webkitRequestFullscreen ?? webkitTarget.webkitRequestFullScreen
+	if (request === undefined) throw new Error(`fullscreen is not available on ${target.tagName.toLowerCase()}`)
+	await Promise.resolve(request.call(target))
+}
+
+async function exitAppFullscreen(): Promise<void> {
+	writeAppFullscreenDebug({state: "exiting", error: ""})
+	const webkitDocument = document as WebkitFullscreenDocument
+	if (document.exitFullscreen !== undefined && document.fullscreenElement !== null) {
+		await document.exitFullscreen()
+		return
+	}
+	const exit = webkitDocument.webkitExitFullscreen ?? webkitDocument.webkitCancelFullScreen
+	if (exit !== undefined && webkitDocument.webkitFullscreenElement !== null) await Promise.resolve(exit.call(document))
+}
+
+function fullscreenTargetCandidates(): Element[] {
+	const canvas = document.getElementById("bulk-canvas")
+	const body = document.body
+	const root = document.documentElement
+	const preferred = isAndroidBrowser() ? [canvas, root, body] : [root, canvas, body]
+	return uniqueElements(preferred.filter((item): item is Element => item instanceof Element))
+}
+
+function uniqueElements(elements: readonly Element[]): Element[] {
+	const seen = new Set<Element>()
+	const result: Element[] = []
+	for (const element of elements) {
+		if (seen.has(element)) continue
+		seen.add(element)
+		result.push(element)
+	}
+	return result
+}
+
+function isAndroidBrowser(): boolean {
+	const nav = navigator as Navigator & {userAgentData?: {platform?: string}}
+	return /android/i.test(`${nav.userAgent} ${nav.userAgentData?.platform ?? ""}`)
+}
+
+function isFullscreenOptionsError(error: unknown): boolean {
+	const text = errorMessage(error)
+	return /dictionary|navigationUI|parameter|argument|options|type/i.test(text)
+}
+
+function writeAppFullscreenDebug(patch: Partial<AppFullscreenDebugSnapshot>): void {
+	appFullscreenDebug = {
+		...appFullscreenDebug,
+		...patch,
+		updatedAt: Date.now(),
+	}
+}
+
 let hudNotificationAudioContext: AudioContext | null = null
 let hudNotificationSoundUnlockInstalled = false
 let hudNotificationLastLine = ""
@@ -401,7 +517,7 @@ class AppWebHud implements AppWebHudController {
 	#workspaceProcessLabel = "Bun processes"
 	#androidRtcClient: AndroidRtcClient | null = null
 	#androidControlStatusUntil = 0
-	#fullscreen = document.fullscreenElement !== null
+	#fullscreen = appFullscreenElement() !== null
 	#voiceClient: VoiceInputClient | null = null
 	#voiceStatus: VoiceInputStatus = "idle"
 	#voiceTransport: VoiceInputTransport = "idle"
@@ -539,13 +655,15 @@ class AppWebHud implements AppWebHudController {
 		this.#viewport.hud.addSurface(this.#fullscreenDock, (bounds) => this.#dockRect("fullscreen", bounds), {zIndex: HUD_DOCK_Z})
 
 		document.addEventListener("fullscreenchange", () => this.#handleFullscreenChange())
+		document.addEventListener("webkitfullscreenchange", () => this.#handleFullscreenChange())
 		document.addEventListener("dragover", this.#codexDragOver, {capture: true})
 		document.addEventListener("drop", this.#codexDrop, {capture: true})
 		document.addEventListener("dragleave", this.#codexDragLeave, {capture: true})
 		this.#connectTerminal()
+		if (readCodexVoiceP2PEnabled()) startVoiceRtcRelay()
 		void this.#loadTodo()
 		void this.#refreshWorkspaceProcesses()
-		void this.#checkVoiceService()
+		void this.#refreshVoiceServiceState()
 		;(globalThis as VoiceRtcDebugGlobal).__metaVoiceRtcDebug = readVoiceRtcDebugSnapshot
 		this.#updateVoiceHud()
 		onVoiceRtcDebug(() => {
@@ -1131,16 +1249,19 @@ class AppWebHud implements AppWebHudController {
 
 	async #toggleFullscreen(): Promise<void> {
 		try {
-			if (document.fullscreenElement === null) await document.documentElement.requestFullscreen()
-			else await document.exitFullscreen()
+			if (appFullscreenElement() === null) await requestAppFullscreen()
+			else await exitAppFullscreen()
 		} catch (error) {
+			writeAppFullscreenDebug({state: "failed", error: errorMessage(error)})
 			console.warn("fullscreen toggle failed:", error)
 		}
 		this.#handleFullscreenChange()
 	}
 
 	#handleFullscreenChange(): void {
-		const next = document.fullscreenElement !== null
+		const next = appFullscreenElement() !== null
+		if (next) writeAppFullscreenDebug({state: "active", error: ""})
+		else if (appFullscreenDebug.state !== "failed") writeAppFullscreenDebug({state: "idle", target: "", error: ""})
 		if (this.#fullscreen === next) return
 		this.#fullscreen = next
 		this.#fullscreenDock.requestRender()
@@ -1939,6 +2060,7 @@ class AppWebHud implements AppWebHudController {
 			recognitionTimeoutMs: () => readVoiceRecognitionTimeoutSeconds() * 1000,
 			language: "ru",
 			context: () => voiceContextWithTerminal(this.#terminal.pane.toText()),
+			wakeEnabled: () => !this.#shouldUseVoiceRtcRelayServiceProbe(),
 			...(readCodexVoiceP2PEnabled() ? {createAsrSocket: createVoiceRtcAsrSocket} : {}),
 			onTransport: (transport) => this.#handleVoiceTransport(transport),
 			onStatus: (status, detail) => this.#handleVoiceStatus(status, detail),
@@ -1980,10 +2102,14 @@ class AppWebHud implements AppWebHudController {
 				this.#flashVoiceHudError("Codex terminal не подключен")
 				return
 			}
-			const serviceOk = await this.#checkVoiceService()
-			if (!serviceOk) {
-				this.#flashVoiceHudError(this.#voiceServiceDetail)
-				return
+			if (this.#shouldUseVoiceRtcRelayServiceProbe()) {
+				this.#markVoiceRtcRelayServiceProbe()
+			} else {
+				const serviceOk = await this.#checkVoiceService()
+				if (!serviceOk) {
+					this.#flashVoiceHudError(this.#voiceServiceDetail)
+					return
+				}
 			}
 			await client.startDictation()
 		} catch (error) {
@@ -2115,6 +2241,25 @@ class AppWebHud implements AppWebHudController {
 		}, VOICE_METER_RENDER_MS)
 	}
 
+	async #refreshVoiceServiceState(): Promise<void> {
+		if (this.#shouldUseVoiceRtcRelayServiceProbe()) {
+			this.#markVoiceRtcRelayServiceProbe()
+			return
+		}
+		await this.#checkVoiceService()
+	}
+
+	#shouldUseVoiceRtcRelayServiceProbe(): boolean {
+		return readCodexVoiceP2PEnabled() && isVoiceRtcRemoteClient()
+	}
+
+	#markVoiceRtcRelayServiceProbe(): void {
+		this.#voiceServiceState = "ok"
+		this.#voiceServiceDetail = "ASR через P2P relay"
+		this.#voiceServiceCheckedAt = new Date()
+		this.#updateVoiceHud()
+	}
+
 	async #checkVoiceService(): Promise<boolean> {
 		if (this.#voiceServiceCheckInFlight) return this.#voiceServiceState === "ok"
 		this.#voiceServiceCheckInFlight = true
@@ -2157,6 +2302,10 @@ class AppWebHud implements AppWebHudController {
 
 	async #ensureVoiceAutoWake(): Promise<void> {
 		if (this.#voiceAutoWakePaused || this.#voiceAutoWakeInFlight) return
+		if (this.#shouldUseVoiceRtcRelayServiceProbe()) {
+			this.#markVoiceRtcRelayServiceProbe()
+			return
+		}
 		const client = this.#ensureVoiceClient()
 		if (client.active) return
 		this.#voiceAutoWakeInFlight = true
@@ -2392,10 +2541,14 @@ class AppWebHud implements AppWebHudController {
 			if (reportErrors) this.#flashVoiceHudError("Codex terminal не подключен")
 			return false
 		}
-		const serviceOk = await this.#checkVoiceService()
-		if (!serviceOk) {
-			if (reportErrors) this.#flashVoiceHudError(this.#voiceServiceDetail)
-			return false
+		if (this.#shouldUseVoiceRtcRelayServiceProbe()) {
+			this.#markVoiceRtcRelayServiceProbe()
+		} else {
+			const serviceOk = await this.#checkVoiceService()
+			if (!serviceOk) {
+				if (reportErrors) this.#flashVoiceHudError(this.#voiceServiceDetail)
+				return false
+			}
 		}
 		try {
 			await client.start()
@@ -4255,6 +4408,7 @@ function installHudNotificationSoundUnlock(): void {
 	const unlock = (): void => {
 		primeHudNotificationAudioElements()
 		primeHudNotificationAudioContext()
+		if (readCodexVoiceP2PEnabled()) primeVoiceRtcRelayAudio()
 	}
 	window.addEventListener("pointerdown", unlock, {capture: true})
 	window.addEventListener("keydown", unlock, {capture: true})

@@ -104,13 +104,23 @@ type VoiceRtcDebugGlobal = typeof globalThis & {__metaVoiceRtcDebug?: () => Voic
 export function createVoiceRtcAsrSocket(url: string, context: VoiceInputAsrSocketContext): VoiceInputSocket | null {
 	if (typeof RTCPeerConnection === "undefined" || typeof WebSocket === "undefined") return null
 	if (context.stream.getAudioTracks().length === 0) return null
-	ensureVoiceRtcRelay()
+	startVoiceRtcRelay()
 	return new VoiceRtcAsrSocket(url, context)
+}
+
+export function startVoiceRtcRelay(): void {
+	if (isVoiceRtcRemoteClient()) return
+	ensureVoiceRtcRelay()
 }
 
 export function primeVoiceRtcRelayAudio(): void {
 	if (typeof AudioContext === "undefined") return
+	if (isVoiceRtcRemoteClient()) return
 	ensureVoiceRtcRelay().primeAudioContext()
+}
+
+export function isVoiceRtcRemoteClient(): boolean {
+	return isLikelyAndroidBrowser()
 }
 
 class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
@@ -914,6 +924,18 @@ function signalingUrl(room: string, peerId: string): string {
 	url.searchParams.set("room", room)
 	url.searchParams.set("peer", peerId)
 	return url.toString()
+}
+
+type NavigatorWithUserAgentData = Navigator & {
+	userAgentData?: {
+		platform?: string
+	}
+}
+
+function isLikelyAndroidBrowser(): boolean {
+	if (typeof navigator === "undefined") return false
+	const nav = navigator as NavigatorWithUserAgentData
+	return /android/i.test(`${nav.userAgent} ${nav.userAgentData?.platform ?? ""}`)
 }
 
 function parseSignal(raw: string): VoiceRtcSignal | null {

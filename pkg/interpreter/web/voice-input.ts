@@ -28,6 +28,7 @@ type VoiceInputClientOptions = {
   recognitionTimeoutMs(): number
   language: string
   context(): string
+  wakeEnabled?(): boolean
   createAsrSocket?: (url: string, context: VoiceInputAsrSocketContext) => VoiceInputSocket | null
   onTransport?(transport: VoiceInputTransport): void
   onStatus(status: VoiceInputStatus, detail?: string): void
@@ -195,11 +196,13 @@ export class VoiceInputClient {
     this.#stopRequested = false
     this.#wakeMatched = false
     this.#resetCommitState()
-    this.#setStatus("connecting", this.options.wakeUrl())
+    const wakeEnabled = this.#wakeEnabled()
+    this.#setStatus("connecting", wakeEnabled ? this.options.wakeUrl() : this.options.url())
 
     try {
       await this.#startAudio()
-      await this.#startCommandRecognizer()
+      if (wakeEnabled) await this.#startCommandRecognizer()
+      else this.#setStatus("idle")
     } catch (error) {
       this.#setStatus("error", error instanceof Error ? error.message : String(error))
       this.#cleanup()
@@ -299,6 +302,10 @@ export class VoiceInputClient {
   }
 
   async #startCommandRecognizer(): Promise<void> {
+    if (!this.#wakeEnabled()) {
+      this.#setStatus("idle")
+      return
+    }
     await this.#connectCommand(this.options.wakeUrl())
     this.#sendCommand({
       type: "start",
@@ -853,6 +860,10 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     if (this.#asrTransport === transport) return
     this.#asrTransport = transport
     this.options.onTransport?.(transport)
+  }
+
+  #wakeEnabled(): boolean {
+    return this.options.wakeEnabled?.() ?? true
   }
 
   #recoverAsrFailure(error: unknown): void {
