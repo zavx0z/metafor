@@ -145,7 +145,7 @@ const ANTHROPOMORPH_BOT_MODEL_URL = "/models/bots.glb"
 const ANTHROPOMORPH_BOT_SCALE_MM = 260
 const ANTHROPOMORPH_BOT_STAGE_X_MM = 0
 const ANTHROPOMORPH_BOT_STAGE_Y_MM = 0
-const ANTHROPOMORPH_BOT_STAGE_Z_MM = 220
+const ANTHROPOMORPH_BOT_STAGE_Z_MM = 0
 const ANTHROPOMORPH_BOT_RENDER_WAKE_MS = 3000
 let activeLayoutSettings: AppWebLayoutSettings = { ...DEFAULT_APP_WEB_LAYOUT_SETTINGS }
 let activeRenderSettings: AppWebRenderSettings = { ...DEFAULT_APP_WEB_RENDER_SETTINGS }
@@ -1121,7 +1121,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const loadAnthropomorphBots = async (): Promise<void> => {
 		try {
-			const gltf = await new GLTFLoader().load(ANTHROPOMORPH_BOT_MODEL_URL, {convertToZUp: false})
+			const gltf = await new GLTFLoader().load(ANTHROPOMORPH_BOT_MODEL_URL)
 			if (disposed) return
 
 			const root = gltf.space
@@ -1143,8 +1143,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 			if (gltf.animations.length > 0) {
 				const mixer = new AnimationMixer(root)
+				const modelRoot = root.children[0] ?? root
 				gltf.animations.forEach((clip, index) => {
-					const localRoot = root.children[index] ?? root
+					const localRoot = modelRoot.children[index] ?? root
 					mixer.clipAction(clip, localRoot).play()
 				})
 				anthropomorphBotMixer = mixer
