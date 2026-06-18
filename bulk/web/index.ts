@@ -601,6 +601,10 @@ const createAnthropomorphBotUpMarker = (): LineSegments => {
 	return marker
 }
 
+const keepAnthropomorphBotUpright = (clip: {tracks: Array<{nodeName: string; type: string}>}): void => {
+	clip.tracks = clip.tracks.filter((track) => !(track.nodeName === "Hips" && track.type === "quaternion"))
+}
+
 type BulkHudSurfaceSlot = {
 	surface: UiSurfaceNode
 	layout: UiSurfaceLayoutFn
@@ -1192,6 +1196,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				const mixer = new AnimationMixer(root)
 				const modelRoot = root.children[0] ?? root
 				gltf.animations.forEach((clip, index) => {
+					keepAnthropomorphBotUpright(clip)
 					const localRoot = modelRoot.children[index] ?? root
 					mixer.clipAction(clip, localRoot).play()
 				})
