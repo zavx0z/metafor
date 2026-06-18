@@ -14,9 +14,11 @@ import {
 	Button,
 	ButtonVoice,
 	IconButton,
+	SliderControl,
 	Switcher,
 	TextField,
 	VoiceInputHud,
+	VoicePhraseSettings,
 	type ButtonVoiceSnapshot,
 	type VoiceInputHudDeactivationMode,
 	type VoiceInputHudPhraseGroupId,
@@ -3089,159 +3091,48 @@ class AppWebSettingsPane extends UiSurface {
 
 	#renderVoice(x: number, y: number, w: number): number {
 		y = this.#drawBooleanRow("Автоотправка", "Отправлять распознанный текст в Codex автоматически.", readCodexVoiceAutoSendEnabled(), x, y, w, (checked) => this.hud.setVoiceAutoSendEnabled(checked))
-		y = this.#drawNumberControl({
+		y = SliderControl(this, x, y, w, {
 			key: "voice-signal-volume",
 			label: "Звук микрофона",
 			value: readVoiceSignalVolume(),
 			min: 0,
 			max: MAX_VOICE_SIGNAL_VOLUME,
 			step: 0.1,
-			x,
-			y,
-			w,
 			format: (value) => `${Math.round(value * 100)}%`,
 			onChange: (value) => this.hud.setVoiceSignalVolume(Math.round(value * 20) / 20),
 		}) + 12
-		y = this.#drawNumberControl({
+		y = SliderControl(this, x, y, w, {
 			key: "voice-recognition-timeout",
 			label: "Тайм-аут распознавания",
 			value: readVoiceRecognitionTimeoutSeconds(),
 			min: MIN_VOICE_RECOGNITION_TIMEOUT_SECONDS,
 			max: MAX_VOICE_RECOGNITION_TIMEOUT_SECONDS,
 			step: 1,
-			x,
-			y,
-			w,
 			format: (value) => `${Math.round(value)} c`,
 			onChange: (value) => this.hud.setVoiceRecognitionTimeoutSeconds(value),
 		}) + 12
 		y = this.#drawDeactivationMode(x, y, w) + 12
-		y = this.#drawVoicePhraseGroups(x, y, w) + 12
+		y = VoicePhraseSettings(this, x, y, w, {
+			key: "settings-voice-phrases",
+			groups: this.hud.voicePhraseGroups(),
+			draftValue: (groupId) => this.#voicePhraseDrafts.get(groupId) ?? "",
+			onDraftChange: (groupId, value) => this.#voicePhraseDrafts.set(groupId, value),
+			onAddPhrase: (groupId, phrase) => this.hud.addVoicePhrase(groupId, phrase),
+			onRemovePhrase: (groupId, phrase) => this.hud.removeVoicePhrase(groupId, phrase),
+			onResetPhrases: (groupId) => this.hud.resetVoicePhrases(groupId),
+			onFuzzyChange: (groupId, value) => this.hud.setVoicePhraseFuzzyTolerance(groupId, value),
+		}) + 12
 		y = this.#drawBooleanRow("Сигнал агента", "Звук после окончания вывода агента.", this.hud.agentSoundEnabled(), x, y, w, (checked) => this.hud.setAgentSoundEnabled(checked))
-		return this.#drawNumberControl({
+		return SliderControl(this, x, y, w, {
 			key: "agent-sound-volume",
 			label: "Звук окончания",
 			value: this.hud.agentSoundVolume(),
 			min: 0,
 			max: MAX_HOST_TERMINAL_AGENT_SOUND_VOLUME,
 			step: 0.1,
-			x,
-			y,
-			w,
 			format: (value) => `${Math.round(value * 100)}%`,
 			onChange: (value) => this.hud.setAgentSoundVolume(value),
 		})
-	}
-
-	#drawVoicePhraseGroups(x: number, y: number, w: number): number {
-		this.drawText("Фразы", x, y, {fontPx: 11, material: this.materials.cyan, maxWidthPx: w, z: Z.TEXT})
-		y += 20
-		for (const group of this.hud.voicePhraseGroups()) y = this.#drawVoicePhraseGroup(group, x, y, w) + 12
-		return y
-	}
-
-	#drawVoicePhraseGroup(group: VoiceInputHudPhraseGroup, x: number, y: number, w: number): number {
-		const actionW = 28
-		this.drawText(group.title, x, y + 2, {
-			fontPx: 10,
-			material: this.materials.text,
-			maxWidthPx: Math.max(1, w - actionW - 8),
-			z: Z.TEXT,
-		})
-		IconButton(this, x + w - actionW, y - 1, actionW, 22, {
-			label: group.resetLabel,
-			iconSrc: uiIcons.restart,
-			variant: "text",
-			action: () => this.hud.resetVoicePhrases(group.id),
-		})
-		this.drawText(group.description, x, y + 18, {
-			fontPx: 8,
-			material: this.materials.muted,
-			maxWidthPx: w,
-			z: Z.TEXT,
-		})
-		y += 38
-		y = this.#drawNumberControl({
-			key: `voice-fuzzy:${group.id}`,
-			label: group.fuzzyLabel,
-			value: group.fuzzyValue,
-			min: 0,
-			max: 0.5,
-			step: 0.05,
-			x,
-			y,
-			w,
-			format: (value) => `${Math.round(value * 100)}%`,
-			onChange: (value) => this.hud.setVoicePhraseFuzzyTolerance(group.id, Math.round(value * 20) / 20),
-		}) + 6
-		const addW = 28
-		TextField(this, x, y, Math.max(1, w - addW - 6), 26, {
-			key: `settings-voice-phrase:${group.id}`,
-			value: this.#voicePhraseDraft(group.id),
-			placeholder: group.placeholder,
-			submitOnEnter: true,
-			onChange: (value) => this.#voicePhraseDrafts.set(group.id, value),
-			onSubmit: () => this.#submitVoicePhraseDraft(group.id),
-			sx: {fontSize: 10, borderRadius: 7, background: "bgInput", borderColor: "borderDim", color: "text"},
-		})
-		IconButton(this, x + w - addW, y, addW, 26, {
-			label: group.addLabel,
-			iconSrc: uiIcons.plus,
-			action: () => this.#submitVoicePhraseDraft(group.id),
-		})
-		y += 34
-		return this.#drawVoicePhraseChips(group, x, y, w)
-	}
-
-	#voicePhraseDraft(groupId: VoiceInputHudPhraseGroupId): string {
-		return this.#voicePhraseDrafts.get(groupId) ?? ""
-	}
-
-	#submitVoicePhraseDraft(groupId: VoiceInputHudPhraseGroupId): void {
-		const phrase = this.#voicePhraseDraft(groupId).replace(/\s+/g, " ").trim()
-		if (!phrase) return
-		this.hud.addVoicePhrase(groupId, phrase)
-		this.#voicePhraseDrafts.set(groupId, "")
-		this.requestRender()
-	}
-
-	#drawVoicePhraseChips(group: VoiceInputHudPhraseGroup, x: number, y: number, w: number): number {
-		const chipH = 20
-		const gap = 5
-		let cx = x
-		let cy = y
-		for (const phrase of group.phrases) {
-			const chipW = Math.min(w, Math.max(54, Math.ceil(this.measureText(phrase, 9)) + 28))
-			if (cx > x && cx + chipW > x + w) {
-				cx = x
-				cy += chipH + gap
-			}
-			this.drawRoundedRect(cx, cy, chipW, chipH, {
-				radius: 6,
-				fill: new Color(0.06, 0.12, 0.15, 0.58),
-				border: palette.borderDim,
-				borderWidth: 1,
-				z: Z.ELEMENT,
-			})
-			this.drawText(phrase, cx + 8, cy + 5, {
-				fontPx: 9,
-				material: this.materials.text,
-				maxWidthPx: Math.max(1, chipW - 26),
-				z: Z.TEXT,
-			})
-			this.drawText("x", cx + chipW - 14, cy + 5, {
-				fontPx: 9,
-				material: this.materials.muted,
-				maxWidthPx: 8,
-				z: Z.TEXT,
-			})
-			this.hit(cx, cy, chipW, chipH, () => this.hud.removeVoicePhrase(group.id, phrase), {
-				key: `settings-voice-phrase-remove:${group.id}:${phrase}`,
-				cursor: "pointer",
-			})
-			cx += chipW + gap
-		}
-		return cy + chipH
 	}
 
 	#drawSection(title: string, keys: readonly AppWebSettingKey[], x: number, y: number, w: number): number {
@@ -3259,16 +3150,13 @@ class AppWebSettingsPane extends UiSurface {
 		}
 		const min = typeof config.min === "number" ? config.min : 0
 		const max = typeof config.max === "number" ? config.max : Math.max(1, Number(config.defaultValue) * 2)
-		return this.#drawNumberControl({
+		return SliderControl(this, x, y, w, {
 			key: `app-web-setting:${key}`,
 			label: config.label,
 			value: Number(value),
 			min,
 			max,
 			step: config.step ?? 1,
-			x,
-			y,
-			w,
 			format: (next) => formatSettingValue(next, config.step),
 			onChange: (next) => this.hud.setSetting(key, next),
 		})
@@ -3294,72 +3182,6 @@ class AppWebSettingsPane extends UiSurface {
 			onChange,
 		})
 		return y + 42
-	}
-
-	#drawNumberControl(opts: {
-		key: string
-		label: string
-		value: number
-		min: number
-		max: number
-		step: number
-		x: number
-		y: number
-		w: number
-		format(value: number): string
-		onChange(value: number): void
-	}): number {
-		const min = Math.min(opts.min, opts.max)
-		const max = Math.max(opts.min, opts.max)
-		const value = clampNumber(Number.isFinite(opts.value) ? opts.value : min, min, max)
-		const range = Math.max(1, max - min)
-		const ratio = clampNumber((value - min) / range, 0, 1)
-		this.drawText(opts.label, opts.x, opts.y + 3, {
-			fontPx: 10,
-			material: this.materials.text,
-			maxWidthPx: Math.max(1, opts.w - 120),
-			z: Z.TEXT,
-		})
-		this.drawText(opts.format(value), opts.x + opts.w - 106, opts.y + 3, {
-			fontPx: 10,
-			material: this.materials.muted,
-			maxWidthPx: 52,
-			z: Z.TEXT,
-		})
-		const buttonW = 24
-		IconButton(this, opts.x + opts.w - 50, opts.y, buttonW, 22, {
-			label: `${opts.label}: меньше`,
-			iconSrc: uiIcons.minus,
-			action: () => this.#setNumberValue(value - opts.step, min, max, opts.onChange),
-		})
-		IconButton(this, opts.x + opts.w - 24, opts.y, buttonW, 22, {
-			label: `${opts.label}: больше`,
-			iconSrc: uiIcons.plus,
-			action: () => this.#setNumberValue(value + opts.step, min, max, opts.onChange),
-		})
-		const trackY = opts.y + 28
-		this.drawRoundedRect(opts.x, trackY, opts.w, 5, {radius: 3, fill: palette.borderDim, border: null, opacity: 0.42, z: Z.ELEMENT})
-		this.drawRoundedRect(opts.x, trackY, Math.max(3, opts.w * ratio), 5, {radius: 3, fill: palette.cyan, border: null, opacity: 0.62, z: Z.ELEMENT + 0.01})
-		const knobX = opts.x + opts.w * ratio
-		this.drawRoundedRect(knobX - 5, trackY - 4, 10, 13, {
-			radius: 5,
-			fill: palette.cyan,
-			border: palette.borderBright,
-			borderWidth: 1,
-			opacity: 0.86,
-			z: Z.ELEMENT + 0.04,
-		})
-		const setFromPointer = (localX: number): void => {
-			const next = min + ((localX - opts.x) / opts.w) * range
-			this.#setNumberValue(next, min, max, opts.onChange)
-		}
-		this.hit(opts.x - 4, opts.y + 22, opts.w + 8, 18, () => undefined, {
-			key: `${opts.key}:track`,
-			cursor: "pointer",
-			onPointerDown: (localX) => setFromPointer(localX),
-			onPointerMove: (localX) => setFromPointer(localX),
-		})
-		return opts.y + 46
 	}
 
 	#drawDeactivationMode(x: number, y: number, w: number): number {
@@ -3389,11 +3211,6 @@ class AppWebSettingsPane extends UiSurface {
 			})
 		}
 		return y + 56
-	}
-
-	#setNumberValue(value: number, min: number, max: number, onChange: (value: number) => void): void {
-		onChange(clampNumber(value, min, max))
-		this.requestRender()
 	}
 
 	#contentHeight(): number {

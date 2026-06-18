@@ -1,6 +1,7 @@
 import {UiSurface, button, input, palette, type UiSurfaceRect} from "@ui/elements"
 import {Color} from "@metafor/engine"
 import {ButtonVoice} from "./ButtonVoice.ts"
+import {SliderControl} from "./SliderControl.ts"
 import {Switcher} from "./Switcher.ts"
 
 export type VoiceInputHudStatus = "idle" | "connecting" | "waitingWake" | "listening" | "committing" | "error"
@@ -482,18 +483,17 @@ export class VoiceInputHud extends UiSurface {
   }
 
   #drawSignalVolumeControl(settings: VoiceInputHudSettings, x: number, y: number, w: number): number {
-    return this.#drawPercentControl({
+    return SliderControl(this, x, y, w, {
       key: "voice-signal-volume",
       label: settings.signalVolumeLabel,
       value: settings.signalVolumeValue,
       downLabel: settings.signalVolumeDownLabel,
       upLabel: settings.signalVolumeUpLabel,
       step: 0.1,
-      maxValue: settings.signalVolumeMaxValue,
-      x,
-      y,
-      w,
-      onChange: (value) => this.options.onSignalVolumeChange(value),
+      max: settings.signalVolumeMaxValue,
+      layout: "track",
+      format: (value) => `${Math.round(value * 100)}%`,
+      onChange: (value) => this.options.onSignalVolumeChange(Math.round(value * 20) / 20),
     })
   }
 
@@ -574,7 +574,7 @@ export class VoiceInputHud extends UiSurface {
       y = this.#drawDeactivationControls(settings, left, right, y, maxY) + 10
     }
     y = this.#drawReceivedLines(group, left, right, y, maxY)
-    y = this.#drawPercentControl({
+    y = SliderControl(this, left, y, Math.max(1, right - left), {
       key: `voice-fuzzy:${group.id}`,
       label: group.fuzzyLabel,
       value: group.fuzzyValue,
@@ -584,11 +584,10 @@ export class VoiceInputHud extends UiSurface {
       rangeStartLabel: settings.fuzzyStrictLabel,
       rangeEndLabel: settings.fuzzyLooseLabel,
       step: 0.05,
-      maxValue: 0.5,
-      x: left,
-      y,
-      w: Math.max(1, right - left),
-      onChange: (value) => this.options.onPhraseFuzzyChange(group.id, value),
+      max: 0.5,
+      layout: "track",
+      format: (value) => `${Math.round(value * 100)}%`,
+      onChange: (value) => this.options.onPhraseFuzzyChange(group.id, Math.round(value * 20) / 20),
     }) + 10
     const inputW = Math.max(1, right - left - 66)
     input(this, left, y, inputW, 22, {
@@ -655,20 +654,18 @@ export class VoiceInputHud extends UiSurface {
       })
       cx += buttonW + gap
     }
-    return this.#drawSecondsControl({
+    return SliderControl(this, left, rowY + buttonH + 10, w, {
       key: "voice-recognition-timeout",
       label: settings.recognitionTimeoutLabel,
       value: settings.recognitionTimeoutValue,
-      minValue: settings.recognitionTimeoutMinValue,
-      maxValue: settings.recognitionTimeoutMaxValue,
-      unitLabel: settings.recognitionTimeoutUnitLabel,
+      min: settings.recognitionTimeoutMinValue,
+      max: settings.recognitionTimeoutMaxValue,
       downLabel: settings.recognitionTimeoutDownLabel,
       upLabel: settings.recognitionTimeoutUpLabel,
       step: 1,
-      x: left,
-      y: rowY + buttonH + 10,
-      w,
-      onChange: (value) => this.options.onRecognitionTimeoutChange(value),
+      layout: "track",
+      format: (value) => `${Math.round(value)} ${settings.recognitionTimeoutUnitLabel}`,
+      onChange: (value) => this.options.onRecognitionTimeoutChange(Math.round(value)),
     })
   }
 
@@ -694,239 +691,6 @@ export class VoiceInputHud extends UiSurface {
       y += 14
     }
     return y + 6
-  }
-
-  #drawPercentControl(opts: {
-    key: string
-    label: string
-    value: number
-    downLabel: string
-    upLabel: string
-    hintLabel?: string
-    rangeStartLabel?: string
-    rangeEndLabel?: string
-    step: number
-    maxValue?: number
-    x: number
-    y: number
-    w: number
-    onChange(value: number): void
-  }): number {
-    const maxValue = Math.max(0.01, opts.maxValue ?? 1)
-    const value = clampNumber(opts.value, 0, maxValue)
-    const ratio = value / maxValue
-    const percent = Math.round(value * 100)
-    this.drawText(opts.label, opts.x, opts.y, {
-      fontPx: 9,
-      material: this.materials.muted,
-      maxWidthPx: Math.max(1, opts.w - 52),
-      z: 0.46,
-    })
-    this.drawText(`${percent}%`, opts.x + opts.w - 45, opts.y, {
-      fontPx: 9,
-      material: this.materials.text,
-      maxWidthPx: 45,
-      z: 0.46,
-    })
-
-    const rowY = opts.y + (opts.hintLabel === undefined ? 16 : 30)
-    if (opts.hintLabel !== undefined) {
-      this.drawText(opts.hintLabel, opts.x, opts.y + 14, {
-        fontPx: 8,
-        material: this.materials.muted,
-        maxWidthPx: Math.max(1, opts.w),
-        z: 0.46,
-      })
-    }
-    const buttonW = 28
-    button(this, opts.x, rowY, buttonW, 22, {
-      key: `${opts.key}:down`,
-      children: "-",
-      tooltip: opts.downLabel,
-      onClick: () => this.#setPercentValue(value - opts.step, maxValue, opts.onChange),
-      style: {
-        background: "rgba(38, 49, 66, 0.42)",
-        borderColor: "borderDim",
-        borderRadius: 6,
-        color: "muted",
-        fontSize: 12,
-      },
-    })
-    button(this, opts.x + opts.w - buttonW, rowY, buttonW, 22, {
-      key: `${opts.key}:up`,
-      children: "+",
-      tooltip: opts.upLabel,
-      onClick: () => this.#setPercentValue(value + opts.step, maxValue, opts.onChange),
-      style: {
-        background: "rgba(38, 49, 66, 0.42)",
-        borderColor: "borderDim",
-        borderRadius: 6,
-        color: "muted",
-        fontSize: 12,
-      },
-    })
-
-    const trackX = opts.x + buttonW + 10
-    const trackW = Math.max(1, opts.w - buttonW * 2 - 20)
-    const trackY = rowY + 8
-    this.drawRoundedRect(trackX, trackY, trackW, 6, {
-      radius: 3,
-      fill: fade(palette.borderDim, 0.44),
-      border: null,
-      z: 0.16,
-    })
-    this.drawRoundedRect(trackX, trackY, Math.max(3, trackW * ratio), 6, {
-      radius: 3,
-      fill: fade(palette.cyan, 0.64),
-      border: null,
-      z: 0.18,
-    })
-    const knobX = trackX + trackW * ratio
-    this.drawRoundedRect(knobX - 5, trackY - 4, 10, 14, {
-      radius: 5,
-      fill: fade(palette.cyan, 0.82),
-      border: fade(palette.text, 0.24),
-      borderWidth: 1,
-      z: 0.22,
-    })
-    for (const tick of [0, 0.25, 0.5, 0.75, 1]) {
-      const tx = trackX + trackW * tick
-      this.drawRect(tx, trackY + 10, 1, 3, fade(palette.borderDim, 0.68), 0.18)
-    }
-    if (opts.rangeStartLabel !== undefined || opts.rangeEndLabel !== undefined) {
-      const labelY = rowY + 27
-      if (opts.rangeStartLabel !== undefined) {
-        this.drawText(opts.rangeStartLabel, trackX, labelY, {
-          fontPx: 8,
-          material: this.materials.muted,
-          maxWidthPx: Math.max(1, trackW / 2 - 4),
-          z: 0.46,
-        })
-      }
-      if (opts.rangeEndLabel !== undefined) {
-        const endW = Math.max(1, trackW / 2 - 4)
-        this.drawText(opts.rangeEndLabel, trackX + trackW - endW, labelY, {
-          fontPx: 8,
-          material: this.materials.muted,
-          maxWidthPx: endW,
-          z: 0.46,
-        })
-      }
-    }
-    const setFromPointer = (localX: number): void => this.#setPercentValue(((localX - trackX) / trackW) * maxValue, maxValue, opts.onChange)
-    this.hit(trackX - 4, rowY, trackW + 8, 22, () => undefined, {
-      key: `${opts.key}:track`,
-      cursor: "pointer",
-      onPointerDown: (localX) => setFromPointer(localX),
-      onPointerMove: (localX) => setFromPointer(localX),
-    })
-    return rowY + (opts.rangeStartLabel === undefined && opts.rangeEndLabel === undefined ? 22 : 39)
-  }
-
-  #drawSecondsControl(opts: {
-    key: string
-    label: string
-    value: number
-    minValue: number
-    maxValue: number
-    unitLabel: string
-    downLabel: string
-    upLabel: string
-    step: number
-    x: number
-    y: number
-    w: number
-    onChange(value: number): void
-  }): number {
-    const minValue = Math.min(opts.minValue, opts.maxValue)
-    const maxValue = Math.max(opts.minValue, opts.maxValue)
-    const value = clampNumber(opts.value, minValue, maxValue)
-    const range = Math.max(1, maxValue - minValue)
-    const ratio = (value - minValue) / range
-    this.drawText(opts.label, opts.x, opts.y, {
-      fontPx: 9,
-      material: this.materials.muted,
-      maxWidthPx: Math.max(1, opts.w - 52),
-      z: 0.46,
-    })
-    this.drawText(`${Math.round(value)} ${opts.unitLabel}`, opts.x + opts.w - 45, opts.y, {
-      fontPx: 9,
-      material: this.materials.text,
-      maxWidthPx: 45,
-      z: 0.46,
-    })
-
-    const rowY = opts.y + 16
-    const buttonW = 28
-    button(this, opts.x, rowY, buttonW, 22, {
-      key: `${opts.key}:down`,
-      children: "-",
-      tooltip: opts.downLabel,
-      onClick: () => this.#setNumberValue(value - opts.step, minValue, maxValue, opts.onChange),
-      style: {
-        background: "rgba(38, 49, 66, 0.42)",
-        borderColor: "borderDim",
-        borderRadius: 6,
-        color: "muted",
-        fontSize: 12,
-      },
-    })
-    button(this, opts.x + opts.w - buttonW, rowY, buttonW, 22, {
-      key: `${opts.key}:up`,
-      children: "+",
-      tooltip: opts.upLabel,
-      onClick: () => this.#setNumberValue(value + opts.step, minValue, maxValue, opts.onChange),
-      style: {
-        background: "rgba(38, 49, 66, 0.42)",
-        borderColor: "borderDim",
-        borderRadius: 6,
-        color: "muted",
-        fontSize: 12,
-      },
-    })
-
-    const trackX = opts.x + buttonW + 10
-    const trackW = Math.max(1, opts.w - buttonW * 2 - 20)
-    const trackY = rowY + 8
-    this.drawRoundedRect(trackX, trackY, trackW, 6, {
-      radius: 3,
-      fill: fade(palette.borderDim, 0.44),
-      border: null,
-      z: 0.16,
-    })
-    this.drawRoundedRect(trackX, trackY, Math.max(3, trackW * ratio), 6, {
-      radius: 3,
-      fill: fade(palette.cyan, 0.64),
-      border: null,
-      z: 0.18,
-    })
-    const knobX = trackX + trackW * ratio
-    this.drawRoundedRect(knobX - 5, trackY - 4, 10, 14, {
-      radius: 5,
-      fill: fade(palette.cyan, 0.82),
-      border: fade(palette.text, 0.24),
-      borderWidth: 1,
-      z: 0.22,
-    })
-    const setFromPointer = (localX: number): void => this.#setNumberValue(minValue + ((localX - trackX) / trackW) * range, minValue, maxValue, opts.onChange)
-    this.hit(trackX - 4, rowY, trackW + 8, 22, () => undefined, {
-      key: `${opts.key}:track`,
-      cursor: "pointer",
-      onPointerDown: (localX) => setFromPointer(localX),
-      onPointerMove: (localX) => setFromPointer(localX),
-    })
-    return rowY + 22
-  }
-
-  #setPercentValue(value: number, maxValue: number, onChange: (value: number) => void): void {
-    const stepped = Math.round(clampNumber(value, 0, maxValue) * 20) / 20
-    onChange(stepped)
-    this.requestRender()
-  }
-
-  #setNumberValue(value: number, minValue: number, maxValue: number, onChange: (value: number) => void): void {
-    onChange(Math.round(clampNumber(value, minValue, maxValue)))
-    this.requestRender()
   }
 
   #drawDebugTab(lines: readonly string[], x: number, y: number, w: number, maxY: number): void {
