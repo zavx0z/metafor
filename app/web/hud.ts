@@ -660,6 +660,7 @@ class AppWebHud implements AppWebHudController {
 		document.addEventListener("drop", this.#codexDrop, {capture: true})
 		document.addEventListener("dragleave", this.#codexDragLeave, {capture: true})
 		this.#connectTerminal()
+		if (!this.#androidDocked) this.#connectAndroidRtc()
 		if (readCodexVoiceP2PEnabled()) startVoiceRtcRelay()
 		void this.#loadTodo()
 		void this.#refreshWorkspaceProcesses()

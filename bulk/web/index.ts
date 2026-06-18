@@ -18,14 +18,19 @@ import {
 import {
 	BufferAttribute,
 	BufferGeometry,
+	BoxGeometry,
 	Color,
 	GLTFLoader,
 	GridHelper,
+	ImageMaterial,
 	LineGlowMaterial,
 	LineSegments,
 	Light,
 	Matrix4,
+	Mesh,
+	MeshBasicMaterial,
 	Object3D,
+	PlaneGeometry,
 	Quaternion,
 	Renderer,
 	SkinnedMesh,
@@ -147,6 +152,12 @@ const ANTHROPOMORPH_BOT_STAGE_X_MM = 0
 const ANTHROPOMORPH_BOT_STAGE_Y_MM = 0
 const ANTHROPOMORPH_BOT_STAGE_Z_MM = 0
 const ANTHROPOMORPH_BOT_RENDER_WAKE_MS = 3000
+const BOT_WORK_PHONE_WIDTH = 12
+const BOT_WORK_PHONE_HEIGHT = 24
+const BOT_WORK_PHONE_DEPTH = 1.6
+const BOT_FLOOR_PHONE_SCALE = 10
+const BOT_FLOOR_PHONE_Y_MM = -95
+const ANDROID_RTC_FRAME_SRC = "metafor:app-web-android-rtc-frame"
 let activeLayoutSettings: AppWebLayoutSettings = { ...DEFAULT_APP_WEB_LAYOUT_SETTINGS }
 let activeRenderSettings: AppWebRenderSettings = { ...DEFAULT_APP_WEB_RENDER_SETTINGS }
 let levelResolver: LevelResolver = createLevelResolver(
@@ -345,6 +356,181 @@ const detachObject = (object: Object3D): void => {
 	if (!object.parent) return
 	object.parent.children = object.parent.children.filter((child) => child !== object)
 	object.parent = null
+}
+
+const createChamferedRectPrismGeometry = (width: number, height: number, depth: number, chamfer: number): BufferGeometry => {
+	const halfW = width / 2
+	const halfH = height / 2
+	const halfD = depth / 2
+	const c = Math.max(0, Math.min(chamfer, halfW, halfH))
+	const points = [
+		{x: -halfW + c, y: -halfH},
+		{x: halfW - c, y: -halfH},
+		{x: halfW, y: -halfH + c},
+		{x: halfW, y: halfH - c},
+		{x: halfW - c, y: halfH},
+		{x: -halfW + c, y: halfH},
+		{x: -halfW, y: halfH - c},
+		{x: -halfW, y: -halfH + c},
+	]
+	const vertices: number[] = []
+	const normals: number[] = []
+	const uvs: number[] = []
+	const indices: number[] = []
+
+	const addVertex = (x: number, y: number, z: number, nx: number, ny: number, nz: number): number => {
+		const index = vertices.length / 3
+		vertices.push(x, y, z)
+		normals.push(nx, ny, nz)
+		uvs.push((x + halfW) / width, 1 - (y + halfH) / height)
+		return index
+	}
+
+	const frontCenter = addVertex(0, 0, halfD, 0, 0, 1)
+	const front = points.map((point) => addVertex(point.x, point.y, halfD, 0, 0, 1))
+	for (let index = 0; index < front.length; index++) {
+		indices.push(frontCenter, front[index]!, front[(index + 1) % front.length]!)
+	}
+
+	const backCenter = addVertex(0, 0, -halfD, 0, 0, -1)
+	const back = points.map((point) => addVertex(point.x, point.y, -halfD, 0, 0, -1))
+	for (let index = 0; index < back.length; index++) {
+		indices.push(backCenter, back[(index + 1) % back.length]!, back[index]!)
+	}
+
+	for (let index = 0; index < points.length; index++) {
+		const current = points[index]!
+		const next = points[(index + 1) % points.length]!
+		const edgeX = next.x - current.x
+		const edgeY = next.y - current.y
+		const length = Math.hypot(edgeX, edgeY) || 1
+		const nx = edgeY / length
+		const ny = -edgeX / length
+		const a = addVertex(current.x, current.y, halfD, nx, ny, 0)
+		const b = addVertex(current.x, current.y, -halfD, nx, ny, 0)
+		const cIndex = addVertex(next.x, next.y, halfD, nx, ny, 0)
+		const d = addVertex(next.x, next.y, -halfD, nx, ny, 0)
+		indices.push(a, b, cIndex)
+		indices.push(cIndex, b, d)
+	}
+
+	const geometry = new BufferGeometry()
+	geometry.setIndex(new BufferAttribute(new Uint16Array(indices), 1))
+	geometry.setAttribute("position", new BufferAttribute(new Float32Array(vertices), 3))
+	geometry.setAttribute("normal", new BufferAttribute(new Float32Array(normals), 3))
+	geometry.setAttribute("uv", new BufferAttribute(new Float32Array(uvs), 2))
+	return geometry
+}
+
+const createBotWorkPhone = (accent: Color, onTextureChange: () => void): Object3D => {
+	const root = new Object3D()
+	root.name = "BotWorkPhone"
+	const bodyGeometry = createChamferedRectPrismGeometry(
+		BOT_WORK_PHONE_WIDTH,
+		BOT_WORK_PHONE_HEIGHT,
+		BOT_WORK_PHONE_DEPTH,
+		1.7,
+	)
+	const body = new Mesh(
+		bodyGeometry,
+		new MeshBasicMaterial({color: new Color(0.011, 0.014, 0.02)}),
+	)
+	body.name = "BotWorkPhone:body"
+	body.frustumCulled = false
+	root.add(body)
+
+	const screenWidth = BOT_WORK_PHONE_WIDTH - 1.8
+	const screenHeight = BOT_WORK_PHONE_HEIGHT - 3
+	const screenBack = new Mesh(
+		new PlaneGeometry({width: screenWidth, height: screenHeight}),
+		new MeshBasicMaterial({color: new Color(0.03 + accent.r * 0.12, 0.04 + accent.g * 0.12, 0.055 + accent.b * 0.12)}),
+	)
+	screenBack.name = "BotWorkPhone:screen-bg"
+	screenBack.position.y = -0.35
+	screenBack.position.z = BOT_WORK_PHONE_DEPTH / 2 + 0.055
+	screenBack.frustumCulled = false
+	screenBack.updateMatrix()
+	root.add(screenBack)
+
+	const screen = new Mesh(
+		new PlaneGeometry({width: screenWidth, height: screenHeight}),
+		new ImageMaterial({
+			src: ANDROID_RTC_FRAME_SRC,
+			fit: "cover",
+			boxAspect: screenWidth / screenHeight,
+			onTextureChange,
+		}),
+	)
+	screen.name = "BotWorkPhone:screen"
+	screen.position.y = -0.35
+	screen.position.z = BOT_WORK_PHONE_DEPTH / 2 + 0.08
+	screen.frustumCulled = false
+	screen.updateMatrix()
+	root.add(screen)
+
+	const speaker = new Mesh(
+		new BoxGeometry({width: 4, height: 0.32, depth: 0.14}),
+		new MeshBasicMaterial({color: new Color(0.006, 0.008, 0.012)}),
+	)
+	speaker.name = "BotWorkPhone:speaker"
+	speaker.position.set(0, BOT_WORK_PHONE_HEIGHT / 2 - 1.25, BOT_WORK_PHONE_DEPTH / 2 + 0.12)
+	speaker.frustumCulled = false
+	speaker.updateMatrix()
+	root.add(speaker)
+
+	const frontCamera = new Mesh(
+		new SphereGeometry({radius: 0.32, widthSegments: 6, heightSegments: 4}),
+		new MeshBasicMaterial({color: new Color(0.004, 0.007, 0.012)}),
+	)
+	frontCamera.name = "BotWorkPhone:front-camera"
+	frontCamera.position.set(BOT_WORK_PHONE_WIDTH / 2 - 1.65, BOT_WORK_PHONE_HEIGHT / 2 - 1.28, BOT_WORK_PHONE_DEPTH / 2 + 0.18)
+	frontCamera.frustumCulled = false
+	frontCamera.updateMatrix()
+	root.add(frontCamera)
+
+	const backCamera = new Mesh(
+		new SphereGeometry({radius: 0.55, widthSegments: 7, heightSegments: 5}),
+		new MeshBasicMaterial({color: new Color(0.005, 0.007, 0.011)}),
+	)
+	backCamera.name = "BotWorkPhone:back-camera"
+	backCamera.position.set(-BOT_WORK_PHONE_WIDTH / 2 + 1.8, BOT_WORK_PHONE_HEIGHT / 2 - 2.1, -BOT_WORK_PHONE_DEPTH / 2 - 0.14)
+	backCamera.frustumCulled = false
+	backCamera.updateMatrix()
+	root.add(backCamera)
+
+	const wireframe = new LineSegments(
+		bodyGeometry.toWireframe(),
+		new LineGlowMaterial({
+			color: accent,
+			glowColor: new Color(accent.r, accent.g, accent.b, 0.22),
+			glowIntensity: 0.7,
+			opacity: 0.72,
+		}),
+	)
+	wireframe.name = "BotWorkPhone:outline"
+	wireframe.frustumCulled = false
+	root.add(wireframe)
+	return root
+}
+
+const createBotFloorPhones = (onTextureChange: () => void): Object3D => {
+	const root = new Object3D()
+	root.name = "BotFloorPhones"
+	for (const [index, sideSign] of ([-1, 1] as const).entries()) {
+		const phone = createBotWorkPhone(index === 0 ? THEME_PRIMARY : new Color(1, 0.48, 0.34), onTextureChange)
+		phone.name = `BotFloorPhone:${index + 1}`
+		phone.position.set(
+			sideSign * 105,
+			BOT_FLOOR_PHONE_Y_MM,
+			getFloorZ() + BOT_WORK_PHONE_DEPTH * BOT_FLOOR_PHONE_SCALE * 0.5 + 1,
+		)
+		phone.rotation.z = sideSign * 0.22
+		phone.scale.set(BOT_FLOOR_PHONE_SCALE, BOT_FLOOR_PHONE_SCALE, BOT_FLOOR_PHONE_SCALE)
+		phone.updateMatrix()
+		root.add(phone)
+	}
+	root.updateMatrix()
+	return root
 }
 
 const readObjectWorldPosition = (object: Object3D, target: Vector3): Vector3 => {
@@ -1080,6 +1266,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	let anthropomorphBotRoot: Object3D | null = null
 	let anthropomorphBotMixer: AnimationMixer | null = null
 	let anthropomorphBotSkinnedMeshes: SkinnedMesh[] = []
+	let botFloorPhonesRoot: Object3D | null = null
 
 	const shellRecords = new Map<string, ShellRenderRecord>()
 	const fieldRecords = new Map<string, FieldRenderRecord>()
@@ -1118,6 +1305,13 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		frameHandle = requestAnimationFrame(animate)
 	}
 	let hudRuntime: BulkViewportHudRuntime
+
+	const installBotFloorPhones = (): void => {
+		const root = createBotFloorPhones(() => requestRenderLoop(INPUT_RENDER_WAKE_MS))
+		botFloorPhonesRoot = root
+		space.add(root)
+		requestRenderLoop(INPUT_RENDER_WAKE_MS)
+	}
 
 	const loadAnthropomorphBots = async (): Promise<void> => {
 		try {
@@ -2418,6 +2612,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	hudRuntime = new BulkViewportHudRuntime(options.canvas, renderer, viewPoint, uiFont, requestRenderLoop)
 	hudRuntime.handleSize(options.width, options.height)
+	installBotFloorPhones()
 	void loadAnthropomorphBots()
 	requestRenderLoop()
 
@@ -2438,6 +2633,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			document.removeEventListener("mousemove", wakeRenderFromDocumentMouseMove)
 			document.removeEventListener("mouseup", wakeRenderFromDocumentMouseUp)
 			setHoveredPickTarget(null)
+			if (botFloorPhonesRoot !== null) detachObject(botFloorPhonesRoot)
+			botFloorPhonesRoot = null
 			if (anthropomorphBotRoot !== null) detachObject(anthropomorphBotRoot)
 			anthropomorphBotRoot = null
 			anthropomorphBotMixer = null
