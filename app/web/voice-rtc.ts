@@ -58,7 +58,8 @@ const VOICE_RTC_RELAY_PEER_PREFIX = "voice-relay"
 const VOICE_RTC_APP_PEER_PREFIX = "app-web-voice"
 const VOICE_RTC_CONNECT_TIMEOUT_MS = 2500
 const VOICE_RTC_MEDIA_TIMEOUT_MS = 1800
-const VOICE_RTC_ASR_TEXT_TIMEOUT_MS = 4200
+const VOICE_RTC_ASR_TEXT_TIMEOUT_MS = 18_000
+const VOICE_RTC_DEBUG_POST_MIN_MS = 1000
 const TARGET_RELAY_SAMPLE_RATE = 16_000
 const PCM_FLUSH_BYTES = 4096
 const PCM_FLUSH_MS = 120
@@ -83,6 +84,8 @@ let voiceRtcDebug: VoiceRtcDebugSnapshot = {
 	updatedAt: 0,
 }
 const voiceRtcDebugListeners = new Set<() => void>()
+let voiceRtcDebugPostTimer: number | null = null
+let voiceRtcDebugLastPostedAt = 0
 
 export function readVoiceRtcDebugSnapshot(): VoiceRtcDebugSnapshot {
 	return {...voiceRtcDebug}
@@ -947,6 +950,22 @@ function updateVoiceRtcDebug(patch: Partial<VoiceRtcDebugSnapshot>): void {
 		updatedAt: Date.now(),
 	}
 	for (const listener of voiceRtcDebugListeners) listener()
+	scheduleVoiceRtcDebugPost()
+}
+
+function scheduleVoiceRtcDebugPost(): void {
+	if (voiceRtcDebugPostTimer !== null || typeof fetch === "undefined") return
+	const delay = Math.max(0, VOICE_RTC_DEBUG_POST_MIN_MS - (Date.now() - voiceRtcDebugLastPostedAt))
+	voiceRtcDebugPostTimer = window.setTimeout(() => {
+		voiceRtcDebugPostTimer = null
+		voiceRtcDebugLastPostedAt = Date.now()
+		void fetch("/hud/voice/rtc-debug", {
+			method: "POST",
+			headers: {"content-type": "application/json"},
+			body: JSON.stringify(voiceRtcDebug),
+			keepalive: true,
+		}).catch(() => {})
+	}, delay)
 }
 
 function binaryDataToArrayBuffer(data: ArrayBuffer | Blob | ArrayBufferView<ArrayBuffer>): ArrayBuffer | null {

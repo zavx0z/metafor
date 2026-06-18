@@ -47,6 +47,22 @@ type InterpreterVoiceSettingsPayload = {
 	origin?: string
 	values?: Record<string, string>
 }
+type VoiceRtcDebugPayload = {
+	state: string
+	appPeerId: string
+	relayPeerId: string
+	sampleRate: number
+	localAudioBytes: number
+	localAudioRms: number
+	relayAudioBytes: number
+	relayAudioRms: number
+	asrMessages: number
+	asrTextMessages: number
+	lastAsrType: string
+	lastAsrText: string
+	fallbackReason: string
+	updatedAt: number
+}
 type AndroidControlCommand =
 	| {type: "tap"; x: number; y: number}
 	| {type: "swipe"; x1: number; y1: number; x2: number; y2: number; durationMs?: number}
@@ -220,6 +236,16 @@ const server = serve<AppWebSocketData>({
 			}
 			logHttp(req, "voice", 405, started, "method not allowed")
 			return new Response("Method Not Allowed", {status: 405})
+		},
+		"/hud/voice/rtc-debug": async (req: Request) => {
+			const started = Date.now()
+			if (req.method !== "POST") {
+				logHttp(req, "voice.rtc", 405, started, "method not allowed")
+				return new Response("Method Not Allowed", {status: 405})
+			}
+			const response = await writeVoiceRtcDebugResponse(req)
+			if (response.status >= 400) logHttp(req, "voice.rtc", response.status, started)
+			return response
 		},
 		"/hud/android/control": async (req: Request) => {
 			const started = Date.now()
@@ -571,6 +597,15 @@ async function writeInterpreterVoiceSettingsResponse(req: Request): Promise<Resp
 	}
 }
 
+async function writeVoiceRtcDebugResponse(req: Request): Promise<Response> {
+	const parsed = await readJsonObject(req)
+	if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
+	const payload = asVoiceRtcDebugPayload(parsed.body)
+	if (payload === null) return jsonResponse({ok: false, error: "invalid voice rtc debug payload"}, 400)
+	appLog("VOICE", "rtc", formatVoiceRtcDebug(payload), voiceRtcDebugLogTone(payload))
+	return jsonResponse({ok: true})
+}
+
 async function broadcastAndroidControlResponse(req: Request, started = Date.now()): Promise<Response> {
 	const parsed = await readJsonObject(req)
 	if (parsed.error !== undefined) {
@@ -744,6 +779,48 @@ function asVoiceSettingsValues(value: unknown): Record<string, string> | null {
 	return next
 }
 
+function asVoiceRtcDebugPayload(value: Record<string, unknown>): VoiceRtcDebugPayload | null {
+	return {
+		state: stringFromUnknown(value["state"]),
+		appPeerId: stringFromUnknown(value["appPeerId"]),
+		relayPeerId: stringFromUnknown(value["relayPeerId"]),
+		sampleRate: finiteNumber(value["sampleRate"]) ?? 0,
+		localAudioBytes: finiteNumber(value["localAudioBytes"]) ?? 0,
+		localAudioRms: finiteNumber(value["localAudioRms"]) ?? 0,
+		relayAudioBytes: finiteNumber(value["relayAudioBytes"]) ?? 0,
+		relayAudioRms: finiteNumber(value["relayAudioRms"]) ?? 0,
+		asrMessages: finiteNumber(value["asrMessages"]) ?? 0,
+		asrTextMessages: finiteNumber(value["asrTextMessages"]) ?? 0,
+		lastAsrType: stringFromUnknown(value["lastAsrType"]),
+		lastAsrText: stringFromUnknown(value["lastAsrText"]),
+		fallbackReason: stringFromUnknown(value["fallbackReason"]),
+		updatedAt: finiteNumber(value["updatedAt"]) ?? 0,
+	}
+}
+
+function stringFromUnknown(value: unknown): string {
+	return typeof value === "string" ? value : ""
+}
+
+function formatVoiceRtcDebug(payload: VoiceRtcDebugPayload): string {
+	const localRms = Math.round(payload.localAudioRms * 1000) / 10
+	const relayRms = Math.round(payload.relayAudioRms * 1000) / 10
+	return [
+		`state=${compactLogValue(payload.state || "-")}`,
+		`local=${formatLogBytes(payload.localAudioBytes)} rms=${localRms}%`,
+		`relay=${formatLogBytes(payload.relayAudioBytes)} rms=${relayRms}% rate=${payload.sampleRate || "-"}`,
+		`asr=${payload.asrMessages}/${payload.asrTextMessages} type=${compactLogValue(payload.lastAsrType || "-")}`,
+		payload.lastAsrText ? `text="${compactLogValue(payload.lastAsrText, 90)}"` : "text=-",
+		payload.fallbackReason ? `fallback="${compactLogValue(payload.fallbackReason, 90)}"` : "fallback=-",
+	].join(" ")
+}
+
+function voiceRtcDebugLogTone(payload: VoiceRtcDebugPayload): AppLogTone {
+	if (payload.state === "fallback" || payload.fallbackReason.startsWith("ASR text timeout") || payload.fallbackReason.startsWith("relay")) return "yellow"
+	if (payload.asrTextMessages > 0) return "green"
+	return "magenta"
+}
+
 function asAndroidControlCommand(value: Record<string, unknown>): AndroidControlCommand | null {
 	const type = value["type"]
 	if (type === "tap") {
@@ -773,6 +850,18 @@ function asAndroidControlCommand(value: Record<string, unknown>): AndroidControl
 
 function finiteNumber(value: unknown): number | null {
 	return typeof value === "number" && Number.isFinite(value) ? value : null
+}
+
+function formatLogBytes(value: number): string {
+	if (!Number.isFinite(value) || value <= 0) return "0B"
+	if (value < 1024) return `${Math.round(value)}B`
+	if (value < 1024 * 1024) return `${Math.round(value / 102.4) / 10}KB`
+	return `${Math.round(value / 1024 / 102.4) / 10}MB`
+}
+
+function compactLogValue(value: string, maxLength = 48): string {
+	const compact = value.replace(/\s+/g, " ").trim()
+	return compact.length <= maxLength ? compact : `${compact.slice(0, Math.max(0, maxLength - 3))}...`
 }
 
 function isVoiceLocalStorageKey(key: string): key is typeof VOICE_LOCAL_STORAGE_KEYS[number] {
