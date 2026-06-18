@@ -13,8 +13,8 @@
  */
 
 import type {ServerWebSocket, WebSocketHandler} from "bun"
-import {existsSync, statSync, openSync, readSync, closeSync, readFileSync, writeFileSync, watch, type FSWatcher} from "node:fs"
-import {basename, dirname, join, relative, resolve} from "node:path"
+import {existsSync, statSync, openSync, readSync, closeSync, readFileSync, writeFileSync, mkdirSync, watch, type FSWatcher} from "node:fs"
+import {basename, dirname, extname, join, relative, resolve} from "node:path"
 import {fileURLToPath} from "node:url"
 import indexHtml from "../web/index.html"
 
@@ -86,6 +86,9 @@ const UI_HOST_COMMAND_TIMEOUT_MS = 8_000
 const ANDROID_API_URL = process.env.METAFOR_ANDROID_API_URL ?? "http://127.0.0.1:3007"
 const SQLITE_WATCH_DEBOUNCE_MS = 140
 const VALID_STOP_SIGNALS = new Set(["SIGTERM", "SIGKILL", "SIGINT", "SIGHUP", "SIGQUIT"])
+const CODEX_ATTACHMENT_DIR = "pkg/interpreter/tmp/codex-attachments"
+const CODEX_ATTACHMENT_MAX_BYTES = 16 * 1024 * 1024
+const CODEX_ATTACHMENT_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".heic", ".heif", ".tif", ".tiff", ".bmp", ".svg"])
 type InterpreterTerminalSessionManager = ReturnType<typeof createPtySessionManager>
 type UiHostCommandDispatcher = (command: string, params: JsonObject) => Promise<JsonObject>
 type UiHostPendingRequest = {
@@ -1008,6 +1011,7 @@ async function handleRoute(
   if (method === "POST" && path === "/hud/terminal/dock") return await dispatchUiHostRouteFromBody("hud.terminal.dock", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/terminal/show") return await dispatchUiHostRouteFromBody("hud.terminal.show", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/terminal/toggle") return await dispatchUiHostRouteFromBody("hud.terminal.toggle", req, dispatchUiHostCommand)
+  if (method === "POST" && path === "/hud/codex/attachments") return await codexAttachmentResponse(req)
   if (method === "GET" && path === "/hud/terminal/network") return await dispatchUiHostRoute("hud.terminal.network.get", {}, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/terminal/network/dock") return await dispatchUiHostRouteFromBody("hud.terminal.network.dock", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/terminal/network/show") return await dispatchUiHostRouteFromBody("hud.terminal.network.show", req, dispatchUiHostCommand)
@@ -1532,6 +1536,76 @@ async function readJsonObject(req: Request): Promise<{body: JsonObject; error?: 
   } catch (error) {
     return {body: {}, error: `invalid JSON: ${serializeError(error)}`}
   }
+}
+
+async function codexAttachmentResponse(req: Request): Promise<Response> {
+  const parsed = await readJsonObject(req)
+  if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
+  const name = typeof parsed.body["name"] === "string" ? parsed.body["name"] : "image.png"
+  const mime = typeof parsed.body["type"] === "string" ? parsed.body["type"] : ""
+  const dataBase64 = typeof parsed.body["dataBase64"] === "string" ? parsed.body["dataBase64"] : ""
+  const ext = imageAttachmentExtension(name, mime)
+  if (ext === null) return jsonResponse({ok: false, error: "attachment must be an image"}, 400)
+  const encoded = dataBase64.replace(/^data:[^;]+;base64,/i, "")
+  if (encoded.length === 0) return jsonResponse({ok: false, error: "dataBase64 is required"}, 400)
+  const bytes = Buffer.from(encoded, "base64")
+  if (bytes.length === 0) return jsonResponse({ok: false, error: "attachment is empty"}, 400)
+  if (bytes.length > CODEX_ATTACHMENT_MAX_BYTES) return jsonResponse({ok: false, error: "attachment is larger than 16 MB"}, 413)
+  const dir = resolve(process.cwd(), CODEX_ATTACHMENT_DIR)
+  mkdirSync(dir, {recursive: true})
+  const safeName = safeAttachmentFilename(name, ext)
+  const id = crypto.randomUUID()
+  const path = join(dir, `${Date.now()}-${id.slice(0, 8)}-${safeName}`)
+  writeFileSync(path, bytes)
+  return jsonResponse({
+    ok: true,
+    attachment: {
+      id,
+      name: safeName,
+      path,
+      mime: mime.startsWith("image/") ? mime : mimeForImageExtension(ext),
+      size: bytes.length,
+    },
+  })
+}
+
+function imageAttachmentExtension(name: string, mime: string): string | null {
+  const ext = extname(name).toLowerCase()
+  if (CODEX_ATTACHMENT_IMAGE_EXTENSIONS.has(ext)) return ext
+  if (mime === "image/jpeg") return ".jpg"
+  if (mime === "image/png") return ".png"
+  if (mime === "image/gif") return ".gif"
+  if (mime === "image/webp") return ".webp"
+  if (mime === "image/heic") return ".heic"
+  if (mime === "image/heif") return ".heif"
+  if (mime === "image/tiff") return ".tiff"
+  if (mime === "image/bmp") return ".bmp"
+  if (mime === "image/svg+xml") return ".svg"
+  return mime.startsWith("image/") ? ".png" : null
+}
+
+function safeAttachmentFilename(name: string, ext: string): string {
+  const raw = basename(name || `image${ext}`)
+  const cleaned = raw
+    .normalize("NFKD")
+    .replace(/[^\w.-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 96)
+  const fallback = `image${ext}`
+  const filename = cleaned.length > 0 ? cleaned : fallback
+  return CODEX_ATTACHMENT_IMAGE_EXTENSIONS.has(extname(filename).toLowerCase()) ? filename : `${filename}${ext}`
+}
+
+function mimeForImageExtension(ext: string): string {
+  if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg"
+  if (ext === ".gif") return "image/gif"
+  if (ext === ".webp") return "image/webp"
+  if (ext === ".heic") return "image/heic"
+  if (ext === ".heif") return "image/heif"
+  if (ext === ".tif" || ext === ".tiff") return "image/tiff"
+  if (ext === ".bmp") return "image/bmp"
+  if (ext === ".svg") return "image/svg+xml"
+  return "image/png"
 }
 
 async function readPatchText(req: Request): Promise<{patch?: string; error?: string}> {

@@ -19,7 +19,7 @@ import {
   type UiRuntimeViewPointVector,
   type UiSurfaceRect,
 } from "@ui/elements"
-import {Button, IconButton, Switcher, Table, TextField, VoiceInputHud, focusTextField, normalizeTableSelection, tableScrollTo, tableSelectionAfterClick, type TableCellContext, type TableColumn, type TableRowId, type TableRowPointerContext, type TextFieldEditState, type VoiceInputHudDeactivationMode, type VoiceInputHudPhraseGroupId, type VoiceInputHudServiceState} from "@ui/components"
+import {Button, ButtonVoice, IconButton, Switcher, Table, TextField, VoiceInputHud, focusTextField, normalizeTableSelection, tableScrollTo, tableSelectionAfterClick, type ButtonVoiceSnapshot, type TableCellContext, type TableColumn, type TableRowId, type TableRowPointerContext, type TextFieldEditState, type VoiceInputHudDeactivationMode, type VoiceInputHudPhraseGroupId, type VoiceInputHudServiceState} from "@ui/components"
 import {HudSideTab, type HudSideTabEdge} from "@ui/hud"
 import {
   EditorPane,
@@ -28,9 +28,11 @@ import {
   NetworkWatchPane,
   TerminalPane,
   ToDoPane,
+  PANE_FRAME,
   beginPaneFrameDrag,
   networkWatchSectionsFromLines,
   normalizeFileListSelection,
+  paneHeaderRuleRect,
   paneFrameCursor,
   paneFrameDragRect,
   paneFrameHit,
@@ -526,6 +528,8 @@ type ModuleDisplayController = {
 
 type HostTerminalController = {
   hudTerminal: TerminalPane
+  codexComposer: HostTerminalCodexComposerPane
+  codexEditor: EditorPane
   title: string
   sessionStorageKey: string
   sessionKey: string
@@ -539,6 +543,15 @@ type HostTerminalController = {
   statusLabel: string
   terminalState: PtyTerminalState | null
   localEchoId: number
+  codexDraft: string
+  codexAttachments: CodexComposerAttachment[]
+  codexDropActive: boolean
+  codexEditorSyncing: boolean
+  codexComposerStatus: string
+  codexComposerStatusTimer: number | null
+  voiceComposerBaseDraft: string | null
+  voiceComposerGeneratedDraft: string
+  voiceComposerEdited: boolean
   agentNotifyArmed: boolean
   agentNotifySawOutput: boolean
   agentNotifyLastOutputAt: number
@@ -549,6 +562,14 @@ type HostTerminalController = {
 type VoiceInputTarget =
   | {kind: "module"; controller: ModuleDisplayController}
   | {kind: "host"; controller: HostTerminalController}
+
+type CodexComposerAttachment = {
+  id: string
+  name: string
+  path: string
+  mime: string
+  size: number
+}
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string): T => {
   const element = document.getElementById(id)
@@ -567,6 +588,7 @@ const HOST_TERMINAL_SESSION_STORAGE_KEY = "metafor.interpreter.hostTerminal.sess
 const HOST_TERMINAL_SESSION_KEY = "interpreter:host-terminal"
 const HOST_TERMINAL_TMUX_SESSION = "metafor-interpreter-host"
 const HOST_TERMINAL_HUD_RECT_STORAGE_KEY = "metafor.interpreter.hostTerminal.hudRect:v1"
+const HOST_TERMINAL_CODEX_COMPOSER_RECT_STORAGE_KEY = "metafor.interpreter.hostTerminal.codexComposerRect:v1"
 const HOST_TERMINAL_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.hostTerminal.hudDocked:v1"
 const HOST_TERMINAL_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.hostTerminal.dockPlacement:v1"
 const NETWORK_TERMINAL_SESSION_STORAGE_KEY = "metafor.interpreter.networkTerminal.sessionId:v1"
@@ -673,6 +695,13 @@ const HOST_TERMINAL_AGENT_SIGNAL_STATUS_MIN_W = 96
 const HOST_TERMINAL_AGENT_SIGNAL_STATUS_MAX_W = 210
 const HOST_TERMINAL_AGENT_SIGNAL_PANEL_W = 300
 const HOST_TERMINAL_AGENT_SIGNAL_PANEL_H = 112
+const HOST_TERMINAL_CODEX_COMPOSER_H = 268
+const HOST_TERMINAL_CODEX_COMPOSER_MIN_W = 420
+const HOST_TERMINAL_CODEX_COMPOSER_MIN_H = 220
+const HOST_TERMINAL_CODEX_COMPOSER_GAP = 8
+const HOST_TERMINAL_CODEX_COMPOSER_PAD = 12
+const HOST_TERMINAL_CODEX_COMPOSER_HEADER_BUTTON_SIZE = 24
+const HOST_TERMINAL_CODEX_COMPOSER_MAX_ATTACHMENT_BYTES = 16 * 1024 * 1024
 const AGENT_READY_SOUND_IDLE_MS = 2_500
 const AGENT_READY_SOUND_COOLDOWN_MS = 1_200
 const VOICE_SIGNAL_COOLDOWN_MS = 900
@@ -819,6 +848,7 @@ let voiceServiceCheckedAt: Date | null = null
 let voiceServiceCheckInFlight = false
 let voiceServiceCheckTimer: number | null = null
 let hostTerminalUnloadInstalled = false
+let hostCodexComposerDragHandlersInstalled = false
 let hudNotificationAudioContext: AudioContext | null = null
 const hudNotificationAudioElements = new Map<HudNotificationKind, HTMLAudioElement>()
 const voiceSignalLastPlayedAt = new Map<HudNotificationKind, number>()
@@ -2481,6 +2511,7 @@ async function initEngine(): Promise<void> {
     })
     voiceHudPane = new VoiceInputHud({
       onToggle: () => void toggleVoiceInput(),
+      onPulseFrame: () => hostTerminal?.codexComposer.requestRender(),
       settings: () => ({
         title: t("voiceInput"),
         generalTabLabel: t("voiceGeneralSettings"),
@@ -2583,7 +2614,10 @@ function installEnginePanes(): void {
   for (const controller of sqliteDisplays.values()) installSqliteHudSurfaces(controller)
   const host = ensureHostTerminalController()
   uiCanvas.addHudSurface(host.hudTerminal, hostTerminalHudRect)
+  uiCanvas.addHudSurface(host.codexComposer, hostCodexComposerRect, {zIndex: HUD_LAYER_TOP - 20})
+  uiCanvas.addHudSurface(host.codexEditor, hostCodexEditorRect, {zIndex: HUD_LAYER_TOP - 19})
   if (host.socket === null) connectHostTerminal(host)
+  installHostCodexComposerDragHandlers()
   const networkTerminal = ensureNetworkHostTerminalController()
   ensureNetworkDisplay()
   if (networkTerminal.socket === null) connectHostTerminal(networkTerminal)
@@ -4335,6 +4369,227 @@ class HostTerminalAgentSignalPane extends UiSurface {
   }
 }
 
+class HostTerminalCodexComposerPane extends UiSurface {
+  #frameDrag: PaneFrameDrag | null = null
+
+  constructor(private readonly controller: HostTerminalController) {
+    super({bgColor: null, borderColor: null})
+    this.node.name = "InterpreterHostCodexComposerPane"
+  }
+
+  protected render(): void {
+    const w = Math.max(1, this.rectW)
+    const h = Math.max(1, this.rectH)
+    const pad = HOST_TERMINAL_CODEX_COMPOSER_PAD
+    this.drawRoundedRect(0, 0, w, h, {
+      radius: radii.pane,
+      fill: new Color(0.04, 0.06, 0.09, 0.74),
+      border: this.controller.codexDropActive ? palette.cyan : palette.borderDim,
+      borderWidth: this.controller.codexDropActive ? 1.3 : 1,
+      z: Z.CONTAINER,
+    })
+    this.#renderHeader(w)
+    const bodyW = Math.max(1, w - pad * 2)
+    if (this.controller.codexAttachments.length > 0) {
+      const footerY = PANE_FRAME.headerHeight + PANE_FRAME.bodyTopGap + hostCodexComposerEditorHeight(h, true) + 8
+      this.#drawAttachmentRow(pad, footerY, bodyW, h - pad)
+    }
+    if (this.controller.codexDropActive) this.#drawDropOverlay(w, h)
+  }
+
+  #renderHeader(w: number): void {
+    const buttonSize = HOST_TERMINAL_CODEX_COMPOSER_HEADER_BUTTON_SIZE
+    const gap = 5
+    const dockButtonX = w - PANE_FRAME.headerTextX - buttonSize
+    const voiceButtonX = dockButtonX - gap - buttonSize
+    const sendButtonX = voiceButtonX - gap - buttonSize
+    const statusX = PANE_FRAME.headerTextX + 112
+    this.drawText("Codex message", PANE_FRAME.headerTextX, PANE_FRAME.headerTextY, {
+      fontPx: 12,
+      material: this.materials.cyan,
+      maxWidthPx: Math.max(1, statusX - PANE_FRAME.headerTextX - 8),
+      z: Z.TEXT,
+    })
+    this.drawText(hostCodexComposerStatus(this.controller), statusX, PANE_FRAME.headerTextY + 1, {
+      fontPx: 10,
+      material: this.materials.muted,
+      maxWidthPx: Math.max(1, sendButtonX - statusX - 10),
+      z: Z.TEXT,
+    })
+    IconButton(this, sendButtonX, 6, buttonSize, buttonSize, {
+      label: "Отправить",
+      iconSrc: uiIcons.send,
+      disabled: !hostCodexComposerCanSubmit(this.controller),
+      variant: "text",
+      radius: 7,
+      action: () => submitHostCodexComposer(this.controller),
+    })
+    ButtonVoice(this, voiceButtonX, 6, buttonSize, {
+      key: "interpreter-codex-message-voice",
+      snapshot: voiceButtonSnapshot(),
+      soundPulse: voiceHudPane?.soundPulseAmount() ?? 0,
+      tooltip: "Голосовой ввод",
+      onClick: () => {
+        setVoiceActiveTarget({kind: "host", controller: this.controller})
+        focusHostCodexComposer(this.controller)
+        void toggleVoiceInput()
+      },
+    })
+    IconButton(this, dockButtonX, 6, buttonSize, buttonSize, {
+      label: "Свернуть Codex",
+      iconSrc: uiIcons.minus,
+      variant: "text",
+      radius: 7,
+      action: () => setHostTerminalHudDocked(true),
+    })
+    const rule = paneHeaderRuleRect(w, PANE_FRAME.headerHeight, PANE_FRAME.bodyInsetX)
+    this.drawRect(rule.x, rule.y, rule.w, rule.h, palette.borderDim, Z.SEPARATOR)
+  }
+
+  #drawAttachmentRow(x: number, y: number, w: number, maxY: number): void {
+    let cx = x
+    let cy = y
+    const gap = 6
+    const chipH = 22
+    for (const attachment of this.controller.codexAttachments) {
+      if (cy + chipH > maxY - 18) break
+      const label = `${attachment.name} · ${formatAttachmentSize(attachment.size)}`
+      const chipW = Math.min(w, Math.max(96, Math.ceil(this.measureText(label, 10)) + 34))
+      if (cx > x && cx + chipW > x + w) {
+        cx = x
+        cy += chipH + gap
+        if (cy + chipH > maxY - 18) break
+      }
+      this.drawRoundedRect(cx, cy, chipW, chipH, {
+        radius: 7,
+        fill: new Color(0.06, 0.12, 0.15, 0.72),
+        border: palette.borderDim,
+        borderWidth: 1,
+        z: Z.ELEMENT,
+      })
+      this.drawText(label, cx + 9, cy + 5, {
+        fontPx: 10,
+        material: this.materials.text,
+        maxWidthPx: Math.max(1, chipW - 28),
+        z: Z.TEXT,
+      })
+      this.drawText("x", cx + chipW - 16, cy + 5, {
+        fontPx: 10,
+        material: this.materials.muted,
+        maxWidthPx: 8,
+        z: Z.TEXT,
+      })
+      this.hit(cx, cy, chipW, chipH, () => removeHostCodexAttachment(this.controller, attachment.id), {
+        key: `interpreter-codex-attachment:${attachment.id}`,
+        cursor: "pointer",
+      })
+      cx += chipW + gap
+    }
+  }
+
+  #drawDropOverlay(w: number, h: number): void {
+    this.drawRoundedRect(3, 3, Math.max(1, w - 6), Math.max(1, h - 6), {
+      radius: 7,
+      fill: new Color(0.02, 0.16, 0.18, 0.34),
+      border: palette.cyan,
+      borderWidth: 1,
+      z: Z.CONTAINER + 0.2,
+    })
+    this.drawText("Drop image", HOST_TERMINAL_CODEX_COMPOSER_PAD, h - 25, {
+      fontPx: 11,
+      material: this.materials.cyan,
+      maxWidthPx: Math.max(1, w - HOST_TERMINAL_CODEX_COMPOSER_PAD * 2),
+      z: Z.TEXT + 0.2,
+    })
+  }
+
+  #frameInteractionOpts(): PaneFrameInteractionOpts {
+    return {
+      showHeader: true,
+      movable: true,
+      resizable: true,
+      minW: HOST_TERMINAL_CODEX_COMPOSER_MIN_W,
+      minH: HOST_TERMINAL_CODEX_COMPOSER_MIN_H,
+    }
+  }
+
+  #beginFrameInteraction(event: MouseEvent, localX: number, localY: number): boolean {
+    const opts = this.#frameInteractionOpts()
+    const kind = paneFrameHit(localX, localY, this.rectW, this.rectH, opts)
+    if (kind === null) return false
+    const frame = this.canvas?.surfaceFrame(this)
+    if (frame === undefined || frame === null) return false
+    this.#frameDrag = beginPaneFrameDrag(kind, event, frame.rect, opts)
+    event.preventDefault()
+    const cursor = paneFrameCursor(kind, true)
+    const canvasElement = this.canvas?.canvas
+    if (cursor !== null && canvasElement !== undefined) canvasElement.style.cursor = cursor
+    return true
+  }
+
+  #updateFrameInteraction(event: MouseEvent): boolean {
+    const drag = this.#frameDrag
+    const frame = this.canvas?.surfaceFrame(this)
+    if (drag === null || frame === undefined || frame === null) return false
+    const next = paneFrameDragRect(drag, event, frame.bounds)
+    const applied = this.canvas?.setSurfaceRect(this, next) ?? next
+    syncHostCodexEditorToComposer(this.controller, applied, "drag")
+    const cursor = paneFrameCursor(drag.kind, true)
+    const canvasElement = this.canvas?.canvas
+    if (cursor !== null && canvasElement !== undefined) canvasElement.style.cursor = cursor
+    return true
+  }
+
+  #endFrameInteraction(event: MouseEvent, localX: number, localY: number): boolean {
+    if (this.#frameDrag === null) return false
+    this.#updateFrameInteraction(event)
+    const frame = this.canvas?.surfaceFrame(this)
+    this.#frameDrag = null
+    this.#syncFrameCursor(localX, localY)
+    if (frame !== undefined && frame !== null) {
+      storeHostCodexComposerRect(frame.rect)
+      syncHostCodexEditorToComposer(this.controller, frame.rect, "release")
+    }
+    return true
+  }
+
+  #syncFrameCursor(localX: number, localY: number): void {
+    if (this.canvas === null || this.pressedHit !== null || this.hoveredHit !== null) return
+    const kind = paneFrameHit(localX, localY, this.rectW, this.rectH, this.#frameInteractionOpts())
+    const cursor = paneFrameCursor(kind, false)
+    const canvasElement = this.canvas.canvas
+    if (canvasElement !== undefined) canvasElement.style.cursor = cursor ?? "default"
+  }
+
+  override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
+    super.onPointerDown(event, localX, localY)
+    if (this.pressedHit !== null) return
+    this.#beginFrameInteraction(event, localX, localY)
+  }
+
+  override onPointerMove(event: MouseEvent, localX: number, localY: number): void {
+    if (this.#updateFrameInteraction(event)) return
+    super.onPointerMove(event, localX, localY)
+    this.#syncFrameCursor(localX, localY)
+  }
+
+  override onPointerUp(event: MouseEvent, localX: number, localY: number): void {
+    if (this.#endFrameInteraction(event, localX, localY)) return
+    super.onPointerUp(event, localX, localY)
+    this.#syncFrameCursor(localX, localY)
+  }
+
+  override onPointerLeave(): void {
+    if (this.#frameDrag !== null) return
+    super.onPointerLeave()
+  }
+
+  override onDeactivate(): void {
+    this.#frameDrag = null
+    super.onDeactivate()
+  }
+}
+
 const agentSignalIconCache = new Map<string, string>()
 
 function agentSignalIcon(enabled: boolean): string {
@@ -4477,6 +4732,10 @@ function fullyStopVoiceInput(): void {
 function focusVoiceTarget(): void {
   const target = voiceActiveTarget
   if (target === null) return
+  if (target.kind === "host" && target.controller === hostTerminal) {
+    focusHostCodexComposer(target.controller)
+    return
+  }
   const terminal = target.kind === "host" ? target.controller.hudTerminal : target.controller.terminal
   uiCanvas?.setFocused(terminal)
 }
@@ -4597,13 +4856,22 @@ function showVoicePartialPreview(target: VoiceInputTarget, text: string): void {
   }
   voicePartialPreviewTarget = target
   voicePartialPreviewText = text
+  if (target.kind === "host" && target.controller === hostTerminal) {
+    applyHostVoiceComposerText(target.controller, text)
+    target.controller.codexComposer.requestRender()
+    return
+  }
   for (const terminal of voicePreviewTerminals(target)) terminal.setInputPreview(text)
 }
 
 function clearVoicePartialPreview(): void {
   const target = voicePartialPreviewTarget
   if (target === null) return
-  for (const terminal of voicePreviewTerminals(target)) terminal.clearInputPreview()
+  if (target.kind === "host" && target.controller === hostTerminal) {
+    target.controller.codexComposer.requestRender()
+  } else {
+    for (const terminal of voicePreviewTerminals(target)) terminal.clearInputPreview()
+  }
   voicePartialPreviewTarget = null
   voicePartialPreviewText = ""
 }
@@ -4671,11 +4939,7 @@ function preserveVoicePartialAsTerminalInput(): boolean {
   }
 
   if (!voiceTargetCanAcceptInput(target)) return false
-  const body = sanitizeHostTerminalVoiceInput(text)
-  if (body.length === 0) return false
-  clearVoicePartialPreview()
-  sendHostTerminalInput(target.controller, body, "api", body)
-  return true
+  return stageHostCodexDraft(target.controller, text, {focusComposer: false})
 }
 
 function queueVoiceAutoSendMessages(target: VoiceInputTarget, messages: readonly string[]): boolean {
@@ -4704,9 +4968,15 @@ function flushVoiceAutoSendBuffer(): boolean {
   voiceNextFlushMode = "auto"
   if (target === null || text.length === 0) return false
 
-  const handled = mode !== "draft" && readVoiceAutoSendEnabled()
-    ? insertVoiceMessageForTarget(target, text)
-    : stageVoiceMessagesForTarget(target, [text])
+  const autoSendEnabled = readVoiceAutoSendEnabled()
+  const hostComposerEdited = target.kind === "host" && target.controller === hostTerminal && target.controller.voiceComposerEdited
+  let handled: boolean
+  if (mode !== "draft" && autoSendEnabled && !hostComposerEdited) {
+    if (target.kind === "host" && target.controller === hostTerminal) restoreHostVoiceComposerBaseDraft(target.controller)
+    handled = insertVoiceMessageForTarget(target, text)
+  } else {
+    handled = stageVoiceMessagesForTarget(target, [text], {focusHostComposer: !autoSendEnabled || mode === "draft"})
+  }
   if (handled) clearVoicePartialPreviewForTarget(target, "discard")
   return handled
 }
@@ -4733,13 +5003,20 @@ function voicePreviewWithBufferedInput(target: VoiceInputTarget, partialText: st
   return mergeVoiceInputText(voiceAutoSendText, partialText)
 }
 
-function stageVoiceMessagesForTarget(target: VoiceInputTarget, messages: readonly string[]): boolean {
+function stageVoiceMessagesForTarget(target: VoiceInputTarget, messages: readonly string[], opts: {focusHostComposer?: boolean} = {}): boolean {
   const text = cleanupVoiceInputText(messages.join(" "))
   if (text.length === 0) return false
   if (target.kind === "host") {
     if (!voiceTargetCanAcceptInput(target)) {
       flashVoiceHudError(t("voiceNoActiveInput"))
       return false
+    }
+    if (target.controller === hostTerminal) {
+      return stageHostCodexDraft(
+        target.controller,
+        text,
+        opts.focusHostComposer === undefined ? {} : {focusComposer: opts.focusHostComposer},
+      )
     }
     const body = sanitizeHostTerminalVoiceInput(text)
     if (body.length === 0) return false
@@ -4805,6 +5082,307 @@ function sendHostTerminalVoiceSubmit(controller: HostTerminalController, text: s
     : `${body}\r`
   sendHostTerminalInput(controller, payload, "api", body)
   return true
+}
+
+function hostCodexComposerStatus(controller: HostTerminalController): string {
+  if (controller.codexComposerStatus) return controller.codexComposerStatus
+  if (voiceActiveTarget?.kind === "host" && voiceActiveTarget.controller === controller && (voiceHudStatus === "listening" || voiceHudStatus === "committing")) {
+    return voiceStatusLabel(voiceHudStatus)
+  }
+  if (controller.socket?.readyState !== WebSocket.OPEN) return "Codex terminal не подключен"
+  return controller.statusLabel
+}
+
+function hostCodexComposerReady(controller: HostTerminalController): boolean {
+  return controller.socket?.readyState === WebSocket.OPEN
+}
+
+function hostCodexComposerCanSubmit(controller: HostTerminalController): boolean {
+  return hostCodexComposerReady(controller) && codexComposerMessage(controller.codexDraft, controller.codexAttachments).length > 0
+}
+
+function voiceButtonSnapshot(): ButtonVoiceSnapshot {
+  return {
+    status: voiceHudStatus,
+    serviceState: voiceServiceState,
+    level: voiceHudStatus === "listening" || voiceHudStatus === "committing" ? voiceInputLevel : 0,
+  }
+}
+
+function setHostCodexDraftFromEditor(controller: HostTerminalController, value: string): void {
+  if (controller.codexEditorSyncing) return
+  if (controller.codexDraft === value) return
+  if (controller.voiceComposerBaseDraft !== null && value !== controller.voiceComposerGeneratedDraft) {
+    controller.voiceComposerEdited = true
+  }
+  controller.codexDraft = value
+  controller.codexComposer.requestRender()
+}
+
+function setHostCodexDraft(controller: HostTerminalController, value: string): void {
+  if (controller.codexDraft === value) return
+  controller.codexDraft = value
+  syncHostCodexEditor(controller)
+  controller.codexComposer.requestRender()
+}
+
+function syncHostCodexEditor(controller: HostTerminalController): void {
+  if (controller.codexEditorSyncing || controller.codexEditor.getText() === controller.codexDraft) return
+  controller.codexEditorSyncing = true
+  try {
+    controller.codexEditor.setText(controller.codexDraft)
+    const lines = controller.codexDraft.split("\n")
+    const lastLine = Math.max(0, lines.length - 1)
+    controller.codexEditor.setCursor(lastLine, lines[lastLine]?.length ?? 0, {scroll: "nearest"})
+  } finally {
+    controller.codexEditorSyncing = false
+  }
+}
+
+function submitHostCodexComposer(controller: HostTerminalController): void {
+  const message = codexComposerMessage(controller.codexDraft, controller.codexAttachments)
+  if (message.length === 0 || !hostCodexComposerReady(controller)) return
+  const payload = controller.terminalState?.bracketedPaste
+    ? `\x1b[200~${message}\x1b[201~\r`
+    : `${message}\r`
+  clearVoicePartialPreviewForTarget({kind: "host", controller})
+  discardVoiceAutoSendBuffer()
+  voiceNextFlushMode = "auto"
+  sendHostTerminalInput(controller, payload, "api", message)
+  resetHostVoiceComposerDraftTracking(controller)
+  setHostCodexDraft(controller, "")
+  controller.codexAttachments = []
+  setHostCodexComposerStatus(controller, "отправлено")
+  focusHostCodexComposer(controller)
+  controller.codexComposer.requestRender()
+}
+
+function stageHostCodexDraft(controller: HostTerminalController, text: string, opts: {focusComposer?: boolean} = {}): boolean {
+  const body = sanitizeHostTerminalVoiceInput(text)
+  if (body.length === 0) return false
+  clearVoicePartialPreviewForTarget({kind: "host", controller})
+  const baseDraft = controller.voiceComposerEdited ? controller.codexDraft : (controller.voiceComposerBaseDraft ?? controller.codexDraft)
+  const nextDraft = mergeCodexComposerDraft(baseDraft, body)
+  resetHostVoiceComposerDraftTracking(controller)
+  setHostCodexDraft(controller, nextDraft)
+  setHostCodexComposerStatus(controller, "голос добавлен в поле")
+  if (opts.focusComposer) focusHostCodexComposer(controller)
+  controller.codexComposer.requestRender()
+  return true
+}
+
+function applyHostVoiceComposerText(controller: HostTerminalController, text: string): boolean {
+  const body = sanitizeHostTerminalVoiceInput(text)
+  if (body.length === 0) return false
+  if (controller.voiceComposerBaseDraft === null) {
+    controller.voiceComposerBaseDraft = controller.codexDraft
+    controller.voiceComposerGeneratedDraft = controller.codexDraft
+  }
+  if (controller.voiceComposerEdited) return true
+  const nextDraft = mergeCodexComposerDraft(controller.voiceComposerBaseDraft, body)
+  controller.voiceComposerGeneratedDraft = nextDraft
+  if (controller.codexDraft === nextDraft) return true
+  setHostCodexDraft(controller, nextDraft)
+  focusHostCodexComposer(controller)
+  return true
+}
+
+function restoreHostVoiceComposerBaseDraft(controller: HostTerminalController): void {
+  if (controller.voiceComposerBaseDraft === null) return
+  if (!controller.voiceComposerEdited && controller.codexDraft === controller.voiceComposerGeneratedDraft) {
+    setHostCodexDraft(controller, controller.voiceComposerBaseDraft)
+  }
+  resetHostVoiceComposerDraftTracking(controller)
+}
+
+function resetHostVoiceComposerDraftTracking(controller: HostTerminalController): void {
+  controller.voiceComposerBaseDraft = null
+  controller.voiceComposerGeneratedDraft = ""
+  controller.voiceComposerEdited = false
+}
+
+function focusHostCodexComposer(controller: HostTerminalController): void {
+  uiCanvas?.setFocused(controller.codexEditor)
+}
+
+function setHostCodexComposerStatus(controller: HostTerminalController, status: string, ttlMs = 2200): void {
+  if (controller.codexComposerStatusTimer !== null) {
+    window.clearTimeout(controller.codexComposerStatusTimer)
+    controller.codexComposerStatusTimer = null
+  }
+  controller.codexComposerStatus = status
+  controller.codexComposer.requestRender()
+  if (!status) return
+  controller.codexComposerStatusTimer = window.setTimeout(() => {
+    controller.codexComposerStatusTimer = null
+    controller.codexComposerStatus = ""
+    controller.codexComposer.requestRender()
+  }, ttlMs)
+}
+
+function removeHostCodexAttachment(controller: HostTerminalController, id: string): void {
+  const next = controller.codexAttachments.filter((attachment) => attachment.id !== id)
+  if (next.length === controller.codexAttachments.length) return
+  controller.codexAttachments = next
+  setHostCodexComposerStatus(controller, next.length > 0 ? `${next.length} влож.` : "")
+  controller.codexComposer.requestRender()
+}
+
+function codexComposerMessage(draft: string, attachments: readonly CodexComposerAttachment[]): string {
+  const body = draft.replace(/\r\n?/g, "\n").trim()
+  if (attachments.length === 0) return body
+  const imageLines = attachments.map((attachment) => `- ${attachment.path}`).join("\n")
+  const imageBlock = `Изображения:\n${imageLines}`
+  return body.length === 0 ? imageBlock : `${body}\n\n${imageBlock}`
+}
+
+function mergeCodexComposerDraft(base: string, addition: string): string {
+  const left = base.trim()
+  const right = addition.trim()
+  if (!left) return right
+  if (!right) return left
+  return `${left}\n${right}`
+}
+
+function codexImageDropFiles(dataTransfer: DataTransfer | null): File[] {
+  if (dataTransfer === null) return []
+  const files = new Map<string, File>()
+  for (const file of Array.from(dataTransfer.files)) {
+    if (codexFileLooksImage(file)) files.set(codexDropFileKey(file), file)
+  }
+  for (const item of Array.from(dataTransfer.items)) {
+    if (item.kind !== "file") continue
+    const file = item.getAsFile()
+    if (file !== null && codexFileLooksImage(file)) files.set(codexDropFileKey(file), file)
+  }
+  return [...files.values()]
+}
+
+function codexFileLooksImage(file: File): boolean {
+  if (file.type.startsWith("image/")) return true
+  return /\.(?:png|jpe?g|gif|webp|heic|heif|tiff?|bmp|svg)$/i.test(file.name)
+}
+
+function codexDropFileKey(file: File): string {
+  return `${file.name}:${file.size}:${file.lastModified}`
+}
+
+async function uploadCodexAttachment(file: File): Promise<CodexComposerAttachment> {
+  if (!codexFileLooksImage(file)) throw new Error("можно прикрепить только изображение")
+  if (file.size > HOST_TERMINAL_CODEX_COMPOSER_MAX_ATTACHMENT_BYTES) throw new Error("изображение больше 16 MB")
+  const dataBase64 = base64Bytes(new Uint8Array(await file.arrayBuffer()))
+  const response = await fetch("/hud/codex/attachments", {
+    method: "POST",
+    headers: {"content-type": "application/json"},
+    body: JSON.stringify({
+      name: file.name || "image.png",
+      type: file.type || "",
+      size: file.size,
+      dataBase64,
+    }),
+  })
+  const payload = await response.json().catch(() => null)
+  const record = asPlainRecord(payload)
+  if (!response.ok || record?.["ok"] !== true) {
+    const message = typeof record?.["error"] === "string" ? record["error"] : `upload ${response.status}`
+    throw new Error(message)
+  }
+  const attachment = asPlainRecord(record["attachment"])
+  if (attachment === null) throw new Error("attachment response is invalid")
+  const id = stringValue(attachment["id"]) ?? crypto.randomUUID()
+  const name = stringValue(attachment["name"]) ?? (file.name || "image")
+  const path = stringValue(attachment["path"])
+  const mime = stringValue(attachment["mime"]) ?? (file.type || "image/*")
+  const size = typeof attachment["size"] === "number" && Number.isFinite(attachment["size"]) ? attachment["size"] : file.size
+  if (path === null) throw new Error("attachment path is missing")
+  return {id, name, path, mime, size}
+}
+
+function installHostCodexComposerDragHandlers(): void {
+  if (hostCodexComposerDragHandlersInstalled) return
+  hostCodexComposerDragHandlersInstalled = true
+  document.addEventListener("dragover", handleHostCodexDragOver, {capture: true})
+  document.addEventListener("drop", (event) => void handleHostCodexDrop(event), {capture: true})
+  document.addEventListener("dragleave", handleHostCodexDragLeave, {capture: true})
+}
+
+function handleHostCodexDragOver(event: DragEvent): void {
+  const controller = hostTerminal
+  if (controller === null || !dragEventInsideHostCodexComposer(event)) {
+    if (controller !== null) setHostCodexDropActive(controller, false)
+    return
+  }
+  event.preventDefault()
+  event.stopPropagation()
+  if (event.dataTransfer !== null) event.dataTransfer.dropEffect = "copy"
+  setHostCodexDropActive(controller, true)
+}
+
+function handleHostCodexDragLeave(event: DragEvent): void {
+  const controller = hostTerminal
+  if (controller === null) return
+  const related = event.relatedTarget
+  if (related instanceof Node && document.contains(related)) return
+  setHostCodexDropActive(controller, false)
+}
+
+async function handleHostCodexDrop(event: DragEvent): Promise<void> {
+  const controller = hostTerminal
+  if (controller === null || !dragEventInsideHostCodexComposer(event)) return
+  event.preventDefault()
+  event.stopPropagation()
+  setHostCodexDropActive(controller, false)
+  const files = codexImageDropFiles(event.dataTransfer)
+  if (files.length === 0) {
+    setHostCodexComposerStatus(controller, "нет изображения")
+    return
+  }
+  setHostCodexComposerStatus(controller, "загружаю изображение", 6000)
+  try {
+    const uploaded: CodexComposerAttachment[] = []
+    for (const file of files) uploaded.push(await uploadCodexAttachment(file))
+    controller.codexAttachments = [...controller.codexAttachments, ...uploaded]
+    setHostCodexComposerStatus(controller, `${controller.codexAttachments.length} влож.`)
+    focusHostCodexComposer(controller)
+  } catch (error) {
+    setHostCodexComposerStatus(controller, error instanceof Error ? error.message : String(error), 5000)
+  } finally {
+    controller.codexComposer.requestRender()
+  }
+}
+
+function dragEventInsideHostCodexComposer(event: DragEvent): boolean {
+  const rect = hostCodexComposerRect({w: window.innerWidth, h: window.innerHeight})
+  if (rect.visible === false) return false
+  return event.clientX >= rect.x && event.clientX <= rect.x + rect.w
+    && event.clientY >= rect.y && event.clientY <= rect.y + rect.h
+}
+
+function setHostCodexDropActive(controller: HostTerminalController, active: boolean): void {
+  if (controller.codexDropActive === active) return
+  controller.codexDropActive = active
+  controller.codexComposer.requestRender()
+}
+
+function asPlainRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === "string" ? value : null
+}
+
+function formatAttachmentSize(size: number): string {
+  if (!Number.isFinite(size) || size <= 0) return "0 B"
+  if (size < 1024) return `${Math.round(size)} B`
+  if (size < 1024 * 1024) return `${Math.round(size / 102.4) / 10} KB`
+  return `${Math.round(size / (1024 * 102.4)) / 10} MB`
+}
+
+function hostCodexComposerEditorHeight(composerH: number, hasFooter: boolean): number {
+  const editorTop = PANE_FRAME.headerHeight + PANE_FRAME.bodyTopGap
+  const footerSpace = hasFooter ? HOST_TERMINAL_CODEX_COMPOSER_PAD + 30 : HOST_TERMINAL_CODEX_COMPOSER_PAD
+  return Math.max(82, composerH - editorTop - footerSpace)
 }
 
 function sanitizeHostTerminalVoiceInput(text: string): string {
@@ -4929,6 +5507,7 @@ function renderVoiceHud(): void {
     serviceState: voiceServiceState,
     level: voiceHudStatus === "listening" || voiceHudStatus === "committing" ? voiceInputLevel : 0,
   })
+  hostTerminal?.codexComposer.requestRender()
 }
 
 function flashVoiceHudError(detail: string): void {
@@ -5985,6 +6564,28 @@ function restoreInterpreterViewPointOnce(frameKey: string): boolean {
   return true
 }
 
+function createHostCodexEditor(controller: HostTerminalController): EditorPane {
+  const editor = new EditorPane({
+    path: "message.md",
+    fontPx: 12,
+    linePx: 17,
+    titleFontPx: 11,
+    readOnly: false,
+    showCaret: true,
+    introAnimation: false,
+    showHeader: false,
+    indentGuides: false,
+    draggable: false,
+    resizable: false,
+    onChange: (text) => setHostCodexDraftFromEditor(controller, text),
+    onSave: () => submitHostCodexComposer(controller),
+    onSubmit: () => submitHostCodexComposer(controller),
+  })
+  editor.node.name = "InterpreterHostCodexEditor"
+  editor.setSelectionContextMenuEnabled(true)
+  return editor
+}
+
 function ensureHostTerminalController(): HostTerminalController {
   if (hostTerminal !== null) return hostTerminal
   const controller = {} as HostTerminalController
@@ -5999,8 +6600,12 @@ function ensureHostTerminalController(): HostTerminalController {
     onFrameRectChange: storeHostTerminalHudRectAndRelayout,
     onFrameDockRequest: () => setHostTerminalHudDocked(true),
   })
+  const codexComposer = new HostTerminalCodexComposerPane(controller)
+  const codexEditor = createHostCodexEditor(controller)
   Object.assign(controller, {
     hudTerminal,
+    codexComposer,
+    codexEditor,
     title: hostTerminalTitle(),
     sessionStorageKey: HOST_TERMINAL_SESSION_STORAGE_KEY,
     sessionKey: HOST_TERMINAL_SESSION_KEY,
@@ -6014,6 +6619,15 @@ function ensureHostTerminalController(): HostTerminalController {
     statusLabel: t("terminalConnecting"),
     terminalState: null,
     localEchoId: 0,
+    codexDraft: "",
+    codexAttachments: [],
+    codexDropActive: false,
+    codexEditorSyncing: false,
+    codexComposerStatus: "",
+    codexComposerStatusTimer: null,
+    voiceComposerBaseDraft: null,
+    voiceComposerGeneratedDraft: "",
+    voiceComposerEdited: false,
     agentNotifyArmed: false,
     agentNotifySawOutput: false,
     agentNotifyLastOutputAt: 0,
@@ -6045,8 +6659,12 @@ function ensureNetworkHostTerminalController(): HostTerminalController {
     onFrameRectChange: storeNetworkTerminalHudRectAndRelayout,
     onFrameDockRequest: () => setNetworkTerminalDocked(true),
   })
+  const codexComposer = new HostTerminalCodexComposerPane(controller)
+  const codexEditor = createHostCodexEditor(controller)
   Object.assign(controller, {
     hudTerminal,
+    codexComposer,
+    codexEditor,
     title: "Network · tmux",
     sessionStorageKey: NETWORK_TERMINAL_SESSION_STORAGE_KEY,
     sessionKey: NETWORK_TERMINAL_SESSION_KEY,
@@ -6060,6 +6678,15 @@ function ensureNetworkHostTerminalController(): HostTerminalController {
     statusLabel: t("terminalConnecting"),
     terminalState: null,
     localEchoId: 0,
+    codexDraft: "",
+    codexAttachments: [],
+    codexDropActive: false,
+    codexEditorSyncing: false,
+    codexComposerStatus: "",
+    codexComposerStatusTimer: null,
+    voiceComposerBaseDraft: null,
+    voiceComposerGeneratedDraft: "",
+    voiceComposerEdited: false,
     agentNotifyArmed: false,
     agentNotifySawOutput: false,
     agentNotifyLastOutputAt: 0,
@@ -6372,6 +6999,7 @@ function setHostTerminalStatus(controller: HostTerminalController, kind: PtyStat
   if (controller === hostTerminal) {
     hostTerminalStatusLabelForLayout = label
     hostTerminalAgentSignalPane?.requestRender()
+    controller.codexComposer.requestRender()
   }
   controller.connectionState = kind
   const paneKind = statusKindForHostTerminal(kind)
@@ -6385,6 +7013,7 @@ function hostTerminalPanes(controller: HostTerminalController): TerminalPane[] {
 
 function setHostTerminalInputEnabled(controller: HostTerminalController, enabled: boolean): void {
   for (const pane of hostTerminalPanes(controller)) pane.setInputEnabled(enabled)
+  if (controller === hostTerminal) controller.codexComposer.requestRender()
 }
 
 function rejectHostTerminalLocalEcho(controller: HostTerminalController): void {
@@ -6442,6 +7071,24 @@ function storeHostTerminalHudRect(rect: UiSurfaceRect): void {
   if (normalized === null) return
   try {
     localStorage.setItem(HOST_TERMINAL_HUD_RECT_STORAGE_KEY, JSON.stringify(normalized))
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+}
+
+function readStoredHostCodexComposerRect(): UiSurfaceRect | null {
+  try {
+    return parseStoredPaneRect(localStorage.getItem(HOST_TERMINAL_CODEX_COMPOSER_RECT_STORAGE_KEY))
+  } catch {
+    return null
+  }
+}
+
+function storeHostCodexComposerRect(rect: UiSurfaceRect): void {
+  const normalized = normalizeStoredPaneRect(rect)
+  if (normalized === null) return
+  try {
+    localStorage.setItem(HOST_TERMINAL_CODEX_COMPOSER_RECT_STORAGE_KEY, JSON.stringify(normalized))
   } catch {
     // Storage can be disabled in private contexts.
   }
@@ -9140,10 +9787,64 @@ function hiddenRect(): UiSurfaceRect {
 function hostTerminalHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   if (hostTerminalHudDocked) return hiddenRect()
   if (w < HOST_TERMINAL_HUD_MIN_W || h < HOST_TERMINAL_HUD_MIN_H) return hiddenRect()
-  if (hostTerminalHudRectPreview !== null) return clampHostTerminalHudRect(hostTerminalHudRectPreview, w, h)
+  const composerReserve = HOST_TERMINAL_CODEX_COMPOSER_H + HOST_TERMINAL_CODEX_COMPOSER_GAP + 12
+  if (hostTerminalHudRectPreview !== null) return clampHostTerminalHudRect(hostTerminalHudRectPreview, w, h, composerReserve)
   const stored = readStoredHostTerminalHudRect()
-  if (stored !== null) return clampHostTerminalHudRect(stored, w, h)
-  return clampHostTerminalHudRect(DEFAULT_HOST_TERMINAL_HUD_RECT, w, h)
+  if (stored !== null) return clampHostTerminalHudRect(stored, w, h, composerReserve)
+  return clampHostTerminalHudRect(DEFAULT_HOST_TERMINAL_HUD_RECT, w, h, composerReserve)
+}
+
+function hostCodexComposerRect(bounds: {w: number; h: number}): UiSurfaceRect {
+  if (hostTerminalHudDocked) return hiddenRect()
+  const terminal = hostTerminalHudRect(bounds)
+  if (terminal.visible === false) return hiddenRect()
+  const maxW = Math.max(1, bounds.w - 24)
+  const maxH = Math.max(1, bounds.h - 24)
+  const fallbackW = Math.min(Math.max(1, terminal.w), maxW)
+  const fallbackH = Math.min(HOST_TERMINAL_CODEX_COMPOSER_H, maxH)
+  const belowY = terminal.y + terminal.h + HOST_TERMINAL_CODEX_COMPOSER_GAP
+  const fallbackY = belowY + fallbackH <= bounds.h - 12
+    ? belowY
+    : Math.max(12, terminal.y - fallbackH - HOST_TERMINAL_CODEX_COMPOSER_GAP)
+  const raw = readStoredHostCodexComposerRect() ?? {
+    x: terminal.x,
+    y: fallbackY,
+    w: fallbackW,
+    h: fallbackH,
+  }
+  const rectW = clampNumber(raw.w, Math.min(HOST_TERMINAL_CODEX_COMPOSER_MIN_W, maxW), maxW)
+  const rectH = clampNumber(raw.h, Math.min(HOST_TERMINAL_CODEX_COMPOSER_MIN_H, maxH), maxH)
+  return {
+    x: clampNumber(raw.x, 12, Math.max(12, bounds.w - rectW - 12)),
+    y: clampNumber(raw.y, 12, Math.max(12, bounds.h - rectH - 12)),
+    w: rectW,
+    h: rectH,
+  }
+}
+
+function hostCodexEditorRect(bounds: {w: number; h: number}): UiSurfaceRect {
+  return hostCodexEditorRectForComposer(hostCodexComposerRect(bounds))
+}
+
+function hostCodexEditorRectForComposer(composer: UiSurfaceRect): UiSurfaceRect {
+  if (composer.visible === false) return hiddenRect()
+  const editorH = hostCodexComposerEditorHeight(composer.h, (hostTerminal?.codexAttachments.length ?? 0) > 0)
+  return {
+    x: composer.x + HOST_TERMINAL_CODEX_COMPOSER_PAD,
+    y: composer.y + PANE_FRAME.headerHeight + PANE_FRAME.bodyTopGap,
+    w: Math.max(1, composer.w - HOST_TERMINAL_CODEX_COMPOSER_PAD * 2),
+    h: editorH,
+  }
+}
+
+function syncHostCodexEditorToComposer(controller: HostTerminalController, composer: UiSurfaceRect, mode: "drag" | "release"): void {
+  if (uiCanvas === null) return
+  if (mode === "drag") {
+    uiCanvas.setSurfaceRect(controller.codexEditor, hostCodexEditorRectForComposer(composer))
+    return
+  }
+  uiCanvas.clearSurfaceRect(controller.codexEditor)
+  uiCanvas.relayout()
 }
 
 function networkTerminalHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
@@ -9681,16 +10382,17 @@ function sqliteDockPlacementFromPoint(point: {x: number; y: number}, bounds: {w:
   }
 }
 
-function clampHostTerminalHudRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): UiSurfaceRect {
+function clampHostTerminalHudRect(rect: UiSurfaceRect, boundsW: number, boundsH: number, bottomReserve = 0): UiSurfaceRect {
   const bw = Math.max(1, Math.round(boundsW))
   const bh = Math.max(1, Math.round(boundsH))
+  const effectiveH = Math.max(1, bh - Math.max(0, bottomReserve))
   const minW = Math.min(HOST_TERMINAL_HUD_PANEL_MIN_W, bw)
-  const minH = Math.min(HOST_TERMINAL_HUD_PANEL_MIN_H, bh)
+  const minH = Math.min(HOST_TERMINAL_HUD_PANEL_MIN_H, effectiveH)
   const rectW = clampNumber(rect.w, minW, bw)
-  const rectH = clampNumber(rect.h, minH, bh)
+  const rectH = clampNumber(rect.h, minH, effectiveH)
   return {
     x: clampNumber(rect.x, 0, Math.max(0, bw - rectW)),
-    y: clampNumber(rect.y, 0, Math.max(0, bh - rectH)),
+    y: clampNumber(rect.y, 0, Math.max(0, effectiveH - rectH)),
     w: rectW,
     h: rectH,
   }
