@@ -104,6 +104,11 @@ describe("voice dictation cleanup", () => {
     expect(cleanupVoiceText("Редактор субтитров: DimaTorzok")).toBe("")
   })
 
+  test("drops terminal line art hallucinated by ASR", () => {
+    expect(cleanupVoiceText("────────────────────────────────────────")).toBe("")
+    expect(cleanupVoiceText("──── проверка диктовки ────")).toBe("проверка диктовки")
+  })
+
   test("deduplicates adjacent repeated paragraphs", () => {
     expect(cleanupVoiceText("Делай коммит\n\nДелай коммит")).toBe("Делай коммит")
   })

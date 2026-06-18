@@ -297,7 +297,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 		})
 		channel.addEventListener("message", (event) => {
 			if (typeof event.data === "string" && this.#handleRelayStatus(event.data)) return
-			if (typeof event.data === "string" && asrMessageHasText(event.data)) {
+			if (typeof event.data === "string" && asrMessageHasSpeechText(event.data)) {
 				this.#clearAsrTextTimer()
 				this.#clearPendingFallback()
 			}
@@ -757,7 +757,7 @@ registerProcessor("voice-rtc-capture", VoiceRtcCaptureProcessor);
 		const type = asrMessageType(raw)
 		const text = asrMessageText(raw)
 		peer.asrMessages += 1
-		if (text.length > 0) peer.asrTextMessages += 1
+		if (voiceTextHasSpeechContent(text)) peer.asrTextMessages += 1
 		updateVoiceRtcDebug({
 			state: `asr ${type || "message"}`,
 			asrMessages: peer.asrMessages,
@@ -1026,12 +1026,16 @@ function asrMessageText(raw: string): string {
 	return ""
 }
 
-function asrMessageHasText(raw: string): boolean {
+function asrMessageHasSpeechText(raw: string): boolean {
 	const message = asJsonRecord(safeJsonParse(raw))
 	if (message === null) return false
 	const type = message["type"]
 	if (type !== "partial" && type !== "result" && type !== "final") return false
-	return asrMessageText(raw).length > 0
+	return voiceTextHasSpeechContent(asrMessageText(raw))
+}
+
+function voiceTextHasSpeechContent(text: string): boolean {
+	return /[\p{L}\p{N}]/u.test(text.replace(/[\u2500-\u257F]+/g, " ").replace(/[-_=]{6,}/g, " "))
 }
 
 function isVoiceRelayPeer(peerId: string): boolean {

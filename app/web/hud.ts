@@ -20,6 +20,7 @@ import {
 	type ButtonVoiceSnapshot,
 	type VoiceInputHudDeactivationMode,
 	type VoiceInputHudPhraseGroupId,
+	type VoiceInputHudPhraseGroup,
 	type VoiceInputHudServiceState,
 } from "@ui/components"
 import {HudSideTab, type HudSideTabEdge} from "@ui/hud"
@@ -283,7 +284,7 @@ type HudNotificationKind = "activation" | "deactivation" | "stop" | "agent"
 
 const DEFAULT_VOICE_INPUT_URL = "ws://127.0.0.1:8877/ws"
 const DEFAULT_VOICE_WAKE_URL = "ws://127.0.0.1:4765/ws"
-const DEFAULT_VOICE_AUTO_SEND_ENABLED = false
+const DEFAULT_VOICE_AUTO_SEND_ENABLED = true
 const DEFAULT_CODEX_VOICE_P2P_ENABLED = true
 const DEFAULT_VOICE_DEACTIVATION_MODE: VoiceDeactivationMode = "phrase-timeout"
 const DEFAULT_VOICE_RECOGNITION_TIMEOUT_SECONDS = 3
@@ -302,6 +303,7 @@ const VOICE_SIGNAL_COOLDOWN_MS = 900
 const VOICE_AUTO_WAKE_RETRY_MS = 3_000
 const VOICE_HUD_ERROR_MS = 2_400
 const VOICE_METER_RENDER_MS = 80
+const VOICE_SETTINGS_LONG_PRESS_MS = 450
 const AGENT_READY_SOUND_IDLE_MS = 2500
 const AGENT_READY_SOUND_COOLDOWN_MS = 1200
 const CODEX_COMPOSER_H = 268
@@ -732,6 +734,38 @@ class AppWebHud implements AppWebHudController {
 		writeVoiceDeactivationMode(value)
 		this.#voiceClient?.refreshDeactivationSettings()
 		this.#voiceHud.requestRender()
+		this.#settingsPane.requestRender()
+	}
+
+	setVoicePhraseFuzzyTolerance(groupId: VoiceInputHudPhraseGroupId, value: number): void {
+		writeVoiceFuzzyTolerance(groupId, value)
+		this.#restartVoiceCommandRecognizerAfterSettingsChange()
+		this.#voiceHud.requestRender()
+		this.#settingsPane.requestRender()
+	}
+
+	voicePhraseGroups(): VoiceInputHudPhraseGroup[] {
+		return voicePhraseGroups(this.#voiceWakeLines)
+	}
+
+	addVoicePhrase(groupId: VoiceInputHudPhraseGroupId, phrase: string): void {
+		this.#addVoicePhrase(groupId, phrase)
+		this.#settingsPane.requestRender()
+	}
+
+	removeVoicePhrase(groupId: VoiceInputHudPhraseGroupId, phrase: string): void {
+		this.#removeVoicePhrase(groupId, phrase)
+		this.#settingsPane.requestRender()
+	}
+
+	resetVoicePhrases(groupId: VoiceInputHudPhraseGroupId): void {
+		this.#resetVoicePhrases(groupId)
+		this.#settingsPane.requestRender()
+	}
+
+	openVoiceSettings(): void {
+		this.#settingsPane.setTab("voice")
+		this.setDocked("settings", false)
 		this.#settingsPane.requestRender()
 	}
 
@@ -2137,6 +2171,7 @@ class AppWebHud implements AppWebHudController {
 		this.#voiceLastPartialText = text
 		this.#voiceLastPartialAt = new Date()
 		const preview = mergeVoiceInputText(this.#voiceAutoSendText, text)
+		this.#voiceAutoSendText = preview
 		this.#voicePartialPreviewText = preview
 		this.#applyVoiceComposerText(preview)
 		this.#codexComposer.requestRender()
@@ -2544,6 +2579,9 @@ class AppWebHud implements AppWebHudController {
 
 class AppWebCodexComposerPane extends UiSurface {
 	#frameDrag: PaneFrameDrag | null = null
+	#voiceSettingsPressTimer: number | null = null
+	#voiceSettingsPressStart: {x: number; y: number} | null = null
+	#voiceSettingsLongPressOpened = false
 
 	constructor(private readonly hud: AppWebHud) {
 		super({bgColor: null, borderColor: null})
@@ -2574,7 +2612,8 @@ class AppWebCodexComposerPane extends UiSurface {
 		const buttonSize = CODEX_COMPOSER_HEADER_BUTTON_SIZE
 		const gap = 5
 		const dockButtonX = w - PANE_FRAME.headerTextX - buttonSize
-		const voiceButtonX = dockButtonX - gap - buttonSize
+		const voiceButtonRect = this.#voiceButtonRect(w)
+		const voiceButtonX = voiceButtonRect.x
 		const sendButtonX = voiceButtonX - gap - buttonSize
 		const transportW = 58
 		const transportX = sendButtonX - gap - transportW
@@ -2601,7 +2640,7 @@ class AppWebCodexComposerPane extends UiSurface {
 			radius: 7,
 			action: () => this.hud.submitCodexComposer(),
 		})
-		ButtonVoice(this, voiceButtonX, 6, buttonSize, {
+		ButtonVoice(this, voiceButtonX, voiceButtonRect.y, buttonSize, {
 			key: "codex-message-voice",
 			snapshot: this.hud.voiceButtonSnapshot(),
 			soundPulse: this.hud.voiceSoundPulse(),
@@ -2617,6 +2656,52 @@ class AppWebCodexComposerPane extends UiSurface {
 		})
 		const rule = paneHeaderRuleRect(w, PANE_FRAME.headerHeight, PANE_FRAME.bodyInsetX)
 		this.drawRect(rule.x, rule.y, rule.w, rule.h, palette.borderDim, Z.SEPARATOR)
+	}
+
+	#voiceButtonRect(w = Math.max(1, this.rectW)): UiSurfaceRect {
+		const buttonSize = CODEX_COMPOSER_HEADER_BUTTON_SIZE
+		const gap = 5
+		const dockButtonX = w - PANE_FRAME.headerTextX - buttonSize
+		return {
+			x: dockButtonX - gap - buttonSize,
+			y: 6,
+			w: buttonSize,
+			h: buttonSize,
+		}
+	}
+
+	#voiceButtonHit(localX: number, localY: number): boolean {
+		return pointInUiRect(localX, localY, this.#voiceButtonRect())
+	}
+
+	#beginVoiceSettingsLongPress(localX: number, localY: number): void {
+		this.#cancelVoiceSettingsLongPress()
+		this.#voiceSettingsPressStart = {x: localX, y: localY}
+		this.#voiceSettingsLongPressOpened = false
+		this.#voiceSettingsPressTimer = window.setTimeout(() => {
+			this.#voiceSettingsPressTimer = null
+			if (this.#voiceSettingsPressStart === null) return
+			this.#voiceSettingsLongPressOpened = true
+			this.hud.openVoiceSettings()
+			super.onDeactivate()
+		}, VOICE_SETTINGS_LONG_PRESS_MS)
+	}
+
+	#cancelVoiceSettingsLongPress(): void {
+		if (this.#voiceSettingsPressTimer !== null) {
+			window.clearTimeout(this.#voiceSettingsPressTimer)
+			this.#voiceSettingsPressTimer = null
+		}
+		this.#voiceSettingsPressStart = null
+	}
+
+	#openVoiceSettingsFromButton(event: MouseEvent): void {
+		event.preventDefault()
+		event.stopPropagation()
+		this.#cancelVoiceSettingsLongPress()
+		this.#voiceSettingsLongPressOpened = false
+		this.hud.openVoiceSettings()
+		super.onDeactivate()
 	}
 
 	#drawTransportIndicator(x: number, y: number, w: number, h: number): void {
@@ -2770,30 +2855,60 @@ class AppWebCodexComposerPane extends UiSurface {
 	}
 
 	override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
+		if (this.#voiceButtonHit(localX, localY)) {
+			if (event.button === 2 || (event.ctrlKey && event.button === 0)) {
+				this.#openVoiceSettingsFromButton(event)
+				return
+			}
+			if (event.button === 0) this.#beginVoiceSettingsLongPress(localX, localY)
+		}
 		super.onPointerDown(event, localX, localY)
 		if (this.pressedHit !== null) return
 		this.#beginFrameInteraction(event, localX, localY)
 	}
 
 	override onPointerMove(event: MouseEvent, localX: number, localY: number): void {
+		const voicePressStart = this.#voiceSettingsPressStart
+		if (voicePressStart !== null && Math.hypot(localX - voicePressStart.x, localY - voicePressStart.y) > DOCK_DRAG_THRESHOLD_PX) {
+			this.#cancelVoiceSettingsLongPress()
+		}
 		if (this.#updateFrameInteraction(event)) return
 		super.onPointerMove(event, localX, localY)
 		this.#syncFrameCursor(localX, localY)
 	}
 
 	override onPointerUp(event: MouseEvent, localX: number, localY: number): void {
+		if (this.#voiceSettingsLongPressOpened) {
+			this.#voiceSettingsLongPressOpened = false
+			this.#cancelVoiceSettingsLongPress()
+			event.preventDefault()
+			this.#syncFrameCursor(localX, localY)
+			return
+		}
+		this.#cancelVoiceSettingsLongPress()
 		if (this.#endFrameInteraction(event, localX, localY)) return
 		super.onPointerUp(event, localX, localY)
 		this.#syncFrameCursor(localX, localY)
 	}
 
+	override onContextMenu(event: MouseEvent, localX: number, localY: number): void {
+		if (this.#voiceButtonHit(localX, localY)) {
+			this.#openVoiceSettingsFromButton(event)
+			return
+		}
+		super.onContextMenu(event, localX, localY)
+	}
+
 	override onPointerLeave(): void {
 		if (this.#frameDrag !== null) return
+		this.#cancelVoiceSettingsLongPress()
 		super.onPointerLeave()
 	}
 
 	override onDeactivate(): void {
 		this.#frameDrag = null
+		this.#cancelVoiceSettingsLongPress()
+		this.#voiceSettingsLongPressOpened = false
 		super.onDeactivate()
 	}
 }
@@ -2801,10 +2916,17 @@ class AppWebCodexComposerPane extends UiSurface {
 class AppWebSettingsPane extends UiSurface {
 	#frameDrag: PaneFrameDrag | null = null
 	#tab: SettingsTab = "scene"
+	#voicePhraseDrafts = new Map<VoiceInputHudPhraseGroupId, string>()
 
 	constructor(private readonly hud: AppWebHud) {
 		super({bgColor: null, borderColor: null})
 		this.node.name = "AppWebSettingsPane"
+	}
+
+	setTab(tab: SettingsTab): void {
+		if (this.#tab === tab) return
+		this.#tab = tab
+		this.requestRender()
 	}
 
 	protected render(): void {
@@ -2994,6 +3116,7 @@ class AppWebSettingsPane extends UiSurface {
 			onChange: (value) => this.hud.setVoiceRecognitionTimeoutSeconds(value),
 		}) + 12
 		y = this.#drawDeactivationMode(x, y, w) + 12
+		y = this.#drawVoicePhraseGroups(x, y, w) + 12
 		y = this.#drawBooleanRow("Сигнал агента", "Звук после окончания вывода агента.", this.hud.agentSoundEnabled(), x, y, w, (checked) => this.hud.setAgentSoundEnabled(checked))
 		return this.#drawNumberControl({
 			key: "agent-sound-volume",
@@ -3008,6 +3131,117 @@ class AppWebSettingsPane extends UiSurface {
 			format: (value) => `${Math.round(value * 100)}%`,
 			onChange: (value) => this.hud.setAgentSoundVolume(value),
 		})
+	}
+
+	#drawVoicePhraseGroups(x: number, y: number, w: number): number {
+		this.drawText("Фразы", x, y, {fontPx: 11, material: this.materials.cyan, maxWidthPx: w, z: Z.TEXT})
+		y += 20
+		for (const group of this.hud.voicePhraseGroups()) y = this.#drawVoicePhraseGroup(group, x, y, w) + 12
+		return y
+	}
+
+	#drawVoicePhraseGroup(group: VoiceInputHudPhraseGroup, x: number, y: number, w: number): number {
+		const actionW = 28
+		this.drawText(group.title, x, y + 2, {
+			fontPx: 10,
+			material: this.materials.text,
+			maxWidthPx: Math.max(1, w - actionW - 8),
+			z: Z.TEXT,
+		})
+		IconButton(this, x + w - actionW, y - 1, actionW, 22, {
+			label: group.resetLabel,
+			iconSrc: uiIcons.restart,
+			variant: "text",
+			action: () => this.hud.resetVoicePhrases(group.id),
+		})
+		this.drawText(group.description, x, y + 18, {
+			fontPx: 8,
+			material: this.materials.muted,
+			maxWidthPx: w,
+			z: Z.TEXT,
+		})
+		y += 38
+		y = this.#drawNumberControl({
+			key: `voice-fuzzy:${group.id}`,
+			label: group.fuzzyLabel,
+			value: group.fuzzyValue,
+			min: 0,
+			max: 0.5,
+			step: 0.05,
+			x,
+			y,
+			w,
+			format: (value) => `${Math.round(value * 100)}%`,
+			onChange: (value) => this.hud.setVoicePhraseFuzzyTolerance(group.id, Math.round(value * 20) / 20),
+		}) + 6
+		const addW = 28
+		TextField(this, x, y, Math.max(1, w - addW - 6), 26, {
+			key: `settings-voice-phrase:${group.id}`,
+			value: this.#voicePhraseDraft(group.id),
+			placeholder: group.placeholder,
+			submitOnEnter: true,
+			onChange: (value) => this.#voicePhraseDrafts.set(group.id, value),
+			onSubmit: () => this.#submitVoicePhraseDraft(group.id),
+			sx: {fontSize: 10, borderRadius: 7, background: "bgInput", borderColor: "borderDim", color: "text"},
+		})
+		IconButton(this, x + w - addW, y, addW, 26, {
+			label: group.addLabel,
+			iconSrc: uiIcons.plus,
+			action: () => this.#submitVoicePhraseDraft(group.id),
+		})
+		y += 34
+		return this.#drawVoicePhraseChips(group, x, y, w)
+	}
+
+	#voicePhraseDraft(groupId: VoiceInputHudPhraseGroupId): string {
+		return this.#voicePhraseDrafts.get(groupId) ?? ""
+	}
+
+	#submitVoicePhraseDraft(groupId: VoiceInputHudPhraseGroupId): void {
+		const phrase = this.#voicePhraseDraft(groupId).replace(/\s+/g, " ").trim()
+		if (!phrase) return
+		this.hud.addVoicePhrase(groupId, phrase)
+		this.#voicePhraseDrafts.set(groupId, "")
+		this.requestRender()
+	}
+
+	#drawVoicePhraseChips(group: VoiceInputHudPhraseGroup, x: number, y: number, w: number): number {
+		const chipH = 20
+		const gap = 5
+		let cx = x
+		let cy = y
+		for (const phrase of group.phrases) {
+			const chipW = Math.min(w, Math.max(54, Math.ceil(this.measureText(phrase, 9)) + 28))
+			if (cx > x && cx + chipW > x + w) {
+				cx = x
+				cy += chipH + gap
+			}
+			this.drawRoundedRect(cx, cy, chipW, chipH, {
+				radius: 6,
+				fill: new Color(0.06, 0.12, 0.15, 0.58),
+				border: palette.borderDim,
+				borderWidth: 1,
+				z: Z.ELEMENT,
+			})
+			this.drawText(phrase, cx + 8, cy + 5, {
+				fontPx: 9,
+				material: this.materials.text,
+				maxWidthPx: Math.max(1, chipW - 26),
+				z: Z.TEXT,
+			})
+			this.drawText("x", cx + chipW - 14, cy + 5, {
+				fontPx: 9,
+				material: this.materials.muted,
+				maxWidthPx: 8,
+				z: Z.TEXT,
+			})
+			this.hit(cx, cy, chipW, chipH, () => this.hud.removeVoicePhrase(group.id, phrase), {
+				key: `settings-voice-phrase-remove:${group.id}:${phrase}`,
+				cursor: "pointer",
+			})
+			cx += chipW + gap
+		}
+		return cy + chipH
 	}
 
 	#drawSection(title: string, keys: readonly AppWebSettingKey[], x: number, y: number, w: number): number {
@@ -3169,7 +3403,7 @@ class AppWebSettingsPane extends UiSurface {
 			const sectionHeight = (rows: number): number => 19 + rows * 46 + 14
 			return 4 + sectionHeight(1) + sectionHeight(4) + sectionHeight(3) + sectionHeight(3)
 		}
-		return 320
+		return 560 + this.hud.voicePhraseGroups().reduce((height, group) => height + Math.ceil(group.phrases.length / 2) * 26, 0)
 	}
 
 	#frameInteractionOpts(): PaneFrameInteractionOpts {
@@ -4133,6 +4367,11 @@ function hiddenRect(): UiSurfaceRect {
 	return {x: 0, y: 0, w: 1, h: 1, visible: false}
 }
 
+function pointInUiRect(x: number, y: number, rect: UiSurfaceRect): boolean {
+	if (rect.visible === false) return false
+	return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h
+}
+
 function voiceStatusLine(status: VoiceInputStatus): string {
 	if (status === "connecting") return "подключение голоса"
 	if (status === "waitingWake") return "жду wake-up"
@@ -4481,16 +4720,30 @@ function readVoiceInputContext(): string {
 	return readStoredString(VOICE_INPUT_CONTEXT_STORAGE_KEY) ?? ""
 }
 
-function voiceContextWithTerminal(terminalText: string): string {
-	return [readVoiceInputContext(), terminalText.slice(-6000)]
+function voiceContextWithTerminal(_terminalText: string): string {
+	return [sanitizeVoicePromptContext(readVoiceInputContext())]
 		.map((item) => item.trim())
 		.filter(Boolean)
 		.join("\n\n")
-		.slice(-8000)
+		.slice(-2000)
+}
+
+function sanitizeVoicePromptContext(text: string): string {
+	return text
+		.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, " ")
+		.replace(/[\u2500-\u257F]+/g, " ")
+		.replace(/[-_=]{6,}/g, " ")
+		.split(/\r?\n/)
+		.map((line) => line.replace(/\s+/g, " ").trim())
+		.filter((line) => /[\p{L}\p{N}]/u.test(line))
+		.join("\n")
 }
 
 function readCodexVoiceAutoSendEnabled(): boolean {
-	return readStoredBoolean(CODEX_VOICE_AUTO_SEND_STORAGE_KEY, DEFAULT_VOICE_AUTO_SEND_ENABLED)
+	const raw = readStoredString(CODEX_VOICE_AUTO_SEND_STORAGE_KEY) ?? readStoredString(VOICE_AUTO_SEND_STORAGE_KEY)
+	if (raw === "true" || raw === "1") return true
+	if (raw === "false" || raw === "0") return false
+	return DEFAULT_VOICE_AUTO_SEND_ENABLED
 }
 
 function readCodexVoiceP2PEnabled(): boolean {
@@ -4499,6 +4752,8 @@ function readCodexVoiceP2PEnabled(): boolean {
 
 function writeCodexVoiceAutoSendEnabled(enabled: boolean): void {
 	writeStoredBoolean(CODEX_VOICE_AUTO_SEND_STORAGE_KEY, enabled)
+	writeStoredBoolean(VOICE_AUTO_SEND_STORAGE_KEY, enabled)
+	syncInterpreterVoiceSettings({[VOICE_AUTO_SEND_STORAGE_KEY]: enabled ? "1" : "0"})
 }
 
 function readVoiceSignalVolume(): number {
@@ -4754,6 +5009,7 @@ function clampVoiceFuzzyTolerance(value: number): number {
 
 function shouldFlushVoiceBufferForStatus(previousStatus: VoiceInputStatus, status: VoiceInputStatus): boolean {
 	if (status === "idle") return true
+	if (status === "listening" && previousStatus === "committing") return true
 	if (status === "waitingWake" && (previousStatus === "listening" || previousStatus === "committing")) return true
 	return false
 }

@@ -115,7 +115,6 @@ export const DEFAULT_VOICE_STOP_PHRASES = [
   "совсем выруби микрофон",
 ] as const
 const VOICE_RMS_THRESHOLD = 0.012
-const VOICE_TIMEOUT_ACTIVITY_RMS_THRESHOLD = 0.004
 const VOICE_WAKE_BASE_GAIN = 2.8
 const VOICE_WAKE_MAX_GAIN = 6
 const VOICE_WAKE_TARGET_RMS = 0.055
@@ -576,7 +575,6 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     const rms = rmsLevel(samples)
     this.options.onLevel(rms)
     if ((this.#status !== "listening" && this.#status !== "committing") || this.#stream === null) return
-    if (rms >= VOICE_TIMEOUT_ACTIVITY_RMS_THRESHOLD) this.#lastRecognitionAt = now
     if (rms >= VOICE_RMS_THRESHOLD) {
       this.#hasSpeechSinceCommit = true
       this.#lastSpeechAt = now
@@ -1221,6 +1219,8 @@ export function cleanupVoiceText(text: string): string {
     .replace(/(^|[\n.!?…]\s*)редактор\s+субтитров[^\n.!?…]*(?:[.!?…]+)?/giu, "$1")
     .replace(/(^|[\n.!?…]\s*)продолжение\s+следует[^\n.!?…]*(?:[.!?…]+)?/giu, "$1")
     .replace(/(^|[\n.!?…]\s*)subtitles[^\n.!?…]*(?:[.!?…]+)?/giu, "$1")
+    .replace(/[\u2500-\u257F]+/g, " ")
+    .replace(/[-_=]{6,}/g, " ")
     .split(/\n\s*\n+/)
     .map((paragraph) => cleanupVoiceParagraph(paragraph))
     .filter(Boolean)
@@ -1254,6 +1254,7 @@ function isNoisePhrase(text: string): boolean {
     || normalized.startsWith("субтитры")
     || normalized.startsWith("редактор субтитров")
     || normalized.startsWith("subtitles")
+    || !/[\p{L}\p{N}]/u.test(text)
 }
 
 function dedupeAdjacentVoiceParagraphs(paragraphs: string[]): string[] {
