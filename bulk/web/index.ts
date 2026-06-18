@@ -19,18 +19,22 @@ import {
 	BufferAttribute,
 	BufferGeometry,
 	Color,
+	GLTFLoader,
 	GridHelper,
 	LineGlowMaterial,
 	LineSegments,
+	Light,
 	Matrix4,
 	Object3D,
 	Quaternion,
 	Renderer,
+	SkinnedMesh,
 	Space,
 	SphereGeometry,
 	Text,
 	TextMaterial,
 	TrueTypeFont,
+	AnimationMixer,
 	Raycaster,
 	Vector3,
 	ViewPoint,
@@ -137,6 +141,12 @@ const sphereWireframeCache = new Map<string, BufferGeometry>()
 const LABEL_TEXT_COLOR = new Color(1, 1, 1)
 const COSMOS_ORBIT_RAD_PER_MS = (Math.PI * 2) / 180_000
 const COSMOS_AXIS_RAD_PER_MS = (Math.PI * 2) / 90_000
+const ANTHROPOMORPH_BOT_MODEL_URL = "/models/bots.glb"
+const ANTHROPOMORPH_BOT_SCALE_MM = 240
+const ANTHROPOMORPH_BOT_STAGE_X_MM = -1600
+const ANTHROPOMORPH_BOT_STAGE_Y_MM = 1200
+const ANTHROPOMORPH_BOT_STAGE_Z_MM = 0
+const ANTHROPOMORPH_BOT_RENDER_WAKE_MS = 3000
 let activeLayoutSettings: AppWebLayoutSettings = { ...DEFAULT_APP_WEB_LAYOUT_SETTINGS }
 let activeRenderSettings: AppWebRenderSettings = { ...DEFAULT_APP_WEB_RENDER_SETTINGS }
 let levelResolver: LevelResolver = createLevelResolver(
@@ -546,6 +556,13 @@ const createWorkspaceGrid = (): GridHelper => {
 	grid.frustumCulled = false
 	grid.updateMatrix()
 	return grid
+}
+
+const createAnthropomorphBotLight = (color: Color, intensity: number, position: Vector3): Light => {
+	const light = new Light(color, intensity)
+	light.position.copy(position)
+	light.updateMatrix()
+	return light
 }
 
 type BulkHudSurfaceSlot = {
@@ -1060,6 +1077,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	let renderWakeUntilMs = 0
 	let lastAnimationTimestamp = 0
 	let animationSuspended = false
+	let anthropomorphBotRoot: Object3D | null = null
+	let anthropomorphBotMixer: AnimationMixer | null = null
+	let anthropomorphBotSkinnedMeshes: SkinnedMesh[] = []
 
 	const shellRecords = new Map<string, ShellRenderRecord>()
 	const fieldRecords = new Map<string, FieldRenderRecord>()
@@ -1098,6 +1118,45 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		frameHandle = requestAnimationFrame(animate)
 	}
 	let hudRuntime: BulkViewportHudRuntime
+
+	const loadAnthropomorphBots = async (): Promise<void> => {
+		try {
+			const gltf = await new GLTFLoader().load(ANTHROPOMORPH_BOT_MODEL_URL, {convertToZUp: false})
+			if (disposed) return
+
+			const root = gltf.space
+			root.position.set(ANTHROPOMORPH_BOT_STAGE_X_MM, ANTHROPOMORPH_BOT_STAGE_Y_MM, getFloorZ() + ANTHROPOMORPH_BOT_STAGE_Z_MM)
+			root.rotation.z = Math.PI
+			root.scale.set(ANTHROPOMORPH_BOT_SCALE_MM, ANTHROPOMORPH_BOT_SCALE_MM, ANTHROPOMORPH_BOT_SCALE_MM)
+			const skinnedMeshes: SkinnedMesh[] = []
+			root.traverse((object) => {
+				object.frustumCulled = false
+				if (object instanceof SkinnedMesh) skinnedMeshes.push(object)
+			})
+			root.updateMatrix()
+			space.add(root)
+
+			const keyLight = createAnthropomorphBotLight(new Color(1, 0.96, 0.86), 2.6, new Vector3(2600, -2600, 3600))
+			const fillLight = createAnthropomorphBotLight(new Color(0.45, 0.76, 1), 1.35, new Vector3(-2200, 1800, 2400))
+			space.add(keyLight)
+			space.add(fillLight)
+
+			if (gltf.animations.length > 0) {
+				const mixer = new AnimationMixer(root)
+				gltf.animations.forEach((clip, index) => {
+					const localRoot = root.children[index] ?? root
+					mixer.clipAction(clip, localRoot).play()
+				})
+				anthropomorphBotMixer = mixer
+			}
+
+			anthropomorphBotRoot = root
+			requestRenderLoop(ANTHROPOMORPH_BOT_RENDER_WAKE_MS)
+			anthropomorphBotSkinnedMeshes = skinnedMeshes
+		} catch (error) {
+			console.warn("[bulk/web] Failed to load anthropomorph bots", error)
+		}
+	}
 
 	const resetHoverMaterial = (target: HoverablePickTarget): void => {
 		target.material.color.copy(target.baseColor)
@@ -2103,6 +2162,19 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return shellRecords.size > 0 || fieldRecords.size > 0
 	}
 
+	const updateAnthropomorphBotAnimation = (deltaMs: number): boolean => {
+		if (!activeRenderSettings.animationEnabled || animationSuspended || deltaMs <= 0) return false
+		if (anthropomorphBotMixer === null) return false
+		anthropomorphBotMixer.update(deltaMs / 1000)
+		return true
+	}
+
+	const updateAnthropomorphBotSkinning = (): void => {
+		for (const mesh of anthropomorphBotSkinnedMeshes) {
+			mesh.skeleton.update()
+		}
+	}
+
 	const updateLabelTrackers = (): void => {
 		const cameraPos = viewPoint.position
 
@@ -2314,6 +2386,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 		const hasPendingMotion = updateAnimatedRecords(deltaMs)
 		const hasCosmosMotion = updateCosmosAnimation(deltaMs)
+		const hasBotMotion = updateAnthropomorphBotAnimation(deltaMs)
 		updateSceneWorldState()
 		applyNavigationFrame(deltaMs)
 
@@ -2332,14 +2405,16 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		updateLabelTrackers()
 		hudRuntime.flushPendingRender()
 		space.updateWorldMatrix()
+		updateAnthropomorphBotSkinning()
 		renderer.renderFrame(space, hudRuntime.overlay, viewPoint)
-		if (navigationState || hasPendingMotion || hasCosmosMotion || timestamp < renderWakeUntilMs) {
+		if (navigationState || hasPendingMotion || hasCosmosMotion || hasBotMotion || timestamp < renderWakeUntilMs) {
 			frameHandle = requestAnimationFrame(animate)
 		}
 	}
 
 	hudRuntime = new BulkViewportHudRuntime(options.canvas, renderer, viewPoint, uiFont, requestRenderLoop)
 	hudRuntime.handleSize(options.width, options.height)
+	void loadAnthropomorphBots()
 	requestRenderLoop()
 
 	return {
@@ -2359,6 +2434,10 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			document.removeEventListener("mousemove", wakeRenderFromDocumentMouseMove)
 			document.removeEventListener("mouseup", wakeRenderFromDocumentMouseUp)
 			setHoveredPickTarget(null)
+			if (anthropomorphBotRoot !== null) detachObject(anthropomorphBotRoot)
+			anthropomorphBotRoot = null
+			anthropomorphBotMixer = null
+			anthropomorphBotSkinnedMeshes = []
 			hudRuntime.dispose()
 			viewPoint.dispose()
 		},

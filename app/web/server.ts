@@ -171,6 +171,7 @@ const server = serve<AppWebSocketData>({
 			return response
 		},
 		"/engine-static/JetBrainsMono-Bold.ttf": () => new Response(file(join(import.meta.dir, "../../pkg/engine/static/JetBrainsMono-Bold.ttf"))),
+		"/models/bots.glb": () => new Response(file(join(import.meta.dir, "../../pkg/engine/static/models/bots.glb"))),
 		"/ws": (req: Request, wsServer: Server<AppWebSocketData>) => {
 			const ok = wsServer.upgrade(req, {data: {kind: "app-web"}})
 			logWsUpgrade(req, "app-web", ok)
