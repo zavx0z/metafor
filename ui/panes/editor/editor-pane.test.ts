@@ -308,12 +308,54 @@ describe("EditorPane selection", () => {
   })
 })
 
+describe("EditorPane layout options", () => {
+  test("can hide line numbers and map pointer hits from the compact code inset", () => {
+    const editor = new EditorPane({showHeader: false, showLineNumbers: false})
+    try {
+      editor.setText("alpha beta")
+      const charW = 13 * 0.62
+      const x = embeddedEditorCodeX() + charW * 7.1
+      const y = embeddedEditorLineY()
+
+      editor.onPointerDown({shiftKey: false, detail: 2} as MouseEvent, x, y)
+      editor.onPointerUp({shiftKey: false, detail: 2} as MouseEvent, x, y)
+
+      expect(editor.getSelectedText()).toBe("beta")
+    } finally {
+      editor.dispose()
+    }
+  })
+
+  test("keeps an embedded top body gap when header chrome is hidden", () => {
+    const editor = new EditorPane({showHeader: false, showLineNumbers: false})
+    try {
+      editor.setText("alpha")
+      editor.setCursor(0, 5)
+
+      editor.onPointerDown({shiftKey: false} as MouseEvent, embeddedEditorCodeX(), 1)
+      editor.onPointerUp({shiftKey: false} as MouseEvent, embeddedEditorCodeX(), 1)
+
+      expect(editor.getSelectionSnapshot().cursor).toEqual({line: 0, col: 5})
+    } finally {
+      editor.dispose()
+    }
+  })
+})
+
 function firstEditorLineY(): number {
   return PANE_FRAME.headerHeight + PANE_FRAME.bodyTopGap + 5
 }
 
 function firstEditorCodeX(): number {
   return 54
+}
+
+function embeddedEditorLineY(): number {
+  return PANE_FRAME.bodyTopGap + 5
+}
+
+function embeddedEditorCodeX(): number {
+  return PANE_FRAME.bodyInsetX + 2
 }
 
 function setEditorTestSize(editor: EditorPane): void {

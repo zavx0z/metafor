@@ -142,13 +142,10 @@ const LABEL_TEXT_COLOR = new Color(1, 1, 1)
 const COSMOS_ORBIT_RAD_PER_MS = (Math.PI * 2) / 180_000
 const COSMOS_AXIS_RAD_PER_MS = (Math.PI * 2) / 90_000
 const ANTHROPOMORPH_BOT_MODEL_URL = "/models/bots.glb"
-const ANTHROPOMORPH_BOT_SCALE_MM = 260
+const ANTHROPOMORPH_BOT_SCALE_MM = 1000
 const ANTHROPOMORPH_BOT_STAGE_X_MM = 0
 const ANTHROPOMORPH_BOT_STAGE_Y_MM = 0
 const ANTHROPOMORPH_BOT_STAGE_Z_MM = 0
-const ANTHROPOMORPH_BOT_UP_MARKER_X_MM = 520
-const ANTHROPOMORPH_BOT_UP_MARKER_Y_MM = -560
-const ANTHROPOMORPH_BOT_UP_MARKER_HEIGHT_MM = 900
 const ANTHROPOMORPH_BOT_RENDER_WAKE_MS = 3000
 let activeLayoutSettings: AppWebLayoutSettings = { ...DEFAULT_APP_WEB_LAYOUT_SETTINGS }
 let activeRenderSettings: AppWebRenderSettings = { ...DEFAULT_APP_WEB_RENDER_SETTINGS }
@@ -566,43 +563,6 @@ const createAnthropomorphBotLight = (color: Color, intensity: number, position: 
 	light.position.copy(position)
 	light.updateMatrix()
 	return light
-}
-
-const createAnthropomorphBotUpMarker = (): LineSegments => {
-	const height = ANTHROPOMORPH_BOT_UP_MARKER_HEIGHT_MM
-	const arrow = 120
-	const wing = 84
-	const letterX = 145
-	const letterW = 160
-	const letterTop = height - 18
-	const letterBottom = height - 178
-	const vertices = [
-		0, 0, 0, 0, 0, height,
-		0, 0, height, wing, 0, height - arrow,
-		0, 0, height, -wing, 0, height - arrow,
-		0, 0, height, 0, wing, height - arrow,
-		0, 0, height, 0, -wing, height - arrow,
-		letterX - letterW / 2, 0, letterTop, letterX + letterW / 2, 0, letterTop,
-		letterX + letterW / 2, 0, letterTop, letterX - letterW / 2, 0, letterBottom,
-		letterX - letterW / 2, 0, letterBottom, letterX + letterW / 2, 0, letterBottom,
-	]
-	const geometry = new BufferGeometry()
-	geometry.setAttribute("position", new BufferAttribute(new Float32Array(vertices), 3))
-	const marker = new LineSegments(
-		geometry,
-		new LineGlowMaterial({
-			color: new Color(0.38, 0.88, 1),
-			glowColor: new Color(0.38, 0.88, 1),
-			glowIntensity: 2.1,
-			opacity: 0.95,
-		}),
-	)
-	marker.frustumCulled = false
-	return marker
-}
-
-const keepAnthropomorphBotUpright = (clip: {tracks: Array<{nodeName: string; type: string}>}): void => {
-	clip.tracks = clip.tracks.filter((track) => !(track.nodeName === "Hips" && track.type === "quaternion"))
 }
 
 type BulkHudSurfaceSlot = {
@@ -1118,7 +1078,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	let lastAnimationTimestamp = 0
 	let animationSuspended = false
 	let anthropomorphBotRoot: Object3D | null = null
-	let anthropomorphBotUpMarker: Object3D | null = null
 	let anthropomorphBotMixer: AnimationMixer | null = null
 	let anthropomorphBotSkinnedMeshes: SkinnedMesh[] = []
 
@@ -1182,22 +1141,14 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			space.add(keyLight)
 			space.add(fillLight)
 
-			const upMarker = createAnthropomorphBotUpMarker()
-			upMarker.position.set(
-				ANTHROPOMORPH_BOT_STAGE_X_MM + ANTHROPOMORPH_BOT_UP_MARKER_X_MM,
-				ANTHROPOMORPH_BOT_STAGE_Y_MM + ANTHROPOMORPH_BOT_UP_MARKER_Y_MM,
-				getFloorZ() + ANTHROPOMORPH_BOT_STAGE_Z_MM,
-			)
-			upMarker.updateMatrix()
-			space.add(upMarker)
-			anthropomorphBotUpMarker = upMarker
-
 			if (gltf.animations.length > 0) {
 				const mixer = new AnimationMixer(root)
 				const modelRoot = root.children[0] ?? root
 				gltf.animations.forEach((clip, index) => {
-					keepAnthropomorphBotUpright(clip)
-					const localRoot = modelRoot.children[index] ?? root
+					const localRoot =
+						modelRoot.children.find((child) => child.name === clip.name) ??
+						modelRoot.children[index] ??
+						root
 					mixer.clipAction(clip, localRoot).play()
 				})
 				anthropomorphBotMixer = mixer
@@ -2488,9 +2439,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			document.removeEventListener("mouseup", wakeRenderFromDocumentMouseUp)
 			setHoveredPickTarget(null)
 			if (anthropomorphBotRoot !== null) detachObject(anthropomorphBotRoot)
-			if (anthropomorphBotUpMarker !== null) detachObject(anthropomorphBotUpMarker)
 			anthropomorphBotRoot = null
-			anthropomorphBotUpMarker = null
 			anthropomorphBotMixer = null
 			anthropomorphBotSkinnedMeshes = []
 			hudRuntime.dispose()

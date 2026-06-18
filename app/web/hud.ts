@@ -1422,6 +1422,7 @@ class AppWebHud implements AppWebHudController {
 			introAnimation: false,
 			showHeader: false,
 			indentGuides: false,
+			showLineNumbers: false,
 			draggable: false,
 			resizable: false,
 			onChange: (text) => this.#setCodexDraftFromEditor(text),
@@ -2613,17 +2614,25 @@ class AppWebCodexComposerPane extends UiSurface {
 	#renderHeader(w: number): void {
 		const buttonSize = CODEX_COMPOSER_HEADER_BUTTON_SIZE
 		const gap = 5
-		const dockButtonX = w - PANE_FRAME.headerTextX - buttonSize
+		const dockButtonX = PANE_FRAME.headerTextX
+		const titleX = dockButtonX + buttonSize + gap
 		const voiceButtonRect = this.#voiceButtonRect(w)
 		const voiceButtonX = voiceButtonRect.x
 		const sendButtonX = voiceButtonX - gap - buttonSize
 		const transportW = 58
 		const transportX = sendButtonX - gap - transportW
-		const statusX = PANE_FRAME.headerTextX + 112
-		this.drawText("Codex message", PANE_FRAME.headerTextX, PANE_FRAME.headerTextY, {
+		const statusX = titleX + 112
+		IconButton(this, dockButtonX, 6, buttonSize, buttonSize, {
+			label: "Свернуть Codex",
+			iconSrc: uiIcons.minus,
+			variant: "text",
+			radius: 7,
+			action: () => this.hud.setDocked("codex", true),
+		})
+		this.drawText("Codex message", titleX, PANE_FRAME.headerTextY, {
 			fontPx: 12,
 			material: this.materials.cyan,
-			maxWidthPx: Math.max(1, statusX - PANE_FRAME.headerTextX - 8),
+			maxWidthPx: Math.max(1, statusX - titleX - 8),
 			z: Z.TEXT,
 		})
 		this.drawText(this.hud.codexComposerStatus(), statusX, PANE_FRAME.headerTextY + 1, {
@@ -2649,23 +2658,14 @@ class AppWebCodexComposerPane extends UiSurface {
 			tooltip: "Голосовой ввод",
 			onClick: () => this.hud.toggleVoiceInput(),
 		})
-		IconButton(this, dockButtonX, 6, buttonSize, buttonSize, {
-			label: "Свернуть Codex",
-			iconSrc: uiIcons.minus,
-			variant: "text",
-			radius: 7,
-			action: () => this.hud.setDocked("codex", true),
-		})
 		const rule = paneHeaderRuleRect(w, PANE_FRAME.headerHeight, PANE_FRAME.bodyInsetX)
 		this.drawRect(rule.x, rule.y, rule.w, rule.h, palette.borderDim, Z.SEPARATOR)
 	}
 
 	#voiceButtonRect(w = Math.max(1, this.rectW)): UiSurfaceRect {
 		const buttonSize = CODEX_COMPOSER_HEADER_BUTTON_SIZE
-		const gap = 5
-		const dockButtonX = w - PANE_FRAME.headerTextX - buttonSize
 		return {
-			x: dockButtonX - gap - buttonSize,
+			x: w - PANE_FRAME.headerTextX - buttonSize,
 			y: 6,
 			w: buttonSize,
 			h: buttonSize,

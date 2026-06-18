@@ -1354,9 +1354,24 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
   private updateSkinnedMeshData(mesh: SkinnedMesh, worldMatrix: Matrix4, offsetFloats: number): void {
     this.updateMeshData(mesh, worldMatrix, offsetFloats)
+
     const dynamicOffset = offsetFloats * 4
     const boneMatricesOffset = dynamicOffset + PER_OBJECT_UNIFORM_SIZE
-    this.perObjectDataCPU!.set(mesh.skeleton.boneMatrices, boneMatricesOffset / 4)
+    const boneMatricesOffsetFloats = boneMatricesOffset / 4
+    const boneCount = Math.min(mesh.skeleton.bones.length, mesh.skeleton.boneInverses.length, MAX_BONES)
+    // The skinned shader applies modelMatrix after skinning, so uniforms stay mesh-local.
+    const meshWorldInverse = new Matrix4().copy(worldMatrix).invert()
+    const boneMatrix = new Matrix4()
+
+    for (let i = 0; i < boneCount; i++) {
+      const bone = mesh.skeleton.bones[i]!
+      const boneInverse = mesh.skeleton.boneInverses[i]!
+      boneMatrix
+        .multiplyMatrices(meshWorldInverse, bone.matrixWorld)
+        .multiply(boneInverse)
+
+      this.perObjectDataCPU!.set(boneMatrix.elements, boneMatricesOffsetFloats + i * 16)
+    }
   }
 
   private updateMeshData(mesh: Mesh, worldMatrix: Matrix4, offsetFloats: number): void {

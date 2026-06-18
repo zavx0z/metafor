@@ -42,7 +42,6 @@ import {
 import {
   PANE_FRAME,
   beginPaneFrameDrag,
-  paneBodyRect,
   paneFrameCursor,
   paneFrameDragRect,
   paneFrameHit,
@@ -128,6 +127,8 @@ export type EditorOpts = {
   showHeader?: boolean
   /** Show vertical indentation guides in code body. Default true. */
   indentGuides?: boolean
+  /** Show line numbers in the left gutter. Default true. */
+  showLineNumbers?: boolean
   /** Header drag is opt-in. Default false. */
   draggable?: boolean
   /** Edge resize is opt-in. Default false. */
@@ -287,6 +288,7 @@ export class EditorPane extends UiSurface {
   #introAnimation: boolean
   #showHeader: boolean
   #indentGuides: boolean
+  #showLineNumbers: boolean
   #executionLine: number | null = null
   #cursorVisible = true
   #cursorBlinkTimer: ReturnType<typeof setInterval> | null = null
@@ -345,6 +347,7 @@ export class EditorPane extends UiSurface {
     this.#introAnimation = opts.introAnimation ?? true
     this.#showHeader = opts.showHeader ?? true
     this.#indentGuides = opts.indentGuides ?? true
+    this.#showLineNumbers = opts.showLineNumbers ?? true
     this.#tokenMaterials = createEditorTokenMaterials()
     this.#refreshTokens()
   }
@@ -571,7 +574,17 @@ export class EditorPane extends UiSurface {
   }
 
   #padTopPx(): number {
-    return this.#showHeader ? PAD_TOP_PX : 0
+    return this.#showHeader ? PAD_TOP_PX : PANE_FRAME.bodyTopGap
+  }
+
+  #bodyRect(): PaneRect {
+    const y = this.#padTopPx()
+    return {
+      x: PAD_LEFT_PX,
+      y,
+      w: Math.max(1, this.rectW - PAD_LEFT_PX - PAD_RIGHT_PX),
+      h: Math.max(1, this.rectH - y - PAD_BOTTOM_PX),
+    }
   }
 
   #frameInteractionOpts(): PaneFrameInteractionOpts {
@@ -1674,7 +1687,7 @@ export class EditorPane extends UiSurface {
 
     const total = this.#lines.length
     const gutter = this.#gutterWidthPx(total)
-    const viewport = paneBodyRect(this.rectW, this.rectH, {headerHeight: HEADER_H_PX, showHeader: this.#showHeader})
+    const viewport = this.#bodyRect()
     div(this, viewport.x, viewport.y, viewport.w, viewport.h, {
       key: EDITOR_SCROLL_KEY,
       scrollContentWidth: Math.max(1, gutter + CODE_LEFT_PAD_PX + this.#maxLineWidthPx() + 8),
@@ -1880,21 +1893,24 @@ export class EditorPane extends UiSurface {
   }
 
   #renderGutterLayer(metrics: EditorGutterMetrics, lines: readonly EditorVisibleLine[]): void {
+    if (metrics.w <= 0) return
     const ruleX = Math.round(metrics.ruleX) + 0.5
     this.drawLine(ruleX, metrics.y, ruleX, metrics.y + metrics.h, GUTTER_RULE_FILL, 1, GUTTER_RULE_Z)
     for (const line of lines) {
       const sourceLine = line.lineIndex + 1
-      const label = String(line.lineIndex + 1)
-      const labelW = this.measureText(label, this.#fontPx)
-      const labelX = Math.max(
-        metrics.x + GUTTER_LEFT_PAD_PX,
-        metrics.numberXMax - labelW,
-      )
       const breakpoint = this.#breakpoints.get(sourceLine)
       if (breakpoint !== undefined) {
         this.#drawBreakpointMarker(this.#breakpointMarkerX(metrics), this.#lineCenterY(line.rowY), breakpoint)
       }
-      this.#drawGutterLabel(label, labelX, line.textY, metrics.numberW, line.isCurrent, line.isExecution)
+      if (this.#showLineNumbers) {
+        const label = String(line.lineIndex + 1)
+        const labelW = this.measureText(label, this.#fontPx)
+        const labelX = Math.max(
+          metrics.x + GUTTER_LEFT_PAD_PX,
+          metrics.numberXMax - labelW,
+        )
+        this.#drawGutterLabel(label, labelX, line.textY, metrics.numberW, line.isCurrent, line.isExecution)
+      }
       if (this.#onBreakpointToggle !== undefined) {
         this.hit(metrics.x, line.rowY, metrics.w, this.#linePx, () => this.#onBreakpointToggle?.(sourceLine), {
           key: `editor-breakpoint-gutter:${sourceLine}`,
@@ -2210,7 +2226,11 @@ export class EditorPane extends UiSurface {
   }
 
   #gutterWidthPx(lineCount: number): number {
+    if (!this.#showLineNumbers && !this.#hasBreakpointLane()) return 0
     if (this.font === null) return GUTTER_MIN_PX
+    if (!this.#showLineNumbers) {
+      return Math.ceil(GUTTER_LEFT_PAD_PX + GUTTER_BREAKPOINT_LANE_PX + GUTTER_RIGHT_PAD_PX)
+    }
     const digits = Math.max(2, String(Math.max(1, lineCount)).length)
     const digitW = this.measureText("8", this.#fontPx)
     const breakpointLane = this.#hasBreakpointLane() ? GUTTER_BREAKPOINT_LANE_PX : 0
