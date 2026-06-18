@@ -36,6 +36,7 @@ type VoiceRtcRelayPeer = {
 	audioStream: MediaStream | null
 	asrWs: WebSocket | null
 	audioContext: AudioContext | null
+	audioElement: HTMLAudioElement | null
 	sourceNode: MediaStreamAudioSourceNode | null
 	captureNode: AudioWorkletNode | null
 	sinkNode: GainNode | null
@@ -60,6 +61,7 @@ const VOICE_RTC_CONNECT_TIMEOUT_MS = 2500
 const VOICE_RTC_MEDIA_TIMEOUT_MS = 1800
 const VOICE_RTC_ASR_TEXT_TIMEOUT_MS = 18_000
 const VOICE_RTC_DEBUG_POST_MIN_MS = 1000
+const VOICE_RTC_RELAY_SINK_GAIN = 0.00001
 const TARGET_RELAY_SAMPLE_RATE = 16_000
 const PCM_FLUSH_BYTES = 4096
 const PCM_FLUSH_MS = 120
@@ -477,7 +479,7 @@ class VoiceRtcRelay {
 			return
 		}
 		try {
-			this.#primedAudioContext = new AudioContext({sampleRate: TARGET_RELAY_SAMPLE_RATE})
+			this.#primedAudioContext = new AudioContext()
 		} catch {
 			this.#primedAudioContext = new AudioContext()
 		}
@@ -523,6 +525,7 @@ class VoiceRtcRelay {
 			audioStream: null,
 			asrWs: null,
 			audioContext: null,
+			audioElement: null,
 			sourceNode: null,
 			captureNode: null,
 			sinkNode: null,
@@ -644,9 +647,12 @@ class VoiceRtcRelay {
 
 		this.#sendAsrJson(peer, {
 			...payload,
-			sampleRate: audioContext.sampleRate,
+			sampleRate: TARGET_RELAY_SAMPLE_RATE,
 		})
-		this.#sendRelayStatus(peer, "asr-open", {sampleRate: audioContext.sampleRate})
+		this.#sendRelayStatus(peer, "asr-open", {
+			sampleRate: TARGET_RELAY_SAMPLE_RATE,
+			contextSampleRate: audioContext.sampleRate,
+		})
 		await this.#startRelayCapture(peer)
 	}
 
@@ -661,7 +667,7 @@ class VoiceRtcRelay {
 			this.#primedAudioContext = null
 		} else {
 			try {
-				peer.audioContext = new AudioContext({sampleRate: TARGET_RELAY_SAMPLE_RATE})
+				peer.audioContext = new AudioContext()
 			} catch {
 				peer.audioContext = new AudioContext()
 			}
@@ -677,19 +683,37 @@ class VoiceRtcRelay {
 	async #startRelayCapture(peer: VoiceRtcRelayPeer): Promise<void> {
 		if (peer.captureNode !== null || peer.audioStream === null || peer.asrWs?.readyState !== WebSocket.OPEN) return
 		const audioContext = await this.#ensureAudioContext(peer)
+		this.#startRemoteAudioSink(peer)
 		peer.sourceNode = audioContext.createMediaStreamSource(peer.audioStream)
 		peer.captureNode = await this.#createCaptureNode(peer, audioContext)
 		peer.sinkNode = audioContext.createGain()
-		peer.sinkNode.gain.value = 0
+		peer.sinkNode.gain.value = VOICE_RTC_RELAY_SINK_GAIN
 		peer.captureNode.port.onmessage = (event: MessageEvent<unknown>) => {
 			const samples = event.data
 			if (!(samples instanceof Float32Array)) return
-			this.#enqueueOutboundPcm(peer, floatToPcm16(samples), rmsLevel(samples))
+			const asrSamples = resampleFloat32(samples, audioContext.sampleRate, TARGET_RELAY_SAMPLE_RATE)
+			this.#enqueueOutboundPcm(peer, floatToPcm16(asrSamples), rmsLevel(samples))
 		}
 		peer.sourceNode.connect(peer.captureNode)
 		peer.captureNode.connect(peer.sinkNode)
 		peer.sinkNode.connect(audioContext.destination)
-		this.#sendRelayStatus(peer, "media-capture", {sampleRate: audioContext.sampleRate})
+		this.#sendRelayStatus(peer, "media-capture", {
+			sampleRate: TARGET_RELAY_SAMPLE_RATE,
+			contextSampleRate: audioContext.sampleRate,
+		})
+	}
+
+	#startRemoteAudioSink(peer: VoiceRtcRelayPeer): void {
+		if (peer.audioStream === null || peer.audioElement !== null || typeof document === "undefined") return
+		const audio = document.createElement("audio")
+		audio.autoplay = true
+		audio.muted = true
+		audio.setAttribute("playsinline", "")
+		audio.srcObject = peer.audioStream
+		audio.style.display = "none"
+		document.body.appendChild(audio)
+		peer.audioElement = audio
+		void audio.play().catch(() => undefined)
 	}
 
 	async #createCaptureNode(peer: VoiceRtcRelayPeer, context: AudioContext): Promise<AudioWorkletNode> {
@@ -848,6 +872,8 @@ registerProcessor("voice-rtc-capture", VoiceRtcCaptureProcessor);
 		peer.sourceNode?.disconnect()
 		peer.captureNode?.disconnect()
 		peer.sinkNode?.disconnect()
+		peer.audioElement?.remove()
+		peer.audioElement = null
 		peer.sourceNode = null
 		peer.captureNode = null
 		peer.sinkNode = null
@@ -1024,6 +1050,28 @@ function floatToPcm16(samples: Float32Array): ArrayBuffer {
 		view.setInt16(index * 2, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true)
 	}
 	return buffer
+}
+
+function resampleFloat32(samples: Float32Array, fromSampleRate: number, toSampleRate: number): Float32Array {
+	if (samples.length === 0 || fromSampleRate === toSampleRate) return samples
+	if (!Number.isFinite(fromSampleRate) || !Number.isFinite(toSampleRate) || fromSampleRate <= 0 || toSampleRate <= 0) return samples
+	const ratio = fromSampleRate / toSampleRate
+	const outputLength = Math.max(1, Math.floor(samples.length / ratio))
+	const output = new Float32Array(outputLength)
+	for (let index = 0; index < outputLength; index += 1) {
+		const start = index * ratio
+		const end = Math.min(samples.length, (index + 1) * ratio)
+		const first = Math.floor(start)
+		const last = Math.max(first + 1, Math.ceil(end))
+		let sum = 0
+		let count = 0
+		for (let sourceIndex = first; sourceIndex < last && sourceIndex < samples.length; sourceIndex += 1) {
+			sum += samples[sourceIndex] ?? 0
+			count += 1
+		}
+		output[index] = count === 0 ? 0 : sum / count
+	}
+	return output
 }
 
 function rmsLevel(samples: Float32Array): number {
