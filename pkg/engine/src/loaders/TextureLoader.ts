@@ -54,7 +54,7 @@ export class TextureLoader {
     }
     cache.set(src, entry)
 
-    void loadTexture(device, entry)
+    if (!isVirtualTextureSrc(src)) void loadTexture(device, entry)
     return entry
   }
 
@@ -78,7 +78,7 @@ export class TextureLoader {
     entry.pendingBitmap?.close?.()
     entry.pendingBitmap = bitmap
     const device = entry.device
-    if (device === undefined || entry.status === "loading") {
+    if (device === undefined || (!isVirtualTextureSrc(src) && entry.status === "loading")) {
       entry.status = "loading"
       notify(src)
       return
@@ -106,6 +106,7 @@ export class TextureLoader {
 
 async function loadTexture(device: GPUDevice, entry: TextureEntry): Promise<void> {
   try {
+    if (isVirtualTextureSrc(entry.src)) return
     const pending = entry.pendingBitmap
     if (pending !== undefined) {
       await replaceTextureFromBitmap(device, entry, pending)
@@ -121,6 +122,10 @@ async function loadTexture(device: GPUDevice, entry: TextureEntry): Promise<void
   } finally {
     notify(entry.src)
   }
+}
+
+function isVirtualTextureSrc(src: string): boolean {
+  return src.startsWith("metafor:")
 }
 
 async function replaceTextureFromBitmap(device: GPUDevice, entry: TextureEntry, bitmap: ImageBitmap): Promise<void> {

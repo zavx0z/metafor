@@ -39,6 +39,7 @@ import type {InterpreterModule, InterpreterModuleManager, StartupModuleOptions} 
 import type {BreakpointSpec} from "./target.ts"
 import {workspaceFilesPayload, type WorkspaceFilesModuleContext} from "./workspace-files.ts"
 import {sqliteDatabaseFingerprint, sqliteDatabaseInputPath, sqliteDatabasePayload, sqliteJsonError, updateSqliteCell, type SqliteDatabaseFingerprint, type SqliteDatabasePayload} from "./sqlite-db.ts"
+import {interpreterRoutes} from "./routes.ts"
 import {
   deleteTodoMarkdownItem,
   insertTodoMarkdownItem,
@@ -281,7 +282,7 @@ function sqliteChangedPayload(entry: SqliteWatchEntry, available: boolean): Json
   }
 }
 
-export function startHttpServer(options: HttpServerOptions): HttpServer {
+export function createInterpreterHttpRoutes(options: HttpServerOptions) {
   const wsClients = new Set<ServerWebSocket<WsClientData>>()
   const terminalSessions = interpreterTerminalSessions()
   let nextWsClientId = 1
@@ -525,14 +526,11 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
     },
   }
 
-  const server = Bun.serve({
-    hostname: options.host,
-    port: options.port,
-    development: false,
+  return {
     routes: {
       "/": indexHtml,
     },
-    async fetch(req, server): Promise<Response | undefined> {
+    async fetch(req: Request, server: HttpServer): Promise<Response | undefined> {
       const url = new URL(req.url)
       const path = url.pathname.replace(/\/+$/, "") || "/"
       const method = req.method.toUpperCase()
@@ -613,6 +611,22 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
       options.logger.event("http.fatal", {error: serializeError(error)})
       return jsonResponse({ok: false, error: serializeError(error)}, 500)
     },
+  }
+}
+
+export type InterpreterHttpRoutes = ReturnType<typeof createInterpreterHttpRoutes>
+
+export function startHttpServer(options: HttpServerOptions): HttpServer {
+  const interpreterHttpRoutes = createInterpreterHttpRoutes(options)
+  const {routes, fetch, websocket, error} = interpreterHttpRoutes
+  const server = Bun.serve({
+    hostname: options.host,
+    port: options.port,
+    development: false,
+    routes,
+    fetch,
+    websocket,
+    error,
   })
 
   options.logger.status(`http+ws+ui listening on http://${options.host}:${options.port}`)
@@ -824,18 +838,26 @@ async function networkActionRoute(req: Request): Promise<Response> {
   if (action === undefined) return jsonResponse({ok: false, error: "network action must be a string"}, 400)
   if (!isNetworkAction(action)) return jsonResponse({ok: false, action, error: "unknown network action"}, 400)
   const started = Date.now()
-  const script = resolve(process.cwd(), "app/web/network-tmux.ts")
-  const result = Bun.spawnSync([process.execPath, script, action], {
-    cwd: process.cwd(),
-    stdout: "pipe",
-    stderr: "pipe",
-    env: {
-      ...process.env,
-      NETWORK_TMUX_SESSION: asString(parsed.body["session"]) ?? "metafor-app-web-net",
-      NETWORK_TMUX_WINDOW: asString(parsed.body["window"]) ?? "network",
-      NETWORK_TMUX_TLS_MODE: networkTlsMode(parsed.body["tlsMode"]),
-    },
-  })
+  const script = resolve(process.cwd(), "app/web/run.ts")
+  const env = {
+    ...process.env,
+    NETWORK_TMUX_SESSION: asString(parsed.body["session"]) ?? "metafor-app-web-net",
+    NETWORK_TMUX_WINDOW: asString(parsed.body["window"]) ?? "network",
+    NETWORK_TMUX_MODE: "dev",
+    ...(networkActionRestartsCurrentPane(action) ? {NETWORK_TMUX_START_DELAY_MS: "450"} : {}),
+  }
+  const command = [process.execPath, script, "--dev", action]
+  if (networkActionRestartsCurrentPane(action)) {
+    Bun.spawn(["nohup", ...command], {
+      cwd: process.cwd(),
+      stdin: "ignore",
+      stdout: "ignore",
+      stderr: "ignore",
+      env,
+    })
+    return jsonResponse({ok: true, action, detached: true, durationMs: Date.now() - started}, 202)
+  }
+  const result = Bun.spawnSync(command, {cwd: process.cwd(), stdout: "pipe", stderr: "pipe", env})
   const stdout = new TextDecoder().decode(result.stdout)
   const stderr = new TextDecoder().decode(result.stderr)
   return jsonResponse({
@@ -846,6 +868,10 @@ async function networkActionRoute(req: Request): Promise<Response> {
     stdout,
     stderr,
   }, result.exitCode === 0 ? 200 : 500)
+}
+
+function networkActionRestartsCurrentPane(action: string): boolean {
+  return action === "layout" || action === "start:tls" || action === "stop:tls"
 }
 
 function isNetworkAction(action: string): boolean {
@@ -859,10 +885,6 @@ function isNetworkAction(action: string): boolean {
     "tail",
     "clear",
   ].includes(action)
-}
-
-function networkTlsMode(value: unknown): string {
-  return value === "interpreter" ? "interpreter" : "direct"
 }
 
 async function closeProcess(processId: string, _params: JsonObject, options: HttpServerOptions): Promise<Response> {
@@ -1001,7 +1023,7 @@ async function handleRoute(
   dispatchUiHostCommand: UiHostCommandDispatcher,
   sqliteWatchRegistry: ReturnType<typeof createSqliteWatchRegistry>,
 ): Promise<Response> {
-  if (method === "GET" && path === "/") return jsonResponse({service: "@metafor/interpreter", routes: routeIndex()})
+  if (method === "GET" && path === "/") return jsonResponse({service: "@metafor/interpreter", routes: interpreterRoutes.index})
   if (method === "GET" && path === "/health") return jsonResponse(healthPayload(options))
   if (method === "GET" && path === "/space") return await dispatchUiHostRoute("space.get", {}, dispatchUiHostCommand)
   if (method === "POST" && path === "/space/focus") return await dispatchUiHostRouteFromBody("space.focus", req, dispatchUiHostCommand)
@@ -1014,6 +1036,7 @@ async function handleRoute(
   if (method === "POST" && path === "/hud/codex/attachments") return await codexAttachmentResponse(req)
   if (method === "GET" && path === "/hud/terminal/network") return await dispatchUiHostRoute("hud.terminal.network.get", {}, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/terminal/network/dock") return await dispatchUiHostRouteFromBody("hud.terminal.network.dock", req, dispatchUiHostCommand)
+  if (method === "GET" && path === "/hud/terminal/network/show") return await dispatchUiHostRoute("hud.terminal.network.show", {}, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/terminal/network/show") return await dispatchUiHostRouteFromBody("hud.terminal.network.show", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/terminal/network/toggle") return await dispatchUiHostRouteFromBody("hud.terminal.network.toggle", req, dispatchUiHostCommand)
   if (method === "POST" && (path === "/space/network/action" || path === "/hud/network/action")) return await networkActionRoute(req)
@@ -1127,80 +1150,6 @@ function serveStatic(filePath: string, contentType: string): Response {
       "cache-control": "public, max-age=86400",
     },
   })
-}
-
-function routeIndex(): Array<{method: string; path: string; description: string}> {
-  return [
-    {method: "GET", path: "/health", description: "статус коннекта и параметры"},
-    {method: "GET", path: "/space", description: "обзор визуального Space: рабочие поверхности и геометрия"},
-    {method: "POST", path: "/space/focus", description: "{selector:{side|processId|moduleId|label|order}, dockHostTerminal?} — сфокусировать рабочую поверхность"},
-    {method: "POST", path: "/space/frame", description: "показать все рабочие поверхности Space"},
-    {method: "GET", path: "/context", description: "server-owned текущий active context: ровно текущий display/source/scopes/terminal"},
-    {method: "GET", path: "/processes", description: "список runtime processes интерпретатора"},
-    {method: "POST", path: "/processes", description: "{label?, command, cwd?, env?, pauseOnStart?, breakpoints?} — запустить новый runtime process"},
-    {method: "POST", path: "/processes/resolve", description: "{selector:{side|processId|moduleId|label|order}} — найти process по текущему Space"},
-    {method: "POST", path: "/processes/focus", description: "{selector:{side|processId|moduleId|label|order}, dockHostTerminal?} — сфокусировать process"},
-    {method: "GET", path: "/processes/:id", description: "рабочий payload process: content + runtime/ui state/capabilities"},
-    {method: "POST", path: "/processes/:id/focus", description: "сфокусировать конкретный process"},
-    {method: "DELETE", path: "/processes/:id", description: "остановить runtime process и убрать его display из Space"},
-    {method: "POST", path: "/processes/:id/action", description: "{action, params?} — выполнить pause|resume|step|setBreakpointsActive|muteBreakpoints|unmuteBreakpoints|evaluate|source.open|source.openSelection|restart|stop|close|showExecutionPoint"},
-    {method: "GET", path: "/processes/:id/context", description: "текущий context конкретного process"},
-    {method: "GET", path: "/processes/:id/modules?q=<text>&limit=<n>", description: "каталог кода в контексте process"},
-    {method: "GET", path: "/processes/:id/source?scriptId=<id>", description: "исходник в контексте process"},
-    {method: "POST", path: "/processes/:id/source", description: "{sourceUrl, text} — сохранить локальный source file через apply_patch"},
-    {method: "POST", path: "/processes/:id/apply_patch", description: "raw apply_patch text — применить apply_patch к workspace process"},
-    {method: "GET", path: "/processes/:id/breakpoints", description: "breakpoint registrations конкретного process"},
-    {method: "POST", path: "/processes/:id/breakpoint", description: "{url|sourceUrl|urlRegex, line, column?, condition?} — breakpoint в конкретном process"},
-    {method: "DELETE", path: "/processes/:id/breakpoint", description: "{id|breakpointId} — убрать breakpoint из конкретного process"},
-    {method: "GET", path: "/hud/terminal", description: "состояние host terminal HUD"},
-    {method: "POST", path: "/hud/terminal/dock", description: "свернуть host terminal HUD"},
-    {method: "POST", path: "/hud/terminal/show", description: "развернуть host terminal HUD"},
-    {method: "POST", path: "/hud/terminal/toggle", description: "переключить host terminal HUD"},
-    {method: "GET", path: "/hud/terminal/network", description: "состояние второй network terminal HUD"},
-    {method: "POST", path: "/hud/terminal/network/show", description: "сфокусировать network display в Space"},
-    {method: "POST", path: "/hud/terminal/network/dock", description: "оставить network tmux в Space без плавающего HUD"},
-    {method: "POST", path: "/hud/terminal/network/toggle", description: "сфокусировать network display в Space"},
-    {method: "POST", path: "/space/network/action", description: "{action} — управлять tmux network layout: layout/status/start:tls/stop:tls/start:redirect/stop:redirect/tail/clear"},
-    {method: "GET", path: "/hud/android", description: "состояние Android HUD"},
-    {method: "POST", path: "/hud/android/show", description: "развернуть Android HUD"},
-    {method: "POST", path: "/hud/android/dock", description: "свернуть Android HUD"},
-    {method: "POST", path: "/hud/android/toggle", description: "переключить Android HUD"},
-    {method: "POST", path: "/hud/android/refresh", description: "обновить Android frame"},
-    {method: "POST", path: "/hud/android/control", description: "отправить Android command через WebRTC datachannel без ADB"},
-    {method: "GET", path: "/hud/android/secondary", description: "состояние второго Android HUD"},
-    {method: "POST", path: "/hud/android/secondary/show", description: "развернуть второй Android HUD"},
-    {method: "POST", path: "/hud/android/secondary/dock", description: "свернуть второй Android HUD"},
-    {method: "POST", path: "/hud/android/secondary/toggle", description: "переключить второй Android HUD"},
-    {method: "POST", path: "/hud/android/secondary/control", description: "отправить command во второй Android через WebRTC datachannel"},
-    {method: "WS", path: "/hud/android/webrtc/signaling", description: "WebRTC signaling для Android APK video/datachannel"},
-    {method: "GET", path: "/android/size", description: "proxy к Android panel API: размер устройства"},
-    {method: "GET", path: "/android/screencap", description: "proxy к Android panel API: текущий PNG frame"},
-    {method: "POST", path: "/android/tap", description: "{x,y} — proxy Android tap"},
-    {method: "POST", path: "/android/swipe", description: "{x1,y1,x2,y2,durationMs?} — proxy Android swipe"},
-    {method: "POST", path: "/android/key", description: "{code} — proxy Android keyevent"},
-    {method: "WS", path: "/hud/terminal/stream", description: "host PTY terminal stream"},
-    {method: "GET", path: "/hud/terminal/sessions", description: "host PTY session diagnostics"},
-    {method: "GET", path: "/hud/todo", description: "прочитать TODO.md и parsed items для HUD ToDoPane"},
-    {method: "PUT", path: "/hud/todo", description: "{text} — заменить TODO.md целиком"},
-    {method: "POST", path: "/hud/todo/items", description: "{text, kind?, checked?, depth?, afterId?} — добавить пункт TODO.md"},
-    {method: "PATCH", path: "/hud/todo/items/:id", description: "{text?, checked?} — изменить текст или markdown checkbox пункта"},
-    {method: "DELETE", path: "/hud/todo/items/:id", description: "удалить пункт TODO.md"},
-    {method: "GET", path: "/hud/todo/panel", description: "состояние HUD ToDoPane: rect/dock/highlight"},
-    {method: "POST", path: "/hud/todo/highlight", description: "{id|ids|highlightedIds} — подсветить пункты в HUD для context агента"},
-    {method: "POST", path: "/hud/todo/dock", description: "свернуть TODO HUD"},
-    {method: "POST", path: "/hud/todo/show", description: "развернуть TODO HUD"},
-    {method: "POST", path: "/hud/todo/toggle", description: "переключить TODO HUD"},
-    {method: "GET", path: "/hud/sqlite", description: "состояние SQLite HUD: active database, rect/dock"},
-    {method: "POST", path: "/hud/sqlite/dock", description: "свернуть SQLite HUD"},
-    {method: "POST", path: "/hud/sqlite/show", description: "развернуть SQLite HUD"},
-    {method: "POST", path: "/hud/sqlite/toggle", description: "переключить SQLite HUD"},
-    {method: "GET", path: "/sqlite?path=<file.sqlite>&table=<name>&notBefore=<iso>", description: "просмотреть SQLite database tables/schema/rows; notBefore отсекает файл предыдущего запуска"},
-    {method: "GET", path: "/sqlite/fingerprint?path=<file.sqlite>", description: "дешевый fingerprint SQLite database по main/WAL для diagnostics/server watcher; SHM только diagnostic"},
-    {method: "POST", path: "/sqlite/open", description: "{path} — открыть SQLite database в HUD"},
-    {method: "POST", path: "/sqlite/cell", description: "{path, table, rowid, column, value} — обновить SQLite cell по rowid"},
-    {method: "GET", path: "/events?since=<iso>&limit=<n>", description: "хвост event-лога"},
-    {method: "GET", path: "/console?since=<iso>&limit=<n>", description: "хвост console-лога"},
-  ]
 }
 
 type TodoMarkdownPayload = {

@@ -10,7 +10,7 @@ import {
 } from "./settings.ts"
 import {DEFAULT_APP_WEB_SCENE_SRC} from "./app-config.ts"
 import {loadPersistedAppWebUiSettings, savePersistedAppWebUiSettings, type AppWebUiSettingsSnapshot} from "./ui-settings-idb.ts"
-import {installAppWebHud, type AppWebHudController, type AppWebHudSettingsSnapshot} from "./hud.ts"
+import {installAppWebHud, type AppWebHudController, type AppWebHudSettingsSnapshot, type AppWebNetworkTerminalCommand} from "./hud.ts"
 import type {AndroidRtcCommand} from "./android-rtc.ts"
 
 const markAppWebBoot = (phase: string, detail?: unknown): void => {
@@ -54,6 +54,11 @@ type HudAndroidControlMessage = {
 	command: AndroidRtcCommand
 }
 
+type HudNetworkTerminalMessage = {
+	type: "hud-network-terminal"
+	command: AppWebNetworkTerminalCommand
+}
+
 type ClientMaterializePayload = {
 	type: "materialize"
 	src: string
@@ -81,6 +86,7 @@ let bulkViewport: BulkViewportController | null = null
 let hud: AppWebHudController | null = null
 let initialMaterializationRequested = false
 let pendingSnapshotMessage: SnapshotMessage | null = null
+let pendingNetworkTerminalMessage: HudNetworkTerminalMessage | null = null
 let currentSnapshot: BoundaryBulkRuntimeSnapshot | null = null
 let persistUiSettingsTimer: ReturnType<typeof setTimeout> | null = null
 let activeSettings: AppWebHudSettingsSnapshot = {
@@ -382,6 +388,12 @@ const initBulkViewport = async (): Promise<void> => {
 		applySnapshotMessage(snapshotMessage)
 	}
 
+	if (pendingNetworkTerminalMessage) {
+		const networkTerminalMessage = pendingNetworkTerminalMessage
+		pendingNetworkTerminalMessage = null
+		hud.showNetworkTerminal(networkTerminalMessage.command)
+	}
+
 	const resizeObserver = new ResizeObserver((entries) => {
 		const entry = entries[0]
 		if (!entry || !bulkViewport) return
@@ -500,7 +512,7 @@ const applyForcePartToSnapshot = (snapshot: BoundaryBulkRuntimeSnapshot, part: P
 }
 
 socket.onmessage = (event) => {
-	const message = JSON.parse(String(event.data)) as ForceMessage | SnapshotMessage | ErrorMessage | TodoChangedMessage | HudAndroidControlMessage
+	const message = JSON.parse(String(event.data)) as ForceMessage | SnapshotMessage | ErrorMessage | TodoChangedMessage | HudAndroidControlMessage | HudNetworkTerminalMessage
 
 	if (message.type === "force") {
 		const forceMessage = message as ForceMessage
@@ -544,6 +556,15 @@ socket.onmessage = (event) => {
 
 	if (message.type === "hud-android-control") {
 		hud?.sendAndroidControl(message.command)
+		return
+	}
+
+	if (message.type === "hud-network-terminal") {
+		if (hud === null) {
+			pendingNetworkTerminalMessage = message
+			return
+		}
+		hud.showNetworkTerminal(message.command)
 		return
 	}
 }

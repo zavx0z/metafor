@@ -466,8 +466,10 @@ class TerminalOutputPane extends UiSurface {
   }
 
   focus(): void {
-    this.canvas?.setFocused(this)
-    this.canvas?.inputProxy?.focus()
+    if (this.canvas === null) return
+    if (!this.#focused) this.canvas.setFocused(null)
+    this.canvas.setFocused(this)
+    this.canvas.inputProxy?.focus()
   }
 
   isFocused(): boolean {

@@ -3,9 +3,14 @@ import {Buffer} from "node:buffer"
 import {randomUUID} from "node:crypto"
 import {existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync, type Dirent} from "node:fs"
 import {networkInterfaces} from "node:os"
-import {basename, extname, join, relative, resolve} from "node:path"
+import {basename, dirname, extname, join, relative, resolve} from "node:path"
 import "dark/server"
 import {createPtySessionManager, parsePtyClientMessage, type PtySocketData} from "@metafor/pty/server"
+import {loadConfig} from "../../pkg/interpreter/src/config.ts"
+import {EventLogger} from "../../pkg/interpreter/src/logger.ts"
+import {InterpreterModuleManager} from "../../pkg/interpreter/src/module.ts"
+import {interpreterRoutes} from "../../pkg/interpreter/src/routes.ts"
+import {createInterpreterHttpRoutes, type InterpreterHttpRoutes} from "../../pkg/interpreter/src/server.ts"
 import {parseMarkdownTodo, updateTodoMarkdownItem} from "@ui/panes/todo-model"
 import type {
 	ClientMessage,
@@ -68,6 +73,14 @@ type AndroidControlCommand =
 	| {type: "key"; code: string}
 	| {type: "launch"; packageName: string}
 	| {type: "open-accessibility"}
+type NetworkTerminalAction = "show" | "dock" | "toggle"
+type NetworkTerminalCommand = {
+	action: NetworkTerminalAction
+	session?: string
+	key?: string
+	tmux?: string
+}
+type NetworkAction = "layout" | "status" | "start:tls" | "stop:tls" | "start:redirect" | "stop:redirect" | "tail" | "clear"
 type AppClientAsset = {
 	body: ArrayBuffer
 	type: string
@@ -80,6 +93,7 @@ type AppClientBundle = {
 const boundary = globalThis.boundary
 const sockets = new Set<ServerWebSocket<AppWebSocketData>>()
 const rtcRooms = new Map<string, Map<string, ServerWebSocket<AppWebSocketData>>>()
+let pendingNetworkTerminalCommand: NetworkTerminalCommand | null = null
 const terminalSessions = createPtySessionManager({
 	cwd: process.cwd(),
 	shell: Bun.env.SHELL || "/bin/zsh",
@@ -88,13 +102,18 @@ const HOST = Bun.env.HOST ?? Bun.env.APP_WEB_HOST ?? "127.0.0.1"
 const PORT = Number(Bun.env.PORT ?? 3000)
 const TLS_ENABLED = Boolean(Bun.env.TLS_KEY_FILE && Bun.env.TLS_CERT_FILE)
 const CHROME_API_URL = Bun.env.METAFOR_CHROME_API_URL ?? "http://localhost:7880"
-const INTERPRETER_ORIGIN_PORT = Bun.env.METAFOR_INTERPRETER_PORT ?? "6500"
+const {proxy: interpreterProxyRoutes} = interpreterRoutes
+const REDIRECT_ENABLED = TLS_ENABLED && (Bun.env.APP_WEB_REDIRECT === "1" || (Bun.env.APP_WEB_REDIRECT !== "0" && PORT === 443))
+const REDIRECT_HOST = Bun.env.APP_WEB_REDIRECT_HOST ?? HOST
+const REDIRECT_PORT = Number(Bun.env.APP_WEB_REDIRECT_PORT ?? 80)
 const APP_WEB_STARTED_AT = new Date()
 const LOG_COLOR_ENABLED = Bun.env.NO_COLOR === undefined && Bun.env.FORCE_COLOR !== "0"
 const META_SOURCE_DIR = "github"
 const CODEX_ATTACHMENT_DIR = "app/web/tmp/codex-attachments"
 const CODEX_ATTACHMENT_MAX_BYTES = 16 * 1024 * 1024
 const CODEX_ATTACHMENT_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".heic", ".heif", ".tif", ".tiff", ".bmp", ".svg"])
+const NETWORK_TMUX_SESSION = Bun.env.NETWORK_TMUX_SESSION ?? "metafor-app-web-net"
+const NETWORK_TMUX_WINDOW = Bun.env.NETWORK_TMUX_WINDOW ?? "network"
 const SOURCE_FILE_EXTENSIONS = new Set([
 	".css",
 	".cts",
@@ -138,6 +157,24 @@ const VOICE_LOCAL_STORAGE_KEYS = [
 	"metafor.interpreter.voice.agentReadyVolume:v1",
 ] as const
 const APP_CLIENT_BUNDLE = await buildAppClientBundle()
+const embeddedInterpreterConfig = loadConfig({
+	...Bun.env,
+	INTERPRETER_HTTP_ENABLED: "0",
+	INTERPRETER_DUMP_PATH: Bun.env.APP_WEB_INTERPRETER_DUMP_PATH ?? "app/web/tmp/interpreter/state.json",
+})
+mkdirSync(dirname(embeddedInterpreterConfig.consoleLogPath), {recursive: true})
+const embeddedInterpreterLogger = new EventLogger(embeddedInterpreterConfig.eventLogPath)
+const embeddedInterpreterModules = new InterpreterModuleManager(embeddedInterpreterConfig, embeddedInterpreterLogger)
+const {fetch: fetchEmbeddedInterpreterRoute} = createInterpreterHttpRoutes({
+	host: HOST,
+	port: PORT,
+	modules: embeddedInterpreterModules,
+	logger: embeddedInterpreterLogger,
+	eventLogPath: embeddedInterpreterConfig.eventLogPath,
+	consoleLogPath: embeddedInterpreterConfig.consoleLogPath,
+	startupSqliteDatabases: [Bun.env.BOUNDARY_PATH ?? "app/web/tmp/boundary.sqlite"],
+})
+const redirectServer = REDIRECT_ENABLED ? startHttpRedirectServer() : null
 
 const buildSnapshot = async (
 	message: ClientMaterializePayload | ClientRelayoutPayload,
@@ -267,8 +304,52 @@ const server = serve<AppWebSocketData>({
 			const response = await broadcastAndroidControlResponse(req, started)
 			return response
 		},
+		"/hud/terminal/network": (req: Request) => {
+			const started = Date.now()
+			if (req.method !== "GET") {
+				logHttp(req, "network.get", 405, started, "method not allowed")
+				return new Response("Method Not Allowed", {status: 405})
+			}
+			const response = jsonResponse(networkTerminalPayload())
+			logHttp(req, "network.get", response.status, started)
+			return response
+		},
+		"/hud/terminal/network/show": async (req: Request) => {
+			const started = Date.now()
+			if (req.method !== "POST" && req.method !== "GET") {
+				logHttp(req, "network.show", 405, started, "method not allowed")
+				return new Response("Method Not Allowed", {status: 405})
+			}
+			return await broadcastNetworkTerminalResponse(req, "show", started)
+		},
+		"/hud/terminal/network/dock": async (req: Request) => {
+			const started = Date.now()
+			if (req.method !== "POST") {
+				logHttp(req, "network.dock", 405, started, "method not allowed")
+				return new Response("Method Not Allowed", {status: 405})
+			}
+			return await broadcastNetworkTerminalResponse(req, "dock", started)
+		},
+		"/hud/terminal/network/toggle": async (req: Request) => {
+			const started = Date.now()
+			if (req.method !== "POST") {
+				logHttp(req, "network.toggle", 405, started, "method not allowed")
+				return new Response("Method Not Allowed", {status: 405})
+			}
+			return await broadcastNetworkTerminalResponse(req, "toggle", started)
+		},
+		"/space/network/action": async (req: Request) => {
+			const started = Date.now()
+			const response = await networkActionResponse(req, started)
+			return response
+		},
+		"/hud/network/action": async (req: Request) => {
+			const started = Date.now()
+			const response = await networkActionResponse(req, started)
+			return response
+		},
 	},
-	fetch: async (req: Request) => {
+	fetch: async (req: Request, wsServer: Server<AppWebSocketData>) => {
 		const url = new URL(req.url)
 		const appClientAsset = APP_CLIENT_BUNDLE.assets.get(url.pathname)
 		if (appClientAsset !== undefined) return appClientAssetResponse(appClientAsset)
@@ -284,8 +365,8 @@ const server = serve<AppWebSocketData>({
 			logHttp(req, "codex.attachment", response.status, started)
 			return response
 		}
-		if (url.pathname === "/hud/interpreter/processes" || url.pathname.startsWith("/hud/interpreter/processes/")) {
-			return await proxyInterpreterRequest(req, url)
+		if (interpreterProxyRoutes.acceptsPathname(url.pathname)) {
+			return await dispatchEmbeddedInterpreterRequest(req, url, wsServer)
 		}
 		const todoItem = /^\/hud\/todo\/items\/([^/]+)$/.exec(url.pathname)
 		if ((req.method === "PATCH" || req.method === "POST") && todoItem !== null) {
@@ -319,6 +400,7 @@ const server = serve<AppWebSocketData>({
 				}
 				sockets.add(ws)
 				appLog("WS", "app client opened", `clients=${sockets.size}`, "green")
+				sendPendingNetworkTerminalCommand(ws)
 			},
 		message(ws, message) {
 			if (ws.data.kind === "rtc-signal") {
@@ -677,6 +759,133 @@ async function broadcastAndroidControlResponse(req: Request, started = Date.now(
 	return jsonResponse({ok: true, clients, command})
 }
 
+function networkTerminalPayload(): Record<string, unknown> {
+	return {
+		ok: true,
+		pending: pendingNetworkTerminalCommand,
+		session: NETWORK_TMUX_SESSION,
+		window: NETWORK_TMUX_WINDOW,
+		clients: [...sockets].filter((socket) => socket.data.kind === "app-web" && socket.readyState === WebSocket.OPEN).length,
+	}
+}
+
+async function broadcastNetworkTerminalResponse(req: Request, fallbackAction: NetworkTerminalAction, started = Date.now()): Promise<Response> {
+	const parsed = await readOptionalJsonObject(req)
+	if ("error" in parsed && parsed.error !== undefined) {
+		logHttp(req, `network.${fallbackAction}`, 400, started, `error=${parsed.error}`)
+		return jsonResponse({ok: false, error: parsed.error}, 400)
+	}
+	const command = asNetworkTerminalCommand(parsed.body, fallbackAction)
+	pendingNetworkTerminalCommand = command
+	const message = JSON.stringify({type: "hud-network-terminal", command})
+	let clients = 0
+	for (const socket of sockets) {
+		if (socket.data.kind !== "app-web" || socket.readyState !== WebSocket.OPEN) continue
+		socket.send(message)
+		clients += 1
+	}
+	logHttp(req, `network.${command.action}`, 200, started, `clients=${clients} tmux=${command.tmux ?? NETWORK_TMUX_SESSION}`)
+	return jsonResponse({ok: true, clients, command})
+}
+
+function sendPendingNetworkTerminalCommand(ws: ServerWebSocket<AppWebSocketData>): void {
+	if (ws.data.kind !== "app-web" || pendingNetworkTerminalCommand === null || ws.readyState !== WebSocket.OPEN) return
+	ws.send(JSON.stringify({type: "hud-network-terminal", command: pendingNetworkTerminalCommand}))
+}
+
+function asNetworkTerminalCommand(body: Record<string, unknown>, fallbackAction: NetworkTerminalAction): NetworkTerminalCommand {
+	const action = asNetworkTerminalAction(body["action"]) ?? fallbackAction
+	const session = asString(body["session"])
+	const key = asString(body["key"])
+	const tmux = asString(body["tmux"]) ?? NETWORK_TMUX_SESSION
+	return {
+		action,
+		...(session === undefined ? {} : {session}),
+		...(key === undefined ? {} : {key}),
+		tmux,
+	}
+}
+
+function asNetworkTerminalAction(value: unknown): NetworkTerminalAction | undefined {
+	return value === "show" || value === "dock" || value === "toggle" ? value : undefined
+}
+
+async function networkActionResponse(req: Request, started = Date.now()): Promise<Response> {
+	if (req.method !== "POST") {
+		logHttp(req, "network.action", 405, started, "method not allowed")
+		return new Response("Method Not Allowed", {status: 405})
+	}
+	const parsed = await readJsonObject(req)
+	if (parsed.error !== undefined) {
+		logHttp(req, "network.action", 400, started, `error=${parsed.error}`)
+		return jsonResponse({ok: false, error: parsed.error}, 400)
+	}
+	const action = asNetworkAction(parsed.body["action"] ?? parsed.body["cmd"] ?? parsed.body["command"])
+	if (action === undefined) {
+		logHttp(req, "network.action", 400, started, "action=invalid")
+		return jsonResponse({ok: false, error: "network action must be one of layout/status/start:tls/stop:tls/start:redirect/stop:redirect/tail/clear"}, 400)
+	}
+	if (networkActionRestartsAppWeb(action)) {
+		spawnNetworkAction(action, {delayed: true})
+		logHttp(req, "network.action", 202, started, `${action} detached`)
+		return jsonResponse({ok: true, action, detached: true, durationMs: Date.now() - started}, 202)
+	}
+	const result = spawnNetworkAction(action, {sync: true})
+	const status = result.exitCode === 0 ? 200 : 500
+	logHttp(req, "network.action", status, started, `${action} exit=${result.exitCode}`)
+	return jsonResponse({
+		ok: result.exitCode === 0,
+		action,
+		exitCode: result.exitCode,
+		durationMs: Date.now() - started,
+		stdout: result.stdout,
+		stderr: result.stderr,
+	}, status)
+}
+
+function spawnNetworkAction(action: NetworkAction, opts: {sync: true}): {exitCode: number; stdout: string; stderr: string}
+function spawnNetworkAction(action: NetworkAction, opts?: {delayed?: boolean; sync?: false}): {exitCode: number; stdout: string; stderr: string}
+function spawnNetworkAction(action: NetworkAction, opts: {delayed?: boolean; sync?: boolean} = {}): {exitCode: number; stdout: string; stderr: string} {
+	const script = resolve(process.cwd(), "app/web/run.ts")
+	const env = {
+		...process.env,
+		NETWORK_TMUX_SESSION,
+		NETWORK_TMUX_WINDOW,
+		NETWORK_TMUX_MODE: "prod",
+		...(opts.delayed === true ? {NETWORK_TMUX_START_DELAY_MS: "450"} : {}),
+	}
+	const command = [process.execPath, script, "--prod", action]
+	if (opts.sync === true) {
+		const result = Bun.spawnSync(command, {cwd: process.cwd(), stdout: "pipe", stderr: "pipe", env})
+		return {
+			exitCode: result.exitCode,
+			stdout: new TextDecoder().decode(result.stdout),
+			stderr: new TextDecoder().decode(result.stderr),
+		}
+	}
+	Bun.spawn(["nohup", ...command], {cwd: process.cwd(), stdin: "ignore", stdout: "ignore", stderr: "ignore", env})
+	return {exitCode: 0, stdout: "", stderr: ""}
+}
+
+function asNetworkAction(value: unknown): NetworkAction | undefined {
+	if (typeof value !== "string") return undefined
+	if (
+		value === "layout" ||
+		value === "status" ||
+		value === "start:tls" ||
+		value === "stop:tls" ||
+		value === "start:redirect" ||
+		value === "stop:redirect" ||
+		value === "tail" ||
+		value === "clear"
+	) return value
+	return undefined
+}
+
+function networkActionRestartsAppWeb(action: NetworkAction): boolean {
+	return action === "layout" || action === "start:tls" || action === "stop:tls"
+}
+
 async function readInterpreterVoiceSettings(): Promise<InterpreterVoiceSettingsPayload> {
 	const target = await findInterpreterTab()
 	const keysJson = JSON.stringify(VOICE_LOCAL_STORAGE_KEYS)
@@ -727,10 +936,17 @@ function isInterpreterTab(rawUrl: string | undefined): boolean {
 	if (rawUrl === undefined) return false
 	try {
 		const url = new URL(rawUrl)
-		return url.port === INTERPRETER_ORIGIN_PORT && /^(localhost|127\.0\.0\.1)$/.test(url.hostname)
+		return isAppWebUrl(url)
 	} catch {
 		return false
 	}
+}
+
+function isAppWebUrl(url: URL): boolean {
+	const expectedProtocol = TLS_ENABLED ? "https:" : "http:"
+	if (url.protocol !== expectedProtocol) return false
+	if (url.port.length === 0) return (TLS_ENABLED && PORT === 443) || (!TLS_ENABLED && PORT === 80)
+	return url.port === String(PORT)
 }
 
 async function evalInterpreterVoiceSettings(target: {windowId: number; tabIndex: number}, js: string): Promise<InterpreterVoiceSettingsPayload> {
@@ -752,15 +968,15 @@ async function evalInterpreterVoiceSettings(target: {windowId: number; tabIndex:
 	return origin === undefined ? {values} : {origin, values}
 }
 
-async function proxyInterpreterRequest(req: Request, url: URL): Promise<Response> {
+async function dispatchEmbeddedInterpreterRequest(req: Request, url: URL, wsServer: Server<AppWebSocketData>): Promise<Response> {
 	const started = Date.now()
-	const upstreamPath = url.pathname.slice("/hud/interpreter".length) || "/"
-	if (!isAllowedInterpreterProxyPath(upstreamPath)) {
-		logHttp(req, "interp.proxy", 404, started, `blocked upstream=${upstreamPath}`)
+	const upstreamPath = interpreterProxyRoutes.toUpstreamPath(url.pathname)
+	if (upstreamPath === null || !interpreterProxyRoutes.acceptsPath(upstreamPath)) {
+		logHttp(req, "interp.embedded", 404, started, `blocked upstream=${upstreamPath ?? url.pathname}`)
 		return jsonResponse({ok: false, error: "interpreter route not allowed"}, 404)
 	}
-	const upstream = new URL(`http://127.0.0.1:${INTERPRETER_ORIGIN_PORT}${upstreamPath}`)
-	upstream.search = url.search
+	const upstream = new URL(req.url)
+	upstream.pathname = upstreamPath
 	const headers = new Headers()
 	const contentType = req.headers.get("content-type")
 	if (contentType !== null) headers.set("content-type", contentType)
@@ -768,34 +984,24 @@ async function proxyInterpreterRequest(req: Request, url: URL): Promise<Response
 		const init: RequestInit = {
 			method: req.method,
 			headers,
-			signal: AbortSignal.timeout(8000),
 		}
 		if (req.method !== "GET" && req.method !== "HEAD") init.body = await req.arrayBuffer()
-		const response = await fetch(upstream, {
-			...init,
-		})
-		logHttp(req, "interp.proxy", response.status, started)
-		return new Response(response.body, {
-			status: response.status,
-			statusText: response.statusText,
-			headers: {
-				"content-type": response.headers.get("content-type") ?? "application/json; charset=utf-8",
-			},
-		})
+		const embeddedRequest = new Request(upstream, init)
+		const response = await fetchEmbeddedInterpreterRoute(
+			embeddedRequest,
+			wsServer as unknown as Parameters<InterpreterHttpRoutes["fetch"]>[1],
+		)
+		if (response === undefined) return jsonResponse({ok: false, error: "embedded interpreter route did not return a response"}, 500)
+		logHttp(req, "interp.embedded", response.status, started, `upstream=${upstreamPath}`)
+		return response
 	} catch (error) {
-		logHttp(req, "interp.proxy", 502, started, `upstream=${upstream.pathname}${upstream.search} error=${errorMessage(error)}`)
+		logHttp(req, "interp.embedded", 502, started, `upstream=${upstream.pathname}${upstream.search} error=${errorMessage(error)}`)
 		return jsonResponse({
 			ok: false,
 			error: error instanceof Error ? error.message : String(error),
-			hint: `interpreter http api is expected on 127.0.0.1:${INTERPRETER_ORIGIN_PORT}`,
+			hint: "embedded interpreter route failed inside app/web",
 		}, 502)
 	}
-}
-
-function isAllowedInterpreterProxyPath(path: string): boolean {
-	if (path === "/processes") return true
-	if (path === "/processes/resolve" || path === "/processes/focus") return true
-	return /^\/processes\/[^/]+(?:\/(?:action|breakpoint|breakpoints|context|focus|modules|source))?$/.test(path)
 }
 
 function parseChromeEvalParsed(payload: ChromeEvalPayload): unknown {
@@ -884,7 +1090,9 @@ function asAndroidControlCommand(value: Record<string, unknown>): AndroidControl
 		const y2 = finiteNumber(value["y2"])
 		const durationMs = finiteNumber(value["durationMs"])
 		if (x1 === null || y1 === null || x2 === null || y2 === null) return null
-		const command = durationMs === null ? {type, x1, y1, x2, y2} : {type, x1, y1, x2, y2, durationMs}
+		const command: Extract<AndroidControlCommand, {type: "swipe"}> = durationMs === null
+			? {type: "swipe", x1, y1, x2, y2}
+			: {type: "swipe", x1, y1, x2, y2, durationMs}
 		return withAndroidCommandFrameSize(value, command)
 	}
 	if (type === "key") {
@@ -938,8 +1146,26 @@ async function readJsonObject(req: Request): Promise<{body: Record<string, unkno
 	}
 }
 
+async function readOptionalJsonObject(req: Request): Promise<{body: Record<string, unknown>; error?: undefined} | {body: Record<string, never>; error: string}> {
+	try {
+		const text = await req.text()
+		if (text.trim().length === 0) return {body: {}}
+		const value = JSON.parse(text) as unknown
+		if (typeof value === "object" && value !== null && !Array.isArray(value)) return {body: value as Record<string, unknown>}
+		return {body: {}, error: "body must be a JSON object"}
+	} catch (error) {
+		return {body: {}, error: error instanceof Error ? error.message : String(error)}
+	}
+}
+
 function asBoolean(value: unknown): boolean | undefined {
 	return typeof value === "boolean" ? value : undefined
+}
+
+function asString(value: unknown): string | undefined {
+	if (typeof value !== "string") return undefined
+	const normalized = value.trim()
+	return normalized.length > 0 ? normalized : undefined
 }
 
 function jsonResponse(value: unknown, status = 200): Response {
@@ -1159,10 +1385,31 @@ function printServerUrls(): void {
 		appLog("TLS", "disabled", "plain HTTP", "gray")
 	}
 	appLog("CFG", "chrome api", CHROME_API_URL, "magenta")
-	appLog("CFG", "interpreter api", `http://127.0.0.1:${INTERPRETER_ORIGIN_PORT}`, "magenta")
+	appLog("CFG", "interpreter", "embedded routes at /hud/interpreter/*", "magenta")
 	for (const url of urls) appLog("URL", "app entry", url, "cyan")
+	if (redirectServer !== null) appLog("URL", "http redirect", redirectServer.url.href, "cyan")
 	appLog("URL", "rtc signal", `${protocol === "https" ? "wss" : "ws"}://<host>:${port}/hud/webrtc/signaling`, "cyan")
 	appLog("TIME", "started", formatLogDateTime(APP_WEB_STARTED_AT), "gray")
+}
+
+function startHttpRedirectServer(): Server<never> {
+	try {
+		const redirect = serve({
+			hostname: REDIRECT_HOST,
+			port: REDIRECT_PORT,
+			fetch(req) {
+				const source = new URL(req.url)
+				const target = new URL(req.url)
+				target.protocol = "https:"
+				target.hostname = source.hostname
+				target.port = PORT === 443 ? "" : String(PORT)
+				return Response.redirect(target.toString(), 308)
+			},
+		})
+		return redirect
+	} catch (error) {
+		throw new Error(`Failed to start HTTP redirect on ${REDIRECT_HOST}:${REDIRECT_PORT}: ${errorMessage(error)}`)
+	}
 }
 
 function localNetworkAddresses(): string[] {

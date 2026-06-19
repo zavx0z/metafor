@@ -13,7 +13,28 @@ bun --filter @app/web tls:selfsigned
 bun --filter @app/web dev:tls
 ```
 
-После запуска сервер напечатает LAN URL вида `https://192.168.x.x:3000/`.
+После production-запуска сервер печатает LAN URL вида `https://192.168.x.x/`.
+
+Production/LAN entrypoint:
+
+```bash
+bun run workspace.app.web:product
+```
+
+Это запускает `app/web/run.ts --prod layout`: в tmux поднимается
+`app/web/server.ts` с HTTPS на `443`, embedded HTTP redirect `80 -> 443`,
+WebRTC signaling, embedded interpreter routes на `/hud/interpreter/*` и
+app/web-owned network display на `/hud/terminal/network/*`.
+
+Dev/network entrypoint:
+
+```bash
+bun run workspace.app.web
+```
+
+Это запускает `app/web/run.ts --dev layout`: в tmux поднимается
+`pkg/interpreter/interpreter.ts app/web/server.ts ...`, а network display
+открывается через текущий interpreter UI, как раньше в interpreter network panel.
 
 - `app/web/client.ts` импортирует `bulk/web` как пакет и остаётся тонким браузерным видовым клиентом.
 - `app/web/server.ts` статически импортирует `dark/server`, берёт `boundary` из `globalThis`, получает снимок уже наполненной базы через `boundary.bulkRuntime()` и отдаёт браузеру готовые строки мира. `BOUNDARY_PATH` передаётся при запуске и подхватывается самим `Boundary`.
@@ -26,6 +47,7 @@ bun --filter @app/web dev:tls
 ## TLS
 
 Сервер поднимается по HTTPS, если заданы обе env-переменные `TLS_KEY_FILE` и `TLS_CERT_FILE`. Без них — обычный HTTP.
+Если HTTPS запущен на `PORT=443`, сервер сам поднимает redirect `http://<host>/ -> https://<host>/`.
 
 Дополнительно:
 - `TLS_CA_FILE` — цепочка промежуточных CA (опционально)
@@ -108,5 +130,5 @@ bun run dev
 Из workspace-скрипта проще:
 
 ```bash
-bun --filter @app/web dev:tls
+bun run workspace.app.web:product
 ```

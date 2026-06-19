@@ -30,15 +30,19 @@ import {
 	AndroidPane,
 	EditorPane,
 	FileListPane,
+	NetworkWatchPane,
 	TerminalPane,
 	ToDoPane,
 	PANE_FRAME,
 	beginPaneFrameDrag,
+	networkWatchSectionsFromLines,
 	paneBodyRect,
 	paneFrameCursor,
 	paneFrameDragRect,
 	paneFrameHit,
 	paneHeaderRuleRect,
+	type NetworkWatchPaneSnapshot,
+	type NetworkWatchServiceKey,
 	type PaneFrameDrag,
 	type PaneFrameInteractionOpts,
 	type PaneRect,
@@ -127,13 +131,30 @@ export type AppWebHudController = {
 	currentSrc(): string
 	settingsSnapshot(): AppWebHudSettingsSnapshot
 	sendAndroidControl(command: AndroidRtcCommand): boolean
+	showNetworkTerminal(command?: AppWebNetworkTerminalCommand): void
 	setBusy(busy: boolean): void
 	setConnectionStatus(online: boolean): void
 	setStats(stats: BulkViewportStats): void
 	setTodoMarkdown(text: string, path: string): void
 }
 
-type DockKind = "codex" | "settings" | "todo" | "android" | "workspace" | "fullscreen"
+export type AppWebNetworkTerminalCommand = {
+	action?: "show" | "dock" | "toggle"
+	session?: string
+	key?: string
+	tmux?: string
+}
+
+type NetworkActionPayload = {
+	ok?: boolean
+	detached?: boolean
+	durationMs?: number
+	stdout?: string
+	stderr?: string
+	error?: string
+}
+
+type DockKind = "codex" | "settings" | "todo" | "android" | "workspace" | "network" | "fullscreen"
 type DockPanelKind = Exclude<DockKind, "fullscreen">
 type SettingsTab = "scene" | "geometry" | "render" | "voice"
 
@@ -258,6 +279,14 @@ const TODO_PANEL_STATE_STORAGE_KEY = `${STORAGE_PREFIX}.todo.panelState:v1`
 const WORKSPACE_FILES_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.workspace.files.rect:v1`
 const WORKSPACE_EDITOR_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.workspace.editor.rect:v1`
 const WORKSPACE_DOCK_PLACEMENT_STORAGE_KEY = `${STORAGE_PREFIX}.workspace.dockPlacement:v1`
+const NETWORK_TERMINAL_SESSION_STORAGE_KEY = `${STORAGE_PREFIX}.network.sessionId:v1`
+const NETWORK_TERMINAL_SESSION_KEY = "app-web:network-terminal"
+const NETWORK_TERMINAL_TMUX_SESSION = "metafor-app-web-net"
+const NETWORK_DOCKED_STORAGE_KEY = `${STORAGE_PREFIX}.network.docked:v1`
+const NETWORK_STATUS_AUTO_REFRESH_STORAGE_KEY = `${STORAGE_PREFIX}.network.autoRefresh:v1`
+const NETWORK_CONTROLS_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.network.controls.rect:v1`
+const NETWORK_TERMINAL_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.network.terminal.rect:v1`
+const NETWORK_DOCK_PLACEMENT_STORAGE_KEY = `${STORAGE_PREFIX}.network.dockPlacement:v1`
 const ANDROID_DOCKED_STORAGE_KEY = `${STORAGE_PREFIX}.android.docked:v1`
 const ANDROID_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.android.rect:v1`
 const ANDROID_DOCK_PLACEMENT_STORAGE_KEY = `${STORAGE_PREFIX}.android.dockPlacement:v1`
@@ -336,6 +365,7 @@ const CODEX_COMPOSER_GAP = 8
 const CODEX_COMPOSER_PAD = 12
 const CODEX_COMPOSER_HEADER_BUTTON_SIZE = 24
 const CODEX_COMPOSER_MAX_ATTACHMENT_BYTES = 16 * 1024 * 1024
+const NETWORK_STATUS_REFRESH_MS = 2500
 const CODEX_TITLE = "Codex"
 const CODEX_MODEL = "GPT-5"
 const DOCK_SHORT = 40
@@ -425,7 +455,7 @@ function fullscreenTargetCandidates(): Element[] {
 	const canvas = document.getElementById("bulk-canvas")
 	const body = document.body
 	const root = document.documentElement
-	const preferred = isAndroidBrowser() ? [canvas, root, body] : [root, canvas, body]
+	const preferred: Array<Element | null> = isAndroidBrowser() ? [canvas, root, body] : [root, canvas, body]
 	return uniqueElements(preferred.filter((item): item is Element => item instanceof Element))
 }
 
@@ -480,17 +510,20 @@ class AppWebHud implements AppWebHudController {
 	readonly #settingsDock: AppWebDockPane
 	readonly #todoDock: AppWebDockPane
 	readonly #workspaceDock: AppWebDockPane
+	readonly #networkDock: AppWebDockPane
 	readonly #androidDock: AppWebDockPane
 	readonly #fullscreenDock: AppWebDockPane
 	readonly #todoPane: ToDoPane
 	readonly #workspaceFiles: FileListPane
 	readonly #workspaceEditor: EditorPane
+	readonly #networkWatchPane: NetworkWatchPane
 	readonly #androidPane: AndroidPane
 	readonly #agentSignalPane: AppWebAgentSignalPane
 	readonly #voiceHud: VoiceInputHud
 	readonly #codexComposer: AppWebCodexComposerPane
 	readonly #codexEditor: EditorPane
 	readonly #terminal: TerminalController
+	readonly #networkTerminal: TerminalController
 	#src: string
 	#settings: AppWebHudSettingsSnapshot
 	#stats: BulkViewportStats = {shellCount: 0, fieldCount: 0}
@@ -500,11 +533,13 @@ class AppWebHud implements AppWebHudController {
 	#settingsDocked = readStoredBoolean(SETTINGS_DOCKED_STORAGE_KEY, false)
 	#todoDocked = readStoredBoolean(TODO_DOCKED_STORAGE_KEY, true)
 	#workspaceDocked = true
+	#networkDocked = readStoredBoolean(NETWORK_DOCKED_STORAGE_KEY, true)
 	#androidDocked = readStoredBoolean(ANDROID_DOCKED_STORAGE_KEY, true)
 	#codexDockPlacement: DockPlacement | null = readStoredDockPlacement(CODEX_DOCK_PLACEMENT_STORAGE_KEY)
 	#settingsDockPlacement: DockPlacement | null = readStoredDockPlacement(SETTINGS_DOCK_PLACEMENT_STORAGE_KEY)
 	#todoDockPlacement: DockPlacement | null = readStoredDockPlacement(TODO_DOCK_PLACEMENT_STORAGE_KEY)
 	#workspaceDockPlacement: DockPlacement | null = readStoredDockPlacement(WORKSPACE_DOCK_PLACEMENT_STORAGE_KEY)
+	#networkDockPlacement: DockPlacement | null = readStoredDockPlacement(NETWORK_DOCK_PLACEMENT_STORAGE_KEY)
 	#androidDockPlacement: DockPlacement | null = readStoredDockPlacement(ANDROID_DOCK_PLACEMENT_STORAGE_KEY)
 	#fullscreenDockPlacement: DockPlacement | null = readStoredDockPlacement(FULLSCREEN_DOCK_PLACEMENT_STORAGE_KEY)
 	#dockTransition: DockNodeTransition | null = null
@@ -518,6 +553,15 @@ class AppWebHud implements AppWebHudController {
 	#workspaceEditorDirty = false
 	#workspaceRootLabel = "Local"
 	#workspaceProcessLabel = "Bun processes"
+	#networkServiceSwitches: Record<NetworkWatchServiceKey, boolean> = {tls: true, redirect: true}
+	#networkActionStatus = "ready"
+	#networkStatusLines: string[] = []
+	#networkStatusUpdatedAt: Date | null = null
+	#networkStatusRefreshTimer: number | null = null
+	#networkStatusRefreshInFlight = false
+	#networkStatusRefreshGeneration = 0
+	#networkStatusRefreshAbortController: AbortController | null = null
+	#networkStatusAutoRefreshEnabled = readStoredBoolean(NETWORK_STATUS_AUTO_REFRESH_STORAGE_KEY, true)
 	#androidRtcClient: AndroidRtcClient | null = null
 	#androidControlStatusUntil = 0
 	#fullscreen = appFullscreenElement() !== null
@@ -617,6 +661,7 @@ class AppWebHud implements AppWebHudController {
 			onFrameRectChange: (rect) => writeStoredRect(WORKSPACE_EDITOR_RECT_STORAGE_KEY, rect),
 			onFrameDockRequest: () => this.setDocked("workspace", true),
 		})
+		this.#networkWatchPane = this.#createNetworkWatchPane()
 		this.#androidPane = new AndroidPane({
 			title: "Android",
 			draggable: true,
@@ -632,6 +677,7 @@ class AppWebHud implements AppWebHudController {
 		})
 		this.#agentSignalPane = new AppWebAgentSignalPane(this)
 		this.#terminal = this.#createTerminalController()
+		this.#networkTerminal = this.#createNetworkTerminalController()
 		this.#voiceHud = this.#createVoiceHud()
 		this.#codexComposer = new AppWebCodexComposerPane(this)
 		this.#codexEditor = this.#createCodexEditor()
@@ -639,6 +685,7 @@ class AppWebHud implements AppWebHudController {
 		this.#settingsDock = new AppWebDockPane(this, "settings")
 		this.#todoDock = new AppWebDockPane(this, "todo")
 		this.#workspaceDock = new AppWebDockPane(this, "workspace")
+		this.#networkDock = new AppWebDockPane(this, "network")
 		this.#androidDock = new AppWebDockPane(this, "android")
 		this.#fullscreenDock = new AppWebDockPane(this, "fullscreen")
 
@@ -649,12 +696,15 @@ class AppWebHud implements AppWebHudController {
 		this.#viewport.hud.addSurface(this.#todoPane, (bounds) => this.#todoRect(bounds), {zIndex: HUD_TODO_PANEL_Z})
 		this.#viewport.hud.addSurface(this.#workspaceFiles, (bounds) => this.#workspaceFilesRect(bounds), {zIndex: HUD_PANEL_Z + 2})
 		this.#viewport.hud.addSurface(this.#workspaceEditor, (bounds) => this.#workspaceEditorRect(bounds), {zIndex: HUD_PANEL_Z + 3})
+		this.#viewport.hud.addSurface(this.#networkWatchPane, (bounds) => this.#networkControlsRect(bounds), {zIndex: HUD_PANEL_Z + 2})
+		this.#viewport.hud.addSurface(this.#networkTerminal.pane, (bounds) => this.#networkTerminalRect(bounds), {zIndex: HUD_PANEL_Z + 3})
 		this.#viewport.hud.addSurface(this.#androidPane, (bounds) => this.#androidRect(bounds), {zIndex: HUD_PANEL_Z + 1})
 		this.#viewport.hud.addSurface(this.#agentSignalPane, (bounds) => this.#agentSignalRect(bounds), {zIndex: HUD_AGENT_SIGNAL_Z})
 		this.#viewport.hud.addSurface(this.#codexDock, (bounds) => this.#dockRect("codex", bounds), {zIndex: HUD_DOCK_Z})
 		this.#viewport.hud.addSurface(this.#settingsDock, (bounds) => this.#dockRect("settings", bounds), {zIndex: HUD_DOCK_Z})
 		this.#viewport.hud.addSurface(this.#todoDock, (bounds) => this.#dockRect("todo", bounds), {zIndex: HUD_DOCK_Z})
 		this.#viewport.hud.addSurface(this.#workspaceDock, (bounds) => this.#dockRect("workspace", bounds), {zIndex: HUD_DOCK_Z})
+		this.#viewport.hud.addSurface(this.#networkDock, (bounds) => this.#dockRect("network", bounds), {zIndex: HUD_DOCK_Z})
 		this.#viewport.hud.addSurface(this.#androidDock, (bounds) => this.#dockRect("android", bounds), {zIndex: HUD_DOCK_Z})
 		this.#viewport.hud.addSurface(this.#fullscreenDock, (bounds) => this.#dockRect("fullscreen", bounds), {zIndex: HUD_DOCK_Z})
 
@@ -665,6 +715,7 @@ class AppWebHud implements AppWebHudController {
 		document.addEventListener("dragleave", this.#codexDragLeave, {capture: true})
 		this.#connectTerminal()
 		this.#connectAndroidRtc()
+		this.#updateNetworkWatchPane()
 		if (readCodexVoiceP2PEnabled()) startVoiceRtcRelay()
 		void this.#loadTodo()
 		void this.#refreshWorkspaceProcesses()
@@ -695,6 +746,29 @@ class AppWebHud implements AppWebHudController {
 
 	sendAndroidControl(command: AndroidRtcCommand): boolean {
 		return this.#sendAndroidControl(command)
+	}
+
+	showNetworkTerminal(command: AppWebNetworkTerminalCommand = {}): void {
+		const action = command.action ?? "show"
+		if (command.session !== undefined && command.session.trim().length > 0) {
+			this.#networkTerminal.sessionId = command.session.trim()
+			writeStoredString(NETWORK_TERMINAL_SESSION_STORAGE_KEY, this.#networkTerminal.sessionId)
+		}
+		if (action === "dock") {
+			this.setDocked("network", true)
+			return
+		}
+		if (action === "toggle") {
+			const wasDocked = this.#networkDocked
+			this.setDocked("network", !wasDocked)
+			if (!wasDocked) return
+		} else {
+			this.setDocked("network", false)
+		}
+		this.#connectNetworkTerminal()
+		this.#viewport.hud.setFocused(this.#networkTerminal.pane)
+		this.#networkTerminal.pane.focus()
+		this.#scheduleNetworkStatusRefresh(0, {force: true})
 	}
 
 	setBusy(busy: boolean): void {
@@ -928,6 +1002,7 @@ class AppWebHud implements AppWebHudController {
 		this.#finishDockTransition(true)
 		this.#applyDockedState(kind, docked)
 		this.#viewport.hud.relayout()
+		if (!docked) this.#focusUndockedPanel(kind)
 	}
 
 	#applyDockedState(kind: DockPanelKind, docked: boolean): void {
@@ -942,6 +1017,11 @@ class AppWebHud implements AppWebHudController {
 			writeStoredBoolean(TODO_DOCKED_STORAGE_KEY, docked)
 		} else if (kind === "workspace") {
 			this.#workspaceDocked = docked
+		} else if (kind === "network") {
+			this.#networkDocked = docked
+			writeStoredBoolean(NETWORK_DOCKED_STORAGE_KEY, docked)
+			if (!docked) this.#connectNetworkTerminal()
+			this.#syncNetworkStatusRefresh()
 		} else if (kind === "android") {
 			this.#androidDocked = docked
 			writeStoredBoolean(ANDROID_DOCKED_STORAGE_KEY, docked)
@@ -1026,6 +1106,7 @@ class AppWebHud implements AppWebHudController {
 		this.#resetDockTransitionNodes(transition)
 		this.#applyDockedState(transition.kind, transition.targetDocked)
 		this.#viewport.hud.relayout()
+		if (!transition.targetDocked) this.#focusUndockedPanel(transition.kind)
 	}
 
 	#finishDockTransition(commitTarget: boolean): void {
@@ -1082,12 +1163,27 @@ class AppWebHud implements AppWebHudController {
 		surface.node.updateMatrix()
 	}
 
+	#focusUndockedPanel(kind: DockPanelKind): void {
+		if (kind !== "codex") return
+		this.#terminal.pane.focus()
+	}
+
 	#dockTransitionExtras(kind: DockPanelKind, basePanelRect: UiSurfaceRect, fromPanelRect: UiSurfaceRect, toPanelRect: UiSurfaceRect): DockExtraTransition[] {
 		if (kind === "workspace") {
 			const frame = this.#viewport.hud.surfaceFrame(this.#workspaceEditor)
 			if (frame === null || frame.rect.visible === false) return []
 			return [{
 				surface: this.#workspaceEditor,
+				baseRect: frame.rect,
+				fromRect: projectChildRectBetweenParents(basePanelRect, frame.rect, fromPanelRect),
+				toRect: projectChildRectBetweenParents(basePanelRect, frame.rect, toPanelRect),
+			}]
+		}
+		if (kind === "network") {
+			const frame = this.#viewport.hud.surfaceFrame(this.#networkTerminal.pane)
+			if (frame === null || frame.rect.visible === false) return []
+			return [{
+				surface: this.#networkTerminal.pane,
 				baseRect: frame.rect,
 				fromRect: projectChildRectBetweenParents(basePanelRect, frame.rect, fromPanelRect),
 				toRect: projectChildRectBetweenParents(basePanelRect, frame.rect, toPanelRect),
@@ -1109,6 +1205,7 @@ class AppWebHud implements AppWebHudController {
 		if (kind === "settings") return this.#settingsDocked
 		if (kind === "todo") return this.#todoDocked
 		if (kind === "workspace") return this.#workspaceDocked
+		if (kind === "network") return this.#networkDocked
 		return this.#androidDocked
 	}
 
@@ -1117,6 +1214,7 @@ class AppWebHud implements AppWebHudController {
 		if (kind === "settings") return this.#settingsPane
 		if (kind === "todo") return this.#todoPane
 		if (kind === "workspace") return this.#workspaceFiles
+		if (kind === "network") return this.#networkWatchPane
 		return this.#androidPane
 	}
 
@@ -1125,6 +1223,7 @@ class AppWebHud implements AppWebHudController {
 		if (kind === "settings") return this.#settingsDock
 		if (kind === "todo") return this.#todoDock
 		if (kind === "workspace") return this.#workspaceDock
+		if (kind === "network") return this.#networkDock
 		return this.#androidDock
 	}
 
@@ -1138,6 +1237,7 @@ class AppWebHud implements AppWebHudController {
 		if (kind === "fullscreen") return true
 		if (kind === "todo") return this.#todoDocked
 		if (kind === "workspace") return this.#workspaceDocked
+		if (kind === "network") return this.#networkDocked
 		return this.#androidDocked
 	}
 
@@ -1146,6 +1246,7 @@ class AppWebHud implements AppWebHudController {
 		if (kind === "settings") return "Settings"
 		if (kind === "android") return "Android"
 		if (kind === "workspace") return "Inspector"
+		if (kind === "network") return "Network"
 		if (kind === "fullscreen") return ""
 		return "TODO"
 	}
@@ -1155,6 +1256,7 @@ class AppWebHud implements AppWebHudController {
 		if (kind === "settings") return uiIcons.manual
 		if (kind === "android") return uiIcons.language
 		if (kind === "workspace") return uiIcons.database
+		if (kind === "network") return uiIcons.log
 		if (kind === "fullscreen") return this.#fullscreen ? uiIcons.collapse : uiIcons.expand
 		return uiIcons.apply
 	}
@@ -1191,6 +1293,10 @@ class AppWebHud implements AppWebHudController {
 			this.#workspaceDockPlacement = placement
 			writeStoredDockPlacement(WORKSPACE_DOCK_PLACEMENT_STORAGE_KEY, placement)
 			this.#workspaceDock.requestRender()
+		} else if (kind === "network") {
+			this.#networkDockPlacement = placement
+			writeStoredDockPlacement(NETWORK_DOCK_PLACEMENT_STORAGE_KEY, placement)
+			this.#networkDock.requestRender()
 		} else if (kind === "android") {
 			this.#androidDockPlacement = placement
 			writeStoredDockPlacement(ANDROID_DOCK_PLACEMENT_STORAGE_KEY, placement)
@@ -1540,6 +1646,78 @@ class AppWebHud implements AppWebHudController {
 		return controller
 	}
 
+	#createNetworkWatchPane(): NetworkWatchPane {
+		return new NetworkWatchPane({
+			title: "NetworkMux",
+			sessionLabel: `${NETWORK_TERMINAL_TMUX_SESSION}:network`,
+			actions: {
+				setTlsEnabled: (enabled) => {
+					this.#networkServiceSwitches = {...this.#networkServiceSwitches, tls: enabled}
+					this.#updateNetworkWatchPane()
+					void this.#runNetworkAction(networkActionForSwitch("tls", enabled))
+				},
+				setRedirectEnabled: (enabled) => {
+					this.#networkServiceSwitches = {...this.#networkServiceSwitches, redirect: enabled}
+					this.#updateNetworkWatchPane()
+					void this.#runNetworkAction(networkActionForSwitch("redirect", enabled))
+				},
+				setProductViaInterpreter: () => {
+					this.#networkActionStatus = "prod uses app/web"
+					this.#updateNetworkWatchPane()
+				},
+				setAutoRefreshEnabled: (enabled) => this.#setNetworkStatusAutoRefreshEnabled(enabled),
+				rebuildLayout: () => {
+					this.#networkServiceSwitches = {tls: true, redirect: true}
+					this.#updateNetworkWatchPane()
+					void this.#runNetworkAction("layout")
+				},
+				clearPanes: () => void this.#runNetworkAction("clear"),
+				refresh: () => this.#scheduleNetworkStatusRefresh(0, {force: true}),
+			},
+		})
+	}
+
+	#createNetworkTerminalController(): TerminalController {
+		const controller = {} as TerminalController
+		const pane = new TerminalPane({
+			title: "Network · tmux",
+			status: "connecting",
+			statusKind: "idle",
+			fontPx: 12,
+			linePx: 17,
+			maxScrollback: 10000,
+			respondToTerminalQueries: false,
+			terminalQueryMode: "cursor",
+			cursorWhenBlurred: true,
+			draggable: true,
+			resizable: true,
+			inputEnabled: false,
+			onInput: (data, source) => this.#sendNetworkTerminalInput(data, source),
+			onResize: (size) => this.#resizeNetworkTerminal(size),
+			onFocusChange: (focused) => {
+				if (!focused) return
+				this.#viewport.hud.setFocused(pane)
+			},
+			onFrameRectChange: (rect) => writeStoredRect(NETWORK_TERMINAL_RECT_STORAGE_KEY, rect),
+			onFrameDockRequest: () => this.setDocked("network", true),
+		})
+		Object.assign(controller, {
+			pane,
+			socket: null,
+			sessionId: readStoredString(NETWORK_TERMINAL_SESSION_STORAGE_KEY),
+			size: null,
+			state: null,
+			statusLabel: "connecting",
+			localEchoId: 0,
+			agentNotifyArmed: false,
+			agentNotifySawOutput: false,
+			agentNotifyLastOutputAt: 0,
+			agentNotifyLastPlayedAt: 0,
+			agentNotifyTimer: null,
+		} satisfies TerminalController)
+		return controller
+	}
+
 	#createCodexEditor(): EditorPane {
 		const editor = new EditorPane({
 			title: "Message.md",
@@ -1872,6 +2050,129 @@ class AppWebHud implements AppWebHudController {
 		if (this.#terminal.agentNotifySawOutput) this.#scheduleAgentReadyNotificationCheck()
 	}
 
+	#connectNetworkTerminal(): void {
+		if (this.#networkTerminal.socket?.readyState === WebSocket.OPEN || this.#networkTerminal.socket?.readyState === WebSocket.CONNECTING) return
+		this.#networkTerminal.socket?.close()
+		this.#networkTerminal.socket = null
+		this.#networkTerminal.state = null
+		this.#networkTerminal.pane.setInputEnabled(false)
+		this.#setNetworkTerminalStatus("idle", "connecting")
+		const socket = new WebSocket(this.#networkTerminalUrl())
+		this.#networkTerminal.socket = socket
+		socket.addEventListener("open", () => {
+			if (this.#networkTerminal.socket !== socket) return
+			this.#setNetworkTerminalStatus("connected", "connected")
+			this.#networkTerminal.pane.setInputEnabled(true)
+			if (this.#networkTerminal.size !== null) this.#sendNetworkTerminal({type: "terminal.resize", size: this.#networkTerminal.size})
+		})
+		socket.addEventListener("message", (event) => {
+			if (this.#networkTerminal.socket !== socket) return
+			this.#handleNetworkTerminalMessage(String(event.data))
+		})
+		socket.addEventListener("close", () => {
+			if (this.#networkTerminal.socket !== socket) return
+			this.#networkTerminal.socket = null
+			this.#networkTerminal.pane.setInputEnabled(false)
+			this.#setNetworkTerminalStatus("disconnected", "closed")
+		})
+		socket.addEventListener("error", () => {
+			if (this.#networkTerminal.socket !== socket) return
+			this.#networkTerminal.pane.setInputEnabled(false)
+			this.#setNetworkTerminalStatus("error", "websocket")
+		})
+	}
+
+	#networkTerminalUrl(): string {
+		const protocol = location.protocol === "https:" ? "wss:" : "ws:"
+		const url = new URL(`${protocol}//${location.host}/hud/terminal/stream`)
+		url.searchParams.set("replay", "1")
+		url.searchParams.set("key", NETWORK_TERMINAL_SESSION_KEY)
+		url.searchParams.set("tmux", NETWORK_TERMINAL_TMUX_SESSION)
+		if (this.#networkTerminal.sessionId !== null) url.searchParams.set("session", this.#networkTerminal.sessionId)
+		return url.toString()
+	}
+
+	#sendNetworkTerminalInput(data: string, source: TerminalInputSource, localEchoText = data): void {
+		const localEchoId = this.#tryNetworkTerminalLocalEcho(localEchoText, source) ? ++this.#networkTerminal.localEchoId : undefined
+		this.#sendNetworkTerminal({
+			type: "input.write",
+			data,
+			source,
+			...(localEchoId === undefined ? {} : {localEchoId}),
+		})
+	}
+
+	#tryNetworkTerminalLocalEcho(data: string, source: TerminalInputSource): boolean {
+		const state = this.#networkTerminal.state
+		if (
+			(source !== "keyboard" && source !== "api") ||
+			this.#networkTerminal.socket?.readyState !== WebSocket.OPEN ||
+			state === null ||
+			!state.localEcho ||
+			!this.#networkTerminal.pane.getTerminalState().localEcho
+		) return false
+		return this.#networkTerminal.pane.tryLocalEcho(data)
+	}
+
+	#sendNetworkTerminal(message: PtyClientMessage): void {
+		if (this.#networkTerminal.socket?.readyState === WebSocket.OPEN) {
+			this.#networkTerminal.socket.send(JSON.stringify(message))
+		}
+	}
+
+	#resizeNetworkTerminal(size: TerminalSize): void {
+		const next = {cols: Math.max(1, Math.round(size.cols)), rows: Math.max(1, Math.round(size.rows))}
+		if (this.#networkTerminal.size?.cols === next.cols && this.#networkTerminal.size.rows === next.rows) return
+		this.#networkTerminal.size = next
+		this.#sendNetworkTerminal({type: "terminal.resize", size: next})
+	}
+
+	#handleNetworkTerminalMessage(raw: string): void {
+		const message = parseTerminalMessage(raw)
+		if (message === null) return
+		if (message.type === "terminal.write") {
+			this.#networkTerminal.pane.writeAuthoritative(message.data)
+			if (message.state !== undefined) this.#networkTerminal.state = message.state
+			return
+		}
+		if (message.type === "terminal.state") {
+			this.#networkTerminal.state = message.state
+			return
+		}
+		if (message.type === "terminal.local-echo") {
+			this.#networkTerminal.state = message.state
+			if (!message.accepted) this.#networkTerminal.pane.rejectLocalEcho()
+			return
+		}
+		if (message.type === "terminal.ready") {
+			this.#networkTerminal.sessionId = message.sessionId
+			this.#networkTerminal.state = message.state
+			writeStoredString(NETWORK_TERMINAL_SESSION_STORAGE_KEY, message.sessionId)
+			this.#setNetworkTerminalStatus("connected", shellLabel(message.shell))
+			if (this.#networkTerminal.size !== null) this.#sendNetworkTerminal({type: "terminal.resize", size: this.#networkTerminal.size})
+			return
+		}
+		if (message.type === "terminal.status") {
+			this.#setNetworkTerminalStatus(statusKindForPane(message.status.kind), codexTerminalStatusLabel(message.status.label))
+			return
+		}
+		if (message.type === "terminal.exit") {
+			this.#networkTerminal.pane.setInputEnabled(false)
+			this.#setNetworkTerminalStatus("disconnected", "exited")
+			this.#networkTerminal.pane.writeln(`\x1b[90mprocess exited: code=${message.code ?? "null"} signal=${message.signal ?? "null"}\x1b[0m`)
+			return
+		}
+		this.#networkTerminal.pane.setInputEnabled(false)
+		this.#setNetworkTerminalStatus("error", "error")
+		this.#networkTerminal.pane.writeln(`\x1b[31m${message.message}\x1b[0m`)
+	}
+
+	#setNetworkTerminalStatus(kind: TerminalStatusKind, label: string): void {
+		const cleanLabel = codexTerminalStatusLabel(label)
+		this.#networkTerminal.statusLabel = cleanLabel
+		this.#networkTerminal.pane.setStatus(kind, cleanLabel)
+	}
+
 	#armAgentReadyNotification(): void {
 		this.#clearAgentReadyNotificationTimer()
 		this.#terminal.agentNotifyArmed = true
@@ -1925,6 +2226,144 @@ class AppWebHud implements AppWebHudController {
 
 	#playAgentReadySignal(): void {
 		playHudNotificationSound("agent", this.#voiceClient)
+	}
+
+	async #postNetworkAction(action: string, opts: {signal?: AbortSignal} = {}): Promise<{response: Response; payload: NetworkActionPayload}> {
+		const init: RequestInit = {
+			method: "POST",
+			headers: {"content-type": "application/json"},
+			body: JSON.stringify({action, mode: "prod"}),
+		}
+		if (opts.signal !== undefined) init.signal = opts.signal
+		const response = await fetch("/space/network/action", init)
+		const payload = await response.json().catch(() => ({})) as NetworkActionPayload
+		return {response, payload}
+	}
+
+	async #runNetworkAction(action: string): Promise<void> {
+		this.#networkActionStatus = `running ${action}`
+		this.#updateNetworkWatchPane()
+		try {
+			const {response, payload} = await this.#postNetworkAction(action)
+			if (!response.ok || payload.ok === false) {
+				const message = payload.error ?? payload.stderr ?? `${response.status}`
+				this.#networkActionStatus = `${action} failed: ${String(message).slice(0, 64)}`
+			} else if (payload.detached === true) {
+				this.#networkActionStatus = `${action} accepted`
+			} else {
+				this.#networkActionStatus = `${action} ok ${payload.durationMs ?? 0}ms`
+			}
+		} catch (error) {
+			this.#networkActionStatus = `${action} failed: ${error instanceof Error ? error.message : String(error)}`
+		} finally {
+			this.#updateNetworkWatchPane()
+			this.#scheduleNetworkStatusRefresh(0, {force: true})
+		}
+	}
+
+	#scheduleNetworkStatusRefresh(delayMs: number, opts: {force?: boolean} = {}): void {
+		const force = opts.force === true
+		if (!this.#networkStatusDisplayActive() || (!force && !this.#networkStatusAutoRefreshActive())) {
+			this.#stopNetworkStatusRefresh({abort: !this.#networkStatusDisplayActive() || !this.#networkStatusAutoRefreshEnabled})
+			return
+		}
+		if (this.#networkStatusRefreshTimer !== null) window.clearTimeout(this.#networkStatusRefreshTimer)
+		this.#networkStatusRefreshTimer = window.setTimeout(() => {
+			this.#networkStatusRefreshTimer = null
+			void this.#refreshNetworkStatus({manual: force})
+		}, delayMs)
+		this.#updateNetworkWatchPane()
+	}
+
+	async #refreshNetworkStatus(opts: {manual?: boolean} = {}): Promise<void> {
+		if (this.#networkStatusRefreshInFlight) return
+		const manual = opts.manual === true
+		if (!this.#networkStatusDisplayActive() || (!manual && !this.#networkStatusAutoRefreshActive())) {
+			this.#stopNetworkStatusRefresh({abort: !this.#networkStatusDisplayActive() || !this.#networkStatusAutoRefreshEnabled})
+			return
+		}
+		const generation = this.#networkStatusRefreshGeneration
+		const abortController = new AbortController()
+		this.#networkStatusRefreshAbortController = abortController
+		this.#networkStatusRefreshInFlight = true
+		this.#updateNetworkWatchPane()
+		try {
+			const {response, payload} = await this.#postNetworkAction("status", {signal: abortController.signal})
+			if (generation !== this.#networkStatusRefreshGeneration) return
+			if (!response.ok || payload.ok === false) {
+				const message = payload.error ?? payload.stderr ?? `${response.status}`
+				this.#networkStatusLines = [`status failed: ${String(message).slice(0, 160)}`]
+			} else {
+				this.#networkStatusLines = networkStatusLinesFromOutput(payload.stdout ?? "")
+				this.#networkStatusUpdatedAt = new Date()
+			}
+		} catch (error) {
+			if (generation !== this.#networkStatusRefreshGeneration || isAbortError(error)) return
+			this.#networkStatusLines = [`status failed: ${error instanceof Error ? error.message : String(error)}`]
+		} finally {
+			if (generation !== this.#networkStatusRefreshGeneration) return
+			if (this.#networkStatusRefreshAbortController === abortController) this.#networkStatusRefreshAbortController = null
+			this.#networkStatusRefreshInFlight = false
+			this.#updateNetworkWatchPane()
+			if (this.#networkStatusAutoRefreshActive()) this.#scheduleNetworkStatusRefresh(NETWORK_STATUS_REFRESH_MS)
+		}
+	}
+
+	#syncNetworkStatusRefresh(): void {
+		if (this.#networkStatusAutoRefreshActive()) {
+			this.#scheduleNetworkStatusRefresh(this.#networkStatusLines.length === 0 ? 0 : NETWORK_STATUS_REFRESH_MS)
+		} else {
+			this.#stopNetworkStatusRefresh({abort: !this.#networkStatusDisplayActive() || !this.#networkStatusAutoRefreshEnabled})
+		}
+		this.#updateNetworkWatchPane()
+	}
+
+	#stopNetworkStatusRefresh(opts: {abort?: boolean} = {}): void {
+		if (this.#networkStatusRefreshTimer !== null) {
+			window.clearTimeout(this.#networkStatusRefreshTimer)
+			this.#networkStatusRefreshTimer = null
+		}
+		if (opts.abort === true && this.#networkStatusRefreshAbortController !== null) {
+			this.#networkStatusRefreshGeneration += 1
+			this.#networkStatusRefreshAbortController.abort()
+			this.#networkStatusRefreshAbortController = null
+			this.#networkStatusRefreshInFlight = false
+		}
+		this.#updateNetworkWatchPane()
+	}
+
+	#networkStatusDisplayActive(): boolean {
+		if (this.#networkDocked || document.visibilityState === "hidden") return false
+		const frame = this.#viewport.hud.surfaceFrame(this.#networkWatchPane)
+		return frame !== null && frame.rect.visible !== false
+	}
+
+	#networkStatusAutoRefreshActive(): boolean {
+		return this.#networkStatusAutoRefreshEnabled && this.#networkStatusDisplayActive()
+	}
+
+	#setNetworkStatusAutoRefreshEnabled(enabled: boolean): void {
+		if (this.#networkStatusAutoRefreshEnabled === enabled) return
+		this.#networkStatusAutoRefreshEnabled = enabled
+		writeStoredBoolean(NETWORK_STATUS_AUTO_REFRESH_STORAGE_KEY, enabled)
+		this.#syncNetworkStatusRefresh()
+	}
+
+	#networkWatchPaneSnapshot(): NetworkWatchPaneSnapshot {
+		return {
+			actionStatus: this.#networkActionStatus,
+			services: {...this.#networkServiceSwitches},
+			productViaInterpreter: false,
+			autoRefresh: this.#networkStatusAutoRefreshEnabled,
+			autoRefreshActive: this.#networkStatusAutoRefreshActive(),
+			refreshing: this.#networkStatusRefreshInFlight,
+			updatedAt: this.#networkStatusUpdatedAt,
+			sections: networkWatchSectionsFromLines(this.#networkStatusLines),
+		}
+	}
+
+	#updateNetworkWatchPane(): void {
+		this.#networkWatchPane.setSnapshot(this.#networkWatchPaneSnapshot())
 	}
 
 	async #loadTodo(): Promise<void> {
@@ -2697,6 +3136,50 @@ class AppWebHud implements AppWebHudController {
 		}
 	}
 
+	#networkControlsRect(bounds: {w: number; h: number}): UiSurfaceRect {
+		if (this.#networkDocked) return hiddenRect()
+		const maxW = Math.max(1, bounds.w - 32)
+		const maxH = Math.max(1, bounds.h - 112)
+		if (!networkLayoutUsesColumns(bounds.w)) {
+			return {
+				x: 16,
+				y: 84,
+				w: maxW,
+				h: Math.min(Math.max(180, Math.floor(bounds.h * 0.32)), maxH),
+			}
+		}
+		return readStoredRect(NETWORK_CONTROLS_RECT_STORAGE_KEY) ?? {
+			x: 16,
+			y: 84,
+			w: Math.min(420, Math.max(360, Math.floor(bounds.w * 0.28))),
+			h: Math.min(720, maxH),
+		}
+	}
+
+	#networkTerminalRect(bounds: {w: number; h: number}): UiSurfaceRect {
+		if (this.#networkDocked) return hiddenRect()
+		const controls = this.#networkControlsRect(bounds)
+		if (controls.visible === false) return hiddenRect()
+		const stored = readStoredRect(NETWORK_TERMINAL_RECT_STORAGE_KEY)
+		if (stored !== null) return stored
+		if (!networkLayoutUsesColumns(bounds.w)) {
+			const y = controls.y + controls.h + 10
+			return {
+				x: controls.x,
+				y,
+				w: controls.w,
+				h: Math.max(180, bounds.h - y - 16),
+			}
+		}
+		const x = controls.x + controls.w + 10
+		return {
+			x,
+			y: controls.y,
+			w: Math.max(360, bounds.w - x - 16),
+			h: controls.h,
+		}
+	}
+
 	#androidRect(bounds: {w: number; h: number}): UiSurfaceRect {
 		if (this.#androidDocked) return hiddenRect()
 		const width = Math.min(360, Math.max(300, bounds.w - 32))
@@ -2743,6 +3226,7 @@ class AppWebHud implements AppWebHudController {
 		if (kind === "settings") return this.#settingsDockPlacement
 		if (kind === "todo") return this.#todoDockPlacement
 		if (kind === "workspace") return this.#workspaceDockPlacement
+		if (kind === "network") return this.#networkDockPlacement
 		if (kind === "android") return this.#androidDockPlacement
 		return this.#fullscreenDockPlacement
 	}
@@ -3848,6 +4332,7 @@ function defaultDockPlacementRaw(kind: DockKind, bounds: {w: number; h: number})
 	if (kind === "fullscreen") return {edge: "top", offset: Math.max(0, bounds.w / 2 + 108)}
 	if (kind === "android") return {edge: "right", offset: Math.max(0, bounds.h / 2)}
 	if (kind === "workspace") return {edge: "left", offset: Math.max(0, bounds.h / 2)}
+	if (kind === "network") return {edge: "bottom", offset: Math.max(0, bounds.w / 2 + 160)}
 	return {edge: "left", offset: Math.max(0, bounds.h - 70)}
 }
 
@@ -3877,8 +4362,33 @@ function dockLong(kind: DockKind): number {
 	if (kind === "settings") return 142
 	if (kind === "android") return 132
 	if (kind === "workspace") return 150
+	if (kind === "network") return 144
 	if (kind === "todo") return 126
 	return 48
+}
+
+function networkActionForSwitch(key: NetworkWatchServiceKey, checked: boolean): string {
+	if (key === "tls") return checked ? "start:tls" : "stop:tls"
+	return checked ? "start:redirect" : "stop:redirect"
+}
+
+function networkStatusLinesFromOutput(stdout: string): string[] {
+	const lines = stdout
+		.replace(/\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, "")
+		.split(/\r?\n/)
+		.map((line) => line.trimEnd())
+		.filter((line) => {
+			const trimmed = line.trim()
+			if (trimmed.length === 0) return false
+			if (/^\+-+\+$/.test(trimmed)) return false
+			if (/^\|\s*MetaFor network/.test(trimmed)) return false
+			return true
+		})
+	return lines.length > 0 ? lines : ["no network status"]
+}
+
+function networkLayoutUsesColumns(width: number): boolean {
+	return width >= 900
 }
 
 async function fetchJson(url: string, init?: RequestInit): Promise<unknown> {

@@ -277,8 +277,59 @@ type BotPhoneCameraFlight = {
 	startedAt: number
 }
 
+type BotPhoneDisplayDockControl = {
+	fullscreenButton: UiSurfaceRect
+	hit: UiSurfaceRect
+	returnButton: UiSurfaceRect
+}
+
+const BOT_PHONE_HOVER_HUD_Z = 8
+const BOT_PHONE_DISPLAY_DOCK_HUD_Z = 9
+
+type BulkWebkitFullscreenDocument = Document & {
+	webkitCancelFullScreen?: () => Promise<void> | void
+	webkitExitFullscreen?: () => Promise<void> | void
+	webkitFullscreenElement?: Element | null
+}
+
+type BulkWebkitFullscreenElement = Element & {
+	webkitRequestFullScreen?: () => Promise<void> | void
+	webkitRequestFullscreen?: () => Promise<void> | void
+}
+
 const sameBotPhoneScreenTarget = (left: BotPhoneScreenTarget, right: BotPhoneScreenTarget): boolean =>
 	left.screen === right.screen
+
+const bulkFullscreenElement = (): Element | null => {
+	const webkitDocument = document as BulkWebkitFullscreenDocument
+	return document.fullscreenElement ?? webkitDocument.webkitFullscreenElement ?? null
+}
+
+const requestBulkFullscreen = async (target: Element): Promise<void> => {
+	if (target.requestFullscreen !== undefined) {
+		try {
+			await target.requestFullscreen({navigationUI: "hide"} as FullscreenOptions)
+			return
+		} catch {
+			await target.requestFullscreen()
+			return
+		}
+	}
+	const webkitTarget = target as BulkWebkitFullscreenElement
+	const request = webkitTarget.webkitRequestFullscreen ?? webkitTarget.webkitRequestFullScreen
+	if (request === undefined) throw new Error(`fullscreen is not available on ${target.tagName.toLowerCase()}`)
+	await Promise.resolve(request.call(target))
+}
+
+const exitBulkFullscreen = async (): Promise<void> => {
+	const webkitDocument = document as BulkWebkitFullscreenDocument
+	if (document.exitFullscreen !== undefined && document.fullscreenElement !== null) {
+		await document.exitFullscreen()
+		return
+	}
+	const exit = webkitDocument.webkitExitFullscreen ?? webkitDocument.webkitCancelFullScreen
+	if (exit !== undefined && webkitDocument.webkitFullscreenElement !== null) await Promise.resolve(exit.call(document))
+}
 
 type ViewNavigationState = {
 	fallbackFocusRadius: number
@@ -647,14 +698,16 @@ const createBotFloorPhones = (onTextureChange: () => void): BotFloorPhones => {
 	return {root, screens}
 }
 
-class BotPhoneReturnDockPane extends UiSurface {
+class BotPhoneDisplayDockPane extends UiSurface {
 	#visible = false
+	readonly #onFullscreen: () => void
 	readonly #onReturn: () => void
 
-	constructor(onReturn: () => void) {
+	constructor(onReturn: () => void, onFullscreen: () => void) {
 		super({bgColor: null, borderColor: null})
-		this.node.name = "BotPhoneReturnDockPane"
+		this.node.name = "BotPhoneDisplayDockPane"
 		this.#onReturn = onReturn
+		this.#onFullscreen = onFullscreen
 	}
 
 	setVisible(visible: boolean): void {
@@ -669,7 +722,7 @@ class BotPhoneReturnDockPane extends UiSurface {
 
 	containsPointer(localX: number, localY: number): boolean {
 		if (!this.#visible) return false
-		const rect = this.#controlRect()
+		const rect = this.#controlRects().hit
 		const pad = 26
 		return (
 			localX >= rect.x - pad &&
@@ -681,14 +734,30 @@ class BotPhoneReturnDockPane extends UiSurface {
 
 	protected render(): void {
 		if (!this.#visible) return
-		const rect = this.#controlRect()
-		const hit = this.hitState(rect.x, rect.y, rect.w, rect.h, "bot-phone-return")
-		const strength = hit.pressed ? 1.15 : hit.hovered ? 1 : 0.82
-		this.hit(rect.x, rect.y, rect.w, rect.h, this.#onReturn, {
-			key: "bot-phone-return",
+		const control = this.#controlRects()
+		const returnHit = this.hitState(control.returnButton.x, control.returnButton.y, control.returnButton.w, control.returnButton.h, "bot-display-return")
+		const fullscreenHit = this.hitState(control.fullscreenButton.x, control.fullscreenButton.y, control.fullscreenButton.w, control.fullscreenButton.h, "bot-display-fullscreen")
+
+		this.hit(control.returnButton.x, control.returnButton.y, control.returnButton.w, control.returnButton.h, this.#onReturn, {
+			key: "bot-display-return",
 			cursor: "pointer",
 			activeCursor: "pointer",
 		})
+		this.hit(control.fullscreenButton.x, control.fullscreenButton.y, control.fullscreenButton.w, control.fullscreenButton.h, this.#onFullscreen, {
+			key: "bot-display-fullscreen",
+			cursor: "pointer",
+			activeCursor: "pointer",
+		})
+
+		this.#drawButton(control.returnButton, returnHit.pressed ? 1.15 : returnHit.hovered ? 1 : 0.82, uiIcons.zoomOut)
+		this.#drawButton(
+			control.fullscreenButton,
+			fullscreenHit.pressed ? 1.15 : fullscreenHit.hovered ? 1 : 0.82,
+			bulkFullscreenElement() === null ? uiIcons.expand : uiIcons.collapse,
+		)
+	}
+
+	#drawButton(rect: UiSurfaceRect, strength: number, icon: (typeof uiIcons)[keyof typeof uiIcons]): void {
 		const glow = new Color(0.08, 0.52, 1, 0.18 * strength)
 		const border = new Color(0.22, 0.68, 0.95, 0.64 * strength)
 		this.drawRoundedRect(rect.x, rect.y, rect.w, rect.h, {
@@ -698,19 +767,28 @@ class BotPhoneReturnDockPane extends UiSurface {
 			borderWidth: 1.2,
 			z: Z.TEXT + 0.22,
 		})
-		drawIconCentered(this, uiIcons.zoomOut, rect.x + rect.w / 2, rect.y + rect.h / 2, 24, {
+		drawIconCentered(this, icon, rect.x + rect.w / 2, rect.y + rect.h / 2, 24, {
 			opacity: 0.92 * strength,
 			z: Z.TEXT + 0.32,
 		})
 	}
 
-	#controlRect(): UiSurfaceRect {
+	#controlRects(): BotPhoneDisplayDockControl {
 		const size = 42
+		const gap = 12
+		const x = 58
+		const y = 72
+		const returnButton = {x, y, w: size, h: size}
+		const fullscreenButton = {x: x + size + gap, y, w: size, h: size}
 		return {
-			x: 58,
-			y: 72,
-			w: size,
-			h: size,
+			returnButton,
+			fullscreenButton,
+			hit: {
+				x,
+				y,
+				w: size * 2 + gap,
+				h: size,
+			},
 		}
 	}
 }
@@ -1307,7 +1385,10 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 		slot.pixelScale = this.#pixelScale
 		const visible = rect.visible !== false && rect.w > 0 && rect.h > 0
 		slot.surface.node.visible = visible
-		if (!visible) return
+		if (!visible) {
+			this.#releaseHiddenSurfaceSlot(slot)
+			return
+		}
 
 		slot.surface.node.position.x = (rect.x - this.#width / 2) * this.#pixelScale
 		slot.surface.node.position.y = (this.#height / 2 - rect.y) * this.#pixelScale
@@ -1325,6 +1406,22 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 	#sortSurfaceSlots(): void {
 		this.#surfaces.sort((a, b) => a.zIndex - b.zIndex || a.order - b.order)
 		for (const slot of this.#surfaces) this.#hud.add(slot.surface.node)
+	}
+
+	#releaseHiddenSurfaceSlot(slot: BulkHudSurfaceSlot): void {
+		if (this.#hoveredSlot === slot) {
+			slot.surface.onPointerLeave?.()
+			this.#hoveredSlot = null
+		}
+		if (this.#pressedSlot === slot) {
+			this.#pressedSlot = null
+			this.#activeTouchId = null
+			this.#claimNextClick = false
+		}
+		if (this.#focused === slot.surface) {
+			this.setFocused(null)
+			this.inputProxy?.blur()
+		}
 	}
 
 	#surfaceAt(localX: number, localY: number): BulkHudSurfaceSlot | undefined {
@@ -1618,7 +1715,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	let botPhoneCameraFlight: BotPhoneCameraFlight | null = null
 	let botPhoneHoverTarget: BotPhoneScreenTarget | null = null
 	let botPhoneHoverPane: BotPhoneHoverControlsPane | null = null
-	let botPhoneReturnDock: BotPhoneReturnDockPane | null = null
+	let botPhoneDisplayDock: BotPhoneDisplayDockPane | null = null
 
 	const shellRecords = new Map<string, ShellRenderRecord>()
 	const fieldRecords = new Map<string, FieldRenderRecord>()
@@ -1744,7 +1841,10 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const setHoveredPickTarget = (target: HoverablePickTarget | null): void => {
-		if (getPickTargetKey(hoveredPickTarget) === getPickTargetKey(target)) return
+		if (getPickTargetKey(hoveredPickTarget) === getPickTargetKey(target)) {
+			if (target === null) options.canvas.style.cursor = ""
+			return
+		}
 		if (hoveredPickTarget) resetHoverMaterial(hoveredPickTarget)
 		hoveredPickTarget = target
 		if (hoveredPickTarget) applyHoverMaterial(hoveredPickTarget)
@@ -2463,6 +2563,10 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		syncPickTargetsFromScene()
 	}
 
+	const updateBotPhoneDisplayWorldState = (): void => {
+		botFloorPhonesRoot?.updateWorldMatrix(true)
+	}
+
 	const androidFrameSizeForBotPhone = (): BulkAndroidFrameSize => {
 		const frame = options.androidFrameSize?.()
 		return {
@@ -2561,18 +2665,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return best?.frame ?? null
 	}
 
-	const botPhoneScreenFrames = (): BotPhoneScreenFrame[] => {
-		if (botFloorPhoneScreens.length === 0) return []
-		const rect = options.canvas.getBoundingClientRect()
-		if (rect.width <= 0 || rect.height <= 0) return []
-		const frames: BotPhoneScreenFrame[] = []
-		for (const target of botFloorPhoneScreens) {
-			const frame = botPhoneScreenFrameForTarget(target, rect)
-			if (frame !== null) frames.push(frame)
-		}
-		return frames
-	}
-
 	const botPhoneScreenHitFromFrame = (
 		frame: BotPhoneScreenFrame,
 		clientX: number,
@@ -2661,7 +2753,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		if (botFloorPhoneScreens.length === 0) return null
 		const rect = options.canvas.getBoundingClientRect()
 		if (rect.width <= 0 || rect.height <= 0) return null
-		updateSceneWorldState()
+		updateBotPhoneDisplayWorldState()
 		raycaster.setFromCamera(
 			{
 				x: ((clientX - rect.left) / rect.width) * 2 - 1,
@@ -2693,34 +2785,49 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const syncBotPhoneHoverPane = (): void => {
 		const pane = botPhoneHoverPane
 		if (pane === null) return
-		if (botPhoneViewState !== null) {
-			pane.setFrames([], null)
+		if (botPhoneViewState !== null || botPhoneHoverTarget === null) {
+			pane.setFrame(null)
 			return
 		}
-		pane.setFrames(botPhoneScreenFrames(), botPhoneHoverTarget)
+		const rect = options.canvas.getBoundingClientRect()
+		if (rect.width <= 0 || rect.height <= 0) {
+			pane.setFrame(null)
+			return
+		}
+		updateBotPhoneDisplayWorldState()
+		pane.setFrame(botPhoneScreenFrameForTarget(botPhoneHoverTarget, rect))
+	}
+
+	const setBotPhoneHoverFrame = (frame: BotPhoneScreenFrame | null): void => {
+		const target = frame?.target ?? null
+		const changed = botPhoneHoverTarget !== target
+		botPhoneHoverTarget = target
+		botPhoneHoverPane?.setFrame(frame)
+		if (changed) requestRenderLoop(INPUT_RENDER_WAKE_MS)
 	}
 
 	const setBotPhoneHoverTarget = (target: BotPhoneScreenTarget | null): void => {
-		const changed = botPhoneHoverTarget !== target
-		botPhoneHoverTarget = target
-		syncBotPhoneHoverPane()
-		if (changed) requestRenderLoop(INPUT_RENDER_WAKE_MS)
+		if (target === null) {
+			setBotPhoneHoverFrame(null)
+			return
+		}
+		const rect = options.canvas.getBoundingClientRect()
+		if (rect.width <= 0 || rect.height <= 0) {
+			setBotPhoneHoverFrame(null)
+			return
+		}
+		updateBotPhoneDisplayWorldState()
+		setBotPhoneHoverFrame(botPhoneScreenFrameForTarget(target, rect))
 	}
 
 	const updateBotPhoneHoverAtClientPoint = (clientX: number, clientY: number): BotPhoneScreenFrame | null => {
 		if (botPhoneViewState !== null) {
-			setBotPhoneHoverTarget(null)
+			setBotPhoneHoverFrame(null)
 			return null
 		}
-		updateSceneWorldState()
-		const rect = options.canvas.getBoundingClientRect()
-		const hit = botPhoneScreenHitAtClientPoint(clientX, clientY)
-		const frame = hit !== null && rect.width > 0 && rect.height > 0
-			? botPhoneScreenFrameForTarget(hit.target, rect)
-			: botPhoneScreenFrameAtClientPoint(clientX, clientY, BOT_PHONE_HOVER_PAD_PX)
-		botPhoneHoverTarget = frame?.target ?? null
-		syncBotPhoneHoverPane()
-		requestRenderLoop(INPUT_RENDER_WAKE_MS)
+		updateBotPhoneDisplayWorldState()
+		const frame = botPhoneScreenFrameAtClientPoint(clientX, clientY, BOT_PHONE_HOVER_PAD_PX)
+		setBotPhoneHoverFrame(frame)
 		return frame
 	}
 
@@ -2738,7 +2845,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const botPhoneViewPose = (target: BotPhoneScreenTarget): BulkViewPose => {
-		updateSceneWorldState()
+		updateBotPhoneDisplayWorldState()
 		const displayRect = botPhoneDisplayRectForFrame(target, androidFrameSizeForBotPhone())
 		const localCenter = new Vector3(displayRect.x + displayRect.w / 2, displayRect.y + displayRect.h / 2, 0)
 		const center = localCenter.clone().applyMatrix4(target.screen.matrixWorld)
@@ -2809,7 +2916,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		const returnPose = botPhoneViewState?.returnPose ?? captureViewPose()
 		setBotPhoneHoverTarget(null)
 		botPhoneViewState = {target, returnPose}
-		botPhoneReturnDock?.setVisible(true)
+		botPhoneDisplayDock?.setVisible(true)
 		startBotPhoneCameraFlight(botPhoneViewPose(target))
 	}
 
@@ -2819,9 +2926,24 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		botPhoneViewState = null
 		botPhoneGesture = null
 		botPhonePointerCaptured = false
-		botPhoneReturnDock?.setVisible(false)
+		botPhoneDisplayDock?.setVisible(false)
 		setBotPhoneHoverTarget(null)
 		startBotPhoneCameraFlight(returnPose)
+	}
+
+	const toggleBotPhoneDisplayFullscreen = (): void => {
+		const target = options.canvas
+		void (async () => {
+			try {
+				if (bulkFullscreenElement() === null) await requestBulkFullscreen(target)
+				else await exitBulkFullscreen()
+			} catch (error) {
+				console.warn("[bulk/web] Display fullscreen toggle failed", error)
+			} finally {
+				botPhoneDisplayDock?.requestRender()
+				requestRenderLoop(INPUT_RENDER_WAKE_MS)
+			}
+		})()
 	}
 
 	const sendBotPhoneGesture = (gesture: BotPhoneGesture, end: BotPhoneScreenHit, event: MouseEvent): void => {
@@ -3391,6 +3513,11 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		focusTarget(hitTarget)
 	}
 
+	const handleBotPhoneFullscreenChange = (): void => {
+		botPhoneDisplayDock?.requestRender()
+		requestRenderLoop(INPUT_RENDER_WAKE_MS)
+	}
+
 	options.canvas.addEventListener("mousedown", handleCanvasMouseDown)
 	options.canvas.addEventListener("mousemove", handleCanvasMouseMove)
 	options.canvas.addEventListener("mouseup", handleCanvasMouseUp)
@@ -3403,6 +3530,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	options.canvas.addEventListener("touchcancel", wakeRenderFromCanvasTouch, { passive: true })
 	document.addEventListener("mousemove", wakeRenderFromDocumentMouseMove)
 	document.addEventListener("mouseup", wakeRenderFromDocumentMouseUp)
+	document.addEventListener("fullscreenchange", handleBotPhoneFullscreenChange)
+	document.addEventListener("webkitfullscreenchange", handleBotPhoneFullscreenChange)
 
 	const calculateActiveShellRecord = (): ShellRenderRecord | null => {
 		const cameraPos = viewPoint.position
@@ -3482,9 +3611,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	window.addEventListener("touchend", handleBotPhoneTouchEnd, true)
 	window.addEventListener("touchcancel", handleBotPhoneTouchEnd, true)
 	botPhoneHoverPane = new BotPhoneHoverControlsPane(enterBotPhoneView)
-	hudRuntime.addSurface(botPhoneHoverPane, ({w, h}) => ({x: 0, y: 0, w, h}), {zIndex: 120})
-	botPhoneReturnDock = new BotPhoneReturnDockPane(exitBotPhoneView)
-	hudRuntime.addSurface(botPhoneReturnDock, ({w, h}) => ({x: 0, y: 0, w, h}), {zIndex: 200})
+	hudRuntime.addSurface(botPhoneHoverPane, ({w, h}) => ({x: 0, y: 0, w, h}), {zIndex: BOT_PHONE_HOVER_HUD_Z})
+	botPhoneDisplayDock = new BotPhoneDisplayDockPane(exitBotPhoneView, toggleBotPhoneDisplayFullscreen)
+	hudRuntime.addSurface(botPhoneDisplayDock, ({w, h}) => ({x: 0, y: 0, w, h}), {zIndex: BOT_PHONE_DISPLAY_DOCK_HUD_Z})
 	installBotFloorPhones()
 	void loadAnthropomorphBots()
 	requestRenderLoop()
@@ -3512,6 +3641,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			window.removeEventListener("touchcancel", handleBotPhoneTouchEnd, true)
 			document.removeEventListener("mousemove", wakeRenderFromDocumentMouseMove)
 			document.removeEventListener("mouseup", wakeRenderFromDocumentMouseUp)
+			document.removeEventListener("fullscreenchange", handleBotPhoneFullscreenChange)
+			document.removeEventListener("webkitfullscreenchange", handleBotPhoneFullscreenChange)
 			setHoveredPickTarget(null)
 			if (botFloorPhonesRoot !== null) detachObject(botFloorPhonesRoot)
 			botFloorPhonesRoot = null
@@ -3523,7 +3654,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			botPhoneCameraFlight = null
 			botPhoneHoverTarget = null
 			botPhoneHoverPane = null
-			botPhoneReturnDock = null
+			botPhoneDisplayDock = null
 			if (anthropomorphBotRoot !== null) detachObject(anthropomorphBotRoot)
 			anthropomorphBotRoot = null
 			anthropomorphBotMixer = null

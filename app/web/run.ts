@@ -1,4 +1,5 @@
 import {ensureMetaforTmuxProfile, METAFOR_TMUX_CONFIG_PATH} from "../../pkg/pty/src/tmux-profile.ts"
+import {networkInterfaces} from "node:os"
 
 const session = process.env.NETWORK_TMUX_SESSION ?? "metafor-app-web-net"
 const windowName = process.env.NETWORK_TMUX_WINDOW ?? "network"
@@ -9,12 +10,15 @@ const panes = {
   redirect: 1,
 } as const
 
-type TlsMode = "direct" | "interpreter"
+type NetworkMode = "dev" | "prod"
 
-const action = process.argv[2] ?? "layout"
+const cli = parseCli(process.argv.slice(2))
+const action = cli.action
+const mode = cli.mode
 
 try {
   ensureMetaforTmuxProfile()
+  await sleepStartDelay()
   await run(action)
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error))
@@ -27,6 +31,7 @@ async function run(name: string): Promise<void> {
     startTls()
     startRedirect()
     selectNetworkWindow()
+    await openNetworkDisplay()
     return
   }
   if (name === "status") {
@@ -108,15 +113,11 @@ function sourceProfile(): void {
 
 function startTls(): void {
   titlePane("tls", tlsPaneTitle())
-  if (tlsMode() === "interpreter") {
-    runPane("tls", `${serviceEnvPrefix()} NODE_ENV=production BUN_ENV=production BOUNDARY_PATH=app/web/tmp/boundary.sqlite HOST=0.0.0.0 PORT=443 TLS_KEY_FILE=app/web/tls/privkey.pem TLS_CERT_FILE=app/web/tls/fullchain.pem bun app/web/product-interpreter-launcher.ts run`)
-    return
-  }
-  runPane("tls", `${serviceEnvPrefix()} bun app/web/product-interpreter-launcher.ts stop >/dev/null 2>&1 || true; NODE_ENV=production BUN_ENV=production BOUNDARY_PATH=app/web/tmp/boundary.sqlite HOST=0.0.0.0 PORT=443 TLS_KEY_FILE=app/web/tls/privkey.pem TLS_CERT_FILE=app/web/tls/fullchain.pem bun app/web/server.ts`)
+  runPane("tls", `${serviceEnvPrefix()} ${serverCommand()}`)
 }
 
 function startRedirect(): void {
-  runPane("redirect", `${serviceEnvPrefix()} HOST=0.0.0.0 PORT=80 bun app/web/network-redirect.ts`)
+  runPane("redirect", `${serviceEnvPrefix()} printf '${redirectPaneMessage()}\\n'`)
 }
 
 function tailNetworkLogs(): void {
@@ -159,7 +160,7 @@ function writeNetworkWatch(): void {
   console.log(`${paint("cyan", "|")} ${paint("bold", "MetaFor network")} ${paint("gray", "ports / processes / tmux panes").padEnd(58)}${paint("cyan", "|")}`)
   console.log(paint("cyan", "+------------------------------------------------------------+"))
   console.log(`${paint("gray", "[TIME]")} ${paint("white", formatDateTime(new Date()))}`)
-  console.log(`${paint("gray", "[MODE]")} tls ${paint("white", tlsMode())}`)
+  console.log(`${paint("gray", "[MODE]")} ${paint("white", modeLabel())}`)
   console.log("")
   console.log(paint("magenta", "[LISTEN]"))
   const listen = listeningPorts()
@@ -264,21 +265,102 @@ function serviceEnvPrefix(): string {
   return "unset LC_ALL NO_COLOR CLICOLOR_FORCE; export LANG=en_US.UTF-8 LC_CTYPE=en_US.UTF-8 COLORTERM=truecolor CLICOLOR=1 FORCE_COLOR=3;"
 }
 
-function tlsMode(): TlsMode {
-  return process.env.NETWORK_TMUX_TLS_MODE === "interpreter" ? "interpreter" : "direct"
+async function sleepStartDelay(): Promise<void> {
+  const delay = Number(process.env.NETWORK_TMUX_START_DELAY_MS ?? 0)
+  if (!Number.isFinite(delay) || delay <= 0) return
+  await Bun.sleep(Math.min(5000, Math.round(delay)))
+}
+
+async function openNetworkDisplay(): Promise<void> {
+  if (process.env.NETWORK_TMUX_OPEN_DISPLAY === "0") return
+  const url = networkDisplayShowUrl()
+  const attempts = Number(process.env.NETWORK_TMUX_OPEN_DISPLAY_ATTEMPTS ?? 40)
+  for (let index = 0; index < Math.max(1, attempts); index += 1) {
+    if (index === 0) await Bun.sleep(450)
+    else await Bun.sleep(250)
+    const result = Bun.spawnSync(["curl", "-sk", "-X", "POST", "--max-time", "2", url], {stdout: "pipe", stderr: "pipe"})
+    const stdout = new TextDecoder().decode(result.stdout)
+    if (result.exitCode === 0 && /"ok"\s*:\s*true/.test(stdout)) {
+      if (mode === "prod") console.log(`app web: ${appPublicUrl()}`)
+      return
+    }
+  }
+  console.error("network display was not opened")
+}
+
+function networkDisplayShowUrl(): string {
+  if (mode === "dev") {
+    const port = Number(process.env.INTERPRETER_HTTP_PORT ?? 6500)
+    return `http://127.0.0.1:${port}/hud/terminal/network/show`
+  }
+  const port = Number(process.env.PORT ?? 443)
+  const suffix = port === 443 ? "" : `:${port}`
+  return `https://127.0.0.1${suffix}/hud/terminal/network/show`
+}
+
+function appPublicUrl(): string {
+  const port = Number(process.env.PORT ?? 443)
+  const suffix = port === 443 ? "" : `:${port}`
+  return `https://${localNetworkAddress() ?? "127.0.0.1"}${suffix}/`
+}
+
+function localNetworkAddress(): string | null {
+  for (const interfaces of Object.values(networkInterfaces())) {
+    for (const item of interfaces ?? []) {
+      if (item.family === "IPv4" && !item.internal) return item.address
+    }
+  }
+  return null
+}
+
+function parseCli(args: string[]): {mode: NetworkMode; action: string} {
+  let nextMode: NetworkMode | undefined = process.env.NETWORK_TMUX_MODE === "dev" ? "dev" : process.env.NETWORK_TMUX_MODE === "prod" ? "prod" : undefined
+  let nextAction: string | undefined
+  for (const arg of args) {
+    if (arg === "--dev") {
+      nextMode = "dev"
+      continue
+    }
+    if (arg === "--prod") {
+      nextMode = "prod"
+      continue
+    }
+    if (arg.startsWith("--")) throw new Error(`unknown network tmux flag: ${arg}`)
+    nextAction ??= arg
+  }
+  return {
+    mode: nextMode ?? "prod",
+    action: nextAction ?? "layout",
+  }
+}
+
+function serverCommand(): string {
+  if (mode === "dev") {
+    return "bun --hot run pkg/interpreter/interpreter.ts app/web/server.ts -env.BOUNDARY_PATH=app/web/tmp/boundary.sqlite app/web/tmp/boundary.sqlite"
+  }
+  return "NODE_ENV=production BUN_ENV=production BOUNDARY_PATH=app/web/tmp/boundary.sqlite HOST=0.0.0.0 PORT=443 TLS_KEY_FILE=app/web/tls/privkey.pem TLS_CERT_FILE=app/web/tls/fullchain.pem bun app/web/server.ts"
+}
+
+function redirectPaneMessage(): string {
+  if (mode === "dev") return "dev mode: app/web is launched through interpreter; network display is opened in interpreter UI"
+  return "prod mode: HTTP redirect is embedded in app/web/server.ts on port 80"
 }
 
 function tlsPaneTitle(): string {
-  return tlsMode() === "interpreter" ? "app-web tls interp" : "app-web tls"
+  return mode === "dev" ? "app-web dev interp" : "app-web prod"
+}
+
+function modeLabel(): string {
+  return mode === "dev" ? "interpreter dev" : "app/web prod"
 }
 
 function interestingPort(port: number): boolean {
-  return port === 80 || port === 443 || port === 6500 || port === 7880 || port === 7881 || port === 7882 || port === 9222 || port === 9223
+  return port === 80 || port === 443 || port === 3000 || port === 6500 || port === 7880 || port === 7881 || port === 7882 || port === 9222 || port === 9223
 }
 
 function portTone(port: number): Tone {
   if (port === 80 || port === 443) return "green"
-  if (port === 6500) return "cyan"
+  if (port === 3000 || port === 6500) return "cyan"
   if (port === 9222 || port === 9223) return "yellow"
   return "magenta"
 }

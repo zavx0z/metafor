@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {normaliseSvgRootDimensions} from "./TextureLoader.ts"
+import {TextureLoader, normaliseSvgRootDimensions} from "./TextureLoader.ts"
 
 describe("normaliseSvgRootDimensions", () => {
   test("adds root dimensions from viewBox when nested elements already have width and height", () => {
@@ -16,5 +16,25 @@ describe("normaliseSvgRootDimensions", () => {
   test("keeps existing root dimensions", () => {
     const svg = `<svg width="24" height="24" viewBox="0 0 24 24"><path d="M0 0h24v24H0z"/></svg>`
     expect(normaliseSvgRootDimensions(svg)).toBe(svg)
+  })
+})
+
+describe("TextureLoader virtual textures", () => {
+  test("does not fetch metafor scheme textures", async () => {
+    const previousFetch = globalThis.fetch
+    let calls = 0
+    globalThis.fetch = (() => {
+      calls += 1
+      throw new Error("fetch should not be called")
+    }) as typeof fetch
+
+    try {
+      const entry = TextureLoader.load({} as GPUDevice, `metafor:test-${Date.now()}`)
+      await Promise.resolve()
+      expect(entry.status).toBe("loading")
+      expect(calls).toBe(0)
+    } finally {
+      globalThis.fetch = previousFetch
+    }
   })
 })
