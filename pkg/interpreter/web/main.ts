@@ -100,6 +100,7 @@ import {
   type VoiceDeactivationMode,
   type VoiceInputChunk,
   type VoiceInputSegment,
+  type VoiceInputSignalTone,
   type VoiceInputStatus,
 } from "./voice-input.ts"
 
@@ -639,6 +640,7 @@ const WORKSPACE_FILES_STATE_STORAGE_PREFIX = "metafor.interpreter.workspaceFiles
 const DEFAULT_VOICE_INPUT_URL = "ws://127.0.0.1:8877/ws"
 const DEFAULT_VOICE_WAKE_URL = "ws://127.0.0.1:4765/ws"
 const DEFAULT_VOICE_SIGNAL_VOLUME = 0.2
+const MIN_AUDIBLE_VOICE_SIGNAL_VOLUME = 0.55
 const DEFAULT_VOICE_DEACTIVATION_MODE: VoiceDeactivationMode = "phrase-timeout"
 const DEFAULT_VOICE_RECOGNITION_TIMEOUT_SECONDS = 3
 const DEFAULT_VOICE_AUTO_SEND_ENABLED = true
@@ -4725,9 +4727,9 @@ function voiceSignalForStatusChange(previousStatus: VoiceInputStatus, nextStatus
 function playVoiceSignal(kind: HudNotificationKind): void {
   const now = performance.now()
   const lastPlayedAt = voiceSignalLastPlayedAt.get(kind) ?? 0
+  voiceHudPane?.flashSoundIndicator()
   if (now - lastPlayedAt < VOICE_SIGNAL_COOLDOWN_MS) return
   voiceSignalLastPlayedAt.set(kind, now)
-  voiceHudPane?.flashSoundIndicator()
   playHudNotificationSound(kind)
 }
 
@@ -5823,24 +5825,35 @@ function playHudNotificationSound(kind: HudNotificationKind): void {
     recordHudNotificationSound(kind, "disabled")
     return
   }
-  const volume = hudNotificationVolume(kind)
+  const rawVolume = hudNotificationVolume(kind)
+  const volume = effectiveHudNotificationVolume(kind, rawVolume)
   if (volume <= 0) {
     recordHudNotificationSound(kind, "muted")
     return
   }
-  if (kind !== "agent" && kind !== "error" && !isAndroidBrowser() && voiceInputClient?.playSignalTone(kind, volume, recordHudNotificationSound) === true) {
+  if (kind !== "agent" && kind !== "error") {
+    const signalKind: VoiceInputSignalTone = kind
+    const captureStarted = playVoiceCaptureSignalTone(signalKind, volume, voiceInputClient)
+    playBrowserHudNotificationSound(kind, volume)
+    if (captureStarted) return
     return
   }
   playBrowserHudNotificationSound(kind, volume)
+}
+
+function playVoiceCaptureSignalTone(kind: VoiceInputSignalTone, volume: number, client: VoiceInputClient | null): boolean {
+  return client?.playSignalTone(kind, volume, (playedKind, method, error) => {
+    recordHudNotificationSound(playedKind, method, error)
+  }) === true
 }
 
 function hudNotificationVolume(kind: HudNotificationKind): number {
   return kind === "agent" ? readHostTerminalAgentSoundVolume() : readVoiceSignalVolume()
 }
 
-function isAndroidBrowser(): boolean {
-  const nav = navigator as Navigator & {userAgentData?: {platform?: string}}
-  return /android/i.test(`${nav.userAgent} ${nav.userAgentData?.platform ?? ""}`)
+function effectiveHudNotificationVolume(kind: HudNotificationKind, volume: number): number {
+  if (kind === "agent" || volume <= 0) return volume
+  return Math.max(volume, MIN_AUDIBLE_VOICE_SIGNAL_VOLUME)
 }
 
 function playBrowserHudNotificationSound(kind: HudNotificationKind, volume: number): void {

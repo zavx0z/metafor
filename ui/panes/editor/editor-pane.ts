@@ -125,6 +125,11 @@ export type EditorOpts = {
   introAnimation?: boolean
   /** Show pane header chrome. Disable when embedding the editor inside another pane. */
   showHeader?: boolean
+  /** Disable pane chrome when the host already draws the containing panel. */
+  chrome?: "pane" | "none"
+  bodyInsetX?: number
+  bodyTopGap?: number
+  bodyBottomInset?: number
   /** Show vertical indentation guides in code body. Default true. */
   indentGuides?: boolean
   /** Show line numbers in the left gutter. Default true. */
@@ -332,6 +337,9 @@ export class EditorPane extends UiSurface {
   #introAnimRafId: number | null = null
   #introAnimFinishTimer: ReturnType<typeof setTimeout> | null = null
   #frameDrag: PaneFrameDrag | null = null
+  #bodyInsetX: number
+  #bodyTopGap: number
+  #bodyBottomInset: number
   /** Для длинных строк (≥ this porog) считаем позицию курсора через #charWidth — O(1). */
   static readonly #LONG_LINE_THRESHOLD = 500
 
@@ -344,7 +352,9 @@ export class EditorPane extends UiSurface {
   readonly #tokenMaterials: EditorTokenMaterialMap
 
   constructor(opts: EditorOpts = {}) {
-    super({bgColor: palette.bgCode, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
+    super(opts.chrome === "none"
+      ? {bgColor: null, borderColor: null}
+      : {bgColor: palette.bgCode, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
     this.node.name = "EditorPane"
     this.#title = opts.title ?? "Editor"
     this.#fontPx = opts.fontPx ?? 13
@@ -366,6 +376,9 @@ export class EditorPane extends UiSurface {
     this.#showCaret = opts.showCaret ?? !this.#readOnly
     this.#introAnimation = opts.introAnimation ?? true
     this.#showHeader = opts.showHeader ?? true
+    this.#bodyInsetX = opts.bodyInsetX ?? PANE_FRAME.bodyInsetX
+    this.#bodyTopGap = opts.bodyTopGap ?? PANE_FRAME.bodyTopGap
+    this.#bodyBottomInset = opts.bodyBottomInset ?? PANE_FRAME.bodyBottomInset
     this.#indentGuides = opts.indentGuides ?? true
     this.#showLineNumbers = opts.showLineNumbers ?? true
     this.#wrapLines = opts.wrapLines ?? false
@@ -602,16 +615,16 @@ export class EditorPane extends UiSurface {
   }
 
   #padTopPx(): number {
-    return this.#showHeader ? PAD_TOP_PX : PANE_FRAME.bodyTopGap
+    return this.#showHeader ? HEADER_H_PX + this.#bodyTopGap : this.#bodyTopGap
   }
 
   #bodyRect(): PaneRect {
     const y = this.#padTopPx()
     return {
-      x: PAD_LEFT_PX,
+      x: this.#bodyInsetX,
       y,
-      w: Math.max(1, this.rectW - PAD_LEFT_PX - PAD_RIGHT_PX),
-      h: Math.max(1, this.rectH - y - PAD_BOTTOM_PX),
+      w: Math.max(1, this.rectW - this.#bodyInsetX * 2),
+      h: Math.max(1, this.rectH - y - this.#bodyBottomInset),
     }
   }
 

@@ -257,7 +257,29 @@ export class VoiceInputClient {
       }
     }
     if (context.state === "suspended") {
-      void context.resume().then(play).catch((error) => onResult?.(kind, "capture resume blocked", error))
+      let settled = false
+      const fallbackTimer = window.setTimeout(() => {
+        if (settled) return
+        settled = true
+        onResult?.(kind, "capture resume timeout")
+      }, 180)
+      void context.resume()
+        .then(() => {
+          if (settled) return
+          settled = true
+          window.clearTimeout(fallbackTimer)
+          if (context.state !== "running") {
+            onResult?.(kind, `capture context ${context.state}`)
+            return
+          }
+          play()
+        })
+        .catch((error) => {
+          if (settled) return
+          settled = true
+          window.clearTimeout(fallbackTimer)
+          onResult?.(kind, "capture resume blocked", error)
+        })
       return true
     }
     play()

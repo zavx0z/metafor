@@ -360,6 +360,7 @@ const DEFAULT_CODEX_VOICE_P2P_ENABLED = true
 const DEFAULT_VOICE_DEACTIVATION_MODE: VoiceDeactivationMode = "phrase-timeout"
 const DEFAULT_VOICE_RECOGNITION_TIMEOUT_SECONDS = 3
 const DEFAULT_VOICE_SIGNAL_VOLUME = 0.2
+const MIN_AUDIBLE_VOICE_SIGNAL_VOLUME = 0.55
 const DEFAULT_HOST_TERMINAL_AGENT_SOUND_ENABLED = true
 const DEFAULT_HOST_TERMINAL_AGENT_SOUND_VOLUME = 1
 const MAX_VOICE_SIGNAL_VOLUME = 3
@@ -384,6 +385,7 @@ const CODEX_COMPOSER_MIN_W = 420
 const CODEX_COMPOSER_MIN_H = 220
 const CODEX_COMPOSER_GAP = 8
 const CODEX_COMPOSER_PAD = 12
+const CODEX_COMPOSER_HEADER_INSET_X = PANE_FRAME.bodyInsetX
 const CODEX_COMPOSER_HEADER_BUTTON_SIZE = 24
 const CODEX_COMPOSER_MAX_ATTACHMENT_BYTES = 16 * 1024 * 1024
 const NETWORK_STATUS_REFRESH_MS = 2500
@@ -963,8 +965,7 @@ class AppWebHud implements AppWebHudController {
 	codexComposerStatus(): string {
 		if (this.#codexComposerStatus) return this.#codexComposerStatus
 		if (this.#voiceStatus === "listening" || this.#voiceStatus === "committing") {
-			const rtcLine = this.#voiceRtcCompactLine()
-			return rtcLine ? `${voiceStatusLine(this.#voiceStatus)} · ${rtcLine}` : voiceStatusLine(this.#voiceStatus)
+			return voiceStatusLine(this.#voiceStatus)
 		}
 		if (this.#terminal.socket?.readyState !== WebSocket.OPEN) return "Codex terminal не подключен"
 		return this.#terminal.statusLabel
@@ -1906,6 +1907,10 @@ class AppWebHud implements AppWebHudController {
 			linePx: 17,
 			titleFontPx: 11,
 			readOnly: false,
+			chrome: "none",
+			bodyInsetX: 0,
+			bodyTopGap: 0,
+			bodyBottomInset: 0,
 			showCaret: true,
 			introAnimation: false,
 			showHeader: false,
@@ -2848,9 +2853,9 @@ class AppWebHud implements AppWebHudController {
 	#playVoiceSignal(kind: HudNotificationKind): void {
 		const now = performance.now()
 		const lastPlayedAt = voiceSignalLastPlayedAt.get(kind) ?? 0
+		this.#voiceHud.flashSoundIndicator()
 		if (now - lastPlayedAt < VOICE_SIGNAL_COOLDOWN_MS) return
 		voiceSignalLastPlayedAt.set(kind, now)
-		this.#voiceHud.flashSoundIndicator()
 		playHudNotificationSound(kind, this.#voiceClient)
 	}
 
@@ -3376,9 +3381,9 @@ class AppWebHud implements AppWebHudController {
 		if (composer.visible === false) return hiddenRect()
 		const editorH = codexComposerEditorHeight(composer.h, this.#codexAttachments.length > 0)
 		return {
-			x: composer.x + CODEX_COMPOSER_PAD,
-			y: composer.y + PANE_FRAME.headerHeight + PANE_FRAME.bodyTopGap,
-			w: Math.max(1, composer.w - CODEX_COMPOSER_PAD * 2),
+			x: composer.x + PANE_FRAME.bodyInsetX,
+			y: composer.y + codexComposerEditorTop(),
+			w: Math.max(1, composer.w - PANE_FRAME.bodyInsetX * 2),
 			h: editorH,
 		}
 	}
@@ -3574,7 +3579,7 @@ class AppWebCodexComposerPane extends UiSurface {
 		this.#renderHeader(w)
 		const bodyW = Math.max(1, w - pad * 2)
 		if (this.hud.codexAttachments().length > 0) {
-			const footerY = PANE_FRAME.headerHeight + PANE_FRAME.bodyTopGap + codexComposerEditorHeight(h, true) + 8
+			const footerY = codexComposerEditorTop() + codexComposerEditorHeight(h, true) + 8
 			this.#drawFooter(pad, footerY, bodyW, h - pad)
 		}
 		if (this.hud.codexDropActive()) this.#drawDropOverlay(w, h)
@@ -3583,36 +3588,38 @@ class AppWebCodexComposerPane extends UiSurface {
 	#renderHeader(w: number): void {
 		const buttonSize = CODEX_COMPOSER_HEADER_BUTTON_SIZE
 		const gap = 5
-		const dockButtonX = PANE_FRAME.headerTextX
+		const dockButtonX = CODEX_COMPOSER_HEADER_INSET_X
 		const titleX = dockButtonX + buttonSize + gap
 		const voiceButtonRect = this.#voiceButtonRect(w)
 		const voiceButtonX = voiceButtonRect.x
 		const sendButtonX = voiceButtonX - gap - buttonSize
-		const transportW = 58
+		const transportW = 32
 		const transportX = sendButtonX - gap - transportW
-		const statusX = titleX + 112
-		IconButton(this, dockButtonX, 6, buttonSize, buttonSize, {
+		const textRight = transportX - 10
+		const buttonY = 6
+		IconButton(this, dockButtonX, buttonY, buttonSize, buttonSize, {
 			label: "Свернуть Codex",
 			iconSrc: uiIcons.minus,
 			variant: "text",
 			radius: 7,
 			action: () => this.hud.setDocked("codex", true),
 		})
-		this.drawText("Codex message", titleX, PANE_FRAME.headerTextY, {
-			fontPx: 12,
+		this.drawText("Codex message", titleX, 4, {
+			fontPx: 11,
 			material: this.materials.cyan,
-			maxWidthPx: Math.max(1, statusX - titleX - 8),
+			maxWidthPx: Math.max(1, textRight - titleX),
 			z: Z.TEXT,
 		})
-		this.drawText(this.hud.codexComposerStatus(), statusX, PANE_FRAME.headerTextY + 1, {
-			fontPx: 10,
+		this.drawText(this.hud.codexComposerStatus(), titleX, 18, {
+			fontPx: 9,
 			material: this.materials.muted,
-			maxWidthPx: Math.max(1, transportX - statusX - 10),
+			maxWidthPx: Math.max(1, textRight - titleX),
 			z: Z.TEXT,
 		})
-		this.#drawTransportIndicator(transportX, 7, transportW, buttonSize - 2)
+		const badgeH = buttonSize - 2
+		this.#drawTransportBadge(transportX, buttonY + Math.max(0, Math.round((buttonSize - badgeH) / 2)), transportW, badgeH)
 		const canSubmit = this.hud.codexComposerReady() && codexComposerMessage(this.hud.codexDraft(), this.hud.codexAttachments()).length > 0
-		IconButton(this, sendButtonX, 6, buttonSize, buttonSize, {
+		IconButton(this, sendButtonX, buttonY, buttonSize, buttonSize, {
 			label: "Отправить",
 			iconSrc: uiIcons.send,
 			disabled: !canSubmit,
@@ -3634,7 +3641,7 @@ class AppWebCodexComposerPane extends UiSurface {
 	#voiceButtonRect(w = Math.max(1, this.rectW)): UiSurfaceRect {
 		const buttonSize = CODEX_COMPOSER_HEADER_BUTTON_SIZE
 		return {
-			x: w - PANE_FRAME.headerTextX - buttonSize,
+			x: w - CODEX_COMPOSER_HEADER_INSET_X - buttonSize,
 			y: 6,
 			w: buttonSize,
 			h: buttonSize,
@@ -3691,31 +3698,31 @@ class AppWebCodexComposerPane extends UiSurface {
 		this.#voiceToggleClickTimer = null
 	}
 
-	#drawTransportIndicator(x: number, y: number, w: number, h: number): void {
+	#drawTransportBadge(x: number, y: number, w: number, h: number): void {
 		const transport = this.hud.voiceTransport()
-		const wsW = 24
-		this.#drawTransportSegment("WS", x, y, wsW, h, transport === "ws", transport === "connecting", false)
-		this.#drawTransportSegment("P2P", x + wsW + 3, y, Math.max(1, w - wsW - 3), h, transport === "p2p", transport === "connecting", true)
-	}
-
-	#drawTransportSegment(label: string, x: number, y: number, w: number, h: number, active: boolean, connecting: boolean, p2p: boolean): void {
-		const fill = active
-			? p2p ? new Color(0.04, 0.16, 0.12, 0.78) : new Color(0.05, 0.11, 0.16, 0.74)
-			: new Color(0.05, 0.06, 0.08, 0.42)
-		const border = active
-			? p2p ? palette.green : palette.cyan
-			: connecting ? palette.borderDim : null
+		const p2p = transport === "p2p"
+		const ws = transport === "ws"
+		const connecting = transport === "connecting"
+		const label = p2p ? "P2P" : ws ? "WS" : connecting ? "..." : "-"
+		const fill = p2p
+			? new Color(0.04, 0.16, 0.12, 0.78)
+			: ws ? new Color(0.05, 0.11, 0.16, 0.74)
+				: connecting ? new Color(0.10, 0.10, 0.08, 0.58)
+					: new Color(0.05, 0.06, 0.08, 0.42)
+		const border = p2p ? palette.green : ws ? palette.cyan : connecting ? palette.borderDim : null
+		const material = p2p ? this.materials.green : ws ? this.materials.cyan : this.materials.muted
 		this.drawRoundedRect(x, y, w, h, {
 			radius: 5,
 			fill,
 			border,
-			borderWidth: active ? 1 : 0.7,
+			borderWidth: p2p || ws ? 1 : 0.7,
 			z: Z.ELEMENT,
 		})
-		const textW = this.measureText(label, 8)
-		this.drawText(label, x + Math.max(2, (w - textW) / 2), y + 4, {
-			fontPx: 8,
-			material: active ? p2p ? this.materials.green : this.materials.cyan : this.materials.muted,
+		const fontPx = label.length > 2 ? 7 : 8
+		const textW = this.measureText(label, fontPx)
+		this.drawText(label, x + Math.max(2, (w - textW) / 2), y + Math.max(0, (h - fontPx) / 2), {
+			fontPx,
+			material,
 			maxWidthPx: w - 4,
 			z: Z.TEXT,
 		})
@@ -5109,9 +5116,13 @@ function formatAttachmentSize(size: number): string {
 }
 
 function codexComposerEditorHeight(composerH: number, hasFooter: boolean): number {
-	const editorTop = PANE_FRAME.headerHeight + PANE_FRAME.bodyTopGap
+	const editorTop = codexComposerEditorTop()
 	const footerSpace = hasFooter ? CODEX_COMPOSER_PAD + 30 : CODEX_COMPOSER_PAD
 	return Math.max(82, composerH - editorTop - footerSpace)
+}
+
+function codexComposerEditorTop(): number {
+	return PANE_FRAME.headerHeight + PANE_FRAME.bodyTopGap
 }
 
 function processStatusLabel(process: WorkspaceProcess): string {
@@ -5295,27 +5306,52 @@ function playHudNotificationSound(kind: HudNotificationKind, voiceClient: VoiceI
 		recordHudNotificationSound(kind, "disabled")
 		return
 	}
-	const volume = hudNotificationVolume(kind)
+	const rawVolume = hudNotificationVolume(kind)
+	const volume = effectiveHudNotificationVolume(kind, rawVolume)
 	if (volume <= 0) {
 		recordHudNotificationSound(kind, "muted")
 		return
 	}
-	if (kind !== "agent" && kind !== "error" && !isAndroidBrowser()) {
+	if (kind !== "agent" && kind !== "error") {
 		const signalKind: VoiceInputSignalTone = kind
-		if (voiceClient?.playSignalTone(signalKind, volume, (playedKind, method, error) => {
-			recordHudNotificationSound(playedKind, method, error)
-		}) === true) return
+		const captureStarted = playVoiceCaptureSignalTone(signalKind, volume, voiceClient)
+		playBrowserHudNotificationSound(kind, volume)
+		if (captureStarted) return
+		return
 	}
 	playBrowserHudNotificationSound(kind, volume)
+}
+
+function playVoiceCaptureSignalTone(
+	kind: VoiceInputSignalTone,
+	volume: number,
+	voiceClient: VoiceInputClient | null,
+	onFallback?: (kind: VoiceInputSignalTone) => void,
+): boolean {
+	return voiceClient?.playSignalTone(kind, volume, (playedKind, method, error) => {
+		recordHudNotificationSound(playedKind, method, error)
+		if (/blocked|failed|timeout|context/i.test(method)) onFallback?.(playedKind)
+	}) === true
 }
 
 function hudNotificationVolume(kind: HudNotificationKind): number {
 	return kind === "agent" ? readHostTerminalAgentSoundVolume() : readVoiceSignalVolume()
 }
 
-function playBrowserHudNotificationSound(kind: HudNotificationKind, volume: number): void {
-	if (playHudNotificationWebAudioTone(kind, volume, (reason) => playHudNotificationHtmlAudio(kind, reason, volume))) return
-	playHudNotificationHtmlAudio(kind, "no webaudio", volume)
+function effectiveHudNotificationVolume(kind: HudNotificationKind, volume: number): number {
+	if (kind === "agent" || volume <= 0) return volume
+	return Math.max(volume, MIN_AUDIBLE_VOICE_SIGNAL_VOLUME)
+}
+
+function playBrowserHudNotificationSound(kind: HudNotificationKind, volume: number, onBlocked?: () => void): void {
+	let fallbackUsed = false
+	const playHtmlFallback = (reason: string): void => {
+		if (fallbackUsed) return
+		fallbackUsed = true
+		playHudNotificationHtmlAudio(kind, reason, volume, onBlocked)
+	}
+	if (playHudNotificationWebAudioTone(kind, volume, playHtmlFallback)) return
+	playHudNotificationHtmlAudio(kind, "no webaudio", volume, onBlocked)
 }
 
 function ensureHudNotificationAudioContext(): AudioContext | null {
@@ -5386,7 +5422,7 @@ function playHudNotificationWebAudioTone(kind: HudNotificationKind, volume: numb
 	return true
 }
 
-function playHudNotificationHtmlAudio(kind: HudNotificationKind, reason = "fallback", volume = hudNotificationVolume(kind)): void {
+function playHudNotificationHtmlAudio(kind: HudNotificationKind, reason = "fallback", volume = hudNotificationVolume(kind), onBlocked?: () => void): void {
 	const audio = ensureHudNotificationAudioElement(kind)
 	if (audio !== null) {
 		try {
@@ -5399,10 +5435,14 @@ function playHudNotificationHtmlAudio(kind: HudNotificationKind, reason = "fallb
 		audio.volume = htmlNotificationVolume(volume)
 		void audio.play()
 			.then(() => recordHudNotificationSound(kind, `html · ${reason}`))
-			.catch((error) => recordHudNotificationSound(kind, "html blocked", error))
+			.catch((error) => {
+				recordHudNotificationSound(kind, "html blocked", error)
+				onBlocked?.()
+			})
 		return
 	}
 	recordHudNotificationSound(kind, "html unavailable", reason)
+	onBlocked?.()
 }
 
 function ensureHudNotificationAudioElement(kind: HudNotificationKind): HTMLAudioElement | null {
