@@ -720,7 +720,7 @@ const HUD_MODAL_SHADOW_BG = withAlpha(palette.bgInput, 0.32)
 const HUD_MODAL_BG = withAlpha(palette.bgElevated, 0.78)
 const HUD_LAYER_TOP = 1_000
 
-type HudNotificationKind = "activation" | "deactivation" | "stop" | "agent"
+type HudNotificationKind = "activation" | "deactivation" | "stop" | "error" | "agent"
 
 type HostTerminalDockPlacement = {
   edge: HudSideTabEdge
@@ -4709,8 +4709,10 @@ function handleVoiceStatus(status: VoiceInputStatus, detail?: string): void {
 
 function voiceSignalForStatusChange(previousStatus: VoiceInputStatus, nextStatus: VoiceInputStatus, detail?: string): HudNotificationKind | null {
   if (nextStatus === "listening" && previousStatus !== "listening" && previousStatus !== "committing") return "activation"
+  if (nextStatus === "error") return "error"
   if (nextStatus === "waitingWake" && (previousStatus === "listening" || previousStatus === "committing")) return "deactivation"
   if (nextStatus === "idle" && detail === VOICE_STOP_COMMAND_DETAIL) return "stop"
+  if (nextStatus === "idle" && (previousStatus === "listening" || previousStatus === "committing")) return "deactivation"
   return null
 }
 
@@ -5556,6 +5558,7 @@ function flashVoiceHudError(detail: string): void {
   voiceLastErrorText = voiceReadableDetail(detail)
   voiceLastErrorAt = new Date()
   updateVoiceHud("error", detail)
+  playVoiceSignal("error")
   voiceHudErrorTimer = window.setTimeout(() => {
     voiceHudErrorTimer = null
     if (voiceInputClient?.status !== "error") updateVoiceHud()
@@ -5795,7 +5798,7 @@ function playHudNotificationSound(kind: HudNotificationKind): void {
     recordHudNotificationSound(kind, "muted")
     return
   }
-  if (kind !== "agent" && !isAndroidBrowser() && voiceInputClient?.playSignalTone(kind, volume, recordHudNotificationSound) === true) {
+  if (kind !== "agent" && kind !== "error" && !isAndroidBrowser() && voiceInputClient?.playSignalTone(kind, volume, recordHudNotificationSound) === true) {
     return
   }
   playBrowserHudNotificationSound(kind, volume)
@@ -5962,7 +5965,7 @@ function htmlNotificationVolume(volume: number): number {
 }
 
 function hudNotificationKinds(): HudNotificationKind[] {
-  return ["activation", "deactivation", "stop", "agent"]
+  return ["activation", "deactivation", "stop", "error", "agent"]
 }
 
 function hudNotificationTone(kind: HudNotificationKind): {
@@ -5975,6 +5978,7 @@ function hudNotificationTone(kind: HudNotificationKind): {
   if (kind === "activation") return {startHz: 640, endHz: 960, duration: 0.24, gain: 0.34, type: "triangle"}
   if (kind === "deactivation") return {startHz: 740, endHz: 430, duration: 0.22, gain: 0.32, type: "sine"}
   if (kind === "stop") return {startHz: 360, endHz: 210, duration: 0.34, gain: 0.38, type: "square"}
+  if (kind === "error") return {startHz: 880, endHz: 220, duration: 0.38, gain: 0.42, type: "square"}
   return {startHz: 520, endHz: 520, duration: 0.12, gain: 0.22, type: "sine"}
 }
 
