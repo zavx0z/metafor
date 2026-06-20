@@ -1,6 +1,7 @@
 import {cssHighlighter} from "./languages/css.ts"
 import {htmlHighlighter} from "./languages/html.ts"
 import {jsonHighlighter} from "./languages/json.ts"
+import {markdownHighlighter} from "./languages/markdown.ts"
 import {plaintextHighlighter} from "./languages/plaintext.ts"
 import {sqliteHighlighter} from "./languages/sqlite.ts"
 import {typescriptHighlighter} from "./languages/typescript.ts"
@@ -15,6 +16,7 @@ export type ResolveHighlighterOpts = {
 
 const registry: LanguageHighlighter[] = [
   plaintextHighlighter,
+  markdownHighlighter,
   typescriptHighlighter,
   sqliteHighlighter,
   cssHighlighter,

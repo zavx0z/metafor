@@ -23,6 +23,8 @@ describe("resolveLanguageHighlighter", () => {
     expect(resolveLanguageHighlighter({languageId: "html"}).id).toBe("html")
     expect(resolveLanguageHighlighter({languageId: "css"}).id).toBe("css")
     expect(resolveLanguageHighlighter({languageId: "json"}).id).toBe("json")
+    expect(resolveLanguageHighlighter({languageId: "markdown"}).id).toBe("markdown")
+    expect(resolveLanguageHighlighter({languageId: "md"}).id).toBe("markdown")
     expect(resolveLanguageHighlighter({languageId: "xml"}).id).toBe("xml")
     expect(resolveLanguageHighlighter({languageId: "sqlite"}).id).toBe("sqlite")
     expect(resolveLanguageHighlighter({languageId: "sql"}).id).toBe("sqlite")
@@ -31,6 +33,7 @@ describe("resolveLanguageHighlighter", () => {
     expect(resolveLanguageHighlighter({path: "scene.svg"}).id).toBe("xml")
     expect(resolveLanguageHighlighter({path: "doc.xml"}).id).toBe("xml")
     expect(resolveLanguageHighlighter({path: "package.json"}).id).toBe("json")
+    expect(resolveLanguageHighlighter({path: "rules/metafor.md"}).id).toBe("markdown")
     expect(resolveLanguageHighlighter({path: "query.sql"}).id).toBe("sqlite")
   })
 

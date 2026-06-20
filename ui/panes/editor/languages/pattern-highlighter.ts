@@ -124,12 +124,40 @@ export function tokenizeHtmlPattern(lines: readonly string[]): EditorTokens {
   return tokenizePattern(lines, "markup")
 }
 
+export function tokenizeMarkdownPattern(lines: readonly string[]): EditorTokens {
+  const result: EditorTokens = lines.map(() => [])
+  for (let lineIndex = 0; lineIndex < lines.length;) {
+    const line = lines[lineIndex] ?? ""
+    const fence = markdownFenceOpen(line)
+    if (fence !== null) {
+      result[lineIndex] = tokenizeMarkdownFenceLine(line, fence)
+      const contentStart = lineIndex + 1
+      let contentEnd = contentStart
+      while (contentEnd < lines.length && !markdownFenceClose(lines[contentEnd] ?? "", fence)) contentEnd++
+      const contentTokens = tokenizeMarkdownFenceContent(lines.slice(contentStart, contentEnd), fence.info)
+      for (let i = 0; i < contentTokens.length; i++) result[contentStart + i] = contentTokens[i] ?? []
+      if (contentEnd < lines.length) {
+        result[contentEnd] = tokenizeMarkdownFenceLine(lines[contentEnd] ?? "", fence)
+        lineIndex = contentEnd + 1
+      } else {
+        lineIndex = contentEnd
+      }
+      continue
+    }
+
+    result[lineIndex] = tokenizeMarkdownLine(line)
+    lineIndex++
+  }
+  return result
+}
+
 export function tokenizeSourcePattern(lines: readonly string[], opts: {path?: string} = {}): EditorTokens {
   if (isHtmlPath(opts.path)) return tokenizeHtmlPattern(lines)
   if (isCssPath(opts.path)) return tokenizePattern(lines, "css")
   if (isXmlPath(opts.path)) return tokenizeXmlPattern(lines)
   if (isJsonPath(opts.path)) return tokenizeJsonPattern(lines)
   if (isSqlitePath(opts.path)) return tokenizeSqlitePattern(lines)
+  if (isMarkdownPath(opts.path)) return tokenizeMarkdownPattern(lines)
   return tokenizeTypeScriptPattern(lines)
 }
 
@@ -654,4 +682,161 @@ function isJsonPath(path: string | undefined): boolean {
   if (path === undefined) return false
   const clean = path.split("?")[0]?.split("#")[0] ?? path
   return clean.endsWith(".json")
+}
+
+type MarkdownFence = {
+  marker: "`" | "~"
+  length: number
+  markerStart: number
+  markerEnd: number
+  info: string
+  infoStart: number
+  infoEnd: number
+}
+
+function tokenizeMarkdownLine(line: string): EditorTokens[number] {
+  const tokens: RangeToken[] = []
+  const heading = /^( {0,3})(#{1,6})(?:[ \t]+(.+))?$/.exec(line)
+  if (heading !== null) {
+    const markerStart = heading[1]!.length
+    const markerEnd = markerStart + heading[2]!.length
+    pushRange(tokens, markerStart, markerEnd, "p")
+    if (heading[3] !== undefined) {
+      const textStart = line.indexOf(heading[3], markerEnd)
+      pushRange(tokens, textStart, line.length, "t")
+    }
+    return tokens
+  }
+
+  if (/^ {0,3}(?:[-*_][ \t]*){3,}$/.test(line)) {
+    pushRange(tokens, line.search(/[-*_]/), line.length, "p")
+    return tokens
+  }
+
+  const quote = /^( {0,3}>)(?:[ \t]+|$)/.exec(line)
+  if (quote !== null) pushRange(tokens, quote[1]!.length - 1, quote[1]!.length, "p")
+
+  const list = /^( {0,3})(?:(?:[-+*])|(?:\d{1,9}[.)]))(?=[ \t])/.exec(line)
+  if (list !== null) pushRange(tokens, list[1]!.length, list[0].length, "p")
+
+  pushMarkdownInlineCode(tokens, line)
+  pushMarkdownLinks(tokens, line)
+  pushMarkdownEmphasis(tokens, line)
+  return tokens.sort(compareRangeTokens)
+}
+
+function tokenizeMarkdownFenceLine(line: string, fence: MarkdownFence): EditorTokens[number] {
+  const tokens: RangeToken[] = []
+  pushRange(tokens, fence.markerStart, fence.markerEnd, "p")
+  if (fence.infoEnd > fence.infoStart) pushRange(tokens, fence.infoStart, fence.infoEnd, "t")
+  return tokens
+}
+
+function tokenizeMarkdownFenceContent(lines: readonly string[], info: string): EditorTokens {
+  const language = markdownFenceLanguage(info)
+  if (language === "typescript") return tokenizeTypeScriptPattern(lines)
+  if (language === "html") return tokenizeHtmlPattern(lines)
+  if (language === "css") return tokenizePattern(lines, "css")
+  if (language === "xml") return tokenizeXmlPattern(lines)
+  if (language === "json") return tokenizeJsonPattern(lines)
+  if (language === "sql") return tokenizeSqlitePattern(lines)
+  return lines.map(() => [])
+}
+
+function markdownFenceOpen(line: string): MarkdownFence | null {
+  let i = 0
+  while (i < line.length && i < 4 && line[i] === " ") i++
+  if (i > 3) return null
+  const marker = line[i]
+  if (marker !== "`" && marker !== "~") return null
+  let markerEnd = i
+  while (markerEnd < line.length && line[markerEnd] === marker) markerEnd++
+  const length = markerEnd - i
+  if (length < 3) return null
+  let infoStart = markerEnd
+  while (infoStart < line.length && /\s/.test(line[infoStart] ?? "")) infoStart++
+  let infoEnd = infoStart
+  while (infoEnd < line.length && !/\s/.test(line[infoEnd] ?? "")) infoEnd++
+  return {
+    marker,
+    length,
+    markerStart: i,
+    markerEnd,
+    info: line.slice(infoStart, infoEnd),
+    infoStart,
+    infoEnd,
+  }
+}
+
+function markdownFenceClose(line: string, fence: MarkdownFence): boolean {
+  let i = 0
+  while (i < line.length && i < 4 && line[i] === " ") i++
+  if (i > 3) return false
+  let markerEnd = i
+  while (markerEnd < line.length && line[markerEnd] === fence.marker) markerEnd++
+  if (markerEnd - i < fence.length) return false
+  return line.slice(markerEnd).trim().length === 0
+}
+
+function markdownFenceLanguage(info: string): "typescript" | "html" | "css" | "xml" | "json" | "sql" | "plaintext" {
+  const language = info.trim().toLowerCase().replace(/^language-/, "")
+  if (["ts", "tsx", "js", "jsx", "javascript", "typescript"].includes(language)) return "typescript"
+  if (["html", "htm"].includes(language)) return "html"
+  if (language === "css") return "css"
+  if (["xml", "svg"].includes(language)) return "xml"
+  if (language === "json" || language === "jsonc") return "json"
+  if (language === "sql" || language === "sqlite") return "sql"
+  return "plaintext"
+}
+
+function pushMarkdownInlineCode(tokens: RangeToken[], line: string): void {
+  const re = /`+[^`\n]*`+/g
+  for (const match of line.matchAll(re)) {
+    const start = match.index ?? 0
+    pushRange(tokens, start, start + match[0].length, "s")
+  }
+}
+
+function pushMarkdownLinks(tokens: RangeToken[], line: string): void {
+  const re = /!?\[([^\]\n]+)\]\(([^)\n]+)\)/g
+  for (const match of line.matchAll(re)) {
+    const whole = match[0]
+    const text = match[1]
+    const url = match[2]
+    if (text === undefined || url === undefined) continue
+    const start = match.index ?? 0
+    if (rangeOverlapsTokens(tokens, start, start + whole.length)) continue
+    const textStart = start + whole.indexOf(text)
+    const urlStart = start + whole.lastIndexOf(url)
+    pushRange(tokens, start, textStart, "p")
+    pushRange(tokens, textStart, textStart + text.length, "t")
+    pushRange(tokens, textStart + text.length, urlStart, "p")
+    pushRange(tokens, urlStart, urlStart + url.length, "s")
+    pushRange(tokens, urlStart + url.length, start + whole.length, "p")
+  }
+}
+
+function pushMarkdownEmphasis(tokens: RangeToken[], line: string): void {
+  const re = /(\*\*|__)(?=\S)(.+?\S)\1|(\*|_)(?=\S)(.+?\S)\3/g
+  for (const match of line.matchAll(re)) {
+    const start = match.index ?? 0
+    const end = start + match[0].length
+    if (rangeOverlapsTokens(tokens, start, end)) continue
+    const marker = match[1] ?? match[3]
+    const text = match[2] ?? match[4]
+    if (marker === undefined || text === undefined) continue
+    pushRange(tokens, start, start + marker.length, "p")
+    pushRange(tokens, start + marker.length, end - marker.length, "k")
+    pushRange(tokens, end - marker.length, end, "p")
+  }
+}
+
+function rangeOverlapsTokens(tokens: readonly RangeToken[], start: number, end: number): boolean {
+  return tokens.some((token) => rangesOverlap(start, end, token.s, token.e))
+}
+
+function isMarkdownPath(path: string | undefined): boolean {
+  if (path === undefined) return false
+  const clean = path.split("?")[0]?.split("#")[0] ?? path
+  return clean.endsWith(".md") || clean.endsWith(".markdown")
 }

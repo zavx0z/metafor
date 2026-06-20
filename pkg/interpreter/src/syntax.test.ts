@@ -52,6 +52,25 @@ describe("syntax tokenizer", () => {
     expect(tokens[0]!.find((token) => token.s <= separator && token.e > separator)?.c).toBe("p")
   })
 
+  test("uses markdown tokenizer with fenced TypeScript for .md paths", () => {
+    const lines = [
+      "### Пример action-модуля",
+      "",
+      "```typescript",
+      "const value: string = html`<meta-for fields=${{ command: op }} />`",
+      "```",
+      "import here is prose, not TypeScript",
+    ]
+    const tokens = tokenizeSource(lines.join("\n"), {path: "rules/metafor.md"})
+
+    expect(tokenFor(lines[0]!, tokens[0]!, "###")?.c).toBe("p")
+    expect(tokenFor(lines[0]!, tokens[0]!, "Пример action-модуля")?.c).toBe("t")
+    expect(tokenFor(lines[2]!, tokens[2]!, "typescript")?.c).toBe("t")
+    expect(tokenFor(lines[3]!, tokens[3]!, "const")?.c).toBe("k")
+    expect(tokenFor(lines[3]!, tokens[3]!, "string")?.c).toBe("t")
+    expect(tokenFor(lines[5]!, tokens[5]!, "import")).toBeUndefined()
+  })
+
   test("uses html, css and xml tokenizers for source paths", () => {
     const html = '<style>.pane { color: #fff; background: rgba(12, 18, 30, 0.78); grid-template-columns: 1fr auto auto; }</style><script>const total: number = calc(2)</script>'
     const htmlTokens = tokenizeSource(html, {path: "app/index.html"})[0]!

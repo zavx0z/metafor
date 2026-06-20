@@ -7,7 +7,7 @@ export function tokenizePlaintext(lines: string[]): EditorTokens {
 export const plaintextHighlighter: LanguageHighlighter = {
   id: "plaintext",
   name: "Plain text",
-  extensions: ["txt", "text", "md", "markdown"],
+  extensions: ["txt", "text"],
   aliases: ["plain", "text"],
   tokenize: tokenizePlaintext,
 }
