@@ -3350,6 +3350,7 @@ class SqliteTablePane extends UiSurface {
     const editableTable = selectedSummary?.type === "table"
     const columns: Array<TableColumn<Record<string, SqliteCellValue>>> = columnNames.map((column, index) => ({
       key: column,
+      label: sqliteTableColumnLabel(column),
       width: widths[index] ?? 104,
     }))
     Table(this, pad, tableY, Math.max(1, this.rectW - pad * 2), tableH, {
@@ -3598,14 +3599,18 @@ function sqliteTableColumns(payload: SqliteDatabasePayload): string[] {
   return out
 }
 
+function sqliteTableColumnLabel(column: string): string {
+  return column === "__rowid" ? "№" : column
+}
+
 function sqliteTableColumnWidths(surface: UiSurface, payload: SqliteDatabasePayload, columns: readonly string[]): number[] {
   const sampleRows = payload.rows.slice(0, 40)
   return columns.map((column) => {
-    let width = surface.measureText(column, 10) + 28
+    let width = surface.measureText(sqliteTableColumnLabel(column), 10) + 28
     const schema = payload.schema.find((item) => item.name === column)
     if (schema !== undefined) width = Math.max(width, surface.measureText(schema.type || "value", 9) + 28)
     for (const row of sampleRows) width = Math.max(width, surface.measureText(sqliteCellLabel(row[column] ?? null), 10) + 28)
-    const min = column === "__rowid" ? 76 : 104
+    const min = column === "__rowid" ? 48 : 104
     return Math.min(260, Math.max(min, Math.ceil(width)))
   })
 }
