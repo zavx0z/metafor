@@ -793,6 +793,8 @@ class AppWebHud implements AppWebHudController {
 		document.addEventListener("drop", this.#codexDrop, {capture: true})
 		document.addEventListener("dragleave", this.#codexDragLeave, {capture: true})
 		document.addEventListener("visibilitychange", () => this.#handleDocumentVisibilityChange())
+		window.addEventListener("focus", () => this.#handleDocumentVisibilityChange())
+		window.addEventListener("blur", () => this.#suspendVoiceForInactiveDocument())
 		window.addEventListener("pagehide", () => this.#suspendVoiceForInactiveDocument())
 		this.#connectTerminal()
 		this.#connectAndroidRtc()
@@ -3156,7 +3158,8 @@ class AppWebHud implements AppWebHudController {
 	}
 
 	#documentCanOwnVoice(): boolean {
-		return document.visibilityState === "visible" && !document.hidden
+		const focused = typeof document.hasFocus === "function" ? document.hasFocus() : true
+		return focused && document.visibilityState === "visible" && !document.hidden
 	}
 
 	#codexRect(bounds: {w: number; h: number}): UiSurfaceRect {

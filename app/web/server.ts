@@ -412,7 +412,7 @@ const server = serve<AppWebSocketData>({
 				const session = ws.data.session
 				if (payload === null || session === undefined) return
 				if (payload.type === "input.write") {
-					session.write(payload.data, payload.localEchoId)
+					session.writeInput(ws as ServerWebSocket<PtySocketData>, payload.data, payload.localEchoId)
 					return
 				}
 				if (payload.type === "terminal.clear") {

@@ -270,15 +270,21 @@ export class TerminalSession {
     }
   }
 
-  write(data: string, localEchoId?: number): void {
+  write(data: string): void {
     if (!this.#disposed && !this.#terminal.closed && !this.#exited) {
-      if (localEchoId !== undefined) {
-        const state = this.#terminalState()
-        this.#send({type: "terminal.local-echo", id: localEchoId, accepted: state.localEcho, state})
-      }
       this.#terminal.write(data)
       this.#updatedAt = Date.now()
     }
+  }
+
+  writeInput(ws: ServerWebSocket<PtySocketData>, data: string, localEchoId?: number): void {
+    if (this.#disposed || this.#terminal.closed || this.#exited) return
+    if (localEchoId !== undefined) {
+      const state = this.#terminalState()
+      send(ws, {type: "terminal.local-echo", id: localEchoId, accepted: state.localEcho, state})
+    }
+    this.#terminal.write(data)
+    this.#updatedAt = Date.now()
   }
 
   resize(size: PtyTerminalSize): void {
@@ -681,7 +687,7 @@ export function createPtyServer(options: PtyServerOptions = {}): ReturnType<type
         if (payload === null || session === undefined) return
 
         if (payload.type === "input.write") {
-          session.write(payload.data, payload.localEchoId)
+          session.writeInput(ws, payload.data, payload.localEchoId)
           return
         }
 

@@ -892,6 +892,7 @@ window.addEventListener("beforeunload", () => {
   flushInterpreterDisplayPositionsStorage()
 })
 window.addEventListener("pagehide", () => suspendVoiceForInactiveDocument())
+window.addEventListener("blur", () => suspendVoiceForInactiveDocument())
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") {
     suspendVoiceForInactiveDocument()
@@ -900,7 +901,8 @@ document.addEventListener("visibilitychange", () => {
     flushInterpreterDisplayPositionsStorage()
     return
   }
-  if (!voiceAutoWakePaused) scheduleVoiceAutoWake(250)
+  if (!documentCanOwnVoice()) suspendVoiceForInactiveDocument()
+  else if (!voiceAutoWakePaused) scheduleVoiceAutoWake(250)
   syncNetworkStatusRefresh()
   refreshVisibleSqliteAfterSkippedServerEvent()
 })
@@ -4865,7 +4867,8 @@ function suspendVoiceForInactiveDocument(): void {
 }
 
 function documentCanOwnVoice(): boolean {
-  return document.visibilityState === "visible" && !document.hidden
+  const focused = typeof document.hasFocus === "function" ? document.hasFocus() : true
+  return focused && document.visibilityState === "visible" && !document.hidden
 }
 
 function handleVoiceInputChunk(chunk: VoiceInputChunk): void {
