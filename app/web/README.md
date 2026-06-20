@@ -15,10 +15,10 @@ bun --filter @app/web dev:tls
 
 После production-запуска сервер печатает LAN URL вида `https://192.168.x.x/`.
 
-Production/LAN entrypoint:
+Production/LAN entrypoint без interpreter:
 
 ```bash
-bun run workspace.app.web:product
+bun run workspace.app.web:prod
 ```
 
 Это запускает `app/web/run.ts --prod layout`: в tmux поднимается
@@ -26,15 +26,22 @@ bun run workspace.app.web:product
 WebRTC signaling, embedded interpreter routes на `/hud/interpreter/*` и
 app/web-owned network display на `/hud/terminal/network/*`.
 
-Interpreter entrypoint:
+Dev/LAN entrypoint под interpreter:
 
 ```bash
-bun run interpreter:web
+bun run workspace.app.web:dev
 ```
 
-Это запускает `pkg/interpreter/interpreter.ts app/web/server.ts ...`.
-`app/web/run.ts` не запускает интерпретатор; он остаётся только network/tmux
-раннером для прямого production-запуска `app/web`.
+Это запускает `app/web/run.ts --dev layout`: в tmux поднимается
+`pkg/interpreter/interpreter.ts app/web/server.ts ...` с теми же production env
+(`HOST=0.0.0.0`, `PORT=443`, TLS files), поэтому Android в локальной сети
+открывает тот же secure origin `https://<mac-lan-ip>/`, но сам `app/web/server.ts`
+виден как process в interpreter UI. `workspace.app.web` и `interpreter:web`
+являются alias на этот dev/LAN режим.
+
+Оба режима используют один tmux window и перед запуском закрывают конфликтующий
+режим, чтобы из IntelliJ можно было кликнуть нужный script без ручной остановки.
+Старый alias `workspace.app.web:product` оставлен и ведёт на `workspace.app.web:prod`.
 
 - `app/web/client.ts` импортирует `bulk/web` как пакет и остаётся тонким браузерным видовым клиентом.
 - `app/web/server.ts` статически импортирует `dark/server`, берёт `boundary` из `globalThis`, получает снимок уже наполненной базы через `boundary.bulkRuntime()` и отдаёт браузеру готовые строки мира. `BOUNDARY_PATH` передаётся при запуске и подхватывается самим `Boundary`.
@@ -130,5 +137,6 @@ bun run dev
 Из workspace-скрипта проще:
 
 ```bash
-bun run workspace.app.web:product
+bun run workspace.app.web:dev   # под interpreter
+bun run workspace.app.web:prod  # direct production
 ```

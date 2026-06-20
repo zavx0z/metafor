@@ -85,7 +85,7 @@ type NetworkTerminalCommand = {
 	key?: string
 	tmux?: string
 }
-type NetworkAction = "layout" | "status" | "start:tls" | "stop:tls" | "start:redirect" | "stop:redirect" | "tail" | "clear"
+type NetworkAction = "layout" | "status" | "start:tls" | "stop:tls" | "start:redirect" | "stop:redirect" | "tail" | "clear" | "stop"
 type AppClientAsset = {
 	body: ArrayBuffer
 	type: string
@@ -962,7 +962,7 @@ async function networkActionResponse(req: Request, started = Date.now()): Promis
 	const action = asNetworkAction(parsed.body["action"] ?? parsed.body["cmd"] ?? parsed.body["command"])
 	if (action === undefined) {
 		logHttp(req, "network.action", 400, started, "action=invalid")
-		return jsonResponse({ok: false, error: "network action must be one of layout/status/start:tls/stop:tls/start:redirect/stop:redirect/tail/clear"}, 400)
+		return jsonResponse({ok: false, error: "network action must be one of layout/status/start:tls/stop:tls/start:redirect/stop:redirect/tail/clear/stop"}, 400)
 	}
 	if (networkActionRestartsAppWeb(action)) {
 		spawnNetworkAction(action, {delayed: true})
@@ -986,14 +986,15 @@ function spawnNetworkAction(action: NetworkAction, opts: {sync: true}): {exitCod
 function spawnNetworkAction(action: NetworkAction, opts?: {delayed?: boolean; sync?: false}): {exitCode: number; stdout: string; stderr: string}
 function spawnNetworkAction(action: NetworkAction, opts: {delayed?: boolean; sync?: boolean} = {}): {exitCode: number; stdout: string; stderr: string} {
 	const script = resolve(process.cwd(), "app/web/run.ts")
+	const mode = networkTmuxMode()
 	const env = {
 		...process.env,
 		NETWORK_TMUX_SESSION,
 		NETWORK_TMUX_WINDOW,
-		NETWORK_TMUX_MODE: "prod",
+		NETWORK_TMUX_MODE: mode,
 		...(opts.delayed === true ? {NETWORK_TMUX_START_DELAY_MS: "450"} : {}),
 	}
-	const command = [process.execPath, script, "--prod", action]
+	const command = [process.execPath, script, `--${mode}`, action]
 	if (opts.sync === true) {
 		const result = Bun.spawnSync(command, {cwd: process.cwd(), stdout: "pipe", stderr: "pipe", env})
 		return {
@@ -1016,13 +1017,18 @@ function asNetworkAction(value: unknown): NetworkAction | undefined {
 		value === "start:redirect" ||
 		value === "stop:redirect" ||
 		value === "tail" ||
-		value === "clear"
+		value === "clear" ||
+		value === "stop"
 	) return value
 	return undefined
 }
 
 function networkActionRestartsAppWeb(action: NetworkAction): boolean {
 	return action === "layout" || action === "start:tls" || action === "stop:tls"
+}
+
+function networkTmuxMode(): "dev" | "prod" {
+	return Bun.env.NETWORK_TMUX_MODE === "dev" ? "dev" : "prod"
 }
 
 async function readInterpreterVoiceSettings(): Promise<InterpreterVoiceSettingsPayload> {

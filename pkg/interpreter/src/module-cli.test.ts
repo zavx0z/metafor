@@ -39,6 +39,15 @@ describe("interpreter module CLI", () => {
     expect(module?.command).toEqual(["bun", modulePath, "--flag=value"])
   })
 
+  test("supports explicit inspect-wait without passing it to the module", () => {
+    const modulePath = join(cwd, "module.ts")
+    const [module] = startupModulesFromArgs([modulePath, "--inspect-wait", "-flag=value"], cwd)
+
+    expect(module?.command).toEqual(["bun", modulePath, "--flag=value"])
+    expect(module?.inspectMode).toBe("wait")
+    expect(module?.pauseOnStart).toBe(false)
+  })
+
   test("separates sqlite database paths from runnable modules", () => {
     const targets = startupTargetsFromArgs([
       "dark/server.spec.ts",

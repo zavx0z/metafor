@@ -3,6 +3,10 @@ import {networkInterfaces} from "node:os"
 
 const session = process.env.NETWORK_TMUX_SESSION ?? "metafor-app-web-net"
 const windowName = process.env.NETWORK_TMUX_WINDOW ?? "network"
+const conflictSessions = (process.env.NETWORK_TMUX_CONFLICT_SESSIONS ?? "metafor-interpreter-web")
+  .split(",")
+  .map((item) => item.trim())
+  .filter(Boolean)
 const cwd = process.cwd()
 
 const panes = {
@@ -10,8 +14,11 @@ const panes = {
   redirect: 1,
 } as const
 
+type NetworkMode = "dev" | "prod"
+
 const cli = parseCli(process.argv.slice(2))
 const action = cli.action
+const mode = cli.mode
 
 try {
   ensureMetaforTmuxProfile()
@@ -66,6 +73,10 @@ async function run(name: string): Promise<void> {
     clearPanes()
     return
   }
+  if (name === "stop") {
+    stopAll()
+    return
+  }
   if (name === "watch:ports") {
     await watchPorts()
     return
@@ -74,6 +85,7 @@ async function run(name: string): Promise<void> {
 }
 
 function rebuildLayout(): void {
+  stopConflictingSessions()
   if (tmuxOk(["has-session", "-t", session])) {
     killWindow(windowName)
     killWindow("https-443")
@@ -134,6 +146,14 @@ function clearPanes(): void {
 
 function stopPane(name: keyof typeof panes): void {
   tmux(["send-keys", "-t", targetPane(name), "C-c"])
+}
+
+function stopAll(): void {
+  stopConflictingSessions()
+  if (!tmuxOk(["has-session", "-t", session])) return
+  killWindow(windowName)
+  killWindow("https-443")
+  killWindow("http-80")
 }
 
 function runPane(name: keyof typeof panes, command: string): void {
@@ -233,6 +253,13 @@ function killWindow(name: string): void {
   if (windowExists(name)) tmux(["kill-window", "-t", `${session}:${name}`])
 }
 
+function stopConflictingSessions(): void {
+  for (const name of conflictSessions) {
+    if (name === session) continue
+    if (tmuxOk(["has-session", "-t", name])) tmux(["kill-session", "-t", name])
+  }
+}
+
 function targetWindow(): string {
   return `${session}:${windowName}`
 }
@@ -271,7 +298,7 @@ async function sleepStartDelay(): Promise<void> {
 async function openNetworkDisplay(): Promise<void> {
   if (process.env.NETWORK_TMUX_OPEN_DISPLAY === "0") return
   const url = networkDisplayDockUrl()
-  const attempts = Number(process.env.NETWORK_TMUX_OPEN_DISPLAY_ATTEMPTS ?? 40)
+  const attempts = Number(process.env.NETWORK_TMUX_OPEN_DISPLAY_ATTEMPTS ?? (mode === "dev" ? 80 : 40))
   for (let index = 0; index < Math.max(1, attempts); index += 1) {
     if (index === 0) await Bun.sleep(450)
     else await Bun.sleep(250)
@@ -306,35 +333,76 @@ function localNetworkAddress(): string | null {
   return null
 }
 
-function parseCli(args: string[]): {action: string} {
+function parseCli(args: string[]): {mode: NetworkMode; action: string} {
+  let nextMode: NetworkMode = process.env.NETWORK_TMUX_MODE === "dev" ? "dev" : "prod"
   let nextAction: string | undefined
   for (const arg of args) {
     if (arg === "--dev") {
-      throw new Error("app/web/run.ts no longer launches interpreter; use `bun run interpreter:web`")
+      nextMode = "dev"
+      continue
     }
     if (arg === "--prod") {
+      nextMode = "prod"
       continue
     }
     if (arg.startsWith("--")) throw new Error(`unknown network tmux flag: ${arg}`)
     nextAction ??= arg
   }
-  return {action: nextAction ?? "layout"}
+  return {mode: nextMode, action: nextAction ?? "layout"}
 }
 
 function serverCommand(): string {
-  return "NODE_ENV=production BUN_ENV=production BOUNDARY_PATH=app/web/tmp/boundary.sqlite HOST=0.0.0.0 PORT=443 TLS_KEY_FILE=app/web/tls/privkey.pem TLS_CERT_FILE=app/web/tls/fullchain.pem bun app/web/server.ts"
+  if (mode === "dev") {
+    return [
+      envAssignments({
+        NETWORK_TMUX_MODE: "dev",
+        NETWORK_TMUX_SESSION: session,
+        NETWORK_TMUX_WINDOW: windowName,
+      }),
+      "bun --hot run pkg/interpreter/interpreter.ts",
+      "app/web/server.ts",
+      "--inspect-wait",
+      ...Object.entries(appServerEnv("dev")).map(([key, value]) => `-env.${key}=${shellQuote(value)}`),
+      "app/web/tmp/boundary.sqlite",
+    ].filter(Boolean).join(" ")
+  }
+  return `${envAssignments(appServerEnv("prod"))} bun app/web/server.ts`
 }
 
 function redirectPaneMessage(): string {
-  return "prod mode: HTTP redirect is embedded in app/web/server.ts on port 80"
+  return `${modeLabel()}: HTTP redirect is embedded in app/web/server.ts on port 80`
 }
 
 function tlsPaneTitle(): string {
-  return "app-web prod"
+  return mode === "dev" ? "app-web dev interp" : "app-web prod"
 }
 
 function modeLabel(): string {
-  return "app/web prod"
+  return mode === "dev" ? "app/web dev interpreter" : "app/web prod"
+}
+
+function appServerEnv(nextMode: NetworkMode): Record<string, string> {
+  return {
+    NODE_ENV: "production",
+    BUN_ENV: "production",
+    BOUNDARY_PATH: "app/web/tmp/boundary.sqlite",
+    HOST: "0.0.0.0",
+    PORT: "443",
+    TLS_KEY_FILE: "app/web/tls/privkey.pem",
+    TLS_CERT_FILE: "app/web/tls/fullchain.pem",
+    NETWORK_TMUX_MODE: nextMode,
+    NETWORK_TMUX_SESSION: session,
+    NETWORK_TMUX_WINDOW: windowName,
+  }
+}
+
+function envAssignments(env: Record<string, string>): string {
+  return Object.entries(env).map(([key, value]) => `${key}=${shellQuote(value)}`).join(" ")
+}
+
+function shellQuote(value: string): string {
+  if (/^[A-Za-z0-9_./:@-]+$/.test(value)) return value
+  return `'${value.replaceAll("'", "'\\''")}'`
 }
 
 function interestingPort(port: number): boolean {

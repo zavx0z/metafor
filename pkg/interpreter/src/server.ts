@@ -843,10 +843,10 @@ async function networkActionRoute(req: Request): Promise<Response> {
     ...process.env,
     NETWORK_TMUX_SESSION: asString(parsed.body["session"]) ?? "metafor-app-web-net",
     NETWORK_TMUX_WINDOW: asString(parsed.body["window"]) ?? "network",
-    NETWORK_TMUX_MODE: "prod",
+    NETWORK_TMUX_MODE: networkTmuxMode(),
     ...(networkActionRestartsCurrentPane(action) ? {NETWORK_TMUX_START_DELAY_MS: "450"} : {}),
   }
-  const command = [process.execPath, script, "--prod", action]
+  const command = [process.execPath, script, `--${networkTmuxMode()}`, action]
   if (networkActionRestartsCurrentPane(action)) {
     Bun.spawn(["nohup", ...command], {
       cwd: process.cwd(),
@@ -870,6 +870,10 @@ async function networkActionRoute(req: Request): Promise<Response> {
   }, result.exitCode === 0 ? 200 : 500)
 }
 
+function networkTmuxMode(): "dev" | "prod" {
+  return process.env.NETWORK_TMUX_MODE === "dev" ? "dev" : "prod"
+}
+
 function networkActionRestartsCurrentPane(action: string): boolean {
   return action === "layout" || action === "start:tls" || action === "stop:tls"
 }
@@ -884,6 +888,7 @@ function isNetworkAction(action: string): boolean {
     "stop:redirect",
     "tail",
     "clear",
+    "stop",
   ].includes(action)
 }
 

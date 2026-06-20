@@ -62,7 +62,7 @@ function startupModuleFromPath(inputPath: string, params: string[], cwd: string)
   const command = isTestModulePath(resolvedPath)
     ? ["bun", "test", ...normalizedParams, resolvedPath]
     : ["bun", resolvedPath, ...normalizedParams]
-  const inspectMode = inspectModeFromCommand(command) ?? "brk"
+  const inspectMode = parsedParams.inspectMode ?? inspectModeFromCommand(command) ?? "brk"
   return {
     id: moduleIdFromPath(label),
     label,
@@ -75,9 +75,10 @@ function startupModuleFromPath(inputPath: string, params: string[], cwd: string)
   }
 }
 
-function parseModuleParams(params: string[]): {params: string[]; env: Record<string, string>} {
+function parseModuleParams(params: string[]): {params: string[]; env: Record<string, string>; inspectMode?: InspectMode} {
   const env: Record<string, string> = {}
   const rest: string[] = []
+  let inspectMode: InspectMode | undefined
 
   for (const param of params) {
     const match = /^--?env\.([A-Za-z_][A-Za-z0-9_]*)=(.*)$/.exec(param)
@@ -87,10 +88,15 @@ function parseModuleParams(params: string[]): {params: string[]; env: Record<str
       env[key] = value
       continue
     }
+    const explicitInspectMode = inspectModeFromCommand(["bun", param])
+    if (explicitInspectMode !== undefined) {
+      inspectMode = explicitInspectMode
+      continue
+    }
     rest.push(param)
   }
 
-  return {params: rest, env}
+  return {params: rest, env, ...(inspectMode === undefined ? {} : {inspectMode})}
 }
 
 function isSqliteDatabaseArg(path: string): boolean {
