@@ -607,6 +607,7 @@ const ANDROID_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.android.dockPlac
 const SECONDARY_ANDROID_HUD_RECT_STORAGE_KEY = "metafor.interpreter.android.secondary.hudRect:v1"
 const SECONDARY_ANDROID_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.android.secondary.hudDocked:v1"
 const SECONDARY_ANDROID_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.android.secondary.dockPlacement:v1"
+const VOICE_SETTINGS_RECT_STORAGE_KEY = "metafor.interpreter.voice.settingsRect:v1"
 const TODO_HUD_RECT_STORAGE_KEY = "metafor.interpreter.todo.hudRect:v1"
 const TODO_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.todo.hudDocked:v1"
 const TODO_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.todo.dockPlacement:v1"
@@ -653,8 +654,15 @@ const MAX_HOST_TERMINAL_AGENT_SOUND_VOLUME = 1
 const VOICE_SERVICE_CHECK_INTERVAL_MS = 12_000
 const VOICE_SERVICE_CHECK_TIMEOUT_MS = 2_500
 const VOICE_AUTO_WAKE_RETRY_MS = 3_000
+const VOICE_INPUT_HUD_VISIBLE = false
 const VOICE_HUD_W = 128
 const VOICE_HUD_H = 128
+const VOICE_SETTINGS_W = 460
+const VOICE_SETTINGS_H = 760
+const VOICE_SETTINGS_MARGIN = 16
+const VOICE_SETTINGS_LONG_PRESS_MS = 450
+const VOICE_SETTINGS_LONG_PRESS_MOVE_PX = 6
+const VOICE_TOGGLE_CLICK_DELAY_MS = 320
 const HOST_TERMINAL_HUD_MAX_W = 980
 const HOST_TERMINAL_HUD_MAX_H = 340
 const HOST_TERMINAL_HUD_MIN_W = 720
@@ -703,6 +711,7 @@ const HOST_TERMINAL_CODEX_COMPOSER_MIN_H = 220
 const HOST_TERMINAL_CODEX_COMPOSER_GAP = 8
 const HOST_TERMINAL_CODEX_COMPOSER_PAD = 12
 const HOST_TERMINAL_CODEX_COMPOSER_HEADER_BUTTON_SIZE = 24
+const HOST_TERMINAL_CODEX_COMPOSER_VOICE_BUTTON_VISIBLE = true
 const HOST_TERMINAL_CODEX_COMPOSER_MAX_ATTACHMENT_BYTES = 16 * 1024 * 1024
 const AGENT_READY_SOUND_IDLE_MS = 2_500
 const AGENT_READY_SOUND_COOLDOWN_MS = 1_200
@@ -2523,7 +2532,10 @@ async function initEngine(): Promise<void> {
     })
     voiceHudPane = new VoiceInputHud({
       onToggle: () => void toggleVoiceInput(),
+      onMove: storeVoiceSettingsRectAndRelayout,
+      settingsPresentation: "panel",
       onPulseFrame: () => hostTerminal?.codexComposer.requestRender(),
+      onSettingsOpenChange: handleVoiceSettingsOpenChange,
       settings: () => ({
         title: t("voiceInput"),
         generalTabLabel: t("voiceGeneralSettings"),
@@ -2668,7 +2680,7 @@ function installEnginePanes(): void {
   sqliteDockPane ??= new SqliteDockPane(() => setSqliteHudDocked(false))
   uiCanvas.addHudSurface(sqliteDockPane, sqliteDockRect, {zIndex: HUD_LAYER_TOP})
   if (voiceHudPane !== null) {
-    uiCanvas.addHudSurface(voiceHudPane, voiceHudRect, {zIndex: HUD_LAYER_TOP})
+    uiCanvas.addHudSurface(voiceHudPane, voiceHudSurfaceRect, {zIndex: HUD_LAYER_TOP})
   }
   updateVoiceHud()
   scheduleVoiceAutoWake(500)
@@ -4421,6 +4433,10 @@ class HostTerminalAgentSignalPane extends UiSurface {
 
 class HostTerminalCodexComposerPane extends UiSurface {
   #frameDrag: PaneFrameDrag | null = null
+  #voiceSettingsPressTimer: number | null = null
+  #voiceSettingsPressStart: {x: number; y: number} | null = null
+  #voiceSettingsLongPressOpened = false
+  #voiceToggleClickTimer: number | null = null
 
   constructor(private readonly controller: HostTerminalController) {
     super({bgColor: null, borderColor: null})
@@ -4452,7 +4468,7 @@ class HostTerminalCodexComposerPane extends UiSurface {
     const gap = 5
     const dockButtonX = w - PANE_FRAME.headerTextX - buttonSize
     const voiceButtonX = dockButtonX - gap - buttonSize
-    const sendButtonX = voiceButtonX - gap - buttonSize
+    const sendButtonX = HOST_TERMINAL_CODEX_COMPOSER_VOICE_BUTTON_VISIBLE ? voiceButtonX - gap - buttonSize : dockButtonX - gap - buttonSize
     const statusX = PANE_FRAME.headerTextX + 112
     this.drawText("Codex message", PANE_FRAME.headerTextX, PANE_FRAME.headerTextY, {
       fontPx: 12,
@@ -4474,17 +4490,15 @@ class HostTerminalCodexComposerPane extends UiSurface {
       radius: 7,
       action: () => submitHostCodexComposer(this.controller),
     })
-    ButtonVoice(this, voiceButtonX, 6, buttonSize, {
-      key: "interpreter-codex-message-voice",
-      snapshot: voiceButtonSnapshot(),
-      soundPulse: voiceHudPane?.soundPulseAmount() ?? 0,
-      tooltip: "Голосовой ввод",
-      onClick: () => {
-        setVoiceActiveTarget({kind: "host", controller: this.controller})
-        focusHostCodexComposer(this.controller)
-        void toggleVoiceInput()
-      },
-    })
+    if (HOST_TERMINAL_CODEX_COMPOSER_VOICE_BUTTON_VISIBLE) {
+      ButtonVoice(this, voiceButtonX, 6, buttonSize, {
+        key: "interpreter-codex-message-voice",
+        snapshot: voiceButtonSnapshot(),
+        soundPulse: voiceHudPane?.soundPulseAmount() ?? 0,
+        tooltip: "Голосовой ввод",
+        onClick: () => this.#queueVoiceToggleClick(),
+      })
+    }
     IconButton(this, dockButtonX, 6, buttonSize, buttonSize, {
       label: "Свернуть Codex",
       iconSrc: uiIcons.minus,
@@ -4494,6 +4508,71 @@ class HostTerminalCodexComposerPane extends UiSurface {
     })
     const rule = paneHeaderRuleRect(w, PANE_FRAME.headerHeight, PANE_FRAME.bodyInsetX)
     this.drawRect(rule.x, rule.y, rule.w, rule.h, palette.borderDim, Z.SEPARATOR)
+  }
+
+  #voiceButtonRect(w = Math.max(1, this.rectW)): UiSurfaceRect {
+    const buttonSize = HOST_TERMINAL_CODEX_COMPOSER_HEADER_BUTTON_SIZE
+    const gap = 5
+    const dockButtonX = w - PANE_FRAME.headerTextX - buttonSize
+    return {
+      x: dockButtonX - gap - buttonSize,
+      y: 6,
+      w: buttonSize,
+      h: buttonSize,
+    }
+  }
+
+  #voiceButtonHit(localX: number, localY: number): boolean {
+    if (!HOST_TERMINAL_CODEX_COMPOSER_VOICE_BUTTON_VISIBLE) return false
+    return pointInUiRect(localX, localY, this.#voiceButtonRect())
+  }
+
+  #beginVoiceSettingsLongPress(localX: number, localY: number): void {
+    this.#cancelVoiceSettingsLongPress()
+    this.#voiceSettingsPressStart = {x: localX, y: localY}
+    this.#voiceSettingsLongPressOpened = false
+    this.#voiceSettingsPressTimer = window.setTimeout(() => {
+      this.#voiceSettingsPressTimer = null
+      if (this.#voiceSettingsPressStart === null) return
+      this.#cancelVoiceToggleClick()
+      this.#voiceSettingsLongPressOpened = true
+      openVoiceSettings()
+      super.onDeactivate()
+    }, VOICE_SETTINGS_LONG_PRESS_MS)
+  }
+
+  #cancelVoiceSettingsLongPress(): void {
+    if (this.#voiceSettingsPressTimer !== null) {
+      window.clearTimeout(this.#voiceSettingsPressTimer)
+      this.#voiceSettingsPressTimer = null
+    }
+    this.#voiceSettingsPressStart = null
+  }
+
+  #openVoiceSettingsFromButton(event: MouseEvent): void {
+    event.preventDefault()
+    event.stopPropagation()
+    this.#cancelVoiceToggleClick()
+    this.#cancelVoiceSettingsLongPress()
+    this.#voiceSettingsLongPressOpened = false
+    openVoiceSettings()
+    super.onDeactivate()
+  }
+
+  #queueVoiceToggleClick(): void {
+    this.#cancelVoiceToggleClick()
+    this.#voiceToggleClickTimer = window.setTimeout(() => {
+      this.#voiceToggleClickTimer = null
+      setVoiceActiveTarget({kind: "host", controller: this.controller})
+      focusHostCodexComposer(this.controller)
+      void toggleVoiceInput()
+    }, VOICE_TOGGLE_CLICK_DELAY_MS)
+  }
+
+  #cancelVoiceToggleClick(): void {
+    if (this.#voiceToggleClickTimer === null) return
+    window.clearTimeout(this.#voiceToggleClickTimer)
+    this.#voiceToggleClickTimer = null
   }
 
   #drawAttachmentRow(x: number, y: number, w: number, maxY: number): void {
@@ -4612,30 +4691,65 @@ class HostTerminalCodexComposerPane extends UiSurface {
   }
 
   override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
+    if (this.#voiceButtonHit(localX, localY)) {
+      if (event.button === 0 && event.detail >= 2) {
+        this.#openVoiceSettingsFromButton(event)
+        return
+      }
+      if (event.button === 2 || (event.ctrlKey && event.button === 0)) {
+        this.#openVoiceSettingsFromButton(event)
+        return
+      }
+      if (event.button === 0 && (isAndroidBrowser() || isTouchPointerEvent(event))) this.#beginVoiceSettingsLongPress(localX, localY)
+    }
     super.onPointerDown(event, localX, localY)
     if (this.pressedHit !== null) return
     this.#beginFrameInteraction(event, localX, localY)
   }
 
   override onPointerMove(event: MouseEvent, localX: number, localY: number): void {
+    const voicePressStart = this.#voiceSettingsPressStart
+    if (voicePressStart !== null && Math.hypot(localX - voicePressStart.x, localY - voicePressStart.y) > VOICE_SETTINGS_LONG_PRESS_MOVE_PX) {
+      this.#cancelVoiceSettingsLongPress()
+    }
     if (this.#updateFrameInteraction(event)) return
     super.onPointerMove(event, localX, localY)
     this.#syncFrameCursor(localX, localY)
   }
 
   override onPointerUp(event: MouseEvent, localX: number, localY: number): void {
+    if (this.#voiceSettingsLongPressOpened) {
+      this.#voiceSettingsLongPressOpened = false
+      this.#cancelVoiceSettingsLongPress()
+      event.preventDefault()
+      this.#syncFrameCursor(localX, localY)
+      return
+    }
+    this.#cancelVoiceSettingsLongPress()
     if (this.#endFrameInteraction(event, localX, localY)) return
     super.onPointerUp(event, localX, localY)
     this.#syncFrameCursor(localX, localY)
   }
 
+  override onContextMenu(event: MouseEvent, localX: number, localY: number): void {
+    if (this.#voiceButtonHit(localX, localY)) {
+      this.#openVoiceSettingsFromButton(event)
+      return
+    }
+    super.onContextMenu(event, localX, localY)
+  }
+
   override onPointerLeave(): void {
     if (this.#frameDrag !== null) return
+    this.#cancelVoiceSettingsLongPress()
     super.onPointerLeave()
   }
 
   override onDeactivate(): void {
     this.#frameDrag = null
+    this.#cancelVoiceSettingsLongPress()
+    this.#cancelVoiceToggleClick()
+    this.#voiceSettingsLongPressOpened = false
     super.onDeactivate()
   }
 }
@@ -5455,6 +5569,20 @@ function formatAttachmentSize(size: number): string {
   return `${Math.round(size / (1024 * 102.4)) / 10} MB`
 }
 
+function isAndroidBrowser(): boolean {
+  const nav = navigator as Navigator & {userAgentData?: {platform?: string}}
+  return /android/i.test(`${nav.userAgent} ${nav.userAgentData?.platform ?? ""}`)
+}
+
+function isTouchPointerEvent(event: MouseEvent): boolean {
+  const pointer = event as MouseEvent & {
+    pointerType?: unknown
+    metaforPointerType?: unknown
+    sourceCapabilities?: {firesTouchEvents?: boolean} | null
+  }
+  return pointer.pointerType === "touch" || pointer.metaforPointerType === "touch" || pointer.sourceCapabilities?.firesTouchEvents === true
+}
+
 function hostCodexComposerEditorHeight(composerH: number, hasFooter: boolean): number {
   const editorTop = PANE_FRAME.headerHeight + PANE_FRAME.bodyTopGap
   const footerSpace = hasFooter ? HOST_TERMINAL_CODEX_COMPOSER_PAD + 30 : HOST_TERMINAL_CODEX_COMPOSER_PAD
@@ -5583,6 +5711,20 @@ function renderVoiceHud(): void {
     serviceState: voiceServiceState,
     level: voiceHudStatus === "listening" || voiceHudStatus === "committing" ? voiceInputLevel : 0,
   })
+  hostTerminal?.codexComposer.requestRender()
+}
+
+function openVoiceSettings(): void {
+  if (voiceHudPane === null) return
+  voiceHudPane.openSettings()
+  relayoutHudSurfaces()
+  voiceHudPane.requestRender()
+}
+
+function handleVoiceSettingsOpenChange(open: boolean): void {
+  if (!open && voiceHudPane !== null) uiCanvas?.clearSurfaceRect(voiceHudPane)
+  relayoutHudSurfaces()
+  voiceHudPane?.requestRender()
   hostTerminal?.codexComposer.requestRender()
 }
 
@@ -7247,6 +7389,29 @@ function storeHostCodexComposerRect(rect: UiSurfaceRect): void {
   } catch {
     // Storage can be disabled in private contexts.
   }
+}
+
+function readStoredVoiceSettingsRect(): UiSurfaceRect | null {
+  try {
+    return parseStoredPaneRect(localStorage.getItem(VOICE_SETTINGS_RECT_STORAGE_KEY))
+  } catch {
+    return null
+  }
+}
+
+function storeVoiceSettingsRect(rect: UiSurfaceRect): void {
+  const normalized = normalizeStoredPaneRect(rect)
+  if (normalized === null) return
+  try {
+    localStorage.setItem(VOICE_SETTINGS_RECT_STORAGE_KEY, JSON.stringify(normalized))
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+}
+
+function storeVoiceSettingsRectAndRelayout(rect: UiSurfaceRect): void {
+  storeVoiceSettingsRect(rect)
+  relayoutHudSurfaces()
 }
 
 function previewHostTerminalHudRect(rect: UiSurfaceRect): void {
@@ -9937,6 +10102,11 @@ function hiddenRect(): UiSurfaceRect {
   return {x: -10000, y: -10000, w: 1, h: 1, visible: false}
 }
 
+function pointInUiRect(x: number, y: number, rect: UiSurfaceRect): boolean {
+  if (rect.visible === false) return false
+  return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h
+}
+
 function hostTerminalHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   if (hostTerminalHudDocked) return hiddenRect()
   if (w < HOST_TERMINAL_HUD_MIN_W || h < HOST_TERMINAL_HUD_MIN_H) return hiddenRect()
@@ -10153,8 +10323,30 @@ function hostTerminalAgentSignalButtonX(terminal: UiSurfaceRect): number {
   )
 }
 
+function voiceHudSurfaceRect({w, h}: {w: number; h: number}): UiSurfaceRect {
+  if (voiceHudPane?.settingsOpen() === true) return voiceSettingsRect({w, h})
+  if (!VOICE_INPUT_HUD_VISIBLE) return hiddenRect()
+  return voiceHudRect({w, h})
+}
+
 function voiceHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   return voiceHudRectFromAnchor(PINNED_VOICE_HUD_ANCHOR, w, h)
+}
+
+function voiceSettingsRect({w, h}: {w: number; h: number}): UiSurfaceRect {
+  if (voiceHudPane?.settingsOpen() !== true) return hiddenRect()
+  if (w < 80 || h < 80) return hiddenRect()
+  const margin = VOICE_SETTINGS_MARGIN
+  const rectW = Math.min(VOICE_SETTINGS_W, Math.max(1, w - margin * 2))
+  const rectH = Math.min(VOICE_SETTINGS_H, Math.max(1, h - margin * 2))
+  const stored = readStoredVoiceSettingsRect()
+  if (stored !== null) return clampVoiceSettingsRect(stored, w, h)
+  return clampVoiceSettingsRect({
+    x: Math.max(margin, w - rectW - margin),
+    y: Math.max(margin, Math.round((h - rectH) / 2)),
+    w: rectW,
+    h: rectH,
+  }, w, h)
 }
 
 function clampVoiceHudRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): UiSurfaceRect {
@@ -10164,6 +10356,18 @@ function clampVoiceHudRect(rect: UiSurfaceRect, boundsW: number, boundsH: number
     y: clampNumber(rect.y, frame.margin, Math.max(frame.margin, frame.bh - frame.margin - frame.rectH)),
     w: frame.rectW,
     h: frame.rectH,
+  }
+}
+
+function clampVoiceSettingsRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): UiSurfaceRect {
+  const margin = boundsW >= 32 && boundsH >= 32 ? VOICE_SETTINGS_MARGIN : 0
+  const w = Math.min(Math.max(1, Math.round(rect.w)), Math.max(1, Math.round(boundsW - margin * 2)))
+  const h = Math.min(Math.max(1, Math.round(rect.h)), Math.max(1, Math.round(boundsH - margin * 2)))
+  return {
+    x: clampNumber(rect.x, margin, Math.max(margin, boundsW - margin - w)),
+    y: clampNumber(rect.y, margin, Math.max(margin, boundsH - margin - h)),
+    w,
+    h,
   }
 }
 

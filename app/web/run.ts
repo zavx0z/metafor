@@ -10,11 +10,8 @@ const panes = {
   redirect: 1,
 } as const
 
-type NetworkMode = "dev" | "prod"
-
 const cli = parseCli(process.argv.slice(2))
 const action = cli.action
-const mode = cli.mode
 
 try {
   ensureMetaforTmuxProfile()
@@ -281,7 +278,7 @@ async function openNetworkDisplay(): Promise<void> {
     const result = Bun.spawnSync(["curl", "-sk", "-X", "POST", "--max-time", "2", url], {stdout: "pipe", stderr: "pipe"})
     const stdout = new TextDecoder().decode(result.stdout)
     if (result.exitCode === 0 && /"ok"\s*:\s*true/.test(stdout)) {
-      if (mode === "prod") console.log(`app web: ${appPublicUrl()}`)
+      console.log(`app web: ${appPublicUrl()}`)
       return
     }
   }
@@ -289,10 +286,6 @@ async function openNetworkDisplay(): Promise<void> {
 }
 
 function networkDisplayDockUrl(): string {
-  if (mode === "dev") {
-    const port = Number(process.env.INTERPRETER_HTTP_PORT ?? 6500)
-    return `http://127.0.0.1:${port}/hud/terminal/network/dock`
-  }
   const port = Number(process.env.PORT ?? 443)
   const suffix = port === 443 ? "" : `:${port}`
   return `https://127.0.0.1${suffix}/hud/terminal/network/dock`
@@ -313,45 +306,35 @@ function localNetworkAddress(): string | null {
   return null
 }
 
-function parseCli(args: string[]): {mode: NetworkMode; action: string} {
-  let nextMode: NetworkMode | undefined = process.env.NETWORK_TMUX_MODE === "dev" ? "dev" : process.env.NETWORK_TMUX_MODE === "prod" ? "prod" : undefined
+function parseCli(args: string[]): {action: string} {
   let nextAction: string | undefined
   for (const arg of args) {
     if (arg === "--dev") {
-      nextMode = "dev"
-      continue
+      throw new Error("app/web/run.ts no longer launches interpreter; use `bun run interpreter:web`")
     }
     if (arg === "--prod") {
-      nextMode = "prod"
       continue
     }
     if (arg.startsWith("--")) throw new Error(`unknown network tmux flag: ${arg}`)
     nextAction ??= arg
   }
-  return {
-    mode: nextMode ?? "prod",
-    action: nextAction ?? "layout",
-  }
+  return {action: nextAction ?? "layout"}
 }
 
 function serverCommand(): string {
-  if (mode === "dev") {
-    return "bun --hot run pkg/interpreter/interpreter.ts app/web/server.ts -env.BOUNDARY_PATH=app/web/tmp/boundary.sqlite app/web/tmp/boundary.sqlite"
-  }
   return "NODE_ENV=production BUN_ENV=production BOUNDARY_PATH=app/web/tmp/boundary.sqlite HOST=0.0.0.0 PORT=443 TLS_KEY_FILE=app/web/tls/privkey.pem TLS_CERT_FILE=app/web/tls/fullchain.pem bun app/web/server.ts"
 }
 
 function redirectPaneMessage(): string {
-  if (mode === "dev") return "dev mode: app/web is launched through interpreter; network display is opened in interpreter UI"
   return "prod mode: HTTP redirect is embedded in app/web/server.ts on port 80"
 }
 
 function tlsPaneTitle(): string {
-  return mode === "dev" ? "app-web dev interp" : "app-web prod"
+  return "app-web prod"
 }
 
 function modeLabel(): string {
-  return mode === "dev" ? "interpreter dev" : "app/web prod"
+  return "app/web prod"
 }
 
 function interestingPort(port: number): boolean {

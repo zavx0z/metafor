@@ -26,15 +26,15 @@ bun run workspace.app.web:product
 WebRTC signaling, embedded interpreter routes на `/hud/interpreter/*` и
 app/web-owned network display на `/hud/terminal/network/*`.
 
-Dev/network entrypoint:
+Interpreter entrypoint:
 
 ```bash
-bun run workspace.app.web
+bun run interpreter:web
 ```
 
-Это запускает `app/web/run.ts --dev layout`: в tmux поднимается
-`pkg/interpreter/interpreter.ts app/web/server.ts ...`, а network display
-открывается через текущий interpreter UI, как раньше в interpreter network panel.
+Это запускает `pkg/interpreter/interpreter.ts app/web/server.ts ...`.
+`app/web/run.ts` не запускает интерпретатор; он остаётся только network/tmux
+раннером для прямого production-запуска `app/web`.
 
 - `app/web/client.ts` импортирует `bulk/web` как пакет и остаётся тонким браузерным видовым клиентом.
 - `app/web/server.ts` статически импортирует `dark/server`, берёт `boundary` из `globalThis`, получает снимок уже наполненной базы через `boundary.bulkRuntime()` и отдаёт браузеру готовые строки мира. `BOUNDARY_PATH` передаётся при запуске и подхватывается самим `Boundary`.

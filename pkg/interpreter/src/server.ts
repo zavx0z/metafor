@@ -843,10 +843,10 @@ async function networkActionRoute(req: Request): Promise<Response> {
     ...process.env,
     NETWORK_TMUX_SESSION: asString(parsed.body["session"]) ?? "metafor-app-web-net",
     NETWORK_TMUX_WINDOW: asString(parsed.body["window"]) ?? "network",
-    NETWORK_TMUX_MODE: "dev",
+    NETWORK_TMUX_MODE: "prod",
     ...(networkActionRestartsCurrentPane(action) ? {NETWORK_TMUX_START_DELAY_MS: "450"} : {}),
   }
-  const command = [process.execPath, script, "--dev", action]
+  const command = [process.execPath, script, "--prod", action]
   if (networkActionRestartsCurrentPane(action)) {
     Bun.spawn(["nohup", ...command], {
       cwd: process.cwd(),
