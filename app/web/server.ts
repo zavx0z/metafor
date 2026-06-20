@@ -367,6 +367,12 @@ const server = serve<AppWebSocketData>({
 			logHttp(req, "source.files", response.status, started)
 			return response
 		}
+		if (url.pathname === "/hud/source/file") {
+			const started = Date.now()
+			const response = await sourceFileResponse(req, url)
+			logHttp(req, "source.file", response.status, started)
+			return response
+		}
 		if (url.pathname === "/hud/codex/attachments") {
 			const started = Date.now()
 			const response = await codexAttachmentResponse(req)
@@ -605,6 +611,29 @@ function sourceFilesResponse(req: Request, url: URL): Response {
 	})
 }
 
+async function sourceFileResponse(req: Request, url: URL): Promise<Response> {
+	if (req.method === "GET") {
+		const resolved = resolveSourceFilePath(url.searchParams.get("path"))
+		if (resolved.error !== undefined) return jsonResponse({ok: false, error: resolved.error}, resolved.status)
+		if (!existsSync(resolved.abs)) return jsonResponse({ok: false, path: resolved.path, error: "source file not found"}, 404)
+		const stat = statSync(resolved.abs)
+		if (!stat.isFile()) return jsonResponse({ok: false, path: resolved.path, error: "source path is not a file"}, 400)
+		return jsonResponse({ok: true, path: resolved.path, text: readFileSync(resolved.abs, "utf8")})
+	}
+	if (req.method === "POST" || req.method === "PUT") {
+		const parsed = await readJsonObject(req)
+		if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
+		const resolved = resolveSourceFilePath(parsed.body["path"])
+		if (resolved.error !== undefined) return jsonResponse({ok: false, error: resolved.error}, resolved.status)
+		const text = parsed.body["text"]
+		if (typeof text !== "string") return jsonResponse({ok: false, error: "text must be a string"}, 400)
+		mkdirSync(dirname(resolved.abs), {recursive: true})
+		writeFileSync(resolved.abs, text, "utf8")
+		return jsonResponse({ok: true, path: resolved.path})
+	}
+	return new Response("Method Not Allowed", {status: 405})
+}
+
 function collectSourceFiles(root: string, sourceRoot: string, query: string): string[] {
 	const out: string[] = []
 	const stack = [sourceRoot]
@@ -624,7 +653,11 @@ function collectSourceFiles(root: string, sourceRoot: string, query: string): st
 			if (entry.name.startsWith(".") && entry.name !== ".storybook") continue
 			const abs = join(dir, entry.name)
 			if (entry.isDirectory()) {
-				if (!SOURCE_SKIP_DIRS.has(entry.name)) stack.push(abs)
+				if (!SOURCE_SKIP_DIRS.has(entry.name)) {
+					const rel = `${relative(root, abs).replaceAll("\\", "/")}/`
+					if (query.length === 0 || rel.toLowerCase().includes(query)) out.push(rel)
+					stack.push(abs)
+				}
 				continue
 			}
 			if (!entry.isFile()) continue
@@ -635,6 +668,30 @@ function collectSourceFiles(root: string, sourceRoot: string, query: string): st
 		}
 	}
 	return out.sort((a, b) => a.localeCompare(b))
+}
+
+function resolveSourceFilePath(value: unknown): {path: string; abs: string; error?: undefined; status?: undefined} | {error: string; status: number} {
+	if (typeof value !== "string") return {error: "path must be a string", status: 400}
+	const path = normalizeSourcePath(value)
+	if (!path.startsWith(`${META_SOURCE_DIR}/`)) return {error: `path must be inside ${META_SOURCE_DIR}/`, status: 400}
+	if (isWorkspaceDirectoryMarker(path)) return {error: "path must point to a file", status: 400}
+	if (!SOURCE_FILE_EXTENSIONS.has(sourceFileExtension(path))) return {error: "source file extension is not editable", status: 400}
+	const root = process.cwd()
+	const sourceRoot = resolve(root, META_SOURCE_DIR)
+	const abs = resolve(root, path)
+	const rel = relative(sourceRoot, abs)
+	if (rel === "" || rel === ".." || rel.startsWith("../") || rel.startsWith("..\\") || resolve(sourceRoot, rel) !== abs) {
+		return {error: `path escapes ${META_SOURCE_DIR}/`, status: 400}
+	}
+	return {path, abs}
+}
+
+function normalizeSourcePath(path: string): string {
+	return path.replaceAll("\\", "/").replace(/^\/+/, "").replace(/\/+/g, "/")
+}
+
+function isWorkspaceDirectoryMarker(path: string): boolean {
+	return path.trim().replaceAll("\\", "/").endsWith("/")
 }
 
 function sourceFileExtension(name: string): string {

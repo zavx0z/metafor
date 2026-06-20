@@ -247,8 +247,9 @@ type BrowserDirectoryHandle = {
 type WorkspaceFileEntry = {
 	file?: File
 	handle?: BrowserFileHandle
+	sourcePath?: string
 	sourceUrl?: string
-	sourceKind: "local" | "process"
+	sourceKind: "local" | "process" | "source"
 	processId?: string
 	name: string
 	path: string
@@ -881,6 +882,7 @@ class AppWebHud implements AppWebHudController {
 		this.#updateNetworkWatchPane()
 		if (readCodexVoiceP2PEnabled()) startVoiceRtcRelay()
 		void this.#loadTodo()
+		void this.#loadWorkspaceSourceFiles()
 		void this.#refreshWorkspaceProcesses()
 		void this.#refreshVoiceServiceState()
 		;(globalThis as VoiceRtcDebugGlobal).__metaVoiceRtcDebug = readVoiceRtcDebugSnapshot
@@ -1668,6 +1670,20 @@ class AppWebHud implements AppWebHudController {
 		}
 	}
 
+	async #loadWorkspaceSourceFiles(): Promise<void> {
+		try {
+			const payload = await fetchJson("/hud/source/files?limit=5000")
+			const sourceFiles = workspaceSourceFilesFromPayload(payload)
+			this.#workspaceRootLabel = sourceFiles.workspacePath || "github"
+			this.#workspaceLocalEntries = workspaceEntriesFromSourceFiles(sourceFiles)
+			this.#syncWorkspaceFileTree()
+		} catch (error) {
+			this.#workspaceRootLabel = `github - ${errorMessage(error)}`
+			this.#workspaceLocalEntries = new Map()
+			this.#syncWorkspaceFileTree()
+		}
+	}
+
 	#detachWorkspaceProcess(): void {
 		this.#workspaceAttachedProcessId = null
 		this.#workspaceProcessEntries = new Map()
@@ -1753,6 +1769,8 @@ class AppWebHud implements AppWebHudController {
 		try {
 			const text = entry.sourceKind === "process"
 				? await this.#readWorkspaceProcessSource(entry)
+				: entry.sourceKind === "source"
+					? await this.#readWorkspaceSourceFile(entry)
 				: await this.#readWorkspaceLocalSource(entry)
 			this.#workspaceCurrentEntry = entry
 			this.#workspaceEditorDirty = false
@@ -1772,6 +1790,14 @@ class AppWebHud implements AppWebHudController {
 		const source = (payload as {scriptSource?: unknown}).scriptSource
 		if (typeof source !== "string") throw new Error("source payload has no scriptSource")
 		return source
+	}
+
+	async #readWorkspaceSourceFile(entry: WorkspaceFileEntry): Promise<string> {
+		if (entry.sourcePath === undefined) throw new Error("source path is missing")
+		const payload = await fetchJson(`/hud/source/file?path=${encodeURIComponent(entry.sourcePath)}`)
+		const text = (payload as {text?: unknown}).text
+		if (typeof text !== "string") throw new Error("source payload has no text")
+		return text
 	}
 
 	async #readWorkspaceLocalSource(entry: WorkspaceFileEntry): Promise<string> {
@@ -1797,6 +1823,13 @@ class AppWebHud implements AppWebHudController {
 					method: "POST",
 					headers: {"content-type": "application/json"},
 					body: JSON.stringify({sourceUrl: entry.sourceUrl, text}),
+				})
+			} else if (entry.sourceKind === "source") {
+				if (entry.sourcePath === undefined) throw new Error("source path is missing")
+				await fetchJson("/hud/source/file", {
+					method: "POST",
+					headers: {"content-type": "application/json"},
+					body: JSON.stringify({path: entry.sourcePath, text}),
 				})
 			} else {
 				const writable = await entry.handle?.createWritable?.()
@@ -5072,6 +5105,26 @@ function workspaceEntriesFromProcessModules(modules: WorkspaceProcessModules): M
 	return entries
 }
 
+function workspaceEntriesFromSourceFiles(sourceFiles: Pick<WorkspaceProcessModules, "workspacePath" | "modules">): Map<string, WorkspaceFileEntry> {
+	const entries = new Map<string, WorkspaceFileEntry>()
+	const workspacePath = normalizeWorkspacePath(sourceFiles.workspacePath)
+	for (const item of sourceFiles.modules) {
+		const sourcePath = normalizeWorkspacePath(item.path)
+		if (sourcePath.length === 0) continue
+		const path = stripWorkspacePathPrefix(sourcePath, workspacePath)
+		if (path.length === 0) continue
+		const name = workspaceBasename(path)
+		const entry: WorkspaceFileEntry = {
+			sourceKind: "source",
+			sourcePath,
+			name,
+			path,
+		}
+		entries.set(workspaceEntryId(entry), entry)
+	}
+	return entries
+}
+
 function workspaceInspectorItems(options: {
 	localLabel: string
 	localEntries: ReadonlyMap<string, WorkspaceFileEntry>
@@ -5186,6 +5239,7 @@ function workspaceTreeChildren(node: WorkspaceTreeNode, namespace: "local" | "pr
 
 function workspaceEntryId(entry: WorkspaceFileEntry): string {
 	if (entry.sourceKind === "process" && entry.processId !== undefined) return workspaceProcessFileId(entry.processId, entry.path)
+	if (entry.sourceKind === "source") return `workspace:source:${entry.sourcePath ?? entry.path}`
 	return `workspace:local:${entry.path}`
 }
 
@@ -5368,6 +5422,15 @@ function workspaceAbsolutePath(root: string, path: string): string {
 
 function normalizeWorkspacePath(path: string): string {
 	return path.replaceAll("\\", "/").replace(/^\/+/, "").replace(/\/+/g, "/")
+}
+
+function stripWorkspacePathPrefix(path: string, workspacePath: string): string {
+	const normalizedPath = normalizeWorkspacePath(path)
+	const normalizedWorkspace = normalizeWorkspacePath(workspacePath)
+	if (normalizedWorkspace.length === 0) return normalizedPath
+	if (normalizedPath === normalizedWorkspace) return ""
+	const prefix = `${normalizedWorkspace}/`
+	return normalizedPath.startsWith(prefix) ? normalizedPath.slice(prefix.length) : normalizedPath
 }
 
 function isWorkspaceDirectoryMarker(path: string): boolean {
