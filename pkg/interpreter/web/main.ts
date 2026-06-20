@@ -5766,8 +5766,13 @@ function installHudNotificationSoundUnlock(): void {
     primeHudNotificationAudioContext()
   }
   window.addEventListener("pointerdown", unlock, {capture: true})
+  window.addEventListener("pointerup", unlock, {capture: true})
   window.addEventListener("keydown", unlock, {capture: true})
+  window.addEventListener("keyup", unlock, {capture: true})
+  window.addEventListener("mouseup", unlock, {capture: true})
+  window.addEventListener("click", unlock, {capture: true})
   window.addEventListener("touchstart", unlock, {capture: true})
+  window.addEventListener("touchend", unlock, {capture: true})
 }
 
 function ensureHudNotificationAudioContext(): AudioContext | null {
@@ -5790,7 +5795,7 @@ function playHudNotificationSound(kind: HudNotificationKind): void {
     recordHudNotificationSound(kind, "muted")
     return
   }
-  if (kind !== "agent" && voiceInputClient?.playSignalTone(kind, volume, recordHudNotificationSound) === true) {
+  if (kind !== "agent" && !isAndroidBrowser() && voiceInputClient?.playSignalTone(kind, volume, recordHudNotificationSound) === true) {
     return
   }
   playBrowserHudNotificationSound(kind, volume)
@@ -5798,6 +5803,11 @@ function playHudNotificationSound(kind: HudNotificationKind): void {
 
 function hudNotificationVolume(kind: HudNotificationKind): number {
   return kind === "agent" ? readHostTerminalAgentSoundVolume() : readVoiceSignalVolume()
+}
+
+function isAndroidBrowser(): boolean {
+  const nav = navigator as Navigator & {userAgentData?: {platform?: string}}
+  return /android/i.test(`${nav.userAgent} ${nav.userAgentData?.platform ?? ""}`)
 }
 
 function playBrowserHudNotificationSound(kind: HudNotificationKind, volume: number): void {

@@ -5045,8 +5045,13 @@ function installHudNotificationSoundUnlock(): void {
 		if (readCodexVoiceP2PEnabled()) primeVoiceRtcRelayAudio()
 	}
 	window.addEventListener("pointerdown", unlock, {capture: true})
+	window.addEventListener("pointerup", unlock, {capture: true})
 	window.addEventListener("keydown", unlock, {capture: true})
+	window.addEventListener("keyup", unlock, {capture: true})
+	window.addEventListener("mouseup", unlock, {capture: true})
+	window.addEventListener("click", unlock, {capture: true})
 	window.addEventListener("touchstart", unlock, {capture: true})
+	window.addEventListener("touchend", unlock, {capture: true})
 }
 
 function playHudNotificationSound(kind: HudNotificationKind, voiceClient: VoiceInputClient | null): void {
@@ -5059,7 +5064,7 @@ function playHudNotificationSound(kind: HudNotificationKind, voiceClient: VoiceI
 		recordHudNotificationSound(kind, "muted")
 		return
 	}
-	if (kind !== "agent") {
+	if (kind !== "agent" && !isAndroidBrowser()) {
 		const signalKind: VoiceInputSignalTone = kind
 		if (voiceClient?.playSignalTone(signalKind, volume, (playedKind, method, error) => {
 			recordHudNotificationSound(playedKind, method, error)
