@@ -6765,6 +6765,8 @@ function ensureHostTerminalController(): HostTerminalController {
     agentNotifyTimer: null,
   } satisfies HostTerminalController)
   hostTerminal = controller
+  for (const pane of hostTerminalPanes(controller)) pane.setAutoscrollPinned(true)
+  updateHostTerminalHeaderControls(controller)
   if (!hostTerminalUnloadInstalled) {
     hostTerminalUnloadInstalled = true
     window.addEventListener("beforeunload", () => {
@@ -7139,6 +7141,29 @@ function setHostTerminalStatus(controller: HostTerminalController, kind: PtyStat
 function hostTerminalPanes(controller: HostTerminalController): TerminalPane[] {
   if (controller === networkHostTerminal && networkDisplayTerminal !== null) return [networkDisplayTerminal]
   return [controller.hudTerminal]
+}
+
+function updateHostTerminalHeaderControls(controller: HostTerminalController): void {
+  if (controller !== hostTerminal) return
+  const panes = hostTerminalPanes(controller)
+  const pinned = panes.some((pane) => pane.isAutoscrollPinned())
+  for (const pane of panes) {
+    pane.setHeaderControls({
+      primary: [
+        {
+          label: pinned ? "Автоскролл включен" : "Автоскролл выключен",
+          iconSrc: pinned ? uiIcons.autoscroll : uiIcons.manual,
+          tone: pinned ? "live" : "neutral",
+          active: pinned,
+          action: () => {
+            const next = !pane.isAutoscrollPinned()
+            for (const target of hostTerminalPanes(controller)) target.setAutoscrollPinned(next)
+            updateHostTerminalHeaderControls(controller)
+          },
+        },
+      ],
+    })
+  }
 }
 
 function setHostTerminalInputEnabled(controller: HostTerminalController, enabled: boolean): void {

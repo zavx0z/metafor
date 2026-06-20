@@ -752,6 +752,7 @@ class AppWebHud implements AppWebHudController {
 	#codexNativeInputSyncing = false
 	#codexComposerStatus = ""
 	#codexComposerStatusTimer: number | null = null
+	#codexAutoscrollPinned = true
 	readonly #codexDragOver = (event: DragEvent): void => this.#handleCodexDragOver(event)
 	readonly #codexDrop = (event: DragEvent): void => void this.#handleCodexDrop(event)
 	readonly #codexDragLeave = (event: DragEvent): void => this.#handleCodexDragLeave(event)
@@ -1851,6 +1852,7 @@ class AppWebHud implements AppWebHudController {
 			onFrameRectChange: (rect) => writeStoredRect(CODEX_RECT_STORAGE_KEY, rect),
 			onFrameDockRequest: () => this.setDocked("codex", true),
 		})
+		pane.setAutoscrollPinned(this.#codexAutoscrollPinned)
 		Object.assign(controller, {
 			pane,
 			socket: null,
@@ -2153,7 +2155,21 @@ class AppWebHud implements AppWebHudController {
 
 	#codexHeaderControls(): TerminalHeaderControls {
 		const enabled = this.agentSoundEnabled()
+		const pinned = this.#codexAutoscrollPinned
 		return {
+			primary: [
+				{
+					label: pinned ? "Автоскролл включен" : "Автоскролл выключен",
+					iconSrc: pinned ? uiIcons.autoscroll : uiIcons.manual,
+					tone: pinned ? "live" : "neutral",
+					active: pinned,
+					action: () => {
+						this.#codexAutoscrollPinned = !this.#codexAutoscrollPinned
+						this.#terminal.pane.setAutoscrollPinned(this.#codexAutoscrollPinned)
+						this.#updateCodexHeaderControls()
+					},
+				},
+			],
 			secondary: [
 				{
 					label: "Сигнал агента",

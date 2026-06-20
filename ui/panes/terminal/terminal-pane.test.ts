@@ -53,6 +53,10 @@ function terminalScrollTop(terminal: TerminalPane): number {
   return (terminal as unknown as {outputScrollPosition(): {top: number}}).outputScrollPosition().top
 }
 
+function terminalScrollTo(terminal: TerminalPane, top: number): void {
+  ;(terminal as unknown as {outputScrollTo(pos: {top?: number}): void}).outputScrollTo({top})
+}
+
 beforeAll(() => {
   installRafStub()
 })
@@ -102,6 +106,29 @@ describe("TerminalPane selection", () => {
 
       expect(terminalScrollTop(terminal)).toBeLessThan(before)
       expect(terminal.hasSelection()).toBe(false)
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("pins autoscroll to bottom after explicit toggle", () => {
+    const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false, showHeader: false})
+    try {
+      Object.assign(terminal as unknown as {rectW: number; rectH: number}, {rectW: 220, rectH: 68})
+      for (let i = 0; i < 24; i++) terminal.writeln(`line ${i}`)
+      terminal.scrollToBottom()
+      const firstBottom = terminalScrollTop(terminal)
+
+      terminalScrollTo(terminal, 0)
+      expect(terminalScrollTop(terminal), "ручной скролл должен увести терминал наверх").toBe(0)
+
+      terminal.setAutoscrollPinned(true)
+      expect(terminal.isAutoscrollPinned(), "автоскролл должен стать включенным").toBe(true)
+      expect(terminalScrollTop(terminal), "включение автоскролла должно сразу проскроллить вниз").toBe(firstBottom)
+
+      terminalScrollTo(terminal, 0)
+      terminal.writeln("tail")
+      expect(terminalScrollTop(terminal), "новый вывод должен вернуть закрепленный терминал вниз").toBeGreaterThan(firstBottom)
     } finally {
       terminal.dispose()
     }

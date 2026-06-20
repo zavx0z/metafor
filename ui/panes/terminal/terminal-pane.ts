@@ -57,6 +57,7 @@ export type TerminalHeaderControl = {
   label: string
   iconSrc: string
   tone?: Tone
+  active?: boolean
   disabled?: boolean
   dividerAfter?: boolean
   action(): void
@@ -361,6 +362,7 @@ class TerminalOutputPane extends UiSurface {
   #showCursor = true
   #focused = false
   #cursorVisible = true
+  #autoscrollPinned = false
   #cursorTimer: ReturnType<typeof setInterval> | null = null
   #charWidth = 0
   #charWidthScale = 0
@@ -432,7 +434,7 @@ class TerminalOutputPane extends UiSurface {
     const wasAtBottom = this.#isAtBottom()
     this.#consume(text)
     this.#flushWordWrapBuffer()
-    if (wasAtBottom) this.#scrollToBottom()
+    if (this.#autoscrollPinned || wasAtBottom) this.#scrollToBottom()
     this.requestRender()
   }
 
@@ -618,6 +620,22 @@ class TerminalOutputPane extends UiSurface {
     this.requestRender()
   }
 
+  isAutoscrollPinned(): boolean {
+    return this.#autoscrollPinned
+  }
+
+  setAutoscrollPinned(enabled: boolean): void {
+    if (this.#autoscrollPinned === enabled) return
+    this.#autoscrollPinned = enabled
+    if (enabled) this.#scrollToBottom()
+    this.requestRender()
+  }
+
+  toggleAutoscrollPinned(): boolean {
+    this.setAutoscrollPinned(!this.#autoscrollPinned)
+    return this.#autoscrollPinned
+  }
+
   protected outputScrollPosition(): {left: number; top: number} {
     const pos = divScrollPosition(this, TERMINAL_SCROLL_KEY)
     return {left: pos.left, top: pos.top}
@@ -793,6 +811,7 @@ class TerminalOutputPane extends UiSurface {
         iconSrc: b.iconSrc,
         tooltip: b.label,
         tone: b.tone ?? "neutral",
+        ...(b.active === true ? {variant: "contained" as const} : {}),
         ...(b.disabled === undefined ? {} : {disabled: b.disabled}),
         action: b.action,
         onHover: () => this.requestRender(),
