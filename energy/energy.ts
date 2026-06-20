@@ -37,22 +37,22 @@ import { createStoredStringInterner, normalizeFieldValue, assembleStoredEnergyDa
 import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@energy/weak"
 
 type EnergyValuePart = { op: "replace"; path: string; value: unknown }
-type EnergyWeakResultPayload = { wimpId: string; processId: string; parts: EnergyValuePart[] }
+type EnergyWeakResultPayload = { wimpId: number; processId: number; parts: EnergyValuePart[] }
 
 export type EnergyRuntimeSnapshot = {
   ok: true
   version: 1
-  wimpIds: string[]
+  wimpIds: number[]
   data: Data
   strong: {
-    runtimeFieldIndexByWimpFieldId: Array<[string, number]>
-    wimpFieldIdsByRuntimeFieldIndex: string[][]
-    braneIndexByWimpFieldId: Array<[string, number]>
-    topologyWimpFieldIds: string[]
+    runtimeFieldIndexByWimpFieldId: Array<[number, number]>
+    wimpFieldIdsByRuntimeFieldIndex: number[][]
+    braneIndexByWimpFieldId: Array<[number, number]>
+    topologyWimpFieldIds: number[]
   }
   weak: {
-    stateMetaStateIdsByBraneIndex: string[][]
-    stateProcessIdsByBraneIndex: Array<Array<string | null | undefined>>
+    stateMetaStateIdsByBraneIndex: number[][]
+    stateProcessIdsByBraneIndex: Array<Array<number | null | undefined>>
   }
 }
 
@@ -70,6 +70,13 @@ type AsyncGate = {
 const writeGate: AsyncGate = { pending: null }
 const updateGate: AsyncGate = { pending: null }
 const FIELD_PART_PATH_PREFIX = "/field/"
+
+const parseRuntimeId = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isSafeInteger(value)) return value
+  if (typeof value !== "string" || !/^\d+$/.test(value)) return null
+  const id = Number(value)
+  return Number.isSafeInteger(id) ? id : null
+}
 
 const runExclusive = async <T>(gate: AsyncGate, task: () => Promise<T>): Promise<T> => {
   const prev = gate.pending
@@ -149,7 +156,7 @@ const clearRuntimeState = (): void => {
   weak$.reset()
 }
 
-const requireRuntimeFieldAddress = (wimpFieldId: string): [braneIndex: number, runtimeFieldIndex: number] => {
+const requireRuntimeFieldAddress = (wimpFieldId: number): [braneIndex: number, runtimeFieldIndex: number] => {
   const braneIndex = strong$.braneIndexByWimpFieldId.get(wimpFieldId)
   const runtimeFieldIndex = strong$.runtimeFieldIndexByWimpFieldId.get(wimpFieldId)
 
@@ -177,7 +184,7 @@ const collectPartValues = (parts: EnergyValuePart[], kind: "gluon" | "higgs"): R
       throw new Error(`Higgs part must target topology field ${wimpFieldId}`)
     }
 
-    values[wimpFieldId] = part.value
+    values[String(wimpFieldId)] = part.value
   }
 
   return values
@@ -194,7 +201,7 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
     const stateName = energy$.getStateName(braneIndex, stateIndex)
     if (!stateName) continue
 
-    parts.push({ part: "photon", op: "replace", path: id, value: stateName })
+    parts.push({ part: "photon", op: "replace", path: String(id), value: stateName })
   }
 
   if (parts.length === 0) return
@@ -218,20 +225,20 @@ const syncProcessLocksForChanges = (changes: [number, number][]): void => {
   }
 }
 
-const requireFieldPartId = (path: string): string => {
+const requireFieldPartId = (path: string): number => {
   if (!path.startsWith(FIELD_PART_PATH_PREFIX)) {
     throw new Error(`Unsupported Energy field part path: ${path}`)
   }
 
-  const wimpFieldId = path.slice(FIELD_PART_PATH_PREFIX.length)
-  if (!wimpFieldId) {
+  const wimpFieldId = parseRuntimeId(path.slice(FIELD_PART_PATH_PREFIX.length))
+  if (wimpFieldId === null) {
     throw new Error(`Energy field part path is missing field id: ${path}`)
   }
 
   return wimpFieldId
 }
 
-const getCurrentBraneProcessId = (braneIndex: number): string | undefined => {
+const getCurrentBraneProcessId = (braneIndex: number): number | undefined => {
   const stateIndex = energy$.states[braneIndex]
   if (stateIndex === undefined) return undefined
   return weak$.stateProcessIdsByBraneIndex[braneIndex]?.[stateIndex]
@@ -241,7 +248,7 @@ export function prepareData(data: Data): PreparedData {
   return assembleStoredEnergyData(flattenEnergyData(data))
 }
 
-export function listRuntimeWimpIds(): string[] {
+export function listRuntimeWimpIds(): number[] {
   return [...gravity$.activeWimpIds]
 }
 
@@ -412,7 +419,9 @@ export async function update(
 export async function setValues(values: Record<string, unknown>): Promise<[number, number][]> {
   const groupedUpdates = new Map<number, Array<[number, unknown]>>()
 
-  for (const [wimpFieldId, value] of Object.entries(values)) {
+  for (const [rawWimpFieldId, value] of Object.entries(values)) {
+    const wimpFieldId = parseRuntimeId(rawWimpFieldId)
+    if (wimpFieldId === null) throw new Error(`Energy field id must be an integer: ${rawWimpFieldId}`)
     const [braneIndex, runtimeFieldIndex] = requireRuntimeFieldAddress(wimpFieldId)
 
     const fieldUpdates = groupedUpdates.get(braneIndex)
@@ -426,8 +435,8 @@ export async function setValues(values: Record<string, unknown>): Promise<[numbe
   return await update(Array.from(groupedUpdates, ([braneIndex, fieldUpdates]) => [braneIndex, fieldUpdates]))
 }
 
-const runtimeFieldIdFromPartPath = (path: string): string =>
-  path.startsWith(FIELD_PART_PATH_PREFIX) ? path.slice(FIELD_PART_PATH_PREFIX.length) : path
+const runtimeFieldIdFromPartPath = (path: string): number | null =>
+  parseRuntimeId(path.startsWith(FIELD_PART_PATH_PREFIX) ? path.slice(FIELD_PART_PATH_PREFIX.length) : path)
 
 export async function applyRuntimeValueParts(parts: EnergyParticle[]): Promise<[number, number][]> {
   if (!weak$.initialized) return []
@@ -439,6 +448,7 @@ export async function applyRuntimeValueParts(parts: EnergyParticle[]): Promise<[
     if ((part.part !== "gluon" && part.part !== "higgs") || part.op !== "replace") continue
 
     const wimpFieldId = runtimeFieldIdFromPartPath(part.path)
+    if (wimpFieldId === null) continue
     const braneIndex = strong$.braneIndexByWimpFieldId.get(wimpFieldId)
     const fieldIndex = strong$.runtimeFieldIndexByWimpFieldId.get(wimpFieldId)
     if (braneIndex === undefined || fieldIndex === undefined) continue
@@ -524,9 +534,9 @@ const collectWeakResultPackets = (parts: EnergyParticle[]): EnergyWeakResultPayl
   for (const part of parts) {
     if (part.part !== "w") continue
     if (part.op !== "replace" && !isWeakResultMarker(part)) continue
-    const wimpId = typeof part.wimpId === "string" ? part.wimpId : null
-    const processId = typeof part.processId === "string" ? part.processId : null
-    if (!wimpId || !processId) continue
+    const wimpId = parseRuntimeId(part.wimpId)
+    const processId = parseRuntimeId(part.processId)
+    if (wimpId === null || processId === null) continue
 
     const key = `${wimpId}\0${processId}`
     let packet = packets.get(key)

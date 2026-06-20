@@ -3,25 +3,25 @@ import type {SQL} from "bun"
 export type BoundaryBulkParticleKind = "wimp" | "fuzzy" | "axion" | "macho"
 
 export type BoundaryBulkRuntimeActor = {
-  id: string
-  parentActor: string | null
-  parentTopology: string | null
+  id: number
+  parentActor: number | null
+  parentTopology: number | null
   wimp: string
   position: number
 }
 
 export type BoundaryBulkRuntimeTopology = {
-  id: string
-  parentActor: string | null
-  parentTopology: string | null
+  id: number
+  parentActor: number | null
+  parentTopology: number | null
   kind: BoundaryBulkParticleKind
   position: number
 }
 
 export type BoundaryBulkRuntimeMatterParticle = {
-  id: string
+  id: number
   wimp: string
-  parentParticle: string | null
+  parentParticle: number | null
   particleKind: BoundaryBulkParticleKind
   edgeSlot: "root" | "child" | "then" | "else" | "branch"
   particleOrder: number
@@ -33,7 +33,7 @@ export type BoundaryBulkRuntimeWimp = {
 }
 
 export type BoundaryBulkRuntimeField = {
-  id: string
+  id: number
   wimp: string
   key: string
   type: "string" | "number" | "boolean" | "array" | "enum"
@@ -41,20 +41,20 @@ export type BoundaryBulkRuntimeField = {
 }
 
 export type BoundaryBulkRuntimeFieldEnumVariant = {
-  id: string
-  field: string
+  id: number
+  field: number
   position: number
   itemValue: string
 }
 
 export type BoundaryBulkRuntimeActorValue = {
-  actor: string
-  field: string
-  value: string
+  actor: number
+  field: number
+  value: number
 }
 
 export type BoundaryBulkRuntimeValue = {
-  id: string
+  id: number
   kind: "null" | "boolean" | "number" | "string" | "enum" | "list"
   booleanValue: number | null
   numberValue: number | null
@@ -63,14 +63,14 @@ export type BoundaryBulkRuntimeValue = {
 }
 
 export type BoundaryBulkRuntimeValueListItem = {
-  value: string
+  value: number
   position: number
   itemValue: string
 }
 
 export type BoundaryBulkRuntimeMatterBindingPath = {
   wimp: string
-  particle: string
+  particle: number
   depOrder: number
   path: string
 }

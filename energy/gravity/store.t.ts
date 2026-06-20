@@ -7,7 +7,7 @@
 
 export interface EnergyGravityStore {
   /** Целевая активная id-композиция для следующего/текущего runtime rebuild. */
-  activeWimpIds: string[]
+  activeWimpIds: number[]
 
   /**
    * Актуальное отображение id -> runtime braneIndex после последнего успешного rebuild.
@@ -15,7 +15,7 @@ export interface EnergyGravityStore {
    * Пока `structuralDirty = true`, это соответствие всё ещё относится к
    * последнему materialized `energy$`, а не к новой целевой composition.
    */
-  wimpIdToBraneIndex: Map<string, number>
+  wimpIdToBraneIndex: Map<number, number>
 
   /**
    * Актуальное отображение runtime braneIndex -> id после последнего успешного rebuild.
@@ -23,7 +23,7 @@ export interface EnergyGravityStore {
    * Пока `structuralDirty = true`, это соответствие всё ещё относится к
    * последнему materialized `energy$`, а не к новой целевой composition.
    */
-  braneIndexToWimpId: string[]
+  braneIndexToWimpId: number[]
 
   /**
    * Флаг расхождения composition/addressing слоя и materialized runtime.
@@ -33,7 +33,7 @@ export interface EnergyGravityStore {
    */
   structuralDirty: boolean
 
-  hasWimp(wimpId: string): boolean
-  getBraneIndex(wimpId: string): number | undefined
-  getWimpId(braneIndex: number): string | undefined
+  hasWimp(wimpId: number): boolean
+  getBraneIndex(wimpId: number): number | undefined
+  getWimpId(braneIndex: number): number | undefined
 }

@@ -5,8 +5,8 @@ export interface BulkShellPickTarget {
   depth: number
   kind: "shell"
   outerRadius: number
-  parentParticleId: string | null
-  particleId: string
+  parentParticleId: number | null
+  particleId: number
   shellRadius: number
   shellTube: number
 }
@@ -14,8 +14,8 @@ export interface BulkShellPickTarget {
 export interface BulkFieldPickTarget {
   center: Vector3
   depth: number
-  particleId: string
-  fieldId: string
+  particleId: number
+  fieldId: number
   kind: "field"
   outerRadius: number
   sphereRadius: number
@@ -72,7 +72,7 @@ export interface ResolveBulkHoverPriorityTargetOptions {
   candidates: readonly BulkHoverPriorityCandidate[]
   currentTarget: BulkPickTarget | null
   hysteresisPx?: number
-  parentByParticleId?: ReadonlyMap<string, string | null>
+  parentByParticleId?: ReadonlyMap<number, number | null>
 }
 
 export interface BulkClientPoint {
@@ -167,14 +167,14 @@ const getPickTargetKey = (target: BulkPickTarget): string => {
   return target.kind === "field" ? `field:${target.fieldId}` : `shell:${target.particleId}`
 }
 
-const getPickParticleId = (target: BulkPickTarget): string => target.particleId
+const getPickParticleId = (target: BulkPickTarget): number => target.particleId
 
 const resolveParticleDistanceToAncestor = (
-  parentByParticleId: ReadonlyMap<string, string | null>,
-  ancestorParticleId: string,
-  descendantParticleId: string,
+  parentByParticleId: ReadonlyMap<number, number | null>,
+  ancestorParticleId: number,
+  descendantParticleId: number,
 ): number | null => {
-  let cursor: string | null = descendantParticleId
+  let cursor: number | null = descendantParticleId
   let distance = 0
 
   while (cursor !== null) {
@@ -326,7 +326,7 @@ export const resolveBulkDirectionalHoverTarget = (
   hits: readonly BulkPickHit[],
   currentTarget: BulkPickTarget | null,
   hoverDirection: BulkHoverDirection,
-  parentByParticleId: ReadonlyMap<string, string | null>,
+  parentByParticleId: ReadonlyMap<number, number | null>,
 ): BulkPickTarget | null => {
   if (!currentTarget) return hits[0]?.target ?? null
 

@@ -4,7 +4,7 @@ type EnergyFieldType = 0 | 1 | 2 | 3 | 4
 
 export type BoundaryEnergyRuntimeSnapshot = {
   version: 1
-  wimpIds: string[]
+  wimpIds: number[]
   data: {
     fields: Array<{type: EnergyFieldType; elementType?: "string"; enum?: unknown[]}>
     branes: Array<{
@@ -15,33 +15,33 @@ export type BoundaryEnergyRuntimeSnapshot = {
     stateNames: string[][]
   }
   strong: {
-    runtimeFieldIndexByWimpFieldId: Array<[string, number]>
-    wimpFieldIdsByRuntimeFieldIndex: string[][]
-    braneIndexByWimpFieldId: Array<[string, number]>
-    topologyWimpFieldIds: string[]
+    runtimeFieldIndexByWimpFieldId: Array<[number, number]>
+    wimpFieldIdsByRuntimeFieldIndex: number[][]
+    braneIndexByWimpFieldId: Array<[number, number]>
+    topologyWimpFieldIds: number[]
   }
   weak: {
-    stateMetaStateIdsByBraneIndex: string[][]
-    stateProcessIdsByBraneIndex: Array<Array<string | null>>
+    stateMetaStateIdsByBraneIndex: number[][]
+    stateProcessIdsByBraneIndex: Array<Array<number | null>>
   }
 }
 
-type ActorRow = {id: string; wimp: string; position: number}
+type ActorRow = {id: number; wimp: string; position: number}
 type FieldRow = {
-  id: string
+  id: number
   wimp: string
   key: string
   type: "string" | "number" | "boolean" | "array" | "enum"
   required: number
   label: string | null
 }
-type EnumVariantRow = {id: string; field: string; position: number; itemValue: string}
-type StateRow = {id: string; wimp: string; name: string; position: number}
-type TransitionRow = {id: string; fromState: string; toState: string; position: number}
-type ConditionRow = {id: string; transition: string; field: string; position: number}
+type EnumVariantRow = {id: number; field: number; position: number; itemValue: string}
+type StateRow = {id: number; wimp: string; name: string; position: number}
+type TransitionRow = {id: number; fromState: number; toState: number; position: number}
+type ConditionRow = {id: number; transition: number; field: number; position: number}
 type PredicateRow = {
-  id: string
-  condition: string
+  id: number
+  condition: number
   predicateOrder: number
   subjectKind: "value" | "length"
   operator: string
@@ -49,30 +49,30 @@ type PredicateRow = {
   valueBoolean: number | null
   valueNumber: number | null
   valueText: string | null
-  valueVariant: string | null
+  valueVariant: number | null
 }
 type PredicateListItemRow = {
-  predicate: string
+  predicate: number
   itemOrder: number
   valueKind: "null" | "boolean" | "number" | "string" | "enum"
   valueBoolean: number | null
   valueNumber: number | null
   valueText: string | null
-  valueVariant: string | null
+  valueVariant: number | null
 }
-type ProcessRow = {id: string; wimp: string; key: string}
-type ActorValueRow = {actor: string; field: string; value: string}
-type ActorStateRow = {actor: string; metaState: string | null}
+type ProcessRow = {id: number; wimp: string; key: string}
+type ActorValueRow = {actor: number; field: number; value: number}
+type ActorStateRow = {actor: number; metaState: number | null}
 type ValueRow = {
-  id: string
+  id: number
   kind: "null" | "boolean" | "number" | "string" | "enum" | "list"
   booleanValue: number | null
   numberValue: number | null
   textValue: string | null
-  variant: string | null
+  variant: number | null
   enumValue: string | null
 }
-type ValueListItemRow = {value: string; position: number; itemValue: string}
+type ValueListItemRow = {value: number; position: number; itemValue: string}
 
 const fieldType = {
   F32: 0,
@@ -82,7 +82,16 @@ const fieldType = {
   ARRAY_PTR: 4,
 } as const
 
-const group = <T, K extends string>(rows: T[], key: (row: T) => K): Map<K, T[]> => {
+const fieldAddressId = (actorId: number, fieldId: number): number => {
+  const sum = actorId + fieldId
+  const id = (sum * (sum + 1)) / 2 + fieldId
+  if (!Number.isSafeInteger(id)) {
+    throw new Error(`Energy field address id is not safe: actor=${actorId} field=${fieldId}`)
+  }
+  return id
+}
+
+const group = <T, K extends string | number>(rows: T[], key: (row: T) => K): Map<K, T[]> => {
   const map = new Map<K, T[]>()
   for (const row of rows) {
     const groupKey = key(row)
@@ -163,7 +172,7 @@ export async function energyRuntime(sql: SQL): Promise<BoundaryEnergyRuntimeSnap
     if (row.valueKind === "enum") return row.valueVariant ? (enumValueByVariantId.get(row.valueVariant) ?? "") : ""
     return null
   }
-  const decodeValue = (valueId: string | undefined, field: FieldRow): unknown => {
+  const decodeValue = (valueId: number | undefined, field: FieldRow): unknown => {
     const row = valueId === undefined ? undefined : valueById.get(valueId)
     if (!row) {
       if (field.type === "number") return 0
@@ -216,12 +225,12 @@ export async function energyRuntime(sql: SQL): Promise<BoundaryEnergyRuntimeSnap
   const dataFields: BoundaryEnergyRuntimeSnapshot["data"]["fields"] = []
   const branes: BoundaryEnergyRuntimeSnapshot["data"]["branes"] = []
   const stateNames: string[][] = []
-  const wimpIds: string[] = []
-  const runtimeFieldIndexByWimpFieldId: Array<[string, number]> = []
-  const braneIndexByWimpFieldId: Array<[string, number]> = []
-  const wimpFieldIdsByRuntimeFieldIndex: string[][] = []
-  const stateMetaStateIdsByBraneIndex: string[][] = []
-  const stateProcessIdsByBraneIndex: Array<Array<string | null>> = []
+  const wimpIds: number[] = []
+  const runtimeFieldIndexByWimpFieldId: Array<[number, number]> = []
+  const braneIndexByWimpFieldId: Array<[number, number]> = []
+  const wimpFieldIdsByRuntimeFieldIndex: number[][] = []
+  const stateMetaStateIdsByBraneIndex: number[][] = []
+  const stateProcessIdsByBraneIndex: Array<Array<number | null>> = []
   const runtimeFieldIndexByActorField = new Map<string, number>()
 
   actors.forEach((actor, braneIndex) => {
@@ -231,7 +240,7 @@ export async function energyRuntime(sql: SQL): Promise<BoundaryEnergyRuntimeSnap
 
     for (const field of actorFields) {
       const runtimeFieldIndex = dataFields.length
-      const wimpFieldId = `${actor.id}:${field.id}`
+      const wimpFieldId = fieldAddressId(actor.id, field.id)
       dataFields.push(energyField(field))
       values.push([runtimeFieldIndex, decodeValue(actorValueByActorField.get(`${actor.id}\0${field.id}`), field)])
       runtimeFieldIndexByActorField.set(`${actor.id}\0${field.id}`, runtimeFieldIndex)
@@ -240,7 +249,7 @@ export async function energyRuntime(sql: SQL): Promise<BoundaryEnergyRuntimeSnap
       wimpFieldIdsByRuntimeFieldIndex[runtimeFieldIndex] = [wimpFieldId]
     }
 
-    const actorStatesForWimp = statesByWimp.get(actor.wimp) ?? [{id: `${actor.wimp}:default`, wimp: actor.wimp, name: "default", position: 0}]
+    const actorStatesForWimp = statesByWimp.get(actor.wimp) ?? [{id: 0, wimp: actor.wimp, name: "default", position: 0}]
     const stateIndexById = new Map(actorStatesForWimp.map((state, index) => [state.id, index] as const))
     const selectedStateId = actorStateByActor.get(actor.id)
     const selectedState = selectedStateId === null || selectedStateId === undefined ? 0 : (stateIndexById.get(selectedStateId) ?? 0)

@@ -45,7 +45,7 @@ const fieldValueKind = (type: FieldRow["type"]): DbFieldValueKind => {
   return "other"
 }
 
-const group = <T, K extends string>(rows: T[], key: (row: T) => K | null): Map<K, T[]> => {
+const group = <T, K extends string | number>(rows: T[], key: (row: T) => K | null): Map<K, T[]> => {
   const map = new Map<K, T[]>()
   for (const row of rows) {
     const groupKey = key(row)
@@ -57,12 +57,35 @@ const group = <T, K extends string>(rows: T[], key: (row: T) => K | null): Map<K
   return map
 }
 
+const matterParentKey = (wimp: string, parentParticle: number | null): string =>
+  `${wimp}\0${parentParticle ?? ""}`
+
+const particleNamespaceId = (id: number, offset: 0 | 1, label: string): number => {
+  const particleId = id * 2 + offset
+  if (!Number.isSafeInteger(particleId)) {
+    throw new Error(`${label} particle id is not safe: ${id}`)
+  }
+  return particleId
+}
+
+const actorParticleId = (id: number): number => particleNamespaceId(id, 0, "Actor")
+const topologyParticleId = (id: number): number => particleNamespaceId(id, 1, "Topology")
+
+const fieldOrbitId = (actorId: number, fieldId: number): number => {
+  const sum = actorId + fieldId
+  const id = (sum * (sum + 1)) / 2 + fieldId
+  if (!Number.isSafeInteger(id)) {
+    throw new Error(`Field orbit id is not safe: actor=${actorId} field=${fieldId}`)
+  }
+  return id
+}
+
 const valueText = (
-  valueId: string | undefined,
-  valuesById: Map<string, ValueRow>,
-  valueItemsById: Map<string, ValueListItemRow[]>,
+  valueId: number | undefined,
+  valuesById: Map<number, ValueRow>,
+  valueItemsById: Map<number, ValueListItemRow[]>,
 ): string | null => {
-  if (!valueId) return null
+  if (valueId === undefined) return null
   const value = valuesById.get(valueId)
   if (!value) return null
 
@@ -70,7 +93,7 @@ const valueText = (
   if (value.kind === "number") return value.numberValue === null ? null : String(value.numberValue)
   if (value.kind === "string") return value.textValue
   if (value.kind === "enum") return value.enumValue
-  if (value.kind === "list") return (valueItemsById.get(value.uuid) ?? []).map((item) => item.itemValue).join(", ")
+  if (value.kind === "list") return (valueItemsById.get(value.id) ?? []).map((item) => item.itemValue).join(", ")
   return null
 }
 
@@ -117,14 +140,14 @@ export function buildBoundaryWorldRows(
     matterChildWimpBindingPaths,
   } = snapshot
 
-  const actorById = new Map(actors.map((actor) => [actor.uuid, actor] as const))
-  const topologyById = new Map(topologies.map((topology) => [topology.uuid, topology] as const))
+  const actorById = new Map(actors.map((actor) => [actor.id, actor] as const))
+  const topologyById = new Map(topologies.map((topology) => [topology.id, topology] as const))
   const wimpBySrc = new Map(wimps.map((wimp) => [wimp.src, wimp] as const))
   const fieldsByWimp = group(fields, (field) => field.wimp)
   const fieldByWimpKey = new Map(fields.map((field) => [`${field.wimp}\0${field.key}`, field] as const))
   const enumVariantsByField = group(snapshot.fieldEnumVariants, (variant) => variant.field)
   const actorValueByActorField = new Map(actorValues.map((row) => [`${row.actor}\0${row.field}`, row.value] as const))
-  const valuesById = new Map(values.map((value) => [value.uuid, value] as const))
+  const valuesById = new Map(values.map((value) => [value.id, value] as const))
   const valueItemsById = group(valueItems, (item) => item.value)
   const actorsByParentActor = group(actors, (actor) => actor.parentActor)
   const actorsByParentTopology = group(actors, (actor) => actor.parentTopology)
@@ -132,15 +155,15 @@ export function buildBoundaryWorldRows(
   const topologiesByParentTopology = group(topologies, (topology) => topology.parentTopology)
   const matterParticlesByWimpParent = group(
     matterParticles,
-    (particle) => `${particle.wimp}\0${particle.parentParticle ?? ""}`,
+    (particle) => matterParentKey(particle.wimp, particle.parentParticle),
   )
   const matterTopologyBindingPathsByParticle = group(matterTopologyBindingPaths, (row) => row.particle)
   const matterChildWimpBindingPathsByParticle = group(matterChildWimpBindingPaths, (row) => row.particle)
   const structuralFieldKeys = new Set<string>()
-  const topologyLabelById = new Map<string, string>()
-  const topologyPlanById = new Map<string, MatterParticleRow>()
-  const topologyActorById = new Map<string, ActorRow>()
-  const activityByParticleId = new Map<string, DbParticleActivity>()
+  const topologyLabelById = new Map<number, string>()
+  const topologyPlanById = new Map<number, MatterParticleRow>()
+  const topologyActorById = new Map<number, ActorRow>()
+  const activityByParticleId = new Map<number, DbParticleActivity>()
 
   const collectStructuralFieldKeys = (rows: MatterBindingPathRow[]): void => {
     for (const row of rows) {
@@ -154,8 +177,8 @@ export function buildBoundaryWorldRows(
   collectStructuralFieldKeys(matterTopologyBindingPaths)
   collectStructuralFieldKeys(matterChildWimpBindingPaths)
 
-  const matterTopologyChildren = (wimp: string, parentParticle: string | null): MatterParticleRow[] =>
-    sortMatterParticles(matterParticlesByWimpParent.get(`${wimp}\0${parentParticle ?? ""}`) ?? [])
+  const matterTopologyChildren = (wimp: string, parentParticle: number | null): MatterParticleRow[] =>
+    sortMatterParticles(matterParticlesByWimpParent.get(matterParentKey(wimp, parentParticle)) ?? [])
       .filter((particle) => particle.particleKind !== "wimp")
 
   const fieldLabelFromPath = (wimp: string, path: string): string | null => {
@@ -175,24 +198,24 @@ export function buildBoundaryWorldRows(
   }
 
   const topologyPlanLabel = (wimp: string, plan: MatterParticleRow): string | null => {
-    const childPaths = sortBindingPaths(matterChildWimpBindingPathsByParticle.get(plan.uuid) ?? [])
+    const childPaths = sortBindingPaths(matterChildWimpBindingPathsByParticle.get(plan.id) ?? [])
       .map((row) => row.path)
-    return firstFieldLabelFromPaths(wimp, sortBindingPaths(matterTopologyBindingPathsByParticle.get(plan.uuid) ?? []).map((row) => row.path)) ??
+    return firstFieldLabelFromPaths(wimp, sortBindingPaths(matterTopologyBindingPathsByParticle.get(plan.id) ?? []).map((row) => row.path)) ??
       firstFieldLabelFromPaths(wimp, childPaths)
   }
 
   const actorFieldValueText = (actor: ActorRow, fieldKey: string): string | null => {
     const field = fieldByWimpKey.get(`${actor.wimp}\0${fieldKey}`)
     if (!field) return null
-    return valueText(actorValueByActorField.get(`${actor.uuid}\0${field.uuid}`), valuesById, valueItemsById)
+    return valueText(actorValueByActorField.get(`${actor.id}\0${field.id}`), valuesById, valueItemsById)
   }
 
   const enumValuePosition = (field: FieldRow, value: string | null): number | null => {
     if (value === null) return null
-    return enumVariantsByField.get(field.uuid)?.find((variant: FieldEnumVariantRow) => variant.itemValue === value)?.position ?? null
+    return enumVariantsByField.get(field.id)?.find((variant: FieldEnumVariantRow) => variant.itemValue === value)?.position ?? null
   }
 
-  const assignTopologyLabels = (actor: ActorRow, runtimeTopologies: TopologyRow[], parentMatterParticle: string | null): void => {
+  const assignTopologyLabels = (actor: ActorRow, runtimeTopologies: TopologyRow[], parentMatterParticle: number | null): void => {
     const wimp = actor.wimp
     const plans = matterTopologyChildren(wimp, parentMatterParticle)
     const runtime = sortByPosition(runtimeTopologies)
@@ -200,59 +223,59 @@ export function buildBoundaryWorldRows(
       const topology = runtime[index]!
       const plan = plans[index]
       if (!plan) continue
-      topologyPlanById.set(topology.uuid, plan)
-      topologyActorById.set(topology.uuid, actor)
+      topologyPlanById.set(topology.id, plan)
+      topologyActorById.set(topology.id, actor)
       const label = topologyPlanLabel(wimp, plan)
-      if (label !== null) topologyLabelById.set(topology.uuid, label)
-      assignTopologyLabels(actor, topologiesByParentTopology.get(topology.uuid) ?? [], plan.uuid)
+      if (label !== null) topologyLabelById.set(topology.id, label)
+      assignTopologyLabels(actor, topologiesByParentTopology.get(topology.id) ?? [], plan.id)
     }
   }
 
   for (const actor of actors) {
-    assignTopologyLabels(actor, topologiesByParentActor.get(actor.uuid) ?? [], null)
+    assignTopologyLabels(actor, topologiesByParentActor.get(actor.id) ?? [], null)
   }
 
   for (const topology of topologies) {
     if (topology.kind !== "fuzzy") continue
-    const plan = topologyPlanById.get(topology.uuid)
-    const actor = topologyActorById.get(topology.uuid)
+    const plan = topologyPlanById.get(topology.id)
+    const actor = topologyActorById.get(topology.id)
     if (!plan || !actor) continue
-    const branchPlans = sortMatterParticles(matterParticlesByWimpParent.get(`${plan.wimp}\0${plan.uuid}`) ?? [])
+    const branchPlans = sortMatterParticles(matterParticlesByWimpParent.get(matterParentKey(plan.wimp, plan.id)) ?? [])
       .filter((particle) => particle.edgeSlot === "branch" && particle.particleKind === "wimp")
     if (branchPlans.length === 0) continue
-    const fieldKey = sortBindingPaths(matterTopologyBindingPathsByParticle.get(plan.uuid) ?? [])
+    const fieldKey = sortBindingPaths(matterTopologyBindingPathsByParticle.get(plan.id) ?? [])
       .map((row) => fieldKeyFromMatterPath(row.path))
       .find((key): key is string => key !== null)
     if (!fieldKey) continue
     const field = fieldByWimpKey.get(`${actor.wimp}\0${fieldKey}`)
     const activeIndex = field?.type === "enum" ? enumValuePosition(field, actorFieldValueText(actor, fieldKey)) : null
-    const branchActors = sortByPosition(actorsByParentTopology.get(topology.uuid) ?? [])
+    const branchActors = sortByPosition(actorsByParentTopology.get(topology.id) ?? [])
     branchActors.forEach((branchActor, index) => {
-      activityByParticleId.set(branchActor.uuid, activeIndex !== null && index === activeIndex ? "active" : "inactive")
+      activityByParticleId.set(actorParticleId(branchActor.id), activeIndex !== null && index === activeIndex ? "active" : "inactive")
     })
   }
 
   const descriptorField = (actor: ActorRow, field: FieldRow): DbWorldFieldDescriptor => {
     const kind = fieldValueKind(field.type)
     return {
-      id: `${actor.uuid}:${field.uuid}`,
+      id: fieldOrbitId(actor.id, field.id),
       fieldKey: field.key,
       fieldLabel: field.label ?? field.key,
       fieldValueKind: kind,
-      valueText: valueText(actorValueByActorField.get(`${actor.uuid}\0${field.uuid}`), valuesById, valueItemsById),
+      valueText: valueText(actorValueByActorField.get(`${actor.id}\0${field.id}`), valuesById, valueItemsById),
       ...fieldColor(kind),
     }
   }
 
   const childDescriptors = (
-    parent: {kind: "actor"; uuid: string} | {kind: "topology"; uuid: string},
+    parent: {kind: "actor"; id: number} | {kind: "topology"; id: number},
     visited: Set<string>,
     inheritedActivity: DbParticleActivity,
   ): DbWorldParticleDescriptor[] => {
-    const childActors = parent.kind === "actor" ? actorsByParentActor.get(parent.uuid) ?? [] : actorsByParentTopology.get(parent.uuid) ?? []
+    const childActors = parent.kind === "actor" ? actorsByParentActor.get(parent.id) ?? [] : actorsByParentTopology.get(parent.id) ?? []
     const childTopologies = parent.kind === "actor"
-      ? topologiesByParentActor.get(parent.uuid) ?? []
-      : topologiesByParentTopology.get(parent.uuid) ?? []
+      ? topologiesByParentActor.get(parent.id) ?? []
+      : topologiesByParentTopology.get(parent.id) ?? []
 
     return [
       ...sortByPosition(childTopologies).map((topology) => topologyDescriptor(topology, visited, inheritedActivity)),
@@ -261,11 +284,12 @@ export function buildBoundaryWorldRows(
   }
 
   const actorDescriptor = (actor: ActorRow, visited: Set<string>, inheritedActivity: DbParticleActivity = "neutral"): DbWorldParticleDescriptor => {
-    const key = `actor:${actor.uuid}`
-    const activity = activityByParticleId.get(actor.uuid) ?? inheritedActivity
+    const key = `actor:${actor.id}`
+    const particleId = actorParticleId(actor.id)
+    const activity = activityByParticleId.get(particleId) ?? inheritedActivity
     if (visited.has(key)) {
       return {
-        particleId: actor.uuid,
+        particleId,
         kind: "wimp",
         src: actor.wimp,
         metaSrc: actor.wimp,
@@ -279,7 +303,7 @@ export function buildBoundaryWorldRows(
 
     visited.add(key)
     return {
-      particleId: actor.uuid,
+      particleId,
       kind: "wimp",
       src: actor.wimp,
       metaSrc: actor.wimp,
@@ -289,17 +313,18 @@ export function buildBoundaryWorldRows(
       fields: (fieldsByWimp.get(actor.wimp) ?? [])
         .filter((field) => !structuralFieldKeys.has(`${actor.wimp}\0${field.key}`))
         .map((field) => descriptorField(actor, field)),
-      children: childDescriptors({kind: "actor", uuid: actor.uuid}, visited, activity),
+      children: childDescriptors({kind: "actor", id: actor.id}, visited, activity),
     }
   }
 
   const topologyDescriptor = (topology: TopologyRow, visited: Set<string>, inheritedActivity: DbParticleActivity = "neutral"): DbWorldParticleDescriptor => {
-    const key = `topology:${topology.uuid}`
-    const label = topologyLabelById.get(topology.uuid) ?? ""
-    const activity = activityByParticleId.get(topology.uuid) ?? inheritedActivity
+    const key = `topology:${topology.id}`
+    const label = topologyLabelById.get(topology.id) ?? ""
+    const particleId = topologyParticleId(topology.id)
+    const activity = activityByParticleId.get(particleId) ?? inheritedActivity
     if (visited.has(key)) {
       return {
-        particleId: topology.uuid,
+        particleId,
         kind: topology.kind,
         src: null,
         metaSrc: null,
@@ -313,7 +338,7 @@ export function buildBoundaryWorldRows(
 
     visited.add(key)
     return {
-      particleId: topology.uuid,
+      particleId,
       kind: topology.kind,
       src: null,
       metaSrc: null,
@@ -321,7 +346,7 @@ export function buildBoundaryWorldRows(
       ...topologyColors[topology.kind],
       activity,
       fields: [],
-      children: childDescriptors({kind: "topology", uuid: topology.uuid}, visited, activity),
+      children: childDescriptors({kind: "topology", id: topology.id}, visited, activity),
     }
   }
 
@@ -329,12 +354,12 @@ export function buildBoundaryWorldRows(
   const preferredRoots = rootActors.filter((actor) => actor.wimp === rootSrc)
   const roots = preferredRoots.length > 0 ? preferredRoots : rootActors
   const descriptors = sortByPosition(roots)
-    .filter((actor) => actorById.has(actor.uuid))
+    .filter((actor) => actorById.has(actor.id))
     .map((actor) => actorDescriptor(actor, new Set()))
 
   // Keep orphan topologies visible if they ever appear during manual debugging.
   for (const topology of sortByPosition(topologies.filter((item) => item.parentActor === null && item.parentTopology === null))) {
-    if (topologyById.has(topology.uuid)) descriptors.push(topologyDescriptor(topology, new Set()))
+    if (topologyById.has(topology.id)) descriptors.push(topologyDescriptor(topology, new Set()))
   }
 
   return scaleDbWorldRowsToRootOuterDiameter(

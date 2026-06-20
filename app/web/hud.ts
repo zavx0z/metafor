@@ -5724,11 +5724,14 @@ function sqliteCellValueFromUnknown(value: unknown): SqliteCellValue {
 	if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value
 	const record = asRecord(value)
 	if (record === null) return String(value)
-	return {
-		type: stringValue(record.type) ?? undefined,
-		size: finiteNumberValue(record.size) ?? undefined,
-		hex: stringValue(record.hex) ?? undefined,
-	}
+	const cell: Exclude<SqliteCellValue, string | number | boolean | null> = {}
+	const type = stringValue(record.type)
+	const size = finiteNumberValue(record.size)
+	const hex = stringValue(record.hex)
+	if (type !== null) cell.type = type
+	if (size !== null) cell.size = size
+	if (hex !== null) cell.hex = hex
+	return cell
 }
 
 function sqliteTableItems(tables: readonly SqliteTableSummary[]): FileListItem[] {

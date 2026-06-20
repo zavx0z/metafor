@@ -69,7 +69,7 @@ describe("matter() — runtime tree через boundary", () => {
 
   describe("родители", () => {
     test("корневой actor не имеет parent (parent_actor IS NULL AND parent_topology IS NULL)", async () => {
-      const rows = await sql<Array<{id: string; wimp: string}>>`
+      const rows = await sql<Array<{id: number; wimp: string}>>`
         SELECT id, wimp FROM actor WHERE parent_actor IS NULL AND parent_topology IS NULL
       `
       expect(rows.length).toBe(1)
@@ -78,7 +78,7 @@ describe("matter() — runtime tree через boundary", () => {
     })
 
     test("каждый non-root actor ссылается либо на actor либо на topology в качестве parent", async () => {
-      const rows = await sql<Array<{id: string; parent_actor: string | null; parent_topology: string | null}>>`
+      const rows = await sql<Array<{id: number; parent_actor: number | null; parent_topology: number | null}>>`
         SELECT id, parent_actor, parent_topology FROM actor WHERE NOT (parent_actor IS NULL AND parent_topology IS NULL)
       `
       for (const row of rows) {

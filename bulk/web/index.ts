@@ -406,7 +406,7 @@ type FieldRenderRecord = {
 	depth: number
 	material: LineGlowMaterial
 	node: LineSegments
-	parentParticleId: string
+	parentParticleId: number
 	pickTarget: HoverablePickTarget
 	snapshot: DbFieldOrbitRow
 	targetLocalPosition: Vector3
@@ -497,7 +497,7 @@ const resolveSurfaceOffsetMm = (depth: number, outerRadiusMm: number): number =>
 	return Math.max(0, label.surfaceOffsetMm * surfaceScale)
 }
 
-let activeShellParticleId: string | null = null
+let activeShellParticleId: number | null = null
 
 const isLabelDepthVisible = (depth: number): boolean =>
 	isDepthLabelVisible({
@@ -506,7 +506,7 @@ const isLabelDepthVisible = (depth: number): boolean =>
 		labelVisibleLevels: activeRenderSettings.labelVisibleLevels,
 	})
 
-const isShellLabelDepthVisible = (particleId: string, depth: number): boolean =>
+const isShellLabelDepthVisible = (particleId: number, depth: number): boolean =>
 	isShellLabelVisible({
 		baseDepth: activeRenderSettings.baseDepth,
 		depth,
@@ -1802,7 +1802,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	let pickTargets: HoverablePickTarget[] = []
 	let hoveredPickTarget: HoverablePickTarget | null = null
 	let world: DbWorldRows | null = null
-	let parentByParticleId = new Map<string, string | null>()
+	let parentByParticleId = new Map<number, number | null>()
 	let clickNavigationSuppressed = false
 	let isPrimaryPointerDown = false
 	let navigationState: ViewNavigationState | null = null
@@ -1827,8 +1827,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	let botPhoneHoverPane: BotPhoneHoverControlsPane | null = null
 	let botPhoneDisplayDock: BotPhoneDisplayDockPane | null = null
 
-	const shellRecords = new Map<string, ShellRenderRecord>()
-	const fieldRecords = new Map<string, FieldRenderRecord>()
+	const shellRecords = new Map<number, ShellRenderRecord>()
+	const fieldRecords = new Map<number, FieldRenderRecord>()
 	const fadingRemovalRecords: FadingRemovalRecord[] = []
 	const labelRecords = new Map<string, LabelRenderRecord>()
 	const fadingLabelRemovalRecords: FadingLabelRemovalRecord[] = []
@@ -1999,7 +1999,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 					(left, right) =>
 						left.snapshot.depth - right.snapshot.depth ||
 						left.snapshot.shellOrder - right.snapshot.shellOrder ||
-						left.snapshot.particleId.localeCompare(right.snapshot.particleId),
+						left.snapshot.particleId - right.snapshot.particleId,
 				)
 				.map((record) => record.pickTarget),
 			...[...fieldRecords.values()]
@@ -2007,7 +2007,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 					(left, right) =>
 						left.depth - right.depth ||
 						left.snapshot.fieldOrder - right.snapshot.fieldOrder ||
-						left.snapshot.id.localeCompare(right.snapshot.id),
+						left.snapshot.id - right.snapshot.id,
 				)
 				.map((record) => record.pickTarget),
 		]
@@ -2208,7 +2208,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return existing
 	}
 
-	const removeFieldRecord = (fieldId: string): void => {
+	const removeFieldRecord = (fieldId: number): void => {
 		const record = fieldRecords.get(fieldId)
 		if (!record) return
 		if (getPickTargetKey(hoveredPickTarget) === getPickTargetKey(record.pickTarget)) {
@@ -2226,7 +2226,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		requestRenderLoop(REMOVAL_FADE_MS + 32)
 	}
 
-	const removeShellRecord = (particleId: string): void => {
+	const removeShellRecord = (particleId: number): void => {
 		const record = shellRecords.get(particleId)
 		if (!record) return
 		if (getPickTargetKey(hoveredPickTarget) === getPickTargetKey(record.pickTarget)) {
@@ -2408,7 +2408,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			(left, right) =>
 				left.snapshot.depth - right.snapshot.depth ||
 				left.snapshot.shellOrder - right.snapshot.shellOrder ||
-				left.snapshot.particleId.localeCompare(right.snapshot.particleId),
+				left.snapshot.particleId - right.snapshot.particleId,
 		)) {
 			const spec = createShellLabelSpec(record)
 			if (!spec) continue
@@ -2420,7 +2420,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			(left, right) =>
 				left.depth - right.depth ||
 				left.snapshot.fieldOrder - right.snapshot.fieldOrder ||
-				left.snapshot.id.localeCompare(right.snapshot.id),
+				left.snapshot.id - right.snapshot.id,
 		)) {
 			const spec = createFieldLabelSpec(record)
 			if (!spec) continue
@@ -2452,8 +2452,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const applyWorldRowsToScene = (nextWorld: DbWorldRows): void => {
 		world = nextWorld
 
-		const nextShellIds = new Set<string>()
-		const nextFieldIds = new Set<string>()
+		const nextShellIds = new Set<number>()
+		const nextFieldIds = new Set<number>()
 
 		for (const shell of nextWorld.particles) {
 			nextShellIds.add(shell.particleId)
@@ -3661,7 +3661,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 							normalizedDistance < bestNormalizedDistance - 1e-6 ||
 							(
 								Math.abs(normalizedDistance - bestNormalizedDistance) <= 1e-6 &&
-								record.snapshot.particleId.localeCompare(bestRecord.snapshot.particleId) < 0
+								record.snapshot.particleId < bestRecord.snapshot.particleId
 							)
 						)
 					)

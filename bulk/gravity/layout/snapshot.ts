@@ -19,7 +19,7 @@ const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5))
 
 /** Входной дескриптор ordinary field до shell-materialization в actor rows. */
 export interface DbWorldFieldDescriptor {
-  id: string
+  id: number
   fieldKey: string
   fieldLabel: string
   fieldValueKind: DbFieldValueKind
@@ -31,7 +31,7 @@ export interface DbWorldFieldDescriptor {
 
 /** Входной дескриптор particle-дерева до геометрической раскладки shell/orbit. */
 export interface DbWorldParticleDescriptor {
-  particleId: string
+  particleId: number
   kind: DbParticleKind
   src: string | null
   metaSrc: string | null
@@ -125,10 +125,11 @@ const cloneDescriptorField = (
   extent: sphereRadius,
 })
 
-const hashAngle = (value: string): number => {
+const hashAngle = (value: string | number): number => {
+  const text = String(value)
   let hash = 2166136261
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index)
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index)
     hash = Math.imul(hash, 16777619)
   }
   return ((hash >>> 0) / 0xffffffff) * Math.PI * 2
@@ -268,7 +269,7 @@ const materializeCanonicalShellNode = (
 
 const flattenShellNode = (
   node: LayoutShellNode,
-  parentParticleId: string | null,
+  parentParticleId: number | null,
   depth: number,
   shellOrder: number,
   particles: DbParticleShellRow[],

@@ -7,27 +7,27 @@ import {
 import { DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG } from "./settings"
 import type { DbFieldOrbitRow, DbParticleShellRow, DbWorldRows } from "./world"
 
-const createField = (id: string) => ({
+const createField = (id: number) => ({
   id,
-  fieldKey: id,
-  fieldLabel: id,
+  fieldKey: String(id),
+  fieldLabel: String(id),
   fieldValueKind: "text" as const,
-  valueText: id,
+  valueText: String(id),
   colorR: 1,
   colorG: 1,
   colorB: 1,
 })
 
 const createParticle = (
-  particleId: string,
+  particleId: number,
   children: DbWorldParticleDescriptor[] = [],
-  fieldIds: string[] = [],
+  fieldIds: number[] = [],
 ): DbWorldParticleDescriptor => ({
   particleId,
   kind: "wimp",
-  src: particleId,
-  metaSrc: particleId,
-  label: particleId,
+  src: String(particleId),
+  metaSrc: String(particleId),
+  label: String(particleId),
   colorR: 0.4,
   colorG: 0.45,
   colorB: 0.98,
@@ -41,13 +41,13 @@ const getOuterRadius = (particle: DbParticleShellRow): number =>
 const getInnerRadius = (particle: DbParticleShellRow): number =>
   particle.shellRadius - particle.shellTube
 
-const getParticle = (snapshot: DbWorldRows, particleId: string): DbParticleShellRow => {
+const getParticle = (snapshot: DbWorldRows, particleId: number): DbParticleShellRow => {
   const particle = snapshot.particles.find((row) => row.particleId === particleId)
   expect(particle).toBeDefined()
   return particle!
 }
 
-const getField = (snapshot: DbWorldRows, id: string): DbFieldOrbitRow => {
+const getField = (snapshot: DbWorldRows, id: number): DbFieldOrbitRow => {
   const field = snapshot.fields.find((row) => row.id === id)
   expect(field).toBeDefined()
   return field!
@@ -82,8 +82,8 @@ const expectSnapshotContentInsideParents = (snapshot: DbWorldRows): void => {
 
 const expectSnapshotNoSiblingIntersections = (snapshot: DbWorldRows): void => {
   const itemsByParent = new Map<
-    string,
-    Array<{ id: string; localX: number; localY: number; radius: number }>
+    number,
+    Array<{ id: number; localX: number; localY: number; radius: number }>
   >()
 
   for (const particle of snapshot.particles) {
@@ -124,19 +124,19 @@ const expectSnapshotNoSiblingIntersections = (snapshot: DbWorldRows): void => {
 describe("bulk/gravity/layout snapshot", () => {
   test("строит bottom-up tor layout в Z-up и размещает поля на орбитах", () => {
     const snapshot = createDbWorldRowsFromParticleDescriptors("root", [
-      createParticle("root", [
-        createParticle("child", [
-          createParticle("leaf", [], ["leaf-field"]),
-        ], ["child-field"]),
-      ], ["root-field"]),
+      createParticle(1, [
+        createParticle(2, [
+          createParticle(3, [], [103]),
+        ], [102]),
+      ], [101]),
     ])
 
-    const root = getParticle(snapshot, "root")
-    const child = getParticle(snapshot, "child")
-    const leaf = getParticle(snapshot, "leaf")
-    const rootField = getField(snapshot, "root-field")
-    const childField = getField(snapshot, "child-field")
-    const leafField = getField(snapshot, "leaf-field")
+    const root = getParticle(snapshot, 1)
+    const child = getParticle(snapshot, 2)
+    const leaf = getParticle(snapshot, 3)
+    const rootField = getField(snapshot, 101)
+    const childField = getField(snapshot, 102)
+    const leafField = getField(snapshot, 103)
 
     expect(getOuterRadius(root)).toBeGreaterThan(getOuterRadius(child))
     expect(getOuterRadius(child)).toBeGreaterThan(getOuterRadius(leaf))
@@ -151,27 +151,27 @@ describe("bulk/gravity/layout snapshot", () => {
 
   test("родительский тор расширяется от плотности вложенного содержимого", () => {
     const compact = createDbWorldRowsFromParticleDescriptors("compact", [
-      createParticle("root", [createParticle("child-a", [], ["leaf-a"])]),
+      createParticle(1, [createParticle(2, [], [101])]),
     ])
     const expanded = createDbWorldRowsFromParticleDescriptors("expanded", [
-      createParticle("root", [
-        createParticle("child-a", [], ["leaf-a"]),
-        createParticle("child-b", [], ["leaf-b"]),
-        createParticle("child-c", [], ["leaf-c"]),
-        createParticle("child-d", [], ["leaf-d"]),
-        createParticle("child-e", [], ["leaf-e"]),
-        createParticle("child-f", [], ["leaf-f"]),
-        createParticle("child-g", [], ["leaf-g"]),
-        createParticle("child-h", [], ["leaf-h"]),
-        createParticle("child-i", [], ["leaf-i"]),
-        createParticle("child-j", [], ["leaf-j"]),
-        createParticle("child-k", [], ["leaf-k"]),
-        createParticle("child-l", [], ["leaf-l"]),
+      createParticle(1, [
+        createParticle(2, [], [101]),
+        createParticle(3, [], [102]),
+        createParticle(4, [], [103]),
+        createParticle(5, [], [104]),
+        createParticle(6, [], [105]),
+        createParticle(7, [], [106]),
+        createParticle(8, [], [107]),
+        createParticle(9, [], [108]),
+        createParticle(10, [], [109]),
+        createParticle(11, [], [110]),
+        createParticle(12, [], [111]),
+        createParticle(13, [], [112]),
       ]),
     ])
 
-    expect(getOuterRadius(getParticle(expanded, "root"))).toBeGreaterThan(
-      getOuterRadius(getParticle(compact, "root")),
+    expect(getOuterRadius(getParticle(expanded, 1))).toBeGreaterThan(
+      getOuterRadius(getParticle(compact, 1)),
     )
     expectSnapshotContentInsideParents(expanded)
     expectSnapshotNoSiblingIntersections(expanded)
@@ -179,14 +179,14 @@ describe("bulk/gravity/layout snapshot", () => {
 
   test("shell-ы одного depth могут иметь разные размеры из-за разного содержимого", () => {
     const snapshot = createDbWorldRowsFromParticleDescriptors("root", [
-      createParticle("root", [
-        createParticle("child-a", [createParticle("grand-a", [], ["leaf-a"])]),
-        createParticle("child-b", [], ["b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m"]),
+      createParticle(1, [
+        createParticle(2, [createParticle(4, [], [101])]),
+        createParticle(3, [], [102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113]),
       ]),
     ])
 
-    const childA = getParticle(snapshot, "child-a")
-    const childB = getParticle(snapshot, "child-b")
+    const childA = getParticle(snapshot, 2)
+    const childB = getParticle(snapshot, 3)
 
     expect(childA.depth).toBe(childB.depth)
     expect(Math.abs(getOuterRadius(childA) - getOuterRadius(childB))).toBeGreaterThan(1)
@@ -196,7 +196,7 @@ describe("bulk/gravity/layout snapshot", () => {
 
   test("плотные поля раскладываются на несколько орбит внутри parent-тора", () => {
     const snapshot = createDbWorldRowsFromParticleDescriptors("root", [
-      createParticle("root", [], Array.from({ length: 40 }, (_, index) => `field-${index}`)),
+      createParticle(1, [], Array.from({ length: 40 }, (_, index) => 100 + index)),
     ], { rootSphereRadiusMm: 280 })
 
     const ringKeys = new Set(
@@ -211,14 +211,14 @@ describe("bulk/gravity/layout snapshot", () => {
   test("orbitEdgeGapMm задает зазор от внутренней кромки тора до первого объекта", () => {
     const snapshot = createDbWorldRowsFromParticleDescriptors(
       "root",
-      [createParticle("root", [], ["field-a", "field-b", "field-c"])],
+      [createParticle(1, [], [101, 102, 103])],
       {
         orbitEdgeGapMm: 24,
         rootInnerDiameterMm: 1000,
         rootSphereRadiusMm: 200,
       },
     )
-    const root = getParticle(snapshot, "root")
+    const root = getParticle(snapshot, 1)
     const innerRadius = getInnerRadius(root)
     const minInnerGap = Math.min(
       ...snapshot.fields.map((field) => Math.hypot(field.localX, field.localY) - field.sphereRadius - innerRadius),
@@ -233,10 +233,10 @@ describe("bulk/gravity/layout snapshot", () => {
     const snapshot = createDbWorldRowsFromParticleDescriptors(
       "root",
       [
-        createParticle("root", [
-          createParticle("child-a", [createParticle("grand-a", [], ["leaf-a"])]),
-          createParticle("child-b", [], ["b", "c", "d", "e", "f", "g"]),
-        ], ["root-field"]),
+        createParticle(1, [
+          createParticle(2, [createParticle(4, [], [101])]),
+          createParticle(3, [], [102, 103, 104, 105, 106, 107]),
+        ], [100]),
       ],
       { rootInnerDiameterMm: 1800 },
     )
@@ -249,16 +249,16 @@ describe("bulk/gravity/layout snapshot", () => {
 
   test("нормализация делает только глобальный scale к root outer diameter", () => {
     const raw = createDbWorldRowsFromParticleDescriptors("root", [
-      createParticle("root", [
-        createParticle("child-a", [createParticle("grand-a", [], ["leaf-a"])]),
-        createParticle("child-b", [], ["b", "c", "d", "e", "f", "g", "h", "i"]),
-      ], ["root-field"]),
+      createParticle(1, [
+        createParticle(2, [createParticle(4, [], [101])]),
+        createParticle(3, [], [102, 103, 104, 105, 106, 107, 108, 109]),
+      ], [100]),
     ])
     const normalized = scaleDbWorldRowsToRootOuterDiameter(raw)
-    const rawRoot = getParticle(raw, "root")
-    const normalizedRoot = getParticle(normalized, "root")
-    const rawChild = getParticle(raw, "child-a")
-    const normalizedChild = getParticle(normalized, "child-a")
+    const rawRoot = getParticle(raw, 1)
+    const normalizedRoot = getParticle(normalized, 1)
+    const rawChild = getParticle(raw, 2)
+    const normalizedChild = getParticle(normalized, 2)
 
     expect(getOuterRadius(normalizedRoot) * 2).toBeCloseTo(
       DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG.rootOuterDiameterMm,
@@ -278,12 +278,12 @@ describe("bulk/gravity/layout snapshot", () => {
 
   test("первый root-shell остается в центре, остальные root-shell-ы уходят на внешнюю орбиту", () => {
     const snapshot = createDbWorldRowsFromParticleDescriptors("multi-root", [
-      createParticle("root-a", [createParticle("child-a")], ["field-a"]),
-      createParticle("root-b", [createParticle("child-b")], ["field-b"]),
+      createParticle(1, [createParticle(2)], [101]),
+      createParticle(3, [createParticle(4)], [102]),
     ])
 
-    const rootA = getParticle(snapshot, "root-a")
-    const rootB = getParticle(snapshot, "root-b")
+    const rootA = getParticle(snapshot, 1)
+    const rootB = getParticle(snapshot, 3)
 
     expect(rootA.parentParticleId).toBeNull()
     expect(rootB.parentParticleId).toBeNull()

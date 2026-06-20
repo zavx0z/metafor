@@ -473,12 +473,12 @@ type ActorRowsMessage = {
 	actor: BoundaryBulkRuntimeSnapshot["actors"][number]
 	values: BoundaryBulkRuntimeSnapshot["actorValues"]
 	valueRecords: Array<{
-		uuid: string
+		id: number
 		kind: BoundaryBulkRuntimeSnapshot["values"][number]["kind"]
 		boolean?: boolean
 		number?: number
 		text?: string
-		variant?: string
+		variant?: number
 	}>
 	valueItems: BoundaryBulkRuntimeSnapshot["valueItems"]
 }
@@ -486,8 +486,8 @@ type ActorRowsMessage = {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null
 
-const upsertByUuid = <T extends {uuid: string}>(rows: T[], row: T): T[] =>
-	[...rows.filter((item) => item.uuid !== row.uuid), row]
+const upsertById = <T extends {id: number}>(rows: T[], row: T): T[] =>
+	[...rows.filter((item) => item.id !== row.id), row]
 
 const actorRowsMessage = (value: unknown): ActorRowsMessage | null => {
 	if (!isRecord(value) || !isRecord(value.actor) || !Array.isArray(value.values) || !Array.isArray(value.valueRecords)) return null
@@ -502,17 +502,17 @@ const actorRowsMessage = (value: unknown): ActorRowsMessage | null => {
 const applyActorRowsPart = (snapshot: BoundaryBulkRuntimeSnapshot, value: unknown): boolean => {
 	const rows = actorRowsMessage(value)
 	if (!rows) return false
-	const enumValueByVariant = new Map(snapshot.fieldEnumVariants.map((variant) => [variant.uuid, variant.itemValue] as const))
+	const enumValueByVariant = new Map(snapshot.fieldEnumVariants.map((variant) => [variant.id, variant.itemValue] as const))
 	const valueIds = new Set(rows.values.map((row) => row.value))
-	snapshot.actors = upsertByUuid(snapshot.actors, rows.actor)
+	snapshot.actors = upsertById(snapshot.actors, rows.actor)
 	snapshot.actorValues = [
-		...snapshot.actorValues.filter((row) => row.actor !== rows.actor.uuid),
+		...snapshot.actorValues.filter((row) => row.actor !== rows.actor.id),
 		...rows.values,
 	]
 	snapshot.values = [
-		...snapshot.values.filter((row) => !valueIds.has(row.uuid)),
+		...snapshot.values.filter((row) => !valueIds.has(row.id)),
 		...rows.valueRecords.map((row) => ({
-			uuid: row.uuid,
+			id: row.id,
 			kind: row.kind,
 			booleanValue: typeof row.boolean === "boolean" ? (row.boolean ? 1 : 0) : null,
 			numberValue: typeof row.number === "number" ? row.number : null,
@@ -529,18 +529,18 @@ const applyActorRowsPart = (snapshot: BoundaryBulkRuntimeSnapshot, value: unknow
 
 const applyTopologyPart = (snapshot: BoundaryBulkRuntimeSnapshot, part: Particle): boolean => {
 	if (part.path !== "fuzzy" && part.path !== "axion" && part.path !== "macho") return false
-	if (!isRecord(part.value) || typeof part.value.uuid !== "string") return false
+	if (!isRecord(part.value) || typeof part.value.id !== "number") return false
 	const topology = part.value
-	const uuid = topology.uuid as string
+	const id = topology.id as number
 	if (part.op === "remove") {
-		snapshot.topologies = snapshot.topologies.filter((row) => row.uuid !== uuid)
+		snapshot.topologies = snapshot.topologies.filter((row) => row.id !== id)
 		return true
 	}
 	if (part.op !== "add" && part.op !== "replace") return false
-	snapshot.topologies = upsertByUuid(snapshot.topologies, {
-		uuid,
-		parentActor: typeof topology.parentActor === "string" ? topology.parentActor : null,
-		parentTopology: typeof topology.parentTopology === "string" ? topology.parentTopology : null,
+	snapshot.topologies = upsertById(snapshot.topologies, {
+		id,
+		parentActor: typeof topology.parentActor === "number" ? topology.parentActor : null,
+		parentTopology: typeof topology.parentTopology === "number" ? topology.parentTopology : null,
 		kind: part.path,
 		position: typeof topology.position === "number" ? topology.position : 0,
 	})

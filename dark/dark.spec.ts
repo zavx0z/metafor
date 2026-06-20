@@ -94,7 +94,7 @@ describe("matter(zavx0z/git) → boundary", () => {
     const topology = await boundary.topology.childrenOfActor(root.id)
     const fuzzy = topology.find((t) => t.kind === "fuzzy")!
     const startRow = (
-      await sql<Array<{id: string}>>`
+      await sql<Array<{id: number}>>`
         SELECT id FROM actor
         WHERE parent_topology = ${fuzzy.id} AND wimp = ${src + "-start"}
       `
@@ -102,12 +102,12 @@ describe("matter(zavx0z/git) → boundary", () => {
     if (!startRow) throw new Error("git-start actor not found")
 
     const rootArgsField = (
-      await sql<Array<{id: string}>>`
+      await sql<Array<{id: number}>>`
         SELECT id FROM field WHERE wimp = ${src} AND key = ${"args"} LIMIT 1
       `
     )[0]?.id
     const startArgsField = (
-      await sql<Array<{id: string}>>`
+      await sql<Array<{id: number}>>`
         SELECT id FROM field WHERE wimp = ${src + "-start"} AND key = ${"args"} LIMIT 1
       `
     )[0]?.id

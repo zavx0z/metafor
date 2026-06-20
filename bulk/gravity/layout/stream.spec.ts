@@ -1,29 +1,29 @@
 import { describe, expect, test } from "bun:test"
-import type { DbFieldOrbitRow, DbParticleShellRow } from "./world"
-import { streamDbWorldRows, type DbWorldRowSink } from "./stream"
+import type { DbFieldOrbitRow, DbParticleShellRow, DbWorldRowSink } from "./world"
+import { streamDbWorldRows } from "./stream"
 import type { DbWorldParticleDescriptor } from "./snapshot"
 
-const createField = (id: string) => ({
+const createField = (id: number) => ({
   id,
-  fieldKey: id,
-  fieldLabel: id,
+  fieldKey: String(id),
+  fieldLabel: String(id),
   fieldValueKind: "text" as const,
-  valueText: id,
+  valueText: String(id),
   colorR: 1,
   colorG: 1,
   colorB: 1,
 })
 
 const createParticle = (
-  particleId: string,
+  particleId: number,
   children: DbWorldParticleDescriptor[] = [],
-  fieldIds: string[] = [],
+  fieldIds: number[] = [],
 ): DbWorldParticleDescriptor => ({
   particleId,
   kind: "wimp",
-  src: particleId,
-  metaSrc: particleId,
-  label: particleId,
+  src: String(particleId),
+  metaSrc: String(particleId),
+  label: String(particleId),
   colorR: 0.4,
   colorG: 0.45,
   colorB: 0.98,
@@ -57,7 +57,7 @@ describe("bulk/gravity/layout streamDbWorldRows", () => {
     await streamDbWorldRows(
       "root",
       [
-        createParticle("root", [createParticle("child", [], ["leaf-field"])], ["root-field"]),
+        createParticle(1, [createParticle(2, [], [102])], [101]),
       ],
       {},
       sink,
@@ -70,12 +70,12 @@ describe("bulk/gravity/layout streamDbWorldRows", () => {
     const particleEvents = sink.events.filter((e) => e.kind === "particle")
     const fieldEvents = sink.events.filter((e) => e.kind === "field")
     expect(particleEvents.map((e) => (e.row as DbParticleShellRow).particleId)).toEqual([
-      "root",
-      "child",
+      1,
+      2,
     ])
     expect(fieldEvents.map((e) => (e.row as DbFieldOrbitRow).id).sort()).toEqual([
-      "leaf-field",
-      "root-field",
+      101,
+      102,
     ])
   })
 

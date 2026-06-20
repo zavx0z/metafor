@@ -7,15 +7,15 @@ export const gravity$: EnergyGravityStore = {
   braneIndexToWimpId: [],
   structuralDirty: false,
 
-  hasWimp(wimpId: string): boolean {
+  hasWimp(wimpId: number): boolean {
     return this.activeWimpIds.includes(wimpId)
   },
 
-  getBraneIndex(wimpId: string): number | undefined {
+  getBraneIndex(wimpId: number): number | undefined {
     return this.wimpIdToBraneIndex.get(wimpId)
   },
 
-  getWimpId(braneIndex: number): string | undefined {
+  getWimpId(braneIndex: number): number | undefined {
     return this.braneIndexToWimpId[braneIndex]
   },
 }

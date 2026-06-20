@@ -7,8 +7,8 @@ export type DbFieldValueKind = "text" | "number" | "bool" | "other"
 export type DbParticleActivity = "neutral" | "active" | "inactive"
 
 export interface DbParticleShellRow {
-  particleId: string
-  parentParticleId: string | null
+  particleId: number
+  parentParticleId: number | null
   kind: DbParticleKind
   src: string | null
   metaSrc: string | null
@@ -28,8 +28,8 @@ export interface DbParticleShellRow {
 }
 
 export interface DbFieldOrbitRow {
-  id: string
-  particleId: string
+  id: number
+  particleId: number
   fieldKey: string
   fieldLabel: string
   fieldOrder: number

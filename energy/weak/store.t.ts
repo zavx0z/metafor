@@ -26,10 +26,10 @@ export interface WeakStore {
   energy$: EnergyStore | null
 
   /** Каноническая адресация состояний materialized runtime: `brane/stateIndex -> metaStateId`. */
-  stateMetaStateIdsByBraneIndex: string[][]
+  stateMetaStateIdsByBraneIndex: number[][]
 
   /** Процессная адресация materialized runtime: `brane/stateIndex -> metaProcessId`. */
-  stateProcessIdsByBraneIndex: Array<Array<string | undefined>>
+  stateProcessIdsByBraneIndex: Array<Array<number | undefined>>
 
   /** Сбрасывает локальное runtime-состояние слабой силы. */
   reset(): void
