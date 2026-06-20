@@ -78,7 +78,9 @@ export type VoiceInputHudOptions = {
   onToggle(): void
   onMove?(rect: UiSurfaceRect): void
   buttonSize?: number
+  settingsPresentation?: "popover" | "panel"
   onPulseFrame?(): void
+  onSettingsOpenChange?(open: boolean): void
   settings(): VoiceInputHudSettings
   onFullStop(): void
   onAddPhrase(groupId: VoiceInputHudPhraseGroupId, phrase: string): void
@@ -98,6 +100,7 @@ const COMPACT_H = 128
 const DEFAULT_BUTTON_SIZE = 58
 const SETTINGS_W = 460
 const SETTINGS_H = 760
+const SETTINGS_PANEL_HEADER_H = 44
 type VoiceInputHudTab = "general" | VoiceInputHudPhraseGroupId | "debug"
 
 export class VoiceInputHud extends UiSurface {
@@ -148,7 +151,23 @@ export class VoiceInputHud extends UiSurface {
     return this.#soundPulseAmount()
   }
 
+  openSettings(): void {
+    this.#setSettingsOpen(true)
+  }
+
+  closeSettings(): void {
+    this.#setSettingsOpen(false)
+  }
+
+  settingsOpen(): boolean {
+    return this.#settingsOpen
+  }
+
   protected render(): void {
+    if (this.#settingsOpen && this.#settingsPresentation() === "panel") {
+      this.#drawSettingsPanel()
+      return
+    }
     const buttonSize = this.#buttonSize()
     const buttonRect = this.#buttonRect()
     if (this.#settingsOpen) this.#drawSettingsMenu()
@@ -161,6 +180,16 @@ export class VoiceInputHud extends UiSurface {
   }
 
   override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
+    if (this.#settingsOpen && this.#settingsPresentation() === "panel") {
+      event.preventDefault()
+      if (event.button === 0) {
+        super.onPointerDown(event, localX, localY)
+        if (this.pressedHit === null && localY >= 0 && localY <= SETTINGS_PANEL_HEADER_H) {
+          this.#beginPanelDrag(event)
+        }
+      }
+      return
+    }
     if (event.button === 2) {
       event.preventDefault()
       event.stopPropagation()
@@ -249,6 +278,7 @@ export class VoiceInputHud extends UiSurface {
   override onContextMenu(event: MouseEvent, localX: number, localY: number): void {
     event.preventDefault()
     event.stopPropagation()
+    if (this.#settingsOpen && this.#settingsPresentation() === "panel") return
     if (performance.now() - this.#settingsContextToggleAt < 350) return
     this.#cancelPress()
     if (localX < 0 || localY < 0 || localX > this.rectW || localY > this.rectH) return
@@ -273,6 +303,22 @@ export class VoiceInputHud extends UiSurface {
     if (press?.timer !== null && press?.timer !== undefined) clearTimeout(press.timer)
   }
 
+  #beginPanelDrag(event: MouseEvent): void {
+    if (this.options.onMove === undefined) return
+    const point = this.#canvasPoint(event)
+    const frame = this.canvas?.surfaceFrame(this)
+    if (point === null || frame === undefined || frame === null) return
+    this.#press = {
+      lastX: point.x,
+      lastY: point.y,
+      offsetX: point.x - frame.rect.x,
+      offsetY: point.y - frame.rect.y,
+      dragging: true,
+      timer: null,
+    }
+    if (this.canvas?.canvas !== undefined) this.canvas.canvas.style.cursor = "grabbing"
+  }
+
   #setSettingsOpen(open: boolean): void {
     if (this.#settingsOpen === open) return
     if (open) {
@@ -291,7 +337,7 @@ export class VoiceInputHud extends UiSurface {
     const frame = this.canvas?.surfaceFrame(this)
     this.#settingsOpen = true
     this.#settingsTab = "general"
-    if (frame !== undefined && frame !== null) {
+    if (this.#settingsPresentation() === "popover" && frame !== undefined && frame !== null) {
       this.#compactRectBeforeSettings = {...frame.rect}
       const center = this.#buttonCenterForRect(frame.rect.w, frame.rect.h, false)
       const canvasCenter = {x: frame.rect.x + center.x, y: frame.rect.y + center.y}
@@ -303,6 +349,7 @@ export class VoiceInputHud extends UiSurface {
         h: SETTINGS_H,
       })
     }
+    this.options.onSettingsOpenChange?.(true)
     this.requestRender()
   }
 
@@ -314,7 +361,12 @@ export class VoiceInputHud extends UiSurface {
       if (this.options.onMove === undefined) this.canvas?.clearSurfaceRect(this)
       else this.canvas?.setSurfaceRect(this, compact)
     }
+    this.options.onSettingsOpenChange?.(false)
     this.requestRender()
+  }
+
+  #settingsPresentation(): "popover" | "panel" {
+    return this.options.settingsPresentation ?? "popover"
   }
 
   #buttonRect(): UiSurfaceRect {
@@ -392,24 +444,76 @@ export class VoiceInputHud extends UiSurface {
       z: 0.46,
     })
     y += 20
+    this.#drawSettingsContent(settings, left, right, y, rect.y + rect.h - 47, rect.y + rect.h - 39, rect.y + rect.h - 22)
+  }
 
+  #drawSettingsPanel(): void {
+    const settings = this.options.settings()
+    const w = Math.max(1, this.rectW)
+    const h = Math.max(1, this.rectH)
+    this.drawRoundedRect(0, 0, w, h, {
+      radius: 8,
+      fill: fade(palette.bgPanel, 0.96),
+      border: fade(palette.border, 0.58),
+      borderWidth: 1,
+      z: 0.12,
+    })
+
+    const closeSize = 24
+    button(this, w - closeSize - 10, 8, closeSize, closeSize, {
+      key: "voice-settings-panel-close",
+      children: "x",
+      onClick: () => this.#setSettingsOpen(false),
+      style: {
+        background: "rgba(38, 49, 66, 0.42)",
+        borderColor: "borderDim",
+        borderRadius: 6,
+        color: "muted",
+        fontSize: 10,
+      },
+    })
+    this.drawText(settings.title, 16, 12, {
+      fontPx: 13,
+      material: this.materials.cyan,
+      maxWidthPx: Math.max(1, w - 58),
+      z: 0.46,
+    })
+    this.drawText(settings.serviceLine, 16, 28, {
+      fontPx: 9,
+      material: this.#snapshot.serviceState === "down" ? this.materials.red : this.materials.muted,
+      maxWidthPx: Math.max(1, w - 32),
+      z: 0.46,
+    })
+    this.drawRect(10, 43, Math.max(1, w - 20), 1, fade(palette.borderDim, 0.72), 0.22)
+    this.#drawSettingsContent(settings, 14, Math.max(15, w - 14), 54, Math.max(55, h - 47), Math.max(55, h - 39), Math.max(55, h - 22))
+  }
+
+  #drawSettingsContent(
+    settings: VoiceInputHudSettings,
+    left: number,
+    right: number,
+    y: number,
+    maxY: number,
+    liveLineY: number,
+    endpointLineY: number,
+  ): void {
     y = this.#drawSettingsTabs(settings, left, y, Math.max(1, right - left)) + 12
     if (this.#settingsTab === "general") {
-      this.#drawGeneralSettings(settings, left, right, y, rect.y + rect.h - 47)
+      this.#drawGeneralSettings(settings, left, right, y, maxY)
     } else if (this.#settingsTab === "debug") {
-      this.#drawDebugTab(settings.debugLines, left, y, Math.max(1, right - left), rect.y + rect.h - 47)
+      this.#drawDebugTab(settings.debugLines, left, y, Math.max(1, right - left), maxY)
     } else {
       const group = this.#activePhraseGroup(settings.phraseGroups)
-      if (group !== null) this.#drawPhraseGroup(settings, group, left, right, y, rect.y + rect.h - 47)
+      if (group !== null) this.#drawPhraseGroup(settings, group, left, right, y, maxY)
     }
 
-    this.drawText(settings.liveLine, left, rect.y + rect.h - 39, {
+    this.drawText(settings.liveLine, left, liveLineY, {
       fontPx: 9,
       material: this.materials.text,
       maxWidthPx: Math.max(1, right - left),
       z: 0.46,
     })
-    this.drawText(`wake · ${settings.wakeEndpoint}   asr · ${settings.inputEndpoint}`, left, rect.y + rect.h - 22, {
+    this.drawText(`wake · ${settings.wakeEndpoint}   asr · ${settings.inputEndpoint}`, left, endpointLineY, {
       fontPx: 9,
       material: this.materials.muted,
       maxWidthPx: Math.max(1, right - left),

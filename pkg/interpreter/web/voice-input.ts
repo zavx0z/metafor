@@ -288,12 +288,30 @@ export class VoiceInputClient {
   }
 
   async startDictation(): Promise<void> {
-    if (!this.active) await this.start()
+    if (!this.active) {
+      await this.#startDictationFromIdle()
+      return
+    }
     if (this.#asrEnabled) return
     try {
       await this.#activateAsr("")
     } catch (error) {
       this.#recoverAsrFailure(error)
+      throw error
+    }
+  }
+
+  async #startDictationFromIdle(): Promise<void> {
+    this.#stopRequested = false
+    this.#wakeMatched = false
+    this.#resetCommitState()
+    this.#setStatus("connecting", this.options.url())
+    try {
+      await this.#startAudio()
+      await this.#activateAsr("")
+    } catch (error) {
+      this.#setStatus("error", error instanceof Error ? error.message : String(error))
+      this.#cleanup()
       throw error
     }
   }

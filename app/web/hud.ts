@@ -93,6 +93,7 @@ import {
 
 type VoiceRtcDebugGlobal = typeof globalThis & {__metaVoiceRtcDebug?: () => VoiceRtcDebugSnapshot}
 type AppFullscreenDebugGlobal = typeof globalThis & {__metaFullscreenDebug?: () => AppFullscreenDebugSnapshot}
+type AppVoiceLeaseDebugGlobal = typeof globalThis & {__metaVoiceLeaseDebug?: () => AppVoiceLeaseDebugSnapshot}
 
 type AppFullscreenDebugSnapshot = {
 	state: "idle" | "requesting" | "active" | "fallback" | "exiting" | "failed"
@@ -100,6 +101,16 @@ type AppFullscreenDebugSnapshot = {
 	error: string
 	fallback: boolean
 	updatedAt: number
+}
+
+type AppVoiceLeaseDebugSnapshot = {
+	clientId: string
+	ownerId: string | null
+	expiresInMs: number
+	owns: boolean
+	localFocus: boolean
+	voiceStatus: VoiceInputStatus
+	voiceActive: boolean
 }
 
 let appFullscreenDebug: AppFullscreenDebugSnapshot = {
@@ -120,12 +131,15 @@ export type AppWebHudSettingsSnapshot = {
 
 export type AppWebHudOptions = {
 	viewport: BulkViewportController
+	voiceClientId: string
 	initialSrc: string
 	initialSettings: AppWebHudSettingsSnapshot
 	onApply(src: string, settings: AppWebHudSettingsSnapshot): void
 	onRenderSettingsChange(settings: Partial<AppWebRenderSettings>): void
 	onSettingsPersist(settings: AppWebHudSettingsSnapshot): void
 	onVoiceDictationActiveChange(active: boolean): void
+	onVoiceLeaseRequest(reason: string): void
+	onVoiceLeaseRelease(reason: string): void
 }
 
 export type AppWebHudController = {
@@ -138,6 +152,8 @@ export type AppWebHudController = {
 	setConnectionStatus(online: boolean): void
 	setStats(stats: BulkViewportStats): void
 	setTodoMarkdown(text: string, path: string): void
+	setVoiceLease(ownerId: string | null, expiresAt: number, ttlMs?: number): void
+	syncVoiceLease(reason?: string): void
 }
 
 export type AppWebNetworkTerminalCommand = {
@@ -158,7 +174,7 @@ type NetworkActionPayload = {
 
 type DockKind = "codex" | "settings" | "todo" | "android" | "workspace" | "network" | "fullscreen"
 type DockPanelKind = Exclude<DockKind, "fullscreen">
-type SettingsTab = "scene" | "geometry" | "render" | "voice"
+type SettingsTab = "scene" | "geometry" | "render"
 
 type DockPlacement = {
 	edge: HudSideTabEdge
@@ -292,6 +308,7 @@ const NETWORK_DOCK_PLACEMENT_STORAGE_KEY = `${STORAGE_PREFIX}.network.dockPlacem
 const ANDROID_DOCKED_STORAGE_KEY = `${STORAGE_PREFIX}.android.docked:v1`
 const ANDROID_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.android.rect:v1`
 const ANDROID_DOCK_PLACEMENT_STORAGE_KEY = `${STORAGE_PREFIX}.android.dockPlacement:v1`
+const VOICE_SETTINGS_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.voice.settings.rect:v1`
 const FULLSCREEN_DOCK_PLACEMENT_STORAGE_KEY = `${STORAGE_PREFIX}.fullscreen.dockPlacement:v1`
 const VOICE_INPUT_URL_STORAGE_KEY = "metafor.interpreter.voice.url"
 const VOICE_WAKE_URL_STORAGE_KEY = "metafor.interpreter.voice.wakeUrl"
@@ -355,9 +372,11 @@ const DEFAULT_VOICE_STOP_FUZZY = 0.06
 const VOICE_MESSAGE_PAUSE_SECONDS = 1.6
 const VOICE_SIGNAL_COOLDOWN_MS = 900
 const VOICE_AUTO_WAKE_RETRY_MS = 3_000
+const VOICE_LEASE_LOCAL_TTL_MS = 12_000
 const VOICE_HUD_ERROR_MS = 2_400
 const VOICE_METER_RENDER_MS = 80
 const VOICE_SETTINGS_LONG_PRESS_MS = 450
+const VOICE_TOGGLE_CLICK_DELAY_MS = 320
 const AGENT_READY_SOUND_IDLE_MS = 2500
 const AGENT_READY_SOUND_COOLDOWN_MS = 1200
 const CODEX_COMPOSER_H = 268
@@ -382,9 +401,13 @@ const HUD_TODO_PANEL_Z = 22
 const HUD_SETTINGS_PANEL_Z = 24
 const HUD_AGENT_SIGNAL_Z = 41
 const HUD_DOCK_Z = 60
+const HUD_VOICE_SETTINGS_Z = HUD_DOCK_Z + 8
 const SETTINGS_SCROLL_KEY = "app-web-settings-pane:scroll"
 const SETTINGS_MIN_W = 360
 const SETTINGS_MIN_H = PANE_FRAME.headerHeight + 260
+const VOICE_SETTINGS_W = 460
+const VOICE_SETTINGS_H = 760
+const VOICE_SETTINGS_MARGIN = 8
 const AGENT_SIGNAL_BUTTON_SIZE = 22
 const AGENT_SIGNAL_HEADER_Y = 8
 const AGENT_SIGNAL_HEADER_TEXT_X = 16
@@ -580,10 +603,13 @@ export function installAppWebHud(options: AppWebHudOptions): AppWebHudController
 
 class AppWebHud implements AppWebHudController {
 	readonly #viewport: BulkViewportController
+	readonly #voiceClientId: string
 	readonly #onApply: AppWebHudOptions["onApply"]
 	readonly #onRenderSettingsChange: AppWebHudOptions["onRenderSettingsChange"]
 	readonly #onSettingsPersist: AppWebHudOptions["onSettingsPersist"]
 	readonly #onVoiceDictationActiveChange: AppWebHudOptions["onVoiceDictationActiveChange"]
+	readonly #onVoiceLeaseRequest: AppWebHudOptions["onVoiceLeaseRequest"]
+	readonly #onVoiceLeaseRelease: AppWebHudOptions["onVoiceLeaseRelease"]
 	readonly #settingsPane: AppWebSettingsPane
 	readonly #codexDock: AppWebDockPane
 	readonly #settingsDock: AppWebDockPane
@@ -656,8 +682,12 @@ class AppWebHud implements AppWebHudController {
 	#voiceAutoWakeTimer: number | null = null
 	#voiceAutoWakeInFlight = false
 	#voiceAutoWakePaused = false
+	#voiceLeaseOwnerId: string | null = null
+	#voiceLeaseExpiresAt = 0
+	#voiceLeaseHeartbeatTimer: number | null = null
 	#voiceMeterTimer: number | null = null
 	#voiceDictationActive = false
+	#voiceSettingsOpen = false
 	#voiceHudErrorTimer: number | null = null
 	#voiceWakeLines: string[] = []
 	#voiceWakePreviewText = ""
@@ -689,10 +719,13 @@ class AppWebHud implements AppWebHudController {
 
 	constructor(options: AppWebHudOptions) {
 		this.#viewport = options.viewport
+		this.#voiceClientId = options.voiceClientId
 		this.#onApply = options.onApply
 		this.#onRenderSettingsChange = options.onRenderSettingsChange
 		this.#onSettingsPersist = options.onSettingsPersist
 		this.#onVoiceDictationActiveChange = options.onVoiceDictationActiveChange
+		this.#onVoiceLeaseRequest = options.onVoiceLeaseRequest
+		this.#onVoiceLeaseRelease = options.onVoiceLeaseRelease
 		this.#src = options.initialSrc
 		this.#settings = cloneSettings(options.initialSettings)
 		this.#settingsPane = new AppWebSettingsPane(this)
@@ -779,6 +812,7 @@ class AppWebHud implements AppWebHudController {
 		this.#viewport.hud.addSurface(this.#networkTerminal.pane, (bounds) => this.#networkTerminalRect(bounds), {zIndex: HUD_PANEL_Z + 3})
 		this.#viewport.hud.addSurface(this.#androidPane, (bounds) => this.#androidRect(bounds), {zIndex: HUD_PANEL_Z + 1})
 		this.#viewport.hud.addSurface(this.#agentSignalPane, (bounds) => this.#agentSignalRect(bounds), {zIndex: HUD_AGENT_SIGNAL_Z})
+		this.#viewport.hud.addSurface(this.#voiceHud, (bounds) => this.#voiceSettingsRect(bounds), {zIndex: HUD_VOICE_SETTINGS_Z})
 		this.#viewport.hud.addSurface(this.#codexDock, (bounds) => this.#dockRect("codex", bounds), {zIndex: HUD_DOCK_Z})
 		this.#viewport.hud.addSurface(this.#settingsDock, (bounds) => this.#dockRect("settings", bounds), {zIndex: HUD_DOCK_Z})
 		this.#viewport.hud.addSurface(this.#todoDock, (bounds) => this.#dockRect("todo", bounds), {zIndex: HUD_DOCK_Z})
@@ -794,8 +828,14 @@ class AppWebHud implements AppWebHudController {
 		document.addEventListener("dragleave", this.#codexDragLeave, {capture: true})
 		document.addEventListener("visibilitychange", () => this.#handleDocumentVisibilityChange())
 		window.addEventListener("focus", () => this.#handleDocumentVisibilityChange())
-		window.addEventListener("blur", () => this.#suspendVoiceForInactiveDocument())
-		window.addEventListener("pagehide", () => this.#suspendVoiceForInactiveDocument())
+		window.addEventListener("blur", () => {
+			this.#onVoiceLeaseRelease("blur")
+			this.#suspendVoiceForInactiveDocument()
+		})
+		window.addEventListener("pagehide", () => {
+			this.#onVoiceLeaseRelease("pagehide")
+			this.#suspendVoiceForInactiveDocument()
+		})
 		this.#connectTerminal()
 		this.#connectAndroidRtc()
 		this.#updateNetworkWatchPane()
@@ -804,6 +844,7 @@ class AppWebHud implements AppWebHudController {
 		void this.#refreshWorkspaceProcesses()
 		void this.#refreshVoiceServiceState()
 		;(globalThis as VoiceRtcDebugGlobal).__metaVoiceRtcDebug = readVoiceRtcDebugSnapshot
+		;(globalThis as AppVoiceLeaseDebugGlobal).__metaVoiceLeaseDebug = () => this.#voiceLeaseDebugSnapshot()
 		this.#updateVoiceHud()
 		onVoiceRtcDebug(() => {
 			this.#voiceRtcDebug = readVoiceRtcDebugSnapshot()
@@ -825,6 +866,33 @@ class AppWebHud implements AppWebHudController {
 
 	settingsSnapshot(): AppWebHudSettingsSnapshot {
 		return cloneSettings(this.#settings)
+	}
+
+	setVoiceLease(ownerId: string | null, expiresAt: number, ttlMs?: number): void {
+		this.#voiceLeaseOwnerId = ownerId
+		const leaseTtlMs = typeof ttlMs === "number" && Number.isFinite(ttlMs) ? ttlMs : null
+		this.#voiceLeaseExpiresAt = leaseTtlMs === null
+			? (Number.isFinite(expiresAt) ? expiresAt : 0)
+			: Date.now() + Math.max(0, leaseTtlMs)
+		const ownedNow = this.#ownsVoiceLease()
+		if (!ownedNow) {
+			this.#clearVoiceLeaseHeartbeat()
+			this.#suspendVoiceDictationForRemoteLease()
+			if (!this.#voiceAutoWakePaused) this.#scheduleVoiceAutoWake(80)
+			this.#codexComposer.requestRender()
+			this.#voiceHud.requestRender()
+			return
+		}
+		this.#scheduleVoiceLeaseHeartbeat()
+		if (!this.#voiceAutoWakePaused) this.#scheduleVoiceAutoWake(80)
+		this.#codexComposer.requestRender()
+		this.#voiceHud.requestRender()
+	}
+
+	syncVoiceLease(reason = "sync"): void {
+		if (isAndroidBrowser()) return
+		if (!this.#documentHasLocalVoiceFocus()) return
+		this.#onVoiceLeaseRequest(reason)
 	}
 
 	sendAndroidControl(command: AndroidRtcCommand): boolean {
@@ -923,7 +991,6 @@ class AppWebHud implements AppWebHudController {
 	}
 
 	toggleVoiceInput(): void {
-		this.#focusCodexComposer()
 		void this.#toggleVoice()
 	}
 
@@ -1051,9 +1118,18 @@ class AppWebHud implements AppWebHudController {
 	}
 
 	openVoiceSettings(): void {
-		this.#settingsPane.setTab("voice")
-		this.setDocked("settings", false)
-		this.#settingsPane.requestRender()
+		this.#setVoiceSettingsOpen(true)
+		this.#viewport.hud.relayout()
+		this.#voiceHud.openSettings()
+		this.#voiceHud.requestRender()
+	}
+
+	#setVoiceSettingsOpen(open: boolean): void {
+		if (this.#voiceSettingsOpen === open) return
+		this.#voiceSettingsOpen = open
+		if (!open) this.#viewport.hud.clearSurfaceRect(this.#voiceHud)
+		this.#viewport.hud.relayout()
+		this.#voiceHud.requestRender()
 	}
 
 	relayout(): void {
@@ -2575,7 +2651,10 @@ class AppWebHud implements AppWebHudController {
 	#createVoiceHud(): VoiceInputHud {
 		return new VoiceInputHud({
 			onToggle: () => void this.#toggleVoice(),
+			onMove: (rect) => writeStoredRect(VOICE_SETTINGS_RECT_STORAGE_KEY, rect),
+			settingsPresentation: "panel",
 			onPulseFrame: () => this.#codexComposer.requestRender(),
+			onSettingsOpenChange: (open) => this.#setVoiceSettingsOpen(open),
 			settings: () => this.#voiceSettings(),
 			onFullStop: () => this.#stopVoice(),
 			onAddPhrase: (groupId, phrase) => this.#addVoicePhrase(groupId, phrase),
@@ -2626,6 +2705,7 @@ class AppWebHud implements AppWebHudController {
 			onTransport: (transport) => this.#handleVoiceTransport(transport),
 			onStatus: (status, detail) => this.#handleVoiceStatus(status, detail),
 			onWake: (text) => {
+				this.#claimVoiceLeaseForActivation()
 				const cleaned = cleanupVoiceInputText(text)
 				if (cleaned) this.#recordVoiceWakePreview(cleaned)
 				this.#updateVoiceHud("connecting", readVoiceInputUrl())
@@ -2646,6 +2726,8 @@ class AppWebHud implements AppWebHudController {
 		const client = this.#ensureVoiceClient()
 		try {
 			if (readCodexVoiceP2PEnabled()) primeVoiceRtcRelayAudio()
+			if (!this.#documentHasLocalVoiceFocus()) return
+			if (!client.active || client.status === "waitingWake") this.#claimVoiceLeaseForManualStart()
 			if (client.active) {
 				if (client.status === "waitingWake") {
 					this.#voiceAutoWakePaused = false
@@ -2682,6 +2764,7 @@ class AppWebHud implements AppWebHudController {
 
 	#stopVoice(): void {
 		this.#pauseVoiceAutoWake()
+		this.#onVoiceLeaseRelease("stop")
 		this.#voiceNextFlushMode = "draft"
 		const wasActive = this.#voiceClient?.active === true
 		this.#voiceClient?.stop(VOICE_STOP_COMMAND_DETAIL)
@@ -2698,6 +2781,12 @@ class AppWebHud implements AppWebHudController {
 		const transportError = status === "error" && isVoiceServiceErrorText(detail)
 		this.#setVoiceDictationActive(voiceStatusNeedsRenderHold(status))
 		if (status === "idle" && detail === VOICE_STOP_COMMAND_DETAIL) this.#voiceAutoWakePaused = true
+		if (status === "waitingWake" && (previousStatus === "listening" || previousStatus === "committing")) {
+			this.#onVoiceLeaseRelease("waiting-wake")
+		}
+		if (status === "idle" && previousStatus !== "idle") {
+			this.#onVoiceLeaseRelease("idle")
+		}
 		if (transportError) {
 			this.#pauseVoiceAutoWake()
 			this.#discardVoiceAutoSendBuffer()
@@ -2848,7 +2937,7 @@ class AppWebHud implements AppWebHudController {
 	}
 
 	#scheduleVoiceAutoWake(delayMs = 0): void {
-		if (!this.#documentCanOwnVoice()) return
+		if (!this.#documentHasLocalVoiceFocus()) return
 		if (this.#voiceAutoWakePaused || this.#voiceAutoWakeTimer !== null) return
 		this.#voiceAutoWakeTimer = window.setTimeout(() => {
 			this.#voiceAutoWakeTimer = null
@@ -2864,7 +2953,7 @@ class AppWebHud implements AppWebHudController {
 	}
 
 	async #ensureVoiceAutoWake(): Promise<void> {
-		if (!this.#documentCanOwnVoice()) return
+		if (!this.#documentHasLocalVoiceFocus()) return
 		if (this.#voiceAutoWakePaused || this.#voiceAutoWakeInFlight) return
 		if (this.#shouldUseVoiceRtcRelayServiceProbe()) {
 			this.#markVoiceRtcRelayServiceProbe()
@@ -3100,7 +3189,7 @@ class AppWebHud implements AppWebHudController {
 		const client = this.#ensureVoiceClient()
 		if (client.active) return true
 		if (client.status === "error") client.reset()
-		if (!this.#documentCanOwnVoice()) return false
+		if (!this.#documentHasLocalVoiceFocus()) return false
 		if (this.#terminal.socket?.readyState !== WebSocket.OPEN) {
 			if (reportErrors) this.#flashVoiceHudError("Codex terminal не подключен")
 			return false
@@ -3119,7 +3208,10 @@ class AppWebHud implements AppWebHudController {
 			return true
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error)
-			if (/permission denied|notallowederror|not allowed/i.test(message)) this.#pauseVoiceAutoWake()
+			if (/permission denied|notallowederror|not allowed/i.test(message)) {
+				this.#pauseVoiceAutoWake()
+				this.#onVoiceLeaseRelease("permission-denied")
+			}
 			if (reportErrors) this.#flashVoiceHudError(message)
 			else this.#handleVoiceStatus("error", message)
 			return false
@@ -3135,7 +3227,8 @@ class AppWebHud implements AppWebHudController {
 	}
 
 	#handleDocumentVisibilityChange(): void {
-		if (!this.#documentCanOwnVoice()) {
+		if (!this.#documentHasLocalVoiceFocus()) {
+			this.#onVoiceLeaseRelease("inactive")
 			this.#suspendVoiceForInactiveDocument()
 			return
 		}
@@ -3157,9 +3250,80 @@ class AppWebHud implements AppWebHudController {
 		}
 	}
 
-	#documentCanOwnVoice(): boolean {
-		const focused = typeof document.hasFocus === "function" ? document.hasFocus() : true
-		return focused && document.visibilityState === "visible" && !document.hidden
+	#suspendVoiceDictationForRemoteLease(): void {
+		if (this.#voiceAutoWakeTimer !== null) {
+			window.clearTimeout(this.#voiceAutoWakeTimer)
+			this.#voiceAutoWakeTimer = null
+		}
+		if (this.#voiceAutoWakeInFlight) return
+		const client = this.#voiceClient
+		if (client?.active !== true || client.status === "waitingWake") return
+		this.#voiceNextFlushMode = "draft"
+		client.stop("remote voice active")
+		this.#discardVoiceAutoSendBuffer()
+		this.#clearVoicePartialPreview()
+		this.#clearVoiceWakePreview()
+	}
+
+	#documentHasLocalVoiceFocus(): boolean {
+		if (document.visibilityState !== "visible" || document.hidden) return false
+		if (isAndroidBrowser()) return true
+		return typeof document.hasFocus === "function" ? document.hasFocus() : true
+	}
+
+	#ownsVoiceLease(): boolean {
+		return this.#voiceLeaseOwnerId === this.#voiceClientId && this.#voiceLeaseExpiresAt > Date.now()
+	}
+
+	#claimVoiceLeaseForManualStart(): void {
+		if (!this.#ownsVoiceLease()) {
+			this.#voiceLeaseOwnerId = this.#voiceClientId
+			this.#voiceLeaseExpiresAt = Date.now() + VOICE_LEASE_LOCAL_TTL_MS
+			this.#codexComposer.requestRender()
+			this.#voiceHud.requestRender()
+		}
+		this.#onVoiceLeaseRequest("manual")
+		this.#scheduleVoiceLeaseHeartbeat()
+	}
+
+	#claimVoiceLeaseForActivation(): void {
+		if (!this.#ownsVoiceLease()) {
+			this.#voiceLeaseOwnerId = this.#voiceClientId
+			this.#voiceLeaseExpiresAt = Date.now() + VOICE_LEASE_LOCAL_TTL_MS
+			this.#codexComposer.requestRender()
+			this.#voiceHud.requestRender()
+		}
+		this.#onVoiceLeaseRequest("activation")
+		this.#scheduleVoiceLeaseHeartbeat()
+	}
+
+	#voiceLeaseDebugSnapshot(): AppVoiceLeaseDebugSnapshot {
+		const client = this.#voiceClient
+		return {
+			clientId: this.#voiceClientId,
+			ownerId: this.#voiceLeaseOwnerId,
+			expiresInMs: Math.max(0, this.#voiceLeaseExpiresAt - Date.now()),
+			owns: this.#ownsVoiceLease(),
+			localFocus: this.#documentHasLocalVoiceFocus(),
+			voiceStatus: client?.status ?? "idle",
+			voiceActive: client?.active === true,
+		}
+	}
+
+	#scheduleVoiceLeaseHeartbeat(): void {
+		if (this.#voiceLeaseHeartbeatTimer !== null || !this.#ownsVoiceLease()) return
+		this.#voiceLeaseHeartbeatTimer = window.setTimeout(() => {
+			this.#voiceLeaseHeartbeatTimer = null
+			if (!this.#documentHasLocalVoiceFocus() || !this.#ownsVoiceLease()) return
+			this.#onVoiceLeaseRequest("heartbeat")
+			this.#scheduleVoiceLeaseHeartbeat()
+		}, 4_000)
+	}
+
+	#clearVoiceLeaseHeartbeat(): void {
+		if (this.#voiceLeaseHeartbeatTimer === null) return
+		window.clearTimeout(this.#voiceLeaseHeartbeatTimer)
+		this.#voiceLeaseHeartbeatTimer = null
 	}
 
 	#codexRect(bounds: {w: number; h: number}): UiSurfaceRect {
@@ -3352,6 +3516,20 @@ class AppWebHud implements AppWebHudController {
 		}
 	}
 
+	#voiceSettingsRect(bounds: {w: number; h: number}): UiSurfaceRect {
+		if (!this.#voiceSettingsOpen) return hiddenRect()
+		if (bounds.w < 80 || bounds.h < 80) return hiddenRect()
+		const margin = VOICE_SETTINGS_MARGIN
+		const w = Math.min(VOICE_SETTINGS_W, Math.max(1, bounds.w - margin * 2))
+		const h = Math.min(VOICE_SETTINGS_H, Math.max(1, bounds.h - margin * 2))
+		return readStoredRect(VOICE_SETTINGS_RECT_STORAGE_KEY) ?? {
+			x: Math.max(margin, bounds.w - w - margin),
+			y: Math.max(margin, Math.round((bounds.h - h) / 2)),
+			w,
+			h,
+		}
+	}
+
 	#dockRect(kind: DockKind, bounds: {w: number; h: number}): UiSurfaceRect {
 		if (bounds.w < 80 || bounds.h < 80) return hiddenRect()
 		if (!this.isDocked(kind) && !this.dockTransitionActive(kind)) return hiddenRect()
@@ -3375,6 +3553,7 @@ class AppWebCodexComposerPane extends UiSurface {
 	#voiceSettingsPressTimer: number | null = null
 	#voiceSettingsPressStart: {x: number; y: number} | null = null
 	#voiceSettingsLongPressOpened = false
+	#voiceToggleClickTimer: number | null = null
 
 	constructor(private readonly hud: AppWebHud) {
 		super({bgColor: null, borderColor: null})
@@ -3446,7 +3625,7 @@ class AppWebCodexComposerPane extends UiSurface {
 			snapshot: this.hud.voiceButtonSnapshot(),
 			soundPulse: this.hud.voiceSoundPulse(),
 			tooltip: "Голосовой ввод",
-			onClick: () => this.hud.toggleVoiceInput(),
+			onClick: () => this.#queueVoiceToggleClick(),
 		})
 		const rule = paneHeaderRuleRect(w, PANE_FRAME.headerHeight, PANE_FRAME.bodyInsetX)
 		this.drawRect(rule.x, rule.y, rule.w, rule.h, palette.borderDim, Z.SEPARATOR)
@@ -3473,6 +3652,7 @@ class AppWebCodexComposerPane extends UiSurface {
 		this.#voiceSettingsPressTimer = window.setTimeout(() => {
 			this.#voiceSettingsPressTimer = null
 			if (this.#voiceSettingsPressStart === null) return
+			this.#cancelVoiceToggleClick()
 			this.#voiceSettingsLongPressOpened = true
 			this.hud.openVoiceSettings()
 			super.onDeactivate()
@@ -3490,10 +3670,25 @@ class AppWebCodexComposerPane extends UiSurface {
 	#openVoiceSettingsFromButton(event: MouseEvent): void {
 		event.preventDefault()
 		event.stopPropagation()
+		this.#cancelVoiceToggleClick()
 		this.#cancelVoiceSettingsLongPress()
 		this.#voiceSettingsLongPressOpened = false
 		this.hud.openVoiceSettings()
 		super.onDeactivate()
+	}
+
+	#queueVoiceToggleClick(): void {
+		this.#cancelVoiceToggleClick()
+		this.#voiceToggleClickTimer = window.setTimeout(() => {
+			this.#voiceToggleClickTimer = null
+			this.hud.toggleVoiceInput()
+		}, VOICE_TOGGLE_CLICK_DELAY_MS)
+	}
+
+	#cancelVoiceToggleClick(): void {
+		if (this.#voiceToggleClickTimer === null) return
+		window.clearTimeout(this.#voiceToggleClickTimer)
+		this.#voiceToggleClickTimer = null
 	}
 
 	#drawTransportIndicator(x: number, y: number, w: number, h: number): void {
@@ -3648,11 +3843,15 @@ class AppWebCodexComposerPane extends UiSurface {
 
 	override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
 		if (this.#voiceButtonHit(localX, localY)) {
+			if (event.button === 0 && event.detail >= 2) {
+				this.#openVoiceSettingsFromButton(event)
+				return
+			}
 			if (event.button === 2 || (event.ctrlKey && event.button === 0)) {
 				this.#openVoiceSettingsFromButton(event)
 				return
 			}
-			if (event.button === 0) this.#beginVoiceSettingsLongPress(localX, localY)
+			if (event.button === 0 && (isAndroidBrowser() || isTouchPointerEvent(event))) this.#beginVoiceSettingsLongPress(localX, localY)
 		}
 		super.onPointerDown(event, localX, localY)
 		if (this.pressedHit !== null) return
@@ -3700,6 +3899,7 @@ class AppWebCodexComposerPane extends UiSurface {
 	override onDeactivate(): void {
 		this.#frameDrag = null
 		this.#cancelVoiceSettingsLongPress()
+		this.#cancelVoiceToggleClick()
 		this.#voiceSettingsLongPressOpened = false
 		super.onDeactivate()
 	}
@@ -3789,7 +3989,6 @@ class AppWebSettingsPane extends UiSurface {
 			{id: "scene", label: "Сцена"},
 			{id: "geometry", label: "Геометрия"},
 			{id: "render", label: "Рендер"},
-			{id: "voice", label: "Голос"},
 		]
 		const gap = 6
 		const tabW = Math.max(1, (w - gap * (tabs.length - 1)) / tabs.length)
@@ -3826,9 +4025,7 @@ class AppWebSettingsPane extends UiSurface {
 			y = this.#drawSection("Детализация", ["detailDensityFactor", "detailLevelMultiplier", "baseDepth", "wireframeOpacity"], x, y, w)
 			y = this.#drawSection("Тор", ["torusCrossRingRotationDeg", "torusRadialSegments", "torusTubularSegments"], x, y, w)
 			this.#drawSection("Подписи", ["labelVisibleLevels", "labelFontSizeMm", "labelSurfaceOffsetMm"], x, y, w)
-			return
 		}
-		this.#renderVoice(x, y, w)
 	}
 
 	#renderScene(x: number, y: number, w: number): number {
@@ -4010,7 +4207,7 @@ class AppWebSettingsPane extends UiSurface {
 			const sectionHeight = (rows: number): number => 19 + rows * 46 + 14
 			return 4 + sectionHeight(1) + sectionHeight(4) + sectionHeight(3) + sectionHeight(3)
 		}
-		return 560 + this.hud.voicePhraseGroups().reduce((height, group) => height + Math.ceil(group.phrases.length / 2) * 26, 0)
+		return 244
 	}
 
 	#frameInteractionOpts(): PaneFrameInteractionOpts {

@@ -57,7 +57,7 @@ type VoiceRtcRelayPeer = {
 const VOICE_RTC_ROOM = "app-web-voice"
 const VOICE_RTC_RELAY_PEER_PREFIX = "voice-relay"
 const VOICE_RTC_APP_PEER_PREFIX = "app-web-voice"
-const VOICE_RTC_CONNECT_TIMEOUT_MS = 8000
+const VOICE_RTC_CONNECT_TIMEOUT_MS = 15_000
 const VOICE_RTC_MEDIA_TIMEOUT_MS = 5000
 const VOICE_RTC_ASR_TEXT_TIMEOUT_MS = 18_000
 const VOICE_RTC_RELAY_RECONNECT_MS = 1000
@@ -322,6 +322,10 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 
 	#startFallback(reason = "fallback"): void {
 		if (this.#fallbackWs !== null || this.#readyState === WebSocket.CLOSING || this.#readyState === WebSocket.CLOSED) return
+		if (isVoiceRtcRemoteClient() && isLoopbackUrl(this.url)) {
+			this.#failRemoteLoopbackFallback(reason)
+			return
+		}
 		updateVoiceRtcDebug({state: "fallback", fallbackReason: reason})
 		this.#clearConnectTimer()
 		this.#clearMediaTimer()
@@ -350,6 +354,24 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 			this.#context.onTransport("idle")
 			this.dispatchEvent(new CloseEvent("close"))
 		})
+	}
+
+	#failRemoteLoopbackFallback(reason: string): void {
+		const detail = `${reason}; desktop voice relay unavailable for ${this.url}`
+		updateVoiceRtcDebug({state: "error", fallbackReason: detail})
+		this.#clearConnectTimer()
+		this.#clearMediaTimer()
+		this.#clearAsrTextTimer()
+		this.#channel?.close()
+		this.#channel = null
+		this.#connection?.close()
+		this.#connection = null
+		this.#signalSocket?.close()
+		this.#signalSocket = null
+		this.#readyState = WebSocket.CLOSED
+		this.#context.onTransport("idle")
+		this.dispatchEvent(new Event("error"))
+		this.dispatchEvent(new CloseEvent("close"))
 	}
 
 	#sendSignal(payload: Record<string, unknown>): void {
@@ -957,6 +979,15 @@ function isLikelyAndroidBrowser(): boolean {
 	if (typeof navigator === "undefined") return false
 	const nav = navigator as NavigatorWithUserAgentData
 	return /android/i.test(`${nav.userAgent} ${nav.userAgentData?.platform ?? ""}`)
+}
+
+function isLoopbackUrl(rawUrl: string): boolean {
+	try {
+		const url = new URL(rawUrl, location.href)
+		return url.hostname === "127.0.0.1" || url.hostname === "localhost" || url.hostname === "::1" || url.hostname === "[::1]"
+	} catch {
+		return false
+	}
 }
 
 function parseSignal(raw: string): VoiceRtcSignal | null {

@@ -13,7 +13,14 @@ export type ClientRelayoutPayload = {
 	layoutSettings?: Partial<BulkLayoutSettings>
 }
 
-export type ClientMessage = ClientMaterializePayload | ClientRelayoutPayload
+export type ClientVoiceLeasePayload = {
+	type: "hud-voice-lease"
+	action: "request" | "release"
+	clientId: string
+	reason?: string
+}
+
+export type ClientMessage = ClientMaterializePayload | ClientRelayoutPayload | ClientVoiceLeasePayload
 
 export type ServerSnapshotPayload = {
 	type: "snapshot"

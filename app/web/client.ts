@@ -59,6 +59,14 @@ type HudNetworkTerminalMessage = {
 	command: AppWebNetworkTerminalCommand
 }
 
+type HudVoiceLeaseMessage = {
+	type: "hud-voice-lease"
+	ownerId: string | null
+	expiresAt: number
+	ttlMs?: number
+	reason?: string
+}
+
 type ClientMaterializePayload = {
 	type: "materialize"
 	src: string
@@ -99,9 +107,11 @@ let pendingSceneState: {layoutSettings: Partial<AppWebLayoutSettings>; src: stri
 let voiceDictationActive = false
 
 const APP_WEB_UI_SETTINGS_LOAD_TIMEOUT_MS = 1_200
+const APP_WEB_VOICE_CLIENT_ID_STORAGE_KEY = "metafor.app-web.voice.clientId:v1"
 
 const socketScheme = window.location.protocol === "https:" ? "wss:" : "ws:"
 const socket = new WebSocket(`${socketScheme}//${window.location.host}/ws`)
+const voiceClientId = readVoiceClientId()
 
 const updateBulkStats = (stats: BulkViewportStats): void => {
 	hud?.setStats(stats)
@@ -111,6 +121,16 @@ const setVoiceDictationActive = (active: boolean): void => {
 	if (voiceDictationActive === active) return
 	voiceDictationActive = active
 	bulkViewport?.setAnimationSuspended(active)
+}
+
+const sendVoiceLease = (action: "request" | "release", reason: string): void => {
+	if (socket.readyState !== WebSocket.OPEN) return
+	socket.send(JSON.stringify({
+		type: "hud-voice-lease",
+		action,
+		clientId: voiceClientId,
+		reason,
+	}))
 }
 
 const applySnapshotWorld = (
@@ -272,6 +292,23 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: s
 	}
 }
 
+function readVoiceClientId(): string {
+	try {
+		const existing = sessionStorage.getItem(APP_WEB_VOICE_CLIENT_ID_STORAGE_KEY)
+		if (existing !== null && existing.length > 0) return existing
+		const next = `app-web-client-${randomClientId()}`
+		sessionStorage.setItem(APP_WEB_VOICE_CLIENT_ID_STORAGE_KEY, next)
+		return next
+	} catch {
+		return `app-web-client-${randomClientId()}`
+	}
+}
+
+function randomClientId(): string {
+	if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID()
+	return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
+}
+
 const showBootOverlay = (title: string, detail?: string, retry = false): void => {
 	const safeDetail = detail?.trim()
 	bootOverlay.innerHTML = ""
@@ -370,12 +407,15 @@ const initBulkViewport = async (): Promise<void> => {
 	markAppWebBoot("client:hud:start")
 	hud = installAppWebHud({
 		viewport: bulkViewport,
+		voiceClientId,
 		initialSrc: activeSrc,
 		initialSettings: activeSettings,
 		onApply: applyHudRequest,
 		onRenderSettingsChange: applyRenderSettingsFromHud,
 		onSettingsPersist: schedulePersistUiSettings,
 		onVoiceDictationActiveChange: setVoiceDictationActive,
+		onVoiceLeaseRequest: (reason) => sendVoiceLease("request", reason),
+		onVoiceLeaseRelease: (reason) => sendVoiceLease("release", reason),
 	})
 	markAppWebBoot("client:hud:done")
 	hideBootOverlay()
@@ -419,12 +459,14 @@ void initBulkViewport().catch((error) => {
 
 socket.onopen = () => {
 	hud?.setConnectionStatus(true)
+	hud?.syncVoiceLease("socket-open")
 	requestInitialMaterialization()
 }
 
 socket.onclose = () => {
 	hud?.setConnectionStatus(false)
 	hud?.setBusy(true)
+	hud?.setVoiceLease(null, 0)
 }
 
 type ActorRowsMessage = {
@@ -512,7 +554,7 @@ const applyForcePartToSnapshot = (snapshot: BoundaryBulkRuntimeSnapshot, part: P
 }
 
 socket.onmessage = (event) => {
-	const message = JSON.parse(String(event.data)) as ForceMessage | SnapshotMessage | ErrorMessage | TodoChangedMessage | HudAndroidControlMessage | HudNetworkTerminalMessage
+	const message = JSON.parse(String(event.data)) as ForceMessage | SnapshotMessage | ErrorMessage | TodoChangedMessage | HudAndroidControlMessage | HudNetworkTerminalMessage | HudVoiceLeaseMessage
 
 	if (message.type === "force") {
 		const forceMessage = message as ForceMessage
@@ -565,6 +607,11 @@ socket.onmessage = (event) => {
 			return
 		}
 		hud.showNetworkTerminal(message.command)
+		return
+	}
+
+	if (message.type === "hud-voice-lease") {
+		hud?.setVoiceLease(message.ownerId, message.expiresAt, message.ttlMs)
 		return
 	}
 }

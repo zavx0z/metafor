@@ -16,6 +16,7 @@ import type {
 	ClientMessage,
 	ClientMaterializePayload,
 	ClientRelayoutPayload,
+	ClientVoiceLeasePayload,
 	ServerSnapshotPayload,
 } from "./server.t.ts"
 import {DEFAULT_APP_WEB_SCENE_SRC} from "./app-config.ts"
@@ -26,7 +27,11 @@ type RtcSignalSocketData = {
 	peerId: string
 	connectedAt: number
 }
-type AppWebSocketData = {kind: "app-web"} | ({kind: "terminal"} & PtySocketData) | RtcSignalSocketData
+type AppWebClientSocketData = {
+	kind: "app-web"
+	voiceClientId?: string
+}
+type AppWebSocketData = AppWebClientSocketData | ({kind: "terminal"} & PtySocketData) | RtcSignalSocketData
 type TodoMarkdownPayload = {
 	ok: true
 	path: string
@@ -114,6 +119,9 @@ const CODEX_ATTACHMENT_MAX_BYTES = 16 * 1024 * 1024
 const CODEX_ATTACHMENT_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".heic", ".heif", ".tif", ".tiff", ".bmp", ".svg"])
 const NETWORK_TMUX_SESSION = Bun.env.NETWORK_TMUX_SESSION ?? "metafor-app-web-net"
 const NETWORK_TMUX_WINDOW = Bun.env.NETWORK_TMUX_WINDOW ?? "network"
+const VOICE_LEASE_TTL_MS = 12_000
+let voiceLeaseOwnerId: string | null = null
+let voiceLeaseExpiresAt = 0
 const SOURCE_FILE_EXTENSIONS = new Set([
 	".css",
 	".cts",
@@ -401,6 +409,7 @@ const server = serve<AppWebSocketData>({
 				sockets.add(ws)
 				appLog("WS", "app client opened", `clients=${sockets.size}`, "green")
 				sendPendingNetworkTerminalCommand(ws)
+				sendVoiceLeaseSnapshot(ws, "connect")
 			},
 		message(ws, message) {
 			if (ws.data.kind === "rtc-signal") {
@@ -431,6 +440,11 @@ const server = serve<AppWebSocketData>({
 			}
 
 			if (!payload || typeof payload !== "object" || typeof payload.type !== "string") {
+				return
+			}
+
+			if (payload.type === "hud-voice-lease") {
+				handleVoiceLeaseMessage(ws, payload)
 				return
 			}
 
@@ -465,6 +479,7 @@ const server = serve<AppWebSocketData>({
 				return
 			}
 			sockets.delete(ws)
+			if (ws.data.voiceClientId !== undefined) releaseVoiceLease(ws.data.voiceClientId, "disconnect")
 			appLog("WS", "app client closed", `clients=${sockets.size}`, "gray")
 		},
 	},
@@ -791,6 +806,73 @@ async function broadcastNetworkTerminalResponse(req: Request, fallbackAction: Ne
 function sendPendingNetworkTerminalCommand(ws: ServerWebSocket<AppWebSocketData>): void {
 	if (ws.data.kind !== "app-web" || pendingNetworkTerminalCommand === null || ws.readyState !== WebSocket.OPEN) return
 	ws.send(JSON.stringify({type: "hud-network-terminal", command: pendingNetworkTerminalCommand}))
+}
+
+function handleVoiceLeaseMessage(ws: ServerWebSocket<AppWebSocketData>, payload: ClientVoiceLeasePayload): void {
+	if (ws.data.kind !== "app-web") return
+	const clientId = sanitizeVoiceClientId(payload.clientId)
+	if (clientId === null) return
+	ws.data.voiceClientId = clientId
+	if (payload.action === "release") {
+		releaseVoiceLease(clientId, payload.reason ?? "release")
+		return
+	}
+	const now = Date.now()
+	if (voiceLeaseOwnerId !== null && voiceLeaseExpiresAt <= now) {
+		voiceLeaseOwnerId = null
+		voiceLeaseExpiresAt = 0
+	}
+	if (voiceLeaseOwnerId === null || voiceLeaseOwnerId === clientId || voiceLeaseTakeoverAllowed(payload.reason)) {
+		const previousOwnerId = voiceLeaseOwnerId
+		const ownerChanged = previousOwnerId !== clientId
+		voiceLeaseOwnerId = clientId
+		voiceLeaseExpiresAt = now + VOICE_LEASE_TTL_MS
+		if (ownerChanged || payload.reason !== "heartbeat") {
+			const takeover = previousOwnerId !== null && previousOwnerId !== clientId ? ` prev=${shortId(previousOwnerId)}` : ""
+			appLog("VOICE", "lease", `owner=${shortId(clientId)}${takeover} reason=${payload.reason ?? payload.action}`, "cyan")
+		}
+		broadcastVoiceLease(payload.reason ?? payload.action)
+		return
+	}
+	sendVoiceLeaseSnapshot(ws, payload.reason ?? "busy")
+}
+
+function voiceLeaseTakeoverAllowed(reason: string | undefined): boolean {
+	return reason === "manual" || reason === "activation" || reason === "android-wake"
+}
+
+function releaseVoiceLease(clientId: string, reason: string): void {
+	if (voiceLeaseOwnerId !== clientId) return
+	voiceLeaseOwnerId = null
+	voiceLeaseExpiresAt = 0
+	appLog("VOICE", "lease", `owner=- released=${shortId(clientId)} reason=${reason}`, "gray")
+	broadcastVoiceLease(reason)
+}
+
+function broadcastVoiceLease(reason: string): void {
+	const message = voiceLeaseMessage(reason)
+	for (const socket of sockets) {
+		if (socket.data.kind === "app-web" && socket.readyState === WebSocket.OPEN) socket.send(message)
+	}
+}
+
+function sendVoiceLeaseSnapshot(ws: ServerWebSocket<AppWebSocketData>, reason: string): void {
+	if (ws.data.kind !== "app-web" || ws.readyState !== WebSocket.OPEN) return
+	ws.send(voiceLeaseMessage(reason))
+}
+
+function voiceLeaseMessage(reason: string): string {
+	if (voiceLeaseOwnerId !== null && voiceLeaseExpiresAt <= Date.now()) {
+		voiceLeaseOwnerId = null
+		voiceLeaseExpiresAt = 0
+	}
+	return JSON.stringify({
+		type: "hud-voice-lease",
+		ownerId: voiceLeaseOwnerId,
+		expiresAt: voiceLeaseOwnerId === null ? 0 : voiceLeaseExpiresAt,
+		ttlMs: voiceLeaseOwnerId === null ? 0 : Math.max(0, voiceLeaseExpiresAt - Date.now()),
+		reason,
+	})
 }
 
 function asNetworkTerminalCommand(body: Record<string, unknown>, fallbackAction: NetworkTerminalAction): NetworkTerminalCommand {
@@ -1269,6 +1351,12 @@ function sendRtcJson(ws: ServerWebSocket<AppWebSocketData>, payload: Record<stri
 function sanitizeRtcId(value: string): string | null {
 	const normalized = value.trim()
 	if (!/^[A-Za-z0-9_.:-]{1,96}$/.test(normalized)) return null
+	return normalized
+}
+
+function sanitizeVoiceClientId(value: string): string | null {
+	const normalized = value.trim()
+	if (!/^[A-Za-z0-9_.:-]{1,128}$/.test(normalized)) return null
 	return normalized
 }
 

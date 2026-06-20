@@ -273,7 +273,7 @@ async function sleepStartDelay(): Promise<void> {
 
 async function openNetworkDisplay(): Promise<void> {
   if (process.env.NETWORK_TMUX_OPEN_DISPLAY === "0") return
-  const url = networkDisplayShowUrl()
+  const url = networkDisplayDockUrl()
   const attempts = Number(process.env.NETWORK_TMUX_OPEN_DISPLAY_ATTEMPTS ?? 40)
   for (let index = 0; index < Math.max(1, attempts); index += 1) {
     if (index === 0) await Bun.sleep(450)
@@ -285,17 +285,17 @@ async function openNetworkDisplay(): Promise<void> {
       return
     }
   }
-  console.error("network display was not opened")
+  console.error("network display was not docked")
 }
 
-function networkDisplayShowUrl(): string {
+function networkDisplayDockUrl(): string {
   if (mode === "dev") {
     const port = Number(process.env.INTERPRETER_HTTP_PORT ?? 6500)
-    return `http://127.0.0.1:${port}/hud/terminal/network/show`
+    return `http://127.0.0.1:${port}/hud/terminal/network/dock`
   }
   const port = Number(process.env.PORT ?? 443)
   const suffix = port === 443 ? "" : `:${port}`
-  return `https://127.0.0.1${suffix}/hud/terminal/network/show`
+  return `https://127.0.0.1${suffix}/hud/terminal/network/dock`
 }
 
 function appPublicUrl(): string {
