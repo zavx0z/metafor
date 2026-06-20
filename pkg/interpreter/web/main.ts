@@ -886,17 +886,21 @@ for (const link of Array.from(document.querySelectorAll<HTMLLinkElement>('link[r
 }
 
 window.addEventListener("beforeunload", () => {
+  suspendVoiceForInactiveDocument()
   stopNetworkStatusRefresh({abort: true})
   flushInterpreterViewPointStorage()
   flushInterpreterDisplayPositionsStorage()
 })
+window.addEventListener("pagehide", () => suspendVoiceForInactiveDocument())
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") {
+    suspendVoiceForInactiveDocument()
     stopNetworkStatusRefresh({abort: true})
     flushInterpreterViewPointStorage()
     flushInterpreterDisplayPositionsStorage()
     return
   }
+  if (!voiceAutoWakePaused) scheduleVoiceAutoWake(250)
   syncNetworkStatusRefresh()
   refreshVisibleSqliteAfterSkippedServerEvent()
 })
@@ -4787,6 +4791,7 @@ async function startVoiceWake(reportErrors: boolean): Promise<boolean> {
   const client = ensureVoiceInputClient()
   if (client.active) return true
   if (client.status === "error") client.reset()
+  if (!documentCanOwnVoice()) return false
 
   if (voiceActiveTarget === null || !voiceTargetCanAcceptInput(voiceActiveTarget)) {
     if (reportErrors) flashVoiceHudError(t("voiceNoActiveInput"))
@@ -4812,6 +4817,7 @@ async function startVoiceWake(reportErrors: boolean): Promise<boolean> {
 }
 
 function scheduleVoiceAutoWake(delayMs = 0): void {
+  if (!documentCanOwnVoice()) return
   if (voiceAutoWakePaused || voiceAutoWakeTimer !== null) return
   voiceAutoWakeTimer = window.setTimeout(() => {
     voiceAutoWakeTimer = null
@@ -4827,6 +4833,7 @@ function pauseVoiceAutoWake(): void {
 }
 
 async function ensureVoiceAutoWake(): Promise<void> {
+  if (!documentCanOwnVoice()) return
   if (voiceAutoWakePaused || voiceAutoWakeInFlight) return
   if (voiceActiveTarget === null && hostTerminal !== null) setVoiceActiveTarget({kind: "host", controller: hostTerminal})
   const client = ensureVoiceInputClient()
@@ -4839,6 +4846,26 @@ async function ensureVoiceAutoWake(): Promise<void> {
   } finally {
     voiceAutoWakeInFlight = false
   }
+}
+
+function suspendVoiceForInactiveDocument(): void {
+  if (voiceAutoWakeTimer !== null) {
+    window.clearTimeout(voiceAutoWakeTimer)
+    voiceAutoWakeTimer = null
+  }
+  if (voiceAutoWakeInFlight) return
+  if (voiceInputClient?.active === true) {
+    voiceNextFlushMode = "draft"
+    voiceInputClient.stop("document hidden")
+    discardVoiceAutoSendBuffer()
+    clearVoicePartialPreview()
+    clearVoiceWakePreview()
+    renderVoiceHud()
+  }
+}
+
+function documentCanOwnVoice(): boolean {
+  return document.visibilityState === "visible" && !document.hidden
 }
 
 function handleVoiceInputChunk(chunk: VoiceInputChunk): void {

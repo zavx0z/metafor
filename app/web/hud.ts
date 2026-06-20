@@ -792,6 +792,8 @@ class AppWebHud implements AppWebHudController {
 		document.addEventListener("dragover", this.#codexDragOver, {capture: true})
 		document.addEventListener("drop", this.#codexDrop, {capture: true})
 		document.addEventListener("dragleave", this.#codexDragLeave, {capture: true})
+		document.addEventListener("visibilitychange", () => this.#handleDocumentVisibilityChange())
+		window.addEventListener("pagehide", () => this.#suspendVoiceForInactiveDocument())
 		this.#connectTerminal()
 		this.#connectAndroidRtc()
 		this.#updateNetworkWatchPane()
@@ -2844,6 +2846,7 @@ class AppWebHud implements AppWebHudController {
 	}
 
 	#scheduleVoiceAutoWake(delayMs = 0): void {
+		if (!this.#documentCanOwnVoice()) return
 		if (this.#voiceAutoWakePaused || this.#voiceAutoWakeTimer !== null) return
 		this.#voiceAutoWakeTimer = window.setTimeout(() => {
 			this.#voiceAutoWakeTimer = null
@@ -2859,6 +2862,7 @@ class AppWebHud implements AppWebHudController {
 	}
 
 	async #ensureVoiceAutoWake(): Promise<void> {
+		if (!this.#documentCanOwnVoice()) return
 		if (this.#voiceAutoWakePaused || this.#voiceAutoWakeInFlight) return
 		if (this.#shouldUseVoiceRtcRelayServiceProbe()) {
 			this.#markVoiceRtcRelayServiceProbe()
@@ -3094,6 +3098,7 @@ class AppWebHud implements AppWebHudController {
 		const client = this.#ensureVoiceClient()
 		if (client.active) return true
 		if (client.status === "error") client.reset()
+		if (!this.#documentCanOwnVoice()) return false
 		if (this.#terminal.socket?.readyState !== WebSocket.OPEN) {
 			if (reportErrors) this.#flashVoiceHudError("Codex terminal не подключен")
 			return false
@@ -3125,6 +3130,33 @@ class AppWebHud implements AppWebHudController {
 		this.#voiceAutoWakePaused = false
 		client.stop()
 		this.#scheduleVoiceAutoWake()
+	}
+
+	#handleDocumentVisibilityChange(): void {
+		if (!this.#documentCanOwnVoice()) {
+			this.#suspendVoiceForInactiveDocument()
+			return
+		}
+		if (!this.#voiceAutoWakePaused) this.#scheduleVoiceAutoWake(250)
+	}
+
+	#suspendVoiceForInactiveDocument(): void {
+		if (this.#voiceAutoWakeTimer !== null) {
+			window.clearTimeout(this.#voiceAutoWakeTimer)
+			this.#voiceAutoWakeTimer = null
+		}
+		if (this.#voiceAutoWakeInFlight) return
+		if (this.#voiceClient?.active === true) {
+			this.#voiceNextFlushMode = "draft"
+			this.#voiceClient.stop("document hidden")
+			this.#discardVoiceAutoSendBuffer()
+			this.#clearVoicePartialPreview()
+			this.#clearVoiceWakePreview()
+		}
+	}
+
+	#documentCanOwnVoice(): boolean {
+		return document.visibilityState === "visible" && !document.hidden
 	}
 
 	#codexRect(bounds: {w: number; h: number}): UiSurfaceRect {
