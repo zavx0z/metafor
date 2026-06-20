@@ -95,9 +95,10 @@ type VoiceRtcDebugGlobal = typeof globalThis & {__metaVoiceRtcDebug?: () => Voic
 type AppFullscreenDebugGlobal = typeof globalThis & {__metaFullscreenDebug?: () => AppFullscreenDebugSnapshot}
 
 type AppFullscreenDebugSnapshot = {
-	state: "idle" | "requesting" | "active" | "exiting" | "failed"
+	state: "idle" | "requesting" | "active" | "fallback" | "exiting" | "failed"
 	target: string
 	error: string
+	fallback: boolean
 	updatedAt: number
 }
 
@@ -105,6 +106,7 @@ let appFullscreenDebug: AppFullscreenDebugSnapshot = {
 	state: "idle",
 	target: "",
 	error: "",
+	fallback: false,
 	updatedAt: 0,
 }
 ;(globalThis as AppFullscreenDebugGlobal).__metaFullscreenDebug = () => ({...appFullscreenDebug})
@@ -368,6 +370,8 @@ const CODEX_COMPOSER_MAX_ATTACHMENT_BYTES = 16 * 1024 * 1024
 const NETWORK_STATUS_REFRESH_MS = 2500
 const CODEX_TITLE = "Codex"
 const CODEX_MODEL = "GPT-5"
+const APP_FULLSCREEN_FALLBACK_CLASS = "metafor-app-fullscreen-fallback"
+const APP_FULLSCREEN_ANDROID_REQUEST_TIMEOUT_MS = 500
 const DOCK_SHORT = 40
 const DOCK_MARGIN = 8
 const DOCK_LONG_PRESS_MS = 320
@@ -402,29 +406,67 @@ type WebkitFullscreenElement = Element & {
 	webkitRequestFullScreen?: () => Promise<void> | void
 }
 
+let appFullscreenFallbackActive = false
+let appFullscreenFallbackOnNativeExitUntil = 0
+
 function appFullscreenElement(): Element | null {
 	const webkitDocument = document as WebkitFullscreenDocument
 	return document.fullscreenElement ?? webkitDocument.webkitFullscreenElement ?? null
 }
 
+function appFullscreenActive(): boolean {
+	return appFullscreenElement() !== null || appFullscreenFallbackActive
+}
+
 async function requestAppFullscreen(): Promise<void> {
 	const targets = fullscreenTargetCandidates()
+	const android = isAndroidBrowser()
 	let lastError: unknown = null
 	writeAppFullscreenDebug({state: "requesting", target: targets[0]?.id || targets[0]?.tagName || "document", error: ""})
 	for (const target of targets) {
 		try {
-			await requestElementFullscreen(target)
+			await requestElementFullscreenWithActivationGuard(target)
 			writeAppFullscreenDebug({state: "active", target: target.id || target.tagName || "element", error: ""})
 			return
 		} catch (error) {
 			lastError = error
+			if (android) break
 		}
 	}
 	throw lastError ?? new Error("fullscreen request failed")
 }
 
+async function waitForAppFullscreenActivation(timeoutMs = 300): Promise<boolean> {
+	if (appFullscreenElement() !== null) return true
+	const startedAt = performance.now()
+	while (performance.now() - startedAt < timeoutMs) {
+		await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+		if (appFullscreenElement() !== null) return true
+	}
+	return appFullscreenElement() !== null
+}
+
+async function requestElementFullscreenWithActivationGuard(target: Element): Promise<void> {
+	const request = requestElementFullscreen(target)
+	if (!isAndroidBrowser()) {
+		await request
+		return
+	}
+	const activated = waitForAppFullscreenActivation(APP_FULLSCREEN_ANDROID_REQUEST_TIMEOUT_MS)
+	await Promise.race([
+		request,
+		activated.then((active) => {
+			if (!active) throw new Error("fullscreen request timed out")
+		}),
+	])
+}
+
 async function requestElementFullscreen(target: Element): Promise<void> {
 	if (target.requestFullscreen !== undefined) {
+		if (isAndroidBrowser()) {
+			await target.requestFullscreen()
+			return
+		}
 		try {
 			await target.requestFullscreen({navigationUI: "hide"} as FullscreenOptions)
 			return
@@ -442,6 +484,8 @@ async function requestElementFullscreen(target: Element): Promise<void> {
 
 async function exitAppFullscreen(): Promise<void> {
 	writeAppFullscreenDebug({state: "exiting", error: ""})
+	appFullscreenFallbackOnNativeExitUntil = 0
+	setAppFullscreenFallback(false, "")
 	const webkitDocument = document as WebkitFullscreenDocument
 	if (document.exitFullscreen !== undefined && document.fullscreenElement !== null) {
 		await document.exitFullscreen()
@@ -451,11 +495,32 @@ async function exitAppFullscreen(): Promise<void> {
 	if (exit !== undefined && webkitDocument.webkitFullscreenElement !== null) await Promise.resolve(exit.call(document))
 }
 
+function setAppFullscreenFallback(active: boolean, reason: string): void {
+	if (appFullscreenFallbackActive === active) return
+	appFullscreenFallbackActive = active
+	document.documentElement.classList.toggle(APP_FULLSCREEN_FALLBACK_CLASS, active)
+	if (document.body !== null) document.body.classList.toggle(APP_FULLSCREEN_FALLBACK_CLASS, active)
+	if (active) {
+		writeAppFullscreenDebug({state: "fallback", target: "css", error: reason, fallback: true})
+	} else {
+		writeAppFullscreenDebug({fallback: false})
+	}
+	requestAppFullscreenFallbackResize()
+}
+
+function requestAppFullscreenFallbackResize(): void {
+	window.dispatchEvent(new Event("resize"))
+	requestAnimationFrame(() => {
+		window.dispatchEvent(new Event("resize"))
+		requestAnimationFrame(() => window.dispatchEvent(new Event("resize")))
+	})
+}
+
 function fullscreenTargetCandidates(): Element[] {
 	const canvas = document.getElementById("bulk-canvas")
 	const body = document.body
 	const root = document.documentElement
-	const preferred: Array<Element | null> = isAndroidBrowser() ? [canvas, root, body] : [root, canvas, body]
+	const preferred: Array<Element | null> = isAndroidBrowser() ? [root, body, canvas] : [root, canvas, body]
 	return uniqueElements(preferred.filter((item): item is Element => item instanceof Element))
 }
 
@@ -475,9 +540,23 @@ function isAndroidBrowser(): boolean {
 	return /android/i.test(`${nav.userAgent} ${nav.userAgentData?.platform ?? ""}`)
 }
 
+function isTouchPointerEvent(event: MouseEvent): boolean {
+	const pointer = event as MouseEvent & {
+		pointerType?: unknown
+		metaforPointerType?: unknown
+		sourceCapabilities?: {firesTouchEvents?: boolean} | null
+	}
+	return pointer.pointerType === "touch" || pointer.metaforPointerType === "touch" || pointer.sourceCapabilities?.firesTouchEvents === true
+}
+
 function isFullscreenOptionsError(error: unknown): boolean {
 	const text = errorMessage(error)
 	return /dictionary|navigationUI|parameter|argument|options|type/i.test(text)
+}
+
+function isFullscreenPermissionError(error: unknown): boolean {
+	const text = errorMessage(error)
+	return /permission|user activation/i.test(text)
 }
 
 function writeAppFullscreenDebug(patch: Partial<AppFullscreenDebugSnapshot>): void {
@@ -564,7 +643,7 @@ class AppWebHud implements AppWebHudController {
 	#networkStatusAutoRefreshEnabled = readStoredBoolean(NETWORK_STATUS_AUTO_REFRESH_STORAGE_KEY, true)
 	#androidRtcClient: AndroidRtcClient | null = null
 	#androidControlStatusUntil = 0
-	#fullscreen = appFullscreenElement() !== null
+	#fullscreen = appFullscreenActive()
 	#voiceClient: VoiceInputClient | null = null
 	#voiceStatus: VoiceInputStatus = "idle"
 	#voiceTransport: VoiceInputTransport = "idle"
@@ -1364,8 +1443,23 @@ class AppWebHud implements AppWebHudController {
 
 	async #toggleFullscreen(): Promise<void> {
 		try {
-			if (appFullscreenElement() === null) await requestAppFullscreen()
-			else await exitAppFullscreen()
+			if (appFullscreenActive()) {
+				await exitAppFullscreen()
+			} else {
+				try {
+					if (isAndroidBrowser()) appFullscreenFallbackOnNativeExitUntil = performance.now() + 1600
+					await requestAppFullscreen()
+					if (!(await waitForAppFullscreenActivation())) {
+						appFullscreenFallbackOnNativeExitUntil = 0
+						setAppFullscreenFallback(true, "native fullscreen did not activate")
+					}
+				} catch (error) {
+					appFullscreenFallbackOnNativeExitUntil = 0
+					if (!isAndroidBrowser()) throw error
+					if (isFullscreenPermissionError(error)) throw error
+					setAppFullscreenFallback(true, errorMessage(error))
+				}
+			}
 		} catch (error) {
 			writeAppFullscreenDebug({state: "failed", error: errorMessage(error)})
 			console.warn("fullscreen toggle failed:", error)
@@ -1374,7 +1468,13 @@ class AppWebHud implements AppWebHudController {
 	}
 
 	#handleFullscreenChange(): void {
-		const next = appFullscreenElement() !== null
+		const nativeActive = appFullscreenElement() !== null
+		if (nativeActive && appFullscreenFallbackActive) setAppFullscreenFallback(false, "")
+		if (!nativeActive && !appFullscreenFallbackActive && appFullscreenFallbackOnNativeExitUntil > performance.now()) {
+			appFullscreenFallbackOnNativeExitUntil = 0
+			setAppFullscreenFallback(true, "native fullscreen exited immediately")
+		}
+		const next = appFullscreenActive()
 		if (next) writeAppFullscreenDebug({state: "active", error: ""})
 		else if (appFullscreenDebug.state !== "failed") writeAppFullscreenDebug({state: "idle", target: "", error: ""})
 		if (this.#fullscreen === next) return
@@ -4094,12 +4194,17 @@ class AppWebDockPane extends UiSurface {
 		startX: number
 		startY: number
 		timer: ReturnType<typeof setTimeout> | null
+		touch: boolean
 	} | null = null
 	#suppressClick = false
 
 	constructor(private readonly hud: AppWebHud, private readonly kind: DockKind) {
 		super({bgColor: null, borderColor: null})
 		this.node.name = `AppWebDockPane:${kind}`
+	}
+
+	preserveNativeTouchActivation(): boolean {
+		return this.kind === "fullscreen" && isAndroidBrowser()
 	}
 
 	protected render(): void {
@@ -4126,6 +4231,7 @@ class AppWebDockPane extends UiSurface {
 			startX: point.x,
 			startY: point.y,
 			timer: null as ReturnType<typeof setTimeout> | null,
+			touch: isTouchPointerEvent(event),
 		}
 		press.timer = setTimeout(() => {
 			if (this.#press !== press) return
@@ -4145,7 +4251,7 @@ class AppWebDockPane extends UiSurface {
 		if (point !== null) {
 			press.lastX = point.x
 			press.lastY = point.y
-			if (!press.dragging && Math.hypot(press.lastX - press.startX, press.lastY - press.startY) >= DOCK_DRAG_THRESHOLD_PX) {
+			if (!press.dragging && !press.touch && Math.hypot(press.lastX - press.startX, press.lastY - press.startY) >= DOCK_DRAG_THRESHOLD_PX) {
 				press.dragging = true
 			}
 		}
@@ -4163,9 +4269,11 @@ class AppWebDockPane extends UiSurface {
 		this.#press = null
 		if (press?.timer !== null && press?.timer !== undefined) clearTimeout(press.timer)
 		const wasDragging = press?.dragging === true
-		if (wasDragging) this.#suppressClick = true
+		const activateTouchFullscreen = this.kind === "fullscreen" && press?.touch === true && !wasDragging && this.pressedHit !== null
+		if (activateTouchFullscreen) this.#restoreFromClick()
+		if (wasDragging || activateTouchFullscreen) this.#suppressClick = true
 		super.onPointerUp(event, localX, localY)
-		if (wasDragging) this.#suppressClick = false
+		if (wasDragging || activateTouchFullscreen) this.#suppressClick = false
 	}
 
 	override onPointerLeave(): void {

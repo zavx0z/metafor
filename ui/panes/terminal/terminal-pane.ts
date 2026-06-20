@@ -213,6 +213,16 @@ type TerminalOutputSnapshot = {
   scrollPosition: {left: number; top: number}
 }
 
+type TouchScrollGesture = {
+  startX: number
+  startY: number
+  lastX: number
+  lastY: number
+  mode: "pending" | "scrolling" | "selecting"
+  selectionMoved: boolean
+  longPressTimer: ReturnType<typeof setTimeout> | null
+}
+
 type PendingLocalEcho = {
   snapshot: TerminalOutputSnapshot
   pending: string[]
@@ -242,6 +252,8 @@ const STATUS_DOT_PX = 7
 const SCROLLBAR_W_PX = 4
 const CARET_BLINK_MS = 530
 const AUTOSCROLL_TOLERANCE_PX = 20
+const TOUCH_SCROLL_THRESHOLD_PX = 6
+const TOUCH_LONG_PRESS_MS = 500
 const TERMINAL_SCROLL_KEY = "terminal-pane:scroll"
 const TERMINAL_BG = withAlpha(visionGlass, 0.64)
 const TERMINAL_BORDER = visionBorder
@@ -353,6 +365,7 @@ class TerminalOutputPane extends UiSurface {
   #charWidth = 0
   #charWidthScale = 0
   #lastEmittedSize: TerminalSize | null = null
+  #touchScrollGesture: TouchScrollGesture | null = null
   #decoder = new TextDecoder()
   #rawOutput = ""
   #frameDrag: PaneFrameDrag | null = null
@@ -1183,10 +1196,26 @@ class TerminalOutputPane extends UiSurface {
 
   override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
     this.focus()
+    this.#clearTouchGesture()
     if (!this.#isBodyPoint(localX, localY)) {
       super.onPointerDown(event, localX, localY)
       if (this.pressedHit !== null) return
       if (this.#beginFrameInteraction(event, localX, localY)) return
+      return
+    }
+    if (isTouchPointerEvent(event) && (this.#scrollY || this.#scrollX)) {
+      const gesture: TouchScrollGesture = {
+        startX: localX,
+        startY: localY,
+        lastX: localX,
+        lastY: localY,
+        mode: "pending",
+        selectionMoved: false,
+        longPressTimer: null,
+      }
+      gesture.longPressTimer = setTimeout(() => this.#beginTouchSelection(gesture), TOUCH_LONG_PRESS_MS)
+      this.#touchScrollGesture = gesture
+      event.preventDefault()
       return
     }
     if (this.#handleTerminalMouseDown(event, localX, localY)) return
@@ -1214,6 +1243,10 @@ class TerminalOutputPane extends UiSurface {
       this.#updateFrameInteraction(event)
       return
     }
+    if (this.#touchScrollGesture !== null) {
+      this.#updateTouchScroll(event, localX, localY)
+      return
+    }
     super.onPointerMove(event, localX, localY)
     if (this.#handleTerminalMouseMove(event, localX, localY)) return
     if (!this.#dragSelecting) this.#syncFrameCursor(localX, localY)
@@ -1223,6 +1256,10 @@ class TerminalOutputPane extends UiSurface {
 
   override onPointerUp(event: MouseEvent, localX: number, localY: number): void {
     if (this.#endFrameInteraction(event, localX, localY)) return
+    if (this.#touchScrollGesture !== null) {
+      this.#finishTouchScroll(event, localX, localY)
+      return
+    }
     if (this.#handleTerminalMouseUp(event, localX, localY)) return
     if (this.#dragSelecting) {
       this.#updateDragSelection(localX, localY)
@@ -1245,6 +1282,87 @@ class TerminalOutputPane extends UiSurface {
       return
     }
     super.onContextMenu(event, localX, localY)
+  }
+
+  #updateTouchScroll(event: MouseEvent, localX: number, localY: number): void {
+    const gesture = this.#touchScrollGesture
+    if (gesture === null) return
+    const distanceX = localX - gesture.startX
+    const distanceY = localY - gesture.startY
+    if (gesture.mode === "selecting") {
+      gesture.lastX = localX
+      gesture.lastY = localY
+      if (Math.hypot(distanceX, distanceY) >= TOUCH_SCROLL_THRESHOLD_PX) gesture.selectionMoved = true
+      if (gesture.selectionMoved) this.#updateDragSelection(localX, localY)
+      event.preventDefault()
+      return
+    }
+    if (gesture.mode === "pending") {
+      if (Math.hypot(distanceX, distanceY) < TOUCH_SCROLL_THRESHOLD_PX) {
+        event.preventDefault()
+        return
+      }
+      this.#cancelTouchLongPress(gesture)
+      gesture.mode = "scrolling"
+      this.#clearSelectionState()
+    }
+    const deltaLeft = this.#scrollX ? gesture.lastX - localX : 0
+    const deltaTop = this.#scrollY ? gesture.lastY - localY : 0
+    gesture.lastX = localX
+    gesture.lastY = localY
+    this.#scrollOutputBy(deltaLeft, deltaTop)
+    event.preventDefault()
+  }
+
+  #finishTouchScroll(event: MouseEvent, localX: number, localY: number): void {
+    const gesture = this.#touchScrollGesture
+    if (gesture?.mode === "selecting") {
+      if (gesture.selectionMoved || Math.hypot(localX - gesture.startX, localY - gesture.startY) >= TOUCH_SCROLL_THRESHOLD_PX) {
+        this.#updateDragSelection(localX, localY)
+      }
+      this.#dragSelecting = false
+      if (this.#selectionRange() === null) this.#clearSelectionState()
+      this.requestRender()
+    }
+    this.#clearTouchGesture()
+    event.preventDefault()
+  }
+
+  #beginTouchSelection(gesture: TouchScrollGesture): void {
+    if (this.#touchScrollGesture !== gesture || gesture.mode !== "pending") return
+    gesture.longPressTimer = null
+    gesture.mode = "selecting"
+    this.#dragSelecting = true
+    this.#dragAnchorLocalX = gesture.startX
+    this.#dragAnchorLocalY = gesture.startY
+    const pos = this.#positionFromLocal(gesture.startX, gesture.startY)
+    if (pos === null) return
+    this.#selectWordAt(pos)
+  }
+
+  #clearTouchGesture(): void {
+    const gesture = this.#touchScrollGesture
+    if (gesture !== null) this.#cancelTouchLongPress(gesture)
+    this.#touchScrollGesture = null
+  }
+
+  #cancelTouchLongPress(gesture: TouchScrollGesture): void {
+    if (gesture.longPressTimer === null) return
+    clearTimeout(gesture.longPressTimer)
+    gesture.longPressTimer = null
+  }
+
+  #scrollOutputBy(deltaLeft: number, deltaTop: number): void {
+    if (deltaLeft === 0 && deltaTop === 0) return
+    const body = this.#bodyRect()
+    if (body.w <= 0 || body.h <= 0) return
+    const position = divScrollPosition(this, TERMINAL_SCROLL_KEY)
+    const contentW = this.#contentCols() * this.#getCharWidth() + BODY_PAD_X_PX * 2
+    const contentH = this.#contentLineCount() * this.#linePx + BODY_PAD_Y_PX * 2
+    const next: {left?: number; top?: number} = {}
+    if (deltaLeft !== 0) next.left = clampNumber(position.left + deltaLeft, 0, Math.max(0, contentW - body.w))
+    if (deltaTop !== 0) next.top = clampNumber(position.top + deltaTop, 0, Math.max(0, contentH - body.h))
+    divScrollTo(this, TERMINAL_SCROLL_KEY, next)
   }
 
   #handleTerminalMouseDown(event: MouseEvent, localX: number, localY: number): boolean {
@@ -1372,6 +1490,7 @@ class TerminalOutputPane extends UiSurface {
   override onDeactivate(): void {
     super.onDeactivate?.()
     this.#frameDrag = null
+    this.#clearTouchGesture()
     this.#focused = false
     this.#onFocusChange?.(false)
     this.#stopCursorBlink()
@@ -1381,6 +1500,7 @@ class TerminalOutputPane extends UiSurface {
 
   override dispose(): void {
     this.#stopCursorBlink()
+    this.#clearTouchGesture()
     super.dispose()
   }
 
@@ -2709,6 +2829,15 @@ function isSecondaryPointer(event: MouseEvent): boolean {
   return event.button === 2 || event.ctrlKey
 }
 
+function isTouchPointerEvent(event: MouseEvent): boolean {
+  const pointer = event as MouseEvent & {
+    pointerType?: unknown
+    metaforPointerType?: unknown
+    sourceCapabilities?: {firesTouchEvents?: boolean} | null
+  }
+  return pointer.pointerType === "touch" || pointer.metaforPointerType === "touch" || pointer.sourceCapabilities?.firesTouchEvents === true
+}
+
 function terminalMouseButton(button: number): number | null {
   if (button === 0) return 0
   if (button === 1) return 1
@@ -2741,4 +2870,9 @@ function trimRightCells(value: string): string {
 function clampInt(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min
   return Math.min(max, Math.max(min, Math.floor(value)))
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min
+  return Math.min(max, Math.max(min, value))
 }

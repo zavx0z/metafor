@@ -305,20 +305,67 @@ const bulkFullscreenElement = (): Element | null => {
 	return document.fullscreenElement ?? webkitDocument.webkitFullscreenElement ?? null
 }
 
-const requestBulkFullscreen = async (target: Element): Promise<void> => {
-	if (target.requestFullscreen !== undefined) {
+const requestBulkFullscreen = async (preferredTarget: Element): Promise<void> => {
+	const targets = bulkFullscreenTargetCandidates(preferredTarget)
+	let lastError: unknown = null
+	for (const target of targets) {
 		try {
-			await target.requestFullscreen({navigationUI: "hide"} as FullscreenOptions)
+			await requestBulkElementFullscreen(target)
 			return
-		} catch {
-			await target.requestFullscreen()
-			return
+		} catch (error) {
+			lastError = error
 		}
+	}
+	throw lastError ?? new Error("fullscreen request failed")
+}
+
+const requestBulkElementFullscreen = async (target: Element): Promise<void> => {
+	if (target.requestFullscreen !== undefined) {
+		if (!isBulkAndroidBrowser()) {
+			try {
+				await target.requestFullscreen({navigationUI: "hide"} as FullscreenOptions)
+				return
+			} catch (error) {
+				if (!isBulkFullscreenOptionsError(error)) throw error
+			}
+		}
+		await target.requestFullscreen()
+		return
 	}
 	const webkitTarget = target as BulkWebkitFullscreenElement
 	const request = webkitTarget.webkitRequestFullscreen ?? webkitTarget.webkitRequestFullScreen
 	if (request === undefined) throw new Error(`fullscreen is not available on ${target.tagName.toLowerCase()}`)
 	await Promise.resolve(request.call(target))
+}
+
+const bulkFullscreenTargetCandidates = (preferredTarget: Element): Element[] => {
+	const body = document.body
+	const root = document.documentElement
+	const preferred: Array<Element | null> = isBulkAndroidBrowser()
+		? [root, body, preferredTarget]
+		: [preferredTarget, root, body]
+	return uniqueBulkElements(preferred.filter((item): item is Element => item instanceof Element))
+}
+
+const uniqueBulkElements = (elements: readonly Element[]): Element[] => {
+	const seen = new Set<Element>()
+	const result: Element[] = []
+	for (const element of elements) {
+		if (seen.has(element)) continue
+		seen.add(element)
+		result.push(element)
+	}
+	return result
+}
+
+const isBulkAndroidBrowser = (): boolean => {
+	const nav = navigator as Navigator & {userAgentData?: {platform?: string}}
+	return /android/i.test(`${nav.userAgent} ${nav.userAgentData?.platform ?? ""}`)
+}
+
+const isBulkFullscreenOptionsError = (error: unknown): boolean => {
+	const text = error instanceof Error ? error.message : String(error)
+	return /dictionary|navigationUI|parameter|argument|options|type/i.test(text)
 }
 
 const exitBulkFullscreen = async (): Promise<void> => {
@@ -1199,6 +1246,7 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 	#pressedSlot: BulkHudSurfaceSlot | null = null
 	#hoveredSlot: BulkHudSurfaceSlot | null = null
 	#activeTouchId: number | null = null
+	#lastTouchEventAt = 0
 	#claimNextClick = false
 	#disposed = false
 
@@ -1452,7 +1500,7 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 	}
 
 	#mouseEventFromTouch(type: "mousedown" | "mousemove" | "mouseup", touch: Touch): MouseEvent {
-		return new MouseEvent(type, {
+		const init: MouseEventInit & PointerEventInit = {
 			bubbles: true,
 			cancelable: true,
 			button: 0,
@@ -1461,7 +1509,13 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 			clientY: touch.clientY,
 			screenX: touch.screenX,
 			screenY: touch.screenY,
-	})
+			pointerType: "touch",
+			pointerId: touch.identifier,
+			isPrimary: true,
+		}
+		const event = typeof PointerEvent === "function" ? new PointerEvent(type, init) : new MouseEvent(type, init)
+		Object.defineProperty(event, "metaforPointerType", {value: "touch"})
+		return event
 	}
 
 	#changedTouch(event: TouchEvent): Touch | null {
@@ -1480,6 +1534,16 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 		event.stopImmediatePropagation()
 	}
 
+	#rememberTouchEvent(): void {
+		this.#lastTouchEventAt = Date.now()
+	}
+
+	#isCompatibilityMouseEvent(event: MouseEvent): boolean {
+		const source = (event as MouseEvent & {sourceCapabilities?: {firesTouchEvents?: boolean} | null}).sourceCapabilities
+		if (source?.firesTouchEvents === true) return true
+		return this.#lastTouchEventAt > 0 && Date.now() - this.#lastTouchEventAt < 900
+	}
+
 	#onWheel(event: WheelEvent): void {
 		const local = this.#localCoords(event)
 		const slot = this.#surfaceAt(local.x, local.y)
@@ -1490,6 +1554,11 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 	}
 
 	#onMouseMove(event: MouseEvent): void {
+		if (this.#isCompatibilityMouseEvent(event)) {
+			event.preventDefault()
+			this.#claimPointerEvent(event)
+			return
+		}
 		const local = this.#localCoords(event)
 		const slot = this.#pressedSlot ?? this.#surfaceAt(local.x, local.y)
 		if (slot === undefined) {
@@ -1506,6 +1575,12 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 	}
 
 	#onMouseDown(event: MouseEvent): void {
+		if (this.#isCompatibilityMouseEvent(event)) {
+			event.preventDefault()
+			this.#claimPointerEvent(event)
+			this.#claimNextClick = true
+			return
+		}
 		const local = this.#localCoords(event)
 		const slot = this.#surfaceAt(local.x, local.y)
 		if (slot === undefined) {
@@ -1524,6 +1599,12 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 	}
 
 	#onMouseUp(event: MouseEvent): void {
+		if (this.#isCompatibilityMouseEvent(event)) {
+			event.preventDefault()
+			this.#claimPointerEvent(event)
+			this.#claimNextClick = false
+			return
+		}
 		const slot = this.#pressedSlot
 		if (slot === null) return
 		this.#pressedSlot = null
@@ -1534,6 +1615,12 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 	}
 
 	#onClick(event: MouseEvent): void {
+		if (this.#isCompatibilityMouseEvent(event)) {
+			this.#claimNextClick = false
+			event.preventDefault()
+			this.#claimPointerEvent(event)
+			return
+		}
 		const local = this.#localCoords(event)
 		const clickedHud = this.#surfaceAt(local.x, local.y) !== undefined
 		if (!this.#claimNextClick && !clickedHud) return
@@ -1543,6 +1630,7 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 	}
 
 	#onTouchStart(event: TouchEvent): void {
+		this.#rememberTouchEvent()
 		if (this.#activeTouchId !== null || event.changedTouches.length === 0) return
 		const touch = event.changedTouches[0]!
 		const local = this.#localCoordsFromTouch(touch)
@@ -1551,7 +1639,7 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 			this.setFocused(null)
 			return
 	}
-		event.preventDefault()
+		if (slot.surface.preserveNativeTouchActivation?.() !== true) event.preventDefault()
 		this.#claimPointerEvent(event)
 		this.#positionInputProxy(touch.clientX, touch.clientY)
 		this.setFocused(slot.surface)
@@ -1561,6 +1649,7 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 	}
 
 	#onTouchMove(event: TouchEvent): void {
+		this.#rememberTouchEvent()
 		if (this.#activeTouchId === null) return
 		const touch = this.#changedTouch(event)
 		const slot = this.#pressedSlot
@@ -1572,18 +1661,20 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 	}
 
 	#onTouchEnd(event: TouchEvent): void {
+		this.#rememberTouchEvent()
 		const touch = this.#changedTouch(event)
 		const slot = this.#pressedSlot
 		if (touch === null || slot === null) return
 		this.#pressedSlot = null
 		this.#activeTouchId = null
-		event.preventDefault()
 		this.#claimPointerEvent(event)
 		const local = this.#localCoordsFromTouch(touch)
 		slot.surface.onPointerUp?.(this.#mouseEventFromTouch("mouseup", touch), local.x - slot.rect.x, local.y - slot.rect.y)
+		event.preventDefault()
 	}
 
 	#onTouchCancel(event: TouchEvent): void {
+		this.#rememberTouchEvent()
 		if (this.#activeTouchId === null) return
 		const touch = this.#changedTouch(event)
 		const slot = this.#pressedSlot

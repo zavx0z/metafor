@@ -80,6 +80,7 @@ export interface UiSurfaceNode {
   requestRender?(): void
   acceptsPointerEvents?(): boolean
   containsPointer?(localX: number, localY: number): boolean
+  preserveNativeTouchActivation?(): boolean
   setFramebufferClipSpace?(space: "display" | "screen"): void
   setFramebufferDisplayId?(displayId: UiDisplayId): void
   onPointerLeave?(): void

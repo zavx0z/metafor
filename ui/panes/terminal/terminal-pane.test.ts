@@ -21,6 +21,38 @@ function installRafStub(): () => void {
   }
 }
 
+function touchMouseEvent(overrides: Partial<MouseEvent> = {}): MouseEvent {
+  return {
+    button: 0,
+    buttons: 1,
+    shiftKey: false,
+    altKey: false,
+    ctrlKey: false,
+    detail: 1,
+    preventDefault: () => {},
+    metaforPointerType: "touch",
+    ...overrides,
+  } as MouseEvent
+}
+
+function touchCompatibilityMouseEvent(overrides: Partial<MouseEvent> = {}): MouseEvent {
+  return {
+    button: 0,
+    buttons: 1,
+    shiftKey: false,
+    altKey: false,
+    ctrlKey: false,
+    detail: 1,
+    preventDefault: () => {},
+    sourceCapabilities: {firesTouchEvents: true},
+    ...overrides,
+  } as unknown as MouseEvent
+}
+
+function terminalScrollTop(terminal: TerminalPane): number {
+  return (terminal as unknown as {outputScrollPosition(): {top: number}}).outputScrollPosition().top
+}
+
 beforeAll(() => {
   installRafStub()
 })
@@ -51,6 +83,59 @@ describe("TerminalPane selection", () => {
       terminal.write("alpha\r\nbeta")
       terminal.selectAll()
       expect(terminal.getSelectedText()).toBe("alpha\nbeta")
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("uses touch drag to scroll output instead of selecting text", () => {
+    const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false, showHeader: false})
+    try {
+      Object.assign(terminal as unknown as {rectW: number; rectH: number}, {rectW: 220, rectH: 68})
+      for (let i = 0; i < 24; i++) terminal.writeln(`line ${i}`)
+      terminal.scrollToBottom()
+      const before = terminalScrollTop(terminal)
+
+      terminal.onPointerDown(touchMouseEvent(), 20, 52)
+      terminal.onPointerMove(touchMouseEvent(), 20, 88)
+      terminal.onPointerUp(touchMouseEvent({buttons: 0}), 20, 88)
+
+      expect(terminalScrollTop(terminal)).toBeLessThan(before)
+      expect(terminal.hasSelection()).toBe(false)
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("starts touch selection only after a long press", async () => {
+    const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false, showHeader: false})
+    try {
+      Object.assign(terminal as unknown as {rectW: number; rectH: number}, {rectW: 220, rectH: 68})
+      terminal.write("alpha beta")
+
+      terminal.onPointerDown(touchMouseEvent(), 12, 10)
+      expect(terminal.hasSelection()).toBe(false)
+
+      await Bun.sleep(540)
+
+      expect(terminal.getSelectedText()).toBe("alpha")
+      terminal.onPointerUp(touchMouseEvent({buttons: 0}), 12, 10)
+      expect(terminal.getSelectedText()).toBe("alpha")
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("ignores Android compatibility mouse tap for selection", () => {
+    const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false, showHeader: false})
+    try {
+      Object.assign(terminal as unknown as {rectW: number; rectH: number}, {rectW: 220, rectH: 68})
+      terminal.write("alpha beta")
+
+      terminal.onPointerDown(touchCompatibilityMouseEvent(), 12, 10)
+      terminal.onPointerUp(touchCompatibilityMouseEvent({buttons: 0}), 12, 10)
+
+      expect(terminal.hasSelection()).toBe(false)
     } finally {
       terminal.dispose()
     }
