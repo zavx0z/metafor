@@ -21,12 +21,23 @@
  *     IME composition (комплектно), dictation, paste-from-panel.
  */
 
+export type VirtualInputSoftKeyboardMode = "none" | "text"
+
+export type VirtualInputFocusOpts = {
+  softKeyboard?: boolean
+}
+
 export class VirtualInput {
   readonly textarea: HTMLTextAreaElement
   #onKey: (e: KeyboardEvent) => void = () => {}
   #onText: (text: string) => void = () => {}
   #disposed = false
   #composing = false
+  #compositionTextDelivered = false
+  #inputHandledBeforeInput = false
+  #softKeyboardMode: VirtualInputSoftKeyboardMode = "none"
+  #textKeyFallbackTimer: number | null = null
+  #textKeyFallbackText = ""
 
   constructor(parent: HTMLElement) {
     const ta = document.createElement("textarea")
@@ -34,14 +45,16 @@ export class VirtualInput {
       position: "fixed",
       left: "0px",
       top: "0px",
-      width: "1px",
-      height: "1px",
-      opacity: "0",
+      width: "24px",
+      height: "24px",
+      opacity: "0.01",
       padding: "0",
       margin: "0",
       border: "0",
       outline: "none",
       resize: "none",
+      fontSize: "16px",
+      lineHeight: "16px",
       // visible для accessibility, но не мешает кликам:
       pointerEvents: "none",
       zIndex: "9999",
@@ -54,7 +67,7 @@ export class VirtualInput {
     ta.setAttribute("autocomplete", "off")
     ta.setAttribute("autocapitalize", "off")
     ta.setAttribute("autocorrect", "on") // на macOS включает Touch Bar emoji
-    ta.setAttribute("inputmode", "none")
+    ta.setAttribute("inputmode", this.#softKeyboardMode)
     ta.setAttribute("spellcheck", "false")
     ta.tabIndex = 0
     parent.appendChild(ta)
@@ -63,53 +76,102 @@ export class VirtualInput {
     ta.addEventListener("keydown", (e) => {
       // Композиция (IME) — даём macOS обработать самостоятельно.
       if (this.#composing) return
+      if (this.#softKeyboardMode === "text" && isPlainTextKey(e)) {
+        e.preventDefault()
+        this.#scheduleTextKeyFallback(e.key)
+        return
+      }
       this.#onKey(e)
     })
 
     // beforeinput — единственный канал, через который приходят НЕ-клавиатурные
     // вставки: emoji-panel, autocorrect-replace, IME-композиция (через
-    // compositionend ниже). Чтобы не дублировать обычную клавиатуру
-    // (keydown уже доставил её в pane), правило: пропускаем сквозь только
-    // multi-character data или явно «не-keydown» inputType.
+    // compositionend ниже). Android soft keyboard тоже приходит сюда как
+    // одиночный insertText, потому что нормального keydown для букв может не быть.
     ta.addEventListener("beforeinput", (e) => {
       const ie = e as InputEvent
       const data = ie.data ?? ""
       const t = ie.inputType
+      this.#clearTextKeyFallback()
+      this.#inputHandledBeforeInput = false
+      let handled = false
+      const fromSoftKeyboard = this.#softKeyboardMode === "text" && t === "insertText"
       const fromNonKeyboard =
         t === "insertReplacementText" || // autocorrect / Touch Bar suggestion
         t === "insertFromComposition" || // финал IME
         (t === "insertText" && data.length > 1) // emoji / multi-char paste
-      if (fromNonKeyboard && data.length > 0) {
+      if ((fromSoftKeyboard || fromNonKeyboard) && data.length > 0) {
         e.preventDefault()
+        this.#inputHandledBeforeInput = true
+        if (this.#composing) this.#compositionTextDelivered = true
         this.#onText(data)
+        handled = true
+      } else if (this.#softKeyboardMode === "text" && (t === "deleteContentBackward" || t === "deleteContentForward")) {
+        e.preventDefault()
+        this.#inputHandledBeforeInput = true
+        this.#onKey(new KeyboardEvent("keydown", {
+          key: t === "deleteContentBackward" ? "Backspace" : "Delete",
+          bubbles: true,
+          cancelable: true,
+        }))
+        handled = true
+      } else if (this.#softKeyboardMode === "text" && (t === "insertLineBreak" || t === "insertParagraph")) {
+        e.preventDefault()
+        this.#inputHandledBeforeInput = true
+        this.#onKey(new KeyboardEvent("keydown", {key: "Enter", bubbles: true, cancelable: true}))
+        handled = true
       }
       // Сбрасываем буфер, чтобы он не накапливался и не плодил «недоведённые»
       // символы в скрытом textarea.
-      requestAnimationFrame(() => {
-        if (!this.#disposed) ta.value = ""
-      })
+      if (handled) {
+        requestAnimationFrame(() => {
+          if (!this.#disposed) ta.value = ""
+        })
+      }
     })
 
     ta.addEventListener("compositionstart", () => {
+      this.#clearTextKeyFallback()
       this.#composing = true
+      this.#compositionTextDelivered = false
     })
     ta.addEventListener("compositionend", (e) => {
       this.#composing = false
-      const text = (e as CompositionEvent).data
-      if (text !== undefined && text !== null && text.length > 0) this.#onText(text)
+      const eventText = (e as CompositionEvent).data
+      const text = eventText !== undefined && eventText !== null && eventText.length > 0 ? eventText : ta.value
+      if (!this.#compositionTextDelivered && text.length > 0) this.#onText(text)
+      this.#compositionTextDelivered = false
       requestAnimationFrame(() => {
         if (!this.#disposed) ta.value = ""
       })
     })
 
     // Запрещаем браузеру вставлять стандартные ответы (autocomplete suggestions).
-    ta.addEventListener("input", () => {
-      if (!this.#composing) ta.value = ""
+    ta.addEventListener("input", (e) => {
+      this.#clearTextKeyFallback()
+      const value = ta.value
+      if (this.#softKeyboardMode === "text" && !this.#inputHandledBeforeInput && value.length > 0) {
+        const data = (e as InputEvent).data
+        this.#onText(data !== null && data !== undefined && data.length > 0 ? data : value)
+        if (this.#composing) this.#compositionTextDelivered = true
+      }
+      this.#inputHandledBeforeInput = false
+      if (!this.#composing || this.#softKeyboardMode === "text") ta.value = ""
     })
   }
 
-  focus(): void {
+  focus(opts: VirtualInputFocusOpts = {}): void {
     if (this.#disposed) return
+    const softKeyboardEnvironment = shouldUseSoftKeyboardInputMode()
+    const mode: VirtualInputSoftKeyboardMode = opts.softKeyboard === true && softKeyboardEnvironment ? "text" : "none"
+    if (softKeyboardEnvironment && mode === "none") {
+      this.#setSoftKeyboardMode("none")
+      if (this.isFocused()) this.textarea.blur()
+      return
+    }
+    const wasFocused = this.isFocused()
+    const changed = this.#setSoftKeyboardMode(mode)
+    if (wasFocused && changed) this.textarea.blur()
     this.textarea.focus({preventScroll: true})
   }
 
@@ -120,6 +182,18 @@ export class VirtualInput {
 
   isFocused(): boolean {
     return document.activeElement === this.textarea
+  }
+
+  softKeyboardActive(): boolean {
+    return !this.#disposed && this.#softKeyboardMode === "text"
+  }
+
+  #setSoftKeyboardMode(mode: VirtualInputSoftKeyboardMode): boolean {
+    if (this.#softKeyboardMode === mode) return false
+    this.#softKeyboardMode = mode
+    this.textarea.inputMode = mode
+    this.textarea.setAttribute("inputmode", mode)
+    return true
   }
 
   /**
@@ -142,6 +216,37 @@ export class VirtualInput {
 
   dispose(): void {
     this.#disposed = true
+    this.#clearTextKeyFallback()
     this.textarea.remove()
   }
+
+  #scheduleTextKeyFallback(text: string): void {
+    this.#clearTextKeyFallback()
+    this.#textKeyFallbackText = text
+    this.#textKeyFallbackTimer = window.setTimeout(() => {
+      const fallback = this.#textKeyFallbackText
+      this.#textKeyFallbackTimer = null
+      this.#textKeyFallbackText = ""
+      if (!this.#disposed && this.#softKeyboardMode === "text" && fallback.length > 0) this.#onText(fallback)
+    }, 120)
+  }
+
+  #clearTextKeyFallback(): void {
+    if (this.#textKeyFallbackTimer !== null) {
+      window.clearTimeout(this.#textKeyFallbackTimer)
+      this.#textKeyFallbackTimer = null
+    }
+    this.#textKeyFallbackText = ""
+  }
+}
+
+function isPlainTextKey(event: KeyboardEvent): boolean {
+  return !event.ctrlKey && !event.altKey && !event.metaKey && event.key.length === 1
+}
+
+function shouldUseSoftKeyboardInputMode(): boolean {
+  const nav = navigator as Navigator & {userAgentData?: {platform?: string}}
+  if (/android|mobile/i.test(`${nav.userAgent} ${nav.userAgentData?.platform ?? ""}`)) return true
+  if (navigator.maxTouchPoints > 0) return true
+  return typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches
 }

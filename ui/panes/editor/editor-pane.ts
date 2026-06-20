@@ -17,7 +17,7 @@
  */
 
 import {Color, TextMaterial} from "@metafor/engine"
-import {UiSurface, Z, div, divScrollTo, palette, radii, type DivScrollContext} from "@ui/elements"
+import {UiSurface, Z, div, divScrollTo, palette, radii, type DivScrollContext, type VirtualInputSoftKeyboardMode} from "@ui/elements"
 import {Button, IconButton, autoButtonWidth, uiIcons} from "@ui/components"
 import {resolveLanguageHighlighter} from "./highlighter.ts"
 import {
@@ -462,6 +462,10 @@ export class EditorPane extends UiSurface {
       this.#cursorVisible = false
     }
     this.requestRender()
+  }
+
+  softKeyboardInputMode(): VirtualInputSoftKeyboardMode {
+    return this.#readOnly ? "none" : "text"
   }
 
   setShowCaret(show: boolean): void {

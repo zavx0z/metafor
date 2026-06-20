@@ -52,7 +52,9 @@ import {
 	drawIconCentered,
 	handleActiveInputKey,
 	insertActiveInputText,
+	surfaceHasActiveInput,
 	uiIcons,
+	type VirtualInputSoftKeyboardMode,
 	type UiRuntime,
 	type UiSurfaceLayoutFn,
 	type UiSurfaceLayerOpts,
@@ -1263,7 +1265,10 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 	readonly #handleContextMenu = (event: MouseEvent): void => this.#onContextMenu(event)
 	readonly #handleKey = (event: KeyboardEvent): void => this.#onKey(event)
 	readonly #handleWindowKey = (event: KeyboardEvent): void => this.#onWindowKey(event)
-	readonly #handleWindowBlur = (): void => this.setFocused(null)
+	readonly #handleWindowBlur = (): void => {
+		if (this.inputProxy?.softKeyboardActive() === true) return
+		this.setFocused(null)
+	}
 	readonly #handleVisibilityChange = (): void => {
 		if (document.visibilityState !== "visible") this.setFocused(null)
 	}
@@ -1591,11 +1596,11 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 		event.preventDefault()
 		this.#claimPointerEvent(event)
 		this.#claimNextClick = true
-		this.inputProxy?.focus()
 		this.#positionInputProxy(event.clientX, event.clientY)
 		this.setFocused(slot.surface)
 		this.#pressedSlot = slot
 		slot.surface.onPointerDown?.(event, local.x - slot.rect.x, local.y - slot.rect.y)
+		this.#focusInputProxyForUserSurface(slot.surface, event)
 	}
 
 	#onMouseUp(event: MouseEvent): void {
@@ -1639,13 +1644,21 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 			this.setFocused(null)
 			return
 	}
-		if (slot.surface.preserveNativeTouchActivation?.() !== true) event.preventDefault()
+		const preserveNativeActivation = slot.surface.preserveNativeTouchActivation?.() === true
+		if (!preserveNativeActivation) event.preventDefault()
 		this.#claimPointerEvent(event)
 		this.#positionInputProxy(touch.clientX, touch.clientY)
 		this.setFocused(slot.surface)
 		this.#pressedSlot = slot
 		this.#activeTouchId = touch.identifier
-		slot.surface.onPointerDown?.(this.#mouseEventFromTouch("mousedown", touch), local.x - slot.rect.x, local.y - slot.rect.y)
+		const mouseEvent = this.#mouseEventFromTouch("mousedown", touch)
+		slot.surface.onPointerDown?.(mouseEvent, local.x - slot.rect.x, local.y - slot.rect.y)
+		if (!preserveNativeActivation) this.#focusInputProxyForUserSurface(slot.surface, mouseEvent)
+	}
+
+	#focusInputProxyForUserSurface(surface: UiSurfaceNode, event: MouseEvent): void {
+		if (this.inputProxy === null || event.button !== 0) return
+		this.inputProxy.focus({softKeyboard: bulkSoftKeyboardInputModeForSurface(surface) === "text"})
 	}
 
 	#onTouchMove(event: TouchEvent): void {
@@ -1740,6 +1753,12 @@ function clampBulkHudNumber(value: number, min: number, max: number): number {
 
 function finiteBulkHudNumber(value: number, fallback: number): number {
 	return Number.isFinite(value) ? value : fallback
+}
+
+function bulkSoftKeyboardInputModeForSurface(surface: UiSurfaceNode): VirtualInputSoftKeyboardMode {
+	const explicit = surface.softKeyboardInputMode?.()
+	if (explicit !== undefined) return explicit
+	return surfaceHasActiveInput(surface as Parameters<typeof handleActiveInputKey>[0]) ? "text" : "none"
 }
 
 function isBulkHudKeyFallbackTarget(target: EventTarget | null, canvas: HTMLCanvasElement): boolean {

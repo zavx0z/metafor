@@ -372,6 +372,7 @@ const DEFAULT_VOICE_DEACTIVATION_FUZZY = 0.05
 const DEFAULT_VOICE_STOP_FUZZY = 0.06
 const VOICE_MESSAGE_PAUSE_SECONDS = 1.6
 const VOICE_SIGNAL_COOLDOWN_MS = 900
+const VOICE_SIGNAL_CAPTURE_FALLBACK_MS = 260
 const VOICE_AUTO_WAKE_RETRY_MS = 3_000
 const VOICE_LEASE_LOCAL_TTL_MS = 12_000
 const VOICE_HUD_ERROR_MS = 2_400
@@ -565,6 +566,39 @@ function isAndroidBrowser(): boolean {
 	return /android/i.test(`${nav.userAgent} ${nav.userAgentData?.platform ?? ""}`)
 }
 
+function shouldUseCodexNativeInput(): boolean {
+	const nav = navigator as Navigator & {userAgentData?: {platform?: string}}
+	if (/android|mobile/i.test(`${nav.userAgent} ${nav.userAgentData?.platform ?? ""}`)) return true
+	if (navigator.maxTouchPoints > 0) return true
+	return typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches
+}
+
+type CodexTextPosition = {
+	line: number
+	col: number
+}
+
+function codexDraftOffsetForPosition(text: string, position: CodexTextPosition): number {
+	const lines = text.length === 0 ? [""] : text.split("\n")
+	const line = Math.max(0, Math.min(lines.length - 1, Math.floor(position.line)))
+	let offset = 0
+	for (let i = 0; i < line; i++) offset += (lines[i]?.length ?? 0) + 1
+	const col = Math.max(0, Math.min(lines[line]?.length ?? 0, Math.floor(position.col)))
+	return offset + col
+}
+
+function codexTextPositionFromOffset(text: string, rawOffset: number): CodexTextPosition {
+	const lines = text.length === 0 ? [""] : text.split("\n")
+	let offset = Math.max(0, Math.min(text.length, Math.floor(rawOffset)))
+	for (let line = 0; line < lines.length; line++) {
+		const lineText = lines[line] ?? ""
+		if (offset <= lineText.length) return {line, col: offset}
+		offset -= lineText.length + 1
+	}
+	const lastLine = Math.max(0, lines.length - 1)
+	return {line: lastLine, col: lines[lastLine]?.length ?? 0}
+}
+
 function isTouchPointerEvent(event: MouseEvent): boolean {
 	const pointer = event as MouseEvent & {
 		pointerType?: unknown
@@ -713,6 +747,9 @@ class AppWebHud implements AppWebHudController {
 	#codexAttachments: CodexComposerAttachment[] = []
 	#codexDropActive = false
 	#codexEditorSyncing = false
+	#codexNativeInput: HTMLTextAreaElement | null = null
+	#codexNativeInputSyncTimer: number | null = null
+	#codexNativeInputSyncing = false
 	#codexComposerStatus = ""
 	#codexComposerStatusTimer: number | null = null
 	readonly #codexDragOver = (event: DragEvent): void => this.#handleCodexDragOver(event)
@@ -848,6 +885,7 @@ class AppWebHud implements AppWebHudController {
 		;(globalThis as VoiceRtcDebugGlobal).__metaVoiceRtcDebug = readVoiceRtcDebugSnapshot
 		;(globalThis as AppVoiceLeaseDebugGlobal).__metaVoiceLeaseDebug = () => this.#voiceLeaseDebugSnapshot()
 		this.#updateVoiceHud()
+		this.#installCodexNativeInput()
 		onVoiceRtcDebug(() => {
 			this.#voiceRtcDebug = readVoiceRtcDebugSnapshot()
 			this.#codexComposer.requestRender()
@@ -997,11 +1035,13 @@ class AppWebHud implements AppWebHudController {
 
 	#setCodexDraftFromEditor(value: string): void {
 		if (this.#codexEditorSyncing) return
+		if (this.#codexNativeInputSyncing) return
 		if (this.#codexDraft === value) return
 		if (this.#voiceComposerBaseDraft !== null && value !== this.#voiceComposerGeneratedDraft) {
 			this.#voiceComposerEdited = true
 		}
 		this.#codexDraft = value
+		this.#syncCodexNativeInputValue()
 		this.#codexComposer.requestRender()
 	}
 
@@ -1009,6 +1049,7 @@ class AppWebHud implements AppWebHudController {
 		if (this.#codexDraft === value) return
 		this.#codexDraft = value
 		this.#syncCodexEditor()
+		this.#syncCodexNativeInputValue()
 		this.#codexComposer.requestRender()
 	}
 
@@ -1920,9 +1961,15 @@ class AppWebHud implements AppWebHudController {
 			draggable: false,
 			resizable: false,
 			onChange: (text) => this.#setCodexDraftFromEditor(text),
+			onSelectionChange: () => this.#syncCodexNativeInputSelection(),
 			onSave: () => this.submitCodexComposer(),
 			onSubmit: () => this.submitCodexComposer(),
 		})
+		const onPointerDown = editor.onPointerDown.bind(editor)
+		editor.onPointerDown = (event, localX, localY) => {
+			onPointerDown(event, localX, localY)
+			if (event.button === 0) this.#focusCodexNativeInput()
+		}
 		editor.setSelectionContextMenuEnabled(true)
 		return editor
 	}
@@ -1938,6 +1985,170 @@ class AppWebHud implements AppWebHudController {
 		} finally {
 			this.#codexEditorSyncing = false
 		}
+	}
+
+	#installCodexNativeInput(): void {
+		if (!shouldUseCodexNativeInput() || this.#codexNativeInput !== null) return
+		const input = document.createElement("textarea")
+		input.value = this.#codexDraft
+		input.placeholder = ""
+		input.autocomplete = "off"
+		input.autocapitalize = "off"
+		input.spellcheck = false
+		input.inputMode = "text"
+		Object.assign(input.style, {
+			position: "fixed",
+			left: "0px",
+			top: "0px",
+			width: "1px",
+			height: "1px",
+			zIndex: "2147483647",
+			padding: "0",
+			margin: "0",
+			border: "0",
+			outline: "none",
+			resize: "none",
+			background: "transparent",
+			color: "transparent",
+			caretColor: "transparent",
+			fontFamily: "JetBrains Mono, monospace",
+			fontSize: "16px",
+			lineHeight: "17px",
+			whiteSpace: "pre-wrap",
+			overflow: "hidden",
+			opacity: "0.01",
+			pointerEvents: "none",
+			userSelect: "none",
+			webkitUserSelect: "none",
+			touchAction: "none",
+			boxShadow: "none",
+		} satisfies Partial<CSSStyleDeclaration>)
+		input.addEventListener("beforeinput", (event) => {
+			if (this.#handleCodexNativeBeforeInput(event as InputEvent)) {
+				event.preventDefault()
+			}
+		})
+		input.addEventListener("input", () => {
+			if (this.#codexNativeInputSyncing) return
+			this.#setCodexDraftFromNativeInput(input.value, input.selectionEnd ?? input.value.length)
+		})
+		input.addEventListener("focus", () => {
+			this.#viewport.hud.setFocused(this.#codexEditor)
+			this.#syncCodexNativeInputValue()
+		})
+		;(this.#viewport.hud.canvas.parentElement ?? document.body).appendChild(input)
+		this.#codexNativeInput = input
+		this.#syncCodexNativeInputOverlay()
+		this.#codexNativeInputSyncTimer = window.setInterval(() => this.#syncCodexNativeInputOverlay(), 250)
+	}
+
+	#handleCodexNativeBeforeInput(event: InputEvent): boolean {
+		if (this.#codexNativeInputSyncing || event.isComposing) return false
+		const inputType = event.inputType
+		if (inputType === "insertLineBreak" || inputType === "insertParagraph") {
+			this.#sendCodexNativeInputKey("Enter")
+			return true
+		}
+		if (inputType === "deleteContentBackward") {
+			this.#sendCodexNativeInputKey("Backspace")
+			return true
+		}
+		if (inputType === "deleteContentForward") {
+			this.#sendCodexNativeInputKey("Delete")
+			return true
+		}
+		if (
+			inputType === "insertText" ||
+			inputType === "insertReplacementText" ||
+			inputType === "insertFromPaste" ||
+			inputType === "insertFromDrop"
+		) {
+			const text = event.data ?? ""
+			if (text.length === 0) return false
+			this.#codexEditor.insertText(text)
+			this.#syncCodexNativeInputValue()
+			return true
+		}
+		return false
+	}
+
+	#sendCodexNativeInputKey(key: string): void {
+		this.#codexEditor.onKey(new KeyboardEvent("keydown", {key, bubbles: true, cancelable: true}))
+		this.#syncCodexNativeInputValue()
+	}
+
+	#setCodexDraftFromNativeInput(value: string, cursorOffset = value.length): void {
+		if (this.#codexDraft === value) return
+		if (this.#voiceComposerBaseDraft !== null && value !== this.#voiceComposerGeneratedDraft) {
+			this.#voiceComposerEdited = true
+		}
+		this.#codexDraft = value
+		const cursor = codexTextPositionFromOffset(value, cursorOffset)
+		this.#codexEditorSyncing = true
+		try {
+			this.#codexEditor.setText(value)
+			this.#codexEditor.setCursor(cursor.line, cursor.col, {scroll: "nearest"})
+		} finally {
+			this.#codexEditorSyncing = false
+		}
+		this.#codexComposer.requestRender()
+	}
+
+	#syncCodexNativeInputValue(): void {
+		const input = this.#codexNativeInput
+		if (input === null) return
+		if (input.value === this.#codexDraft) {
+			this.#syncCodexNativeInputSelection()
+			return
+		}
+		this.#codexNativeInputSyncing = true
+		try {
+			input.value = this.#codexDraft
+			this.#syncCodexNativeInputSelection()
+		} finally {
+			this.#codexNativeInputSyncing = false
+		}
+	}
+
+	#syncCodexNativeInputSelection(): void {
+		const input = this.#codexNativeInput
+		if (input === null) return
+		const snapshot = this.#codexEditor.getSelectionSnapshot()
+		const cursor = codexDraftOffsetForPosition(this.#codexDraft, snapshot.cursor)
+		if (input.selectionStart === cursor && input.selectionEnd === cursor) return
+		try {
+			input.setSelectionRange(cursor, cursor)
+		} catch {
+			// Android can reject selection changes while the IME is recreating the input.
+		}
+	}
+
+	#focusCodexNativeInput(): void {
+		const input = this.#codexNativeInput
+		if (input === null || input.style.display === "none") return
+		this.#syncCodexNativeInputValue()
+		if (document.activeElement !== input) input.focus({preventScroll: true})
+		this.#syncCodexNativeInputSelection()
+	}
+
+	#blurCodexNativeInput(): void {
+		const input = this.#codexNativeInput
+		if (input !== null && document.activeElement === input) input.blur()
+	}
+
+	#syncCodexNativeInputOverlay(): void {
+		const input = this.#codexNativeInput
+		if (input === null) return
+		const rect = this.#codexEditorRect({w: window.innerWidth, h: window.innerHeight})
+		const visible = rect.visible !== false && rect.w > 0 && rect.h > 0
+		input.style.display = visible ? "block" : "none"
+		if (!visible) return
+		const canvasRect = this.#viewport.hud.canvas.getBoundingClientRect()
+		input.style.left = `${Math.round(canvasRect.left + rect.x)}px`
+		input.style.top = `${Math.round(canvasRect.top + rect.y)}px`
+		input.style.width = "24px"
+		input.style.height = "24px"
+		this.#syncCodexNativeInputValue()
 	}
 
 	#codexHeaderControls(): TerminalHeaderControls {
@@ -2728,6 +2939,7 @@ class AppWebHud implements AppWebHudController {
 	}
 
 	async #toggleVoice(): Promise<void> {
+		this.#blurCodexNativeInput()
 		const client = this.#ensureVoiceClient()
 		try {
 			if (readCodexVoiceP2PEnabled()) primeVoiceRtcRelayAudio()
@@ -2853,9 +3065,9 @@ class AppWebHud implements AppWebHudController {
 	#playVoiceSignal(kind: HudNotificationKind): void {
 		const now = performance.now()
 		const lastPlayedAt = voiceSignalLastPlayedAt.get(kind) ?? 0
-		this.#voiceHud.flashSoundIndicator()
 		if (now - lastPlayedAt < VOICE_SIGNAL_COOLDOWN_MS) return
 		voiceSignalLastPlayedAt.set(kind, now)
+		this.#voiceHud.flashSoundIndicator()
 		playHudNotificationSound(kind, this.#voiceClient)
 	}
 
@@ -3391,10 +3603,12 @@ class AppWebHud implements AppWebHudController {
 	syncCodexEditorToComposer(composer: UiSurfaceRect, mode: "drag" | "release"): void {
 		if (mode === "drag") {
 			this.#viewport.hud.setSurfaceRect(this.#codexEditor, this.#codexEditorRectForComposer(composer))
+			this.#syncCodexNativeInputOverlay()
 			return
 		}
 		this.#viewport.hud.clearSurfaceRect(this.#codexEditor)
 		this.#viewport.hud.relayout()
+		this.#syncCodexNativeInputOverlay()
 	}
 
 	#settingsRect(bounds: {w: number; h: number}): UiSurfaceRect {
@@ -5314,23 +5528,47 @@ function playHudNotificationSound(kind: HudNotificationKind, voiceClient: VoiceI
 	}
 	if (kind !== "agent" && kind !== "error") {
 		const signalKind: VoiceInputSignalTone = kind
-		const captureStarted = playVoiceCaptureSignalTone(signalKind, volume, voiceClient)
-		playBrowserHudNotificationSound(kind, volume)
-		if (captureStarted) return
+		playVoiceSignalToneWithFallback(signalKind, volume, voiceClient, () => playBrowserHudNotificationSound(kind, volume))
 		return
 	}
 	playBrowserHudNotificationSound(kind, volume)
+}
+
+function playVoiceSignalToneWithFallback(
+	kind: VoiceInputSignalTone,
+	volume: number,
+	voiceClient: VoiceInputClient | null,
+	onFallback: () => void,
+): void {
+	let settled = false
+	const fallback = (): void => {
+		if (settled) return
+		settled = true
+		onFallback()
+	}
+	const captureStarted = playVoiceCaptureSignalTone(kind, volume, voiceClient, (played) => {
+		if (played) {
+			settled = true
+			return
+		}
+		fallback()
+	})
+	if (!captureStarted) {
+		fallback()
+		return
+	}
+	window.setTimeout(fallback, VOICE_SIGNAL_CAPTURE_FALLBACK_MS)
 }
 
 function playVoiceCaptureSignalTone(
 	kind: VoiceInputSignalTone,
 	volume: number,
 	voiceClient: VoiceInputClient | null,
-	onFallback?: (kind: VoiceInputSignalTone) => void,
+	onResult?: (played: boolean) => void,
 ): boolean {
 	return voiceClient?.playSignalTone(kind, volume, (playedKind, method, error) => {
 		recordHudNotificationSound(playedKind, method, error)
-		if (/blocked|failed|timeout|context/i.test(method)) onFallback?.(playedKind)
+		onResult?.(!hudNotificationSoundResultFailed(method))
 	}) === true
 }
 
@@ -5341,6 +5579,10 @@ function hudNotificationVolume(kind: HudNotificationKind): number {
 function effectiveHudNotificationVolume(kind: HudNotificationKind, volume: number): number {
 	if (kind === "agent" || volume <= 0) return volume
 	return Math.max(volume, MIN_AUDIBLE_VOICE_SIGNAL_VOLUME)
+}
+
+function hudNotificationSoundResultFailed(method: string): boolean {
+	return /blocked|failed|timeout|context|closed/i.test(method)
 }
 
 function playBrowserHudNotificationSound(kind: HudNotificationKind, volume: number, onBlocked?: () => void): void {

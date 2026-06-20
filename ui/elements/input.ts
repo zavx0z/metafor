@@ -149,6 +149,11 @@ export function insertActiveInputText(surface: UiSurface, text: string): boolean
   return true
 }
 
+export function surfaceHasActiveInput(surface: UiSurface): boolean {
+  const runtime = inputRuntime.get(surface)
+  return runtime !== undefined && runtime.activeKey !== null
+}
+
 export function focusInput(surface: UiSurface, key: string, state?: InputEditState): void {
   const runtime = inputRuntimeFor(surface)
   if (state !== undefined) runtime.values.set(key, clampInputState(state))

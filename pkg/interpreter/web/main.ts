@@ -707,6 +707,7 @@ const HOST_TERMINAL_CODEX_COMPOSER_MAX_ATTACHMENT_BYTES = 16 * 1024 * 1024
 const AGENT_READY_SOUND_IDLE_MS = 2_500
 const AGENT_READY_SOUND_COOLDOWN_MS = 1_200
 const VOICE_SIGNAL_COOLDOWN_MS = 900
+const VOICE_SIGNAL_CAPTURE_FALLBACK_MS = 260
 const DEFAULT_VOICE_ACTIVATION_FUZZY = 0.05
 const DEFAULT_VOICE_DEACTIVATION_FUZZY = 0.05
 const DEFAULT_VOICE_STOP_FUZZY = 0.06
@@ -4727,9 +4728,9 @@ function voiceSignalForStatusChange(previousStatus: VoiceInputStatus, nextStatus
 function playVoiceSignal(kind: HudNotificationKind): void {
   const now = performance.now()
   const lastPlayedAt = voiceSignalLastPlayedAt.get(kind) ?? 0
-  voiceHudPane?.flashSoundIndicator()
   if (now - lastPlayedAt < VOICE_SIGNAL_COOLDOWN_MS) return
   voiceSignalLastPlayedAt.set(kind, now)
+  voiceHudPane?.flashSoundIndicator()
   playHudNotificationSound(kind)
 }
 
@@ -5833,17 +5834,42 @@ function playHudNotificationSound(kind: HudNotificationKind): void {
   }
   if (kind !== "agent" && kind !== "error") {
     const signalKind: VoiceInputSignalTone = kind
-    const captureStarted = playVoiceCaptureSignalTone(signalKind, volume, voiceInputClient)
-    playBrowserHudNotificationSound(kind, volume)
-    if (captureStarted) return
+    playVoiceSignalToneWithFallback(signalKind, volume, voiceInputClient, () => playBrowserHudNotificationSound(kind, volume))
     return
   }
   playBrowserHudNotificationSound(kind, volume)
 }
 
-function playVoiceCaptureSignalTone(kind: VoiceInputSignalTone, volume: number, client: VoiceInputClient | null): boolean {
+function playVoiceSignalToneWithFallback(
+  kind: VoiceInputSignalTone,
+  volume: number,
+  client: VoiceInputClient | null,
+  onFallback: () => void,
+): void {
+  let settled = false
+  const fallback = (): void => {
+    if (settled) return
+    settled = true
+    onFallback()
+  }
+  const captureStarted = playVoiceCaptureSignalTone(kind, volume, client, (played) => {
+    if (played) {
+      settled = true
+      return
+    }
+    fallback()
+  })
+  if (!captureStarted) {
+    fallback()
+    return
+  }
+  window.setTimeout(fallback, VOICE_SIGNAL_CAPTURE_FALLBACK_MS)
+}
+
+function playVoiceCaptureSignalTone(kind: VoiceInputSignalTone, volume: number, client: VoiceInputClient | null, onResult?: (played: boolean) => void): boolean {
   return client?.playSignalTone(kind, volume, (playedKind, method, error) => {
     recordHudNotificationSound(playedKind, method, error)
+    onResult?.(!hudNotificationSoundResultFailed(method))
   }) === true
 }
 
@@ -5854,6 +5880,10 @@ function hudNotificationVolume(kind: HudNotificationKind): number {
 function effectiveHudNotificationVolume(kind: HudNotificationKind, volume: number): number {
   if (kind === "agent" || volume <= 0) return volume
   return Math.max(volume, MIN_AUDIBLE_VOICE_SIGNAL_VOLUME)
+}
+
+function hudNotificationSoundResultFailed(method: string): boolean {
+  return /blocked|failed|timeout|context|closed/i.test(method)
 }
 
 function playBrowserHudNotificationSound(kind: HudNotificationKind, volume: number): void {

@@ -14,8 +14,8 @@
 import {Color, GridHelper, Matrix4, Object3D, Quaternion, Raycaster, Renderer, Space, TrueTypeFont, Vector3, ViewPoint} from "@metafor/engine"
 import {HUD} from "./targets/HUD.ts"
 import {UIDisplay} from "./targets/UIDisplay.ts"
-import {VirtualInput} from "./virtual-input.ts"
-import {handleActiveInputKey, insertActiveInputText} from "./input.ts"
+import {VirtualInput, type VirtualInputSoftKeyboardMode} from "./virtual-input.ts"
+import {handleActiveInputKey, insertActiveInputText, surfaceHasActiveInput} from "./input.ts"
 
 export type UiSurfaceRect = {x: number; y: number; w: number; h: number; visible?: boolean}
 export type UiSurfaceLayoutFn = (canvas: {w: number; h: number}) => UiSurfaceRect
@@ -81,6 +81,7 @@ export interface UiSurfaceNode {
   acceptsPointerEvents?(): boolean
   containsPointer?(localX: number, localY: number): boolean
   preserveNativeTouchActivation?(): boolean
+  softKeyboardInputMode?(): VirtualInputSoftKeyboardMode
   setFramebufferClipSpace?(space: "display" | "screen"): void
   setFramebufferDisplayId?(displayId: UiDisplayId): void
   onPointerLeave?(): void
@@ -293,7 +294,10 @@ export class UiRuntime {
   readonly #handleContextMenu = (event: MouseEvent): void => this.#onContextMenu(event)
   readonly #handleKey = (event: KeyboardEvent): void => this.#onKey(event)
   readonly #handleWindowKey = (event: KeyboardEvent): void => this.#onWindowKey(event)
-  readonly #handleWindowBlur = (): void => this.#clearKeyboardFocus()
+  readonly #handleWindowBlur = (): void => {
+    if (this.inputProxy?.softKeyboardActive() === true) return
+    this.#clearKeyboardFocus()
+  }
   readonly #handleVisibilityChange = (): void => {
     if (document.visibilityState !== "visible") this.#clearKeyboardFocus()
   }
@@ -1603,7 +1607,6 @@ export class UiRuntime {
     if (hudSlot !== undefined) {
       if (this.inputProxy !== null) {
         event.preventDefault()
-        this.inputProxy.focus()
       } else {
         this.canvas.focus()
       }
@@ -1611,6 +1614,7 @@ export class UiRuntime {
       this.setFocused(hudSlot.surface)
       this.#pressedSlot = hudSlot
       hudSlot.surface.onPointerDown?.(event, canvasCoords.x - hudSlot.rect.x, canvasCoords.y - hudSlot.rect.y)
+      this.#focusInputProxyForUserSurface(hudSlot.surface, event)
       return
     }
     const displayCoords = this.#displayCoords(canvasCoords.x, canvasCoords.y)
@@ -1633,7 +1637,6 @@ export class UiRuntime {
     // инструменты ввода.
     if (this.inputProxy !== null) {
       event.preventDefault()
-      this.inputProxy.focus()
     } else {
       this.canvas.focus()
     }
@@ -1648,6 +1651,12 @@ export class UiRuntime {
     this.#pressedSlot = slot
     if (displayCoords.displayId !== this.#surfaceDisplayId) this.#armDisplayDragCandidate(event, displayCoords.displayId)
     slot.surface.onPointerDown?.(event, displayCoords.x - slot.rect.x, displayCoords.y - slot.rect.y)
+    this.#focusInputProxyForUserSurface(slot.surface, event)
+  }
+
+  #focusInputProxyForUserSurface(surface: UiSurfaceNode, event: MouseEvent): void {
+    if (this.inputProxy === null || event.button !== 0) return
+    this.inputProxy.focus({softKeyboard: softKeyboardInputModeForSurface(surface) === "text"})
   }
 
   #onContextMenu(event: MouseEvent): void {
@@ -1726,6 +1735,12 @@ export class UiRuntime {
 }
 
 type UiSurfaceForInput = Parameters<typeof handleActiveInputKey>[0]
+
+function softKeyboardInputModeForSurface(surface: UiSurfaceNode): VirtualInputSoftKeyboardMode {
+  const explicit = surface.softKeyboardInputMode?.()
+  if (explicit !== undefined) return explicit
+  return surfaceHasActiveInput(surface as UiSurfaceForInput) ? "text" : "none"
+}
 
 function isRuntimeKeyFallbackTarget(target: EventTarget | null, canvas: HTMLCanvasElement): boolean {
   if (target === null || target === window || target === document || target === document.body || target === document.documentElement) {

@@ -7,7 +7,7 @@
  */
 
 import {Color, TextMaterial} from "@metafor/engine"
-import {UiSurface, Z, div, divScrollPosition, divScrollTo, palette, radii, visionBorder, visionGlass, type DivScrollContext, type Tone} from "@ui/elements"
+import {UiSurface, Z, div, divScrollPosition, divScrollTo, palette, radii, visionBorder, visionGlass, type DivScrollContext, type Tone, type VirtualInputSoftKeyboardMode} from "@ui/elements"
 import {Divider as controlDivider, IconButton as controlIconButton, uiIcons} from "@ui/components"
 import {
   copyTextSelectionOrFallback,
@@ -482,7 +482,11 @@ class TerminalOutputPane extends UiSurface {
     if (this.canvas === null) return
     if (!this.#focused) this.canvas.setFocused(null)
     this.canvas.setFocused(this)
-    this.canvas.inputProxy?.focus()
+    this.canvas.inputProxy?.focus({softKeyboard: this.softKeyboardInputMode() === "text"})
+  }
+
+  softKeyboardInputMode(): VirtualInputSoftKeyboardMode {
+    return "none"
   }
 
   isFocused(): boolean {
@@ -1426,6 +1430,12 @@ class TerminalOutputPane extends UiSurface {
     return localY >= body.y && localY <= body.y + body.h && localX >= body.x && localX <= body.x + body.w
   }
 
+  protected isCursorLinePoint(localX: number, localY: number): boolean {
+    const pos = this.#positionFromLocal(localX, localY)
+    if (pos === null) return false
+    return pos.line === this.#scrollback.length + this.#cursorRow
+  }
+
   #emitTerminalMouse(button: number, pos: {col: number; row: number}, event: MouseEvent | WheelEvent, kind: "press" | "release" | "move" | "wheel"): void {
     const motion = kind === "move"
     let code = button + terminalMouseModifiers(event) + (motion ? 32 : 0)
@@ -2197,6 +2207,8 @@ export class TerminalPane extends TerminalOutputPane {
   #pendingLocalEcho: PendingLocalEcho | null = null
   #inputPreviewSnapshot: TerminalOutputSnapshot | null = null
   #inputPreviewText: string | null = null
+  #softKeyboardInputArmed = false
+  #softKeyboardInputBuffer = ""
 
   constructor(opts: TerminalPaneOpts = {}) {
     super(opts)
@@ -2210,6 +2222,7 @@ export class TerminalPane extends TerminalOutputPane {
     this.#pendingLocalEcho = null
     this.#inputPreviewSnapshot = null
     this.#inputPreviewText = null
+    this.#softKeyboardInputBuffer = ""
     super.clear()
   }
 
@@ -2217,13 +2230,31 @@ export class TerminalPane extends TerminalOutputPane {
     this.#pendingLocalEcho = null
     this.#inputPreviewSnapshot = null
     this.#inputPreviewText = null
+    this.#softKeyboardInputBuffer = ""
     super.reset()
   }
 
   setInputEnabled(enabled: boolean): void {
     if (this.#inputEnabled === enabled) return
     this.#inputEnabled = enabled
+    if (!enabled) {
+      this.#softKeyboardInputArmed = false
+      this.#clearSoftKeyboardInputBuffer()
+    }
     this.requestRender()
+  }
+
+  override softKeyboardInputMode(): VirtualInputSoftKeyboardMode {
+    return this.#inputEnabled && this.#softKeyboardInputArmed ? "text" : "none"
+  }
+
+  override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
+    this.#softKeyboardInputArmed = this.#inputEnabled
+      && event.button === 0
+      && !event.shiftKey
+      && !isSecondaryPointer(event)
+      && this.isCursorLinePoint(localX, localY)
+    super.onPointerDown(event, localX, localY)
   }
 
   tryLocalEcho(data: string): boolean {
@@ -2281,6 +2312,15 @@ export class TerminalPane extends TerminalOutputPane {
 
   onInputText(text: string): void {
     if (!this.#inputEnabled || text.length === 0) return
+    if (this.#softKeyboardInputArmed) {
+      this.#appendSoftKeyboardInput(text)
+      return
+    }
+    const chars = [...text]
+    if (chars.length === 1) {
+      this.#emitInput(text, "keyboard")
+      return
+    }
     const data = this.terminalKeyboardMode().bracketedPaste ? `\x1b[200~${text}\x1b[201~` : text
     this.#emitInput(data, "paste")
   }
@@ -2288,6 +2328,7 @@ export class TerminalPane extends TerminalOutputPane {
   override onKey(event: KeyboardEvent): void {
     if (this.handleOutputShortcut(event)) return
     if (!this.#inputEnabled) return
+    if (this.#softKeyboardInputArmed && this.#handleSoftKeyboardInputKey(event)) return
 
     const metaOnly = event.metaKey && !event.ctrlKey && !event.altKey
     const key = shortcutLetter(event)
@@ -2315,6 +2356,51 @@ export class TerminalPane extends TerminalOutputPane {
 
   #emitInput(data: string, source: TerminalInputSource): void {
     this.#onInput?.(data, source)
+  }
+
+  #appendSoftKeyboardInput(text: string): void {
+    this.#softKeyboardInputBuffer += text
+    this.setInputPreview(this.#softKeyboardInputBuffer)
+  }
+
+  #clearSoftKeyboardInputBuffer(): void {
+    this.#softKeyboardInputBuffer = ""
+    this.clearInputPreview()
+  }
+
+  #submitSoftKeyboardInputBuffer(): void {
+    const text = this.#softKeyboardInputBuffer
+    this.#clearSoftKeyboardInputBuffer()
+    if (text.length > 0) this.#emitInput(text, "keyboard")
+    this.#emitInput("\r", "keyboard")
+  }
+
+  #handleSoftKeyboardInputKey(event: KeyboardEvent): boolean {
+    if (event.metaKey || event.ctrlKey || event.altKey) return false
+    if (event.key === "Enter") {
+      event.preventDefault()
+      this.#submitSoftKeyboardInputBuffer()
+      return true
+    }
+    if (isBackspaceKey(event)) {
+      event.preventDefault()
+      const chars = [...this.#softKeyboardInputBuffer]
+      chars.pop()
+      this.#softKeyboardInputBuffer = chars.join("")
+      if (this.#softKeyboardInputBuffer.length > 0) this.setInputPreview(this.#softKeyboardInputBuffer)
+      else this.clearInputPreview()
+      return true
+    }
+    if (isForwardDeleteKey(event) || event.key === "Escape") {
+      event.preventDefault()
+      if (event.key === "Escape") this.#clearSoftKeyboardInputBuffer()
+      return true
+    }
+    if (event.key.length === 1) {
+      event.preventDefault()
+      return true
+    }
+    return false
   }
 
   #reconcileLocalEcho(data: string): string {
