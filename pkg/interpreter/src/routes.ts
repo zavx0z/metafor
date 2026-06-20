@@ -41,7 +41,7 @@ const routeIndex = [
   {method: "GET", path: "/processes/:id", description: "рабочий payload process: content + runtime/ui state/capabilities"},
   {method: "POST", path: "/processes/:id/focus", description: "сфокусировать конкретный process"},
   {method: "DELETE", path: "/processes/:id", description: "остановить runtime process и убрать его display из Space"},
-  {method: "POST", path: "/processes/:id/action", description: "{action, params?} — выполнить pause|resume|step|setBreakpointsActive|muteBreakpoints|unmuteBreakpoints|evaluate|source.open|source.openSelection|restart|stop|close|showExecutionPoint"},
+  {method: "POST", path: "/processes/:id/action", description: "{action, params?} — выполнить pause|resume|step|setBreakpointsActive|muteBreakpoints|unmuteBreakpoints|evaluate|source.open({path,line?,column?,selection?})|source.openSelection|restart|stop|close|showExecutionPoint"},
   {method: "GET", path: "/processes/:id/context", description: "текущий context конкретного process"},
   {method: "GET", path: "/processes/:id/modules?q=<text>&limit=<n>", description: "каталог кода в контексте process"},
   {method: "GET", path: "/processes/:id/source?scriptId=<id>", description: "исходник в контексте process"},

@@ -86,6 +86,8 @@ export type EditorSelectionEntry = {
   text: string
 }
 
+type EditorScrollAlign = "nearest" | "center" | "top"
+
 export type EditorOpts = {
   /** Заголовок над редактором. */
   title?: string
@@ -171,6 +173,7 @@ const GUTTER_HALO_Z = Z.TEXT + 0.03
 const GUTTER_HALO_OFFSET_PX = 1
 const LINE_HIGHLIGHT_TOP_PAD_PX = 3
 const LINE_HIGHLIGHT_BOTTOM_PAD_PX = 0
+const SCROLL_PAST_END_MIN_LINES = 1
 const SELECTION_FILL = new Color(92 / 255, 155 / 255, 255 / 255, 0.34)
 const GUTTER_RULE_FILL = new Color(120 / 255, 143 / 255, 166 / 255, 0.12)
 const INDENT_GUIDE_FILL = new Color(120 / 255, 143 / 255, 166 / 255, 0.12)
@@ -332,6 +335,10 @@ export class EditorPane extends UiSurface {
   #scrollTopPx = 0
   #viewportW = 1
   #viewportH = 1
+  #pendingCursorScrollAlign: EditorScrollAlign | null = null
+  #pendingCursorScrollFrames = 0
+  #pendingLineScroll: {lineIndex: number; align: EditorScrollAlign} | null = null
+  #pendingLineScrollFrames = 0
   #lastViewportLayout: EditorViewportLayout | null = null
   #introAnimStartedAt: number | null = null
   #introAnimRafId: number | null = null
@@ -520,12 +527,13 @@ export class EditorPane extends UiSurface {
   }
 
   /** Position cursor at (line, col), clamping to bounds. Centers the line by default. */
-  setCursor(line: number, col: number, opts: {scroll?: "nearest" | "center" | false} = {}): void {
+  setCursor(line: number, col: number, opts: {scroll?: EditorScrollAlign | false} = {}): void {
     this.#setCursorPosition({line, col}, {extendSelection: false, scroll: opts.scroll ?? "center"})
+    if ((opts.scroll ?? "center") === "center") this.#queueCursorScroll("center")
     this.#pingCursor()
   }
 
-  setSelection(anchorLine: number, anchorCol: number, focusLine: number, focusCol: number): void {
+  setSelection(anchorLine: number, anchorCol: number, focusLine: number, focusCol: number, opts: {scroll?: EditorScrollAlign | false} = {}): void {
     const anchor = this.#clampPosition({line: anchorLine, col: anchorCol})
     const focus = this.#clampPosition({line: focusLine, col: focusCol})
     this.#secondarySelections = []
@@ -533,7 +541,17 @@ export class EditorPane extends UiSurface {
     this.#selectionFocus = focus
     this.#cline = focus.line
     this.#ccol = focus.col
-    this.#scrollCursorIntoView()
+    if (opts.scroll !== false) {
+      const align = opts.scroll ?? "nearest"
+      if (align === "top") {
+        const lineIndex = orderedTextSelection(anchor, focus)?.start.line ?? Math.min(anchor.line, focus.line)
+        this.#scrollLineIntoView(lineIndex, "top")
+        this.#queueLineScroll(lineIndex, "top")
+      } else {
+        this.#scrollCursorIntoView(align)
+        if (align === "center") this.#queueCursorScroll(align)
+      }
+    }
     this.#pingCursor()
     this.#emitSelectionChange()
     this.requestRender()
@@ -859,7 +877,7 @@ export class EditorPane extends UiSurface {
     this.#onSelectionChange?.(this.getSelectionSnapshot())
   }
 
-  #setCursorPosition(pos: CursorPos, opts: {extendSelection: boolean; scroll?: "nearest" | "center" | false}): void {
+  #setCursorPosition(pos: CursorPos, opts: {extendSelection: boolean; scroll?: EditorScrollAlign | false}): void {
     const next = this.#clampPosition(pos)
     if (opts.extendSelection) {
       this.#secondarySelections = []
@@ -1501,14 +1519,15 @@ export class EditorPane extends UiSurface {
     }
   }
 
-  #scrollCursorIntoView(align: "nearest" | "center" = "nearest"): void {
+  #scrollCursorIntoView(align: EditorScrollAlign = "nearest"): void {
     let nextTop = this.#scrollTopPx
     const viewportH = this.#viewportContentH()
     const rows = this.#visualRowsForCodeMaxPx(this.#codeMaxPx())
     const cursorRow = this.#visualRowForPosition(this.#currentPos(), rows)
     const cursorTop = cursorRow.rowIndex * this.#linePx
     const cursorBottom = cursorTop + this.#linePx
-    if (align === "center") nextTop = Math.max(0, cursorTop - Math.max(0, viewportH - this.#linePx) / 2)
+    if (align === "top") nextTop = cursorTop
+    else if (align === "center") nextTop = Math.max(0, cursorTop - Math.max(0, viewportH - this.#linePx) / 2)
     else if (cursorTop < nextTop) nextTop = cursorTop
     else if (cursorBottom > nextTop + viewportH) nextTop = cursorBottom - viewportH
 
@@ -1524,13 +1543,15 @@ export class EditorPane extends UiSurface {
     this.#setScrollPosition(nextLeft, nextTop)
   }
 
-  #scrollLineIntoView(lineIndex: number, align: "nearest" | "center" = "nearest"): void {
+  #scrollLineIntoView(lineIndex: number, align: EditorScrollAlign = "nearest"): void {
     const viewportH = this.#viewportContentH()
     const rows = this.#visualRowsForCodeMaxPx(this.#codeMaxPx())
     const rowIndex = this.#visualRowIndexForLine(rows, Math.max(0, lineIndex), "start")
     const lineTop = rowIndex * this.#linePx
     let nextTop = this.#scrollTopPx
-    if (align === "center") {
+    if (align === "top") {
+      nextTop = lineTop
+    } else if (align === "center") {
       nextTop = Math.max(0, lineTop - Math.max(0, viewportH - this.#linePx) / 2)
     } else if (lineTop < nextTop) {
       nextTop = lineTop
@@ -1538,6 +1559,16 @@ export class EditorPane extends UiSurface {
       nextTop = lineTop + this.#linePx - viewportH
     }
     this.#setScrollPosition(this.#effectiveScrollLeftPx(), nextTop)
+  }
+
+  #queueCursorScroll(align: EditorScrollAlign): void {
+    this.#pendingCursorScrollAlign = align
+    this.#pendingCursorScrollFrames = align === "center" ? 3 : 1
+  }
+
+  #queueLineScroll(lineIndex: number, align: EditorScrollAlign): void {
+    this.#pendingLineScroll = {lineIndex, align}
+    this.#pendingLineScrollFrames = align === "top" ? 4 : 2
   }
 
   #setScrollPosition(left: number, top: number): void {
@@ -1862,10 +1893,11 @@ export class EditorPane extends UiSurface {
     const scrollContentWidth = this.#wrapLines
       ? Math.max(1, viewport.w)
       : Math.max(1, gutter + CODE_LEFT_PAD_PX + this.#maxLineWidthPx() + 8)
+    const scrollPastEndPx = Math.max(0, viewport.h - this.#linePx * SCROLL_PAST_END_MIN_LINES)
     div(this, viewport.x, viewport.y, viewport.w, viewport.h, {
       key: EDITOR_SCROLL_KEY,
       scrollContentWidth,
-      scrollContentHeight: Math.max(1, visualRows.length * this.#linePx),
+      scrollContentHeight: Math.max(1, visualRows.length * this.#linePx + scrollPastEndPx),
       style: {
         background: null,
         borderColor: null,
@@ -1885,6 +1917,28 @@ export class EditorPane extends UiSurface {
     this.#scrollTopPx = ctx.scrollTop
     this.#viewportW = ctx.viewportWidth
     this.#viewportH = ctx.viewportHeight
+    const pendingScrollAlign = this.#pendingCursorScrollAlign
+    if (pendingScrollAlign !== null) {
+      this.#scrollCursorIntoView(pendingScrollAlign)
+      this.#pendingCursorScrollFrames -= 1
+      if (this.#pendingCursorScrollFrames <= 0) {
+        this.#pendingCursorScrollAlign = null
+        this.#pendingCursorScrollFrames = 0
+      } else {
+        this.requestRender()
+      }
+    }
+    const pendingLineScroll = this.#pendingLineScroll
+    if (pendingLineScroll !== null) {
+      this.#scrollLineIntoView(pendingLineScroll.lineIndex, pendingLineScroll.align)
+      this.#pendingLineScrollFrames -= 1
+      if (this.#pendingLineScrollFrames <= 0) {
+        this.#pendingLineScroll = null
+        this.#pendingLineScrollFrames = 0
+      } else {
+        this.requestRender()
+      }
+    }
 
     const layout = this.#viewportLayout(gutter)
     this.#lastViewportLayout = layout

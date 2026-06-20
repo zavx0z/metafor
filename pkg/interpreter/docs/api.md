@@ -311,7 +311,7 @@ curl -sS -X POST 'http://127.0.0.1:6500/processes/dark-server.spec.ts/action' \
 - `resume`
 - `step` с `params.kind`: `over`, `into`, `out`
 - `evaluate` / `eval` с `params.expr` и опциональным `params.frame`
-- `source.open` с `params.sourceUrl`, `params.path`, `params.modulePath` или `params.specifier`
+- `source.open` с `params.sourceUrl`, `params.path`, `params.modulePath` или `params.specifier`; опционально `params.line`/`params.column` или `params.selection:{start,end}` / `{anchor,focus}`
 - `source.openSelection`
 - `restart`
 - `stop`
@@ -319,6 +319,16 @@ curl -sS -X POST 'http://127.0.0.1:6500/processes/dark-server.spec.ts/action' \
 - `showExecutionPoint`
 
 `evaluate` пишет выражение AI и результат в терминал process, чтобы человек видел общее действие.
+
+Открыть source и выделить диапазон в редакторе:
+
+```sh
+curl -sS -X POST 'http://127.0.0.1:6500/processes/dark-server.spec.ts/action' \
+  -H 'content-type: application/json' \
+  -d '{"action":"source.open","params":{"path":"/path/to/file.ts","selection":{"start":{"line":10,"column":2},"end":{"line":10,"column":14}}}}'
+```
+
+`selection.line` — 1-based, `selection.column` — 0-based.
 
 ## Каталог Кода
 

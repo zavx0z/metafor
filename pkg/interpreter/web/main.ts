@@ -1332,9 +1332,11 @@ async function openInterpreterSource(controller: ModuleDisplayController, params
   const options: SourceOpenOptions = {}
   const line = numberParam(params["line"])
   const column = numberParam(params["column"])
+  const selection = parseSourceOpenSelection(params)
   const revealInWorkspace = booleanParam(params["revealInWorkspace"]) ?? booleanParam(params["reveal"])
   if (line !== undefined) options.line = line
   if (column !== undefined) options.column = column
+  if (selection !== undefined) options.selection = selection
   if (revealInWorkspace !== undefined) options.revealInWorkspace = revealInWorkspace
   return await openWorkspaceSource(controller, sourceUrl, options)
 }
@@ -1364,7 +1366,20 @@ type SqliteOpenParams = {
 type SourceOpenOptions = {
   line?: number
   column?: number
+  selection?: SourceOpenSelection
   revealInWorkspace?: boolean
+}
+
+type SourceOpenPosition = {
+  /** 1-based line for external API callers. */
+  line: number
+  /** 0-based column, matching editor/context API columns. */
+  column: number
+}
+
+type SourceOpenSelection = {
+  anchor: SourceOpenPosition
+  focus: SourceOpenPosition
 }
 
 async function openSqliteDisplay(input: string | SqliteOpenParams): Promise<unknown> {
@@ -2253,6 +2268,52 @@ function numberParam(value: unknown): number | undefined {
 
 function booleanParam(value: unknown): boolean | undefined {
   return typeof value === "boolean" ? value : undefined
+}
+
+function parseSourceOpenSelection(params: Record<string, unknown>): SourceOpenSelection | undefined {
+  const nested = objectParamMaybe(params["selection"]) ?? objectParamMaybe(params["range"])
+  if (nested !== undefined) return parseSourceOpenSelectionObject(nested, "source.open selection")
+
+  const anchor = parseSourceOpenPositionFields(params, ["anchorLine", "startLine", "selectionStartLine"], ["anchorColumn", "anchorCol", "startColumn", "startCol", "selectionStartColumn", "selectionStartCol"])
+  const focus = parseSourceOpenPositionFields(params, ["focusLine", "endLine", "selectionEndLine"], ["focusColumn", "focusCol", "endColumn", "endCol", "selectionEndColumn", "selectionEndCol"])
+  if (anchor === undefined && focus === undefined) return undefined
+  if (anchor === undefined || focus === undefined) throw new Error("source.open selection requires both start/end or anchor/focus positions")
+  return {anchor, focus}
+}
+
+function parseSourceOpenSelectionObject(params: Record<string, unknown>, label: string): SourceOpenSelection {
+  const anchor = parseSourceOpenPosition(params["anchor"])
+    ?? parseSourceOpenPosition(params["start"])
+    ?? parseSourceOpenPositionFields(params, ["anchorLine", "startLine"], ["anchorColumn", "anchorCol", "startColumn", "startCol"])
+  const focus = parseSourceOpenPosition(params["focus"])
+    ?? parseSourceOpenPosition(params["end"])
+    ?? parseSourceOpenPositionFields(params, ["focusLine", "endLine"], ["focusColumn", "focusCol", "endColumn", "endCol"])
+  if (anchor === undefined || focus === undefined) throw new Error(`${label} requires both start/end or anchor/focus positions`)
+  return {anchor, focus}
+}
+
+function parseSourceOpenPosition(value: unknown): SourceOpenPosition | undefined {
+  const object = objectParamMaybe(value)
+  if (object === undefined) return undefined
+  const line = numberParam(object["line"])
+  if (line === undefined) return undefined
+  const column = numberParam(object["column"]) ?? numberParam(object["col"]) ?? 0
+  return {line, column}
+}
+
+function parseSourceOpenPositionFields(params: Record<string, unknown>, lineKeys: readonly string[], columnKeys: readonly string[]): SourceOpenPosition | undefined {
+  const line = firstNumberParam(params, lineKeys)
+  if (line === undefined) return undefined
+  const column = firstNumberParam(params, columnKeys) ?? 0
+  return {line, column}
+}
+
+function firstNumberParam(params: Record<string, unknown>, keys: readonly string[]): number | undefined {
+  for (const key of keys) {
+    const value = numberParam(params[key])
+    if (value !== undefined) return value
+  }
+  return undefined
 }
 
 function sideParam(value: unknown): DisplaySelectorSide | undefined {
@@ -8899,10 +8960,23 @@ async function refreshOpenSourceFromDisk(controller: ModuleDisplayController, so
 }
 
 function applySourceOpenPosition(controller: ModuleDisplayController, options: SourceOpenOptions): void {
+  if (options.selection !== undefined) {
+    const anchor = sourceOpenPositionToEditor(options.selection.anchor)
+    const focus = sourceOpenPositionToEditor(options.selection.focus)
+    controller.source.setSelection(anchor.line, anchor.col, focus.line, focus.col, {scroll: "top"})
+    return
+  }
   if (options.line === undefined) return
   const line = Math.max(1, Math.floor(options.line))
   const column = Math.max(0, Math.floor(options.column ?? 0))
   controller.source.setCursor(line - 1, column)
+}
+
+function sourceOpenPositionToEditor(pos: SourceOpenPosition): {line: number; col: number} {
+  return {
+    line: Math.max(0, Math.floor(pos.line) - 1),
+    col: Math.max(0, Math.floor(pos.column)),
+  }
 }
 
 function workspaceFileSourceUrl(controller: ModuleDisplayController, item: FileListItem): string {

@@ -141,7 +141,7 @@ Space API:
 - `resume`
 - `step` с `params.kind`: `over`, `into`, `out`
 - `evaluate` / `eval` с `params.expr` и опциональным `params.frame`
-- `source.open` с `params.sourceUrl`, `params.path`, `params.modulePath` или `params.specifier`
+- `source.open` с `params.sourceUrl`, `params.path`, `params.modulePath` или `params.specifier`; опционально `params.line`/`params.column` или `params.selection:{start,end}` / `{anchor,focus}`
 - `source.openSelection`
 - `restart`
 - `stop`
