@@ -129,6 +129,8 @@ export type EditorOpts = {
   indentGuides?: boolean
   /** Show line numbers in the left gutter. Default true. */
   showLineNumbers?: boolean
+  /** Soft-wrap long visual rows instead of using horizontal scroll. Default false. */
+  wrapLines?: boolean
   /** Header drag is opt-in. Default false. */
   draggable?: boolean
   /** Edge resize is opt-in. Default false. */
@@ -194,13 +196,29 @@ type ColumnHitBias = "nearest" | "floor" | "ceil"
 type LineWidthCache = {scale: number; widths: number[]}
 type SelectionMenuAction = "copy" | "cut" | "selectAll"
 type SelectionMenuRect = {x: number; y: number; w: number; h: number; anchorX: number}
-type EditorVisibleLine = {
+type EditorVisualRow = {
+  rowIndex: number
   lineIndex: number
+  startCol: number
+  endCol: number
+  isFirstForLine: boolean
+}
+type EditorVisibleLine = {
+  rowIndex: number
+  lineIndex: number
+  startCol: number
+  endCol: number
   rowY: number
   textY: number
   lineText: string
+  isFirstForLine: boolean
   isCurrent: boolean
   isExecution: boolean
+}
+type EditorSelectionSegment = {
+  startCol: number
+  endCol: number
+  includesLineBreak: boolean
 }
 export type EditorIndentGuideRange = {
   column: number
@@ -226,7 +244,8 @@ type EditorGutterMetrics = {
   numberW: number
 }
 type EditorViewportLayout = {
-  total: number
+  totalRows: number
+  visualRows: EditorVisualRow[]
   gutter: number
   startIdx: number
   subPx: number
@@ -289,6 +308,7 @@ export class EditorPane extends UiSurface {
   #showHeader: boolean
   #indentGuides: boolean
   #showLineNumbers: boolean
+  #wrapLines: boolean
   #executionLine: number | null = null
   #cursorVisible = true
   #cursorBlinkTimer: ReturnType<typeof setInterval> | null = null
@@ -348,6 +368,7 @@ export class EditorPane extends UiSurface {
     this.#showHeader = opts.showHeader ?? true
     this.#indentGuides = opts.indentGuides ?? true
     this.#showLineNumbers = opts.showLineNumbers ?? true
+    this.#wrapLines = opts.wrapLines ?? false
     this.#tokenMaterials = createEditorTokenMaterials()
     this.#refreshTokens()
   }
@@ -447,6 +468,13 @@ export class EditorPane extends UiSurface {
     if (this.#introAnimation === enabled) return
     this.#introAnimation = enabled
     if (!enabled) this.#finishIntroAnimation(false)
+  }
+
+  setWrapLines(enabled: boolean): void {
+    if (this.#wrapLines === enabled) return
+    this.#wrapLines = enabled
+    if (enabled) this.#setScrollPosition(0, this.#scrollTopPx)
+    this.requestRender()
   }
 
   setBreakpoints(breakpoints: readonly EditorBreakpoint[]): void {
@@ -881,27 +909,35 @@ export class EditorPane extends UiSurface {
     return true
   }
 
-  #lineFromLocalY(localY: number): number | null {
+  #visualRowFromLocalY(localY: number): EditorVisualRow | null {
     const padTop = this.#padTopPx()
     if (localY < padTop) return null
+    const rows = this.#visualRowsForCodeMaxPx(this.#codeMaxPx())
+    if (rows.length === 0) return null
     const rowFloat = (localY - padTop + this.#scrollTopPx) / this.#linePx
-    return Math.max(0, Math.min(this.#lines.length - 1, Math.floor(rowFloat)))
+    const rowIndex = Math.max(0, Math.min(rows.length - 1, Math.floor(rowFloat)))
+    return rows[rowIndex] ?? null
   }
 
   #codeStartX(): number {
     return PAD_LEFT_PX + this.#gutterWidthPx(this.#lines.length) + CODE_LEFT_PAD_PX
   }
 
-  #colAtLocalX(line: string, localX: number, bias: ColumnHitBias): number {
-    const xInCode = Math.max(0, localX - this.#codeStartX() + this.#scrollLeftPx)
+  #colAtLocalX(line: string, localX: number, bias: ColumnHitBias, row: EditorVisualRow | null = null): number {
+    const xInCode = Math.max(0, localX - this.#codeStartX() + this.#effectiveScrollLeftPx())
+    if (row !== null) {
+      const segment = line.slice(row.startCol, row.endCol)
+      return row.startCol + this.#colAtX(segment, xInCode, bias)
+    }
     return this.#colAtX(line, xInCode, bias)
   }
 
   #positionFromLocal(localX: number, localY: number, bias: ColumnHitBias = "nearest"): CursorPos | null {
-    const lineIdx = this.#lineFromLocalY(localY)
-    if (lineIdx === null) return null
-    const col = this.#colAtLocalX(this.#lines[lineIdx]!, localX, bias)
-    return {line: lineIdx, col}
+    const row = this.#visualRowFromLocalY(localY)
+    if (row === null) return null
+    const line = this.#lines[row.lineIndex] ?? ""
+    const col = this.#colAtLocalX(line, localX, bias, row)
+    return {line: row.lineIndex, col: Math.max(row.startCol, Math.min(row.endCol, col))}
   }
 
   // ────────── input ──────────
@@ -1147,19 +1183,19 @@ export class EditorPane extends UiSurface {
   #updateDragSelection(localX: number, localY: number): void {
     const dragDistance = Math.abs(localX - this.#dragAnchorLocalX) + Math.abs(localY - this.#dragAnchorLocalY)
     if (dragDistance < 0.5) return
-    const anchorLine = this.#lineFromLocalY(this.#dragAnchorLocalY)
-    const focusLine = this.#lineFromLocalY(localY)
-    if (!this.#dragExtendsSelection && anchorLine !== null && focusLine === anchorLine) {
-      const lineText = this.#lines[anchorLine] ?? ""
+    const anchorRow = this.#visualRowFromLocalY(this.#dragAnchorLocalY)
+    const focusRow = this.#visualRowFromLocalY(localY)
+    if (!this.#dragExtendsSelection && anchorRow !== null && focusRow !== null && focusRow.rowIndex === anchorRow.rowIndex) {
+      const lineText = this.#lines[anchorRow.lineIndex] ?? ""
       const forward = localX >= this.#dragAnchorLocalX
-      const anchorCol = this.#colAtLocalX(lineText, this.#dragAnchorLocalX, forward ? "floor" : "ceil")
-      let focusCol = this.#colAtLocalX(lineText, localX, "nearest")
+      const anchorCol = this.#colAtLocalX(lineText, this.#dragAnchorLocalX, forward ? "floor" : "ceil", anchorRow)
+      let focusCol = this.#colAtLocalX(lineText, localX, "nearest", focusRow)
       if (anchorCol === focusCol && lineText.length > 0) {
-        focusCol = forward ? Math.min(lineText.length, anchorCol + 1) : Math.max(0, anchorCol - 1)
+        focusCol = forward ? Math.min(anchorRow.endCol, anchorCol + 1) : Math.max(anchorRow.startCol, anchorCol - 1)
       }
       this.#applyDragSelection(
-        {line: anchorLine, col: anchorCol},
-        {line: anchorLine, col: focusCol},
+        {line: anchorRow.lineIndex, col: anchorCol},
+        {line: anchorRow.lineIndex, col: focusCol},
       )
       return
     }
@@ -1412,32 +1448,57 @@ export class EditorPane extends UiSurface {
       }
     }
     if (dLine !== 0) {
-      const newLine = Math.max(0, Math.min(this.#lines.length - 1, next.line + dLine))
-      next = {line: newLine, col: Math.min(next.col, this.#lines[newLine]!.length)}
+      if (this.#wrapLines) {
+        next = this.#moveCursorByVisualRows(next, dLine)
+      } else {
+        const newLine = Math.max(0, Math.min(this.#lines.length - 1, next.line + dLine))
+        next = {line: newLine, col: Math.min(next.col, this.#lines[newLine]!.length)}
+      }
     }
     this.#setCursorPosition(next, {extendSelection})
   }
 
   #movePage(direction: 1 | -1, extendSelection = false): void {
     const visible = this.#visibleLineCount()
+    if (this.#wrapLines) {
+      const next = this.#moveCursorByVisualRows(this.#currentPos(), direction * visible)
+      this.#setCursorPosition(next, {extendSelection})
+      return
+    }
     const newLine = Math.max(0, Math.min(this.#lines.length - 1, this.#cline + direction * visible))
     this.#setCursorPosition({line: newLine, col: Math.min(this.#ccol, this.#lines[newLine]!.length)}, {extendSelection})
+  }
+
+  #moveCursorByVisualRows(pos: CursorPos, deltaRows: number): CursorPos {
+    const rows = this.#visualRowsForCodeMaxPx(this.#codeMaxPx())
+    if (rows.length === 0) return pos
+    const currentRow = this.#visualRowForPosition(pos, rows)
+    const targetRow = rows[Math.max(0, Math.min(rows.length - 1, currentRow.rowIndex + deltaRows))] ?? currentRow
+    const x = this.#cursorXInVisualRow(pos, currentRow)
+    const line = this.#lines[targetRow.lineIndex] ?? ""
+    const segment = line.slice(targetRow.startCol, targetRow.endCol)
+    const relCol = this.#colAtX(segment, x, "nearest")
+    return {
+      line: targetRow.lineIndex,
+      col: Math.max(targetRow.startCol, Math.min(targetRow.endCol, targetRow.startCol + relCol)),
+    }
   }
 
   #scrollCursorIntoView(align: "nearest" | "center" = "nearest"): void {
     let nextTop = this.#scrollTopPx
     const viewportH = this.#viewportContentH()
-    const cursorTop = this.#cline * this.#linePx
+    const rows = this.#visualRowsForCodeMaxPx(this.#codeMaxPx())
+    const cursorRow = this.#visualRowForPosition(this.#currentPos(), rows)
+    const cursorTop = cursorRow.rowIndex * this.#linePx
     const cursorBottom = cursorTop + this.#linePx
     if (align === "center") nextTop = Math.max(0, cursorTop - Math.max(0, viewportH - this.#linePx) / 2)
     else if (cursorTop < nextTop) nextTop = cursorTop
     else if (cursorBottom > nextTop + viewportH) nextTop = cursorBottom - viewportH
 
-    const lineText = this.#lines[this.#cline] ?? ""
-    const cursorPx = this.#colToPx(lineText, this.#ccol)
+    const cursorPx = this.#cursorXInVisualRow(this.#currentPos(), cursorRow)
     const codeMaxPx = this.#codeMaxPx()
     const margin = 40
-    let nextLeft = this.#scrollLeftPx
+    let nextLeft = this.#effectiveScrollLeftPx()
     if (cursorPx - nextLeft < margin) {
       nextLeft = Math.max(0, cursorPx - margin)
     } else if (cursorPx - nextLeft > codeMaxPx - margin) {
@@ -1448,7 +1509,9 @@ export class EditorPane extends UiSurface {
 
   #scrollLineIntoView(lineIndex: number, align: "nearest" | "center" = "nearest"): void {
     const viewportH = this.#viewportContentH()
-    const lineTop = Math.max(0, lineIndex) * this.#linePx
+    const rows = this.#visualRowsForCodeMaxPx(this.#codeMaxPx())
+    const rowIndex = this.#visualRowIndexForLine(rows, Math.max(0, lineIndex), "start")
+    const lineTop = rowIndex * this.#linePx
     let nextTop = this.#scrollTopPx
     if (align === "center") {
       nextTop = Math.max(0, lineTop - Math.max(0, viewportH - this.#linePx) / 2)
@@ -1457,11 +1520,11 @@ export class EditorPane extends UiSurface {
     } else if (lineTop + this.#linePx > nextTop + viewportH) {
       nextTop = lineTop + this.#linePx - viewportH
     }
-    this.#setScrollPosition(this.#scrollLeftPx, nextTop)
+    this.#setScrollPosition(this.#effectiveScrollLeftPx(), nextTop)
   }
 
   #setScrollPosition(left: number, top: number): void {
-    this.#scrollLeftPx = Math.max(0, left)
+    this.#scrollLeftPx = this.#wrapLines ? 0 : Math.max(0, left)
     this.#scrollTopPx = Math.max(0, top)
     divScrollTo(this, EDITOR_SCROLL_KEY, {left: this.#scrollLeftPx, top: this.#scrollTopPx})
   }
@@ -1469,7 +1532,96 @@ export class EditorPane extends UiSurface {
   #codeMaxPx(): number {
     const gutter = this.#gutterWidthPx(this.#lines.length)
     const contentW = this.#viewportContentW()
+    return this.#codeMaxPxForContentW(contentW, gutter)
+  }
+
+  #codeMaxPxForContentW(contentW: number, gutter: number): number {
     return Math.max(1, contentW - gutter - CODE_LEFT_PAD_PX - 8)
+  }
+
+  #effectiveScrollLeftPx(): number {
+    return this.#wrapLines ? 0 : this.#scrollLeftPx
+  }
+
+  #visualRowsForCodeMaxPx(codeMaxPx: number): EditorVisualRow[] {
+    const rows: EditorVisualRow[] = []
+    const wrapCols = this.#wrapColumnCount(codeMaxPx)
+    for (let lineIndex = 0; lineIndex < this.#lines.length; lineIndex++) {
+      const line = this.#lines[lineIndex] ?? ""
+      if (!this.#wrapLines || line.length === 0) {
+        rows.push({
+          rowIndex: rows.length,
+          lineIndex,
+          startCol: 0,
+          endCol: line.length,
+          isFirstForLine: true,
+        })
+        continue
+      }
+      let startCol = 0
+      while (startCol < line.length) {
+        const endCol = this.#nextWrapEndCol(line, startCol, wrapCols)
+        rows.push({
+          rowIndex: rows.length,
+          lineIndex,
+          startCol,
+          endCol,
+          isFirstForLine: startCol === 0,
+        })
+        startCol = Math.max(startCol + 1, endCol)
+      }
+    }
+    return rows.length > 0 ? rows : [{rowIndex: 0, lineIndex: 0, startCol: 0, endCol: 0, isFirstForLine: true}]
+  }
+
+  #wrapColumnCount(codeMaxPx: number): number {
+    if (!this.#wrapLines) return Number.MAX_SAFE_INTEGER
+    const cw = this.#getCharWidth()
+    if (cw <= 0) return 1
+    return Math.max(1, Math.floor(codeMaxPx / cw))
+  }
+
+  #nextWrapEndCol(line: string, startCol: number, wrapCols: number): number {
+    const hardEnd = Math.min(line.length, startCol + Math.max(1, wrapCols))
+    if (hardEnd >= line.length) return line.length
+    const minWordBreak = startCol + Math.min(8, Math.max(1, wrapCols - 1))
+    for (let i = hardEnd; i > minWordBreak; i--) {
+      if (/\s/.test(line[i - 1] ?? "")) return i
+    }
+    return hardEnd
+  }
+
+  #visualRowForPosition(pos: CursorPos, rows: readonly EditorVisualRow[]): EditorVisualRow {
+    let fallback = rows[0] ?? {rowIndex: 0, lineIndex: 0, startCol: 0, endCol: 0, isFirstForLine: true}
+    for (const row of rows) {
+      if (row.lineIndex < pos.line) {
+        fallback = row
+        continue
+      }
+      if (row.lineIndex > pos.line) break
+      fallback = row
+      const lineLength = this.#lines[row.lineIndex]?.length ?? 0
+      if (pos.col >= row.startCol && (pos.col < row.endCol || row.endCol >= lineLength)) return row
+    }
+    return fallback
+  }
+
+  #visualRowIndexForLine(rows: readonly EditorVisualRow[], lineIndex: number, edge: "start" | "end"): number {
+    let found: number | null = null
+    for (const row of rows) {
+      if (row.lineIndex < lineIndex) continue
+      if (row.lineIndex > lineIndex) break
+      if (edge === "start") return row.rowIndex
+      found = row.rowIndex
+    }
+    if (found !== null) return found
+    return Math.max(0, Math.min(rows.length - 1, lineIndex))
+  }
+
+  #cursorXInVisualRow(pos: CursorPos, row: EditorVisualRow): number {
+    const line = this.#lines[row.lineIndex] ?? ""
+    const col = Math.max(row.startCol, Math.min(row.endCol, pos.col))
+    return this.#colToPx(line, col) - this.#colToPx(line, row.startCol)
   }
 
   #maxLineWidthPx(): number {
@@ -1688,16 +1840,21 @@ export class EditorPane extends UiSurface {
     const total = this.#lines.length
     const gutter = this.#gutterWidthPx(total)
     const viewport = this.#bodyRect()
+    const codeMaxPx = this.#codeMaxPxForContentW(viewport.w, gutter)
+    const visualRows = this.#visualRowsForCodeMaxPx(codeMaxPx)
+    const scrollContentWidth = this.#wrapLines
+      ? Math.max(1, viewport.w)
+      : Math.max(1, gutter + CODE_LEFT_PAD_PX + this.#maxLineWidthPx() + 8)
     div(this, viewport.x, viewport.y, viewport.w, viewport.h, {
       key: EDITOR_SCROLL_KEY,
-      scrollContentWidth: Math.max(1, gutter + CODE_LEFT_PAD_PX + this.#maxLineWidthPx() + 8),
-      scrollContentHeight: Math.max(1, total * this.#linePx),
+      scrollContentWidth,
+      scrollContentHeight: Math.max(1, visualRows.length * this.#linePx),
       style: {
         background: null,
         borderColor: null,
         borderRadius: 0,
         padding: 0,
-        overflowX: "auto",
+        overflowX: this.#wrapLines ? "hidden" : "auto",
         overflowY: "auto",
       },
       children: (ctx) => this.#renderCodeViewport(ctx, gutter),
@@ -1707,7 +1864,7 @@ export class EditorPane extends UiSurface {
   }
 
   #renderCodeViewport(ctx: DivScrollContext, gutter: number): void {
-    this.#scrollLeftPx = ctx.scrollLeft
+    this.#scrollLeftPx = this.#wrapLines ? 0 : ctx.scrollLeft
     this.#scrollTopPx = ctx.scrollTop
     this.#viewportW = ctx.viewportWidth
     this.#viewportH = ctx.viewportHeight
@@ -1726,27 +1883,43 @@ export class EditorPane extends UiSurface {
   }
 
   #viewportLayout(gutter: number): EditorViewportLayout {
-    const total = this.#lines.length
     const scroll = this.#scrollTopPx / this.#linePx
     const startIdx = Math.floor(scroll)
     const subPx = this.#scrollTopPx - startIdx * this.#linePx
     const visible = this.#visibleLineCount()
     const contentW = this.#viewportW
     const contentH = this.#viewportH
-    const codeMaxPx = Math.max(1, contentW - gutter - CODE_LEFT_PAD_PX - 8)
+    const codeMaxPx = this.#codeMaxPxForContentW(contentW, gutter)
     const codeClipX = PAD_LEFT_PX + gutter
     const codeClipW = Math.max(1, codeMaxPx + CODE_LEFT_PAD_PX)
     const codeStartX = PAD_LEFT_PX + gutter + CODE_LEFT_PAD_PX
-    return {total, gutter, startIdx, subPx, visible, contentW, contentH, codeMaxPx, codeClipX, codeClipW, codeStartX}
+    const visualRows = this.#visualRowsForCodeMaxPx(codeMaxPx)
+    return {
+      totalRows: visualRows.length,
+      visualRows,
+      gutter,
+      startIdx,
+      subPx,
+      visible,
+      contentW,
+      contentH,
+      codeMaxPx,
+      codeClipX,
+      codeClipW,
+      codeStartX,
+    }
   }
 
   #renderCurrentLineLayer(layout: EditorViewportLayout): void {
     const padTop = this.#padTopPx()
     this.pushClip(PAD_LEFT_PX, padTop, layout.contentW, layout.contentH)
     const executionIndex = this.#executionLine === null ? null : this.#executionLine - 1
-    const lineIndex = executionIndex ?? this.#cline
-    const cRowIdx = lineIndex - layout.startIdx
-    if (cRowIdx >= -1 && cRowIdx <= layout.visible) {
+    const rows = executionIndex === null
+      ? [this.#visualRowForPosition(this.#currentPos(), layout.visualRows)]
+      : layout.visualRows.filter((row) => row.lineIndex === executionIndex)
+    for (const row of rows) {
+      const cRowIdx = row.rowIndex - layout.startIdx
+      if (cRowIdx < -1 || cRowIdx > layout.visible) continue
       const hY = padTop + cRowIdx * this.#linePx - layout.subPx
       const highlightY = this.#lineHighlightY(hY)
       const highlightH = this.#lineHighlightH()
@@ -1772,19 +1945,21 @@ export class EditorPane extends UiSurface {
     const ranges = this.#indentGuideRanges()
     if (ranges.length === 0) return
     const padTop = this.#padTopPx()
-    const firstVisibleLine = layout.startIdx
-    const lastVisibleLine = Math.min(this.#lines.length - 1, layout.startIdx + layout.visible + 1)
+    const firstVisibleRow = layout.visualRows[Math.max(0, Math.min(layout.totalRows - 1, layout.startIdx))]
+    const lastVisibleRow = layout.visualRows[Math.max(0, Math.min(layout.totalRows - 1, layout.startIdx + layout.visible + 1))]
+    const firstVisibleLine = firstVisibleRow?.lineIndex ?? 0
+    const lastVisibleLine = lastVisibleRow?.lineIndex ?? this.#lines.length - 1
     this.pushClip(layout.codeClipX, padTop, layout.codeClipW, layout.contentH)
     for (const range of ranges) {
       if (range.column === 0) continue
       if (range.endLine < firstVisibleLine || range.startLine > lastVisibleLine) continue
-      const rawX = layout.codeStartX + this.#indentGuideColumnToPx(range.column) - INDENT_GUIDE_TEXT_OFFSET_PX - this.#scrollLeftPx
+      const rawX = layout.codeStartX + this.#indentGuideColumnToPx(range.column) - INDENT_GUIDE_TEXT_OFFSET_PX - this.#effectiveScrollLeftPx()
       if (rawX < layout.codeClipX - 1 || rawX > layout.codeClipX + layout.codeClipW + 1) continue
       const x = Math.round(rawX) + 0.5
       const startLine = Math.max(range.startLine, firstVisibleLine)
       const endLine = Math.min(range.endLine, lastVisibleLine)
-      const y1 = this.#rowYForLine(layout, startLine)
-      const y2 = this.#rowYForLine(layout, endLine) + (range.includesEndLine ? this.#linePx : 0)
+      const y1 = this.#rowYForLine(layout, startLine, "start")
+      const y2 = this.#rowYForLine(layout, endLine, range.includesEndLine ? "end" : "start")
       if (y2 <= y1) continue
       this.drawLine(x, y1, x, y2, INDENT_GUIDE_FILL, 1, Z.SEPARATOR)
     }
@@ -1799,24 +1974,18 @@ export class EditorPane extends UiSurface {
     return Math.max(0, col) * this.#getSpaceWidth()
   }
 
-  #rowYForLine(layout: EditorViewportLayout, lineIndex: number): number {
-    return this.#padTopPx() + (lineIndex - layout.startIdx) * this.#linePx - layout.subPx
+  #rowYForLine(layout: EditorViewportLayout, lineIndex: number, edge: "start" | "end" = "start"): number {
+    const rowIndex = this.#visualRowIndexForLine(layout.visualRows, lineIndex, edge)
+    const y = this.#padTopPx() + (rowIndex - layout.startIdx) * this.#linePx - layout.subPx
+    return edge === "end" ? y + this.#linePx : y
   }
 
   #renderSelectionLayer(layout: EditorViewportLayout): void {
     const padTop = this.#padTopPx()
     this.pushClip(PAD_LEFT_PX, padTop, layout.contentW, layout.contentH)
-    const renderCount = layout.visible + 1
-    for (let i = 0; i < renderCount; i++) {
-      const lineIndex = layout.startIdx + i
-      if (lineIndex >= layout.total) break
-      if (lineIndex < 0) continue
-      const rowY = padTop + i * this.#linePx - layout.subPx
-      if (rowY + this.#linePx < padTop - 1) continue
-      if (rowY > padTop + layout.contentH + 1) break
-      const lineText = this.#lines[lineIndex] ?? ""
-      this.pushClip(layout.codeClipX, rowY, layout.codeClipW, this.#linePx)
-      this.#renderSelectionForLine(lineIndex, lineText, layout.codeStartX, rowY, layout.codeMaxPx)
+    for (const line of this.#visibleLines(layout)) {
+      this.pushClip(layout.codeClipX, line.rowY, layout.codeClipW, this.#linePx)
+      this.#renderSelectionForLine(line, layout.codeStartX, line.rowY, layout.codeMaxPx)
       this.popClip()
     }
     this.popClip()
@@ -1829,7 +1998,7 @@ export class EditorPane extends UiSurface {
     this.pushClip(PAD_LEFT_PX, padTop, layout.contentW, layout.contentH)
     for (const line of visibleLines) {
       this.pushClip(layout.codeClipX, line.rowY, layout.codeClipW, this.#linePx)
-      this.#renderCodeLine(line.lineIndex, line.lineText, layout.codeStartX, line.textY, layout.codeMaxPx)
+      this.#renderCodeLine(line.lineIndex, line.lineText, layout.codeStartX, line.textY, layout.codeMaxPx, line.startCol, line.endCol)
       this.popClip()
     }
     this.popClip()
@@ -1842,20 +2011,26 @@ export class EditorPane extends UiSurface {
     const renderCount = layout.visible + 1
     const padTop = this.#padTopPx()
     for (let i = 0; i < renderCount; i++) {
-      const lineIndex = layout.startIdx + i
-      if (lineIndex >= layout.total) break
-      if (lineIndex < 0) continue
+      const rowIndex = layout.startIdx + i
+      if (rowIndex >= layout.totalRows) break
+      if (rowIndex < 0) continue
+      const row = layout.visualRows[rowIndex]
+      if (row === undefined) continue
       const rowY = padTop + i * this.#linePx - layout.subPx
       if (rowY + this.#linePx < padTop - 1) continue
       if (rowY > padTop + layout.contentH + 1) break
-      const lineText = this.#lines[lineIndex] ?? ""
+      const lineText = this.#lines[row.lineIndex] ?? ""
       lines.push({
-        lineIndex,
+        rowIndex,
+        lineIndex: row.lineIndex,
+        startCol: row.startCol,
+        endCol: row.endCol,
         rowY,
         textY: rowY + (this.#linePx - this.#fontPx) / 2,
         lineText,
-        isCurrent: lineIndex === this.#cline,
-        isExecution: this.#executionLine !== null && lineIndex === this.#executionLine - 1,
+        isFirstForLine: row.isFirstForLine,
+        isCurrent: row.lineIndex === this.#cline,
+        isExecution: this.#executionLine !== null && row.lineIndex === this.#executionLine - 1,
       })
     }
     return lines
@@ -1865,13 +2040,13 @@ export class EditorPane extends UiSurface {
     if (!this.#showCaret) return
     if (!this.#cursorVisible) return
     const padTop = this.#padTopPx()
-    const rowIdx = this.#cline - layout.startIdx
+    const cursorRow = this.#visualRowForPosition(this.#currentPos(), layout.visualRows)
+    const rowIdx = cursorRow.rowIndex - layout.startIdx
     if (rowIdx < -1 || rowIdx > layout.visible) return
     const rowY = padTop + rowIdx * this.#linePx - layout.subPx
     if (rowY + this.#linePx < padTop - 1 || rowY > padTop + layout.contentH + 1) return
-    const lineText = this.#lines[this.#cline] ?? ""
-    const cursorAbsX = this.#colToPx(lineText, this.#ccol)
-    const curX = Math.round(layout.codeStartX + cursorAbsX - this.#scrollLeftPx)
+    const cursorAbsX = this.#cursorXInVisualRow(this.#currentPos(), cursorRow)
+    const curX = Math.round(layout.codeStartX + cursorAbsX - this.#effectiveScrollLeftPx())
     if (curX < layout.codeStartX - 1 || curX > layout.codeStartX + layout.codeMaxPx + 1) return
     const caretY = Math.round(rowY + (this.#linePx - this.#fontPx) / 2)
     const caretH = Math.max(1, Math.round(this.#fontPx + CARET_BOTTOM_PAD_PX))
@@ -1897,6 +2072,7 @@ export class EditorPane extends UiSurface {
     const ruleX = Math.round(metrics.ruleX) + 0.5
     this.drawLine(ruleX, metrics.y, ruleX, metrics.y + metrics.h, GUTTER_RULE_FILL, 1, GUTTER_RULE_Z)
     for (const line of lines) {
+      if (!line.isFirstForLine) continue
       const sourceLine = line.lineIndex + 1
       const breakpoint = this.#breakpoints.get(sourceLine)
       if (breakpoint !== undefined) {
@@ -1971,12 +2147,14 @@ export class EditorPane extends UiSurface {
     })
   }
 
-  #renderCodeLine(lineIndex: number, lineText: string, codeStartX: number, textY: number, codeMaxPx: number): void {
+  #renderCodeLine(lineIndex: number, lineText: string, codeStartX: number, textY: number, codeMaxPx: number, spanStart = 0, spanEnd = lineText.length): void {
     if (lineText.length === 0) return
-    const slice = this.#visibleSlice(lineText)
+    const slice = this.#wrapLines
+      ? {start: spanStart, end: spanEnd, startPx: 0}
+      : this.#visibleSlice(lineText)
     const visText = slice.end > slice.start ? lineText.slice(slice.start, slice.end) : ""
     if (visText.length === 0) return
-    const drawX = codeStartX - this.#scrollLeftPx + slice.startPx
+    const drawX = codeStartX - this.#effectiveScrollLeftPx() + slice.startPx
     const lineTokens = this.#tokens?.[lineIndex]
     const visTokens: EditorToken[] = []
     if (lineTokens !== undefined) {
@@ -1992,7 +2170,7 @@ export class EditorPane extends UiSurface {
         visTokens.push(token)
       }
     }
-    const maxW = codeMaxPx + this.#scrollLeftPx + 1000
+    const maxW = codeMaxPx + this.#effectiveScrollLeftPx() + 1000
     if (visTokens.length > 0) {
       this.#renderTokenized(lineIndex, visText, visTokens, drawX, textY, maxW, slice.start)
       return
@@ -2052,21 +2230,22 @@ export class EditorPane extends UiSurface {
     })
   }
 
-  #renderSelectionForLine(lineIndex: number, lineText: string, codeStartX: number, rowY: number, codeMaxPx: number): void {
+  #renderSelectionForLine(line: EditorVisibleLine, codeStartX: number, rowY: number, codeMaxPx: number): void {
     for (const selection of this.#selectionSlots()) {
-      this.#renderSelectionRangeForLine(selection.range, lineIndex, lineText, codeStartX, rowY, codeMaxPx)
+      this.#renderSelectionRangeForLine(selection.range, line, codeStartX, rowY, codeMaxPx)
     }
   }
 
-  #renderSelectionRangeForLine(range: SelectionRange, lineIndex: number, lineText: string, codeStartX: number, rowY: number, codeMaxPx: number): void {
+  #renderSelectionRangeForLine(range: SelectionRange, line: EditorVisibleLine, codeStartX: number, rowY: number, codeMaxPx: number): void {
+    const lineIndex = line.lineIndex
+    const lineText = line.lineText
     if (lineIndex < range.start.line || lineIndex > range.end.line) return
+    const segment = this.#selectionSegmentForLine(range, line)
+    if (segment === null) return
 
-    const startCol = lineIndex === range.start.line ? range.start.col : 0
-    const endCol = lineIndex === range.end.line ? range.end.col : lineText.length
-    let x1 = codeStartX + this.#colToPx(lineText, startCol) - this.#scrollLeftPx
-    let x2 = codeStartX + this.#colToPx(lineText, endCol) - this.#scrollLeftPx
-    if (lineIndex < range.end.line && endCol === lineText.length) x2 += Math.max(5, this.#getCharWidth() * 0.65)
-    if (lineText.length === 0 && lineIndex > range.start.line && lineIndex < range.end.line) x2 = x1 + Math.max(5, this.#getCharWidth() * 0.65)
+    let x1 = this.#xForColumnInLineSegment(lineText, line.startCol, segment.startCol, codeStartX)
+    let x2 = this.#xForColumnInLineSegment(lineText, line.startCol, segment.endCol, codeStartX)
+    if (segment.includesLineBreak) x2 += Math.max(5, this.#getCharWidth() * 0.65)
 
     const minX = codeStartX
     const maxX = codeStartX + codeMaxPx
@@ -2085,21 +2264,47 @@ export class EditorPane extends UiSurface {
     })
   }
 
+  #selectionSegmentForLine(range: SelectionRange, line: Pick<EditorVisibleLine, "lineIndex" | "lineText" | "startCol" | "endCol">): EditorSelectionSegment | null {
+    const lineIndex = line.lineIndex
+    const lineText = line.lineText
+    if (lineIndex < range.start.line || lineIndex > range.end.line) return null
+    const selectedStartCol = lineIndex === range.start.line ? range.start.col : 0
+    const selectedEndCol = lineIndex === range.end.line ? range.end.col : lineText.length
+    const startCol = Math.max(line.startCol, selectedStartCol)
+    const endCol = Math.min(line.endCol, selectedEndCol)
+    const includesLineBreak = lineIndex < range.end.line
+      && selectedEndCol >= lineText.length
+      && line.endCol >= lineText.length
+    if (endCol < startCol) return null
+    if (endCol === startCol && !includesLineBreak) return null
+    return {startCol, endCol, includesLineBreak}
+  }
+
+  #xForColumnInLineSegment(lineText: string, segmentStartCol: number, col: number, codeStartX: number): number {
+    return codeStartX
+      + this.#colToPx(lineText, col)
+      - this.#colToPx(lineText, segmentStartCol)
+      - this.#effectiveScrollLeftPx()
+  }
+
   #isPointInSelection(localX: number, localY: number): boolean {
-    const lineIndex = this.#lineFromLocalY(localY)
-    if (lineIndex === null) return false
-    const lineText = this.#lines[lineIndex] ?? ""
+    const row = this.#visualRowFromLocalY(localY)
+    if (row === null) return false
+    const lineText = this.#lines[row.lineIndex] ?? ""
     const codeStartX = this.#codeStartX()
     const codeMaxPx = this.#codeMaxPx()
+    const visibleLine: Pick<EditorVisibleLine, "lineIndex" | "lineText" | "startCol" | "endCol"> = {
+      lineIndex: row.lineIndex,
+      lineText,
+      startCol: row.startCol,
+      endCol: row.endCol,
+    }
     for (const selection of this.#selectionSlots()) {
-      const range = selection.range
-      if (lineIndex < range.start.line || lineIndex > range.end.line) continue
-      const startCol = lineIndex === range.start.line ? range.start.col : 0
-      const endCol = lineIndex === range.end.line ? range.end.col : lineText.length
-      let x1 = codeStartX + this.#colToPx(lineText, startCol) - this.#scrollLeftPx
-      let x2 = codeStartX + this.#colToPx(lineText, endCol) - this.#scrollLeftPx
-      if (lineIndex < range.end.line && endCol === lineText.length) x2 += Math.max(5, this.#getCharWidth() * 0.65)
-      if (lineText.length === 0 && lineIndex > range.start.line && lineIndex < range.end.line) x2 = x1 + Math.max(5, this.#getCharWidth() * 0.65)
+      const segment = this.#selectionSegmentForLine(selection.range, visibleLine)
+      if (segment === null) continue
+      let x1 = this.#xForColumnInLineSegment(lineText, row.startCol, segment.startCol, codeStartX)
+      let x2 = this.#xForColumnInLineSegment(lineText, row.startCol, segment.endCol, codeStartX)
+      if (segment.includesLineBreak) x2 += Math.max(5, this.#getCharWidth() * 0.65)
       const minX = codeStartX
       const maxX = codeStartX + codeMaxPx
       x1 = Math.max(minX, Math.min(maxX, x1))
@@ -2155,23 +2360,19 @@ export class EditorPane extends UiSurface {
     const range = this.#selectionRange()
     if (range === null) return null
 
-    const total = this.#lines.length
-    const visible = this.#visibleLineCount()
-    const scroll = this.#scrollTopPx / this.#linePx
-    const startIdx = Math.floor(scroll)
-    const subPx = this.#scrollTopPx - startIdx * this.#linePx
-    const visibleStart = Math.max(0, startIdx)
-    const visibleEnd = Math.min(total - 1, startIdx + visible)
-    const lineIndex = Math.max(range.start.line, visibleStart)
-    if (lineIndex > range.end.line || lineIndex > visibleEnd) return null
+    const gutter = this.#gutterWidthPx(this.#lines.length)
+    const layout = this.#viewportLayout(gutter)
+    const visibleLine = this.#visibleLines(layout).find((line) => this.#selectionSegmentForLine(range, line) !== null)
+    if (visibleLine === undefined) return null
 
-    const lineText = this.#lines[lineIndex] ?? ""
+    const lineText = visibleLine.lineText
     const codeStartX = this.#codeStartX()
     const codeMaxPx = this.#codeMaxPx()
-    const startCol = lineIndex === range.start.line ? range.start.col : 0
-    const endCol = lineIndex === range.end.line ? range.end.col : lineText.length
-    let x1 = codeStartX + this.#colToPx(lineText, startCol) - this.#scrollLeftPx
-    let x2 = codeStartX + this.#colToPx(lineText, endCol) - this.#scrollLeftPx
+    const segment = this.#selectionSegmentForLine(range, visibleLine)
+    if (segment === null) return null
+    let x1 = this.#xForColumnInLineSegment(lineText, visibleLine.startCol, segment.startCol, codeStartX)
+    let x2 = this.#xForColumnInLineSegment(lineText, visibleLine.startCol, segment.endCol, codeStartX)
+    if (segment.includesLineBreak) x2 += Math.max(5, this.#getCharWidth() * 0.65)
     if (x2 <= x1) x2 = x1 + Math.max(18, this.#getCharWidth() * 1.5)
     const minX = codeStartX
     const maxX = codeStartX + codeMaxPx
@@ -2179,7 +2380,7 @@ export class EditorPane extends UiSurface {
     x2 = Math.max(minX, Math.min(maxX, x2))
     const anchorX = Math.max(minX, Math.min(maxX, (x1 + x2) / 2))
 
-    const rowY = this.#padTopPx() + (lineIndex - startIdx) * this.#linePx - subPx
+    const rowY = visibleLine.rowY
     const itemWidths = SELECTION_MENU_ITEMS.map((item) => Math.max(58, autoButtonWidth(this, item.label, 10, 18)))
     const menuContentW = itemWidths.reduce((sum, w) => sum + w, 0) + 6 * (itemWidths.length - 1)
     const maxMenuW = this.rectW - PAD_LEFT_PX - PAD_RIGHT_PX - SCROLLBAR_W - 16

@@ -340,6 +340,24 @@ describe("EditorPane layout options", () => {
       editor.dispose()
     }
   })
+
+  test("maps pointer hits on wrapped visual rows back to the source line", () => {
+    const editor = new EditorPane({showHeader: false, showLineNumbers: false, wrapLines: true})
+    try {
+      Object.assign(editor as unknown as {rectW: number; rectH: number}, {rectW: 72, rectH: 120})
+      editor.setText("abcdef")
+      const charW = 13 * 0.62
+      const x = embeddedEditorCodeX() + charW * 1.1
+      const y = embeddedEditorLineY() + 18
+
+      editor.onPointerDown({shiftKey: false} as MouseEvent, x, y)
+      editor.onPointerUp({shiftKey: false} as MouseEvent, x, y)
+
+      expect(editor.getSelectionSnapshot().cursor).toEqual({line: 0, col: 4})
+    } finally {
+      editor.dispose()
+    }
+  })
 })
 
 function firstEditorLineY(): number {

@@ -1831,6 +1831,7 @@ class AppWebHud implements AppWebHudController {
 			showHeader: false,
 			indentGuides: false,
 			showLineNumbers: false,
+			wrapLines: true,
 			draggable: false,
 			resizable: false,
 			onChange: (text) => this.#setCodexDraftFromEditor(text),
