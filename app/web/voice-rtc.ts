@@ -57,9 +57,10 @@ type VoiceRtcRelayPeer = {
 const VOICE_RTC_ROOM = "app-web-voice"
 const VOICE_RTC_RELAY_PEER_PREFIX = "voice-relay"
 const VOICE_RTC_APP_PEER_PREFIX = "app-web-voice"
-const VOICE_RTC_CONNECT_TIMEOUT_MS = 2500
-const VOICE_RTC_MEDIA_TIMEOUT_MS = 1800
+const VOICE_RTC_CONNECT_TIMEOUT_MS = 8000
+const VOICE_RTC_MEDIA_TIMEOUT_MS = 5000
 const VOICE_RTC_ASR_TEXT_TIMEOUT_MS = 18_000
+const VOICE_RTC_RELAY_RECONNECT_MS = 1000
 const VOICE_RTC_DEBUG_POST_MIN_MS = 1000
 const VOICE_RTC_RELAY_SINK_GAIN = 0.00001
 const TARGET_RELAY_SAMPLE_RATE = 16_000
@@ -462,9 +463,11 @@ class VoiceRtcRelay {
 	#socket: WebSocket | null = null
 	#peers = new Map<string, VoiceRtcRelayPeer>()
 	#primedAudioContext: AudioContext | null = null
+	#reconnectTimer: number | null = null
 
 	connect(): void {
 		if (this.#socket?.readyState === WebSocket.OPEN || this.#socket?.readyState === WebSocket.CONNECTING) return
+		this.#clearReconnectTimer()
 		const socket = new WebSocket(signalingUrl(VOICE_RTC_ROOM, this.#peerId))
 		this.#socket = socket
 		socket.addEventListener("message", (event) => {
@@ -474,11 +477,15 @@ class VoiceRtcRelay {
 			void this.#handleSignal(signal)
 		})
 		socket.addEventListener("close", () => {
+			if (this.#socket !== socket) return
 			this.#socket = null
 			this.#closeAllPeers()
+			this.#scheduleReconnect()
 		})
 		socket.addEventListener("error", () => {
+			if (this.#socket === socket) socket.close()
 			this.#closeAllPeers()
+			this.#scheduleReconnect()
 		})
 	}
 
@@ -904,6 +911,20 @@ registerProcessor("voice-rtc-capture", VoiceRtcCaptureProcessor);
 
 	#closeAllPeers(): void {
 		for (const peerId of [...this.#peers.keys()]) this.#closePeer(peerId)
+	}
+
+	#scheduleReconnect(): void {
+		if (this.#reconnectTimer !== null) return
+		this.#reconnectTimer = window.setTimeout(() => {
+			this.#reconnectTimer = null
+			this.connect()
+		}, VOICE_RTC_RELAY_RECONNECT_MS)
+	}
+
+	#clearReconnectTimer(): void {
+		if (this.#reconnectTimer === null) return
+		window.clearTimeout(this.#reconnectTimer)
+		this.#reconnectTimer = null
 	}
 
 	#sendSignal(payload: Record<string, unknown>): void {

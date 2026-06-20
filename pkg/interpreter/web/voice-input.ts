@@ -30,6 +30,7 @@ type VoiceInputClientOptions = {
   context(): string
   wakeEnabled?(): boolean
   createAsrSocket?: (url: string, context: VoiceInputAsrSocketContext) => VoiceInputSocket | null
+  createCommandSocket?: (url: string, context: VoiceInputAsrSocketContext) => VoiceInputSocket | null
   onTransport?(transport: VoiceInputTransport): void
   onStatus(status: VoiceInputStatus, detail?: string): void
   onWake(text: string): void
@@ -141,7 +142,7 @@ export type VoiceInputDeliveryState = {
 }
 
 export class VoiceInputClient {
-  #commandWs: WebSocket | null = null
+  #commandWs: VoiceInputSocket | null = null
   #asrWs: VoiceInputSocket | null = null
   #asrTransport: VoiceInputTransport = "idle"
   #stream: MediaStream | null = null
@@ -343,11 +344,11 @@ export class VoiceInputClient {
   async #connectCommand(url: string): Promise<void> {
     if (this.#commandWs?.readyState === WebSocket.OPEN) return
 
-    const ws = new WebSocket(url)
+    const ws = this.options.createCommandSocket?.(url, this.#socketContext()) ?? new WebSocket(url)
     ws.binaryType = "arraybuffer"
     this.#commandWs = ws
 
-    ws.addEventListener("message", (event) => this.#handleCommandMessage(event))
+    ws.addEventListener("message", (event) => this.#handleCommandMessage(event as MessageEvent<unknown>))
     ws.addEventListener("close", () => {
       if (this.#commandWs !== ws) return
       this.#commandWs = null
@@ -365,15 +366,8 @@ export class VoiceInputClient {
   async #connectAsr(url: string): Promise<void> {
     if (this.#asrWs?.readyState === WebSocket.OPEN) return
 
-    const context = this.options.context().trim()
     this.#setTransport("connecting")
-    const ws = this.options.createAsrSocket?.(url, {
-      stream: this.#stream ?? new MediaStream(),
-      sampleRate: this.#audioContext?.sampleRate ?? TARGET_SAMPLE_RATE,
-      language: this.options.language,
-      context,
-      onTransport: (transport) => this.#setTransport(transport),
-    }) ?? new WebSocket(url)
+    const ws = this.options.createAsrSocket?.(url, this.#socketContext()) ?? new WebSocket(url)
     ws.binaryType = "arraybuffer"
     this.#asrWs = ws
 
@@ -395,6 +389,16 @@ export class VoiceInputClient {
       }, {once: true})
       ws.addEventListener("error", () => reject(new Error(`voice ASR websocket failed: ${url}`)), {once: true})
     })
+  }
+
+  #socketContext(): VoiceInputAsrSocketContext {
+    return {
+      stream: this.#stream ?? new MediaStream(),
+      sampleRate: this.#audioContext?.sampleRate ?? TARGET_SAMPLE_RATE,
+      language: this.options.language,
+      context: this.options.context().trim(),
+      onTransport: (transport) => this.#setTransport(transport),
+    }
   }
 
   async #startAudio(): Promise<void> {

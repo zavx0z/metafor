@@ -2616,8 +2616,9 @@ class AppWebHud implements AppWebHudController {
 			recognitionTimeoutMs: () => readVoiceRecognitionTimeoutSeconds() * 1000,
 			language: "ru",
 			context: () => voiceContextWithTerminal(this.#terminal.pane.toText()),
-			wakeEnabled: () => !this.#shouldUseVoiceRtcRelayServiceProbe(),
-			...(readCodexVoiceP2PEnabled() ? {createAsrSocket: createVoiceRtcAsrSocket} : {}),
+			...(readCodexVoiceP2PEnabled()
+				? {createAsrSocket: createVoiceRtcAsrSocket, createCommandSocket: createVoiceRtcAsrSocket}
+				: {}),
 			onTransport: (transport) => this.#handleVoiceTransport(transport),
 			onStatus: (status, detail) => this.#handleVoiceStatus(status, detail),
 			onWake: (text) => {
@@ -2861,7 +2862,6 @@ class AppWebHud implements AppWebHudController {
 		if (this.#voiceAutoWakePaused || this.#voiceAutoWakeInFlight) return
 		if (this.#shouldUseVoiceRtcRelayServiceProbe()) {
 			this.#markVoiceRtcRelayServiceProbe()
-			return
 		}
 		const client = this.#ensureVoiceClient()
 		if (client.active) return
