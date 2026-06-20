@@ -12,19 +12,19 @@ import {emitForceParts} from "../../force.ts"
 export class BoundaryActorSqlite {
   readonly roots: ActorRoots
   readonly value: {
-    get(uuid: string): Promise<AnyValue | null>
+    get(id: number): Promise<AnyValue | null>
   }
   readonly link: {
-    get(actor: string, field: string): Promise<ActorFieldValue | null>
+    get(actor: number, field: number): Promise<ActorFieldValue | null>
   }
 
   private constructor(private readonly sql: SQL) {
     this.roots = new ActorRoots(sql)
     this.value = {
-      get: (uuid: string): Promise<AnyValue | null> => Value.get(sql, uuid),
+      get: (id: number): Promise<AnyValue | null> => Value.get(sql, id),
     }
     this.link = {
-      get: (actor: string, field: string): Promise<ActorFieldValue | null> => ActorFieldValue.get(sql, actor, field),
+      get: (actor: number, field: number): Promise<ActorFieldValue | null> => ActorFieldValue.get(sql, actor, field),
     }
   }
 
@@ -41,30 +41,30 @@ export class BoundaryActorSqlite {
 
   /** Записывает actor snapshot одной транзакцией: head + values + actor_state. */
   async create(rows: ActorRows): Promise<Actor> {
-    await Actor.writeRows(this.sql, rows)
-    const actor = new Actor(this.sql, rows.actor.uuid)
+    const actorId = await Actor.writeRows(this.sql, rows)
+    const actor = new Actor(this.sql, actorId)
     emitForceParts([{part: "graviton", op: "add", path: "actor", value: await actor.rows()}])
     return actor
   }
 
-  async get(uuid: string): Promise<Actor | null> {
+  async get(id: number): Promise<Actor | null> {
     const row = (
       await this.sql<Array<{ ok: number }>>`
-        SELECT 1 AS ok FROM actor WHERE uuid = ${uuid} LIMIT 1
+        SELECT 1 AS ok FROM actor WHERE id = ${id} LIMIT 1
       `
     )[0]
-    return row ? new Actor(this.sql, uuid) : null
+    return row ? new Actor(this.sql, id) : null
   }
 
   async findByParent(input: {
     wimp: string
-    parent: {kind: "actor"; uuid: string} | {kind: "topology"; uuid: string} | null
+    parent: {kind: "actor"; id: number} | {kind: "topology"; id: number} | null
   }): Promise<Actor | null> {
-    const parentActor = input.parent?.kind === "actor" ? input.parent.uuid : null
-    const parentTopology = input.parent?.kind === "topology" ? input.parent.uuid : null
+    const parentActor = input.parent?.kind === "actor" ? input.parent.id : null
+    const parentTopology = input.parent?.kind === "topology" ? input.parent.id : null
     const row = (
-      await this.sql<Array<{uuid: string}>>`
-        SELECT uuid
+      await this.sql<Array<{id: number}>>`
+        SELECT id
         FROM actor
         WHERE wimp = ${input.wimp}
           AND parent_actor IS ${parentActor}
@@ -72,13 +72,13 @@ export class BoundaryActorSqlite {
         LIMIT 1
       `
     )[0]
-    return row ? new Actor(this.sql, row.uuid) : null
+    return row ? new Actor(this.sql, Number(row.id)) : null
   }
 
-  async head(uuid: string): Promise<ActorRecord | null> {
+  async head(id: number): Promise<ActorRecord | null> {
     const row = (
       await this.sql<Array<Record<string, unknown>>>`
-        SELECT uuid, parent_actor, parent_topology, wimp, position FROM actor WHERE uuid = ${uuid}
+        SELECT id, parent_actor, parent_topology, wimp, position FROM actor WHERE id = ${id}
       `
     )[0]
     return row ? decodeActorRow(row) : null

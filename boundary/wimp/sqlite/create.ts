@@ -1,204 +1,137 @@
-import type {WimpCreateFieldInput, WimpCreateInput, WimpCreateProcessInput, WimpCreateReactionInput, WimpCreateSuperpositionInput} from "./create.t.ts"
+import type {SQL, ReservedSQL} from "bun"
+import type {
+  WimpCreateFieldInput,
+  WimpCreateInput,
+  WimpCreateProcessInput,
+  WimpCreateReactionInput,
+  WimpCreateSuperpositionInput,
+} from "./create.t.ts"
 import type {EdgeSlot, MatterRelationBindingValue, MatterRelationParticle} from "./matter.t.ts"
+
+type Tx = SQL | ReservedSQL
+type Id = number
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
-type SqlValue = string | number | null
-
-type CreateRows = {
-  mass: SqlValue[][]
-  fields: SqlValue[][]
-  fieldDefaults: SqlValue[][]
-  fieldStringDefaults: SqlValue[][]
-  fieldNumberDefaults: SqlValue[][]
-  fieldBooleanDefaults: SqlValue[][]
-  fieldArrayDefaultItems: SqlValue[][]
-  fieldEnumVariants: SqlValue[][]
-  fieldEnumDefaults: SqlValue[][]
-  states: SqlValue[][]
-  transitions: SqlValue[][]
-  conditions: SqlValue[][]
-  conditionPredicates: SqlValue[][]
-  conditionListItems: SqlValue[][]
-  processes: SqlValue[][]
-  processEnv: SqlValue[][]
-  processActions: SqlValue[][]
-  processFinally: SqlValue[][]
-  processActionRead: SqlValue[][]
-  processActionWrite: SqlValue[][]
-  processFinallyRead: SqlValue[][]
-  reactions: SqlValue[][]
-  reactionStates: SqlValue[][]
-  reactionRead: SqlValue[][]
-  reactionWrite: SqlValue[][]
-  matterBindings: SqlValue[][]
-  matterBindingDeps: SqlValue[][]
-  matterParticles: SqlValue[][]
-  matterParticleWimps: SqlValue[][]
-  matterParticleFuzzies: SqlValue[][]
-  matterParticleAxions: SqlValue[][]
-  matterParticleMachos: SqlValue[][]
+const insertId = async (rows: Promise<Array<{id: number}>>, label: string): Promise<Id> => {
+  const row = (await rows)[0]
+  if (!row) throw new Error(`${label}: insert did not return id`)
+  return row.id
 }
 
-const createRows = (): CreateRows => ({
-  mass: [],
-  fields: [],
-  fieldDefaults: [],
-  fieldStringDefaults: [],
-  fieldNumberDefaults: [],
-  fieldBooleanDefaults: [],
-  fieldArrayDefaultItems: [],
-  fieldEnumVariants: [],
-  fieldEnumDefaults: [],
-  states: [],
-  transitions: [],
-  conditions: [],
-  conditionPredicates: [],
-  conditionListItems: [],
-  processes: [],
-  processEnv: [],
-  processActions: [],
-  processFinally: [],
-  processActionRead: [],
-  processActionWrite: [],
-  processFinallyRead: [],
-  reactions: [],
-  reactionStates: [],
-  reactionRead: [],
-  reactionWrite: [],
-  matterBindings: [],
-  matterBindingDeps: [],
-  matterParticles: [],
-  matterParticleWimps: [],
-  matterParticleFuzzies: [],
-  matterParticleAxions: [],
-  matterParticleMachos: [],
-})
-
-const sqlValue = (value: SqlValue): string => {
-  if (value === null) return "NULL"
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) throw new Error(`Cannot encode non-finite SQL number: ${value}`)
-    return String(value)
-  }
-  return `'${value.replaceAll("'", "''")}'`
-}
-
-const insertRowsSql = (
-  table: string,
-  columns: readonly string[],
-  rows: readonly (readonly SqlValue[])[],
-  options: {orIgnore?: boolean} = {},
-): string | null => {
-  if (rows.length === 0) return null
-
-  const values = rows
-    .map((row) => `(${row.map(sqlValue).join(", ")})`)
-    .join(",\n")
-  return `INSERT${options.orIgnore ? " OR IGNORE" : ""} INTO ${table} (${columns.join(", ")})\nVALUES\n${values};`
-}
-
-const pushMassRows = (
-  rows: CreateRows,
+const insertMassValue = async (
+  sql: Tx,
   src: string,
   value: unknown,
-  parentValue: string | null,
+  parentValue: Id | null,
   entryKey: string | null,
   entryOrder: number | null,
-): string => {
-  const uuid = crypto.randomUUID()
+): Promise<Id> => {
+  const kind = Array.isArray(value)
+    ? "array"
+    : isRecord(value)
+      ? "object"
+      : typeof value === "string"
+        ? "string"
+        : typeof value === "number"
+          ? "number"
+          : typeof value === "boolean"
+            ? "boolean"
+            : "null"
+
+  const id = await insertId(sql<Array<{id: number}>>`
+    INSERT INTO wimp_mass_value
+      (wimp, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value)
+    VALUES (
+      ${src},
+      ${parentValue},
+      ${kind},
+      ${entryKey},
+      ${entryOrder},
+      ${kind === "string" ? String(value) : null},
+      ${kind === "number" ? Number(value) : null},
+      ${kind === "boolean" ? (value ? 1 : 0) : null}
+    )
+    RETURNING id
+  `, "insertMassValue")
 
   if (Array.isArray(value)) {
-    rows.mass.push([uuid, src, parentValue, "array", entryKey, entryOrder, null, null, null])
     for (let index = 0; index < value.length; index++) {
-      pushMassRows(rows, src, value[index], uuid, null, index)
+      await insertMassValue(sql, src, value[index], id, null, index)
     }
-    return uuid
-  }
-
-  if (isRecord(value)) {
-    rows.mass.push([uuid, src, parentValue, "object", entryKey, entryOrder, null, null, null])
+  } else if (isRecord(value)) {
     for (const [childKey, childValue] of Object.entries(value)) {
-      pushMassRows(rows, src, childValue, uuid, childKey, null)
+      await insertMassValue(sql, src, childValue, id, childKey, null)
     }
-    return uuid
   }
 
-  if (typeof value === "string") {
-    rows.mass.push([uuid, src, parentValue, "string", entryKey, entryOrder, value, null, null])
-    return uuid
-  }
-
-  if (typeof value === "number") {
-    rows.mass.push([uuid, src, parentValue, "number", entryKey, entryOrder, null, value, null])
-    return uuid
-  }
-
-  if (typeof value === "boolean") {
-    rows.mass.push([uuid, src, parentValue, "boolean", entryKey, entryOrder, null, null, value ? 1 : 0])
-    return uuid
-  }
-
-  rows.mass.push([uuid, src, parentValue, "null", entryKey, entryOrder, null, null, null])
-  return uuid
+  return id
 }
 
-const pushFieldDefaultRows = (
-  rows: CreateRows,
-  fieldUuid: string,
+const insertFieldDefault = async (
+  sql: Tx,
+  fieldId: Id,
   field: WimpCreateFieldInput,
-  enumVariants: Map<string, string>,
-): void => {
+  enumVariants: Map<string, Id>,
+): Promise<void> => {
   if (field.default === undefined) return
 
-  rows.fieldDefaults.push([fieldUuid])
+  await sql`INSERT INTO field_default (field) VALUES (${fieldId})`
 
   if (field.type === "string") {
-    rows.fieldStringDefaults.push([fieldUuid, String(field.default)])
+    await sql`INSERT INTO field_string_default (field, default_value) VALUES (${fieldId}, ${String(field.default)})`
   } else if (field.type === "number") {
-    rows.fieldNumberDefaults.push([fieldUuid, Number(field.default)])
+    await sql`INSERT INTO field_number_default (field, default_value) VALUES (${fieldId}, ${Number(field.default)})`
   } else if (field.type === "boolean") {
-    rows.fieldBooleanDefaults.push([fieldUuid, field.default ? 1 : 0])
+    await sql`INSERT INTO field_boolean_default (field, default_value) VALUES (${fieldId}, ${field.default ? 1 : 0})`
   } else if (field.type === "array") {
     const values = Array.isArray(field.default) ? field.default : []
     for (let position = 0; position < values.length; position++) {
-      rows.fieldArrayDefaultItems.push([crypto.randomUUID(), fieldUuid, position, String(values[position])])
+      await sql`
+        INSERT INTO field_array_default_item (field, position, item_value)
+        VALUES (${fieldId}, ${position}, ${String(values[position])})
+      `
     }
   } else if (field.type === "enum") {
-    const variantUuid = enumVariants.get(String(field.default))
-    if (!variantUuid) throw new Error(`Enum default "${String(field.default)}" is not registered for field "${field.key}"`)
-    rows.fieldEnumDefaults.push([fieldUuid, variantUuid])
+    const variantId = enumVariants.get(String(field.default))
+    if (!variantId) throw new Error(`Enum default "${String(field.default)}" is not registered for field "${field.key}"`)
+    await sql`INSERT INTO field_enum_default (field, variant) VALUES (${fieldId}, ${variantId})`
   }
 }
 
-const pushFieldRows = (
-  rows: CreateRows,
+const insertFields = async (
+  sql: Tx,
   src: string,
   fields: readonly WimpCreateFieldInput[],
-): Map<string, string> => {
-  const fieldUuids = new Map<string, string>()
+): Promise<Map<string, Id>> => {
+  const fieldIds = new Map<string, Id>()
 
   for (const field of fields) {
-    const fieldUuid = crypto.randomUUID()
-    const enumVariants = new Map<string, string>()
-    fieldUuids.set(field.key, fieldUuid)
+    const fieldId = await insertId(sql<Array<{id: number}>>`
+      INSERT INTO field (wimp, key, type, required, label)
+      VALUES (${src}, ${field.key}, ${field.type}, ${field.required ? 1 : 0}, ${field.label ?? null})
+      RETURNING id
+    `, "insertFields")
+    fieldIds.set(field.key, fieldId)
 
-    rows.fields.push([fieldUuid, src, field.key, field.type, field.required ? 1 : 0, field.label ?? null])
-
+    const enumVariants = new Map<string, Id>()
     if (field.type === "enum" && field.values !== undefined) {
       for (let position = 0; position < field.values.length; position++) {
         const value = String(field.values[position])
-        const variantUuid = crypto.randomUUID()
-        enumVariants.set(value, variantUuid)
-        rows.fieldEnumVariants.push([variantUuid, fieldUuid, position, value])
+        const variantId = await insertId(sql<Array<{id: number}>>`
+          INSERT INTO field_enum_variant (field, position, item_value)
+          VALUES (${fieldId}, ${position}, ${value})
+          RETURNING id
+        `, "insertFields.enumVariant")
+        enumVariants.set(value, variantId)
       }
     }
 
-    pushFieldDefaultRows(rows, fieldUuid, field, enumVariants)
+    await insertFieldDefault(sql, fieldId, field, enumVariants)
   }
 
-  return fieldUuids
+  return fieldIds
 }
 
 const normalizePredicate = (predicate: unknown): Record<string, unknown> | undefined => {
@@ -223,7 +156,7 @@ const normalizeListItem = (value: unknown): {
   booleanValue: number | null
   numberValue: number | null
   textValue: string | null
-  variantValue: string | null
+  variantValue: Id | null
 } => {
   if (value === null) return {kind: "null", booleanValue: null, numberValue: null, textValue: null, variantValue: null}
   if (typeof value === "boolean") return {kind: "boolean", booleanValue: value ? 1 : 0, numberValue: null, textValue: null, variantValue: null}
@@ -231,20 +164,19 @@ const normalizeListItem = (value: unknown): {
   return {kind: "string", booleanValue: null, numberValue: null, textValue: String(value), variantValue: null}
 }
 
-const pushPredicateRows = (
-  rows: CreateRows,
-  conditionUuid: string,
+const insertPredicate = async (
+  sql: Tx,
+  conditionId: Id,
   predicateOrder: number,
   op: string,
   value: unknown,
-): void => {
-  const predicateUuid = crypto.randomUUID()
+): Promise<void> => {
   let operator = normalizeOperator(op)
   let valueKind: "null" | "boolean" | "number" | "string" | "enum" | "list" = "null"
   let valueBoolean: number | null = null
   let valueNumber: number | null = null
   let valueText: string | null = null
-  const valueVariant: string | null = null
+  const valueVariant: Id | null = null
 
   if (op === "null") {
     operator = value === false ? "neq" : "eq"
@@ -261,181 +193,184 @@ const pushPredicateRows = (
     valueText = value
   }
 
-  rows.conditionPredicates.push([
-    predicateUuid,
-    conditionUuid,
-    predicateOrder,
-    "value",
-    operator,
-    valueKind,
-    valueBoolean,
-    valueNumber,
-    valueText,
-    valueVariant,
-  ])
+  const predicateId = await insertId(sql<Array<{id: number}>>`
+    INSERT INTO condition_predicate (condition, predicate_order, subject_kind, operator,
+                                     value_kind, value_boolean, value_number, value_text,
+                                     value_variant)
+    VALUES (${conditionId}, ${predicateOrder}, ${"value"}, ${operator},
+            ${valueKind}, ${valueBoolean}, ${valueNumber}, ${valueText}, ${valueVariant})
+    RETURNING id
+  `, "insertPredicate")
 
   if (valueKind !== "list" || !Array.isArray(value)) return
   for (let itemOrder = 0; itemOrder < value.length; itemOrder++) {
     const item = normalizeListItem(value[itemOrder])
-    rows.conditionListItems.push([
-      predicateUuid,
-      itemOrder,
-      item.kind,
-      item.booleanValue,
-      item.numberValue,
-      item.textValue,
-      item.variantValue,
-    ])
+    await sql`
+      INSERT INTO condition_list_item
+        (predicate, item_order, value_kind, value_boolean, value_number, value_text, value_variant)
+      VALUES (${predicateId}, ${itemOrder}, ${item.kind}, ${item.booleanValue}, ${item.numberValue}, ${item.textValue}, ${item.variantValue})
+    `
   }
 }
 
-const pushPredicateGroupRows = (rows: CreateRows, conditionUuid: string, predicateDsl: unknown): void => {
+const insertPredicateGroup = async (sql: Tx, conditionId: Id, predicateDsl: unknown): Promise<void> => {
   const normalized = normalizePredicate(predicateDsl)
   if (!normalized) return
 
   let predicateOrder = 0
   for (const [op, value] of Object.entries(normalized)) {
-    pushPredicateRows(rows, conditionUuid, predicateOrder, op, value)
+    await insertPredicate(sql, conditionId, predicateOrder, op, value)
     predicateOrder++
   }
 }
 
-const pushConditionRows = (
-  rows: CreateRows,
-  fieldUuids: Map<string, string>,
-  transitionUuid: string,
+const insertConditions = async (
+  sql: Tx,
+  fieldIds: Map<string, Id>,
+  transitionId: Id,
   conditions: unknown,
-): void => {
+): Promise<void> => {
   if (!isRecord(conditions)) return
 
   let position = 0
   for (const [fieldKey, predicate] of Object.entries(conditions)) {
-    const fieldUuid = fieldUuids.get(fieldKey)
-    if (!fieldUuid) continue
+    const fieldId = fieldIds.get(fieldKey)
+    if (!fieldId) continue
 
-    const conditionUuid = crypto.randomUUID()
-    rows.conditions.push([conditionUuid, transitionUuid, fieldUuid, position])
-    pushPredicateGroupRows(rows, conditionUuid, predicate)
+    const conditionId = await insertId(sql<Array<{id: number}>>`
+      INSERT INTO condition (transition, field, position)
+      VALUES (${transitionId}, ${fieldId}, ${position})
+      RETURNING id
+    `, "insertConditions")
+    await insertPredicateGroup(sql, conditionId, predicate)
     position++
   }
 }
 
-const pushStateRows = (
-  rows: CreateRows,
+const insertStates = async (
+  sql: Tx,
   src: string,
-  fieldUuids: Map<string, string>,
+  fieldIds: Map<string, Id>,
   states: readonly WimpCreateSuperpositionInput[],
-): Map<string, string> => {
-  const stateUuids = new Map<string, string>()
+): Promise<Map<string, Id>> => {
+  const stateIds = new Map<string, Id>()
 
   for (let position = 0; position < states.length; position++) {
     const state = states[position]!
-    const stateUuid = crypto.randomUUID()
-    stateUuids.set(state.name, stateUuid)
-    rows.states.push([stateUuid, src, state.name, position])
+    const stateId = await insertId(sql<Array<{id: number}>>`
+      INSERT INTO state (wimp, name, position)
+      VALUES (${src}, ${state.name}, ${position})
+      RETURNING id
+    `, "insertStates")
+    stateIds.set(state.name, stateId)
   }
 
   for (const state of states) {
-    const fromUuid = stateUuids.get(state.name)
-    if (!fromUuid || !isRecord(state.transitions)) continue
+    const fromId = stateIds.get(state.name)
+    if (!fromId || !isRecord(state.transitions)) continue
 
     let position = 0
     for (const [toName, conditions] of Object.entries(state.transitions)) {
-      const toUuid = stateUuids.get(toName)
-      if (!toUuid) continue
+      const toId = stateIds.get(toName)
+      if (!toId) continue
 
-      const transitionUuid = crypto.randomUUID()
-      rows.transitions.push([transitionUuid, fromUuid, toUuid, position])
-      pushConditionRows(rows, fieldUuids, transitionUuid, conditions)
+      const transitionId = await insertId(sql<Array<{id: number}>>`
+        INSERT INTO transition (from_state, to_state, position)
+        VALUES (${fromId}, ${toId}, ${position})
+        RETURNING id
+      `, "insertStates.transition")
+      await insertConditions(sql, fieldIds, transitionId, conditions)
       position++
     }
   }
 
-  return stateUuids
+  return stateIds
 }
 
-const pushProcessFieldLinkRows = (
-  rows: CreateRows,
+const insertProcessFieldLinks = async (
+  sql: Tx,
   table: "process_action_read" | "process_action_write" | "process_finally_read",
-  processUuid: string,
-  fieldUuids: Map<string, string>,
+  processId: Id,
+  fieldIds: Map<string, Id>,
   fieldKeys: readonly string[] | undefined,
   phase?: "action" | "success" | "error",
-): void => {
+): Promise<void> => {
   for (const fieldKey of fieldKeys ?? []) {
-    const fieldUuid = fieldUuids.get(fieldKey)
-    if (!fieldUuid) continue
+    const fieldId = fieldIds.get(fieldKey)
+    if (!fieldId) continue
 
     if (table === "process_action_read") {
-      rows.processActionRead.push([processUuid, fieldUuid, phase ?? null])
+      await sql`INSERT OR IGNORE INTO process_action_read (process, field, phase) VALUES (${processId}, ${fieldId}, ${phase ?? null})`
     } else if (table === "process_action_write") {
-      rows.processActionWrite.push([processUuid, fieldUuid, phase ?? null])
+      await sql`INSERT OR IGNORE INTO process_action_write (process, field, phase) VALUES (${processId}, ${fieldId}, ${phase ?? null})`
     } else {
-      rows.processFinallyRead.push([processUuid, fieldUuid])
+      await sql`INSERT OR IGNORE INTO process_finally_read (process, field) VALUES (${processId}, ${fieldId})`
     }
   }
 }
 
-const pushProcessRows = (
-  rows: CreateRows,
+const insertProcesses = async (
+  sql: Tx,
   src: string,
-  fieldUuids: Map<string, string>,
+  fieldIds: Map<string, Id>,
   processes: readonly WimpCreateProcessInput[],
-): void => {
+): Promise<void> => {
   for (const {key, declaration} of processes) {
-    const processUuid = crypto.randomUUID()
     const type = declaration.type === "finally" ? "finally" : "action"
-
-    rows.processes.push([processUuid, src, key, type, declaration.label ?? null, declaration.desc ?? null])
+    const processId = await insertId(sql<Array<{id: number}>>`
+      INSERT INTO process (wimp, key, type, label, desc)
+      VALUES (${src}, ${key}, ${type}, ${declaration.label ?? null}, ${declaration.desc ?? null})
+      RETURNING id
+    `, "insertProcesses")
 
     for (const env of declaration.env ?? []) {
-      rows.processEnv.push([processUuid, env])
+      await sql`INSERT OR IGNORE INTO process_env (process, env) VALUES (${processId}, ${env})`
     }
 
     if (declaration.type === "finally") {
-      rows.processFinally.push([processUuid, declaration.before.src])
-      pushProcessFieldLinkRows(rows, "process_finally_read", processUuid, fieldUuids, declaration.before.read)
+      await sql`INSERT INTO process_finally (process, before) VALUES (${processId}, ${declaration.before.src})`
+      await insertProcessFieldLinks(sql, "process_finally_read", processId, fieldIds, declaration.before.read)
       continue
     }
 
-    rows.processActions.push([
-      processUuid,
-      declaration.action.src,
-      declaration.action.importSpecifier ?? null,
-      declaration.action.wrapperSrc ?? null,
-      declaration.success?.src ?? null,
-      declaration.error?.src ?? null,
-    ])
-    pushProcessFieldLinkRows(rows, "process_action_read", processUuid, fieldUuids, declaration.action.read, "action")
-    pushProcessFieldLinkRows(rows, "process_action_read", processUuid, fieldUuids, declaration.success?.read, "success")
-    pushProcessFieldLinkRows(rows, "process_action_read", processUuid, fieldUuids, declaration.error?.read, "error")
-    pushProcessFieldLinkRows(rows, "process_action_write", processUuid, fieldUuids, declaration.success?.write, "success")
-    pushProcessFieldLinkRows(rows, "process_action_write", processUuid, fieldUuids, declaration.error?.write, "error")
+    await sql`
+      INSERT INTO process_action (process, action, action_import_specifier, action_wrapper_src, success, error)
+      VALUES (${processId}, ${declaration.action.src}, ${declaration.action.importSpecifier ?? null},
+              ${declaration.action.wrapperSrc ?? null}, ${declaration.success?.src ?? null}, ${declaration.error?.src ?? null})
+    `
+    await insertProcessFieldLinks(sql, "process_action_read", processId, fieldIds, declaration.action.read, "action")
+    await insertProcessFieldLinks(sql, "process_action_read", processId, fieldIds, declaration.success?.read, "success")
+    await insertProcessFieldLinks(sql, "process_action_read", processId, fieldIds, declaration.error?.read, "error")
+    await insertProcessFieldLinks(sql, "process_action_write", processId, fieldIds, declaration.success?.write, "success")
+    await insertProcessFieldLinks(sql, "process_action_write", processId, fieldIds, declaration.error?.write, "error")
   }
 }
 
-const pushReactionRows = (
-  rows: CreateRows,
+const insertReactions = async (
+  sql: Tx,
   src: string,
-  fieldUuids: Map<string, string>,
-  stateUuids: Map<string, string>,
+  fieldIds: Map<string, Id>,
+  stateIds: Map<string, Id>,
   reactions: readonly WimpCreateReactionInput[],
-): void => {
+): Promise<void> => {
   for (const reaction of reactions) {
-    const reactionUuid = crypto.randomUUID()
-    rows.reactions.push([reactionUuid, src, reaction.key, reaction.label, reaction.desc ?? null, reaction.cond, reaction.src])
+    const reactionId = await insertId(sql<Array<{id: number}>>`
+      INSERT INTO reaction (wimp, key, label, desc, cond_source, update_source)
+      VALUES (${src}, ${reaction.key}, ${reaction.label}, ${reaction.desc ?? null}, ${reaction.cond}, ${reaction.src})
+      RETURNING id
+    `, "insertReactions")
 
     for (const fieldKey of reaction.read ?? []) {
-      const fieldUuid = fieldUuids.get(fieldKey)
-      if (fieldUuid) rows.reactionRead.push([reactionUuid, fieldUuid])
+      const fieldId = fieldIds.get(fieldKey)
+      if (fieldId) await sql`INSERT OR IGNORE INTO reaction_read (reaction, field) VALUES (${reactionId}, ${fieldId})`
     }
     for (const fieldKey of reaction.write ?? []) {
-      const fieldUuid = fieldUuids.get(fieldKey)
-      if (fieldUuid) rows.reactionWrite.push([reactionUuid, fieldUuid])
+      const fieldId = fieldIds.get(fieldKey)
+      if (fieldId) await sql`INSERT OR IGNORE INTO reaction_write (reaction, field) VALUES (${reactionId}, ${fieldId})`
     }
     for (const stateName of reaction.states ?? []) {
-      const stateUuid = stateUuids.get(stateName)
-      if (stateUuid) rows.reactionStates.push([reactionUuid, stateUuid])
+      const stateId = stateIds.get(stateName)
+      if (stateId) await sql`INSERT OR IGNORE INTO reaction_state (reaction, state) VALUES (${reactionId}, ${stateId})`
     }
   }
 }
@@ -445,143 +380,95 @@ const matterBindingPaths = (value: MatterRelationBindingValue): string[] => {
   return Array.isArray(value.data) ? value.data : [value.data]
 }
 
-const pushMatterBindingRows = (
-  rows: CreateRows,
+const insertMatterBinding = async (
+  sql: Tx,
   src: string,
   value: MatterRelationBindingValue | undefined,
-): string | null => {
+): Promise<Id | null> => {
   if (value === undefined) return null
 
-  const uuid = crypto.randomUUID()
   if (typeof value === "string") {
-    rows.matterBindings.push([uuid, src, "static", "text", value, null, null])
-    return uuid
+    return insertId(sql<Array<{id: number}>>`
+      INSERT INTO matter_binding (wimp, binding_kind, literal_kind, literal_text)
+      VALUES (${src}, ${"static"}, ${"text"}, ${value})
+      RETURNING id
+    `, "insertMatterBinding.static")
   }
+
+  const id = await insertId(sql<Array<{id: number}>>`
+    INSERT INTO matter_binding (wimp, binding_kind, expr)
+    VALUES (${src}, ${value.expr !== undefined ? "dynamic" : "variable"}, ${value.expr ?? null})
+    RETURNING id
+  `, "insertMatterBinding")
 
   const paths = matterBindingPaths(value)
-  rows.matterBindings.push([
-    uuid,
-    src,
-    value.expr !== undefined ? "dynamic" : "variable",
-    null,
-    null,
-    null,
-    value.expr ?? null,
-  ])
-
   for (let index = 0; index < paths.length; index++) {
-    rows.matterBindingDeps.push([uuid, index, paths[index]!])
+    await sql`INSERT INTO matter_binding_dep (binding, dep_order, path) VALUES (${id}, ${index}, ${paths[index]!})`
   }
 
-  return uuid
+  return id
 }
 
-const pushMatterParticleRows = (
-  rows: CreateRows,
+const insertMatterParticle = async (
+  sql: Tx,
   src: string,
   particle: MatterRelationParticle,
-  parentParticle: string | null,
+  parentParticle: Id | null,
   edgeSlot: EdgeSlot,
   particleOrder: number,
-): string => {
-  const uuid = crypto.randomUUID()
-  rows.matterParticles.push([uuid, src, parentParticle, particle.kind, edgeSlot, particleOrder])
+): Promise<Id> => {
+  const id = await insertId(sql<Array<{id: number}>>`
+    INSERT INTO matter_particle (wimp, parent_particle, particle_kind, edge_slot, particle_order)
+    VALUES (${src}, ${parentParticle}, ${particle.kind}, ${edgeSlot}, ${particleOrder})
+    RETURNING id
+  `, "insertMatterParticle")
 
   if (particle.kind === "wimp") {
-    rows.matterParticleWimps.push([
-      uuid,
-      particle.src,
-      pushMatterBindingRows(rows, src, particle.fieldsBinding),
-      pushMatterBindingRows(rows, src, particle.massBinding),
-    ])
+    await sql`
+      INSERT INTO matter_particle_wimp (particle, src, fields_binding, mass_binding)
+      VALUES (${id}, ${particle.src}, ${await insertMatterBinding(sql, src, particle.fieldsBinding)}, ${await insertMatterBinding(sql, src, particle.massBinding)})
+    `
   } else if (particle.kind === "fuzzy") {
-    rows.matterParticleFuzzies.push([
-      uuid,
-      particle.fuzzyKind,
-      pushMatterBindingRows(rows, src, particle.predicateBinding),
-    ])
+    await sql`
+      INSERT INTO matter_particle_fuzzy (particle, fuzzy_kind, predicate_binding)
+      VALUES (${id}, ${particle.fuzzyKind}, ${await insertMatterBinding(sql, src, particle.predicateBinding)})
+    `
   } else if (particle.kind === "axion") {
-    rows.matterParticleAxions.push([uuid, pushMatterBindingRows(rows, src, particle.predicateBinding)])
+    await sql`
+      INSERT INTO matter_particle_axion (particle, predicate_binding)
+      VALUES (${id}, ${await insertMatterBinding(sql, src, particle.predicateBinding)})
+    `
   } else {
-    rows.matterParticleMachos.push([uuid, pushMatterBindingRows(rows, src, particle.collectionBinding)])
+    await sql`
+      INSERT INTO matter_particle_macho (particle, collection_binding)
+      VALUES (${id}, ${await insertMatterBinding(sql, src, particle.collectionBinding)})
+    `
   }
 
   for (let index = 0; index < (particle.children?.length ?? 0); index++) {
     const child = particle.children![index]!
-    pushMatterParticleRows(rows, src, child.particle, uuid, child.edgeSlot, index)
+    await insertMatterParticle(sql, src, child.particle, id, child.edgeSlot, index)
   }
 
-  return uuid
+  return id
 }
 
-const pushMatterRows = (rows: CreateRows, src: string, matter: readonly MatterRelationParticle[]): void => {
+const insertMatter = async (sql: Tx, src: string, matter: readonly MatterRelationParticle[]): Promise<void> => {
   for (let index = 0; index < matter.length; index++) {
-    pushMatterParticleRows(rows, src, matter[index]!, null, "root", index)
+    await insertMatterParticle(sql, src, matter[index]!, null, "root", index)
   }
 }
 
-/**
- * Строит один SQL batch для создания WIMP-декларации.
- *
- * Функция не обращается к базе и не создает ORM-объекты. Она только переводит
- * `WimpCreateInput` в порядок `INSERT`-statement'ов, согласованный с FK-связями
- * таблиц: сначала корневой `wimp`, затем mass/fields/states/processes/reactions/matter
- * и их дочерние строки.
- *
- * Если WIMP с таким `src` уже существует, batch должен упасть на `UNIQUE`, а не
- * перетирать существующую декларацию. Штатный поток проверяет существование до
- * вызова `create()`.
- *
- * @param src — адрес WIMP-декларации.
- * @param input — подготовленные данные для записи в SQL-таблицы.
- * @returns SQL batch, который можно выполнить одним вызовом внутри транзакции.
- */
-export const buildWimpCreateSql = (src: string, input: WimpCreateInput): string => {
-  const rows = createRows()
+export const writeWimpCreate = async (sql: Tx, src: string, input: WimpCreateInput): Promise<void> => {
+  await sql`
+    INSERT INTO wimp (src, name, desc, view_css)
+    VALUES (${src}, ${input.name ?? null}, ${input.desc ?? null}, ${input.bulk?.view ?? null})
+  `
 
-  if (input.mass !== undefined) pushMassRows(rows, src, input.mass, null, null, null)
-  const fieldUuids = pushFieldRows(rows, src, input.fields ?? [])
-  const stateUuids = pushStateRows(rows, src, fieldUuids, input.superposition ?? [])
-  pushProcessRows(rows, src, fieldUuids, input.processes ?? [])
-  pushReactionRows(rows, src, fieldUuids, stateUuids, input.reactions ?? [])
-  pushMatterRows(rows, src, input.matter ?? [])
-
-  return [
-    `INSERT INTO wimp (src, name, desc, view_css)\nVALUES (${[src, input.name ?? null, input.desc ?? null, input.bulk?.view ?? null].map(sqlValue).join(", ")});`,
-    insertRowsSql("wimp_mass_value", ["uuid", "wimp", "parent_value", "value_kind", "entry_key", "entry_order", "text_value", "number_value", "boolean_value"], rows.mass),
-    insertRowsSql("field", ["uuid", "wimp", "key", "type", "required", "label"], rows.fields),
-    insertRowsSql("field_enum_variant", ["uuid", "field", "position", "item_value"], rows.fieldEnumVariants),
-    insertRowsSql("field_default", ["field"], rows.fieldDefaults),
-    insertRowsSql("field_string_default", ["field", "default_value"], rows.fieldStringDefaults),
-    insertRowsSql("field_number_default", ["field", "default_value"], rows.fieldNumberDefaults),
-    insertRowsSql("field_boolean_default", ["field", "default_value"], rows.fieldBooleanDefaults),
-    insertRowsSql("field_array_default_item", ["uuid", "field", "position", "item_value"], rows.fieldArrayDefaultItems),
-    insertRowsSql("field_enum_default", ["field", "variant"], rows.fieldEnumDefaults),
-    insertRowsSql("state", ["uuid", "wimp", "name", "position"], rows.states),
-    insertRowsSql("transition", ["uuid", "from_state", "to_state", "position"], rows.transitions),
-    insertRowsSql("condition", ["uuid", "transition", "field", "position"], rows.conditions),
-    insertRowsSql("condition_predicate", ["uuid", "condition", "predicate_order", "subject_kind", "operator", "value_kind", "value_boolean", "value_number", "value_text", "value_variant"], rows.conditionPredicates),
-    insertRowsSql("condition_list_item", ["predicate", "item_order", "value_kind", "value_boolean", "value_number", "value_text", "value_variant"], rows.conditionListItems),
-    insertRowsSql("process", ["uuid", "wimp", "key", "type", "label", "desc"], rows.processes),
-    insertRowsSql("process_env", ["process", "env"], rows.processEnv, {orIgnore: true}),
-    insertRowsSql("process_action", ["process", "action", "action_import_specifier", "action_wrapper_src", "success", "error"], rows.processActions),
-    insertRowsSql("process_finally", ["process", "before"], rows.processFinally),
-    insertRowsSql("process_action_read", ["process", "field", "phase"], rows.processActionRead, {orIgnore: true}),
-    insertRowsSql("process_action_write", ["process", "field", "phase"], rows.processActionWrite, {orIgnore: true}),
-    insertRowsSql("process_finally_read", ["process", "field"], rows.processFinallyRead, {orIgnore: true}),
-    insertRowsSql("reaction", ["uuid", "wimp", "key", "label", "desc", "cond_source", "update_source"], rows.reactions),
-    insertRowsSql("reaction_read", ["reaction", "field"], rows.reactionRead, {orIgnore: true}),
-    insertRowsSql("reaction_write", ["reaction", "field"], rows.reactionWrite, {orIgnore: true}),
-    insertRowsSql("reaction_state", ["reaction", "state"], rows.reactionStates, {orIgnore: true}),
-    insertRowsSql("matter_binding", ["uuid", "wimp", "binding_kind", "literal_kind", "literal_text", "literal_boolean", "expr"], rows.matterBindings),
-    insertRowsSql("matter_binding_dep", ["binding", "dep_order", "path"], rows.matterBindingDeps),
-    insertRowsSql("matter_particle", ["uuid", "wimp", "parent_particle", "particle_kind", "edge_slot", "particle_order"], rows.matterParticles),
-    insertRowsSql("matter_particle_wimp", ["particle", "src", "fields_binding", "mass_binding"], rows.matterParticleWimps),
-    insertRowsSql("matter_particle_fuzzy", ["particle", "fuzzy_kind", "predicate_binding"], rows.matterParticleFuzzies),
-    insertRowsSql("matter_particle_axion", ["particle", "predicate_binding"], rows.matterParticleAxions),
-    insertRowsSql("matter_particle_macho", ["particle", "collection_binding"], rows.matterParticleMachos),
-  ]
-    .filter((statement): statement is string => statement !== null)
-    .join("\n\n")
+  if (input.mass !== undefined) await insertMassValue(sql, src, input.mass, null, null, null)
+  const fieldIds = await insertFields(sql, src, input.fields ?? [])
+  const stateIds = await insertStates(sql, src, fieldIds, input.superposition ?? [])
+  await insertProcesses(sql, src, fieldIds, input.processes ?? [])
+  await insertReactions(sql, src, fieldIds, stateIds, input.reactions ?? [])
+  await insertMatter(sql, src, input.matter ?? [])
 }
-

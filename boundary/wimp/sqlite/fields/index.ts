@@ -46,9 +46,8 @@ export class Fields {
     },
   ): Promise<AnyField> {
     await this.wimp.sql`
-        INSERT INTO field (uuid, wimp, key, type, required, label)
-        VALUES (${crypto.randomUUID()}, ${this.wimp.src}, ${input.key}, ${type},
-                ${input.required ? 1 : 0}, ${input.label ?? null})
+        INSERT INTO field (wimp, key, type, required, label)
+        VALUES (${this.wimp.src}, ${input.key}, ${type}, ${input.required ? 1 : 0}, ${input.label ?? null})
     `
     const field = buildField(this, input.key, type)
     if (field.type === "enum" && input.values !== undefined) {

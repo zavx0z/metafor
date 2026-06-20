@@ -9,13 +9,13 @@ export class EnumVariant {
   ) {
   }
 
-  async uuid(): Promise<string> {
-    const fieldUuid = await this.field.uuid()
+  async id(): Promise<number> {
+    const fieldId = await this.field.id()
     const row = (
-      await this.field.fieldsRef.wimp.sql<Array<{ uuid: string }>>`
-          SELECT uuid
+      await this.field.fieldsRef.wimp.sql<Array<{ id: number }>>`
+          SELECT id
           FROM field_enum_variant
-          WHERE field = ${fieldUuid}
+          WHERE field = ${fieldId}
             AND item_value = ${this.value}
           LIMIT 1
       `
@@ -23,16 +23,16 @@ export class EnumVariant {
     if (!row) {
       throw new Error(`enum variant "${this.value}" not found in field "${this.field.key}"`)
     }
-    return row.uuid
+    return row.id
   }
 
   async position(): Promise<number> {
-    const fieldUuid = await this.field.uuid()
+    const fieldId = await this.field.id()
     const row = (
       await this.field.fieldsRef.wimp.sql<Array<{ position: number }>>`
           SELECT position
           FROM field_enum_variant
-          WHERE field = ${fieldUuid}
+          WHERE field = ${fieldId}
             AND item_value = ${this.value}
           LIMIT 1
       `
@@ -50,14 +50,14 @@ export class EnumVariants {
 
   async add(value: string | number): Promise<EnumVariant> {
     const stringValue = String(value)
-    const fieldUuid = await this.field.uuid()
+    const fieldId = await this.field.id()
     const sql = this.field.fieldsRef.wimp.sql
 
     const existing = (
-      await sql<Array<{ uuid: string }>>`
-          SELECT uuid
+      await sql<Array<{ id: number }>>`
+          SELECT id
           FROM field_enum_variant
-          WHERE field = ${fieldUuid}
+          WHERE field = ${fieldId}
             AND item_value = ${stringValue}
           LIMIT 1
       `
@@ -68,25 +68,24 @@ export class EnumVariants {
       await sql<Array<{ next: number }>>`
           SELECT COALESCE(MAX(position) + 1, 0) AS next
           FROM field_enum_variant
-          WHERE field = ${fieldUuid}
+          WHERE field = ${fieldId}
       `
     )[0]
     const position = posRow?.next ?? 0
-    const variantUuid = crypto.randomUUID()
     await sql`
-        INSERT INTO field_enum_variant (uuid, field, position, item_value)
-        VALUES (${variantUuid}, ${fieldUuid}, ${position}, ${stringValue})
+        INSERT INTO field_enum_variant (field, position, item_value)
+        VALUES (${fieldId}, ${position}, ${stringValue})
     `
     return new EnumVariant(this.field, stringValue)
   }
 
   async get(filter: { value: string }): Promise<EnumVariant | null> {
-    const fieldUuid = await this.field.uuid()
+    const fieldId = await this.field.id()
     const row = (
       await this.field.fieldsRef.wimp.sql<Array<{ item_value: string }>>`
           SELECT item_value
           FROM field_enum_variant
-          WHERE field = ${fieldUuid}
+          WHERE field = ${fieldId}
             AND item_value = ${filter.value}
           LIMIT 1
       `
@@ -95,35 +94,35 @@ export class EnumVariants {
   }
 
   async all(): Promise<EnumVariant[]> {
-    const fieldUuid = await this.field.uuid()
+    const fieldId = await this.field.id()
     const rows = await this.field.fieldsRef.wimp.sql<Array<{ item_value: string }>>`
         SELECT item_value
         FROM field_enum_variant
-        WHERE field = ${fieldUuid}
+        WHERE field = ${fieldId}
         ORDER BY position
     `
     return rows.map((row) => new EnumVariant(this.field, row.item_value))
   }
 
   async count(): Promise<number> {
-    const fieldUuid = await this.field.uuid()
+    const fieldId = await this.field.id()
     const row = (
       await this.field.fieldsRef.wimp.sql<Array<{ count: number }>>`
           SELECT COUNT(*) AS count
           FROM field_enum_variant
-          WHERE field = ${fieldUuid}
+          WHERE field = ${fieldId}
       `
     )[0]
     return row?.count ?? 0
   }
 
   async exists(): Promise<boolean> {
-    const fieldUuid = await this.field.uuid()
+    const fieldId = await this.field.id()
     const row = (
       await this.field.fieldsRef.wimp.sql<Array<{ ok: number }>>`
           SELECT 1 AS ok
           FROM field_enum_variant
-          WHERE field = ${fieldUuid}
+          WHERE field = ${fieldId}
           LIMIT 1
       `
     )[0]
@@ -145,19 +144,19 @@ export class EnumField extends Field {
     return this.fields
   }
 
-  async variantUuid(value: string): Promise<string | null> {
+  async variantId(value: string): Promise<number | null> {
     const row = (
-      await this.fields.wimp.sql<Array<{ uuid: string }>>`
-          SELECT v.uuid
+      await this.fields.wimp.sql<Array<{ id: number }>>`
+          SELECT v.id
           FROM field f
-                   INNER JOIN field_enum_variant v ON v.field = f.uuid
+                   INNER JOIN field_enum_variant v ON v.field = f.id
           WHERE f.wimp = ${this.fields.wimp.src}
             AND f.key = ${this.key}
             AND v.item_value = ${value}
           LIMIT 1
       `
     )[0]
-    return row?.uuid ?? null
+    return row?.id ?? null
   }
 
   async default(): Promise<string | undefined> {
@@ -165,8 +164,8 @@ export class EnumField extends Field {
       await this.fields.wimp.sql<Array<{ item_value: string }>>`
           SELECT v.item_value
           FROM field f
-                   INNER JOIN field_enum_default ed ON ed.field = f.uuid
-                   INNER JOIN field_enum_variant v ON v.uuid = ed.variant
+                   INNER JOIN field_enum_default ed ON ed.field = f.id
+                   INNER JOIN field_enum_variant v ON v.id = ed.variant
           WHERE f.wimp = ${this.fields.wimp.src}
             AND f.key = ${this.key}
       `
@@ -180,11 +179,11 @@ export class EnumField extends Field {
     if (!variant) {
       throw new Error(`EnumField.setDefault: variant "${stringValue}" not registered for field "${this.key}"`)
     }
-    const variantUuid = await variant.uuid()
-    const fieldUuid = await this.uuid()
-    await this.ensureDefaultRow(fieldUuid)
+    const variantId = await variant.id()
+    const fieldId = await this.id()
+    await this.ensureDefaultRow(fieldId)
     const sql = this.fields.wimp.sql
-    await sql`DELETE FROM field_enum_default WHERE field = ${fieldUuid}`
-    await sql`INSERT INTO field_enum_default (field, variant) VALUES (${fieldUuid}, ${variantUuid})`
+    await sql`DELETE FROM field_enum_default WHERE field = ${fieldId}`
+    await sql`INSERT INTO field_enum_default (field, variant) VALUES (${fieldId}, ${variantId})`
   }
 }

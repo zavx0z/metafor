@@ -1,9 +1,9 @@
 export type TopologyKind = "fuzzy" | "axion" | "macho"
 
 export interface TopologyRecord {
-  uuid: string
-  parentActor: string | null
-  parentTopology: string | null
+  id: number
+  parentActor: number | null
+  parentTopology: number | null
   kind: TopologyKind
   position: number
 }
@@ -13,14 +13,14 @@ export interface TopologyRecord {
  * как next среди siblings (по `parent_actor`/`parent_topology`).
  */
 export interface TopologyInput {
-  uuid: string
-  parentActor: string | null
-  parentTopology: string | null
+  id?: number | undefined
+  parentActor: number | null
+  parentTopology: number | null
   kind: TopologyKind
 }
 
 export interface TopologyFuzzyStateRecord {
-  topology: string
-  selectedActor: string | null
-  selectedTopology: string | null
+  topology: number
+  selectedActor: number | null
+  selectedTopology: number | null
 }

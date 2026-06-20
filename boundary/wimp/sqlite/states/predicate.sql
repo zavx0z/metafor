@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS condition_predicate
 (
-    uuid            TEXT PRIMARY KEY CHECK (length(trim(uuid)) > 0),
-    condition       TEXT    NOT NULL CHECK (length(trim(condition)) > 0),
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    condition       INTEGER NOT NULL,
     predicate_order INTEGER NOT NULL CHECK (predicate_order >= 0),
     subject_kind    TEXT    NOT NULL CHECK (subject_kind IN ('value', 'length')),
     operator        TEXT    NOT NULL CHECK (
@@ -12,10 +12,10 @@ CREATE TABLE IF NOT EXISTS condition_predicate
     value_boolean   INTEGER CHECK (value_boolean IS NULL OR value_boolean IN (0, 1)),
     value_number    REAL,
     value_text      TEXT,
-    value_variant   TEXT,
+    value_variant   INTEGER,
     UNIQUE (condition, predicate_order),
-    FOREIGN KEY (condition) REFERENCES condition (uuid) ON DELETE CASCADE,
-    FOREIGN KEY (value_variant) REFERENCES field_enum_variant (uuid) ON DELETE CASCADE,
+    FOREIGN KEY (condition) REFERENCES condition (id) ON DELETE CASCADE,
+    FOREIGN KEY (value_variant) REFERENCES field_enum_variant (id) ON DELETE CASCADE,
     CHECK (
         (subject_kind = 'length' AND operator IN ('eq', 'neq', 'gt', 'lt', 'gte', 'lte') AND
          value_kind = 'number' AND value_number IS NOT NULL AND value_boolean IS NULL AND
@@ -55,16 +55,16 @@ CREATE TABLE IF NOT EXISTS condition_predicate
 
 CREATE TABLE IF NOT EXISTS condition_list_item
 (
-    predicate     TEXT    NOT NULL CHECK (length(trim(predicate)) > 0),
+    predicate     INTEGER NOT NULL,
     item_order    INTEGER NOT NULL CHECK (item_order >= 0),
     value_kind    TEXT    NOT NULL CHECK (value_kind IN ('null', 'boolean', 'number', 'string', 'enum')),
     value_boolean INTEGER CHECK (value_boolean IS NULL OR value_boolean IN (0, 1)),
     value_number  REAL,
     value_text    TEXT,
-    value_variant TEXT,
+    value_variant INTEGER,
     PRIMARY KEY (predicate, item_order),
-    FOREIGN KEY (predicate) REFERENCES condition_predicate (uuid) ON DELETE CASCADE,
-    FOREIGN KEY (value_variant) REFERENCES field_enum_variant (uuid) ON DELETE CASCADE,
+    FOREIGN KEY (predicate) REFERENCES condition_predicate (id) ON DELETE CASCADE,
+    FOREIGN KEY (value_variant) REFERENCES field_enum_variant (id) ON DELETE CASCADE,
     CHECK (
         (value_kind = 'null' AND value_boolean IS NULL AND value_number IS NULL AND value_text IS NULL AND
          value_variant IS NULL) OR

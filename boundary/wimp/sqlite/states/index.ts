@@ -39,9 +39,11 @@ export class States {
     )[0]
     const position = posRow?.next ?? 0
 
-    const uuid = crypto.randomUUID()
-    await sql`INSERT INTO state (uuid, wimp, name, position) VALUES (${uuid}, ${src}, ${name}, ${position})`
-    emitGravitonAdd("state", uuid)
+    const row = (await sql<Array<{id: number}>>`
+      INSERT INTO state (wimp, name, position) VALUES (${src}, ${name}, ${position})
+      RETURNING id
+    `)[0]
+    emitGravitonAdd("state", row?.id)
     return new State(this, name)
   }
 

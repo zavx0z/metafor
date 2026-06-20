@@ -1,15 +1,15 @@
 import type { Condition } from "./condition.ts"
 
 type PredicateRow = {
-  uuid: string
-  condition: string
+  id: number
+  condition: number
   predicate_order: number
   operator: string
   value_kind: "null" | "boolean" | "number" | "string" | "enum" | "list"
   value_boolean: number | null
   value_number: number | null
   value_text: string | null
-  value_variant: string | null
+  value_variant: number | null
 }
 
 const decodeOperatorKey = (operator: string): string => {
@@ -30,7 +30,7 @@ const decodeOperatorKey = (operator: string): string => {
 const decodeStoredScalar = (
   valueKind: PredicateRow["value_kind"],
   row: Pick<PredicateRow, "value_boolean" | "value_number" | "value_text" | "value_variant">,
-  enumVariants: Map<string, string>,
+  enumVariants: Map<number, string>,
 ): string | number | boolean | null => {
   switch (valueKind) {
     case "null":
@@ -51,17 +51,17 @@ const decodeStoredScalar = (
 export class Predicate {
   constructor(
     readonly condition: Condition,
-    readonly uuid: string,
+    readonly id: number,
   ) {}
 
   async order(): Promise<number> {
     const sql = this.condition.transition.state.states.wimp.sql
     const row = (
       await sql<Array<{ predicate_order: number }>>`
-        SELECT predicate_order FROM condition_predicate WHERE uuid = ${this.uuid} LIMIT 1
+        SELECT predicate_order FROM condition_predicate WHERE id = ${this.id} LIMIT 1
       `
     )[0]
-    if (!row) throw new Error(`predicate ${this.uuid} not found`)
+    if (!row) throw new Error(`predicate ${this.id} not found`)
     return row.predicate_order
   }
 
@@ -69,10 +69,10 @@ export class Predicate {
     const sql = this.condition.transition.state.states.wimp.sql
     const row = (
       await sql<Array<{ operator: string; value_kind: PredicateRow["value_kind"] }>>`
-        SELECT operator, value_kind FROM condition_predicate WHERE uuid = ${this.uuid} LIMIT 1
+        SELECT operator, value_kind FROM condition_predicate WHERE id = ${this.id} LIMIT 1
       `
     )[0]
-    if (!row) throw new Error(`predicate ${this.uuid} not found`)
+    if (!row) throw new Error(`predicate ${this.id} not found`)
     // null + eq/neq → "null" pseudo-operator (как в DSL).
     if (row.value_kind === "null" && (row.operator === "eq" || row.operator === "neq")) {
       return "null"
@@ -85,12 +85,12 @@ export class Predicate {
     const sql = this.condition.transition.state.states.wimp.sql
     const row = (
       await sql<Array<PredicateRow>>`
-        SELECT uuid, condition, predicate_order, operator, value_kind,
+        SELECT id, condition, predicate_order, operator, value_kind,
                value_boolean, value_number, value_text, value_variant
-        FROM condition_predicate WHERE uuid = ${this.uuid} LIMIT 1
+        FROM condition_predicate WHERE id = ${this.id} LIMIT 1
       `
     )[0]
-    if (!row) throw new Error(`predicate ${this.uuid} not found`)
+    if (!row) throw new Error(`predicate ${this.id} not found`)
 
     if (row.value_kind === "null" && (row.operator === "eq" || row.operator === "neq")) {
       return row.operator === "eq"
@@ -102,11 +102,11 @@ export class Predicate {
     }
 
     // enum-вариант → его item_value.
-    const enumVariants = new Map<string, string>()
+    const enumVariants = new Map<number, string>()
     if (row.value_variant) {
       const variantRow = (
         await sql<Array<{ item_value: string }>>`
-          SELECT item_value FROM field_enum_variant WHERE uuid = ${row.value_variant} LIMIT 1
+          SELECT item_value FROM field_enum_variant WHERE id = ${row.value_variant} LIMIT 1
         `
       )[0]
       if (variantRow) enumVariants.set(row.value_variant, variantRow.item_value)

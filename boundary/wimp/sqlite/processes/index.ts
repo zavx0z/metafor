@@ -38,12 +38,12 @@ export class Processes {
     )[0]
     if (existing) return new Process(this, input.key)
 
-    const uuid = crypto.randomUUID()
-    await sql`
-      INSERT INTO process (uuid, wimp, key, type, label, desc)
-      VALUES (${uuid}, ${src}, ${input.key}, ${input.type}, ${input.label ?? null}, ${input.desc ?? null})
-    `
-    emitGravitonAdd("process", uuid)
+    const row = (await sql<Array<{id: number}>>`
+      INSERT INTO process (wimp, key, type, label, desc)
+      VALUES (${src}, ${input.key}, ${input.type}, ${input.label ?? null}, ${input.desc ?? null})
+      RETURNING id
+    `)[0]
+    emitGravitonAdd("process", row?.id)
     return new Process(this, input.key)
   }
 

@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS actor_state
 (
-    actor     TEXT PRIMARY KEY CHECK (length(trim(actor)) > 0),
-    metaState TEXT,
-    FOREIGN KEY (actor) REFERENCES actor (uuid) ON DELETE CASCADE,
-    FOREIGN KEY (metaState) REFERENCES state (uuid) ON DELETE CASCADE
+    actor     INTEGER PRIMARY KEY,
+    metaState INTEGER,
+    FOREIGN KEY (actor) REFERENCES actor (id) ON DELETE CASCADE,
+    FOREIGN KEY (metaState) REFERENCES state (id) ON DELETE CASCADE
 );

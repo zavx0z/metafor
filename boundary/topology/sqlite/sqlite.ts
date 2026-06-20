@@ -6,6 +6,9 @@ import type {AnyTopology} from "./topology.ts"
 import type {TopologyInput, TopologyRecord} from "./topology.t.ts"
 import {emitForceParts} from "../../force.ts"
 
+const isStoredId = (id: number | null | undefined): id is number =>
+  typeof id === "number" && Number.isInteger(id) && id > 0
+
 export class BoundaryTopologySqlite {
   private constructor(private readonly sql: SQL) {}
 
@@ -34,46 +37,56 @@ export class BoundaryTopologySqlite {
       `
     )[0]?.count ?? 0
     const position = Number(siblingCount)
-    await this.sql`
-      INSERT INTO topology (uuid, parent_actor, parent_topology, kind, position)
-      VALUES (${input.uuid}, ${input.parentActor}, ${input.parentTopology}, ${input.kind}, ${position})
-    `
-    const topology = {...input, position}
+    const id = isStoredId(input.id)
+      ? input.id
+      : (await this.sql<Array<{id: number}>>`
+          INSERT INTO topology (parent_actor, parent_topology, kind, position)
+          VALUES (${input.parentActor}, ${input.parentTopology}, ${input.kind}, ${position})
+          RETURNING id
+        `)[0]?.id
+    if (!id) throw new Error("BoundaryTopologySqlite.create: insert did not return id")
+    if (isStoredId(input.id)) {
+      await this.sql`
+        INSERT INTO topology (id, parent_actor, parent_topology, kind, position)
+        VALUES (${id}, ${input.parentActor}, ${input.parentTopology}, ${input.kind}, ${position})
+      `
+    }
+    const topology = {...input, id, position}
     emitForceParts([{part: "graviton", op: "add", path: input.kind, value: topology}])
     return buildTopology(this.sql, topology)
   }
 
-  async get(uuid: string): Promise<AnyTopology | null> {
+  async get(id: number): Promise<AnyTopology | null> {
     const row = (
       await this.sql<Array<Record<string, unknown>>>`
-        SELECT uuid, parent_actor, parent_topology, kind, position
+        SELECT id, parent_actor, parent_topology, kind, position
         FROM topology
-        WHERE uuid = ${uuid}
+        WHERE id = ${id}
         LIMIT 1
       `
     )[0]
     return row ? buildTopology(this.sql, decodeTopologyRow(row)) : null
   }
 
-  async head(uuid: string): Promise<TopologyRecord | null> {
+  async head(id: number): Promise<TopologyRecord | null> {
     const row = (
       await this.sql<Array<Record<string, unknown>>>`
-        SELECT uuid, parent_actor, parent_topology, kind, position
+        SELECT id, parent_actor, parent_topology, kind, position
         FROM topology
-        WHERE uuid = ${uuid}
+        WHERE id = ${id}
       `
     )[0]
     return row ? decodeTopologyRow(row) : null
   }
 
   /**
-   * Все topology-узлы, для которых указанный actor — родитель (parent_actor=actorUuid).
+   * Все topology-узлы, для которых указанный actor — родитель (parent_actor=actorId).
    */
-  async childrenOfActor(actorUuid: string): Promise<AnyTopology[]> {
+  async childrenOfActor(actorId: number): Promise<AnyTopology[]> {
     const rows = await this.sql<Array<Record<string, unknown>>>`
-      SELECT uuid, parent_actor, parent_topology, kind, position
+      SELECT id, parent_actor, parent_topology, kind, position
       FROM topology
-      WHERE parent_actor = ${actorUuid}
+      WHERE parent_actor = ${actorId}
       ORDER BY position
     `
     return rows.map((row) => buildTopology(this.sql, decodeTopologyRow(row)))

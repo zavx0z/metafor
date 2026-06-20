@@ -35,30 +35,30 @@ describe("boundary/sqlite smoke", () => {
     rmSync(`${filename}-wal`, {force: true})
   })
 
-  const fieldUuid = async (key: string): Promise<string> => {
+  const fieldId = async (key: string): Promise<number> => {
     const row = (
-      await sql<Array<{uuid: string}>>`SELECT uuid FROM field WHERE wimp = ${SRC} AND key = ${key} LIMIT 1`
+      await sql<Array<{id: number}>>`SELECT id FROM field WHERE wimp = ${SRC} AND key = ${key} LIMIT 1`
     )[0]
     if (!row) throw new Error(`field ${key} missing`)
-    return row.uuid
+    return row.id
   }
 
-  const enumVariantUuid = async (field: string, value: string): Promise<string> => {
+  const enumVariantId = async (field: number, value: string): Promise<number> => {
     const row = (
-      await sql<Array<{uuid: string}>>`
-        SELECT uuid FROM field_enum_variant WHERE field = ${field} AND item_value = ${value} LIMIT 1
+      await sql<Array<{id: number}>>`
+        SELECT id FROM field_enum_variant WHERE field = ${field} AND item_value = ${value} LIMIT 1
       `
     )[0]
     if (!row) throw new Error(`enum variant ${value} missing`)
-    return row.uuid
+    return row.id
   }
 
-  const stateUuid = async (name: string): Promise<string> => {
+  const stateId = async (name: string): Promise<number> => {
     const row = (
-      await sql<Array<{uuid: string}>>`SELECT uuid FROM state WHERE wimp = ${SRC} AND name = ${name} LIMIT 1`
+      await sql<Array<{id: number}>>`SELECT id FROM state WHERE wimp = ${SRC} AND name = ${name} LIMIT 1`
     )[0]
     if (!row) throw new Error(`state ${name} missing`)
-    return row.uuid
+    return row.id
   }
 
   test("open() поднимает обе схемы — meta и actor — на одной БД", async () => {
@@ -152,15 +152,15 @@ describe("boundary/sqlite smoke", () => {
       ],
       superposition: [{name: "idle"}],
     })
-    const flagUuid = (await fieldUuid("flag"))
-    const statusUuid = (await fieldUuid("status"))
-    const idleVariantUuid = (await enumVariantUuid(statusUuid, "idle"))
-    const idleStateUuid = (await stateUuid("idle"))
+    const flagId = (await fieldId("flag"))
+    const statusId = (await fieldId("status"))
+    const idleVariantId = (await enumVariantId(statusId, "idle"))
+    const idleStateId = (await stateId("idle"))
 
     // actor-1
-    const actorUuid = "actor-1"
-    const valueFlag = "v-flag"
-    const valueStatus = "v-status"
+    const actorId = 1
+    const valueFlag = 101
+    const valueStatus = 102
 
     await boundary.absorb({
       parts: [{
@@ -168,44 +168,44 @@ describe("boundary/sqlite smoke", () => {
         op: "add",
         path: "actor",
         value: {
-          actor: {uuid: actorUuid, parentActor: null, parentTopology: null, wimp: SRC, position: 0},
+          actor: {id: actorId, parentActor: null, parentTopology: null, wimp: SRC, position: 0},
           values: [
-            {actor: actorUuid, field: flagUuid, value: valueFlag},
-            {actor: actorUuid, field: statusUuid, value: valueStatus},
+            {actor: actorId, field: flagId, value: valueFlag},
+            {actor: actorId, field: statusId, value: valueStatus},
           ],
           valueRecords: [
-            {uuid: valueFlag, kind: "boolean", boolean: true},
-            {uuid: valueStatus, kind: "enum", variant: idleVariantUuid},
+            {id: valueFlag, kind: "boolean", boolean: true},
+            {id: valueStatus, kind: "enum", variant: idleVariantId},
           ],
           valueItems: [],
-          state: {actor: actorUuid, metaState: idleStateUuid},
+          state: {actor: actorId, metaState: idleStateId},
         },
       }],
     })
 
-    const actor = await boundary.actor.get(actorUuid)
+    const actor = await boundary.actor.get(actorId)
     if (!actor) throw new Error("actor missing")
-    expect(actor.uuid).toBe(actorUuid)
+    expect(actor.id).toBe(actorId)
     expect(await actor.wimp()).toBe(SRC)
     expect(await actor.parent()).toBeNull()
     expect(await actor.position()).toBe(0)
-    expect((await actor.state())?.metaState).toBe(idleStateUuid)
+    expect((await actor.state())?.metaState).toBe(idleStateId)
     expect(await actor.values.count()).toBe(2)
 
-    const flagLink = await actor.values.get({field: flagUuid})
+    const flagLink = await actor.values.get({field: flagId})
     const flagValue = await flagLink!.value()
     expect(flagValue).toBeInstanceOf(BooleanValue)
     expect(await (flagValue as BooleanValue).boolean()).toBe(true)
 
-    const statusLink = await actor.values.get({field: statusUuid})
+    const statusLink = await actor.values.get({field: statusId})
     const statusValue = await statusLink!.value()
     expect(statusValue).toBeInstanceOf(EnumValue)
-    expect(await (statusValue as EnumValue).variant()).toBe(idleVariantUuid)
+    expect(await (statusValue as EnumValue).variant()).toBe(idleVariantId)
 
-    // gluon-replace: переключаем actor_value на shared value (entanglement через shared uuid)
-    const actor2Uuid = "actor-2"
-    const valueFlag2 = "v-flag-2"
-    const valueStatus2 = "v-status-2"
+    // gluon-replace: переключаем actor_value на shared value (entanglement через shared id)
+    const actor2Id = 2
+    const valueFlag2 = 201
+    const valueStatus2 = 202
 
     await boundary.absorb({
       parts: [{
@@ -213,17 +213,17 @@ describe("boundary/sqlite smoke", () => {
         op: "add",
         path: "actor",
         value: {
-          actor: {uuid: actor2Uuid, parentActor: null, parentTopology: null, wimp: SRC, position: 1},
+          actor: {id: actor2Id, parentActor: null, parentTopology: null, wimp: SRC, position: 1},
           values: [
-            {actor: actor2Uuid, field: flagUuid, value: valueFlag2},
-            {actor: actor2Uuid, field: statusUuid, value: valueStatus2},
+            {actor: actor2Id, field: flagId, value: valueFlag2},
+            {actor: actor2Id, field: statusId, value: valueStatus2},
           ],
           valueRecords: [
-            {uuid: valueFlag2, kind: "boolean", boolean: true},
-            {uuid: valueStatus2, kind: "enum", variant: idleVariantUuid},
+            {id: valueFlag2, kind: "boolean", boolean: true},
+            {id: valueStatus2, kind: "enum", variant: idleVariantId},
           ],
           valueItems: [],
-          state: {actor: actor2Uuid, metaState: idleStateUuid},
+          state: {actor: actor2Id, metaState: idleStateId},
         },
       }],
     })
@@ -235,27 +235,27 @@ describe("boundary/sqlite smoke", () => {
         op: "replace",
         path: "actor",
         value: {
-          actor: {uuid: actor2Uuid, parentActor: null, parentTopology: null, wimp: SRC, position: 1},
+          actor: {id: actor2Id, parentActor: null, parentTopology: null, wimp: SRC, position: 1},
           values: [
-            {actor: actor2Uuid, field: flagUuid, value: valueFlag},
-            {actor: actor2Uuid, field: statusUuid, value: valueStatus2},
+            {actor: actor2Id, field: flagId, value: valueFlag},
+            {actor: actor2Id, field: statusId, value: valueStatus2},
           ],
           valueRecords: [
-            {uuid: valueFlag, kind: "boolean", boolean: true},
-            {uuid: valueStatus2, kind: "enum", variant: idleVariantUuid},
+            {id: valueFlag, kind: "boolean", boolean: true},
+            {id: valueStatus2, kind: "enum", variant: idleVariantId},
           ],
           valueItems: [],
-          state: {actor: actor2Uuid, metaState: idleStateUuid},
+          state: {actor: actor2Id, metaState: idleStateId},
         },
       }],
     })
 
-    const actor2 = (await boundary.actor.get(actor2Uuid))!
-    const link2 = (await actor2.values.get({field: flagUuid}))!
+    const actor2 = (await boundary.actor.get(actor2Id))!
+    const link2 = (await actor2.values.get({field: flagId}))!
     const sharedValue = await link2.value()
-    expect(sharedValue.uuid).toBe(valueFlag)
+    expect(sharedValue.id).toBe(valueFlag)
     const owners = await sharedValue.owners()
-    expect(owners.map((o) => o.actor).sort()).toEqual([actorUuid, actor2Uuid].sort())
+    expect(owners.map((o) => o.actor).sort()).toEqual([actorId, actor2Id].sort())
   })
 
   test("absorb() обновляет БД и не выпускает входящие particles в entropy", async () => {
@@ -264,16 +264,17 @@ describe("boundary/sqlite smoke", () => {
     const outgoing: Particle[] = []
     const observedBinding = boundary.observe((event) => observed.push(...event.data.parts))
     const entropyBinding = boundary.entropy((event) => outgoing.push(...event.data.parts))
+    const actorId = 1
     const part: BoundaryParticle = {
       part: "graviton",
       op: "add",
       path: "actor",
       value: {
-        actor: {uuid: "actor-published", parentActor: null, parentTopology: null, wimp: SRC, position: 0},
+        actor: {id: actorId, parentActor: null, parentTopology: null, wimp: SRC, position: 0},
         values: [],
         valueRecords: [],
         valueItems: [],
-        state: {actor: "actor-published", metaState: null},
+        state: {actor: actorId, metaState: null},
       },
     }
 
@@ -286,7 +287,7 @@ describe("boundary/sqlite smoke", () => {
         await sql<Array<{wimp: string}>>`
           SELECT wimp
           FROM actor
-          WHERE uuid = ${"actor-published"}
+          WHERE id = ${actorId}
         `
       )[0]
       expect(row?.wimp).toBe(SRC)

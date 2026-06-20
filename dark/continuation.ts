@@ -3,15 +3,15 @@ import type {MatterRelationBindingValue} from "@boundary/wimp/sqlite"
 
 /**
  * Описание начальной инициализации поля при материализации child wimp.
- * Если задан `source` — поле share-ит value.uuid с указанным родительским полем (entanglement).
+ * Если задан `source` — поле share-ит value.id с указанным родительским полем (entanglement).
  */
 export interface FieldInit {
   key: FieldKey
   /** Резолвленное runtime-значение (применяется когда нет share). */
   value: unknown
-  /** Ссылка на родительское поле для разделения value.uuid через actor_value FK. */
+  /** Ссылка на родительское поле для разделения value.id через actor_value FK. */
   source?: {
-    parentActorUuid: string
+    parentActorId: number
     parentFieldKey: FieldKey
   }
 }
@@ -75,13 +75,13 @@ const resolveDirectFieldSources = (
  * Превращает `fieldsBinding` дочернего wimp-узла в массив `FieldInit`'ов.
  *
  * @param binding значение `node.fields` из AST: либо string-выражение, либо `{data, expr}`.
- * @param parent контекст ближайшего actor предка: его actor uuid, snapshot значений полей,
+ * @param parent контекст ближайшего actor предка: его actor id, snapshot значений полей,
  *   и map типов (для решения direct-link entanglement).
  */
 export const resolveFieldInits = (
   binding: MatterRelationBindingValue | undefined,
   parent: {
-    actorUuid: string
+    actorId: number
     fieldValues: Map<FieldKey, unknown>
     fieldTypes: Map<FieldKey, string>
   },
@@ -118,7 +118,7 @@ export const resolveFieldInits = (
   return Object.entries(resolved).map(([key, value]) => {
     const sourceParentKey = directSources.get(key)
     if (sourceParentKey) {
-      return {key, value, source: {parentActorUuid: parent.actorUuid, parentFieldKey: sourceParentKey}}
+      return {key, value, source: {parentActorId: parent.actorId, parentFieldKey: sourceParentKey}}
     }
     return {key, value}
   })

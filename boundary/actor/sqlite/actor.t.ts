@@ -3,11 +3,11 @@ import type {ActorValueRecord} from "./actor_value.t.ts"
 import type {ValueItemRecord, ValueRecord} from "./value.t.ts"
 
 export interface ActorRecord {
-  uuid: string
-  /** UUID родительского `Actor`, если родитель — другой wimp. Иначе `null`. */
-  parentActor: string | null
-  /** UUID родительского `Topology`-узла, если родитель — fuzzy/axion/macho. Иначе `null`. */
-  parentTopology: string | null
+  id: number
+  /** Id родительского `Actor`, если родитель — другой wimp. Иначе `null`. */
+  parentActor: number | null
+  /** Id родительского `Topology`-узла, если родитель — fuzzy/axion/macho. Иначе `null`. */
+  parentTopology: number | null
   wimp: string
   position: number
 }
@@ -17,9 +17,9 @@ export interface ActorRecord {
  * как next среди siblings (по `parent_actor`/`parent_topology`).
  */
 export interface ActorInputRow {
-  uuid: string
-  parentActor: string | null
-  parentTopology: string | null
+  id?: number | undefined
+  parentActor: number | null
+  parentTopology: number | null
   wimp: string
 }
 

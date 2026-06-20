@@ -3,7 +3,7 @@ import {emitGravitonAdd} from "../../force.ts"
 
 /**
  * Sub-ORM для таблицы `reaction_read` (PK (reaction, field)).
- * Резолв `field.uuid` через WHERE field.wimp=src AND field.key=fieldKey.
+ * Резолв `field.id` через WHERE field.wimp=src AND field.key=fieldKey.
  */
 export class ReactionRead {
   constructor(readonly reaction: Reaction) {}
@@ -11,37 +11,37 @@ export class ReactionRead {
   async add(fieldKey: string): Promise<void> {
     const sql = this.reaction.reactions.wimp.sql
     const src = this.reaction.reactions.wimp.src
-    const reactionUuid = await this.reaction.uuid()
+    const reactionId = await this.reaction.id()
     const existing = await this.has(fieldKey)
     await sql`
       INSERT OR IGNORE INTO reaction_read (reaction, field)
-      SELECT ${reactionUuid}, field.uuid
+      SELECT ${reactionId}, field.id
       FROM field WHERE field.wimp = ${src} AND field.key = ${fieldKey}
     `
     if (!existing && await this.has(fieldKey)) {
-      emitGravitonAdd("reaction_read", `${reactionUuid}/read/${fieldKey}`)
+      emitGravitonAdd("reaction_read", `${reactionId}/read/${fieldKey}`)
     }
   }
 
   async remove(fieldKey: string): Promise<void> {
     const sql = this.reaction.reactions.wimp.sql
     const src = this.reaction.reactions.wimp.src
-    const reactionUuid = await this.reaction.uuid()
+    const reactionId = await this.reaction.id()
     await sql`
       DELETE FROM reaction_read
-      WHERE reaction = ${reactionUuid}
-        AND field IN (SELECT uuid FROM field WHERE wimp = ${src} AND key = ${fieldKey})
+      WHERE reaction = ${reactionId}
+        AND field IN (SELECT id FROM field WHERE wimp = ${src} AND key = ${fieldKey})
     `
   }
 
   async all(): Promise<string[]> {
     const sql = this.reaction.reactions.wimp.sql
-    const reactionUuid = await this.reaction.uuid()
+    const reactionId = await this.reaction.id()
     const rows = await sql<Array<{ key: string }>>`
       SELECT field.key AS key
       FROM reaction_read rr
-      INNER JOIN field ON field.uuid = rr.field
-      WHERE rr.reaction = ${reactionUuid}
+      INNER JOIN field ON field.id = rr.field
+      WHERE rr.reaction = ${reactionId}
       ORDER BY rr.rowid
     `
     return rows.map((row) => row.key)
@@ -50,13 +50,13 @@ export class ReactionRead {
   async has(fieldKey: string): Promise<boolean> {
     const sql = this.reaction.reactions.wimp.sql
     const src = this.reaction.reactions.wimp.src
-    const reactionUuid = await this.reaction.uuid()
+    const reactionId = await this.reaction.id()
     const row = (
       await sql<Array<{ ok: number }>>`
         SELECT 1 AS ok
         FROM reaction_read rr
-        INNER JOIN field ON field.uuid = rr.field
-        WHERE rr.reaction = ${reactionUuid}
+        INNER JOIN field ON field.id = rr.field
+        WHERE rr.reaction = ${reactionId}
           AND field.wimp = ${src}
           AND field.key = ${fieldKey}
         LIMIT 1
@@ -67,10 +67,10 @@ export class ReactionRead {
 
   async count(): Promise<number> {
     const sql = this.reaction.reactions.wimp.sql
-    const reactionUuid = await this.reaction.uuid()
+    const reactionId = await this.reaction.id()
     const row = (
       await sql<Array<{ count: number }>>`
-        SELECT COUNT(*) AS count FROM reaction_read WHERE reaction = ${reactionUuid}
+        SELECT COUNT(*) AS count FROM reaction_read WHERE reaction = ${reactionId}
       `
     )[0]
     return row?.count ?? 0
@@ -79,7 +79,7 @@ export class ReactionRead {
 
 /**
  * Sub-ORM для таблицы `reaction_write` (PK (reaction, field)).
- * Резолв `field.uuid` через WHERE field.wimp=src AND field.key=fieldKey.
+ * Резолв `field.id` через WHERE field.wimp=src AND field.key=fieldKey.
  */
 export class ReactionWrite {
   constructor(readonly reaction: Reaction) {}
@@ -87,37 +87,37 @@ export class ReactionWrite {
   async add(fieldKey: string): Promise<void> {
     const sql = this.reaction.reactions.wimp.sql
     const src = this.reaction.reactions.wimp.src
-    const reactionUuid = await this.reaction.uuid()
+    const reactionId = await this.reaction.id()
     const existing = await this.has(fieldKey)
     await sql`
       INSERT OR IGNORE INTO reaction_write (reaction, field)
-      SELECT ${reactionUuid}, field.uuid
+      SELECT ${reactionId}, field.id
       FROM field WHERE field.wimp = ${src} AND field.key = ${fieldKey}
     `
     if (!existing && await this.has(fieldKey)) {
-      emitGravitonAdd("reaction_write", `${reactionUuid}/write/${fieldKey}`)
+      emitGravitonAdd("reaction_write", `${reactionId}/write/${fieldKey}`)
     }
   }
 
   async remove(fieldKey: string): Promise<void> {
     const sql = this.reaction.reactions.wimp.sql
     const src = this.reaction.reactions.wimp.src
-    const reactionUuid = await this.reaction.uuid()
+    const reactionId = await this.reaction.id()
     await sql`
       DELETE FROM reaction_write
-      WHERE reaction = ${reactionUuid}
-        AND field IN (SELECT uuid FROM field WHERE wimp = ${src} AND key = ${fieldKey})
+      WHERE reaction = ${reactionId}
+        AND field IN (SELECT id FROM field WHERE wimp = ${src} AND key = ${fieldKey})
     `
   }
 
   async all(): Promise<string[]> {
     const sql = this.reaction.reactions.wimp.sql
-    const reactionUuid = await this.reaction.uuid()
+    const reactionId = await this.reaction.id()
     const rows = await sql<Array<{ key: string }>>`
       SELECT field.key AS key
       FROM reaction_write rw
-      INNER JOIN field ON field.uuid = rw.field
-      WHERE rw.reaction = ${reactionUuid}
+      INNER JOIN field ON field.id = rw.field
+      WHERE rw.reaction = ${reactionId}
       ORDER BY rw.rowid
     `
     return rows.map((row) => row.key)
@@ -126,13 +126,13 @@ export class ReactionWrite {
   async has(fieldKey: string): Promise<boolean> {
     const sql = this.reaction.reactions.wimp.sql
     const src = this.reaction.reactions.wimp.src
-    const reactionUuid = await this.reaction.uuid()
+    const reactionId = await this.reaction.id()
     const row = (
       await sql<Array<{ ok: number }>>`
         SELECT 1 AS ok
         FROM reaction_write rw
-        INNER JOIN field ON field.uuid = rw.field
-        WHERE rw.reaction = ${reactionUuid}
+        INNER JOIN field ON field.id = rw.field
+        WHERE rw.reaction = ${reactionId}
           AND field.wimp = ${src}
           AND field.key = ${fieldKey}
         LIMIT 1
@@ -143,10 +143,10 @@ export class ReactionWrite {
 
   async count(): Promise<number> {
     const sql = this.reaction.reactions.wimp.sql
-    const reactionUuid = await this.reaction.uuid()
+    const reactionId = await this.reaction.id()
     const row = (
       await sql<Array<{ count: number }>>`
-        SELECT COUNT(*) AS count FROM reaction_write WHERE reaction = ${reactionUuid}
+        SELECT COUNT(*) AS count FROM reaction_write WHERE reaction = ${reactionId}
       `
     )[0]
     return row?.count ?? 0
@@ -156,7 +156,7 @@ export class ReactionWrite {
 /**
  * Sub-ORM для таблицы `reaction_state` (PK (reaction, state)).
  * Связь реакции со state-ами, в которых она активна.
- * Резолв `state.uuid` через WHERE state.wimp=src AND state.name=stateName.
+ * Резолв `state.id` через WHERE state.wimp=src AND state.name=stateName.
  */
 export class ReactionStates {
   constructor(readonly reaction: Reaction) {}
@@ -164,37 +164,37 @@ export class ReactionStates {
   async add(stateName: string): Promise<void> {
     const sql = this.reaction.reactions.wimp.sql
     const src = this.reaction.reactions.wimp.src
-    const reactionUuid = await this.reaction.uuid()
+    const reactionId = await this.reaction.id()
     const existing = await this.has(stateName)
     await sql`
       INSERT OR IGNORE INTO reaction_state (reaction, state)
-      SELECT ${reactionUuid}, state.uuid
+      SELECT ${reactionId}, state.id
       FROM state WHERE state.wimp = ${src} AND state.name = ${stateName}
     `
     if (!existing && await this.has(stateName)) {
-      emitGravitonAdd("reaction_state", `${reactionUuid}/state/${stateName}`)
+      emitGravitonAdd("reaction_state", `${reactionId}/state/${stateName}`)
     }
   }
 
   async remove(stateName: string): Promise<void> {
     const sql = this.reaction.reactions.wimp.sql
     const src = this.reaction.reactions.wimp.src
-    const reactionUuid = await this.reaction.uuid()
+    const reactionId = await this.reaction.id()
     await sql`
       DELETE FROM reaction_state
-      WHERE reaction = ${reactionUuid}
-        AND state IN (SELECT uuid FROM state WHERE wimp = ${src} AND name = ${stateName})
+      WHERE reaction = ${reactionId}
+        AND state IN (SELECT id FROM state WHERE wimp = ${src} AND name = ${stateName})
     `
   }
 
   async all(): Promise<string[]> {
     const sql = this.reaction.reactions.wimp.sql
-    const reactionUuid = await this.reaction.uuid()
+    const reactionId = await this.reaction.id()
     const rows = await sql<Array<{ name: string }>>`
       SELECT state.name AS name
       FROM reaction_state rs
-      INNER JOIN state ON state.uuid = rs.state
-      WHERE rs.reaction = ${reactionUuid}
+      INNER JOIN state ON state.id = rs.state
+      WHERE rs.reaction = ${reactionId}
       ORDER BY rs.rowid
     `
     return rows.map((row) => row.name)
@@ -203,13 +203,13 @@ export class ReactionStates {
   async has(stateName: string): Promise<boolean> {
     const sql = this.reaction.reactions.wimp.sql
     const src = this.reaction.reactions.wimp.src
-    const reactionUuid = await this.reaction.uuid()
+    const reactionId = await this.reaction.id()
     const row = (
       await sql<Array<{ ok: number }>>`
         SELECT 1 AS ok
         FROM reaction_state rs
-        INNER JOIN state ON state.uuid = rs.state
-        WHERE rs.reaction = ${reactionUuid}
+        INNER JOIN state ON state.id = rs.state
+        WHERE rs.reaction = ${reactionId}
           AND state.wimp = ${src}
           AND state.name = ${stateName}
         LIMIT 1
@@ -220,10 +220,10 @@ export class ReactionStates {
 
   async count(): Promise<number> {
     const sql = this.reaction.reactions.wimp.sql
-    const reactionUuid = await this.reaction.uuid()
+    const reactionId = await this.reaction.id()
     const row = (
       await sql<Array<{ count: number }>>`
-        SELECT COUNT(*) AS count FROM reaction_state WHERE reaction = ${reactionUuid}
+        SELECT COUNT(*) AS count FROM reaction_state WHERE reaction = ${reactionId}
       `
     )[0]
     return row?.count ?? 0
@@ -249,18 +249,18 @@ export class Reaction {
   }
 
   /**
-   * Резолвит uuid строки `reaction` по (wimp, key). Throw если не найдено.
+   * Резолвит id строки `reaction` по (wimp, key). Throw если не найдено.
    */
-  async uuid(): Promise<string> {
+  async id(): Promise<number> {
     const row = (
-      await this.reactions.wimp.sql<Array<{ uuid: string }>>`
-        SELECT uuid FROM reaction
+      await this.reactions.wimp.sql<Array<{ id: number }>>`
+        SELECT id FROM reaction
         WHERE wimp = ${this.reactions.wimp.src} AND key = ${this.key}
         LIMIT 1
       `
     )[0]
     if (!row) throw new Error(`reaction ${this.key} not found in wimp ${this.reactions.wimp.src}`)
-    return row.uuid
+    return row.id
   }
 
   async label(): Promise<string | undefined> {

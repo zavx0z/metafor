@@ -154,10 +154,10 @@ const requireRuntimeFieldAddress = (wimpFieldId: string): [braneIndex: number, r
   const runtimeFieldIndex = strong$.runtimeFieldIndexByWimpFieldId.get(wimpFieldId)
 
   if (braneIndex === undefined) {
-    throw new Error(`Energy UUID field is not materialized in current runtime: ${wimpFieldId}`)
+    throw new Error(`Energy id field is not materialized in current runtime: ${wimpFieldId}`)
   }
   if (runtimeFieldIndex === undefined) {
-    throw new Error(`Energy runtime field index is missing for UUID field: ${wimpFieldId}`)
+    throw new Error(`Energy runtime field index is missing for id field: ${wimpFieldId}`)
   }
 
   return [braneIndex, runtimeFieldIndex]
@@ -188,13 +188,13 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
   const parts: EnergyParticle[] = []
 
   for (const [braneIndex, stateIndex] of changes) {
-    const uuid = gravity$.getWimpId(braneIndex)
-    if (!uuid) continue
+    const id = gravity$.getWimpId(braneIndex)
+    if (!id) continue
 
     const stateName = energy$.getStateName(braneIndex, stateIndex)
     if (!stateName) continue
 
-    parts.push({ part: "photon", op: "replace", path: uuid, value: stateName })
+    parts.push({ part: "photon", op: "replace", path: id, value: stateName })
   }
 
   if (parts.length === 0) return
@@ -225,7 +225,7 @@ const requireFieldPartId = (path: string): string => {
 
   const wimpFieldId = path.slice(FIELD_PART_PATH_PREFIX.length)
   if (!wimpFieldId) {
-    throw new Error(`Energy field part path is missing field uuid: ${path}`)
+    throw new Error(`Energy field part path is missing field id: ${path}`)
   }
 
   return wimpFieldId
@@ -316,7 +316,7 @@ async function writePreparedData(prepared: PreparedData): Promise<[number, numbe
 export async function write(data: Data): Promise<[number, number][]> {
   validateData(data)
   /**
-   * `write(data)` остаётся отдельным bootstrap/bypass path и не порождает UUID-composition.
+   * `write(data)` остаётся отдельным bootstrap/bypass path и не порождает id-composition.
    * Для такого режима `gravity$` очищается, а materialized runtime пишется напрямую.
    */
   clearRuntimeState()
@@ -379,7 +379,7 @@ export async function update(
         weakUpdates.push({ kind: "field", braneIndex, fieldIndex })
         affectedBraneIndexes.add(braneIndex)
 
-        // Runtime field may be shared across multiple UUID-addressed fields via source/entanglement.
+        // Runtime field may be shared across multiple id-addressed fields via source/entanglement.
         for (const wimpFieldId of strong$.wimpFieldIdsByRuntimeFieldIndex[fieldIndex] ?? []) {
           const affectedBraneIndex = strong$.braneIndexByWimpFieldId.get(wimpFieldId)
           if (affectedBraneIndex !== undefined) {

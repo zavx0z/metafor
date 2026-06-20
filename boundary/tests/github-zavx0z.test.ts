@@ -25,10 +25,10 @@ const waitForParts = async (predicate: () => boolean): Promise<void> => {
   }
 }
 
-const particleUuid = (part: Particle): unknown => {
+const particleId = (part: Particle): unknown => {
   if (typeof part.value !== "object" || part.value === null || Array.isArray(part.value)) return part.value
-  const value = part.value as {uuid?: unknown; actor?: {uuid?: unknown}}
-  return value.actor?.uuid ?? value.uuid
+  const value = part.value as {id?: unknown; actor?: {id?: unknown}}
+  return value.actor?.id ?? value.id
 }
 
 describe("boundary/tests github/zavx0z startup load", () => {
@@ -59,22 +59,22 @@ describe("boundary/tests github/zavx0z startup load", () => {
         FROM wimp
         ORDER BY src
     `
-      const actorRows = await sql<Array<{uuid: string; parent_actor: string | null; parent_topology: string | null; wimp: string}>>`
-        SELECT uuid, parent_actor, parent_topology, wimp
+      const actorRows = await sql<Array<{id: number; parent_actor: number | null; parent_topology: number | null; wimp: string}>>`
+        SELECT id, parent_actor, parent_topology, wimp
         FROM actor
-        ORDER BY position, uuid
+        ORDER BY position, id
     `
-      const actorStateRows = await sql<Array<{actor: string; metaState: string | null}>>`
+      const actorStateRows = await sql<Array<{actor: number; metaState: number | null}>>`
         SELECT actor, metaState
         FROM actor_state
         ORDER BY actor
       `
       const runtime = await boundary.energyRuntime()
       const bulkRuntime = await boundary.bulkRuntime()
-      const topologyRows = await sql<Array<{uuid: string; kind: string}>>`
-        SELECT uuid, kind
+      const topologyRows = await sql<Array<{id: number; kind: string}>>`
+        SELECT id, kind
         FROM topology
-        ORDER BY position, uuid
+        ORDER BY position, id
     `
 
       await waitForParts(() => {
@@ -106,13 +106,13 @@ describe("boundary/tests github/zavx0z startup load", () => {
       expect(await roots[0]!.wimp()).toBe("zavx0z/git")
       // Wimp-под-Wimp напрямую может не быть (всё дерево идёт через topology Fuzzy/Axion).
       // Проверяем через topology: у root должны быть дочерние topology-узлы.
-      const rootTopology = await boundary.topology.childrenOfActor(roots[0]!.uuid)
+      const rootTopology = await boundary.topology.childrenOfActor(roots[0]!.id)
       expect(rootTopology.length).toBeGreaterThan(0)
 
       const rootOperationField = requiredRow(
         (
-          await sql<Array<{uuid: string}>>`
-            SELECT uuid
+          await sql<Array<{id: number}>>`
+            SELECT id
             FROM field
             WHERE wimp = ${"zavx0z/git"}
               AND key = ${"operation"}
@@ -120,13 +120,13 @@ describe("boundary/tests github/zavx0z startup load", () => {
         `
         )[0],
         "operation field not found",
-      ).uuid
+      ).id
       const rootOperation = await (await roots[0]!.values.get({field: rootOperationField}))?.value()
       expect(rootOperation?.kind).toBe("null")
 
       const commitActor = actorRows.find((row) => row.wimp === "zavx0z/git-history-commit")
       if (!commitActor) throw new Error("zavx0z/git-history-commit actor was not materialized")
-      const commit = (await boundary.actor.get(commitActor.uuid))!
+      const commit = (await boundary.actor.get(commitActor.id))!
       expect(await commit.values.count()).toBeGreaterThan(0)
       expect((await commit.state())?.metaState).not.toBeNull()
 
@@ -134,8 +134,8 @@ describe("boundary/tests github/zavx0z startup load", () => {
       const topologyParts = parts.filter((part) =>
         part.part === "graviton" && part.op === "add" && (part.path === "fuzzy" || part.path === "axion" || part.path === "macho")
       )
-      expect(actorParts.map(particleUuid).sort()).toEqual(actorRows.map((row) => row.uuid).sort())
-      expect(topologyParts.map(particleUuid).sort()).toEqual(topologyRows.map((row) => row.uuid).sort())
+      expect(actorParts.map(particleId).sort()).toEqual(actorRows.map((row) => row.id).sort())
+      expect(topologyParts.map(particleId).sort()).toEqual(topologyRows.map((row) => row.id).sort())
     } finally {
       subscription.close()
       await sql.close()

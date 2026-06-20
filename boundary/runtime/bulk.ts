@@ -3,7 +3,7 @@ import type {SQL} from "bun"
 export type BoundaryBulkParticleKind = "wimp" | "fuzzy" | "axion" | "macho"
 
 export type BoundaryBulkRuntimeActor = {
-  uuid: string
+  id: string
   parentActor: string | null
   parentTopology: string | null
   wimp: string
@@ -11,7 +11,7 @@ export type BoundaryBulkRuntimeActor = {
 }
 
 export type BoundaryBulkRuntimeTopology = {
-  uuid: string
+  id: string
   parentActor: string | null
   parentTopology: string | null
   kind: BoundaryBulkParticleKind
@@ -19,7 +19,7 @@ export type BoundaryBulkRuntimeTopology = {
 }
 
 export type BoundaryBulkRuntimeMatterParticle = {
-  uuid: string
+  id: string
   wimp: string
   parentParticle: string | null
   particleKind: BoundaryBulkParticleKind
@@ -33,7 +33,7 @@ export type BoundaryBulkRuntimeWimp = {
 }
 
 export type BoundaryBulkRuntimeField = {
-  uuid: string
+  id: string
   wimp: string
   key: string
   type: "string" | "number" | "boolean" | "array" | "enum"
@@ -41,7 +41,7 @@ export type BoundaryBulkRuntimeField = {
 }
 
 export type BoundaryBulkRuntimeFieldEnumVariant = {
-  uuid: string
+  id: string
   field: string
   position: number
   itemValue: string
@@ -54,7 +54,7 @@ export type BoundaryBulkRuntimeActorValue = {
 }
 
 export type BoundaryBulkRuntimeValue = {
-  uuid: string
+  id: string
   kind: "null" | "boolean" | "number" | "string" | "enum" | "list"
   booleanValue: number | null
   numberValue: number | null
@@ -96,7 +96,7 @@ export type BoundaryBulkRuntimeSnapshot = {
 
 export async function bulkRuntime(sql: SQL): Promise<BoundaryBulkRuntimeSnapshot> {
   const actors = await sql<BoundaryBulkRuntimeActor[]>`
-    SELECT uuid,
+    SELECT id,
            parent_actor AS parentActor,
            parent_topology AS parentTopology,
            wimp,
@@ -105,7 +105,7 @@ export async function bulkRuntime(sql: SQL): Promise<BoundaryBulkRuntimeSnapshot
      ORDER BY rowid
   `
   const topologies = await sql<BoundaryBulkRuntimeTopology[]>`
-    SELECT uuid,
+    SELECT id,
            parent_actor AS parentActor,
            parent_topology AS parentTopology,
            kind,
@@ -114,26 +114,26 @@ export async function bulkRuntime(sql: SQL): Promise<BoundaryBulkRuntimeSnapshot
      ORDER BY rowid
   `
   const wimps = await sql<BoundaryBulkRuntimeWimp[]>`SELECT src, name FROM wimp`
-  const fields = await sql<BoundaryBulkRuntimeField[]>`SELECT uuid, wimp, key, type, label FROM field ORDER BY wimp, rowid`
+  const fields = await sql<BoundaryBulkRuntimeField[]>`SELECT id, wimp, key, type, label FROM field ORDER BY wimp, rowid`
   const fieldEnumVariants = await sql<BoundaryBulkRuntimeFieldEnumVariant[]>`
-    SELECT uuid, field, position, item_value AS itemValue
+    SELECT id, field, position, item_value AS itemValue
       FROM field_enum_variant
      ORDER BY field, position
   `
   const actorValues = await sql<BoundaryBulkRuntimeActorValue[]>`SELECT actor, field, value FROM actor_value ORDER BY actor, field`
   const values = await sql<BoundaryBulkRuntimeValue[]>`
-    SELECT value.uuid,
+    SELECT value.id,
            value.kind,
            value_boolean.boolean AS booleanValue,
            value_number.number AS numberValue,
            value_string.text AS textValue,
            field_enum_variant.item_value AS enumValue
       FROM value
-      LEFT JOIN value_boolean ON value_boolean.value = value.uuid
-      LEFT JOIN value_number ON value_number.value = value.uuid
-      LEFT JOIN value_string ON value_string.value = value.uuid
-      LEFT JOIN value_enum ON value_enum.value = value.uuid
-      LEFT JOIN field_enum_variant ON field_enum_variant.uuid = value_enum.variant
+      LEFT JOIN value_boolean ON value_boolean.value = value.id
+      LEFT JOIN value_number ON value_number.value = value.id
+      LEFT JOIN value_string ON value_string.value = value.id
+      LEFT JOIN value_enum ON value_enum.value = value.id
+      LEFT JOIN field_enum_variant ON field_enum_variant.id = value_enum.variant
      ORDER BY value.rowid
   `
   const valueItems = await sql<BoundaryBulkRuntimeValueListItem[]>`
@@ -142,7 +142,7 @@ export async function bulkRuntime(sql: SQL): Promise<BoundaryBulkRuntimeSnapshot
      ORDER BY value, position
   `
   const matterParticles = await sql<BoundaryBulkRuntimeMatterParticle[]>`
-    SELECT uuid,
+    SELECT id,
            wimp,
            parent_particle AS parentParticle,
            particle_kind AS particleKind,
@@ -157,7 +157,7 @@ export async function bulkRuntime(sql: SQL): Promise<BoundaryBulkRuntimeSnapshot
            matter_binding_dep.dep_order AS depOrder,
            matter_binding_dep.path AS path
       FROM matter_particle_fuzzy
-      JOIN matter_particle ON matter_particle.uuid = matter_particle_fuzzy.particle
+      JOIN matter_particle ON matter_particle.id = matter_particle_fuzzy.particle
       JOIN matter_binding_dep ON matter_binding_dep.binding = matter_particle_fuzzy.predicate_binding
     UNION ALL
     SELECT matter_particle.wimp AS wimp,
@@ -165,7 +165,7 @@ export async function bulkRuntime(sql: SQL): Promise<BoundaryBulkRuntimeSnapshot
            matter_binding_dep.dep_order AS depOrder,
            matter_binding_dep.path AS path
       FROM matter_particle_axion
-      JOIN matter_particle ON matter_particle.uuid = matter_particle_axion.particle
+      JOIN matter_particle ON matter_particle.id = matter_particle_axion.particle
       JOIN matter_binding_dep ON matter_binding_dep.binding = matter_particle_axion.predicate_binding
     UNION ALL
     SELECT matter_particle.wimp AS wimp,
@@ -173,7 +173,7 @@ export async function bulkRuntime(sql: SQL): Promise<BoundaryBulkRuntimeSnapshot
            matter_binding_dep.dep_order AS depOrder,
            matter_binding_dep.path AS path
       FROM matter_particle_macho
-      JOIN matter_particle ON matter_particle.uuid = matter_particle_macho.particle
+      JOIN matter_particle ON matter_particle.id = matter_particle_macho.particle
       JOIN matter_binding_dep ON matter_binding_dep.binding = matter_particle_macho.collection_binding
      ORDER BY particle, depOrder
   `
@@ -184,7 +184,7 @@ export async function bulkRuntime(sql: SQL): Promise<BoundaryBulkRuntimeSnapshot
            matter_binding_dep.dep_order AS depOrder,
            matter_binding_dep.path AS path
       FROM matter_particle
-      JOIN matter_particle_wimp ON matter_particle_wimp.particle = matter_particle.uuid
+      JOIN matter_particle_wimp ON matter_particle_wimp.particle = matter_particle.id
       JOIN matter_binding_dep ON matter_binding_dep.binding = matter_particle_wimp.fields_binding
      WHERE matter_particle.parent_particle IS NOT NULL
      ORDER BY particle, childOrder, depOrder

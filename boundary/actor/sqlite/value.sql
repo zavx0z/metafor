@@ -1,9 +1,9 @@
--- Корневая запись значения. Только uuid + kind (дискриминатор).
+-- Корневая запись значения. Только id + kind (дискриминатор).
 -- Реальные данные лежат в типизированных подтаблицах ниже (по аналогии с
 -- field_default → field_<type>_default в meta-схеме).
 CREATE TABLE IF NOT EXISTS value
 (
-    uuid TEXT PRIMARY KEY CHECK (length(trim(uuid)) > 0),
+    id   INTEGER PRIMARY KEY AUTOINCREMENT,
     kind TEXT NOT NULL CHECK (kind IN ('null', 'boolean', 'number', 'string', 'enum', 'list'))
 );
 
@@ -14,31 +14,31 @@ CREATE TABLE IF NOT EXISTS value
 
 CREATE TABLE IF NOT EXISTS value_boolean
 (
-    value   TEXT PRIMARY KEY CHECK (length(trim(value)) > 0),
+    value   INTEGER PRIMARY KEY,
     boolean INTEGER NOT NULL CHECK (boolean IN (0, 1)),
-    FOREIGN KEY (value) REFERENCES value (uuid) ON DELETE CASCADE
+    FOREIGN KEY (value) REFERENCES value (id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS value_number
 (
-    value  TEXT PRIMARY KEY CHECK (length(trim(value)) > 0),
+    value  INTEGER PRIMARY KEY,
     number REAL NOT NULL,
-    FOREIGN KEY (value) REFERENCES value (uuid) ON DELETE CASCADE
+    FOREIGN KEY (value) REFERENCES value (id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS value_string
 (
-    value TEXT PRIMARY KEY CHECK (length(trim(value)) > 0),
+    value INTEGER PRIMARY KEY,
     text  TEXT NOT NULL,
-    FOREIGN KEY (value) REFERENCES value (uuid) ON DELETE CASCADE
+    FOREIGN KEY (value) REFERENCES value (id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS value_enum
 (
-    value   TEXT PRIMARY KEY CHECK (length(trim(value)) > 0),
-    variant TEXT NOT NULL CHECK (length(trim(variant)) > 0),
-    FOREIGN KEY (value) REFERENCES value (uuid) ON DELETE CASCADE,
-    FOREIGN KEY (variant) REFERENCES field_enum_variant (uuid) ON DELETE CASCADE
+    value   INTEGER PRIMARY KEY,
+    variant INTEGER NOT NULL,
+    FOREIGN KEY (value) REFERENCES value (id) ON DELETE CASCADE,
+    FOREIGN KEY (variant) REFERENCES field_enum_variant (id) ON DELETE CASCADE
 );
 
 -- Элементы списочного значения (когда value.kind = 'list').
@@ -47,9 +47,9 @@ CREATE TABLE IF NOT EXISTS value_enum
 -- runtime-кодом через meta-схему родительского поля.
 CREATE TABLE IF NOT EXISTS value_list_item
 (
-    value      TEXT    NOT NULL CHECK (length(trim(value)) > 0),
+    value      INTEGER NOT NULL,
     position   INTEGER NOT NULL CHECK (position >= 0),
     item_value TEXT    NOT NULL,
     PRIMARY KEY (value, position),
-    FOREIGN KEY (value) REFERENCES value (uuid) ON DELETE CASCADE
+    FOREIGN KEY (value) REFERENCES value (id) ON DELETE CASCADE
 );

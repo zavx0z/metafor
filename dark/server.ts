@@ -7,7 +7,8 @@ import {open} from "boundary/sqlite"
 const BOUNDARY_PATH = process.env.BOUNDARY_PATH ?? "./boundary.sqlite"
 
 globalThis.boundary = await open(BOUNDARY_PATH)
-await import("./dark.ts")
+const dark = await import("./dark.ts")
+dark.ensureBoundaryObserver()
 
 const shutdown = async (signal: string): Promise<void> => {
   await globalThis.boundary.close()

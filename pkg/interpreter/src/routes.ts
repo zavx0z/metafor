@@ -14,6 +14,14 @@ const INTERPRETER_PROXY_EXACT_PATHS = new Set([
   "/processes",
   "/processes/resolve",
   "/processes/focus",
+  "/hud/sqlite",
+  "/hud/sqlite/dock",
+  "/hud/sqlite/show",
+  "/hud/sqlite/toggle",
+  "/sqlite",
+  "/sqlite/fingerprint",
+  "/sqlite/open",
+  "/sqlite/cell",
 ])
 const INTERPRETER_PROXY_PROCESS_SUBPATHS = new Set([
   "",

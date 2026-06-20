@@ -1,12 +1,12 @@
 CREATE TABLE IF NOT EXISTS topology
 (
-    uuid            TEXT PRIMARY KEY CHECK (length(trim(uuid)) > 0),
-    parent_actor    TEXT,
-    parent_topology TEXT,
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    parent_actor    INTEGER,
+    parent_topology INTEGER,
     kind            TEXT NOT NULL CHECK (kind IN ('fuzzy', 'axion', 'macho')),
     position        INTEGER NOT NULL CHECK (position >= 0),
-    FOREIGN KEY (parent_actor) REFERENCES actor (uuid) ON DELETE CASCADE,
-    FOREIGN KEY (parent_topology) REFERENCES topology (uuid) ON DELETE CASCADE,
+    FOREIGN KEY (parent_actor) REFERENCES actor (id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_topology) REFERENCES topology (id) ON DELETE CASCADE,
     CHECK (
         (parent_actor IS NULL AND parent_topology IS NULL) OR
         (parent_actor IS NOT NULL AND parent_topology IS NULL) OR

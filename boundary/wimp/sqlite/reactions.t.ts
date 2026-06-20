@@ -1,5 +1,5 @@
 export type ReactionRow = {
-  uuid: string
+  id: number
   key: string
   label: string
   desc: string | null

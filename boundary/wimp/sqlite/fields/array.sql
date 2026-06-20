@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS field_array_default_item
 (
-    uuid       TEXT PRIMARY KEY CHECK (length(trim(uuid)) > 0),
-    field      TEXT    NOT NULL CHECK (length(trim(field)) > 0),
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    field      INTEGER NOT NULL,
     position   INTEGER NOT NULL CHECK (position >= 0),
     item_value TEXT    NOT NULL,
     UNIQUE (field, position),

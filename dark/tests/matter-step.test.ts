@@ -11,10 +11,10 @@ const waitForParts = async (predicate: () => boolean): Promise<void> => {
   }
 }
 
-const particleUuid = (part: Particle): unknown => {
+const particleId = (part: Particle): unknown => {
   if (typeof part.value !== "object" || part.value === null || Array.isArray(part.value)) return part.value
-  const value = part.value as {uuid?: unknown; actor?: {uuid?: unknown}}
-  return value.actor?.uuid ?? value.uuid
+  const value = part.value as {id?: unknown; actor?: {id?: unknown}}
+  return value.actor?.id ?? value.id
 }
 
 describe("dark matter — force parts", () => {
@@ -52,7 +52,7 @@ describe("dark matter — force parts", () => {
   test("первый actor part соответствует root actor", async () => {
     const roots = await boundary.actor.roots.all()
     expect(roots).toHaveLength(1)
-    expect(actorParts()[0] ? particleUuid(actorParts()[0]!) : undefined).toBe(roots[0]!.uuid)
+    expect(actorParts()[0] ? particleId(actorParts()[0]!) : undefined).toBe(roots[0]!.id)
   })
 
   test("публикует actor parts для рекурсивно materialized child wimps", () => {
@@ -63,8 +63,8 @@ describe("dark matter — force parts", () => {
     expect(topologyParts().length).toBeGreaterThan(0)
   })
 
-  test("каждый runtime particle uuid уникален в parts", () => {
-    const uuids = [...actorParts(), ...topologyParts()].map(particleUuid)
-    expect(new Set(uuids).size).toBe(uuids.length)
+  test("каждый runtime particle id уникален в parts", () => {
+    const addresses = [...actorParts(), ...topologyParts()].map((part) => `${part.path}:${String(particleId(part))}`)
+    expect(new Set(addresses).size).toBe(addresses.length)
   })
 })

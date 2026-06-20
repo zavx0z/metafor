@@ -8,18 +8,18 @@ export type Scalar =
   | { kind: "boolean"; boolean: boolean }
   | { kind: "number"; number: number }
   | { kind: "string"; text: string }
-    | { kind: "enum"; variant: string }
+    | { kind: "enum"; variant: number }
 
 export type ValueRecord =
-  | { uuid: string; kind: "null" }
-  | { uuid: string; kind: "boolean"; boolean: boolean }
-  | { uuid: string; kind: "number"; number: number }
-  | { uuid: string; kind: "string"; text: string }
-  | { uuid: string; kind: "enum"; variant: string }
-  | { uuid: string; kind: "list" }
+  | { id: number; kind: "null" }
+  | { id: number; kind: "boolean"; boolean: boolean }
+  | { id: number; kind: "number"; number: number }
+  | { id: number; kind: "string"; text: string }
+  | { id: number; kind: "enum"; variant: number }
+  | { id: number; kind: "list" }
 
 export interface ValueItemRecord {
-  value: string
+  value: number
   position: number
-    itemValue: string
+  itemValue: string
 }

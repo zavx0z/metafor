@@ -40,12 +40,12 @@ export class Reactions {
     )[0]
     if (existing) return new Reaction(this, input.key)
 
-    const uuid = crypto.randomUUID()
-    await sql`
-      INSERT INTO reaction (uuid, wimp, key, label, desc, cond_source, update_source)
-      VALUES (${uuid}, ${src}, ${input.key}, ${input.label}, ${input.desc ?? null}, ${input.cond}, ${input.src})
-    `
-    emitGravitonAdd("reaction", uuid)
+    const row = (await sql<Array<{id: number}>>`
+      INSERT INTO reaction (wimp, key, label, desc, cond_source, update_source)
+      VALUES (${src}, ${input.key}, ${input.label}, ${input.desc ?? null}, ${input.cond}, ${input.src})
+      RETURNING id
+    `)[0]
+    emitGravitonAdd("reaction", row?.id)
     return new Reaction(this, input.key)
   }
 

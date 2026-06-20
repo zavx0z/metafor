@@ -37,7 +37,7 @@ describe("matter(zavx0z/git) → boundary", () => {
   })
 
   test("root actor создан, привязан к wimp zavx0z/git", async () => {
-    expect(root.uuid).toBeDefined()
+    expect(root.id).toBeDefined()
     expect(await root.wimp()).toBe(src)
     expect(await root.position()).toBe(0)
     const ref = await root.parentRef()
@@ -45,17 +45,17 @@ describe("matter(zavx0z/git) → boundary", () => {
   })
 
   test("у root есть topology-узлы Fuzzy и Axion (первый слой git)", async () => {
-    const topology = await boundary.topology.childrenOfActor(root.uuid)
+    const topology = await boundary.topology.childrenOfActor(root.id)
     const kinds = topology.map((t) => t.kind).sort()
     expect(kinds).toEqual(["axion", "fuzzy"])
   })
 
   test("Fuzzy раскрыт на статические Wimp-ветви соответствующие values enum operation", async () => {
-    const topology = await boundary.topology.childrenOfActor(root.uuid)
+    const topology = await boundary.topology.childrenOfActor(root.id)
     const fuzzy = topology.find((t) => t.kind === "fuzzy")
     if (!fuzzy) throw new Error("fuzzy missing")
     const branches = await boundary
-      .actor.head(root.uuid) // sanity
+      .actor.head(root.id) // sanity
       .then(() =>
         boundary.wimp
           .get(src)
@@ -70,7 +70,7 @@ describe("matter(zavx0z/git) → boundary", () => {
 
     const wimpRows = await sql<Array<{src: string}>>`
       SELECT wimp AS src FROM actor
-      WHERE parent_topology = ${fuzzy.uuid}
+      WHERE parent_topology = ${fuzzy.id}
       ORDER BY position
     `
     const expectedBranchSrcs = branches.map((value) => `${src}-${value}`)
@@ -78,47 +78,47 @@ describe("matter(zavx0z/git) → boundary", () => {
   })
 
   test("под Axion ровно один child wimp — zavx0z/git-error", async () => {
-    const topology = await boundary.topology.childrenOfActor(root.uuid)
+    const topology = await boundary.topology.childrenOfActor(root.id)
     const axion = topology.find((t) => t.kind === "axion")
     if (!axion) throw new Error("axion missing")
     const wimps = await sql<Array<{wimp: string}>>`
-      SELECT wimp FROM actor WHERE parent_topology = ${axion.uuid}
+      SELECT wimp FROM actor WHERE parent_topology = ${axion.id}
     `
     expect(wimps.length).toBe(1)
     expect(wimps[0]!.wimp).toBe(`${src}-error`)
   })
 
-  test("entanglement: поле args дочернего git-start должно share value.uuid с args корневого git", async () => {
+  test("entanglement: поле args дочернего git-start должно share value.id с args корневого git", async () => {
     // Под fuzzy → wimp git-start. У wimp git-start есть поле args (мapping от parent).
-    // root.args значение null (default), и git-start.args тоже null — но через shared value.uuid.
-    const topology = await boundary.topology.childrenOfActor(root.uuid)
+    // root.args значение null (default), и git-start.args тоже null — но через shared value.id.
+    const topology = await boundary.topology.childrenOfActor(root.id)
     const fuzzy = topology.find((t) => t.kind === "fuzzy")!
     const startRow = (
-      await sql<Array<{uuid: string}>>`
-        SELECT uuid FROM actor
-        WHERE parent_topology = ${fuzzy.uuid} AND wimp = ${src + "-start"}
+      await sql<Array<{id: string}>>`
+        SELECT id FROM actor
+        WHERE parent_topology = ${fuzzy.id} AND wimp = ${src + "-start"}
       `
     )[0]
     if (!startRow) throw new Error("git-start actor not found")
 
     const rootArgsField = (
-      await sql<Array<{uuid: string}>>`
-        SELECT uuid FROM field WHERE wimp = ${src} AND key = ${"args"} LIMIT 1
+      await sql<Array<{id: string}>>`
+        SELECT id FROM field WHERE wimp = ${src} AND key = ${"args"} LIMIT 1
       `
-    )[0]?.uuid
+    )[0]?.id
     const startArgsField = (
-      await sql<Array<{uuid: string}>>`
-        SELECT uuid FROM field WHERE wimp = ${src + "-start"} AND key = ${"args"} LIMIT 1
+      await sql<Array<{id: string}>>`
+        SELECT id FROM field WHERE wimp = ${src + "-start"} AND key = ${"args"} LIMIT 1
       `
-    )[0]?.uuid
+    )[0]?.id
     expect(rootArgsField).toBeDefined()
     expect(startArgsField).toBeDefined()
 
-    const rootLink = await boundary.actor.link.get(root.uuid, rootArgsField!)
-    const startLink = await boundary.actor.link.get(startRow.uuid, startArgsField!)
+    const rootLink = await boundary.actor.link.get(root.id, rootArgsField!)
+    const startLink = await boundary.actor.link.get(startRow.id, startArgsField!)
     const rootValue = await rootLink!.value()
     const startValue = await startLink!.value()
-    // entanglement через shared value.uuid
-    expect(startValue.uuid).toBe(rootValue.uuid)
+    // entanglement через shared value.id
+    expect(startValue.id).toBe(rootValue.id)
   })
 })

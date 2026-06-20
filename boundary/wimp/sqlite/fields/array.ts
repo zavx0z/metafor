@@ -7,7 +7,7 @@ export class ArrayField extends Field {
     const rows = await this.fields.wimp.sql<Array<{ item_value: string }>>`
         SELECT item.item_value AS item_value
         FROM field f
-                 INNER JOIN field_array_default_item item ON item.field = f.uuid
+                 INNER JOIN field_array_default_item item ON item.field = f.id
         WHERE f.wimp = ${this.fields.wimp.src}
           AND f.key = ${this.key}
         ORDER BY item.position
@@ -20,16 +20,15 @@ export class ArrayField extends Field {
     if (!Array.isArray(values)) {
       throw new Error(`ArrayField.setDefault: expected number[], got ${typeof values}`)
     }
-    const uuid = await this.uuid()
-    await this.ensureDefaultRow(uuid)
+    const id = await this.id()
+    await this.ensureDefaultRow(id)
     const sql = this.fields.wimp.sql
-    await sql`DELETE FROM field_array_default_item WHERE field = ${uuid}`
+    await sql`DELETE FROM field_array_default_item WHERE field = ${id}`
     for (let i = 0; i < values.length; i++) {
       const item = values[i]
-      const itemUuid = crypto.randomUUID()
       await sql`
-          INSERT INTO field_array_default_item (uuid, field, position, item_value)
-          VALUES (${itemUuid}, ${uuid}, ${i}, ${String(item)})
+          INSERT INTO field_array_default_item (field, position, item_value)
+          VALUES (${id}, ${i}, ${String(item)})
       `
     }
   }

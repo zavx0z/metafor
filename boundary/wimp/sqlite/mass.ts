@@ -10,69 +10,81 @@ const insertMassValue = async (
   sql: SQL,
   src: string,
   value: unknown,
-  parentValue: string | null,
+  parentValue: number | null,
   entryKey: string | null,
   entryOrder: number | null,
-): Promise<string> => {
-  const uuid = crypto.randomUUID()
-
+): Promise<number> => {
   if (Array.isArray(value)) {
-    await sql`
+    const row = (await sql<Array<{id: number}>>`
       INSERT INTO wimp_mass_value
-        (uuid, wimp, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value)
-      VALUES (${uuid}, ${src}, ${parentValue}, ${"array"}, ${entryKey}, ${entryOrder}, ${null}, ${null}, ${null})
-    `
+        (wimp, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value)
+      VALUES (${src}, ${parentValue}, ${"array"}, ${entryKey}, ${entryOrder}, ${null}, ${null}, ${null})
+      RETURNING id
+    `)[0]
+    if (!row) throw new Error("insertMassValue(array): insert did not return id")
+    const id = row.id
     for (let index = 0; index < value.length; index++) {
-      await insertMassValue(sql, src, value[index], uuid, null, index)
+      await insertMassValue(sql, src, value[index], id, null, index)
     }
-    return uuid
+    return id
   }
 
   if (isRecord(value)) {
-    await sql`
+    const row = (await sql<Array<{id: number}>>`
       INSERT INTO wimp_mass_value
-        (uuid, wimp, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value)
-      VALUES (${uuid}, ${src}, ${parentValue}, ${"object"}, ${entryKey}, ${entryOrder}, ${null}, ${null}, ${null})
-    `
+        (wimp, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value)
+      VALUES (${src}, ${parentValue}, ${"object"}, ${entryKey}, ${entryOrder}, ${null}, ${null}, ${null})
+      RETURNING id
+    `)[0]
+    if (!row) throw new Error("insertMassValue(object): insert did not return id")
+    const id = row.id
     for (const [childKey, childValue] of Object.entries(value)) {
-      await insertMassValue(sql, src, childValue, uuid, childKey, null)
+      await insertMassValue(sql, src, childValue, id, childKey, null)
     }
-    return uuid
+    return id
   }
 
   if (typeof value === "string") {
-    await sql`
+    const row = (await sql<Array<{id: number}>>`
       INSERT INTO wimp_mass_value
-        (uuid, wimp, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value)
-      VALUES (${uuid}, ${src}, ${parentValue}, ${"string"}, ${entryKey}, ${entryOrder}, ${value}, ${null}, ${null})
-    `
-    return uuid
+        (wimp, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value)
+      VALUES (${src}, ${parentValue}, ${"string"}, ${entryKey}, ${entryOrder}, ${value}, ${null}, ${null})
+      RETURNING id
+    `)[0]
+    if (!row) throw new Error("insertMassValue(string): insert did not return id")
+    return row.id
   }
 
   if (typeof value === "number") {
-    await sql`
+    const row = (await sql<Array<{id: number}>>`
       INSERT INTO wimp_mass_value
-        (uuid, wimp, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value)
-      VALUES (${uuid}, ${src}, ${parentValue}, ${"number"}, ${entryKey}, ${entryOrder}, ${null}, ${value}, ${null})
-    `
-    return uuid
+        (wimp, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value)
+      VALUES (${src}, ${parentValue}, ${"number"}, ${entryKey}, ${entryOrder}, ${null}, ${value}, ${null})
+      RETURNING id
+    `)[0]
+    if (!row) throw new Error("insertMassValue(number): insert did not return id")
+    return row.id
   }
 
   if (typeof value === "boolean") {
-    await sql`
+    const row = (await sql<Array<{id: number}>>`
       INSERT INTO wimp_mass_value
-        (uuid, wimp, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value)
-      VALUES (${uuid}, ${src}, ${parentValue}, ${"boolean"}, ${entryKey}, ${entryOrder}, ${null}, ${null}, ${value ? 1 : 0})
-    `
-    return uuid
+        (wimp, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value)
+      VALUES (${src}, ${parentValue}, ${"boolean"}, ${entryKey}, ${entryOrder}, ${null}, ${null}, ${value ? 1 : 0})
+      RETURNING id
+    `)[0]
+    if (!row) throw new Error("insertMassValue(boolean): insert did not return id")
+    return row.id
   }
 
-  await sql`
+  const row = (await sql<Array<{id: number}>>`
     INSERT INTO wimp_mass_value
-      (uuid, wimp, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value)
-    VALUES (${uuid}, ${src}, ${parentValue}, ${"null"}, ${entryKey}, ${entryOrder}, ${null}, ${null}, ${null})
-  `
-  return uuid
+      (wimp, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value)
+    VALUES (${src}, ${parentValue}, ${"null"}, ${entryKey}, ${entryOrder}, ${null}, ${null}, ${null})
+    RETURNING id
+  `)[0]
+  if (!row) throw new Error("insertMassValue(null): insert did not return id")
+  return row.id
 }
 
 const compareMassRows = (left: WimpMassValueRow, right: WimpMassValueRow): number => {
@@ -84,17 +96,17 @@ const compareMassRows = (left: WimpMassValueRow, right: WimpMassValueRow): numbe
 
 const decodeMassValue = (
   row: WimpMassValueRow,
-  childrenByParent: Map<string, WimpMassValueRow[]>,
+  childrenByParent: Map<number, WimpMassValueRow[]>,
 ): unknown => {
   if (row.value_kind === "object") {
     return Object.fromEntries(
-      (childrenByParent.get(row.uuid) ?? [])
+      (childrenByParent.get(row.id) ?? [])
         .sort(compareMassRows)
         .map((child) => [child.entry_key ?? "", decodeMassValue(child, childrenByParent)]),
     )
   }
   if (row.value_kind === "array") {
-    return (childrenByParent.get(row.uuid) ?? [])
+    return (childrenByParent.get(row.id) ?? [])
       .sort(compareMassRows)
       .map((child) => decodeMassValue(child, childrenByParent))
   }
@@ -117,7 +129,7 @@ export class Mass {
 
   async value(): Promise<MetaDSL["mass"]> {
     const rows = await this.wimp.sql<WimpMassValueRow[]>`
-      SELECT uuid, parent_value, value_kind, entry_key, entry_order,
+      SELECT id, parent_value, value_kind, entry_key, entry_order,
              text_value, number_value, boolean_value
       FROM wimp_mass_value
       WHERE wimp = ${this.wimp.src}
@@ -126,7 +138,7 @@ export class Mass {
     const root = rows.find((row) => row.parent_value === null)
     if (!root) return
 
-    const childrenByParent = new Map<string, WimpMassValueRow[]>()
+    const childrenByParent = new Map<number, WimpMassValueRow[]>()
     for (const row of rows) {
       if (row.parent_value === null) continue
       const children = childrenByParent.get(row.parent_value) ?? []

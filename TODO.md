@@ -56,3 +56,14 @@
 - [x] [source-sync][reveal] Развести ручное `revealCurrentWorkspaceFile` и автосинхронизацию с открытым source: `revealWorkspaceSource()` не должен включать скрытый аналог IntelliJ Always Select Opened File без явной настройки или команды.
 - [x] [selection][multi-context] Включить множественное выделение файлов рабочей области через `Shift` и `Cmd/Ctrl` и публиковать выбранные файлы в `/context.workspaceFiles` для агента.
 - [x] [tests][regression] Добавить регрессии для FileListPane и файлов рабочей области интерпретатора: пустой selection без active-фона, явный initial select-first, focused/inactive selected style, keyboard selection, manual reveal/autosync и сохранение `selectedIds`.
+
+## 8. Сверка документации MetaFor DSL
+
+- [ ] Исправить examples `fields`: `field.number.required(18, { label })` вместо вызова результата `required(18)({ label })`; отдельно привести `array` к текущему контракту `number[]` или расширить API под generic `string`.
+- [ ] Привести раздел `Reactions` к реальному API: `.filter(({ self, value }) => ({ ... }))`, `part` вместо `patch`, и актуальные `path` значения вместо несуществующего `"/fields"`.
+- [ ] Решить контракт `import "metafor"`: либо добавить импорт в `create-metafor/templates/meta.ts` и существующие `github/*/*/meta.ts`, либо убрать обязательность из правил.
+- [ ] Синхронизировать правило "label всегда на русском" с генератором и тестами, которые сейчас допускают английские label.
+- [ ] Уточнить правило структуры process action: валидатор сейчас требует только наличие `import()` и `return`, а не "первая строка import / последняя строка return".
+- [ ] Исправить соглашение "Bulk: только `<meta-for>`" на `Matter`, потому что `bulk` сейчас описывает только `view/css`, а иерархия акторов живет в `matter`.
+- [ ] Уточнить локальную структуру мета-репозиториев: текущая рабочая директория `github/` находится в корне проекта, а не в `~/github/`.
+- [ ] Зафиксировать архитектурный gap: `app/web`, `pkg/interpreter/web` и `ui/panes` пока не переведены на MetaFor-компоненты и остаются прямым TypeScript UI.

@@ -6,7 +6,7 @@ type WritePhase = "success" | "error"
 
 /**
  * Sub-ORM для таблицы `process_action_read` (PK (process, phase, field)).
- * Резолв `field.uuid` через WHERE field.wimp=src AND field.key=fieldKey.
+ * Резолв `field.id` через WHERE field.wimp=src AND field.key=fieldKey.
  */
 export class ActionRead {
   constructor(readonly action: ProcessAction) {}
@@ -14,38 +14,38 @@ export class ActionRead {
   async add(phase: ReadPhase, fieldKey: string): Promise<void> {
     const sql = this.action.process.processes.wimp.sql
     const src = this.action.process.processes.wimp.src
-    const processUuid = await this.action.process.uuid()
+    const processId = await this.action.process.id()
     const existing = await this.has(phase, fieldKey)
     await sql`
       INSERT OR IGNORE INTO process_action_read (process, field, phase)
-      SELECT ${processUuid}, field.uuid, ${phase}
+      SELECT ${processId}, field.id, ${phase}
       FROM field WHERE field.wimp = ${src} AND field.key = ${fieldKey}
     `
     if (!existing && await this.has(phase, fieldKey)) {
-      emitGravitonAdd("process_action_read", `${processUuid}/action/read/${phase}/${fieldKey}`)
+      emitGravitonAdd("process_action_read", `${processId}/action/read/${phase}/${fieldKey}`)
     }
   }
 
   async remove(phase: ReadPhase, fieldKey: string): Promise<void> {
     const sql = this.action.process.processes.wimp.sql
     const src = this.action.process.processes.wimp.src
-    const processUuid = await this.action.process.uuid()
+    const processId = await this.action.process.id()
     await sql`
       DELETE FROM process_action_read
-      WHERE process = ${processUuid}
+      WHERE process = ${processId}
         AND phase = ${phase}
-        AND field IN (SELECT uuid FROM field WHERE wimp = ${src} AND key = ${fieldKey})
+        AND field IN (SELECT id FROM field WHERE wimp = ${src} AND key = ${fieldKey})
     `
   }
 
   async all(phase: ReadPhase): Promise<string[]> {
     const sql = this.action.process.processes.wimp.sql
-    const processUuid = await this.action.process.uuid()
+    const processId = await this.action.process.id()
     const rows = await sql<Array<{ key: string }>>`
       SELECT field.key AS key
       FROM process_action_read par
-      INNER JOIN field ON field.uuid = par.field
-      WHERE par.process = ${processUuid} AND par.phase = ${phase}
+      INNER JOIN field ON field.id = par.field
+      WHERE par.process = ${processId} AND par.phase = ${phase}
       ORDER BY par.rowid
     `
     return rows.map((row) => row.key)
@@ -54,13 +54,13 @@ export class ActionRead {
   async has(phase: ReadPhase, fieldKey: string): Promise<boolean> {
     const sql = this.action.process.processes.wimp.sql
     const src = this.action.process.processes.wimp.src
-    const processUuid = await this.action.process.uuid()
+    const processId = await this.action.process.id()
     const row = (
       await sql<Array<{ ok: number }>>`
         SELECT 1 AS ok
         FROM process_action_read par
-        INNER JOIN field ON field.uuid = par.field
-        WHERE par.process = ${processUuid}
+        INNER JOIN field ON field.id = par.field
+        WHERE par.process = ${processId}
           AND par.phase = ${phase}
           AND field.wimp = ${src}
           AND field.key = ${fieldKey}
@@ -72,11 +72,11 @@ export class ActionRead {
 
   async count(phase?: ReadPhase): Promise<number> {
     const sql = this.action.process.processes.wimp.sql
-    const processUuid = await this.action.process.uuid()
+    const processId = await this.action.process.id()
     if (phase === undefined) {
       const row = (
         await sql<Array<{ count: number }>>`
-          SELECT COUNT(*) AS count FROM process_action_read WHERE process = ${processUuid}
+          SELECT COUNT(*) AS count FROM process_action_read WHERE process = ${processId}
         `
       )[0]
       return row?.count ?? 0
@@ -84,7 +84,7 @@ export class ActionRead {
     const row = (
       await sql<Array<{ count: number }>>`
         SELECT COUNT(*) AS count FROM process_action_read
-        WHERE process = ${processUuid} AND phase = ${phase}
+        WHERE process = ${processId} AND phase = ${phase}
       `
     )[0]
     return row?.count ?? 0
@@ -101,38 +101,38 @@ export class ActionWrite {
   async add(phase: WritePhase, fieldKey: string): Promise<void> {
     const sql = this.action.process.processes.wimp.sql
     const src = this.action.process.processes.wimp.src
-    const processUuid = await this.action.process.uuid()
+    const processId = await this.action.process.id()
     const existing = await this.has(phase, fieldKey)
     await sql`
       INSERT OR IGNORE INTO process_action_write (process, field, phase)
-      SELECT ${processUuid}, field.uuid, ${phase}
+      SELECT ${processId}, field.id, ${phase}
       FROM field WHERE field.wimp = ${src} AND field.key = ${fieldKey}
     `
     if (!existing && await this.has(phase, fieldKey)) {
-      emitGravitonAdd("process_action_write", `${processUuid}/action/write/${phase}/${fieldKey}`)
+      emitGravitonAdd("process_action_write", `${processId}/action/write/${phase}/${fieldKey}`)
     }
   }
 
   async remove(phase: WritePhase, fieldKey: string): Promise<void> {
     const sql = this.action.process.processes.wimp.sql
     const src = this.action.process.processes.wimp.src
-    const processUuid = await this.action.process.uuid()
+    const processId = await this.action.process.id()
     await sql`
       DELETE FROM process_action_write
-      WHERE process = ${processUuid}
+      WHERE process = ${processId}
         AND phase = ${phase}
-        AND field IN (SELECT uuid FROM field WHERE wimp = ${src} AND key = ${fieldKey})
+        AND field IN (SELECT id FROM field WHERE wimp = ${src} AND key = ${fieldKey})
     `
   }
 
   async all(phase: WritePhase): Promise<string[]> {
     const sql = this.action.process.processes.wimp.sql
-    const processUuid = await this.action.process.uuid()
+    const processId = await this.action.process.id()
     const rows = await sql<Array<{ key: string }>>`
       SELECT field.key AS key
       FROM process_action_write paw
-      INNER JOIN field ON field.uuid = paw.field
-      WHERE paw.process = ${processUuid} AND paw.phase = ${phase}
+      INNER JOIN field ON field.id = paw.field
+      WHERE paw.process = ${processId} AND paw.phase = ${phase}
       ORDER BY paw.rowid
     `
     return rows.map((row) => row.key)
@@ -141,13 +141,13 @@ export class ActionWrite {
   async has(phase: WritePhase, fieldKey: string): Promise<boolean> {
     const sql = this.action.process.processes.wimp.sql
     const src = this.action.process.processes.wimp.src
-    const processUuid = await this.action.process.uuid()
+    const processId = await this.action.process.id()
     const row = (
       await sql<Array<{ ok: number }>>`
         SELECT 1 AS ok
         FROM process_action_write paw
-        INNER JOIN field ON field.uuid = paw.field
-        WHERE paw.process = ${processUuid}
+        INNER JOIN field ON field.id = paw.field
+        WHERE paw.process = ${processId}
           AND paw.phase = ${phase}
           AND field.wimp = ${src}
           AND field.key = ${fieldKey}
@@ -159,11 +159,11 @@ export class ActionWrite {
 
   async count(phase?: WritePhase): Promise<number> {
     const sql = this.action.process.processes.wimp.sql
-    const processUuid = await this.action.process.uuid()
+    const processId = await this.action.process.id()
     if (phase === undefined) {
       const row = (
         await sql<Array<{ count: number }>>`
-          SELECT COUNT(*) AS count FROM process_action_write WHERE process = ${processUuid}
+          SELECT COUNT(*) AS count FROM process_action_write WHERE process = ${processId}
         `
       )[0]
       return row?.count ?? 0
@@ -171,7 +171,7 @@ export class ActionWrite {
     const row = (
       await sql<Array<{ count: number }>>`
         SELECT COUNT(*) AS count FROM process_action_write
-        WHERE process = ${processUuid} AND phase = ${phase}
+        WHERE process = ${processId} AND phase = ${phase}
       `
     )[0]
     return row?.count ?? 0
@@ -200,7 +200,7 @@ export class ProcessAction {
     error?: string | null | undefined
   }): Promise<void> {
     const sql = this.process.processes.wimp.sql
-    const processUuid = await this.process.uuid()
+    const processId = await this.process.id()
 
     const importSpecifier = input.importSpecifier ?? null
     const wrapperSrc = input.wrapperSrc ?? null
@@ -209,7 +209,7 @@ export class ProcessAction {
 
     const existing = (
       await sql<Array<{ ok: number }>>`
-        SELECT 1 AS ok FROM process_action WHERE process = ${processUuid} LIMIT 1
+        SELECT 1 AS ok FROM process_action WHERE process = ${processId} LIMIT 1
       `
     )[0]
 
@@ -221,33 +221,33 @@ export class ProcessAction {
             action_wrapper_src = ${wrapperSrc},
             success = ${success},
             error = ${error}
-        WHERE process = ${processUuid}
+        WHERE process = ${processId}
       `
       return
     }
 
     await sql`
       INSERT INTO process_action (process, action, action_import_specifier, action_wrapper_src, success, error)
-      VALUES (${processUuid}, ${input.src}, ${importSpecifier}, ${wrapperSrc}, ${success}, ${error})
+      VALUES (${processId}, ${input.src}, ${importSpecifier}, ${wrapperSrc}, ${success}, ${error})
     `
-    emitGravitonAdd("process_action", `${processUuid}/action`)
+    emitGravitonAdd("process_action", `${processId}/action`)
   }
 
   async setSuccess(src: string | null): Promise<void> {
     const sql = this.process.processes.wimp.sql
-    const processUuid = await this.process.uuid()
-    await sql`UPDATE process_action SET success = ${src} WHERE process = ${processUuid}`
+    const processId = await this.process.id()
+    await sql`UPDATE process_action SET success = ${src} WHERE process = ${processId}`
   }
 
   async setError(src: string | null): Promise<void> {
     const sql = this.process.processes.wimp.sql
-    const processUuid = await this.process.uuid()
-    await sql`UPDATE process_action SET error = ${src} WHERE process = ${processUuid}`
+    const processId = await this.process.id()
+    await sql`UPDATE process_action SET error = ${src} WHERE process = ${processId}`
   }
 
   async script(): Promise<{ src: string; importSpecifier?: string; wrapperSrc?: string } | null> {
     const sql = this.process.processes.wimp.sql
-    const processUuid = await this.process.uuid()
+    const processId = await this.process.id()
     const row = (
       await sql<
         Array<{
@@ -257,7 +257,7 @@ export class ProcessAction {
         }>
       >`
         SELECT action, action_import_specifier, action_wrapper_src
-        FROM process_action WHERE process = ${processUuid} LIMIT 1
+        FROM process_action WHERE process = ${processId} LIMIT 1
       `
     )[0]
     if (!row) return null
@@ -269,10 +269,10 @@ export class ProcessAction {
 
   async success(): Promise<string | null> {
     const sql = this.process.processes.wimp.sql
-    const processUuid = await this.process.uuid()
+    const processId = await this.process.id()
     const row = (
       await sql<Array<{ success: string | null }>>`
-        SELECT success FROM process_action WHERE process = ${processUuid} LIMIT 1
+        SELECT success FROM process_action WHERE process = ${processId} LIMIT 1
       `
     )[0]
     return row?.success ?? null
@@ -280,10 +280,10 @@ export class ProcessAction {
 
   async error(): Promise<string | null> {
     const sql = this.process.processes.wimp.sql
-    const processUuid = await this.process.uuid()
+    const processId = await this.process.id()
     const row = (
       await sql<Array<{ error: string | null }>>`
-        SELECT error FROM process_action WHERE process = ${processUuid} LIMIT 1
+        SELECT error FROM process_action WHERE process = ${processId} LIMIT 1
       `
     )[0]
     return row?.error ?? null
@@ -291,10 +291,10 @@ export class ProcessAction {
 
   async exists(): Promise<boolean> {
     const sql = this.process.processes.wimp.sql
-    const processUuid = await this.process.uuid()
+    const processId = await this.process.id()
     const row = (
       await sql<Array<{ ok: number }>>`
-        SELECT 1 AS ok FROM process_action WHERE process = ${processUuid} LIMIT 1
+        SELECT 1 AS ok FROM process_action WHERE process = ${processId} LIMIT 1
       `
     )[0]
     return row !== undefined

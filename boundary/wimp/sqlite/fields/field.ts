@@ -12,10 +12,10 @@ export abstract class Field {
 
   abstract readonly type: FieldType
 
-  async uuid(): Promise<string> {
+  async id(): Promise<number> {
     const row = (
-      await this.fields.wimp.sql<Array<{ uuid: string }>>`
-          SELECT uuid
+      await this.fields.wimp.sql<Array<{ id: number }>>`
+          SELECT id
           FROM field
           WHERE wimp = ${this.fields.wimp.src}
             AND key = ${this.key}
@@ -23,7 +23,7 @@ export abstract class Field {
       `
     )[0]
     if (!row) throw new Error(`field ${this.key} not found in meta ${this.fields.wimp.src}`)
-    return row.uuid
+    return row.id
   }
 
   async setKey(newKey: FieldKey): Promise<void> {
@@ -66,16 +66,16 @@ export abstract class Field {
    * Гарантирует наличие row в `field_default` для текущего field.
    * Идемпотентно: если row уже есть — пропускает INSERT.
    */
-  protected async ensureDefaultRow(uuid: string): Promise<void> {
+  protected async ensureDefaultRow(id: number): Promise<void> {
     const existing = (
-      await this.fields.wimp.sql<Array<{ field: string }>>`
+      await this.fields.wimp.sql<Array<{ field: number }>>`
           SELECT field
           FROM field_default
-          WHERE field = ${uuid}
+          WHERE field = ${id}
           LIMIT 1
       `
     )[0]
     if (existing) return
-    await this.fields.wimp.sql`INSERT INTO field_default (field) VALUES (${uuid})`
+    await this.fields.wimp.sql`INSERT INTO field_default (field) VALUES (${id})`
   }
 }

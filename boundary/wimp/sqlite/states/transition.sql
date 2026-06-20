@@ -1,10 +1,10 @@
 CREATE TABLE IF NOT EXISTS transition
 (
-    uuid               TEXT PRIMARY KEY CHECK (length(trim(uuid)) > 0),
-    from_state TEXT    NOT NULL CHECK (length(trim(from_state)) > 0),
-    to_state   TEXT    NOT NULL CHECK (length(trim(to_state)) > 0),
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_state INTEGER NOT NULL,
+    to_state   INTEGER NOT NULL,
     position           INTEGER NOT NULL CHECK (position >= 0),
     UNIQUE (from_state, position),
-    FOREIGN KEY (from_state) REFERENCES state (uuid) ON DELETE CASCADE,
-    FOREIGN KEY (to_state) REFERENCES state (uuid) ON DELETE CASCADE
+    FOREIGN KEY (from_state) REFERENCES state (id) ON DELETE CASCADE,
+    FOREIGN KEY (to_state) REFERENCES state (id) ON DELETE CASCADE
 );

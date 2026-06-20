@@ -1,12 +1,12 @@
 CREATE TABLE IF NOT EXISTS actor
 (
-    uuid            TEXT PRIMARY KEY CHECK (length(trim(uuid)) > 0),
-    parent_actor    TEXT,
-    parent_topology TEXT,
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    parent_actor    INTEGER,
+    parent_topology INTEGER,
     wimp            TEXT NOT NULL,
     position        INTEGER NOT NULL CHECK (position >= 0),
-    FOREIGN KEY (parent_actor) REFERENCES actor (uuid) ON DELETE CASCADE,
-    FOREIGN KEY (parent_topology) REFERENCES topology (uuid) ON DELETE CASCADE,
+    FOREIGN KEY (parent_actor) REFERENCES actor (id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_topology) REFERENCES topology (id) ON DELETE CASCADE,
     FOREIGN KEY (wimp) REFERENCES wimp (src) ON DELETE CASCADE,
     CHECK (
         (parent_actor IS NULL AND parent_topology IS NULL) OR

@@ -1,9 +1,10 @@
 import {open} from "boundary/sqlite"
-import {matter} from "./dark.ts"
+import {ensureBoundaryObserver, matter} from "./dark.ts"
 export {matter}
 
 if (typeof self !== "undefined" && "postMessage" in self) {
   globalThis.boundary = await open(":memory:")
+  ensureBoundaryObserver()
 
   self.onmessage = async (event: MessageEvent<{src?: string}>) => {
     const {src} = event.data

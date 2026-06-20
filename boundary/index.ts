@@ -27,25 +27,25 @@ export interface WimpApi {
 }
 
 export interface ValueApi {
-  get(uuid: string): Promise<AnyValue | null>
+  get(id: number): Promise<AnyValue | null>
 }
 
 export interface LinkApi {
-  get(actor: string, field: string): Promise<ActorFieldValue | null>
+  get(actor: number, field: number): Promise<ActorFieldValue | null>
 }
 
 export interface ActorApi {
   /** Записывает actor snapshot одной транзакцией: head + values + actor_state. */
   create(rows: ActorRows): Promise<Actor>
 
-  get(uuid: string): Promise<Actor | null>
+  get(id: number): Promise<Actor | null>
 
   findByParent(input: {
     wimp: string
-    parent: {kind: "actor"; uuid: string} | {kind: "topology"; uuid: string} | null
+    parent: {kind: "actor"; id: number} | {kind: "topology"; id: number} | null
   }): Promise<Actor | null>
 
-  head(uuid: string): Promise<ActorRecord | null>
+  head(id: number): Promise<ActorRecord | null>
 
   readonly roots: ActorRoots
   readonly value: ValueApi
@@ -56,11 +56,11 @@ export interface TopologyApi {
   /** Создаёт topology-узел (Fuzzy/Axion/Macho). Position вычисляется автоматически. */
   create(input: TopologyInput): Promise<AnyTopology>
 
-  get(uuid: string): Promise<AnyTopology | null>
+  get(id: number): Promise<AnyTopology | null>
 
-  head(uuid: string): Promise<TopologyRecord | null>
+  head(id: number): Promise<TopologyRecord | null>
 
-  childrenOfActor(actorUuid: string): Promise<AnyTopology[]>
+  childrenOfActor(actorId: number): Promise<AnyTopology[]>
 }
 
 export interface Boundary extends ForceSurface {

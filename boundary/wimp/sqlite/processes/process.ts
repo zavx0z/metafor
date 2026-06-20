@@ -18,18 +18,18 @@ export class Process {
   }
 
   /**
-   * Резолвит uuid строки `process` по (wimp, key). Throw если не найдено.
+   * Резолвит id строки `process` по (wimp, key). Throw если не найдено.
    */
-  async uuid(): Promise<string> {
+  async id(): Promise<number> {
     const row = (
-      await this.processes.wimp.sql<Array<{ uuid: string }>>`
-        SELECT uuid FROM process
+      await this.processes.wimp.sql<Array<{ id: number }>>`
+        SELECT id FROM process
         WHERE wimp = ${this.processes.wimp.src} AND key = ${this.key}
         LIMIT 1
       `
     )[0]
     if (!row) throw new Error(`process ${this.key} not found in wimp ${this.processes.wimp.src}`)
-    return row.uuid
+    return row.id
   }
 
   async type(): Promise<ProcessType> {

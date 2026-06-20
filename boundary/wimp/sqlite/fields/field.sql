@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS field
 (
-    uuid     TEXT PRIMARY KEY CHECK (length(trim(uuid)) > 0),
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
     wimp     TEXT    NOT NULL,
     key      TEXT    NOT NULL CHECK (length(trim(key)) > 0),
     type     TEXT    NOT NULL CHECK (type IN ('string', 'number', 'boolean', 'array', 'enum')),
@@ -12,8 +12,8 @@ CREATE TABLE IF NOT EXISTS field
 
 CREATE TABLE IF NOT EXISTS field_default
 (
-    field TEXT PRIMARY KEY CHECK (length(trim(field)) > 0),
-    FOREIGN KEY (field) REFERENCES field (uuid) ON DELETE CASCADE
+    field INTEGER PRIMARY KEY,
+    FOREIGN KEY (field) REFERENCES field (id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS field_by_wimp

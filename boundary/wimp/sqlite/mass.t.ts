@@ -1,6 +1,6 @@
 export type WimpMassValueRow = {
-  uuid: string
-  parent_value: string | null
+  id: number
+  parent_value: number | null
   value_kind: "object" | "array" | "string" | "number" | "boolean" | "null"
   entry_key: string | null
   entry_order: number | null

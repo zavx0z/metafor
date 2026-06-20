@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS matter_binding
 (
-    uuid            TEXT PRIMARY KEY CHECK (length(trim(uuid)) > 0),
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
     wimp            TEXT NOT NULL,
     binding_kind    TEXT NOT NULL CHECK (binding_kind IN ('static', 'variable', 'dynamic')),
     literal_kind    TEXT CHECK (literal_kind IS NULL OR literal_kind IN ('text', 'boolean')),
@@ -22,11 +22,11 @@ CREATE TABLE IF NOT EXISTS matter_binding
 
 CREATE TABLE IF NOT EXISTS matter_binding_dep
 (
-    binding   TEXT    NOT NULL CHECK (length(trim(binding)) > 0),
+    binding   INTEGER NOT NULL,
     dep_order INTEGER NOT NULL CHECK (dep_order >= 0),
     path      TEXT    NOT NULL CHECK (length(trim(path)) > 0),
     PRIMARY KEY (binding, dep_order),
-    FOREIGN KEY (binding) REFERENCES matter_binding (uuid) ON DELETE CASCADE
+    FOREIGN KEY (binding) REFERENCES matter_binding (id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS matter_binding_by_wimp
@@ -37,14 +37,14 @@ CREATE INDEX IF NOT EXISTS matter_binding_dep_by_binding
 
 CREATE TABLE IF NOT EXISTS matter_particle
 (
-    uuid            TEXT PRIMARY KEY CHECK (length(trim(uuid)) > 0),
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
     wimp            TEXT    NOT NULL,
-    parent_particle TEXT,
+    parent_particle INTEGER,
     particle_kind   TEXT    NOT NULL CHECK (particle_kind IN ('wimp', 'fuzzy', 'axion', 'macho')),
     edge_slot       TEXT    NOT NULL CHECK (edge_slot IN ('root', 'child', 'then', 'else', 'branch')),
     particle_order  INTEGER NOT NULL CHECK (particle_order >= 0),
     FOREIGN KEY (wimp) REFERENCES wimp (src) ON DELETE CASCADE,
-    FOREIGN KEY (parent_particle) REFERENCES matter_particle (uuid) ON DELETE CASCADE,
+    FOREIGN KEY (parent_particle) REFERENCES matter_particle (id) ON DELETE CASCADE,
     CHECK (
         (parent_particle IS NULL AND edge_slot = 'root') OR
         (parent_particle IS NOT NULL AND edge_slot IN ('child', 'then', 'else', 'branch'))
@@ -71,22 +71,22 @@ CREATE INDEX IF NOT EXISTS matter_particle_by_parent
 
 CREATE TABLE IF NOT EXISTS matter_particle_wimp
 (
-    particle       TEXT PRIMARY KEY CHECK (length(trim(particle)) > 0),
+    particle       INTEGER PRIMARY KEY,
     src            TEXT NOT NULL CHECK (length(trim(src)) > 0),
-    fields_binding TEXT,
-    mass_binding   TEXT,
-    FOREIGN KEY (particle) REFERENCES matter_particle (uuid) ON DELETE CASCADE,
-    FOREIGN KEY (fields_binding) REFERENCES matter_binding (uuid) ON DELETE CASCADE,
-    FOREIGN KEY (mass_binding) REFERENCES matter_binding (uuid) ON DELETE CASCADE
+    fields_binding INTEGER,
+    mass_binding   INTEGER,
+    FOREIGN KEY (particle) REFERENCES matter_particle (id) ON DELETE CASCADE,
+    FOREIGN KEY (fields_binding) REFERENCES matter_binding (id) ON DELETE CASCADE,
+    FOREIGN KEY (mass_binding) REFERENCES matter_binding (id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS matter_particle_fuzzy
 (
-    particle          TEXT PRIMARY KEY CHECK (length(trim(particle)) > 0),
+    particle          INTEGER PRIMARY KEY,
     fuzzy_kind        TEXT NOT NULL CHECK (fuzzy_kind IN ('dynamic-meta', 'cond')),
-    predicate_binding TEXT,
-    FOREIGN KEY (particle) REFERENCES matter_particle (uuid) ON DELETE CASCADE,
-    FOREIGN KEY (predicate_binding) REFERENCES matter_binding (uuid) ON DELETE CASCADE,
+    predicate_binding INTEGER,
+    FOREIGN KEY (particle) REFERENCES matter_particle (id) ON DELETE CASCADE,
+    FOREIGN KEY (predicate_binding) REFERENCES matter_binding (id) ON DELETE CASCADE,
     CHECK (
         fuzzy_kind = 'dynamic-meta' OR
         (fuzzy_kind = 'cond' AND predicate_binding IS NOT NULL)
@@ -95,16 +95,16 @@ CREATE TABLE IF NOT EXISTS matter_particle_fuzzy
 
 CREATE TABLE IF NOT EXISTS matter_particle_axion
 (
-    particle          TEXT PRIMARY KEY CHECK (length(trim(particle)) > 0),
-    predicate_binding TEXT NOT NULL CHECK (length(trim(predicate_binding)) > 0),
-    FOREIGN KEY (particle) REFERENCES matter_particle (uuid) ON DELETE CASCADE,
-    FOREIGN KEY (predicate_binding) REFERENCES matter_binding (uuid) ON DELETE CASCADE
+    particle          INTEGER PRIMARY KEY,
+    predicate_binding INTEGER NOT NULL,
+    FOREIGN KEY (particle) REFERENCES matter_particle (id) ON DELETE CASCADE,
+    FOREIGN KEY (predicate_binding) REFERENCES matter_binding (id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS matter_particle_macho
 (
-    particle           TEXT PRIMARY KEY CHECK (length(trim(particle)) > 0),
-    collection_binding TEXT NOT NULL CHECK (length(trim(collection_binding)) > 0),
-    FOREIGN KEY (particle) REFERENCES matter_particle (uuid) ON DELETE CASCADE,
-    FOREIGN KEY (collection_binding) REFERENCES matter_binding (uuid) ON DELETE CASCADE
+    particle           INTEGER PRIMARY KEY,
+    collection_binding INTEGER NOT NULL,
+    FOREIGN KEY (particle) REFERENCES matter_particle (id) ON DELETE CASCADE,
+    FOREIGN KEY (collection_binding) REFERENCES matter_binding (id) ON DELETE CASCADE
 );

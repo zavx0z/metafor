@@ -132,7 +132,7 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
       expect(srcs).toContain("zavx0z/git-error")
       expect(srcs).toContain("zavx0z/git-history-commit")
 
-      const actorRows = await sql<Array<{uuid: string; wimp: string}>>`SELECT uuid, wimp FROM actor`
+      const actorRows = await sql<Array<{id: string; wimp: string}>>`SELECT id, wimp FROM actor`
       const stateRows = await sql<Array<{actor: string}>>`SELECT actor FROM actor_state`
       const valueRows = await sql<Array<{value: string}>>`SELECT DISTINCT value FROM actor_value`
 

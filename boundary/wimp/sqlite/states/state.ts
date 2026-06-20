@@ -11,10 +11,10 @@ export class State {
     this.transitions = new Transitions(this)
   }
 
-  async uuid(): Promise<string> {
+  async id(): Promise<number> {
     const row = (
-      await this.states.wimp.sql<Array<{ uuid: string }>>`
-          SELECT uuid
+      await this.states.wimp.sql<Array<{ id: number }>>`
+          SELECT id
           FROM state
           WHERE wimp = ${this.states.wimp.src}
             AND name = ${this.name}
@@ -22,7 +22,7 @@ export class State {
       `
     )[0]
     if (!row) throw new Error(`state ${this.name} not found in wimp ${this.states.wimp.src}`)
-    return row.uuid
+    return row.id
   }
 
   async position(): Promise<number> {

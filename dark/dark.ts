@@ -8,16 +8,29 @@ import {finalizeFieldValues, resolveFieldInits, type Continuation} from "./conti
 
 ;(globalThis as unknown as {MetaFor: typeof MetaFor}).MetaFor = MetaFor
 
-boundary.observe(async (event) => {
-  for (const part of event.data.parts) {
-    if (part.part !== "graviton") continue
-    if (part.op !== "test") continue
-    if (part.path !== "wimp") continue
-    if (typeof part.value !== "string") continue
-    if (await boundary.wimp.exists(part.value)) continue
-    await matter(part.value)
-  }
-})
+let observedBoundary: typeof globalThis.boundary | null = null
+let boundaryObserver: {close(): void} | null = null
+
+export const ensureBoundaryObserver = (): void => {
+  const current = globalThis.boundary
+  if (!current) return
+  if (observedBoundary === current) return
+
+  boundaryObserver?.close()
+  observedBoundary = current
+  boundaryObserver = current.observe(async (event) => {
+    for (const part of event.data.parts) {
+      if (part.part !== "graviton") continue
+      if (part.op !== "test") continue
+      if (part.path !== "wimp") continue
+      if (typeof part.value !== "string") continue
+      if (await current.wimp.exists(part.value)) continue
+      await matter(part.value)
+    }
+  })
+}
+
+ensureBoundaryObserver()
 
 /**
  * Публичный entrypoint Dark.
@@ -41,6 +54,7 @@ export async function matter(
   parent: ParticleRef | null = null,
   continuation: Continuation | undefined = undefined,
 ): Promise<void> {
+  ensureBoundaryObserver()
   if (await boundary.actor.findByParent({wimp: src, parent})) return
 
   const generator = matterWimp(src, parent, continuation)
@@ -79,7 +93,9 @@ async function* matterWimp(
   const fieldSchemaByKey = new Map(fieldSchemas.map((field) => [field.key, field]))
   const finalValues = finalizeFieldValues(fieldSchemas, continuation?.fieldInits)
 
-  const actorUuid = crypto.randomUUID()
+  let tempId = -1
+  const nextTempId = (): number => tempId--
+  const actorTempId = nextTempId()
 
   const values: ActorValueRecord[] = []
   const valueRecords: ValueRecord[] = []
@@ -88,37 +104,38 @@ async function* matterWimp(
   for (const [key, init] of finalValues) {
     const field = await wimp.fields.get({key})
     if (!field) throw new Error(`Field "${key}" is not registered for "${src}"`)
-    const fieldUuid = await field.uuid()
+    const fieldId = await field.id()
     const schema = fieldSchemaByKey.get(key)
     if (!schema) throw new Error(`Field schema "${key}" missing in DSL for "${src}"`)
 
-    let valueUuid: string
+    let valueId: number
     if (init.source) {
-      valueUuid = await resolveSourceValueUuid(init.source.parentActorUuid, init.source.parentFieldKey)
+      valueId = await resolveSourceValueId(init.source.parentActorId, init.source.parentFieldKey)
     } else {
-      valueUuid = crypto.randomUUID()
-      const built = await buildValueRecord(valueUuid, init.value, schema.type, field, key)
+      valueId = nextTempId()
+      const built = await buildValueRecord(valueId, init.value, schema.type, field, key)
       valueRecords.push(built.record)
       valueItems.push(...built.items)
     }
-    values.push({actor: actorUuid, field: fieldUuid, value: valueUuid})
+    values.push({actor: actorTempId, field: fieldId, value: valueId})
   }
 
   const initial = await wimp.states.initial()
-  const initialState = initial ? await initial.uuid() : null
+  const initialState = initial ? await initial.id() : null
   const actorData = {
     actor: {
-      uuid: actorUuid,
-      parentActor: parent?.kind === "actor" ? parent.uuid : null,
-      parentTopology: parent?.kind === "topology" ? parent.uuid : null,
+      id: actorTempId,
+      parentActor: parent?.kind === "actor" ? parent.id : null,
+      parentTopology: parent?.kind === "topology" ? parent.id : null,
       wimp: src,
     },
     values,
     valueRecords,
     valueItems,
-    state: {actor: actorUuid, metaState: initialState},
+    state: {actor: actorTempId, metaState: initialState},
   }
-  await boundary.actor.create(actorData)
+  const actor = await boundary.actor.create(actorData)
+  const actorId = actor.id
 
   const fieldValuesSnapshot = new Map<FieldKey, unknown>()
   const fieldTypesSnapshot = new Map<FieldKey, string>()
@@ -130,7 +147,7 @@ async function* matterWimp(
   const plans = projectBoundaryMatterParticles(matterRelations)
   if (plans.length === 0) return
 
-  let frontier: BfsEntry[] = plans.map((plan) => ({plan, parent: {kind: "actor", uuid: actorUuid}}))
+  let frontier: BfsEntry[] = plans.map((plan) => ({plan, parent: {kind: "actor", id: actorId}}))
 
   while (frontier.length > 0) {
     const next: BfsEntry[] = []
@@ -142,7 +159,7 @@ async function* matterWimp(
           const childContinuation: Continuation = {}
           if (entry.plan.fieldsBinding !== undefined) {
             const inits = resolveFieldInits(entry.plan.fieldsBinding, {
-              actorUuid,
+              actorId: actorId,
               fieldValues: fieldValuesSnapshot,
               fieldTypes: fieldTypesSnapshot,
             })
@@ -157,15 +174,13 @@ async function* matterWimp(
         case "fuzzy":
         case "axion":
         case "macho": {
-          const topologyUuid = crypto.randomUUID()
-          await boundary.topology.create({
-            uuid: topologyUuid,
-            parentActor: entry.parent.kind === "actor" ? entry.parent.uuid : null,
-            parentTopology: entry.parent.kind === "topology" ? entry.parent.uuid : null,
+          const topology = await boundary.topology.create({
+            parentActor: entry.parent.kind === "actor" ? entry.parent.id : null,
+            parentTopology: entry.parent.kind === "topology" ? entry.parent.id : null,
             kind: entry.plan.kind,
           })
           for (const child of entry.plan.children ?? []) {
-            next.push({plan: child.particle, parent: {kind: "topology", uuid: topologyUuid}})
+            next.push({plan: child.particle, parent: {kind: "topology", id: topology.id}})
           }
           break
         }
@@ -178,53 +193,53 @@ async function* matterWimp(
 }
 
 const buildValueRecord = async (
-  uuid: string,
+  id: number,
   raw: unknown,
   fieldType: string,
   field: AnyField,
   fieldKey: FieldKey,
 ): Promise<{ record: ValueRecord; items: ValueItemRecord[] }> => {
-  if (raw === null || raw === undefined) return {record: {uuid, kind: "null"}, items: []}
+  if (raw === null || raw === undefined) return {record: {id, kind: "null"}, items: []}
   switch (fieldType) {
     case "boolean":
-      return {record: {uuid, kind: "boolean", boolean: Boolean(raw)}, items: []}
+      return {record: {id, kind: "boolean", boolean: Boolean(raw)}, items: []}
     case "number":
-      return {record: {uuid, kind: "number", number: Number(raw)}, items: []}
+      return {record: {id, kind: "number", number: Number(raw)}, items: []}
     case "string":
-      return {record: {uuid, kind: "string", text: String(raw)}, items: []}
+      return {record: {id, kind: "string", text: String(raw)}, items: []}
     case "enum": {
       if (field.type !== "enum") throw new Error(`expected enum field for "${fieldKey}"`)
-      const variantUuid = await field.variantUuid(String(raw))
-      if (!variantUuid) {
+      const variantId = await field.variantId(String(raw))
+      if (!variantId) {
         throw new Error(`Unknown enum variant "${String(raw)}" for field "${fieldKey}"`)
       }
-      return {record: {uuid, kind: "enum", variant: variantUuid}, items: []}
+      return {record: {id, kind: "enum", variant: variantId}, items: []}
     }
     case "array": {
       const items: ValueItemRecord[] = Array.isArray(raw)
-        ? raw.map((item, position) => ({value: uuid, position, itemValue: String(item)}))
+        ? raw.map((item, position) => ({value: id, position, itemValue: String(item)}))
         : []
-      return {record: {uuid, kind: "list"}, items}
+      return {record: {id, kind: "list"}, items}
     }
   }
   throw new Error(`Unsupported field type for value emission: ${fieldType}`)
 }
 
-const resolveSourceValueUuid = async (
-  parentActorUuid: string,
+const resolveSourceValueId = async (
+  parentActorId: number,
   parentFieldKey: FieldKey,
-): Promise<string> => {
-  const head = await boundary.actor.head(parentActorUuid)
-  if (!head) throw new Error(`parent actor ${parentActorUuid} not found`)
+): Promise<number> => {
+  const head = await boundary.actor.head(parentActorId)
+  if (!head) throw new Error(`parent actor ${parentActorId} not found`)
   const parentWimp = await boundary.wimp.get(head.wimp)
   if (!parentWimp) throw new Error(`parent wimp ${head.wimp} not found`)
   const parentField = await parentWimp.fields.get({key: parentFieldKey})
   if (!parentField) throw new Error(`parent field "${parentFieldKey}" missing in wimp ${head.wimp}`)
-  const parentFieldUuid = await parentField.uuid()
-  const link = await boundary.actor.link.get(parentActorUuid, parentFieldUuid)
-  if (!link) throw new Error(`parent actor_value missing for (${parentActorUuid}, ${parentFieldKey})`)
+  const parentFieldId = await parentField.id()
+  const link = await boundary.actor.link.get(parentActorId, parentFieldId)
+  if (!link) throw new Error(`parent actor_value missing for (${parentActorId}, ${parentFieldKey})`)
   const value = await link.value()
-  return value.uuid
+  return value.id
 }
 
 export type {Continuation, FieldInit} from "./continuation.ts"

@@ -49,7 +49,7 @@ export interface MatterParticlePlanChild {
   particle: MatterParticlePlan
 }
 
-export type ParticleRef = { kind: "actor"; uuid: string } | { kind: "topology"; uuid: string }
+export type ParticleRef = { kind: "actor"; id: number } | { kind: "topology"; id: number }
 
 export interface BfsEntry {
   plan: MatterParticlePlan

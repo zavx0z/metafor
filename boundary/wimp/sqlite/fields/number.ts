@@ -8,7 +8,7 @@ export class NumberField extends Field {
       await this.fields.wimp.sql<Array<{ default_value: number }>>`
           SELECT nd.default_value
           FROM field f
-                   INNER JOIN field_number_default nd ON nd.field = f.uuid
+                   INNER JOIN field_number_default nd ON nd.field = f.id
           WHERE f.wimp = ${this.fields.wimp.src}
             AND f.key = ${this.key}
       `
@@ -20,10 +20,10 @@ export class NumberField extends Field {
     if (typeof value !== "number" || Number.isNaN(value)) {
       throw new Error(`NumberField.setDefault: expected finite number, got ${String(value)}`)
     }
-    const uuid = await this.uuid()
-    await this.ensureDefaultRow(uuid)
+    const id = await this.id()
+    await this.ensureDefaultRow(id)
     const sql = this.fields.wimp.sql
-    await sql`DELETE FROM field_number_default WHERE field = ${uuid}`
-    await sql`INSERT INTO field_number_default (field, default_value) VALUES (${uuid}, ${value})`
+    await sql`DELETE FROM field_number_default WHERE field = ${id}`
+    await sql`INSERT INTO field_number_default (field, default_value) VALUES (${id}, ${value})`
   }
 }

@@ -47,6 +47,14 @@ const optionalString = (value: unknown, key: string, path: string): string | nul
   return v
 }
 
+const optionalId = (value: unknown, key: string, path: string): number | null => {
+  const v = (value as Record<string, unknown>)[key]
+  if (v === undefined || v === null) return null
+  if (typeof v === "number" && Number.isInteger(v) && v > 0) return v
+  if (typeof v === "string" && /^\d+$/.test(v)) return Number(v)
+  throw new Error(`Particle ${path}: "${key}" must be positive integer id`)
+}
+
 const optionalNumber = (value: unknown, key: string, path: string): number | null => {
   const v = (value as Record<string, unknown>)[key]
   if (v === undefined || v === null) return null
@@ -76,6 +84,12 @@ const requireArray = (value: unknown, key: string, path: string): unknown[] => {
 
 const requireString = (value: unknown, key: string, path: string): string => {
   const v = optionalString(value, key, path)
+  if (v === null) throw new Error(`Particle ${path}: "${key}" is required`)
+  return v
+}
+
+const requireId = (value: unknown, key: string, path: string): number => {
+  const v = optionalId(value, key, path)
   if (v === null) throw new Error(`Particle ${path}: "${key}" is required`)
   return v
 }
@@ -116,9 +130,9 @@ const applyWimpSnapshot = async (tx: Tx, op: ParticleOperation, value: unknown):
   for (const item of requireArray(snapshot, "fields", path)) {
     const field = requireRecord(item, path)
     await tx`
-      INSERT INTO field (uuid, wimp, key, type, required, label)
-      VALUES (${requireString(field, "uuid", path)}, ${requireString(field, "wimp", path)}, ${requireString(field, "key", path)}, ${requireString(field, "type", path)}, ${optionalBoolean(field, "required", path) ? 1 : 0}, ${optionalString(field, "label", path)})
-      ON CONFLICT (uuid) DO UPDATE SET
+      INSERT INTO field (id, wimp, key, type, required, label)
+      VALUES (${requireId(field, "id", path)}, ${requireString(field, "wimp", path)}, ${requireString(field, "key", path)}, ${requireString(field, "type", path)}, ${optionalBoolean(field, "required", path) ? 1 : 0}, ${optionalString(field, "label", path)})
+      ON CONFLICT (id) DO UPDATE SET
         wimp = excluded.wimp,
         key = excluded.key,
         type = excluded.type,
@@ -130,9 +144,9 @@ const applyWimpSnapshot = async (tx: Tx, op: ParticleOperation, value: unknown):
   for (const item of requireArray(snapshot, "enumVariants", path)) {
     const variant = requireRecord(item, path)
     await tx`
-      INSERT INTO field_enum_variant (uuid, field, position, item_value)
-      VALUES (${requireString(variant, "uuid", path)}, ${requireString(variant, "field", path)}, ${requireNumber(variant, "position", path)}, ${requireString(variant, "itemValue", path)})
-      ON CONFLICT (uuid) DO UPDATE SET
+      INSERT INTO field_enum_variant (id, field, position, item_value)
+      VALUES (${requireId(variant, "id", path)}, ${requireId(variant, "field", path)}, ${requireNumber(variant, "position", path)}, ${requireString(variant, "itemValue", path)})
+      ON CONFLICT (id) DO UPDATE SET
         field = excluded.field,
         position = excluded.position,
         item_value = excluded.item_value
@@ -142,9 +156,9 @@ const applyWimpSnapshot = async (tx: Tx, op: ParticleOperation, value: unknown):
   for (const item of requireArray(snapshot, "states", path)) {
     const state = requireRecord(item, path)
     await tx`
-      INSERT INTO state (uuid, wimp, name, position)
-      VALUES (${requireString(state, "uuid", path)}, ${requireString(state, "wimp", path)}, ${requireString(state, "name", path)}, ${requireNumber(state, "position", path)})
-      ON CONFLICT (uuid) DO UPDATE SET
+      INSERT INTO state (id, wimp, name, position)
+      VALUES (${requireId(state, "id", path)}, ${requireString(state, "wimp", path)}, ${requireString(state, "name", path)}, ${requireNumber(state, "position", path)})
+      ON CONFLICT (id) DO UPDATE SET
         wimp = excluded.wimp,
         name = excluded.name,
         position = excluded.position
@@ -160,18 +174,18 @@ const applyActorSnapshot = async (tx: Tx, op: ParticleOperation, value: unknown)
   const path = "actor"
   const snapshot = requireRecord(value, path)
   const actor = requireRecord(snapshot.actor, path)
-  const uuid = requireString(actor, "uuid", path)
+  const id = requireId(actor, "id", path)
 
   if (op === "remove") {
-    await tx`DELETE FROM actor WHERE uuid = ${uuid}`
+    await tx`DELETE FROM actor WHERE id = ${id}`
     return
   }
   if (op !== "add" && op !== "replace") {
     notSupported(op, path, "graviton")
   }
 
-  const parentActor = optionalString(actor, "parentActor", path)
-  const parentTopology = optionalString(actor, "parentTopology", path)
+  const parentActor = optionalId(actor, "parentActor", path)
+  const parentTopology = optionalId(actor, "parentTopology", path)
   const position = optionalNumber(actor, "position", path) ?? (
     (await tx<Array<{count: number}>>`
       SELECT COUNT(*) AS count FROM actor
@@ -179,39 +193,39 @@ const applyActorSnapshot = async (tx: Tx, op: ParticleOperation, value: unknown)
         AND parent_topology IS ${parentTopology}
     `)[0]?.count ?? 0
   )
-  const oldValueIds = (await tx<Array<{value: string}>>`SELECT value FROM actor_value WHERE actor = ${uuid}`)
+  const oldValueIds = (await tx<Array<{value: number}>>`SELECT value FROM actor_value WHERE actor = ${id}`)
     .map((link) => link.value)
 
-  await tx`DELETE FROM actor WHERE uuid = ${uuid}`
+  await tx`DELETE FROM actor WHERE id = ${id}`
   await tx`
-    INSERT INTO actor (uuid, parent_actor, parent_topology, wimp, position)
-    VALUES (${uuid}, ${parentActor}, ${parentTopology}, ${requireString(actor, "wimp", path)}, ${Number(position)})
+    INSERT INTO actor (id, parent_actor, parent_topology, wimp, position)
+    VALUES (${id}, ${parentActor}, ${parentTopology}, ${requireString(actor, "wimp", path)}, ${Number(position)})
   `
 
   for (const item of requireArray(snapshot, "valueRecords", path)) {
     const record = requireRecord(item, path)
-    const valueUuid = requireString(record, "uuid", path)
+    const valueId = requireId(record, "id", path)
     const kind = requireString(record, "kind", path)
     await tx`
-      INSERT INTO value (uuid, kind) VALUES (${valueUuid}, ${kind})
-      ON CONFLICT (uuid) DO UPDATE SET kind = excluded.kind
+      INSERT INTO value (id, kind) VALUES (${valueId}, ${kind})
+      ON CONFLICT (id) DO UPDATE SET kind = excluded.kind
     `
-    await clearValueScalarTables(tx, valueUuid)
-    await writeValueScalar(tx, valueUuid, kind, record, path)
+    await clearValueScalarTables(tx, valueId)
+    await writeValueScalar(tx, valueId, kind, record, path)
   }
 
   const listValueIds = new Set(
     requireArray(snapshot, "valueRecords", path)
       .map((item) => requireRecord(item, path))
       .filter((record) => requireString(record, "kind", path) === "list")
-      .map((record) => requireString(record, "uuid", path)),
+      .map((record) => requireId(record, "id", path)),
   )
-  for (const valueUuid of listValueIds) await tx`DELETE FROM value_list_item WHERE value = ${valueUuid}`
+  for (const valueId of listValueIds) await tx`DELETE FROM value_list_item WHERE value = ${valueId}`
   for (const item of requireArray(snapshot, "valueItems", path)) {
     const valueItem = requireRecord(item, path)
     await tx`
       INSERT INTO value_list_item (value, position, item_value)
-      VALUES (${requireString(valueItem, "value", path)}, ${requireNumber(valueItem, "position", path)}, ${requireString(valueItem, "itemValue", path)})
+      VALUES (${requireId(valueItem, "value", path)}, ${requireNumber(valueItem, "position", path)}, ${requireString(valueItem, "itemValue", path)})
       ON CONFLICT (value, position) DO UPDATE SET item_value = excluded.item_value
     `
   }
@@ -220,7 +234,7 @@ const applyActorSnapshot = async (tx: Tx, op: ParticleOperation, value: unknown)
     const link = requireRecord(item, path)
     await tx`
       INSERT INTO actor_value (actor, field, value)
-      VALUES (${requireString(link, "actor", path)}, ${requireString(link, "field", path)}, ${requireString(link, "value", path)})
+      VALUES (${requireId(link, "actor", path)}, ${requireId(link, "field", path)}, ${requireId(link, "value", path)})
     `
   }
 
@@ -228,13 +242,13 @@ const applyActorSnapshot = async (tx: Tx, op: ParticleOperation, value: unknown)
   if (state !== null) {
     await tx`
       INSERT INTO actor_state (actor, metaState)
-      VALUES (${requireString(state, "actor", path)}, ${optionalString(state, "metaState", path)})
+      VALUES (${requireId(state, "actor", path)}, ${optionalId(state, "metaState", path)})
     `
   }
 
   for (const valueId of oldValueIds) {
     await tx`
-      DELETE FROM value WHERE uuid = ${valueId} AND NOT EXISTS (SELECT 1 FROM actor_value WHERE value = uuid)
+      DELETE FROM value WHERE id = ${valueId} AND NOT EXISTS (SELECT 1 FROM actor_value WHERE value = id)
     `
   }
 }
@@ -247,17 +261,17 @@ const applyTopologySnapshot = async (
 ): Promise<void> => {
   const path = kind
   const topology = requireRecord(value, path)
-  const uuid = requireString(topology, "uuid", path)
+  const id = requireId(topology, "id", path)
   if (op === "remove") {
-    await tx`DELETE FROM topology WHERE uuid = ${uuid}`
+    await tx`DELETE FROM topology WHERE id = ${id}`
     return
   }
   if (op !== "add" && op !== "replace") {
     notSupported(op, path, "graviton")
   }
 
-  const parentActor = optionalString(topology, "parentActor", path)
-  const parentTopology = optionalString(topology, "parentTopology", path)
+  const parentActor = optionalId(topology, "parentActor", path)
+  const parentTopology = optionalId(topology, "parentTopology", path)
   const position = optionalNumber(topology, "position", path) ?? (
     (await tx<Array<{count: number}>>`
       SELECT COUNT(*) AS count FROM topology
@@ -265,10 +279,10 @@ const applyTopologySnapshot = async (
         AND parent_topology IS ${parentTopology}
     `)[0]?.count ?? 0
   )
-  await tx`DELETE FROM topology WHERE uuid = ${uuid}`
+  await tx`DELETE FROM topology WHERE id = ${id}`
   await tx`
-    INSERT INTO topology (uuid, parent_actor, parent_topology, kind, position)
-    VALUES (${uuid}, ${parentActor}, ${parentTopology}, ${kind}, ${Number(position)})
+    INSERT INTO topology (id, parent_actor, parent_topology, kind, position)
+    VALUES (${id}, ${parentActor}, ${parentTopology}, ${kind}, ${Number(position)})
   `
 }
 
@@ -302,7 +316,7 @@ const applyGravitonParticle = async (tx: Tx, particle: BoundaryParticle): Promis
 // value helpers for actor snapshots
 // =============================================================================
 
-const writeValueScalar = async (tx: Tx, uuid: string, kind: string, v: Record<string, unknown>, path: string): Promise<void> => {
+const writeValueScalar = async (tx: Tx, id: number, kind: string, v: Record<string, unknown>, path: string): Promise<void> => {
   switch (kind) {
     case "null":
     case "list":
@@ -310,28 +324,28 @@ const writeValueScalar = async (tx: Tx, uuid: string, kind: string, v: Record<st
     case "boolean": {
       const b = optionalBoolean(v, "boolean", path)
       if (b === null) throw new Error(`Particle ${path}: "boolean" is required for kind=boolean`)
-      await tx`INSERT INTO value_boolean (value, boolean) VALUES (${uuid}, ${b ? 1 : 0})`
+      await tx`INSERT INTO value_boolean (value, boolean) VALUES (${id}, ${b ? 1 : 0})`
       return
     }
     case "number":
-      await tx`INSERT INTO value_number (value, number) VALUES (${uuid}, ${requireNumber(v, "number", path)})`
+      await tx`INSERT INTO value_number (value, number) VALUES (${id}, ${requireNumber(v, "number", path)})`
       return
     case "string":
-      await tx`INSERT INTO value_string (value, text) VALUES (${uuid}, ${requireString(v, "text", path)})`
+      await tx`INSERT INTO value_string (value, text) VALUES (${id}, ${requireString(v, "text", path)})`
       return
     case "enum":
-      await tx`INSERT INTO value_enum (value, variant) VALUES (${uuid}, ${requireString(v, "variant", path)})`
+      await tx`INSERT INTO value_enum (value, variant) VALUES (${id}, ${requireId(v, "variant", path)})`
       return
     default:
       throw new Error(`Particle ${path}: unknown value kind "${kind}"`)
   }
 }
 
-const clearValueScalarTables = async (tx: Tx, uuid: string): Promise<void> => {
-  await tx`DELETE FROM value_boolean WHERE value = ${uuid}`
-  await tx`DELETE FROM value_number WHERE value = ${uuid}`
-  await tx`DELETE FROM value_string WHERE value = ${uuid}`
-  await tx`DELETE FROM value_enum WHERE value = ${uuid}`
+const clearValueScalarTables = async (tx: Tx, id: number): Promise<void> => {
+  await tx`DELETE FROM value_boolean WHERE value = ${id}`
+  await tx`DELETE FROM value_number WHERE value = ${id}`
+  await tx`DELETE FROM value_string WHERE value = ${id}`
+  await tx`DELETE FROM value_enum WHERE value = ${id}`
 }
 
 // =============================================================================
@@ -381,7 +395,7 @@ export const open = async (filename?: string): Promise<Boundary> => {
     await sql.unsafe("PRAGMA busy_timeout = 5000;")
   }
 
-  // ВАЖНО: topology поднимаем ДО actor — у actor есть FK parent_topology → topology(uuid).
+  // ВАЖНО: topology поднимаем ДО actor — у actor есть FK parent_topology → topology(id).
   // SQLite позволяет создавать circular FK при foreign_keys=ON, но table-target должна
   // существовать к моменту первого INSERT.
   const topology = await BoundaryTopologySqlite.open(sql)

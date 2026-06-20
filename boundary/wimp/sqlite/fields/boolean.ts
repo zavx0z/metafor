@@ -8,7 +8,7 @@ export class BooleanField extends Field {
       await this.fields.wimp.sql<Array<{ default_value: number }>>`
           SELECT bd.default_value
           FROM field f
-                   INNER JOIN field_boolean_default bd ON bd.field = f.uuid
+                   INNER JOIN field_boolean_default bd ON bd.field = f.id
           WHERE f.wimp = ${this.fields.wimp.src}
             AND f.key = ${this.key}
       `
@@ -20,17 +20,17 @@ export class BooleanField extends Field {
     if (typeof value !== "boolean") {
       throw new Error(`BooleanField.setDefault: expected boolean, got ${typeof value}`)
     }
-    const uuid = await this.uuid()
-    await this.ensureDefaultRow(uuid)
+    const id = await this.id()
+    await this.ensureDefaultRow(id)
     const sql = this.fields.wimp.sql
     await sql`
         DELETE
         FROM field_boolean_default
-        WHERE field = ${uuid}
+        WHERE field = ${id}
     `
     await sql`
         INSERT INTO field_boolean_default (field, default_value)
-        VALUES (${uuid}, ${value ? 1 : 0})
+        VALUES (${id}, ${value ? 1 : 0})
     `
   }
 }

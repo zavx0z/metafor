@@ -7,10 +7,10 @@ export type BindingValue =
 
 export type ParticleKind = "wimp" | "fuzzy" | "axion" | "macho"
 export type EdgeSlot = "root" | "child" | "then" | "else" | "branch"
-export type FieldUuidByKey = Map<string, string>
+export type FieldIdByKey = Map<string, number>
 
 export type BindingRow = {
-  uuid: string
+  id: number
   binding_kind: "static" | "variable" | "dynamic"
   literal_kind: "text" | "boolean" | null
   literal_text: string | null
@@ -19,34 +19,34 @@ export type BindingRow = {
 }
 
 export type ParticleRow = {
-  uuid: string
-  parent_particle: string | null
+  id: number
+  parent_particle: number | null
   particle_kind: "wimp" | "fuzzy" | "axion" | "macho"
   edge_slot: "root" | "child" | "then" | "else" | "branch"
   particle_order: number
 }
 
 export type WimpParticleRow = {
-  particle: string
+  particle: number
   src: string
-  fields_binding: string | null
-  mass_binding: string | null
+  fields_binding: number | null
+  mass_binding: number | null
 }
 
 export type FuzzyParticleRow = {
-  particle: string
+  particle: number
   fuzzy_kind: "dynamic-meta" | "cond"
-  predicate_binding: string | null
+  predicate_binding: number | null
 }
 
 export type AxionParticleRow = {
-  particle: string
-  predicate_binding: string
+  particle: number
+  predicate_binding: number
 }
 
 export type MachoParticleRow = {
-  particle: string
-  collection_binding: string
+  particle: number
+  collection_binding: number
 }
 
 export type MatterRelationBindingValue = BindingValue

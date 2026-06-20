@@ -16,10 +16,20 @@ import {
 	IconButton,
 	SliderControl,
 	Switcher,
+	Table,
 	TextField,
 	VoiceInputHud,
 	VoicePhraseSettings,
+	focusTextField,
+	normalizeTableSelection,
+	tableScrollTo,
+	tableSelectionAfterClick,
 	type ButtonVoiceSnapshot,
+	type TableCellContext,
+	type TableColumn,
+	type TableRowId,
+	type TableRowPointerContext,
+	type TextFieldEditState,
 	type VoiceInputHudDeactivationMode,
 	type VoiceInputHudPhraseGroupId,
 	type VoiceInputHudPhraseGroup,
@@ -172,7 +182,7 @@ type NetworkActionPayload = {
 	error?: string
 }
 
-type DockKind = "codex" | "settings" | "todo" | "android" | "workspace" | "network" | "fullscreen"
+type DockKind = "codex" | "settings" | "todo" | "android" | "workspace" | "sqlite" | "network" | "fullscreen"
 type DockPanelKind = Exclude<DockKind, "fullscreen">
 type SettingsTab = "scene" | "geometry" | "render"
 
@@ -280,6 +290,42 @@ type WorkspaceProcessModules = {
 	modules: Array<{path: string}>
 }
 
+type SqliteCellValue = string | number | boolean | null | {type?: string; size?: number; hex?: string}
+
+type SqliteTableSummary = {
+	name: string
+	type: "table" | "view"
+	rowCount: number | null
+}
+
+type SqliteColumnInfo = {
+	name: string
+	type: string
+	notNull: boolean
+	defaultValue: string | null
+	primaryKey: boolean
+}
+
+type SqliteDatabasePayload = {
+	ok: true
+	path: string
+	label: string
+	version: string
+	selectedTable: string | null
+	limit: number
+	offset: number
+	tables: SqliteTableSummary[]
+	schema: SqliteColumnInfo[]
+	rows: Array<Record<string, SqliteCellValue>>
+}
+
+type SqliteCellEditSession = {
+	rowid: number
+	column: string
+	previous: SqliteCellValue
+	onSubmit(rowid: number, column: string, value: SqliteCellValue): void
+}
+
 const STORAGE_PREFIX = "metafor.app-web.hud"
 const CODEX_SESSION_STORAGE_KEY = `${STORAGE_PREFIX}.codex.sessionId:v1`
 const CODEX_TERMINAL_SESSION_KEY = "app-web:codex"
@@ -298,6 +344,15 @@ const TODO_PANEL_STATE_STORAGE_KEY = `${STORAGE_PREFIX}.todo.panelState:v1`
 const WORKSPACE_FILES_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.workspace.files.rect:v1`
 const WORKSPACE_EDITOR_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.workspace.editor.rect:v1`
 const WORKSPACE_DOCK_PLACEMENT_STORAGE_KEY = `${STORAGE_PREFIX}.workspace.dockPlacement:v1`
+const SQLITE_TABLES_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.sqlite.tables.rect:v1`
+const SQLITE_ROWS_RECT_STORAGE_KEY = `${STORAGE_PREFIX}.sqlite.rows.rect:v1`
+const SQLITE_DOCKED_STORAGE_KEY = `${STORAGE_PREFIX}.sqlite.docked:v1`
+const SQLITE_DOCK_PLACEMENT_STORAGE_KEY = `${STORAGE_PREFIX}.sqlite.dockPlacement:v1`
+const APP_WEB_SQLITE_PATH = "app/web/tmp/boundary.sqlite"
+const SQLITE_TABLE_SCROLL_KEY = "app-web-sqlite-table-scroll"
+const SQLITE_CELL_EDIT_FIELD_KEY = "app-web-sqlite-cell-edit-value"
+const SQLITE_CELL_EDIT_MODAL_W = 500
+const SQLITE_CELL_EDIT_MODAL_H = 192
 const NETWORK_TERMINAL_SESSION_STORAGE_KEY = `${STORAGE_PREFIX}.network.sessionId:v1`
 const NETWORK_TERMINAL_SESSION_KEY = "app-web:network-terminal"
 const NETWORK_TERMINAL_TMUX_SESSION = "metafor-app-web-net"
@@ -420,6 +475,10 @@ const AGENT_SIGNAL_PANEL_H = 112
 const ANDROID_RTC_FRAME_SRC = "metafor:app-web-android-rtc-frame"
 const VOICE_SERVICE_CHECK_TIMEOUT_MS = 2500
 const HUD_PANEL_BG = new Color(palette.bg.r, palette.bg.g, palette.bg.b, 0.68)
+const HUD_CODE_BG = new Color(palette.bgCode.r, palette.bgCode.g, palette.bgCode.b, 0.62)
+const HUD_LOCAL_BACKDROP_BG = new Color(palette.bg.r, palette.bg.g, palette.bg.b, 0.24)
+const HUD_MODAL_SHADOW_BG = new Color(palette.bgInput.r, palette.bgInput.g, palette.bgInput.b, 0.32)
+const HUD_MODAL_BG = new Color(palette.bgElevated.r, palette.bgElevated.g, palette.bgElevated.b, 0.78)
 const errorMessage = (error: unknown): string => error instanceof Error ? error.message : String(error)
 
 type WebkitFullscreenDocument = Document & {
@@ -652,12 +711,15 @@ class AppWebHud implements AppWebHudController {
 	readonly #settingsDock: AppWebDockPane
 	readonly #todoDock: AppWebDockPane
 	readonly #workspaceDock: AppWebDockPane
+	readonly #sqliteDock: AppWebDockPane
 	readonly #networkDock: AppWebDockPane
 	readonly #androidDock: AppWebDockPane
 	readonly #fullscreenDock: AppWebDockPane
 	readonly #todoPane: ToDoPane
 	readonly #workspaceFiles: FileListPane
 	readonly #workspaceEditor: EditorPane
+	readonly #sqliteTables: FileListPane
+	readonly #sqliteRows: AppWebSqliteTablePane
 	readonly #networkWatchPane: NetworkWatchPane
 	readonly #androidPane: AndroidPane
 	readonly #agentSignalPane: AppWebAgentSignalPane
@@ -675,12 +737,14 @@ class AppWebHud implements AppWebHudController {
 	#settingsDocked = readStoredBoolean(SETTINGS_DOCKED_STORAGE_KEY, false)
 	#todoDocked = readStoredBoolean(TODO_DOCKED_STORAGE_KEY, true)
 	#workspaceDocked = true
+	#sqliteDocked = readStoredBoolean(SQLITE_DOCKED_STORAGE_KEY, true)
 	#networkDocked = readStoredBoolean(NETWORK_DOCKED_STORAGE_KEY, true)
 	#androidDocked = readStoredBoolean(ANDROID_DOCKED_STORAGE_KEY, true)
 	#codexDockPlacement: DockPlacement | null = readStoredDockPlacement(CODEX_DOCK_PLACEMENT_STORAGE_KEY)
 	#settingsDockPlacement: DockPlacement | null = readStoredDockPlacement(SETTINGS_DOCK_PLACEMENT_STORAGE_KEY)
 	#todoDockPlacement: DockPlacement | null = readStoredDockPlacement(TODO_DOCK_PLACEMENT_STORAGE_KEY)
 	#workspaceDockPlacement: DockPlacement | null = readStoredDockPlacement(WORKSPACE_DOCK_PLACEMENT_STORAGE_KEY)
+	#sqliteDockPlacement: DockPlacement | null = readStoredDockPlacement(SQLITE_DOCK_PLACEMENT_STORAGE_KEY)
 	#networkDockPlacement: DockPlacement | null = readStoredDockPlacement(NETWORK_DOCK_PLACEMENT_STORAGE_KEY)
 	#androidDockPlacement: DockPlacement | null = readStoredDockPlacement(ANDROID_DOCK_PLACEMENT_STORAGE_KEY)
 	#fullscreenDockPlacement: DockPlacement | null = readStoredDockPlacement(FULLSCREEN_DOCK_PLACEMENT_STORAGE_KEY)
@@ -695,6 +759,8 @@ class AppWebHud implements AppWebHudController {
 	#workspaceEditorDirty = false
 	#workspaceRootLabel = "Local"
 	#workspaceProcessLabel = "Bun processes"
+	#sqliteSelectedTable: string | null = null
+	#sqliteSelectionSyncing = false
 	#networkServiceSwitches: Record<NetworkWatchServiceKey, boolean> = {tls: true, redirect: true}
 	#networkActionStatus = "ready"
 	#networkStatusLines: string[] = []
@@ -814,6 +880,27 @@ class AppWebHud implements AppWebHudController {
 			onFrameRectChange: (rect) => writeStoredRect(WORKSPACE_EDITOR_RECT_STORAGE_KEY, rect),
 			onFrameDockRequest: () => this.setDocked("workspace", true),
 		})
+		this.#sqliteTables = new FileListPane({
+			title: "SQLite",
+			items: [],
+			selectionMode: "single",
+			showHeader: true,
+			draggable: true,
+			resizable: true,
+			onSelectionChange: (_ids, items) => {
+				if (this.#sqliteSelectionSyncing) return
+				const item = items[0]
+				if (item !== undefined) void this.#openSqliteItem(item)
+			},
+			onItemOpen: (item) => void this.#openSqliteItem(item),
+			onFrameRectChange: (rect) => writeStoredRect(SQLITE_TABLES_RECT_STORAGE_KEY, rect),
+			onFrameDockRequest: () => this.setDocked("sqlite", true),
+		})
+		this.#sqliteRows = new AppWebSqliteTablePane({
+			onFrameRectChange: (rect) => writeStoredRect(SQLITE_ROWS_RECT_STORAGE_KEY, rect),
+			onFrameDockRequest: () => this.setDocked("sqlite", true),
+			onCellEdit: (rowid, column, value) => void this.#updateSqliteCell(rowid, column, value),
+		})
 		this.#networkWatchPane = this.#createNetworkWatchPane()
 		this.#androidPane = new AndroidPane({
 			title: "Android",
@@ -838,6 +925,7 @@ class AppWebHud implements AppWebHudController {
 		this.#settingsDock = new AppWebDockPane(this, "settings")
 		this.#todoDock = new AppWebDockPane(this, "todo")
 		this.#workspaceDock = new AppWebDockPane(this, "workspace")
+		this.#sqliteDock = new AppWebDockPane(this, "sqlite")
 		this.#networkDock = new AppWebDockPane(this, "network")
 		this.#androidDock = new AppWebDockPane(this, "android")
 		this.#fullscreenDock = new AppWebDockPane(this, "fullscreen")
@@ -849,6 +937,8 @@ class AppWebHud implements AppWebHudController {
 		this.#viewport.hud.addSurface(this.#todoPane, (bounds) => this.#todoRect(bounds), {zIndex: HUD_TODO_PANEL_Z})
 		this.#viewport.hud.addSurface(this.#workspaceFiles, (bounds) => this.#workspaceFilesRect(bounds), {zIndex: HUD_PANEL_Z + 2})
 		this.#viewport.hud.addSurface(this.#workspaceEditor, (bounds) => this.#workspaceEditorRect(bounds), {zIndex: HUD_PANEL_Z + 3})
+		this.#viewport.hud.addSurface(this.#sqliteTables, (bounds) => this.#sqliteTablesRect(bounds), {zIndex: HUD_PANEL_Z + 2})
+		this.#viewport.hud.addSurface(this.#sqliteRows, (bounds) => this.#sqliteRowsRect(bounds), {zIndex: HUD_PANEL_Z + 3})
 		this.#viewport.hud.addSurface(this.#networkWatchPane, (bounds) => this.#networkControlsRect(bounds), {zIndex: HUD_PANEL_Z + 2})
 		this.#viewport.hud.addSurface(this.#networkTerminal.pane, (bounds) => this.#networkTerminalRect(bounds), {zIndex: HUD_PANEL_Z + 3})
 		this.#viewport.hud.addSurface(this.#androidPane, (bounds) => this.#androidRect(bounds), {zIndex: HUD_PANEL_Z + 1})
@@ -858,6 +948,7 @@ class AppWebHud implements AppWebHudController {
 		this.#viewport.hud.addSurface(this.#settingsDock, (bounds) => this.#dockRect("settings", bounds), {zIndex: HUD_DOCK_Z})
 		this.#viewport.hud.addSurface(this.#todoDock, (bounds) => this.#dockRect("todo", bounds), {zIndex: HUD_DOCK_Z})
 		this.#viewport.hud.addSurface(this.#workspaceDock, (bounds) => this.#dockRect("workspace", bounds), {zIndex: HUD_DOCK_Z})
+		this.#viewport.hud.addSurface(this.#sqliteDock, (bounds) => this.#dockRect("sqlite", bounds), {zIndex: HUD_DOCK_Z})
 		this.#viewport.hud.addSurface(this.#networkDock, (bounds) => this.#dockRect("network", bounds), {zIndex: HUD_DOCK_Z})
 		this.#viewport.hud.addSurface(this.#androidDock, (bounds) => this.#dockRect("android", bounds), {zIndex: HUD_DOCK_Z})
 		this.#viewport.hud.addSurface(this.#fullscreenDock, (bounds) => this.#dockRect("fullscreen", bounds), {zIndex: HUD_DOCK_Z})
@@ -884,6 +975,7 @@ class AppWebHud implements AppWebHudController {
 		void this.#loadTodo()
 		void this.#loadWorkspaceSourceFiles()
 		void this.#refreshWorkspaceProcesses()
+		void this.#loadSqliteTables()
 		void this.#refreshVoiceServiceState()
 		;(globalThis as VoiceRtcDebugGlobal).__metaVoiceRtcDebug = readVoiceRtcDebugSnapshot
 		;(globalThis as AppVoiceLeaseDebugGlobal).__metaVoiceLeaseDebug = () => this.#voiceLeaseDebugSnapshot()
@@ -1221,6 +1313,10 @@ class AppWebHud implements AppWebHudController {
 			writeStoredBoolean(TODO_DOCKED_STORAGE_KEY, docked)
 		} else if (kind === "workspace") {
 			this.#workspaceDocked = docked
+		} else if (kind === "sqlite") {
+			this.#sqliteDocked = docked
+			writeStoredBoolean(SQLITE_DOCKED_STORAGE_KEY, docked)
+			if (!docked) void this.#loadSqliteTables()
 		} else if (kind === "network") {
 			this.#networkDocked = docked
 			writeStoredBoolean(NETWORK_DOCKED_STORAGE_KEY, docked)
@@ -1383,6 +1479,16 @@ class AppWebHud implements AppWebHudController {
 				toRect: projectChildRectBetweenParents(basePanelRect, frame.rect, toPanelRect),
 			}]
 		}
+		if (kind === "sqlite") {
+			const frame = this.#viewport.hud.surfaceFrame(this.#sqliteRows)
+			if (frame === null || frame.rect.visible === false) return []
+			return [{
+				surface: this.#sqliteRows,
+				baseRect: frame.rect,
+				fromRect: projectChildRectBetweenParents(basePanelRect, frame.rect, fromPanelRect),
+				toRect: projectChildRectBetweenParents(basePanelRect, frame.rect, toPanelRect),
+			}]
+		}
 		if (kind === "network") {
 			const frame = this.#viewport.hud.surfaceFrame(this.#networkTerminal.pane)
 			if (frame === null || frame.rect.visible === false) return []
@@ -1409,6 +1515,7 @@ class AppWebHud implements AppWebHudController {
 		if (kind === "settings") return this.#settingsDocked
 		if (kind === "todo") return this.#todoDocked
 		if (kind === "workspace") return this.#workspaceDocked
+		if (kind === "sqlite") return this.#sqliteDocked
 		if (kind === "network") return this.#networkDocked
 		return this.#androidDocked
 	}
@@ -1418,6 +1525,7 @@ class AppWebHud implements AppWebHudController {
 		if (kind === "settings") return this.#settingsPane
 		if (kind === "todo") return this.#todoPane
 		if (kind === "workspace") return this.#workspaceFiles
+		if (kind === "sqlite") return this.#sqliteTables
 		if (kind === "network") return this.#networkWatchPane
 		return this.#androidPane
 	}
@@ -1427,6 +1535,7 @@ class AppWebHud implements AppWebHudController {
 		if (kind === "settings") return this.#settingsDock
 		if (kind === "todo") return this.#todoDock
 		if (kind === "workspace") return this.#workspaceDock
+		if (kind === "sqlite") return this.#sqliteDock
 		if (kind === "network") return this.#networkDock
 		return this.#androidDock
 	}
@@ -1441,6 +1550,7 @@ class AppWebHud implements AppWebHudController {
 		if (kind === "fullscreen") return true
 		if (kind === "todo") return this.#todoDocked
 		if (kind === "workspace") return this.#workspaceDocked
+		if (kind === "sqlite") return this.#sqliteDocked
 		if (kind === "network") return this.#networkDocked
 		return this.#androidDocked
 	}
@@ -1450,6 +1560,7 @@ class AppWebHud implements AppWebHudController {
 		if (kind === "settings") return "Settings"
 		if (kind === "android") return "Android"
 		if (kind === "workspace") return "Inspector"
+		if (kind === "sqlite") return "SQLite"
 		if (kind === "network") return "Network"
 		if (kind === "fullscreen") return ""
 		return "TODO"
@@ -1460,6 +1571,7 @@ class AppWebHud implements AppWebHudController {
 		if (kind === "settings") return uiIcons.manual
 		if (kind === "android") return uiIcons.language
 		if (kind === "workspace") return uiIcons.database
+		if (kind === "sqlite") return uiIcons.database
 		if (kind === "network") return uiIcons.log
 		if (kind === "fullscreen") return this.#fullscreen ? uiIcons.collapse : uiIcons.expand
 		return uiIcons.apply
@@ -1497,6 +1609,10 @@ class AppWebHud implements AppWebHudController {
 			this.#workspaceDockPlacement = placement
 			writeStoredDockPlacement(WORKSPACE_DOCK_PLACEMENT_STORAGE_KEY, placement)
 			this.#workspaceDock.requestRender()
+		} else if (kind === "sqlite") {
+			this.#sqliteDockPlacement = placement
+			writeStoredDockPlacement(SQLITE_DOCK_PLACEMENT_STORAGE_KEY, placement)
+			this.#sqliteDock.requestRender()
 		} else if (kind === "network") {
 			this.#networkDockPlacement = placement
 			writeStoredDockPlacement(NETWORK_DOCK_PLACEMENT_STORAGE_KEY, placement)
@@ -1858,6 +1974,79 @@ class AppWebHud implements AppWebHudController {
 		this.#workspaceFiles.setItems(items)
 		this.#workspaceFiles.setExpandedIds(workspaceDefaultExpandedIds(items))
 		this.#workspaceFiles.requestRender()
+	}
+
+	async #loadSqliteTables(): Promise<void> {
+		try {
+			const payload = sqliteDatabasePayloadFromUnknown(await fetchJson(`/hud/interpreter/sqlite?path=${encodeURIComponent(APP_WEB_SQLITE_PATH)}`))
+			this.#syncSqliteTables(payload)
+			const preferred = this.#sqliteSelectedTable ?? (payload.tables.some((table) => table.name === "actor") ? "actor" : payload.tables[0]?.name ?? null)
+			if (preferred !== null) await this.#openSqliteTable(preferred, {reveal: false})
+		} catch (error) {
+			this.#sqliteTables.setTitle(`SQLite - ${errorMessage(error)}`)
+			this.#sqliteRows.clearPayload(`SQLite недоступен: ${errorMessage(error)}`)
+		}
+	}
+
+	async #openSqliteItem(item: FileListItem): Promise<void> {
+		const table = sqliteTableNameFromItemId(item.id)
+		if (table === null) return
+		await this.#openSqliteTable(table)
+	}
+
+	async #openSqliteTable(table: string, opts: {reveal?: boolean} = {}): Promise<void> {
+		try {
+			const url = `/hud/interpreter/sqlite?path=${encodeURIComponent(APP_WEB_SQLITE_PATH)}&table=${encodeURIComponent(table)}&limit=120`
+			const payload = sqliteDatabasePayloadFromUnknown(await fetchJson(url))
+			this.#syncSqliteTables(payload)
+			const selectedTable = payload.selectedTable ?? table
+			this.#sqliteSelectedTable = selectedTable
+			this.#selectSqliteTable(selectedTable)
+			this.#sqliteRows.setPayload(payload)
+			this.#viewport.hud.setFocused(this.#sqliteRows)
+			if ((opts.reveal ?? true) && this.#sqliteDocked) this.setDocked("sqlite", false)
+		} catch (error) {
+			this.#sqliteRows.clearPayload(`Не удалось открыть таблицу ${table}: ${errorMessage(error)}`)
+		}
+	}
+
+	async #updateSqliteCell(rowid: number, column: string, value: SqliteCellValue): Promise<void> {
+		const table = this.#sqliteSelectedTable
+		if (table === null) return
+		try {
+			const payload = sqliteDatabasePayloadFromUnknown(await fetchJson("/hud/interpreter/sqlite/cell", {
+				method: "POST",
+				headers: {"content-type": "application/json"},
+				body: JSON.stringify({
+					path: APP_WEB_SQLITE_PATH,
+					table,
+					rowid,
+					column,
+					value,
+				}),
+			}))
+			this.#syncSqliteTables(payload)
+			this.#sqliteSelectedTable = payload.selectedTable ?? table
+			this.#sqliteRows.setPayload(payload)
+		} catch (error) {
+			this.#sqliteRows.setStatus(errorMessage(error))
+		}
+	}
+
+	#syncSqliteTables(payload: SqliteDatabasePayload): void {
+		this.#sqliteTables.setTitle(`SQLite - ${payload.label}`)
+		this.#sqliteTables.setItems(sqliteTableItems(payload.tables))
+		const selectedTable = payload.selectedTable ?? this.#sqliteSelectedTable
+		if (selectedTable !== null) this.#selectSqliteTable(selectedTable)
+	}
+
+	#selectSqliteTable(table: string): void {
+		this.#sqliteSelectionSyncing = true
+		try {
+			this.#sqliteTables.setSelectedIds([sqliteTableItemId(table)])
+		} finally {
+			this.#sqliteSelectionSyncing = false
+		}
 	}
 
 	#createTerminalController(): TerminalController {
@@ -3705,6 +3894,31 @@ class AppWebHud implements AppWebHudController {
 		}
 	}
 
+	#sqliteTablesRect(bounds: {w: number; h: number}): UiSurfaceRect {
+		if (this.#sqliteDocked) return hiddenRect()
+		const width = Math.min(320, Math.max(248, Math.floor(bounds.w * 0.22)))
+		const height = Math.min(700, Math.max(340, bounds.h - 132))
+		return readStoredRect(SQLITE_TABLES_RECT_STORAGE_KEY) ?? {
+			x: 16,
+			y: 96,
+			w: Math.min(width, Math.max(1, bounds.w - 32)),
+			h: Math.min(height, Math.max(1, bounds.h - 112)),
+		}
+	}
+
+	#sqliteRowsRect(bounds: {w: number; h: number}): UiSurfaceRect {
+		if (this.#sqliteDocked) return hiddenRect()
+		const tables = this.#sqliteTablesRect(bounds)
+		const x = Math.min(Math.max(16, bounds.w - 480), tables.x + tables.w + 10)
+		const width = Math.min(920, Math.max(420, bounds.w - x - 16))
+		return readStoredRect(SQLITE_ROWS_RECT_STORAGE_KEY) ?? {
+			x,
+			y: tables.y,
+			w: Math.min(width, Math.max(1, bounds.w - x - 16)),
+			h: tables.h,
+		}
+	}
+
 	#networkControlsRect(bounds: {w: number; h: number}): UiSurfaceRect {
 		if (this.#networkDocked) return hiddenRect()
 		const maxW = Math.max(1, bounds.w - 32)
@@ -3809,11 +4023,431 @@ class AppWebHud implements AppWebHudController {
 		if (kind === "settings") return this.#settingsDockPlacement
 		if (kind === "todo") return this.#todoDockPlacement
 		if (kind === "workspace") return this.#workspaceDockPlacement
+		if (kind === "sqlite") return this.#sqliteDockPlacement
 		if (kind === "network") return this.#networkDockPlacement
 		if (kind === "android") return this.#androidDockPlacement
 		return this.#fullscreenDockPlacement
 	}
 
+}
+
+type AppWebSqliteTablePaneOptions = {
+	onCellEdit(rowid: number, column: string, value: SqliteCellValue): void
+	onFrameRectChange?: (rect: PaneRect) => void
+	onFrameDockRequest?: () => void
+}
+
+class AppWebSqliteTablePane extends UiSurface {
+	#payload: SqliteDatabasePayload | null = null
+	#status = "Open SQLite database"
+	#selectedRowIds: string[] = []
+	#selectionAnchorRowId: string | null = null
+	#editSession: SqliteCellEditSession | null = null
+	#editInput: TextFieldEditState = {value: "", cursor: 0, selectionAnchor: null}
+	#frameDrag: PaneFrameDrag | null = null
+
+	constructor(private readonly options: AppWebSqliteTablePaneOptions) {
+		super({bgColor: HUD_CODE_BG, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
+		this.node.name = "AppWebSqliteTablePane"
+	}
+
+	setPayload(payload: SqliteDatabasePayload): void {
+		const tableChanged = this.#payload?.path !== payload.path || this.#payload.selectedTable !== payload.selectedTable
+		this.#payload = payload
+		this.#status = payload.selectedTable === null ? "No tables" : `${payload.selectedTable} · ${payload.rows.length} rows`
+		if (tableChanged) {
+			this.#clearSelectionState()
+			tableScrollTo(this, SQLITE_TABLE_SCROLL_KEY, {left: 0, top: 0})
+			this.#closeEdit({blur: false})
+		} else {
+			this.#normalizeSelectionState()
+		}
+		this.requestRender()
+	}
+
+	setStatus(status: string): void {
+		this.#status = status
+		this.requestRender()
+	}
+
+	clearPayload(status: string): void {
+		this.#payload = null
+		this.#status = status
+		this.#clearSelectionState()
+		tableScrollTo(this, SQLITE_TABLE_SCROLL_KEY, {left: 0, top: 0})
+		this.#closeEdit({blur: false})
+		this.requestRender()
+	}
+
+	protected render(): void {
+		const w = Math.max(1, this.rectW)
+		const h = Math.max(1, this.rectH)
+		this.drawRoundedRect(0, 0, w, h, {
+			radius: radii.pane,
+			fill: HUD_CODE_BG,
+			border: palette.borderDim,
+			borderWidth: 1,
+			z: Z.CONTAINER,
+		})
+		this.#renderHeader(w)
+		this.#renderBody(w, h)
+		if (this.#editSession !== null) this.#renderEditOverlay()
+	}
+
+	#renderHeader(w: number): void {
+		IconButton(this, 8, 6, 22, 22, {
+			label: "Свернуть SQLite",
+			iconSrc: uiIcons.minus,
+			variant: "text",
+			radius: 7,
+			action: () => this.options.onFrameDockRequest?.(),
+		})
+		this.drawText("SQLite", 38, 7, {
+			fontPx: 13,
+			material: this.materials.cyan,
+			maxWidthPx: Math.max(1, w - 52),
+			z: Z.TEXT,
+		})
+		const rule = paneHeaderRuleRect(w, PANE_FRAME.headerHeight, PANE_FRAME.bodyInsetX)
+		this.drawRect(rule.x, rule.y, rule.w, rule.h, palette.borderDim, Z.SEPARATOR)
+	}
+
+	#renderBody(w: number, h: number): void {
+		const payload = this.#payload
+		const body = paneBodyRect(w, h, {headerHeight: PANE_FRAME.headerHeight, insetX: 14, topGap: 10, bottomInset: 14})
+		const label = payload?.label ?? "app/web/tmp/boundary.sqlite"
+		this.drawText(label, body.x, body.y, {
+			fontPx: 12,
+			material: payload === null ? this.materials.muted : this.materials.text,
+			maxWidthPx: Math.max(1, body.w),
+			z: Z.TEXT,
+		})
+		this.drawText(this.#statusLabel(), body.x, body.y + 22, {
+			fontPx: 11,
+			material: payload === null ? this.materials.muted : this.materials.green,
+			maxWidthPx: Math.max(1, body.w),
+			z: Z.TEXT,
+		})
+		if (payload === null) return
+		if (payload.selectedTable === null) {
+			this.drawText("No tables in database", body.x, body.y + 54, {
+				fontPx: 12,
+				material: this.materials.muted,
+				maxWidthPx: Math.max(1, body.w),
+				z: Z.TEXT,
+			})
+			return
+		}
+		this.drawText(sqliteSchemaSummary(payload.schema), body.x, body.y + 44, {
+			fontPx: 10,
+			material: this.materials.muted,
+			maxWidthPx: Math.max(1, body.w),
+			z: Z.TEXT,
+		})
+		const tableY = body.y + 68
+		const tableH = Math.max(1, body.y + body.h - tableY)
+		const columnNames = sqliteTableColumns(payload)
+		const widths = sqliteTableColumnWidths(this, payload, columnNames)
+		const selectedSummary = payload.tables.find((table) => table.name === payload.selectedTable)
+		const editableTable = selectedSummary?.type === "table"
+		const columns: Array<TableColumn<Record<string, SqliteCellValue>>> = columnNames.map((column, index) => ({
+			key: column,
+			width: widths[index] ?? 104,
+		}))
+		Table(this, body.x, tableY, Math.max(1, body.w), tableH, {
+			key: SQLITE_TABLE_SCROLL_KEY,
+			columns,
+			rows: payload.rows,
+			rowHeight: 24,
+			headerHeight: 27,
+			emptyLabel: "No rows",
+			getRowId: (row, rowIndex) => sqliteRowSelectionId(row, rowIndex),
+			selectedRowIds: this.#selectedRowIds,
+			getHeaderMaterial: ({column}) => column.key === "__rowid" ? this.materials.muted : this.materials.cyan,
+			getCellText: ({value}) => sqliteCellLabel(value as SqliteCellValue | undefined),
+			getCellMaterial: ({column, value}) => column.key === "__rowid"
+				? this.materials.muted
+				: value === null || value === undefined ? this.materials.muted : this.materials.text,
+			onRowClick: (ctx) => this.#selectRow(ctx),
+			...(editableTable ? {onRowDoubleClick: (ctx: TableRowPointerContext<Record<string, SqliteCellValue>>) => this.#editRowCell(ctx)} : {}),
+		})
+	}
+
+	#statusLabel(): string {
+		if (this.#payload === null || this.#selectedRowIds.length === 0) return this.#status
+		return `${this.#status} · ${this.#selectedRowIds.length} selected`
+	}
+
+	#selectRow(ctx: TableRowPointerContext<Record<string, SqliteCellValue>>): void {
+		const payload = this.#payload
+		if (payload === null) return
+		const rowIds = sqlitePayloadRowIds(payload)
+		const update = tableSelectionAfterClick(rowIds, this.#selectedRowIds, String(ctx.rowId), this.#selectionAnchorRowId, ctx.event)
+		this.#applySelection(update.selectedRowIds.map(String), String(update.anchorRowId))
+	}
+
+	#editRowCell(ctx: TableRowPointerContext<Record<string, SqliteCellValue>>): void {
+		if (ctx.cell === null) return
+		this.#editCell(ctx.cell)
+	}
+
+	#applySelection(selectedRowIds: readonly string[], anchorRowId: string): void {
+		const payload = this.#payload
+		const rowIds = payload === null ? [] : sqlitePayloadRowIds(payload)
+		const next = normalizeTableSelection(rowIds, selectedRowIds).map(String)
+		const nextAnchor = next.includes(anchorRowId) ? anchorRowId : next[0] ?? null
+		if (sameStringArray(next, this.#selectedRowIds) && nextAnchor === this.#selectionAnchorRowId) return
+		this.#selectedRowIds = next
+		this.#selectionAnchorRowId = nextAnchor
+		this.requestRender()
+	}
+
+	#normalizeSelectionState(): void {
+		const payload = this.#payload
+		const rowIds = payload === null ? [] : sqlitePayloadRowIds(payload)
+		const next = normalizeTableSelection(rowIds, this.#selectedRowIds).map(String)
+		const nextAnchor = this.#selectionAnchorRowId !== null && next.includes(this.#selectionAnchorRowId)
+			? this.#selectionAnchorRowId
+			: next[0] ?? null
+		this.#selectedRowIds = next
+		this.#selectionAnchorRowId = nextAnchor
+	}
+
+	#clearSelectionState(): void {
+		this.#selectedRowIds = []
+		this.#selectionAnchorRowId = null
+	}
+
+	#editCell(ctx: TableCellContext<Record<string, SqliteCellValue>>): void {
+		const rowid = sqliteRowId(ctx.row["__rowid"])
+		if (rowid === null || ctx.column.key === "__rowid") return
+		const value = ctx.row[ctx.column.key] ?? null
+		this.#openEdit({
+			rowid,
+			column: ctx.column.key,
+			previous: value,
+			onSubmit: this.options.onCellEdit,
+		})
+	}
+
+	#openEdit(session: SqliteCellEditSession): void {
+		const raw = sqliteCellPromptValue(session.previous)
+		this.#editSession = session
+		this.#editInput = {value: raw, cursor: raw.length, selectionAnchor: raw.length > 0 ? 0 : null}
+		focusTextField(this, SQLITE_CELL_EDIT_FIELD_KEY, this.#editInput)
+		this.canvas?.setFocused(this)
+		this.canvas?.inputProxy?.focus()
+		this.requestRender()
+	}
+
+	#renderEditOverlay(): void {
+		const session = this.#editSession
+		if (session === null) return
+		const rect = this.#editModalRect()
+		this.hit(0, 0, this.rectW, this.rectH, () => this.#cancel(), {
+			key: "app-web-sqlite-cell-edit-backdrop",
+			cursor: "default",
+		})
+		this.drawRoundedRect(0, 0, this.rectW, this.rectH, {
+			radius: 0,
+			fill: HUD_LOCAL_BACKDROP_BG,
+			z: Z.CONTAINER,
+		})
+		this.drawRoundedRect(rect.x + 3, rect.y + 4, rect.w, rect.h, {
+			radius: radii.pane,
+			fill: HUD_MODAL_SHADOW_BG,
+			z: Z.ELEMENT,
+		})
+		this.drawRoundedRect(rect.x, rect.y, rect.w, rect.h, {
+			radius: radii.pane,
+			fill: HUD_MODAL_BG,
+			border: palette.borderDim,
+			borderWidth: 1,
+			z: Z.ELEMENT + 0.01,
+		})
+		this.hit(rect.x, rect.y, rect.w, rect.h, () => {}, {
+			key: "app-web-sqlite-cell-edit-panel",
+			cursor: "default",
+		})
+		const pad = 18
+		const titleY = rect.y + 16
+		this.drawText("Edit SQLite cell", rect.x + pad, titleY, {
+			fontPx: 14,
+			material: this.materials.cyan,
+			maxWidthPx: Math.max(1, rect.w - pad * 2),
+			z: Z.TEXT,
+		})
+		this.drawText(`rowid ${session.rowid} · ${session.column}`, rect.x + pad, titleY + 26, {
+			fontPx: 11,
+			material: this.materials.muted,
+			maxWidthPx: Math.max(1, rect.w - pad * 2),
+			z: Z.TEXT,
+		})
+		const fieldY = rect.y + 74
+		TextField(this, rect.x + pad, fieldY, Math.max(1, rect.w - pad * 2), 34, {
+			key: SQLITE_CELL_EDIT_FIELD_KEY,
+			value: this.#editInput.value,
+			cursor: this.#editInput.cursor,
+			selectionAnchor: this.#editInput.selectionAnchor,
+			active: true,
+			submitOnEnter: true,
+			fontPx: 12,
+			sx: {borderRadius: 8},
+			onChange: (_value, state) => {
+				this.#editInput = state
+			},
+			onSubmit: () => this.#submit(),
+		})
+		this.drawText("Use NULL for SQL null. Enter applies, Esc cancels.", rect.x + pad, fieldY + 45, {
+			fontPx: 10,
+			material: this.materials.muted,
+			maxWidthPx: Math.max(1, rect.w - pad * 2),
+			z: Z.TEXT,
+		})
+		const buttonY = rect.y + rect.h - 44
+		const buttonW = 104
+		Button(this, rect.x + rect.w - pad - buttonW, buttonY, buttonW, 30, {
+			label: "Apply",
+			variant: "contained",
+			color: "success",
+			onClick: () => this.#submit(),
+		})
+		Button(this, rect.x + rect.w - pad - buttonW * 2 - 10, buttonY, buttonW, 30, {
+			label: "Cancel",
+			variant: "outlined",
+			color: "neutral",
+			onClick: () => this.#cancel(),
+		})
+	}
+
+	onActivate(): void {
+		if (this.#editSession !== null) focusTextField(this, SQLITE_CELL_EDIT_FIELD_KEY, this.#editInput)
+	}
+
+	onKey(event: KeyboardEvent): void {
+		if (this.#editSession === null || event.key !== "Escape") return
+		event.preventDefault()
+		this.#cancel()
+	}
+
+	#submit(): void {
+		const session = this.#editSession
+		if (session === null) return
+		const next = sqliteCellInputValue(this.#editInput.value, session.previous)
+		this.#closeEdit()
+		session.onSubmit(session.rowid, session.column, next)
+	}
+
+	#cancel(): void {
+		if (this.#editSession === null) return
+		this.#closeEdit()
+	}
+
+	#closeEdit(opts: {blur?: boolean} = {}): void {
+		if (this.#editSession === null) return
+		this.#editSession = null
+		this.#editInput = {value: "", cursor: 0, selectionAnchor: null}
+		if (opts.blur !== false) {
+			this.canvas?.setFocused(null)
+			this.canvas?.inputProxy?.blur()
+		}
+		this.requestRender()
+	}
+
+	#editModalRect(): UiSurfaceRect {
+		const maxW = Math.max(1, Math.min(SQLITE_CELL_EDIT_MODAL_W, this.rectW - 32))
+		const maxH = Math.max(1, Math.min(SQLITE_CELL_EDIT_MODAL_H, this.rectH - 32))
+		const modalW = clampNumber(SQLITE_CELL_EDIT_MODAL_W, Math.min(280, maxW), maxW)
+		const modalH = clampNumber(SQLITE_CELL_EDIT_MODAL_H, Math.min(164, maxH), maxH)
+		return {
+			x: clampNumber(this.rectW / 2 - modalW / 2, 16, Math.max(16, this.rectW - modalW - 16)),
+			y: clampNumber(this.rectH / 2 - modalH / 2, 16, Math.max(16, this.rectH - modalH - 16)),
+			w: modalW,
+			h: modalH,
+		}
+	}
+
+	#frameInteractionOpts(): PaneFrameInteractionOpts {
+		return {
+			showHeader: true,
+			movable: true,
+			resizable: true,
+			minW: 420,
+			minH: PANE_FRAME.headerHeight + 220,
+		}
+	}
+
+	#beginFrameInteraction(event: MouseEvent, localX: number, localY: number): boolean {
+		const opts = this.#frameInteractionOpts()
+		const kind = paneFrameHit(localX, localY, this.rectW, this.rectH, opts)
+		if (kind === null) return false
+		const frame = this.canvas?.surfaceFrame(this)
+		if (frame === undefined || frame === null) return false
+		this.#frameDrag = beginPaneFrameDrag(kind, event, frame.rect, opts)
+		event.preventDefault()
+		const cursor = paneFrameCursor(kind, true)
+		const canvasElement = this.canvas?.canvas
+		if (cursor !== null && canvasElement !== undefined) canvasElement.style.cursor = cursor
+		return true
+	}
+
+	#updateFrameInteraction(event: MouseEvent): boolean {
+		const drag = this.#frameDrag
+		const frame = this.canvas?.surfaceFrame(this)
+		if (drag === null || frame === undefined || frame === null) return false
+		const next = paneFrameDragRect(drag, event, frame.bounds)
+		this.canvas?.setSurfaceRect(this, next)
+		const cursor = paneFrameCursor(drag.kind, true)
+		const canvasElement = this.canvas?.canvas
+		if (cursor !== null && canvasElement !== undefined) canvasElement.style.cursor = cursor
+		return true
+	}
+
+	#endFrameInteraction(event: MouseEvent, localX: number, localY: number): boolean {
+		if (this.#frameDrag === null) return false
+		this.#updateFrameInteraction(event)
+		const frame = this.canvas?.surfaceFrame(this)
+		this.#frameDrag = null
+		this.#syncFrameCursor(localX, localY)
+		if (frame !== undefined && frame !== null) this.options.onFrameRectChange?.(frame.rect as PaneRect)
+		return true
+	}
+
+	#syncFrameCursor(localX: number, localY: number): void {
+		if (this.canvas === null || this.pressedHit !== null || this.hoveredHit !== null) return
+		const kind = paneFrameHit(localX, localY, this.rectW, this.rectH, this.#frameInteractionOpts())
+		const cursor = paneFrameCursor(kind, false)
+		const canvasElement = this.canvas.canvas
+		if (canvasElement !== undefined) canvasElement.style.cursor = cursor ?? "default"
+	}
+
+	override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
+		super.onPointerDown(event, localX, localY)
+		if (this.pressedHit !== null) return
+		this.#beginFrameInteraction(event, localX, localY)
+	}
+
+	override onPointerMove(event: MouseEvent, localX: number, localY: number): void {
+		if (this.#updateFrameInteraction(event)) return
+		super.onPointerMove(event, localX, localY)
+		this.#syncFrameCursor(localX, localY)
+	}
+
+	override onPointerUp(event: MouseEvent, localX: number, localY: number): void {
+		if (this.#endFrameInteraction(event, localX, localY)) return
+		super.onPointerUp(event, localX, localY)
+		this.#syncFrameCursor(localX, localY)
+	}
+
+	override onPointerLeave(): void {
+		if (this.#frameDrag !== null) return
+		super.onPointerLeave()
+	}
+
+	override onDeactivate(): void {
+		this.#frameDrag = null
+		super.onDeactivate()
+	}
 }
 
 class AppWebCodexComposerPane extends UiSurface {
@@ -4944,6 +5578,7 @@ function defaultDockPlacementRaw(kind: DockKind, bounds: {w: number; h: number})
 	if (kind === "fullscreen") return {edge: "top", offset: Math.max(0, bounds.w / 2 + 108)}
 	if (kind === "android") return {edge: "right", offset: Math.max(0, bounds.h / 2)}
 	if (kind === "workspace") return {edge: "left", offset: Math.max(0, bounds.h / 2)}
+	if (kind === "sqlite") return {edge: "left", offset: Math.max(0, bounds.h / 2 + 160)}
 	if (kind === "network") return {edge: "bottom", offset: Math.max(0, bounds.w / 2 + 160)}
 	return {edge: "left", offset: Math.max(0, bounds.h - 70)}
 }
@@ -4974,6 +5609,7 @@ function dockLong(kind: DockKind): number {
 	if (kind === "settings") return 142
 	if (kind === "android") return 132
 	if (kind === "workspace") return 150
+	if (kind === "sqlite") return 126
 	if (kind === "network") return 144
 	if (kind === "todo") return 126
 	return 48
@@ -5021,6 +5657,194 @@ async function fetchJson(url: string, init?: RequestInit): Promise<unknown> {
 		throw new Error(message)
 	}
 	return payload
+}
+
+function sqliteDatabasePayloadFromUnknown(payload: unknown): SqliteDatabasePayload {
+	const record = asRecord(payload)
+	if (record === null || record.ok !== true) throw new Error("sqlite payload is invalid")
+	const tables = Array.isArray(record.tables)
+		? record.tables.map(sqliteTableSummaryFromUnknown).filter((item): item is SqliteTableSummary => item !== null)
+		: []
+	const schema = Array.isArray(record.schema)
+		? record.schema.map(sqliteColumnInfoFromUnknown).filter((item): item is SqliteColumnInfo => item !== null)
+		: []
+	const rows = Array.isArray(record.rows)
+		? record.rows.map(sqliteRowFromUnknown).filter((item): item is Record<string, SqliteCellValue> => item !== null)
+		: []
+	return {
+		ok: true,
+		path: stringValue(record.path) ?? APP_WEB_SQLITE_PATH,
+		label: stringValue(record.label) ?? stringValue(record.path) ?? APP_WEB_SQLITE_PATH,
+		version: stringValue(record.version) ?? "",
+		selectedTable: stringValue(record.selectedTable),
+		limit: finiteNumberValue(record.limit) ?? rows.length,
+		offset: finiteNumberValue(record.offset) ?? 0,
+		tables,
+		schema,
+		rows,
+	}
+}
+
+function sqliteTableSummaryFromUnknown(value: unknown): SqliteTableSummary | null {
+	const record = asRecord(value)
+	if (record === null) return null
+	const name = stringValue(record.name)
+	if (name === null) return null
+	const type = stringValue(record.type)
+	return {
+		name,
+		type: type === "view" ? "view" : "table",
+		rowCount: finiteNumberValue(record.rowCount),
+	}
+}
+
+function sqliteColumnInfoFromUnknown(value: unknown): SqliteColumnInfo | null {
+	const record = asRecord(value)
+	if (record === null) return null
+	const name = stringValue(record.name)
+	if (name === null) return null
+	return {
+		name,
+		type: stringValue(record.type) ?? "",
+		notNull: record.notNull === true,
+		defaultValue: typeof record.defaultValue === "string" ? record.defaultValue : null,
+		primaryKey: record.primaryKey === true,
+	}
+}
+
+function sqliteRowFromUnknown(value: unknown): Record<string, SqliteCellValue> | null {
+	const record = asRecord(value)
+	if (record === null) return null
+	const row: Record<string, SqliteCellValue> = {}
+	for (const [key, cell] of Object.entries(record)) row[key] = sqliteCellValueFromUnknown(cell)
+	return row
+}
+
+function sqliteCellValueFromUnknown(value: unknown): SqliteCellValue {
+	if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value
+	const record = asRecord(value)
+	if (record === null) return String(value)
+	return {
+		type: stringValue(record.type) ?? undefined,
+		size: finiteNumberValue(record.size) ?? undefined,
+		hex: stringValue(record.hex) ?? undefined,
+	}
+}
+
+function sqliteTableItems(tables: readonly SqliteTableSummary[]): FileListItem[] {
+	return tables.map((table) => ({
+		id: sqliteTableItemId(table.name),
+		name: table.name,
+		kind: "file",
+		path: table.name,
+		sizeLabel: table.rowCount === null ? table.type : `${table.rowCount}`,
+		statusLabel: table.type,
+	}))
+}
+
+function sqliteTableItemId(table: string): string {
+	return `sqlite:table:${encodeURIComponent(table)}`
+}
+
+function sqliteTableNameFromItemId(id: string): string | null {
+	const prefix = "sqlite:table:"
+	if (!id.startsWith(prefix)) return null
+	try {
+		return decodeURIComponent(id.slice(prefix.length))
+	} catch {
+		return null
+	}
+}
+
+function finiteNumberValue(value: unknown): number | null {
+	return typeof value === "number" && Number.isFinite(value) ? value : null
+}
+
+function sameStringArray(a: readonly string[], b: readonly string[]): boolean {
+	if (a.length !== b.length) return false
+	for (let index = 0; index < a.length; index += 1) if (a[index] !== b[index]) return false
+	return true
+}
+
+function sqliteSchemaSummary(schema: readonly SqliteColumnInfo[]): string {
+	if (schema.length === 0) return "No schema"
+	return schema.map((column) => {
+		const flags = [
+			column.type || "value",
+			column.primaryKey ? "pk" : "",
+			column.notNull ? "not null" : "",
+		].filter(Boolean).join(" ")
+		return `${column.name}: ${flags}`
+	}).join(" · ")
+}
+
+function sqliteTableColumns(payload: SqliteDatabasePayload): string[] {
+	const out: string[] = []
+	if (payload.rows.some((row) => Object.prototype.hasOwnProperty.call(row, "__rowid"))) out.push("__rowid")
+	for (const column of payload.schema) if (!out.includes(column.name)) out.push(column.name)
+	for (const row of payload.rows) {
+		for (const key of Object.keys(row)) if (!out.includes(key)) out.push(key)
+	}
+	return out
+}
+
+function sqliteTableColumnWidths(surface: UiSurface, payload: SqliteDatabasePayload, columns: readonly string[]): number[] {
+	const sampleRows = payload.rows.slice(0, 40)
+	return columns.map((column) => {
+		let width = surface.measureText(column, 10) + 28
+		const schema = payload.schema.find((item) => item.name === column)
+		if (schema !== undefined) width = Math.max(width, surface.measureText(schema.type || "value", 9) + 28)
+		for (const row of sampleRows) width = Math.max(width, surface.measureText(sqliteCellLabel(row[column] ?? null), 10) + 28)
+		const min = column === "__rowid" ? 76 : 104
+		return Math.min(260, Math.max(min, Math.ceil(width)))
+	})
+}
+
+function sqlitePayloadRowIds(payload: SqliteDatabasePayload): TableRowId[] {
+	return payload.rows.map((row, rowIndex) => sqliteRowSelectionId(row, rowIndex))
+}
+
+function sqliteRowSelectionId(row: Record<string, SqliteCellValue>, rowIndex: number): string {
+	const rowid = sqliteRowId(row["__rowid"])
+	return rowid === null ? `index:${rowIndex}` : `rowid:${rowid}`
+}
+
+function sqliteRowId(value: SqliteCellValue | undefined): number | null {
+	if (typeof value === "number" && Number.isInteger(value)) return value
+	if (typeof value === "string" && /^\d+$/.test(value)) return Number(value)
+	return null
+}
+
+function sqliteCellLabel(value: SqliteCellValue | undefined): string {
+	if (value === undefined || value === null) return "NULL"
+	if (typeof value === "string") return value
+	if (typeof value === "number" || typeof value === "boolean") return String(value)
+	if (typeof value === "object") {
+		const size = typeof value.size === "number" ? `${value.size}b` : "blob"
+		const hex = typeof value.hex === "string" && value.hex.length > 0 ? ` ${value.hex}` : ""
+		return `<${size}${hex}>`
+	}
+	return String(value)
+}
+
+function sqliteCellPromptValue(value: SqliteCellValue): string {
+	if (value === null) return "NULL"
+	if (typeof value === "object") return sqliteCellLabel(value)
+	return String(value)
+}
+
+function sqliteCellInputValue(raw: string, previous: SqliteCellValue): SqliteCellValue {
+	const clean = raw.trim()
+	if (/^null$/i.test(clean)) return null
+	if (typeof previous === "number") {
+		const number = Number(clean)
+		return Number.isFinite(number) ? number : raw
+	}
+	if (typeof previous === "boolean") {
+		if (/^true$/i.test(clean)) return true
+		if (/^false$/i.test(clean)) return false
+	}
+	return raw
 }
 
 function workspaceProcessesFromPayload(payload: unknown): WorkspaceProcess[] {

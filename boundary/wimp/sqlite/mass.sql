@@ -1,8 +1,8 @@
 CREATE TABLE IF NOT EXISTS wimp_mass_value
 (
-    uuid          TEXT PRIMARY KEY CHECK (length(trim(uuid)) > 0),
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
     wimp          TEXT NOT NULL,
-    parent_value  TEXT,
+    parent_value  INTEGER,
     value_kind    TEXT NOT NULL CHECK (value_kind IN ('object', 'array', 'string', 'number', 'boolean', 'null')),
     entry_key     TEXT,
     entry_order   INTEGER CHECK (entry_order IS NULL OR entry_order >= 0),
@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS wimp_mass_value
     number_value  REAL,
     boolean_value INTEGER CHECK (boolean_value IS NULL OR boolean_value IN (0, 1)),
     FOREIGN KEY (wimp) REFERENCES wimp (src) ON DELETE CASCADE,
-    FOREIGN KEY (parent_value) REFERENCES wimp_mass_value (uuid) ON DELETE CASCADE,
+    FOREIGN KEY (parent_value) REFERENCES wimp_mass_value (id) ON DELETE CASCADE,
     CHECK (
         (parent_value IS NULL AND entry_key IS NULL AND entry_order IS NULL AND value_kind = 'object') OR
         (parent_value IS NOT NULL AND (

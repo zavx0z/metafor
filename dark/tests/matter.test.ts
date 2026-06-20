@@ -69,21 +69,21 @@ describe("matter() — runtime tree через boundary", () => {
 
   describe("родители", () => {
     test("корневой actor не имеет parent (parent_actor IS NULL AND parent_topology IS NULL)", async () => {
-      const rows = await sql<Array<{uuid: string; wimp: string}>>`
-        SELECT uuid, wimp FROM actor WHERE parent_actor IS NULL AND parent_topology IS NULL
+      const rows = await sql<Array<{id: string; wimp: string}>>`
+        SELECT id, wimp FROM actor WHERE parent_actor IS NULL AND parent_topology IS NULL
       `
       expect(rows.length).toBe(1)
       expect(rows[0]!.wimp).toBe("zavx0z/git")
-      expect(rows[0]!.uuid).toBe(root.uuid)
+      expect(rows[0]!.id).toBe(root.id)
     })
 
     test("каждый non-root actor ссылается либо на actor либо на topology в качестве parent", async () => {
-      const rows = await sql<Array<{uuid: string; parent_actor: string | null; parent_topology: string | null}>>`
-        SELECT uuid, parent_actor, parent_topology FROM actor WHERE NOT (parent_actor IS NULL AND parent_topology IS NULL)
+      const rows = await sql<Array<{id: string; parent_actor: string | null; parent_topology: string | null}>>`
+        SELECT id, parent_actor, parent_topology FROM actor WHERE NOT (parent_actor IS NULL AND parent_topology IS NULL)
       `
       for (const row of rows) {
         const oneSet = (row.parent_actor !== null) !== (row.parent_topology !== null)
-        expect(oneSet, `actor ${row.uuid} должен иметь ровно один из parent_actor/parent_topology`).toBe(true)
+        expect(oneSet, `actor ${row.id} должен иметь ровно один из parent_actor/parent_topology`).toBe(true)
       }
     })
   })

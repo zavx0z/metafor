@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS state
 (
-    uuid     TEXT PRIMARY KEY CHECK (length(trim(uuid)) > 0),
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
     wimp     TEXT    NOT NULL,
     name     TEXT    NOT NULL CHECK (length(trim(name)) > 0),
     position INTEGER NOT NULL CHECK (position >= 0),
