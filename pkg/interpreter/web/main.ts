@@ -6630,6 +6630,8 @@ function createHostCodexEditor(controller: HostTerminalController): EditorPane {
     introAnimation: false,
     showHeader: false,
     indentGuides: false,
+    showLineNumbers: false,
+    wrapLines: true,
     draggable: false,
     resizable: false,
     onChange: (text) => setHostCodexDraftFromEditor(controller, text),
