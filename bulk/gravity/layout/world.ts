@@ -2,7 +2,7 @@
 
 export type DbParticleKind = "wimp" | "fuzzy" | "axion" | "macho"
 
-export type DbFieldValueKind = "text" | "number" | "bool" | "other"
+export type DbFieldValueKind = "string" | "number" | "boolean" | "array" | "enum" | "other"
 
 export type DbParticleActivity = "neutral" | "active" | "inactive"
 

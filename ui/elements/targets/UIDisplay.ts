@@ -17,6 +17,7 @@ export interface UIDisplayParameters {
   pixelHeight: number // Высота логической пиксельной сетки виртуального UI
   background?: Color | number // Цвет фона виртуального дисплея
   border?: Color | number | null // Опциональная физическая рамка дисплея
+  billboard?: boolean // Разворачивать display к камере там, где runtime поддерживает world-space billboard
 }
 
 export type UIDisplayResizeOptions = {
@@ -46,6 +47,7 @@ export class UIDisplay extends Object3D {
   public heightMm: number
   public pixelWidth: number
   public pixelHeight: number
+  public billboard: boolean
   public contentContainer: Object3D
   readonly #backgroundMesh: Mesh
   readonly #border: LineSegments | null
@@ -56,6 +58,7 @@ export class UIDisplay extends Object3D {
     this.heightMm = params.heightMm
     this.pixelWidth = params.pixelWidth
     this.pixelHeight = params.pixelHeight
+    this.billboard = params.billboard ?? false
     this.renderLayer = "ui"
 
     // 1. Создаем подложку виртуального дисплея

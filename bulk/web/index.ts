@@ -165,6 +165,13 @@ const sphereWireframeCache = new Map<string, BufferGeometry>()
 const LABEL_TEXT_COLOR = new Color(1, 1, 1)
 const COSMOS_ORBIT_RAD_PER_MS = (Math.PI * 2) / 180_000
 const COSMOS_AXIS_RAD_PER_MS = (Math.PI * 2) / 90_000
+const BULK_SCENE_DEVICES_ENABLED = false
+const FIELD_GLOW_ALPHA = 0.22
+const FIELD_GLOW_INTENSITY = 1.65
+const FIELD_OPACITY_MULTIPLIER = 1.22
+const FIELD_BILLBOARD_PIXEL_WIDTH = 240
+const FIELD_BILLBOARD_PIXEL_HEIGHT = FIELD_BILLBOARD_PIXEL_WIDTH
+const FIELD_BILLBOARD_BORDER_RADIUS_PX = 6
 const ANTHROPOMORPH_BOT_MODEL_URL = "/models/bots.glb"
 const ANTHROPOMORPH_BOT_SCALE_MM = 1000
 const ANTHROPOMORPH_BOT_STAGE_X_MM = 0
@@ -412,6 +419,17 @@ type FieldRenderRecord = {
 	targetLocalPosition: Vector3
 }
 
+type FieldBillboardRecord = {
+	anchorObject: Object3D
+	container: Object3D
+	fieldId: number
+	heightMm: number
+	pixelScale: number
+	signature: string
+	surface: FieldBillboardSurface
+	widthMm: number
+}
+
 type FadingRemovalRecord = {
 	baseOpacity: number
 	durationMs: number
@@ -560,6 +578,88 @@ const detachObject = (object: Object3D): void => {
 	if (!object.parent) return
 	object.parent.children = object.parent.children.filter((child) => child !== object)
 	object.parent = null
+}
+
+const compactFieldBillboardText = (value: string | null | undefined): string => {
+	if (value === null || value === undefined) return "null"
+	const text = value.replace(/\s+/g, " ").trim()
+	if (text.length === 0) return "\"\""
+	return text.length <= 96 ? text : `${text.slice(0, 93)}...`
+}
+
+class FieldBillboardSurface extends UiSurface {
+	#field: DbFieldOrbitRow
+	readonly #titleMaterial = new TextMaterial({color: new Color(0.96, 0.98, 1)})
+	readonly #metaMaterial = new TextMaterial({color: new Color(0.58, 0.66, 0.78)})
+	readonly #keyMaterial = new TextMaterial({color: new Color(0.74, 0.84, 0.94)})
+	readonly #valueMaterial = new TextMaterial({color: new Color(1, 0.92, 0.74)})
+
+	constructor(field: DbFieldOrbitRow) {
+		super({
+			bgColor: new Color(0.012, 0.016, 0.024, 0.82),
+			borderColor: new Color(0.34, 0.42, 0.54, 0.72),
+			borderRadiusPx: FIELD_BILLBOARD_BORDER_RADIUS_PX,
+			borderWidthPx: 1,
+		})
+		this.#field = {...field}
+		this.referenceHeight = FIELD_BILLBOARD_PIXEL_HEIGHT
+	}
+
+	setField(field: DbFieldOrbitRow): void {
+		this.#field = {...field}
+		this.requestRender()
+	}
+
+	protected render(): void {
+		const field = this.#field
+		const padX = 10
+		const valueX = padX + 36
+		const contentW = Math.max(1, this.rectW - padX - 8)
+		const label = normalizeLabelText(field.fieldLabel) ?? field.fieldKey
+
+		this.drawText(label, padX, 8, {
+			clip: false,
+			fontPx: 12,
+			material: this.#titleMaterial,
+			maxWidthPx: contentW,
+			z: Z.TEXT,
+		})
+		this.drawText(`id:${field.id} particle:${field.particleId} order:${field.fieldOrder}`, padX, 28, {
+			clip: false,
+			fontPx: 8,
+			material: this.#metaMaterial,
+			maxWidthPx: contentW,
+			z: Z.TEXT,
+		})
+		this.#drawPair("key", field.fieldKey, padX, valueX, 48, contentW - 36)
+		this.#drawPair("type", field.fieldValueKind, padX, valueX, 68, contentW - 36)
+		this.#drawPair("value", compactFieldBillboardText(field.valueText), padX, valueX, 88, contentW - 36, this.#valueMaterial)
+	}
+
+	#drawPair(
+		label: string,
+		value: string,
+		labelX: number,
+		valueX: number,
+		y: number,
+		valueW: number,
+		valueMaterial = this.#keyMaterial,
+	): void {
+		this.drawText(label, labelX, y, {
+			clip: false,
+			fontPx: 8,
+			material: this.#metaMaterial,
+			maxWidthPx: 30,
+			z: Z.TEXT,
+		})
+		this.drawText(value, valueX, y, {
+			clip: false,
+			fontPx: 9,
+			material: valueMaterial,
+			maxWidthPx: Math.max(1, valueW),
+			z: Z.TEXT,
+		})
+	}
 }
 
 const createChamferedRectPrismGeometry = (width: number, height: number, depth: number, chamfer: number): BufferGeometry => {
@@ -1194,9 +1294,9 @@ const createFieldMaterial = (orbit: DbFieldOrbitRow): LineGlowMaterial => {
 	const color = particleColor(orbit)
 	return new LineGlowMaterial({
 		color,
-		glowIntensity: 1,
-		glowColor: glowColor(color, 0.12),
-		opacity: activeRenderSettings.wireframeOpacity * 0.95,
+		glowIntensity: FIELD_GLOW_INTENSITY,
+		glowColor: glowColor(color, FIELD_GLOW_ALPHA),
+		opacity: Math.min(1, activeRenderSettings.wireframeOpacity * FIELD_OPACITY_MULTIPLIER),
 	})
 }
 
@@ -1799,6 +1899,11 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	labelsLayer.updateMatrix()
 	space.add(labelsLayer)
 
+	const fieldBillboardsLayer = new Object3D()
+	fieldBillboardsLayer.frustumCulled = false
+	fieldBillboardsLayer.updateMatrix()
+	space.add(fieldBillboardsLayer)
+
 	let pickTargets: HoverablePickTarget[] = []
 	let hoveredPickTarget: HoverablePickTarget | null = null
 	let world: DbWorldRows | null = null
@@ -1829,6 +1934,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const shellRecords = new Map<number, ShellRenderRecord>()
 	const fieldRecords = new Map<number, FieldRenderRecord>()
+	const fieldBillboardRecords = new Map<number, FieldBillboardRecord>()
 	const fadingRemovalRecords: FadingRemovalRecord[] = []
 	const labelRecords = new Map<string, LabelRenderRecord>()
 	const fadingLabelRemovalRecords: FadingLabelRemovalRecord[] = []
@@ -1839,6 +1945,10 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const reusableLabelRight = new Vector3()
 	const reusableLabelPos = new Vector3()
 	const reusableLabelUp = new Vector3()
+	const reusableBillboardNormal = new Vector3()
+	const reusableBillboardRight = new Vector3()
+	const reusableBillboardUp = new Vector3()
+	const reusableBillboardMatrix = new Matrix4()
 	const reusableLabelToCamera = new Vector3()
 	const reusableMajorDir = new Vector3()
 	const reusableTubeCenter = new Vector3()
@@ -1863,6 +1973,25 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		if (frameHandle !== 0) return
 		frameHandle = requestAnimationFrame(animate)
 	}
+	const worldUiCanvas = {
+		canvas: options.canvas,
+		renderer,
+		requestRender: () => requestRenderLoop(INPUT_RENDER_WAKE_MS),
+		uiRectToFramebufferClipBounds: (
+			xMin: number,
+			yMin: number,
+			xMax: number,
+			yMax: number,
+		): [number, number, number, number] => {
+			const dpr = window.devicePixelRatio || 1
+			return [
+				Math.min(xMin, xMax) * dpr,
+				Math.min(yMin, yMax) * dpr,
+				Math.max(xMin, xMax) * dpr,
+				Math.max(yMin, yMax) * dpr,
+			]
+		},
+	} as unknown as UiRuntime
 	let hudRuntime: BulkViewportHudRuntime
 
 	const installBotFloorPhones = (): void => {
@@ -2040,9 +2169,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		record.node.geometry = getSphereWireframeGeometry(record.snapshot.sphereRadius, record.depth)
 		const color = particleColor(record.snapshot)
 		record.pickTarget.baseColor.copy(color)
-		record.pickTarget.baseGlowColor = glowColor(color, 0.12)
-		record.pickTarget.baseGlowIntensity = 1
-		record.pickTarget.baseOpacity = activeRenderSettings.wireframeOpacity * 0.95
+		record.pickTarget.baseGlowColor = glowColor(color, FIELD_GLOW_ALPHA)
+		record.pickTarget.baseGlowIntensity = FIELD_GLOW_INTENSITY
+		record.pickTarget.baseOpacity = Math.min(1, activeRenderSettings.wireframeOpacity * FIELD_OPACITY_MULTIPLIER)
 		syncPickTargetMaterialState(record.pickTarget)
 	}
 
@@ -2242,6 +2371,141 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	})
 		shellRecords.delete(particleId)
 		requestRenderLoop(REMOVAL_FADE_MS + 32)
+	}
+
+	const resolveFieldBillboardSize = (
+		field: DbFieldOrbitRow,
+		worldScale = 1,
+		cameraDistanceMm = Number.POSITIVE_INFINITY,
+	): {widthMm: number; heightMm: number; pixelScale: number} => {
+		const sphereRadiusMm = Math.max(0.5, field.sphereRadius * Math.max(Math.abs(worldScale), 1e-6))
+		const visibleRadiusMm =
+			Number.isFinite(cameraDistanceMm) && cameraDistanceMm > sphereRadiusMm
+				? sphereRadiusMm * cameraDistanceMm / Math.sqrt(cameraDistanceMm * cameraDistanceMm - sphereRadiusMm * sphereRadiusMm)
+				: sphereRadiusMm
+		const radiusRatio = FIELD_BILLBOARD_BORDER_RADIUS_PX / FIELD_BILLBOARD_PIXEL_WIDTH
+		const cornerDenominator = 1 / Math.SQRT2 - radiusRatio * (Math.SQRT2 - 1)
+		const sideMm = visibleRadiusMm / Math.max(cornerDenominator, 1e-6)
+		return {
+			widthMm: sideMm,
+			heightMm: sideMm,
+			pixelScale: sideMm / FIELD_BILLBOARD_PIXEL_WIDTH,
+		}
+	}
+
+	const buildFieldBillboardSignature = (
+		field: DbFieldOrbitRow,
+		size: {widthMm: number; heightMm: number; pixelScale: number},
+	): string => [
+		field.id,
+		field.particleId,
+		field.fieldKey,
+		field.fieldLabel,
+		field.fieldOrder,
+		field.fieldValueKind,
+		field.valueText ?? "<null>",
+		field.colorR.toFixed(4),
+		field.colorG.toFixed(4),
+		field.colorB.toFixed(4),
+		size.widthMm.toFixed(4),
+		size.heightMm.toFixed(4),
+		size.pixelScale.toFixed(6),
+	].join(":")
+
+	const applyFieldBillboardSurfaceRect = (record: FieldBillboardRecord): void => {
+		record.surface.setRect(
+			{x: 0, y: 0, w: FIELD_BILLBOARD_PIXEL_WIDTH, h: FIELD_BILLBOARD_PIXEL_HEIGHT},
+			record.pixelScale,
+			uiFont,
+		)
+		record.surface.node.position.set(-record.widthMm / 2, record.heightMm / 2, 0)
+		record.surface.node.updateMatrix()
+	}
+
+	const removeFieldBillboardRecord = (fieldId: number): void => {
+		const record = fieldBillboardRecords.get(fieldId)
+		if (!record) return
+		record.surface.dispose()
+		detachObject(record.container)
+		fieldBillboardRecords.delete(fieldId)
+	}
+
+	const upsertFieldBillboardRecord = (fieldRecord: FieldRenderRecord): void => {
+		const field = fieldRecord.snapshot
+		const size = resolveFieldBillboardSize(field)
+		const signature = buildFieldBillboardSignature(field, size)
+		const existing = fieldBillboardRecords.get(field.id)
+
+		if (!existing) {
+			const surface = new FieldBillboardSurface(field)
+			surface.attachCanvas(worldUiCanvas)
+			surface.setFramebufferClipSpace("screen")
+			const container = new Object3D()
+			container.name = `FieldBillboard:${field.id}`
+			container.frustumCulled = false
+			container.add(surface.node)
+			fieldBillboardsLayer.add(container)
+			const record: FieldBillboardRecord = {
+				anchorObject: fieldRecord.node,
+				container,
+				fieldId: field.id,
+				heightMm: size.heightMm,
+				pixelScale: size.pixelScale,
+				signature,
+				surface,
+				widthMm: size.widthMm,
+			}
+			fieldBillboardRecords.set(field.id, record)
+			applyFieldBillboardSurfaceRect(record)
+			return
+		}
+
+		existing.anchorObject = fieldRecord.node
+		existing.heightMm = size.heightMm
+		existing.pixelScale = size.pixelScale
+		existing.widthMm = size.widthMm
+		applyFieldBillboardSurfaceRect(existing)
+
+		if (existing.signature === signature) return
+		existing.signature = signature
+		existing.surface.setField(field)
+		existing.surface.flushPendingRender()
+	}
+
+	const resizeFieldBillboardToWorldSphere = (
+		tracker: FieldBillboardRecord,
+		field: DbFieldOrbitRow,
+		worldScale: number,
+		cameraDistanceMm: number,
+	): void => {
+		const size = resolveFieldBillboardSize(field, worldScale, cameraDistanceMm)
+		if (
+			Math.abs(tracker.widthMm - size.widthMm) <= 1e-4 &&
+			Math.abs(tracker.heightMm - size.heightMm) <= 1e-4 &&
+			Math.abs(tracker.pixelScale - size.pixelScale) <= 1e-6
+		) {
+			return
+		}
+		tracker.widthMm = size.widthMm
+		tracker.heightMm = size.heightMm
+		tracker.pixelScale = size.pixelScale
+		applyFieldBillboardSurfaceRect(tracker)
+	}
+
+	const syncFieldBillboardRecords = (): void => {
+		const nextFieldIds = new Set<number>()
+		for (const record of [...fieldRecords.values()].sort(
+			(left, right) =>
+				left.depth - right.depth ||
+				left.snapshot.fieldOrder - right.snapshot.fieldOrder ||
+				left.snapshot.id - right.snapshot.id,
+		)) {
+			nextFieldIds.add(record.snapshot.id)
+			upsertFieldBillboardRecord(record)
+		}
+		for (const fieldId of [...fieldBillboardRecords.keys()]) {
+			if (!nextFieldIds.has(fieldId)) removeFieldBillboardRecord(fieldId)
+		}
 	}
 
 	const buildLabelSignature = (spec: LabelSpec): string => {
@@ -2446,6 +2710,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 		syncLabelRecords()
+		syncFieldBillboardRecords()
 		requestRenderLoop(INPUT_RENDER_WAKE_MS)
 	}
 
@@ -2490,6 +2755,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		refreshParentByParticleId()
 		refreshPickTargets()
 		syncLabelRecords()
+		syncFieldBillboardRecords()
 		requestRenderLoop(SCENE_TRANSITION_WAKE_MS)
 
 		options.onStats?.({
@@ -3549,6 +3815,51 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		}
 	}
 
+	const updateFieldBillboardTrackers = (): void => {
+		const cameraPos = viewPoint.position
+
+		for (const tracker of fieldBillboardRecords.values()) {
+			tracker.anchorObject.matrixWorld.decompose(
+				reusableWorldPosition,
+				reusableWorldQuaternion,
+				reusableWorldScale,
+			)
+			const fieldRecord = fieldRecords.get(tracker.fieldId)
+			const worldScale = Math.max(Math.abs(reusableWorldScale.x), 1e-6)
+			const normal = reusableBillboardNormal.copy(cameraPos).sub(reusableWorldPosition)
+			const cameraDistanceMm = normal.length()
+			if (cameraDistanceMm <= 1e-6) normal.set(0, -1, 0)
+			normal.normalize()
+			if (fieldRecord) resizeFieldBillboardToWorldSphere(tracker, fieldRecord.snapshot, worldScale, cameraDistanceMm)
+
+			let up = reusableBillboardUp.set(0, 0, 1)
+			const right = reusableBillboardRight.crossVectors(up, normal)
+			if (right.length() <= 1e-6) {
+				up = reusableBillboardUp.set(0, 1, 0)
+				right.crossVectors(up, normal)
+			}
+			right.normalize()
+			up.crossVectors(normal, right).normalize()
+
+			tracker.container.position
+				.copy(reusableWorldPosition)
+
+			const matrix = reusableBillboardMatrix
+			const e = matrix.elements
+			e[0] = right.x; e[1] = right.y; e[2] = right.z; e[3] = 0
+			e[4] = up.x; e[5] = up.y; e[6] = up.z; e[7] = 0
+			e[8] = normal.x; e[9] = normal.y; e[10] = normal.z; e[11] = 0
+			e[12] = 0; e[13] = 0; e[14] = 0; e[15] = 1
+
+			tracker.container.quaternion.setFromRotationMatrix(matrix)
+			tracker.container.updateMatrix()
+		}
+	}
+
+	const flushFieldBillboardSurfaces = (): void => {
+		for (const tracker of fieldBillboardRecords.values()) tracker.surface.flushPendingRender()
+	}
+
 	const handleCanvasMouseDown = (event: MouseEvent): void => {
 		cancelNavigation()
 		if (event.button !== 0) return
@@ -3702,6 +4013,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		}
 
 		updateLabelTrackers()
+		updateFieldBillboardTrackers()
+		flushFieldBillboardSurfaces()
 		hudRuntime.flushPendingRender()
 		space.updateWorldMatrix()
 		updateAnthropomorphBotSkinning()
@@ -3713,19 +4026,21 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	hudRuntime = new BulkViewportHudRuntime(options.canvas, renderer, viewPoint, uiFont, requestRenderLoop)
 	hudRuntime.handleSize(options.width, options.height)
-	options.canvas.addEventListener("mousedown", handleBotPhoneMouseDown, true)
-	window.addEventListener("mousemove", handleBotPhoneMouseMove, true)
-	window.addEventListener("mouseup", handleBotPhoneMouseUp, true)
-	options.canvas.addEventListener("touchstart", handleBotPhoneTouchStart, {capture: true, passive: false})
-	window.addEventListener("touchmove", handleBotPhoneTouchMove, {capture: true, passive: false})
-	window.addEventListener("touchend", handleBotPhoneTouchEnd, true)
-	window.addEventListener("touchcancel", handleBotPhoneTouchEnd, true)
-	botPhoneHoverPane = new BotPhoneHoverControlsPane(enterBotPhoneView)
-	hudRuntime.addSurface(botPhoneHoverPane, ({w, h}) => ({x: 0, y: 0, w, h}), {zIndex: BOT_PHONE_HOVER_HUD_Z})
-	botPhoneDisplayDock = new BotPhoneDisplayDockPane(exitBotPhoneView, toggleBotPhoneDisplayFullscreen)
-	hudRuntime.addSurface(botPhoneDisplayDock, ({w, h}) => ({x: 0, y: 0, w, h}), {zIndex: BOT_PHONE_DISPLAY_DOCK_HUD_Z})
-	installBotFloorPhones()
-	void loadAnthropomorphBots()
+	if (BULK_SCENE_DEVICES_ENABLED) {
+		options.canvas.addEventListener("mousedown", handleBotPhoneMouseDown, true)
+		window.addEventListener("mousemove", handleBotPhoneMouseMove, true)
+		window.addEventListener("mouseup", handleBotPhoneMouseUp, true)
+		options.canvas.addEventListener("touchstart", handleBotPhoneTouchStart, {capture: true, passive: false})
+		window.addEventListener("touchmove", handleBotPhoneTouchMove, {capture: true, passive: false})
+		window.addEventListener("touchend", handleBotPhoneTouchEnd, true)
+		window.addEventListener("touchcancel", handleBotPhoneTouchEnd, true)
+		botPhoneHoverPane = new BotPhoneHoverControlsPane(enterBotPhoneView)
+		hudRuntime.addSurface(botPhoneHoverPane, ({w, h}) => ({x: 0, y: 0, w, h}), {zIndex: BOT_PHONE_HOVER_HUD_Z})
+		botPhoneDisplayDock = new BotPhoneDisplayDockPane(exitBotPhoneView, toggleBotPhoneDisplayFullscreen)
+		hudRuntime.addSurface(botPhoneDisplayDock, ({w, h}) => ({x: 0, y: 0, w, h}), {zIndex: BOT_PHONE_DISPLAY_DOCK_HUD_Z})
+		installBotFloorPhones()
+		void loadAnthropomorphBots()
+	}
 	requestRenderLoop()
 
 	return {
@@ -3769,6 +4084,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			anthropomorphBotRoot = null
 			anthropomorphBotMixer = null
 			anthropomorphBotSkinnedMeshes = []
+			for (const fieldId of [...fieldBillboardRecords.keys()]) removeFieldBillboardRecord(fieldId)
 			hudRuntime.dispose()
 			viewPoint.dispose()
 		},

@@ -32,16 +32,20 @@ const topologyColors: Record<DbParticleKind, {colorR: number; colorG: number; co
 }
 
 const fieldColor = (kind: DbFieldValueKind): {colorR: number; colorG: number; colorB: number} => {
-  if (kind === "number") return {colorR: 0.49, colorG: 0.83, colorB: 1}
-  if (kind === "bool") return {colorR: 0.55, colorG: 0.91, colorB: 0.6}
-  if (kind === "text") return {colorR: 1, colorG: 0.61, colorB: 0.45}
-  return {colorR: 1, colorG: 0.5, colorB: 0.5}
+  if (kind === "string") return {colorR: 1, colorG: 0.08, colorB: 0.58}
+  if (kind === "number") return {colorR: 1, colorG: 0.88, colorB: 0}
+  if (kind === "boolean") return {colorR: 0, colorG: 0.9, colorB: 1}
+  if (kind === "enum") return {colorR: 0.58, colorG: 0.32, colorB: 1}
+  if (kind === "array") return {colorR: 1, colorG: 0.42, colorB: 0}
+  return {colorR: 1, colorG: 0.16, colorB: 0.16}
 }
 
 const fieldValueKind = (type: FieldRow["type"]): DbFieldValueKind => {
+  if (type === "string") return "string"
   if (type === "number") return "number"
-  if (type === "boolean") return "bool"
-  if (type === "string" || type === "array" || type === "enum") return "text"
+  if (type === "boolean") return "boolean"
+  if (type === "array") return "array"
+  if (type === "enum") return "enum"
   return "other"
 }
 

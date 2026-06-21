@@ -11,7 +11,7 @@ const createField = (id: number) => ({
   id,
   fieldKey: String(id),
   fieldLabel: String(id),
-  fieldValueKind: "text" as const,
+  fieldValueKind: "string" as const,
   valueText: String(id),
   colorR: 1,
   colorG: 1,
