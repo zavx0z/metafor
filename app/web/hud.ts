@@ -4153,6 +4153,7 @@ class AppWebSqliteTablePane extends UiSurface {
 		const columns: Array<TableColumn<Record<string, SqliteCellValue>>> = columnNames.map((column, index) => ({
 			key: column,
 			label: sqliteTableColumnLabel(column),
+			...(column === "__rowid" ? {getValue: (_row, rowIndex) => sqliteDisplayRowNumber(payload, rowIndex)} : {}),
 			width: widths[index] ?? 104,
 		}))
 		Table(this, body.x, tableY, Math.max(1, body.w), tableH, {
@@ -5793,7 +5794,11 @@ function sqliteTableColumns(payload: SqliteDatabasePayload): string[] {
 }
 
 function sqliteTableColumnLabel(column: string): string {
-	return column === "__rowid" ? "№" : column
+	return column === "__rowid" ? "#" : column
+}
+
+function sqliteDisplayRowNumber(payload: SqliteDatabasePayload, rowIndex: number): number {
+	return payload.offset + rowIndex + 1
 }
 
 function sqliteTableColumnWidths(surface: UiSurface, payload: SqliteDatabasePayload, columns: readonly string[]): number[] {
@@ -5802,7 +5807,10 @@ function sqliteTableColumnWidths(surface: UiSurface, payload: SqliteDatabasePayl
 		let width = surface.measureText(sqliteTableColumnLabel(column), 10) + 28
 		const schema = payload.schema.find((item) => item.name === column)
 		if (schema !== undefined) width = Math.max(width, surface.measureText(schema.type || "value", 9) + 28)
-		for (const row of sampleRows) width = Math.max(width, surface.measureText(sqliteCellLabel(row[column] ?? null), 10) + 28)
+		for (let rowIndex = 0; rowIndex < sampleRows.length; rowIndex += 1) {
+			const value = column === "__rowid" ? sqliteDisplayRowNumber(payload, rowIndex) : sampleRows[rowIndex]?.[column] ?? null
+			width = Math.max(width, surface.measureText(sqliteCellLabel(value), 10) + 28)
+		}
 		const min = column === "__rowid" ? 48 : 104
 		return Math.min(260, Math.max(min, Math.ceil(width)))
 	})
