@@ -18,7 +18,8 @@ import matterSchemaSql from "./matter.sql" with {type: "text"}
 import {SQL} from "bun"
 import {writeWimpCreate} from "./create.ts"
 import {Wimp} from "./wimp.ts"
-import {emitForceParts, type Particle} from "../../force.ts"
+import {emitForceParts} from "../../force.ts"
+import type {Particle} from "../../force.t.ts"
 import type {WimpCreateInput} from "./create.t.ts"
 
 export type {WimpCreateInput} from "./create.t.ts"

@@ -14,12 +14,8 @@ import {
   entropyForceMessage,
   emitForceMessage,
   observeForceMessage,
-  type ForceBinding,
-  type ForceMessageListener,
-  type ParticleOperation,
-  type Part,
-  type Particle,
 } from "./force.ts"
+import type {ForceBinding, ForceMessageListener, Particle, ParticleOperation, Part} from "./force.t.ts"
 
 export type BoundaryPart = Part
 

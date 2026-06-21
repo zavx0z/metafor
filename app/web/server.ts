@@ -24,6 +24,7 @@ import type {
 	AppLogTone,
 	AppWebSocketData,
 	AppWebTerminalSocketData,
+	BoundaryUpdateMessage,
 	ClientMaterializePayload,
 	ClientMessage,
 	ClientRelayoutPayload,
@@ -97,7 +98,7 @@ const {fetch: fetchEmbeddedInterpreterRoute} = createInterpreterHttpRoutes({
   logger: embeddedInterpreterLogger,
   eventLogPath: embeddedInterpreterConfig.eventLogPath,
   consoleLogPath: embeddedInterpreterConfig.consoleLogPath,
-  startupSqliteDatabases: [Bun.env.BOUNDARY_PATH ?? "app/web/tmp/boundary.sqlite"],
+	startupSqliteDatabases: [Bun.env.BOUNDARY_PATH ?? "app/web/tmp/boundary.sqlite"],
 })
 const voiceServer = createVoiceServer({
   sockets,
@@ -129,14 +130,22 @@ const buildSnapshot = async (
 }
 
 boundary.entropy((event) => {
-  const message = JSON.stringify({
-    type: "force",
-    parts: event.data.parts,
-  })
-  for (const socket of sockets) {
-    if (socket.readyState === WebSocket.OPEN) socket.send(message)
-  }
+  broadcastForceMessage(event.data)
 })
+
+function broadcastForceMessage(message: BoundaryUpdateMessage): number {
+  const payload = JSON.stringify({
+    type: "force",
+    parts: message.parts,
+  })
+  let clients = 0
+  for (const socket of sockets) {
+    if (socket.readyState !== WebSocket.OPEN) continue
+    socket.send(payload)
+    clients += 1
+  }
+  return clients
+}
 
 const server = serve<AppWebSocketData>({
   hostname: HOST,
@@ -168,6 +177,33 @@ const server = serve<AppWebSocketData>({
       const ok = wsServer.upgrade(req, {data: {kind: "app-web"}})
       logWsUpgrade(req, "app-web", ok)
       return ok ? undefined : new Response("WebSocket upgrade failed", {status: 426})
+    },
+    "/force": async (req: Request) => {
+      const started = Date.now()
+      if (req.method !== "POST") {
+        logHttp(req, "force", 405, started, "method not allowed")
+        return new Response("Method Not Allowed", {status: 405})
+      }
+      const parsed = await readJsonObject(req)
+      if (parsed.error !== undefined) {
+        logHttp(req, "force", 400, started, `error=${parsed.error}`)
+        return jsonResponse({ok: false, error: parsed.error}, 400)
+      }
+      const parts = parsed.body["parts"]
+      if (!Array.isArray(parts)) {
+        logHttp(req, "force", 400, started, "error=parts must be an array")
+        return jsonResponse({ok: false, error: "parts must be an array"}, 400)
+      }
+      const message: BoundaryUpdateMessage = {parts: parts as BoundaryUpdateMessage["parts"]}
+      try {
+        await boundary.absorb(message)
+        const clients = broadcastForceMessage(message)
+        logHttp(req, "force", 200, started, `parts=${message.parts.length} clients=${clients}`)
+        return jsonResponse({ok: true, parts: message.parts.length, clients})
+      } catch (error) {
+        logHttp(req, "force", 400, started, `error=${errorMessage(error)}`)
+        return jsonResponse({ok: false, error: error instanceof Error ? error.message : String(error)}, 400)
+      }
     },
     "/hud/terminal/stream": (req: Request, wsServer: Server<AppWebSocketData>) => {
       const url = new URL(req.url)

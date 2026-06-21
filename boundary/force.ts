@@ -1,44 +1,19 @@
+import type {Force, ForceBinding, ForceChannel, ForceMessage, ForceMessageListener, Particle} from "./force.t.ts"
+
+export type {
+  Force,
+  ForceBinding,
+  ForceChannel,
+  ForceMessage,
+  ForceMessageListener,
+  ForceSurface,
+  Part,
+  Particle,
+  ParticleOperation,
+  TypedBroadcastChannel,
+} from "./force.t.ts"
+
 export const FORCE = "force"
-
-export type Part = "graviton" | "photon" | "gluon" | "higgs" | "w" | "-z" | "+z"
-export type ParticleOperation = "add" | "remove" | "replace" | "move" | "copy" | "test"
-
-export type Particle = {
-  part: Part
-  op: ParticleOperation
-  path: string
-  value?: unknown
-  from?: string
-  [key: string]: unknown
-}
-
-export type ForceMessage = {
-  parts: Particle[]
-}
-
-export type ForceMessageListener = (this: BroadcastChannel, ev: MessageEvent<ForceMessage>) => unknown
-
-export interface ForceBinding {
-  close(): void
-}
-
-export interface ForceSurface {
-  observe(listener: ForceMessageListener): ForceBinding
-  entropy(listener: ForceMessageListener): ForceBinding
-  emit(message: ForceMessage): void | Promise<void>
-  absorb(message: ForceMessage): void | Promise<void>
-}
-
-export interface Force extends ForceSurface {
-  close(): void
-}
-
-export type TypedBroadcastChannel<TMessage> = Omit<BroadcastChannel, "onmessage" | "postMessage"> & {
-  onmessage: ((this: BroadcastChannel, ev: MessageEvent<TMessage>) => unknown) | null
-  postMessage(message: TMessage): void
-}
-
-export type ForceChannel = TypedBroadcastChannel<ForceMessage>
 
 let forceChannel: ForceChannel | null = null
 const forceObservers = new Set<ForceMessageListener>()

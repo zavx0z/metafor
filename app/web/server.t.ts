@@ -1,9 +1,11 @@
 import type {ServerWebSocket} from "bun"
 import type {Buffer} from "node:buffer"
 import type {BulkLayoutSettings} from "@bulk/gravity/layout"
-import type {BoundaryBulkRuntimeSnapshot} from "boundary"
+import type {BoundaryBulkRuntimeSnapshot, BoundaryUpdateMessage} from "boundary"
 import type {PtySocketData} from "@metafor/pty/server"
 import type {parseMarkdownTodo} from "@ui/panes/todo-model"
+
+export type {BoundaryUpdateMessage}
 
 export type AppLogTone = "cyan" | "gray" | "green" | "magenta" | "red" | "yellow"
 
