@@ -86,7 +86,7 @@
     },
     "create-metafor": {
       "name": "create-metafor",
-      "version": "1.0.41",
+      "version": "1.0.44",
       "bin": {
         "create-metafor": "dist/cli.js",
       },
@@ -448,6 +448,10 @@
     },
     "github/person/human-wrist-right": {
       "name": "@person/human-wrist-right",
+      "version": "0.1.0",
+    },
+    "github/zavx0z/full-screen": {
+      "name": "@zavx0z/full-screen",
       "version": "0.1.0",
     },
     "github/zavx0z/git": {
@@ -1045,6 +1049,8 @@
     "@ui/panes": ["@ui/panes@workspace:ui/panes"],
 
     "@webgpu/types": ["@webgpu/types@0.1.68", "https://registry.yarnpkg.com/@webgpu/types/-/types-0.1.68.tgz", {}, "sha512-3ab1B59Ojb6RwjOspYLsTpCzbNB3ZaamIAxBMmvnNkiDoLTZUOBXZ9p5nAYVEkQlDdf6qAZWi1pqj9+ypiqznA=="],
+
+    "@zavx0z/full-screen": ["@zavx0z/full-screen@workspace:github/zavx0z/full-screen"],
 
     "@zavx0z/git": ["@zavx0z/git@workspace:github/zavx0z/git"],
 

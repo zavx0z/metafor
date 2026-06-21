@@ -9,6 +9,7 @@ import {
 } from "./i18n.ts"
 import {
   generateMetaFile,
+  generateMetaforTypesFile,
   generatePackageJsonFile,
   generateGitignoreFile,
   generateIndexHtmlFile,
@@ -115,6 +116,9 @@ mkdirSync(`${packagePath}/src`, { recursive: true })
 const metaContent = generateMetaFile(packageName, desc!, t.errorLabel)
 writeFileSync(`${packagePath}/src/meta.ts`, metaContent)
 
+// Генерация локальных деклараций DSL-глобалов
+writeFileSync(`${packagePath}/src/metafor.d.ts`, generateMetaforTypesFile())
+
 // Генерация package.json
 const author = getGitUserName() || "unknown"
 const packageJson = generatePackageJsonFile(packageName, desc!, author)
@@ -140,6 +144,7 @@ if (isGitInstalled()) {
 
 console.log(`${t.created} ${packageName}`)
 console.log(`   📄 ${packagePath}/src/meta.ts`)
+console.log(`   📄 ${packagePath}/src/metafor.d.ts`)
 console.log(`   📄 ${packagePath}/package.json`)
 console.log(`   📄 ${packagePath}/tsconfig.json`)
 console.log(`   📄 ${packagePath}/index.html`)

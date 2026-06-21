@@ -50,7 +50,8 @@ bun create metafor auth -l en
 ```text
 my-meta/
 ├── src/
-│   └── meta.ts          # Мета
+│   ├── meta.ts          # Мета
+│   └── metafor.d.ts     # Локальные DSL-типы
 ├── package.json         # Конфигурация
 ├── tsconfig.json        # TypeScript
 ├── .gitignore           # Git ignore

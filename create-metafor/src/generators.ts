@@ -42,6 +42,13 @@ export function generateMetaFile(name: string, description: string, errorLabel: 
 }
 
 /**
+ * Сгенерировать локальные декларации DSL-глобалов
+ */
+export function generateMetaforTypesFile(): string {
+  return loadTemplate("metafor.d.ts")
+}
+
+/**
  * Сгенерировать package.json
  */
 export function generatePackageJsonFile(
@@ -54,7 +61,7 @@ export function generatePackageJsonFile(
     packageNameJson: jsString(`@zavx0z/${name}`),
     descriptionJson: jsString(description),
     authorJson: jsString(author),
-    buildScriptJson: jsString(`metafor-build src/meta.ts --out ${name}.json`),
+    buildScriptJson: jsString("bun build src/meta.ts --outdir dist --target browser --format=esm"),
   })
 }
 

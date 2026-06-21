@@ -1,6 +1,7 @@
 import { describe, test, expect } from "bun:test"
 import {
   generateMetaFile,
+  generateMetaforTypesFile,
   generatePackageJsonFile,
   generateGitignoreFile,
   generateIndexHtmlFile,
@@ -42,6 +43,16 @@ describe("generateMetaFile", () => {
   })
 })
 
+describe("generateMetaforTypesFile", () => {
+  test("должен генерировать локальные декларации MetaFor без внешних импортов", () => {
+    const result = generateMetaforTypesFile()
+
+    expect(result).toContain("var MetaFor: MetaForFn")
+    expect(result).toContain("type MetaForFieldBuilder")
+    expect(result).not.toContain("from \"../")
+  })
+})
+
 describe("generatePackageJsonFile", () => {
   test("должен генерировать package.json с правильными подстановками", () => {
     const result = generatePackageJsonFile("auth", "Авторизация", "John Doe")
@@ -55,20 +66,18 @@ describe("generatePackageJsonFile", () => {
     expect(parsed.private).toBe(true)
   })
 
-  test("должен генерировать package.json с правильными dependencies", () => {
+  test("не должен генерировать зависимость на непубликованный runtime", () => {
     const result = generatePackageJsonFile("auth", "Auth", "Test User")
     const parsed = JSON.parse(result)
-    
-    expect(parsed.dependencies).toEqual({
-      "metafor": "^0.4.0",
-    })
+
+    expect(parsed.dependencies).toBeUndefined()
   })
 
   test("должен генерировать package.json с правильным scripts", () => {
     const result = generatePackageJsonFile("auth", "Auth", "Test User")
     const parsed = JSON.parse(result)
-    
-    expect(parsed.scripts.build).toBe("metafor-build src/meta.ts --out auth.json")
+
+    expect(parsed.scripts.build).toBe("bun build src/meta.ts --outdir dist --target browser --format=esm")
   })
 
   test("должен безопасно генерировать JSON-строки", () => {
@@ -88,6 +97,7 @@ describe("generateGitignoreFile", () => {
     expect(result).toContain("dist/")
     expect(result).toContain("*.json")
     expect(result).toContain("!package.json")
+    expect(result).toContain("!tsconfig.json")
   })
 })
 
@@ -97,7 +107,8 @@ describe("generateTsconfigFile", () => {
     const parsed = JSON.parse(result)
 
     expect(parsed.compilerOptions.strict).toBe(true)
-    expect(parsed.include).toEqual(["src/**/*.ts"])
+    expect(parsed.compilerOptions.allowImportingTsExtensions).toBe(true)
+    expect(parsed.include).toBeUndefined()
   })
 })
 

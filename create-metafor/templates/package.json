@@ -8,9 +8,6 @@
   "exports": {
     ".": "./src/meta.ts"
   },
-  "dependencies": {
-    "metafor": "^0.4.0"
-  },
   "scripts": {
     "build": {{buildScriptJson}}
   }
