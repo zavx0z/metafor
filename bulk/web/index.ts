@@ -171,6 +171,7 @@ const FIELD_BILLBOARD_BORDER_RADIUS_PX = 6
 const FIELD_BILLBOARD_TITLE_PAD_X_PX = 10
 const FIELD_BILLBOARD_TITLE_Y_PX = 8
 const FIELD_BILLBOARD_TITLE_FONT_PX = 12
+const FIELD_BILLBOARD_TITLE_Z_MM = 0.7
 const FIELD_LABEL_TITLE_MORPH_START_DISTANCE_RATIO = 4
 const FIELD_LABEL_TITLE_MORPH_END_DISTANCE_RATIO = 2
 const ANTHROPOMORPH_BOT_MODEL_URL = "/models/bots.glb"
@@ -496,6 +497,8 @@ type FadingLabelRemovalRecord = {
 	startedAtMs: number
 }
 
+type FieldBillboardMode = "summary" | "surface"
+
 const getViewportConfig = () => appWebLayoutConfig.viewport
 const getShellFallback = () => getViewportConfig().shellFallbackMm
 const getWorkspaceBaseZ = (): number => getViewportConfig().levelsMm.elbow
@@ -601,15 +604,14 @@ const resolveFieldLabelTitleMorph = (cameraDistanceMm: number, sphereRadiusMm: n
 	return smoothUnit((FIELD_LABEL_TITLE_MORPH_START_DISTANCE_RATIO - ratio) / range)
 }
 
-const morphTextGeometryToBillboardTitle = ({
+const morphTextGeometryToPlane = ({
 	centerX,
 	curveRadius,
 	curveScale,
 	geometry,
 	initialPositions,
 	mix,
-	titleCenterX,
-	titleScale,
+	scale,
 }: {
 	centerX: number
 	curveRadius: number
@@ -617,8 +619,7 @@ const morphTextGeometryToBillboardTitle = ({
 	geometry: BufferGeometry
 	initialPositions: Float32Array
 	mix: number
-	titleCenterX: number
-	titleScale: number
+	scale: number
 }): void => {
 	const positions = getGeometryPositionArray(geometry)
 	if (!positions || positions.length === 0) return
@@ -633,11 +634,11 @@ const morphTextGeometryToBillboardTitle = ({
 		const curvedX = Math.sin(angle) * safeRadius
 		const curvedY = initialY * curveScale
 		const curvedZ = (Math.cos(angle) - 1) * safeRadius
-		const titleX = (initialX - titleCenterX) * titleScale
-		const titleY = initialY * titleScale
+		const flatX = (initialX - centerX) * scale
+		const flatY = initialY * scale
 
-		positions[i] = mixScalar(curvedX, titleX, t)
-		positions[i + 1] = mixScalar(curvedY, titleY, t)
+		positions[i] = mixScalar(curvedX, flatX, t)
+		positions[i + 1] = mixScalar(curvedY, flatY, t)
 		positions[i + 2] = mixScalar(curvedZ, 0, t)
 	}
 
@@ -645,19 +646,27 @@ const morphTextGeometryToBillboardTitle = ({
 	if (attribute) attribute.needsUpdate = true
 }
 
+const setQuaternionNlerp = (target: Quaternion, from: Quaternion, to: Quaternion, mix: number): void => {
+	const t = Math.min(1, Math.max(0, mix))
+	const dot = from.x * to.x + from.y * to.y + from.z * to.z + from.w * to.w
+	const toSign = dot < 0 ? -1 : 1
+	target.set(
+		mixScalar(from.x, to.x * toSign, t),
+		mixScalar(from.y, to.y * toSign, t),
+		mixScalar(from.z, to.z * toSign, t),
+		mixScalar(from.w, to.w * toSign, t),
+	).normalize()
+}
+
 class FieldBillboardSurface extends UiSurface {
 	#field: DbFieldOrbitRow
+	#mode: FieldBillboardMode = "summary"
 	readonly #metaMaterial = new TextMaterial({color: new Color(0.58, 0.66, 0.78)})
 	readonly #keyMaterial = new TextMaterial({color: new Color(0.74, 0.84, 0.94)})
 	readonly #valueMaterial = new TextMaterial({color: new Color(1, 0.92, 0.74)})
 
 	constructor(field: DbFieldOrbitRow) {
-		super({
-			bgColor: new Color(0.012, 0.016, 0.024, 0.82),
-			borderColor: new Color(0.34, 0.42, 0.54, 0.72),
-			borderRadiusPx: FIELD_BILLBOARD_BORDER_RADIUS_PX,
-			borderWidthPx: 1,
-		})
+		super({bgColor: null, borderColor: null})
 		this.#field = {...field}
 		this.referenceHeight = FIELD_BILLBOARD_PIXEL_HEIGHT
 	}
@@ -667,12 +676,36 @@ class FieldBillboardSurface extends UiSurface {
 		this.requestRender()
 	}
 
+	setMode(mode: FieldBillboardMode): void {
+		if (this.#mode === mode) return
+		this.#mode = mode
+		this.requestRender()
+	}
+
 	protected render(): void {
 		const field = this.#field
+		if (this.#mode === "summary") {
+			this.drawTextCentered(compactFieldBillboardText(field.valueText), this.rectW / 2, this.rectH / 2, {
+				clip: false,
+				fontPx: 18,
+				material: this.#valueMaterial,
+				maxWidthPx: Math.max(1, this.rectW - 20),
+				z: Z.TEXT,
+			})
+			return
+		}
+
 		const padX = 10
 		const valueX = padX + 36
 		const contentW = Math.max(1, this.rectW - padX - 8)
 
+		this.drawRoundedRect(0, 0, this.rectW, this.rectH, {
+			radius: FIELD_BILLBOARD_BORDER_RADIUS_PX,
+			fill: new Color(0.012, 0.016, 0.024, 0.82),
+			border: new Color(0.34, 0.42, 0.54, 0.72),
+			borderWidth: 1,
+			z: Z.CONTAINER,
+		})
 		this.drawText(`id:${field.id} particle:${field.particleId} order:${field.fieldOrder}`, padX, 28, {
 			clip: false,
 			fontPx: 8,
@@ -1998,16 +2031,21 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const reusableBillboardRight = new Vector3()
 	const reusableBillboardUp = new Vector3()
 	const reusableBillboardMatrix = new Matrix4()
-	const reusableBillboardTitlePosition = new Vector3()
-	const reusableBillboardTitleLocal = new Vector3()
-	const reusableBillboardTitleQuaternion = new Quaternion()
-	const reusableBillboardTitleScale = new Vector3()
 	const reusableLabelToCamera = new Vector3()
 	const reusableMajorDir = new Vector3()
 	const reusableTubeCenter = new Vector3()
 	const reusableScaledOffset = new Vector3()
 	const reusableLabelMatrix = new Matrix4()
 	const reusableLabelCurveQuaternion = new Quaternion()
+	const reusableLabelCurveWorldMatrix = new Matrix4()
+	const reusableLabelCurveWorldScale = new Vector3()
+	const reusableLabelCurveLocalMatrix = new Matrix4()
+	const reusableLabelCurveLocalPosition = new Vector3()
+	const reusableLabelCurveLocalQuaternion = new Quaternion()
+	const reusableLabelCurveLocalScale = new Vector3()
+	const reusableLabelTitleLocalPosition = new Vector3()
+	const reusableLabelTitleQuaternion = new Quaternion()
+	const reusableBillboardInverseMatrix = new Matrix4()
 	const reusableCosmosAxis = new Vector3(0, 0, 1)
 	const reusableCosmosSpin = new Quaternion()
 
@@ -3767,12 +3805,13 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			// Горизонтальное направление от центра объекта к XY-проекции камеры.
 			// Метка следует за камерой по экватору (вращается азимутально), но не поднимается
 			// по меридиану — вертикальная позиция камеры игнорируется.
-				const toCameraXy = reusableLabelToCamera
-					.copy(cameraPos)
-					.sub(reusableWorldPosition)
-				const cameraDistanceMm = toCameraXy.length()
-				const majorDir = reusableMajorDir.set(toCameraXy.x, toCameraXy.y, 0).normalize()
+			const toCameraXy = reusableLabelToCamera
+				.copy(cameraPos)
+				.sub(reusableWorldPosition)
+			const cameraDistanceMm = toCameraXy.length()
+			const majorDir = reusableMajorDir.set(toCameraXy.x, toCameraXy.y, 0)
 			if (majorDir.length() < 1e-6) majorDir.set(1, 0, 0)
+			else majorDir.normalize()
 
 			// Нормаль всегда горизонтальная (вдоль majorDir), независимо от высоты камеры.
 			normal.copy(majorDir)
@@ -3798,106 +3837,138 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			// Вектор "вверх" — мировая вертикаль; метка не наклоняется с камерой.
 			const up = reusableLabelUp.set(0, 0, 1)
 
-				// Строим ориентацию из базиса
-				const matrix = reusableLabelMatrix
-				const e = matrix.elements
-				e[0] = right.x; e[1] = right.y; e[2] = right.z; e[3] = 0
-			e[4] = up.x;    e[5] = up.y;    e[6] = up.z;    e[7] = 0
-				e[8] = normal.x; e[9] = normal.y; e[10] = normal.z; e[11] = 0
-				e[12] = 0;      e[13] = 0;      e[14] = 0;      e[15] = 1
+			// Строим ориентацию из базиса.
+			const matrix = reusableLabelMatrix
+			const e = matrix.elements
+			e[0] = right.x
+			e[1] = right.y
+			e[2] = right.z
+			e[3] = 0
+			e[4] = up.x
+			e[5] = up.y
+			e[6] = up.z
+			e[7] = 0
+			e[8] = normal.x
+			e[9] = normal.y
+			e[10] = normal.z
+			e[11] = 0
+			e[12] = 0
+			e[13] = 0
+			e[14] = 0
+			e[15] = 1
+			const curveQuaternion = reusableLabelCurveQuaternion.setFromRotationMatrix(matrix)
 
-				const curveQuaternion = reusableLabelCurveQuaternion.setFromRotationMatrix(matrix)
-
-				const fitScale = resolveSurfaceFitScale({
-					curveRadiusMm,
-					extents: tracker.extents,
+			const fitScale = resolveSurfaceFitScale({
+				curveRadiusMm,
+				extents: tracker.extents,
 				limits: SURFACE_ARC_LIMITS,
-					minScale: MIN_SURFACE_LABEL_FIT_SCALE,
+				minScale: MIN_SURFACE_LABEL_FIT_SCALE,
+			})
+
+			let surfaceTitleAmount = 0
+			let fieldBillboard: FieldBillboardRecord | undefined
+			if (tracker.kind === "field") {
+				const fieldId = Number(tracker.key.slice("field:".length))
+				fieldBillboard = Number.isFinite(fieldId) ? fieldBillboardRecords.get(fieldId) : undefined
+				if (fieldBillboard !== undefined) {
+					surfaceTitleAmount = resolveFieldLabelTitleMorph(cameraDistanceMm, Math.max(sphereRadius, 1e-6))
+				}
+			}
+
+			if (fieldBillboard !== undefined && surfaceTitleAmount > 0) {
+				if (tracker.container.parent !== fieldBillboard.container) {
+					fieldBillboard.container.add(tracker.container)
+				}
+
+				const titleHeightMm = FIELD_BILLBOARD_TITLE_FONT_PX * fieldBillboard.pixelScale
+				const textHeightMm = Math.max(tracker.extents.ascenderMm + tracker.extents.descenderMm, 1e-6)
+				const maxTitleWidthMm = Math.max(
+					1e-6,
+					(FIELD_BILLBOARD_PIXEL_WIDTH - FIELD_BILLBOARD_TITLE_PAD_X_PX * 2) * fieldBillboard.pixelScale,
+				)
+				const titleScale = Math.min(
+					titleHeightMm / textHeightMm,
+					maxTitleWidthMm / Math.max(tracker.extents.widthMm, 1e-6),
+				)
+				const animatedTitleScale = titleScale * tracker.currentScale
+				const titleLocalY =
+					fieldBillboard.heightMm / 2 -
+					(FIELD_BILLBOARD_TITLE_Y_PX + FIELD_BILLBOARD_TITLE_FONT_PX) * fieldBillboard.pixelScale
+
+				reusableLabelCurveWorldScale.set(tracker.currentScale, tracker.currentScale, tracker.currentScale)
+				reusableLabelCurveWorldMatrix.compose(labelPos, curveQuaternion, reusableLabelCurveWorldScale)
+				reusableLabelCurveLocalMatrix.multiplyMatrices(
+					reusableBillboardInverseMatrix.copy(fieldBillboard.container.matrixWorld).invert(),
+					reusableLabelCurveWorldMatrix,
+				)
+				reusableLabelCurveLocalMatrix.decompose(
+					reusableLabelCurveLocalPosition,
+					reusableLabelCurveLocalQuaternion,
+					reusableLabelCurveLocalScale,
+				)
+				reusableLabelTitleLocalPosition.set(0, titleLocalY, FIELD_BILLBOARD_TITLE_Z_MM)
+				reusableLabelTitleQuaternion.identity()
+
+				tracker.container.position.set(
+					mixScalar(reusableLabelCurveLocalPosition.x, reusableLabelTitleLocalPosition.x, surfaceTitleAmount),
+					mixScalar(reusableLabelCurveLocalPosition.y, reusableLabelTitleLocalPosition.y, surfaceTitleAmount),
+					mixScalar(reusableLabelCurveLocalPosition.z, reusableLabelTitleLocalPosition.z, surfaceTitleAmount),
+				)
+				setQuaternionNlerp(
+					tracker.container.quaternion,
+					reusableLabelCurveLocalQuaternion,
+					reusableLabelTitleQuaternion,
+					surfaceTitleAmount,
+				)
+				tracker.container.scale.set(
+					mixScalar(reusableLabelCurveLocalScale.x, animatedTitleScale, surfaceTitleAmount),
+					mixScalar(reusableLabelCurveLocalScale.y, animatedTitleScale, surfaceTitleAmount),
+					mixScalar(reusableLabelCurveLocalScale.z, animatedTitleScale, surfaceTitleAmount),
+				)
+				tracker.material.opacity = tracker.currentOpacity
+				morphTextGeometryToPlane({
+					geometry: tracker.textNode.stencilGeometry,
+					initialPositions: tracker.initialStencilPositions,
+					centerX: tracker.stencilCenterX,
+					curveScale: fitScale,
+					curveRadius: curveRadiusMm,
+					mix: surfaceTitleAmount,
+					scale: 1,
 				})
+				morphTextGeometryToPlane({
+					geometry: tracker.textNode.coverGeometry,
+					initialPositions: tracker.initialCoverPositions,
+					centerX: tracker.coverCenterX,
+					curveScale: fitScale,
+					curveRadius: curveRadiusMm,
+					mix: surfaceTitleAmount,
+					scale: 1,
+				})
+				tracker.container.updateMatrix()
+				continue
+			}
 
-				let titleMorph = 0
-				let titleScale = 1
-				let titleCenterX = tracker.extents.centerXmm
-				if (tracker.kind === "field") {
-					const fieldId = Number(tracker.key.slice("field:".length))
-					const billboard = Number.isFinite(fieldId) ? fieldBillboardRecords.get(fieldId) : undefined
-					if (billboard !== undefined) {
-						titleMorph = resolveFieldLabelTitleMorph(cameraDistanceMm, Math.max(sphereRadius, 1e-6))
-						if (titleMorph > 0) {
-							billboard.container.matrixWorld.decompose(
-								reusableBillboardTitlePosition,
-								reusableBillboardTitleQuaternion,
-								reusableBillboardTitleScale,
-							)
-							const titleHeightMm = FIELD_BILLBOARD_TITLE_FONT_PX * billboard.pixelScale
-							const textHeightMm = Math.max(tracker.extents.ascenderMm + tracker.extents.descenderMm, 1e-6)
-							const maxTitleWidthMm = Math.max(
-								1e-6,
-								(FIELD_BILLBOARD_PIXEL_WIDTH - FIELD_BILLBOARD_TITLE_PAD_X_PX * 2) * billboard.pixelScale,
-							)
-							titleScale = Math.min(
-								titleHeightMm / textHeightMm,
-								maxTitleWidthMm / Math.max(tracker.extents.widthMm, 1e-6),
-							)
-							titleCenterX = tracker.extents.centerXmm
-							reusableBillboardTitleLocal.set(
-								0,
-								billboard.heightMm / 2 - (FIELD_BILLBOARD_TITLE_Y_PX + FIELD_BILLBOARD_TITLE_FONT_PX) * billboard.pixelScale,
-								0.7,
-							)
-							reusableBillboardTitlePosition
-								.copy(reusableBillboardTitleLocal)
-								.applyMatrix4(billboard.container.matrixWorld)
-							tracker.container.position.set(
-								mixScalar(labelPos.x, reusableBillboardTitlePosition.x, titleMorph),
-								mixScalar(labelPos.y, reusableBillboardTitlePosition.y, titleMorph),
-								mixScalar(labelPos.z, reusableBillboardTitlePosition.z, titleMorph),
-							)
-							tracker.container.quaternion.copy(curveQuaternion).slerp(reusableBillboardTitleQuaternion, titleMorph)
-						}
-					}
-				}
-
-				if (titleMorph <= 0) {
-					tracker.container.position.copy(labelPos)
-					tracker.container.quaternion.copy(curveQuaternion)
-					bendTextAroundEquator({
-						geometry: tracker.textNode.stencilGeometry,
-						initialPositions: tracker.initialStencilPositions,
-						centerX: tracker.stencilCenterX,
-						scale: fitScale,
-						curveRadius: curveRadiusMm,
-					})
-					bendTextAroundEquator({
-						geometry: tracker.textNode.coverGeometry,
-						initialPositions: tracker.initialCoverPositions,
-						centerX: tracker.coverCenterX,
-						scale: fitScale,
-						curveRadius: curveRadiusMm,
-					})
-				} else {
-					morphTextGeometryToBillboardTitle({
-						geometry: tracker.textNode.stencilGeometry,
-						initialPositions: tracker.initialStencilPositions,
-						centerX: tracker.stencilCenterX,
-						curveScale: fitScale,
-						curveRadius: curveRadiusMm,
-						titleScale,
-						titleCenterX,
-						mix: titleMorph,
-					})
-					morphTextGeometryToBillboardTitle({
-						geometry: tracker.textNode.coverGeometry,
-						initialPositions: tracker.initialCoverPositions,
-						centerX: tracker.coverCenterX,
-						curveScale: fitScale,
-						curveRadius: curveRadiusMm,
-						titleScale,
-						titleCenterX,
-						mix: titleMorph,
-					})
-				}
-
+			if (tracker.container.parent !== labelsLayer) {
+				labelsLayer.add(tracker.container)
+			}
+			tracker.container.position.copy(labelPos)
+			tracker.container.quaternion.copy(curveQuaternion)
+			tracker.container.scale.set(tracker.currentScale, tracker.currentScale, tracker.currentScale)
+			tracker.material.opacity = tracker.currentOpacity
+			bendTextAroundEquator({
+				geometry: tracker.textNode.stencilGeometry,
+				initialPositions: tracker.initialStencilPositions,
+				centerX: tracker.stencilCenterX,
+				scale: fitScale,
+				curveRadius: curveRadiusMm,
+			})
+			bendTextAroundEquator({
+				geometry: tracker.textNode.coverGeometry,
+				initialPositions: tracker.initialCoverPositions,
+				centerX: tracker.coverCenterX,
+				scale: fitScale,
+				curveRadius: curveRadiusMm,
+			})
 			tracker.container.updateMatrix()
 		}
 	}
@@ -3917,7 +3988,13 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			const cameraDistanceMm = normal.length()
 			if (cameraDistanceMm <= 1e-6) normal.set(0, -1, 0)
 			normal.normalize()
-			if (fieldRecord) resizeFieldBillboardToWorldSphere(tracker, fieldRecord.snapshot, worldScale)
+			if (fieldRecord) {
+				const sphereRadiusMm = Math.max(0.5, fieldRecord.snapshot.sphereRadius * worldScale)
+				tracker.surface.setMode(
+					resolveFieldLabelTitleMorph(cameraDistanceMm, sphereRadiusMm) > 0 ? "surface" : "summary",
+				)
+				resizeFieldBillboardToWorldSphere(tracker, fieldRecord.snapshot, worldScale)
+			}
 
 			let up = reusableBillboardUp.set(0, 0, 1)
 			const right = reusableBillboardRight.crossVectors(up, normal)
