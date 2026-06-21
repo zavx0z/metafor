@@ -54,6 +54,7 @@ my-meta/
 │   └── metafor.d.ts     # Локальные DSL-типы
 ├── package.json         # Конфигурация
 ├── tsconfig.json        # TypeScript
+├── TODO.md              # Заметки по доработке меты
 ├── .gitignore           # Git ignore
 └── index.html           # HTML шаблон
 ```

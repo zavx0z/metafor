@@ -49,6 +49,17 @@ export function generateMetaforTypesFile(): string {
 }
 
 /**
+ * Сгенерировать TODO.md
+ */
+export function generateTodoFile(name: string, description: string): string {
+  const template = loadTemplate("TODO.md")
+  return render(template, {
+    name,
+    description,
+  })
+}
+
+/**
  * Сгенерировать package.json
  */
 export function generatePackageJsonFile(

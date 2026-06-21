@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { mkdirSync, writeFileSync } from "fs"
+import { spawnSync } from "child_process"
 import { resolve } from "path"
 import {
   getI18n,
@@ -10,6 +11,7 @@ import {
 import {
   generateMetaFile,
   generateMetaforTypesFile,
+  generateTodoFile,
   generatePackageJsonFile,
   generateGitignoreFile,
   generateIndexHtmlFile,
@@ -18,11 +20,24 @@ import {
 import {
   isGitInstalled,
   getGitUserName,
-  getGitUserEmail,
   initGitRepo,
   gitAddAll,
   gitCommit,
 } from "./git.ts"
+
+function runBunInstall(cwd: string): void {
+  const result = spawnSync("bun", ["install"], {
+    cwd,
+    stdio: "inherit",
+  })
+
+  if (result.status !== 0) {
+    if (result.error) {
+      console.error(result.error.message)
+    }
+    process.exit(result.status ?? 1)
+  }
+}
 
 async function main() {
   // Парсинг аргументов
@@ -127,6 +142,9 @@ writeFileSync(`${packagePath}/package.json`, packageJson)
 // Генерация tsconfig.json
 writeFileSync(`${packagePath}/tsconfig.json`, generateTsconfigFile())
 
+// Генерация TODO.md
+writeFileSync(`${packagePath}/TODO.md`, generateTodoFile(packageName, desc!))
+
 // Генерация .gitignore
 const gitignore = generateGitignoreFile()
 writeFileSync(`${packagePath}/.gitignore`, gitignore)
@@ -134,6 +152,10 @@ writeFileSync(`${packagePath}/.gitignore`, gitignore)
 // Генерация index.html
 const indexHtml = generateIndexHtmlFile(packageName, desc!, t.htmlLang)
 writeFileSync(`${packagePath}/index.html`, indexHtml)
+
+// Установка зависимостей и создание lockfile
+console.log(`${t.installing} bun install`)
+runBunInstall(packagePath)
 
 // Инициализация git репозитория
 if (isGitInstalled()) {
@@ -147,6 +169,7 @@ console.log(`   📄 ${packagePath}/src/meta.ts`)
 console.log(`   📄 ${packagePath}/src/metafor.d.ts`)
 console.log(`   📄 ${packagePath}/package.json`)
 console.log(`   📄 ${packagePath}/tsconfig.json`)
+console.log(`   📄 ${packagePath}/TODO.md`)
 console.log(`   📄 ${packagePath}/index.html`)
 console.log(`   📄 ${packagePath}/.gitignore`)
 if (isGitInstalled()) {

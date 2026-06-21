@@ -2,6 +2,7 @@ import { describe, test, expect } from "bun:test"
 import {
   generateMetaFile,
   generateMetaforTypesFile,
+  generateTodoFile,
   generatePackageJsonFile,
   generateGitignoreFile,
   generateIndexHtmlFile,
@@ -53,6 +54,19 @@ describe("generateMetaforTypesFile", () => {
   })
 })
 
+describe("generateTodoFile", () => {
+  test("должен генерировать TODO.md в корне пакета", () => {
+    const result = generateTodoFile("auth", "Авторизация")
+
+    expect(result).toContain("1. Тематический раздел")
+    expect(result).toContain("    - [ ] задача")
+    expect(result).toContain("2. ...")
+    expect(result).not.toContain("# TODO")
+    expect(result).not.toContain("## auth")
+    expect(result).not.toContain("Авторизация")
+  })
+})
+
 describe("generatePackageJsonFile", () => {
   test("должен генерировать package.json с правильными подстановками", () => {
     const result = generatePackageJsonFile("auth", "Авторизация", "John Doe")
@@ -78,6 +92,8 @@ describe("generatePackageJsonFile", () => {
     const parsed = JSON.parse(result)
 
     expect(parsed.scripts.build).toBe("bun build src/meta.ts --outdir dist --target browser --format=esm")
+    expect(parsed.devDependencies["@types/bun"]).toBe("^1.3.14")
+    expect(parsed.devDependencies["@types/node"]).toBe("^25.5.0")
   })
 
   test("должен безопасно генерировать JSON-строки", () => {
@@ -108,6 +124,7 @@ describe("generateTsconfigFile", () => {
 
     expect(parsed.compilerOptions.strict).toBe(true)
     expect(parsed.compilerOptions.allowImportingTsExtensions).toBe(true)
+    expect(parsed.compilerOptions.types).toEqual(["bun", "node"])
     expect(parsed.include).toBeUndefined()
   })
 })

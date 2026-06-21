@@ -17,6 +17,7 @@ export interface I18nStrings {
   creating: string
   description: string
   path: string
+  installing: string
   created: string
   toBuild: string
   defaultDesc: string
@@ -41,6 +42,7 @@ const ru: I18nStrings = {
   creating: "Создание Мета:",
   description: "Описание:",
   path: "Путь:",
+  installing: "Установка зависимостей:",
   created: "✅ Создана",
   toBuild: "📦 Для сборки:",
   defaultDesc: "MetaFor",
@@ -65,6 +67,7 @@ const en: I18nStrings = {
   creating: "Creating Meta:",
   description: "Description:",
   path: "Path:",
+  installing: "Installing dependencies:",
   created: "✅ Created",
   toBuild: "📦 To build:",
   defaultDesc: "MetaFor",

@@ -1,7 +1,7 @@
 {
   "name": "create-metafor",
   "description": "Meta for...",
-  "version": "1.0.44",
+  "version": "1.0.49",
   "author": "zavx0z",
   "repository": {
     "type": "git",
@@ -30,7 +30,7 @@
   ],
   "license": "MIT",
   "scripts": {
-    "build": "bun build src/cli.ts --outdir dist --target node --minify && cp -r templates dist/",
+    "build": "rm -rf dist && bun build src/cli.ts --outdir dist --target node --minify && cp -R templates dist/templates",
     "prepublishOnly": "bun run build",
     "pub": "bun publish --access public",
     "pub:patch": "bun pm version patch && bun run pub",
@@ -43,7 +43,8 @@
     "clean": "rm -rf dist"
   },
   "devDependencies": {
-    "@boundary/wimp": "workspace:*"
+    "@types/bun": "^1.3.14",
+    "@types/node": "^25.5.0"
   },
   "type": "module"
 }
