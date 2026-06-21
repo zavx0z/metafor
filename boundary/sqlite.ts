@@ -356,11 +356,9 @@ const applyOneParticle = async (tx: Tx, particle: BoundaryParticle): Promise<boo
     case "photon":
     case "higgs":
       return false
-    case "w":
-      return false
-    case "-z":
-      return false
-    case "+z":
+    case "w+":
+    case "w-":
+    case "z":
       return false
   }
 }

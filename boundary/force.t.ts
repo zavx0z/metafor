@@ -4,7 +4,7 @@
  * Значение хранится на самой частице в поле `part`, а не в конверте сообщения.
  * Один физический транспорт `FORCE` может переносить частицы разных каналов.
  */
-export type Part = "graviton" | "photon" | "gluon" | "higgs" | "w" | "-z" | "+z"
+export type Part = "graviton" | "photon" | "gluon" | "higgs" | "w+" | "w-" | "z"
 
 /**
  * Операция частицы Force.

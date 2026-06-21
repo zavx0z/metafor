@@ -532,7 +532,7 @@ const collectWeakResultPackets = (parts: EnergyParticle[]): EnergyWeakResultPayl
   const packets = new Map<string, EnergyWeakResultPayload>()
 
   for (const part of parts) {
-    if (part.part !== "w") continue
+    if (part.part !== "w+" && part.part !== "w-") continue
     if (part.op !== "replace" && !isWeakResultMarker(part)) continue
     const wimpId = parseRuntimeId(part.wimpId)
     const processId = parseRuntimeId(part.processId)

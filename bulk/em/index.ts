@@ -1,6 +1,6 @@
 export const FORCE = "force"
 
-export type Part = "graviton" | "photon" | "gluon" | "higgs" | "w" | "-z" | "+z"
+export type Part = "graviton" | "photon" | "gluon" | "higgs" | "w+" | "w-" | "z"
 export type ParticleOperation = "add" | "remove" | "replace" | "move" | "copy" | "test"
 
 export type Particle = {
@@ -73,6 +73,7 @@ const force = {
 
 export type PhotonPayload = { value: string; path: string }
 export type WeakCoordinationKind = "claim" | "accept" | "reject" | "release"
+type WeakResultPart = "w+" | "w-"
 
 export interface BulkSubscription {
   close(): void
@@ -139,7 +140,7 @@ export const subscribeBulkWeakCoordination = (
   void options
   return createSubscription((message) => {
     for (const part of message.parts) {
-      if (part.part !== "+z" && part.part !== "-z") continue
+      if (part.part !== "z") continue
       const coordination = weakCoordinationFromPart(part)
       if (!coordination) continue
       const weak = weakPartMeta(part)
@@ -159,11 +160,21 @@ export const createBulkWeakForce = (options: BulkWeakForceOptions = {}): BulkWea
   ): void => {
     force.emit({ parts: [createBulkZPart(coordination, wimpId, processId, executorId)] })
   }
-  const emitW = (wimpId: string, processId: string, parts: Array<{ op: "replace"; path: string; value: unknown }>): void => {
-    force.emit({ parts: createBulkWParts(wimpId, processId, parts) })
+  const emitW = (
+    part: WeakResultPart,
+    wimpId: string,
+    processId: string,
+    parts: Array<{ op: "replace"; path: string; value: unknown }>,
+  ): void => {
+    force.emit({ parts: createBulkWParts(part, wimpId, processId, parts) })
   }
-  const emitWValues = (wimpId: string, processId: string, values: Record<string, unknown>): void => {
-    emitW(wimpId, processId, createWeakResultFieldParts(values))
+  const emitWValues = (
+    part: WeakResultPart,
+    wimpId: string,
+    processId: string,
+    values: Record<string, unknown>,
+  ): void => {
+    emitW(part, wimpId, processId, createWeakResultFieldParts(values))
   }
 
   return {
@@ -186,19 +197,19 @@ export const createBulkWeakForce = (options: BulkWeakForceOptions = {}): BulkWea
     },
 
     emitWSuccessParts(wimpId, processId, parts = []) {
-      emitW(wimpId, processId, parts)
+      emitW("w+", wimpId, processId, parts)
     },
 
     emitWErrorParts(wimpId, processId, parts = []) {
-      emitW(wimpId, processId, parts)
+      emitW("w-", wimpId, processId, parts)
     },
 
     emitWSuccessValues(wimpId, processId, values = {}) {
-      emitWValues(wimpId, processId, values)
+      emitWValues("w+", wimpId, processId, values)
     },
 
     emitWErrorValues(wimpId, processId, values = {}) {
-      emitWValues(wimpId, processId, values)
+      emitWValues("w-", wimpId, processId, values)
     },
 
     close() {
@@ -235,7 +246,7 @@ const createBulkZPart = (
   processId: string,
   executorId?: string,
 ): Particle => ({
-  part: zPart(coordination),
+  part: "z",
   op: "test",
   path: createWeakPath(wimpId, processId),
   value: { coordination },
@@ -246,21 +257,19 @@ const createBulkZPart = (
 })
 
 const createBulkWParts = (
+  part: WeakResultPart,
   wimpId: string,
   processId: string,
   parts: Array<{ op: "replace"; path: string; value: unknown }>,
 ): Particle[] => {
   if (parts.length === 0) {
-    return [{ part: "w", op: "test", path: createWeakPath(wimpId, processId), value: { kind: "result" }, kind: "result", wimpId, processId }]
+    return [{ part, op: "test", path: createWeakPath(wimpId, processId), value: { kind: "result" }, kind: "result", wimpId, processId }]
   }
 
-  return parts.map((part) => ({
-    part: "w",
-    ...part,
+  return parts.map((resultPart) => ({
+    ...resultPart,
+    part,
     wimpId,
     processId,
   }))
 }
-
-const zPart = (coordination: WeakCoordinationKind): "+z" | "-z" =>
-  coordination === "claim" || coordination === "accept" ? "+z" : "-z"

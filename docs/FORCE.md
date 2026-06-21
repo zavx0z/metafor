@@ -69,9 +69,9 @@ Force фиксирует, как сила действует через кана
 { part: "gluon", op: "replace", path: "/field/<uuid>", value: 42 }
 { part: "higgs", op: "replace", path: "/field/<uuid>", value: "branch" }
 { part: "photon", op: "replace", path: "/wimp/<uuid>", value: "ready" }
-{ part: "w", op: "test", path: "./actions/detect", value: { process: "<uuid>", data: {} } }
-{ part: "+z", op: "test", path: "./actions/detect", value: { process: "<uuid>", coordination: "claim" } }
-{ part: "-z", op: "test", path: "./actions/detect", value: { process: "<uuid>", coordination: "release" } }
+{ part: "w+", op: "test", path: "./actions/detect", value: { process: "<uuid>", data: {} } }
+{ part: "w-", op: "test", path: "./actions/detect", value: { process: "<uuid>", error: "..." } }
+{ part: "z", op: "test", path: "./actions/detect", value: { process: "<uuid>", coordination: "claim" } }
 ```
 
 `part` хранит носитель силы, а доменный тип сигнала пишется в `path`.
