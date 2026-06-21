@@ -14,6 +14,7 @@ pkg/voice/recordings/
 .meta-modcache
 .quoder
 .npmrc
+**/.npmrc
 old
 .ai
 app/web/tls

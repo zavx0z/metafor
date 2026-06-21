@@ -3,8 +3,6 @@
 ## Структура
 
 ```typescript
-import "metafor"
-
 export default MetaFor("<name>")
   .fields((field) => ({}))
   .superposition({})
@@ -19,6 +17,8 @@ export default MetaFor("<name>")
 
 **Порядок вызовов:** `fields → superposition → mass → processes → reactions → matter → bulk`
 
+`MetaFor` в `meta.ts` предоставляется DSL-средой как глобал; локальный `import "metafor"` не нужен. Обычные TypeScript-модули действий могут импортировать типы явно: `import type { ActionParams } from "metafor"`.
+
 ---
 
 ## fields — только примитивы
@@ -26,9 +26,9 @@ export default MetaFor("<name>")
 ```typescript
 .fields((field) => ({
   name: field.string.required("Гость"),
-  age: field.number.required(18)({ label: "Возраст" }),
+  age: field.number.required(18, { label: "Возраст" }),
   status: field.enum("draft", "published").optional({ label: "Статус" }),
-  tags: field.array.required<string>([], { label: "Теги" }),
+  relatedIds: field.array.required([], { label: "Связанные узлы" }),
 }))
 ```
 
@@ -37,21 +37,22 @@ export default MetaFor("<name>")
 - Только примитивы: `string`, `number`, `boolean`, `enum`, `array`
 - Объекты — в `mass`
 - `.optional({ label: "..." })` — метаданные для enum
-- **Для array всегда указывай дженерик:** `field.array.required<string>([])`
-- **Label всегда на русском:** `label: "Сообщение (-m)"`, `label: "Все файлы (-a)"`
+- **array сейчас является topology/runtime-связью `number[]`:** `field.array.required([], { label })`
+- **Label должен быть человекопонятным:** язык выбирается по контексту пакета, но подпись должна описывать поле или флаг так, как пользователь увидит его в UI/документации.
 
 **Примеры label:**
 
 ```typescript
 .fields((field) => ({
-  // ✅ Правильно: русский + опция
+  // Правильно: человекопонятная подпись + опция
   message: field.string.optional({ label: "Сообщение (-m)" }),
   all: field.boolean.optional({ label: "Все файлы (-a)" }),
+  error: field.string.optional({ label: "Error" }),
   amend: field.boolean.optional({ label: "Исправить (--amend)" }),
 
-  // ❌ Неправильно: английский
-  message: field.string.optional({ label: "Commit message (-m)" }),
-  all: field.boolean.optional({ label: "Commit all (-a)" }),
+  // Неправильно: техническая или непонятная подпись
+  message: field.string.optional({ label: "msg" }),
+  all: field.boolean.optional({ label: "bool" }),
 }))
 ```
 
@@ -442,8 +443,6 @@ return { group: group as "start" | "work" | "examine" }
 ## Пример актора
 
 ```typescript
-import "metafor"
-
 export default MetaFor("git")
   .fields((field) => ({
     operation: field.enum("start", "work", "examine").optional({ label: "Тип операции" }),
@@ -535,7 +534,7 @@ export default async function action({
 1. Файл: `<username>/<name>/meta.ts` (например: `zavx0z/git/meta.ts`)
 2. Имя: `MetaFor("<name>")`
 3. Enum: всегда с `label`
-4. Импорт: `import "metafor"`
+4. Импорт в `meta.ts` не нужен: `MetaFor` предоставляет DSL-среда
 5. Bulk: только `<meta-for>` для иерархии акторов
 6. Цепочка: все методы обязательны (даже пустые)
 7. **Action-модули:** логика действий в отдельных файлах `actions/*.ts`

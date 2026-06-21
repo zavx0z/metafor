@@ -4,6 +4,7 @@ import {
   generatePackageJsonFile,
   generateGitignoreFile,
   generateIndexHtmlFile,
+  generateTsconfigFile,
 } from "../src/generators.ts"
 
 describe("generateMetaFile", () => {
@@ -20,6 +21,24 @@ describe("generateMetaFile", () => {
     
     expect(result).toContain('desc: "Authentication"')
     expect(result).toContain('label: "Error"')
+  })
+
+  test("должен генерировать универсальный каркас без специализированных процессов", () => {
+    const result = generateMetaFile("auth", "Authentication", "Error")
+
+    expect(result).toContain(".superposition({})")
+    expect(result).toContain(".mass({})")
+    expect(result).toContain(".processes(() => [])")
+    expect(result).toContain(".reactions(() => [])")
+    expect(result).not.toContain("fullscreen")
+    expect(result).not.toContain("./actions/")
+  })
+
+  test("должен безопасно подставлять строки TypeScript", () => {
+    const result = generateMetaFile("quote", "Meta \"quoted\"", "Error \"label\"")
+
+    expect(result).toContain('desc: "Meta \\"quoted\\""')
+    expect(result).toContain('label: "Error \\"label\\""')
   })
 })
 
@@ -41,7 +60,7 @@ describe("generatePackageJsonFile", () => {
     const parsed = JSON.parse(result)
     
     expect(parsed.dependencies).toEqual({
-      "metafor": "link:metafor",
+      "metafor": "^0.4.0",
     })
   })
 
@@ -50,6 +69,14 @@ describe("generatePackageJsonFile", () => {
     const parsed = JSON.parse(result)
     
     expect(parsed.scripts.build).toBe("metafor-build src/meta.ts --out auth.json")
+  })
+
+  test("должен безопасно генерировать JSON-строки", () => {
+    const result = generatePackageJsonFile("auth", "Auth \"quoted\"", "Test \"User\"")
+    const parsed = JSON.parse(result)
+
+    expect(parsed.description).toBe("Auth \"quoted\"")
+    expect(parsed.author).toBe("Test \"User\"")
   })
 })
 
@@ -61,6 +88,16 @@ describe("generateGitignoreFile", () => {
     expect(result).toContain("dist/")
     expect(result).toContain("*.json")
     expect(result).toContain("!package.json")
+  })
+})
+
+describe("generateTsconfigFile", () => {
+  test("должен генерировать tsconfig.json для TypeScript-каркаса", () => {
+    const result = generateTsconfigFile()
+    const parsed = JSON.parse(result)
+
+    expect(parsed.compilerOptions.strict).toBe(true)
+    expect(parsed.include).toEqual(["src/**/*.ts"])
   })
 })
 

@@ -18,7 +18,7 @@ bun create metafor my-meta
 bun create metafor auth
 ```
 
-Создаётся Мета с базовым шаблоном для обработки ошибок.
+Создаётся универсальный каркас Мета без привязки к конкретному типу интерфейса или процесса.
 
 ## Опции
 
@@ -52,8 +52,9 @@ my-meta/
 ├── src/
 │   └── meta.ts          # Мета
 ├── package.json         # Конфигурация
-├── .gitignore          # Git ignore
-└── index.html          # HTML шаблон
+├── tsconfig.json        # TypeScript
+├── .gitignore           # Git ignore
+└── index.html           # HTML шаблон
 ```
 
 ## Требования
@@ -65,4 +66,3 @@ my-meta/
 MIT
 
 ---
-

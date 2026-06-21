@@ -25,12 +25,20 @@ function render(template: string, data: Record<string, string>): string {
   return template.replace(/{{(\w+)}}/g, (_, key) => data[key] || "")
 }
 
+function jsString(value: string): string {
+  return JSON.stringify(value)
+}
+
 /**
  * Сгенерировать meta.ts
  */
 export function generateMetaFile(name: string, description: string, errorLabel: string): string {
   const template = loadTemplate("meta.ts")
-  return render(template, { name, description, errorLabel })
+  return render(template, {
+    nameJson: jsString(name),
+    descriptionJson: jsString(description),
+    errorLabelJson: jsString(errorLabel),
+  })
 }
 
 /**
@@ -42,7 +50,12 @@ export function generatePackageJsonFile(
   author: string
 ): string {
   const template = loadTemplate("package.json")
-  return render(template, { name, description, author })
+  return render(template, {
+    packageNameJson: jsString(`@zavx0z/${name}`),
+    descriptionJson: jsString(description),
+    authorJson: jsString(author),
+    buildScriptJson: jsString(`metafor-build src/meta.ts --out ${name}.json`),
+  })
 }
 
 /**
@@ -50,6 +63,13 @@ export function generatePackageJsonFile(
  */
 export function generateGitignoreFile(): string {
   return loadTemplate("gitignore")
+}
+
+/**
+ * Сгенерировать tsconfig.json
+ */
+export function generateTsconfigFile(): string {
+  return loadTemplate("tsconfig.json")
 }
 
 /**

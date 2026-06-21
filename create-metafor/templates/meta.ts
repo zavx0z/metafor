@@ -1,12 +1,12 @@
-export default MetaFor("{{name}}", { desc: "{{description}}" })
+export default MetaFor({{nameJson}}, { desc: {{descriptionJson}} })
   .fields((field) => ({
-    error: field.string.optional({ label: "{{errorLabel}}" }),
+    error: field.string.optional({ label: {{errorLabelJson}} }),
   }))
   .superposition({})
   .mass({})
   .processes(() => [])
   .reactions(() => [])
-  .matter(({ value, mass, html }) => html``)
+  .matter(({ html }) => html``)
   .bulk({
     view: ({ css }) => css``,
   })

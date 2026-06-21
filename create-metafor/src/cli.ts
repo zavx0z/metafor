@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { mkdirSync, writeFileSync } from "fs"
-import { join } from "path"
+import { resolve } from "path"
 import {
   getI18n,
   detectLanguage,
@@ -12,6 +12,7 @@ import {
   generatePackageJsonFile,
   generateGitignoreFile,
   generateIndexHtmlFile,
+  generateTsconfigFile,
 } from "./generators.ts"
 import {
   isGitInstalled,
@@ -101,7 +102,7 @@ const dirIndex = args.findIndex((arg) => arg === "--dir")
 const baseDir = dirIndex !== -1 && args[dirIndex + 1] ? args[dirIndex + 1]! : "."
 
 const packageName = nameArg!
-const packagePath = join(process.cwd(), baseDir, packageName)
+const packagePath = resolve(baseDir, packageName)
 
 console.log(`\n${t.creating} ${packageName}`)
 console.log(`   ${t.description} ${desc}`)
@@ -118,6 +119,9 @@ writeFileSync(`${packagePath}/src/meta.ts`, metaContent)
 const author = getGitUserName() || "unknown"
 const packageJson = generatePackageJsonFile(packageName, desc!, author)
 writeFileSync(`${packagePath}/package.json`, packageJson)
+
+// Генерация tsconfig.json
+writeFileSync(`${packagePath}/tsconfig.json`, generateTsconfigFile())
 
 // Генерация .gitignore
 const gitignore = generateGitignoreFile()
@@ -137,6 +141,7 @@ if (isGitInstalled()) {
 console.log(`${t.created} ${packageName}`)
 console.log(`   📄 ${packagePath}/src/meta.ts`)
 console.log(`   📄 ${packagePath}/package.json`)
+console.log(`   📄 ${packagePath}/tsconfig.json`)
 console.log(`   📄 ${packagePath}/index.html`)
 console.log(`   📄 ${packagePath}/.gitignore`)
 if (isGitInstalled()) {

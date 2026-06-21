@@ -1,17 +1,17 @@
 {
-  "name": "@zavx0z/{{name}}",
+  "name": {{packageNameJson}},
   "version": "0.1.0",
-  "description": "{{description}}",
-  "author": "{{author}}",
+  "description": {{descriptionJson}},
+  "author": {{authorJson}},
   "type": "module",
   "private": true,
   "exports": {
     ".": "./src/meta.ts"
   },
   "dependencies": {
-    "metafor": "link:metafor"
+    "metafor": "^0.4.0"
   },
   "scripts": {
-    "build": "metafor-build src/meta.ts --out {{name}}.json"
+    "build": {{buildScriptJson}}
   }
 }
