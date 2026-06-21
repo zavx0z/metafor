@@ -132,11 +132,7 @@ type BulkViewportOptions = {
 }
 
 import {
-	FOCUS_ANCHOR_SMOOTHING_MS,
-	FOCUS_POSITION_SMOOTHING_MS,
-	FOCUS_RADIUS_SMOOTHING_MS,
-	FOCUS_SETTLE_DISTANCE_MM,
-	FOCUS_TARGET_SMOOTHING_MS,
+	FOCUS_FLIGHT_MS,
 	HOVER_PICK_HIT_PADDING_MM,
 	HOVER_PRIORITY_HYSTERESIS_PX,
 	HOVER_RETENTION_HIT_PADDING_MM,
@@ -172,6 +168,11 @@ const FIELD_OPACITY_MULTIPLIER = 1.22
 const FIELD_BILLBOARD_PIXEL_WIDTH = 240
 const FIELD_BILLBOARD_PIXEL_HEIGHT = FIELD_BILLBOARD_PIXEL_WIDTH
 const FIELD_BILLBOARD_BORDER_RADIUS_PX = 6
+const FIELD_BILLBOARD_TITLE_PAD_X_PX = 10
+const FIELD_BILLBOARD_TITLE_Y_PX = 8
+const FIELD_BILLBOARD_TITLE_FONT_PX = 12
+const FIELD_LABEL_TITLE_MORPH_START_DISTANCE_RATIO = 4
+const FIELD_LABEL_TITLE_MORPH_END_DISTANCE_RATIO = 2
 const ANTHROPOMORPH_BOT_MODEL_URL = "/models/bots.glb"
 const ANTHROPOMORPH_BOT_SCALE_MM = 1000
 const ANTHROPOMORPH_BOT_STAGE_X_MM = 0
@@ -390,8 +391,8 @@ const exitBulkFullscreen = async (): Promise<void> => {
 type ViewNavigationState = {
 	fallbackFocusRadius: number
 	fallbackTarget: Vector3
-	smoothedFocusRadius: number
-	smoothedTarget: Vector3
+	startedAt: number | null
+	startPose: BulkViewPose
 	targetKey: string | null
 }
 
@@ -587,9 +588,65 @@ const compactFieldBillboardText = (value: string | null | undefined): string => 
 	return text.length <= 96 ? text : `${text.slice(0, 93)}...`
 }
 
+const smoothUnit = (value: number): number => {
+	const t = Math.min(1, Math.max(0, value))
+	return t * t * (3 - 2 * t)
+}
+
+const resolveFieldLabelTitleMorph = (cameraDistanceMm: number, sphereRadiusMm: number): number => {
+	if (!Number.isFinite(cameraDistanceMm) || sphereRadiusMm <= 1e-6) return 0
+	const ratio = cameraDistanceMm / sphereRadiusMm
+	const range = FIELD_LABEL_TITLE_MORPH_START_DISTANCE_RATIO - FIELD_LABEL_TITLE_MORPH_END_DISTANCE_RATIO
+	if (range <= 1e-6) return ratio <= FIELD_LABEL_TITLE_MORPH_END_DISTANCE_RATIO ? 1 : 0
+	return smoothUnit((FIELD_LABEL_TITLE_MORPH_START_DISTANCE_RATIO - ratio) / range)
+}
+
+const morphTextGeometryToBillboardTitle = ({
+	centerX,
+	curveRadius,
+	curveScale,
+	geometry,
+	initialPositions,
+	mix,
+	titleCenterX,
+	titleScale,
+}: {
+	centerX: number
+	curveRadius: number
+	curveScale: number
+	geometry: BufferGeometry
+	initialPositions: Float32Array
+	mix: number
+	titleCenterX: number
+	titleScale: number
+}): void => {
+	const positions = getGeometryPositionArray(geometry)
+	if (!positions || positions.length === 0) return
+	const safeRadius = Math.max(Math.abs(curveRadius), 1e-6)
+	const t = Math.min(1, Math.max(0, mix))
+
+	for (let i = 0; i < initialPositions.length; i += 3) {
+		const initialX = initialPositions[i] ?? 0
+		const initialY = initialPositions[i + 1] ?? 0
+		const arcOffset = (initialX - centerX) * curveScale
+		const angle = arcOffset / safeRadius
+		const curvedX = Math.sin(angle) * safeRadius
+		const curvedY = initialY * curveScale
+		const curvedZ = (Math.cos(angle) - 1) * safeRadius
+		const titleX = (initialX - titleCenterX) * titleScale
+		const titleY = initialY * titleScale
+
+		positions[i] = mixScalar(curvedX, titleX, t)
+		positions[i + 1] = mixScalar(curvedY, titleY, t)
+		positions[i + 2] = mixScalar(curvedZ, 0, t)
+	}
+
+	const attribute = geometry.attributes.position
+	if (attribute) attribute.needsUpdate = true
+}
+
 class FieldBillboardSurface extends UiSurface {
 	#field: DbFieldOrbitRow
-	readonly #titleMaterial = new TextMaterial({color: new Color(0.96, 0.98, 1)})
 	readonly #metaMaterial = new TextMaterial({color: new Color(0.58, 0.66, 0.78)})
 	readonly #keyMaterial = new TextMaterial({color: new Color(0.74, 0.84, 0.94)})
 	readonly #valueMaterial = new TextMaterial({color: new Color(1, 0.92, 0.74)})
@@ -615,15 +672,7 @@ class FieldBillboardSurface extends UiSurface {
 		const padX = 10
 		const valueX = padX + 36
 		const contentW = Math.max(1, this.rectW - padX - 8)
-		const label = normalizeLabelText(field.fieldLabel) ?? field.fieldKey
 
-		this.drawText(label, padX, 8, {
-			clip: false,
-			fontPx: 12,
-			material: this.#titleMaterial,
-			maxWidthPx: contentW,
-			z: Z.TEXT,
-		})
 		this.drawText(`id:${field.id} particle:${field.particleId} order:${field.fieldOrder}`, padX, 28, {
 			clip: false,
 			fontPx: 8,
@@ -1949,11 +1998,16 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const reusableBillboardRight = new Vector3()
 	const reusableBillboardUp = new Vector3()
 	const reusableBillboardMatrix = new Matrix4()
+	const reusableBillboardTitlePosition = new Vector3()
+	const reusableBillboardTitleLocal = new Vector3()
+	const reusableBillboardTitleQuaternion = new Quaternion()
+	const reusableBillboardTitleScale = new Vector3()
 	const reusableLabelToCamera = new Vector3()
 	const reusableMajorDir = new Vector3()
 	const reusableTubeCenter = new Vector3()
 	const reusableScaledOffset = new Vector3()
 	const reusableLabelMatrix = new Matrix4()
+	const reusableLabelCurveQuaternion = new Quaternion()
 	const reusableCosmosAxis = new Vector3(0, 0, 1)
 	const reusableCosmosSpin = new Quaternion()
 
@@ -2376,16 +2430,11 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const resolveFieldBillboardSize = (
 		field: DbFieldOrbitRow,
 		worldScale = 1,
-		cameraDistanceMm = Number.POSITIVE_INFINITY,
 	): {widthMm: number; heightMm: number; pixelScale: number} => {
 		const sphereRadiusMm = Math.max(0.5, field.sphereRadius * Math.max(Math.abs(worldScale), 1e-6))
-		const visibleRadiusMm =
-			Number.isFinite(cameraDistanceMm) && cameraDistanceMm > sphereRadiusMm
-				? sphereRadiusMm * cameraDistanceMm / Math.sqrt(cameraDistanceMm * cameraDistanceMm - sphereRadiusMm * sphereRadiusMm)
-				: sphereRadiusMm
 		const radiusRatio = FIELD_BILLBOARD_BORDER_RADIUS_PX / FIELD_BILLBOARD_PIXEL_WIDTH
 		const cornerDenominator = 1 / Math.SQRT2 - radiusRatio * (Math.SQRT2 - 1)
-		const sideMm = visibleRadiusMm / Math.max(cornerDenominator, 1e-6)
+		const sideMm = sphereRadiusMm / Math.max(cornerDenominator, 1e-6)
 		return {
 			widthMm: sideMm,
 			heightMm: sideMm,
@@ -2476,9 +2525,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		tracker: FieldBillboardRecord,
 		field: DbFieldOrbitRow,
 		worldScale: number,
-		cameraDistanceMm: number,
 	): void => {
-		const size = resolveFieldBillboardSize(field, worldScale, cameraDistanceMm)
+		const size = resolveFieldBillboardSize(field, worldScale)
 		if (
 			Math.abs(tracker.widthMm - size.widthMm) <= 1e-4 &&
 			Math.abs(tracker.heightMm - size.heightMm) <= 1e-4 &&
@@ -2879,7 +2927,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		navigationState = null
 	}
 
-	const resolveNavigationFocusTarget = (deltaMs: number): { focusRadius: number; target: Vector3 } | null => {
+	const resolveNavigationFocusTarget = (): { focusRadius: number; target: Vector3 } | null => {
 		if (!navigationState) return null
 
 		if (navigationState.targetKey) {
@@ -2890,30 +2938,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			}
 		}
 
-		const anchorFactor = computeLerpFactor(deltaMs, FOCUS_ANCHOR_SMOOTHING_MS)
-		navigationState.smoothedTarget.set(
-			mixScalar(navigationState.smoothedTarget.x, navigationState.fallbackTarget.x, anchorFactor),
-			mixScalar(navigationState.smoothedTarget.y, navigationState.fallbackTarget.y, anchorFactor),
-			mixScalar(navigationState.smoothedTarget.z, navigationState.fallbackTarget.z, anchorFactor),
-		)
-		if (navigationState.smoothedTarget.distanceTo(navigationState.fallbackTarget) <= 0.01) {
-			navigationState.smoothedTarget.copy(navigationState.fallbackTarget)
-		}
-
-		const radiusFactor = computeLerpFactor(deltaMs, FOCUS_RADIUS_SMOOTHING_MS)
-		const nextFocusRadius = mixScalar(
-			navigationState.smoothedFocusRadius,
-			navigationState.fallbackFocusRadius,
-			radiusFactor,
-		)
-		navigationState.smoothedFocusRadius =
-			Math.abs(nextFocusRadius - navigationState.fallbackFocusRadius) <= 0.01
-				? navigationState.fallbackFocusRadius
-				: nextFocusRadius
-
 		return {
-			focusRadius: navigationState.smoothedFocusRadius,
-			target: navigationState.smoothedTarget,
+			focusRadius: navigationState.fallbackFocusRadius,
+			target: navigationState.fallbackTarget,
 		}
 	}
 
@@ -3508,54 +3535,48 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return null
 	}
 
-	const applyNavigationFrame = (deltaMs: number): void => {
+	const applyNavigationFrame = (timestamp: number): void => {
 		if (!navigationState) return
 		viewPoint.alignUpToWorldZ()
 
-		const nextFocus = resolveNavigationFocusTarget(deltaMs)
+		const nextFocus = resolveNavigationFocusTarget()
 		if (!nextFocus) {
 			navigationState = null
 			return
 		}
 
 		const nextPose = resolveBulkViewportFocusPose({
-			currentPosition: viewPoint.position,
-			currentTarget: viewPoint.getTarget(),
+			currentPosition: navigationState.startPose.position,
+			currentTarget: navigationState.startPose.target,
 			nextTarget: nextFocus.target,
 			focusRadius: nextFocus.focusRadius,
 			fovRad: viewPoint.fov,
 		})
-		const positionFactor = computeLerpFactor(deltaMs, FOCUS_POSITION_SMOOTHING_MS)
-		const targetFactor = computeLerpFactor(deltaMs, FOCUS_TARGET_SMOOTHING_MS)
-		const currentTarget = viewPoint.getTarget()
-		viewPoint.position.set(
-			mixScalar(viewPoint.position.x, nextPose.position.x, positionFactor),
-			mixScalar(viewPoint.position.y, nextPose.position.y, positionFactor),
-			mixScalar(viewPoint.position.z, nextPose.position.z, positionFactor),
-		)
-		currentTarget.set(
-			mixScalar(currentTarget.x, nextPose.target.x, targetFactor),
-			mixScalar(currentTarget.y, nextPose.target.y, targetFactor),
-			mixScalar(currentTarget.z, nextPose.target.z, targetFactor),
-		)
-		const positionSettled = viewPoint.position.distanceTo(nextPose.position) <= FOCUS_SETTLE_DISTANCE_MM
-		const targetSettled = currentTarget.distanceTo(nextPose.target) <= FOCUS_SETTLE_DISTANCE_MM
-		if (positionSettled && targetSettled) {
-			viewPoint.position.copy(nextPose.position)
-			currentTarget.copy(nextPose.target)
-			navigationState = null
+
+		if (navigationState.startedAt === null) navigationState.startedAt = timestamp
+		const linear = clampBulkHudNumber((timestamp - navigationState.startedAt) / FOCUS_FLIGHT_MS, 0, 1)
+		const endPose: BulkViewPose = {
+			position: nextPose.position,
+			target: nextPose.target,
+			up: navigationState.startPose.up,
 		}
-		viewPoint.update()
+		if (linear >= 1) {
+			applyViewPose(endPose)
+			navigationState = null
+			return
+		}
+		applyViewPose(mixViewPose(navigationState.startPose, endPose, easeOutCubic(linear)))
 	}
 
 	const focusTarget = (target: HoverablePickTarget): void => {
 		viewPoint.alignUpToWorldZ()
 		viewPoint.update()
+		lastAnimationTimestamp = 0
 		navigationState = {
 			fallbackFocusRadius: target.outerRadius,
 			fallbackTarget: target.center.clone(),
-			smoothedFocusRadius: target.outerRadius,
-			smoothedTarget: target.center.clone(),
+			startedAt: null,
+			startPose: captureViewPose(),
 			targetKey: getPickTargetKey(target),
 		}
 		requestRenderLoop(SCENE_TRANSITION_WAKE_MS)
@@ -3746,10 +3767,11 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			// Горизонтальное направление от центра объекта к XY-проекции камеры.
 			// Метка следует за камерой по экватору (вращается азимутально), но не поднимается
 			// по меридиану — вертикальная позиция камеры игнорируется.
-			const toCameraXy = reusableLabelToCamera
-				.copy(cameraPos)
-				.sub(reusableWorldPosition)
-			const majorDir = reusableMajorDir.set(toCameraXy.x, toCameraXy.y, 0).normalize()
+				const toCameraXy = reusableLabelToCamera
+					.copy(cameraPos)
+					.sub(reusableWorldPosition)
+				const cameraDistanceMm = toCameraXy.length()
+				const majorDir = reusableMajorDir.set(toCameraXy.x, toCameraXy.y, 0).normalize()
 			if (majorDir.length() < 1e-6) majorDir.set(1, 0, 0)
 
 			// Нормаль всегда горизонтальная (вдоль majorDir), независимо от высоты камеры.
@@ -3776,40 +3798,105 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			// Вектор "вверх" — мировая вертикаль; метка не наклоняется с камерой.
 			const up = reusableLabelUp.set(0, 0, 1)
 
-			// Устанавливаем позицию
-			tracker.container.position.copy(labelPos)
-
-			// Строим ориентацию из базиса
-			const matrix = reusableLabelMatrix
-			const e = matrix.elements
-			e[0] = right.x; e[1] = right.y; e[2] = right.z; e[3] = 0
+				// Строим ориентацию из базиса
+				const matrix = reusableLabelMatrix
+				const e = matrix.elements
+				e[0] = right.x; e[1] = right.y; e[2] = right.z; e[3] = 0
 			e[4] = up.x;    e[5] = up.y;    e[6] = up.z;    e[7] = 0
-			e[8] = normal.x; e[9] = normal.y; e[10] = normal.z; e[11] = 0
-			e[12] = 0;      e[13] = 0;      e[14] = 0;      e[15] = 1
+				e[8] = normal.x; e[9] = normal.y; e[10] = normal.z; e[11] = 0
+				e[12] = 0;      e[13] = 0;      e[14] = 0;      e[15] = 1
 
-			tracker.container.quaternion.setFromRotationMatrix(matrix)
+				const curveQuaternion = reusableLabelCurveQuaternion.setFromRotationMatrix(matrix)
 
-			const fitScale = resolveSurfaceFitScale({
-				curveRadiusMm,
-				extents: tracker.extents,
+				const fitScale = resolveSurfaceFitScale({
+					curveRadiusMm,
+					extents: tracker.extents,
 				limits: SURFACE_ARC_LIMITS,
-				minScale: MIN_SURFACE_LABEL_FIT_SCALE,
-			})
+					minScale: MIN_SURFACE_LABEL_FIT_SCALE,
+				})
 
-			bendTextAroundEquator({
-				geometry: tracker.textNode.stencilGeometry,
-				initialPositions: tracker.initialStencilPositions,
-				centerX: tracker.stencilCenterX,
-				scale: fitScale,
-				curveRadius: curveRadiusMm,
-			})
-			bendTextAroundEquator({
-				geometry: tracker.textNode.coverGeometry,
-				initialPositions: tracker.initialCoverPositions,
-				centerX: tracker.coverCenterX,
-				scale: fitScale,
-				curveRadius: curveRadiusMm,
-			})
+				let titleMorph = 0
+				let titleScale = 1
+				let titleCenterX = tracker.extents.centerXmm
+				if (tracker.kind === "field") {
+					const fieldId = Number(tracker.key.slice("field:".length))
+					const billboard = Number.isFinite(fieldId) ? fieldBillboardRecords.get(fieldId) : undefined
+					if (billboard !== undefined) {
+						titleMorph = resolveFieldLabelTitleMorph(cameraDistanceMm, Math.max(sphereRadius, 1e-6))
+						if (titleMorph > 0) {
+							billboard.container.matrixWorld.decompose(
+								reusableBillboardTitlePosition,
+								reusableBillboardTitleQuaternion,
+								reusableBillboardTitleScale,
+							)
+							const titleHeightMm = FIELD_BILLBOARD_TITLE_FONT_PX * billboard.pixelScale
+							const textHeightMm = Math.max(tracker.extents.ascenderMm + tracker.extents.descenderMm, 1e-6)
+							const maxTitleWidthMm = Math.max(
+								1e-6,
+								(FIELD_BILLBOARD_PIXEL_WIDTH - FIELD_BILLBOARD_TITLE_PAD_X_PX * 2) * billboard.pixelScale,
+							)
+							titleScale = Math.min(
+								titleHeightMm / textHeightMm,
+								maxTitleWidthMm / Math.max(tracker.extents.widthMm, 1e-6),
+							)
+							titleCenterX = tracker.extents.centerXmm
+							reusableBillboardTitleLocal.set(
+								0,
+								billboard.heightMm / 2 - (FIELD_BILLBOARD_TITLE_Y_PX + FIELD_BILLBOARD_TITLE_FONT_PX) * billboard.pixelScale,
+								0.7,
+							)
+							reusableBillboardTitlePosition
+								.copy(reusableBillboardTitleLocal)
+								.applyMatrix4(billboard.container.matrixWorld)
+							tracker.container.position.set(
+								mixScalar(labelPos.x, reusableBillboardTitlePosition.x, titleMorph),
+								mixScalar(labelPos.y, reusableBillboardTitlePosition.y, titleMorph),
+								mixScalar(labelPos.z, reusableBillboardTitlePosition.z, titleMorph),
+							)
+							tracker.container.quaternion.copy(curveQuaternion).slerp(reusableBillboardTitleQuaternion, titleMorph)
+						}
+					}
+				}
+
+				if (titleMorph <= 0) {
+					tracker.container.position.copy(labelPos)
+					tracker.container.quaternion.copy(curveQuaternion)
+					bendTextAroundEquator({
+						geometry: tracker.textNode.stencilGeometry,
+						initialPositions: tracker.initialStencilPositions,
+						centerX: tracker.stencilCenterX,
+						scale: fitScale,
+						curveRadius: curveRadiusMm,
+					})
+					bendTextAroundEquator({
+						geometry: tracker.textNode.coverGeometry,
+						initialPositions: tracker.initialCoverPositions,
+						centerX: tracker.coverCenterX,
+						scale: fitScale,
+						curveRadius: curveRadiusMm,
+					})
+				} else {
+					morphTextGeometryToBillboardTitle({
+						geometry: tracker.textNode.stencilGeometry,
+						initialPositions: tracker.initialStencilPositions,
+						centerX: tracker.stencilCenterX,
+						curveScale: fitScale,
+						curveRadius: curveRadiusMm,
+						titleScale,
+						titleCenterX,
+						mix: titleMorph,
+					})
+					morphTextGeometryToBillboardTitle({
+						geometry: tracker.textNode.coverGeometry,
+						initialPositions: tracker.initialCoverPositions,
+						centerX: tracker.coverCenterX,
+						curveScale: fitScale,
+						curveRadius: curveRadiusMm,
+						titleScale,
+						titleCenterX,
+						mix: titleMorph,
+					})
+				}
 
 			tracker.container.updateMatrix()
 		}
@@ -3830,7 +3917,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			const cameraDistanceMm = normal.length()
 			if (cameraDistanceMm <= 1e-6) normal.set(0, -1, 0)
 			normal.normalize()
-			if (fieldRecord) resizeFieldBillboardToWorldSphere(tracker, fieldRecord.snapshot, worldScale, cameraDistanceMm)
+			if (fieldRecord) resizeFieldBillboardToWorldSphere(tracker, fieldRecord.snapshot, worldScale)
 
 			let up = reusableBillboardUp.set(0, 0, 1)
 			const right = reusableBillboardRight.crossVectors(up, normal)
@@ -3996,7 +4083,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		const hasCosmosMotion = updateCosmosAnimation(deltaMs)
 		const hasBotMotion = updateAnthropomorphBotAnimation(deltaMs)
 		updateSceneWorldState()
-		applyNavigationFrame(deltaMs)
+		applyNavigationFrame(timestamp)
 		const hasBotPhoneCameraMotion = applyBotPhoneCameraFlight()
 		syncBotPhoneHoverPane()
 
@@ -4012,8 +4099,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			syncLabelRecords()
 		}
 
-		updateLabelTrackers()
 		updateFieldBillboardTrackers()
+		updateLabelTrackers()
 		flushFieldBillboardSurfaces()
 		hudRuntime.flushPendingRender()
 		space.updateWorldMatrix()
@@ -4021,6 +4108,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		renderer.renderFrame(space, hudRuntime.overlay, viewPoint)
 		if (navigationState || hasBotPhoneCameraMotion || hasPendingMotion || hasCosmosMotion || hasBotMotion || timestamp < renderWakeUntilMs) {
 			frameHandle = requestAnimationFrame(animate)
+		} else {
+			lastAnimationTimestamp = 0
 		}
 	}
 

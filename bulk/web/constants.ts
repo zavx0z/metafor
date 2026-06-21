@@ -37,8 +37,4 @@ export const SURFACE_ARC_LIMITS: SurfaceArcLimits = {
 
 export const MIN_SURFACE_LABEL_FIT_SCALE = 0.12
 
-export const FOCUS_POSITION_SMOOTHING_MS = 130
-export const FOCUS_TARGET_SMOOTHING_MS = 115
-export const FOCUS_ANCHOR_SMOOTHING_MS = 150
-export const FOCUS_RADIUS_SMOOTHING_MS = 170
-export const FOCUS_SETTLE_DISTANCE_MM = 0.35
+export const FOCUS_FLIGHT_MS = 1000
