@@ -80,7 +80,7 @@ import {
 	type VoiceInputSignalTone,
 	type VoiceInputStatus,
 	type VoiceInputTransport,
-} from "../../pkg/interpreter/web/voice-input.ts"
+} from "@metafor/interpreter/web"
 import {
 	APP_WEB_LAYOUT_SETTING_KEYS,
 	APP_WEB_RENDER_SETTING_KEYS,

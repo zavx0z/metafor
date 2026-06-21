@@ -8,6 +8,8 @@
   "types": "index.ts",
   "exports": {
     ".": "./index.ts",
+    "./srv": "./srv.ts",
+    "./web": "./web.ts",
     "./interpreter": "./interpreter.ts"
   },
   "bin": {

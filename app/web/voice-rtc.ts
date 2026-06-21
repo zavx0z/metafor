@@ -1,4 +1,4 @@
-import type {VoiceInputAsrSocketContext, VoiceInputSocket} from "../../pkg/interpreter/web/voice-input.ts"
+import type {VoiceInputAsrSocketContext, VoiceInputSocket} from "@metafor/interpreter/web"
 
 export type VoiceRtcDebugSnapshot = {
 	state: string
