@@ -1726,7 +1726,7 @@ function booleanFromEnv(name: string, fallback: boolean): boolean {
 
 function readAsrTunnelConfig(): AsrTunnelConfig {
   const localBind = Bun.env.VOICE_ASR_TUNNEL_LOCAL_BIND ?? "127.0.0.1";
-  const localPort = positiveNumberFromEnv("VOICE_ASR_TUNNEL_LOCAL_PORT", 8877);
+  const localPort = positiveNumberFromEnv("VOICE_ASR_TUNNEL_LOCAL_PORT", 8787);
   const remoteHost = Bun.env.VOICE_ASR_TUNNEL_REMOTE_HOST ?? "127.0.0.1";
   const remotePort = positiveNumberFromEnv("VOICE_ASR_TUNNEL_REMOTE_PORT", 8787);
   return {

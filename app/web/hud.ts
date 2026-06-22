@@ -409,7 +409,7 @@ const VOICE_SETTINGS_STORAGE_KEYS = [
 
 type HudNotificationKind = "activation" | "deactivation" | "stop" | "error" | "agent"
 
-const DEFAULT_VOICE_INPUT_URL = "ws://127.0.0.1:8877/ws"
+const DEFAULT_VOICE_INPUT_URL = "ws://127.0.0.1:8787/ws"
 const DEFAULT_VOICE_WAKE_URL = "ws://127.0.0.1:4765/ws"
 const DEFAULT_VOICE_AUTO_SEND_ENABLED = true
 const DEFAULT_CODEX_VOICE_P2P_ENABLED = true

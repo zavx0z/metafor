@@ -72,12 +72,12 @@ http://127.0.0.1:4765
 В playground есть два движка распознавания:
 
 - `Local Vosk` стримит microphone PCM в локальный Bun/Vosk server на `/ws`.
-- `Remote ASR` стримит тот же PCM на настраиваемый WebSocket URL. По умолчанию используется `ws://127.0.0.1:8877/ws`, рассчитанный на SSH tunnel к `ai-srv`.
+- `Remote ASR` стримит тот же PCM на настраиваемый WebSocket URL. По умолчанию используется `ws://127.0.0.1:8787/ws`, рассчитанный на SSH tunnel к `ai-srv`.
 
 Playground server автоматически запускает и наблюдает SSH tunnel к `ai-srv`:
 
 ```sh
-ssh -N -L 127.0.0.1:8877:127.0.0.1:8787 ai-srv
+ssh -N -L 127.0.0.1:8787:127.0.0.1:8787 ai-srv
 ```
 
 Если tunnel process завершается или `/health` перестаёт отвечать, server перезапускает его. Отключить managed tunnel:
@@ -111,10 +111,10 @@ VOSK_LOG_LEVEL=-1
 VOICE_ASR_TUNNEL=1
 VOICE_ASR_TUNNEL_SSH_HOST=ai-srv
 VOICE_ASR_TUNNEL_LOCAL_BIND=127.0.0.1
-VOICE_ASR_TUNNEL_LOCAL_PORT=8877
+VOICE_ASR_TUNNEL_LOCAL_PORT=8787
 VOICE_ASR_TUNNEL_REMOTE_HOST=127.0.0.1
 VOICE_ASR_TUNNEL_REMOTE_PORT=8787
-VOICE_ASR_TUNNEL_HEALTH_URL=http://127.0.0.1:8877/health
+VOICE_ASR_TUNNEL_HEALTH_URL=http://127.0.0.1:8787/health
 VOICE_ASR_TUNNEL_STARTUP_GRACE_MS=12000
 ```
 
