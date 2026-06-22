@@ -9,6 +9,7 @@ export type FileListItem = {
   modifiedLabel?: string
   statusLabel?: string
   iconLabel?: string
+  muted?: boolean
   disabled?: boolean
   children?: readonly FileListItem[]
 }

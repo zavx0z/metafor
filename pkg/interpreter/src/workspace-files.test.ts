@@ -25,7 +25,8 @@ describe("workspaceFilesPayload", () => {
 
     expect(payload.root).toBe(cwd)
     expect(payload.workspacePath).toBe("")
-    expect(payload.files.map((file) => file.path)).toContain("github/")
+    expect(payload.files.some((file) => file.path.endsWith("/"))).toBe(false)
+    expect(payload.files.map((file) => file.path)).not.toContain("github/")
     expect(payload.files.map((file) => file.path)).toContain("dark/server.spec.ts")
     expect(payload.files.map((file) => file.path)).toContain("dark/server.ts")
     expect(payload.files.map((file) => file.path)).toContain("boundary/force.ts")

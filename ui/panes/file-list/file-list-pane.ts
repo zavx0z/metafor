@@ -604,6 +604,7 @@ export class FileListPane extends UiSurface {
     active: boolean,
   ): void {
     const disabled = row.item.disabled === true
+    const muted = disabled || row.item.muted === true
     const theme = this.#theme
     const indent = theme.row.paddingX + row.depth * theme.row.indent
     const disclosureX = x + indent
@@ -616,8 +617,8 @@ export class FileListPane extends UiSurface {
     const nameRightGap = meta === null ? 8 : metaW + 10
     const nameW = Math.max(24, x + w - nameX - nameRightGap)
     const selectedText = this.#focused ? theme.row.selectedText : theme.row.selectedInactiveText
-    const textColor = disabled ? theme.row.disabledText : selected ? selectedText : theme.row.text
-    const mutedColor = disabled ? theme.row.disabledText : selected ? selectedText : theme.row.muted
+    const textColor = muted ? theme.row.disabledText : selected ? selectedText : theme.row.text
+    const mutedColor = muted ? theme.row.disabledText : selected ? selectedText : theme.row.muted
 
     if (row.expandable) {
       this.#drawDisclosureChevron(
@@ -630,7 +631,7 @@ export class FileListPane extends UiSurface {
       )
     }
 
-    this.#drawKindIcon(row.item, iconX, iconY, iconSize, disabled)
+    this.#drawKindIcon(row.item, iconX, iconY, iconSize, muted)
     this.#drawFileName(row.item.name, nameX, y, nameW, h, textColor)
 
     const metaX = x + w - metaW - 8
@@ -675,9 +676,9 @@ export class FileListPane extends UiSurface {
     this.drawLine(cx - half / 2, cy + half, cx + half, cy, color, 1.4, z)
   }
 
-  #drawKindIcon(item: FileListItem, x: number, y: number, size: number, disabled: boolean): void {
+  #drawKindIcon(item: FileListItem, x: number, y: number, size: number, muted: boolean): void {
     const directory = item.kind === "directory"
-    const fill = disabled ? this.#theme.icon.disabledFill : directory ? this.#theme.icon.directoryFill : this.#theme.icon.fileFill
+    const fill = muted ? this.#theme.icon.disabledFill : directory ? this.#theme.icon.directoryFill : this.#theme.icon.fileFill
     if (directory) {
       const tabX = x + size * 0.14
       const tabY = y + size * 0.20
@@ -687,11 +688,11 @@ export class FileListPane extends UiSurface {
       const bodyY = y + size * 0.36
       const bodyW = size * 0.86
       const bodyH = size * 0.52
-      const border = disabled ? null : withAlpha(palette.borderBright, 0.24)
+      const border = muted ? null : withAlpha(palette.borderBright, 0.24)
 
       this.drawRoundedRect(tabX, tabY, tabW, tabH, {
         radius: {tl: 1.8, tr: 1.8, br: 0.8, bl: 0.8},
-        fill: mixColor(fill, palette.text, disabled ? 0 : 0.12),
+        fill: mixColor(fill, palette.text, muted ? 0 : 0.12),
         border,
         borderWidth: 0.8,
         z: Z.ELEMENT_RULE,
@@ -719,7 +720,7 @@ export class FileListPane extends UiSurface {
     })
     this.drawTextCentered(iconLabel(item), x + size / 2, y + size / 2 + 0.5, {
       fontPx: Math.max(4, size * 0.30),
-      material: disabled ? this.#mutedMaterial : this.#statusMaterial,
+      material: muted ? this.#mutedMaterial : this.#statusMaterial,
       maxWidthPx: Math.max(8, fileW - 1),
       z: Z.TEXT + 0.02,
     })

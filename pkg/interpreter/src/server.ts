@@ -298,6 +298,7 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
   let nextUiHostRequestId = 1
   const pendingUiHostRequests = new Map<number, UiHostPendingRequest>()
   const moduleContexts: ModuleContextStore = new Map()
+  const moduleContextClientIds = new Map<string, number>()
   const hudTodoContext: HudTodoContextStore = {context: null}
   const hudSqliteContext: HudSqliteContextStore = {context: null}
 
@@ -318,9 +319,7 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
   for (const path of options.startupSqliteDatabases ?? []) sqliteWatchRegistry.register(path)
 
   const dispatchUiHostCommand: UiHostCommandDispatcher = (command, params) => {
-    const client = [...wsClients].find((item): item is ServerWebSocket<UiWsClientData> => {
-      return item.data.kind === "ui" && item.readyState === WebSocket.OPEN
-    })
+    const client = uiHostDispatchClient(wsClients, moduleContextClientIds, command, params)
     if (client === undefined) {
       throw new UiHostCommandError("no connected interpreter UI host", 503)
     }
@@ -480,7 +479,7 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
         return
       }
       if (message !== undefined && messageType === "module-context") {
-        acceptModuleContext(message, moduleContexts, hudTodoContext, hudSqliteContext, options, ws.data.id)
+        acceptModuleContext(message, moduleContexts, moduleContextClientIds, hudTodoContext, hudSqliteContext, options, ws.data.id)
         return
       }
       if (message !== undefined && messageType === "hud-todo-context") {
@@ -551,6 +550,7 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
       }
 
       wsClients.delete(ws)
+      removeModuleContextClient(moduleContextClientIds, ws.data.id)
       rejectPendingUiHostRequestsForClient(ws.data.id, pendingUiHostRequests)
       options.logger.event("ws.client.closed", {id: ws.data.id, total: wsClients.size})
     },
@@ -697,9 +697,44 @@ function acceptUiHostResult(message: JsonObject, pending: Map<number, UiHostPend
   request.reject(new UiHostCommandError(error, 400))
 }
 
+function uiHostDispatchClient(
+  clients: Set<ServerWebSocket<WsClientData>>,
+  moduleContextClientIds: Map<string, number>,
+  command: string,
+  params: unknown,
+): ServerWebSocket<UiWsClientData> | undefined {
+  const moduleId = command.startsWith("processes.") ? uiHostCommandModuleId(params) : undefined
+  const preferredClientId = moduleId === undefined ? undefined : moduleContextClientIds.get(moduleId)
+  if (preferredClientId !== undefined) {
+    const preferred = [...clients].find((item): item is ServerWebSocket<UiWsClientData> => {
+      return item.data.kind === "ui" && item.data.id === preferredClientId && item.readyState === WebSocket.OPEN
+    })
+    if (preferred !== undefined) return preferred
+  }
+  return [...clients].find((item): item is ServerWebSocket<UiWsClientData> => {
+    return item.data.kind === "ui" && item.readyState === WebSocket.OPEN
+  })
+}
+
+function uiHostCommandModuleId(params: unknown): string | undefined {
+  const object = asObject(params)
+  if (object === undefined) return undefined
+  const direct = asString(object["moduleId"]) ?? asString(object["processId"])
+  if (direct !== undefined) return direct
+  const selector = asObject(object["selector"])
+  return asString(selector?.["moduleId"]) ?? asString(selector?.["processId"])
+}
+
+function removeModuleContextClient(moduleContextClientIds: Map<string, number>, clientId: number): void {
+  for (const [moduleId, mappedClientId] of moduleContextClientIds) {
+    if (mappedClientId === clientId) moduleContextClientIds.delete(moduleId)
+  }
+}
+
 function acceptModuleContext(
   message: JsonObject,
   contexts: ModuleContextStore,
+  contextClientIds: Map<string, number>,
   hudTodo: HudTodoContextStore,
   hudSqlite: HudSqliteContextStore,
   options: HttpServerOptions,
@@ -716,6 +751,7 @@ function acceptModuleContext(
     receivedAt: new Date().toISOString(),
   }
   contexts.set(moduleId, nextContext)
+  contextClientIds.set(moduleId, clientId)
   const hud = asObject(nextContext["hud"])
   const todo = asObject(hud?.["todo"])
   if (todo !== undefined) hudTodo.context = todo

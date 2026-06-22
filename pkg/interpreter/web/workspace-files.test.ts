@@ -2,6 +2,7 @@ import {describe, expect, test} from "bun:test"
 import {
   shouldRevealWorkspaceForSourceOpen,
   workspaceDirectoryIds,
+  workspaceFileIdForSourcePath,
   workspaceFileIdForSources,
   workspaceFileRevealState,
   workspaceFilesContextSnapshot,
@@ -23,6 +24,15 @@ describe("interpreter workspace files", () => {
     expect(workspaceDirectoryIds(items)).toEqual(["github", "src", "src/view"])
   })
 
+  test("marks requested file ids as muted", () => {
+    const items = workspaceFileTree(["src/view/main.ts", "README.md"], {
+      mutedFileIds: ["src/view/main.ts"],
+    })
+
+    expect(items[0]?.children?.[0]?.children?.[0]?.muted).toBe(true)
+    expect(items[1]?.muted).toBeUndefined()
+  })
+
   test("resolves source URLs to workspace file ids", () => {
     const items = workspaceFileTree(["src/view/main.ts", "README.md"])
     const state = {
@@ -33,6 +43,33 @@ describe("interpreter workspace files", () => {
 
     expect(workspaceFileIdForSources(state, ["file:///Users/me/project/src/view/main.ts:12"])).toBe("src/view/main.ts")
     expect(workspaceFileIdForSources(state, ["r/src/view/main.ts"])).toBe("src/view/main.ts")
+  })
+
+  test("derives missing workspace file ids from opened local sources", () => {
+    const state = {
+      root: "/Users/me/project",
+      workspacePath: "/Users/me/project",
+      items: [],
+    }
+
+    expect(workspaceFileIdForSourcePath(state, "/Users/me/project/src/view/missing.ts:12")).toBe("src/view/missing.ts")
+    expect(workspaceFileIdForSourcePath(state, "file:///Users/me/project/src/view/missing.ts")).toBe("src/view/missing.ts")
+    expect(workspaceFileIdForSourcePath(state, "r/src/view/missing.ts")).toBe("src/view/missing.ts")
+    expect(workspaceFileIdForSourcePath(state, "/Users/me/other/missing.ts")).toBeNull()
+    expect(workspaceFileIdForSourcePath(state, "../outside.ts")).toBeNull()
+    expect(workspaceFileIdForSourcePath(state, "https://example.com/src/view/missing.ts")).toBeNull()
+  })
+
+  test("strips workspace path prefixes from opened sources", () => {
+    const state = {
+      root: "/Users/me/project/app/web",
+      workspacePath: "app/web",
+      items: [],
+    }
+
+    expect(workspaceFileIdForSourcePath(state, "/Users/me/project/app/web/src/client.ts")).toBe("src/client.ts")
+    expect(workspaceFileIdForSourcePath(state, "app/web/src/client.ts")).toBe("src/client.ts")
+    expect(workspaceFileIdForSourcePath(state, "src/client.ts")).toBe("src/client.ts")
   })
 
   test("manual reveal expands parents and selects the resolved file", () => {

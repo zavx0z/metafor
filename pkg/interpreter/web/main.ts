@@ -78,6 +78,8 @@ import {
   shouldRevealWorkspaceForSourceOpen,
   stripSourceLine,
   workspaceDirectoryIds,
+  workspaceFileIdForSourcePath,
+  workspaceFileIds,
   workspaceFileIdForSources,
   workspaceFileRevealState,
   workspaceFileSourceUrl as workspaceFileItemSourceUrl,
@@ -302,6 +304,7 @@ type WorkspaceFilesPayload = {
 type WorkspaceFilesStoredState = {
   expandedIds: string[]
   selectedIds: string[]
+  openedFileIds: string[]
 }
 
 type WorkspaceFilesState = {
@@ -309,9 +312,11 @@ type WorkspaceFilesState = {
   workspacePath: string
   modulePath: string | null
   rootLabel: string | null
+  catalogPaths: readonly string[]
   items: readonly FileListItem[]
   expandedIds: readonly string[]
   selectedIds: readonly string[]
+  openedFileIds: readonly string[]
   storageKey: string
   loading: Promise<void> | null
   suppressSelectionOpen: boolean
@@ -1340,7 +1345,7 @@ async function openInterpreterSource(controller: ModuleDisplayController, params
   if (line !== undefined) options.line = line
   if (column !== undefined) options.column = column
   if (selection !== undefined) options.selection = selection
-  if (revealInWorkspace !== undefined) options.revealInWorkspace = revealInWorkspace
+  options.revealInWorkspace = revealInWorkspace ?? true
   return await openWorkspaceSource(controller, sourceUrl, options)
 }
 
@@ -1350,7 +1355,7 @@ async function openInterpreterSelectedSource(controller: ModuleDisplayController
   const specifier = importSpecifierFromText(selectedText)
   if (specifier === undefined) throw new Error(`selected text does not contain an import specifier: ${selectedText}`)
   const sourceUrl = resolveSourceSpecifier(controller, specifier)
-  const result = await openWorkspaceSource(controller, sourceUrl)
+  const result = await openWorkspaceSource(controller, sourceUrl, {revealInWorkspace: true})
   return {
     specifier,
     selection: selectedText,
@@ -8307,9 +8312,11 @@ function initialWorkspaceFilesState(module: ModulePaneSnapshot): WorkspaceFilesS
     workspacePath: "",
     modulePath: module.modulePath ?? null,
     rootLabel: null,
+    catalogPaths: [],
     items: [],
     expandedIds: storedState.expandedIds,
     selectedIds: storedState.selectedIds,
+    openedFileIds: storedState.openedFileIds,
     storageKey,
     loading: null,
     suppressSelectionOpen: false,
@@ -8326,15 +8333,23 @@ async function refreshWorkspaceFiles(controller: ModuleDisplayController): Promi
       const paths = Array.isArray(files)
         ? files.map((file) => typeof file.path === "string" ? file.path : "").filter((path) => path.length > 0)
         : []
-      const items = workspaceFileTree(paths)
       const storageKey = workspaceFilesStorageKey(data.root, controller.id)
       const storedState = readStoredWorkspaceFilesState(storageKey)
-      controller.workspaceFiles.root = data.root ?? null
-      controller.workspaceFiles.workspacePath = normalizeWorkspacePath(data.workspacePath ?? "")
+      const root = data.root ?? null
+      const workspacePath = normalizeWorkspacePath(data.workspacePath ?? "")
+      const currentOpenedFileIds = currentWorkspaceFileCandidates(controller)
+        .map((source) => workspaceFileIdForSourcePath({root, workspacePath, items: []}, source))
+        .filter((id): id is string => id !== null)
+      const openedFileIds = normalizeWorkspaceOpenedFileIds([...storedState.openedFileIds, ...currentOpenedFileIds])
+      const items = workspaceFileItems(paths, openedFileIds)
+      controller.workspaceFiles.root = root
+      controller.workspaceFiles.workspacePath = workspacePath
       controller.workspaceFiles.modulePath = data.entrypoint ?? data.modulePath ?? controller.workspaceFiles.modulePath
       controller.workspaceFiles.rootLabel = workspaceRootLabel(data.root)
+      controller.workspaceFiles.catalogPaths = paths
       controller.workspaceFiles.items = items
       controller.workspaceFiles.storageKey = storageKey
+      controller.workspaceFiles.openedFileIds = openedFileIds
       controller.workspaceFiles.expandedIds = normalizeWorkspaceExpandedIds(storedState.expandedIds, items)
       controller.workspaceFiles.selectedIds = normalizeFileListSelection(storedState.selectedIds, items, "multiple")
       applyWorkspaceFilesToModuleDisplay(controller)
@@ -8346,15 +8361,38 @@ async function refreshWorkspaceFiles(controller: ModuleDisplayController): Promi
       controller.workspaceFiles.root = null
       controller.workspaceFiles.workspacePath = ""
       controller.workspaceFiles.rootLabel = null
+      controller.workspaceFiles.catalogPaths = []
       controller.workspaceFiles.items = []
       controller.workspaceFiles.expandedIds = []
       controller.workspaceFiles.selectedIds = []
+      controller.workspaceFiles.openedFileIds = []
       applyWorkspaceFilesToModuleDisplay(controller)
     } finally {
       controller.workspaceFiles.loading = null
     }
   })()
   return controller.workspaceFiles.loading
+}
+
+function workspaceFileItems(catalogPaths: readonly string[], openedFileIds: readonly string[]): FileListItem[] {
+  const catalogItems = workspaceFileTree(catalogPaths)
+  const catalogFileIds = new Set(workspaceFileIds(catalogItems))
+  const mutedFileIds = openedFileIds.filter((id) => !catalogFileIds.has(id))
+  return workspaceFileTree([...catalogPaths, ...mutedFileIds], {mutedFileIds})
+}
+
+function normalizeWorkspaceOpenedFileIds(ids: readonly string[]): string[] {
+  const next: string[] = []
+  for (const id of ids) {
+    const fileId = workspaceFileIdForSourcePath({
+      root: null,
+      workspacePath: "",
+      items: [],
+    }, id)
+    if (fileId === null || next.includes(fileId)) continue
+    next.push(fileId)
+  }
+  return next
 }
 
 function applyWorkspaceFilesToModuleDisplay(controller: ModuleDisplayController): void {
@@ -8432,6 +8470,25 @@ function setWorkspaceFilesSelectedIds(controller: ModuleDisplayController, ids: 
   }
 }
 
+function addOpenedWorkspaceSource(controller: ModuleDisplayController, sourceUrl: string): string | null {
+  const fileId = workspaceFileIdForSourcePath(controller.workspaceFiles, sourceUrl)
+  if (fileId === null) return null
+
+  const openedFileIds = normalizeWorkspaceOpenedFileIds([...controller.workspaceFiles.openedFileIds, fileId])
+  const items = workspaceFileItems(controller.workspaceFiles.catalogPaths, openedFileIds)
+  const changed = !sameStringArray(openedFileIds, controller.workspaceFiles.openedFileIds)
+    || findWorkspaceFileItem(controller.workspaceFiles.items, fileId)?.kind !== "file"
+  if (!changed) return fileId
+
+  controller.workspaceFiles.openedFileIds = openedFileIds
+  controller.workspaceFiles.items = items
+  controller.workspaceFiles.expandedIds = normalizeWorkspaceExpandedIds(controller.workspaceFiles.expandedIds, items)
+  controller.workspaceFiles.selectedIds = normalizeFileListSelection(controller.workspaceFiles.selectedIds, items, "multiple")
+  writeStoredWorkspaceFilesState(controller)
+  applyWorkspaceFilesToModuleDisplay(controller)
+  return fileId
+}
+
 type OpenWorkspaceSourceResult =
   | {ok: true; sourceUrl: string; location: string; scriptUrl: string; sourceKind: string | null}
   | {ok: false; sourceUrl: string; location: string; error: string}
@@ -8496,8 +8553,15 @@ async function openWorkspaceSource(
       },
       ...(data.tokens === undefined ? {} : {tokens: data.tokens}),
     }, "idle", false)
+    const openedFileId = addOpenedWorkspaceSource(controller, responseSourceUrl) ?? addOpenedWorkspaceSource(controller, sourceUrl)
     applySourceOpenPosition(controller, options)
-    if (shouldRevealWorkspaceForSourceOpen(options)) revealWorkspaceSource(controller, responseSourceUrl)
+    if (shouldRevealWorkspaceForSourceOpen(options)) {
+      if (openedFileId === null) {
+        revealWorkspaceSource(controller, responseSourceUrl)
+      } else {
+        revealWorkspaceFileId(controller, openedFileId)
+      }
+    }
     return {
       ok: true,
       sourceUrl: responseSourceUrl,
@@ -8878,21 +8942,31 @@ function workspaceFileSourceUrl(controller: ModuleDisplayController, item: FileL
 }
 
 function revealCurrentWorkspaceFile(controller: ModuleDisplayController): void {
-  const fileId = currentWorkspaceFileId(controller)
+  const fileId = currentWorkspaceFileId(controller) ?? addCurrentWorkspaceFile(controller)
   if (fileId === null) return
-  setWorkspaceFilesExpandedIds(controller, [...new Set([...controller.workspaceFiles.expandedIds, ...workspaceParentIds(fileId)])])
-  setWorkspaceFilesSelectedIds(controller, [fileId])
+  revealWorkspaceFileId(controller, fileId)
   controller.files.focus()
 }
 
 function currentWorkspaceFileId(controller: ModuleDisplayController): string | null {
-  const candidates = [
+  return workspaceFileIdForSources(controller.workspaceFiles, currentWorkspaceFileCandidates(controller))
+}
+
+function addCurrentWorkspaceFile(controller: ModuleDisplayController): string | null {
+  for (const candidate of currentWorkspaceFileCandidates(controller)) {
+    const fileId = addOpenedWorkspaceSource(controller, candidate)
+    if (fileId !== null) return fileId
+  }
+  return null
+}
+
+function currentWorkspaceFileCandidates(controller: ModuleDisplayController): string[] {
+  return [
     controller.sourceLocation,
     controller.sourceIdentity?.sourceUrl,
     controller.sourceIdentity?.scriptUrl,
     controller.sourceIdentity?.key,
   ].filter((value): value is string => typeof value === "string" && value.trim().length > 0)
-  return workspaceFileIdForSources(controller.workspaceFiles, candidates)
 }
 
 function revealWorkspaceSource(controller: ModuleDisplayController, sourceUrl: string): void {
@@ -8900,6 +8974,11 @@ function revealWorkspaceSource(controller: ModuleDisplayController, sourceUrl: s
   if (reveal === null) return
   setWorkspaceFilesExpandedIds(controller, reveal.expandedIds)
   setWorkspaceFilesSelectedIds(controller, reveal.selectedIds)
+}
+
+function revealWorkspaceFileId(controller: ModuleDisplayController, fileId: string): void {
+  setWorkspaceFilesExpandedIds(controller, [...new Set([...controller.workspaceFiles.expandedIds, ...workspaceParentIds(fileId)])])
+  setWorkspaceFilesSelectedIds(controller, [fileId])
 }
 
 function workspaceFilesStorageKey(root: string | undefined, moduleId: string): string {
@@ -8911,14 +8990,15 @@ function workspaceFilesStorageKey(root: string | undefined, moduleId: string): s
 function readStoredWorkspaceFilesState(storageKey: string): WorkspaceFilesStoredState {
   try {
     const raw = localStorage.getItem(storageKey)
-    if (raw === null) return {expandedIds: [], selectedIds: []}
+    if (raw === null) return {expandedIds: [], selectedIds: [], openedFileIds: []}
     const parsed = JSON.parse(raw) as Record<string, unknown>
     return {
       expandedIds: storedStringArray(parsed.expandedIds),
       selectedIds: storedStringArray(parsed.selectedIds),
+      openedFileIds: normalizeWorkspaceOpenedFileIds(storedStringArray(parsed.openedFileIds)),
     }
   } catch {
-    return {expandedIds: [], selectedIds: []}
+    return {expandedIds: [], selectedIds: [], openedFileIds: []}
   }
 }
 
@@ -8927,6 +9007,7 @@ function writeStoredWorkspaceFilesState(controller: ModuleDisplayController): vo
     localStorage.setItem(controller.workspaceFiles.storageKey, JSON.stringify({
       expandedIds: controller.workspaceFiles.expandedIds,
       selectedIds: controller.workspaceFiles.selectedIds,
+      openedFileIds: controller.workspaceFiles.openedFileIds,
     }))
   } catch {
     // Storage can be disabled in private contexts.

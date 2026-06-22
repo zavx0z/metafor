@@ -42,8 +42,13 @@ export function shouldRevealWorkspaceForSourceOpen(options: WorkspaceSourceOpenR
   return options.revealInWorkspace === true
 }
 
-export function workspaceFileTree(paths: readonly string[]): FileListItem[] {
+export type WorkspaceFileTreeOptions = {
+  mutedFileIds?: readonly string[]
+}
+
+export function workspaceFileTree(paths: readonly string[], options: WorkspaceFileTreeOptions = {}): FileListItem[] {
   const root: WorkspaceTreeNode = {id: "", name: "", dirs: new Map(), files: []}
+  const mutedFileIds = new Set(options.mutedFileIds ?? [])
   for (const rawPath of paths) {
     const path = normalizeWorkspaceFilePath(rawPath)
     if (path === null) continue
@@ -70,6 +75,7 @@ export function workspaceFileTree(paths: readonly string[]): FileListItem[] {
       name: fileName,
       kind: "file",
       path,
+      ...(mutedFileIds.has(path) ? {muted: true} : {}),
     })
   }
   return workspaceTreeChildren(root)
@@ -150,6 +156,10 @@ export function workspaceFileIdForSources(state: WorkspaceFilesLookupState, sour
   return null
 }
 
+export function workspaceFileIdForSourcePath(state: WorkspaceFilesLookupState, source: string): string | null {
+  return workspaceFileIdCandidates(source, state)[0] ?? null
+}
+
 export function workspaceParentIds(fileId: string): string[] {
   const parts = fileId.split("/")
   const parents: string[] = []
@@ -215,21 +225,50 @@ export function normalizeWorkspacePath(path: string): string {
 function workspaceFileIdCandidates(source: string, state: WorkspaceFilesLookupState): string[] {
   const candidates = new Set<string>()
   const add = (value: string): void => {
-    const normalized = normalizeWorkspacePath(value)
-    if (normalized.length === 0) return
+    const normalized = normalizeWorkspaceFilePath(value)
+    if (normalized === null) return
     candidates.add(normalized)
-    const withoutPrefix = stripWorkspacePathPrefix(normalized, state.workspacePath)
-    if (withoutPrefix.length > 0) candidates.add(withoutPrefix)
   }
 
+  if (hasUnsupportedSourceScheme(source)) return []
   const normalized = normalizeSourceFilePath(source)
-  add(normalized)
-  if (normalized.startsWith("r/")) add(normalized.slice(2))
+  if (normalized.length === 0) return []
+
+  if (normalized.startsWith("r/")) {
+    const relative = normalized.slice(2)
+    const withoutPrefix = stripWorkspacePathPrefix(relative, state.workspacePath)
+    if (withoutPrefix !== relative) add(withoutPrefix)
+    add(relative)
+  }
 
   const root = normalizeSourceFilePath(state.root ?? "")
-  if (root.length > 0 && normalized.startsWith(`${root}/`)) add(normalized.slice(root.length + 1))
+  if (root.length > 0 && sourcePathSameOrInside(normalized, root) && normalized !== root) {
+    add(normalized.slice(root.length + 1))
+  }
+
+  if (!isAbsoluteSourcePath(normalized)) {
+    const withoutPrefix = stripWorkspacePathPrefix(normalized, state.workspacePath)
+    if (withoutPrefix !== normalized) add(withoutPrefix)
+    add(normalized)
+  }
 
   return [...candidates]
+}
+
+function hasUnsupportedSourceScheme(path: string): boolean {
+  const clean = stripSourceLine(path).trim().replaceAll("\\", "/").replace(/[?#].*$/, "")
+  if (clean.startsWith("file:")) return false
+  if (/^[a-zA-Z]:\//.test(clean)) return false
+  return /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(clean)
+}
+
+function isAbsoluteSourcePath(path: string): boolean {
+  return path.startsWith("/") || /^[a-zA-Z]:\//.test(path)
+}
+
+function sourcePathSameOrInside(path: string, parent: string): boolean {
+  if (parent === "/") return path.startsWith("/")
+  return path === parent || path.startsWith(`${parent}/`)
 }
 
 type WorkspaceTreeNode = {
