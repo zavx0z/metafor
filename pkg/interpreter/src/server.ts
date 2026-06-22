@@ -41,6 +41,14 @@ import {workspaceFilesPayload, type WorkspaceFilesModuleContext} from "./workspa
 import {sqliteDatabaseFingerprint, sqliteDatabaseInputPath, sqliteDatabasePayload, sqliteJsonError, updateSqliteCell, type SqliteDatabaseFingerprint, type SqliteDatabasePayload} from "./sqlite-db.ts"
 import {interpreterRoutes} from "./routes.ts"
 import {
+  attachVoiceProxySocket,
+  createVoiceProxySocketData,
+  detachVoiceProxySocket,
+  relayVoiceProxyMessage,
+  type VoiceProxyRoute,
+  type VoiceProxySocketData,
+} from "./voice-proxy.ts"
+import {
   deleteTodoMarkdownItem,
   insertTodoMarkdownItem,
   parseMarkdownTodo,
@@ -79,7 +87,7 @@ type RtcSignalWsClientData = {
   connectedAt: number
 }
 
-type WsClientData = UiWsClientData | TerminalWsClientData | RtcSignalWsClientData
+type WsClientData = UiWsClientData | TerminalWsClientData | RtcSignalWsClientData | VoiceProxySocketData
 
 const NDJSON_TAIL_DEFAULT_LIMIT = 200
 const NDJSON_TAIL_MAX_LIMIT = 5_000
@@ -310,7 +318,9 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
   for (const path of options.startupSqliteDatabases ?? []) sqliteWatchRegistry.register(path)
 
   const dispatchUiHostCommand: UiHostCommandDispatcher = (command, params) => {
-    const client = [...wsClients].find((item) => item.readyState === WebSocket.OPEN)
+    const client = [...wsClients].find((item): item is ServerWebSocket<UiWsClientData> => {
+      return item.data.kind === "ui" && item.readyState === WebSocket.OPEN
+    })
     if (client === undefined) {
       throw new UiHostCommandError("no connected interpreter UI host", 503)
     }
@@ -393,6 +403,14 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
 
   const websocket: WebSocketHandler<WsClientData> = {
     open(ws): void {
+      if (ws.data.kind === "voice-proxy") {
+        attachVoiceProxySocket(ws as ServerWebSocket<VoiceProxySocketData>)
+        options.logger.event("voice.proxy.opened", {
+          route: ws.data.route,
+          targetUrl: ws.data.targetUrl,
+        })
+        return
+      }
       if (ws.data.kind === "rtc-signal") {
         attachRtcSignalSocket(ws as ServerWebSocket<RtcSignalWsClientData>)
         return
@@ -422,6 +440,10 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
       ws.send(JSON.stringify(hello))
     },
     async message(ws, raw): Promise<void> {
+      if (ws.data.kind === "voice-proxy") {
+        relayVoiceProxyMessage(ws as ServerWebSocket<VoiceProxySocketData>, raw)
+        return
+      }
       if (ws.data.kind === "rtc-signal") {
         handleRtcSignalMessage(ws as ServerWebSocket<RtcSignalWsClientData>, raw)
         return
@@ -509,6 +531,14 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
       }
     },
     close(ws): void {
+      if (ws.data.kind === "voice-proxy") {
+        detachVoiceProxySocket(ws as ServerWebSocket<VoiceProxySocketData>)
+        options.logger.event("voice.proxy.closed", {
+          route: ws.data.route,
+          targetUrl: ws.data.targetUrl,
+        })
+        return
+      }
       if (ws.data.kind === "rtc-signal") {
         detachRtcSignalSocket(ws as ServerWebSocket<RtcSignalWsClientData>)
         return
@@ -577,6 +607,19 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
           connectedAt: Date.now(),
         }
         const upgraded = server.upgrade(req, {data})
+        if (upgraded) return undefined
+        return jsonResponse({ok: false, error: "expected websocket upgrade"}, 426)
+      }
+      const voiceProxyRoute = voiceProxyRouteForPath(path)
+      if (voiceProxyRoute !== null) {
+        if (!isAllowedWebSocketOrigin(req, url)) return jsonResponse({ok: false, error: "forbidden origin"}, 403)
+        const data = createVoiceProxySocketData(voiceProxyRoute)
+        const upgraded = server.upgrade(req, {data})
+        options.logger.event("voice.proxy.upgrade", {
+          route: voiceProxyRoute,
+          targetUrl: data.targetUrl,
+          accepted: upgraded,
+        })
         if (upgraded) return undefined
         return jsonResponse({ok: false, error: "expected websocket upgrade"}, 426)
       }
@@ -1270,6 +1313,12 @@ function isAllowedWebSocketOrigin(req: Request, url: URL): boolean {
   } catch {
     return false
   }
+}
+
+function voiceProxyRouteForPath(path: string): VoiceProxyRoute | null {
+  if (path === "/hud/voice/wake/ws") return "wake"
+  if (path === "/hud/voice/asr/ws") return "asr"
+  return null
 }
 
 function workspaceFilesModuleContextForSnapshot(snapshot: ModuleSnapshot): WorkspaceFilesModuleContext {

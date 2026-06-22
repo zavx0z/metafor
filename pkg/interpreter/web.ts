@@ -15,6 +15,7 @@ export {
   normalizeVoiceWakePhrases,
   prepareVoiceInputChunkForDelivery,
   trimStableVoiceTranscriptPrefix,
+  voiceInputWebSocketUrl,
   type VoiceCommandPhraseGroups,
   type VoiceDeactivationMode,
   type VoiceInputAsrSocketContext,

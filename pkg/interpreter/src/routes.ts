@@ -79,6 +79,8 @@ const routeIndex = [
   {method: "POST", path: "/hud/android/secondary/toggle", description: "переключить второй Android HUD"},
   {method: "POST", path: "/hud/android/secondary/control", description: "отправить command во второй Android через WebRTC datachannel"},
   {method: "WS", path: "/hud/android/webrtc/signaling", description: "WebRTC signaling для Android APK video/datachannel"},
+  {method: "WS", path: "/hud/voice/wake/ws", description: "public proxy к локальному voice wake/Vosk WebSocket"},
+  {method: "WS", path: "/hud/voice/asr/ws", description: "public proxy к локальному ASR WebSocket"},
   {method: "GET", path: "/android/size", description: "proxy к Android panel API: размер устройства"},
   {method: "GET", path: "/android/screencap", description: "proxy к Android panel API: текущий PNG frame"},
   {method: "POST", path: "/android/tap", description: "{x,y} — proxy Android tap"},

@@ -97,6 +97,7 @@ import {
   VOICE_STOP_COMMAND_DETAIL,
   cleanupVoiceText,
   normalizeVoicePhrases,
+  voiceInputWebSocketUrl,
   type VoiceDeactivationMode,
   type VoiceInputChunk,
   type VoiceInputSegment,
@@ -638,8 +639,8 @@ const TODO_PANEL_STATE_STORAGE_KEY = "metafor.interpreter.todo.panelState:v1"
 const INTERPRETER_VIEWPOINT_STORE_DELAY_MS = 120
 const INTERPRETER_DISPLAY_POSITION_STORE_DELAY_MS = 120
 const WORKSPACE_FILES_STATE_STORAGE_PREFIX = "metafor.interpreter.workspaceFiles:v1"
-const DEFAULT_VOICE_INPUT_URL = "ws://127.0.0.1:8787/ws"
-const DEFAULT_VOICE_WAKE_URL = "ws://127.0.0.1:4765/ws"
+const DEFAULT_VOICE_INPUT_URL = "/hud/voice/asr/ws"
+const DEFAULT_VOICE_WAKE_URL = "/hud/voice/wake/ws"
 const DEFAULT_VOICE_SIGNAL_VOLUME = 0.2
 const MIN_AUDIBLE_VOICE_SIGNAL_VOLUME = 0.55
 const DEFAULT_VOICE_DEACTIVATION_MODE: VoiceDeactivationMode = "phrase-timeout"
@@ -5967,7 +5968,7 @@ function probeVoiceService(): Promise<Record<string, unknown> | null> {
   return new Promise((resolve, reject) => {
     let settled = false
     let openFallback: number | null = null
-    const ws = new WebSocket(readVoiceInputUrl())
+    const ws = new WebSocket(voiceInputWebSocketUrl(readVoiceInputUrl()))
     const timeout = window.setTimeout(() => finish(null, new Error("timeout")), VOICE_SERVICE_CHECK_TIMEOUT_MS)
 
     const finish = (data: Record<string, unknown> | null, error?: Error): void => {
@@ -6348,7 +6349,7 @@ function voiceTargetCanAcceptInput(target: VoiceInputTarget): boolean {
 
 function readVoiceInputUrl(): string {
   try {
-    return localStorage.getItem(VOICE_INPUT_URL_STORAGE_KEY) || DEFAULT_VOICE_INPUT_URL
+    return readVoiceEndpointUrl(VOICE_INPUT_URL_STORAGE_KEY, DEFAULT_VOICE_INPUT_URL, "8787")
   } catch {
     return DEFAULT_VOICE_INPUT_URL
   }
@@ -6356,9 +6357,27 @@ function readVoiceInputUrl(): string {
 
 function readVoiceWakeUrl(): string {
   try {
-    return localStorage.getItem(VOICE_WAKE_URL_STORAGE_KEY) || DEFAULT_VOICE_WAKE_URL
+    return readVoiceEndpointUrl(VOICE_WAKE_URL_STORAGE_KEY, DEFAULT_VOICE_WAKE_URL, "4765")
   } catch {
     return DEFAULT_VOICE_WAKE_URL
+  }
+}
+
+function readVoiceEndpointUrl(key: string, fallback: string, legacyLoopbackPort: string): string {
+  const stored = localStorage.getItem(key)
+  if (stored === null || stored.trim().length === 0) return fallback
+  return isLegacyLoopbackVoiceUrl(stored, legacyLoopbackPort) ? fallback : stored
+}
+
+function isLegacyLoopbackVoiceUrl(raw: string, port: string): boolean {
+  try {
+    const url = new URL(raw, location.href)
+    return (url.protocol === "ws:" || url.protocol === "wss:")
+      && (url.hostname === "127.0.0.1" || url.hostname === "localhost" || url.hostname === "::1" || url.hostname === "[::1]")
+      && url.port === port
+      && url.pathname === "/ws"
+  } catch {
+    return false
   }
 }
 

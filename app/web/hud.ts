@@ -74,6 +74,7 @@ import {
 	VoiceInputClient,
 	cleanupVoiceText,
 	normalizeVoicePhrases,
+	voiceInputWebSocketUrl,
 	type VoiceDeactivationMode,
 	type VoiceInputChunk,
 	type VoiceInputSegment,
@@ -409,8 +410,8 @@ const VOICE_SETTINGS_STORAGE_KEYS = [
 
 type HudNotificationKind = "activation" | "deactivation" | "stop" | "error" | "agent"
 
-const DEFAULT_VOICE_INPUT_URL = "ws://127.0.0.1:8787/ws"
-const DEFAULT_VOICE_WAKE_URL = "ws://127.0.0.1:4765/ws"
+const DEFAULT_VOICE_INPUT_URL = "/hud/voice/asr/ws"
+const DEFAULT_VOICE_WAKE_URL = "/hud/voice/wake/ws"
 const DEFAULT_VOICE_AUTO_SEND_ENABLED = true
 const DEFAULT_CODEX_VOICE_P2P_ENABLED = true
 const DEFAULT_VOICE_DEACTIVATION_MODE: VoiceDeactivationMode = "phrase-timeout"
@@ -6757,11 +6758,29 @@ function base64Bytes(bytes: Uint8Array): string {
 }
 
 function readVoiceInputUrl(): string {
-	return readStoredString(VOICE_INPUT_URL_STORAGE_KEY) ?? DEFAULT_VOICE_INPUT_URL
+	return readVoiceEndpointUrl(VOICE_INPUT_URL_STORAGE_KEY, DEFAULT_VOICE_INPUT_URL, "8787")
 }
 
 function readVoiceWakeUrl(): string {
-	return readStoredString(VOICE_WAKE_URL_STORAGE_KEY) ?? DEFAULT_VOICE_WAKE_URL
+	return readVoiceEndpointUrl(VOICE_WAKE_URL_STORAGE_KEY, DEFAULT_VOICE_WAKE_URL, "4765")
+}
+
+function readVoiceEndpointUrl(key: string, fallback: string, legacyLoopbackPort: string): string {
+	const stored = readStoredString(key)
+	if (stored === null) return fallback
+	return isLegacyLoopbackVoiceUrl(stored, legacyLoopbackPort) ? fallback : stored
+}
+
+function isLegacyLoopbackVoiceUrl(raw: string, port: string): boolean {
+	try {
+		const url = new URL(raw, location.href)
+		return (url.protocol === "ws:" || url.protocol === "wss:")
+			&& (url.hostname === "127.0.0.1" || url.hostname === "localhost" || url.hostname === "::1" || url.hostname === "[::1]")
+			&& url.port === port
+			&& url.pathname === "/ws"
+	} catch {
+		return false
+	}
 }
 
 function readVoiceInputContext(): string {
@@ -7198,8 +7217,9 @@ function isVoiceSettingsStorageKey(key: string): key is typeof VOICE_SETTINGS_ST
 
 function endpointLabel(raw: string): string {
 	try {
-		const url = new URL(raw)
-		return `${url.hostname}:${url.port || (url.protocol === "wss:" ? "443" : "80")}`
+		const url = new URL(raw, location.href)
+		const port = url.port || (url.protocol === "wss:" || url.protocol === "https:" ? "443" : "80")
+		return `${url.hostname}:${port}`
 	} catch {
 		return raw
 	}
@@ -7209,7 +7229,7 @@ function probeVoiceService(rawUrl: string): Promise<Record<string, unknown> | nu
 	return new Promise((resolve, reject) => {
 		let settled = false
 		let openFallback: number | null = null
-		const ws = new WebSocket(rawUrl)
+		const ws = new WebSocket(voiceInputWebSocketUrl(rawUrl))
 		const timeout = window.setTimeout(() => finish(null, new Error("timeout")), VOICE_SERVICE_CHECK_TIMEOUT_MS)
 
 		const finish = (data: Record<string, unknown> | null, error?: Error): void => {

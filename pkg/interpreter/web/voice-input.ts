@@ -57,6 +57,17 @@ export type VoiceInputSocket = {
   send(data: string | ArrayBuffer | Blob | ArrayBufferView<ArrayBuffer>): void
 }
 
+export function voiceInputWebSocketUrl(rawUrl: string): string {
+  try {
+    const url = typeof location === "undefined" ? new URL(rawUrl) : new URL(rawUrl, location.href)
+    if (url.protocol === "http:") url.protocol = "ws:"
+    else if (url.protocol === "https:") url.protocol = "wss:"
+    return url.toString()
+  } catch {
+    return rawUrl
+  }
+}
+
 type AsrMessage = {
   type?: string
   text?: string
@@ -384,7 +395,8 @@ export class VoiceInputClient {
   async #connectCommand(url: string): Promise<void> {
     if (this.#commandWs?.readyState === WebSocket.OPEN) return
 
-    const ws = this.options.createCommandSocket?.(url, this.#socketContext()) ?? new WebSocket(url)
+    const socketUrl = voiceInputWebSocketUrl(url)
+    const ws = this.options.createCommandSocket?.(socketUrl, this.#socketContext()) ?? new WebSocket(socketUrl)
     ws.binaryType = "arraybuffer"
     this.#commandWs = ws
 
@@ -399,7 +411,7 @@ export class VoiceInputClient {
 
     await new Promise<void>((resolve, reject) => {
       ws.addEventListener("open", () => resolve(), {once: true})
-      ws.addEventListener("error", () => reject(new Error(`voice command websocket failed: ${url}`)), {once: true})
+      ws.addEventListener("error", () => reject(new Error(`voice command websocket failed: ${socketUrl}`)), {once: true})
     })
   }
 
@@ -407,7 +419,8 @@ export class VoiceInputClient {
     if (this.#asrWs?.readyState === WebSocket.OPEN) return
 
     this.#setTransport("connecting")
-    const ws = this.options.createAsrSocket?.(url, this.#socketContext()) ?? new WebSocket(url)
+    const socketUrl = voiceInputWebSocketUrl(url)
+    const ws = this.options.createAsrSocket?.(socketUrl, this.#socketContext()) ?? new WebSocket(socketUrl)
     ws.binaryType = "arraybuffer"
     this.#asrWs = ws
 
@@ -427,7 +440,7 @@ export class VoiceInputClient {
         if (this.#asrTransport === "connecting" && ws instanceof WebSocket) this.#setTransport("ws")
         resolve()
       }, {once: true})
-      ws.addEventListener("error", () => reject(new Error(`voice ASR websocket failed: ${url}`)), {once: true})
+      ws.addEventListener("error", () => reject(new Error(`voice ASR websocket failed: ${socketUrl}`)), {once: true})
     })
   }
 

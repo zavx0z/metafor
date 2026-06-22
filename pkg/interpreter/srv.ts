@@ -16,3 +16,11 @@ export {
   type HttpServerOptions,
   type InterpreterHttpRoutes,
 } from "./src/server.ts"
+export {
+  attachVoiceProxySocket,
+  createVoiceProxySocketData,
+  detachVoiceProxySocket,
+  relayVoiceProxyMessage,
+  type VoiceProxyRoute,
+  type VoiceProxySocketData,
+} from "./src/voice-proxy.ts"

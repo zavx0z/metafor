@@ -9,10 +9,16 @@ import {createPtySessionManager, parsePtyClientMessage} from "@metafor/pty/serve
 import {
   EventLogger,
   InterpreterModuleManager,
+  attachVoiceProxySocket,
   createInterpreterHttpRoutes,
+  createVoiceProxySocketData,
+  detachVoiceProxySocket,
   interpreterRoutes,
   loadConfig,
+  relayVoiceProxyMessage,
   type InterpreterHttpRoutes,
+  type VoiceProxyRoute,
+  type VoiceProxySocketData,
 } from "@metafor/interpreter/srv"
 import {parseMarkdownTodo, updateTodoMarkdownItem} from "@ui/panes/todo-model"
 import {createRtcSignalingServer} from "./server/rtc-signaling.ts"
@@ -287,6 +293,12 @@ const server = serve<AppWebSocketData>({
       if (response.status >= 400) logHttp(req, "voice.rtc", response.status, started)
       return response
     },
+    "/hud/voice/wake/ws": (req: Request, wsServer: Server<AppWebSocketData>) => {
+      return routeVoiceProxy(req, wsServer, "wake")
+    },
+    "/hud/voice/asr/ws": (req: Request, wsServer: Server<AppWebSocketData>) => {
+      return routeVoiceProxy(req, wsServer, "asr")
+    },
     "/hud/android/control": async (req: Request) => {
       const started = Date.now()
       if (req.method !== "POST") {
@@ -351,6 +363,11 @@ const server = serve<AppWebSocketData>({
   },
   websocket: {
     open(ws) {
+      if (ws.data.kind === "voice-proxy") {
+        attachVoiceProxySocket(ws as ServerWebSocket<VoiceProxySocketData>)
+        appLog("WS", "voice proxy opened", `route=${ws.data.route} target=${ws.data.targetUrl}`, "green")
+        return
+      }
       if (ws.data.kind === "rtc-signal") {
         rtcSignalingServer.attach(ws)
         return
@@ -376,6 +393,10 @@ const server = serve<AppWebSocketData>({
       voiceServer.sendVoiceLeaseSnapshot(ws, "connect")
     },
     message(ws, message) {
+      if (ws.data.kind === "voice-proxy") {
+        relayVoiceProxyMessage(ws as ServerWebSocket<VoiceProxySocketData>, message)
+        return
+      }
       if (ws.data.kind === "rtc-signal") {
         rtcSignalingServer.message(ws, message)
         return
@@ -428,6 +449,11 @@ const server = serve<AppWebSocketData>({
       }
     },
     close(ws) {
+      if (ws.data.kind === "voice-proxy") {
+        detachVoiceProxySocket(ws as ServerWebSocket<VoiceProxySocketData>)
+        appLog("WS", "voice proxy closed", `route=${ws.data.route}`, "gray")
+        return
+      }
       if (ws.data.kind === "rtc-signal") {
         rtcSignalingServer.detach(ws)
         return
@@ -494,6 +520,28 @@ function appClientAssetRoutes(bundle: AppClientBundle): Record<string, () => Res
 
 function routeParam(req: Request, key: string): string | undefined {
   return (req as Request & { params?: Record<string, string> }).params?.[key]
+}
+
+function routeVoiceProxy(req: Request, wsServer: Server<AppWebSocketData>, route: VoiceProxyRoute): Response | undefined {
+  const url = new URL(req.url)
+  if (!isAllowedWebSocketOrigin(req, url)) {
+    logWsUpgrade(req, `voice.${route}`, false, "forbidden origin")
+    return jsonResponse({ok: false, error: "forbidden origin"}, 403)
+  }
+  const data = createVoiceProxySocketData(route)
+  const ok = wsServer.upgrade(req, {data})
+  logWsUpgrade(req, `voice.${route}`, ok, `target=${data.targetUrl}`)
+  return ok ? undefined : new Response("Voice WebSocket proxy upgrade failed", {status: 426})
+}
+
+function isAllowedWebSocketOrigin(req: Request, url: URL): boolean {
+  const origin = req.headers.get("origin")
+  if (!origin) return true
+  try {
+    return new URL(origin).host === url.host
+  } catch {
+    return false
+  }
 }
 
 function todoMarkdownResponse(): Response {

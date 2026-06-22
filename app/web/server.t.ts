@@ -2,6 +2,7 @@ import type {ServerWebSocket} from "bun"
 import type {Buffer} from "node:buffer"
 import type {BulkLayoutSettings} from "@bulk/gravity/layout"
 import type {BoundaryBulkRuntimeSnapshot, BoundaryUpdateMessage} from "boundary"
+import type {VoiceProxySocketData} from "@metafor/interpreter/srv"
 import type {PtySocketData} from "@metafor/pty/server"
 import type {parseMarkdownTodo} from "@ui/panes/todo-model"
 
@@ -29,7 +30,7 @@ export type AppWebTerminalSocketData = {kind: "terminal"} & PtySocketData
 
 export type TerminalPtySocketData = PtySocketData
 
-export type AppWebSocketData = AppWebClientSocketData | AppWebTerminalSocketData | RtcSignalSocketData
+export type AppWebSocketData = AppWebClientSocketData | AppWebTerminalSocketData | RtcSignalSocketData | VoiceProxySocketData
 
 export type TodoMarkdownPayload = {
 	ok: true
