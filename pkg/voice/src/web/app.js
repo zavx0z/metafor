@@ -3,9 +3,6 @@ const $ = (id) => document.getElementById(id);
 const els = {
   mark: document.querySelector(".mark"),
   statusText: $("statusText"),
-  engineSelect: $("engineSelect"),
-  remoteUrl: $("remoteUrl"),
-  contextText: $("contextText"),
   grammarToggle: $("grammarToggle"),
   startBtn: $("startBtn"),
   stopBtn: $("stopBtn"),
@@ -34,24 +31,6 @@ let pcmBytes = 0;
 let commandCount = 0;
 let latestWaveform = new Float32Array(0);
 let drawQueued = false;
-let commitPending = false;
-let hasSpeechSinceCommit = false;
-let lastSpeechAt = 0;
-let lastCommitAt = 0;
-let pcmSinceCommitBytes = 0;
-let queuedPcmAfterCommit = [];
-
-const VOICE_RMS_THRESHOLD = 0.012;
-const SILENCE_COMMIT_MS = 1200;
-const MIN_COMMIT_AUDIO_MS = 900;
-const MIN_COMMIT_INTERVAL_MS = 1800;
-const MAX_QUEUED_PCM_BYTES = 8 * 1024 * 1024;
-
-const storageKeys = {
-  engine: "voice.playground.engine",
-  remoteUrl: "voice.playground.remoteUrl",
-  context: "voice.playground.context",
-};
 
 globalThis.voicePlaygroundDebug = {
   receive: handleServerMessage,
@@ -64,7 +43,6 @@ init().catch((error) => {
 });
 
 async function init() {
-  restoreSettings();
   drawWaveform();
   await loadInfo();
   bindEvents();
@@ -87,9 +65,6 @@ function bindEvents() {
   els.startBtn.addEventListener("click", () => start().catch(showError));
   els.stopBtn.addEventListener("click", () => stop());
   els.resetBtn.addEventListener("click", () => send({ type: "reset" }));
-  els.engineSelect.addEventListener("change", saveSettings);
-  els.remoteUrl.addEventListener("input", saveSettings);
-  els.contextText.addEventListener("input", saveSettings);
   els.clearTranscriptBtn.addEventListener("click", () => {
     els.transcriptList.textContent = "";
     renderEmptyStates();
@@ -99,23 +74,10 @@ function bindEvents() {
   });
 }
 
-function restoreSettings() {
-  els.engineSelect.value = localStorage.getItem(storageKeys.engine) || "remote";
-  els.remoteUrl.value = localStorage.getItem(storageKeys.remoteUrl) || els.remoteUrl.value;
-  els.contextText.value = localStorage.getItem(storageKeys.context) || els.contextText.value;
-}
-
-function saveSettings() {
-  localStorage.setItem(storageKeys.engine, els.engineSelect.value);
-  localStorage.setItem(storageKeys.remoteUrl, els.remoteUrl.value.trim());
-  localStorage.setItem(storageKeys.context, els.contextText.value.trim());
-}
-
 async function start() {
   if (stream) return;
 
   pcmBytes = 0;
-  resetCommitState();
   els.pcmBytes.textContent = "0 KB";
   await connectWs();
 
@@ -147,9 +109,7 @@ async function start() {
     scheduleWaveformDraw();
     const pcm = floatToPcm16(samples);
     pcmBytes += pcm.byteLength;
-    pcmSinceCommitBytes += pcm.byteLength;
     els.pcmBytes.textContent = formatBytes(pcmBytes);
-    trackSpeechAndMaybeCommit(samples);
     sendPcm(pcm);
   };
 
@@ -160,10 +120,6 @@ async function start() {
     type: "start",
     sampleRate: audioContext.sampleRate,
     useGrammar: els.grammarToggle.checked,
-    language: "ru",
-    format: false,
-    context: els.contextText.value.trim(),
-    prompt: els.contextText.value.trim(),
   });
 
   els.sampleRate.textContent = String(audioContext.sampleRate);
@@ -204,7 +160,6 @@ async function connectWs() {
 }
 
 function recognitionSocketUrl() {
-  if (els.engineSelect.value === "remote") return els.remoteUrl.value.trim();
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
   return `${protocol}//${location.host}/ws`;
 }
@@ -232,18 +187,6 @@ function handleServerMessage(msg) {
     if (msg.text) {
       const messages = transcriptMessagesFrom(msg.text, msg.messages, msg.segments);
       addTranscriptMessages(msg.type, messages);
-      if (els.engineSelect.value === "remote") {
-        for (const message of messages) void matchCommand(message);
-      }
-    }
-    return;
-  }
-
-  if (msg.type === "committed") {
-    commitPending = false;
-    if (stream) {
-      flushQueuedPcm();
-      setStatus("listening", true);
     }
     return;
   }
@@ -262,16 +205,6 @@ function handleServerMessage(msg) {
   if (msg.type === "error") {
     showError(new Error(msg.error || "Unknown server error"));
   }
-}
-
-async function matchCommand(text) {
-  const response = await fetch("/api/match", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ text }),
-  });
-  const data = await response.json();
-  if (data.match) addCommand(data.match);
 }
 
 function stop() {
@@ -295,82 +228,11 @@ function stopAudioOnly() {
   captureNode = null;
   sinkNode = null;
   workletUrl = null;
-  resetCommitState();
-}
-
-function trackSpeechAndMaybeCommit(samples) {
-  if (els.engineSelect.value !== "remote" || !stream) return;
-
-  const now = performance.now();
-  const rms = rmsLevel(samples);
-  if (rms >= VOICE_RMS_THRESHOLD) {
-    hasSpeechSinceCommit = true;
-    lastSpeechAt = now;
-  }
-
-  const minCommitBytes = Math.round((audioContext?.sampleRate ?? 16000) * 2 * (MIN_COMMIT_AUDIO_MS / 1000));
-  const shouldCommit =
-    hasSpeechSinceCommit &&
-    !commitPending &&
-    ws?.readyState === WebSocket.OPEN &&
-    pcmSinceCommitBytes >= minCommitBytes &&
-    now - lastSpeechAt >= SILENCE_COMMIT_MS &&
-    now - lastCommitAt >= MIN_COMMIT_INTERVAL_MS;
-
-  if (!shouldCommit) return;
-
-  commitPending = true;
-  hasSpeechSinceCommit = false;
-  lastCommitAt = now;
-  pcmSinceCommitBytes = 0;
-  send({ type: "commit" });
-  setStatus("committing", true);
-}
-
-function rmsLevel(samples) {
-  if (!samples.length) return 0;
-  let sum = 0;
-  for (const sample of samples) sum += sample * sample;
-  return Math.sqrt(sum / samples.length);
 }
 
 function sendPcm(pcm) {
   if (ws?.readyState !== WebSocket.OPEN) return;
-
-  if (commitPending) {
-    queuedPcmAfterCommit.push(pcm);
-    trimQueuedPcm();
-    return;
-  }
-
   ws.send(pcm);
-}
-
-function flushQueuedPcm() {
-  if (ws?.readyState !== WebSocket.OPEN) {
-    queuedPcmAfterCommit = [];
-    return;
-  }
-
-  for (const pcm of queuedPcmAfterCommit) ws.send(pcm);
-  queuedPcmAfterCommit = [];
-}
-
-function trimQueuedPcm() {
-  let total = queuedPcmAfterCommit.reduce((size, pcm) => size + pcm.byteLength, 0);
-  while (total > MAX_QUEUED_PCM_BYTES && queuedPcmAfterCommit.length) {
-    const dropped = queuedPcmAfterCommit.shift();
-    total -= dropped?.byteLength ?? 0;
-  }
-}
-
-function resetCommitState() {
-  commitPending = false;
-  hasSpeechSinceCommit = false;
-  lastSpeechAt = performance.now();
-  lastCommitAt = 0;
-  pcmSinceCommitBytes = 0;
-  queuedPcmAfterCommit = [];
 }
 
 async function createCaptureNode(context) {
@@ -568,9 +430,6 @@ function setRunning(running) {
   els.stopBtn.disabled = !running;
   els.resetBtn.disabled = !ws || ws.readyState !== WebSocket.OPEN;
   els.grammarToggle.disabled = running;
-  els.engineSelect.disabled = running;
-  els.remoteUrl.disabled = running;
-  els.contextText.disabled = running;
 }
 
 function setStatus(text, live) {

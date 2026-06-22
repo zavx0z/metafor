@@ -1,6 +1,6 @@
 # @metafor/voice
 
-Bun FFI bridge к Vosk C API для распознавания русских голосовых команд и локальный web playground.
+Bun FFI bridge к Vosk C API для распознавания русских голосовых команд и локальный wake playground.
 
 Пакет загружает русскую модель Vosk, принимает 16-bit mono PCM, читает JSON-результаты Vosk, нормализует произнесённые английские технические термины через русские фонетические aliases и запускает найденные команды из Bun.
 
@@ -9,7 +9,7 @@ Bun FFI bridge к Vosk C API для распознавания русских г
 - `src/vosk.ts` загружает `libvosk` через `bun:ffi` и оборачивает lifecycle модели/recognizer-а.
 - `src/commands.ts` сопоставляет русские командные фразы, фонетические aliases и небольшие ошибки распознавания через Levenshtein distance.
 - `src/wav.ts` извлекает PCM из простого 16-bit mono WAV-файла.
-- `src/web/server.ts` обслуживает браузерный playground и стримит microphone PCM через WebSocket.
+- `src/web/server.ts` обслуживает браузерный wake playground и стримит microphone PCM через WebSocket.
 - `examples/recognize-file.ts` распознаёт WAV или raw PCM файл.
 - `examples/recognize-mic.ts` захватывает локальный macOS microphone через ffmpeg.
 
@@ -43,7 +43,7 @@ export VOSK_MODEL="$PWD/models/ru"
 
 Audio, отправляемое в Vosk, должно быть 16-bit mono PCM. WAV input разбирается автоматически; для raw PCM нужны `--raw-pcm --sample-rate`.
 
-## Web Playground
+## Wake Playground
 
 Из этого пакета:
 
@@ -63,42 +63,51 @@ bun --filter @metafor/voice playground
 bun run voice:playground
 ```
 
-Затем открыть:
+Затем открыть wake playground:
 
 ```text
 http://127.0.0.1:4765
 ```
 
-В playground есть два движка распознавания:
+Wake playground работает только с локальным Vosk server на `/ws` и не управляет ASR-туннелем.
 
-- `Local Vosk` стримит microphone PCM в локальный Bun/Vosk server на `/ws`.
-- `Remote ASR` стримит тот же PCM на настраиваемый WebSocket URL. По умолчанию используется `ws://127.0.0.1:8787/ws`, рассчитанный на SSH tunnel к `ai-srv`.
+ASR/Whisper playground вынесен отдельно:
 
-Playground server автоматически запускает и наблюдает SSH tunnel к `ai-srv`:
-
-```sh
-ssh -N -L 127.0.0.1:8787:127.0.0.1:8787 ai-srv
+```text
+http://127.0.0.1:4765/whisper
 ```
 
-Если tunnel process завершается или `/health` перестаёт отвечать, server перезапускает его. Отключить managed tunnel:
+ASR/Whisper page использует явно заданный WebSocket URL. По умолчанию это:
 
-```sh
-VOICE_ASR_TUNNEL=0 bun run voice:playground
+```text
+ws://127.0.0.1:8787/ws
 ```
 
-Ручной запуск tunnel остаётся доступен для диагностики:
+Локальный ASR tunnel запускается отдельной командой из корня production workspace:
 
 ```sh
 bun run voice:asr:tunnel
 ```
 
-Проверить оба локальных voice endpoint:
+или напрямую:
 
 ```sh
-bun run voice:health
+ssh -N -L 127.0.0.1:8787:127.0.0.1:8787 ai-srv
 ```
 
-Remote ASR service принимает context prompt из поля `Context` в playground и передаёт его в Whisper как `initial_prompt`.
+Проверить wake service:
+
+```sh
+bun run voice:vosk:health
+```
+
+Проверить ASR tunnel после ручного запуска:
+
+```sh
+bun run voice:asr:health
+```
+
+ASR service принимает context prompt из поля `Context` на `/whisper` и передаёт его в Whisper как `initial_prompt`.
 
 Environment:
 
@@ -108,14 +117,6 @@ HOST=127.0.0.1
 VOICE_SAMPLE_RATE=16000
 VOICE_GRAMMAR=1
 VOSK_LOG_LEVEL=-1
-VOICE_ASR_TUNNEL=1
-VOICE_ASR_TUNNEL_SSH_HOST=ai-srv
-VOICE_ASR_TUNNEL_LOCAL_BIND=127.0.0.1
-VOICE_ASR_TUNNEL_LOCAL_PORT=8787
-VOICE_ASR_TUNNEL_REMOTE_HOST=127.0.0.1
-VOICE_ASR_TUNNEL_REMOTE_PORT=8787
-VOICE_ASR_TUNNEL_HEALTH_URL=http://127.0.0.1:8787/health
-VOICE_ASR_TUNNEL_STARTUP_GRACE_MS=12000
 ```
 
 Браузер захватывает microphone audio, запрашивает 16 kHz `AudioContext`, конвертирует mono float samples в 16-bit PCM, стримит chunks в `/ws` и отображает partial/final recognition вместе с command matches.

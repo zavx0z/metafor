@@ -146,14 +146,10 @@ async function init() {
 async function loadInfo() {
   const response = await fetch("/api/info", { cache: "no-store" });
   info = await response.json();
-  if (!localStorage.getItem(storageKeys.remoteUrl) && info.remoteAsrUrl) {
-    els.remoteUrl.value = info.remoteAsrUrl;
-  }
   els.sampleRate.textContent = String(info.defaultSampleRate ?? 16000);
   setStatus("ready", false);
   log("server:ready", {
     sampleRate: info.defaultSampleRate,
-    remoteAsrUrl: info.remoteAsrUrl,
     recordings: info.whisperRecordingsRoot,
   });
 }
