@@ -11,9 +11,7 @@
     }
   },
   "workspaces": [
-    "app/application",
-    "app/metafor",
-    "app/web",
+    "app/*",
     "ui/*",
     "pkg/**/*",
     "fixture",
@@ -52,7 +50,6 @@
     "workspace.app.web:prod": "bun app/web/run.ts --prod layout",
     "workspace.app.web:product": "bun run workspace.app.web:prod",
     "workspace.app.web:stop": "bun app/web/run.ts --prod stop",
-    "workspace.application": "INTERPRETER_HTTP_PORT=6510 BUN_PROTOCOL_URL=ws://127.0.0.1:6511/ INTERPRETER_DUMP_PATH=app/application/tmp/interpreter/state.json bun --hot run pkg/interpreter/interpreter.ts app/application/energy.server.ts app/application/dark.server.ts -env.BOUNDARY_PATH=app/application/tmp/boundary.sqlite app/application/tmp/boundary.sqlite",
     "voice:assets": "bun --filter @metafor/voice assets",
     "voice:playground": "bun --filter @metafor/voice playground",
     "voice:smoke": "bun --filter @metafor/voice smoke",

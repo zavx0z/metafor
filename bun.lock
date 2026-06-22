@@ -17,16 +17,8 @@
         "typescript": "^6.0.2",
       },
     },
-    "app/application": {
-      "name": "@app/application",
-      "dependencies": {
-        "boundary": "workspace:*",
-        "dark": "workspace:*",
-        "energy": "workspace:*",
-      },
-    },
-    "app/metafor": {
-      "name": "@app/metafor",
+    "app/tauri": {
+      "name": "@app/tauri",
       "version": "0.1.0",
       "devDependencies": {
         "@tauri-apps/cli": "^2.11.3",
@@ -854,9 +846,7 @@
     },
   },
   "packages": {
-    "@app/application": ["@app/application@workspace:app/application"],
-
-    "@app/metafor": ["@app/metafor@workspace:app/metafor"],
+    "@app/tauri": ["@app/tauri@workspace:app/tauri"],
 
     "@app/web": ["@app/web@workspace:app/web"],
 
