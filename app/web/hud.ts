@@ -6,6 +6,7 @@ import {
 	div,
 	palette,
 	radii,
+	requestNativeSoftKeyboard,
 	uiIcons,
 	type DivScrollContext,
 	type UiSurfaceRect,
@@ -2354,6 +2355,7 @@ class AppWebHud implements AppWebHudController {
 		if (input === null || input.style.display === "none") return
 		this.#syncCodexNativeInputValue()
 		if (document.activeElement !== input) input.focus({preventScroll: true})
+		requestNativeSoftKeyboard()
 		this.#syncCodexNativeInputSelection()
 	}
 

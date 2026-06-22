@@ -27,6 +27,41 @@ export type VirtualInputFocusOpts = {
   softKeyboard?: boolean
 }
 
+type NativeSoftKeyboardBridge = {
+  show?: () => void
+  hide?: () => void
+}
+
+export function requestNativeSoftKeyboard(): void {
+  const bridge = (globalThis as {MetaForKeyboard?: NativeSoftKeyboardBridge}).MetaForKeyboard
+  try {
+    bridge?.show?.()
+  } catch {
+    // The bridge is best-effort and only exists in Android WebView shells.
+  }
+  const virtualKeyboard = (navigator as Navigator & {virtualKeyboard?: {show?: () => void}}).virtualKeyboard
+  try {
+    virtualKeyboard?.show?.()
+  } catch {
+    // Chrome can reject this outside a trusted input gesture.
+  }
+}
+
+export function hideNativeSoftKeyboard(): void {
+  const bridge = (globalThis as {MetaForKeyboard?: NativeSoftKeyboardBridge}).MetaForKeyboard
+  try {
+    bridge?.hide?.()
+  } catch {
+    // The bridge is best-effort and only exists in Android WebView shells.
+  }
+  const virtualKeyboard = (navigator as Navigator & {virtualKeyboard?: {hide?: () => void}}).virtualKeyboard
+  try {
+    virtualKeyboard?.hide?.()
+  } catch {
+    // Chrome can reject this outside a trusted input gesture.
+  }
+}
+
 export class VirtualInput {
   readonly textarea: HTMLTextAreaElement
   #onKey: (e: KeyboardEvent) => void = () => {}
@@ -166,18 +201,23 @@ export class VirtualInput {
     const mode: VirtualInputSoftKeyboardMode = opts.softKeyboard === true && softKeyboardEnvironment ? "text" : "none"
     if (softKeyboardEnvironment && mode === "none") {
       this.#setSoftKeyboardMode("none")
-      if (this.isFocused()) this.textarea.blur()
+      if (this.isFocused()) {
+        this.textarea.blur()
+        hideNativeSoftKeyboard()
+      }
       return
     }
     const wasFocused = this.isFocused()
     const changed = this.#setSoftKeyboardMode(mode)
     if (wasFocused && changed) this.textarea.blur()
     this.textarea.focus({preventScroll: true})
+    if (mode === "text") requestNativeSoftKeyboard()
   }
 
   blur(): void {
     if (this.#disposed) return
     this.textarea.blur()
+    hideNativeSoftKeyboard()
   }
 
   isFocused(): boolean {

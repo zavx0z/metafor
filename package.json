@@ -12,6 +12,7 @@
   },
   "workspaces": [
     "app/application",
+    "app/metafor",
     "app/web",
     "ui/*",
     "pkg/**/*",

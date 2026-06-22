@@ -1,0 +1,19 @@
+{
+  "name": "@app/metafor",
+  "private": true,
+  "version": "0.1.0",
+  "description": "MetaFor authenticated WebView shell.",
+  "type": "module",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "android:init": "tauri android init",
+    "android:dev": "tauri android dev",
+    "android:build": "tauri android build",
+    "android:run": "tauri android run",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.3"
+  }
+}
