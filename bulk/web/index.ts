@@ -201,6 +201,7 @@ const BULK_RADIAL_MENU_LONG_PRESS_MS = 560
 const BULK_RADIAL_MENU_LONG_PRESS_MOVE_PX = 10
 const BULK_RADIAL_MENU_PROJECTED_HIT_PAD_PX = 48
 const BULK_RADIAL_MENU_HUD_Z = 10
+const BULK_TOUCH_TAP_MOVE_PX = 14
 const ANDROID_RTC_FRAME_SRC = "metafor:app-web-android-rtc-frame"
 let activeLayoutSettings: AppWebLayoutSettings = { ...DEFAULT_APP_WEB_LAYOUT_SETTINGS }
 let activeRenderSettings: AppWebRenderSettings = { ...DEFAULT_APP_WEB_RENDER_SETTINGS }
@@ -293,6 +294,13 @@ type BotPhoneCameraFlight = {
 	end: BulkViewPose
 	start: BulkViewPose
 	startedAt: number
+}
+
+type CanvasTouchTapState = {
+	cancelled: boolean
+	startX: number
+	startY: number
+	touchId: number
 }
 
 type BotPhoneDisplayDockControl = {
@@ -2191,6 +2199,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	let navigationState: ViewNavigationState | null = null
 	let pointerDownX = 0
 	let pointerDownY = 0
+	let touchTapState: CanvasTouchTapState | null = null
 	const radialMenuPane = new BulkRadialMenuPane()
 	let radialMenuLongPress: {
 		startX: number
@@ -4397,6 +4406,77 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		requestRenderLoop(INPUT_RENDER_WAKE_MS)
 	}
 
+	const canvasTouchForTap = (event: TouchEvent): Touch | null => {
+		const state = touchTapState
+		if (state === null) return event.changedTouches[0] ?? null
+		for (const touch of Array.from(event.changedTouches)) {
+			if (touch.identifier === state.touchId) return touch
+		}
+		return null
+	}
+
+	const resetCanvasTouchTap = (): void => {
+		touchTapState = null
+		isPrimaryPointerDown = false
+	}
+
+	const handleCanvasTouchStartForNavigation = (event: TouchEvent): void => {
+		if (event.touches.length !== 1 || event.changedTouches.length === 0) {
+			resetCanvasTouchTap()
+			return
+		}
+		const touch = event.changedTouches[0]!
+		touchTapState = {
+			cancelled: false,
+			startX: touch.clientX,
+			startY: touch.clientY,
+			touchId: touch.identifier,
+		}
+		isPrimaryPointerDown = true
+		clickNavigationSuppressed = false
+		pointerDownX = touch.clientX
+		pointerDownY = touch.clientY
+		requestRenderLoop(INPUT_RENDER_WAKE_MS)
+	}
+
+	const handleCanvasTouchMoveForNavigation = (event: TouchEvent): void => {
+		const state = touchTapState
+		if (state === null) return
+		const touch = canvasTouchForTap(event)
+		if (touch === null) return
+		if (Math.hypot(touch.clientX - state.startX, touch.clientY - state.startY) > BULK_TOUCH_TAP_MOVE_PX) {
+			state.cancelled = true
+			clickNavigationSuppressed = true
+		}
+		requestRenderLoop(INPUT_RENDER_WAKE_MS)
+	}
+
+	const handleCanvasTouchEndForNavigation = (event: TouchEvent): void => {
+		const state = touchTapState
+		if (state === null) return
+		const touch = canvasTouchForTap(event)
+		if (touch === null) return
+		resetCanvasTouchTap()
+		if (state.cancelled || clickNavigationSuppressed || radialMenuPickTarget !== null) {
+			clickNavigationSuppressed = false
+			return
+		}
+		if (Math.hypot(touch.clientX - state.startX, touch.clientY - state.startY) > BULK_TOUCH_TAP_MOVE_PX) return
+		cancelRadialMenuLongPress()
+		const hitTarget = pickTargetAtClientPoint(touch.clientX, touch.clientY, true)
+		if (!hitTarget) return
+		event.preventDefault()
+		event.stopImmediatePropagation()
+		setHoveredPickTarget(hitTarget)
+		focusTarget(hitTarget)
+	}
+
+	const handleCanvasTouchCancelForNavigation = (event: TouchEvent): void => {
+		if (canvasTouchForTap(event) === null) return
+		resetCanvasTouchTap()
+		clickNavigationSuppressed = false
+	}
+
 	const handleCanvasClick = (event: MouseEvent): void => {
 		if (event.button !== 0) return
 		isPrimaryPointerDown = false
@@ -4501,6 +4581,10 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	options.canvas.addEventListener("touchmove", wakeRenderFromCanvasTouch, { passive: true })
 	options.canvas.addEventListener("touchend", wakeRenderFromCanvasTouch, { passive: true })
 	options.canvas.addEventListener("touchcancel", wakeRenderFromCanvasTouch, { passive: true })
+	options.canvas.addEventListener("touchstart", handleCanvasTouchStartForNavigation, { passive: true })
+	window.addEventListener("touchmove", handleCanvasTouchMoveForNavigation, {capture: true, passive: true})
+	window.addEventListener("touchend", handleCanvasTouchEndForNavigation, {capture: true, passive: false})
+	window.addEventListener("touchcancel", handleCanvasTouchCancelForNavigation, true)
 	options.canvas.addEventListener("touchstart", handleCanvasTouchStartForRadialMenu, { passive: true })
 	window.addEventListener("touchmove", handleCanvasTouchMoveForRadialMenu, {capture: true, passive: true})
 	window.addEventListener("touchend", handleCanvasTouchEndForRadialMenu, true)
@@ -4617,6 +4701,10 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			options.canvas.removeEventListener("touchmove", wakeRenderFromCanvasTouch)
 			options.canvas.removeEventListener("touchend", wakeRenderFromCanvasTouch)
 			options.canvas.removeEventListener("touchcancel", wakeRenderFromCanvasTouch)
+			options.canvas.removeEventListener("touchstart", handleCanvasTouchStartForNavigation)
+			window.removeEventListener("touchmove", handleCanvasTouchMoveForNavigation, true)
+			window.removeEventListener("touchend", handleCanvasTouchEndForNavigation, true)
+			window.removeEventListener("touchcancel", handleCanvasTouchCancelForNavigation, true)
 			options.canvas.removeEventListener("touchstart", handleCanvasTouchStartForRadialMenu)
 			window.removeEventListener("touchmove", handleCanvasTouchMoveForRadialMenu, true)
 			window.removeEventListener("touchend", handleCanvasTouchEndForRadialMenu, true)
