@@ -40,6 +40,7 @@ export function createVoiceServer(deps: VoiceServerDeps) {
 	let voiceLeaseExpiresAt = 0
 
 	async function readInterpreterVoiceSettingsResponse(): Promise<Response> {
+		if (deps.chromeApiUrl === null) return browserApiNotConfiguredResponse()
 		try {
 			const payload = await readInterpreterVoiceSettings()
 			return deps.jsonResponse({ok: true, ...payload})
@@ -50,6 +51,7 @@ export function createVoiceServer(deps: VoiceServerDeps) {
 	}
 
 	async function writeInterpreterVoiceSettingsResponse(req: Request): Promise<Response> {
+		if (deps.chromeApiUrl === null) return browserApiNotConfiguredResponse()
 		const parsed = await deps.readJsonObject(req)
 		if (parsed.error !== undefined) return deps.jsonResponse({ok: false, error: parsed.error}, 400)
 		const values = asVoiceSettingsUpdate(parsed.body["values"])
@@ -70,6 +72,10 @@ export function createVoiceServer(deps: VoiceServerDeps) {
 		if (payload === null) return deps.jsonResponse({ok: false, error: "invalid voice rtc debug payload"}, 400)
 		deps.appLog("VOICE", "rtc", formatVoiceRtcDebug(payload), voiceRtcDebugLogTone(payload))
 		return deps.jsonResponse({ok: true})
+	}
+
+	function browserApiNotConfiguredResponse(): Response {
+		return deps.jsonResponse({ok: false, error: "browser API is not configured on this server"}, 503)
 	}
 
 	function handleVoiceLeaseMessage(ws: ServerWebSocket<AppWebSocketData>, payload: ClientVoiceLeasePayload): void {
@@ -165,8 +171,10 @@ export function createVoiceServer(deps: VoiceServerDeps) {
 	}
 
 	async function findInterpreterTab(): Promise<ChromeEvalTarget> {
+		const chromeApiUrl = deps.chromeApiUrl
+		if (chromeApiUrl === null) throw new Error("browser API is not configured on this server")
 		const started = Date.now()
-		const response = await fetch(`${deps.chromeApiUrl}/windows`, {signal: AbortSignal.timeout(1500)})
+		const response = await fetch(`${chromeApiUrl}/windows`, {signal: AbortSignal.timeout(1500)})
 		if (!response.ok) throw new Error(`chrome windows ${response.status}`)
 		const payload = await response.json() as ChromeWindowsPayload
 		for (const window of payload.windows ?? []) {
@@ -199,8 +207,10 @@ export function createVoiceServer(deps: VoiceServerDeps) {
 	}
 
 	async function evalInterpreterVoiceSettings(target: ChromeEvalTarget, js: string): Promise<InterpreterVoiceSettingsPayload> {
+		const chromeApiUrl = deps.chromeApiUrl
+		if (chromeApiUrl === null) throw new Error("browser API is not configured on this server")
 		const started = Date.now()
-		const response = await fetch(`${deps.chromeApiUrl}/eval`, {
+		const response = await fetch(`${chromeApiUrl}/eval`, {
 			method: "POST",
 			headers: {"content-type": "application/json"},
 			body: JSON.stringify({...target, js}),

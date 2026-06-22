@@ -53,7 +53,7 @@ const terminalSessions = createPtySessionManager({
 const HOST = Bun.env.HOST ?? Bun.env.APP_WEB_HOST ?? "127.0.0.1"
 const PORT = Number(Bun.env.PORT ?? 3000)
 const TLS_ENABLED = Boolean(Bun.env.TLS_KEY_FILE && Bun.env.TLS_CERT_FILE)
-const CHROME_API_URL = Bun.env.METAFOR_CHROME_API_URL ?? "http://localhost:7880"
+const CHROME_API_URL = Bun.env.METAFOR_CHROME_API_URL?.trim() || null
 const {proxy: interpreterProxyRoutes} = interpreterRoutes
 const REDIRECT_ENABLED = TLS_ENABLED && (Bun.env.APP_WEB_REDIRECT === "1" || (Bun.env.APP_WEB_REDIRECT !== "0" && PORT === 443))
 const REDIRECT_HOST = Bun.env.APP_WEB_REDIRECT_HOST ?? HOST
@@ -74,6 +74,7 @@ const SOURCE_FILE_EXTENSIONS = new Set([
   ".html",
   ".js",
   ".json",
+  ".jsonc",
   ".jsx",
   ".md",
   ".mjs",
@@ -1235,7 +1236,7 @@ function printServerUrls(): void {
   } else {
     appLog("TLS", "disabled", "plain HTTP", "gray")
   }
-  appLog("CFG", "chrome api", CHROME_API_URL, "magenta")
+  appLog("CFG", "browser api", CHROME_API_URL === null ? "disabled" : CHROME_API_URL, CHROME_API_URL === null ? "gray" : "magenta")
   appLog("CFG", "interpreter", "embedded routes at /hud/interpreter/*", "magenta")
   for (const url of urls) appLog("URL", "app entry", url, "cyan")
   if (redirectServer !== null) appLog("URL", "http redirect", redirectServer.url.href, "cyan")

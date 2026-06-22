@@ -107,7 +107,7 @@ export type RtcSignalingServerDeps = {
 
 export type VoiceServerDeps = {
 	sockets: Set<ServerWebSocket<AppWebSocketData>>
-	chromeApiUrl: string
+	chromeApiUrl: string | null
 	tlsEnabled: boolean
 	port: number
 	appLog(tag: string, label: string, detail: string, tone: AppLogTone): void
