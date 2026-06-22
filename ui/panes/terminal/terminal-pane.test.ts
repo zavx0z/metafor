@@ -387,13 +387,13 @@ describe("TerminalPane focus", () => {
       terminal.setRect({x: 10, y: 20, w: 300, h: 180}, 1, await testFont())
       terminal.onPointerDown({
         button: 0,
-        clientX: 80,
+        clientX: 36,
         clientY: 100,
         detail: 1,
         preventDefault: () => {},
-      } as MouseEvent, 173, 19)
-      terminal.onPointerMove({clientX: 130, clientY: 120} as MouseEvent, 173, 19)
-      terminal.onPointerUp({clientX: 130, clientY: 120} as MouseEvent, 173, 19)
+      } as MouseEvent, 23, 19)
+      terminal.onPointerMove({clientX: 86, clientY: 120} as MouseEvent, 23, 19)
+      terminal.onPointerUp({clientX: 86, clientY: 120} as MouseEvent, 23, 19)
       expect(dockRequests).toBe(1)
       expect(changes).toEqual([])
       expect(frameRect).toEqual({x: 10, y: 20, w: 300, h: 180})

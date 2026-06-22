@@ -718,17 +718,16 @@ class TerminalOutputPane extends UiSurface {
     const statusW = hasStatus ? Math.min(210, Math.max(96, this.measureText(this.#status, 11) + 32)) : 0
     const statusX = hasStatus ? Math.max(PANE_FRAME.headerTextX, this.rectW - PANE_FRAME.headerTextX - statusW) : this.rectW - PANE_FRAME.headerTextX
     const dockButtonSize = 22
-    const dockButtonGap = 8
-    const dockButtonX = hasStatus ? statusX - dockButtonGap - dockButtonSize : this.rectW - PANE_FRAME.headerTextX - dockButtonSize
-    const titleRight = this.#onFrameDockRequest === undefined
-      ? hasStatus ? statusX - 10 : this.rectW - PANE_FRAME.headerTextX
-      : dockButtonX - 10
-    this.drawText(this.#title, PANE_FRAME.headerTextX, PANE_FRAME.headerTextY, {
+    const hasDock = this.#onFrameDockRequest !== undefined
+    const dockButtonX = PANE_FRAME.headerTextX
+    const titleX = hasDock ? dockButtonX + dockButtonSize + 8 : PANE_FRAME.headerTextX
+    const titleRight = hasStatus ? statusX - 10 : this.rectW - PANE_FRAME.headerTextX
+    if (hasDock) this.#renderFrameDockButton(dockButtonX, headerY + 8, dockButtonSize)
+    this.drawText(this.#title, titleX, PANE_FRAME.headerTextY, {
       fontPx: 13,
       material: this.materials.cyan,
-      maxWidthPx: Math.max(1, titleRight - PANE_FRAME.headerTextX),
+      maxWidthPx: Math.max(1, titleRight - titleX),
     })
-    if (this.#onFrameDockRequest !== undefined) this.#renderFrameDockButton(dockButtonX, headerY + 8, dockButtonSize)
     if (hasStatus) this.#renderHeaderStatus(statusX, headerY, statusW)
     const rule = paneHeaderRuleRect(this.rectW, HEADER_H_PX)
     this.drawRect(rule.x, rule.y, rule.w, rule.h, HEADER_RULE, Z.SEPARATOR)
@@ -737,7 +736,10 @@ class TerminalOutputPane extends UiSurface {
   #renderHeaderWithControls(): void {
     const headerY = 0
     const buttonY = headerY + Math.max(0, (HEADER_H_PX - HEADER_CONTROL_H_PX) / 2)
-    const primaryX = HEADER_CONTROL_PAD_X
+    const dockButtonSize = 22
+    const hasDock = this.#onFrameDockRequest !== undefined
+    const dockButtonX = PANE_FRAME.headerTextX
+    const primaryX = hasDock ? dockButtonX + dockButtonSize + 8 : HEADER_CONTROL_PAD_X
     const secondaryW = this.#buttonGroupWidth(this.#headerControls.secondary)
     const secondaryX = this.#headerControls.secondary.length === 0
       ? this.rectW - HEADER_CONTROL_PAD_X
@@ -750,21 +752,15 @@ class TerminalOutputPane extends UiSurface {
     const statusRight = this.#headerControls.secondary.length === 0 ? this.rectW - HEADER_CONTROL_PAD_X : secondaryX - 8
     const statusX = hasStatus ? Math.max(HEADER_CONTROL_PAD_X, statusRight - statusW) : statusRight
     const canShowStatus = hasStatus && statusRight - statusW >= primaryRight + 8
-    const dockButtonSize = 22
-    const dockButtonGap = 8
-    const dockAnchorX = canShowStatus ? statusX : statusRight
-    const dockButtonX = dockAnchorX - dockButtonGap - dockButtonSize
-    const canShowDock = this.#onFrameDockRequest !== undefined && dockButtonX >= primaryRight + 8
 
-    const titleX = this.#headerControls.primary.length === 0 ? PANE_FRAME.headerTextX : primaryRight + 8
-    const titleRight = canShowDock
-      ? dockButtonX - 8
-      : canShowStatus
+    const titleX = this.#headerControls.primary.length === 0 ? primaryX : primaryRight + 8
+    const titleRight = canShowStatus
         ? statusX - 8
         : this.#headerControls.secondary.length === 0
           ? this.rectW - HEADER_CONTROL_PAD_X
           : secondaryX - 8
     const titleW = titleRight - titleX
+    if (hasDock) this.#renderFrameDockButton(dockButtonX, headerY + 8, dockButtonSize)
     if (titleW >= 44) {
       this.drawText(this.#title, titleX, PANE_FRAME.headerTextY, {
         fontPx: 13,
@@ -772,7 +768,6 @@ class TerminalOutputPane extends UiSurface {
         maxWidthPx: titleW,
       })
     }
-    if (canShowDock) this.#renderFrameDockButton(dockButtonX, headerY + 8, dockButtonSize)
     if (canShowStatus) this.#renderHeaderStatus(statusX, headerY, statusW)
     this.#drawButtonGroup(this.#headerControls.secondary, secondaryX, buttonY)
 

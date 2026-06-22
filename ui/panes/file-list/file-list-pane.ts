@@ -540,12 +540,20 @@ export class FileListPane extends UiSurface {
     const hasDockButton = this.#onFrameDockRequest !== undefined
     const status = this.#headerStatus(this.#rows())
     const statusW = Math.max(72, Math.min(180, this.rectW * 0.34))
-    const dockButtonX = this.rectW - PANE_FRAME.headerTextX - buttonSize
-    const statusRight = hasDockButton ? dockButtonX - 6 : this.rectW - PANE_FRAME.headerTextX
+    const dockButtonX = PANE_FRAME.headerTextX
+    const titleX = hasDockButton ? dockButtonX + buttonSize + 8 : PANE_FRAME.headerTextX
+    const statusRight = this.rectW - PANE_FRAME.headerTextX
     const statusX = statusRight - statusW
     const buttonX = hasDirectoryButton ? statusX - buttonSize - 6 : statusX
-    const titleW = Math.max(1, (hasDirectoryButton ? buttonX : statusX) - PANE_FRAME.headerTextX - 8)
-    span(this, PANE_FRAME.headerTextX, PANE_FRAME.headerTextY - 3, titleW, 22, {
+    const titleW = Math.max(1, (hasDirectoryButton ? buttonX : statusX) - titleX - 8)
+    if (hasDockButton) {
+      IconButton(this, dockButtonX, 7, buttonSize, buttonSize, {
+        label: "Dock",
+        iconSrc: uiIcons.minus,
+        action: () => this.#onFrameDockRequest?.(),
+      })
+    }
+    span(this, titleX, PANE_FRAME.headerTextY - 3, titleW, 22, {
       children: this.#title,
       style: {fontSize: 13, color: this.#theme.header.title},
     })
@@ -554,13 +562,6 @@ export class FileListPane extends UiSurface {
         label: "Open directory",
         iconSrc: uiIcons.plus,
         action: () => this.#onOpenDirectoryRequest?.(),
-      })
-    }
-    if (hasDockButton) {
-      IconButton(this, dockButtonX, 7, buttonSize, buttonSize, {
-        label: "Dock",
-        iconSrc: uiIcons.minus,
-        action: () => this.#onFrameDockRequest?.(),
       })
     }
     span(this, statusX, PANE_FRAME.headerTextY - 3, statusW, 22, {

@@ -1865,15 +1865,10 @@ export class EditorPane extends UiSurface {
   protected render(): void {
     if (this.#showHeader) {
       const dockButtonSize = 22
-      const dockButtonX = this.rectW - PANE_FRAME.headerTextX - dockButtonSize
-      const titleMaxW = this.#onFrameDockRequest === undefined
-        ? this.rectW - 32
-        : Math.max(1, dockButtonX - PANE_FRAME.headerTextX - 8)
-      this.drawText(this.#title, PANE_FRAME.headerTextX, PANE_FRAME.headerTextY, {
-        fontPx: this.#titleFontPx,
-        material: this.#titleMaterial,
-        maxWidthPx: titleMaxW,
-      })
+      const hasDock = this.#onFrameDockRequest !== undefined
+      const dockButtonX = PANE_FRAME.headerTextX
+      const titleX = hasDock ? dockButtonX + dockButtonSize + 8 : PANE_FRAME.headerTextX
+      const titleMaxW = Math.max(1, this.rectW - titleX - PANE_FRAME.headerTextX)
       if (this.#onFrameDockRequest !== undefined) {
         IconButton(this, dockButtonX, 7, dockButtonSize, dockButtonSize, {
           label: "Dock",
@@ -1881,6 +1876,11 @@ export class EditorPane extends UiSurface {
           action: this.#onFrameDockRequest,
         })
       }
+      this.drawText(this.#title, titleX, PANE_FRAME.headerTextY, {
+        fontPx: this.#titleFontPx,
+        material: this.#titleMaterial,
+        maxWidthPx: titleMaxW,
+      })
       const rule = paneHeaderRuleRect(this.rectW, HEADER_H_PX)
       this.drawRect(rule.x, rule.y, rule.w, rule.h, palette.borderDim, Z.SEPARATOR)
     }

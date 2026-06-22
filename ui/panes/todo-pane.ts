@@ -179,19 +179,10 @@ export class ToDoPane extends UiSurface {
     const pad = PANE_FRAME.headerTextX
     const highlightedCount = this.#highlightedIds.size
     const dockButtonSize = 22
-    const dockButtonX = w - pad - dockButtonSize
-    const titleW = Math.max(1, dockButtonX - pad - 8)
-    this.drawText(this.#title, pad, PANE_FRAME.headerTextY, {
-      fontPx: 13,
-      material: this.#titleMaterial,
-      maxWidthPx: titleW,
-    })
-    const status = `${highlightedCount} подсвечено`
-    this.drawText(status, pad + Math.min(titleW, Math.max(96, this.measureText(this.#title, 13) + 14)), PANE_FRAME.headerTextY + 1, {
-      fontPx: 10,
-      material: this.#mutedMaterial,
-      maxWidthPx: Math.max(1, dockButtonX - pad - 108),
-    })
+    const hasDock = this.#onFrameDockRequest !== undefined
+    const dockButtonX = pad
+    const titleX = hasDock ? dockButtonX + dockButtonSize + 8 : pad
+    const titleW = Math.max(1, w - titleX - pad)
     if (this.#onFrameDockRequest !== undefined) {
       IconButton(this, dockButtonX, 7, dockButtonSize, dockButtonSize, {
         label: "Свернуть TODO",
@@ -199,6 +190,17 @@ export class ToDoPane extends UiSurface {
         action: this.#onFrameDockRequest,
       })
     }
+    this.drawText(this.#title, titleX, PANE_FRAME.headerTextY, {
+      fontPx: 13,
+      material: this.#titleMaterial,
+      maxWidthPx: titleW,
+    })
+    const status = `${highlightedCount} подсвечено`
+    this.drawText(status, titleX + Math.min(titleW, Math.max(96, this.measureText(this.#title, 13) + 14)), PANE_FRAME.headerTextY + 1, {
+      fontPx: 10,
+      material: this.#mutedMaterial,
+      maxWidthPx: Math.max(1, w - titleX - pad - 108),
+    })
     const rule = paneHeaderRuleRect(w, TODO_HEADER_H, PANE_FRAME.bodyInsetX)
     this.drawRect(rule.x, rule.y, rule.w, rule.h, palette.borderDim)
   }

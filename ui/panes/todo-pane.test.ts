@@ -216,13 +216,13 @@ describe("ToDoPane frame controls", () => {
       pane.setRect(frameRect, 1, await testFont())
       pane.onPointerDown({
         button: 0,
-        clientX: 348,
+        clientX: 36,
         clientY: 36,
         detail: 1,
         preventDefault: () => {},
-      } as MouseEvent, 338, 18)
-      pane.onPointerMove({clientX: 398, clientY: 66} as MouseEvent, 338, 18)
-      pane.onPointerUp({clientX: 398, clientY: 66} as MouseEvent, 338, 18)
+      } as MouseEvent, 23, 18)
+      pane.onPointerMove({clientX: 86, clientY: 66} as MouseEvent, 23, 18)
+      pane.onPointerUp({clientX: 86, clientY: 66} as MouseEvent, 23, 18)
 
       expect(dockRequests).toBe(1)
       expect(changes).toEqual([])

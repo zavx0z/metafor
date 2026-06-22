@@ -4489,13 +4489,18 @@ class AppWebCodexComposerPane extends UiSurface {
 		const buttonSize = CODEX_COMPOSER_HEADER_BUTTON_SIZE
 		const gap = 5
 		const dockButtonX = CODEX_COMPOSER_HEADER_INSET_X
-		const titleX = dockButtonX + buttonSize + gap
+		const titleLeft = dockButtonX + buttonSize + gap
 		const voiceButtonRect = this.#voiceButtonRect(w)
 		const voiceButtonX = voiceButtonRect.x
 		const sendButtonX = voiceButtonX - gap - buttonSize
 		const transportW = 32
 		const transportX = sendButtonX - gap - transportW
-		const textRight = transportX - 10
+		const textMaxW = Math.max(1, transportX - titleLeft - 10)
+		const titleW = Math.min(textMaxW, this.measureText("Codex message", 11))
+		const titleCx = Math.min(Math.max(w / 2, titleLeft + titleW / 2), Math.max(titleLeft + titleW / 2, transportX - titleW / 2 - 8))
+		const status = this.hud.codexComposerStatus()
+		const statusW = Math.min(textMaxW, this.measureText(status, 9))
+		const statusCx = Math.min(Math.max(w / 2, titleLeft + statusW / 2), Math.max(titleLeft + statusW / 2, transportX - statusW / 2 - 8))
 		const buttonY = 6
 		IconButton(this, dockButtonX, buttonY, buttonSize, buttonSize, {
 			label: "Свернуть Codex",
@@ -4504,16 +4509,16 @@ class AppWebCodexComposerPane extends UiSurface {
 			radius: 7,
 			action: () => this.hud.setDocked("codex", true),
 		})
-		this.drawText("Codex message", titleX, 4, {
+		this.drawTextCentered("Codex message", titleCx, 10.5, {
 			fontPx: 11,
 			material: this.materials.cyan,
-			maxWidthPx: Math.max(1, textRight - titleX),
+			maxWidthPx: textMaxW,
 			z: Z.TEXT,
 		})
-		this.drawText(this.hud.codexComposerStatus(), titleX, 18, {
+		this.drawTextCentered(status, statusCx, 23, {
 			fontPx: 9,
 			material: this.materials.muted,
-			maxWidthPx: Math.max(1, textRight - titleX),
+			maxWidthPx: textMaxW,
 			z: Z.TEXT,
 		})
 		const badgeH = buttonSize - 2
@@ -4845,23 +4850,24 @@ class AppWebSettingsPane extends UiSurface {
 
 	#renderHeader(w: number): void {
 		const dockButtonSize = 22
-		const dockButtonX = w - PANE_FRAME.headerTextX - dockButtonSize
-		this.drawText("Settings", PANE_FRAME.headerTextX, PANE_FRAME.headerTextY, {
-			fontPx: 13,
-			material: this.materials.cyan,
-			maxWidthPx: Math.max(1, dockButtonX - PANE_FRAME.headerTextX - 12),
-			z: Z.TEXT,
-		})
-		this.drawText("app/web", PANE_FRAME.headerTextX + 86, PANE_FRAME.headerTextY + 1, {
-			fontPx: 10,
-			material: this.materials.muted,
-			maxWidthPx: Math.max(1, dockButtonX - PANE_FRAME.headerTextX - 98),
-			z: Z.TEXT,
-		})
+		const dockButtonX = PANE_FRAME.headerTextX
+		const titleX = dockButtonX + dockButtonSize + 8
 		IconButton(this, dockButtonX, 7, dockButtonSize, dockButtonSize, {
 			label: "Свернуть настройки",
 			iconSrc: uiIcons.minus,
 			action: () => this.hud.setDocked("settings", true),
+		})
+		this.drawText("Settings", titleX, PANE_FRAME.headerTextY, {
+			fontPx: 13,
+			material: this.materials.cyan,
+			maxWidthPx: Math.max(1, w - titleX - PANE_FRAME.headerTextX),
+			z: Z.TEXT,
+		})
+		this.drawText("app/web", titleX + 86, PANE_FRAME.headerTextY + 1, {
+			fontPx: 10,
+			material: this.materials.muted,
+			maxWidthPx: Math.max(1, w - titleX - PANE_FRAME.headerTextX - 86),
+			z: Z.TEXT,
 		})
 		const rule = paneHeaderRuleRect(w, PANE_FRAME.headerHeight, PANE_FRAME.bodyInsetX)
 		this.drawRect(rule.x, rule.y, rule.w, rule.h, palette.borderDim, Z.SEPARATOR)

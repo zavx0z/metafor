@@ -4126,28 +4126,29 @@ class SqliteHudFramePane extends UiSurface {
   protected render(): void {
     const pad = 14
     const dockButtonSize = 22
-    const dockButtonX = Math.max(pad, this.rectW - pad - dockButtonSize)
-    const titleW = Math.max(1, dockButtonX - pad - 10)
-    this.drawText("SQLite", pad, 10, {fontPx: 13, material: this.materials.cyan, maxWidthPx: 76})
-    this.drawText(this.title(), pad + 62, 10, {
-      fontPx: 12,
-      material: this.materials.text,
-      maxWidthPx: Math.max(1, titleW - 62),
-    })
-    const subtitle = this.subtitle()
-    if (subtitle.length > 0) {
-      this.drawText(subtitle, pad, 24, {
-        fontPx: 9,
-        material: this.materials.muted,
-        maxWidthPx: titleW,
-      })
-    }
+    const dockButtonX = pad
+    const titleX = dockButtonX + dockButtonSize + 8
+    const titleW = Math.max(1, this.rectW - titleX - pad)
     IconButton(this, dockButtonX, 8, dockButtonSize, dockButtonSize, {
       label: "Dock SQLite",
       iconSrc: uiIcons.minus,
       color: "neutral",
       action: this.onDock,
     })
+    this.drawText("SQLite", titleX, 10, {fontPx: 13, material: this.materials.cyan, maxWidthPx: 76})
+    this.drawText(this.title(), titleX + 62, 10, {
+      fontPx: 12,
+      material: this.materials.text,
+      maxWidthPx: Math.max(1, titleW - 62),
+    })
+    const subtitle = this.subtitle()
+    if (subtitle.length > 0) {
+      this.drawText(subtitle, titleX, 24, {
+        fontPx: 9,
+        material: this.materials.muted,
+        maxWidthPx: titleW,
+      })
+    }
     this.drawRect(pad, SQLITE_HUD_HEADER_H - 1, Math.max(1, this.rectW - pad * 2), 1, palette.borderDim)
   }
 
@@ -4541,20 +4542,34 @@ class HostTerminalCodexComposerPane extends UiSurface {
   #renderHeader(w: number): void {
     const buttonSize = HOST_TERMINAL_CODEX_COMPOSER_HEADER_BUTTON_SIZE
     const gap = 5
-    const dockButtonX = w - PANE_FRAME.headerTextX - buttonSize
-    const voiceButtonX = dockButtonX - gap - buttonSize
-    const sendButtonX = HOST_TERMINAL_CODEX_COMPOSER_VOICE_BUTTON_VISIBLE ? voiceButtonX - gap - buttonSize : dockButtonX - gap - buttonSize
-    const statusX = PANE_FRAME.headerTextX + 112
-    this.drawText("Codex message", PANE_FRAME.headerTextX, PANE_FRAME.headerTextY, {
+    const dockButtonX = PANE_FRAME.headerTextX
+    const titleLeft = dockButtonX + buttonSize + gap
+    const voiceButtonRect = this.#voiceButtonRect(w)
+    const voiceButtonX = voiceButtonRect.x
+    const sendButtonX = voiceButtonX - gap - buttonSize
+    const titleMaxW = Math.max(1, sendButtonX - titleLeft - 10)
+    const titleW = Math.min(titleMaxW, this.measureText("Codex message", 12))
+    const titleCx = Math.min(Math.max(w / 2, titleLeft + titleW / 2), Math.max(titleLeft + titleW / 2, sendButtonX - titleW / 2 - 8))
+    const status = hostCodexComposerStatus(this.controller)
+    const statusW = Math.min(titleMaxW, this.measureText(status, 10))
+    const statusCx = Math.min(Math.max(w / 2, titleLeft + statusW / 2), Math.max(titleLeft + statusW / 2, sendButtonX - statusW / 2 - 8))
+    IconButton(this, dockButtonX, 6, buttonSize, buttonSize, {
+      label: "Свернуть Codex",
+      iconSrc: uiIcons.minus,
+      variant: "text",
+      radius: 7,
+      action: () => setHostTerminalHudDocked(true),
+    })
+    this.drawTextCentered("Codex message", titleCx, 11, {
       fontPx: 12,
       material: this.materials.cyan,
-      maxWidthPx: Math.max(1, statusX - PANE_FRAME.headerTextX - 8),
+      maxWidthPx: titleMaxW,
       z: Z.TEXT,
     })
-    this.drawText(hostCodexComposerStatus(this.controller), statusX, PANE_FRAME.headerTextY + 1, {
+    this.drawTextCentered(status, statusCx, 24, {
       fontPx: 10,
       material: this.materials.muted,
-      maxWidthPx: Math.max(1, sendButtonX - statusX - 10),
+      maxWidthPx: titleMaxW,
       z: Z.TEXT,
     })
     IconButton(this, sendButtonX, 6, buttonSize, buttonSize, {
@@ -4574,13 +4589,6 @@ class HostTerminalCodexComposerPane extends UiSurface {
         onClick: () => this.#queueVoiceToggleClick(),
       })
     }
-    IconButton(this, dockButtonX, 6, buttonSize, buttonSize, {
-      label: "Свернуть Codex",
-      iconSrc: uiIcons.minus,
-      variant: "text",
-      radius: 7,
-      action: () => setHostTerminalHudDocked(true),
-    })
     const rule = paneHeaderRuleRect(w, PANE_FRAME.headerHeight, PANE_FRAME.bodyInsetX)
     this.drawRect(rule.x, rule.y, rule.w, rule.h, palette.borderDim, Z.SEPARATOR)
   }

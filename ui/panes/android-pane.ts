@@ -166,32 +166,34 @@ export class AndroidPane extends UiSurface {
   #renderHeader(w: number): void {
     const pad = PANE_FRAME.headerTextX
     const buttonSize = 22
-    const dockButtonX = this.#onFrameDockRequest === undefined ? w - pad : w - pad - buttonSize
-    const refreshButtonX = this.#onRefresh === undefined ? dockButtonX : dockButtonX - 26
-    const titleMaxW = Math.max(1, refreshButtonX - pad - 8)
-    this.drawText(this.#title, pad, PANE_FRAME.headerTextY, {
+    const hasDock = this.#onFrameDockRequest !== undefined
+    const dockButtonX = pad
+    const titleX = hasDock ? dockButtonX + buttonSize + 8 : pad
+    const refreshButtonX = this.#onRefresh === undefined ? w - pad : w - pad - buttonSize
+    const titleMaxW = Math.max(1, refreshButtonX - titleX - 8)
+    if (this.#onFrameDockRequest !== undefined) {
+      IconButton(this, dockButtonX, 7, buttonSize, buttonSize, {
+        label: "Dock Android",
+        iconSrc: uiIcons.minus,
+        action: this.#onFrameDockRequest,
+      })
+    }
+    this.drawText(this.#title, titleX, PANE_FRAME.headerTextY, {
       fontPx: 13,
       material: this.#titleMaterial,
       maxWidthPx: titleMaxW,
     })
     const titleW = Math.min(titleMaxW, this.measureText(this.#title, 13))
-    this.drawText(this.#status, pad + titleW + 14, PANE_FRAME.headerTextY + 1, {
+    this.drawText(this.#status, titleX + titleW + 14, PANE_FRAME.headerTextY + 1, {
       fontPx: 10,
       material: this.#statusKind === "error" ? this.#errorMaterial : this.#mutedMaterial,
-      maxWidthPx: Math.max(1, refreshButtonX - pad - titleW - 20),
+      maxWidthPx: Math.max(1, refreshButtonX - titleX - titleW - 20),
     })
     if (this.#onRefresh !== undefined) {
       IconButton(this, refreshButtonX, 7, buttonSize, buttonSize, {
         label: "Refresh Android",
         iconSrc: uiIcons.restart,
         action: this.#onRefresh,
-      })
-    }
-    if (this.#onFrameDockRequest !== undefined) {
-      IconButton(this, dockButtonX, 7, buttonSize, buttonSize, {
-        label: "Dock Android",
-        iconSrc: uiIcons.minus,
-        action: this.#onFrameDockRequest,
       })
     }
     const rule = paneHeaderRuleRect(w, ANDROID_HEADER_H, PANE_FRAME.bodyInsetX)
