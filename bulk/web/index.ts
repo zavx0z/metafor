@@ -194,6 +194,13 @@ const BOT_PHONE_CAMERA_FLIGHT_MS = 560
 const BOT_PHONE_HOVER_PAD_PX = 96
 const BOT_PHONE_HIT_PAD_PX = 24
 const BOT_PHONE_MIN_HUD_DISPLAY_PX = 62
+const BULK_RADIAL_MENU_SECTOR_COUNT = 12
+const BULK_RADIAL_MENU_SIZE_PX = 296
+const BULK_RADIAL_MENU_INNER_SIZE_PX = 150
+const BULK_RADIAL_MENU_LONG_PRESS_MS = 560
+const BULK_RADIAL_MENU_LONG_PRESS_MOVE_PX = 10
+const BULK_RADIAL_MENU_PROJECTED_HIT_PAD_PX = 48
+const BULK_RADIAL_MENU_HUD_Z = 10
 const ANDROID_RTC_FRAME_SRC = "metafor:app-web-android-rtc-frame"
 let activeLayoutSettings: AppWebLayoutSettings = { ...DEFAULT_APP_WEB_LAYOUT_SETTINGS }
 let activeRenderSettings: AppWebRenderSettings = { ...DEFAULT_APP_WEB_RENDER_SETTINGS }
@@ -1185,6 +1192,194 @@ class BotPhoneHoverControlsPane extends UiSurface {
 	}
 }
 
+class BulkRadialMenuPane extends UiSurface {
+	onClose: (() => void) | null = null
+	readonly #handleKeyDown = (event: KeyboardEvent): void => {
+		if (event.key === "Escape") this.close()
+	}
+	#visible = false
+	#center = {x: 0, y: 0}
+	#hoveredSector: number | null = null
+	#pressedSector: number | null = null
+
+	constructor() {
+		super({bgColor: null, borderColor: null})
+		this.node.name = "BulkRadialMenuPane"
+		document.addEventListener("keydown", this.#handleKeyDown, true)
+	}
+
+	open(center: {x: number; y: number}): void {
+		this.#visible = true
+		this.#center = center
+		this.#hoveredSector = null
+		this.#pressedSector = null
+		this.requestRender()
+	}
+
+	close(): void {
+		if (!this.#visible) return
+		this.#visible = false
+		this.#hoveredSector = null
+		this.#pressedSector = null
+		this.onClose?.()
+		this.requestRender()
+	}
+
+	acceptsPointerEvents(): boolean {
+		return this.#visible
+	}
+
+	containsPointer(localX: number, localY: number): boolean {
+		return this.#sectorAt(localX, localY) !== null
+	}
+
+	protected render(): void {
+		if (!this.#visible) return
+		const center = this.#menuCenter()
+		const outerRadius = BULK_RADIAL_MENU_SIZE_PX / 2
+		const innerRadius = BULK_RADIAL_MENU_INNER_SIZE_PX / 2
+		const base = new Color(0.035, 0.095, 0.13, 0.76)
+		const border = new Color(0.22, 0.78, 0.94, 0.62)
+		const bright = new Color(0.48, 0.94, 1, 0.88)
+
+		this.#drawCircleStroke(
+			center.x,
+			center.y,
+			(outerRadius + innerRadius) / 2,
+			base,
+			outerRadius - innerRadius,
+			Z.CONTAINER + 0.2,
+			96,
+		)
+		this.#drawCircleStroke(center.x, center.y, outerRadius - 1, border, 1.6, Z.ELEMENT + 0.14, 96)
+		this.#drawCircleStroke(center.x, center.y, innerRadius + 1, new Color(0.48, 0.94, 1, 0.18), 1.2, Z.ELEMENT + 0.14, 72)
+
+		for (let index = 0; index < BULK_RADIAL_MENU_SECTOR_COUNT; index += 1) {
+			const angle = -Math.PI / 2 + index * this.#sectorAngle()
+			const x0 = center.x + Math.cos(angle) * innerRadius
+			const y0 = center.y + Math.sin(angle) * innerRadius
+			const x1 = center.x + Math.cos(angle) * outerRadius
+			const y1 = center.y + Math.sin(angle) * outerRadius
+			this.drawRoundedLine(x0, y0, x1, y1, new Color(0.08, 0.28, 0.36, 0.68), 2.4, Z.ELEMENT + 0.22)
+		}
+
+		if (this.#hoveredSector !== null) {
+			this.#drawSectorStroke(this.#hoveredSector, bright, this.#pressedSector === this.#hoveredSector ? 5 : 3, Z.TEXT + 0.2)
+		}
+	}
+
+	override onPointerMove(_event: MouseEvent, localX: number, localY: number): void {
+		const next = this.#sectorAt(localX, localY)
+		if (this.canvas !== null) this.canvas.canvas.style.cursor = next === null ? "default" : "pointer"
+		if (next === this.#hoveredSector) return
+		this.#hoveredSector = next
+		this.requestRender()
+	}
+
+	override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
+		if (event.button !== 0) return
+		this.#pressedSector = this.#sectorAt(localX, localY)
+		event.preventDefault()
+		this.requestRender()
+	}
+
+	override onPointerUp(event: MouseEvent): void {
+		this.#pressedSector = null
+		event.preventDefault()
+		this.requestRender()
+	}
+
+	override onContextMenu(event: MouseEvent): void {
+		event.preventDefault()
+	}
+
+	override onPointerLeave(): void {
+		this.#hoveredSector = null
+		this.#pressedSector = null
+		if (this.canvas !== null) this.canvas.canvas.style.cursor = "default"
+		this.requestRender()
+	}
+
+	override dispose(): void {
+		document.removeEventListener("keydown", this.#handleKeyDown, true)
+		super.dispose()
+	}
+
+	#menuCenter(): {x: number; y: number} {
+		const pad = BULK_RADIAL_MENU_SIZE_PX / 2 + 8
+		return {
+			x: clampBulkHudNumber(this.#center.x, pad, Math.max(pad, this.rectW - pad)),
+			y: clampBulkHudNumber(this.#center.y, pad, Math.max(pad, this.rectH - pad)),
+		}
+	}
+
+	#sectorAngle(): number {
+		return (Math.PI * 2) / BULK_RADIAL_MENU_SECTOR_COUNT
+	}
+
+	#sectorAt(localX: number, localY: number): number | null {
+		if (!this.#visible) return null
+		const center = this.#menuCenter()
+		const dx = localX - center.x
+		const dy = localY - center.y
+		const distance = Math.hypot(dx, dy)
+		if (distance < BULK_RADIAL_MENU_INNER_SIZE_PX / 2 || distance > BULK_RADIAL_MENU_SIZE_PX / 2) return null
+		const normalized = (Math.atan2(dy, dx) + Math.PI / 2 + Math.PI * 2) % (Math.PI * 2)
+		return Math.min(BULK_RADIAL_MENU_SECTOR_COUNT - 1, Math.floor(normalized / this.#sectorAngle()))
+	}
+
+	#drawCircleStroke(cx: number, cy: number, radius: number, color: Color, thickness: number, z: number, segments: number): void {
+		for (let index = 0; index < segments; index += 1) {
+			const a0 = (index / segments) * Math.PI * 2
+			const a1 = ((index + 1) / segments) * Math.PI * 2
+			this.drawRoundedLine(
+				cx + Math.cos(a0) * radius,
+				cy + Math.sin(a0) * radius,
+				cx + Math.cos(a1) * radius,
+				cy + Math.sin(a1) * radius,
+				color,
+				thickness,
+				z,
+			)
+		}
+	}
+
+	#drawSectorStroke(index: number, color: Color, thickness: number, z: number): void {
+		const center = this.#menuCenter()
+		const outerRadius = BULK_RADIAL_MENU_SIZE_PX / 2 - 6
+		const innerRadius = BULK_RADIAL_MENU_INNER_SIZE_PX / 2 + 6
+		const start = -Math.PI / 2 + index * this.#sectorAngle()
+		const end = start + this.#sectorAngle()
+		for (const angle of [start, end]) {
+			this.drawRoundedLine(
+				center.x + Math.cos(angle) * innerRadius,
+				center.y + Math.sin(angle) * innerRadius,
+				center.x + Math.cos(angle) * outerRadius,
+				center.y + Math.sin(angle) * outerRadius,
+				color,
+				thickness,
+				z,
+			)
+		}
+		const arcSegments = 5
+		for (let segment = 0; segment < arcSegments; segment += 1) {
+			const a0 = start + (segment / arcSegments) * this.#sectorAngle()
+			const a1 = start + ((segment + 1) / arcSegments) * this.#sectorAngle()
+			for (const radius of [innerRadius, outerRadius]) {
+				this.drawRoundedLine(
+					center.x + Math.cos(a0) * radius,
+					center.y + Math.sin(a0) * radius,
+					center.x + Math.cos(a1) * radius,
+					center.y + Math.sin(a1) * radius,
+					color,
+					thickness,
+					z,
+				)
+			}
+		}
+	}
+}
+
 const readObjectWorldPosition = (object: Object3D, target: Vector3): Vector3 => {
 	const elements = object.matrixWorld.elements
 	return target.set(elements[12] ?? 0, elements[13] ?? 0, elements[14] ?? 0)
@@ -1988,6 +2183,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	let pickTargets: HoverablePickTarget[] = []
 	let hoveredPickTarget: HoverablePickTarget | null = null
+	let radialMenuPickTarget: HoverablePickTarget | null = null
 	let world: DbWorldRows | null = null
 	let parentByParticleId = new Map<number, number | null>()
 	let clickNavigationSuppressed = false
@@ -1995,6 +2191,14 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	let navigationState: ViewNavigationState | null = null
 	let pointerDownX = 0
 	let pointerDownY = 0
+	const radialMenuPane = new BulkRadialMenuPane()
+	let radialMenuLongPress: {
+		startX: number
+		startY: number
+		target: HoverablePickTarget
+		timer: ReturnType<typeof setTimeout>
+		touchId: number
+	} | null = null
 	let disposed = false
 	let frameHandle = 0
 	let renderWakeUntilMs = 0
@@ -2167,7 +2371,11 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const syncPickTargetMaterialState = (target: HoverablePickTarget): void => {
-		if (getPickTargetKey(hoveredPickTarget) === getPickTargetKey(target)) applyHoverMaterial(target)
+		const targetKey = getPickTargetKey(target)
+		if (
+			targetKey !== null &&
+			(targetKey === getPickTargetKey(hoveredPickTarget) || targetKey === getPickTargetKey(radialMenuPickTarget))
+		) applyHoverMaterial(target)
 		else resetHoverMaterial(target)
 	}
 
@@ -2176,11 +2384,26 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			if (target === null) options.canvas.style.cursor = ""
 			return
 		}
-		if (hoveredPickTarget) resetHoverMaterial(hoveredPickTarget)
+		const previous = hoveredPickTarget
 		hoveredPickTarget = target
-		if (hoveredPickTarget) applyHoverMaterial(hoveredPickTarget)
+		if (previous) syncPickTargetMaterialState(previous)
+		if (hoveredPickTarget) syncPickTargetMaterialState(hoveredPickTarget)
 		options.canvas.style.cursor = hoveredPickTarget ? "pointer" : ""
 		requestRenderLoop()
+	}
+
+	const setRadialMenuPickTarget = (target: HoverablePickTarget | null): void => {
+		if (getPickTargetKey(radialMenuPickTarget) === getPickTargetKey(target)) return
+		const previous = radialMenuPickTarget
+		radialMenuPickTarget = target
+		if (previous) syncPickTargetMaterialState(previous)
+		if (radialMenuPickTarget) syncPickTargetMaterialState(radialMenuPickTarget)
+		requestRenderLoop()
+	}
+
+	radialMenuPane.onClose = () => {
+		setRadialMenuPickTarget(null)
+		setHoveredPickTarget(null)
 	}
 
 	const clampTransitionScale = (value: number): number => {
@@ -2435,6 +2658,10 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		if (getPickTargetKey(hoveredPickTarget) === getPickTargetKey(record.pickTarget)) {
 		setHoveredPickTarget(null)
 	}
+		if (getPickTargetKey(radialMenuPickTarget) === getPickTargetKey(record.pickTarget)) {
+			radialMenuPane.close()
+			setRadialMenuPickTarget(null)
+		}
 		fadingRemovalRecords.push({
 			baseOpacity: record.pickTarget.baseOpacity,
 			durationMs: REMOVAL_FADE_MS,
@@ -2453,6 +2680,10 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		if (getPickTargetKey(hoveredPickTarget) === getPickTargetKey(record.pickTarget)) {
 		setHoveredPickTarget(null)
 	}
+		if (getPickTargetKey(radialMenuPickTarget) === getPickTargetKey(record.pickTarget)) {
+			radialMenuPane.close()
+			setRadialMenuPickTarget(null)
+		}
 		fadingRemovalRecords.push({
 			baseOpacity: record.pickTarget.baseOpacity,
 			durationMs: REMOVAL_FADE_MS,
@@ -2929,6 +3160,30 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		if (projectedRadius <= 1e-6) return null
 
 		return Math.max(0, Math.hypot(clientX - centerPoint.x, clientY - centerPoint.y) - projectedRadius)
+	}
+
+	const resolveProjectedTorusDistancePx = (
+		center: Vector3,
+		shellRadius: number,
+		shellTube: number,
+		clientX: number,
+		clientY: number,
+	): number | null => {
+		const outerRadius = Math.max(0, shellRadius + shellTube)
+		const innerRadius = Math.max(0, shellRadius - shellTube)
+		const centerPoint = projectWorldToClientPoint(center)
+		if (!centerPoint) return null
+		const outerEdgeDistance = resolveProjectedSphereDistancePx(center, outerRadius, clientX, clientY)
+		if (outerEdgeDistance === null) return null
+		const cameraForward = viewPoint.getTarget().clone().sub(viewPoint.position).normalize()
+		const cameraRight = cameraForward.clone().cross(viewPoint.getUp()).normalize()
+		if (cameraRight.length() <= 1e-6 || innerRadius <= 1e-6) return outerEdgeDistance
+		const innerPoint = projectWorldToClientPoint(center.clone().add(cameraRight.multiplyScalar(innerRadius)))
+		if (!innerPoint) return outerEdgeDistance
+		const distanceFromCenter = Math.hypot(clientX - centerPoint.x, clientY - centerPoint.y)
+		const projectedInnerRadius = Math.hypot(innerPoint.x - centerPoint.x, innerPoint.y - centerPoint.y)
+		if (distanceFromCenter >= projectedInnerRadius && outerEdgeDistance <= 1e-6) return 0
+		return Math.min(outerEdgeDistance, Math.abs(distanceFromCenter - projectedInnerRadius))
 	}
 
 	const syncPickTargetsFromScene = (): void => {
@@ -3573,6 +3828,53 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return null
 	}
 
+	const pickRadialMenuTargetAtClientPoint = (clientX: number, clientY: number): HoverablePickTarget | null => {
+		const directTarget = pickTargetAtClientPoint(clientX, clientY, true)
+		if (directTarget) return directTarget
+
+		updateSceneWorldState()
+		let bestTarget: HoverablePickTarget | null = null
+		let bestScore = Number.POSITIVE_INFINITY
+
+		for (const target of pickTargets) {
+			const score = target.kind === "field"
+				? resolveProjectedSphereDistancePx(target.center, target.sphereRadius, clientX, clientY)
+				: resolveProjectedTorusDistancePx(target.center, target.shellRadius, target.shellTube, clientX, clientY)
+			if (score === null || score > BULK_RADIAL_MENU_PROJECTED_HIT_PAD_PX || score >= bestScore) continue
+			bestScore = score
+			bestTarget = target
+		}
+
+		return bestTarget
+	}
+
+	const openRadialMenuForTarget = (target: HoverablePickTarget, fallbackClientX: number, fallbackClientY: number): void => {
+		cancelNavigation()
+		updateSceneWorldState()
+		const canvasRect = options.canvas.getBoundingClientRect()
+		const centerPoint = projectWorldToClientPoint(target.center) ?? {x: fallbackClientX, y: fallbackClientY}
+		const center = {
+			x: centerPoint.x - canvasRect.left,
+			y: centerPoint.y - canvasRect.top,
+		}
+		setHoveredPickTarget(target)
+		setRadialMenuPickTarget(target)
+		radialMenuPane.open(center)
+		requestRenderLoop(INPUT_RENDER_WAKE_MS)
+	}
+
+	const closeRadialMenu = (): void => {
+		setRadialMenuPickTarget(null)
+		radialMenuPane.close()
+		requestRenderLoop(INPUT_RENDER_WAKE_MS)
+	}
+
+	const cancelRadialMenuLongPress = (): void => {
+		if (radialMenuLongPress === null) return
+		clearTimeout(radialMenuLongPress.timer)
+		radialMenuLongPress = null
+	}
+
 	const applyNavigationFrame = (timestamp: number): void => {
 		if (!navigationState) return
 		viewPoint.alignUpToWorldZ()
@@ -4026,7 +4328,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const handleCanvasMouseDown = (event: MouseEvent): void => {
 		cancelNavigation()
+		cancelRadialMenuLongPress()
 		if (event.button !== 0) return
+		closeRadialMenu()
 		isPrimaryPointerDown = true
 		pointerDownX = event.clientX
 		pointerDownY = event.clientY
@@ -4040,6 +4344,12 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			if (Math.hypot(event.clientX - pointerDownX, event.clientY - pointerDownY) > 6) {
 				clickNavigationSuppressed = true
 			}
+			requestRenderLoop(INPUT_RENDER_WAKE_MS)
+			return
+		}
+
+		if (radialMenuPickTarget !== null) {
+			setHoveredPickTarget(null)
 			requestRenderLoop(INPUT_RENDER_WAKE_MS)
 			return
 		}
@@ -4061,6 +4371,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const resetCanvasPointerState = (): void => {
 		isPrimaryPointerDown = false
+		cancelRadialMenuLongPress()
 		setBotPhoneHoverTarget(null)
 		setHoveredPickTarget(null)
 	}
@@ -4077,6 +4388,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const wakeRenderFromCanvasWheel = (): void => {
 		cancelNavigation()
+		closeRadialMenu()
 		requestRenderLoop(INPUT_RENDER_WAKE_MS)
 	}
 
@@ -4098,6 +4410,81 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		focusTarget(hitTarget)
 	}
 
+	const handleCanvasContextMenu = (event: MouseEvent): void => {
+		if (event.defaultPrevented) return
+		event.preventDefault()
+		event.stopImmediatePropagation()
+		let hitTarget: HoverablePickTarget | null = null
+		try {
+			hitTarget = pickRadialMenuTargetAtClientPoint(event.clientX, event.clientY)
+		} catch (error) {
+			console.warn("[bulk/web] radial menu target lookup failed", error)
+		}
+		if (!hitTarget) {
+			setHoveredPickTarget(null)
+			closeRadialMenu()
+			return
+		}
+		clickNavigationSuppressed = true
+		openRadialMenuForTarget(hitTarget, event.clientX, event.clientY)
+	}
+
+	const handleCanvasTouchStartForRadialMenu = (event: TouchEvent): void => {
+		cancelRadialMenuLongPress()
+		if (event.touches.length !== 1) {
+			closeRadialMenu()
+			return
+		}
+		const touch = event.changedTouches[0]
+		if (touch === undefined) return
+		const hitTarget = pickRadialMenuTargetAtClientPoint(touch.clientX, touch.clientY)
+		if (!hitTarget) {
+			setHoveredPickTarget(null)
+			closeRadialMenu()
+			return
+		}
+		radialMenuLongPress = {
+			startX: touch.clientX,
+			startY: touch.clientY,
+			target: hitTarget,
+			touchId: touch.identifier,
+			timer: setTimeout(() => {
+				const pending = radialMenuLongPress
+				if (pending === null) return
+				radialMenuLongPress = null
+				isPrimaryPointerDown = false
+				clickNavigationSuppressed = true
+				openRadialMenuForTarget(pending.target, pending.startX, pending.startY)
+			}, BULK_RADIAL_MENU_LONG_PRESS_MS),
+		}
+	}
+
+	const handleCanvasTouchMoveForRadialMenu = (event: TouchEvent): void => {
+		if (radialMenuLongPress === null) return
+		for (const touch of Array.from(event.changedTouches)) {
+			if (touch.identifier !== radialMenuLongPress.touchId) continue
+			if (
+				Math.hypot(
+					touch.clientX - radialMenuLongPress.startX,
+					touch.clientY - radialMenuLongPress.startY,
+				) > BULK_RADIAL_MENU_LONG_PRESS_MOVE_PX
+			) {
+				cancelRadialMenuLongPress()
+			}
+			return
+		}
+	}
+
+	const handleCanvasTouchEndForRadialMenu = (event: TouchEvent): void => {
+		if (radialMenuLongPress === null) return
+		for (const touch of Array.from(event.changedTouches)) {
+			if (touch.identifier === radialMenuLongPress.touchId) {
+				cancelRadialMenuLongPress()
+				return
+			}
+		}
+	}
+
 	const handleBotPhoneFullscreenChange = (): void => {
 		botPhoneDisplayDock?.requestRender()
 		requestRenderLoop(INPUT_RENDER_WAKE_MS)
@@ -4108,11 +4495,16 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	options.canvas.addEventListener("mouseup", handleCanvasMouseUp)
 	options.canvas.addEventListener("mouseleave", resetCanvasPointerState)
 	options.canvas.addEventListener("click", handleCanvasClick)
+	options.canvas.addEventListener("contextmenu", handleCanvasContextMenu, true)
 	options.canvas.addEventListener("wheel", wakeRenderFromCanvasWheel, { passive: true })
 	options.canvas.addEventListener("touchstart", wakeRenderFromCanvasTouch, { passive: true })
 	options.canvas.addEventListener("touchmove", wakeRenderFromCanvasTouch, { passive: true })
 	options.canvas.addEventListener("touchend", wakeRenderFromCanvasTouch, { passive: true })
 	options.canvas.addEventListener("touchcancel", wakeRenderFromCanvasTouch, { passive: true })
+	options.canvas.addEventListener("touchstart", handleCanvasTouchStartForRadialMenu, { passive: true })
+	window.addEventListener("touchmove", handleCanvasTouchMoveForRadialMenu, {capture: true, passive: true})
+	window.addEventListener("touchend", handleCanvasTouchEndForRadialMenu, true)
+	window.addEventListener("touchcancel", handleCanvasTouchEndForRadialMenu, true)
 	document.addEventListener("mousemove", wakeRenderFromDocumentMouseMove)
 	document.addEventListener("mouseup", wakeRenderFromDocumentMouseUp)
 	document.addEventListener("fullscreenchange", handleBotPhoneFullscreenChange)
@@ -4192,6 +4584,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	hudRuntime = new BulkViewportHudRuntime(options.canvas, renderer, viewPoint, uiFont, requestRenderLoop)
 	hudRuntime.handleSize(options.width, options.height)
+	hudRuntime.addSurface(radialMenuPane, ({w, h}) => ({x: 0, y: 0, w, h}), {zIndex: BULK_RADIAL_MENU_HUD_Z})
 	if (BULK_SCENE_DEVICES_ENABLED) {
 		options.canvas.addEventListener("mousedown", handleBotPhoneMouseDown, true)
 		window.addEventListener("mousemove", handleBotPhoneMouseMove, true)
@@ -4218,11 +4611,16 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			options.canvas.removeEventListener("mouseup", handleCanvasMouseUp)
 			options.canvas.removeEventListener("mouseleave", resetCanvasPointerState)
 			options.canvas.removeEventListener("click", handleCanvasClick)
+			options.canvas.removeEventListener("contextmenu", handleCanvasContextMenu, true)
 			options.canvas.removeEventListener("wheel", wakeRenderFromCanvasWheel)
 			options.canvas.removeEventListener("touchstart", wakeRenderFromCanvasTouch)
 			options.canvas.removeEventListener("touchmove", wakeRenderFromCanvasTouch)
 			options.canvas.removeEventListener("touchend", wakeRenderFromCanvasTouch)
 			options.canvas.removeEventListener("touchcancel", wakeRenderFromCanvasTouch)
+			options.canvas.removeEventListener("touchstart", handleCanvasTouchStartForRadialMenu)
+			window.removeEventListener("touchmove", handleCanvasTouchMoveForRadialMenu, true)
+			window.removeEventListener("touchend", handleCanvasTouchEndForRadialMenu, true)
+			window.removeEventListener("touchcancel", handleCanvasTouchEndForRadialMenu, true)
 			options.canvas.removeEventListener("mousedown", handleBotPhoneMouseDown, true)
 			window.removeEventListener("mousemove", handleBotPhoneMouseMove, true)
 			window.removeEventListener("mouseup", handleBotPhoneMouseUp, true)
@@ -4234,6 +4632,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			document.removeEventListener("mouseup", wakeRenderFromDocumentMouseUp)
 			document.removeEventListener("fullscreenchange", handleBotPhoneFullscreenChange)
 			document.removeEventListener("webkitfullscreenchange", handleBotPhoneFullscreenChange)
+			cancelRadialMenuLongPress()
+			setRadialMenuPickTarget(null)
 			setHoveredPickTarget(null)
 			if (botFloorPhonesRoot !== null) detachObject(botFloorPhonesRoot)
 			botFloorPhonesRoot = null
