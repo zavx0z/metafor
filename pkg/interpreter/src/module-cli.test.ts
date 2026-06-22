@@ -12,7 +12,8 @@ describe("interpreter module CLI", () => {
     expect(module?.label).toBe("dark/server.spec.ts")
     expect(module?.modulePath).toBe(join(cwd, "dark/server.spec.ts"))
     expect(module?.command).toEqual(["bun", "test", "--timeout=2147483647", join(cwd, "dark/server.spec.ts")])
-    expect(module?.pauseOnStart).toBe(true)
+    expect(module?.pauseOnStart).toBe(false)
+    expect(module?.inspectMode).toBe("inspect")
   })
 
   test("splits modules by path and keeps params on the preceding module", () => {

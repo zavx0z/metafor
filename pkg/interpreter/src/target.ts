@@ -157,7 +157,7 @@ export class TargetSupervisor {
       throw new Error("command must contain only strings")
     }
 
-    const inspectMode = options.inspectMode ?? (options.pauseOnStart === true ? "brk" : "wait")
+    const inspectMode = options.inspectMode ?? (options.pauseOnStart === true ? "brk" : "inspect")
     const pauseOnStart = inspectMode === "brk"
     this.#command = applyInspectMode(options.command, inspectMode, options.protocolUrl ?? "ws://127.0.0.1:6499/")
     this.#cwd = options.cwd ?? process.cwd()
@@ -236,7 +236,7 @@ export class TargetSupervisor {
       cwd,
       ...(env === undefined ? {} : {env}),
       pauseOnStart: options.pauseOnStart ?? false,
-      inspectMode: options.inspectMode ?? "wait",
+      inspectMode: options.inspectMode ?? "inspect",
       breakpoints: options.breakpoints ?? [],
     })
   }

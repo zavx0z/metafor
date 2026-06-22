@@ -361,7 +361,7 @@ function serverCommand(): string {
       }),
       "bun --hot run pkg/interpreter/interpreter.ts",
       "app/web/server.ts",
-      "--inspect-wait",
+      "--inspect",
       ...Object.entries(appServerEnv("dev")).map(([key, value]) => `-env.${key}=${shellQuote(value)}`),
       "app/web/tmp/boundary.sqlite",
     ].filter(Boolean).join(" ")

@@ -293,7 +293,7 @@ API-редактирование исходного кода через `POST /p
 Если в `command` нет `--inspect*`, интерпретатор добавляет protocol flag:
 
 - `pauseOnStart: true` -> `--inspect-brk=<module-url>`
-- `pauseOnStart: false` -> `--inspect-wait=<module-url>`
+- `pauseOnStart: false` -> `--inspect=<module-url>`
 
 ## Действия Process
 

@@ -62,7 +62,7 @@ function startupModuleFromPath(inputPath: string, params: string[], cwd: string)
   const command = isTestModulePath(resolvedPath)
     ? ["bun", "test", ...normalizedParams, resolvedPath]
     : ["bun", resolvedPath, ...normalizedParams]
-  const inspectMode = parsedParams.inspectMode ?? inspectModeFromCommand(command) ?? "brk"
+  const inspectMode = parsedParams.inspectMode ?? inspectModeFromCommand(command) ?? "inspect"
   return {
     id: moduleIdFromPath(label),
     label,
