@@ -918,6 +918,7 @@ class AppWebHud implements AppWebHudController {
 		})
 		this.#agentSignalPane = new AppWebAgentSignalPane(this)
 		this.#terminal = this.#createTerminalController()
+		this.#updateCodexHeaderControls()
 		this.#networkTerminal = this.#createNetworkTerminalController()
 		this.#voiceHud = this.#createVoiceHud()
 		this.#codexComposer = new AppWebCodexComposerPane(this)
@@ -2379,6 +2380,7 @@ class AppWebHud implements AppWebHudController {
 	#codexHeaderControls(): TerminalHeaderControls {
 		const enabled = this.agentSoundEnabled()
 		const pinned = this.#codexAutoscrollPinned
+		const terminalPane = this.#terminal?.pane
 		return {
 			primary: [
 				{
@@ -2394,6 +2396,17 @@ class AppWebHud implements AppWebHudController {
 				},
 			],
 			secondary: [
+				{
+					label: "Клавиатура терминала",
+					iconSrc: uiIcons.keyboard,
+					tone: terminalPane?.softKeyboardInputMode() === "text" ? "live" : "neutral",
+					active: terminalPane?.softKeyboardInputMode() === "text",
+					disabled: terminalPane === undefined,
+					action: () => {
+						terminalPane?.openSoftKeyboard()
+						this.#updateCodexHeaderControls()
+					},
+				},
 				{
 					label: "Сигнал агента",
 					iconSrc: agentSignalIcon(enabled),

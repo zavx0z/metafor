@@ -2258,6 +2258,12 @@ export class TerminalPane extends TerminalOutputPane {
     this.requestRender()
   }
 
+  openSoftKeyboard(): void {
+    if (!this.#inputEnabled) return
+    this.#softKeyboardInputArmed = true
+    this.focus()
+  }
+
   override softKeyboardInputMode(): VirtualInputSoftKeyboardMode {
     return this.#inputEnabled && this.#softKeyboardInputArmed ? "text" : "none"
   }

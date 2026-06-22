@@ -337,6 +337,14 @@ export class DisplayHoverOutlinePane extends UiSurface {
     this.#repositionNearDisplayAfterFullscreen(this.canvas?.activeDisplayId ?? null)
   }
 
+  browserFullscreenActive(): boolean {
+    return document.fullscreenElement !== null
+  }
+
+  toggleBrowserFullscreen(): void {
+    this.#toggleBrowserFullscreen()
+  }
+
   containsPointer(localX: number, localY: number): boolean {
     if (this.canvas?.displayMode === "near") {
       const dock = this.#returnDockControl()

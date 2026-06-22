@@ -593,6 +593,7 @@ const HOST_TERMINAL_HUD_RECT_STORAGE_KEY = "metafor.interpreter.hostTerminal.hud
 const HOST_TERMINAL_CODEX_COMPOSER_RECT_STORAGE_KEY = "metafor.interpreter.hostTerminal.codexComposerRect:v1"
 const HOST_TERMINAL_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.hostTerminal.hudDocked:v1"
 const HOST_TERMINAL_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.hostTerminal.dockPlacement:v1"
+const FULLSCREEN_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.fullscreen.dockPlacement:v1"
 const NETWORK_TERMINAL_SESSION_STORAGE_KEY = "metafor.interpreter.networkTerminal.sessionId:v1"
 const NETWORK_TERMINAL_SESSION_KEY = "interpreter:network-terminal"
 const NETWORK_TERMINAL_TMUX_SESSION = "metafor-app-web-net"
@@ -673,20 +674,19 @@ const HOST_TERMINAL_HUD_PANEL_MIN_H = 160
 const HOST_TERMINAL_DOCK_SHORT = 36
 const HOST_TERMINAL_DOCK_LONG = 128
 const HOST_TERMINAL_DOCK_MARGIN = 8
-const HOST_TERMINAL_DOCK_LONG_PRESS_MS = 360
+const HOST_TERMINAL_DOCK_LONG_PRESS_MS = 320
+const HOST_TERMINAL_DOCK_DRAG_THRESHOLD_PX = 6
 const ANDROID_HUD_MIN_W = 300
 const ANDROID_HUD_MIN_H = 360
 const ANDROID_FRAME_REFRESH_MS = 850
 const ANDROID_DOCK_SHORT = 34
 const ANDROID_DOCK_LONG = 108
 const ANDROID_DOCK_MARGIN = 8
-const ANDROID_DOCK_LONG_PRESS_MS = 360
 const TODO_HUD_MIN_W = 320
 const TODO_HUD_MIN_H = 220
 const TODO_DOCK_SHORT = 34
 const TODO_DOCK_LONG = 96
 const TODO_DOCK_MARGIN = 8
-const TODO_DOCK_LONG_PRESS_MS = 360
 const SQLITE_HUD_MIN_W = 520
 const SQLITE_HUD_MIN_H = 300
 const SQLITE_HUD_HEADER_H = 38
@@ -694,7 +694,6 @@ const SQLITE_HUD_CONTENT_PAD = 8
 const SQLITE_DOCK_SHORT = 34
 const SQLITE_DOCK_LONG = 108
 const SQLITE_DOCK_MARGIN = 8
-const SQLITE_DOCK_LONG_PRESS_MS = 360
 const SQLITE_CONTEXT_SELECTED_ROW_LIMIT = 20
 const HOST_TERMINAL_BRAND_LABEL = "Codex"
 const HOST_TERMINAL_MODEL_LABEL = "GPT 5,5"
@@ -753,6 +752,7 @@ type NetworkServiceKey = NetworkWatchServiceKey
 
 const DEFAULT_HOST_TERMINAL_HUD_RECT: UiSurfaceRect = {x: 643, y: 60, w: 755, h: 943}
 const DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "top", offset: 858}
+const DEFAULT_FULLSCREEN_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "top", offset: 984}
 const DEFAULT_NETWORK_TERMINAL_HUD_RECT: UiSurfaceRect = {x: 24, y: 520, w: 1080, h: 560}
 const NETWORK_DISPLAY_COLUMN_GAP = 8
 const NETWORK_DISPLAY_COLUMN_MIN_W = 920
@@ -777,17 +777,18 @@ let uiCanvas: UiRuntime | null = null
 let uiLoading = false
 let displayHoverOutlinePane: DisplayHoverOutlinePane | null = null
 let todoPane: ToDoPane | null = null
-let todoDockPane: TodoDockPane | null = null
+let todoDockPane: HostTerminalDockPane | null = null
 let todoContext: ToDoPaneContextSnapshot | null = null
 let androidPane: AndroidPane | null = null
 let androidDockPane: HostTerminalDockPane | null = null
 let secondaryAndroidPane: AndroidPane | null = null
 let secondaryAndroidDockPane: HostTerminalDockPane | null = null
 let sqliteHudPane: SqliteHudFramePane | null = null
-let sqliteDockPane: SqliteDockPane | null = null
+let sqliteDockPane: HostTerminalDockPane | null = null
 let hostTerminal: HostTerminalController | null = null
 let networkHostTerminal: HostTerminalController | null = null
 let hostTerminalDockPane: HostTerminalDockPane | null = null
+let fullscreenDockPane: HostTerminalDockPane | null = null
 let networkDisplayControlsPane: NetworkWatchPane | null = null
 let networkDisplayTerminal: TerminalPane | null = null
 let networkDisplayInstalled = false
@@ -795,6 +796,7 @@ let hostTerminalAgentSignalPane: HostTerminalAgentSignalPane | null = null
 let hostTerminalStatusLabelForLayout = t("terminalConnecting")
 let hostTerminalHudDocked = readStoredHostTerminalHudDocked()
 let hostTerminalDockPlacement: HostTerminalDockPlacement | null = readStoredHostTerminalDockPlacement() ?? DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT
+let fullscreenDockPlacement: HostTerminalDockPlacement | null = readStoredFullscreenDockPlacement() ?? DEFAULT_FULLSCREEN_DOCK_PLACEMENT
 let hostTerminalHudRectPreview: UiSurfaceRect | null = null
 let networkHostTerminalHudDocked = readStoredNetworkTerminalHudDocked()
 let networkHostTerminalHudRectPreview: UiSurfaceRect | null = null
@@ -2675,6 +2677,7 @@ function handleBrowserFullscreenDisplayLayoutChange(activeDisplayId: string | nu
   refitVoiceHudPlacement()
   const displayId = activeDisplayId ?? uiCanvas?.activeDisplayId ?? null
   if (displayId !== null) uiCanvas?.focusDisplay(displayId)
+  fullscreenDockPane?.requestRender()
   syncNetworkStatusRefresh()
 }
 
@@ -2689,7 +2692,15 @@ function installEnginePanes(): void {
   if (todoPane !== null) {
     uiCanvas.addHudSurface(todoPane, todoHudRect)
   }
-  todoDockPane ??= new TodoDockPane(() => setTodoHudDocked(false))
+  todoDockPane ??= new HostTerminalDockPane({
+    key: "todo-dock-restore",
+    label: "TODO",
+    tooltip: "TODO.md",
+    icon: uiIcons.apply,
+    edge: currentTodoDockEdge,
+    restore: () => setTodoHudDocked(false),
+    moveTo: (point, bounds) => setTodoDockPlacement(todoDockPlacementFromPoint(point, bounds)),
+  })
   uiCanvas.addHudSurface(todoDockPane, todoDockRect, {zIndex: HUD_LAYER_TOP})
   sqliteHudPane ??= new SqliteHudFramePane(
     () => activeSqliteController()?.label ?? "SQLite",
@@ -2739,7 +2750,25 @@ function installEnginePanes(): void {
   uiCanvas.addHudSurface(hostTerminalAgentSignalPane, hostTerminalAgentSignalRect, {zIndex: HUD_LAYER_TOP})
   hostTerminalDockPane ??= new HostTerminalDockPane(() => setHostTerminalHudDocked(false))
   uiCanvas.addHudSurface(hostTerminalDockPane, hostTerminalDockRect, {zIndex: HUD_LAYER_TOP})
-  sqliteDockPane ??= new SqliteDockPane(() => setSqliteHudDocked(false))
+  fullscreenDockPane ??= new HostTerminalDockPane({
+    key: "fullscreen-dock-toggle",
+    label: "",
+    tooltip: () => displayHoverOutlinePane?.browserFullscreenActive() === true ? "Выйти из полного экрана" : "Полный экран",
+    icon: () => displayHoverOutlinePane?.browserFullscreenActive() === true ? uiIcons.collapse : uiIcons.expand,
+    edge: currentFullscreenDockEdge,
+    restore: () => toggleBrowserFullscreenDock(),
+    moveTo: (point, bounds) => setFullscreenDockPlacement(fullscreenDockPlacementFromPoint(point, bounds)),
+  })
+  uiCanvas.addHudSurface(fullscreenDockPane, fullscreenDockRect, {zIndex: HUD_LAYER_TOP})
+  sqliteDockPane ??= new HostTerminalDockPane({
+    key: "sqlite-dock-restore",
+    label: "SQLite",
+    tooltip: () => activeSqliteController()?.label ?? "SQLite",
+    icon: uiIcons.database,
+    edge: currentSqliteDockEdge,
+    restore: () => setSqliteHudDocked(false),
+    moveTo: (point, bounds) => setSqliteDockPlacement(sqliteDockPlacementFromPoint(point, bounds)),
+  })
   uiCanvas.addHudSurface(sqliteDockPane, sqliteDockRect, {zIndex: HUD_LAYER_TOP})
   if (voiceHudPane !== null) {
     uiCanvas.addHudSurface(voiceHudPane, voiceHudSurfaceRect, {zIndex: HUD_LAYER_TOP})
@@ -3680,8 +3709,8 @@ function sameStringArray(a: readonly string[], b: readonly string[]): boolean {
 type HostTerminalDockPaneOptions = {
   key: string
   label: string
-  tooltip: string
-  icon?: string
+  tooltip: string | (() => string)
+  icon?: string | (() => string)
   edge(): HudSideTabEdge
   restore(): void
   moveTo(point: {x: number; y: number}, bounds: {w: number; h: number}): void
@@ -3691,8 +3720,11 @@ class HostTerminalDockPane extends UiSurface {
   #press: {
     lastX: number
     lastY: number
+    startX: number
+    startY: number
     dragging: boolean
     timer: ReturnType<typeof setTimeout> | null
+    touch: boolean
   } | null = null
   #suppressRestoreClick = false
   readonly #options: HostTerminalDockPaneOptions
@@ -3718,10 +3750,10 @@ class HostTerminalDockPane extends UiSurface {
       rect: {x: 0, y: 0, w: this.rectW, h: this.rectH},
       key: this.#options.key,
       edge: this.#options.edge(),
-      icon: this.#options.icon ?? uiIcons.codex,
+      icon: typeof this.#options.icon === "function" ? this.#options.icon() : (this.#options.icon ?? uiIcons.codex),
       label: this.#options.label,
       tone: "neutral",
-      tooltip: this.#options.tooltip,
+      tooltip: typeof this.#options.tooltip === "function" ? this.#options.tooltip() : this.#options.tooltip,
       onClick: () => this.#restoreFromClick(),
     })
   }
@@ -3729,13 +3761,17 @@ class HostTerminalDockPane extends UiSurface {
   override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
     super.onPointerDown(event, localX, localY)
     if (event.button !== 0 || this.pressedHit === null) return
+    if (isTouchPointerEvent(event)) event.preventDefault()
     const point = this.#canvasPoint(event)
     if (point === null) return
     const press = {
       lastX: point.x,
       lastY: point.y,
+      startX: point.x,
+      startY: point.y,
       dragging: false,
       timer: null as ReturnType<typeof setTimeout> | null,
+      touch: isTouchPointerEvent(event),
     }
     press.timer = setTimeout(() => {
       if (this.#press !== press) return
@@ -3755,6 +3791,9 @@ class HostTerminalDockPane extends UiSurface {
     if (point !== null) {
       press.lastX = point.x
       press.lastY = point.y
+      if (!press.dragging && !press.touch && Math.hypot(press.lastX - press.startX, press.lastY - press.startY) >= HOST_TERMINAL_DOCK_DRAG_THRESHOLD_PX) {
+        press.dragging = true
+      }
     }
     if (!press.dragging) {
       super.onPointerMove(event, localX, localY)
@@ -3776,8 +3815,8 @@ class HostTerminalDockPane extends UiSurface {
   }
 
   override onPointerLeave(): void {
+    if (this.#press !== null) return
     super.onPointerLeave()
-    this.#cancelPress()
   }
 
   override onDeactivate(): void {
@@ -3994,123 +4033,6 @@ function updateNetworkWatchPane(): void {
   networkDisplayControlsPane?.setSnapshot(networkWatchPaneSnapshot())
 }
 
-class TodoDockPane extends UiSurface {
-  #press: {
-    lastX: number
-    lastY: number
-    dragging: boolean
-    timer: ReturnType<typeof setTimeout> | null
-  } | null = null
-  #suppressRestoreClick = false
-
-  constructor(private readonly onRestore: () => void) {
-    super({bgColor: null, borderColor: null})
-    this.node.name = "TodoDockPane"
-  }
-
-  protected render(): void {
-    HudSideTab(this, {
-      rect: {x: 0, y: 0, w: this.rectW, h: this.rectH},
-      key: "todo-dock-restore",
-      edge: currentTodoDockEdge(),
-      icon: uiIcons.apply,
-      label: "TODO",
-      tone: "neutral",
-      tooltip: "TODO.md",
-      onClick: () => this.#restoreFromClick(),
-    })
-  }
-
-  override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
-    super.onPointerDown(event, localX, localY)
-    if (event.button !== 0 || this.pressedHit === null) return
-    const point = this.#canvasPoint(event)
-    if (point === null) return
-    const press = {
-      lastX: point.x,
-      lastY: point.y,
-      dragging: false,
-      timer: null as ReturnType<typeof setTimeout> | null,
-    }
-    press.timer = setTimeout(() => {
-      if (this.#press !== press) return
-      press.dragging = true
-      this.#moveDockToCanvasPoint({x: press.lastX, y: press.lastY})
-    }, TODO_DOCK_LONG_PRESS_MS)
-    this.#press = press
-  }
-
-  override onPointerMove(event: MouseEvent, localX: number, localY: number): void {
-    const press = this.#press
-    if (press === null) {
-      super.onPointerMove(event, localX, localY)
-      return
-    }
-    const point = this.#canvasPoint(event)
-    if (point !== null) {
-      press.lastX = point.x
-      press.lastY = point.y
-    }
-    if (!press.dragging) {
-      super.onPointerMove(event, localX, localY)
-      return
-    }
-    event.preventDefault()
-    this.#moveDockToCanvasPoint({x: press.lastX, y: press.lastY})
-    if (this.canvas?.canvas !== undefined) this.canvas.canvas.style.cursor = "grabbing"
-  }
-
-  override onPointerUp(event: MouseEvent, localX: number, localY: number): void {
-    const press = this.#press
-    this.#press = null
-    if (press?.timer !== null && press?.timer !== undefined) clearTimeout(press.timer)
-    const wasDragging = press?.dragging === true
-    if (wasDragging) this.#suppressRestoreClick = true
-    super.onPointerUp(event, localX, localY)
-    if (wasDragging) this.#suppressRestoreClick = false
-  }
-
-  override onPointerLeave(): void {
-    super.onPointerLeave()
-    this.#cancelPress()
-  }
-
-  override onDeactivate(): void {
-    super.onDeactivate()
-    this.#cancelPress()
-  }
-
-  override dispose(): void {
-    this.#cancelPress()
-    super.dispose()
-  }
-
-  #restoreFromClick(): void {
-    if (this.#suppressRestoreClick) return
-    this.onRestore()
-  }
-
-  #cancelPress(): void {
-    const press = this.#press
-    this.#press = null
-    if (press?.timer !== null && press?.timer !== undefined) clearTimeout(press.timer)
-  }
-
-  #moveDockToCanvasPoint(point: {x: number; y: number}): void {
-    const frame = this.canvas?.surfaceFrame(this)
-    if (frame === undefined || frame === null) return
-    const placement = todoDockPlacementFromPoint(point, frame.bounds)
-    setTodoDockPlacement(placement)
-  }
-
-  #canvasPoint(event: MouseEvent): {x: number; y: number} | null {
-    const canvas = this.canvas?.canvas
-    if (canvas === undefined) return null
-    const rect = canvas.getBoundingClientRect()
-    return {x: event.clientX - rect.left, y: event.clientY - rect.top}
-  }
-}
-
 class SqliteHudFramePane extends UiSurface {
   #frameDrag: PaneFrameDrag | null = null
 
@@ -4232,124 +4154,6 @@ class SqliteHudFramePane extends UiSurface {
     const kind = paneFrameHit(localX, localY, this.rectW, this.rectH, this.#frameInteractionOpts())
     const cursor = paneFrameCursor(kind, false)
     if (this.canvas.canvas !== undefined) this.canvas.canvas.style.cursor = cursor ?? "default"
-  }
-}
-
-class SqliteDockPane extends UiSurface {
-  #press: {
-    lastX: number
-    lastY: number
-    dragging: boolean
-    timer: ReturnType<typeof setTimeout> | null
-  } | null = null
-  #suppressRestoreClick = false
-
-  constructor(private readonly onRestore: () => void) {
-    super({bgColor: null, borderColor: null})
-    this.node.name = "SqliteDockPane"
-  }
-
-  protected render(): void {
-    const controller = activeSqliteController()
-    HudSideTab(this, {
-      rect: {x: 0, y: 0, w: this.rectW, h: this.rectH},
-      key: "sqlite-dock-restore",
-      edge: currentSqliteDockEdge(),
-      icon: uiIcons.database,
-      label: "SQLite",
-      tone: "neutral",
-      tooltip: controller === null ? "SQLite" : controller.label,
-      onClick: () => this.#restoreFromClick(),
-    })
-  }
-
-  override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
-    super.onPointerDown(event, localX, localY)
-    if (event.button !== 0 || this.pressedHit === null) return
-    const point = this.#canvasPoint(event)
-    if (point === null) return
-    const press = {
-      lastX: point.x,
-      lastY: point.y,
-      dragging: false,
-      timer: null as ReturnType<typeof setTimeout> | null,
-    }
-    press.timer = setTimeout(() => {
-      if (this.#press !== press) return
-      press.dragging = true
-      this.#moveDockToCanvasPoint({x: press.lastX, y: press.lastY})
-    }, SQLITE_DOCK_LONG_PRESS_MS)
-    this.#press = press
-  }
-
-  override onPointerMove(event: MouseEvent, localX: number, localY: number): void {
-    const press = this.#press
-    if (press === null) {
-      super.onPointerMove(event, localX, localY)
-      return
-    }
-    const point = this.#canvasPoint(event)
-    if (point !== null) {
-      press.lastX = point.x
-      press.lastY = point.y
-    }
-    if (!press.dragging) {
-      super.onPointerMove(event, localX, localY)
-      return
-    }
-    event.preventDefault()
-    this.#moveDockToCanvasPoint({x: press.lastX, y: press.lastY})
-    if (this.canvas?.canvas !== undefined) this.canvas.canvas.style.cursor = "grabbing"
-  }
-
-  override onPointerUp(event: MouseEvent, localX: number, localY: number): void {
-    const press = this.#press
-    this.#press = null
-    if (press?.timer !== null && press?.timer !== undefined) clearTimeout(press.timer)
-    const wasDragging = press?.dragging === true
-    if (wasDragging) this.#suppressRestoreClick = true
-    super.onPointerUp(event, localX, localY)
-    if (wasDragging) this.#suppressRestoreClick = false
-  }
-
-  override onPointerLeave(): void {
-    super.onPointerLeave()
-    this.#cancelPress()
-  }
-
-  override onDeactivate(): void {
-    super.onDeactivate()
-    this.#cancelPress()
-  }
-
-  override dispose(): void {
-    this.#cancelPress()
-    super.dispose()
-  }
-
-  #restoreFromClick(): void {
-    if (this.#suppressRestoreClick) return
-    this.onRestore()
-  }
-
-  #cancelPress(): void {
-    const press = this.#press
-    this.#press = null
-    if (press?.timer !== null && press?.timer !== undefined) clearTimeout(press.timer)
-  }
-
-  #moveDockToCanvasPoint(point: {x: number; y: number}): void {
-    const frame = this.canvas?.surfaceFrame(this)
-    if (frame === undefined || frame === null) return
-    const placement = sqliteDockPlacementFromPoint(point, frame.bounds)
-    setSqliteDockPlacement(placement)
-  }
-
-  #canvasPoint(event: MouseEvent): {x: number; y: number} | null {
-    const canvas = this.canvas?.canvas
-    if (canvas === undefined) return null
-    const rect = canvas.getBoundingClientRect()
-    return {x: event.clientX - rect.left, y: event.clientY - rect.top}
   }
 }
 
@@ -7405,6 +7209,18 @@ function updateHostTerminalHeaderControls(controller: HostTerminalController): v
           },
         },
       ],
+      secondary: [
+        {
+          label: "Клавиатура терминала",
+          iconSrc: uiIcons.keyboard,
+          tone: pane.softKeyboardInputMode() === "text" ? "live" : "neutral",
+          active: pane.softKeyboardInputMode() === "text",
+          action: () => {
+            pane.openSoftKeyboard()
+            updateHostTerminalHeaderControls(controller)
+          },
+        },
+      ],
     })
   }
 }
@@ -7855,6 +7671,18 @@ function readStoredHostTerminalDockPlacement(): HostTerminalDockPlacement | null
   }
 }
 
+function readStoredFullscreenDockPlacement(): HostTerminalDockPlacement | null {
+  try {
+    const raw = localStorage.getItem(FULLSCREEN_DOCK_PLACEMENT_STORAGE_KEY)
+    if (raw === null) return null
+    const value = JSON.parse(raw) as Partial<HostTerminalDockPlacement>
+    if (!isHostTerminalDockEdge(value.edge) || typeof value.offset !== "number" || !Number.isFinite(value.offset)) return null
+    return {edge: value.edge, offset: value.offset}
+  } catch {
+    return null
+  }
+}
+
 function readStoredTodoDockPlacement(): HostTerminalDockPlacement | null {
   try {
     const raw = localStorage.getItem(TODO_DOCK_PLACEMENT_STORAGE_KEY)
@@ -7887,6 +7715,14 @@ function writeStoredHostTerminalDockPlacement(placement: HostTerminalDockPlaceme
   }
 }
 
+function writeStoredFullscreenDockPlacement(placement: HostTerminalDockPlacement): void {
+  try {
+    localStorage.setItem(FULLSCREEN_DOCK_PLACEMENT_STORAGE_KEY, JSON.stringify(placement))
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+}
+
 function writeStoredTodoDockPlacement(placement: HostTerminalDockPlacement): void {
   try {
     localStorage.setItem(TODO_DOCK_PLACEMENT_STORAGE_KEY, JSON.stringify(placement))
@@ -7909,6 +7745,15 @@ function setHostTerminalDockPlacement(placement: HostTerminalDockPlacement): voi
   hostTerminalDockPlacement = placement
   writeStoredHostTerminalDockPlacement(placement)
   hostTerminalDockPane?.requestRender()
+  relayoutHudSurfaces()
+}
+
+function setFullscreenDockPlacement(placement: HostTerminalDockPlacement): void {
+  const previous = fullscreenDockPlacement
+  if (previous !== null && previous.edge === placement.edge && Math.abs(previous.offset - placement.offset) < 0.5) return
+  fullscreenDockPlacement = placement
+  writeStoredFullscreenDockPlacement(placement)
+  fullscreenDockPane?.requestRender()
   relayoutHudSurfaces()
 }
 
@@ -7947,6 +7792,11 @@ function setSqliteDockPlacement(placement: HostTerminalDockPlacement): void {
   sqliteDockPane?.requestRender()
   relayoutHudSurfaces()
   updateSqliteContext()
+}
+
+function toggleBrowserFullscreenDock(): void {
+  displayHoverOutlinePane?.toggleBrowserFullscreen()
+  fullscreenDockPane?.requestRender()
 }
 
 function setHostTerminalHudDocked(docked: boolean): void {
@@ -8077,6 +7927,10 @@ function isHostTerminalDockEdge(value: unknown): value is HudSideTabEdge {
 
 function currentHostTerminalDockEdge(): HudSideTabEdge {
   return hostTerminalDockPlacement?.edge ?? DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT.edge
+}
+
+function currentFullscreenDockEdge(): HudSideTabEdge {
+  return fullscreenDockPlacement?.edge ?? DEFAULT_FULLSCREEN_DOCK_PLACEMENT.edge
 }
 
 function currentTodoDockEdge(): HudSideTabEdge {
@@ -10223,7 +10077,6 @@ function pointInUiRect(x: number, y: number, rect: UiSurfaceRect): boolean {
 
 function hostTerminalHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   if (hostTerminalHudDocked) return hiddenRect()
-  if (w < HOST_TERMINAL_HUD_MIN_W || h < HOST_TERMINAL_HUD_MIN_H) return hiddenRect()
   const composerReserve = HOST_TERMINAL_CODEX_COMPOSER_H + HOST_TERMINAL_CODEX_COMPOSER_GAP + 12
   if (hostTerminalHudRectPreview !== null) return clampHostTerminalHudRect(hostTerminalHudRectPreview, w, h, composerReserve)
   const stored = readStoredHostTerminalHudRect()
@@ -10286,7 +10139,6 @@ function syncHostCodexEditorToComposer(controller: HostTerminalController, compo
 
 function networkTerminalHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   if (networkHostTerminalHudDocked) return hiddenRect()
-  if (w < HOST_TERMINAL_HUD_MIN_W || h < HOST_TERMINAL_HUD_MIN_H) return hiddenRect()
   if (networkHostTerminalHudRectPreview !== null) return clampHostTerminalHudRect(networkHostTerminalHudRectPreview, w, h)
   const stored = readStoredNetworkTerminalHudRect()
   if (stored !== null) return clampHostTerminalHudRect(stored, w, h)
@@ -10359,7 +10211,6 @@ function todoHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
 
 function sqliteHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   if (activeSqliteController() === null || sqliteHudDocked) return hiddenRect()
-  if (w < SQLITE_HUD_MIN_W || h < SQLITE_HUD_MIN_H) return hiddenRect()
   if (sqliteHudRectPreview !== null) return clampSqliteHudRect(sqliteHudRectPreview, w, h)
   const stored = readStoredSqliteHudRect()
   if (stored !== null) return clampSqliteHudRect(stored, w, h)
@@ -10530,6 +10381,11 @@ function sqliteDockRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   return sqliteDockRectForPlacement(sqliteDockPlacement ?? defaultSqliteDockPlacement({w, h}), {w, h})
 }
 
+function fullscreenDockRect({w, h}: {w: number; h: number}): UiSurfaceRect {
+  if (w < 80 || h < 80) return hiddenRect()
+  return hostTerminalDockRectForPlacement(fullscreenDockPlacement ?? defaultFullscreenDockPlacement({w, h}), {w, h})
+}
+
 function hostTerminalDockRectForPlacement(placement: HostTerminalDockPlacement, bounds: {w: number; h: number}): UiSurfaceRect {
   const vertical = placement.edge === "left" || placement.edge === "right"
   const dockW = vertical
@@ -10668,6 +10524,14 @@ function sqliteDockRectForPlacement(placement: HostTerminalDockPlacement, bounds
 
 function defaultHostTerminalDockPlacement(bounds: {w: number; h: number}): HostTerminalDockPlacement {
   const placement = DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT
+  return defaultHostSizedDockPlacement(placement, bounds)
+}
+
+function defaultFullscreenDockPlacement(bounds: {w: number; h: number}): HostTerminalDockPlacement {
+  return defaultHostSizedDockPlacement(DEFAULT_FULLSCREEN_DOCK_PLACEMENT, bounds)
+}
+
+function defaultHostSizedDockPlacement(placement: HostTerminalDockPlacement, bounds: {w: number; h: number}): HostTerminalDockPlacement {
   const vertical = placement.edge === "left" || placement.edge === "right"
   const dockW = vertical
     ? Math.min(HOST_TERMINAL_DOCK_SHORT, Math.max(1, bounds.w - HOST_TERMINAL_DOCK_MARGIN))
@@ -10762,6 +10626,14 @@ function defaultSqliteDockPlacement(bounds: {w: number; h: number}): HostTermina
 }
 
 function hostTerminalDockPlacementFromPoint(point: {x: number; y: number}, bounds: {w: number; h: number}): HostTerminalDockPlacement {
+  return hostSizedDockPlacementFromPoint(point, bounds)
+}
+
+function fullscreenDockPlacementFromPoint(point: {x: number; y: number}, bounds: {w: number; h: number}): HostTerminalDockPlacement {
+  return hostSizedDockPlacementFromPoint(point, bounds)
+}
+
+function hostSizedDockPlacementFromPoint(point: {x: number; y: number}, bounds: {w: number; h: number}): HostTerminalDockPlacement {
   const distances: Array<{edge: HudSideTabEdge; distance: number}> = [
     {edge: "left", distance: point.x},
     {edge: "right", distance: bounds.w - point.x},

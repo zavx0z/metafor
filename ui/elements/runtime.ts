@@ -286,11 +286,19 @@ export class UiRuntime {
   #rafId: number | null = null
   #pressedSlot: SurfaceSlot | null = null
   #hoveredSlot: SurfaceSlot | null = null
+  #activeTouchId: number | null = null
+  #lastTouchEventAt = 0
+  #claimNextClick = false
   readonly #handleWheel = (event: WheelEvent): void => this.#onWheel(event)
   readonly #handleMouseMove = (event: MouseEvent): void => this.#onMouseMove(event)
   readonly #handleMouseDown = (event: MouseEvent): void => this.#onMouseDown(event)
   readonly #handleMouseUp = (event: MouseEvent): void => this.#onMouseUp(event)
+  readonly #handleClick = (event: MouseEvent): void => this.#onClick(event)
   readonly #handleMouseLeave = (): void => this.#onMouseLeave()
+  readonly #handleTouchStart = (event: TouchEvent): void => this.#onTouchStart(event)
+  readonly #handleTouchMove = (event: TouchEvent): void => this.#onTouchMove(event)
+  readonly #handleTouchEnd = (event: TouchEvent): void => this.#onTouchEnd(event)
+  readonly #handleTouchCancel = (event: TouchEvent): void => this.#onTouchCancel(event)
   readonly #handleContextMenu = (event: MouseEvent): void => this.#onContextMenu(event)
   readonly #handleKey = (event: KeyboardEvent): void => this.#onKey(event)
   readonly #handleWindowKey = (event: KeyboardEvent): void => this.#onWindowKey(event)
@@ -1279,6 +1287,11 @@ export class UiRuntime {
     this.canvas.removeEventListener("wheel", this.#handleWheel)
     this.canvas.removeEventListener("mousemove", this.#handleMouseMove)
     this.canvas.removeEventListener("mousedown", this.#handleMouseDown)
+    this.canvas.removeEventListener("click", this.#handleClick, true)
+    this.canvas.removeEventListener("touchstart", this.#handleTouchStart, true)
+    window.removeEventListener("touchmove", this.#handleTouchMove, true)
+    window.removeEventListener("touchend", this.#handleTouchEnd, true)
+    window.removeEventListener("touchcancel", this.#handleTouchCancel, true)
     this.canvas.removeEventListener("keydown", this.#handleKey)
     this.canvas.removeEventListener("mouseleave", this.#handleMouseLeave)
     this.canvas.removeEventListener("contextmenu", this.#handleContextMenu)
@@ -1289,6 +1302,8 @@ export class UiRuntime {
     this.#clearKeyboardFocus()
     this.#pressedSlot = null
     this.#hoveredSlot = null
+    this.#activeTouchId = null
+    this.#claimNextClick = false
     this.#cancelDisplayDragCandidate()
     this.#displayDragActive = null
     this.#displayNavigationActive = false
@@ -1441,6 +1456,11 @@ export class UiRuntime {
     this.canvas.addEventListener("wheel", this.#handleWheel, {passive: false})
     this.canvas.addEventListener("mousemove", this.#handleMouseMove)
     this.canvas.addEventListener("mousedown", this.#handleMouseDown)
+    this.canvas.addEventListener("click", this.#handleClick, true)
+    this.canvas.addEventListener("touchstart", this.#handleTouchStart, {capture: true, passive: false})
+    window.addEventListener("touchmove", this.#handleTouchMove, {capture: true, passive: false})
+    window.addEventListener("touchend", this.#handleTouchEnd, {capture: true, passive: false})
+    window.addEventListener("touchcancel", this.#handleTouchCancel, {capture: true, passive: false})
     this.canvas.addEventListener("contextmenu", this.#handleContextMenu)
     this.canvas.addEventListener("keydown", this.#handleKey)
     window.addEventListener("keydown", this.#handleWindowKey)
@@ -1485,9 +1505,55 @@ export class UiRuntime {
     return {x: event.clientX - rect.left, y: event.clientY - rect.top}
   }
 
+  #localCoordsFromTouch(touch: Touch): {x: number; y: number} {
+    const rect = this.canvas.getBoundingClientRect()
+    return {x: touch.clientX - rect.left, y: touch.clientY - rect.top}
+  }
+
   #clientToCanvasCoords(clientX: number, clientY: number): {x: number; y: number} {
     const rect = this.canvas.getBoundingClientRect()
     return {x: clientX - rect.left, y: clientY - rect.top}
+  }
+
+  #mouseEventFromTouch(type: "mousedown" | "mousemove" | "mouseup", touch: Touch): MouseEvent {
+    const init: MouseEventInit & PointerEventInit = {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      buttons: type === "mouseup" ? 0 : 1,
+      clientX: touch.clientX,
+      clientY: touch.clientY,
+      screenX: touch.screenX,
+      screenY: touch.screenY,
+      pointerType: "touch",
+      pointerId: touch.identifier,
+      isPrimary: true,
+    }
+    const event = typeof PointerEvent === "function" ? new PointerEvent(type, init) : new MouseEvent(type, init)
+    Object.defineProperty(event, "metaforPointerType", {value: "touch"})
+    return event
+  }
+
+  #changedTouch(event: TouchEvent): Touch | null {
+    if (this.#activeTouchId === null) return event.changedTouches[0] ?? null
+    for (const touch of event.changedTouches) {
+      if (touch.identifier === this.#activeTouchId) return touch
+    }
+    return null
+  }
+
+  #claimPointerEvent(event: MouseEvent | WheelEvent | TouchEvent): void {
+    event.stopImmediatePropagation()
+  }
+
+  #rememberTouchEvent(): void {
+    this.#lastTouchEventAt = Date.now()
+  }
+
+  #isCompatibilityMouseEvent(event: MouseEvent): boolean {
+    const source = (event as MouseEvent & {sourceCapabilities?: {firesTouchEvents?: boolean} | null}).sourceCapabilities
+    if (source?.firesTouchEvents === true) return true
+    return this.#lastTouchEventAt > 0 && Date.now() - this.#lastTouchEventAt < 900
   }
 
   #displayCoords(canvasX: number, canvasY: number, requireInside = true, displayId?: UiDisplayId): DisplayCoords | null {
@@ -1532,6 +1598,11 @@ export class UiRuntime {
   }
 
   #onMouseMove(event: MouseEvent): void {
+    if (this.#isCompatibilityMouseEvent(event)) {
+      event.preventDefault()
+      this.#claimPointerEvent(event)
+      return
+    }
     if (this.#displayDragActive !== null) {
       this.#updateDisplayDrag(event)
       return
@@ -1601,6 +1672,12 @@ export class UiRuntime {
   }
 
   #onMouseDown(event: MouseEvent): void {
+    if (this.#isCompatibilityMouseEvent(event)) {
+      event.preventDefault()
+      this.#claimPointerEvent(event)
+      this.#claimNextClick = true
+      return
+    }
     this.#cancelDisplayDragCandidate()
     const canvasCoords = this.#localCoords(event)
     const hudSlot = this.#surfaceAt(canvasCoords.x, canvasCoords.y, "hud")
@@ -1681,6 +1758,11 @@ export class UiRuntime {
   }
 
   #onMouseUp(event: MouseEvent): void {
+    if (this.#isCompatibilityMouseEvent(event)) {
+      event.preventDefault()
+      this.#claimPointerEvent(event)
+      return
+    }
     this.#cancelDisplayDragCandidate()
     if (this.#displayDragActive !== null) {
       this.#endDisplayDrag()
@@ -1701,6 +1783,78 @@ export class UiRuntime {
     const displayCoords = this.#displayCoords(canvasCoords.x, canvasCoords.y, false, slot.displayId)
     if (displayCoords === null) return
     slot.surface.onPointerUp?.(event, displayCoords.x - slot.rect.x, displayCoords.y - slot.rect.y)
+  }
+
+  #onClick(event: MouseEvent): void {
+    if (!this.#claimNextClick && !this.#isCompatibilityMouseEvent(event)) return
+    this.#claimNextClick = false
+    event.preventDefault()
+    this.#claimPointerEvent(event)
+  }
+
+  #onTouchStart(event: TouchEvent): void {
+    if (this.#activeTouchId !== null || event.changedTouches.length === 0) return
+    const touch = event.changedTouches[0]!
+    const local = this.#localCoordsFromTouch(touch)
+    const slot = this.#surfaceAt(local.x, local.y, "hud")
+    if (slot === undefined) return
+    this.#rememberTouchEvent()
+    const preserveNativeActivation = slot.surface.preserveNativeTouchActivation?.() === true
+    if (!preserveNativeActivation) event.preventDefault()
+    this.#claimPointerEvent(event)
+    this.#claimNextClick = true
+    this.#cancelDisplayDragCandidate()
+    this.#setDisplayHoverActive(false)
+    this.#positionInputProxy(touch.clientX, touch.clientY)
+    this.setFocused(slot.surface)
+    this.#pressedSlot = slot
+    this.#activeTouchId = touch.identifier
+    const mouseEvent = this.#mouseEventFromTouch("mousedown", touch)
+    slot.surface.onPointerDown?.(mouseEvent, local.x - slot.rect.x, local.y - slot.rect.y)
+    if (!preserveNativeActivation) this.#focusInputProxyForUserSurface(slot.surface, mouseEvent)
+  }
+
+  #onTouchMove(event: TouchEvent): void {
+    if (this.#activeTouchId === null) return
+    this.#rememberTouchEvent()
+    const touch = this.#changedTouch(event)
+    const slot = this.#pressedSlot
+    if (touch === null || slot === null) return
+    event.preventDefault()
+    this.#claimPointerEvent(event)
+    const local = this.#localCoordsFromTouch(touch)
+    slot.surface.onPointerMove?.(this.#mouseEventFromTouch("mousemove", touch), local.x - slot.rect.x, local.y - slot.rect.y)
+  }
+
+  #onTouchEnd(event: TouchEvent): void {
+    if (this.#activeTouchId === null) return
+    this.#rememberTouchEvent()
+    const touch = this.#changedTouch(event)
+    const slot = this.#pressedSlot
+    if (touch === null || slot === null) return
+    this.#pressedSlot = null
+    this.#activeTouchId = null
+    this.#claimPointerEvent(event)
+    const local = this.#localCoordsFromTouch(touch)
+    slot.surface.onPointerUp?.(this.#mouseEventFromTouch("mouseup", touch), local.x - slot.rect.x, local.y - slot.rect.y)
+    event.preventDefault()
+  }
+
+  #onTouchCancel(event: TouchEvent): void {
+    if (this.#activeTouchId === null) return
+    this.#rememberTouchEvent()
+    const touch = this.#changedTouch(event)
+    const slot = this.#pressedSlot
+    this.#pressedSlot = null
+    this.#activeTouchId = null
+    this.#claimNextClick = false
+    if (slot === null) return
+    event.preventDefault()
+    this.#claimPointerEvent(event)
+    const mouseEvent = touch === null
+      ? new MouseEvent("mouseup", {bubbles: true, cancelable: true, button: 0, buttons: 0})
+      : this.#mouseEventFromTouch("mouseup", touch)
+    slot.surface.onPointerUp?.(mouseEvent, -1, -1)
   }
 
   #onMouseLeave(): void {
