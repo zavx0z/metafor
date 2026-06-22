@@ -1,0 +1,40 @@
+{
+  "name": "@app/electron",
+  "private": true,
+  "version": "0.1.0",
+  "author": "zavx0z",
+  "description": "MetaFor Chromium shell for macOS.",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "dev": "METAFOR_ELECTRON_DEBUG_PORT=9230 electron .",
+    "build": "electron-builder --mac dir",
+    "pack": "electron-builder --mac dir",
+    "dist": "electron-builder --mac"
+  },
+  "build": {
+    "appId": "ru.proizvodstvo1.metafor",
+    "productName": "MetaFor",
+    "artifactName": "${productName}-${version}-${arch}.${ext}",
+    "npmRebuild": false,
+    "buildDependenciesFromSource": false,
+    "files": [
+      "main.cjs",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "../tauri/src-tauri/icons/icon.icns",
+      "target": [
+        "dir"
+      ]
+    },
+    "directories": {
+      "output": "dist"
+    }
+  },
+  "devDependencies": {
+    "electron": "35.7.5",
+    "electron-builder": "25.1.8"
+  }
+}
