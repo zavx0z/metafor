@@ -229,11 +229,11 @@ export function createVoiceServer(deps: VoiceServerDeps) {
 
 	function formatVoiceRtcDebug(payload: VoiceRtcDebugPayload): string {
 		const localRms = Math.round(payload.localAudioRms * 1000) / 10
-		const relayRms = Math.round(payload.relayAudioRms * 1000) / 10
+		const serverRms = Math.round(payload.serverAudioRms * 1000) / 10
 		return [
 			`state=${deps.compactLogValue(payload.state || "-")}`,
 			`local=${deps.formatLogBytes(payload.localAudioBytes)} rms=${localRms}%`,
-			`relay=${deps.formatLogBytes(payload.relayAudioBytes)} rms=${relayRms}% rate=${payload.sampleRate || "-"}`,
+			`server=${deps.formatLogBytes(payload.serverAudioBytes)} rms=${serverRms}% rate=${payload.sampleRate || "-"}`,
 			`asr=${payload.asrMessages}/${payload.asrTextMessages} type=${deps.compactLogValue(payload.lastAsrType || "-")}`,
 			payload.lastAsrText ? `text="${deps.compactLogValue(payload.lastAsrText, 90)}"` : "text=-",
 			payload.fallbackReason ? `fallback="${deps.compactLogValue(payload.fallbackReason, 90)}"` : "fallback=-",
@@ -288,12 +288,12 @@ function asVoiceRtcDebugPayload(value: Record<string, unknown>): VoiceRtcDebugPa
 	return {
 		state: stringFromUnknown(value["state"]),
 		appPeerId: stringFromUnknown(value["appPeerId"]),
-		relayPeerId: stringFromUnknown(value["relayPeerId"]),
+		serverPeerId: stringFromUnknown(value["serverPeerId"]),
 		sampleRate: finiteNumber(value["sampleRate"]) ?? 0,
 		localAudioBytes: finiteNumber(value["localAudioBytes"]) ?? 0,
 		localAudioRms: finiteNumber(value["localAudioRms"]) ?? 0,
-		relayAudioBytes: finiteNumber(value["relayAudioBytes"]) ?? 0,
-		relayAudioRms: finiteNumber(value["relayAudioRms"]) ?? 0,
+		serverAudioBytes: finiteNumber(value["serverAudioBytes"]) ?? 0,
+		serverAudioRms: finiteNumber(value["serverAudioRms"]) ?? 0,
 		asrMessages: finiteNumber(value["asrMessages"]) ?? 0,
 		asrTextMessages: finiteNumber(value["asrTextMessages"]) ?? 0,
 		lastAsrType: stringFromUnknown(value["lastAsrType"]),
@@ -304,7 +304,7 @@ function asVoiceRtcDebugPayload(value: Record<string, unknown>): VoiceRtcDebugPa
 }
 
 function voiceRtcDebugLogTone(payload: VoiceRtcDebugPayload): AppLogTone {
-	if (payload.state === "fallback" || payload.fallbackReason.startsWith("ASR text timeout") || payload.fallbackReason.startsWith("relay")) return "yellow"
+	if (payload.state === "fallback" || payload.fallbackReason.startsWith("ASR text timeout") || payload.fallbackReason.startsWith("voice")) return "yellow"
 	if (payload.asrTextMessages > 0) return "green"
 	return "magenta"
 }

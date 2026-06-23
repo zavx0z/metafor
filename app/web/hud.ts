@@ -97,9 +97,7 @@ import {
 	createVoiceRtcAsrSocket,
 	isVoiceRtcRemoteClient,
 	onVoiceRtcDebug,
-	primeVoiceRtcRelayAudio,
 	readVoiceRtcDebugSnapshot,
-	startVoiceRtcRelay,
 	type VoiceRtcDebugSnapshot,
 } from "./voice-rtc.ts"
 
@@ -974,7 +972,6 @@ class AppWebHud implements AppWebHudController {
 		this.#connectTerminal()
 		this.#connectAndroidRtc()
 		this.#updateNetworkWatchPane()
-		if (readCodexVoiceP2PEnabled()) startVoiceRtcRelay()
 		void this.#loadTodo()
 		void this.#loadWorkspaceSourceFiles()
 		void this.#refreshWorkspaceProcesses()
@@ -1328,7 +1325,7 @@ class AppWebHud implements AppWebHudController {
 		} else if (kind === "android") {
 			this.#androidDocked = docked
 			writeStoredBoolean(ANDROID_DOCKED_STORAGE_KEY, docked)
-			this.#connectAndroidRtc()
+		this.#connectAndroidRtc()
 		}
 	}
 
@@ -2907,7 +2904,7 @@ class AppWebHud implements AppWebHudController {
 		} catch (error) {
 			this.#networkActionStatus = `${action} failed: ${error instanceof Error ? error.message : String(error)}`
 		} finally {
-			this.#updateNetworkWatchPane()
+		this.#updateNetworkWatchPane()
 			this.#scheduleNetworkStatusRefresh(0, {force: true})
 		}
 	}
@@ -2955,7 +2952,7 @@ class AppWebHud implements AppWebHudController {
 			if (generation !== this.#networkStatusRefreshGeneration) return
 			if (this.#networkStatusRefreshAbortController === abortController) this.#networkStatusRefreshAbortController = null
 			this.#networkStatusRefreshInFlight = false
-			this.#updateNetworkWatchPane()
+		this.#updateNetworkWatchPane()
 			if (this.#networkStatusAutoRefreshActive()) this.#scheduleNetworkStatusRefresh(NETWORK_STATUS_REFRESH_MS)
 		}
 	}
@@ -3170,7 +3167,7 @@ class AppWebHud implements AppWebHudController {
 			language: "ru",
 			context: () => voiceContextWithTerminal(this.#terminal.pane.toText()),
 			...(readCodexVoiceP2PEnabled()
-				? {createAsrSocket: createVoiceRtcAsrSocket, createCommandSocket: createVoiceRtcAsrSocket}
+				? {createAsrSocket: createVoiceRtcAsrSocket}
 				: {}),
 			onTransport: (transport) => this.#handleVoiceTransport(transport),
 			onStatus: (status, detail) => this.#handleVoiceStatus(status, detail),
@@ -3196,7 +3193,6 @@ class AppWebHud implements AppWebHudController {
 		this.#blurCodexNativeInput()
 		const client = this.#ensureVoiceClient()
 		try {
-			if (readCodexVoiceP2PEnabled()) primeVoiceRtcRelayAudio()
 			if (!this.#documentHasLocalVoiceFocus()) return
 			if (!client.active || client.status === "waitingWake") this.#claimVoiceLeaseForManualStart()
 			if (client.active) {
@@ -3216,8 +3212,8 @@ class AppWebHud implements AppWebHudController {
 				this.#flashVoiceHudError("Codex terminal не подключен")
 				return
 			}
-			if (this.#shouldUseVoiceRtcRelayServiceProbe()) {
-				this.#markVoiceRtcRelayServiceProbe()
+			if (this.#shouldUseVoiceRtcServerServiceProbe()) {
+				this.#markVoiceRtcServerServiceProbe()
 			} else {
 				const serviceOk = await this.#checkVoiceService()
 				if (!serviceOk) {
@@ -3364,20 +3360,20 @@ class AppWebHud implements AppWebHudController {
 	}
 
 	async #refreshVoiceServiceState(): Promise<void> {
-		if (this.#shouldUseVoiceRtcRelayServiceProbe()) {
-			this.#markVoiceRtcRelayServiceProbe()
+		if (this.#shouldUseVoiceRtcServerServiceProbe()) {
+			this.#markVoiceRtcServerServiceProbe()
 			return
 		}
 		await this.#checkVoiceService()
 	}
 
-	#shouldUseVoiceRtcRelayServiceProbe(): boolean {
+	#shouldUseVoiceRtcServerServiceProbe(): boolean {
 		return readCodexVoiceP2PEnabled() && isVoiceRtcRemoteClient()
 	}
 
-	#markVoiceRtcRelayServiceProbe(): void {
+	#markVoiceRtcServerServiceProbe(): void {
 		this.#voiceServiceState = "ok"
-		this.#voiceServiceDetail = "ASR через P2P relay"
+		this.#voiceServiceDetail = "ASR через WebRTC voice server"
 		this.#voiceServiceCheckedAt = new Date()
 		this.#updateVoiceHud()
 	}
@@ -3426,8 +3422,8 @@ class AppWebHud implements AppWebHudController {
 	async #ensureVoiceAutoWake(): Promise<void> {
 		if (!this.#documentHasLocalVoiceFocus()) return
 		if (this.#voiceAutoWakePaused || this.#voiceAutoWakeInFlight) return
-		if (this.#shouldUseVoiceRtcRelayServiceProbe()) {
-			this.#markVoiceRtcRelayServiceProbe()
+		if (this.#shouldUseVoiceRtcServerServiceProbe()) {
+			this.#markVoiceRtcServerServiceProbe()
 		}
 		const client = this.#ensureVoiceClient()
 		if (client.active) return
@@ -3531,8 +3527,8 @@ class AppWebHud implements AppWebHudController {
 		if (this.#voiceTransport === "idle") return ""
 		const debug = this.#voiceRtcDebug
 		const transport = this.#voiceTransport.toUpperCase()
-		const audio = debug.relayAudioBytes > 0
-			? `audio ${formatDebugBytes(debug.relayAudioBytes)} ${formatDebugPercent(debug.relayAudioRms)}`
+		const audio = debug.serverAudioBytes > 0
+			? `audio ${formatDebugBytes(debug.serverAudioBytes)} ${formatDebugPercent(debug.serverAudioRms)}`
 			: debug.localAudioBytes > 0
 				? `local ${formatDebugBytes(debug.localAudioBytes)} ${formatDebugPercent(debug.localAudioRms)}`
 				: debug.state || "-"
@@ -3558,7 +3554,7 @@ class AppWebHud implements AppWebHudController {
 			`transport: ${this.#voiceTransport}`,
 			`rtc state: ${this.#voiceRtcDebug.state || "-"}`,
 			`rtc local: ${formatDebugBytes(this.#voiceRtcDebug.localAudioBytes)} · rms ${formatDebugPercent(this.#voiceRtcDebug.localAudioRms)}`,
-			`rtc relay: ${formatDebugBytes(this.#voiceRtcDebug.relayAudioBytes)} · rms ${formatDebugPercent(this.#voiceRtcDebug.relayAudioRms)} · ${this.#voiceRtcDebug.sampleRate || "-"} Hz`,
+			`rtc server: ${formatDebugBytes(this.#voiceRtcDebug.serverAudioBytes)} · rms ${formatDebugPercent(this.#voiceRtcDebug.serverAudioRms)} · ${this.#voiceRtcDebug.sampleRate || "-"} Hz`,
 			`rtc asr: ${this.#voiceRtcDebug.asrMessages}/${this.#voiceRtcDebug.asrTextMessages} · ${this.#voiceRtcDebug.lastAsrType || "-"}`,
 			`rtc text: ${debugVoiceText(this.#voiceRtcDebug.lastAsrText)}`,
 			`rtc fallback: ${this.#voiceRtcDebug.fallbackReason || "-"}`,
@@ -3665,8 +3661,8 @@ class AppWebHud implements AppWebHudController {
 			if (reportErrors) this.#flashVoiceHudError("Codex terminal не подключен")
 			return false
 		}
-		if (this.#shouldUseVoiceRtcRelayServiceProbe()) {
-			this.#markVoiceRtcRelayServiceProbe()
+		if (this.#shouldUseVoiceRtcServerServiceProbe()) {
+			this.#markVoiceRtcServerServiceProbe()
 		} else {
 			const serviceOk = await this.#checkVoiceService()
 			if (!serviceOk) {
@@ -6444,7 +6440,6 @@ function installHudNotificationSoundUnlock(): void {
 	const unlock = (): void => {
 		primeHudNotificationAudioElements()
 		primeHudNotificationAudioContext()
-		if (readCodexVoiceP2PEnabled()) primeVoiceRtcRelayAudio()
 	}
 	window.addEventListener("pointerdown", unlock, {capture: true})
 	window.addEventListener("pointerup", unlock, {capture: true})

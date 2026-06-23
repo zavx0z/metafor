@@ -216,7 +216,7 @@ class LegacyRtcSignalSocketImpl extends EventTarget implements LegacyRtcSignalSo
 	}
 }
 
-function readSignalUrl(): string {
+export function readSignalUrl(): string {
 	try {
 		const stored = localStorage.getItem(SIGNAL_URL_STORAGE_KEY)?.trim()
 		if (stored) return stored

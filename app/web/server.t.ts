@@ -146,12 +146,12 @@ export type InterpreterVoiceSettingsPayload = {
 export type VoiceRtcDebugPayload = {
 	state: string
 	appPeerId: string
-	relayPeerId: string
+	serverPeerId: string
 	sampleRate: number
 	localAudioBytes: number
 	localAudioRms: number
-	relayAudioBytes: number
-	relayAudioRms: number
+	serverAudioBytes: number
+	serverAudioRms: number
 	asrMessages: number
 	asrTextMessages: number
 	lastAsrType: string

@@ -80,13 +80,30 @@ Shell `curl https://dev.proizvodstvo1.ru/...` не является надёжн
 wss://signal.proizvodstvo1.ru/ws
 ```
 
-Клиент входит в нужный `conversationId` как `participantId` и поднимает `RTCDataChannel` к другим участникам через стандартный P2P/chat протокол. WebRTC data channel шифруется самим протоколом, но для Android/микрофона страница всё равно должна быть загружена с secure origin (`https://...`), иначе браузер заблокирует `getUserMedia`.
+Клиент входит в нужный `conversationId` как `participantId` и поднимает
+`RTCDataChannel` к другим участникам через стандартный P2P/chat протокол.
+WebRTC data channel шифруется самим протоколом, но для Android/микрофона
+страница всё равно должна быть загружена с secure origin (`https://...`), иначе
+браузер заблокирует `getUserMedia`.
+
+Voice использует тот же signal origin и подключается к server-side WebRTC peer.
+Клиент берёт `wss://signal.proizvodstvo1.ru/ws`, строит из него
+`https://signal.proizvodstvo1.ru/voice/offer`, отправляет WebRTC offer и дальше
+пишет `asr-control` + PCM16 в DataChannel `voice-asr`. Серверный peer работает
+в `service/webrtc` на `ai-srv`.
+
+Если в браузере остался старый signaling URL:
+
+```js
+localStorage.setItem("metafor.webrtc.signaling.url", "wss://signal.proizvodstvo1.ru/ws")
+```
 
 В консоли браузера:
 
 ```js
 window.metaforWebRtc.peers()
 window.metaforWebRtc.sendAll({ type: "ping" })
+window.__metaVoiceRtcDebug()
 ```
 
 ### Выпуск сертификата Let's Encrypt (по домену)
