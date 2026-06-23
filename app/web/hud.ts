@@ -3306,7 +3306,6 @@ class AppWebHud implements AppWebHudController {
 			this.#voicePrewarmTimer = null
 			if (!this.#shouldUseVoiceRtcServerServiceProbe()) return
 			if (!this.#documentHasLocalVoiceFocus()) return
-			if (this.#terminal.socket?.readyState !== WebSocket.OPEN) return
 			const client = this.#ensureVoiceClient()
 			if (client.active) return
 			client.prewarmDictation()
