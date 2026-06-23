@@ -648,7 +648,6 @@ const WORKSPACE_FILES_STATE_STORAGE_PREFIX = "metafor.interpreter.workspaceFiles
 const DEFAULT_VOICE_INPUT_URL = "/hud/voice/asr/ws"
 const DEFAULT_VOICE_WAKE_URL = "/hud/voice/wake/ws"
 const DEFAULT_VOICE_SIGNAL_VOLUME = 0.2
-const MIN_AUDIBLE_VOICE_SIGNAL_VOLUME = 0.55
 const DEFAULT_VOICE_DEACTIVATION_MODE: VoiceDeactivationMode = "phrase-timeout"
 const DEFAULT_VOICE_RECOGNITION_TIMEOUT_SECONDS = 3
 const DEFAULT_VOICE_AUTO_SEND_ENABLED = true
@@ -5861,7 +5860,7 @@ function playHudNotificationSound(kind: HudNotificationKind): void {
     return
   }
   const rawVolume = hudNotificationVolume(kind)
-  const volume = effectiveHudNotificationVolume(kind, rawVolume)
+  const volume = rawVolume
   if (volume <= 0) {
     recordHudNotificationSound(kind, "muted")
     return
@@ -5913,11 +5912,6 @@ function playVoiceCaptureSignalTone(kind: VoiceInputSignalTone, volume: number, 
 
 function hudNotificationVolume(kind: HudNotificationKind): number {
   return kind === "agent" ? readHostTerminalAgentSoundVolume() : readVoiceSignalVolume()
-}
-
-function effectiveHudNotificationVolume(kind: HudNotificationKind, volume: number): number {
-  if (kind === "agent" || volume <= 0) return volume
-  return Math.max(volume, MIN_AUDIBLE_VOICE_SIGNAL_VOLUME)
 }
 
 function hudNotificationSoundResultFailed(method: string): boolean {

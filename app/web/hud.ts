@@ -416,7 +416,6 @@ const DEFAULT_CODEX_VOICE_P2P_ENABLED = true
 const DEFAULT_VOICE_DEACTIVATION_MODE: VoiceDeactivationMode = "phrase-timeout"
 const DEFAULT_VOICE_RECOGNITION_TIMEOUT_SECONDS = 3
 const DEFAULT_VOICE_SIGNAL_VOLUME = 0.2
-const MIN_AUDIBLE_VOICE_SIGNAL_VOLUME = 0.55
 const DEFAULT_HOST_TERMINAL_AGENT_SOUND_ENABLED = true
 const DEFAULT_HOST_TERMINAL_AGENT_SOUND_VOLUME = 1
 const MAX_VOICE_SIGNAL_VOLUME = 3
@@ -6518,7 +6517,7 @@ function playHudNotificationSound(kind: HudNotificationKind, voiceClient: VoiceI
 		return
 	}
 	const rawVolume = hudNotificationVolume(kind)
-	const volume = effectiveHudNotificationVolume(kind, rawVolume)
+	const volume = rawVolume
 	if (volume <= 0) {
 		recordHudNotificationSound(kind, "muted")
 		return
@@ -6575,11 +6574,6 @@ function playVoiceCaptureSignalTone(
 
 function hudNotificationVolume(kind: HudNotificationKind): number {
 	return kind === "agent" ? readHostTerminalAgentSoundVolume() : readVoiceSignalVolume()
-}
-
-function effectiveHudNotificationVolume(kind: HudNotificationKind, volume: number): number {
-	if (kind === "agent" || volume <= 0) return volume
-	return Math.max(volume, MIN_AUDIBLE_VOICE_SIGNAL_VOLUME)
 }
 
 function hudNotificationSoundResultFailed(method: string): boolean {
