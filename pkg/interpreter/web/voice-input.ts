@@ -109,6 +109,9 @@ const DEFAULT_VOICE_WAKE_CONFUSER_PHRASES = [
   "завтра",
   "завтрак",
   "за вход",
+  "завуси",
+  "завася",
+  "заваня",
 ] as const
 export const DEFAULT_VOICE_DEACTIVATION_PHRASES = [
   "выключи микрофон",
@@ -594,7 +597,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     const activationPhrases = phraseGroups.activation
     const activationTolerance = this.#phraseFuzzyTolerance("activation")
     if (msg.type === "partial" && isFastActivationPartial(text, activationPhrases)) {
-      void this.#activateAsr(text).catch((error) => this.#recoverAsrFailure(error))
+      this.prewarmDictation()
       return
     }
     if (!isActivationRecognitionMessage(msg, activationPhrases, activationTolerance)) return

@@ -49,13 +49,16 @@ describe("voice activation matching", () => {
     expect(isActivationRecognitionMessage({type: "result", text: "за вход"}, ["завхоз"], 0)).toBe(false)
   })
 
-  test("allows exact fast partial activation without fuzzy confusers", () => {
+  test("recognizes exact fast partial candidates without fuzzy confusers", () => {
     expect(isFastActivationPartial("завхоз", ["завхоз"])).toBe(true)
     expect(isFastActivationPartial("завхоз открой терминал", ["завхоз"])).toBe(true)
     expect(isFastActivationPartial("зав", ["завхоз"])).toBe(false)
     expect(isFastActivationPartial("завтра", ["завхоз"])).toBe(false)
     expect(isFastActivationPartial("завтрак", ["завхоз"])).toBe(false)
     expect(isFastActivationPartial("за вход", ["завхоз"])).toBe(false)
+    expect(isFastActivationPartial("завуси", ["завхоз"])).toBe(false)
+    expect(isFastActivationPartial("завася", ["завхоз"])).toBe(false)
+    expect(isFastActivationPartial("заваня", ["завхоз"])).toBe(false)
   })
 
   test("builds Vosk grammar from prefixes and number variants", () => {
@@ -90,10 +93,16 @@ describe("voice activation matching", () => {
     expect(grammar).toContain("завтра")
     expect(grammar).toContain("завтрак")
     expect(grammar).toContain("за вход")
+    expect(grammar).toContain("завуси")
+    expect(grammar).toContain("завася")
+    expect(grammar).toContain("заваня")
     expect(isActivationPhrase("зав", ["завхоз"], 0)).toBe(false)
     expect(isActivationPhrase("завтра", ["завхоз"], 0)).toBe(false)
     expect(isActivationPhrase("завтрак", ["завхоз"], 0)).toBe(false)
     expect(isActivationPhrase("за вход", ["завхоз"], 0)).toBe(false)
+    expect(isActivationPhrase("завуси", ["завхоз"], 0)).toBe(false)
+    expect(isActivationPhrase("завася", ["завхоз"], 0)).toBe(false)
+    expect(isActivationPhrase("заваня", ["завхоз"], 0)).toBe(false)
   })
 
   test("keeps unsupported Vosk vocabulary out of generated grammar", () => {
