@@ -5868,7 +5868,11 @@ function playHudNotificationSound(kind: HudNotificationKind): void {
   }
   if (kind !== "agent" && kind !== "error") {
     const signalKind: VoiceInputSignalTone = kind
-    playVoiceSignalToneWithFallback(signalKind, volume, voiceInputClient, () => playBrowserHudNotificationSound(kind, volume))
+    playBrowserHudNotificationSound(kind, volume, () => {
+      playVoiceSignalToneWithFallback(signalKind, volume, voiceInputClient, () => {
+        recordHudNotificationSound(kind, "blocked")
+      })
+    })
     return
   }
   playBrowserHudNotificationSound(kind, volume)
@@ -5920,12 +5924,12 @@ function hudNotificationSoundResultFailed(method: string): boolean {
   return /blocked|failed|timeout|context|closed/i.test(method)
 }
 
-function playBrowserHudNotificationSound(kind: HudNotificationKind, volume: number): void {
-  if (playHudNotificationWebAudioTone(kind, volume, (reason) => playHudNotificationHtmlAudio(kind, reason, volume))) return
-  playHudNotificationHtmlAudio(kind, "no webaudio", volume)
+function playBrowserHudNotificationSound(kind: HudNotificationKind, volume: number, onBlocked?: () => void): void {
+  if (playHudNotificationWebAudioTone(kind, volume, (reason) => playHudNotificationHtmlAudio(kind, reason, volume, onBlocked))) return
+  playHudNotificationHtmlAudio(kind, "no webaudio", volume, onBlocked)
 }
 
-function playHudNotificationHtmlAudio(kind: HudNotificationKind, reason = "fallback", volume = hudNotificationVolume(kind)): void {
+function playHudNotificationHtmlAudio(kind: HudNotificationKind, reason = "fallback", volume = hudNotificationVolume(kind), onBlocked?: () => void): void {
   const audio = ensureHudNotificationAudioElement(kind)
   if (audio !== null) {
     try {
@@ -5938,10 +5942,14 @@ function playHudNotificationHtmlAudio(kind: HudNotificationKind, reason = "fallb
     audio.volume = htmlNotificationVolume(volume)
     void audio.play()
       .then(() => recordHudNotificationSound(kind, `html · ${reason}`))
-      .catch((error) => recordHudNotificationSound(kind, "html blocked", error))
+      .catch((error) => {
+        recordHudNotificationSound(kind, "html blocked", error)
+        onBlocked?.()
+      })
     return
   }
   recordHudNotificationSound(kind, "html unavailable", reason)
+  onBlocked?.()
 }
 
 function ensureHudNotificationAudioElement(kind: HudNotificationKind): HTMLAudioElement | null {

@@ -6525,7 +6525,11 @@ function playHudNotificationSound(kind: HudNotificationKind, voiceClient: VoiceI
 	}
 	if (kind !== "agent" && kind !== "error") {
 		const signalKind: VoiceInputSignalTone = kind
-		playVoiceSignalToneWithFallback(signalKind, volume, voiceClient, () => playBrowserHudNotificationSound(kind, volume))
+		playBrowserHudNotificationSound(kind, volume, () => {
+			playVoiceSignalToneWithFallback(signalKind, volume, voiceClient, () => {
+				recordHudNotificationSound(kind, "blocked")
+			})
+		})
 		return
 	}
 	playBrowserHudNotificationSound(kind, volume)
