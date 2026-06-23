@@ -990,6 +990,7 @@ class AppWebHud implements AppWebHudController {
 			this.#codexComposer.requestRender()
 			this.#voiceHud.requestRender()
 		})
+		this.#scheduleVoiceRtcPrewarm()
 		void this.#importInterpreterVoiceSettings().finally(() => {
 			this.#scheduleVoiceAutoWake(500)
 			this.#scheduleVoiceRtcPrewarm(900)
