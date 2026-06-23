@@ -12,8 +12,11 @@ It replaces the slow ADB PNG/screenrecord path with:
 Default signaling URL:
 
 ```text
-ws://192.168.8.106:6500/hud/android/webrtc/signaling?room=android-display&peer=android
+wss://signal.proizvodstvo1.ru/ws
 ```
+
+The APK joins conversation `android-display` as participant `android` and sends WebRTC
+messages through the shared P2P/chat signaling protocol.
 
 Build:
 
@@ -29,7 +32,7 @@ Runtime setup on the phone:
 2. Tap `Open Accessibility Settings`.
 3. Enable `MetaFor Android Control`.
 4. Return to the APK.
-5. Check the signaling URL points to the Mac running the interpreter.
+5. Check the signaling URL points to the shared signaling server.
 6. Tap `Start Screen RTC` and approve screen capture.
 7. In the interpreter, open the Android HUD.
 

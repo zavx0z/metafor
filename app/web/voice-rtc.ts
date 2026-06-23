@@ -1,4 +1,5 @@
 import type {VoiceInputAsrSocketContext, VoiceInputSocket} from "@metafor/interpreter/web"
+import {createLegacyRtcSignalSocket, RTC_ICE_SERVERS, type LegacyRtcSignalSocket} from "./p2p-signaling.ts"
 
 export type VoiceRtcDebugSnapshot = {
 	state: string
@@ -131,7 +132,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 	#context: VoiceInputAsrSocketContext
 	#peerId = `${VOICE_RTC_APP_PEER_PREFIX}-${crypto.randomUUID()}`
 	#readyState: number = WebSocket.CONNECTING
-	#signalSocket: WebSocket | null = null
+	#signalSocket: LegacyRtcSignalSocket | null = null
 	#connection: RTCPeerConnection | null = null
 	#channel: RTCDataChannel | null = null
 	#fallbackWs: WebSocket | null = null
@@ -217,7 +218,11 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 	}
 
 	#connect(): void {
-		const signalSocket = new WebSocket(signalingUrl(VOICE_RTC_ROOM, this.#peerId))
+		const signalSocket = createLegacyRtcSignalSocket({
+			conversationId: VOICE_RTC_ROOM,
+			participantId: this.#peerId,
+			capabilities: ["voice", "app-web-voice"],
+		})
 		this.#signalSocket = signalSocket
 		signalSocket.addEventListener("message", (event) => {
 			if (typeof event.data !== "string") return
@@ -269,7 +274,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 		if (this.#connection !== null) return this.#connection
 		this.#remotePeerId = remotePeerId
 		updateVoiceRtcDebug({relayPeerId: remotePeerId, state: "peer"})
-		const connection = new RTCPeerConnection({iceServers: []})
+		const connection = new RTCPeerConnection({iceServers: RTC_ICE_SERVERS})
 		this.#connection = connection
 		for (const track of this.#context.stream.getAudioTracks()) connection.addTrack(track, this.#context.stream)
 		connection.addEventListener("icecandidate", (event) => {
@@ -482,7 +487,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 
 class VoiceRtcRelay {
 	#peerId = `${VOICE_RTC_RELAY_PEER_PREFIX}-${crypto.randomUUID()}`
-	#socket: WebSocket | null = null
+	#socket: LegacyRtcSignalSocket | null = null
 	#peers = new Map<string, VoiceRtcRelayPeer>()
 	#primedAudioContext: AudioContext | null = null
 	#reconnectTimer: number | null = null
@@ -490,7 +495,11 @@ class VoiceRtcRelay {
 	connect(): void {
 		if (this.#socket?.readyState === WebSocket.OPEN || this.#socket?.readyState === WebSocket.CONNECTING) return
 		this.#clearReconnectTimer()
-		const socket = new WebSocket(signalingUrl(VOICE_RTC_ROOM, this.#peerId))
+		const socket = createLegacyRtcSignalSocket({
+			conversationId: VOICE_RTC_ROOM,
+			participantId: this.#peerId,
+			capabilities: ["voice", "voice-relay"],
+		})
 		this.#socket = socket
 		socket.addEventListener("message", (event) => {
 			if (typeof event.data !== "string") return
@@ -556,7 +565,7 @@ class VoiceRtcRelay {
 		const existing = this.#peers.get(remotePeerId)
 		if (existing !== undefined) return existing
 
-		const connection = new RTCPeerConnection({iceServers: []})
+		const connection = new RTCPeerConnection({iceServers: RTC_ICE_SERVERS})
 		const peer: VoiceRtcRelayPeer = {
 			id: remotePeerId,
 			connection,
@@ -959,14 +968,6 @@ function ensureVoiceRtcRelay(): VoiceRtcRelay {
 	if (relay === null) relay = new VoiceRtcRelay()
 	relay.connect()
 	return relay
-}
-
-function signalingUrl(room: string, peerId: string): string {
-	const protocol = location.protocol === "https:" ? "wss:" : "ws:"
-	const url = new URL(`${protocol}//${location.host}/hud/webrtc/signaling`)
-	url.searchParams.set("room", room)
-	url.searchParams.set("peer", peerId)
-	return url.toString()
 }
 
 type NavigatorWithUserAgentData = Navigator & {

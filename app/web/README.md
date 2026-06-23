@@ -74,13 +74,13 @@ Shell `curl https://dev.proizvodstvo1.ru/...` не является надёжн
 
 ### WebRTC
 
-`app/web` поднимает WebRTC signaling по тому же origin:
+`app/web` подключается к общему WebRTC signaling:
 
 ```
-wss://<host>:<port>/hud/webrtc/signaling
+wss://signal.proizvodstvo1.ru/ws
 ```
 
-Клиент автоматически входит в комнату `app-web` и поднимает `RTCDataChannel` к другим открытым вкладкам app/web. WebRTC data channel шифруется самим протоколом, но для Android/микрофона страница всё равно должна быть загружена с secure origin (`https://...`), иначе браузер заблокирует `getUserMedia`.
+Клиент входит в нужный `conversationId` как `participantId` и поднимает `RTCDataChannel` к другим участникам через стандартный P2P/chat протокол. WebRTC data channel шифруется самим протоколом, но для Android/микрофона страница всё равно должна быть загружена с secure origin (`https://...`), иначе браузер заблокирует `getUserMedia`.
 
 В консоли браузера:
 

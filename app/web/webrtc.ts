@@ -1,3 +1,5 @@
+import {createLegacyRtcSignalSocket, RTC_ICE_SERVERS} from "./p2p-signaling.ts"
+
 type WebRtcSignal =
 	| {type: "hello"; room: string; peerId: string; peers: string[]}
 	| {type: "peer-joined"; peerId: string}
@@ -32,7 +34,11 @@ export function installAppWebRtcMesh(room = APP_WEB_RTC_ROOM): AppWebRtcMesh | n
 
 	let peerId = readPeerId()
 	const peers = new Map<string, PeerRecord>()
-	const signalSocket = new WebSocket(signalingUrl(room, peerId))
+	const signalSocket = createLegacyRtcSignalSocket({
+		conversationId: room,
+		participantId: peerId,
+		capabilities: ["app-web-mesh"],
+	})
 
 	const api: AppWebRtcMesh = {
 		get peerId() {
@@ -98,7 +104,7 @@ export function installAppWebRtcMesh(room = APP_WEB_RTC_ROOM): AppWebRtcMesh | n
 		const existing = peers.get(remotePeerId)
 		if (existing !== undefined) return existing
 
-		const connection = new RTCPeerConnection({iceServers: []})
+		const connection = new RTCPeerConnection({iceServers: RTC_ICE_SERVERS})
 		const peer: PeerRecord = {id: remotePeerId, connection, channel: null}
 		peers.set(remotePeerId, peer)
 
@@ -152,14 +158,6 @@ export function installAppWebRtcMesh(room = APP_WEB_RTC_ROOM): AppWebRtcMesh | n
 	}
 
 	return api
-}
-
-function signalingUrl(room: string, peerId: string): string {
-	const protocol = location.protocol === "https:" ? "wss:" : "ws:"
-	const url = new URL(`${protocol}//${location.host}/hud/webrtc/signaling`)
-	url.searchParams.set("room", room)
-	url.searchParams.set("peer", peerId)
-	return url.toString()
 }
 
 function parseSignal(raw: string): WebRtcSignal | null {

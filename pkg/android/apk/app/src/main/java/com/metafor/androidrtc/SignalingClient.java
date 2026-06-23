@@ -76,6 +76,46 @@ final class SignalingClient {
       String from = object.optString("from", "");
       if ("hello".equals(type)) {
         listener.onHello(object.optString("room", ""), object.optString("peerId", ""), object.optJSONArray("peers"));
+      } else if ("ready".equals(type)) {
+        return;
+      } else if ("joined".equals(type)) {
+        String conversationId = object.optString("conversationId", "");
+        JSONObject self = object.optJSONObject("self");
+        String participantId = self != null
+          ? self.optString("participantId", "")
+          : object.optString("participantId", "");
+        JSONArray participants = object.optJSONArray("participants");
+        JSONArray peers = new JSONArray();
+        if (participants != null) {
+          for (int index = 0; index < participants.length(); index += 1) {
+            JSONObject participant = participants.optJSONObject(index);
+            if (participant == null) continue;
+            String peerId = participant.optString("participantId", "");
+            if (!peerId.isEmpty() && !peerId.equals(participantId)) peers.put(peerId);
+          }
+        }
+        listener.onHello(conversationId, participantId, peers);
+      } else if ("participant:joined".equals(type)) {
+        JSONObject participant = object.optJSONObject("participant");
+        if (participant != null) listener.onPeerJoined(participant.optString("participantId", ""));
+      } else if ("participant:left".equals(type)) {
+        JSONObject participant = object.optJSONObject("participant");
+        if (participant != null) listener.onPeerLeft(participant.optString("participantId", ""));
+      } else if ("signal".equals(type)) {
+        String kind = object.optString("kind", "");
+        String sender = object.optString("fromParticipantId", from);
+        JSONObject payload = object.optJSONObject("payload");
+        if ("offer".equals(kind) && payload != null) {
+          listener.onOffer(sender, payload);
+        } else if ("answer".equals(kind) && payload != null) {
+          listener.onAnswer(sender, payload);
+        } else if (("ice".equals(kind) || "candidate".equals(kind)) && payload != null) {
+          listener.onIce(sender, payload);
+        } else if ("bye".equals(kind)) {
+          listener.onPeerLeft(sender);
+        }
+      } else if ("error".equals(type)) {
+        listener.onError(object.optString("error", "server error"));
       } else if ("peer-joined".equals(type)) {
         listener.onPeerJoined(object.optString("peerId", ""));
       } else if ("peer-left".equals(type)) {

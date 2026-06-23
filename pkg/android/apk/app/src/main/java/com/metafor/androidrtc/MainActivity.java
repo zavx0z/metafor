@@ -23,6 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import org.json.JSONObject;
 import org.webrtc.DataChannel;
 import org.webrtc.DefaultVideoDecoderFactory;
@@ -47,8 +48,9 @@ public final class MainActivity extends Activity {
   private static final int SCREEN_CAPTURE_REQUEST = 17;
   private static final int FOREGROUND_WAIT_STEP_MS = 50;
   private static final int FOREGROUND_WAIT_TIMEOUT_MS = 2000;
-  private static final String DEFAULT_SIGNALING_URL =
-    "wss://192.168.8.106/hud/webrtc/signaling?room=android-display&peer=android";
+  private static final String DEFAULT_SIGNALING_URL = "wss://signal.proizvodstvo1.ru/ws";
+  private static final String SIGNALING_CONVERSATION_ID = "android-display";
+  private static final String SIGNALING_PARTICIPANT_ID = "android";
 
   private final Handler mainHandler = new Handler(Looper.getMainLooper());
   private EditText signalingInput;
@@ -62,6 +64,7 @@ public final class MainActivity extends Activity {
   private VideoSource videoSource;
   private VideoTrack localVideoTrack;
   private boolean signalingReconnectScheduled = false;
+  private final Map<String, String> signalingCallIds = new HashMap<>();
 
   @Override protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
@@ -202,6 +205,7 @@ public final class MainActivity extends Activity {
     SignalingClient next = new SignalingClient(new SignalingClient.Listener() {
       @Override public void onOpen() {
         setStatus("signaling connected");
+        sendSignalingJoin();
       }
 
       @Override public void onClosed(String reason) {
@@ -230,6 +234,7 @@ public final class MainActivity extends Activity {
 
       @Override public void onPeerLeft(String peerId) {
         setStatus("peer left " + peerId);
+        signalingCallIds.remove(peerId);
         closePeer(peerId);
       }
 
@@ -283,10 +288,8 @@ public final class MainActivity extends Activity {
           @Override public void onSetSuccess() {
             try {
               JSONObject answer = new JSONObject();
-              answer.put("type", "answer");
-              answer.put("to", to);
               answer.put("description", descriptionJson(sessionDescription));
-              signaling.send(answer);
+              sendSignalingSignal("answer", to, answer.getJSONObject("description"));
               setStatus("answer sent");
             } catch (Exception error) {
               setStatus("answer json " + error.getMessage());
@@ -300,7 +303,9 @@ public final class MainActivity extends Activity {
   private PeerConnection ensurePeerConnection(String remotePeerId) {
     PeerConnection existing = peerConnections.get(remotePeerId);
     if (existing != null) return existing;
-    PeerConnection.RTCConfiguration config = new PeerConnection.RTCConfiguration(Collections.emptyList());
+    PeerConnection.RTCConfiguration config = new PeerConnection.RTCConfiguration(Collections.singletonList(
+      PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer()
+    ));
     config.sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN;
     PeerConnection peerConnection = factory.createPeerConnection(config, new PeerConnection.Observer() {
       @Override public void onSignalingChange(PeerConnection.SignalingState state) {}
@@ -384,18 +389,55 @@ public final class MainActivity extends Activity {
   private void sendIce(String to, IceCandidate candidate) {
     if (signaling == null) return;
     try {
-      JSONObject message = new JSONObject();
-      message.put("type", "ice");
-      message.put("to", to);
       JSONObject payload = new JSONObject();
       payload.put("sdpMid", candidate.sdpMid);
       payload.put("sdpMLineIndex", candidate.sdpMLineIndex);
       payload.put("candidate", candidate.sdp);
-      message.put("candidate", payload);
-      signaling.send(message);
+      sendSignalingSignal("ice", to, payload);
     } catch (Exception error) {
       setStatus("ice json " + error.getMessage());
     }
+  }
+
+  private void sendSignalingJoin() {
+    if (signaling == null) return;
+    try {
+      JSONObject message = new JSONObject();
+      message.put("type", "join");
+      message.put("conversationId", SIGNALING_CONVERSATION_ID);
+      message.put("participantId", SIGNALING_PARTICIPANT_ID);
+      message.put("capabilities", new org.json.JSONArray()
+        .put("android-display")
+        .put("android")
+      );
+      JSONObject meta = new JSONObject();
+      meta.put("source", "metafor-android-rtc");
+      message.put("meta", meta);
+      signaling.send(message);
+    } catch (Exception error) {
+      setStatus("join json " + error.getMessage());
+    }
+  }
+
+  private void sendSignalingSignal(String kind, String to, JSONObject payload) throws Exception {
+    if (signaling == null) return;
+    JSONObject message = new JSONObject();
+    message.put("type", "signal");
+    message.put("conversationId", SIGNALING_CONVERSATION_ID);
+    message.put("callId", callIdFor(to));
+    message.put("kind", kind);
+    message.put("fromParticipantId", SIGNALING_PARTICIPANT_ID);
+    message.put("toParticipantId", to);
+    message.put("payload", payload);
+    signaling.send(message);
+  }
+
+  private String callIdFor(String peerId) {
+    String existing = signalingCallIds.get(peerId);
+    if (existing != null) return existing;
+    String next = "call-" + SIGNALING_PARTICIPANT_ID + "-" + peerId + "-" + UUID.randomUUID();
+    signalingCallIds.put(peerId, next);
+    return next;
   }
 
   private void addIce(String from, JSONObject object) {

@@ -1,4 +1,5 @@
 import {TextureLoader} from "@metafor/engine"
+import {createLegacyRtcSignalSocket, RTC_ICE_SERVERS, type LegacyRtcSignalSocket} from "./p2p-signaling.ts"
 
 type AndroidRtcSignal =
 	| {type: "hello"; room: string; peerId: string; peers: string[]}
@@ -61,7 +62,7 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
 	video.muted = true
 	video.playsInline = true
 
-	let socket: WebSocket | null = null
+	let socket: LegacyRtcSignalSocket | null = null
 	let frameLoopStarted = false
 	let frameCopyInFlight = false
 	let lastFrameAt = 0
@@ -86,7 +87,11 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
 	function connect(): void {
 		if (socket !== null && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return
 		opts.onStatus("running", "rtc connecting")
-		socket = new WebSocket(signalingUrl(room, peerId))
+		socket = createLegacyRtcSignalSocket({
+			conversationId: room,
+			participantId: peerId,
+			capabilities: ["android-display", "app-web"],
+		})
 		socket.addEventListener("open", () => opts.onStatus("running", "rtc signaling"))
 		socket.addEventListener("message", (event) => {
 			if (typeof event.data !== "string") return
@@ -183,7 +188,7 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
 		const existing = peers.get(remotePeerId)
 		if (existing !== undefined) return existing
 
-		const connection = new RTCPeerConnection({iceServers: []})
+		const connection = new RTCPeerConnection({iceServers: RTC_ICE_SERVERS})
 		connection.addTransceiver("video", {direction: "recvonly"})
 		const peer: PeerRecord = {id: remotePeerId, connection, channel: null}
 		peers.set(remotePeerId, peer)
@@ -293,14 +298,6 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
 		if (socket?.readyState !== WebSocket.OPEN) return
 		socket.send(JSON.stringify(payload))
 	}
-}
-
-function signalingUrl(room: string, peerId: string): string {
-	const protocol = location.protocol === "https:" ? "wss:" : "ws:"
-	const url = new URL(`${protocol}//${location.host}/hud/webrtc/signaling`)
-	url.searchParams.set("room", room)
-	url.searchParams.set("peer", peerId)
-	return url.toString()
 }
 
 function parseSignal(raw: string): AndroidRtcSignal | null {
