@@ -452,7 +452,7 @@ const CODEX_TITLE = "Codex"
 const CODEX_MODEL = "GPT-5"
 const APP_FULLSCREEN_FALLBACK_CLASS = "metafor-app-fullscreen-fallback"
 const APP_FULLSCREEN_ANDROID_REQUEST_TIMEOUT_MS = 500
-const DOCK_SHORT = 40
+const DOCK_SHORT = 32
 const DOCK_MARGIN = 8
 const DOCK_LONG_PRESS_MS = 320
 const DOCK_DRAG_THRESHOLD_PX = 6
@@ -5629,14 +5629,14 @@ function dockPlacementFromPoint(kind: DockKind, point: {x: number; y: number}, b
 }
 
 function dockLong(kind: DockKind): number {
-	if (kind === "codex") return 184
-	if (kind === "settings") return 142
-	if (kind === "android") return 132
-	if (kind === "workspace") return 150
-	if (kind === "sqlite") return 126
-	if (kind === "network") return 144
-	if (kind === "todo") return 126
-	return 48
+	if (kind === "codex") return 150
+	if (kind === "settings") return 116
+	if (kind === "android") return 108
+	if (kind === "workspace") return 124
+	if (kind === "sqlite") return 104
+	if (kind === "network") return 118
+	if (kind === "todo") return 104
+	return 40
 }
 
 function networkActionForSwitch(key: NetworkWatchServiceKey, checked: boolean): string {

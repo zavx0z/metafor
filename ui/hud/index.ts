@@ -169,23 +169,23 @@ export function HudSideTab(host: UiSurface, props: HudSideTabProps): HudVisualSt
   const accent = sideTabAccent(tone, strength)
   const fill = sideTabFill(active, hovered)
   const vertical = edge === "left" || edge === "right"
-  const outerRadius = clamp(Math.min(props.rect.w, props.rect.h) * 0.5, 10, 18)
+  const outerRadius = clamp(Math.min(props.rect.w, props.rect.h) * 0.48, 8, 15)
   const radius = sideTabRadius(edge, outerRadius)
   const pressX = active ? (edge === "left" ? 1 : edge === "right" ? -1 : 0) : 0
   const pressY = active ? (edge === "top" ? 1 : edge === "bottom" ? -1 : 0) : 0
   const tabX = props.rect.x + pressX
   const tabY = props.rect.y + pressY
   const contentPad = vertical
-    ? Math.min(10, Math.max(7, props.rect.w * 0.25))
-    : Math.min(10, Math.max(6, props.rect.h * 0.22))
+    ? Math.min(8, Math.max(5, props.rect.w * 0.22))
+    : Math.min(8, Math.max(5, props.rect.h * 0.2))
   const iconSize = props.icon === undefined || props.icon.length === 0
     ? 0
     : vertical
-      ? Math.min(18, Math.max(12, props.rect.w * 0.52))
-      : Math.min(18, Math.max(12, props.rect.h * 0.48))
+      ? Math.min(16, Math.max(11, props.rect.w * 0.5))
+      : Math.min(16, Math.max(11, props.rect.h * 0.46))
   const label = props.label ?? ""
-  const labelFontPx = vertical ? clamp(props.rect.w * 0.31, 10, 12) : clamp(props.rect.h * 0.31, 10, 12)
-  const reservedGap = iconSize > 0 && label.length > 0 ? 7 : 0
+  const labelFontPx = vertical ? clamp(props.rect.w * 0.3, 9, 11) : clamp(props.rect.h * 0.3, 9, 11)
+  const reservedGap = iconSize > 0 && label.length > 0 ? 5 : 0
   const labelW = vertical
     ? Math.max(1, props.rect.h - contentPad * 2 - iconSize - reservedGap)
     : Math.max(1, props.rect.w - contentPad * 2 - iconSize - reservedGap)
