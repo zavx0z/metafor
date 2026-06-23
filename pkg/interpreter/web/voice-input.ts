@@ -593,6 +593,10 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     }
     const activationPhrases = phraseGroups.activation
     const activationTolerance = this.#phraseFuzzyTolerance("activation")
+    if (msg.type === "partial" && isFastActivationPartial(text, activationPhrases)) {
+      void this.#activateAsr(text).catch((error) => this.#recoverAsrFailure(error))
+      return
+    }
     if (!isActivationRecognitionMessage(msg, activationPhrases, activationTolerance)) return
 
     void this.#activateAsr(text).catch((error) => this.#recoverAsrFailure(error))

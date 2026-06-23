@@ -49,6 +49,15 @@ describe("voice activation matching", () => {
     expect(isActivationRecognitionMessage({type: "result", text: "за вход"}, ["завхоз"], 0)).toBe(false)
   })
 
+  test("allows exact fast partial activation without fuzzy confusers", () => {
+    expect(isFastActivationPartial("завхоз", ["завхоз"])).toBe(true)
+    expect(isFastActivationPartial("завхоз открой терминал", ["завхоз"])).toBe(true)
+    expect(isFastActivationPartial("зав", ["завхоз"])).toBe(false)
+    expect(isFastActivationPartial("завтра", ["завхоз"])).toBe(false)
+    expect(isFastActivationPartial("завтрак", ["завхоз"])).toBe(false)
+    expect(isFastActivationPartial("за вход", ["завхоз"])).toBe(false)
+  })
+
   test("builds Vosk grammar from prefixes and number variants", () => {
     const grammar = createWakeRecognitionGrammar({
       activation: ["агент 2"],
