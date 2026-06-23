@@ -20,12 +20,15 @@ export type VoiceRtcDebugSnapshot = {
 
 const VOICE_RTC_APP_PEER_PREFIX = "app-web-voice"
 const VOICE_RTC_CONNECT_TIMEOUT_MS = 30_000
-const VOICE_RTC_ICE_GATHER_TIMEOUT_MS = 10_000
+const VOICE_RTC_INITIAL_ICE_TIMEOUT_MS = 800
 const VOICE_RTC_MEDIA_TIMEOUT_MS = 5000
 const VOICE_RTC_ASR_TEXT_TIMEOUT_MS = 18_000
+const VOICE_RTC_REMOTE_ICE_POLL_MS = 300
+const VOICE_RTC_REMOTE_ICE_POLL_LIMIT_MS = 8000
 const VOICE_RTC_DEBUG_POST_MIN_MS = 1000
 const VOICE_RTC_SERVER_PEER_ID = "voice-server"
 const VOICE_RTC_OFFER_PATH = "/voice/offer"
+const VOICE_RTC_ICE_PATH = "/voice/ice"
 const MAX_PENDING_FALLBACK_PCM_BYTES = 3 * 1024 * 1024
 
 let voiceRtcDebug: VoiceRtcDebugSnapshot = {
@@ -80,13 +83,17 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 	#connection: RTCPeerConnection | null = null
 	#channel: RTCDataChannel | null = null
 	#fallbackWs: WebSocket | null = null
+	#sessionId = ""
 	#connectTimer: number | null = null
 	#mediaTimer: number | null = null
 	#asrTextTimer: number | null = null
+	#remoteIcePollTimer: number | null = null
+	#remoteIcePollStartedAt = 0
 	#lastStartPayload: string | null = null
 	#pendingFallbackControls: string[] = []
 	#pendingFallbackPcm: ArrayBuffer[] = []
 	#pendingFallbackPcmBytes = 0
+	#pendingLocalIceCandidates: RTCIceCandidateInit[] = []
 	#localAudioBytes = 0
 	#lastLocalAudioStatusAt = 0
 	#asrMessages = 0
@@ -116,6 +123,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 		this.#clearConnectTimer()
 		this.#clearMediaTimer()
 		this.#clearAsrTextTimer()
+		this.#clearRemoteIcePollTimer()
 		this.#readyState = WebSocket.CLOSING
 		this.#fallbackWs?.close()
 		this.#fallbackWs = null
@@ -162,7 +170,11 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 		this.#connection = connection
 		connection.addEventListener("connectionstatechange", () => {
 			updateVoiceRtcDebug({state: `rtc ${connection.connectionState}`})
+			if (connection.connectionState === "connected") this.#clearRemoteIcePollTimer()
 			if (connection.connectionState === "failed" || connection.connectionState === "closed") this.#startFallback(`rtc ${connection.connectionState}`)
+		})
+		connection.addEventListener("icecandidate", (event) => {
+			if (event.candidate !== null) this.#sendLocalIceCandidate(event.candidate.toJSON())
 		})
 		connection.addEventListener("datachannel", (event) => this.#attachChannel(event.channel))
 		this.#attachChannel(connection.createDataChannel("voice-asr", {ordered: true}))
@@ -170,7 +182,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 		try {
 			const offer = await connection.createOffer()
 			await connection.setLocalDescription(offer)
-			await waitForIceGatheringComplete(connection, VOICE_RTC_ICE_GATHER_TIMEOUT_MS)
+			await waitForInitialIceCandidate(connection, VOICE_RTC_INITIAL_ICE_TIMEOUT_MS)
 			const response = await fetch(voiceRtcOfferUrl(), {
 				method: "POST",
 				credentials: "include",
@@ -183,9 +195,12 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 			})
 			if (!response.ok) throw new Error(`voice WebRTC offer failed: ${response.status}`)
 			const answer = asJsonRecord(await response.json())
+			this.#sessionId = stringValue(answer?.["sessionId"]) ?? ""
 			const description = asSessionDescription(answer?.["description"])
 			if (description === null) throw new Error("voice WebRTC answer missing description")
 			await connection.setRemoteDescription(description)
+			this.#flushLocalIceCandidates()
+			this.#startRemoteIcePolling(numberValue(answer?.["candidateSeq"]) ?? 0)
 		} catch (error) {
 			this.#startFallback(error instanceof Error ? error.message : String(error))
 		}
@@ -236,6 +251,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 		this.#clearConnectTimer()
 		this.#clearMediaTimer()
 		this.#clearAsrTextTimer()
+		this.#clearRemoteIcePollTimer()
 		this.#channel?.close()
 		this.#channel = null
 		this.#connection?.close()
@@ -270,6 +286,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 		this.#clearConnectTimer()
 		this.#clearMediaTimer()
 		this.#clearAsrTextTimer()
+		this.#clearRemoteIcePollTimer()
 		this.#channel?.close()
 		this.#channel = null
 		this.#connection?.close()
@@ -307,6 +324,64 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 		if (this.#asrTextTimer === null) return
 		window.clearTimeout(this.#asrTextTimer)
 		this.#asrTextTimer = null
+	}
+
+	#clearRemoteIcePollTimer(): void {
+		if (this.#remoteIcePollTimer === null) return
+		window.clearTimeout(this.#remoteIcePollTimer)
+		this.#remoteIcePollTimer = null
+	}
+
+	#sendLocalIceCandidate(candidate: RTCIceCandidateInit): void {
+		if (this.#sessionId === "") {
+			this.#pendingLocalIceCandidates.push(candidate)
+			return
+		}
+		void fetch(voiceRtcIceUrl(), {
+			method: "POST",
+			credentials: "include",
+			headers: {"content-type": "text/plain"},
+			body: JSON.stringify({sessionId: this.#sessionId, candidate}),
+		}).catch((error: unknown) => {
+			console.warn("[voice-rtc] failed to send ICE candidate", error)
+		})
+	}
+
+	#flushLocalIceCandidates(): void {
+		const candidates = this.#pendingLocalIceCandidates.splice(0)
+		for (const candidate of candidates) this.#sendLocalIceCandidate(candidate)
+	}
+
+	#startRemoteIcePolling(afterSeq: number): void {
+		this.#clearRemoteIcePollTimer()
+		if (this.#sessionId === "" || this.#connection === null) return
+		this.#remoteIcePollStartedAt = performance.now()
+		let lastSeq = afterSeq
+		const poll = async (): Promise<void> => {
+			const connection = this.#connection
+			if (connection === null || this.#sessionId === "" || this.#fallbackWs !== null) return
+			if (connection.connectionState === "connected" || connection.connectionState === "closed" || connection.connectionState === "failed") return
+			if (performance.now() - this.#remoteIcePollStartedAt > VOICE_RTC_REMOTE_ICE_POLL_LIMIT_MS) return
+			try {
+				const response = await fetch(voiceRtcIceUrl(this.#sessionId, lastSeq), {credentials: "include"})
+				if (response.ok) {
+					const payload = asJsonRecord(await response.json())
+					const candidates = Array.isArray(payload?.["candidates"]) ? payload["candidates"] : []
+					for (const item of candidates) {
+						const record = asJsonRecord(item)
+						const seq = numberValue(record?.["seq"])
+						const candidate = asIceCandidateInit(record?.["candidate"])
+						if (candidate === null) continue
+						await connection.addIceCandidate(candidate)
+						if (seq !== undefined) lastSeq = Math.max(lastSeq, seq)
+					}
+				}
+			} catch (error) {
+				console.warn("[voice-rtc] failed to poll ICE candidates", error)
+			}
+			this.#remoteIcePollTimer = window.setTimeout(() => void poll(), VOICE_RTC_REMOTE_ICE_POLL_MS)
+		}
+		void poll()
 	}
 
 	#handleVoiceStatus(raw: string): boolean {
@@ -455,15 +530,28 @@ function isLoopbackUrl(rawUrl: string): boolean {
 }
 
 function voiceRtcOfferUrl(): string {
+	return voiceRtcUrl(VOICE_RTC_OFFER_PATH)
+}
+
+function voiceRtcIceUrl(sessionId?: string, afterSeq?: number): string {
+	const url = voiceRtcUrl(VOICE_RTC_ICE_PATH)
+	if (sessionId === undefined) return url
+	const parsed = new URL(url, location.href)
+	parsed.searchParams.set("sessionId", sessionId)
+	if (afterSeq !== undefined) parsed.searchParams.set("after", String(afterSeq))
+	return parsed.toString()
+}
+
+function voiceRtcUrl(pathname: string): string {
 	const signalUrl = new URL(readSignalUrl(), location.href)
 	signalUrl.protocol = signalUrl.protocol === "wss:" ? "https:" : "http:"
-	signalUrl.pathname = VOICE_RTC_OFFER_PATH
+	signalUrl.pathname = pathname
 	signalUrl.search = ""
 	signalUrl.hash = ""
 	return signalUrl.toString()
 }
 
-function waitForIceGatheringComplete(connection: RTCPeerConnection, timeoutMs: number): Promise<void> {
+function waitForInitialIceCandidate(connection: RTCPeerConnection, timeoutMs: number): Promise<void> {
 	if (connection.iceGatheringState === "complete") return Promise.resolve()
 	return new Promise((resolve) => {
 		let done = false
@@ -471,6 +559,7 @@ function waitForIceGatheringComplete(connection: RTCPeerConnection, timeoutMs: n
 			if (done) return
 			done = true
 			window.clearTimeout(timer)
+			connection.removeEventListener("icecandidate", finish)
 			connection.removeEventListener("icegatheringstatechange", onChange)
 			resolve()
 		}
@@ -478,8 +567,25 @@ function waitForIceGatheringComplete(connection: RTCPeerConnection, timeoutMs: n
 			if (connection.iceGatheringState === "complete") finish()
 		}
 		const timer = window.setTimeout(finish, timeoutMs)
+		connection.addEventListener("icecandidate", finish)
 		connection.addEventListener("icegatheringstatechange", onChange)
 	})
+}
+
+function asIceCandidateInit(value: unknown): RTCIceCandidateInit | null {
+	const record = asJsonRecord(value)
+	if (record === null) return null
+	const candidate = stringValue(record["candidate"])
+	if (candidate === undefined) return null
+	const sdpMid = nullableStringValue(record["sdpMid"])
+	const sdpMLineIndex = nullableIntegerValue(record["sdpMLineIndex"])
+	const usernameFragment = nullableStringValue(record["usernameFragment"])
+	return {
+		candidate,
+		...(sdpMid === undefined ? {} : {sdpMid}),
+		...(sdpMLineIndex === undefined ? {} : {sdpMLineIndex}),
+		...(usernameFragment === undefined ? {} : {usernameFragment}),
+	}
 }
 
 function safeJsonParse(raw: string): unknown {
@@ -506,6 +612,16 @@ function stringValue(value: unknown): string | undefined {
 
 function numberValue(value: unknown): number | undefined {
 	return typeof value === "number" && Number.isFinite(value) ? value : undefined
+}
+
+function nullableStringValue(value: unknown): string | null | undefined {
+	if (value === null) return null
+	return typeof value === "string" ? value : undefined
+}
+
+function nullableIntegerValue(value: unknown): number | null | undefined {
+	if (value === null) return null
+	return Number.isInteger(value) ? value as number : undefined
 }
 
 function updateVoiceRtcDebug(patch: Partial<VoiceRtcDebugSnapshot>): void {
