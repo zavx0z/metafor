@@ -66,7 +66,6 @@ type VoiceRtcDebugGlobal = typeof globalThis & {__metaVoiceRtcDebug?: () => Voic
 
 export function createVoiceRtcAsrSocket(url: string, context: VoiceInputAsrSocketContext): VoiceInputSocket | null {
 	if (typeof RTCPeerConnection === "undefined" || typeof WebSocket === "undefined") return null
-	if (context.stream.getAudioTracks().length === 0) return null
 	return new VoiceRtcAsrSocket(url, context)
 }
 
@@ -95,6 +94,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 	#pendingFallbackPcm: ArrayBuffer[] = []
 	#pendingFallbackPcmBytes = 0
 	#pendingLocalIceCandidates: RTCIceCandidateInit[] = []
+	#activationStarted = false
 	#localAudioBytes = 0
 	#lastLocalAudioStatusAt = 0
 	#asrMessages = 0
@@ -138,6 +138,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 	}
 
 	send(data: string | ArrayBuffer | Blob | ArrayBufferView<ArrayBuffer>): void {
+		this.#activationStarted = true
 		if (this.#fallbackWs !== null) {
 			if (this.#fallbackWs.readyState === WebSocket.OPEN) {
 				this.#fallbackWs.send(data)
@@ -244,6 +245,10 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 
 	#startFallback(reason = "fallback"): void {
 		if (this.#fallbackWs !== null || this.#readyState === WebSocket.CLOSING || this.#readyState === WebSocket.CLOSED) return
+		if (!this.#activationStarted) {
+			this.#closeIdlePrewarm(reason)
+			return
+		}
 		if (isVoiceRtcRemoteClient() && isLoopbackUrl(this.url)) {
 			this.#failRemoteLoopbackFallback(reason)
 			return
@@ -279,6 +284,21 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 			this.#context.onTransport("idle")
 			this.dispatchEvent(new CloseEvent("close"))
 		})
+	}
+
+	#closeIdlePrewarm(reason: string): void {
+		updateVoiceRtcDebug({state: "idle", fallbackReason: `prewarm closed: ${reason}`})
+		this.#clearConnectTimer()
+		this.#clearMediaTimer()
+		this.#clearAsrTextTimer()
+		this.#clearRemoteIcePollTimer()
+		this.#channel?.close()
+		this.#channel = null
+		this.#connection?.close()
+		this.#connection = null
+		this.#readyState = WebSocket.CLOSED
+		this.#context.onTransport("idle")
+		this.dispatchEvent(new CloseEvent("close"))
 	}
 
 	#failRemoteLoopbackFallback(reason: string): void {

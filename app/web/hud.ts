@@ -783,6 +783,7 @@ class AppWebHud implements AppWebHudController {
 	#voiceServiceCheckInFlight = false
 	#voiceRtcDebug: VoiceRtcDebugSnapshot = readVoiceRtcDebugSnapshot()
 	#voiceAutoWakeTimer: number | null = null
+	#voicePrewarmTimer: number | null = null
 	#voiceAutoWakeInFlight = false
 	#voiceAutoWakePaused = false
 	#voiceLeaseOwnerId: string | null = null
@@ -986,7 +987,10 @@ class AppWebHud implements AppWebHudController {
 			this.#codexComposer.requestRender()
 			this.#voiceHud.requestRender()
 		})
-		void this.#importInterpreterVoiceSettings().finally(() => this.#scheduleVoiceAutoWake(500))
+		void this.#importInterpreterVoiceSettings().finally(() => {
+			this.#scheduleVoiceAutoWake(500)
+			this.#scheduleVoiceRtcPrewarm(900)
+		})
 		installHudNotificationSoundUnlock()
 	}
 
@@ -3267,6 +3271,7 @@ class AppWebHud implements AppWebHudController {
 		if (status === "idle") {
 			this.#flushVoiceAutoSendBuffer()
 			this.#clearVoiceWakePreview()
+			this.#scheduleVoiceRtcPrewarm(500)
 		}
 		this.#voiceStatus = status
 		this.#voiceDetail = voiceReadableDetail(detail || voiceStatusLine(status))
@@ -3290,6 +3295,28 @@ class AppWebHud implements AppWebHudController {
 		this.#voiceTransport = transport
 		this.#codexComposer.requestRender()
 		this.#voiceHud.requestRender()
+		if (transport === "idle" && this.#voiceStatus === "idle") this.#scheduleVoiceRtcPrewarm(1000)
+	}
+
+	#scheduleVoiceRtcPrewarm(delayMs = 0): void {
+		if (!this.#shouldUseVoiceRtcServerServiceProbe()) return
+		if (!this.#documentHasLocalVoiceFocus()) return
+		if (this.#voicePrewarmTimer !== null) return
+		this.#voicePrewarmTimer = window.setTimeout(() => {
+			this.#voicePrewarmTimer = null
+			if (!this.#shouldUseVoiceRtcServerServiceProbe()) return
+			if (!this.#documentHasLocalVoiceFocus()) return
+			if (this.#terminal.socket?.readyState !== WebSocket.OPEN) return
+			const client = this.#ensureVoiceClient()
+			if (client.active) return
+			client.prewarmDictation()
+		}, delayMs)
+	}
+
+	#clearVoiceRtcPrewarmTimer(): void {
+		if (this.#voicePrewarmTimer === null) return
+		window.clearTimeout(this.#voicePrewarmTimer)
+		this.#voicePrewarmTimer = null
 	}
 
 	#flashVoiceHudError(detail: string): void {
@@ -3700,6 +3727,7 @@ class AppWebHud implements AppWebHudController {
 			return
 		}
 		if (!this.#voiceAutoWakePaused) this.#scheduleVoiceAutoWake(250)
+		this.#scheduleVoiceRtcPrewarm(600)
 	}
 
 	#suspendVoiceForInactiveDocument(): void {
@@ -3707,6 +3735,7 @@ class AppWebHud implements AppWebHudController {
 			window.clearTimeout(this.#voiceAutoWakeTimer)
 			this.#voiceAutoWakeTimer = null
 		}
+		this.#clearVoiceRtcPrewarmTimer()
 		if (this.#voiceAutoWakeInFlight) return
 		if (this.#voiceClient?.active === true) {
 			this.#voiceNextFlushMode = "draft"
@@ -3714,6 +3743,8 @@ class AppWebHud implements AppWebHudController {
 			this.#discardVoiceAutoSendBuffer()
 			this.#clearVoicePartialPreview()
 			this.#clearVoiceWakePreview()
+		} else {
+			this.#voiceClient?.reset()
 		}
 	}
 
@@ -3722,9 +3753,13 @@ class AppWebHud implements AppWebHudController {
 			window.clearTimeout(this.#voiceAutoWakeTimer)
 			this.#voiceAutoWakeTimer = null
 		}
+		this.#clearVoiceRtcPrewarmTimer()
 		if (this.#voiceAutoWakeInFlight) return
 		const client = this.#voiceClient
-		if (client?.active !== true || client.status === "waitingWake") return
+		if (client?.active !== true || client.status === "waitingWake") {
+			if (client?.active !== true) client?.reset()
+			return
+		}
 		this.#voiceNextFlushMode = "draft"
 		client.stop("remote voice active")
 		this.#discardVoiceAutoSendBuffer()

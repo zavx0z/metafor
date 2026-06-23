@@ -155,6 +155,7 @@ export type VoiceInputDeliveryState = {
 export class VoiceInputClient {
   #commandWs: VoiceInputSocket | null = null
   #asrWs: VoiceInputSocket | null = null
+  #asrConnectPromise: Promise<void> | null = null
   #asrTransport: VoiceInputTransport = "idle"
   #stream: MediaStream | null = null
   #audioContext: AudioContext | null = null
@@ -201,6 +202,14 @@ export class VoiceInputClient {
   reset(): void {
     this.#cleanup()
     this.#setStatus("idle")
+  }
+
+  prewarmDictation(): void {
+    if (this.active || this.#asrWs !== null || this.options.createAsrSocket === undefined) return
+    void this.#connectAsr(this.options.url()).catch(() => {
+      if (this.#status !== "idle" || this.#asrEnabled) return
+      this.#disconnectAsrSocket()
+    })
   }
 
   async start(): Promise<void> {
@@ -417,6 +426,10 @@ export class VoiceInputClient {
 
   async #connectAsr(url: string): Promise<void> {
     if (this.#asrWs?.readyState === WebSocket.OPEN) return
+    if (this.#asrWs?.readyState === WebSocket.CONNECTING && this.#asrConnectPromise !== null) {
+      await this.#asrConnectPromise
+      return
+    }
 
     this.#setTransport("connecting")
     const socketUrl = voiceInputWebSocketUrl(url)
@@ -428,6 +441,7 @@ export class VoiceInputClient {
     ws.addEventListener("close", () => {
       if (this.#asrWs !== ws) return
       this.#asrWs = null
+      this.#asrConnectPromise = null
       this.#setTransport("idle")
       this.#asrEnabled = false
       this.#asrActivatedAt = 0
@@ -435,13 +449,24 @@ export class VoiceInputClient {
       this.#recoverAsrFailure(`voice ASR websocket closed: ${ws.url}`)
     })
 
-    await new Promise<void>((resolve, reject) => {
+    const connectPromise = new Promise<void>((resolve, reject) => {
+      let opened = false
       ws.addEventListener("open", () => {
+        opened = true
         if (this.#asrTransport === "connecting" && ws instanceof WebSocket) this.#setTransport("ws")
         resolve()
       }, {once: true})
       ws.addEventListener("error", () => reject(new Error(`voice ASR websocket failed: ${socketUrl}`)), {once: true})
+      ws.addEventListener("close", () => {
+        if (!opened) reject(new Error(`voice ASR websocket closed before open: ${socketUrl}`))
+      }, {once: true})
     })
+    this.#asrConnectPromise = connectPromise
+    try {
+      await connectPromise
+    } finally {
+      if (this.#asrWs === ws) this.#asrConnectPromise = null
+    }
   }
 
   #socketContext(): VoiceInputAsrSocketContext {
@@ -909,6 +934,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     if (this.#asrWs === null) return
     const ws = this.#asrWs
     this.#asrWs = null
+    this.#asrConnectPromise = null
     this.#setTransport("idle")
     if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) ws.close()
   }
