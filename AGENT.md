@@ -82,6 +82,43 @@ MetaFor - открытая среда для общего AGI.
 - Для проверки WebApp сначала используй серверные HTTP/interpreter endpoints и состояние приложения. Браузерную автоматизацию запускай только если пользователь явно дал доступ к браузерной среде или текущая Codex-сессия предоставляет browser skill/tool после перезапуска.
 - Не открывай новые вкладки, окна или отдельные профили Chrome на сервере без явного подтверждения пользователя.
 
+## Операционные Контуры WebApp + Interpreter
+
+Не смешивай контуры запуска. Перед выводами о портах, restart, proxy или breakpoint-ах сначала определи, где именно работает пользователь.
+
+Основные контуры:
+
+- Локальный standalone interpreter: `bun run interpreter ...`, UI/API обычно на `127.0.0.1:6500`, модуль запускается как child через Bun inspector. Systemd и `dev.proizvodstvo1.ru` здесь не предполагаются.
+- Локальный/LAN WebApp dev: `bun run workspace.app.web:dev`, используется для разработки в локальной сети и Android/secure origin. `app/web/run.ts --dev layout` поднимает interpreter + `app/web/server.ts` в tmux с production-like env, обычно `HOST=0.0.0.0`, `PORT=443`, TLS files.
+- Серверный dev-домен: `https://dev.proizvodstvo1.ru/` может вести к host interpreter/WebApp, который на сервере поднят user systemd unit `metafor-interpreter-web-dev.service`. В этом контуре внешний домен проходит через proxy/SSO, а runtime диагностируется через локальные server endpoints.
+
+Если пользователь явно находится на `https://dev.proizvodstvo1.ru/`, не считай shell-запрос к этому внешнему URL диагностикой runtime: он может пройти через SSO/nginx и не отражать состояние живого interpreter host. Сначала строй карту текущего запуска изнутри.
+
+Для серверного dev-контура типичная карта:
+
+- `127.0.0.1:6500` - host interpreter HTTP/API/UI.
+- `127.0.0.1:6499` - Bun inspector protocol socket.
+- `127.0.0.1:3004` - `app/web/server.ts` как child process внутри interpreter.
+- `metafor-interpreter-web-dev.service` - user systemd unit, который держит host interpreter.
+- `/home/zavx0z/metafor-interpreter-web-dev/run.sh` - wrapper запуска этого service.
+- `metafor-interpreter-host` и `metafor-app-web-net` - tmux-сессии, которые host может поднимать для HUD/terminal; long-running процесс в этом контуре управляется systemd.
+
+Диагностика серверного dev-контура, когда нужно проверить topology или перезапуск: сначала смотри `/context`, затем `/health` и process endpoints. Для обычной правки открытого source не начинай с `/health` вместо active context.
+
+```sh
+curl -sS http://127.0.0.1:6500/context
+curl -sS http://127.0.0.1:6500/health
+curl -sS http://127.0.0.1:6500/processes/app-web-server.ts/breakpoints
+systemctl --user status metafor-interpreter-web-dev.service --no-pager
+ss -ltnp | rg ':(6500|6499|3004)\b'
+```
+
+Для server/systemd WebApp service нормальная команда child process - `bun --inspect=ws://127.0.0.1:6499/ app/web/server.ts`. Не возвращай `--inspect-wait` в этот контур: он нужен только для отдельных troubleshooting/test-сценариев. Обычный restart процесса должен сохранять breakpoint-ы и стартовать через `--inspect`; остановка на первой строке допустима только при явном `pauseOnStart:true` / `--inspect-brk`.
+
+Правки в файлах текущего child runtime делай через interpreter API; replay child обычно достаточен. Правки host interpreter-кода (`pkg/interpreter/src/server.ts`, `pkg/interpreter/web/main.ts`) после применения через API могут требовать restart самого host process, потому что host должен перечитать код и пересобрать/раздать UI. В server/systemd контуре это `systemctl --user restart metafor-interpreter-web-dev.service`; в локальном foreground/tmux-контуре перезапускай соответствующий локальный host process, а не создавай systemd unit.
+
+`POST /reload` только просит подключенные UI-клиенты перезагрузиться; он не заменяет restart host. Не расширяй embedded proxy allowlist (`/hud/interpreter/*`) для внутренних host-команд вроде `/reload` без явного архитектурного решения. Если нужно перезагрузить interpreter UI, используй endpoint того host, который реально держит UI, и затем проверяй события/breakpoint state.
+
 ## WebGPU-Движок (`pkg/engine`)
 
 Движок - кастомный WebGPU-рендерер без WebGL fallback.
@@ -185,13 +222,15 @@ Topology-поля отличаются от обычных data-fields:
 Для общих задач используй корень репозитория:
 
 - `bun install`
-- `bun run dev`
+- `bun run interpreter`
+- `bun run workspace.app.web:dev`
+- `bun run workspace.app.web:prod`
 - `bun run build`
 - `bun run typegen`
 - `bun run space:build`
-- `bun run lint:md`
+- `bun run test:all`
 
-Предпочитай самую маленькую релевантную проверку для изменённых файлов.
+Предпочитай самую маленькую релевантную проверку для изменённых файлов. Если сомневаешься в имени script, сначала проверь `bun pm pkg get scripts`. Отдельный Markdown lint script сейчас не настроен; для Markdown-правок минимум запускай `git diff --check` по изменённым файлам и перечитывай diff.
 
 ## Правило Редактирования Через Интерпретатор
 

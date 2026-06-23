@@ -32,7 +32,7 @@ Dev/LAN entrypoint под interpreter:
 bun run workspace.app.web:dev
 ```
 
-Это запускает `app/web/run.ts --dev layout`: в tmux поднимается
+Это локальный/LAN-режим для разработки в одной сети, включая Android и другие устройства, которым нужен secure origin. Он запускает `app/web/run.ts --dev layout`: в tmux поднимается
 `pkg/interpreter/interpreter.ts app/web/server.ts ...` с теми же production env
 (`HOST=0.0.0.0`, `PORT=443`, TLS files), поэтому Android в локальной сети
 открывает тот же secure origin `https://<mac-lan-ip>/`, но сам `app/web/server.ts`
@@ -42,6 +42,16 @@ bun run workspace.app.web:dev
 Оба режима используют один tmux window и перед запуском закрывают конфликтующий
 режим, чтобы из IntelliJ можно было кликнуть нужный script без ручной остановки.
 Старый alias `workspace.app.web:product` оставлен и ведёт на `workspace.app.web:prod`.
+
+Отдельный server/dev deployment на `dev.proizvodstvo1.ru` может быть поднят не LAN-скриптом напрямую, а user systemd unit `metafor-interpreter-web-dev.service`. Это не заменяет локальный/LAN-режим на `443`; это серверный контур за proxy/SSO. В таком контуре host interpreter обычно слушает `127.0.0.1:6500`, child `app/web/server.ts` слушает `127.0.0.1:3004`, а внешний домен проходит через серверный proxy/SSO. Для диагностики runtime сначала смотри локальные endpoints и service:
+
+```bash
+curl -sS http://127.0.0.1:6500/context
+curl -sS http://127.0.0.1:6500/health
+systemctl --user status metafor-interpreter-web-dev.service --no-pager
+```
+
+Shell `curl https://dev.proizvodstvo1.ru/...` не является надёжной проверкой runtime-состояния: он может вернуть SSO/nginx-ответ вместо состояния текущего interpreter host.
 
 - `app/web/client.ts` импортирует `bulk/web` как пакет и остаётся тонким браузерным видовым клиентом.
 - `app/web/server.ts` статически импортирует `dark/server`, берёт `boundary` из `globalThis`, получает снимок уже наполненной базы через `boundary.bulkRuntime()` и отдаёт браузеру готовые строки мира. `BOUNDARY_PATH` передаётся при запуске и подхватывается самим `Boundary`.
