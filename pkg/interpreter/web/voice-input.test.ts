@@ -5,6 +5,7 @@ import {
   createWakeRecognitionGrammar,
   DEFAULT_VOICE_DEACTIVATION_PHRASES,
   isActivationPhrase,
+  isActivationRecognitionMessage,
   isDeactivationPhrase,
   isFastActivationPartial,
   prepareVoiceInputChunkForDelivery,
@@ -37,6 +38,14 @@ describe("voice activation matching", () => {
   test("keeps fuzzy activation anchored at the first word", () => {
     expect(isActivationPhrase("аген открой терминал", ["агент"], 0.25)).toBe(true)
     expect(isActivationPhrase("о аген", ["агент"], 0.25)).toBe(false)
+  })
+
+  test("activates only from final wake recognition messages", () => {
+    expect(isActivationRecognitionMessage({type: "partial", text: "завхоз"}, ["завхоз"], 0)).toBe(false)
+    expect(isActivationRecognitionMessage({type: "result", text: "завхоз"}, ["завхоз"], 0)).toBe(true)
+    expect(isActivationRecognitionMessage({type: "final", json: {text: "завхоз"}}, ["завхоз"], 0)).toBe(true)
+    expect(isActivationRecognitionMessage({type: "result", text: "зав"}, ["завхоз"], 0)).toBe(false)
+    expect(isActivationRecognitionMessage({type: "result", text: "завтра"}, ["завхоз"], 0)).toBe(false)
   })
 
   test("builds Vosk grammar from prefixes and number variants", () => {

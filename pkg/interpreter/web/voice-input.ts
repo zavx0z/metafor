@@ -587,8 +587,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     }
     const activationPhrases = phraseGroups.activation
     const activationTolerance = this.#phraseFuzzyTolerance("activation")
-    if (msg.type === "partial" && !isFastActivationPartial(text, activationPhrases)) return
-    if (!isActivationPhrase(text, activationPhrases, activationTolerance)) return
+    if (!isActivationRecognitionMessage(msg, activationPhrases, activationTolerance)) return
 
     void this.#activateAsr(text).catch((error) => this.#recoverAsrFailure(error))
   }
@@ -1228,6 +1227,13 @@ function recognitionText(msg: AsrMessage): string {
 
 export function isActivationPhrase(text: string, activationPhrases: readonly string[], tolerance: number): boolean {
   return activationPhraseMatch(text, activationPhrases, tolerance) !== null
+}
+
+export function isActivationRecognitionMessage(msg: {type?: string; text?: string; json?: unknown}, activationPhrases: readonly string[], tolerance: number): boolean {
+  if (!isFinalRecognitionMessage(msg)) return false
+  const text = recognitionText(msg)
+  if (!text) return false
+  return isActivationPhrase(text, activationPhrases, tolerance)
 }
 
 function activationPhraseMatch(text: string, activationPhrases: readonly string[], tolerance: number): {phrase: string} | null {
