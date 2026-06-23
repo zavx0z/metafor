@@ -382,8 +382,7 @@ export class VoiceInputClient {
     this.#sendCommand({
       type: "start",
       sampleRate: this.#audioContext?.sampleRate ?? TARGET_SAMPLE_RATE,
-      useGrammar: true,
-      grammar: createWakeRecognitionGrammar(this.#commandPhrases()),
+      useGrammar: false,
       words: true,
     })
     this.#setStatus("waitingWake", WAKE_WORD)
@@ -597,7 +596,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     const activationPhrases = phraseGroups.activation
     const activationTolerance = this.#phraseFuzzyTolerance("activation")
     if (msg.type === "partial" && isFastActivationPartial(text, activationPhrases)) {
-      this.prewarmDictation()
+      void this.#activateAsr(text).catch((error) => this.#recoverAsrFailure(error))
       return
     }
     if (!isActivationRecognitionMessage(msg, activationPhrases, activationTolerance)) return
