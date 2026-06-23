@@ -971,7 +971,7 @@ class AppWebHud implements AppWebHudController {
 			this.#suspendVoiceForInactiveDocument()
 		})
 		window.addEventListener("pagehide", () => {
-			if (isAndroidBrowser()) return
+			if (this.#documentHasLocalVoiceFocus()) return
 			this.#onVoiceLeaseRelease("pagehide")
 			this.#suspendVoiceForInactiveDocument()
 		})
@@ -3796,9 +3796,7 @@ class AppWebHud implements AppWebHudController {
 	}
 
 	#documentHasLocalVoiceFocus(): boolean {
-		if (isAndroidBrowser()) return true
-		if (document.visibilityState !== "visible" || document.hidden) return false
-		return typeof document.hasFocus === "function" ? document.hasFocus() : true
+		return true
 	}
 
 	#ownsVoiceLease(): boolean {
