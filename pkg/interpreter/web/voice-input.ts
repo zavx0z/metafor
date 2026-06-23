@@ -205,7 +205,8 @@ export class VoiceInputClient {
   }
 
   prewarmDictation(): void {
-    if (this.active || this.#asrWs !== null || this.options.createAsrSocket === undefined) return
+    if (this.#status === "connecting" || this.#status === "listening" || this.#status === "committing") return
+    if (this.#asrWs !== null || this.#asrEnabled || this.options.createAsrSocket === undefined) return
     void this.#connectAsr(this.options.url()).catch(() => {
       if (this.#status !== "idle" || this.#asrEnabled) return
       this.#disconnectAsrSocket()

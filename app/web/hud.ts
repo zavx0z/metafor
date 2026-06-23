@@ -430,6 +430,8 @@ const VOICE_MESSAGE_PAUSE_SECONDS = 1.6
 const VOICE_SIGNAL_COOLDOWN_MS = 900
 const VOICE_SIGNAL_CAPTURE_FALLBACK_MS = 260
 const VOICE_AUTO_WAKE_RETRY_MS = 3_000
+const VOICE_RTC_PREWARM_RETRY_MS = 500
+const VOICE_RTC_PREWARM_MAX_ATTEMPTS = 24
 const VOICE_LEASE_LOCAL_TTL_MS = 12_000
 const VOICE_HUD_ERROR_MS = 2_400
 const VOICE_METER_RENDER_MS = 80
@@ -784,6 +786,7 @@ class AppWebHud implements AppWebHudController {
 	#voiceRtcDebug: VoiceRtcDebugSnapshot = readVoiceRtcDebugSnapshot()
 	#voiceAutoWakeTimer: number | null = null
 	#voicePrewarmTimer: number | null = null
+	#voicePrewarmAttempts = 0
 	#voiceAutoWakeInFlight = false
 	#voiceAutoWakePaused = false
 	#voiceLeaseOwnerId: string | null = null
@@ -3299,23 +3302,46 @@ class AppWebHud implements AppWebHudController {
 	}
 
 	#scheduleVoiceRtcPrewarm(delayMs = 0): void {
-		if (!this.#shouldUseVoiceRtcServerServiceProbe()) return
-		if (!this.#documentHasLocalVoiceFocus()) return
 		if (this.#voicePrewarmTimer !== null) return
 		this.#voicePrewarmTimer = window.setTimeout(() => {
 			this.#voicePrewarmTimer = null
-			if (!this.#shouldUseVoiceRtcServerServiceProbe()) return
-			if (!this.#documentHasLocalVoiceFocus()) return
+			if (!this.#documentHasLocalVoiceFocus()) {
+				this.#voicePrewarmAttempts = 0
+				return
+			}
+			if (!this.#shouldUseVoiceRtcServerServiceProbe()) {
+				this.#retryVoiceRtcPrewarm()
+				return
+			}
 			const client = this.#ensureVoiceClient()
-			if (client.active) return
+			if (client.status === "connecting") {
+				this.#retryVoiceRtcPrewarm()
+				return
+			}
+			if (client.status === "listening" || client.status === "committing") {
+				this.#voicePrewarmAttempts = 0
+				return
+			}
+			this.#voicePrewarmAttempts = 0
+			this.#markVoiceRtcServerServiceProbe()
 			client.prewarmDictation()
 		}, delayMs)
+	}
+
+	#retryVoiceRtcPrewarm(): void {
+		if (this.#voicePrewarmAttempts >= VOICE_RTC_PREWARM_MAX_ATTEMPTS) {
+			this.#voicePrewarmAttempts = 0
+			return
+		}
+		this.#voicePrewarmAttempts += 1
+		this.#scheduleVoiceRtcPrewarm(VOICE_RTC_PREWARM_RETRY_MS)
 	}
 
 	#clearVoiceRtcPrewarmTimer(): void {
 		if (this.#voicePrewarmTimer === null) return
 		window.clearTimeout(this.#voicePrewarmTimer)
 		this.#voicePrewarmTimer = null
+		this.#voicePrewarmAttempts = 0
 	}
 
 	#flashVoiceHudError(detail: string): void {
