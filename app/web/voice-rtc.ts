@@ -1,5 +1,5 @@
 import type {VoiceInputAsrSocketContext, VoiceInputSocket} from "@metafor/interpreter/web"
-import {RTC_ICE_SERVERS, readSignalUrl} from "./p2p-signaling.ts"
+import {readSignalUrl} from "./p2p-signaling.ts"
 
 export type VoiceRtcDebugSnapshot = {
 	state: string
@@ -29,6 +29,7 @@ const VOICE_RTC_DEBUG_POST_MIN_MS = 1000
 const VOICE_RTC_SERVER_PEER_ID = "voice-server"
 const VOICE_RTC_OFFER_PATH = "/voice/offer"
 const VOICE_RTC_ICE_PATH = "/voice/ice"
+const VOICE_RTC_ICE_SERVERS: RTCIceServer[] = []
 const MAX_PENDING_FALLBACK_PCM_BYTES = 3 * 1024 * 1024
 
 let voiceRtcDebug: VoiceRtcDebugSnapshot = {
@@ -166,7 +167,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 
 	async #connect(): Promise<void> {
 		updateVoiceRtcDebug({serverPeerId: VOICE_RTC_SERVER_PEER_ID, state: "offer"})
-		const connection = new RTCPeerConnection({iceServers: RTC_ICE_SERVERS})
+		const connection = new RTCPeerConnection({iceServers: VOICE_RTC_ICE_SERVERS})
 		this.#connection = connection
 		connection.addEventListener("connectionstatechange", () => {
 			updateVoiceRtcDebug({state: `rtc ${connection.connectionState}`})
