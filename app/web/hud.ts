@@ -966,6 +966,7 @@ class AppWebHud implements AppWebHudController {
 		document.addEventListener("visibilitychange", () => this.#handleDocumentVisibilityChange())
 		window.addEventListener("focus", () => this.#handleDocumentVisibilityChange())
 		window.addEventListener("blur", () => {
+			if (this.#documentHasLocalVoiceFocus()) return
 			this.#onVoiceLeaseRelease("blur")
 			this.#suspendVoiceForInactiveDocument()
 		})
