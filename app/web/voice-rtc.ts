@@ -19,7 +19,8 @@ export type VoiceRtcDebugSnapshot = {
 }
 
 const VOICE_RTC_APP_PEER_PREFIX = "app-web-voice"
-const VOICE_RTC_CONNECT_TIMEOUT_MS = 15_000
+const VOICE_RTC_CONNECT_TIMEOUT_MS = 30_000
+const VOICE_RTC_ICE_GATHER_TIMEOUT_MS = 10_000
 const VOICE_RTC_MEDIA_TIMEOUT_MS = 5000
 const VOICE_RTC_ASR_TEXT_TIMEOUT_MS = 18_000
 const VOICE_RTC_DEBUG_POST_MIN_MS = 1000
@@ -169,7 +170,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 		try {
 			const offer = await connection.createOffer()
 			await connection.setLocalDescription(offer)
-			await waitForIceGatheringComplete(connection, VOICE_RTC_CONNECT_TIMEOUT_MS)
+			await waitForIceGatheringComplete(connection, VOICE_RTC_ICE_GATHER_TIMEOUT_MS)
 			const response = await fetch(voiceRtcOfferUrl(), {
 				method: "POST",
 				credentials: "include",
