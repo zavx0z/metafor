@@ -40,6 +40,7 @@ import type {BreakpointSpec} from "./target.ts"
 import {workspaceFilesPayload, type WorkspaceFilesModuleContext} from "./workspace-files.ts"
 import {sqliteDatabaseFingerprint, sqliteDatabaseInputPath, sqliteDatabasePayload, sqliteJsonError, updateSqliteCell, type SqliteDatabaseFingerprint, type SqliteDatabasePayload} from "./sqlite-db.ts"
 import {interpreterRoutes} from "./routes.ts"
+import {restartInspectOptionsFromParams} from "./restart-options.ts"
 import {
   attachVoiceProxySocket,
   createVoiceProxySocketData,
@@ -1002,9 +1003,9 @@ async function restartProcessTarget(processId: string, params: JsonObject, optio
   if (module === undefined) return processNotFoundResponse(processId)
   try {
     const breakpoints = module.breakpoints.registrations.map((registration) => registration.spec)
+    const restartInspect = restartInspectOptionsFromParams(params)
     const target = await module.target.restart({
-      inspectMode: "brk",
-      pauseOnStart: true,
+      ...restartInspect,
       signal: stopSignalFromParams(params),
       breakpoints,
     })

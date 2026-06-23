@@ -10,19 +10,20 @@ export type RestartBreakpointSpec = {
 export type RestartRunPayload = {
   label: string
   command: string[]
-  pauseOnStart: true
+  pauseOnStart: boolean
   breakpoints?: RestartBreakpointSpec[]
 }
 
 export function interactiveRestartPayload(input: {
   label: string
   command: readonly string[]
+  pauseOnStart?: boolean
   breakpoints?: RestartBreakpointSpec[]
 }): RestartRunPayload {
   const payload: RestartRunPayload = {
     label: input.label,
     command: stripInspectArgs(input.command),
-    pauseOnStart: true,
+    pauseOnStart: input.pauseOnStart === true,
   }
   if (input.breakpoints !== undefined && input.breakpoints.length > 0) {
     payload.breakpoints = input.breakpoints

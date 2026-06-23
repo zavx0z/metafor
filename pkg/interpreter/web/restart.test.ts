@@ -2,10 +2,22 @@ import {describe, expect, test} from "bun:test"
 import {interactiveRestartPayload} from "./restart.ts"
 
 describe("interactiveRestartPayload", () => {
-  test("forces UI restart to pause at module start", () => {
+  test("defaults UI restart to normal inspect attach", () => {
     expect(interactiveRestartPayload({
       label: "syntax",
       command: ["bun", "--inspect-wait=ws://127.0.0.1:6501/", "test", "syntax.test.ts"],
+    })).toEqual({
+      label: "syntax",
+      command: ["bun", "test", "syntax.test.ts"],
+      pauseOnStart: false,
+    })
+  })
+
+  test("keeps explicit pauseOnStart for first-line debugging", () => {
+    expect(interactiveRestartPayload({
+      label: "syntax",
+      command: ["bun", "test", "syntax.test.ts"],
+      pauseOnStart: true,
     })).toEqual({
       label: "syntax",
       command: ["bun", "test", "syntax.test.ts"],
@@ -28,7 +40,7 @@ describe("interactiveRestartPayload", () => {
     })).toEqual({
       label: "module",
       command: ["bun", "module.ts"],
-      pauseOnStart: true,
+      pauseOnStart: false,
       breakpoints: [{url: "module.ts", line: 10}],
     })
   })

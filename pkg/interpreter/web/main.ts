@@ -72,7 +72,14 @@ import {
   sameSourceUrl,
 } from "./breakpoint-matching.ts"
 import {
-  normalizeSourceFilePath,
+  mergeProcessBreakpointSpecs,
+  readProcessBreakpointSpecs,
+  removeProcessBreakpointSpec,
+  storedBreakpointSpecKey,
+  writeProcessBreakpointSpecs,
+  type StoredBreakpointSpec,
+} from "./breakpoint-storage.ts"
+import {
   normalizeWorkspaceExpandedIds,
   normalizeWorkspacePath,
   shouldRevealWorkspaceForSourceOpen,
@@ -195,14 +202,7 @@ type InterpreterDump = {
 
 type SourceRuntimeState = "idle" | "loading" | "paused" | "running" | "exited" | "failed" | "disconnected"
 
-type BreakpointSpec = {
-  url?: string
-  sourceUrl?: string
-  urlRegex?: string
-  line: number
-  column?: number
-  condition?: string
-}
+type BreakpointSpec = StoredBreakpointSpec
 
 type BreakpointRegistration = {
   id: string
@@ -512,6 +512,7 @@ type ModuleDisplayController = {
   sourceDirty: boolean
   sourceSaving: boolean
   breakpointRegistrations: BreakpointRegistration[]
+  breakpointRegistrationsLoaded: boolean
   pendingBreakpointLines: Set<number>
   activeFrameIndex: number
   dump: InterpreterDump | undefined
@@ -586,7 +587,6 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string): T => {
 
 const engineCanvas = $<HTMLCanvasElement>("engine-canvas")
 
-const BREAKPOINTS_STORAGE_KEY = "interpreter:breakpoints:v1"
 const COMMAND_TIMEOUT_MS = 10_000
 const MODULE_DISPLAY_GAP_MM = 52
 const MODULE_DISPLAY_CENTER_Y_MM = 0
@@ -8219,6 +8219,7 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
     sourceDirty: false,
     sourceSaving: false,
     breakpointRegistrations: [],
+    breakpointRegistrationsLoaded: false,
     pendingBreakpointLines: new Set<number>(),
     activeFrameIndex: 0,
     dump: undefined,
@@ -8632,14 +8633,14 @@ function applyLocalSourceLineChanges(controller: ModuleDisplayController, lineCh
     return {...registration, spec: {...registration.spec, line: nextLine}}
   })
 
-  const stored = readStoredBreakpointSpecs()
+  const stored = readStoredBreakpointSpecs(controller.id)
   const nextStored = stored.map((spec) => {
     if (!breakpointSpecMatchesSource(spec, source)) return spec
     const nextLine = remapSourceLine(spec.line, lineChanges)
     return nextLine === spec.line ? spec : {...spec, line: nextLine}
   })
   if (nextStored.some((spec, index) => spec.line !== stored[index]?.line)) {
-    writeStoredBreakpointSpecs(nextStored)
+    writeStoredBreakpointSpecs(controller.id, nextStored)
     breakpointsChanged = true
   }
 
@@ -8809,36 +8810,29 @@ function applySourcePatchedBreakpoints(msg: Extract<ServerMessage, {type: "sourc
   const updates = msg.breakpoints ?? []
   if (updates.length === 0) return
   const patchedKeys = msg.files.flatMap((file) => sourcePatchFileKeys(file))
-  const nextStored = readStoredBreakpointSpecs().filter((spec) => !breakpointSpecMatchesPatchedKeys(spec, patchedKeys))
   for (const update of updates) {
     const controller = moduleDisplays.get(update.moduleId)
     if (controller !== undefined) {
       controller.breakpointRegistrations = update.breakpoints
+      controller.breakpointRegistrationsLoaded = true
       syncModuleBreakpointMarkers(controller)
     }
-    for (const registration of update.breakpoints) {
-      if (!breakpointSpecMatchesPatchedKeys(registration.spec, patchedKeys)) continue
-      nextStored.push(registration.spec)
-    }
+    replaceStoredBreakpointSpecsForPatchedKeys(
+      update.moduleId,
+      patchedKeys,
+      update.breakpoints.map((registration) => registration.spec),
+    )
   }
-  writeStoredBreakpointSpecs(nextStored)
 }
 
 function handleBreakpointsChanged(msg: Extract<ServerMessage, {type: "breakpoints-changed"}>): void {
   const registrations = msg.breakpoints.filter(isBreakpointRegistration)
+  writeStoredBreakpointSpecs(msg.moduleId, registrations.map((registration) => registration.spec))
   const controller = moduleDisplays.get(msg.moduleId)
-  if (controller !== undefined) {
-    controller.breakpointRegistrations = registrations
-    syncStoredBreakpointsForModule(controller, registrations)
-    syncModuleBreakpointMarkers(controller)
-    return
-  }
-
-  if (msg.reason === "set" && isBreakpointRegistration(msg.breakpoint)) {
-    mergeStoredBreakpointSpecs([msg.breakpoint.spec])
-  } else if (msg.reason === "remove" && isBreakpointRegistration(msg.removed)) {
-    removeStoredBreakpointSpec(msg.removed.spec)
-  }
+  if (controller === undefined) return
+  controller.breakpointRegistrations = registrations
+  controller.breakpointRegistrationsLoaded = true
+  syncModuleBreakpointMarkers(controller)
 }
 
 function controllerPatchedSourceUrl(
@@ -8893,7 +8887,7 @@ function sourceChangeKeysMatch(candidate: string, changed: string): boolean {
   return candidate.endsWith(`/${changed}`) || changed.endsWith(`/${candidate}`)
 }
 
-function breakpointSpecMatchesPatchedKeys(spec: BreakpointSpec, patchedKeys: string[]): boolean {
+function breakpointSpecMatchesPatchedKeys(spec: BreakpointSpec, patchedKeys: readonly string[]): boolean {
   if (spec.urlRegex !== undefined) {
     try {
       const regex = new RegExp(spec.urlRegex)
@@ -9758,8 +9752,8 @@ async function refreshModuleBreakpoints(controller: ModuleDisplayController): Pr
     const data = await res.json() as unknown
     if (!Array.isArray(data)) return
     controller.breakpointRegistrations = data.filter(isBreakpointRegistration)
-    mergeStoredBreakpointSpecs(controller.breakpointRegistrations.map((registration) => registration.spec))
-    syncModuleBreakpointMarkers(controller)
+    controller.breakpointRegistrationsLoaded = true
+    mergeStoredBreakpointSpecs(controller.id, controller.breakpointRegistrations.map((registration) => registration.spec))
     await syncStoredModuleBreakpoints(controller)
   } catch (error) {
     appendModuleTerminal(controller, {
@@ -9771,14 +9765,8 @@ async function refreshModuleBreakpoints(controller: ModuleDisplayController): Pr
 }
 
 async function syncStoredModuleBreakpoints(controller: ModuleDisplayController): Promise<void> {
-  await removeForeignModuleBreakpoints(controller)
   const registeredKeys = new Set(controller.breakpointRegistrations.map((registration) => breakpointSpecKey(registration.spec)))
-  const missing = readStoredBreakpointSpecs().filter((spec) => (
-    storedBreakpointSpecMatchesModule(spec, controller)
-    && !registeredKeys.has(breakpointSpecKey(spec))
-  ))
-  if (missing.length === 0) return
-
+  const missing = readStoredBreakpointSpecs(controller.id).filter((spec) => !registeredKeys.has(breakpointSpecKey(spec)))
   const errors: string[] = []
   for (const spec of missing) {
     try {
@@ -9792,7 +9780,11 @@ async function syncStoredModuleBreakpoints(controller: ModuleDisplayController):
         errors.push(data.error ?? res.statusText)
         continue
       }
-      if (Array.isArray(data.breakpoints)) controller.breakpointRegistrations = data.breakpoints.filter(isBreakpointRegistration)
+      if (Array.isArray(data.breakpoints)) {
+        controller.breakpointRegistrations = data.breakpoints.filter(isBreakpointRegistration)
+        controller.breakpointRegistrationsLoaded = true
+        writeStoredBreakpointSpecs(controller.id, controller.breakpointRegistrations.map((registration) => registration.spec))
+      }
     } catch (error) {
       errors.push(String(error))
     }
@@ -9808,70 +9800,6 @@ async function syncStoredModuleBreakpoints(controller: ModuleDisplayController):
   syncModuleBreakpointMarkers(controller)
 }
 
-async function removeForeignModuleBreakpoints(controller: ModuleDisplayController): Promise<void> {
-  const foreign = controller.breakpointRegistrations.filter((registration) => !storedBreakpointSpecMatchesModule(registration.spec, controller))
-  for (const registration of foreign) {
-    try {
-      const res = await fetch(processApiPath(controller.id, "/breakpoint"), {
-        method: "DELETE",
-        headers: {"content-type": "application/json"},
-        body: JSON.stringify({id: registration.id}),
-      })
-      const data = await res.json() as {ok?: boolean; breakpoints?: unknown}
-      if (res.ok && data.ok === true && Array.isArray(data.breakpoints)) {
-        controller.breakpointRegistrations = data.breakpoints.filter(isBreakpointRegistration)
-      }
-    } catch {}
-  }
-}
-
-function storedBreakpointSpecMatchesModule(spec: BreakpointSpec, controller: ModuleDisplayController): boolean {
-  if (spec.urlRegex !== undefined) return true
-  const snapshot = moduleSnapshots.get(controller.id)
-  const modulePath = snapshot?.modulePath ?? controller.workspaceFiles.modulePath ?? inferredBreakpointModulePath(controller, snapshot)
-  if (modulePath === null || modulePath.trim().length === 0) return true
-
-  const moduleParts = breakpointPathParts(modulePath)
-  if (moduleParts.length < 2) return true
-  const moduleDirParts = moduleParts.slice(0, -1)
-  const moduleLeafDirParts = moduleDirParts.slice(-1)
-  const candidates = [spec.url, spec.sourceUrl].filter((value): value is string => value !== undefined && value.trim().length > 0)
-  if (candidates.length === 0) return true
-
-  return candidates.some((candidate) => {
-    const candidateParts = breakpointPathParts(candidate)
-    return pathStartsWith(candidateParts, moduleDirParts)
-      || pathStartsWith(candidateParts, moduleLeafDirParts)
-      || samePathParts(candidateParts, moduleParts)
-  })
-}
-
-function inferredBreakpointModulePath(controller: ModuleDisplayController, snapshot: ModulePaneSnapshot | undefined): string | null {
-  for (const candidate of [snapshot?.label, controller.id]) {
-    if (candidate === undefined) continue
-    const normalized = candidate.trim().replaceAll("\\", "/")
-    if (normalized.includes("/")) return normalized
-    const dash = normalized.indexOf("-")
-    if (dash > 0 && normalized.endsWith(".ts")) return `${normalized.slice(0, dash)}/${normalized.slice(dash + 1)}`
-  }
-  return null
-}
-
-function breakpointPathParts(value: string): string[] {
-  const normalized = normalizeSourceFilePath(value).replace(/^r\//, "")
-  return normalized.split("/").filter((part) => part.length > 0 && part !== "." && part !== "..")
-}
-
-function pathStartsWith(parts: readonly string[], prefix: readonly string[]): boolean {
-  if (prefix.length === 0 || parts.length < prefix.length) return false
-  return prefix.every((part, index) => parts[index] === part)
-}
-
-function samePathParts(a: readonly string[], b: readonly string[]): boolean {
-  if (a.length !== b.length) return false
-  return a.every((part, index) => b[index] === part)
-}
-
 async function toggleModuleBreakpoint(controller: ModuleDisplayController, line: number): Promise<void> {
   const source = controller.sourceIdentity
   if (source === null) {
@@ -9885,12 +9813,12 @@ async function toggleModuleBreakpoint(controller: ModuleDisplayController, line:
 
   const sourceLine = Math.max(1, Math.floor(line))
   const existing = moduleBreakpointRegistrationForLine(controller, source, sourceLine)
-  const stored = existing === undefined ? storedBreakpointSpecForLine(source, sourceLine) : undefined
+  const stored = existing === undefined ? storedBreakpointSpecForLine(controller.id, source, sourceLine) : undefined
   controller.pendingBreakpointLines.add(sourceLine)
   syncModuleBreakpointMarkers(controller)
 
   if (stored !== undefined) {
-    removeStoredBreakpointSpec(stored)
+    removeStoredBreakpointSpec(controller.id, stored)
     controller.pendingBreakpointLines.delete(sourceLine)
     syncModuleBreakpointMarkers(controller)
     return
@@ -9926,11 +9854,12 @@ async function toggleModuleBreakpoint(controller: ModuleDisplayController, line:
     }
     if (Array.isArray(data.breakpoints)) {
       controller.breakpointRegistrations = data.breakpoints.filter(isBreakpointRegistration)
+      controller.breakpointRegistrationsLoaded = true
     } else {
       await refreshModuleBreakpoints(controller)
     }
-    if (nextSpec !== null) mergeStoredBreakpointSpecs([nextSpec])
-    if (existing !== undefined) removeStoredBreakpointSpec(existing.spec)
+    if (nextSpec !== null) mergeStoredBreakpointSpecs(controller.id, [nextSpec])
+    if (existing !== undefined) removeStoredBreakpointSpec(controller.id, existing.spec)
   } catch (error) {
     appendModuleTerminal(controller, {
       ts: new Date().toISOString(),
@@ -9969,10 +9898,6 @@ function syncModuleBreakpointMarkers(controller: ModuleDisplayController): void 
     })
   }
 
-  for (const spec of readStoredBreakpointSpecs()) {
-    if (!breakpointSpecMatchesSource(spec, source) || byLine.has(spec.line)) continue
-    byLine.set(spec.line, {line: spec.line, verified: false, pending: true, hit: false})
-  }
 
   for (const line of controller.pendingBreakpointLines) {
     const current = byLine.get(line)
@@ -9993,8 +9918,8 @@ function moduleBreakpointRegistrationForLine(controller: ModuleDisplayController
   ))
 }
 
-function storedBreakpointSpecForLine(source: BreakpointSourceIdentity, line: number): BreakpointSpec | undefined {
-  return readStoredBreakpointSpecs().find((spec) => (
+function storedBreakpointSpecForLine(processId: string, source: BreakpointSourceIdentity, line: number): BreakpointSpec | undefined {
+  return readStoredBreakpointSpecs(processId).find((spec) => (
     spec.line === line && breakpointSpecMatchesSource(spec, source)
   ))
 }
@@ -10028,102 +9953,34 @@ function isBreakpointRegistration(value: unknown): value is BreakpointRegistrati
     && Array.isArray(object["installed"])
 }
 
-function readStoredBreakpointSpecs(): BreakpointSpec[] {
-  const raw = localStorage.getItem(BREAKPOINTS_STORAGE_KEY)
-  if (raw === null) return []
-  try {
-    return dedupeBreakpointSpecs(parseStoredBreakpointSpecs(JSON.parse(raw)))
-  } catch {
-    return []
-  }
+function readStoredBreakpointSpecs(processId: string): BreakpointSpec[] {
+  return readProcessBreakpointSpecs(localStorage, processId)
 }
 
-function mergeStoredBreakpointSpecs(specs: BreakpointSpec[]): void {
-  const next = dedupeBreakpointSpecs([...readStoredBreakpointSpecs(), ...specs])
-  writeStoredBreakpointSpecs(next)
+function mergeStoredBreakpointSpecs(processId: string, specs: readonly BreakpointSpec[]): void {
+  mergeProcessBreakpointSpecs(localStorage, processId, specs)
 }
 
-function removeStoredBreakpointSpec(spec: BreakpointSpec): void {
-  const targetKey = breakpointSpecKey(spec)
-  const next = readStoredBreakpointSpecs().filter((current) => breakpointSpecKey(current) !== targetKey)
-  writeStoredBreakpointSpecs(next)
+function removeStoredBreakpointSpec(processId: string, spec: BreakpointSpec): void {
+  removeProcessBreakpointSpec(localStorage, processId, spec)
 }
 
-function syncStoredBreakpointsForModule(controller: ModuleDisplayController, registrations: BreakpointRegistration[]): void {
-  const next = readStoredBreakpointSpecs().filter((spec) => !storedBreakpointSpecMatchesModule(spec, controller))
-  next.push(...registrations.map((registration) => registration.spec))
-  writeStoredBreakpointSpecs(next)
+function writeStoredBreakpointSpecs(processId: string, specs: readonly BreakpointSpec[]): void {
+  writeProcessBreakpointSpecs(localStorage, processId, specs)
 }
 
-function writeStoredBreakpointSpecs(specs: BreakpointSpec[]): void {
-  const next = dedupeBreakpointSpecs(specs)
-  if (next.length === 0) {
-    localStorage.removeItem(BREAKPOINTS_STORAGE_KEY)
-    return
-  }
-  localStorage.setItem(BREAKPOINTS_STORAGE_KEY, JSON.stringify(next))
-}
-
-function parseStoredBreakpointSpecs(value: unknown): BreakpointSpec[] {
-  if (!Array.isArray(value)) return []
-  const out: BreakpointSpec[] = []
-  for (const item of value) {
-    const spec = normalizeBreakpointSpec(item)
-    if (spec !== null) out.push(spec)
-  }
-  return out
-}
-
-function normalizeBreakpointSpec(value: unknown): BreakpointSpec | null {
-  if (typeof value !== "object" || value === null) return null
-  const object = value as Record<string, unknown>
-  const line = object["line"]
-  if (typeof line !== "number" || !Number.isInteger(line) || line <= 0) return null
-
-  const url = typeof object["url"] === "string" ? object["url"].trim() : ""
-  const sourceUrl = typeof object["sourceUrl"] === "string" ? object["sourceUrl"].trim() : ""
-  const urlRegex = typeof object["urlRegex"] === "string" ? object["urlRegex"].trim() : ""
-  if (url.length === 0 && sourceUrl.length === 0 && urlRegex.length === 0) return null
-
-  const spec: BreakpointSpec = {line}
-  if (url.length > 0) spec.url = url
-  if (sourceUrl.length > 0) spec.sourceUrl = sourceUrl
-  if (urlRegex.length > 0) spec.urlRegex = urlRegex
-
-  const column = object["column"]
-  if (typeof column === "number" && Number.isInteger(column) && column >= 0) spec.column = column
-
-  const condition = typeof object["condition"] === "string" ? object["condition"].trim() : ""
-  if (condition.length > 0) spec.condition = condition
-
-  return spec
-}
-
-function dedupeBreakpointSpecs(specs: BreakpointSpec[]): BreakpointSpec[] {
-  const byKey = new Map<string, BreakpointSpec>()
-  for (const spec of specs) {
-    const normalized = normalizeBreakpointSpec(spec)
-    if (normalized === null) continue
-    byKey.set(breakpointSpecKey(normalized), normalized)
-  }
-  return [...byKey.values()].sort((a, b) => {
-    const urlA = a.sourceUrl ?? a.url ?? a.urlRegex ?? ""
-    const urlB = b.sourceUrl ?? b.url ?? b.urlRegex ?? ""
-    if (urlA !== urlB) return urlA.localeCompare(urlB)
-    if (a.line !== b.line) return a.line - b.line
-    return (a.column ?? 0) - (b.column ?? 0)
-  })
+function replaceStoredBreakpointSpecsForPatchedKeys(
+  processId: string,
+  patchedKeys: readonly string[],
+  specs: readonly BreakpointSpec[],
+): void {
+  const next = readStoredBreakpointSpecs(processId).filter((spec) => !breakpointSpecMatchesPatchedKeys(spec, patchedKeys))
+  next.push(...specs.filter((spec) => breakpointSpecMatchesPatchedKeys(spec, patchedKeys)))
+  writeStoredBreakpointSpecs(processId, next)
 }
 
 function breakpointSpecKey(spec: BreakpointSpec): string {
-  return [
-    spec.url ?? "",
-    spec.sourceUrl ?? "",
-    spec.urlRegex ?? "",
-    String(spec.line),
-    String(spec.column ?? 0),
-    spec.condition ?? "",
-  ].join("\0")
+  return storedBreakpointSpecKey(spec)
 }
 
 const PAD = 6
