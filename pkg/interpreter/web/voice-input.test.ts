@@ -46,6 +46,7 @@ describe("voice activation matching", () => {
     expect(isActivationRecognitionMessage({type: "final", json: {text: "завхоз"}}, ["завхоз"], 0)).toBe(true)
     expect(isActivationRecognitionMessage({type: "result", text: "зав"}, ["завхоз"], 0)).toBe(false)
     expect(isActivationRecognitionMessage({type: "result", text: "завтра"}, ["завхоз"], 0)).toBe(false)
+    expect(isActivationRecognitionMessage({type: "result", text: "за вход"}, ["завхоз"], 0)).toBe(false)
   })
 
   test("builds Vosk grammar from prefixes and number variants", () => {
@@ -66,6 +67,24 @@ describe("voice activation matching", () => {
     expect(grammar).toContain("выключу микрофон")
     expect(grammar).toContain("выключить микрофон")
     expect(grammar).toContain("[unk]")
+  })
+
+  test("keeps common wake confusers in Vosk grammar without activating from them", () => {
+    const grammar = createWakeRecognitionGrammar({
+      activation: ["завхоз"],
+      deactivation: [],
+      stop: [],
+    })
+
+    expect(grammar).toContain("завхоз")
+    expect(grammar).toContain("зав")
+    expect(grammar).toContain("завтра")
+    expect(grammar).toContain("завтрак")
+    expect(grammar).toContain("за вход")
+    expect(isActivationPhrase("зав", ["завхоз"], 0)).toBe(false)
+    expect(isActivationPhrase("завтра", ["завхоз"], 0)).toBe(false)
+    expect(isActivationPhrase("завтрак", ["завхоз"], 0)).toBe(false)
+    expect(isActivationPhrase("за вход", ["завхоз"], 0)).toBe(false)
   })
 
   test("keeps unsupported Vosk vocabulary out of generated grammar", () => {

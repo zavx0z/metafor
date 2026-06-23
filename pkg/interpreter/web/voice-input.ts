@@ -104,6 +104,12 @@ export const DEFAULT_VOICE_ACTIVATION_PHRASES = [
   "Слышь долбоёб",
 ] as const
 export const DEFAULT_VOICE_WAKE_PHRASES = DEFAULT_VOICE_ACTIVATION_PHRASES
+const DEFAULT_VOICE_WAKE_CONFUSER_PHRASES = [
+  "зав",
+  "завтра",
+  "завтрак",
+  "за вход",
+] as const
 export const DEFAULT_VOICE_DEACTIVATION_PHRASES = [
   "выключи микрофон",
   "выключим микрофон",
@@ -1555,9 +1561,14 @@ export function normalizeVoiceWakePhrases(phrases: readonly string[]): string[] 
 export function createWakeRecognitionGrammar(phraseGroups: VoiceCommandPhraseGroups): string[] {
   return uniqueStrings([
     ...wakeGrammarPhraseVariants(phraseGroups.activation, DEFAULT_VOICE_ACTIVATION_PHRASES),
+    ...wakeGrammarFullPhraseVariants(DEFAULT_VOICE_WAKE_CONFUSER_PHRASES),
     ...wakeGrammarPhraseVariants(phraseGroups.deactivation, DEFAULT_VOICE_DEACTIVATION_PHRASES),
     ...wakeGrammarPhraseVariants(phraseGroups.stop, DEFAULT_VOICE_STOP_PHRASES),
   ])
+}
+
+function wakeGrammarFullPhraseVariants(phrases: readonly string[]): string[] {
+  return normalizePhrasesForGrammar(phrases, [])
 }
 
 function normalizePhrasesForRecognition(phrases: readonly string[], fallback: readonly string[]): string[] {
