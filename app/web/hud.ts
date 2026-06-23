@@ -3299,7 +3299,7 @@ class AppWebHud implements AppWebHudController {
 		this.#voiceTransport = transport
 		this.#codexComposer.requestRender()
 		this.#voiceHud.requestRender()
-		if (transport === "idle" && this.#voiceStatus === "idle") this.#scheduleVoiceRtcPrewarm(1000)
+		if (transport === "idle" && (this.#voiceStatus === "idle" || this.#voiceStatus === "waitingWake")) this.#scheduleVoiceRtcPrewarm(1000)
 	}
 
 	#scheduleVoiceRtcPrewarm(delayMs = 0): void {

@@ -49,6 +49,7 @@ export type VoiceInputAsrSocketContext = {
 }
 
 export type VoiceInputSocket = {
+  readonly keepAlive?: boolean
   readonly readyState: number
   readonly url: string
   binaryType: BinaryType
@@ -316,7 +317,7 @@ export class VoiceInputClient {
     }
     await this.#commitCurrentChunkBeforeAsrShutdown()
     this.#sendAsr({type: "stop"})
-    this.#disconnectAsrSocket()
+    this.#pauseAsrSocketForWake()
     this.#asrEnabled = false
     this.#asrActivatedAt = 0
     this.#clearRecognitionTimeoutTimer()
@@ -446,7 +447,7 @@ export class VoiceInputClient {
       this.#setTransport("idle")
       this.#asrEnabled = false
       this.#asrActivatedAt = 0
-      if (this.#stopRequested || this.#status === "idle") return
+      if (this.#stopRequested || this.#status === "idle" || this.#status === "waitingWake") return
       this.#recoverAsrFailure(`voice ASR websocket closed: ${ws.url}`)
     })
 
@@ -938,6 +939,15 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#asrConnectPromise = null
     this.#setTransport("idle")
     if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) ws.close()
+  }
+
+  #pauseAsrSocketForWake(): void {
+    const ws = this.#asrWs
+    if (ws?.keepAlive === true && ws.readyState === WebSocket.OPEN) {
+      this.#asrConnectPromise = null
+      return
+    }
+    this.#disconnectAsrSocket()
   }
 
   #setTransport(transport: VoiceInputTransport): void {

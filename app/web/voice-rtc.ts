@@ -75,6 +75,7 @@ export function isVoiceRtcRemoteClient(): boolean {
 
 class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 	binaryType: BinaryType = "arraybuffer"
+	readonly keepAlive = true
 	readonly url: string
 
 	#context: VoiceInputAsrSocketContext
@@ -138,7 +139,8 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 	}
 
 	send(data: string | ArrayBuffer | Blob | ArrayBufferView<ArrayBuffer>): void {
-		this.#activationStarted = true
+		const controlType = typeof data === "string" ? voiceControlPayloadType(data) : null
+		this.#activationStarted = controlType === "stop" ? false : true
 		if (this.#fallbackWs !== null) {
 			if (this.#fallbackWs.readyState === WebSocket.OPEN) {
 				this.#fallbackWs.send(data)
@@ -445,6 +447,12 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 			this.#lastStartPayload = data
 			return
 		}
+		if (payloadType === "stop") {
+			this.#clearAsrTextTimer()
+			this.#clearMediaTimer()
+			this.#clearPendingFallback()
+			return
+		}
 		if (payloadType === "commit") this.#startAsrTextTimer("ASR text timeout after commit")
 		this.#pendingFallbackControls.push(data)
 	}
@@ -552,6 +560,11 @@ function isLikelyAndroidBrowser(): boolean {
 	if (typeof navigator === "undefined") return false
 	const nav = navigator as NavigatorWithUserAgentData
 	return /android/i.test(`${nav.userAgent} ${nav.userAgentData?.platform ?? ""}`)
+}
+
+function voiceControlPayloadType(raw: string): string | null {
+	const payload = asJsonRecord(safeJsonParse(raw))
+	return typeof payload?.["type"] === "string" ? payload["type"] : null
 }
 
 function isLoopbackUrl(rawUrl: string): boolean {
