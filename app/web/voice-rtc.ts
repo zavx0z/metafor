@@ -111,6 +111,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 	}
 
 	close(): void {
+		this.#sendRtcBye("client-close")
 		this.#clearConnectTimer()
 		this.#clearMediaTimer()
 		this.#clearAsrTextTimer()
@@ -144,6 +145,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 			if (this.#channel?.readyState === "open") {
 				this.#trackLocalPcm(buffer)
 				this.#channel.send(buffer)
+				this.#ensureMediaTimer()
 			}
 			else this.#bufferFallbackPcm(buffer)
 			return
@@ -228,6 +230,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 			this.#failRemoteLoopbackFallback(reason)
 			return
 		}
+		this.#sendRtcBye(reason)
 		updateVoiceRtcDebug({state: "fallback", fallbackReason: reason})
 		this.#clearConnectTimer()
 		this.#clearMediaTimer()
@@ -261,6 +264,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 
 	#failRemoteLoopbackFallback(reason: string): void {
 		const detail = `${reason}; remote client cannot use loopback voice endpoint ${this.url}`
+		this.#sendRtcBye(reason)
 		updateVoiceRtcDebug({state: "error", fallbackReason: detail})
 		this.#clearConnectTimer()
 		this.#clearMediaTimer()
@@ -281,8 +285,8 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 		this.#connectTimer = null
 	}
 
-	#startMediaTimer(): void {
-		this.#clearMediaTimer()
+	#ensureMediaTimer(): void {
+		if (this.#mediaTimer !== null) return
 		this.#mediaTimer = window.setTimeout(() => this.#startFallback("voice media timeout"), VOICE_RTC_MEDIA_TIMEOUT_MS)
 	}
 
@@ -329,7 +333,6 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 		const payloadType = payload?.["type"]
 		if (payloadType === "start") {
 			this.#lastStartPayload = data
-			this.#startMediaTimer()
 			return
 		}
 		if (payloadType === "commit") this.#startAsrTextTimer("ASR text timeout after commit")
@@ -347,7 +350,20 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 	#flushPendingRtc(channel: RTCDataChannel): void {
 		if (this.#lastStartPayload !== null) this.#sendRtcControl(channel, this.#lastStartPayload)
 		for (const payload of this.#pendingFallbackControls) this.#sendRtcControl(channel, payload)
-		for (const pcm of this.#pendingFallbackPcm) channel.send(pcm)
+		for (const pcm of this.#pendingFallbackPcm) {
+			channel.send(pcm)
+			this.#ensureMediaTimer()
+		}
+	}
+
+	#sendRtcBye(reason: string): void {
+		const channel = this.#channel
+		if (channel?.readyState !== "open") return
+		try {
+			channel.send(JSON.stringify({type: "bye", reason}))
+		} catch {
+			// The channel is already closing.
+		}
 	}
 
 	#bufferFallbackPcm(data: ArrayBuffer | Blob | ArrayBufferView<ArrayBuffer>): void {
