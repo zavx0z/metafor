@@ -199,8 +199,9 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 			const description = asSessionDescription(answer?.["description"])
 			if (description === null) throw new Error("voice WebRTC answer missing description")
 			await connection.setRemoteDescription(description)
+			const initialRemoteIceSeq = await this.#addRemoteIceCandidates(answer?.["candidates"], numberValue(answer?.["candidateSeq"]) ?? 0)
 			this.#flushLocalIceCandidates()
-			this.#startRemoteIcePolling(numberValue(answer?.["candidateSeq"]) ?? 0)
+			this.#startRemoteIcePolling(initialRemoteIceSeq)
 		} catch (error) {
 			this.#startFallback(error instanceof Error ? error.message : String(error))
 		}
@@ -366,15 +367,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 				const response = await fetch(voiceRtcIceUrl(this.#sessionId, lastSeq), {credentials: "include"})
 				if (response.ok) {
 					const payload = asJsonRecord(await response.json())
-					const candidates = Array.isArray(payload?.["candidates"]) ? payload["candidates"] : []
-					for (const item of candidates) {
-						const record = asJsonRecord(item)
-						const seq = numberValue(record?.["seq"])
-						const candidate = asIceCandidateInit(record?.["candidate"])
-						if (candidate === null) continue
-						await connection.addIceCandidate(candidate)
-						if (seq !== undefined) lastSeq = Math.max(lastSeq, seq)
-					}
+					lastSeq = await this.#addRemoteIceCandidates(payload?.["candidates"], lastSeq)
 				}
 			} catch (error) {
 				console.warn("[voice-rtc] failed to poll ICE candidates", error)
@@ -382,6 +375,26 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 			this.#remoteIcePollTimer = window.setTimeout(() => void poll(), VOICE_RTC_REMOTE_ICE_POLL_MS)
 		}
 		void poll()
+	}
+
+	async #addRemoteIceCandidates(value: unknown, afterSeq: number): Promise<number> {
+		const connection = this.#connection
+		if (connection === null) return afterSeq
+		const candidates = Array.isArray(value) ? value : []
+		let lastSeq = afterSeq
+		for (const item of candidates) {
+			const record = asJsonRecord(item)
+			const seq = numberValue(record?.["seq"])
+			const candidate = asIceCandidateInit(record?.["candidate"])
+			if (candidate === null) continue
+			try {
+				await connection.addIceCandidate(candidate)
+				if (seq !== undefined) lastSeq = Math.max(lastSeq, seq)
+			} catch (error) {
+				console.warn("[voice-rtc] failed to add ICE candidate", error)
+			}
+		}
+		return lastSeq
 	}
 
 	#handleVoiceStatus(raw: string): boolean {
