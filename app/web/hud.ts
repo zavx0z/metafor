@@ -124,6 +124,10 @@ type AppVoiceLeaseDebugSnapshot = {
 	voiceStatus: VoiceInputStatus
 	voiceActive: boolean
 	voice: VoiceInputDebugSnapshot | null
+	autoWakePaused: boolean
+	autoWakeTimerActive: boolean
+	autoWakeInFlight: boolean
+	prewarmTimerActive: boolean
 }
 
 let appFullscreenDebug: AppFullscreenDebugSnapshot = {
@@ -3267,7 +3271,8 @@ class AppWebHud implements AppWebHudController {
 			this.#onVoiceLeaseRelease("idle")
 		}
 		if (transportError) {
-			this.#pauseVoiceAutoWake()
+			this.#voiceAutoWakePaused = false
+			this.#scheduleVoiceAutoWake(VOICE_AUTO_WAKE_RETRY_MS)
 			this.#discardVoiceAutoSendBuffer()
 			this.#clearVoicePartialPreview()
 			this.#clearVoiceWakePreview()
@@ -3842,6 +3847,10 @@ class AppWebHud implements AppWebHudController {
 			voiceStatus: client?.status ?? "idle",
 			voiceActive: client?.active === true,
 			voice: client?.debugSnapshot() ?? null,
+			autoWakePaused: this.#voiceAutoWakePaused,
+			autoWakeTimerActive: this.#voiceAutoWakeTimer !== null,
+			autoWakeInFlight: this.#voiceAutoWakeInFlight,
+			prewarmTimerActive: this.#voicePrewarmTimer !== null,
 		}
 	}
 
