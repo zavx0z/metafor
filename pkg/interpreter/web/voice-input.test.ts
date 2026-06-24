@@ -3,6 +3,7 @@ import {
   cleanupVoiceText,
   createVoiceInputDeliveryState,
   createWakeRecognitionGrammar,
+  DEFAULT_VOICE_ACTIVATION_PHRASES,
   DEFAULT_VOICE_DEACTIVATION_PHRASES,
   isActivationPhrase,
   isActivationRecognitionMessage,
@@ -13,6 +14,14 @@ import {
 } from "./voice-input.ts"
 
 describe("voice activation matching", () => {
+  test("uses metafor default activation phrases", () => {
+    expect(DEFAULT_VOICE_ACTIVATION_PHRASES).toEqual(["завхоз", "метафор", "метафора"])
+    expect(isActivationPhrase("завхоз", [], 0)).toBe(true)
+    expect(isActivationPhrase("метафор", [], 0)).toBe(true)
+    expect(isActivationPhrase("метафора", [], 0)).toBe(true)
+    expect(isActivationPhrase("агент", [], 0)).toBe(false)
+  })
+
   test("does not activate agent two from agent alone with zero tolerance", () => {
     expect(isActivationPhrase("агент 2", ["агент 2"], 0)).toBe(true)
     expect(isActivationPhrase("агент", ["агент 2"], 0)).toBe(false)

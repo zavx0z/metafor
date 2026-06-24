@@ -99,9 +99,9 @@ const TARGET_SAMPLE_RATE = 16_000
 const WAKE_WORD = "завхоз"
 export const VOICE_STOP_COMMAND_DETAIL = "voice stop command"
 export const DEFAULT_VOICE_ACTIVATION_PHRASES = [
-  "Завхоз",
-  "Агент",
-  "Слышь долбоёб",
+  "завхоз",
+  "метафор",
+  "метафора",
 ] as const
 export const DEFAULT_VOICE_WAKE_PHRASES = DEFAULT_VOICE_ACTIVATION_PHRASES
 const DEFAULT_VOICE_WAKE_CONFUSER_PHRASES = [

@@ -178,7 +178,7 @@ export const text = {
   voiceTarget: {ru: "Цель", en: "Target"},
   voiceTargetHost: {ru: "терминал", en: "terminal"},
   voiceTargetModule: {ru: "интерпретатор", en: "interpreter"},
-  voiceWaitingWake: {ru: "жду: Завхоз", en: "waiting: Zavhoz"},
+  voiceWaitingWake: {ru: "жду: завхоз / метафор / метафора", en: "waiting: zavhoz / metafor / metafora"},
   voiceWakeAdd: {ru: "Добавить", en: "Add"},
   voiceWakePhrasePrompt: {ru: "Wake-up фраза", en: "Wake-up phrase"},
   voiceWakePhrases: {ru: "Wake-up фразы", en: "Wake-up phrases"},
