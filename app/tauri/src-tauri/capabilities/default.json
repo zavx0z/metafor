@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "MetaFor WebView intentionally exposes no Tauri commands to the remote page.",
+  "description": "MetaFor intentionally exposes no Tauri commands to the remote page.",
   "windows": ["main"],
   "permissions": []
 }
