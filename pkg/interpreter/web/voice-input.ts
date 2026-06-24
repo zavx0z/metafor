@@ -277,6 +277,21 @@ export class VoiceInputClient {
     })
   }
 
+  async reconnectWaitingWake(): Promise<void> {
+    if (this.#status !== "waitingWake" || this.#stream === null) return
+    this.#stopRequested = false
+    this.#wakeMatched = false
+    this.#disconnectCommandSocket()
+    if (!this.#asrEnabled) this.#disconnectAsrSocket()
+    try {
+      await this.#startCommandRecognizer()
+    } catch (error) {
+      this.#setStatus("error", error instanceof Error ? error.message : String(error))
+      this.#cleanup()
+      throw error
+    }
+  }
+
   async start(): Promise<void> {
     if (this.active) return
     this.#stopRequested = false

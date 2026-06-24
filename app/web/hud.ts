@@ -981,6 +981,7 @@ class AppWebHud implements AppWebHudController {
 			this.#onVoiceLeaseRelease("pagehide")
 			this.#suspendVoiceForInactiveDocument()
 		})
+		window.addEventListener("online", () => void this.#handleVoiceNetworkOnline())
 		this.#connectTerminal()
 		this.#connectAndroidRtc()
 		this.#updateNetworkWatchPane()
@@ -3352,6 +3353,26 @@ class AppWebHud implements AppWebHudController {
 		window.clearTimeout(this.#voicePrewarmTimer)
 		this.#voicePrewarmTimer = null
 		this.#voicePrewarmAttempts = 0
+	}
+
+	async #handleVoiceNetworkOnline(): Promise<void> {
+		if (!this.#documentHasLocalVoiceFocus()) return
+		this.#voiceAutoWakePaused = false
+		const client = this.#voiceClient
+		if (client?.status === "waitingWake") {
+			try {
+				await client.reconnectWaitingWake()
+			} catch {
+				if (!this.#voiceAutoWakePaused) this.#scheduleVoiceAutoWake(VOICE_AUTO_WAKE_RETRY_MS)
+				return
+			}
+			this.#scheduleVoiceRtcPrewarm(80)
+			this.#updateVoiceHud()
+			return
+		}
+		if (client?.status === "error") client.reset()
+		this.#scheduleVoiceAutoWake(80)
+		this.#scheduleVoiceRtcPrewarm(160)
 	}
 
 	#flashVoiceHudError(detail: string): void {
