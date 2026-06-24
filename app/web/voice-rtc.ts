@@ -65,8 +65,12 @@ type VoiceRtcDebugGlobal = typeof globalThis & {__metaVoiceRtcDebug?: () => Voic
 ;(globalThis as VoiceRtcDebugGlobal).__metaVoiceRtcDebug = readVoiceRtcDebugSnapshot
 
 export function createVoiceRtcAsrSocket(url: string, context: VoiceInputAsrSocketContext): VoiceInputSocket | null {
-	if (typeof RTCPeerConnection === "undefined" || typeof WebSocket === "undefined") return null
+	if (!canCreateVoiceRtcAsrSocket()) return null
 	return new VoiceRtcAsrSocket(url, context)
+}
+
+export function canCreateVoiceRtcAsrSocket(): boolean {
+	return typeof RTCPeerConnection !== "undefined" && typeof WebSocket !== "undefined"
 }
 
 export function isVoiceRtcRemoteClient(): boolean {
@@ -216,6 +220,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 		channel.addEventListener("open", () => {
 			this.#clearConnectTimer()
 			this.#readyState = WebSocket.OPEN
+			this.#context.onTransport("p2p")
 			updateVoiceRtcDebug({state: "datachannel open"})
 			channel.send(JSON.stringify({
 				type: "hello",

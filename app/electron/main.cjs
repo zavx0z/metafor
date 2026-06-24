@@ -1,4 +1,4 @@
-const {app, BrowserWindow, session, shell} = require("electron")
+const {app, BrowserWindow, session, shell, systemPreferences} = require("electron")
 
 const META_URL = process.env.METAFOR_URL || "https://meta.proizvodstvo1.ru/"
 const META_ORIGIN = new URL(META_URL).origin
@@ -41,6 +41,15 @@ function installPermissions(appSession) {
     const url = requestingOrigin || webContents?.getURL() || ""
     return isTrustedUrl(url) && allowed.has(permission)
   })
+}
+
+async function ensureMacMediaAccess() {
+  if (process.platform !== "darwin") return
+
+  const microphoneStatus = systemPreferences.getMediaAccessStatus("microphone")
+  if (microphoneStatus === "not-determined") {
+    await systemPreferences.askForMediaAccess("microphone")
+  }
 }
 
 function createWindow() {
@@ -86,7 +95,8 @@ function createWindow() {
   return win
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  await ensureMacMediaAccess()
   installPermissions(session.fromPartition("persist:metafor"))
   createWindow()
 

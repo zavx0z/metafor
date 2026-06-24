@@ -24,6 +24,10 @@
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "MetaFor uses the microphone for voice activation and dictation.",
+        "NSCameraUsageDescription": "MetaFor may use the camera for browser media features."
+      },
       "icon": "../tauri/src-tauri/icons/icon.icns",
       "target": [
         "dir"

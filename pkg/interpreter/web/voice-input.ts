@@ -17,6 +17,26 @@ export type VoiceInputPhraseGroupId = "activation" | "deactivation" | "stop"
 export type VoiceDeactivationMode = "phrase" | "timeout" | "phrase-timeout"
 export type VoiceInputTransport = "idle" | "connecting" | "ws" | "p2p"
 
+export type VoiceInputDebugSnapshot = {
+  status: VoiceInputStatus
+  active: boolean
+  audioContextState: AudioContextState | null
+  audioSampleRate: number
+  streamActive: boolean
+  trackStates: Array<{kind: string; label: string; enabled: boolean; muted: boolean; readyState: MediaStreamTrackState}>
+  commandReadyState: number | null
+  asrReadyState: number | null
+  asrEnabled: boolean
+  asrTransport: VoiceInputTransport
+  audioFrameCount: number
+  lastAudioFrameAt: number
+  lastInputRms: number
+  lastInputPeak: number
+  commandBytesSent: number
+  asrBytesQueued: number
+  asrBytesSent: number
+}
+
 type VoiceInputClientOptions = {
   url(): string
   wakeUrl(): string
@@ -198,6 +218,12 @@ export class VoiceInputClient {
   #commitGeneration = 0
   #commitWaiters: Array<() => void> = []
   #deliveryState = createVoiceInputDeliveryState()
+  #debugAudioFrameCount = 0
+  #debugLastAudioFrameAt = 0
+  #debugLastInputRms = 0
+  #debugLastInputPeak = 0
+  #debugCommandBytesSent = 0
+  #debugAsrBytesSent = 0
 
   constructor(private readonly options: VoiceInputClientOptions) {}
 
@@ -207,6 +233,34 @@ export class VoiceInputClient {
 
   get active(): boolean {
     return this.#status === "connecting" || this.#status === "waitingWake" || this.#status === "listening" || this.#status === "committing"
+  }
+
+  debugSnapshot(): VoiceInputDebugSnapshot {
+    return {
+      status: this.#status,
+      active: this.active,
+      audioContextState: this.#audioContext?.state ?? null,
+      audioSampleRate: this.#audioContext?.sampleRate ?? 0,
+      streamActive: this.#stream?.active === true,
+      trackStates: [...(this.#stream?.getTracks() ?? [])].map((track) => ({
+        kind: track.kind,
+        label: track.label,
+        enabled: track.enabled,
+        muted: track.muted,
+        readyState: track.readyState,
+      })),
+      commandReadyState: this.#commandWs?.readyState ?? null,
+      asrReadyState: this.#asrWs?.readyState ?? null,
+      asrEnabled: this.#asrEnabled,
+      asrTransport: this.#asrTransport,
+      audioFrameCount: this.#debugAudioFrameCount,
+      lastAudioFrameAt: this.#debugLastAudioFrameAt,
+      lastInputRms: this.#debugLastInputRms,
+      lastInputPeak: this.#debugLastInputPeak,
+      commandBytesSent: this.#debugCommandBytesSent,
+      asrBytesQueued: this.#outboundPcmBytes + this.#queuedPcmAfterCommit.reduce((size, chunk) => size + chunk.byteLength, 0),
+      asrBytesSent: this.#debugAsrBytesSent,
+    }
   }
 
   reset(): void {
@@ -514,6 +568,10 @@ export class VoiceInputClient {
     this.#captureNode.port.onmessage = (event: MessageEvent<unknown>) => {
       const samples = event.data
       if (!(samples instanceof Float32Array)) return
+      this.#debugAudioFrameCount += 1
+      this.#debugLastAudioFrameAt = performance.now()
+      this.#debugLastInputRms = rmsLevel(samples)
+      this.#debugLastInputPeak = peakLevel(samples)
       const pcm = floatToPcm16(samples)
       const wakePcm = floatToPcm16(applyWakeAudioGain(samples))
       this.#pcmSinceCommitBytes += pcm.byteLength
@@ -710,7 +768,10 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
   }
 
   #sendPcm(pcm: ArrayBuffer, commandPcm: ArrayBuffer): void {
-    if (this.#commandWs?.readyState === WebSocket.OPEN) this.#commandWs.send(commandPcm)
+    if (this.#commandWs?.readyState === WebSocket.OPEN) {
+      this.#commandWs.send(commandPcm)
+      this.#debugCommandBytesSent += commandPcm.byteLength
+    }
     if (!this.#asrEnabled) return
     this.#enqueueOutboundPcm(pcm)
   }
@@ -777,6 +838,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       return
     }
     this.#asrWs.send(pcm)
+    this.#debugAsrBytesSent += pcm.byteLength
   }
 
   #flushQueuedPcm(): void {
@@ -784,7 +846,10 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       this.#queuedPcmAfterCommit = []
       return
     }
-    for (const pcm of this.#queuedPcmAfterCommit) this.#asrWs.send(pcm)
+    for (const pcm of this.#queuedPcmAfterCommit) {
+      this.#asrWs.send(pcm)
+      this.#debugAsrBytesSent += pcm.byteLength
+    }
     this.#queuedPcmAfterCommit = []
   }
 
@@ -1329,6 +1394,12 @@ function rmsLevel(samples: Float32Array): number {
   let sum = 0
   for (const sample of samples) sum += sample * sample
   return Math.sqrt(sum / samples.length)
+}
+
+function peakLevel(samples: Float32Array): number {
+  let peak = 0
+  for (const sample of samples) peak = Math.max(peak, Math.abs(sample))
+  return peak
 }
 
 function applyWakeAudioGain(samples: Float32Array): Float32Array {

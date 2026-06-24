@@ -78,6 +78,7 @@ import {
 	voiceInputWebSocketUrl,
 	type VoiceDeactivationMode,
 	type VoiceInputChunk,
+	type VoiceInputDebugSnapshot,
 	type VoiceInputSegment,
 	type VoiceInputSignalTone,
 	type VoiceInputStatus,
@@ -94,6 +95,7 @@ import {
 import {createAndroidRtcClient, type AndroidRtcClient, type AndroidRtcCommand} from "./android-rtc.ts"
 import {DEFAULT_APP_WEB_SCENE_SRC} from "./app-config.ts"
 import {
+	canCreateVoiceRtcAsrSocket,
 	createVoiceRtcAsrSocket,
 	isVoiceRtcRemoteClient,
 	onVoiceRtcDebug,
@@ -121,6 +123,7 @@ type AppVoiceLeaseDebugSnapshot = {
 	localFocus: boolean
 	voiceStatus: VoiceInputStatus
 	voiceActive: boolean
+	voice: VoiceInputDebugSnapshot | null
 }
 
 let appFullscreenDebug: AppFullscreenDebugSnapshot = {
@@ -3311,7 +3314,7 @@ class AppWebHud implements AppWebHudController {
 				this.#voicePrewarmAttempts = 0
 				return
 			}
-			if (!this.#shouldUseVoiceRtcServerServiceProbe()) {
+			if (!this.#shouldUseVoiceRtcPrewarm()) {
 				this.#retryVoiceRtcPrewarm()
 				return
 			}
@@ -3423,6 +3426,10 @@ class AppWebHud implements AppWebHudController {
 
 	#shouldUseVoiceRtcServerServiceProbe(): boolean {
 		return readCodexVoiceP2PEnabled() && isVoiceRtcRemoteClient()
+	}
+
+	#shouldUseVoiceRtcPrewarm(): boolean {
+		return readCodexVoiceP2PEnabled() && canCreateVoiceRtcAsrSocket()
 	}
 
 	#markVoiceRtcServerServiceProbe(): void {
@@ -3834,6 +3841,7 @@ class AppWebHud implements AppWebHudController {
 			localFocus: this.#documentHasLocalVoiceFocus(),
 			voiceStatus: client?.status ?? "idle",
 			voiceActive: client?.active === true,
+			voice: client?.debugSnapshot() ?? null,
 		}
 	}
 
