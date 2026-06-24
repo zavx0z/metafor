@@ -20,6 +20,7 @@ export type VoiceRtcDebugSnapshot = {
 
 const VOICE_RTC_APP_PEER_PREFIX = "app-web-voice"
 const VOICE_RTC_CONNECT_TIMEOUT_MS = 30_000
+const VOICE_RTC_DISCONNECT_TIMEOUT_MS = 2_500
 const VOICE_RTC_INITIAL_ICE_TIMEOUT_MS = 800
 const VOICE_RTC_MEDIA_TIMEOUT_MS = 5000
 const VOICE_RTC_ASR_TEXT_TIMEOUT_MS = 18_000
@@ -90,6 +91,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 	#fallbackWs: WebSocket | null = null
 	#sessionId = ""
 	#connectTimer: number | null = null
+	#disconnectTimer: number | null = null
 	#mediaTimer: number | null = null
 	#asrTextTimer: number | null = null
 	#remoteIcePollTimer: number | null = null
@@ -127,6 +129,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 	close(): void {
 		this.#sendRtcBye("client-close")
 		this.#clearConnectTimer()
+		this.#clearDisconnectTimer()
 		this.#clearMediaTimer()
 		this.#clearAsrTextTimer()
 		this.#clearRemoteIcePollTimer()
@@ -178,7 +181,12 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 		this.#connection = connection
 		connection.addEventListener("connectionstatechange", () => {
 			updateVoiceRtcDebug({state: `rtc ${connection.connectionState}`})
-			if (connection.connectionState === "connected") this.#clearRemoteIcePollTimer()
+			if (connection.connectionState === "connected") {
+				this.#clearDisconnectTimer()
+				this.#clearRemoteIcePollTimer()
+				if (this.#channel?.readyState === "open") this.#context.onTransport("p2p")
+			}
+			if (connection.connectionState === "disconnected") this.#scheduleDisconnectRecovery()
 			if (connection.connectionState === "failed" || connection.connectionState === "closed") this.#startFallback(`rtc ${connection.connectionState}`)
 		})
 		connection.addEventListener("icecandidate", (event) => {
@@ -263,6 +271,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 		this.#sendRtcBye(reason)
 		updateVoiceRtcDebug({state: "fallback", fallbackReason: reason})
 		this.#clearConnectTimer()
+		this.#clearDisconnectTimer()
 		this.#clearMediaTimer()
 		this.#clearAsrTextTimer()
 		this.#clearRemoteIcePollTimer()
@@ -296,6 +305,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 	#closeIdlePrewarm(reason: string): void {
 		updateVoiceRtcDebug({state: "idle", fallbackReason: `prewarm closed: ${reason}`})
 		this.#clearConnectTimer()
+		this.#clearDisconnectTimer()
 		this.#clearMediaTimer()
 		this.#clearAsrTextTimer()
 		this.#clearRemoteIcePollTimer()
@@ -313,6 +323,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 		this.#sendRtcBye(reason)
 		updateVoiceRtcDebug({state: "error", fallbackReason: detail})
 		this.#clearConnectTimer()
+		this.#clearDisconnectTimer()
 		this.#clearMediaTimer()
 		this.#clearAsrTextTimer()
 		this.#clearRemoteIcePollTimer()
@@ -330,6 +341,21 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
 		if (this.#connectTimer === null) return
 		window.clearTimeout(this.#connectTimer)
 		this.#connectTimer = null
+	}
+
+	#scheduleDisconnectRecovery(): void {
+		if (this.#disconnectTimer !== null) return
+		this.#context.onTransport("connecting")
+		this.#disconnectTimer = window.setTimeout(() => {
+			this.#disconnectTimer = null
+			this.#startFallback("rtc disconnected")
+		}, VOICE_RTC_DISCONNECT_TIMEOUT_MS)
+	}
+
+	#clearDisconnectTimer(): void {
+		if (this.#disconnectTimer === null) return
+		window.clearTimeout(this.#disconnectTimer)
+		this.#disconnectTimer = null
 	}
 
 	#ensureMediaTimer(): void {
