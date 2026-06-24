@@ -41,6 +41,8 @@ export type TerminalStatusKind = "idle" | "connected" | "running" | "disconnecte
 
 export type TerminalInputSource = "keyboard" | "paste" | "api"
 
+export type TerminalMouseWheelMode = "terminal" | "scrollback"
+
 export type TerminalSelectionSnapshot = {
   /** 0-based terminal output line. */
   anchor: TextPosition
@@ -95,6 +97,7 @@ type TerminalOutputPaneOpts = {
   cursorLineFill?: Color
   showCursor?: boolean
   cursorWhenBlurred?: boolean
+  terminalMouseWheelMode?: TerminalMouseWheelMode
   onResize?: (size: TerminalSize) => void
   onFocusChange?: (focused: boolean) => void
   onFrameRectPreview?: (rect: PaneRect) => void
@@ -320,6 +323,7 @@ class TerminalOutputPane extends UiSurface {
   #cursorLineFill: Color
   #cursorEnabled: boolean
   #cursorWhenBlurred: boolean
+  #terminalMouseWheelMode: TerminalMouseWheelMode
   #onResize: ((size: TerminalSize) => void) | undefined
   #onFocusChange: ((focused: boolean) => void) | undefined
   #onFrameRectPreview: ((rect: PaneRect) => void) | undefined
@@ -410,6 +414,7 @@ class TerminalOutputPane extends UiSurface {
     this.#cursorLineFill = opts.cursorLineFill ?? CURSOR_LINE_FILL
     this.#cursorEnabled = opts.showCursor ?? true
     this.#cursorWhenBlurred = opts.cursorWhenBlurred ?? false
+    this.#terminalMouseWheelMode = opts.terminalMouseWheelMode ?? "terminal"
     this.#showCursor = this.#cursorEnabled
     this.#cursorVisible = this.#cursorEnabled
     this.#onResize = opts.onResize
@@ -1417,7 +1422,8 @@ class TerminalOutputPane extends UiSurface {
   }
 
   #handleTerminalWheel(event: WheelEvent, localX: number, localY: number): boolean {
-    if (!this.#terminalMouseEnabled() || event.shiftKey || event.deltaY === 0) return false
+    const shouldSendWheel = this.#terminalMouseWheelMode === "terminal" ? !event.shiftKey : event.shiftKey
+    if (!this.#terminalMouseEnabled() || !shouldSendWheel || event.deltaY === 0) return false
     const pos = this.#terminalMousePosition(localX, localY)
     if (pos === null) return false
     this.#emitTerminalMouse(event.deltaY < 0 ? 64 : 65, pos, event, "wheel")

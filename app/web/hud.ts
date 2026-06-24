@@ -2078,6 +2078,7 @@ class AppWebHud implements AppWebHudController {
 			maxScrollback: 10000,
 			respondToTerminalQueries: false,
 			terminalQueryMode: "cursor",
+			terminalMouseWheelMode: "scrollback",
 			cursorWhenBlurred: true,
 			draggable: true,
 			resizable: true,
@@ -2151,6 +2152,7 @@ class AppWebHud implements AppWebHudController {
 			maxScrollback: 10000,
 			respondToTerminalQueries: false,
 			terminalQueryMode: "cursor",
+			terminalMouseWheelMode: "scrollback",
 			cursorWhenBlurred: true,
 			draggable: true,
 			resizable: true,
@@ -3896,12 +3898,13 @@ class AppWebHud implements AppWebHudController {
 		const composerSpace = CODEX_COMPOSER_H + CODEX_COMPOSER_GAP
 		const width = Math.min(760, bounds.w - 24)
 		const height = Math.min(360, Math.max(120, bounds.h - 120 - composerSpace))
-		return readStoredRect(CODEX_RECT_STORAGE_KEY) ?? {
+		const raw = readStoredRect(CODEX_RECT_STORAGE_KEY) ?? {
 			x: Math.max(12, bounds.w - width - 16),
 			y: Math.max(96, bounds.h - height - composerSpace - 18),
 			w: width,
 			h: height,
 		}
+		return clampHudPanelRect(raw, bounds, {minW: 260, minH: 160})
 	}
 
 	#codexComposerRect(bounds: {w: number; h: number}): UiSurfaceRect {
@@ -4054,23 +4057,23 @@ class AppWebHud implements AppWebHudController {
 		const controls = this.#networkControlsRect(bounds)
 		if (controls.visible === false) return hiddenRect()
 		const stored = readStoredRect(NETWORK_TERMINAL_RECT_STORAGE_KEY)
-		if (stored !== null) return stored
+		if (stored !== null) return clampHudPanelRect(stored, bounds, {minW: 260, minH: 160})
 		if (!networkLayoutUsesColumns(bounds.w)) {
 			const y = controls.y + controls.h + 10
-			return {
+			return clampHudPanelRect({
 				x: controls.x,
 				y,
 				w: controls.w,
 				h: Math.max(180, bounds.h - y - 16),
-			}
+			}, bounds, {minW: 260, minH: 160})
 		}
 		const x = controls.x + controls.w + 10
-		return {
+		return clampHudPanelRect({
 			x,
 			y: controls.y,
 			w: Math.max(360, bounds.w - x - 16),
 			h: controls.h,
-		}
+		}, bounds, {minW: 260, minH: 160})
 	}
 
 	#androidRect(bounds: {w: number; h: number}): UiSurfaceRect {
@@ -6463,6 +6466,22 @@ function lerp(from: number, to: number, t: number): number {
 
 function hiddenRect(): UiSurfaceRect {
 	return {x: 0, y: 0, w: 1, h: 1, visible: false}
+}
+
+function clampHudPanelRect(rect: UiSurfaceRect, bounds: {w: number; h: number}, opts: {minW: number; minH: number; margin?: number}): UiSurfaceRect {
+	const desiredMargin = opts.margin ?? 12
+	const marginX = Math.min(desiredMargin, Math.max(0, (bounds.w - 1) / 2))
+	const marginY = Math.min(desiredMargin, Math.max(0, (bounds.h - 1) / 2))
+	const maxW = Math.max(1, bounds.w - marginX * 2)
+	const maxH = Math.max(1, bounds.h - marginY * 2)
+	const w = clampNumber(rect.w, Math.min(opts.minW, maxW), maxW)
+	const h = clampNumber(rect.h, Math.min(opts.minH, maxH), maxH)
+	return {
+		x: clampNumber(rect.x, marginX, Math.max(marginX, bounds.w - w - marginX)),
+		y: clampNumber(rect.y, marginY, Math.max(marginY, bounds.h - h - marginY)),
+		w,
+		h,
+	}
 }
 
 function pointInUiRect(x: number, y: number, rect: UiSurfaceRect): boolean {

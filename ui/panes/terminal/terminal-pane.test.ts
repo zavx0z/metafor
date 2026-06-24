@@ -49,6 +49,68 @@ function touchCompatibilityMouseEvent(overrides: Partial<MouseEvent> = {}): Mous
   } as unknown as MouseEvent
 }
 
+function wheelEvent(overrides: Partial<WheelEvent> = {}): WheelEvent {
+  const event = {
+    deltaX: 0,
+    deltaY: 0,
+    deltaMode: 0,
+    shiftKey: false,
+    altKey: false,
+    ctrlKey: false,
+    metaKey: false,
+    timeStamp: 1,
+    preventDefault() {
+      event.defaultPrevented = true
+    },
+    defaultPrevented: false,
+    ...overrides,
+  }
+  return event as unknown as WheelEvent
+}
+
+function withControlledRaf<T>(fn: (flush: () => void) => T): T {
+  const previousRaf = globalThis.requestAnimationFrame
+  const previousCancel = globalThis.cancelAnimationFrame
+  let now = 1
+  let nextId = 1
+  let queue: Array<{id: number; callback: FrameRequestCallback}> = []
+  globalThis.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+    const id = nextId++
+    queue.push({id, callback})
+    return id
+  }) as typeof requestAnimationFrame
+  globalThis.cancelAnimationFrame = ((id: number) => {
+    queue = queue.filter((item) => item.id !== id)
+  }) as typeof cancelAnimationFrame
+  const flush = () => {
+    for (let guard = 0; queue.length > 0 && guard < 240; guard++) {
+      const item = queue.shift()
+      if (item === undefined) break
+      now += 16
+      item.callback(now)
+    }
+    if (queue.length > 0) throw new Error("RAF queue did not settle")
+  }
+  try {
+    return fn(flush)
+  } finally {
+    globalThis.requestAnimationFrame = previousRaf
+    globalThis.cancelAnimationFrame = previousCancel
+  }
+}
+
+async function renderTerminalForWheel(terminal: TerminalPane, rect = {x: 0, y: 0, w: 220, h: 68}): Promise<void> {
+  terminal.attachCanvas({
+    canvas: {style: {cursor: "default"}},
+    renderer: {invalidateGeometry: () => {}, pixelRatio: 1},
+    uiRectToFramebufferClipBounds: (xMin: number, yMin: number, xMax: number, yMax: number) => [xMin, yMin, xMax, yMax],
+    setFocused: () => {},
+    inputProxy: {focus: () => {}},
+    requestRender: () => {},
+  } as never)
+  terminal.setRect(rect, 1, await testFont())
+}
+
 function terminalScrollTop(terminal: TerminalPane): number {
   return (terminal as unknown as {outputScrollPosition(): {top: number}}).outputScrollPosition().top
 }
@@ -595,6 +657,38 @@ describe("TerminalPane control sequences", () => {
 
       expect(responses[0]).toMatch(/^\x1b\[<64;\d+;\d+M$/)
       expect(responses[1]).toMatch(/^\x1b\[<65;\d+;\d+M$/)
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("can keep wheel scrolling local scrollback while terminal mouse tracking is enabled", async () => {
+    const responses: string[] = []
+    const terminal = new TerminalPane({
+      cols: 20,
+      rows: 4,
+      fitToRect: false,
+      showHeader: false,
+      terminalMouseWheelMode: "scrollback",
+      onInput: (data) => responses.push(data),
+    })
+    try {
+      await renderTerminalForWheel(terminal)
+      for (let i = 0; i < 24; i++) terminal.writeln(`line ${i}`)
+      terminal.write("\x1b[?1000;1006h")
+      terminal.scrollToBottom()
+      await renderTerminalForWheel(terminal)
+      const before = terminalScrollTop(terminal)
+
+      const event = wheelEvent({deltaY: -80})
+      withControlledRaf((flush) => {
+        terminal.onWheel(event, 20, 20)
+        flush()
+      })
+
+      expect(responses).toEqual([])
+      expect(event.defaultPrevented).toBe(true)
+      expect(terminalScrollTop(terminal)).toBeLessThan(before)
     } finally {
       terminal.dispose()
     }
