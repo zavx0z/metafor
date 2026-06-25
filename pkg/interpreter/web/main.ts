@@ -8340,10 +8340,12 @@ async function refreshWorkspaceFiles(controller: ModuleDisplayController): Promi
       const storedState = readStoredWorkspaceFilesState(storageKey)
       const root = data.root ?? null
       const workspacePath = normalizeWorkspacePath(data.workspacePath ?? "")
+      const catalogFileIds = new Set(workspaceFileIds(workspaceFileTree(paths)))
       const currentOpenedFileIds = currentWorkspaceFileCandidates(controller)
         .map((source) => workspaceFileIdForSourcePath({root, workspacePath, items: []}, source))
         .filter((id): id is string => id !== null)
       const openedFileIds = normalizeWorkspaceOpenedFileIds([...storedState.openedFileIds, ...currentOpenedFileIds])
+        .filter((id) => catalogFileIds.has(id))
       const items = workspaceFileItems(paths, openedFileIds)
       controller.workspaceFiles.root = root
       controller.workspaceFiles.workspacePath = workspacePath
@@ -8355,6 +8357,7 @@ async function refreshWorkspaceFiles(controller: ModuleDisplayController): Promi
       controller.workspaceFiles.openedFileIds = openedFileIds
       controller.workspaceFiles.expandedIds = normalizeWorkspaceExpandedIds(storedState.expandedIds, items)
       controller.workspaceFiles.selectedIds = normalizeFileListSelection(storedState.selectedIds, items, "multiple")
+      writeStoredWorkspaceFilesState(controller)
       applyWorkspaceFilesToModuleDisplay(controller)
       void openInitialWorkspaceSource(controller).catch((error) => {
         console.warn(`initial source open failed for ${controller.id}:`, error)
@@ -8492,6 +8495,24 @@ function addOpenedWorkspaceSource(controller: ModuleDisplayController, sourceUrl
   return fileId
 }
 
+function removeOpenedWorkspaceSource(controller: ModuleDisplayController, sourceUrl: string): boolean {
+  const fileId = workspaceFileIdForSourcePath(controller.workspaceFiles, sourceUrl)
+  if (fileId === null) return false
+  const openedFileIds = controller.workspaceFiles.openedFileIds.filter((id) => id !== fileId)
+  const items = workspaceFileItems(controller.workspaceFiles.catalogPaths, openedFileIds)
+  const changed = openedFileIds.length !== controller.workspaceFiles.openedFileIds.length ||
+    findWorkspaceFileItem(controller.workspaceFiles.items, fileId)?.kind === "file"
+  if (!changed) return false
+
+  controller.workspaceFiles.openedFileIds = openedFileIds
+  controller.workspaceFiles.items = items
+  controller.workspaceFiles.expandedIds = normalizeWorkspaceExpandedIds(controller.workspaceFiles.expandedIds, items)
+  controller.workspaceFiles.selectedIds = normalizeFileListSelection(controller.workspaceFiles.selectedIds.filter((id) => id !== fileId), items, "multiple")
+  writeStoredWorkspaceFilesState(controller)
+  applyWorkspaceFilesToModuleDisplay(controller)
+  return true
+}
+
 type OpenWorkspaceSourceResult =
   | {ok: true; sourceUrl: string; location: string; scriptUrl: string; sourceKind: string | null}
   | {ok: false; sourceUrl: string; location: string; error: string}
@@ -8533,6 +8554,7 @@ async function openWorkspaceSource(
     }
     if (typeof data.scriptSource !== "string") {
       const error = data.error ?? "unknown"
+      if (isMissingWorkspaceSourceError(error)) removeOpenedWorkspaceSource(controller, sourceUrl)
       setModuleSource(controller, {
         text: `no source: ${error}`,
         currentLine: 0,
@@ -8574,6 +8596,7 @@ async function openWorkspaceSource(
     }
   } catch (error) {
     const message = String(error)
+    if (isMissingWorkspaceSourceError(message)) removeOpenedWorkspaceSource(controller, sourceUrl)
     setModuleSource(controller, {
       text: `fetch failed: ${message}`,
       currentLine: 0,
@@ -8582,6 +8605,10 @@ async function openWorkspaceSource(
     }, "idle", false)
     return {ok: false, sourceUrl, location, error: message}
   }
+}
+
+function isMissingWorkspaceSourceError(value: unknown): boolean {
+  return /not found|enoent|no such file|notfounderror/i.test(String(value))
 }
 
 async function saveModuleSource(controller: ModuleDisplayController, text: string): Promise<void> {

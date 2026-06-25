@@ -1912,8 +1912,21 @@ class AppWebHud implements AppWebHudController {
 			this.#workspaceEditor.setText(text)
 			this.#viewport.hud.setFocused(this.#workspaceEditor)
 		} catch (error) {
+			if (isWorkspaceSourceMissingError(error)) this.#removeMissingWorkspaceEntry(entry)
 			this.#workspaceEditor.setTitle(`Open failed - ${errorMessage(error)}`)
 		}
+	}
+
+	#removeMissingWorkspaceEntry(entry: WorkspaceFileEntry): void {
+		const id = workspaceEntryId(entry)
+		this.#workspaceLocalEntries.delete(id)
+		this.#workspaceProcessEntries.delete(id)
+		if (this.#workspaceCurrentEntry !== null && workspaceEntryId(this.#workspaceCurrentEntry) === id && !this.#workspaceEditorDirty) {
+			this.#workspaceCurrentEntry = null
+			this.#workspaceEditor.setLanguage({path: ""})
+			this.#workspaceEditor.setText("")
+		}
+		this.#syncWorkspaceFileTree()
 	}
 
 	async #readWorkspaceProcessSource(entry: WorkspaceFileEntry): Promise<string> {
@@ -6411,6 +6424,10 @@ function isBrowserDirectoryHandle(value: BrowserDirectoryHandle | BrowserFileHan
 
 function isAbortError(error: unknown): boolean {
 	return error instanceof DOMException && error.name === "AbortError"
+}
+
+function isWorkspaceSourceMissingError(error: unknown): boolean {
+	return /not found|enoent|no such file|notfounderror/i.test(errorMessage(error))
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
