@@ -40,7 +40,7 @@ export function createVoiceServer(deps: VoiceServerDeps) {
 	let voiceLeaseExpiresAt = 0
 
 	async function readInterpreterVoiceSettingsResponse(): Promise<Response> {
-		if (deps.chromeApiUrl === null) return browserApiNotConfiguredResponse()
+		if (deps.chromeApiUrl === null) return browserApiDisabledResponse()
 		try {
 			const payload = await readInterpreterVoiceSettings()
 			return deps.jsonResponse({ok: true, ...payload})
@@ -51,7 +51,7 @@ export function createVoiceServer(deps: VoiceServerDeps) {
 	}
 
 	async function writeInterpreterVoiceSettingsResponse(req: Request): Promise<Response> {
-		if (deps.chromeApiUrl === null) return browserApiNotConfiguredResponse()
+		if (deps.chromeApiUrl === null) return browserApiDisabledResponse()
 		const parsed = await deps.readJsonObject(req)
 		if (parsed.error !== undefined) return deps.jsonResponse({ok: false, error: parsed.error}, 400)
 		const values = asVoiceSettingsUpdate(parsed.body["values"])
@@ -74,8 +74,8 @@ export function createVoiceServer(deps: VoiceServerDeps) {
 		return deps.jsonResponse({ok: true})
 	}
 
-	function browserApiNotConfiguredResponse(): Response {
-		return deps.jsonResponse({ok: false, error: "browser API is not configured on this server"}, 503)
+	function browserApiDisabledResponse(): Response {
+		return deps.jsonResponse({ok: false, disabled: true, error: "browser API is not configured on this server"})
 	}
 
 	function handleVoiceLeaseMessage(ws: ServerWebSocket<AppWebSocketData>, payload: ClientVoiceLeasePayload): void {
