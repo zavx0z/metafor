@@ -39,11 +39,27 @@ bun run interpreter dark/server.spec.ts -timeout=2147483647 pkg/interpreter/src/
 
 UI доступен на `http://127.0.0.1:6500/`.
 
+## Перезапуск Host
+
+После изменения host-кода интерпретатора (`pkg/interpreter/src/*`, `pkg/interpreter/web/*`) restart module недостаточен: сам host должен перечитать server и заново отдать client bundle.
+
+В tmux-контуре используй:
+
+```sh
+curl -sS -X POST http://127.0.0.1:6500/restart
+```
+
+Endpoint сначала отправляет подключенным UI-клиентам delayed reload, потом перезапускает текущий tmux pane. Клиент после задержки ждёт `/health` нового host и только затем перезагружает страницу, чтобы короткий restart не оставлял белый экран.
+
+Если host не запущен в tmux, `POST /restart` вернет `501`. Тогда используй supervisor текущего контура: `systemctl --user restart ...` для server/systemd deployment или ручной restart foreground-процесса в локальном запуске. Не смешивай эти контуры.
+
 ## UIDisplay
 
 UI создаёт один WebGPU `Space` и несколько равноправных `UIDisplay`, по одному на модуль. Дисплеи раскладываются в ряд; ни один из них не является default/main display.
 
 Browser-страница сейчас является host-слоем для canvas/input/WebSocket. Это не продуктовая граница интерпретатора: для XR тот же process-scoped state должен рендериться как `UIDisplay`-контент в общем `Space`.
+
+Общий браузер для WebApp должен развиваться как отдельный `browser-display` в `Space`: человек видит тот же display в интерпретаторе, агент получает snapshot/frame stream и управляет вводом через host API. Это не HUD и не скрытый Playwright-клиент.
 
 ## Перезапуск Модуля
 

@@ -44,6 +44,25 @@ bun test --timeout=2147483647 --inspect-wait=ws://127.0.0.1:6501/ ./module.spec.
 BUN_PROTOCOL_URL=ws://127.0.0.1:6501/ bun run interpreter
 ```
 
+## Белый Экран После Restart Host
+
+Если страница интерпретатора перезагрузилась во время короткого restart host process, browser может открыть пустой ответ или потерять WebSocket раньше, чем новый host поднялся.
+
+Нормальный путь для tmux-контура:
+
+```sh
+curl -sS -X POST http://127.0.0.1:6500/restart
+```
+
+Этот endpoint отправляет UI-клиентам delayed reload, а клиент перед настоящей перезагрузкой ждёт успешный `/health`. Если белый экран всё равно появился, проверь, что открыта свежая версия `pkg/interpreter/web/main.ts`, а host действительно поднят:
+
+```sh
+curl -sS http://127.0.0.1:6500/health
+curl -sS http://127.0.0.1:6500/context
+```
+
+Не добавляй постоянные repaint/polling loops в UI ради этого симптома: причина должна решаться lifecycle-ом host restart и ожиданием готовности server.
+
 ## Тест Падает По Timeout Пока Стоит Breakpoint
 
 Запускать тест с максимальным timeout:

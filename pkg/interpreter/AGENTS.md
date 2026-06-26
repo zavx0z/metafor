@@ -97,6 +97,12 @@ curl -s http://127.0.0.1:6500/space
 
 `context.hud.todo` содержит текущее состояние HUD ToDoPane: подсвеченные человеком пункты `TODO.md`, чтобы агент понимал, о чем речь. Подсветка - состояние панели, не данные файла.
 
+Host-level API:
+
+- `POST /reload` рассылает подключенным UI-клиентам команду browser reload. Это не restart host process.
+- `POST /restart` перезапускает текущий interpreter host только когда host знает, как себя поднять снова: сейчас основной путь - tmux `respawn-pane` текущего `TMUX_PANE` или явно заданный `INTERPRETER_RESTART_COMMAND` / `INTERPRETER_RESTART_SCRIPT`. Клиенты получают delayed reload и должны дождаться `/health`, чтобы не показывать белый экран во время restart.
+- `POST /hud/todo/reload` перечитывает корневой `TODO.md` и рассылает `hud-todo-changed` всем UI-клиентам. Не dispatch-ить это через случайный UI-host client: TODO HUD является общим состоянием host.
+
 TODO HUD API:
 
 - `GET /hud/todo` читает корневой `TODO.md` и parsed items.
@@ -204,6 +210,8 @@ Pane classes under `web/*-pane.ts` должны оставаться reusable и
 Generic panes under `ui/panes` не должны знать interpreter-specific concepts. Например, `TerminalPane` может знать terminal buffers, ANSI, keyboard input, focus и caret behavior, но не должен знать module state, breakpoints, Bun, protocol commands или interpreter snapshots. Interpreter-specific terminal behavior живет в `pkg/interpreter/web/main.ts` или package-local helper.
 
 Browser page - только host одного WebGPU canvas. Не добавляй hidden/default runtime surfaces для interpreter content. Interpreter panels должны быть attached к module `UIDisplay`.
+
+Будущий общий browser-host для WebApp должен входить как first-class `browser-display` в `Space`: frame/snapshot stream, health/restart, input proxy и общий видимый state для человека и агента. Не оформляй его как HUD, не делай Playwright permanent runtime dependency и не завязывай архитектуру на macOS display пользователя.
 
 ## Terminal Input
 

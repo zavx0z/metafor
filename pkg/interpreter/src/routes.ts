@@ -108,6 +108,8 @@ const routeIndex = [
   {method: "POST", path: "/sqlite/cell", description: "{path, table, rowid, column, value} — обновить SQLite cell по rowid"},
   {method: "GET", path: "/events?since=<iso>&limit=<n>", description: "хвост event-лога"},
   {method: "GET", path: "/console?since=<iso>&limit=<n>", description: "хвост console-лога"},
+  {method: "POST", path: "/reload", description: "отправить hard reload всем подключенным UI-клиентам интерпретатора"},
+  {method: "POST", path: "/restart", description: "перезапустить host interpreter через supervisor/tmux и предварительно обновить все UI-клиенты"},
 ] as const satisfies readonly InterpreterRouteDescription[]
 
 export const interpreterRoutes = {

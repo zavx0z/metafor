@@ -19,6 +19,7 @@ import {fileURLToPath} from "node:url"
 import indexHtml from "../web/index.html"
 
 const WEB_DIR = join(import.meta.dir, "..", "web")
+const INTERPRETER_RESTART_DELAY_MS = 650
 const MANIFEST = {
   name: "MetaFor Interpreter",
   short_name: "interpreter",
@@ -704,17 +705,16 @@ function uiHostDispatchClient(
   command: string,
   params: unknown,
 ): ServerWebSocket<UiWsClientData> | undefined {
+  const openClients = [...clients].filter((item): item is ServerWebSocket<UiWsClientData> => {
+    return item.data.kind === "ui" && item.readyState === WebSocket.OPEN
+  })
   const moduleId = command.startsWith("processes.") ? uiHostCommandModuleId(params) : undefined
   const preferredClientId = moduleId === undefined ? undefined : moduleContextClientIds.get(moduleId)
   if (preferredClientId !== undefined) {
-    const preferred = [...clients].find((item): item is ServerWebSocket<UiWsClientData> => {
-      return item.data.kind === "ui" && item.data.id === preferredClientId && item.readyState === WebSocket.OPEN
-    })
+    const preferred = openClients.find((item) => item.data.id === preferredClientId)
     if (preferred !== undefined) return preferred
   }
-  return [...clients].find((item): item is ServerWebSocket<UiWsClientData> => {
-    return item.data.kind === "ui" && item.readyState === WebSocket.OPEN
-  })
+  return openClients.at(-1)
 }
 
 function uiHostCommandModuleId(params: unknown): string | undefined {
@@ -1143,7 +1143,7 @@ async function handleRoute(
   if (method === "POST" && path === "/hud/todo/items") return await createTodoItem(req, broadcast)
   if (method === "GET" && path === "/hud/todo/panel") return await dispatchUiHostRoute("hud.todo.get", {}, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/todo/highlight") return await dispatchUiHostRouteFromBody("hud.todo.highlight", req, dispatchUiHostCommand)
-  if (method === "POST" && path === "/hud/todo/reload") return await dispatchUiHostRoute("hud.todo.reload", {}, dispatchUiHostCommand)
+  if (method === "POST" && path === "/hud/todo/reload") return reloadTodoMarkdown(broadcast)
   if (method === "POST" && path === "/hud/todo/dock") return await dispatchUiHostRouteFromBody("hud.todo.dock", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/todo/show") return await dispatchUiHostRouteFromBody("hud.todo.show", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/todo/toggle") return await dispatchUiHostRouteFromBody("hud.todo.toggle", req, dispatchUiHostCommand)
@@ -1211,6 +1211,7 @@ async function handleRoute(
   if (method === "DELETE" && processBreakpoint !== null) return await removeProcessBreakpoint(decodePathParam(processBreakpoint[1]!), req, options, broadcast)
   if (method === "GET" && path === "/events") return jsonResponse(readNdjsonTail(options.eventLogPath, url))
   if (method === "GET" && path === "/console") return jsonResponse(readNdjsonTail(options.consoleLogPath, url))
+  if (method === "POST" && path === "/restart") return restartInterpreterHost(broadcast, options)
   // Триггер хард-релоада UI у всех подключённых WS-клиентов: используется
   // когда мы выкатываем правку в bundle и хотим без юзерских Cmd+Shift+R
   // увидеть свежий код во вкладке.
@@ -1224,6 +1225,112 @@ async function handleRoute(
   }
 
   return jsonResponse({ok: false, error: `not found: ${method} ${path}`}, 404)
+}
+
+function restartInterpreterHost(broadcast: (payload: JsonObject) => void, options: HttpServerOptions): Response {
+  const plan = interpreterRestartPlan()
+  if (plan.error !== undefined) {
+    return jsonResponse({
+      ok: false,
+      error: plan.error,
+      hint: "Запусти interpreter внутри tmux или задай INTERPRETER_RESTART_COMMAND.",
+    }, 501)
+  }
+
+  broadcast({type: "reload", delayMs: INTERPRETER_RESTART_DELAY_MS + 750})
+  options.logger.event("interpreter.restart.requested", {
+    mode: plan.mode,
+    targetPane: plan.targetPane,
+    delayMs: INTERPRETER_RESTART_DELAY_MS,
+  })
+  scheduleInterpreterRestart(plan.command, options.logger)
+  return jsonResponse({
+    ok: true,
+    restarting: true,
+    reloadClients: true,
+    delayMs: INTERPRETER_RESTART_DELAY_MS,
+    mode: plan.mode,
+    targetPane: plan.targetPane,
+  }, 202)
+}
+
+type InterpreterRestartPlan =
+  | {mode: "tmux"; targetPane: string; command: string; error?: undefined}
+  | {error: string}
+
+function interpreterRestartPlan(): InterpreterRestartPlan {
+  const targetPane = Bun.env.TMUX_PANE?.trim()
+  if (targetPane === undefined || targetPane.length === 0) {
+    return {error: "interpreter restart requires TMUX_PANE or an external supervisor"}
+  }
+  const restartCommand = interpreterRestartCommand()
+  if (restartCommand === null) return {error: "cannot derive interpreter restart command"}
+  return {
+    mode: "tmux",
+    targetPane,
+    command: [
+      `sleep ${Math.max(0, INTERPRETER_RESTART_DELAY_MS / 1000).toFixed(3)}`,
+      `exec tmux respawn-pane -k -c ${shellQuote(process.cwd())} -t ${shellQuote(targetPane)} ${shellQuote(restartCommand)}`,
+    ].join("; "),
+  }
+}
+
+function interpreterRestartCommand(): string | null {
+  const explicit = Bun.env.INTERPRETER_RESTART_COMMAND?.trim()
+  if (explicit !== undefined && explicit.length > 0) return explicit
+  const script = Bun.env.INTERPRETER_RESTART_SCRIPT?.trim()
+  if (script !== undefined && script.length > 0) return `exec ${shellQuote(script)}`
+  const argv = currentProcessArgv()
+  if (argv.length === 0) return null
+  return `${interpreterRestartEnvExports()}exec ${argv.map(shellQuote).join(" ")}`
+}
+
+function interpreterRestartEnvExports(): string {
+  const keys = Object.keys(Bun.env).filter((key) => (
+    key === "PATH"
+    || key === "BUN_INSTALL"
+    || key === "LANG"
+    || key === "FORCE_COLOR"
+    || key === "NO_COLOR"
+    || key === "BUN_PROTOCOL_URL"
+    || key.startsWith("INTERPRETER_")
+  )).sort()
+  return keys
+    .map((key) => {
+      const value = Bun.env[key]
+      return value === undefined ? "" : `export ${key}=${shellQuote(value)}; `
+    })
+    .join("")
+}
+
+function currentProcessArgv(): string[] {
+  try {
+    const argv = readFileSync("/proc/self/cmdline", "utf8").split("\0").filter((item) => item.length > 0)
+    if (argv.length > 0) return argv
+  } catch {
+    // /proc is not available on every platform; Bun.argv is good enough there.
+  }
+  return [process.execPath, ...Bun.argv.slice(1)].filter((item) => item.length > 0)
+}
+
+function scheduleInterpreterRestart(command: string, logger: EventLogger): void {
+  const detached = `nohup sh -lc ${shellQuote(command)} >/dev/null 2>&1 &`
+  setTimeout(() => {
+    try {
+      Bun.spawn(["sh", "-lc", detached], {
+        cwd: process.cwd(),
+        stdin: "ignore",
+        stdout: "ignore",
+        stderr: "ignore",
+      })
+    } catch (error) {
+      logger.event("interpreter.restart.spawn.failed", {error: serializeError(error)})
+    }
+  }, 25)
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", `'"'"'`)}'`
 }
 
 function serveStatic(filePath: string, contentType: string): Response {
@@ -1249,6 +1356,13 @@ type TodoMarkdownPayload = {
 function todoMarkdownResponse(): Response {
   const payload = todoMarkdownPayload()
   if (payload === null) return jsonResponse({ok: false, path: todoMarkdownPath(), error: "TODO.md not found"}, 404)
+  return jsonResponse(payload)
+}
+
+function reloadTodoMarkdown(broadcast: (payload: JsonObject) => void): Response {
+  const payload = todoMarkdownPayload()
+  if (payload === null) return jsonResponse({ok: false, path: todoMarkdownPath(), error: "TODO.md not found"}, 404)
+  broadcast({type: "hud-todo-changed", todo: payload})
   return jsonResponse(payload)
 }
 
@@ -2025,6 +2139,7 @@ async function saveModuleSource(
     }
     clearSourceCaches()
     broadcastSourcePatched(options, broadcast, moduleId, "save", result, sourceUrl, breakpointUpdates)
+    broadcastTodoMarkdownForPatch(result, broadcast)
     const replay = await replayModulesForPatch(options, result)
     return jsonResponse({
       ok: true,
@@ -2081,6 +2196,7 @@ async function applyModulePatch(
     if (result.files.length > 0) {
       clearSourceCaches()
       broadcastSourcePatched(options, broadcast, moduleId, "apply_patch", result, undefined, breakpointUpdates)
+      broadcastTodoMarkdownForPatch(result, broadcast)
     }
     const replay = await replayModulesForPatch(options, result)
     return jsonResponse({ok: true, moduleId, patch: result, breakpoints: breakpointUpdates, replay})
@@ -2231,6 +2347,20 @@ function broadcastSourcePatched(
   const files = result.files.map((file) => sourcePatchFilePayload(file, sourceUrl))
   options.logger.event("source.patched", {moduleId, reason, files, breakpoints})
   broadcast({type: "source-patched", moduleId, reason, files, breakpoints})
+}
+
+function broadcastTodoMarkdownForPatch(result: ApplyPatchResult, broadcast: (payload: JsonObject) => void): void {
+  if (!patchTouchesTodoMarkdown(result)) return
+  const payload = todoMarkdownPayload()
+  broadcast(payload === null ? {type: "hud-todo-changed"} : {type: "hud-todo-changed", todo: payload})
+}
+
+function patchTouchesTodoMarkdown(result: ApplyPatchResult): boolean {
+  const todoPath = todoMarkdownPath()
+  return result.files.some((file) => (
+    resolve(file.path) === todoPath
+    || (file.oldPath !== undefined && resolve(file.oldPath) === todoPath)
+  ))
 }
 
 function sourcePatchFilePayload(file: ApplyPatchFileChange, sourceUrl: string | undefined): JsonObject {

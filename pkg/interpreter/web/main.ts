@@ -134,7 +134,7 @@ type ServerMessage =
   | {type: "ui-host-command"; requestId: number; command: string; params?: unknown}
   | {type: "hud-todo-changed"; todo?: TodoMarkdownPayload}
   | {type: "sqlite-changed"; path: string; label?: string; version?: string | null; available?: boolean; error?: string}
-  | {type: "reload"}
+  | {type: "reload"; delayMs?: number}
 
 type SourcePatchedFile = {
   path: string
@@ -588,6 +588,9 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string): T => {
 const engineCanvas = $<HTMLCanvasElement>("engine-canvas")
 
 const COMMAND_TIMEOUT_MS = 10_000
+const RELOAD_HEALTH_POLL_MS = 400
+const RELOAD_HEALTH_TIMEOUT_MS = 60_000
+const RELOAD_HEALTH_REQUEST_TIMEOUT_MS = 1_200
 const MODULE_DISPLAY_GAP_MM = 52
 const MODULE_DISPLAY_CENTER_Y_MM = 0
 const MODULE_DISPLAY_CENTER_Z_MM = 900
@@ -1014,12 +1017,46 @@ function handleServerMessage(msg: ServerMessage): void {
       handleSqliteChanged(msg)
       return
     case "reload": {
-      const url = new URL(window.location.href)
-      url.searchParams.set("_r", String(Date.now()))
-      window.location.replace(url.toString())
+      const delayMs = typeof msg.delayMs === "number" && Number.isFinite(msg.delayMs)
+        ? Math.max(0, msg.delayMs)
+        : 0
+      scheduleReloadWhenServerReady(delayMs)
       return
     }
   }
+}
+
+function scheduleReloadWhenServerReady(delayMs: number): void {
+  const startedAt = Date.now()
+  const reload = () => {
+    const url = new URL(window.location.href)
+    url.searchParams.set("_r", String(Date.now()))
+    window.location.replace(url.toString())
+  }
+  const poll = async (): Promise<void> => {
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => controller.abort(), RELOAD_HEALTH_REQUEST_TIMEOUT_MS)
+    try {
+      const response = await fetch(`/health?_r=${Date.now()}`, {
+        cache: "no-store",
+        signal: controller.signal,
+      })
+      if (response.ok) {
+        reload()
+        return
+      }
+    } catch {
+      // The host can be briefly unavailable while /restart respawns the pane.
+    } finally {
+      window.clearTimeout(timer)
+    }
+    if (Date.now() - startedAt >= RELOAD_HEALTH_TIMEOUT_MS) {
+      reload()
+      return
+    }
+    window.setTimeout(() => void poll(), RELOAD_HEALTH_POLL_MS)
+  }
+  window.setTimeout(() => void poll(), delayMs)
 }
 
 async function handleUiHostCommand(msg: Extract<ServerMessage, {type: "ui-host-command"}>): Promise<void> {

@@ -39,6 +39,8 @@ http://127.0.0.1:6500
 ```text
 GET    /health
 GET    /context
+POST   /reload
+POST   /restart
 
 GET    /space
 POST   /space/focus
@@ -74,6 +76,7 @@ POST   /hud/todo/items
 PATCH  /hud/todo/items/:id
 DELETE /hud/todo/items/:id
 GET    /hud/todo/panel
+POST   /hud/todo/reload
 POST   /hud/todo/highlight
 POST   /hud/todo/show
 POST   /hud/todo/dock
@@ -161,6 +164,14 @@ GET    /console?since=<iso|seq>&limit=<n>
 
 `origin:"ui"` означает, что context пришел от UI-host и включает реальные caret, selection и детализацию scopes. `origin:"runtime"` означает запасной вариант из текущей точки исполнения.
 
+## Host Lifecycle
+
+`POST /reload` просит все подключенные UI-клиенты перезагрузить страницу. Он не перезапускает host process и не должен использоваться как замена restart после изменения `pkg/interpreter/src/*` или `pkg/interpreter/web/*`.
+
+`POST /restart` выполняет контролируемый restart interpreter host, когда host запущен в поддерживаемом контуре. Основной путь - tmux: server рассылает UI-клиентам `reload` с задержкой, затем делает `respawn-pane` текущего `TMUX_PANE`. Команда запуска берется из `INTERPRETER_RESTART_COMMAND`, `INTERPRETER_RESTART_SCRIPT` или текущего `/proc/self/cmdline` с нужными env. Если host не в tmux и команда не задана, endpoint возвращает `501` и объясняет, что нужен внешний supervisor.
+
+UI-клиент после `reload` не должен сразу заменять страницу вслепую. Он ждет задержку, затем поллит `/health` с cache-busting и перезагружает страницу только когда новый host уже отвечает. Это защищает от белого экрана во время короткого падения socket-а.
+
 ## TODO HUD
 
 `GET /hud/todo` читает корневой `TODO.md` и возвращает Markdown плюс parsed items для HUD ToDoPane:
@@ -178,7 +189,10 @@ PUT    /hud/todo                # {text}
 POST   /hud/todo/items          # {text, kind?: "task"|"note"|"heading", checked?, depth?, afterId?}
 PATCH  /hud/todo/items/:id      # {text?, checked?}
 DELETE /hud/todo/items/:id
+POST   /hud/todo/reload
 ```
+
+`POST /hud/todo/reload` перечитывает файл и рассылает `hud-todo-changed` всем UI-клиентам. Это host-wide событие, а не команда случайному UI-host client.
 
 Состояние панели:
 
