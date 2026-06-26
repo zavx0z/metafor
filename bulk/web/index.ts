@@ -588,6 +588,43 @@ const normalizeLabelText = (value: string | null | undefined): string | null => 
 	return text.length > 0 ? text : null
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+	typeof value === "object" && value !== null && !Array.isArray(value)
+
+const forceString = (value: unknown): string | null => {
+	if (typeof value !== "string") return null
+	const text = value.trim()
+	return text.length > 0 ? text : null
+}
+
+const forceFieldOrder = (address: string): number | null => {
+	if (!/^\d+$/.test(address)) return null
+	const oneBased = Number(address)
+	if (!Number.isSafeInteger(oneBased) || oneBased <= 0) return null
+	return oneBased - 1
+}
+
+const forceFieldValueKind = (value: unknown): DbFieldValueKind | null => {
+	const kind = forceString(value)
+	if (kind === "string" || kind === "number" || kind === "boolean" || kind === "array" || kind === "enum") return kind
+	return kind === null ? null : "other"
+}
+
+const forceFieldColor = (kind: DbFieldValueKind): {colorR: number; colorG: number; colorB: number} => {
+	if (kind === "string") return {colorR: 1, colorG: 0.08, colorB: 0.58}
+	if (kind === "number") return {colorR: 1, colorG: 0.88, colorB: 0}
+	if (kind === "boolean") return {colorR: 0, colorG: 0.9, colorB: 1}
+	if (kind === "enum") return {colorR: 0.58, colorG: 0.32, colorB: 1}
+	if (kind === "array") return {colorR: 1, colorG: 0.42, colorB: 0}
+	return {colorR: 1, colorG: 0.16, colorB: 0.16}
+}
+
+const forceEnumValueText = (values: unknown): string | null => {
+	if (!Array.isArray(values)) return null
+	const variants = values.map((item) => forceString(item)).filter((item): item is string => item !== null)
+	return variants.length === 0 ? null : variants.join(" / ")
+}
+
 const getGeometryPositionArray = (geometry: BufferGeometry): Float32Array | null => {
 	const positions = geometry.attributes.position?.array
 	return positions instanceof Float32Array ? positions : null
@@ -2705,6 +2742,77 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		requestRenderLoop(REMOVAL_FADE_MS + 32)
 	}
 
+	const shellRecordMatchesForceWimp = (particleId: number, wimp: string): boolean => {
+		const shell = shellRecords.get(particleId)
+		return shell?.snapshot.src === wimp || shell?.snapshot.metaSrc === wimp
+	}
+
+	const fieldRecordMatchesForceAddress = (record: FieldRenderRecord, wimp: string, address: string): boolean => {
+		if (!shellRecordMatchesForceWimp(record.parentParticleId, wimp)) return false
+		if (record.snapshot.fieldKey === address) return true
+		const fieldOrder = forceFieldOrder(address)
+		return fieldOrder !== null && record.snapshot.fieldOrder === fieldOrder
+	}
+
+	const syncForceChangedFieldRecords = (): void => {
+		refreshPickTargets()
+		syncLabelRecords()
+		syncFieldBillboardRecords()
+		requestRenderLoop(INPUT_RENDER_WAKE_MS)
+	}
+
+	const applyHiggsReplaceFieldPatch = (record: FieldRenderRecord, patch: Record<string, unknown>): void => {
+		const next = {...record.snapshot}
+		const key = forceString(patch.key)
+		const label = forceString(patch.label)
+		const kind = forceFieldValueKind(patch.type)
+		const enumText = forceEnumValueText(patch.values)
+
+		if (key !== null) next.fieldKey = key
+		if (label !== null) next.fieldLabel = label
+		else if (key !== null) next.fieldLabel = key
+		if (kind !== null) next.fieldValueKind = kind
+		if (enumText !== null) next.valueText = enumText
+
+		const color = forceFieldColor(next.fieldValueKind)
+		next.colorR = color.colorR
+		next.colorG = color.colorG
+		next.colorB = color.colorB
+
+		record.snapshot = next
+		refreshFieldRecordGeometryAndMaterial(record)
+		applyFieldRecordScale(record)
+	}
+
+	const applyHiggsFieldsForce = (message: unknown): boolean => {
+		if (!isRecord(message) || message.part !== "higgs") return false
+		const wimp = forceString(message.path)
+		const value = isRecord(message.value) ? message.value : null
+		const fields = value !== null && isRecord(value.fields) ? value.fields : null
+		if (wimp === null || fields === null) return false
+
+		let changed = false
+		for (const [address, rawPatch] of Object.entries(fields)) {
+			const records = [...fieldRecords.values()].filter((record) => fieldRecordMatchesForceAddress(record, wimp, address))
+			if (message.op === "remove") {
+				for (const record of records) {
+					removeFieldRecord(record.snapshot.id)
+					changed = true
+				}
+				continue
+			}
+
+			if (message.op !== "replace" || !isRecord(rawPatch)) continue
+			for (const record of records) {
+				applyHiggsReplaceFieldPatch(record, rawPatch)
+				changed = true
+			}
+		}
+
+		if (changed) syncForceChangedFieldRecords()
+		return changed
+	}
+
 	const resolveFieldBillboardSize = (
 		field: DbFieldOrbitRow,
 		worldScale = 1,
@@ -4743,7 +4851,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			viewPoint.dispose()
 		},
 		handleForce(_channel: string, _message: unknown) {
-			return
+			applyHiggsFieldsForce(_message)
 		},
 		setAnimationSuspended(suspended: boolean) {
 			if (animationSuspended === suspended) return
