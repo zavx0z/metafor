@@ -41,6 +41,7 @@ import type {BreakpointSpec} from "./target.ts"
 import {workspaceFilesPayload, type WorkspaceFilesModuleContext} from "./workspace-files.ts"
 import {sqliteDatabaseFingerprint, sqliteDatabaseInputPath, sqliteDatabasePayload, sqliteJsonError, updateSqliteCell, type SqliteDatabaseFingerprint, type SqliteDatabasePayload} from "./sqlite-db.ts"
 import {interpreterRoutes} from "./routes.ts"
+import {handleBrowserHostRoute} from "./browser-host.ts"
 import {restartInspectOptionsFromParams} from "./restart-options.ts"
 import {
   attachVoiceProxySocket,
@@ -1114,6 +1115,8 @@ async function handleRoute(
   if (method === "POST" && path === "/space/focus") return await dispatchUiHostRouteFromBody("space.focus", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/space/frame") return await dispatchUiHostRouteFromBody("space.frame", req, dispatchUiHostCommand)
   if (method === "GET" && path === "/context") return jsonResponse(contextPayload(options, moduleContexts, hudTodoContext, hudSqliteContext))
+  const browserHostRoute = await handleBrowserHostRoute(req, method, path)
+  if (browserHostRoute !== null) return browserHostRoute
   if (method === "GET" && path === "/hud/terminal") return await dispatchUiHostRoute("hud.terminal.get", {}, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/terminal/dock") return await dispatchUiHostRouteFromBody("hud.terminal.dock", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/terminal/show") return await dispatchUiHostRouteFromBody("hud.terminal.show", req, dispatchUiHostCommand)

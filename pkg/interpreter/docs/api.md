@@ -42,6 +42,20 @@ GET    /context
 POST   /reload
 POST   /restart
 
+GET    /browser-display/health
+GET    /browser-display/state
+GET    /browser-display/status
+GET    /browser-display/snapshot
+POST   /browser-display/navigate
+POST   /browser-display/reload
+POST   /browser-display/back
+POST   /browser-display/forward
+POST   /browser-display/devtools
+POST   /browser-display/fullscreen
+POST   /browser-display/viewport
+POST   /browser-display/input
+ANY    /browser-display/proxy/<path>
+
 GET    /space
 POST   /space/focus
 POST   /space/frame
@@ -171,6 +185,44 @@ GET    /console?since=<iso|seq>&limit=<n>
 `POST /restart` выполняет контролируемый restart interpreter host, когда host запущен в поддерживаемом контуре. Основной путь - tmux: server рассылает UI-клиентам `reload` с задержкой, затем делает `respawn-pane` текущего `TMUX_PANE`. Команда запуска берется из `INTERPRETER_RESTART_COMMAND`, `INTERPRETER_RESTART_SCRIPT` или текущего `/proc/self/cmdline` с нужными env. Если host не в tmux и команда не задана, endpoint возвращает `501` и объясняет, что нужен внешний supervisor.
 
 UI-клиент после `reload` не должен сразу заменять страницу вслепую. Он ждет задержку, затем поллит `/health` с cache-busting и перезагружает страницу только когда новый host уже отвечает. Это защищает от белого экрана во время короткого падения socket-а.
+
+## Browser Host Bridge
+
+Browser-host bridge - локальный server-side адаптер для будущего first-class `browser-display`. Он не запускает браузер, не добавляет Playwright и не делает фонового polling. Интерпретатор только проксирует явные запросы к локальному Electron/browser-host API.
+
+Конфигурация:
+
+```text
+INTERPRETER_BROWSER_HOST_URL=http://127.0.0.1:<port>
+# или
+INTERPRETER_BROWSER_HOST_PORT=<port>
+```
+
+`INTERPRETER_BROWSER_HOST_URL` должен указывать на `localhost`, `127.0.0.0/8` или `::1`, использовать `http`/`https` и не содержать credentials/query/hash. Если URL не задан или небезопасен, browser-display routes возвращают `503` с понятной JSON-ошибкой, а host interpreter продолжает работать.
+
+Routes:
+
+```text
+GET  /browser-display/health
+GET  /browser-display/state
+GET  /browser-display/status        # alias к state для UI/status controls
+GET  /browser-display/snapshot
+POST /browser-display/navigate       # {url}
+POST /browser-display/reload         # {ignoreCache?: boolean, hard?: boolean}
+POST /browser-display/back
+POST /browser-display/forward
+POST /browser-display/devtools       # {open?: boolean, toggle?: boolean}
+POST /browser-display/fullscreen     # {enabled?: boolean}
+POST /browser-display/viewport       # {width, height, deviceScaleFactor?}
+POST /browser-display/input          # pointer/keyboard/wheel/focus event
+ANY  /browser-display/proxy/<path>   # relative path under configured browser-host base URL
+```
+
+Явные routes мапятся на одноименные upstream paths: `/browser-display/state` -> `<browser-host>/state`, `/browser-display/status` -> `<browser-host>/state`, `/browser-display/snapshot` -> `<browser-host>/snapshot` и так далее. Если `INTERPRETER_BROWSER_HOST_URL` содержит path-prefix, например `http://127.0.0.1:3100/api`, он сохраняется: `/browser-display/state` пойдет в `/api/state`.
+
+`GET /browser-display/snapshot` возвращает upstream body как stream/proxy response. Bridge сохраняет `content-type`, `content-length`, `etag`, `last-modified`, `cache-control` и дополнительно выставляет `x-browser-host-size`, если upstream прислал `content-length`. Snapshot не оборачивается в JSON и не кодируется base64.
+
+`/browser-display/proxy/<path>` нужен как временный безопасный escape hatch, пока Electron worker API стабилизируется. Он принимает только relative path под configured local browser-host, запрещает `//`, `.`/`..` segments и не позволяет передать произвольный absolute URL.
 
 ## TODO HUD
 
