@@ -58,6 +58,11 @@ const {proxy: interpreterProxyRoutes} = interpreterRoutes
 const REDIRECT_ENABLED = TLS_ENABLED && (Bun.env.APP_WEB_REDIRECT === "1" || (Bun.env.APP_WEB_REDIRECT !== "0" && PORT === 443))
 const REDIRECT_HOST = Bun.env.APP_WEB_REDIRECT_HOST ?? HOST
 const REDIRECT_PORT = Number(Bun.env.APP_WEB_REDIRECT_PORT ?? 80)
+const APP_CLIENT_SOURCE_MAPS_ENABLED = Bun.env.APP_WEB_CLIENT_SOURCEMAP === "0"
+  ? false
+  : Bun.env.APP_WEB_CLIENT_SOURCEMAP === "1"
+    || Bun.env.NETWORK_TMUX_MODE === "dev"
+    || (Bun.env.BUN_ENV !== "production" && Bun.env.NODE_ENV !== "production")
 const APP_WEB_STARTED_AT = new Date()
 const LOG_COLOR_ENABLED = Bun.env.NO_COLOR === undefined && Bun.env.FORCE_COLOR !== "0"
 const META_SOURCE_DIR = "github"
@@ -480,7 +485,8 @@ async function buildAppClientBundle(): Promise<AppClientBundle> {
   const result = await Bun.build({
     entrypoints: [join(import.meta.dir, "index.html")],
     loader: {".wgsl": "text"},
-    minify: true,
+    minify: !APP_CLIENT_SOURCE_MAPS_ENABLED,
+    sourcemap: APP_CLIENT_SOURCE_MAPS_ENABLED ? "linked" : "none",
     target: "browser",
   })
   if (!result.success) {

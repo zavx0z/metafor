@@ -53,6 +53,19 @@ systemctl --user status metafor-interpreter-web-dev.service --no-pager
 
 Shell `curl https://dev.proizvodstvo1.ru/...` не является надёжной проверкой runtime-состояния: он может вернуть SSO/nginx-ответ вместо состояния текущего interpreter host.
 
+### Dev sourcemaps
+
+В dev-контуре client bundle собирается с linked source maps, чтобы browser DevTools показывал исходные TypeScript-файлы `app/web`, `bulk/web` и связанных workspace-пакетов. Это включается автоматически вне production и при `NETWORK_TMUX_MODE=dev`.
+
+Явное управление:
+
+```bash
+APP_WEB_CLIENT_SOURCEMAP=1 bun run workspace.app.web:dev
+APP_WEB_CLIENT_SOURCEMAP=0 bun run workspace.app.web:prod
+```
+
+При включенных sourcemaps bundle не минифицируется. Если DevTools показывает старый compiled bundle, сначала проверь текущий dev-контур через локальный interpreter/API, затем перезапусти child process или host по реальному контуру запуска; не делай выводы по внешнему proxy-ответу `dev.proizvodstvo1.ru`.
+
 - `app/web/client.ts` импортирует `bulk/web` как пакет и остаётся тонким браузерным видовым клиентом.
 - `app/web/server.ts` статически импортирует `dark/server`, берёт `boundary` из `globalThis`, получает снимок уже наполненной базы через `boundary.bulkRuntime()` и отдаёт браузеру готовые строки мира. `BOUNDARY_PATH` передаётся при запуске и подхватывается самим `Boundary`.
 - `Dark` может работать совместно с `Boundary`: он открывает boundary-хранилище и материализует каноническую форму.
