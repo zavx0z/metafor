@@ -7,7 +7,11 @@ Display должен быть равноправным экраном в `Space`
 iframe-оберткой или скрытым Playwright-клиентом.
 
 Текущий основной realtime-канал - WebRTC video stream из Electron/Chromium
-capture API на сервере. Snapshot endpoints остаются fallback/diagnostics, но не
+capture API на сервере. Host открывает браузерное окно с WebApp, но WebRTC
+source по умолчанию - весь серверный `screen`, а не вкладка и не окно браузера.
+Вместе с video track sender запрашивает audio track; interpreter подключает его
+через WebAudio `PannerNode`, привязанный к позиции `remote-desktop:server`
+display в `Space`. Snapshot endpoints остаются fallback/diagnostics, но не
 являются основным способом живой визуализации.
 
 ## Проверенный Контекст
@@ -30,8 +34,9 @@ capture API на сервере. Snapshot endpoints остаются fallback/di
   opt-in remote desktop WebRTC sender:
   `METAFOR_ELECTRON_HOST=1` или `METAFOR_ELECTRON_HOST_PORT`, отдельный
   user-data-dir/session partition, local-only HTTP API, snapshot через
-  `webContents.capturePage()`, WebRTC capture через `desktopCapturer` /
-  `getDisplayMedia`, управляемый URL/viewport/restart/input и CDP через
+  `webContents.capturePage()`, WebRTC screen/audio capture через
+  `desktopCapturer` / `getDisplayMedia`, управляемый URL/viewport/restart/input
+  и CDP через
   `METAFOR_ELECTRON_DEBUG_PORT`;
 - interpreter-side bridge для browser-host использует `/browser-display/*`, а
   server desktop bridge использует `/remote-desktop/*`; оба проксируют только
@@ -121,7 +126,9 @@ curl -sS http://10.66.0.10:3004/health
 - CDP/debug port на loopback;
 - health endpoint с состоянием process/window/page/CDP;
 - restart endpoint, который перезапускает host process и публикует новый state;
-- WebRTC video stream для агента и человека через `/webrtc/signaling`;
+- WebRTC video stream всего серверного desktop через `/webrtc/signaling`;
+- audio stream в том же RTCPeerConnection; interpreter воспроизводит его как
+  spatial audio относительно позиции display в Space;
 - snapshot endpoint только как fallback/diagnostics;
 - input proxy для pointer/keyboard/wheel с ack и последним input timestamp;
 - команды reload/back/forward/devtools/fullscreen;
@@ -130,8 +137,22 @@ curl -sS http://10.66.0.10:3004/health
   страница не прошла readiness, input не доставляется.
 
 Playwright допустим только как временный диагностический инструмент. Runtime
-remote desktop display не должен требовать постоянный Playwright process или
-hidden browser.
+remote desktop display не должен требовать постоянный Playwright process.
+Внутренняя Electron sender page допустима только как WebRTC endpoint: она не
+является целевым display. Целевой visual source по умолчанию - `screen`, чтобы
+человек и агент видели весь рабочий стол с открытым браузером.
+
+Audio contract:
+
+- `METAFOR_REMOTE_DESKTOP_AUDIO=0` выключает audio track;
+- `METAFOR_REMOTE_DESKTOP_AUDIO_SOURCE=auto|system|loopback|loopback-with-mute|browser|browser-frame|off`;
+- `auto` на Windows использует Electron system loopback, а на Linux сначала
+  использует audio из основного browser frame, потому что Electron 35 помечает
+  строковый loopback как Windows-only. Полный Linux desktop audio должен идти
+  через отдельный PipeWire/PulseAudio adapter или runtime, где loopback реально
+  доступен;
+- state `/remote-desktop/rtc/state` должен показывать `audio.enabled`,
+  `audio.effectiveSource` и `audio.trackCount`.
 
 Interpreter bridge - это не сам Electron host и не display. Он должен быть
 тонким proxy к локальному host API и локальным WebRTC signaling server:
@@ -183,6 +204,9 @@ METAFOR_URL=http://10.66.0.10:3004/ \
 METAFOR_ELECTRON_HOST=1 \
 METAFOR_ELECTRON_HOST_PORT=32123 \
 METAFOR_REMOTE_DESKTOP_RTC=1 \
+METAFOR_REMOTE_DESKTOP_CAPTURE_SOURCE=screen \
+METAFOR_REMOTE_DESKTOP_AUDIO=1 \
+METAFOR_REMOTE_DESKTOP_AUDIO_SOURCE=auto \
 METAFOR_REMOTE_DESKTOP_SIGNAL_URL=ws://127.0.0.1:6500/webrtc/signaling \
 METAFOR_ELECTRON_DEBUG_PORT=9230 \
 bun --filter @app/electron dev:host
@@ -197,7 +221,7 @@ curl -sS http://127.0.0.1:9230/json/list
 ```
 
 CDP endpoints полезны для диагностики DevTools/source maps, но рабочий visual
-path для агента и interpreter UI идет через WebRTC signaling и
+и audio path для агента и interpreter UI идет через WebRTC signaling и
 `remote-desktop:server` display. HTTP routes `/remote-desktop/*` нужны для
 health, restart, fallback snapshot и input adapter diagnostics.
 
@@ -357,6 +381,9 @@ Linux/Electron host должен работать в своем графичес
   даже без remote desktop RTC;
 - Wayland path с `--ozone-platform=wayland --enable-features=UseOzonePlatform`
   не падает сразу, но в проверке завис до поднятия host API;
+- повторный smoke после включения `METAFOR_REMOTE_DESKTOP_CAPTURE_SOURCE=screen`
+  и `METAFOR_REMOTE_DESKTOP_AUDIO=1` подтвердил ту же границу: Xwayland падает
+  `SIGSEGV` до `/desktop/health`, Wayland не поднимает host API за 18 секунд;
 - `xvfb` на сервере не установлен, а `sudo -n apt-get install xvfb` требует
   интерактивную авторизацию.
 

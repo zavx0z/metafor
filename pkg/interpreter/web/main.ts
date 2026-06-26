@@ -97,7 +97,7 @@ import {
   type WorkspaceFilesContextSnapshot,
 } from "./workspace-files.ts"
 import {formatTerminalExpressionResult} from "./terminal-value-format.ts"
-import {createAndroidRtcClient, type AndroidRtcClient, type AndroidRtcCommand, type AndroidRtcFrame, type RtcControlCommand} from "./android-rtc.ts"
+import {createAndroidRtcClient, type AndroidRtcAudioStream, type AndroidRtcClient, type AndroidRtcCommand, type AndroidRtcFrame, type RtcControlCommand} from "./android-rtc.ts"
 import {
   DEFAULT_VOICE_ACTIVATION_PHRASES,
   DEFAULT_VOICE_DEACTIVATION_PHRASES,
@@ -881,6 +881,12 @@ let voiceServiceCheckTimer: number | null = null
 let hostTerminalUnloadInstalled = false
 let hostCodexComposerDragHandlersInstalled = false
 let hudNotificationAudioContext: AudioContext | null = null
+let remoteDesktopAudioContext: AudioContext | null = null
+let remoteDesktopAudioSource: MediaStreamAudioSourceNode | null = null
+let remoteDesktopAudioPanner: PannerNode | null = null
+let remoteDesktopAudioGain: GainNode | null = null
+let remoteDesktopAudioStream: MediaStream | null = null
+let remoteDesktopAudioLastCenter: UiRuntimeViewPointVector | null = null
 const hudNotificationAudioElements = new Map<HudNotificationKind, HTMLAudioElement>()
 const voiceSignalLastPlayedAt = new Map<HudNotificationKind, number>()
 let hudNotificationLastLine = ""
@@ -2461,6 +2467,7 @@ function displayCenterWithStored(displayId: string, fallback: UiRuntimeViewPoint
 
 function storeInterpreterDisplayPosition(change: UiRuntimeDisplayCenterChange): void {
   interpreterDisplayPositions.set(change.displayId, change.centerMm)
+  if (change.displayId === REMOTE_DESKTOP_DISPLAY_ID) updateRemoteDesktopAudioPosition(change.centerMm)
   scheduleInterpreterDisplayPositionsStorage()
 }
 
@@ -2976,14 +2983,17 @@ function connectRemoteDesktopRtc(): void {
       signalUrl: interpreterRtcSignalUrl(),
       capabilities: ["remote-desktop", "interpreter"],
       frameSrc: REMOTE_DESKTOP_RTC_FRAME_SRC,
+      receiveAudio: true,
       onFrame: (frame) => {
         remoteDesktopPane?.setFrame(frame)
         remoteDesktopPane?.setStatus("connected", `${frame.width}x${frame.height} rtc`)
       },
+      onAudio: connectRemoteDesktopAudio,
       onStatus: setRemoteDesktopRtcStatus,
     })
   }
   remoteDesktopRtcClient.connect()
+  primeRemoteDesktopAudio()
 }
 
 function setRemoteDesktopRtcStatus(kind: AndroidPaneStatusKind, label: string): void {
@@ -2992,6 +3002,7 @@ function setRemoteDesktopRtcStatus(kind: AndroidPaneStatusKind, label: string): 
 
 function sendRemoteDesktopControl(command: RtcControlCommand): boolean {
   connectRemoteDesktopRtc()
+  primeRemoteDesktopAudio()
   if (remoteDesktopRtcClient?.send(command) === true) {
     remoteDesktopPane?.setStatus("connected", "rtc command")
     return true
@@ -3003,6 +3014,135 @@ function sendRemoteDesktopControl(command: RtcControlCommand): boolean {
 function interpreterRtcSignalUrl(): string {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
   return `${protocol}//${window.location.host}/webrtc/signaling`
+}
+
+function connectRemoteDesktopAudio(audio: AndroidRtcAudioStream | null): void {
+  disconnectRemoteDesktopAudioSource()
+  if (audio === null) {
+    remoteDesktopPane?.setAudioStatus("audio idle")
+    return
+  }
+
+  const context = ensureRemoteDesktopAudioContext()
+  if (context === null) {
+    remoteDesktopPane?.setAudioStatus("audio unavailable")
+    return
+  }
+
+  const audioTracks = audio.stream.getAudioTracks()
+  if (audioTracks.length === 0) {
+    remoteDesktopPane?.setAudioStatus("audio no tracks")
+    return
+  }
+
+  const stream = new MediaStream(audioTracks)
+  const source = context.createMediaStreamSource(stream)
+  const panner = context.createPanner()
+  const gain = context.createGain()
+  panner.panningModel = "HRTF"
+  panner.distanceModel = "inverse"
+  panner.refDistance = 1
+  panner.maxDistance = 8
+  panner.rolloffFactor = 0.55
+  gain.gain.value = 0.85
+  source.connect(panner)
+  panner.connect(gain)
+  gain.connect(context.destination)
+
+  remoteDesktopAudioStream = stream
+  remoteDesktopAudioSource = source
+  remoteDesktopAudioPanner = panner
+  remoteDesktopAudioGain = gain
+  updateRemoteDesktopAudioPosition(remoteDesktopAudioLastCenter)
+  remoteDesktopPane?.setAudioStatus(`${audio.trackCount} audio ${context.state}`)
+  primeRemoteDesktopAudio()
+}
+
+function disconnectRemoteDesktopAudioSource(): void {
+  remoteDesktopAudioSource?.disconnect()
+  remoteDesktopAudioPanner?.disconnect()
+  remoteDesktopAudioGain?.disconnect()
+  remoteDesktopAudioStream = null
+  remoteDesktopAudioSource = null
+  remoteDesktopAudioPanner = null
+  remoteDesktopAudioGain = null
+}
+
+function ensureRemoteDesktopAudioContext(): AudioContext | null {
+  if (remoteDesktopAudioContext !== null) return remoteDesktopAudioContext
+  try {
+    remoteDesktopAudioContext = new AudioContext()
+    setRemoteDesktopAudioListener(remoteDesktopAudioContext)
+    return remoteDesktopAudioContext
+  } catch {
+    return null
+  }
+}
+
+function primeRemoteDesktopAudio(): void {
+  const context = ensureRemoteDesktopAudioContext()
+  if (context === null || context.state === "running") return
+  void context.resume()
+    .then(() => {
+      remoteDesktopPane?.setAudioStatus(remoteDesktopAudioStream === null ? "audio ready" : `audio ${context.state}`)
+    })
+    .catch(() => {
+      remoteDesktopPane?.setAudioStatus("audio blocked")
+    })
+}
+
+function setRemoteDesktopAudioListener(context: AudioContext): void {
+  const listener = context.listener as AudioListener & {
+    forwardX?: AudioParam
+    forwardY?: AudioParam
+    forwardZ?: AudioParam
+    positionX?: AudioParam
+    positionY?: AudioParam
+    positionZ?: AudioParam
+    setOrientation?: (x: number, y: number, z: number, xUp: number, yUp: number, zUp: number) => void
+    setPosition?: (x: number, y: number, z: number) => void
+    upX?: AudioParam
+    upY?: AudioParam
+    upZ?: AudioParam
+  }
+  setAudioParamPosition(listener, 0, 0, 0)
+  if (listener.forwardX !== undefined && listener.forwardY !== undefined && listener.forwardZ !== undefined) {
+    listener.forwardX.value = 0
+    listener.forwardY.value = 0
+    listener.forwardZ.value = -1
+  }
+  if (listener.upX !== undefined && listener.upY !== undefined && listener.upZ !== undefined) {
+    listener.upX.value = 0
+    listener.upY.value = 1
+    listener.upZ.value = 0
+  } else if (typeof listener.setOrientation === "function") {
+    listener.setOrientation(0, 0, -1, 0, 1, 0)
+  }
+}
+
+function updateRemoteDesktopAudioPosition(center: UiRuntimeViewPointVector | null): void {
+  remoteDesktopAudioLastCenter = center
+  if (center === null || remoteDesktopAudioPanner === null) return
+  const x = clampNumber(center.x / 1600, -3, 3)
+  const y = clampNumber((center.z - MODULE_DISPLAY_CENTER_Z_MM) / 1600, -1.5, 1.5)
+  const z = -Math.max(0.75, Math.abs(center.y - MODULE_DISPLAY_CENTER_Y_MM) / 1800 + 1)
+  setAudioParamPosition(remoteDesktopAudioPanner, x, y, z)
+}
+
+function setAudioParamPosition(target: PannerNode | AudioListener, x: number, y: number, z: number): void {
+  const positioned = target as (PannerNode | AudioListener) & {
+    positionX?: AudioParam
+    positionY?: AudioParam
+    positionZ?: AudioParam
+    setPosition?: (x: number, y: number, z: number) => void
+  }
+  if (positioned.positionX !== undefined && positioned.positionY !== undefined && positioned.positionZ !== undefined) {
+    positioned.positionX.value = x
+    positioned.positionY.value = y
+    positioned.positionZ.value = z
+    return
+  }
+  if (typeof positioned.setPosition === "function") positioned.setPosition(x, y, z)
 }
 
 async function sendAndroidTap(x: number, y: number): Promise<void> {
@@ -4141,6 +4281,7 @@ type RemoteDesktopPoint = {x: number; y: number}
 class RemoteDesktopPane extends UiSurface {
   #statusKind: AndroidPaneStatusKind = "idle"
   #status = "rtc idle"
+  #audioStatus = "audio idle"
   #frame: AndroidRtcFrame | null = null
   #lastImageRect: UiSurfaceRect | null = null
   #pressPoint: RemoteDesktopPoint | null = null
@@ -4158,6 +4299,12 @@ class RemoteDesktopPane extends UiSurface {
     if (this.#statusKind === kind && this.#status === label) return
     this.#statusKind = kind
     this.#status = label
+    this.requestRender()
+  }
+
+  setAudioStatus(label: string): void {
+    if (this.#audioStatus === label) return
+    this.#audioStatus = label
     this.requestRender()
   }
 
@@ -4201,7 +4348,12 @@ class RemoteDesktopPane extends UiSurface {
     this.drawText(this.#status, pad + titleW + 14, 12, {
       fontPx: 10,
       material: this.#statusKind === "error" ? this.materials.red : this.materials.muted,
-      maxWidthPx: Math.max(1, refreshX - pad - titleW - 20),
+      maxWidthPx: Math.max(1, refreshX - pad - titleW - 112),
+    })
+    this.drawText(this.#audioStatus, Math.max(pad, refreshX - 92), 12, {
+      fontPx: 10,
+      material: this.materials.muted,
+      maxWidthPx: 82,
     })
     IconButton(this, refreshX, 8, buttonSize, buttonSize, {
       label: "Reconnect remote desktop",
@@ -6962,10 +7114,12 @@ function ensureRemoteDesktopDisplay(): void {
       border: null,
     })
     uiCanvas.addSurfaceToDisplay(REMOTE_DESKTOP_DISPLAY_ID, remoteDesktopPane, ({w, h}) => ({x: 0, y: 0, w, h}))
+    updateRemoteDesktopAudioPosition(center)
     connectRemoteDesktopRtc()
   } else {
     uiCanvas.resizeDisplay(REMOTE_DESKTOP_DISPLAY_ID, metrics)
     uiCanvas.setDisplayCenter(REMOTE_DESKTOP_DISPLAY_ID, center)
+    updateRemoteDesktopAudioPosition(center)
   }
 }
 

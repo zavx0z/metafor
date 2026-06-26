@@ -16,6 +16,12 @@ export type AndroidRtcFrame = {
   capturedAt: number
 }
 
+export type AndroidRtcAudioStream = {
+  stream: MediaStream
+  trackCount: number
+  receivedAt: number
+}
+
 export type AndroidRtcStatusKind = "idle" | "connected" | "running" | "error"
 
 export type AndroidRtcCommand =
@@ -52,7 +58,9 @@ export type AndroidRtcClientOpts = {
   capabilities?: string[]
   frameSrc: string
   minFrameIntervalMs?: number
+  receiveAudio?: boolean
   onFrame: (frame: AndroidRtcFrame) => void
+  onAudio?: (audio: AndroidRtcAudioStream | null) => void
   onStatus: (kind: AndroidRtcStatusKind, label: string) => void
 }
 
@@ -73,6 +81,7 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
   const peerTarget = opts.peerTarget ?? "primary"
   const peers = new Map<string, PeerRecord>()
   const video = document.createElement("video")
+  const audioStream = new MediaStream()
   video.autoplay = true
   video.muted = true
   video.playsInline = true
@@ -130,6 +139,7 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     pendingCommands = []
     closeAllPeers()
     video.srcObject = null
+    clearAudioStream()
     frameLoopStarted = false
   }
 
@@ -206,6 +216,7 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
 
     const connection = new RTCPeerConnection({iceServers: RTC_ICE_SERVERS})
     connection.addTransceiver("video", {direction: "recvonly"})
+    if (opts.receiveAudio === true) connection.addTransceiver("audio", {direction: "recvonly"})
     const peer: PeerRecord = {id: remotePeerId, connection, channel: null}
     peers.set(remotePeerId, peer)
 
@@ -219,8 +230,14 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     })
     connection.addEventListener("datachannel", (event) => attachDataChannel(peer, event.channel))
     connection.addEventListener("track", (event) => {
+      if (event.track.kind === "audio") {
+        attachAudioTrack(event.track)
+        opts.onStatus("connected", "rtc audio")
+        return
+      }
+      if (event.track.kind !== "video") return
       const stream = event.streams[0] ?? new MediaStream([event.track])
-      video.srcObject = stream
+      video.srcObject = new MediaStream(stream.getVideoTracks())
       void video.play().catch(() => undefined)
       startFrameLoop()
       opts.onStatus("connected", "rtc video")
@@ -298,16 +315,42 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     }
   }
 
+  function attachAudioTrack(track: MediaStreamTrack): void {
+    if (audioStream.getAudioTracks().some((current) => current.id === track.id)) return
+    audioStream.addTrack(track)
+    track.addEventListener("ended", () => {
+      if (audioStream.getAudioTracks().some((current) => current.id === track.id)) {
+        audioStream.removeTrack(track)
+        emitAudioStream()
+      }
+    })
+    emitAudioStream()
+  }
+
+  function emitAudioStream(): void {
+    const trackCount = audioStream.getAudioTracks().length
+    opts.onAudio?.(trackCount === 0 ? null : {stream: audioStream, trackCount, receivedAt: Date.now()})
+  }
+
+  function clearAudioStream(): void {
+    const tracks = audioStream.getTracks()
+    if (tracks.length === 0) return
+    for (const track of tracks) audioStream.removeTrack(track)
+    opts.onAudio?.(null)
+  }
+
   function closePeer(remotePeerId: string): void {
     const peer = peers.get(remotePeerId)
     if (peer === undefined) return
     peers.delete(remotePeerId)
     peer.channel?.close()
     peer.connection.close()
+    if (peers.size === 0) clearAudioStream()
   }
 
   function closeAllPeers(): void {
     for (const peerId of [...peers.keys()]) closePeer(peerId)
+    clearAudioStream()
   }
 
   function sendSignal(payload: Record<string, unknown>): void {

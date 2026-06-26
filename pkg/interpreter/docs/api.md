@@ -239,11 +239,12 @@ ANY  /browser-display/proxy/<path>   # relative path under configured browser-ho
 ## Remote Desktop Display
 
 Remote desktop display - server-owned визуальный канал для совместной Web UI
-разработки. Основной realtime-путь: Electron на сервере захватывает
-desktop/window через Chromium capture API и публикует video track по WebRTC.
-Интерпретатор держит локальный signaling endpoint и показывает поток как
-first-class display `remote-desktop:server` в `Space`. Snapshot routes являются
-fallback/diagnostics, а не основным frame loop.
+разработки. Основной realtime-путь: Electron на сервере открывает браузерное
+окно с WebApp, захватывает весь desktop через Chromium capture API и публикует
+video/audio tracks по WebRTC. Интерпретатор держит локальный signaling endpoint,
+показывает video как first-class display `remote-desktop:server` в `Space` и
+воспроизводит audio через WebAudio spatial panner, привязанный к позиции этого
+display. Snapshot routes являются fallback/diagnostics, а не основным frame loop.
 
 Конфигурация bridge:
 
@@ -269,10 +270,12 @@ POST /remote-desktop/browser/open
 ```
 
 `/remote-desktop/health` мапится на Electron `/desktop/health` и включает
-состояние WebRTC sender. `/remote-desktop/rtc/state` и
-`/remote-desktop/rtc/restart` управляют capture/sender window внутри Electron
-host. `/remote-desktop/input` используется как fallback/control adapter; при
-WebRTC data channel UI может отправлять input напрямую sender-у.
+состояние WebRTC sender, включая `capture.preferredKind` и фактический
+`source.kind`, а также `audio.enabled`, `audio.effectiveSource` и
+`audio.trackCount`. `/remote-desktop/rtc/state` и `/remote-desktop/rtc/restart`
+управляют capture/sender window внутри Electron host. `/remote-desktop/input`
+используется как fallback/control adapter; при WebRTC data channel UI может
+отправлять input напрямую sender-у.
 
 ## TODO HUD
 

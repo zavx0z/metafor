@@ -211,7 +211,7 @@ Generic panes under `ui/panes` не должны знать interpreter-specific
 
 Browser page - только host одного WebGPU canvas. Не добавляй hidden/default runtime surfaces для interpreter content. Interpreter panels должны быть attached к module `UIDisplay`.
 
-Общий server desktop/browser для WebApp должен входить как first-class display в `Space`, а не как HUD. Realtime-канал - WebRTC video stream из Electron/Chromium capture API на сервере; snapshot routes допустимы как fallback/diagnostics. Не делай Playwright permanent runtime dependency и не завязывай архитектуру на macOS display пользователя. macOS/ai-macos и Linux OS-level input должны быть adapter-слоями поверх общего signaling/input контракта.
+Общий server desktop/browser для WebApp должен входить как first-class display в `Space`, а не как HUD. Realtime-канал - WebRTC video/audio stream из Electron/Chromium capture API на сервере; snapshot routes допустимы как fallback/diagnostics. Visual source по умолчанию - весь server `screen`, не browser tab/window. Interpreter воспроизводит audio через WebAudio spatial panner, привязанный к позиции display в Space. Не делай Playwright permanent runtime dependency и не завязывай архитектуру на macOS display пользователя. macOS/ai-macos и Linux OS-level input/audio должны быть adapter-слоями поверх общего signaling/input/media контракта.
 
 ## Terminal Input
 

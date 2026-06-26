@@ -34,8 +34,12 @@ const REMOTE_DESKTOP_RTC_MODE = envFlag(process.env.METAFOR_REMOTE_DESKTOP_RTC)
 const REMOTE_DESKTOP_RTC_SIGNAL_URL = (process.env.METAFOR_REMOTE_DESKTOP_SIGNAL_URL || "ws://127.0.0.1:6500/webrtc/signaling").trim()
 const REMOTE_DESKTOP_RTC_ROOM = (process.env.METAFOR_REMOTE_DESKTOP_RTC_ROOM || "remote-desktop").trim()
 const REMOTE_DESKTOP_RTC_PEER_ID = (process.env.METAFOR_REMOTE_DESKTOP_RTC_PEER_ID || "electron-desktop").trim()
-const REMOTE_DESKTOP_RTC_SOURCE_KIND = (process.env.METAFOR_REMOTE_DESKTOP_CAPTURE_SOURCE || "window").trim().toLowerCase()
-const REMOTE_DESKTOP_RTC_SOURCE_NAME = (process.env.METAFOR_REMOTE_DESKTOP_CAPTURE_NAME || "MetaFor").trim()
+const REMOTE_DESKTOP_RTC_SOURCE_KIND = (process.env.METAFOR_REMOTE_DESKTOP_CAPTURE_SOURCE || "screen").trim().toLowerCase()
+const REMOTE_DESKTOP_RTC_SOURCE_NAME = (process.env.METAFOR_REMOTE_DESKTOP_CAPTURE_NAME || "").trim()
+const REMOTE_DESKTOP_RTC_AUDIO_ENABLED = process.env.METAFOR_REMOTE_DESKTOP_AUDIO === undefined
+  ? REMOTE_DESKTOP_RTC_MODE
+  : envFlag(process.env.METAFOR_REMOTE_DESKTOP_AUDIO)
+const REMOTE_DESKTOP_RTC_AUDIO_SOURCE = (process.env.METAFOR_REMOTE_DESKTOP_AUDIO_SOURCE || "auto").trim().toLowerCase()
 const REMOTE_DESKTOP_RTC_MAX_FPS = parseInteger(process.env.METAFOR_REMOTE_DESKTOP_RTC_MAX_FPS, "METAFOR_REMOTE_DESKTOP_RTC_MAX_FPS", 30, 1, 60)
 const REMOTE_DESKTOP_APIS = remoteDesktopApis()
 const SESSION_PARTITION = HOST_MODE ? "persist:metafor-browser-host" : "persist:metafor"
@@ -71,6 +75,17 @@ const remoteDesktopRtcState = {
   signalUrl: REMOTE_DESKTOP_RTC_SIGNAL_URL,
   room: REMOTE_DESKTOP_RTC_ROOM,
   peerId: REMOTE_DESKTOP_RTC_PEER_ID,
+  capture: {
+    preferredKind: REMOTE_DESKTOP_RTC_SOURCE_KIND === "screen" ? "screen" : "window",
+    preferredName: REMOTE_DESKTOP_RTC_SOURCE_NAME || null,
+  },
+  audio: {
+    enabled: REMOTE_DESKTOP_RTC_AUDIO_ENABLED,
+    preferredSource: REMOTE_DESKTOP_RTC_AUDIO_SOURCE,
+    effectiveSource: null,
+    trackCount: 0,
+    lastError: null,
+  },
   source: null,
   peers: [],
   lastFrameAt: null,
@@ -253,9 +268,16 @@ function installRemoteDesktopCaptureHandler(appSession) {
   appSession.setDisplayMediaRequestHandler(async (request, callback) => {
     try {
       const source = await selectRemoteDesktopSource()
+      const audio = remoteDesktopAudioTarget()
       remoteDesktopRtcState.source = sourceSummary(source)
+      remoteDesktopRtcState.audio.effectiveSource = audio === null
+        ? null
+        : typeof audio === "string"
+          ? audio
+          : "browser-frame"
+      remoteDesktopRtcState.audio.lastError = null
       remoteDesktopRtcState.updatedAt = new Date().toISOString()
-      callback({video: source})
+      callback(audio === null ? {video: source} : {video: source, audio})
     } catch (error) {
       remoteDesktopRtcState.status = "failed"
       remoteDesktopRtcState.lastError = error.message
@@ -263,6 +285,26 @@ function installRemoteDesktopCaptureHandler(appSession) {
       callback({})
     }
   }, {useSystemPicker: false})
+}
+
+function remoteDesktopAudioTarget() {
+  if (!REMOTE_DESKTOP_RTC_AUDIO_ENABLED) return null
+  if (REMOTE_DESKTOP_RTC_AUDIO_SOURCE === "off" || REMOTE_DESKTOP_RTC_AUDIO_SOURCE === "none") return null
+  if (REMOTE_DESKTOP_RTC_AUDIO_SOURCE === "system" || REMOTE_DESKTOP_RTC_AUDIO_SOURCE === "loopback") {
+    return "loopback"
+  }
+  if (REMOTE_DESKTOP_RTC_AUDIO_SOURCE === "loopback-with-mute") return "loopbackWithMute"
+  if (REMOTE_DESKTOP_RTC_AUDIO_SOURCE === "auto" && process.platform === "win32") return "loopback"
+
+  const frame = mainWindow?.webContents?.mainFrame ?? null
+  if (frame !== null && (
+    REMOTE_DESKTOP_RTC_AUDIO_SOURCE === "auto"
+    || REMOTE_DESKTOP_RTC_AUDIO_SOURCE === "browser"
+    || REMOTE_DESKTOP_RTC_AUDIO_SOURCE === "browser-frame"
+  )) {
+    return frame
+  }
+  return null
 }
 
 async function selectRemoteDesktopSource() {
@@ -291,6 +333,7 @@ async function selectRemoteDesktopSource() {
 function sourceSummary(source) {
   return {
     id: source.id,
+    kind: source.id.split(":")[0] || "unknown",
     name: source.name,
   }
 }
@@ -333,6 +376,7 @@ async function startRemoteDesktopRtc() {
       peerId: REMOTE_DESKTOP_RTC_PEER_ID,
       sourceId: source.id,
       maxFps: REMOTE_DESKTOP_RTC_MAX_FPS,
+      audio: REMOTE_DESKTOP_RTC_AUDIO_ENABLED,
     }))
   } catch (error) {
     remoteDesktopRtcState.status = "failed"
@@ -380,7 +424,7 @@ async function start() {
   stream = await captureStream();
   video.srcObject = stream;
   await video.play().catch(() => undefined);
-  postState({status: "signaling"});
+  postState({status: "signaling", tracks: trackSummary(), audio: audioSummary()});
   connectSignal();
 }
 
@@ -389,11 +433,26 @@ async function captureStream() {
     try {
       return await navigator.mediaDevices.getDisplayMedia({
         video: {frameRate: {max: config.maxFps}},
-        audio: false,
+        audio: config.audio,
       });
     } catch (error) {
       postState({status: "capture-fallback", lastError: String(error?.message || error)});
     }
+  }
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      audio: config.audio ? {mandatory: {chromeMediaSource: "desktop"}} : false,
+      video: {
+        mandatory: {
+          chromeMediaSource: "desktop",
+          chromeMediaSourceId: config.sourceId,
+          maxFrameRate: config.maxFps,
+        },
+      },
+    });
+  } catch (error) {
+    if (!config.audio) throw error;
+    postState({status: "audio-fallback", lastError: String(error?.message || error)});
   }
   return await navigator.mediaDevices.getUserMedia({
     audio: false,
@@ -405,6 +464,23 @@ async function captureStream() {
       },
     },
   });
+}
+
+function trackSummary() {
+  return {
+    audio: stream?.getAudioTracks?.().length || 0,
+    video: stream?.getVideoTracks?.().length || 0,
+  };
+}
+
+function audioSummary() {
+  const tracks = stream?.getAudioTracks?.() || [];
+  return {
+    enabled: Boolean(config.audio),
+    trackCount: tracks.length,
+    muted: tracks.some((track) => track.muted),
+    readyState: tracks.map((track) => track.readyState),
+  };
 }
 
 function connectSignal() {
@@ -533,6 +609,13 @@ function updateRemoteDesktopRtcState(patch) {
   if (typeof patch.peerId === "string") remoteDesktopRtcState.peerId = patch.peerId
   if (typeof patch.room === "string") remoteDesktopRtcState.room = patch.room
   if (Array.isArray(patch.peers)) remoteDesktopRtcState.peers = patch.peers
+  if (typeof patch.audio === "object" && patch.audio !== null && !Array.isArray(patch.audio)) {
+    if (typeof patch.audio.trackCount === "number") remoteDesktopRtcState.audio.trackCount = patch.audio.trackCount
+    if (typeof patch.audio.lastError === "string") remoteDesktopRtcState.audio.lastError = patch.audio.lastError
+  }
+  if (typeof patch.tracks === "object" && patch.tracks !== null && !Array.isArray(patch.tracks)) {
+    if (typeof patch.tracks.audio === "number") remoteDesktopRtcState.audio.trackCount = patch.tracks.audio
+  }
   remoteDesktopRtcState.updatedAt = new Date().toISOString()
   if (patch.status === "connected" || patch.status === "control-open") {
     remoteDesktopRtcState.lastFrameAt = new Date().toISOString()
