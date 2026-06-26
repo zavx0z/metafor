@@ -3,11 +3,13 @@
   "private": true,
   "version": "0.1.0",
   "author": "zavx0z",
-  "description": "MetaFor Chromium shell for macOS.",
+  "description": "MetaFor Chromium shell with optional local browser-host mode.",
   "main": "main.cjs",
   "scripts": {
     "start": "electron .",
     "dev": "METAFOR_ELECTRON_DEBUG_PORT=9230 electron .",
+    "host": "METAFOR_ELECTRON_HOST=1 METAFOR_ELECTRON_HOST_PORT=32123 electron .",
+    "dev:host": "METAFOR_ELECTRON_HOST=1 METAFOR_ELECTRON_HOST_PORT=32123 METAFOR_ELECTRON_DEBUG_PORT=9230 electron .",
     "build": "electron-builder --mac dir",
     "pack": "electron-builder --mac dir",
     "dist": "electron-builder --mac"
