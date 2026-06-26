@@ -22,6 +22,7 @@
     "buildDependenciesFromSource": false,
     "files": [
       "main.cjs",
+      "remote-desktop-preload.cjs",
       "package.json"
     ],
     "mac": {

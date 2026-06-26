@@ -596,7 +596,7 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
         if (upgraded) return undefined
         return jsonResponse({ok: false, error: "expected websocket upgrade"}, 426)
       }
-      if (path === "/hud/android/webrtc/signaling") {
+      if (path === "/webrtc/signaling" || path === "/hud/android/webrtc/signaling") {
         if (!isAllowedWebSocketOrigin(req, url)) return jsonResponse({ok: false, error: "forbidden origin"}, 403)
         const room = sanitizeRtcId(url.searchParams.get("room") ?? "android-display")
         const peerId = sanitizeRtcId(url.searchParams.get("peer") ?? `peer-${nextWsClientId}`)
@@ -1462,6 +1462,7 @@ function writeTodoMarkdown(text: string, broadcast: (payload: JsonObject) => voi
 function isAllowedWebSocketOrigin(req: Request, url: URL): boolean {
   const origin = req.headers.get("origin")
   if (!origin) return true
+  if (origin === "null" && isLoopbackHost(url.hostname)) return true
   try {
     return new URL(origin).host === url.host
   } catch {
@@ -1641,11 +1642,15 @@ function healthPayload(options: HttpServerOptions): JsonObject {
 }
 
 function isLoopbackHost(host: string): boolean {
-  const normalized = host.trim().toLowerCase()
-  return normalized === "127.0.0.1"
-    || normalized === "localhost"
-    || normalized === "::1"
-    || normalized === "[::1]"
+  const normalized = host.trim().toLowerCase().replace(/^\[|\]$/g, "")
+  if (normalized === "localhost" || normalized === "::1") return true
+  const parts = normalized.split(".")
+  if (parts.length !== 4 || parts[0] !== "127") return false
+  return parts.every((part) => {
+    if (!/^\d{1,3}$/.test(part)) return false
+    const value = Number(part)
+    return value >= 0 && value <= 255
+  })
 }
 
 const SOURCE_CACHE_MAX = 32

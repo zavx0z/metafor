@@ -1,7 +1,7 @@
 const fs = require("node:fs")
 const http = require("node:http")
 const path = require("node:path")
-const {app, BrowserWindow, session, shell, systemPreferences} = require("electron")
+const {app, BrowserWindow, desktopCapturer, ipcMain, session, shell, systemPreferences} = require("electron")
 
 const DEFAULT_META_URL = "https://meta.proizvodstvo1.ru/"
 const TRUSTED_ORIGINS = new Set([new URL(DEFAULT_META_URL).origin, "https://sso.proizvodstvo1.ru"])
@@ -21,6 +21,23 @@ const HOST_BODY_LIMIT_BYTES = parseInteger(
   1024,
   1024 * 1024,
 )
+const REMOTE_DESKTOP_PROFILE = (process.env.METAFOR_REMOTE_DESKTOP_PROFILE || "").trim().toLowerCase()
+const REMOTE_DESKTOP_MODE = envFlag(process.env.METAFOR_REMOTE_DESKTOP)
+  || REMOTE_DESKTOP_PROFILE === "ai-macos"
+  || hasEnvValue(process.env.METAFOR_REMOTE_DESKTOP_SCREEN_API)
+  || hasEnvValue(process.env.METAFOR_REMOTE_DESKTOP_WINDOW_API)
+  || hasEnvValue(process.env.METAFOR_REMOTE_DESKTOP_INPUT_API)
+  || hasEnvValue(process.env.METAFOR_REMOTE_DESKTOP_BROWSER_API)
+const REMOTE_DESKTOP_RTC_MODE = envFlag(process.env.METAFOR_REMOTE_DESKTOP_RTC)
+  || envFlag(process.env.METAFOR_REMOTE_DESKTOP_WEBRTC)
+  || (REMOTE_DESKTOP_MODE && REMOTE_DESKTOP_PROFILE !== "ai-macos")
+const REMOTE_DESKTOP_RTC_SIGNAL_URL = (process.env.METAFOR_REMOTE_DESKTOP_SIGNAL_URL || "ws://127.0.0.1:6500/webrtc/signaling").trim()
+const REMOTE_DESKTOP_RTC_ROOM = (process.env.METAFOR_REMOTE_DESKTOP_RTC_ROOM || "remote-desktop").trim()
+const REMOTE_DESKTOP_RTC_PEER_ID = (process.env.METAFOR_REMOTE_DESKTOP_RTC_PEER_ID || "electron-desktop").trim()
+const REMOTE_DESKTOP_RTC_SOURCE_KIND = (process.env.METAFOR_REMOTE_DESKTOP_CAPTURE_SOURCE || "window").trim().toLowerCase()
+const REMOTE_DESKTOP_RTC_SOURCE_NAME = (process.env.METAFOR_REMOTE_DESKTOP_CAPTURE_NAME || "MetaFor").trim()
+const REMOTE_DESKTOP_RTC_MAX_FPS = parseInteger(process.env.METAFOR_REMOTE_DESKTOP_RTC_MAX_FPS, "METAFOR_REMOTE_DESKTOP_RTC_MAX_FPS", 30, 1, 60)
+const REMOTE_DESKTOP_APIS = remoteDesktopApis()
 const SESSION_PARTITION = HOST_MODE ? "persist:metafor-browser-host" : "persist:metafor"
 
 const viewport = {
@@ -34,6 +51,7 @@ let hostServer = null
 let hostPort = null
 let activeHostRequests = 0
 let snapshotCapture = null
+let remoteDesktopWindow = null
 let warnedAboutDeviceEmulation = false
 let frameSequence = 0
 
@@ -45,6 +63,19 @@ const pageState = {
   lastError: null,
   lastLoadStartedAt: null,
   lastLoadFinishedAt: null,
+}
+
+const remoteDesktopRtcState = {
+  enabled: REMOTE_DESKTOP_RTC_MODE,
+  status: REMOTE_DESKTOP_RTC_MODE ? "starting" : "disabled",
+  signalUrl: REMOTE_DESKTOP_RTC_SIGNAL_URL,
+  room: REMOTE_DESKTOP_RTC_ROOM,
+  peerId: REMOTE_DESKTOP_RTC_PEER_ID,
+  source: null,
+  peers: [],
+  lastFrameAt: null,
+  lastError: null,
+  updatedAt: null,
 }
 
 app.commandLine.appendSwitch("enable-unsafe-webgpu")
@@ -128,6 +159,32 @@ function normalizeBrowserUrl(url) {
   return parsed.toString()
 }
 
+function remoteDesktopApis() {
+  const aiMacos = REMOTE_DESKTOP_PROFILE === "ai-macos"
+  return {
+    screen: localServiceUrl(process.env.METAFOR_REMOTE_DESKTOP_SCREEN_API, aiMacos ? "http://127.0.0.1:7879" : null, "METAFOR_REMOTE_DESKTOP_SCREEN_API"),
+    window: localServiceUrl(process.env.METAFOR_REMOTE_DESKTOP_WINDOW_API, aiMacos ? "http://127.0.0.1:7878" : null, "METAFOR_REMOTE_DESKTOP_WINDOW_API"),
+    input: localServiceUrl(process.env.METAFOR_REMOTE_DESKTOP_INPUT_API, aiMacos ? "http://127.0.0.1:7882" : null, "METAFOR_REMOTE_DESKTOP_INPUT_API"),
+    browser: localServiceUrl(process.env.METAFOR_REMOTE_DESKTOP_BROWSER_API, aiMacos ? "http://127.0.0.1:7880" : null, "METAFOR_REMOTE_DESKTOP_BROWSER_API"),
+  }
+}
+
+function localServiceUrl(value, fallback, name) {
+  const raw = hasEnvValue(value) ? value.trim() : fallback
+  if (raw === null) return null
+  const url = new URL(raw)
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error(`${name} must use http: or https:`)
+  }
+  if (!isLoopbackHost(url.hostname)) {
+    throw new Error(`${name} must point to localhost, 127.0.0.0/8 or ::1`)
+  }
+  if (url.username.length > 0 || url.password.length > 0 || url.search.length > 0 || url.hash.length > 0) {
+    throw new Error(`${name} must not include credentials, query or hash`)
+  }
+  return url
+}
+
 function setTargetUrl(url) {
   targetUrl = normalizeBrowserUrl(url)
   targetOrigin = new URL(targetUrl).origin
@@ -184,6 +241,311 @@ async function ensureMacMediaAccess() {
 
 function getAppSession() {
   return session.fromPartition(SESSION_PARTITION)
+}
+
+function installRemoteDesktopCaptureHandler(appSession) {
+  if (!REMOTE_DESKTOP_RTC_MODE) return
+  if (typeof appSession.setDisplayMediaRequestHandler !== "function") {
+    remoteDesktopRtcState.status = "failed"
+    remoteDesktopRtcState.lastError = "Electron session.setDisplayMediaRequestHandler is unavailable"
+    return
+  }
+  appSession.setDisplayMediaRequestHandler(async (request, callback) => {
+    try {
+      const source = await selectRemoteDesktopSource()
+      remoteDesktopRtcState.source = sourceSummary(source)
+      remoteDesktopRtcState.updatedAt = new Date().toISOString()
+      callback({video: source})
+    } catch (error) {
+      remoteDesktopRtcState.status = "failed"
+      remoteDesktopRtcState.lastError = error.message
+      remoteDesktopRtcState.updatedAt = new Date().toISOString()
+      callback({})
+    }
+  }, {useSystemPicker: false})
+}
+
+async function selectRemoteDesktopSource() {
+  const sources = await desktopCapturer.getSources({
+    types: ["screen", "window"],
+    thumbnailSize: {width: 0, height: 0},
+    fetchWindowIcons: false,
+  })
+  if (sources.length === 0) throw new Error("desktopCapturer returned no sources")
+
+  const preferredKind = REMOTE_DESKTOP_RTC_SOURCE_KIND === "screen" ? "screen" : "window"
+  const preferredName = REMOTE_DESKTOP_RTC_SOURCE_NAME.toLowerCase()
+  const eligibleSources = sources.filter((source) => !source.name.toLowerCase().includes("remote desktop rtc"))
+  const candidates = eligibleSources.length > 0 ? eligibleSources : sources
+  const kindMatches = candidates.filter((source) => source.id.startsWith(`${preferredKind}:`))
+  const named = preferredName.length === 0
+    ? undefined
+    : kindMatches.find((source) => source.name.toLowerCase().includes(preferredName))
+      ?? candidates.find((source) => source.name.toLowerCase().includes(preferredName))
+  return named
+    ?? kindMatches[0]
+    ?? candidates.find((source) => source.id.startsWith("screen:"))
+    ?? candidates[0]
+}
+
+function sourceSummary(source) {
+  return {
+    id: source.id,
+    name: source.name,
+  }
+}
+
+async function startRemoteDesktopRtc() {
+  if (!REMOTE_DESKTOP_RTC_MODE) return
+  if (remoteDesktopWindow !== null && !remoteDesktopWindow.isDestroyed()) return
+
+  try {
+    const source = await selectRemoteDesktopSource()
+    remoteDesktopRtcState.status = "starting"
+    remoteDesktopRtcState.source = sourceSummary(source)
+    remoteDesktopRtcState.lastError = null
+    remoteDesktopRtcState.updatedAt = new Date().toISOString()
+
+    const win = new BrowserWindow({
+      width: 640,
+      height: 360,
+      show: false,
+      title: "MetaFor Remote Desktop RTC",
+      webPreferences: {
+        contextIsolation: true,
+        devTools: true,
+        nodeIntegration: false,
+        sandbox: false,
+        backgroundThrottling: false,
+        session: getAppSession(),
+        preload: path.join(__dirname, "remote-desktop-preload.cjs"),
+      },
+    })
+    remoteDesktopWindow = win
+    win.on("closed", () => {
+      if (remoteDesktopWindow === win) remoteDesktopWindow = null
+      remoteDesktopRtcState.status = "closed"
+      remoteDesktopRtcState.updatedAt = new Date().toISOString()
+    })
+    await win.loadURL(remoteDesktopRtcPageUrl({
+      signalUrl: REMOTE_DESKTOP_RTC_SIGNAL_URL,
+      room: REMOTE_DESKTOP_RTC_ROOM,
+      peerId: REMOTE_DESKTOP_RTC_PEER_ID,
+      sourceId: source.id,
+      maxFps: REMOTE_DESKTOP_RTC_MAX_FPS,
+    }))
+  } catch (error) {
+    remoteDesktopRtcState.status = "failed"
+    remoteDesktopRtcState.lastError = error.message
+    remoteDesktopRtcState.updatedAt = new Date().toISOString()
+    console.error("[metafor-electron] remote desktop RTC failed:", error)
+  }
+}
+
+function restartRemoteDesktopRtc() {
+  const oldWindow = remoteDesktopWindow
+  remoteDesktopWindow = null
+  if (oldWindow !== null && !oldWindow.isDestroyed()) oldWindow.destroy()
+  return startRemoteDesktopRtc()
+}
+
+function remoteDesktopRtcPageUrl(config) {
+  const html = `<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>MetaFor Remote Desktop RTC</title></head>
+<body>
+<video id="capture" autoplay muted playsinline style="width:1px;height:1px;opacity:0"></video>
+<script>
+const config = ${JSON.stringify(config)};
+const state = {peers: [], status: "booting"};
+const video = document.getElementById("capture");
+let socket = null;
+let stream = null;
+const peers = new Map();
+
+function postState(patch) {
+  Object.assign(state, patch, {updatedAt: new Date().toISOString()});
+  window.metaforRemoteDesktop?.state?.(state);
+}
+
+function signalUrl() {
+  const url = new URL(config.signalUrl);
+  url.searchParams.set("room", config.room);
+  url.searchParams.set("peer", config.peerId);
+  return url.toString();
+}
+
+async function start() {
+  postState({status: "capturing"});
+  stream = await captureStream();
+  video.srcObject = stream;
+  await video.play().catch(() => undefined);
+  postState({status: "signaling"});
+  connectSignal();
+}
+
+async function captureStream() {
+  if (navigator.mediaDevices?.getDisplayMedia !== undefined) {
+    try {
+      return await navigator.mediaDevices.getDisplayMedia({
+        video: {frameRate: {max: config.maxFps}},
+        audio: false,
+      });
+    } catch (error) {
+      postState({status: "capture-fallback", lastError: String(error?.message || error)});
+    }
+  }
+  return await navigator.mediaDevices.getUserMedia({
+    audio: false,
+    video: {
+      mandatory: {
+        chromeMediaSource: "desktop",
+        chromeMediaSourceId: config.sourceId,
+        maxFrameRate: config.maxFps,
+      },
+    },
+  });
+}
+
+function connectSignal() {
+  socket = new WebSocket(signalUrl());
+  socket.addEventListener("open", () => postState({status: "signaling-open"}));
+  socket.addEventListener("message", (event) => {
+    if (typeof event.data !== "string") return;
+    let message = null;
+    try { message = JSON.parse(event.data); } catch { return; }
+    void handleSignal(message);
+  });
+  socket.addEventListener("close", () => {
+    closeAllPeers();
+    postState({status: "signaling-closed", peers: []});
+    setTimeout(connectSignal, 1000);
+  });
+  socket.addEventListener("error", () => postState({status: "signaling-error"}));
+}
+
+async function handleSignal(message) {
+  if (message.type === "hello") {
+    postState({status: "ready", peerId: message.peerId, room: message.room});
+    return;
+  }
+  if (message.type === "peer-left") {
+    closePeer(message.peerId);
+    return;
+  }
+  if (message.from === config.peerId || typeof message.from !== "string") return;
+  const peer = createPeer(message.from);
+  if (message.type === "offer") {
+    await peer.connection.setRemoteDescription(message.description);
+    const answer = await peer.connection.createAnswer();
+    await peer.connection.setLocalDescription(answer);
+    sendSignal({type: "answer", to: message.from, description: peer.connection.localDescription});
+    return;
+  }
+  if (message.type === "ice") {
+    await peer.connection.addIceCandidate(message.candidate).catch(() => undefined);
+  }
+}
+
+function createPeer(peerId) {
+  const existing = peers.get(peerId);
+  if (existing !== undefined) return existing;
+  const connection = new RTCPeerConnection({iceServers: [{urls: "stun:stun.l.google.com:19302"}]});
+  for (const track of stream.getTracks()) connection.addTrack(track, stream);
+  const peer = {id: peerId, connection, channel: null};
+  peers.set(peerId, peer);
+  connection.addEventListener("icecandidate", (event) => {
+    if (event.candidate !== null) sendSignal({type: "ice", to: peerId, candidate: event.candidate.toJSON()});
+  });
+  connection.addEventListener("connectionstatechange", () => {
+    postState({status: connection.connectionState, peers: peerSnapshots()});
+    if (connection.connectionState === "failed" || connection.connectionState === "closed") closePeer(peerId);
+  });
+  connection.addEventListener("datachannel", (event) => attachDataChannel(peer, event.channel));
+  postState({status: "peer", peers: peerSnapshots()});
+  return peer;
+}
+
+function attachDataChannel(peer, channel) {
+  peer.channel = channel;
+  channel.addEventListener("open", () => {
+    channel.send(JSON.stringify({type: "hello", peerId: config.peerId, role: "electron-desktop"}));
+    postState({status: "control-open", peers: peerSnapshots()});
+  });
+  channel.addEventListener("message", (event) => {
+    if (typeof event.data !== "string") return;
+    let command = null;
+    try { command = JSON.parse(event.data); } catch { return; }
+    void handleControl(peer, channel, command);
+  });
+  channel.addEventListener("close", () => {
+    if (peer.channel === channel) peer.channel = null;
+    postState({status: "control-closed", peers: peerSnapshots()});
+  });
+}
+
+async function handleControl(peer, channel, command) {
+  try {
+    const result = await window.metaforRemoteDesktop.input(command);
+    channel.send(JSON.stringify({type: "control-result", command: command.type || "input", ok: true, result}));
+  } catch (error) {
+    channel.send(JSON.stringify({type: "control-result", command: command.type || "input", ok: false, error: String(error?.message || error)}));
+  }
+}
+
+function closePeer(peerId) {
+  const peer = peers.get(peerId);
+  if (peer === undefined) return;
+  peers.delete(peerId);
+  peer.channel?.close();
+  peer.connection.close();
+  postState({status: "peer-left", peers: peerSnapshots()});
+}
+
+function closeAllPeers() {
+  for (const peerId of [...peers.keys()]) closePeer(peerId);
+}
+
+function peerSnapshots() {
+  return [...peers.values()].map((peer) => ({
+    id: peer.id,
+    connectionState: peer.connection.connectionState,
+    channelState: peer.channel?.readyState || "none",
+  }));
+}
+
+function sendSignal(payload) {
+  if (socket?.readyState !== WebSocket.OPEN) return;
+  socket.send(JSON.stringify(payload));
+}
+
+start().catch((error) => postState({status: "failed", lastError: String(error?.message || error)}));
+</script>
+</body>
+</html>`
+  return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`
+}
+
+function updateRemoteDesktopRtcState(patch) {
+  if (typeof patch !== "object" || patch === null || Array.isArray(patch)) return
+  if (typeof patch.status === "string") remoteDesktopRtcState.status = patch.status
+  if (typeof patch.lastError === "string") remoteDesktopRtcState.lastError = patch.lastError
+  if (typeof patch.peerId === "string") remoteDesktopRtcState.peerId = patch.peerId
+  if (typeof patch.room === "string") remoteDesktopRtcState.room = patch.room
+  if (Array.isArray(patch.peers)) remoteDesktopRtcState.peers = patch.peers
+  remoteDesktopRtcState.updatedAt = new Date().toISOString()
+  if (patch.status === "connected" || patch.status === "control-open") {
+    remoteDesktopRtcState.lastFrameAt = new Date().toISOString()
+  }
+}
+
+function installRemoteDesktopIpc() {
+  ipcMain.handle("remote-desktop:input", async (_event, body) => {
+    return await sendRemoteDesktopInput(body)
+  })
+  ipcMain.on("remote-desktop:state", (_event, patch) => {
+    updateRemoteDesktopRtcState(patch)
+  })
 }
 
 function createWindow() {
@@ -449,8 +811,12 @@ function goForward() {
   return hostState()
 }
 
-function normalizeInputCoordinate(value, name, max) {
-  const numeric = Number(value)
+function normalizeInputCoordinate(value, name, max, frameMax) {
+  const raw = Number(value)
+  const sourceMax = Number(frameMax)
+  const numeric = Number.isFinite(sourceMax) && sourceMax > 0 && sourceMax !== max
+    ? (raw / sourceMax) * max
+    : raw
   if (!Number.isFinite(numeric) || numeric < 0 || numeric > max) {
     const error = new Error(`${name} must be a number between 0 and ${max}`)
     error.statusCode = 400
@@ -461,8 +827,8 @@ function normalizeInputCoordinate(value, name, max) {
 
 function inputCoordinates(body) {
   return {
-    x: normalizeInputCoordinate(body.x, "x", viewport.width),
-    y: normalizeInputCoordinate(body.y, "y", viewport.height),
+    x: normalizeInputCoordinate(body.x, "x", viewport.width, body.frameW),
+    y: normalizeInputCoordinate(body.y, "y", viewport.height, body.frameH),
   }
 }
 
@@ -606,6 +972,17 @@ function hostState() {
     snapshot: {
       pending: snapshotCapture !== null,
     },
+    remoteDesktop: {
+      ...remoteDesktopRtcState,
+      window: remoteDesktopWindow !== null && !remoteDesktopWindow.isDestroyed()
+        ? {
+            exists: true,
+            id: remoteDesktopWindow.id,
+            crashed: remoteDesktopWindow.webContents.isCrashed?.() ?? false,
+            destroyed: remoteDesktopWindow.webContents.isDestroyed(),
+          }
+        : {exists: false},
+    },
   }
 }
 
@@ -710,6 +1087,229 @@ async function sendSnapshot(req, res, requestUrl) {
   }
 }
 
+function remoteDesktopApiSummary() {
+  return Object.fromEntries(Object.entries(REMOTE_DESKTOP_APIS).map(([key, url]) => [key, url === null ? null : url.toString()]))
+}
+
+function desktopTargetUrl(baseUrl, upstreamPath, search = "") {
+  const target = new URL(baseUrl.toString())
+  const basePath = target.pathname.replace(/\/+$/, "")
+  const cleanPath = upstreamPath.startsWith("/") ? upstreamPath : `/${upstreamPath}`
+  target.pathname = `${basePath}${cleanPath}`.replace(/\/{2,}/g, "/")
+  target.search = search
+  target.hash = ""
+  return target
+}
+
+function desktopApiRequired(name) {
+  const api = REMOTE_DESKTOP_APIS[name]
+  if (api !== null) return api
+  const error = new Error(`remote desktop ${name} adapter is not configured`)
+  error.statusCode = 503
+  throw error
+}
+
+async function fetchDesktopJson(name, upstreamPath, init = {}) {
+  const api = desktopApiRequired(name)
+  const target = desktopTargetUrl(api, upstreamPath)
+  const response = await fetch(target, {
+    ...init,
+    headers: {
+      accept: "application/json",
+      ...(init.body === undefined ? {} : {"content-type": "application/json"}),
+      ...(init.headers || {}),
+    },
+  })
+  const contentType = response.headers.get("content-type") || ""
+  const payload = contentType.includes("application/json")
+    ? await response.json().catch(() => null)
+    : await response.text().catch(() => "")
+  if (!response.ok) {
+    const error = new Error(typeof payload === "string" ? payload : JSON.stringify(payload))
+    error.statusCode = response.status
+    throw error
+  }
+  return payload
+}
+
+async function remoteDesktopHealth() {
+  const services = {}
+  await Promise.all(Object.entries(REMOTE_DESKTOP_APIS).map(async ([name, api]) => {
+    if (api === null) {
+      services[name] = {configured: false, ok: false}
+      return
+    }
+    try {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 1500)
+      const response = await fetch(desktopTargetUrl(api, "/health"), {signal: controller.signal})
+      clearTimeout(timer)
+      const payload = await response.json().catch(() => null)
+      services[name] = {configured: true, ok: response.ok, url: api.toString(), status: response.status, payload}
+    } catch (error) {
+      services[name] = {configured: true, ok: false, url: api.toString(), error: error.message}
+    }
+  }))
+  return {
+    ok: true,
+    enabled: REMOTE_DESKTOP_MODE,
+    profile: REMOTE_DESKTOP_PROFILE || null,
+    apis: remoteDesktopApiSummary(),
+    services,
+    fallback: REMOTE_DESKTOP_APIS.screen === null || REMOTE_DESKTOP_APIS.input === null,
+    host: hostState(),
+  }
+}
+
+async function sendRemoteDesktopSnapshot(req, res, requestUrl) {
+  const screenApi = REMOTE_DESKTOP_APIS.screen
+  if (screenApi === null) {
+    await sendSnapshot(req, res, requestUrl)
+    return
+  }
+
+  const target = requestUrl.searchParams.get("target") || "desktop"
+  const appName = requestUrl.searchParams.get("app") || "Google Chrome"
+  const upstreamPath = target === "browser"
+    ? `/window?app=${encodeURIComponent(appName)}${requestUrl.searchParams.get("detail") === null ? "" : `&detail=${encodeURIComponent(requestUrl.searchParams.get("detail"))}`}`
+    : target === "window"
+      ? `/window${requestUrl.search}`
+      : target === "rect"
+        ? "/rect"
+        : `/desktop${target === "desktop" ? requestUrl.search : ""}`
+
+  if (req.method === "GET" && target === "rect") {
+    sendJson(res, 400, {ok: false, error: "GET /desktop/snapshot target=rect requires POST body"})
+    return
+  }
+
+  const init = {method: req.method}
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    init.headers = {"content-type": req.headers["content-type"] || "application/json"}
+    init.body = await readRawBody(req)
+  }
+  const upstream = await fetch(desktopTargetUrl(screenApi, upstreamPath), init)
+  await sendUpstreamResponse(res, upstream)
+}
+
+async function readRawBody(req) {
+  const chunks = []
+  let size = 0
+  for await (const chunk of req) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+    size += buffer.length
+    if (size > HOST_BODY_LIMIT_BYTES) {
+      const error = new Error("Request body is too large")
+      error.statusCode = 413
+      throw error
+    }
+    chunks.push(buffer)
+  }
+  return Buffer.concat(chunks)
+}
+
+async function sendUpstreamResponse(res, upstream) {
+  const body = Buffer.from(await upstream.arrayBuffer())
+  const headers = {
+    "cache-control": upstream.headers.get("cache-control") || "no-store",
+    "content-type": upstream.headers.get("content-type") || "application/octet-stream",
+    "content-length": body.length,
+  }
+  for (const name of ["x-meta-screen-target", "x-meta-window-app", "x-meta-window-index", "x-meta-window-title", "x-meta-caption"]) {
+    const value = upstream.headers.get(name)
+    if (value !== null) headers[name] = value
+  }
+  res.writeHead(upstream.status, headers)
+  res.end(body)
+}
+
+async function sendRemoteDesktopInput(body) {
+  if (REMOTE_DESKTOP_APIS.input === null && REMOTE_DESKTOP_APIS.window === null) {
+    return sendInput(body)
+  }
+
+  const type = typeof body.type === "string" ? body.type : ""
+  if (type === "focus") {
+    const appName = typeof body.app === "string" ? body.app : "Google Chrome"
+    return await fetchDesktopJson("window", "/focus", {
+      method: "POST",
+      body: JSON.stringify({app: appName}),
+    })
+  }
+  if (type === "move" || type === "pointerMove" || type === "mouseMove") {
+    return await fetchDesktopJson("input", "/mouse/move", {
+      method: "POST",
+      body: JSON.stringify({x: body.x, y: body.y}),
+    })
+  }
+  if (type === "click" || type === "doubleclick") {
+    return await fetchDesktopJson("input", "/mouse/click", {
+      method: "POST",
+      body: JSON.stringify({x: body.x, y: body.y, button: body.button, count: type === "doubleclick" ? 2 : body.count ?? body.clickCount}),
+    })
+  }
+  if (type === "drag") {
+    return await fetchDesktopJson("input", "/mouse/drag", {method: "POST", body: JSON.stringify(body)})
+  }
+  if (type === "wheel" || type === "mouseWheel" || type === "scroll") {
+    return await fetchDesktopJson("input", "/mouse/scroll", {
+      method: "POST",
+      body: JSON.stringify({dx: body.dx ?? body.deltaX, dy: body.dy ?? body.deltaY}),
+    })
+  }
+  if (type === "text" || type === "type") {
+    return await fetchDesktopJson("input", "/keyboard/type", {
+      method: "POST",
+      body: JSON.stringify({text: body.text, delayMs: body.delayMs}),
+    })
+  }
+  if (type === "shortcut") {
+    return await fetchDesktopJson("input", "/keyboard/shortcut", {
+      method: "POST",
+      body: JSON.stringify({shortcut: body.shortcut, sequence: body.sequence, delayMs: body.delayMs}),
+    })
+  }
+  if (type === "key" || type === "keyDown" || type === "keyUp" || type === "char") {
+    return await fetchDesktopJson("input", "/keyboard/key", {
+      method: "POST",
+      body: JSON.stringify({key: body.key ?? body.keyCode, modifiers: body.modifiers}),
+    })
+  }
+
+  const error = new Error("unsupported remote desktop input type")
+  error.statusCode = 400
+  throw error
+}
+
+async function proxyRemoteDesktopBrowser(req, res, requestUrl) {
+  const browserApi = REMOTE_DESKTOP_APIS.browser
+  const action = requestUrl.pathname.slice("/desktop/browser".length) || "/windows"
+  if (browserApi === null) {
+    if (req.method === "POST" && (action === "/open" || action === "/navigate")) {
+      const body = await readJsonBody(req)
+      if (typeof body.url !== "string" || body.url.trim() === "") {
+        sendJson(res, 400, {ok: false, error: "Expected JSON body with a non-empty url string"})
+        return
+      }
+      setTargetUrlFromRequest(body.url)
+      void loadTargetUrl(ensureWindow()).catch(logNavigationError)
+      sendJson(res, 202, hostState())
+      return
+    }
+    sendJson(res, 503, {ok: false, error: "remote desktop browser adapter is not configured"})
+    return
+  }
+
+  const upstreamPath = action === "/open" ? "/windows" : action
+  const init = {method: req.method}
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    init.headers = {"content-type": req.headers["content-type"] || "application/json"}
+    init.body = await readRawBody(req)
+  }
+  const upstream = await fetch(desktopTargetUrl(browserApi, upstreamPath, requestUrl.search), init)
+  await sendUpstreamResponse(res, upstream)
+}
+
 async function routeHostRequest(req, res) {
   const requestUrl = new URL(req.url || "/", "http://127.0.0.1")
   const endpoint = requestUrl.pathname
@@ -723,6 +1323,38 @@ async function routeHostRequest(req, res) {
 
   if (req.method === "GET" && (endpoint === "/health" || endpoint === "/state")) {
     sendJson(res, 200, hostState())
+    return
+  }
+
+  if (req.method === "GET" && endpoint === "/desktop/health") {
+    sendJson(res, 200, await remoteDesktopHealth())
+    return
+  }
+
+  if (req.method === "GET" && endpoint === "/desktop/rtc/state") {
+    sendJson(res, 200, {ok: true, remoteDesktop: hostState().remoteDesktop})
+    return
+  }
+
+  if (req.method === "POST" && endpoint === "/desktop/rtc/restart") {
+    await restartRemoteDesktopRtc()
+    sendJson(res, 202, {ok: true, remoteDesktop: hostState().remoteDesktop})
+    return
+  }
+
+  if ((req.method === "GET" || req.method === "POST") && endpoint === "/desktop/snapshot") {
+    await sendRemoteDesktopSnapshot(req, res, requestUrl)
+    return
+  }
+
+  if (req.method === "POST" && endpoint === "/desktop/input") {
+    const body = await readJsonBody(req)
+    sendJson(res, 200, await sendRemoteDesktopInput(body))
+    return
+  }
+
+  if (endpoint === "/desktop/browser" || endpoint.startsWith("/desktop/browser/")) {
+    await proxyRemoteDesktopBrowser(req, res, requestUrl)
     return
   }
 
@@ -859,9 +1491,17 @@ app
   .whenReady()
   .then(async () => {
     await ensureMacMediaAccess()
-    installPermissions(getAppSession())
+    const appSession = getAppSession()
+    installPermissions(appSession)
+    installRemoteDesktopCaptureHandler(appSession)
+    installRemoteDesktopIpc()
     createWindow()
     if (HOST_MODE) await startHostServer()
+    if (REMOTE_DESKTOP_RTC_MODE) {
+      setTimeout(() => {
+        void startRemoteDesktopRtc()
+      }, 500)
+    }
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -878,4 +1518,5 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   if (hostServer) hostServer.close()
+  if (remoteDesktopWindow !== null && !remoteDesktopWindow.isDestroyed()) remoteDesktopWindow.destroy()
 })

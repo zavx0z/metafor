@@ -1,9 +1,14 @@
-# Web UI Browser Display Runbook
+# Web UI Remote Desktop Display Runbook
 
-Этот документ фиксирует рабочий контур Web UI и целевую форму общего
-`browser-display` для интерпретатора. `browser-display` должен быть
-равноправным display в `Space`, а не HUD-панелью, iframe-оберткой или скрытым
-Playwright-клиентом.
+Этот документ фиксирует рабочий контур Web UI и целевую форму общего server
+desktop/browser display для интерпретатора. Цель - чтобы человек с любого
+устройства и агент видели один и тот же серверный visual stream разработки.
+Display должен быть равноправным экраном в `Space`, а не HUD-панелью,
+iframe-оберткой или скрытым Playwright-клиентом.
+
+Текущий основной realtime-канал - WebRTC video stream из Electron/Chromium
+capture API на сервере. Snapshot endpoints остаются fallback/diagnostics, но не
+являются основным способом живой визуализации.
 
 ## Проверенный Контекст
 
@@ -21,16 +26,19 @@ Playwright-клиентом.
 - child `app/web/server.ts` запускается с `HOST=10.66.0.10` и `PORT=3004`;
 - Bun inspector для child process остается локальным:
   `ws://127.0.0.1:6499/`;
-- `app/electron` имеет обычный shell-режим и opt-in browser-host режим:
+- `app/electron` имеет обычный shell-режим, opt-in browser-host режим и
+  opt-in remote desktop WebRTC sender:
   `METAFOR_ELECTRON_HOST=1` или `METAFOR_ELECTRON_HOST_PORT`, отдельный
   user-data-dir/session partition, local-only HTTP API, snapshot через
-  `webContents.capturePage()`, управляемый URL/viewport/restart/input и CDP
-  через `METAFOR_ELECTRON_DEBUG_PORT`;
-- interpreter-side bridge для будущего browser-host использует префикс
-  `/browser-display/*` и проксирует только локальный browser-host, заданный через
-  `INTERPRETER_BROWSER_HOST_URL` или `INTERPRETER_BROWSER_HOST_PORT`;
-- текущий `GET /space` показывает module/network displays; отдельный
-  `browser-display` еще не реализован.
+  `webContents.capturePage()`, WebRTC capture через `desktopCapturer` /
+  `getDisplayMedia`, управляемый URL/viewport/restart/input и CDP через
+  `METAFOR_ELECTRON_DEBUG_PORT`;
+- interpreter-side bridge для browser-host использует `/browser-display/*`, а
+  server desktop bridge использует `/remote-desktop/*`; оба проксируют только
+  локальный host, заданный через `INTERPRETER_BROWSER_HOST_*` или
+  `INTERPRETER_REMOTE_DESKTOP_HOST_*`;
+- `GET /space` должен показывать `remote-desktop:server` как отдельный display
+  рядом с `module:*` и `network:tmux`.
 
 ## Dev-Контур
 
@@ -101,10 +109,10 @@ curl -sS http://10.66.0.10:3004/health
 Он не перечитывает host-код и не заменяет restart после изменения
 `pkg/interpreter/src/*` или `pkg/interpreter/web/*`.
 
-## Browser-Host Contract
+## Remote Desktop / WebRTC Contract
 
-Целевой Linux/Electron browser-host должен быть отдельным процессом с явным
-state, а не зависимостью от macOS display пользователя:
+Целевой Linux/Electron remote desktop host должен быть отдельным процессом с
+явным state, а не зависимостью от macOS display пользователя:
 
 - управляемый URL: по умолчанию `http://10.66.0.10:3004/` для dev server или
   `https://meta.proizvodstvo1.ru/` для проверки внешнего proxy/SSO;
@@ -113,7 +121,8 @@ state, а не зависимостью от macOS display пользовате�
 - CDP/debug port на loopback;
 - health endpoint с состоянием process/window/page/CDP;
 - restart endpoint, который перезапускает host process и публикует новый state;
-- snapshot/frame stream для агента и человека;
+- WebRTC video stream для агента и человека через `/webrtc/signaling`;
+- snapshot endpoint только как fallback/diagnostics;
 - input proxy для pointer/keyboard/wheel с ack и последним input timestamp;
 - команды reload/back/forward/devtools/fullscreen;
 - source map/devtools workflow для app-web TypeScript;
@@ -121,16 +130,22 @@ state, а не зависимостью от macOS display пользовате�
   страница не прошла readiness, input не доставляется.
 
 Playwright допустим только как временный диагностический инструмент. Runtime
-`browser-display` не должен требовать постоянный Playwright process или hidden
-browser.
+remote desktop display не должен требовать постоянный Playwright process или
+hidden browser.
 
-Interpreter bridge - это не сам browser-host и не display. Он должен быть
-тонким proxy к локальному host API:
+Interpreter bridge - это не сам Electron host и не display. Он должен быть
+тонким proxy к локальному host API и локальным WebRTC signaling server:
 
 ```text
 INTERPRETER_BROWSER_HOST_URL=http://127.0.0.1:<port>
 # или
 INTERPRETER_BROWSER_HOST_PORT=<port>
+
+INTERPRETER_REMOTE_DESKTOP_HOST_URL=http://127.0.0.1:<port>
+# или
+INTERPRETER_REMOTE_DESKTOP_HOST_PORT=<port>
+
+WS   /webrtc/signaling
 
 GET  /browser-display/health
 GET  /browser-display/state
@@ -145,49 +160,64 @@ POST /browser-display/fullscreen
 POST /browser-display/viewport
 POST /browser-display/input
 ANY  /browser-display/proxy/<path>
+
+GET  /remote-desktop/health
+GET  /remote-desktop/state
+GET  /remote-desktop/status
+GET  /remote-desktop/rtc/state
+POST /remote-desktop/rtc/restart
+GET  /remote-desktop/snapshot
+POST /remote-desktop/input
+GET  /remote-desktop/browser/windows
+POST /remote-desktop/browser/open
 ```
 
-Маршрутный префикс `/browser-display` фиксирует модель: это будущий
-first-class display в `Space`, а не HUD и не внешний браузер пользователя.
+Маршрутный префикс `/remote-desktop` фиксирует модель server-owned display:
+видимый поток живет в `Space`, а не в HUD и не во внешнем браузере пользователя.
 
-Ручной smoke для Electron browser-host:
+Ручной smoke для Electron remote desktop host:
 
 ```sh
 DISPLAY=:0 \
 METAFOR_URL=http://10.66.0.10:3004/ \
 METAFOR_ELECTRON_HOST=1 \
 METAFOR_ELECTRON_HOST_PORT=32123 \
+METAFOR_REMOTE_DESKTOP_RTC=1 \
+METAFOR_REMOTE_DESKTOP_SIGNAL_URL=ws://127.0.0.1:6500/webrtc/signaling \
 METAFOR_ELECTRON_DEBUG_PORT=9230 \
 bun --filter @app/electron dev:host
 
 curl -sS http://127.0.0.1:32123/health
+curl -sS http://127.0.0.1:32123/desktop/rtc/state
+curl -sS http://10.66.0.10:6500/remote-desktop/rtc/state
 curl -sS http://127.0.0.1:32123/state
 curl -sS http://127.0.0.1:32123/snapshot --output /tmp/browser-host.png
 curl -sS http://127.0.0.1:9230/json/version
 curl -sS http://127.0.0.1:9230/json/list
 ```
 
-CDP endpoints полезны для диагностики DevTools/source maps, но рабочий путь
-для агента и interpreter UI идет через browser-host HTTP API и bridge
-`/browser-display/*`.
+CDP endpoints полезны для диагностики DevTools/source maps, но рабочий visual
+path для агента и interpreter UI идет через WebRTC signaling и
+`remote-desktop:server` display. HTTP routes `/remote-desktop/*` нужны для
+health, restart, fallback snapshot и input adapter diagnostics.
 
 ## Display В Space
 
-`browser-display` должен появляться в `GET /space` как отдельный display, на
+`remote-desktop:server` должен появляться в `GET /space` как отдельный display, на
 том же уровне, что `module:*` и `network:tmux`.
 
 Минимальная модель:
 
-- `displayId`: стабильный id, например `browser:app-web`;
-- `kind`: `browser`;
-- `label`: человекочитаемый URL/role;
+- `displayId`: `remote-desktop:server`;
+- `kind`: `remote-desktop`;
+- `label`: `Server Desktop`;
 - `visible`, `active`, `hovered`, `metrics`, `screenRect` как у других displays;
 - `content.kind`: `browser`;
 - `state`: `starting`, `ready`, `navigating`, `stale`, `failed`, `stopped`;
 - `browser`: pid, URL, CDP port, window id/size, last navigation, last frame,
   last input, last error.
 
-UI не должен рисовать browser-display как HUD. HUD может иметь только кнопки
+UI не должен рисовать remote desktop display как HUD. HUD может иметь только кнопки
 управления, если они не становятся владельцем browser state.
 
 ## Snapshot И Input Workflow
@@ -196,19 +226,20 @@ UI не должен рисовать browser-display как HUD. HUD может
 
 ```sh
 curl -sS http://10.66.0.10:6500/space
-curl -sS http://10.66.0.10:6500/browser-display/health
-curl -sS http://10.66.0.10:6500/browser-display/state
-curl -sS http://10.66.0.10:6500/browser-display/snapshot --output /tmp/app-web.png
-curl -sS -X POST http://10.66.0.10:6500/browser-display/input \
+curl -sS http://10.66.0.10:6500/remote-desktop/health
+curl -sS http://10.66.0.10:6500/remote-desktop/rtc/state
+curl -sS http://10.66.0.10:6500/remote-desktop/snapshot --output /tmp/app-web.png
+curl -sS -X POST http://10.66.0.10:6500/remote-desktop/input \
   -H 'content-type: application/json' \
   -d '{"type":"click","x":640,"y":360,"button":"left"}'
 ```
 
-Snapshot должен содержать frame metadata: `frameId`, `capturedAt`, URL,
-viewport, device scale factor и признак stale frame. Input должен возвращать
-ack с координатами после mapping из `Space` display coordinates в content
-viewport. Если страница не готова принять input, host должен возвращать ошибку,
-а не молча терять событие.
+WebRTC video track является основным frame stream. Snapshot должен содержать
+frame metadata: `frameId`, `capturedAt`, URL, viewport, device scale factor и
+признак stale frame, когда используется fallback. Input должен возвращать ack с
+координатами после mapping из `Space` display coordinates в content viewport.
+Если страница не готова принять input, host должен возвращать ошибку, а не
+молча терять событие.
 
 ## DevTools И Source Maps
 
@@ -273,14 +304,14 @@ curl -sS http://10.66.0.10:6500/health
 
 ### Stale Frame
 
-Признаки: snapshot не меняется, browser-display показывает старый bundle,
-input ack свежий, но кадр старый.
+Признаки: WebRTC frame не меняется или fallback snapshot показывает старый
+bundle, input ack свежий, но кадр старый.
 
 Проверки:
 
 ```sh
 curl -sS http://10.66.0.10:6500/space
-curl -sS http://10.66.0.10:6500/browser-display/state
+curl -sS http://10.66.0.10:6500/remote-desktop/rtc/state
 curl -sS http://127.0.0.1:9230/json/list
 curl -sS http://10.66.0.10:3004/health
 ```
@@ -309,18 +340,36 @@ pgrep -af 'electron|chrome|metafor'
 
 ```sh
 systemctl --user import-environment DISPLAY WAYLAND_DISPLAY XAUTHORITY XDG_RUNTIME_DIR
-systemctl --user restart metafor-browser-display.service
+systemctl --user restart metafor-remote-desktop.service
 ```
 
 Для текущего server/dev Web UI не делай macOS browser обязательным backend.
 Linux/Electron host должен работать в своем графическом контуре на сервере или
 в выделенной Linux session.
 
+### Electron Sandbox/Ozone
+
+Проверено 2026-06-26 на текущем server GUI:
+
+- dev Electron binary после ручной распаковки требует либо root-owned
+  `chrome-sandbox` с mode `4755`, либо запуск с `--no-sandbox`;
+- Xwayland `DISPLAY=:0` с Electron 35 падает `SIGSEGV` в GPU/VAAPI/NVIDIA зоне
+  даже без remote desktop RTC;
+- Wayland path с `--ozone-platform=wayland --enable-features=UseOzonePlatform`
+  не падает сразу, но в проверке завис до поднятия host API;
+- `xvfb` на сервере не установлен, а `sudo -n apt-get install xvfb` требует
+  интерактивную авторизацию.
+
+Практический вывод: кодовый WebRTC контур не должен откатываться к snapshot
+polling из-за этого. Нужно отдельно подготовить стабильный server display
+backend: настроить Electron sandbox/Ozone под текущий GNOME/Wayland или поднять
+выделенный virtual display/service для Electron host.
+
 ### Потеря Ввода
 
 Проверки:
 
-- `browser-display` active/focused в `GET /space`;
+- `remote-desktop:server` active/focused в `GET /space`;
 - browser-host health показывает готовую page и свежий `lastFrame`;
 - input proxy возвращает ack, а не timeout;
 - координаты input попадают внутрь `screenRect` display;
@@ -332,7 +381,7 @@ Linux/Electron host должен работать в своем графичес
 
 ```sh
 curl -sS http://10.66.0.10:6500/space
-curl -sS http://10.66.0.10:6500/browser-display/health
+curl -sS http://10.66.0.10:6500/remote-desktop/health
 curl -sS http://127.0.0.1:9230/json/list
 ```
 

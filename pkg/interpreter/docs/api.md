@@ -42,6 +42,8 @@ GET    /context
 POST   /reload
 POST   /restart
 
+WS     /webrtc/signaling
+
 GET    /browser-display/health
 GET    /browser-display/state
 GET    /browser-display/status
@@ -55,6 +57,16 @@ POST   /browser-display/fullscreen
 POST   /browser-display/viewport
 POST   /browser-display/input
 ANY    /browser-display/proxy/<path>
+
+GET    /remote-desktop/health
+GET    /remote-desktop/state
+GET    /remote-desktop/status
+GET    /remote-desktop/rtc/state
+POST   /remote-desktop/rtc/restart
+GET    /remote-desktop/snapshot
+POST   /remote-desktop/input
+GET    /remote-desktop/browser/windows
+POST   /remote-desktop/browser/open
 
 GET    /space
 POST   /space/focus
@@ -223,6 +235,44 @@ ANY  /browser-display/proxy/<path>   # relative path under configured browser-ho
 `GET /browser-display/snapshot` возвращает upstream body как stream/proxy response. Bridge сохраняет `content-type`, `content-length`, `etag`, `last-modified`, `cache-control` и дополнительно выставляет `x-browser-host-size`, если upstream прислал `content-length`. Snapshot не оборачивается в JSON и не кодируется base64.
 
 `/browser-display/proxy/<path>` нужен как временный безопасный escape hatch, пока Electron worker API стабилизируется. Он принимает только relative path под configured local browser-host, запрещает `//`, `.`/`..` segments и не позволяет передать произвольный absolute URL.
+
+## Remote Desktop Display
+
+Remote desktop display - server-owned визуальный канал для совместной Web UI
+разработки. Основной realtime-путь: Electron на сервере захватывает
+desktop/window через Chromium capture API и публикует video track по WebRTC.
+Интерпретатор держит локальный signaling endpoint и показывает поток как
+first-class display `remote-desktop:server` в `Space`. Snapshot routes являются
+fallback/diagnostics, а не основным frame loop.
+
+Конфигурация bridge:
+
+```text
+INTERPRETER_REMOTE_DESKTOP_HOST_URL=http://127.0.0.1:<port>
+# или
+INTERPRETER_REMOTE_DESKTOP_HOST_PORT=<port>
+```
+
+Routes:
+
+```text
+WS   /webrtc/signaling
+GET  /remote-desktop/health
+GET  /remote-desktop/state
+GET  /remote-desktop/status
+GET  /remote-desktop/rtc/state
+POST /remote-desktop/rtc/restart
+GET  /remote-desktop/snapshot
+POST /remote-desktop/input
+GET  /remote-desktop/browser/windows
+POST /remote-desktop/browser/open
+```
+
+`/remote-desktop/health` мапится на Electron `/desktop/health` и включает
+состояние WebRTC sender. `/remote-desktop/rtc/state` и
+`/remote-desktop/rtc/restart` управляют capture/sender window внутри Electron
+host. `/remote-desktop/input` используется как fallback/control adapter; при
+WebRTC data channel UI может отправлять input напрямую sender-у.
 
 ## TODO HUD
 

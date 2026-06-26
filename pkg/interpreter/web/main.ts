@@ -97,7 +97,7 @@ import {
   type WorkspaceFilesContextSnapshot,
 } from "./workspace-files.ts"
 import {formatTerminalExpressionResult} from "./terminal-value-format.ts"
-import {createAndroidRtcClient, type AndroidRtcClient, type AndroidRtcCommand} from "./android-rtc.ts"
+import {createAndroidRtcClient, type AndroidRtcClient, type AndroidRtcCommand, type AndroidRtcFrame, type RtcControlCommand} from "./android-rtc.ts"
 import {
   DEFAULT_VOICE_ACTIVATION_PHRASES,
   DEFAULT_VOICE_DEACTIVATION_PHRASES,
@@ -395,7 +395,10 @@ type ModuleDisplayInfo = DisplayInfoBase & {
 type NetworkDisplayInfo = DisplayInfoBase & {
   kind: "network"
 }
-type DisplayInfo = ModuleDisplayInfo | NetworkDisplayInfo
+type RemoteDesktopDisplayInfo = DisplayInfoBase & {
+  kind: "remote-desktop"
+}
+type DisplayInfo = ModuleDisplayInfo | NetworkDisplayInfo | RemoteDesktopDisplayInfo
 type SqliteDisplayController = {
   id: string
   requestedPath: string
@@ -607,6 +610,7 @@ const NETWORK_TERMINAL_SESSION_KEY = "interpreter:network-terminal"
 const NETWORK_TERMINAL_TMUX_SESSION = "metafor-app-web-net"
 const NETWORK_TERMINAL_TMUX_FALLBACK_COMMAND = `exec tmux new-session -A -s ${NETWORK_TERMINAL_TMUX_SESSION}\r`
 const NETWORK_DISPLAY_ID = "network:tmux"
+const REMOTE_DESKTOP_DISPLAY_ID = "remote-desktop:server"
 const NETWORK_TERMINAL_HUD_RECT_STORAGE_KEY = "metafor.interpreter.networkTerminal.hudRect:v1"
 const NETWORK_TERMINAL_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.networkTerminal.hudDocked:v1"
 const NETWORK_STATUS_AUTO_REFRESH_STORAGE_KEY = "metafor.interpreter.networkStatus.autoRefresh:v1"
@@ -773,6 +777,7 @@ const DEFAULT_ANDROID_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "left",
 const DEFAULT_SECONDARY_ANDROID_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "left", offset: 500}
 const ANDROID_RTC_FRAME_SRC = "metafor:android-rtc-frame"
 const SECONDARY_ANDROID_RTC_FRAME_SRC = "metafor:android-rtc-frame:secondary"
+const REMOTE_DESKTOP_RTC_FRAME_SRC = "metafor:remote-desktop-rtc-frame"
 const ANDROID_CONTROL_STATUS_HOLD_MS = 4_000
 const PINNED_VOICE_HUD_ANCHOR: VoiceHudAnchorPlacement = {horizontal: "right", vertical: "bottom", offsetX: 0, offsetY: 0}
 const DEFAULT_TODO_HUD_RECT: UiSurfaceRect = {x: 16, y: 72, w: 430, h: 560}
@@ -799,6 +804,9 @@ let fullscreenDockPane: HostTerminalDockPane | null = null
 let networkDisplayControlsPane: NetworkWatchPane | null = null
 let networkDisplayTerminal: TerminalPane | null = null
 let networkDisplayInstalled = false
+let remoteDesktopPane: RemoteDesktopPane | null = null
+let remoteDesktopDisplayInstalled = false
+let remoteDesktopRtcClient: AndroidRtcClient | null = null
 let hostTerminalAgentSignalPane: HostTerminalAgentSignalPane | null = null
 let hostTerminalStatusLabelForLayout = t("terminalConnecting")
 let hostTerminalHudDocked = readStoredHostTerminalHudDocked()
@@ -1194,6 +1202,9 @@ function focusSpace(params: unknown): unknown {
     queuePublishModuleContext(controller)
   } else if (display.kind === "network") {
     networkDisplayTerminal?.focus()
+  } else if (display.kind === "remote-desktop") {
+    remoteDesktopPane?.focus()
+    connectRemoteDesktopRtc()
   }
   syncNetworkStatusRefresh()
   return {
@@ -1208,6 +1219,7 @@ function frameSpace(): unknown {
   const displayIds = displayInfos().map((display) => display.displayId)
   if (displayIds.length > 0) uiCanvas.frameDisplays(displayIds)
   syncNetworkStatusRefresh()
+  connectRemoteDesktopRtc()
   return spacePayload()
 }
 
@@ -1962,6 +1974,16 @@ function displayInfos(): DisplayInfo[] {
       displayId: NETWORK_DISPLAY_ID,
       kind: "network",
       label: "Network",
+      order: order++,
+    })
+  }
+  const remoteDesktopDisplay = runtimeDisplays.get(REMOTE_DESKTOP_DISPLAY_ID)
+  if (remoteDesktopDisplay !== undefined) {
+    displays.push({
+      ...remoteDesktopDisplay,
+      displayId: REMOTE_DESKTOP_DISPLAY_ID,
+      kind: "remote-desktop",
+      label: "Server Desktop",
       order: order++,
     })
   }
@@ -2941,6 +2963,46 @@ function connectSecondaryAndroidRtc(): void {
 function setSecondaryAndroidRtcStatus(kind: AndroidPaneStatusKind, label: string): void {
   secondaryAndroidPane?.setStatus(kind, label)
   if (/\b(ok|failed)\b/.test(label)) secondaryAndroidControlStatusUntil = Date.now() + ANDROID_CONTROL_STATUS_HOLD_MS
+}
+
+function connectRemoteDesktopRtc(): void {
+  if (remoteDesktopPane === null) return
+  if (remoteDesktopRtcClient === null) {
+    remoteDesktopRtcClient = createAndroidRtcClient({
+      room: "remote-desktop",
+      peerId: `interpreter-desktop-${crypto.randomUUID()}`,
+      senderPeerId: "electron-desktop",
+      peerTarget: "any",
+      signalUrl: interpreterRtcSignalUrl(),
+      capabilities: ["remote-desktop", "interpreter"],
+      frameSrc: REMOTE_DESKTOP_RTC_FRAME_SRC,
+      onFrame: (frame) => {
+        remoteDesktopPane?.setFrame(frame)
+        remoteDesktopPane?.setStatus("connected", `${frame.width}x${frame.height} rtc`)
+      },
+      onStatus: setRemoteDesktopRtcStatus,
+    })
+  }
+  remoteDesktopRtcClient.connect()
+}
+
+function setRemoteDesktopRtcStatus(kind: AndroidPaneStatusKind, label: string): void {
+  remoteDesktopPane?.setStatus(kind, label)
+}
+
+function sendRemoteDesktopControl(command: RtcControlCommand): boolean {
+  connectRemoteDesktopRtc()
+  if (remoteDesktopRtcClient?.send(command) === true) {
+    remoteDesktopPane?.setStatus("connected", "rtc command")
+    return true
+  }
+  remoteDesktopPane?.setStatus("error", "rtc control closed")
+  return false
+}
+
+function interpreterRtcSignalUrl(): string {
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
+  return `${protocol}//${window.location.host}/webrtc/signaling`
 }
 
 async function sendAndroidTap(x: number, y: number): Promise<void> {
@@ -4072,6 +4134,190 @@ function networkWatchPaneSnapshot(): NetworkWatchPaneSnapshot {
 
 function updateNetworkWatchPane(): void {
   networkDisplayControlsPane?.setSnapshot(networkWatchPaneSnapshot())
+}
+
+type RemoteDesktopPoint = {x: number; y: number}
+
+class RemoteDesktopPane extends UiSurface {
+  #statusKind: AndroidPaneStatusKind = "idle"
+  #status = "rtc idle"
+  #frame: AndroidRtcFrame | null = null
+  #lastImageRect: UiSurfaceRect | null = null
+  #pressPoint: RemoteDesktopPoint | null = null
+  readonly #onRefresh: () => void
+  readonly #onInput: (command: RtcControlCommand) => void
+
+  constructor(opts: {onRefresh: () => void; onInput: (command: RtcControlCommand) => void}) {
+    super({bgColor: HUD_PANEL_BG, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
+    this.node.name = "RemoteDesktopPane"
+    this.#onRefresh = opts.onRefresh
+    this.#onInput = opts.onInput
+  }
+
+  setStatus(kind: AndroidPaneStatusKind, label: string): void {
+    if (this.#statusKind === kind && this.#status === label) return
+    this.#statusKind = kind
+    this.#status = label
+    this.requestRender()
+  }
+
+  setFrame(frame: AndroidRtcFrame): void {
+    this.#frame = frame
+    this.requestRender()
+  }
+
+  frameSnapshot(): AndroidRtcFrame | null {
+    return this.#frame === null ? null : {...this.#frame}
+  }
+
+  focus(): void {
+    this.canvas?.setFocused(this)
+  }
+
+  protected render(): void {
+    const w = Math.max(360, this.rectW)
+    const h = Math.max(240, this.rectH)
+    this.drawRoundedRect(0, 0, w, h, {
+      radius: radii.pane,
+      fill: HUD_PANEL_BG,
+      border: palette.borderDim,
+      borderWidth: 1,
+      z: Z.CONTAINER,
+    })
+    this.#renderHeader(w)
+    this.#renderBody({x: 10, y: 42, w: Math.max(1, w - 20), h: Math.max(1, h - 52)})
+  }
+
+  #renderHeader(w: number): void {
+    const pad = 14
+    const buttonSize = 22
+    const refreshX = w - pad - buttonSize
+    this.drawText("Server Desktop", pad, 11, {
+      fontPx: 13,
+      material: this.materials.cyan,
+      maxWidthPx: Math.max(1, refreshX - pad - 12),
+    })
+    const titleW = Math.min(Math.max(1, refreshX - pad - 12), this.measureText("Server Desktop", 13))
+    this.drawText(this.#status, pad + titleW + 14, 12, {
+      fontPx: 10,
+      material: this.#statusKind === "error" ? this.materials.red : this.materials.muted,
+      maxWidthPx: Math.max(1, refreshX - pad - titleW - 20),
+    })
+    IconButton(this, refreshX, 8, buttonSize, buttonSize, {
+      label: "Reconnect remote desktop",
+      iconSrc: uiIcons.restart,
+      action: this.#onRefresh,
+    })
+    this.drawRect(pad, 36, Math.max(1, w - pad * 2), 1, palette.borderDim)
+  }
+
+  #renderBody(rect: UiSurfaceRect): void {
+    this.drawRoundedRect(rect.x, rect.y, rect.w, rect.h, {
+      radius: radii.control,
+      fill: HUD_CODE_BG,
+      border: palette.borderDim,
+      borderWidth: 1,
+      z: Z.ELEMENT - 0.03,
+    })
+    const imageRect = this.#imageRect(rect)
+    this.#lastImageRect = imageRect
+    if (imageRect !== null && this.#frame !== null) {
+      this.drawImage(this.#frame.src, imageRect.x, imageRect.y, imageRect.w, imageRect.h, {
+        fit: "contain",
+        z: Z.ELEMENT,
+      })
+      this.hit(imageRect.x, imageRect.y, imageRect.w, imageRect.h, () => {}, {
+        cursor: "crosshair",
+        activeCursor: "crosshair",
+        key: "remote-desktop-frame",
+      })
+      return
+    }
+    this.drawText(this.#statusKind === "error" ? this.#status : "Waiting for WebRTC desktop stream", rect.x + 14, rect.y + 16, {
+      fontPx: 12,
+      material: this.#statusKind === "error" ? this.materials.red : this.materials.muted,
+      maxWidthPx: Math.max(1, rect.w - 28),
+    })
+  }
+
+  #imageRect(rect: UiSurfaceRect): UiSurfaceRect | null {
+    const frame = this.#frame
+    if (frame === null || frame.width <= 0 || frame.height <= 0) return null
+    const pad = 1
+    const maxW = Math.max(1, rect.w - pad * 2)
+    const maxH = Math.max(1, rect.h - pad * 2)
+    const scale = Math.min(maxW / frame.width, maxH / frame.height)
+    const w = Math.max(1, frame.width * scale)
+    const h = Math.max(1, frame.height * scale)
+    return {
+      x: rect.x + (rect.w - w) / 2,
+      y: rect.y + (rect.h - h) / 2,
+      w,
+      h,
+    }
+  }
+
+  #localPointToFrame(localX: number, localY: number): RemoteDesktopPoint | null {
+    const rect = this.#lastImageRect
+    const frame = this.#frame
+    if (rect === null || frame === null) return null
+    if (localX < rect.x || localY < rect.y || localX > rect.x + rect.w || localY > rect.y + rect.h) return null
+    return {
+      x: clampNumber(((localX - rect.x) / rect.w) * frame.width, 0, frame.width - 1),
+      y: clampNumber(((localY - rect.y) / rect.h) * frame.height, 0, frame.height - 1),
+    }
+  }
+
+  #withFrameSize(command: RtcControlCommand): RtcControlCommand {
+    const frame = this.#frame
+    if (frame === null || !("x" in command)) return command
+    return {...command, frameW: frame.width, frameH: frame.height} as RtcControlCommand
+  }
+
+  override onWheel(event: WheelEvent, localX: number, localY: number): void {
+    const point = this.#localPointToFrame(localX, localY)
+    if (point === null) {
+      super.onWheel(event, localX, localY)
+      return
+    }
+    event.preventDefault()
+    this.#onInput(this.#withFrameSize({
+      type: "wheel",
+      x: point.x,
+      y: point.y,
+      deltaX: event.deltaX,
+      deltaY: event.deltaY,
+    }))
+  }
+
+  override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
+    super.onPointerDown(event, localX, localY)
+    const point = this.#localPointToFrame(localX, localY)
+    if (event.button !== 0 || point === null) return
+    this.focus()
+    this.#pressPoint = point
+    this.#onInput({type: "focus"})
+    event.preventDefault()
+  }
+
+  override onPointerUp(event: MouseEvent, localX: number, localY: number): void {
+    const start = this.#pressPoint
+    this.#pressPoint = null
+    const point = this.#localPointToFrame(localX, localY)
+    if (start !== null && point !== null) {
+      super.onPointerUp(event, localX, localY)
+      this.#onInput(this.#withFrameSize({
+        type: "click",
+        x: point.x,
+        y: point.y,
+        button: "left",
+        clickCount: event.detail >= 2 ? 2 : 1,
+      }))
+      event.preventDefault()
+      return
+    }
+    super.onPointerUp(event, localX, localY)
+  }
 }
 
 class SqliteHudFramePane extends UiSurface {
@@ -6642,11 +6888,14 @@ function syncModuleDisplays(): void {
       uiCanvas.setDisplayCenter(displayId, center)
     }
   }
+  ensureRemoteDesktopDisplay()
   ensureNetworkDisplay()
 
-  const displayIds = networkDisplayInstalled
-    ? [NETWORK_DISPLAY_ID, ...moduleDisplayIdList]
-    : moduleDisplayIdList
+  const displayIds = [
+    ...(remoteDesktopDisplayInstalled ? [REMOTE_DESKTOP_DISPLAY_ID] : []),
+    ...(networkDisplayInstalled ? [NETWORK_DISPLAY_ID] : []),
+    ...moduleDisplayIdList,
+  ]
 
   const frameKey = displayIds.map((id, index) => {
     return `${id}:${index}:${Math.round(displayMetrics.widthMm)}x${Math.round(displayMetrics.heightMm)}:${displayMetrics.pixelWidth}x${displayMetrics.pixelHeight}`
@@ -6687,6 +6936,49 @@ function removeModuleDisplay(moduleId: string): void {
     if (nextDisplayId !== null) uiCanvas.focusDisplay(nextDisplayId)
   }
   uiCanvas?.removeDisplay(displayId)
+}
+
+function ensureRemoteDesktopDisplay(): void {
+  if (uiCanvas === null) return
+  const metrics = viewportDisplayMetrics()
+  const center = displayCenterWithStored(REMOTE_DESKTOP_DISPLAY_ID, remoteDesktopDisplayFallbackCenter(metrics))
+
+  if (!remoteDesktopDisplayInstalled) {
+    remoteDesktopDisplayInstalled = true
+    remoteDesktopPane ??= new RemoteDesktopPane({
+      onRefresh: () => connectRemoteDesktopRtc(),
+      onInput: (command) => {
+        sendRemoteDesktopControl(command)
+      },
+    })
+    uiCanvas.createDisplay({
+      id: REMOTE_DESKTOP_DISPLAY_ID,
+      widthMm: metrics.widthMm,
+      heightMm: metrics.heightMm,
+      pixelWidth: metrics.pixelWidth,
+      pixelHeight: metrics.pixelHeight,
+      centerMm: center,
+      background: 0x020617,
+      border: null,
+    })
+    uiCanvas.addSurfaceToDisplay(REMOTE_DESKTOP_DISPLAY_ID, remoteDesktopPane, ({w, h}) => ({x: 0, y: 0, w, h}))
+    connectRemoteDesktopRtc()
+  } else {
+    uiCanvas.resizeDisplay(REMOTE_DESKTOP_DISPLAY_ID, metrics)
+    uiCanvas.setDisplayCenter(REMOTE_DESKTOP_DISPLAY_ID, center)
+  }
+}
+
+function remoteDesktopDisplayFallbackCenter(metrics: DisplayLayoutMetrics): UiRuntimeViewPointVector {
+  const moduleMetrics = viewportDisplayMetrics()
+  const moduleCount = moduleOrder.length
+  if (moduleCount === 0) return {x: 0, y: MODULE_DISPLAY_CENTER_Y_MM, z: MODULE_DISPLAY_CENTER_Z_MM}
+  const moduleTotalW = moduleCount * moduleMetrics.widthMm + Math.max(0, moduleCount - 1) * MODULE_DISPLAY_GAP_MM
+  return {
+    x: -moduleTotalW / 2 - MODULE_DISPLAY_GAP_MM - metrics.widthMm / 2,
+    y: MODULE_DISPLAY_CENTER_Y_MM,
+    z: MODULE_DISPLAY_CENTER_Z_MM,
+  }
 }
 
 function ensureNetworkDisplay(): void {

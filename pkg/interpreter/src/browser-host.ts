@@ -11,25 +11,36 @@ type BrowserHostRoute = {
   upstreamPath: string
   responseKind: "json" | "stream"
   timeoutMs: number
+  configKind: "browser" | "remoteDesktop"
 }
 
 type BrowserHostConfig =
-  | {ok: true; baseUrl: URL; configuredFrom: "INTERPRETER_BROWSER_HOST_URL" | "INTERPRETER_BROWSER_HOST_PORT"}
-  | {ok: false; configured: boolean; error: string}
+  | {ok: true; baseUrl: URL; configuredFrom: string}
+  | {ok: false; configured: boolean; env: string[]; error: string}
 
 const BROWSER_HOST_ROUTES: BrowserHostRoute[] = [
-  {method: "GET", path: "/browser-display/health", upstreamPath: "/health", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS},
-  {method: "GET", path: "/browser-display/state", upstreamPath: "/state", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS},
-  {method: "GET", path: "/browser-display/status", upstreamPath: "/state", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS},
-  {method: "GET", path: "/browser-display/snapshot", upstreamPath: "/snapshot", responseKind: "stream", timeoutMs: SNAPSHOT_BROWSER_HOST_TIMEOUT_MS},
-  {method: "POST", path: "/browser-display/navigate", upstreamPath: "/navigate", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS},
-  {method: "POST", path: "/browser-display/reload", upstreamPath: "/reload", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS},
-  {method: "POST", path: "/browser-display/back", upstreamPath: "/back", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS},
-  {method: "POST", path: "/browser-display/forward", upstreamPath: "/forward", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS},
-  {method: "POST", path: "/browser-display/devtools", upstreamPath: "/devtools", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS},
-  {method: "POST", path: "/browser-display/fullscreen", upstreamPath: "/fullscreen", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS},
-  {method: "POST", path: "/browser-display/viewport", upstreamPath: "/viewport", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS},
-  {method: "POST", path: "/browser-display/input", upstreamPath: "/input", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS},
+  {method: "GET", path: "/browser-display/health", upstreamPath: "/health", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "browser"},
+  {method: "GET", path: "/browser-display/state", upstreamPath: "/state", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "browser"},
+  {method: "GET", path: "/browser-display/status", upstreamPath: "/state", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "browser"},
+  {method: "GET", path: "/browser-display/snapshot", upstreamPath: "/snapshot", responseKind: "stream", timeoutMs: SNAPSHOT_BROWSER_HOST_TIMEOUT_MS, configKind: "browser"},
+  {method: "POST", path: "/browser-display/navigate", upstreamPath: "/navigate", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "browser"},
+  {method: "POST", path: "/browser-display/reload", upstreamPath: "/reload", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "browser"},
+  {method: "POST", path: "/browser-display/back", upstreamPath: "/back", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "browser"},
+  {method: "POST", path: "/browser-display/forward", upstreamPath: "/forward", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "browser"},
+  {method: "POST", path: "/browser-display/devtools", upstreamPath: "/devtools", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "browser"},
+  {method: "POST", path: "/browser-display/fullscreen", upstreamPath: "/fullscreen", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "browser"},
+  {method: "POST", path: "/browser-display/viewport", upstreamPath: "/viewport", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "browser"},
+  {method: "POST", path: "/browser-display/input", upstreamPath: "/input", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "browser"},
+  {method: "GET", path: "/remote-desktop/health", upstreamPath: "/desktop/health", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "remoteDesktop"},
+  {method: "GET", path: "/remote-desktop/state", upstreamPath: "/desktop/health", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "remoteDesktop"},
+  {method: "GET", path: "/remote-desktop/status", upstreamPath: "/desktop/health", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "remoteDesktop"},
+  {method: "GET", path: "/remote-desktop/rtc/state", upstreamPath: "/desktop/rtc/state", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "remoteDesktop"},
+  {method: "POST", path: "/remote-desktop/rtc/restart", upstreamPath: "/desktop/rtc/restart", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "remoteDesktop"},
+  {method: "GET", path: "/remote-desktop/snapshot", upstreamPath: "/desktop/snapshot", responseKind: "stream", timeoutMs: SNAPSHOT_BROWSER_HOST_TIMEOUT_MS, configKind: "remoteDesktop"},
+  {method: "POST", path: "/remote-desktop/snapshot", upstreamPath: "/desktop/snapshot", responseKind: "stream", timeoutMs: SNAPSHOT_BROWSER_HOST_TIMEOUT_MS, configKind: "remoteDesktop"},
+  {method: "POST", path: "/remote-desktop/input", upstreamPath: "/desktop/input", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "remoteDesktop"},
+  {method: "GET", path: "/remote-desktop/browser/windows", upstreamPath: "/desktop/browser/windows", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "remoteDesktop"},
+  {method: "POST", path: "/remote-desktop/browser/open", upstreamPath: "/desktop/browser/open", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "remoteDesktop"},
 ]
 
 const BROWSER_HOST_ROUTE_INDEX = new Map(BROWSER_HOST_ROUTES.map((route) => [`${route.method} ${route.path}`, route]))
@@ -49,6 +60,7 @@ export async function handleBrowserHostRoute(req: Request, method: string, path:
       upstreamPath,
       responseKind: "stream",
       timeoutMs: SNAPSHOT_BROWSER_HOST_TIMEOUT_MS,
+      configKind: "browser",
     })
   }
 
@@ -56,7 +68,7 @@ export async function handleBrowserHostRoute(req: Request, method: string, path:
 }
 
 async function proxyBrowserHostRequest(req: Request, route: BrowserHostRoute): Promise<Response> {
-  const config = browserHostConfig()
+  const config = browserHostConfig(route.configKind)
   if (!config.ok) return browserHostUnavailableResponse(config)
 
   const incomingUrl = new URL(req.url)
@@ -90,30 +102,54 @@ async function proxyBrowserHostRequest(req: Request, route: BrowserHostRoute): P
   }
 }
 
-function browserHostConfig(): BrowserHostConfig {
-  const explicitUrl = process.env.INTERPRETER_BROWSER_HOST_URL?.trim()
+function browserHostConfig(kind: BrowserHostRoute["configKind"]): BrowserHostConfig {
+  const env = browserHostEnv(kind)
+  const explicitUrl = process.env[env.url]?.trim()
   if (explicitUrl !== undefined && explicitUrl.length > 0) {
     const parsed = parseBrowserHostUrl(explicitUrl)
-    return parsed.ok ? {...parsed, configuredFrom: "INTERPRETER_BROWSER_HOST_URL"} : {ok: false, configured: true, error: parsed.error}
+    return parsed.ok ? {...parsed, configuredFrom: env.url} : {ok: false, configured: true, env: env.all, error: parsed.error}
   }
 
-  const portValue = process.env.INTERPRETER_BROWSER_HOST_PORT?.trim()
+  const portValue = process.env[env.port]?.trim()
   if (portValue !== undefined && portValue.length > 0) {
     const port = Number(portValue)
     if (!Number.isInteger(port) || port < 1 || port > 65_535) {
-      return {ok: false, configured: true, error: "INTERPRETER_BROWSER_HOST_PORT must be an integer from 1 to 65535"}
+      return {ok: false, configured: true, env: env.all, error: `${env.port} must be an integer from 1 to 65535`}
     }
     return {
       ok: true,
       baseUrl: new URL(`http://127.0.0.1:${port}`),
-      configuredFrom: "INTERPRETER_BROWSER_HOST_PORT",
+      configuredFrom: env.port,
     }
   }
+
+  if (kind === "remoteDesktop") return browserHostConfig("browser")
 
   return {
     ok: false,
     configured: false,
-    error: "browser-host is not configured; set INTERPRETER_BROWSER_HOST_URL or INTERPRETER_BROWSER_HOST_PORT",
+    env: env.all,
+    error: `browser-host is not configured; set ${env.url} or ${env.port}`,
+  }
+}
+
+function browserHostEnv(kind: BrowserHostRoute["configKind"]): {url: string; port: string; all: string[]} {
+  if (kind === "remoteDesktop") {
+    return {
+      url: "INTERPRETER_REMOTE_DESKTOP_HOST_URL",
+      port: "INTERPRETER_REMOTE_DESKTOP_HOST_PORT",
+      all: [
+        "INTERPRETER_REMOTE_DESKTOP_HOST_URL",
+        "INTERPRETER_REMOTE_DESKTOP_HOST_PORT",
+        "INTERPRETER_BROWSER_HOST_URL",
+        "INTERPRETER_BROWSER_HOST_PORT",
+      ],
+    }
+  }
+  return {
+    url: "INTERPRETER_BROWSER_HOST_URL",
+    port: "INTERPRETER_BROWSER_HOST_PORT",
+    all: ["INTERPRETER_BROWSER_HOST_URL", "INTERPRETER_BROWSER_HOST_PORT"],
   }
 }
 
@@ -206,7 +242,7 @@ function browserHostUnavailableResponse(config: Extract<BrowserHostConfig, {ok: 
     browserHost: {
       available: false,
       configured: config.configured,
-      env: ["INTERPRETER_BROWSER_HOST_URL", "INTERPRETER_BROWSER_HOST_PORT"],
+      env: config.env,
     },
     error: config.error,
   }, 503)

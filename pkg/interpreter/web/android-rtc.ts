@@ -25,18 +25,31 @@ export type AndroidRtcCommand =
   | {type: "launch"; packageName: string}
   | {type: "open-accessibility"}
 
+export type RemoteDesktopRtcCommand =
+  | {type: "focus"}
+  | {type: "click" | "doubleclick"; x: number; y: number; button?: string; clickCount?: number; frameW?: number; frameH?: number}
+  | {type: "pointerMove" | "mouseMove" | "move"; x: number; y: number; frameW?: number; frameH?: number}
+  | {type: "wheel" | "mouseWheel"; x: number; y: number; deltaX?: number; deltaY?: number; dx?: number; dy?: number; frameW?: number; frameH?: number}
+  | {type: "text" | "type"; text: string}
+  | {type: "keyDown" | "keyUp" | "char"; key?: string; keyCode?: string; modifiers?: string[]}
+
+export type RtcControlCommand = AndroidRtcCommand | RemoteDesktopRtcCommand
+
 export type AndroidRtcClient = {
   readonly peerId: string
   connect(): void
   disconnect(): void
-  send(command: AndroidRtcCommand): boolean
+  send(command: RtcControlCommand): boolean
   peers(): Array<{id: string; connectionState: RTCPeerConnectionState; channelState: RTCDataChannelState | "none"}>
 }
 
 export type AndroidRtcClientOpts = {
   room?: string
   peerId?: string
+  senderPeerId?: string
   peerTarget?: "primary" | "secondary" | "any"
+  signalUrl?: string
+  capabilities?: string[]
   frameSrc: string
   minFrameIntervalMs?: number
   onFrame: (frame: AndroidRtcFrame) => void
@@ -68,7 +81,7 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
   let frameLoopStarted = false
   let frameCopyInFlight = false
   let lastFrameAt = 0
-  let pendingCommands: AndroidRtcCommand[] = []
+  let pendingCommands: RtcControlCommand[] = []
 
   const api: AndroidRtcClient = {
     get peerId() {
@@ -92,7 +105,8 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     socket = createLegacyRtcSignalSocket({
       conversationId: room,
       participantId: peerId,
-      capabilities: ["android-display", "interpreter"],
+      capabilities: opts.capabilities ?? ["android-display", "interpreter"],
+      ...(opts.signalUrl === undefined ? {} : {url: opts.signalUrl}),
     })
     socket.addEventListener("open", () => opts.onStatus("running", "rtc signaling"))
     socket.addEventListener("message", (event) => {
@@ -119,7 +133,7 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     frameLoopStarted = false
   }
 
-  function send(command: AndroidRtcCommand): boolean {
+  function send(command: RtcControlCommand): boolean {
     if (sendToOpenChannels(command)) return true
     if (socket !== null && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
       pendingCommands.push(command)
@@ -130,7 +144,7 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     return false
   }
 
-  function sendToOpenChannels(command: AndroidRtcCommand): boolean {
+  function sendToOpenChannels(command: RtcControlCommand): boolean {
     let sent = false
     for (const peer of peers.values()) {
       if (peer.channel?.readyState !== "open") continue
@@ -157,12 +171,12 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     if (signal.type === "hello") {
       opts.onStatus("running", `rtc room ${signal.peers.length} peers`)
       for (const remotePeerId of signal.peers) {
-        if (isTargetAndroidRtcSenderPeer(remotePeerId, peerTarget)) void createPeer(remotePeerId, true)
+        if (isTargetRtcSenderPeer(remotePeerId, peerTarget, opts.senderPeerId ?? ANDROID_RTC_SENDER_PEER)) void createPeer(remotePeerId, true)
       }
       return
     }
     if (signal.type === "peer-joined") {
-      if (isTargetAndroidRtcSenderPeer(signal.peerId, peerTarget)) void createPeer(signal.peerId, true)
+      if (isTargetRtcSenderPeer(signal.peerId, peerTarget, opts.senderPeerId ?? ANDROID_RTC_SENDER_PEER)) void createPeer(signal.peerId, true)
       return
     }
     if (signal.type === "peer-left") {
@@ -170,7 +184,7 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
       return
     }
     if (signal.from === peerId) return
-    if (!isTargetAndroidRtcSenderPeer(signal.from, peerTarget)) return
+    if (!isTargetRtcSenderPeer(signal.from, peerTarget, opts.senderPeerId ?? ANDROID_RTC_SENDER_PEER)) return
     const peer = createPeer(signal.from, false)
     if (signal.type === "offer") {
       await peer.connection.setRemoteDescription(signal.description)
@@ -213,7 +227,7 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     })
 
     if (initiator) {
-      attachDataChannel(peer, connection.createDataChannel("android-control", {ordered: true}))
+      attachDataChannel(peer, connection.createDataChannel("control", {ordered: true}))
       void startOffer(peer)
     }
 
@@ -343,4 +357,12 @@ function isTargetAndroidRtcSenderPeer(peerId: string, target: "primary" | "secon
   if (target === "any") return true
   if (target === "secondary") return peerId !== ANDROID_RTC_SENDER_PEER
   return peerId === ANDROID_RTC_SENDER_PEER
+}
+
+function isTargetRtcSenderPeer(peerId: string, target: "primary" | "secondary" | "any", senderPeerId: string): boolean {
+  if (senderPeerId === ANDROID_RTC_SENDER_PEER) return isTargetAndroidRtcSenderPeer(peerId, target)
+  if (peerId !== senderPeerId && !peerId.startsWith(`${senderPeerId}-`)) return false
+  if (target === "any") return true
+  if (target === "secondary") return peerId !== senderPeerId
+  return peerId === senderPeerId
 }

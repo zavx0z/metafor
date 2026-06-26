@@ -56,7 +56,9 @@ export const RTC_ICE_SERVERS: RTCIceServer[] = [
 ]
 
 export function createLegacyRtcSignalSocket(options: LegacyRtcSignalSocketOptions): LegacyRtcSignalSocket {
-  return new LegacyRtcSignalSocketImpl(options)
+  const url = options.url ?? readSignalUrl()
+  if (isInterpreterRtcSignalUrl(url)) return new InterpreterRtcSignalSocketImpl({...options, url})
+  return new LegacyRtcSignalSocketImpl({...options, url})
 }
 
 class LegacyRtcSignalSocketImpl extends EventTarget implements LegacyRtcSignalSocket {
@@ -206,6 +208,53 @@ class LegacyRtcSignalSocketImpl extends EventTarget implements LegacyRtcSignalSo
   }
 }
 
+class InterpreterRtcSignalSocketImpl extends EventTarget implements LegacyRtcSignalSocket {
+  readonly participantId: string
+
+  #ws: WebSocket
+
+  constructor(options: LegacyRtcSignalSocketOptions & {url: string}) {
+    super()
+    this.participantId = options.participantId
+    const url = new URL(options.url, location.href)
+    url.searchParams.set("room", options.conversationId)
+    url.searchParams.set("peer", options.participantId)
+    this.#ws = new WebSocket(url)
+    this.#ws.addEventListener("open", () => this.dispatchEvent(new Event("open")))
+    this.#ws.addEventListener("message", (event) => {
+      if (typeof event.data === "string") this.dispatchEvent(new MessageEvent("message", {data: event.data}))
+    })
+    this.#ws.addEventListener("error", () => this.dispatchEvent(new Event("error")))
+    this.#ws.addEventListener("close", (event) => {
+      this.dispatchEvent(new CloseEvent("close", {
+        code: event.code,
+        reason: event.reason,
+        wasClean: event.wasClean,
+      }))
+    })
+  }
+
+  override addEventListener(type: "message", listener: (event: MessageEvent<string>) => void, options?: boolean | AddEventListenerOptions): void
+  override addEventListener(type: "close", listener: (event: CloseEvent) => void, options?: boolean | AddEventListenerOptions): void
+  override addEventListener(type: "open" | "error", listener: (event: Event) => void, options?: boolean | AddEventListenerOptions): void
+  override addEventListener(type: string, listener: unknown, options?: boolean | AddEventListenerOptions): void {
+    super.addEventListener(type, listener as EventListenerOrEventListenerObject | null, options)
+  }
+
+  get readyState(): number {
+    return this.#ws.readyState
+  }
+
+  close(code?: number, reason?: string): void {
+    this.#ws.close(code, reason)
+  }
+
+  send(data: string): void {
+    if (this.#ws.readyState !== WebSocket.OPEN) return
+    this.#ws.send(data)
+  }
+}
+
 function readSignalUrl(): string {
   try {
     const stored = localStorage.getItem(SIGNAL_URL_STORAGE_KEY)?.trim()
@@ -214,6 +263,15 @@ function readSignalUrl(): string {
     // Storage can be disabled.
   }
   return DEFAULT_SIGNAL_URL
+}
+
+function isInterpreterRtcSignalUrl(value: string): boolean {
+  try {
+    const url = new URL(value, location.href)
+    return url.pathname === "/webrtc/signaling" || url.pathname === "/hud/android/webrtc/signaling"
+  } catch {
+    return false
+  }
 }
 
 function parseP2pMessage(raw: string): P2pServerMessage | null {
