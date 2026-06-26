@@ -81,6 +81,7 @@ MetaFor - открытая среда для общего AGI.
 - В серверной среде MetaFor не предполагается локальный Chrome, CDP-target или REST API браузера. Не используй `@meta/chrome`, порт `7880`, CDP или запуск локального Chrome как доступный путь по умолчанию.
 - Для проверки WebApp сначала используй серверные HTTP/interpreter endpoints и состояние приложения. Браузерную автоматизацию запускай только если пользователь явно дал доступ к браузерной среде или текущая Codex-сессия предоставляет browser skill/tool после перезапуска.
 - Не открывай новые вкладки, окна или отдельные профили Chrome на сервере без явного подтверждения пользователя.
+- Если нужен общий видимый браузер для человека и агента, проектируй его как first-class `browser-display` в `Space`, а не как HUD-панель и не как постоянную Playwright-зависимость. Временный Playwright/Chrome automation допустим только для диагностики; рабочий контур должен иметь явный browser-host, snapshot/frame stream, input proxy, health/restart и общий видимый state.
 
 ## Операционные Контуры WebApp + Interpreter
 
@@ -117,7 +118,7 @@ ss -ltnp | rg ':(6500|6499|3004)\b'
 
 Правки в файлах текущего child runtime делай через interpreter API; replay child обычно достаточен. Правки host interpreter-кода (`pkg/interpreter/src/server.ts`, `pkg/interpreter/web/main.ts`) после применения через API могут требовать restart самого host process, потому что host должен перечитать код и пересобрать/раздать UI. В server/systemd контуре это `systemctl --user restart metafor-interpreter-web-dev.service`; в локальном foreground/tmux-контуре перезапускай соответствующий локальный host process, а не создавай systemd unit.
 
-`POST /reload` только просит подключенные UI-клиенты перезагрузиться; он не заменяет restart host. Не расширяй embedded proxy allowlist (`/hud/interpreter/*`) для внутренних host-команд вроде `/reload` без явного архитектурного решения. Если нужно перезагрузить interpreter UI, используй endpoint того host, который реально держит UI, и затем проверяй события/breakpoint state.
+`POST /reload` только просит подключенные UI-клиенты перезагрузиться; он не заменяет restart host. `POST /restart` - host-level endpoint для контролируемого restart текущего tmux-host: он сначала просит клиентов перезагрузиться с задержкой, а клиент после этого ждет `/health`, чтобы не попасть на белый экран во время падения socket-а. Если host не запущен в tmux, используй соответствующий внешний supervisor (`systemctl --user restart ...`, foreground restart или явно заданный `INTERPRETER_RESTART_COMMAND`). Не расширяй embedded proxy allowlist (`/hud/interpreter/*`) для внутренних host-команд вроде `/reload` без явного архитектурного решения. Если нужно перезагрузить interpreter UI, используй endpoint того host, который реально держит UI, и затем проверяй события/breakpoint state.
 
 ## WebGPU-Движок (`pkg/engine`)
 

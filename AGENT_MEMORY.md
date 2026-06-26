@@ -154,6 +154,8 @@ MetaFor должен позволять агенту улучшать свои �
 
 UI-инвариант paint-панелей: кнопка свернуть всегда стоит крайней левой в заголовке панели в app-web и interpreter; у Codex message заголовок панели центрируется.
 
+Рабочее понимание Web UI dev-контура: человек и агент должны видеть один и тот же браузерный state без обязательной опоры на Mac display пользователя. Для этого будущий браузер WebApp нужно развивать как `browser-display` внутри interpreter `Space`: frame/snapshot stream, input proxy, health/restart и source maps для TypeScript-отладки. Это не HUD-панель и не постоянная Playwright-зависимость. Host restart должен быть отдельным lifecycle-действием (`POST /restart` в поддерживаемом tmux-контуре), а клиенты после restart должны ждать `/health`, чтобы не оставаться на белом экране.
+
 Это рекурсивный контур:
 
 ```text

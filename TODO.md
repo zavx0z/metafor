@@ -2,6 +2,28 @@
 
 Рабочий план для текущей разработки. HUD ToDoPane читает этот файл и позволяет отметить пункты, которые должны попадать в текущий контекст агента.
 
+## Инфраструктура Web UI: общий browser-display
+
+- [ ] Зафиксировать текущий dev-контур Web UI: interpreter API/UI `10.66.0.10:6500`, app-web dev server `10.66.0.10:3004`, внешний `meta.proizvodstvo1.ru` через proxy/SSO; не путать с LAN-режимом `443` и не закладывать macOS-браузер как обязательный backend.
+- [ ] Сделать минимальный Linux/Electron browser-host поверх `app/electron`: отдельный user-data-dir, управляемый URL, CDP/debug port, health endpoint, restart и явное состояние окна/страницы.
+- [ ] Проверить на сервере запуск browser-host в реальном графическом контуре: `DISPLAY`/Wayland/Xwayland, Chrome/Electron, GPU/WebGPU, fallback-режим без участия Mac и без Playwright как постоянной зависимости.
+- [ ] Реализовать захват кадра browser-host: `webContents.capturePage()` или CDP `Page.captureScreenshot`, PNG/JPEG snapshot endpoint, размеры viewport/deviceScaleFactor, throttling и backpressure, чтобы не грузить CPU/GPU лишними полными перерисовками.
+- [ ] Добавить в интерпретатор first-class Space display `browser-display`, не HUD: frame stream/snapshot, статус browser-host, кнопки reload/back/forward/devtools/fullscreen и понятные ошибки запуска.
+- [ ] Прокинуть ввод из UI интерпретатора в browser-host: pointer move/down/up/click/doubleclick/wheel, keyboard text/keyDown/keyUp, модификаторы, focus, координатное преобразование display -> viewport и защита от событий вне активного дисплея.
+- [ ] Добавить агентский доступ к этому дисплею: endpoint последнего кадра как файл/PNG для визуальной проверки, console/network errors, current URL/title, eval/navigate/reload/viewport через безопасный локальный API.
+- [ ] Подключить sourcemap/devtools workflow для app-web: открытие исходников TypeScript в browser DevTools, стабильные sourcemaps в dev-контуре и короткая диагностика, если browser-display показывает старый bundle.
+- [ ] Аккуратно переиспользовать `production/vendor/ai-macos`: вынести переносимый CDP/shared слой, оставить macOS-specific AppleScript/CoreGraphics/screencapture в darwin-adapter, для Linux сначала делать CDP/Electron backend без широкого порта `window/screen/input`.
+- [ ] Проверить совместную работу: пользователь видит browser-display из интерпретатора на другом экране/телефоне, агент видит тот же кадр через snapshot, оба могут понимать состояние Web UI без использования ресурсов Mac.
+- [ ] После proof-of-concept оформить docs/runbook: как стартовать, как перезапустить tmux/process, какие порты используются, как диагностировать пустой экран, stale frame, неверный DISPLAY и потерю ввода.
+
+## 0. Full-screen Force: realtime-визуализация патчей
+
+- [ ] Держать `higgs`/`gluon` force-патчи как realtime visual carrier-события: без записи в Boundary SQLite и без полного `world rows` rebuild.
+- [ ] На `higgs replace value.fields` точечно обновлять существующие field-узлы текущего WIMP: label/key/type/schema, материалы и подписи только затронутых records.
+- [ ] Для первого патча `full-screen` заменить визуальный field `Полный экран` на `Метод` и зафиксировать enum-варианты `native`/`css` в visual state.
+- [ ] На `higgs remove value.fields` точечно убирать field-узлы, например старый `CSS fallback`, без пересоздания сцены.
+- [ ] После стабильной визуальной реакции пройти `force-message.jsonc` по одному part и довести формат патчей до финального состояния.
+
 ## 1. Единая истина по Boundary
 
 - [x] Привести активные документы к текущей схеме `boundary.wimp`, `boundary.actor`, `boundary.topology`.
@@ -44,7 +66,7 @@
 - [x] Не смешивать состояние todo с рантайм-состоянием процесса: todo находится в `hud.todo`.
 - [x] Убрать устаревший `source.open` кейс со старым shared force bare specifier: общий force package удалён, Force теперь `boundary/force`.
 - [x] После удаления файлов или директорий через apply_patch обновлять файловую панель интерпретатора без ручной перезагрузки.
-- [ ] Доработать TerminalPane autoscroll/scrollback: когда пользователь скроллит вверх, а в терминал продолжают поступать новые данные, текст не должен перекрываться или визуально разваливаться; видовая область должна оставаться на месте, а автоскролл должен включаться только после возврата в самый низ и без просадки производительности.
+- [x] Доработать TerminalPane autoscroll/scrollback: когда пользователь скроллит вверх, а в терминал продолжают поступать новые данные, текст не должен перекрываться или визуально разваливаться; видовая область должна оставаться на месте, а автоскролл должен включаться только после возврата в самый низ и без просадки производительности.
 
 ## 7. FileListPane / Файловая Панель
 
