@@ -294,6 +294,13 @@ receiver должен видеть `videoWidth=1920`, `videoHeight=1080`, `black
 `getUserMedia({chromeMediaSource: "desktop"})` не использовать: на текущем
 сервере он убивает Electron renderer bad IPC.
 
+Если RTP audio bytes растут, но пользователь не слышит звук, сначала проверить
+`wpctl status`: default server sink не должен быть `MUTED` или `vol: 0.00`,
+потому что `/desktop/audio.webm` читает monitor этого sink. Клиент
+интерпретатора держит два playback пути для remote desktop audio: spatial
+WebAudio graph через `PannerNode` и hidden `HTMLAudioElement` fallback, который
+повторно запускается на user gesture, чтобы обходить autoplay/WebAudio блок.
+
 Проверенный запуск:
 
 ```sh

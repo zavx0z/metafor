@@ -907,6 +907,7 @@ let remoteDesktopAudioSource: MediaStreamAudioSourceNode | null = null
 let remoteDesktopAudioPanner: PannerNode | null = null
 let remoteDesktopAudioGain: GainNode | null = null
 let remoteDesktopAudioStream: MediaStream | null = null
+let remoteDesktopAudioElement: HTMLAudioElement | null = null
 let remoteDesktopAudioLastCenter: UiRuntimeViewPointVector | null = null
 const hudNotificationAudioElements = new Map<HudNotificationKind, HTMLAudioElement>()
 const voiceSignalLastPlayedAt = new Map<HudNotificationKind, number>()
@@ -3475,15 +3476,24 @@ function connectRemoteDesktopAudio(audio: AndroidRtcAudioStream | null): void {
   }
 
   const stream = new MediaStream(audioTracks)
+  const element = document.createElement("audio")
+  element.autoplay = true
+  element.controls = false
+  element.muted = false
+  element.preload = "auto"
+  element.srcObject = stream
+  element.style.display = "none"
+  document.body.appendChild(element)
+
   const source = context.createMediaStreamSource(stream)
   const panner = context.createPanner()
   const gain = context.createGain()
   panner.panningModel = "HRTF"
   panner.distanceModel = "inverse"
-  panner.refDistance = 1
-  panner.maxDistance = 8
-  panner.rolloffFactor = 0.55
-  gain.gain.value = 0.85
+  panner.refDistance = 4
+  panner.maxDistance = 32
+  panner.rolloffFactor = 0.16
+  gain.gain.value = 1
   source.connect(panner)
   panner.connect(gain)
   gain.connect(context.destination)
@@ -3493,15 +3503,28 @@ function connectRemoteDesktopAudio(audio: AndroidRtcAudioStream | null): void {
   remoteDesktopAudioPanner = panner
   remoteDesktopAudioGain = gain
   updateRemoteDesktopAudioPosition(remoteDesktopAudioLastCenter)
+  remoteDesktopAudioElement = element
+  context.onstatechange = () => {
+    syncRemoteDesktopAudioElementMute()
+    primeRemoteDesktopAudio()
+  }
+  syncRemoteDesktopAudioElementMute()
+  playRemoteDesktopAudioElement()
   remoteDesktopPane?.setAudioStatus(`${audio.trackCount} audio ${context.state}`)
   primeRemoteDesktopAudio()
 }
 
 function disconnectRemoteDesktopAudioSource(): void {
+  if (remoteDesktopAudioElement !== null) {
+    remoteDesktopAudioElement.pause()
+    remoteDesktopAudioElement.srcObject = null
+    remoteDesktopAudioElement.remove()
+  }
   remoteDesktopAudioSource?.disconnect()
   remoteDesktopAudioPanner?.disconnect()
   remoteDesktopAudioGain?.disconnect()
   remoteDesktopAudioStream = null
+  remoteDesktopAudioElement = null
   remoteDesktopAudioSource = null
   remoteDesktopAudioPanner = null
   remoteDesktopAudioGain = null
@@ -3520,14 +3543,40 @@ function ensureRemoteDesktopAudioContext(): AudioContext | null {
 
 function primeRemoteDesktopAudio(): void {
   const context = ensureRemoteDesktopAudioContext()
-  if (context === null || context.state === "running") return
+  playRemoteDesktopAudioElement()
+  if (context === null) return
+  if (context.state === "running") {
+    syncRemoteDesktopAudioElementMute()
+    return
+  }
   void context.resume()
     .then(() => {
+      syncRemoteDesktopAudioElementMute()
+      playRemoteDesktopAudioElement()
       remoteDesktopPane?.setAudioStatus(remoteDesktopAudioStream === null ? "audio ready" : `audio ${context.state}`)
     })
     .catch(() => {
+      syncRemoteDesktopAudioElementMute()
+      playRemoteDesktopAudioElement()
       remoteDesktopPane?.setAudioStatus("audio blocked")
     })
+}
+
+function playRemoteDesktopAudioElement(): void {
+  const element = remoteDesktopAudioElement
+  if (element === null) return
+  void element.play()
+    .then(() => {
+      remoteDesktopPane?.setAudioStatus(remoteDesktopAudioStream === null ? "audio ready" : `audio html ${element.muted ? "muted" : "playing"}`)
+    })
+    .catch(() => {
+      remoteDesktopPane?.setAudioStatus("audio click to play")
+    })
+}
+
+function syncRemoteDesktopAudioElementMute(): void {
+  if (remoteDesktopAudioElement === null) return
+  remoteDesktopAudioElement.muted = remoteDesktopAudioContext?.state === "running" && remoteDesktopAudioGain !== null
 }
 
 function setRemoteDesktopAudioListener(context: AudioContext): void {
@@ -3564,7 +3613,7 @@ function updateRemoteDesktopAudioPosition(center: UiRuntimeViewPointVector | nul
   if (center === null || remoteDesktopAudioPanner === null) return
   const x = clampNumber(center.x / 1600, -3, 3)
   const y = clampNumber((center.z - MODULE_DISPLAY_CENTER_Z_MM) / 1600, -1.5, 1.5)
-  const z = -Math.max(0.75, Math.abs(center.y - MODULE_DISPLAY_CENTER_Y_MM) / 1800 + 1)
+  const z = -clampNumber(Math.abs(center.y - MODULE_DISPLAY_CENTER_Y_MM) / 1800 + 1, 0.75, 6)
   setAudioParamPosition(remoteDesktopAudioPanner, x, y, z)
 }
 
@@ -6807,6 +6856,7 @@ function installHudNotificationSoundUnlock(): void {
   const unlock = (): void => {
     primeHudNotificationAudioElements()
     primeHudNotificationAudioContext()
+    primeRemoteDesktopAudio()
   }
   window.addEventListener("pointerdown", unlock, {capture: true})
   window.addEventListener("pointerup", unlock, {capture: true})

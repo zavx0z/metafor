@@ -10,6 +10,10 @@ const FPS = Number(process.env.METAFOR_REMOTE_DESKTOP_SNAPSHOT_FPS || 30)
 const MJPEG_BOUNDARY = "metafor-desktop-frame"
 const AUDIO_BITRATE = Number(process.env.METAFOR_REMOTE_DESKTOP_AUDIO_BITRATE || 128000)
 const AUDIO_TARGET = (process.env.METAFOR_REMOTE_DESKTOP_AUDIO_TARGET || "").trim()
+const AUDIO_UNMUTE = process.env.METAFOR_REMOTE_DESKTOP_AUDIO_UNMUTE === undefined
+  ? true
+  : !["0", "false", "no", "off"].includes(process.env.METAFOR_REMOTE_DESKTOP_AUDIO_UNMUTE.trim().toLowerCase())
+const AUDIO_VOLUME = (process.env.METAFOR_REMOTE_DESKTOP_AUDIO_VOLUME || "0.70").trim()
 const TARGET_URL = process.env.METAFOR_URL || "http://10.66.0.10:3004/"
 const CHROME = process.env.METAFOR_REMOTE_DESKTOP_BROWSER || "google-chrome"
 const CHROME_DEBUG_PORT = Number(process.env.METAFOR_REMOTE_DESKTOP_CHROME_DEBUG_PORT || 9341)
@@ -530,6 +534,7 @@ async function sendAudioWebmStream(req, res) {
   state.audioWebm.target = target
   state.audioWebm.lastStartedAt = new Date().toISOString()
   state.audioWebm.lastError = null
+  ensureAudioTargetAudible(target)
 
   const gst = spawn("gst-launch-1.0", [
     "-q",
@@ -609,6 +614,18 @@ function resolveAudioTarget() {
     state.audioWebm.lastError = error instanceof Error ? error.message : String(error)
     state.remoteDesktop.audio.lastError = state.audioWebm.lastError
     return null
+  }
+}
+
+function ensureAudioTargetAudible(target) {
+  if (!AUDIO_UNMUTE) return
+  try {
+    spawnSync("wpctl", ["set-mute", String(target), "0"], {encoding: "utf8"})
+    if (AUDIO_VOLUME.length > 0) spawnSync("wpctl", ["set-volume", String(target), AUDIO_VOLUME], {encoding: "utf8"})
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    state.audioWebm.lastError = message
+    state.remoteDesktop.audio.lastError = message
   }
 }
 
