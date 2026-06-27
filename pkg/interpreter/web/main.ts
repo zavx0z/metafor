@@ -564,6 +564,8 @@ type HostTerminalController = {
   localEchoId: number
   codexDraft: string
   codexAttachments: CodexComposerAttachment[]
+  codexAttachmentUploadInFlight: boolean
+  codexSubmitAfterAttachmentUpload: boolean
   codexDropActive: boolean
   codexEditorSyncing: boolean
   codexComposerStatus: string
@@ -5939,6 +5941,20 @@ async function submitVoiceModuleExpression(controller: ModuleDisplayController, 
 function sendHostTerminalVoiceSubmit(controller: HostTerminalController, text: string): boolean {
   const body = sanitizeHostTerminalVoiceInput(text)
   if (body.length === 0) return false
+  if (controller.codexAttachmentUploadInFlight) {
+    controller.codexSubmitAfterAttachmentUpload = true
+    return stageHostCodexDraft(controller, body, {focusComposer: false})
+  }
+  if (controller.codexAttachments.length > 0) {
+    const baseDraft = controller.voiceComposerEdited ? controller.codexDraft : (controller.voiceComposerBaseDraft ?? controller.codexDraft)
+    const nextDraft = mergeCodexComposerDraft(baseDraft, body)
+    clearVoicePartialPreviewForTarget({kind: "host", controller})
+    discardVoiceAutoSendBuffer()
+    voiceNextFlushMode = "auto"
+    resetHostVoiceComposerDraftTracking(controller)
+    setHostCodexDraft(controller, nextDraft)
+    return submitHostCodexComposer(controller, {flushPendingInput: false})
+  }
   const payload = controller.terminalState?.bracketedPaste
     ? `\x1b[200~${body}\x1b[201~\r`
     : `${body}\r`
@@ -6013,10 +6029,10 @@ function flushHostCodexComposerPendingInput(controller: HostTerminalController):
   flushHostCodexDraftFromEditor(controller)
 }
 
-function submitHostCodexComposer(controller: HostTerminalController): void {
-  flushHostCodexComposerPendingInput(controller)
+function submitHostCodexComposer(controller: HostTerminalController, options: {flushPendingInput?: boolean} = {}): boolean {
+  if (options.flushPendingInput ?? true) flushHostCodexComposerPendingInput(controller)
   const message = codexComposerMessage(controller.codexDraft, controller.codexAttachments)
-  if (message.length === 0 || !hostCodexComposerReady(controller)) return
+  if (message.length === 0 || !hostCodexComposerReady(controller)) return false
   const payload = controller.terminalState?.bracketedPaste
     ? `\x1b[200~${message}\x1b[201~\r`
     : `${message}\r`
@@ -6030,6 +6046,7 @@ function submitHostCodexComposer(controller: HostTerminalController): void {
   setHostCodexComposerStatus(controller, "отправлено")
   focusHostCodexComposer(controller)
   controller.codexComposer.requestRender()
+  return true
 }
 
 function stageHostCodexDraft(controller: HostTerminalController, text: string, opts: {focusComposer?: boolean} = {}): boolean {
@@ -6116,16 +6133,22 @@ async function attachHostCodexImages(controller: HostTerminalController, files: 
     return
   }
   setHostCodexComposerStatus(controller, "загружаю изображение", 6000)
+  controller.codexAttachmentUploadInFlight = true
+  let submitAfterUpload = false
   try {
     const uploaded = await uploadCodexAttachments(files)
     controller.codexAttachments = [...controller.codexAttachments, ...uploaded]
     setHostCodexComposerStatus(controller, `${controller.codexAttachments.length} влож.`)
     focusHostCodexComposer(controller)
+    submitAfterUpload = controller.codexSubmitAfterAttachmentUpload && controller.codexAttachments.length > 0
   } catch (error) {
     setHostCodexComposerStatus(controller, error instanceof Error ? error.message : String(error), 5000)
   } finally {
+    controller.codexAttachmentUploadInFlight = false
+    controller.codexSubmitAfterAttachmentUpload = false
     controller.codexComposer.requestRender()
   }
+  if (submitAfterUpload) submitHostCodexComposer(controller)
 }
 
 function installHostCodexComposerDragHandlers(): void {
@@ -7573,6 +7596,8 @@ function ensureHostTerminalController(): HostTerminalController {
     localEchoId: 0,
     codexDraft: "",
     codexAttachments: [],
+    codexAttachmentUploadInFlight: false,
+    codexSubmitAfterAttachmentUpload: false,
     codexDropActive: false,
     codexEditorSyncing: false,
     codexComposerStatus: "",
@@ -7634,6 +7659,8 @@ function ensureNetworkHostTerminalController(): HostTerminalController {
     localEchoId: 0,
     codexDraft: "",
     codexAttachments: [],
+    codexAttachmentUploadInFlight: false,
+    codexSubmitAfterAttachmentUpload: false,
     codexDropActive: false,
     codexEditorSyncing: false,
     codexComposerStatus: "",

@@ -74,17 +74,26 @@ export function pickCodexImageFiles(options: CodexImagePickerOptions = {}): Prom
 
   return new Promise((resolve) => {
     let settled = false
+    let focusFallbackTimer: number | null = null
+    const clearFocusFallback = (): void => {
+      if (focusFallbackTimer === null) return
+      window.clearTimeout(focusFallbackTimer)
+      focusFallbackTimer = null
+    }
     const finish = (files: File[]): void => {
       if (settled) return
       settled = true
+      clearFocusFallback()
       input.remove()
       window.removeEventListener("focus", handleWindowFocus, true)
       resolve(files.filter(codexFileLooksImage))
     }
     const handleWindowFocus = (): void => {
-      window.setTimeout(() => {
-        if (!settled && input.files !== null && input.files.length === 0) finish([])
-      }, 250)
+      clearFocusFallback()
+      focusFallbackTimer = window.setTimeout(() => {
+        if (settled || input.files === null) return
+        finish(Array.from(input.files))
+      }, 2500)
     }
     input.addEventListener("change", () => finish(Array.from(input.files ?? [])), {once: true})
     input.addEventListener("cancel", () => finish([]), {once: true})

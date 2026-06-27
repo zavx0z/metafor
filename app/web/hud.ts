@@ -821,6 +821,8 @@ class AppWebHud implements AppWebHudController {
 	#voiceComposerEdited = false
 	#codexDraft = ""
 	#codexAttachments: CodexComposerAttachment[] = []
+	#codexAttachmentUploadInFlight = false
+	#codexSubmitAfterAttachmentUpload = false
 	#codexDropActive = false
 	#codexEditorSyncing = false
 	#codexNativeInput: HTMLTextAreaElement | null = null
@@ -1179,10 +1181,10 @@ class AppWebHud implements AppWebHudController {
 		await this.#attachCodexImages(files)
 	}
 
-	submitCodexComposer(): void {
-		this.#flushCodexComposerPendingInput()
+	submitCodexComposer(options: {flushPendingInput?: boolean} = {}): boolean {
+		if (options.flushPendingInput ?? true) this.#flushCodexComposerPendingInput()
 		const message = codexComposerMessage(this.#codexDraft, this.#codexAttachments)
-		if (message.length === 0 || !this.codexComposerReady()) return
+		if (message.length === 0 || !this.codexComposerReady()) return false
 		const payload = this.#terminal.state?.bracketedPaste
 			? `\x1b[200~${message}\x1b[201~\r`
 			: `${message}\r`
@@ -1196,6 +1198,7 @@ class AppWebHud implements AppWebHudController {
 		this.#setCodexComposerStatus("отправлено")
 		this.#focusCodexComposer()
 		this.#codexComposer.requestRender()
+		return true
 	}
 
 	connectionLine(): string {
@@ -2544,6 +2547,22 @@ class AppWebHud implements AppWebHudController {
 	#sendVoiceSubmit(text: string): boolean {
 		const body = sanitizeCodexTerminalVoiceInput(text)
 		if (body.length === 0) return false
+		if (this.#codexAttachmentUploadInFlight) {
+			this.#codexSubmitAfterAttachmentUpload = true
+			return this.#stageVoiceDraft(body, {focusComposer: false})
+		}
+		if (this.#codexAttachments.length > 0) {
+			const baseDraft = this.#voiceComposerEdited ? this.#codexDraft : (this.#voiceComposerBaseDraft ?? this.#codexDraft)
+			const nextDraft = mergeCodexComposerDraft(baseDraft, body)
+			this.#clearVoicePartialPreview()
+			this.#discardVoiceAutoSendBuffer()
+			this.#voiceNextFlushMode = "auto"
+			this.#resetVoiceComposerDraftTracking()
+			this.#setCodexDraft(nextDraft)
+			const sent = this.submitCodexComposer({flushPendingInput: false})
+			if (sent) this.#recordVoiceAutoEnter()
+			return sent
+		}
 		const payload = this.#terminal.state?.bracketedPaste
 			? `\x1b[200~${body}\x1b[201~\r`
 			: `${body}\r`
@@ -2661,16 +2680,22 @@ class AppWebHud implements AppWebHudController {
 			return
 		}
 		this.#setCodexComposerStatus("загружаю изображение", 6000)
+		this.#codexAttachmentUploadInFlight = true
+		let submitAfterUpload = false
 		try {
 			const uploaded = await uploadCodexAttachments(files)
 			this.#codexAttachments = [...this.#codexAttachments, ...uploaded]
 			this.#setCodexComposerStatus(`${this.#codexAttachments.length} влож.`)
 			this.#focusCodexComposer()
+			submitAfterUpload = this.#codexSubmitAfterAttachmentUpload && this.#codexAttachments.length > 0
 		} catch (error) {
 			this.#setCodexComposerStatus(errorMessage(error), 5000)
 		} finally {
+			this.#codexAttachmentUploadInFlight = false
+			this.#codexSubmitAfterAttachmentUpload = false
 			this.#codexComposer.requestRender()
 		}
+		if (submitAfterUpload && this.submitCodexComposer()) this.#recordVoiceAutoEnter()
 	}
 
 	async #handleCodexDrop(event: DragEvent): Promise<void> {
