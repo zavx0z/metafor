@@ -29,15 +29,18 @@ Host mode uses a separate Electron user data directory and session partition fro
 
 Linux server WebRTC sender mode is Wayland-first. `webrtc:linux` starts
 Electron as a sender-only WebRTC process: no managed browser window and no
-Playwright. On the current GNOME/Wayland/NVIDIA server, the Linux scripts feed
-the WebRTC video track from the local Mutter/PipeWire host MJPEG stream
-(`127.0.0.1:32123/desktop/stream.mjpeg`) into a hidden canvas and publish that
-canvas with `captureStream()`. WebRTC remains the live transport to the
-interpreter; the MJPEG stream is only the local capture source inside the server.
-Electron's programmatic `desktopCapturer` path remains as a fallback/diagnostic
-path because it can negotiate WebRTC while delivering black `screen:*` frames on
-this server. The existing Mutter/PipeWire Node host also remains the EIS input
-and diagnostic snapshot backend.
+Playwright. The sender first tries Chromium's native desktop media stream so
+audio and video share WebRTC timestamps. On the current GNOME/Wayland/NVIDIA
+server, Chromium may negotiate native capture while delivering black
+`screen:*` frames; the sender probes the first native frame and falls back to
+the local Mutter/PipeWire host when that happens. The fallback feeds MJPEG
+frames (`127.0.0.1:32123/desktop/stream.mjpeg`) into a hidden canvas and
+publishes that canvas with `captureStream()`. Fallback audio prefers low-latency
+PCM (`/desktop/audio.pcm`) before the older WebM/Opus adapter
+(`/desktop/audio.webm`). WebRTC remains the live transport to the interpreter;
+MJPEG/PCM are only local capture sources inside the server. The existing
+Mutter/PipeWire Node host also remains the EIS input and diagnostic snapshot
+backend.
 The Linux scripts default to `WAYLAND_DISPLAY=wayland-0` and
 `METAFOR_ELECTRON_OZONE_PLATFORM=wayland` while still exporting `DISPLAY=:0`
 and Mutter's Xwayland `XAUTHORITY` for compatibility. On the GNOME server,
@@ -109,9 +112,11 @@ curl http://127.0.0.1:32123/snapshot --output snapshot.png
 - `METAFOR_REMOTE_DESKTOP_CAPTURE_NAME` - optional source-name filter.
 - `METAFOR_REMOTE_DESKTOP_AUDIO` - enable/disable audio track.
 - `METAFOR_REMOTE_DESKTOP_AUDIO_SOURCE` - `auto`, `system`, `loopback`, `loopback-with-mute`, `browser`, `browser-frame`, or `off`.
-- `METAFOR_REMOTE_DESKTOP_FRAME_STREAM_URL` - optional local MJPEG frame source for the sender page. The Linux WebRTC scripts default to `http://127.0.0.1:32123/desktop/stream.mjpeg` to avoid black `desktopCapturer` frames on GNOME/Wayland.
+- `METAFOR_REMOTE_DESKTOP_CAPTURE_MODE` - `native-first` or `frame-stream`. Defaults to `native-first`, so Chromium captures one native desktop media stream with video and audio before falling back to PipeWire MJPEG/PCM adapters.
+- `METAFOR_REMOTE_DESKTOP_FRAME_STREAM_URL` - optional local MJPEG frame fallback source for the sender page. The Linux WebRTC scripts keep this configured so GNOME/Wayland black-frame cases can still fall back without losing the display.
 - `METAFOR_REMOTE_DESKTOP_FRAME_SNAPSHOT_URL` - optional local snapshot source paired with the frame stream. The Linux WebRTC scripts default to `http://127.0.0.1:32123/desktop/snapshot`.
-- `METAFOR_REMOTE_DESKTOP_AUDIO_URL` - optional local WebM/Opus audio source for the sender page. The Linux WebRTC scripts default to `http://127.0.0.1:32123/desktop/audio.webm`; the sender decodes it through WebAudio and attaches that audio track to the same WebRTC connection.
+- `METAFOR_REMOTE_DESKTOP_AUDIO_PCM_URL` - optional local S16LE 48 kHz stereo PCM audio fallback source for the sender page. The Linux WebRTC scripts default to `http://127.0.0.1:32123/desktop/audio.pcm`; the sender keeps a short bounded queue before adding the track to the same WebRTC connection.
+- `METAFOR_REMOTE_DESKTOP_AUDIO_URL` - optional local WebM/Opus audio fallback source for the sender page. The Linux WebRTC scripts default to `http://127.0.0.1:32123/desktop/audio.webm`; the sender decodes it only when native Chromium desktop audio and PCM fallback are unavailable.
 - `METAFOR_REMOTE_DESKTOP_AUDIO_TARGET` - optional PipeWire target object for the audio stream. When unset, the local PipeWire host picks the running/default `Audio/Sink`.
 - `METAFOR_REMOTE_DESKTOP_AUDIO_BITRATE` - Opus bitrate for `/desktop/audio.webm`. Defaults to `128000`.
 - `METAFOR_REMOTE_DESKTOP_AUDIO_UNMUTE` - when enabled, the local PipeWire host unmutes the selected audio sink before streaming. Defaults to enabled.
@@ -125,12 +130,15 @@ curl http://127.0.0.1:32123/snapshot --output snapshot.png
 In the default sender mode there should be no GNOME "screen sharing" dialog.
 `GET /desktop/rtc/state` should show `webRtc: true`, `transport:
 "electron-webrtc"`, `systemPicker.enabled: false`,
-`capture.frameSource: "pipewire-mjpeg"`, `capture.frameWidth: 1920`,
-`capture.frameHeight: 1080`, `audio.effectiveSource: "pipewire-webm"`,
+`capture.frameSource: "native-chromium"`, `capture.frameWidth: 1920`,
+`capture.frameHeight: 1080`, `audio.effectiveSource: "native-chromium"`,
 `audio.trackCount: 1`, connected peers, and
 `ice.lastPublishedCandidate.address` equal to the public media host with a port
-inside the configured UDP range. If the receiver gets an audio track but hears
-silence, check the server sink first with `wpctl status`; a muted/default-zero
-sink monitor will send a valid but silent WebRTC audio stream.
+inside the configured UDP range. `pipewire-mjpeg` with `pipewire-pcm` in state
+means native Chromium capture was rejected or disabled and the visible local
+fallback is active. `pipewire-webm` means the older fallback is active and can
+drift more because WebM buffering is independent from frame delivery. If the
+receiver gets an audio track but hears silence, check the server sink first
+with `wpctl status`.
 
 macOS media permission prompts only run on `process.platform === "darwin"`. Linux host mode does not depend on Playwright at runtime.

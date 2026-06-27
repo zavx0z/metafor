@@ -45,6 +45,7 @@ const REMOTE_DESKTOP_RTC_AUDIO_ENABLED = process.env.METAFOR_REMOTE_DESKTOP_AUDI
   ? REMOTE_DESKTOP_RTC_MODE
   : envFlag(process.env.METAFOR_REMOTE_DESKTOP_AUDIO)
 const REMOTE_DESKTOP_RTC_AUDIO_SOURCE = (process.env.METAFOR_REMOTE_DESKTOP_AUDIO_SOURCE || "auto").trim().toLowerCase()
+const REMOTE_DESKTOP_RTC_CAPTURE_MODE = (process.env.METAFOR_REMOTE_DESKTOP_CAPTURE_MODE || "native-first").trim().toLowerCase()
 const REMOTE_DESKTOP_RTC_MAX_FPS = parseInteger(process.env.METAFOR_REMOTE_DESKTOP_RTC_MAX_FPS, "METAFOR_REMOTE_DESKTOP_RTC_MAX_FPS", 30, 1, 60)
 const REMOTE_DESKTOP_RTC_VIDEO_BITRATE = parseInteger(process.env.METAFOR_REMOTE_DESKTOP_RTC_VIDEO_BITRATE, "METAFOR_REMOTE_DESKTOP_RTC_VIDEO_BITRATE", 12_000_000, 500_000, 80_000_000)
 const REMOTE_DESKTOP_RTC_UDP_PORT_RANGE = parseUdpPortRange(
@@ -91,6 +92,11 @@ const REMOTE_DESKTOP_RTC_AUDIO_URL = localServiceUrl(
   process.env.METAFOR_REMOTE_DESKTOP_AUDIO_URL,
   null,
   "METAFOR_REMOTE_DESKTOP_AUDIO_URL",
+)
+const REMOTE_DESKTOP_RTC_AUDIO_PCM_URL = localServiceUrl(
+  process.env.METAFOR_REMOTE_DESKTOP_AUDIO_PCM_URL,
+  null,
+  "METAFOR_REMOTE_DESKTOP_AUDIO_PCM_URL",
 )
 const SESSION_PARTITION = HOST_MODE ? "persist:metafor-browser-host" : "persist:metafor"
 const ELECTRON_WEBGPU_ENABLED = !envFalse(process.env.METAFOR_ELECTRON_WEBGPU)
@@ -143,10 +149,12 @@ const remoteDesktopRtcState = {
   peerId: REMOTE_DESKTOP_RTC_PEER_ID,
   senderOnly: REMOTE_DESKTOP_SENDER_ONLY,
   capture: {
+    mode: REMOTE_DESKTOP_RTC_CAPTURE_MODE,
     preferredKind: REMOTE_DESKTOP_RTC_SOURCE_KIND === "screen" ? "screen" : "window",
     preferredName: REMOTE_DESKTOP_RTC_SOURCE_NAME || null,
     frameStreamUrl: REMOTE_DESKTOP_RTC_FRAME_STREAM_URL === null ? null : REMOTE_DESKTOP_RTC_FRAME_STREAM_URL.toString(),
     frameSnapshotUrl: REMOTE_DESKTOP_RTC_FRAME_SNAPSHOT_URL === null ? null : REMOTE_DESKTOP_RTC_FRAME_SNAPSHOT_URL.toString(),
+    audioPcmUrl: REMOTE_DESKTOP_RTC_AUDIO_PCM_URL === null ? null : REMOTE_DESKTOP_RTC_AUDIO_PCM_URL.toString(),
     frameSource: null,
     frameWidth: null,
     frameHeight: null,
@@ -605,8 +613,10 @@ async function startRemoteDesktopRtc() {
       publicIceHost: REMOTE_DESKTOP_RTC_PUBLIC_ICE_HOST,
       iceInterface: REMOTE_DESKTOP_RTC_ICE_INTERFACE,
       audio: REMOTE_DESKTOP_RTC_AUDIO_ENABLED,
+      captureMode: REMOTE_DESKTOP_RTC_CAPTURE_MODE,
       frameStreamUrl: REMOTE_DESKTOP_RTC_FRAME_STREAM_URL === null ? "" : REMOTE_DESKTOP_RTC_FRAME_STREAM_URL.toString(),
       frameSnapshotUrl: REMOTE_DESKTOP_RTC_FRAME_SNAPSHOT_URL === null ? "" : REMOTE_DESKTOP_RTC_FRAME_SNAPSHOT_URL.toString(),
+      audioPcmUrl: REMOTE_DESKTOP_RTC_AUDIO_PCM_URL === null ? "" : REMOTE_DESKTOP_RTC_AUDIO_PCM_URL.toString(),
       audioUrl: REMOTE_DESKTOP_RTC_AUDIO_URL === null ? "" : REMOTE_DESKTOP_RTC_AUDIO_URL.toString(),
     }
     remoteDesktopRtcPageConfig = config
@@ -649,7 +659,24 @@ let frameStreamAudioElement = null;
 let frameStreamAudioContext = null;
 let frameStreamAudioSource = null;
 let frameStreamAudioDestination = null;
+let frameStreamAudioProcessor = null;
 const peers = new Map();
+
+const nativeBlackFrameThreshold = {
+  maxAverageLuma: 0.06,
+  maxBrightRatio: 0.015,
+  sampleSize: 96,
+  timeoutMs: 2500,
+};
+
+const pcmAudio = {
+  sampleRate: 48000,
+  channels: 2,
+  bytesPerSample: 2,
+  processorBufferSize: 1024,
+  targetBufferMs: 80,
+  maxBufferMs: 220,
+};
 
 function postState(patch) {
   Object.assign(state, patch, {updatedAt: new Date().toISOString()});
@@ -673,6 +700,10 @@ async function start() {
 }
 
 async function captureStream() {
+  if (config.captureMode !== "frame-stream") {
+    const nativeStream = await tryCaptureNativeStream();
+    if (nativeStream !== null) return nativeStream;
+  }
   if (config.frameStreamUrl) {
     try {
       return await captureFrameStream();
@@ -702,6 +733,134 @@ async function captureStream() {
   throw new Error("display capture is unavailable");
 }
 
+async function tryCaptureNativeStream() {
+  const errors = [];
+  if (config.sourceId) {
+    try {
+      return await nativeCaptureReady(await captureDesktopSource(config.audio), "native-chromium");
+    } catch (error) {
+      errors.push(error);
+      postState({status: "native-capture-fallback", lastError: String(error?.message || error)});
+    }
+  }
+  if (navigator.mediaDevices?.getDisplayMedia !== undefined) {
+    try {
+      return await nativeCaptureReady(await navigator.mediaDevices.getDisplayMedia({
+        video: {frameRate: {max: config.maxFps}},
+        audio: config.audio,
+      }), "native-display-media");
+    } catch (error) {
+      errors.push(error);
+      postState({status: "display-media-fallback", lastError: String(error?.message || error)});
+    }
+  }
+  if (errors.length === 0) return null;
+  return null;
+}
+
+async function nativeCaptureReady(mediaStream, source) {
+  const tracks = streamTrackSummary(mediaStream);
+  if (tracks.video === 0) {
+    stopStream(mediaStream);
+    throw new Error(source + " returned no video track");
+  }
+  if (config.audio && tracks.audio === 0) {
+    stopStream(mediaStream);
+    throw new Error(source + " returned no audio track");
+  }
+  for (const track of mediaStream.getVideoTracks()) {
+    track.contentHint = "detail";
+    track.applyConstraints?.({
+      width: {ideal: 1920},
+      height: {ideal: 1080},
+      frameRate: {ideal: config.maxFps, max: config.maxFps},
+    }).catch(() => undefined);
+  }
+  const frameProbe = await sampleNativeStreamFrame(mediaStream).catch((error) => ({error: String(error?.message || error)}));
+  if (frameProbe.error) {
+    stopStream(mediaStream);
+    throw new Error(source + " frame probe failed: " + frameProbe.error);
+  }
+  if (isBlackNativeFrame(frameProbe)) {
+    stopStream(mediaStream);
+    throw new Error(source + " returned black video frame avgLuma=" + frameProbe.averageLuma.toFixed(4) + " brightRatio=" + frameProbe.brightRatio.toFixed(4));
+  }
+  const videoSettings = mediaStream.getVideoTracks()[0]?.getSettings?.() || {};
+  postState({
+    status: "native-capture",
+    frameSource: source,
+    frameWidth: Number(videoSettings.width) || null,
+    frameHeight: Number(videoSettings.height) || null,
+    audio: {
+      enabled: Boolean(config.audio),
+      effectiveSource: tracks.audio > 0 ? source : null,
+      trackCount: tracks.audio,
+      lastError: null,
+    },
+  });
+  return mediaStream;
+}
+
+async function sampleNativeStreamFrame(mediaStream) {
+  const probeVideo = document.createElement("video");
+  probeVideo.muted = true;
+  probeVideo.autoplay = true;
+  probeVideo.playsInline = true;
+  probeVideo.srcObject = mediaStream;
+  const cleanup = () => {
+    probeVideo.pause();
+    probeVideo.srcObject = null;
+    probeVideo.remove();
+  };
+  try {
+    await withTimeout(probeVideo.play(), nativeBlackFrameThreshold.timeoutMs);
+    await waitForVideoFrame(probeVideo, nativeBlackFrameThreshold.timeoutMs);
+    const canvas = document.createElement("canvas");
+    canvas.width = nativeBlackFrameThreshold.sampleSize;
+    canvas.height = nativeBlackFrameThreshold.sampleSize;
+    const context = canvas.getContext("2d", {alpha: false, willReadFrequently: true});
+    if (context === null) throw new Error("frame probe canvas is unavailable");
+    context.drawImage(probeVideo, 0, 0, canvas.width, canvas.height);
+    const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    let totalLuma = 0;
+    let brightPixels = 0;
+    const pixels = canvas.width * canvas.height;
+    for (let index = 0; index < data.length; index += 4) {
+      const luma = 0.2126 * data[index] + 0.7152 * data[index + 1] + 0.0722 * data[index + 2];
+      totalLuma += luma;
+      if (luma >= 40) brightPixels += 1;
+    }
+    return {
+      averageLuma: totalLuma / pixels / 255,
+      brightRatio: brightPixels / pixels,
+    };
+  } finally {
+    cleanup();
+  }
+}
+
+function waitForVideoFrame(probeVideo, timeoutMs) {
+  if (typeof probeVideo.requestVideoFrameCallback === "function") {
+    return new Promise((resolve, reject) => {
+      const timer = window.setTimeout(() => reject(new Error("video frame timed out")), timeoutMs);
+      probeVideo.requestVideoFrameCallback(() => {
+        window.clearTimeout(timer);
+        resolve();
+      });
+    });
+  }
+  return new Promise((resolve) => window.setTimeout(resolve, 120));
+}
+
+function isBlackNativeFrame(frameProbe) {
+  return frameProbe.averageLuma <= nativeBlackFrameThreshold.maxAverageLuma
+    && frameProbe.brightRatio <= nativeBlackFrameThreshold.maxBrightRatio;
+}
+
+function stopStream(mediaStream) {
+  for (const track of mediaStream.getTracks()) track.stop();
+}
+
 async function captureFrameStream() {
   const canvas = document.createElement("canvas");
   canvas.width = 1920;
@@ -727,6 +886,18 @@ async function captureFrameStream() {
 }
 
 async function attachFrameStreamAudio(mediaStream) {
+  if (config.audioPcmUrl) {
+    try {
+      await attachFrameStreamPcmAudio(mediaStream);
+      return;
+    } catch (error) {
+      postState({audio: {lastError: String(error?.message || error), trackCount: 0}});
+    }
+  }
+  await attachFrameStreamWebmAudio(mediaStream);
+}
+
+async function attachFrameStreamWebmAudio(mediaStream) {
   if (!config.audioUrl) throw new Error("desktop audio URL is not configured");
 
   const audio = document.createElement("audio");
@@ -762,6 +933,164 @@ async function attachFrameStreamAudio(mediaStream) {
       lastError: null,
     },
   });
+}
+
+async function attachFrameStreamPcmAudio(mediaStream) {
+  if (!config.audioPcmUrl) throw new Error("desktop PCM audio URL is not configured");
+
+  const response = await fetch(withCacheBust(config.audioPcmUrl), {cache: "no-store"});
+  if (!response.ok || response.body === null) throw new Error("PCM audio request failed " + response.status);
+  const reader = response.body.getReader();
+
+  const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+  if (typeof AudioContextCtor !== "function") throw new Error("AudioContext is unavailable");
+  const audioContext = createPcmAudioContext(AudioContextCtor);
+  const destination = audioContext.createMediaStreamDestination();
+  if (typeof audioContext.createScriptProcessor !== "function") throw new Error("ScriptProcessorNode is unavailable");
+  const processor = audioContext.createScriptProcessor(pcmAudio.processorBufferSize, 0, pcmAudio.channels);
+  const keepAlive = audioContext.createGain();
+  keepAlive.gain.value = 0;
+
+  const queue = {
+    chunks: [],
+    firstOffset: 0,
+    queuedSamples: 0,
+    pendingByte: null,
+    bytesReceived: 0,
+    lastStateAt: 0,
+  };
+  const targetSamples = Math.round(pcmAudio.sampleRate * pcmAudio.channels * pcmAudio.targetBufferMs / 1000);
+  const maxSamples = Math.round(pcmAudio.sampleRate * pcmAudio.channels * pcmAudio.maxBufferMs / 1000);
+
+  processor.onaudioprocess = (event) => {
+    const outputs = [];
+    for (let channel = 0; channel < pcmAudio.channels; channel += 1) {
+      outputs[channel] = event.outputBuffer.getChannelData(channel);
+      outputs[channel].fill(0);
+    }
+    const frameCount = event.outputBuffer.length;
+    for (let frame = 0; frame < frameCount; frame += 1) {
+      for (let channel = 0; channel < pcmAudio.channels; channel += 1) {
+        outputs[channel][frame] = readPcmSample(queue);
+      }
+    }
+  };
+
+  processor.connect(destination);
+  processor.connect(keepAlive);
+  keepAlive.connect(audioContext.destination);
+
+  frameStreamAudioElement = null;
+  frameStreamAudioContext = audioContext;
+  frameStreamAudioSource = null;
+  frameStreamAudioDestination = destination;
+  frameStreamAudioProcessor = processor;
+
+  await audioContext.resume().catch(() => undefined);
+  void readPcmAudioLoop(reader, queue, targetSamples, maxSamples).catch((error) => {
+    postState({
+      audio: {
+        enabled: true,
+        effectiveSource: "pipewire-pcm",
+        trackCount: frameStreamAudioDestination?.stream?.getAudioTracks?.().length || 0,
+        lastError: String(error?.message || error),
+      },
+    });
+  });
+  await waitForAudioTrack(destination.stream);
+  for (const track of destination.stream.getAudioTracks()) mediaStream.addTrack(track);
+  postState({
+    audio: {
+      enabled: true,
+      effectiveSource: "pipewire-pcm",
+      trackCount: destination.stream.getAudioTracks().length,
+      lastError: null,
+    },
+  });
+}
+
+function createPcmAudioContext(AudioContextCtor) {
+  try {
+    return new AudioContextCtor({latencyHint: "interactive", sampleRate: pcmAudio.sampleRate});
+  } catch {
+    return new AudioContextCtor({latencyHint: "interactive"});
+  }
+}
+
+async function readPcmAudioLoop(reader, queue, targetSamples, maxSamples) {
+  for (;;) {
+    const chunk = await reader.read();
+    if (chunk.done) throw new Error("PCM audio stream ended");
+    appendPcmBytes(queue, chunk.value);
+    if (queue.queuedSamples > maxSamples) dropPcmSamples(queue, queue.queuedSamples - targetSamples);
+    const now = Date.now();
+    if (now - queue.lastStateAt >= 1000) {
+      queue.lastStateAt = now;
+      postState({
+        audio: {
+          enabled: true,
+          effectiveSource: "pipewire-pcm",
+          trackCount: frameStreamAudioDestination?.stream?.getAudioTracks?.().length || 0,
+          lastError: null,
+          queuedMs: Math.round(queue.queuedSamples / pcmAudio.channels / pcmAudio.sampleRate * 1000),
+        },
+      });
+    }
+  }
+}
+
+function appendPcmBytes(queue, bytes) {
+  let view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  if (queue.pendingByte !== null) {
+    const combined = new Uint8Array(view.length + 1);
+    combined[0] = queue.pendingByte;
+    combined.set(view, 1);
+    queue.pendingByte = null;
+    view = combined;
+  }
+  if (view.length % pcmAudio.bytesPerSample !== 0) {
+    queue.pendingByte = view[view.length - 1];
+    view = view.slice(0, view.length - 1);
+  }
+  if (view.length === 0) return;
+  const samples = new Float32Array(view.length / pcmAudio.bytesPerSample);
+  const dataView = new DataView(view.buffer, view.byteOffset, view.byteLength);
+  for (let index = 0; index < samples.length; index += 1) {
+    samples[index] = Math.max(-1, dataView.getInt16(index * pcmAudio.bytesPerSample, true) / 32768);
+  }
+  queue.chunks.push(samples);
+  queue.queuedSamples += samples.length;
+  queue.bytesReceived += view.length;
+}
+
+function readPcmSample(queue) {
+  if (queue.chunks.length === 0) return 0;
+  const chunk = queue.chunks[0];
+  const sample = chunk[queue.firstOffset] || 0;
+  queue.firstOffset += 1;
+  queue.queuedSamples = Math.max(0, queue.queuedSamples - 1);
+  if (queue.firstOffset >= chunk.length) {
+    queue.chunks.shift();
+    queue.firstOffset = 0;
+  }
+  return sample;
+}
+
+function dropPcmSamples(queue, count) {
+  let remaining = Math.max(0, count);
+  while (remaining > 0 && queue.chunks.length > 0) {
+    const chunk = queue.chunks[0];
+    const available = chunk.length - queue.firstOffset;
+    if (remaining < available) {
+      queue.firstOffset += remaining;
+      queue.queuedSamples = Math.max(0, queue.queuedSamples - remaining);
+      return;
+    }
+    remaining -= available;
+    queue.queuedSamples = Math.max(0, queue.queuedSamples - available);
+    queue.chunks.shift();
+    queue.firstOffset = 0;
+  }
 }
 
 function waitForAudioTrack(audioStream) {
@@ -813,7 +1142,13 @@ function startMjpegFrameReader(url, canvas, context) {
         const now = Date.now();
         if (now - frameStreamLastStateAt >= 1000) {
           frameStreamLastStateAt = now;
-          postState({status: "frame-stream", frameSource: "pipewire-mjpeg", frameWidth: canvas.width, frameHeight: canvas.height});
+          postState({
+            status: "frame-stream",
+            frameSource: "pipewire-mjpeg",
+            frameWidth: canvas.width,
+            frameHeight: canvas.height,
+            lastError: null,
+          });
         }
         if (!firstFrameDrawn) {
           firstFrameDrawn = true;
@@ -914,9 +1249,13 @@ function captureDesktopSource(audio) {
 }
 
 function trackSummary() {
+  return streamTrackSummary(stream);
+}
+
+function streamTrackSummary(mediaStream) {
   return {
-    audio: stream?.getAudioTracks?.().length || 0,
-    video: stream?.getVideoTracks?.().length || 0,
+    audio: mediaStream?.getAudioTracks?.().length || 0,
+    video: mediaStream?.getVideoTracks?.().length || 0,
   };
 }
 
@@ -1153,7 +1492,7 @@ start().catch((error) => postState({status: "failed", lastError: String(error?.m
 function updateRemoteDesktopRtcState(patch) {
   if (typeof patch !== "object" || patch === null || Array.isArray(patch)) return
   if (typeof patch.status === "string") remoteDesktopRtcState.status = patch.status
-  if (typeof patch.lastError === "string") remoteDesktopRtcState.lastError = patch.lastError
+  if ("lastError" in patch) remoteDesktopRtcState.lastError = typeof patch.lastError === "string" ? patch.lastError : null
   if (typeof patch.peerId === "string") remoteDesktopRtcState.peerId = patch.peerId
   if (typeof patch.room === "string") remoteDesktopRtcState.room = patch.room
   if (Array.isArray(patch.peers)) remoteDesktopRtcState.peers = patch.peers

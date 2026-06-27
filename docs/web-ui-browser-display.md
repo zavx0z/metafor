@@ -6,17 +6,17 @@ desktop/browser display для интерпретатора. Цель - чтоб
 Display должен быть равноправным экраном в `Space`, а не HUD-панелью,
 iframe-оберткой или скрытым Playwright-клиентом.
 
-Текущий основной realtime-канал - WebRTC video stream из Electron sender на
-сервере. На текущем Linux/GNOME/Wayland контуре Electron берет кадры из
-локального Mutter/PipeWire MJPEG stream (`127.0.0.1:32123/desktop/stream.mjpeg`),
-рисует их в hidden canvas и публикует canvas через `captureStream()`.
-WebRTC остается основным транспортом к interpreter; MJPEG является только
-локальным capture source внутри сервера. Звук на этом контуре идет из
-локального PipeWire audio sink как WebM/Opus stream
-(`127.0.0.1:32123/desktop/audio.webm`), декодируется hidden sender page через
-WebAudio и добавляется audio track в тот же RTCPeerConnection. Snapshot
-endpoints остаются fallback/diagnostics, но не являются основным способом живой
-визуализации.
+Текущий основной realtime-канал - WebRTC video/audio stream из Electron sender
+на сервере. Целевой путь - native Chromium desktop media stream: audio и video
+попадают в один RTCPeerConnection с общими WebRTC timestamps. На текущем
+Linux/GNOME/Wayland контуре Chromium может успешно создать native stream, но
+отдать черные `screen:*` кадры; sender проверяет первый native frame и в таком
+случае переключается на локальный Mutter/PipeWire fallback. Fallback берет
+кадры из `127.0.0.1:32123/desktop/stream.mjpeg`, рисует их в hidden canvas и
+публикует canvas через `captureStream()`. Fallback-звук предпочитает raw PCM
+`127.0.0.1:32123/desktop/audio.pcm` с короткой bounded queue; старый
+`/desktop/audio.webm` остается аварийным adapter. Snapshot endpoints остаются
+fallback/diagnostics, но не являются основным способом живой визуализации.
 
 ## Проверенный Контекст
 
@@ -139,8 +139,10 @@ curl -sS http://10.66.0.10:3004/health
 - health endpoint с состоянием process/window/page/CDP;
 - restart endpoint, который перезапускает host process и публикует новый state;
 - WebRTC video stream всего серверного desktop через `/webrtc/signaling`;
-- audio stream в том же RTCPeerConnection; interpreter воспроизводит его как
-  spatial audio относительно позиции display в Space;
+- audio stream в том же RTCPeerConnection; основной Linux/Electron sender
+  должен брать единый native Chromium desktop media stream, чтобы WebRTC сам
+  держал audio/video timestamps синхронными. PipeWire MJPEG/PCM/WebM adapters
+  допустимы только как fallback/diagnostics;
 - snapshot endpoint только как fallback/diagnostics;
 - input proxy для pointer/keyboard/wheel с ack и последним input timestamp;
 - команды reload/back/forward/devtools/fullscreen;
@@ -164,7 +166,12 @@ Audio contract:
   через отдельный PipeWire/PulseAudio adapter или runtime, где loopback реально
   доступен;
 - state `/remote-desktop/rtc/state` должен показывать `audio.enabled`,
-  `audio.effectiveSource` и `audio.trackCount`.
+  `audio.effectiveSource` и `audio.trackCount`. Для основного server desktop
+  ожидается `capture.frameSource: "native-chromium"` и
+  `audio.effectiveSource: "native-chromium"`. Если native capture дает черный
+  кадр, ожидаемый fallback - `capture.frameSource: "pipewire-mjpeg"` и
+  `audio.effectiveSource: "pipewire-pcm"`. `pipewire-webm` означает старый
+  fallback path и может давать больший рассинхрон.
 
 Interpreter bridge - это не сам Electron host и не display. Он должен быть
 тонким proxy к локальному host API и локальным WebRTC signaling server:
@@ -284,19 +291,23 @@ curl -sS http://127.0.0.1:9230/json/list
 падает `SIGSEGV` в GPU/Viz даже без remote desktop RTC. Electron 42.5.0
 работает в sender-only режиме через Wayland: hidden WebRTC page,
 `METAFOR_ELECTRON_WEBGPU=0`, `ozone-platform=wayland`, отключенный Vulkan/VAAPI и
-`METAFOR_REMOTE_DESKTOP_SYSTEM_PICKER=0`. X11/Ozone может успешно подключать
-WebRTC, но отдавать черный `screen:*` video, поэтому для full desktop он не
-основной режим. Проверка 2026-06-27: рабочий Linux sender state должен показывать
-`systemPicker.enabled=false`, `capture.frameSource="pipewire-mjpeg"`,
-`capture.frameWidth=1920`, `capture.frameHeight=1080`; независимый WebRTC
-receiver должен видеть `videoWidth=1920`, `videoHeight=1080`, `black=false`,
-`audioTracks=1` и растущие `inbound-rtp` audio `bytesReceived`. Audio-only
+`METAFOR_REMOTE_DESKTOP_SYSTEM_PICKER=0`. Native Chromium capture должен быть
+первой попыткой, но X11/Ozone и Wayland на этом сервере могут успешно
+подключать WebRTC и отдавать черный `screen:*` video; sender обязан
+отбраковывать такой native stream по frame probe и переходить на
+`pipewire-mjpeg`. Рабочий Linux sender state должен показывать
+`systemPicker.enabled=false`, `capture.frameWidth=1920`,
+`capture.frameHeight=1080`; `capture.frameSource` может быть
+`native-chromium`, если probe не черный, или `pipewire-mjpeg`, если native
+capture отбракован. Независимый WebRTC receiver должен видеть
+`videoWidth=1920`, `videoHeight=1080`, `black=false`, `audioTracks=1` и растущие
+`inbound-rtp` audio `bytesReceived`. Audio-only
 `getUserMedia({chromeMediaSource: "desktop"})` не использовать: на текущем
 сервере он убивает Electron renderer bad IPC.
 
 Если RTP audio bytes растут, но пользователь не слышит звук, сначала проверить
 `wpctl status`: default server sink не должен быть `MUTED` или `vol: 0.00`,
-потому что `/desktop/audio.webm` читает monitor этого sink. Клиент
+потому что `/desktop/audio.pcm` и `/desktop/audio.webm` читают monitor этого sink. Клиент
 интерпретатора держит два playback пути для remote desktop audio: spatial
 WebAudio graph через `PannerNode` и hidden `HTMLAudioElement` fallback, который
 повторно запускается на user gesture, чтобы обходить autoplay/WebAudio блок.

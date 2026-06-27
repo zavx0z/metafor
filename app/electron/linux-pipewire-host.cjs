@@ -66,6 +66,15 @@ const state = {
     lastStartedAt: null,
     lastError: null,
   },
+  audioPcm: {
+    clients: 0,
+    target: null,
+    sampleRate: 48000,
+    channels: 2,
+    format: "S16LE",
+    lastStartedAt: null,
+    lastError: null,
+  },
   input: {
     enabled: true,
     transport: "mutter-remote-desktop",
@@ -142,6 +151,10 @@ async function route(req, res) {
   }
   if (req.method === "GET" && (url.pathname === "/desktop/stream.mjpeg" || url.pathname === "/desktop/stream")) {
     await sendMjpegStream(req, res)
+    return
+  }
+  if (req.method === "GET" && url.pathname === "/desktop/audio.pcm") {
+    await sendAudioPcmStream(req, res)
     return
   }
   if (req.method === "GET" && (url.pathname === "/desktop/audio.webm" || url.pathname === "/desktop/audio")) {
@@ -534,6 +547,7 @@ async function sendAudioWebmStream(req, res) {
   state.audioWebm.target = target
   state.audioWebm.lastStartedAt = new Date().toISOString()
   state.audioWebm.lastError = null
+  state.remoteDesktop.audio.transport = "pipewire-webm"
   ensureAudioTargetAudible(target)
 
   const gst = spawn("gst-launch-1.0", [
@@ -596,6 +610,76 @@ async function sendAudioWebmStream(req, res) {
   res.on("close", stop)
 }
 
+async function sendAudioPcmStream(req, res) {
+  const target = resolveAudioTarget()
+  if (target === null) {
+    sendJson(res, 503, {ok: false, error: state.audioPcm.lastError || state.audioWebm.lastError || "PipeWire audio sink is not available"})
+    return
+  }
+
+  state.audioPcm.clients += 1
+  state.audioPcm.target = target
+  state.audioPcm.lastStartedAt = new Date().toISOString()
+  state.audioPcm.lastError = null
+  state.remoteDesktop.audio.transport = "pipewire-pcm"
+  ensureAudioTargetAudible(target)
+
+  const gst = spawn("gst-launch-1.0", [
+    "-q",
+    "pipewiresrc",
+    `target-object=${target}`,
+    "!",
+    "audioconvert",
+    "!",
+    "audioresample",
+    "!",
+    `audio/x-raw,format=${state.audioPcm.format},rate=${state.audioPcm.sampleRate},channels=${state.audioPcm.channels}`,
+    "!",
+    "fdsink",
+    "fd=1",
+  ], {stdio: ["ignore", "pipe", "pipe"]})
+
+  let settled = false
+  let stderr = ""
+  const stop = () => {
+    if (settled) return
+    settled = true
+    state.audioPcm.clients = Math.max(0, state.audioPcm.clients - 1)
+    stopChild(gst)
+  }
+
+  res.writeHead(200, {
+    "cache-control": "no-store",
+    "connection": "close",
+    "content-type": "application/octet-stream",
+    "x-meta-audio-format": state.audioPcm.format,
+    "x-meta-audio-rate": String(state.audioPcm.sampleRate),
+    "x-meta-audio-channels": String(state.audioPcm.channels),
+    ...corsHeaders(),
+  })
+
+  gst.stdout.pipe(res)
+  gst.stderr.on("data", (chunk) => {
+    stderr += String(chunk)
+    if (stderr.length > 4096) stderr = stderr.slice(-4096)
+  })
+  gst.on("error", (error) => {
+    state.audioPcm.lastError = error.message
+    state.remoteDesktop.audio.lastError = error.message
+    stop()
+  })
+  gst.on("exit", (code, signal) => {
+    if (code !== 0 && code !== null && !res.destroyed) {
+      const message = `gst-launch pcm audio failed code=${code} signal=${signal ?? "null"} ${stderr.trim()}`.trim()
+      state.audioPcm.lastError = message
+      state.remoteDesktop.audio.lastError = message
+    }
+    stop()
+  })
+  req.on("close", stop)
+  res.on("close", stop)
+}
+
 function resolveAudioTarget() {
   if (AUDIO_TARGET.length > 0) return AUDIO_TARGET
 
@@ -612,6 +696,7 @@ function resolveAudioTarget() {
     throw new Error("pw-dump returned no Audio/Sink nodes")
   } catch (error) {
     state.audioWebm.lastError = error instanceof Error ? error.message : String(error)
+    state.audioPcm.lastError = state.audioWebm.lastError
     state.remoteDesktop.audio.lastError = state.audioWebm.lastError
     return null
   }
@@ -625,6 +710,7 @@ function ensureAudioTargetAudible(target) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     state.audioWebm.lastError = message
+    state.audioPcm.lastError = message
     state.remoteDesktop.audio.lastError = message
   }
 }
