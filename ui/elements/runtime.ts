@@ -1058,10 +1058,14 @@ export class UiRuntime {
     this.#emitViewPointChange()
   }
 
-  #zoomDisplay(delta: number, displayId?: UiDisplayId | null): void {
+  #zoomDisplay(delta: number, displayId?: UiDisplayId | null, anchorCanvas?: {x: number; y: number}): void {
     if (!this.#displaySpaceEnabled) return
     this.#cancelCameraAnimation()
-    const target = this.#navigationTarget(displayId)
+    const resolvedDisplayId = this.#resolveDisplayId(displayId)
+    const anchorBefore = anchorCanvas === undefined
+      ? null
+      : this.#displayWorldPointAtCanvas(anchorCanvas.x, anchorCanvas.y, resolvedDisplayId, false)
+    const target = this.#navigationTarget(resolvedDisplayId)
     this.viewPoint.getTarget().copy(target)
     const offset = new Vector3().subVectors(this.viewPoint.position, target)
     const currentRadius = Math.max(0.001, offset.length())
@@ -1075,6 +1079,17 @@ export class UiRuntime {
     offset.normalize().multiplyScalar(nextRadius)
     this.viewPoint.position.copy(target).add(offset)
     this.viewPoint.update()
+    if (anchorBefore !== null && anchorCanvas !== undefined) {
+      const anchorAfter = this.#displayWorldPointAtCanvas(anchorCanvas.x, anchorCanvas.y, resolvedDisplayId, false)
+      if (anchorAfter !== null) {
+        const correction = anchorBefore.sub(anchorAfter)
+        if (Number.isFinite(correction.x) && Number.isFinite(correction.y) && Number.isFinite(correction.z)) {
+          this.viewPoint.position.add(correction)
+          this.viewPoint.getTarget().add(correction)
+          this.viewPoint.update()
+        }
+      }
+    }
     this.#displayDistanceMm = nextRadius
     this.#applyLayout({scope: "space"})
     this.#requestHudSurfacesRender()
@@ -1111,6 +1126,13 @@ export class UiRuntime {
       if (displayTarget !== null) return displayTarget
     }
     return this.viewPoint.getTarget().clone()
+  }
+
+  #displayWorldPointAtCanvas(canvasX: number, canvasY: number, displayId: UiDisplayId | null, requireInside: boolean): Vector3 | null {
+    if (displayId === null) return null
+    const hit = this.#displayRayHit(canvasX, canvasY, requireInside, displayId)
+    if (hit === null) return null
+    return hit.point.clone().applyMatrix4(hit.display.matrixWorld)
   }
 
   #displayRayHit(canvasX: number, canvasY: number, requireInside = false, onlyDisplayId?: UiDisplayId): DisplayRayHit | null {
@@ -1609,7 +1631,7 @@ export class UiRuntime {
     if (displayCoords === null || slot === undefined) {
       if (this.#isDisplayNavigationMode()) {
         event.preventDefault()
-        if (event.ctrlKey) this.#zoomDisplay(-event.deltaY, displayCoords?.displayId ?? this.#displayHoverDisplayId)
+        if (event.ctrlKey) this.#zoomDisplay(-event.deltaY, displayCoords?.displayId ?? this.#displayHoverDisplayId, canvasCoords)
         else this.#panView(event.deltaX, event.deltaY)
       }
       return

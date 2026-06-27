@@ -17,6 +17,17 @@ const createElementStub = (): HTMLElement => ({
   ...createEventTargetStub(),
   clientWidth: 1280,
   clientHeight: 720,
+  getBoundingClientRect: () => ({
+    x: 0,
+    y: 0,
+    left: 0,
+    top: 0,
+    right: 1280,
+    bottom: 720,
+    width: 1280,
+    height: 720,
+    toJSON: () => ({}),
+  }) as DOMRect,
   style: {},
 } as unknown as HTMLElement)
 
@@ -59,6 +70,29 @@ describe("ViewPoint zoom", () => {
     ;(viewPoint as unknown as { handleZoom(delta: number): void }).handleZoom(100)
 
     expect(getRadius(viewPoint)).toBeLessThan(0.1)
+  })
+
+  test("держит world-точку под курсором при zoom-to-cursor", () => {
+    const viewPoint = new ViewPoint({
+      element: createElementStub(),
+      near: 1,
+      position: { x: 0, y: -10, z: 0 },
+      target: { x: 0, y: 0, z: 0 },
+    })
+    const privateViewPoint = viewPoint as unknown as {
+      handleZoom(delta: number, anchor?: {clientX: number; clientY: number}): void
+      targetPlanePointForClient(clientX: number, clientY: number): Vector3 | null
+    }
+    const anchor = {clientX: 960, clientY: 360}
+    const before = privateViewPoint.targetPlanePointForClient(anchor.clientX, anchor.clientY)
+    expect(before).not.toBeNull()
+
+    privateViewPoint.handleZoom(40, anchor)
+    viewPoint.update()
+
+    const after = privateViewPoint.targetPlanePointForClient(anchor.clientX, anchor.clientY)
+    expect(after).not.toBeNull()
+    expect(after!.distanceTo(before!)).toBeLessThan(0.001)
   })
 
   test("выравнивает горизонт по мировой оси Z для программной навигации", () => {

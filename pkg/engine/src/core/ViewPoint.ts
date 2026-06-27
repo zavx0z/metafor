@@ -295,15 +295,15 @@ export class ViewPoint {
       const dx = touches[0]!.clientX - touches[1]!.clientX
       const dy = touches[0]!.clientY - touches[1]!.clientY
       const currentTouchDistance = Math.sqrt(dx * dx + dy * dy)
+      const currentMidX = (touches[0]!.clientX + touches[1]!.clientX) / 2
+      const currentMidY = (touches[0]!.clientY + touches[1]!.clientY) / 2
       if (this.lastTouchDistance !== null) {
         const deltaDistance = currentTouchDistance - this.lastTouchDistance
-        this.handleZoom(deltaDistance)
+        this.handleZoom(deltaDistance, {clientX: currentMidX, clientY: currentMidY})
       }
       this.lastTouchDistance = currentTouchDistance
 
       // Панорамирование
-      const currentMidX = (touches[0]!.clientX + touches[1]!.clientX) / 2
-      const currentMidY = (touches[0]!.clientY + touches[1]!.clientY) / 2
       const deltaX = currentMidX - this.lastX
       const deltaY = currentMidY - this.lastY
       // Для тачскринов инвертируем панорамирование, чтобы создать эффект "перетаскивания"
@@ -352,7 +352,7 @@ export class ViewPoint {
   private onWheel = (event: WheelEvent) => {
     event.preventDefault()
     if (event.ctrlKey) {
-      this.handleZoom(-event.deltaY)
+      this.handleZoom(-event.deltaY, {clientX: event.clientX, clientY: event.clientY})
     } else {
       this.handlePan(event.deltaX, event.deltaY)
     }
@@ -398,7 +398,8 @@ export class ViewPoint {
     this.target.add(panDelta)
   }
 
-  private handleZoom(delta: number) {
+  private handleZoom(delta: number, anchor?: {clientX: number; clientY: number}) {
+    const anchorBefore = anchor === undefined ? null : this.targetPlanePointForClient(anchor.clientX, anchor.clientY)
     const offset = new Vector3().subVectors(this.position, this.target)
     const currentRadius = offset.length()
     const scale = Math.pow(0.95, delta * 0.05)
@@ -412,6 +413,43 @@ export class ViewPoint {
     offset.normalize().multiplyScalar(newRadius)
 
     this.position.copy(this.target).add(offset)
+    this.update()
+    if (anchorBefore !== null && anchor !== undefined) {
+      const anchorAfter = this.targetPlanePointForClient(anchor.clientX, anchor.clientY)
+      if (anchorAfter !== null) {
+        const correction = anchorBefore.sub(anchorAfter)
+        if (isFiniteVector(correction)) {
+          this.position.add(correction)
+          this.target.add(correction)
+          this.update()
+        }
+      }
+    }
+  }
+
+  private targetPlanePointForClient(clientX: number, clientY: number): Vector3 | null {
+    const rect = this.element.getBoundingClientRect()
+    const width = rect.width || this.element.clientWidth
+    const height = rect.height || this.element.clientHeight
+    if (width <= 0 || height <= 0) return null
+
+    this.update()
+    const ndcX = ((clientX - rect.left) / width) * 2 - 1
+    const ndcY = 1 - ((clientY - rect.top) / height) * 2
+    const inverseViewProjection = new Matrix4()
+      .multiplyMatrices(this.projectionMatrix, this.viewMatrix)
+      .invert()
+    const nearPoint = new Vector3(ndcX, ndcY, 0).applyMatrix4(inverseViewProjection)
+    const farPoint = new Vector3(ndcX, ndcY, 1).applyMatrix4(inverseViewProjection)
+    if (!isFiniteVector(nearPoint) || !isFiniteVector(farPoint)) return null
+
+    const direction = farPoint.sub(nearPoint).normalize()
+    const normal = new Vector3().subVectors(this.position, this.target).normalize()
+    const denominator = direction.dot(normal)
+    if (Math.abs(denominator) < LOOK_AT_EPSILON) return null
+    const distance = this.target.clone().sub(nearPoint).dot(normal) / denominator
+    if (!Number.isFinite(distance) || distance < 0) return null
+    return nearPoint.add(direction.multiplyScalar(distance))
   }
 
   private sanitizePose(): void {
