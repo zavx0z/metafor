@@ -78,6 +78,9 @@ const DEFAULT_ANDROID_RTC_ROOM = "android-display"
 const ANDROID_RTC_SENDER_PEER = "android"
 const DEFAULT_MIN_FRAME_INTERVAL_MS = 50
 const MAX_PENDING_COMMANDS = 16
+const BLACK_FRAME_MAX_AVG_LUMA = 18
+const BLACK_FRAME_BRIGHT_LUMA = 24
+const BLACK_FRAME_MAX_BRIGHT_RATIO = 0.05
 
 export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcClient {
   const room = opts.room ?? DEFAULT_ANDROID_RTC_ROOM
@@ -383,9 +386,11 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
       for (let index = 0; index < pixels.length; index += 4) {
         const luminance = (pixels[index]! + pixels[index + 1]! + pixels[index + 2]!) / 3
         sum += luminance
-        if (luminance > 8) nonBlack += 1
+        if (luminance > BLACK_FRAME_BRIGHT_LUMA) nonBlack += 1
       }
-      const isBlack = sum / count < 2 && nonBlack / count < 0.005
+      const avgLuma = sum / count
+      const brightRatio = nonBlack / count
+      const isBlack = avgLuma < BLACK_FRAME_MAX_AVG_LUMA && brightRatio < BLACK_FRAME_MAX_BRIGHT_RATIO
       if (isBlack && now - lastBlackFrameStatusAt >= 1000) {
         lastBlackFrameStatusAt = now
         opts.onStatus("running", "rtc black frame")
