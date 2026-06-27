@@ -61,6 +61,7 @@ export type AndroidRtcClientOpts = {
   capabilities?: string[]
   frameSrc: string
   minFrameIntervalMs?: number
+  ignoreBlackFrames?: boolean
   receiveAudio?: boolean
   onFrame: (frame: AndroidRtcFrame) => void
   onAudio?: (audio: AndroidRtcAudioStream | null) => void
@@ -96,6 +97,9 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
   let frameLoopStarted = false
   let frameCopyInFlight = false
   let lastFrameAt = 0
+  let lastBlackFrameStatusAt = 0
+  let blackFrameCanvas: HTMLCanvasElement | null = null
+  let blackFrameContext: CanvasRenderingContext2D | null = null
   let pendingCommands: RtcControlCommand[] = []
 
   const api: AndroidRtcClient = {
@@ -225,6 +229,7 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
       closePeer(signal.peerId)
       return
     }
+    if ("to" in signal && typeof signal.to === "string" && signal.to !== peerId) return
     if (signal.from === peerId) return
     if (!isTargetRtcSenderPeer(signal.from, peerTarget, opts.senderPeerId ?? ANDROID_RTC_SENDER_PEER)) return
     const peer = createPeer(signal.from, false)
@@ -341,6 +346,13 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     const width = video.videoWidth
     const height = video.videoHeight
     if (width <= 0 || height <= 0) return
+    if (opts.ignoreBlackFrames === true && videoFrameLooksBlack(width, height)) {
+      if (now - lastBlackFrameStatusAt >= 1000) {
+        lastBlackFrameStatusAt = now
+        opts.onStatus("running", "rtc black frame")
+      }
+      return
+    }
     frameCopyInFlight = true
     lastFrameAt = now
     try {
@@ -351,6 +363,31 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
       opts.onStatus("error", error instanceof Error ? error.message : String(error))
     } finally {
       frameCopyInFlight = false
+    }
+  }
+
+  function videoFrameLooksBlack(width: number, height: number): boolean {
+    const canvas = blackFrameCanvas ?? document.createElement("canvas")
+    blackFrameCanvas = canvas
+    canvas.width = 96
+    canvas.height = Math.max(1, Math.round((canvas.width * height) / width))
+    const context = blackFrameContext ?? canvas.getContext("2d", {willReadFrequently: true})
+    if (context === null) return false
+    blackFrameContext = context
+    try {
+      context.drawImage(video, 0, 0, canvas.width, canvas.height)
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data
+      let sum = 0
+      let nonBlack = 0
+      const count = pixels.length / 4
+      for (let index = 0; index < pixels.length; index += 4) {
+        const luminance = (pixels[index]! + pixels[index + 1]! + pixels[index + 2]!) / 3
+        sum += luminance
+        if (luminance > 8) nonBlack += 1
+      }
+      return sum / count < 2 && nonBlack / count < 0.005
+    } catch {
+      return false
     }
   }
 

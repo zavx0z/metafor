@@ -448,6 +448,7 @@ function udpPortRangeObject(range) {
 
 function installRemoteDesktopCaptureHandler(appSession) {
   if (!REMOTE_DESKTOP_RTC_MODE) return
+  if (REMOTE_DESKTOP_SYSTEM_PICKER) return
   if (typeof appSession.setDisplayMediaRequestHandler !== "function") {
     remoteDesktopRtcState.status = "failed"
     remoteDesktopRtcState.lastError = "Electron session.setDisplayMediaRequestHandler is unavailable"
@@ -541,9 +542,11 @@ async function startRemoteDesktopRtc() {
   if (remoteDesktopWindow !== null && !remoteDesktopWindow.isDestroyed()) return
 
   try {
-    const source = await selectRemoteDesktopSource()
+    const source = REMOTE_DESKTOP_SYSTEM_PICKER ? null : await selectRemoteDesktopSource()
     remoteDesktopRtcState.status = "starting"
-    remoteDesktopRtcState.source = sourceSummary(source)
+    remoteDesktopRtcState.source = source === null
+      ? {id: "system-picker", kind: "screen", name: REMOTE_DESKTOP_AUTO_SELECT_SOURCE || "System picker"}
+      : sourceSummary(source)
     remoteDesktopRtcState.lastError = null
     remoteDesktopRtcState.updatedAt = new Date().toISOString()
 
@@ -574,7 +577,7 @@ async function startRemoteDesktopRtc() {
       room: REMOTE_DESKTOP_RTC_ROOM,
       peerId: REMOTE_DESKTOP_RTC_PEER_ID,
       iceServers: REMOTE_DESKTOP_RTC_ICE_SERVERS,
-      sourceId: source.id,
+      sourceId: source?.id ?? "",
       maxFps: REMOTE_DESKTOP_RTC_MAX_FPS,
       udpPortRange: REMOTE_DESKTOP_RTC_UDP_PORT_RANGE,
       publicIceHost: REMOTE_DESKTOP_RTC_PUBLIC_ICE_HOST,
@@ -721,6 +724,7 @@ async function handleSignal(message) {
     return;
   }
   if (message.from === config.peerId || typeof message.from !== "string") return;
+  if (typeof message.to === "string" && message.to !== config.peerId) return;
   const peer = createPeer(message.from);
   if (message.type === "offer") {
     await peer.connection.setRemoteDescription(message.description);

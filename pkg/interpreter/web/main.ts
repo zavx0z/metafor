@@ -3083,6 +3083,7 @@ async function createRemoteDesktopRtcClient(): Promise<AndroidRtcClient> {
     capabilities: ["remote-desktop", "interpreter"],
     frameSrc: REMOTE_DESKTOP_RTC_FRAME_SRC,
     minFrameIntervalMs: 16,
+    ignoreBlackFrames: true,
     receiveAudio: true,
     onFrame: (frame) => {
       if (!isValidRemoteDesktopFrame(frame)) return
