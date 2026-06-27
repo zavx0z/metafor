@@ -111,6 +111,9 @@ curl http://127.0.0.1:32123/snapshot --output snapshot.png
 - `METAFOR_REMOTE_DESKTOP_AUDIO_SOURCE` - `auto`, `system`, `loopback`, `loopback-with-mute`, `browser`, `browser-frame`, or `off`.
 - `METAFOR_REMOTE_DESKTOP_FRAME_STREAM_URL` - optional local MJPEG frame source for the sender page. The Linux WebRTC scripts default to `http://127.0.0.1:32123/desktop/stream.mjpeg` to avoid black `desktopCapturer` frames on GNOME/Wayland.
 - `METAFOR_REMOTE_DESKTOP_FRAME_SNAPSHOT_URL` - optional local snapshot source paired with the frame stream. The Linux WebRTC scripts default to `http://127.0.0.1:32123/desktop/snapshot`.
+- `METAFOR_REMOTE_DESKTOP_AUDIO_URL` - optional local WebM/Opus audio source for the sender page. The Linux WebRTC scripts default to `http://127.0.0.1:32123/desktop/audio.webm`; the sender decodes it through WebAudio and attaches that audio track to the same WebRTC connection.
+- `METAFOR_REMOTE_DESKTOP_AUDIO_TARGET` - optional PipeWire target object for the audio stream. When unset, the local PipeWire host picks the running/default `Audio/Sink`.
+- `METAFOR_REMOTE_DESKTOP_AUDIO_BITRATE` - Opus bitrate for `/desktop/audio.webm`. Defaults to `128000`.
 - `METAFOR_REMOTE_DESKTOP_RTC_VIDEO_BITRATE` - target max WebRTC video bitrate in bits per second. The Linux WebRTC scripts default to `12000000`.
 - `METAFOR_REMOTE_DESKTOP_SYSTEM_PICKER` - opt-in diagnostic mode. When truthy, let Chromium use the system picker instead of Electron's programmatic `desktopCapturer` source selection.
 - `METAFOR_REMOTE_DESKTOP_AUTO_SELECT_SOURCE` - Chromium auto-select source name used with the system picker path.
@@ -121,7 +124,8 @@ In the default sender mode there should be no GNOME "screen sharing" dialog.
 `GET /desktop/rtc/state` should show `webRtc: true`, `transport:
 "electron-webrtc"`, `systemPicker.enabled: false`,
 `capture.frameSource: "pipewire-mjpeg"`, `capture.frameWidth: 1920`,
-`capture.frameHeight: 1080`, connected peers, and
+`capture.frameHeight: 1080`, `audio.effectiveSource: "pipewire-webm"`,
+`audio.trackCount: 1`, connected peers, and
 `ice.lastPublishedCandidate.address` equal to the public media host with a port
 inside the configured UDP range.
 

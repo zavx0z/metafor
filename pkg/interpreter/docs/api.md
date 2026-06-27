@@ -261,7 +261,10 @@ Remote desktop display - server-owned визуальный канал для с�
 WebRTC. В production server-dev Linux контуре кадры берутся из локального
 Mutter/PipeWire host MJPEG stream (`127.0.0.1:32123/desktop/stream.mjpeg`),
 рисуются в hidden canvas и отдаются дальше через `canvas.captureStream()`; это
-обходит черные кадры Electron `desktopCapturer` на GNOME/Wayland. Интерпретатор
+обходит черные кадры Electron `desktopCapturer` на GNOME/Wayland. Звук берется
+из локального PipeWire audio sink как WebM/Opus stream
+(`127.0.0.1:32123/desktop/audio.webm`), декодируется в sender page через
+WebAudio и добавляется audio track в тот же WebRTC connection. Интерпретатор
 держит локальный signaling endpoint и показывает video как first-class display
 `remote-desktop:server` в `Space`. Snapshot routes являются
 fallback/diagnostics, а не основным frame loop.

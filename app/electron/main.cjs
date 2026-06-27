@@ -87,6 +87,11 @@ const REMOTE_DESKTOP_RTC_FRAME_SNAPSHOT_URL = localServiceUrl(
   null,
   "METAFOR_REMOTE_DESKTOP_FRAME_SNAPSHOT_URL",
 )
+const REMOTE_DESKTOP_RTC_AUDIO_URL = localServiceUrl(
+  process.env.METAFOR_REMOTE_DESKTOP_AUDIO_URL,
+  null,
+  "METAFOR_REMOTE_DESKTOP_AUDIO_URL",
+)
 const SESSION_PARTITION = HOST_MODE ? "persist:metafor-browser-host" : "persist:metafor"
 const ELECTRON_WEBGPU_ENABLED = !envFalse(process.env.METAFOR_ELECTRON_WEBGPU)
 const LINUX_HOST_NO_SANDBOX = process.platform === "linux"
@@ -602,6 +607,7 @@ async function startRemoteDesktopRtc() {
       audio: REMOTE_DESKTOP_RTC_AUDIO_ENABLED,
       frameStreamUrl: REMOTE_DESKTOP_RTC_FRAME_STREAM_URL === null ? "" : REMOTE_DESKTOP_RTC_FRAME_STREAM_URL.toString(),
       frameSnapshotUrl: REMOTE_DESKTOP_RTC_FRAME_SNAPSHOT_URL === null ? "" : REMOTE_DESKTOP_RTC_FRAME_SNAPSHOT_URL.toString(),
+      audioUrl: REMOTE_DESKTOP_RTC_AUDIO_URL === null ? "" : REMOTE_DESKTOP_RTC_AUDIO_URL.toString(),
     }
     remoteDesktopRtcPageConfig = config
     await win.loadURL(remoteDesktopRtcPageUrl(config))
@@ -639,6 +645,10 @@ const video = document.getElementById("capture");
 let socket = null;
 let stream = null;
 let frameStreamLastStateAt = 0;
+let frameStreamAudioElement = null;
+let frameStreamAudioContext = null;
+let frameStreamAudioSource = null;
+let frameStreamAudioDestination = null;
 const peers = new Map();
 
 function postState(patch) {
@@ -708,8 +718,76 @@ async function captureFrameStream() {
     }).catch(() => undefined);
   }
   await startMjpegFrameReader(config.frameStreamUrl, canvas, context);
-  if (config.audio) postState({audio: {lastError: "desktop audio is disabled for pipewire-mjpeg video", trackCount: 0}});
+  if (config.audio) {
+    await withTimeout(attachFrameStreamAudio(mediaStream), 3000).catch((error) => {
+      postState({audio: {lastError: String(error?.message || error), trackCount: 0}});
+    });
+  }
   return mediaStream;
+}
+
+async function attachFrameStreamAudio(mediaStream) {
+  if (!config.audioUrl) throw new Error("desktop audio URL is not configured");
+
+  const audio = document.createElement("audio");
+  audio.autoplay = true;
+  audio.preload = "none";
+  audio.crossOrigin = "anonymous";
+  audio.src = withCacheBust(config.audioUrl);
+  document.body.appendChild(audio);
+
+  const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+  if (typeof AudioContextCtor !== "function") throw new Error("AudioContext is unavailable");
+  const audioContext = new AudioContextCtor({latencyHint: "interactive"});
+  const source = audioContext.createMediaElementSource(audio);
+  const destination = audioContext.createMediaStreamDestination();
+  source.connect(destination);
+
+  frameStreamAudioElement = audio;
+  frameStreamAudioContext = audioContext;
+  frameStreamAudioSource = source;
+  frameStreamAudioDestination = destination;
+
+  await audioContext.resume().catch(() => undefined);
+  void audio.play().catch((error) => {
+    postState({audio: {lastError: String(error?.message || error), trackCount: destination.stream.getAudioTracks().length}});
+  });
+  await waitForAudioTrack(destination.stream);
+  for (const track of destination.stream.getAudioTracks()) mediaStream.addTrack(track);
+  postState({
+    audio: {
+      enabled: true,
+      effectiveSource: "pipewire-webm",
+      trackCount: destination.stream.getAudioTracks().length,
+      lastError: null,
+    },
+  });
+}
+
+function waitForAudioTrack(audioStream) {
+  if (audioStream.getAudioTracks().length > 0) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error("audio track timed out")), 2500);
+    const done = () => {
+      window.clearTimeout(timer);
+      audioStream.removeEventListener?.("addtrack", done);
+      resolve();
+    };
+    audioStream.addEventListener?.("addtrack", done);
+  });
+}
+
+function withTimeout(promise, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error("operation timed out")), timeoutMs);
+    promise.then((value) => {
+      window.clearTimeout(timer);
+      resolve(value);
+    }, (error) => {
+      window.clearTimeout(timer);
+      reject(error);
+    });
+  });
 }
 
 function startMjpegFrameReader(url, canvas, context) {
@@ -1097,8 +1175,10 @@ function updateRemoteDesktopRtcState(patch) {
     remoteDesktopRtcState.ice.droppedCandidateCount += 1
   }
   if (typeof patch.audio === "object" && patch.audio !== null && !Array.isArray(patch.audio)) {
+    if (typeof patch.audio.enabled === "boolean") remoteDesktopRtcState.audio.enabled = patch.audio.enabled
+    if (typeof patch.audio.effectiveSource === "string") remoteDesktopRtcState.audio.effectiveSource = patch.audio.effectiveSource
     if (typeof patch.audio.trackCount === "number") remoteDesktopRtcState.audio.trackCount = patch.audio.trackCount
-    if (typeof patch.audio.lastError === "string") remoteDesktopRtcState.audio.lastError = patch.audio.lastError
+    if ("lastError" in patch.audio) remoteDesktopRtcState.audio.lastError = typeof patch.audio.lastError === "string" ? patch.audio.lastError : null
   }
   if (typeof patch.tracks === "object" && patch.tracks !== null && !Array.isArray(patch.tracks)) {
     if (typeof patch.tracks.audio === "number") remoteDesktopRtcState.audio.trackCount = patch.tracks.audio

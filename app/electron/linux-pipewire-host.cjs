@@ -1,4 +1,4 @@
-const {spawn} = require("node:child_process")
+const {spawn, spawnSync} = require("node:child_process")
 const http = require("node:http")
 const path = require("node:path")
 
@@ -8,6 +8,8 @@ const WIDTH = Number(process.env.METAFOR_REMOTE_DESKTOP_WIDTH || 1920)
 const HEIGHT = Number(process.env.METAFOR_REMOTE_DESKTOP_HEIGHT || 1080)
 const FPS = Number(process.env.METAFOR_REMOTE_DESKTOP_SNAPSHOT_FPS || 30)
 const MJPEG_BOUNDARY = "metafor-desktop-frame"
+const AUDIO_BITRATE = Number(process.env.METAFOR_REMOTE_DESKTOP_AUDIO_BITRATE || 128000)
+const AUDIO_TARGET = (process.env.METAFOR_REMOTE_DESKTOP_AUDIO_TARGET || "").trim()
 const TARGET_URL = process.env.METAFOR_URL || "http://10.66.0.10:3004/"
 const CHROME = process.env.METAFOR_REMOTE_DESKTOP_BROWSER || "google-chrome"
 const CHROME_DEBUG_PORT = Number(process.env.METAFOR_REMOTE_DESKTOP_CHROME_DEBUG_PORT || 9341)
@@ -54,6 +56,12 @@ const state = {
     lastStartedAt: null,
     lastError: null,
   },
+  audioWebm: {
+    clients: 0,
+    target: null,
+    lastStartedAt: null,
+    lastError: null,
+  },
   input: {
     enabled: true,
     transport: "mutter-remote-desktop",
@@ -73,9 +81,10 @@ const state = {
       lastError: null,
     },
     audio: {
-      enabled: false,
+      enabled: true,
+      transport: "pipewire-webm",
       trackCount: 0,
-      lastError: "audio is reserved for the WebRTC sender path",
+      lastError: null,
     },
   },
 }
@@ -129,6 +138,10 @@ async function route(req, res) {
   }
   if (req.method === "GET" && (url.pathname === "/desktop/stream.mjpeg" || url.pathname === "/desktop/stream")) {
     await sendMjpegStream(req, res)
+    return
+  }
+  if (req.method === "GET" && (url.pathname === "/desktop/audio.webm" || url.pathname === "/desktop/audio")) {
+    await sendAudioWebmStream(req, res)
     return
   }
   if (req.method === "POST" && url.pathname === "/desktop/input") {
@@ -504,6 +517,99 @@ async function sendMjpegStream(req, res) {
   })
   req.on("close", stop)
   res.on("close", stop)
+}
+
+async function sendAudioWebmStream(req, res) {
+  const target = resolveAudioTarget()
+  if (target === null) {
+    sendJson(res, 503, {ok: false, error: state.audioWebm.lastError || "PipeWire audio sink is not available"})
+    return
+  }
+
+  state.audioWebm.clients += 1
+  state.audioWebm.target = target
+  state.audioWebm.lastStartedAt = new Date().toISOString()
+  state.audioWebm.lastError = null
+
+  const gst = spawn("gst-launch-1.0", [
+    "-q",
+    "pipewiresrc",
+    `target-object=${target}`,
+    "!",
+    "audioconvert",
+    "!",
+    "audioresample",
+    "!",
+    "audio/x-raw,format=S16LE,rate=48000,channels=2",
+    "!",
+    "opusenc",
+    "audio-type=generic",
+    `bitrate=${AUDIO_BITRATE}`,
+    "!",
+    "webmmux",
+    "streamable=true",
+    "!",
+    "fdsink",
+    "fd=1",
+  ], {stdio: ["ignore", "pipe", "pipe"]})
+
+  let settled = false
+  let stderr = ""
+  const stop = () => {
+    if (settled) return
+    settled = true
+    state.audioWebm.clients = Math.max(0, state.audioWebm.clients - 1)
+    stopChild(gst)
+  }
+
+  res.writeHead(200, {
+    "cache-control": "no-store",
+    "connection": "close",
+    "content-type": "audio/webm; codecs=opus",
+    ...corsHeaders(),
+  })
+
+  gst.stdout.pipe(res)
+  gst.stderr.on("data", (chunk) => {
+    stderr += String(chunk)
+    if (stderr.length > 4096) stderr = stderr.slice(-4096)
+  })
+  gst.on("error", (error) => {
+    state.audioWebm.lastError = error.message
+    state.remoteDesktop.audio.lastError = error.message
+    stop()
+  })
+  gst.on("exit", (code, signal) => {
+    if (code !== 0 && code !== null && !res.destroyed) {
+      const message = `gst-launch audio failed code=${code} signal=${signal ?? "null"} ${stderr.trim()}`.trim()
+      state.audioWebm.lastError = message
+      state.remoteDesktop.audio.lastError = message
+    }
+    stop()
+  })
+  req.on("close", stop)
+  res.on("close", stop)
+}
+
+function resolveAudioTarget() {
+  if (AUDIO_TARGET.length > 0) return AUDIO_TARGET
+
+  try {
+    const result = spawnSync("pw-dump", {encoding: "utf8", maxBuffer: 8 * 1024 * 1024})
+    if (result.status !== 0) throw new Error((result.stderr || "pw-dump failed").trim())
+    const nodes = JSON.parse(result.stdout)
+    const sinks = nodes
+      .filter((node) => node?.type === "PipeWire:Interface:Node" && node?.info?.props?.["media.class"] === "Audio/Sink")
+      .map((node) => ({id: node.id, state: node.info?.state || "", name: node.info?.props?.["node.name"] || ""}))
+      .filter((node) => Number.isFinite(Number(node.id)))
+    const target = sinks.find((node) => node.state === "running") ?? sinks[0] ?? null
+    if (target !== null) return String(target.id)
+    throw new Error("pw-dump returned no Audio/Sink nodes")
+  } catch (error) {
+    state.audioWebm.lastError = error instanceof Error ? error.message : String(error)
+    state.remoteDesktop.audio.lastError = state.audioWebm.lastError
+    return null
+  }
 }
 
 async function sendDesktopInput(body) {

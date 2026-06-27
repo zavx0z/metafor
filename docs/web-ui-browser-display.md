@@ -11,8 +11,12 @@ iframe-оберткой или скрытым Playwright-клиентом.
 локального Mutter/PipeWire MJPEG stream (`127.0.0.1:32123/desktop/stream.mjpeg`),
 рисует их в hidden canvas и публикует canvas через `captureStream()`.
 WebRTC остается основным транспортом к interpreter; MJPEG является только
-локальным capture source внутри сервера. Snapshot endpoints остаются
-fallback/diagnostics, но не являются основным способом живой визуализации.
+локальным capture source внутри сервера. Звук на этом контуре идет из
+локального PipeWire audio sink как WebM/Opus stream
+(`127.0.0.1:32123/desktop/audio.webm`), декодируется hidden sender page через
+WebAudio и добавляется audio track в тот же RTCPeerConnection. Snapshot
+endpoints остаются fallback/diagnostics, но не являются основным способом живой
+визуализации.
 
 ## Проверенный Контекст
 
@@ -285,10 +289,10 @@ WebRTC, но отдавать черный `screen:*` video, поэтому дл
 основной режим. Проверка 2026-06-27: рабочий Linux sender state должен показывать
 `systemPicker.enabled=false`, `capture.frameSource="pipewire-mjpeg"`,
 `capture.frameWidth=1920`, `capture.frameHeight=1080`; независимый WebRTC
-receiver должен видеть `videoWidth=1920`, `videoHeight=1080` и `black=false`.
-Audio на этом pipewire-mjpeg video path временно не прикрепляется, потому что
-audio-only `getUserMedia({chromeMediaSource: "desktop"})` убивает Electron
-renderer bad IPC на текущем сервере.
+receiver должен видеть `videoWidth=1920`, `videoHeight=1080`, `black=false`,
+`audioTracks=1` и растущие `inbound-rtp` audio `bytesReceived`. Audio-only
+`getUserMedia({chromeMediaSource: "desktop"})` не использовать: на текущем
+сервере он убивает Electron renderer bad IPC.
 
 Проверенный запуск:
 
