@@ -346,17 +346,17 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     const width = video.videoWidth
     const height = video.videoHeight
     if (width <= 0 || height <= 0) return
-    if (opts.ignoreBlackFrames === true && videoFrameLooksBlack(width, height)) {
-      if (now - lastBlackFrameStatusAt >= 1000) {
-        lastBlackFrameStatusAt = now
-        opts.onStatus("running", "rtc black frame")
-      }
+    if (opts.ignoreBlackFrames === true && frameLooksBlack(video, width, height, now)) {
       return
     }
     frameCopyInFlight = true
     lastFrameAt = now
     try {
       const bitmap = await createImageBitmap(video)
+      if (opts.ignoreBlackFrames === true && frameLooksBlack(bitmap, width, height, performance.now())) {
+        bitmap.close?.()
+        return
+      }
       TextureLoader.replaceBitmap(opts.frameSrc, bitmap)
       opts.onFrame({src: opts.frameSrc, width, height, capturedAt: Date.now()})
     } catch (error) {
@@ -366,7 +366,7 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     }
   }
 
-  function videoFrameLooksBlack(width: number, height: number): boolean {
+  function frameLooksBlack(source: CanvasImageSource, width: number, height: number, now: number): boolean {
     const canvas = blackFrameCanvas ?? document.createElement("canvas")
     blackFrameCanvas = canvas
     canvas.width = 96
@@ -375,7 +375,7 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     if (context === null) return false
     blackFrameContext = context
     try {
-      context.drawImage(video, 0, 0, canvas.width, canvas.height)
+      context.drawImage(source, 0, 0, canvas.width, canvas.height)
       const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data
       let sum = 0
       let nonBlack = 0
@@ -385,7 +385,12 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
         sum += luminance
         if (luminance > 8) nonBlack += 1
       }
-      return sum / count < 2 && nonBlack / count < 0.005
+      const isBlack = sum / count < 2 && nonBlack / count < 0.005
+      if (isBlack && now - lastBlackFrameStatusAt >= 1000) {
+        lastBlackFrameStatusAt = now
+        opts.onStatus("running", "rtc black frame")
+      }
+      return isBlack
     } catch {
       return false
     }
