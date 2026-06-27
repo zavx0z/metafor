@@ -1,4 +1,5 @@
 const {spawn, spawnSync} = require("node:child_process")
+const fs = require("node:fs")
 const http = require("node:http")
 const path = require("node:path")
 
@@ -21,6 +22,20 @@ const CHROME_DEBUG_BASE_URLS = [`http://127.0.0.1:${CHROME_DEBUG_PORT}`, `http:/
 const CDP_TIMEOUT_MS = Number(process.env.METAFOR_REMOTE_DESKTOP_CDP_TIMEOUT_MS || 3000)
 const HELPER_INPUT_TIMEOUT_MS = Number(process.env.METAFOR_REMOTE_DESKTOP_INPUT_TIMEOUT_MS || 1500)
 const PROFILE_DIR = process.env.METAFOR_REMOTE_DESKTOP_BROWSER_PROFILE || `/tmp/metafor-remote-desktop-chrome-${process.pid}`
+const CHROME_RTC_ENABLED = process.env.METAFOR_REMOTE_DESKTOP_CHROME_RTC === undefined
+  ? true
+  : envFlag(process.env.METAFOR_REMOTE_DESKTOP_CHROME_RTC)
+const CHROME_RTC_SIGNAL_URL = process.env.METAFOR_REMOTE_DESKTOP_SIGNAL_URL || "ws://10.66.0.10:6500/webrtc/signaling"
+const CHROME_RTC_ROOM = process.env.METAFOR_REMOTE_DESKTOP_RTC_ROOM || "remote-desktop"
+const CHROME_RTC_PEER_ID = process.env.METAFOR_REMOTE_DESKTOP_RTC_PEER_ID || "electron-desktop"
+const CHROME_RTC_UDP_PORT_RANGE = process.env.METAFOR_REMOTE_DESKTOP_UDP_PORT_RANGE || process.env.METAFOR_RTC_UDP_PORT_RANGE || "40000-40100"
+const CHROME_RTC_PUBLIC_ICE_HOST = process.env.METAFOR_REMOTE_DESKTOP_PUBLIC_ICE_HOST || process.env.METAFOR_RTC_PUBLIC_ICE_HOST || "130.49.151.168"
+const CHROME_RTC_ICE_INTERFACE = process.env.METAFOR_REMOTE_DESKTOP_ICE_INTERFACE || process.env.METAFOR_RTC_ICE_INTERFACE || "10.66.0.10"
+const CHROME_RTC_IP_HANDLING_POLICY = process.env.METAFOR_REMOTE_DESKTOP_IP_HANDLING_POLICY || process.env.METAFOR_RTC_IP_HANDLING_POLICY || "default_public_and_private_interfaces"
+const CHROME_RTC_VIDEO_BITRATE = Number(process.env.METAFOR_REMOTE_DESKTOP_RTC_VIDEO_BITRATE || 12_000_000)
+const CHROME_RTC_PICKER_AUTOMATION = process.env.METAFOR_REMOTE_DESKTOP_CHROME_RTC_PICKER === undefined
+  ? true
+  : envFlag(process.env.METAFOR_REMOTE_DESKTOP_CHROME_RTC_PICKER)
 const HELPER = path.join(__dirname, "mutter-pipewire-helper.py")
 
 const state = {
@@ -85,9 +100,18 @@ const state = {
   },
   remoteDesktop: {
     enabled: true,
-    status: "snapshot-fallback",
-    transport: "pipewire-snapshot",
-    webRtc: false,
+    status: CHROME_RTC_ENABLED ? "chrome-rtc-starting" : "snapshot-fallback",
+    transport: CHROME_RTC_ENABLED ? "chrome-webrtc" : "pipewire-snapshot",
+    webRtc: CHROME_RTC_ENABLED,
+    signalUrl: CHROME_RTC_SIGNAL_URL,
+    room: CHROME_RTC_ROOM,
+    peerId: CHROME_RTC_PEER_ID,
+    capture: {
+      frameSource: CHROME_RTC_ENABLED ? "chrome-get-display-media" : null,
+      frameWidth: null,
+      frameHeight: null,
+      frameRate: null,
+    },
     input: {
       enabled: true,
       transport: "mutter-remote-desktop",
@@ -99,6 +123,23 @@ const state = {
       trackCount: 0,
       lastError: null,
     },
+    rtc: {
+      enabled: CHROME_RTC_ENABLED,
+      status: CHROME_RTC_ENABLED ? "starting" : "disabled",
+      peerId: CHROME_RTC_PEER_ID,
+      signalUrl: CHROME_RTC_SIGNAL_URL,
+      room: CHROME_RTC_ROOM,
+      peers: [],
+      ice: {
+        candidateCount: 0,
+        publishedCandidateCount: 0,
+        droppedCandidateCount: 0,
+        lastCandidate: null,
+        lastPublishedCandidate: null,
+      },
+      lastError: null,
+      updatedAt: null,
+    },
   },
 }
 
@@ -107,6 +148,8 @@ let browser = null
 let helperStdoutBuffer = ""
 let helperInputSeq = 0
 const helperInputRequests = new Map()
+let chromeRtcStartTimer = null
+let chromeRtcStarting = false
 
 startHelper()
 
@@ -128,11 +171,16 @@ async function route(req, res) {
     return
   }
   if (req.method === "GET" && url.pathname === "/desktop/rtc/state") {
+    if (CHROME_RTC_ENABLED) await refreshChromeRtcState().catch(() => undefined)
     sendJson(res, 200, {ok: true, remoteDesktop: publicState().remoteDesktop})
     return
   }
   if (req.method === "POST" && url.pathname === "/desktop/rtc/restart") {
-    restart()
+    if (CHROME_RTC_ENABLED && browser !== null && browser.exitCode === null && browser.signalCode === null) {
+      await startChromeRtcSender({force: true})
+    } else {
+      restart()
+    }
     sendJson(res, 202, {ok: true, remoteDesktop: publicState().remoteDesktop})
     return
   }
@@ -200,6 +248,10 @@ function sendEmpty(res, statusCode, headers = {}) {
 }
 
 function restart() {
+  if (chromeRtcStartTimer !== null) {
+    clearTimeout(chromeRtcStartTimer)
+    chromeRtcStartTimer = null
+  }
   stopChild(browser)
   browser = null
   stopChild(helper)
@@ -284,6 +336,7 @@ function handleHelperLine(line) {
     state.remoteDesktop.input.lastError = null
     console.log(`[metafor-remote-desktop] PipeWire stream node=${payload.nodeId} serial=${payload.serial}`)
     openBrowser(TARGET_URL)
+    scheduleChromeRtcStart()
     return
   }
   if (payload.type === "error") {
@@ -349,6 +402,7 @@ function rejectHelperInputRequests(error) {
 function openBrowser(url) {
   if (browser !== null && browser.exitCode === null && browser.signalCode === null) return
   const securityFlags = insecureOriginSecurityFlags(url)
+  prepareChromeProfile()
   browser = spawn(CHROME, [
     `--user-data-dir=${PROFILE_DIR}`,
     "--no-first-run",
@@ -364,12 +418,14 @@ function openBrowser(url) {
     "--ignore-gpu-blocklist",
     "--enable-unsafe-webgpu",
     "--enable-features=UseOzonePlatform,WebRTCPipeWireCapturer",
-    "--disable-features=Translate",
+    "--disable-features=Translate,WebRtcHideLocalIpsWithMdns",
     "--lang=ru-RU",
     "--accept-lang=ru-RU,ru,en-US,en",
     "--ozone-platform=wayland",
     "--force-device-scale-factor=1",
     `--window-size=${WIDTH},${HEIGHT}`,
+    `--webrtc-udp-port-range=${CHROME_RTC_UDP_PORT_RANGE}`,
+    `--force-webrtc-ip-handling-policy=${CHROME_RTC_IP_HANDLING_POLICY}`,
     "--remote-debugging-address=127.0.0.1",
     `--remote-debugging-port=${CHROME_DEBUG_PORT}`,
     "--remote-allow-origins=*",
@@ -397,6 +453,25 @@ function openBrowser(url) {
   })
 }
 
+function prepareChromeProfile() {
+  const defaultProfileDir = path.join(PROFILE_DIR, "Default")
+  const preferencesPath = path.join(defaultProfileDir, "Preferences")
+  try {
+    fs.mkdirSync(defaultProfileDir, {recursive: true})
+    let preferences = {}
+    if (fs.existsSync(preferencesPath)) {
+      preferences = JSON.parse(fs.readFileSync(preferencesPath, "utf8"))
+    }
+    preferences.webrtc = {
+      ...(preferences.webrtc && typeof preferences.webrtc === "object" ? preferences.webrtc : {}),
+      udp_port_range: CHROME_RTC_UDP_PORT_RANGE,
+    }
+    fs.writeFileSync(preferencesPath, JSON.stringify(preferences, null, 2))
+  } catch (error) {
+    state.remoteDesktop.rtc.lastError = error instanceof Error ? error.message : String(error)
+  }
+}
+
 function insecureOriginSecurityFlags(url) {
   try {
     const origin = new URL(url).origin
@@ -405,6 +480,436 @@ function insecureOriginSecurityFlags(url) {
   } catch {
     return []
   }
+}
+
+function scheduleChromeRtcStart(delayMs = 1500) {
+  if (!CHROME_RTC_ENABLED) return
+  if (chromeRtcStartTimer !== null) clearTimeout(chromeRtcStartTimer)
+  chromeRtcStartTimer = setTimeout(() => {
+    chromeRtcStartTimer = null
+    void startChromeRtcSender().catch((error) => {
+      postChromeRtcState({status: "failed", lastError: error instanceof Error ? error.message : String(error)})
+    })
+  }, delayMs)
+}
+
+async function startChromeRtcSender(options = {}) {
+  if (!CHROME_RTC_ENABLED) return publicState().remoteDesktop
+  if (chromeRtcStarting) return publicState().remoteDesktop
+  chromeRtcStarting = true
+  postChromeRtcState({status: "injecting", lastError: null})
+  try {
+    let lastError = null
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      try {
+        await withCdpPage(async (cdp) => {
+          await cdp.send("Page.bringToFront").catch(() => undefined)
+          await cdp.send("Runtime.evaluate", {
+            expression: chromeRtcSenderScript({force: options.force === true}),
+            returnByValue: true,
+            userGesture: true,
+          })
+        })
+        lastError = null
+        break
+      } catch (error) {
+        lastError = error
+        await sleep(500)
+      }
+    }
+    if (lastError !== null) throw lastError
+    await sleep(700)
+    if (CHROME_RTC_PICKER_AUTOMATION) await automateChromeScreenPicker()
+    await waitForChromeRtcReady()
+    return publicState().remoteDesktop
+  } finally {
+    chromeRtcStarting = false
+  }
+}
+
+async function automateChromeScreenPicker() {
+  const steps = [
+    {x: Math.round(WIDTH * 0.595), y: Math.round(HEIGHT * 0.205), delayMs: 550},
+    {x: Math.round(WIDTH * 0.43), y: Math.round(HEIGHT * 0.39), delayMs: 550},
+    {x: Math.round(WIDTH * 0.685), y: Math.round(HEIGHT * 0.305), delayMs: 650},
+    {x: Math.round(WIDTH * 0.43), y: Math.round(HEIGHT * 0.39), delayMs: 350},
+    {x: Math.round(WIDTH * 0.626), y: Math.round(HEIGHT * 0.611), delayMs: 700},
+  ]
+  for (const step of steps) {
+    try {
+      await sendHelperInput({type: "click", x: step.x, y: step.y, button: "left"})
+    } catch (error) {
+      state.remoteDesktop.input.lastError = error instanceof Error ? error.message : String(error)
+    }
+    await sleep(step.delayMs)
+  }
+  await refreshChromeRtcState().catch(() => undefined)
+}
+
+async function waitForChromeRtcReady() {
+  let lastRtc = null
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    lastRtc = await refreshChromeRtcState().catch(() => null)
+    const status = String(lastRtc?.status || "")
+    if (status === "failed" || status === "rejected") throw new Error(lastRtc?.lastError || "Chrome RTC capture failed")
+    if (["capture-ready", "signaling-open", "ready", "peer", "connected", "control-open"].includes(status)) return
+    await sleep(500)
+  }
+  throw new Error(`Chrome RTC did not become ready: ${lastRtc?.status || "unknown"}`)
+}
+
+async function refreshChromeRtcState() {
+  if (!CHROME_RTC_ENABLED || browser === null || browser.exitCode !== null || browser.signalCode !== null) return state.remoteDesktop.rtc
+  return await withCdpPage(async (cdp) => {
+    const result = await cdp.send("Runtime.evaluate", {
+      expression: "window.__metaforChromeRtcState ? JSON.parse(JSON.stringify(window.__metaforChromeRtcState)) : null",
+      returnByValue: true,
+    })
+    const value = result?.result?.value ?? null
+    if (value !== null && typeof value === "object") postChromeRtcState(value)
+    return state.remoteDesktop.rtc
+  })
+}
+
+function postChromeRtcState(patch) {
+  if (patch === null || typeof patch !== "object") return
+  if (typeof patch.status === "string") {
+    state.remoteDesktop.rtc.status = patch.status
+    state.remoteDesktop.status = patch.status
+  }
+  if ("lastError" in patch) state.remoteDesktop.rtc.lastError = typeof patch.lastError === "string" ? patch.lastError : null
+  if (Array.isArray(patch.peers)) state.remoteDesktop.rtc.peers = patch.peers
+  if (patch.ice !== null && typeof patch.ice === "object") state.remoteDesktop.rtc.ice = patch.ice
+  if (typeof patch.updatedAt === "string") state.remoteDesktop.rtc.updatedAt = patch.updatedAt
+  else state.remoteDesktop.rtc.updatedAt = new Date().toISOString()
+  if (patch.capture !== null && typeof patch.capture === "object") {
+    const capture = patch.capture
+    if (typeof capture.frameSource === "string") state.remoteDesktop.capture.frameSource = capture.frameSource
+    if (typeof capture.frameWidth === "number") state.remoteDesktop.capture.frameWidth = capture.frameWidth
+    if (typeof capture.frameHeight === "number") state.remoteDesktop.capture.frameHeight = capture.frameHeight
+    if (typeof capture.frameRate === "number") state.remoteDesktop.capture.frameRate = capture.frameRate
+  }
+  if (patch.audio !== null && typeof patch.audio === "object") {
+    const audio = patch.audio
+    if (typeof audio.trackCount === "number") state.remoteDesktop.audio.trackCount = audio.trackCount
+    if ("lastError" in audio) state.remoteDesktop.audio.lastError = typeof audio.lastError === "string" ? audio.lastError : null
+  }
+}
+
+function chromeRtcSenderScript(options = {}) {
+  const config = {
+    force: options.force === true,
+    signalUrl: CHROME_RTC_SIGNAL_URL,
+    room: CHROME_RTC_ROOM,
+    peerId: CHROME_RTC_PEER_ID,
+    inputUrl: `http://${HOST}:${PORT}/desktop/input`,
+    width: WIDTH,
+    height: HEIGHT,
+    maxFps: FPS,
+    videoBitrate: CHROME_RTC_VIDEO_BITRATE,
+    udpPortRange: CHROME_RTC_UDP_PORT_RANGE,
+    publicIceHost: CHROME_RTC_PUBLIC_ICE_HOST,
+    iceInterface: CHROME_RTC_ICE_INTERFACE,
+    iceServers: [{urls: "stun:stun.l.google.com:19302"}],
+  }
+  return `
+(() => {
+  const config = ${JSON.stringify(config)};
+  if (window.__metaforChromeRtc && !config.force) return window.__metaforChromeRtcState || {status: "existing"};
+  if (window.__metaforChromeRtc && typeof window.__metaforChromeRtc.stop === "function") window.__metaforChromeRtc.stop();
+
+  const state = {
+    status: "booting",
+    peerId: config.peerId,
+    room: config.room,
+    transport: "chrome-webrtc",
+    peers: [],
+    ice: {
+      candidateCount: 0,
+      publishedCandidateCount: 0,
+      droppedCandidateCount: 0,
+      lastCandidate: null,
+      lastPublishedCandidate: null,
+    },
+    capture: {
+      frameSource: "chrome-get-display-media",
+      frameWidth: null,
+      frameHeight: null,
+      frameRate: null,
+    },
+    audio: {
+      enabled: false,
+      effectiveSource: null,
+      trackCount: 0,
+      lastError: null,
+    },
+    lastError: null,
+    updatedAt: null,
+  };
+  let socket = null;
+  let stream = null;
+  const peers = new Map();
+
+  window.__metaforChromeRtcState = state;
+
+  function post(patch) {
+    if (patch && typeof patch === "object") {
+      if (patch.capture && typeof patch.capture === "object") Object.assign(state.capture, patch.capture);
+      if (patch.audio && typeof patch.audio === "object") Object.assign(state.audio, patch.audio);
+      const rest = {...patch};
+      delete rest.capture;
+      delete rest.audio;
+      Object.assign(state, rest);
+    }
+    state.updatedAt = new Date().toISOString();
+    return state;
+  }
+
+  function signalUrl() {
+    const url = new URL(config.signalUrl);
+    url.searchParams.set("room", config.room);
+    url.searchParams.set("peer", config.peerId);
+    return url.toString();
+  }
+
+  async function start() {
+    post({status: "capture-requested", lastError: null});
+    stream = await navigator.mediaDevices.getDisplayMedia({
+      video: {
+        frameRate: {max: config.maxFps},
+        width: {ideal: config.width},
+        height: {ideal: config.height},
+      },
+      audio: false,
+    });
+    for (const track of stream.getVideoTracks()) {
+      track.contentHint = "detail";
+      track.applyConstraints?.({
+        width: {ideal: config.width},
+        height: {ideal: config.height},
+        frameRate: {ideal: config.maxFps, max: config.maxFps},
+      }).catch(() => undefined);
+    }
+    const videoSettings = stream.getVideoTracks()[0]?.getSettings?.() || {};
+    post({
+      status: "capture-ready",
+      capture: {
+        frameSource: "chrome-get-display-media",
+        frameWidth: Number(videoSettings.width) || null,
+        frameHeight: Number(videoSettings.height) || null,
+        frameRate: Number(videoSettings.frameRate) || null,
+      },
+      audio: {
+        enabled: false,
+        effectiveSource: null,
+        trackCount: stream.getAudioTracks().length,
+        lastError: null,
+      },
+    });
+    connectSignal();
+  }
+
+  function connectSignal() {
+    socket = new WebSocket(signalUrl());
+    socket.addEventListener("open", () => post({status: "signaling-open"}));
+    socket.addEventListener("message", (event) => {
+      if (typeof event.data !== "string") return;
+      let message = null;
+      try { message = JSON.parse(event.data); } catch { return; }
+      void handleSignal(message);
+    });
+    socket.addEventListener("close", () => {
+      closeAllPeers();
+      post({status: "signaling-closed", peers: []});
+      window.setTimeout(connectSignal, 1000);
+    });
+    socket.addEventListener("error", () => post({status: "signaling-error"}));
+  }
+
+  async function handleSignal(message) {
+    if (message.type === "hello") {
+      post({status: "ready", peerId: message.peerId || config.peerId, room: message.room || config.room});
+      return;
+    }
+    if (message.type === "peer-left") {
+      closePeer(message.peerId);
+      return;
+    }
+    if (message.from === config.peerId || typeof message.from !== "string") return;
+    if (typeof message.to === "string" && message.to !== config.peerId) return;
+    const peer = createPeer(message.from);
+    if (message.type === "offer") {
+      await peer.connection.setRemoteDescription(message.description);
+      const answer = await peer.connection.createAnswer();
+      await peer.connection.setLocalDescription(answer);
+      sendSignal({type: "answer", to: message.from, description: publishSessionDescription(peer.connection.localDescription)});
+      return;
+    }
+    if (message.type === "ice") await peer.connection.addIceCandidate(message.candidate).catch(() => undefined);
+  }
+
+  function createPeer(peerId) {
+    const existing = peers.get(peerId);
+    if (existing !== undefined) return existing;
+    const connection = new RTCPeerConnection({iceServers: config.iceServers});
+    for (const track of stream.getTracks()) {
+      if (track.kind === "video") track.contentHint = "detail";
+      const sender = connection.addTrack(track, stream);
+      if (track.kind === "video") configureVideoSender(sender);
+    }
+    const peer = {id: peerId, connection, channel: null};
+    peers.set(peerId, peer);
+    connection.addEventListener("icecandidate", (event) => {
+      if (event.candidate === null) return;
+      const candidate = event.candidate.toJSON();
+      const publishedCandidate = publishIceCandidate(candidate);
+      state.ice.candidateCount += 1;
+      state.ice.lastCandidate = candidate;
+      if (publishedCandidate === null) {
+        state.ice.droppedCandidateCount += 1;
+      } else {
+        state.ice.publishedCandidateCount += 1;
+        state.ice.lastPublishedCandidate = publishedCandidate;
+      }
+      post({ice: state.ice});
+      if (publishedCandidate !== null) sendSignal({type: "ice", to: peerId, candidate: publishedCandidate});
+    });
+    connection.addEventListener("connectionstatechange", () => {
+      post({status: connection.connectionState, peers: peerSnapshots()});
+      if (connection.connectionState === "failed") post({lastError: "RTCPeerConnection failed"});
+      if (connection.connectionState === "failed" || connection.connectionState === "closed") closePeer(peerId);
+    });
+    connection.addEventListener("iceconnectionstatechange", () => {
+      post({status: "ice-" + connection.iceConnectionState, peers: peerSnapshots()});
+    });
+    connection.addEventListener("datachannel", (event) => attachDataChannel(peer, event.channel));
+    post({status: "peer", peers: peerSnapshots()});
+    return peer;
+  }
+
+  function configureVideoSender(sender) {
+    if (typeof sender.getParameters !== "function" || typeof sender.setParameters !== "function") return;
+    const parameters = sender.getParameters();
+    parameters.degradationPreference = "maintain-resolution";
+    const encoding = parameters.encodings?.[0] || {};
+    encoding.maxBitrate = config.videoBitrate || 12000000;
+    encoding.maxFramerate = config.maxFps || 30;
+    encoding.scaleResolutionDownBy = 1;
+    parameters.encodings = [encoding];
+    sender.setParameters(parameters).catch((error) => post({status: "video-params-fallback", lastError: String(error?.message || error)}));
+  }
+
+  function attachDataChannel(peer, channel) {
+    peer.channel = channel;
+    channel.addEventListener("open", () => {
+      channel.send(JSON.stringify({type: "hello", peerId: config.peerId, role: "electron-desktop", transport: "chrome-webrtc"}));
+      post({status: "control-open", peers: peerSnapshots()});
+    });
+    channel.addEventListener("message", (event) => {
+      if (typeof event.data !== "string") return;
+      let command = null;
+      try { command = JSON.parse(event.data); } catch { return; }
+      void handleControl(channel, command);
+    });
+    channel.addEventListener("close", () => {
+      if (peer.channel === channel) peer.channel = null;
+      post({status: "control-closed", peers: peerSnapshots()});
+    });
+  }
+
+  async function handleControl(channel, command) {
+    if (command?.type === "hello") {
+      channel.send(JSON.stringify({type: "control-result", command: "hello", ok: true}));
+      return;
+    }
+    try {
+      const response = await fetch(config.inputUrl, {
+        method: "POST",
+        headers: {"content-type": "application/json"},
+        body: JSON.stringify(command),
+      });
+      const result = await response.json().catch(() => ({}));
+      channel.send(JSON.stringify({type: "control-result", command: command.type || "input", ok: response.ok, result}));
+    } catch (error) {
+      channel.send(JSON.stringify({type: "control-result", command: command?.type || "input", ok: false, error: String(error?.message || error)}));
+    }
+  }
+
+  function sendSignal(message) {
+    if (socket !== null && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
+  }
+
+  function peerSnapshots() {
+    return [...peers.values()].map((peer) => ({
+      id: peer.id,
+      connectionState: peer.connection.connectionState,
+      channelState: peer.channel?.readyState || "none",
+    }));
+  }
+
+  function closePeer(peerId) {
+    const peer = peers.get(peerId);
+    if (peer === undefined) return;
+    peers.delete(peerId);
+    peer.channel?.close();
+    peer.connection.close();
+    post({peers: peerSnapshots()});
+  }
+
+  function closeAllPeers() {
+    for (const peerId of [...peers.keys()]) closePeer(peerId);
+  }
+
+  function publishSessionDescription(description) {
+    if (description === null || typeof description?.sdp !== "string") return description;
+    return {
+      type: description.type,
+      sdp: description.sdp.split("\\r\\n").map((line) => {
+        if (!line.startsWith("a=candidate:")) return line;
+        const candidateLine = rewriteIceCandidateLine(line.slice(2));
+        return candidateLine === null ? null : "a=" + candidateLine;
+      }).filter((line) => line !== null).join("\\r\\n"),
+    };
+  }
+
+  function publishIceCandidate(candidate) {
+    if (candidate === null || typeof candidate !== "object" || typeof candidate.candidate !== "string") return candidate;
+    const candidateLine = rewriteIceCandidateLine(candidate.candidate);
+    if (candidateLine === null) return null;
+    return candidateLine === candidate.candidate ? candidate : {...candidate, candidate: candidateLine};
+  }
+
+  function rewriteIceCandidateLine(line) {
+    const parts = String(line || "").trim().split(/\\s+/);
+    if (!parts[0]?.startsWith("candidate:")) return line;
+    const protocol = String(parts[2] || "").toLowerCase();
+    const type = candidateField(parts, "typ");
+    if (type !== "host" || protocol !== "udp") return line;
+    if (!config.publicIceHost) return line;
+    const next = [...parts];
+    next[4] = config.publicIceHost;
+    return next.join(" ");
+  }
+
+  function candidateField(parts, key) {
+    const index = parts.indexOf(key);
+    return index >= 0 ? parts[index + 1] || null : null;
+  }
+
+  window.__metaforChromeRtc = {
+    state,
+    stop() {
+      socket?.close();
+      closeAllPeers();
+      stream?.getTracks?.().forEach((track) => track.stop());
+      post({status: "stopped"});
+    },
+  };
+
+  void start().catch((error) => post({status: "failed", lastError: String(error?.name || "Error") + ": " + String(error?.message || error)}));
+  return state;
+})()
+`
 }
 
 function captureSnapshot() {
@@ -1100,6 +1605,15 @@ function openWebSocket(wsUrl) {
       reject(new Error("Chrome CDP WebSocket open failed"))
     }, {once: true})
   })
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function envFlag(value) {
+  if (typeof value !== "string" || value.trim().length === 0) return false
+  return !["0", "false", "no", "off"].includes(value.trim().toLowerCase())
 }
 
 function clampNumber(value, min, max) {

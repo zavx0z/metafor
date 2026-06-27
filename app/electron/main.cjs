@@ -700,37 +700,23 @@ async function start() {
 }
 
 async function captureStream() {
-  if (config.captureMode !== "frame-stream") {
+  const wantsNativeCapture = config.captureMode !== "frame-stream";
+  const wantsFrameStreamFallback = config.captureMode !== "native-only";
+  let lastCaptureError = null;
+  if (wantsNativeCapture) {
     const nativeStream = await tryCaptureNativeStream();
     if (nativeStream !== null) return nativeStream;
+    lastCaptureError = state.lastError;
   }
-  if (config.frameStreamUrl) {
+  if (wantsFrameStreamFallback && config.frameStreamUrl) {
     try {
       return await captureFrameStream();
     } catch (error) {
       postState({status: "frame-stream-fallback", lastError: String(error?.message || error)});
+      lastCaptureError = state.lastError;
     }
   }
-  if (config.sourceId) {
-    try {
-      return await captureDesktopSource(config.audio);
-    } catch (error) {
-      if (!config.audio) postState({status: "source-capture-fallback", lastError: String(error?.message || error)});
-      else postState({status: "audio-fallback", lastError: String(error?.message || error)});
-    }
-    try {
-      return await captureDesktopSource(false);
-    } catch (error) {
-      postState({status: "display-media-fallback", lastError: String(error?.message || error)});
-    }
-  }
-  if (navigator.mediaDevices?.getDisplayMedia !== undefined) {
-    return await navigator.mediaDevices.getDisplayMedia({
-      video: {frameRate: {max: config.maxFps}},
-      audio: config.audio,
-    });
-  }
-  throw new Error("display capture is unavailable");
+  throw new Error(lastCaptureError || "display capture is unavailable");
 }
 
 async function tryCaptureNativeStream() {
