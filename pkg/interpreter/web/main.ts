@@ -911,6 +911,7 @@ let remoteDesktopAudioGain: GainNode | null = null
 let remoteDesktopAudioStream: MediaStream | null = null
 let remoteDesktopAudioElement: HTMLAudioElement | null = null
 let remoteDesktopAudioLastCenter: UiRuntimeViewPointVector | null = null
+let remoteDesktopAudioUnlocked = false
 const hudNotificationAudioElements = new Map<HudNotificationKind, HTMLAudioElement>()
 const voiceSignalLastPlayedAt = new Map<HudNotificationKind, number>()
 let hudNotificationLastLine = ""
@@ -3482,7 +3483,7 @@ function connectRemoteDesktopAudio(audio: AndroidRtcAudioStream | null): void {
   const element = document.createElement("audio")
   element.autoplay = true
   element.controls = false
-  element.muted = false
+  element.muted = !remoteDesktopAudioUnlocked
   element.preload = "auto"
   element.srcObject = stream
   element.volume = 1
@@ -3602,7 +3603,7 @@ function primeRemoteDesktopAudio(): void {
 function playRemoteDesktopAudioElement(): void {
   const element = remoteDesktopAudioElement
   if (element === null) return
-  element.muted = false
+  element.muted = !remoteDesktopAudioUnlocked
   element.volume = 1
   if (!element.paused) {
     remoteDesktopPane?.setAudioStatus(remoteDesktopAudioStream === null ? "audio ready" : "audio html playing")
@@ -3628,7 +3629,7 @@ function playRemoteDesktopAudioElement(): void {
 
 function syncRemoteDesktopAudioElementMute(): void {
   if (remoteDesktopAudioElement === null) return
-  remoteDesktopAudioElement.muted = false
+  remoteDesktopAudioElement.muted = !remoteDesktopAudioUnlocked
   remoteDesktopAudioElement.volume = 1
 }
 
@@ -6925,6 +6926,13 @@ function voiceEndpointLabel(rawUrl: string): string {
 
 function installHudNotificationSoundUnlock(): void {
   const unlock = (): void => {
+    if (!remoteDesktopAudioUnlocked) {
+      remoteDesktopAudioUnlocked = true
+      postInterpreterClientEvent("remote-desktop", "audio-unlocked", {
+        contextState: remoteDesktopAudioContext?.state ?? null,
+        hasElement: remoteDesktopAudioElement !== null,
+      })
+    }
     primeHudNotificationAudioElements()
     primeHudNotificationAudioContext()
     primeRemoteDesktopAudio()
