@@ -787,6 +787,7 @@ const REMOTE_DESKTOP_SNAPSHOT_ERROR_POLL_MS = 1800
 const REMOTE_DESKTOP_SNAPSHOT_REQUEST_TIMEOUT_MS = 8_000
 const REMOTE_DESKTOP_RTC_FRAME_GRACE_MS = 3000
 const REMOTE_DESKTOP_RTC_BLACK_SUPPRESS_MS = 5_000
+const REMOTE_DESKTOP_CONNECT_START_LOG_MS = 3_000
 const REMOTE_DESKTOP_RTC_VIDEO_DISPLAY_ENABLED = true
 const SPACE_OVERVIEW_WATCHDOG_MS = 900
 const ANDROID_CONTROL_STATUS_HOLD_MS = 4_000
@@ -826,6 +827,7 @@ let remoteDesktopRtcSuppressUntil = 0
 let remoteDesktopSnapshotPath: string | null = null
 let remoteDesktopSnapshotFrameSlot = 0
 let remoteDesktopLastRtcStatusLog = ""
+let remoteDesktopLastConnectStartLogAt = 0
 let spaceOverviewPinned = false
 let spaceOverviewWatchdogTimer: number | null = null
 let hostTerminalAgentSignalPane: HostTerminalAgentSignalPane | null = null
@@ -3038,12 +3040,7 @@ function setSecondaryAndroidRtcStatus(kind: AndroidPaneStatusKind, label: string
 
 function connectRemoteDesktopRtc(): void {
   if (remoteDesktopPane === null) return
-  postInterpreterClientEvent("remote-desktop", "connect-start", {
-    path: window.location.pathname,
-    protocol: window.location.protocol,
-    host: window.location.host,
-    embeddedPrefix: currentEmbeddedInterpreterPathPrefix() ?? "",
-  })
+  postRemoteDesktopConnectStart()
   startRemoteDesktopSnapshotFallback()
   if (remoteDesktopRtcConnectInFlight) return
   if (remoteDesktopRtcClient === null) {
@@ -3061,6 +3058,18 @@ function connectRemoteDesktopRtc(): void {
   }
   remoteDesktopRtcClient.connect()
   primeRemoteDesktopAudio()
+}
+
+function postRemoteDesktopConnectStart(): void {
+  const now = Date.now()
+  if (now - remoteDesktopLastConnectStartLogAt < REMOTE_DESKTOP_CONNECT_START_LOG_MS) return
+  remoteDesktopLastConnectStartLogAt = now
+  postInterpreterClientEvent("remote-desktop", "connect-start", {
+    path: window.location.pathname,
+    protocol: window.location.protocol,
+    host: window.location.host,
+    embeddedPrefix: currentEmbeddedInterpreterPathPrefix() ?? "",
+  })
 }
 
 type RemoteDesktopRtcResolvedConfig = {
@@ -3463,12 +3472,6 @@ function connectRemoteDesktopAudio(audio: AndroidRtcAudioStream | null): void {
     return
   }
 
-  const context = ensureRemoteDesktopAudioContext()
-  if (context === null) {
-    remoteDesktopPane?.setAudioStatus("audio unavailable")
-    return
-  }
-
   const audioTracks = audio.stream.getAudioTracks()
   if (audioTracks.length === 0) {
     remoteDesktopPane?.setAudioStatus("audio no tracks")
@@ -3482,35 +3485,69 @@ function connectRemoteDesktopAudio(audio: AndroidRtcAudioStream | null): void {
   element.muted = false
   element.preload = "auto"
   element.srcObject = stream
+  element.volume = 1
+  element.setAttribute("playsinline", "true")
   element.style.display = "none"
+  element.addEventListener("playing", () => {
+    postInterpreterClientEvent("remote-desktop", "audio-playing", {
+      muted: element.muted,
+      paused: element.paused,
+      volume: element.volume,
+      contextState: remoteDesktopAudioContext?.state ?? null,
+    })
+  }, {once: true})
+  element.addEventListener("error", () => {
+    postInterpreterClientEvent("remote-desktop", "audio-element-error", {
+      error: element.error?.message ?? "audio element error",
+      code: element.error?.code ?? null,
+      contextState: remoteDesktopAudioContext?.state ?? null,
+    })
+  })
   document.body.appendChild(element)
 
-  const source = context.createMediaStreamSource(stream)
-  const panner = context.createPanner()
-  const gain = context.createGain()
-  panner.panningModel = "HRTF"
-  panner.distanceModel = "inverse"
-  panner.refDistance = 4
-  panner.maxDistance = 32
-  panner.rolloffFactor = 0.16
-  gain.gain.value = 1
-  source.connect(panner)
-  panner.connect(gain)
-  gain.connect(context.destination)
-
   remoteDesktopAudioStream = stream
-  remoteDesktopAudioSource = source
-  remoteDesktopAudioPanner = panner
-  remoteDesktopAudioGain = gain
-  updateRemoteDesktopAudioPosition(remoteDesktopAudioLastCenter)
   remoteDesktopAudioElement = element
-  context.onstatechange = () => {
-    syncRemoteDesktopAudioElementMute()
-    primeRemoteDesktopAudio()
+
+  const context = ensureRemoteDesktopAudioContext()
+  if (context !== null) {
+    try {
+      const source = context.createMediaStreamSource(stream)
+      const panner = context.createPanner()
+      const gain = context.createGain()
+      panner.panningModel = "HRTF"
+      panner.distanceModel = "inverse"
+      panner.refDistance = 4
+      panner.maxDistance = 32
+      panner.rolloffFactor = 0.16
+      gain.gain.value = 1
+      source.connect(panner)
+      panner.connect(gain)
+      gain.connect(context.destination)
+      remoteDesktopAudioSource = source
+      remoteDesktopAudioPanner = panner
+      remoteDesktopAudioGain = gain
+      updateRemoteDesktopAudioPosition(remoteDesktopAudioLastCenter)
+      context.onstatechange = () => {
+        syncRemoteDesktopAudioElementMute()
+        primeRemoteDesktopAudio()
+      }
+    } catch (error) {
+      postInterpreterClientEvent("remote-desktop", "audio-webaudio-error", {
+        error: error instanceof Error ? error.message : String(error),
+        contextState: context.state,
+      })
+    }
   }
   syncRemoteDesktopAudioElementMute()
   playRemoteDesktopAudioElement()
-  remoteDesktopPane?.setAudioStatus(`${audio.trackCount} audio ${context.state}`)
+  postInterpreterClientEvent("remote-desktop", "audio-track", {
+    trackCount: audio.trackCount,
+    contextState: context?.state ?? null,
+    htmlMuted: element.muted,
+    htmlPaused: element.paused,
+    htmlVolume: element.volume,
+  })
+  remoteDesktopPane?.setAudioStatus(`${audio.trackCount} audio ${context?.state ?? "html"}`)
   primeRemoteDesktopAudio()
 }
 
@@ -3565,18 +3602,34 @@ function primeRemoteDesktopAudio(): void {
 function playRemoteDesktopAudioElement(): void {
   const element = remoteDesktopAudioElement
   if (element === null) return
+  element.muted = false
+  element.volume = 1
+  if (!element.paused) {
+    remoteDesktopPane?.setAudioStatus(remoteDesktopAudioStream === null ? "audio ready" : "audio html playing")
+    return
+  }
   void element.play()
     .then(() => {
+      postInterpreterClientEvent("remote-desktop", "audio-play", {
+        muted: element.muted,
+        paused: element.paused,
+        contextState: remoteDesktopAudioContext?.state ?? null,
+      })
       remoteDesktopPane?.setAudioStatus(remoteDesktopAudioStream === null ? "audio ready" : `audio html ${element.muted ? "muted" : "playing"}`)
     })
-    .catch(() => {
+    .catch((error) => {
+      postInterpreterClientEvent("remote-desktop", "audio-play-blocked", {
+        error: error instanceof Error ? error.message : String(error),
+        contextState: remoteDesktopAudioContext?.state ?? null,
+      })
       remoteDesktopPane?.setAudioStatus("audio click to play")
     })
 }
 
 function syncRemoteDesktopAudioElementMute(): void {
   if (remoteDesktopAudioElement === null) return
-  remoteDesktopAudioElement.muted = remoteDesktopAudioContext?.state === "running" && remoteDesktopAudioGain !== null
+  remoteDesktopAudioElement.muted = false
+  remoteDesktopAudioElement.volume = 1
 }
 
 function setRemoteDesktopAudioListener(context: AudioContext): void {
@@ -4830,10 +4883,10 @@ class RemoteDesktopPane extends UiSurface {
       z: Z.CONTAINER,
     })
     this.#renderBody({x: 1, y: 1, w: Math.max(1, w - 2), h: Math.max(1, h - 2)})
-    this.#renderOverlay(w)
+    this.#renderOverlay(w, h)
   }
 
-  #renderOverlay(w: number): void {
+  #renderOverlay(w: number, h: number): void {
     const pad = 8
     const buttonSize = 24
     const refreshX = w - pad - buttonSize
@@ -4854,6 +4907,24 @@ class RemoteDesktopPane extends UiSurface {
         fontPx: 10,
         material: this.#statusKind === "error" ? this.materials.red : this.materials.muted,
         maxWidthPx: Math.max(1, statusW - 18),
+        z: Z.TEXT + 0.02,
+      })
+    }
+    if (this.#audioStatus !== "audio idle") {
+      const audioMaxW = Math.max(1, w - pad * 2)
+      const audioW = Math.min(audioMaxW, Math.max(104, Math.ceil(this.measureText(this.#audioStatus, 10)) + 18))
+      const audioY = Math.max(pad, h - pad - buttonSize)
+      this.drawRoundedRect(pad, audioY, audioW, buttonSize, {
+        radius: 7,
+        fill: new Color(0.04, 0.06, 0.09, 0.7),
+        border: palette.borderDim,
+        borderWidth: 1,
+        z: Z.TEXT,
+      })
+      this.drawText(this.#audioStatus, pad + 9, audioY + 7, {
+        fontPx: 10,
+        material: this.materials.muted,
+        maxWidthPx: Math.max(1, audioW - 18),
         z: Z.TEXT + 0.02,
       })
     }
