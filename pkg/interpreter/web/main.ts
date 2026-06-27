@@ -4954,7 +4954,18 @@ class RemoteDesktopPane extends UiSurface {
   override onPointerMove(event: MouseEvent, localX: number, localY: number): void {
     const active = this.#activePointer
     if (active === null) {
-      super.onPointerMove(event, localX, localY)
+      const point = this.#localPointToFrame(localX, localY)
+      if (point === null) {
+        super.onPointerMove(event, localX, localY)
+        return
+      }
+      this.#onInput(this.#withFrameSize({
+        type: "pointerMove",
+        x: point.x,
+        y: point.y,
+        buttons: 0,
+      }))
+      event.preventDefault()
       return
     }
     const point = this.#localPointToFrame(localX, localY, {clamp: true})
