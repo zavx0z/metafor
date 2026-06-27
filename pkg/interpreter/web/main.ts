@@ -786,6 +786,7 @@ const REMOTE_DESKTOP_SNAPSHOT_POLL_MS = 700
 const REMOTE_DESKTOP_SNAPSHOT_ERROR_POLL_MS = 1800
 const REMOTE_DESKTOP_SNAPSHOT_REQUEST_TIMEOUT_MS = 8_000
 const REMOTE_DESKTOP_RTC_FRAME_GRACE_MS = 3000
+const REMOTE_DESKTOP_RTC_BLACK_SUPPRESS_MS = 5_000
 const SPACE_OVERVIEW_WATCHDOG_MS = 900
 const ANDROID_CONTROL_STATUS_HOLD_MS = 4_000
 const PINNED_VOICE_HUD_ANCHOR: VoiceHudAnchorPlacement = {horizontal: "right", vertical: "bottom", offsetX: 0, offsetY: 0}
@@ -820,6 +821,7 @@ let remoteDesktopRtcConnectInFlight = false
 let remoteDesktopSnapshotTimer: number | null = null
 let remoteDesktopSnapshotInFlight = false
 let remoteDesktopLastRtcFrameAt = 0
+let remoteDesktopRtcSuppressUntil = 0
 let remoteDesktopSnapshotPath: string | null = null
 let remoteDesktopSnapshotFrameSlot = 0
 let remoteDesktopLastRtcStatusLog = ""
@@ -3087,6 +3089,7 @@ async function createRemoteDesktopRtcClient(): Promise<AndroidRtcClient> {
     receiveAudio: true,
     onFrame: (frame) => {
       if (!isValidRemoteDesktopFrame(frame)) return
+      if (Date.now() < remoteDesktopRtcSuppressUntil) return
       remoteDesktopLastRtcFrameAt = Date.now()
       remoteDesktopPane?.setFrame(frame)
       remoteDesktopPane?.setStatus("connected", `${frame.width}x${frame.height} rtc`)
@@ -3097,6 +3100,11 @@ async function createRemoteDesktopRtcClient(): Promise<AndroidRtcClient> {
 }
 
 function setRemoteDesktopRtcStatus(kind: AndroidPaneStatusKind, label: string): void {
+  if (label === "rtc black frame") {
+    remoteDesktopLastRtcFrameAt = 0
+    remoteDesktopRtcSuppressUntil = Date.now() + REMOTE_DESKTOP_RTC_BLACK_SUPPRESS_MS
+    scheduleRemoteDesktopSnapshotFallback(0)
+  }
   remoteDesktopPane?.setStatus(kind, label)
   const key = `${kind}:${label}`
   if (remoteDesktopLastRtcStatusLog === key) return
@@ -3173,6 +3181,7 @@ async function refreshRemoteDesktopSnapshotFallback(): Promise<void> {
     if (width <= 0 || height <= 0) throw new Error(`invalid desktop frame ${width}x${height}`)
     const src = nextRemoteDesktopSnapshotFrameSrc()
     TextureLoader.replaceBitmap(src, bitmap)
+    remoteDesktopRtcSuppressUntil = Math.max(remoteDesktopRtcSuppressUntil, Date.now() + REMOTE_DESKTOP_SNAPSHOT_POLL_MS)
     remoteDesktopPane.setFrame({
       src,
       width,

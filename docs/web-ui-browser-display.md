@@ -242,11 +242,12 @@ XDG_RUNTIME_DIR=/run/user/1000 \
 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus \
 DISPLAY=:0 \
 XAUTHORITY=/run/user/1000/.mutter-Xwaylandauth.N4DER3 \
-XDG_SESSION_TYPE=x11 \
+WAYLAND_DISPLAY=wayland-0 \
+XDG_SESSION_TYPE=wayland \
 METAFOR_URL=http://10.66.0.10:3004/ \
 METAFOR_ELECTRON_HOST=1 \
 METAFOR_ELECTRON_HOST_PORT=32133 \
-METAFOR_ELECTRON_OZONE_PLATFORM=x11 \
+METAFOR_ELECTRON_OZONE_PLATFORM=wayland \
 METAFOR_REMOTE_DESKTOP_RTC=1 \
 METAFOR_REMOTE_DESKTOP_SENDER_ONLY=1 \
 METAFOR_REMOTE_DESKTOP_SYSTEM_PICKER=0 \
@@ -260,7 +261,7 @@ METAFOR_REMOTE_DESKTOP_IP_HANDLING_POLICY=default_public_and_private_interfaces 
 METAFOR_REMOTE_DESKTOP_SIGNAL_URL=ws://10.66.0.10:6500/webrtc/signaling \
 METAFOR_ELECTRON_DEBUG_PORT=9230 \
 node_modules/.bin/electron app/electron \
-  --ozone-platform=x11 \
+  --ozone-platform=wayland \
   --enable-features=UseOzonePlatform,WebRTCPipeWireCapturer \
   --no-sandbox
 
@@ -277,9 +278,11 @@ curl -sS http://127.0.0.1:9230/json/list
 
 Проверка 2026-06-27: Electron 35.7.5 на текущем GNOME/Wayland/NVIDIA сервере
 падает `SIGSEGV` в GPU/Viz даже без remote desktop RTC. Electron 42.5.0
-работает в sender-only режиме через Xwayland: hidden WebRTC page,
-`METAFOR_ELECTRON_WEBGPU=0`, `ozone-platform=x11`, отключенный Vulkan/VAAPI и
-`METAFOR_REMOTE_DESKTOP_SYSTEM_PICKER=0`. Sender state должен показывать
+работает в sender-only режиме через Wayland: hidden WebRTC page,
+`METAFOR_ELECTRON_WEBGPU=0`, `ozone-platform=wayland`, отключенный Vulkan/VAAPI и
+`METAFOR_REMOTE_DESKTOP_SYSTEM_PICKER=0`. X11/Ozone может успешно подключать
+WebRTC, но отдавать черный `screen:*` video, поэтому для full desktop он не
+основной режим. Sender state должен показывать
 `systemPicker.enabled=false`, `source.kind="screen"` и `source.id` вида
 `screen:*`.
 
@@ -476,11 +479,11 @@ Linux/Electron host должен работать в своем графичес
   `chrome-sandbox` с mode `4755`, либо запуск с `--no-sandbox`;
 - Xwayland `DISPLAY=:0` с Electron 35 падает `SIGSEGV` в GPU/VAAPI/NVIDIA зоне
   даже без remote desktop RTC;
-- основной server sender идет через Xwayland `DISPLAY=:0` +
-  Mutter `XAUTHORITY` и Electron `ozone-platform=x11`, чтобы
-  programmatic `desktopCapturer` отдавал `screen:*` без portal picker;
-- Wayland sender-only без system picker на текущем сервере не отдает
-  `screen:*`, поэтому не является основным режимом;
+- основной server sender идет через Wayland `WAYLAND_DISPLAY=wayland-0` +
+  Electron `ozone-platform=wayland`, чтобы full-screen WebRTC capture совпадал
+  с Mutter/EIS input region и не отдавал черный кадр;
+- X11/Ozone оставлен только как диагностический override:
+  `METAFOR_ELECTRON_OZONE_PLATFORM=x11`;
 - если запрошен `screen`, programmatic `desktopCapturer` обязан вернуть
   `screen:*`; fallback на `window:*` запрещен, потому что это маскирует
   нерабочий desktop stream;

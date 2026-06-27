@@ -27,7 +27,7 @@ The host scripts bind the local HTTP API to `127.0.0.1:32123`. If host mode is e
 
 Host mode uses a separate Electron user data directory and session partition from the regular shell.
 
-Linux server WebRTC sender mode is Xwayland-first. `webrtc:linux` starts
+Linux server WebRTC sender mode is Wayland-first. `webrtc:linux` starts
 Electron as a sender-only WebRTC process: no managed browser window, no
 Playwright, and no snapshot polling as the live video path. It uses Electron's
 programmatic `desktopCapturer` handler by default and publishes the selected
@@ -35,13 +35,15 @@ programmatic `desktopCapturer` handler by default and publishes the selected
 Mutter/PipeWire Node host can remain on `127.0.0.1:32123` as the EIS input and
 diagnostic snapshot backend. If Electron cannot provide a `screen:*` source, the
 sender fails explicitly instead of silently falling back to a window source.
-The Linux scripts default to `DISPLAY=:0`, auto-detect Mutter's Xwayland
-`XAUTHORITY`, and use `METAFOR_ELECTRON_OZONE_PLATFORM=x11`. Wayland portal
-picker mode is an explicit diagnostic opt-in.
+The Linux scripts default to `WAYLAND_DISPLAY=wayland-0` and
+`METAFOR_ELECTRON_OZONE_PLATFORM=wayland` while still exporting `DISPLAY=:0`
+and Mutter's Xwayland `XAUTHORITY` for compatibility. On the GNOME server,
+X11/Ozone `screen:*` capture can negotiate WebRTC while delivering black video;
+use `METAFOR_ELECTRON_OZONE_PLATFORM=x11` only as an explicit diagnostic opt-in.
 
 `webrtc:linux` sets `ELECTRON_DISABLE_SANDBOX=1` because the repo-local Electron
 binary is not installed with a setuid `chrome-sandbox` on the server. It also
-sets X11/Ozone, WebRTC screen capture, `METAFOR_ELECTRON_WEBGPU=0`, and
+sets Ozone/Wayland, WebRTC screen capture, `METAFOR_ELECTRON_WEBGPU=0`, and
 Vulkan/VAAPI disable flags. On the current GNOME/NVIDIA server, visible
 Electron BrowserWindows crash in the GPU/Viz process; sender-only mode avoids
 that path while still using Electron's browser media APIs.
