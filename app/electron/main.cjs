@@ -46,6 +46,7 @@ const REMOTE_DESKTOP_RTC_AUDIO_ENABLED = process.env.METAFOR_REMOTE_DESKTOP_AUDI
   : envFlag(process.env.METAFOR_REMOTE_DESKTOP_AUDIO)
 const REMOTE_DESKTOP_RTC_AUDIO_SOURCE = (process.env.METAFOR_REMOTE_DESKTOP_AUDIO_SOURCE || "auto").trim().toLowerCase()
 const REMOTE_DESKTOP_RTC_MAX_FPS = parseInteger(process.env.METAFOR_REMOTE_DESKTOP_RTC_MAX_FPS, "METAFOR_REMOTE_DESKTOP_RTC_MAX_FPS", 30, 1, 60)
+const REMOTE_DESKTOP_RTC_VIDEO_BITRATE = parseInteger(process.env.METAFOR_REMOTE_DESKTOP_RTC_VIDEO_BITRATE, "METAFOR_REMOTE_DESKTOP_RTC_VIDEO_BITRATE", 12_000_000, 500_000, 80_000_000)
 const REMOTE_DESKTOP_RTC_UDP_PORT_RANGE = parseUdpPortRange(
   process.env.METAFOR_REMOTE_DESKTOP_UDP_PORT_RANGE || process.env.METAFOR_RTC_UDP_PORT_RANGE,
   "METAFOR_REMOTE_DESKTOP_UDP_PORT_RANGE",
@@ -75,6 +76,16 @@ const REMOTE_DESKTOP_DIRECT_INPUT_API = localServiceUrl(
   process.env.METAFOR_REMOTE_DESKTOP_DIRECT_INPUT_API,
   null,
   "METAFOR_REMOTE_DESKTOP_DIRECT_INPUT_API",
+)
+const REMOTE_DESKTOP_RTC_FRAME_STREAM_URL = localServiceUrl(
+  process.env.METAFOR_REMOTE_DESKTOP_FRAME_STREAM_URL,
+  null,
+  "METAFOR_REMOTE_DESKTOP_FRAME_STREAM_URL",
+)
+const REMOTE_DESKTOP_RTC_FRAME_SNAPSHOT_URL = localServiceUrl(
+  process.env.METAFOR_REMOTE_DESKTOP_FRAME_SNAPSHOT_URL,
+  null,
+  "METAFOR_REMOTE_DESKTOP_FRAME_SNAPSHOT_URL",
 )
 const SESSION_PARTITION = HOST_MODE ? "persist:metafor-browser-host" : "persist:metafor"
 const ELECTRON_WEBGPU_ENABLED = !envFalse(process.env.METAFOR_ELECTRON_WEBGPU)
@@ -129,6 +140,11 @@ const remoteDesktopRtcState = {
   capture: {
     preferredKind: REMOTE_DESKTOP_RTC_SOURCE_KIND === "screen" ? "screen" : "window",
     preferredName: REMOTE_DESKTOP_RTC_SOURCE_NAME || null,
+    frameStreamUrl: REMOTE_DESKTOP_RTC_FRAME_STREAM_URL === null ? null : REMOTE_DESKTOP_RTC_FRAME_STREAM_URL.toString(),
+    frameSnapshotUrl: REMOTE_DESKTOP_RTC_FRAME_SNAPSHOT_URL === null ? null : REMOTE_DESKTOP_RTC_FRAME_SNAPSHOT_URL.toString(),
+    frameSource: null,
+    frameWidth: null,
+    frameHeight: null,
   },
   audio: {
     enabled: REMOTE_DESKTOP_RTC_AUDIO_ENABLED,
@@ -579,10 +595,13 @@ async function startRemoteDesktopRtc() {
       iceServers: REMOTE_DESKTOP_RTC_ICE_SERVERS,
       sourceId: source?.id ?? "",
       maxFps: REMOTE_DESKTOP_RTC_MAX_FPS,
+      videoBitrate: REMOTE_DESKTOP_RTC_VIDEO_BITRATE,
       udpPortRange: REMOTE_DESKTOP_RTC_UDP_PORT_RANGE,
       publicIceHost: REMOTE_DESKTOP_RTC_PUBLIC_ICE_HOST,
       iceInterface: REMOTE_DESKTOP_RTC_ICE_INTERFACE,
       audio: REMOTE_DESKTOP_RTC_AUDIO_ENABLED,
+      frameStreamUrl: REMOTE_DESKTOP_RTC_FRAME_STREAM_URL === null ? "" : REMOTE_DESKTOP_RTC_FRAME_STREAM_URL.toString(),
+      frameSnapshotUrl: REMOTE_DESKTOP_RTC_FRAME_SNAPSHOT_URL === null ? "" : REMOTE_DESKTOP_RTC_FRAME_SNAPSHOT_URL.toString(),
     }
     remoteDesktopRtcPageConfig = config
     await win.loadURL(remoteDesktopRtcPageUrl(config))
@@ -619,6 +638,7 @@ const state = {peers: [], status: "booting"};
 const video = document.getElementById("capture");
 let socket = null;
 let stream = null;
+let frameStreamLastStateAt = 0;
 const peers = new Map();
 
 function postState(patch) {
@@ -643,33 +663,168 @@ async function start() {
 }
 
 async function captureStream() {
-  if (navigator.mediaDevices?.getDisplayMedia !== undefined) {
+  if (config.frameStreamUrl) {
     try {
-      return await navigator.mediaDevices.getDisplayMedia({
-        video: {frameRate: {max: config.maxFps}},
-        audio: config.audio,
-      });
+      return await captureFrameStream();
     } catch (error) {
-      postState({status: "capture-fallback", lastError: String(error?.message || error)});
+      postState({status: "frame-stream-fallback", lastError: String(error?.message || error)});
     }
   }
-  try {
-    return await navigator.mediaDevices.getUserMedia({
-      audio: config.audio ? {mandatory: {chromeMediaSource: "desktop"}} : false,
-      video: {
-        mandatory: {
-          chromeMediaSource: "desktop",
-          chromeMediaSourceId: config.sourceId,
-          maxFrameRate: config.maxFps,
-        },
-      },
-    });
-  } catch (error) {
-    if (!config.audio) throw error;
-    postState({status: "audio-fallback", lastError: String(error?.message || error)});
+  if (config.sourceId) {
+    try {
+      return await captureDesktopSource(config.audio);
+    } catch (error) {
+      if (!config.audio) postState({status: "source-capture-fallback", lastError: String(error?.message || error)});
+      else postState({status: "audio-fallback", lastError: String(error?.message || error)});
+    }
+    try {
+      return await captureDesktopSource(false);
+    } catch (error) {
+      postState({status: "display-media-fallback", lastError: String(error?.message || error)});
+    }
   }
-  return await navigator.mediaDevices.getUserMedia({
-    audio: false,
+  if (navigator.mediaDevices?.getDisplayMedia !== undefined) {
+    return await navigator.mediaDevices.getDisplayMedia({
+      video: {frameRate: {max: config.maxFps}},
+      audio: config.audio,
+    });
+  }
+  throw new Error("display capture is unavailable");
+}
+
+async function captureFrameStream() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1920;
+  canvas.height = 1080;
+  const context = canvas.getContext("2d", {alpha: false});
+  if (context === null || typeof canvas.captureStream !== "function") throw new Error("canvas captureStream is unavailable");
+  const mediaStream = canvas.captureStream(config.maxFps);
+  for (const track of mediaStream.getVideoTracks()) {
+    track.contentHint = "detail";
+    track.applyConstraints?.({
+      width: {ideal: canvas.width},
+      height: {ideal: canvas.height},
+      frameRate: {ideal: config.maxFps, max: config.maxFps},
+    }).catch(() => undefined);
+  }
+  await startMjpegFrameReader(config.frameStreamUrl, canvas, context);
+  if (config.audio) postState({audio: {lastError: "desktop audio is disabled for pipewire-mjpeg video", trackCount: 0}});
+  return mediaStream;
+}
+
+function startMjpegFrameReader(url, canvas, context) {
+  return new Promise((resolve, reject) => {
+    let buffer = new Uint8Array(0);
+    let pendingFrame = null;
+    let decodeInFlight = false;
+    let firstFrameDrawn = false;
+    const timer = window.setTimeout(() => {
+      if (!firstFrameDrawn) reject(new Error("frame stream image timed out"));
+    }, 5000);
+
+    const drawFrame = async (bytes) => {
+      decodeInFlight = true;
+      try {
+        const bitmap = await createImageBitmap(new Blob([bytes], {type: "image/jpeg"}));
+        if (canvas.width !== bitmap.width || canvas.height !== bitmap.height) {
+          canvas.width = bitmap.width;
+          canvas.height = bitmap.height;
+        }
+        context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        bitmap.close?.();
+        const now = Date.now();
+        if (now - frameStreamLastStateAt >= 1000) {
+          frameStreamLastStateAt = now;
+          postState({status: "frame-stream", frameSource: "pipewire-mjpeg", frameWidth: canvas.width, frameHeight: canvas.height});
+        }
+        if (!firstFrameDrawn) {
+          firstFrameDrawn = true;
+          window.clearTimeout(timer);
+          resolve();
+        }
+      } catch (error) {
+        postState({status: "frame-decode-error", lastError: String(error?.message || error)});
+      } finally {
+        decodeInFlight = false;
+        if (pendingFrame !== null) {
+          const next = pendingFrame;
+          pendingFrame = null;
+          void drawFrame(next);
+        }
+      }
+    };
+
+    const queueFrame = (bytes) => {
+      pendingFrame = bytes;
+      if (!decodeInFlight) {
+        const next = pendingFrame;
+        pendingFrame = null;
+        void drawFrame(next);
+      }
+    };
+
+    const readLoop = async () => {
+      const response = await fetch(withCacheBust(url), {cache: "no-store"});
+      if (!response.ok || response.body === null) throw new Error("frame stream request failed " + response.status);
+      const reader = response.body.getReader();
+      for (;;) {
+        const chunk = await reader.read();
+        if (chunk.done) throw new Error("frame stream ended");
+        buffer = appendBytes(buffer, chunk.value);
+        for (;;) {
+          const frame = takeJpegFrame();
+          if (frame === null) break;
+          queueFrame(frame);
+        }
+      }
+    };
+
+    const takeJpegFrame = () => {
+      let start = -1;
+      for (let index = 0; index < buffer.length - 1; index += 1) {
+        if (buffer[index] === 0xff && buffer[index + 1] === 0xd8) {
+          start = index;
+          break;
+        }
+      }
+      if (start < 0) {
+        if (buffer.length > 2048) buffer = buffer.slice(-2048);
+        return null;
+      }
+      for (let index = start + 2; index < buffer.length - 1; index += 1) {
+        if (buffer[index] === 0xff && buffer[index + 1] === 0xd9) {
+          const frame = buffer.slice(start, index + 2);
+          buffer = buffer.slice(index + 2);
+          return frame;
+        }
+      }
+      if (start > 0) buffer = buffer.slice(start);
+      return null;
+    };
+
+    readLoop().catch((error) => {
+      window.clearTimeout(timer);
+      if (!firstFrameDrawn) reject(error);
+      else postState({status: "frame-stream-ended", lastError: String(error?.message || error)});
+    });
+  });
+}
+
+function appendBytes(first, second) {
+  const combined = new Uint8Array(first.length + second.length);
+  combined.set(first, 0);
+  combined.set(second, first.length);
+  return combined;
+}
+
+function withCacheBust(url) {
+  const separator = String(url).includes("?") ? "&" : "?";
+  return String(url) + separator + "t=" + Date.now();
+}
+
+function captureDesktopSource(audio) {
+  return navigator.mediaDevices.getUserMedia({
+    audio: audio ? {mandatory: {chromeMediaSource: "desktop"}} : false,
     video: {
       mandatory: {
         chromeMediaSource: "desktop",
@@ -742,7 +897,11 @@ function createPeer(peerId) {
   const existing = peers.get(peerId);
   if (existing !== undefined) return existing;
   const connection = new RTCPeerConnection({iceServers: config.iceServers});
-  for (const track of stream.getTracks()) connection.addTrack(track, stream);
+  for (const track of stream.getTracks()) {
+    if (track.kind === "video") track.contentHint = "detail";
+    const sender = connection.addTrack(track, stream);
+    if (track.kind === "video") configureVideoSender(sender);
+  }
   const peer = {id: peerId, connection, channel: null};
   peers.set(peerId, peer);
   connection.addEventListener("icecandidate", (event) => {
@@ -768,6 +927,20 @@ function createPeer(peerId) {
   connection.addEventListener("datachannel", (event) => attachDataChannel(peer, event.channel));
   postState({status: "peer", peers: peerSnapshots()});
   return peer;
+}
+
+function configureVideoSender(sender) {
+  if (typeof sender.getParameters !== "function" || typeof sender.setParameters !== "function") return;
+  const parameters = sender.getParameters();
+  parameters.degradationPreference = "maintain-resolution";
+  const encoding = parameters.encodings?.[0] || {};
+  encoding.maxBitrate = config.videoBitrate || 12000000;
+  encoding.maxFramerate = config.maxFps || 30;
+  encoding.scaleResolutionDownBy = 1;
+  parameters.encodings = [encoding];
+  sender.setParameters(parameters).catch((error) => {
+    postState({status: "video-params-fallback", lastError: String(error?.message || error)});
+  });
 }
 
 function attachDataChannel(peer, channel) {
@@ -906,6 +1079,9 @@ function updateRemoteDesktopRtcState(patch) {
   if (typeof patch.peerId === "string") remoteDesktopRtcState.peerId = patch.peerId
   if (typeof patch.room === "string") remoteDesktopRtcState.room = patch.room
   if (Array.isArray(patch.peers)) remoteDesktopRtcState.peers = patch.peers
+  if (typeof patch.frameSource === "string") remoteDesktopRtcState.capture.frameSource = patch.frameSource
+  if (typeof patch.frameWidth === "number") remoteDesktopRtcState.capture.frameWidth = patch.frameWidth
+  if (typeof patch.frameHeight === "number") remoteDesktopRtcState.capture.frameHeight = patch.frameHeight
   if (typeof patch.iceCandidate === "object" && patch.iceCandidate !== null && !Array.isArray(patch.iceCandidate)) {
     remoteDesktopRtcState.ice.candidateCount += 1
     const candidateKey = iceDiagnosticKey(patch.iceCandidate)

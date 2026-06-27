@@ -257,12 +257,14 @@ ANY  /browser-display/proxy/<path>   # relative path under configured browser-ho
 ## Remote Desktop Display
 
 Remote desktop display - server-owned визуальный канал для совместной Web UI
-разработки. Основной realtime-путь: Electron на сервере открывает браузерное
-окно с WebApp, захватывает весь desktop через Chromium capture API и публикует
-video/audio tracks по WebRTC. Интерпретатор держит локальный signaling endpoint,
-показывает video как first-class display `remote-desktop:server` в `Space` и
-воспроизводит audio через WebAudio spatial panner, привязанный к позиции этого
-display. Snapshot routes являются fallback/diagnostics, а не основным frame loop.
+разработки. Основной realtime-путь: Electron sender публикует video track по
+WebRTC. В production server-dev Linux контуре кадры берутся из локального
+Mutter/PipeWire host MJPEG stream (`127.0.0.1:32123/desktop/stream.mjpeg`),
+рисуются в hidden canvas и отдаются дальше через `canvas.captureStream()`; это
+обходит черные кадры Electron `desktopCapturer` на GNOME/Wayland. Интерпретатор
+держит локальный signaling endpoint и показывает video как first-class display
+`remote-desktop:server` в `Space`. Snapshot routes являются
+fallback/diagnostics, а не основным frame loop.
 
 Конфигурация bridge:
 
@@ -292,8 +294,9 @@ POST /remote-desktop/browser/open
 ```
 
 `/remote-desktop/health` мапится на Electron `/desktop/health` и включает
-состояние WebRTC sender, включая `capture.preferredKind` и фактический
-`source.kind`, а также `audio.enabled`, `audio.effectiveSource` и
+состояние WebRTC sender, включая `capture.preferredKind`, фактический
+`source.kind`, `capture.frameSource`, `capture.frameWidth`,
+`capture.frameHeight`, а также `audio.enabled`, `audio.effectiveSource` и
 `audio.trackCount`. `/remote-desktop/rtc/state` и `/remote-desktop/rtc/restart`
 управляют capture/sender window внутри отдельного Electron WebRTC sender
 (`127.0.0.1:32133` по умолчанию), а не snapshot/input host. `/remote-desktop/input`

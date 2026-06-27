@@ -6,13 +6,13 @@ desktop/browser display для интерпретатора. Цель - чтоб
 Display должен быть равноправным экраном в `Space`, а не HUD-панелью,
 iframe-оберткой или скрытым Playwright-клиентом.
 
-Текущий основной realtime-канал - WebRTC video stream из Electron/Chromium
-capture API на сервере. Host открывает браузерное окно с WebApp, но WebRTC
-source по умолчанию - весь серверный `screen`, а не вкладка и не окно браузера.
-Вместе с video track sender запрашивает audio track; interpreter подключает его
-через WebAudio `PannerNode`, привязанный к позиции `remote-desktop:server`
-display в `Space`. Snapshot endpoints остаются fallback/diagnostics, но не
-являются основным способом живой визуализации.
+Текущий основной realtime-канал - WebRTC video stream из Electron sender на
+сервере. На текущем Linux/GNOME/Wayland контуре Electron берет кадры из
+локального Mutter/PipeWire MJPEG stream (`127.0.0.1:32123/desktop/stream.mjpeg`),
+рисует их в hidden canvas и публикует canvas через `captureStream()`.
+WebRTC остается основным транспортом к interpreter; MJPEG является только
+локальным capture source внутри сервера. Snapshot endpoints остаются
+fallback/diagnostics, но не являются основным способом живой визуализации.
 
 ## Проверенный Контекст
 
@@ -282,9 +282,13 @@ curl -sS http://127.0.0.1:9230/json/list
 `METAFOR_ELECTRON_WEBGPU=0`, `ozone-platform=wayland`, отключенный Vulkan/VAAPI и
 `METAFOR_REMOTE_DESKTOP_SYSTEM_PICKER=0`. X11/Ozone может успешно подключать
 WebRTC, но отдавать черный `screen:*` video, поэтому для full desktop он не
-основной режим. Sender state должен показывать
-`systemPicker.enabled=false`, `source.kind="screen"` и `source.id` вида
-`screen:*`.
+основной режим. Проверка 2026-06-27: рабочий Linux sender state должен показывать
+`systemPicker.enabled=false`, `capture.frameSource="pipewire-mjpeg"`,
+`capture.frameWidth=1920`, `capture.frameHeight=1080`; независимый WebRTC
+receiver должен видеть `videoWidth=1920`, `videoHeight=1080` и `black=false`.
+Audio на этом pipewire-mjpeg video path временно не прикрепляется, потому что
+audio-only `getUserMedia({chromeMediaSource: "desktop"})` убивает Electron
+renderer bad IPC на текущем сервере.
 
 Проверенный запуск:
 

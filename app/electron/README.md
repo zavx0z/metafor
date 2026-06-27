@@ -28,13 +28,16 @@ The host scripts bind the local HTTP API to `127.0.0.1:32123`. If host mode is e
 Host mode uses a separate Electron user data directory and session partition from the regular shell.
 
 Linux server WebRTC sender mode is Wayland-first. `webrtc:linux` starts
-Electron as a sender-only WebRTC process: no managed browser window, no
-Playwright, and no snapshot polling as the live video path. It uses Electron's
-programmatic `desktopCapturer` handler by default and publishes the selected
-`screen:*` source into the `remote-desktop` signaling room. The existing
-Mutter/PipeWire Node host can remain on `127.0.0.1:32123` as the EIS input and
-diagnostic snapshot backend. If Electron cannot provide a `screen:*` source, the
-sender fails explicitly instead of silently falling back to a window source.
+Electron as a sender-only WebRTC process: no managed browser window and no
+Playwright. On the current GNOME/Wayland/NVIDIA server, the Linux scripts feed
+the WebRTC video track from the local Mutter/PipeWire host MJPEG stream
+(`127.0.0.1:32123/desktop/stream.mjpeg`) into a hidden canvas and publish that
+canvas with `captureStream()`. WebRTC remains the live transport to the
+interpreter; the MJPEG stream is only the local capture source inside the server.
+Electron's programmatic `desktopCapturer` path remains as a fallback/diagnostic
+path because it can negotiate WebRTC while delivering black `screen:*` frames on
+this server. The existing Mutter/PipeWire Node host also remains the EIS input
+and diagnostic snapshot backend.
 The Linux scripts default to `WAYLAND_DISPLAY=wayland-0` and
 `METAFOR_ELECTRON_OZONE_PLATFORM=wayland` while still exporting `DISPLAY=:0`
 and Mutter's Xwayland `XAUTHORITY` for compatibility. On the GNOME server,
@@ -106,6 +109,9 @@ curl http://127.0.0.1:32123/snapshot --output snapshot.png
 - `METAFOR_REMOTE_DESKTOP_CAPTURE_NAME` - optional source-name filter.
 - `METAFOR_REMOTE_DESKTOP_AUDIO` - enable/disable audio track.
 - `METAFOR_REMOTE_DESKTOP_AUDIO_SOURCE` - `auto`, `system`, `loopback`, `loopback-with-mute`, `browser`, `browser-frame`, or `off`.
+- `METAFOR_REMOTE_DESKTOP_FRAME_STREAM_URL` - optional local MJPEG frame source for the sender page. The Linux WebRTC scripts default to `http://127.0.0.1:32123/desktop/stream.mjpeg` to avoid black `desktopCapturer` frames on GNOME/Wayland.
+- `METAFOR_REMOTE_DESKTOP_FRAME_SNAPSHOT_URL` - optional local snapshot source paired with the frame stream. The Linux WebRTC scripts default to `http://127.0.0.1:32123/desktop/snapshot`.
+- `METAFOR_REMOTE_DESKTOP_RTC_VIDEO_BITRATE` - target max WebRTC video bitrate in bits per second. The Linux WebRTC scripts default to `12000000`.
 - `METAFOR_REMOTE_DESKTOP_SYSTEM_PICKER` - opt-in diagnostic mode. When truthy, let Chromium use the system picker instead of Electron's programmatic `desktopCapturer` source selection.
 - `METAFOR_REMOTE_DESKTOP_AUTO_SELECT_SOURCE` - Chromium auto-select source name used with the system picker path.
 - `METAFOR_REMOTE_DESKTOP_DIRECT_INPUT_API` - optional direct JSON input endpoint, for example `http://127.0.0.1:32123/desktop/input`, used by the WebRTC data channel input proxy.
@@ -113,8 +119,9 @@ curl http://127.0.0.1:32123/snapshot --output snapshot.png
 
 In the default sender mode there should be no GNOME "screen sharing" dialog.
 `GET /desktop/rtc/state` should show `webRtc: true`, `transport:
-"electron-webrtc"`, `systemPicker.enabled: false`, `source.kind: "screen"`,
-`status: "ready"` or `control-open`, connected peers, and
+"electron-webrtc"`, `systemPicker.enabled: false`,
+`capture.frameSource: "pipewire-mjpeg"`, `capture.frameWidth: 1920`,
+`capture.frameHeight: 1080`, connected peers, and
 `ice.lastPublishedCandidate.address` equal to the public media host with a port
 inside the configured UDP range.
 

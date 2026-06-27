@@ -6,7 +6,8 @@ const HOST = process.env.METAFOR_REMOTE_DESKTOP_HOST_BIND || "127.0.0.1"
 const PORT = Number(process.env.METAFOR_REMOTE_DESKTOP_HOST_PORT || process.env.METAFOR_ELECTRON_HOST_PORT || 32123)
 const WIDTH = Number(process.env.METAFOR_REMOTE_DESKTOP_WIDTH || 1920)
 const HEIGHT = Number(process.env.METAFOR_REMOTE_DESKTOP_HEIGHT || 1080)
-const FPS = Number(process.env.METAFOR_REMOTE_DESKTOP_SNAPSHOT_FPS || 10)
+const FPS = Number(process.env.METAFOR_REMOTE_DESKTOP_SNAPSHOT_FPS || 30)
+const MJPEG_BOUNDARY = "metafor-desktop-frame"
 const TARGET_URL = process.env.METAFOR_URL || "http://10.66.0.10:3004/"
 const CHROME = process.env.METAFOR_REMOTE_DESKTOP_BROWSER || "google-chrome"
 const CHROME_DEBUG_PORT = Number(process.env.METAFOR_REMOTE_DESKTOP_CHROME_DEBUG_PORT || 9341)
@@ -47,6 +48,11 @@ const state = {
     capturedAt: null,
     bytes: 0,
     error: null,
+  },
+  mjpeg: {
+    clients: 0,
+    lastStartedAt: null,
+    lastError: null,
   },
   input: {
     enabled: true,
@@ -91,6 +97,10 @@ server.listen(PORT, HOST, () => {
 
 async function route(req, res) {
   const url = new URL(req.url || "/", `http://${HOST}:${PORT}`)
+  if (req.method === "OPTIONS") {
+    sendEmpty(res, 204, corsHeaders())
+    return
+  }
   if (req.method === "GET" && (url.pathname === "/health" || url.pathname === "/state" || url.pathname === "/desktop/health")) {
     sendJson(res, 200, publicState())
     return
@@ -110,10 +120,15 @@ async function route(req, res) {
       "cache-control": "no-store",
       "content-type": "image/png",
       "content-length": png.length,
+      ...corsHeaders(),
       "x-meta-screen-target": "mutter-virtual",
       "x-meta-caption": "Mutter PipeWire desktop",
     })
     res.end(png)
+    return
+  }
+  if (req.method === "GET" && (url.pathname === "/desktop/stream.mjpeg" || url.pathname === "/desktop/stream")) {
+    await sendMjpegStream(req, res)
     return
   }
   if (req.method === "POST" && url.pathname === "/desktop/input") {
@@ -139,6 +154,19 @@ function publicState() {
       running: browser !== null && browser.exitCode === null && browser.signalCode === null,
     },
   }
+}
+
+function corsHeaders() {
+  return {
+    "access-control-allow-origin": "*",
+    "access-control-allow-methods": "GET,POST,OPTIONS",
+    "access-control-allow-headers": "content-type,accept",
+  }
+}
+
+function sendEmpty(res, statusCode, headers = {}) {
+  res.writeHead(statusCode, headers)
+  res.end()
 }
 
 function restart() {
@@ -412,6 +440,70 @@ function captureSnapshot() {
       finish(resolve, png)
     })
   })
+}
+
+async function sendMjpegStream(req, res) {
+  if (state.stream.serial === null) {
+    sendJson(res, 503, {ok: false, error: state.stream.error || "PipeWire stream is not ready"})
+    return
+  }
+
+  state.mjpeg.clients += 1
+  state.mjpeg.lastStartedAt = new Date().toISOString()
+  state.mjpeg.lastError = null
+
+  const gst = spawn("gst-launch-1.0", [
+    "-q",
+    "pipewiresrc",
+    `target-object=${state.stream.serial}`,
+    "!",
+    `video/x-raw,max-framerate=${FPS}/1,width=${WIDTH},height=${HEIGHT}`,
+    "!",
+    "videoconvert",
+    "!",
+    "jpegenc",
+    "quality=82",
+    "!",
+    "multipartmux",
+    `boundary=${MJPEG_BOUNDARY}`,
+    "!",
+    "fdsink",
+    "fd=1",
+  ], {stdio: ["ignore", "pipe", "pipe"]})
+
+  let settled = false
+  let stderr = ""
+  const stop = () => {
+    if (settled) return
+    settled = true
+    state.mjpeg.clients = Math.max(0, state.mjpeg.clients - 1)
+    stopChild(gst)
+  }
+
+  res.writeHead(200, {
+    "cache-control": "no-store",
+    "connection": "close",
+    "content-type": `multipart/x-mixed-replace; boundary=${MJPEG_BOUNDARY}`,
+    ...corsHeaders(),
+  })
+
+  gst.stdout.pipe(res)
+  gst.stderr.on("data", (chunk) => {
+    stderr += String(chunk)
+    if (stderr.length > 4096) stderr = stderr.slice(-4096)
+  })
+  gst.on("error", (error) => {
+    state.mjpeg.lastError = error.message
+    stop()
+  })
+  gst.on("exit", (code, signal) => {
+    if (code !== 0 && code !== null && !res.destroyed) {
+      state.mjpeg.lastError = `gst-launch mjpeg failed code=${code} signal=${signal ?? "null"} ${stderr.trim()}`.trim()
+    }
+    stop()
+  })
+  req.on("close", stop)
+  res.on("close", stop)
 }
 
 async function sendDesktopInput(body) {
