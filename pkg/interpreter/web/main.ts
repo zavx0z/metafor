@@ -2662,6 +2662,7 @@ async function initEngine(): Promise<void> {
     uiCanvas = await UiRuntime.create(engineCanvas, {
       onViewPointChange: handleInterpreterViewPointChange,
       onDisplayCenterChange: storeInterpreterDisplayPosition,
+      onDisplayLongPress: () => displayHoverOutlinePane?.revealFlightControl(),
       virtualDisplay: {
         initial: "near",
         surfaceDisplay: false,

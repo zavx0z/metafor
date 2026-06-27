@@ -341,6 +341,19 @@ export class DisplayHoverOutlinePane extends UiSurface {
     return document.fullscreenElement !== null
   }
 
+  revealFlightControl(): void {
+    if (this.canvas?.displayMode !== "far") return
+    const now = performance.now()
+    this.#lockStartedAt = now - LOCK_DURATION_MS - FLIGHT_LINE_DURATION_MS - FLIGHT_BUTTON_DURATION_MS
+    this.#lastLineProgress = 1
+    this.#lastButtonProgress = 1
+    this.#cornerFlightVisible = true
+    this.#controlTransferGraceUntilMs = now + FLIGHT_CONTROL_TRANSFER_DEBOUNCE_MS
+    this.#controlTransferGraceUsed = false
+    this.#leaveAnimation = null
+    this.requestRender()
+  }
+
   toggleBrowserFullscreen(): void {
     this.#toggleBrowserFullscreen()
   }
@@ -635,7 +648,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
     if (visualSize >= 8) this.#drawFlightCorners(visualButton, visualSize, strength * (0.62 + buttonScale * 0.38))
     if (buttonProgress < 0.74) return
     const iconSize = clamp(control.size * 0.66 * buttonScale, 18, 29)
-    drawIconCentered(this, uiIcons.zoomIn, visualCenter.x, visualCenter.y, iconSize, {
+    drawIconCentered(this, uiIcons.expand, visualCenter.x, visualCenter.y, iconSize, {
       opacity: 0.9 * strength,
       z: LOCK_Z + 0.1,
     })

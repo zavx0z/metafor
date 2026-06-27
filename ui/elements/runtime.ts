@@ -150,6 +150,14 @@ type DisplayDragActive = {
   offset: Vector3
 }
 
+type DisplayTouchGesture = {
+  displayId: UiDisplayId | null
+  startClientX: number
+  startClientY: number
+  timer: number | null
+  longPressFired: boolean
+}
+
 export type UiVirtualDisplayMode = "near" | "far"
 
 export type UiRuntimeViewPointVector = {x: number; y: number; z: number}
@@ -169,6 +177,10 @@ export type UiRuntimeViewPointRestoreOpts = {
 export type UiRuntimeDisplayCenterChange = {
   displayId: UiDisplayId
   centerMm: UiRuntimeViewPointVector
+}
+
+export type UiRuntimeDisplayLongPress = {
+  displayId: UiDisplayId
 }
 
 export type UiVirtualDisplayOpts = {
@@ -221,9 +233,13 @@ export type UiRuntimeOpts = {
   onViewPointChange?: (snapshot: UiRuntimeViewPointSnapshot) => void
   /** Вызывается, когда пользователь переместил UIDisplay long-press drag'ом. */
   onDisplayCenterChange?: (change: UiRuntimeDisplayCenterChange) => void
+  /** Вызывается, когда touch long-press удержан на UIDisplay в Space overview. */
+  onDisplayLongPress?: (event: UiRuntimeDisplayLongPress) => void
 }
 
 const DEFAULT_FONT_URL = "/JetBrainsMono-Bold.ttf"
+const TOUCH_DISPLAY_LONG_PRESS_MS = 520
+const TOUCH_DISPLAY_LONG_PRESS_MOVE_PX = 12
 
 export class UiRuntime {
   static async create(canvas: HTMLCanvasElement, opts: UiRuntimeOpts = {}): Promise<UiRuntime> {
@@ -280,6 +296,7 @@ export class UiRuntime {
   #displayNavigationDisplayId: UiDisplayId | null = null
   readonly #onViewPointChange: ((snapshot: UiRuntimeViewPointSnapshot) => void) | undefined
   readonly #onDisplayCenterChange: ((change: UiRuntimeDisplayCenterChange) => void) | undefined
+  readonly #onDisplayLongPress: ((event: UiRuntimeDisplayLongPress) => void) | undefined
   #cameraAnimationRafId: number | null = null
   #disposed = false
   #renderRequested = false
@@ -287,6 +304,7 @@ export class UiRuntime {
   #pressedSlot: SurfaceSlot | null = null
   #hoveredSlot: SurfaceSlot | null = null
   #activeTouchId: number | null = null
+  #displayTouchGesture: DisplayTouchGesture | null = null
   #lastTouchEventAt = 0
   #claimNextClick = false
   readonly #handleWheel = (event: WheelEvent): void => this.#onWheel(event)
@@ -321,6 +339,7 @@ export class UiRuntime {
     this.font = font
     this.#onViewPointChange = opts.onViewPointChange
     this.#onDisplayCenterChange = opts.onDisplayCenterChange
+    this.#onDisplayLongPress = opts.onDisplayLongPress
     this.#cameraDistanceMm = opts.cameraDistanceMm ?? 600
     const virtualDisplay = opts.virtualDisplay
     this.#virtualDisplayWidthMm = virtualDisplay?.widthMm
@@ -1274,6 +1293,7 @@ export class UiRuntime {
 
   #clearKeyboardFocus(): void {
     this.#cancelDisplayDragCandidate()
+    this.#cancelDisplayTouchGesture()
     this.#endDisplayDrag()
     this.setFocused(null)
     this.inputProxy?.blur()
@@ -1305,6 +1325,7 @@ export class UiRuntime {
     this.#activeTouchId = null
     this.#claimNextClick = false
     this.#cancelDisplayDragCandidate()
+    this.#cancelDisplayTouchGesture()
     this.#displayDragActive = null
     this.#displayNavigationActive = false
     this.inputProxy?.dispose()
@@ -1792,32 +1813,120 @@ export class UiRuntime {
     this.#claimPointerEvent(event)
   }
 
-  #onTouchStart(event: TouchEvent): void {
-    if (this.#activeTouchId !== null || event.changedTouches.length === 0) return
-    const touch = event.changedTouches[0]!
-    const local = this.#localCoordsFromTouch(touch)
-    const slot = this.#surfaceAt(local.x, local.y, "hud")
-    if (slot === undefined) return
+  #beginSurfaceTouch(event: TouchEvent, touch: Touch, slot: SurfaceSlot, localX: number, localY: number): void {
     this.#rememberTouchEvent()
     const preserveNativeActivation = slot.surface.preserveNativeTouchActivation?.() === true
     if (!preserveNativeActivation) event.preventDefault()
     this.#claimPointerEvent(event)
     this.#claimNextClick = true
     this.#cancelDisplayDragCandidate()
+    this.#cancelDisplayTouchGesture()
     this.#setDisplayHoverActive(false)
     this.#positionInputProxy(touch.clientX, touch.clientY)
+    if (slot.displayId !== undefined && this.#activeDisplayId !== slot.displayId) {
+      this.#activeDisplayId = slot.displayId
+      this.#emitViewPointChange()
+    }
     this.setFocused(slot.surface)
     this.#pressedSlot = slot
     this.#activeTouchId = touch.identifier
     const mouseEvent = this.#mouseEventFromTouch("mousedown", touch)
-    slot.surface.onPointerDown?.(mouseEvent, local.x - slot.rect.x, local.y - slot.rect.y)
+    slot.surface.onPointerDown?.(mouseEvent, localX, localY)
     if (!preserveNativeActivation) this.#focusInputProxyForUserSurface(slot.surface, mouseEvent)
+  }
+
+  #beginDisplayTouchNavigation(event: TouchEvent, touch: Touch, displayId: UiDisplayId | null): void {
+    this.#rememberTouchEvent()
+    event.preventDefault()
+    this.#claimPointerEvent(event)
+    this.#claimNextClick = true
+    this.#cancelDisplayDragCandidate()
+    this.#cancelDisplayTouchGesture()
+    this.#clearKeyboardFocus()
+    this.#activeTouchId = touch.identifier
+    const navigationEvent = this.#mouseEventFromTouch("mousedown", touch)
+    this.#beginDisplayNavigation(navigationEvent, displayId)
+    this.#setDisplayHoverActive(displayId !== null, displayId)
+    const gesture: DisplayTouchGesture = {
+      displayId,
+      startClientX: touch.clientX,
+      startClientY: touch.clientY,
+      timer: null,
+      longPressFired: false,
+    }
+    if (displayId !== null) {
+      gesture.timer = window.setTimeout(() => this.#fireDisplayTouchLongPress(gesture), TOUCH_DISPLAY_LONG_PRESS_MS)
+    }
+    this.#displayTouchGesture = gesture
+  }
+
+  #fireDisplayTouchLongPress(gesture: DisplayTouchGesture): void {
+    if (this.#displayTouchGesture !== gesture || gesture.displayId === null || this.#displayMode !== "far") return
+    gesture.longPressFired = true
+    if (gesture.timer !== null) {
+      window.clearTimeout(gesture.timer)
+      gesture.timer = null
+    }
+    this.#setDisplayHoverActive(true, gesture.displayId)
+    this.#onDisplayLongPress?.({displayId: gesture.displayId})
+  }
+
+  #cancelDisplayTouchGesture(): void {
+    const gesture = this.#displayTouchGesture
+    if (gesture?.timer !== null && gesture?.timer !== undefined) window.clearTimeout(gesture.timer)
+    this.#displayTouchGesture = null
+  }
+
+  #onTouchStart(event: TouchEvent): void {
+    if (this.#activeTouchId !== null || event.changedTouches.length === 0) return
+    const touch = event.changedTouches[0]!
+    const local = this.#localCoordsFromTouch(touch)
+    const hudSlot = this.#surfaceAt(local.x, local.y, "hud")
+    if (hudSlot !== undefined) {
+      this.#beginSurfaceTouch(event, touch, hudSlot, local.x - hudSlot.rect.x, local.y - hudSlot.rect.y)
+      return
+    }
+
+    const displayCoords = this.#displayCoords(local.x, local.y)
+    const displaySlot = displayCoords === null
+      ? undefined
+      : this.#surfaceAt(displayCoords.x, displayCoords.y, "display", displayCoords.displayId)
+    if (!this.#isDisplayNavigationMode() && displayCoords !== null && displaySlot !== undefined) {
+      this.#beginSurfaceTouch(event, touch, displaySlot, displayCoords.x - displaySlot.rect.x, displayCoords.y - displaySlot.rect.y)
+      return
+    }
+
+    if (!this.#isDisplayNavigationMode()) return
+    this.#beginDisplayTouchNavigation(event, touch, displayCoords?.displayId ?? this.#displayHoverDisplayId)
   }
 
   #onTouchMove(event: TouchEvent): void {
     if (this.#activeTouchId === null) return
     this.#rememberTouchEvent()
     const touch = this.#changedTouch(event)
+    const gesture = this.#displayTouchGesture
+    if (gesture !== null) {
+      if (touch === null) return
+      event.preventDefault()
+      this.#claimPointerEvent(event)
+      const dx = touch.clientX - gesture.startClientX
+      const dy = touch.clientY - gesture.startClientY
+      if (!gesture.longPressFired && dx * dx + dy * dy > TOUCH_DISPLAY_LONG_PRESS_MOVE_PX * TOUCH_DISPLAY_LONG_PRESS_MOVE_PX) {
+        if (gesture.timer !== null) {
+          window.clearTimeout(gesture.timer)
+          gesture.timer = null
+        }
+      }
+      if (this.#displayNavigationActive) {
+        this.#setDisplayHoverActive(gesture.displayId !== null, gesture.displayId)
+        const deltaX = touch.clientX - this.#displayNavigationLastX
+        const deltaY = touch.clientY - this.#displayNavigationLastY
+        this.#displayNavigationLastX = touch.clientX
+        this.#displayNavigationLastY = touch.clientY
+        if (deltaX !== 0 || deltaY !== 0) this.#orbitDisplay(deltaX, deltaY)
+      }
+      return
+    }
     const slot = this.#pressedSlot
     if (touch === null || slot === null) return
     event.preventDefault()
@@ -1830,6 +1939,15 @@ export class UiRuntime {
     if (this.#activeTouchId === null) return
     this.#rememberTouchEvent()
     const touch = this.#changedTouch(event)
+    if (this.#displayTouchGesture !== null) {
+      if (touch === null) return
+      this.#cancelDisplayTouchGesture()
+      this.#activeTouchId = null
+      this.#claimPointerEvent(event)
+      event.preventDefault()
+      this.#endDisplayNavigation()
+      return
+    }
     const slot = this.#pressedSlot
     if (touch === null || slot === null) return
     this.#pressedSlot = null
@@ -1844,6 +1962,18 @@ export class UiRuntime {
     if (this.#activeTouchId === null) return
     this.#rememberTouchEvent()
     const touch = this.#changedTouch(event)
+    if (this.#displayTouchGesture !== null) {
+      this.#cancelDisplayTouchGesture()
+      this.#pressedSlot = null
+      this.#activeTouchId = null
+      this.#claimNextClick = false
+      this.#endDisplayNavigation()
+      if (touch !== null) {
+        event.preventDefault()
+        this.#claimPointerEvent(event)
+      }
+      return
+    }
     const slot = this.#pressedSlot
     this.#pressedSlot = null
     this.#activeTouchId = null
@@ -1859,6 +1989,7 @@ export class UiRuntime {
 
   #onMouseLeave(): void {
     this.#cancelDisplayDragCandidate()
+    this.#cancelDisplayTouchGesture()
     // Не сбрасываем focus — пользователь может уйти мышью на toolbar/iframe
     // и продолжать набирать. Focus снимается только новым mousedown.
     this.#setDisplayHoverActive(false)
