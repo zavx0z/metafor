@@ -1173,12 +1173,14 @@ class AppWebHud implements AppWebHudController {
 	}
 
 	async chooseCodexImages(): Promise<void> {
+		this.#flushCodexComposerPendingInput()
 		const files = await pickCodexImageFiles({multiple: true, parent: this.#viewport.hud.canvas.parentElement ?? document.body})
 		if (files.length === 0) return
 		await this.#attachCodexImages(files)
 	}
 
 	submitCodexComposer(): void {
+		this.#flushCodexComposerPendingInput()
 		const message = codexComposerMessage(this.#codexDraft, this.#codexAttachments)
 		if (message.length === 0 || !this.codexComposerReady()) return
 		const payload = this.#terminal.state?.bracketedPaste
@@ -2297,6 +2299,7 @@ class AppWebHud implements AppWebHudController {
 			this.#viewport.hud.setFocused(this.#codexEditor)
 			this.#syncCodexNativeInputValue()
 		})
+		input.addEventListener("blur", () => this.#flushCodexNativeInputToDraft())
 		;(this.#viewport.hud.canvas.parentElement ?? document.body).appendChild(input)
 		this.#codexNativeInput = input
 		this.#syncCodexNativeInputOverlay()
@@ -2355,6 +2358,27 @@ class AppWebHud implements AppWebHudController {
 		this.#codexComposer.requestRender()
 	}
 
+	#flushCodexNativeInputToDraft(): boolean {
+		const input = this.#codexNativeInput
+		if (input === null || this.#codexNativeInputSyncing || document.activeElement !== input) return false
+		if (input.value === this.#codexDraft) return false
+		this.#setCodexDraftFromNativeInput(input.value, input.selectionEnd ?? input.value.length)
+		return true
+	}
+
+	#flushCodexEditorToDraft(): void {
+		const text = this.#codexEditor.getText()
+		if (text !== this.#codexDraft) this.#setCodexDraftFromEditor(text)
+	}
+
+	#flushCodexComposerPendingInput(): void {
+		const nativeChanged = this.#flushCodexNativeInputToDraft()
+		if (!nativeChanged) this.#flushCodexEditorToDraft()
+		this.#preserveVoicePartialAsTerminalInput()
+		const nativeChangedAfterVoice = this.#flushCodexNativeInputToDraft()
+		if (!nativeChangedAfterVoice) this.#flushCodexEditorToDraft()
+	}
+
 	#syncCodexNativeInputValue(): void {
 		const input = this.#codexNativeInput
 		if (input === null) return
@@ -2410,7 +2434,7 @@ class AppWebHud implements AppWebHudController {
 		input.style.top = `${Math.round(canvasRect.top + rect.y)}px`
 		input.style.width = "24px"
 		input.style.height = "24px"
-		this.#syncCodexNativeInputValue()
+		if (!this.#flushCodexNativeInputToDraft()) this.#syncCodexNativeInputValue()
 	}
 
 	#codexHeaderControls(): TerminalHeaderControls {

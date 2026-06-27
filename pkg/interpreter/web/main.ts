@@ -5791,6 +5791,7 @@ function preserveVoicePartialAsTerminalInput(): boolean {
   const target = voicePartialPreviewTarget
   const text = cleanupVoiceInputText(voicePartialPreviewText)
   if (target === null || text.length === 0) return false
+  discardVoiceAutoSendBuffer()
 
   if (target.kind === "module") {
     clearVoicePartialPreview()
@@ -5987,6 +5988,12 @@ function setHostCodexDraft(controller: HostTerminalController, value: string): v
   controller.codexComposer.requestRender()
 }
 
+function flushHostCodexDraftFromEditor(controller: HostTerminalController): void {
+  if (controller.codexEditorSyncing) return
+  const text = controller.codexEditor.getText()
+  if (text !== controller.codexDraft) setHostCodexDraftFromEditor(controller, text)
+}
+
 function syncHostCodexEditor(controller: HostTerminalController): void {
   if (controller.codexEditorSyncing || controller.codexEditor.getText() === controller.codexDraft) return
   controller.codexEditorSyncing = true
@@ -6000,7 +6007,14 @@ function syncHostCodexEditor(controller: HostTerminalController): void {
   }
 }
 
+function flushHostCodexComposerPendingInput(controller: HostTerminalController): void {
+  flushHostCodexDraftFromEditor(controller)
+  clearVoicePartialPreviewForTarget({kind: "host", controller}, "preserve")
+  flushHostCodexDraftFromEditor(controller)
+}
+
 function submitHostCodexComposer(controller: HostTerminalController): void {
+  flushHostCodexComposerPendingInput(controller)
   const message = codexComposerMessage(controller.codexDraft, controller.codexAttachments)
   if (message.length === 0 || !hostCodexComposerReady(controller)) return
   const payload = controller.terminalState?.bracketedPaste
@@ -6090,6 +6104,7 @@ function removeHostCodexAttachment(controller: HostTerminalController, id: strin
 }
 
 async function chooseHostCodexImages(controller: HostTerminalController): Promise<void> {
+  flushHostCodexComposerPendingInput(controller)
   const files = await pickCodexImageFiles({multiple: true, parent: uiCanvas?.canvas.parentElement ?? document.body})
   if (files.length === 0) return
   await attachHostCodexImages(controller, files)
