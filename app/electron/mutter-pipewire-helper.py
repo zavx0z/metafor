@@ -69,6 +69,7 @@ eis_condition = threading.Condition()
 EIS_HELPER_SOURCE = Path(__file__).with_name("mutter-eis-input.c")
 EIS_HELPER_BINARY = Path(os.environ.get("METAFOR_MUTTER_EIS_HELPER", "/tmp/metafor-mutter-eis-input"))
 EIS_REQUEST_TIMEOUT_SECONDS = float(os.environ.get("METAFOR_MUTTER_EIS_TIMEOUT", "1.5"))
+EIS_READY_TIMEOUT_SECONDS = float(os.environ.get("METAFOR_MUTTER_EIS_READY_TIMEOUT", "5.0"))
 
 BUTTON_CODES = {
     "left": 0x110,
@@ -199,7 +200,9 @@ def eis_stderr_loop(process):
 def handle_eis_payload(payload):
     global eis_ready
     if payload.get("type") == "eisReady":
-        eis_ready = True
+        with eis_condition:
+            eis_ready = True
+            eis_condition.notify_all()
         emit(payload)
         return
     if payload.get("type") != "eisResult":
@@ -214,6 +217,9 @@ def handle_eis_payload(payload):
 def send_eis_line(command):
     global eis_request_id
     start_eis_bridge()
+    with eis_condition:
+        if not eis_condition.wait_for(lambda: eis_ready, EIS_READY_TIMEOUT_SECONDS):
+            raise RuntimeError("EIS absolute pointer device is not ready")
     if eis_process is None or eis_process.poll() is not None or eis_process.stdin is None:
         raise RuntimeError("EIS helper is not running")
     with eis_condition:

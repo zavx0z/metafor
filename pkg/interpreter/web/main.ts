@@ -3097,7 +3097,11 @@ async function createRemoteDesktopRtcClient(): Promise<AndroidRtcClient> {
     capabilities: ["remote-desktop", "interpreter"],
     frameSrc: REMOTE_DESKTOP_RTC_FRAME_SRC,
     minFrameIntervalMs: 16,
-    ignoreBlackFrames: true,
+    // Chrome-native desktop capture can legitimately be mostly dark. The
+    // Electron black-frame guard is useful for sender diagnostics, but here it
+    // hides valid server-desktop frames and keeps the UI stuck on snapshot
+    // fallback.
+    ignoreBlackFrames: false,
     receiveAudio: true,
     onFrame: (frame) => {
       if (!isValidRemoteDesktopFrame(frame)) return
@@ -3109,6 +3113,7 @@ async function createRemoteDesktopRtcClient(): Promise<AndroidRtcClient> {
     },
     onAudio: connectRemoteDesktopAudio,
     onStatus: setRemoteDesktopRtcStatus,
+    onDiagnostic: (label, detail) => postInterpreterClientEvent("remote-desktop", `rtc-${label}`, detail),
   })
 }
 

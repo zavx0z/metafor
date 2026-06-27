@@ -18,13 +18,17 @@ const AUDIO_VOLUME = (process.env.METAFOR_REMOTE_DESKTOP_AUDIO_VOLUME || "0.70")
 const TARGET_URL = process.env.METAFOR_URL || "http://10.66.0.10:3004/"
 const CHROME = process.env.METAFOR_REMOTE_DESKTOP_BROWSER || "google-chrome"
 const CHROME_DEBUG_PORT = Number(process.env.METAFOR_REMOTE_DESKTOP_CHROME_DEBUG_PORT || 9341)
+const CHROME_OZONE_PLATFORM = (process.env.METAFOR_REMOTE_DESKTOP_CHROME_OZONE_PLATFORM || "wayland").trim()
 const CHROME_DEBUG_BASE_URLS = [`http://127.0.0.1:${CHROME_DEBUG_PORT}`, `http://[::1]:${CHROME_DEBUG_PORT}`]
 const CDP_TIMEOUT_MS = Number(process.env.METAFOR_REMOTE_DESKTOP_CDP_TIMEOUT_MS || 3000)
-const HELPER_INPUT_TIMEOUT_MS = Number(process.env.METAFOR_REMOTE_DESKTOP_INPUT_TIMEOUT_MS || 1500)
+const HELPER_INPUT_TIMEOUT_MS = Number(process.env.METAFOR_REMOTE_DESKTOP_INPUT_TIMEOUT_MS || 7000)
 const PROFILE_DIR = process.env.METAFOR_REMOTE_DESKTOP_BROWSER_PROFILE || `/tmp/metafor-remote-desktop-chrome-${process.pid}`
 const CHROME_RTC_ENABLED = process.env.METAFOR_REMOTE_DESKTOP_CHROME_RTC === undefined
   ? true
   : envFlag(process.env.METAFOR_REMOTE_DESKTOP_CHROME_RTC)
+const MANAGED_BROWSER_ENABLED = process.env.METAFOR_REMOTE_DESKTOP_MANAGED_BROWSER === undefined
+  ? CHROME_RTC_ENABLED
+  : envFlag(process.env.METAFOR_REMOTE_DESKTOP_MANAGED_BROWSER)
 const CHROME_RTC_SIGNAL_URL = process.env.METAFOR_REMOTE_DESKTOP_SIGNAL_URL || "ws://10.66.0.10:6500/webrtc/signaling"
 const CHROME_RTC_ROOM = process.env.METAFOR_REMOTE_DESKTOP_RTC_ROOM || "remote-desktop"
 const CHROME_RTC_PEER_ID = process.env.METAFOR_REMOTE_DESKTOP_RTC_PEER_ID || "electron-desktop"
@@ -33,8 +37,28 @@ const CHROME_RTC_PUBLIC_ICE_HOST = process.env.METAFOR_REMOTE_DESKTOP_PUBLIC_ICE
 const CHROME_RTC_ICE_INTERFACE = process.env.METAFOR_REMOTE_DESKTOP_ICE_INTERFACE || process.env.METAFOR_RTC_ICE_INTERFACE || "10.66.0.10"
 const CHROME_RTC_IP_HANDLING_POLICY = process.env.METAFOR_REMOTE_DESKTOP_IP_HANDLING_POLICY || process.env.METAFOR_RTC_IP_HANDLING_POLICY || "default_public_and_private_interfaces"
 const CHROME_RTC_VIDEO_BITRATE = Number(process.env.METAFOR_REMOTE_DESKTOP_RTC_VIDEO_BITRATE || 12_000_000)
-const CHROME_RTC_PICKER_AUTOMATION = process.env.METAFOR_REMOTE_DESKTOP_CHROME_RTC_PICKER === undefined
+const CHROME_GPU_ENABLED = process.env.METAFOR_REMOTE_DESKTOP_CHROME_GPU === undefined
+  ? CHROME_OZONE_PLATFORM !== "wayland"
+  : envFlag(process.env.METAFOR_REMOTE_DESKTOP_CHROME_GPU)
+const CHROME_NO_SANDBOX = process.env.METAFOR_REMOTE_DESKTOP_CHROME_NO_SANDBOX === undefined
   ? true
+  : envFlag(process.env.METAFOR_REMOTE_DESKTOP_CHROME_NO_SANDBOX)
+const CHROME_WEBGPU_ENABLED = envFlag(process.env.METAFOR_REMOTE_DESKTOP_CHROME_WEBGPU || "0")
+const CHROME_RTC_AUDIO_ENABLED = process.env.METAFOR_REMOTE_DESKTOP_AUDIO === undefined
+  ? true
+  : envFlag(process.env.METAFOR_REMOTE_DESKTOP_AUDIO)
+const CHROME_RTC_AUTO_SELECT_SOURCE = (process.env.METAFOR_REMOTE_DESKTOP_CHROME_AUTO_SELECT_SOURCE
+  || process.env.METAFOR_REMOTE_DESKTOP_AUTO_SELECT_SOURCE
+  || "Entire Screen").trim()
+const CHROME_RTC_FAKE_UI = process.env.METAFOR_REMOTE_DESKTOP_CHROME_FAKE_UI === undefined
+  ? CHROME_RTC_AUTO_SELECT_SOURCE.length > 0
+  : envFlag(process.env.METAFOR_REMOTE_DESKTOP_CHROME_FAKE_UI)
+const CHROME_WEBRTC_PIPEWIRE_ENABLED = process.env.METAFOR_REMOTE_DESKTOP_CHROME_PIPEWIRE === undefined
+  ? CHROME_OZONE_PLATFORM !== "x11"
+  : envFlag(process.env.METAFOR_REMOTE_DESKTOP_CHROME_PIPEWIRE)
+const CHROME_USE_OZONE_FEATURE = envFlag(process.env.METAFOR_REMOTE_DESKTOP_CHROME_USE_OZONE_FEATURE || "0")
+const CHROME_RTC_PICKER_AUTOMATION = process.env.METAFOR_REMOTE_DESKTOP_CHROME_RTC_PICKER === undefined
+  ? CHROME_RTC_AUTO_SELECT_SOURCE.length === 0
   : envFlag(process.env.METAFOR_REMOTE_DESKTOP_CHROME_RTC_PICKER)
 const HELPER = path.join(__dirname, "mutter-pipewire-helper.py")
 
@@ -335,7 +359,7 @@ function handleHelperLine(line) {
     state.stream.error = null
     state.remoteDesktop.input.lastError = null
     console.log(`[metafor-remote-desktop] PipeWire stream node=${payload.nodeId} serial=${payload.serial}`)
-    openBrowser(TARGET_URL)
+    if (MANAGED_BROWSER_ENABLED) openBrowser(TARGET_URL)
     scheduleChromeRtcStart()
     return
   }
@@ -399,6 +423,18 @@ function rejectHelperInputRequests(error) {
   }
 }
 
+function chromeEnableFeatures() {
+  const features = []
+  if (CHROME_USE_OZONE_FEATURE) features.push("UseOzonePlatform")
+  if (CHROME_WEBRTC_PIPEWIRE_ENABLED) features.push("WebRTCPipeWireCapturer")
+  return features
+}
+
+function chromeEnableFeatureFlags() {
+  const features = chromeEnableFeatures()
+  return features.length > 0 ? [`--enable-features=${features.join(",")}`] : []
+}
+
 function openBrowser(url) {
   if (browser !== null && browser.exitCode === null && browser.signalCode === null) return
   const securityFlags = insecureOriginSecurityFlags(url)
@@ -415,13 +451,20 @@ function openBrowser(url) {
     "--disable-translate",
     "--disable-session-crashed-bubble",
     "--test-type",
+    ...(CHROME_NO_SANDBOX ? ["--no-sandbox"] : []),
     "--ignore-gpu-blocklist",
-    "--enable-unsafe-webgpu",
-    "--enable-features=UseOzonePlatform,WebRTCPipeWireCapturer",
-    "--disable-features=Translate,WebRtcHideLocalIpsWithMdns",
+    ...(CHROME_GPU_ENABLED ? [] : ["--disable-gpu", "--disable-gpu-compositing"]),
+    ...(CHROME_WEBGPU_ENABLED ? ["--enable-unsafe-webgpu"] : []),
+    "--enable-usermedia-screen-capturing",
+    "--allow-http-screen-capture",
+    ...(CHROME_RTC_FAKE_UI ? ["--use-fake-ui-for-media-stream"] : []),
+    ...(CHROME_RTC_AUTO_SELECT_SOURCE.length > 0 ? [`--auto-select-desktop-capture-source=${CHROME_RTC_AUTO_SELECT_SOURCE}`] : []),
+    ...chromeEnableFeatureFlags(),
+    "--disable-features=Translate,WebRtcHideLocalIpsWithMdns,Vulkan,VulkanFromANGLE,DefaultANGLEVulkan,VaapiVideoDecoder,VaapiVideoEncoder,WebGPU",
+    "--disable-vulkan",
     "--lang=ru-RU",
     "--accept-lang=ru-RU,ru,en-US,en",
-    "--ozone-platform=wayland",
+    `--ozone-platform=${CHROME_OZONE_PLATFORM}`,
     "--force-device-scale-factor=1",
     `--window-size=${WIDTH},${HEIGHT}`,
     `--webrtc-udp-port-range=${CHROME_RTC_UDP_PORT_RANGE}`,
@@ -432,13 +475,7 @@ function openBrowser(url) {
     ...securityFlags,
     url,
   ], {
-    env: {
-      ...process.env,
-      XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR || `/run/user/${process.getuid?.() ?? 1000}`,
-      DBUS_SESSION_BUS_ADDRESS: process.env.DBUS_SESSION_BUS_ADDRESS || `unix:path=/run/user/${process.getuid?.() ?? 1000}/bus`,
-      WAYLAND_DISPLAY: process.env.WAYLAND_DISPLAY || "wayland-0",
-      XDG_SESSION_TYPE: "wayland",
-    },
+    env: chromeProcessEnv(),
     stdio: ["ignore", "ignore", "pipe"],
   })
   state.browser.pid = browser.pid
@@ -451,6 +488,23 @@ function openBrowser(url) {
     state.browser.signal = signal
     if (browser?.exitCode !== null || browser?.signalCode !== null) browser = null
   })
+}
+
+function chromeProcessEnv() {
+  const env = {
+    ...process.env,
+    XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR || `/run/user/${process.getuid?.() ?? 1000}`,
+    DBUS_SESSION_BUS_ADDRESS: process.env.DBUS_SESSION_BUS_ADDRESS || `unix:path=/run/user/${process.getuid?.() ?? 1000}/bus`,
+    WAYLAND_DISPLAY: process.env.WAYLAND_DISPLAY || "wayland-0",
+    XDG_SESSION_TYPE: CHROME_OZONE_PLATFORM === "x11" ? "x11" : "wayland",
+  }
+  if (CHROME_OZONE_PLATFORM === "x11") {
+    env.DISPLAY = process.env.DISPLAY || ":0"
+  } else {
+    delete env.DISPLAY
+    delete env.XAUTHORITY
+  }
+  return env
 }
 
 function prepareChromeProfile() {
@@ -606,6 +660,7 @@ function chromeRtcSenderScript(options = {}) {
     width: WIDTH,
     height: HEIGHT,
     maxFps: FPS,
+    audio: CHROME_RTC_AUDIO_ENABLED,
     videoBitrate: CHROME_RTC_VIDEO_BITRATE,
     udpPortRange: CHROME_RTC_UDP_PORT_RANGE,
     publicIceHost: CHROME_RTC_PUBLIC_ICE_HOST,
@@ -676,11 +731,15 @@ function chromeRtcSenderScript(options = {}) {
     post({status: "capture-requested", lastError: null});
     stream = await navigator.mediaDevices.getDisplayMedia({
       video: {
+        displaySurface: "monitor",
         frameRate: {max: config.maxFps},
         width: {ideal: config.width},
         height: {ideal: config.height},
       },
-      audio: false,
+      audio: config.audio ? {
+        systemAudio: "include",
+        suppressLocalAudioPlayback: false,
+      } : false,
     });
     for (const track of stream.getVideoTracks()) {
       track.contentHint = "detail";
@@ -700,8 +759,8 @@ function chromeRtcSenderScript(options = {}) {
         frameRate: Number(videoSettings.frameRate) || null,
       },
       audio: {
-        enabled: false,
-        effectiveSource: null,
+        enabled: Boolean(config.audio),
+        effectiveSource: stream.getAudioTracks().length > 0 ? "chrome-get-display-media" : null,
         trackCount: stream.getAudioTracks().length,
         lastError: null,
       },

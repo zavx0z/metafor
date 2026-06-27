@@ -21,20 +21,26 @@ bun --filter @app/electron host:linux
 bun --filter @app/electron dev:host:linux
 cd app/electron && bun run webrtc:linux
 cd app/electron && bun run dev:webrtc:linux
+cd app/electron && bun run webrtc:x11:window
 ```
 
 The host scripts bind the local HTTP API to `127.0.0.1:32123`. If host mode is enabled without `METAFOR_ELECTRON_HOST_PORT`, Electron listens on an ephemeral loopback port and prints the selected URL to stdout.
 
 Host mode uses a separate Electron user data directory and session partition from the regular shell.
 
-Linux server desktop mode is Wayland-first. `pipewire:host` starts the managed
-server Chrome, opens the OS screen picker, confirms it through the existing
-Mutter/EIS input adapter, and injects a Chrome-native WebRTC sender into that
-browser. The primary video source is the browser's own
-`navigator.mediaDevices.getDisplayMedia()` stream, so the interpreter receives
-the server desktop through browser WebRTC rather than through an MJPEG/canvas
-bridge. The local Mutter/PipeWire host remains available for EIS input,
-diagnostic snapshots, and fallback frame/audio adapters.
+Linux server desktop mode uses two local processes on the current GNOME server.
+`pipewire:host` stays on `127.0.0.1:32123` as the Mutter/PipeWire host for EIS
+input, diagnostic snapshots, and audio/frame fallback adapters. The active live
+WebRTC sender is `webrtc:x11:window` on `127.0.0.1:32133`: it captures the
+visible `MetaFor - Google Chrome` window through Chromium's native desktop
+capture and publishes it as browser WebRTC. This keeps the interpreter on the
+optimized WebRTC media path instead of MJPEG/canvas frame polling.
+
+The split is intentional for this server. Its XWayland root screen reports
+`0x0`, so full X11 screen capture is not usable. Standalone Google Chrome on
+Wayland can stall before CDP is available. Electron on X11 can capture the
+Chrome window reliably, including a native audio track, while `32123` continues
+to provide the remote input adapter.
 
 `webrtc:linux` still starts Electron as a sender-only diagnostic/fallback
 process: no managed browser window and no Playwright. The Electron sender first
@@ -131,14 +137,18 @@ curl http://127.0.0.1:32123/snapshot --output snapshot.png
 - `METAFOR_REMOTE_DESKTOP_AUTO_SELECT_SOURCE` - Chromium auto-select source name used with the system picker path.
 - `METAFOR_REMOTE_DESKTOP_DIRECT_INPUT_API` - optional direct JSON input endpoint, for example `http://127.0.0.1:32123/desktop/input`, used by the WebRTC data channel input proxy.
 - `METAFOR_REMOTE_DESKTOP_CHROME_RTC` - enable the Linux host Chrome-native WebRTC sender. Defaults to enabled for `pipewire:host`.
-- `METAFOR_REMOTE_DESKTOP_CHROME_RTC_PICKER` - enable automatic Chrome/GNOME picker clicks through the Mutter/EIS input adapter. Defaults to enabled.
+- `METAFOR_REMOTE_DESKTOP_MANAGED_BROWSER` - enable the browser process managed by `pipewire:host`. Defaults to the same value as `METAFOR_REMOTE_DESKTOP_CHROME_RTC`; set both to `0` when `32123` is used only as the input/snapshot host.
+- `METAFOR_REMOTE_DESKTOP_CHROME_AUTO_SELECT_SOURCE` / `METAFOR_REMOTE_DESKTOP_AUTO_SELECT_SOURCE` - Chromium desktop source name for the Linux `pipewire:host` Chrome sender. Defaults to `Entire Screen`.
+- `METAFOR_REMOTE_DESKTOP_CHROME_FAKE_UI` - allow Chromium to accept the auto-selected desktop capture source without a manual picker confirmation. Defaults to enabled when an auto-select source is configured.
+- `METAFOR_REMOTE_DESKTOP_CHROME_RTC_PICKER` - enable automatic Chrome/GNOME picker clicks through the Mutter/EIS input adapter. Defaults to disabled while Chrome auto-select is configured; set an empty auto-select source to use picker automation diagnostics.
+- `METAFOR_ELECTRON_USE_OZONE_FEATURE` - opt into Chromium's legacy `UseOzonePlatform` feature flag for Electron. The current X11 window sender leaves it disabled and relies on `--ozone-platform=x11`.
 - `METAFOR_ELECTRON_WEBGPU=0` - disable Electron WebGPU for the sender process; the captured browser/app can still use WebGPU in its own Chrome process.
 
-In the default Linux host mode `GET /desktop/rtc/state` should show
-`webRtc: true`, `transport: "chrome-webrtc"`,
-`capture.frameSource: "chrome-get-display-media"`, `capture.frameWidth: 1920`,
-`capture.frameHeight: 1080`, `capture.frameRate: 30`, a connected peer, and an
-open data channel. Chrome 148 reads the UDP port range from profile preference
+In the current server contour `GET /desktop/rtc/state` on `32133` should show
+`webRtc: true`, `transport: "electron-webrtc"`,
+`capture.frameSource: "native-chromium"`, `source.kind: "window"`,
+`capture.frameWidth` near `1918`, `capture.frameHeight` near `1078`,
+`audio.trackCount: 1`, a connected peer, and an open data channel. Chrome 148 reads the UDP port range from profile preference
 `webrtc.udp_port_range`; the host writes that preference before launching
 Chrome so ICE candidates stay inside the production forwarding range. The
 published candidate address is rewritten to `METAFOR_REMOTE_DESKTOP_PUBLIC_ICE_HOST`.

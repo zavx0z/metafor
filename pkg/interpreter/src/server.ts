@@ -1109,6 +1109,16 @@ async function handleRoute(
   dispatchUiHostCommand: UiHostCommandDispatcher,
   sqliteWatchRegistry: ReturnType<typeof createSqliteWatchRegistry>,
 ): Promise<Response> {
+  const upstreamPath = interpreterRoutes.proxy.toUpstreamPath(path)
+  if (upstreamPath !== null) {
+    if (!interpreterRoutes.proxy.acceptsPath(upstreamPath)) {
+      return jsonResponse({ok: false, error: `not found: ${method} ${path}`}, 404)
+    }
+    path = upstreamPath
+    url = new URL(url)
+    url.pathname = upstreamPath
+  }
+
   if (method === "GET" && path === "/") return jsonResponse({service: "@metafor/interpreter", routes: interpreterRoutes.index})
   if (method === "GET" && path === "/health") return jsonResponse(healthPayload(options))
   if (method === "GET" && path === "/space") return await dispatchUiHostRoute("space.get", {}, dispatchUiHostCommand)

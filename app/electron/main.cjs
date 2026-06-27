@@ -107,6 +107,7 @@ const LINUX_HOST_DISABLE_GPU = process.platform === "linux"
   && HOST_MODE
   && !envFalse(process.env.METAFOR_ELECTRON_DISABLE_GPU)
 const ELECTRON_OZONE_PLATFORM = (process.env.METAFOR_ELECTRON_OZONE_PLATFORM || process.env.ELECTRON_OZONE_PLATFORM_HINT || "").trim()
+const ELECTRON_USE_OZONE_FEATURE = envFlag(process.env.METAFOR_ELECTRON_USE_OZONE_FEATURE)
 
 const viewport = {
   width: parseInteger(process.env.METAFOR_ELECTRON_VIEWPORT_WIDTH, "METAFOR_ELECTRON_VIEWPORT_WIDTH", 1440, 1, 8192),
@@ -223,7 +224,7 @@ function configureChromiumCommandLine() {
   if (ELECTRON_WEBGPU_ENABLED) features.add("WebGPU")
   if (process.platform === "linux" && REMOTE_DESKTOP_RTC_MODE) {
     features.add("WebRTCPipeWireCapturer")
-    if (ELECTRON_OZONE_PLATFORM.length > 0) features.add("UseOzonePlatform")
+    if (ELECTRON_USE_OZONE_FEATURE && ELECTRON_OZONE_PLATFORM.length > 0) features.add("UseOzonePlatform")
   }
 
   if (ELECTRON_WEBGPU_ENABLED) app.commandLine.appendSwitch("enable-unsafe-webgpu")

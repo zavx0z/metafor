@@ -257,28 +257,29 @@ ANY  /browser-display/proxy/<path>   # relative path under configured browser-ho
 ## Remote Desktop Display
 
 Remote desktop display - server-owned визуальный канал для совместной Web UI
-разработки. Основной realtime-путь: Electron sender публикует video track по
-WebRTC. В production server-dev Linux контуре кадры берутся из локального
-Mutter/PipeWire host MJPEG stream (`127.0.0.1:32123/desktop/stream.mjpeg`),
-рисуются в hidden canvas и отдаются дальше через `canvas.captureStream()`; это
-обходит черные кадры Electron `desktopCapturer` на GNOME/Wayland. Звук берется
-из локального PipeWire audio sink как WebM/Opus stream
-(`127.0.0.1:32123/desktop/audio.webm`), декодируется в sender page через
-WebAudio и добавляется audio track в тот же WebRTC connection. Интерпретатор
-держит локальный signaling endpoint и показывает video как first-class display
-`remote-desktop:server` в `Space`. Snapshot routes являются
-fallback/diagnostics, а не основным frame loop.
+разработки. Основной realtime-путь в текущем Linux server-dev контуре:
+`pipewire:host` на `127.0.0.1:32123` держит Mutter/PipeWire input/snapshot host,
+а Electron sender `webrtc:x11:window` на `127.0.0.1:32133` публикует окно
+`MetaFor - Google Chrome` через Chromium native desktop capture/WebRTC.
+Интерпретатор держит signaling endpoint и показывает video как first-class
+display `remote-desktop:server` в `Space`. Snapshot routes и MJPEG/canvas
+adapters являются fallback/diagnostics, а не основным frame loop.
+
+Это расхождение с "полным screen capture" важно для текущего сервера:
+XWayland root screen там `0x0`, поэтому X11 screen capture не стартует, а
+standalone Google Chrome на Wayland может зависать до CDP. Рабочий live media
+path - Electron X11 window capture, `transport: "electron-webrtc"`,
+`capture.frameSource: "native-chromium"`.
 
 Конфигурация bridge:
 
 ```text
-INTERPRETER_REMOTE_DESKTOP_HOST_URL=http://127.0.0.1:<port>
-# или
-INTERPRETER_REMOTE_DESKTOP_HOST_PORT=<port>
-
+# Current server: input/snapshot host + live WebRTC sender.
+INTERPRETER_REMOTE_DESKTOP_HOST_URL=http://127.0.0.1:32123
 INTERPRETER_REMOTE_DESKTOP_RTC_HOST_URL=http://127.0.0.1:32133
-# или
-INTERPRETER_REMOTE_DESKTOP_RTC_HOST_PORT=32133
+
+# Diagnostic only: Chrome-native pipewire:host sender on 32123.
+INTERPRETER_REMOTE_DESKTOP_RTC_HOST_URL=http://127.0.0.1:32123
 ```
 
 Routes:
@@ -300,11 +301,14 @@ POST /remote-desktop/browser/open
 состояние WebRTC sender, включая `capture.preferredKind`, фактический
 `source.kind`, `capture.frameSource`, `capture.frameWidth`,
 `capture.frameHeight`, а также `audio.enabled`, `audio.effectiveSource` и
-`audio.trackCount`. `/remote-desktop/rtc/state` и `/remote-desktop/rtc/restart`
-управляют capture/sender window внутри отдельного Electron WebRTC sender
-(`127.0.0.1:32133` по умолчанию), а не snapshot/input host. `/remote-desktop/input`
-используется как fallback/control adapter; при WebRTC data channel UI может
-отправлять input напрямую sender-у.
+`audio.trackCount`. В текущем server-dev контуре `/remote-desktop/rtc/state`
+проксируется на Electron sender (`127.0.0.1:32133/desktop/rtc/state`), а
+`/remote-desktop/input` и diagnostic snapshots идут через `pipewire:host` на
+`127.0.0.1:32123`. Не оставляй `INTERPRETER_REMOTE_DESKTOP_RTC_HOST_URL=32123`,
+если активный live sender - `webrtc:x11:window`; иначе UI будет работать через
+signaling, но diagnostic state покажет старый failed Chrome sender. При WebRTC
+data channel UI отправляет input sender-у, а sender проксирует команды в
+`http://127.0.0.1:32123/desktop/input`.
 
 В production server-dev контуре `/remote-desktop/rtc/state` также используется
 как ICE diagnostic contract. Рабочий direct media path должен показывать

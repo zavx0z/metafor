@@ -66,6 +66,7 @@ export type AndroidRtcClientOpts = {
   onFrame: (frame: AndroidRtcFrame) => void
   onAudio?: (audio: AndroidRtcAudioStream | null) => void
   onStatus: (kind: AndroidRtcStatusKind, label: string) => void
+  onDiagnostic?: (label: string, detail: Record<string, unknown>) => void
 }
 
 type PeerRecord = {
@@ -92,6 +93,12 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
   video.autoplay = true
   video.muted = true
   video.playsInline = true
+  video.style.position = "fixed"
+  video.style.left = "-10000px"
+  video.style.top = "-10000px"
+  video.style.width = "1px"
+  video.style.height = "1px"
+  video.style.pointerEvents = "none"
 
   let socket: LegacyRtcSignalSocket | null = null
   let signalUrlIndex = 0
@@ -104,6 +111,8 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
   let blackFrameCanvas: HTMLCanvasElement | null = null
   let blackFrameContext: CanvasRenderingContext2D | null = null
   let pendingCommands: RtcControlCommand[] = []
+  let lastVideoWaitingStatusAt = 0
+  let lastReceiverStatsAt = 0
 
   const api: AndroidRtcClient = {
     get peerId() {
@@ -174,6 +183,7 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     pendingCommands = []
     closeAllPeers()
     video.srcObject = null
+    video.remove()
     clearAudioStream()
     frameLoopStarted = false
   }
@@ -280,14 +290,28 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
       if (event.track.kind === "audio") {
         attachAudioTrack(event.track)
         opts.onStatus("connected", "rtc audio")
+        opts.onDiagnostic?.("track", {
+          peerId: remotePeerId,
+          kind: event.track.kind,
+          readyState: event.track.readyState,
+          muted: event.track.muted,
+        })
         return
       }
       if (event.track.kind !== "video") return
       const stream = event.streams[0] ?? new MediaStream([event.track])
       video.srcObject = new MediaStream(stream.getVideoTracks())
+      ensureVideoElementMounted()
       void video.play().catch(() => undefined)
       startFrameLoop()
       opts.onStatus("connected", "rtc video")
+      opts.onDiagnostic?.("track", {
+        peerId: remotePeerId,
+        kind: event.track.kind,
+        readyState: event.track.readyState,
+        muted: event.track.muted,
+        streamTracks: stream.getTracks().map((track) => `${track.kind}:${track.readyState}:${track.muted ? "muted" : "live"}`),
+      })
     })
 
     if (initiator) {
@@ -338,8 +362,14 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
       if (requestVideoFrame !== undefined) requestVideoFrame.call(video, tick)
       else requestAnimationFrame(tick)
     }
+    const watchdog = (): void => {
+      if (!frameLoopStarted || video.srcObject === null) return
+      void copyVideoFrame()
+      requestAnimationFrame(watchdog)
+    }
     if (requestVideoFrame !== undefined) requestVideoFrame.call(video, tick)
     else requestAnimationFrame(tick)
+    if (requestVideoFrame !== undefined) requestAnimationFrame(watchdog)
   }
 
   async function copyVideoFrame(): Promise<void> {
@@ -348,7 +378,10 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     if (now - lastFrameAt < (opts.minFrameIntervalMs ?? DEFAULT_MIN_FRAME_INTERVAL_MS)) return
     const width = video.videoWidth
     const height = video.videoHeight
-    if (width <= 0 || height <= 0) return
+    if (width <= 0 || height <= 0) {
+      reportWaitingForVideoFrame(now)
+      return
+    }
     if (opts.ignoreBlackFrames === true && frameLooksBlack(video, width, height, now)) {
       return
     }
@@ -362,10 +395,72 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
       }
       TextureLoader.replaceBitmap(opts.frameSrc, bitmap)
       opts.onFrame({src: opts.frameSrc, width, height, capturedAt: Date.now()})
+      opts.onDiagnostic?.("frame", {
+        width,
+        height,
+        readyState: video.readyState,
+        paused: video.paused,
+      })
     } catch (error) {
       opts.onStatus("error", error instanceof Error ? error.message : String(error))
     } finally {
       frameCopyInFlight = false
+    }
+  }
+
+  function reportWaitingForVideoFrame(now: number): void {
+    if (now - lastVideoWaitingStatusAt < 1_000) return
+    lastVideoWaitingStatusAt = now
+    opts.onDiagnostic?.("video-wait", {
+      readyState: video.readyState,
+      networkState: video.networkState,
+      paused: video.paused,
+      muted: video.muted,
+      width: video.videoWidth,
+      height: video.videoHeight,
+      tracks: video.srcObject instanceof MediaStream
+        ? video.srcObject.getTracks().map((track) => `${track.kind}:${track.readyState}:${track.muted ? "muted" : "live"}`)
+        : [],
+    })
+    void reportReceiverStats(now)
+  }
+
+  async function reportReceiverStats(now: number): Promise<void> {
+    if (now - lastReceiverStatsAt < 2_000) return
+    lastReceiverStatsAt = now
+    for (const peer of peers.values()) {
+      for (const receiver of peer.connection.getReceivers()) {
+        if (receiver.track?.kind !== "video") continue
+        try {
+          const stats = await receiver.getStats()
+          const inbound = [...stats.values()].find((item) => item.type === "inbound-rtp" && (item as {kind?: unknown}).kind === "video")
+          if (inbound === undefined) continue
+          const entry = inbound as {
+            framesReceived?: unknown
+            framesDecoded?: unknown
+            frameWidth?: unknown
+            frameHeight?: unknown
+            bytesReceived?: unknown
+            packetsReceived?: unknown
+            packetsLost?: unknown
+          }
+          opts.onDiagnostic?.("receiver-stats", {
+            peerId: peer.id,
+            framesReceived: entry.framesReceived,
+            framesDecoded: entry.framesDecoded,
+            frameWidth: entry.frameWidth,
+            frameHeight: entry.frameHeight,
+            bytesReceived: entry.bytesReceived,
+            packetsReceived: entry.packetsReceived,
+            packetsLost: entry.packetsLost,
+          })
+        } catch (error) {
+          opts.onDiagnostic?.("receiver-stats-error", {
+            peerId: peer.id,
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }
+      }
     }
   }
 
@@ -423,6 +518,11 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     if (tracks.length === 0) return
     for (const track of tracks) audioStream.removeTrack(track)
     opts.onAudio?.(null)
+  }
+
+  function ensureVideoElementMounted(): void {
+    if (video.isConnected) return
+    document.body?.appendChild(video)
   }
 
   function closePeer(remotePeerId: string): void {
