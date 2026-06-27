@@ -5,6 +5,8 @@ const originalUrl = process.env.INTERPRETER_BROWSER_HOST_URL
 const originalPort = process.env.INTERPRETER_BROWSER_HOST_PORT
 const originalRemoteUrl = process.env.INTERPRETER_REMOTE_DESKTOP_HOST_URL
 const originalRemotePort = process.env.INTERPRETER_REMOTE_DESKTOP_HOST_PORT
+const originalRemoteRtcUrl = process.env.INTERPRETER_REMOTE_DESKTOP_RTC_HOST_URL
+const originalRemoteRtcPort = process.env.INTERPRETER_REMOTE_DESKTOP_RTC_HOST_PORT
 
 afterEach(() => {
   if (originalUrl === undefined) {
@@ -26,6 +28,16 @@ afterEach(() => {
     delete process.env.INTERPRETER_REMOTE_DESKTOP_HOST_PORT
   } else {
     process.env.INTERPRETER_REMOTE_DESKTOP_HOST_PORT = originalRemotePort
+  }
+  if (originalRemoteRtcUrl === undefined) {
+    delete process.env.INTERPRETER_REMOTE_DESKTOP_RTC_HOST_URL
+  } else {
+    process.env.INTERPRETER_REMOTE_DESKTOP_RTC_HOST_URL = originalRemoteRtcUrl
+  }
+  if (originalRemoteRtcPort === undefined) {
+    delete process.env.INTERPRETER_REMOTE_DESKTOP_RTC_HOST_PORT
+  } else {
+    process.env.INTERPRETER_REMOTE_DESKTOP_RTC_HOST_PORT = originalRemoteRtcPort
   }
 })
 
@@ -107,6 +119,8 @@ test("remote desktop bridge proxies health to desktop host", async () => {
   try {
     process.env.INTERPRETER_REMOTE_DESKTOP_HOST_PORT = String(server.port)
     delete process.env.INTERPRETER_REMOTE_DESKTOP_HOST_URL
+    delete process.env.INTERPRETER_REMOTE_DESKTOP_RTC_HOST_URL
+    delete process.env.INTERPRETER_REMOTE_DESKTOP_RTC_HOST_PORT
     delete process.env.INTERPRETER_BROWSER_HOST_URL
     delete process.env.INTERPRETER_BROWSER_HOST_PORT
 
@@ -128,7 +142,9 @@ test("remote desktop bridge exposes rtc state route", async () => {
     },
   })
   try {
-    process.env.INTERPRETER_REMOTE_DESKTOP_HOST_PORT = String(server.port)
+    process.env.INTERPRETER_REMOTE_DESKTOP_RTC_HOST_PORT = String(server.port)
+    delete process.env.INTERPRETER_REMOTE_DESKTOP_RTC_HOST_URL
+    delete process.env.INTERPRETER_REMOTE_DESKTOP_HOST_PORT
     delete process.env.INTERPRETER_REMOTE_DESKTOP_HOST_URL
 
     const res = await handleBrowserHostRoute(new Request("http://interpreter/remote-desktop/rtc/state"), "GET", "/remote-desktop/rtc/state")

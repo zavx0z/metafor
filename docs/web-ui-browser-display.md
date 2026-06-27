@@ -29,6 +29,9 @@ display в `Space`. Snapshot endpoints остаются fallback/diagnostics, н
   `INTERPRETER_REMOTE_DESKTOP_HOST_PORT=32123`;
 - host interpreter слушает `http://10.66.0.10:6500/`;
 - child `app/web/server.ts` запускается с `HOST=10.66.0.10` и `PORT=3004`;
+- embedded interpreter внутри app-web доступен под каноническим префиксом
+  `/hud/interpreter/*`; короткий `/interp/*` является поддерживаемым alias для
+  тех же upstream routes;
 - Bun inspector для child process остается локальным:
   `ws://127.0.0.1:6499/`;
 - `app/electron` имеет обычный shell-режим, opt-in browser-host режим и
@@ -171,6 +174,10 @@ INTERPRETER_REMOTE_DESKTOP_HOST_URL=http://127.0.0.1:<port>
 # или
 INTERPRETER_REMOTE_DESKTOP_HOST_PORT=<port>
 
+INTERPRETER_REMOTE_DESKTOP_RTC_HOST_URL=http://127.0.0.1:32133
+# или
+INTERPRETER_REMOTE_DESKTOP_RTC_HOST_PORT=32133
+
 WS   /webrtc/signaling
 
 GET  /browser-display/health
@@ -201,6 +208,27 @@ POST /remote-desktop/browser/open
 Маршрутный префикс `/remote-desktop` фиксирует модель server-owned display:
 видимый поток живет в `Space`, а не в HUD и не во внешнем браузере пользователя.
 
+Embedded app-web proxy:
+
+- `/hud/interpreter/webrtc/signaling` и `/interp/webrtc/signaling` должны вести
+  в тот же in-memory signaling room, что и upstream `/webrtc/signaling`;
+- Electron sender и browser UI должны быть в одном in-memory signaling server.
+  В текущем server-dev контуре owner - внешний interpreter на `6500`
+  (`/webrtc/signaling`). `3004` - app-web dev server и embedded proxy, но не
+  default signaling owner для внешней `https://dev.proizvodstvo1.ru/` вкладки;
+- Если client events показывают `rtc room 1 peers`, `rtc video`, затем
+  `rtc ice checking` -> `rtc ice disconnected`/`rtc failed`, signaling уже
+  исправен. Дальше проверять media path: sender должен публиковать UDP host
+  candidate `130.49.151.168:<40000-40100>`, а edge должен DNAT-ить этот порт в
+  `10.66.0.10:<40000-40100>` через AmneziaWG. TURN в
+  `METAFOR_REMOTE_DESKTOP_ICE_SERVERS` или `METAFOR_RTC_ICE_SERVERS` нужен
+  только как fallback для других сетевых топологий;
+- UI сначала читает `/remote-desktop/rtc/state`, берет фактический `signalUrl`
+  sender-а, затем пробует кандидаты `/hud/interpreter`, `/interp` и direct
+  `/webrtc/signaling`. Если signaling room открылся, но в нем нет
+  `electron-desktop`, UI пробует следующий кандидат, чтобы не застрять на
+  другом in-memory signaling server.
+
 Ручной smoke для Electron remote desktop host:
 
 ```sh
@@ -212,25 +240,35 @@ bun --filter @app/electron dev:host:linux
 ELECTRON_DISABLE_SANDBOX=1 \
 XDG_RUNTIME_DIR=/run/user/1000 \
 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus \
-WAYLAND_DISPLAY=wayland-0 \
-XDG_SESSION_TYPE=wayland \
+DISPLAY=:0 \
+XAUTHORITY=/run/user/1000/.mutter-Xwaylandauth.N4DER3 \
+XDG_SESSION_TYPE=x11 \
 METAFOR_URL=http://10.66.0.10:3004/ \
 METAFOR_ELECTRON_HOST=1 \
-METAFOR_ELECTRON_HOST_PORT=32123 \
+METAFOR_ELECTRON_HOST_PORT=32133 \
+METAFOR_ELECTRON_OZONE_PLATFORM=x11 \
 METAFOR_REMOTE_DESKTOP_RTC=1 \
+METAFOR_REMOTE_DESKTOP_SENDER_ONLY=1 \
+METAFOR_REMOTE_DESKTOP_SYSTEM_PICKER=0 \
 METAFOR_REMOTE_DESKTOP_CAPTURE_SOURCE=screen \
 METAFOR_REMOTE_DESKTOP_AUDIO=1 \
 METAFOR_REMOTE_DESKTOP_AUDIO_SOURCE=auto \
+METAFOR_REMOTE_DESKTOP_UDP_PORT_RANGE=40000-40100 \
+METAFOR_REMOTE_DESKTOP_PUBLIC_ICE_HOST=130.49.151.168 \
+METAFOR_REMOTE_DESKTOP_ICE_INTERFACE=10.66.0.10 \
+METAFOR_REMOTE_DESKTOP_IP_HANDLING_POLICY=default_public_and_private_interfaces \
 METAFOR_REMOTE_DESKTOP_SIGNAL_URL=ws://10.66.0.10:6500/webrtc/signaling \
 METAFOR_ELECTRON_DEBUG_PORT=9230 \
 node_modules/.bin/electron app/electron \
-  --ozone-platform=wayland \
+  --ozone-platform=x11 \
   --enable-features=UseOzonePlatform,WebRTCPipeWireCapturer \
   --no-sandbox
 
-curl -sS http://127.0.0.1:32123/health
-curl -sS http://127.0.0.1:32123/desktop/rtc/state
+curl -sS http://127.0.0.1:32133/desktop/health
+curl -sS http://127.0.0.1:32133/desktop/rtc/state
 curl -sS http://10.66.0.10:6500/remote-desktop/rtc/state
+curl -sS http://10.66.0.10:6500/remote-desktop/rtc/state \
+  | jq '.remoteDesktop.ice.lastPublishedCandidate'
 curl -sS http://127.0.0.1:32123/state
 curl -sS http://127.0.0.1:32123/snapshot --output /tmp/browser-host.png
 curl -sS http://127.0.0.1:9230/json/version
@@ -239,12 +277,11 @@ curl -sS http://127.0.0.1:9230/json/list
 
 Проверка 2026-06-27: Electron 35.7.5 на текущем GNOME/Wayland/NVIDIA сервере
 падает `SIGSEGV` в GPU/Viz даже без remote desktop RTC. Electron 42.5.0
-работает в sender-only режиме: hidden WebRTC page, `METAFOR_ELECTRON_WEBGPU=0`,
-Wayland/Ozone, отключенный Vulkan/VAAPI и GNOME/PipeWire system picker.
-Первый запуск требует подтвердить portal dialog: выбрать `Экран` и нажать
-`Дать доступ`. После подтверждения sender stream имеет live video track
-`1920x1080`, а тестовый WebRTC receiver получает `width=1920`, `height=1080`,
-`muted=false`.
+работает в sender-only режиме через Xwayland: hidden WebRTC page,
+`METAFOR_ELECTRON_WEBGPU=0`, `ozone-platform=x11`, отключенный Vulkan/VAAPI и
+`METAFOR_REMOTE_DESKTOP_SYSTEM_PICKER=0`. Sender state должен показывать
+`systemPicker.enabled=false`, `source.kind="screen"` и `source.id` вида
+`screen:*`.
 
 Проверенный запуск:
 
@@ -252,14 +289,24 @@ Wayland/Ozone, отключенный Vulkan/VAAPI и GNOME/PipeWire system pick
 cd /home/zavx0z/production/vendor/metafor/app/electron
 XDG_RUNTIME_DIR=/run/user/1000 \
 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus \
-WAYLAND_DISPLAY=wayland-0 \
-XDG_SESSION_TYPE=wayland \
+DISPLAY=:0 \
+XAUTHORITY=/run/user/1000/.mutter-Xwaylandauth.N4DER3 \
+XDG_SESSION_TYPE=x11 \
 METAFOR_URL=http://10.66.0.10:3004/ \
 bun run dev:webrtc:linux
 ```
 
 В этом контуре Node/Mutter host на `127.0.0.1:32123` остается input/snapshot
 adapter, а Electron на `127.0.0.1:32133` является основным WebRTC video sender.
+Production media path повторяет voice gateway: UDP `40000-40100` идет через
+public edge `130.49.151.168`/`proizvodstvo1.ru` и DNAT в `10.66.0.10` по
+AmneziaWG. Electron/Chromium должен ограничивать WebRTC sockets тем же range
+через `METAFOR_REMOTE_DESKTOP_UDP_PORT_RANGE=40000-40100`, а опубликованные
+host candidates должны быть переписаны на
+`METAFOR_REMOTE_DESKTOP_PUBLIC_ICE_HOST=130.49.151.168`. Если Chromium создает
+socket на `0.0.0.0`, raw diagnostics могут показывать локальный адрес вроде
+`10.163.*`; проверять надо `ice.lastPublishedCandidate`, а не только
+`ice.lastCandidate`.
 Обязательная проверка - `GET http://127.0.0.1:32133/desktop/rtc/state`;
 payload должен показывать `webRtc: true`, `transport: "electron-webrtc"` и
 peer `interpreter-desktop-*` после подключения UI.
@@ -268,6 +315,12 @@ CDP endpoints полезны для диагностики DevTools/source maps,
 и audio path для агента и interpreter UI идет через WebRTC signaling и
 `remote-desktop:server` display. HTTP routes `/remote-desktop/*` нужны для
 health, restart, fallback snapshot и input adapter diagnostics.
+`/remote-desktop/rtc/state` и `/remote-desktop/rtc/restart` должны идти в
+Electron WebRTC sender (`127.0.0.1:32133` по умолчанию), а не в Node/Mutter
+snapshot/input host (`127.0.0.1:32123`). В app-web embedded режиме viewer может
+использовать `/hud/interpreter/webrtc/signaling` как proxy, но sender и viewer
+все равно должны сходиться в один signaling owner. Отдельный app-web HUD
+endpoint `/hud/webrtc/signaling` не используется и не должен подниматься.
 
 ## Display В Space
 
@@ -423,9 +476,16 @@ Linux/Electron host должен работать в своем графичес
   `chrome-sandbox` с mode `4755`, либо запуск с `--no-sandbox`;
 - Xwayland `DISPLAY=:0` с Electron 35 падает `SIGSEGV` в GPU/VAAPI/NVIDIA зоне
   даже без remote desktop RTC;
-- Wayland sender-only с Electron 42.5.0 работает после portal confirm;
-- programmatic `desktopCapturer` на Wayland может вернуть `window:*` source без
-  кадров, поэтому для полного desktop stream использовать system picker path;
+- основной server sender идет через Xwayland `DISPLAY=:0` +
+  Mutter `XAUTHORITY` и Electron `ozone-platform=x11`, чтобы
+  programmatic `desktopCapturer` отдавал `screen:*` без portal picker;
+- Wayland sender-only без system picker на текущем сервере не отдает
+  `screen:*`, поэтому не является основным режимом;
+- если запрошен `screen`, programmatic `desktopCapturer` обязан вернуть
+  `screen:*`; fallback на `window:*` запрещен, потому что это маскирует
+  нерабочий desktop stream;
+- `METAFOR_REMOTE_DESKTOP_SYSTEM_PICKER=1` разрешен только как диагностический
+  opt-in, когда нужно вручную проверить поведение PipeWire portal;
 - `xvfb` на сервере не установлен, а `sudo -n apt-get install xvfb` требует
   интерактивную авторизацию.
 

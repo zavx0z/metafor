@@ -56,6 +56,8 @@ export type AndroidRtcClientOpts = {
   senderPeerId?: string
   peerTarget?: "primary" | "secondary" | "any"
   signalUrl?: string
+  signalUrls?: string[]
+  iceServers?: RTCIceServer[]
   capabilities?: string[]
   frameSrc: string
   minFrameIntervalMs?: number
@@ -78,7 +80,7 @@ const MAX_PENDING_COMMANDS = 16
 
 export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcClient {
   const room = opts.room ?? DEFAULT_ANDROID_RTC_ROOM
-  const peerId = opts.peerId ?? `interpreter-${crypto.randomUUID()}`
+  const peerId = opts.peerId ?? `interpreter-${rtcRandomToken()}`
   const peerTarget = opts.peerTarget ?? "primary"
   const peers = new Map<string, PeerRecord>()
   const video = document.createElement("video")
@@ -88,6 +90,9 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
   video.playsInline = true
 
   let socket: LegacyRtcSignalSocket | null = null
+  let signalUrlIndex = 0
+  let signalUrlAttempts = 0
+  let manuallyDisconnected = false
   let frameLoopStarted = false
   let frameCopyInFlight = false
   let lastFrameAt = 0
@@ -111,13 +116,29 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
 
   function connect(): void {
     if (socket !== null && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return
-    opts.onStatus("running", "rtc connecting")
-    socket = createLegacyRtcSignalSocket({
-      conversationId: room,
-      participantId: peerId,
-      capabilities: opts.capabilities ?? ["android-display", "interpreter"],
-      ...(opts.signalUrl === undefined ? {} : {url: opts.signalUrl}),
-    })
+    manuallyDisconnected = false
+    signalUrlAttempts = 0
+    openSignalSocket()
+  }
+
+  function openSignalSocket(): void {
+    const urls = rtcSignalUrlCandidates()
+    const url = urls[signalUrlIndex] ?? opts.signalUrl
+    opts.onStatus("running", `rtc connecting ${rtcSignalUrlLabel(url)}`)
+    try {
+      socket = createLegacyRtcSignalSocket({
+        conversationId: room,
+        participantId: peerId,
+        capabilities: opts.capabilities ?? ["android-display", "interpreter"],
+        ...(url === undefined ? {} : {url}),
+      })
+    } catch (error) {
+      if (tryNextSignalUrl("signal")) return
+      opts.onStatus("error", error instanceof Error ? `rtc ${error.message}` : "rtc signaling error")
+      return
+    }
+    const currentSocket = socket
+    signalUrlAttempts += 1
     socket.addEventListener("open", () => opts.onStatus("running", "rtc signaling"))
     socket.addEventListener("message", (event) => {
       if (typeof event.data !== "string") return
@@ -126,14 +147,20 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
       void handleSignal(signal)
     })
     socket.addEventListener("close", () => {
+      if (socket !== currentSocket) return
       opts.onStatus("idle", "rtc disconnected")
       closeAllPeers()
       socket = null
     })
-    socket.addEventListener("error", () => opts.onStatus("error", "rtc signaling error"))
+    socket.addEventListener("error", () => {
+      if (socket !== currentSocket) return
+      if (tryNextSignalUrl("signal")) return
+      opts.onStatus("error", "rtc signaling error")
+    })
   }
 
   function disconnect(): void {
+    manuallyDisconnected = true
     const current = socket
     socket = null
     current?.close()
@@ -159,7 +186,7 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     let sent = false
     for (const peer of peers.values()) {
       if (peer.channel?.readyState !== "open") continue
-      peer.channel.send(JSON.stringify({...command, id: crypto.randomUUID()}))
+      peer.channel.send(JSON.stringify({...command, id: rtcRandomToken()}))
       sent = true
     }
     return sent
@@ -181,8 +208,12 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
   async function handleSignal(signal: AndroidRtcSignal): Promise<void> {
     if (signal.type === "hello") {
       opts.onStatus("running", `rtc room ${signal.peers.length} peers`)
-      for (const remotePeerId of signal.peers) {
-        if (isTargetRtcSenderPeer(remotePeerId, peerTarget, opts.senderPeerId ?? ANDROID_RTC_SENDER_PEER)) void createPeer(remotePeerId, true)
+      const targetPeers = signal.peers.filter((remotePeerId) => (
+        isTargetRtcSenderPeer(remotePeerId, peerTarget, opts.senderPeerId ?? ANDROID_RTC_SENDER_PEER)
+      ))
+      if (targetPeers.length === 0 && tryNextSignalUrl("peer")) return
+      for (const remotePeerId of targetPeers) {
+        void createPeer(remotePeerId, true)
       }
       return
     }
@@ -215,7 +246,7 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     const existing = peers.get(remotePeerId)
     if (existing !== undefined) return existing
 
-    const connection = new RTCPeerConnection({iceServers: RTC_ICE_SERVERS})
+    const connection = new RTCPeerConnection({iceServers: opts.iceServers ?? RTC_ICE_SERVERS})
     connection.addTransceiver("video", {direction: "recvonly"})
     if (opts.receiveAudio === true) connection.addTransceiver("audio", {direction: "recvonly"})
     const peer: PeerRecord = {id: remotePeerId, connection, channel: null}
@@ -228,6 +259,13 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     connection.addEventListener("connectionstatechange", () => {
       opts.onStatus(connection.connectionState === "connected" ? "connected" : "running", `rtc ${connection.connectionState}`)
       if (connection.connectionState === "failed" || connection.connectionState === "closed") closePeer(remotePeerId)
+    })
+    connection.addEventListener("iceconnectionstatechange", () => {
+      const state = connection.iceConnectionState
+      opts.onStatus(state === "connected" || state === "completed" ? "connected" : state === "failed" ? "error" : "running", `rtc ice ${state}`)
+    })
+    connection.addEventListener("icegatheringstatechange", () => {
+      opts.onStatus("running", `rtc gathering ${connection.iceGatheringState}`)
     })
     connection.addEventListener("datachannel", (event) => attachDataChannel(peer, event.channel))
     connection.addEventListener("track", (event) => {
@@ -358,6 +396,52 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     if (socket?.readyState !== WebSocket.OPEN) return
     socket.send(JSON.stringify(payload))
   }
+
+  function tryNextSignalUrl(reason: string): boolean {
+    const urls = rtcSignalUrlCandidates()
+    if (manuallyDisconnected || urls.length <= 1 || signalUrlAttempts >= urls.length) return false
+    opts.onStatus("running", `rtc retry ${reason}`)
+    const current = socket
+    socket = null
+    current?.close()
+    closeAllPeers()
+    signalUrlIndex = (signalUrlIndex + 1) % urls.length
+    window.setTimeout(() => openSignalSocket(), 150)
+    return true
+  }
+
+  function rtcSignalUrlCandidates(): string[] {
+    return uniqueStrings([
+      ...(opts.signalUrl === undefined ? [] : [opts.signalUrl]),
+      ...(opts.signalUrls ?? []),
+    ])
+  }
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values.filter((value) => value.trim().length > 0))]
+}
+
+function rtcSignalUrlLabel(value: string | undefined): string {
+  if (value === undefined) return "default"
+  try {
+    const url = new URL(value, window.location.href)
+    return `${url.host}${url.pathname}`
+  } catch {
+    return "custom"
+  }
+}
+
+function rtcRandomToken(): string {
+  const cryptoApi = globalThis.crypto
+  if (typeof cryptoApi?.randomUUID === "function") return cryptoApi.randomUUID()
+  const bytes = new Uint8Array(16)
+  if (typeof cryptoApi?.getRandomValues === "function") {
+    cryptoApi.getRandomValues(bytes)
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) bytes[index] = Math.floor(Math.random() * 256)
+  }
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("")
 }
 
 function parseSignal(raw: string): AndroidRtcSignal | null {

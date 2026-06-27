@@ -105,6 +105,7 @@ import {
 } from "./workspace-files.ts"
 import {formatTerminalExpressionResult} from "./terminal-value-format.ts"
 import {createAndroidRtcClient, type AndroidRtcAudioStream, type AndroidRtcClient, type AndroidRtcCommand, type AndroidRtcFrame, type RtcControlCommand} from "./android-rtc.ts"
+import {RTC_ICE_SERVERS} from "./p2p-signaling.ts"
 import {
   DEFAULT_VOICE_ACTIVATION_PHRASES,
   DEFAULT_VOICE_DEACTIVATION_PHRASES,
@@ -815,11 +816,13 @@ let networkDisplayInstalled = false
 let remoteDesktopPane: RemoteDesktopPane | null = null
 let remoteDesktopDisplayInstalled = false
 let remoteDesktopRtcClient: AndroidRtcClient | null = null
+let remoteDesktopRtcConnectInFlight = false
 let remoteDesktopSnapshotTimer: number | null = null
 let remoteDesktopSnapshotInFlight = false
 let remoteDesktopLastRtcFrameAt = 0
 let remoteDesktopSnapshotPath: string | null = null
 let remoteDesktopSnapshotFrameSlot = 0
+let remoteDesktopLastRtcStatusLog = ""
 let spaceOverviewPinned = false
 let spaceOverviewWatchdogTimer: number | null = null
 let hostTerminalAgentSignalPane: HostTerminalAgentSignalPane | null = null
@@ -964,7 +967,7 @@ connect()
 void initEngine()
 
 function connect(): void {
-  const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`
+  const url = interpreterWebSocketUrl("/ws")
   socket = new WebSocket(url)
 
   socket.addEventListener("message", (event) => {
@@ -1066,7 +1069,7 @@ function scheduleReloadWhenServerReady(delayMs: number): void {
     const controller = new AbortController()
     const timer = window.setTimeout(() => controller.abort(), RELOAD_HEALTH_REQUEST_TIMEOUT_MS)
     try {
-      const response = await fetch(`/health?_r=${Date.now()}`, {
+      const response = await fetch(`${interpreterHttpPath("/health")}?_r=${Date.now()}`, {
         cache: "no-store",
         signal: controller.signal,
       })
@@ -3031,33 +3034,73 @@ function setSecondaryAndroidRtcStatus(kind: AndroidPaneStatusKind, label: string
 
 function connectRemoteDesktopRtc(): void {
   if (remoteDesktopPane === null) return
+  postInterpreterClientEvent("remote-desktop", "connect-start", {
+    path: window.location.pathname,
+    protocol: window.location.protocol,
+    host: window.location.host,
+    embeddedPrefix: currentEmbeddedInterpreterPathPrefix() ?? "",
+  })
   startRemoteDesktopSnapshotFallback()
+  if (remoteDesktopRtcConnectInFlight) return
   if (remoteDesktopRtcClient === null) {
-    remoteDesktopRtcClient = createAndroidRtcClient({
-      room: "remote-desktop",
-      peerId: `interpreter-desktop-${crypto.randomUUID()}`,
-      senderPeerId: "electron-desktop",
-      peerTarget: "any",
-      signalUrl: interpreterRtcSignalUrl(),
-      capabilities: ["remote-desktop", "interpreter"],
-      frameSrc: REMOTE_DESKTOP_RTC_FRAME_SRC,
-      receiveAudio: true,
-      onFrame: (frame) => {
-        if (!isValidRemoteDesktopFrame(frame)) return
-        remoteDesktopLastRtcFrameAt = Date.now()
-        remoteDesktopPane?.setFrame(frame)
-        remoteDesktopPane?.setStatus("connected", `${frame.width}x${frame.height} rtc`)
-      },
-      onAudio: connectRemoteDesktopAudio,
-      onStatus: setRemoteDesktopRtcStatus,
+    remoteDesktopRtcConnectInFlight = true
+    void createRemoteDesktopRtcClient().then((client) => {
+      remoteDesktopRtcClient = client
+      client.connect()
+      primeRemoteDesktopAudio()
+    }).catch((error) => {
+      remoteDesktopPane?.setStatus("error", error instanceof Error ? `rtc ${error.message}` : "rtc unavailable")
+    }).finally(() => {
+      remoteDesktopRtcConnectInFlight = false
     })
+    return
   }
   remoteDesktopRtcClient.connect()
   primeRemoteDesktopAudio()
 }
 
+type RemoteDesktopRtcResolvedConfig = {
+  signalUrls: string[]
+  iceServers: RTCIceServer[] | null
+}
+
+async function createRemoteDesktopRtcClient(): Promise<AndroidRtcClient> {
+  const rtcConfig = await resolveRemoteDesktopRtcConfig()
+  const {signalUrls, iceServers} = rtcConfig
+  postInterpreterClientEvent("remote-desktop", "signal-urls", {
+    count: signalUrls.length,
+    urls: signalUrls,
+    iceServers: iceServersForDiagnostics(iceServers ?? RTC_ICE_SERVERS),
+  })
+  return createAndroidRtcClient({
+    room: "remote-desktop",
+    peerId: `interpreter-desktop-${remoteDesktopRandomToken()}`,
+    senderPeerId: "electron-desktop",
+    peerTarget: "any",
+    ...(signalUrls[0] === undefined ? {} : {signalUrl: signalUrls[0]}),
+    signalUrls,
+    ...(iceServers === null ? {} : {iceServers}),
+    capabilities: ["remote-desktop", "interpreter"],
+    frameSrc: REMOTE_DESKTOP_RTC_FRAME_SRC,
+    minFrameIntervalMs: 16,
+    receiveAudio: true,
+    onFrame: (frame) => {
+      if (!isValidRemoteDesktopFrame(frame)) return
+      remoteDesktopLastRtcFrameAt = Date.now()
+      remoteDesktopPane?.setFrame(frame)
+      remoteDesktopPane?.setStatus("connected", `${frame.width}x${frame.height} rtc`)
+    },
+    onAudio: connectRemoteDesktopAudio,
+    onStatus: setRemoteDesktopRtcStatus,
+  })
+}
+
 function setRemoteDesktopRtcStatus(kind: AndroidPaneStatusKind, label: string): void {
   remoteDesktopPane?.setStatus(kind, label)
+  const key = `${kind}:${label}`
+  if (remoteDesktopLastRtcStatusLog === key) return
+  remoteDesktopLastRtcStatusLog = key
+  postInterpreterClientEvent("remote-desktop", "rtc-status", {kind, label})
 }
 
 function sendRemoteDesktopControl(command: RtcControlCommand): boolean {
@@ -3178,6 +3221,18 @@ function isValidRemoteDesktopFrame(frame: AndroidRtcFrame): boolean {
   return frame.width > 0 && frame.height > 0
 }
 
+function remoteDesktopRandomToken(): string {
+  const cryptoApi = globalThis.crypto
+  if (typeof cryptoApi?.randomUUID === "function") return cryptoApi.randomUUID()
+  const bytes = new Uint8Array(16)
+  if (typeof cryptoApi?.getRandomValues === "function") {
+    cryptoApi.getRandomValues(bytes)
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) bytes[index] = Math.floor(Math.random() * 256)
+  }
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("")
+}
+
 async function fetchRemoteDesktopSnapshot(): Promise<Response> {
   let lastError = "desktop snapshot unavailable"
   for (const path of remoteDesktopApiPaths("/snapshot")) {
@@ -3211,9 +3266,138 @@ async function responseErrorText(response: Response): Promise<string> {
   return compact.length > 0 ? compact.slice(0, 180) : response.statusText
 }
 
-function interpreterRtcSignalUrl(): string {
+function interpreterRtcSignalUrl(path = remoteDesktopRtcSignalPath()): string {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
-  return `${protocol}//${window.location.host}${remoteDesktopRtcSignalPath()}`
+  return `${protocol}//${window.location.host}${path}`
+}
+
+function interpreterWebSocketUrl(path: string): string {
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
+  return `${protocol}//${window.location.host}${interpreterHttpPath(path)}`
+}
+
+function interpreterHttpPath(path: string): string {
+  const suffix = path.startsWith("/") ? path : `/${path}`
+  const prefix = currentEmbeddedInterpreterPathPrefix()
+  return prefix === null ? suffix : `${prefix}${suffix}`
+}
+
+function postInterpreterClientEvent(scope: string, label: string, detail: Record<string, unknown> = {}): void {
+  const body = JSON.stringify({scope, label, detail})
+  void fetch(interpreterHttpPath("/client-event"), {
+    method: "POST",
+    headers: {"content-type": "application/json"},
+    body,
+    keepalive: body.length < 60_000,
+  }).catch(() => undefined)
+}
+
+async function resolveRemoteDesktopRtcConfig(): Promise<RemoteDesktopRtcResolvedConfig> {
+  const candidates: string[] = []
+  let iceServers: RTCIceServer[] | null = null
+  for (const path of remoteDesktopApiPaths("/rtc/state")) {
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => controller.abort(), 1_500)
+    try {
+      const response = await fetch(`${path}?t=${Date.now()}`, {
+        cache: "no-store",
+        signal: controller.signal,
+      })
+      if (!response.ok) continue
+      const payload = await response.json()
+      const signalUrl = remoteDesktopSignalUrlFromState(payload)
+      if (signalUrl !== null) candidates.push(...remoteDesktopSignalUrlCandidates(signalUrl))
+      iceServers ??= remoteDesktopIceServersFromState(payload)
+    } catch {
+      // Fall through to the same-origin default below.
+    } finally {
+      window.clearTimeout(timer)
+    }
+  }
+  candidates.push(...remoteDesktopSignalUrlCandidates(null))
+  return {signalUrls: uniqueStrings(candidates), iceServers}
+}
+
+function remoteDesktopSignalUrlFromState(value: unknown): string | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null
+  const remoteDesktop = (value as {remoteDesktop?: unknown}).remoteDesktop
+  if (typeof remoteDesktop !== "object" || remoteDesktop === null || Array.isArray(remoteDesktop)) return null
+  const signalUrl = (remoteDesktop as {signalUrl?: unknown}).signalUrl
+  return typeof signalUrl === "string" && signalUrl.trim().length > 0 ? signalUrl.trim() : null
+}
+
+function remoteDesktopIceServersFromState(value: unknown): RTCIceServer[] | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null
+  const remoteDesktop = (value as {remoteDesktop?: unknown}).remoteDesktop
+  if (typeof remoteDesktop !== "object" || remoteDesktop === null || Array.isArray(remoteDesktop)) return null
+  const iceServers = (remoteDesktop as {iceServers?: unknown}).iceServers
+  const parsed = normalizeRtcIceServers(iceServers)
+  return parsed.length === 0 ? null : parsed
+}
+
+function normalizeRtcIceServers(value: unknown): RTCIceServer[] {
+  if (!Array.isArray(value)) return []
+  return value.map(normalizeRtcIceServer).filter((server): server is RTCIceServer => server !== null)
+}
+
+function normalizeRtcIceServer(value: unknown): RTCIceServer | null {
+  if (typeof value === "string" && value.trim().length > 0) return {urls: value.trim()}
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null
+  const raw = value as {urls?: unknown; username?: unknown; credential?: unknown; credentialType?: unknown}
+  const urls = normalizeRtcIceServerUrls(raw.urls)
+  if (urls.length === 0) return null
+  return {
+    urls: urls.length === 1 ? urls[0]! : urls,
+    ...(typeof raw.username === "string" ? {username: raw.username} : {}),
+    ...(typeof raw.credential === "string" ? {credential: raw.credential} : {}),
+    ...(raw.credentialType === "password" || raw.credentialType === "oauth" ? {credentialType: raw.credentialType} : {}),
+  }
+}
+
+function normalizeRtcIceServerUrls(value: unknown): string[] {
+  if (typeof value === "string") return value.trim().length > 0 ? [value.trim()] : []
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter(Boolean)
+}
+
+function iceServersForDiagnostics(servers: RTCIceServer[]): string[] {
+  return servers.flatMap((server) => {
+    const urls = typeof server.urls === "string" ? [server.urls] : server.urls
+    return urls.map((url) => {
+      const compact = url.replace(/\/\/[^:@/]+:[^@/]+@/, "//***:***@")
+      return compact.length > 160 ? compact.slice(0, 160) : compact
+    })
+  })
+}
+
+function normalizeRemoteDesktopSignalUrl(rawUrl: string): string {
+  try {
+    const url = new URL(rawUrl, window.location.href)
+    if (window.location.protocol === "https:" && url.protocol === "ws:") {
+      const sameOrigin = new URL(window.location.href)
+      sameOrigin.protocol = "wss:"
+      sameOrigin.pathname = url.pathname === "/webrtc/signaling"
+        ? remoteDesktopRtcSignalPath()
+        : url.pathname
+      sameOrigin.search = url.search
+      sameOrigin.hash = ""
+      return sameOrigin.toString()
+    }
+    return url.toString()
+  } catch {
+    return interpreterRtcSignalUrl()
+  }
+}
+
+function remoteDesktopSignalUrlCandidates(rawUrl: string | null): string[] {
+  const candidates: string[] = []
+  if (rawUrl !== null) candidates.push(normalizeRemoteDesktopSignalUrl(rawUrl))
+  for (const prefix of embeddedInterpreterPathPrefixes()) {
+    candidates.push(interpreterRtcSignalUrl(`${prefix}/webrtc/signaling`))
+  }
+  candidates.push(interpreterRtcSignalUrl("/webrtc/signaling"))
+  if (rawUrl !== null && window.location.protocol !== "https:") candidates.push(rawUrl)
+  return candidates
 }
 
 function remoteDesktopApiPaths(path: string): string[] {
@@ -3230,11 +3414,29 @@ function remoteDesktopApiPaths(path: string): string[] {
 }
 
 function remoteDesktopRtcSignalPath(): string {
-  return isEmbeddedInterpreterOrigin() ? "/hud/webrtc/signaling" : "/webrtc/signaling"
+  return `${embeddedInterpreterPathPrefixes()[0] ?? "/hud/interpreter"}/webrtc/signaling`
 }
 
 function isEmbeddedInterpreterOrigin(): boolean {
-  return window.location.pathname === "/hud/interpreter" || window.location.pathname.startsWith("/hud/interpreter/")
+  return currentEmbeddedInterpreterPathPrefix() !== null
+}
+
+function embeddedInterpreterPathPrefix(): string | null {
+  return currentEmbeddedInterpreterPathPrefix()
+}
+
+function embeddedInterpreterPathPrefixes(): string[] {
+  const prefix = currentEmbeddedInterpreterPathPrefix()
+  if (prefix === "/hud/interpreter") return ["/hud/interpreter", "/interp"]
+  if (prefix === "/interp") return ["/interp", "/hud/interpreter"]
+  return ["/hud/interpreter", "/interp"]
+}
+
+function currentEmbeddedInterpreterPathPrefix(): string | null {
+  const path = window.location.pathname
+  if (path === "/hud/interpreter" || path.startsWith("/hud/interpreter/")) return "/hud/interpreter"
+  if (path === "/interp" || path.startsWith("/interp/")) return "/interp"
+  return null
 }
 
 function uniqueStrings(values: string[]): string[] {
@@ -4566,36 +4768,42 @@ class RemoteDesktopPane extends UiSurface {
       borderWidth: 1,
       z: Z.CONTAINER,
     })
-    this.#renderHeader(w)
-    this.#renderBody({x: 10, y: 42, w: Math.max(1, w - 20), h: Math.max(1, h - 52)})
+    this.#renderBody({x: 1, y: 1, w: Math.max(1, w - 2), h: Math.max(1, h - 2)})
+    this.#renderOverlay(w)
   }
 
-  #renderHeader(w: number): void {
-    const pad = 14
-    const buttonSize = 22
+  #renderOverlay(w: number): void {
+    const pad = 8
+    const buttonSize = 24
     const refreshX = w - pad - buttonSize
-    this.drawText("Server Desktop", pad, 11, {
-      fontPx: 13,
-      material: this.materials.cyan,
-      maxWidthPx: Math.max(1, refreshX - pad - 12),
-    })
-    const titleW = Math.min(Math.max(1, refreshX - pad - 12), this.measureText("Server Desktop", 13))
-    this.drawText(this.#status, pad + titleW + 14, 12, {
-      fontPx: 10,
-      material: this.#statusKind === "error" ? this.materials.red : this.materials.muted,
-      maxWidthPx: Math.max(1, refreshX - pad - titleW - 112),
-    })
-    this.drawText(this.#audioStatus, Math.max(pad, refreshX - 92), 12, {
-      fontPx: 10,
-      material: this.materials.muted,
-      maxWidthPx: 82,
-    })
+    const frame = this.#visibleFrame ?? this.#frame
+    const status = this.#statusKind === "error" || frame === null ? this.#status : ""
+    if (status.length > 0) {
+      const statusMaxW = Math.max(1, refreshX - pad - 8)
+      const statusW = Math.min(statusMaxW, Math.max(92, Math.ceil(this.measureText(status, 10)) + 18))
+      const statusX = Math.max(pad, refreshX - 8 - statusW)
+      this.drawRoundedRect(statusX, pad, statusW, buttonSize, {
+        radius: 7,
+        fill: new Color(0.04, 0.06, 0.09, 0.76),
+        border: this.#statusKind === "error" ? palette.red : palette.borderDim,
+        borderWidth: 1,
+        z: Z.TEXT,
+      })
+      this.drawText(status, statusX + 9, pad + 7, {
+        fontPx: 10,
+        material: this.#statusKind === "error" ? this.materials.red : this.materials.muted,
+        maxWidthPx: Math.max(1, statusW - 18),
+        z: Z.TEXT + 0.02,
+      })
+    }
     IconButton(this, refreshX, 8, buttonSize, buttonSize, {
       label: "Reconnect remote desktop",
       iconSrc: uiIcons.restart,
+      fill: new Color(0.04, 0.06, 0.09, 0.58),
+      border: palette.borderDim,
+      radius: 7,
       action: this.#onRefresh,
     })
-    this.drawRect(pad, 36, Math.max(1, w - pad * 2), 1, palette.borderDim)
   }
 
   #renderBody(rect: UiSurfaceRect): void {

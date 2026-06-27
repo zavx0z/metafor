@@ -1,5 +1,4 @@
 import type {ServerWebSocket} from "bun"
-import type {Buffer} from "node:buffer"
 import type {BulkLayoutSettings} from "@bulk/gravity/layout"
 import type {BoundaryBulkRuntimeSnapshot, BoundaryUpdateMessage} from "boundary"
 import type {VoiceProxySocketData} from "@metafor/interpreter/srv"
@@ -94,15 +93,6 @@ export type ServerSnapshotPayload = {
 	type: "snapshot"
 	src: string
 	snapshot: BoundaryBulkRuntimeSnapshot
-}
-
-export type RtcSignalingMessage = string | Buffer<ArrayBuffer>
-
-export type RtcSignalingServerDeps = {
-	appLog(tag: string, label: string, detail: string, tone: AppLogTone): void
-	logHttp(req: Request, route: string, status: number, started: number, detail?: string): void
-	logWsUpgrade(req: Request, channel: string, ok: boolean, detail?: string): void
-	jsonResponse(value: unknown, status?: number): Response
 }
 
 export type VoiceServerDeps = {

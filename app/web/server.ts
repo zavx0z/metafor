@@ -21,7 +21,6 @@ import {
   type VoiceProxySocketData,
 } from "@metafor/interpreter/srv"
 import {parseMarkdownTodo, updateTodoMarkdownItem} from "@ui/panes/todo-model"
-import {createRtcSignalingServer} from "./server/rtc-signaling.ts"
 import {createVoiceServer} from "./server/voice.ts"
 import type {
 	AndroidControlCommand,
@@ -103,7 +102,7 @@ const embeddedInterpreterConfig = loadConfig({
 mkdirSync(dirname(embeddedInterpreterConfig.consoleLogPath), {recursive: true})
 const embeddedInterpreterLogger = new EventLogger(embeddedInterpreterConfig.eventLogPath)
 const embeddedInterpreterModules = new InterpreterModuleManager(embeddedInterpreterConfig, embeddedInterpreterLogger)
-const {fetch: fetchEmbeddedInterpreterRoute} = createInterpreterHttpRoutes({
+const embeddedInterpreterRoutes = createInterpreterHttpRoutes({
   host: HOST,
   port: PORT,
   modules: embeddedInterpreterModules,
@@ -112,6 +111,7 @@ const {fetch: fetchEmbeddedInterpreterRoute} = createInterpreterHttpRoutes({
   consoleLogPath: embeddedInterpreterConfig.consoleLogPath,
 	startupSqliteDatabases: [Bun.env.BOUNDARY_PATH ?? "app/web/tmp/boundary.sqlite"],
 })
+const {fetch: fetchEmbeddedInterpreterRoute, websocket: embeddedInterpreterWebsocket} = embeddedInterpreterRoutes
 const voiceServer = createVoiceServer({
   sockets,
   chromeApiUrl: CHROME_API_URL,
@@ -124,12 +124,6 @@ const voiceServer = createVoiceServer({
   formatLogBytes,
   compactLogValue,
   shortId,
-})
-const rtcSignalingServer = createRtcSignalingServer({
-  appLog,
-  logHttp,
-  logWsUpgrade,
-  jsonResponse,
 })
 const redirectServer = REDIRECT_ENABLED ? startHttpRedirectServer() : null
 
@@ -190,6 +184,9 @@ const server = serve<AppWebSocketData>({
       logWsUpgrade(req, "app-web", ok)
       return ok ? undefined : new Response("WebSocket upgrade failed", {status: 426})
     },
+    "/hud/interpreter/reload": async (req: Request, wsServer: Server<AppWebSocketData>) => {
+      return await reloadEmbeddedInterpreterClients(req, wsServer)
+    },
     "/force": async (req: Request) => {
       const started = Date.now()
       if (req.method !== "POST") {
@@ -233,9 +230,6 @@ const server = serve<AppWebSocketData>({
       const ok = wsServer.upgrade(req, {data})
       logWsUpgrade(req, "terminal", ok, terminalUpgradeDetail(data))
       return ok ? undefined : new Response("WebSocket upgrade failed", {status: 426})
-    },
-    "/hud/webrtc/signaling": (req: Request, wsServer: Server<AppWebSocketData>) => {
-      return rtcSignalingServer.route(req, wsServer)
     },
     "/hud/todo": (req: Request) => {
       const started = Date.now()
@@ -375,7 +369,8 @@ const server = serve<AppWebSocketData>({
         return
       }
       if (ws.data.kind === "rtc-signal") {
-        rtcSignalingServer.attach(ws)
+        appLog("WS", "rtc signal", `room=${ws.data.room} peer=${shortId(ws.data.peerId)}`, "green")
+        embeddedInterpreterWebsocket.open?.(ws as never)
         return
       }
       if (ws.data.kind === "terminal") {
@@ -404,7 +399,7 @@ const server = serve<AppWebSocketData>({
         return
       }
       if (ws.data.kind === "rtc-signal") {
-        rtcSignalingServer.message(ws, message)
+        embeddedInterpreterWebsocket.message?.(ws as never, message)
         return
       }
       if (ws.data.kind === "terminal") {
@@ -461,7 +456,7 @@ const server = serve<AppWebSocketData>({
         return
       }
       if (ws.data.kind === "rtc-signal") {
-        rtcSignalingServer.detach(ws)
+        embeddedInterpreterWebsocket.close?.(ws as never, 1000, "")
         return
       }
       if (ws.data.kind === "terminal") {
@@ -549,6 +544,40 @@ function isAllowedWebSocketOrigin(req: Request, url: URL): boolean {
   } catch {
     return false
   }
+}
+
+async function reloadEmbeddedInterpreterClients(req: Request, wsServer: Server<AppWebSocketData>): Promise<Response> {
+  const started = Date.now()
+  const url = new URL(req.url)
+  if (req.method !== "POST") {
+    logHttp(req, "interp.reload", 405, started, "method not allowed")
+    return new Response("Method Not Allowed", {status: 405})
+  }
+  if (!isLoopbackHost(url.hostname)) {
+    logHttp(req, "interp.reload", 403, started, "loopback only")
+    return jsonResponse({ok: false, error: "loopback only"}, 403)
+  }
+  const upstream = new URL(req.url)
+  upstream.pathname = "/reload"
+  const response = await fetchEmbeddedInterpreterRoute(
+    new Request(upstream, {method: "POST"}),
+    wsServer as unknown as Parameters<InterpreterHttpRoutes["fetch"]>[1],
+  )
+  if (response === undefined) {
+    logHttp(req, "interp.reload", 500, started, "no response")
+    return jsonResponse({ok: false, error: "embedded interpreter route did not return a response"}, 500)
+  }
+  logHttp(req, "interp.reload", response.status, started)
+  return response
+}
+
+function isLoopbackHost(host: string): boolean {
+  const normalized = host.toLowerCase()
+  return normalized === "localhost"
+    || normalized === "::1"
+    || normalized === "[::1]"
+    || normalized === "0:0:0:0:0:0:0:1"
+    || normalized.startsWith("127.")
 }
 
 function todoMarkdownResponse(): Response {
@@ -987,7 +1016,7 @@ function networkTmuxMode(): "dev" | "prod" {
   return Bun.env.NETWORK_TMUX_MODE === "dev" ? "dev" : "prod"
 }
 
-async function dispatchEmbeddedInterpreterRequest(req: Request, url: URL, wsServer: Server<AppWebSocketData>): Promise<Response> {
+async function dispatchEmbeddedInterpreterRequest(req: Request, url: URL, wsServer: Server<AppWebSocketData>): Promise<Response | undefined> {
   const started = Date.now()
   const upstreamPath = interpreterProxyRoutes.toUpstreamPath(url.pathname)
   if (upstreamPath === null || !interpreterProxyRoutes.acceptsPath(upstreamPath)) {
@@ -1000,20 +1029,27 @@ async function dispatchEmbeddedInterpreterRequest(req: Request, url: URL, wsServ
   const contentType = req.headers.get("content-type")
   if (contentType !== null) headers.set("content-type", contentType)
   try {
-    const init: RequestInit = {
-      method: req.method,
-      headers,
-    }
-    if (req.method !== "GET" && req.method !== "HEAD") init.body = await req.arrayBuffer()
-    const embeddedRequest = new Request(upstream, init)
+    const embeddedRequest = isWebSocketUpgradeRequest(req)
+      ? req
+      : new Request(upstream, {
+        method: req.method,
+        headers,
+        ...(req.method !== "GET" && req.method !== "HEAD" ? {body: await req.arrayBuffer()} : {}),
+      })
     const response = await fetchEmbeddedInterpreterRoute(
       embeddedRequest,
       wsServer as unknown as Parameters<InterpreterHttpRoutes["fetch"]>[1],
     )
-    if (response === undefined) return jsonResponse({
-      ok: false,
-      error: "embedded interpreter route did not return a response"
-    }, 500)
+    if (response === undefined) {
+      if (isWebSocketUpgradeRequest(req)) {
+        logWsUpgrade(req, "interp.embedded", true, `upstream=${upstreamPath}`)
+        return undefined
+      }
+      return jsonResponse({
+        ok: false,
+        error: "embedded interpreter route did not return a response"
+      }, 500)
+    }
     logHttp(req, "interp.embedded", response.status, started, `upstream=${upstreamPath}`)
     return response
   } catch (error) {
@@ -1024,6 +1060,10 @@ async function dispatchEmbeddedInterpreterRequest(req: Request, url: URL, wsServ
       hint: "embedded interpreter route failed inside app/web",
     }, 502)
   }
+}
+
+function isWebSocketUpgradeRequest(req: Request): boolean {
+  return req.headers.get("upgrade")?.toLowerCase() === "websocket"
 }
 
 function asAndroidControlCommand(value: Record<string, unknown>): AndroidControlCommand | null {
@@ -1246,7 +1286,6 @@ function printServerUrls(): void {
   appLog("CFG", "interpreter", "embedded routes at /hud/interpreter/*", "magenta")
   for (const url of urls) appLog("URL", "app entry", url, "cyan")
   if (redirectServer !== null) appLog("URL", "http redirect", redirectServer.url.href, "cyan")
-  appLog("URL", "rtc signal", `${protocol === "https" ? "wss" : "ws"}://<host>:${port}/hud/webrtc/signaling`, "cyan")
   appLog("TIME", "started", formatLogDateTime(APP_WEB_STARTED_AT), "gray")
 }
 

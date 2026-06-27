@@ -5,12 +5,15 @@ export type InterpreterRouteDescription = {
 }
 
 const INTERPRETER_PROXY_PREFIX = "/hud/interpreter"
+const INTERPRETER_PROXY_ALIASES = [INTERPRETER_PROXY_PREFIX, "/interp"] as const
 const INTERPRETER_PROXY_EXACT_PATHS = new Set([
   "/",
+  "/ws",
   "/health",
   "/context",
   "/events",
   "/console",
+  "/client-event",
   "/webrtc/signaling",
   "/remote-desktop/health",
   "/remote-desktop/state",
@@ -48,6 +51,7 @@ const INTERPRETER_PROXY_PROCESS_SUBPATHS = new Set([
 
 const routeIndex = [
   {method: "GET", path: "/health", description: "статус коннекта и параметры"},
+  {method: "WS", path: "/ws", description: "основной websocket UI интерпретатора; в app/web доступен как /hud/interpreter/ws или /interp/ws"},
   {method: "GET", path: "/space", description: "обзор визуального Space: рабочие поверхности и геометрия"},
   {method: "POST", path: "/space/focus", description: "{selector:{side|processId|moduleId|label|order}, dockHostTerminal?} — сфокусировать рабочую поверхность"},
   {method: "POST", path: "/space/frame", description: "показать все рабочие поверхности Space"},
@@ -141,6 +145,7 @@ const routeIndex = [
   {method: "POST", path: "/sqlite/cell", description: "{path, table, rowid, column, value} — обновить SQLite cell по rowid"},
   {method: "GET", path: "/events?since=<iso>&limit=<n>", description: "хвост event-лога"},
   {method: "GET", path: "/console?since=<iso>&limit=<n>", description: "хвост console-лога"},
+  {method: "POST", path: "/client-event", description: "диагностическое событие от UI-клиента; пишет компактный client.* event в event-log"},
   {method: "POST", path: "/reload", description: "отправить hard reload всем подключенным UI-клиентам интерпретатора"},
   {method: "POST", path: "/restart", description: "перезапустить host interpreter через supervisor/tmux и предварительно обновить все UI-клиенты"},
 ] as const satisfies readonly InterpreterRouteDescription[]
@@ -156,8 +161,12 @@ export const interpreterRoutes = {
 } as const
 
 function interpreterProxyUpstreamPath(pathname: string): string | null {
-  if (pathname !== INTERPRETER_PROXY_PREFIX && !pathname.startsWith(`${INTERPRETER_PROXY_PREFIX}/`)) return null
-  return normalizeInterpreterPath(pathname.slice(INTERPRETER_PROXY_PREFIX.length) || "/")
+  for (const prefix of INTERPRETER_PROXY_ALIASES) {
+    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) {
+      return normalizeInterpreterPath(pathname.slice(prefix.length) || "/")
+    }
+  }
+  return null
 }
 
 function isInterpreterProxyPathname(pathname: string): boolean {

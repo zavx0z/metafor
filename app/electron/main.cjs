@@ -34,6 +34,10 @@ const REMOTE_DESKTOP_RTC_MODE = envFlag(process.env.METAFOR_REMOTE_DESKTOP_RTC)
 const REMOTE_DESKTOP_RTC_SIGNAL_URL = (process.env.METAFOR_REMOTE_DESKTOP_SIGNAL_URL || "ws://127.0.0.1:6500/webrtc/signaling").trim()
 const REMOTE_DESKTOP_RTC_ROOM = (process.env.METAFOR_REMOTE_DESKTOP_RTC_ROOM || "remote-desktop").trim()
 const REMOTE_DESKTOP_RTC_PEER_ID = (process.env.METAFOR_REMOTE_DESKTOP_RTC_PEER_ID || "electron-desktop").trim()
+const REMOTE_DESKTOP_RTC_ICE_SERVERS = parseIceServers(
+  process.env.METAFOR_REMOTE_DESKTOP_ICE_SERVERS || process.env.METAFOR_RTC_ICE_SERVERS,
+  [{urls: "stun:stun.l.google.com:19302"}],
+)
 const REMOTE_DESKTOP_SENDER_ONLY = envFlag(process.env.METAFOR_REMOTE_DESKTOP_SENDER_ONLY)
 const REMOTE_DESKTOP_RTC_SOURCE_KIND = (process.env.METAFOR_REMOTE_DESKTOP_CAPTURE_SOURCE || "screen").trim().toLowerCase()
 const REMOTE_DESKTOP_RTC_SOURCE_NAME = (process.env.METAFOR_REMOTE_DESKTOP_CAPTURE_NAME || "").trim()
@@ -42,6 +46,28 @@ const REMOTE_DESKTOP_RTC_AUDIO_ENABLED = process.env.METAFOR_REMOTE_DESKTOP_AUDI
   : envFlag(process.env.METAFOR_REMOTE_DESKTOP_AUDIO)
 const REMOTE_DESKTOP_RTC_AUDIO_SOURCE = (process.env.METAFOR_REMOTE_DESKTOP_AUDIO_SOURCE || "auto").trim().toLowerCase()
 const REMOTE_DESKTOP_RTC_MAX_FPS = parseInteger(process.env.METAFOR_REMOTE_DESKTOP_RTC_MAX_FPS, "METAFOR_REMOTE_DESKTOP_RTC_MAX_FPS", 30, 1, 60)
+const REMOTE_DESKTOP_RTC_UDP_PORT_RANGE = parseUdpPortRange(
+  process.env.METAFOR_REMOTE_DESKTOP_UDP_PORT_RANGE || process.env.METAFOR_RTC_UDP_PORT_RANGE,
+  "METAFOR_REMOTE_DESKTOP_UDP_PORT_RANGE",
+)
+const REMOTE_DESKTOP_RTC_PUBLIC_ICE_HOST = parseOptionalHostname(
+  process.env.METAFOR_REMOTE_DESKTOP_PUBLIC_ICE_HOST || process.env.METAFOR_RTC_PUBLIC_ICE_HOST,
+  "METAFOR_REMOTE_DESKTOP_PUBLIC_ICE_HOST",
+)
+const REMOTE_DESKTOP_RTC_ICE_INTERFACE = parseOptionalHostname(
+  process.env.METAFOR_REMOTE_DESKTOP_ICE_INTERFACE || process.env.METAFOR_RTC_ICE_INTERFACE,
+  "METAFOR_REMOTE_DESKTOP_ICE_INTERFACE",
+)
+const REMOTE_DESKTOP_RTC_IP_HANDLING_POLICY = parseOptionalEnum(
+  process.env.METAFOR_REMOTE_DESKTOP_IP_HANDLING_POLICY || process.env.METAFOR_RTC_IP_HANDLING_POLICY,
+  "METAFOR_REMOTE_DESKTOP_IP_HANDLING_POLICY",
+  [
+    "default",
+    "default_public_and_private_interfaces",
+    "default_public_interface_only",
+    "disable_non_proxied_udp",
+  ],
+)
 const REMOTE_DESKTOP_SYSTEM_PICKER = envFlag(process.env.METAFOR_REMOTE_DESKTOP_SYSTEM_PICKER)
 const REMOTE_DESKTOP_AUTO_SELECT_SOURCE = (process.env.METAFOR_REMOTE_DESKTOP_AUTO_SELECT_SOURCE || "Entire Screen").trim()
 const REMOTE_DESKTOP_APIS = remoteDesktopApis()
@@ -92,6 +118,11 @@ const remoteDesktopRtcState = {
   transport: "electron-webrtc",
   webRtc: REMOTE_DESKTOP_RTC_MODE,
   signalUrl: REMOTE_DESKTOP_RTC_SIGNAL_URL,
+  iceServers: REMOTE_DESKTOP_RTC_ICE_SERVERS,
+  udpPortRange: REMOTE_DESKTOP_RTC_UDP_PORT_RANGE,
+  publicIceHost: REMOTE_DESKTOP_RTC_PUBLIC_ICE_HOST,
+  iceInterface: REMOTE_DESKTOP_RTC_ICE_INTERFACE,
+  ipHandlingPolicy: REMOTE_DESKTOP_RTC_IP_HANDLING_POLICY,
   room: REMOTE_DESKTOP_RTC_ROOM,
   peerId: REMOTE_DESKTOP_RTC_PEER_ID,
   senderOnly: REMOTE_DESKTOP_SENDER_ONLY,
@@ -112,6 +143,14 @@ const remoteDesktopRtcState = {
   },
   source: null,
   peers: [],
+  ice: {
+    candidateCount: 0,
+    candidateCounts: {},
+    candidateAddressCounts: {},
+    droppedCandidateCount: 0,
+    lastCandidate: null,
+    lastPublishedCandidate: null,
+  },
   lastFrameAt: null,
   lastError: null,
   updatedAt: null,
@@ -171,6 +210,8 @@ function configureChromiumCommandLine() {
   if (ELECTRON_OZONE_PLATFORM.length > 0) app.commandLine.appendSwitch("ozone-platform", ELECTRON_OZONE_PLATFORM)
   if (REMOTE_DESKTOP_RTC_MODE) {
     app.commandLine.appendSwitch("enable-usermedia-screen-capturing")
+    if (REMOTE_DESKTOP_RTC_UDP_PORT_RANGE !== null) app.commandLine.appendSwitch("webrtc-udp-port-range", REMOTE_DESKTOP_RTC_UDP_PORT_RANGE)
+    if (REMOTE_DESKTOP_RTC_IP_HANDLING_POLICY !== null) app.commandLine.appendSwitch("force-webrtc-ip-handling-policy", REMOTE_DESKTOP_RTC_IP_HANDLING_POLICY)
     if (REMOTE_DESKTOP_SYSTEM_PICKER && REMOTE_DESKTOP_AUTO_SELECT_SOURCE.length > 0) {
       app.commandLine.appendSwitch("auto-select-desktop-capture-source", REMOTE_DESKTOP_AUTO_SELECT_SOURCE)
     }
@@ -206,6 +247,74 @@ function parseNumber(value, name, fallback, min, max) {
     throw new Error(`${name} must be a number between ${min} and ${max}`)
   }
   return parsed
+}
+
+function parseUdpPortRange(value, name) {
+  if (!hasEnvValue(value)) return null
+  const normalized = value.trim().replace(":", "-")
+  const match = /^(\d{1,5})-(\d{1,5})$/.exec(normalized)
+  if (match === null) throw new Error(`${name} must be a UDP port range like 40000-40100`)
+  const first = Number(match[1])
+  const last = Number(match[2])
+  if (!Number.isInteger(first) || !Number.isInteger(last) || first < 1 || last > 65535 || first > last) {
+    throw new Error(`${name} must be a valid UDP port range`)
+  }
+  return `${first}-${last}`
+}
+
+function parseOptionalHostname(value, name) {
+  if (!hasEnvValue(value)) return null
+  const host = value.trim()
+  if (host.length > 253 || !/^[a-zA-Z0-9_.:-]+$/.test(host)) {
+    throw new Error(`${name} must be a hostname or IP address`)
+  }
+  return host
+}
+
+function parseOptionalEnum(value, name, allowed) {
+  if (!hasEnvValue(value)) return null
+  const normalized = value.trim()
+  if (!allowed.includes(normalized)) {
+    throw new Error(`${name} must be one of: ${allowed.join(", ")}`)
+  }
+  return normalized
+}
+
+function parseIceServers(value, fallback) {
+  if (!hasEnvValue(value)) return fallback
+  const raw = value.trim()
+  try {
+    const parsed = JSON.parse(raw)
+    const servers = normalizeIceServers(parsed)
+    if (servers.length > 0) return servers
+  } catch {
+    // Fall through to comma-separated URL form.
+  }
+  const servers = normalizeIceServers(raw.split(",").map((item) => item.trim()).filter(Boolean))
+  return servers.length > 0 ? servers : fallback
+}
+
+function normalizeIceServers(value) {
+  const items = Array.isArray(value) ? value : [value]
+  return items.map(normalizeIceServer).filter(Boolean)
+}
+
+function normalizeIceServer(value) {
+  if (typeof value === "string" && value.trim().length > 0) return {urls: value.trim()}
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null
+  const urls = normalizeIceServerUrls(value.urls)
+  if (urls.length === 0) return null
+  const server = {urls: urls.length === 1 ? urls[0] : urls}
+  if (typeof value.username === "string") server.username = value.username
+  if (typeof value.credential === "string") server.credential = value.credential
+  if (value.credentialType === "password" || value.credentialType === "oauth") server.credentialType = value.credentialType
+  return server
+}
+
+function normalizeIceServerUrls(value) {
+  if (typeof value === "string") return value.trim().length > 0 ? [value.trim()] : []
+  if (!Array.isArray(value)) return []
+  return value.filter((item) => typeof item === "string").map((item) => item.trim()).filter(Boolean)
 }
 
 function isLoopbackHost(host) {
@@ -322,6 +431,21 @@ function getAppSession() {
   return session.fromPartition(SESSION_PARTITION)
 }
 
+function configureWebRtcWebContents(webContents) {
+  if (!REMOTE_DESKTOP_RTC_MODE) return
+  if (REMOTE_DESKTOP_RTC_IP_HANDLING_POLICY !== null && typeof webContents.setWebRTCIPHandlingPolicy === "function") {
+    webContents.setWebRTCIPHandlingPolicy(REMOTE_DESKTOP_RTC_IP_HANDLING_POLICY)
+  }
+  if (REMOTE_DESKTOP_RTC_UDP_PORT_RANGE !== null && typeof webContents.setWebRTCUDPPortRange === "function") {
+    webContents.setWebRTCUDPPortRange(udpPortRangeObject(REMOTE_DESKTOP_RTC_UDP_PORT_RANGE))
+  }
+}
+
+function udpPortRangeObject(range) {
+  const [min, max] = range.split("-", 2).map((value) => Number(value))
+  return {min, max}
+}
+
 function installRemoteDesktopCaptureHandler(appSession) {
   if (!REMOTE_DESKTOP_RTC_MODE) return
   if (typeof appSession.setDisplayMediaRequestHandler !== "function") {
@@ -384,14 +508,18 @@ async function selectRemoteDesktopSource() {
   const eligibleSources = sources.filter((source) => !source.name.toLowerCase().includes("remote desktop rtc"))
   const candidates = eligibleSources.length > 0 ? eligibleSources : sources
   const kindMatches = candidates.filter((source) => source.id.startsWith(`${preferredKind}:`))
-  const named = preferredName.length === 0
-    ? undefined
-    : kindMatches.find((source) => source.name.toLowerCase().includes(preferredName))
-      ?? candidates.find((source) => source.name.toLowerCase().includes(preferredName))
-  return named
-    ?? kindMatches[0]
-    ?? candidates.find((source) => source.id.startsWith("screen:"))
-    ?? candidates[0]
+  if (kindMatches.length === 0) {
+    throw new Error(`desktopCapturer returned no ${preferredKind} sources: ${sourceListSummary(sources)}`)
+  }
+  if (preferredName.length === 0) return kindMatches[0]
+
+  const named = kindMatches.find((source) => source.name.toLowerCase().includes(preferredName))
+  if (named !== undefined) return named
+  throw new Error(`desktopCapturer returned no ${preferredKind} source matching "${REMOTE_DESKTOP_RTC_SOURCE_NAME}": ${sourceListSummary(kindMatches)}`)
+}
+
+function sourceListSummary(sources) {
+  return sources.map((source) => `${source.id}${source.name ? ` ${JSON.stringify(source.name)}` : ""}`).join(", ") || "none"
 }
 
 function sourceSummary(source) {
@@ -435,6 +563,7 @@ async function startRemoteDesktopRtc() {
       },
     })
     remoteDesktopWindow = win
+    configureWebRtcWebContents(win.webContents)
     win.on("closed", () => {
       if (remoteDesktopWindow === win) remoteDesktopWindow = null
       remoteDesktopRtcState.status = "closed"
@@ -444,8 +573,12 @@ async function startRemoteDesktopRtc() {
       signalUrl: REMOTE_DESKTOP_RTC_SIGNAL_URL,
       room: REMOTE_DESKTOP_RTC_ROOM,
       peerId: REMOTE_DESKTOP_RTC_PEER_ID,
+      iceServers: REMOTE_DESKTOP_RTC_ICE_SERVERS,
       sourceId: source.id,
       maxFps: REMOTE_DESKTOP_RTC_MAX_FPS,
+      udpPortRange: REMOTE_DESKTOP_RTC_UDP_PORT_RANGE,
+      publicIceHost: REMOTE_DESKTOP_RTC_PUBLIC_ICE_HOST,
+      iceInterface: REMOTE_DESKTOP_RTC_ICE_INTERFACE,
       audio: REMOTE_DESKTOP_RTC_AUDIO_ENABLED,
     }
     remoteDesktopRtcPageConfig = config
@@ -593,7 +726,7 @@ async function handleSignal(message) {
     await peer.connection.setRemoteDescription(message.description);
     const answer = await peer.connection.createAnswer();
     await peer.connection.setLocalDescription(answer);
-    sendSignal({type: "answer", to: message.from, description: peer.connection.localDescription});
+    sendSignal({type: "answer", to: message.from, description: publishSessionDescription(peer.connection.localDescription)});
     return;
   }
   if (message.type === "ice") {
@@ -604,16 +737,29 @@ async function handleSignal(message) {
 function createPeer(peerId) {
   const existing = peers.get(peerId);
   if (existing !== undefined) return existing;
-  const connection = new RTCPeerConnection({iceServers: [{urls: "stun:stun.l.google.com:19302"}]});
+  const connection = new RTCPeerConnection({iceServers: config.iceServers});
   for (const track of stream.getTracks()) connection.addTrack(track, stream);
   const peer = {id: peerId, connection, channel: null};
   peers.set(peerId, peer);
   connection.addEventListener("icecandidate", (event) => {
-    if (event.candidate !== null) sendSignal({type: "ice", to: peerId, candidate: event.candidate.toJSON()});
+    if (event.candidate === null) return;
+    const candidate = event.candidate.toJSON();
+    const publishedCandidate = publishIceCandidate(candidate);
+    postState({
+      iceCandidate: iceCandidateSummary(candidate),
+      ...(publishedCandidate === null ? {droppedIceCandidate: true} : {publishedIceCandidate: iceCandidateSummary(publishedCandidate)}),
+    });
+    if (publishedCandidate !== null) sendSignal({type: "ice", to: peerId, candidate: publishedCandidate});
   });
   connection.addEventListener("connectionstatechange", () => {
     postState({status: connection.connectionState, peers: peerSnapshots()});
     if (connection.connectionState === "failed" || connection.connectionState === "closed") closePeer(peerId);
+  });
+  connection.addEventListener("iceconnectionstatechange", () => {
+    postState({status: "ice-" + connection.iceConnectionState, peers: peerSnapshots()});
+  });
+  connection.addEventListener("icegatheringstatechange", () => {
+    postState({status: "ice-gathering-" + connection.iceGatheringState, peers: peerSnapshots()});
   });
   connection.addEventListener("datachannel", (event) => attachDataChannel(peer, event.channel));
   postState({status: "peer", peers: peerSnapshots()});
@@ -677,6 +823,72 @@ function sendSignal(payload) {
   socket.send(JSON.stringify(payload));
 }
 
+function publishSessionDescription(description) {
+  if (description === null || typeof description !== "object" || typeof description.sdp !== "string") return description;
+  const sdp = rewriteIceCandidateText(description.sdp);
+  return sdp === description.sdp ? description : {...description, sdp};
+}
+
+function publishIceCandidate(candidate) {
+  if (candidate === null || typeof candidate !== "object" || typeof candidate.candidate !== "string") return candidate;
+  const candidateLine = rewriteIceCandidateLine(candidate.candidate);
+  if (candidateLine === null) return null;
+  return candidateLine === candidate.candidate ? candidate : {...candidate, candidate: candidateLine};
+}
+
+function rewriteIceCandidateText(text) {
+  if (!config.publicIceHost && !config.iceInterface) return text;
+  return text
+    .split("\\r\\n")
+    .map((line) => {
+      if (!line.startsWith("a=candidate:")) return line;
+      const candidateLine = rewriteIceCandidateLine(line.slice(2));
+      return candidateLine === null ? null : "a=" + candidateLine;
+    })
+    .filter((line) => line !== null)
+    .join("\\r\\n");
+}
+
+function rewriteIceCandidateLine(line) {
+  if (!config.publicIceHost && !config.iceInterface) return line;
+  const parts = String(line || "").trim().split(/\\s+/);
+  if (!parts[0]?.startsWith("candidate:")) return line;
+  const protocol = String(parts[2] || "").toLowerCase();
+  const type = candidateField(parts, "typ");
+  const address = String(parts[4] || "");
+  const port = Number(parts[5]) || 0;
+  if (type !== "host") return line;
+  if (protocol !== "udp" || port <= 0) return null;
+  if (!candidatePortInRange(port, config.udpPortRange)) return null;
+  if (config.iceInterface && address !== config.iceInterface && !config.publicIceHost) return null;
+  if (config.publicIceHost) parts[4] = config.publicIceHost;
+  return parts.join(" ");
+}
+
+function candidatePortInRange(port, range) {
+  if (!range) return true;
+  const [min, max] = String(range).split("-", 2).map((value) => Number(value));
+  return Number.isInteger(min) && Number.isInteger(max) && port >= min && port <= max;
+}
+
+function iceCandidateSummary(candidate) {
+  const text = String(candidate?.candidate || "");
+  const parts = text.split(/\\s+/);
+  return {
+    type: candidateField(parts, "typ"),
+    protocol: parts[2] || null,
+    address: parts[4] || null,
+    port: Number(parts[5]) || null,
+    relatedAddress: candidateField(parts, "raddr"),
+    relatedPort: Number(candidateField(parts, "rport")) || null,
+  };
+}
+
+function candidateField(parts, key) {
+  const index = parts.indexOf(key);
+  return index >= 0 && index + 1 < parts.length ? parts[index + 1] : null;
+}
+
 start().catch((error) => postState({status: "failed", lastError: String(error?.message || error)}));
 </script>
 </body>
@@ -690,6 +902,20 @@ function updateRemoteDesktopRtcState(patch) {
   if (typeof patch.peerId === "string") remoteDesktopRtcState.peerId = patch.peerId
   if (typeof patch.room === "string") remoteDesktopRtcState.room = patch.room
   if (Array.isArray(patch.peers)) remoteDesktopRtcState.peers = patch.peers
+  if (typeof patch.iceCandidate === "object" && patch.iceCandidate !== null && !Array.isArray(patch.iceCandidate)) {
+    remoteDesktopRtcState.ice.candidateCount += 1
+    const candidateKey = iceDiagnosticKey(patch.iceCandidate)
+    remoteDesktopRtcState.ice.candidateCounts[candidateKey] = (remoteDesktopRtcState.ice.candidateCounts[candidateKey] ?? 0) + 1
+    const candidateAddressKey = iceDiagnosticAddressKey(patch.iceCandidate)
+    remoteDesktopRtcState.ice.candidateAddressCounts[candidateAddressKey] = (remoteDesktopRtcState.ice.candidateAddressCounts[candidateAddressKey] ?? 0) + 1
+    remoteDesktopRtcState.ice.lastCandidate = patch.iceCandidate
+  }
+  if (typeof patch.publishedIceCandidate === "object" && patch.publishedIceCandidate !== null && !Array.isArray(patch.publishedIceCandidate)) {
+    remoteDesktopRtcState.ice.lastPublishedCandidate = patch.publishedIceCandidate
+  }
+  if (patch.droppedIceCandidate === true) {
+    remoteDesktopRtcState.ice.droppedCandidateCount += 1
+  }
   if (typeof patch.audio === "object" && patch.audio !== null && !Array.isArray(patch.audio)) {
     if (typeof patch.audio.trackCount === "number") remoteDesktopRtcState.audio.trackCount = patch.audio.trackCount
     if (typeof patch.audio.lastError === "string") remoteDesktopRtcState.audio.lastError = patch.audio.lastError
@@ -701,6 +927,19 @@ function updateRemoteDesktopRtcState(patch) {
   if (patch.status === "connected" || patch.status === "control-open") {
     remoteDesktopRtcState.lastFrameAt = new Date().toISOString()
   }
+}
+
+function iceDiagnosticKey(candidate) {
+  const protocol = typeof candidate.protocol === "string" ? candidate.protocol.toLowerCase() : "unknown"
+  const type = typeof candidate.type === "string" ? candidate.type.toLowerCase() : "unknown"
+  return `${protocol}:${type}`
+}
+
+function iceDiagnosticAddressKey(candidate) {
+  const address = typeof candidate.address === "string" && candidate.address.length > 0 ? candidate.address : "unknown"
+  const protocol = typeof candidate.protocol === "string" ? candidate.protocol.toLowerCase() : "unknown"
+  const type = typeof candidate.type === "string" ? candidate.type.toLowerCase() : "unknown"
+  return `${protocol}:${type}:${address}`
 }
 
 function installRemoteDesktopIpc() {

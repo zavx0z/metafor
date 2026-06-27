@@ -4,6 +4,7 @@ const BROWSER_HOST_PREFIX = "/browser-display"
 const BROWSER_HOST_PROXY_PREFIX = `${BROWSER_HOST_PREFIX}/proxy`
 const DEFAULT_BROWSER_HOST_TIMEOUT_MS = 8_000
 const SNAPSHOT_BROWSER_HOST_TIMEOUT_MS = 15_000
+const DEFAULT_REMOTE_DESKTOP_RTC_HOST_PORT = 32133
 
 type BrowserHostRoute = {
   method: string
@@ -11,7 +12,7 @@ type BrowserHostRoute = {
   upstreamPath: string
   responseKind: "json" | "stream"
   timeoutMs: number
-  configKind: "browser" | "remoteDesktop"
+  configKind: "browser" | "remoteDesktop" | "remoteDesktopRtc"
 }
 
 type BrowserHostConfig =
@@ -34,8 +35,8 @@ const BROWSER_HOST_ROUTES: BrowserHostRoute[] = [
   {method: "GET", path: "/remote-desktop/health", upstreamPath: "/desktop/health", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "remoteDesktop"},
   {method: "GET", path: "/remote-desktop/state", upstreamPath: "/desktop/health", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "remoteDesktop"},
   {method: "GET", path: "/remote-desktop/status", upstreamPath: "/desktop/health", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "remoteDesktop"},
-  {method: "GET", path: "/remote-desktop/rtc/state", upstreamPath: "/desktop/rtc/state", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "remoteDesktop"},
-  {method: "POST", path: "/remote-desktop/rtc/restart", upstreamPath: "/desktop/rtc/restart", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "remoteDesktop"},
+  {method: "GET", path: "/remote-desktop/rtc/state", upstreamPath: "/desktop/rtc/state", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "remoteDesktopRtc"},
+  {method: "POST", path: "/remote-desktop/rtc/restart", upstreamPath: "/desktop/rtc/restart", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "remoteDesktopRtc"},
   {method: "GET", path: "/remote-desktop/snapshot", upstreamPath: "/desktop/snapshot", responseKind: "stream", timeoutMs: SNAPSHOT_BROWSER_HOST_TIMEOUT_MS, configKind: "remoteDesktop"},
   {method: "POST", path: "/remote-desktop/snapshot", upstreamPath: "/desktop/snapshot", responseKind: "stream", timeoutMs: SNAPSHOT_BROWSER_HOST_TIMEOUT_MS, configKind: "remoteDesktop"},
   {method: "POST", path: "/remote-desktop/input", upstreamPath: "/desktop/input", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "remoteDesktop"},
@@ -106,7 +107,7 @@ function browserHostConfig(kind: BrowserHostRoute["configKind"]): BrowserHostCon
   const env = browserHostEnv(kind)
   const explicitUrl = process.env[env.url]?.trim()
   if (explicitUrl !== undefined && explicitUrl.length > 0) {
-    const parsed = parseBrowserHostUrl(explicitUrl)
+    const parsed = parseBrowserHostUrl(explicitUrl, env.url)
     return parsed.ok ? {...parsed, configuredFrom: env.url} : {ok: false, configured: true, env: env.all, error: parsed.error}
   }
 
@@ -123,6 +124,14 @@ function browserHostConfig(kind: BrowserHostRoute["configKind"]): BrowserHostCon
     }
   }
 
+  if (kind === "remoteDesktopRtc") {
+    return {
+      ok: true,
+      baseUrl: new URL(`http://127.0.0.1:${DEFAULT_REMOTE_DESKTOP_RTC_HOST_PORT}`),
+      configuredFrom: "default:INTERPRETER_REMOTE_DESKTOP_RTC_HOST_PORT",
+    }
+  }
+
   if (kind === "remoteDesktop") return browserHostConfig("browser")
 
   return {
@@ -134,6 +143,16 @@ function browserHostConfig(kind: BrowserHostRoute["configKind"]): BrowserHostCon
 }
 
 function browserHostEnv(kind: BrowserHostRoute["configKind"]): {url: string; port: string; all: string[]} {
+  if (kind === "remoteDesktopRtc") {
+    return {
+      url: "INTERPRETER_REMOTE_DESKTOP_RTC_HOST_URL",
+      port: "INTERPRETER_REMOTE_DESKTOP_RTC_HOST_PORT",
+      all: [
+        "INTERPRETER_REMOTE_DESKTOP_RTC_HOST_URL",
+        "INTERPRETER_REMOTE_DESKTOP_RTC_HOST_PORT",
+      ],
+    }
+  }
   if (kind === "remoteDesktop") {
     return {
       url: "INTERPRETER_REMOTE_DESKTOP_HOST_URL",
@@ -153,24 +172,24 @@ function browserHostEnv(kind: BrowserHostRoute["configKind"]): {url: string; por
   }
 }
 
-function parseBrowserHostUrl(value: string): {ok: true; baseUrl: URL} | {ok: false; error: string} {
+function parseBrowserHostUrl(value: string, envName: string): {ok: true; baseUrl: URL} | {ok: false; error: string} {
   let url: URL
   try {
     url = new URL(value)
   } catch (error) {
-    return {ok: false, error: `INTERPRETER_BROWSER_HOST_URL is not a valid URL: ${serializeError(error)}`}
+    return {ok: false, error: `${envName} is not a valid URL: ${serializeError(error)}`}
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
-    return {ok: false, error: "INTERPRETER_BROWSER_HOST_URL must use http or https"}
+    return {ok: false, error: `${envName} must use http or https`}
   }
   if (url.username.length > 0 || url.password.length > 0) {
-    return {ok: false, error: "INTERPRETER_BROWSER_HOST_URL must not include credentials"}
+    return {ok: false, error: `${envName} must not include credentials`}
   }
   if (url.search.length > 0 || url.hash.length > 0) {
-    return {ok: false, error: "INTERPRETER_BROWSER_HOST_URL must not include query or hash"}
+    return {ok: false, error: `${envName} must not include query or hash`}
   }
   if (!isLoopbackHostname(url.hostname)) {
-    return {ok: false, error: "INTERPRETER_BROWSER_HOST_URL must point to localhost, 127.0.0.0/8 or ::1"}
+    return {ok: false, error: `${envName} must point to localhost, 127.0.0.0/8 or ::1`}
   }
   return {ok: true, baseUrl: url}
 }

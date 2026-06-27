@@ -596,7 +596,7 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
         if (upgraded) return undefined
         return jsonResponse({ok: false, error: "expected websocket upgrade"}, 426)
       }
-      if (path === "/webrtc/signaling" || path === "/hud/android/webrtc/signaling") {
+      if (isRtcSignalingPath(path)) {
         if (!isAllowedWebSocketOrigin(req, url)) return jsonResponse({ok: false, error: "forbidden origin"}, 403)
         const room = sanitizeRtcId(url.searchParams.get("room") ?? "android-display")
         const peerId = sanitizeRtcId(url.searchParams.get("peer") ?? `peer-${nextWsClientId}`)
@@ -1214,6 +1214,7 @@ async function handleRoute(
   if (method === "DELETE" && processBreakpoint !== null) return await removeProcessBreakpoint(decodePathParam(processBreakpoint[1]!), req, options, broadcast)
   if (method === "GET" && path === "/events") return jsonResponse(readNdjsonTail(options.eventLogPath, url))
   if (method === "GET" && path === "/console") return jsonResponse(readNdjsonTail(options.consoleLogPath, url))
+  if (method === "POST" && path === "/client-event") return await recordClientEvent(req, options)
   if (method === "POST" && path === "/restart") return restartInterpreterHost(broadcast, options)
   // Триггер хард-релоада UI у всех подключённых WS-клиентов: используется
   // когда мы выкатываем правку в bundle и хотим без юзерских Cmd+Shift+R
@@ -1467,8 +1468,14 @@ function isAllowedWebSocketOrigin(req: Request, url: URL): boolean {
     const originUrl = new URL(origin)
     if (originUrl.host === url.host) return true
     if (
+      originUrl.hostname === url.hostname
+      && isRtcSignalingPath(url.pathname)
+    ) {
+      return true
+    }
+    if (
       isLoopbackHost(originUrl.hostname)
-      && (url.pathname === "/webrtc/signaling" || url.pathname === "/hud/android/webrtc/signaling")
+      && isRtcSignalingPath(url.pathname)
     ) {
       return true
     }
@@ -1476,6 +1483,13 @@ function isAllowedWebSocketOrigin(req: Request, url: URL): boolean {
   } catch {
     return false
   }
+}
+
+function isRtcSignalingPath(path: string): boolean {
+  return path === "/webrtc/signaling"
+    || path === "/hud/interpreter/webrtc/signaling"
+    || path === "/interp/webrtc/signaling"
+    || path === "/hud/android/webrtc/signaling"
 }
 
 function voiceProxyRouteForPath(path: string): VoiceProxyRoute | null {
@@ -1706,6 +1720,38 @@ async function readJsonObject(req: Request): Promise<{body: JsonObject; error?: 
   } catch (error) {
     return {body: {}, error: `invalid JSON: ${serializeError(error)}`}
   }
+}
+
+async function recordClientEvent(req: Request, options: HttpServerOptions): Promise<Response> {
+  const parsed = await readJsonObject(req)
+  if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
+  const scope = compactClientEventSegment(parsed.body["scope"], "ui")
+  const label = compactClientEventSegment(parsed.body["label"], "event")
+  options.logger.event(`client.${scope}.${label}`, compactClientEventDetail(parsed.body["detail"]))
+  return jsonResponse({ok: true})
+}
+
+function compactClientEventSegment(value: unknown, fallback: string): string {
+  if (typeof value !== "string") return fallback
+  const normalized = value.trim().toLowerCase().replace(/[^a-z0-9_.-]+/g, "-").replace(/^-+|-+$/g, "")
+  return normalized.length === 0 ? fallback : normalized.slice(0, 48)
+}
+
+function compactClientEventDetail(value: unknown): JsonObject {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return {}
+  const detail: JsonObject = {}
+  for (const [key, raw] of Object.entries(value).slice(0, 24)) {
+    const cleanKey = key.replace(/[^a-zA-Z0-9_.-]+/g, "_").slice(0, 48)
+    if (cleanKey.length === 0) continue
+    if (typeof raw === "string") detail[cleanKey] = raw.slice(0, 500)
+    else if (typeof raw === "number" && Number.isFinite(raw)) detail[cleanKey] = raw
+    else if (typeof raw === "boolean" || raw === null) detail[cleanKey] = raw
+    else if (Array.isArray(raw)) detail[cleanKey] = raw.slice(0, 12).map((item) => (
+      typeof item === "string" ? item.slice(0, 240) : typeof item === "number" || typeof item === "boolean" || item === null ? item : String(item).slice(0, 240)
+    ))
+    else if (raw !== undefined) detail[cleanKey] = String(raw).slice(0, 240)
+  }
+  return detail
 }
 
 async function codexAttachmentResponse(req: Request): Promise<Response> {

@@ -55,7 +55,7 @@ const MAX_PENDING_COMMANDS = 16
 
 export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcClient {
 	const room = opts.room ?? DEFAULT_ANDROID_RTC_ROOM
-	const peerId = opts.peerId ?? `app-web-android-${crypto.randomUUID()}`
+	const peerId = opts.peerId ?? `app-web-android-${rtcRandomToken()}`
 	const peers = new Map<string, PeerRecord>()
 	const video = document.createElement("video")
 	video.autoplay = true
@@ -132,7 +132,7 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
 		let sent = false
 		for (const peer of peers.values()) {
 			if (peer.channel?.readyState !== "open") continue
-			peer.channel.send(JSON.stringify({...command, id: crypto.randomUUID()}))
+			peer.channel.send(JSON.stringify({...command, id: rtcRandomToken()}))
 			sent = true
 		}
 		return sent
@@ -298,6 +298,18 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
 		if (socket?.readyState !== WebSocket.OPEN) return
 		socket.send(JSON.stringify(payload))
 	}
+}
+
+function rtcRandomToken(): string {
+	const cryptoApi = globalThis.crypto
+	if (typeof cryptoApi?.randomUUID === "function") return cryptoApi.randomUUID()
+	const bytes = new Uint8Array(16)
+	if (typeof cryptoApi?.getRandomValues === "function") {
+		cryptoApi.getRandomValues(bytes)
+	} else {
+		for (let index = 0; index < bytes.length; index += 1) bytes[index] = Math.floor(Math.random() * 256)
+	}
+	return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("")
 }
 
 function parseSignal(raw: string): AndroidRtcSignal | null {

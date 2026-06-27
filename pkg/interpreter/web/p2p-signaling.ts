@@ -193,7 +193,7 @@ class LegacyRtcSignalSocketImpl extends EventTarget implements LegacyRtcSignalSo
   }
 
   #createCallId(toParticipantId: string): string {
-    const callId = `${this.participantId}:${toParticipantId}:${crypto.randomUUID()}`
+    const callId = `${this.participantId}:${toParticipantId}:${rtcRandomToken()}`
     this.#callIds.set(toParticipantId, callId)
     return callId
   }
@@ -206,6 +206,18 @@ class LegacyRtcSignalSocketImpl extends EventTarget implements LegacyRtcSignalSo
   #dispatchLegacy(value: Record<string, unknown>): void {
     this.dispatchEvent(new MessageEvent("message", {data: JSON.stringify(value)}))
   }
+}
+
+function rtcRandomToken(): string {
+  const cryptoApi = globalThis.crypto
+  if (typeof cryptoApi?.randomUUID === "function") return cryptoApi.randomUUID()
+  const bytes = new Uint8Array(16)
+  if (typeof cryptoApi?.getRandomValues === "function") {
+    cryptoApi.getRandomValues(bytes)
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) bytes[index] = Math.floor(Math.random() * 256)
+  }
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("")
 }
 
 class InterpreterRtcSignalSocketImpl extends EventTarget implements LegacyRtcSignalSocket {
@@ -269,8 +281,8 @@ function isInterpreterRtcSignalUrl(value: string): boolean {
   try {
     const url = new URL(value, location.href)
     return url.pathname === "/webrtc/signaling"
-      || url.pathname === "/hud/webrtc/signaling"
       || url.pathname === "/hud/interpreter/webrtc/signaling"
+      || url.pathname === "/interp/webrtc/signaling"
       || url.pathname === "/hud/android/webrtc/signaling"
   } catch {
     return false

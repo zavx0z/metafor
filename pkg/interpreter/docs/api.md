@@ -121,6 +121,24 @@ GET    /events?since=<iso|seq>&limit=<n>
 GET    /console?since=<iso|seq>&limit=<n>
 ```
 
+При работе через `app/web` embedded interpreter канонический proxy-префикс -
+`/hud/interpreter/*`; короткий `/interp/*` является alias. Для remote desktop
+WebRTC это означает:
+
+```text
+WS  /hud/interpreter/webrtc/signaling
+WS  /interp/webrtc/signaling
+GET /hud/interpreter/remote-desktop/rtc/state
+GET /interp/remote-desktop/rtc/state
+```
+
+Same-host cross-port `Origin` разрешен только для RTC signaling. Это нужно для
+локальных/dev вариантов с разными портами, но sender и browser UI все равно
+должны сходиться в один in-memory signaling owner. В текущем server-dev контуре
+это внешний interpreter на `6500` (`/webrtc/signaling`); `3004` остается app-web
+dev server/embedded proxy. Исключение не расширяет доступ к terminal/voice
+WebSocket routes.
+
 ## Текущий Context
 
 `GET /context` возвращает один текущий контекст: то, что сейчас активно видно или выбрано в среде. Это главный endpoint для запроса вроде "смотри на значение".
@@ -252,6 +270,10 @@ display. Snapshot routes являются fallback/diagnostics, а не осно
 INTERPRETER_REMOTE_DESKTOP_HOST_URL=http://127.0.0.1:<port>
 # или
 INTERPRETER_REMOTE_DESKTOP_HOST_PORT=<port>
+
+INTERPRETER_REMOTE_DESKTOP_RTC_HOST_URL=http://127.0.0.1:32133
+# или
+INTERPRETER_REMOTE_DESKTOP_RTC_HOST_PORT=32133
 ```
 
 Routes:
@@ -273,9 +295,17 @@ POST /remote-desktop/browser/open
 состояние WebRTC sender, включая `capture.preferredKind` и фактический
 `source.kind`, а также `audio.enabled`, `audio.effectiveSource` и
 `audio.trackCount`. `/remote-desktop/rtc/state` и `/remote-desktop/rtc/restart`
-управляют capture/sender window внутри Electron host. `/remote-desktop/input`
+управляют capture/sender window внутри отдельного Electron WebRTC sender
+(`127.0.0.1:32133` по умолчанию), а не snapshot/input host. `/remote-desktop/input`
 используется как fallback/control adapter; при WebRTC data channel UI может
 отправлять input напрямую sender-у.
+
+В production server-dev контуре `/remote-desktop/rtc/state` также используется
+как ICE diagnostic contract. Рабочий direct media path должен показывать
+`ice.lastPublishedCandidate.address = "130.49.151.168"` и port внутри
+`40000-40100`. `ice.lastCandidate` может содержать локальный адрес Chromium
+вроде `10.163.*`, если UDP socket открыт на `0.0.0.0`; проверять надо именно
+published candidate, который уходит browser viewer-у через signaling.
 
 ## TODO HUD
 
