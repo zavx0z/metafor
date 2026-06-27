@@ -21,6 +21,7 @@ bun --filter @app/electron host:linux
 bun --filter @app/electron dev:host:linux
 cd app/electron && bun run webrtc:linux
 cd app/electron && bun run dev:webrtc:linux
+cd app/electron && bun run webrtc:pipewire:screen
 cd app/electron && bun run webrtc:x11:window
 ```
 
@@ -30,28 +31,30 @@ Host mode uses a separate Electron user data directory and session partition fro
 
 Linux server desktop mode uses two local processes on the current GNOME server.
 `pipewire:host` stays on `127.0.0.1:32123` as the Mutter/PipeWire host for EIS
-input, diagnostic snapshots, and audio/frame fallback adapters. The active live
-WebRTC sender is `webrtc:x11:window` on `127.0.0.1:32133`: it captures the
-visible `MetaFor - Google Chrome` window through Chromium's native desktop
-capture and publishes it as browser WebRTC. This keeps the interpreter on the
-optimized WebRTC media path instead of MJPEG/canvas frame polling.
+input, diagnostic snapshots, and audio/video adapters. The active live WebRTC
+sender is `webrtc:pipewire:screen` on `127.0.0.1:32133`: it reads
+`127.0.0.1:32123/desktop/video.webm` into a hidden Chromium video element,
+publishes `video.captureStream()` through the same WebRTC signaling room, and
+adds low-latency PCM audio from `127.0.0.1:32123/desktop/audio.pcm`.
 
 The split is intentional for this server. Its XWayland root screen reports
-`0x0`, so full X11 screen capture is not usable. Standalone Google Chrome on
-Wayland can stall before CDP is available. Electron on X11 can capture the
-Chrome window reliably, including a native audio track, while `32123` continues
-to provide the remote input adapter.
+`0x0`, so full X11 screen capture is not usable, and Chrome's
+`getDisplayMedia()` "Entire Screen" picker can show an empty source list.
+Standalone Google Chrome on Wayland can stall before CDP is available. The
+PipeWire video bridge keeps the visible display full-screen at `1920x1080`
+without relying on that chooser. `webrtc:x11:window` remains a diagnostic
+fallback that captures the visible `MetaFor - Google Chrome` window through
+Chromium native desktop capture.
 
 `webrtc:linux` still starts Electron as a sender-only diagnostic/fallback
 process: no managed browser window and no Playwright. The Electron sender first
 tries Chromium's native desktop media stream and probes the first frame; on the
 current GNOME/Wayland/NVIDIA server Electron may negotiate `screen:*` while
 delivering black frames, so black native capture is rejected instead of being
-published. If a local frame fallback is configured, MJPEG frames
-(`127.0.0.1:32123/desktop/stream.mjpeg`) are decoded into a hidden canvas and
-published with `captureStream()`. Fallback audio prefers low-latency PCM
-(`/desktop/audio.pcm`) before the older WebM/Opus adapter
-(`/desktop/audio.webm`).
+published. If a local video fallback is configured, `video/webm; codecs=vp8`
+from `127.0.0.1:32123/desktop/video.webm` is preferred over the older MJPEG
+canvas path (`/desktop/stream.mjpeg`). Fallback audio prefers low-latency PCM
+(`/desktop/audio.pcm`) before the older WebM/Opus adapter (`/desktop/audio.webm`).
 The Linux scripts default to `WAYLAND_DISPLAY=wayland-0` and
 `METAFOR_ELECTRON_OZONE_PLATFORM=wayland` while still exporting `DISPLAY=:0`
 and Mutter's Xwayland `XAUTHORITY` for compatibility. On the GNOME server,
@@ -82,6 +85,7 @@ All endpoints are local-only by default and return `Cache-Control: no-store`.
 - `GET /desktop/rtc/state` - WebRTC sender state.
 - `POST /desktop/rtc/restart` - recreate the WebRTC sender page.
 - `GET /desktop/snapshot` - diagnostic fallback snapshot. WebRTC is the primary live channel.
+- `GET /desktop/video.webm` - VP8/WebM stream from the active Mutter/PipeWire desktop stream, used by `webrtc:pipewire:screen`.
 - `POST /desktop/input` - send remote desktop input over the host adapter or fallback page input.
 - `POST /restart` - recreate the BrowserWindow. Optional body: `{"url":"https://example.test/","viewport":{"width":1280,"height":720,"deviceScaleFactor":1}}`.
 - `GET /snapshot` or `POST /snapshot` - capture the current page once and return `image/png`. Add `?format=json` to receive base64 JSON.
@@ -124,6 +128,8 @@ curl http://127.0.0.1:32123/snapshot --output snapshot.png
 - `METAFOR_REMOTE_DESKTOP_AUDIO` - enable/disable audio track.
 - `METAFOR_REMOTE_DESKTOP_AUDIO_SOURCE` - `auto`, `system`, `loopback`, `loopback-with-mute`, `browser`, `browser-frame`, or `off`.
 - `METAFOR_REMOTE_DESKTOP_CAPTURE_MODE` - `native-first`, `native-only`, or `frame-stream`. Defaults to `native-first`, so Chromium captures one native desktop media stream with video and audio before falling back to PipeWire MJPEG/PCM adapters. `native-only` is for diagnostics: black or unsupported browser capture fails instead of being masked by the PipeWire fallback.
+- `METAFOR_REMOTE_DESKTOP_VIDEO_URL` / `METAFOR_REMOTE_DESKTOP_VIDEO_STREAM_URL` - optional local WebM/VP8 desktop video source for the sender page. `webrtc:pipewire:screen` defaults this to `http://127.0.0.1:32123/desktop/video.webm` and sets `METAFOR_REMOTE_DESKTOP_CAPTURE_MODE=frame-stream`.
+- `METAFOR_REMOTE_DESKTOP_VIDEO_BITRATE` - VP8 bitrate for `/desktop/video.webm`. Defaults to `METAFOR_REMOTE_DESKTOP_RTC_VIDEO_BITRATE` or `8000000`.
 - `METAFOR_REMOTE_DESKTOP_FRAME_STREAM_URL` - optional local MJPEG frame fallback source for the sender page. The Linux WebRTC scripts keep this configured so GNOME/Wayland black-frame cases can still fall back without losing the display.
 - `METAFOR_REMOTE_DESKTOP_FRAME_SNAPSHOT_URL` - optional local snapshot source paired with the frame stream. The Linux WebRTC scripts default to `http://127.0.0.1:32123/desktop/snapshot`.
 - `METAFOR_REMOTE_DESKTOP_AUDIO_PCM_URL` - optional local S16LE 48 kHz stereo PCM audio fallback source for the sender page. The Linux WebRTC scripts default to `http://127.0.0.1:32123/desktop/audio.pcm`; the sender keeps a short bounded queue before adding the track to the same WebRTC connection.
@@ -146,16 +152,15 @@ curl http://127.0.0.1:32123/snapshot --output snapshot.png
 
 In the current server contour `GET /desktop/rtc/state` on `32133` should show
 `webRtc: true`, `transport: "electron-webrtc"`,
-`capture.frameSource: "native-chromium"`, `source.kind: "window"`,
-`capture.frameWidth` near `1918`, `capture.frameHeight` near `1078`,
-`audio.trackCount: 1`, a connected peer, and an open data channel. Chrome 148 reads the UDP port range from profile preference
+`capture.frameSource: "pipewire-webm"`, `source.kind: "stream"`,
+`capture.frameWidth: 1920`, `capture.frameHeight: 1080`,
+`audio.effectiveSource: "pipewire-pcm"`, `audio.trackCount: 1`, a connected
+peer, and an open data channel. Chrome 148 reads the UDP port range from profile preference
 `webrtc.udp_port_range`; the host writes that preference before launching
 Chrome so ICE candidates stay inside the production forwarding range. The
 published candidate address is rewritten to `METAFOR_REMOTE_DESKTOP_PUBLIC_ICE_HOST`.
-`pipewire-mjpeg` with `pipewire-pcm` in Electron sender state means Electron
-native capture was rejected or disabled and the local fallback is active.
-`pipewire-webm` means the older fallback is active and can drift more because
-WebM buffering is independent from frame delivery. If the receiver gets an
-audio track but hears silence, check the server sink first with `wpctl status`.
+`pipewire-mjpeg` with `pipewire-pcm` in Electron sender state means the older
+MJPEG/canvas fallback is active. If the receiver gets an audio track but hears
+silence, check the server sink first with `wpctl status`.
 
 macOS media permission prompts only run on `process.platform === "darwin"`. Linux host mode does not depend on Playwright at runtime.

@@ -9,6 +9,7 @@ const WIDTH = Number(process.env.METAFOR_REMOTE_DESKTOP_WIDTH || 1920)
 const HEIGHT = Number(process.env.METAFOR_REMOTE_DESKTOP_HEIGHT || 1080)
 const FPS = Number(process.env.METAFOR_REMOTE_DESKTOP_SNAPSHOT_FPS || 30)
 const MJPEG_BOUNDARY = "metafor-desktop-frame"
+const VIDEO_BITRATE = Number(process.env.METAFOR_REMOTE_DESKTOP_VIDEO_BITRATE || process.env.METAFOR_REMOTE_DESKTOP_RTC_VIDEO_BITRATE || 8_000_000)
 const AUDIO_BITRATE = Number(process.env.METAFOR_REMOTE_DESKTOP_AUDIO_BITRATE || 128000)
 const AUDIO_TARGET = (process.env.METAFOR_REMOTE_DESKTOP_AUDIO_TARGET || "").trim()
 const AUDIO_UNMUTE = process.env.METAFOR_REMOTE_DESKTOP_AUDIO_UNMUTE === undefined
@@ -96,6 +97,12 @@ const state = {
   },
   mjpeg: {
     clients: 0,
+    lastStartedAt: null,
+    lastError: null,
+  },
+  videoWebm: {
+    clients: 0,
+    bitrate: VIDEO_BITRATE,
     lastStartedAt: null,
     lastError: null,
   },
@@ -223,6 +230,10 @@ async function route(req, res) {
   }
   if (req.method === "GET" && (url.pathname === "/desktop/stream.mjpeg" || url.pathname === "/desktop/stream")) {
     await sendMjpegStream(req, res)
+    return
+  }
+  if (req.method === "GET" && (url.pathname === "/desktop/video.webm" || url.pathname === "/desktop/video")) {
+    await sendVideoWebmStream(req, res)
     return
   }
   if (req.method === "GET" && url.pathname === "/desktop/audio.pcm") {
@@ -1093,6 +1104,81 @@ async function sendMjpegStream(req, res) {
   gst.on("exit", (code, signal) => {
     if (code !== 0 && code !== null && !res.destroyed) {
       state.mjpeg.lastError = `gst-launch mjpeg failed code=${code} signal=${signal ?? "null"} ${stderr.trim()}`.trim()
+    }
+    stop()
+  })
+  req.on("close", stop)
+  res.on("close", stop)
+}
+
+async function sendVideoWebmStream(req, res) {
+  if (state.stream.serial === null) {
+    sendJson(res, 503, {ok: false, error: state.stream.error || "PipeWire stream is not ready"})
+    return
+  }
+
+  state.videoWebm.clients += 1
+  state.videoWebm.lastStartedAt = new Date().toISOString()
+  state.videoWebm.lastError = null
+
+  const gst = spawn("gst-launch-1.0", [
+    "-q",
+    "pipewiresrc",
+    `target-object=${state.stream.serial}`,
+    "!",
+    `video/x-raw,max-framerate=${FPS}/1,width=${WIDTH},height=${HEIGHT}`,
+    "!",
+    "videorate",
+    "!",
+    `video/x-raw,framerate=${FPS}/1`,
+    "!",
+    "videoconvert",
+    "!",
+    "video/x-raw,format=I420",
+    "!",
+    "vp8enc",
+    "deadline=1",
+    "cpu-used=8",
+    "threads=4",
+    `target-bitrate=${VIDEO_BITRATE}`,
+    `keyframe-max-dist=${FPS}`,
+    "lag-in-frames=0",
+    "!",
+    "webmmux",
+    "streamable=true",
+    "!",
+    "fdsink",
+    "fd=1",
+  ], {stdio: ["ignore", "pipe", "pipe"]})
+
+  let settled = false
+  let stderr = ""
+  const stop = () => {
+    if (settled) return
+    settled = true
+    state.videoWebm.clients = Math.max(0, state.videoWebm.clients - 1)
+    stopChild(gst)
+  }
+
+  res.writeHead(200, {
+    "cache-control": "no-store",
+    "connection": "close",
+    "content-type": "video/webm; codecs=vp8",
+    ...corsHeaders(),
+  })
+
+  gst.stdout.pipe(res)
+  gst.stderr.on("data", (chunk) => {
+    stderr += String(chunk)
+    if (stderr.length > 4096) stderr = stderr.slice(-4096)
+  })
+  gst.on("error", (error) => {
+    state.videoWebm.lastError = error.message
+    stop()
+  })
+  gst.on("exit", (code, signal) => {
+    if (code !== 0 && code !== null && !res.destroyed) {
+      state.videoWebm.lastError = `gst-launch video failed code=${code} signal=${signal ?? "null"} ${stderr.trim()}`.trim()
     }
     stop()
   })

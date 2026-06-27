@@ -259,17 +259,19 @@ ANY  /browser-display/proxy/<path>   # relative path under configured browser-ho
 Remote desktop display - server-owned визуальный канал для совместной Web UI
 разработки. Основной realtime-путь в текущем Linux server-dev контуре:
 `pipewire:host` на `127.0.0.1:32123` держит Mutter/PipeWire input/snapshot host,
-а Electron sender `webrtc:x11:window` на `127.0.0.1:32133` публикует окно
-`MetaFor - Google Chrome` через Chromium native desktop capture/WebRTC.
+а Electron sender `webrtc:pipewire:screen` на `127.0.0.1:32133` публикует
+полный Mutter/PipeWire screen stream через Chromium `<video>.captureStream()` и
+WebRTC.
 Интерпретатор держит signaling endpoint и показывает video как first-class
 display `remote-desktop:server` в `Space`. Snapshot routes и MJPEG/canvas
 adapters являются fallback/diagnostics, а не основным frame loop.
 
 Это расхождение с "полным screen capture" важно для текущего сервера:
-XWayland root screen там `0x0`, поэтому X11 screen capture не стартует, а
+XWayland root screen там `0x0`, поэтому X11 screen capture не стартует, Chrome
+`getDisplayMedia()` может показывать пустой `Entire Screen` chooser, а
 standalone Google Chrome на Wayland может зависать до CDP. Рабочий live media
-path - Electron X11 window capture, `transport: "electron-webrtc"`,
-`capture.frameSource: "native-chromium"`.
+path - PipeWire WebM video + PCM audio внутри Electron WebRTC sender,
+`transport: "electron-webrtc"`, `capture.frameSource: "pipewire-webm"`.
 
 Конфигурация bridge:
 
@@ -305,7 +307,7 @@ POST /remote-desktop/browser/open
 проксируется на Electron sender (`127.0.0.1:32133/desktop/rtc/state`), а
 `/remote-desktop/input` и diagnostic snapshots идут через `pipewire:host` на
 `127.0.0.1:32123`. Не оставляй `INTERPRETER_REMOTE_DESKTOP_RTC_HOST_URL=32123`,
-если активный live sender - `webrtc:x11:window`; иначе UI будет работать через
+если активный live sender - `webrtc:pipewire:screen`; иначе UI будет работать через
 signaling, но diagnostic state покажет старый failed Chrome sender. При WebRTC
 data channel UI отправляет input sender-у, а sender проксирует команды в
 `http://127.0.0.1:32123/desktop/input`.

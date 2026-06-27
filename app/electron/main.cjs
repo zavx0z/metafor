@@ -88,6 +88,11 @@ const REMOTE_DESKTOP_RTC_FRAME_SNAPSHOT_URL = localServiceUrl(
   null,
   "METAFOR_REMOTE_DESKTOP_FRAME_SNAPSHOT_URL",
 )
+const REMOTE_DESKTOP_RTC_VIDEO_STREAM_URL = localServiceUrl(
+  process.env.METAFOR_REMOTE_DESKTOP_VIDEO_URL || process.env.METAFOR_REMOTE_DESKTOP_VIDEO_STREAM_URL,
+  null,
+  "METAFOR_REMOTE_DESKTOP_VIDEO_URL",
+)
 const REMOTE_DESKTOP_RTC_AUDIO_URL = localServiceUrl(
   process.env.METAFOR_REMOTE_DESKTOP_AUDIO_URL,
   null,
@@ -153,6 +158,7 @@ const remoteDesktopRtcState = {
     mode: REMOTE_DESKTOP_RTC_CAPTURE_MODE,
     preferredKind: REMOTE_DESKTOP_RTC_SOURCE_KIND === "screen" ? "screen" : "window",
     preferredName: REMOTE_DESKTOP_RTC_SOURCE_NAME || null,
+    videoStreamUrl: REMOTE_DESKTOP_RTC_VIDEO_STREAM_URL === null ? null : REMOTE_DESKTOP_RTC_VIDEO_STREAM_URL.toString(),
     frameStreamUrl: REMOTE_DESKTOP_RTC_FRAME_STREAM_URL === null ? null : REMOTE_DESKTOP_RTC_FRAME_STREAM_URL.toString(),
     frameSnapshotUrl: REMOTE_DESKTOP_RTC_FRAME_SNAPSHOT_URL === null ? null : REMOTE_DESKTOP_RTC_FRAME_SNAPSHOT_URL.toString(),
     audioPcmUrl: REMOTE_DESKTOP_RTC_AUDIO_PCM_URL === null ? null : REMOTE_DESKTOP_RTC_AUDIO_PCM_URL.toString(),
@@ -572,10 +578,22 @@ async function startRemoteDesktopRtc() {
   if (remoteDesktopWindow !== null && !remoteDesktopWindow.isDestroyed()) return
 
   try {
-    const source = REMOTE_DESKTOP_SYSTEM_PICKER ? null : await selectRemoteDesktopSource()
+    const frameFallbackConfigured = REMOTE_DESKTOP_RTC_VIDEO_STREAM_URL !== null || REMOTE_DESKTOP_RTC_FRAME_STREAM_URL !== null
+    const wantsNativeSource = !REMOTE_DESKTOP_SYSTEM_PICKER && REMOTE_DESKTOP_RTC_CAPTURE_MODE !== "frame-stream"
+    let source = null
+    if (wantsNativeSource) {
+      try {
+        source = await selectRemoteDesktopSource()
+      } catch (error) {
+        if (REMOTE_DESKTOP_RTC_CAPTURE_MODE === "native-only" || !frameFallbackConfigured) throw error
+        remoteDesktopRtcState.lastError = error.message
+      }
+    }
     remoteDesktopRtcState.status = "starting"
     remoteDesktopRtcState.source = source === null
-      ? {id: "system-picker", kind: "screen", name: REMOTE_DESKTOP_AUTO_SELECT_SOURCE || "System picker"}
+      ? REMOTE_DESKTOP_SYSTEM_PICKER
+        ? {id: "system-picker", kind: "screen", name: REMOTE_DESKTOP_AUTO_SELECT_SOURCE || "System picker"}
+        : {id: "frame-stream", kind: "stream", name: "PipeWire video stream"}
       : sourceSummary(source)
     remoteDesktopRtcState.lastError = null
     remoteDesktopRtcState.updatedAt = new Date().toISOString()
@@ -615,6 +633,8 @@ async function startRemoteDesktopRtc() {
       iceInterface: REMOTE_DESKTOP_RTC_ICE_INTERFACE,
       audio: REMOTE_DESKTOP_RTC_AUDIO_ENABLED,
       captureMode: REMOTE_DESKTOP_RTC_CAPTURE_MODE,
+      allowDisplayMediaFallback: REMOTE_DESKTOP_SYSTEM_PICKER,
+      videoStreamUrl: REMOTE_DESKTOP_RTC_VIDEO_STREAM_URL === null ? "" : REMOTE_DESKTOP_RTC_VIDEO_STREAM_URL.toString(),
       frameStreamUrl: REMOTE_DESKTOP_RTC_FRAME_STREAM_URL === null ? "" : REMOTE_DESKTOP_RTC_FRAME_STREAM_URL.toString(),
       frameSnapshotUrl: REMOTE_DESKTOP_RTC_FRAME_SNAPSHOT_URL === null ? "" : REMOTE_DESKTOP_RTC_FRAME_SNAPSHOT_URL.toString(),
       audioPcmUrl: REMOTE_DESKTOP_RTC_AUDIO_PCM_URL === null ? "" : REMOTE_DESKTOP_RTC_AUDIO_PCM_URL.toString(),
@@ -656,6 +676,7 @@ const video = document.getElementById("capture");
 let socket = null;
 let stream = null;
 let frameStreamLastStateAt = 0;
+let frameStreamVideoElement = null;
 let frameStreamAudioElement = null;
 let frameStreamAudioContext = null;
 let frameStreamAudioSource = null;
@@ -709,7 +730,7 @@ async function captureStream() {
     if (nativeStream !== null) return nativeStream;
     lastCaptureError = state.lastError;
   }
-  if (wantsFrameStreamFallback && config.frameStreamUrl) {
+  if (wantsFrameStreamFallback && (config.videoStreamUrl || config.frameStreamUrl)) {
     try {
       return await captureFrameStream();
     } catch (error) {
@@ -731,6 +752,7 @@ async function tryCaptureNativeStream() {
     }
   }
   if (navigator.mediaDevices?.getDisplayMedia !== undefined) {
+    if (!config.allowDisplayMediaFallback) return null;
     try {
       return await nativeCaptureReady(await navigator.mediaDevices.getDisplayMedia({
         video: {frameRate: {max: config.maxFps}},
@@ -849,6 +871,100 @@ function stopStream(mediaStream) {
 }
 
 async function captureFrameStream() {
+  let mediaStream = null;
+  if (config.videoStreamUrl) {
+    mediaStream = await captureVideoElementStream();
+  } else {
+    mediaStream = await captureMjpegCanvasStream();
+  }
+  if (config.audio) {
+    await withTimeout(attachFrameStreamAudio(mediaStream), 3000).catch((error) => {
+      postState({audio: {lastError: String(error?.message || error), trackCount: 0}});
+    });
+  }
+  return mediaStream;
+}
+
+async function captureVideoElementStream() {
+  if (typeof HTMLMediaElement.prototype.captureStream !== "function") {
+    throw new Error("video captureStream is unavailable");
+  }
+  const videoStreamUrl = config.videoStreamUrl || "";
+  if (!videoStreamUrl) throw new Error("desktop video stream URL is not configured");
+
+  const sourceVideo = document.createElement("video");
+  sourceVideo.autoplay = true;
+  sourceVideo.muted = true;
+  sourceVideo.playsInline = true;
+  sourceVideo.preload = "auto";
+  sourceVideo.crossOrigin = "anonymous";
+  sourceVideo.style.cssText = "position:fixed;left:-10px;top:-10px;width:1px;height:1px;opacity:0;pointer-events:none";
+  sourceVideo.src = withCacheBust(videoStreamUrl);
+  document.body.appendChild(sourceVideo);
+  frameStreamVideoElement = sourceVideo;
+
+  postState({status: "frame-video-loading", frameSource: "pipewire-webm"});
+  await withTimeout(sourceVideo.play(), 7000).catch(() => undefined);
+  await withTimeout(waitForVideoElementReady(sourceVideo), 7000);
+
+  const mediaStream = sourceVideo.captureStream();
+  const tracks = mediaStream.getVideoTracks();
+  if (tracks.length === 0) {
+    throw new Error("video stream capture returned no video track");
+  }
+  for (const track of tracks) {
+    track.contentHint = "detail";
+    track.applyConstraints?.({
+      width: {ideal: sourceVideo.videoWidth || 1920},
+      height: {ideal: sourceVideo.videoHeight || 1080},
+      frameRate: {ideal: config.maxFps, max: config.maxFps},
+    }).catch(() => undefined);
+  }
+  postState({
+    status: "frame-stream",
+    frameSource: "pipewire-webm",
+    frameWidth: sourceVideo.videoWidth || null,
+    frameHeight: sourceVideo.videoHeight || null,
+    lastError: null,
+  });
+  return mediaStream;
+}
+
+function waitForVideoElementReady(sourceVideo) {
+  if (sourceVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && sourceVideo.videoWidth > 0 && sourceVideo.videoHeight > 0) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      window.clearTimeout(timer);
+      sourceVideo.removeEventListener("loadedmetadata", onReady);
+      sourceVideo.removeEventListener("canplay", onReady);
+      sourceVideo.removeEventListener("playing", onReady);
+      sourceVideo.removeEventListener("resize", onReady);
+      sourceVideo.removeEventListener("error", onError);
+    };
+    const onReady = () => {
+      if (sourceVideo.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || sourceVideo.videoWidth <= 0 || sourceVideo.videoHeight <= 0) return;
+      cleanup();
+      resolve();
+    };
+    const onError = () => {
+      cleanup();
+      reject(new Error(sourceVideo.error?.message || "video stream failed"));
+    };
+    const timer = window.setTimeout(() => {
+      cleanup();
+      reject(new Error("video stream timed out"));
+    }, 7000);
+    sourceVideo.addEventListener("loadedmetadata", onReady);
+    sourceVideo.addEventListener("canplay", onReady);
+    sourceVideo.addEventListener("playing", onReady);
+    sourceVideo.addEventListener("resize", onReady);
+    sourceVideo.addEventListener("error", onError);
+  });
+}
+
+async function captureMjpegCanvasStream() {
   const canvas = document.createElement("canvas");
   canvas.width = 1920;
   canvas.height = 1080;
@@ -864,11 +980,6 @@ async function captureFrameStream() {
     }).catch(() => undefined);
   }
   await startMjpegFrameReader(config.frameStreamUrl, canvas, context);
-  if (config.audio) {
-    await withTimeout(attachFrameStreamAudio(mediaStream), 3000).catch((error) => {
-      postState({audio: {lastError: String(error?.message || error), trackCount: 0}});
-    });
-  }
   return mediaStream;
 }
 
@@ -1350,7 +1461,7 @@ function configureVideoSender(sender) {
 function attachDataChannel(peer, channel) {
   peer.channel = channel;
   channel.addEventListener("open", () => {
-    channel.send(JSON.stringify({type: "hello", peerId: config.peerId, role: "electron-desktop"}));
+    sendChannel(channel, {type: "hello", peerId: config.peerId, role: "electron-desktop"});
     postState({status: "control-open", peers: peerSnapshots()});
   });
   channel.addEventListener("message", (event) => {
@@ -1367,15 +1478,20 @@ function attachDataChannel(peer, channel) {
 
 async function handleControl(peer, channel, command) {
   if (command?.type === "hello") {
-    channel.send(JSON.stringify({type: "control-result", command: "hello", ok: true}))
+    sendChannel(channel, {type: "control-result", command: "hello", ok: true})
     return
   }
   try {
     const result = await window.metaforRemoteDesktop.input(command);
-    channel.send(JSON.stringify({type: "control-result", command: command.type || "input", ok: true, result}));
+    sendChannel(channel, {type: "control-result", command: command.type || "input", ok: true, result});
   } catch (error) {
-    channel.send(JSON.stringify({type: "control-result", command: command.type || "input", ok: false, error: String(error?.message || error)}));
+    sendChannel(channel, {type: "control-result", command: command.type || "input", ok: false, error: String(error?.message || error)});
   }
+}
+
+function sendChannel(channel, payload) {
+  if (channel.readyState !== "open") return;
+  channel.send(JSON.stringify(payload));
 }
 
 function closePeer(peerId) {

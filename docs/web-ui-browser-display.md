@@ -167,11 +167,10 @@ Audio contract:
   доступен;
 - state `/remote-desktop/rtc/state` должен показывать `audio.enabled`,
   `audio.effectiveSource` и `audio.trackCount`. Для основного server desktop
-  ожидается `capture.frameSource: "native-chromium"` и
-  `audio.effectiveSource: "native-chromium"`. Если native capture дает черный
-  кадр, ожидаемый fallback - `capture.frameSource: "pipewire-mjpeg"` и
-  `audio.effectiveSource: "pipewire-pcm"`. `pipewire-webm` означает старый
-  fallback path и может давать больший рассинхрон.
+  ожидается `capture.frameSource: "pipewire-webm"`,
+  `capture.frameWidth: 1920`, `capture.frameHeight: 1080` и
+  `audio.effectiveSource: "pipewire-pcm"`. `pipewire-mjpeg` означает старый
+  canvas fallback path и может давать больший CPU cost/lag.
 
 Interpreter bridge - это не сам Electron host и не display. Он должен быть
 тонким proxy к локальному host API и локальным WebRTC signaling server:
@@ -295,11 +294,10 @@ curl -sS http://127.0.0.1:9230/json/list
 первой попыткой, но X11/Ozone и Wayland на этом сервере могут успешно
 подключать WebRTC и отдавать черный `screen:*` video; sender обязан
 отбраковывать такой native stream по frame probe и переходить на
-`pipewire-mjpeg`. Рабочий Linux sender state должен показывать
+`pipewire-webm` video bridge. Рабочий Linux sender state должен показывать
 `systemPicker.enabled=false`, `capture.frameWidth=1920`,
-`capture.frameHeight=1080`; `capture.frameSource` может быть
-`native-chromium`, если probe не черный, или `pipewire-mjpeg`, если native
-capture отбракован. Независимый WebRTC receiver должен видеть
+`capture.frameHeight=1080`, `capture.frameSource: "pipewire-webm"` и
+`audio.effectiveSource: "pipewire-pcm"`. Независимый WebRTC receiver должен видеть
 `videoWidth=1920`, `videoHeight=1080`, `black=false`, `audioTracks=1` и растущие
 `inbound-rtp` audio `bytesReceived`. Audio-only
 `getUserMedia({chromeMediaSource: "desktop"})` не использовать: на текущем
@@ -322,7 +320,7 @@ DISPLAY=:0 \
 XAUTHORITY=/run/user/1000/.mutter-Xwaylandauth.N4DER3 \
 XDG_SESSION_TYPE=x11 \
 METAFOR_URL=http://10.66.0.10:3004/ \
-bun run dev:webrtc:linux
+bun run webrtc:pipewire:screen
 ```
 
 В этом контуре Node/Mutter host на `127.0.0.1:32123` остается input/snapshot
