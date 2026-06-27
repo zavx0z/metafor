@@ -21,6 +21,9 @@ bun --filter @app/electron host:linux
 bun --filter @app/electron dev:host:linux
 cd app/electron && bun run webrtc:linux
 cd app/electron && bun run dev:webrtc:linux
+cd app/electron && bun run xwayland:display
+cd app/electron && bun run xwayland:browser
+cd app/electron && bun run webrtc:xwayland:screen
 cd app/electron && bun run webrtc:pipewire:screen
 cd app/electron && bun run webrtc:x11:window
 ```
@@ -29,22 +32,22 @@ The host scripts bind the local HTTP API to `127.0.0.1:32123`. If host mode is e
 
 Host mode uses a separate Electron user data directory and session partition from the regular shell.
 
-Linux server desktop mode uses two local processes on the current GNOME server.
-`pipewire:host` stays on `127.0.0.1:32123` as the Mutter/PipeWire host for EIS
-input, diagnostic snapshots, and audio/video adapters. The active live WebRTC
-sender is `webrtc:pipewire:screen` on `127.0.0.1:32133`: it reads
-`127.0.0.1:32123/desktop/video.webm` into a hidden Chromium video element,
-publishes `video.captureStream()` through the same WebRTC signaling room, and
-adds low-latency PCM audio from `127.0.0.1:32123/desktop/audio.pcm`.
+Current Linux server desktop mode uses a user-owned virtual Xwayland display,
+not a physical monitor and not the macOS user's display. `xwayland:display`
+starts `DISPLAY=:98` with `1920x1080` geometry and requires no reboot, sudo or
+system display reconfiguration. `xwayland:browser` opens Google Chrome on that
+display. The active live WebRTC sender is `webrtc:xwayland:screen` on
+`127.0.0.1:32133`: Electron captures `:98` as Chromium `screen:*`, publishes
+native Chromium video and native Chromium audio in one `RTCPeerConnection`, and
+joins the interpreter `remote-desktop` signaling room.
 
-The split is intentional for this server. Its XWayland root screen reports
-`0x0`, so full X11 screen capture is not usable, and Chrome's
-`getDisplayMedia()` "Entire Screen" picker can show an empty source list.
-Standalone Google Chrome on Wayland can stall before CDP is available. The
-PipeWire video bridge keeps the visible display full-screen at `1920x1080`
-without relying on that chooser. `webrtc:x11:window` remains a diagnostic
-fallback that captures the visible `MetaFor - Google Chrome` window through
-Chromium native desktop capture.
+`pipewire:host` on `127.0.0.1:32123` stays available as the older
+Mutter/PipeWire input/snapshot host and as diagnostics/fallback. Do not use
+`webrtc:pipewire:screen` as the primary path while `:98` is available: the
+PipeWire WebM/PCM bridge has separate video/audio clocks and is more likely to
+produce lag or A/V drift. `webrtc:x11:window` remains a diagnostic fallback that
+captures a visible `MetaFor - Google Chrome` window through Chromium native
+desktop capture.
 
 `webrtc:linux` still starts Electron as a sender-only diagnostic/fallback
 process: no managed browser window and no Playwright. The Electron sender first
@@ -152,9 +155,9 @@ curl http://127.0.0.1:32123/snapshot --output snapshot.png
 
 In the current server contour `GET /desktop/rtc/state` on `32133` should show
 `webRtc: true`, `transport: "electron-webrtc"`,
-`capture.frameSource: "pipewire-webm"`, `source.kind: "stream"`,
+`capture.frameSource: "native-chromium"`, `source.kind: "screen"`,
 `capture.frameWidth: 1920`, `capture.frameHeight: 1080`,
-`audio.effectiveSource: "pipewire-pcm"`, `audio.trackCount: 1`, a connected
+`audio.effectiveSource: "native-chromium"`, `audio.trackCount: 1`, a connected
 peer, and an open data channel. Chrome 148 reads the UDP port range from profile preference
 `webrtc.udp_port_range`; the host writes that preference before launching
 Chrome so ICE candidates stay inside the production forwarding range. The

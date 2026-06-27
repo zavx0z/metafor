@@ -12,7 +12,9 @@
 - [x] Прокинуть ввод из UI интерпретатора в remote desktop host: pointer move/down/up/click/doubleclick/wheel, keyboard text/keyDown/keyUp, модификаторы, focus и координатное преобразование display -> desktop.
 - [x] Добавить агентский доступ к этому дисплею: `/remote-desktop/health`, `/remote-desktop/rtc/state`, `/remote-desktop/snapshot`, `/remote-desktop/input`, browser open/restart через безопасный локальный API.
 - [x] Переключить видео с `pipewire-snapshot` polling на Electron WebRTC sender: Electron `desktopCapturer`/`getDisplayMedia` расшаривает серверный desktop в комнату `remote-desktop`, проверенный receiver получает `1920x1080` video track.
-- [ ] Довести audio/spatial audio для Electron WebRTC sender: audio track включён, interpreter воспроизводит звук пространственно, state показывает `audio.trackCount > 0`.
+- [x] Поднять native Chromium audio track в Electron WebRTC sender: state показывает `audio.effectiveSource: "native-chromium"` и `audio.trackCount > 0`.
+- [ ] Проверить и довести spatial audio playback в interpreter UI на стороне клиента, чтобы пользователь реально слышал remote desktop audio без рассинхрона.
+- [ ] Довести direct input именно для текущего `Xwayland :98`, чтобы WebRTC data channel не проксировал управление в старый Mutter/EIS display `:0`.
 - [ ] Подключить sourcemap/devtools workflow для app-web: открытие исходников TypeScript в browser DevTools, стабильные sourcemaps в dev-контуре и короткая диагностика, если browser-display показывает старый bundle.
 - [ ] Аккуратно переиспользовать `production/vendor/ai-macos`: вынести переносимый CDP/shared слой, оставить macOS-specific AppleScript/CoreGraphics/screencapture в darwin-adapter, для Linux сначала делать CDP/Electron backend без широкого порта `window/screen/input`.
 - [ ] Проверить совместную работу: пользователь видит remote desktop/browser-display из интерпретатора на другом экране/телефоне, агент видит тот же кадр, оба могут понимать состояние Web UI без использования ресурсов Mac.

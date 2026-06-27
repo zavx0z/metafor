@@ -7,20 +7,19 @@ Display должен быть равноправным экраном в `Space`
 iframe-оберткой или скрытым Playwright-клиентом.
 
 Текущий основной realtime-канал - WebRTC video/audio stream из Electron sender
-на сервере. Целевой путь - native Chromium desktop media stream: audio и video
-попадают в один RTCPeerConnection с общими WebRTC timestamps. На текущем
-Linux/GNOME/Wayland контуре Chromium может успешно создать native stream, но
-отдать черные `screen:*` кадры; sender проверяет первый native frame и в таком
-случае переключается на локальный Mutter/PipeWire fallback. Fallback берет
-кадры из `127.0.0.1:32123/desktop/stream.mjpeg`, рисует их в hidden canvas и
-публикует canvas через `captureStream()`. Fallback-звук предпочитает raw PCM
-`127.0.0.1:32123/desktop/audio.pcm` с короткой bounded queue; старый
-`/desktop/audio.webm` остается аварийным adapter. Snapshot endpoints остаются
-fallback/diagnostics, но не являются основным способом живой визуализации.
+на сервере. Проверенный 2026-06-27 путь: пользовательский виртуальный
+`Xwayland :98` без reboot/sudo, Google Chrome на этом display, Electron sender
+`webrtc:xwayland:screen` и native Chromium desktop media stream. Audio и video
+попадают в один RTCPeerConnection с общими WebRTC timestamps; ожидаемый state -
+`capture.frameSource: "native-chromium"`, `source.kind: "screen"`,
+`capture.frameWidth: 1920`, `capture.frameHeight: 1080`,
+`audio.effectiveSource: "native-chromium"`, `audio.trackCount: 1`.
+Mutter/PipeWire WebM/PCM/MJPEG adapters остаются fallback/diagnostics, но не
+являются основным способом живой визуализации, пока `:98` доступен.
 
 ## Проверенный Контекст
 
-Проверено 2026-06-26 в репозиториях:
+Проверено 2026-06-27 в репозиториях:
 
 - `/home/zavx0z/production/vendor/metafor`, ветка `energy`;
 - `/home/zavx0z/production/vendor/ai-macos`, доступен и содержит workspaces
@@ -46,6 +45,9 @@ fallback/diagnostics, но не являются основным способо
   `desktopCapturer` / `getDisplayMedia`, управляемый URL/viewport/restart/input
   и CDP через
   `METAFOR_ELECTRON_DEBUG_PORT`;
+- текущий Linux server remote desktop поднимается без перезагрузки машины:
+  `bun run xwayland:display`, `bun run xwayland:browser`,
+  `bun run webrtc:xwayland:screen` в `app/electron`;
 - Linux server script для Electron host - `bun --filter @app/electron
   host:linux` или `dev:host:linux`; он передает sandbox/Ozone flags на уровне
   запуска процесса, потому что эти флаги должны попасть в Electron binary до
@@ -160,16 +162,15 @@ Audio contract:
 
 - `METAFOR_REMOTE_DESKTOP_AUDIO=0` выключает audio track;
 - `METAFOR_REMOTE_DESKTOP_AUDIO_SOURCE=auto|system|loopback|loopback-with-mute|browser|browser-frame|off`;
-- `auto` на Windows использует Electron system loopback, а на Linux сначала
-  использует audio из основного browser frame, потому что Electron 35 помечает
-  строковый loopback как Windows-only. Полный Linux desktop audio должен идти
-  через отдельный PipeWire/PulseAudio adapter или runtime, где loopback реально
-  доступен;
+- `auto` на Windows использует Electron system loopback. В текущем Linux
+  server-dev контуре `Xwayland :98` дает Electron native Chromium desktop
+  stream с audio track; если этот путь недоступен, fallback audio идет через
+  PipeWire/PulseAudio adapter;
 - state `/remote-desktop/rtc/state` должен показывать `audio.enabled`,
   `audio.effectiveSource` и `audio.trackCount`. Для основного server desktop
-  ожидается `capture.frameSource: "pipewire-webm"`,
+  ожидается `capture.frameSource: "native-chromium"`,
   `capture.frameWidth: 1920`, `capture.frameHeight: 1080` и
-  `audio.effectiveSource: "pipewire-pcm"`. `pipewire-mjpeg` означает старый
+  `audio.effectiveSource: "native-chromium"`. `pipewire-mjpeg` означает старый
   canvas fallback path и может давать больший CPU cost/lag.
 
 Interpreter bridge - это не сам Electron host и не display. Он должен быть
@@ -239,51 +240,22 @@ Embedded app-web proxy:
   `electron-desktop`, UI пробует следующий кандидат, чтобы не застрять на
   другом in-memory signaling server.
 
-Ручной smoke для Electron remote desktop host:
+Ручной smoke для текущего Xwayland/Electron remote desktop host:
 
 ```sh
-METAFOR_URL=http://10.66.0.10:3004/ \
-METAFOR_REMOTE_DESKTOP_SIGNAL_URL=ws://10.66.0.10:6500/webrtc/signaling \
-bun --filter @app/electron dev:host:linux
+cd /home/zavx0z/production/vendor/metafor/app/electron
 
-# direct form:
-ELECTRON_DISABLE_SANDBOX=1 \
-XDG_RUNTIME_DIR=/run/user/1000 \
-DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus \
-DISPLAY=:0 \
-XAUTHORITY=/run/user/1000/.mutter-Xwaylandauth.N4DER3 \
-WAYLAND_DISPLAY=wayland-0 \
-XDG_SESSION_TYPE=wayland \
-METAFOR_URL=http://10.66.0.10:3004/ \
-METAFOR_ELECTRON_HOST=1 \
-METAFOR_ELECTRON_HOST_PORT=32133 \
-METAFOR_ELECTRON_OZONE_PLATFORM=wayland \
-METAFOR_REMOTE_DESKTOP_RTC=1 \
-METAFOR_REMOTE_DESKTOP_SENDER_ONLY=1 \
-METAFOR_REMOTE_DESKTOP_SYSTEM_PICKER=0 \
-METAFOR_REMOTE_DESKTOP_CAPTURE_SOURCE=screen \
-METAFOR_REMOTE_DESKTOP_AUDIO=1 \
-METAFOR_REMOTE_DESKTOP_AUDIO_SOURCE=auto \
-METAFOR_REMOTE_DESKTOP_UDP_PORT_RANGE=40000-40100 \
-METAFOR_REMOTE_DESKTOP_PUBLIC_ICE_HOST=130.49.151.168 \
-METAFOR_REMOTE_DESKTOP_ICE_INTERFACE=10.66.0.10 \
-METAFOR_REMOTE_DESKTOP_IP_HANDLING_POLICY=default_public_and_private_interfaces \
-METAFOR_REMOTE_DESKTOP_SIGNAL_URL=ws://10.66.0.10:6500/webrtc/signaling \
-METAFOR_ELECTRON_DEBUG_PORT=9230 \
-node_modules/.bin/electron app/electron \
-  --ozone-platform=wayland \
-  --enable-features=UseOzonePlatform,WebRTCPipeWireCapturer \
-  --no-sandbox
+# В отдельных tmux panes/sessions:
+bun run xwayland:display
+bun run xwayland:browser
+bun run webrtc:xwayland:screen
 
-curl -sS http://127.0.0.1:32133/desktop/health
-curl -sS http://127.0.0.1:32133/desktop/rtc/state
+DISPLAY=:98 XAUTHORITY=/tmp/metafor-xwayland.Xauthority xrandr
+curl -sS http://127.0.0.1:9348/json/version
 curl -sS http://10.66.0.10:6500/remote-desktop/rtc/state
 curl -sS http://10.66.0.10:6500/remote-desktop/rtc/state \
   | jq '.remoteDesktop.ice.lastPublishedCandidate'
-curl -sS http://127.0.0.1:32123/state
-curl -sS http://127.0.0.1:32123/snapshot --output /tmp/browser-host.png
-curl -sS http://127.0.0.1:9230/json/version
-curl -sS http://127.0.0.1:9230/json/list
+curl -sS http://127.0.0.1:32133/desktop/rtc/state
 ```
 
 Проверка 2026-06-27: Electron 35.7.5 на текущем GNOME/Wayland/NVIDIA сервере
@@ -292,12 +264,12 @@ curl -sS http://127.0.0.1:9230/json/list
 `METAFOR_ELECTRON_WEBGPU=0`, `ozone-platform=wayland`, отключенный Vulkan/VAAPI и
 `METAFOR_REMOTE_DESKTOP_SYSTEM_PICKER=0`. Native Chromium capture должен быть
 первой попыткой, но X11/Ozone и Wayland на этом сервере могут успешно
-подключать WebRTC и отдавать черный `screen:*` video; sender обязан
-отбраковывать такой native stream по frame probe и переходить на
-`pipewire-webm` video bridge. Рабочий Linux sender state должен показывать
+подключать WebRTC и отдавать черный `screen:*` video. Рабочий обход без reboot -
+не Xorg на `/dev/tty0`, а пользовательский `Xwayland :98` поверх текущей
+Wayland-сессии. Рабочий Linux sender state должен показывать
 `systemPicker.enabled=false`, `capture.frameWidth=1920`,
-`capture.frameHeight=1080`, `capture.frameSource: "pipewire-webm"` и
-`audio.effectiveSource: "pipewire-pcm"`. Независимый WebRTC receiver должен видеть
+`capture.frameHeight=1080`, `capture.frameSource: "native-chromium"` и
+`audio.effectiveSource: "native-chromium"`. Независимый WebRTC receiver должен видеть
 `videoWidth=1920`, `videoHeight=1080`, `black=false`, `audioTracks=1` и растущие
 `inbound-rtp` audio `bytesReceived`. Audio-only
 `getUserMedia({chromeMediaSource: "desktop"})` не использовать: на текущем
@@ -310,7 +282,7 @@ curl -sS http://127.0.0.1:9230/json/list
 WebAudio graph через `PannerNode` и hidden `HTMLAudioElement` fallback, который
 повторно запускается на user gesture, чтобы обходить autoplay/WebAudio блок.
 
-Проверенный запуск:
+Fallback-запуск через PipeWire bridge, если `:98` недоступен:
 
 ```sh
 cd /home/zavx0z/production/vendor/metafor/app/electron

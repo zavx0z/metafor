@@ -213,6 +213,8 @@ Browser page - только host одного WebGPU canvas. Не добавля
 
 Общий server desktop/browser для WebApp должен входить как first-class display в `Space`, а не как HUD. Realtime-канал - WebRTC video/audio stream из Electron/Chromium capture API на сервере; snapshot routes допустимы как fallback/diagnostics. Visual source по умолчанию - весь server `screen`, не browser tab/window. Interpreter воспроизводит audio через WebAudio spatial panner, привязанный к позиции display в Space. Не делай Playwright permanent runtime dependency и не завязывай архитектуру на macOS display пользователя. macOS/ai-macos и Linux OS-level input/audio должны быть adapter-слоями поверх общего signaling/input/media контракта.
 
+Текущий server-dev контур без физического монитора использует пользовательский `Xwayland :98`: `app/electron` запускает виртуальный display, Chrome на нем и Electron sender `webrtc:xwayland:screen`. Ожидаемый media state - `native-chromium` video/audio 1920x1080. PipeWire WebM/PCM/MJPEG и старый Mutter/EIS input на `:0` оставляй fallback/diagnostics, не возвращай их как основной realtime path, пока `:98` доступен.
+
 ## Terminal Input
 
 Module terminal является одновременно module output и expression input.
