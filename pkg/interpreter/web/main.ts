@@ -38,10 +38,17 @@ import {
   paneFrameHit,
   sourceDisplayLocation,
   sourcePathFromLocation,
+  codexComposerMessage,
+  codexImageDropFiles,
+  formatCodexAttachmentSize,
+  mergeCodexComposerDraft,
+  pickCodexImageFiles,
+  uploadCodexAttachments,
   type EditorBreakpoint,
   type EditorSelectionSnapshot,
   type EditorTokens,
   type FileListItem,
+  type CodexComposerAttachment,
   type AndroidPaneStatusKind,
   type AndroidPaneSwipe,
   type NetworkWatchPaneSnapshot,
@@ -575,14 +582,6 @@ type VoiceInputTarget =
   | {kind: "module"; controller: ModuleDisplayController}
   | {kind: "host"; controller: HostTerminalController}
 
-type CodexComposerAttachment = {
-  id: string
-  name: string
-  path: string
-  mime: string
-  size: number
-}
-
 const $ = <T extends HTMLElement = HTMLElement>(id: string): T => {
   const element = document.getElementById(id)
   if (element === null) throw new Error(`#${id} not in DOM`)
@@ -724,7 +723,6 @@ const HOST_TERMINAL_CODEX_COMPOSER_GAP = 8
 const HOST_TERMINAL_CODEX_COMPOSER_PAD = 12
 const HOST_TERMINAL_CODEX_COMPOSER_HEADER_BUTTON_SIZE = 24
 const HOST_TERMINAL_CODEX_COMPOSER_VOICE_BUTTON_VISIBLE = true
-const HOST_TERMINAL_CODEX_COMPOSER_MAX_ATTACHMENT_BYTES = 16 * 1024 * 1024
 const AGENT_READY_SOUND_IDLE_MS = 2_500
 const AGENT_READY_SOUND_COOLDOWN_MS = 1_200
 const VOICE_SIGNAL_COOLDOWN_MS = 900
@@ -5128,7 +5126,8 @@ class HostTerminalCodexComposerPane extends UiSurface {
     const titleLeft = dockButtonX + buttonSize + gap
     const voiceButtonRect = this.#voiceButtonRect(w)
     const voiceButtonX = voiceButtonRect.x
-    const sendButtonX = voiceButtonX - gap - buttonSize
+    const attachButtonX = voiceButtonX - gap - buttonSize
+    const sendButtonX = attachButtonX - gap - buttonSize
     const titleMaxW = Math.max(1, sendButtonX - titleLeft - 10)
     const titleW = Math.min(titleMaxW, this.measureText("Codex message", 12))
     const titleCx = Math.min(Math.max(w / 2, titleLeft + titleW / 2), Math.max(titleLeft + titleW / 2, sendButtonX - titleW / 2 - 8))
@@ -5161,6 +5160,13 @@ class HostTerminalCodexComposerPane extends UiSurface {
       variant: "text",
       radius: 7,
       action: () => submitHostCodexComposer(this.controller),
+    })
+    IconButton(this, attachButtonX, 6, buttonSize, buttonSize, {
+      label: "Прикрепить изображение",
+      iconSrc: uiIcons.image,
+      variant: "text",
+      radius: 7,
+      action: () => void chooseHostCodexImages(this.controller),
     })
     if (HOST_TERMINAL_CODEX_COMPOSER_VOICE_BUTTON_VISIBLE) {
       ButtonVoice(this, voiceButtonX, 6, buttonSize, {
@@ -5247,7 +5253,7 @@ class HostTerminalCodexComposerPane extends UiSurface {
     const chipH = 22
     for (const attachment of this.controller.codexAttachments) {
       if (cy + chipH > maxY - 18) break
-      const label = `${attachment.name} · ${formatAttachmentSize(attachment.size)}`
+      const label = `${attachment.name} · ${formatCodexAttachmentSize(attachment.size)}`
       const chipW = Math.min(w, Math.max(96, Math.ceil(this.measureText(label, 10)) + 34))
       if (cx > x && cx + chipW > x + w) {
         cx = x
@@ -6083,74 +6089,28 @@ function removeHostCodexAttachment(controller: HostTerminalController, id: strin
   controller.codexComposer.requestRender()
 }
 
-function codexComposerMessage(draft: string, attachments: readonly CodexComposerAttachment[]): string {
-  const body = draft.replace(/\r\n?/g, "\n").trim()
-  if (attachments.length === 0) return body
-  const imageLines = attachments.map((attachment) => `- ${attachment.path}`).join("\n")
-  const imageBlock = `Изображения:\n${imageLines}`
-  return body.length === 0 ? imageBlock : `${body}\n\n${imageBlock}`
+async function chooseHostCodexImages(controller: HostTerminalController): Promise<void> {
+  const files = await pickCodexImageFiles({multiple: true, parent: uiCanvas?.canvas.parentElement ?? document.body})
+  if (files.length === 0) return
+  await attachHostCodexImages(controller, files)
 }
 
-function mergeCodexComposerDraft(base: string, addition: string): string {
-  const left = base.trim()
-  const right = addition.trim()
-  if (!left) return right
-  if (!right) return left
-  return `${left}\n${right}`
-}
-
-function codexImageDropFiles(dataTransfer: DataTransfer | null): File[] {
-  if (dataTransfer === null) return []
-  const files = new Map<string, File>()
-  for (const file of Array.from(dataTransfer.files)) {
-    if (codexFileLooksImage(file)) files.set(codexDropFileKey(file), file)
+async function attachHostCodexImages(controller: HostTerminalController, files: readonly File[]): Promise<void> {
+  if (files.length === 0) {
+    setHostCodexComposerStatus(controller, "нет изображения")
+    return
   }
-  for (const item of Array.from(dataTransfer.items)) {
-    if (item.kind !== "file") continue
-    const file = item.getAsFile()
-    if (file !== null && codexFileLooksImage(file)) files.set(codexDropFileKey(file), file)
+  setHostCodexComposerStatus(controller, "загружаю изображение", 6000)
+  try {
+    const uploaded = await uploadCodexAttachments(files)
+    controller.codexAttachments = [...controller.codexAttachments, ...uploaded]
+    setHostCodexComposerStatus(controller, `${controller.codexAttachments.length} влож.`)
+    focusHostCodexComposer(controller)
+  } catch (error) {
+    setHostCodexComposerStatus(controller, error instanceof Error ? error.message : String(error), 5000)
+  } finally {
+    controller.codexComposer.requestRender()
   }
-  return [...files.values()]
-}
-
-function codexFileLooksImage(file: File): boolean {
-  if (file.type.startsWith("image/")) return true
-  return /\.(?:png|jpe?g|gif|webp|heic|heif|tiff?|bmp|svg)$/i.test(file.name)
-}
-
-function codexDropFileKey(file: File): string {
-  return `${file.name}:${file.size}:${file.lastModified}`
-}
-
-async function uploadCodexAttachment(file: File): Promise<CodexComposerAttachment> {
-  if (!codexFileLooksImage(file)) throw new Error("можно прикрепить только изображение")
-  if (file.size > HOST_TERMINAL_CODEX_COMPOSER_MAX_ATTACHMENT_BYTES) throw new Error("изображение больше 16 MB")
-  const dataBase64 = base64Bytes(new Uint8Array(await file.arrayBuffer()))
-  const response = await fetch("/hud/codex/attachments", {
-    method: "POST",
-    headers: {"content-type": "application/json"},
-    body: JSON.stringify({
-      name: file.name || "image.png",
-      type: file.type || "",
-      size: file.size,
-      dataBase64,
-    }),
-  })
-  const payload = await response.json().catch(() => null)
-  const record = asPlainRecord(payload)
-  if (!response.ok || record?.["ok"] !== true) {
-    const message = typeof record?.["error"] === "string" ? record["error"] : `upload ${response.status}`
-    throw new Error(message)
-  }
-  const attachment = asPlainRecord(record["attachment"])
-  if (attachment === null) throw new Error("attachment response is invalid")
-  const id = stringValue(attachment["id"]) ?? crypto.randomUUID()
-  const name = stringValue(attachment["name"]) ?? (file.name || "image")
-  const path = stringValue(attachment["path"])
-  const mime = stringValue(attachment["mime"]) ?? (file.type || "image/*")
-  const size = typeof attachment["size"] === "number" && Number.isFinite(attachment["size"]) ? attachment["size"] : file.size
-  if (path === null) throw new Error("attachment path is missing")
-  return {id, name, path, mime, size}
 }
 
 function installHostCodexComposerDragHandlers(): void {
@@ -6188,22 +6148,7 @@ async function handleHostCodexDrop(event: DragEvent): Promise<void> {
   event.stopPropagation()
   setHostCodexDropActive(controller, false)
   const files = codexImageDropFiles(event.dataTransfer)
-  if (files.length === 0) {
-    setHostCodexComposerStatus(controller, "нет изображения")
-    return
-  }
-  setHostCodexComposerStatus(controller, "загружаю изображение", 6000)
-  try {
-    const uploaded: CodexComposerAttachment[] = []
-    for (const file of files) uploaded.push(await uploadCodexAttachment(file))
-    controller.codexAttachments = [...controller.codexAttachments, ...uploaded]
-    setHostCodexComposerStatus(controller, `${controller.codexAttachments.length} влож.`)
-    focusHostCodexComposer(controller)
-  } catch (error) {
-    setHostCodexComposerStatus(controller, error instanceof Error ? error.message : String(error), 5000)
-  } finally {
-    controller.codexComposer.requestRender()
-  }
+  await attachHostCodexImages(controller, files)
 }
 
 function dragEventInsideHostCodexComposer(event: DragEvent): boolean {
@@ -6217,21 +6162,6 @@ function setHostCodexDropActive(controller: HostTerminalController, active: bool
   if (controller.codexDropActive === active) return
   controller.codexDropActive = active
   controller.codexComposer.requestRender()
-}
-
-function asPlainRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null
-}
-
-function stringValue(value: unknown): string | null {
-  return typeof value === "string" ? value : null
-}
-
-function formatAttachmentSize(size: number): string {
-  if (!Number.isFinite(size) || size <= 0) return "0 B"
-  if (size < 1024) return `${Math.round(size)} B`
-  if (size < 1024 * 1024) return `${Math.round(size / 102.4) / 10} KB`
-  return `${Math.round(size / (1024 * 102.4)) / 10} MB`
 }
 
 function isAndroidBrowser(): boolean {

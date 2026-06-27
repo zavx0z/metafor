@@ -52,6 +52,12 @@ import {
 	paneFrameDragRect,
 	paneFrameHit,
 	paneHeaderRuleRect,
+	codexComposerMessage,
+	codexImageDropFiles,
+	formatCodexAttachmentSize,
+	mergeCodexComposerDraft,
+	pickCodexImageFiles,
+	uploadCodexAttachments,
 	type NetworkWatchPaneSnapshot,
 	type NetworkWatchServiceKey,
 	type PaneFrameDrag,
@@ -63,6 +69,7 @@ import {
 	type TerminalStatusKind,
 	type AndroidPaneStatusKind,
 	type AndroidPaneSwipe,
+	type CodexComposerAttachment,
 	type FileListItem,
 	type ToDoPanePanelStateSnapshot,
 } from "@ui/panes"
@@ -233,14 +240,6 @@ type TerminalController = {
 	agentNotifyLastOutputAt: number
 	agentNotifyLastPlayedAt: number
 	agentNotifyTimer: ReturnType<typeof setTimeout> | null
-}
-
-type CodexComposerAttachment = {
-	id: string
-	name: string
-	path: string
-	mime: string
-	size: number
 }
 
 type BrowserWritableFile = {
@@ -453,7 +452,6 @@ const CODEX_COMPOSER_GAP = 8
 const CODEX_COMPOSER_PAD = 12
 const CODEX_COMPOSER_HEADER_INSET_X = PANE_FRAME.bodyInsetX
 const CODEX_COMPOSER_HEADER_BUTTON_SIZE = 24
-const CODEX_COMPOSER_MAX_ATTACHMENT_BYTES = 16 * 1024 * 1024
 const NETWORK_STATUS_REFRESH_MS = 2500
 const CODEX_TITLE = "Codex"
 const CODEX_MODEL = "GPT-5"
@@ -1172,6 +1170,12 @@ class AppWebHud implements AppWebHudController {
 		this.#codexAttachments = next
 		this.#setCodexComposerStatus(next.length > 0 ? `${next.length} влож.` : "")
 		this.#codexComposer.requestRender()
+	}
+
+	async chooseCodexImages(): Promise<void> {
+		const files = await pickCodexImageFiles({multiple: true, parent: this.#viewport.hud.canvas.parentElement ?? document.body})
+		if (files.length === 0) return
+		await this.#attachCodexImages(files)
 	}
 
 	submitCodexComposer(): void {
@@ -2627,20 +2631,14 @@ class AppWebHud implements AppWebHudController {
 		this.#setCodexDropActive(false)
 	}
 
-	async #handleCodexDrop(event: DragEvent): Promise<void> {
-		if (!this.#dragEventInsideCodexComposer(event)) return
-		event.preventDefault()
-		event.stopPropagation()
-		this.#setCodexDropActive(false)
-		const files = codexImageDropFiles(event.dataTransfer)
+	async #attachCodexImages(files: readonly File[]): Promise<void> {
 		if (files.length === 0) {
 			this.#setCodexComposerStatus("нет изображения")
 			return
 		}
 		this.#setCodexComposerStatus("загружаю изображение", 6000)
 		try {
-			const uploaded: CodexComposerAttachment[] = []
-			for (const file of files) uploaded.push(await uploadCodexAttachment(file))
+			const uploaded = await uploadCodexAttachments(files)
 			this.#codexAttachments = [...this.#codexAttachments, ...uploaded]
 			this.#setCodexComposerStatus(`${this.#codexAttachments.length} влож.`)
 			this.#focusCodexComposer()
@@ -2649,6 +2647,14 @@ class AppWebHud implements AppWebHudController {
 		} finally {
 			this.#codexComposer.requestRender()
 		}
+	}
+
+	async #handleCodexDrop(event: DragEvent): Promise<void> {
+		if (!this.#dragEventInsideCodexComposer(event)) return
+		event.preventDefault()
+		event.stopPropagation()
+		this.#setCodexDropActive(false)
+		await this.#attachCodexImages(codexImageDropFiles(event.dataTransfer))
 	}
 
 	#dragEventInsideCodexComposer(event: DragEvent): boolean {
@@ -4618,7 +4624,8 @@ class AppWebCodexComposerPane extends UiSurface {
 		const titleLeft = dockButtonX + buttonSize + gap
 		const voiceButtonRect = this.#voiceButtonRect(w)
 		const voiceButtonX = voiceButtonRect.x
-		const sendButtonX = voiceButtonX - gap - buttonSize
+		const attachButtonX = voiceButtonX - gap - buttonSize
+		const sendButtonX = attachButtonX - gap - buttonSize
 		const transportW = 32
 		const transportX = sendButtonX - gap - transportW
 		const textMaxW = Math.max(1, transportX - titleLeft - 10)
@@ -4657,6 +4664,13 @@ class AppWebCodexComposerPane extends UiSurface {
 			variant: "text",
 			radius: 7,
 			action: () => this.hud.submitCodexComposer(),
+		})
+		IconButton(this, attachButtonX, buttonY, buttonSize, buttonSize, {
+			label: "Прикрепить изображение",
+			iconSrc: uiIcons.image,
+			variant: "text",
+			radius: 7,
+			action: () => void this.hud.chooseCodexImages(),
 		})
 		ButtonVoice(this, voiceButtonX, voiceButtonRect.y, buttonSize, {
 			key: "codex-message-voice",
@@ -4771,7 +4785,7 @@ class AppWebCodexComposerPane extends UiSurface {
 		const chipH = 22
 		for (const attachment of attachments) {
 			if (cy + chipH > maxY - 18) break
-			const label = `${attachment.name} · ${formatAttachmentSize(attachment.size)}`
+			const label = `${attachment.name} · ${formatCodexAttachmentSize(attachment.size)}`
 			const chipW = Math.min(w, Math.max(96, Math.ceil(this.measureText(label, 10)) + 34))
 			if (cx > x && cx + chipW > x + w) {
 				cx = x
@@ -6293,83 +6307,6 @@ function workspaceProcessFileId(processId: string, path: string): string {
 function workspaceProcessActionForItemId(id: string): string | null {
 	const prefix = "workspace:processes:action:"
 	return id.startsWith(prefix) ? id.slice(prefix.length) : null
-}
-
-function codexComposerMessage(draft: string, attachments: readonly CodexComposerAttachment[]): string {
-	const body = draft.replace(/\r\n?/g, "\n").trim()
-	if (attachments.length === 0) return body
-	const imageLines = attachments.map((attachment) => `- ${attachment.path}`).join("\n")
-	const imageBlock = `Изображения:\n${imageLines}`
-	return body.length === 0 ? imageBlock : `${body}\n\n${imageBlock}`
-}
-
-function mergeCodexComposerDraft(base: string, addition: string): string {
-	const left = base.trim()
-	const right = addition.trim()
-	if (!left) return right
-	if (!right) return left
-	return `${left}\n${right}`
-}
-
-function codexImageDropFiles(dataTransfer: DataTransfer | null): File[] {
-	if (dataTransfer === null) return []
-	const files = new Map<string, File>()
-	for (const file of Array.from(dataTransfer.files)) {
-		if (codexFileLooksImage(file)) files.set(codexDropFileKey(file), file)
-	}
-	for (const item of Array.from(dataTransfer.items)) {
-		if (item.kind !== "file") continue
-		const file = item.getAsFile()
-		if (file !== null && codexFileLooksImage(file)) files.set(codexDropFileKey(file), file)
-	}
-	return [...files.values()]
-}
-
-function codexFileLooksImage(file: File): boolean {
-	if (file.type.startsWith("image/")) return true
-	return /\.(?:png|jpe?g|gif|webp|heic|heif|tiff?|bmp|svg)$/i.test(file.name)
-}
-
-function codexDropFileKey(file: File): string {
-	return `${file.name}:${file.size}:${file.lastModified}`
-}
-
-async function uploadCodexAttachment(file: File): Promise<CodexComposerAttachment> {
-	if (!codexFileLooksImage(file)) throw new Error("можно прикрепить только изображение")
-	if (file.size > CODEX_COMPOSER_MAX_ATTACHMENT_BYTES) throw new Error("изображение больше 16 MB")
-	const dataBase64 = base64Bytes(new Uint8Array(await file.arrayBuffer()))
-	const response = await fetch("/hud/codex/attachments", {
-		method: "POST",
-		headers: {"content-type": "application/json"},
-		body: JSON.stringify({
-			name: file.name || "image.png",
-			type: file.type || "",
-			size: file.size,
-			dataBase64,
-		}),
-	})
-	const payload = await response.json().catch(() => null)
-	const record = asRecord(payload)
-	if (!response.ok || record?.["ok"] !== true) {
-		const message = typeof record?.["error"] === "string" ? record["error"] : `upload ${response.status}`
-		throw new Error(message)
-	}
-	const attachment = asRecord(record["attachment"])
-	if (attachment === null) throw new Error("attachment response is invalid")
-	const id = stringValue(attachment["id"]) ?? crypto.randomUUID()
-	const name = stringValue(attachment["name"]) ?? (file.name || "image")
-	const path = stringValue(attachment["path"])
-	const mime = stringValue(attachment["mime"]) ?? (file.type || "image/*")
-	const size = typeof attachment["size"] === "number" && Number.isFinite(attachment["size"]) ? attachment["size"] : file.size
-	if (path === null) throw new Error("attachment path is missing")
-	return {id, name, path, mime, size}
-}
-
-function formatAttachmentSize(size: number): string {
-	if (!Number.isFinite(size) || size <= 0) return "0 B"
-	if (size < 1024) return `${Math.round(size)} B`
-	if (size < 1024 * 1024) return `${Math.round(size / 102.4) / 10} KB`
-	return `${Math.round(size / (1024 * 102.4)) / 10} MB`
 }
 
 function codexComposerEditorHeight(composerH: number, hasFooter: boolean): number {
