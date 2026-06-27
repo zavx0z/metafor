@@ -237,16 +237,32 @@ curl -sS http://127.0.0.1:9230/json/version
 curl -sS http://127.0.0.1:9230/json/list
 ```
 
-Проверка 2026-06-26: Electron 35.7.5 и временно проверенный Electron 42.5.0
-оба входят в main process на Wayland, но в этой SSH/server session не доходят
-до `app.whenReady()` даже для минимального Electron main. `systemd-run --user`,
-полный GNOME env, software GL и GPU disable не изменили поведение. Чистый
-Chrome Wayland с CDP/WebRTC flags также не поднял CDP target в этой session.
-При этом Mutter/PipeWire screen source работает напрямую: `RecordVirtual` через
-`org.gnome.Mutter.ScreenCast` дает реальный GNOME desktop 1280x720. До решения
-Wayland Electron runtime не считать Electron/WebRTC host рабочим только по
-наличию процесса; обязательная проверка - `GET http://127.0.0.1:32123/health`
-и `GET http://127.0.0.1:32123/desktop/rtc/state`.
+Проверка 2026-06-27: Electron 35.7.5 на текущем GNOME/Wayland/NVIDIA сервере
+падает `SIGSEGV` в GPU/Viz даже без remote desktop RTC. Electron 42.5.0
+работает в sender-only режиме: hidden WebRTC page, `METAFOR_ELECTRON_WEBGPU=0`,
+Wayland/Ozone, отключенный Vulkan/VAAPI и GNOME/PipeWire system picker.
+Первый запуск требует подтвердить portal dialog: выбрать `Экран` и нажать
+`Дать доступ`. После подтверждения sender stream имеет live video track
+`1920x1080`, а тестовый WebRTC receiver получает `width=1920`, `height=1080`,
+`muted=false`.
+
+Проверенный запуск:
+
+```sh
+cd /home/zavx0z/production/vendor/metafor/app/electron
+XDG_RUNTIME_DIR=/run/user/1000 \
+DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus \
+WAYLAND_DISPLAY=wayland-0 \
+XDG_SESSION_TYPE=wayland \
+METAFOR_URL=http://10.66.0.10:3004/ \
+bun run dev:webrtc:linux
+```
+
+В этом контуре Node/Mutter host на `127.0.0.1:32123` остается input/snapshot
+adapter, а Electron на `127.0.0.1:32133` является основным WebRTC video sender.
+Обязательная проверка - `GET http://127.0.0.1:32133/desktop/rtc/state`;
+payload должен показывать `webRtc: true`, `transport: "electron-webrtc"` и
+peer `interpreter-desktop-*` после подключения UI.
 
 CDP endpoints полезны для диагностики DevTools/source maps, но рабочий visual
 и audio path для агента и interpreter UI идет через WebRTC signaling и
@@ -407,18 +423,15 @@ Linux/Electron host должен работать в своем графичес
   `chrome-sandbox` с mode `4755`, либо запуск с `--no-sandbox`;
 - Xwayland `DISPLAY=:0` с Electron 35 падает `SIGSEGV` в GPU/VAAPI/NVIDIA зоне
   даже без remote desktop RTC;
-- Wayland path с `--ozone-platform=wayland --enable-features=UseOzonePlatform`
-  не падает сразу, но в проверке завис до поднятия host API;
-- повторный smoke после включения `METAFOR_REMOTE_DESKTOP_CAPTURE_SOURCE=screen`
-  и `METAFOR_REMOTE_DESKTOP_AUDIO=1` подтвердил ту же границу: Xwayland падает
-  `SIGSEGV` до `/desktop/health`, Wayland не поднимает host API за 18 секунд;
+- Wayland sender-only с Electron 42.5.0 работает после portal confirm;
+- programmatic `desktopCapturer` на Wayland может вернуть `window:*` source без
+  кадров, поэтому для полного desktop stream использовать system picker path;
 - `xvfb` на сервере не установлен, а `sudo -n apt-get install xvfb` требует
   интерактивную авторизацию.
 
-Практический вывод: кодовый WebRTC контур не должен откатываться к snapshot
-polling из-за этого. Нужно отдельно подготовить стабильный server display
-backend: настроить Electron sandbox/Ozone под текущий GNOME/Wayland или поднять
-выделенный virtual display/service для Electron host.
+Практический вывод: realtime video path - Electron WebRTC sender. Snapshot
+polling оставлять только как diagnostics/fallback и не считать успешным live
+display.
 
 ### Потеря Ввода
 

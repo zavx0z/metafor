@@ -1464,7 +1464,15 @@ function isAllowedWebSocketOrigin(req: Request, url: URL): boolean {
   if (!origin) return true
   if (origin === "null" && isLoopbackHost(url.hostname)) return true
   try {
-    return new URL(origin).host === url.host
+    const originUrl = new URL(origin)
+    if (originUrl.host === url.host) return true
+    if (
+      isLoopbackHost(originUrl.hostname)
+      && (url.pathname === "/webrtc/signaling" || url.pathname === "/hud/android/webrtc/signaling")
+    ) {
+      return true
+    }
+    return false
   } catch {
     return false
   }

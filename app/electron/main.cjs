@@ -34,6 +34,7 @@ const REMOTE_DESKTOP_RTC_MODE = envFlag(process.env.METAFOR_REMOTE_DESKTOP_RTC)
 const REMOTE_DESKTOP_RTC_SIGNAL_URL = (process.env.METAFOR_REMOTE_DESKTOP_SIGNAL_URL || "ws://127.0.0.1:6500/webrtc/signaling").trim()
 const REMOTE_DESKTOP_RTC_ROOM = (process.env.METAFOR_REMOTE_DESKTOP_RTC_ROOM || "remote-desktop").trim()
 const REMOTE_DESKTOP_RTC_PEER_ID = (process.env.METAFOR_REMOTE_DESKTOP_RTC_PEER_ID || "electron-desktop").trim()
+const REMOTE_DESKTOP_SENDER_ONLY = envFlag(process.env.METAFOR_REMOTE_DESKTOP_SENDER_ONLY)
 const REMOTE_DESKTOP_RTC_SOURCE_KIND = (process.env.METAFOR_REMOTE_DESKTOP_CAPTURE_SOURCE || "screen").trim().toLowerCase()
 const REMOTE_DESKTOP_RTC_SOURCE_NAME = (process.env.METAFOR_REMOTE_DESKTOP_CAPTURE_NAME || "").trim()
 const REMOTE_DESKTOP_RTC_AUDIO_ENABLED = process.env.METAFOR_REMOTE_DESKTOP_AUDIO === undefined
@@ -44,7 +45,13 @@ const REMOTE_DESKTOP_RTC_MAX_FPS = parseInteger(process.env.METAFOR_REMOTE_DESKT
 const REMOTE_DESKTOP_SYSTEM_PICKER = envFlag(process.env.METAFOR_REMOTE_DESKTOP_SYSTEM_PICKER)
 const REMOTE_DESKTOP_AUTO_SELECT_SOURCE = (process.env.METAFOR_REMOTE_DESKTOP_AUTO_SELECT_SOURCE || "Entire Screen").trim()
 const REMOTE_DESKTOP_APIS = remoteDesktopApis()
+const REMOTE_DESKTOP_DIRECT_INPUT_API = localServiceUrl(
+  process.env.METAFOR_REMOTE_DESKTOP_DIRECT_INPUT_API,
+  null,
+  "METAFOR_REMOTE_DESKTOP_DIRECT_INPUT_API",
+)
 const SESSION_PARTITION = HOST_MODE ? "persist:metafor-browser-host" : "persist:metafor"
+const ELECTRON_WEBGPU_ENABLED = !envFalse(process.env.METAFOR_ELECTRON_WEBGPU)
 const LINUX_HOST_NO_SANDBOX = process.platform === "linux"
   && HOST_MODE
   && !envFalse(process.env.METAFOR_ELECTRON_NO_SANDBOX)
@@ -65,6 +72,7 @@ let hostPort = null
 let activeHostRequests = 0
 let snapshotCapture = null
 let remoteDesktopWindow = null
+let remoteDesktopRtcPageConfig = null
 let warnedAboutDeviceEmulation = false
 let frameSequence = 0
 
@@ -81,9 +89,12 @@ const pageState = {
 const remoteDesktopRtcState = {
   enabled: REMOTE_DESKTOP_RTC_MODE,
   status: REMOTE_DESKTOP_RTC_MODE ? "starting" : "disabled",
+  transport: "electron-webrtc",
+  webRtc: REMOTE_DESKTOP_RTC_MODE,
   signalUrl: REMOTE_DESKTOP_RTC_SIGNAL_URL,
   room: REMOTE_DESKTOP_RTC_ROOM,
   peerId: REMOTE_DESKTOP_RTC_PEER_ID,
+  senderOnly: REMOTE_DESKTOP_SENDER_ONLY,
   capture: {
     preferredKind: REMOTE_DESKTOP_RTC_SOURCE_KIND === "screen" ? "screen" : "window",
     preferredName: REMOTE_DESKTOP_RTC_SOURCE_NAME || null,
@@ -140,15 +151,16 @@ function envFalse(value) {
 }
 
 function configureChromiumCommandLine() {
-  const features = new Set(["WebGPU"])
+  const features = new Set()
+  if (ELECTRON_WEBGPU_ENABLED) features.add("WebGPU")
   if (process.platform === "linux" && REMOTE_DESKTOP_RTC_MODE) {
     features.add("WebRTCPipeWireCapturer")
     if (ELECTRON_OZONE_PLATFORM.length > 0) features.add("UseOzonePlatform")
   }
 
-  app.commandLine.appendSwitch("enable-unsafe-webgpu")
+  if (ELECTRON_WEBGPU_ENABLED) app.commandLine.appendSwitch("enable-unsafe-webgpu")
   app.commandLine.appendSwitch("ignore-gpu-blocklist")
-  app.commandLine.appendSwitch("enable-features", [...features].join(","))
+  if (features.size > 0) app.commandLine.appendSwitch("enable-features", [...features].join(","))
 
   if (LINUX_HOST_NO_SANDBOX) app.commandLine.appendSwitch("no-sandbox")
   if (LINUX_HOST_DISABLE_GPU) {
@@ -250,7 +262,17 @@ function setTargetUrl(url) {
 function isTrustedUrl(url) {
   try {
     const origin = new URL(url).origin
-    return origin === targetOrigin || TRUSTED_ORIGINS.has(origin)
+    return origin === targetOrigin || TRUSTED_ORIGINS.has(origin) || isHostOrigin(origin)
+  } catch {
+    return false
+  }
+}
+
+function isHostOrigin(origin) {
+  if (!HOST_MODE || hostPort === null) return false
+  try {
+    const url = new URL(origin)
+    return Number(url.port) === hostPort && isLoopbackHost(url.hostname)
   } catch {
     return false
   }
@@ -380,6 +402,12 @@ function sourceSummary(source) {
   }
 }
 
+function hostUrl(pathname) {
+  const port = hostPort ?? HOST_PORT
+  const host = HOST_BIND === "::1" ? "[::1]" : HOST_BIND === "localhost" ? "127.0.0.1" : HOST_BIND
+  return `http://${host}:${port}${pathname}`
+}
+
 async function startRemoteDesktopRtc() {
   if (!REMOTE_DESKTOP_RTC_MODE) return
   if (remoteDesktopWindow !== null && !remoteDesktopWindow.isDestroyed()) return
@@ -412,14 +440,16 @@ async function startRemoteDesktopRtc() {
       remoteDesktopRtcState.status = "closed"
       remoteDesktopRtcState.updatedAt = new Date().toISOString()
     })
-    await win.loadURL(remoteDesktopRtcPageUrl({
+    const config = {
       signalUrl: REMOTE_DESKTOP_RTC_SIGNAL_URL,
       room: REMOTE_DESKTOP_RTC_ROOM,
       peerId: REMOTE_DESKTOP_RTC_PEER_ID,
       sourceId: source.id,
       maxFps: REMOTE_DESKTOP_RTC_MAX_FPS,
       audio: REMOTE_DESKTOP_RTC_AUDIO_ENABLED,
-    }))
+    }
+    remoteDesktopRtcPageConfig = config
+    await win.loadURL(remoteDesktopRtcPageUrl(config))
   } catch (error) {
     remoteDesktopRtcState.status = "failed"
     remoteDesktopRtcState.lastError = error.message
@@ -431,12 +461,18 @@ async function startRemoteDesktopRtc() {
 function restartRemoteDesktopRtc() {
   const oldWindow = remoteDesktopWindow
   remoteDesktopWindow = null
+  remoteDesktopRtcPageConfig = null
   if (oldWindow !== null && !oldWindow.isDestroyed()) oldWindow.destroy()
   return startRemoteDesktopRtc()
 }
 
 function remoteDesktopRtcPageUrl(config) {
-  const html = `<!doctype html>
+  if (HOST_MODE && hostPort !== null) return hostUrl("/desktop/rtc/sender")
+  return `data:text/html;charset=utf-8,${encodeURIComponent(remoteDesktopRtcPageHtml(config))}`
+}
+
+function remoteDesktopRtcPageHtml(config) {
+  return `<!doctype html>
 <html>
 <head><meta charset="utf-8"><title>MetaFor Remote Desktop RTC</title></head>
 <body>
@@ -465,7 +501,7 @@ async function start() {
   postState({status: "capturing"});
   stream = await captureStream();
   video.srcObject = stream;
-  await video.play().catch(() => undefined);
+  void video.play().catch(() => undefined);
   postState({status: "signaling", tracks: trackSummary(), audio: audioSummary()});
   connectSignal();
 }
@@ -603,6 +639,10 @@ function attachDataChannel(peer, channel) {
 }
 
 async function handleControl(peer, channel, command) {
+  if (command?.type === "hello") {
+    channel.send(JSON.stringify({type: "control-result", command: "hello", ok: true}))
+    return
+  }
   try {
     const result = await window.metaforRemoteDesktop.input(command);
     channel.send(JSON.stringify({type: "control-result", command: command.type || "input", ok: true, result}));
@@ -641,7 +681,6 @@ start().catch((error) => postState({status: "failed", lastError: String(error?.m
 </script>
 </body>
 </html>`
-  return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`
 }
 
 function updateRemoteDesktopRtcState(patch) {
@@ -1220,7 +1259,10 @@ async function sendSnapshot(req, res, requestUrl) {
 }
 
 function remoteDesktopApiSummary() {
-  return Object.fromEntries(Object.entries(REMOTE_DESKTOP_APIS).map(([key, url]) => [key, url === null ? null : url.toString()]))
+  return {
+    ...Object.fromEntries(Object.entries(REMOTE_DESKTOP_APIS).map(([key, url]) => [key, url === null ? null : url.toString()])),
+    directInput: REMOTE_DESKTOP_DIRECT_INPUT_API === null ? null : REMOTE_DESKTOP_DIRECT_INPUT_API.toString(),
+  }
 }
 
 function desktopTargetUrl(baseUrl, upstreamPath, search = "") {
@@ -1356,6 +1398,10 @@ async function sendUpstreamResponse(res, upstream) {
 }
 
 async function sendRemoteDesktopInput(body) {
+  if (REMOTE_DESKTOP_DIRECT_INPUT_API !== null) {
+    return await fetchDirectDesktopInput(body)
+  }
+
   if (REMOTE_DESKTOP_APIS.input === null && REMOTE_DESKTOP_APIS.window === null) {
     return sendInput(body)
   }
@@ -1413,6 +1459,27 @@ async function sendRemoteDesktopInput(body) {
   throw error
 }
 
+async function fetchDirectDesktopInput(body) {
+  const response = await fetch(REMOTE_DESKTOP_DIRECT_INPUT_API, {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+  })
+  const contentType = response.headers.get("content-type") || ""
+  const payload = contentType.includes("application/json")
+    ? await response.json().catch(() => null)
+    : await response.text().catch(() => "")
+  if (!response.ok) {
+    const error = new Error(typeof payload === "string" ? payload : JSON.stringify(payload))
+    error.statusCode = response.status
+    throw error
+  }
+  return payload
+}
+
 async function proxyRemoteDesktopBrowser(req, res, requestUrl) {
   const browserApi = REMOTE_DESKTOP_APIS.browser
   const action = requestUrl.pathname.slice("/desktop/browser".length) || "/windows"
@@ -1465,6 +1532,22 @@ async function routeHostRequest(req, res) {
 
   if (req.method === "GET" && endpoint === "/desktop/rtc/state") {
     sendJson(res, 200, {ok: true, remoteDesktop: hostState().remoteDesktop})
+    return
+  }
+
+  if (req.method === "GET" && endpoint === "/desktop/rtc/sender") {
+    const config = remoteDesktopRtcPageConfig
+    if (config === null) {
+      sendJson(res, 503, {ok: false, error: "remote desktop RTC page is not configured"})
+      return
+    }
+    const html = remoteDesktopRtcPageHtml(config)
+    res.writeHead(200, {
+      "cache-control": "no-store",
+      "content-type": "text/html; charset=utf-8",
+      "content-length": Buffer.byteLength(html),
+    })
+    res.end(html)
     return
   }
 
@@ -1626,6 +1709,7 @@ app
       platform: process.platform,
       hostMode: HOST_MODE,
       remoteDesktopRtc: REMOTE_DESKTOP_RTC_MODE,
+      remoteDesktopSenderOnly: REMOTE_DESKTOP_SENDER_ONLY,
       noSandbox: LINUX_HOST_NO_SANDBOX,
       disableGpu: LINUX_HOST_DISABLE_GPU,
       ozonePlatform: ELECTRON_OZONE_PLATFORM || null,
@@ -1637,7 +1721,7 @@ app
     installRemoteDesktopCaptureHandler(appSession)
     installRemoteDesktopIpc()
     if (HOST_MODE) await startHostServer()
-    createWindow()
+    if (!REMOTE_DESKTOP_SENDER_ONLY) createWindow()
     if (REMOTE_DESKTOP_RTC_MODE) {
       setTimeout(() => {
         void startRemoteDesktopRtc()

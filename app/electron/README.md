@@ -19,19 +19,28 @@ bun --filter @app/electron host
 bun --filter @app/electron dev:host
 bun --filter @app/electron host:linux
 bun --filter @app/electron dev:host:linux
+cd app/electron && bun run webrtc:linux
+cd app/electron && bun run dev:webrtc:linux
 ```
 
 The host scripts bind the local HTTP API to `127.0.0.1:32123`. If host mode is enabled without `METAFOR_ELECTRON_HOST_PORT`, Electron listens on an ephemeral loopback port and prints the selected URL to stdout.
 
 Host mode uses a separate Electron user data directory and session partition from the regular shell.
 
-Linux server host mode is Wayland-first and uses WebRTC as the primary remote
-desktop channel. `host:linux` sets `ELECTRON_DISABLE_SANDBOX=1` because the
-repo-local Electron binary is not installed with a setuid `chrome-sandbox` on
-the server. It also passes Wayland/PipeWire capture flags to Chromium before
-Electron loads. The in-app `METAFOR_ELECTRON_NO_SANDBOX` and
-`METAFOR_ELECTRON_OZONE_PLATFORM` envs remain diagnostic state, but they are not
-early enough to replace the process-level sandbox/Ozone flags.
+Linux server WebRTC sender mode is Wayland-first. `webrtc:linux` starts
+Electron as a sender-only WebRTC process: no managed browser window, no
+Playwright, and no snapshot polling as the live video path. It uses Chromium
+`getDisplayMedia` with the GNOME/PipeWire system picker and publishes the
+desktop stream into the `remote-desktop` signaling room. The existing
+Mutter/PipeWire Node host can remain on `127.0.0.1:32123` as the EIS input and
+diagnostic snapshot backend.
+
+`webrtc:linux` sets `ELECTRON_DISABLE_SANDBOX=1` because the repo-local Electron
+binary is not installed with a setuid `chrome-sandbox` on the server. It also
+sets Wayland/Ozone, WebRTC PipeWire capture, `METAFOR_ELECTRON_WEBGPU=0`, and
+Vulkan/VAAPI disable flags. On the current GNOME/NVIDIA server, visible
+Electron BrowserWindows crash in the GPU/Viz process; sender-only mode avoids
+that path while still using Electron's browser media APIs.
 
 ## HTTP API
 
@@ -81,11 +90,19 @@ curl http://127.0.0.1:32123/snapshot --output snapshot.png
 - `METAFOR_ELECTRON_HOST_BODY_LIMIT_BYTES` - max JSON body size. Defaults to `65536`.
 - `METAFOR_REMOTE_DESKTOP_RTC` / `METAFOR_REMOTE_DESKTOP_WEBRTC` - enable the WebRTC remote desktop sender.
 - `METAFOR_REMOTE_DESKTOP_SIGNAL_URL` - signaling URL. Defaults to `ws://127.0.0.1:6500/webrtc/signaling`.
+- `METAFOR_REMOTE_DESKTOP_SENDER_ONLY` - run only the hidden WebRTC sender page; do not create the managed browser window.
 - `METAFOR_REMOTE_DESKTOP_CAPTURE_SOURCE` - `screen` or `window`; server desktop defaults to `screen`.
 - `METAFOR_REMOTE_DESKTOP_CAPTURE_NAME` - optional source-name filter.
 - `METAFOR_REMOTE_DESKTOP_AUDIO` - enable/disable audio track.
 - `METAFOR_REMOTE_DESKTOP_AUDIO_SOURCE` - `auto`, `system`, `loopback`, `loopback-with-mute`, `browser`, `browser-frame`, or `off`.
 - `METAFOR_REMOTE_DESKTOP_SYSTEM_PICKER` - when truthy, let Chromium use the system picker instead of Electron's programmatic `desktopCapturer` source selection.
 - `METAFOR_REMOTE_DESKTOP_AUTO_SELECT_SOURCE` - Chromium auto-select source name used with the system picker path.
+- `METAFOR_REMOTE_DESKTOP_DIRECT_INPUT_API` - optional direct JSON input endpoint, for example `http://127.0.0.1:32123/desktop/input`, used by the WebRTC data channel input proxy.
+- `METAFOR_ELECTRON_WEBGPU=0` - disable Electron WebGPU for the sender process; the captured browser/app can still use WebGPU in its own Chrome process.
+
+First Wayland portal use shows the GNOME "screen sharing" dialog. Select
+`Экран` and click `Дать доступ`. After confirmation,
+`GET /desktop/rtc/state` should show `webRtc: true`, `transport:
+"electron-webrtc"`, `status: "ready"` or `control-open`, and connected peers.
 
 macOS media permission prompts only run on `process.platform === "darwin"`. Linux host mode does not depend on Playwright at runtime.

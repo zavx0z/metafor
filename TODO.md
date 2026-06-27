@@ -2,18 +2,20 @@
 
 Рабочий план для текущей разработки. HUD ToDoPane читает этот файл и позволяет отметить пункты, которые должны попадать в текущий контекст агента.
 
-## Инфраструктура Web UI: общий browser-display
+## Инфраструктура Web UI: remote desktop / browser-display
 
-- [ ] Зафиксировать текущий dev-контур Web UI: interpreter API/UI `10.66.0.10:6500`, app-web dev server `10.66.0.10:3004`, внешний `meta.proizvodstvo1.ru` через proxy/SSO; не путать с LAN-режимом `443` и не закладывать macOS-браузер как обязательный backend.
+- [x] Зафиксировать текущий dev-контур Web UI: interpreter API/UI `10.66.0.10:6500`, app-web dev server `10.66.0.10:3004`, внешний `meta.proizvodstvo1.ru` через proxy/SSO; не путать с LAN-режимом `443` и не закладывать macOS-браузер как обязательный backend.
 - [ ] Сделать минимальный Linux/Electron browser-host поверх `app/electron`: отдельный user-data-dir, управляемый URL, CDP/debug port, health endpoint, restart и явное состояние окна/страницы.
-- [ ] Проверить на сервере запуск browser-host в реальном графическом контуре: `DISPLAY`/Wayland/Xwayland, Chrome/Electron, GPU/WebGPU, fallback-режим без участия Mac и без Playwright как постоянной зависимости.
-- [ ] Реализовать захват кадра browser-host: `webContents.capturePage()` или CDP `Page.captureScreenshot`, PNG/JPEG snapshot endpoint, размеры viewport/deviceScaleFactor, throttling и backpressure, чтобы не грузить CPU/GPU лишними полными перерисовками.
-- [ ] Добавить в интерпретатор first-class Space display `browser-display`, не HUD: frame stream/snapshot, статус browser-host, кнопки reload/back/forward/devtools/fullscreen и понятные ошибки запуска.
-- [ ] Прокинуть ввод из UI интерпретатора в browser-host: pointer move/down/up/click/doubleclick/wheel, keyboard text/keyDown/keyUp, модификаторы, focus, координатное преобразование display -> viewport и защита от событий вне активного дисплея.
-- [ ] Добавить агентский доступ к этому дисплею: endpoint последнего кадра как файл/PNG для визуальной проверки, console/network errors, current URL/title, eval/navigate/reload/viewport через безопасный локальный API.
+- [x] Проверить на сервере запуск browser-host в реальном графическом контуре: Wayland/Chrome/Mutter/PipeWire/EIS работает без Mac и без Playwright; Electron runtime пока не считать рабочим без успешного `/desktop/rtc/state`.
+- [x] Реализовать fallback-захват кадра: `/remote-desktop/snapshot` через PipeWire snapshot и browser-host `/snapshot` через `webContents.capturePage()`; это только диагностика/fallback, не основной realtime-канал.
+- [x] Добавить в интерпретатор first-class Space display `remote-desktop:server`, не HUD: frame stream/snapshot fallback, статус host и понятные ошибки запуска.
+- [x] Прокинуть ввод из UI интерпретатора в remote desktop host: pointer move/down/up/click/doubleclick/wheel, keyboard text/keyDown/keyUp, модификаторы, focus и координатное преобразование display -> desktop.
+- [x] Добавить агентский доступ к этому дисплею: `/remote-desktop/health`, `/remote-desktop/rtc/state`, `/remote-desktop/snapshot`, `/remote-desktop/input`, browser open/restart через безопасный локальный API.
+- [x] Переключить видео с `pipewire-snapshot` polling на Electron WebRTC sender: Electron `desktopCapturer`/`getDisplayMedia` расшаривает серверный desktop в комнату `remote-desktop`, проверенный receiver получает `1920x1080` video track.
+- [ ] Довести audio/spatial audio для Electron WebRTC sender: audio track включён, interpreter воспроизводит звук пространственно, state показывает `audio.trackCount > 0`.
 - [ ] Подключить sourcemap/devtools workflow для app-web: открытие исходников TypeScript в browser DevTools, стабильные sourcemaps в dev-контуре и короткая диагностика, если browser-display показывает старый bundle.
 - [ ] Аккуратно переиспользовать `production/vendor/ai-macos`: вынести переносимый CDP/shared слой, оставить macOS-specific AppleScript/CoreGraphics/screencapture в darwin-adapter, для Linux сначала делать CDP/Electron backend без широкого порта `window/screen/input`.
-- [ ] Проверить совместную работу: пользователь видит browser-display из интерпретатора на другом экране/телефоне, агент видит тот же кадр через snapshot, оба могут понимать состояние Web UI без использования ресурсов Mac.
+- [ ] Проверить совместную работу: пользователь видит remote desktop/browser-display из интерпретатора на другом экране/телефоне, агент видит тот же кадр, оба могут понимать состояние Web UI без использования ресурсов Mac.
 - [ ] После proof-of-concept оформить docs/runbook: как стартовать, как перезапустить tmux/process, какие порты используются, как диагностировать пустой экран, stale frame, неверный DISPLAY и потерю ввода.
 
 ## 0. Full-screen Force: realtime-визуализация патчей
