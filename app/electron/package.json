@@ -10,6 +10,9 @@
     "dev": "METAFOR_ELECTRON_DEBUG_PORT=9230 electron .",
     "host": "METAFOR_ELECTRON_HOST=1 METAFOR_ELECTRON_HOST_PORT=32123 electron .",
     "dev:host": "METAFOR_ELECTRON_HOST=1 METAFOR_ELECTRON_HOST_PORT=32123 METAFOR_ELECTRON_DEBUG_PORT=9230 electron .",
+    "host:linux": "ELECTRON_DISABLE_SANDBOX=1 METAFOR_ELECTRON_HOST=1 METAFOR_ELECTRON_HOST_PORT=32123 METAFOR_REMOTE_DESKTOP_RTC=1 METAFOR_REMOTE_DESKTOP_CAPTURE_SOURCE=screen METAFOR_REMOTE_DESKTOP_AUDIO=1 METAFOR_REMOTE_DESKTOP_AUDIO_SOURCE=auto electron . --ozone-platform=wayland --enable-features=UseOzonePlatform,WebRTCPipeWireCapturer --no-sandbox",
+    "dev:host:linux": "ELECTRON_ENABLE_LOGGING=1 ELECTRON_DISABLE_SANDBOX=1 METAFOR_ELECTRON_HOST=1 METAFOR_ELECTRON_HOST_PORT=32123 METAFOR_ELECTRON_DEBUG_PORT=9230 METAFOR_REMOTE_DESKTOP_RTC=1 METAFOR_REMOTE_DESKTOP_CAPTURE_SOURCE=screen METAFOR_REMOTE_DESKTOP_AUDIO=1 METAFOR_REMOTE_DESKTOP_AUDIO_SOURCE=auto electron . --ozone-platform=wayland --enable-features=UseOzonePlatform,WebRTCPipeWireCapturer --no-sandbox",
+    "pipewire:host": "node linux-pipewire-host.cjs",
     "build": "electron-builder --mac dir",
     "pack": "electron-builder --mac dir",
     "dist": "electron-builder --mac"

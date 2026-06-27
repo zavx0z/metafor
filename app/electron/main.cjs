@@ -41,8 +41,17 @@ const REMOTE_DESKTOP_RTC_AUDIO_ENABLED = process.env.METAFOR_REMOTE_DESKTOP_AUDI
   : envFlag(process.env.METAFOR_REMOTE_DESKTOP_AUDIO)
 const REMOTE_DESKTOP_RTC_AUDIO_SOURCE = (process.env.METAFOR_REMOTE_DESKTOP_AUDIO_SOURCE || "auto").trim().toLowerCase()
 const REMOTE_DESKTOP_RTC_MAX_FPS = parseInteger(process.env.METAFOR_REMOTE_DESKTOP_RTC_MAX_FPS, "METAFOR_REMOTE_DESKTOP_RTC_MAX_FPS", 30, 1, 60)
+const REMOTE_DESKTOP_SYSTEM_PICKER = envFlag(process.env.METAFOR_REMOTE_DESKTOP_SYSTEM_PICKER)
+const REMOTE_DESKTOP_AUTO_SELECT_SOURCE = (process.env.METAFOR_REMOTE_DESKTOP_AUTO_SELECT_SOURCE || "Entire Screen").trim()
 const REMOTE_DESKTOP_APIS = remoteDesktopApis()
 const SESSION_PARTITION = HOST_MODE ? "persist:metafor-browser-host" : "persist:metafor"
+const LINUX_HOST_NO_SANDBOX = process.platform === "linux"
+  && HOST_MODE
+  && !envFalse(process.env.METAFOR_ELECTRON_NO_SANDBOX)
+const LINUX_HOST_DISABLE_GPU = process.platform === "linux"
+  && HOST_MODE
+  && !envFalse(process.env.METAFOR_ELECTRON_DISABLE_GPU)
+const ELECTRON_OZONE_PLATFORM = (process.env.METAFOR_ELECTRON_OZONE_PLATFORM || process.env.ELECTRON_OZONE_PLATFORM_HINT || "").trim()
 
 const viewport = {
   width: parseInteger(process.env.METAFOR_ELECTRON_VIEWPORT_WIDTH, "METAFOR_ELECTRON_VIEWPORT_WIDTH", 1440, 1, 8192),
@@ -86,6 +95,10 @@ const remoteDesktopRtcState = {
     trackCount: 0,
     lastError: null,
   },
+  systemPicker: {
+    enabled: REMOTE_DESKTOP_SYSTEM_PICKER,
+    autoSelectSource: REMOTE_DESKTOP_SYSTEM_PICKER ? REMOTE_DESKTOP_AUTO_SELECT_SOURCE : null,
+  },
   source: null,
   peers: [],
   lastFrameAt: null,
@@ -93,9 +106,7 @@ const remoteDesktopRtcState = {
   updatedAt: null,
 }
 
-app.commandLine.appendSwitch("enable-unsafe-webgpu")
-app.commandLine.appendSwitch("ignore-gpu-blocklist")
-app.commandLine.appendSwitch("enable-features", "WebGPU")
+configureChromiumCommandLine()
 
 if (DEBUG_PORT !== null) {
   app.commandLine.appendSwitch("remote-debugging-port", String(DEBUG_PORT))
@@ -121,6 +132,37 @@ function envFlag(value) {
   const normalized = value.trim().toLowerCase()
   if (["0", "false", "no", "off"].includes(normalized)) return false
   return true
+}
+
+function envFalse(value) {
+  if (!hasEnvValue(value)) return false
+  return ["0", "false", "no", "off"].includes(value.trim().toLowerCase())
+}
+
+function configureChromiumCommandLine() {
+  const features = new Set(["WebGPU"])
+  if (process.platform === "linux" && REMOTE_DESKTOP_RTC_MODE) {
+    features.add("WebRTCPipeWireCapturer")
+    if (ELECTRON_OZONE_PLATFORM.length > 0) features.add("UseOzonePlatform")
+  }
+
+  app.commandLine.appendSwitch("enable-unsafe-webgpu")
+  app.commandLine.appendSwitch("ignore-gpu-blocklist")
+  app.commandLine.appendSwitch("enable-features", [...features].join(","))
+
+  if (LINUX_HOST_NO_SANDBOX) app.commandLine.appendSwitch("no-sandbox")
+  if (LINUX_HOST_DISABLE_GPU) {
+    app.disableHardwareAcceleration()
+    app.commandLine.appendSwitch("disable-gpu")
+    app.commandLine.appendSwitch("disable-gpu-compositing")
+  }
+  if (ELECTRON_OZONE_PLATFORM.length > 0) app.commandLine.appendSwitch("ozone-platform", ELECTRON_OZONE_PLATFORM)
+  if (REMOTE_DESKTOP_RTC_MODE) {
+    app.commandLine.appendSwitch("enable-usermedia-screen-capturing")
+    if (REMOTE_DESKTOP_SYSTEM_PICKER && REMOTE_DESKTOP_AUTO_SELECT_SOURCE.length > 0) {
+      app.commandLine.appendSwitch("auto-select-desktop-capture-source", REMOTE_DESKTOP_AUTO_SELECT_SOURCE)
+    }
+  }
 }
 
 function parsePort(value, name, {allowZero = false} = {}) {
@@ -284,7 +326,7 @@ function installRemoteDesktopCaptureHandler(appSession) {
       remoteDesktopRtcState.updatedAt = new Date().toISOString()
       callback({})
     }
-  }, {useSystemPicker: false})
+  }, {useSystemPicker: REMOTE_DESKTOP_SYSTEM_PICKER})
 }
 
 function remoteDesktopAudioTarget() {
@@ -1027,6 +1069,13 @@ function hostState() {
       maxInFlight: HOST_MAX_IN_FLIGHT,
       bodyLimitBytes: HOST_BODY_LIMIT_BYTES,
     },
+    chromium: {
+      noSandbox: LINUX_HOST_NO_SANDBOX,
+      disableGpu: LINUX_HOST_DISABLE_GPU,
+      ozonePlatform: ELECTRON_OZONE_PLATFORM || null,
+      remoteDesktopSystemPicker: REMOTE_DESKTOP_SYSTEM_PICKER,
+      remoteDesktopAutoSelectSource: REMOTE_DESKTOP_SYSTEM_PICKER ? REMOTE_DESKTOP_AUTO_SELECT_SOURCE : null,
+    },
     viewport: {...viewport},
     window: win
       ? {
@@ -1573,13 +1622,22 @@ function startHostServer() {
 app
   .whenReady()
   .then(async () => {
+    console.log("[metafor-electron] ready", JSON.stringify({
+      platform: process.platform,
+      hostMode: HOST_MODE,
+      remoteDesktopRtc: REMOTE_DESKTOP_RTC_MODE,
+      noSandbox: LINUX_HOST_NO_SANDBOX,
+      disableGpu: LINUX_HOST_DISABLE_GPU,
+      ozonePlatform: ELECTRON_OZONE_PLATFORM || null,
+      systemPicker: REMOTE_DESKTOP_SYSTEM_PICKER,
+    }))
     await ensureMacMediaAccess()
     const appSession = getAppSession()
     installPermissions(appSession)
     installRemoteDesktopCaptureHandler(appSession)
     installRemoteDesktopIpc()
-    createWindow()
     if (HOST_MODE) await startHostServer()
+    createWindow()
     if (REMOTE_DESKTOP_RTC_MODE) {
       setTimeout(() => {
         void startRemoteDesktopRtc()

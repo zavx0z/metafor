@@ -5,7 +5,7 @@
  * placements; public runtime/source API is scoped to processes.
  */
 
-import {Color} from "@metafor/engine"
+import {Color, TextureLoader} from "@metafor/engine"
 import {
   UiRuntime,
   UiSurface,
@@ -397,6 +397,7 @@ type NetworkDisplayInfo = DisplayInfoBase & {
 }
 type RemoteDesktopDisplayInfo = DisplayInfoBase & {
   kind: "remote-desktop"
+  frame: AndroidRtcFrame | null
 }
 type DisplayInfo = ModuleDisplayInfo | NetworkDisplayInfo | RemoteDesktopDisplayInfo
 type SqliteDisplayController = {
@@ -778,6 +779,13 @@ const DEFAULT_SECONDARY_ANDROID_DOCK_PLACEMENT: HostTerminalDockPlacement = {edg
 const ANDROID_RTC_FRAME_SRC = "metafor:android-rtc-frame"
 const SECONDARY_ANDROID_RTC_FRAME_SRC = "metafor:android-rtc-frame:secondary"
 const REMOTE_DESKTOP_RTC_FRAME_SRC = "metafor:remote-desktop-rtc-frame"
+const REMOTE_DESKTOP_SNAPSHOT_FRAME_SRC = "metafor:remote-desktop-snapshot-frame"
+const REMOTE_DESKTOP_SNAPSHOT_FRAME_SLOTS = 12
+const REMOTE_DESKTOP_SNAPSHOT_POLL_MS = 700
+const REMOTE_DESKTOP_SNAPSHOT_ERROR_POLL_MS = 1800
+const REMOTE_DESKTOP_SNAPSHOT_REQUEST_TIMEOUT_MS = 8_000
+const REMOTE_DESKTOP_RTC_FRAME_GRACE_MS = 3000
+const SPACE_OVERVIEW_WATCHDOG_MS = 900
 const ANDROID_CONTROL_STATUS_HOLD_MS = 4_000
 const PINNED_VOICE_HUD_ANCHOR: VoiceHudAnchorPlacement = {horizontal: "right", vertical: "bottom", offsetX: 0, offsetY: 0}
 const DEFAULT_TODO_HUD_RECT: UiSurfaceRect = {x: 16, y: 72, w: 430, h: 560}
@@ -807,6 +815,13 @@ let networkDisplayInstalled = false
 let remoteDesktopPane: RemoteDesktopPane | null = null
 let remoteDesktopDisplayInstalled = false
 let remoteDesktopRtcClient: AndroidRtcClient | null = null
+let remoteDesktopSnapshotTimer: number | null = null
+let remoteDesktopSnapshotInFlight = false
+let remoteDesktopLastRtcFrameAt = 0
+let remoteDesktopSnapshotPath: string | null = null
+let remoteDesktopSnapshotFrameSlot = 0
+let spaceOverviewPinned = false
+let spaceOverviewWatchdogTimer: number | null = null
 let hostTerminalAgentSignalPane: HostTerminalAgentSignalPane | null = null
 let hostTerminalStatusLabelForLayout = t("terminalConnecting")
 let hostTerminalHudDocked = readStoredHostTerminalHudDocked()
@@ -1194,6 +1209,7 @@ function spacePayload(): {
 
 function focusSpace(params: unknown): unknown {
   if (uiCanvas === null) throw new Error("ui runtime is not ready")
+  setSpaceOverviewPinned(false)
   const body = objectParam(params)
   const selector = objectParamMaybe(body["selector"]) ?? body
   const view = stringParam(body["view"]) ?? "full"
@@ -1222,11 +1238,45 @@ function focusSpace(params: unknown): unknown {
 
 function frameSpace(): unknown {
   if (uiCanvas === null) throw new Error("ui runtime is not ready")
-  const displayIds = displayInfos().map((display) => display.displayId)
-  if (displayIds.length > 0) uiCanvas.frameDisplays(displayIds)
+  setSpaceOverviewPinned(true)
+  frameAllSpaceDisplays()
   syncNetworkStatusRefresh()
   connectRemoteDesktopRtc()
   return spacePayload()
+}
+
+function setSpaceOverviewPinned(pinned: boolean): void {
+  if (spaceOverviewPinned === pinned) {
+    if (pinned) enforceSpaceOverview()
+    return
+  }
+  spaceOverviewPinned = pinned
+  if (pinned) {
+    if (spaceOverviewWatchdogTimer === null) {
+      spaceOverviewWatchdogTimer = window.setInterval(enforceSpaceOverview, SPACE_OVERVIEW_WATCHDOG_MS)
+    }
+    enforceSpaceOverview()
+    return
+  }
+  if (spaceOverviewWatchdogTimer !== null) {
+    window.clearInterval(spaceOverviewWatchdogTimer)
+    spaceOverviewWatchdogTimer = null
+  }
+}
+
+function frameAllSpaceDisplays(): void {
+  if (uiCanvas === null) return
+  const displayIds = displayInfos().map((display) => display.displayId)
+  if (displayIds.length > 0) uiCanvas.frameDisplays(displayIds)
+}
+
+function enforceSpaceOverview(): void {
+  if (!spaceOverviewPinned || uiCanvas === null) return
+  const displayIds = displayInfos().map((display) => display.displayId)
+  if (displayIds.length <= 1) return
+  if (uiCanvas.displayMode !== "far") {
+    uiCanvas.frameDisplays(displayIds)
+  }
 }
 
 function processWorkspacePayload(params: unknown): unknown {
@@ -1240,6 +1290,7 @@ function processWorkspacePayload(params: unknown): unknown {
 
 function focusProcess(params: unknown): unknown {
   if (uiCanvas === null) throw new Error("ui runtime is not ready")
+  setSpaceOverviewPinned(false)
   const body = objectParam(params)
   const view = stringParam(body["view"]) ?? "full"
   const resolved = resolveProcessDisplay(params)
@@ -1990,6 +2041,7 @@ function displayInfos(): DisplayInfo[] {
       displayId: REMOTE_DESKTOP_DISPLAY_ID,
       kind: "remote-desktop",
       label: "Server Desktop",
+      frame: remoteDesktopPane?.frameSnapshot() ?? null,
       order: order++,
     })
   }
@@ -2394,6 +2446,7 @@ function sideParam(value: unknown): DisplaySelectorSide | undefined {
 }
 
 function handleInterpreterViewPointChange(snapshot: UiRuntimeViewPointSnapshot): void {
+  if (spaceOverviewPinned && snapshot.displayMode === "near") setSpaceOverviewPinned(false)
   scheduleInterpreterViewPointStorage(snapshot)
   syncNetworkStatusRefresh()
 }
@@ -2746,7 +2799,10 @@ function handleBrowserFullscreenDisplayLayoutChange(activeDisplayId: string | nu
   handleEngineResize()
   refitVoiceHudPlacement()
   const displayId = activeDisplayId ?? uiCanvas?.activeDisplayId ?? null
-  if (displayId !== null) uiCanvas?.focusDisplay(displayId)
+  setSpaceOverviewPinned(false)
+  if (displayId !== null) {
+    uiCanvas?.focusDisplay(displayId)
+  }
   fullscreenDockPane?.requestRender()
   syncNetworkStatusRefresh()
 }
@@ -2974,6 +3030,7 @@ function setSecondaryAndroidRtcStatus(kind: AndroidPaneStatusKind, label: string
 
 function connectRemoteDesktopRtc(): void {
   if (remoteDesktopPane === null) return
+  startRemoteDesktopSnapshotFallback()
   if (remoteDesktopRtcClient === null) {
     remoteDesktopRtcClient = createAndroidRtcClient({
       room: "remote-desktop",
@@ -2985,6 +3042,8 @@ function connectRemoteDesktopRtc(): void {
       frameSrc: REMOTE_DESKTOP_RTC_FRAME_SRC,
       receiveAudio: true,
       onFrame: (frame) => {
+        if (!isValidRemoteDesktopFrame(frame)) return
+        remoteDesktopLastRtcFrameAt = Date.now()
         remoteDesktopPane?.setFrame(frame)
         remoteDesktopPane?.setStatus("connected", `${frame.width}x${frame.height} rtc`)
       },
@@ -3003,17 +3062,182 @@ function setRemoteDesktopRtcStatus(kind: AndroidPaneStatusKind, label: string): 
 function sendRemoteDesktopControl(command: RtcControlCommand): boolean {
   connectRemoteDesktopRtc()
   primeRemoteDesktopAudio()
-  if (remoteDesktopRtcClient?.send(command) === true) {
+  const rtcControlOpen = remoteDesktopRtcClient?.peers().some((peer) => peer.channelState === "open") === true
+  if (rtcControlOpen && remoteDesktopRtcClient?.send(command) === true) {
     remoteDesktopPane?.setStatus("connected", "rtc command")
     return true
   }
-  remoteDesktopPane?.setStatus("error", "rtc control closed")
-  return false
+  remoteDesktopPane?.setStatus("running", "desktop command")
+  void postRemoteDesktopControl(command)
+  return true
+}
+
+async function postRemoteDesktopControl(command: RtcControlCommand): Promise<void> {
+  let lastError = "desktop input unavailable"
+  for (const path of remoteDesktopApiPaths("/input")) {
+    try {
+      const response = await fetch(path, {
+        method: "POST",
+        headers: {"content-type": "application/json"},
+        body: JSON.stringify(command),
+      })
+      if (response.ok) {
+        remoteDesktopPane?.setStatus("connected", "desktop command")
+        scheduleRemoteDesktopSnapshotFallback(120)
+        return
+      }
+      lastError = `${path} ${response.status}: ${await responseErrorText(response)}`
+    } catch (error) {
+      lastError = error instanceof Error ? `${path} ${error.message}` : `${path} unavailable`
+    }
+  }
+  remoteDesktopPane?.setStatus("error", `input ${lastError}`)
+}
+
+function startRemoteDesktopSnapshotFallback(): void {
+  if (remoteDesktopSnapshotTimer !== null) return
+  scheduleRemoteDesktopSnapshotFallback(0)
+}
+
+function scheduleRemoteDesktopSnapshotFallback(delayMs: number): void {
+  if (remoteDesktopPane === null) return
+  if (remoteDesktopSnapshotTimer !== null) window.clearTimeout(remoteDesktopSnapshotTimer)
+  remoteDesktopSnapshotTimer = window.setTimeout(() => {
+    remoteDesktopSnapshotTimer = null
+    void refreshRemoteDesktopSnapshotFallback()
+  }, Math.max(0, delayMs))
+}
+
+async function refreshRemoteDesktopSnapshotFallback(): Promise<void> {
+  if (remoteDesktopPane === null) return
+  if (Date.now() - remoteDesktopLastRtcFrameAt < REMOTE_DESKTOP_RTC_FRAME_GRACE_MS) {
+    scheduleRemoteDesktopSnapshotFallback(REMOTE_DESKTOP_SNAPSHOT_POLL_MS)
+    return
+  }
+  if (remoteDesktopSnapshotInFlight) {
+    scheduleRemoteDesktopSnapshotFallback(REMOTE_DESKTOP_SNAPSHOT_POLL_MS)
+    return
+  }
+  remoteDesktopSnapshotInFlight = true
+  try {
+    const response = await fetchRemoteDesktopSnapshot()
+    const blob = await response.blob()
+    const bitmap = await decodeRemoteDesktopBitmap(blob)
+    const width = bitmap.width
+    const height = bitmap.height
+    if (width <= 0 || height <= 0) throw new Error(`invalid desktop frame ${width}x${height}`)
+    const src = nextRemoteDesktopSnapshotFrameSrc()
+    TextureLoader.replaceBitmap(src, bitmap)
+    remoteDesktopPane.setFrame({
+      src,
+      width,
+      height,
+      capturedAt: Date.now(),
+    })
+    remoteDesktopPane.setStatus("connected", `${width}x${height} desktop`)
+    scheduleRemoteDesktopSnapshotFallback(REMOTE_DESKTOP_SNAPSHOT_POLL_MS)
+  } catch (error) {
+    remoteDesktopSnapshotPath = null
+    remoteDesktopPane?.setStatus("error", error instanceof Error ? `desktop ${error.message}` : "desktop unavailable")
+    scheduleRemoteDesktopSnapshotFallback(REMOTE_DESKTOP_SNAPSHOT_ERROR_POLL_MS)
+  } finally {
+    remoteDesktopSnapshotInFlight = false
+  }
+}
+
+async function decodeRemoteDesktopBitmap(blob: Blob): Promise<ImageBitmap> {
+  const bitmap = await createImageBitmap(blob)
+  if (bitmap.width > 0 && bitmap.height > 0) return bitmap
+  bitmap.close?.()
+  const objectUrl = URL.createObjectURL(blob)
+  try {
+    const image = new Image()
+    image.decoding = "async"
+    image.src = objectUrl
+    await image.decode()
+    const fallback = await createImageBitmap(image)
+    if (fallback.width <= 0 || fallback.height <= 0) throw new Error(`decoded ${fallback.width}x${fallback.height}`)
+    return fallback
+  } finally {
+    URL.revokeObjectURL(objectUrl)
+  }
+}
+
+function nextRemoteDesktopSnapshotFrameSrc(): string {
+  const currentSrc = remoteDesktopPane?.frameSnapshot()?.src ?? null
+  for (let attempt = 0; attempt < REMOTE_DESKTOP_SNAPSHOT_FRAME_SLOTS; attempt += 1) {
+    remoteDesktopSnapshotFrameSlot = (remoteDesktopSnapshotFrameSlot + 1) % REMOTE_DESKTOP_SNAPSHOT_FRAME_SLOTS
+    const src = `${REMOTE_DESKTOP_SNAPSHOT_FRAME_SRC}:${remoteDesktopSnapshotFrameSlot}`
+    if (src !== currentSrc) return src
+  }
+  return `${REMOTE_DESKTOP_SNAPSHOT_FRAME_SRC}:${remoteDesktopSnapshotFrameSlot}`
+}
+
+function isValidRemoteDesktopFrame(frame: AndroidRtcFrame): boolean {
+  return frame.width > 0 && frame.height > 0
+}
+
+async function fetchRemoteDesktopSnapshot(): Promise<Response> {
+  let lastError = "desktop snapshot unavailable"
+  for (const path of remoteDesktopApiPaths("/snapshot")) {
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => controller.abort(), REMOTE_DESKTOP_SNAPSHOT_REQUEST_TIMEOUT_MS)
+    try {
+      const response = await fetch(`${path}?t=${Date.now()}`, {
+        cache: "no-store",
+        signal: controller.signal,
+      })
+      const contentType = response.headers.get("content-type")?.toLowerCase() ?? ""
+      if (response.ok && contentType.startsWith("image/")) {
+        remoteDesktopSnapshotPath = path
+        return response
+      }
+      lastError = response.ok
+        ? `${path} ${contentType.length > 0 ? contentType : "non-image response"}`
+        : `${path} ${response.status}: ${await responseErrorText(response)}`
+    } catch (error) {
+      lastError = error instanceof Error ? `${path} ${error.message}` : `${path} unavailable`
+    } finally {
+      window.clearTimeout(timer)
+    }
+  }
+  throw new Error(lastError)
+}
+
+async function responseErrorText(response: Response): Promise<string> {
+  const text = await response.text().catch(() => response.statusText)
+  const compact = text.replace(/\s+/g, " ").trim()
+  return compact.length > 0 ? compact.slice(0, 180) : response.statusText
 }
 
 function interpreterRtcSignalUrl(): string {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
-  return `${protocol}//${window.location.host}/webrtc/signaling`
+  return `${protocol}//${window.location.host}${remoteDesktopRtcSignalPath()}`
+}
+
+function remoteDesktopApiPaths(path: string): string[] {
+  const suffix = path.startsWith("/") ? path : `/${path}`
+  const direct = `/remote-desktop${suffix}`
+  const embedded = `/hud/interpreter/remote-desktop${suffix}`
+  const preferred = remoteDesktopSnapshotPath === null
+    ? []
+    : [remoteDesktopSnapshotPath.replace(/\/snapshot$/, suffix)]
+  const candidates = isEmbeddedInterpreterOrigin()
+    ? [embedded, direct]
+    : [direct, embedded]
+  return uniqueStrings([...preferred, ...candidates])
+}
+
+function remoteDesktopRtcSignalPath(): string {
+  return isEmbeddedInterpreterOrigin() ? "/hud/webrtc/signaling" : "/webrtc/signaling"
+}
+
+function isEmbeddedInterpreterOrigin(): boolean {
+  return window.location.pathname === "/hud/interpreter" || window.location.pathname.startsWith("/hud/interpreter/")
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)]
 }
 
 function connectRemoteDesktopAudio(audio: AndroidRtcAudioStream | null): void {
@@ -4277,14 +4501,21 @@ function updateNetworkWatchPane(): void {
 }
 
 type RemoteDesktopPoint = {x: number; y: number}
+type RemoteDesktopPointerState = {
+  button: string
+  buttons: number
+  clickCount: number
+  point: RemoteDesktopPoint
+}
 
 class RemoteDesktopPane extends UiSurface {
   #statusKind: AndroidPaneStatusKind = "idle"
   #status = "rtc idle"
   #audioStatus = "audio idle"
   #frame: AndroidRtcFrame | null = null
+  #visibleFrame: AndroidRtcFrame | null = null
   #lastImageRect: UiSurfaceRect | null = null
-  #pressPoint: RemoteDesktopPoint | null = null
+  #activePointer: RemoteDesktopPointerState | null = null
   readonly #onRefresh: () => void
   readonly #onInput: (command: RtcControlCommand) => void
 
@@ -4309,12 +4540,15 @@ class RemoteDesktopPane extends UiSurface {
   }
 
   setFrame(frame: AndroidRtcFrame): void {
-    this.#frame = frame
+    if (!isValidRemoteDesktopFrame(frame)) return
+    this.#frame = {...frame}
+    if (TextureLoader.status(frame.src) === "ready") this.#visibleFrame = this.#frame
     this.requestRender()
   }
 
   frameSnapshot(): AndroidRtcFrame | null {
-    return this.#frame === null ? null : {...this.#frame}
+    const frame = this.#visibleFrame ?? this.#frame
+    return frame === null ? null : {...frame}
   }
 
   focus(): void {
@@ -4364,6 +4598,7 @@ class RemoteDesktopPane extends UiSurface {
   }
 
   #renderBody(rect: UiSurfaceRect): void {
+    this.#syncVisibleFrame()
     this.drawRoundedRect(rect.x, rect.y, rect.w, rect.h, {
       radius: radii.control,
       fill: HUD_CODE_BG,
@@ -4371,13 +4606,15 @@ class RemoteDesktopPane extends UiSurface {
       borderWidth: 1,
       z: Z.ELEMENT - 0.03,
     })
-    const imageRect = this.#imageRect(rect)
+    const frame = this.#visibleFrame ?? this.#frame
+    const imageRect = this.#imageRect(rect, frame)
     this.#lastImageRect = imageRect
-    if (imageRect !== null && this.#frame !== null) {
-      this.drawImage(this.#frame.src, imageRect.x, imageRect.y, imageRect.w, imageRect.h, {
+    if (imageRect !== null && frame !== null) {
+      this.drawImage(frame.src, imageRect.x, imageRect.y, imageRect.w, imageRect.h, {
         fit: "contain",
         z: Z.ELEMENT,
       })
+      this.#primePendingFrameTexture(rect, frame)
       this.hit(imageRect.x, imageRect.y, imageRect.w, imageRect.h, () => {}, {
         cursor: "crosshair",
         activeCursor: "crosshair",
@@ -4385,15 +4622,29 @@ class RemoteDesktopPane extends UiSurface {
       })
       return
     }
-    this.drawText(this.#statusKind === "error" ? this.#status : "Waiting for WebRTC desktop stream", rect.x + 14, rect.y + 16, {
+    this.drawText(this.#statusKind === "error" ? this.#status : "Waiting for desktop stream", rect.x + 14, rect.y + 16, {
       fontPx: 12,
       material: this.#statusKind === "error" ? this.materials.red : this.materials.muted,
       maxWidthPx: Math.max(1, rect.w - 28),
     })
   }
 
-  #imageRect(rect: UiSurfaceRect): UiSurfaceRect | null {
+  #syncVisibleFrame(): void {
     const frame = this.#frame
+    if (frame !== null && TextureLoader.status(frame.src) === "ready") this.#visibleFrame = frame
+  }
+
+  #primePendingFrameTexture(rect: UiSurfaceRect, drawnFrame: AndroidRtcFrame): void {
+    const pendingFrame = this.#frame
+    if (pendingFrame === null || pendingFrame.src === drawnFrame.src) return
+    this.drawImage(pendingFrame.src, rect.x, rect.y, 1, 1, {
+      fit: "contain",
+      opacity: 0,
+      z: Z.ELEMENT + 0.01,
+    })
+  }
+
+  #imageRect(rect: UiSurfaceRect, frame: AndroidRtcFrame | null): UiSurfaceRect | null {
     if (frame === null || frame.width <= 0 || frame.height <= 0) return null
     const pad = 1
     const maxW = Math.max(1, rect.w - pad * 2)
@@ -4409,11 +4660,16 @@ class RemoteDesktopPane extends UiSurface {
     }
   }
 
-  #localPointToFrame(localX: number, localY: number): RemoteDesktopPoint | null {
+  #localPointToFrame(localX: number, localY: number, opts: {clamp?: boolean} = {}): RemoteDesktopPoint | null {
     const rect = this.#lastImageRect
-    const frame = this.#frame
+    const frame = this.#visibleFrame ?? this.#frame
     if (rect === null || frame === null) return null
-    if (localX < rect.x || localY < rect.y || localX > rect.x + rect.w || localY > rect.y + rect.h) return null
+    if (
+      opts.clamp !== true &&
+      (localX < rect.x || localY < rect.y || localX > rect.x + rect.w || localY > rect.y + rect.h)
+    ) {
+      return null
+    }
     return {
       x: clampNumber(((localX - rect.x) / rect.w) * frame.width, 0, frame.width - 1),
       y: clampNumber(((localY - rect.y) / rect.h) * frame.height, 0, frame.height - 1),
@@ -4421,7 +4677,7 @@ class RemoteDesktopPane extends UiSurface {
   }
 
   #withFrameSize(command: RtcControlCommand): RtcControlCommand {
-    const frame = this.#frame
+    const frame = this.#visibleFrame ?? this.#frame
     if (frame === null || !("x" in command)) return command
     return {...command, frameW: frame.width, frameH: frame.height} as RtcControlCommand
   }
@@ -4442,34 +4698,117 @@ class RemoteDesktopPane extends UiSurface {
     }))
   }
 
+  onKey(event: KeyboardEvent): void {
+    if (event.isComposing) return
+    const modifiers = remoteDesktopKeyboardModifiers(event)
+    if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      this.#onInput({type: "text", text: event.key})
+    } else {
+      const command = {key: event.key, keyCode: event.code || event.key, modifiers}
+      this.#onInput({type: "keyDown", ...command})
+      this.#onInput({type: "keyUp", ...command})
+    }
+    event.preventDefault()
+  }
+
+  onInputText(text: string): void {
+    if (text.length === 0) return
+    this.#onInput({type: "text", text})
+  }
+
   override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
     super.onPointerDown(event, localX, localY)
     const point = this.#localPointToFrame(localX, localY)
-    if (event.button !== 0 || point === null) return
+    if (point === null) return
+    const button = remoteDesktopMouseButton(event.button)
+    const clickCount = Math.max(1, event.detail || 1)
     this.focus()
-    this.#pressPoint = point
+    this.#activePointer = {
+      button,
+      buttons: remoteDesktopButtonsMask(button),
+      clickCount,
+      point,
+    }
     this.#onInput({type: "focus"})
+    this.#onInput(this.#withFrameSize({
+      type: "pointerDown",
+      x: point.x,
+      y: point.y,
+      button,
+      buttons: remoteDesktopButtonsMask(button),
+      clickCount,
+    }))
+    event.preventDefault()
+  }
+
+  override onPointerMove(event: MouseEvent, localX: number, localY: number): void {
+    const active = this.#activePointer
+    if (active === null) {
+      super.onPointerMove(event, localX, localY)
+      return
+    }
+    const point = this.#localPointToFrame(localX, localY, {clamp: true})
+    if (point === null) return
+    active.point = point
+    this.#onInput(this.#withFrameSize({
+      type: "pointerMove",
+      x: point.x,
+      y: point.y,
+      button: active.button,
+      buttons: active.buttons,
+    }))
     event.preventDefault()
   }
 
   override onPointerUp(event: MouseEvent, localX: number, localY: number): void {
-    const start = this.#pressPoint
-    this.#pressPoint = null
-    const point = this.#localPointToFrame(localX, localY)
-    if (start !== null && point !== null) {
+    const active = this.#activePointer
+    this.#activePointer = null
+    const point = this.#localPointToFrame(localX, localY, {clamp: active !== null}) ?? active?.point ?? null
+    if (active !== null && point !== null) {
       super.onPointerUp(event, localX, localY)
       this.#onInput(this.#withFrameSize({
-        type: "click",
+        type: "pointerUp",
         x: point.x,
         y: point.y,
-        button: "left",
-        clickCount: event.detail >= 2 ? 2 : 1,
+        button: active.button,
+        buttons: 0,
+        clickCount: active.clickCount,
       }))
       event.preventDefault()
       return
     }
     super.onPointerUp(event, localX, localY)
   }
+
+  override onContextMenu(event: MouseEvent, localX: number, localY: number): void {
+    const point = this.#localPointToFrame(localX, localY)
+    if (point === null) {
+      super.onContextMenu(event, localX, localY)
+      return
+    }
+    event.preventDefault()
+  }
+}
+
+function remoteDesktopKeyboardModifiers(event: KeyboardEvent): string[] {
+  const modifiers: string[] = []
+  if (event.altKey) modifiers.push("alt")
+  if (event.ctrlKey) modifiers.push("control")
+  if (event.metaKey) modifiers.push("meta")
+  if (event.shiftKey) modifiers.push("shift")
+  return modifiers
+}
+
+function remoteDesktopMouseButton(button: number): string {
+  if (button === 1) return "middle"
+  if (button === 2) return "right"
+  return "left"
+}
+
+function remoteDesktopButtonsMask(button: string): number {
+  if (button === "right") return 2
+  if (button === "middle") return 4
+  return 1
 }
 
 class SqliteHudFramePane extends UiSurface {
@@ -7072,6 +7411,7 @@ function syncModuleDisplays(): void {
     framedModuleKey = frameKey
     uiCanvas.frameDisplays(displayIds)
   }
+  enforceSpaceOverview()
 }
 
 function removeModuleDisplay(moduleId: string): void {
@@ -8285,6 +8625,7 @@ function setSqliteDockPlacement(placement: HostTerminalDockPlacement): void {
 }
 
 function toggleBrowserFullscreenDock(): void {
+  setSpaceOverviewPinned(false)
   displayHoverOutlinePane?.toggleBrowserFullscreen()
   fullscreenDockPane?.requestRender()
 }
@@ -8321,6 +8662,7 @@ function setNetworkTerminalDocked(docked: boolean): unknown {
 }
 
 function focusNetworkDisplay(): unknown {
+  setSpaceOverviewPinned(false)
   const controller = ensureNetworkHostTerminalController()
   ensureNetworkDisplay()
   if (controller.socket === null) connectHostTerminal(controller)

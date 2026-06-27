@@ -419,7 +419,8 @@ type HudNotificationKind = "activation" | "deactivation" | "stop" | "error" | "a
 const DEFAULT_VOICE_INPUT_URL = "/hud/voice/asr/ws"
 const DEFAULT_VOICE_WAKE_URL = "/hud/voice/wake/ws"
 const DEFAULT_VOICE_AUTO_SEND_ENABLED = true
-const DEFAULT_CODEX_VOICE_P2P_ENABLED = true
+const DEFAULT_CODEX_VOICE_P2P_ENABLED = false
+const CODEX_VOICE_P2P_SERVER_AVAILABLE = false
 const DEFAULT_VOICE_DEACTIVATION_MODE: VoiceDeactivationMode = "phrase-timeout"
 const DEFAULT_VOICE_RECOGNITION_TIMEOUT_SECONDS = 3
 const DEFAULT_VOICE_SIGNAL_VOLUME = 0.2
@@ -6963,6 +6964,7 @@ function readCodexVoiceAutoSendEnabled(): boolean {
 }
 
 function readCodexVoiceP2PEnabled(): boolean {
+	if (!CODEX_VOICE_P2P_SERVER_AVAILABLE) return false
 	return readStoredBoolean(CODEX_VOICE_P2P_STORAGE_KEY, DEFAULT_CODEX_VOICE_P2P_ENABLED)
 }
 

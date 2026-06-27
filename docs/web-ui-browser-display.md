@@ -25,7 +25,8 @@ display в `Space`. Snapshot endpoints остаются fallback/diagnostics, н
 Текущее состояние MetaFor:
 
 - server/dev wrapper `/home/zavx0z/metafor-interpreter-web-dev/run.sh`
-  выставляет `INTERPRETER_HTTP_HOST=10.66.0.10`;
+  выставляет `INTERPRETER_HTTP_HOST=10.66.0.10` и
+  `INTERPRETER_REMOTE_DESKTOP_HOST_PORT=32123`;
 - host interpreter слушает `http://10.66.0.10:6500/`;
 - child `app/web/server.ts` запускается с `HOST=10.66.0.10` и `PORT=3004`;
 - Bun inspector для child process остается локальным:
@@ -38,6 +39,10 @@ display в `Space`. Snapshot endpoints остаются fallback/diagnostics, н
   `desktopCapturer` / `getDisplayMedia`, управляемый URL/viewport/restart/input
   и CDP через
   `METAFOR_ELECTRON_DEBUG_PORT`;
+- Linux server script для Electron host - `bun --filter @app/electron
+  host:linux` или `dev:host:linux`; он передает sandbox/Ozone flags на уровне
+  запуска процесса, потому что эти флаги должны попасть в Electron binary до
+  загрузки app main;
 - interpreter-side bridge для browser-host использует `/browser-display/*`, а
   server desktop bridge использует `/remote-desktop/*`; оба проксируют только
   локальный host, заданный через `INTERPRETER_BROWSER_HOST_*` или
@@ -199,7 +204,16 @@ POST /remote-desktop/browser/open
 Ручной smoke для Electron remote desktop host:
 
 ```sh
-DISPLAY=:0 \
+METAFOR_URL=http://10.66.0.10:3004/ \
+METAFOR_REMOTE_DESKTOP_SIGNAL_URL=ws://10.66.0.10:6500/webrtc/signaling \
+bun --filter @app/electron dev:host:linux
+
+# direct form:
+ELECTRON_DISABLE_SANDBOX=1 \
+XDG_RUNTIME_DIR=/run/user/1000 \
+DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus \
+WAYLAND_DISPLAY=wayland-0 \
+XDG_SESSION_TYPE=wayland \
 METAFOR_URL=http://10.66.0.10:3004/ \
 METAFOR_ELECTRON_HOST=1 \
 METAFOR_ELECTRON_HOST_PORT=32123 \
@@ -207,9 +221,12 @@ METAFOR_REMOTE_DESKTOP_RTC=1 \
 METAFOR_REMOTE_DESKTOP_CAPTURE_SOURCE=screen \
 METAFOR_REMOTE_DESKTOP_AUDIO=1 \
 METAFOR_REMOTE_DESKTOP_AUDIO_SOURCE=auto \
-METAFOR_REMOTE_DESKTOP_SIGNAL_URL=ws://127.0.0.1:6500/webrtc/signaling \
+METAFOR_REMOTE_DESKTOP_SIGNAL_URL=ws://10.66.0.10:6500/webrtc/signaling \
 METAFOR_ELECTRON_DEBUG_PORT=9230 \
-bun --filter @app/electron dev:host
+node_modules/.bin/electron app/electron \
+  --ozone-platform=wayland \
+  --enable-features=UseOzonePlatform,WebRTCPipeWireCapturer \
+  --no-sandbox
 
 curl -sS http://127.0.0.1:32123/health
 curl -sS http://127.0.0.1:32123/desktop/rtc/state
@@ -219,6 +236,17 @@ curl -sS http://127.0.0.1:32123/snapshot --output /tmp/browser-host.png
 curl -sS http://127.0.0.1:9230/json/version
 curl -sS http://127.0.0.1:9230/json/list
 ```
+
+Проверка 2026-06-26: Electron 35.7.5 и временно проверенный Electron 42.5.0
+оба входят в main process на Wayland, но в этой SSH/server session не доходят
+до `app.whenReady()` даже для минимального Electron main. `systemd-run --user`,
+полный GNOME env, software GL и GPU disable не изменили поведение. Чистый
+Chrome Wayland с CDP/WebRTC flags также не поднял CDP target в этой session.
+При этом Mutter/PipeWire screen source работает напрямую: `RecordVirtual` через
+`org.gnome.Mutter.ScreenCast` дает реальный GNOME desktop 1280x720. До решения
+Wayland Electron runtime не считать Electron/WebRTC host рабочим только по
+наличию процесса; обязательная проверка - `GET http://127.0.0.1:32123/health`
+и `GET http://127.0.0.1:32123/desktop/rtc/state`.
 
 CDP endpoints полезны для диагностики DevTools/source maps, но рабочий visual
 и audio path для агента и interpreter UI идет через WebRTC signaling и
