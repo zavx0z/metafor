@@ -178,6 +178,15 @@ FreeRDP trigger (`xfreerdp` к `127.0.0.1:3390` внутри Xvfb `:101`). Ес�
 trigger и только потом перезапускай `metafor-chrome-wayland-monitor-main` /
 `bun run webrtc:chrome:monitor`.
 
+С 2026-06-28 основной способ для агента управлять этим контуром -
+interpreter endpoint `GET|POST /remote-desktop/lifecycle`. `GET` возвращает
+schema/userStories и state (`hostReady`, `captureReady`, `audioReady`,
+`controlReady`, `ready`). `POST` принимает `action` (`status`, `start`,
+`restart`, `recover`, `stop`), `scope` (`sender`, `display`, `all`), `wait`,
+`timeoutMs`, `cleanProfile`, `stopXvfb`, `config`. Для обычного restart default
+scope - `sender`, чтобы не гасить `Meta-0`. Ручные tmux/grdctl/xfreerdp команды
+остаются только fallback diagnostics, если lifecycle endpoint недоступен.
+
 Фиксация 2026-06-28: Chrome WebRTC sender больше не размещается в видимом
 `https://meta.proizvodstvo1.ru/` target. Sender живет в отдельной служебной
 странице `http://127.0.0.1:32133/desktop/rtc/sender`, а видимая вкладка продукта
@@ -185,6 +194,12 @@ trigger и только потом перезапускай `metafor-chrome-wayl
 `meta.proizvodstvo1.ru` не должен рвать remote desktop. Sender signaling -
 `ws://10.66.0.10:6500/webrtc/signaling`, input/audio - локальные routes host-а
 `127.0.0.1:32133`.
+
+Этап переноса из `app/electron` в interpreter-модуль: переносить только реально
+используемый server-dev path - Chrome WebRTC monitor sender, host API
+`/desktop/health|rtc|input|audio` и default dev-layout. Не переносить мертвые
+ветки и fallback-и: старый `32123`, Xwayland/current-tab, MJPEG/snapshot как
+основной frame loop, Playwright-клиенты, Electron UI-specific shell behavior.
 
 Это рекурсивный контур:
 

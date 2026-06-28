@@ -307,6 +307,8 @@ WS   /webrtc/signaling
 GET  /remote-desktop/health
 GET  /remote-desktop/state
 GET  /remote-desktop/status
+GET  /remote-desktop/lifecycle
+POST /remote-desktop/lifecycle
 GET  /remote-desktop/rtc/state
 POST /remote-desktop/rtc/restart
 GET  /remote-desktop/audio.pcm
@@ -315,6 +317,27 @@ POST /remote-desktop/input
 GET  /remote-desktop/browser/windows
 POST /remote-desktop/browser/open
 ```
+
+`/remote-desktop/lifecycle` - основной user-story endpoint для server-dev
+remote desktop. `GET` возвращает schema/userStories и текущий state. `POST`
+принимает:
+
+```json
+{
+  "action": "status | start | restart | recover | stop",
+  "scope": "sender | display | all",
+  "wait": true,
+  "timeoutMs": 20000,
+  "cleanProfile": false,
+  "stopXvfb": false,
+  "config": {}
+}
+```
+
+Default `restart` использует `scope:"sender"`, чтобы не гасить `Meta-0`.
+`recover` поднимает display layer и затем перезапускает sender. State разделяет
+`hostReady`, `captureReady`, `audioReady`, `controlReady` и итоговый `ready`,
+чтобы агент видел, какой слой контура сломан.
 
 `/remote-desktop/health` мапится на host `/desktop/health` и включает
 состояние WebRTC sender, включая `capture.preferredKind`, фактический

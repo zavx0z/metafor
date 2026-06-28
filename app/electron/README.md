@@ -48,6 +48,13 @@ separate service sender target at
 monitor at 60 fps target, and joins the interpreter `remote-desktop` signaling
 room. Product page reload/navigation must not own or reset the sender.
 
+For the server-dev contour, agents should control this through the interpreter
+lifecycle API instead of calling Electron/Chrome scripts directly:
+`GET|POST http://10.66.0.10:6500/remote-desktop/lifecycle`. The scripts here
+remain the current implementation detail for the live Chrome WebRTC monitor
+path; do not migrate older diagnostics/fallbacks into interpreter runtime code
+unless they are proven to be actively used.
+
 Do not leave the older `127.0.0.1:32123` remote desktop host running next to
 `32133`: it creates a second `MetaVendor` virtual monitor, so Chrome can render
 on one monitor while WebRTC captures the other. `webrtc:chrome:browser`,

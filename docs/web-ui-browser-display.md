@@ -35,6 +35,26 @@ Cold restart на этом сервере состоит из двух разн�
 "chrome-get-display-media:monitor"`. `webrtc:chrome:browser`/Xwayland/current
 tab не являются успешным server desktop remote display.
 
+Для агента основной вход в lifecycle - interpreter API, а не ручная цепочка
+tmux/curl:
+
+```sh
+curl -sS http://10.66.0.10:6500/remote-desktop/lifecycle
+curl -sS -X POST http://10.66.0.10:6500/remote-desktop/lifecycle \
+  -H 'content-type: application/json' \
+  -d '{"action":"recover","wait":true}'
+curl -sS -X POST http://10.66.0.10:6500/remote-desktop/lifecycle \
+  -H 'content-type: application/json' \
+  -d '{"action":"restart","scope":"sender","wait":true}'
+```
+
+`GET /remote-desktop/lifecycle` возвращает schema/userStories и текущие флаги
+`hostReady`, `captureReady`, `audioReady`, `controlReady`, `ready`.
+`POST /remote-desktop/lifecycle` принимает `action`, `scope`, `wait`,
+`timeoutMs`, `cleanProfile`, `stopXvfb`, `config`. Для обычного `restart`
+default scope - `sender`, чтобы не гасить virtual display `Meta-0`.
+Low-level команды ниже остаются диагностиками и emergency fallback.
+
 ## Проверенный Контекст
 
 Проверено 2026-06-27 в репозиториях:
@@ -233,6 +253,8 @@ ANY  /browser-display/proxy/<path>
 GET  /remote-desktop/health
 GET  /remote-desktop/state
 GET  /remote-desktop/status
+GET  /remote-desktop/lifecycle
+POST /remote-desktop/lifecycle
 GET  /remote-desktop/rtc/state
 POST /remote-desktop/rtc/restart
 GET  /remote-desktop/snapshot
@@ -243,6 +265,9 @@ POST /remote-desktop/browser/open
 
 Маршрутный префикс `/remote-desktop` фиксирует модель server-owned display:
 видимый поток живет в `Space`, а не в HUD и не во внешнем браузере пользователя.
+`/remote-desktop/lifecycle` - единственный user-story endpoint для агента:
+`status`, `start`, `restart`, `recover`, `stop`. Остальные routes остаются
+низкоуровневым health/proxy/control API.
 
 Embedded app-web proxy:
 
@@ -268,17 +293,26 @@ Embedded app-web proxy:
 Ручной smoke для текущего Chrome Wayland monitor remote desktop host:
 
 ```sh
-cd /home/zavx0z/production/vendor/metafor/app/electron
-
-# Предусловие: DisplayConfig уже показывает Meta-0 1920x1080. Его держит
-# отдельный headless RDP trigger; не выключай его при restart sender.
-bun run webrtc:chrome:monitor
+curl -sS http://10.66.0.10:6500/remote-desktop/lifecycle
+curl -sS -X POST http://10.66.0.10:6500/remote-desktop/lifecycle \
+  -H 'content-type: application/json' \
+  -d '{"action":"restart","scope":"sender","wait":true}'
 
 curl -sS http://10.66.0.10:6500/remote-desktop/rtc/state
 curl -sS http://10.66.0.10:6500/remote-desktop/rtc/state \
   | jq '.remoteDesktop.ice.lastPublishedCandidate'
 curl -sS http://127.0.0.1:32133/desktop/rtc/state
 curl -sS http://127.0.0.1:32133/desktop/snapshot --output /tmp/rd.png
+```
+
+Если lifecycle endpoint недоступен, low-level fallback для sender:
+
+```sh
+cd /home/zavx0z/production/vendor/metafor/app/electron
+
+# Предусловие: DisplayConfig уже показывает Meta-0 1920x1080. Его держит
+# отдельный headless RDP trigger; не выключай его при restart sender.
+bun run webrtc:chrome:monitor
 ```
 
 Проверка 2026-06-27: Electron 35.7.5 на текущем GNOME/Wayland/NVIDIA сервере

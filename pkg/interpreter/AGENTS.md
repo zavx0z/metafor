@@ -254,14 +254,36 @@ WebRTC sender не должен жить в видимой продуктово�
 WebM/PCM/MJPEG оставляй fallback/diagnostics, не возвращай их как основной
 realtime path.
 
-Cold restart для нового агента: не гаси virtual display, если нужно только
-перезапустить sender. На текущем server-dev `Meta-0` создается и удерживается
-headless GNOME RDP trigger: Xvfb `:101` + `xfreerdp` к `127.0.0.1:3390`.
-После проверки `Meta-0` перезапускай только tmux
-`metafor-chrome-wayland-monitor-main` с `app/electron/scripts/chrome-webrtc-monitor.sh`.
-Успешный health обязан показать `stream.target.connector: "Meta-0"`,
-`capture.frameSource: "chrome-get-display-media:monitor"`, audio
-`pipewire-pcm-track-generator-stream` и RTC `control-open`.
+Cold restart для нового агента: сначала используй единый lifecycle API
+interpreter, а не ручную цепочку tmux/curl:
+
+```sh
+curl -sS http://10.66.0.10:6500/remote-desktop/lifecycle
+curl -sS -X POST http://10.66.0.10:6500/remote-desktop/lifecycle \
+  -H 'content-type: application/json' \
+  -d '{"action":"recover","wait":true}'
+curl -sS -X POST http://10.66.0.10:6500/remote-desktop/lifecycle \
+  -H 'content-type: application/json' \
+  -d '{"action":"restart","scope":"sender","wait":true}'
+```
+
+`GET /remote-desktop/lifecycle` возвращает schema/userStories и полный state.
+`POST /remote-desktop/lifecycle` принимает `action`, `scope`, `wait`,
+`timeoutMs`, `cleanProfile`, `stopXvfb`, `config`. Не гаси virtual display, если
+нужно только перезапустить sender: default для `restart` - `scope:"sender"`.
+На текущем server-dev `Meta-0` создается и удерживается headless GNOME RDP
+trigger: Xvfb `:101` + `xfreerdp` к `127.0.0.1:3390`; sender - tmux
+`metafor-chrome-wayland-monitor-main` с
+`app/electron/scripts/chrome-webrtc-monitor.sh`. Успешный health обязан
+показать `stream.target.connector: "Meta-0"`, `capture.frameSource:
+"chrome-get-display-media:monitor"`, audio `pipewire-pcm-track-generator-stream`
+и RTC `control-open`.
+
+Если remote desktop host-код переносится из `app/electron` в interpreter-модуль,
+переноси только реально используемый server-dev путь: Chrome WebRTC monitor
+sender, host API `/desktop/health|rtc|input|audio` и dev-layout. Не переноси
+старые fallback-и и мертвый код: `32123`, Xwayland/current-tab, MJPEG/snapshot
+как основной frame loop, Playwright-клиенты и Electron UI-specific поведение.
 
 ## Terminal Input
 

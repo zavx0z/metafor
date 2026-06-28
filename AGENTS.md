@@ -52,6 +52,7 @@ macOS-дисплей пользователя.
 Проверка browser/RTC state:
 
 ```sh
+curl -sS http://10.66.0.10:6500/remote-desktop/lifecycle
 curl -sS http://127.0.0.1:32133/desktop/rtc/state
 curl -sS http://127.0.0.1:9349/json/list
 curl -sS http://10.66.0.10:6500/webrtc/rooms
@@ -63,15 +64,35 @@ curl -sS http://10.66.0.10:6500/webrtc/rooms
 RTCPeerConnection. Не возвращай MJPEG/snapshot/PipeWire frame fallback как
 основной путь; они допустимы только как диагностика.
 
-Cold restart server desktop: не останавливай виртуальный дисплей, если задача
-только перезапустить sender. `Meta-0` должен уже существовать; на текущем
-server-dev контуре его держит headless GNOME RDP trigger: Xvfb `:101` +
-`xfreerdp` к `127.0.0.1:3390`. После этого перезапускай только tmux
-`metafor-chrome-wayland-monitor-main` командой `bash scripts/chrome-webrtc-monitor.sh`
-из `app/electron` и проверяй `127.0.0.1:32133/desktop/health`. Если health не
-показывает `target.connector: "Meta-0"` и
-`capture.frameSource: "chrome-get-display-media:monitor"`, это не рабочий
-remote desktop.
+Lifecycle server desktop: сначала используй единый interpreter endpoint, а не
+цепочку ручных tmux/curl команд:
+
+```sh
+curl -sS http://10.66.0.10:6500/remote-desktop/lifecycle
+curl -sS -X POST http://10.66.0.10:6500/remote-desktop/lifecycle \
+  -H 'content-type: application/json' \
+  -d '{"action":"recover","wait":true}'
+curl -sS -X POST http://10.66.0.10:6500/remote-desktop/lifecycle \
+  -H 'content-type: application/json' \
+  -d '{"action":"restart","scope":"sender","wait":true}'
+```
+
+Endpoint возвращает schema/userStories и знает параметры `action`, `scope`,
+`wait`, `timeoutMs`, `cleanProfile`, `stopXvfb`, `config`. Не останавливай
+virtual display, если нужно только перезапустить sender: default для
+`restart` - `scope:"sender"`. Low-level команды нужны только если lifecycle API
+недоступен. На текущем server-dev контуре `Meta-0` держит headless GNOME RDP
+trigger: Xvfb `:101` + `xfreerdp` к `127.0.0.1:3390`; sender - tmux
+`metafor-chrome-wayland-monitor-main` со скриптом
+`app/electron/scripts/chrome-webrtc-monitor.sh`. Если health не показывает
+`target.connector: "Meta-0"` и `capture.frameSource:
+"chrome-get-display-media:monitor"`, это не рабочий remote desktop.
+
+При будущем переносе из `app/electron` в interpreter-модуль переносить только
+фактически используемый server-dev путь: Chrome WebRTC monitor sender, host API
+для `/desktop/health|rtc|input|audio` и dev-layout. Не тащи старые fallback-и:
+`32123`, Xwayland/current-tab, MJPEG/snapshot как основной frame loop,
+Playwright-клиенты и Electron UI-specific код.
 
 ## Web DevTools Для Агента
 

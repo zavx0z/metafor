@@ -43,6 +43,7 @@ import {sqliteDatabaseFingerprint, sqliteDatabaseInputPath, sqliteDatabasePayloa
 import {interpreterRoutes} from "./routes.ts"
 import {handleBrowserHostRoute} from "./browser-host.ts"
 import {handleChromeDevtoolsRoute} from "./chrome-devtools.ts"
+import {handleRemoteDesktopLifecycleRoute} from "./remote-desktop-lifecycle.ts"
 import {restartInspectOptionsFromParams} from "./restart-options.ts"
 import {
   attachVoiceProxySocket,
@@ -1204,6 +1205,8 @@ async function handleRoute(
   if (method === "GET" && path === "/webrtc/rooms") return jsonResponse(rtcRoomsPayload())
   const chromeDevtoolsRoute = await handleChromeDevtoolsRoute(req, method, path)
   if (chromeDevtoolsRoute !== null) return chromeDevtoolsRoute
+  const remoteDesktopLifecycleRoute = await handleRemoteDesktopLifecycleRoute(req, method, path, options.logger)
+  if (remoteDesktopLifecycleRoute !== null) return remoteDesktopLifecycleRoute
   const browserHostRoute = await handleBrowserHostRoute(req, method, path)
   if (browserHostRoute !== null) return browserHostRoute
   if (method === "GET" && path === "/hud/terminal") return await dispatchUiHostRoute("hud.terminal.get", {}, dispatchUiHostCommand)
