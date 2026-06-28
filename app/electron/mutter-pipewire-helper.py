@@ -109,6 +109,7 @@ eis_ready = False
 eis_request_id = 0
 eis_results = {}
 eis_condition = threading.Condition()
+active_modifier_keysyms = set()
 
 EIS_HELPER_SOURCE = Path(__file__).with_name("mutter-eis-input.c")
 EIS_HELPER_BINARY = Path(os.environ.get("METAFOR_MUTTER_EIS_HELPER", "/tmp/metafor-mutter-eis-input"))
@@ -130,6 +131,19 @@ KEYSYMS = {
     "Tab": 0xFF09,
     "Enter": 0xFF0D,
     "Escape": 0xFF1B,
+    "Shift": 0xFFE1,
+    "ShiftLeft": 0xFFE1,
+    "ShiftRight": 0xFFE2,
+    "Control": 0xFFE3,
+    "ControlLeft": 0xFFE3,
+    "ControlRight": 0xFFE4,
+    "Ctrl": 0xFFE3,
+    "Alt": 0xFFE9,
+    "AltLeft": 0xFFE9,
+    "AltRight": 0xFE03,
+    "Meta": 0xFFEB,
+    "Super": 0xFFEB,
+    "OS": 0xFFEB,
     "ArrowLeft": 0xFF51,
     "ArrowUp": 0xFF52,
     "ArrowRight": 0xFF53,
@@ -139,6 +153,7 @@ KEYSYMS = {
     "End": 0xFF57,
     "PageUp": 0xFF55,
     "PageDown": 0xFF56,
+    "F12": 0xFFC9,
     " ": 0x20,
 }
 
@@ -374,8 +389,10 @@ def dispatch_input(body):
             raise ValueError("unsupported keyboard key")
         if event_type == "char":
             send_keysym(keysym)
+        elif event_type == "key":
+            send_key_shortcut(keysym, modifier_keysyms(body))
         else:
-            remote_session.NotifyKeyboardKeysym(dbus.UInt32(keysym), dbus.Boolean(event_type != "keyUp"))
+            send_key_state(keysym, event_type != "keyUp", modifier_keysyms(body))
         return {"type": event_type, "key": str(key)}
     raise ValueError("unsupported desktop input type")
 
@@ -444,6 +461,51 @@ def send_keysym(keysym):
     remote_session.NotifyKeyboardKeysym(dbus.UInt32(keysym), dbus.Boolean(False))
     if KEYSYM_TEXT_DELAY_SECONDS > 0:
         time.sleep(KEYSYM_TEXT_DELAY_SECONDS)
+
+
+def send_key_shortcut(keysym, modifiers):
+    for modifier in modifiers:
+        set_modifier_key(modifier, True)
+    send_keysym(keysym)
+    for modifier in reversed(modifiers):
+        set_modifier_key(modifier, False)
+
+
+def send_key_state(keysym, pressed, modifiers):
+    if pressed:
+        for modifier in modifiers:
+            set_modifier_key(modifier, True)
+        remote_session.NotifyKeyboardKeysym(dbus.UInt32(keysym), dbus.Boolean(True))
+        return
+    remote_session.NotifyKeyboardKeysym(dbus.UInt32(keysym), dbus.Boolean(False))
+    for modifier in reversed(modifiers):
+        set_modifier_key(modifier, False)
+
+
+def set_modifier_key(keysym, pressed):
+    if pressed:
+        if keysym in active_modifier_keysyms:
+            return
+        active_modifier_keysyms.add(keysym)
+    else:
+        if keysym not in active_modifier_keysyms:
+            return
+        active_modifier_keysyms.remove(keysym)
+    remote_session.NotifyKeyboardKeysym(dbus.UInt32(keysym), dbus.Boolean(pressed))
+    if KEYSYM_TEXT_DELAY_SECONDS > 0:
+        time.sleep(KEYSYM_TEXT_DELAY_SECONDS)
+
+
+def modifier_keysyms(body):
+    modifiers = body.get("modifiers", [])
+    if not isinstance(modifiers, list):
+        return []
+    keysyms = []
+    for modifier in modifiers:
+        keysym = keysym_for(modifier)
+        if keysym is not None and keysym not in keysyms:
+            keysyms.append(keysym)
+    return keysyms
 
 
 def keysym_for(value):
