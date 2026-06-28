@@ -7,12 +7,10 @@ const HOST = process.env.METAFOR_REMOTE_DESKTOP_HOST_BIND || "127.0.0.1"
 const PORT = Number(process.env.METAFOR_REMOTE_DESKTOP_HOST_PORT || process.env.METAFOR_ELECTRON_HOST_PORT || 32123)
 const WIDTH = Number(process.env.METAFOR_REMOTE_DESKTOP_WIDTH || 1920)
 const HEIGHT = Number(process.env.METAFOR_REMOTE_DESKTOP_HEIGHT || 1080)
-const FPS = Number(process.env.METAFOR_REMOTE_DESKTOP_RTC_FPS || process.env.METAFOR_REMOTE_DESKTOP_SNAPSHOT_FPS || 30)
-const MJPEG_BOUNDARY = "metafor-desktop-frame"
+const FPS = Number(process.env.METAFOR_REMOTE_DESKTOP_RTC_FPS || 30)
 const VIDEO_BITRATE = Number(process.env.METAFOR_REMOTE_DESKTOP_VIDEO_BITRATE || process.env.METAFOR_REMOTE_DESKTOP_RTC_VIDEO_BITRATE || 8_000_000)
 const VIDEO_CODEC = normalizeChromeVideoCodec(process.env.METAFOR_REMOTE_DESKTOP_RTC_VIDEO_CODEC || "")
 const VIDEO_CONTENT_HINT = normalizeChromeVideoContentHint(process.env.METAFOR_REMOTE_DESKTOP_RTC_CONTENT_HINT || "detail")
-const AUDIO_BITRATE = Number(process.env.METAFOR_REMOTE_DESKTOP_AUDIO_BITRATE || 128000)
 const AUDIO_TARGET = (process.env.METAFOR_REMOTE_DESKTOP_AUDIO_TARGET || "").trim()
 const AUDIO_UNMUTE = process.env.METAFOR_REMOTE_DESKTOP_AUDIO_UNMUTE === undefined
   ? true
@@ -93,29 +91,6 @@ const state = {
     exitCode: null,
     signal: null,
   },
-  snapshot: {
-    pending: false,
-    capturedAt: null,
-    bytes: 0,
-    error: null,
-  },
-  mjpeg: {
-    clients: 0,
-    lastStartedAt: null,
-    lastError: null,
-  },
-  videoWebm: {
-    clients: 0,
-    bitrate: VIDEO_BITRATE,
-    lastStartedAt: null,
-    lastError: null,
-  },
-  audioWebm: {
-    clients: 0,
-    target: null,
-    lastStartedAt: null,
-    lastError: null,
-  },
   audioPcm: {
     clients: 0,
     target: null,
@@ -135,8 +110,8 @@ const state = {
   },
   remoteDesktop: {
     enabled: true,
-    status: CHROME_RTC_ENABLED ? "chrome-rtc-starting" : "snapshot-fallback",
-    transport: CHROME_RTC_ENABLED ? "chrome-webrtc" : "pipewire-snapshot",
+    status: CHROME_RTC_ENABLED ? "chrome-rtc-starting" : "disabled",
+    transport: CHROME_RTC_ENABLED ? "chrome-webrtc" : "disabled",
     webRtc: CHROME_RTC_ENABLED,
     signalUrl: CHROME_RTC_SIGNAL_URL,
     room: CHROME_RTC_ROOM,
@@ -154,7 +129,7 @@ const state = {
     },
     audio: {
       enabled: true,
-      transport: "pipewire-webm",
+      transport: "pipewire-pcm",
       trackCount: 0,
       lastError: null,
     },
@@ -231,33 +206,8 @@ async function route(req, res) {
     sendJson(res, 202, {ok: true, remoteDesktop: publicState().remoteDesktop})
     return
   }
-  if (req.method === "GET" && url.pathname === "/desktop/snapshot") {
-    const png = await captureSnapshot()
-    res.writeHead(200, {
-      "cache-control": "no-store",
-      "content-type": "image/png",
-      "content-length": png.length,
-      ...corsHeaders(),
-      "x-meta-screen-target": "mutter-virtual",
-      "x-meta-caption": "Mutter PipeWire desktop",
-    })
-    res.end(png)
-    return
-  }
-  if (req.method === "GET" && (url.pathname === "/desktop/stream.mjpeg" || url.pathname === "/desktop/stream")) {
-    await sendMjpegStream(req, res)
-    return
-  }
-  if (req.method === "GET" && (url.pathname === "/desktop/video.webm" || url.pathname === "/desktop/video")) {
-    await sendVideoWebmStream(req, res)
-    return
-  }
   if (req.method === "GET" && url.pathname === "/desktop/audio.pcm") {
     await sendAudioPcmStream(req, res)
-    return
-  }
-  if (req.method === "GET" && (url.pathname === "/desktop/audio.webm" || url.pathname === "/desktop/audio")) {
-    await sendAudioWebmStream(req, res)
     return
   }
   if (req.method === "POST" && url.pathname === "/desktop/input") {
@@ -713,7 +663,6 @@ function chromeRtcSenderScript(options = {}) {
     room: CHROME_RTC_ROOM,
     peerId: CHROME_RTC_PEER_ID,
     inputUrl: `http://${HOST}:${PORT}/desktop/input`,
-    audioUrl: `http://${HOST}:${PORT}/desktop/audio.webm`,
     audioPcmUrl: `http://${HOST}:${PORT}/desktop/audio.pcm`,
     width: WIDTH,
     height: HEIGHT,
@@ -776,20 +725,13 @@ function chromeRtcSenderScript(options = {}) {
   };
   let socket = null;
   let stream = null;
-  let pipewireAudioContext = null;
-  let pipewireAudioElement = null;
-  let pipewireAudioSource = null;
-  let pipewireAudioDestination = null;
-  let pipewireAudioSilence = null;
-  let pipewireAudioDriverGain = null;
-  let pipewireAudioDriverSource = null;
-  let pipewireAudioCaptureStream = null;
   let pipewireAudioTracks = [];
   let pipewireAudioTransport = null;
   let pipewireAudioGenerator = null;
   let pipewireAudioGeneratorWriter = null;
   let pipewireAudioGeneratorTimestampUs = 0;
   let pipewireAudioGeneratorRemainder = new Uint8Array(0);
+  let pipewireAudioPcmAbort = null;
   let pipewireAudioKeepAliveContext = null;
   let pipewireAudioKeepAliveGain = null;
   let pipewireAudioKeepAliveSource = null;
@@ -881,122 +823,11 @@ function chromeRtcSenderScript(options = {}) {
   async function startPipeWireAudioCapture() {
     if (!config.audio || (config.audioSource !== "pipewire" && config.audioSource !== "both")) return [];
     await startChromeAudioOutputKeepAlive();
-    try {
-      const tracks = await startPipeWirePcmGeneratorAudioCapture();
-      pipewireAudioRefreshTimer = setInterval(() => {
-        startPipeWirePcmGeneratorFetch();
-      }, 5000);
-      return tracks;
-    } catch (error) {
-      post({audio: {lastError: "pipewire pcm generator capture failed: " + String(error?.message || error)}});
-    }
-    try {
-      const capture = await createPipeWireAudioElementCapture();
-      await installPipeWireAudioTracks(capture.tracks, "pipewire-webm-media-capture-stream");
-      activatePipeWireAudioElement(capture);
-      pipewireAudioRefreshTimer = setInterval(() => {
-        void refreshPipeWireAudioElementCapture();
-      }, 5000);
-      return capture.tracks;
-    } catch (error) {
-      post({audio: {lastError: "pipewire media element capture failed: " + String(error?.message || error)}});
-    }
-    const tracks = await startPipeWirePcmAudioCapture();
+    const tracks = await startPipeWirePcmGeneratorAudioCapture();
     pipewireAudioRefreshTimer = setInterval(() => {
-      startPipeWirePcmFetch();
+      startPipeWirePcmGeneratorFetch();
     }, 5000);
     return tracks;
-  }
-
-  async function createPipeWireAudioElementCapture() {
-    const element = document.createElement("audio");
-    element.autoplay = true;
-    element.controls = false;
-    element.crossOrigin = "anonymous";
-    element.muted = true;
-    element.preload = "auto";
-    element.src = config.audioUrl + "?t=" + Date.now();
-    element.style.display = "none";
-    document.body.appendChild(element);
-    const captureStream = typeof element.captureStream === "function"
-      ? element.captureStream()
-      : typeof element.mozCaptureStream === "function"
-        ? element.mozCaptureStream()
-        : null;
-    if (captureStream === null) {
-      element.remove();
-      throw new Error("HTMLAudioElement.captureStream is not available");
-    }
-    let tracks = [];
-    try {
-      const playPromise = element.play();
-      void playPromise.catch(() => undefined);
-      await Promise.race([
-        playPromise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error("media element play timeout")), 1500)),
-      ]);
-      tracks = await waitForPipeWireAudioElementTracks(captureStream);
-    } catch (error) {
-      cleanupPipeWireAudioElement(element, captureStream);
-      throw error;
-    }
-    if (tracks.length === 0) {
-      cleanupPipeWireAudioElement(element, captureStream);
-      throw new Error("media element capture produced no audio tracks");
-    }
-    window.__metaforPipewireAudioDebug = () => ({
-      transport: "pipewire-webm-media-capture-stream",
-      elementReadyState: element.readyState,
-      elementNetworkState: element.networkState,
-      elementPaused: element.paused,
-      elementMuted: element.muted,
-      elementCurrentTime: element.currentTime,
-      trackCount: captureStream.getAudioTracks().length,
-      tracks: captureStream.getAudioTracks().map((track) => ({
-        id: track.id,
-        readyState: track.readyState,
-        muted: track.muted,
-        enabled: track.enabled,
-      })),
-    });
-    return {element, captureStream, tracks};
-  }
-
-  async function waitForPipeWireAudioElementTracks(captureStream) {
-    const startedAt = Date.now();
-    while (Date.now() - startedAt < 2500) {
-      const tracks = captureStream.getAudioTracks();
-      if (tracks.length > 0) return tracks;
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-    return captureStream.getAudioTracks();
-  }
-
-  async function refreshPipeWireAudioElementCapture() {
-    try {
-      const capture = await createPipeWireAudioElementCapture();
-      await installPipeWireAudioTracks(capture.tracks, "pipewire-webm-media-capture-stream");
-      activatePipeWireAudioElement(capture);
-      post({audio: {effectiveSource: "pipewire-webm-media-capture-stream", trackCount: capture.tracks.length, lastError: null}});
-    } catch (error) {
-      post({audio: {lastError: "pipewire media element refresh failed: " + String(error?.message || error)}});
-    }
-  }
-
-  function activatePipeWireAudioElement(capture) {
-    const previousElement = pipewireAudioElement;
-    const previousStream = pipewireAudioCaptureStream;
-    pipewireAudioElement = capture.element;
-    pipewireAudioCaptureStream = capture.captureStream;
-    cleanupPipeWireAudioElement(previousElement, previousStream);
-  }
-
-  function cleanupPipeWireAudioElement(element, captureStream) {
-    try { element?.pause?.(); } catch {}
-    try { element?.removeAttribute?.("src"); } catch {}
-    try { element?.load?.(); } catch {}
-    element?.remove?.();
-    captureStream?.getTracks?.().forEach((track) => track.stop());
   }
 
   async function installPipeWireAudioTracks(tracks, transport) {
@@ -1032,32 +863,10 @@ function chromeRtcSenderScript(options = {}) {
     pipewireAudioGeneratorWriter = pipewireAudioGenerator.writable.getWriter();
     pipewireAudioGeneratorTimestampUs = 0;
     pipewireAudioGeneratorRemainder = new Uint8Array(0);
-    pipewireAudioGeneratorDebug.startedAt = new Date().toISOString();
-    pipewireAudioGeneratorDebug.lastError = null;
     await installPipeWireAudioTracks([pipewireAudioGenerator], "pipewire-pcm-track-generator-stream");
     startPipeWirePcmGeneratorFetch();
-    window.__metaforPipewireAudioDebug = () => ({
-      transport: "pipewire-pcm-track-generator-stream",
-      trackReadyState: pipewireAudioGenerator?.readyState ?? null,
-      trackMuted: pipewireAudioGenerator?.muted ?? null,
-      writableDesiredSize: pipewireAudioGeneratorWriter?.desiredSize ?? null,
-      ...pipewireAudioGeneratorDebug,
-    });
     return [pipewireAudioGenerator];
   }
-
-  const pipewireAudioGeneratorDebug = {
-    startedAt: null,
-    fetchStartedAt: null,
-    fetchChunkCount: 0,
-    fetchByteCount: 0,
-    writeCount: 0,
-    frameCount: 0,
-    peak: 0,
-    lastWriteAt: null,
-    lastNonZeroAt: null,
-    lastError: null,
-  };
 
   function startPipeWirePcmGeneratorFetch() {
     pipewireAudioPcmAbort?.abort?.();
@@ -1067,7 +876,6 @@ function chromeRtcSenderScript(options = {}) {
 
   async function readPipeWirePcmGeneratorStream(signal) {
     try {
-      pipewireAudioGeneratorDebug.fetchStartedAt = new Date().toISOString();
       const response = await fetch(config.audioPcmUrl + "?t=" + Date.now(), {signal, cache: "no-store"});
       if (!response.ok || response.body === null) throw new Error("pcm fetch failed: " + response.status);
       const reader = response.body.getReader();
@@ -1080,7 +888,6 @@ function chromeRtcSenderScript(options = {}) {
     } catch (error) {
       if (!signal.aborted) {
         const message = "pipewire pcm generator fetch failed: " + String(error?.message || error);
-        pipewireAudioGeneratorDebug.lastError = message;
         post({audio: {lastError: message}});
       }
     }
@@ -1094,15 +901,6 @@ function chromeRtcSenderScript(options = {}) {
     if (payloadBytes <= 0) return;
     const payload = merged.slice(0, payloadBytes);
     pipewireAudioGeneratorRemainder = merged.slice(payloadBytes);
-    let peak = 0;
-    const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
-    for (let frame = 0; frame < frameCount; frame += 1) {
-      peak = Math.max(
-        peak,
-        Math.abs(view.getInt16(frame * 4, true) / 32768),
-        Math.abs(view.getInt16(frame * 4 + 2, true) / 32768),
-      );
-    }
     const audioData = new AudioData({
       format: "s16",
       sampleRate: 48000,
@@ -1115,13 +913,6 @@ function chromeRtcSenderScript(options = {}) {
     await pipewireAudioGeneratorWriter.ready;
     await pipewireAudioGeneratorWriter.write(audioData);
     audioData.close();
-    pipewireAudioGeneratorDebug.fetchChunkCount += 1;
-    pipewireAudioGeneratorDebug.fetchByteCount += payloadBytes;
-    pipewireAudioGeneratorDebug.writeCount += 1;
-    pipewireAudioGeneratorDebug.frameCount += frameCount;
-    pipewireAudioGeneratorDebug.peak = peak;
-    pipewireAudioGeneratorDebug.lastWriteAt = new Date().toISOString();
-    if (peak > 0.00001) pipewireAudioGeneratorDebug.lastNonZeroAt = pipewireAudioGeneratorDebug.lastWriteAt;
   }
 
   function mergePipeWireGeneratorBytes(bytes) {
@@ -1131,177 +922,6 @@ function chromeRtcSenderScript(options = {}) {
     merged.set(bytes, pipewireAudioGeneratorRemainder.byteLength);
     pipewireAudioGeneratorRemainder = new Uint8Array(0);
     return merged;
-  }
-
-  async function startPipeWirePcmAudioCapture() {
-    pipewireAudioContext = pipewireAudioKeepAliveContext;
-    if (pipewireAudioContext === null) throw new Error("AudioContext is not available");
-    await pipewireAudioContext.resume().catch(() => undefined);
-    pipewireAudioDestination = pipewireAudioContext.createMediaStreamDestination();
-    const pcmProcessor = pipewireAudioContext.createScriptProcessor(4096, 1, 2);
-    const driverGain = pipewireAudioContext.createGain();
-    const silentOutput = pipewireAudioContext.createGain();
-    driverGain.gain.value = 0;
-    silentOutput.gain.value = 0;
-    const driverSource = typeof pipewireAudioContext.createConstantSource === "function"
-      ? pipewireAudioContext.createConstantSource()
-      : pipewireAudioContext.createOscillator();
-    if ("offset" in driverSource) driverSource.offset.value = 1;
-    if ("frequency" in driverSource) driverSource.frequency.value = 20;
-    pcmProcessor.onaudioprocess = fillPipeWirePcmOutput;
-    driverSource.connect(driverGain);
-    driverGain.connect(pcmProcessor);
-    pcmProcessor.connect(pipewireAudioDestination);
-    pcmProcessor.connect(silentOutput);
-    silentOutput.connect(pipewireAudioContext.destination);
-    driverSource.start();
-    pipewireAudioSource = pcmProcessor;
-    pipewireAudioSilence = silentOutput;
-    pipewireAudioDriverGain = driverGain;
-    pipewireAudioDriverSource = driverSource;
-
-    const tracks = pipewireAudioDestination.stream.getAudioTracks();
-    await installPipeWireAudioTracks(tracks, "pipewire-pcm-worklet-stream");
-    startPipeWirePcmFetch();
-    window.__metaforPipewireAudioDebug = () => ({
-      transport: "pipewire-pcm-worklet-stream",
-      contextState: pipewireAudioContext?.state || null,
-      queuedSamples: pipewireAudioPcmQueuedSamples,
-      chunkCount: pipewireAudioPcmChunks.length,
-      fetchChunkCount: pipewireAudioDebug.fetchChunkCount,
-      fetchByteCount: pipewireAudioDebug.fetchByteCount,
-      fetchPeak: pipewireAudioDebug.fetchPeak,
-      lastFetchAt: pipewireAudioDebug.lastFetchAt,
-      renderCount: pipewireAudioDebug.renderCount,
-      renderedFrames: pipewireAudioDebug.renderedFrames,
-      renderNonZeroFrames: pipewireAudioDebug.renderNonZeroFrames,
-      underrunFrames: pipewireAudioDebug.underrunFrames,
-      lastPeak: pipewireAudioDebug.lastPeak,
-      lastRms: pipewireAudioDebug.lastRms,
-      lastRenderAt: pipewireAudioDebug.lastRenderAt,
-      lastOutputNonZeroAt: pipewireAudioDebug.lastOutputNonZeroAt,
-      trackCount: pipewireAudioDestination?.stream?.getAudioTracks?.().length ?? 0,
-      trackMuted: pipewireAudioDestination?.stream?.getAudioTracks?.()[0]?.muted ?? null,
-      trackReadyState: pipewireAudioDestination?.stream?.getAudioTracks?.()[0]?.readyState ?? null,
-    });
-    return tracks;
-  }
-
-  const pipewireAudioPcmChunks = [];
-  let pipewireAudioPcmChunkOffset = 0;
-  let pipewireAudioPcmQueuedSamples = 0;
-  let pipewireAudioPcmAbort = null;
-  const pipewireAudioDebug = {
-    fetchChunkCount: 0,
-    fetchByteCount: 0,
-    fetchPeak: 0,
-    lastFetchAt: null,
-    renderCount: 0,
-    renderedFrames: 0,
-    renderNonZeroFrames: 0,
-    underrunFrames: 0,
-    lastPeak: 0,
-    lastRms: 0,
-    lastRenderAt: null,
-    lastOutputNonZeroAt: null,
-  };
-
-  function startPipeWirePcmFetch() {
-    pipewireAudioPcmAbort?.abort?.();
-    pipewireAudioPcmAbort = new AbortController();
-    void readPipeWirePcmStream(pipewireAudioPcmAbort.signal);
-  }
-
-  async function readPipeWirePcmStream(signal) {
-    try {
-      const response = await fetch(config.audioPcmUrl + "?t=" + Date.now(), {signal, cache: "no-store"});
-      if (!response.ok || response.body === null) throw new Error("pcm fetch failed: " + response.status);
-      const reader = response.body.getReader();
-      while (!signal.aborted) {
-        const chunk = await reader.read();
-        if (chunk.done) break;
-        appendPipeWirePcmChunk(chunk.value);
-      }
-      post({audio: {lastError: null}});
-    } catch (error) {
-      if (!signal.aborted) post({audio: {lastError: "pipewire pcm fetch failed: " + String(error?.message || error)}});
-    }
-  }
-
-  function appendPipeWirePcmChunk(bytes) {
-    const frameCount = Math.floor(bytes.byteLength / 4);
-    if (frameCount <= 0) return;
-    const view = new DataView(bytes.buffer, bytes.byteOffset, frameCount * 4);
-    const samples = new Float32Array(frameCount * 2);
-    let peak = 0;
-    for (let frame = 0; frame < frameCount; frame += 1) {
-      const left = view.getInt16(frame * 4, true) / 32768;
-      const right = view.getInt16(frame * 4 + 2, true) / 32768;
-      peak = Math.max(peak, Math.abs(left), Math.abs(right));
-      samples[frame * 2] = left;
-      samples[frame * 2 + 1] = right;
-    }
-    pipewireAudioDebug.fetchChunkCount += 1;
-    pipewireAudioDebug.fetchByteCount += frameCount * 4;
-    pipewireAudioDebug.fetchPeak = peak;
-    pipewireAudioDebug.lastFetchAt = new Date().toISOString();
-    pipewireAudioPcmChunks.push(samples);
-    pipewireAudioPcmQueuedSamples += samples.length;
-    trimPipeWirePcmQueue();
-  }
-
-  function trimPipeWirePcmQueue() {
-    const maxSamples = 48000 * 2;
-    while (pipewireAudioPcmQueuedSamples > maxSamples && pipewireAudioPcmChunks.length > 1) {
-      const removed = pipewireAudioPcmChunks.shift();
-      pipewireAudioPcmQueuedSamples -= Math.max(0, removed.length - pipewireAudioPcmChunkOffset);
-      pipewireAudioPcmChunkOffset = 0;
-    }
-  }
-
-  function fillPipeWirePcmOutput(event) {
-    const left = event.outputBuffer.getChannelData(0);
-    const right = event.outputBuffer.getChannelData(1);
-    let peak = 0;
-    let sumSquares = 0;
-    let nonZeroFrames = 0;
-    const underrunFramesBefore = pipewireAudioDebug.underrunFrames;
-    for (let index = 0; index < left.length; index += 1) {
-      const frame = nextPipeWirePcmFrame();
-      left[index] = frame[0];
-      right[index] = frame[1];
-      const framePeak = Math.max(Math.abs(frame[0]), Math.abs(frame[1]));
-      peak = Math.max(peak, framePeak);
-      sumSquares += frame[0] * frame[0] + frame[1] * frame[1];
-      if (framePeak > 0.00001) nonZeroFrames += 1;
-    }
-    pipewireAudioDebug.renderCount += 1;
-    pipewireAudioDebug.renderedFrames += left.length;
-    pipewireAudioDebug.renderNonZeroFrames += nonZeroFrames;
-    pipewireAudioDebug.lastPeak = peak;
-    pipewireAudioDebug.lastRms = Math.sqrt(sumSquares / Math.max(1, left.length * 2));
-    pipewireAudioDebug.lastRenderAt = new Date().toISOString();
-    if (nonZeroFrames > 0) pipewireAudioDebug.lastOutputNonZeroAt = pipewireAudioDebug.lastRenderAt;
-    if (pipewireAudioDebug.underrunFrames > underrunFramesBefore) {
-      pipewireAudioDebug.lastUnderrunAt = pipewireAudioDebug.lastRenderAt;
-    }
-  }
-
-  function nextPipeWirePcmFrame() {
-    const chunk = pipewireAudioPcmChunks[0];
-    if (chunk === undefined) {
-      pipewireAudioDebug.underrunFrames += 1;
-      return [0, 0];
-    }
-    const left = chunk[pipewireAudioPcmChunkOffset] || 0;
-    const right = chunk[pipewireAudioPcmChunkOffset + 1] || 0;
-    pipewireAudioPcmChunkOffset += 2;
-    pipewireAudioPcmQueuedSamples = Math.max(0, pipewireAudioPcmQueuedSamples - 2);
-    if (pipewireAudioPcmChunkOffset >= chunk.length) {
-      pipewireAudioPcmChunks.shift();
-      pipewireAudioPcmChunkOffset = 0;
-    }
-    return [left, right];
   }
 
   async function startChromeAudioOutputKeepAlive() {
@@ -1731,14 +1351,7 @@ function chromeRtcSenderScript(options = {}) {
       pipewireAudioPcmAbort?.abort?.();
       try { pipewireAudioGeneratorWriter?.close?.(); } catch {}
       try { pipewireAudioGenerator?.stop?.(); } catch {}
-      cleanupPipeWireAudioElement(pipewireAudioElement, pipewireAudioCaptureStream);
-      pipewireAudioCaptureStream?.getTracks?.().forEach((track) => track.stop());
-      pipewireAudioSource?.disconnect?.();
-      pipewireAudioDriverGain?.disconnect?.();
-      try { pipewireAudioDriverSource?.stop?.(); } catch {}
-      pipewireAudioDestination?.disconnect?.();
-      try { pipewireAudioSilence?.stop?.(); } catch {}
-      if (pipewireAudioContext !== pipewireAudioKeepAliveContext) void pipewireAudioContext?.close?.();
+      pipewireAudioTracks.forEach((track) => track.stop());
       try { pipewireAudioKeepAliveSource?.stop?.(); } catch {}
       pipewireAudioKeepAliveGain?.disconnect?.();
       void pipewireAudioKeepAliveContext?.close?.();
@@ -1752,267 +1365,10 @@ function chromeRtcSenderScript(options = {}) {
 `
 }
 
-function captureSnapshot() {
-  if (state.stream.serial === null) {
-    const error = new Error(state.stream.error || "PipeWire stream is not ready")
-    error.statusCode = 503
-    throw error
-  }
-  if (state.snapshot.pending) {
-    const error = new Error("Snapshot capture is already pending")
-    error.statusCode = 429
-    throw error
-  }
-  state.snapshot.pending = true
-  state.snapshot.error = null
-  return new Promise((resolve, reject) => {
-    const gst = spawn("gst-launch-1.0", [
-      "-q",
-      "pipewiresrc",
-      `target-object=${state.stream.serial}`,
-      "num-buffers=1",
-      "!",
-      `video/x-raw,max-framerate=${FPS}/1,width=${WIDTH},height=${HEIGHT}`,
-      "!",
-      "videoconvert",
-      "!",
-      "pngenc",
-      "!",
-      "fdsink",
-      "fd=1",
-    ], {stdio: ["ignore", "pipe", "pipe"]})
-    const chunks = []
-    let stderr = ""
-    const timer = setTimeout(() => {
-      stopChild(gst)
-      rejectWithState(new Error("Snapshot capture timed out"))
-    }, 10_000)
-    let settled = false
-    const finish = (fn, value) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      state.snapshot.pending = false
-      fn(value)
-    }
-    const rejectWithState = (error) => {
-      state.snapshot.error = error.message
-      finish(reject, error)
-    }
-    gst.stdout.on("data", (chunk) => chunks.push(Buffer.from(chunk)))
-    gst.stderr.on("data", (chunk) => {
-      stderr += String(chunk)
-    })
-    gst.on("error", rejectWithState)
-    gst.on("exit", (code, signal) => {
-      if (code !== 0) {
-        rejectWithState(new Error(`gst-launch failed code=${code ?? "null"} signal=${signal ?? "null"} ${stderr.trim()}`.trim()))
-        return
-      }
-      const png = Buffer.concat(chunks)
-      state.snapshot.capturedAt = new Date().toISOString()
-      state.snapshot.bytes = png.length
-      finish(resolve, png)
-    })
-  })
-}
-
-async function sendMjpegStream(req, res) {
-  if (state.stream.serial === null) {
-    sendJson(res, 503, {ok: false, error: state.stream.error || "PipeWire stream is not ready"})
-    return
-  }
-
-  state.mjpeg.clients += 1
-  state.mjpeg.lastStartedAt = new Date().toISOString()
-  state.mjpeg.lastError = null
-
-  const gst = spawn("gst-launch-1.0", [
-    "-q",
-    "pipewiresrc",
-    `target-object=${state.stream.serial}`,
-    "!",
-    `video/x-raw,max-framerate=${FPS}/1,width=${WIDTH},height=${HEIGHT}`,
-    "!",
-    "videoconvert",
-    "!",
-    "jpegenc",
-    "quality=82",
-    "!",
-    "multipartmux",
-    `boundary=${MJPEG_BOUNDARY}`,
-    "!",
-    "fdsink",
-    "fd=1",
-  ], {stdio: ["ignore", "pipe", "pipe"]})
-
-  let settled = false
-  let stderr = ""
-  const stop = () => {
-    if (settled) return
-    settled = true
-    state.mjpeg.clients = Math.max(0, state.mjpeg.clients - 1)
-    stopChild(gst)
-  }
-
-  res.writeHead(200, {
-    "cache-control": "no-store",
-    "connection": "close",
-    "content-type": `multipart/x-mixed-replace; boundary=${MJPEG_BOUNDARY}`,
-    ...corsHeaders(),
-  })
-
-  gst.stdout.pipe(res)
-  gst.stderr.on("data", (chunk) => {
-    stderr += String(chunk)
-    if (stderr.length > 4096) stderr = stderr.slice(-4096)
-  })
-  gst.on("error", (error) => {
-    state.mjpeg.lastError = error.message
-    stop()
-  })
-  gst.on("exit", (code, signal) => {
-    if (code !== 0 && code !== null && !res.destroyed) {
-      state.mjpeg.lastError = `gst-launch mjpeg failed code=${code} signal=${signal ?? "null"} ${stderr.trim()}`.trim()
-    }
-    stop()
-  })
-  req.on("close", stop)
-  res.on("close", stop)
-}
-
-async function sendVideoWebmStream(req, res) {
-  if (state.stream.serial === null) {
-    sendJson(res, 503, {ok: false, error: state.stream.error || "PipeWire stream is not ready"})
-    return
-  }
-
-  state.videoWebm.clients += 1
-  state.videoWebm.lastStartedAt = new Date().toISOString()
-  state.videoWebm.lastError = null
-
-  const gst = spawn("gst-launch-1.0", [
-    "-q",
-    "pipewiresrc",
-    `target-object=${state.stream.serial}`,
-    "!",
-    `video/x-raw,max-framerate=${FPS}/1,width=${WIDTH},height=${HEIGHT}`,
-    "!",
-    "videorate",
-    "!",
-    `video/x-raw,framerate=${FPS}/1`,
-    "!",
-    "videoconvert",
-    "!",
-    "video/x-raw,format=I420",
-    "!",
-    "vp8enc",
-    "deadline=1",
-    "cpu-used=8",
-    "threads=4",
-    `target-bitrate=${VIDEO_BITRATE}`,
-    `keyframe-max-dist=${FPS}`,
-    "lag-in-frames=0",
-    "!",
-    "webmmux",
-    "streamable=true",
-    "!",
-    "fdsink",
-    "fd=1",
-  ], {stdio: ["ignore", "pipe", "pipe"]})
-
-  let settled = false
-  let stderr = ""
-  const stop = () => {
-    if (settled) return
-    settled = true
-    state.videoWebm.clients = Math.max(0, state.videoWebm.clients - 1)
-    stopChild(gst)
-  }
-
-  res.writeHead(200, {
-    "cache-control": "no-store",
-    "connection": "close",
-    "content-type": "video/webm; codecs=vp8",
-    ...corsHeaders(),
-  })
-
-  gst.stdout.pipe(res)
-  gst.stderr.on("data", (chunk) => {
-    stderr += String(chunk)
-    if (stderr.length > 4096) stderr = stderr.slice(-4096)
-  })
-  gst.on("error", (error) => {
-    state.videoWebm.lastError = error.message
-    stop()
-  })
-  gst.on("exit", (code, signal) => {
-    if (code !== 0 && code !== null && !res.destroyed) {
-      state.videoWebm.lastError = `gst-launch video failed code=${code} signal=${signal ?? "null"} ${stderr.trim()}`.trim()
-    }
-    stop()
-  })
-  req.on("close", stop)
-  res.on("close", stop)
-}
-
-async function sendAudioWebmStream(req, res) {
-  const targets = resolveAudioTargets()
-  if (targets.length === 0) {
-    sendJson(res, 503, {ok: false, error: state.audioWebm.lastError || "PipeWire audio sink is not available"})
-    return
-  }
-
-  state.audioWebm.clients += 1
-  state.audioWebm.target = targets.join(",")
-  state.audioWebm.lastStartedAt = new Date().toISOString()
-  state.audioWebm.lastError = null
-  for (const target of targets) ensureAudioTargetAudible(target)
-
-  const gst = spawn("gst-launch-1.0", audioWebmGstArgs(targets), {stdio: ["ignore", "pipe", "pipe"]})
-
-  let settled = false
-  let stderr = ""
-  const stop = () => {
-    if (settled) return
-    settled = true
-    state.audioWebm.clients = Math.max(0, state.audioWebm.clients - 1)
-    stopChild(gst)
-  }
-
-  res.writeHead(200, {
-    "cache-control": "no-store",
-    "connection": "close",
-    "content-type": "audio/webm; codecs=opus",
-    ...corsHeaders(),
-  })
-
-  gst.stdout.pipe(res)
-  gst.stderr.on("data", (chunk) => {
-    stderr += String(chunk)
-    if (stderr.length > 4096) stderr = stderr.slice(-4096)
-  })
-  gst.on("error", (error) => {
-    state.audioWebm.lastError = error.message
-    state.remoteDesktop.audio.lastError = error.message
-    stop()
-  })
-  gst.on("exit", (code, signal) => {
-    if (code !== 0 && code !== null && !res.destroyed) {
-      const message = `gst-launch audio failed code=${code} signal=${signal ?? "null"} ${stderr.trim()}`.trim()
-      state.audioWebm.lastError = message
-      state.remoteDesktop.audio.lastError = message
-    }
-    stop()
-  })
-  req.on("close", stop)
-  res.on("close", stop)
-}
-
 async function sendAudioPcmStream(req, res) {
   const targets = resolveAudioTargets()
   if (targets.length === 0) {
-    sendJson(res, 503, {ok: false, error: state.audioPcm.lastError || state.audioWebm.lastError || "PipeWire audio sink is not available"})
+    sendJson(res, 503, {ok: false, error: state.audioPcm.lastError || "PipeWire audio sink is not available"})
     return
   }
 
@@ -2065,10 +1421,6 @@ async function sendAudioPcmStream(req, res) {
   res.on("close", stop)
 }
 
-function resolveAudioTarget() {
-  return resolveAudioTargets()[0] ?? null
-}
-
 function resolveAudioTargets() {
   if (AUDIO_TARGET.length > 0) return [AUDIO_TARGET]
 
@@ -2086,9 +1438,8 @@ function resolveAudioTargets() {
     if (target !== null) return [String(target.id)]
     throw new Error("pw-dump returned no Audio/Sink nodes")
   } catch (error) {
-    state.audioWebm.lastError = error instanceof Error ? error.message : String(error)
-    state.audioPcm.lastError = state.audioWebm.lastError
-    state.remoteDesktop.audio.lastError = state.audioWebm.lastError
+    state.audioPcm.lastError = error instanceof Error ? error.message : String(error)
+    state.remoteDesktop.audio.lastError = state.audioPcm.lastError
     return []
   }
 }
@@ -2116,48 +1467,6 @@ function resolveChromeAudioStreamTargets(nodes) {
     ...chromeStreams.filter((node) => node.mediaName === "Playback").map((node) => String(node.id)),
     ...chromeStreams.map((node) => String(node.id)),
   ]).slice(0, 12)
-}
-
-function audioWebmGstArgs(targets) {
-  const output = [
-    "-q",
-    ...(targets.length > 1 ? ["audiomixer", "name=mix"] : ["pipewiresrc", `target-object=${targets[0]}`]),
-    "!",
-    "audioconvert",
-    "!",
-    "audioresample",
-    "!",
-    "audio/x-raw,format=S16LE,rate=48000,channels=2",
-    "!",
-    "opusenc",
-    "audio-type=generic",
-    `bitrate=${AUDIO_BITRATE}`,
-    "!",
-    "webmmux",
-    "streamable=true",
-    "!",
-    "fdsink",
-    "fd=1",
-  ]
-  if (targets.length <= 1) return output
-  const inputs = []
-  for (const target of targets) {
-    inputs.push(
-      "pipewiresrc",
-      `target-object=${target}`,
-      "!",
-      "queue",
-      "!",
-      "audioconvert",
-      "!",
-      "audioresample",
-      "!",
-      "audio/x-raw,format=F32LE,rate=48000,channels=2",
-      "!",
-      "mix.",
-    )
-  }
-  return [...output, ...inputs]
 }
 
 function audioPcmGstArgs(targets) {
@@ -2206,7 +1515,6 @@ function ensureAudioTargetAudible(target) {
     if (AUDIO_VOLUME.length > 0) spawnSync("wpctl", ["set-volume", String(target), AUDIO_VOLUME], {encoding: "utf8"})
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    state.audioWebm.lastError = message
     state.audioPcm.lastError = message
     state.remoteDesktop.audio.lastError = message
   }
@@ -2229,17 +1537,8 @@ async function sendDesktopInput(body) {
     return {ok: true, input, state: publicState()}
   } catch (desktopError) {
     state.remoteDesktop.input.lastError = desktopError instanceof Error ? desktopError.message : String(desktopError)
-    try {
-      const input = await sendCdpDesktopInput(type, body)
-      state.input.transport = "chrome-cdp-fallback"
-      recordDesktopInputAck(type)
-      return {ok: true, input: {...input, fallbackFrom: "mutter-remote-desktop"}, state: publicState()}
-    } catch (error) {
-      state.input.lastError = error instanceof Error
-        ? `${state.remoteDesktop.input.lastError}; ${error.message}`
-        : `${state.remoteDesktop.input.lastError}; ${String(error)}`
-      throw error
-    }
+    state.input.lastError = state.remoteDesktop.input.lastError
+    throw desktopError
   }
 }
 
@@ -2267,134 +1566,6 @@ function desktopInputPoint(body) {
   }
 }
 
-async function sendCdpDesktopInput(type, body) {
-  return await withCdpPage(async (cdp) => {
-    await cdp.send("Page.bringToFront")
-    if (type === "focus") return {type}
-    if (type === "text" || type === "type") return await sendCdpText(cdp, type, body)
-    if (type === "keyDown" || type === "keyUp" || type === "char" || type === "key") return await sendCdpKey(cdp, type, body)
-    if (type === "wheel" || type === "mouseWheel" || type === "scroll") return await sendCdpWheel(cdp, type, body)
-    if (type === "click" || type === "doubleclick") return await sendCdpClick(cdp, type, body)
-    if (type === "pointerMove" || type === "mouseMove" || type === "move") return await sendCdpMouseMove(cdp, type, body)
-    if (type === "pointerDown" || type === "mouseDown" || type === "pointerUp" || type === "mouseUp") {
-      return await sendCdpMouseButton(cdp, type, body)
-    }
-    const error = new Error("unsupported desktop input type")
-    error.statusCode = 400
-    throw error
-  })
-}
-
-async function sendCdpText(cdp, type, body) {
-  if (typeof body.text !== "string") {
-    const error = new Error("text input requires string field 'text'")
-    error.statusCode = 400
-    throw error
-  }
-  await cdp.send("Input.insertText", {text: body.text})
-  return {type, textLength: body.text.length}
-}
-
-async function sendCdpKey(cdp, type, body) {
-  const key = String(body.key ?? body.keyCode ?? "")
-  if (key.length === 0) {
-    const error = new Error("keyboard input requires 'key' or 'keyCode'")
-    error.statusCode = 400
-    throw error
-  }
-  const eventType = type === "keyUp" ? "keyUp" : type === "char" ? "char" : "keyDown"
-  const params = cdpKeyEventParams(eventType, body, key)
-  await cdp.send("Input.dispatchKeyEvent", params)
-  return {type: eventType, key, modifiers: params.modifiers}
-}
-
-async function sendCdpWheel(cdp, type, body) {
-  const point = await cdpInputPoint(cdp, body)
-  await cdp.send("Input.dispatchMouseEvent", {
-    type: "mouseWheel",
-    x: point.x,
-    y: point.y,
-    deltaX: Number(body.deltaX ?? body.dx ?? 0),
-    deltaY: Number(body.deltaY ?? body.dy ?? 0),
-    modifiers: cdpModifierMask(body.modifiers),
-  })
-  return {type: "mouseWheel", ...point}
-}
-
-async function sendCdpClick(cdp, type, body) {
-  const point = await cdpInputPoint(cdp, body)
-  const button = cdpMouseButton(body.button)
-  const clickCount = type === "doubleclick" ? 2 : Math.max(1, Math.round(Number(body.clickCount ?? body.count ?? 1)))
-  const buttons = cdpMouseButtons(button)
-  const modifiers = cdpModifierMask(body.modifiers)
-  await cdp.send("Input.dispatchMouseEvent", {type: "mouseMoved", x: point.x, y: point.y, button: "none", modifiers})
-  await cdp.send("Input.dispatchMouseEvent", {type: "mousePressed", x: point.x, y: point.y, button, buttons, clickCount, modifiers})
-  await cdp.send("Input.dispatchMouseEvent", {type: "mouseReleased", x: point.x, y: point.y, button, buttons: 0, clickCount, modifiers})
-  return {type, button, clickCount, ...point}
-}
-
-async function sendCdpMouseMove(cdp, type, body) {
-  const point = await cdpInputPoint(cdp, body)
-  const button = body.buttons === undefined ? "none" : cdpMouseButton(body.button)
-  await cdp.send("Input.dispatchMouseEvent", {
-    type: "mouseMoved",
-    x: point.x,
-    y: point.y,
-    button,
-    buttons: cdpMouseButtonsMask(body.buttons),
-    modifiers: cdpModifierMask(body.modifiers),
-  })
-  return {type: "mouseMove", button, buttons: cdpMouseButtonsMask(body.buttons), ...point}
-}
-
-async function sendCdpMouseButton(cdp, type, body) {
-  const point = await cdpInputPoint(cdp, body)
-  const button = cdpMouseButton(body.button)
-  const pressed = type === "pointerDown" || type === "mouseDown"
-  const clickCount = Math.max(1, Math.round(Number(body.clickCount ?? body.count ?? 1)))
-  await cdp.send("Input.dispatchMouseEvent", {
-    type: pressed ? "mousePressed" : "mouseReleased",
-    x: point.x,
-    y: point.y,
-    button,
-    buttons: pressed ? cdpMouseButtons(button) : 0,
-    clickCount,
-    modifiers: cdpModifierMask(body.modifiers),
-  })
-  return {type: pressed ? "mouseDown" : "mouseUp", button, clickCount, ...point}
-}
-
-async function cdpInputPoint(cdp, body) {
-  const viewport = await cdpViewport(cdp)
-  const frameX = normalizeFrameCoordinate(body.x, "x", WIDTH, body.frameW)
-  const frameY = normalizeFrameCoordinate(body.y, "y", HEIGHT, body.frameH)
-  const topInset = Math.max(0, HEIGHT - viewport.height)
-  const leftInset = Math.max(0, (WIDTH - viewport.width) / 2)
-  return {
-    x: Math.round(clampNumber(frameX - leftInset, 0, Math.max(0, viewport.width - 1))),
-    y: Math.round(clampNumber(frameY - topInset, 0, Math.max(0, viewport.height - 1))),
-    frameX: Math.round(frameX),
-    frameY: Math.round(frameY),
-    viewportW: viewport.width,
-    viewportH: viewport.height,
-    topInset,
-    leftInset,
-  }
-}
-
-async function cdpViewport(cdp) {
-  try {
-    const metrics = await cdp.send("Page.getLayoutMetrics")
-    const viewport = metrics.cssVisualViewport ?? metrics.visualViewport ?? null
-    const width = Number(viewport?.clientWidth ?? WIDTH)
-    const height = Number(viewport?.clientHeight ?? HEIGHT)
-    if (Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0) return {width, height}
-  } catch {
-    // Input still works with the configured frame size when layout metrics are unavailable.
-  }
-  return {width: WIDTH, height: HEIGHT}
-}
-
 function normalizeFrameCoordinate(value, name, fallbackMax, frameMax) {
   const raw = Number(value)
   const sourceMax = Number(frameMax)
@@ -2407,89 +1578,6 @@ function normalizeFrameCoordinate(value, name, fallbackMax, frameMax) {
     throw error
   }
   return numeric
-}
-
-function cdpMouseButton(value) {
-  if (value === "right" || value === "middle" || value === "back" || value === "forward") return value
-  return "left"
-}
-
-function cdpMouseButtons(button) {
-  if (button === "right") return 2
-  if (button === "middle") return 4
-  if (button === "back") return 8
-  if (button === "forward") return 16
-  return 1
-}
-
-function cdpMouseButtonsMask(value) {
-  const numeric = Number(value)
-  return Number.isFinite(numeric) && numeric >= 0 ? Math.round(numeric) : 0
-}
-
-function cdpModifierMask(value) {
-  if (!Array.isArray(value)) return 0
-  let mask = 0
-  if (value.includes("alt")) mask |= 1
-  if (value.includes("control") || value.includes("ctrl")) mask |= 2
-  if (value.includes("meta") || value.includes("command")) mask |= 4
-  if (value.includes("shift")) mask |= 8
-  return mask
-}
-
-function cdpKeyEventParams(type, body, key) {
-  const code = String(body.keyCode ?? body.code ?? key)
-  const modifiers = cdpModifierMask(body.modifiers)
-  const virtualKeyCode = cdpVirtualKeyCode(key, code)
-  const params = {
-    type,
-    key,
-    code,
-    windowsVirtualKeyCode: virtualKeyCode,
-    nativeVirtualKeyCode: virtualKeyCode,
-    modifiers,
-  }
-  if (type === "char") {
-    params.text = key
-    params.unmodifiedText = key
-  } else if (type === "keyDown" && key.length === 1 && modifiers === 0) {
-    params.text = key
-    params.unmodifiedText = key
-  }
-  return params
-}
-
-function cdpVirtualKeyCode(key, code) {
-  const mapped = {
-    Backspace: 8,
-    Tab: 9,
-    Enter: 13,
-    Escape: 27,
-    PageUp: 33,
-    PageDown: 34,
-    End: 35,
-    Home: 36,
-    ArrowLeft: 37,
-    ArrowUp: 38,
-    ArrowRight: 39,
-    ArrowDown: 40,
-    Insert: 45,
-    Delete: 46,
-    Space: 32,
-    " ": 32,
-  }[key] ?? {
-    Backspace: 8,
-    Tab: 9,
-    Enter: 13,
-    Escape: 27,
-    Delete: 46,
-    Space: 32,
-  }[code]
-  if (mapped !== undefined) return mapped
-  if (/^Key[A-Z]$/.test(code)) return code.charCodeAt(3)
-  if (/^Digit[0-9]$/.test(code)) return code.charCodeAt(5)
-  if (key.length === 1) return key.toUpperCase().charCodeAt(0)
-  return 0
 }
 
 async function withCdpPage(fn) {
