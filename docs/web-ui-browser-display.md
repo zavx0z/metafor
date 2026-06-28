@@ -20,6 +20,21 @@ monitor. Ожидаемый state - `transport: "chrome-webrtc"`,
 channel `open`. `webrtc:chrome:browser`, Electron/PipeWire/MJPEG и Xwayland
 остаются fallback/diagnostics.
 
+Cold restart на этом сервере состоит из двух разных слоев:
+
+1. virtual display layer: headless GNOME RDP session создает и удерживает
+   `Meta-0` 1920x1080. Сейчас это локальный FreeRDP trigger внутри Xvfb `:101`
+   (`xfreerdp` к `127.0.0.1:3390`). Не останавливай этот слой при обычном
+   restart sender.
+2. sender layer: tmux `metafor-chrome-wayland-monitor-main` запускает
+   `app/electron/scripts/chrome-webrtc-monitor.sh`. Его можно перезапускать
+   отдельно, пока `Meta-0` жив.
+
+После cold restart успешным считается только state с
+`stream.target.connector: "Meta-0"` и `capture.frameSource:
+"chrome-get-display-media:monitor"`. `webrtc:chrome:browser`/Xwayland/current
+tab не являются успешным server desktop remote display.
+
 ## Проверенный Контекст
 
 Проверено 2026-06-27 в репозиториях:
@@ -255,6 +270,8 @@ Embedded app-web proxy:
 ```sh
 cd /home/zavx0z/production/vendor/metafor/app/electron
 
+# Предусловие: DisplayConfig уже показывает Meta-0 1920x1080. Его держит
+# отдельный headless RDP trigger; не выключай его при restart sender.
 bun run webrtc:chrome:monitor
 
 curl -sS http://10.66.0.10:6500/remote-desktop/rtc/state

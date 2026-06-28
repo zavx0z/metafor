@@ -63,6 +63,16 @@ curl -sS http://10.66.0.10:6500/webrtc/rooms
 RTCPeerConnection. Не возвращай MJPEG/snapshot/PipeWire frame fallback как
 основной путь; они допустимы только как диагностика.
 
+Cold restart server desktop: не останавливай виртуальный дисплей, если задача
+только перезапустить sender. `Meta-0` должен уже существовать; на текущем
+server-dev контуре его держит headless GNOME RDP trigger: Xvfb `:101` +
+`xfreerdp` к `127.0.0.1:3390`. После этого перезапускай только tmux
+`metafor-chrome-wayland-monitor-main` командой `bash scripts/chrome-webrtc-monitor.sh`
+из `app/electron` и проверяй `127.0.0.1:32133/desktop/health`. Если health не
+показывает `target.connector: "Meta-0"` и
+`capture.frameSource: "chrome-get-display-media:monitor"`, это не рабочий
+remote desktop.
+
 ## Web DevTools Для Агента
 
 Для отладки Web UI агент управляет текущим server Chrome через interpreter API

@@ -254,6 +254,15 @@ WebRTC sender не должен жить в видимой продуктово�
 WebM/PCM/MJPEG оставляй fallback/diagnostics, не возвращай их как основной
 realtime path.
 
+Cold restart для нового агента: не гаси virtual display, если нужно только
+перезапустить sender. На текущем server-dev `Meta-0` создается и удерживается
+headless GNOME RDP trigger: Xvfb `:101` + `xfreerdp` к `127.0.0.1:3390`.
+После проверки `Meta-0` перезапускай только tmux
+`metafor-chrome-wayland-monitor-main` с `app/electron/scripts/chrome-webrtc-monitor.sh`.
+Успешный health обязан показать `stream.target.connector: "Meta-0"`,
+`capture.frameSource: "chrome-get-display-media:monitor"`, audio
+`pipewire-pcm-track-generator-stream` и RTC `control-open`.
+
 ## Terminal Input
 
 Module terminal является одновременно module output и expression input.

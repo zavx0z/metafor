@@ -170,6 +170,14 @@ peer `connected`, data channel `open`, `lastError: null`. Старый
 Xwayland и Electron/PipeWire/MJPEG остаются fallback/diagnostics, не основной
 server-dev realtime path.
 
+Cold restart этого контура: сначала должен быть живой virtual display `Meta-0`.
+На текущем сервере его держит headless GNOME RDP session через локальный
+FreeRDP trigger (`xfreerdp` к `127.0.0.1:3390` внутри Xvfb `:101`). Если
+`gdbus ... org.gnome.Mutter.DisplayConfig.GetCurrentState` не показывает
+`Meta-0` 1920x1080, не запускай Xwayland/current-tab fallback; восстанови RDP
+trigger и только потом перезапускай `metafor-chrome-wayland-monitor-main` /
+`bun run webrtc:chrome:monitor`.
+
 Фиксация 2026-06-28: Chrome WebRTC sender больше не размещается в видимом
 `https://meta.proizvodstvo1.ru/` target. Sender живет в отдельной служебной
 странице `http://127.0.0.1:32133/desktop/rtc/sender`, а видимая вкладка продукта
