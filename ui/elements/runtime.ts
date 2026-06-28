@@ -716,6 +716,10 @@ export class UiRuntime {
     return this.#activeDisplayId
   }
 
+  displayTargetId(): UiDisplayId | null {
+    return this.#resolveDisplayId()
+  }
+
   viewPointSnapshot(): UiRuntimeViewPointSnapshot {
     return this.#viewPointSnapshot()
   }
@@ -1061,26 +1065,30 @@ export class UiRuntime {
   #zoomDisplay(delta: number, displayId?: UiDisplayId | null, anchorCanvas?: {x: number; y: number}): void {
     if (!this.#displaySpaceEnabled) return
     this.#cancelCameraAnimation()
-    const resolvedDisplayId = this.#resolveDisplayId(displayId)
+    const resolvedDisplayId = displayId === null ? null : this.#resolveDisplayId(displayId)
+    const anchorDisplayId = anchorCanvas === undefined
+      ? null
+      : this.#displayCoords(anchorCanvas.x, anchorCanvas.y, true, resolvedDisplayId ?? undefined)?.displayId ?? null
     const anchorBefore = anchorCanvas === undefined
       ? null
-      : this.#displayWorldPointAtCanvas(anchorCanvas.x, anchorCanvas.y, resolvedDisplayId, false)
+      : this.#displayWorldPointAtCanvas(anchorCanvas.x, anchorCanvas.y, anchorDisplayId, true)
     const target = this.#navigationTarget(resolvedDisplayId)
     this.viewPoint.getTarget().copy(target)
     const offset = new Vector3().subVectors(this.viewPoint.position, target)
     const currentRadius = Math.max(0.001, offset.length())
-    const scale = Math.pow(0.95, delta * 0.05)
+    const zoomDelta = clampNumber(delta, -120, 120)
+    const scale = Math.pow(0.95, zoomDelta * 0.05)
     const scaledRadius = currentRadius * scale
     const scaledDelta = currentRadius - scaledRadius
     const minZoomDistance = Math.max(1, this.viewPoint.near * 2)
-    const minimumRadiusDelta = Math.max(0.01, this.viewPoint.near * 0.2 * Math.abs(delta) * 0.01)
+    const minimumRadiusDelta = Math.max(0.01, this.viewPoint.near * 0.2 * Math.abs(zoomDelta) * 0.01)
     const radiusDelta = Math.sign(scaledDelta) * Math.max(Math.abs(scaledDelta), minimumRadiusDelta)
     const nextRadius = Math.max(minZoomDistance, currentRadius - radiusDelta)
     offset.normalize().multiplyScalar(nextRadius)
     this.viewPoint.position.copy(target).add(offset)
     this.viewPoint.update()
     if (anchorBefore !== null && anchorCanvas !== undefined) {
-      const anchorAfter = this.#displayWorldPointAtCanvas(anchorCanvas.x, anchorCanvas.y, resolvedDisplayId, false)
+      const anchorAfter = this.#displayWorldPointAtCanvas(anchorCanvas.x, anchorCanvas.y, anchorDisplayId, true)
       if (anchorAfter !== null) {
         const correction = anchorBefore.sub(anchorAfter)
         if (Number.isFinite(correction.x) && Number.isFinite(correction.y) && Number.isFinite(correction.z)) {
@@ -1631,7 +1639,7 @@ export class UiRuntime {
     if (displayCoords === null || slot === undefined) {
       if (this.#isDisplayNavigationMode()) {
         event.preventDefault()
-        if (event.ctrlKey) this.#zoomDisplay(-event.deltaY, displayCoords?.displayId ?? this.#displayHoverDisplayId, canvasCoords)
+        if (event.ctrlKey) this.#zoomDisplay(-event.deltaY, displayCoords?.displayId ?? null, canvasCoords)
         else this.#panView(event.deltaX, event.deltaY)
       }
       return

@@ -17,6 +17,7 @@ type DisplayHoverOutlinePaneOpts = {
   onBrowserFullscreenLayoutChange?: (activeDisplayId: UiDisplayId | null) => void
 }
 type FlightControl = {
+  displayId: UiDisplayId
   button: Rect
   hit: Rect
   center: Point
@@ -37,12 +38,14 @@ type ReturnDockControl = {
 type LeaveAnimation = {
   startedAt: number
   quad: Quad
+  displayId: UiDisplayId
   displaySizePx: number
   lineStart: number
   buttonStart: number
 }
 type RetainedFrame = {
   quad: Quad
+  displayId: UiDisplayId
   displaySizePx: number
 }
 
@@ -294,6 +297,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
   #returnDockGraceUntilMs = 0
   #cornerFlightVisible = false
   #lastVisualQuad: Quad | null = null
+  #lastVisualDisplayId: UiDisplayId | null = null
   #lastDisplaySizePx = 0
   #lastLineProgress = 0
   #lastButtonProgress = 0
@@ -394,6 +398,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
     const now = performance.now()
     const cameraMotionHolding = this.#cameraMotionHolding(now)
     const outline = this.canvas?.displayHoverOutline()
+    const displayTargetId = this.canvas?.displayTargetId() ?? null
     if (outline === undefined || outline === null) {
       const retained = this.#retainedDisplayFrame()
       const buttonReady = this.#lastButtonProgress >= FLIGHT_BUTTON_HIT_PROGRESS
@@ -407,7 +412,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
           this.#controlTransferGraceUsed = true
         }
         this.#drawLockedReticle(retained.quad, retained.displaySizePx, flightHeld ? 0.86 : 0.74)
-        this.#drawFlightControl(retained.quad, 1, 1)
+        this.#drawFlightControl(retained.quad, retained.displayId, 1, 1)
         this.requestRender()
         return
       }
@@ -424,16 +429,21 @@ export class DisplayHoverOutlinePane extends UiSurface {
           this.#leaveAnimation = null
           this.#cornerFlightVisible = true
           this.#drawLockedReticle(retained.quad, retained.displaySizePx, 0.72)
-          this.#drawFlightControl(retained.quad, 1, 1)
+          this.#drawFlightControl(retained.quad, retained.displayId, 1, 1)
           this.requestRender()
           return
         }
       }
       if (this.#lastVisualQuad !== null && this.#lastDisplaySizePx >= 36) {
+        if (this.#lastVisualDisplayId === null) {
+          this.#resetAnimationState()
+          return
+        }
         if (this.#leaveAnimation === null) {
           this.#leaveAnimation = {
             startedAt: now,
             quad: this.#lastVisualQuad,
+            displayId: this.#lastVisualDisplayId,
             displaySizePx: this.#lastDisplaySizePx,
             lineStart: this.#lastLineProgress,
             buttonStart: this.#lastButtonProgress,
@@ -483,6 +493,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
 
     this.#leaveAnimation = null
     this.#lastVisualQuad = current
+    this.#lastVisualDisplayId = displayTargetId
     this.#lastDisplaySizePx = displaySizePx
     this.#lastLineProgress = lineVisualProgress
     this.#lastButtonProgress = buttonVisualProgress
@@ -494,7 +505,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
     this.#drawLockedReticle(current, displaySizePx, settle)
     this.#cornerFlightVisible = buttonVisualProgress >= FLIGHT_BUTTON_HIT_PROGRESS
     if (lineProgress > 0 || buttonProgress > 0) {
-      this.#drawFlightControl(current, lineVisualProgress, buttonVisualProgress)
+      this.#drawFlightControl(current, displayTargetId, lineVisualProgress, buttonVisualProgress)
     }
 
     if (
@@ -539,6 +550,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
 
     const frame = this.#currentDisplayFrame()
     const quad = frame?.quad ?? leave.quad
+    const displayId = frame?.displayId ?? leave.displayId
     const displaySizePx = frame?.displaySizePx ?? leave.displaySizePx
     const edgeQuad = this.#edgeLaunchQuad(quad)
     const current = lerpQuad(edgeQuad, quad, reticleProgress)
@@ -546,7 +558,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
     this.#cornerFlightVisible = buttonProgress >= FLIGHT_BUTTON_HIT_PROGRESS
     this.#drawLockedReticle(current, displaySizePx, strength)
     if (lineProgress > 0 || buttonProgress > 0) {
-      this.#drawFlightControl(current, lineProgress, buttonProgress, false)
+      this.#drawFlightControl(current, displayId, lineProgress, buttonProgress, false)
     }
     this.requestRender()
   }
@@ -555,7 +567,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
     if (!this.#cornerFlightVisible) return false
     const frame = this.#retainedDisplayFrame()
     if (frame === null) return false
-    const control = this.#flightControlForQuad(frame.quad)
+    const control = this.#flightControlForQuad(frame.quad, frame.displayId)
     if (control === null) return false
     const hit = this.hitState(control.hit.x, control.hit.y, control.hit.w, control.hit.h, FLIGHT_BUTTON_KEY)
     return hit.hovered || hit.pressed
@@ -569,6 +581,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
     this.#magnetPhase = 0
     this.#cornerFlightVisible = false
     this.#lastVisualQuad = null
+    this.#lastVisualDisplayId = null
     this.#lastDisplaySizePx = 0
     this.#lastLineProgress = 0
     this.#lastButtonProgress = 0
@@ -619,14 +632,20 @@ export class DisplayHoverOutlinePane extends UiSurface {
     }
   }
 
-  #drawFlightControl(quad: Quad, lineProgress = 1, buttonProgress = 1, hitEnabled = true): void {
-    const control = this.#flightControlForQuad(quad)
+  #drawFlightControl(
+    quad: Quad,
+    displayId: UiDisplayId | null = this.canvas?.displayTargetId() ?? null,
+    lineProgress = 1,
+    buttonProgress = 1,
+    hitEnabled = true,
+  ): void {
+    const control = this.#flightControlForQuad(quad, displayId)
     if (control === null) return
     const hit = this.hitState(control.hit.x, control.hit.y, control.hit.w, control.hit.h, FLIGHT_BUTTON_KEY)
     const strength = hit.pressed ? 1.18 : hit.hovered ? 1 : 0.72
     if (hitEnabled && buttonProgress >= FLIGHT_BUTTON_HIT_PROGRESS) {
       this.hit(control.hit.x, control.hit.y, control.hit.w, control.hit.h, () => {
-        this.canvas?.toggleDisplayFlight()
+        this.canvas?.focusDisplay(control.displayId)
       }, {
         key: FLIGHT_BUTTON_KEY,
         cursor: "pointer",
@@ -686,24 +705,27 @@ export class DisplayHoverOutlinePane extends UiSurface {
   #retainedDisplayFrame(): RetainedFrame | null {
     const frame = this.#currentDisplayFrame()
     if (frame !== null) return frame
-    if (this.#lastVisualQuad === null || this.#lastDisplaySizePx < 36) return null
+    if (this.#lastVisualQuad === null || this.#lastVisualDisplayId === null || this.#lastDisplaySizePx < 36) return null
     return {
       quad: this.#lastVisualQuad,
+      displayId: this.#lastVisualDisplayId,
       displaySizePx: this.#lastDisplaySizePx,
     }
   }
 
   #currentDisplayFrame(): RetainedFrame | null {
     const outline = this.canvas?.displayOutline()
+    const displayId = this.canvas?.displayTargetId() ?? null
     if (outline !== undefined && outline !== null) {
       const quad = this.#outlineQuad(outline)
       const displaySizePx = this.#displaySizePx(quad)
-      if (displaySizePx >= 36) {
+      if (displaySizePx >= 36 && displayId !== null) {
         const points = [quad.topLeft, quad.topRight, quad.bottomRight, quad.bottomLeft]
         const center = centerOf(points)
         const baseOutset = clamp(displaySizePx * 0.018, MIN_TARGET_OUTSET_PX, MAX_TARGET_OUTSET_PX)
         return {
           quad: outsetQuad(quad, center, baseOutset),
+          displayId,
           displaySizePx,
         }
       }
@@ -713,6 +735,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
 
   #rememberRetainedFrame(frame: RetainedFrame): void {
     this.#lastVisualQuad = frame.quad
+    this.#lastVisualDisplayId = frame.displayId
     this.#lastDisplaySizePx = frame.displaySizePx
     this.#lastLineProgress = 1
     this.#lastButtonProgress = 1
@@ -756,7 +779,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
     if (this.canvas?.displayMode === "near") return null
     const outline = this.canvas?.displayOutline()
     if (outline === undefined || outline === null) return null
-    return this.#flightControlForQuad(this.#outlineQuad(outline))
+    return this.#flightControlForQuad(this.#outlineQuad(outline), this.canvas?.displayTargetId() ?? null)
   }
 
   #returnDockControl(): ReturnDockControl | null {
@@ -792,7 +815,8 @@ export class DisplayHoverOutlinePane extends UiSurface {
     }
   }
 
-  #flightControlForQuad(quad: Quad): FlightControl | null {
+  #flightControlForQuad(quad: Quad, displayId: UiDisplayId | null): FlightControl | null {
+    if (displayId === null) return null
     const points = [quad.topLeft, quad.topRight, quad.bottomRight, quad.bottomLeft]
     const center = centerOf(points)
     const displaySizePx = this.#displaySizePx(quad)
@@ -825,6 +849,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
       y: anchor.y < cy ? button.y : button.y + button.h,
     }
     return {
+      displayId,
       button,
       hit,
       center: {x: cx, y: cy},
