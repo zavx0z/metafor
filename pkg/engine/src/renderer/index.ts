@@ -190,20 +190,28 @@ export class Renderer {
     if (!this.context) throw new Error("Не удалось получить WebGPU контекст.")
 
     this.presentationFormat = navigator.gpu.getPreferredCanvasFormat()
+    this.configureCanvasContext()
+
+    await this.setupPipelines()
+    await this.setupComputePipelines()
+  }
+
+  private configureCanvasContext(): void {
+    if (!this.device || !this.context || !this.presentationFormat) return
+    const usage = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
     this.context.configure({
       device: this.device,
       format: this.presentationFormat,
       alphaMode: 'premultiplied',
-      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+      usage,
     })
     this.options.webGpuDiagnostics?.breadcrumb("canvas.configure", "Renderer.context", {
       format: this.presentationFormat,
       alphaMode: "premultiplied",
-      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+      usage,
+      width: this.canvas?.width,
+      height: this.canvas?.height,
     })
-
-    await this.setupPipelines()
-    await this.setupComputePipelines()
   }
 
   private async setupComputePipelines(): Promise<void> {
@@ -1103,8 +1111,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
   public setSize(width: number, height: number): void {
     if (this.canvas) {
-      this.canvas.width = Math.floor(width * this.pixelRatio)
-      this.canvas.height = Math.floor(height * this.pixelRatio)
+      const nextWidth = Math.floor(width * this.pixelRatio)
+      const nextHeight = Math.floor(height * this.pixelRatio)
+      if (this.canvas.width === nextWidth && this.canvas.height === nextHeight) return
+      this.canvas.width = nextWidth
+      this.canvas.height = nextHeight
+      this.configureCanvasContext()
     }
   }
 

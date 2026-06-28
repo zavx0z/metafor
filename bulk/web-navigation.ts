@@ -44,6 +44,18 @@ export interface ResolveBulkViewportFocusPoseOptions {
   nextTarget: Vector3
 }
 
+export interface ResolveBulkViewportFitPoseOptions {
+  aspect: number
+  currentPosition: Vector3
+  currentTarget: Vector3
+  fovRad: number
+  paddingRatio?: number
+  points?: readonly Vector3[]
+  radius: number
+  target: Vector3
+  up?: Vector3
+}
+
 export interface BulkViewportFocusPose {
   position: Vector3
   target: Vector3
@@ -436,4 +448,94 @@ export const resolveBulkViewportFocusPose = ({
     target: nextTarget.clone(),
     position: nextTarget.clone().add(safeDirection.multiplyScalar(focusDistance)),
   }
+}
+
+export const resolveBulkViewportFitPose = ({
+  aspect,
+  currentPosition,
+  currentTarget,
+  fovRad,
+  paddingRatio = 1.08,
+  points = [],
+  radius,
+  target,
+  up,
+}: ResolveBulkViewportFitPoseOptions): BulkViewportFocusPose => {
+  const direction = currentPosition.clone().sub(currentTarget)
+  const safeDirection = direction.length() > 1e-6 ? direction.normalize() : FALLBACK_VIEW_DIRECTION.clone()
+  const safeRadius = Math.max(1e-3, radius)
+  const safePaddingRatio = Number.isFinite(paddingRatio) ? Math.max(1, paddingRatio) : 1.08
+  const safeHalfVerticalFov = Math.max(0.1, fovRad / 2)
+  const safeAspect = Math.max(0.1, aspect)
+  const safeHalfHorizontalFov = Math.max(0.1, Math.atan(Math.tan(safeHalfVerticalFov) * safeAspect))
+  const verticalTan = Math.tan(safeHalfVerticalFov)
+  const horizontalTan = Math.tan(safeHalfHorizontalFov)
+  const pointFitDistance = resolveProjectedFitDistance({
+    direction: safeDirection,
+    horizontalTan,
+    paddingRatio: safePaddingRatio,
+    points,
+    radius: safeRadius,
+    target,
+    up,
+    verticalTan,
+  })
+  const fitDistance = pointFitDistance ?? Math.max(
+    (safeRadius * safePaddingRatio) / verticalTan,
+    (safeRadius * safePaddingRatio) / horizontalTan,
+  )
+
+  return {
+    target: target.clone(),
+    position: target.clone().add(safeDirection.multiplyScalar(fitDistance)),
+  }
+}
+
+const resolveProjectedFitDistance = ({
+  direction,
+  horizontalTan,
+  paddingRatio,
+  points,
+  radius,
+  target,
+  up,
+  verticalTan,
+}: {
+  direction: Vector3
+  horizontalTan: number
+  paddingRatio: number
+  points: readonly Vector3[]
+  radius: number
+  target: Vector3
+  up: Vector3 | undefined
+  verticalTan: number
+}): number | null => {
+  if (points.length === 0) return null
+  const forward = direction.clone().negate()
+  const upSource = up && up.length() > 1e-6 ? up.clone().normalize() : new Vector3(0, 0, 1)
+  let right = forward.clone().cross(upSource)
+  if (right.length() <= 1e-6) right = forward.clone().cross(new Vector3(1, 0, 0))
+  if (right.length() <= 1e-6) right = new Vector3(1, 0, 0)
+  right.normalize()
+  const screenUp = right.clone().cross(forward).normalize()
+  const safeHorizontalTan = Math.max(1e-3, horizontalTan)
+  const safeVerticalTan = Math.max(1e-3, verticalTan)
+  let distance = Math.max(1e-3, radius * 0.25)
+  let projected = false
+
+  for (const point of points) {
+    const offset = point.clone().sub(target)
+    const depthOffset = offset.dot(forward)
+    const x = Math.abs(offset.dot(right))
+    const y = Math.abs(offset.dot(screenUp))
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(depthOffset)) continue
+    distance = Math.max(
+      distance,
+      (x * paddingRatio) / safeHorizontalTan - depthOffset,
+      (y * paddingRatio) / safeVerticalTan - depthOffset,
+    )
+    projected = true
+  }
+
+  return projected && Number.isFinite(distance) ? Math.max(1e-3, distance) : null
 }

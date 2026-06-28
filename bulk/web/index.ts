@@ -65,6 +65,7 @@ import {
 	resolveBulkHoverPriorityTarget,
 	resolveBulkPickHit,
 	resolveBulkPickHits,
+	resolveBulkViewportFitPose,
 	resolveBulkViewportFocusPose,
 	type BulkPickTarget,
 	type BulkHoverPriorityCandidate,
@@ -2234,6 +2235,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	let clickNavigationSuppressed = false
 	let isPrimaryPointerDown = false
 	let navigationState: ViewNavigationState | null = null
+	let rootFitLockedToViewport = true
+	let rootFitViewportWidth = options.width
+	let rootFitViewportHeight = options.height
 	let pointerDownX = 0
 	let pointerDownY = 0
 	let touchTapState: CanvasTouchTapState | null = null
@@ -3190,6 +3194,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		refreshPickTargets()
 		syncLabelRecords()
 		syncFieldBillboardRecords()
+		applyRootViewportFit()
 		requestRenderLoop(SCENE_TRANSITION_WAKE_MS)
 
 		options.onStats?.({
@@ -3655,6 +3660,72 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		viewPoint.getTarget().copy(pose.target)
 		viewPoint.getUp().copy(pose.up).normalize()
 		viewPoint.update()
+	}
+
+	const rootShellForViewportFit = (): DbParticleShellRow | null => {
+		const rows = world?.particles ?? []
+		return rows
+			.filter((particle) => particle.parentParticleId === null && particle.depth === 0)
+			.sort((left, right) => left.shellOrder - right.shellOrder || left.particleId - right.particleId)[0] ?? null
+	}
+
+	const applyRootViewportFit = (fitOptions: {force?: boolean} = {}): void => {
+		if (!fitOptions.force && !rootFitLockedToViewport) return
+		const rootShell = rootShellForViewportFit()
+		if (rootShell === null) return
+		const shellRadius = rootShell.shellRadius || getShellFallback().radius
+		const shellTube = rootShell.shellTube || getShellFallback().tube
+		const rootOuterRadius = (shellRadius + shellTube) * rootShell.shellScale
+		if (!Number.isFinite(rootOuterRadius) || rootOuterRadius <= 1e-6) return
+		const rootCenter = new Vector3(
+			workspace.position.x + rootShell.localX,
+			workspace.position.y + rootShell.localY,
+			workspace.position.z + rootShell.localZ,
+		)
+		const rootPoints = rootShellViewportFitPoints(rootShell, rootCenter, shellRadius, shellTube)
+		const pose = resolveBulkViewportFitPose({
+			aspect: viewPoint.aspect,
+			currentPosition: viewPoint.position,
+			currentTarget: viewPoint.getTarget(),
+			fovRad: viewPoint.fov,
+			points: rootPoints,
+			radius: rootOuterRadius,
+			target: rootCenter,
+			up: viewPoint.getUp(),
+		})
+		applyViewPose({
+			position: pose.position,
+			target: pose.target,
+			up: viewPoint.getUp().clone(),
+		})
+	}
+
+	const disableRootViewportFit = (): void => {
+		rootFitLockedToViewport = false
+	}
+
+	const rootShellViewportFitPoints = (
+		shell: DbParticleShellRow,
+		center: Vector3,
+		shellRadius: number,
+		shellTube: number,
+	): Vector3[] => {
+		const positions = getGeometryPositionArray(getTorusWireframeGeometry(shellRadius, shellTube, shell.depth))
+		if (!positions || positions.length === 0) return []
+		const pointCount = Math.floor(positions.length / 3)
+		const vertexStep = Math.max(1, Math.floor(pointCount / 720))
+		const points: Vector3[] = []
+
+		for (let vertex = 0; vertex < pointCount; vertex += vertexStep) {
+			const index = vertex * 3
+			points.push(new Vector3(
+				center.x + (positions[index] ?? 0) * shell.shellScale,
+				center.y + (positions[index + 1] ?? 0) * shell.shellScale,
+				center.z + (positions[index + 2] ?? 0) * shell.shellScale,
+			))
+		}
+
+		return points
 	}
 
 	const botPhoneViewPose = (target: BotPhoneScreenTarget): BulkViewPose => {
@@ -4447,6 +4518,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		cancelNavigation()
 		cancelRadialMenuLongPress()
 		if (event.button !== 0) return
+		disableRootViewportFit()
 		closeRadialMenu()
 		isPrimaryPointerDown = true
 		pointerDownX = event.clientX
@@ -4504,12 +4576,14 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const wakeRenderFromCanvasWheel = (): void => {
+		disableRootViewportFit()
 		cancelNavigation()
 		closeRadialMenu()
 		requestRenderLoop(INPUT_RENDER_WAKE_MS)
 	}
 
 	const wakeRenderFromCanvasTouch = (): void => {
+		disableRootViewportFit()
 		cancelNavigation()
 		requestRenderLoop(INPUT_RENDER_WAKE_MS)
 	}
@@ -4888,9 +4962,13 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			refreshSceneForSettings()
 		},
 		setSize(width: number, height: number) {
+			const viewportSizeChanged = Math.abs(width - rootFitViewportWidth) > 0.5 || Math.abs(height - rootFitViewportHeight) > 0.5
+			rootFitViewportWidth = width
+			rootFitViewportHeight = height
 			renderer.setPixelRatio(window.devicePixelRatio || 1)
 			renderer.setSize(width, height)
 			viewPoint.setAspectRatio(width / height)
+			applyRootViewportFit({force: viewportSizeChanged})
 			hudRuntime.handleSize(width, height)
 			requestRenderLoop(INPUT_RENDER_WAKE_MS)
 		},

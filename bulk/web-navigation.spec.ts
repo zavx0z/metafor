@@ -8,6 +8,7 @@ import {
   resolveBulkHoverTransition,
   resolveBulkPickHit,
   resolveBulkPickTarget,
+  resolveBulkViewportFitPose,
   resolveBulkViewportFocusPose,
   type BulkPickTarget,
 } from "./web-navigation"
@@ -600,6 +601,85 @@ describe("bulk web navigation", () => {
     expect(pose.target).toEqual(new Vector3(1200, 600, 1100))
     expect(pose.position.distanceTo(pose.target)).toBeGreaterThan(850)
     expect(pose.position.z).toBeGreaterThan(pose.target.z)
+  })
+
+  test("считает стартовую позу камеры так, чтобы root помещался в portrait и landscape viewport", () => {
+    const fovRad = (2 * Math.PI) / 5
+    const radius = 2000
+    const target = new Vector3(0, 0, 1100)
+    const currentPosition = new Vector3(3975.6752784123818, -2981.756458809286, 1650)
+    const currentTarget = target.clone()
+    const portraitAspect = 400 / 871
+    const landscapeAspect = 871 / 400
+    const paddingRatio = 1.08
+
+    const portrait = resolveBulkViewportFitPose({
+      aspect: portraitAspect,
+      currentPosition,
+      currentTarget,
+      fovRad,
+      paddingRatio,
+      radius,
+      target,
+    })
+    const landscape = resolveBulkViewportFitPose({
+      aspect: landscapeAspect,
+      currentPosition,
+      currentTarget,
+      fovRad,
+      paddingRatio,
+      radius,
+      target,
+    })
+
+    const halfVerticalFov = fovRad / 2
+    const halfPortraitHorizontalFov = Math.atan(Math.tan(halfVerticalFov) * portraitAspect)
+    const expectedPortraitDistance = (radius * paddingRatio) / Math.tan(halfPortraitHorizontalFov)
+    const expectedLandscapeDistance = (radius * paddingRatio) / Math.tan(halfVerticalFov)
+
+    expect(portrait.position.distanceTo(portrait.target)).toBeCloseTo(expectedPortraitDistance, 6)
+    expect(landscape.position.distanceTo(landscape.target)).toBeCloseTo(expectedLandscapeDistance, 6)
+    expect(portrait.position.distanceTo(portrait.target)).toBeGreaterThan(landscape.position.distanceTo(landscape.target))
+  })
+
+  test("для стартовой позы камеры использует экранную проекцию root geometry, если переданы точки", () => {
+    const fovRad = Math.PI / 2
+    const target = new Vector3(0, 0, 0)
+    const currentPosition = new Vector3(0, 0, 10)
+    const currentTarget = target.clone()
+    const up = new Vector3(0, 1, 0)
+    const points = [
+      new Vector3(-2, -1, 0),
+      new Vector3(2, -1, 0),
+      new Vector3(-2, 1, 0),
+      new Vector3(2, 1, 0),
+    ]
+
+    const landscape = resolveBulkViewportFitPose({
+      aspect: 2,
+      currentPosition,
+      currentTarget,
+      fovRad,
+      paddingRatio: 1,
+      points,
+      radius: 0.001,
+      target,
+      up,
+    })
+    const portrait = resolveBulkViewportFitPose({
+      aspect: 0.5,
+      currentPosition,
+      currentTarget,
+      fovRad,
+      paddingRatio: 1,
+      points,
+      radius: 0.001,
+      target,
+      up,
+    })
+
+    expect(landscape.position.distanceTo(landscape.target)).toBeCloseTo(1, 6)
+    expect(portrait.position.distanceTo(portrait.target)).toBeCloseTo(4, 6)
   })
 
   test("для очень маленького target не застревает на старом жестком минимуме дистанции", () => {
