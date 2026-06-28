@@ -19,6 +19,7 @@ import blurWGSL from "./shaders/blur.wgsl"
 import lineShaderCode from "./shaders/line.wgsl"
 import textShaderCode from "./shaders/text.wgsl"
 import imageShaderCode from "./shaders/image.wgsl"
+import imageExternalShaderCode from "./shaders/image_external.wgsl"
 import roundedShaderCode from "./shaders/rounded.wgsl"
 import radialBackdropShaderCode from "./shaders/radial_backdrop.ts"
 import {TEXT_COVER_FACE_STATE, TEXT_STENCIL_BACK_FACE_STATE, TEXT_STENCIL_FACE_STATE} from "./text-stencil"
@@ -36,6 +37,7 @@ if (import.meta.hot) {
     "./shaders/line.wgsl",
     "./shaders/text.wgsl",
     "./shaders/image.wgsl",
+    "./shaders/image_external.wgsl",
     "./shaders/rounded.wgsl",
   ], () => {
     if (typeof location !== "undefined") location.reload()
@@ -104,13 +106,16 @@ export class Renderer {
   private textCoverPipeline: GPURenderPipeline | null = null
   private textDepthCoverPipeline: GPURenderPipeline | null = null
   private imagePipeline: GPURenderPipeline | null = null
+  private externalImagePipeline: GPURenderPipeline | null = null
   private roundedPipeline: GPURenderPipeline | null = null
   private uiBasicMeshPipeline: GPURenderPipeline | null = null
   private uiImagePipeline: GPURenderPipeline | null = null
+  private uiExternalImagePipeline: GPURenderPipeline | null = null
   private uiRoundedPipeline: GPURenderPipeline | null = null
   private radialBackdropPipeline: GPURenderPipeline | null = null
   private uiRadialBackdropPipeline: GPURenderPipeline | null = null
   private imageBindGroupLayout: GPUBindGroupLayout | null = null
+  private externalImageBindGroupLayout: GPUBindGroupLayout | null = null
   private imageSampler: GPUSampler | null = null
   private imageBindGroupCache: WeakMap<GPUTexture, GPUBindGroup> = new WeakMap()
 
@@ -295,6 +300,20 @@ export class Renderer {
         },
       ],
     })
+    this.externalImageBindGroupLayout = this.device.createBindGroupLayout({
+      entries: [
+        {
+          binding: 0,
+          visibility: GPUShaderStage.FRAGMENT,
+          sampler: { type: "filtering" },
+        },
+        {
+          binding: 1,
+          visibility: GPUShaderStage.FRAGMENT,
+          externalTexture: {},
+        },
+      ],
+    })
 
     this.imageSampler = this.device.createSampler({
       magFilter: "linear",
@@ -310,6 +329,9 @@ export class Renderer {
 
     const imagePipelineLayout = this.device.createPipelineLayout({
       bindGroupLayouts: [globalBindGroupLayout, perObjectBindGroupLayout, this.imageBindGroupLayout],
+    })
+    const externalImagePipelineLayout = this.device.createPipelineLayout({
+      bindGroupLayouts: [globalBindGroupLayout, perObjectBindGroupLayout, this.externalImageBindGroupLayout],
     })
     const depthStencil: GPUDepthStencilState = {
       depthWriteEnabled: true,
@@ -343,6 +365,9 @@ export class Renderer {
     })
     const imageShaderModule = this.device.createShaderModule({
       code: imageShaderCode,
+    })
+    const imageExternalShaderModule = this.device.createShaderModule({
+      code: imageExternalShaderCode,
     })
     const roundedShaderModule = this.device.createShaderModule({
       code: roundedShaderCode,
@@ -455,6 +480,40 @@ export class Renderer {
       multisample: {count: this.sampleCount},
     })
 
+    this.externalImagePipeline = await this.device.createRenderPipelineAsync({
+      layout: externalImagePipelineLayout,
+      vertex: {
+        module: imageExternalShaderModule,
+        entryPoint: "vs_main",
+        buffers: [
+          {arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]},
+          {arrayStride: 8, attributes: [{shaderLocation: 1, offset: 0, format: "float32x2"}]},
+        ],
+      },
+      fragment: {
+        module: imageExternalShaderModule,
+        entryPoint: "fs_main",
+        targets: [{
+          format: this.presentationFormat,
+          blend: {
+            color: {
+              srcFactor: "src-alpha",
+              dstFactor: "one-minus-src-alpha",
+              operation: "add",
+            },
+            alpha: {
+              srcFactor: "one",
+              dstFactor: "one-minus-src-alpha",
+              operation: "add",
+            },
+          },
+        }],
+      },
+      primitive: {topology: "triangle-list", cullMode: "none"},
+      depthStencil,
+      multisample: {count: this.sampleCount},
+    })
+
     this.uiImagePipeline = await this.device.createRenderPipelineAsync({
       layout: imagePipelineLayout,
       vertex: {
@@ -467,6 +526,40 @@ export class Renderer {
       },
       fragment: {
         module: imageShaderModule,
+        entryPoint: "fs_main",
+        targets: [{
+          format: this.presentationFormat,
+          blend: {
+            color: {
+              srcFactor: "src-alpha",
+              dstFactor: "one-minus-src-alpha",
+              operation: "add",
+            },
+            alpha: {
+              srcFactor: "one",
+              dstFactor: "one-minus-src-alpha",
+              operation: "add",
+            },
+          },
+        }],
+      },
+      primitive: {topology: "triangle-list", cullMode: "none"},
+      depthStencil: uiDepthStencil,
+      multisample: {count: this.sampleCount},
+    })
+
+    this.uiExternalImagePipeline = await this.device.createRenderPipelineAsync({
+      layout: externalImagePipelineLayout,
+      vertex: {
+        module: imageExternalShaderModule,
+        entryPoint: "vs_main",
+        buffers: [
+          {arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]},
+          {arrayStride: 8, attributes: [{shaderLocation: 1, offset: 0, format: "float32x2"}]},
+        ],
+      },
+      fragment: {
+        module: imageExternalShaderModule,
         entryPoint: "fs_main",
         targets: [{
           format: this.presentationFormat,
@@ -1148,12 +1241,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       this.textCoverPipeline &&
       this.textDepthCoverPipeline &&
       this.imagePipeline &&
+      this.externalImagePipeline &&
       this.uiImagePipeline &&
+      this.uiExternalImagePipeline &&
       this.roundedPipeline &&
       this.uiRoundedPipeline &&
       this.radialBackdropPipeline &&
       this.uiRadialBackdropPipeline &&
       this.imageBindGroupLayout &&
+      this.externalImageBindGroupLayout &&
       this.imageSampler &&
       this.globalUniformBuffer &&
       this.sceneUniformBuffer &&
@@ -1425,13 +1521,17 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         this.perObjectDataCPU!.set(material.clipBounds, offsetFloats + 36)
       }
       const vb = material.viewBox
+      const textureEntry = TextureLoader.peek(material.src)
+      const sourceAspect = textureEntry !== undefined && textureEntry.width > 0 && textureEntry.height > 0
+        ? textureEntry.width / textureEntry.height
+        : 0
       this.perObjectDataCPU!.set([vb.x, vb.y, vb.w, vb.h], offsetFloats + 40)
       this.perObjectDataCPU!.set(
         [
           clamp01(material.opacity),
           Math.max(0.0001, material.boxAspect),
           material.fit === "contain" ? 1 : 0,
-          0,
+          sourceAspect,
         ],
         offsetFloats + 44,
       )
@@ -1530,7 +1630,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
             pipeline =
               material instanceof ImageMaterial
-                ? (isUiLayer ? this.uiImagePipeline : this.imagePipeline)
+                ? this.usesExternalImageTexture(material)
+                  ? (isUiLayer ? this.uiExternalImagePipeline : this.externalImagePipeline)
+                  : (isUiLayer ? this.uiImagePipeline : this.imagePipeline)
                 : isRadialBackdropMaterial(material)
                   ? (isUiLayer ? this.uiRadialBackdropPipeline : this.radialBackdropPipeline)
                   : material instanceof RoundedRectMaterial
@@ -1846,6 +1948,32 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     return bindGroup
   }
 
+  private usesExternalImageTexture(material: ImageMaterial): boolean {
+    const source = TextureLoader.peek(material.src)?.externalTextureSource
+    if (source === undefined) return false
+    if (typeof HTMLVideoElement !== "undefined" && source instanceof HTMLVideoElement) {
+      return source.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && source.videoWidth > 0 && source.videoHeight > 0
+    }
+    return true
+  }
+
+  private getExternalImageBindGroup(material: ImageMaterial): GPUBindGroup {
+    if (!this.device || !this.externalImageBindGroupLayout || !this.imageSampler) {
+      throw new Error("External image pipeline is not initialized")
+    }
+    const entry = TextureLoader.load(this.device, material.src, material.onTextureChange)
+    const source = entry.externalTextureSource
+    if (source === undefined) throw new Error(`External texture source is missing for ${material.src}`)
+    const externalTexture = this.device.importExternalTexture({source})
+    return this.device.createBindGroup({
+      layout: this.externalImageBindGroupLayout,
+      entries: [
+        { binding: 0, resource: this.imageSampler },
+        { binding: 1, resource: externalTexture },
+      ],
+    })
+  }
+
   private renderMesh(
     passEncoder: GPURenderPassEncoder | null,
     mesh: Mesh | SkinnedMesh,
@@ -1869,7 +1997,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       if (material instanceof ImageMaterial) {
         if (!uvBuffer) return
         passEncoder.setVertexBuffer(1, uvBuffer)
-        passEncoder.setBindGroup(2, this.getImageBindGroup(material))
+        passEncoder.setBindGroup(2, this.usesExternalImageTexture(material)
+          ? this.getExternalImageBindGroup(material)
+          : this.getImageBindGroup(material))
       } else if (normalBuffer) {
         passEncoder.setVertexBuffer(1, normalBuffer)
       }

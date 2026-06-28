@@ -9,11 +9,35 @@ export interface TextureEntry {
   error: unknown
   device?: GPUDevice
   pendingBitmap?: ImageBitmap | undefined
+  pendingExternalSource?: PendingExternalSource | undefined
+  externalTextureSource?: GPUExternalTextureDescriptor["source"] | undefined
+  externalTexturePool?: ExternalTexturePool | undefined
 }
 
 const cache = new Map<string, TextureEntry>()
 const callbacks = new Map<string, Set<() => void>>()
 let fallbackTexture: GPUTexture | null = null
+
+type PendingExternalSource = {
+  source: GPUImageCopyExternalImage["source"]
+  width: number
+  height: number
+  bufferCount: number
+  closeSourceAfterCopy: boolean
+}
+
+type ReplaceExternalSourceOptions = {
+  keepPending?: boolean
+  bufferCount?: number
+  closeSourceAfterCopy?: boolean
+}
+
+type ExternalTexturePool = {
+  width: number
+  height: number
+  textures: GPUTexture[]
+  nextIndex: number
+}
 
 export class TextureLoader {
   static status(src: string): TextureStatus | "idle" {
@@ -37,7 +61,9 @@ export class TextureLoader {
     const existing = cache.get(src)
     if (existing) {
       existing.device = device
-      if (existing.pendingBitmap !== undefined) {
+      if (existing.pendingExternalSource !== undefined) {
+        replaceTextureFromExternalSource(device, existing, existing.pendingExternalSource)
+      } else if (existing.pendingBitmap !== undefined) {
         void replaceTextureFromBitmap(device, existing, existing.pendingBitmap)
       }
       return existing
@@ -77,6 +103,7 @@ export class TextureLoader {
 
     entry.pendingBitmap?.close?.()
     entry.pendingBitmap = bitmap
+    delete entry.externalTextureSource
     const device = entry.device
     if (device === undefined || (!isVirtualTextureSrc(src) && entry.status === "loading")) {
       entry.status = "loading"
@@ -84,6 +111,68 @@ export class TextureLoader {
       return
     }
     void replaceTextureFromBitmap(device, entry, bitmap)
+  }
+
+  static replaceExternalSource(
+    src: string,
+    source: GPUImageCopyExternalImage["source"],
+    width: number,
+    height: number,
+    options: ReplaceExternalSourceOptions = {},
+  ): boolean {
+    const normalizedWidth = Math.max(1, Math.round(width))
+    const normalizedHeight = Math.max(1, Math.round(height))
+    const bufferCount = Math.max(1, Math.round(options.bufferCount ?? 1))
+    const pendingExternalSource = {
+      source,
+      width: normalizedWidth,
+      height: normalizedHeight,
+      bufferCount,
+      closeSourceAfterCopy: options.closeSourceAfterCopy === true,
+    }
+    const liveVideoSource = liveVideoElementSource(source)
+    const keepPending = options.keepPending ?? true
+    let entry = cache.get(src)
+    if (entry === undefined) {
+      entry = {
+        src,
+        status: liveVideoSource === undefined ? "loading" : "ready",
+        width: normalizedWidth,
+        height: normalizedHeight,
+        texture: null,
+        error: null,
+        ...(liveVideoSource === undefined ? {} : {externalTextureSource: liveVideoSource}),
+        ...(keepPending && liveVideoSource === undefined ? {pendingExternalSource} : {}),
+      }
+      cache.set(src, entry)
+      notify(src)
+      return liveVideoSource !== undefined
+    }
+
+    entry.pendingBitmap?.close?.()
+    delete entry.pendingBitmap
+    if (liveVideoSource !== undefined) {
+      delete entry.pendingExternalSource
+      entry.externalTextureSource = liveVideoSource
+      entry.width = normalizedWidth
+      entry.height = normalizedHeight
+      entry.error = null
+      entry.status = "ready"
+      notify(src)
+      return true
+    }
+
+    delete entry.externalTextureSource
+    if (keepPending) entry.pendingExternalSource = pendingExternalSource
+    else delete entry.pendingExternalSource
+    const device = entry.device
+    if (device === undefined || (!isVirtualTextureSrc(src) && entry.status === "loading")) {
+      entry.status = "loading"
+      notify(src)
+      return false
+    }
+    replaceTextureFromExternalSource(device, entry, pendingExternalSource)
+    return true
   }
 
   static fallback(device: GPUDevice): GPUTexture {
@@ -102,6 +191,12 @@ export class TextureLoader {
     )
     return fallbackTexture
   }
+}
+
+function liveVideoElementSource(source: GPUImageCopyExternalImage["source"]): HTMLVideoElement | undefined {
+  return typeof HTMLVideoElement !== "undefined" && source instanceof HTMLVideoElement
+    ? source
+    : undefined
 }
 
 async function loadTexture(device: GPUDevice, entry: TextureEntry): Promise<void> {
@@ -131,6 +226,8 @@ function isVirtualTextureSrc(src: string): boolean {
 async function replaceTextureFromBitmap(device: GPUDevice, entry: TextureEntry, bitmap: ImageBitmap): Promise<void> {
   entry.status = "loading"
   entry.device = device
+  destroyExternalTexturePool(entry)
+  delete entry.externalTextureSource
   try {
     const width = Math.max(1, bitmap.width)
     const height = Math.max(1, bitmap.height)
@@ -164,6 +261,106 @@ async function replaceTextureFromBitmap(device: GPUDevice, entry: TextureEntry, 
     if (entry.pendingBitmap === bitmap) delete entry.pendingBitmap
     notify(entry.src)
   }
+}
+
+function replaceTextureFromExternalSource(
+  device: GPUDevice,
+  entry: TextureEntry,
+  pending: PendingExternalSource,
+): void {
+  entry.status = "loading"
+  entry.device = device
+  try {
+    const width = Math.max(1, pending.width)
+    const height = Math.max(1, pending.height)
+    const texture = pending.bufferCount > 1
+      ? nextBufferedExternalTexture(device, entry, width, height, pending.bufferCount)
+      : singleExternalTexture(device, entry, width, height)
+    device.queue.copyExternalImageToTexture(
+      {source: pending.source},
+      {texture},
+      {width, height},
+    )
+    entry.width = width
+    entry.height = height
+    entry.error = null
+    entry.status = "ready"
+  } catch (err) {
+    entry.status = "failed"
+    entry.error = err
+    if (pending.closeSourceAfterCopy) closeExternalSource(pending.source)
+    console.warn("[TextureLoader] failed to copy external texture source:", entry.src, err)
+  } finally {
+    if (pending.closeSourceAfterCopy && entry.status === "ready") {
+      void device.queue.onSubmittedWorkDone().finally(() => closeExternalSource(pending.source))
+    }
+    if (entry.pendingExternalSource === pending) delete entry.pendingExternalSource
+    notify(entry.src)
+  }
+}
+
+function closeExternalSource(source: GPUImageCopyExternalImage["source"]): void {
+  const close = (source as {close?: unknown}).close
+  if (typeof close !== "function") return
+  try {
+    close.call(source)
+  } catch {
+    // Ignore double-close or browser-specific VideoFrame lifecycle errors.
+  }
+}
+
+function singleExternalTexture(device: GPUDevice, entry: TextureEntry, width: number, height: number): GPUTexture {
+  destroyExternalTexturePool(entry)
+  let texture = entry.texture
+  if (texture === null || entry.width !== width || entry.height !== height) {
+    texture?.destroy()
+    texture = createExternalTexture(device, entry.src, width, height)
+    entry.texture = texture
+  }
+  return texture
+}
+
+function nextBufferedExternalTexture(
+  device: GPUDevice,
+  entry: TextureEntry,
+  width: number,
+  height: number,
+  bufferCount: number,
+): GPUTexture {
+  let pool = entry.externalTexturePool
+  if (pool === undefined || pool.width !== width || pool.height !== height || pool.textures.length !== bufferCount) {
+    destroyExternalTexturePool(entry)
+    entry.texture?.destroy()
+    entry.texture = null
+    pool = {
+      width,
+      height,
+      textures: Array.from({length: bufferCount}, () => createExternalTexture(device, entry.src, width, height)),
+      nextIndex: 0,
+    }
+    entry.externalTexturePool = pool
+  }
+  const texture = pool.textures[pool.nextIndex]!
+  pool.nextIndex = (pool.nextIndex + 1) % pool.textures.length
+  entry.texture = texture
+  return texture
+}
+
+function createExternalTexture(device: GPUDevice, src: string, width: number, height: number): GPUTexture {
+  return device.createTexture({
+    label: `TextureLoader:${src}`,
+    size: {width, height},
+    format: "rgba8unorm",
+    usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+  })
+}
+
+function destroyExternalTexturePool(entry: TextureEntry): void {
+  const pool = entry.externalTexturePool
+  if (pool === undefined) return
+  for (const texture of pool.textures) texture.destroy()
+  if (entry.texture !== null && pool.textures.includes(entry.texture)) entry.texture = null
+  delete entry.externalTexturePool
 }
 
 async function decodeBitmap(blob: Blob): Promise<ImageBitmap> {

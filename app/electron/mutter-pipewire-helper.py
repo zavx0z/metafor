@@ -6,6 +6,7 @@ import signal
 import subprocess
 import sys
 import threading
+import time
 
 import dbus
 from dbus.mainloop.glib import DBusGMainLoop
@@ -40,6 +41,10 @@ remote_desktop = dbus.Interface(
     bus.get_object("org.gnome.Mutter.RemoteDesktop", "/org/gnome/Mutter/RemoteDesktop"),
     "org.gnome.Mutter.RemoteDesktop",
 )
+display_config = dbus.Interface(
+    bus.get_object("org.gnome.Mutter.DisplayConfig", "/org/gnome/Mutter/DisplayConfig"),
+    "org.gnome.Mutter.DisplayConfig",
+)
 remote_session_path = remote_desktop.CreateSession()
 remote_session_object = bus.get_object("org.gnome.Mutter.RemoteDesktop", remote_session_path)
 remote_session = dbus.Interface(
@@ -55,7 +60,46 @@ session = dbus.Interface(
     bus.get_object("org.gnome.Mutter.ScreenCast", session_path),
     "org.gnome.Mutter.ScreenCast.Session",
 )
-stream_path = session.RecordVirtual(dbus.Dictionary({"cursor-mode": dbus.UInt32(1)}, signature="sv"))
+
+
+def selected_monitor_connector():
+    try:
+        _serial, monitors, _logical_monitors, _properties = display_config.GetCurrentState()
+    except Exception:
+        return None
+    connectors = []
+    for monitor in monitors:
+        try:
+            connector = str(monitor[0][0])
+        except Exception:
+            continue
+        if connector:
+            connectors.append(connector)
+    for connector in connectors:
+        if connector.startswith("Meta-"):
+            return connector
+    return connectors[0] if connectors else None
+
+
+def create_screen_cast_stream():
+    properties = dbus.Dictionary({"cursor-mode": dbus.UInt32(1)}, signature="sv")
+    connector = selected_monitor_connector()
+    if connector is not None:
+        try:
+            return (
+                session.RecordMonitor(dbus.String(connector), properties),
+                {"type": "monitor", "connector": connector},
+            )
+        except Exception as error:
+            emit({
+                "type": "streamSelection",
+                "target": {"type": "monitor", "connector": connector},
+                "error": str(error),
+            })
+    return session.RecordVirtual(properties), {"type": "virtual", "connector": None}
+
+
+stream_path, stream_target = create_screen_cast_stream()
 loop = GLib.MainLoop()
 timeout_id = None
 stream_ready = False
@@ -70,6 +114,8 @@ EIS_HELPER_SOURCE = Path(__file__).with_name("mutter-eis-input.c")
 EIS_HELPER_BINARY = Path(os.environ.get("METAFOR_MUTTER_EIS_HELPER", "/tmp/metafor-mutter-eis-input"))
 EIS_REQUEST_TIMEOUT_SECONDS = float(os.environ.get("METAFOR_MUTTER_EIS_TIMEOUT", "1.5"))
 EIS_READY_TIMEOUT_SECONDS = float(os.environ.get("METAFOR_MUTTER_EIS_READY_TIMEOUT", "5.0"))
+USE_EIS_INPUT = os.environ.get("METAFOR_MUTTER_EIS_INPUT", "0").strip().lower() not in ("0", "false", "no", "off")
+KEYSYM_TEXT_DELAY_SECONDS = float(os.environ.get("METAFOR_MUTTER_KEYSYM_TEXT_DELAY", "0.006"))
 
 BUTTON_CODES = {
     "left": 0x110,
@@ -128,7 +174,8 @@ def start_remote_session():
         "sessionId": remote_session_id,
         "started": True,
     })
-    start_eis_bridge()
+    if USE_EIS_INPUT:
+        start_eis_bridge()
 
 
 def compile_eis_helper():
@@ -263,6 +310,7 @@ def on_pipewire_stream_added(node):
         "type": "stream",
         "sessionPath": str(session_path),
         "streamPath": str(stream_path),
+        "streamTarget": stream_target,
         "remoteSessionPath": str(remote_session_path),
         "remoteSessionId": remote_session_id,
         "remoteDesktopStarted": remote_started,
@@ -290,28 +338,28 @@ def dispatch_input(body):
     if event_type == "focus":
         return {"type": "focus"}
     if event_type in ("click", "doubleclick"):
-        send_eis_move(body)
+        send_pointer_move(body)
         button = button_code(body.get("button"))
         click_count = 2 if event_type == "doubleclick" else max(1, int(body.get("clickCount", 1) or 1))
         for _ in range(click_count):
-            send_eis_button(button, True)
-            send_eis_button(button, False)
-        return {"type": event_type, "transport": "mutter-eis", "button": button_name(body.get("button")), "clickCount": click_count, **point_result(body)}
+            send_pointer_button(button, True)
+            send_pointer_button(button, False)
+        return {"type": event_type, "transport": input_transport(), "button": button_name(body.get("button")), "clickCount": click_count, **point_result(body)}
     if event_type in ("pointerMove", "mouseMove", "move"):
-        send_eis_move(body)
-        return {"type": "mouseMove", "transport": "mutter-eis", **point_result(body)}
+        send_pointer_move(body)
+        return {"type": "mouseMove", "transport": input_transport(), **point_result(body)}
     if event_type in ("pointerDown", "mouseDown", "pointerUp", "mouseUp"):
-        send_eis_move(body)
+        send_pointer_move(body)
         pressed = event_type in ("pointerDown", "mouseDown")
         button = button_code(body.get("button"))
-        send_eis_button(button, pressed)
-        return {"type": "mouseDown" if pressed else "mouseUp", "transport": "mutter-eis", "button": button_name(body.get("button")), **point_result(body)}
+        send_pointer_button(button, pressed)
+        return {"type": "mouseDown" if pressed else "mouseUp", "transport": input_transport(), "button": button_name(body.get("button")), **point_result(body)}
     if event_type in ("wheel", "mouseWheel", "scroll"):
-        send_eis_move(body)
+        send_pointer_move(body)
         dx = float(body.get("deltaX", body.get("dx", 0)) or 0)
         dy = float(body.get("deltaY", body.get("dy", 0)) or 0)
-        send_eis_scroll(dx, dy)
-        return {"type": "mouseWheel", "transport": "mutter-eis", "deltaX": dx, "deltaY": dy, **point_result(body)}
+        send_pointer_scroll(dx, dy)
+        return {"type": "mouseWheel", "transport": input_transport(), "deltaX": dx, "deltaY": dy, **point_result(body)}
     if event_type in ("text", "type"):
         text = body.get("text")
         if not isinstance(text, str):
@@ -330,6 +378,31 @@ def dispatch_input(body):
             remote_session.NotifyKeyboardKeysym(dbus.UInt32(keysym), dbus.Boolean(event_type != "keyUp"))
         return {"type": event_type, "key": str(key)}
     raise ValueError("unsupported desktop input type")
+
+
+def input_transport():
+    return "mutter-eis" if USE_EIS_INPUT else "mutter-dbus"
+
+
+def send_pointer_move(body):
+    if USE_EIS_INPUT:
+        send_eis_move(body)
+    else:
+        move_pointer(body)
+
+
+def send_pointer_button(button, pressed):
+    if USE_EIS_INPUT:
+        send_eis_button(button, pressed)
+    else:
+        remote_session.NotifyPointerButton(dbus.Int32(button), dbus.Boolean(pressed))
+
+
+def send_pointer_scroll(dx, dy):
+    if USE_EIS_INPUT:
+        send_eis_scroll(dx, dy)
+    else:
+        remote_session.NotifyPointerAxis(dbus.Double(dx), dbus.Double(dy), dbus.UInt32(0))
 
 
 def move_pointer(body):
@@ -366,7 +439,11 @@ def button_code(value):
 
 def send_keysym(keysym):
     remote_session.NotifyKeyboardKeysym(dbus.UInt32(keysym), dbus.Boolean(True))
+    if KEYSYM_TEXT_DELAY_SECONDS > 0:
+        time.sleep(KEYSYM_TEXT_DELAY_SECONDS)
     remote_session.NotifyKeyboardKeysym(dbus.UInt32(keysym), dbus.Boolean(False))
+    if KEYSYM_TEXT_DELAY_SECONDS > 0:
+        time.sleep(KEYSYM_TEXT_DELAY_SECONDS)
 
 
 def keysym_for(value):

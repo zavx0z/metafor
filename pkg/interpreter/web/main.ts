@@ -780,13 +780,6 @@ const DEFAULT_SECONDARY_ANDROID_DOCK_PLACEMENT: HostTerminalDockPlacement = {edg
 const ANDROID_RTC_FRAME_SRC = "metafor:android-rtc-frame"
 const SECONDARY_ANDROID_RTC_FRAME_SRC = "metafor:android-rtc-frame:secondary"
 const REMOTE_DESKTOP_RTC_FRAME_SRC = "metafor:remote-desktop-rtc-frame"
-const REMOTE_DESKTOP_SNAPSHOT_FRAME_SRC = "metafor:remote-desktop-snapshot-frame"
-const REMOTE_DESKTOP_SNAPSHOT_FRAME_SLOTS = 12
-const REMOTE_DESKTOP_SNAPSHOT_POLL_MS = 700
-const REMOTE_DESKTOP_SNAPSHOT_ERROR_POLL_MS = 1800
-const REMOTE_DESKTOP_SNAPSHOT_REQUEST_TIMEOUT_MS = 8_000
-const REMOTE_DESKTOP_RTC_FRAME_GRACE_MS = 3000
-const REMOTE_DESKTOP_RTC_BLACK_SUPPRESS_MS = 5_000
 const REMOTE_DESKTOP_CONNECT_START_LOG_MS = 3_000
 const REMOTE_DESKTOP_RTC_VIDEO_DISPLAY_ENABLED = true
 const SPACE_OVERVIEW_WATCHDOG_MS = 900
@@ -820,14 +813,9 @@ let remoteDesktopPane: RemoteDesktopPane | null = null
 let remoteDesktopDisplayInstalled = false
 let remoteDesktopRtcClient: AndroidRtcClient | null = null
 let remoteDesktopRtcConnectInFlight = false
-let remoteDesktopSnapshotTimer: number | null = null
-let remoteDesktopSnapshotInFlight = false
-let remoteDesktopLastRtcFrameAt = 0
-let remoteDesktopRtcSuppressUntil = 0
-let remoteDesktopSnapshotPath: string | null = null
-let remoteDesktopSnapshotFrameSlot = 0
 let remoteDesktopLastRtcStatusLog = ""
 let remoteDesktopLastConnectStartLogAt = 0
+let remoteDesktopRtcFrameSourceLabel = "rtc"
 let spaceOverviewPinned = false
 let spaceOverviewWatchdogTimer: number | null = null
 let hostTerminalAgentSignalPane: HostTerminalAgentSignalPane | null = null
@@ -3042,7 +3030,6 @@ function setSecondaryAndroidRtcStatus(kind: AndroidPaneStatusKind, label: string
 function connectRemoteDesktopRtc(): void {
   if (remoteDesktopPane === null) return
   postRemoteDesktopConnectStart()
-  startRemoteDesktopSnapshotFallback()
   if (remoteDesktopRtcConnectInFlight) return
   if (remoteDesktopRtcClient === null) {
     remoteDesktopRtcConnectInFlight = true
@@ -3097,32 +3084,34 @@ async function createRemoteDesktopRtcClient(): Promise<AndroidRtcClient> {
     capabilities: ["remote-desktop", "interpreter"],
     frameSrc: REMOTE_DESKTOP_RTC_FRAME_SRC,
     minFrameIntervalMs: 16,
-    // Chrome-native desktop capture can legitimately be mostly dark. The
-    // Electron black-frame guard is useful for sender diagnostics, but here it
-    // hides valid server-desktop frames and keeps the UI stuck on snapshot
-    // fallback.
+    metadataOnlyFrames: true,
+    frameReadMode: "track-processor",
     ignoreBlackFrames: false,
     receiveAudio: true,
     onFrame: (frame) => {
       if (!isValidRemoteDesktopFrame(frame)) return
       if (!REMOTE_DESKTOP_RTC_VIDEO_DISPLAY_ENABLED) return
-      if (Date.now() < remoteDesktopRtcSuppressUntil) return
-      remoteDesktopLastRtcFrameAt = Date.now()
       remoteDesktopPane?.setFrame(frame)
-      remoteDesktopPane?.setStatus("connected", `${frame.width}x${frame.height} rtc`)
+      remoteDesktopPane?.setStatus("connected", `${frame.width}x${frame.height} ${remoteDesktopRtcFrameSourceLabel}`)
     },
     onAudio: connectRemoteDesktopAudio,
     onStatus: setRemoteDesktopRtcStatus,
-    onDiagnostic: (label, detail) => postInterpreterClientEvent("remote-desktop", `rtc-${label}`, detail),
+    onDiagnostic: handleRemoteDesktopRtcDiagnostic,
   })
 }
 
-function setRemoteDesktopRtcStatus(kind: AndroidPaneStatusKind, label: string): void {
-  if (label === "rtc black frame") {
-    remoteDesktopLastRtcFrameAt = 0
-    remoteDesktopRtcSuppressUntil = Date.now() + REMOTE_DESKTOP_RTC_BLACK_SUPPRESS_MS
-    scheduleRemoteDesktopSnapshotFallback(0)
+function handleRemoteDesktopRtcDiagnostic(label: string, detail: Record<string, unknown>): void {
+  if (label === "frame-source") {
+    remoteDesktopRtcFrameSourceLabel = detail.source === "mediastream-track-processor"
+      ? "rtc track"
+      : detail.source === "video-element"
+        ? "rtc video"
+        : "rtc"
   }
+  postInterpreterClientEvent("remote-desktop", `rtc-${label}`, detail)
+}
+
+function setRemoteDesktopRtcStatus(kind: AndroidPaneStatusKind, label: string): void {
   remoteDesktopPane?.setStatus(kind, label)
   const key = `${kind}:${label}`
   if (remoteDesktopLastRtcStatusLog === key) return
@@ -3154,7 +3143,6 @@ async function postRemoteDesktopControl(command: RtcControlCommand): Promise<voi
       })
       if (response.ok) {
         remoteDesktopPane?.setStatus("connected", "desktop command")
-        scheduleRemoteDesktopSnapshotFallback(120)
         return
       }
       lastError = `${path} ${response.status}: ${await responseErrorText(response)}`
@@ -3163,86 +3151,6 @@ async function postRemoteDesktopControl(command: RtcControlCommand): Promise<voi
     }
   }
   remoteDesktopPane?.setStatus("error", `input ${lastError}`)
-}
-
-function startRemoteDesktopSnapshotFallback(): void {
-  if (remoteDesktopSnapshotTimer !== null) return
-  scheduleRemoteDesktopSnapshotFallback(0)
-}
-
-function scheduleRemoteDesktopSnapshotFallback(delayMs: number): void {
-  if (remoteDesktopPane === null) return
-  if (remoteDesktopSnapshotTimer !== null) window.clearTimeout(remoteDesktopSnapshotTimer)
-  remoteDesktopSnapshotTimer = window.setTimeout(() => {
-    remoteDesktopSnapshotTimer = null
-    void refreshRemoteDesktopSnapshotFallback()
-  }, Math.max(0, delayMs))
-}
-
-async function refreshRemoteDesktopSnapshotFallback(): Promise<void> {
-  if (remoteDesktopPane === null) return
-  if (REMOTE_DESKTOP_RTC_VIDEO_DISPLAY_ENABLED && Date.now() - remoteDesktopLastRtcFrameAt < REMOTE_DESKTOP_RTC_FRAME_GRACE_MS) {
-    scheduleRemoteDesktopSnapshotFallback(REMOTE_DESKTOP_SNAPSHOT_POLL_MS)
-    return
-  }
-  if (remoteDesktopSnapshotInFlight) {
-    scheduleRemoteDesktopSnapshotFallback(REMOTE_DESKTOP_SNAPSHOT_POLL_MS)
-    return
-  }
-  remoteDesktopSnapshotInFlight = true
-  try {
-    const response = await fetchRemoteDesktopSnapshot()
-    const blob = await response.blob()
-    const bitmap = await decodeRemoteDesktopBitmap(blob)
-    const width = bitmap.width
-    const height = bitmap.height
-    if (width <= 0 || height <= 0) throw new Error(`invalid desktop frame ${width}x${height}`)
-    const src = nextRemoteDesktopSnapshotFrameSrc()
-    TextureLoader.replaceBitmap(src, bitmap)
-    remoteDesktopRtcSuppressUntil = Math.max(remoteDesktopRtcSuppressUntil, Date.now() + REMOTE_DESKTOP_SNAPSHOT_POLL_MS)
-    remoteDesktopPane.setFrame({
-      src,
-      width,
-      height,
-      capturedAt: Date.now(),
-    })
-    remoteDesktopPane.setStatus("connected", `${width}x${height} desktop`)
-    scheduleRemoteDesktopSnapshotFallback(REMOTE_DESKTOP_SNAPSHOT_POLL_MS)
-  } catch (error) {
-    remoteDesktopSnapshotPath = null
-    remoteDesktopPane?.setStatus("error", error instanceof Error ? `desktop ${error.message}` : "desktop unavailable")
-    scheduleRemoteDesktopSnapshotFallback(REMOTE_DESKTOP_SNAPSHOT_ERROR_POLL_MS)
-  } finally {
-    remoteDesktopSnapshotInFlight = false
-  }
-}
-
-async function decodeRemoteDesktopBitmap(blob: Blob): Promise<ImageBitmap> {
-  const bitmap = await createImageBitmap(blob)
-  if (bitmap.width > 0 && bitmap.height > 0) return bitmap
-  bitmap.close?.()
-  const objectUrl = URL.createObjectURL(blob)
-  try {
-    const image = new Image()
-    image.decoding = "async"
-    image.src = objectUrl
-    await image.decode()
-    const fallback = await createImageBitmap(image)
-    if (fallback.width <= 0 || fallback.height <= 0) throw new Error(`decoded ${fallback.width}x${fallback.height}`)
-    return fallback
-  } finally {
-    URL.revokeObjectURL(objectUrl)
-  }
-}
-
-function nextRemoteDesktopSnapshotFrameSrc(): string {
-  const currentSrc = remoteDesktopPane?.frameSnapshot()?.src ?? null
-  for (let attempt = 0; attempt < REMOTE_DESKTOP_SNAPSHOT_FRAME_SLOTS; attempt += 1) {
-    remoteDesktopSnapshotFrameSlot = (remoteDesktopSnapshotFrameSlot + 1) % REMOTE_DESKTOP_SNAPSHOT_FRAME_SLOTS
-    const src = `${REMOTE_DESKTOP_SNAPSHOT_FRAME_SRC}:${remoteDesktopSnapshotFrameSlot}`
-    if (src !== currentSrc) return src
-  }
-  return `${REMOTE_DESKTOP_SNAPSHOT_FRAME_SRC}:${remoteDesktopSnapshotFrameSlot}`
 }
 
 function isValidRemoteDesktopFrame(frame: AndroidRtcFrame): boolean {
@@ -3259,33 +3167,6 @@ function remoteDesktopRandomToken(): string {
     for (let index = 0; index < bytes.length; index += 1) bytes[index] = Math.floor(Math.random() * 256)
   }
   return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("")
-}
-
-async function fetchRemoteDesktopSnapshot(): Promise<Response> {
-  let lastError = "desktop snapshot unavailable"
-  for (const path of remoteDesktopApiPaths("/snapshot")) {
-    const controller = new AbortController()
-    const timer = window.setTimeout(() => controller.abort(), REMOTE_DESKTOP_SNAPSHOT_REQUEST_TIMEOUT_MS)
-    try {
-      const response = await fetch(`${path}?t=${Date.now()}`, {
-        cache: "no-store",
-        signal: controller.signal,
-      })
-      const contentType = response.headers.get("content-type")?.toLowerCase() ?? ""
-      if (response.ok && contentType.startsWith("image/")) {
-        remoteDesktopSnapshotPath = path
-        return response
-      }
-      lastError = response.ok
-        ? `${path} ${contentType.length > 0 ? contentType : "non-image response"}`
-        : `${path} ${response.status}: ${await responseErrorText(response)}`
-    } catch (error) {
-      lastError = error instanceof Error ? `${path} ${error.message}` : `${path} unavailable`
-    } finally {
-      window.clearTimeout(timer)
-    }
-  }
-  throw new Error(lastError)
 }
 
 async function responseErrorText(response: Response): Promise<string> {
@@ -3432,13 +3313,10 @@ function remoteDesktopApiPaths(path: string): string[] {
   const suffix = path.startsWith("/") ? path : `/${path}`
   const direct = `/remote-desktop${suffix}`
   const embedded = `/hud/interpreter/remote-desktop${suffix}`
-  const preferred = remoteDesktopSnapshotPath === null
-    ? []
-    : [remoteDesktopSnapshotPath.replace(/\/snapshot$/, suffix)]
   const candidates = isEmbeddedInterpreterOrigin()
     ? [embedded, direct]
     : [direct, embedded]
-  return uniqueStrings([...preferred, ...candidates])
+  return uniqueStrings(candidates)
 }
 
 function remoteDesktopRtcSignalPath(): string {
@@ -5009,7 +4887,9 @@ class RemoteDesktopPane extends UiSurface {
 
   #syncVisibleFrame(): void {
     const frame = this.#frame
-    if (frame !== null && TextureLoader.status(frame.src) === "ready") this.#visibleFrame = frame
+    if (frame !== null && TextureLoader.status(frame.src) === "ready") {
+      this.#visibleFrame = frame
+    }
   }
 
   #primePendingFrameTexture(rect: UiSurfaceRect, drawnFrame: AndroidRtcFrame): void {

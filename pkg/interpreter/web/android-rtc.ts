@@ -59,10 +59,14 @@ export type AndroidRtcClientOpts = {
   signalUrls?: string[]
   iceServers?: RTCIceServer[]
   capabilities?: string[]
+  videoCodecPreference?: "VP8" | "VP9" | "H264" | "AV1"
   frameSrc: string
   minFrameIntervalMs?: number
   ignoreBlackFrames?: boolean
+  metadataOnlyFrames?: boolean
+  frameReadMode?: "video-element" | "track-processor"
   receiveAudio?: boolean
+  onVideoElement?: (video: HTMLVideoElement | null) => void
   onFrame: (frame: AndroidRtcFrame) => void
   onAudio?: (audio: AndroidRtcAudioStream | null) => void
   onStatus: (kind: AndroidRtcStatusKind, label: string) => void
@@ -82,6 +86,23 @@ const MAX_PENDING_COMMANDS = 16
 const BLACK_FRAME_MAX_AVG_LUMA = 18
 const BLACK_FRAME_BRIGHT_LUMA = 24
 const BLACK_FRAME_MAX_BRIGHT_RATIO = 0.05
+const METADATA_FRAME_DIAGNOSTIC_INTERVAL_MS = 500
+const FRAME_ANALYSIS_INTERVAL_MS = 2_000
+
+type BrowserVideoFrame = GPUImageCopyExternalImage["source"] & {
+  readonly displayWidth?: number
+  readonly displayHeight?: number
+  readonly codedWidth?: number
+  readonly codedHeight?: number
+  readonly timestamp?: number
+  close?: () => void
+}
+
+type MediaStreamTrackProcessorInstance = {
+  readable: ReadableStream<BrowserVideoFrame>
+}
+
+type MediaStreamTrackProcessorConstructor = new (init: {track: MediaStreamTrack}) => MediaStreamTrackProcessorInstance
 
 export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcClient {
   const room = opts.room ?? DEFAULT_ANDROID_RTC_ROOM
@@ -113,6 +134,12 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
   let pendingCommands: RtcControlCommand[] = []
   let lastVideoWaitingStatusAt = 0
   let lastReceiverStatsAt = 0
+  let lastMetadataFrameDiagnosticAt = 0
+  let lastFrameAnalysisAt = 0
+  let trackFrameAbortController: AbortController | null = null
+  let trackFrameReaderTrack: MediaStreamTrack | null = null
+  let frameAnalysisCanvas: HTMLCanvasElement | null = null
+  let frameAnalysisContext: CanvasRenderingContext2D | null = null
 
   const api: AndroidRtcClient = {
     get peerId() {
@@ -184,6 +211,7 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     closeAllPeers()
     video.srcObject = null
     video.remove()
+    opts.onVideoElement?.(null)
     clearAudioStream()
     frameLoopStarted = false
   }
@@ -270,7 +298,7 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     if (existing !== undefined) return existing
 
     const connection = new RTCPeerConnection({iceServers: opts.iceServers ?? RTC_ICE_SERVERS})
-    connection.addTransceiver("video", {direction: "recvonly"})
+    applyVideoCodecPreference(connection.addTransceiver("video", {direction: "recvonly"}), opts.videoCodecPreference)
     if (opts.receiveAudio === true) connection.addTransceiver("audio", {direction: "recvonly"})
     const peer: PeerRecord = {id: remotePeerId, connection, channel: null}
     peers.set(remotePeerId, peer)
@@ -305,10 +333,7 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
       }
       if (event.track.kind !== "video") return
       const stream = event.streams[0] ?? new MediaStream([event.track])
-      video.srcObject = new MediaStream(stream.getVideoTracks())
-      ensureVideoElementMounted()
-      void video.play().catch(() => undefined)
-      startFrameLoop()
+      if (!startTrackFrameLoop(event.track, stream)) attachVideoStream(stream)
       opts.onStatus("connected", "rtc video")
       opts.onDiagnostic?.("track", {
         peerId: remotePeerId,
@@ -352,6 +377,129 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     })
   }
 
+  function attachVideoStream(stream: MediaStream): void {
+    stopTrackFrameLoop()
+    for (const track of audioStream.getAudioTracks()) {
+      if (!stream.getAudioTracks().some((current) => current.id === track.id)) stream.addTrack(track)
+    }
+    video.srcObject = stream
+    ensureVideoElementMounted()
+    opts.onVideoElement?.(video)
+    void video.play().catch(() => undefined)
+    opts.onDiagnostic?.("frame-source", {
+      source: "video-element",
+      videoTracks: stream.getVideoTracks().map((track) => `${track.readyState}:${track.muted ? "muted" : "live"}`),
+      audioTracks: stream.getAudioTracks().map((track) => `${track.readyState}:${track.muted ? "muted" : "live"}`),
+    })
+    startFrameLoop()
+  }
+
+  function startTrackFrameLoop(track: MediaStreamTrack, fallbackStream: MediaStream): boolean {
+    if (opts.metadataOnlyFrames !== true) return false
+    if (opts.frameReadMode !== "track-processor") return false
+    const Processor = mediaStreamTrackProcessorConstructor()
+    if (Processor === undefined) return false
+    stopTrackFrameLoop()
+    video.srcObject = null
+    video.remove()
+    opts.onVideoElement?.(null)
+    const frameTrack = track.clone()
+    const abortController = new AbortController()
+    trackFrameAbortController = abortController
+    trackFrameReaderTrack = frameTrack
+    void readTrackFrames(new Processor({track: frameTrack}), frameTrack, abortController, fallbackStream)
+    opts.onDiagnostic?.("frame-source", {
+      source: "mediastream-track-processor",
+      trackId: track.id,
+      readyState: track.readyState,
+      muted: track.muted,
+    })
+    return true
+  }
+
+  async function readTrackFrames(
+    processor: MediaStreamTrackProcessorInstance,
+    track: MediaStreamTrack,
+    abortController: AbortController,
+    fallbackStream: MediaStream,
+  ): Promise<void> {
+    const reader = processor.readable.getReader()
+    const abortReader = (): void => {
+      void reader.cancel().catch(() => undefined)
+    }
+    const endReader = (): void => abortController.abort()
+    abortController.signal.addEventListener("abort", abortReader, {once: true})
+    track.addEventListener("ended", endReader, {once: true})
+    try {
+      while (!abortController.signal.aborted && track.readyState === "live") {
+        const result = await reader.read()
+        if (result.done) break
+        copyTrackFrame(result.value)
+      }
+    } catch (error) {
+      if (!abortController.signal.aborted) {
+        opts.onDiagnostic?.("frame-source-error", {
+          source: "mediastream-track-processor",
+          error: error instanceof Error ? error.message : String(error),
+        })
+        attachVideoStream(fallbackStream)
+      }
+    } finally {
+      abortController.signal.removeEventListener("abort", abortReader)
+      track.removeEventListener("ended", endReader)
+      reader.releaseLock()
+      track.stop()
+      if (trackFrameAbortController === abortController) {
+        trackFrameAbortController = null
+        trackFrameReaderTrack = null
+      }
+    }
+  }
+
+  function copyTrackFrame(frame: BrowserVideoFrame): void {
+    let textureLoaderOwnsFrame = false
+    try {
+      const now = performance.now()
+      const minFrameIntervalMs = opts.minFrameIntervalMs ?? 0
+      if (minFrameIntervalMs > 0 && now - lastFrameAt < minFrameIntervalMs) return
+      const width = videoFrameWidth(frame)
+      const height = videoFrameHeight(frame)
+      if (width <= 0 || height <= 0) {
+        reportWaitingForVideoFrame(now)
+        return
+      }
+      lastFrameAt = now
+      analyzeFrameSource(frame, width, height, now, "mediastream-track-frame")
+      textureLoaderOwnsFrame = TextureLoader.replaceExternalSource(opts.frameSrc, frame, width, height, {
+        keepPending: false,
+        bufferCount: 3,
+        closeSourceAfterCopy: true,
+      })
+      opts.onFrame({src: opts.frameSrc, width, height, capturedAt: Date.now()})
+      if (now - lastMetadataFrameDiagnosticAt >= METADATA_FRAME_DIAGNOSTIC_INTERVAL_MS) {
+        lastMetadataFrameDiagnosticAt = now
+        opts.onDiagnostic?.("frame", {
+          width,
+          height,
+          readyState: video.readyState,
+          paused: video.paused,
+          timestampUs: videoFrameTimestamp(frame),
+          upload: "mediastream-track-frame-gpu-copy-buffered",
+        })
+      }
+      void reportReceiverStats(now)
+    } finally {
+      if (!textureLoaderOwnsFrame) frame.close?.()
+    }
+  }
+
+  function stopTrackFrameLoop(): void {
+    trackFrameAbortController?.abort()
+    trackFrameAbortController = null
+    trackFrameReaderTrack?.stop()
+    trackFrameReaderTrack = null
+  }
+
   function startFrameLoop(): void {
     if (frameLoopStarted) return
     frameLoopStarted = true
@@ -374,13 +522,14 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     }
     if (requestVideoFrame !== undefined) requestVideoFrame.call(video, tick)
     else requestAnimationFrame(tick)
-    if (requestVideoFrame !== undefined) requestAnimationFrame(watchdog)
+    if (requestVideoFrame !== undefined && opts.metadataOnlyFrames !== true) requestAnimationFrame(watchdog)
   }
 
   async function copyVideoFrame(): Promise<void> {
     if (frameCopyInFlight) return
     const now = performance.now()
-    if (now - lastFrameAt < (opts.minFrameIntervalMs ?? DEFAULT_MIN_FRAME_INTERVAL_MS)) return
+    const minFrameIntervalMs = opts.minFrameIntervalMs ?? (opts.metadataOnlyFrames === true ? 0 : DEFAULT_MIN_FRAME_INTERVAL_MS)
+    if (minFrameIntervalMs > 0 && now - lastFrameAt < minFrameIntervalMs) return
     const width = video.videoWidth
     const height = video.videoHeight
     if (width <= 0 || height <= 0) {
@@ -388,6 +537,25 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
       return
     }
     if (opts.ignoreBlackFrames === true && frameLooksBlack(video, width, height, now)) {
+      return
+    }
+    if (opts.metadataOnlyFrames === true) {
+      lastFrameAt = now
+      analyzeFrameSource(video, width, height, now, "video-element")
+      TextureLoader.replaceExternalSource(opts.frameSrc, video, width, height, {bufferCount: 3})
+      opts.onFrame({src: opts.frameSrc, width, height, capturedAt: Date.now()})
+      if (now - lastMetadataFrameDiagnosticAt >= METADATA_FRAME_DIAGNOSTIC_INTERVAL_MS) {
+        lastMetadataFrameDiagnosticAt = now
+        opts.onDiagnostic?.("frame", {
+          width,
+          height,
+          readyState: video.readyState,
+          paused: video.paused,
+          currentTime: video.currentTime,
+          upload: "video-gpu-copy-buffered",
+        })
+      }
+      void reportReceiverStats(now)
       return
     }
     frameCopyInFlight = true
@@ -445,26 +613,45 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
           const entry = inbound as {
             framesReceived?: unknown
             framesDecoded?: unknown
+            framesDropped?: unknown
+            framesPerSecond?: unknown
             frameWidth?: unknown
             frameHeight?: unknown
             bytesReceived?: unknown
             packetsReceived?: unknown
             packetsLost?: unknown
+            totalDecodeTime?: unknown
             audioLevel?: unknown
             totalAudioEnergy?: unknown
             totalSamplesDuration?: unknown
             jitter?: unknown
+            jitterBufferDelay?: unknown
+            jitterBufferEmittedCount?: unknown
+            freezeCount?: unknown
+            pauseCount?: unknown
+            totalFreezesDuration?: unknown
+            estimatedPlayoutTimestamp?: unknown
           }
           if (kind === "video") {
             opts.onDiagnostic?.("receiver-stats", {
               peerId: peer.id,
               framesReceived: entry.framesReceived,
               framesDecoded: entry.framesDecoded,
+              framesDropped: entry.framesDropped,
+              framesPerSecond: entry.framesPerSecond,
               frameWidth: entry.frameWidth,
               frameHeight: entry.frameHeight,
               bytesReceived: entry.bytesReceived,
               packetsReceived: entry.packetsReceived,
               packetsLost: entry.packetsLost,
+              totalDecodeTime: entry.totalDecodeTime,
+              jitter: entry.jitter,
+              jitterBufferDelay: entry.jitterBufferDelay,
+              jitterBufferEmittedCount: entry.jitterBufferEmittedCount,
+              freezeCount: entry.freezeCount,
+              pauseCount: entry.pauseCount,
+              totalFreezesDuration: entry.totalFreezesDuration,
+              estimatedPlayoutTimestamp: entry.estimatedPlayoutTimestamp,
             })
           } else {
             opts.onDiagnostic?.("audio-receiver-stats", {
@@ -487,6 +674,92 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
           })
         }
       }
+    }
+  }
+
+  function analyzeFrameSource(
+    source: CanvasImageSource | BrowserVideoFrame,
+    width: number,
+    height: number,
+    now: number,
+    sourceKind: string,
+  ): void {
+    if (now - lastFrameAnalysisAt < FRAME_ANALYSIS_INTERVAL_MS) return
+    lastFrameAnalysisAt = now
+    const canvas = frameAnalysisCanvas ?? document.createElement("canvas")
+    frameAnalysisCanvas = canvas
+    const sampleWidth = 160
+    const sampleHeight = Math.max(1, Math.round((sampleWidth * height) / width))
+    canvas.width = sampleWidth
+    canvas.height = sampleHeight
+    const context = frameAnalysisContext ?? canvas.getContext("2d", {willReadFrequently: true})
+    if (context === null) return
+    frameAnalysisContext = context
+    try {
+      context.drawImage(source as CanvasImageSource, 0, 0, sampleWidth, sampleHeight)
+      const pixels = context.getImageData(0, 0, sampleWidth, sampleHeight).data
+      const rowLuma = new Array<number>(sampleHeight).fill(0)
+      let minLuma = Number.POSITIVE_INFINITY
+      let maxLuma = 0
+      for (let y = 0; y < sampleHeight; y += 1) {
+        let sum = 0
+        const rowOffset = y * sampleWidth * 4
+        for (let x = 0; x < sampleWidth; x += 1) {
+          const offset = rowOffset + x * 4
+          sum += (pixels[offset]! + pixels[offset + 1]! + pixels[offset + 2]!) / 3
+        }
+        const avg = sum / sampleWidth
+        rowLuma[y] = avg
+        minLuma = Math.min(minLuma, avg)
+        maxLuma = Math.max(maxLuma, avg)
+      }
+      let diffSum = 0
+      let maxRowDiff = 0
+      let hardRowTransitions = 0
+      let blackRows = 0
+      let darkRows = 0
+      let blackRowRuns = 0
+      let inBlackRun = false
+      for (let y = 0; y < sampleHeight; y += 1) {
+        const luma = rowLuma[y]!
+        if (luma < 8) {
+          blackRows += 1
+          if (!inBlackRun) {
+            blackRowRuns += 1
+            inBlackRun = true
+          }
+        } else {
+          inBlackRun = false
+        }
+        if (luma < 24) darkRows += 1
+        if (y === 0) continue
+        const diff = Math.abs(luma - rowLuma[y - 1]!)
+        diffSum += diff
+        maxRowDiff = Math.max(maxRowDiff, diff)
+        if (diff >= 36) hardRowTransitions += 1
+      }
+      const avgRowDiff = sampleHeight <= 1 ? 0 : diffSum / (sampleHeight - 1)
+      opts.onDiagnostic?.("frame-analysis", {
+        source: sourceKind,
+        width,
+        height,
+        sampleWidth,
+        sampleHeight,
+        minRowLuma: Math.round(minLuma * 10) / 10,
+        maxRowLuma: Math.round(maxLuma * 10) / 10,
+        avgRowDiff: Math.round(avgRowDiff * 10) / 10,
+        maxRowDiff: Math.round(maxRowDiff * 10) / 10,
+        hardRowTransitions,
+        blackRows,
+        darkRows,
+        blackRowRuns,
+        timestampUs: isBrowserVideoFrame(source) ? videoFrameTimestamp(source) : null,
+      })
+    } catch (error) {
+      opts.onDiagnostic?.("frame-analysis-error", {
+        source: sourceKind,
+        error: error instanceof Error ? error.message : String(error),
+      })
     }
   }
 
@@ -525,6 +798,7 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
   function attachAudioTrack(track: MediaStreamTrack): void {
     if (audioStream.getAudioTracks().some((current) => current.id === track.id)) return
     audioStream.addTrack(track)
+    attachAudioTrackToVideoClock(track)
     track.addEventListener("mute", () => {
       opts.onDiagnostic?.("audio-track-state", {readyState: track.readyState, muted: track.muted, state: "mute"})
     })
@@ -535,6 +809,7 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
       opts.onDiagnostic?.("audio-track-state", {readyState: track.readyState, muted: track.muted, state: "ended"})
       if (audioStream.getAudioTracks().some((current) => current.id === track.id)) {
         audioStream.removeTrack(track)
+        detachAudioTrackFromVideoClock(track)
         emitAudioStream()
       }
     })
@@ -549,8 +824,30 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
   function clearAudioStream(): void {
     const tracks = audioStream.getTracks()
     if (tracks.length === 0) return
-    for (const track of tracks) audioStream.removeTrack(track)
+    for (const track of tracks) {
+      audioStream.removeTrack(track)
+      detachAudioTrackFromVideoClock(track)
+    }
     opts.onAudio?.(null)
+  }
+
+  function attachAudioTrackToVideoClock(track: MediaStreamTrack): void {
+    const stream = video.srcObject
+    if (!(stream instanceof MediaStream)) return
+    if (stream.getAudioTracks().some((current) => current.id === track.id)) return
+    stream.addTrack(track)
+    opts.onDiagnostic?.("video-clock-audio-track", {
+      readyState: track.readyState,
+      muted: track.muted,
+      audioTracks: stream.getAudioTracks().length,
+    })
+  }
+
+  function detachAudioTrackFromVideoClock(track: MediaStreamTrack): void {
+    const stream = video.srcObject
+    if (!(stream instanceof MediaStream)) return
+    if (!stream.getAudioTracks().some((current) => current.id === track.id)) return
+    stream.removeTrack(track)
   }
 
   function ensureVideoElementMounted(): void {
@@ -577,8 +874,10 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
   }
 
   function clearVideoStream(): void {
+    stopTrackFrameLoop()
     video.srcObject = null
     video.remove()
+    opts.onVideoElement?.(null)
     frameLoopStarted = false
     frameCopyInFlight = false
   }
@@ -635,6 +934,28 @@ function rtcRandomToken(): string {
   return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("")
 }
 
+function mediaStreamTrackProcessorConstructor(): MediaStreamTrackProcessorConstructor | undefined {
+  return (globalThis as unknown as {
+    MediaStreamTrackProcessor?: MediaStreamTrackProcessorConstructor
+  }).MediaStreamTrackProcessor
+}
+
+function videoFrameWidth(frame: BrowserVideoFrame): number {
+  return frame.displayWidth ?? frame.codedWidth ?? ("width" in frame && typeof frame.width === "number" ? frame.width : 0)
+}
+
+function videoFrameHeight(frame: BrowserVideoFrame): number {
+  return frame.displayHeight ?? frame.codedHeight ?? ("height" in frame && typeof frame.height === "number" ? frame.height : 0)
+}
+
+function videoFrameTimestamp(frame: BrowserVideoFrame): number | null {
+  return typeof frame.timestamp === "number" ? frame.timestamp : null
+}
+
+function isBrowserVideoFrame(value: CanvasImageSource | BrowserVideoFrame): value is BrowserVideoFrame {
+  return typeof (value as BrowserVideoFrame).close === "function" || typeof (value as BrowserVideoFrame).timestamp === "number"
+}
+
 function parseSignal(raw: string): AndroidRtcSignal | null {
   try {
     const parsed = JSON.parse(raw) as unknown
@@ -684,4 +1005,18 @@ function isTargetRtcSenderPeer(peerId: string, target: "primary" | "secondary" |
   if (target === "any") return true
   if (target === "secondary") return peerId !== senderPeerId
   return peerId === senderPeerId
+}
+
+function applyVideoCodecPreference(
+  transceiver: RTCRtpTransceiver,
+  codecPreference: AndroidRtcClientOpts["videoCodecPreference"],
+): void {
+  if (codecPreference === undefined || typeof transceiver.setCodecPreferences !== "function") return
+  const capabilities = RTCRtpReceiver.getCapabilities?.("video")
+  const codecs = Array.isArray(capabilities?.codecs) ? capabilities.codecs : []
+  if (codecs.length === 0) return
+  const preferredMime = `video/${codecPreference}`
+  const preferred = codecs.filter((codec) => codec.mimeType.toLowerCase() === preferredMime.toLowerCase())
+  if (preferred.length === 0) return
+  transceiver.setCodecPreferences([...preferred, ...codecs.filter((codec) => !preferred.includes(codec))])
 }

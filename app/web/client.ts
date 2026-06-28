@@ -360,6 +360,14 @@ const hideBootOverlay = (): void => {
 const errorMessage = (error: unknown): string =>
 	error instanceof Error ? error.message : String(error)
 
+const webGpuBootDiagnostics = (): string => [
+	`origin: ${window.location.origin}`,
+	`secureContext: ${String(window.isSecureContext)}`,
+	`navigator.gpu: ${String("gpu" in navigator)}`,
+	`visibility: ${document.visibilityState}`,
+	`userAgent: ${navigator.userAgent}`,
+].join("\n")
+
 const waitForVisibleDocument = async (): Promise<void> => {
 	if (document.visibilityState === "visible") return
 	markAppWebBoot("client:visibility:wait", document.visibilityState)
@@ -452,7 +460,7 @@ void initBulkViewport().catch((error) => {
 	console.error("bulk init error:", error)
 	showBootOverlay(
 		"WebGPU не запустился",
-		`${errorMessage(error)}\n\nChrome не вернул WebGPU adapter/device за отведённое время. Интерфейс не продолжит старт без WebGPU renderer.`,
+		`${errorMessage(error)}\n\n${webGpuBootDiagnostics()}\n\nChrome не вернул WebGPU adapter/device за отведённое время. Интерфейс не продолжит старт без WebGPU renderer.`,
 		true,
 	)
 })

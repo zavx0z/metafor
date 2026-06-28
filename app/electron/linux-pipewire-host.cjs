@@ -7,9 +7,11 @@ const HOST = process.env.METAFOR_REMOTE_DESKTOP_HOST_BIND || "127.0.0.1"
 const PORT = Number(process.env.METAFOR_REMOTE_DESKTOP_HOST_PORT || process.env.METAFOR_ELECTRON_HOST_PORT || 32123)
 const WIDTH = Number(process.env.METAFOR_REMOTE_DESKTOP_WIDTH || 1920)
 const HEIGHT = Number(process.env.METAFOR_REMOTE_DESKTOP_HEIGHT || 1080)
-const FPS = Number(process.env.METAFOR_REMOTE_DESKTOP_SNAPSHOT_FPS || 30)
+const FPS = Number(process.env.METAFOR_REMOTE_DESKTOP_RTC_FPS || process.env.METAFOR_REMOTE_DESKTOP_SNAPSHOT_FPS || 30)
 const MJPEG_BOUNDARY = "metafor-desktop-frame"
 const VIDEO_BITRATE = Number(process.env.METAFOR_REMOTE_DESKTOP_VIDEO_BITRATE || process.env.METAFOR_REMOTE_DESKTOP_RTC_VIDEO_BITRATE || 8_000_000)
+const VIDEO_CODEC = normalizeChromeVideoCodec(process.env.METAFOR_REMOTE_DESKTOP_RTC_VIDEO_CODEC || "")
+const VIDEO_CONTENT_HINT = normalizeChromeVideoContentHint(process.env.METAFOR_REMOTE_DESKTOP_RTC_CONTENT_HINT || "detail")
 const AUDIO_BITRATE = Number(process.env.METAFOR_REMOTE_DESKTOP_AUDIO_BITRATE || 128000)
 const AUDIO_TARGET = (process.env.METAFOR_REMOTE_DESKTOP_AUDIO_TARGET || "").trim()
 const AUDIO_UNMUTE = process.env.METAFOR_REMOTE_DESKTOP_AUDIO_UNMUTE === undefined
@@ -75,6 +77,7 @@ const state = {
     nodeId: null,
     serial: null,
     streamPath: null,
+    target: null,
     remoteSessionPath: null,
     width: WIDTH,
     height: HEIGHT,
@@ -153,6 +156,17 @@ const state = {
       enabled: true,
       transport: "pipewire-webm",
       trackCount: 0,
+      lastError: null,
+    },
+    video: {
+      targetBitrate: VIDEO_BITRATE,
+      maxFps: FPS,
+      contentHint: VIDEO_CONTENT_HINT,
+      codecPreference: VIDEO_CODEC,
+      degradationPreference: "maintain-resolution",
+      scaleResolutionDownBy: 1,
+      parametersApplied: false,
+      senderStats: null,
       lastError: null,
     },
     rtc: {
@@ -329,6 +343,7 @@ function startHelper() {
     state.stream.nodeId = null
     state.stream.serial = null
     state.stream.streamPath = null
+    state.stream.target = null
     state.stream.remoteSessionPath = null
     rejectHelperInputRequests(new Error(state.stream.error))
   })
@@ -368,6 +383,7 @@ function handleHelperLine(line) {
     state.stream.nodeId = payload.nodeId
     state.stream.serial = payload.serial
     state.stream.streamPath = typeof payload.streamPath === "string" ? payload.streamPath : null
+    state.stream.target = payload.streamTarget !== null && typeof payload.streamTarget === "object" ? payload.streamTarget : null
     state.stream.remoteSessionPath = typeof payload.remoteSessionPath === "string" ? payload.remoteSessionPath : state.stream.remoteSessionPath
     state.stream.error = null
     state.remoteDesktop.input.lastError = null
@@ -381,6 +397,7 @@ function handleHelperLine(line) {
     state.stream.nodeId = null
     state.stream.serial = null
     state.stream.streamPath = null
+    state.stream.target = null
     state.stream.remoteSessionPath = null
     state.stream.error = String(payload.error || "unknown helper error")
     state.remoteDesktop.input.lastError = state.stream.error
@@ -448,6 +465,17 @@ function chromeEnableFeatureFlags() {
   return features.length > 0 ? [`--enable-features=${features.join(",")}`] : []
 }
 
+function chromeDisableFeatures() {
+  const features = ["Translate", "WebRtcHideLocalIpsWithMdns", "VaapiVideoDecoder", "VaapiVideoEncoder"]
+  if (!CHROME_WEBGPU_ENABLED) features.push("Vulkan", "VulkanFromANGLE", "DefaultANGLEVulkan", "WebGPU")
+  return features
+}
+
+function chromeDisableFeatureFlags() {
+  const features = chromeDisableFeatures()
+  return features.length > 0 ? [`--disable-features=${features.join(",")}`] : []
+}
+
 function openBrowser(url) {
   if (browser !== null && browser.exitCode === null && browser.signalCode === null) return
   const securityFlags = insecureOriginSecurityFlags(url)
@@ -473,8 +501,8 @@ function openBrowser(url) {
     ...(CHROME_RTC_FAKE_UI ? ["--use-fake-ui-for-media-stream"] : []),
     ...(CHROME_RTC_AUTO_SELECT_SOURCE.length > 0 ? [`--auto-select-desktop-capture-source=${CHROME_RTC_AUTO_SELECT_SOURCE}`] : []),
     ...chromeEnableFeatureFlags(),
-    "--disable-features=Translate,WebRtcHideLocalIpsWithMdns,Vulkan,VulkanFromANGLE,DefaultANGLEVulkan,VaapiVideoDecoder,VaapiVideoEncoder,WebGPU",
-    "--disable-vulkan",
+    ...chromeDisableFeatureFlags(),
+    ...(CHROME_WEBGPU_ENABLED ? [] : ["--disable-vulkan"]),
     "--lang=ru-RU",
     "--accept-lang=ru-RU,ru,en-US,en",
     `--ozone-platform=${CHROME_OZONE_PLATFORM}`,
@@ -673,6 +701,9 @@ function postChromeRtcState(patch) {
     if (typeof audio.effectiveSource === "string") state.remoteDesktop.audio.transport = audio.effectiveSource
     if ("lastError" in audio) state.remoteDesktop.audio.lastError = typeof audio.lastError === "string" ? audio.lastError : null
   }
+  if (patch.video !== null && typeof patch.video === "object") {
+    state.remoteDesktop.video = {...state.remoteDesktop.video, ...patch.video}
+  }
 }
 
 function chromeRtcSenderScript(options = {}) {
@@ -687,6 +718,9 @@ function chromeRtcSenderScript(options = {}) {
     width: WIDTH,
     height: HEIGHT,
     maxFps: FPS,
+    videoBitrate: VIDEO_BITRATE,
+    videoCodec: VIDEO_CODEC,
+    videoContentHint: VIDEO_CONTENT_HINT,
     audio: CHROME_RTC_AUDIO_ENABLED,
     audioSource: CHROME_RTC_AUDIO_SOURCE,
     captureSurface: CHROME_RTC_CAPTURE_SURFACE,
@@ -726,6 +760,17 @@ function chromeRtcSenderScript(options = {}) {
       trackCount: 0,
       lastError: null,
     },
+    video: {
+      targetBitrate: config.videoBitrate,
+      maxFps: config.maxFps,
+      contentHint: config.videoContentHint,
+      codecPreference: config.videoCodec,
+      degradationPreference: "maintain-resolution",
+      scaleResolutionDownBy: 1,
+      parametersApplied: false,
+      senderStats: null,
+      lastError: null,
+    },
     lastError: null,
     updatedAt: null,
   };
@@ -749,6 +794,7 @@ function chromeRtcSenderScript(options = {}) {
   let pipewireAudioKeepAliveGain = null;
   let pipewireAudioKeepAliveSource = null;
   let pipewireAudioRefreshTimer = null;
+  let senderStatsTimer = null;
   const peers = new Map();
 
   window.__metaforChromeRtcState = state;
@@ -757,9 +803,11 @@ function chromeRtcSenderScript(options = {}) {
     if (patch && typeof patch === "object") {
       if (patch.capture && typeof patch.capture === "object") Object.assign(state.capture, patch.capture);
       if (patch.audio && typeof patch.audio === "object") Object.assign(state.audio, patch.audio);
+      if (patch.video && typeof patch.video === "object") Object.assign(state.video, patch.video);
       const rest = {...patch};
       delete rest.capture;
       delete rest.audio;
+      delete rest.video;
       Object.assign(state, rest);
     }
     state.updatedAt = new Date().toISOString();
@@ -804,7 +852,7 @@ function chromeRtcSenderScript(options = {}) {
       return [];
     });
     for (const track of stream.getVideoTracks()) {
-      track.contentHint = "detail";
+      track.contentHint = config.videoContentHint;
       track.applyConstraints?.({
         width: {ideal: config.width},
         height: {ideal: config.height},
@@ -1317,8 +1365,9 @@ function chromeRtcSenderScript(options = {}) {
     if (message.type === "offer") {
       await peer.connection.setRemoteDescription(message.description);
       await attachStreamTracks(peer);
-      const answer = await peer.connection.createAnswer();
+      const answer = tuneVideoAnswer(await peer.connection.createAnswer());
       await peer.connection.setLocalDescription(answer);
+      await configureVideoSenders(peer.connection);
       sendSignal({type: "answer", to: message.from, description: publishSessionDescription(peer.connection.localDescription)});
       return;
     }
@@ -1362,10 +1411,20 @@ function chromeRtcSenderScript(options = {}) {
   async function attachStreamTracks(peer) {
     if (peer.tracksAttached) return;
     for (const track of stream.getTracks()) {
-      if (track.kind === "video") track.contentHint = "detail";
-      await attachTrackToExistingTransceiver(peer.connection, track);
+      if (track.kind === "video") track.contentHint = config.videoContentHint;
+      const attachment = await attachTrackToExistingTransceiver(peer.connection, track);
+      if (track.kind === "video") await configureVideoSender(attachment.sender, attachment.transceiver);
     }
     peer.tracksAttached = true;
+    ensureSenderStatsTimer();
+  }
+
+  async function configureVideoSenders(connection) {
+    for (const transceiver of connection.getTransceivers()) {
+      const sender = transceiver.sender;
+      if (sender?.track?.kind !== "video") continue;
+      await configureVideoSender(sender, transceiver);
+    }
   }
 
   async function attachTrackToExistingTransceiver(connection, track) {
@@ -1375,9 +1434,193 @@ function chromeRtcSenderScript(options = {}) {
     if (transceiver !== undefined) {
       transceiver.direction = "sendonly";
       await transceiver.sender.replaceTrack(track);
-      return transceiver.sender;
+      return {sender: transceiver.sender, transceiver};
     }
-    return connection.addTrack(track, stream);
+    const sender = connection.addTrack(track, stream);
+    const createdTransceiver = connection.getTransceivers().find((candidate) => candidate.sender === sender) || null;
+    return {sender, transceiver: createdTransceiver};
+  }
+
+  async function configureVideoSender(sender, transceiver) {
+    let parametersApplied = false;
+    try {
+      applyVideoCodecPreference(transceiver);
+      if (typeof sender?.getParameters === "function" && typeof sender?.setParameters === "function") {
+        const parameters = sender.getParameters();
+        if (Array.isArray(parameters.encodings) && parameters.encodings.length > 0) {
+          parameters.encodings = parameters.encodings.map((encoding) => ({
+            ...encoding,
+            maxBitrate: config.videoBitrate || 12_000_000,
+            maxFramerate: config.maxFps || 60,
+            scaleResolutionDownBy: 1,
+          }));
+          await sender.setParameters(parameters);
+          parametersApplied = true;
+        }
+      }
+      post({video: {parametersApplied, lastError: null}});
+      void collectVideoSenderStats();
+    } catch (error) {
+      post({video: {parametersApplied, lastError: String(error?.message || error)}});
+    }
+  }
+
+  function applyVideoCodecPreference(transceiver) {
+    if (typeof transceiver?.setCodecPreferences !== "function") return;
+    const capabilities = RTCRtpSender.getCapabilities?.("video");
+    const codecs = Array.isArray(capabilities?.codecs) ? capabilities.codecs : [];
+    if (codecs.length === 0) return;
+    const preferredMime = "video/" + String(config.videoCodec || "").toUpperCase();
+    const preferred = codecs.filter((codec) => String(codec.mimeType || "").toUpperCase() === preferredMime);
+    if (preferred.length === 0) return;
+    transceiver.setCodecPreferences([...preferred, ...codecs.filter((codec) => !preferred.includes(codec))]);
+  }
+
+  function tuneVideoAnswer(description) {
+    if (description === null || typeof description?.sdp !== "string") return description;
+    return {...description, sdp: tuneVideoSdp(description.sdp)};
+  }
+
+  function tuneVideoSdp(sdp) {
+    const lines = sdp.split("\\r\\n");
+    const preferredPayloads = new Set();
+    const preferredCodec = String(config.videoCodec || "").toUpperCase();
+    for (const line of lines) {
+      const match = /^a=rtpmap:(\\d+)\\s+([^/\\s]+)/i.exec(line);
+      if (match !== null && match[2].toUpperCase() === preferredCodec) preferredPayloads.add(match[1]);
+    }
+    if (preferredPayloads.size === 0) return sdp;
+    const bitrateKbps = Math.max(512, Math.round((config.videoBitrate || 12_000_000) / 1000));
+    const startBitrateKbps = Math.max(512, Math.min(bitrateKbps, 8000));
+    const minBitrateKbps = Math.max(256, Math.min(startBitrateKbps, 3000));
+    const bitrateParams = [
+      "x-google-min-bitrate=" + minBitrateKbps,
+      "x-google-start-bitrate=" + startBitrateKbps,
+      "x-google-max-bitrate=" + bitrateKbps,
+    ];
+    const tuned = [];
+    let inVideo = false;
+    let videoBandwidthInserted = false;
+    for (const line of lines) {
+      if (line.startsWith("m=")) {
+        inVideo = line.startsWith("m=video ");
+        videoBandwidthInserted = false;
+      }
+      tuned.push(line);
+      if (inVideo && !videoBandwidthInserted && line.startsWith("c=")) {
+        tuned.push("b=AS:" + bitrateKbps);
+        videoBandwidthInserted = true;
+      }
+      const fmtp = /^a=fmtp:(\\d+)\\s+(.+)$/i.exec(line);
+      if (fmtp !== null && preferredPayloads.has(fmtp[1])) {
+        const existing = fmtp[2];
+        const append = bitrateParams.filter((param) => !existing.includes(param.split("=")[0] + "="));
+        if (append.length > 0) tuned[tuned.length - 1] = "a=fmtp:" + fmtp[1] + " " + existing + ";" + append.join(";");
+      }
+      const rtpmap = /^a=rtpmap:(\\d+)\\s+/i.exec(line);
+      if (rtpmap !== null && preferredPayloads.has(rtpmap[1])) {
+        const hasFmtp = lines.some((candidate) => candidate.startsWith("a=fmtp:" + rtpmap[1] + " "));
+        if (!hasFmtp) tuned.push("a=fmtp:" + rtpmap[1] + " " + bitrateParams.join(";"));
+      }
+    }
+    return tuned.join("\\r\\n");
+  }
+
+  function ensureSenderStatsTimer() {
+    if (senderStatsTimer !== null) return;
+    senderStatsTimer = window.setInterval(() => {
+      void collectVideoSenderStats();
+    }, 1000);
+    void collectVideoSenderStats();
+  }
+
+  async function collectVideoSenderStats() {
+    const peerStats = [];
+    for (const peer of peers.values()) {
+      const selectedPair = await selectedCandidatePairStats(peer.connection);
+      for (const transceiver of peer.connection.getTransceivers()) {
+        const sender = transceiver.sender;
+        if (sender?.track?.kind !== "video" || typeof sender.getStats !== "function") continue;
+        const reports = await sender.getStats().catch(() => null);
+        if (reports === null) continue;
+        const codecs = new Map();
+        let outbound = null;
+        reports.forEach((report) => {
+          if (report.type === "codec") codecs.set(report.id, report);
+          if (report.type === "outbound-rtp" && report.kind === "video" && !report.isRemote) outbound = report;
+        });
+        if (outbound === null) continue;
+        const codec = codecs.get(outbound.codecId) || null;
+        peerStats.push({
+          peerId: peer.id,
+          trackReadyState: sender.track?.readyState || null,
+          codec: codec?.mimeType || null,
+          sdpFmtpLine: codec?.sdpFmtpLine || null,
+          frameWidth: outbound.frameWidth ?? null,
+          frameHeight: outbound.frameHeight ?? null,
+          framesPerSecond: outbound.framesPerSecond ?? null,
+          framesEncoded: outbound.framesEncoded ?? null,
+          framesSent: outbound.framesSent ?? null,
+          keyFramesEncoded: outbound.keyFramesEncoded ?? null,
+          hugeFramesSent: outbound.hugeFramesSent ?? null,
+          bytesSent: outbound.bytesSent ?? null,
+          packetsSent: outbound.packetsSent ?? null,
+          retransmittedPacketsSent: outbound.retransmittedPacketsSent ?? null,
+          qpSum: outbound.qpSum ?? null,
+          totalEncodeTime: outbound.totalEncodeTime ?? null,
+          qualityLimitationReason: outbound.qualityLimitationReason ?? null,
+          qualityLimitationDurations: outbound.qualityLimitationDurations ?? null,
+          qualityLimitationResolutionChanges: outbound.qualityLimitationResolutionChanges ?? null,
+          encoderImplementation: outbound.encoderImplementation ?? null,
+          powerEfficientEncoder: outbound.powerEfficientEncoder ?? null,
+          selectedCandidatePair: selectedPair,
+        });
+      }
+    }
+    post({video: {senderStats: {updatedAt: new Date().toISOString(), peers: peerStats}}});
+  }
+
+  async function selectedCandidatePairStats(connection) {
+    const reports = await connection.getStats().catch(() => null);
+    if (reports === null) return null;
+    let selectedPair = null;
+    const candidates = new Map();
+    reports.forEach((report) => {
+      if (report.type === "local-candidate" || report.type === "remote-candidate") candidates.set(report.id, report);
+      if (report.type === "candidate-pair" && report.selected === true) selectedPair = report;
+    });
+    if (selectedPair === null) {
+      reports.forEach((report) => {
+        if (selectedPair === null && report.type === "transport" && typeof report.selectedCandidatePairId === "string") {
+          selectedPair = reports.get(report.selectedCandidatePairId) || null;
+        }
+      });
+    }
+    if (selectedPair === null) return null;
+    const local = candidates.get(selectedPair.localCandidateId) || null;
+    const remote = candidates.get(selectedPair.remoteCandidateId) || null;
+    return {
+      state: selectedPair.state || null,
+      nominated: selectedPair.nominated ?? null,
+      currentRoundTripTime: selectedPair.currentRoundTripTime ?? null,
+      availableOutgoingBitrate: selectedPair.availableOutgoingBitrate ?? null,
+      bytesSent: selectedPair.bytesSent ?? null,
+      bytesReceived: selectedPair.bytesReceived ?? null,
+      requestsSent: selectedPair.requestsSent ?? null,
+      responsesReceived: selectedPair.responsesReceived ?? null,
+      local: local === null ? null : {
+        candidateType: local.candidateType || null,
+        protocol: local.protocol || null,
+        address: local.address || local.ip || null,
+        port: local.port || null,
+      },
+      remote: remote === null ? null : {
+        candidateType: remote.candidateType || null,
+        protocol: remote.protocol || null,
+        address: remote.address || remote.ip || null,
+        port: remote.port || null,
+      },
+    };
   }
 
   function attachDataChannel(peer, channel) {
@@ -1484,6 +1727,7 @@ function chromeRtcSenderScript(options = {}) {
       closeAllPeers();
       stream?.getTracks?.().forEach((track) => track.stop());
       if (pipewireAudioRefreshTimer !== null) clearInterval(pipewireAudioRefreshTimer);
+      if (senderStatsTimer !== null) clearInterval(senderStatsTimer);
       pipewireAudioPcmAbort?.abort?.();
       try { pipewireAudioGeneratorWriter?.close?.(); } catch {}
       try { pipewireAudioGenerator?.stop?.(); } catch {}
@@ -2379,6 +2623,18 @@ function normalizeChromeAudioSource(value) {
   const normalized = typeof value === "string" ? value.trim().toLowerCase() : ""
   if (normalized === "display" || normalized === "pipewire" || normalized === "both") return normalized
   return "display"
+}
+
+function normalizeChromeVideoCodec(value) {
+  const normalized = typeof value === "string" ? value.trim().toUpperCase() : ""
+  if (normalized === "VP8" || normalized === "VP9" || normalized === "H264" || normalized === "AV1") return normalized
+  return null
+}
+
+function normalizeChromeVideoContentHint(value) {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : ""
+  if (normalized === "motion" || normalized === "detail" || normalized === "text") return normalized
+  return "detail"
 }
 
 function clampNumber(value, min, max) {
