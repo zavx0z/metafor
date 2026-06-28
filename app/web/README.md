@@ -23,8 +23,9 @@ bun run workspace.app.web:prod
 
 Это запускает `app/web/run.ts --prod layout`: в tmux поднимается
 `app/web/server.ts` с HTTPS на `443`, embedded HTTP redirect `80 -> 443`,
-WebRTC signaling, embedded interpreter routes на `/hud/interpreter/*` и
-app/web-owned network display на `/hud/terminal/network/*`.
+WebRTC signaling и embedded interpreter routes на `/hud/interpreter/*`.
+AppWeb больше не владеет отдельным Network HUD/display; диагностика server-dev
+сети живет в interpreter tooling, а не в продуктовой AppWeb-оболочке.
 
 Dev/LAN entrypoint под interpreter:
 

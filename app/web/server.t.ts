@@ -47,17 +47,6 @@ export type AndroidControlCommand =
 	| {type: "launch"; packageName: string}
 	| {type: "open-accessibility"}
 
-export type NetworkTerminalAction = "show" | "dock" | "toggle"
-
-export type NetworkTerminalCommand = {
-	action: NetworkTerminalAction
-	session?: string
-	key?: string
-	tmux?: string
-}
-
-export type NetworkAction = "layout" | "status" | "start:tls" | "stop:tls" | "start:redirect" | "stop:redirect" | "tail" | "clear" | "stop"
-
 export type AppClientAsset = {
 	body: ArrayBuffer
 	type: string

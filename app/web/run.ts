@@ -1,5 +1,4 @@
 import {ensureMetaforTmuxProfile, METAFOR_TMUX_CONFIG_PATH} from "../../pkg/pty/src/tmux-profile.ts"
-import {networkInterfaces} from "node:os"
 
 const session = process.env.NETWORK_TMUX_SESSION ?? "metafor-app-web-net"
 const windowName = process.env.NETWORK_TMUX_WINDOW ?? "network"
@@ -35,7 +34,6 @@ async function run(name: string): Promise<void> {
     startTls()
     startRedirect()
     selectNetworkWindow()
-    await openNetworkDisplay()
     return
   }
   if (name === "status") {
@@ -293,44 +291,6 @@ async function sleepStartDelay(): Promise<void> {
   const delay = Number(process.env.NETWORK_TMUX_START_DELAY_MS ?? 0)
   if (!Number.isFinite(delay) || delay <= 0) return
   await Bun.sleep(Math.min(5000, Math.round(delay)))
-}
-
-async function openNetworkDisplay(): Promise<void> {
-  if (process.env.NETWORK_TMUX_OPEN_DISPLAY === "0") return
-  const url = networkDisplayDockUrl()
-  const attempts = Number(process.env.NETWORK_TMUX_OPEN_DISPLAY_ATTEMPTS ?? (mode === "dev" ? 80 : 40))
-  for (let index = 0; index < Math.max(1, attempts); index += 1) {
-    if (index === 0) await Bun.sleep(450)
-    else await Bun.sleep(250)
-    const result = Bun.spawnSync(["curl", "-sk", "-X", "POST", "--max-time", "2", url], {stdout: "pipe", stderr: "pipe"})
-    const stdout = new TextDecoder().decode(result.stdout)
-    if (result.exitCode === 0 && /"ok"\s*:\s*true/.test(stdout)) {
-      console.log(`app web: ${appPublicUrl()}`)
-      return
-    }
-  }
-  console.error("network display was not docked")
-}
-
-function networkDisplayDockUrl(): string {
-  const port = Number(process.env.PORT ?? 443)
-  const suffix = port === 443 ? "" : `:${port}`
-  return `https://127.0.0.1${suffix}/hud/terminal/network/dock`
-}
-
-function appPublicUrl(): string {
-  const port = Number(process.env.PORT ?? 443)
-  const suffix = port === 443 ? "" : `:${port}`
-  return `https://${localNetworkAddress() ?? "127.0.0.1"}${suffix}/`
-}
-
-function localNetworkAddress(): string | null {
-  for (const interfaces of Object.values(networkInterfaces())) {
-    for (const item of interfaces ?? []) {
-      if (item.family === "IPv4" && !item.internal) return item.address
-    }
-  }
-  return null
 }
 
 function parseCli(args: string[]): {mode: NetworkMode; action: string} {

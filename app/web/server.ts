@@ -33,9 +33,6 @@ import type {
 	ClientMaterializePayload,
 	ClientMessage,
 	ClientRelayoutPayload,
-	NetworkAction,
-	NetworkTerminalAction,
-	NetworkTerminalCommand,
 	ServerSnapshotPayload,
 	TerminalPtySocketData,
 	TodoMarkdownPayload,
@@ -44,7 +41,6 @@ import {DEFAULT_APP_WEB_SCENE_SRC} from "./app-config.ts"
 
 const boundary = globalThis.boundary
 const sockets = new Set<ServerWebSocket<AppWebSocketData>>()
-let pendingNetworkTerminalCommand: NetworkTerminalCommand | null = null
 const terminalSessions = createPtySessionManager({
   cwd: process.cwd(),
   shell: Bun.env.SHELL || "/bin/zsh",
@@ -68,8 +64,6 @@ const META_SOURCE_DIR = "github"
 const CODEX_ATTACHMENT_DIR = "app/web/tmp/codex-attachments"
 const CODEX_ATTACHMENT_MAX_BYTES = 16 * 1024 * 1024
 const CODEX_ATTACHMENT_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".heic", ".heif", ".tif", ".tiff", ".bmp", ".svg"])
-const NETWORK_TMUX_SESSION = Bun.env.NETWORK_TMUX_SESSION ?? "metafor-app-web-net"
-const NETWORK_TMUX_WINDOW = Bun.env.NETWORK_TMUX_WINDOW ?? "network"
 const SOURCE_FILE_EXTENSIONS = new Set([
   ".css",
   ".cts",
@@ -308,50 +302,6 @@ const server = serve<AppWebSocketData>({
       const response = await broadcastAndroidControlResponse(req, started)
       return response
     },
-    "/hud/terminal/network": (req: Request) => {
-      const started = Date.now()
-      if (req.method !== "GET") {
-        logHttp(req, "network.get", 405, started, "method not allowed")
-        return new Response("Method Not Allowed", {status: 405})
-      }
-      const response = jsonResponse(networkTerminalPayload())
-      logHttp(req, "network.get", response.status, started)
-      return response
-    },
-    "/hud/terminal/network/show": async (req: Request) => {
-      const started = Date.now()
-      if (req.method !== "POST" && req.method !== "GET") {
-        logHttp(req, "network.show", 405, started, "method not allowed")
-        return new Response("Method Not Allowed", {status: 405})
-      }
-      return await broadcastNetworkTerminalResponse(req, "show", started)
-    },
-    "/hud/terminal/network/dock": async (req: Request) => {
-      const started = Date.now()
-      if (req.method !== "POST") {
-        logHttp(req, "network.dock", 405, started, "method not allowed")
-        return new Response("Method Not Allowed", {status: 405})
-      }
-      return await broadcastNetworkTerminalResponse(req, "dock", started)
-    },
-    "/hud/terminal/network/toggle": async (req: Request) => {
-      const started = Date.now()
-      if (req.method !== "POST") {
-        logHttp(req, "network.toggle", 405, started, "method not allowed")
-        return new Response("Method Not Allowed", {status: 405})
-      }
-      return await broadcastNetworkTerminalResponse(req, "toggle", started)
-    },
-    "/space/network/action": async (req: Request) => {
-      const started = Date.now()
-      const response = await networkActionResponse(req, started)
-      return response
-    },
-    "/hud/network/action": async (req: Request) => {
-      const started = Date.now()
-      const response = await networkActionResponse(req, started)
-      return response
-    },
     "/*": async (req: Request, wsServer: Server<AppWebSocketData>) => {
       const url = new URL(req.url)
       if (interpreterProxyRoutes.acceptsPathname(url.pathname)) {
@@ -390,7 +340,6 @@ const server = serve<AppWebSocketData>({
       }
       sockets.add(ws)
       appLog("WS", "app client opened", `clients=${sockets.size}`, "green")
-      sendPendingNetworkTerminalCommand(ws)
       voiceServer.sendVoiceLeaseSnapshot(ws, "connect")
     },
     message(ws, message) {
@@ -866,154 +815,6 @@ async function broadcastAndroidControlResponse(req: Request, started = Date.now(
   }
   logHttp(req, "android", 200, started, `${command.type} clients=${clients}`)
   return jsonResponse({ok: true, clients, command})
-}
-
-function networkTerminalPayload(): Record<string, unknown> {
-  return {
-    ok: true,
-    pending: pendingNetworkTerminalCommand,
-    session: NETWORK_TMUX_SESSION,
-    window: NETWORK_TMUX_WINDOW,
-    clients: [...sockets].filter((socket) => socket.data.kind === "app-web" && socket.readyState === WebSocket.OPEN).length,
-  }
-}
-
-async function broadcastNetworkTerminalResponse(req: Request, fallbackAction: NetworkTerminalAction, started = Date.now()): Promise<Response> {
-  const parsed = await readOptionalJsonObject(req)
-  if ("error" in parsed && parsed.error !== undefined) {
-    logHttp(req, `network.${fallbackAction}`, 400, started, `error=${parsed.error}`)
-    return jsonResponse({ok: false, error: parsed.error}, 400)
-  }
-  const command = asNetworkTerminalCommand(parsed.body, fallbackAction)
-  pendingNetworkTerminalCommand = command
-  const message = JSON.stringify({type: "hud-network-terminal", command})
-  let clients = 0
-  for (const socket of sockets) {
-    if (socket.data.kind !== "app-web" || socket.readyState !== WebSocket.OPEN) continue
-    socket.send(message)
-    clients += 1
-  }
-  logHttp(req, `network.${command.action}`, 200, started, `clients=${clients} tmux=${command.tmux ?? NETWORK_TMUX_SESSION}`)
-  return jsonResponse({ok: true, clients, command})
-}
-
-function sendPendingNetworkTerminalCommand(ws: ServerWebSocket<AppWebSocketData>): void {
-  if (ws.data.kind !== "app-web" || pendingNetworkTerminalCommand === null || ws.readyState !== WebSocket.OPEN) return
-  ws.send(JSON.stringify({type: "hud-network-terminal", command: pendingNetworkTerminalCommand}))
-}
-
-function asNetworkTerminalCommand(body: Record<string, unknown>, fallbackAction: NetworkTerminalAction): NetworkTerminalCommand {
-  const action = asNetworkTerminalAction(body["action"]) ?? fallbackAction
-  const session = asString(body["session"])
-  const key = asString(body["key"])
-  const tmux = asString(body["tmux"]) ?? NETWORK_TMUX_SESSION
-  return {
-    action,
-    ...(session === undefined ? {} : {session}),
-    ...(key === undefined ? {} : {key}),
-    tmux,
-  }
-}
-
-function asNetworkTerminalAction(value: unknown): NetworkTerminalAction | undefined {
-  return value === "show" || value === "dock" || value === "toggle" ? value : undefined
-}
-
-async function networkActionResponse(req: Request, started = Date.now()): Promise<Response> {
-  if (req.method !== "POST") {
-    logHttp(req, "network.action", 405, started, "method not allowed")
-    return new Response("Method Not Allowed", {status: 405})
-  }
-  const parsed = await readJsonObject(req)
-  if (parsed.error !== undefined) {
-    logHttp(req, "network.action", 400, started, `error=${parsed.error}`)
-    return jsonResponse({ok: false, error: parsed.error}, 400)
-  }
-  const action = asNetworkAction(parsed.body["action"] ?? parsed.body["cmd"] ?? parsed.body["command"])
-  if (action === undefined) {
-    logHttp(req, "network.action", 400, started, "action=invalid")
-    return jsonResponse({
-      ok: false,
-      error: "network action must be one of layout/status/start:tls/stop:tls/start:redirect/stop:redirect/tail/clear/stop"
-    }, 400)
-  }
-  if (networkActionRestartsAppWeb(action)) {
-    spawnNetworkAction(action, {delayed: true})
-    logHttp(req, "network.action", 202, started, `${action} detached`)
-    return jsonResponse({ok: true, action, detached: true, durationMs: Date.now() - started}, 202)
-  }
-  const result = spawnNetworkAction(action, {sync: true})
-  const status = result.exitCode === 0 ? 200 : 500
-  logHttp(req, "network.action", status, started, `${action} exit=${result.exitCode}`)
-  return jsonResponse({
-    ok: result.exitCode === 0,
-    action,
-    exitCode: result.exitCode,
-    durationMs: Date.now() - started,
-    stdout: result.stdout,
-    stderr: result.stderr,
-  }, status)
-}
-
-function spawnNetworkAction(action: NetworkAction, opts: { sync: true }): {
-  exitCode: number;
-  stdout: string;
-  stderr: string
-}
-function spawnNetworkAction(action: NetworkAction, opts?: { delayed?: boolean; sync?: false }): {
-  exitCode: number;
-  stdout: string;
-  stderr: string
-}
-function spawnNetworkAction(action: NetworkAction, opts: { delayed?: boolean; sync?: boolean } = {}): {
-  exitCode: number;
-  stdout: string;
-  stderr: string
-} {
-  const script = resolve(process.cwd(), "app/web/run.ts")
-  const mode = networkTmuxMode()
-  const env = {
-    ...process.env,
-    NETWORK_TMUX_SESSION,
-    NETWORK_TMUX_WINDOW,
-    NETWORK_TMUX_MODE: mode,
-    ...(opts.delayed === true ? {NETWORK_TMUX_START_DELAY_MS: "450"} : {}),
-  }
-  const command = [process.execPath, script, `--${mode}`, action]
-  if (opts.sync === true) {
-    const result = Bun.spawnSync(command, {cwd: process.cwd(), stdout: "pipe", stderr: "pipe", env})
-    return {
-      exitCode: result.exitCode,
-      stdout: new TextDecoder().decode(result.stdout),
-      stderr: new TextDecoder().decode(result.stderr),
-    }
-  }
-  Bun.spawn(["nohup", ...command], {cwd: process.cwd(), stdin: "ignore", stdout: "ignore", stderr: "ignore", env})
-  return {exitCode: 0, stdout: "", stderr: ""}
-}
-
-function asNetworkAction(value: unknown): NetworkAction | undefined {
-  if (typeof value !== "string") return undefined
-  if (
-    value === "layout" ||
-    value === "status" ||
-    value === "start:tls" ||
-    value === "stop:tls" ||
-    value === "start:redirect" ||
-    value === "stop:redirect" ||
-    value === "tail" ||
-    value === "clear" ||
-    value === "stop"
-  ) return value
-  return undefined
-}
-
-function networkActionRestartsAppWeb(action: NetworkAction): boolean {
-  return action === "layout" || action === "start:tls" || action === "stop:tls"
-}
-
-function networkTmuxMode(): "dev" | "prod" {
-  return Bun.env.NETWORK_TMUX_MODE === "dev" ? "dev" : "prod"
 }
 
 async function dispatchEmbeddedInterpreterRequest(req: Request, url: URL, wsServer: Server<AppWebSocketData>): Promise<Response | undefined> {

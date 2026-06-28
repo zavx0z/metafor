@@ -8,6 +8,13 @@
   "types": "index.ts",
   "exports": {
     ".": "./index.ts",
+    "./android-pane": "./android-pane.ts",
+    "./codex-composer": "./codex-composer.ts",
+    "./editor": "./editor/index.ts",
+    "./file-list": "./file-list/index.ts",
+    "./pane-frame": "./pane-frame.ts",
+    "./terminal": "./terminal/index.ts",
+    "./todo-pane": "./todo-pane.ts",
     "./syntax": "./editor/languages/pattern-highlighter.ts",
     "./todo-model": "./todo-model.ts",
     "./playground": "./playground/server.ts"

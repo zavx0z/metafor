@@ -4,8 +4,6 @@
   "type": "module",
   "scripts": {
     "dev": "BOUNDARY_PATH=tmp/boundary.sqlite bun server --hot",
-    "network": "NODE_ENV=production BUN_ENV=production BOUNDARY_PATH=tmp/boundary.sqlite HOST=0.0.0.0 bun server",
-    "dev:network": "NODE_ENV=production BUN_ENV=production BOUNDARY_PATH=tmp/boundary.sqlite HOST=0.0.0.0 bun server",
     "product": "cd ../.. && bun app/web/run.ts --prod layout",
     "typecheck": "tsc --noEmit --pretty false",
     "tls": "NODE_ENV=production BUN_ENV=production BOUNDARY_PATH=tmp/boundary.sqlite HOST=0.0.0.0 TLS_KEY_FILE=tls/privkey.pem TLS_CERT_FILE=tls/fullchain.pem bun server",
