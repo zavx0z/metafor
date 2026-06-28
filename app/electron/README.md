@@ -37,22 +37,28 @@ port and prints the selected URL to stdout.
 
 Host mode uses a separate Electron user data directory and session partition from the regular shell.
 
-Current Linux server browser-display mode uses a user-owned Wayland/Mutter
-virtual monitor, not a physical monitor and not the macOS user's display. The
-active low-latency sender is `webrtc:chrome:monitor` on `127.0.0.1:32133`: it
-opens Google Chrome on `WAYLAND_DISPLAY=wayland-0`, keeps
-`https://meta.proizvodstvo1.ru/` as the visible development browser, creates a
-separate service sender target at
+Current clean Linux server browser-display startup uses the existing Xwayland
+virtual display, not a physical monitor and not the macOS user's display. Start
+it with `cd app/electron && bun run webrtc:chrome:browser`. That script
+auto-starts `xwayland:display` on `:98` when the display is missing or the tmux
+display session is stale, opens Google Chrome on the virtual `1920x1080`
+display, keeps `https://meta.proizvodstvo1.ru/` as the visible development
+browser, creates a separate service sender target at
 `http://127.0.0.1:32133/desktop/rtc/sender`, runs
-`navigator.mediaDevices.getDisplayMedia()` there, captures the whole server
-monitor at 60 fps target, and joins the interpreter `remote-desktop` signaling
+`navigator.mediaDevices.getDisplayMedia()` there, captures the full Chrome
+window at 60 fps target, and joins the interpreter `remote-desktop` signaling
 room. Product page reload/navigation must not own or reset the sender.
+
+`webrtc:chrome:monitor` is the Wayland/Mutter monitor path. Use it only when
+GNOME's `MetaVendor` monitor is healthy at `1920x1080`. If GNOME screen sharing
+was stopped and `DisplayConfig`/PipeWire shows `MetaVendor` as `1x1@60`, do not
+loop on this path; use the Xwayland clean startup above or restore the headless
+monitor first. Do not add FreeRDP/RDP/VNC as part of this runtime path.
 
 Do not leave the older `127.0.0.1:32123` remote desktop host running next to
 `32133`: it creates a second `MetaVendor` virtual monitor, so Chrome can render
-on one monitor while WebRTC captures the other. `webrtc:chrome:browser`,
-`xwayland:display`, `webrtc:xwayland:screen`, `webrtc:pipewire:screen` and
-`webrtc:x11:window` remain diagnostics/fallbacks.
+on one monitor while WebRTC captures the other. `webrtc:xwayland:screen`,
+`webrtc:pipewire:screen` and `webrtc:x11:window` remain diagnostics/fallbacks.
 
 `webrtc:linux` still starts Electron as a sender-only diagnostic/fallback
 process: no managed browser window and no Playwright. The Electron sender first
@@ -152,7 +158,7 @@ curl http://127.0.0.1:32123/snapshot --output snapshot.png
 - `METAFOR_REMOTE_DESKTOP_DIRECT_INPUT_API` - optional direct JSON input endpoint, for example `http://127.0.0.1:32123/desktop/input`, used by the WebRTC data channel input proxy.
 - `METAFOR_REMOTE_DESKTOP_CHROME_RTC` - enable the Linux host Chrome-native WebRTC sender. Defaults to enabled for `pipewire:host`.
 - `METAFOR_REMOTE_DESKTOP_MANAGED_BROWSER` - enable the browser process managed by `pipewire:host`. Defaults to the same value as `METAFOR_REMOTE_DESKTOP_CHROME_RTC`; set both to `0` when `32123` is used only as the input/snapshot host.
-- `METAFOR_REMOTE_DESKTOP_CHROME_CAPTURE_SURFACE` - Chrome `getDisplayMedia` surface: `monitor`, `window` or `browser`. `webrtc:chrome:monitor` sets `monitor`; `webrtc:chrome:browser` is a current-tab fallback.
+- `METAFOR_REMOTE_DESKTOP_CHROME_CAPTURE_SURFACE` - Chrome `getDisplayMedia` surface: `monitor`, `window` or `browser`. `webrtc:chrome:monitor` sets `monitor`; `webrtc:chrome:browser` uses `browser` to capture the full Chrome window on the Xwayland virtual display.
 - `METAFOR_REMOTE_DESKTOP_CHROME_AUDIO_SOURCE` - Chrome sender audio source: `display`, `pipewire` or `both`. `webrtc:chrome:monitor` defaults to `pipewire`, which routes the active Google Chrome PipeWire `Stream/Output/Audio` node through `/desktop/audio.pcm`, `MediaStreamTrackGenerator(AudioData)` and the same WebRTC PeerConnection; the default sink monitor and `/desktop/audio.webm` are fallback/diagnostic paths.
 - `METAFOR_REMOTE_DESKTOP_CHROME_AUTO_SELECT_SOURCE` / `METAFOR_REMOTE_DESKTOP_AUTO_SELECT_SOURCE` - Chromium desktop source name for the Linux `pipewire:host` Chrome sender. Defaults to `Entire Screen`.
 - `METAFOR_REMOTE_DESKTOP_CHROME_FAKE_UI` - allow Chromium to accept the auto-selected desktop capture source without a manual picker confirmation. Defaults to enabled when an auto-select source is configured.
@@ -161,9 +167,10 @@ curl http://127.0.0.1:32123/snapshot --output snapshot.png
 - `METAFOR_ELECTRON_USE_OZONE_FEATURE` - opt into Chromium's legacy `UseOzonePlatform` feature flag for Electron. The current X11 window sender leaves it disabled and relies on `--ozone-platform=x11`.
 - `METAFOR_ELECTRON_WEBGPU=0` - disable Electron WebGPU for the sender process; the captured browser/app can still use WebGPU in its own Chrome process.
 
-In the current server contour `GET /desktop/rtc/state` on `32133` should show
+In the current clean Xwayland server contour `GET /desktop/rtc/state` on
+`32133` should show
 `webRtc: true`, `transport: "chrome-webrtc"`,
-`capture.frameSource: "chrome-get-display-media:monitor"`,
+`capture.frameSource: "chrome-get-display-media:browser"`,
 `capture.frameWidth: 1920`, `capture.frameHeight: 1080`,
 `capture.frameRate: 60`, `audio.transport:
 "pipewire-pcm-track-generator-stream"`, `audio.trackCount: 1`, a connected peer, and

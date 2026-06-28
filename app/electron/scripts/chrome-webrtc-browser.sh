@@ -1,11 +1,45 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 display="${METAFOR_XWAYLAND_DISPLAY:-:98}"
 auth="${METAFOR_XWAYLAND_AUTHORITY:-/tmp/metafor-xwayland.Xauthority}"
+display_session="${METAFOR_XWAYLAND_TMUX_SESSION:-metafor-xwayland-display}"
 
-if ! DISPLAY="$display" XAUTHORITY="$auth" xdpyinfo >/dev/null 2>&1; then
-  echo "Xwayland display $display is not available; start bun run xwayland:display first" >&2
+is_display_ready() {
+  DISPLAY="$display" XAUTHORITY="$auth" xdpyinfo >/dev/null 2>&1
+}
+
+wait_for_display() {
+  local attempts="${1:-80}"
+  for _ in $(seq 1 "$attempts"); do
+    if is_display_ready; then
+      return 0
+    fi
+    sleep 0.1
+  done
+  return 1
+}
+
+start_display() {
+  if command -v tmux >/dev/null 2>&1; then
+    if tmux has-session -t "$display_session" 2>/dev/null && ! wait_for_display 20; then
+      tmux kill-session -t "$display_session" 2>/dev/null || true
+    fi
+    tmux has-session -t "$display_session" 2>/dev/null \
+      || tmux new-session -d -s "$display_session" -n xwayland -c "$script_dir/.." "bash scripts/xwayland-display.sh"
+  else
+    nohup bash "$script_dir/xwayland-display.sh" >/tmp/metafor-xwayland-display.log 2>&1 &
+  fi
+  wait_for_display 80
+}
+
+if ! is_display_ready; then
+  start_display || true
+fi
+
+if ! is_display_ready; then
+  echo "Xwayland display $display is not available and auto-start failed" >&2
   exit 1
 fi
 
