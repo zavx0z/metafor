@@ -62,6 +62,14 @@ const CHROME_USE_OZONE_FEATURE = envFlag(process.env.METAFOR_REMOTE_DESKTOP_CHRO
 const CHROME_RTC_PICKER_AUTOMATION = process.env.METAFOR_REMOTE_DESKTOP_CHROME_RTC_PICKER === undefined
   ? CHROME_RTC_AUTO_SELECT_SOURCE.length === 0
   : envFlag(process.env.METAFOR_REMOTE_DESKTOP_CHROME_RTC_PICKER)
+const CHROME_DEV_LAYOUT_ENABLED = envFlag(process.env.METAFOR_REMOTE_DESKTOP_CHROME_DEV_LAYOUT || "0")
+const CHROME_DEV_MOBILE_WIDTH = envNumber(process.env.METAFOR_REMOTE_DESKTOP_CHROME_DEV_MOBILE_WIDTH, 400)
+const CHROME_DEV_MOBILE_HEIGHT = envNumber(process.env.METAFOR_REMOTE_DESKTOP_CHROME_DEV_MOBILE_HEIGHT, 871)
+const CHROME_DEV_MOBILE_DPR = envNumber(process.env.METAFOR_REMOTE_DESKTOP_CHROME_DEV_MOBILE_DPR, 3)
+const CHROME_DEVTOOLS_SPLIT_WIDTH = envNumber(
+  process.env.METAFOR_REMOTE_DESKTOP_CHROME_DEVTOOLS_SPLIT_WIDTH,
+  Math.max(900, WIDTH - 571),
+)
 const HELPER = path.join(__dirname, "mutter-pipewire-helper.py")
 
 const state = {
@@ -465,6 +473,8 @@ function openBrowser(url) {
     "--accept-lang=ru-RU,ru,en-US,en",
     `--ozone-platform=${CHROME_OZONE_PLATFORM}`,
     "--force-device-scale-factor=1",
+    ...(CHROME_DEV_LAYOUT_ENABLED ? ["--start-maximized"] : []),
+    "--window-position=0,0",
     `--window-size=${WIDTH},${HEIGHT}`,
     `--webrtc-udp-port-range=${CHROME_RTC_UDP_PORT_RANGE}`,
     `--force-webrtc-ip-handling-policy=${CHROME_RTC_IP_HANDLING_POLICY}`,
@@ -525,10 +535,58 @@ function prepareChromeProfile() {
       exited_cleanly: true,
       exit_type: "Normal",
     }
+    if (CHROME_DEV_LAYOUT_ENABLED) applyChromeDevLayoutPreferences(preferences)
     fs.writeFileSync(preferencesPath, JSON.stringify(preferences, null, 2))
   } catch (error) {
     state.remoteDesktop.rtc.lastError = error instanceof Error ? error.message : String(error)
   }
+}
+
+function applyChromeDevLayoutPreferences(preferences) {
+  preferences.browser = {
+    ...(preferences.browser && typeof preferences.browser === "object" ? preferences.browser : {}),
+    window_placement: {
+      bottom: HEIGHT,
+      left: 0,
+      maximized: true,
+      right: WIDTH,
+      top: 0,
+      work_area_bottom: HEIGHT,
+      work_area_left: 0,
+      work_area_right: WIDTH,
+      work_area_top: 0,
+    },
+  }
+  preferences.devtools = {
+    ...(preferences.devtools && typeof preferences.devtools === "object" ? preferences.devtools : {}),
+    preferences: {
+      ...((preferences.devtools?.preferences && typeof preferences.devtools.preferences === "object") ? preferences.devtools.preferences : {}),
+      "currentDockState": chromeDevToolsPreference("right"),
+      "lastDockState": chromeDevToolsPreference("right"),
+      "last-dock-state": chromeDevToolsPreference("right"),
+      "emulation.show-device-mode": "true",
+      "emulation.device-mode-value": chromeDevToolsPreference({device: "", orientation: "", mode: ""}),
+      "panel-selected-tab": chromeDevToolsPreference("sources"),
+      "inspector-view.split-view-state": chromeDevToolsPreference({
+        vertical: {size: CHROME_DEVTOOLS_SPLIT_WIDTH},
+        horizontal: {size: 0},
+      }),
+      "inspector.drawer-split-view-state": chromeDevToolsPreference({
+        horizontal: {size: 0, showMode: "Both"},
+      }),
+      "sources-panel-navigator-split-view-state": chromeDevToolsPreference({
+        vertical: {size: 0, showMode: "Both"},
+      }),
+      "sources-panel-split-view-state": chromeDevToolsPreference({
+        vertical: {size: 0, showMode: "Both"},
+        horizontal: {size: 0, showMode: "Both"},
+      }),
+    },
+  }
+}
+
+function chromeDevToolsPreference(value) {
+  return JSON.stringify(value)
 }
 
 function removeStaleChromeSingletonFiles(profileDir) {
@@ -596,6 +654,9 @@ async function startChromeRtcSender(options = {}) {
     let lastError = null
     for (let attempt = 0; attempt < 20; attempt += 1) {
       try {
+        if (CHROME_DEV_LAYOUT_ENABLED) await configureChromeDevLayout().catch((error) => {
+          state.remoteDesktop.rtc.lastError = `Chrome dev layout failed: ${error instanceof Error ? error.message : String(error)}`
+        })
         await withCdpPage(async (cdp) => {
           await cdp.send("Page.bringToFront").catch(() => undefined)
           await cdp.send("Runtime.evaluate", {
@@ -619,6 +680,66 @@ async function startChromeRtcSender(options = {}) {
   } finally {
     chromeRtcStarting = false
   }
+}
+
+async function configureChromeDevLayout() {
+  const target = await cdpPageTarget()
+  await withCdpBrowser(async (browserCdp) => {
+    const windowInfo = await browserCdp.send("Browser.getWindowForTarget", {targetId: target.id})
+    if (typeof windowInfo?.windowId !== "number") return
+    await browserCdp.send("Browser.setWindowBounds", {
+      windowId: windowInfo.windowId,
+      bounds: {windowState: "normal"},
+    }).catch(() => undefined)
+    await browserCdp.send("Browser.setWindowBounds", {
+      windowId: windowInfo.windowId,
+      bounds: {left: 0, top: 0, width: WIDTH, height: HEIGHT},
+    })
+    await browserCdp.send("Browser.setWindowBounds", {
+      windowId: windowInfo.windowId,
+      bounds: {windowState: "maximized"},
+    }).catch(() => undefined)
+  })
+  await applyChromeMobileEmulation()
+  if (!await chromeDevToolsOpen()) {
+    await withCdpPage((cdp) => cdp.send("Page.bringToFront").catch(() => undefined))
+    await sendHelperInput({type: "key", key: "i", modifiers: ["Control", "Shift"]})
+    await sleep(900)
+  }
+  await applyChromeMobileEmulation()
+}
+
+async function applyChromeMobileEmulation() {
+  await withCdpPage(async (cdp) => {
+    await cdp.send("Page.bringToFront").catch(() => undefined)
+    await cdp.send("Emulation.setDeviceMetricsOverride", {
+      width: CHROME_DEV_MOBILE_WIDTH,
+      height: CHROME_DEV_MOBILE_HEIGHT,
+      deviceScaleFactor: CHROME_DEV_MOBILE_DPR,
+      mobile: true,
+      screenWidth: CHROME_DEV_MOBILE_WIDTH,
+      screenHeight: CHROME_DEV_MOBILE_HEIGHT,
+      scale: 1,
+    })
+    await cdp.send("Emulation.setTouchEmulationEnabled", {
+      enabled: true,
+      maxTouchPoints: 1,
+    }).catch(() => undefined)
+    await cdp.send("Emulation.setUserAgentOverride", {
+      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+      platform: "iPhone",
+    }).catch(() => undefined)
+  })
+}
+
+async function chromeDevToolsOpen() {
+  const targets = await fetchChromeJson("/json/list")
+  return Array.isArray(targets) && targets.some((target) => (
+    target?.type === "page"
+    && typeof target.url === "string"
+    && target.url.startsWith("devtools://")
+    && target.url.includes("can_dock=true")
+  ))
 }
 
 async function automateChromeScreenPicker() {
@@ -1681,7 +1802,7 @@ function normalizeFrameCoordinate(value, name, fallbackMax, frameMax) {
 }
 
 async function withCdpPage(fn) {
-  const wsUrl = await cdpPageWebSocketUrl()
+  const wsUrl = (await cdpPageTarget()).webSocketDebuggerUrl
   const cdp = await openCdpSession(wsUrl)
   try {
     return await fn(cdp)
@@ -1690,14 +1811,29 @@ async function withCdpPage(fn) {
   }
 }
 
-async function cdpPageWebSocketUrl() {
+async function withCdpBrowser(fn) {
+  const version = await fetchChromeJson("/json/version")
+  if (typeof version?.webSocketDebuggerUrl !== "string") {
+    const error = new Error("Chrome CDP browser target is not available")
+    error.statusCode = 503
+    throw error
+  }
+  const cdp = await openCdpSession(version.webSocketDebuggerUrl)
+  try {
+    return await fn(cdp)
+  } finally {
+    cdp.close()
+  }
+}
+
+async function cdpPageTarget() {
   const targets = await fetchChromeJson("/json/list")
   const pages = Array.isArray(targets)
     ? targets.filter((target) => target?.type === "page" && typeof target.webSocketDebuggerUrl === "string")
     : []
   const page = pages.find((target) => target.url === TARGET_URL)
     ?? pages.find((target) => typeof target.url === "string" && target.url.startsWith(TARGET_URL))
-    ?? pages.find((target) => typeof target.url === "string" && !target.url.startsWith("chrome://"))
+    ?? pages.find((target) => typeof target.url === "string" && !target.url.startsWith("chrome://") && !target.url.startsWith("devtools://"))
     ?? pages[0]
     ?? null
   if (page === null) {
@@ -1705,7 +1841,7 @@ async function cdpPageWebSocketUrl() {
     error.statusCode = 503
     throw error
   }
-  return page.webSocketDebuggerUrl
+  return page
 }
 
 async function fetchChromeJson(pathname) {
@@ -1799,6 +1935,11 @@ function sleep(ms) {
 function envFlag(value) {
   if (typeof value !== "string" || value.trim().length === 0) return false
   return !["0", "false", "no", "off"].includes(value.trim().toLowerCase())
+}
+
+function envNumber(value, fallback) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
 }
 
 function normalizeChromeCaptureSurface(value) {
