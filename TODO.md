@@ -2,13 +2,13 @@
 
 ## 0. Interpreter WebGPU crash diagnostics
 
-- [ ] Добавить dev-only module `pkg/interpreter/web/gpu-crash-debug.ts` и подключить его к interpreter WebGPU init path: `pkg/interpreter/web/main.ts` -> `ui/elements/runtime.ts` -> `pkg/engine/src/renderer/index.ts`.
-- [ ] Реализовать выбор adapter mode для interpreter URL/localStorage: `?gpu=low`, `?gpu=high`, `?gpu=default`; AppWeb не трогать.
-- [ ] Логировать на старте adapter.info/features/limits, requested device features/limits, userAgent, URL/query, build/git hash при наличии.
-- [ ] Писать sync breadcrumbs в localStorage ring buffer на createShaderModule, pipeline, texture/buffer, writeBuffer/writeTexture, queue.submit, render pass begin/end.
-- [ ] Проставить label для WebGPU shader/pipeline/resource объектов renderer-а и texture loader-а.
-- [ ] Подключить error scopes, uncapturederror, device.lost и previous-session-not-clean detection с heartbeat.
-- [ ] Добавить `window.__gpuCrashDebug.dump()`, `clear()`, `setMode("low"|"high"|"default")` и debug surface/console output после crash.
+- [x] Добавить dev-only module `pkg/interpreter/web/gpu-crash-debug.ts` и подключить его к interpreter WebGPU init path: `pkg/interpreter/web/main.ts` -> `ui/elements/runtime.ts` -> `pkg/engine/src/renderer/index.ts`.
+- [x] Реализовать выбор adapter mode для interpreter URL/localStorage: `?gpu=low`, `?gpu=high`, `?gpu=default`; AppWeb не трогать.
+- [x] Логировать на старте adapter.info/features/limits, requested device features/limits, userAgent, URL/query, build/git hash при наличии.
+- [x] Писать sync breadcrumbs в localStorage ring buffer на createShaderModule, pipeline, texture/buffer, writeBuffer/writeTexture, queue.submit, render pass begin/end.
+- [x] Проставить label для WebGPU shader/pipeline/resource объектов renderer-а и texture loader-а.
+- [x] Подключить error scopes, uncapturederror, device.lost и previous-session-not-clean detection с heartbeat.
+- [x] Добавить `window.__gpuCrashDebug.dump()`, `clear()`, `setMode("low"|"high"|"default")` и debug surface/console output после crash.
 - [ ] Проверить сначала `?gpu=low` на Intel, затем отдельно `?gpu=high` на AMD; после ребута снять dump из localStorage.
 
 Подробный runbook: `pkg/interpreter/docs/gpu-crash-diagnostics.md`.

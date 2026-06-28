@@ -13,7 +13,7 @@
  */
 
 import type {ServerWebSocket, WebSocketHandler} from "bun"
-import {existsSync, statSync, openSync, readSync, closeSync, readFileSync, writeFileSync, mkdirSync, watch, type FSWatcher} from "node:fs"
+import {existsSync, statSync, openSync, readSync, closeSync, readFileSync, writeFileSync, mkdirSync, watch, readdirSync, unlinkSync, type FSWatcher} from "node:fs"
 import {basename, dirname, extname, join, relative, resolve} from "node:path"
 import {fileURLToPath} from "node:url"
 import indexHtml from "../web/index.html"
@@ -104,6 +104,8 @@ const VALID_STOP_SIGNALS = new Set(["SIGTERM", "SIGKILL", "SIGINT", "SIGHUP", "S
 const CODEX_ATTACHMENT_DIR = "pkg/interpreter/tmp/codex-attachments"
 const CODEX_ATTACHMENT_MAX_BYTES = 16 * 1024 * 1024
 const CODEX_ATTACHMENT_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".heic", ".heif", ".tif", ".tiff", ".bmp", ".svg"])
+const GPU_CRASH_DUMP_MAX_BYTES = 2 * 1024 * 1024
+const GPU_CRASH_DUMP_RETENTION = 30
 type InterpreterTerminalSessionManager = ReturnType<typeof createPtySessionManager>
 type UiHostCommandDispatcher = (command: string, params: JsonObject) => Promise<JsonObject>
 type UiHostPendingRequest = {
@@ -1205,6 +1207,9 @@ async function handleRoute(
   if (method === "GET" && path === "/webrtc/rooms") return jsonResponse(rtcRoomsPayload())
   const chromeDevtoolsRoute = await handleChromeDevtoolsRoute(req, method, path)
   if (chromeDevtoolsRoute !== null) return chromeDevtoolsRoute
+  if (method === "GET" && path === "/gpu-crash-dumps") return gpuCrashDumpListResponse(options)
+  if (method === "GET" && path === "/gpu-crash-dumps/latest") return gpuCrashDumpLatestResponse(options)
+  if (method === "POST" && path === "/gpu-crash-dumps") return await recordGpuCrashDump(req, options)
   const remoteDesktopLifecycleRoute = await handleRemoteDesktopLifecycleRoute(req, method, path, options.logger)
   if (remoteDesktopLifecycleRoute !== null) return remoteDesktopLifecycleRoute
   const browserHostRoute = await handleBrowserHostRoute(req, method, path)
@@ -1832,6 +1837,102 @@ async function recordClientEvent(req: Request, options: HttpServerOptions): Prom
   const label = compactClientEventSegment(parsed.body["label"], "event")
   options.logger.event(`client.${scope}.${label}`, compactClientEventDetail(parsed.body["detail"]))
   return jsonResponse({ok: true})
+}
+
+async function recordGpuCrashDump(req: Request, options: HttpServerOptions): Promise<Response> {
+  const text = await req.text()
+  if (text.length > GPU_CRASH_DUMP_MAX_BYTES) return jsonResponse({ok: false, error: "GPU crash dump is too large"}, 413)
+  let payload: unknown
+  try {
+    payload = text.length === 0 ? {} : JSON.parse(text)
+  } catch (error) {
+    return jsonResponse({ok: false, error: `invalid JSON: ${serializeError(error)}`}, 400)
+  }
+  const record = asObject(payload) ?? {}
+  const session = asObject(record["session"])
+  const previous = asObject(record["previousSession"])
+  const sessionId = safeDumpSegment(asString(session?.["sessionId"]) ?? asString(previous?.["sessionId"]) ?? "unknown")
+  const reason = safeDumpSegment(asString(record["reason"]) ?? "upload")
+  const dir = gpuCrashDumpDir(options)
+  mkdirSync(dir, {recursive: true})
+  const now = new Date().toISOString()
+  const dump = {
+    receivedAt: now,
+    remoteAddress: req.headers.get("x-forwarded-for") ?? null,
+    userAgent: req.headers.get("user-agent") ?? null,
+    payload: record,
+  }
+  const filename = `${Date.now()}-${sessionId}-${reason}.json`
+  const path = join(dir, filename)
+  const latestPath = join(dir, "latest.json")
+  writeFileSync(path, JSON.stringify(dump, null, 2))
+  writeFileSync(latestPath, JSON.stringify(dump, null, 2))
+  pruneGpuCrashDumps(dir, GPU_CRASH_DUMP_RETENTION)
+  const events = Array.isArray(record["events"]) ? record["events"] : []
+  const lastEvent = asObject(record["lastEvent"])
+  options.logger.event("client.gpu-crash.dump", {
+    path,
+    reason,
+    sessionId,
+    eventCount: events.length,
+    lastOperation: asString(lastEvent?.["operation"]) ?? null,
+    lastLabel: asString(lastEvent?.["label"]) ?? null,
+  })
+  return jsonResponse({ok: true, path, latestPath, eventCount: events.length})
+}
+
+function gpuCrashDumpListResponse(options: HttpServerOptions): Response {
+  const dir = gpuCrashDumpDir(options)
+  if (!existsSync(dir)) return jsonResponse({ok: true, path: dir, dumps: []})
+  const dumps = readdirSync(dir)
+    .filter((name) => name.endsWith(".json") && name !== "latest.json")
+    .sort()
+    .slice(-GPU_CRASH_DUMP_RETENTION)
+    .reverse()
+    .map((name) => {
+      const path = join(dir, name)
+      const stat = statSync(path)
+      return {name, path, size: stat.size, mtimeMs: stat.mtimeMs}
+    })
+  return jsonResponse({ok: true, path: dir, latestPath: join(dir, "latest.json"), dumps})
+}
+
+function gpuCrashDumpLatestResponse(options: HttpServerOptions): Response {
+  const path = join(gpuCrashDumpDir(options), "latest.json")
+  if (!existsSync(path)) return jsonResponse({ok: false, error: "GPU crash dump not found", path}, 404)
+  try {
+    return jsonResponse(JSON.parse(readFileSync(path, "utf8")))
+  } catch (error) {
+    return jsonResponse({ok: false, error: serializeError(error), path}, 500)
+  }
+}
+
+function gpuCrashDumpDir(options: HttpServerOptions): string {
+  return join(dirname(options.eventLogPath), "gpu-crash-dumps")
+}
+
+function pruneGpuCrashDumps(dir: string, keep: number): void {
+  const dumps = readdirSync(dir)
+    .filter((name) => name.endsWith(".json") && name !== "latest.json")
+    .map((name) => {
+      const path = join(dir, name)
+      const stat = statSync(path)
+      return {path, mtimeMs: stat.mtimeMs}
+    })
+    .sort((left, right) => right.mtimeMs - left.mtimeMs)
+
+  for (const dump of dumps.slice(keep)) {
+    try {
+      unlinkSync(dump.path)
+    } catch {
+      // Diagnostics cleanup must never break the crash dump upload path.
+    }
+  }
+}
+
+function safeDumpSegment(value: string): string {
+  const clean = value.trim().toLowerCase().replace(/[^a-z0-9_.-]+/g, "-").replace(/^-+|-+$/g, "")
+  return (clean || "unknown").slice(0, 80)
 }
 
 async function captureViewportScreenshot(url: URL, dispatch: UiHostCommandDispatcher): Promise<Response> {
