@@ -250,8 +250,8 @@ WebRTC sender не должен жить в видимой продуктово�
 `ws://10.66.0.10:6500/webrtc/signaling`, input/audio - локальные routes
 `127.0.0.1:32133`. Не встраивай эти локальные URL в код видимой страницы
 продукта: она не должна владеть remote desktop соединением.
-`webrtc:chrome:browser`, Xwayland, Electron screen capture и PipeWire
-WebM/PCM/MJPEG оставляй fallback/diagnostics, не возвращай их как основной
+`webrtc:chrome:browser`, Xwayland и PipeWire WebM/PCM/MJPEG оставляй только как
+исторические diagnostics, не возвращай их как основной
 realtime path.
 
 Cold restart для нового агента: сначала используй единый lifecycle API
@@ -279,13 +279,12 @@ trigger: Xvfb `:101` + `xfreerdp` к `127.0.0.1:3390`; sender - tmux
 "chrome-get-display-media:monitor"`, audio `pipewire-pcm-track-generator-stream`
 и RTC `control-open`.
 
-Remote desktop host-код живет в `pkg/interpreter/remote-desktop`; старый
-`app/electron/scripts/chrome-webrtc-monitor.sh` - compatibility wrapper. В
-interpreter-модуль переносится только реально используемый server-dev путь:
-Chrome WebRTC monitor sender, host API `/desktop/health|rtc|input|audio` и
-dev-layout. Не переноси старые fallback-и и мертвый код: `32123`,
+Remote desktop host-код живет в `pkg/interpreter/remote-desktop`. В
+interpreter-модуле должен оставаться только реально используемый server-dev
+путь: Chrome WebRTC monitor sender, host API `/desktop/health|rtc|input|audio`
+и dev-layout. Не переноси старые fallback-и и мертвый код: `32123`,
 Xwayland/current-tab, MJPEG/snapshot как основной frame loop, Playwright-клиенты
-и Electron UI-specific поведение.
+и shell-specific UI поведение.
 
 ## Terminal Input
 

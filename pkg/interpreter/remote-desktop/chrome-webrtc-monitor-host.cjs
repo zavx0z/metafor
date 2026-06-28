@@ -38,7 +38,7 @@ const MANAGED_BROWSER_ENABLED = process.env.METAFOR_REMOTE_DESKTOP_MANAGED_BROWS
   ? CHROME_RTC_ENABLED
   : envFlag(process.env.METAFOR_REMOTE_DESKTOP_MANAGED_BROWSER)
 const CHROME_RTC_ROOM = process.env.METAFOR_REMOTE_DESKTOP_RTC_ROOM || "remote-desktop"
-const CHROME_RTC_PEER_ID = process.env.METAFOR_REMOTE_DESKTOP_RTC_PEER_ID || "electron-desktop"
+const CHROME_RTC_PEER_ID = process.env.METAFOR_REMOTE_DESKTOP_RTC_PEER_ID || "remote-desktop-host"
 const CHROME_RTC_UDP_PORT_RANGE = process.env.METAFOR_REMOTE_DESKTOP_UDP_PORT_RANGE || process.env.METAFOR_RTC_UDP_PORT_RANGE || "40000-40100"
 const CHROME_RTC_PUBLIC_ICE_HOST = process.env.METAFOR_REMOTE_DESKTOP_PUBLIC_ICE_HOST || process.env.METAFOR_RTC_PUBLIC_ICE_HOST || "130.49.151.168"
 const CHROME_RTC_ICE_INTERFACE = process.env.METAFOR_REMOTE_DESKTOP_ICE_INTERFACE || process.env.METAFOR_RTC_ICE_INTERFACE || "10.66.0.10"
@@ -1533,7 +1533,7 @@ function chromeRtcSenderScript(options = {}) {
   function attachDataChannel(peer, channel) {
     peer.channel = channel;
     channel.addEventListener("open", () => {
-      channel.send(JSON.stringify({type: "hello", peerId: config.peerId, role: "electron-desktop", transport: "chrome-webrtc"}));
+      channel.send(JSON.stringify({type: "hello", peerId: config.peerId, role: "remote-desktop-host", transport: "chrome-webrtc"}));
       post({status: "control-open", peers: peerSnapshots()});
     });
     channel.addEventListener("message", (event) => {

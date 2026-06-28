@@ -17,7 +17,7 @@ ONE CANVAS / ONE FRAME
 ━━━━━━━━━━━━━━━━━━━━━━
 ````
 
-HUD — это не DOM поверх canvas, не Electron overlay, не iframe, не CSS-панель и не отдельный canvas.
+HUD — это не DOM поверх canvas, не native overlay, не iframe, не CSS-панель и не отдельный canvas.
 
 HUD должен быть частью WebGPU-рендера и работать в том же canvas, что и пространство.
 

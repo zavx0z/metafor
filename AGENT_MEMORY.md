@@ -167,8 +167,8 @@ peer `connected`, data channel `open`, `lastError: null`. Старый
 `32123`/`metafor-remote-desktop-host` нельзя оставлять параллельно с `32133`:
 он создает второй `MetaVendor` monitor, и Chrome может открыться на одном
 виртуальном экране, а WebRTC capture - на другом. `webrtc:chrome:browser`,
-Xwayland и Electron/PipeWire/MJPEG остаются fallback/diagnostics, не основной
-server-dev realtime path.
+Xwayland и PipeWire/MJPEG bridge остаются только историческими диагностическими
+ветками, не основной server-dev realtime path.
 
 Cold restart этого контура: сначала должен быть живой virtual display `Meta-0`.
 На текущем сервере его держит headless GNOME RDP session через локальный
@@ -195,13 +195,11 @@ scope - `sender`, чтобы не гасить `Meta-0`. Ручные tmux/grdct
 `ws://10.66.0.10:6500/webrtc/signaling`, input/audio - локальные routes host-а
 `127.0.0.1:32133`.
 
-Перенос из `app/electron` выполнен для живого server-dev path: Chrome WebRTC
-monitor sender, host API `/desktop/health|rtc|input|audio` и default dev-layout
-живут в `pkg/interpreter/remote-desktop`. Старый
-`app/electron/scripts/chrome-webrtc-monitor.sh` - compatibility wrapper. Не
-переносить мертвые ветки и fallback-и: старый `32123`, Xwayland/current-tab,
-MJPEG/snapshot как основной frame loop, Playwright-клиенты,
-Electron UI-specific shell behavior.
+Живой server-dev path полностью находится в `pkg/interpreter/remote-desktop`:
+Chrome WebRTC monitor sender, host API `/desktop/health|rtc|input|audio` и
+default dev-layout. Не переносить мертвые ветки и fallback-и: старый `32123`,
+Xwayland/current-tab, MJPEG/snapshot как основной frame loop, Playwright-клиенты
+и shell-specific UI behavior.
 
 Это рекурсивный контур:
 

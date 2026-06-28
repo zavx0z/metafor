@@ -17,8 +17,8 @@ monitor. Ожидаемый state - `transport: "chrome-webrtc"`,
 `capture.frameWidth: 1920`, `capture.frameHeight: 1080`,
 `capture.frameRate: 60`, `audio.transport:
 "pipewire-pcm-track-generator-stream"`, `audio.trackCount: 1`, peer `connected`, data
-channel `open`. `webrtc:chrome:browser`, Electron/PipeWire/MJPEG и Xwayland
-остаются fallback/diagnostics.
+channel `open`. `webrtc:chrome:browser`, PipeWire/MJPEG bridge и Xwayland
+остаются только историческими diagnostics.
 
 Cold restart на этом сервере состоит из двух разных слоев:
 
@@ -77,19 +77,10 @@ Low-level команды ниже остаются диагностиками и
 - Bun inspector для child process остается локальным:
   `ws://127.0.0.1:6499/`;
 - `pkg/interpreter/remote-desktop` содержит текущий server-dev Chrome WebRTC
-  monitor host; `app/electron` сохраняет обычный shell-режим и legacy
-  diagnostic/fallback scripts:
-  `METAFOR_ELECTRON_HOST=1` или `METAFOR_ELECTRON_HOST_PORT`, отдельный
-  user-data-dir/session partition, local-only HTTP API, snapshot через
-  `webContents.capturePage()`, WebRTC screen/audio capture через
-  `desktopCapturer` / `getDisplayMedia`, управляемый URL/viewport/restart/input
-  и CDP через
-  `METAFOR_ELECTRON_DEBUG_PORT`;
+  monitor host, host API `/desktop/health|rtc|input|audio`, управляемый
+  dev-layout и скрипт запуска;
 - текущий Linux server remote desktop поднимается без перезагрузки машины:
   `bash pkg/interpreter/remote-desktop/chrome-webrtc-monitor.sh`;
-- legacy Linux Electron host scripts - `bun --filter @app/electron host:linux`
-  или `dev:host:linux`; это fallback/diagnostics, не текущий server-dev Chrome
-  monitor path;
 - interpreter-side bridge для browser-host использует `/browser-display/*`, а
   server desktop bridge использует `/remote-desktop/*`; оба проксируют только
   локальный host, заданный через `INTERPRETER_BROWSER_HOST_*` или
@@ -287,7 +278,7 @@ Embedded app-web proxy:
 - UI сначала читает `/remote-desktop/rtc/state`, берет фактический `signalUrl`
   sender-а, затем пробует кандидаты `/hud/interpreter`, `/interp` и direct
   `/webrtc/signaling`. Если signaling room открылся, но в нем нет
-  `electron-desktop`, UI пробует следующий кандидат, чтобы не застрять на
+  `remote-desktop-host`, UI пробует следующий кандидат, чтобы не застрять на
   другом in-memory signaling server.
 
 Ручной smoke для текущего Chrome Wayland monitor remote desktop host:
@@ -315,10 +306,9 @@ cd /home/zavx0z/production/vendor/metafor/pkg/interpreter/remote-desktop
 bash chrome-webrtc-monitor.sh
 ```
 
-Проверка 2026-06-27: Electron 35.7.5 на текущем GNOME/Wayland/NVIDIA сервере
-падает `SIGSEGV` в GPU/Viz даже без remote desktop RTC. Electron/X11/Ozone и
-Xwayland оставлены как fallback/diagnostics; основной рабочий обход без reboot -
-Chrome Wayland monitor sender на `32133`. Текущий рабочий Chrome path держит
+Проверка 2026-06-27: X11/Ozone/Xwayland diagnostics на текущем
+GNOME/Wayland/NVIDIA сервере давали нестабильный media path. Основной рабочий
+обход без reboot - Chrome Wayland monitor sender на `32133`. Текущий рабочий Chrome path держит
 sender отдельно от видимого `https://meta.proizvodstvo1.ru/` target: sender
 живет в отдельной служебной странице
 `http://127.0.0.1:32133/desktop/rtc/sender`, чтобы reload/product navigation не
@@ -330,7 +320,7 @@ sender отдельно от видимого `https://meta.proizvodstvo1.ru/` t
 `inbound-rtp` audio `bytesReceived`, `audioLevel` и `totalAudioEnergy`.
 Audio-only
 `getUserMedia({chromeMediaSource: "desktop"})` не использовать в основном
-server-dev контуре: на текущем сервере Electron renderer падал на этом пути.
+server-dev контуре.
 
 Если RTP audio bytes растут, но пользователь не слышит звук, сначала проверить
 `wpctl status`: `/desktop/audio.pcm` должен читать active Google Chrome
@@ -343,22 +333,6 @@ graph через `MediaElementAudioSourceNode` и `PannerNode`. Когда
 `AudioContext` уже `running`, hidden media element остается unmuted, потому что
 он является source node для graph; отдельного второго audible playback path нет.
 
-Fallback-запуск через PipeWire bridge, если `:98` недоступен:
-
-```sh
-cd /home/zavx0z/production/vendor/metafor/app/electron
-XDG_RUNTIME_DIR=/run/user/1000 \
-DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus \
-DISPLAY=:0 \
-XAUTHORITY=/run/user/1000/.mutter-Xwaylandauth.N4DER3 \
-XDG_SESSION_TYPE=x11 \
-METAFOR_URL=https://meta.proizvodstvo1.ru/ \
-bun run webrtc:pipewire:screen
-```
-
-Этот PipeWire bridge является fallback/diagnostic контуром. В текущем рабочем
-server-dev режиме не держи его параллельно с `webrtc:chrome:monitor` на
-`127.0.0.1:32133`.
 Production media path повторяет voice gateway: UDP `40000-40100` идет через
 public edge `130.49.151.168`/`proizvodstvo1.ru` и DNAT в `10.66.0.10` по
 AmneziaWG. Chrome/Chromium должен ограничивать WebRTC sockets тем же range
@@ -604,7 +578,7 @@ curl -sS http://10.66.0.10:3004/health
 env | rg '^(DISPLAY|WAYLAND_DISPLAY|XDG_SESSION_TYPE|XAUTHORITY|XDG_RUNTIME_DIR)='
 ls -l /tmp/.X11-unix
 xdpyinfo -display "$DISPLAY" >/dev/null
-pgrep -af 'electron|chrome|metafor'
+pgrep -af 'chrome-webrtc-monitor-host|chrome|metafor'
 ```
 
 Если host запускается из user systemd и должен попасть в текущую графическую
@@ -619,22 +593,18 @@ systemctl --user restart metafor-remote-desktop.service
 Linux Chrome host должен работать в своем графическом контуре на сервере или
 в выделенной Linux session.
 
-### Electron Sandbox/Ozone
+### Chrome/Ozone
 
-Проверено 2026-06-26 на текущем server GUI:
+Проверено 2026-06-26/28 на текущем server GUI:
 
-- dev Electron binary после ручной распаковки требует либо root-owned
-  `chrome-sandbox` с mode `4755`, либо запуск с `--no-sandbox`;
-- Xwayland `DISPLAY=:0` с Electron 35 падает `SIGSEGV` в GPU/VAAPI/NVIDIA зоне
-  даже без remote desktop RTC;
 - целевой server sender должен идти через Chrome/Chromium browser media API в
   своем графическом контуре. Текущий рабочий путь - Chrome Wayland monitor host
   из `pkg/interpreter/remote-desktop`;
-- X11/Ozone оставлен только как диагностический override:
-  `METAFOR_ELECTRON_OZONE_PLATFORM=x11`;
-- если запрошен `screen`, programmatic `desktopCapturer` обязан вернуть
-  `screen:*`; fallback на `window:*` запрещен, потому что это маскирует
-  нерабочий desktop stream;
+- X11/Ozone/Xwayland оставлены только как диагностические ветки, не как рабочий
+  server-dev path;
+- если запрошен `monitor`, capture state обязан вернуть
+  `chrome-get-display-media:monitor`; fallback на вкладку/окно запрещен, потому
+  что это маскирует нерабочий desktop stream;
 - `METAFOR_REMOTE_DESKTOP_SYSTEM_PICKER=1` разрешен только как диагностический
   opt-in, когда нужно вручную проверить поведение PipeWire portal;
 - `xvfb` на сервере не установлен, а `sudo -n apt-get install xvfb` требует
@@ -652,7 +622,7 @@ Chrome/Chromium, без snapshot polling в основном frame loop. Snapsho
 - browser-host health показывает готовую page и свежий `lastFrame`;
 - input proxy возвращает ack, а не timeout;
 - координаты input попадают внутрь `screenRect` display;
-- Electron window не minimized и не потерял focus;
+- Chrome window не minimized и не потерял focus;
 - page не находится в modal/fullscreen/pointer-lock состоянии;
 - DevTools console не содержит runtime errors после input.
 
@@ -706,6 +676,6 @@ android/src/
 - `input/src/mouse.ts`: CoreGraphics через Python, `cliclick`, System Events.
 
 Практический вывод: сначала переносить только CDP/shared слой и readiness
-логику. Для Linux/Electron browser-host не портировать широко `window`,
-`screen` и `input`; захват кадра и input должны идти через Electron/CDP и
-host API, а не через macOS Automation/CoreGraphics.
+логику. Для Linux browser-host не портировать широко `window`, `screen` и
+`input`; захват кадра и input должны идти через Chrome/CDP и host API, а не
+через macOS Automation/CoreGraphics.

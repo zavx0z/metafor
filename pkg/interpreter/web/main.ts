@@ -3181,7 +3181,7 @@ async function createRemoteDesktopRtcClient(): Promise<AndroidRtcClient> {
   return createAndroidRtcClient({
     room: "remote-desktop",
     peerId: `interpreter-desktop-${remoteDesktopRandomToken()}`,
-    senderPeerId: "electron-desktop",
+    senderPeerId: "remote-desktop-host",
     peerTarget: "any",
     ...(signalUrls[0] === undefined ? {} : {signalUrl: signalUrls[0]}),
     signalUrls,

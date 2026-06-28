@@ -179,7 +179,7 @@ export function remoteDesktopLifecycleSchema(): JsonObject {
       timeoutMs: `таймаут ожидания, ${MIN_TIMEOUT_MS}..${MAX_TIMEOUT_MS} ms`,
       cleanProfile: "перед стартом sender удалить Chrome profile; разрешены только /tmp/metafor-* пути",
       stopXvfb: "для action=stop scope=display|all дополнительно остановить Xvfb; по умолчанию false",
-      config: "точечные override текущего server-dev контура; обычно не нужны. appElectronDir принят как deprecated alias remoteDesktopDir.",
+      config: "точечные override текущего server-dev контура; обычно не нужны.",
     },
     userStories: [
       {
@@ -672,9 +672,7 @@ function lifecycleConfig(override: JsonObject): RemoteDesktopLifecycleConfig {
     width: positiveInteger(asNumber(override.width) ?? envNumber("INTERPRETER_REMOTE_DESKTOP_WIDTH"), DEFAULT_CONFIG.width),
     height: positiveInteger(asNumber(override.height) ?? envNumber("INTERPRETER_REMOTE_DESKTOP_HEIGHT"), DEFAULT_CONFIG.height),
     remoteDesktopDir: asString(override.remoteDesktopDir)
-      ?? asString(override.appElectronDir)
       ?? envString("INTERPRETER_REMOTE_DESKTOP_DIR")
-      ?? envString("INTERPRETER_REMOTE_DESKTOP_APP_ELECTRON_DIR")
       ?? DEFAULT_CONFIG.remoteDesktopDir,
     xvfbDisplay: asString(override.xvfbDisplay) ?? envString("INTERPRETER_REMOTE_DESKTOP_XVFB_DISPLAY") ?? DEFAULT_CONFIG.xvfbDisplay,
     xvfbSession: asString(override.xvfbSession) ?? envString("INTERPRETER_REMOTE_DESKTOP_XVFB_SESSION") ?? DEFAULT_CONFIG.xvfbSession,

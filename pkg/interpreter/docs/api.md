@@ -235,7 +235,10 @@ UI-клиент после `reload` не должен сразу заменят�
 
 ## Browser Host Bridge
 
-Browser-host bridge - локальный server-side адаптер для будущего first-class `browser-display`. Он не запускает браузер, не добавляет Playwright и не делает фонового polling. Интерпретатор только проксирует явные запросы к локальному Electron/browser-host API.
+Browser-host bridge - локальный server-side адаптер для будущего first-class
+`browser-display`. Он не запускает браузер, не добавляет Playwright и не делает
+фонового polling. Интерпретатор только проксирует явные запросы к локальному
+browser-host API.
 
 Конфигурация:
 
@@ -269,7 +272,10 @@ ANY  /browser-display/proxy/<path>   # relative path under configured browser-ho
 
 `GET /browser-display/snapshot` возвращает upstream body как stream/proxy response. Bridge сохраняет `content-type`, `content-length`, `etag`, `last-modified`, `cache-control` и дополнительно выставляет `x-browser-host-size`, если upstream прислал `content-length`. Snapshot не оборачивается в JSON и не кодируется base64.
 
-`/browser-display/proxy/<path>` нужен как временный безопасный escape hatch, пока Electron worker API стабилизируется. Он принимает только relative path под configured local browser-host, запрещает `//`, `.`/`..` segments и не позволяет передать произвольный absolute URL.
+`/browser-display/proxy/<path>` нужен как временный безопасный escape hatch,
+пока browser-host API стабилизируется. Он принимает только relative path под
+configured local browser-host, запрещает `//`, `.`/`..` segments и не позволяет
+передать произвольный absolute URL.
 
 ## Remote Desktop Display
 
@@ -291,10 +297,9 @@ WebRTC sender.
 Старый `32123` host нельзя оставлять параллельно, иначе Chrome может рендерить
 на одном virtual monitor, а WebRTC capture брать другой. Рабочий live media
 path - `transport: "chrome-webrtc"` и `capture.frameSource:
-"chrome-get-display-media:monitor"`. Electron screen capture, Xwayland/current
-tab и PipeWire WebM/PCM остаются fallback/diagnostics.
-Текущий host-код живет в `pkg/interpreter/remote-desktop`; старый
-`app/electron/scripts/chrome-webrtc-monitor.sh` является compatibility wrapper.
+"chrome-get-display-media:monitor"`. Xwayland/current tab и PipeWire WebM/PCM
+остаются только историческими diagnostics.
+Текущий host-код живет в `pkg/interpreter/remote-desktop`.
 
 Конфигурация bridge:
 

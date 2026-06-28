@@ -31,8 +31,8 @@ describe("remote desktop lifecycle request", () => {
     expect(parsed.request.timeoutMs).toBe(90_000)
   })
 
-  test("accepts the old appElectronDir override as a deprecated alias", () => {
-    const parsed = normalizeRemoteDesktopLifecycleRequest({config: {appElectronDir: "/tmp/metafor-test-remote-desktop"}})
+  test("validates explicit remoteDesktopDir overrides", () => {
+    const parsed = normalizeRemoteDesktopLifecycleRequest({config: {remoteDesktopDir: "/tmp/metafor-test-remote-desktop"}})
     expect(parsed.ok).toBe(false)
     if (parsed.ok) return
     expect(parsed.error).toContain("config.remoteDesktopDir")

@@ -589,7 +589,7 @@ browser-host и его controller state. Это нужно считать вре
 Будущие hosts:
 
 - desktop canvas;
-- Electron overlay;
+- native overlay;
 - mobile;
 - XR;
 - AR;

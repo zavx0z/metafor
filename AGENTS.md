@@ -88,11 +88,10 @@ trigger: Xvfb `:101` + `xfreerdp` к `127.0.0.1:3390`; sender - tmux
 `target.connector: "Meta-0"` и `capture.frameSource:
 "chrome-get-display-media:monitor"`, это не рабочий remote desktop.
 
-Живой Chrome monitor host теперь находится в `pkg/interpreter/remote-desktop`.
-`app/electron/scripts/chrome-webrtc-monitor.sh` - только compatibility wrapper.
+Живой Chrome monitor host находится в `pkg/interpreter/remote-desktop`.
 Не тащи в interpreter старые fallback-и: `32123`, Xwayland/current-tab,
-MJPEG/snapshot как основной frame loop, Playwright-клиенты и Electron
-UI-specific код.
+MJPEG/snapshot как основной frame loop, Playwright-клиенты и shell-specific
+UI код.
 
 ## Web DevTools Для Агента
 
