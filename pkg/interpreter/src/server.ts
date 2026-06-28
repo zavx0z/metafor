@@ -87,6 +87,7 @@ type RtcSignalWsClientData = {
   id: number
   room: string
   peerId: string
+  path: string
   connectedAt: number
 }
 
@@ -414,7 +415,7 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
         return
       }
       if (ws.data.kind === "rtc-signal") {
-        attachRtcSignalSocket(ws as ServerWebSocket<RtcSignalWsClientData>)
+        attachRtcSignalSocket(ws as ServerWebSocket<RtcSignalWsClientData>, options.logger)
         return
       }
       if (ws.data.kind === "terminal") {
@@ -447,7 +448,7 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
         return
       }
       if (ws.data.kind === "rtc-signal") {
-        handleRtcSignalMessage(ws as ServerWebSocket<RtcSignalWsClientData>, raw)
+        handleRtcSignalMessage(ws as ServerWebSocket<RtcSignalWsClientData>, raw, options.logger)
         return
       }
       if (ws.data.kind === "terminal") {
@@ -542,7 +543,7 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
         return
       }
       if (ws.data.kind === "rtc-signal") {
-        detachRtcSignalSocket(ws as ServerWebSocket<RtcSignalWsClientData>)
+        detachRtcSignalSocket(ws as ServerWebSocket<RtcSignalWsClientData>, options.logger)
         return
       }
       if (ws.data.kind === "terminal") {
@@ -607,6 +608,7 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
           id,
           room,
           peerId,
+          path,
           connectedAt: Date.now(),
         }
         const upgraded = server.upgrade(req, {data})
@@ -802,14 +804,29 @@ function rejectPendingUiHostRequestsForClient(clientId: number, pending: Map<num
   }
 }
 
-function attachRtcSignalSocket(ws: ServerWebSocket<RtcSignalWsClientData>): void {
+function attachRtcSignalSocket(ws: ServerWebSocket<RtcSignalWsClientData>, logger: EventLogger): void {
   const peers = rtcRoomPeers(ws.data.room)
-  const requestedPeerId = ws.data.peerId
-  let peerId = requestedPeerId
-  while (peers.has(peerId)) peerId = `${requestedPeerId}-${crypto.randomUUID().slice(0, 8)}`
-  ws.data.peerId = peerId
+  const peerId = ws.data.peerId
+  const replaced = peers.get(peerId)
+  if (replaced !== undefined && replaced !== ws) {
+    peers.delete(peerId)
+    broadcastRtcSignal(ws.data.room, peerId, {
+      type: "peer-left",
+      peerId,
+      reason: "replaced",
+    })
+    replaced.close(4000, "peer replaced")
+  }
   const existingPeers = [...peers.keys()]
   peers.set(peerId, ws)
+  logger.event("rtc.signal.peer.opened", {
+    room: ws.data.room,
+    peerId,
+    path: ws.data.path,
+    existingPeers,
+    replaced: replaced !== undefined,
+    peerCount: peers.size,
+  })
   sendRtcJson(ws, {
     type: "hello",
     room: ws.data.room,
@@ -822,11 +839,17 @@ function attachRtcSignalSocket(ws: ServerWebSocket<RtcSignalWsClientData>): void
   })
 }
 
-function detachRtcSignalSocket(ws: ServerWebSocket<RtcSignalWsClientData>): void {
+function detachRtcSignalSocket(ws: ServerWebSocket<RtcSignalWsClientData>, logger: EventLogger): void {
   const {room, peerId} = ws.data
   const peers = rtcRooms.get(room)
   if (peers === undefined) return
   if (peers.get(peerId) === ws) peers.delete(peerId)
+  logger.event("rtc.signal.peer.closed", {
+    room,
+    peerId,
+    path: ws.data.path,
+    peerCount: peers.size,
+  })
   if (peers.size === 0) {
     rtcRooms.delete(room)
     return
@@ -837,7 +860,7 @@ function detachRtcSignalSocket(ws: ServerWebSocket<RtcSignalWsClientData>): void
   })
 }
 
-function handleRtcSignalMessage(ws: ServerWebSocket<RtcSignalWsClientData>, message: string | Buffer<ArrayBuffer>): void {
+function handleRtcSignalMessage(ws: ServerWebSocket<RtcSignalWsClientData>, message: string | Buffer<ArrayBuffer>, logger: EventLogger): void {
   if (typeof message !== "string" || message.length > 256 * 1024) return
   let payload: Record<string, unknown>
   try {
@@ -848,6 +871,7 @@ function handleRtcSignalMessage(ws: ServerWebSocket<RtcSignalWsClientData>, mess
     return
   }
   const to = typeof payload.to === "string" ? sanitizeRtcId(payload.to) : null
+  const messageType = typeof payload.type === "string" ? payload.type : "unknown"
   const envelope = {
     ...payload,
     from: ws.data.peerId,
@@ -855,10 +879,60 @@ function handleRtcSignalMessage(ws: ServerWebSocket<RtcSignalWsClientData>, mess
   }
   if (to !== null) {
     const target = rtcRooms.get(ws.data.room)?.get(to)
+    logger.event("rtc.signal.message", {
+      room: ws.data.room,
+      from: ws.data.peerId,
+      to,
+      type: messageType,
+      targetFound: target !== undefined,
+      targetOpen: target?.readyState === WebSocket.OPEN,
+      messageBytes: message.length,
+      summary: rtcSignalPayloadSummary(payload),
+    })
     if (target !== undefined && target.readyState === WebSocket.OPEN) sendRtcJson(target, envelope)
     return
   }
+  logger.event("rtc.signal.message", {
+    room: ws.data.room,
+    from: ws.data.peerId,
+    to: null,
+    type: messageType,
+    targetFound: false,
+    targetOpen: false,
+    messageBytes: message.length,
+    summary: rtcSignalPayloadSummary(payload),
+  })
   broadcastRtcSignal(ws.data.room, ws.data.peerId, envelope)
+}
+
+function rtcSignalPayloadSummary(payload: Record<string, unknown>): JsonObject {
+  const description = asObject(payload["description"])
+  const candidate = asObject(payload["candidate"])
+  return {
+    descriptionType: asString(description?.["type"]) ?? null,
+    sdpBytes: typeof description?.["sdp"] === "string" ? description.sdp.length : null,
+    candidateBytes: typeof candidate?.["candidate"] === "string" ? candidate.candidate.length : null,
+    sdpMid: asString(candidate?.["sdpMid"]) ?? null,
+    sdpMLineIndex: asNumber(candidate?.["sdpMLineIndex"]) ?? null,
+  }
+}
+
+function rtcRoomsPayload(): JsonObject {
+  return {
+    ok: true,
+    rooms: [...rtcRooms.entries()].map(([room, peers]) => ({
+      room,
+      peerCount: peers.size,
+      peers: [...peers.values()].map((socket) => ({
+        id: socket.data.id,
+        peerId: socket.data.peerId,
+        path: socket.data.path,
+        readyState: socket.readyState,
+        connectedAt: new Date(socket.data.connectedAt).toISOString(),
+        ageMs: Date.now() - socket.data.connectedAt,
+      })),
+    })),
+  }
 }
 
 function rtcRoomPeers(room: string): Map<string, ServerWebSocket<RtcSignalWsClientData>> {
@@ -1125,6 +1199,8 @@ async function handleRoute(
   if (method === "POST" && path === "/space/focus") return await dispatchUiHostRouteFromBody("space.focus", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/space/frame") return await dispatchUiHostRouteFromBody("space.frame", req, dispatchUiHostCommand)
   if (method === "GET" && path === "/context") return jsonResponse(contextPayload(options, moduleContexts, hudTodoContext, hudSqliteContext))
+  if (method === "GET" && path === "/viewport/screenshot") return await captureViewportScreenshot(url, dispatchUiHostCommand)
+  if (method === "GET" && path === "/webrtc/rooms") return jsonResponse(rtcRoomsPayload())
   const browserHostRoute = await handleBrowserHostRoute(req, method, path)
   if (browserHostRoute !== null) return browserHostRoute
   if (method === "GET" && path === "/hud/terminal") return await dispatchUiHostRoute("hud.terminal.get", {}, dispatchUiHostCommand)
@@ -1739,6 +1815,80 @@ async function recordClientEvent(req: Request, options: HttpServerOptions): Prom
   const label = compactClientEventSegment(parsed.body["label"], "event")
   options.logger.event(`client.${scope}.${label}`, compactClientEventDetail(parsed.body["detail"]))
   return jsonResponse({ok: true})
+}
+
+async function captureViewportScreenshot(url: URL, dispatch: UiHostCommandDispatcher): Promise<Response> {
+  try {
+    const response = await dispatch("ui.captureViewport", {
+      format: url.searchParams.get("format") ?? "png",
+      quality: numberFromSearchParam(url, "quality"),
+    })
+    const result = asObject(response["result"])
+    if (result === undefined) return jsonResponse({ok: false, error: "viewport capture response is invalid"}, 502)
+    const mime = asString(result["mime"]) ?? "image/png"
+    const dataBase64 = asString(result["dataBase64"])
+    if (dataBase64 === undefined || dataBase64.length === 0) {
+      return jsonResponse({ok: false, error: "viewport capture did not return image data"}, 502)
+    }
+    const bytes = imageBytesFromBase64(dataBase64)
+    if (bytes.length === 0) return jsonResponse({ok: false, error: "viewport capture image is empty"}, 502)
+    if (bytes.length > CODEX_ATTACHMENT_MAX_BYTES) return jsonResponse({ok: false, error: "viewport capture is larger than 16 MB"}, 413)
+
+    const ext = imageAttachmentExtension("interpreter-viewport.png", mime) ?? ".png"
+    const dir = resolve(process.cwd(), CODEX_ATTACHMENT_DIR)
+    mkdirSync(dir, {recursive: true})
+    const safeName = safeAttachmentFilename(`interpreter-viewport-${Date.now()}${ext}`, ext)
+    const id = crypto.randomUUID()
+    const path = join(dir, `${Date.now()}-${id.slice(0, 8)}-${safeName}`)
+    writeFileSync(path, bytes)
+
+    const payload = {
+      ok: true,
+      screenshot: {
+        id,
+        path,
+        name: safeName,
+        mime: mime.startsWith("image/") ? mime : mimeForImageExtension(ext),
+        size: bytes.length,
+        width: asNumber(result["width"]) ?? null,
+        height: asNumber(result["height"]) ?? null,
+        clientWidth: asNumber(result["clientWidth"]) ?? null,
+        clientHeight: asNumber(result["clientHeight"]) ?? null,
+        devicePixelRatio: asNumber(result["devicePixelRatio"]) ?? null,
+        capturedAt: asString(result["capturedAt"]) ?? new Date().toISOString(),
+        source: asString(result["source"]) ?? "interpreter-ui",
+      },
+    }
+    if (url.searchParams.get("raw") === "1") {
+      const body = new ArrayBuffer(bytes.byteLength)
+      new Uint8Array(body).set(bytes)
+      return new Response(body, {
+        status: 200,
+        headers: {
+          "cache-control": "no-store",
+          "content-type": payload.screenshot.mime,
+          "content-length": String(bytes.length),
+          "x-metafor-screenshot-path": path,
+        },
+      })
+    }
+    return jsonResponse(payload)
+  } catch (error) {
+    const status = error instanceof UiHostCommandError ? error.status : 500
+    return jsonResponse({ok: false, error: serializeError(error)}, status)
+  }
+}
+
+function numberFromSearchParam(url: URL, name: string): number | undefined {
+  const raw = url.searchParams.get(name)
+  if (raw === null || raw.trim().length === 0) return undefined
+  const value = Number(raw)
+  return Number.isFinite(value) ? value : undefined
+}
+
+function imageBytesFromBase64(dataBase64: string): Buffer {
+  const encoded = dataBase64.replace(/^data:[^;]+;base64,/i, "")
+  return Buffer.from(encoded, "base64")
 }
 
 function compactClientEventSegment(value: unknown, fallback: string): string {

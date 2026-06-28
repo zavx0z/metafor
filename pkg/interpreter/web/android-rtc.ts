@@ -71,6 +71,8 @@ export type AndroidRtcClientOpts = {
   onAudio?: (audio: AndroidRtcAudioStream | null) => void
   onStatus: (kind: AndroidRtcStatusKind, label: string) => void
   onDiagnostic?: (label: string, detail: Record<string, unknown>) => void
+  onTargetPeerMissing?: (peers: string[]) => void
+  controlResultStatus?: "status" | "diagnostic"
 }
 
 type PeerRecord = {
@@ -256,7 +258,10 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
       const targetPeers = signal.peers.filter((remotePeerId) => (
         isTargetRtcSenderPeer(remotePeerId, peerTarget, opts.senderPeerId ?? ANDROID_RTC_SENDER_PEER)
       ))
-      if (targetPeers.length === 0 && tryNextSignalUrl("peer")) return
+      if (targetPeers.length === 0) {
+        opts.onTargetPeerMissing?.(signal.peers)
+        if (tryNextSignalUrl("peer")) return
+      }
       for (const remotePeerId of targetPeers) {
         void connectPeer(remotePeerId)
       }
@@ -267,6 +272,9 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
       return
     }
     if (signal.type === "peer-left") {
+      if (isTargetRtcSenderPeer(signal.peerId, peerTarget, opts.senderPeerId ?? ANDROID_RTC_SENDER_PEER)) {
+        opts.onTargetPeerMissing?.([...peers.keys()].filter((peerId) => peerId !== signal.peerId))
+      }
       closePeer(signal.peerId)
       return
     }
@@ -369,6 +377,14 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
       if (typeof event.data !== "string") return
       const message = parseControlMessage(event.data)
       if (message === null) return
+      opts.onDiagnostic?.("control-result", {
+        peerId: peer.id,
+        command: message.command,
+        ok: message.ok,
+        ...(typeof message.error === "string" ? {error: message.error} : {}),
+        ...(typeof message.accessibility === "boolean" ? {accessibility: message.accessibility} : {}),
+      })
+      if (opts.controlResultStatus === "diagnostic") return
       const reason = !message.ok && message.accessibility === false ? " a11y off" : ""
       opts.onStatus(message.ok ? "connected" : "error", `${message.command} ${message.ok ? "ok" : "failed"}${reason}`)
     })
@@ -968,7 +984,7 @@ function parseSignal(raw: string): AndroidRtcSignal | null {
   }
 }
 
-function parseControlMessage(raw: string): {type: "control-result"; command: string; ok: boolean; accessibility?: boolean} | null {
+function parseControlMessage(raw: string): {type: "control-result"; command: string; ok: boolean; accessibility?: boolean; error?: string} | null {
   try {
     const parsed = JSON.parse(raw) as unknown
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null
@@ -977,11 +993,13 @@ function parseControlMessage(raw: string): {type: "control-result"; command: str
     const command = (parsed as {command?: unknown}).command
     const ok = (parsed as {ok?: unknown}).ok
     const accessibility = (parsed as {accessibility?: unknown}).accessibility
+    const error = (parsed as {error?: unknown}).error
     return {
       type,
       command: typeof command === "string" && command.length > 0 ? command : "control",
       ok: ok === true,
       ...(typeof accessibility === "boolean" ? {accessibility} : {}),
+      ...(typeof error === "string" && error.length > 0 ? {error} : {}),
     }
   } catch {
     return null

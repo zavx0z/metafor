@@ -781,6 +781,8 @@ const ANDROID_RTC_FRAME_SRC = "metafor:android-rtc-frame"
 const SECONDARY_ANDROID_RTC_FRAME_SRC = "metafor:android-rtc-frame:secondary"
 const REMOTE_DESKTOP_RTC_FRAME_SRC = "metafor:remote-desktop-rtc-frame"
 const REMOTE_DESKTOP_CONNECT_START_LOG_MS = 3_000
+const REMOTE_DESKTOP_RTC_RECONNECT_DELAY_MS = 500
+const REMOTE_DESKTOP_SENDER_RESTART_COOLDOWN_MS = 3_000
 const REMOTE_DESKTOP_RTC_VIDEO_DISPLAY_ENABLED = true
 const SPACE_OVERVIEW_WATCHDOG_MS = 900
 const ANDROID_CONTROL_STATUS_HOLD_MS = 4_000
@@ -813,9 +815,13 @@ let remoteDesktopPane: RemoteDesktopPane | null = null
 let remoteDesktopDisplayInstalled = false
 let remoteDesktopRtcClient: AndroidRtcClient | null = null
 let remoteDesktopRtcConnectInFlight = false
+let remoteDesktopRtcReconnectTimer: number | null = null
+let remoteDesktopRtcResetting = false
 let remoteDesktopLastRtcStatusLog = ""
 let remoteDesktopLastConnectStartLogAt = 0
 let remoteDesktopRtcFrameSourceLabel = "rtc"
+let remoteDesktopSenderRestartInFlight = false
+let remoteDesktopLastSenderRestartAt = 0
 let spaceOverviewPinned = false
 let spaceOverviewWatchdogTimer: number | null = null
 let hostTerminalAgentSignalPane: HostTerminalAgentSignalPane | null = null
@@ -906,6 +912,8 @@ let hudNotificationLastLine = ""
 let hudNotificationLastAt: Date | null = null
 let resizeObserver: ResizeObserver | null = null
 let socket: WebSocket | undefined
+let pageUnloading = false
+let reloadScheduled = false
 let nextRequestId = 1
 let framedModuleKey = ""
 let interpreterViewPointRestoreAttempted = false
@@ -935,12 +943,16 @@ for (const link of Array.from(document.querySelectorAll<HTMLLinkElement>('link[r
 }
 
 window.addEventListener("beforeunload", () => {
+  pageUnloading = true
   suspendVoiceForInactiveDocument()
   stopNetworkStatusRefresh({abort: true})
   flushInterpreterViewPointStorage()
   flushInterpreterDisplayPositionsStorage()
 })
-window.addEventListener("pagehide", () => suspendVoiceForInactiveDocument())
+window.addEventListener("pagehide", () => {
+  pageUnloading = true
+  suspendVoiceForInactiveDocument()
+})
 window.addEventListener("blur", () => suspendVoiceForInactiveDocument())
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") {
@@ -985,7 +997,7 @@ function connect(): void {
         connection: {state: "disconnected", error: "ws closed"},
       })
     }
-    setTimeout(connect, 1500)
+    if (!pageUnloading) scheduleReloadWhenServerReady(250)
   })
 }
 
@@ -1054,6 +1066,8 @@ function handleServerMessage(msg: ServerMessage): void {
 }
 
 function scheduleReloadWhenServerReady(delayMs: number): void {
+  if (reloadScheduled || pageUnloading) return
+  reloadScheduled = true
   const startedAt = Date.now()
   const reload = () => {
     const url = new URL(window.location.href)
@@ -1108,6 +1122,8 @@ function sendUiHostResult(requestId: number, reply: CommandReply): void {
 
 async function executeUiHostCommand(command: string, params: unknown): Promise<unknown> {
   switch (command) {
+    case "ui.captureViewport":
+      return await captureInterpreterViewport(params)
     case "space.get":
       return spacePayload()
     case "space.focus":
@@ -1190,6 +1206,71 @@ async function executeUiHostCommand(command: string, params: unknown): Promise<u
     default:
       throw new Error(`unknown ui-host command: ${command}`)
   }
+}
+
+async function captureInterpreterViewport(params: unknown): Promise<unknown> {
+  if (uiCanvas === null) throw new Error("ui runtime is not ready")
+  const rect = engineCanvas.getBoundingClientRect()
+  if (engineCanvas.width <= 0 || engineCanvas.height <= 0 || rect.width <= 0 || rect.height <= 0) {
+    throw new Error("interpreter canvas is not visible")
+  }
+  await nextAnimationFrame()
+  await nextAnimationFrame()
+  const mime = viewportCaptureMime(params)
+  const quality = viewportCaptureQuality(params)
+  const blob = await canvasToBlob(engineCanvas, mime, quality)
+  const dataBase64 = await blobToDataUrl(blob)
+  return {
+    source: "interpreter-ui-canvas",
+    mime: blob.type || mime,
+    dataBase64,
+    width: engineCanvas.width,
+    height: engineCanvas.height,
+    clientWidth: rect.width,
+    clientHeight: rect.height,
+    devicePixelRatio: window.devicePixelRatio,
+    capturedAt: new Date().toISOString(),
+    viewport: {
+      innerWidth: window.innerWidth,
+      innerHeight: window.innerHeight,
+      visualWidth: window.visualViewport?.width ?? window.innerWidth,
+      visualHeight: window.visualViewport?.height ?? window.innerHeight,
+      visualScale: window.visualViewport?.scale ?? 1,
+    },
+    space: {
+      mode: uiCanvas.displayMode,
+      activeDisplayId: uiCanvas.activeDisplayId,
+    },
+  }
+}
+
+function viewportCaptureMime(params: unknown): "image/png" | "image/jpeg" | "image/webp" {
+  const format = typeof params === "object" && params !== null && !Array.isArray(params)
+    ? (params as {format?: unknown}).format
+    : undefined
+  if (format === "jpg" || format === "jpeg" || format === "image/jpeg") return "image/jpeg"
+  if (format === "webp" || format === "image/webp") return "image/webp"
+  return "image/png"
+}
+
+function viewportCaptureQuality(params: unknown): number | undefined {
+  if (typeof params !== "object" || params === null || Array.isArray(params)) return undefined
+  const value = (params as {quality?: unknown}).quality
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined
+  return Math.min(1, Math.max(0.05, value))
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, mime: string, quality: number | undefined): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob === null) reject(new Error("canvas capture returned empty blob"))
+      else resolve(blob)
+    }, mime, quality)
+  })
+}
+
+function nextAnimationFrame(): Promise<void> {
+  return new Promise((resolve) => window.requestAnimationFrame(() => resolve()))
 }
 
 function spacePayload(): {
@@ -3048,6 +3129,30 @@ function connectRemoteDesktopRtc(): void {
   primeRemoteDesktopAudio()
 }
 
+function resetRemoteDesktopRtc(reason: string): void {
+  if (remoteDesktopRtcResetting) return
+  const client = remoteDesktopRtcClient
+  remoteDesktopRtcClient = null
+  remoteDesktopRtcConnectInFlight = false
+  if (remoteDesktopRtcReconnectTimer !== null) {
+    window.clearTimeout(remoteDesktopRtcReconnectTimer)
+    remoteDesktopRtcReconnectTimer = null
+  }
+  remoteDesktopRtcResetting = true
+  try {
+    client?.disconnect()
+  } finally {
+    remoteDesktopRtcResetting = false
+  }
+  disconnectRemoteDesktopAudioSource()
+  remoteDesktopPane?.setStatus("running", `rtc reconnect ${reason}`)
+  postInterpreterClientEvent("remote-desktop", "rtc-reconnect", {reason})
+  remoteDesktopRtcReconnectTimer = window.setTimeout(() => {
+    remoteDesktopRtcReconnectTimer = null
+    connectRemoteDesktopRtc()
+  }, REMOTE_DESKTOP_RTC_RECONNECT_DELAY_MS)
+}
+
 function postRemoteDesktopConnectStart(): void {
   const now = Date.now()
   if (now - remoteDesktopLastConnectStartLogAt < REMOTE_DESKTOP_CONNECT_START_LOG_MS) return
@@ -3088,6 +3193,7 @@ async function createRemoteDesktopRtcClient(): Promise<AndroidRtcClient> {
     frameReadMode: "track-processor",
     ignoreBlackFrames: false,
     receiveAudio: true,
+    controlResultStatus: "diagnostic",
     onFrame: (frame) => {
       if (!isValidRemoteDesktopFrame(frame)) return
       if (!REMOTE_DESKTOP_RTC_VIDEO_DISPLAY_ENABLED) return
@@ -3097,6 +3203,7 @@ async function createRemoteDesktopRtcClient(): Promise<AndroidRtcClient> {
     onAudio: connectRemoteDesktopAudio,
     onStatus: setRemoteDesktopRtcStatus,
     onDiagnostic: handleRemoteDesktopRtcDiagnostic,
+    onTargetPeerMissing: requestRemoteDesktopSenderRestart,
   })
 }
 
@@ -3117,6 +3224,60 @@ function setRemoteDesktopRtcStatus(kind: AndroidPaneStatusKind, label: string): 
   if (remoteDesktopLastRtcStatusLog === key) return
   remoteDesktopLastRtcStatusLog = key
   postInterpreterClientEvent("remote-desktop", "rtc-status", {kind, label})
+  if (remoteDesktopRtcResetting) return
+  if (kind === "idle" && /\bdisconnected\b/.test(label)) {
+    resetRemoteDesktopRtc(label)
+    return
+  }
+  if (isRemoteDesktopRtcTransportFailure(kind, label)) {
+    resetRemoteDesktopRtc(label)
+  }
+}
+
+function isRemoteDesktopRtcTransportFailure(kind: AndroidPaneStatusKind, label: string): boolean {
+  if (kind !== "error" && kind !== "idle") return false
+  return (
+    label === "rtc failed"
+    || label === "rtc closed"
+    || label === "rtc ice failed"
+    || label === "rtc signaling error"
+  )
+}
+
+function requestRemoteDesktopSenderRestart(peers: string[]): void {
+  const now = Date.now()
+  if (remoteDesktopSenderRestartInFlight) return
+  if (now - remoteDesktopLastSenderRestartAt < REMOTE_DESKTOP_SENDER_RESTART_COOLDOWN_MS) return
+  remoteDesktopLastSenderRestartAt = now
+  remoteDesktopSenderRestartInFlight = true
+  remoteDesktopPane?.setStatus("running", "rtc sender restart")
+  postInterpreterClientEvent("remote-desktop", "sender-restart", {reason: "missing-peer", peers})
+  void postRemoteDesktopSenderRestart()
+    .catch((error) => {
+      const message = error instanceof Error ? error.message : String(error)
+      remoteDesktopPane?.setStatus("error", `rtc sender ${message}`)
+      postInterpreterClientEvent("remote-desktop", "sender-restart-error", {message})
+    })
+    .finally(() => {
+      remoteDesktopSenderRestartInFlight = false
+    })
+}
+
+async function postRemoteDesktopSenderRestart(): Promise<void> {
+  let lastError = "desktop rtc restart unavailable"
+  for (const path of remoteDesktopApiPaths("/rtc/restart")) {
+    try {
+      const response = await fetch(path, {method: "POST", cache: "no-store"})
+      if (response.ok) {
+        remoteDesktopPane?.setStatus("running", "rtc sender restarted")
+        return
+      }
+      lastError = `${path} ${response.status}: ${await responseErrorText(response)}`
+    } catch (error) {
+      lastError = error instanceof Error ? `${path} ${error.message}` : `${path} unavailable`
+    }
+  }
+  throw new Error(lastError)
 }
 
 function sendRemoteDesktopControl(command: RtcControlCommand): boolean {

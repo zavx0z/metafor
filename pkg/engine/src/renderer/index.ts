@@ -1304,9 +1304,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Uniform buffers are written once for the whole frame. Rewriting them between
     // passes before submit would make earlier passes read the later data.
     this.updateSceneUniforms(frameLights, viewPoint.viewMatrix)
-    this.updatePerObjectData(frameRenderItems)
-    if (this.perObjectDataCPU && this.perObjectUniformBuffer) {
-      this.device!.queue.writeBuffer(this.perObjectUniformBuffer, 0, this.perObjectDataCPU.buffer)
+    const perObjectDataBytes = this.updatePerObjectData(frameRenderItems)
+    if (perObjectDataBytes > 0 && this.perObjectDataCPU && this.perObjectUniformBuffer) {
+      this.device!.queue.writeBuffer(
+        this.perObjectUniformBuffer,
+        0,
+        this.perObjectDataCPU.buffer,
+        this.perObjectDataCPU.byteOffset,
+        perObjectDataBytes,
+      )
     }
 
     preparedLayers.forEach((layer, index) => {
@@ -1413,12 +1419,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   }
 
 
-  private updatePerObjectData(objects: RenderItem[]): void {
-    if (!this.perObjectDataCPU) return
+  private updatePerObjectData(objects: RenderItem[]): number {
+    if (!this.perObjectDataCPU) return 0
 
-    this.perObjectDataCPU.fill(0)
+    const objectCount = Math.min(objects.length, MAX_RENDERABLES)
+    const usedFloats = objectCount * (PER_OBJECT_DATA_SIZE / 4)
+    this.perObjectDataCPU.fill(0, 0, usedFloats)
 
-    for (let i = 0; i < objects.length; i++) {
+    for (let i = 0; i < objectCount; i++) {
       const item = objects[i]
       if (!item) continue
       const dynamicOffset = i * PER_OBJECT_DATA_SIZE
@@ -1446,6 +1454,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
           break
       }
     }
+    return objectCount * PER_OBJECT_DATA_SIZE
   }
 
   private updateSkinnedMeshData(mesh: SkinnedMesh, worldMatrix: Matrix4, offsetFloats: number): void {

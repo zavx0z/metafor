@@ -158,6 +158,14 @@ const state = {
         lastCandidate: null,
         lastPublishedCandidate: null,
       },
+      signal: {
+        messageCount: 0,
+        lastMessageType: null,
+        lastMessageFrom: null,
+        lastMessageTo: null,
+        lastMessageAt: null,
+      },
+      tracks: [],
       lastError: null,
       updatedAt: null,
     },
@@ -502,6 +510,7 @@ function prepareChromeProfile() {
   const defaultProfileDir = path.join(PROFILE_DIR, "Default")
   const preferencesPath = path.join(defaultProfileDir, "Preferences")
   try {
+    removeStaleChromeSingletonFiles(PROFILE_DIR)
     fs.mkdirSync(defaultProfileDir, {recursive: true})
     let preferences = {}
     if (fs.existsSync(preferencesPath)) {
@@ -511,9 +520,49 @@ function prepareChromeProfile() {
       ...(preferences.webrtc && typeof preferences.webrtc === "object" ? preferences.webrtc : {}),
       udp_port_range: CHROME_RTC_UDP_PORT_RANGE,
     }
+    preferences.profile = {
+      ...(preferences.profile && typeof preferences.profile === "object" ? preferences.profile : {}),
+      exited_cleanly: true,
+      exit_type: "Normal",
+    }
     fs.writeFileSync(preferencesPath, JSON.stringify(preferences, null, 2))
   } catch (error) {
     state.remoteDesktop.rtc.lastError = error instanceof Error ? error.message : String(error)
+  }
+}
+
+function removeStaleChromeSingletonFiles(profileDir) {
+  const lockPath = path.join(profileDir, "SingletonLock")
+  let lockTarget = ""
+  try {
+    lockTarget = fs.readlinkSync(lockPath).toString()
+  } catch (error) {
+    if (error?.code !== "ENOENT" && error?.code !== "EINVAL") throw error
+  }
+  const pid = chromeSingletonPid(lockTarget)
+  if (pid !== null && processIsAlive(pid)) return
+  for (const name of ["SingletonLock", "SingletonSocket", "SingletonCookie"]) {
+    try {
+      fs.unlinkSync(path.join(profileDir, name))
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error
+    }
+  }
+}
+
+function chromeSingletonPid(value) {
+  const match = /-(\d+)$/.exec(value)
+  if (match === null) return null
+  const pid = Number(match[1])
+  return Number.isInteger(pid) && pid > 0 ? pid : null
+}
+
+function processIsAlive(pid) {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    return error?.code === "EPERM"
   }
 }
 
@@ -622,7 +671,11 @@ async function refreshChromeRtcState() {
       returnByValue: true,
     })
     const value = result?.result?.value ?? null
-    if (value !== null && typeof value === "object") postChromeRtcState(value)
+    if (value !== null && typeof value === "object") {
+      postChromeRtcState(value)
+    } else {
+      postChromeRtcState({status: "not-injected", peers: [], lastError: "Chrome RTC sender is not injected in the current page"})
+    }
     return state.remoteDesktop.rtc
   })
 }
@@ -636,6 +689,8 @@ function postChromeRtcState(patch) {
   if ("lastError" in patch) state.remoteDesktop.rtc.lastError = typeof patch.lastError === "string" ? patch.lastError : null
   if (Array.isArray(patch.peers)) state.remoteDesktop.rtc.peers = patch.peers
   if (patch.ice !== null && typeof patch.ice === "object") state.remoteDesktop.rtc.ice = patch.ice
+  if (patch.signal !== null && typeof patch.signal === "object") state.remoteDesktop.rtc.signal = {...state.remoteDesktop.rtc.signal, ...patch.signal}
+  if (Array.isArray(patch.tracks)) state.remoteDesktop.rtc.tracks = patch.tracks
   if (typeof patch.updatedAt === "string") state.remoteDesktop.rtc.updatedAt = patch.updatedAt
   else state.remoteDesktop.rtc.updatedAt = new Date().toISOString()
   if (patch.capture !== null && typeof patch.capture === "object") {
@@ -720,6 +775,13 @@ function chromeRtcSenderScript(options = {}) {
       senderStats: null,
       lastError: null,
     },
+    signal: {
+      messageCount: 0,
+      lastMessageType: null,
+      lastMessageFrom: null,
+      lastMessageTo: null,
+      lastMessageAt: null,
+    },
     lastError: null,
     updatedAt: null,
   };
@@ -737,6 +799,7 @@ function chromeRtcSenderScript(options = {}) {
   let pipewireAudioKeepAliveSource = null;
   let pipewireAudioRefreshTimer = null;
   let senderStatsTimer = null;
+  let stopped = false;
   const peers = new Map();
 
   window.__metaforChromeRtcState = state;
@@ -746,10 +809,12 @@ function chromeRtcSenderScript(options = {}) {
       if (patch.capture && typeof patch.capture === "object") Object.assign(state.capture, patch.capture);
       if (patch.audio && typeof patch.audio === "object") Object.assign(state.audio, patch.audio);
       if (patch.video && typeof patch.video === "object") Object.assign(state.video, patch.video);
+      if (patch.signal && typeof patch.signal === "object") Object.assign(state.signal, patch.signal);
       const rest = {...patch};
       delete rest.capture;
       delete rest.audio;
       delete rest.video;
+      delete rest.signal;
       Object.assign(state, rest);
     }
     state.updatedAt = new Date().toISOString();
@@ -816,8 +881,31 @@ function chromeRtcSenderScript(options = {}) {
         trackCount: stream.getAudioTracks().length,
         lastError: null,
       },
+      tracks: streamTrackSummaries(),
     });
+    bindStreamTrackDiagnostics();
     connectSignal();
+  }
+
+  function bindStreamTrackDiagnostics() {
+    for (const track of stream.getTracks()) {
+      const update = () => post({tracks: streamTrackSummaries()});
+      track.addEventListener("mute", update);
+      track.addEventListener("unmute", update);
+      track.addEventListener("ended", update, {once: true});
+    }
+  }
+
+  function streamTrackSummaries() {
+    if (stream === null) return [];
+    return stream.getTracks().map((track) => ({
+      id: track.id,
+      kind: track.kind,
+      label: track.label || null,
+      readyState: track.readyState,
+      muted: track.muted,
+      settings: typeof track.getSettings === "function" ? track.getSettings() : null,
+    }));
   }
 
   async function startPipeWireAudioCapture() {
@@ -954,6 +1042,7 @@ function chromeRtcSenderScript(options = {}) {
   }
 
   function connectSignal() {
+    if (stopped) return;
     socket = new WebSocket(signalUrl());
     socket.addEventListener("open", () => post({status: "signaling-open"}));
     socket.addEventListener("message", (event) => {
@@ -965,12 +1054,21 @@ function chromeRtcSenderScript(options = {}) {
     socket.addEventListener("close", () => {
       closeAllPeers();
       post({status: "signaling-closed", peers: []});
-      window.setTimeout(connectSignal, 1000);
+      if (!stopped) window.setTimeout(connectSignal, 1000);
     });
     socket.addEventListener("error", () => post({status: "signaling-error"}));
   }
 
   async function handleSignal(message) {
+    post({
+      signal: {
+        messageCount: state.signal.messageCount + 1,
+        lastMessageType: typeof message.type === "string" ? message.type : null,
+        lastMessageFrom: typeof message.from === "string" ? message.from : null,
+        lastMessageTo: typeof message.to === "string" ? message.to : null,
+        lastMessageAt: new Date().toISOString(),
+      },
+    });
     if (message.type === "hello") {
       post({status: "ready", peerId: message.peerId || config.peerId, room: message.room || config.room});
       return;
@@ -1343,7 +1441,9 @@ function chromeRtcSenderScript(options = {}) {
   window.__metaforChromeRtc = {
     state,
     stop() {
+      stopped = true;
       socket?.close();
+      socket = null;
       closeAllPeers();
       stream?.getTracks?.().forEach((track) => track.stop());
       if (pipewireAudioRefreshTimer !== null) clearInterval(pipewireAudioRefreshTimer);
