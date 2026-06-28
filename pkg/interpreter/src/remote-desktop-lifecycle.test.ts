@@ -11,6 +11,7 @@ describe("remote desktop lifecycle request", () => {
     expect(parsed.request.wait).toBe(true)
     expect(parsed.request.cleanProfile).toBe(false)
     expect(parsed.request.stopXvfb).toBe(false)
+    expect(parsed.request.config.remoteDesktopDir).toContain("pkg/interpreter/remote-desktop")
   })
 
   test("uses sender as the safe restart default", () => {
@@ -28,6 +29,13 @@ describe("remote desktop lifecycle request", () => {
     expect(parsed.request.scope).toBe("all")
     expect(parsed.request.cleanProfile).toBe(true)
     expect(parsed.request.timeoutMs).toBe(90_000)
+  })
+
+  test("accepts the old appElectronDir override as a deprecated alias", () => {
+    const parsed = normalizeRemoteDesktopLifecycleRequest({config: {appElectronDir: "/tmp/metafor-test-remote-desktop"}})
+    expect(parsed.ok).toBe(false)
+    if (parsed.ok) return
+    expect(parsed.error).toContain("config.remoteDesktopDir")
   })
 
   test("describes user-story level commands", () => {

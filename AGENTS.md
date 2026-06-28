@@ -23,7 +23,7 @@ runtime state. LAN/TLS режим на `443` - отдельный локальн
 стримится в interpreter Space через WebRTC. Он запускается скриптом:
 
 ```sh
-app/electron/scripts/chrome-webrtc-monitor.sh
+pkg/interpreter/remote-desktop/chrome-webrtc-monitor.sh
 ```
 
 Ожидаемый стартовый layout этого Chrome:
@@ -84,15 +84,15 @@ virtual display, если нужно только перезапустить sen
 недоступен. На текущем server-dev контуре `Meta-0` держит headless GNOME RDP
 trigger: Xvfb `:101` + `xfreerdp` к `127.0.0.1:3390`; sender - tmux
 `metafor-chrome-wayland-monitor-main` со скриптом
-`app/electron/scripts/chrome-webrtc-monitor.sh`. Если health не показывает
+`pkg/interpreter/remote-desktop/chrome-webrtc-monitor.sh`. Если health не показывает
 `target.connector: "Meta-0"` и `capture.frameSource:
 "chrome-get-display-media:monitor"`, это не рабочий remote desktop.
 
-При будущем переносе из `app/electron` в interpreter-модуль переносить только
-фактически используемый server-dev путь: Chrome WebRTC monitor sender, host API
-для `/desktop/health|rtc|input|audio` и dev-layout. Не тащи старые fallback-и:
-`32123`, Xwayland/current-tab, MJPEG/snapshot как основной frame loop,
-Playwright-клиенты и Electron UI-specific код.
+Живой Chrome monitor host теперь находится в `pkg/interpreter/remote-desktop`.
+`app/electron/scripts/chrome-webrtc-monitor.sh` - только compatibility wrapper.
+Не тащи в interpreter старые fallback-и: `32123`, Xwayland/current-tab,
+MJPEG/snapshot как основной frame loop, Playwright-клиенты и Electron
+UI-specific код.
 
 ## Web DevTools Для Агента
 

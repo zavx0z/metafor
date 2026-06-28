@@ -27,7 +27,7 @@ Cold restart на этом сервере состоит из двух разн�
    (`xfreerdp` к `127.0.0.1:3390`). Не останавливай этот слой при обычном
    restart sender.
 2. sender layer: tmux `metafor-chrome-wayland-monitor-main` запускает
-   `app/electron/scripts/chrome-webrtc-monitor.sh`. Его можно перезапускать
+   `pkg/interpreter/remote-desktop/chrome-webrtc-monitor.sh`. Его можно перезапускать
    отдельно, пока `Meta-0` жив.
 
 После cold restart успешным считается только state с
@@ -76,8 +76,9 @@ Low-level команды ниже остаются диагностиками и
   тех же upstream routes;
 - Bun inspector для child process остается локальным:
   `ws://127.0.0.1:6499/`;
-- `app/electron` имеет обычный shell-режим, opt-in browser-host режим и
-  opt-in remote desktop WebRTC sender:
+- `pkg/interpreter/remote-desktop` содержит текущий server-dev Chrome WebRTC
+  monitor host; `app/electron` сохраняет обычный shell-режим и legacy
+  diagnostic/fallback scripts:
   `METAFOR_ELECTRON_HOST=1` или `METAFOR_ELECTRON_HOST_PORT`, отдельный
   user-data-dir/session partition, local-only HTTP API, snapshot через
   `webContents.capturePage()`, WebRTC screen/audio capture через
@@ -85,11 +86,10 @@ Low-level команды ниже остаются диагностиками и
   и CDP через
   `METAFOR_ELECTRON_DEBUG_PORT`;
 - текущий Linux server remote desktop поднимается без перезагрузки машины:
-  `bun run webrtc:chrome:monitor` в `app/electron`;
-- Linux server script для Electron host - `bun --filter @app/electron
-  host:linux` или `dev:host:linux`; он передает sandbox/Ozone flags на уровне
-  запуска процесса, потому что эти флаги должны попасть в Electron binary до
-  загрузки app main;
+  `bash pkg/interpreter/remote-desktop/chrome-webrtc-monitor.sh`;
+- legacy Linux Electron host scripts - `bun --filter @app/electron host:linux`
+  или `dev:host:linux`; это fallback/diagnostics, не текущий server-dev Chrome
+  monitor path;
 - interpreter-side bridge для browser-host использует `/browser-display/*`, а
   server desktop bridge использует `/remote-desktop/*`; оба проксируют только
   локальный host, заданный через `INTERPRETER_BROWSER_HOST_*` или
@@ -168,7 +168,7 @@ curl -sS http://10.66.0.10:3004/health
 
 ## Remote Desktop / WebRTC Contract
 
-Целевой Linux/Electron remote desktop host должен быть отдельным процессом с
+Целевой Linux Chrome remote desktop host должен быть отдельным процессом с
 явным state, а не зависимостью от macOS display пользователя:
 
 - управляемый видимый URL: по умолчанию `https://meta.proizvodstvo1.ru/`;
@@ -218,7 +218,7 @@ Audio contract:
   `audio.transport: "pipewire-pcm-track-generator-stream"`. `pipewire-mjpeg` означает
   старый canvas fallback path и может давать больший CPU cost/lag.
 
-Interpreter bridge - это не сам Electron host и не display. Он должен быть
+Interpreter bridge - это не сам Chrome host и не display. Он должен быть
 тонким proxy к локальному host API и локальным WebRTC signaling server:
 
 ```text
@@ -308,11 +308,11 @@ curl -sS http://127.0.0.1:32133/desktop/snapshot --output /tmp/rd.png
 Если lifecycle endpoint недоступен, low-level fallback для sender:
 
 ```sh
-cd /home/zavx0z/production/vendor/metafor/app/electron
+cd /home/zavx0z/production/vendor/metafor/pkg/interpreter/remote-desktop
 
 # Предусловие: DisplayConfig уже показывает Meta-0 1920x1080. Его держит
 # отдельный headless RDP trigger; не выключай его при restart sender.
-bun run webrtc:chrome:monitor
+bash chrome-webrtc-monitor.sh
 ```
 
 Проверка 2026-06-27: Electron 35.7.5 на текущем GNOME/Wayland/NVIDIA сервере
@@ -329,8 +329,8 @@ sender отдельно от видимого `https://meta.proizvodstvo1.ru/` t
 должен видеть `videoWidth=1920`, `videoHeight=1080`, `audioTracks=1` и растущие
 `inbound-rtp` audio `bytesReceived`, `audioLevel` и `totalAudioEnergy`.
 Audio-only
-`getUserMedia({chromeMediaSource: "desktop"})` не использовать: на текущем
-сервере он убивает Electron renderer bad IPC.
+`getUserMedia({chromeMediaSource: "desktop"})` не использовать в основном
+server-dev контуре: на текущем сервере Electron renderer падал на этом пути.
 
 Если RTP audio bytes растут, но пользователь не слышит звук, сначала проверить
 `wpctl status`: `/desktop/audio.pcm` должен читать active Google Chrome
@@ -361,7 +361,7 @@ server-dev режиме не держи его параллельно с `webrtc
 `127.0.0.1:32133`.
 Production media path повторяет voice gateway: UDP `40000-40100` идет через
 public edge `130.49.151.168`/`proizvodstvo1.ru` и DNAT в `10.66.0.10` по
-AmneziaWG. Electron/Chromium должен ограничивать WebRTC sockets тем же range
+AmneziaWG. Chrome/Chromium должен ограничивать WebRTC sockets тем же range
 через `METAFOR_REMOTE_DESKTOP_UDP_PORT_RANGE=40000-40100`, а опубликованные
 host candidates должны быть переписаны на
 `METAFOR_REMOTE_DESKTOP_PUBLIC_ICE_HOST=130.49.151.168`. Если Chromium создает
@@ -426,7 +426,7 @@ frame metadata: `frameId`, `capturedAt`, URL, viewport, device scale factor и
 ## Стартовый Web UI Debug Layout
 
 В server-dev контуре общий рабочий экран должен стартовать из
-`app/electron/scripts/chrome-webrtc-monitor.sh`, а не руками через macOS
+`pkg/interpreter/remote-desktop/chrome-webrtc-monitor.sh`, а не руками через macOS
 браузер. Скрипт включает `METAFOR_REMOTE_DESKTOP_CHROME_DEV_LAYOUT=1` и
 поднимает одно обычное Chrome window на виртуальном monitor `1920x1080`;
 window bounds должны быть `left=0`, `top=0`, `width=1920`, `height=1080`, без
@@ -598,7 +598,7 @@ curl -sS http://10.66.0.10:3004/health
 
 ### Неверный DISPLAY
 
-Проверки для Linux/Electron host:
+Проверки для Linux Chrome host:
 
 ```sh
 env | rg '^(DISPLAY|WAYLAND_DISPLAY|XDG_SESSION_TYPE|XAUTHORITY|XDG_RUNTIME_DIR)='
@@ -616,7 +616,7 @@ systemctl --user restart metafor-remote-desktop.service
 ```
 
 Для текущего server/dev Web UI не делай macOS browser обязательным backend.
-Linux/Electron host должен работать в своем графическом контуре на сервере или
+Linux Chrome host должен работать в своем графическом контуре на сервере или
 в выделенной Linux session.
 
 ### Electron Sandbox/Ozone
@@ -627,10 +627,9 @@ Linux/Electron host должен работать в своем графичес
   `chrome-sandbox` с mode `4755`, либо запуск с `--no-sandbox`;
 - Xwayland `DISPLAY=:0` с Electron 35 падает `SIGSEGV` в GPU/VAAPI/NVIDIA зоне
   даже без remote desktop RTC;
-- целевой server sender должен идти через Electron/Chromium browser media API в
-  своем графическом контуре. Текущий рабочий обход идет через Chrome Wayland
-  `webrtc:chrome:monitor`, пока Electron native full-screen capture на этом
-  сервере не перестанет отдавать black frames;
+- целевой server sender должен идти через Chrome/Chromium browser media API в
+  своем графическом контуре. Текущий рабочий путь - Chrome Wayland monitor host
+  из `pkg/interpreter/remote-desktop`;
 - X11/Ozone оставлен только как диагностический override:
   `METAFOR_ELECTRON_OZONE_PLATFORM=x11`;
 - если запрошен `screen`, programmatic `desktopCapturer` обязан вернуть
@@ -642,7 +641,7 @@ Linux/Electron host должен работать в своем графичес
   интерактивную авторизацию.
 
 Практический вывод: realtime video path - browser-native WebRTC sender
-Electron/Chromium, без snapshot polling в основном frame loop. Snapshot polling
+Chrome/Chromium, без snapshot polling в основном frame loop. Snapshot polling
 оставлять только как diagnostics/fallback и не считать успешным live display.
 
 ### Потеря Ввода

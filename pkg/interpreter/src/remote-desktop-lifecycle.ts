@@ -11,7 +11,6 @@ type RemoteDesktopLifecycleScope = "sender" | "display" | "all"
 type RemoteDesktopLifecycleStepStatus = "ok" | "skipped" | "error"
 
 type RemoteDesktopLifecycleConfig = {
-  appElectronDir: string
   chromeDebugPort: number
   chromeProfile: string
   hostPort: number
@@ -23,6 +22,7 @@ type RemoteDesktopLifecycleConfig = {
   signalUrl: string
   width: number
   height: number
+  remoteDesktopDir: string
   xvfbDisplay: string
   xvfbSession: string
 }
@@ -61,7 +61,6 @@ const HEALTH_TIMEOUT_MS = 2_500
 const DEFAULT_SIGNAL_URL = "ws://10.66.0.10:6500/webrtc/signaling"
 
 const DEFAULT_CONFIG: RemoteDesktopLifecycleConfig = {
-  appElectronDir: join(REPO_ROOT, "app/electron"),
   chromeDebugPort: 9349,
   chromeProfile: "/tmp/metafor-chrome-rtc-wayland-monitor-main",
   hostPort: 32133,
@@ -73,6 +72,7 @@ const DEFAULT_CONFIG: RemoteDesktopLifecycleConfig = {
   signalUrl: DEFAULT_SIGNAL_URL,
   width: 1920,
   height: 1080,
+  remoteDesktopDir: join(REPO_ROOT, "pkg/interpreter/remote-desktop"),
   xvfbDisplay: ":101",
   xvfbSession: "metafor-rdp-xvfb",
 }
@@ -179,7 +179,7 @@ export function remoteDesktopLifecycleSchema(): JsonObject {
       timeoutMs: `таймаут ожидания, ${MIN_TIMEOUT_MS}..${MAX_TIMEOUT_MS} ms`,
       cleanProfile: "перед стартом sender удалить Chrome profile; разрешены только /tmp/metafor-* пути",
       stopXvfb: "для action=stop scope=display|all дополнительно остановить Xvfb; по умолчанию false",
-      config: "точечные override текущего server-dev контура; обычно не нужны",
+      config: "точечные override текущего server-dev контура; обычно не нужны. appElectronDir принят как deprecated alias remoteDesktopDir.",
     },
     userStories: [
       {
@@ -464,7 +464,7 @@ async function startSender(config: RemoteDesktopLifecycleConfig, cleanProfile: b
   await tmuxKillSession(config.senderSession)
   if (releasePorts) await killTcpPorts([config.hostPort, config.chromeDebugPort], steps)
   const command = [
-    `cd ${shellQuote(config.appElectronDir)}`,
+    `cd ${shellQuote(config.remoteDesktopDir)}`,
     [
       "exec env",
       `METAFOR_URL=${shellQuote(config.metaforUrl)}`,
@@ -474,7 +474,7 @@ async function startSender(config: RemoteDesktopLifecycleConfig, cleanProfile: b
       `METAFOR_REMOTE_DESKTOP_SIGNAL_URL=${shellQuote(config.signalUrl)}`,
       `METAFOR_REMOTE_DESKTOP_WIDTH=${shellQuote(String(config.width))}`,
       `METAFOR_REMOTE_DESKTOP_HEIGHT=${shellQuote(String(config.height))}`,
-      "bash scripts/chrome-webrtc-monitor.sh",
+      "bash chrome-webrtc-monitor.sh",
     ].join(" "),
   ].join("; ")
   const result = await runShell(`tmux new-session -d -s ${shellQuote(config.senderSession)} -n sender ${shellQuote(command)}`)
@@ -660,7 +660,6 @@ async function chromeDebugState(config: RemoteDesktopLifecycleConfig): Promise<J
 function lifecycleConfig(override: JsonObject): RemoteDesktopLifecycleConfig {
   return {
     ...DEFAULT_CONFIG,
-    appElectronDir: asString(override.appElectronDir) ?? envString("INTERPRETER_REMOTE_DESKTOP_APP_ELECTRON_DIR") ?? DEFAULT_CONFIG.appElectronDir,
     chromeDebugPort: positiveInteger(asNumber(override.chromeDebugPort) ?? envNumber("INTERPRETER_REMOTE_DESKTOP_CHROME_DEBUG_PORT"), DEFAULT_CONFIG.chromeDebugPort),
     chromeProfile: asString(override.chromeProfile) ?? envString("INTERPRETER_REMOTE_DESKTOP_CHROME_PROFILE") ?? DEFAULT_CONFIG.chromeProfile,
     hostPort: positiveInteger(asNumber(override.hostPort) ?? envNumber("INTERPRETER_REMOTE_DESKTOP_RTC_HOST_PORT"), DEFAULT_CONFIG.hostPort),
@@ -672,6 +671,11 @@ function lifecycleConfig(override: JsonObject): RemoteDesktopLifecycleConfig {
     signalUrl: asString(override.signalUrl) ?? envString("METAFOR_REMOTE_DESKTOP_SIGNAL_URL") ?? DEFAULT_CONFIG.signalUrl,
     width: positiveInteger(asNumber(override.width) ?? envNumber("INTERPRETER_REMOTE_DESKTOP_WIDTH"), DEFAULT_CONFIG.width),
     height: positiveInteger(asNumber(override.height) ?? envNumber("INTERPRETER_REMOTE_DESKTOP_HEIGHT"), DEFAULT_CONFIG.height),
+    remoteDesktopDir: asString(override.remoteDesktopDir)
+      ?? asString(override.appElectronDir)
+      ?? envString("INTERPRETER_REMOTE_DESKTOP_DIR")
+      ?? envString("INTERPRETER_REMOTE_DESKTOP_APP_ELECTRON_DIR")
+      ?? DEFAULT_CONFIG.remoteDesktopDir,
     xvfbDisplay: asString(override.xvfbDisplay) ?? envString("INTERPRETER_REMOTE_DESKTOP_XVFB_DISPLAY") ?? DEFAULT_CONFIG.xvfbDisplay,
     xvfbSession: asString(override.xvfbSession) ?? envString("INTERPRETER_REMOTE_DESKTOP_XVFB_SESSION") ?? DEFAULT_CONFIG.xvfbSession,
   }
@@ -683,7 +687,7 @@ function validateLifecycleConfig(config: RemoteDesktopLifecycleConfig): string |
   if (config.hostPort < 1 || config.hostPort > 65_535) return "config.hostPort must be 1..65535"
   if (config.chromeDebugPort < 1 || config.chromeDebugPort > 65_535) return "config.chromeDebugPort must be 1..65535"
   if (config.rdpPort < 1 || config.rdpPort > 65_535) return "config.rdpPort must be 1..65535"
-  if (!existsSync(config.appElectronDir)) return `config.appElectronDir does not exist: ${config.appElectronDir}`
+  if (!existsSync(config.remoteDesktopDir)) return `config.remoteDesktopDir does not exist: ${config.remoteDesktopDir}`
   return null
 }
 

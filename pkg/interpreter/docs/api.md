@@ -61,6 +61,8 @@ ANY    /browser-display/proxy/<path>
 GET    /remote-desktop/health
 GET    /remote-desktop/state
 GET    /remote-desktop/status
+GET    /remote-desktop/lifecycle
+POST   /remote-desktop/lifecycle
 GET    /remote-desktop/rtc/state
 POST   /remote-desktop/rtc/restart
 GET    /remote-desktop/snapshot
@@ -274,7 +276,7 @@ ANY  /browser-display/proxy/<path>   # relative path under configured browser-ho
 Remote desktop display - server-owned визуальный канал для совместной Web UI
 разработки. Основной realtime-путь в текущем Linux server-dev контуре:
 один Wayland/Mutter virtual monitor без reboot/sudo, Chrome на этом monitor, а
-sender `webrtc:chrome:monitor` на `127.0.0.1:32133` публикует full monitor
+interpreter remote desktop module на `127.0.0.1:32133` публикует full monitor
 через Chrome `getDisplayMedia()` и WebRTC.
 Интерпретатор держит signaling endpoint и показывает video как first-class
 display `remote-desktop:server` в `Space`. Snapshot routes и MJPEG/canvas
@@ -291,6 +293,8 @@ WebRTC sender.
 path - `transport: "chrome-webrtc"` и `capture.frameSource:
 "chrome-get-display-media:monitor"`. Electron screen capture, Xwayland/current
 tab и PipeWire WebM/PCM остаются fallback/diagnostics.
+Текущий host-код живет в `pkg/interpreter/remote-desktop`; старый
+`app/electron/scripts/chrome-webrtc-monitor.sh` является compatibility wrapper.
 
 Конфигурация bridge:
 
@@ -349,7 +353,7 @@ Default `restart` использует `scope:"sender"`, чтобы не гас�
 туда же. `/remote-desktop/audio.pcm` является stream proxy на
 `127.0.0.1:32133/desktop/audio.pcm` для Chrome sender-а. Не
 оставляй `INTERPRETER_REMOTE_DESKTOP_RTC_HOST_URL=32123`, если
-активный live sender - `webrtc:chrome:monitor`; иначе UI будет работать через
+активный live sender - interpreter Chrome monitor host на `32133`; иначе UI будет работать через
 signaling, но diagnostic state покажет старый host. При WebRTC data channel UI
 отправляет input sender-у, а sender проксирует команды в Mutter/EIS input
 adapter того же virtual monitor.

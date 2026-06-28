@@ -176,7 +176,7 @@ FreeRDP trigger (`xfreerdp` к `127.0.0.1:3390` внутри Xvfb `:101`). Ес�
 `gdbus ... org.gnome.Mutter.DisplayConfig.GetCurrentState` не показывает
 `Meta-0` 1920x1080, не запускай Xwayland/current-tab fallback; восстанови RDP
 trigger и только потом перезапускай `metafor-chrome-wayland-monitor-main` /
-`bun run webrtc:chrome:monitor`.
+`pkg/interpreter/remote-desktop/chrome-webrtc-monitor.sh`.
 
 С 2026-06-28 основной способ для агента управлять этим контуром -
 interpreter endpoint `GET|POST /remote-desktop/lifecycle`. `GET` возвращает
@@ -195,11 +195,13 @@ scope - `sender`, чтобы не гасить `Meta-0`. Ручные tmux/grdct
 `ws://10.66.0.10:6500/webrtc/signaling`, input/audio - локальные routes host-а
 `127.0.0.1:32133`.
 
-Этап переноса из `app/electron` в interpreter-модуль: переносить только реально
-используемый server-dev path - Chrome WebRTC monitor sender, host API
-`/desktop/health|rtc|input|audio` и default dev-layout. Не переносить мертвые
-ветки и fallback-и: старый `32123`, Xwayland/current-tab, MJPEG/snapshot как
-основной frame loop, Playwright-клиенты, Electron UI-specific shell behavior.
+Перенос из `app/electron` выполнен для живого server-dev path: Chrome WebRTC
+monitor sender, host API `/desktop/health|rtc|input|audio` и default dev-layout
+живут в `pkg/interpreter/remote-desktop`. Старый
+`app/electron/scripts/chrome-webrtc-monitor.sh` - compatibility wrapper. Не
+переносить мертвые ветки и fallback-и: старый `32123`, Xwayland/current-tab,
+MJPEG/snapshot как основной frame loop, Playwright-клиенты,
+Electron UI-specific shell behavior.
 
 Это рекурсивный контур:
 

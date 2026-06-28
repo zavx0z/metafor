@@ -234,7 +234,7 @@ Generic panes under `ui/panes` не должны знать interpreter-specific
 
 Browser page - только host одного WebGPU canvas. Не добавляй hidden/default runtime surfaces для interpreter content. Interpreter panels должны быть attached к module `UIDisplay`.
 
-Общий server desktop/browser для WebApp должен входить как first-class display в `Space`, а не как HUD. Realtime-канал - WebRTC video/audio stream из Electron/Chromium capture API на сервере; snapshot routes допустимы как fallback/diagnostics. Visual source по умолчанию - весь server `screen`, не browser tab/window. Interpreter воспроизводит audio через WebAudio spatial panner, привязанный к позиции display в Space. Не делай Playwright permanent runtime dependency и не завязывай архитектуру на macOS display пользователя. macOS/ai-macos и Linux OS-level input/audio должны быть adapter-слоями поверх общего signaling/input/media контракта.
+Общий server desktop/browser для WebApp должен входить как first-class display в `Space`, а не как HUD. Realtime-канал - WebRTC video/audio stream из server Chrome capture API на сервере; snapshot routes допустимы как fallback/diagnostics. Visual source по умолчанию - весь server `screen`, не browser tab/window. Interpreter воспроизводит audio через WebAudio spatial panner, привязанный к позиции display в Space. Не делай Playwright permanent runtime dependency и не завязывай архитектуру на macOS display пользователя. macOS/ai-macos и Linux OS-level input/audio должны быть adapter-слоями поверх общего signaling/input/media контракта.
 
 Текущий server-dev контур без физического монитора использует один Wayland/Mutter
 virtual monitor и Chrome sender `webrtc:chrome:monitor` на
@@ -274,16 +274,18 @@ curl -sS -X POST http://10.66.0.10:6500/remote-desktop/lifecycle \
 На текущем server-dev `Meta-0` создается и удерживается headless GNOME RDP
 trigger: Xvfb `:101` + `xfreerdp` к `127.0.0.1:3390`; sender - tmux
 `metafor-chrome-wayland-monitor-main` с
-`app/electron/scripts/chrome-webrtc-monitor.sh`. Успешный health обязан
+`pkg/interpreter/remote-desktop/chrome-webrtc-monitor.sh`. Успешный health обязан
 показать `stream.target.connector: "Meta-0"`, `capture.frameSource:
 "chrome-get-display-media:monitor"`, audio `pipewire-pcm-track-generator-stream`
 и RTC `control-open`.
 
-Если remote desktop host-код переносится из `app/electron` в interpreter-модуль,
-переноси только реально используемый server-dev путь: Chrome WebRTC monitor
-sender, host API `/desktop/health|rtc|input|audio` и dev-layout. Не переноси
-старые fallback-и и мертвый код: `32123`, Xwayland/current-tab, MJPEG/snapshot
-как основной frame loop, Playwright-клиенты и Electron UI-specific поведение.
+Remote desktop host-код живет в `pkg/interpreter/remote-desktop`; старый
+`app/electron/scripts/chrome-webrtc-monitor.sh` - compatibility wrapper. В
+interpreter-модуль переносится только реально используемый server-dev путь:
+Chrome WebRTC monitor sender, host API `/desktop/health|rtc|input|audio` и
+dev-layout. Не переноси старые fallback-и и мертвый код: `32123`,
+Xwayland/current-tab, MJPEG/snapshot как основной frame loop, Playwright-клиенты
+и Electron UI-specific поведение.
 
 ## Terminal Input
 
