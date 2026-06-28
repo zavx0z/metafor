@@ -1,21 +1,88 @@
 # Правила Пакета Interpreter
 
-Этот файл задает локальные правила разработки для `pkg/interpreter`. Следуй им при каждом изменении внутри пакета.
+Этот файл задает локальные правила разработки для `pkg/interpreter` и текущего
+server-dev контура MetaFor. Следуй им при каждом изменении внутри interpreter
+package, WebApp debugging workflow, remote desktop display, DevTools bridge,
+HUD/TODO, breakpoints или совместного runtime/source контекста.
 
 Документация и правила пакета пишутся на русском. Технические имена endpoint, типов, команд и protocol methods оставляются как literal identifiers.
 
-Если работа идет в серверном dev-инстансе из корня репозитория, сначала прочитай
-корневой `AGENTS.md`: там зафиксированы текущие server-dev адреса, Chrome
-remote desktop layout, lifecycle restart/reload и запреты на неверные внешние
-контуры.
+Корневой `AGENTS.md` только указывает на этот файл и фиксирует краткую карту
+репозитория. Этот файл является source of truth для interpreter/server-dev
+workflow.
 
-## Модель Продукта
+## Что Такое Интерпретатор
 
 `@metafor/interpreter` - live-интерпретатор MetaFor. Это не wrapper вокруг WebStorm, Chrome DevTools или отдельного debugger UI.
 
-Смысл продукта: человек и AI находятся в одном живом runtime/source-контексте, видят execution point, source, stack, scopes, terminal/output, события, могут ставить точки останова, выполнять step/evaluate и менять код во время работы.
+Смысл продукта: человек и AI находятся в одной живой среде разработки MetaFor.
+Сначала это был runtime/source-контекст серверного кода: execution point,
+source, stack, scopes, terminal/output, события, breakpoints, step/evaluate и
+изменение кода во время работы. Теперь WebApp тоже подключен в эту же среду:
+server Chrome, remote desktop display, WebRTC, DevTools, console и source maps
+являются частью interpreter workflow, а не внешним браузером рядом.
+
+Через интерпретатор мы сейчас разрабатываем MetaFor. Видимый контур
+`https://meta.proizvodstvo1.ru/` - первая живая реализация MetaFor, которую
+нужно доводить через эту среду, а не как отдельный сайт вне interpreter.
 
 Protocol names вроде `Debugger.paused`, `Debugger.scriptParsed`, `Runtime.getProperties` и Bun inspect flags - внутренние детали adapter-слоя. В adapter-коде, низкоуровневых tests и raw event streams их можно использовать. В пользовательских labels, docs, logs для людей и UI-controls используй язык интерпретатора: process, Space, display, module, expression, execution point, breakpoint.
+
+Для агента интерпретатор - это главный рабочий API, а не страница, которую
+нужно кликать вслепую:
+
+- `host` - серверный процесс interpreter, который владеет REST/WS API;
+- `UI client` - browser/XR/mobile host, который отображает state host-а;
+- `Space` - общий WebGPU мир с независимыми display;
+- `UIDisplay` - поверхность в Space;
+- `Process` - основной адрес runtime/source действий;
+- `Module` - source/code unit внутри process;
+- `Remote desktop display` - отдельный display с серверным Chrome/WebApp,
+  передаваемый через WebRTC;
+- `WebApp target` - видимая вкладка `https://meta.proizvodstvo1.ru/`, где
+  разрабатывается первая реализация MetaFor;
+- `DevTools bridge` - agent API к Chrome DevTools Protocol для этой вкладки:
+  console, source maps, breakpoints, reload и probe;
+- `HUD` - host-level панели вроде TODO, SQLite и terminal.
+
+Если нужно понять, что видит человек и где сейчас работать, сначала читай
+`GET /context`, `GET /space`, затем process-specific endpoints.
+
+## Текущий Server-Dev Контур
+
+По умолчанию новый агент в этом репозитории должен считать, что он находится в
+server-dev контуре:
+
+- workspace: `/home/zavx0z/production/vendor/metafor`;
+- branch: `energy`;
+- interpreter host: `http://10.66.0.10:6500`;
+- app-web dev server: `http://10.66.0.10:3004`;
+- Bun inspector child `app/web/server.ts`: `ws://127.0.0.1:6499/`;
+- visible WebApp target в серверном Chrome:
+  `https://meta.proizvodstvo1.ru/`;
+- server Chrome remote desktop host: `http://127.0.0.1:32133`;
+- server Chrome CDP: `http://127.0.0.1:9349/json/list`.
+
+Локальный workflow через `127.0.0.1:6500` поддерживается для запуска на другой
+машине, но в текущем server-dev контуре используй `10.66.0.10:6500` для host
+API и `10.66.0.10:3004` для app-web dev health/API. LAN/TLS режим на `443` -
+отдельный локально-сетевой режим, не диагностика этого контура.
+
+Удаленный браузер для визуальной WebApp-разработки должен открывать
+`https://meta.proizvodstvo1.ru/`. Это не маркетинговая внешняя страница, а
+текущий живой WebApp-контур первой MetaFor. Для shell/API/debug диагностики
+используй server-dev адреса выше: внешний `meta` слой может вернуть SSO/redirect
+вместо runtime state.
+
+Базовая проверка текущего контура:
+
+```sh
+curl -sS http://10.66.0.10:6500/health
+curl -sS http://10.66.0.10:6500/context
+curl -sS http://10.66.0.10:6500/space
+curl -sS http://10.66.0.10:3004/health
+curl -sS http://10.66.0.10:6500/remote-desktop/lifecycle
+```
 
 ## Interpreter / HUD / Space / Process
 
@@ -85,7 +152,13 @@ Runtime-действия адресуются через process. `module` - sou
 
 ## REST API Интерпретатора
 
-Base URL:
+Base URL зависит от контура. В текущем server-dev используй:
+
+```text
+http://10.66.0.10:6500
+```
+
+В локальном запуске на той же машине используй:
 
 ```text
 http://127.0.0.1:6500
@@ -94,8 +167,8 @@ http://127.0.0.1:6500
 Перед действием читай текущую ситуацию:
 
 ```sh
-curl -s http://127.0.0.1:6500/context
-curl -s http://127.0.0.1:6500/space
+curl -sS http://10.66.0.10:6500/context
+curl -sS http://10.66.0.10:6500/space
 ```
 
 `GET /context` - главный endpoint для запроса "что сейчас видно/выделено". Он возвращает один текущий active context, а не полный dump всех runtime.
@@ -181,9 +254,9 @@ Space API:
 Для совместной работы с конкретным process используй `/context`, затем `/processes/:id/*`:
 
 ```sh
-curl -sS http://127.0.0.1:6500/context
+curl -sS http://10.66.0.10:6500/context
 
-curl -sS -X POST 'http://127.0.0.1:6500/processes/dark-server.spec.ts/action' \
+curl -sS -X POST 'http://10.66.0.10:6500/processes/dark-server.spec.ts/action' \
   -H 'content-type: application/json' \
   -d '{"action":"evaluate","params":{"expr":"globalThis.location","frame":0}}'
 ```
@@ -234,7 +307,17 @@ Generic panes under `ui/panes` не должны знать interpreter-specific
 
 Browser page - только host одного WebGPU canvas. Не добавляй hidden/default runtime surfaces для interpreter content. Interpreter panels должны быть attached к module `UIDisplay`.
 
-Общий server desktop/browser для WebApp должен входить как first-class display в `Space`, а не как HUD. Realtime-канал - WebRTC video/audio stream из server Chrome capture API на сервере; snapshot routes допустимы как fallback/diagnostics. Visual source по умолчанию - весь server `screen`, не browser tab/window. Interpreter воспроизводит audio через WebAudio spatial panner, привязанный к позиции display в Space. Не делай Playwright permanent runtime dependency и не завязывай архитектуру на macOS display пользователя. macOS/ai-macos и Linux OS-level input/audio должны быть adapter-слоями поверх общего signaling/input/media контракта.
+Общий server desktop/browser для WebApp уже является рабочим first-class display
+в `Space`, а не HUD. Через него человек и агент видят один и тот же WebApp,
+управляют серверным Chrome и отлаживают `https://meta.proizvodstvo1.ru/` через
+DevTools bridge. Realtime-канал - WebRTC video/audio stream из server Chrome
+capture API на сервере; snapshot routes допустимы как fallback/diagnostics.
+Visual source по умолчанию - весь server `screen`, не browser tab/window.
+Interpreter воспроизводит audio через WebAudio spatial panner, привязанный к
+позиции display в Space. Не делай Playwright permanent runtime dependency и не
+завязывай архитектуру на macOS display пользователя. macOS/ai-macos и Linux
+OS-level input/audio должны быть adapter-слоями поверх общего
+signaling/input/media контракта.
 
 Текущий server-dev контур без физического монитора использует один Wayland/Mutter
 virtual monitor и Chrome sender `webrtc:chrome:monitor` на

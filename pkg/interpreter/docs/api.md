@@ -235,9 +235,12 @@ UI-клиент после `reload` не должен сразу заменят�
 
 ## Browser Host Bridge
 
-Browser-host bridge - локальный server-side адаптер для будущего first-class
-`browser-display`. Он не запускает браузер, не добавляет Playwright и не делает
-фонового polling. Интерпретатор только проксирует явные запросы к локальному
+Browser-host bridge - локальный server-side адаптер для отдельного
+`browser-display` API. Это не текущий основной WebApp-контур. Для разработки
+`https://meta.proizvodstvo1.ru/` в server-dev используется
+`remote-desktop:server`: server Chrome, WebRTC, DevTools bridge и source maps.
+Bridge не запускает браузер, не добавляет Playwright и не делает фонового
+polling. Интерпретатор только проксирует явные запросы к локальному
 browser-host API.
 
 Конфигурация:
@@ -279,8 +282,9 @@ configured local browser-host, запрещает `//`, `.`/`..` segments и н�
 
 ## Remote Desktop Display
 
-Remote desktop display - server-owned визуальный канал для совместной Web UI
-разработки. Основной realtime-путь в текущем Linux server-dev контуре:
+Remote desktop display - текущий server-owned визуальный канал для совместной
+Web UI разработки первой живой MetaFor на `https://meta.proizvodstvo1.ru/`.
+Основной realtime-путь в текущем Linux server-dev контуре:
 один Wayland/Mutter virtual monitor без reboot/sudo, Chrome на этом monitor, а
 interpreter remote desktop module на `127.0.0.1:32133` публикует full monitor
 через Chrome `getDisplayMedia()` и WebRTC.

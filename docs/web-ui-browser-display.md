@@ -1,10 +1,16 @@
 # Web UI Remote Desktop Display Runbook
 
 Этот документ фиксирует рабочий контур Web UI и целевую форму общего server
-desktop/browser display для интерпретатора. Цель - чтобы человек с любого
-устройства и агент видели один и тот же серверный visual stream разработки.
+desktop/browser display для интерпретатора. WebApp уже подключен в
+интерпретаторную среду через server Chrome remote desktop, WebRTC, DevTools,
+console и source maps. Цель - чтобы человек с любого устройства и агент видели
+один и тот же серверный visual stream разработки.
 Display должен быть равноправным экраном в `Space`, а не HUD-панелью,
 iframe-оберткой или скрытым Playwright-клиентом.
+
+`https://meta.proizvodstvo1.ru/` - текущий видимый WebApp-контур первой живой
+реализации MetaFor. Его нужно развивать через интерпретатор, а не как внешний
+сайт или отдельный браузерный workflow.
 
 Текущий основной realtime-канал - Chrome WebRTC stream на сервере. Проверенный
 2026-06-27 рабочий путь без reboot/sudo: один Wayland/Mutter virtual monitor,

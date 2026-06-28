@@ -59,7 +59,12 @@ UI создаёт один WebGPU `Space` и несколько равнопра
 
 Browser-страница сейчас является host-слоем для canvas/input/WebSocket. Это не продуктовая граница интерпретатора: для XR тот же process-scoped state должен рендериться как `UIDisplay`-контент в общем `Space`.
 
-Общий server desktop/browser для WebApp развивается как отдельный display в `Space`: человек видит тот же серверный WebRTC stream в интерпретаторе, агент получает тот же кадр и управляет вводом через host/input API. Это не HUD, не iframe и не скрытый Playwright-клиент. Snapshot endpoints допустимы только как fallback/diagnostics.
+Общий server desktop/browser для WebApp уже работает как отдельный display в
+`Space`: человек видит тот же серверный WebRTC stream в интерпретаторе, агент
+получает тот же кадр и управляет вводом через host/input API. Через этот
+display и DevTools bridge мы разрабатываем первую живую MetaFor на
+`https://meta.proizvodstvo1.ru/`. Это не HUD, не iframe и не скрытый
+Playwright-клиент. Snapshot endpoints допустимы только как fallback/diagnostics.
 
 ## Перезапуск Модуля
 
