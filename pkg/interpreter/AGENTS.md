@@ -117,6 +117,12 @@ TODO HUD API:
 - `DELETE /hud/todo/items/:id` удаляет пункт.
 - `POST /hud/todo/highlight` подсвечивает пункт в HUD для `context.hud.todo.highlightedItems`.
 
+Когда пользователь должен сразу увидеть изменения в ToDoPane, меняй `TODO.md`
+через этот API, а не прямым редактированием файла. `PUT`, `POST`, `PATCH` и
+`DELETE` сами рассылают `hud-todo-changed` подключенным UI-клиентам. Если
+`TODO.md` все же был изменен локально через git/apply_patch/merge, сразу вызови
+`POST /hud/todo/reload` и только потом сообщай пользователю, что TODO обновлен.
+
 Process API:
 
 - `GET /processes` возвращает live processes.

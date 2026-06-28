@@ -104,5 +104,28 @@ process. Если есть сомнение, сначала прочитай:
 curl -sS http://10.66.0.10:6500/context
 ```
 
+## TODO HUD
+
+В server-dev контуре `TODO.md` является live-данными HUD ToDoPane. Не меняй его
+как обычный markdown-файл, если пользователь должен сразу увидеть результат в
+интерпретаторе. Используй host API, чтобы файл изменился и всем UI-клиентам
+ушло событие `hud-todo-changed`:
+
+```sh
+curl -sS http://10.66.0.10:6500/hud/todo
+curl -sS -X PUT http://10.66.0.10:6500/hud/todo -H 'content-type: application/json' -d '{"text":"..."}'
+curl -sS -X PATCH http://10.66.0.10:6500/hud/todo/items/<id> -H 'content-type: application/json' -d '{"checked":true}'
+curl -sS -X POST http://10.66.0.10:6500/hud/todo/items -H 'content-type: application/json' -d '{"text":"...","checked":false}'
+```
+
+Если `TODO.md` был изменен локально через git/apply_patch/merge, сразу после
+этого вызови:
+
+```sh
+curl -sS -X POST http://10.66.0.10:6500/hud/todo/reload
+```
+
+Только после успешного reload/PUT/PATCH сообщай пользователю, что TODO обновлен.
+
 Подробные правила interpreter package: `pkg/interpreter/AGENTS.md`.
 Подробный runbook server browser/remote desktop: `docs/web-ui-browser-display.md`.
