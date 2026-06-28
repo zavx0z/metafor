@@ -108,6 +108,16 @@ Host-level API:
 - `POST /restart` перезапускает текущий interpreter host только когда host знает, как себя поднять снова: сейчас основной путь - tmux `respawn-pane` текущего `TMUX_PANE` или явно заданный `INTERPRETER_RESTART_COMMAND` / `INTERPRETER_RESTART_SCRIPT`. Клиенты получают delayed reload и должны дождаться `/health`, чтобы не показывать белый экран во время restart.
 - `POST /hud/todo/reload` перечитывает корневой `TODO.md` и рассылает `hud-todo-changed` всем UI-клиентам. Не dispatch-ить это через случайный UI-host client: TODO HUD является общим состоянием host.
 
+Web DevTools API для server Chrome/AppWeb:
+
+- `GET /devtools/targets` читает Chrome CDP targets с default `127.0.0.1:9349`.
+- `GET /devtools/state` показывает agent CDP sessions, breakpoints и paused state.
+- `POST /devtools/reload` делает `Page.reload` текущего AppWeb target.
+- `POST /devtools/breakpoints` ставит breakpoint по `source` + 1-based `line`; source maps мапятся на generated bundle автоматически.
+- `POST /devtools/probe` ставит breakpoint, дергает optional `trigger`, ждет `Debugger.paused`, затем по умолчанию делает resume и clear.
+- `POST /devtools/resume` продолжает paused target.
+- `POST /devtools/disable` снимает breakpoints, выключает Debugger и закрывает agent CDP session.
+
 TODO HUD API:
 
 - `GET /hud/todo` читает корневой `TODO.md` и parsed items.

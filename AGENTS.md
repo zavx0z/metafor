@@ -52,6 +52,29 @@ curl -sS http://10.66.0.10:6500/webrtc/rooms
 RTCPeerConnection. Не возвращай MJPEG/snapshot/PipeWire frame fallback как
 основной путь; они допустимы только как диагностика.
 
+## Web DevTools Для Агента
+
+Для отладки Web UI агент управляет текущим server Chrome через interpreter API
+`/devtools/*`, а не через отдельный Playwright/browser. Эти endpoint'ы
+используют CDP `127.0.0.1:9349`, выбирают AppWeb target
+`http://10.66.0.10:3004/` по умолчанию и умеют мапить строки исходников через
+linked sourcemap:
+
+```sh
+curl -sS http://10.66.0.10:6500/devtools/targets
+curl -sS -X POST http://10.66.0.10:6500/devtools/reload -H 'content-type: application/json' -d '{"hard":true}'
+curl -sS -X POST http://10.66.0.10:6500/devtools/breakpoints -H 'content-type: application/json' -d '{"source":"app/web/client.ts","line":603}'
+curl -sS http://10.66.0.10:6500/devtools/state
+curl -sS -X POST http://10.66.0.10:6500/devtools/resume -H 'content-type: application/json' -d '{}'
+curl -sS -X POST http://10.66.0.10:6500/devtools/disable -H 'content-type: application/json' -d '{"all":true}'
+```
+
+Для быстрого smoke используй `/devtools/probe`: он ставит breakpoint, опционально
+дергает `trigger`, ждет `Debugger.paused`, затем по умолчанию делает resume и
+снимает breakpoint. Если breakpoint не ловится после restart host, сначала
+перезагрузи AppWeb target через `/devtools/reload`, потому что страница могла
+остаться со stale websocket.
+
 ## Lifecycle Интерпретатора
 
 Для разработки interpreter/app-web сначала проверяй реальный server-dev host:

@@ -419,6 +419,54 @@ curl -sS http://127.0.0.1:9349/json/list
 5. в DevTools проверь, что исходники открываются как TypeScript files из
    `app/web`, `bulk/web` и workspace-пакетов.
 
+## Agent DevTools API
+
+Для агентской отладки Web UI используй interpreter endpoint'ы `/devtools/*`.
+Они работают с текущим server Chrome CDP `127.0.0.1:9349`, выбирают AppWeb
+target `http://10.66.0.10:3004/` по умолчанию и мапят 1-based строки исходника
+через linked sourcemap:
+
+```sh
+curl -sS http://10.66.0.10:6500/devtools/targets
+curl -sS http://10.66.0.10:6500/devtools/state
+curl -sS -X POST http://10.66.0.10:6500/devtools/reload \
+  -H 'content-type: application/json' \
+  -d '{"hard":true}'
+curl -sS -X POST http://10.66.0.10:6500/devtools/breakpoints \
+  -H 'content-type: application/json' \
+  -d '{"source":"app/web/client.ts","line":603,"column":2}'
+curl -sS -X POST http://10.66.0.10:6500/devtools/resume \
+  -H 'content-type: application/json' \
+  -d '{}'
+curl -sS -X POST http://10.66.0.10:6500/devtools/disable \
+  -H 'content-type: application/json' \
+  -d '{"all":true}'
+```
+
+Быстрый smoke без ручного удержания UI:
+
+```sh
+curl -sS -X POST http://10.66.0.10:6500/devtools/probe \
+  -H 'content-type: application/json' \
+  -d '{
+    "source": "app/web/client.ts",
+    "line": 603,
+    "column": 2,
+    "trigger": {
+      "url": "http://10.66.0.10:3004/hud/todo/items/<todo-id>",
+      "method": "PATCH",
+      "body": {"checked": false}
+    },
+    "autoResumeMs": 500,
+    "clear": true
+  }'
+```
+
+Если breakpoint не срабатывает после restart interpreter/app-web, сначала сделай
+`POST /devtools/reload`: страница может быть открыта, но ее AppWeb websocket
+остался stale. Не открывай для этого отдельный browser; visual context должен
+оставаться тем же `remote-desktop:server` display.
+
 ## Диагностика
 
 ### Пустой Экран

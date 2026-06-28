@@ -108,6 +108,15 @@ POST   /hud/todo/show
 POST   /hud/todo/dock
 POST   /hud/todo/toggle
 
+GET    /devtools/targets
+GET    /devtools/state
+POST   /devtools/reload
+POST   /devtools/breakpoints
+POST   /devtools/probe
+POST   /devtools/resume
+POST   /devtools/disable
+POST   /devtools/evaluate
+
 GET    /hud/sqlite
 POST   /hud/sqlite/show
 POST   /hud/sqlite/dock
@@ -315,6 +324,33 @@ adapter того же virtual monitor.
 `40000-40100`. `ice.lastCandidate` может содержать локальный адрес Chromium
 вроде `10.163.*`, если UDP socket открыт на `0.0.0.0`; проверять надо именно
 published candidate, который уходит browser viewer-у через signaling.
+
+## Web DevTools
+
+`/devtools/*` - agent-facing слой над текущим server Chrome CDP. По умолчанию
+он использует `http://127.0.0.1:9349` и AppWeb target
+`http://10.66.0.10:3004/`. Это не замена визуальному docked DevTools: endpoint'ы
+нужны агенту для точных операций, пока пользователь и агент смотрят один и тот
+же `remote-desktop:server` display.
+
+```text
+GET  /devtools/targets
+GET  /devtools/state
+POST /devtools/reload       # {targetUrl?, hard?, ignoreCache?}
+POST /devtools/breakpoints  # {source|url, line, column?, targetUrl?}
+POST /devtools/probe        # {source|url, line, trigger?, autoResumeMs?, clear?}
+POST /devtools/resume       # {targetUrl?|targetId?}
+POST /devtools/disable      # {targetUrl?|targetId?|all?}
+POST /devtools/evaluate     # {expression, targetUrl?, awaitPromise?, returnByValue?}
+```
+
+Для `source` строки считаются 1-based, как в редакторе; `column` остается
+0-based. Interpreter читает linked sourcemap из AppWeb bundle и возвращает в
+ответе both original/generated coordinates. `POST /devtools/probe` ставит
+breakpoint, опционально выполняет HTTP `trigger`, ждет `Debugger.paused`, затем
+по умолчанию делает `resume` и снимает breakpoint. Если после restart breakpoint
+не ловится, сначала сделай `POST /devtools/reload`: Chrome target мог остаться
+открытым со stale AppWeb websocket.
 
 ## TODO HUD
 

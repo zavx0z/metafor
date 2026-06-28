@@ -42,6 +42,7 @@ import {workspaceFilesPayload, type WorkspaceFilesModuleContext} from "./workspa
 import {sqliteDatabaseFingerprint, sqliteDatabaseInputPath, sqliteDatabasePayload, sqliteJsonError, updateSqliteCell, type SqliteDatabaseFingerprint, type SqliteDatabasePayload} from "./sqlite-db.ts"
 import {interpreterRoutes} from "./routes.ts"
 import {handleBrowserHostRoute} from "./browser-host.ts"
+import {handleChromeDevtoolsRoute} from "./chrome-devtools.ts"
 import {restartInspectOptionsFromParams} from "./restart-options.ts"
 import {
   attachVoiceProxySocket,
@@ -1201,6 +1202,8 @@ async function handleRoute(
   if (method === "GET" && path === "/context") return jsonResponse(contextPayload(options, moduleContexts, hudTodoContext, hudSqliteContext))
   if (method === "GET" && path === "/viewport/screenshot") return await captureViewportScreenshot(url, dispatchUiHostCommand)
   if (method === "GET" && path === "/webrtc/rooms") return jsonResponse(rtcRoomsPayload())
+  const chromeDevtoolsRoute = await handleChromeDevtoolsRoute(req, method, path)
+  if (chromeDevtoolsRoute !== null) return chromeDevtoolsRoute
   const browserHostRoute = await handleBrowserHostRoute(req, method, path)
   if (browserHostRoute !== null) return browserHostRoute
   if (method === "GET" && path === "/hud/terminal") return await dispatchUiHostRoute("hud.terminal.get", {}, dispatchUiHostCommand)
