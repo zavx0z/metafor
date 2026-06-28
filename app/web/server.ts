@@ -50,6 +50,16 @@ const PORT = Number(Bun.env.PORT ?? 3000)
 const TLS_ENABLED = Boolean(Bun.env.TLS_KEY_FILE && Bun.env.TLS_CERT_FILE)
 const CHROME_API_URL = Bun.env.METAFOR_CHROME_API_URL?.trim() || null
 const {proxy: interpreterProxyRoutes} = interpreterRoutes
+const APP_WEB_BLOCKED_INTERPRETER_PATHS = new Set([
+  "/hud/sqlite",
+  "/hud/sqlite/dock",
+  "/hud/sqlite/show",
+  "/hud/sqlite/toggle",
+  "/sqlite",
+  "/sqlite/fingerprint",
+  "/sqlite/open",
+  "/sqlite/cell",
+])
 const REDIRECT_ENABLED = TLS_ENABLED && (Bun.env.APP_WEB_REDIRECT === "1" || (Bun.env.APP_WEB_REDIRECT !== "0" && PORT === 443))
 const REDIRECT_HOST = Bun.env.APP_WEB_REDIRECT_HOST ?? HOST
 const REDIRECT_PORT = Number(Bun.env.APP_WEB_REDIRECT_PORT ?? 80)
@@ -103,7 +113,7 @@ const embeddedInterpreterRoutes = createInterpreterHttpRoutes({
   logger: embeddedInterpreterLogger,
   eventLogPath: embeddedInterpreterConfig.eventLogPath,
   consoleLogPath: embeddedInterpreterConfig.consoleLogPath,
-	startupSqliteDatabases: [Bun.env.BOUNDARY_PATH ?? "app/web/tmp/boundary.sqlite"],
+  startupSqliteDatabases: [],
 })
 const {fetch: fetchEmbeddedInterpreterRoute, websocket: embeddedInterpreterWebsocket} = embeddedInterpreterRoutes
 const voiceServer = createVoiceServer({
@@ -823,6 +833,10 @@ async function dispatchEmbeddedInterpreterRequest(req: Request, url: URL, wsServ
   if (upstreamPath === null || !interpreterProxyRoutes.acceptsPath(upstreamPath)) {
     logHttp(req, "interp.embedded", 404, started, `blocked upstream=${upstreamPath ?? url.pathname}`)
     return jsonResponse({ok: false, error: "interpreter route not allowed"}, 404)
+  }
+  if (APP_WEB_BLOCKED_INTERPRETER_PATHS.has(upstreamPath)) {
+    logHttp(req, "interp.embedded", 404, started, `blocked upstream=${upstreamPath}`)
+    return jsonResponse({ok: false, error: "interpreter route not available in app/web"}, 404)
   }
   const upstream = new URL(req.url)
   upstream.pathname = upstreamPath
