@@ -4,6 +4,11 @@
 
 Документация и правила пакета пишутся на русском. Технические имена endpoint, типов, команд и protocol methods оставляются как literal identifiers.
 
+Если работа идет в серверном dev-инстансе из корня репозитория, сначала прочитай
+корневой `AGENTS.md`: там зафиксированы текущие server-dev адреса, Chrome
+remote desktop layout, lifecycle restart/reload и запреты на неверные внешние
+контуры.
+
 ## Модель Продукта
 
 `@metafor/interpreter` - live-интерпретатор MetaFor. Это не wrapper вокруг WebStorm, Chrome DevTools или отдельного debugger UI.
