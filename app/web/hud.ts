@@ -385,6 +385,7 @@ const VOICE_STOP_FUZZY_STORAGE_KEY = "metafor.interpreter.voice.stopFuzzy:v1"
 const VOICE_DEACTIVATION_MODE_STORAGE_KEY = "metafor.interpreter.voice.deactivationMode:v1"
 const VOICE_RECOGNITION_TIMEOUT_STORAGE_KEY = "metafor.interpreter.voice.recognitionTimeoutSeconds:v1"
 const VOICE_AUTO_SEND_STORAGE_KEY = "metafor.interpreter.voice.autoSend:v1"
+const VOICE_AUTO_WAKE_PAUSED_STORAGE_KEY = "metafor.interpreter.voice.autoWakePaused:v1"
 const CODEX_VOICE_AUTO_SEND_STORAGE_KEY = `${STORAGE_PREFIX}.codex.voice.autoSend:v1`
 const CODEX_VOICE_P2P_STORAGE_KEY = `${STORAGE_PREFIX}.codex.voice.p2p:v1`
 const VOICE_SIGNAL_VOLUME_LEGACY_STORAGE_KEY = "metafor.interpreter.voice.signalVolume:v1"
@@ -406,6 +407,7 @@ const VOICE_SETTINGS_STORAGE_KEYS = [
 	VOICE_DEACTIVATION_MODE_STORAGE_KEY,
 	VOICE_RECOGNITION_TIMEOUT_STORAGE_KEY,
 	VOICE_AUTO_SEND_STORAGE_KEY,
+	VOICE_AUTO_WAKE_PAUSED_STORAGE_KEY,
 	VOICE_SIGNAL_VOLUME_LEGACY_STORAGE_KEY,
 	VOICE_SIGNAL_VOLUME_STORAGE_KEY,
 	HOST_TERMINAL_AGENT_SOUND_ENABLED_STORAGE_KEY,
@@ -793,7 +795,7 @@ class AppWebHud implements AppWebHudController {
 	#voicePrewarmTimer: number | null = null
 	#voicePrewarmAttempts = 0
 	#voiceAutoWakeInFlight = false
-	#voiceAutoWakePaused = false
+	#voiceAutoWakePaused = readStoredBoolean(VOICE_AUTO_WAKE_PAUSED_STORAGE_KEY, false)
 	#voiceLeaseOwnerId: string | null = null
 	#voiceLeaseExpiresAt = 0
 	#voiceLeaseHeartbeatTimer: number | null = null
@@ -3180,20 +3182,13 @@ class AppWebHud implements AppWebHudController {
 			if (payload.ok !== true) return
 			const values = asVoiceSettingsValues(payload.values) ?? {}
 			let changed = false
-			for (const key of VOICE_SETTINGS_STORAGE_KEYS) {
-				const next = values[key]
+			for (const [key, next] of Object.entries(values) as Array<[typeof VOICE_SETTINGS_STORAGE_KEYS[number], string]>) {
 				const previous = localStorage.getItem(key)
-				if (next === undefined) {
-					if (previous !== null) {
-						localStorage.removeItem(key)
-						changed = true
-					}
-					continue
-				}
 				if (previous === next) continue
 				localStorage.setItem(key, next)
 				changed = true
 			}
+			this.#voiceAutoWakePaused = readStoredBoolean(VOICE_AUTO_WAKE_PAUSED_STORAGE_KEY, false)
 			if (!changed) return
 			this.#voiceClient?.refreshDeactivationSettings()
 			this.#voiceHud.requestRender()
@@ -3285,17 +3280,17 @@ class AppWebHud implements AppWebHudController {
 			if (!client.active || client.status === "waitingWake") this.#claimVoiceLeaseForManualStart()
 			if (client.active) {
 				if (client.status === "waitingWake") {
-					this.#voiceAutoWakePaused = false
+					this.#setVoiceAutoWakePaused(false)
 					await client.startDictation()
 				}
 				else {
-					this.#voiceAutoWakePaused = false
+					this.#setVoiceAutoWakePaused(false)
 					this.#voiceNextFlushMode = "draft"
 					await client.sleepToWake()
 				}
 				return
 			}
-			this.#voiceAutoWakePaused = false
+			this.#setVoiceAutoWakePaused(false)
 			if (this.#terminal.socket?.readyState !== WebSocket.OPEN) {
 				this.#flashVoiceHudError("Codex terminal не подключен")
 				return
@@ -3335,7 +3330,7 @@ class AppWebHud implements AppWebHudController {
 		const voiceSignal = voiceSignalForStatusChange(previousStatus, status, detail)
 		const transportError = status === "error" && isVoiceServiceErrorText(detail)
 		this.#setVoiceDictationActive(voiceStatusNeedsRenderHold(status))
-		if (status === "idle" && detail === VOICE_STOP_COMMAND_DETAIL) this.#voiceAutoWakePaused = true
+		if (status === "idle" && detail === VOICE_STOP_COMMAND_DETAIL) this.#setVoiceAutoWakePaused(true)
 		if (status === "waitingWake" && (previousStatus === "listening" || previousStatus === "committing")) {
 			this.#onVoiceLeaseRelease("waiting-wake")
 		}
@@ -3343,7 +3338,7 @@ class AppWebHud implements AppWebHudController {
 			this.#onVoiceLeaseRelease("idle")
 		}
 		if (transportError) {
-			this.#voiceAutoWakePaused = false
+			this.#setVoiceAutoWakePaused(false)
 			this.#scheduleVoiceAutoWake(VOICE_AUTO_WAKE_RETRY_MS)
 			this.#discardVoiceAutoSendBuffer()
 			this.#clearVoicePartialPreview()
@@ -3428,7 +3423,7 @@ class AppWebHud implements AppWebHudController {
 
 	async #handleVoiceNetworkOnline(): Promise<void> {
 		if (!this.#documentHasLocalVoiceFocus()) return
-		this.#voiceAutoWakePaused = false
+		if (this.#voiceAutoWakePaused) return
 		const client = this.#voiceClient
 		if (client?.status === "waitingWake") {
 			try {
@@ -3571,10 +3566,17 @@ class AppWebHud implements AppWebHudController {
 	}
 
 	#pauseVoiceAutoWake(): void {
-		this.#voiceAutoWakePaused = true
+		this.#setVoiceAutoWakePaused(true)
 		if (this.#voiceAutoWakeTimer === null) return
 		window.clearTimeout(this.#voiceAutoWakeTimer)
 		this.#voiceAutoWakeTimer = null
+	}
+
+	#setVoiceAutoWakePaused(paused: boolean): void {
+		if (this.#voiceAutoWakePaused === paused) return
+		this.#voiceAutoWakePaused = paused
+		writeStoredBoolean(VOICE_AUTO_WAKE_PAUSED_STORAGE_KEY, paused)
+		syncInterpreterVoiceSettings({[VOICE_AUTO_WAKE_PAUSED_STORAGE_KEY]: paused ? "1" : "0"})
 	}
 
 	async #ensureVoiceAutoWake(): Promise<void> {
@@ -3846,7 +3848,7 @@ class AppWebHud implements AppWebHudController {
 	#restartVoiceCommandRecognizerAfterSettingsChange(): void {
 		const client = this.#voiceClient
 		if (client?.status !== "waitingWake") return
-		this.#voiceAutoWakePaused = false
+		this.#setVoiceAutoWakePaused(false)
 		client.stop()
 		this.#scheduleVoiceAutoWake()
 	}

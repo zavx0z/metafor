@@ -28,6 +28,7 @@ const VOICE_LOCAL_STORAGE_KEYS = [
 	"metafor.interpreter.voice.deactivationMode:v1",
 	"metafor.interpreter.voice.recognitionTimeoutSeconds:v1",
 	"metafor.interpreter.voice.autoSend:v1",
+	"metafor.interpreter.voice.autoWakePaused:v1",
 	"metafor.interpreter.voice.signalVolume:v1",
 	"metafor.interpreter.voice.signalVolume:v2",
 	"metafor.interpreter.hostTerminal.agentSoundEnabled:v1",
