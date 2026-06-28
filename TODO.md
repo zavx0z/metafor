@@ -5,7 +5,8 @@
 ## Инфраструктура Web UI: remote desktop / browser-display
 
 - [x] Зафиксировать текущий dev-контур Web UI: interpreter API/UI `10.66.0.10:6500`, app-web dev server `10.66.0.10:3004`, внешний `meta.proizvodstvo1.ru` через proxy/SSO; не путать с LAN-режимом `443` и не закладывать macOS-браузер как обязательный backend.
-- [ ] Сделать минимальный Linux/Electron browser-host поверх `app/electron`: отдельный user-data-dir, управляемый URL, CDP/debug port, health endpoint, restart и явное состояние окна/страницы.
+- [x] Сделать текущий Linux browser-host поверх `app/electron`: Chrome Wayland monitor host с отдельным user-data-dir, управляемым URL, CDP/debug port `9349`, health/state/restart endpoint на `32133` и явным состоянием окна/страницы.
+- [ ] Отдельно решить судьбу Electron BrowserWindow host: либо оставить его диагностическим/fallback-контуром, либо стабилизировать позже; текущий server-dev workflow не должен переключаться с Chrome monitor host без успешного `/desktop/rtc/state`.
 - [x] Проверить на сервере запуск browser-host в реальном графическом контуре: Wayland/Chrome/Mutter/PipeWire/EIS работает без Mac и без Playwright; Electron runtime пока не считать рабочим без успешного `/desktop/rtc/state`.
 - [x] Реализовать fallback-захват кадра: `/remote-desktop/snapshot` через PipeWire snapshot и browser-host `/snapshot` через `webContents.capturePage()`; это только диагностика/fallback, не основной realtime-канал.
 - [x] Добавить в интерпретатор first-class Space display `remote-desktop:server`, не HUD: frame stream/snapshot fallback, статус host и понятные ошибки запуска.
@@ -17,10 +18,10 @@
 - [x] Провести звук через тот же WebRTC PeerConnection: active Google Chrome PipeWire output -> `/desktop/audio.pcm` -> Chrome `MediaStreamTrackGenerator(AudioData)` -> audio track; receiver stats показывают `muted:false`, растущие `bytesReceived`, `audioLevel` и `totalAudioEnergy`.
 - [x] Довести remote desktop audio playback в interpreter UI: если `AudioContext` уже `running` или успешно `resume()`, hidden media element становится `MediaElementAudioSourceNode` для spatial WebAudio graph; `audio-playing` должен быть `muted:false`.
 - [x] Довести direct input для текущего Wayland/Mutter virtual monitor: WebRTC data channel проксирует pointer/keyboard/wheel в `mutter-eis` region `1920x1080`.
-- [ ] Подключить sourcemap/devtools workflow для app-web: открытие исходников TypeScript в browser DevTools, стабильные sourcemaps в dev-контуре и короткая диагностика, если browser-display показывает старый bundle.
+- [x] Подключить sourcemap/devtools workflow для app-web: стартовый browser-display открывает AppWeb в mobile emulation слева и docked DevTools справа; dev bundle отдает linked `.map` с исходниками `app/web`, `bulk` и `pkg`, диагностика старого bundle описана в runbook.
 - [ ] Аккуратно переиспользовать `production/vendor/ai-macos`: вынести переносимый CDP/shared слой, оставить macOS-specific AppleScript/CoreGraphics/screencapture в darwin-adapter, для Linux сначала делать CDP/Electron backend без широкого порта `window/screen/input`.
-- [ ] Проверить совместную работу: пользователь видит remote desktop/browser-display из интерпретатора на другом экране/телефоне, агент видит тот же кадр, оба могут понимать состояние Web UI без использования ресурсов Mac.
-- [ ] После proof-of-concept оформить docs/runbook: как стартовать, как перезапустить tmux/process, какие порты используются, как диагностировать пустой экран, stale frame, неверный DISPLAY и потерю ввода.
+- [x] Проверить совместную работу в текущем server-dev контуре: пользователь видит remote desktop/browser-display из интерпретатора, агент проверяет тот же Chrome target через `/remote-desktop/*`, `/desktop/rtc/state`, CDP и snapshot без использования Mac как browser backend.
+- [x] После proof-of-concept оформить docs/runbook: как стартовать, как перезапустить tmux/process, какие порты используются, как диагностировать пустой экран, stale frame, неверный DISPLAY, старый bundle и потерю ввода.
 
 ## 0. Full-screen Force: realtime-визуализация патчей
 

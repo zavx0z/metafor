@@ -364,6 +364,31 @@ frame metadata: `frameId`, `capturedAt`, URL, viewport, device scale factor и
 Если страница не готова принять input, host должен возвращать ошибку, а не
 молча терять событие.
 
+## Стартовый Web UI Debug Layout
+
+В server-dev контуре общий рабочий экран должен стартовать из
+`app/electron/scripts/chrome-webrtc-monitor.sh`, а не руками через macOS
+браузер. Скрипт включает `METAFOR_REMOTE_DESKTOP_CHROME_DEV_LAYOUT=1` и
+поднимает один maximized Chrome window на виртуальном monitor `1920x1080`:
+
+- слева открыта мобильная AppWeb page `http://10.66.0.10:3004/`;
+- справа docked Chrome DevTools той же page;
+- в DevTools выбран `Sources`;
+- Console drawer открыт снизу;
+- CDP доступен локально на `http://127.0.0.1:9349/json/list`;
+- WebRTC/display host state доступен на
+  `http://127.0.0.1:32133/desktop/rtc/state`.
+
+Не меняй этот layout на два разных браузера или detached DevTools без явной
+задачи: пользователь и агент должны видеть один и тот же рабочий контур через
+interpreter display. Если layout сбился, сначала перезапусти Chrome monitor
+host, затем проверь CDP targets:
+
+```sh
+curl -sS http://127.0.0.1:32133/desktop/rtc/state
+curl -sS http://127.0.0.1:9349/json/list
+```
+
 ## DevTools И Source Maps
 
 Для текущего dev-контура app-web source maps включаются автоматически вне
@@ -379,7 +404,7 @@ APP_WEB_CLIENT_SOURCEMAP=0 bun run workspace.app.web:prod
 ```sh
 curl -sS http://10.66.0.10:6500/health
 curl -sS http://10.66.0.10:3004/health
-curl -sS http://127.0.0.1:9230/json/list
+curl -sS http://127.0.0.1:9349/json/list
 ```
 
 Если DevTools показывает старый compiled bundle:
@@ -401,17 +426,18 @@ curl -sS http://127.0.0.1:9230/json/list
 Проверь контур и порты:
 
 ```sh
-ss -ltnp | rg ':(6500|6499|3004|9230)\b'
+ss -ltnp | rg ':(6500|6499|3004|32133|9349)\b'
 curl -sS http://10.66.0.10:6500/health
 curl -sS http://10.66.0.10:3004/health
-curl -sS http://127.0.0.1:9230/json/list
+curl -sS http://127.0.0.1:32133/desktop/rtc/state
+curl -sS http://127.0.0.1:9349/json/list
 ```
 
 Проверь, что browser target не ушел во внешний SSO/proxy flow и не открыт на
 LAN `443`:
 
 ```sh
-curl -sS http://127.0.0.1:9230/json/list | rg '10\.66\.0\.10:3004|meta\.proizvodstvo1\.ru'
+curl -sS http://127.0.0.1:9349/json/list | rg '10\.66\.0\.10:3004|meta\.proizvodstvo1\.ru'
 ```
 
 Если interpreter UI стал белым после restart host, используй поддерживаемый
@@ -435,7 +461,7 @@ bundle, input ack свежий, но кадр старый.
 ```sh
 curl -sS http://10.66.0.10:6500/space
 curl -sS http://10.66.0.10:6500/remote-desktop/rtc/state
-curl -sS http://127.0.0.1:9230/json/list
+curl -sS http://127.0.0.1:9349/json/list
 curl -sS http://10.66.0.10:3004/health
 ```
 
@@ -512,7 +538,7 @@ display.
 ```sh
 curl -sS http://10.66.0.10:6500/space
 curl -sS http://10.66.0.10:6500/remote-desktop/health
-curl -sS http://127.0.0.1:9230/json/list
+curl -sS http://127.0.0.1:9349/json/list
 ```
 
 Если input теряется после навигации или reload, сначала дождись readiness page
