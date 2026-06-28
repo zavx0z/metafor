@@ -181,6 +181,13 @@ Host-level API:
 - `POST /restart` перезапускает текущий interpreter host только когда host знает, как себя поднять снова: сейчас основной путь - tmux `respawn-pane` текущего `TMUX_PANE` или явно заданный `INTERPRETER_RESTART_COMMAND` / `INTERPRETER_RESTART_SCRIPT`. Клиенты получают delayed reload и должны дождаться `/health`, чтобы не показывать белый экран во время restart.
 - `POST /hud/todo/reload` перечитывает корневой `TODO.md` и рассылает `hud-todo-changed` всем UI-клиентам. Не dispatch-ить это через случайный UI-host client: TODO HUD является общим состоянием host.
 
+Если nginx показывает `502 Bad Gateway`, сначала проверяй upstream:
+`curl http://10.66.0.10:6500/health`,
+`curl http://10.66.0.10:3004/health` и `ss -ltnp`. Не доверяй только
+`tmux ls`: session `metafor-interpreter-host` может существовать, но внутри
+может быть shell/старый Codex. Подробный recovery описан в
+`pkg/interpreter/docs/troubleshooting.md`.
+
 Web DevTools API для server Chrome/AppWeb:
 
 - `GET /devtools/targets` читает Chrome CDP targets с default `127.0.0.1:9349`.

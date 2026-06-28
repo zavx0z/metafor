@@ -63,6 +63,43 @@ curl -sS http://127.0.0.1:6500/context
 
 Не добавляй постоянные repaint/polling loops в UI ради этого симптома: причина должна решаться lifecycle-ом host restart и ожиданием готовности server.
 
+## 502 Bad Gateway От Nginx
+
+502 на `meta.proizvodstvo1.ru` или embedded interpreter routes обычно означает,
+что nginx жив, но upstream interpreter/app-web не слушает `10.66.0.10:6500`
+или `10.66.0.10:3004`.
+
+Проверить:
+
+```sh
+curl -sS http://10.66.0.10:6500/health
+curl -sS http://10.66.0.10:3004/health
+ss -ltnp | rg '(:6500|:3004)\b'
+tmux list-panes -a -F '#{session_name}:#{window_index}.#{pane_index} pid=#{pane_pid} cmd=#{pane_current_command}'
+tmux capture-pane -pt metafor-interpreter-host -S -80
+```
+
+Не считай `tmux ls` достаточной проверкой. Session
+`metafor-interpreter-host` может существовать, но внутри может быть shell или
+старый Codex, а не interpreter host.
+
+Безопасное восстановление, если session занята не interpreter host:
+
+```sh
+tmux rename-session -t metafor-interpreter-host metafor-interpreter-host-codex-old
+tmux new-session -d -s metafor-interpreter-host \
+  -c /home/zavx0z/production/vendor/metafor \
+  /home/zavx0z/metafor-interpreter-web-dev/run.sh
+```
+
+После старта дождись `/health` на обоих портах и отправь reload клиентам:
+
+```sh
+curl -sS http://10.66.0.10:6500/health
+curl -sS http://10.66.0.10:3004/health
+curl -sS -X POST http://10.66.0.10:6500/reload
+```
+
 ## Тест Падает По Timeout Пока Стоит Breakpoint
 
 Запускать тест с максимальным timeout:
