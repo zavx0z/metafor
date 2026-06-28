@@ -4,7 +4,7 @@ import {asBoolean, asNumber, asObject, asString} from "./guards.ts"
 import type {JsonObject} from "./types.ts"
 
 const DEFAULT_CDP_URL = "http://127.0.0.1:9349"
-const DEFAULT_TARGET_URL = "http://10.66.0.10:3004/"
+const DEFAULT_TARGET_URL = "https://meta.proizvodstvo1.ru/"
 const CDP_TIMEOUT_MS = 5_000
 const PROBE_TIMEOUT_MS = 7_000
 const PROBE_AUTO_RESUME_MS = 1_000

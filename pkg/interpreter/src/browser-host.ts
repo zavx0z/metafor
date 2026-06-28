@@ -37,6 +37,7 @@ const BROWSER_HOST_ROUTES: BrowserHostRoute[] = [
   {method: "GET", path: "/remote-desktop/status", upstreamPath: "/desktop/health", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "remoteDesktop"},
   {method: "GET", path: "/remote-desktop/rtc/state", upstreamPath: "/desktop/rtc/state", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "remoteDesktopRtc"},
   {method: "POST", path: "/remote-desktop/rtc/restart", upstreamPath: "/desktop/rtc/restart", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "remoteDesktopRtc"},
+  {method: "GET", path: "/remote-desktop/audio.pcm", upstreamPath: "/desktop/audio.pcm", responseKind: "stream", timeoutMs: 0, configKind: "remoteDesktopRtc"},
   {method: "GET", path: "/remote-desktop/snapshot", upstreamPath: "/desktop/snapshot", responseKind: "stream", timeoutMs: SNAPSHOT_BROWSER_HOST_TIMEOUT_MS, configKind: "remoteDesktop"},
   {method: "POST", path: "/remote-desktop/snapshot", upstreamPath: "/desktop/snapshot", responseKind: "stream", timeoutMs: SNAPSHOT_BROWSER_HOST_TIMEOUT_MS, configKind: "remoteDesktop"},
   {method: "POST", path: "/remote-desktop/input", upstreamPath: "/desktop/input", responseKind: "json", timeoutMs: DEFAULT_BROWSER_HOST_TIMEOUT_MS, configKind: "remoteDesktop"},
@@ -76,7 +77,7 @@ async function proxyBrowserHostRequest(req: Request, route: BrowserHostRoute): P
   const target = browserHostTargetUrl(config.baseUrl, route.upstreamPath, incomingUrl.search)
   const controller = new AbortController()
   const timeoutMs = browserHostTimeoutMs(route.timeoutMs)
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  const timer = timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : null
 
   try {
     const init: RequestInit = {
@@ -99,7 +100,7 @@ async function proxyBrowserHostRequest(req: Request, route: BrowserHostRoute): P
       error: timedOut ? `browser-host request timed out after ${timeoutMs}ms` : serializeError(error),
     }, timedOut ? 504 : 502)
   } finally {
-    clearTimeout(timer)
+    if (timer !== null) clearTimeout(timer)
   }
 }
 

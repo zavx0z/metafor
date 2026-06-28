@@ -146,9 +146,11 @@ GET /interp/remote-desktop/rtc/state
 Same-host cross-port `Origin` разрешен только для RTC signaling. Это нужно для
 локальных/dev вариантов с разными портами, но sender и browser UI все равно
 должны сходиться в один in-memory signaling owner. В текущем server-dev контуре
-это внешний interpreter на `6500` (`/webrtc/signaling`); `3004` остается app-web
-dev server/embedded proxy. Исключение не расширяет доступ к terminal/voice
-WebSocket routes.
+видимая HTTPS-страница использует same-origin
+`wss://meta.proizvodstvo1.ru/hud/interpreter/webrtc/signaling`; не подставляй в
+нее локальный `ws://10.66.0.10:6500`, иначе появятся `Not secure` и mixed content.
+`3004` остается app-web dev server/embedded proxy. Исключение не расширяет доступ
+к terminal/voice WebSocket routes.
 
 ## Текущий Context
 
@@ -301,6 +303,7 @@ GET  /remote-desktop/state
 GET  /remote-desktop/status
 GET  /remote-desktop/rtc/state
 POST /remote-desktop/rtc/restart
+GET  /remote-desktop/audio.pcm
 GET  /remote-desktop/snapshot
 POST /remote-desktop/input
 GET  /remote-desktop/browser/windows
@@ -314,7 +317,9 @@ POST /remote-desktop/browser/open
 `audio.trackCount`. В текущем server-dev контуре `/remote-desktop/rtc/state`
 проксируется на Chrome Wayland monitor sender
 (`127.0.0.1:32133/desktop/rtc/state`), и `/remote-desktop/input`/snapshot идут
-туда же. Не оставляй `INTERPRETER_REMOTE_DESKTOP_RTC_HOST_URL=32123`, если
+туда же. `/remote-desktop/audio.pcm` является stream proxy на
+`127.0.0.1:32133/desktop/audio.pcm` для same-origin HTTPS Chrome sender-а. Не
+оставляй `INTERPRETER_REMOTE_DESKTOP_RTC_HOST_URL=32123`, если
 активный live sender - `webrtc:chrome:monitor`; иначе UI будет работать через
 signaling, но diagnostic state покажет старый host. При WebRTC data channel UI
 отправляет input sender-у, а sender проксирует команды в Mutter/EIS input
@@ -330,10 +335,11 @@ published candidate, который уходит browser viewer-у через si
 ## Web DevTools
 
 `/devtools/*` - agent-facing слой над текущим server Chrome CDP. По умолчанию
-он использует `http://127.0.0.1:9349` и AppWeb target
-`http://10.66.0.10:3004/`. Это не замена визуальному docked DevTools: endpoint'ы
-нужны агенту для точных операций, пока пользователь и агент смотрят один и тот
-же `remote-desktop:server` display.
+он использует `http://127.0.0.1:9349` и видимый AppWeb target
+`https://meta.proizvodstvo1.ru/`. Локальный `http://10.66.0.10:3004/` остается
+для server-side health/API диагностики. Это не замена визуальному docked
+DevTools: endpoint'ы нужны агенту для точных операций, пока пользователь и агент
+смотрят один и тот же `remote-desktop:server` display.
 
 ```text
 GET  /devtools/targets

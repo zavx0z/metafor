@@ -1568,10 +1568,21 @@ function isAllowedWebSocketOrigin(req: Request, url: URL): boolean {
     ) {
       return true
     }
+    if (
+      isAllowedRtcExternalOrigin(originUrl.hostname)
+      && isRtcSignalingPath(url.pathname)
+    ) {
+      return true
+    }
     return false
   } catch {
     return false
   }
+}
+
+function isAllowedRtcExternalOrigin(hostname: string): boolean {
+  return hostname === "meta.proizvodstvo1.ru"
+    || hostname === "dev.proizvodstvo1.ru"
 }
 
 function isRtcSignalingPath(path: string): boolean {

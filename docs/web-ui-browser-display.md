@@ -66,8 +66,8 @@ channel `open`. `webrtc:chrome:browser`, Electron/PipeWire/MJPEG и Xwayland
 
 | Режим | Адреса | Назначение |
 | --- | --- | --- |
-| Server/dev Web UI | `10.66.0.10:6500`, `10.66.0.10:3004` | Текущий контур для interpreter API/UI и app-web dev server |
-| Внешний доступ | `https://meta.proizvodstvo1.ru/` | Proxy/SSO перед server/dev контуром; shell `curl` может видеть proxy/SSO, а не runtime |
+| Server/dev API | `10.66.0.10:6500`, `10.66.0.10:3004` | Внутренний interpreter API/UI и app-web dev server для shell/debug/health |
+| Видимый WebApp | `https://meta.proizvodstvo1.ru/` | Основной browser target для разработки через interpreter remote desktop |
 | LAN/WebApp | `443` | Отдельный LAN/TLS режим из `bun run workspace.app.web:dev`; не использовать как диагностику server/dev |
 
 Базовая проверка server/dev:
@@ -134,18 +134,22 @@ curl -sS http://10.66.0.10:3004/health
 Целевой Linux/Electron remote desktop host должен быть отдельным процессом с
 явным state, а не зависимостью от macOS display пользователя:
 
-- управляемый URL: по умолчанию `http://10.66.0.10:3004/` для dev server или
-  `https://meta.proizvodstvo1.ru/` для проверки внешнего proxy/SSO;
+- управляемый видимый URL: по умолчанию `https://meta.proizvodstvo1.ru/`;
+- локальный `http://10.66.0.10:3004/` остается для server-side health/API
+  диагностики и не является основным видимым WebApp target;
 - отдельный `user-data-dir`, чтобы cookies/cache/SSO не смешивались с личным
   браузером и с другими тестовыми контурами;
 - CDP/debug port на loopback;
 - health endpoint с состоянием process/window/page/CDP;
 - restart endpoint, который перезапускает host process и публикует новый state;
-- WebRTC video stream всего серверного desktop через `/webrtc/signaling`;
+- WebRTC video stream всего серверного desktop через same-origin
+  `/hud/interpreter/webrtc/signaling` / `/interp/webrtc/signaling`;
 - audio stream в том же RTCPeerConnection; текущий Linux server-dev sender
-  берет active Google Chrome PipeWire output через `/desktop/audio.pcm`, заводит
-  PCM frames в Chrome `MediaStreamTrackGenerator(AudioData)` и добавляет audio
-  track в тот же PeerConnection;
+  берет active Google Chrome PipeWire output через same-origin
+  `/hud/interpreter/remote-desktop/audio.pcm`, который проксируется на local host
+  `/desktop/audio.pcm`, заводит PCM frames в Chrome
+  `MediaStreamTrackGenerator(AudioData)` и добавляет audio track в тот же
+  PeerConnection;
 - snapshot endpoint только как fallback/diagnostics;
 - input proxy для pointer/keyboard/wheel с ack и последним input timestamp;
 - команды reload/back/forward/devtools/fullscreen;
@@ -155,9 +159,10 @@ curl -sS http://10.66.0.10:3004/health
 
 Playwright допустим только как временный диагностический инструмент. Runtime
 remote desktop display не должен требовать постоянный Playwright process.
-Внутренняя Electron sender page допустима только как WebRTC endpoint: она не
-является целевым display. Целевой visual source по умолчанию - `screen`, чтобы
-человек и агент видели весь рабочий стол с открытым браузером.
+В текущем server-dev контуре sender инжектится в видимый
+`https://meta.proizvodstvo1.ru/` target; отдельной service sender tab быть не
+должно. Целевой visual source по умолчанию - `screen`, чтобы человек и агент
+видели весь рабочий стол с открытым браузером.
 
 Audio contract:
 
@@ -226,10 +231,11 @@ Embedded app-web proxy:
 
 - `/hud/interpreter/webrtc/signaling` и `/interp/webrtc/signaling` должны вести
   в тот же in-memory signaling room, что и upstream `/webrtc/signaling`;
-- Electron sender и browser UI должны быть в одном in-memory signaling server.
-  В текущем server-dev контуре owner - внешний interpreter на `6500`
-  (`/webrtc/signaling`). `3004` - app-web dev server и embedded proxy, но не
-  default signaling owner для внешней `https://dev.proizvodstvo1.ru/` вкладки;
+- Chrome sender и browser UI должны быть в одном in-memory signaling server.
+  Для видимой HTTPS-страницы default - same-origin
+  `wss://meta.proizvodstvo1.ru/hud/interpreter/webrtc/signaling`; не подставляй
+  локальный `ws://10.66.0.10:6500` в видимый target, иначе Chrome пометит
+  страницу как `Not secure` из-за mixed content;
 - Если client events показывают `rtc room 1 peers`, `rtc video`, затем
   `rtc ice checking` -> `rtc ice disconnected`/`rtc failed`, signaling уже
   исправен. Дальше проверять media path: sender должен публиковать UDP host
@@ -258,12 +264,11 @@ curl -sS http://127.0.0.1:32133/desktop/snapshot --output /tmp/rd.png
 ```
 
 Проверка 2026-06-27: Electron 35.7.5 на текущем GNOME/Wayland/NVIDIA сервере
-падает `SIGSEGV` в GPU/Viz даже без remote desktop RTC. Electron 42.5.0
-работает в sender-only режиме через Wayland: hidden WebRTC page,
-`METAFOR_ELECTRON_WEBGPU=0`, `ozone-platform=wayland`, отключенный Vulkan/VAAPI и
-`METAFOR_REMOTE_DESKTOP_SYSTEM_PICKER=0`. Electron/X11/Ozone и Xwayland
-оставлены как fallback/diagnostics; основной рабочий обход без reboot - Chrome
-Wayland monitor sender на `32133`. Рабочий Linux sender state должен показывать
+падает `SIGSEGV` в GPU/Viz даже без remote desktop RTC. Electron/X11/Ozone и
+Xwayland оставлены как fallback/diagnostics; основной рабочий обход без reboot -
+Chrome Wayland monitor sender на `32133`. Текущий рабочий Chrome path не
+использует hidden WebRTC page, потому что hidden CDP target давал ICE failure.
+Рабочий Linux sender state должен показывать
 `capture.frameWidth=1920`, `capture.frameHeight=1080`,
 `capture.frameSource: "chrome-get-display-media:monitor"` и
 `audio.transport: "pipewire-pcm-track-generator-stream"`. Независимый WebRTC receiver
@@ -293,7 +298,7 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus \
 DISPLAY=:0 \
 XAUTHORITY=/run/user/1000/.mutter-Xwaylandauth.N4DER3 \
 XDG_SESSION_TYPE=x11 \
-METAFOR_URL=http://10.66.0.10:3004/ \
+METAFOR_URL=https://meta.proizvodstvo1.ru/ \
 bun run webrtc:pipewire:screen
 ```
 
@@ -369,12 +374,16 @@ frame metadata: `frameId`, `capturedAt`, URL, viewport, device scale factor и
 В server-dev контуре общий рабочий экран должен стартовать из
 `app/electron/scripts/chrome-webrtc-monitor.sh`, а не руками через macOS
 браузер. Скрипт включает `METAFOR_REMOTE_DESKTOP_CHROME_DEV_LAYOUT=1` и
-поднимает один maximized Chrome window на виртуальном monitor `1920x1080`:
+поднимает одно обычное Chrome window на виртуальном monitor `1920x1080`;
+window bounds должны быть `left=0`, `top=0`, `width=1920`, `height=1080`, без
+fullscreen/maximized зависимости от window manager:
 
-- слева открыта мобильная AppWeb page `http://10.66.0.10:3004/`;
+- слева открыта мобильная AppWeb page `https://meta.proizvodstvo1.ru/`;
 - справа docked Chrome DevTools той же page;
 - в DevTools выбран `Sources`;
 - Console drawer открыт снизу;
+- отдельной service sender tab быть не должно; sender работает внутри видимой
+  `https://meta.proizvodstvo1.ru/` page и использует same-origin WSS/HTTPS;
 - CDP доступен локально на `http://127.0.0.1:9349/json/list`;
 - WebRTC/display host state доступен на
   `http://127.0.0.1:32133/desktop/rtc/state`.
@@ -409,8 +418,8 @@ curl -sS http://127.0.0.1:9349/json/list
 
 Если DevTools показывает старый compiled bundle:
 
-1. проверь, что browser target открыт на `http://10.66.0.10:3004/`, а не на
-   LAN `443` или старый external URL;
+1. проверь, что browser target открыт на `https://meta.proizvodstvo1.ru/`, а
+   не на LAN `443` или локальный diagnostic URL;
 2. сделай hard reload page через browser-host/CDP;
 3. если child `app/web/server.ts` должен пересобрать bundle, перезапусти child
    process через `POST /processes/app-web-server.ts/action`;
@@ -422,9 +431,9 @@ curl -sS http://127.0.0.1:9349/json/list
 ## Agent DevTools API
 
 Для агентской отладки Web UI используй interpreter endpoint'ы `/devtools/*`.
-Они работают с текущим server Chrome CDP `127.0.0.1:9349`, выбирают AppWeb
-target `http://10.66.0.10:3004/` по умолчанию и мапят 1-based строки исходника
-через linked sourcemap:
+Они работают с текущим server Chrome CDP `127.0.0.1:9349`, выбирают видимый
+AppWeb target `https://meta.proizvodstvo1.ru/` по умолчанию и мапят 1-based
+строки исходника через linked sourcemap:
 
 ```sh
 curl -sS http://10.66.0.10:6500/devtools/targets

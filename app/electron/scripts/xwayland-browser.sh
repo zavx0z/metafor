@@ -5,7 +5,7 @@ display="${METAFOR_XWAYLAND_DISPLAY:-:98}"
 auth="${METAFOR_XWAYLAND_AUTHORITY:-/tmp/metafor-xwayland.Xauthority}"
 width="${METAFOR_XWAYLAND_WIDTH:-1920}"
 height="${METAFOR_XWAYLAND_HEIGHT:-1080}"
-url="${METAFOR_URL:-http://10.66.0.10:3004/}"
+url="${METAFOR_URL:-https://meta.proizvodstvo1.ru/}"
 profile="${METAFOR_XWAYLAND_CHROME_PROFILE:-/tmp/metafor-chrome-xwayland-98}"
 debug_port="${METAFOR_XWAYLAND_CHROME_DEBUG_PORT:-9348}"
 

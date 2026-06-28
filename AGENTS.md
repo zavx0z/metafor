@@ -11,10 +11,11 @@
 - server Chrome remote desktop host: `http://127.0.0.1:32133`;
 - server Chrome CDP: `http://127.0.0.1:9349/json/list`.
 
-Не начинай диагностику с внешнего `https://meta.proizvodstvo1.ru/`: это
-наружный proxy/SSO слой. Для shell/API/debug используй server-dev адреса выше.
-LAN/TLS режим на `443` - отдельный локально-сетевой режим, не текущий
-server-dev контур.
+Удаленный браузер для визуальной WebApp-разработки должен открывать
+`https://meta.proizvodstvo1.ru/`. Для shell/API/debug диагностики используй
+server-dev адреса выше: внешний `meta` слой может вернуть SSO/redirect вместо
+runtime state. LAN/TLS режим на `443` - отдельный локально-сетевой режим, не
+текущий server-dev контур.
 
 ## Серверный Браузер
 
@@ -27,11 +28,19 @@ app/electron/scripts/chrome-webrtc-monitor.sh
 
 Ожидаемый стартовый layout этого Chrome:
 
-- одно окно Chrome, развернуто по размеру server display, но не fullscreen;
-- слева открыт `http://10.66.0.10:3004/` в mobile emulation;
+- одно обычное окно Chrome, выставленное в `0,0 1920x1080`, но не fullscreen;
+- слева открыт `https://meta.proizvodstvo1.ru/` в mobile emulation;
 - справа docked Chrome DevTools той же страницы;
 - в DevTools выбран `Sources`;
 - снизу открыт Console drawer.
+
+WebRTC sender инжектится в видимый `https://meta.proizvodstvo1.ru/` target и
+должен использовать same-origin `wss://meta.proizvodstvo1.ru/hud/interpreter/...`
+и `https://meta.proizvodstvo1.ru/hud/interpreter/...`. Не возвращай локальные
+`ws://10.66.0.10:6500`/`http://127.0.0.1:32133` URL-ы в видимую HTTPS-страницу:
+это дает `Not secure` и mixed content в DevTools. Отдельной service sender tab
+быть не должно; если она появилась, закрыть legacy target и перезапустить
+`chrome-webrtc-monitor.sh`.
 
 Не открывай отдельный Playwright/browser как замену этому окну. Playwright
 допустим только как временный диагностический инструмент, не runtime dependency
@@ -56,9 +65,10 @@ RTCPeerConnection. Не возвращай MJPEG/snapshot/PipeWire frame fallbac
 
 Для отладки Web UI агент управляет текущим server Chrome через interpreter API
 `/devtools/*`, а не через отдельный Playwright/browser. Эти endpoint'ы
-используют CDP `127.0.0.1:9349`, выбирают AppWeb target
-`http://10.66.0.10:3004/` по умолчанию и умеют мапить строки исходников через
-linked sourcemap:
+используют CDP `127.0.0.1:9349`, выбирают видимый AppWeb target
+`https://meta.proizvodstvo1.ru/` по умолчанию и умеют мапить строки исходников
+через linked sourcemap. Локальный `http://10.66.0.10:3004/` остается только для
+server-side health/API диагностики:
 
 ```sh
 curl -sS http://10.66.0.10:6500/devtools/targets

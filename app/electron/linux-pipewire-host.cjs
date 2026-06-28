@@ -16,7 +16,17 @@ const AUDIO_UNMUTE = process.env.METAFOR_REMOTE_DESKTOP_AUDIO_UNMUTE === undefin
   ? true
   : !["0", "false", "no", "off"].includes(process.env.METAFOR_REMOTE_DESKTOP_AUDIO_UNMUTE.trim().toLowerCase())
 const AUDIO_VOLUME = (process.env.METAFOR_REMOTE_DESKTOP_AUDIO_VOLUME || "0.70").trim()
-const TARGET_URL = process.env.METAFOR_URL || "http://10.66.0.10:3004/"
+const TARGET_URL = process.env.METAFOR_URL || "https://meta.proizvodstvo1.ru/"
+const TARGET_HTTP_ORIGIN = targetHttpOrigin(TARGET_URL)
+const TARGET_WS_ORIGIN = targetWebSocketOrigin(TARGET_URL)
+const CHROME_RTC_INTERPRETER_PREFIX = normalizePathPrefix(process.env.METAFOR_REMOTE_DESKTOP_INTERPRETER_PREFIX || "/hud/interpreter")
+const CHROME_RTC_SIGNAL_URL = process.env.METAFOR_REMOTE_DESKTOP_SIGNAL_URL || `${TARGET_WS_ORIGIN}${CHROME_RTC_INTERPRETER_PREFIX}/webrtc/signaling`
+const CHROME_RTC_INPUT_URL = process.env.METAFOR_REMOTE_DESKTOP_INPUT_URL || `${TARGET_HTTP_ORIGIN}${CHROME_RTC_INTERPRETER_PREFIX}/remote-desktop/input`
+const CHROME_RTC_AUDIO_PCM_URL = process.env.METAFOR_REMOTE_DESKTOP_AUDIO_PCM_URL || `${TARGET_HTTP_ORIGIN}${CHROME_RTC_INTERPRETER_PREFIX}/remote-desktop/audio.pcm`
+const CHROME_RTC_LEGACY_SENDER_URLS = [
+  process.env.METAFOR_REMOTE_DESKTOP_CHROME_RTC_SENDER_URL || `http://${HOST}:${PORT}/desktop/rtc/sender`,
+  "http://10.66.0.10:3004/health",
+]
 const CHROME = process.env.METAFOR_REMOTE_DESKTOP_BROWSER || "google-chrome"
 const CHROME_DEBUG_PORT = Number(process.env.METAFOR_REMOTE_DESKTOP_CHROME_DEBUG_PORT || 9341)
 const CHROME_OZONE_PLATFORM = (process.env.METAFOR_REMOTE_DESKTOP_CHROME_OZONE_PLATFORM || "wayland").trim()
@@ -30,7 +40,6 @@ const CHROME_RTC_ENABLED = process.env.METAFOR_REMOTE_DESKTOP_CHROME_RTC === und
 const MANAGED_BROWSER_ENABLED = process.env.METAFOR_REMOTE_DESKTOP_MANAGED_BROWSER === undefined
   ? CHROME_RTC_ENABLED
   : envFlag(process.env.METAFOR_REMOTE_DESKTOP_MANAGED_BROWSER)
-const CHROME_RTC_SIGNAL_URL = process.env.METAFOR_REMOTE_DESKTOP_SIGNAL_URL || "ws://10.66.0.10:6500/webrtc/signaling"
 const CHROME_RTC_ROOM = process.env.METAFOR_REMOTE_DESKTOP_RTC_ROOM || "remote-desktop"
 const CHROME_RTC_PEER_ID = process.env.METAFOR_REMOTE_DESKTOP_RTC_PEER_ID || "electron-desktop"
 const CHROME_RTC_UDP_PORT_RANGE = process.env.METAFOR_REMOTE_DESKTOP_UDP_PORT_RANGE || process.env.METAFOR_RTC_UDP_PORT_RANGE || "40000-40100"
@@ -444,7 +453,7 @@ function chromeDisableFeatureFlags() {
 
 function openBrowser(url) {
   if (browser !== null && browser.exitCode === null && browser.signalCode === null) return
-  const securityFlags = insecureOriginSecurityFlags(url)
+  const securityFlags = insecureOriginSecurityFlags(url, CHROME_RTC_SIGNAL_URL, CHROME_RTC_INPUT_URL, CHROME_RTC_AUDIO_PCM_URL)
   prepareChromeProfile()
   browser = spawn(CHROME, [
     `--user-data-dir=${PROFILE_DIR}`,
@@ -548,7 +557,7 @@ function applyChromeDevLayoutPreferences(preferences) {
     window_placement: {
       bottom: HEIGHT,
       left: 0,
-      maximized: true,
+      maximized: false,
       right: WIDTH,
       top: 0,
       work_area_bottom: HEIGHT,
@@ -624,14 +633,56 @@ function processIsAlive(pid) {
   }
 }
 
-function insecureOriginSecurityFlags(url) {
+function insecureOriginSecurityFlags(...urls) {
+  const flags = new Set()
+  for (const url of urls) {
+    for (const origin of insecureOrigins(url)) flags.add(`--unsafely-treat-insecure-origin-as-secure=${origin}`)
+  }
+  return [...flags]
+}
+
+function insecureOrigins(url) {
   try {
-    const origin = new URL(url).origin
-    if (!origin.startsWith("http://")) return []
-    return [`--unsafely-treat-insecure-origin-as-secure=${origin}`]
+    const parsed = new URL(url)
+    if (parsed.protocol === "http:") return isPotentiallyTrustworthyHost(parsed.hostname) ? [] : [parsed.origin]
+    if (parsed.protocol === "ws:") {
+      parsed.protocol = "http:"
+      return isPotentiallyTrustworthyHost(parsed.hostname) ? [] : [parsed.origin]
+    }
+    return []
   } catch {
     return []
   }
+}
+
+function isPotentiallyTrustworthyHost(hostname) {
+  return hostname === "localhost"
+    || hostname === "127.0.0.1"
+    || hostname === "::1"
+    || hostname.endsWith(".localhost")
+}
+
+function targetHttpOrigin(url) {
+  try {
+    return new URL(url).origin
+  } catch {
+    return "https://meta.proizvodstvo1.ru"
+  }
+}
+
+function targetWebSocketOrigin(url) {
+  const origin = targetHttpOrigin(url)
+  return origin.startsWith("https://")
+    ? `wss://${origin.slice("https://".length)}`
+    : origin.startsWith("http://")
+      ? `ws://${origin.slice("http://".length)}`
+      : "wss://meta.proizvodstvo1.ru"
+}
+
+function normalizePathPrefix(value) {
+  const trimmed = String(value || "").trim().replace(/\/+$/, "")
+  if (trimmed.length === 0) return ""
+  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`
 }
 
 function scheduleChromeRtcStart(delayMs = 1500) {
@@ -683,7 +734,20 @@ async function startChromeRtcSender(options = {}) {
 }
 
 async function configureChromeDevLayout() {
+  await closeLegacyChromeRtcSenderTargets().catch(() => undefined)
   const target = await cdpPageTarget()
+  await applyChromeWindowBounds(target)
+  await applyChromeMobileEmulation()
+  if (!await chromeDevToolsOpen()) {
+    await withCdpPage((cdp) => cdp.send("Page.bringToFront").catch(() => undefined))
+    await sendHelperInput({type: "key", key: "i", modifiers: ["Control", "Shift"]})
+    await sleep(900)
+  }
+  await applyChromeWindowBounds(await cdpPageTarget())
+  await applyChromeMobileEmulation()
+}
+
+async function applyChromeWindowBounds(target) {
   await withCdpBrowser(async (browserCdp) => {
     const windowInfo = await browserCdp.send("Browser.getWindowForTarget", {targetId: target.id})
     if (typeof windowInfo?.windowId !== "number") return
@@ -695,18 +759,7 @@ async function configureChromeDevLayout() {
       windowId: windowInfo.windowId,
       bounds: {left: 0, top: 0, width: WIDTH, height: HEIGHT},
     })
-    await browserCdp.send("Browser.setWindowBounds", {
-      windowId: windowInfo.windowId,
-      bounds: {windowState: "maximized"},
-    }).catch(() => undefined)
   })
-  await applyChromeMobileEmulation()
-  if (!await chromeDevToolsOpen()) {
-    await withCdpPage((cdp) => cdp.send("Page.bringToFront").catch(() => undefined))
-    await sendHelperInput({type: "key", key: "i", modifiers: ["Control", "Shift"]})
-    await sleep(900)
-  }
-  await applyChromeMobileEmulation()
 }
 
 async function applyChromeMobileEmulation() {
@@ -838,8 +891,8 @@ function chromeRtcSenderScript(options = {}) {
     signalUrl: CHROME_RTC_SIGNAL_URL,
     room: CHROME_RTC_ROOM,
     peerId: CHROME_RTC_PEER_ID,
-    inputUrl: `http://${HOST}:${PORT}/desktop/input`,
-    audioPcmUrl: `http://${HOST}:${PORT}/desktop/audio.pcm`,
+    inputUrl: CHROME_RTC_INPUT_URL,
+    audioPcmUrl: CHROME_RTC_AUDIO_PCM_URL,
     width: WIDTH,
     height: HEIGHT,
     maxFps: FPS,
@@ -918,7 +971,7 @@ function chromeRtcSenderScript(options = {}) {
   let pipewireAudioKeepAliveContext = null;
   let pipewireAudioKeepAliveGain = null;
   let pipewireAudioKeepAliveSource = null;
-  let pipewireAudioRefreshTimer = null;
+  let pipewireAudioReconnectTimer = null;
   let senderStatsTimer = null;
   let stopped = false;
   const peers = new Map();
@@ -1033,9 +1086,6 @@ function chromeRtcSenderScript(options = {}) {
     if (!config.audio || (config.audioSource !== "pipewire" && config.audioSource !== "both")) return [];
     await startChromeAudioOutputKeepAlive();
     const tracks = await startPipeWirePcmGeneratorAudioCapture();
-    pipewireAudioRefreshTimer = setInterval(() => {
-      startPipeWirePcmGeneratorFetch();
-    }, 5000);
     return tracks;
   }
 
@@ -1078,6 +1128,10 @@ function chromeRtcSenderScript(options = {}) {
   }
 
   function startPipeWirePcmGeneratorFetch() {
+    if (pipewireAudioReconnectTimer !== null) {
+      clearTimeout(pipewireAudioReconnectTimer);
+      pipewireAudioReconnectTimer = null;
+    }
     pipewireAudioPcmAbort?.abort?.();
     pipewireAudioPcmAbort = new AbortController();
     void readPipeWirePcmGeneratorStream(pipewireAudioPcmAbort.signal);
@@ -1094,12 +1148,22 @@ function chromeRtcSenderScript(options = {}) {
         await writePipeWirePcmGeneratorChunk(chunk.value);
       }
       post({audio: {lastError: null}});
+      if (!signal.aborted && !stopped) schedulePipeWirePcmReconnect(500);
     } catch (error) {
       if (!signal.aborted) {
         const message = "pipewire pcm generator fetch failed: " + String(error?.message || error);
         post({audio: {lastError: message}});
+        if (!stopped) schedulePipeWirePcmReconnect(1000);
       }
     }
+  }
+
+  function schedulePipeWirePcmReconnect(delayMs) {
+    if (pipewireAudioReconnectTimer !== null) clearTimeout(pipewireAudioReconnectTimer);
+    pipewireAudioReconnectTimer = setTimeout(() => {
+      pipewireAudioReconnectTimer = null;
+      startPipeWirePcmGeneratorFetch();
+    }, delayMs);
   }
 
   async function writePipeWirePcmGeneratorChunk(bytes) {
@@ -1567,7 +1631,7 @@ function chromeRtcSenderScript(options = {}) {
       socket = null;
       closeAllPeers();
       stream?.getTracks?.().forEach((track) => track.stop());
-      if (pipewireAudioRefreshTimer !== null) clearInterval(pipewireAudioRefreshTimer);
+      if (pipewireAudioReconnectTimer !== null) clearTimeout(pipewireAudioReconnectTimer);
       if (senderStatsTimer !== null) clearInterval(senderStatsTimer);
       pipewireAudioPcmAbort?.abort?.();
       try { pipewireAudioGeneratorWriter?.close?.(); } catch {}
@@ -1831,9 +1895,12 @@ async function cdpPageTarget() {
   const pages = Array.isArray(targets)
     ? targets.filter((target) => target?.type === "page" && typeof target.webSocketDebuggerUrl === "string")
     : []
-  const page = pages.find((target) => target.url === TARGET_URL)
-    ?? pages.find((target) => typeof target.url === "string" && target.url.startsWith(TARGET_URL))
-    ?? pages.find((target) => typeof target.url === "string" && !target.url.startsWith("chrome://") && !target.url.startsWith("devtools://"))
+  const visiblePages = pages.filter((target) => !isChromeRtcSenderTarget(target) && !isLegacyChromeRtcSenderTarget(target) && !isChromeInternalTarget(target))
+  const page = visiblePages.find((target) => target.url === TARGET_URL)
+    ?? visiblePages.find((target) => typeof target.url === "string" && target.url.startsWith(TARGET_URL))
+    ?? visiblePages.find((target) => isSsoRedirectForTarget(target.url))
+    ?? visiblePages[0]
+    ?? pages.find((target) => !isChromeInternalTarget(target))
     ?? pages[0]
     ?? null
   if (page === null) {
@@ -1842,6 +1909,45 @@ async function cdpPageTarget() {
     throw error
   }
   return page
+}
+
+async function closeLegacyChromeRtcSenderTargets() {
+  const targets = await fetchChromeJson("/json/list")
+  if (!Array.isArray(targets)) return
+  const legacyTargets = targets.filter((target) => (
+    (isChromeRtcSenderTarget(target) || isLegacyChromeRtcSenderTarget(target))
+  ))
+  if (legacyTargets.length === 0) return
+  await withCdpBrowser(async (browserCdp) => {
+    await Promise.all(legacyTargets.map((target) => (
+      typeof target.id === "string"
+        ? browserCdp.send("Target.closeTarget", {targetId: target.id}).catch(() => undefined)
+        : Promise.resolve()
+    )))
+  })
+}
+
+function isChromeRtcSenderTarget(target) {
+  return typeof target?.url === "string" && CHROME_RTC_LEGACY_SENDER_URLS.some((url) => target.url.startsWith(url))
+}
+
+function isLegacyChromeRtcSenderTarget(target) {
+  return typeof target?.url === "string" && target.url.startsWith("http://10.66.0.10:3004/health")
+}
+
+function isChromeInternalTarget(target) {
+  return typeof target?.url === "string" && (target.url.startsWith("chrome://") || target.url.startsWith("devtools://"))
+}
+
+function isSsoRedirectForTarget(url) {
+  if (typeof url !== "string") return false
+  try {
+    const parsed = new URL(url)
+    const next = parsed.searchParams.get("next")
+    return next === TARGET_URL || (next !== null && next.startsWith(TARGET_URL))
+  } catch {
+    return false
+  }
 }
 
 async function fetchChromeJson(pathname) {
