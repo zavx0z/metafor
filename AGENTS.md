@@ -20,21 +20,11 @@ runtime state. LAN/TLS режим на `443` - отдельный локальн
 ## Серверный Браузер
 
 Рабочий браузер для визуальной разработки - серверный Google Chrome, который
-стримится в interpreter Space через WebRTC. Чистый server-dev старт использует
-уже существующий виртуальный Xwayland display и запускается скриптом:
+стримится в interpreter Space через WebRTC. Он запускается скриптом:
 
 ```sh
-cd app/electron && bun run webrtc:chrome:browser
+app/electron/scripts/chrome-webrtc-monitor.sh
 ```
-
-Этот путь сам поднимает `app/electron/scripts/xwayland-display.sh` на `:98`,
-если display еще не поднят или tmux-сессия display зависла без живого X. Не
-добавляй для этого FreeRDP/RDP/VNC и не устанавливай новые зависимости: рабочий
-контур уже есть в репозитории. Wayland/Mutter monitor path
-`app/electron/scripts/chrome-webrtc-monitor.sh` можно использовать только когда
-GNOME `MetaVendor` реально имеет `1920x1080`; если `DisplayConfig` показывает
-`1x1`, не перезапускай его по кругу, а возвращайся к Xwayland clean path выше
-или сначала восстанавливай headless monitor.
 
 Ожидаемый стартовый layout этого Chrome:
 
@@ -67,12 +57,9 @@ curl -sS http://127.0.0.1:9349/json/list
 curl -sS http://10.66.0.10:6500/webrtc/rooms
 ```
 
-Ожидаемый clean-start media path: Chrome WebRTC capture с виртуального
-Xwayland display,
+Ожидаемый основной media path: Chrome WebRTC monitor capture,
 `transport: "chrome-webrtc"`, `capture.frameSource:
-"chrome-get-display-media:browser"` для полного окна Chrome на этом display,
-`capture.frameWidth: 1920`, `capture.frameHeight: 1080`, data channel open,
-audio в том же
+"chrome-get-display-media:monitor"`, data channel open, audio в том же
 RTCPeerConnection. Не возвращай MJPEG/snapshot/PipeWire frame fallback как
 основной путь; они допустимы только как диагностика.
 

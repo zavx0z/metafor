@@ -178,20 +178,6 @@ server-dev realtime path.
 `ws://10.66.0.10:6500/webrtc/signaling`, input/audio - локальные routes host-а
 `127.0.0.1:32133`.
 
-Фиксация 2026-06-28 по clean restart remote desktop: после ручной остановки
-шаринга GNOME/Mutter `MetaVendor` monitor может схлопнуться до `1x1@60`, и
-`webrtc:chrome:monitor` не поднимает нормальный CDP/WebRTC display. Не тяни
-FreeRDP/RDP/VNC и не добавляй новые зависимости. Рабочий восстановимый путь -
-`cd app/electron && bun run webrtc:chrome:browser`: он сам поднимает старый
-`xwayland:display` на `:98` через `app/electron/scripts/xwayland-display.sh`,
-если display отсутствует, и стримит полный Chrome window на виртуальном
-`1920x1080` display через `chrome-webrtc`. Ожидаемые признаки:
-`127.0.0.1:32133/desktop/health` показывает `status/control-open`,
-`transport: "chrome-webrtc"`, `capture.frameSource:
-"chrome-get-display-media:browser"`, `capture.frameWidth: 1920`,
-`capture.frameHeight: 1080`, audio track count `1`, а CDP доступен на
-`127.0.0.1:9349`.
-
 Это рекурсивный контур:
 
 ```text
