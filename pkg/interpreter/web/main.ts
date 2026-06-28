@@ -905,7 +905,7 @@ let hostTerminalUnloadInstalled = false
 let hostCodexComposerDragHandlersInstalled = false
 let hudNotificationAudioContext: AudioContext | null = null
 let remoteDesktopAudioContext: AudioContext | null = null
-let remoteDesktopAudioSource: MediaStreamAudioSourceNode | null = null
+let remoteDesktopAudioSource: MediaStreamAudioSourceNode | MediaElementAudioSourceNode | null = null
 let remoteDesktopAudioPanner: PannerNode | null = null
 let remoteDesktopAudioGain: GainNode | null = null
 let remoteDesktopAudioStream: MediaStream | null = null
@@ -3488,10 +3488,10 @@ function connectRemoteDesktopAudio(audio: AndroidRtcAudioStream | null): void {
   const element = document.createElement("audio")
   element.autoplay = true
   element.controls = false
-  element.muted = !remoteDesktopAudioUnlocked
+  element.muted = true
   element.preload = "auto"
   element.srcObject = stream
-  element.volume = 1
+  element.volume = remoteDesktopHtmlAudioElementVolume()
   element.setAttribute("playsinline", "true")
   element.style.display = "none"
   element.addEventListener("playing", () => {
@@ -3500,6 +3500,7 @@ function connectRemoteDesktopAudio(audio: AndroidRtcAudioStream | null): void {
       paused: element.paused,
       volume: element.volume,
       contextState: remoteDesktopAudioContext?.state ?? null,
+      playbackMode: remoteDesktopAudioPlaybackMode(),
     })
   }, {once: true})
   element.addEventListener("error", () => {
@@ -3517,7 +3518,7 @@ function connectRemoteDesktopAudio(audio: AndroidRtcAudioStream | null): void {
   const context = ensureRemoteDesktopAudioContext()
   if (context !== null) {
     try {
-      const source = context.createMediaStreamSource(stream)
+      const source = context.createMediaElementSource(element)
       const panner = context.createPanner()
       const gain = context.createGain()
       panner.panningModel = "HRTF"
@@ -3526,6 +3527,7 @@ function connectRemoteDesktopAudio(audio: AndroidRtcAudioStream | null): void {
       panner.maxDistance = 32
       panner.rolloffFactor = 0.16
       gain.gain.value = 1
+      setAudioParamPosition(panner, 0, 0, -1)
       source.connect(panner)
       panner.connect(gain)
       gain.connect(context.destination)
@@ -3552,6 +3554,7 @@ function connectRemoteDesktopAudio(audio: AndroidRtcAudioStream | null): void {
     htmlMuted: element.muted,
     htmlPaused: element.paused,
     htmlVolume: element.volume,
+    playbackMode: remoteDesktopAudioPlaybackMode(),
   })
   remoteDesktopPane?.setAudioStatus(`${audio.trackCount} audio ${context?.state ?? "html"}`)
   primeRemoteDesktopAudio()
@@ -3589,11 +3592,13 @@ function primeRemoteDesktopAudio(): void {
   playRemoteDesktopAudioElement()
   if (context === null) return
   if (context.state === "running") {
+    markRemoteDesktopAudioUnlocked("context-running")
     syncRemoteDesktopAudioElementMute()
     return
   }
   void context.resume()
     .then(() => {
+      if (context.state === "running") markRemoteDesktopAudioUnlocked("context-resume")
       syncRemoteDesktopAudioElementMute()
       playRemoteDesktopAudioElement()
       remoteDesktopPane?.setAudioStatus(remoteDesktopAudioStream === null ? "audio ready" : `audio ${context.state}`)
@@ -3608,8 +3613,8 @@ function primeRemoteDesktopAudio(): void {
 function playRemoteDesktopAudioElement(): void {
   const element = remoteDesktopAudioElement
   if (element === null) return
-  element.muted = !remoteDesktopAudioUnlocked
-  element.volume = 1
+  element.muted = shouldMuteRemoteDesktopHtmlAudioElement()
+  element.volume = remoteDesktopHtmlAudioElementVolume()
   if (!element.paused) {
     remoteDesktopPane?.setAudioStatus(remoteDesktopAudioStream === null ? "audio ready" : "audio html playing")
     return
@@ -3620,6 +3625,7 @@ function playRemoteDesktopAudioElement(): void {
         muted: element.muted,
         paused: element.paused,
         contextState: remoteDesktopAudioContext?.state ?? null,
+        playbackMode: remoteDesktopAudioPlaybackMode(),
       })
       remoteDesktopPane?.setAudioStatus(remoteDesktopAudioStream === null ? "audio ready" : `audio html ${element.muted ? "muted" : "playing"}`)
     })
@@ -3634,8 +3640,33 @@ function playRemoteDesktopAudioElement(): void {
 
 function syncRemoteDesktopAudioElementMute(): void {
   if (remoteDesktopAudioElement === null) return
-  remoteDesktopAudioElement.muted = !remoteDesktopAudioUnlocked
-  remoteDesktopAudioElement.volume = 1
+  remoteDesktopAudioElement.muted = shouldMuteRemoteDesktopHtmlAudioElement()
+  remoteDesktopAudioElement.volume = remoteDesktopHtmlAudioElementVolume()
+}
+
+function shouldMuteRemoteDesktopHtmlAudioElement(): boolean {
+  return !remoteDesktopAudioUnlocked
+}
+
+function remoteDesktopHtmlAudioElementVolume(): number {
+  if (!remoteDesktopAudioUnlocked) return 0
+  return 1
+}
+
+function remoteDesktopAudioPlaybackMode(): string {
+  if (!remoteDesktopAudioUnlocked) return "locked"
+  if (remoteDesktopAudioSource !== null && remoteDesktopAudioContext?.state === "running") return "webaudio-spatial"
+  return "html-fallback"
+}
+
+function markRemoteDesktopAudioUnlocked(reason: string): void {
+  if (remoteDesktopAudioUnlocked) return
+  remoteDesktopAudioUnlocked = true
+  postInterpreterClientEvent("remote-desktop", "audio-unlocked", {
+    reason,
+    contextState: remoteDesktopAudioContext?.state ?? null,
+    hasElement: remoteDesktopAudioElement !== null,
+  })
 }
 
 function setRemoteDesktopAudioListener(context: AudioContext): void {
@@ -6931,13 +6962,7 @@ function voiceEndpointLabel(rawUrl: string): string {
 
 function installHudNotificationSoundUnlock(): void {
   const unlock = (): void => {
-    if (!remoteDesktopAudioUnlocked) {
-      remoteDesktopAudioUnlocked = true
-      postInterpreterClientEvent("remote-desktop", "audio-unlocked", {
-        contextState: remoteDesktopAudioContext?.state ?? null,
-        hasElement: remoteDesktopAudioElement !== null,
-      })
-    }
+    markRemoteDesktopAudioUnlocked("user-gesture")
     primeHudNotificationAudioElements()
     primeHudNotificationAudioContext()
     primeRemoteDesktopAudio()

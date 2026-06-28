@@ -156,7 +156,19 @@ UI-инвариант paint-панелей: кнопка свернуть все
 
 Рабочее понимание Web UI dev-контура: человек и агент должны видеть один и тот же браузерный state без обязательной опоры на Mac display пользователя. Для этого будущий браузер WebApp нужно развивать как `browser-display` внутри interpreter `Space`: frame/snapshot stream, input proxy, health/restart и source maps для TypeScript-отладки. Это не HUD-панель и не постоянная Playwright-зависимость. Host restart должен быть отдельным lifecycle-действием (`POST /restart` в поддерживаемом tmux-контуре), а клиенты после restart должны ждать `/health`, чтобы не оставаться на белом экране.
 
-Фиксация 2026-06-27 по remote desktop server-dev: без перезагрузки машины и без физического монитора рабочий visual/audio path строится через пользовательский `Xwayland :98`, Chrome на этом display и Electron sender `webrtc:xwayland:screen`. Ожидаемый `rtc/state`: `capture.frameSource: "native-chromium"`, `source.kind: "screen"`, `1920x1080`, `audio.effectiveSource: "native-chromium"`, `audio.trackCount: 1`. PipeWire WebM/PCM/MJPEG bridge остается fallback/diagnostics, а не основной realtime-канал.
+Фиксация 2026-06-27 по remote desktop server-dev: без перезагрузки машины и без
+физического монитора рабочий быстрый visual/audio path строится через один
+Wayland/Mutter virtual monitor, Google Chrome и sender
+`webrtc:chrome:monitor` на `127.0.0.1:32133`. Ожидаемый `rtc/state`:
+`transport: "chrome-webrtc"`, `capture.frameSource:
+"chrome-get-display-media:monitor"`, `1920x1080`, `capture.frameRate: 60`,
+`audio.transport: "pipewire-pcm-track-generator-stream"`, `audio.trackCount: 1`,
+peer `connected`, data channel `open`, `lastError: null`. Старый
+`32123`/`metafor-remote-desktop-host` нельзя оставлять параллельно с `32133`:
+он создает второй `MetaVendor` monitor, и Chrome может открыться на одном
+виртуальном экране, а WebRTC capture - на другом. `webrtc:chrome:browser`,
+Xwayland и Electron/PipeWire/MJPEG остаются fallback/diagnostics, не основной
+server-dev realtime path.
 
 Это рекурсивный контур:
 

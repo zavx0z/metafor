@@ -258,30 +258,27 @@ ANY  /browser-display/proxy/<path>   # relative path under configured browser-ho
 
 Remote desktop display - server-owned визуальный канал для совместной Web UI
 разработки. Основной realtime-путь в текущем Linux server-dev контуре:
-пользовательский `Xwayland :98` без reboot/sudo, Chrome на этом display, а
-Electron sender `webrtc:xwayland:screen` на `127.0.0.1:32133` публикует весь
-`screen:*` через native Chromium WebRTC video/audio stream.
+один Wayland/Mutter virtual monitor без reboot/sudo, Chrome на этом monitor, а
+sender `webrtc:chrome:monitor` на `127.0.0.1:32133` публикует full monitor
+через Chrome `getDisplayMedia()` и WebRTC.
 Интерпретатор держит signaling endpoint и показывает video как first-class
 display `remote-desktop:server` в `Space`. Snapshot routes и MJPEG/canvas
 adapters являются fallback/diagnostics, а не основным frame loop.
 
-Это важно для текущего сервера без подключенного физического монитора: Chrome
-на основном GNOME/Wayland display может показывать пустой `Entire Screen`
-chooser или черный `screen:*` stream. Рабочий live media path - виртуальный
-`Xwayland :98`, `transport: "electron-webrtc"`,
-`capture.frameSource: "native-chromium"`,
-`audio.effectiveSource: "native-chromium"`. PipeWire WebM/PCM остается
-fallback/diagnostics.
+Это важно для текущего сервера без подключенного физического монитора: рабочий
+контур должен иметь один virtual `MetaVendor` monitor и один host на `32133`.
+Старый `32123` host нельзя оставлять параллельно, иначе Chrome может рендерить
+на одном virtual monitor, а WebRTC capture брать другой. Рабочий live media
+path - `transport: "chrome-webrtc"` и `capture.frameSource:
+"chrome-get-display-media:monitor"`. Electron screen capture, Xwayland/current
+tab и PipeWire WebM/PCM остаются fallback/diagnostics.
 
 Конфигурация bridge:
 
 ```text
-# Current server: diagnostic input/snapshot host + live Xwayland WebRTC sender.
-INTERPRETER_REMOTE_DESKTOP_HOST_URL=http://127.0.0.1:32123
+# Current server: one Chrome Wayland monitor host for health/snapshot/input/RTC.
+INTERPRETER_REMOTE_DESKTOP_HOST_URL=http://127.0.0.1:32133
 INTERPRETER_REMOTE_DESKTOP_RTC_HOST_URL=http://127.0.0.1:32133
-
-# Diagnostic only: Chrome-native pipewire:host sender on 32123.
-INTERPRETER_REMOTE_DESKTOP_RTC_HOST_URL=http://127.0.0.1:32123
 ```
 
 Routes:
@@ -299,19 +296,18 @@ GET  /remote-desktop/browser/windows
 POST /remote-desktop/browser/open
 ```
 
-`/remote-desktop/health` мапится на Electron `/desktop/health` и включает
+`/remote-desktop/health` мапится на host `/desktop/health` и включает
 состояние WebRTC sender, включая `capture.preferredKind`, фактический
 `source.kind`, `capture.frameSource`, `capture.frameWidth`,
-`capture.frameHeight`, а также `audio.enabled`, `audio.effectiveSource` и
+`capture.frameHeight`, а также `audio.enabled`, `audio.transport` и
 `audio.trackCount`. В текущем server-dev контуре `/remote-desktop/rtc/state`
-проксируется на Electron sender (`127.0.0.1:32133/desktop/rtc/state`), а
-`/remote-desktop/input` и diagnostic snapshots могут идти через отдельный host на
-`127.0.0.1:32123`. Не оставляй `INTERPRETER_REMOTE_DESKTOP_RTC_HOST_URL=32123`,
-если активный live sender - `webrtc:xwayland:screen`; иначе UI будет работать через
-signaling, но diagnostic state покажет старый failed Chrome sender. При WebRTC
-data channel UI отправляет input sender-у, а sender проксирует команды в
-configured direct input API, если он задан. Для `Xwayland :98` direct input не
-должен указывать на старый Mutter/EIS `:0` endpoint.
+проксируется на Chrome Wayland monitor sender
+(`127.0.0.1:32133/desktop/rtc/state`), и `/remote-desktop/input`/snapshot идут
+туда же. Не оставляй `INTERPRETER_REMOTE_DESKTOP_RTC_HOST_URL=32123`, если
+активный live sender - `webrtc:chrome:monitor`; иначе UI будет работать через
+signaling, но diagnostic state покажет старый host. При WebRTC data channel UI
+отправляет input sender-у, а sender проксирует команды в Mutter/EIS input
+adapter того же virtual monitor.
 
 В production server-dev контуре `/remote-desktop/rtc/state` также используется
 как ICE diagnostic contract. Рабочий direct media path должен показывать

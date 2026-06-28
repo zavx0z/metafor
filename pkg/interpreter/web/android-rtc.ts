@@ -230,12 +230,12 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
       ))
       if (targetPeers.length === 0 && tryNextSignalUrl("peer")) return
       for (const remotePeerId of targetPeers) {
-        void createPeer(remotePeerId, true)
+        void connectPeer(remotePeerId)
       }
       return
     }
     if (signal.type === "peer-joined") {
-      if (isTargetRtcSenderPeer(signal.peerId, peerTarget, opts.senderPeerId ?? ANDROID_RTC_SENDER_PEER)) void createPeer(signal.peerId, true)
+      if (isTargetRtcSenderPeer(signal.peerId, peerTarget, opts.senderPeerId ?? ANDROID_RTC_SENDER_PEER)) void connectPeer(signal.peerId)
       return
     }
     if (signal.type === "peer-left") {
@@ -258,6 +258,11 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
       return
     }
     await peer.connection.addIceCandidate(signal.candidate)
+  }
+
+  function connectPeer(remotePeerId: string): PeerRecord {
+    if (peers.has(remotePeerId)) closePeer(remotePeerId)
+    return createPeer(remotePeerId, true)
   }
 
   function createPeer(remotePeerId: string, initiator: boolean): PeerRecord {
@@ -401,6 +406,7 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
         readyState: video.readyState,
         paused: video.paused,
       })
+      void reportReceiverStats(now)
     } catch (error) {
       opts.onStatus("error", error instanceof Error ? error.message : String(error))
     } finally {
@@ -430,10 +436,11 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     lastReceiverStatsAt = now
     for (const peer of peers.values()) {
       for (const receiver of peer.connection.getReceivers()) {
-        if (receiver.track?.kind !== "video") continue
+        const kind = receiver.track?.kind
+        if (kind !== "video" && kind !== "audio") continue
         try {
           const stats = await receiver.getStats()
-          const inbound = [...stats.values()].find((item) => item.type === "inbound-rtp" && (item as {kind?: unknown}).kind === "video")
+          const inbound = [...stats.values()].find((item) => item.type === "inbound-rtp" && (item as {kind?: unknown}).kind === kind)
           if (inbound === undefined) continue
           const entry = inbound as {
             framesReceived?: unknown
@@ -443,19 +450,38 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
             bytesReceived?: unknown
             packetsReceived?: unknown
             packetsLost?: unknown
+            audioLevel?: unknown
+            totalAudioEnergy?: unknown
+            totalSamplesDuration?: unknown
+            jitter?: unknown
           }
-          opts.onDiagnostic?.("receiver-stats", {
-            peerId: peer.id,
-            framesReceived: entry.framesReceived,
-            framesDecoded: entry.framesDecoded,
-            frameWidth: entry.frameWidth,
-            frameHeight: entry.frameHeight,
-            bytesReceived: entry.bytesReceived,
-            packetsReceived: entry.packetsReceived,
-            packetsLost: entry.packetsLost,
-          })
+          if (kind === "video") {
+            opts.onDiagnostic?.("receiver-stats", {
+              peerId: peer.id,
+              framesReceived: entry.framesReceived,
+              framesDecoded: entry.framesDecoded,
+              frameWidth: entry.frameWidth,
+              frameHeight: entry.frameHeight,
+              bytesReceived: entry.bytesReceived,
+              packetsReceived: entry.packetsReceived,
+              packetsLost: entry.packetsLost,
+            })
+          } else {
+            opts.onDiagnostic?.("audio-receiver-stats", {
+              peerId: peer.id,
+              readyState: receiver.track?.readyState,
+              muted: receiver.track?.muted,
+              bytesReceived: entry.bytesReceived,
+              packetsReceived: entry.packetsReceived,
+              packetsLost: entry.packetsLost,
+              audioLevel: entry.audioLevel,
+              totalAudioEnergy: entry.totalAudioEnergy,
+              totalSamplesDuration: entry.totalSamplesDuration,
+              jitter: entry.jitter,
+            })
+          }
         } catch (error) {
-          opts.onDiagnostic?.("receiver-stats-error", {
+          opts.onDiagnostic?.(kind === "audio" ? "audio-receiver-stats-error" : "receiver-stats-error", {
             peerId: peer.id,
             error: error instanceof Error ? error.message : String(error),
           })
@@ -499,7 +525,14 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
   function attachAudioTrack(track: MediaStreamTrack): void {
     if (audioStream.getAudioTracks().some((current) => current.id === track.id)) return
     audioStream.addTrack(track)
+    track.addEventListener("mute", () => {
+      opts.onDiagnostic?.("audio-track-state", {readyState: track.readyState, muted: track.muted, state: "mute"})
+    })
+    track.addEventListener("unmute", () => {
+      opts.onDiagnostic?.("audio-track-state", {readyState: track.readyState, muted: track.muted, state: "unmute"})
+    })
     track.addEventListener("ended", () => {
+      opts.onDiagnostic?.("audio-track-state", {readyState: track.readyState, muted: track.muted, state: "ended"})
       if (audioStream.getAudioTracks().some((current) => current.id === track.id)) {
         audioStream.removeTrack(track)
         emitAudioStream()
@@ -531,12 +564,23 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     peers.delete(remotePeerId)
     peer.channel?.close()
     peer.connection.close()
-    if (peers.size === 0) clearAudioStream()
+    if (peers.size === 0) {
+      clearVideoStream()
+      clearAudioStream()
+    }
   }
 
   function closeAllPeers(): void {
     for (const peerId of [...peers.keys()]) closePeer(peerId)
+    clearVideoStream()
     clearAudioStream()
+  }
+
+  function clearVideoStream(): void {
+    video.srcObject = null
+    video.remove()
+    frameLoopStarted = false
+    frameCopyInFlight = false
   }
 
   function sendSignal(payload: Record<string, unknown>): void {

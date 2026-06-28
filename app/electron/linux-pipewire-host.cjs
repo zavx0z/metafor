@@ -37,7 +37,6 @@ const CHROME_RTC_UDP_PORT_RANGE = process.env.METAFOR_REMOTE_DESKTOP_UDP_PORT_RA
 const CHROME_RTC_PUBLIC_ICE_HOST = process.env.METAFOR_REMOTE_DESKTOP_PUBLIC_ICE_HOST || process.env.METAFOR_RTC_PUBLIC_ICE_HOST || "130.49.151.168"
 const CHROME_RTC_ICE_INTERFACE = process.env.METAFOR_REMOTE_DESKTOP_ICE_INTERFACE || process.env.METAFOR_RTC_ICE_INTERFACE || "10.66.0.10"
 const CHROME_RTC_IP_HANDLING_POLICY = process.env.METAFOR_REMOTE_DESKTOP_IP_HANDLING_POLICY || process.env.METAFOR_RTC_IP_HANDLING_POLICY || "default_public_and_private_interfaces"
-const CHROME_RTC_VIDEO_BITRATE = Number(process.env.METAFOR_REMOTE_DESKTOP_RTC_VIDEO_BITRATE || 12_000_000)
 const CHROME_GPU_ENABLED = process.env.METAFOR_REMOTE_DESKTOP_CHROME_GPU === undefined
   ? CHROME_OZONE_PLATFORM !== "wayland"
   : envFlag(process.env.METAFOR_REMOTE_DESKTOP_CHROME_GPU)
@@ -48,6 +47,8 @@ const CHROME_WEBGPU_ENABLED = envFlag(process.env.METAFOR_REMOTE_DESKTOP_CHROME_
 const CHROME_RTC_AUDIO_ENABLED = process.env.METAFOR_REMOTE_DESKTOP_AUDIO === undefined
   ? true
   : envFlag(process.env.METAFOR_REMOTE_DESKTOP_AUDIO)
+const CHROME_RTC_CAPTURE_SURFACE = normalizeChromeCaptureSurface(process.env.METAFOR_REMOTE_DESKTOP_CHROME_CAPTURE_SURFACE || "monitor")
+const CHROME_RTC_AUDIO_SOURCE = normalizeChromeAudioSource(process.env.METAFOR_REMOTE_DESKTOP_CHROME_AUDIO_SOURCE || "pipewire")
 const CHROME_RTC_AUTO_SELECT_SOURCE = (process.env.METAFOR_REMOTE_DESKTOP_CHROME_AUTO_SELECT_SOURCE
   || process.env.METAFOR_REMOTE_DESKTOP_AUTO_SELECT_SOURCE
   || "Entire Screen").trim()
@@ -198,6 +199,7 @@ async function route(req, res) {
     return
   }
   if (req.method === "GET" && (url.pathname === "/health" || url.pathname === "/state" || url.pathname === "/desktop/health")) {
+    if (CHROME_RTC_ENABLED) await refreshChromeRtcState().catch(() => undefined)
     sendJson(res, 200, publicState())
     return
   }
@@ -583,7 +585,7 @@ async function startChromeRtcSender(options = {}) {
       }
     }
     if (lastError !== null) throw lastError
-    await sleep(700)
+    await sleep(1200)
     if (CHROME_RTC_PICKER_AUTOMATION) await automateChromeScreenPicker()
     await waitForChromeRtcReady()
     return publicState().remoteDesktop
@@ -593,22 +595,33 @@ async function startChromeRtcSender(options = {}) {
 }
 
 async function automateChromeScreenPicker() {
+  const source = {x: Math.round(WIDTH * 0.5), y: Math.round(HEIGHT * 0.555)}
+  const grant = {x: Math.round(WIDTH * 0.685), y: Math.round(HEIGHT * 0.305)}
   const steps = [
-    {x: Math.round(WIDTH * 0.595), y: Math.round(HEIGHT * 0.205), delayMs: 550},
-    {x: Math.round(WIDTH * 0.43), y: Math.round(HEIGHT * 0.39), delayMs: 550},
-    {x: Math.round(WIDTH * 0.685), y: Math.round(HEIGHT * 0.305), delayMs: 650},
-    {x: Math.round(WIDTH * 0.43), y: Math.round(HEIGHT * 0.39), delayMs: 350},
-    {x: Math.round(WIDTH * 0.626), y: Math.round(HEIGHT * 0.611), delayMs: 700},
+    {point: source, delayMs: 800},
+    {point: source, delayMs: 350},
+    {point: grant, delayMs: 700},
+    {point: grant, delayMs: 1200},
+    {point: source, delayMs: 400},
+    {point: grant, delayMs: 1500},
+    {point: grant, delayMs: 1500},
+    {point: source, delayMs: 400},
+    {point: grant, delayMs: 2000},
+    {point: grant, delayMs: 2000},
   ]
   for (const step of steps) {
-    try {
-      await sendHelperInput({type: "click", x: step.x, y: step.y, button: "left"})
-    } catch (error) {
-      state.remoteDesktop.input.lastError = error instanceof Error ? error.message : String(error)
-    }
+    await clickChromePickerPoint(step.point)
     await sleep(step.delayMs)
   }
   await refreshChromeRtcState().catch(() => undefined)
+}
+
+async function clickChromePickerPoint(point) {
+  try {
+    await sendHelperInput({type: "click", x: point.x, y: point.y, button: "left"})
+  } catch (error) {
+    state.remoteDesktop.input.lastError = error instanceof Error ? error.message : String(error)
+  }
 }
 
 async function waitForChromeRtcReady() {
@@ -657,6 +670,7 @@ function postChromeRtcState(patch) {
   if (patch.audio !== null && typeof patch.audio === "object") {
     const audio = patch.audio
     if (typeof audio.trackCount === "number") state.remoteDesktop.audio.trackCount = audio.trackCount
+    if (typeof audio.effectiveSource === "string") state.remoteDesktop.audio.transport = audio.effectiveSource
     if ("lastError" in audio) state.remoteDesktop.audio.lastError = typeof audio.lastError === "string" ? audio.lastError : null
   }
 }
@@ -668,11 +682,14 @@ function chromeRtcSenderScript(options = {}) {
     room: CHROME_RTC_ROOM,
     peerId: CHROME_RTC_PEER_ID,
     inputUrl: `http://${HOST}:${PORT}/desktop/input`,
+    audioUrl: `http://${HOST}:${PORT}/desktop/audio.webm`,
+    audioPcmUrl: `http://${HOST}:${PORT}/desktop/audio.pcm`,
     width: WIDTH,
     height: HEIGHT,
     maxFps: FPS,
     audio: CHROME_RTC_AUDIO_ENABLED,
-    videoBitrate: CHROME_RTC_VIDEO_BITRATE,
+    audioSource: CHROME_RTC_AUDIO_SOURCE,
+    captureSurface: CHROME_RTC_CAPTURE_SURFACE,
     udpPortRange: CHROME_RTC_UDP_PORT_RANGE,
     publicIceHost: CHROME_RTC_PUBLIC_ICE_HOST,
     iceInterface: CHROME_RTC_ICE_INTERFACE,
@@ -698,7 +715,7 @@ function chromeRtcSenderScript(options = {}) {
       lastPublishedCandidate: null,
     },
     capture: {
-      frameSource: "chrome-get-display-media",
+      frameSource: "chrome-get-display-media:" + config.captureSurface,
       frameWidth: null,
       frameHeight: null,
       frameRate: null,
@@ -714,6 +731,24 @@ function chromeRtcSenderScript(options = {}) {
   };
   let socket = null;
   let stream = null;
+  let pipewireAudioContext = null;
+  let pipewireAudioElement = null;
+  let pipewireAudioSource = null;
+  let pipewireAudioDestination = null;
+  let pipewireAudioSilence = null;
+  let pipewireAudioDriverGain = null;
+  let pipewireAudioDriverSource = null;
+  let pipewireAudioCaptureStream = null;
+  let pipewireAudioTracks = [];
+  let pipewireAudioTransport = null;
+  let pipewireAudioGenerator = null;
+  let pipewireAudioGeneratorWriter = null;
+  let pipewireAudioGeneratorTimestampUs = 0;
+  let pipewireAudioGeneratorRemainder = new Uint8Array(0);
+  let pipewireAudioKeepAliveContext = null;
+  let pipewireAudioKeepAliveGain = null;
+  let pipewireAudioKeepAliveSource = null;
+  let pipewireAudioRefreshTimer = null;
   const peers = new Map();
 
   window.__metaforChromeRtcState = state;
@@ -740,17 +775,33 @@ function chromeRtcSenderScript(options = {}) {
 
   async function start() {
     post({status: "capture-requested", lastError: null});
-    stream = await navigator.mediaDevices.getDisplayMedia({
+    const useDisplayAudio = config.audio && (config.audioSource === "display" || config.audioSource === "both");
+    const displayOptions = {
       video: {
-        displaySurface: "monitor",
-        frameRate: {max: config.maxFps},
+        displaySurface: config.captureSurface,
+        frameRate: {ideal: config.maxFps, max: config.maxFps},
         width: {ideal: config.width},
         height: {ideal: config.height},
       },
-      audio: config.audio ? {
-        systemAudio: "include",
+      audio: useDisplayAudio ? {
         suppressLocalAudioPlayback: false,
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
       } : false,
+      selfBrowserSurface: "include",
+      surfaceSwitching: "include",
+      systemAudio: useDisplayAudio ? "include" : "exclude",
+    };
+    if (config.captureSurface === "browser") {
+      displayOptions.preferCurrentTab = true;
+    } else if (config.captureSurface === "monitor") {
+      displayOptions.monitorTypeSurfaces = "include";
+    }
+    stream = await navigator.mediaDevices.getDisplayMedia(displayOptions);
+    const pipewireTracks = await startPipeWireAudioCapture().catch((error) => {
+      post({audio: {lastError: "pipewire audio capture failed: " + String(error?.message || error)}});
+      return [];
     });
     for (const track of stream.getVideoTracks()) {
       track.contentHint = "detail";
@@ -764,19 +815,474 @@ function chromeRtcSenderScript(options = {}) {
     post({
       status: "capture-ready",
       capture: {
-        frameSource: "chrome-get-display-media",
+        frameSource: "chrome-get-display-media:" + config.captureSurface,
         frameWidth: Number(videoSettings.width) || null,
         frameHeight: Number(videoSettings.height) || null,
         frameRate: Number(videoSettings.frameRate) || null,
       },
       audio: {
         enabled: Boolean(config.audio),
-        effectiveSource: stream.getAudioTracks().length > 0 ? "chrome-get-display-media" : null,
+        effectiveSource: audioEffectiveSource(pipewireTracks.length),
         trackCount: stream.getAudioTracks().length,
         lastError: null,
       },
     });
     connectSignal();
+  }
+
+  async function startPipeWireAudioCapture() {
+    if (!config.audio || (config.audioSource !== "pipewire" && config.audioSource !== "both")) return [];
+    await startChromeAudioOutputKeepAlive();
+    try {
+      const tracks = await startPipeWirePcmGeneratorAudioCapture();
+      pipewireAudioRefreshTimer = setInterval(() => {
+        startPipeWirePcmGeneratorFetch();
+      }, 5000);
+      return tracks;
+    } catch (error) {
+      post({audio: {lastError: "pipewire pcm generator capture failed: " + String(error?.message || error)}});
+    }
+    try {
+      const capture = await createPipeWireAudioElementCapture();
+      await installPipeWireAudioTracks(capture.tracks, "pipewire-webm-media-capture-stream");
+      activatePipeWireAudioElement(capture);
+      pipewireAudioRefreshTimer = setInterval(() => {
+        void refreshPipeWireAudioElementCapture();
+      }, 5000);
+      return capture.tracks;
+    } catch (error) {
+      post({audio: {lastError: "pipewire media element capture failed: " + String(error?.message || error)}});
+    }
+    const tracks = await startPipeWirePcmAudioCapture();
+    pipewireAudioRefreshTimer = setInterval(() => {
+      startPipeWirePcmFetch();
+    }, 5000);
+    return tracks;
+  }
+
+  async function createPipeWireAudioElementCapture() {
+    const element = document.createElement("audio");
+    element.autoplay = true;
+    element.controls = false;
+    element.crossOrigin = "anonymous";
+    element.muted = true;
+    element.preload = "auto";
+    element.src = config.audioUrl + "?t=" + Date.now();
+    element.style.display = "none";
+    document.body.appendChild(element);
+    const captureStream = typeof element.captureStream === "function"
+      ? element.captureStream()
+      : typeof element.mozCaptureStream === "function"
+        ? element.mozCaptureStream()
+        : null;
+    if (captureStream === null) {
+      element.remove();
+      throw new Error("HTMLAudioElement.captureStream is not available");
+    }
+    let tracks = [];
+    try {
+      const playPromise = element.play();
+      void playPromise.catch(() => undefined);
+      await Promise.race([
+        playPromise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error("media element play timeout")), 1500)),
+      ]);
+      tracks = await waitForPipeWireAudioElementTracks(captureStream);
+    } catch (error) {
+      cleanupPipeWireAudioElement(element, captureStream);
+      throw error;
+    }
+    if (tracks.length === 0) {
+      cleanupPipeWireAudioElement(element, captureStream);
+      throw new Error("media element capture produced no audio tracks");
+    }
+    window.__metaforPipewireAudioDebug = () => ({
+      transport: "pipewire-webm-media-capture-stream",
+      elementReadyState: element.readyState,
+      elementNetworkState: element.networkState,
+      elementPaused: element.paused,
+      elementMuted: element.muted,
+      elementCurrentTime: element.currentTime,
+      trackCount: captureStream.getAudioTracks().length,
+      tracks: captureStream.getAudioTracks().map((track) => ({
+        id: track.id,
+        readyState: track.readyState,
+        muted: track.muted,
+        enabled: track.enabled,
+      })),
+    });
+    return {element, captureStream, tracks};
+  }
+
+  async function waitForPipeWireAudioElementTracks(captureStream) {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < 2500) {
+      const tracks = captureStream.getAudioTracks();
+      if (tracks.length > 0) return tracks;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    return captureStream.getAudioTracks();
+  }
+
+  async function refreshPipeWireAudioElementCapture() {
+    try {
+      const capture = await createPipeWireAudioElementCapture();
+      await installPipeWireAudioTracks(capture.tracks, "pipewire-webm-media-capture-stream");
+      activatePipeWireAudioElement(capture);
+      post({audio: {effectiveSource: "pipewire-webm-media-capture-stream", trackCount: capture.tracks.length, lastError: null}});
+    } catch (error) {
+      post({audio: {lastError: "pipewire media element refresh failed: " + String(error?.message || error)}});
+    }
+  }
+
+  function activatePipeWireAudioElement(capture) {
+    const previousElement = pipewireAudioElement;
+    const previousStream = pipewireAudioCaptureStream;
+    pipewireAudioElement = capture.element;
+    pipewireAudioCaptureStream = capture.captureStream;
+    cleanupPipeWireAudioElement(previousElement, previousStream);
+  }
+
+  function cleanupPipeWireAudioElement(element, captureStream) {
+    try { element?.pause?.(); } catch {}
+    try { element?.removeAttribute?.("src"); } catch {}
+    try { element?.load?.(); } catch {}
+    element?.remove?.();
+    captureStream?.getTracks?.().forEach((track) => track.stop());
+  }
+
+  async function installPipeWireAudioTracks(tracks, transport) {
+    const previousTracks = pipewireAudioTracks;
+    pipewireAudioTracks = tracks;
+    pipewireAudioTransport = transport;
+    for (const track of previousTracks) stream.removeTrack(track);
+    for (const track of tracks) {
+      track.contentHint = "speech";
+      stream.addTrack(track);
+    }
+    await Promise.all([...peers.values()].map((peer) => replacePeerAudioTrack(peer, tracks[0] || null)));
+    for (const track of previousTracks) track.stop();
+  }
+
+  async function replacePeerAudioTrack(peer, track) {
+    const transceiver = peer.connection.getTransceivers().find((candidate) => (
+      candidate.sender?.track?.kind === "audio" || candidate.receiver?.track?.kind === "audio"
+    ));
+    if (transceiver !== undefined) {
+      transceiver.direction = track === null ? "inactive" : "sendonly";
+      await transceiver.sender.replaceTrack(track);
+      return;
+    }
+    if (track !== null) peer.connection.addTrack(track, stream);
+  }
+
+  async function startPipeWirePcmGeneratorAudioCapture() {
+    if (typeof MediaStreamTrackGenerator !== "function" || typeof AudioData !== "function") {
+      throw new Error("MediaStreamTrackGenerator or AudioData is not available");
+    }
+    pipewireAudioGenerator = new MediaStreamTrackGenerator({kind: "audio"});
+    pipewireAudioGeneratorWriter = pipewireAudioGenerator.writable.getWriter();
+    pipewireAudioGeneratorTimestampUs = 0;
+    pipewireAudioGeneratorRemainder = new Uint8Array(0);
+    pipewireAudioGeneratorDebug.startedAt = new Date().toISOString();
+    pipewireAudioGeneratorDebug.lastError = null;
+    await installPipeWireAudioTracks([pipewireAudioGenerator], "pipewire-pcm-track-generator-stream");
+    startPipeWirePcmGeneratorFetch();
+    window.__metaforPipewireAudioDebug = () => ({
+      transport: "pipewire-pcm-track-generator-stream",
+      trackReadyState: pipewireAudioGenerator?.readyState ?? null,
+      trackMuted: pipewireAudioGenerator?.muted ?? null,
+      writableDesiredSize: pipewireAudioGeneratorWriter?.desiredSize ?? null,
+      ...pipewireAudioGeneratorDebug,
+    });
+    return [pipewireAudioGenerator];
+  }
+
+  const pipewireAudioGeneratorDebug = {
+    startedAt: null,
+    fetchStartedAt: null,
+    fetchChunkCount: 0,
+    fetchByteCount: 0,
+    writeCount: 0,
+    frameCount: 0,
+    peak: 0,
+    lastWriteAt: null,
+    lastNonZeroAt: null,
+    lastError: null,
+  };
+
+  function startPipeWirePcmGeneratorFetch() {
+    pipewireAudioPcmAbort?.abort?.();
+    pipewireAudioPcmAbort = new AbortController();
+    void readPipeWirePcmGeneratorStream(pipewireAudioPcmAbort.signal);
+  }
+
+  async function readPipeWirePcmGeneratorStream(signal) {
+    try {
+      pipewireAudioGeneratorDebug.fetchStartedAt = new Date().toISOString();
+      const response = await fetch(config.audioPcmUrl + "?t=" + Date.now(), {signal, cache: "no-store"});
+      if (!response.ok || response.body === null) throw new Error("pcm fetch failed: " + response.status);
+      const reader = response.body.getReader();
+      while (!signal.aborted) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        await writePipeWirePcmGeneratorChunk(chunk.value);
+      }
+      post({audio: {lastError: null}});
+    } catch (error) {
+      if (!signal.aborted) {
+        const message = "pipewire pcm generator fetch failed: " + String(error?.message || error);
+        pipewireAudioGeneratorDebug.lastError = message;
+        post({audio: {lastError: message}});
+      }
+    }
+  }
+
+  async function writePipeWirePcmGeneratorChunk(bytes) {
+    if (pipewireAudioGeneratorWriter === null) return;
+    const merged = mergePipeWireGeneratorBytes(bytes);
+    const frameCount = Math.floor(merged.byteLength / 4);
+    const payloadBytes = frameCount * 4;
+    if (payloadBytes <= 0) return;
+    const payload = merged.slice(0, payloadBytes);
+    pipewireAudioGeneratorRemainder = merged.slice(payloadBytes);
+    let peak = 0;
+    const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+    for (let frame = 0; frame < frameCount; frame += 1) {
+      peak = Math.max(
+        peak,
+        Math.abs(view.getInt16(frame * 4, true) / 32768),
+        Math.abs(view.getInt16(frame * 4 + 2, true) / 32768),
+      );
+    }
+    const audioData = new AudioData({
+      format: "s16",
+      sampleRate: 48000,
+      numberOfFrames: frameCount,
+      numberOfChannels: 2,
+      timestamp: pipewireAudioGeneratorTimestampUs,
+      data: payload,
+    });
+    pipewireAudioGeneratorTimestampUs += Math.round((frameCount / 48000) * 1000000);
+    await pipewireAudioGeneratorWriter.ready;
+    await pipewireAudioGeneratorWriter.write(audioData);
+    audioData.close();
+    pipewireAudioGeneratorDebug.fetchChunkCount += 1;
+    pipewireAudioGeneratorDebug.fetchByteCount += payloadBytes;
+    pipewireAudioGeneratorDebug.writeCount += 1;
+    pipewireAudioGeneratorDebug.frameCount += frameCount;
+    pipewireAudioGeneratorDebug.peak = peak;
+    pipewireAudioGeneratorDebug.lastWriteAt = new Date().toISOString();
+    if (peak > 0.00001) pipewireAudioGeneratorDebug.lastNonZeroAt = pipewireAudioGeneratorDebug.lastWriteAt;
+  }
+
+  function mergePipeWireGeneratorBytes(bytes) {
+    if (pipewireAudioGeneratorRemainder.byteLength === 0) return bytes;
+    const merged = new Uint8Array(pipewireAudioGeneratorRemainder.byteLength + bytes.byteLength);
+    merged.set(pipewireAudioGeneratorRemainder, 0);
+    merged.set(bytes, pipewireAudioGeneratorRemainder.byteLength);
+    pipewireAudioGeneratorRemainder = new Uint8Array(0);
+    return merged;
+  }
+
+  async function startPipeWirePcmAudioCapture() {
+    pipewireAudioContext = pipewireAudioKeepAliveContext;
+    if (pipewireAudioContext === null) throw new Error("AudioContext is not available");
+    await pipewireAudioContext.resume().catch(() => undefined);
+    pipewireAudioDestination = pipewireAudioContext.createMediaStreamDestination();
+    const pcmProcessor = pipewireAudioContext.createScriptProcessor(4096, 1, 2);
+    const driverGain = pipewireAudioContext.createGain();
+    const silentOutput = pipewireAudioContext.createGain();
+    driverGain.gain.value = 0;
+    silentOutput.gain.value = 0;
+    const driverSource = typeof pipewireAudioContext.createConstantSource === "function"
+      ? pipewireAudioContext.createConstantSource()
+      : pipewireAudioContext.createOscillator();
+    if ("offset" in driverSource) driverSource.offset.value = 1;
+    if ("frequency" in driverSource) driverSource.frequency.value = 20;
+    pcmProcessor.onaudioprocess = fillPipeWirePcmOutput;
+    driverSource.connect(driverGain);
+    driverGain.connect(pcmProcessor);
+    pcmProcessor.connect(pipewireAudioDestination);
+    pcmProcessor.connect(silentOutput);
+    silentOutput.connect(pipewireAudioContext.destination);
+    driverSource.start();
+    pipewireAudioSource = pcmProcessor;
+    pipewireAudioSilence = silentOutput;
+    pipewireAudioDriverGain = driverGain;
+    pipewireAudioDriverSource = driverSource;
+
+    const tracks = pipewireAudioDestination.stream.getAudioTracks();
+    await installPipeWireAudioTracks(tracks, "pipewire-pcm-worklet-stream");
+    startPipeWirePcmFetch();
+    window.__metaforPipewireAudioDebug = () => ({
+      transport: "pipewire-pcm-worklet-stream",
+      contextState: pipewireAudioContext?.state || null,
+      queuedSamples: pipewireAudioPcmQueuedSamples,
+      chunkCount: pipewireAudioPcmChunks.length,
+      fetchChunkCount: pipewireAudioDebug.fetchChunkCount,
+      fetchByteCount: pipewireAudioDebug.fetchByteCount,
+      fetchPeak: pipewireAudioDebug.fetchPeak,
+      lastFetchAt: pipewireAudioDebug.lastFetchAt,
+      renderCount: pipewireAudioDebug.renderCount,
+      renderedFrames: pipewireAudioDebug.renderedFrames,
+      renderNonZeroFrames: pipewireAudioDebug.renderNonZeroFrames,
+      underrunFrames: pipewireAudioDebug.underrunFrames,
+      lastPeak: pipewireAudioDebug.lastPeak,
+      lastRms: pipewireAudioDebug.lastRms,
+      lastRenderAt: pipewireAudioDebug.lastRenderAt,
+      lastOutputNonZeroAt: pipewireAudioDebug.lastOutputNonZeroAt,
+      trackCount: pipewireAudioDestination?.stream?.getAudioTracks?.().length ?? 0,
+      trackMuted: pipewireAudioDestination?.stream?.getAudioTracks?.()[0]?.muted ?? null,
+      trackReadyState: pipewireAudioDestination?.stream?.getAudioTracks?.()[0]?.readyState ?? null,
+    });
+    return tracks;
+  }
+
+  const pipewireAudioPcmChunks = [];
+  let pipewireAudioPcmChunkOffset = 0;
+  let pipewireAudioPcmQueuedSamples = 0;
+  let pipewireAudioPcmAbort = null;
+  const pipewireAudioDebug = {
+    fetchChunkCount: 0,
+    fetchByteCount: 0,
+    fetchPeak: 0,
+    lastFetchAt: null,
+    renderCount: 0,
+    renderedFrames: 0,
+    renderNonZeroFrames: 0,
+    underrunFrames: 0,
+    lastPeak: 0,
+    lastRms: 0,
+    lastRenderAt: null,
+    lastOutputNonZeroAt: null,
+  };
+
+  function startPipeWirePcmFetch() {
+    pipewireAudioPcmAbort?.abort?.();
+    pipewireAudioPcmAbort = new AbortController();
+    void readPipeWirePcmStream(pipewireAudioPcmAbort.signal);
+  }
+
+  async function readPipeWirePcmStream(signal) {
+    try {
+      const response = await fetch(config.audioPcmUrl + "?t=" + Date.now(), {signal, cache: "no-store"});
+      if (!response.ok || response.body === null) throw new Error("pcm fetch failed: " + response.status);
+      const reader = response.body.getReader();
+      while (!signal.aborted) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        appendPipeWirePcmChunk(chunk.value);
+      }
+      post({audio: {lastError: null}});
+    } catch (error) {
+      if (!signal.aborted) post({audio: {lastError: "pipewire pcm fetch failed: " + String(error?.message || error)}});
+    }
+  }
+
+  function appendPipeWirePcmChunk(bytes) {
+    const frameCount = Math.floor(bytes.byteLength / 4);
+    if (frameCount <= 0) return;
+    const view = new DataView(bytes.buffer, bytes.byteOffset, frameCount * 4);
+    const samples = new Float32Array(frameCount * 2);
+    let peak = 0;
+    for (let frame = 0; frame < frameCount; frame += 1) {
+      const left = view.getInt16(frame * 4, true) / 32768;
+      const right = view.getInt16(frame * 4 + 2, true) / 32768;
+      peak = Math.max(peak, Math.abs(left), Math.abs(right));
+      samples[frame * 2] = left;
+      samples[frame * 2 + 1] = right;
+    }
+    pipewireAudioDebug.fetchChunkCount += 1;
+    pipewireAudioDebug.fetchByteCount += frameCount * 4;
+    pipewireAudioDebug.fetchPeak = peak;
+    pipewireAudioDebug.lastFetchAt = new Date().toISOString();
+    pipewireAudioPcmChunks.push(samples);
+    pipewireAudioPcmQueuedSamples += samples.length;
+    trimPipeWirePcmQueue();
+  }
+
+  function trimPipeWirePcmQueue() {
+    const maxSamples = 48000 * 2;
+    while (pipewireAudioPcmQueuedSamples > maxSamples && pipewireAudioPcmChunks.length > 1) {
+      const removed = pipewireAudioPcmChunks.shift();
+      pipewireAudioPcmQueuedSamples -= Math.max(0, removed.length - pipewireAudioPcmChunkOffset);
+      pipewireAudioPcmChunkOffset = 0;
+    }
+  }
+
+  function fillPipeWirePcmOutput(event) {
+    const left = event.outputBuffer.getChannelData(0);
+    const right = event.outputBuffer.getChannelData(1);
+    let peak = 0;
+    let sumSquares = 0;
+    let nonZeroFrames = 0;
+    const underrunFramesBefore = pipewireAudioDebug.underrunFrames;
+    for (let index = 0; index < left.length; index += 1) {
+      const frame = nextPipeWirePcmFrame();
+      left[index] = frame[0];
+      right[index] = frame[1];
+      const framePeak = Math.max(Math.abs(frame[0]), Math.abs(frame[1]));
+      peak = Math.max(peak, framePeak);
+      sumSquares += frame[0] * frame[0] + frame[1] * frame[1];
+      if (framePeak > 0.00001) nonZeroFrames += 1;
+    }
+    pipewireAudioDebug.renderCount += 1;
+    pipewireAudioDebug.renderedFrames += left.length;
+    pipewireAudioDebug.renderNonZeroFrames += nonZeroFrames;
+    pipewireAudioDebug.lastPeak = peak;
+    pipewireAudioDebug.lastRms = Math.sqrt(sumSquares / Math.max(1, left.length * 2));
+    pipewireAudioDebug.lastRenderAt = new Date().toISOString();
+    if (nonZeroFrames > 0) pipewireAudioDebug.lastOutputNonZeroAt = pipewireAudioDebug.lastRenderAt;
+    if (pipewireAudioDebug.underrunFrames > underrunFramesBefore) {
+      pipewireAudioDebug.lastUnderrunAt = pipewireAudioDebug.lastRenderAt;
+    }
+  }
+
+  function nextPipeWirePcmFrame() {
+    const chunk = pipewireAudioPcmChunks[0];
+    if (chunk === undefined) {
+      pipewireAudioDebug.underrunFrames += 1;
+      return [0, 0];
+    }
+    const left = chunk[pipewireAudioPcmChunkOffset] || 0;
+    const right = chunk[pipewireAudioPcmChunkOffset + 1] || 0;
+    pipewireAudioPcmChunkOffset += 2;
+    pipewireAudioPcmQueuedSamples = Math.max(0, pipewireAudioPcmQueuedSamples - 2);
+    if (pipewireAudioPcmChunkOffset >= chunk.length) {
+      pipewireAudioPcmChunks.shift();
+      pipewireAudioPcmChunkOffset = 0;
+    }
+    return [left, right];
+  }
+
+  async function startChromeAudioOutputKeepAlive() {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (typeof AudioContextClass !== "function" || pipewireAudioKeepAliveContext !== null) return;
+    pipewireAudioKeepAliveContext = new AudioContextClass();
+    pipewireAudioKeepAliveGain = pipewireAudioKeepAliveContext.createGain();
+    pipewireAudioKeepAliveGain.gain.value = 0.000001;
+    if (typeof pipewireAudioKeepAliveContext.createConstantSource === "function") {
+      pipewireAudioKeepAliveSource = pipewireAudioKeepAliveContext.createConstantSource();
+      pipewireAudioKeepAliveSource.offset.value = 1;
+    } else {
+      pipewireAudioKeepAliveSource = pipewireAudioKeepAliveContext.createOscillator();
+      pipewireAudioKeepAliveSource.frequency.value = 20;
+    }
+    pipewireAudioKeepAliveSource.connect(pipewireAudioKeepAliveGain);
+    pipewireAudioKeepAliveGain.connect(pipewireAudioKeepAliveContext.destination);
+    pipewireAudioKeepAliveSource.start();
+    await pipewireAudioKeepAliveContext.resume().catch(() => undefined);
+    await new Promise((resolve) => setTimeout(resolve, 350));
+  }
+
+  function audioEffectiveSource(pipewireTrackCount) {
+    const displayTrackCount = stream.getAudioTracks().length - pipewireTrackCount;
+    const pipewireTransport = pipewireAudioTransport || "pipewire";
+    if (pipewireTrackCount > 0 && displayTrackCount > 0) return "chrome-get-display-media+" + pipewireTransport;
+    if (pipewireTrackCount > 0) return pipewireTransport;
+    if (displayTrackCount > 0) return "chrome-get-display-media";
+    return null;
   }
 
   function connectSignal() {
@@ -810,6 +1316,7 @@ function chromeRtcSenderScript(options = {}) {
     const peer = createPeer(message.from);
     if (message.type === "offer") {
       await peer.connection.setRemoteDescription(message.description);
+      await attachStreamTracks(peer);
       const answer = await peer.connection.createAnswer();
       await peer.connection.setLocalDescription(answer);
       sendSignal({type: "answer", to: message.from, description: publishSessionDescription(peer.connection.localDescription)});
@@ -822,12 +1329,7 @@ function chromeRtcSenderScript(options = {}) {
     const existing = peers.get(peerId);
     if (existing !== undefined) return existing;
     const connection = new RTCPeerConnection({iceServers: config.iceServers});
-    for (const track of stream.getTracks()) {
-      if (track.kind === "video") track.contentHint = "detail";
-      const sender = connection.addTrack(track, stream);
-      if (track.kind === "video") configureVideoSender(sender);
-    }
-    const peer = {id: peerId, connection, channel: null};
+    const peer = {id: peerId, connection, channel: null, tracksAttached: false};
     peers.set(peerId, peer);
     connection.addEventListener("icecandidate", (event) => {
       if (event.candidate === null) return;
@@ -857,16 +1359,25 @@ function chromeRtcSenderScript(options = {}) {
     return peer;
   }
 
-  function configureVideoSender(sender) {
-    if (typeof sender.getParameters !== "function" || typeof sender.setParameters !== "function") return;
-    const parameters = sender.getParameters();
-    parameters.degradationPreference = "maintain-resolution";
-    const encoding = parameters.encodings?.[0] || {};
-    encoding.maxBitrate = config.videoBitrate || 12000000;
-    encoding.maxFramerate = config.maxFps || 30;
-    encoding.scaleResolutionDownBy = 1;
-    parameters.encodings = [encoding];
-    sender.setParameters(parameters).catch((error) => post({status: "video-params-fallback", lastError: String(error?.message || error)}));
+  async function attachStreamTracks(peer) {
+    if (peer.tracksAttached) return;
+    for (const track of stream.getTracks()) {
+      if (track.kind === "video") track.contentHint = "detail";
+      await attachTrackToExistingTransceiver(peer.connection, track);
+    }
+    peer.tracksAttached = true;
+  }
+
+  async function attachTrackToExistingTransceiver(connection, track) {
+    const transceiver = connection.getTransceivers().find((candidate) => (
+      candidate.receiver?.track?.kind === track.kind && candidate.sender?.track === null
+    ));
+    if (transceiver !== undefined) {
+      transceiver.direction = "sendonly";
+      await transceiver.sender.replaceTrack(track);
+      return transceiver.sender;
+    }
+    return connection.addTrack(track, stream);
   }
 
   function attachDataChannel(peer, channel) {
@@ -972,6 +1483,21 @@ function chromeRtcSenderScript(options = {}) {
       socket?.close();
       closeAllPeers();
       stream?.getTracks?.().forEach((track) => track.stop());
+      if (pipewireAudioRefreshTimer !== null) clearInterval(pipewireAudioRefreshTimer);
+      pipewireAudioPcmAbort?.abort?.();
+      try { pipewireAudioGeneratorWriter?.close?.(); } catch {}
+      try { pipewireAudioGenerator?.stop?.(); } catch {}
+      cleanupPipeWireAudioElement(pipewireAudioElement, pipewireAudioCaptureStream);
+      pipewireAudioCaptureStream?.getTracks?.().forEach((track) => track.stop());
+      pipewireAudioSource?.disconnect?.();
+      pipewireAudioDriverGain?.disconnect?.();
+      try { pipewireAudioDriverSource?.stop?.(); } catch {}
+      pipewireAudioDestination?.disconnect?.();
+      try { pipewireAudioSilence?.stop?.(); } catch {}
+      if (pipewireAudioContext !== pipewireAudioKeepAliveContext) void pipewireAudioContext?.close?.();
+      try { pipewireAudioKeepAliveSource?.stop?.(); } catch {}
+      pipewireAudioKeepAliveGain?.disconnect?.();
+      void pipewireAudioKeepAliveContext?.close?.();
       post({status: "stopped"});
     },
   };
@@ -1187,40 +1713,19 @@ async function sendVideoWebmStream(req, res) {
 }
 
 async function sendAudioWebmStream(req, res) {
-  const target = resolveAudioTarget()
-  if (target === null) {
+  const targets = resolveAudioTargets()
+  if (targets.length === 0) {
     sendJson(res, 503, {ok: false, error: state.audioWebm.lastError || "PipeWire audio sink is not available"})
     return
   }
 
   state.audioWebm.clients += 1
-  state.audioWebm.target = target
+  state.audioWebm.target = targets.join(",")
   state.audioWebm.lastStartedAt = new Date().toISOString()
   state.audioWebm.lastError = null
-  state.remoteDesktop.audio.transport = "pipewire-webm"
-  ensureAudioTargetAudible(target)
+  for (const target of targets) ensureAudioTargetAudible(target)
 
-  const gst = spawn("gst-launch-1.0", [
-    "-q",
-    "pipewiresrc",
-    `target-object=${target}`,
-    "!",
-    "audioconvert",
-    "!",
-    "audioresample",
-    "!",
-    "audio/x-raw,format=S16LE,rate=48000,channels=2",
-    "!",
-    "opusenc",
-    "audio-type=generic",
-    `bitrate=${AUDIO_BITRATE}`,
-    "!",
-    "webmmux",
-    "streamable=true",
-    "!",
-    "fdsink",
-    "fd=1",
-  ], {stdio: ["ignore", "pipe", "pipe"]})
+  const gst = spawn("gst-launch-1.0", audioWebmGstArgs(targets), {stdio: ["ignore", "pipe", "pipe"]})
 
   let settled = false
   let stderr = ""
@@ -1261,33 +1766,19 @@ async function sendAudioWebmStream(req, res) {
 }
 
 async function sendAudioPcmStream(req, res) {
-  const target = resolveAudioTarget()
-  if (target === null) {
+  const targets = resolveAudioTargets()
+  if (targets.length === 0) {
     sendJson(res, 503, {ok: false, error: state.audioPcm.lastError || state.audioWebm.lastError || "PipeWire audio sink is not available"})
     return
   }
 
   state.audioPcm.clients += 1
-  state.audioPcm.target = target
+  state.audioPcm.target = targets.join(",")
   state.audioPcm.lastStartedAt = new Date().toISOString()
   state.audioPcm.lastError = null
-  state.remoteDesktop.audio.transport = "pipewire-pcm"
-  ensureAudioTargetAudible(target)
+  for (const target of targets) ensureAudioTargetAudible(target)
 
-  const gst = spawn("gst-launch-1.0", [
-    "-q",
-    "pipewiresrc",
-    `target-object=${target}`,
-    "!",
-    "audioconvert",
-    "!",
-    "audioresample",
-    "!",
-    `audio/x-raw,format=${state.audioPcm.format},rate=${state.audioPcm.sampleRate},channels=${state.audioPcm.channels}`,
-    "!",
-    "fdsink",
-    "fd=1",
-  ], {stdio: ["ignore", "pipe", "pipe"]})
+  const gst = spawn("gst-launch-1.0", audioPcmGstArgs(targets), {stdio: ["ignore", "pipe", "pipe"]})
 
   let settled = false
   let stderr = ""
@@ -1331,25 +1822,137 @@ async function sendAudioPcmStream(req, res) {
 }
 
 function resolveAudioTarget() {
-  if (AUDIO_TARGET.length > 0) return AUDIO_TARGET
+  return resolveAudioTargets()[0] ?? null
+}
+
+function resolveAudioTargets() {
+  if (AUDIO_TARGET.length > 0) return [AUDIO_TARGET]
 
   try {
     const result = spawnSync("pw-dump", {encoding: "utf8", maxBuffer: 8 * 1024 * 1024})
     if (result.status !== 0) throw new Error((result.stderr || "pw-dump failed").trim())
     const nodes = JSON.parse(result.stdout)
+    const chromeStreamTargets = resolveChromeAudioStreamTargets(nodes)
+    if (chromeStreamTargets.length > 0) return chromeStreamTargets
     const sinks = nodes
       .filter((node) => node?.type === "PipeWire:Interface:Node" && node?.info?.props?.["media.class"] === "Audio/Sink")
       .map((node) => ({id: node.id, state: node.info?.state || "", name: node.info?.props?.["node.name"] || ""}))
       .filter((node) => Number.isFinite(Number(node.id)))
     const target = sinks.find((node) => node.state === "running") ?? sinks[0] ?? null
-    if (target !== null) return String(target.id)
+    if (target !== null) return [String(target.id)]
     throw new Error("pw-dump returned no Audio/Sink nodes")
   } catch (error) {
     state.audioWebm.lastError = error instanceof Error ? error.message : String(error)
     state.audioPcm.lastError = state.audioWebm.lastError
     state.remoteDesktop.audio.lastError = state.audioWebm.lastError
-    return null
+    return []
   }
+}
+
+function resolveChromeAudioStreamTargets(nodes) {
+  if (!Array.isArray(nodes)) return []
+  const streams = nodes
+    .filter((node) => node?.type === "PipeWire:Interface:Node" && node?.info?.props?.["media.class"] === "Stream/Output/Audio")
+    .map((node) => ({
+      id: node.id,
+      state: node.info?.state || "",
+      app: String(node.info?.props?.["application.name"] || ""),
+      binary: String(node.info?.props?.["application.process.binary"] || ""),
+      name: String(node.info?.props?.["node.name"] || ""),
+      mediaName: String(node.info?.props?.["media.name"] || ""),
+    }))
+    .filter((node) => Number.isFinite(Number(node.id)))
+  const chromeStreams = streams.filter((node) => (
+    node.app === "Google Chrome"
+    || node.binary === "chrome"
+    || node.name === "Google Chrome"
+  ))
+  return uniqueStrings([
+    ...chromeStreams.filter((node) => node.state === "running").map((node) => String(node.id)),
+    ...chromeStreams.filter((node) => node.mediaName === "Playback").map((node) => String(node.id)),
+    ...chromeStreams.map((node) => String(node.id)),
+  ]).slice(0, 12)
+}
+
+function audioWebmGstArgs(targets) {
+  const output = [
+    "-q",
+    ...(targets.length > 1 ? ["audiomixer", "name=mix"] : ["pipewiresrc", `target-object=${targets[0]}`]),
+    "!",
+    "audioconvert",
+    "!",
+    "audioresample",
+    "!",
+    "audio/x-raw,format=S16LE,rate=48000,channels=2",
+    "!",
+    "opusenc",
+    "audio-type=generic",
+    `bitrate=${AUDIO_BITRATE}`,
+    "!",
+    "webmmux",
+    "streamable=true",
+    "!",
+    "fdsink",
+    "fd=1",
+  ]
+  if (targets.length <= 1) return output
+  const inputs = []
+  for (const target of targets) {
+    inputs.push(
+      "pipewiresrc",
+      `target-object=${target}`,
+      "!",
+      "queue",
+      "!",
+      "audioconvert",
+      "!",
+      "audioresample",
+      "!",
+      "audio/x-raw,format=F32LE,rate=48000,channels=2",
+      "!",
+      "mix.",
+    )
+  }
+  return [...output, ...inputs]
+}
+
+function audioPcmGstArgs(targets) {
+  const output = [
+    "-q",
+    ...(targets.length > 1 ? ["audiomixer", "name=mix"] : ["pipewiresrc", `target-object=${targets[0]}`]),
+    "!",
+    "audioconvert",
+    "!",
+    "audioresample",
+    "!",
+    `audio/x-raw,format=${state.audioPcm.format},rate=${state.audioPcm.sampleRate},channels=${state.audioPcm.channels}`,
+    "!",
+    "fdsink",
+    "fd=1",
+  ]
+  if (targets.length <= 1) return output
+  const inputs = []
+  for (const target of targets) {
+    inputs.push(
+      "pipewiresrc",
+      `target-object=${target}`,
+      "!",
+      "queue",
+      "!",
+      "audioconvert",
+      "!",
+      "audioresample",
+      "!",
+      `audio/x-raw,format=${state.audioPcm.format},rate=${state.audioPcm.sampleRate},channels=${state.audioPcm.channels}`,
+      "!",
+      "mix.",
+    )
+  }
+  return [...output, ...inputs]
+}
+
+function uniqueStrings(values) {
+  return [...new Set(values)]
 }
 
 function ensureAudioTargetAudible(target) {
@@ -1657,9 +2260,14 @@ async function withCdpPage(fn) {
 
 async function cdpPageWebSocketUrl() {
   const targets = await fetchChromeJson("/json/list")
-  const page = Array.isArray(targets)
-    ? targets.find((target) => target?.type === "page" && typeof target.webSocketDebuggerUrl === "string")
-    : null
+  const pages = Array.isArray(targets)
+    ? targets.filter((target) => target?.type === "page" && typeof target.webSocketDebuggerUrl === "string")
+    : []
+  const page = pages.find((target) => target.url === TARGET_URL)
+    ?? pages.find((target) => typeof target.url === "string" && target.url.startsWith(TARGET_URL))
+    ?? pages.find((target) => typeof target.url === "string" && !target.url.startsWith("chrome://"))
+    ?? pages[0]
+    ?? null
   if (page === null) {
     const error = new Error("Chrome CDP page target is not available")
     error.statusCode = 503
@@ -1759,6 +2367,18 @@ function sleep(ms) {
 function envFlag(value) {
   if (typeof value !== "string" || value.trim().length === 0) return false
   return !["0", "false", "no", "off"].includes(value.trim().toLowerCase())
+}
+
+function normalizeChromeCaptureSurface(value) {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : ""
+  if (normalized === "browser" || normalized === "window" || normalized === "monitor") return normalized
+  return "monitor"
+}
+
+function normalizeChromeAudioSource(value) {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : ""
+  if (normalized === "display" || normalized === "pipewire" || normalized === "both") return normalized
+  return "display"
 }
 
 function clampNumber(value, min, max) {

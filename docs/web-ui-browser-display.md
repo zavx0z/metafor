@@ -6,16 +6,17 @@ desktop/browser display для интерпретатора. Цель - чтоб
 Display должен быть равноправным экраном в `Space`, а не HUD-панелью,
 iframe-оберткой или скрытым Playwright-клиентом.
 
-Текущий основной realtime-канал - WebRTC video/audio stream из Electron sender
-на сервере. Проверенный 2026-06-27 путь: пользовательский виртуальный
-`Xwayland :98` без reboot/sudo, Google Chrome на этом display, Electron sender
-`webrtc:xwayland:screen` и native Chromium desktop media stream. Audio и video
-попадают в один RTCPeerConnection с общими WebRTC timestamps; ожидаемый state -
-`capture.frameSource: "native-chromium"`, `source.kind: "screen"`,
+Текущий основной realtime-канал - Chrome WebRTC stream на сервере. Проверенный
+2026-06-27 рабочий путь без reboot/sudo: один Wayland/Mutter virtual monitor,
+Google Chrome и sender `webrtc:chrome:monitor` на `127.0.0.1:32133`, который
+инжектит `navigator.mediaDevices.getDisplayMedia()` через CDP и захватывает весь
+server monitor. Ожидаемый state - `transport: "chrome-webrtc"`,
+`capture.frameSource: "chrome-get-display-media:monitor"`,
 `capture.frameWidth: 1920`, `capture.frameHeight: 1080`,
-`audio.effectiveSource: "native-chromium"`, `audio.trackCount: 1`.
-Mutter/PipeWire WebM/PCM/MJPEG adapters остаются fallback/diagnostics, но не
-являются основным способом живой визуализации, пока `:98` доступен.
+`capture.frameRate: 60`, `audio.transport:
+"pipewire-pcm-track-generator-stream"`, `audio.trackCount: 1`, peer `connected`, data
+channel `open`. `webrtc:chrome:browser`, Electron/PipeWire/MJPEG и Xwayland
+остаются fallback/diagnostics.
 
 ## Проверенный Контекст
 
@@ -28,8 +29,9 @@ Mutter/PipeWire WebM/PCM/MJPEG adapters остаются fallback/diagnostics, �
 Текущее состояние MetaFor:
 
 - server/dev wrapper `/home/zavx0z/metafor-interpreter-web-dev/run.sh`
-  выставляет `INTERPRETER_HTTP_HOST=10.66.0.10` и
-  `INTERPRETER_REMOTE_DESKTOP_HOST_PORT=32123`;
+  выставляет `INTERPRETER_HTTP_HOST=10.66.0.10` и направляет
+  `INTERPRETER_REMOTE_DESKTOP_HOST_PORT` /
+  `INTERPRETER_REMOTE_DESKTOP_RTC_HOST_PORT` на `32133`;
 - host interpreter слушает `http://10.66.0.10:6500/`;
 - child `app/web/server.ts` запускается с `HOST=10.66.0.10` и `PORT=3004`;
 - embedded interpreter внутри app-web доступен под каноническим префиксом
@@ -46,8 +48,7 @@ Mutter/PipeWire WebM/PCM/MJPEG adapters остаются fallback/diagnostics, �
   и CDP через
   `METAFOR_ELECTRON_DEBUG_PORT`;
 - текущий Linux server remote desktop поднимается без перезагрузки машины:
-  `bun run xwayland:display`, `bun run xwayland:browser`,
-  `bun run webrtc:xwayland:screen` в `app/electron`;
+  `bun run webrtc:chrome:monitor` в `app/electron`;
 - Linux server script для Electron host - `bun --filter @app/electron
   host:linux` или `dev:host:linux`; он передает sandbox/Ozone flags на уровне
   запуска процесса, потому что эти флаги должны попасть в Electron binary до
@@ -141,10 +142,10 @@ curl -sS http://10.66.0.10:3004/health
 - health endpoint с состоянием process/window/page/CDP;
 - restart endpoint, который перезапускает host process и публикует новый state;
 - WebRTC video stream всего серверного desktop через `/webrtc/signaling`;
-- audio stream в том же RTCPeerConnection; основной Linux/Electron sender
-  должен брать единый native Chromium desktop media stream, чтобы WebRTC сам
-  держал audio/video timestamps синхронными. PipeWire MJPEG/PCM/WebM adapters
-  допустимы только как fallback/diagnostics;
+- audio stream в том же RTCPeerConnection; текущий Linux server-dev sender
+  берет active Google Chrome PipeWire output через `/desktop/audio.pcm`, заводит
+  PCM frames в Chrome `MediaStreamTrackGenerator(AudioData)` и добавляет audio
+  track в тот же PeerConnection;
 - snapshot endpoint только как fallback/diagnostics;
 - input proxy для pointer/keyboard/wheel с ack и последним input timestamp;
 - команды reload/back/forward/devtools/fullscreen;
@@ -161,17 +162,19 @@ remote desktop display не должен требовать постоянный
 Audio contract:
 
 - `METAFOR_REMOTE_DESKTOP_AUDIO=0` выключает audio track;
-- `METAFOR_REMOTE_DESKTOP_AUDIO_SOURCE=auto|system|loopback|loopback-with-mute|browser|browser-frame|off`;
-- `auto` на Windows использует Electron system loopback. В текущем Linux
-  server-dev контуре `Xwayland :98` дает Electron native Chromium desktop
-  stream с audio track; если этот путь недоступен, fallback audio идет через
-  PipeWire/PulseAudio adapter;
+- `METAFOR_REMOTE_DESKTOP_CHROME_AUDIO_SOURCE=display|pipewire|both`;
+- в текущем Linux server-dev контуре `webrtc:chrome:monitor` использует
+  `pipewire`: active Google Chrome `Stream/Output/Audio` node ->
+  `/desktop/audio.pcm` -> `MediaStreamTrackGenerator(AudioData)` -> audio track в
+  том же RTCPeerConnection. Если Chrome stream еще недоступен, sink monitor и
+  `/desktop/audio.webm` остаются fallback/diagnostics, но на текущем сервере sink
+  monitor может отдавать silence;
 - state `/remote-desktop/rtc/state` должен показывать `audio.enabled`,
-  `audio.effectiveSource` и `audio.trackCount`. Для основного server desktop
-  ожидается `capture.frameSource: "native-chromium"`,
+  `audio.transport` и `audio.trackCount`. Для основного server desktop
+  ожидается `capture.frameSource: "chrome-get-display-media:monitor"`,
   `capture.frameWidth: 1920`, `capture.frameHeight: 1080` и
-  `audio.effectiveSource: "native-chromium"`. `pipewire-mjpeg` означает старый
-  canvas fallback path и может давать больший CPU cost/lag.
+  `audio.transport: "pipewire-pcm-track-generator-stream"`. `pipewire-mjpeg` означает
+  старый canvas fallback path и может давать больший CPU cost/lag.
 
 Interpreter bridge - это не сам Electron host и не display. Он должен быть
 тонким proxy к локальному host API и локальным WebRTC signaling server:
@@ -181,13 +184,13 @@ INTERPRETER_BROWSER_HOST_URL=http://127.0.0.1:<port>
 # или
 INTERPRETER_BROWSER_HOST_PORT=<port>
 
-INTERPRETER_REMOTE_DESKTOP_HOST_URL=http://127.0.0.1:<port>
-# или
-INTERPRETER_REMOTE_DESKTOP_HOST_PORT=<port>
-
+# Current server-dev: one Chrome Wayland monitor host for health/snapshot/input/RTC.
+INTERPRETER_REMOTE_DESKTOP_HOST_URL=http://127.0.0.1:32133
 INTERPRETER_REMOTE_DESKTOP_RTC_HOST_URL=http://127.0.0.1:32133
-# или
-INTERPRETER_REMOTE_DESKTOP_RTC_HOST_PORT=32133
+
+# Generic override form for other hosts:
+INTERPRETER_REMOTE_DESKTOP_HOST_PORT=<port>
+INTERPRETER_REMOTE_DESKTOP_RTC_HOST_PORT=<port>
 
 WS   /webrtc/signaling
 
@@ -240,47 +243,46 @@ Embedded app-web proxy:
   `electron-desktop`, UI пробует следующий кандидат, чтобы не застрять на
   другом in-memory signaling server.
 
-Ручной smoke для текущего Xwayland/Electron remote desktop host:
+Ручной smoke для текущего Chrome Wayland monitor remote desktop host:
 
 ```sh
 cd /home/zavx0z/production/vendor/metafor/app/electron
 
-# В отдельных tmux panes/sessions:
-bun run xwayland:display
-bun run xwayland:browser
-bun run webrtc:xwayland:screen
+bun run webrtc:chrome:monitor
 
-DISPLAY=:98 XAUTHORITY=/tmp/metafor-xwayland.Xauthority xrandr
-curl -sS http://127.0.0.1:9348/json/version
 curl -sS http://10.66.0.10:6500/remote-desktop/rtc/state
 curl -sS http://10.66.0.10:6500/remote-desktop/rtc/state \
   | jq '.remoteDesktop.ice.lastPublishedCandidate'
 curl -sS http://127.0.0.1:32133/desktop/rtc/state
+curl -sS http://127.0.0.1:32133/desktop/snapshot --output /tmp/rd.png
 ```
 
 Проверка 2026-06-27: Electron 35.7.5 на текущем GNOME/Wayland/NVIDIA сервере
 падает `SIGSEGV` в GPU/Viz даже без remote desktop RTC. Electron 42.5.0
 работает в sender-only режиме через Wayland: hidden WebRTC page,
 `METAFOR_ELECTRON_WEBGPU=0`, `ozone-platform=wayland`, отключенный Vulkan/VAAPI и
-`METAFOR_REMOTE_DESKTOP_SYSTEM_PICKER=0`. Native Chromium capture должен быть
-первой попыткой, но X11/Ozone и Wayland на этом сервере могут успешно
-подключать WebRTC и отдавать черный `screen:*` video. Рабочий обход без reboot -
-не Xorg на `/dev/tty0`, а пользовательский `Xwayland :98` поверх текущей
-Wayland-сессии. Рабочий Linux sender state должен показывать
-`systemPicker.enabled=false`, `capture.frameWidth=1920`,
-`capture.frameHeight=1080`, `capture.frameSource: "native-chromium"` и
-`audio.effectiveSource: "native-chromium"`. Независимый WebRTC receiver должен видеть
-`videoWidth=1920`, `videoHeight=1080`, `black=false`, `audioTracks=1` и растущие
-`inbound-rtp` audio `bytesReceived`. Audio-only
+`METAFOR_REMOTE_DESKTOP_SYSTEM_PICKER=0`. Electron/X11/Ozone и Xwayland
+оставлены как fallback/diagnostics; основной рабочий обход без reboot - Chrome
+Wayland monitor sender на `32133`. Рабочий Linux sender state должен показывать
+`capture.frameWidth=1920`, `capture.frameHeight=1080`,
+`capture.frameSource: "chrome-get-display-media:monitor"` и
+`audio.transport: "pipewire-pcm-track-generator-stream"`. Независимый WebRTC receiver
+должен видеть `videoWidth=1920`, `videoHeight=1080`, `audioTracks=1` и растущие
+`inbound-rtp` audio `bytesReceived`, `audioLevel` и `totalAudioEnergy`.
+Audio-only
 `getUserMedia({chromeMediaSource: "desktop"})` не использовать: на текущем
 сервере он убивает Electron renderer bad IPC.
 
 Если RTP audio bytes растут, но пользователь не слышит звук, сначала проверить
-`wpctl status`: default server sink не должен быть `MUTED` или `vol: 0.00`,
-потому что `/desktop/audio.pcm` и `/desktop/audio.webm` читают monitor этого sink. Клиент
-интерпретатора держит два playback пути для remote desktop audio: spatial
-WebAudio graph через `PannerNode` и hidden `HTMLAudioElement` fallback, который
-повторно запускается на user gesture, чтобы обходить autoplay/WebAudio блок.
+`wpctl status`: `/desktop/audio.pcm` должен читать active Google Chrome
+`Stream/Output/Audio` node; capture от default sink monitor на текущем сервере
+может выглядеть connected, но отдавать silence. Для проверки не-тишины
+используй `client.remote-desktop.rtc-audio-receiver-stats`:
+`muted:false`, растущие `bytesReceived`, ненулевые `audioLevel` и
+`totalAudioEnergy`. Клиент интерпретатора держит основной spatial WebAudio
+graph через `MediaElementAudioSourceNode` и `PannerNode`. Когда
+`AudioContext` уже `running`, hidden media element остается unmuted, потому что
+он является source node для graph; отдельного второго audible playback path нет.
 
 Fallback-запуск через PipeWire bridge, если `:98` недоступен:
 
@@ -295,8 +297,9 @@ METAFOR_URL=http://10.66.0.10:3004/ \
 bun run webrtc:pipewire:screen
 ```
 
-В этом контуре Node/Mutter host на `127.0.0.1:32123` остается input/snapshot
-adapter, а Electron на `127.0.0.1:32133` является основным WebRTC video sender.
+Этот PipeWire bridge является fallback/diagnostic контуром. В текущем рабочем
+server-dev режиме не держи его параллельно с `webrtc:chrome:monitor` на
+`127.0.0.1:32133`.
 Production media path повторяет voice gateway: UDP `40000-40100` идет через
 public edge `130.49.151.168`/`proizvodstvo1.ru` и DNAT в `10.66.0.10` по
 AmneziaWG. Electron/Chromium должен ограничивать WebRTC sockets тем же range
@@ -307,16 +310,16 @@ socket на `0.0.0.0`, raw diagnostics могут показывать лока�
 `10.163.*`; проверять надо `ice.lastPublishedCandidate`, а не только
 `ice.lastCandidate`.
 Обязательная проверка - `GET http://127.0.0.1:32133/desktop/rtc/state`;
-payload должен показывать `webRtc: true`, `transport: "electron-webrtc"` и
-peer `interpreter-desktop-*` после подключения UI.
+payload должен показывать `webRtc: true`, `transport: "chrome-webrtc"` и peer
+`interpreter-desktop-*` после подключения UI.
 
 CDP endpoints полезны для диагностики DevTools/source maps, но рабочий visual
 и audio path для агента и interpreter UI идет через WebRTC signaling и
 `remote-desktop:server` display. HTTP routes `/remote-desktop/*` нужны для
 health, restart, fallback snapshot и input adapter diagnostics.
-`/remote-desktop/rtc/state` и `/remote-desktop/rtc/restart` должны идти в
-Electron WebRTC sender (`127.0.0.1:32133` по умолчанию), а не в Node/Mutter
-snapshot/input host (`127.0.0.1:32123`). В app-web embedded режиме viewer может
+`/remote-desktop/rtc/state`, `/remote-desktop/rtc/restart`,
+`/remote-desktop/input` и `/remote-desktop/snapshot` в текущем server-dev
+контуре должны идти в Chrome Wayland monitor host `127.0.0.1:32133`. В app-web embedded режиме viewer может
 использовать `/hud/interpreter/webrtc/signaling` как proxy, но sender и viewer
 все равно должны сходиться в один signaling owner. Отдельный app-web HUD
 endpoint `/hud/webrtc/signaling` не используется и не должен подниматься.
