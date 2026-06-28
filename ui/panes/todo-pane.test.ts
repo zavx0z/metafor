@@ -135,6 +135,43 @@ describe("ToDoPane markdown parser", () => {
     expect(pane.expandedCompletedIds()).toEqual([doneId])
     expect(todoVisibleItems(parseMarkdownTodo(markdown), pane.expandedCompletedIds()).map((item) => item.text)).toContain("Второй пункт")
   })
+
+  test("ручное сворачивание completed-секции переживает повторную синхронизацию той же подсветки", async () => {
+    const markdown = [
+      "## Готово",
+      "- [x] Первый пункт",
+      "- [x] Второй пункт",
+      "## В работе",
+      "- [ ] Следующий пункт",
+    ].join("\n")
+    const items = parseMarkdownTodo(markdown)
+    const doneId = items.find((item) => item.text === "Готово")?.id
+    const firstDoneTaskId = items.find((item) => item.text === "Первый пункт")?.id
+    const secondDoneTaskId = items.find((item) => item.text === "Второй пункт")?.id
+    if (doneId === undefined || firstDoneTaskId === undefined || secondDoneTaskId === undefined) throw new Error("TODO ids not found")
+    const pane = new ToDoPane({markdown})
+    const restoreRaf = installRafStub()
+    try {
+      attachTestCanvas(pane, {x: 10, y: 20, w: 360, h: 220})
+      pane.setRect({x: 10, y: 20, w: 360, h: 220}, 1, await testFont())
+
+      pane.setHighlightedIds([firstDoneTaskId])
+      pane.flushPendingRender()
+      expect(pane.expandedCompletedIds()).toEqual([doneId])
+
+      clickPane(pane, 30, 54)
+      expect(pane.expandedCompletedIds()).toEqual([])
+
+      pane.setHighlightedIds([firstDoneTaskId])
+      expect(pane.expandedCompletedIds()).toEqual([])
+
+      pane.setHighlightedIds([secondDoneTaskId])
+      expect(pane.expandedCompletedIds()).toEqual([doneId])
+    } finally {
+      pane.dispose()
+      restoreRaf()
+    }
+  })
 })
 
 describe("ToDoPane frame controls", () => {

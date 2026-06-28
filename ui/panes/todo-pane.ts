@@ -79,6 +79,7 @@ export class ToDoPane extends UiSurface {
   #items: ToDoPaneItem[]
   #highlightedIds: Set<string>
   #expandedCompletedIds: Set<string>
+  #manuallyCollapsedCompletedIds = new Set<string>()
   #draggable: boolean
   #resizable: boolean
   #frameDrag: PaneFrameDrag | null = null
@@ -125,8 +126,11 @@ export class ToDoPane extends UiSurface {
   }
 
   setHighlightedIds(ids: readonly string[]): void {
+    const previousSelection = stableIdsKey(this.#highlightedIds)
     this.#highlightedIds = new Set(ids)
     this.#pruneSelection()
+    const nextSelection = stableIdsKey(this.#highlightedIds)
+    if (nextSelection !== previousSelection) this.#manuallyCollapsedCompletedIds.clear()
     this.#expandCompletedSectionsForHighlightedIds()
     this.#scrollFirstHighlightedItemIntoView()
     this.#emitContextChange()
@@ -140,6 +144,7 @@ export class ToDoPane extends UiSurface {
 
   setExpandedCompletedIds(ids: readonly string[]): void {
     this.#expandedCompletedIds = new Set(ids)
+    this.#manuallyCollapsedCompletedIds.clear()
     this.#pruneExpandedCompleted()
     this.#emitPanelStateChange()
     this.requestRender()
@@ -421,8 +426,13 @@ export class ToDoPane extends UiSurface {
   }
 
   #toggleCompletedSection(id: string): void {
-    if (this.#expandedCompletedIds.has(id)) this.#expandedCompletedIds.delete(id)
-    else this.#expandedCompletedIds.add(id)
+    if (this.#expandedCompletedIds.has(id)) {
+      this.#expandedCompletedIds.delete(id)
+      this.#manuallyCollapsedCompletedIds.add(id)
+    } else {
+      this.#expandedCompletedIds.add(id)
+      this.#manuallyCollapsedCompletedIds.delete(id)
+    }
     this.#pruneExpandedCompleted()
     this.#emitPanelStateChange()
     this.requestRender()
@@ -431,6 +441,7 @@ export class ToDoPane extends UiSurface {
   #expandCompletedSectionsForHighlightedIds(): void {
     if (this.#highlightedIds.size === 0) return
     for (const section of todoCompletedSectionStates(this.#items).values()) {
+      if (this.#manuallyCollapsedCompletedIds.has(section.id)) continue
       if (section.descendantIds.some((id) => this.#highlightedIds.has(id))) this.#expandedCompletedIds.add(section.id)
     }
     this.#pruneExpandedCompleted()
@@ -467,6 +478,9 @@ export class ToDoPane extends UiSurface {
     const completed = todoCompletedSectionStates(this.#items)
     for (const id of [...this.#expandedCompletedIds]) {
       if (!completed.has(id)) this.#expandedCompletedIds.delete(id)
+    }
+    for (const id of [...this.#manuallyCollapsedCompletedIds]) {
+      if (!completed.has(id)) this.#manuallyCollapsedCompletedIds.delete(id)
     }
   }
 
@@ -571,4 +585,8 @@ export class ToDoPane extends UiSurface {
 
 function withAlpha(color: Color, alpha: number): Color {
   return new Color(color.r, color.g, color.b, alpha)
+}
+
+function stableIdsKey(ids: Iterable<string>): string {
+  return [...ids].sort().join("\n")
 }
