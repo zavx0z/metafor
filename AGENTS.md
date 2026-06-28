@@ -62,6 +62,7 @@ linked sourcemap:
 
 ```sh
 curl -sS http://10.66.0.10:6500/devtools/targets
+curl -sS 'http://10.66.0.10:6500/devtools/console?level=error&limit=50'
 curl -sS -X POST http://10.66.0.10:6500/devtools/reload -H 'content-type: application/json' -d '{"hard":true}'
 curl -sS -X POST http://10.66.0.10:6500/devtools/breakpoints -H 'content-type: application/json' -d '{"source":"app/web/client.ts","line":603}'
 curl -sS http://10.66.0.10:6500/devtools/state
@@ -74,6 +75,12 @@ curl -sS -X POST http://10.66.0.10:6500/devtools/disable -H 'content-type: appli
 снимает breakpoint. Если breakpoint не ловится после restart host, сначала
 перезагрузи AppWeb target через `/devtools/reload`, потому что страница могла
 остаться со stale websocket.
+
+Перед разбором визуальных ошибок и после действий, которые должны менять Web UI,
+смотри `/devtools/console`: он собирает `console.*`, uncaught exceptions,
+Chrome `Log.entryAdded` и `Network.loadingFailed`. Если capture только что
+включен, старые строки DevTools могут не попасть в буфер; сделай
+`/devtools/reload` или воспроизведи действие заново.
 
 ## Lifecycle Интерпретатора
 

@@ -9,6 +9,8 @@ const CDP_TIMEOUT_MS = 5_000
 const PROBE_TIMEOUT_MS = 7_000
 const PROBE_AUTO_RESUME_MS = 1_000
 const MAX_PROBE_TIMEOUT_MS = 30_000
+const MAX_CONSOLE_EVENTS = 500
+const DEFAULT_CONSOLE_LIMIT = 100
 
 type ChromeTarget = {
   id: string
@@ -35,6 +37,25 @@ type ChromeDevtoolsPausedEvent = {
   updatedAt: string
 }
 
+type ChromeDevtoolsConsoleEvent = {
+  id: number
+  kind: "console" | "exception" | "log" | "network"
+  level?: string
+  source?: string
+  type?: string
+  text: string
+  url?: string
+  lineNumber?: number
+  columnNumber?: number
+  requestId?: string
+  errorText?: string
+  blockedReason?: string
+  args?: JsonObject[]
+  stackTrace?: unknown
+  timestamp?: number
+  capturedAt: string
+}
+
 type ChromeDevtoolsSession = {
   target: ChromeTarget
   socket: WebSocket
@@ -47,6 +68,8 @@ type ChromeDevtoolsSession = {
   }>
   breakpoints: Map<string, ChromeDevtoolsBreakpoint>
   paused: ChromeDevtoolsPausedEvent | null
+  consoleEnabled: boolean
+  consoleEvents: ChromeDevtoolsConsoleEvent[]
   openedAt: string
 }
 
@@ -70,10 +93,13 @@ type SourceMapResolution = {
 }
 
 const sessions = new Map<string, ChromeDevtoolsSession>()
+let nextConsoleEventId = 1
 
 export async function handleChromeDevtoolsRoute(req: Request, method: string, path: string): Promise<Response | null> {
   if (method === "GET" && path === "/devtools/targets") return await devtoolsTargetsResponse()
   if (method === "GET" && path === "/devtools/state") return devtoolsStateResponse()
+  if (method === "GET" && path === "/devtools/console") return await devtoolsConsoleResponse(req)
+  if (method === "POST" && path === "/devtools/console/clear") return await clearDevtoolsConsoleResponse(req)
   if (method === "POST" && path === "/devtools/breakpoints") return await setDevtoolsBreakpointResponse(req)
   if (method === "POST" && path === "/devtools/probe") return await probeDevtoolsBreakpointResponse(req)
   if (method === "POST" && path === "/devtools/reload") return await reloadDevtoolsResponse(req)
@@ -98,6 +124,50 @@ function devtoolsStateResponse(): Response {
     cdp: cdpDiagnostic(),
     sessions: [...sessions.values()].map(sessionState),
   })
+}
+
+async function devtoolsConsoleResponse(req: Request): Promise<Response> {
+  try {
+    const url = new URL(req.url)
+    const body = requestBodyFromSearchParams(url.searchParams)
+    const session = await ensureSession(body)
+    await ensureConsoleCapture(session)
+    const limit = boundedMs(asNumber(body["limit"]), DEFAULT_CONSOLE_LIMIT, 1_000)
+    const level = asString(body["level"])
+    const kind = asString(body["kind"])
+    const sinceId = asNumber(body["sinceId"])
+    const events = session.consoleEvents
+      .filter((event) => level === undefined || event.level === level)
+      .filter((event) => kind === undefined || event.kind === kind)
+      .filter((event) => sinceId === undefined || event.id > sinceId)
+      .slice(-limit)
+    return devtoolsJsonResponse({
+      ok: true,
+      target: targetSummary(session.target),
+      capturing: session.consoleEnabled,
+      totalBuffered: session.consoleEvents.length,
+      events,
+      note: "CDP captures console/log/network events after this session enables capture; use /devtools/reload or reproduce the action for stale console history.",
+    })
+  } catch (error) {
+    return devtoolsJsonResponse({ok: false, error: serializeError(error)}, 400)
+  }
+}
+
+async function clearDevtoolsConsoleResponse(req: Request): Promise<Response> {
+  const parsed = await readJsonObject(req)
+  if (parsed.error !== undefined) return devtoolsJsonResponse({ok: false, error: parsed.error}, 400)
+  try {
+    const session = await ensureSession(parsed.body)
+    await ensureConsoleCapture(session)
+    const removed = session.consoleEvents.length
+    session.consoleEvents = []
+    await sessionCommand(session, "Runtime.discardConsoleEntries").catch(() => undefined)
+    await sessionCommand(session, "Log.clear").catch(() => undefined)
+    return devtoolsJsonResponse({ok: true, target: targetSummary(session.target), removed})
+  } catch (error) {
+    return devtoolsJsonResponse({ok: false, error: serializeError(error)}, 400)
+  }
 }
 
 async function setDevtoolsBreakpointResponse(req: Request): Promise<Response> {
@@ -382,6 +452,8 @@ async function ensureSession(body: JsonObject): Promise<ChromeDevtoolsSession> {
     pending: new Map(),
     breakpoints: new Map(),
     paused: null,
+    consoleEnabled: false,
+    consoleEvents: [],
     openedAt: new Date().toISOString(),
   }
   socket.addEventListener("message", (event) => handleSessionMessage(session, event))
@@ -473,7 +545,122 @@ function handleSessionMessage(session: ChromeDevtoolsSession, event: MessageEven
     session.paused = paused
   } else if (method === "Debugger.resumed") {
     session.paused = null
+  } else if (method === "Runtime.consoleAPICalled") {
+    appendConsoleEvent(session, consoleApiEvent(asObject(message["params"]) ?? {}))
+  } else if (method === "Runtime.exceptionThrown") {
+    appendConsoleEvent(session, exceptionEvent(asObject(message["params"]) ?? {}))
+  } else if (method === "Log.entryAdded") {
+    appendConsoleEvent(session, logEntryEvent(asObject(message["params"]) ?? {}))
+  } else if (method === "Network.loadingFailed") {
+    appendConsoleEvent(session, networkFailureEvent(asObject(message["params"]) ?? {}))
   }
+}
+
+async function ensureConsoleCapture(session: ChromeDevtoolsSession): Promise<void> {
+  if (session.consoleEnabled) return
+  await sessionCommand(session, "Runtime.enable")
+  await sessionCommand(session, "Log.enable").catch(() => undefined)
+  await sessionCommand(session, "Network.enable").catch(() => undefined)
+  session.consoleEnabled = true
+}
+
+function appendConsoleEvent(session: ChromeDevtoolsSession, event: ChromeDevtoolsConsoleEvent | null): void {
+  if (event === null) return
+  session.consoleEvents.push(event)
+  if (session.consoleEvents.length > MAX_CONSOLE_EVENTS) {
+    session.consoleEvents.splice(0, session.consoleEvents.length - MAX_CONSOLE_EVENTS)
+  }
+}
+
+function consoleApiEvent(params: JsonObject): ChromeDevtoolsConsoleEvent {
+  const type = asString(params["type"]) ?? "log"
+  const args = Array.isArray(params["args"])
+    ? params["args"].map((arg) => remoteObjectSummary(asObject(arg) ?? {}))
+    : []
+  const event: ChromeDevtoolsConsoleEvent = {
+    id: nextConsoleEventId++,
+    kind: "console",
+    level: consoleLevelFromType(type),
+    type,
+    text: args.map((arg) => asString(arg["text"]) ?? "").filter((item) => item.length > 0).join(" "),
+    args,
+    capturedAt: new Date().toISOString(),
+  }
+  const timestamp = asNumber(params["timestamp"])
+  if (params["stackTrace"] !== undefined) event.stackTrace = params["stackTrace"]
+  if (timestamp !== undefined) event.timestamp = timestamp
+  return event
+}
+
+function exceptionEvent(params: JsonObject): ChromeDevtoolsConsoleEvent {
+  const details = asObject(params["exceptionDetails"]) ?? {}
+  const exception = asObject(details["exception"])
+  const description = exception === undefined ? undefined : asString(exception["description"])
+  const event: ChromeDevtoolsConsoleEvent = {
+    id: nextConsoleEventId++,
+    kind: "exception",
+    level: "error",
+    text: description ?? asString(details["text"]) ?? "Uncaught exception",
+    capturedAt: new Date().toISOString(),
+  }
+  const url = asString(details["url"])
+  const lineNumber = asNumber(details["lineNumber"])
+  const columnNumber = asNumber(details["columnNumber"])
+  if (url !== undefined) event.url = url
+  if (lineNumber !== undefined) event.lineNumber = lineNumber
+  if (columnNumber !== undefined) event.columnNumber = columnNumber
+  if (details["stackTrace"] !== undefined) event.stackTrace = details["stackTrace"]
+  return event
+}
+
+function logEntryEvent(params: JsonObject): ChromeDevtoolsConsoleEvent | null {
+  const entry = asObject(params["entry"])
+  if (entry === undefined) return null
+  const event: ChromeDevtoolsConsoleEvent = {
+    id: nextConsoleEventId++,
+    kind: "log",
+    text: asString(entry["text"]) ?? "",
+    capturedAt: new Date().toISOString(),
+  }
+  const source = asString(entry["source"])
+  const level = asString(entry["level"])
+  const url = asString(entry["url"])
+  const lineNumber = asNumber(entry["lineNumber"])
+  const requestId = asString(entry["networkRequestId"])
+  const timestamp = asNumber(entry["timestamp"])
+  if (source !== undefined) event.source = source
+  if (level !== undefined) event.level = level
+  if (url !== undefined) event.url = url
+  if (lineNumber !== undefined) event.lineNumber = lineNumber
+  if (requestId !== undefined) event.requestId = requestId
+  if (entry["stackTrace"] !== undefined) event.stackTrace = entry["stackTrace"]
+  if (timestamp !== undefined) event.timestamp = timestamp
+  return event
+}
+
+function networkFailureEvent(params: JsonObject): ChromeDevtoolsConsoleEvent {
+  const errorText = asString(params["errorText"]) ?? "Network request failed"
+  const blockedReason = asString(params["blockedReason"])
+  const corsErrorStatus = asObject(params["corsErrorStatus"])
+  const corsError = asString(corsErrorStatus?.["corsError"])
+  const text = corsError === undefined ? errorText : `${errorText}: ${corsError}`
+  const event: ChromeDevtoolsConsoleEvent = {
+    id: nextConsoleEventId++,
+    kind: "network",
+    level: "error",
+    source: "network",
+    text,
+    errorText,
+    capturedAt: new Date().toISOString(),
+  }
+  const type = asString(params["type"])
+  const requestId = asString(params["requestId"])
+  const timestamp = asNumber(params["timestamp"])
+  if (type !== undefined) event.type = type
+  if (requestId !== undefined) event.requestId = requestId
+  if (timestamp !== undefined) event.timestamp = timestamp
+  if (blockedReason !== undefined) event.blockedReason = blockedReason
+  return event
 }
 
 function sessionCommand(session: ChromeDevtoolsSession, method: string, params: JsonObject = {}): Promise<JsonObject> {
@@ -625,6 +812,11 @@ function sessionState(session: ChromeDevtoolsSession): JsonObject {
     breakpointCount: session.breakpoints.size,
     breakpoints: [...session.breakpoints.values()],
     paused: session.paused,
+    console: {
+      enabled: session.consoleEnabled,
+      buffered: session.consoleEvents.length,
+      lastEvent: session.consoleEvents.at(-1),
+    },
   }
 }
 
@@ -658,6 +850,33 @@ function summarizeCallFrame(frame: JsonObject | undefined): JsonObject | undefin
   }
 }
 
+function remoteObjectSummary(object: JsonObject): JsonObject {
+  const value = object["value"]
+  const unserializableValue = asString(object["unserializableValue"])
+  const description = asString(object["description"])
+  const type = asString(object["type"])
+  const subtype = asString(object["subtype"])
+  const text = value === undefined
+    ? unserializableValue ?? description ?? type ?? ""
+    : typeof value === "string"
+      ? value
+      : JSON.stringify(value)
+  const result: JsonObject = {text}
+  if (type !== undefined) result["type"] = type
+  if (subtype !== undefined) result["subtype"] = subtype
+  if (description !== undefined) result["description"] = description
+  if (value !== undefined) result["value"] = value
+  if (unserializableValue !== undefined) result["unserializableValue"] = unserializableValue
+  return result
+}
+
+function consoleLevelFromType(type: string): string {
+  if (type === "error" || type === "assert") return "error"
+  if (type === "warning" || type === "warn") return "warning"
+  if (type === "debug" || type === "trace") return "debug"
+  return "info"
+}
+
 function sourceMatches(candidate: string, requested: string): boolean {
   const normalizedCandidate = candidate.replaceAll("\\", "/")
   const normalizedRequested = requested.replaceAll("\\", "/")
@@ -681,6 +900,22 @@ function boundedMs(value: number | undefined, fallback: number, max: number): nu
   if (value === undefined) return fallback
   if (!Number.isFinite(value)) return fallback
   return Math.max(0, Math.min(max, Math.round(value)))
+}
+
+function requestBodyFromSearchParams(params: URLSearchParams): JsonObject {
+  const body: JsonObject = {}
+  for (const key of ["targetId", "targetUrl", "targetTitle", "urlContains", "level", "kind"]) {
+    const value = params.get(key)
+    if (value !== null && value.length > 0) body[key] = value
+  }
+  for (const key of ["limit", "sinceId"]) {
+    const value = params.get(key)
+    if (value !== null && value.length > 0) {
+      const number = Number(value)
+      if (Number.isFinite(number)) body[key] = number
+    }
+  }
+  return body
 }
 
 function stringArray(value: unknown): string[] {

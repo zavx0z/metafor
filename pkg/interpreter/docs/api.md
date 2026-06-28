@@ -110,6 +110,8 @@ POST   /hud/todo/toggle
 
 GET    /devtools/targets
 GET    /devtools/state
+GET    /devtools/console
+POST   /devtools/console/clear
 POST   /devtools/reload
 POST   /devtools/breakpoints
 POST   /devtools/probe
@@ -336,6 +338,8 @@ published candidate, который уходит browser viewer-у через si
 ```text
 GET  /devtools/targets
 GET  /devtools/state
+GET  /devtools/console     # ?limit=100&level=error&kind=log&sinceId=123
+POST /devtools/console/clear
 POST /devtools/reload       # {targetUrl?, hard?, ignoreCache?}
 POST /devtools/breakpoints  # {source|url, line, column?, targetUrl?}
 POST /devtools/probe        # {source|url, line, trigger?, autoResumeMs?, clear?}
@@ -343,6 +347,13 @@ POST /devtools/resume       # {targetUrl?|targetId?}
 POST /devtools/disable      # {targetUrl?|targetId?|all?}
 POST /devtools/evaluate     # {expression, targetUrl?, awaitPromise?, returnByValue?}
 ```
+
+`GET /devtools/console` включает capture событий `Runtime.consoleAPICalled`,
+`Runtime.exceptionThrown`, `Log.entryAdded` и `Network.loadingFailed` и хранит
+bounded buffer последних событий. Для визуальных ошибок в AppWeb сначала
+проверь `?level=error&limit=50`; если capture был включен уже после появления
+ошибки, очисти буфер через `/devtools/console/clear`, сделай `/devtools/reload`
+или повтори действие, затем прочитай console снова.
 
 Для `source` строки считаются 1-based, как в редакторе; `column` остается
 0-based. Interpreter читает linked sourcemap из AppWeb bundle и возвращает в

@@ -112,6 +112,8 @@ Web DevTools API для server Chrome/AppWeb:
 
 - `GET /devtools/targets` читает Chrome CDP targets с default `127.0.0.1:9349`.
 - `GET /devtools/state` показывает agent CDP sessions, breakpoints и paused state.
+- `GET /devtools/console` включает capture и возвращает последние console/log/exception/network события; для ошибок используй `?level=error&limit=50`.
+- `POST /devtools/console/clear` очищает agent buffer и Chrome console entries.
 - `POST /devtools/reload` делает `Page.reload` текущего AppWeb target.
 - `POST /devtools/breakpoints` ставит breakpoint по `source` + 1-based `line`; source maps мапятся на generated bundle автоматически.
 - `POST /devtools/probe` ставит breakpoint, дергает optional `trigger`, ждет `Debugger.paused`, затем по умолчанию делает resume и clear.

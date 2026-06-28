@@ -429,6 +429,10 @@ target `http://10.66.0.10:3004/` по умолчанию и мапят 1-based �
 ```sh
 curl -sS http://10.66.0.10:6500/devtools/targets
 curl -sS http://10.66.0.10:6500/devtools/state
+curl -sS 'http://10.66.0.10:6500/devtools/console?level=error&limit=50'
+curl -sS -X POST http://10.66.0.10:6500/devtools/console/clear \
+  -H 'content-type: application/json' \
+  -d '{}'
 curl -sS -X POST http://10.66.0.10:6500/devtools/reload \
   -H 'content-type: application/json' \
   -d '{"hard":true}'
@@ -466,6 +470,12 @@ curl -sS -X POST http://10.66.0.10:6500/devtools/probe \
 `POST /devtools/reload`: страница может быть открыта, но ее AppWeb websocket
 остался stale. Не открывай для этого отдельный browser; visual context должен
 оставаться тем же `remote-desktop:server` display.
+
+`GET /devtools/console` включает CDP capture для `Runtime.consoleAPICalled`,
+`Runtime.exceptionThrown`, `Log.entryAdded` и `Network.loadingFailed`. Старые
+строки, которые появились до подписки, Chrome может не вернуть; для надежной
+диагностики очисти буфер, сделай `/devtools/reload` или повтори действие, затем
+читай `?level=error&limit=50`.
 
 ## Диагностика
 
