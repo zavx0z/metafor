@@ -1926,11 +1926,62 @@ async function cdpChromeRtcSenderTarget() {
 async function findChromeRtcSenderTarget() {
   const targets = await fetchChromeJson("/json/list")
   if (!Array.isArray(targets)) return null
-  return targets.find((target) => (
+  const senderTargets = targets.filter((target) => (
     target?.type === "page"
     && typeof target.webSocketDebuggerUrl === "string"
     && isChromeRtcSenderTarget(target)
-  )) ?? null
+  ))
+  if (senderTargets.length === 0) return null
+  if (senderTargets.length === 1) return senderTargets[0]
+
+  const scored = []
+  for (const target of senderTargets) {
+    const runtimeState = await chromeRtcSenderTargetRuntimeState(target).catch(() => null)
+    scored.push({target, score: chromeRtcSenderTargetScore(runtimeState)})
+  }
+  scored.sort((left, right) => right.score - left.score)
+  const primary = scored[0]?.target ?? senderTargets[0]
+  const duplicates = senderTargets.filter((target) => target.id !== primary.id)
+  await closeChromeRtcSenderDuplicateTargets(duplicates).catch((error) => {
+    state.remoteDesktop.rtc.lastError = `Chrome RTC sender duplicate cleanup failed: ${error instanceof Error ? error.message : String(error)}`
+  })
+  return primary
+}
+
+async function chromeRtcSenderTargetRuntimeState(target) {
+  const cdp = await openCdpSession(target.webSocketDebuggerUrl)
+  try {
+    const result = await cdp.send("Runtime.evaluate", {
+      expression: "window.__metaforChromeRtcState ? JSON.parse(JSON.stringify(window.__metaforChromeRtcState)) : null",
+      returnByValue: true,
+    })
+    return result?.result?.value ?? null
+  } finally {
+    cdp.close()
+  }
+}
+
+function chromeRtcSenderTargetScore(runtimeState) {
+  if (runtimeState === null || typeof runtimeState !== "object") return 0
+  const peers = Array.isArray(runtimeState.peers) ? runtimeState.peers : []
+  const openPeerCount = peers.filter((peer) => peer?.channelState === "open" || peer?.connectionState === "connected").length
+  if (runtimeState.status === "control-open") return 100 + openPeerCount
+  if (runtimeState.status === "connected") return 80 + openPeerCount
+  if (runtimeState.status === "running") return 60 + openPeerCount
+  if (runtimeState.status === "existing") return 40 + openPeerCount
+  return 10 + openPeerCount
+}
+
+async function closeChromeRtcSenderDuplicateTargets(targets) {
+  if (targets.length === 0) return
+  await withCdpBrowser(async (browserCdp) => {
+    for (const target of targets) {
+      if (typeof target.id !== "string") continue
+      await browserCdp.send("Target.closeTarget", {targetId: target.id}).catch((error) => {
+        console.warn(`[metafor-remote-desktop] failed to close duplicate Chrome RTC sender target ${target.id}:`, error.message)
+      })
+    }
+  })
 }
 
 async function cdpPageTarget() {
