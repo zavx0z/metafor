@@ -170,6 +170,14 @@ peer `connected`, data channel `open`, `lastError: null`. Старый
 Xwayland и Electron/PipeWire/MJPEG остаются fallback/diagnostics, не основной
 server-dev realtime path.
 
+Фиксация 2026-06-28: Chrome WebRTC sender больше не размещается в видимом
+`https://meta.proizvodstvo1.ru/` target. Sender живет в отдельной служебной
+странице `http://127.0.0.1:32133/desktop/rtc/sender`, а видимая вкладка продукта
+остается только рабочим браузером/DevTools. Поэтому reload
+`meta.proizvodstvo1.ru` не должен рвать remote desktop. Sender signaling -
+`ws://10.66.0.10:6500/webrtc/signaling`, input/audio - локальные routes host-а
+`127.0.0.1:32133`.
+
 Это рекурсивный контур:
 
 ```text

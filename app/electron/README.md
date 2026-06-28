@@ -40,10 +40,13 @@ Host mode uses a separate Electron user data directory and session partition fro
 Current Linux server browser-display mode uses a user-owned Wayland/Mutter
 virtual monitor, not a physical monitor and not the macOS user's display. The
 active low-latency sender is `webrtc:chrome:monitor` on `127.0.0.1:32133`: it
-opens Google Chrome on `WAYLAND_DISPLAY=wayland-0`, injects
-`navigator.mediaDevices.getDisplayMedia()` through CDP, captures the whole
-server monitor at 60 fps target, and joins the interpreter `remote-desktop`
-signaling room.
+opens Google Chrome on `WAYLAND_DISPLAY=wayland-0`, keeps
+`https://meta.proizvodstvo1.ru/` as the visible development browser, creates a
+separate service sender target at
+`http://127.0.0.1:32133/desktop/rtc/sender`, runs
+`navigator.mediaDevices.getDisplayMedia()` there, captures the whole server
+monitor at 60 fps target, and joins the interpreter `remote-desktop` signaling
+room. Product page reload/navigation must not own or reset the sender.
 
 Do not leave the older `127.0.0.1:32123` remote desktop host running next to
 `32133`: it creates a second `MetaVendor` virtual monitor, so Chrome can render
@@ -127,7 +130,7 @@ curl http://127.0.0.1:32123/snapshot --output snapshot.png
 - `METAFOR_REMOTE_DESKTOP_PUBLIC_ICE_HOST` / `METAFOR_RTC_PUBLIC_ICE_HOST` - rewrite published UDP host candidates to the public media host. The Linux dev sender defaults to `130.49.151.168`.
 - `METAFOR_REMOTE_DESKTOP_ICE_INTERFACE` / `METAFOR_RTC_ICE_INTERFACE` - preferred private interface address for diagnostics/filtering. The Linux dev sender defaults to `10.66.0.10`; Chromium may still report another local address for a `0.0.0.0` socket, so candidates inside the configured UDP range are published through `METAFOR_REMOTE_DESKTOP_PUBLIC_ICE_HOST`.
 - `METAFOR_REMOTE_DESKTOP_IP_HANDLING_POLICY` / `METAFOR_RTC_IP_HANDLING_POLICY` - optional Chromium WebRTC IP handling policy. The Linux dev sender defaults to `default_public_and_private_interfaces`.
-- `METAFOR_REMOTE_DESKTOP_SENDER_ONLY` - run only the hidden WebRTC sender page; do not create the managed browser window.
+- `METAFOR_REMOTE_DESKTOP_SENDER_ONLY` - run only the protocol WebRTC sender context; do not create the managed product browser window.
 - `METAFOR_REMOTE_DESKTOP_CAPTURE_SOURCE` - `screen` or `window`; server desktop defaults to `screen`.
 - `METAFOR_REMOTE_DESKTOP_CAPTURE_NAME` - optional source-name filter.
 - `METAFOR_REMOTE_DESKTOP_AUDIO` - enable/disable audio track.

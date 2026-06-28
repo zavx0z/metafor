@@ -21,10 +21,10 @@ const TARGET_HTTP_ORIGIN = targetHttpOrigin(TARGET_URL)
 const TARGET_WS_ORIGIN = targetWebSocketOrigin(TARGET_URL)
 const CHROME_RTC_INTERPRETER_PREFIX = normalizePathPrefix(process.env.METAFOR_REMOTE_DESKTOP_INTERPRETER_PREFIX || "/hud/interpreter")
 const CHROME_RTC_SIGNAL_URL = process.env.METAFOR_REMOTE_DESKTOP_SIGNAL_URL || `${TARGET_WS_ORIGIN}${CHROME_RTC_INTERPRETER_PREFIX}/webrtc/signaling`
-const CHROME_RTC_INPUT_URL = process.env.METAFOR_REMOTE_DESKTOP_INPUT_URL || `${TARGET_HTTP_ORIGIN}${CHROME_RTC_INTERPRETER_PREFIX}/remote-desktop/input`
-const CHROME_RTC_AUDIO_PCM_URL = process.env.METAFOR_REMOTE_DESKTOP_AUDIO_PCM_URL || `${TARGET_HTTP_ORIGIN}${CHROME_RTC_INTERPRETER_PREFIX}/remote-desktop/audio.pcm`
+const CHROME_RTC_INPUT_URL = process.env.METAFOR_REMOTE_DESKTOP_INPUT_URL || `http://${HOST}:${PORT}/desktop/input`
+const CHROME_RTC_AUDIO_PCM_URL = process.env.METAFOR_REMOTE_DESKTOP_AUDIO_PCM_URL || `http://${HOST}:${PORT}/desktop/audio.pcm`
+const CHROME_RTC_SENDER_URL = process.env.METAFOR_REMOTE_DESKTOP_CHROME_RTC_SENDER_URL || `http://${HOST}:${PORT}/desktop/rtc/sender`
 const CHROME_RTC_LEGACY_SENDER_URLS = [
-  process.env.METAFOR_REMOTE_DESKTOP_CHROME_RTC_SENDER_URL || `http://${HOST}:${PORT}/desktop/rtc/sender`,
   "http://10.66.0.10:3004/health",
 ]
 const CHROME = process.env.METAFOR_REMOTE_DESKTOP_BROWSER || "google-chrome"
@@ -222,6 +222,17 @@ async function route(req, res) {
     sendJson(res, 200, {ok: true, remoteDesktop: publicState().remoteDesktop})
     return
   }
+  if (req.method === "GET" && url.pathname === "/desktop/rtc/sender") {
+    const html = chromeRtcSenderPageHtml()
+    res.writeHead(200, {
+      ...corsHeaders(),
+      "cache-control": "no-store",
+      "content-type": "text/html; charset=utf-8",
+      "content-length": Buffer.byteLength(html),
+    })
+    res.end(html)
+    return
+  }
   if (req.method === "POST" && url.pathname === "/desktop/rtc/restart") {
     if (CHROME_RTC_ENABLED && browser !== null && browser.exitCode === null && browser.signalCode === null) {
       await startChromeRtcSender({force: true})
@@ -247,6 +258,16 @@ async function route(req, res) {
     return
   }
   sendJson(res, 404, {ok: false, error: "Not found"})
+}
+
+function chromeRtcSenderPageHtml() {
+  return `<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>MetaFor Chrome RTC Sender</title></head>
+<body style="margin:0;background:#05070a;color:#d8e2f0;font:12px/1.4 sans-serif">
+<div style="padding:8px">MetaFor Chrome RTC Sender</div>
+</body>
+</html>`
 }
 
 function publicState() {
@@ -708,8 +729,7 @@ async function startChromeRtcSender(options = {}) {
         if (CHROME_DEV_LAYOUT_ENABLED) await configureChromeDevLayout().catch((error) => {
           state.remoteDesktop.rtc.lastError = `Chrome dev layout failed: ${error instanceof Error ? error.message : String(error)}`
         })
-        await withCdpPage(async (cdp) => {
-          await cdp.send("Page.bringToFront").catch(() => undefined)
+        await withCdpChromeRtcSenderPage(async (cdp) => {
           await cdp.send("Runtime.evaluate", {
             expression: chromeRtcSenderScript({force: options.force === true}),
             returnByValue: true,
@@ -839,7 +859,7 @@ async function waitForChromeRtcReady() {
 
 async function refreshChromeRtcState() {
   if (!CHROME_RTC_ENABLED || browser === null || browser.exitCode !== null || browser.signalCode !== null) return state.remoteDesktop.rtc
-  return await withCdpPage(async (cdp) => {
+  return await withCdpChromeRtcSenderPage(async (cdp) => {
     const result = await cdp.send("Runtime.evaluate", {
       expression: "window.__metaforChromeRtcState ? JSON.parse(JSON.stringify(window.__metaforChromeRtcState)) : null",
       returnByValue: true,
@@ -1875,6 +1895,16 @@ async function withCdpPage(fn) {
   }
 }
 
+async function withCdpChromeRtcSenderPage(fn) {
+  const wsUrl = (await cdpChromeRtcSenderTarget()).webSocketDebuggerUrl
+  const cdp = await openCdpSession(wsUrl)
+  try {
+    return await fn(cdp)
+  } finally {
+    cdp.close()
+  }
+}
+
 async function withCdpBrowser(fn) {
   const version = await fetchChromeJson("/json/version")
   if (typeof version?.webSocketDebuggerUrl !== "string") {
@@ -1888,6 +1918,35 @@ async function withCdpBrowser(fn) {
   } finally {
     cdp.close()
   }
+}
+
+async function cdpChromeRtcSenderTarget() {
+  const existing = await findChromeRtcSenderTarget()
+  if (existing !== null) return existing
+  await withCdpBrowser(async (browserCdp) => {
+    await browserCdp.send("Target.createTarget", {
+      url: CHROME_RTC_SENDER_URL,
+      background: true,
+    })
+  })
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const target = await findChromeRtcSenderTarget()
+    if (target !== null) return target
+    await sleep(100)
+  }
+  const error = new Error("Chrome RTC sender target is not available")
+  error.statusCode = 503
+  throw error
+}
+
+async function findChromeRtcSenderTarget() {
+  const targets = await fetchChromeJson("/json/list")
+  if (!Array.isArray(targets)) return null
+  return targets.find((target) => (
+    target?.type === "page"
+    && typeof target.webSocketDebuggerUrl === "string"
+    && isChromeRtcSenderTarget(target)
+  )) ?? null
 }
 
 async function cdpPageTarget() {
@@ -1914,9 +1973,7 @@ async function cdpPageTarget() {
 async function closeLegacyChromeRtcSenderTargets() {
   const targets = await fetchChromeJson("/json/list")
   if (!Array.isArray(targets)) return
-  const legacyTargets = targets.filter((target) => (
-    (isChromeRtcSenderTarget(target) || isLegacyChromeRtcSenderTarget(target))
-  ))
+  const legacyTargets = targets.filter((target) => isLegacyChromeRtcSenderTarget(target))
   if (legacyTargets.length === 0) return
   await withCdpBrowser(async (browserCdp) => {
     await Promise.all(legacyTargets.map((target) => (
@@ -1928,11 +1985,11 @@ async function closeLegacyChromeRtcSenderTargets() {
 }
 
 function isChromeRtcSenderTarget(target) {
-  return typeof target?.url === "string" && CHROME_RTC_LEGACY_SENDER_URLS.some((url) => target.url.startsWith(url))
+  return typeof target?.url === "string" && target.url.startsWith(CHROME_RTC_SENDER_URL)
 }
 
 function isLegacyChromeRtcSenderTarget(target) {
-  return typeof target?.url === "string" && target.url.startsWith("http://10.66.0.10:3004/health")
+  return typeof target?.url === "string" && CHROME_RTC_LEGACY_SENDER_URLS.some((url) => target.url.startsWith(url))
 }
 
 function isChromeInternalTarget(target) {

@@ -244,10 +244,12 @@ virtual monitor и Chrome sender `webrtc:chrome:monitor` на
 `audio.transport: "pipewire-pcm-track-generator-stream"`, audio track в том же
 PeerConnection, data channel open. Старый `32123` host не должен быть запущен
 параллельно: он создает второй `MetaVendor` monitor и может дать черные кадры.
-Видимая HTTPS-страница должна получать sender/signaling/input/audio через
-same-origin `/hud/interpreter/...`; не возвращай локальные `ws://10.66.0.10:6500`
-или `http://127.0.0.1:32133` URL-ы в visible page, иначе Chrome покажет
-`Not secure`/mixed content.
+WebRTC sender не должен жить в видимой продуктовой странице
+`https://meta.proizvodstvo1.ru/`. В текущем server-dev контуре sender target -
+отдельная service page `http://127.0.0.1:32133/desktop/rtc/sender`, signaling -
+`ws://10.66.0.10:6500/webrtc/signaling`, input/audio - локальные routes
+`127.0.0.1:32133`. Не встраивай эти локальные URL в код видимой страницы
+продукта: она не должна владеть remote desktop соединением.
 `webrtc:chrome:browser`, Xwayland, Electron screen capture и PipeWire
 WebM/PCM/MJPEG оставляй fallback/diagnostics, не возвращай их как основной
 realtime path.

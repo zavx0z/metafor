@@ -9,8 +9,10 @@ iframe-оберткой или скрытым Playwright-клиентом.
 Текущий основной realtime-канал - Chrome WebRTC stream на сервере. Проверенный
 2026-06-27 рабочий путь без reboot/sudo: один Wayland/Mutter virtual monitor,
 Google Chrome и sender `webrtc:chrome:monitor` на `127.0.0.1:32133`, который
-инжектит `navigator.mediaDevices.getDisplayMedia()` через CDP и захватывает весь
-server monitor. Ожидаемый state - `transport: "chrome-webrtc"`,
+держит видимую разработческую вкладку `https://meta.proizvodstvo1.ru/`, но
+запускает `navigator.mediaDevices.getDisplayMedia()` в отдельной служебной
+странице `http://127.0.0.1:32133/desktop/rtc/sender` и захватывает весь server
+monitor. Ожидаемый state - `transport: "chrome-webrtc"`,
 `capture.frameSource: "chrome-get-display-media:monitor"`,
 `capture.frameWidth: 1920`, `capture.frameHeight: 1080`,
 `capture.frameRate: 60`, `audio.transport:
@@ -142,11 +144,10 @@ curl -sS http://10.66.0.10:3004/health
 - CDP/debug port на loopback;
 - health endpoint с состоянием process/window/page/CDP;
 - restart endpoint, который перезапускает host process и публикует новый state;
-- WebRTC video stream всего серверного desktop через same-origin
-  `/hud/interpreter/webrtc/signaling` / `/interp/webrtc/signaling`;
+- WebRTC video stream всего серверного desktop через общий signaling owner
+  `/webrtc/signaling`;
 - audio stream в том же RTCPeerConnection; текущий Linux server-dev sender
-  берет active Google Chrome PipeWire output через same-origin
-  `/hud/interpreter/remote-desktop/audio.pcm`, который проксируется на local host
+  берет active Google Chrome PipeWire output через local host
   `/desktop/audio.pcm`, заводит PCM frames в Chrome
   `MediaStreamTrackGenerator(AudioData)` и добавляет audio track в тот же
   PeerConnection;
@@ -159,10 +160,11 @@ curl -sS http://10.66.0.10:3004/health
 
 Playwright допустим только как временный диагностический инструмент. Runtime
 remote desktop display не должен требовать постоянный Playwright process.
-В текущем server-dev контуре sender инжектится в видимый
-`https://meta.proizvodstvo1.ru/` target; отдельной service sender tab быть не
-должно. Целевой visual source по умолчанию - `screen`, чтобы человек и агент
-видели весь рабочий стол с открытым браузером.
+В текущем server-dev контуре sender не размещается в видимом
+`https://meta.proizvodstvo1.ru/` target. Он живет в отдельной service sender
+page `http://127.0.0.1:32133/desktop/rtc/sender`, чтобы reload продукта не
+рвал WebRTC. Целевой visual source по умолчанию - `screen`, чтобы человек и
+агент видели весь рабочий стол с открытым браузером.
 
 Audio contract:
 
@@ -232,10 +234,9 @@ Embedded app-web proxy:
 - `/hud/interpreter/webrtc/signaling` и `/interp/webrtc/signaling` должны вести
   в тот же in-memory signaling room, что и upstream `/webrtc/signaling`;
 - Chrome sender и browser UI должны быть в одном in-memory signaling server.
-  Для видимой HTTPS-страницы default - same-origin
-  `wss://meta.proizvodstvo1.ru/hud/interpreter/webrtc/signaling`; не подставляй
-  локальный `ws://10.66.0.10:6500` в видимый target, иначе Chrome пометит
-  страницу как `Not secure` из-за mixed content;
+  Sender в текущем server-dev контуре использует
+  `ws://10.66.0.10:6500/webrtc/signaling` из отдельной service page; этот URL
+  нельзя встраивать в код продукта `https://meta.proizvodstvo1.ru/`;
 - Если client events показывают `rtc room 1 peers`, `rtc video`, затем
   `rtc ice checking` -> `rtc ice disconnected`/`rtc failed`, signaling уже
   исправен. Дальше проверять media path: sender должен публиковать UDP host
@@ -266,9 +267,11 @@ curl -sS http://127.0.0.1:32133/desktop/snapshot --output /tmp/rd.png
 Проверка 2026-06-27: Electron 35.7.5 на текущем GNOME/Wayland/NVIDIA сервере
 падает `SIGSEGV` в GPU/Viz даже без remote desktop RTC. Electron/X11/Ozone и
 Xwayland оставлены как fallback/diagnostics; основной рабочий обход без reboot -
-Chrome Wayland monitor sender на `32133`. Текущий рабочий Chrome path не
-использует hidden WebRTC page, потому что hidden CDP target давал ICE failure.
-Рабочий Linux sender state должен показывать
+Chrome Wayland monitor sender на `32133`. Текущий рабочий Chrome path держит
+sender отдельно от видимого `https://meta.proizvodstvo1.ru/` target: sender
+живет в отдельной служебной странице
+`http://127.0.0.1:32133/desktop/rtc/sender`, чтобы reload/product navigation не
+рвали WebRTC. Рабочий Linux sender state должен показывать
 `capture.frameWidth=1920`, `capture.frameHeight=1080`,
 `capture.frameSource: "chrome-get-display-media:monitor"` и
 `audio.transport: "pipewire-pcm-track-generator-stream"`. Независимый WebRTC receiver
@@ -382,8 +385,10 @@ fullscreen/maximized зависимости от window manager:
 - справа docked Chrome DevTools той же page;
 - в DevTools выбран `Sources`;
 - Console drawer открыт снизу;
-- отдельной service sender tab быть не должно; sender работает внутри видимой
-  `https://meta.proizvodstvo1.ru/` page и использует same-origin WSS/HTTPS;
+- отдельная service sender page
+  `http://127.0.0.1:32133/desktop/rtc/sender` допускается и не является частью
+  рабочей продуктовой вкладки; она не должна открываться вместо
+  `https://meta.proizvodstvo1.ru/`;
 - CDP доступен локально на `http://127.0.0.1:9349/json/list`;
 - WebRTC/display host state доступен на
   `http://127.0.0.1:32133/desktop/rtc/state`.
@@ -571,9 +576,10 @@ Linux/Electron host должен работать в своем графичес
   `chrome-sandbox` с mode `4755`, либо запуск с `--no-sandbox`;
 - Xwayland `DISPLAY=:0` с Electron 35 падает `SIGSEGV` в GPU/VAAPI/NVIDIA зоне
   даже без remote desktop RTC;
-- основной server sender идет через Wayland `WAYLAND_DISPLAY=wayland-0` +
-  Electron `ozone-platform=wayland`, чтобы full-screen WebRTC capture совпадал
-  с Mutter/EIS input region и не отдавал черный кадр;
+- целевой server sender должен идти через Electron/Chromium browser media API в
+  своем графическом контуре. Текущий рабочий обход идет через Chrome Wayland
+  `webrtc:chrome:monitor`, пока Electron native full-screen capture на этом
+  сервере не перестанет отдавать black frames;
 - X11/Ozone оставлен только как диагностический override:
   `METAFOR_ELECTRON_OZONE_PLATFORM=x11`;
 - если запрошен `screen`, programmatic `desktopCapturer` обязан вернуть
@@ -584,9 +590,9 @@ Linux/Electron host должен работать в своем графичес
 - `xvfb` на сервере не установлен, а `sudo -n apt-get install xvfb` требует
   интерактивную авторизацию.
 
-Практический вывод: realtime video path - Electron WebRTC sender. Snapshot
-polling оставлять только как diagnostics/fallback и не считать успешным live
-display.
+Практический вывод: realtime video path - browser-native WebRTC sender
+Electron/Chromium, без snapshot polling в основном frame loop. Snapshot polling
+оставлять только как diagnostics/fallback и не считать успешным live display.
 
 ### Потеря Ввода
 

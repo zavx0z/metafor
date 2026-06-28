@@ -34,13 +34,15 @@ app/electron/scripts/chrome-webrtc-monitor.sh
 - в DevTools выбран `Sources`;
 - снизу открыт Console drawer.
 
-WebRTC sender инжектится в видимый `https://meta.proizvodstvo1.ru/` target и
-должен использовать same-origin `wss://meta.proizvodstvo1.ru/hud/interpreter/...`
-и `https://meta.proizvodstvo1.ru/hud/interpreter/...`. Не возвращай локальные
-`ws://10.66.0.10:6500`/`http://127.0.0.1:32133` URL-ы в видимую HTTPS-страницу:
-это дает `Not secure` и mixed content в DevTools. Отдельной service sender tab
-быть не должно; если она появилась, закрыть legacy target и перезапустить
-`chrome-webrtc-monitor.sh`.
+WebRTC sender не должен жить в видимом `https://meta.proizvodstvo1.ru/` target:
+reload/product navigation убивает JS-контекст страницы и рвет трансляцию.
+Рабочий sender target - отдельная служебная страница
+`http://127.0.0.1:32133/desktop/rtc/sender`; видимая вкладка продукта остается
+только рабочим браузером и DevTools. Sender использует локальный signaling
+`ws://10.66.0.10:6500/webrtc/signaling` и локальные host routes
+`http://127.0.0.1:32133/desktop/input`/`audio.pcm`. Эти локальные URL не
+встраиваются в код `meta.proizvodstvo1.ru`, поэтому mixed content в продуктовой
+вкладке не появляется.
 
 Не открывай отдельный Playwright/browser как замену этому окну. Playwright
 допустим только как временный диагностический инструмент, не runtime dependency

@@ -146,9 +146,11 @@ GET /interp/remote-desktop/rtc/state
 Same-host cross-port `Origin` разрешен только для RTC signaling. Это нужно для
 локальных/dev вариантов с разными портами, но sender и browser UI все равно
 должны сходиться в один in-memory signaling owner. В текущем server-dev контуре
-видимая HTTPS-страница использует same-origin
-`wss://meta.proizvodstvo1.ru/hud/interpreter/webrtc/signaling`; не подставляй в
-нее локальный `ws://10.66.0.10:6500`, иначе появятся `Not secure` и mixed content.
+sender живет в отдельной service page
+`http://127.0.0.1:32133/desktop/rtc/sender` и использует
+`ws://10.66.0.10:6500/webrtc/signaling`. Не встраивай этот локальный URL в код
+видимой продуктовой страницы `https://meta.proizvodstvo1.ru/`; она не должна
+владеть remote desktop соединением.
 `3004` остается app-web dev server/embedded proxy. Исключение не расширяет доступ
 к terminal/voice WebSocket routes.
 
@@ -277,6 +279,10 @@ sender `webrtc:chrome:monitor` на `127.0.0.1:32133` публикует full mo
 Интерпретатор держит signaling endpoint и показывает video как first-class
 display `remote-desktop:server` в `Space`. Snapshot routes и MJPEG/canvas
 adapters являются fallback/diagnostics, а не основным frame loop.
+Chrome sender target должен быть отдельной служебной страницей
+`http://127.0.0.1:32133/desktop/rtc/sender`, а не видимой вкладкой
+`https://meta.proizvodstvo1.ru/`. Product reload/navigation не должны влиять на
+WebRTC sender.
 
 Это важно для текущего сервера без подключенного физического монитора: рабочий
 контур должен иметь один virtual `MetaVendor` monitor и один host на `32133`.
@@ -318,7 +324,7 @@ POST /remote-desktop/browser/open
 проксируется на Chrome Wayland monitor sender
 (`127.0.0.1:32133/desktop/rtc/state`), и `/remote-desktop/input`/snapshot идут
 туда же. `/remote-desktop/audio.pcm` является stream proxy на
-`127.0.0.1:32133/desktop/audio.pcm` для same-origin HTTPS Chrome sender-а. Не
+`127.0.0.1:32133/desktop/audio.pcm` для Chrome sender-а. Не
 оставляй `INTERPRETER_REMOTE_DESKTOP_RTC_HOST_URL=32123`, если
 активный live sender - `webrtc:chrome:monitor`; иначе UI будет работать через
 signaling, но diagnostic state покажет старый host. При WebRTC data channel UI
