@@ -4925,6 +4925,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		resetCanvasTouchTap()
 		if (radialMenuPickTarget !== null) {
 			if (!state.cancelled && !clickNavigationSuppressed && Math.hypot(touch.clientX - state.startX, touch.clientY - state.startY) <= BULK_TOUCH_TAP_MOVE_PX) {
+				cancelRadialMenuLongPress()
 				closeRadialMenuWithoutSceneAction(false)
 				event.preventDefault()
 				event.stopImmediatePropagation()
@@ -4997,17 +4998,19 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const handleCanvasTouchStartForRadialMenu = (event: TouchEvent): void => {
 		cancelRadialMenuLongPress()
-		if (radialMenuPickTarget !== null) return
+		const hasOpenRadialMenu = radialMenuPickTarget !== null
 		if (event.touches.length !== 1) {
-			closeRadialMenu()
+			if (!hasOpenRadialMenu) closeRadialMenu()
 			return
 		}
 		const touch = event.changedTouches[0]
 		if (touch === undefined) return
 		const hitTarget = pickRadialMenuTargetAtClientPoint(touch.clientX, touch.clientY)
 		if (!hitTarget) {
-			setHoveredPickTarget(null)
-			closeRadialMenu()
+			if (!hasOpenRadialMenu) {
+				setHoveredPickTarget(null)
+				closeRadialMenu()
+			}
 			return
 		}
 		radialMenuLongPress = {
