@@ -682,6 +682,36 @@ describe("bulk web navigation", () => {
     expect(portrait.position.distanceTo(portrait.target)).toBeCloseTo(4, 6)
   })
 
+  test("для стартовой позы камеры центрирует экранный bounding-box root geometry", () => {
+    const fovRad = Math.PI / 2
+    const target = new Vector3(0, 0, 0)
+    const currentPosition = new Vector3(0, 0, 10)
+    const currentTarget = target.clone()
+    const up = new Vector3(0, 1, 0)
+    const points = [
+      new Vector3(2, -1, 0),
+      new Vector3(4, -1, 0),
+      new Vector3(2, 1, 0),
+      new Vector3(4, 1, 0),
+    ]
+
+    const pose = resolveBulkViewportFitPose({
+      aspect: 2,
+      currentPosition,
+      currentTarget,
+      fovRad,
+      paddingRatio: 1,
+      points,
+      radius: 0.001,
+      target,
+      up,
+    })
+
+    expect(pose.target.x).toBeCloseTo(3, 6)
+    expect(pose.position.x).toBeCloseTo(3, 6)
+    expect(pose.position.distanceTo(pose.target)).toBeCloseTo(1, 6)
+  })
+
   test("для очень маленького target не застревает на старом жестком минимуме дистанции", () => {
     const pose = resolveBulkViewportFocusPose({
       currentPosition: new Vector3(0, -400, 300),

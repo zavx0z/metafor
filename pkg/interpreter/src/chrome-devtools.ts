@@ -11,6 +11,13 @@ const PROBE_AUTO_RESUME_MS = 1_000
 const MAX_PROBE_TIMEOUT_MS = 30_000
 const MAX_CONSOLE_EVENTS = 500
 const DEFAULT_CONSOLE_LIMIT = 100
+const DEVTOOLS_RELOAD_READY_TIMEOUT_MS = 8_000
+const DEVTOOLS_VIEWPORT_READY_TIMEOUT_MS = 8_000
+const DEVTOOLS_VIEWPORT_SETTLE_MS = 100
+const DEVTOOLS_VIEWPORT_AUTOSYNC_DELAY_MS = 250
+const DEVTOOLS_VIEWPORT_AUTOSYNC_ENABLED = true
+const DEVTOOLS_VIEWPORT_REPAIR_ENABLED = true
+const DEVTOOLS_VIEWPORT_DRIFT_TOLERANCE_PX = 1
 
 type ChromeTarget = {
   id: string
@@ -71,6 +78,30 @@ type ChromeDevtoolsSession = {
   consoleEnabled: boolean
   consoleEvents: ChromeDevtoolsConsoleEvent[]
   openedAt: string
+  viewportAutoSync: ChromeDevtoolsViewportAutoSync
+}
+
+type ChromeDevtoolsViewportAutoSync = {
+  enabled: boolean
+  running: boolean
+  timer: ReturnType<typeof setTimeout> | null
+  scheduledAt?: string
+  completedAt?: string
+  lastResult?: JsonObject
+  lastError?: string
+}
+
+type DevtoolsViewportRequest = {
+  width: number
+  height: number
+  visibleWidth: number
+  visibleHeight: number
+  deviceScaleFactor: number
+  mobile: boolean
+  scale: number
+  source: string
+  visibleSource: string
+  scaleSource: string
 }
 
 type SourceMapResolution = {
@@ -103,6 +134,7 @@ export async function handleChromeDevtoolsRoute(req: Request, method: string, pa
   if (method === "POST" && path === "/devtools/breakpoints") return await setDevtoolsBreakpointResponse(req)
   if (method === "POST" && path === "/devtools/probe") return await probeDevtoolsBreakpointResponse(req)
   if (method === "POST" && path === "/devtools/reload") return await reloadDevtoolsResponse(req)
+  if (method === "POST" && path === "/devtools/viewport/sync") return await syncDevtoolsViewportResponse(req)
   if (method === "POST" && path === "/devtools/resume") return await resumeDevtoolsResponse(req)
   if (method === "POST" && path === "/devtools/disable") return await disableDevtoolsResponse(req)
   if (method === "POST" && path === "/devtools/evaluate") return await evaluateDevtoolsResponse(req)
@@ -244,7 +276,26 @@ async function reloadDevtoolsResponse(req: Request): Promise<Response> {
     const result = await sessionCommand(session, "Page.reload", {
       ignoreCache: asBoolean(parsed.body["ignoreCache"]) ?? asBoolean(parsed.body["hard"]) ?? true,
     })
-    return devtoolsJsonResponse({ok: true, target: targetSummary(session.target), result})
+    const ready = asBoolean(parsed.body["wait"]) === false
+      ? null
+      : await waitForDocumentReady(session, DEVTOOLS_RELOAD_READY_TIMEOUT_MS)
+    const repairViewport = asBoolean(parsed.body["syncViewport"]) !== false
+    const viewport = repairViewport
+      ? await repairDevtoolsViewportDrift(session, parsed.body, "reload")
+      : null
+    return devtoolsJsonResponse({ok: true, target: targetSummary(session.target), result, ready, viewport})
+  } catch (error) {
+    return devtoolsJsonResponse({ok: false, error: serializeError(error)}, 400)
+  }
+}
+
+async function syncDevtoolsViewportResponse(req: Request): Promise<Response> {
+  const parsed = await readJsonObject(req)
+  if (parsed.error !== undefined) return devtoolsJsonResponse({ok: false, error: parsed.error}, 400)
+  try {
+    const session = await ensureSession(parsed.body)
+    const viewport = await repairDevtoolsViewportDrift(session, parsed.body, "manual")
+    return devtoolsJsonResponse({ok: true, target: targetSummary(session.target), viewport})
   } catch (error) {
     return devtoolsJsonResponse({ok: false, error: serializeError(error)}, 400)
   }
@@ -287,6 +338,468 @@ async function evaluateDevtoolsResponse(req: Request): Promise<Response> {
   } catch (error) {
     return devtoolsJsonResponse({ok: false, error: serializeError(error)}, 400)
   }
+}
+
+/**
+ * Синхронизирует Chrome DevTools Device Mode после drift на reload/rotate.
+ *
+ * В server-dev layout у DevTools Device Mode есть три связанные, но независимые
+ * состояния:
+ *
+ * - toolbar Width/Height inputs, которые видит человек;
+ * - JS viewport target page (`innerWidth`, `screen.width`, canvas CSS size);
+ * - Chrome compositor visible surface, который показывает DevTools preview и
+ *   отдает `Page.captureScreenshot`.
+ *
+ * Ручной Rotate и `Page.reload` могут оставить эти состояния рассинхронизированными.
+ * Наблюдали toolbar `816x400`, когда target page уже был `1088x533`, и toolbar
+ * `816x400`, когда compositor screenshot surface все еще был portrait `400x871`
+ * или scaled `612x300`. В таком состоянии AppWeb может уже иметь canvas на всю
+ * ширину, но DevTools показывает серую пустую область или root torus fit считается
+ * относительно неправильного viewport.
+ *
+ * Toolbar Device Mode считаем ожидаемым user-visible viewport. Этот helper читает
+ * toolbar через DevTools frontend target, затем применяет к AppWeb target logical
+ * viewport через `Emulation.setDeviceMetricsOverride`, а compositor surface через
+ * `Emulation.setVisibleSize` держит равным видимой `device-mode-screen-area` с
+ * учетом DevTools zoom.
+ * Если DevTools уже рассинхронизировал `devicePixelRatio`, helper сохраняет
+ * фактический canvas DPR (`canvas.width / canvas.clientWidth`), когда он
+ * выглядит валидным. После этого helper отправляет synthetic `resize` event в target page, потому
+ * что после reload AppWeb может успеть сконфигурировать canvas backing store под
+ * промежуточный viewport, а Chrome не всегда доставляет новый resize event после
+ * CDP visible-size resync.
+ * Логика намеренно event-scoped: вызывай ее из `/devtools/reload` или
+ * `/devtools/viewport/sync`, а managed CDP session дополнительно повторяет
+ * sync после `Page.frameNavigated` / `Page.loadEventFired`, чтобы ручной reload
+ * в DevTools не сбрасывал target page из portrait `400x816` обратно в
+ * landscape `816x400`. Фоновый polling для этого состояния не добавлять.
+ */
+async function syncDevtoolsViewport(session: ChromeDevtoolsSession, body: JsonObject): Promise<JsonObject> {
+  await sessionCommand(session, "Runtime.enable")
+  await sessionCommand(session, "Page.enable").catch(() => undefined)
+  const before = await readTargetViewportState(session)
+  const toolbar = await readDevtoolsToolbarViewport().catch((error) => ({error: serializeError(error)}))
+  const request = resolveViewportSyncRequest(body, before, asObject(toolbar))
+
+  await sessionCommand(session, "Emulation.setDeviceMetricsOverride", {
+    width: request.width,
+    height: request.height,
+    deviceScaleFactor: request.deviceScaleFactor,
+    mobile: request.mobile,
+    screenWidth: request.width,
+    screenHeight: request.height,
+    positionX: 0,
+    positionY: 0,
+    scale: request.scale,
+    screenOrientation: {
+      type: request.width >= request.height ? "landscapePrimary" : "portraitPrimary",
+      angle: request.width >= request.height ? 90 : 0,
+    },
+  })
+  const visibleSizeRequest = {width: request.visibleWidth, height: request.visibleHeight}
+  const visibleSize = await sessionCommand(session, "Emulation.setVisibleSize", visibleSizeRequest)
+    .then(() => ({ok: true, ...visibleSizeRequest}), (error) => ({ok: false, ...visibleSizeRequest, error: serializeError(error)}))
+
+  await delay(DEVTOOLS_VIEWPORT_SETTLE_MS)
+  await dispatchTargetResize(session)
+  await sessionCommand(session, "Runtime.evaluate", {
+    expression: "new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))",
+    awaitPromise: true,
+    returnByValue: true,
+  }).catch(() => undefined)
+
+  const ready = await waitForViewportReady(session, request, DEVTOOLS_VIEWPORT_READY_TIMEOUT_MS)
+  const after = await readTargetViewportState(session)
+  return {request, toolbar, before, ready, after, visibleSize}
+}
+
+async function repairDevtoolsViewportDrift(session: ChromeDevtoolsSession, body: JsonObject, source: string): Promise<JsonObject> {
+  if (!DEVTOOLS_VIEWPORT_REPAIR_ENABLED) return viewportRepairDisabled(source)
+  await sessionCommand(session, "Runtime.enable")
+  await sessionCommand(session, "Page.enable").catch(() => undefined)
+  const before = await readTargetViewportState(session)
+  const toolbar = await readDevtoolsToolbarViewport().catch((error) => ({error: serializeError(error)}))
+  const request = resolveViewportRepairRequest(body, before, asObject(toolbar))
+  if (request === null) {
+    return {status: "skipped", source, reason: "DevTools toolbar viewport is unavailable", toolbar, before}
+  }
+  const drift = viewportDriftForRepair(before, request, source === "reload" || source === "manual")
+  if (!drift.repair) {
+    return {status: "skipped", source, reason: "target viewport already matches Device Mode orientation", request, toolbar, before, drift}
+  }
+  const applied = await syncDevtoolsViewport(session, {
+    ...body,
+    width: request.width,
+    height: request.height,
+    visibleWidth: request.visibleWidth,
+    visibleHeight: request.visibleHeight,
+    deviceScaleFactor: request.deviceScaleFactor,
+    mobile: request.mobile,
+    scale: request.scale,
+  })
+  return {status: "repaired", source, drift, ...applied}
+}
+
+async function waitForDocumentReady(session: ChromeDevtoolsSession, timeoutMs: number): Promise<JsonObject> {
+  const startedAt = Date.now()
+  let attempts = 0
+  let lastState: string | undefined
+  let lastError: string | undefined
+  while (Date.now() - startedAt < timeoutMs) {
+    attempts += 1
+    try {
+      const state = await sessionCommand(session, "Runtime.evaluate", {
+        expression: "document.readyState",
+        returnByValue: true,
+      })
+      lastState = asString(asObject(state["result"])?.["value"])
+      if (lastState === "complete") {
+        return {ok: true, state: lastState, attempts, elapsedMs: Date.now() - startedAt}
+      }
+    } catch (error) {
+      lastError = serializeError(error)
+    }
+    await delay(50)
+  }
+  const result: JsonObject = {ok: false, timeoutMs, attempts, elapsedMs: Date.now() - startedAt}
+  if (lastState !== undefined) result["state"] = lastState
+  if (lastError !== undefined) result["error"] = lastError
+  return result
+}
+
+async function readTargetViewportState(session: ChromeDevtoolsSession): Promise<JsonObject> {
+  const response = await sessionCommand(session, "Runtime.evaluate", {
+    returnByValue: true,
+    expression: `(() => {
+      const canvas = document.querySelector("canvas")
+      const rect = canvas?.getBoundingClientRect()
+      return {
+        url: location.href,
+        readyState: document.readyState,
+        innerWidth,
+        innerHeight,
+        outerWidth,
+        outerHeight,
+        devicePixelRatio,
+        screenWidth: screen.width,
+        screenHeight: screen.height,
+        orientationType: screen.orientation?.type,
+        orientationAngle: screen.orientation?.angle,
+        canvas: canvas === null ? null : {
+          width: canvas.width,
+          height: canvas.height,
+          clientWidth: canvas.clientWidth,
+          clientHeight: canvas.clientHeight,
+          rectWidth: rect?.width,
+          rectHeight: rect?.height,
+        },
+      }
+    })()`,
+  })
+  return resultValueObject(response)
+}
+
+async function waitForViewportReady(session: ChromeDevtoolsSession, request: {width: number; height: number}, timeoutMs: number): Promise<JsonObject> {
+  const startedAt = Date.now()
+  let attempts = 0
+  let lastState: JsonObject = {}
+  while (Date.now() - startedAt < timeoutMs) {
+    attempts += 1
+    lastState = await readTargetViewportState(session)
+    if (isViewportReady(lastState, request)) {
+      return {ok: true, attempts, elapsedMs: Date.now() - startedAt, state: lastState}
+    }
+    if (shouldDispatchTargetResize(lastState, request)) await dispatchTargetResize(session)
+    await delay(50)
+  }
+  return {ok: false, timeoutMs, attempts, elapsedMs: Date.now() - startedAt, state: lastState}
+}
+
+function isViewportReady(state: JsonObject, request: {width: number; height: number}): boolean {
+  if (asString(state["readyState"]) !== "complete") return false
+  if (asNumber(state["innerWidth"]) !== request.width) return false
+  if (asNumber(state["innerHeight"]) !== request.height) return false
+  const canvas = asObject(state["canvas"])
+  if (canvas === undefined) return false
+  if (asNumber(canvas["clientWidth"]) !== request.width) return false
+  if (asNumber(canvas["clientHeight"]) !== request.height) return false
+  const width = asNumber(canvas["width"])
+  const height = asNumber(canvas["height"])
+  const devicePixelRatio = asNumber(state["devicePixelRatio"]) ?? 1
+  return width !== undefined
+    && height !== undefined
+    && Math.abs(width - Math.round(request.width * devicePixelRatio)) <= 1
+    && Math.abs(height - Math.round(request.height * devicePixelRatio)) <= 1
+}
+
+function shouldDispatchTargetResize(state: JsonObject, request: {width: number; height: number}): boolean {
+  if (asNumber(state["innerWidth"]) !== request.width) return false
+  if (asNumber(state["innerHeight"]) !== request.height) return false
+  const canvas = asObject(state["canvas"])
+  if (canvas === undefined) return true
+  return asNumber(canvas["clientWidth"]) === request.width && asNumber(canvas["clientHeight"]) === request.height
+}
+
+async function dispatchTargetResize(session: ChromeDevtoolsSession): Promise<void> {
+  await sessionCommand(session, "Runtime.evaluate", {
+    expression: "window.dispatchEvent(new Event('resize'))",
+    awaitPromise: false,
+    returnByValue: true,
+  }).catch(() => undefined)
+}
+
+async function readDevtoolsToolbarViewport(): Promise<JsonObject | null> {
+  const target = await resolveDevtoolsFrontendTarget()
+  if (target === undefined || target.webSocketDebuggerUrl === undefined) return null
+  const session = await openTransientSession(target)
+  try {
+    await sessionCommand(session, "Runtime.enable")
+    const response = await sessionCommand(session, "Runtime.evaluate", {
+      returnByValue: true,
+      expression: `(() => {
+        const result = {}
+        function visit(root) {
+          for (const element of Array.from(root.querySelectorAll?.("*") ?? [])) {
+            const title = element.getAttribute?.("title") || ""
+            const className = typeof element.className === "string" ? element.className : ""
+            if (title === "Width") result.width = Number(element.value)
+            if (title.startsWith("Height")) result.height = Number(element.value)
+            if (title === "Zoom") result.zoom = Number(element.value)
+            if (className.includes("device-mode-screen-area")) {
+              const rect = element.getBoundingClientRect()
+              result.screenArea = {x: rect.x, y: rect.y, width: rect.width, height: rect.height}
+            }
+            if (element.shadowRoot) visit(element.shadowRoot)
+          }
+        }
+        visit(document)
+        if (Number.isFinite(result.width) && Number.isFinite(result.height) && result.screenArea) {
+          result.visibleScaleX = result.screenArea.width / result.width
+          result.visibleScaleY = result.screenArea.height / result.height
+        }
+        return result
+      })()`,
+    })
+    const value = resultValueObject(response)
+    const width = asNumber(value["width"])
+    const height = asNumber(value["height"])
+    if (width === undefined || height === undefined) return null
+    if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1) return null
+    return {source: "devtools-toolbar", width, height, ...value}
+  } finally {
+    closePending(session, new Error("Transient Chrome DevTools session closed"))
+    session.socket.close()
+  }
+}
+
+async function resolveDevtoolsFrontendTarget(): Promise<ChromeTarget | undefined> {
+  const targets = await fetchChromeTargets()
+  return targets.find((item) => item.type === "page" && item.url.startsWith("devtools://devtools/") && item.title?.includes("meta.proizvodstvo1.ru"))
+    ?? targets.find((item) => item.type === "page" && item.url.startsWith("devtools://devtools/"))
+}
+
+function resolveViewportSyncRequest(body: JsonObject, before: JsonObject, toolbar: JsonObject | undefined): DevtoolsViewportRequest {
+  const bodyWidth = optionalPositiveInteger(body["width"], "width")
+  const bodyHeight = optionalPositiveInteger(body["height"], "height")
+  const toolbarWidth = optionalPositiveInteger(toolbar?.["width"], "toolbar.width")
+  const toolbarHeight = optionalPositiveInteger(toolbar?.["height"], "toolbar.height")
+  const beforeWidth = optionalPositiveInteger(before["innerWidth"], "innerWidth")
+  const beforeHeight = optionalPositiveInteger(before["innerHeight"], "innerHeight")
+  const width = bodyWidth ?? toolbarWidth ?? beforeWidth
+  const height = bodyHeight ?? toolbarHeight ?? beforeHeight
+  if (width === undefined || height === undefined) throw new Error("Could not resolve viewport width/height")
+
+  const mobile = asBoolean(body["mobile"]) ?? true
+  const bodyDpr = asNumber(body["deviceScaleFactor"])
+  const beforeDpr = validInferredDeviceScaleFactor(asNumber(before["devicePixelRatio"]))
+  const canvasDpr = inferredCanvasDeviceScaleFactor(before)
+  const inferredDpr = Math.max(canvasDpr ?? 0, beforeDpr ?? 0, mobile ? 2 : 1)
+  const deviceScaleFactor = bodyDpr !== undefined && Number.isFinite(bodyDpr) && bodyDpr > 0
+    ? bodyDpr
+    : inferredDpr
+  const source = bodyWidth !== undefined || bodyHeight !== undefined
+    ? "request-body"
+    : toolbarWidth !== undefined || toolbarHeight !== undefined
+      ? "devtools-toolbar"
+      : "target-runtime"
+  const visible = resolveViewportVisibleSize(body, toolbar, width, height)
+  const scale = resolveViewportScale(body, toolbar, visible.width, visible.height, width, height)
+  return {width, height, visibleWidth: visible.width, visibleHeight: visible.height, deviceScaleFactor, mobile, scale: scale.value, source, visibleSource: visible.source, scaleSource: scale.source}
+}
+
+function resolveViewportRepairRequest(body: JsonObject, before: JsonObject, toolbar: JsonObject | undefined): DevtoolsViewportRequest | null {
+  const bodyWidth = optionalPositiveInteger(body["width"], "width")
+  const bodyHeight = optionalPositiveInteger(body["height"], "height")
+  const toolbarWidth = optionalPositiveInteger(toolbar?.["width"], "toolbar.width")
+  const toolbarHeight = optionalPositiveInteger(toolbar?.["height"], "toolbar.height")
+  const width = bodyWidth ?? toolbarWidth
+  const height = bodyHeight ?? toolbarHeight
+  if (width === undefined || height === undefined) return null
+
+  const mobile = asBoolean(body["mobile"]) ?? true
+  const bodyDpr = asNumber(body["deviceScaleFactor"])
+  const beforeDpr = validInferredDeviceScaleFactor(asNumber(before["devicePixelRatio"]))
+  const canvasDpr = inferredCanvasDeviceScaleFactor(before)
+  const inferredDpr = Math.max(canvasDpr ?? 0, beforeDpr ?? 0, mobile ? 2 : 1)
+  const deviceScaleFactor = bodyDpr !== undefined && Number.isFinite(bodyDpr) && bodyDpr > 0
+    ? bodyDpr
+    : inferredDpr
+  const source = bodyWidth !== undefined || bodyHeight !== undefined ? "request-body" : "devtools-toolbar"
+  const visible = resolveViewportVisibleSize(body, toolbar, width, height)
+  const scale = resolveViewportScale(body, toolbar, visible.width, visible.height, width, height)
+  return {width, height, visibleWidth: visible.width, visibleHeight: visible.height, deviceScaleFactor, mobile, scale: scale.value, source, visibleSource: visible.source, scaleSource: scale.source}
+}
+
+function resolveViewportVisibleSize(
+  body: JsonObject,
+  toolbar: JsonObject | undefined,
+  width: number,
+  height: number,
+): {width: number; height: number; source: string} {
+  const bodyWidth = optionalPositiveInteger(body["visibleWidth"], "visibleWidth")
+  const bodyHeight = optionalPositiveInteger(body["visibleHeight"], "visibleHeight")
+  const screenArea = asObject(toolbar?.["screenArea"])
+  const toolbarWidth = optionalPositiveRoundedInteger(screenArea?.["width"], "toolbar.screenArea.width")
+  const toolbarHeight = optionalPositiveRoundedInteger(screenArea?.["height"], "toolbar.screenArea.height")
+  const visibleWidth = bodyWidth ?? toolbarWidth
+  const visibleHeight = bodyHeight ?? toolbarHeight
+  if (visibleWidth !== undefined && visibleHeight !== undefined) {
+    return {width: visibleWidth, height: visibleHeight, source: bodyWidth !== undefined || bodyHeight !== undefined ? "request-body" : "devtools-screen-area"}
+  }
+  return {width, height, source: "layout-viewport"}
+}
+
+function resolveViewportScale(
+  body: JsonObject,
+  toolbar: JsonObject | undefined,
+  visibleWidth: number,
+  visibleHeight: number,
+  width: number,
+  height: number,
+): {value: number; source: string} {
+  const bodyScale = optionalPositiveNumber(body["scale"], "scale")
+  if (bodyScale !== undefined) return {value: bodyScale, source: "request-body"}
+  const toolbarScaleX = optionalPositiveNumber(toolbar?.["visibleScaleX"], "toolbar.visibleScaleX")
+  const toolbarScaleY = optionalPositiveNumber(toolbar?.["visibleScaleY"], "toolbar.visibleScaleY")
+  if (toolbarScaleX !== undefined && toolbarScaleY !== undefined) return {value: Math.min(toolbarScaleX, toolbarScaleY), source: "devtools-screen-area"}
+  if (visibleWidth !== width || visibleHeight !== height) return {value: Math.min(visibleWidth / width, visibleHeight / height), source: "visible-size-ratio"}
+  return {value: 1, source: "layout-viewport"}
+}
+
+function viewportDriftForRepair(state: JsonObject, request: {width: number; height: number; source?: string; visibleSource?: string}, forceVisibleSurfaceRepair: boolean): JsonObject & {repair: boolean} {
+  const currentWidth = asNumber(state["innerWidth"])
+  const currentHeight = asNumber(state["innerHeight"])
+  const screenWidth = asNumber(state["screenWidth"])
+  const screenHeight = asNumber(state["screenHeight"])
+  const orientationType = asString(state["orientationType"])
+  if (currentWidth === undefined || currentHeight === undefined) {
+    return {repair: false, reason: "target viewport size is unavailable"}
+  }
+
+  const expectedPortrait = request.width < request.height
+  const currentPortrait = currentWidth < currentHeight
+  const sizeMismatch = Math.abs(currentWidth - request.width) > DEVTOOLS_VIEWPORT_DRIFT_TOLERANCE_PX
+    || Math.abs(currentHeight - request.height) > DEVTOOLS_VIEWPORT_DRIFT_TOLERANCE_PX
+  const orientationMismatch = expectedPortrait !== currentPortrait
+  const screenMatchesRequest = screenWidth !== undefined
+    && screenHeight !== undefined
+    && Math.abs(screenWidth - request.width) <= DEVTOOLS_VIEWPORT_DRIFT_TOLERANCE_PX
+    && Math.abs(screenHeight - request.height) <= DEVTOOLS_VIEWPORT_DRIFT_TOLERANCE_PX
+  const orientationMatchesRequest = orientationType?.startsWith(expectedPortrait ? "portrait" : "landscape") === true
+  const confirmedByDeviceMode = screenMatchesRequest || orientationMatchesRequest
+  const trustedRequest = request.source === "devtools-toolbar" || request.source === "request-body"
+  const visibleSurfaceRequested = forceVisibleSurfaceRepair && (request.visibleSource === "devtools-screen-area" || request.visibleSource === "request-body")
+  const shouldRepair = trustedRequest
+    ? sizeMismatch || visibleSurfaceRequested
+    : sizeMismatch && orientationMismatch && confirmedByDeviceMode
+  return {
+    repair: shouldRepair,
+    sizeMismatch,
+    orientationMismatch,
+    visibleSurfaceRequested,
+    trustedRequest,
+    requestSource: request.source,
+    visibleSource: request.visibleSource,
+    confirmedByDeviceMode,
+    screenMatchesRequest,
+    orientationMatchesRequest,
+    expected: {width: request.width, height: request.height, orientation: expectedPortrait ? "portrait" : "landscape"},
+    actual: {width: currentWidth, height: currentHeight, orientation: currentPortrait ? "portrait" : "landscape"},
+    screen: {width: screenWidth, height: screenHeight, orientationType},
+  }
+}
+
+function inferredCanvasDeviceScaleFactor(state: JsonObject): number | undefined {
+  const canvas = asObject(state["canvas"])
+  const width = asNumber(canvas?.["width"])
+  const clientWidth = asNumber(canvas?.["clientWidth"])
+  if (width === undefined || clientWidth === undefined || clientWidth <= 0) return undefined
+  const ratio = width / clientWidth
+  return validInferredDeviceScaleFactor(ratio)
+}
+
+function validInferredDeviceScaleFactor(value: number | undefined): number | undefined {
+  if (value === undefined || !Number.isFinite(value) || value < 1 || value > 8) return undefined
+  return Math.round(value * 1000) / 1000
+}
+
+function optionalPositiveInteger(value: unknown, name: string): number | undefined {
+  if (value === undefined) return undefined
+  const number = asNumber(value)
+  if (number === undefined || !Number.isInteger(number) || number < 1) throw new Error(`${name} must be a positive integer`)
+  return number
+}
+
+function optionalPositiveRoundedInteger(value: unknown, name: string): number | undefined {
+  if (value === undefined) return undefined
+  const number = asNumber(value)
+  if (number === undefined || !Number.isFinite(number) || number < 1) throw new Error(`${name} must be a positive number`)
+  return Math.max(1, Math.round(number))
+}
+
+function optionalPositiveNumber(value: unknown, name: string): number | undefined {
+  if (value === undefined) return undefined
+  const number = asNumber(value)
+  if (number === undefined || !Number.isFinite(number) || number <= 0) throw new Error(`${name} must be a positive number`)
+  return number
+}
+
+async function openTransientSession(target: ChromeTarget): Promise<ChromeDevtoolsSession> {
+  if (target.webSocketDebuggerUrl === undefined || target.webSocketDebuggerUrl.length === 0) {
+    throw new Error(`Target ${target.id} has no webSocketDebuggerUrl`)
+  }
+  const socket = await openWebSocket(target.webSocketDebuggerUrl)
+  const session: ChromeDevtoolsSession = {
+    target,
+    socket,
+    nextId: 1,
+    pending: new Map(),
+    breakpoints: new Map(),
+    paused: null,
+    consoleEnabled: false,
+    consoleEvents: [],
+    openedAt: new Date().toISOString(),
+    viewportAutoSync: createViewportAutoSyncState(),
+  }
+  socket.addEventListener("message", (event) => handleSessionMessage(session, event))
+  return session
+}
+
+function resultValueObject(response: JsonObject): JsonObject {
+  return asObject(asObject(response["result"])?.["value"]) ?? {}
+}
+
+function createViewportAutoSyncState(): ChromeDevtoolsViewportAutoSync {
+  return {
+    enabled: false,
+    running: false,
+    timer: null,
+  }
+}
+
+function viewportRepairDisabled(source: string): JsonObject {
+  return {disabled: true, source, reason: "DevTools viewport repair is disabled"}
 }
 
 async function setDevtoolsBreakpoint(body: JsonObject): Promise<{
@@ -455,14 +968,17 @@ async function ensureSession(body: JsonObject): Promise<ChromeDevtoolsSession> {
     consoleEnabled: false,
     consoleEvents: [],
     openedAt: new Date().toISOString(),
+    viewportAutoSync: createViewportAutoSyncState(),
   }
   socket.addEventListener("message", (event) => handleSessionMessage(session, event))
   socket.addEventListener("close", () => {
+    if (session.viewportAutoSync.timer !== null) clearTimeout(session.viewportAutoSync.timer)
     closePending(session, new Error("Chrome DevTools WebSocket closed"))
     sessions.delete(target.id)
   })
   socket.addEventListener("error", () => closePending(session, new Error("Chrome DevTools WebSocket error")))
   sessions.set(target.id, session)
+  if (DEVTOOLS_VIEWPORT_AUTOSYNC_ENABLED) await enableViewportAutoSync(session)
   return session
 }
 
@@ -553,6 +1069,46 @@ function handleSessionMessage(session: ChromeDevtoolsSession, event: MessageEven
     appendConsoleEvent(session, logEntryEvent(asObject(message["params"]) ?? {}))
   } else if (method === "Network.loadingFailed") {
     appendConsoleEvent(session, networkFailureEvent(asObject(message["params"]) ?? {}))
+  } else if (DEVTOOLS_VIEWPORT_AUTOSYNC_ENABLED && (method === "Page.frameNavigated" || method === "Page.loadEventFired" || method === "Page.frameResized")) {
+    scheduleViewportAutoSync(session, method)
+  }
+}
+
+async function enableViewportAutoSync(session: ChromeDevtoolsSession): Promise<void> {
+  if (session.viewportAutoSync.enabled) return
+  await sessionCommand(session, "Page.enable").catch(() => undefined)
+  await sessionCommand(session, "Runtime.enable").catch(() => undefined)
+  session.viewportAutoSync.enabled = true
+}
+
+function scheduleViewportAutoSync(session: ChromeDevtoolsSession, reason: string): void {
+  if (!DEVTOOLS_VIEWPORT_AUTOSYNC_ENABLED) return
+  scheduleViewportRepair(session, reason)
+}
+
+function scheduleViewportRepair(session: ChromeDevtoolsSession, reason: string): void {
+  if (!DEVTOOLS_VIEWPORT_REPAIR_ENABLED) return
+  if (session.socket.readyState !== WebSocket.OPEN) return
+  if (session.viewportAutoSync.timer !== null) clearTimeout(session.viewportAutoSync.timer)
+  session.viewportAutoSync.scheduledAt = new Date().toISOString()
+  session.viewportAutoSync.timer = setTimeout(() => {
+    session.viewportAutoSync.timer = null
+    void runViewportAutoSync(session, reason)
+  }, DEVTOOLS_VIEWPORT_AUTOSYNC_DELAY_MS)
+}
+
+async function runViewportAutoSync(session: ChromeDevtoolsSession, reason: string): Promise<void> {
+  if (session.viewportAutoSync.running || session.socket.readyState !== WebSocket.OPEN) return
+  session.viewportAutoSync.running = true
+  try {
+    const result = await repairDevtoolsViewportDrift(session, {}, reason)
+    session.viewportAutoSync.lastResult = {reason, ...result}
+    delete session.viewportAutoSync.lastError
+  } catch (error) {
+    session.viewportAutoSync.lastError = serializeError(error)
+  } finally {
+    session.viewportAutoSync.running = false
+    session.viewportAutoSync.completedAt = new Date().toISOString()
   }
 }
 
@@ -816,6 +1372,16 @@ function sessionState(session: ChromeDevtoolsSession): JsonObject {
       enabled: session.consoleEnabled,
       buffered: session.consoleEvents.length,
       lastEvent: session.consoleEvents.at(-1),
+    },
+    viewportAutoSync: {
+      enabled: DEVTOOLS_VIEWPORT_AUTOSYNC_ENABLED && session.viewportAutoSync.enabled,
+      disabled: !DEVTOOLS_VIEWPORT_AUTOSYNC_ENABLED,
+      repairEnabled: DEVTOOLS_VIEWPORT_REPAIR_ENABLED,
+      running: session.viewportAutoSync.running,
+      scheduledAt: session.viewportAutoSync.scheduledAt,
+      completedAt: session.viewportAutoSync.completedAt,
+      lastError: session.viewportAutoSync.lastError,
+      lastResult: session.viewportAutoSync.lastResult,
     },
   }
 }

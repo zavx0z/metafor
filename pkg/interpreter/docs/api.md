@@ -115,6 +115,7 @@ GET    /devtools/state
 GET    /devtools/console
 POST   /devtools/console/clear
 POST   /devtools/reload
+POST   /devtools/viewport/sync
 POST   /devtools/breakpoints
 POST   /devtools/probe
 POST   /devtools/resume
@@ -388,7 +389,8 @@ GET  /devtools/targets
 GET  /devtools/state
 GET  /devtools/console     # ?limit=100&level=error&kind=log&sinceId=123
 POST /devtools/console/clear
-POST /devtools/reload       # {targetUrl?, hard?, ignoreCache?}
+POST /devtools/reload       # {targetUrl?, hard?, ignoreCache?, syncViewport?}
+POST /devtools/viewport/sync # {targetUrl?, width?, height?, deviceScaleFactor?}
 POST /devtools/breakpoints  # {source|url, line, column?, targetUrl?}
 POST /devtools/probe        # {source|url, line, trigger?, autoResumeMs?, clear?}
 POST /devtools/resume       # {targetUrl?|targetId?}
@@ -410,6 +412,18 @@ breakpoint, опционально выполняет HTTP `trigger`, ждет `
 по умолчанию делает `resume` и снимает breakpoint. Если после restart breakpoint
 не ловится, сначала сделай `POST /devtools/reload`: Chrome target мог остаться
 открытым со stale AppWeb websocket.
+
+В docked DevTools Device Mode после ручного Rotate и `Page.reload` Chrome может
+рассинхронизировать toolbar Width/Height, JS viewport target page и compositor
+surface, который видит DevTools preview. Симптомы: toolbar показывает `400x816`,
+target после reload получает `816x400`, `Page.captureScreenshot` отдает scaled
+surface вроде `612x300` при JS viewport `816x400`, canvas/torus считаются по
+неожиданному viewport. `/devtools/reload` по умолчанию после загрузки делает
+viewport sync. Managed DevTools CDP session дополнительно повторяет sync после
+`Page.frameResized`, `Page.frameNavigated` и `Page.loadEventFired`, чтобы ручной
+Rotate/reload не оставлял target и preview в разных размерах. Если managed
+session не была создана или видна серая область, вызови
+`POST /devtools/viewport/sync` вручную.
 
 ## TODO HUD
 

@@ -480,15 +480,96 @@ export const resolveBulkViewportFitPose = ({
     up,
     verticalTan,
   })
-  const fitDistance = pointFitDistance ?? Math.max(
+  let fitDistance = pointFitDistance ?? Math.max(
     (safeRadius * safePaddingRatio) / verticalTan,
     (safeRadius * safePaddingRatio) / horizontalTan,
   )
+  const fitTarget = target.clone()
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const centerOffset = resolveProjectedFitCenterOffset({
+      direction: safeDirection,
+      fitDistance,
+      horizontalTan,
+      points,
+      target: fitTarget,
+      up,
+      verticalTan,
+    })
+    if (centerOffset === null) break
+    fitTarget.add(centerOffset)
+    const nextFitDistance = resolveProjectedFitDistance({
+      direction: safeDirection,
+      horizontalTan,
+      paddingRatio: safePaddingRatio,
+      points,
+      radius: safeRadius,
+      target: fitTarget,
+      up,
+      verticalTan,
+    })
+    if (nextFitDistance !== null) fitDistance = nextFitDistance
+  }
 
   return {
-    target: target.clone(),
-    position: target.clone().add(safeDirection.multiplyScalar(fitDistance)),
+    target: fitTarget,
+    position: fitTarget.clone().add(safeDirection.multiplyScalar(fitDistance)),
   }
+}
+
+const resolveProjectedFitCenterOffset = ({
+  direction,
+  fitDistance,
+  horizontalTan,
+  points,
+  target,
+  up,
+  verticalTan,
+}: {
+  direction: Vector3
+  fitDistance: number
+  horizontalTan: number
+  points: readonly Vector3[]
+  target: Vector3
+  up: Vector3 | undefined
+  verticalTan: number
+}): Vector3 | null => {
+  if (points.length === 0 || !Number.isFinite(fitDistance) || fitDistance <= 1e-6) return null
+  const forward = direction.clone().negate()
+  const upSource = up && up.length() > 1e-6 ? up.clone().normalize() : new Vector3(0, 0, 1)
+  let right = forward.clone().cross(upSource)
+  if (right.length() <= 1e-6) right = forward.clone().cross(new Vector3(1, 0, 0))
+  if (right.length() <= 1e-6) right = new Vector3(1, 0, 0)
+  right.normalize()
+  const screenUp = right.clone().cross(forward).normalize()
+  const safeHorizontalTan = Math.max(1e-3, horizontalTan)
+  const safeVerticalTan = Math.max(1e-3, verticalTan)
+  let minX = Number.POSITIVE_INFINITY
+  let maxX = Number.NEGATIVE_INFINITY
+  let minY = Number.POSITIVE_INFINITY
+  let maxY = Number.NEGATIVE_INFINITY
+  let projected = false
+
+  for (const point of points) {
+    const offset = point.clone().sub(target)
+    const depth = fitDistance + offset.dot(forward)
+    if (!Number.isFinite(depth) || depth <= 1e-6) continue
+    const x = offset.dot(right) / (depth * safeHorizontalTan)
+    const y = offset.dot(screenUp) / (depth * safeVerticalTan)
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue
+    minX = Math.min(minX, x)
+    maxX = Math.max(maxX, x)
+    minY = Math.min(minY, y)
+    maxY = Math.max(maxY, y)
+    projected = true
+  }
+
+  if (!projected) return null
+  const centerX = (minX + maxX) / 2
+  const centerY = (minY + maxY) / 2
+  const offsetX = centerX * fitDistance * safeHorizontalTan
+  const offsetY = centerY * fitDistance * safeVerticalTan
+  if (Math.abs(offsetX) <= 1e-6 && Math.abs(offsetY) <= 1e-6) return null
+  return right.multiplyScalar(offsetX).add(screenUp.multiplyScalar(offsetY))
 }
 
 const resolveProjectedFitDistance = ({

@@ -194,7 +194,9 @@ Web DevTools API для server Chrome/AppWeb:
 - `GET /devtools/state` показывает agent CDP sessions, breakpoints и paused state.
 - `GET /devtools/console` включает capture и возвращает последние console/log/exception/network события; для ошибок используй `?level=error&limit=50`.
 - `POST /devtools/console/clear` очищает agent buffer и Chrome console entries.
-- `POST /devtools/reload` делает `Page.reload` текущего AppWeb target.
+- `POST /devtools/reload` делает `Page.reload` текущего AppWeb target и по умолчанию синхронизирует DevTools Device Mode viewport/surface после reload.
+- Managed DevTools CDP session также событийно повторяет viewport sync после `Page.frameNavigated` / `Page.loadEventFired`, чтобы ручной reload в DevTools не сбрасывал target page из portrait в landscape при неизменном toolbar.
+- `POST /devtools/viewport/sync` вручную синхронизирует DevTools Device Mode toolbar, AppWeb target viewport и Chrome compositor surface, если после Rotate/reload видна серая область или target получил неправильный viewport.
 - `POST /devtools/breakpoints` ставит breakpoint по `source` + 1-based `line`; source maps мапятся на generated bundle автоматически.
 - `POST /devtools/probe` ставит breakpoint, дергает optional `trigger`, ждет `Debugger.paused`, затем по умолчанию делает resume и clear.
 - `POST /devtools/resume` продолжает paused target.
@@ -320,6 +322,16 @@ Browser page - только host одного WebGPU canvas. Не добавля
 DevTools bridge. Realtime-канал - WebRTC video/audio stream из server Chrome
 capture API на сервере; snapshot routes допустимы как fallback/diagnostics.
 Visual source по умолчанию - весь server `screen`, не browser tab/window.
+Если пользователь просит "сделай скриншот", "посмотри, что я вижу" или
+аналогичную визуальную проверку текущего WebApp/DevTools, это означает запросить
+удаленный screenshot из видимого server Chrome remote desktop/DevTools окна,
+которое видит человек. Не подменяй такой запрос `GET /viewport/screenshot`
+интерпретатора, AppWeb target-only `Page.captureScreenshot` или локальным
+снимком отдельного canvas: эти варианты допустимы только как diagnostics и
+должны быть явно так названы. Если remote desktop snapshot endpoint недоступен,
+используй ближайший эквивалент видимого браузера, например CDP screenshot
+DevTools frontend target, сохраняй файл в `pkg/interpreter/tmp/codex-attachments`
+и явно указывай метод capture.
 Interpreter воспроизводит audio через WebAudio spatial panner, привязанный к
 позиции display в Space. Не делай Playwright permanent runtime dependency и не
 завязывай архитектуру на macOS display пользователя. macOS/ai-macos и Linux

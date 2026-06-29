@@ -481,6 +481,9 @@ curl -sS -X POST http://10.66.0.10:6500/devtools/console/clear \
 curl -sS -X POST http://10.66.0.10:6500/devtools/reload \
   -H 'content-type: application/json' \
   -d '{"hard":true}'
+curl -sS -X POST http://10.66.0.10:6500/devtools/viewport/sync \
+  -H 'content-type: application/json' \
+  -d '{}'
 curl -sS -X POST http://10.66.0.10:6500/devtools/breakpoints \
   -H 'content-type: application/json' \
   -d '{"source":"app/web/client.ts","line":603,"column":2}'
@@ -515,6 +518,16 @@ curl -sS -X POST http://10.66.0.10:6500/devtools/probe \
 `POST /devtools/reload`: страница может быть открыта, но ее AppWeb websocket
 остался stale. Не открывай для этого отдельный browser; visual context должен
 оставаться тем же `remote-desktop:server` display.
+
+Для Device Mode rotate/reload не смешивай ручной DevTools toolbar и raw CDP
+`Emulation.setDeviceMetricsOverride` без sync: Chrome может оставить toolbar,
+target viewport и compositor surface в разных размерах. Видимый симптом -
+toolbar показывает `400 x 816`, но AppWeb после reload получает `816 x 400`, или
+`Page.captureScreenshot` возвращает `612 x 300` при JS viewport `816 x 400`.
+Используй managed DevTools session: она синхронизирует viewport после
+`Page.frameResized`, `Page.frameNavigated` и `Page.loadEventFired`. Для agent
+reload используй `/devtools/reload` с default `syncViewport:true`; если session
+не была создана или preview остался серым, дерни `/devtools/viewport/sync`.
 
 `GET /devtools/console` включает CDP capture для `Runtime.consoleAPICalled`,
 `Runtime.exceptionThrown`, `Log.entryAdded` и `Network.loadingFailed`. Старые

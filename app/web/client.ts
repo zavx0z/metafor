@@ -430,17 +430,20 @@ const initBulkViewport = async (): Promise<void> => {
 		applySnapshotMessage(snapshotMessage)
 	}
 
-	const resizeObserver = new ResizeObserver((entries) => {
-		const entry = entries[0]
-		if (!entry || !bulkViewport) return
-
+	const resizeBulkViewport = (): void => {
+		if (!bulkViewport) return
+		const rect = bulkCanvas.getBoundingClientRect()
 		bulkViewport.setSize(
-			Math.max(1, Math.floor(entry.contentRect.width)),
-			Math.max(1, Math.floor(entry.contentRect.height)),
+			Math.max(1, Math.floor(rect.width || bulkCanvas.clientWidth || 1)),
+			Math.max(1, Math.floor(rect.height || bulkCanvas.clientHeight || 1)),
 		)
-	})
+	}
+
+	const resizeObserver = new ResizeObserver(() => resizeBulkViewport())
 
 	resizeObserver.observe(bulkCanvas)
+	window.addEventListener("resize", resizeBulkViewport)
+	window.visualViewport?.addEventListener("resize", resizeBulkViewport)
 }
 
 void initBulkViewport().catch((error) => {

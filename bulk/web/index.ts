@@ -286,6 +286,65 @@ type BulkViewPose = {
 	up: Vector3
 }
 
+type RestoredBulkViewPose = BulkViewPose & {
+	rootFitLockedToViewport: boolean
+}
+
+type StoredBulkViewPose = {
+	href: string
+	position: {x: number; y: number; z: number}
+	rootFitLockedToViewport?: boolean
+	target: {x: number; y: number; z: number}
+	up: {x: number; y: number; z: number}
+}
+
+const BULK_VIEW_POSE_STORAGE_KEY = "metafor.bulk.viewport.pose:v1"
+
+const vectorFromStoredBulkPose = (value: unknown): Vector3 | null => {
+	if (typeof value !== "object" || value === null) return null
+	const record = value as Record<string, unknown>
+	const x = typeof record.x === "number" ? record.x : NaN
+	const y = typeof record.y === "number" ? record.y : NaN
+	const z = typeof record.z === "number" ? record.z : NaN
+	if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return null
+	return new Vector3(x, y, z)
+}
+
+const readStoredBulkViewPose = (): RestoredBulkViewPose | null => {
+	try {
+		const raw = window.sessionStorage.getItem(BULK_VIEW_POSE_STORAGE_KEY)
+		if (raw === null) return null
+		const stored = JSON.parse(raw) as Partial<StoredBulkViewPose>
+		if (stored.href !== window.location.href) return null
+		const position = vectorFromStoredBulkPose(stored.position)
+		const target = vectorFromStoredBulkPose(stored.target)
+		const up = vectorFromStoredBulkPose(stored.up)
+		if (position === null || target === null || up === null || position.distanceTo(target) <= 1e-6 || up.length() <= 1e-6) return null
+		return {
+			position,
+			rootFitLockedToViewport: stored.rootFitLockedToViewport ?? true,
+			target,
+			up: up.normalize(),
+		}
+	} catch {
+		return null
+	}
+}
+
+const writeStoredBulkViewPose = (pose: BulkViewPose, rootFitLockedToViewport: boolean): void => {
+	try {
+		window.sessionStorage.setItem(BULK_VIEW_POSE_STORAGE_KEY, JSON.stringify({
+			href: window.location.href,
+			position: {x: pose.position.x, y: pose.position.y, z: pose.position.z},
+			rootFitLockedToViewport,
+			target: {x: pose.target.x, y: pose.target.y, z: pose.target.z},
+			up: {x: pose.up.x, y: pose.up.y, z: pose.up.z},
+		} satisfies StoredBulkViewPose))
+	} catch {
+		// Session storage is best-effort. Reload still works without pose persistence.
+	}
+}
+
 type BotPhoneViewState = {
 	returnPose: BulkViewPose
 	target: BotPhoneScreenTarget
@@ -2312,6 +2371,14 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		target: viewportConfig.camera.target,
 	})
 	viewPoint.setAspectRatio(options.width / options.height)
+	const restoredViewPose = readStoredBulkViewPose()
+	if (restoredViewPose !== null) {
+		viewPoint.position.copy(restoredViewPose.position)
+		viewPoint.getTarget().copy(restoredViewPose.target)
+		viewPoint.getUp().copy(restoredViewPose.up).normalize()
+		viewPoint.update()
+		rootFitLockedToViewport = restoredViewPose.rootFitLockedToViewport
+	}
 
 	const requestRenderLoop = (wakeMs: number = 0): void => {
 		if (disposed) return
@@ -3655,6 +3722,13 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		up: viewPoint.getUp().clone(),
 	})
 
+	const persistCurrentViewPose = (): void => {
+		writeStoredBulkViewPose(captureViewPose(), rootFitLockedToViewport)
+	}
+
+	window.addEventListener("pagehide", persistCurrentViewPose)
+	window.addEventListener("beforeunload", persistCurrentViewPose)
+
 	const applyViewPose = (pose: BulkViewPose): void => {
 		viewPoint.position.copy(pose.position)
 		viewPoint.getTarget().copy(pose.target)
@@ -3662,27 +3736,27 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		viewPoint.update()
 	}
 
-	const rootShellForViewportFit = (): DbParticleShellRow | null => {
-		const rows = world?.particles ?? []
-		return rows
-			.filter((particle) => particle.parentParticleId === null && particle.depth === 0)
-			.sort((left, right) => left.shellOrder - right.shellOrder || left.particleId - right.particleId)[0] ?? null
+	const rootShellForViewportFit = (): ShellRenderRecord | null => {
+		return [...shellRecords.values()]
+			.filter((record) => record.snapshot.parentParticleId === null && record.snapshot.depth === 0)
+			.sort((left, right) =>
+				left.snapshot.shellOrder - right.snapshot.shellOrder ||
+				left.snapshot.particleId - right.snapshot.particleId,
+			)[0] ?? null
 	}
 
 	const applyRootViewportFit = (fitOptions: {force?: boolean} = {}): void => {
 		if (!fitOptions.force && !rootFitLockedToViewport) return
 		const rootShell = rootShellForViewportFit()
 		if (rootShell === null) return
-		const shellRadius = rootShell.shellRadius || getShellFallback().radius
-		const shellTube = rootShell.shellTube || getShellFallback().tube
-		const rootOuterRadius = (shellRadius + shellTube) * rootShell.shellScale
-		if (!Number.isFinite(rootOuterRadius) || rootOuterRadius <= 1e-6) return
-		const rootCenter = new Vector3(
-			workspace.position.x + rootShell.localX,
-			workspace.position.y + rootShell.localY,
-			workspace.position.z + rootShell.localZ,
+		space.updateWorldMatrix()
+		const rootCenter = rootShellWorldCenter(rootShell)
+		const rootPoints = rootShellViewportFitPoints(rootShell)
+		const rootOuterRadius = rootPoints.reduce(
+			(maxRadius, point) => Math.max(maxRadius, point.distanceTo(rootCenter)),
+			(rootShell.snapshot.shellRadius + rootShell.snapshot.shellTube) * rootShell.baseShellScale,
 		)
-		const rootPoints = rootShellViewportFitPoints(rootShell, rootCenter, shellRadius, shellTube)
+		if (!Number.isFinite(rootOuterRadius) || rootOuterRadius <= 1e-6) return
 		const pose = resolveBulkViewportFitPose({
 			aspect: viewPoint.aspect,
 			currentPosition: viewPoint.position,
@@ -3698,6 +3772,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			target: pose.target,
 			up: viewPoint.getUp().clone(),
 		})
+		persistCurrentViewPose()
 	}
 
 	const disableRootViewportFit = (): void => {
@@ -3705,12 +3780,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const rootShellViewportFitPoints = (
-		shell: DbParticleShellRow,
-		center: Vector3,
-		shellRadius: number,
-		shellTube: number,
+		record: ShellRenderRecord,
 	): Vector3[] => {
-		const positions = getGeometryPositionArray(getTorusWireframeGeometry(shellRadius, shellTube, shell.depth))
+		const positions = getGeometryPositionArray(record.torus.geometry)
 		if (!positions || positions.length === 0) return []
 		const pointCount = Math.floor(positions.length / 3)
 		const vertexStep = Math.max(1, Math.floor(pointCount / 720))
@@ -3718,14 +3790,24 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 		for (let vertex = 0; vertex < pointCount; vertex += vertexStep) {
 			const index = vertex * 3
-			points.push(new Vector3(
-				center.x + (positions[index] ?? 0) * shell.shellScale,
-				center.y + (positions[index + 1] ?? 0) * shell.shellScale,
-				center.z + (positions[index + 2] ?? 0) * shell.shellScale,
-			))
+			const point = new Vector3(
+				positions[index] ?? 0,
+				positions[index + 1] ?? 0,
+				positions[index + 2] ?? 0,
+			).applyMatrix4(record.torus.matrixWorld)
+			if (Math.abs(record.currentTransitionScale - 1) > 1e-6) {
+				const center = rootShellWorldCenter(record)
+				point.sub(center).multiplyScalar(1 / record.currentTransitionScale).add(center)
+			}
+			points.push(point)
 		}
 
 		return points
+	}
+
+	const rootShellWorldCenter = (record: ShellRenderRecord): Vector3 => {
+		const elements = record.container.matrixWorld.elements
+		return new Vector3(elements[12] ?? 0, elements[13] ?? 0, elements[14] ?? 0)
 	}
 
 	const botPhoneViewPose = (target: BotPhoneScreenTarget): BulkViewPose => {
@@ -4871,6 +4953,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	return {
 		dispose() {
 			disposed = true
+			window.removeEventListener("pagehide", persistCurrentViewPose)
+			window.removeEventListener("beforeunload", persistCurrentViewPose)
 			cancelAnimationFrame(frameHandle)
 			options.canvas.removeEventListener("mousedown", handleCanvasMouseDown)
 			options.canvas.removeEventListener("mousemove", handleCanvasMouseMove)
@@ -4968,7 +5052,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			renderer.setPixelRatio(window.devicePixelRatio || 1)
 			renderer.setSize(width, height)
 			viewPoint.setAspectRatio(width / height)
-			applyRootViewportFit({force: viewportSizeChanged})
+			if (rootFitLockedToViewport) applyRootViewportFit({force: viewportSizeChanged})
 			hudRuntime.handleSize(width, height)
 			requestRenderLoop(INPUT_RENDER_WAKE_MS)
 		},

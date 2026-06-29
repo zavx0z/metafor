@@ -82,6 +82,7 @@ const routeIndex = [
   {method: "POST", path: "/devtools/breakpoints", description: "{source|url,line,column?,targetUrl?} — поставить CDP breakpoint; source строки 1-based и мапятся через sourcemap"},
   {method: "POST", path: "/devtools/probe", description: "{source|url,line,trigger?,autoResumeMs?} — поставить breakpoint, опционально дернуть trigger, дождаться pause и resume"},
   {method: "POST", path: "/devtools/reload", description: "{targetUrl?,hard?|ignoreCache?} — Page.reload текущего server Chrome target через CDP"},
+  {method: "POST", path: "/devtools/viewport/sync", description: "{targetUrl?,width?,height?,deviceScaleFactor?} — синхронизировать DevTools Device Mode toolbar, target viewport и compositor surface"},
   {method: "POST", path: "/devtools/resume", description: "{targetUrl?|targetId?} — продолжить выполнение paused Chrome target"},
   {method: "POST", path: "/devtools/disable", description: "{targetUrl?|targetId?|all?} — снять breakpoints, disable Debugger и закрыть agent CDP session"},
   {method: "POST", path: "/devtools/evaluate", description: "{expression,targetUrl?} — Runtime.evaluate в текущем server Chrome target"},
