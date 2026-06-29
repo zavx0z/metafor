@@ -1439,11 +1439,7 @@ class BulkRadialMenuPane extends UiSurface {
 	}
 
 	#menuCenter(): {x: number; y: number} {
-		const pad = BULK_RADIAL_MENU_SIZE_PX / 2 + 8
-		return {
-			x: clampBulkHudNumber(this.#center.x, pad, Math.max(pad, this.rectW - pad)),
-			y: clampBulkHudNumber(this.#center.y, pad, Math.max(pad, this.rectH - pad)),
-		}
+		return this.#center
 	}
 
 	#sectorAngle(): number {
@@ -3890,6 +3886,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 		const pose = resolveBulkViewportFitPose({
 			aspect: viewPoint.aspect,
+			centerProjectedBounds: false,
 			currentPosition: viewPoint.position,
 			currentTarget: viewPoint.getTarget(),
 			fitAxis: clickFitAxisForViewport(),
@@ -4297,6 +4294,14 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		requestRenderLoop(INPUT_RENDER_WAKE_MS)
 	}
 
+	const closeRadialMenuWithoutSceneAction = (suppressNextClick = true): boolean => {
+		if (radialMenuPickTarget === null) return false
+		closeRadialMenu()
+		clickNavigationSuppressed = suppressNextClick
+		isPrimaryPointerDown = false
+		return true
+	}
+
 	const cancelRadialMenuLongPress = (): void => {
 		if (radialMenuLongPress === null) return
 		clearTimeout(radialMenuLongPress.timer)
@@ -4316,6 +4321,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 		const nextPose = resolveBulkViewportFitPose({
 			aspect: viewPoint.aspect,
+			centerProjectedBounds: false,
 			currentPosition: navigationState.startPose.position,
 			currentTarget: navigationState.startPose.target,
 			fitAxis: clickFitAxisForViewport(),
@@ -4772,8 +4778,12 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		cancelNavigation()
 		cancelRadialMenuLongPress()
 		if (event.button !== 0) return
+		if (closeRadialMenuWithoutSceneAction(false)) {
+			event.preventDefault()
+			event.stopImmediatePropagation()
+			return
+		}
 		disableRootViewportFit()
-		closeRadialMenu()
 		isPrimaryPointerDown = true
 		pointerDownX = event.clientX
 		pointerDownY = event.clientY
@@ -4857,6 +4867,12 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const handleCanvasTouchStartForNavigation = (event: TouchEvent): void => {
+		if (radialMenuPickTarget !== null) {
+			resetCanvasTouchTap()
+			closeRadialMenuWithoutSceneAction()
+			event.stopImmediatePropagation()
+			return
+		}
 		if (event.touches.length !== 1 || event.changedTouches.length === 0) {
 			resetCanvasTouchTap()
 			return
@@ -4919,6 +4935,11 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const handleCanvasClick = (event: MouseEvent): void => {
 		if (event.button !== 0) return
 		isPrimaryPointerDown = false
+		if (closeRadialMenuWithoutSceneAction()) {
+			event.preventDefault()
+			event.stopImmediatePropagation()
+			return
+		}
 		if (clickNavigationSuppressed) {
 			clickNavigationSuppressed = false
 			return

@@ -46,6 +46,7 @@ export interface ResolveBulkViewportFocusPoseOptions {
 
 export interface ResolveBulkViewportFitPoseOptions {
   aspect: number
+  centerProjectedBounds?: boolean
   currentPosition: Vector3
   currentTarget: Vector3
   fitAxis?: BulkViewportFitAxis
@@ -455,6 +456,7 @@ export const resolveBulkViewportFocusPose = ({
 
 export const resolveBulkViewportFitPose = ({
   aspect,
+  centerProjectedBounds = true,
   currentPosition,
   currentTarget,
   fitAxis = "auto",
@@ -496,30 +498,32 @@ export const resolveBulkViewportFitPose = ({
         : Math.max(heightFitDistance, widthFitDistance)
   )
   const fitTarget = target.clone()
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const centerOffset = resolveProjectedFitCenterOffset({
-      direction: safeDirection,
-      fitDistance,
-      horizontalTan,
-      points,
-      target: fitTarget,
-      up,
-      verticalTan,
-    })
-    if (centerOffset === null) break
-    fitTarget.add(centerOffset)
-    const nextFitDistance = resolveProjectedFitDistance({
-      direction: safeDirection,
-      fitAxis: safeFitAxis,
-      horizontalTan,
-      paddingRatio: safePaddingRatio,
-      points,
-      radius: safeRadius,
-      target: fitTarget,
-      up,
-      verticalTan,
-    })
-    if (nextFitDistance !== null) fitDistance = nextFitDistance
+  if (centerProjectedBounds) {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const centerOffset = resolveProjectedFitCenterOffset({
+        direction: safeDirection,
+        fitDistance,
+        horizontalTan,
+        points,
+        target: fitTarget,
+        up,
+        verticalTan,
+      })
+      if (centerOffset === null) break
+      fitTarget.add(centerOffset)
+      const nextFitDistance = resolveProjectedFitDistance({
+        direction: safeDirection,
+        fitAxis: safeFitAxis,
+        horizontalTan,
+        paddingRatio: safePaddingRatio,
+        points,
+        radius: safeRadius,
+        target: fitTarget,
+        up,
+        verticalTan,
+      })
+      if (nextFitDistance !== null) fitDistance = nextFitDistance
+    }
   }
 
   return {
