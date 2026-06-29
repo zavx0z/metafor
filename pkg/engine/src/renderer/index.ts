@@ -44,7 +44,7 @@ if (import.meta.hot) {
 
 // --- Константы для uniform-буферов ---
 const UNIFORM_ALIGNMENT = 256
-const MAX_RENDERABLES = 5000
+const INITIAL_RENDERABLE_CAPACITY = 512
 const MAX_LIGHTS = 4 // Максимальное количество источников света
 const WEBGPU_INIT_TIMEOUT_MS = 15000
 
@@ -127,7 +127,7 @@ export class Renderer {
   private perObjectBindGroupLayout: GPUBindGroupLayout | null = null
   private perObjectBindGroup: GPUBindGroup | null = null
   private perObjectDataCPU: Float32Array | null = null
-  private perObjectCapacity = MAX_RENDERABLES
+  private perObjectCapacity = INITIAL_RENDERABLE_CAPACITY
 
   geometryCache: Map<BufferGeometry, GeometryBuffers> = new Map()
   private depthTexture: GPUTexture | null = null
@@ -136,6 +136,17 @@ export class Renderer {
   public pixelRatio = 1
   private frustum: Frustum = new Frustum()
   public canvas: HTMLCanvasElement | null = null
+  private readonly viewProjectionMatrix = new Matrix4()
+  private readonly sceneUniformData = new ArrayBuffer(SCENE_UNIFORMS_SIZE)
+  private readonly sceneUniformFloats = new Float32Array(this.sceneUniformData)
+  private readonly sceneUniformUints = new Uint32Array(this.sceneUniformData)
+  private readonly sceneViewNormalMatrix = new Matrix4()
+  private readonly sceneCameraPosition = new Vector3()
+  private readonly sceneWorldLightPosition = new Vector3()
+  private readonly meshNormalMatrix = new Matrix4()
+  private readonly skinnedMeshWorldInverse = new Matrix4()
+  private readonly skinnedBoneMatrix = new Matrix4()
+  private readonly backgroundClearColor: GPUColorDict = {r: 0, g: 0, b: 0, a: 0}
 
   /**
    * Инициализирует WebGPU устройство и контекст.
@@ -223,7 +234,7 @@ export class Renderer {
     })
     this.perObjectBindGroupLayout = perObjectBindGroupLayout
 
-    this.createPerObjectResources(MAX_RENDERABLES)
+    this.createPerObjectResources(INITIAL_RENDERABLE_CAPACITY)
 
     this.imageBindGroupLayout = this.device.createBindGroupLayout({
       entries: [
@@ -1116,15 +1127,19 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     const commandEncoder = this.device!.createCommandEncoder()
     const textureView = this.context!.getCurrentTexture().createView()
-    const vpMatrix = new Matrix4().multiplyMatrices(viewPoint.projectionMatrix, viewPoint.viewMatrix)
-    this.device!.queue.writeBuffer(this.globalUniformBuffer!, 0, new Float32Array(vpMatrix.elements))
-    this.frustum.setFromProjectionMatrix(vpMatrix)
+    this.viewProjectionMatrix.multiplyMatrices(viewPoint.projectionMatrix, viewPoint.viewMatrix)
+    this.device!.queue.writeBuffer(this.globalUniformBuffer!, 0, this.viewProjectionMatrix.elements)
+    this.frustum.setFromProjectionMatrix(this.viewProjectionMatrix)
 
     const preparedLayers: PreparedRenderLayer[] = []
     const frameRenderItems: RenderItem[] = []
     const frameLights: LightItem[] = []
 
-    preparedLayers.push(this.prepareRenderLayer(space, frameRenderItems, frameLights, space.background.toArray() as unknown as GPUColor))
+    this.backgroundClearColor.r = space.background.r
+    this.backgroundClearColor.g = space.background.g
+    this.backgroundClearColor.b = space.background.b
+    this.backgroundClearColor.a = space.background.a
+    preparedLayers.push(this.prepareRenderLayer(space, frameRenderItems, frameLights, this.backgroundClearColor))
 
     for (const overlay of overlays) {
       overlay.updateForViewPoint?.(viewPoint)
@@ -1260,6 +1275,24 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     previousBuffer?.destroy()
   }
 
+  private writePerObjectRgba(offsetFloats: number, color: {r: number, g: number, b: number, a: number}, alpha = color.a): void {
+    const data = this.perObjectDataCPU
+    if (!data) return
+    data[offsetFloats] = color.r
+    data[offsetFloats + 1] = color.g
+    data[offsetFloats + 2] = color.b
+    data[offsetFloats + 3] = alpha
+  }
+
+  private writePerObjectVec4(offsetFloats: number, x: number, y: number, z: number, w: number): void {
+    const data = this.perObjectDataCPU
+    if (!data) return
+    data[offsetFloats] = x
+    data[offsetFloats + 1] = y
+    data[offsetFloats + 2] = z
+    data[offsetFloats + 3] = w
+  }
+
   private updatePerObjectData(objects: RenderItem[]): number {
     if (!this.perObjectDataCPU) return 0
 
@@ -1306,8 +1339,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     const boneMatricesOffsetFloats = boneMatricesOffset / 4
     const boneCount = Math.min(mesh.skeleton.bones.length, mesh.skeleton.boneInverses.length, MAX_BONES)
     // The skinned shader applies modelMatrix after skinning, so uniforms stay mesh-local.
-    const meshWorldInverse = new Matrix4().copy(worldMatrix).invert()
-    const boneMatrix = new Matrix4()
+    const meshWorldInverse = this.skinnedMeshWorldInverse.copy(worldMatrix).invert()
+    const boneMatrix = this.skinnedBoneMatrix
 
     for (let i = 0; i < boneCount; i++) {
       const bone = mesh.skeleton.bones[i]!
@@ -1324,33 +1357,27 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
     if (!material || !material.visible) return
 
-    const normalMatrix = new Matrix4().copy(worldMatrix).invert().transpose()
+    const normalMatrix = this.meshNormalMatrix.copy(worldMatrix).invert().transpose()
 
     this.perObjectDataCPU!.set(worldMatrix.elements, offsetFloats)
     this.perObjectDataCPU!.set(normalMatrix.elements, offsetFloats + 16)
 
     if (material instanceof MeshBasicMaterial || material instanceof MeshLambertMaterial) {
-      this.perObjectDataCPU!.set(material.color.toArray(), offsetFloats + 32)
+      this.writePerObjectRgba(offsetFloats + 32, material.color)
     } else if (isRadialBackdropMaterial(material)) {
-      this.perObjectDataCPU!.set([material.base.r, material.base.g, material.base.b, material.base.a], offsetFloats + 32)
-      this.perObjectDataCPU!.set([material.glowA.r, material.glowA.g, material.glowA.b, material.glowA.a], offsetFloats + 36)
-      this.perObjectDataCPU!.set([material.glowB.r, material.glowB.g, material.glowB.b, material.glowB.a], offsetFloats + 40)
-      this.perObjectDataCPU!.set([material.width, material.height, 0, 0], offsetFloats + 44)
+      this.writePerObjectRgba(offsetFloats + 32, material.base)
+      this.writePerObjectRgba(offsetFloats + 36, material.glowA)
+      this.writePerObjectRgba(offsetFloats + 40, material.glowB)
+      this.writePerObjectVec4(offsetFloats + 44, material.width, material.height, 0, 0)
       this.perObjectDataCPU!.set(material.glowAParams, offsetFloats + 48)
       this.perObjectDataCPU!.set(material.glowBParams, offsetFloats + 52)
     } else if (material instanceof RoundedRectMaterial) {
       // fill rgba @ 32..35
-      this.perObjectDataCPU!.set(
-        [material.fill.r, material.fill.g, material.fill.b, material.fill.a],
-        offsetFloats + 32,
-      )
+      this.writePerObjectRgba(offsetFloats + 32, material.fill)
       // border rgba @ 36..39
-      this.perObjectDataCPU!.set(
-        [material.border.r, material.border.g, material.border.b, material.border.a],
-        offsetFloats + 36,
-      )
+      this.writePerObjectRgba(offsetFloats + 36, material.border)
       // size.xy + 2 pad @ 40..43
-      this.perObjectDataCPU!.set([material.width, material.height, 0, 0], offsetFloats + 40)
+      this.writePerObjectVec4(offsetFloats + 40, material.width, material.height, 0, 0)
       // radii tl/tr/br/bl @ 44..47
       // WGSL ожидает порядок (TR, BR, BL, TL) для quadrant-mapping —
       // но я переписал внутри sdRoundBox чтобы выбирать по квадранту
@@ -1358,10 +1385,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       // комментарий описывает соответствие.
       this.perObjectDataCPU!.set(material.radii, offsetFloats + 44)
       // params: borderWidth, opacity, 0, 0 @ 48..51
-      this.perObjectDataCPU!.set(
-        [material.borderWidth, clamp01(material.opacity), 0, 0],
-        offsetFloats + 48,
-      )
+      this.writePerObjectVec4(offsetFloats + 48, material.borderWidth, clamp01(material.opacity), 0, 0)
       // clipBounds @ 52..55 (zeros disable clip).
       if (material.clipBounds !== null) {
         this.perObjectDataCPU!.set(material.clipBounds, offsetFloats + 52)
@@ -1375,18 +1399,16 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       const sourceAspect = textureEntry !== undefined && textureEntry.width > 0 && textureEntry.height > 0
         ? textureEntry.width / textureEntry.height
         : 0
-      this.perObjectDataCPU!.set([vb.x, vb.y, vb.w, vb.h], offsetFloats + 40)
-      this.perObjectDataCPU!.set(
-        [
-          clamp01(material.opacity),
-          Math.max(0.0001, material.boxAspect),
-          material.fit === "contain" ? 1 : 0,
-          sourceAspect,
-        ],
+      this.writePerObjectVec4(offsetFloats + 40, vb.x, vb.y, vb.w, vb.h)
+      this.writePerObjectVec4(
         offsetFloats + 44,
+        clamp01(material.opacity),
+        Math.max(0.0001, material.boxAspect),
+        material.fit === "contain" ? 1 : 0,
+        sourceAspect,
       )
     } else if ((material as any).isGlassMaterial) {
-      this.perObjectDataCPU!.set((material as GlassMaterial).tintColor.toArray(), offsetFloats + 32)
+      this.writePerObjectRgba(offsetFloats + 32, (material as GlassMaterial).tintColor)
     }
   }
 
@@ -1394,13 +1416,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
     if (!material!.visible) return
 
-    const normalMatrix = new Matrix4().copy(worldMatrix).invert().transpose()
+    const normalMatrix = this.meshNormalMatrix.copy(worldMatrix).invert().transpose()
 
     this.perObjectDataCPU!.set(worldMatrix.elements, offsetFloats)
     this.perObjectDataCPU!.set(normalMatrix.elements, offsetFloats + 16)
 
     if (material! instanceof MeshBasicMaterial || material! instanceof MeshLambertMaterial) {
-      this.perObjectDataCPU!.set([...material!.color.toArray(), 1.0], offsetFloats + 32)
+      this.writePerObjectRgba(offsetFloats + 32, material!.color, 1.0)
     }
   }
 
@@ -1408,9 +1430,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if (!lines.visible) return
 
     this.perObjectDataCPU!.set(worldMatrix.elements, offsetFloats)
-    this.perObjectDataCPU!.set([0, 0, 0, 0], offsetFloats + 16)
-    this.perObjectDataCPU!.set([0, 0, 0, 0], offsetFloats + 20)
-    this.perObjectDataCPU!.set([0, 0, 0, 0], offsetFloats + 24)
+    this.writePerObjectVec4(offsetFloats + 16, 0, 0, 0, 0)
+    this.writePerObjectVec4(offsetFloats + 20, 0, 0, 0, 0)
+    this.writePerObjectVec4(offsetFloats + 24, 0, 0, 0, 0)
   }
 
   private updateLineData(lines: LineSegments, worldMatrix: Matrix4, offsetFloats: number): void {
@@ -1421,34 +1443,34 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if (!(isLineBasic || isLineGlow) || !material.visible) return
 
     this.perObjectDataCPU!.set(worldMatrix.elements, offsetFloats)
-    this.perObjectDataCPU!.set(
-      [material.color.r, material.color.g, material.color.b, material.color.a * material.opacity],
-      offsetFloats + 16,
-    )
+    this.writePerObjectRgba(offsetFloats + 16, material.color, material.color.a * material.opacity)
 
     let glowIntensity = 1.0
-    let glowColor = new Float32Array([0, 0, 0, 0])
+    let glowR = 0
+    let glowG = 0
+    let glowB = 0
+    let glowA = 0
 
     if (isLineGlow) {
       glowIntensity = (material as LineGlowMaterial).glowIntensity
       const glowColorObj = (material as LineGlowMaterial).glowColor
       if (glowColorObj) {
-        glowColor = new Float32Array(glowColorObj.toArray())
+        glowR = glowColorObj.r
+        glowG = glowColorObj.g
+        glowB = glowColorObj.b
+        glowA = glowColorObj.a
       }
     }
 
-    this.perObjectDataCPU!.set([glowIntensity, 0, 0, 0], offsetFloats + 20)
-    this.perObjectDataCPU!.set(glowColor, offsetFloats + 24)
+    this.writePerObjectVec4(offsetFloats + 20, glowIntensity, 0, 0, 0)
+    this.writePerObjectVec4(offsetFloats + 24, glowR, glowG, glowB, glowA)
   }
 
   private updateTextData(text: Text, worldMatrix: Matrix4, offsetFloats: number, isStencil: boolean): void {
     this.perObjectDataCPU!.set(worldMatrix.elements, offsetFloats)
     if (isStencil) return
     const material = text.material as TextMaterial
-    this.perObjectDataCPU!.set(
-      [material.color.r, material.color.g, material.color.b, material.color.a * material.opacity],
-      offsetFloats + 32,
-    )
+    this.writePerObjectRgba(offsetFloats + 32, material.color, material.color.a * material.opacity)
     // clipBounds (4 floats) at 36..40 — screen-pixel scissor.
     // perObjectDataCPU обнулён в начале фрейма; пропуск = clipping off
     // (clipBounds == zeros сигнализирует шейдеру выключение).
@@ -1589,12 +1611,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   private updateSceneUniforms(lights: LightItem[], viewMatrix: Matrix4): void {
     if (!this.device || !this.sceneUniformBuffer) return
 
-    const sceneData = new ArrayBuffer(SCENE_UNIFORMS_SIZE)
-    const float32View = new Float32Array(sceneData)
-    const uint32View = new Uint32Array(sceneData)
+    const float32View = this.sceneUniformFloats
+    const uint32View = this.sceneUniformUints
+    float32View.fill(0)
 
-    const viewNormalMatrix = new Matrix4().copy(viewMatrix).invert().transpose()
-
+    const viewNormalMatrix = this.sceneViewNormalMatrix.copy(viewMatrix).invert().transpose()
     float32View.set(viewMatrix.elements, 0)
     float32View.set(viewNormalMatrix.elements, 16)
 
@@ -1606,33 +1627,39 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     const tx = te[12]!
     const ty = te[13]!
     const tz = te[14]!
-    const cameraPosition = new Vector3(
+    const cameraPosition = this.sceneCameraPosition.set(
       -(te[0]! * tx + te[1]! * ty + te[2]! * tz),
       -(te[4]! * tx + te[5]! * ty + te[6]! * tz),
       -(te[8]! * tx + te[9]! * ty + te[10]! * tz),
     )
     // Записываем cameraPosition после lights (36 + 4*32 = 164)
     // 36 + 4*32 = 164 байта, что соответствует 41 элементу float32 (164/4 = 41)
-    float32View.set([cameraPosition.x, cameraPosition.y, cameraPosition.z], 41)
+    float32View[41] = cameraPosition.x
+    float32View[42] = cameraPosition.y
+    float32View[43] = cameraPosition.z
 
     const lightsArrayOffset = 36
     for (let i = 0; i < uint32View[32]!; i++) {
       const lightItem = lights[i]!
       const light = lightItem.light
-      const worldLightPos = new Vector3(
+      const viewLightPos = this.sceneWorldLightPosition.set(
         lightItem.worldMatrix.elements[12],
         lightItem.worldMatrix.elements[13],
         lightItem.worldMatrix.elements[14],
-      )
-      const viewLightPos = worldLightPos.applyMatrix4(viewMatrix)
+      ).applyMatrix4(viewMatrix)
 
       const currentLightOffset = lightsArrayOffset + i * (LIGHT_STRUCT_SIZE / 4)
-      float32View.set([viewLightPos.x, viewLightPos.y, viewLightPos.z, 1.0], currentLightOffset)
-
-      float32View.set([light.color.r, light.color.g, light.color.b, light.intensity], currentLightOffset + 4)
+      float32View[currentLightOffset] = viewLightPos.x
+      float32View[currentLightOffset + 1] = viewLightPos.y
+      float32View[currentLightOffset + 2] = viewLightPos.z
+      float32View[currentLightOffset + 3] = 1.0
+      float32View[currentLightOffset + 4] = light.color.r
+      float32View[currentLightOffset + 5] = light.color.g
+      float32View[currentLightOffset + 6] = light.color.b
+      float32View[currentLightOffset + 7] = light.intensity
     }
 
-    this.device.queue.writeBuffer(this.sceneUniformBuffer, 0, sceneData)
+    this.device.queue.writeBuffer(this.sceneUniformBuffer, 0, this.sceneUniformData)
   }
 
   private getOrCreateGeometryBuffers(geometry: BufferGeometry): GeometryBuffers {
@@ -1742,14 +1769,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         geometry.attributes.color.array as ArrayBufferView,
         GPUBufferUsage.VERTEX,
       )
-    } else {
-      // Для линий создаем буфер цвета, заполненный единицами (белый цвет)
-      const vertexCount = geometry.attributes.position!.count
-      const defaultColors = new Float32Array(vertexCount * 3)
-      for (let i = 0; i < vertexCount * 3; i++) {
-        defaultColors[i] = 1.0
-      }
-      colorBuffer = this.createAndUploadBuffer(defaultColors, GPUBufferUsage.VERTEX)
     }
 
     let indexBuffer: GPUBuffer | undefined
@@ -1774,6 +1793,17 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     this.geometryCache.set(geometry, buffers)
     return buffers
+  }
+
+  private getOrCreateDefaultLineColorBuffer(geometry: BufferGeometry, buffers: GeometryBuffers): GPUBuffer {
+    if (buffers.colorBuffer) return buffers.colorBuffer
+
+    const vertexCount = geometry.attributes.position!.count
+    const defaultColors = new Float32Array(vertexCount * 3)
+    defaultColors.fill(1)
+    const colorBuffer = this.createAndUploadBuffer(defaultColors, GPUBufferUsage.VERTEX)
+    buffers.colorBuffer = colorBuffer
+    return colorBuffer
   }
 
   private getImageBindGroup(material: ImageMaterial): GPUBindGroup {
@@ -1925,10 +1955,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if (passEncoder) {
       const boneMatricesOffset = dynamicOffset + PER_OBJECT_UNIFORM_SIZE
       passEncoder.setBindGroup(1, this.perObjectBindGroup, [dynamicOffset, boneMatricesOffset])
-      const {positionBuffer, colorBuffer} = this.getOrCreateGeometryBuffers(lines.geometry)
+      const buffers = this.getOrCreateGeometryBuffers(lines.geometry)
+      const colorBuffer = this.getOrCreateDefaultLineColorBuffer(lines.geometry, buffers)
 
-      passEncoder.setVertexBuffer(0, positionBuffer)
-      passEncoder.setVertexBuffer(1, colorBuffer || positionBuffer)
+      passEncoder.setVertexBuffer(0, buffers.positionBuffer)
+      passEncoder.setVertexBuffer(1, colorBuffer)
       passEncoder.draw(lines.geometry.attributes.position!.count)
     }
   }
@@ -1948,12 +1979,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if (passEncoder) {
       const boneMatricesOffset = dynamicOffset + PER_OBJECT_UNIFORM_SIZE
       passEncoder.setBindGroup(1, this.perObjectBindGroup, [dynamicOffset, boneMatricesOffset])
-      const {positionBuffer, colorBuffer, instanceBuffer} = this.getOrCreateGeometryBuffers(lines.geometry)
+      const buffers = this.getOrCreateGeometryBuffers(lines.geometry)
+      const colorBuffer = this.getOrCreateDefaultLineColorBuffer(lines.geometry, buffers)
 
-      passEncoder.setVertexBuffer(0, positionBuffer)
-      passEncoder.setVertexBuffer(1, colorBuffer || positionBuffer)
-      if (instanceBuffer) {
-        passEncoder.setVertexBuffer(2, instanceBuffer)
+      passEncoder.setVertexBuffer(0, buffers.positionBuffer)
+      passEncoder.setVertexBuffer(1, colorBuffer)
+      if (buffers.instanceBuffer) {
+        passEncoder.setVertexBuffer(2, buffers.instanceBuffer)
       }
       passEncoder.draw(lines.geometry.attributes.position!.count, lines.count)
     }
