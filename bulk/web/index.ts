@@ -1349,6 +1349,15 @@ class BulkRadialMenuPane extends UiSurface {
 		this.requestRender()
 	}
 
+	setCenter(center: {x: number; y: number}): void {
+		if (!this.#visible) return
+		if (Math.hypot(center.x - this.#center.x, center.y - this.#center.y) <= 0.25) return
+		this.#center = center
+		this.#hoveredSector = null
+		this.#pressedSector = null
+		this.requestRender()
+	}
+
 	close(): void {
 		if (!this.#visible) return
 		this.#visible = false
@@ -4273,15 +4282,32 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return bestTarget
 	}
 
-	const openRadialMenuForTarget = (target: HoverablePickTarget, fallbackClientX: number, fallbackClientY: number): void => {
-		cancelNavigation()
-		updateSceneWorldState()
+	const radialMenuCenterForTarget = (target: HoverablePickTarget, fallbackClientX?: number, fallbackClientY?: number): {x: number; y: number} | null => {
 		const canvasRect = options.canvas.getBoundingClientRect()
-		const centerPoint = projectWorldToClientPoint(target.center) ?? {x: fallbackClientX, y: fallbackClientY}
-		const center = {
+		if (canvasRect.width <= 0 || canvasRect.height <= 0) return null
+		const fallback = fallbackClientX !== undefined && fallbackClientY !== undefined
+			? {x: fallbackClientX, y: fallbackClientY}
+			: null
+		const centerPoint = projectWorldToClientPoint(target.center) ?? fallback
+		if (centerPoint === null) return null
+		return {
 			x: centerPoint.x - canvasRect.left,
 			y: centerPoint.y - canvasRect.top,
 		}
+	}
+
+	const syncRadialMenuAnchor = (): void => {
+		if (radialMenuPickTarget === null) return
+		const center = radialMenuCenterForTarget(radialMenuPickTarget)
+		if (center === null) return
+		radialMenuPane.setCenter(center)
+	}
+
+	const openRadialMenuForTarget = (target: HoverablePickTarget, fallbackClientX: number, fallbackClientY: number): void => {
+		cancelNavigation()
+		updateSceneWorldState()
+		const center = radialMenuCenterForTarget(target, fallbackClientX, fallbackClientY)
+		if (center === null) return
 		setHoveredPickTarget(target)
 		setRadialMenuPickTarget(target)
 		radialMenuPane.open(center)
@@ -4778,11 +4804,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		cancelNavigation()
 		cancelRadialMenuLongPress()
 		if (event.button !== 0) return
-		if (closeRadialMenuWithoutSceneAction(false)) {
-			event.preventDefault()
-			event.stopImmediatePropagation()
-			return
-		}
 		disableRootViewportFit()
 		isPrimaryPointerDown = true
 		pointerDownX = event.clientX
@@ -4842,7 +4863,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const wakeRenderFromCanvasWheel = (): void => {
 		disableRootViewportFit()
 		cancelNavigation()
-		closeRadialMenu()
 		requestRenderLoop(INPUT_RENDER_WAKE_MS)
 	}
 
@@ -4867,12 +4887,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const handleCanvasTouchStartForNavigation = (event: TouchEvent): void => {
-		if (radialMenuPickTarget !== null) {
-			resetCanvasTouchTap()
-			closeRadialMenuWithoutSceneAction()
-			event.stopImmediatePropagation()
-			return
-		}
 		if (event.touches.length !== 1 || event.changedTouches.length === 0) {
 			resetCanvasTouchTap()
 			return
@@ -4909,6 +4923,15 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		const touch = canvasTouchForTap(event)
 		if (touch === null) return
 		resetCanvasTouchTap()
+		if (radialMenuPickTarget !== null) {
+			if (!state.cancelled && !clickNavigationSuppressed && Math.hypot(touch.clientX - state.startX, touch.clientY - state.startY) <= BULK_TOUCH_TAP_MOVE_PX) {
+				closeRadialMenuWithoutSceneAction(false)
+				event.preventDefault()
+				event.stopImmediatePropagation()
+			}
+			clickNavigationSuppressed = false
+			return
+		}
 		if (state.cancelled || clickNavigationSuppressed || radialMenuPickTarget !== null) {
 			clickNavigationSuppressed = false
 			return
@@ -4935,13 +4958,13 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const handleCanvasClick = (event: MouseEvent): void => {
 		if (event.button !== 0) return
 		isPrimaryPointerDown = false
-		if (closeRadialMenuWithoutSceneAction()) {
-			event.preventDefault()
-			event.stopImmediatePropagation()
-			return
-		}
 		if (clickNavigationSuppressed) {
 			clickNavigationSuppressed = false
+			return
+		}
+		if (closeRadialMenuWithoutSceneAction(false)) {
+			event.preventDefault()
+			event.stopImmediatePropagation()
 			return
 		}
 		const hitTarget = hoveredPickTarget ?? pickTargetAtClientPoint(event.clientX, event.clientY, true)
@@ -4974,6 +4997,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const handleCanvasTouchStartForRadialMenu = (event: TouchEvent): void => {
 		cancelRadialMenuLongPress()
+		if (radialMenuPickTarget !== null) return
 		if (event.touches.length !== 1) {
 			closeRadialMenu()
 			return
@@ -5101,6 +5125,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		updateSceneWorldState()
 		applyNavigationFrame(timestamp)
 		const hasBotPhoneCameraMotion = applyBotPhoneCameraFlight()
+		syncRadialMenuAnchor()
 		syncBotPhoneHoverPane()
 
 		const activeShellRecord = calculateActiveShellRecord()
