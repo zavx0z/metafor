@@ -487,6 +487,25 @@ describe("TerminalPane control sequences", () => {
     }
   })
 
+  test("keeps toText fresh after writes and clear", () => {
+    const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false})
+    try {
+      terminal.write("alpha\r\nbeta")
+      expect(terminal.toText()).toBe("alpha\nbeta")
+
+      terminal.write("\r\ngamma")
+      expect(terminal.toText()).toBe("alpha\nbeta\ngamma")
+
+      terminal.clear()
+      expect(terminal.toText()).toBe("")
+
+      terminal.write("next")
+      expect(terminal.toText()).toBe("next")
+    } finally {
+      terminal.dispose()
+    }
+  })
+
   test("keeps scroll-region line feeds inside the configured margins", () => {
     const terminal = new TerminalPane({cols: 8, rows: 4, fitToRect: false})
     try {

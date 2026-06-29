@@ -618,8 +618,7 @@ class TerminalOutputPane extends UiSurface {
   }
 
   toText(): string {
-    return [...this.#scrollback, ...this.#screen]
-      .map((line) => trimRightCells(line.map((cell) => cell.ch).join("")))
+    return this.#terminalTextLines()
       .join("\n")
       .replace(/\n+$/g, "")
   }
