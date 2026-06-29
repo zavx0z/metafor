@@ -66,7 +66,7 @@ import {
 	resolveBulkPickHit,
 	resolveBulkPickHits,
 	resolveBulkViewportFitPose,
-	resolveBulkViewportFocusPose,
+	type BulkViewportFitAxis,
 	type BulkPickTarget,
 	type BulkHoverPriorityCandidate,
 } from "../web-navigation"
@@ -173,6 +173,7 @@ const FIELD_BILLBOARD_TITLE_PAD_X_PX = 10
 const FIELD_BILLBOARD_TITLE_Y_PX = 8
 const FIELD_BILLBOARD_TITLE_FONT_PX = 12
 const FIELD_BILLBOARD_TITLE_Z_MM = 0.7
+const NAVIGATION_VIEWPORT_FIT_PADDING_RATIO = 1.25
 const FIELD_LABEL_TITLE_MORPH_START_DISTANCE_RATIO = 4
 const FIELD_LABEL_TITLE_MORPH_END_DISTANCE_RATIO = 2
 const ANTHROPOMORPH_BOT_MODEL_URL = "/models/bots.glb"
@@ -465,7 +466,8 @@ const exitBulkFullscreen = async (): Promise<void> => {
 }
 
 type ViewNavigationState = {
-	fallbackFocusRadius: number
+	fallbackFitPoints: Vector3[]
+	fallbackFitRadius: number
 	fallbackTarget: Vector3
 	startedAt: number | null
 	startPose: BulkViewPose
@@ -664,6 +666,20 @@ const forceFieldOrder = (address: string): number | null => {
 	return oneBased - 1
 }
 
+const forcePositiveInteger = (value: unknown): number | null => {
+	if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) return value
+	if (typeof value !== "string" || !/^\d+$/.test(value)) return null
+	const numeric = Number(value)
+	return Number.isSafeInteger(numeric) && numeric > 0 ? numeric : null
+}
+
+const forceActorParticleId = (value: unknown): number | null => {
+	const actorId = forcePositiveInteger(value)
+	if (actorId === null) return null
+	const particleId = actorId * 2
+	return Number.isSafeInteger(particleId) ? particleId : null
+}
+
 const forceFieldValueKind = (value: unknown): DbFieldValueKind | null => {
 	const kind = forceString(value)
 	if (kind === "string" || kind === "number" || kind === "boolean" || kind === "array" || kind === "enum") return kind
@@ -683,6 +699,18 @@ const forceEnumValueText = (values: unknown): string | null => {
 	if (!Array.isArray(values)) return null
 	const variants = values.map((item) => forceString(item)).filter((item): item is string => item !== null)
 	return variants.length === 0 ? null : variants.join(" / ")
+}
+
+const forceValueText = (value: unknown): string | null => {
+	if (value === null || value === undefined) return null
+	if (typeof value === "string") return value
+	if (typeof value === "number" || typeof value === "boolean") return String(value)
+	if (Array.isArray(value)) return value.map((item) => forceValueText(item) ?? "").join(", ")
+	try {
+		return JSON.stringify(value)
+	} catch {
+		return String(value)
+	}
 }
 
 const getGeometryPositionArray = (geometry: BufferGeometry): Float32Array | null => {
@@ -2294,6 +2322,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	let clickNavigationSuppressed = false
 	let isPrimaryPointerDown = false
 	let navigationState: ViewNavigationState | null = null
+	let focusedViewportFitTargetKey: string | null = null
 	let rootFitLockedToViewport = true
 	let rootFitViewportWidth = options.width
 	let rootFitViewportHeight = options.height
@@ -2825,6 +2854,13 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return fieldOrder !== null && record.snapshot.fieldOrder === fieldOrder
 	}
 
+	const fieldRecordMatchesForceActorAddress = (record: FieldRenderRecord, actorParticleId: number, address: string): boolean => {
+		if (record.parentParticleId !== actorParticleId) return false
+		if (record.snapshot.fieldKey === address) return true
+		const fieldOrder = forceFieldOrder(address)
+		return fieldOrder !== null && record.snapshot.fieldOrder === fieldOrder
+	}
+
 	const syncForceChangedFieldRecords = (): void => {
 		refreshPickTargets()
 		syncLabelRecords()
@@ -2876,6 +2912,32 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			if (message.op !== "replace" || !isRecord(rawPatch)) continue
 			for (const record of records) {
 				applyHiggsReplaceFieldPatch(record, rawPatch)
+				changed = true
+			}
+		}
+
+		if (changed) syncForceChangedFieldRecords()
+		return changed
+	}
+
+	const applyGluonFieldsForce = (message: unknown): boolean => {
+		if (!isRecord(message) || message.part !== "gluon") return false
+		const actorParticleId = forceActorParticleId(message.path)
+		const value = isRecord(message.value) ? message.value : null
+		const fields = value !== null && isRecord(value.fields) ? value.fields : null
+		if (actorParticleId === null || fields === null) return false
+
+		let changed = false
+		for (const [address, rawValue] of Object.entries(fields)) {
+			const records = [...fieldRecords.values()].filter((record) => fieldRecordMatchesForceActorAddress(record, actorParticleId, address))
+			if (message.op !== "replace" && message.op !== "remove") continue
+			for (const record of records) {
+				record.snapshot = {
+					...record.snapshot,
+					valueText: message.op === "remove" ? null : forceValueText(rawValue),
+				}
+				refreshFieldRecordGeometryAndMaterial(record)
+				applyFieldRecordScale(record)
 				changed = true
 			}
 		}
@@ -3409,19 +3471,53 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		navigationState = null
 	}
 
-	const resolveNavigationFocusTarget = (): { focusRadius: number; target: Vector3 } | null => {
+	const clickFitAxisForViewport = (): BulkViewportFitAxis =>
+		viewPoint.aspect >= 1 ? "height" : "width"
+
+	const fitTargetForPickTarget = (target: HoverablePickTarget): { points: Vector3[]; radius: number; target: Vector3 } => {
+		if (target.kind === "shell") {
+			const record = shellRecords.get(target.particleId)
+			return {
+				points: record ? shellRecordViewportFitPoints(record) : [],
+				radius: target.outerRadius,
+				target: target.center.clone(),
+			}
+		}
+
+		const record = fieldRecords.get(target.fieldId)
+		const points = record ? fieldRecordViewportFitPoints(record) : []
+		const pointRadius = points.reduce(
+			(maxRadius, point) => Math.max(maxRadius, point.distanceTo(target.center)),
+			target.sphereRadius,
+		)
+
+		return {
+			points,
+			radius: pointRadius,
+			target: target.center.clone(),
+		}
+	}
+
+	const fitTargetForPickTargetKey = (targetKey: string): { points: Vector3[]; radius: number; target: Vector3 } | null => {
+		const liveTarget = pickTargets.find((target) => getPickTargetKey(target) === targetKey) ?? null
+		return liveTarget ? fitTargetForPickTarget(liveTarget) : null
+	}
+
+	const resolveNavigationFocusTarget = (): { points: Vector3[]; radius: number; target: Vector3 } | null => {
 		if (!navigationState) return null
 
 		if (navigationState.targetKey) {
-			const liveTarget = pickTargets.find((target) => getPickTargetKey(target) === navigationState!.targetKey) ?? null
-			if (liveTarget) {
-				navigationState.fallbackTarget.copy(liveTarget.center)
-				navigationState.fallbackFocusRadius = liveTarget.outerRadius
+			const fitTarget = fitTargetForPickTargetKey(navigationState.targetKey)
+			if (fitTarget) {
+				navigationState.fallbackTarget.copy(fitTarget.target)
+				navigationState.fallbackFitRadius = fitTarget.radius
+				navigationState.fallbackFitPoints = fitTarget.points.map((point) => point.clone())
 			}
 		}
 
 		return {
-			focusRadius: navigationState.fallbackFocusRadius,
+			points: navigationState.fallbackFitPoints,
+			radius: navigationState.fallbackFitRadius,
 			target: navigationState.fallbackTarget,
 		}
 	}
@@ -3751,7 +3847,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		if (rootShell === null) return
 		space.updateWorldMatrix()
 		const rootCenter = rootShellWorldCenter(rootShell)
-		const rootPoints = rootShellViewportFitPoints(rootShell)
+		const rootPoints = shellRecordViewportFitPoints(rootShell)
 		const rootOuterRadius = rootPoints.reduce(
 			(maxRadius, point) => Math.max(maxRadius, point.distanceTo(rootCenter)),
 			(rootShell.snapshot.shellRadius + rootShell.snapshot.shellTube) * rootShell.baseShellScale,
@@ -3779,7 +3875,41 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		rootFitLockedToViewport = false
 	}
 
-	const rootShellViewportFitPoints = (
+	const applyFocusedViewportFit = (): boolean => {
+		if (navigationState || focusedViewportFitTargetKey === null) return false
+		viewPoint.alignUpToWorldZ()
+		viewPoint.update()
+		updateSceneWorldState()
+		updateFieldBillboardTrackers()
+		space.updateWorldMatrix()
+		const fitTarget = fitTargetForPickTargetKey(focusedViewportFitTargetKey)
+		if (fitTarget === null) {
+			focusedViewportFitTargetKey = null
+			return false
+		}
+
+		const pose = resolveBulkViewportFitPose({
+			aspect: viewPoint.aspect,
+			currentPosition: viewPoint.position,
+			currentTarget: viewPoint.getTarget(),
+			fitAxis: clickFitAxisForViewport(),
+			fovRad: viewPoint.fov,
+			paddingRatio: NAVIGATION_VIEWPORT_FIT_PADDING_RATIO,
+			points: fitTarget.points,
+			radius: fitTarget.radius,
+			target: fitTarget.target,
+			up: viewPoint.getUp(),
+		})
+		applyViewPose({
+			position: pose.position,
+			target: pose.target,
+			up: viewPoint.getUp().clone(),
+		})
+		persistCurrentViewPose()
+		return true
+	}
+
+	const shellRecordViewportFitPoints = (
 		record: ShellRenderRecord,
 	): Vector3[] => {
 		const positions = getGeometryPositionArray(record.torus.geometry)
@@ -3802,6 +3932,34 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			points.push(point)
 		}
 
+		return points
+	}
+
+	const fieldRecordViewportFitPoints = (
+		record: FieldRenderRecord,
+	): Vector3[] => {
+		const points: Vector3[] = []
+		const positions = getGeometryPositionArray(record.node.geometry)
+		if (positions) {
+			for (let index = 0; index < positions.length; index += 3) {
+				points.push(new Vector3(
+					positions[index] ?? 0,
+					positions[index + 1] ?? 0,
+					positions[index + 2] ?? 0,
+				).applyMatrix4(record.node.matrixWorld))
+			}
+		}
+
+		const billboard = fieldBillboardRecords.get(record.snapshot.id)
+		if (!billboard) return points
+		const halfWidth = billboard.widthMm / 2
+		const halfHeight = billboard.heightMm / 2
+		points.push(
+			new Vector3(-halfWidth, -halfHeight, 0).applyMatrix4(billboard.container.matrixWorld),
+			new Vector3(halfWidth, -halfHeight, 0).applyMatrix4(billboard.container.matrixWorld),
+			new Vector3(-halfWidth, halfHeight, 0).applyMatrix4(billboard.container.matrixWorld),
+			new Vector3(halfWidth, halfHeight, 0).applyMatrix4(billboard.container.matrixWorld),
+		)
 		return points
 	}
 
@@ -4148,6 +4306,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const applyNavigationFrame = (timestamp: number): void => {
 		if (!navigationState) return
 		viewPoint.alignUpToWorldZ()
+		updateSceneWorldState()
 
 		const nextFocus = resolveNavigationFocusTarget()
 		if (!nextFocus) {
@@ -4155,12 +4314,17 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			return
 		}
 
-		const nextPose = resolveBulkViewportFocusPose({
+		const nextPose = resolveBulkViewportFitPose({
+			aspect: viewPoint.aspect,
 			currentPosition: navigationState.startPose.position,
 			currentTarget: navigationState.startPose.target,
-			nextTarget: nextFocus.target,
-			focusRadius: nextFocus.focusRadius,
+			fitAxis: clickFitAxisForViewport(),
 			fovRad: viewPoint.fov,
+			paddingRatio: NAVIGATION_VIEWPORT_FIT_PADDING_RATIO,
+			points: nextFocus.points,
+			radius: nextFocus.radius,
+			target: nextFocus.target,
+			up: navigationState.startPose.up,
 		})
 
 		if (navigationState.startedAt === null) navigationState.startedAt = timestamp
@@ -4173,18 +4337,26 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		if (linear >= 1) {
 			applyViewPose(endPose)
 			navigationState = null
+			persistCurrentViewPose()
 			return
 		}
 		applyViewPose(mixViewPose(navigationState.startPose, endPose, easeOutCubic(linear)))
 	}
 
 	const focusTarget = (target: HoverablePickTarget): void => {
+		rootFitLockedToViewport = false
+		focusedViewportFitTargetKey = getPickTargetKey(target)
 		viewPoint.alignUpToWorldZ()
 		viewPoint.update()
+		updateSceneWorldState()
+		updateFieldBillboardTrackers()
+		space.updateWorldMatrix()
+		const fitTarget = fitTargetForPickTarget(target)
 		lastAnimationTimestamp = 0
 		navigationState = {
-			fallbackFocusRadius: target.outerRadius,
-			fallbackTarget: target.center.clone(),
+			fallbackFitPoints: fitTarget.points.map((point) => point.clone()),
+			fallbackFitRadius: fitTarget.radius,
+			fallbackTarget: fitTarget.target.clone(),
 			startedAt: null,
 			startPose: captureViewPose(),
 			targetKey: getPickTargetKey(target),
@@ -4728,7 +4900,10 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		if (Math.hypot(touch.clientX - state.startX, touch.clientY - state.startY) > BULK_TOUCH_TAP_MOVE_PX) return
 		cancelRadialMenuLongPress()
 		const hitTarget = pickTargetAtClientPoint(touch.clientX, touch.clientY, true)
-		if (!hitTarget) return
+		if (!hitTarget) {
+			focusedViewportFitTargetKey = null
+			return
+		}
 		event.preventDefault()
 		event.stopImmediatePropagation()
 		setHoveredPickTarget(hitTarget)
@@ -4749,7 +4924,10 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			return
 		}
 		const hitTarget = hoveredPickTarget ?? pickTargetAtClientPoint(event.clientX, event.clientY, true)
-		if (!hitTarget) return
+		if (!hitTarget) {
+			focusedViewportFitTargetKey = null
+			return
+		}
 
 		focusTarget(hitTarget)
 	}
@@ -5010,6 +5188,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		},
 		handleForce(_channel: string, _message: unknown) {
 			applyHiggsFieldsForce(_message)
+			applyGluonFieldsForce(_message)
 		},
 		setAnimationSuspended(suspended: boolean) {
 			if (animationSuspended === suspended) return
@@ -5053,6 +5232,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			renderer.setSize(width, height)
 			viewPoint.setAspectRatio(width / height)
 			if (rootFitLockedToViewport) applyRootViewportFit({force: viewportSizeChanged})
+			else if (viewportSizeChanged) applyFocusedViewportFit()
 			hudRuntime.handleSize(width, height)
 			requestRenderLoop(INPUT_RENDER_WAKE_MS)
 		},

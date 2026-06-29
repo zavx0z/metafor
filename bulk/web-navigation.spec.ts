@@ -642,6 +642,61 @@ describe("bulk web navigation", () => {
     expect(portrait.position.distanceTo(portrait.target)).toBeGreaterThan(landscape.position.distanceTo(landscape.target))
   })
 
+  test("явный fitAxis вписывает сферу по ширине или высоте", () => {
+    const fovRad = Math.PI / 2
+    const radius = 100
+    const target = new Vector3(0, 0, 0)
+    const currentPosition = new Vector3(0, 0, 1000)
+    const currentTarget = target.clone()
+    const paddingRatio = 1
+
+    const portraitWidth = resolveBulkViewportFitPose({
+      aspect: 0.5,
+      currentPosition,
+      currentTarget,
+      fitAxis: "width",
+      fovRad,
+      paddingRatio,
+      radius,
+      target,
+    })
+    const portraitHeight = resolveBulkViewportFitPose({
+      aspect: 0.5,
+      currentPosition,
+      currentTarget,
+      fitAxis: "height",
+      fovRad,
+      paddingRatio,
+      radius,
+      target,
+    })
+    const landscapeWidth = resolveBulkViewportFitPose({
+      aspect: 2,
+      currentPosition,
+      currentTarget,
+      fitAxis: "width",
+      fovRad,
+      paddingRatio,
+      radius,
+      target,
+    })
+    const landscapeHeight = resolveBulkViewportFitPose({
+      aspect: 2,
+      currentPosition,
+      currentTarget,
+      fitAxis: "height",
+      fovRad,
+      paddingRatio,
+      radius,
+      target,
+    })
+
+    expect(portraitWidth.position.distanceTo(portraitWidth.target)).toBeCloseTo(200, 6)
+    expect(portraitHeight.position.distanceTo(portraitHeight.target)).toBeCloseTo(100, 6)
+    expect(landscapeWidth.position.distanceTo(landscapeWidth.target)).toBeCloseTo(50, 6)
+    expect(landscapeHeight.position.distanceTo(landscapeHeight.target)).toBeCloseTo(100, 6)
+  })
+
   test("для стартовой позы камеры использует экранную проекцию root geometry, если переданы точки", () => {
     const fovRad = Math.PI / 2
     const target = new Vector3(0, 0, 0)
@@ -680,6 +735,48 @@ describe("bulk web navigation", () => {
 
     expect(landscape.position.distanceTo(landscape.target)).toBeCloseTo(1, 6)
     expect(portrait.position.distanceTo(portrait.target)).toBeCloseTo(4, 6)
+  })
+
+  test("явный fitAxis выбирает сторону для geometry point fit", () => {
+    const fovRad = Math.PI / 2
+    const target = new Vector3(0, 0, 0)
+    const currentPosition = new Vector3(0, 0, 10)
+    const currentTarget = target.clone()
+    const up = new Vector3(0, 1, 0)
+    const points = [
+      new Vector3(-3, -2, 0),
+      new Vector3(3, -2, 0),
+      new Vector3(-3, 2, 0),
+      new Vector3(3, 2, 0),
+    ]
+
+    const widthFit = resolveBulkViewportFitPose({
+      aspect: 2,
+      currentPosition,
+      currentTarget,
+      fitAxis: "width",
+      fovRad,
+      paddingRatio: 1,
+      points,
+      radius: 0.001,
+      target,
+      up,
+    })
+    const heightFit = resolveBulkViewportFitPose({
+      aspect: 2,
+      currentPosition,
+      currentTarget,
+      fitAxis: "height",
+      fovRad,
+      paddingRatio: 1,
+      points,
+      radius: 0.001,
+      target,
+      up,
+    })
+
+    expect(widthFit.position.distanceTo(widthFit.target)).toBeCloseTo(1.5, 6)
+    expect(heightFit.position.distanceTo(heightFit.target)).toBeCloseTo(2, 6)
   })
 
   test("для стартовой позы камеры центрирует экранный bounding-box root geometry", () => {

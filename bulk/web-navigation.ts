@@ -48,6 +48,7 @@ export interface ResolveBulkViewportFitPoseOptions {
   aspect: number
   currentPosition: Vector3
   currentTarget: Vector3
+  fitAxis?: BulkViewportFitAxis
   fovRad: number
   paddingRatio?: number
   points?: readonly Vector3[]
@@ -60,6 +61,8 @@ export interface BulkViewportFocusPose {
   position: Vector3
   target: Vector3
 }
+
+export type BulkViewportFitAxis = "auto" | "height" | "width"
 
 export interface ResolveBulkHoverTransitionOptions {
   currentTarget: BulkPickTarget | null
@@ -454,6 +457,7 @@ export const resolveBulkViewportFitPose = ({
   aspect,
   currentPosition,
   currentTarget,
+  fitAxis = "auto",
   fovRad,
   paddingRatio = 1.08,
   points = [],
@@ -467,11 +471,13 @@ export const resolveBulkViewportFitPose = ({
   const safePaddingRatio = Number.isFinite(paddingRatio) ? Math.max(1, paddingRatio) : 1.08
   const safeHalfVerticalFov = Math.max(0.1, fovRad / 2)
   const safeAspect = Math.max(0.1, aspect)
+  const safeFitAxis: BulkViewportFitAxis = fitAxis === "height" || fitAxis === "width" ? fitAxis : "auto"
   const safeHalfHorizontalFov = Math.max(0.1, Math.atan(Math.tan(safeHalfVerticalFov) * safeAspect))
   const verticalTan = Math.tan(safeHalfVerticalFov)
   const horizontalTan = Math.tan(safeHalfHorizontalFov)
   const pointFitDistance = resolveProjectedFitDistance({
     direction: safeDirection,
+    fitAxis: safeFitAxis,
     horizontalTan,
     paddingRatio: safePaddingRatio,
     points,
@@ -480,9 +486,14 @@ export const resolveBulkViewportFitPose = ({
     up,
     verticalTan,
   })
-  let fitDistance = pointFitDistance ?? Math.max(
-    (safeRadius * safePaddingRatio) / verticalTan,
-    (safeRadius * safePaddingRatio) / horizontalTan,
+  const heightFitDistance = (safeRadius * safePaddingRatio) / verticalTan
+  const widthFitDistance = (safeRadius * safePaddingRatio) / horizontalTan
+  let fitDistance = pointFitDistance ?? (
+    safeFitAxis === "width"
+      ? widthFitDistance
+      : safeFitAxis === "height"
+        ? heightFitDistance
+        : Math.max(heightFitDistance, widthFitDistance)
   )
   const fitTarget = target.clone()
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -499,6 +510,7 @@ export const resolveBulkViewportFitPose = ({
     fitTarget.add(centerOffset)
     const nextFitDistance = resolveProjectedFitDistance({
       direction: safeDirection,
+      fitAxis: safeFitAxis,
       horizontalTan,
       paddingRatio: safePaddingRatio,
       points,
@@ -574,6 +586,7 @@ const resolveProjectedFitCenterOffset = ({
 
 const resolveProjectedFitDistance = ({
   direction,
+  fitAxis,
   horizontalTan,
   paddingRatio,
   points,
@@ -583,6 +596,7 @@ const resolveProjectedFitDistance = ({
   verticalTan,
 }: {
   direction: Vector3
+  fitAxis: BulkViewportFitAxis
   horizontalTan: number
   paddingRatio: number
   points: readonly Vector3[]
@@ -610,10 +624,15 @@ const resolveProjectedFitDistance = ({
     const x = Math.abs(offset.dot(right))
     const y = Math.abs(offset.dot(screenUp))
     if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(depthOffset)) continue
+    const widthDistance = (x * paddingRatio) / safeHorizontalTan - depthOffset
+    const heightDistance = (y * paddingRatio) / safeVerticalTan - depthOffset
     distance = Math.max(
       distance,
-      (x * paddingRatio) / safeHorizontalTan - depthOffset,
-      (y * paddingRatio) / safeVerticalTan - depthOffset,
+      fitAxis === "width"
+        ? widthDistance
+        : fitAxis === "height"
+          ? heightDistance
+          : Math.max(widthDistance, heightDistance),
     )
     projected = true
   }
