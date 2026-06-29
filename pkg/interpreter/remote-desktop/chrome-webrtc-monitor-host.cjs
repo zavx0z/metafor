@@ -1726,20 +1726,31 @@ function resolveAudioTargets() {
     const result = spawnSync("pw-dump", {encoding: "utf8", maxBuffer: 8 * 1024 * 1024})
     if (result.status !== 0) throw new Error((result.stderr || "pw-dump failed").trim())
     const nodes = JSON.parse(result.stdout)
+    const sinkTargets = resolveAudioSinkTargets(nodes)
+    if (sinkTargets.length > 0) return sinkTargets
     const chromeStreamTargets = resolveChromeAudioStreamTargets(nodes)
     if (chromeStreamTargets.length > 0) return chromeStreamTargets
-    const sinks = nodes
-      .filter((node) => node?.type === "PipeWire:Interface:Node" && node?.info?.props?.["media.class"] === "Audio/Sink")
-      .map((node) => ({id: node.id, state: node.info?.state || "", name: node.info?.props?.["node.name"] || ""}))
-      .filter((node) => Number.isFinite(Number(node.id)))
-    const target = sinks.find((node) => node.state === "running") ?? sinks[0] ?? null
-    if (target !== null) return [String(target.id)]
     throw new Error("pw-dump returned no Audio/Sink nodes")
   } catch (error) {
     state.audioPcm.lastError = error instanceof Error ? error.message : String(error)
     state.remoteDesktop.audio.lastError = state.audioPcm.lastError
     return []
   }
+}
+
+function resolveAudioSinkTargets(nodes) {
+  if (!Array.isArray(nodes)) return []
+  const sinks = nodes
+    .filter((node) => node?.type === "PipeWire:Interface:Node" && node?.info?.props?.["media.class"] === "Audio/Sink")
+    .map((node) => ({
+      id: node.id,
+      state: node.info?.state || "",
+      name: node.info?.props?.["node.name"] || "",
+      serial: Number(node.info?.props?.["object.serial"]) || 0,
+    }))
+    .filter((node) => Number.isFinite(Number(node.id)))
+  const target = sinks.find((node) => node.state === "running") ?? sinks[0] ?? null
+  return target === null ? [] : [String(target.id)]
 }
 
 function resolveChromeAudioStreamTargets(nodes) {
@@ -1753,6 +1764,7 @@ function resolveChromeAudioStreamTargets(nodes) {
       binary: String(node.info?.props?.["application.process.binary"] || ""),
       name: String(node.info?.props?.["node.name"] || ""),
       mediaName: String(node.info?.props?.["media.name"] || ""),
+      serial: Number(node.info?.props?.["object.serial"]) || 0,
     }))
     .filter((node) => Number.isFinite(Number(node.id)))
   const chromeStreams = streams.filter((node) => (
@@ -1760,11 +1772,16 @@ function resolveChromeAudioStreamTargets(nodes) {
     || node.binary === "chrome"
     || node.name === "Google Chrome"
   ))
-  return uniqueStrings([
-    ...chromeStreams.filter((node) => node.state === "running").map((node) => String(node.id)),
-    ...chromeStreams.filter((node) => node.mediaName === "Playback").map((node) => String(node.id)),
-    ...chromeStreams.map((node) => String(node.id)),
-  ]).slice(0, 12)
+  const ranked = chromeStreams.map((node) => ({
+    node,
+    score: (node.state === "running" ? 4 : 0) + (node.mediaName === "Playback" ? 2 : 0),
+  })).sort((left, right) => (
+    right.score - left.score
+    || right.node.serial - left.node.serial
+    || Number(right.node.id) - Number(left.node.id)
+  ))
+  const target = ranked[0]?.node ?? null
+  return target === null ? [] : [String(target.id)]
 }
 
 function audioPcmGstArgs(targets) {
