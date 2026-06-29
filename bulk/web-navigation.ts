@@ -1,27 +1,27 @@
 import { Ray, Vector3 } from "@metafor/engine"
 
-export interface BulkShellPickTarget {
+export interface BulkDarkParticlePickTarget {
   center: Vector3
   depth: number
-  kind: "shell"
+  kind: "darkParticle"
   outerRadius: number
-  parentParticleId: number | null
-  particleId: number
-  shellRadius: number
-  shellTube: number
+  parentDarkParticleId: number | null
+  darkParticleId: number
+  torusRadius: number
+  torusTube: number
 }
 
-export interface BulkFieldPickTarget {
+export interface BulkFieldParticlePickTarget {
   center: Vector3
   depth: number
-  particleId: number
-  fieldId: number
-  kind: "field"
+  parentDarkParticleId: number
+  fieldParticleId: number
+  kind: "fieldParticle"
   outerRadius: number
   sphereRadius: number
 }
 
-export type BulkPickTarget = BulkShellPickTarget | BulkFieldPickTarget
+export type BulkPickTarget = BulkDarkParticlePickTarget | BulkFieldParticlePickTarget
 
 export interface ResolveBulkPickTargetOptions {
   hitPaddingMm?: number
@@ -88,7 +88,7 @@ export interface ResolveBulkHoverPriorityTargetOptions {
   candidates: readonly BulkHoverPriorityCandidate[]
   currentTarget: BulkPickTarget | null
   hysteresisPx?: number
-  parentByParticleId?: ReadonlyMap<number, number | null>
+  parentByDarkParticleId?: ReadonlyMap<number, number | null>
 }
 
 export interface BulkClientPoint {
@@ -131,42 +131,42 @@ const resolveRaySphereDistanceRange = (
   }
 }
 
-const resolveFieldHitDistance = (
+const resolveFieldParticleHitDistance = (
   ray: Ray,
-  target: BulkFieldPickTarget,
+  target: BulkFieldParticlePickTarget,
   hitPaddingMm: number,
 ): number | null => {
   const range = resolveRaySphereDistanceRange(ray, target.center, target.sphereRadius + hitPaddingMm)
   return range ? range.start : null
 }
 
-const getShellSignedDistance = (
+const getDarkParticleTorusSignedDistance = (
   point: Vector3,
-  target: BulkShellPickTarget,
-  expandedShellTube: number,
+  target: BulkDarkParticlePickTarget,
+  expandedTorusTube: number,
 ): number => {
   const localX = point.x - target.center.x
   const localY = point.y - target.center.y
   const localZ = point.z - target.center.z
   const radialDistance = Math.hypot(localX, localY)
-  return Math.hypot(radialDistance - target.shellRadius, localZ) - expandedShellTube
+  return Math.hypot(radialDistance - target.torusRadius, localZ) - expandedTorusTube
 }
 
-const resolveShellHitDistance = (
+const resolveDarkParticleHitDistance = (
   ray: Ray,
-  target: BulkShellPickTarget,
+  target: BulkDarkParticlePickTarget,
   hitPaddingMm: number,
 ): number | null => {
-  const expandedShellTube = target.shellTube + hitPaddingMm
-  const bounds = resolveRaySphereDistanceRange(ray, target.center, target.shellRadius + expandedShellTube)
+  const expandedTorusTube = target.torusTube + hitPaddingMm
+  const bounds = resolveRaySphereDistanceRange(ray, target.center, target.torusRadius + expandedTorusTube)
   if (!bounds) return null
 
-  const epsilon = Math.max(0.75, expandedShellTube * 0.02)
+  const epsilon = Math.max(0.75, expandedTorusTube * 0.02)
   let distance = bounds.start
 
   for (let step = 0; step < 48 && distance <= bounds.end; step += 1) {
     const point = ray.at(distance, new Vector3())
-    const signedDistance = getShellSignedDistance(point, target, expandedShellTube)
+    const signedDistance = getDarkParticleTorusSignedDistance(point, target, expandedTorusTube)
     if (signedDistance <= epsilon) return distance
     distance += Math.max(signedDistance * 0.9, epsilon)
   }
@@ -180,22 +180,23 @@ const compareBulkPickHits = (left: BulkPickHit, right: BulkPickHit): number => {
 }
 
 const getPickTargetKey = (target: BulkPickTarget): string => {
-  return target.kind === "field" ? `field:${target.fieldId}` : `shell:${target.particleId}`
+  return target.kind === "fieldParticle" ? `fieldParticle:${target.fieldParticleId}` : `darkParticle:${target.darkParticleId}`
 }
 
-const getPickParticleId = (target: BulkPickTarget): number => target.particleId
+const getPickParentDarkParticleId = (target: BulkPickTarget): number =>
+  target.kind === "fieldParticle" ? target.parentDarkParticleId : target.darkParticleId
 
-const resolveParticleDistanceToAncestor = (
-  parentByParticleId: ReadonlyMap<number, number | null>,
-  ancestorParticleId: number,
-  descendantParticleId: number,
+const resolveDarkParticleDistanceToAncestor = (
+  parentByDarkParticleId: ReadonlyMap<number, number | null>,
+  ancestorDarkParticleId: number,
+  descendantDarkParticleId: number,
 ): number | null => {
-  let cursor: number | null = descendantParticleId
+  let cursor: number | null = descendantDarkParticleId
   let distance = 0
 
   while (cursor !== null) {
-    if (cursor === ancestorParticleId) return distance
-    cursor = parentByParticleId.get(cursor) ?? null
+    if (cursor === ancestorDarkParticleId) return distance
+    cursor = parentByDarkParticleId.get(cursor) ?? null
     distance += 1
   }
 
@@ -208,9 +209,9 @@ export const resolveBulkPickHit = (
   options: ResolveBulkPickTargetOptions = {},
 ): BulkPickHit | null => {
   const hitPaddingMm = options.hitPaddingMm ?? DEFAULT_HIT_PADDING_MM
-  const distance = target.kind === "field"
-    ? resolveFieldHitDistance(ray, target, hitPaddingMm)
-    : resolveShellHitDistance(ray, target, hitPaddingMm)
+  const distance = target.kind === "fieldParticle"
+    ? resolveFieldParticleHitDistance(ray, target, hitPaddingMm)
+    : resolveDarkParticleHitDistance(ray, target, hitPaddingMm)
 
   return distance === null ? null : { target, distance }
 }
@@ -304,7 +305,7 @@ export const resolveBulkHoverPriorityTarget = ({
   candidates,
   currentTarget,
   hysteresisPx = DEFAULT_HOVER_SCORE_HYSTERESIS_PX,
-  parentByParticleId,
+  parentByDarkParticleId,
 }: ResolveBulkHoverPriorityTargetOptions): BulkPickTarget | null => {
   if (candidates.length === 0) return null
 
@@ -316,13 +317,13 @@ export const resolveBulkHoverPriorityTarget = ({
   if (!currentCandidate) return bestCandidate.target
   if (getPickTargetKey(bestCandidate.target) === getPickTargetKey(currentTarget)) return currentCandidate.target
 
-  if (parentByParticleId) {
-    const currentParticleId = getPickParticleId(currentTarget)
-    const bestParticleId = getPickParticleId(bestCandidate.target)
-    const descendantDistance = resolveParticleDistanceToAncestor(
-      parentByParticleId,
-      currentParticleId,
-      bestParticleId,
+  if (parentByDarkParticleId) {
+    const currentDarkParticleId = getPickParentDarkParticleId(currentTarget)
+    const bestDarkParticleId = getPickParentDarkParticleId(bestCandidate.target)
+    const descendantDistance = resolveDarkParticleDistanceToAncestor(
+      parentByDarkParticleId,
+      currentDarkParticleId,
+      bestDarkParticleId,
     )
 
     if (descendantDistance !== null && descendantDistance > 0) {
@@ -342,27 +343,27 @@ export const resolveBulkDirectionalHoverTarget = (
   hits: readonly BulkPickHit[],
   currentTarget: BulkPickTarget | null,
   hoverDirection: BulkHoverDirection,
-  parentByParticleId: ReadonlyMap<number, number | null>,
+  parentByDarkParticleId: ReadonlyMap<number, number | null>,
 ): BulkPickTarget | null => {
   if (!currentTarget) return hits[0]?.target ?? null
 
   const currentTargetKey = getPickTargetKey(currentTarget)
-  const currentParticleId = getPickParticleId(currentTarget)
+  const currentDarkParticleId = getPickParentDarkParticleId(currentTarget)
   const selfHit = hits.find((hit) => getPickTargetKey(hit.target) === currentTargetKey)
 
   if (hoverDirection > 0) {
     if (selfHit) return selfHit.target
 
     let closestAncestorHit: BulkPickHit | null = null
-    let ancestorParticleId = parentByParticleId.get(currentParticleId) ?? null
+    let ancestorDarkParticleId = parentByDarkParticleId.get(currentDarkParticleId) ?? null
 
-    while (ancestorParticleId !== null) {
-      const ancestorHit = hits.find((hit) => getPickParticleId(hit.target) === ancestorParticleId)
+    while (ancestorDarkParticleId !== null) {
+      const ancestorHit = hits.find((hit) => getPickParentDarkParticleId(hit.target) === ancestorDarkParticleId)
       if (ancestorHit) {
         closestAncestorHit = ancestorHit
         break
       }
-      ancestorParticleId = parentByParticleId.get(ancestorParticleId) ?? null
+      ancestorDarkParticleId = parentByDarkParticleId.get(ancestorDarkParticleId) ?? null
     }
 
     if (closestAncestorHit) return closestAncestorHit.target
@@ -373,13 +374,13 @@ export const resolveBulkDirectionalHoverTarget = (
     let closestDescendantDistance = Number.POSITIVE_INFINITY
 
     for (const hit of hits) {
-      const candidateParticleId = getPickParticleId(hit.target)
-      if (candidateParticleId === currentParticleId) continue
+      const candidateDarkParticleId = getPickParentDarkParticleId(hit.target)
+      if (candidateDarkParticleId === currentDarkParticleId) continue
 
-      const distanceToCurrent = resolveParticleDistanceToAncestor(
-        parentByParticleId,
-        currentParticleId,
-        candidateParticleId,
+      const distanceToCurrent = resolveDarkParticleDistanceToAncestor(
+        parentByDarkParticleId,
+        currentDarkParticleId,
+        candidateDarkParticleId,
       )
       if (distanceToCurrent === null || distanceToCurrent <= 0) continue
       if (distanceToCurrent > closestDescendantDistance) continue

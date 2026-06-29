@@ -1,39 +1,44 @@
-/** Runtime-проекция мира для визуализации Bulk. */
+/** Runtime projection contract for Bulk visualization. */
 
-export type DbParticleKind = "wimp" | "fuzzy" | "axion" | "macho"
+export type BulkDarkParticleKind = "wimp" | "fuzzy" | "macho" | "axion"
 
-export type DbFieldValueKind = "string" | "number" | "boolean" | "array" | "enum" | "other"
+export type BulkOrdinaryFieldKind = "string" | "number" | "boolean"
 
-export type DbParticleActivity = "neutral" | "active" | "inactive"
+export type BulkLegacyFieldKind = "enum" | "array" | "other"
 
-export interface DbParticleShellRow {
-  particleId: number
-  parentParticleId: number | null
-  kind: DbParticleKind
+// TODO: enum/array are connectivity particles and should be manifested as Fuzzy/MACHO, not ordinary field particles.
+export type BulkFieldParticleKind = BulkOrdinaryFieldKind | BulkLegacyFieldKind
+
+export type BulkDarkParticleActivity = "neutral" | "active" | "inactive"
+
+export interface BulkDarkParticle {
+  darkParticleId: number
+  parentDarkParticleId: number | null
+  darkParticleKind: BulkDarkParticleKind
   src: string | null
   metaSrc: string | null
   label: string
   depth: number
-  shellOrder: number
+  darkParticleOrder: number
   localX: number
   localY: number
   localZ: number
-  shellScale: number
-  shellRadius: number
-  shellTube: number
+  torusScale: number
+  torusRadius: number
+  torusTube: number
   colorR: number
   colorG: number
   colorB: number
-  activity?: DbParticleActivity
+  activity?: BulkDarkParticleActivity
 }
 
-export interface DbFieldOrbitRow {
-  id: number
-  particleId: number
+export interface BulkFieldParticle {
+  fieldParticleId: number
+  parentDarkParticleId: number
   fieldKey: string
   fieldLabel: string
   fieldOrder: number
-  fieldValueKind: DbFieldValueKind
+  fieldParticleKind: BulkFieldParticleKind
   valueText: string | null
   localX: number
   localY: number
@@ -44,14 +49,14 @@ export interface DbFieldOrbitRow {
   colorB: number
 }
 
-export interface DbWorldRows {
+export interface BulkManifest {
   rootSrc: string
-  particles: DbParticleShellRow[]
-  fields: DbFieldOrbitRow[]
+  darkParticles: BulkDarkParticle[]
+  fieldParticles: BulkFieldParticle[]
 }
 
-export interface DbWorldRowSink {
-  clearWorld(rootSrc: string): Promise<void> | void
-  insertParticleShell(rootSrc: string, row: DbParticleShellRow): Promise<void> | void
-  insertFieldOrbit(rootSrc: string, row: DbFieldOrbitRow): Promise<void> | void
+export interface BulkManifestSink {
+  clearManifest(rootSrc: string): Promise<void> | void
+  insertDarkParticle(rootSrc: string, particle: BulkDarkParticle): Promise<void> | void
+  insertFieldParticle(rootSrc: string, particle: BulkFieldParticle): Promise<void> | void
 }

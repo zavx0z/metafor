@@ -13,14 +13,16 @@
 - `Energy` получает рантайм-данные и ведёт переход состояния.
 - `Bulk` получает события проекции/рантайма и проявляет сцену.
 - `Bulk` не читает `Boundary`/SQLite как скрытый загрузчик.
-- `AppWeb` получает готовые события рендера / строки мира и остаётся вьюпорт-клиентом.
+- `AppWeb` получает готовые события рендера / manifest items и остаётся вьюпорт-клиентом.
+- Torus/Sphere are geometry names, not ontology names.
+- Row is not part of Bulk vocabulary because Bulk manifest is not persistence.
 
 ## Контракт Проекции
 
 Проекция должна быть отдельным Bulk-контрактом:
 
-- shell carriers;
-- field orbits;
+- Dark particles: WIMP/Fuzzy/MACHO/Axion manifested as torus geometry;
+- Field particles: String/Number/Boolean manifested as sphere geometry;
 - parent/depth/topology relation;
 - layout coordinates в Z-up/mm;
 - colors/labels/visibility;

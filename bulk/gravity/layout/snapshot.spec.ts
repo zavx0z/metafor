@@ -1,112 +1,112 @@
 import { describe, expect, test } from "bun:test"
 import {
-  createDbWorldRowsFromParticleDescriptors,
-  scaleDbWorldRowsToRootOuterDiameter,
-  type DbWorldParticleDescriptor,
+  createBulkManifestFromDarkParticleInputs,
+  scaleBulkManifestToRootOuterDiameter,
+  type BulkDarkParticleInput,
 } from "./snapshot"
 import { DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG } from "./settings"
-import type { DbFieldOrbitRow, DbParticleShellRow, DbWorldRows } from "./world"
+import type { BulkDarkParticle, BulkFieldParticle, BulkManifest } from "./world"
 
-const createField = (id: number) => ({
-  id,
-  fieldKey: String(id),
-  fieldLabel: String(id),
-  fieldValueKind: "string" as const,
-  valueText: String(id),
+const createFieldParticle = (fieldParticleId: number) => ({
+  fieldParticleId,
+  fieldKey: String(fieldParticleId),
+  fieldLabel: String(fieldParticleId),
+  fieldParticleKind: "string" as const,
+  valueText: String(fieldParticleId),
   colorR: 1,
   colorG: 1,
   colorB: 1,
 })
 
-const createParticle = (
-  particleId: number,
-  children: DbWorldParticleDescriptor[] = [],
-  fieldIds: number[] = [],
-): DbWorldParticleDescriptor => ({
-  particleId,
-  kind: "wimp",
-  src: String(particleId),
-  metaSrc: String(particleId),
-  label: String(particleId),
+const createDarkParticle = (
+  darkParticleId: number,
+  children: BulkDarkParticleInput[] = [],
+  fieldParticleIds: number[] = [],
+): BulkDarkParticleInput => ({
+  darkParticleId,
+  darkParticleKind: "wimp",
+  src: String(darkParticleId),
+  metaSrc: String(darkParticleId),
+  label: String(darkParticleId),
   colorR: 0.4,
   colorG: 0.45,
   colorB: 0.98,
-  fields: fieldIds.map(createField),
+  fieldParticles: fieldParticleIds.map(createFieldParticle),
   children,
 })
 
-const getOuterRadius = (particle: DbParticleShellRow): number =>
-  particle.shellRadius + particle.shellTube
+const getOuterRadius = (darkParticle: BulkDarkParticle): number =>
+  darkParticle.torusRadius + darkParticle.torusTube
 
-const getInnerRadius = (particle: DbParticleShellRow): number =>
-  particle.shellRadius - particle.shellTube
+const getInnerRadius = (darkParticle: BulkDarkParticle): number =>
+  darkParticle.torusRadius - darkParticle.torusTube
 
-const getParticle = (snapshot: DbWorldRows, particleId: number): DbParticleShellRow => {
-  const particle = snapshot.particles.find((row) => row.particleId === particleId)
-  expect(particle).toBeDefined()
-  return particle!
+const getDarkParticle = (manifest: BulkManifest, darkParticleId: number): BulkDarkParticle => {
+  const darkParticle = manifest.darkParticles.find((item) => item.darkParticleId === darkParticleId)
+  expect(darkParticle).toBeDefined()
+  return darkParticle!
 }
 
-const getField = (snapshot: DbWorldRows, id: number): DbFieldOrbitRow => {
-  const field = snapshot.fields.find((row) => row.id === id)
-  expect(field).toBeDefined()
-  return field!
+const getFieldParticle = (manifest: BulkManifest, fieldParticleId: number): BulkFieldParticle => {
+  const fieldParticle = manifest.fieldParticles.find((item) => item.fieldParticleId === fieldParticleId)
+  expect(fieldParticle).toBeDefined()
+  return fieldParticle!
 }
 
-const expectSnapshotContentInsideParents = (snapshot: DbWorldRows): void => {
-  const particlesById = new Map(snapshot.particles.map((particle) => [particle.particleId, particle]))
+const expectManifestContentInsideParents = (manifest: BulkManifest): void => {
+  const darkParticlesById = new Map(manifest.darkParticles.map((darkParticle) => [darkParticle.darkParticleId, darkParticle]))
 
-  for (const particle of snapshot.particles) {
-    if (particle.parentParticleId === null) continue
-    const parent = particlesById.get(particle.parentParticleId)
+  for (const darkParticle of manifest.darkParticles) {
+    if (darkParticle.parentDarkParticleId === null) continue
+    const parent = darkParticlesById.get(darkParticle.parentDarkParticleId)
     expect(parent).toBeDefined()
-    expect(Math.hypot(particle.localX, particle.localY) - getOuterRadius(particle)).toBeGreaterThanOrEqual(
+    expect(Math.hypot(darkParticle.localX, darkParticle.localY) - getOuterRadius(darkParticle)).toBeGreaterThanOrEqual(
       getInnerRadius(parent!) - 0.001,
     )
-    expect(Math.hypot(particle.localX, particle.localY) + getOuterRadius(particle)).toBeLessThanOrEqual(
+    expect(Math.hypot(darkParticle.localX, darkParticle.localY) + getOuterRadius(darkParticle)).toBeLessThanOrEqual(
       getOuterRadius(parent!) + 0.001,
     )
   }
 
-  for (const field of snapshot.fields) {
-    const parent = particlesById.get(field.particleId)
+  for (const fieldParticle of manifest.fieldParticles) {
+    const parent = darkParticlesById.get(fieldParticle.parentDarkParticleId)
     expect(parent).toBeDefined()
-    expect(Math.hypot(field.localX, field.localY) - field.sphereRadius).toBeGreaterThanOrEqual(
+    expect(Math.hypot(fieldParticle.localX, fieldParticle.localY) - fieldParticle.sphereRadius).toBeGreaterThanOrEqual(
       getInnerRadius(parent!) - 0.001,
     )
-    expect(Math.hypot(field.localX, field.localY) + field.sphereRadius).toBeLessThanOrEqual(
+    expect(Math.hypot(fieldParticle.localX, fieldParticle.localY) + fieldParticle.sphereRadius).toBeLessThanOrEqual(
       getOuterRadius(parent!) + 0.001,
     )
   }
 }
 
-const expectSnapshotNoSiblingIntersections = (snapshot: DbWorldRows): void => {
+const expectManifestNoSiblingIntersections = (manifest: BulkManifest): void => {
   const itemsByParent = new Map<
     number,
     Array<{ id: number; localX: number; localY: number; radius: number }>
   >()
 
-  for (const particle of snapshot.particles) {
-    if (particle.parentParticleId === null) continue
-    const items = itemsByParent.get(particle.parentParticleId) ?? []
+  for (const darkParticle of manifest.darkParticles) {
+    if (darkParticle.parentDarkParticleId === null) continue
+    const items = itemsByParent.get(darkParticle.parentDarkParticleId) ?? []
     items.push({
-      id: particle.particleId,
-      localX: particle.localX,
-      localY: particle.localY,
-      radius: getOuterRadius(particle),
+      id: darkParticle.darkParticleId,
+      localX: darkParticle.localX,
+      localY: darkParticle.localY,
+      radius: getOuterRadius(darkParticle),
     })
-    itemsByParent.set(particle.parentParticleId, items)
+    itemsByParent.set(darkParticle.parentDarkParticleId, items)
   }
 
-  for (const field of snapshot.fields) {
-    const items = itemsByParent.get(field.particleId) ?? []
+  for (const fieldParticle of manifest.fieldParticles) {
+    const items = itemsByParent.get(fieldParticle.parentDarkParticleId) ?? []
     items.push({
-      id: field.id,
-      localX: field.localX,
-      localY: field.localY,
-      radius: field.sphereRadius,
+      id: fieldParticle.fieldParticleId,
+      localX: fieldParticle.localX,
+      localY: fieldParticle.localY,
+      radius: fieldParticle.sphereRadius,
     })
-    itemsByParent.set(field.particleId, items)
+    itemsByParent.set(fieldParticle.parentDarkParticleId, items)
   }
 
   for (const items of itemsByParent.values()) {
@@ -121,144 +121,144 @@ const expectSnapshotNoSiblingIntersections = (snapshot: DbWorldRows): void => {
   }
 }
 
-describe("bulk/gravity/layout snapshot", () => {
-  test("строит bottom-up tor layout в Z-up и размещает поля на орбитах", () => {
-    const snapshot = createDbWorldRowsFromParticleDescriptors("root", [
-      createParticle(1, [
-        createParticle(2, [
-          createParticle(3, [], [103]),
+describe("bulk/gravity/layout manifest", () => {
+  test("строит bottom-up torus layout в Z-up и размещает field particles по orbit bands", () => {
+    const manifest = createBulkManifestFromDarkParticleInputs("root", [
+      createDarkParticle(1, [
+        createDarkParticle(2, [
+          createDarkParticle(3, [], [103]),
         ], [102]),
       ], [101]),
     ])
 
-    const root = getParticle(snapshot, 1)
-    const child = getParticle(snapshot, 2)
-    const leaf = getParticle(snapshot, 3)
-    const rootField = getField(snapshot, 101)
-    const childField = getField(snapshot, 102)
-    const leafField = getField(snapshot, 103)
+    const root = getDarkParticle(manifest, 1)
+    const child = getDarkParticle(manifest, 2)
+    const leaf = getDarkParticle(manifest, 3)
+    const rootField = getFieldParticle(manifest, 101)
+    const childField = getFieldParticle(manifest, 102)
+    const leafField = getFieldParticle(manifest, 103)
 
     expect(getOuterRadius(root)).toBeGreaterThan(getOuterRadius(child))
     expect(getOuterRadius(child)).toBeGreaterThan(getOuterRadius(leaf))
     expect(rootField.sphereRadius).toBeGreaterThan(childField.sphereRadius)
     expect(childField.sphereRadius).toBeGreaterThan(leafField.sphereRadius)
-    expect(snapshot.fields.every((field) => field.localZ === 0)).toBe(true)
-    expect(snapshot.particles.every((particle) => particle.localZ === 0)).toBe(true)
+    expect(manifest.fieldParticles.every((fieldParticle) => fieldParticle.localZ === 0)).toBe(true)
+    expect(manifest.darkParticles.every((darkParticle) => darkParticle.localZ === 0)).toBe(true)
     expect(Math.hypot(rootField.localX, rootField.localY)).toBeGreaterThan(0)
-    expectSnapshotContentInsideParents(snapshot)
-    expectSnapshotNoSiblingIntersections(snapshot)
+    expectManifestContentInsideParents(manifest)
+    expectManifestNoSiblingIntersections(manifest)
   })
 
-  test("родительский тор расширяется от плотности вложенного содержимого", () => {
-    const compact = createDbWorldRowsFromParticleDescriptors("compact", [
-      createParticle(1, [createParticle(2, [], [101])]),
+  test("parent torus expands from dense nested content", () => {
+    const compact = createBulkManifestFromDarkParticleInputs("compact", [
+      createDarkParticle(1, [createDarkParticle(2, [], [101])]),
     ])
-    const expanded = createDbWorldRowsFromParticleDescriptors("expanded", [
-      createParticle(1, [
-        createParticle(2, [], [101]),
-        createParticle(3, [], [102]),
-        createParticle(4, [], [103]),
-        createParticle(5, [], [104]),
-        createParticle(6, [], [105]),
-        createParticle(7, [], [106]),
-        createParticle(8, [], [107]),
-        createParticle(9, [], [108]),
-        createParticle(10, [], [109]),
-        createParticle(11, [], [110]),
-        createParticle(12, [], [111]),
-        createParticle(13, [], [112]),
+    const expanded = createBulkManifestFromDarkParticleInputs("expanded", [
+      createDarkParticle(1, [
+        createDarkParticle(2, [], [101]),
+        createDarkParticle(3, [], [102]),
+        createDarkParticle(4, [], [103]),
+        createDarkParticle(5, [], [104]),
+        createDarkParticle(6, [], [105]),
+        createDarkParticle(7, [], [106]),
+        createDarkParticle(8, [], [107]),
+        createDarkParticle(9, [], [108]),
+        createDarkParticle(10, [], [109]),
+        createDarkParticle(11, [], [110]),
+        createDarkParticle(12, [], [111]),
+        createDarkParticle(13, [], [112]),
       ]),
     ])
 
-    expect(getOuterRadius(getParticle(expanded, 1))).toBeGreaterThan(
-      getOuterRadius(getParticle(compact, 1)),
+    expect(getOuterRadius(getDarkParticle(expanded, 1))).toBeGreaterThan(
+      getOuterRadius(getDarkParticle(compact, 1)),
     )
-    expectSnapshotContentInsideParents(expanded)
-    expectSnapshotNoSiblingIntersections(expanded)
+    expectManifestContentInsideParents(expanded)
+    expectManifestNoSiblingIntersections(expanded)
   })
 
-  test("shell-ы одного depth могут иметь разные размеры из-за разного содержимого", () => {
-    const snapshot = createDbWorldRowsFromParticleDescriptors("root", [
-      createParticle(1, [
-        createParticle(2, [createParticle(4, [], [101])]),
-        createParticle(3, [], [102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113]),
+  test("Dark particles на одном depth могут иметь разные torus sizes из-за разного содержимого", () => {
+    const manifest = createBulkManifestFromDarkParticleInputs("root", [
+      createDarkParticle(1, [
+        createDarkParticle(2, [createDarkParticle(4, [], [101])]),
+        createDarkParticle(3, [], [102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113]),
       ]),
     ])
 
-    const childA = getParticle(snapshot, 2)
-    const childB = getParticle(snapshot, 3)
+    const childA = getDarkParticle(manifest, 2)
+    const childB = getDarkParticle(manifest, 3)
 
     expect(childA.depth).toBe(childB.depth)
     expect(Math.abs(getOuterRadius(childA) - getOuterRadius(childB))).toBeGreaterThan(1)
-    expectSnapshotContentInsideParents(snapshot)
-    expectSnapshotNoSiblingIntersections(snapshot)
+    expectManifestContentInsideParents(manifest)
+    expectManifestNoSiblingIntersections(manifest)
   })
 
-  test("плотные поля раскладываются на несколько орбит внутри parent-тора", () => {
-    const snapshot = createDbWorldRowsFromParticleDescriptors("root", [
-      createParticle(1, [], Array.from({ length: 40 }, (_, index) => 100 + index)),
+  test("плотные field particles раскладываются на несколько orbit bands внутри parent torus", () => {
+    const manifest = createBulkManifestFromDarkParticleInputs("root", [
+      createDarkParticle(1, [], Array.from({ length: 40 }, (_, index) => 100 + index)),
     ], { rootSphereRadiusMm: 280 })
 
     const ringKeys = new Set(
-      snapshot.fields.map((field) => Math.hypot(field.localX, field.localY).toFixed(6)),
+      manifest.fieldParticles.map((fieldParticle) => Math.hypot(fieldParticle.localX, fieldParticle.localY).toFixed(6)),
     )
 
     expect(ringKeys.size).toBeGreaterThan(1)
-    expectSnapshotContentInsideParents(snapshot)
-    expectSnapshotNoSiblingIntersections(snapshot)
+    expectManifestContentInsideParents(manifest)
+    expectManifestNoSiblingIntersections(manifest)
   })
 
   test("orbitEdgeGapMm задает зазор от внутренней кромки тора до первого объекта", () => {
-    const snapshot = createDbWorldRowsFromParticleDescriptors(
+    const manifest = createBulkManifestFromDarkParticleInputs(
       "root",
-      [createParticle(1, [], [101, 102, 103])],
+      [createDarkParticle(1, [], [101, 102, 103])],
       {
         orbitEdgeGapMm: 24,
         rootInnerDiameterMm: 1000,
         rootSphereRadiusMm: 200,
       },
     )
-    const root = getParticle(snapshot, 1)
+    const root = getDarkParticle(manifest, 1)
     const innerRadius = getInnerRadius(root)
     const minInnerGap = Math.min(
-      ...snapshot.fields.map((field) => Math.hypot(field.localX, field.localY) - field.sphereRadius - innerRadius),
+      ...manifest.fieldParticles.map((fieldParticle) => Math.hypot(fieldParticle.localX, fieldParticle.localY) - fieldParticle.sphereRadius - innerRadius),
     )
 
     expect(minInnerGap).toBeCloseTo(24, 6)
-    expectSnapshotContentInsideParents(snapshot)
-    expectSnapshotNoSiblingIntersections(snapshot)
+    expectManifestContentInsideParents(manifest)
+    expectManifestNoSiblingIntersections(manifest)
   })
 
-  test("root inner ratio переносится на фактические размеры shell-ов", () => {
-    const snapshot = createDbWorldRowsFromParticleDescriptors(
+  test("root inner ratio переносится на фактические размеры Dark particle torus geometry", () => {
+    const manifest = createBulkManifestFromDarkParticleInputs(
       "root",
       [
-        createParticle(1, [
-          createParticle(2, [createParticle(4, [], [101])]),
-          createParticle(3, [], [102, 103, 104, 105, 106, 107]),
+        createDarkParticle(1, [
+          createDarkParticle(2, [createDarkParticle(4, [], [101])]),
+          createDarkParticle(3, [], [102, 103, 104, 105, 106, 107]),
         ], [100]),
       ],
       { rootInnerDiameterMm: 1800 },
     )
     const expectedRatio = 1800 / DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG.rootOuterDiameterMm
 
-    for (const particle of snapshot.particles) {
-      expect(getInnerRadius(particle) / getOuterRadius(particle)).toBeCloseTo(expectedRatio, 6)
+    for (const darkParticle of manifest.darkParticles) {
+      expect(getInnerRadius(darkParticle) / getOuterRadius(darkParticle)).toBeCloseTo(expectedRatio, 6)
     }
   })
 
   test("нормализация делает только глобальный scale к root outer diameter", () => {
-    const raw = createDbWorldRowsFromParticleDescriptors("root", [
-      createParticle(1, [
-        createParticle(2, [createParticle(4, [], [101])]),
-        createParticle(3, [], [102, 103, 104, 105, 106, 107, 108, 109]),
+    const raw = createBulkManifestFromDarkParticleInputs("root", [
+      createDarkParticle(1, [
+        createDarkParticle(2, [createDarkParticle(4, [], [101])]),
+        createDarkParticle(3, [], [102, 103, 104, 105, 106, 107, 108, 109]),
       ], [100]),
     ])
-    const normalized = scaleDbWorldRowsToRootOuterDiameter(raw)
-    const rawRoot = getParticle(raw, 1)
-    const normalizedRoot = getParticle(normalized, 1)
-    const rawChild = getParticle(raw, 2)
-    const normalizedChild = getParticle(normalized, 2)
+    const normalized = scaleBulkManifestToRootOuterDiameter(raw)
+    const rawRoot = getDarkParticle(raw, 1)
+    const normalizedRoot = getDarkParticle(normalized, 1)
+    const rawChild = getDarkParticle(raw, 2)
+    const normalizedChild = getDarkParticle(normalized, 2)
 
     expect(getOuterRadius(normalizedRoot) * 2).toBeCloseTo(
       DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG.rootOuterDiameterMm,
@@ -272,21 +272,21 @@ describe("bulk/gravity/layout snapshot", () => {
       Math.hypot(rawChild.localX, rawChild.localY) / getOuterRadius(rawRoot),
       6,
     )
-    expectSnapshotContentInsideParents(normalized)
-    expectSnapshotNoSiblingIntersections(normalized)
+    expectManifestContentInsideParents(normalized)
+    expectManifestNoSiblingIntersections(normalized)
   })
 
-  test("первый root-shell остается в центре, остальные root-shell-ы уходят на внешнюю орбиту", () => {
-    const snapshot = createDbWorldRowsFromParticleDescriptors("multi-root", [
-      createParticle(1, [createParticle(2)], [101]),
-      createParticle(3, [createParticle(4)], [102]),
+  test("первый root Dark particle остается в центре, остальные root Dark particles уходят на внешнюю orbit band", () => {
+    const manifest = createBulkManifestFromDarkParticleInputs("multi-root", [
+      createDarkParticle(1, [createDarkParticle(2)], [101]),
+      createDarkParticle(3, [createDarkParticle(4)], [102]),
     ])
 
-    const rootA = getParticle(snapshot, 1)
-    const rootB = getParticle(snapshot, 3)
+    const rootA = getDarkParticle(manifest, 1)
+    const rootB = getDarkParticle(manifest, 3)
 
-    expect(rootA.parentParticleId).toBeNull()
-    expect(rootB.parentParticleId).toBeNull()
+    expect(rootA.parentDarkParticleId).toBeNull()
+    expect(rootB.parentDarkParticleId).toBeNull()
     expect(rootA.localX).toBe(0)
     expect(rootA.localY).toBe(0)
     expect(Math.hypot(rootB.localX, rootB.localY)).toBeGreaterThan(getOuterRadius(rootA))

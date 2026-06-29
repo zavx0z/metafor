@@ -1,6 +1,6 @@
 import type {BoundaryBulkRuntimeSnapshot, Particle} from "boundary"
 import {createBulkViewport, type BulkViewportController, type BulkViewportStats} from "bulk/web"
-import {buildBoundaryWorldRows} from "./world.ts"
+import {buildBoundaryBulkManifest} from "./world.ts"
 import {
 	APP_WEB_LAYOUT_SETTING_KEYS,
 	DEFAULT_APP_WEB_LAYOUT_SETTINGS,
@@ -134,7 +134,7 @@ const applySnapshotWorld = (
 ): void => {
 	if (!bulkViewport) return
 
-	bulkViewport.applyWorld(buildBoundaryWorldRows(snapshot, src, layoutSettings))
+	bulkViewport.applyManifest(buildBoundaryBulkManifest(snapshot, src, layoutSettings))
 	if (pendingSceneState && pendingSceneState.src === src) {
 		lastAppliedSceneState = pendingSceneState
 		pendingSceneState = null
@@ -468,7 +468,7 @@ socket.onclose = () => {
 	hud?.setVoiceLease(null, 0)
 }
 
-type ActorRowsMessage = {
+type ActorSnapshotMessage = {
 	actor: BoundaryBulkRuntimeSnapshot["actors"][number]
 	values: BoundaryBulkRuntimeSnapshot["actorValues"]
 	valueRecords: Array<{
@@ -485,8 +485,8 @@ type ActorRowsMessage = {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null
 
-const upsertById = <T extends {id: number}>(rows: T[], row: T): T[] =>
-	[...rows.filter((item) => item.id !== row.id), row]
+const upsertById = <T extends {id: number}>(entries: T[], entry: T): T[] =>
+	[...entries.filter((item) => item.id !== entry.id), entry]
 
 type SnapshotField = BoundaryBulkRuntimeSnapshot["fields"][number]
 type SnapshotValue = BoundaryBulkRuntimeSnapshot["values"][number]
@@ -531,8 +531,8 @@ const findSnapshotField = (
 	return fields.find((field, index) => snapshotFieldMatchesAddress(field, index, address)) ?? null
 }
 
-const nextNumericId = (rows: Array<{id: number}>): number =>
-	rows.reduce((max, row) => Math.max(max, Number.isSafeInteger(row.id) ? row.id : 0), 0) + 1
+const nextNumericId = (entries: Array<{id: number}>): number =>
+	entries.reduce((max, entry) => Math.max(max, Number.isSafeInteger(entry.id) ? entry.id : 0), 0) + 1
 
 const createSnapshotField = (snapshot: BoundaryBulkRuntimeSnapshot, wimp: string, address: string): SnapshotField => {
 	const numericAddress = /^\d+$/.test(address) ? Number(address) : NaN
@@ -570,7 +570,7 @@ const replaceSnapshotFieldEnumVariants = (
 	]
 }
 
-const removeSnapshotFieldRows = (
+const removeSnapshotFieldEntries = (
 	snapshot: BoundaryBulkRuntimeSnapshot,
 	wimp: string,
 	fields: SnapshotField[],
@@ -579,14 +579,14 @@ const removeSnapshotFieldRows = (
 	const actorIds = new Set(snapshot.actors.filter((actor) => actor.wimp === wimp).map((actor) => actor.id))
 	const valueIds = new Set(
 		snapshot.actorValues
-			.filter((row) => actorIds.has(row.actor) && fieldIds.has(row.field))
-			.map((row) => row.value),
+			.filter((entry) => actorIds.has(entry.actor) && fieldIds.has(entry.field))
+			.map((entry) => entry.value),
 	)
 	snapshot.fields = snapshot.fields.filter((field) => !fieldIds.has(field.id))
 	snapshot.fieldEnumVariants = snapshot.fieldEnumVariants.filter((variant) => !fieldIds.has(variant.field))
-	snapshot.actorValues = snapshot.actorValues.filter((row) => !(actorIds.has(row.actor) && fieldIds.has(row.field)))
-	snapshot.values = snapshot.values.filter((row) => !valueIds.has(row.id))
-	snapshot.valueItems = snapshot.valueItems.filter((row) => !valueIds.has(row.value))
+	snapshot.actorValues = snapshot.actorValues.filter((entry) => !(actorIds.has(entry.actor) && fieldIds.has(entry.field)))
+	snapshot.values = snapshot.values.filter((entry) => !valueIds.has(entry.id))
+	snapshot.valueItems = snapshot.valueItems.filter((entry) => !valueIds.has(entry.value))
 }
 
 const applyHiggsFieldsPartToSnapshot = (snapshot: BoundaryBulkRuntimeSnapshot, part: Particle): boolean => {
@@ -601,7 +601,7 @@ const applyHiggsFieldsPartToSnapshot = (snapshot: BoundaryBulkRuntimeSnapshot, p
 		if (part.op === "remove") {
 			const field = findSnapshotField(snapshot, wimp, address)
 			if (field === null) continue
-			removeSnapshotFieldRows(snapshot, wimp, [field])
+			removeSnapshotFieldEntries(snapshot, wimp, [field])
 			changed = true
 			continue
 		}
@@ -663,10 +663,10 @@ const upsertActorFieldValue = (
 	field: SnapshotField,
 	value: unknown,
 ): void => {
-	const existing = snapshot.actorValues.find((row) => row.actor === actorId && row.field === field.id)
+	const existing = snapshot.actorValues.find((entry) => entry.actor === actorId && entry.field === field.id)
 	const valueId = existing?.value ?? nextNumericId(snapshot.values)
 	const kind = rawValueKind(field, value)
-	const valueRow: SnapshotValue = {
+	const valueRecord: SnapshotValue = {
 		id: valueId,
 		kind,
 		booleanValue: kind === "boolean" ? (value === true ? 1 : 0) : null,
@@ -675,12 +675,12 @@ const upsertActorFieldValue = (
 		enumValue: kind === "enum" && typeof value === "string" ? value : null,
 	}
 	snapshot.actorValues = [
-		...snapshot.actorValues.filter((row) => !(row.actor === actorId && row.field === field.id)),
+		...snapshot.actorValues.filter((entry) => !(entry.actor === actorId && entry.field === field.id)),
 		{actor: actorId, field: field.id, value: valueId},
 	]
-	snapshot.values = upsertById(snapshot.values, valueRow)
+	snapshot.values = upsertById(snapshot.values, valueRecord)
 	snapshot.valueItems = [
-		...snapshot.valueItems.filter((row) => row.value !== valueId),
+		...snapshot.valueItems.filter((entry) => entry.value !== valueId),
 		...(Array.isArray(value)
 			? value.map((item, position) => ({value: valueId, position, itemValue: rawValueText(item) ?? ""}))
 			: []),
@@ -692,17 +692,17 @@ const removeActorFieldValue = (
 	actorId: number,
 	field: SnapshotField,
 ): void => {
-	const existing = snapshot.actorValues.find((row) => row.actor === actorId && row.field === field.id)
+	const existing = snapshot.actorValues.find((entry) => entry.actor === actorId && entry.field === field.id)
 	if (!existing) return
-	snapshot.actorValues = snapshot.actorValues.filter((row) => !(row.actor === actorId && row.field === field.id))
-	snapshot.values = snapshot.values.filter((row) => row.id !== existing.value)
-	snapshot.valueItems = snapshot.valueItems.filter((row) => row.value !== existing.value)
+	snapshot.actorValues = snapshot.actorValues.filter((entry) => !(entry.actor === actorId && entry.field === field.id))
+	snapshot.values = snapshot.values.filter((entry) => entry.id !== existing.value)
+	snapshot.valueItems = snapshot.valueItems.filter((entry) => entry.value !== existing.value)
 }
 
 const applyGluonFieldsPartToSnapshot = (snapshot: BoundaryBulkRuntimeSnapshot, part: Particle): boolean => {
 	if (part.part !== "gluon") return false
 	const actorId = actorIdFromForcePath(part.path as unknown)
-	const actor = actorId === null ? undefined : snapshot.actors.find((row) => row.id === actorId)
+	const actor = actorId === null ? undefined : snapshot.actors.find((entry) => entry.id === actorId)
 	const value = isRecord(part.value) ? part.value : null
 	const fields = value !== null && isRecord(value.fields) ? value.fields : null
 	if (!actor || fields === null) return false
@@ -720,40 +720,40 @@ const applyGluonFieldsPartToSnapshot = (snapshot: BoundaryBulkRuntimeSnapshot, p
 	return changed
 }
 
-const actorRowsMessage = (value: unknown): ActorRowsMessage | null => {
+const actorSnapshotMessage = (value: unknown): ActorSnapshotMessage | null => {
 	if (!isRecord(value) || !isRecord(value.actor) || !Array.isArray(value.values) || !Array.isArray(value.valueRecords)) return null
 	return {
-		actor: value.actor as ActorRowsMessage["actor"],
-		values: value.values as ActorRowsMessage["values"],
-		valueRecords: value.valueRecords as ActorRowsMessage["valueRecords"],
-		valueItems: Array.isArray(value.valueItems) ? value.valueItems as ActorRowsMessage["valueItems"] : [],
+		actor: value.actor as ActorSnapshotMessage["actor"],
+		values: value.values as ActorSnapshotMessage["values"],
+		valueRecords: value.valueRecords as ActorSnapshotMessage["valueRecords"],
+		valueItems: Array.isArray(value.valueItems) ? value.valueItems as ActorSnapshotMessage["valueItems"] : [],
 	}
 }
 
-const applyActorRowsPart = (snapshot: BoundaryBulkRuntimeSnapshot, value: unknown): boolean => {
-	const rows = actorRowsMessage(value)
-	if (!rows) return false
+const applyActorSnapshotPart = (snapshot: BoundaryBulkRuntimeSnapshot, value: unknown): boolean => {
+	const actorSnapshot = actorSnapshotMessage(value)
+	if (!actorSnapshot) return false
 	const enumValueByVariant = new Map(snapshot.fieldEnumVariants.map((variant) => [variant.id, variant.itemValue] as const))
-	const valueIds = new Set(rows.values.map((row) => row.value))
-	snapshot.actors = upsertById(snapshot.actors, rows.actor)
+	const valueIds = new Set(actorSnapshot.values.map((entry) => entry.value))
+	snapshot.actors = upsertById(snapshot.actors, actorSnapshot.actor)
 	snapshot.actorValues = [
-		...snapshot.actorValues.filter((row) => row.actor !== rows.actor.id),
-		...rows.values,
+		...snapshot.actorValues.filter((entry) => entry.actor !== actorSnapshot.actor.id),
+		...actorSnapshot.values,
 	]
 	snapshot.values = [
-		...snapshot.values.filter((row) => !valueIds.has(row.id)),
-		...rows.valueRecords.map((row) => ({
-			id: row.id,
-			kind: row.kind,
-			booleanValue: typeof row.boolean === "boolean" ? (row.boolean ? 1 : 0) : null,
-			numberValue: typeof row.number === "number" ? row.number : null,
-			textValue: typeof row.text === "string" ? row.text : null,
-			enumValue: typeof row.variant === "string" ? enumValueByVariant.get(row.variant) ?? row.variant : null,
+		...snapshot.values.filter((entry) => !valueIds.has(entry.id)),
+		...actorSnapshot.valueRecords.map((entry) => ({
+			id: entry.id,
+			kind: entry.kind,
+			booleanValue: typeof entry.boolean === "boolean" ? (entry.boolean ? 1 : 0) : null,
+			numberValue: typeof entry.number === "number" ? entry.number : null,
+			textValue: typeof entry.text === "string" ? entry.text : null,
+			enumValue: typeof entry.variant === "string" ? enumValueByVariant.get(entry.variant) ?? entry.variant : null,
 		})),
 	]
 	snapshot.valueItems = [
-		...snapshot.valueItems.filter((row) => !valueIds.has(row.value)),
-		...rows.valueItems,
+		...snapshot.valueItems.filter((entry) => !valueIds.has(entry.value)),
+		...actorSnapshot.valueItems,
 	]
 	return true
 }
@@ -764,7 +764,7 @@ const applyTopologyPart = (snapshot: BoundaryBulkRuntimeSnapshot, part: Particle
 	const topology = part.value
 	const id = topology.id as number
 	if (part.op === "remove") {
-		snapshot.topologies = snapshot.topologies.filter((row) => row.id !== id)
+		snapshot.topologies = snapshot.topologies.filter((entry) => entry.id !== id)
 		return true
 	}
 	if (part.op !== "add" && part.op !== "replace") return false
@@ -782,7 +782,7 @@ const applyForcePartToSnapshot = (snapshot: BoundaryBulkRuntimeSnapshot, part: P
 	if (applyHiggsFieldsPartToSnapshot(snapshot, part)) return "partial"
 	if (applyGluonFieldsPartToSnapshot(snapshot, part)) return "partial"
 	if (part.part !== "graviton") return "none"
-	if (part.path === "actor") return applyActorRowsPart(snapshot, part.value) ? "rebuild" : "none"
+	if (part.path === "actor") return applyActorSnapshotPart(snapshot, part.value) ? "rebuild" : "none"
 	return applyTopologyPart(snapshot, part) ? "rebuild" : "none"
 }
 

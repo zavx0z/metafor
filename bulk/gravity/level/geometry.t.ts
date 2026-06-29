@@ -6,6 +6,7 @@ import type { LevelGeometrySettings } from "./settings.t"
  * Чистый набор размеров в миллиметрах без смешения с render/label параметрами.
  * Все значения следуют единому фрактальному `levelScale`-закону: либо из канонического снижения по глубине,
  * либо из фактического `outerRadiusMm` снимка (без двойного masштабирования через `surfaceScale`).
+ * `shell` здесь означает torus shell geometry, а не Bulk-сущность.
  */
 export interface LevelGeometry {
   depth: number
@@ -15,9 +16,9 @@ export interface LevelGeometry {
   outerRadiusMm: number
   innerDiameterMm: number
   innerRadiusMm: number
-  /** Центральный радиус кольца шелла (центр тубы). */
+  /** Центральный радиус кольца torus shell geometry (центр тубы). */
   shellRadiusMm: number
-  /** Радиус тубы шелла. */
+  /** Радиус тубы torus shell geometry. */
   shellTubeMm: number
   /** Толщина кольца тора = `outerR − innerR`. */
   thicknessMm: number

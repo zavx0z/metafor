@@ -1,7 +1,7 @@
 import type { LevelGeometrySettings } from "../level"
 import type { BulkLayoutSettings, BulkLayoutSnapshotConfig } from "./settings.t"
 
-/** Базовые размеры root-shell; внутренние shell-ы могут расширяться от содержимого. */
+/** Базовые размеры root Dark particle torus geometry; внутренние торы могут расширяться от содержимого. */
 export const DEFAULT_BULK_LAYOUT_SETTINGS: BulkLayoutSettings = {
   orbitEdgeGapMm: 0,
   rootInnerDiameterMm: 1000,

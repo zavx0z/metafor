@@ -11,7 +11,7 @@ import type { BulkLayoutSettings } from "@bulk/gravity/layout"
  * Нельзя «зашить» дефолты ещё где-то — добавляй сюда и реэкспортируй.
  */
 
-/** Настройки top-down раскладки shell-иерархии (layout-секция). */
+/** Настройки bottom-up раскладки Dark particle hierarchy (layout-секция). */
 export interface AppConfigLayout extends BulkLayoutSettings {}
 
 /** Настройки рендера viewport-а (детализация, подписи, тор, прозрачность). */

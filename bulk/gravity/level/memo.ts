@@ -11,7 +11,7 @@ import { resolveLevelLabel } from "./label"
  *
  * Canonical расчёты (`getGeometry(depth)` без override, `getDetail`, `getLabel`)
  * мемоизируются по `depth` для снятия per-frame нагрузки на resolvers.
- * Override через `outerRadiusMm` не кэшируется — там уникальный ключ per-shell.
+ * Override через `outerRadiusMm` не кэшируется: ключ уникален для конкретной torus geometry.
  *
  * При смене настроек (например, из UI) вызывающий должен вызвать {@link LevelResolver.invalidate}.
  */

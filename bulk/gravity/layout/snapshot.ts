@@ -1,10 +1,10 @@
 import type {
-  DbFieldOrbitRow,
-  DbFieldValueKind,
-  DbParticleActivity,
-  DbParticleKind,
-  DbParticleShellRow,
-  DbWorldRows,
+  BulkDarkParticle,
+  BulkDarkParticleActivity,
+  BulkDarkParticleKind,
+  BulkFieldParticle,
+  BulkFieldParticleKind,
+  BulkManifest,
 } from "./world"
 import { resolveLevelGeometry, type LevelGeometry } from "../level"
 import type { BulkLayoutSettings } from "./settings.t"
@@ -17,61 +17,61 @@ import {
 const snapshotLayoutConfig = DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5))
 
-/** Входной дескриптор ordinary field до shell-materialization в actor rows. */
-export interface DbWorldFieldDescriptor {
-  id: number
+/** Input descriptor for an ordinary field particle before Dark particle materialization. */
+export interface BulkFieldParticleInput {
+  fieldParticleId: number
   fieldKey: string
   fieldLabel: string
-  fieldValueKind: DbFieldValueKind
+  fieldParticleKind: BulkFieldParticleKind
   valueText: string | null
   colorR: number
   colorG: number
   colorB: number
 }
 
-/** Входной дескриптор particle-дерева до геометрической раскладки shell/orbit. */
-export interface DbWorldParticleDescriptor {
-  particleId: number
-  kind: DbParticleKind
+/** Input descriptor for a Dark particle tree before geometric layout. */
+export interface BulkDarkParticleInput {
+  darkParticleId: number
+  darkParticleKind: BulkDarkParticleKind
   src: string | null
   metaSrc: string | null
   label: string
   colorR: number
   colorG: number
   colorB: number
-  activity?: DbParticleActivity
-  fields: DbWorldFieldDescriptor[]
-  children: DbWorldParticleDescriptor[]
+  activity?: BulkDarkParticleActivity
+  fieldParticles: BulkFieldParticleInput[]
+  children: BulkDarkParticleInput[]
 }
 
-interface LayoutFieldNode extends DbFieldOrbitRow {
+interface LayoutFieldParticleNode extends BulkFieldParticle {
   extent: number
 }
 
-interface LayoutShellNode extends Omit<DbParticleShellRow, "parentParticleId" | "depth" | "shellOrder"> {
-  children: LayoutShellNode[]
-  fields: LayoutFieldNode[]
+interface LayoutDarkParticleNode extends Omit<BulkDarkParticle, "parentDarkParticleId" | "depth" | "darkParticleOrder"> {
+  children: LayoutDarkParticleNode[]
+  fieldParticles: LayoutFieldParticleNode[]
   depthFromRoot: number
   innerRadius: number
   outerRadius: number
 }
 
-interface ShellDescriptorNode {
-  descriptor: DbWorldParticleDescriptor
-  children: ShellDescriptorNode[]
+interface DarkParticleInputNode {
+  descriptor: BulkDarkParticleInput
+  children: DarkParticleInputNode[]
   depthFromRoot: number
 }
 
 type OrbitItem =
   | {
       extent: number
-      field: LayoutFieldNode
-      kind: "field"
+      fieldParticle: LayoutFieldParticleNode
+      kind: "fieldParticle"
     }
   | {
       extent: number
-      kind: "shell"
-      shell: LayoutShellNode
+      kind: "darkParticle"
+      darkParticle: LayoutDarkParticleNode
     }
 
 const getCanonicalLevelGeometry = (
@@ -103,25 +103,25 @@ const getSurfaceLevelGeometry = (
     ...(options.outerRadiusMm !== undefined ? { outerRadiusMm: options.outerRadiusMm } : {}),
   })
 
-const cloneDescriptorField = (
-  descriptor: DbWorldParticleDescriptor,
-  field: DbWorldFieldDescriptor,
+const cloneFieldParticleInput = (
+  descriptor: BulkDarkParticleInput,
+  fieldParticle: BulkFieldParticleInput,
   sphereRadius: number,
-): LayoutFieldNode => ({
-  id: field.id,
-  particleId: descriptor.particleId,
-  fieldKey: field.fieldKey,
-  fieldLabel: field.fieldLabel,
+): LayoutFieldParticleNode => ({
+  fieldParticleId: fieldParticle.fieldParticleId,
+  parentDarkParticleId: descriptor.darkParticleId,
+  fieldKey: fieldParticle.fieldKey,
+  fieldLabel: fieldParticle.fieldLabel,
   fieldOrder: 0,
-  fieldValueKind: field.fieldValueKind,
-  valueText: field.valueText,
+  fieldParticleKind: fieldParticle.fieldParticleKind,
+  valueText: fieldParticle.valueText,
   localX: 0,
   localY: 0,
   localZ: 0,
   sphereRadius,
-  colorR: field.colorR,
-  colorG: field.colorG,
-  colorB: field.colorB,
+  colorR: fieldParticle.colorR,
+  colorG: fieldParticle.colorG,
+  colorB: fieldParticle.colorB,
   extent: sphereRadius,
 })
 
@@ -139,16 +139,16 @@ const moveOrbitItem = (item: OrbitItem, radius: number, angle: number): void => 
   const x = Math.cos(angle) * radius
   const y = Math.sin(angle) * radius
 
-  if (item.kind === "shell") {
-    item.shell.localX = x
-    item.shell.localY = y
-    item.shell.localZ = 0
+  if (item.kind === "darkParticle") {
+    item.darkParticle.localX = x
+    item.darkParticle.localY = y
+    item.darkParticle.localZ = 0
     return
   }
 
-  item.field.localX = x
-  item.field.localY = y
-  item.field.localZ = 0
+  item.fieldParticle.localX = x
+  item.fieldParticle.localY = y
+  item.fieldParticle.localZ = 0
 }
 
 const placeOrbitItemsByBands = (
@@ -177,14 +177,13 @@ const placeOrbitItemsByBands = (
     outerBoundary: outerBoundary + paddingMm,
   }
 }
-
-const createShellDescriptorNode = (
-  descriptor: DbWorldParticleDescriptor,
+const createDarkParticleInputNode = (
+  descriptor: BulkDarkParticleInput,
   depthFromRoot: number,
-): ShellDescriptorNode => ({
+): DarkParticleInputNode => ({
   descriptor,
   depthFromRoot,
-  children: descriptor.children.map((child) => createShellDescriptorNode(child, depthFromRoot + 1)),
+  children: descriptor.children.map((child) => createDarkParticleInputNode(child, depthFromRoot + 1)),
 })
 
 const resolveContentAwareLevelGeometry = (
@@ -195,7 +194,9 @@ const resolveContentAwareLevelGeometry = (
   const canonicalMetrics = getCanonicalLevelGeometry(depthFromRoot, settings)
   if (orbitItems.length === 0) return canonicalMetrics
 
-  const phase = hashAngle(orbitItems.map((item) => (item.kind === "shell" ? item.shell.particleId : item.field.id)).join("\0"))
+  const phase = hashAngle(orbitItems.map((item) => (
+    item.kind === "darkParticle" ? item.darkParticle.darkParticleId : item.fieldParticle.fieldParticleId
+  )).join("\0"))
   const orbitEdgeGapMm = settings.orbitEdgeGapMm
   const localEnvelope = placeOrbitItemsByBands(orbitItems, {
     paddingMm: orbitEdgeGapMm,
@@ -213,29 +214,29 @@ const resolveContentAwareLevelGeometry = (
   return levelMetrics
 }
 
-const materializeCanonicalShellNode = (
-  node: ShellDescriptorNode,
+const materializeCanonicalDarkParticleNode = (
+  node: DarkParticleInputNode,
   settings: BulkLayoutSettings,
-): LayoutShellNode => {
-  const nestedChildren = node.children.map((child) => materializeCanonicalShellNode(child, settings))
+): LayoutDarkParticleNode => {
+  const nestedChildren = node.children.map((child) => materializeCanonicalDarkParticleNode(child, settings))
   const depthFromRoot = node.depthFromRoot
   const descriptor = node.descriptor
   const canonicalMetrics = getCanonicalLevelGeometry(depthFromRoot, settings)
   const sphereRadius = canonicalMetrics.sphereRadiusMm
-  const fields: LayoutFieldNode[] = descriptor.fields.map((field) =>
-    cloneDescriptorField(descriptor, field, sphereRadius),
+  const fieldParticles: LayoutFieldParticleNode[] = descriptor.fieldParticles.map((fieldParticle) =>
+    cloneFieldParticleInput(descriptor, fieldParticle, sphereRadius),
   )
 
   const orbitItems: OrbitItem[] = [
-    ...nestedChildren.map((shell) => ({
-      kind: "shell" as const,
-      shell,
-      extent: shell.outerRadius,
+    ...nestedChildren.map((darkParticle) => ({
+      kind: "darkParticle" as const,
+      darkParticle,
+      extent: darkParticle.outerRadius,
     })),
-    ...fields.map((field) => ({
-      kind: "field" as const,
-      field,
-      extent: field.extent,
+    ...fieldParticles.map((fieldParticle) => ({
+      kind: "fieldParticle" as const,
+      fieldParticle,
+      extent: fieldParticle.extent,
     })),
   ]
 
@@ -244,119 +245,99 @@ const materializeCanonicalShellNode = (
   const innerRadius = levelMetrics.innerRadiusMm
 
   return {
-    particleId: descriptor.particleId,
-    kind: descriptor.kind,
+    darkParticleId: descriptor.darkParticleId,
+    darkParticleKind: descriptor.darkParticleKind,
     src: descriptor.src,
     metaSrc: descriptor.metaSrc,
     label: descriptor.label,
     localX: 0,
     localY: 0,
     localZ: 0,
-    shellScale: 1,
-    shellRadius: levelMetrics.shellRadiusMm,
-    shellTube: levelMetrics.shellTubeMm,
+    torusScale: 1,
+    torusRadius: levelMetrics.shellRadiusMm,
+    torusTube: levelMetrics.shellTubeMm,
     colorR: descriptor.colorR,
     colorG: descriptor.colorG,
     colorB: descriptor.colorB,
     activity: descriptor.activity ?? "neutral",
     children: nestedChildren,
-    fields,
+    fieldParticles,
     depthFromRoot,
     innerRadius,
     outerRadius,
   }
 }
-
-const flattenShellNode = (
-  node: LayoutShellNode,
-  parentParticleId: number | null,
+const flattenDarkParticleNode = (
+  node: LayoutDarkParticleNode,
+  parentDarkParticleId: number | null,
   depth: number,
-  shellOrder: number,
-  particles: DbParticleShellRow[],
-  fields: DbFieldOrbitRow[],
+  darkParticleOrder: number,
+  darkParticles: BulkDarkParticle[],
+  fieldParticles: BulkFieldParticle[],
 ): void => {
-  particles.push({
-    particleId: node.particleId,
-    parentParticleId,
-    kind: node.kind,
+  darkParticles.push({
+    darkParticleId: node.darkParticleId,
+    parentDarkParticleId,
+    darkParticleKind: node.darkParticleKind,
     src: node.src,
     metaSrc: node.metaSrc,
     label: node.label,
     depth,
-    shellOrder,
+    darkParticleOrder,
     localX: node.localX,
     localY: node.localY,
     localZ: node.localZ,
-    shellScale: node.shellScale,
-    shellRadius: node.shellRadius,
-    shellTube: node.shellTube,
+    torusScale: node.torusScale,
+    torusRadius: node.torusRadius,
+    torusTube: node.torusTube,
     colorR: node.colorR,
     colorG: node.colorG,
     colorB: node.colorB,
     activity: node.activity ?? "neutral",
   })
 
-  node.fields.forEach((field, fieldOrder) => {
-    fields.push({
-      id: field.id,
-      particleId: node.particleId,
-      fieldKey: field.fieldKey,
-      fieldLabel: field.fieldLabel,
+  node.fieldParticles.forEach((fieldParticle, fieldOrder) => {
+    fieldParticles.push({
+      fieldParticleId: fieldParticle.fieldParticleId,
+      parentDarkParticleId: node.darkParticleId,
+      fieldKey: fieldParticle.fieldKey,
+      fieldLabel: fieldParticle.fieldLabel,
       fieldOrder,
-      fieldValueKind: field.fieldValueKind,
-      valueText: field.valueText,
-      localX: field.localX,
-      localY: field.localY,
-      localZ: field.localZ,
-      sphereRadius: field.sphereRadius,
-      colorR: field.colorR,
-      colorG: field.colorG,
-      colorB: field.colorB,
+      fieldParticleKind: fieldParticle.fieldParticleKind,
+      valueText: fieldParticle.valueText,
+      localX: fieldParticle.localX,
+      localY: fieldParticle.localY,
+      localZ: fieldParticle.localZ,
+      sphereRadius: fieldParticle.sphereRadius,
+      colorR: fieldParticle.colorR,
+      colorG: fieldParticle.colorG,
+      colorB: fieldParticle.colorB,
     })
   })
 
   node.children.forEach((child, childOrder) => {
-    flattenShellNode(child, node.particleId, depth + 1, childOrder, particles, fields)
+    flattenDarkParticleNode(child, node.darkParticleId, depth + 1, childOrder, darkParticles, fieldParticles)
   })
 }
 
 /**
- * Совместимый shim для старых вызовов.
+ * Builds a planar Bulk manifest from a semantic Dark particle tree.
  *
- * Bottom-up закон раскладки теперь полностью разрешается в
- * {@link createDbWorldRowsFromParticleDescriptors} и
- * {@link scaleDbWorldRowsToRootOuterDiameter}. Локальный post-scale по поддереву
- * здесь больше не выполняется, потому что он ломает фрактальный размер shell-ов.
+ * Layout law:
+ * - the scene stays `Z-up`;
+ * - Dark particle torus geometry is sized bottom-up: children and field particles define parent torus minimum size;
+ * - depth defines a canonical minimum, but does not prevent a Dark particle from expanding from its content;
+ * - ordinary field particles materialize as peer-level sphere geometry and participate in orbit packing;
+ * - orbit packing places nested Dark particles and field particles by rings inside parent torus geometry.
  */
-export const enforceRootShellLayoutSettings = (
-  snapshot: DbWorldRows,
-  _settings: Partial<BulkLayoutSettings> = {},
-): DbWorldRows => {
-  return {
-    rootSrc: snapshot.rootSrc,
-    particles: snapshot.particles.map((particle) => ({ ...particle })),
-    fields: snapshot.fields.map((field) => ({ ...field })),
-  }
-}
-
-/**
- * Строит planar `store/db` world snapshot из семантического particle-дерева.
- *
- * Закон раскладки:
- * - сцена остаётся в `Z-up`
- * - размеры shell-ов считаются снизу вверх: дети и поля задают минимальный размер parent-тора
- * - depth задаёт canonical minimum, но не запрещает shell-у расшириться от содержимого
- * - ordinary fields materialize-ятся как сферы peer-level размера и участвуют в orbit packing
- * - orbit packing раскладывает внутренние торы и сферы по ring-ам внутри parent-тора
- */
-export const createDbWorldRowsFromParticleDescriptors = (
+export const createBulkManifestFromDarkParticleInputs = (
   rootSrc: string,
-  roots: DbWorldParticleDescriptor[],
+  roots: BulkDarkParticleInput[],
   settings: Partial<BulkLayoutSettings> = {},
-): DbWorldRows => {
+): BulkManifest => {
   const resolvedSettings = normalizeBulkLayoutSettings(settings)
-  const descriptorRoots = roots.map((root) => createShellDescriptorNode(root, 0))
-  const materializedRoots = descriptorRoots.map((root) => materializeCanonicalShellNode(root, resolvedSettings))
+  const inputRoots = roots.map((root) => createDarkParticleInputNode(root, 0))
+  const materializedRoots = inputRoots.map((root) => materializeCanonicalDarkParticleNode(root, resolvedSettings))
   const [mainRoot, ...otherRoots] = materializedRoots
   if (mainRoot) {
     mainRoot.localX = 0
@@ -364,73 +345,73 @@ export const createDbWorldRowsFromParticleDescriptors = (
     mainRoot.localZ = 0
   }
   placeOrbitItemsByBands(
-    otherRoots.map((shell) => ({
-      kind: "shell" as const,
-      shell,
-      extent: shell.outerRadius,
+    otherRoots.map((darkParticle) => ({
+      kind: "darkParticle" as const,
+      darkParticle,
+      extent: darkParticle.outerRadius,
     })),
     {
       paddingMm: resolvedSettings.orbitEdgeGapMm,
-      phase: mainRoot ? hashAngle(mainRoot.particleId) : 0,
+      phase: mainRoot ? hashAngle(mainRoot.darkParticleId) : 0,
       startOuterBoundary: mainRoot?.outerRadius ?? 0,
     },
   )
 
-  const particles: DbParticleShellRow[] = []
-  const fields: DbFieldOrbitRow[] = []
+  const darkParticles: BulkDarkParticle[] = []
+  const fieldParticles: BulkFieldParticle[] = []
 
   materializedRoots.forEach((root, rootOrder) => {
-    flattenShellNode(root, null, 0, rootOrder, particles, fields)
+    flattenDarkParticleNode(root, null, 0, rootOrder, darkParticles, fieldParticles)
   })
 
   return {
     rootSrc,
-    particles,
-    fields,
+    darkParticles,
+    fieldParticles,
   }
 }
 
 /**
- * Равномерно масштабирует snapshot так, чтобы главный root-shell сохранял фиксированный внешний диаметр.
+ * Uniformly scales a manifest so the main root Dark particle keeps the fixed outer torus diameter.
  *
- * Масштаб применяется глобально ко всему snapshot-у. Локальные subtree-коррекции не выполняются:
- * bottom-up топология уже рассчитана в materialize-проходе, а повторный reflow сломал бы договор
- * "дети задают размер родителя".
+ * The scale is applied globally to the whole manifest. Local subtree correction is intentionally not
+ * performed: bottom-up topology has already been calculated during materialization, and reflowing
+ * after scale would break the contract where children define parent size.
  */
-export const scaleDbWorldRowsToRootOuterDiameter = (
-  snapshot: DbWorldRows,
+export const scaleBulkManifestToRootOuterDiameter = (
+  manifest: BulkManifest,
   targetOuterDiameter: number = snapshotLayoutConfig.rootOuterDiameterMm,
   _settings: Partial<BulkLayoutSettings> = {},
-): DbWorldRows => {
-  const rootOuterRadius = snapshot.particles
-    .filter((particle) => particle.parentParticleId === null)
-    .reduce((max, particle) => Math.max(max, particle.shellRadius + particle.shellTube), 0)
+): BulkManifest => {
+  const rootOuterRadius = manifest.darkParticles
+    .filter((darkParticle) => darkParticle.parentDarkParticleId === null)
+    .reduce((max, darkParticle) => Math.max(max, darkParticle.torusRadius + darkParticle.torusTube), 0)
 
   if (rootOuterRadius <= 0 || targetOuterDiameter <= 0) {
-    return snapshot
+    return manifest
   }
 
   const scale = targetOuterDiameter / (rootOuterRadius * 2)
   if (!Number.isFinite(scale) || scale <= 0) {
-    return snapshot
+    return manifest
   }
 
   return {
-    rootSrc: snapshot.rootSrc,
-    particles: snapshot.particles.map((particle) => ({
-      ...particle,
-      localX: particle.localX * scale,
-      localY: particle.localY * scale,
-      localZ: particle.localZ * scale,
-      shellRadius: particle.shellRadius * scale,
-      shellTube: particle.shellTube * scale,
+    rootSrc: manifest.rootSrc,
+    darkParticles: manifest.darkParticles.map((darkParticle) => ({
+      ...darkParticle,
+      localX: darkParticle.localX * scale,
+      localY: darkParticle.localY * scale,
+      localZ: darkParticle.localZ * scale,
+      torusRadius: darkParticle.torusRadius * scale,
+      torusTube: darkParticle.torusTube * scale,
     })),
-    fields: snapshot.fields.map((field) => ({
-      ...field,
-      localX: field.localX * scale,
-      localY: field.localY * scale,
-      localZ: field.localZ * scale,
-      sphereRadius: field.sphereRadius * scale,
+    fieldParticles: manifest.fieldParticles.map((fieldParticle) => ({
+      ...fieldParticle,
+      localX: fieldParticle.localX * scale,
+      localY: fieldParticle.localY * scale,
+      localZ: fieldParticle.localZ * scale,
+      sphereRadius: fieldParticle.sphereRadius * scale,
     })),
   }
 }

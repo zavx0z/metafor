@@ -1,10 +1,9 @@
 /**
- * `bulk` — агрегирующий вход bulk-домена.
+ * `bulk` — агрегирующий вход manifestation-домена.
  *
- * Домен `Bulk` — проявленный объём, исполнение, процесс и наблюдаемая форма.
+ * Домен `Bulk` проявляет Dark Matter particles и field particles в наблюдаемой форме.
  *
- * Пакет не владеет source graph loading и читает уже подготовленный
- * dark-owned contract.
+ * Пакет не владеет source graph loading и читает уже подготовленный projection contract.
  *
  * Домен изолирован. Прямые импорты из `@bulk` в production-коде запрещены.
  * Тесты используют `@github/zavx0z/git` для интеграционной проверки.

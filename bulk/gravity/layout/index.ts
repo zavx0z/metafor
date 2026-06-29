@@ -1,14 +1,13 @@
 /**
- * `@bulk/gravity/layout` — bottom-up закон раскладки shell-иерархии в Bulk × Gravity.
+ * `@bulk/gravity/layout` — bottom-up layout law for the Bulk Dark particle hierarchy.
  *
  * Слой отвечает за:
  * - типы и нормализацию `BulkLayoutSettings` (root-размеры; depth задаёт minimum, а не потолок)
  * - проекцию контракта в `LevelGeometrySettings` (см. `@bulk/gravity/level`)
- * - построение `DbWorldRows` из дескрипторов particle-дерева
- * - равномерный scale row-набора к фиксированному внешнему диаметру root без повторного reflow
+ * - построение `BulkManifest` из Dark particle inputs
+ * - равномерный scale manifest-а к фиксированному внешнему диаметру root без повторного reflow
  *
- * `DbWorldRows` пока используется как промежуточная in-memory форма. Streaming-материализация
- * напрямую в DB заменит её на per-row write через `DbActorStore`.
+ * `BulkManifest` является runtime/projection contract-ом Bulk, не persistence table shape.
  */
 export type { BulkLayoutSettings, BulkLayoutSnapshotConfig } from "./settings.t"
 export {
@@ -17,19 +16,20 @@ export {
   normalizeBulkLayoutSettings,
   toLevelGeometrySettings,
 } from "./settings"
-export type { DbWorldFieldDescriptor, DbWorldParticleDescriptor } from "./snapshot"
+export type { BulkDarkParticleInput, BulkFieldParticleInput } from "./snapshot"
 export type {
-  DbFieldOrbitRow,
-  DbFieldValueKind,
-  DbParticleActivity,
-  DbParticleKind,
-  DbParticleShellRow,
-  DbWorldRows,
-  DbWorldRowSink,
+  BulkDarkParticle,
+  BulkDarkParticleActivity,
+  BulkDarkParticleKind,
+  BulkFieldParticle,
+  BulkFieldParticleKind,
+  BulkLegacyFieldKind,
+  BulkManifest,
+  BulkManifestSink,
+  BulkOrdinaryFieldKind,
 } from "./world"
 export {
-  createDbWorldRowsFromParticleDescriptors,
-  enforceRootShellLayoutSettings,
-  scaleDbWorldRowsToRootOuterDiameter,
+  createBulkManifestFromDarkParticleInputs,
+  scaleBulkManifestToRootOuterDiameter,
 } from "./snapshot"
-export { streamDbWorldRows } from "./stream"
+export { streamBulkManifest } from "./stream"

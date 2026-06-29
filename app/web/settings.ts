@@ -17,7 +17,7 @@ export type AppWebLayoutSettings = BulkLayoutSettings
 /** Настройки плотности wireframe-детализации для WebGPU viewport. */
 export type AppWebRenderSettings = AppConfigRender
 
-/** Layout-контракт UI: viewport-камера, сетка, fallback-shell. Snapshot-константы хранятся в `@bulk/gravity/layout`. */
+/** Layout-контракт UI: viewport-камера, сетка, fallback torus geometry. Snapshot-константы хранятся в `@bulk/gravity/layout`. */
 export interface AppWebLayoutConfig {
   viewport: {
     axesSizeMm: number
@@ -69,7 +69,7 @@ export interface AppWebSettingConfig {
 /** Реэкспорт layout-defaults из единого app-config-а. */
 export const DEFAULT_APP_WEB_LAYOUT_SETTINGS: AppWebLayoutSettings = APP_CONFIG_DEFAULTS.layout
 
-/** Layout-контракт `app/web`: viewport-камера, сетка, fallback-shell. */
+/** Layout-контракт `app/web`: viewport-камера, сетка, fallback torus geometry. */
 export const appWebLayoutConfig: AppWebLayoutConfig = {
   viewport: {
     axesSizeMm: 1000,
@@ -210,7 +210,7 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebSettingConf
     section: "render",
     label: "Прозрачность сетки",
     defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.wireframeOpacity,
-    description: "Задает общую прозрачность для всех wireframe-объектов (shell и сферы).",
+    description: "Задает общую прозрачность для всех wireframe-объектов: Dark particles и field particles.",
     min: 0,
     max: 1,
     step: 0.01,

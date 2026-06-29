@@ -14,26 +14,26 @@ import {
 } from "./web-navigation"
 
 describe("bulk web navigation", () => {
-  test("по клику выбирает самый глубокий shell среди всех попавших под луч", () => {
+  test("по клику выбирает самый глубокий Dark particle среди всех попавших под луч", () => {
     const targets: BulkPickTarget[] = [
       {
-        kind: "shell",
-        particleId: 1,
-        parentParticleId: null,
+        kind: "darkParticle",
+        darkParticleId: 1,
+        parentDarkParticleId: null,
         depth: 0,
         center: new Vector3(0, 0, 0),
-        shellRadius: 1000,
-        shellTube: 240,
+        torusRadius: 1000,
+        torusTube: 240,
         outerRadius: 1240,
       },
       {
-        kind: "shell",
-        particleId: 2,
-        parentParticleId: 1,
+        kind: "darkParticle",
+        darkParticleId: 2,
+        parentDarkParticleId: 1,
         depth: 1,
         center: new Vector3(0, 1200, 0),
-        shellRadius: 420,
-        shellTube: 120,
+        torusRadius: 420,
+        torusTube: 120,
         outerRadius: 540,
       },
     ]
@@ -43,30 +43,30 @@ describe("bulk web navigation", () => {
       targets,
     )
 
-    expect(hit?.kind).toBe("shell")
-    expect(hit && "particleId" in hit ? hit.particleId : null).toBe(2)
+    expect(hit?.kind).toBe("darkParticle")
+    expect(hit && "darkParticleId" in hit ? hit.darkParticleId : null).toBe(2)
   })
 
-  test("у более глубокого shell приоритет выше даже если родитель попадает точнее", () => {
+  test("у более глубокого Dark particle приоритет выше даже если родитель попадает точнее", () => {
     const targets: BulkPickTarget[] = [
       {
-        kind: "shell",
-        particleId: 1,
-        parentParticleId: null,
+        kind: "darkParticle",
+        darkParticleId: 1,
+        parentDarkParticleId: null,
         depth: 0,
         center: new Vector3(0, 0, 0),
-        shellRadius: 1000,
-        shellTube: 240,
+        torusRadius: 1000,
+        torusTube: 240,
         outerRadius: 1240,
       },
       {
-        kind: "shell",
-        particleId: 2,
-        parentParticleId: 1,
+        kind: "darkParticle",
+        darkParticleId: 2,
+        parentDarkParticleId: 1,
         depth: 2,
         center: new Vector3(0, 0, 0),
-        shellRadius: 700,
-        shellTube: 220,
+        torusRadius: 700,
+        torusTube: 220,
         outerRadius: 920,
       },
     ]
@@ -76,28 +76,28 @@ describe("bulk web navigation", () => {
       targets,
     )
 
-    expect(hit?.kind).toBe("shell")
-    expect(hit && "particleId" in hit ? hit.particleId : null).toBe(2)
+    expect(hit?.kind).toBe("darkParticle")
+    expect(hit && "darkParticleId" in hit ? hit.darkParticleId : null).toBe(2)
   })
 
-  test("field sphere участвует в pick/hover наравне с shell", () => {
+  test("Field particle sphere geometry участвует в pick/hover наравне с Dark particle", () => {
     const hit = resolveBulkPickTarget(
       new Ray(new Vector3(120, 40, -3000), new Vector3(0, 0, 1)),
       [
         {
-          kind: "shell",
-          particleId: 1,
-          parentParticleId: null,
+          kind: "darkParticle",
+          darkParticleId: 1,
+          parentDarkParticleId: null,
           depth: 0,
           center: new Vector3(0, 0, 0),
-          shellRadius: 1000,
-          shellTube: 240,
+          torusRadius: 1000,
+          torusTube: 240,
           outerRadius: 1240,
         },
         {
-          kind: "field",
-          particleId: 1,
-          fieldId: 101,
+          kind: "fieldParticle",
+          parentDarkParticleId: 1,
+          fieldParticleId: 101,
           depth: 3,
           center: new Vector3(120, 40, 0),
           sphereRadius: 90,
@@ -106,47 +106,47 @@ describe("bulk web navigation", () => {
       ],
     )
 
-    expect(hit?.kind).toBe("field")
-    expect(hit && "fieldId" in hit ? hit.fieldId : null).toBe(101)
+    expect(hit?.kind).toBe("fieldParticle")
+    expect(hit && "fieldParticleId" in hit ? hit.fieldParticleId : null).toBe(101)
   })
 
   test("hover retention не удерживает родителя, если найден более глубокий target", () => {
     const ray = new Ray(new Vector3(120, 40, -3000), new Vector3(0, 0, 1))
     const root: BulkPickTarget = {
-      kind: "shell",
-      particleId: 1,
-      parentParticleId: null,
+      kind: "darkParticle",
+      darkParticleId: 1,
+      parentDarkParticleId: null,
       depth: 0,
       center: new Vector3(0, 0, 0),
-      shellRadius: 1000,
-      shellTube: 240,
+      torusRadius: 1000,
+      torusTube: 240,
       outerRadius: 1240,
     }
-    const field: BulkPickTarget = {
-      kind: "field",
-      particleId: 1,
-      fieldId: 101,
+    const fieldParticle: BulkPickTarget = {
+      kind: "fieldParticle",
+      parentDarkParticleId: 1,
+      fieldParticleId: 101,
       depth: 3,
       center: new Vector3(120, 40, 0),
       sphereRadius: 90,
       outerRadius: 90,
     }
 
-    const hit = resolveBulkHoverTarget(ray, [root, field], root)
+    const hit = resolveBulkHoverTarget(ray, [root, fieldParticle], root)
 
-    expect(hit?.kind).toBe("field")
-    expect(hit && "fieldId" in hit ? hit.fieldId : null).toBe(101)
+    expect(hit?.kind).toBe("fieldParticle")
+    expect(hit && "fieldParticleId" in hit ? hit.fieldParticleId : null).toBe(101)
   })
 
   test("hover retention удерживает текущий target только если нового точного hit нет", () => {
     const root: BulkPickTarget = {
-      kind: "shell",
-      particleId: 1,
-      parentParticleId: null,
+      kind: "darkParticle",
+      darkParticleId: 1,
+      parentDarkParticleId: null,
       depth: 0,
       center: new Vector3(0, 0, 0),
-      shellRadius: 1000,
-      shellTube: 240,
+      torusRadius: 1000,
+      torusTube: 240,
       outerRadius: 1240,
     }
 
@@ -156,29 +156,29 @@ describe("bulk web navigation", () => {
       root,
     )
 
-    expect(hit?.kind).toBe("shell")
-    expect(hit && "particleId" in hit ? hit.particleId : null).toBe(1)
+    expect(hit?.kind).toBe("darkParticle")
+    expect(hit && "darkParticleId" in hit ? hit.darkParticleId : null).toBe(1)
   })
 
   test("при движении наружу удерживает child, пока он еще точно под курсором", () => {
     const root: BulkPickTarget = {
-      kind: "shell",
-      particleId: 1,
-      parentParticleId: null,
+      kind: "darkParticle",
+      darkParticleId: 1,
+      parentDarkParticleId: null,
       depth: 0,
       center: new Vector3(0, 0, 0),
-      shellRadius: 1000,
-      shellTube: 240,
+      torusRadius: 1000,
+      torusTube: 240,
       outerRadius: 1240,
     }
     const child: BulkPickTarget = {
-      kind: "shell",
-      particleId: 2,
-      parentParticleId: 1,
+      kind: "darkParticle",
+      darkParticleId: 2,
+      parentDarkParticleId: 1,
       depth: 1,
       center: new Vector3(0, 0, 0),
-      shellRadius: 700,
-      shellTube: 160,
+      torusRadius: 700,
+      torusTube: 160,
       outerRadius: 860,
     }
 
@@ -195,29 +195,29 @@ describe("bulk web navigation", () => {
       ]),
     )
 
-    expect(target?.kind).toBe("shell")
-    expect(target && "particleId" in target ? target.particleId : null).toBe(2)
+    expect(target?.kind).toBe("darkParticle")
+    expect(target && "darkParticleId" in target ? target.darkParticleId : null).toBe(2)
   })
 
   test("при движении наружу после выхода с child выбирает ближайшего родителя", () => {
     const root: BulkPickTarget = {
-      kind: "shell",
-      particleId: 1,
-      parentParticleId: null,
+      kind: "darkParticle",
+      darkParticleId: 1,
+      parentDarkParticleId: null,
       depth: 0,
       center: new Vector3(0, 0, 0),
-      shellRadius: 1000,
-      shellTube: 240,
+      torusRadius: 1000,
+      torusTube: 240,
       outerRadius: 1240,
     }
     const child: BulkPickTarget = {
-      kind: "shell",
-      particleId: 2,
-      parentParticleId: 1,
+      kind: "darkParticle",
+      darkParticleId: 2,
+      parentDarkParticleId: 1,
       depth: 1,
       center: new Vector3(0, 0, 0),
-      shellRadius: 700,
-      shellTube: 160,
+      torusRadius: 700,
+      torusTube: 160,
       outerRadius: 860,
     }
 
@@ -231,39 +231,39 @@ describe("bulk web navigation", () => {
       ]),
     )
 
-    expect(target?.kind).toBe("shell")
-    expect(target && "particleId" in target ? target.particleId : null).toBe(1)
+    expect(target?.kind).toBe("darkParticle")
+    expect(target && "darkParticleId" in target ? target.darkParticleId : null).toBe(1)
   })
 
   test("при движении внутрь выбирает ближайшего ребенка, а не самого глубокого потомка", () => {
     const root: BulkPickTarget = {
-      kind: "shell",
-      particleId: 1,
-      parentParticleId: null,
+      kind: "darkParticle",
+      darkParticleId: 1,
+      parentDarkParticleId: null,
       depth: 0,
       center: new Vector3(0, 0, 0),
-      shellRadius: 1200,
-      shellTube: 240,
+      torusRadius: 1200,
+      torusTube: 240,
       outerRadius: 1440,
     }
     const child: BulkPickTarget = {
-      kind: "shell",
-      particleId: 2,
-      parentParticleId: 1,
+      kind: "darkParticle",
+      darkParticleId: 2,
+      parentDarkParticleId: 1,
       depth: 1,
       center: new Vector3(0, 0, 0),
-      shellRadius: 900,
-      shellTube: 180,
+      torusRadius: 900,
+      torusTube: 180,
       outerRadius: 1080,
     }
     const grandchild: BulkPickTarget = {
-      kind: "shell",
-      particleId: 3,
-      parentParticleId: 2,
+      kind: "darkParticle",
+      darkParticleId: 3,
+      parentDarkParticleId: 2,
       depth: 2,
       center: new Vector3(0, 0, 0),
-      shellRadius: 650,
-      shellTube: 140,
+      torusRadius: 650,
+      torusTube: 140,
       outerRadius: 790,
     }
 
@@ -282,8 +282,8 @@ describe("bulk web navigation", () => {
       ]),
     )
 
-    expect(target?.kind).toBe("shell")
-    expect(target && "particleId" in target ? target.particleId : null).toBe(2)
+    expect(target?.kind).toBe("darkParticle")
+    expect(target && "darkParticleId" in target ? target.darkParticleId : null).toBe(2)
   })
 
   test("направление hover считает по изменению радиуса к центру target", () => {
@@ -306,23 +306,23 @@ describe("bulk web navigation", () => {
 
   test("hover переключается только после короткой стабильной задержки", () => {
     const root: BulkPickTarget = {
-      kind: "shell",
-      particleId: 1,
-      parentParticleId: null,
+      kind: "darkParticle",
+      darkParticleId: 1,
+      parentDarkParticleId: null,
       depth: 0,
       center: new Vector3(0, 0, 0),
-      shellRadius: 1000,
-      shellTube: 240,
+      torusRadius: 1000,
+      torusTube: 240,
       outerRadius: 1240,
     }
     const child: BulkPickTarget = {
-      kind: "shell",
-      particleId: 2,
-      parentParticleId: 1,
+      kind: "darkParticle",
+      darkParticleId: 2,
+      parentDarkParticleId: 1,
       depth: 1,
       center: new Vector3(0, 0, 0),
-      shellRadius: 700,
-      shellTube: 160,
+      torusRadius: 700,
+      torusTube: 160,
       outerRadius: 860,
     }
 
@@ -334,8 +334,8 @@ describe("bulk web navigation", () => {
       nowMs: 100,
       delayMs: 72,
     })
-    expect(pending.committedTarget && "particleId" in pending.committedTarget ? pending.committedTarget.particleId : null).toBe(2)
-    expect(pending.pendingTarget && "particleId" in pending.pendingTarget ? pending.pendingTarget.particleId : null).toBe(1)
+    expect(pending.committedTarget && "darkParticleId" in pending.committedTarget ? pending.committedTarget.darkParticleId : null).toBe(2)
+    expect(pending.pendingTarget && "darkParticleId" in pending.pendingTarget ? pending.pendingTarget.darkParticleId : null).toBe(1)
 
     const committed = resolveBulkHoverTransition({
       currentTarget: child,
@@ -345,29 +345,29 @@ describe("bulk web navigation", () => {
       nowMs: 173,
       delayMs: 72,
     })
-    expect(committed.committedTarget && "particleId" in committed.committedTarget ? committed.committedTarget.particleId : null).toBe(1)
+    expect(committed.committedTarget && "darkParticleId" in committed.committedTarget ? committed.committedTarget.darkParticleId : null).toBe(1)
     expect(committed.pendingTarget).toBeNull()
   })
 
   test("hover delay сбрасывается, если курсор вернулся на текущий target", () => {
     const root: BulkPickTarget = {
-      kind: "shell",
-      particleId: 1,
-      parentParticleId: null,
+      kind: "darkParticle",
+      darkParticleId: 1,
+      parentDarkParticleId: null,
       depth: 0,
       center: new Vector3(0, 0, 0),
-      shellRadius: 1000,
-      shellTube: 240,
+      torusRadius: 1000,
+      torusTube: 240,
       outerRadius: 1240,
     }
     const child: BulkPickTarget = {
-      kind: "shell",
-      particleId: 2,
-      parentParticleId: 1,
+      kind: "darkParticle",
+      darkParticleId: 2,
+      parentDarkParticleId: 1,
       depth: 1,
       center: new Vector3(0, 0, 0),
-      shellRadius: 700,
-      shellTube: 160,
+      torusRadius: 700,
+      torusTube: 160,
       outerRadius: 860,
     }
 
@@ -389,30 +389,30 @@ describe("bulk web navigation", () => {
       delayMs: 72,
     })
 
-    expect(reset.committedTarget && "particleId" in reset.committedTarget ? reset.committedTarget.particleId : null).toBe(2)
+    expect(reset.committedTarget && "darkParticleId" in reset.committedTarget ? reset.committedTarget.darkParticleId : null).toBe(2)
     expect(reset.pendingTarget).toBeNull()
     expect(reset.pendingStartedAtMs).toBeNull()
   })
 
   test("hover priority выбирает target с меньшей экранной ошибкой, а не более глубокий по умолчанию", () => {
     const root: BulkPickTarget = {
-      kind: "shell",
-      particleId: 1,
-      parentParticleId: null,
+      kind: "darkParticle",
+      darkParticleId: 1,
+      parentDarkParticleId: null,
       depth: 0,
       center: new Vector3(0, 0, 0),
-      shellRadius: 1000,
-      shellTube: 240,
+      torusRadius: 1000,
+      torusTube: 240,
       outerRadius: 1240,
     }
     const child: BulkPickTarget = {
-      kind: "shell",
-      particleId: 2,
-      parentParticleId: 1,
+      kind: "darkParticle",
+      darkParticleId: 2,
+      parentDarkParticleId: 1,
       depth: 1,
       center: new Vector3(0, 0, 0),
-      shellRadius: 700,
-      shellTube: 160,
+      torusRadius: 700,
+      torusTube: 160,
       outerRadius: 860,
     }
 
@@ -424,29 +424,29 @@ describe("bulk web navigation", () => {
       ],
     })
 
-    expect(target?.kind).toBe("shell")
-    expect(target && "particleId" in target ? target.particleId : null).toBe(1)
+    expect(target?.kind).toBe("darkParticle")
+    expect(target && "darkParticleId" in target ? target.darkParticleId : null).toBe(1)
   })
 
   test("hover priority при близких score предпочитает более глубокий child", () => {
     const root: BulkPickTarget = {
-      kind: "shell",
-      particleId: 1,
-      parentParticleId: null,
+      kind: "darkParticle",
+      darkParticleId: 1,
+      parentDarkParticleId: null,
       depth: 0,
       center: new Vector3(0, 0, 0),
-      shellRadius: 1000,
-      shellTube: 240,
+      torusRadius: 1000,
+      torusTube: 240,
       outerRadius: 1240,
     }
     const child: BulkPickTarget = {
-      kind: "shell",
-      particleId: 2,
-      parentParticleId: 1,
+      kind: "darkParticle",
+      darkParticleId: 2,
+      parentDarkParticleId: 1,
       depth: 1,
       center: new Vector3(0, 0, 0),
-      shellRadius: 700,
-      shellTube: 160,
+      torusRadius: 700,
+      torusTube: 160,
       outerRadius: 860,
     }
 
@@ -458,29 +458,29 @@ describe("bulk web navigation", () => {
       ],
     })
 
-    expect(target?.kind).toBe("shell")
-    expect(target && "particleId" in target ? target.particleId : null).toBe(2)
+    expect(target?.kind).toBe("darkParticle")
+    expect(target && "darkParticleId" in target ? target.darkParticleId : null).toBe(2)
   })
 
   test("hover priority удерживает текущий target, пока новый не стал заметно ближе", () => {
     const root: BulkPickTarget = {
-      kind: "shell",
-      particleId: 1,
-      parentParticleId: null,
+      kind: "darkParticle",
+      darkParticleId: 1,
+      parentDarkParticleId: null,
       depth: 0,
       center: new Vector3(0, 0, 0),
-      shellRadius: 1000,
-      shellTube: 240,
+      torusRadius: 1000,
+      torusTube: 240,
       outerRadius: 1240,
     }
     const child: BulkPickTarget = {
-      kind: "shell",
-      particleId: 2,
-      parentParticleId: 1,
+      kind: "darkParticle",
+      darkParticleId: 2,
+      parentDarkParticleId: 1,
       depth: 1,
       center: new Vector3(0, 0, 0),
-      shellRadius: 700,
-      shellTube: 160,
+      torusRadius: 700,
+      torusTube: 160,
       outerRadius: 860,
     }
 
@@ -493,36 +493,36 @@ describe("bulk web navigation", () => {
       ],
     })
 
-    expect(target?.kind).toBe("shell")
-    expect(target && "particleId" in target ? target.particleId : null).toBe(2)
+    expect(target?.kind).toBe("darkParticle")
+    expect(target && "darkParticleId" in target ? target.darkParticleId : null).toBe(2)
   })
 
   test("hover priority не дает родителю блокировать более точного child", () => {
     const root: BulkPickTarget = {
-      kind: "shell",
-      particleId: 1,
-      parentParticleId: null,
+      kind: "darkParticle",
+      darkParticleId: 1,
+      parentDarkParticleId: null,
       depth: 0,
       center: new Vector3(0, 0, 0),
-      shellRadius: 1000,
-      shellTube: 240,
+      torusRadius: 1000,
+      torusTube: 240,
       outerRadius: 1240,
     }
     const child: BulkPickTarget = {
-      kind: "shell",
-      particleId: 2,
-      parentParticleId: 1,
+      kind: "darkParticle",
+      darkParticleId: 2,
+      parentDarkParticleId: 1,
       depth: 1,
       center: new Vector3(0, 0, 0),
-      shellRadius: 700,
-      shellTube: 160,
+      torusRadius: 700,
+      torusTube: 160,
       outerRadius: 860,
     }
 
     const target = resolveBulkHoverPriorityTarget({
       currentTarget: root,
       hysteresisPx: 6,
-      parentByParticleId: new Map([
+      parentByDarkParticleId: new Map([
         [1, null],
         [2, 1],
       ]),
@@ -532,29 +532,29 @@ describe("bulk web navigation", () => {
       ],
     })
 
-    expect(target?.kind).toBe("shell")
-    expect(target && "particleId" in target ? target.particleId : null).toBe(2)
+    expect(target?.kind).toBe("darkParticle")
+    expect(target && "darkParticleId" in target ? target.darkParticleId : null).toBe(2)
   })
 
   test("hover priority отпускает текущий target, когда другой стал существенно ближе", () => {
     const root: BulkPickTarget = {
-      kind: "shell",
-      particleId: 1,
-      parentParticleId: null,
+      kind: "darkParticle",
+      darkParticleId: 1,
+      parentDarkParticleId: null,
       depth: 0,
       center: new Vector3(0, 0, 0),
-      shellRadius: 1000,
-      shellTube: 240,
+      torusRadius: 1000,
+      torusTube: 240,
       outerRadius: 1240,
     }
     const child: BulkPickTarget = {
-      kind: "shell",
-      particleId: 2,
-      parentParticleId: 1,
+      kind: "darkParticle",
+      darkParticleId: 2,
+      parentDarkParticleId: 1,
       depth: 1,
       center: new Vector3(0, 0, 0),
-      shellRadius: 700,
-      shellTube: 160,
+      torusRadius: 700,
+      torusTube: 160,
       outerRadius: 860,
     }
 
@@ -567,21 +567,21 @@ describe("bulk web navigation", () => {
       ],
     })
 
-    expect(target?.kind).toBe("shell")
-    expect(target && "particleId" in target ? target.particleId : null).toBe(1)
+    expect(target?.kind).toBe("darkParticle")
+    expect(target && "darkParticleId" in target ? target.darkParticleId : null).toBe(1)
   })
 
   test("torus hit считается в реальном 3D, а не только по центральной z-плоскости", () => {
     const hit = resolveBulkPickHit(
       new Ray(new Vector3(1000, 0, 500), new Vector3(0, 0, -1).normalize()),
       {
-        kind: "shell",
-        particleId: 1,
-        parentParticleId: null,
+        kind: "darkParticle",
+        darkParticleId: 1,
+        parentDarkParticleId: null,
         depth: 0,
         center: new Vector3(0, 0, 0),
-        shellRadius: 1000,
-        shellTube: 240,
+        torusRadius: 1000,
+        torusTube: 240,
         outerRadius: 1240,
       },
     )
@@ -589,7 +589,7 @@ describe("bulk web navigation", () => {
     expect(hit).not.toBeNull()
   })
 
-  test("считает новую позу камеры на центр выбранного shell", () => {
+  test("считает новую позу камеры на центр выбранного Dark particle", () => {
     const pose = resolveBulkViewportFocusPose({
       currentPosition: new Vector3(3000, -2000, 1800),
       currentTarget: new Vector3(0, 0, 1100),

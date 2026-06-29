@@ -1,4 +1,4 @@
-import type { DbFieldOrbitRow, DbFieldValueKind, DbParticleShellRow, DbWorldRows } from "@bulk/gravity/layout"
+import type { BulkFieldParticle, BulkFieldParticleKind, BulkDarkParticle, BulkManifest } from "@bulk/gravity/layout"
 import {
 	appWebLayoutConfig,
 	DEFAULT_APP_WEB_LAYOUT_SETTINGS,
@@ -70,7 +70,7 @@ import {
 	type BulkPickTarget,
 	type BulkHoverPriorityCandidate,
 } from "../web-navigation"
-import { isDepthLabelVisible, isShellLabelVisible } from "../label-visibility"
+import { isDepthLabelVisible, isDarkParticleLabelVisible } from "../label-visibility"
 import {
 	bendTextAroundEquator,
 	createSurfaceLabel,
@@ -79,11 +79,11 @@ import {
 	type TextExtents,
 } from "@bulk/gravity/text"
 
-/** Краткая статистика текущего world-а, которую viewport отдаёт в UI. */
+/** Краткая статистика текущего manifest-а, которую viewport отдаёт в UI. */
 export interface BulkViewportStats {
-	fieldCount: number
+	fieldParticleCount: number
 	rootSrc?: string
-	shellCount: number
+	darkParticleCount: number
 }
 
 /** Публичный API bulk viewport для `app/web`. */
@@ -94,7 +94,7 @@ export interface BulkViewportController {
 	setLayoutSettings(settings: Partial<AppWebLayoutSettings>): void
 	setRenderSettings(settings: Partial<AppWebRenderSettings>): void
 	setSize(width: number, height: number): void
-	applyWorld(world: DbWorldRows): void
+	applyManifest(manifest: BulkManifest): void
 	readonly hud: BulkViewportHudController
 }
 
@@ -331,7 +331,6 @@ const readStoredBulkViewPose = (): RestoredBulkViewPose | null => {
 		return null
 	}
 }
-
 const writeStoredBulkViewPose = (pose: BulkViewPose, rootFitLockedToViewport: boolean): void => {
 	try {
 		window.sessionStorage.setItem(BULK_VIEW_POSE_STORAGE_KEY, JSON.stringify({
@@ -474,38 +473,38 @@ type ViewNavigationState = {
 	targetKey: string | null
 }
 
-type ShellRenderRecord = {
-	baseShellScale: number
+type DarkParticleRenderRecord = {
+	baseTorusScale: number
 	container: Object3D
 	cosmosOrbitAngle: number
 	currentTransitionScale: number
 	material: LineGlowMaterial
 	pickTarget: HoverablePickTarget
-	snapshot: DbParticleShellRow
+	snapshot: BulkDarkParticle
 	targetLocalPosition: Vector3
 	torus: LineSegments
 }
 
-type FieldRenderRecord = {
+type FieldParticleRenderRecord = {
 	cosmosOrbitAngle: number
 	currentTransitionScale: number
 	depth: number
 	material: LineGlowMaterial
 	node: LineSegments
-	parentParticleId: number
+	parentDarkParticleId: number
 	pickTarget: HoverablePickTarget
-	snapshot: DbFieldOrbitRow
+	snapshot: BulkFieldParticle
 	targetLocalPosition: Vector3
 }
 
-type FieldBillboardRecord = {
+type FieldParticleBillboardRecord = {
 	anchorObject: Object3D
 	container: Object3D
-	fieldId: number
+	fieldParticleId: number
 	heightMm: number
 	pixelScale: number
 	signature: string
-	surface: FieldBillboardSurface
+	surface: FieldParticleBillboardSurface
 	widthMm: number
 }
 
@@ -539,11 +538,11 @@ type LabelRenderRecord = {
 	initialCoverPositions: Float32Array
 	initialStencilPositions: Float32Array
 	key: string
-	kind: "shell" | "field"
+	kind: "darkParticle" | "fieldParticle"
 	material: TextMaterial
 	offset: number
-	shellRadius: number
-	shellTube: number
+	torusRadius: number
+	torusTube: number
 	signature: string
 	sphereRadius: number
 	stencilCenterX: number
@@ -555,12 +554,12 @@ type LabelSpec = {
 	color: Color
 	depth: number
 	key: string
-	kind: "shell" | "field"
+	kind: "darkParticle" | "fieldParticle"
 	metricDepth: number
 	metricRadius: number
 	offset: number
-	shellRadius: number
-	shellTube: number
+	torusRadius: number
+	torusTube: number
 	sphereRadius: number
 	text: string
 }
@@ -574,10 +573,10 @@ type FadingLabelRemovalRecord = {
 	startedAtMs: number
 }
 
-type FieldBillboardMode = "summary" | "surface"
+type FieldParticleBillboardMode = "summary" | "surface"
 
 const getViewportConfig = () => appWebLayoutConfig.viewport
-const getShellFallback = () => getViewportConfig().shellFallbackMm
+const getTorusFallback = () => getViewportConfig().shellFallbackMm
 const getWorkspaceBaseZ = (): number => getViewportConfig().levelsMm.elbow
 const getFloorZ = (): number => getViewportConfig().levelsMm.floor
 
@@ -596,7 +595,7 @@ const resolveSurfaceOffsetMm = (depth: number, outerRadiusMm: number): number =>
 	return Math.max(0, label.surfaceOffsetMm * surfaceScale)
 }
 
-let activeShellParticleId: number | null = null
+let activeDarkParticleId: number | null = null
 
 const isLabelDepthVisible = (depth: number): boolean =>
 	isDepthLabelVisible({
@@ -605,11 +604,11 @@ const isLabelDepthVisible = (depth: number): boolean =>
 		labelVisibleLevels: activeRenderSettings.labelVisibleLevels,
 	})
 
-const isShellLabelDepthVisible = (particleId: number, depth: number): boolean =>
-	isShellLabelVisible({
+const isDarkParticleLabelDepthVisible = (darkParticleId: number, depth: number): boolean =>
+	isDarkParticleLabelVisible({
 		baseDepth: activeRenderSettings.baseDepth,
 		depth,
-		isActiveShell: activeShellParticleId === particleId,
+		isActiveDarkParticle: activeDarkParticleId === darkParticleId,
 		labelVisibleLevels: activeRenderSettings.labelVisibleLevels,
 	})
 
@@ -633,8 +632,8 @@ const getSphereDetail = (_radius: number, depth: number): { widthSegments: numbe
 	}
 }
 
-const particleColor = (row: { colorR: number; colorG: number; colorB: number }): Color =>
-	new Color(row.colorR, row.colorG, row.colorB)
+const particleColor = (particle: { colorR: number; colorG: number; colorB: number }): Color =>
+	new Color(particle.colorR, particle.colorG, particle.colorB)
 
 const glowColor = (color: Color, alpha: number = 0.14): Color =>
 	new Color(
@@ -673,23 +672,24 @@ const forcePositiveInteger = (value: unknown): number | null => {
 	return Number.isSafeInteger(numeric) && numeric > 0 ? numeric : null
 }
 
-const forceActorParticleId = (value: unknown): number | null => {
+const forceActorDarkParticleId = (value: unknown): number | null => {
 	const actorId = forcePositiveInteger(value)
 	if (actorId === null) return null
-	const particleId = actorId * 2
-	return Number.isSafeInteger(particleId) ? particleId : null
+	const darkParticleId = actorId * 2
+	return Number.isSafeInteger(darkParticleId) ? darkParticleId : null
 }
 
-const forceFieldValueKind = (value: unknown): DbFieldValueKind | null => {
+const forceFieldParticleKind = (value: unknown): BulkFieldParticleKind | null => {
 	const kind = forceString(value)
 	if (kind === "string" || kind === "number" || kind === "boolean" || kind === "array" || kind === "enum") return kind
 	return kind === null ? null : "other"
 }
 
-const forceFieldColor = (kind: DbFieldValueKind): {colorR: number; colorG: number; colorB: number} => {
+const forceFieldParticleColor = (kind: BulkFieldParticleKind): {colorR: number; colorG: number; colorB: number} => {
 	if (kind === "string") return {colorR: 1, colorG: 0.08, colorB: 0.58}
 	if (kind === "number") return {colorR: 1, colorG: 0.88, colorB: 0}
 	if (kind === "boolean") return {colorR: 0, colorG: 0.9, colorB: 1}
+	// TODO: enum/array are connectivity particles and should be manifested as Fuzzy/MACHO, not ordinary field particles.
 	if (kind === "enum") return {colorR: 0.58, colorG: 0.32, colorB: 1}
 	if (kind === "array") return {colorR: 1, colorG: 0.42, colorB: 0}
 	return {colorR: 1, colorG: 0.16, colorB: 0.16}
@@ -798,25 +798,25 @@ const setQuaternionNlerp = (target: Quaternion, from: Quaternion, to: Quaternion
 	).normalize()
 }
 
-class FieldBillboardSurface extends UiSurface {
-	#field: DbFieldOrbitRow
-	#mode: FieldBillboardMode = "summary"
+class FieldParticleBillboardSurface extends UiSurface {
+	#field: BulkFieldParticle
+	#mode: FieldParticleBillboardMode = "summary"
 	readonly #metaMaterial = new TextMaterial({color: new Color(0.58, 0.66, 0.78)})
 	readonly #keyMaterial = new TextMaterial({color: new Color(0.74, 0.84, 0.94)})
 	readonly #valueMaterial = new TextMaterial({color: new Color(1, 0.92, 0.74)})
 
-	constructor(field: DbFieldOrbitRow) {
+	constructor(field: BulkFieldParticle) {
 		super({bgColor: null, borderColor: null})
 		this.#field = {...field}
 		this.referenceHeight = FIELD_BILLBOARD_PIXEL_HEIGHT
 	}
 
-	setField(field: DbFieldOrbitRow): void {
+	setField(field: BulkFieldParticle): void {
 		this.#field = {...field}
 		this.requestRender()
 	}
 
-	setMode(mode: FieldBillboardMode): void {
+	setMode(mode: FieldParticleBillboardMode): void {
 		if (this.#mode === mode) return
 		this.#mode = mode
 		this.requestRender()
@@ -846,7 +846,7 @@ class FieldBillboardSurface extends UiSurface {
 			borderWidth: 1,
 			z: Z.CONTAINER,
 		})
-		this.drawText(`id:${field.id} particle:${field.particleId} order:${field.fieldOrder}`, padX, 28, {
+		this.drawText(`id:${field.fieldParticleId} parent:${field.parentDarkParticleId} order:${field.fieldOrder}`, padX, 28, {
 			clip: false,
 			fontPx: 8,
 			material: this.#metaMaterial,
@@ -854,7 +854,7 @@ class FieldBillboardSurface extends UiSurface {
 			z: Z.TEXT,
 		})
 		this.#drawPair("key", field.fieldKey, padX, valueX, 48, contentW - 36)
-		this.#drawPair("type", field.fieldValueKind, padX, valueX, 68, contentW - 36)
+		this.#drawPair("type", field.fieldParticleKind, padX, valueX, 68, contentW - 36)
 		this.#drawPair("value", compactFieldBillboardText(field.valueText), padX, valueX, 88, contentW - 36, this.#valueMaterial)
 	}
 
@@ -1523,9 +1523,9 @@ const readObjectWorldPosition = (object: Object3D, target: Vector3): Vector3 => 
 	return target.set(elements[12] ?? 0, elements[13] ?? 0, elements[14] ?? 0)
 }
 
-const resolveFieldPeerLevelMetrics = (
-	record: FieldRenderRecord,
-	_parentShellRecord: ShellRenderRecord | undefined,
+const resolveFieldParticlePeerLevelMetrics = (
+	record: FieldParticleRenderRecord,
+	_parentDarkParticleRecord: DarkParticleRenderRecord | undefined,
 ): { metricDepth: number; metricRadius: number } => {
 	const metricDepth = record.depth
 	return {
@@ -1541,12 +1541,12 @@ const resolveFieldPeerLevelMetrics = (
 /**
  * Характеристический радиус параллели surface для canonical выбора font-size.
  *
- * Для тора — большой экваториальный радиус: `shellRadius + shellTube + offset`.
+ * Для тора — большой экваториальный радиус: `torusRadius + torusTube + offset`.
  * Для сферы — полный радиус + offset.
  */
 const resolveCanonicalCurveRadius = (spec: LabelSpec): number => {
-	if (spec.kind === "shell") {
-		return Math.max(spec.shellRadius + spec.shellTube + spec.offset, 1e-6)
+	if (spec.kind === "darkParticle") {
+		return Math.max(spec.torusRadius + spec.torusTube + spec.offset, 1e-6)
 	}
 	return Math.max(spec.sphereRadius + spec.offset, 1e-6)
 }
@@ -1664,8 +1664,8 @@ const getSphereWireframeGeometry = (radius: number, depth: number): BufferGeomet
 	return wireframe
 }
 
-const createShellMaterial = (shell: DbParticleShellRow): LineGlowMaterial =>
-	new LineGlowMaterial(resolveShellVisualState(shell))
+const createDarkParticleMaterial = (darkParticle: BulkDarkParticle): LineGlowMaterial =>
+	new LineGlowMaterial(resolveDarkParticleVisualState(darkParticle))
 
 const mixColor = (left: Color, right: Color, amount: number): Color =>
 	new Color(
@@ -1677,11 +1677,11 @@ const mixColor = (left: Color, right: Color, amount: number): Color =>
 
 const brightenColor = (color: Color, amount: number): Color => mixColor(color, new Color(1, 1, 1, color.a), amount)
 
-const resolveShellVisualState = (shell: DbParticleShellRow): { color: Color; glowColor: Color; glowIntensity: number; opacity: number } => {
-	const baseColor = particleColor(shell)
-	const glowIntensity = shell.kind === "wimp" ? 1.4 : 1.15
+const resolveDarkParticleVisualState = (darkParticle: BulkDarkParticle): { color: Color; glowColor: Color; glowIntensity: number; opacity: number } => {
+	const baseColor = particleColor(darkParticle)
+	const glowIntensity = darkParticle.darkParticleKind === "wimp" ? 1.4 : 1.15
 	const opacity = activeRenderSettings.wireframeOpacity
-	if (shell.activity === "active") {
+	if (darkParticle.activity === "active") {
 		return {
 			color: mixColor(baseColor, new Color(1, 1, 1), 0.18),
 			glowColor: glowColor(baseColor, 0.18),
@@ -1689,7 +1689,7 @@ const resolveShellVisualState = (shell: DbParticleShellRow): { color: Color; glo
 			opacity: Math.min(1, opacity * 1.08),
 	}
 	}
-	if (shell.activity === "inactive") {
+	if (darkParticle.activity === "inactive") {
 		return {
 			color: mixColor(mixColor(baseColor, new Color(1, 1, 1), 0.24), ROOT_BACKGROUND, 0.28),
 			glowColor: glowColor(mixColor(baseColor, new Color(1, 1, 1), 0.3), 0.08),
@@ -1705,8 +1705,8 @@ const resolveShellVisualState = (shell: DbParticleShellRow): { color: Color; glo
 	}
 }
 
-const createFieldMaterial = (orbit: DbFieldOrbitRow): LineGlowMaterial => {
-	const color = particleColor(orbit)
+const createFieldParticleMaterial = (fieldParticle: BulkFieldParticle): LineGlowMaterial => {
+	const color = particleColor(fieldParticle)
 	return new LineGlowMaterial({
 		color,
 		glowIntensity: FIELD_GLOW_INTENSITY,
@@ -2322,8 +2322,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	let pickTargets: HoverablePickTarget[] = []
 	let hoveredPickTarget: HoverablePickTarget | null = null
 	let radialMenuPickTarget: HoverablePickTarget | null = null
-	let world: DbWorldRows | null = null
-	let parentByParticleId = new Map<number, number | null>()
+	let manifest: BulkManifest | null = null
+	let parentByDarkParticleId = new Map<number, number | null>()
 	let clickNavigationSuppressed = false
 	let isPrimaryPointerDown = false
 	let navigationState: ViewNavigationState | null = null
@@ -2361,9 +2361,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	let botPhoneHoverPane: BotPhoneHoverControlsPane | null = null
 	let botPhoneDisplayDock: BotPhoneDisplayDockPane | null = null
 
-	const shellRecords = new Map<number, ShellRenderRecord>()
-	const fieldRecords = new Map<number, FieldRenderRecord>()
-	const fieldBillboardRecords = new Map<number, FieldBillboardRecord>()
+	const darkParticleRecords = new Map<number, DarkParticleRenderRecord>()
+	const fieldParticleRecords = new Map<number, FieldParticleRenderRecord>()
+	const fieldParticleBillboardRecords = new Map<number, FieldParticleBillboardRecord>()
 	const fadingRemovalRecords: FadingRemovalRecord[] = []
 	const labelRecords = new Map<string, LabelRenderRecord>()
 	const fadingLabelRemovalRecords: FadingLabelRemovalRecord[] = []
@@ -2420,7 +2420,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		if (frameHandle !== 0) return
 		frameHandle = requestAnimationFrame(animate)
 	}
-	const worldUiCanvas = {
+	const manifestUiCanvas = {
 		canvas: options.canvas,
 		renderer,
 		requestRender: () => requestRenderLoop(INPUT_RENDER_WAKE_MS),
@@ -2518,7 +2518,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const getPickTargetKey = (target: BulkPickTarget | null): string | null => {
 		if (!target) return null
-		return target.kind === "field" ? `field:${target.fieldId}` : `shell:${target.particleId}`
+		return target.kind === "fieldParticle" ? `fieldParticle:${target.fieldParticleId}` : `darkParticle:${target.darkParticleId}`
 	}
 
 	const syncPickTargetMaterialState = (target: HoverablePickTarget): void => {
@@ -2562,13 +2562,13 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return Math.max(0.05, Math.min(20, value))
 	}
 
-	const applyShellRecordScale = (record: ShellRenderRecord): void => {
-		const scale = record.baseShellScale * record.currentTransitionScale
+	const applyDarkParticleRecordScale = (record: DarkParticleRenderRecord): void => {
+		const scale = record.baseTorusScale * record.currentTransitionScale
 		record.container.scale.set(scale, scale, scale)
 		record.container.updateMatrix()
 	}
 
-	const applyFieldRecordScale = (record: FieldRenderRecord): void => {
+	const applyFieldParticleRecordScale = (record: FieldParticleRenderRecord): void => {
 		record.node.scale.set(
 			record.currentTransitionScale,
 			record.currentTransitionScale,
@@ -2577,7 +2577,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		record.node.updateMatrix()
 	}
 
-	const refreshFieldRecordOrientation = (record: FieldRenderRecord): void => {
+	const refreshFieldRecordOrientation = (record: FieldParticleRenderRecord): void => {
 		const qBase = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2)
 		const tiltRad = (-activeRenderSettings.torusCrossRingRotationDeg * Math.PI) / 180
 		const u = Math.atan2(record.snapshot.localY, record.snapshot.localX)
@@ -2589,41 +2589,41 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const refreshPickTargets = (): void => {
 		pickTargets = [
-			...[...shellRecords.values()]
+			...[...darkParticleRecords.values()]
 				.sort(
 					(left, right) =>
 						left.snapshot.depth - right.snapshot.depth ||
-						left.snapshot.shellOrder - right.snapshot.shellOrder ||
-						left.snapshot.particleId - right.snapshot.particleId,
+						left.snapshot.darkParticleOrder - right.snapshot.darkParticleOrder ||
+						left.snapshot.darkParticleId - right.snapshot.darkParticleId,
 				)
 				.map((record) => record.pickTarget),
-			...[...fieldRecords.values()]
+			...[...fieldParticleRecords.values()]
 				.sort(
 					(left, right) =>
 						left.depth - right.depth ||
 						left.snapshot.fieldOrder - right.snapshot.fieldOrder ||
-						left.snapshot.id - right.snapshot.id,
+						left.snapshot.fieldParticleId - right.snapshot.fieldParticleId,
 				)
 				.map((record) => record.pickTarget),
 		]
 	}
 
-	const refreshParentByParticleId = (): void => {
-		parentByParticleId = new Map(
-			[...shellRecords.values()].map((record) => [
-				record.snapshot.particleId,
-				record.snapshot.parentParticleId,
+	const refreshParentByDarkParticleId = (): void => {
+		parentByDarkParticleId = new Map(
+			[...darkParticleRecords.values()].map((record) => [
+				record.snapshot.darkParticleId,
+				record.snapshot.parentDarkParticleId,
 			]),
 		)
 	}
 
-	const refreshShellRecordGeometryAndMaterial = (record: ShellRenderRecord): void => {
+	const refreshDarkParticleRecordGeometryAndMaterial = (record: DarkParticleRenderRecord): void => {
 		record.torus.geometry = getTorusWireframeGeometry(
-			record.snapshot.shellRadius || getShellFallback().radius,
-			record.snapshot.shellTube || getShellFallback().tube,
+			record.snapshot.torusRadius || getTorusFallback().radius,
+			record.snapshot.torusTube || getTorusFallback().tube,
 			record.snapshot.depth,
 		)
-		const visual = resolveShellVisualState(record.snapshot)
+		const visual = resolveDarkParticleVisualState(record.snapshot)
 		record.pickTarget.baseColor.copy(visual.color)
 		record.pickTarget.baseGlowColor = visual.glowColor.clone()
 		record.pickTarget.baseGlowIntensity = visual.glowIntensity
@@ -2631,7 +2631,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		syncPickTargetMaterialState(record.pickTarget)
 	}
 
-	const refreshFieldRecordGeometryAndMaterial = (record: FieldRenderRecord): void => {
+	const refreshFieldParticleRecordGeometryAndMaterial = (record: FieldParticleRenderRecord): void => {
 		record.node.geometry = getSphereWireframeGeometry(record.snapshot.sphereRadius, record.depth)
 		const color = particleColor(record.snapshot)
 		record.pickTarget.baseColor.copy(color)
@@ -2641,35 +2641,35 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		syncPickTargetMaterialState(record.pickTarget)
 	}
 
-	const createShellRecord = (shell: DbParticleShellRow): ShellRenderRecord => {
-		const material = createShellMaterial(shell)
+	const createDarkParticleRecord = (darkParticle: BulkDarkParticle): DarkParticleRenderRecord => {
+		const material = createDarkParticleMaterial(darkParticle)
 		const torus = new LineSegments(
 			getTorusWireframeGeometry(
-				shell.shellRadius || getShellFallback().radius,
-				shell.shellTube || getShellFallback().tube,
-				shell.depth,
+				darkParticle.torusRadius || getTorusFallback().radius,
+				darkParticle.torusTube || getTorusFallback().tube,
+				darkParticle.depth,
 			),
 			material,
 		)
 		torus.updateMatrix()
 
 		const container = new Object3D()
-		container.position.set(shell.localX, shell.localY, shell.localZ)
+		container.position.set(darkParticle.localX, darkParticle.localY, darkParticle.localZ)
 		container.add(torus)
 
 		const pickTarget: HoverablePickTarget = {
-			kind: "shell",
-			particleId: shell.particleId,
-			parentParticleId: shell.parentParticleId,
-			depth: shell.depth,
+			kind: "darkParticle",
+			darkParticleId: darkParticle.darkParticleId,
+			parentDarkParticleId: darkParticle.parentDarkParticleId,
+			depth: darkParticle.depth,
 			center: new Vector3(
-				workspace.position.x + shell.localX,
-				workspace.position.y + shell.localY,
-				workspace.position.z + shell.localZ,
+				workspace.position.x + darkParticle.localX,
+				workspace.position.y + darkParticle.localY,
+				workspace.position.z + darkParticle.localZ,
 			),
-			shellRadius: shell.shellRadius * shell.shellScale,
-			shellTube: shell.shellTube * shell.shellScale,
-			outerRadius: (shell.shellRadius + shell.shellTube) * shell.shellScale,
+			torusRadius: darkParticle.torusRadius * darkParticle.torusScale,
+			torusTube: darkParticle.torusTube * darkParticle.torusScale,
+			outerRadius: (darkParticle.torusRadius + darkParticle.torusTube) * darkParticle.torusScale,
 			material,
 			baseColor: material.color.clone(),
 			baseGlowColor: material.glowColor?.clone() ?? null,
@@ -2677,32 +2677,32 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			baseOpacity: material.opacity,
 	}
 
-		const record: ShellRenderRecord = {
-			baseShellScale: shell.shellScale,
+		const record: DarkParticleRenderRecord = {
+			baseTorusScale: darkParticle.torusScale,
 			container,
 			cosmosOrbitAngle: 0,
 			currentTransitionScale: 1,
 			material,
 			pickTarget,
-			snapshot: { ...shell },
-			targetLocalPosition: new Vector3(shell.localX, shell.localY, shell.localZ),
+			snapshot: { ...darkParticle },
+			targetLocalPosition: new Vector3(darkParticle.localX, darkParticle.localY, darkParticle.localZ),
 			torus,
 	}
-		applyShellRecordScale(record)
-		refreshShellRecordGeometryAndMaterial(record)
+		applyDarkParticleRecordScale(record)
+		refreshDarkParticleRecordGeometryAndMaterial(record)
 		container.updateMatrix()
 		return record
 	}
 
-	const createFieldRecord = (field: DbFieldOrbitRow, depth: number): FieldRenderRecord => {
-		const material = createFieldMaterial(field)
+	const createFieldParticleRecord = (field: BulkFieldParticle, depth: number): FieldParticleRenderRecord => {
+		const material = createFieldParticleMaterial(field)
 		const node = new LineSegments(getSphereWireframeGeometry(field.sphereRadius, depth), material)
 		node.position.set(field.localX, field.localY, field.localZ)
 
 		const pickTarget: HoverablePickTarget = {
-			kind: "field",
-			particleId: field.particleId,
-			fieldId: field.id,
+			kind: "fieldParticle",
+			parentDarkParticleId: field.parentDarkParticleId,
+			fieldParticleId: field.fieldParticleId,
 			depth,
 			center: new Vector3(
 				workspace.position.x + field.localX,
@@ -2718,65 +2718,65 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			baseOpacity: material.opacity,
 	}
 
-		const record: FieldRenderRecord = {
+		const record: FieldParticleRenderRecord = {
 			cosmosOrbitAngle: 0,
 			currentTransitionScale: 1,
 			depth,
 			material,
 			node,
-			parentParticleId: field.particleId,
+			parentDarkParticleId: field.parentDarkParticleId,
 			pickTarget,
 			snapshot: { ...field },
 			targetLocalPosition: new Vector3(field.localX, field.localY, field.localZ),
 	}
-		applyFieldRecordScale(record)
+		applyFieldParticleRecordScale(record)
 		refreshFieldRecordOrientation(record)
-		refreshFieldRecordGeometryAndMaterial(record)
+		refreshFieldParticleRecordGeometryAndMaterial(record)
 		node.updateMatrix()
 		return record
 	}
 
-	const upsertShellRecord = (shell: DbParticleShellRow): ShellRenderRecord => {
-		const existing = shellRecords.get(shell.particleId)
+	const upsertDarkParticleRecord = (darkParticle: BulkDarkParticle): DarkParticleRenderRecord => {
+		const existing = darkParticleRecords.get(darkParticle.darkParticleId)
 		if (!existing) {
-			const created = createShellRecord(shell)
-			shellRecords.set(shell.particleId, created)
+			const created = createDarkParticleRecord(darkParticle)
+			darkParticleRecords.set(darkParticle.darkParticleId, created)
 			return created
 	}
 
 		const previousLocalOuterRadius =
-			(existing.snapshot.shellRadius + existing.snapshot.shellTube) *
-			existing.baseShellScale *
+			(existing.snapshot.torusRadius + existing.snapshot.torusTube) *
+			existing.baseTorusScale *
 			existing.currentTransitionScale
-		const nextLocalOuterRadius = (shell.shellRadius + shell.shellTube) * shell.shellScale
+		const nextLocalOuterRadius = (darkParticle.torusRadius + darkParticle.torusTube) * darkParticle.torusScale
 		const geometryChanged =
-			Math.abs(existing.snapshot.shellRadius - shell.shellRadius) > 1e-6 ||
-			Math.abs(existing.snapshot.shellTube - shell.shellTube) > 1e-6 ||
-			Math.abs(existing.baseShellScale - shell.shellScale) > 1e-6 ||
-			existing.snapshot.depth !== shell.depth
+			Math.abs(existing.snapshot.torusRadius - darkParticle.torusRadius) > 1e-6 ||
+			Math.abs(existing.snapshot.torusTube - darkParticle.torusTube) > 1e-6 ||
+			Math.abs(existing.baseTorusScale - darkParticle.torusScale) > 1e-6 ||
+			existing.snapshot.depth !== darkParticle.depth
 
-		existing.snapshot = { ...shell }
-		existing.baseShellScale = shell.shellScale
-		existing.targetLocalPosition.set(shell.localX, shell.localY, shell.localZ)
-		if (existing.pickTarget.kind === "shell") {
-			existing.pickTarget.parentParticleId = shell.parentParticleId
+		existing.snapshot = { ...darkParticle }
+		existing.baseTorusScale = darkParticle.torusScale
+		existing.targetLocalPosition.set(darkParticle.localX, darkParticle.localY, darkParticle.localZ)
+		if (existing.pickTarget.kind === "darkParticle") {
+			existing.pickTarget.parentDarkParticleId = darkParticle.parentDarkParticleId
 	}
-		existing.pickTarget.depth = shell.depth
+		existing.pickTarget.depth = darkParticle.depth
 
 		if (geometryChanged && nextLocalOuterRadius > 1e-6) {
 			existing.currentTransitionScale = clampTransitionScale(previousLocalOuterRadius / nextLocalOuterRadius)
 	}
 
-		refreshShellRecordGeometryAndMaterial(existing)
-		applyShellRecordScale(existing)
+		refreshDarkParticleRecordGeometryAndMaterial(existing)
+		applyDarkParticleRecordScale(existing)
 		return existing
 	}
 
-	const upsertFieldRecord = (field: DbFieldOrbitRow, depth: number): FieldRenderRecord => {
-		const existing = fieldRecords.get(field.id)
+	const upsertFieldParticleRecord = (field: BulkFieldParticle, depth: number): FieldParticleRenderRecord => {
+		const existing = fieldParticleRecords.get(field.fieldParticleId)
 		if (!existing) {
-			const created = createFieldRecord(field, depth)
-			fieldRecords.set(field.id, created)
+			const created = createFieldParticleRecord(field, depth)
+			fieldParticleRecords.set(field.fieldParticleId, created)
 			return created
 	}
 
@@ -2784,13 +2784,13 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		const geometryChanged =
 			Math.abs(existing.snapshot.sphereRadius - field.sphereRadius) > 1e-6 ||
 			existing.depth !== depth ||
-			existing.snapshot.fieldValueKind !== field.fieldValueKind
+			existing.snapshot.fieldParticleKind !== field.fieldParticleKind
 
 		existing.snapshot = { ...field }
 		existing.depth = depth
-		existing.parentParticleId = field.particleId
+		existing.parentDarkParticleId = field.parentDarkParticleId
 		existing.targetLocalPosition.set(field.localX, field.localY, field.localZ)
-		existing.pickTarget.particleId = field.particleId
+		if (existing.pickTarget.kind === "fieldParticle") existing.pickTarget.parentDarkParticleId = field.parentDarkParticleId
 		existing.pickTarget.depth = depth
 
 		if (geometryChanged && field.sphereRadius > 1e-6) {
@@ -2798,13 +2798,13 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 		refreshFieldRecordOrientation(existing)
-		refreshFieldRecordGeometryAndMaterial(existing)
-		applyFieldRecordScale(existing)
+		refreshFieldParticleRecordGeometryAndMaterial(existing)
+		applyFieldParticleRecordScale(existing)
 		return existing
 	}
 
-	const removeFieldRecord = (fieldId: number): void => {
-		const record = fieldRecords.get(fieldId)
+	const removeFieldParticleRecord = (fieldParticleId: number): void => {
+		const record = fieldParticleRecords.get(fieldParticleId)
 		if (!record) return
 		if (getPickTargetKey(hoveredPickTarget) === getPickTargetKey(record.pickTarget)) {
 		setHoveredPickTarget(null)
@@ -2821,12 +2821,12 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			object: record.node,
 			startedAtMs: performance.now(),
 	})
-		fieldRecords.delete(fieldId)
+		fieldParticleRecords.delete(fieldParticleId)
 		requestRenderLoop(REMOVAL_FADE_MS + 32)
 	}
 
-	const removeShellRecord = (particleId: number): void => {
-		const record = shellRecords.get(particleId)
+	const removeDarkParticleRecord = (darkParticleId: number): void => {
+		const record = darkParticleRecords.get(darkParticleId)
 		if (!record) return
 		if (getPickTargetKey(hoveredPickTarget) === getPickTargetKey(record.pickTarget)) {
 		setHoveredPickTarget(null)
@@ -2843,72 +2843,72 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			object: record.container,
 			startedAtMs: performance.now(),
 	})
-		shellRecords.delete(particleId)
+		darkParticleRecords.delete(darkParticleId)
 		requestRenderLoop(REMOVAL_FADE_MS + 32)
 	}
 
-	const shellRecordMatchesForceWimp = (particleId: number, wimp: string): boolean => {
-		const shell = shellRecords.get(particleId)
-		return shell?.snapshot.src === wimp || shell?.snapshot.metaSrc === wimp
+	const darkParticleRecordMatchesForceWimp = (darkParticleId: number, wimp: string): boolean => {
+		const darkParticleRecord = darkParticleRecords.get(darkParticleId)
+		return darkParticleRecord?.snapshot.src === wimp || darkParticleRecord?.snapshot.metaSrc === wimp
 	}
 
-	const fieldRecordMatchesForceAddress = (record: FieldRenderRecord, wimp: string, address: string): boolean => {
-		if (!shellRecordMatchesForceWimp(record.parentParticleId, wimp)) return false
+	const fieldParticleRecordMatchesForceAddress = (record: FieldParticleRenderRecord, wimp: string, address: string): boolean => {
+		if (!darkParticleRecordMatchesForceWimp(record.parentDarkParticleId, wimp)) return false
 		if (record.snapshot.fieldKey === address) return true
 		const fieldOrder = forceFieldOrder(address)
 		return fieldOrder !== null && record.snapshot.fieldOrder === fieldOrder
 	}
 
-	const fieldRecordMatchesForceActorAddress = (record: FieldRenderRecord, actorParticleId: number, address: string): boolean => {
-		if (record.parentParticleId !== actorParticleId) return false
+	const fieldParticleRecordMatchesForceActorAddress = (record: FieldParticleRenderRecord, actorDarkParticleId: number, address: string): boolean => {
+		if (record.parentDarkParticleId !== actorDarkParticleId) return false
 		if (record.snapshot.fieldKey === address) return true
 		const fieldOrder = forceFieldOrder(address)
 		return fieldOrder !== null && record.snapshot.fieldOrder === fieldOrder
 	}
 
-	const syncForceChangedFieldRecords = (): void => {
+	const syncForceChangedFieldParticleRecords = (): void => {
 		refreshPickTargets()
 		syncLabelRecords()
-		syncFieldBillboardRecords()
+		syncFieldParticleBillboardRecords()
 		requestRenderLoop(INPUT_RENDER_WAKE_MS)
 	}
 
-	const applyHiggsReplaceFieldPatch = (record: FieldRenderRecord, patch: Record<string, unknown>): void => {
+	const applyHiggsReplaceFieldParticlePatch = (record: FieldParticleRenderRecord, patch: Record<string, unknown>): void => {
 		const next = {...record.snapshot}
 		const key = forceString(patch.key)
 		const label = forceString(patch.label)
-		const kind = forceFieldValueKind(patch.type)
+		const kind = forceFieldParticleKind(patch.type)
 		const enumText = forceEnumValueText(patch.values)
 
 		if (key !== null) next.fieldKey = key
 		if (label !== null) next.fieldLabel = label
 		else if (key !== null) next.fieldLabel = key
-		if (kind !== null) next.fieldValueKind = kind
+		if (kind !== null) next.fieldParticleKind = kind
 		if (enumText !== null) next.valueText = enumText
 
-		const color = forceFieldColor(next.fieldValueKind)
+		const color = forceFieldParticleColor(next.fieldParticleKind)
 		next.colorR = color.colorR
 		next.colorG = color.colorG
 		next.colorB = color.colorB
 
 		record.snapshot = next
-		refreshFieldRecordGeometryAndMaterial(record)
-		applyFieldRecordScale(record)
+		refreshFieldParticleRecordGeometryAndMaterial(record)
+		applyFieldParticleRecordScale(record)
 	}
 
 	const applyHiggsFieldsForce = (message: unknown): boolean => {
 		if (!isRecord(message) || message.part !== "higgs") return false
 		const wimp = forceString(message.path)
 		const value = isRecord(message.value) ? message.value : null
-		const fields = value !== null && isRecord(value.fields) ? value.fields : null
+		const fields = value !== null && isRecord(value.fieldParticles) ? value.fieldParticles : null
 		if (wimp === null || fields === null) return false
 
 		let changed = false
 		for (const [address, rawPatch] of Object.entries(fields)) {
-			const records = [...fieldRecords.values()].filter((record) => fieldRecordMatchesForceAddress(record, wimp, address))
+			const records = [...fieldParticleRecords.values()].filter((record) => fieldParticleRecordMatchesForceAddress(record, wimp, address))
 			if (message.op === "remove") {
 				for (const record of records) {
-					removeFieldRecord(record.snapshot.id)
+					removeFieldParticleRecord(record.snapshot.fieldParticleId)
 					changed = true
 				}
 				continue
@@ -2916,43 +2916,43 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 			if (message.op !== "replace" || !isRecord(rawPatch)) continue
 			for (const record of records) {
-				applyHiggsReplaceFieldPatch(record, rawPatch)
+				applyHiggsReplaceFieldParticlePatch(record, rawPatch)
 				changed = true
 			}
 		}
 
-		if (changed) syncForceChangedFieldRecords()
+		if (changed) syncForceChangedFieldParticleRecords()
 		return changed
 	}
 
 	const applyGluonFieldsForce = (message: unknown): boolean => {
 		if (!isRecord(message) || message.part !== "gluon") return false
-		const actorParticleId = forceActorParticleId(message.path)
+		const actorDarkParticleId = forceActorDarkParticleId(message.path)
 		const value = isRecord(message.value) ? message.value : null
-		const fields = value !== null && isRecord(value.fields) ? value.fields : null
-		if (actorParticleId === null || fields === null) return false
+		const fields = value !== null && isRecord(value.fieldParticles) ? value.fieldParticles : null
+		if (actorDarkParticleId === null || fields === null) return false
 
 		let changed = false
 		for (const [address, rawValue] of Object.entries(fields)) {
-			const records = [...fieldRecords.values()].filter((record) => fieldRecordMatchesForceActorAddress(record, actorParticleId, address))
+			const records = [...fieldParticleRecords.values()].filter((record) => fieldParticleRecordMatchesForceActorAddress(record, actorDarkParticleId, address))
 			if (message.op !== "replace" && message.op !== "remove") continue
 			for (const record of records) {
 				record.snapshot = {
 					...record.snapshot,
 					valueText: message.op === "remove" ? null : forceValueText(rawValue),
 				}
-				refreshFieldRecordGeometryAndMaterial(record)
-				applyFieldRecordScale(record)
+				refreshFieldParticleRecordGeometryAndMaterial(record)
+				applyFieldParticleRecordScale(record)
 				changed = true
 			}
 		}
 
-		if (changed) syncForceChangedFieldRecords()
+		if (changed) syncForceChangedFieldParticleRecords()
 		return changed
 	}
 
 	const resolveFieldBillboardSize = (
-		field: DbFieldOrbitRow,
+		field: BulkFieldParticle,
 		worldScale = 1,
 	): {widthMm: number; heightMm: number; pixelScale: number} => {
 		const sphereRadiusMm = Math.max(0.5, field.sphereRadius * Math.max(Math.abs(worldScale), 1e-6))
@@ -2967,15 +2967,15 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const buildFieldBillboardSignature = (
-		field: DbFieldOrbitRow,
+		field: BulkFieldParticle,
 		size: {widthMm: number; heightMm: number; pixelScale: number},
 	): string => [
-		field.id,
-		field.particleId,
+		field.fieldParticleId,
+		field.parentDarkParticleId,
 		field.fieldKey,
 		field.fieldLabel,
 		field.fieldOrder,
-		field.fieldValueKind,
+		field.fieldParticleKind,
 		field.valueText ?? "<null>",
 		field.colorR.toFixed(4),
 		field.colorG.toFixed(4),
@@ -2985,7 +2985,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		size.pixelScale.toFixed(6),
 	].join(":")
 
-	const applyFieldBillboardSurfaceRect = (record: FieldBillboardRecord): void => {
+	const applyFieldParticleBillboardSurfaceRect = (record: FieldParticleBillboardRecord): void => {
 		record.surface.setRect(
 			{x: 0, y: 0, w: FIELD_BILLBOARD_PIXEL_WIDTH, h: FIELD_BILLBOARD_PIXEL_HEIGHT},
 			record.pixelScale,
@@ -2995,41 +2995,41 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		record.surface.node.updateMatrix()
 	}
 
-	const removeFieldBillboardRecord = (fieldId: number): void => {
-		const record = fieldBillboardRecords.get(fieldId)
+	const removeFieldParticleBillboardRecord = (fieldParticleId: number): void => {
+		const record = fieldParticleBillboardRecords.get(fieldParticleId)
 		if (!record) return
 		record.surface.dispose()
 		detachObject(record.container)
-		fieldBillboardRecords.delete(fieldId)
+		fieldParticleBillboardRecords.delete(fieldParticleId)
 	}
 
-	const upsertFieldBillboardRecord = (fieldRecord: FieldRenderRecord): void => {
+	const upsertFieldParticleBillboardRecord = (fieldRecord: FieldParticleRenderRecord): void => {
 		const field = fieldRecord.snapshot
 		const size = resolveFieldBillboardSize(field)
 		const signature = buildFieldBillboardSignature(field, size)
-		const existing = fieldBillboardRecords.get(field.id)
+		const existing = fieldParticleBillboardRecords.get(field.fieldParticleId)
 
 		if (!existing) {
-			const surface = new FieldBillboardSurface(field)
-			surface.attachCanvas(worldUiCanvas)
+			const surface = new FieldParticleBillboardSurface(field)
+			surface.attachCanvas(manifestUiCanvas)
 			surface.setFramebufferClipSpace("screen")
 			const container = new Object3D()
-			container.name = `FieldBillboard:${field.id}`
+			container.name = `FieldBillboard:${field.fieldParticleId}`
 			container.frustumCulled = false
 			container.add(surface.node)
 			fieldBillboardsLayer.add(container)
-			const record: FieldBillboardRecord = {
+			const record: FieldParticleBillboardRecord = {
 				anchorObject: fieldRecord.node,
 				container,
-				fieldId: field.id,
+				fieldParticleId: field.fieldParticleId,
 				heightMm: size.heightMm,
 				pixelScale: size.pixelScale,
 				signature,
 				surface,
 				widthMm: size.widthMm,
 			}
-			fieldBillboardRecords.set(field.id, record)
-			applyFieldBillboardSurfaceRect(record)
+			fieldParticleBillboardRecords.set(field.fieldParticleId, record)
+			applyFieldParticleBillboardSurfaceRect(record)
 			return
 		}
 
@@ -3037,7 +3037,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		existing.heightMm = size.heightMm
 		existing.pixelScale = size.pixelScale
 		existing.widthMm = size.widthMm
-		applyFieldBillboardSurfaceRect(existing)
+		applyFieldParticleBillboardSurfaceRect(existing)
 
 		if (existing.signature === signature) return
 		existing.signature = signature
@@ -3046,8 +3046,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const resizeFieldBillboardToWorldSphere = (
-		tracker: FieldBillboardRecord,
-		field: DbFieldOrbitRow,
+		tracker: FieldParticleBillboardRecord,
+		field: BulkFieldParticle,
 		worldScale: number,
 	): void => {
 		const size = resolveFieldBillboardSize(field, worldScale)
@@ -3061,22 +3061,22 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		tracker.widthMm = size.widthMm
 		tracker.heightMm = size.heightMm
 		tracker.pixelScale = size.pixelScale
-		applyFieldBillboardSurfaceRect(tracker)
+		applyFieldParticleBillboardSurfaceRect(tracker)
 	}
 
-	const syncFieldBillboardRecords = (): void => {
-		const nextFieldIds = new Set<number>()
-		for (const record of [...fieldRecords.values()].sort(
+	const syncFieldParticleBillboardRecords = (): void => {
+		const nextFieldParticleIds = new Set<number>()
+		for (const record of [...fieldParticleRecords.values()].sort(
 			(left, right) =>
 				left.depth - right.depth ||
 				left.snapshot.fieldOrder - right.snapshot.fieldOrder ||
-				left.snapshot.id - right.snapshot.id,
+				left.snapshot.fieldParticleId - right.snapshot.fieldParticleId,
 		)) {
-			nextFieldIds.add(record.snapshot.id)
-			upsertFieldBillboardRecord(record)
+			nextFieldParticleIds.add(record.snapshot.fieldParticleId)
+			upsertFieldParticleBillboardRecord(record)
 		}
-		for (const fieldId of [...fieldBillboardRecords.keys()]) {
-			if (!nextFieldIds.has(fieldId)) removeFieldBillboardRecord(fieldId)
+		for (const fieldParticleId of [...fieldParticleBillboardRecords.keys()]) {
+			if (!nextFieldParticleIds.has(fieldParticleId)) removeFieldParticleBillboardRecord(fieldParticleId)
 		}
 	}
 
@@ -3088,8 +3088,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			spec.depth,
 			spec.metricDepth,
 			spec.metricRadius.toFixed(4),
-			spec.shellRadius.toFixed(4),
-			spec.shellTube.toFixed(4),
+			spec.torusRadius.toFixed(4),
+			spec.torusTube.toFixed(4),
 			spec.sphereRadius.toFixed(4),
 			spec.offset.toFixed(4),
 			spec.color.r.toFixed(4),
@@ -3100,32 +3100,32 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		].join(":")
 	}
 
-	const createShellLabelSpec = (record: ShellRenderRecord): LabelSpec | null => {
+	const createDarkParticleLabelSpec = (record: DarkParticleRenderRecord): LabelSpec | null => {
 		if (!labelFont) return null
-		if (!isShellLabelDepthVisible(record.snapshot.particleId, record.snapshot.depth)) return null
+		if (!isDarkParticleLabelDepthVisible(record.snapshot.darkParticleId, record.snapshot.depth)) return null
 		const text = normalizeLabelText(record.snapshot.label)
 		if (!text) return null
 
-		const metricRadius = record.snapshot.shellRadius + record.snapshot.shellTube
+		const metricRadius = record.snapshot.torusRadius + record.snapshot.torusTube
 		const offset = resolveSurfaceOffsetMm(record.snapshot.depth, metricRadius)
 
 		return {
 			anchorObject: record.container,
 			color: particleColor(record.snapshot),
 			depth: record.snapshot.depth,
-			key: `shell:${record.snapshot.particleId}`,
-			kind: "shell",
+			key: `darkParticle:${record.snapshot.darkParticleId}`,
+			kind: "darkParticle",
 			metricDepth: record.snapshot.depth,
 			metricRadius,
 			offset,
-			shellRadius: record.snapshot.shellRadius,
-			shellTube: record.snapshot.shellTube,
+			torusRadius: record.snapshot.torusRadius,
+			torusTube: record.snapshot.torusTube,
 			sphereRadius: 0,
 			text,
 	}
 	}
 
-	const createFieldLabelSpec = (record: FieldRenderRecord): LabelSpec | null => {
+	const createFieldParticleLabelSpec = (record: FieldParticleRenderRecord): LabelSpec | null => {
 		if (!labelFont) return null
 		if (!isLabelDepthVisible(record.depth)) return null
 		const text =
@@ -3133,21 +3133,21 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		if (!text) return null
 
 		const sphereRadiusMm = record.snapshot.sphereRadius
-		const parentShellRecord = shellRecords.get(record.parentParticleId)
-		const { metricDepth, metricRadius } = resolveFieldPeerLevelMetrics(record, parentShellRecord)
+		const parentDarkParticleRecord = darkParticleRecords.get(record.parentDarkParticleId)
+		const { metricDepth, metricRadius } = resolveFieldParticlePeerLevelMetrics(record, parentDarkParticleRecord)
 		const offset = resolveSurfaceOffsetMm(metricDepth, metricRadius)
 
 		return {
 			anchorObject: record.node,
 			color: particleColor(record.snapshot),
 			depth: record.depth,
-			key: `field:${record.snapshot.id}`,
-			kind: "field",
+			key: `fieldParticle:${record.snapshot.fieldParticleId}`,
+			kind: "fieldParticle",
 			metricDepth,
 			metricRadius,
 			offset,
-			shellRadius: 0,
-			shellTube: 0,
+			torusRadius: 0,
+			torusTube: 0,
 			sphereRadius: sphereRadiusMm,
 			text,
 	}
@@ -3195,8 +3195,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				kind: spec.kind,
 				material: visual.material,
 				offset: spec.offset,
-				shellRadius: spec.shellRadius,
-				shellTube: spec.shellTube,
+				torusRadius: spec.torusRadius,
+				torusTube: spec.torusTube,
 				signature,
 				sphereRadius: spec.sphereRadius,
 				stencilCenterX: visual.stencilCenterX,
@@ -3209,8 +3209,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		existing.anchorObject = spec.anchorObject
 		existing.kind = spec.kind
 		existing.offset = spec.offset
-		existing.shellRadius = spec.shellRadius
-		existing.shellTube = spec.shellTube
+		existing.torusRadius = spec.torusRadius
+		existing.torusTube = spec.torusTube
 		existing.sphereRadius = spec.sphereRadius
 
 		if (existing.signature === signature) return
@@ -3240,25 +3240,25 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const syncLabelRecords = (): void => {
 		const nextLabelKeys = new Set<string>()
 
-		for (const record of [...shellRecords.values()].sort(
+		for (const record of [...darkParticleRecords.values()].sort(
 			(left, right) =>
 				left.snapshot.depth - right.snapshot.depth ||
-				left.snapshot.shellOrder - right.snapshot.shellOrder ||
-				left.snapshot.particleId - right.snapshot.particleId,
+				left.snapshot.darkParticleOrder - right.snapshot.darkParticleOrder ||
+				left.snapshot.darkParticleId - right.snapshot.darkParticleId,
 		)) {
-			const spec = createShellLabelSpec(record)
+			const spec = createDarkParticleLabelSpec(record)
 			if (!spec) continue
 			nextLabelKeys.add(spec.key)
 			upsertLabelRecord(spec)
 	}
 
-		for (const record of [...fieldRecords.values()].sort(
+		for (const record of [...fieldParticleRecords.values()].sort(
 			(left, right) =>
 				left.depth - right.depth ||
 				left.snapshot.fieldOrder - right.snapshot.fieldOrder ||
-				left.snapshot.id - right.snapshot.id,
+				left.snapshot.fieldParticleId - right.snapshot.fieldParticleId,
 		)) {
-			const spec = createFieldLabelSpec(record)
+			const spec = createFieldParticleLabelSpec(record)
 			if (!spec) continue
 			nextLabelKeys.add(spec.key)
 			upsertLabelRecord(spec)
@@ -3270,79 +3270,79 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const refreshSceneForSettings = (): void => {
-		for (const record of shellRecords.values()) {
-			refreshShellRecordGeometryAndMaterial(record)
-			applyShellRecordScale(record)
+		for (const record of darkParticleRecords.values()) {
+			refreshDarkParticleRecordGeometryAndMaterial(record)
+			applyDarkParticleRecordScale(record)
 	}
 
-		for (const record of fieldRecords.values()) {
+		for (const record of fieldParticleRecords.values()) {
 			refreshFieldRecordOrientation(record)
-			refreshFieldRecordGeometryAndMaterial(record)
-			applyFieldRecordScale(record)
+			refreshFieldParticleRecordGeometryAndMaterial(record)
+			applyFieldParticleRecordScale(record)
 	}
 
 		syncLabelRecords()
-		syncFieldBillboardRecords()
+		syncFieldParticleBillboardRecords()
 		requestRenderLoop(INPUT_RENDER_WAKE_MS)
 	}
 
-	const applyWorldRowsToScene = (nextWorld: DbWorldRows): void => {
-		world = nextWorld
+	const applyManifestToScene = (nextManifest: BulkManifest): void => {
+		manifest = nextManifest
 
-		const nextShellIds = new Set<number>()
-		const nextFieldIds = new Set<number>()
+		const nextDarkParticleIds = new Set<number>()
+		const nextFieldParticleIds = new Set<number>()
 
-		for (const shell of nextWorld.particles) {
-			nextShellIds.add(shell.particleId)
-			upsertShellRecord(shell)
+		for (const darkParticle of nextManifest.darkParticles) {
+			nextDarkParticleIds.add(darkParticle.darkParticleId)
+			upsertDarkParticleRecord(darkParticle)
 	}
 
-		for (const shell of nextWorld.particles) {
-			const record = shellRecords.get(shell.particleId)
+		for (const darkParticle of nextManifest.darkParticles) {
+			const record = darkParticleRecords.get(darkParticle.darkParticleId)
 			if (!record) continue
-			const parentObject = shell.parentParticleId
-				? shellRecords.get(shell.parentParticleId)?.container ?? workspace
+			const parentObject = darkParticle.parentDarkParticleId
+				? darkParticleRecords.get(darkParticle.parentDarkParticleId)?.container ?? workspace
 				: workspace
 			parentObject.add(record.container)
 	}
 
-		for (const field of nextWorld.fields) {
-			const parentShell = shellRecords.get(field.particleId)
-			if (!parentShell) continue
-			nextFieldIds.add(field.id)
-			const record = upsertFieldRecord(field, parentShell.snapshot.depth + 1)
-			parentShell.container.add(record.node)
+		for (const field of nextManifest.fieldParticles) {
+			const parentDarkParticle = darkParticleRecords.get(field.parentDarkParticleId)
+			if (!parentDarkParticle) continue
+			nextFieldParticleIds.add(field.fieldParticleId)
+			const record = upsertFieldParticleRecord(field, parentDarkParticle.snapshot.depth + 1)
+			parentDarkParticle.container.add(record.node)
 	}
 
-		for (const staleFieldId of [...fieldRecords.keys()]) {
-			if (!nextFieldIds.has(staleFieldId)) removeFieldRecord(staleFieldId)
+		for (const staleFieldParticleId of [...fieldParticleRecords.keys()]) {
+			if (!nextFieldParticleIds.has(staleFieldParticleId)) removeFieldParticleRecord(staleFieldParticleId)
 	}
 
-		for (const staleShellId of [...shellRecords.values()]
+		for (const staleDarkParticleId of [...darkParticleRecords.values()]
 			.sort((left, right) => right.snapshot.depth - left.snapshot.depth)
-			.map((record) => record.snapshot.particleId)) {
-			if (!nextShellIds.has(staleShellId)) removeShellRecord(staleShellId)
+			.map((record) => record.snapshot.darkParticleId)) {
+			if (!nextDarkParticleIds.has(staleDarkParticleId)) removeDarkParticleRecord(staleDarkParticleId)
 	}
 
-		refreshParentByParticleId()
+		refreshParentByDarkParticleId()
 		refreshPickTargets()
 		syncLabelRecords()
-		syncFieldBillboardRecords()
+		syncFieldParticleBillboardRecords()
 		applyRootViewportFit()
 		requestRenderLoop(SCENE_TRANSITION_WAKE_MS)
 
 		options.onStats?.({
-			rootSrc: nextWorld.rootSrc,
-			shellCount: nextWorld.particles.length,
-			fieldCount: nextWorld.fields.length,
+			rootSrc: nextManifest.rootSrc,
+			darkParticleCount: nextManifest.darkParticles.length,
+			fieldParticleCount: nextManifest.fieldParticles.length,
 	})
 	}
 
-	const projectWorldToClientPoint = (worldPoint: Vector3): { x: number; y: number } | null => {
+	const projectWorldToClientPoint = (manifestPoint: Vector3): { x: number; y: number } | null => {
 		const rect = options.canvas.getBoundingClientRect()
 		if (rect.width <= 0 || rect.height <= 0) return null
 
-		const ndc = worldPoint
+		const ndc = manifestPoint
 			.clone()
 			.applyMatrix4(new Matrix4().multiplyMatrices(viewPoint.projectionMatrix, viewPoint.viewMatrix))
 
@@ -3420,13 +3420,13 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const resolveProjectedTorusDistancePx = (
 		center: Vector3,
-		shellRadius: number,
-		shellTube: number,
+		torusRadius: number,
+		torusTube: number,
 		clientX: number,
 		clientY: number,
 	): number | null => {
-		const outerRadius = Math.max(0, shellRadius + shellTube)
-		const innerRadius = Math.max(0, shellRadius - shellTube)
+		const outerRadius = Math.max(0, torusRadius + torusTube)
+		const innerRadius = Math.max(0, torusRadius - torusTube)
 		const centerPoint = projectWorldToClientPoint(center)
 		if (!centerPoint) return null
 		const outerEdgeDistance = resolveProjectedSphereDistancePx(center, outerRadius, clientX, clientY)
@@ -3443,29 +3443,29 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const syncPickTargetsFromScene = (): void => {
-		for (const record of shellRecords.values()) {
+		for (const record of darkParticleRecords.values()) {
 			record.container.matrixWorld.decompose(
 				reusableWorldPosition,
 				reusableWorldQuaternion,
 				reusableWorldScale,
 			)
 			record.pickTarget.center.copy(reusableWorldPosition)
-			if (record.pickTarget.kind === "shell") {
-				record.pickTarget.shellRadius = record.snapshot.shellRadius * reusableWorldScale.x
-				record.pickTarget.shellTube = record.snapshot.shellTube * reusableWorldScale.x
+			if (record.pickTarget.kind === "darkParticle") {
+				record.pickTarget.torusRadius = record.snapshot.torusRadius * reusableWorldScale.x
+				record.pickTarget.torusTube = record.snapshot.torusTube * reusableWorldScale.x
 				record.pickTarget.outerRadius =
-					(record.snapshot.shellRadius + record.snapshot.shellTube) * reusableWorldScale.x
+					(record.snapshot.torusRadius + record.snapshot.torusTube) * reusableWorldScale.x
 			}
 	}
 
-		for (const record of fieldRecords.values()) {
+		for (const record of fieldParticleRecords.values()) {
 			record.node.matrixWorld.decompose(
 				reusableWorldPosition,
 				reusableWorldQuaternion,
 				reusableWorldScale,
 			)
 			record.pickTarget.center.copy(reusableWorldPosition)
-			if (record.pickTarget.kind === "field") {
+			if (record.pickTarget.kind === "fieldParticle") {
 				record.pickTarget.sphereRadius = record.snapshot.sphereRadius * reusableWorldScale.x
 				record.pickTarget.outerRadius = record.pickTarget.sphereRadius
 			}
@@ -3480,17 +3480,17 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		viewPoint.aspect >= 1 ? "height" : "width"
 
 	const fitTargetForPickTarget = (target: HoverablePickTarget): { points: Vector3[]; radius: number; target: Vector3 } => {
-		if (target.kind === "shell") {
-			const record = shellRecords.get(target.particleId)
+		if (target.kind === "darkParticle") {
+			const record = darkParticleRecords.get(target.darkParticleId)
 			return {
-				points: record ? shellRecordViewportFitPoints(record) : [],
+				points: record ? darkParticleRecordViewportFitPoints(record) : [],
 				radius: target.outerRadius,
 				target: target.center.clone(),
 			}
 		}
 
-		const record = fieldRecords.get(target.fieldId)
-		const points = record ? fieldRecordViewportFitPoints(record) : []
+		const record = fieldParticleRecords.get(target.fieldParticleId)
+		const points = record ? fieldParticleRecordViewportFitPoints(record) : []
 		const pointRadius = points.reduce(
 			(maxRadius, point) => Math.max(maxRadius, point.distanceTo(target.center)),
 			target.sphereRadius,
@@ -3532,12 +3532,12 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		clientX: number,
 		clientY: number,
 	): number | null => {
-		if (target.kind === "field") {
+		if (target.kind === "fieldParticle") {
 			return resolveProjectedSphereDistancePx(target.center, target.sphereRadius, clientX, clientY)
 		}
 
 		return resolveProjectedWireframeDistancePx(
-			getTorusWireframeGeometry(target.shellRadius, target.shellTube, target.depth),
+			getTorusWireframeGeometry(target.torusRadius, target.torusTube, target.depth),
 			target.center,
 			clientX,
 			clientY,
@@ -3582,8 +3582,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const sameBotPhoneScreen = (left: BotPhoneScreenTarget, right: BotPhoneScreenTarget): boolean =>
 		left.screen === right.screen
 
-	const projectBotPhoneWorldPoint = (worldPoint: Vector3, rect: DOMRect): BotPhoneHudPoint | null => {
-		const projected = worldPoint.clone().applyMatrix4(viewPoint.viewMatrix).applyMatrix4(viewPoint.projectionMatrix)
+	const projectBotPhoneWorldPoint = (manifestPoint: Vector3, rect: DOMRect): BotPhoneHudPoint | null => {
+		const projected = manifestPoint.clone().applyMatrix4(viewPoint.viewMatrix).applyMatrix4(viewPoint.projectionMatrix)
 		if (!Number.isFinite(projected.x) || !Number.isFinite(projected.y) || !Number.isFinite(projected.z)) return null
 		return {
 			x: ((projected.x + 1) / 2) * rect.width,
@@ -3704,7 +3704,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				const bottom = displayRect.y
 				const top = displayRect.y + displayRect.h
 				if (localPoint.x >= left && localPoint.x <= right && localPoint.y >= bottom && localPoint.y <= top) {
-					const worldPoint = localPoint.clone().applyMatrix4(target.screen.matrixWorld)
+					const manifestPoint = localPoint.clone().applyMatrix4(target.screen.matrixWorld)
 					const u = clampBulkHudNumber((localPoint.x - left) / displayRect.w, 0, 1)
 					const v = clampBulkHudNumber((top - localPoint.y) / displayRect.h, 0, 1)
 					return {
@@ -3715,7 +3715,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 						androidY: clampBulkHudNumber(v * frame.height, 0, frame.height - 1),
 						frameW: frame.width,
 						frameH: frame.height,
-						distance: raycaster.ray.origin.distanceTo(worldPoint),
+						distance: raycaster.ray.origin.distanceTo(manifestPoint),
 					}
 				}
 			}
@@ -3837,25 +3837,25 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		viewPoint.update()
 	}
 
-	const rootShellForViewportFit = (): ShellRenderRecord | null => {
-		return [...shellRecords.values()]
-			.filter((record) => record.snapshot.parentParticleId === null && record.snapshot.depth === 0)
+	const rootDarkParticleForViewportFit = (): DarkParticleRenderRecord | null => {
+		return [...darkParticleRecords.values()]
+			.filter((record) => record.snapshot.parentDarkParticleId === null && record.snapshot.depth === 0)
 			.sort((left, right) =>
-				left.snapshot.shellOrder - right.snapshot.shellOrder ||
-				left.snapshot.particleId - right.snapshot.particleId,
+				left.snapshot.darkParticleOrder - right.snapshot.darkParticleOrder ||
+				left.snapshot.darkParticleId - right.snapshot.darkParticleId,
 			)[0] ?? null
 	}
 
 	const applyRootViewportFit = (fitOptions: {force?: boolean} = {}): void => {
 		if (!fitOptions.force && !rootFitLockedToViewport) return
-		const rootShell = rootShellForViewportFit()
-		if (rootShell === null) return
+		const rootDarkParticle = rootDarkParticleForViewportFit()
+		if (rootDarkParticle === null) return
 		space.updateWorldMatrix()
-		const rootCenter = rootShellWorldCenter(rootShell)
-		const rootPoints = shellRecordViewportFitPoints(rootShell)
+		const rootCenter = rootDarkParticleWorldCenter(rootDarkParticle)
+		const rootPoints = darkParticleRecordViewportFitPoints(rootDarkParticle)
 		const rootOuterRadius = rootPoints.reduce(
 			(maxRadius, point) => Math.max(maxRadius, point.distanceTo(rootCenter)),
-			(rootShell.snapshot.shellRadius + rootShell.snapshot.shellTube) * rootShell.baseShellScale,
+			(rootDarkParticle.snapshot.torusRadius + rootDarkParticle.snapshot.torusTube) * rootDarkParticle.baseTorusScale,
 		)
 		if (!Number.isFinite(rootOuterRadius) || rootOuterRadius <= 1e-6) return
 		const pose = resolveBulkViewportFitPose({
@@ -3915,8 +3915,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return true
 	}
 
-	const shellRecordViewportFitPoints = (
-		record: ShellRenderRecord,
+	const darkParticleRecordViewportFitPoints = (
+		record: DarkParticleRenderRecord,
 	): Vector3[] => {
 		const positions = getGeometryPositionArray(record.torus.geometry)
 		if (!positions || positions.length === 0) return []
@@ -3932,7 +3932,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				positions[index + 2] ?? 0,
 			).applyMatrix4(record.torus.matrixWorld)
 			if (Math.abs(record.currentTransitionScale - 1) > 1e-6) {
-				const center = rootShellWorldCenter(record)
+				const center = rootDarkParticleWorldCenter(record)
 				point.sub(center).multiplyScalar(1 / record.currentTransitionScale).add(center)
 			}
 			points.push(point)
@@ -3941,8 +3941,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return points
 	}
 
-	const fieldRecordViewportFitPoints = (
-		record: FieldRenderRecord,
+	const fieldParticleRecordViewportFitPoints = (
+		record: FieldParticleRenderRecord,
 	): Vector3[] => {
 		const points: Vector3[] = []
 		const positions = getGeometryPositionArray(record.node.geometry)
@@ -3956,7 +3956,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			}
 		}
 
-		const billboard = fieldBillboardRecords.get(record.snapshot.id)
+		const billboard = fieldParticleBillboardRecords.get(record.snapshot.fieldParticleId)
 		if (!billboard) return points
 		const halfWidth = billboard.widthMm / 2
 		const halfHeight = billboard.heightMm / 2
@@ -3969,7 +3969,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return points
 	}
 
-	const rootShellWorldCenter = (record: ShellRenderRecord): Vector3 => {
+	const rootDarkParticleWorldCenter = (record: DarkParticleRenderRecord): Vector3 => {
 		const elements = record.container.matrixWorld.elements
 		return new Vector3(elements[12] ?? 0, elements[13] ?? 0, elements[14] ?? 0)
 	}
@@ -3985,13 +3985,13 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		const right = new Vector3(displayRect.x + displayRect.w, localCenter.y, 0).applyMatrix4(target.screen.matrixWorld)
 		const top = new Vector3(localCenter.x, displayRect.y + displayRect.h, 0).applyMatrix4(target.screen.matrixWorld)
 		const bottom = new Vector3(localCenter.x, displayRect.y, 0).applyMatrix4(target.screen.matrixWorld)
-		const worldW = Math.max(1, left.distanceTo(right))
-		const worldH = Math.max(1, top.distanceTo(bottom))
+		const manifestW = Math.max(1, left.distanceTo(right))
+		const manifestH = Math.max(1, top.distanceTo(bottom))
 		const halfVerticalFov = viewPoint.fov / 2
 		const halfHorizontalFov = Math.atan(Math.tan(halfVerticalFov) * Math.max(0.1, viewPoint.aspect))
 		const distance = Math.max(
-			worldH / (2 * Math.tan(halfVerticalFov)),
-			worldW / (2 * Math.tan(halfHorizontalFov)),
+			manifestH / (2 * Math.tan(halfVerticalFov)),
+			manifestW / (2 * Math.tan(halfHorizontalFov)),
 			35,
 		) * 1.025
 		return {
@@ -4248,7 +4248,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			candidates: hoverPriorityCandidates,
 			currentTarget: preferCurrentHover ? hoveredPickTarget : null,
 			hysteresisPx: HOVER_PRIORITY_HYSTERESIS_PX,
-			parentByParticleId,
+			parentByDarkParticleId,
 		}) as HoverablePickTarget | null
 		if (priorityTarget) return priorityTarget
 		if (
@@ -4271,9 +4271,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		let bestScore = Number.POSITIVE_INFINITY
 
 		for (const target of pickTargets) {
-			const score = target.kind === "field"
+			const score = target.kind === "fieldParticle"
 				? resolveProjectedSphereDistancePx(target.center, target.sphereRadius, clientX, clientY)
-				: resolveProjectedTorusDistancePx(target.center, target.shellRadius, target.shellTube, clientX, clientY)
+				: resolveProjectedTorusDistancePx(target.center, target.torusRadius, target.torusTube, clientX, clientY)
 			if (score === null || score > BULK_RADIAL_MENU_PROJECTED_HIT_PAD_PX || score >= bestScore) continue
 			bestScore = score
 			bestTarget = target
@@ -4402,7 +4402,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		const positionFactor = computeLerpFactor(deltaMs, POSITION_SMOOTHING_MS)
 		const scaleFactor = computeLerpFactor(deltaMs, SCALE_SMOOTHING_MS)
 
-		for (const record of shellRecords.values()) {
+		for (const record of darkParticleRecords.values()) {
 			const nextScale = mixScalar(record.currentTransitionScale, 1, scaleFactor)
 			if (!freezeCosmosPose) {
 				const nextX = mixScalar(record.container.position.x, record.targetLocalPosition.x, positionFactor)
@@ -4416,11 +4416,11 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			record.currentTransitionScale =
 				Math.abs(nextScale - 1) <= 1e-3 ? 1 : nextScale
 			if (record.currentTransitionScale !== 1) hasPendingMotion = true
-			applyShellRecordScale(record)
+			applyDarkParticleRecordScale(record)
 			record.container.updateMatrix()
 		}
 
-		for (const record of fieldRecords.values()) {
+		for (const record of fieldParticleRecords.values()) {
 			const nextScale = mixScalar(record.currentTransitionScale, 1, scaleFactor)
 			if (!freezeCosmosPose) {
 				const nextX = mixScalar(record.node.position.x, record.targetLocalPosition.x, positionFactor)
@@ -4434,7 +4434,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			record.currentTransitionScale =
 				Math.abs(nextScale - 1) <= 1e-3 ? 1 : nextScale
 			if (record.currentTransitionScale !== 1) hasPendingMotion = true
-			applyFieldRecordScale(record)
+			applyFieldParticleRecordScale(record)
 			record.node.updateMatrix()
 		}
 
@@ -4508,7 +4508,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		const orbitStep = COSMOS_ORBIT_RAD_PER_MS * deltaMs
 		const axisStep = COSMOS_AXIS_RAD_PER_MS * deltaMs
 
-		for (const record of shellRecords.values()) {
+		for (const record of darkParticleRecords.values()) {
 			const direction = record.snapshot.depth % 2 === 0 ? 1 : -1
 			const depthFactor = 1 / Math.max(1, record.snapshot.depth + 1)
 			const orbitRadius = Math.hypot(record.targetLocalPosition.x, record.targetLocalPosition.y)
@@ -4526,7 +4526,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			record.container.updateMatrix()
 		}
 
-		for (const record of fieldRecords.values()) {
+		for (const record of fieldParticleRecords.values()) {
 			const direction = record.depth % 2 === 0 ? 1 : -1
 			const orbitRadius = Math.hypot(record.targetLocalPosition.x, record.targetLocalPosition.y)
 			record.cosmosOrbitAngle = wrapAngle(record.cosmosOrbitAngle + orbitStep * direction)
@@ -4543,7 +4543,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			record.node.updateMatrix()
 		}
 
-		return shellRecords.size > 0 || fieldRecords.size > 0
+		return darkParticleRecords.size > 0 || fieldParticleRecords.size > 0
 	}
 
 	const updateAnthropomorphBotAnimation = (deltaMs: number): boolean => {
@@ -4569,8 +4569,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				reusableWorldScale,
 			)
 			const worldScale = Math.max(Math.abs(reusableWorldScale.x), 1e-6)
-			const shellRadius = tracker.shellRadius * worldScale
-			const shellTube = tracker.shellTube * worldScale
+			const torusRadius = tracker.torusRadius * worldScale
+			const torusTube = tracker.torusTube * worldScale
 			const sphereRadius = tracker.sphereRadius * worldScale
 			const offset = tracker.offset * worldScale
 			const normal = reusableLabelNormal
@@ -4594,9 +4594,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			// Касательная вдоль параллели = поворот majorDir на 90° в XY.
 			right.set(-majorDir.y, majorDir.x, 0).normalize()
 
-			if (tracker.kind === "shell") {
-				// Метка на внешнем экваторе тубы, `outerRing = shellRadius + shellTube + offset`.
-				const outerRing = shellRadius + shellTube + offset
+			if (tracker.kind === "darkParticle") {
+				// Метка на внешнем экваторе тубы, `outerRing = torusRadius + torusTube + offset`.
+				const outerRing = torusRadius + torusTube + offset
 				labelPos
 					.copy(reusableWorldPosition)
 					.add(reusableScaledOffset.copy(majorDir).multiplyScalar(outerRing))
@@ -4642,10 +4642,10 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			})
 
 			let surfaceTitleAmount = 0
-			let fieldBillboard: FieldBillboardRecord | undefined
-			if (tracker.kind === "field") {
-				const fieldId = Number(tracker.key.slice("field:".length))
-				fieldBillboard = Number.isFinite(fieldId) ? fieldBillboardRecords.get(fieldId) : undefined
+			let fieldBillboard: FieldParticleBillboardRecord | undefined
+			if (tracker.kind === "fieldParticle") {
+				const fieldParticleId = Number(tracker.key.slice("fieldParticle:".length))
+				fieldBillboard = Number.isFinite(fieldParticleId) ? fieldParticleBillboardRecords.get(fieldParticleId) : undefined
 				if (fieldBillboard !== undefined) {
 					surfaceTitleAmount = resolveFieldLabelTitleMorph(cameraDistanceMm, Math.max(sphereRadius, 1e-6))
 				}
@@ -4752,13 +4752,13 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const updateFieldBillboardTrackers = (): void => {
 		const cameraPos = viewPoint.position
 
-		for (const tracker of fieldBillboardRecords.values()) {
+		for (const tracker of fieldParticleBillboardRecords.values()) {
 			tracker.anchorObject.matrixWorld.decompose(
 				reusableWorldPosition,
 				reusableWorldQuaternion,
 				reusableWorldScale,
 			)
-			const fieldRecord = fieldRecords.get(tracker.fieldId)
+			const fieldRecord = fieldParticleRecords.get(tracker.fieldParticleId)
 			const worldScale = Math.max(Math.abs(reusableWorldScale.x), 1e-6)
 			const normal = reusableBillboardNormal.copy(cameraPos).sub(reusableWorldPosition)
 			const cameraDistanceMm = normal.length()
@@ -4796,8 +4796,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		}
 	}
 
-	const flushFieldBillboardSurfaces = (): void => {
-		for (const tracker of fieldBillboardRecords.values()) tracker.surface.flushPendingRender()
+	const flushFieldParticleBillboardSurfaces = (): void => {
+		for (const tracker of fieldParticleBillboardRecords.values()) tracker.surface.flushPendingRender()
 	}
 
 	const handleCanvasMouseDown = (event: MouseEvent): void => {
@@ -5084,12 +5084,12 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	document.addEventListener("fullscreenchange", handleBotPhoneFullscreenChange)
 	document.addEventListener("webkitfullscreenchange", handleBotPhoneFullscreenChange)
 
-	const calculateActiveShellRecord = (): ShellRenderRecord | null => {
+	const calculateActiveDarkParticleRecord = (): DarkParticleRenderRecord | null => {
 		const cameraPos = viewPoint.position
-		let bestRecord: ShellRenderRecord | null = null
+		let bestRecord: DarkParticleRenderRecord | null = null
 		let bestNormalizedDistance = Number.POSITIVE_INFINITY
 
-		for (const record of shellRecords.values()) {
+		for (const record of darkParticleRecords.values()) {
 			const dist = cameraPos.distanceTo(record.pickTarget.center)
 			if (dist < record.pickTarget.outerRadius * 1.3) {
 				const normalizedDistance = dist / Math.max(record.pickTarget.outerRadius, 1e-6)
@@ -5102,7 +5102,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 							normalizedDistance < bestNormalizedDistance - 1e-6 ||
 							(
 								Math.abs(normalizedDistance - bestNormalizedDistance) <= 1e-6 &&
-								record.snapshot.particleId < bestRecord.snapshot.particleId
+								record.snapshot.darkParticleId < bestRecord.snapshot.darkParticleId
 							)
 						)
 					)
@@ -5131,21 +5131,21 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		syncRadialMenuAnchor()
 		syncBotPhoneHoverPane()
 
-		const activeShellRecord = calculateActiveShellRecord()
-		const nextBaseDepth = activeShellRecord?.snapshot.depth ?? -1
-		const nextActiveShellParticleId = activeShellRecord?.snapshot.particleId ?? null
+		const activeDarkParticleRecord = calculateActiveDarkParticleRecord()
+		const nextBaseDepth = activeDarkParticleRecord?.snapshot.depth ?? -1
+		const nextActiveDarkParticleId = activeDarkParticleRecord?.snapshot.darkParticleId ?? null
 		if (
 			nextBaseDepth !== activeRenderSettings.baseDepth ||
-			nextActiveShellParticleId !== activeShellParticleId
+			nextActiveDarkParticleId !== activeDarkParticleId
 		) {
 			activeRenderSettings.baseDepth = nextBaseDepth
-			activeShellParticleId = nextActiveShellParticleId
+			activeDarkParticleId = nextActiveDarkParticleId
 			syncLabelRecords()
 		}
 
 		updateFieldBillboardTrackers()
 		updateLabelTrackers()
-		flushFieldBillboardSurfaces()
+		flushFieldParticleBillboardSurfaces()
 		hudRuntime.flushPendingRender()
 		space.updateWorldMatrix()
 		updateAnthropomorphBotSkinning()
@@ -5231,7 +5231,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			anthropomorphBotRoot = null
 			anthropomorphBotMixer = null
 			anthropomorphBotSkinnedMeshes = []
-			for (const fieldId of [...fieldBillboardRecords.keys()]) removeFieldBillboardRecord(fieldId)
+			for (const fieldParticleId of [...fieldParticleBillboardRecords.keys()]) removeFieldParticleBillboardRecord(fieldParticleId)
 			hudRuntime.dispose()
 			viewPoint.dispose()
 		},
@@ -5264,11 +5264,11 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				baseDepth: nextBaseDepth,
 			})
 			if (wasCosmosMotionEnabled && !activeRenderSettings.animationEnabled) {
-				for (const record of shellRecords.values()) record.cosmosOrbitAngle = 0
-				for (const record of fieldRecords.values()) record.cosmosOrbitAngle = 0
+				for (const record of darkParticleRecords.values()) record.cosmosOrbitAngle = 0
+				for (const record of fieldParticleRecords.values()) record.cosmosOrbitAngle = 0
 			}
 			rebuildLevelResolver()
-			if (settings.baseDepth !== undefined) activeShellParticleId = null
+			if (settings.baseDepth !== undefined) activeDarkParticleId = null
 			torusWireframeCache.clear()
 			sphereWireframeCache.clear()
 			refreshSceneForSettings()
@@ -5285,8 +5285,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			hudRuntime.handleSize(width, height)
 			requestRenderLoop(INPUT_RENDER_WAKE_MS)
 		},
-		applyWorld(nextWorld: DbWorldRows) {
-			applyWorldRowsToScene(nextWorld)
+		applyManifest(nextManifest: BulkManifest) {
+			applyManifestToScene(nextManifest)
 		},
 		hud: hudRuntime,
 	}

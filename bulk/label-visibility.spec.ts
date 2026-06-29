@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { isDepthLabelVisible, isShellLabelVisible } from "./label-visibility"
+import { isDarkParticleLabelVisible, isDepthLabelVisible } from "./label-visibility"
 
 describe("bulk label visibility", () => {
   test("depth window скрывает текущий baseDepth для обычного depth-правила", () => {
@@ -12,23 +12,23 @@ describe("bulk label visibility", () => {
     ).toBe(false)
   })
 
-  test("shell label на active depth остается видимым для peer shell", () => {
+  test("Dark particle label на active depth остается видимым для peer Dark particle", () => {
     expect(
-      isShellLabelVisible({
+      isDarkParticleLabelVisible({
         baseDepth: 1,
         depth: 1,
-        isActiveShell: false,
+        isActiveDarkParticle: false,
         labelVisibleLevels: 2,
       }),
     ).toBe(true)
   })
 
-  test("shell label скрывается только у shell, в который вошли", () => {
+  test("Dark particle label скрывается только у Dark particle, в который вошли", () => {
     expect(
-      isShellLabelVisible({
+      isDarkParticleLabelVisible({
         baseDepth: 1,
         depth: 1,
-        isActiveShell: true,
+        isActiveDarkParticle: true,
         labelVisibleLevels: 2,
       }),
     ).toBe(false)

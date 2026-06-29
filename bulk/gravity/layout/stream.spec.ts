@@ -1,63 +1,63 @@
 import { describe, expect, test } from "bun:test"
-import type { DbFieldOrbitRow, DbParticleShellRow, DbWorldRowSink } from "./world"
-import { streamDbWorldRows } from "./stream"
-import type { DbWorldParticleDescriptor } from "./snapshot"
+import type { BulkDarkParticle, BulkFieldParticle, BulkManifestSink } from "./world"
+import { streamBulkManifest } from "./stream"
+import type { BulkDarkParticleInput } from "./snapshot"
 
-const createField = (id: number) => ({
-  id,
-  fieldKey: String(id),
-  fieldLabel: String(id),
-  fieldValueKind: "string" as const,
-  valueText: String(id),
+const createFieldParticle = (fieldParticleId: number) => ({
+  fieldParticleId,
+  fieldKey: String(fieldParticleId),
+  fieldLabel: String(fieldParticleId),
+  fieldParticleKind: "string" as const,
+  valueText: String(fieldParticleId),
   colorR: 1,
   colorG: 1,
   colorB: 1,
 })
 
-const createParticle = (
-  particleId: number,
-  children: DbWorldParticleDescriptor[] = [],
-  fieldIds: number[] = [],
-): DbWorldParticleDescriptor => ({
-  particleId,
-  kind: "wimp",
-  src: String(particleId),
-  metaSrc: String(particleId),
-  label: String(particleId),
+const createDarkParticle = (
+  darkParticleId: number,
+  children: BulkDarkParticleInput[] = [],
+  fieldParticleIds: number[] = [],
+): BulkDarkParticleInput => ({
+  darkParticleId,
+  darkParticleKind: "wimp",
+  src: String(darkParticleId),
+  metaSrc: String(darkParticleId),
+  label: String(darkParticleId),
   colorR: 0.4,
   colorG: 0.45,
   colorB: 0.98,
-  fields: fieldIds.map(createField),
+  fieldParticles: fieldParticleIds.map(createFieldParticle),
   children,
 })
 
-interface CapturedSink extends DbWorldRowSink {
-  events: Array<{ kind: "clear" | "particle" | "field"; rootSrc: string; row?: DbParticleShellRow | DbFieldOrbitRow }>
+interface CapturedSink extends BulkManifestSink {
+  events: Array<{ kind: "clear" | "darkParticle" | "fieldParticle"; rootSrc: string; item?: BulkDarkParticle | BulkFieldParticle }>
 }
 
 const createCapturingSink = (): CapturedSink => {
   const events: CapturedSink["events"] = []
   return {
     events,
-    async clearWorld(rootSrc) {
+    async clearManifest(rootSrc) {
       events.push({ kind: "clear", rootSrc })
     },
-    async insertParticleShell(rootSrc, row) {
-      events.push({ kind: "particle", rootSrc, row })
+    async insertDarkParticle(rootSrc, item) {
+      events.push({ kind: "darkParticle", rootSrc, item })
     },
-    async insertFieldOrbit(rootSrc, row) {
-      events.push({ kind: "field", rootSrc, row })
+    async insertFieldParticle(rootSrc, item) {
+      events.push({ kind: "fieldParticle", rootSrc, item })
     },
   }
 }
 
-describe("bulk/gravity/layout streamDbWorldRows", () => {
-  test("первое событие — clear-world, дальше идут particles, потом fields", async () => {
+describe("bulk/gravity/layout streamBulkManifest", () => {
+  test("первое событие — clear manifest, дальше идут Dark particles, потом Field particles", async () => {
     const sink = createCapturingSink()
-    await streamDbWorldRows(
+    await streamBulkManifest(
       "root",
       [
-        createParticle(1, [createParticle(2, [], [102])], [101]),
+        createDarkParticle(1, [createDarkParticle(2, [], [102])], [101]),
       ],
       {},
       sink,
@@ -65,23 +65,23 @@ describe("bulk/gravity/layout streamDbWorldRows", () => {
 
     expect(sink.events.length).toBeGreaterThan(0)
     expect(sink.events[0]?.kind).toBe("clear")
-    expect(sink.events.every((e) => e.rootSrc === "root")).toBe(true)
+    expect(sink.events.every((event) => event.rootSrc === "root")).toBe(true)
 
-    const particleEvents = sink.events.filter((e) => e.kind === "particle")
-    const fieldEvents = sink.events.filter((e) => e.kind === "field")
-    expect(particleEvents.map((e) => (e.row as DbParticleShellRow).particleId)).toEqual([
+    const darkParticleEvents = sink.events.filter((event) => event.kind === "darkParticle")
+    const fieldParticleEvents = sink.events.filter((event) => event.kind === "fieldParticle")
+    expect(darkParticleEvents.map((event) => (event.item as BulkDarkParticle).darkParticleId)).toEqual([
       1,
       2,
     ])
-    expect(fieldEvents.map((e) => (e.row as DbFieldOrbitRow).id).sort()).toEqual([
+    expect(fieldParticleEvents.map((event) => (event.item as BulkFieldParticle).fieldParticleId).sort()).toEqual([
       101,
       102,
     ])
   })
 
-  test("без descriptors всё равно публикует clear-world", async () => {
+  test("без inputs всё равно публикует clear manifest", async () => {
     const sink = createCapturingSink()
-    await streamDbWorldRows("empty", [], {}, sink)
+    await streamBulkManifest("empty", [], {}, sink)
 
     expect(sink.events).toEqual([{ kind: "clear", rootSrc: "empty" }])
   })

@@ -1,37 +1,35 @@
 import {
-  createDbWorldRowsFromParticleDescriptors,
-  scaleDbWorldRowsToRootOuterDiameter,
-  type DbWorldParticleDescriptor,
+  createBulkManifestFromDarkParticleInputs,
+  scaleBulkManifestToRootOuterDiameter,
+  type BulkDarkParticleInput,
 } from "./snapshot"
 import type { BulkLayoutSettings } from "./settings.t"
-import type { DbWorldRowSink } from "./world"
+import type { BulkManifestSink } from "./world"
 
 /**
- * Строит row-набор world-структуры из particle-descriptors и сразу пишет его per-row в `sink`.
+ * Строит Bulk manifest из Dark particle inputs и сразу пишет projection entities в `sink`.
  *
- * Замена связки `buildDbWorldRows` + ручного цикла insert: материализатор не держит
- * промежуточный `DbWorldRows` объект, потребитель видит только row-emit-flow.
+ * Замена связки build + ручного цикла insert: потребитель видит только manifest-emit-flow.
  *
  * Текущая реализация выполняет full layout pass + scale-pass в памяти и только финальный
- * flatten делает per-row в sink — это ещё не настоящий single-pass streaming, но ground для
- * него и устранение `DbWorldRows` из публичного API материализатора.
+ * flatten пишет projection entities в sink — это ещё не настоящий single-pass streaming.
  */
-export const streamDbWorldRows = async (
+export const streamBulkManifest = async (
   rootSrc: string,
-  descriptors: DbWorldParticleDescriptor[],
+  inputs: BulkDarkParticleInput[],
   settings: Partial<BulkLayoutSettings>,
-  sink: DbWorldRowSink,
+  sink: BulkManifestSink,
 ): Promise<void> => {
-  const rows = scaleDbWorldRowsToRootOuterDiameter(
-    createDbWorldRowsFromParticleDescriptors(rootSrc, descriptors, settings),
+  const manifest = scaleBulkManifestToRootOuterDiameter(
+    createBulkManifestFromDarkParticleInputs(rootSrc, inputs, settings),
     undefined,
     settings,
   )
-  await sink.clearWorld(rows.rootSrc)
-  for (const shell of rows.particles) {
-    await sink.insertParticleShell(rows.rootSrc, shell)
+  await sink.clearManifest(manifest.rootSrc)
+  for (const darkParticle of manifest.darkParticles) {
+    await sink.insertDarkParticle(manifest.rootSrc, darkParticle)
   }
-  for (const orbit of rows.fields) {
-    await sink.insertFieldOrbit(rows.rootSrc, orbit)
+  for (const fieldParticle of manifest.fieldParticles) {
+    await sink.insertFieldParticle(manifest.rootSrc, fieldParticle)
   }
 }

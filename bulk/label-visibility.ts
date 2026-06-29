@@ -4,8 +4,8 @@ export interface DepthLabelVisibilityOptions {
   labelVisibleLevels: number
 }
 
-export interface ShellLabelVisibilityOptions extends DepthLabelVisibilityOptions {
-  isActiveShell: boolean
+export interface DarkParticleLabelVisibilityOptions extends DepthLabelVisibilityOptions {
+  isActiveDarkParticle: boolean
 }
 
 export const isDepthLabelVisible = ({
@@ -16,13 +16,13 @@ export const isDepthLabelVisible = ({
   return depth > baseDepth && depth <= baseDepth + labelVisibleLevels
 }
 
-export const isShellLabelVisible = ({
+export const isDarkParticleLabelVisible = ({
   baseDepth,
   depth,
-  isActiveShell,
+  isActiveDarkParticle,
   labelVisibleLevels,
-}: ShellLabelVisibilityOptions): boolean => {
-  if (isActiveShell) return false
+}: DarkParticleLabelVisibilityOptions): boolean => {
+  if (isActiveDarkParticle) return false
   if (baseDepth >= 0 && depth === baseDepth) return true
   return isDepthLabelVisible({ baseDepth, depth, labelVisibleLevels })
 }

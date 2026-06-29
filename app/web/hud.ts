@@ -642,7 +642,7 @@ class AppWebHud implements AppWebHudController {
 	readonly #terminal: TerminalController
 	#src: string
 	#settings: AppWebHudSettingsSnapshot
-	#stats: BulkViewportStats = {shellCount: 0, fieldCount: 0}
+	#stats: BulkViewportStats = {darkParticleCount: 0, fieldParticleCount: 0}
 	#connected = false
 	#busy = true
 	#codexDocked = readStoredBoolean(CODEX_DOCKED_STORAGE_KEY, false)
@@ -932,7 +932,7 @@ class AppWebHud implements AppWebHudController {
 
 	statsLine(): string {
 		const root = this.#stats.rootSrc ? `${this.#stats.rootSrc}: ` : ""
-		return `${root}${this.#stats.shellCount} shells / ${this.#stats.fieldCount} fields`
+		return `${root}${this.#stats.darkParticleCount} Dark particles / ${this.#stats.fieldParticleCount} field particles`
 	}
 
 	codexDraft(): string {
