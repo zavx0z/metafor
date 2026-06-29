@@ -1,9 +1,9 @@
 /**
- * `@bulk/gravity/level` — закон размерной иерархии бран и метрик уровней.
+ * `@bulk/gravity/level` — закон размерной иерархии Dark particles и метрик уровней.
  *
  * Разделение на три слоя отвечает принципу `Domain × Force × Entity` из `docs/ARCHITECTURE.md`:
- * в Bulk × Gravity живёт манифестированная геометрия актёров, её детализация для wireframe
- * и вывод метрик подписей по глубине.
+ * в Bulk × Gravity живёт манифестированная геометрия WIMP/Fuzzy/MACHO/Axion,
+ * её детализация для wireframe и вывод метрик подписей по глубине.
  *
  * Публичные слои:
  * - `geometry` — чистые размеры (outerR/innerR/shellR/tube/sphereR/thickness/padding) + `levelScale`

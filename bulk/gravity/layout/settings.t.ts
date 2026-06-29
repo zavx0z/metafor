@@ -3,7 +3,7 @@
  *
  * Эти настройки задают root-размеры manifested-геометрии. Масштаб уровней задаёт
  * минимальный canonical-размер в `@bulk/gravity/level`; фактическая torus geometry
- * может расшириться, если nested Dark particles and field particles require more torus space.
+ * может расшириться, если вложенным Dark particles и field particles нужно больше места.
  */
 export interface BulkLayoutSettings {
   /** Расстояние между краями объектов на орбитах в миллиметрах. `0` = почти касание. */

@@ -39,7 +39,7 @@ export interface AppWebLayoutConfig {
       elbow: number
       floor: number
     }
-    shellFallbackMm: {
+    torusFallbackMm: {
       radius: number
       tube: number
     }
@@ -95,7 +95,7 @@ export const appWebLayoutConfig: AppWebLayoutConfig = {
       elbow: 1100,
       eye: 1650,
     },
-    shellFallbackMm: {
+    torusFallbackMm: {
       radius: 200,
       tube: 140,
     },

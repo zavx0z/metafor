@@ -156,6 +156,7 @@ import {
 	THEME_TERTIARY_GLOW,
 } from "./constants"
 import { computeLerpFactor, easeOutCubic, getDistanceToSegmentPx, mixScalar } from "./math"
+import { resolveForceFieldsPayload } from "./force-protocol"
 
 const torusWireframeCache = new Map<string, BufferGeometry>()
 const sphereWireframeCache = new Map<string, BufferGeometry>()
@@ -576,7 +577,7 @@ type FadingLabelRemovalRecord = {
 type FieldParticleBillboardMode = "summary" | "surface"
 
 const getViewportConfig = () => appWebLayoutConfig.viewport
-const getTorusFallback = () => getViewportConfig().shellFallbackMm
+const getTorusFallback = () => getViewportConfig().torusFallbackMm
 const getWorkspaceBaseZ = (): number => getViewportConfig().levelsMm.elbow
 const getFloorZ = (): number => getViewportConfig().levelsMm.floor
 
@@ -2577,7 +2578,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		record.node.updateMatrix()
 	}
 
-	const refreshFieldRecordOrientation = (record: FieldParticleRenderRecord): void => {
+	const refreshFieldParticleRecordOrientation = (record: FieldParticleRenderRecord): void => {
 		const qBase = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2)
 		const tiltRad = (-activeRenderSettings.torusCrossRingRotationDeg * Math.PI) / 180
 		const u = Math.atan2(record.snapshot.localY, record.snapshot.localX)
@@ -2730,7 +2731,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			targetLocalPosition: new Vector3(field.localX, field.localY, field.localZ),
 	}
 		applyFieldParticleRecordScale(record)
-		refreshFieldRecordOrientation(record)
+		refreshFieldParticleRecordOrientation(record)
 		refreshFieldParticleRecordGeometryAndMaterial(record)
 		node.updateMatrix()
 		return record
@@ -2797,7 +2798,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			existing.currentTransitionScale = clampTransitionScale(previousLocalRadius / field.sphereRadius)
 	}
 
-		refreshFieldRecordOrientation(existing)
+		refreshFieldParticleRecordOrientation(existing)
 		refreshFieldParticleRecordGeometryAndMaterial(existing)
 		applyFieldParticleRecordScale(existing)
 		return existing
@@ -2899,8 +2900,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const applyHiggsFieldsForce = (message: unknown): boolean => {
 		if (!isRecord(message) || message.part !== "higgs") return false
 		const wimp = forceString(message.path)
-		const value = isRecord(message.value) ? message.value : null
-		const fields = value !== null && isRecord(value.fieldParticles) ? value.fieldParticles : null
+		const fields = resolveForceFieldsPayload(message.value)
 		if (wimp === null || fields === null) return false
 
 		let changed = false
@@ -2928,8 +2928,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const applyGluonFieldsForce = (message: unknown): boolean => {
 		if (!isRecord(message) || message.part !== "gluon") return false
 		const actorDarkParticleId = forceActorDarkParticleId(message.path)
-		const value = isRecord(message.value) ? message.value : null
-		const fields = value !== null && isRecord(value.fieldParticles) ? value.fieldParticles : null
+		const fields = resolveForceFieldsPayload(message.value)
 		if (actorDarkParticleId === null || fields === null) return false
 
 		let changed = false
@@ -3276,7 +3275,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 		for (const record of fieldParticleRecords.values()) {
-			refreshFieldRecordOrientation(record)
+			refreshFieldParticleRecordOrientation(record)
 			refreshFieldParticleRecordGeometryAndMaterial(record)
 			applyFieldParticleRecordScale(record)
 	}
