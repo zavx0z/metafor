@@ -11,7 +11,7 @@
  *  • Render-on-demand: surface.requestRender → UiRuntime сводит в один RAF.
  */
 
-import {Color, GridHelper, Matrix4, Object3D, Quaternion, Raycaster, Renderer, Space, TrueTypeFont, Vector3, ViewPoint, type WebGpuDiagnosticsHook} from "@metafor/engine"
+import {Color, GridHelper, Matrix4, Object3D, Quaternion, Raycaster, Renderer, Space, TrueTypeFont, Vector3, ViewPoint} from "@metafor/engine"
 import {HUD} from "./targets/HUD.ts"
 import {UIDisplay} from "./targets/UIDisplay.ts"
 import {VirtualInput, type VirtualInputSoftKeyboardMode} from "./virtual-input.ts"
@@ -235,8 +235,6 @@ export type UiRuntimeOpts = {
   onDisplayCenterChange?: (change: UiRuntimeDisplayCenterChange) => void
   /** Вызывается, когда touch long-press удержан на UIDisplay в Space overview. */
   onDisplayLongPress?: (event: UiRuntimeDisplayLongPress) => void
-  /** Dev-only diagnostics hook for interpreter WebGPU crash breadcrumbs. */
-  webGpuDiagnostics?: WebGpuDiagnosticsHook
 }
 
 const DEFAULT_FONT_URL = "/JetBrainsMono-Bold.ttf"
@@ -246,7 +244,7 @@ const DISPLAY_NEAR_FIT_PADDING = 1.002
 
 export class UiRuntime {
   static async create(canvas: HTMLCanvasElement, opts: UiRuntimeOpts = {}): Promise<UiRuntime> {
-    const renderer = new Renderer(opts.webGpuDiagnostics === undefined ? {} : {webGpuDiagnostics: opts.webGpuDiagnostics})
+    const renderer = new Renderer()
     await renderer.init(canvas)
     renderer.setPixelRatio(window.devicePixelRatio || 1)
     const font = await TrueTypeFont.fromUrl(opts.fontUrl ?? DEFAULT_FONT_URL)

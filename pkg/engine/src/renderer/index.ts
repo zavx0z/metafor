@@ -26,9 +26,6 @@ import {TEXT_COVER_FACE_STATE, TEXT_STENCIL_BACK_FACE_STATE, TEXT_STENCIL_FACE_S
 import {collectSpaceObjects, type LightItem, type RenderItem} from "./utils/RenderList"
 import {GlassMaterial} from "../materials/GlassMaterial"
 import {TextureLoader} from "../loaders/TextureLoader"
-import {installWebGpuDeviceDiagnostics, type WebGpuDiagnosticsHook} from "./gpu-diagnostics"
-
-export type {WebGpuDiagnosticsHook} from "./gpu-diagnostics"
 
 if (import.meta.hot) {
   (import.meta.hot.accept as unknown as (dependencies: string[], callback: () => void) => void)([
@@ -87,10 +84,6 @@ export type RenderOverlay = Object3D & {
   updateForViewPoint?(viewPoint: ViewPoint): void
 }
 
-export type RendererOptions = {
-  webGpuDiagnostics?: WebGpuDiagnosticsHook
-}
-
 /**
  * Рендерер, использующий **WebGPU API** для отрисовки сцены.
  *
@@ -100,8 +93,6 @@ export type RendererOptions = {
  * * Автоматически управляет буферами uniform-ов и пайплайнами.
  */
 export class Renderer {
-  constructor(private readonly options: RendererOptions = {}) {}
-
   private device: GPUDevice | null = null
   private context: GPUCanvasContext | null = null
   private presentationFormat: GPUTextureFormat | null = null
@@ -170,20 +161,10 @@ export class Renderer {
   public async init(canvas?: HTMLCanvasElement): Promise<void> {
     if (!navigator.gpu) throw new Error("WebGPU не поддерживается браузером.")
 
-    const adapterOptions = this.options.webGpuDiagnostics?.requestAdapterOptions?.()
-    this.options.webGpuDiagnostics?.breadcrumb("requestAdapter", "Renderer.init", {adapterOptions: adapterOptions ?? null})
-    const adapterRequest = adapterOptions === undefined
-      ? navigator.gpu.requestAdapter()
-      : navigator.gpu.requestAdapter(adapterOptions)
-    const adapter = await withWebGpuInitTimeout(adapterRequest, "WebGPU adapter")
+    const adapter = await withWebGpuInitTimeout(navigator.gpu.requestAdapter(), "WebGPU adapter")
     if (!adapter) throw new Error("Не удалось получить WebGPU адаптер.")
-    this.options.webGpuDiagnostics?.onAdapter?.(adapter, adapterOptions)
 
-    const deviceDescriptor: GPUDeviceDescriptor = {}
-    this.options.webGpuDiagnostics?.breadcrumb("requestDevice", "Renderer.init", {requiredFeatures: [], requiredLimits: {}})
-    this.device = await withWebGpuInitTimeout(adapter.requestDevice(deviceDescriptor), "WebGPU device")
-    installWebGpuDeviceDiagnostics(this.device, this.options.webGpuDiagnostics)
-    this.options.webGpuDiagnostics?.onDevice?.(adapter, this.device, deviceDescriptor)
+    this.device = await withWebGpuInitTimeout(adapter.requestDevice(), "WebGPU device")
 
     this.canvas = canvas || document.createElement("canvas")
     this.context = this.canvas.getContext("webgpu")
@@ -204,13 +185,6 @@ export class Renderer {
       format: this.presentationFormat,
       alphaMode: 'premultiplied',
       usage,
-    })
-    this.options.webGpuDiagnostics?.breadcrumb("canvas.configure", "Renderer.context", {
-      format: this.presentationFormat,
-      alphaMode: "premultiplied",
-      usage,
-      width: this.canvas?.width,
-      height: this.canvas?.height,
     })
   }
 

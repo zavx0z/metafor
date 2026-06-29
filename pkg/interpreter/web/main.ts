@@ -72,7 +72,6 @@ import {
   type FrameSnapshot,
   type ScopeContextSnapshot,
 } from "./interpreter-ui.ts"
-import {createInterpreterGpuCrashDebug} from "./gpu-crash-debug.ts"
 import {getUiLocale, t, toggleUiLocale} from "./i18n.ts"
 import {
   breakpointRegistrationMatchesSource,
@@ -802,7 +801,6 @@ const DEFAULT_SQLITE_HUD_RECT: UiSurfaceRect = {x: 482, y: 96, w: 960, h: 640}
 const DEFAULT_SQLITE_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "right", offset: 360}
 
 let uiCanvas: UiRuntime | null = null
-let gpuCrashDebug: ReturnType<typeof createInterpreterGpuCrashDebug> | null = null
 let uiLoading = false
 let displayHoverOutlinePane: DisplayHoverOutlinePane | null = null
 let displayActionAutoFocusEnabled = readStoredDisplayActionAutoFocusEnabled()
@@ -2784,9 +2782,7 @@ async function initEngine(): Promise<void> {
   if (uiLoading || uiCanvas !== null) return
   uiLoading = true
   try {
-    gpuCrashDebug = createInterpreterGpuCrashDebug()
     uiCanvas = await UiRuntime.create(engineCanvas, {
-      webGpuDiagnostics: gpuCrashDebug,
       onViewPointChange: handleInterpreterViewPointChange,
       onDisplayCenterChange: storeInterpreterDisplayPosition,
       onDisplayLongPress: () => displayHoverOutlinePane?.revealFlightControl(),
