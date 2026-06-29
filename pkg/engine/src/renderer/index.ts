@@ -124,8 +124,10 @@ export class Renderer {
 
   // --- Ресурсы для каждого объекта ---
   private perObjectUniformBuffer: GPUBuffer | null = null
+  private perObjectBindGroupLayout: GPUBindGroupLayout | null = null
   private perObjectBindGroup: GPUBindGroup | null = null
   private perObjectDataCPU: Float32Array | null = null
+  private perObjectCapacity = MAX_RENDERABLES
 
   geometryCache: Map<BufferGeometry, GeometryBuffers> = new Map()
   private depthTexture: GPUTexture | null = null
@@ -182,12 +184,6 @@ export class Renderer {
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     })
 
-    this.perObjectUniformBuffer = this.device.createBuffer({
-      size: MAX_RENDERABLES * PER_OBJECT_DATA_SIZE,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    })
-    this.perObjectDataCPU = new Float32Array(MAX_RENDERABLES * (PER_OBJECT_DATA_SIZE / 4))
-
     const globalBindGroupLayout = this.device.createBindGroupLayout({
       entries: [
         {
@@ -225,26 +221,9 @@ export class Renderer {
         },
       ],
     })
+    this.perObjectBindGroupLayout = perObjectBindGroupLayout
 
-    this.perObjectBindGroup = this.device.createBindGroup({
-      layout: perObjectBindGroupLayout,
-      entries: [
-        {
-          binding: 0,
-          resource: {
-            buffer: this.perObjectUniformBuffer,
-            size: PER_OBJECT_UNIFORM_SIZE,
-          },
-        },
-        {
-          binding: 1,
-          resource: {
-            buffer: this.perObjectUniformBuffer,
-            size: BONE_MATRICES_SIZE,
-          },
-        },
-      ],
-    })
+    this.createPerObjectResources(MAX_RENDERABLES)
 
     this.imageBindGroupLayout = this.device.createBindGroupLayout({
       entries: [
@@ -1103,6 +1082,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       this.globalUniformBuffer &&
       this.sceneUniformBuffer &&
       this.perObjectUniformBuffer &&
+      this.perObjectBindGroupLayout &&
+      this.perObjectBindGroup &&
+      this.perObjectDataCPU &&
       this.canvas
     )
   }
@@ -1148,10 +1130,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       overlay.updateForViewPoint?.(viewPoint)
       preparedLayers.push(this.prepareRenderLayer(overlay, frameRenderItems, frameLights))
     }
+    const renderIndexByItem = new Map<RenderItem, number>()
+    frameRenderItems.forEach((item, index) => renderIndexByItem.set(item, index))
 
     // Uniform buffers are written once for the whole frame. Rewriting them between
     // passes before submit would make earlier passes read the later data.
     this.updateSceneUniforms(frameLights, viewPoint.viewMatrix)
+    this.ensurePerObjectCapacity(frameRenderItems.length)
     const perObjectDataBytes = this.updatePerObjectData(frameRenderItems)
     if (perObjectDataBytes > 0 && this.perObjectDataCPU && this.perObjectUniformBuffer) {
       this.device!.queue.writeBuffer(
@@ -1164,7 +1149,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     preparedLayers.forEach((layer, index) => {
-      this.renderPreparedLayer(commandEncoder, textureView, layer, frameRenderItems, index === 0)
+      this.renderPreparedLayer(commandEncoder, textureView, layer, renderIndexByItem, index === 0)
     })
 
     this.device!.queue.submit([commandEncoder.finish()])
@@ -1196,7 +1181,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     commandEncoder: GPUCommandEncoder,
     textureView: GPUTextureView,
     layer: PreparedRenderLayer,
-    frameRenderItems: RenderItem[],
+    renderIndexByItem: ReadonlyMap<RenderItem, number>,
     clearColor: boolean,
   ): void {
     const colorLoadOp: GPULoadOp = clearColor ? "clear" : "load"
@@ -1224,20 +1209,59 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     passEncoder.setBindGroup(0, this.globalBindGroup!)
 
     // Рендерим обычные объекты
-    this.renderObjectList(passEncoder, layer.regularObjects, frameRenderItems)
+    this.renderObjectList(passEncoder, layer.regularObjects, renderIndexByItem)
     // Рендерим стеклянные объекты (пока как обычные, но с прозрачностью)
-    this.renderObjectList(passEncoder, layer.glassObjects, frameRenderItems)
+    this.renderObjectList(passEncoder, layer.glassObjects, renderIndexByItem)
     // Рендерим UI объекты
-    this.renderObjectList(passEncoder, layer.uiObjects, frameRenderItems, true)
+    this.renderObjectList(passEncoder, layer.uiObjects, renderIndexByItem, true)
 
     passEncoder.end()
   }
 
 
+  private ensurePerObjectCapacity(required: number): void {
+    if (required <= this.perObjectCapacity) return
+    let nextCapacity = Math.max(1, this.perObjectCapacity)
+    while (nextCapacity < required) nextCapacity *= 2
+    this.createPerObjectResources(nextCapacity)
+  }
+
+  private createPerObjectResources(capacity: number): void {
+    if (!this.device || !this.perObjectBindGroupLayout) return
+    const previousBuffer = this.perObjectUniformBuffer
+    const buffer = this.device.createBuffer({
+      size: capacity * PER_OBJECT_DATA_SIZE,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    })
+    this.perObjectUniformBuffer = buffer
+    this.perObjectDataCPU = new Float32Array(capacity * (PER_OBJECT_DATA_SIZE / 4))
+    this.perObjectBindGroup = this.device.createBindGroup({
+      layout: this.perObjectBindGroupLayout,
+      entries: [
+        {
+          binding: 0,
+          resource: {
+            buffer,
+            size: PER_OBJECT_UNIFORM_SIZE,
+          },
+        },
+        {
+          binding: 1,
+          resource: {
+            buffer,
+            size: BONE_MATRICES_SIZE,
+          },
+        },
+      ],
+    })
+    this.perObjectCapacity = capacity
+    previousBuffer?.destroy()
+  }
+
   private updatePerObjectData(objects: RenderItem[]): number {
     if (!this.perObjectDataCPU) return 0
 
-    const objectCount = Math.min(objects.length, MAX_RENDERABLES)
+    const objectCount = objects.length
     const usedFloats = objectCount * (PER_OBJECT_DATA_SIZE / 4)
     this.perObjectDataCPU.fill(0, 0, usedFloats)
 
@@ -1434,15 +1458,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   private renderObjectList(
     passEncoder: GPURenderPassEncoder,
     objectsToRender: RenderItem[],
-    allObjects: RenderItem[],
+    renderIndexByItem: ReadonlyMap<RenderItem, number>,
     isUiLayer = false,
   ): void {
     let currentPipeline: GPURenderPipeline | null = null
 
     for (const item of objectsToRender) {
-      // Находим индекс этого объекта в общем списке для получения правильного renderIndex
-      const renderIndex = allObjects.indexOf(item)
-      if (renderIndex === -1) continue
+      const renderIndex = renderIndexByItem.get(item)
+      if (renderIndex === undefined) continue
 
       let pipeline: GPURenderPipeline | null = null
 
@@ -1502,21 +1525,21 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
           this.renderMesh(passEncoder, item.object as Mesh, item.worldMatrix, renderIndex)
           break
         case "instanced-mesh":
-          this.renderInstancedMesh(passEncoder, item.object as InstancedMesh, item.worldMatrix, renderIndex)
+          this.renderInstancedMesh(passEncoder, item.object as InstancedMesh, renderIndex)
           break
         case "instanced-line":
-          this.renderInstancedLines(passEncoder, item.object as WireframeInstancedMesh, item.worldMatrix, renderIndex)
+          this.renderInstancedLines(passEncoder, item.object as WireframeInstancedMesh, renderIndex)
           break
         case "line":
-          this.renderLines(passEncoder, item.object as LineSegments, item.worldMatrix, renderIndex)
+          this.renderLines(passEncoder, item.object as LineSegments, renderIndex)
           break
         case "text-stencil":
           passEncoder.setStencilReference(0)
-          this.renderTextPass(passEncoder, item.object as Text, item.worldMatrix, renderIndex, true)
+          this.renderTextPass(passEncoder, item.object as Text, renderIndex, true)
           break
         case "text-cover":
           passEncoder.setStencilReference(0)
-          this.renderTextPass(passEncoder, item.object as Text, item.worldMatrix, renderIndex, false)
+          this.renderTextPass(passEncoder, item.object as Text, renderIndex, false)
           break
       }
     }
@@ -1846,24 +1869,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   private renderInstancedMesh(
     passEncoder: GPURenderPassEncoder | null,
     mesh: InstancedMesh,
-    worldMatrix: Matrix4,
     renderIndex: number,
   ): void {
-    if (!this.device || !this.perObjectUniformBuffer || !this.perObjectBindGroup || !this.perObjectDataCPU) return
+    if (!this.device || !this.perObjectUniformBuffer || !this.perObjectBindGroup) return
     const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
     if (!material!.visible) return
 
     const dynamicOffset = renderIndex * PER_OBJECT_DATA_SIZE
-    const offsetFloats = dynamicOffset / 4
-
-    const normalMatrix = new Matrix4().copy(worldMatrix).invert().transpose()
-
-    this.perObjectDataCPU.set(worldMatrix.elements, offsetFloats) // modelMatrix
-    this.perObjectDataCPU.set(normalMatrix.elements, offsetFloats + 16) // normalMatrix
-
-    if (material instanceof MeshBasicMaterial || material instanceof MeshLambertMaterial) {
-      this.perObjectDataCPU.set([...material.color.toArray(), 1.0], offsetFloats + 32)
-    }
 
     if (passEncoder) {
       const boneMatricesOffset = dynamicOffset + PER_OBJECT_UNIFORM_SIZE
@@ -1896,10 +1908,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   private renderLines(
     passEncoder: GPURenderPassEncoder | null,
     lines: LineSegments,
-    worldMatrix: Matrix4,
     renderIndex: number,
   ): void {
-    if (!this.device || !this.perObjectUniformBuffer || !this.perObjectBindGroup || !this.perObjectDataCPU) return
+    if (!this.device || !this.perObjectUniformBuffer || !this.perObjectBindGroup) return
 
     const material = lines.material
     const isLineBasic = material instanceof LineBasicMaterial
@@ -1908,34 +1919,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if (!(isLineBasic || isLineGlow) || !material.visible) return
 
     const dynamicOffset = renderIndex * PER_OBJECT_DATA_SIZE
-    const offsetFloats = dynamicOffset / 4
-
-    // Записываем матрицу модели (16 floats)
-    this.perObjectDataCPU.set(worldMatrix.elements, offsetFloats)
-
-    // Записываем цвет материала с opacity (4 floats)
-    this.perObjectDataCPU.set(
-      [material.color.r, material.color.g, material.color.b, material.color.a * material.opacity],
-      offsetFloats + 16,
-    )
-
-    // Записываем параметры свечения
-    let glowIntensity = 1.0
-    let glowColor = new Float32Array([0, 0, 0, 0])
-
-    if (isLineGlow) {
-      glowIntensity = (material as LineGlowMaterial).glowIntensity
-      const glowColorObj = (material as LineGlowMaterial).glowColor
-      if (glowColorObj) {
-        glowColor = new Float32Array(glowColorObj.toArray())
-      }
-    }
-
-    // glowIntensity (1 float) и padding (3 floats)
-    this.perObjectDataCPU.set([glowIntensity, 0, 0, 0], offsetFloats + 20)
-
-    // glowColor (4 floats)
-    this.perObjectDataCPU.set(glowColor, offsetFloats + 24)
 
     if (passEncoder) {
       const boneMatricesOffset = dynamicOffset + PER_OBJECT_UNIFORM_SIZE
@@ -1951,25 +1934,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   private renderInstancedLines(
     passEncoder: GPURenderPassEncoder | null,
     lines: WireframeInstancedMesh,
-    worldMatrix: Matrix4,
     renderIndex: number,
   ): void {
-    if (!this.device || !this.perObjectUniformBuffer || !this.perObjectBindGroup || !this.perObjectDataCPU) return
+    if (!this.device || !this.perObjectUniformBuffer || !this.perObjectBindGroup) return
 
     // Проверяем видимость
     if (!lines.visible) return
 
     const dynamicOffset = renderIndex * PER_OBJECT_DATA_SIZE
-    const offsetFloats = dynamicOffset / 4
-
-    // Записываем только матрицу модели (16 floats)
-    this.perObjectDataCPU.set(worldMatrix.elements, offsetFloats)
-
-    // Остальные параметры материала теперь передаются через атрибуты инстансов
-    // Заполняем остальные поля нулями для выравнивания
-    this.perObjectDataCPU.set([0, 0, 0, 0], offsetFloats + 16) // color
-    this.perObjectDataCPU.set([0, 0, 0, 0], offsetFloats + 20) // glowIntensity + padding
-    this.perObjectDataCPU.set([0, 0, 0, 0], offsetFloats + 24) // glowColor
 
     if (passEncoder) {
       const boneMatricesOffset = dynamicOffset + PER_OBJECT_UNIFORM_SIZE
@@ -1988,20 +1960,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   private renderTextPass(
     passEncoder: GPURenderPassEncoder | null,
     text: Text,
-    worldMatrix: Matrix4,
     renderIndex: number,
     isStencil: boolean,
   ): void {
-    if (!this.device || !this.perObjectUniformBuffer || !this.perObjectBindGroup || !this.perObjectDataCPU) return
+    if (!this.device || !this.perObjectUniformBuffer || !this.perObjectBindGroup) return
     const geometry = isStencil ? text.stencilGeometry : text.coverGeometry
     if (!geometry.index) return
 
     const dynamicOffset = renderIndex * PER_OBJECT_DATA_SIZE
-    const offsetFloats = dynamicOffset / 4
-    this.perObjectDataCPU.set(worldMatrix.elements, offsetFloats)
-    if (!isStencil) {
-      this.perObjectDataCPU.set([...(text.material as TextMaterial).color.toArray(), 1.0], offsetFloats + 32)
-    }
 
     if (passEncoder) {
       const boneMatricesOffset = dynamicOffset + PER_OBJECT_UNIFORM_SIZE
