@@ -14,7 +14,6 @@ import meshBasicWGSL from "./shaders/mesh_basic.wgsl"
 import meshStaticWGSL from "./shaders/mesh_static.wgsl"
 import meshSkinnedWGSL from "./shaders/mesh_skinned.wgsl"
 import meshInstancedWGSL from "./shaders/mesh_instanced.wgsl"
-import blurWGSL from "./shaders/blur.wgsl"
 
 import lineShaderCode from "./shaders/line.wgsl"
 import textShaderCode from "./shaders/text.wgsl"
@@ -33,7 +32,6 @@ if (import.meta.hot) {
     "./shaders/mesh_static.wgsl",
     "./shaders/mesh_skinned.wgsl",
     "./shaders/mesh_instanced.wgsl",
-    "./shaders/blur.wgsl",
     "./shaders/line.wgsl",
     "./shaders/text.wgsl",
     "./shaders/image.wgsl",
@@ -119,11 +117,6 @@ export class Renderer {
   private imageSampler: GPUSampler | null = null
   private imageBindGroupCache: WeakMap<GPUTexture, GPUBindGroup> = new WeakMap()
 
-  // --- Compute ресурсы для размытия ---
-  private blurComputePipelineHorizontal: GPUComputePipeline | null = null
-  private blurComputePipelineVertical: GPUComputePipeline | null = null
-  private blurShaderModule: GPUShaderModule | null = null
-
   // --- Глобальные ресурсы ---
   private globalUniformBuffer: GPUBuffer | null = null
   private sceneUniformBuffer: GPUBuffer | null = null // Для освещения
@@ -141,17 +134,6 @@ export class Renderer {
   public pixelRatio = 1
   private frustum: Frustum = new Frustum()
   public canvas: HTMLCanvasElement | null = null
-
-  // --- Offscreen текстуры для многопроходного рендеринга ---
-  private offscreenTexture: GPUTexture | null = null
-  private offscreenResolvedTexture: GPUTexture | null = null
-  private blurredIntermediateTexture: GPUTexture | null = null
-  private finalBlurredTexture: GPUTexture | null = null
-  private offscreenDepthTexture: GPUTexture | null = null
-
-  // Для отслеживания изменений размера canvas
-  private lastCanvasWidth: number = 0
-  private lastCanvasHeight: number = 0
 
   /**
    * Инициализирует WebGPU устройство и контекст.
@@ -174,7 +156,6 @@ export class Renderer {
     this.configureCanvasContext()
 
     await this.setupPipelines()
-    await this.setupComputePipelines()
   }
 
   private configureCanvasContext(): void {
@@ -188,35 +169,8 @@ export class Renderer {
     })
   }
 
-  private async setupComputePipelines(): Promise<void> {
-    if (!this.device || !this.blurShaderModule) return
-
-    // Создаем пайплайн для горизонтального размытия
-    this.blurComputePipelineHorizontal = this.device.createComputePipeline({
-      layout: 'auto',
-      compute: {
-        module: this.blurShaderModule,
-        entryPoint: 'blur_horizontal'
-      }
-    })
-
-    // Создаем пайплайн для вертикального размытия
-    this.blurComputePipelineVertical = this.device.createComputePipeline({
-      layout: 'auto',
-      compute: {
-        module: this.blurShaderModule,
-        entryPoint: 'blur_vertical'
-      }
-    })
-  }
-
   private async setupPipelines(): Promise<void> {
     if (!this.device || !this.presentationFormat) return
-
-    // Загружаем compute-шейдер
-    this.blurShaderModule = this.device.createShaderModule({
-      code: blurWGSL
-    })
 
     this.globalUniformBuffer = this.device.createBuffer({
       size: 64,
@@ -1094,73 +1048,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
   }
 
-  private updateOffscreenTextures(): void {
-    if (!this.device || !this.canvas || !this.presentationFormat) return
-
-    const width = this.canvas.width
-    const height = this.canvas.height
-
-    if (width === this.lastCanvasWidth && height === this.lastCanvasHeight) {
-      return
-    }
-
-    this.lastCanvasWidth = width
-    this.lastCanvasHeight = height
-
-    const textureUsage = GPUTextureUsage.RENDER_ATTACHMENT |
-      GPUTextureUsage.TEXTURE_BINDING |
-      GPUTextureUsage.STORAGE_BINDING |
-      GPUTextureUsage.COPY_SRC
-
-    // Освобождаем старые текстуры
-    this.offscreenTexture?.destroy()
-    this.offscreenResolvedTexture?.destroy()
-    this.offscreenDepthTexture?.destroy()
-    this.blurredIntermediateTexture?.destroy()
-    this.finalBlurredTexture?.destroy()
-
-    // Мультисемплинговая текстура для offscreen-рендеринга
-    this.offscreenTexture = this.device.createTexture({
-      size: [width, height],
-      format: 'rgba8unorm',
-      usage: GPUTextureUsage.RENDER_ATTACHMENT,
-      sampleCount: 4,
-    })
-
-    // Разрешенная (односэмпловая) текстура для compute-шейдеров
-    this.offscreenResolvedTexture = this.device.createTexture({
-      size: [width, height],
-      format: 'rgba8unorm',
-      usage: GPUTextureUsage.RENDER_ATTACHMENT |
-        GPUTextureUsage.TEXTURE_BINDING |
-        GPUTextureUsage.COPY_SRC,
-    })
-
-    // Текстура глубины для offscreen-пасса
-    this.offscreenDepthTexture = this.device.createTexture({
-      size: [width, height],
-      format: 'depth24plus-stencil8',
-      usage: GPUTextureUsage.RENDER_ATTACHMENT,
-      sampleCount: 4,
-    })
-
-    // Текстуры для размытия
-    this.blurredIntermediateTexture = this.device.createTexture({
-      size: [width, height],
-      format: 'rgba8unorm',
-      usage: GPUTextureUsage.TEXTURE_BINDING |
-        GPUTextureUsage.STORAGE_BINDING |
-        GPUTextureUsage.COPY_SRC,
-    })
-    this.finalBlurredTexture = this.device.createTexture({
-      size: [width, height],
-      format: 'rgba8unorm',
-      usage: GPUTextureUsage.TEXTURE_BINDING |
-        GPUTextureUsage.STORAGE_BINDING |
-        GPUTextureUsage.COPY_SRC,
-    })
-  }
-
   private collectSpaceObjectsByType(
     renderList: RenderItem[]
   ): {
@@ -1186,54 +1073,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       ),
       uiObjects: renderList.filter(item => isUiLayerObject(item.object))
     }
-  }
-
-  private applyBlur(
-    commandEncoder: GPUCommandEncoder,
-    inputTexture: GPUTexture,
-    outputTexture: GPUTexture,
-    horizontal: boolean
-  ): void {
-    if (!this.device || !this.blurComputePipelineHorizontal || !this.blurComputePipelineVertical) return
-
-    const computePass = commandEncoder.beginComputePass()
-
-    const pipeline = horizontal
-      ? this.blurComputePipelineHorizontal
-      : this.blurComputePipelineVertical
-
-    computePass.setPipeline(pipeline)
-
-    // Создаем bind group для передачи текстур в шейдер
-    const bindGroup = this.device.createBindGroup({
-      layout: pipeline.getBindGroupLayout(0),
-      entries: [
-        {
-          binding: 0,
-          resource: inputTexture.createView()
-        },
-        {
-          binding: 1,
-          resource: outputTexture.createView()
-        }
-      ]
-    })
-
-    computePass.setBindGroup(0, bindGroup)
-
-    // Вычисляем количество workgroup
-    const width = this.canvas!.width
-    const height = this.canvas!.height
-
-    if (horizontal) {
-      const workgroupCountX = Math.ceil(width / 64)
-      computePass.dispatchWorkgroups(workgroupCountX, height)
-    } else {
-      const workgroupCountY = Math.ceil(height / 64)
-      computePass.dispatchWorkgroups(width, workgroupCountY)
-    }
-
-    computePass.end()
   }
 
   private isReadyToRender(): boolean {
@@ -1292,7 +1131,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
           : []
 
     this.updateTextures()
-    this.updateOffscreenTextures()
 
     const commandEncoder = this.device!.createCommandEncoder()
     const textureView = this.context!.getCurrentTexture().createView()
@@ -1361,39 +1199,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     frameRenderItems: RenderItem[],
     clearColor: boolean,
   ): void {
-    // --- Pass 1: Render regular objects to offscreen texture ---
-    if (layer.glassObjects.length > 0 && this.offscreenTexture && this.offscreenResolvedTexture && this.offscreenDepthTexture) {
-      const offscreenPassDescriptor: GPURenderPassDescriptor = {
-        colorAttachments: [{
-          view: this.offscreenTexture.createView(),
-          resolveTarget: this.offscreenResolvedTexture.createView(),
-          loadOp: 'clear',
-          storeOp: 'store',
-          clearValue: [0, 0, 0, 0]
-        }],
-        depthStencilAttachment: {
-          view: this.offscreenDepthTexture.createView(),
-          depthClearValue: 1.0,
-          depthLoadOp: 'clear',
-          depthStoreOp: 'store',
-          stencilClearValue: 0,
-          stencilLoadOp: 'clear',
-          stencilStoreOp: 'store',
-        }
-      }
-      const offscreenPassEncoder = commandEncoder.beginRenderPass(offscreenPassDescriptor)
-      offscreenPassEncoder.setBindGroup(0, this.globalBindGroup!)
-      this.renderObjectList(offscreenPassEncoder, layer.regularObjects, frameRenderItems)
-      offscreenPassEncoder.end()
-    }
-
-    // --- Pass 2: Compute Blur Passes ---
-    if (layer.glassObjects.length > 0 && this.offscreenResolvedTexture && this.blurredIntermediateTexture && this.finalBlurredTexture) {
-      this.applyBlur(commandEncoder, this.offscreenResolvedTexture, this.blurredIntermediateTexture, true)
-      this.applyBlur(commandEncoder, this.blurredIntermediateTexture, this.finalBlurredTexture, false)
-    }
-
-    // --- Pass 3: Final Render Pass ---
     const colorLoadOp: GPULoadOp = clearColor ? "clear" : "load"
     const renderPassDescriptor: GPURenderPassDescriptor = {
       colorAttachments: [
