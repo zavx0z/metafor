@@ -382,6 +382,13 @@ endpoint `/hud/webrtc/signaling` не используется и не долж�
 UI не должен рисовать remote desktop display как HUD. HUD может иметь только кнопки
 управления, если они не становятся владельцем browser state.
 
+В текущем server-dev контуре `remote-desktop:server`, `network:tmux` и module
+display используют одинаковую физическую модель 1920x1080 при 96dpi
+(508x285.75 мм). Переход host browser в fullscreen не должен ресайзить эти
+display: размеры остаются установленной физической моделью, а меняется только
+viewport host-клиента. Дефолтная раскладка сидит в одном ряду, но сохраненные
+позиции пользователя имеют приоритет и не перетираются после reload/fullscreen.
+
 ## Snapshot И Input Workflow
 
 Ожидаемый рабочий цикл после появления browser-host API:

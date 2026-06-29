@@ -485,6 +485,12 @@ Views считаются read-only. В UI один клик выбирает с�
 
 `GET /space` возвращает визуальное состояние среды:
 
+В текущем interpreter host module displays, `remote-desktop:server` и
+`network:tmux` публикуются как физические 1920x1080 displays при 96dpi
+(508x285.75 мм). Browser fullscreen не меняет эти `metrics`; он меняет только
+viewport host-клиента. Автораскладка задает отсутствующие позиции, но не
+перетирает сохраненные per-display позиции пользователя.
+
 ```json
 {
   "ok": true,

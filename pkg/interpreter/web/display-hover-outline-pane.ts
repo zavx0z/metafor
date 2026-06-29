@@ -388,14 +388,13 @@ export class DisplayHoverOutlinePane extends UiSurface {
   }
 
   containsPointer(localX: number, localY: number): boolean {
-    if (this.canvas?.displayMode === "near") {
-      const dock = this.#returnDockControl()
-      if (dock === null) return false
+    const dock = this.#returnDockControl()
+    if (dock !== null) {
       const point = {x: localX, y: localY}
       const panel = this.#settingsPanelRect(dock)
-      return pointInRect(point, dock.island)
+      if (pointInRect(point, dock.island)
         || (this.#returnDockExpanded && pointInRect(point, dock.hit))
-        || (this.#settingsOpen && pointInRect(point, panel))
+        || (this.#settingsOpen && pointInRect(point, panel))) return true
     }
     if (!this.#cornerFlightVisible) return false
     const control = this.#flightControl()
@@ -416,10 +415,6 @@ export class DisplayHoverOutlinePane extends UiSurface {
       this.#resetAnimationState()
       this.#drawReturnDock()
       return
-    } else {
-      this.#returnDockPinned = false
-      this.#returnDockExpanded = false
-      this.#returnDockGraceUntilMs = 0
     }
     this.#drawReturnDock()
 
@@ -901,36 +896,33 @@ export class DisplayHoverOutlinePane extends UiSurface {
   #drawReturnDock(): void {
     const dock = this.#returnDockControl()
     if (dock === null) return
-    const canReturn = this.canvas?.displayMode === "near"
-    const islandHit = canReturn ? this.hitState(dock.island.x, dock.island.y, dock.island.w, dock.island.h, RETURN_DOCK_KEY) : {hovered: false, pressed: false}
-    const bridgeHit = canReturn ? this.hitState(dock.hit.x, dock.hit.y, dock.hit.w, dock.hit.h, RETURN_DOCK_BRIDGE_KEY) : {hovered: false, pressed: false}
-    const buttonHit = canReturn ? this.hitState(dock.button.x, dock.button.y, dock.button.w, dock.button.h, RETURN_BUTTON_KEY) : {hovered: false, pressed: false}
-    const fullscreenHit = canReturn ? this.hitState(dock.fullscreenButton.x, dock.fullscreenButton.y, dock.fullscreenButton.w, dock.fullscreenButton.h, FULLSCREEN_BUTTON_KEY) : {hovered: false, pressed: false}
-    const settingsHit = canReturn ? this.hitState(dock.settingsButton.x, dock.settingsButton.y, dock.settingsButton.w, dock.settingsButton.h, SETTINGS_BUTTON_KEY) : {hovered: false, pressed: false}
+    const islandHit = this.hitState(dock.island.x, dock.island.y, dock.island.w, dock.island.h, RETURN_DOCK_KEY)
+    const bridgeHit = this.hitState(dock.hit.x, dock.hit.y, dock.hit.w, dock.hit.h, RETURN_DOCK_BRIDGE_KEY)
+    const buttonHit = this.hitState(dock.button.x, dock.button.y, dock.button.w, dock.button.h, RETURN_BUTTON_KEY)
+    const fullscreenHit = this.hitState(dock.fullscreenButton.x, dock.fullscreenButton.y, dock.fullscreenButton.w, dock.fullscreenButton.h, FULLSCREEN_BUTTON_KEY)
+    const settingsHit = this.hitState(dock.settingsButton.x, dock.settingsButton.y, dock.settingsButton.w, dock.settingsButton.h, SETTINGS_BUTTON_KEY)
     const now = performance.now()
     const dockActive = islandHit.hovered || islandHit.pressed || bridgeHit.hovered || bridgeHit.pressed || buttonHit.hovered || buttonHit.pressed || fullscreenHit.hovered || fullscreenHit.pressed || settingsHit.hovered || settingsHit.pressed
     if (dockActive || this.#returnDockPinned || this.#settingsOpen) this.#returnDockGraceUntilMs = now + RETURN_DOCK_TRANSFER_DEBOUNCE_MS
-    const expanded = canReturn && (this.#returnDockPinned || this.#settingsOpen || dockActive || now < this.#returnDockGraceUntilMs)
+    const expanded = this.#returnDockPinned || this.#settingsOpen || dockActive || now < this.#returnDockGraceUntilMs
     this.#returnDockExpanded = expanded
     if (expanded && !this.#returnDockPinned && !dockActive) this.requestRender()
 
-    if (canReturn) {
-      if (expanded) {
-        this.hit(dock.hit.x, dock.hit.y, dock.hit.w, dock.hit.h, () => {}, {
-          key: RETURN_DOCK_BRIDGE_KEY,
-          cursor: "pointer",
-          activeCursor: "pointer",
-        })
-      }
-      this.hit(dock.island.x, dock.island.y, dock.island.w, dock.island.h, () => {
-        this.#returnDockPinned = !this.#returnDockPinned
-        this.requestRender()
-      }, {
-        key: RETURN_DOCK_KEY,
+    if (expanded) {
+      this.hit(dock.hit.x, dock.hit.y, dock.hit.w, dock.hit.h, () => {}, {
+        key: RETURN_DOCK_BRIDGE_KEY,
         cursor: "pointer",
         activeCursor: "pointer",
       })
     }
+    this.hit(dock.island.x, dock.island.y, dock.island.w, dock.island.h, () => {
+      this.#returnDockPinned = !this.#returnDockPinned
+      this.requestRender()
+    }, {
+      key: RETURN_DOCK_KEY,
+      cursor: "pointer",
+      activeCursor: "pointer",
+    })
 
     const islandStrength = expanded ? 1 : 0.62
     this.drawRoundedRect(dock.island.x, dock.island.y, dock.island.w, dock.island.h, {

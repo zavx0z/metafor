@@ -608,13 +608,21 @@ const HOST_TERMINAL_HUD_RECT_STORAGE_KEY = "metafor.interpreter.hostTerminal.hud
 const HOST_TERMINAL_CODEX_COMPOSER_RECT_STORAGE_KEY = "metafor.interpreter.hostTerminal.codexComposerRect:v1"
 const HOST_TERMINAL_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.hostTerminal.hudDocked:v1"
 const HOST_TERMINAL_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.hostTerminal.dockPlacement:v1"
-const FULLSCREEN_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.fullscreen.dockPlacement:v1"
 const NETWORK_TERMINAL_SESSION_STORAGE_KEY = "metafor.interpreter.networkTerminal.sessionId:v1"
 const NETWORK_TERMINAL_SESSION_KEY = "interpreter:network-terminal"
 const NETWORK_TERMINAL_TMUX_SESSION = "metafor-app-web-net"
 const NETWORK_TERMINAL_TMUX_FALLBACK_COMMAND = `exec tmux new-session -A -s ${NETWORK_TERMINAL_TMUX_SESSION}\r`
 const NETWORK_DISPLAY_ID = "network:tmux"
 const REMOTE_DESKTOP_DISPLAY_ID = "remote-desktop:server"
+const PHYSICAL_DISPLAY_PIXEL_WIDTH = 1920
+const PHYSICAL_DISPLAY_PIXEL_HEIGHT = 1080
+const PHYSICAL_DISPLAY_MM_PER_PIXEL = 25.4 / 96
+const PHYSICAL_DISPLAY_METRICS: DisplayLayoutMetrics = {
+  widthMm: PHYSICAL_DISPLAY_PIXEL_WIDTH * PHYSICAL_DISPLAY_MM_PER_PIXEL,
+  heightMm: PHYSICAL_DISPLAY_PIXEL_HEIGHT * PHYSICAL_DISPLAY_MM_PER_PIXEL,
+  pixelWidth: PHYSICAL_DISPLAY_PIXEL_WIDTH,
+  pixelHeight: PHYSICAL_DISPLAY_PIXEL_HEIGHT,
+}
 const NETWORK_TERMINAL_HUD_RECT_STORAGE_KEY = "metafor.interpreter.networkTerminal.hudRect:v1"
 const NETWORK_TERMINAL_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.networkTerminal.hudDocked:v1"
 const NETWORK_STATUS_AUTO_REFRESH_STORAGE_KEY = "metafor.interpreter.networkStatus.autoRefresh:v1"
@@ -767,7 +775,6 @@ type NetworkServiceKey = NetworkWatchServiceKey
 
 const DEFAULT_HOST_TERMINAL_HUD_RECT: UiSurfaceRect = {x: 643, y: 60, w: 755, h: 943}
 const DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "top", offset: 858}
-const DEFAULT_FULLSCREEN_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "top", offset: 984}
 const DEFAULT_NETWORK_TERMINAL_HUD_RECT: UiSurfaceRect = {x: 24, y: 520, w: 1080, h: 560}
 const NETWORK_DISPLAY_COLUMN_GAP = 8
 const NETWORK_DISPLAY_COLUMN_MIN_W = 920
@@ -811,12 +818,13 @@ let sqliteDockPane: HostTerminalDockPane | null = null
 let hostTerminal: HostTerminalController | null = null
 let networkHostTerminal: HostTerminalController | null = null
 let hostTerminalDockPane: HostTerminalDockPane | null = null
-let fullscreenDockPane: HostTerminalDockPane | null = null
 let networkDisplayControlsPane: NetworkWatchPane | null = null
 let networkDisplayTerminal: TerminalPane | null = null
 let networkDisplayInstalled = false
 let remoteDesktopPane: RemoteDesktopPane | null = null
 let remoteDesktopDisplayInstalled = false
+let remoteDesktopDisplayMetrics: DisplayLayoutMetrics | null = null
+let remoteDesktopDisplayMetricsLocked = false
 let remoteDesktopRtcClient: AndroidRtcClient | null = null
 let remoteDesktopRtcConnectInFlight = false
 let remoteDesktopRtcReconnectTimer: number | null = null
@@ -832,7 +840,6 @@ let hostTerminalAgentSignalPane: HostTerminalAgentSignalPane | null = null
 let hostTerminalStatusLabelForLayout = t("terminalConnecting")
 let hostTerminalHudDocked = readStoredHostTerminalHudDocked()
 let hostTerminalDockPlacement: HostTerminalDockPlacement | null = readStoredHostTerminalDockPlacement() ?? DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT
-let fullscreenDockPlacement: HostTerminalDockPlacement | null = readStoredFullscreenDockPlacement() ?? DEFAULT_FULLSCREEN_DOCK_PLACEMENT
 let hostTerminalHudRectPreview: UiSurfaceRect | null = null
 let networkHostTerminalHudDocked = readStoredNetworkTerminalHudDocked()
 let networkHostTerminalHudRectPreview: UiSurfaceRect | null = null
@@ -2601,6 +2608,41 @@ function displayCenterWithStored(displayId: string, fallback: UiRuntimeViewPoint
   return interpreterDisplayPositions.get(displayId) ?? fallback
 }
 
+function seedPhysicalDisplayRowPositions(moduleDisplayIds: readonly string[], metrics: DisplayLayoutMetrics): void {
+  const rowCenters = physicalDisplayRowCenters(moduleDisplayIds, metrics)
+  let changed = false
+  for (const [displayId, center] of rowCenters) {
+    if (interpreterDisplayPositions.has(displayId)) continue
+    interpreterDisplayPositions.set(displayId, center)
+    if (displayId === REMOTE_DESKTOP_DISPLAY_ID) updateRemoteDesktopAudioPosition(center)
+    changed = true
+  }
+  if (changed) scheduleInterpreterDisplayPositionsStorage()
+}
+
+function physicalDisplayRowCenters(moduleDisplayIds: readonly string[], metrics: DisplayLayoutMetrics): Map<string, UiRuntimeViewPointVector> {
+  const centers = new Map<string, UiRuntimeViewPointVector>()
+  const moduleTotalW = moduleDisplayRowWidth(moduleDisplayIds, metrics)
+  let cursorX = -moduleTotalW / 2
+  for (const displayId of moduleDisplayIds) {
+    const x = cursorX + metrics.widthMm / 2
+    cursorX += metrics.widthMm + MODULE_DISPLAY_GAP_MM
+    centers.set(displayId, physicalDisplayRowCenter(x))
+  }
+  const sideBaseW = moduleDisplayIds.length === 0 ? 0 : moduleTotalW
+  centers.set(REMOTE_DESKTOP_DISPLAY_ID, physicalDisplayRowCenter(-sideBaseW / 2 - MODULE_DISPLAY_GAP_MM - metrics.widthMm / 2))
+  centers.set(NETWORK_DISPLAY_ID, physicalDisplayRowCenter(sideBaseW / 2 + MODULE_DISPLAY_GAP_MM + metrics.widthMm / 2))
+  return centers
+}
+
+function moduleDisplayRowWidth(moduleDisplayIds: readonly string[], metrics: DisplayLayoutMetrics): number {
+  return moduleDisplayIds.length * metrics.widthMm + Math.max(0, moduleDisplayIds.length - 1) * MODULE_DISPLAY_GAP_MM
+}
+
+function physicalDisplayRowCenter(x: number): UiRuntimeViewPointVector {
+  return {x, y: MODULE_DISPLAY_CENTER_Y_MM, z: MODULE_DISPLAY_CENTER_Z_MM}
+}
+
 function storeInterpreterDisplayPosition(change: UiRuntimeDisplayCenterChange): void {
   interpreterDisplayPositions.set(change.displayId, change.centerMm)
   if (change.displayId === REMOTE_DESKTOP_DISPLAY_ID) updateRemoteDesktopAudioPosition(change.centerMm)
@@ -2889,7 +2931,6 @@ function handleBrowserFullscreenDisplayLayoutChange(activeDisplayId: string | nu
   const displayId = activeDisplayId ?? uiCanvas?.activeDisplayId ?? null
   setSpaceOverviewPinned(false)
   maybeAutoFocusDisplay(displayId)
-  fullscreenDockPane?.requestRender()
   syncNetworkStatusRefresh()
 }
 
@@ -2976,16 +3017,6 @@ function installEnginePanes(): void {
   uiCanvas.addHudSurface(hostTerminalAgentSignalPane, hostTerminalAgentSignalRect, {zIndex: HUD_LAYER_TOP})
   hostTerminalDockPane ??= new HostTerminalDockPane(() => setHostTerminalHudDocked(false))
   uiCanvas.addHudSurface(hostTerminalDockPane, hostTerminalDockRect, {zIndex: HUD_LAYER_TOP})
-  fullscreenDockPane ??= new HostTerminalDockPane({
-    key: "fullscreen-dock-toggle",
-    label: "",
-    tooltip: () => displayHoverOutlinePane?.browserFullscreenActive() === true ? "Выйти из полного экрана" : "Полный экран",
-    icon: () => displayHoverOutlinePane?.browserFullscreenActive() === true ? uiIcons.collapse : uiIcons.expand,
-    edge: currentFullscreenDockEdge,
-    restore: () => toggleBrowserFullscreenDock(),
-    moveTo: (point, bounds) => setFullscreenDockPlacement(fullscreenDockPlacementFromPoint(point, bounds)),
-  })
-  uiCanvas.addHudSurface(fullscreenDockPane, fullscreenDockRect, {zIndex: HUD_LAYER_TOP})
   sqliteDockPane ??= new HostTerminalDockPane({
     key: "sqlite-dock-restore",
     label: "SQLite",
@@ -3218,6 +3249,7 @@ async function createRemoteDesktopRtcClient(): Promise<AndroidRtcClient> {
       if (!isValidRemoteDesktopFrame(frame)) return
       if (!REMOTE_DESKTOP_RTC_VIDEO_DISPLAY_ENABLED) return
       remoteDesktopPane?.setFrame(frame)
+      lockRemoteDesktopDisplayMetricsToFrame(frame)
       remoteDesktopPane?.setStatus("connected", `${frame.width}x${frame.height} ${remoteDesktopRtcFrameSourceLabel}`)
     },
     onAudio: connectRemoteDesktopAudio,
@@ -7764,10 +7796,10 @@ function syncModuleDisplays(): void {
     .map((id) => moduleSnapshots.get(id))
     .filter((module): module is ModulePaneSnapshot => module !== undefined)
 
-  const displayMetrics = viewportDisplayMetrics()
+  const displayMetrics = physicalDisplayMetrics()
   const moduleDisplayIdList = orderedModules.map((module) => moduleDisplayId(module.id))
-  const totalW = moduleDisplayIdList.length * displayMetrics.widthMm
-    + Math.max(0, moduleDisplayIdList.length - 1) * MODULE_DISPLAY_GAP_MM
+  seedPhysicalDisplayRowPositions(moduleDisplayIdList, displayMetrics)
+  const totalW = moduleDisplayRowWidth(moduleDisplayIdList, displayMetrics)
   let cursorX = -totalW / 2
 
   for (const module of orderedModules) {
@@ -7852,7 +7884,7 @@ function removeModuleDisplay(moduleId: string): void {
 
 function ensureRemoteDesktopDisplay(): void {
   if (uiCanvas === null) return
-  const metrics = viewportDisplayMetrics()
+  const metrics = fixedRemoteDesktopDisplayMetrics()
   const center = displayCenterWithStored(REMOTE_DESKTOP_DISPLAY_ID, remoteDesktopDisplayFallbackCenter(metrics))
 
   if (!remoteDesktopDisplayInstalled) {
@@ -7877,14 +7909,45 @@ function ensureRemoteDesktopDisplay(): void {
     updateRemoteDesktopAudioPosition(center)
     connectRemoteDesktopRtc()
   } else {
-    uiCanvas.resizeDisplay(REMOTE_DESKTOP_DISPLAY_ID, metrics)
     uiCanvas.setDisplayCenter(REMOTE_DESKTOP_DISPLAY_ID, center)
     updateRemoteDesktopAudioPosition(center)
   }
 }
 
+function fixedRemoteDesktopDisplayMetrics(): DisplayLayoutMetrics {
+  if (remoteDesktopDisplayMetrics !== null) return remoteDesktopDisplayMetrics
+  const frame = remoteDesktopPane?.frameSnapshot() ?? null
+  const fallback = physicalDisplayMetrics()
+  remoteDesktopDisplayMetrics = frame === null ? fallback : remoteDesktopDisplayMetricsForFrame(frame)
+  remoteDesktopDisplayMetricsLocked = frame !== null
+  return remoteDesktopDisplayMetrics
+}
+
+function lockRemoteDesktopDisplayMetricsToFrame(frame: AndroidRtcFrame): void {
+  if (remoteDesktopDisplayMetricsLocked) return
+  const metrics = remoteDesktopDisplayMetricsForFrame(frame)
+  remoteDesktopDisplayMetrics = metrics
+  remoteDesktopDisplayMetricsLocked = true
+  if (uiCanvas === null || !remoteDesktopDisplayInstalled) return
+  const center = displayCenterWithStored(REMOTE_DESKTOP_DISPLAY_ID, remoteDesktopDisplayFallbackCenter(metrics))
+  uiCanvas.resizeDisplay(REMOTE_DESKTOP_DISPLAY_ID, metrics)
+  uiCanvas.setDisplayCenter(REMOTE_DESKTOP_DISPLAY_ID, center)
+  updateRemoteDesktopAudioPosition(center)
+}
+
+function remoteDesktopDisplayMetricsForFrame(frame: AndroidRtcFrame): DisplayLayoutMetrics {
+  const pixelWidth = Math.max(1, Math.round(frame.width))
+  const pixelHeight = Math.max(1, Math.round(frame.height))
+  return {
+    widthMm: Math.max(1, pixelWidth * PHYSICAL_DISPLAY_MM_PER_PIXEL),
+    heightMm: Math.max(1, pixelHeight * PHYSICAL_DISPLAY_MM_PER_PIXEL),
+    pixelWidth,
+    pixelHeight,
+  }
+}
+
 function remoteDesktopDisplayFallbackCenter(metrics: DisplayLayoutMetrics): UiRuntimeViewPointVector {
-  const moduleMetrics = viewportDisplayMetrics()
+  const moduleMetrics = physicalDisplayMetrics()
   const moduleCount = moduleOrder.length
   if (moduleCount === 0) return {x: 0, y: MODULE_DISPLAY_CENTER_Y_MM, z: MODULE_DISPLAY_CENTER_Z_MM}
   const moduleTotalW = moduleCount * moduleMetrics.widthMm + Math.max(0, moduleCount - 1) * MODULE_DISPLAY_GAP_MM
@@ -7897,7 +7960,7 @@ function remoteDesktopDisplayFallbackCenter(metrics: DisplayLayoutMetrics): UiRu
 
 function ensureNetworkDisplay(): void {
   if (uiCanvas === null) return
-  const metrics = viewportDisplayMetrics()
+  const metrics = physicalDisplayMetrics()
   const center = displayCenterWithStored(NETWORK_DISPLAY_ID, networkDisplayFallbackCenter(metrics))
   const controller = ensureNetworkHostTerminalController()
   ensureNetworkDisplayTerminal(controller)
@@ -7952,7 +8015,7 @@ function ensureNetworkDisplay(): void {
 }
 
 function networkDisplayFallbackCenter(metrics: DisplayLayoutMetrics): UiRuntimeViewPointVector {
-  const moduleMetrics = viewportDisplayMetrics()
+  const moduleMetrics = physicalDisplayMetrics()
   const moduleCount = moduleOrder.length
   if (moduleCount === 0) return {x: 0, y: MODULE_DISPLAY_CENTER_Y_MM, z: MODULE_DISPLAY_CENTER_Z_MM}
   const moduleTotalW = moduleCount * moduleMetrics.widthMm + Math.max(0, moduleCount - 1) * MODULE_DISPLAY_GAP_MM
@@ -8941,18 +9004,6 @@ function readStoredHostTerminalDockPlacement(): HostTerminalDockPlacement | null
   }
 }
 
-function readStoredFullscreenDockPlacement(): HostTerminalDockPlacement | null {
-  try {
-    const raw = localStorage.getItem(FULLSCREEN_DOCK_PLACEMENT_STORAGE_KEY)
-    if (raw === null) return null
-    const value = JSON.parse(raw) as Partial<HostTerminalDockPlacement>
-    if (!isHostTerminalDockEdge(value.edge) || typeof value.offset !== "number" || !Number.isFinite(value.offset)) return null
-    return {edge: value.edge, offset: value.offset}
-  } catch {
-    return null
-  }
-}
-
 function readStoredTodoDockPlacement(): HostTerminalDockPlacement | null {
   try {
     const raw = localStorage.getItem(TODO_DOCK_PLACEMENT_STORAGE_KEY)
@@ -8985,14 +9036,6 @@ function writeStoredHostTerminalDockPlacement(placement: HostTerminalDockPlaceme
   }
 }
 
-function writeStoredFullscreenDockPlacement(placement: HostTerminalDockPlacement): void {
-  try {
-    localStorage.setItem(FULLSCREEN_DOCK_PLACEMENT_STORAGE_KEY, JSON.stringify(placement))
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
-}
-
 function writeStoredTodoDockPlacement(placement: HostTerminalDockPlacement): void {
   try {
     localStorage.setItem(TODO_DOCK_PLACEMENT_STORAGE_KEY, JSON.stringify(placement))
@@ -9015,15 +9058,6 @@ function setHostTerminalDockPlacement(placement: HostTerminalDockPlacement): voi
   hostTerminalDockPlacement = placement
   writeStoredHostTerminalDockPlacement(placement)
   hostTerminalDockPane?.requestRender()
-  relayoutHudSurfaces()
-}
-
-function setFullscreenDockPlacement(placement: HostTerminalDockPlacement): void {
-  const previous = fullscreenDockPlacement
-  if (previous !== null && previous.edge === placement.edge && Math.abs(previous.offset - placement.offset) < 0.5) return
-  fullscreenDockPlacement = placement
-  writeStoredFullscreenDockPlacement(placement)
-  fullscreenDockPane?.requestRender()
   relayoutHudSurfaces()
 }
 
@@ -9062,12 +9096,6 @@ function setSqliteDockPlacement(placement: HostTerminalDockPlacement): void {
   sqliteDockPane?.requestRender()
   relayoutHudSurfaces()
   updateSqliteContext()
-}
-
-function toggleBrowserFullscreenDock(): void {
-  setSpaceOverviewPinned(false)
-  displayHoverOutlinePane?.toggleBrowserFullscreen()
-  fullscreenDockPane?.requestRender()
 }
 
 function setHostTerminalHudDocked(docked: boolean): void {
@@ -9201,10 +9229,6 @@ function currentHostTerminalDockEdge(): HudSideTabEdge {
   return hostTerminalDockPlacement?.edge ?? DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT.edge
 }
 
-function currentFullscreenDockEdge(): HudSideTabEdge {
-  return fullscreenDockPlacement?.edge ?? DEFAULT_FULLSCREEN_DOCK_PLACEMENT.edge
-}
-
 function currentTodoDockEdge(): HudSideTabEdge {
   return todoDockPlacement?.edge ?? DEFAULT_TODO_DOCK_PLACEMENT.edge
 }
@@ -9250,13 +9274,8 @@ function finiteStoredNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null
 }
 
-function viewportDisplayMetrics(): DisplayLayoutMetrics {
-  const metrics = uiCanvas?.viewportDisplayMetrics()
-  if (metrics !== null && metrics !== undefined) return metrics
-  const rect = engineCanvas.getBoundingClientRect()
-  const pixelWidth = Math.max(1, Math.round(rect.width || window.innerWidth || 1))
-  const pixelHeight = Math.max(1, Math.round(rect.height || window.innerHeight || 1))
-  return {widthMm: pixelWidth, heightMm: pixelHeight, pixelWidth, pixelHeight}
+function physicalDisplayMetrics(): DisplayLayoutMetrics {
+  return {...PHYSICAL_DISPLAY_METRICS}
 }
 
 function moduleDisplayId(moduleId: string): string {
@@ -11616,11 +11635,6 @@ function sqliteDockRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   return sqliteDockRectForPlacement(sqliteDockPlacement ?? defaultSqliteDockPlacement({w, h}), {w, h})
 }
 
-function fullscreenDockRect({w, h}: {w: number; h: number}): UiSurfaceRect {
-  if (w < 80 || h < 80) return hiddenRect()
-  return hostTerminalDockRectForPlacement(fullscreenDockPlacement ?? defaultFullscreenDockPlacement({w, h}), {w, h})
-}
-
 function hostTerminalDockRectForPlacement(placement: HostTerminalDockPlacement, bounds: {w: number; h: number}): UiSurfaceRect {
   const vertical = placement.edge === "left" || placement.edge === "right"
   const dockW = vertical
@@ -11762,10 +11776,6 @@ function defaultHostTerminalDockPlacement(bounds: {w: number; h: number}): HostT
   return defaultHostSizedDockPlacement(placement, bounds)
 }
 
-function defaultFullscreenDockPlacement(bounds: {w: number; h: number}): HostTerminalDockPlacement {
-  return defaultHostSizedDockPlacement(DEFAULT_FULLSCREEN_DOCK_PLACEMENT, bounds)
-}
-
 function defaultHostSizedDockPlacement(placement: HostTerminalDockPlacement, bounds: {w: number; h: number}): HostTerminalDockPlacement {
   const vertical = placement.edge === "left" || placement.edge === "right"
   const dockW = vertical
@@ -11861,10 +11871,6 @@ function defaultSqliteDockPlacement(bounds: {w: number; h: number}): HostTermina
 }
 
 function hostTerminalDockPlacementFromPoint(point: {x: number; y: number}, bounds: {w: number; h: number}): HostTerminalDockPlacement {
-  return hostSizedDockPlacementFromPoint(point, bounds)
-}
-
-function fullscreenDockPlacementFromPoint(point: {x: number; y: number}, bounds: {w: number; h: number}): HostTerminalDockPlacement {
   return hostSizedDockPlacementFromPoint(point, bounds)
 }
 

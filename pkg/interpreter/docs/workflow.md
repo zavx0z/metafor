@@ -55,7 +55,11 @@ Endpoint сначала отправляет подключенным UI-кли�
 
 ## UIDisplay
 
-UI создаёт один WebGPU `Space` и несколько равноправных `UIDisplay`, по одному на модуль. Дисплеи раскладываются в ряд; ни один из них не является default/main display.
+UI создаёт один WebGPU `Space` и несколько равноправных `UIDisplay`, по одному на модуль. Module displays, `remote-desktop:server` и `network:tmux` имеют одинаковую физическую модель 1920x1080 при 96dpi (508x285.75 мм) и по умолчанию раскладываются в один ряд. Browser fullscreen не меняет физический размер display; он меняет только host viewport. Ни один display не является default/main display.
+
+Позиции display сохраняются per-display. Автораскладка задаёт только отсутствующие позиции и не должна перетирать ручное перемещение пользователя после reload/fullscreen.
+
+Fullscreen host-а в interpreter включается через нижний display dock. Отдельный верхний fullscreen-tab в interpreter не нужен; у AppWeb есть собственный fullscreen dock/tab внутри `app/web`.
 
 Browser-страница сейчас является host-слоем для canvas/input/WebSocket. Это не продуктовая граница интерпретатора: для XR тот же process-scoped state должен рендериться как `UIDisplay`-контент в общем `Space`.
 
