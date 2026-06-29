@@ -214,7 +214,7 @@ scope - `sender`, чтобы не гасить `Meta-0`. Ручные tmux/grdct
 Chrome WebRTC monitor sender, host API `/desktop/health|rtc|input|audio` и
 default dev-layout. Не переносить мертвые ветки и fallback-и: старый `32123`,
 Xwayland/current-tab, MJPEG/snapshot как основной frame loop, Playwright-клиенты
-и shell-specific UI behavior.
+и terminal-specific UI behavior.
 
 Это рекурсивный контур:
 
