@@ -100,6 +100,7 @@ type TerminalOutputPaneOpts = {
   terminalMouseWheelMode?: TerminalMouseWheelMode
   onResize?: (size: TerminalSize) => void
   onFocusChange?: (focused: boolean) => void
+  onAutoscrollPinnedChange?: (enabled: boolean) => void
   onFrameRectPreview?: (rect: PaneRect) => void
   onFrameRectChange?: (rect: PaneRect) => void
   onFrameDockRequest?: () => void
@@ -326,6 +327,7 @@ class TerminalOutputPane extends UiSurface {
   #terminalMouseWheelMode: TerminalMouseWheelMode
   #onResize: ((size: TerminalSize) => void) | undefined
   #onFocusChange: ((focused: boolean) => void) | undefined
+  #onAutoscrollPinnedChange: ((enabled: boolean) => void) | undefined
   #onFrameRectPreview: ((rect: PaneRect) => void) | undefined
   #onFrameRectChange: ((rect: PaneRect) => void) | undefined
   #onFrameDockRequest: (() => void) | undefined
@@ -367,6 +369,7 @@ class TerminalOutputPane extends UiSurface {
   #focused = false
   #cursorVisible = true
   #autoscrollPinned = false
+  #autoscrollPausedByUser = false
   #cursorTimer: ReturnType<typeof setInterval> | null = null
   #charWidth = 0
   #charWidthScale = 0
@@ -374,6 +377,8 @@ class TerminalOutputPane extends UiSurface {
   #touchScrollGesture: TouchScrollGesture | null = null
   #decoder = new TextDecoder()
   #rawOutput = ""
+  #terminalTextLinesCache: string[] | null = null
+  #contentColsCache: number | null = null
   #frameDrag: PaneFrameDrag | null = null
   readonly #materials = new Map<string, TextMaterial>()
 
@@ -419,6 +424,7 @@ class TerminalOutputPane extends UiSurface {
     this.#cursorVisible = this.#cursorEnabled
     this.#onResize = opts.onResize
     this.#onFocusChange = opts.onFocusChange
+    this.#onAutoscrollPinnedChange = opts.onAutoscrollPinnedChange
     this.#onFrameRectPreview = opts.onFrameRectPreview
     this.#onFrameRectChange = opts.onFrameRectChange
     this.#onFrameDockRequest = opts.onFrameDockRequest
@@ -437,9 +443,10 @@ class TerminalOutputPane extends UiSurface {
   #appendOutput(text: string): void {
     if (!this.#dragSelecting) this.#clearSelectionState()
     const wasAtBottom = this.#isAtBottom()
+    this.#invalidateTerminalTextCache()
     this.#consume(text)
     this.#flushWordWrapBuffer()
-    if (this.#autoscrollPinned || wasAtBottom) this.#scrollToBottom()
+    if (this.#autoscrollPinned || (wasAtBottom && !this.#autoscrollPausedByUser)) this.#scrollToBottom()
     this.requestRender()
   }
 
@@ -456,6 +463,7 @@ class TerminalOutputPane extends UiSurface {
   #clearBuffer(): void {
     this.#scrollback = []
     this.#screen = Array.from({length: this.#rows}, () => this.#blankLine())
+    this.#invalidateTerminalTextCache()
     this.#cursorRow = 0
     this.#cursorCol = 0
     this.#pendingWrap = false
@@ -621,6 +629,7 @@ class TerminalOutputPane extends UiSurface {
   }
 
   scrollToBottom(): void {
+    this.#autoscrollPausedByUser = false
     this.#scrollToBottom()
     this.requestRender()
   }
@@ -632,7 +641,11 @@ class TerminalOutputPane extends UiSurface {
   setAutoscrollPinned(enabled: boolean): void {
     if (this.#autoscrollPinned === enabled) return
     this.#autoscrollPinned = enabled
-    if (enabled) this.#scrollToBottom()
+    if (enabled) {
+      this.#autoscrollPausedByUser = false
+      this.#scrollToBottom()
+    }
+    this.#onAutoscrollPinnedChange?.(enabled)
     this.requestRender()
   }
 
@@ -671,11 +684,17 @@ class TerminalOutputPane extends UiSurface {
   }
 
   #terminalTextLines(): string[] {
-    return [...this.#scrollback, ...this.#screen].map((line) => terminalLineText(line))
+    if (this.#terminalTextLinesCache !== null) return this.#terminalTextLinesCache
+    const lines = new Array<string>(this.#scrollback.length + this.#screen.length)
+    let index = 0
+    for (const line of this.#scrollback) lines[index++] = terminalLineText(line)
+    for (const line of this.#screen) lines[index++] = terminalLineText(line)
+    this.#terminalTextLinesCache = lines
+    return lines
   }
 
   #lineTextAt(index: number): string {
-    return terminalLineText(this.#lineAt(index) ?? [])
+    return this.#terminalTextLines()[index] ?? ""
   }
 
   #currentLineText(): string {
@@ -1000,11 +1019,11 @@ class TerminalOutputPane extends UiSurface {
 
   #contentCols(): number {
     if (this.#contentWidthMode === "grid") return this.#cols
+    if (this.#contentColsCache !== null) return this.#contentColsCache
     let max = 0
-    for (const line of [...this.#scrollback, ...this.#screen]) {
-      max = Math.max(max, terminalLineText(line).length)
-    }
-    return Math.max(1, max)
+    for (const line of this.#terminalTextLines()) max = Math.max(max, line.length)
+    this.#contentColsCache = Math.max(1, max)
+    return this.#contentColsCache
   }
 
   #contentLineCount(): number {
@@ -1172,6 +1191,7 @@ class TerminalOutputPane extends UiSurface {
   protected restoreOutputState(snapshot: TerminalOutputSnapshot): void {
     this.#scrollback = cloneCellLines(snapshot.scrollback)
     this.#screen = cloneCellLines(snapshot.screen)
+    this.#invalidateTerminalTextCache()
     this.#cursorRow = snapshot.cursorRow
     this.#cursorCol = snapshot.cursorCol
     this.#pendingWrap = snapshot.pendingWrap
@@ -1296,7 +1316,19 @@ class TerminalOutputPane extends UiSurface {
 
   override onWheel(event: WheelEvent, localX: number, localY: number): void {
     if (this.#handleTerminalWheel(event, localX, localY)) return
+    this.#handleScrollbackWheelIntent(event)
     super.onWheel(event, localX, localY)
+  }
+
+  #handleScrollbackWheelIntent(event: WheelEvent): void {
+    if (!this.#scrollY || event.deltaY === 0) return
+    if (event.deltaY < 0) {
+      this.setAutoscrollPinned(false)
+      this.#autoscrollPausedByUser = true
+      this.requestRender()
+      return
+    }
+    if (this.#isAtBottom()) this.#autoscrollPausedByUser = false
   }
 
   override onContextMenu(event: MouseEvent, localX: number, localY: number): void {
@@ -1563,6 +1595,7 @@ class TerminalOutputPane extends UiSurface {
     this.#cols = nextCols
     this.#rows = nextRows
     if (this.#reflowOnResize && colsChanged && this.#rawOutput.length > 0) {
+      this.#invalidateTerminalTextCache()
       this.#reflowRawOutput(wasAtBottom)
       if (emit) this.#emitResize()
       return
@@ -1571,6 +1604,7 @@ class TerminalOutputPane extends UiSurface {
     while (this.#screen.length > nextRows) this.#pushScrollback(this.#screen.shift() ?? this.#blankLine())
     for (let i = 0; i < this.#screen.length; i++) this.#screen[i] = this.#fitLine(this.#screen[i] ?? [])
     for (let i = 0; i < this.#scrollback.length; i++) this.#scrollback[i] = this.#fitLine(this.#scrollback[i] ?? [])
+    this.#invalidateTerminalTextCache()
     this.#cursorRow = clampInt(this.#cursorRow, 0, this.#rows - 1)
     this.#cursorCol = clampInt(this.#cursorCol, 0, this.#cols - 1)
     this.#pendingWrap = false
@@ -1598,7 +1632,13 @@ class TerminalOutputPane extends UiSurface {
     divScrollTo(this, TERMINAL_SCROLL_KEY, {left: 0, top: 0})
     this.#consume(this.#rawOutput)
     this.#flushWordWrapBuffer()
+    this.#invalidateTerminalTextCache()
     if (wasAtBottom) this.#scrollToBottom()
+  }
+
+  #invalidateTerminalTextCache(): void {
+    this.#terminalTextLinesCache = null
+    this.#contentColsCache = null
   }
 
   #emitResize(): void {
@@ -1625,6 +1665,7 @@ class TerminalOutputPane extends UiSurface {
     if (this.#maxScrollback <= 0) return
     this.#scrollback.push(this.#fitLine(line))
     while (this.#scrollback.length > this.#maxScrollback) this.#scrollback.shift()
+    this.#invalidateTerminalTextCache()
   }
 
   #lineAt(index: number): TerminalCell[] | undefined {
@@ -1645,6 +1686,7 @@ class TerminalOutputPane extends UiSurface {
   }
 
   #scrollToBottom(): void {
+    this.#autoscrollPausedByUser = false
     const body = this.#bodyRect()
     const totalH = this.#contentLineCount() * this.#linePx + BODY_PAD_Y_PX * 2
     divScrollTo(this, TERMINAL_SCROLL_KEY, {top: Math.max(0, totalH - body.h)})

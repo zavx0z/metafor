@@ -24,6 +24,7 @@ export class FramesPane extends UiSurface {
   }
 
   setFrames(frames: FrameSnapshot[], active: number): void {
+    if (this.#frames === frames && this.#active === active) return
     this.#frames = frames
     this.#active = active
     this.requestRender()

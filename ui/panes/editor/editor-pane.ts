@@ -16,8 +16,8 @@
  * Стартовая анимация текста — короткий one-shot lifecycle без постоянного render loop.
  */
 
-import {Color, TextMaterial} from "@metafor/engine"
-import {UiSurface, Z, div, divScrollTo, palette, radii, type DivScrollContext, type VirtualInputSoftKeyboardMode} from "@ui/elements"
+import {Color, TextMaterial, type TrueTypeFont} from "@metafor/engine"
+import {UiSurface, Z, div, divScrollTo, palette, radii, type DivScrollContext, type UiSurfaceRect, type VirtualInputSoftKeyboardMode} from "@ui/elements"
 import {Button, IconButton, autoButtonWidth, uiIcons} from "@ui/components"
 import {resolveLanguageHighlighter} from "./highlighter.ts"
 import {
@@ -211,6 +211,13 @@ type EditorVisualRow = {
   endCol: number
   isFirstForLine: boolean
 }
+type EditorVisualRowsCache = {
+  codeMaxPx: number
+  wrapLines: boolean
+  textVersion: number
+  pageScaleFactor: number
+  rows: EditorVisualRow[]
+}
 type EditorVisibleLine = {
   rowIndex: number
   lineIndex: number
@@ -331,6 +338,8 @@ export class EditorPane extends UiSurface {
   #maxLineWidthPxCache: number | null = null
   #maxLineWidthPxCacheScale = 0
   readonly #lineWidthCache = new Map<string, LineWidthCache>()
+  #textVersion = 0
+  #visualRowsCache: EditorVisualRowsCache | null = null
   #scrollLeftPx = 0
   #scrollTopPx = 0
   #viewportW = 1
@@ -395,8 +404,14 @@ export class EditorPane extends UiSurface {
 
   // ────────── public API ──────────
 
+  override setRect(rect: UiSurfaceRect, pixelScale: number, font: TrueTypeFont): void {
+    this.#invalidateVisualRows()
+    super.setRect(rect, pixelScale, font)
+  }
+
   setText(text: string): void {
     this.#lines = text.length === 0 ? [""] : text.split("\n")
+    this.#markTextChanged()
     this.#invalidateTextMetrics()
     this.#cline = Math.min(this.#cline, this.#lines.length - 1)
     this.#ccol = Math.min(this.#ccol, this.#lines[this.#cline]!.length)
@@ -497,6 +512,7 @@ export class EditorPane extends UiSurface {
   setWrapLines(enabled: boolean): void {
     if (this.#wrapLines === enabled) return
     this.#wrapLines = enabled
+    this.#invalidateVisualRows()
     if (enabled) this.#setScrollPosition(0, this.#scrollTopPx)
     this.requestRender()
   }
@@ -1439,6 +1455,7 @@ export class EditorPane extends UiSurface {
   }
 
   #afterEdit(): void {
+    this.#markTextChanged()
     this.#invalidateTextMetrics()
     this.#refreshTokens()
     this.#scrollCursorIntoView()
@@ -1592,6 +1609,18 @@ export class EditorPane extends UiSurface {
   }
 
   #visualRowsForCodeMaxPx(codeMaxPx: number): EditorVisualRow[] {
+    const cache = this.#visualRowsCache
+    const pageScaleFactor = this.pageScaleFactor
+    if (
+      cache !== null
+      && cache.codeMaxPx === codeMaxPx
+      && cache.wrapLines === this.#wrapLines
+      && cache.textVersion === this.#textVersion
+      && cache.pageScaleFactor === pageScaleFactor
+    ) {
+      return cache.rows
+    }
+
     const rows: EditorVisualRow[] = []
     const wrapCols = this.#wrapColumnCount(codeMaxPx)
     for (let lineIndex = 0; lineIndex < this.#lines.length; lineIndex++) {
@@ -1619,7 +1648,15 @@ export class EditorPane extends UiSurface {
         startCol = Math.max(startCol + 1, endCol)
       }
     }
-    return rows.length > 0 ? rows : [{rowIndex: 0, lineIndex: 0, startCol: 0, endCol: 0, isFirstForLine: true}]
+    const result = rows.length > 0 ? rows : [{rowIndex: 0, lineIndex: 0, startCol: 0, endCol: 0, isFirstForLine: true}]
+    this.#visualRowsCache = {
+      codeMaxPx,
+      wrapLines: this.#wrapLines,
+      textVersion: this.#textVersion,
+      pageScaleFactor,
+      rows: result,
+    }
+    return result
   }
 
   #wrapColumnCount(codeMaxPx: number): number {
@@ -1697,6 +1734,16 @@ export class EditorPane extends UiSurface {
     this.#maxLineWidthPxCache = null
     this.#maxLineWidthPxCacheScale = 0
     this.#lineWidthCache.clear()
+    this.#invalidateVisualRows()
+  }
+
+  #markTextChanged(): void {
+    this.#textVersion += 1
+    this.#invalidateVisualRows()
+  }
+
+  #invalidateVisualRows(): void {
+    this.#visualRowsCache = null
   }
 
   /**

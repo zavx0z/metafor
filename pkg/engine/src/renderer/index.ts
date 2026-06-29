@@ -1643,9 +1643,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       const lightItem = lights[i]!
       const light = lightItem.light
       const viewLightPos = this.sceneWorldLightPosition.set(
-        lightItem.worldMatrix.elements[12],
-        lightItem.worldMatrix.elements[13],
-        lightItem.worldMatrix.elements[14],
+        lightItem.worldMatrix.elements[12]!,
+        lightItem.worldMatrix.elements[13]!,
+        lightItem.worldMatrix.elements[14]!,
       ).applyMatrix4(viewMatrix)
 
       const currentLightOffset = lightsArrayOffset + i * (LIGHT_STRUCT_SIZE / 4)
@@ -1781,8 +1781,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     const buffers: GeometryBuffers = {
       positionBuffer,
-      colorBuffer,
     }
+    if (colorBuffer) buffers.colorBuffer = colorBuffer
     if (normalBuffer) buffers.normalBuffer = normalBuffer
     if (uvBuffer) buffers.uvBuffer = uvBuffer
     if (indexBuffer) buffers.indexBuffer = indexBuffer

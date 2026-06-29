@@ -722,10 +722,7 @@ const HOST_TERMINAL_BRAND_LABEL = "Codex"
 const HOST_TERMINAL_MODEL_LABEL = "GPT 5,5"
 const HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE = 22
 const HOST_TERMINAL_AGENT_SIGNAL_HEADER_Y = 8
-const HOST_TERMINAL_AGENT_SIGNAL_HEADER_GAP = 8
 const HOST_TERMINAL_AGENT_SIGNAL_HEADER_TEXT_X = 16
-const HOST_TERMINAL_AGENT_SIGNAL_STATUS_MIN_W = 96
-const HOST_TERMINAL_AGENT_SIGNAL_STATUS_MAX_W = 210
 const HOST_TERMINAL_AGENT_SIGNAL_PANEL_W = 300
 const HOST_TERMINAL_AGENT_SIGNAL_PANEL_H = 112
 const HOST_TERMINAL_CODEX_COMPOSER_H = 268
@@ -5429,35 +5426,23 @@ class HostTerminalAgentSignalPane extends UiSurface {
     return this.#open
   }
 
+  toggle(): void {
+    this.#setOpen(!this.#open)
+  }
+
   protected render(): void {
     if (this.#open) this.#drawPanel()
-    this.#drawToggleButton()
   }
 
   containsPointer(localX: number, localY: number): boolean {
-    const size = HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE
-    const buttonX = Math.max(0, this.rectW - size)
-    if (localX >= buttonX && localX <= buttonX + size && localY >= 0 && localY <= size) return true
     if (!this.#open) return false
-    const panelY = this.#panelY()
-    return localX >= 0 && localX <= this.rectW && localY >= panelY && localY <= this.rectH
-  }
-
-  #drawToggleButton(): void {
-    const size = HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE
-    const x = Math.max(0, this.rectW - size)
-    const enabled = readHostTerminalAgentSoundEnabled()
-    IconButton(this, x, 0, size, size, {
-      label: t("terminalAgentSignal"),
-      iconSrc: agentSignalIcon(enabled),
-      action: () => this.#setOpen(!this.#open),
-    })
+    return localX >= 0 && localX <= this.rectW && localY >= 0 && localY <= this.rectH
   }
 
   #drawPanel(): void {
     const w = this.rectW
-    const panelY = this.#panelY()
-    const panelH = Math.max(1, this.rectH - panelY)
+    const panelY = 0
+    const panelH = Math.max(1, this.rectH)
     const pad = 12
     const enabled = readHostTerminalAgentSoundEnabled()
     const volume = readHostTerminalAgentSoundVolume()
@@ -5565,10 +5550,6 @@ class HostTerminalAgentSignalPane extends UiSurface {
     relayoutHudSurfaces()
     this.requestRender()
   }
-
-  #panelY(): number {
-    return HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE + 6
-  }
 }
 
 class HostTerminalCodexComposerPane extends UiSurface {
@@ -5667,10 +5648,8 @@ class HostTerminalCodexComposerPane extends UiSurface {
 
   #voiceButtonRect(w = Math.max(1, this.rectW)): UiSurfaceRect {
     const buttonSize = HOST_TERMINAL_CODEX_COMPOSER_HEADER_BUTTON_SIZE
-    const gap = 5
-    const dockButtonX = w - PANE_FRAME.headerTextX - buttonSize
     return {
-      x: dockButtonX - gap - buttonSize,
+      x: w - PANE_FRAME.headerTextX - buttonSize,
       y: 6,
       w: buttonSize,
       h: buttonSize,
@@ -7475,6 +7454,7 @@ function storeHostTerminalAgentSoundEnabled(enabled: boolean): void {
   } catch {
     // Storage can be disabled in private contexts.
   }
+  if (hostTerminal !== null) updateHostTerminalHeaderControls(hostTerminal)
   hostTerminalAgentSignalPane?.requestRender()
 }
 
@@ -8221,6 +8201,7 @@ function createHostTerminalPane(
     respondToTerminalQueries: false,
     terminalQueryMode: "cursor",
     cursorWhenBlurred: true,
+    terminalMouseWheelMode: "scrollback",
     draggable: opts.draggable ?? false,
     resizable: opts.resizable ?? false,
     inputEnabled: false,
@@ -8230,6 +8211,7 @@ function createHostTerminalPane(
       setVoiceActiveTarget({kind: "host", controller})
       if (terminal !== null) resizeHostTerminalFromPane(controller, terminal, terminal.getTerminalSize())
     },
+    onAutoscrollPinnedChange: () => updateHostTerminalHeaderControls(controller),
   }
   if (opts.fitToRect !== undefined) terminalOpts.fitToRect = opts.fitToRect
   if (opts.scrollX !== undefined) terminalOpts.scrollX = opts.scrollX
@@ -8536,6 +8518,12 @@ function updateHostTerminalHeaderControls(controller: HostTerminalController): v
             pane.openSoftKeyboard()
             updateHostTerminalHeaderControls(controller)
           },
+        },
+        {
+          label: t("terminalAgentSignal"),
+          iconSrc: agentSignalIcon(readHostTerminalAgentSoundEnabled()),
+          tone: readHostTerminalAgentSoundEnabled() ? "live" : "neutral",
+          action: () => hostTerminalAgentSignalPane?.toggle(),
         },
       ],
     })
@@ -11492,54 +11480,24 @@ function sqliteHudRects(controllerId: string, bounds: {w: number; h: number}): S
 }
 
 function hostTerminalAgentSignalRect(bounds: {w: number; h: number}): UiSurfaceRect {
+  if (hostTerminalAgentSignalPane?.isOpen() !== true) return hiddenRect()
   const terminal = hostTerminalHudRect(bounds)
   if (terminal.visible === false) return hiddenRect()
-  const open = hostTerminalAgentSignalPane?.isOpen() === true
-  const buttonX = hostTerminalAgentSignalButtonX(terminal)
-  const buttonY = terminal.y + HOST_TERMINAL_AGENT_SIGNAL_HEADER_Y
-  if (!open) {
-    return {
-      x: buttonX,
-      y: buttonY,
-      w: HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE,
-      h: HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE,
-    }
-  }
-
   const panelW = Math.min(HOST_TERMINAL_AGENT_SIGNAL_PANEL_W, Math.max(1, terminal.w - HOST_TERMINAL_AGENT_SIGNAL_HEADER_TEXT_X * 2))
   const panelH = Math.min(
-    HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE + 6 + HOST_TERMINAL_AGENT_SIGNAL_PANEL_H,
-    Math.max(1, terminal.h - HOST_TERMINAL_AGENT_SIGNAL_HEADER_Y - 6),
-  )
-  const x = clampNumber(
-    buttonX - (panelW - HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE),
-    terminal.x + HOST_TERMINAL_AGENT_SIGNAL_HEADER_TEXT_X,
-    Math.max(terminal.x + HOST_TERMINAL_AGENT_SIGNAL_HEADER_TEXT_X, terminal.x + terminal.w - panelW - HOST_TERMINAL_AGENT_SIGNAL_HEADER_TEXT_X),
+    HOST_TERMINAL_AGENT_SIGNAL_PANEL_H,
+    Math.max(1, terminal.h - HOST_TERMINAL_AGENT_SIGNAL_HEADER_Y - HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE - 10),
   )
   return {
-    x,
-    y: buttonY,
+    x: clampNumber(
+      terminal.x + terminal.w - panelW - HOST_TERMINAL_AGENT_SIGNAL_HEADER_TEXT_X,
+      terminal.x + HOST_TERMINAL_AGENT_SIGNAL_HEADER_TEXT_X,
+      Math.max(terminal.x + HOST_TERMINAL_AGENT_SIGNAL_HEADER_TEXT_X, terminal.x + terminal.w - panelW - HOST_TERMINAL_AGENT_SIGNAL_HEADER_TEXT_X),
+    ),
+    y: terminal.y + HOST_TERMINAL_AGENT_SIGNAL_HEADER_Y + HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE + 6,
     w: panelW,
     h: panelH,
   }
-}
-
-function hostTerminalAgentSignalButtonX(terminal: UiSurfaceRect): number {
-  const statusW = Math.min(
-    HOST_TERMINAL_AGENT_SIGNAL_STATUS_MAX_W,
-    Math.max(HOST_TERMINAL_AGENT_SIGNAL_STATUS_MIN_W, Math.ceil(hostTerminalStatusLabelForLayout.length * 7) + 32),
-  )
-  const dockButtonX = terminal.x
-    + terminal.w
-    - HOST_TERMINAL_AGENT_SIGNAL_HEADER_TEXT_X
-    - statusW
-    - HOST_TERMINAL_AGENT_SIGNAL_HEADER_GAP
-    - HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE
-  return clampNumber(
-    dockButtonX - HOST_TERMINAL_AGENT_SIGNAL_HEADER_GAP - HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE,
-    terminal.x + HOST_TERMINAL_AGENT_SIGNAL_HEADER_TEXT_X,
-    terminal.x + terminal.w - HOST_TERMINAL_AGENT_SIGNAL_HEADER_TEXT_X - HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE,
-  )
 }
 
 function voiceHudSurfaceRect({w, h}: {w: number; h: number}): UiSurfaceRect {

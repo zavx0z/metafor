@@ -100,6 +100,7 @@ export class ScopesPane extends UiSurface {
   readonly #tokenMaterials: EditorTokenMaterialMap = createEditorTokenMaterials()
   readonly #onContextChange: (() => void) | undefined
   #frameVersion = 0
+  #rowsCache: ScopeRow[] | null = null
 
   constructor(options: {loadProperties?: ScopePropertyLoader; onContextChange?: () => void} = {}) {
     super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
@@ -112,6 +113,7 @@ export class ScopesPane extends UiSurface {
     this.#detail = null
     this.#propertyCache.clear()
     this.#expanded.clear()
+    this.#invalidateRowsCache()
     this.#frameVersion += 1
     this.#emitContextChange()
     this.requestRender()
@@ -191,6 +193,12 @@ export class ScopesPane extends UiSurface {
   }
 
   #scopeRows(): ScopeRow[] {
+    if (this.#rowsCache !== null) return this.#rowsCache
+    this.#rowsCache = this.#buildScopeRows()
+    return this.#rowsCache
+  }
+
+  #buildScopeRows(): ScopeRow[] {
     if (this.#frame === null) return []
     const out: ScopeRow[] = []
     const groups: Array<[string, ScopeSnapshot[]]> = [
@@ -211,6 +219,10 @@ export class ScopesPane extends UiSurface {
       }
     }
     return out
+  }
+
+  #invalidateRowsCache(): void {
+    this.#rowsCache = null
   }
 
   #pushPropertyRows(out: ScopeRow[], id: string, name: string, rawProp: PropertySnapshot, depth: number): void {
@@ -283,10 +295,12 @@ export class ScopesPane extends UiSurface {
   #toggleExpanded(row: Extract<ScopeRow, {kind: "prop"}>): void {
     if (this.#expanded.has(row.id)) {
       this.#expanded.delete(row.id)
+      this.#invalidateRowsCache()
       this.#emitContextChange()
       return
     }
     this.#expanded.add(row.id)
+    this.#invalidateRowsCache()
     this.#ensureLoaded(row.prop)
     this.#emitContextChange()
   }
@@ -298,16 +312,19 @@ export class ScopesPane extends UiSurface {
 
     const frameVersion = this.#frameVersion
     this.#propertyCache.set(objectId, {status: "loading"})
+    this.#invalidateRowsCache()
     this.#loadProperties(objectId)
       .then((properties) => {
         if (frameVersion !== this.#frameVersion) return
         this.#propertyCache.set(objectId, {status: "loaded", properties})
+        this.#invalidateRowsCache()
         this.#emitContextChange()
         this.requestRender()
       })
       .catch((error: unknown) => {
         if (frameVersion !== this.#frameVersion) return
         this.#propertyCache.set(objectId, {status: "error", error: errorMessage(error)})
+        this.#invalidateRowsCache()
         this.#emitContextChange()
         this.requestRender()
       })

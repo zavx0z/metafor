@@ -362,7 +362,7 @@ const CODEX_COMPOSER_MIN_W = 420
 const CODEX_COMPOSER_MIN_H = 220
 const CODEX_COMPOSER_GAP = 8
 const CODEX_COMPOSER_PAD = 12
-const CODEX_COMPOSER_HEADER_INSET_X = PANE_FRAME.bodyInsetX
+const CODEX_COMPOSER_HEADER_INSET_X = PANE_FRAME.headerTextX
 const CODEX_COMPOSER_HEADER_BUTTON_SIZE = 24
 const CODEX_TITLE = "Codex"
 const CODEX_MODEL = "GPT-5"
@@ -1823,6 +1823,11 @@ class AppWebHud implements AppWebHudController {
 			onFocusChange: (focused) => {
 				if (!focused) return
 				this.#viewport.hud.setFocused(pane)
+			},
+			onAutoscrollPinnedChange: (enabled) => {
+				if (this.#codexAutoscrollPinned === enabled) return
+				this.#codexAutoscrollPinned = enabled
+				this.#updateCodexHeaderControls()
 			},
 			onFrameRectChange: (rect) => writeStoredRect(CODEX_RECT_STORAGE_KEY, rect),
 			onFrameDockRequest: () => this.setDocked("codex", true),
