@@ -242,6 +242,7 @@ export type UiRuntimeOpts = {
 const DEFAULT_FONT_URL = "/JetBrainsMono-Bold.ttf"
 const TOUCH_DISPLAY_LONG_PRESS_MS = 520
 const TOUCH_DISPLAY_LONG_PRESS_MOVE_PX = 12
+const DISPLAY_NEAR_FIT_PADDING = 1.002
 
 export class UiRuntime {
   static async create(canvas: HTMLCanvasElement, opts: UiRuntimeOpts = {}): Promise<UiRuntime> {
@@ -757,7 +758,7 @@ export class UiRuntime {
 
   setDisplayMode(mode: UiVirtualDisplayMode): void {
     if (!this.#displaySpaceEnabled) return
-    const nextDistance = mode === "near" ? this.#displayNearDistanceMm : this.#displayFarDistanceMm
+    const nextDistance = mode === "near" ? this.#displayNearFitDistanceMm(this.#activeDisplayId) : this.#displayFarDistanceMm
     if (this.#displayMode === mode && Math.abs(nextDistance - this.#currentDisplayDistance()) < 0.001) return
     const previousMode = this.#displayMode
     if (mode === "near" && previousMode === "far") this.#displayReturnPose = this.#captureViewPointPose()
@@ -779,7 +780,17 @@ export class UiRuntime {
     this.#displayHoverDisplayId = displayId
     this.#displayNavigationDisplayId = null
     this.#displayMode = "near"
-    this.#animateCameraToDisplayDistance(this.#displayNearDistanceMm)
+    this.#animateCameraToDisplayDistance(this.#displayNearFitDistanceMm(displayId))
+    return true
+  }
+
+  refitDisplay(displayId: UiDisplayId | null = this.#activeDisplayId): boolean {
+    if (!this.#displaySpaceEnabled || displayId === null || !this.#displaySlots.has(displayId)) return false
+    this.#activeDisplayId = displayId
+    this.#displayHoverDisplayId = displayId
+    this.#displayNavigationDisplayId = null
+    this.#displayMode = "near"
+    this.#animateCameraToDisplayDistance(this.#displayNearFitDistanceMm(displayId))
     return true
   }
 
@@ -1025,6 +1036,18 @@ export class UiRuntime {
     }
 
     this.#cameraAnimationRafId = requestAnimationFrame(step)
+  }
+
+  #displayNearFitDistanceMm(displayId: UiDisplayId | null = this.#activeDisplayId): number {
+    if (displayId === null) return this.#displayNearDistanceMm
+    const slot = this.#displaySlots.get(displayId)
+    if (slot === undefined) return this.#displayNearDistanceMm
+    this.#applyDisplayGeometry()
+    const halfFovTan = Math.max(0.001, Math.tan(this.viewPoint.fov / 2))
+    const aspect = Math.max(0.1, this.#pixelWidth / Math.max(1, this.#pixelHeight))
+    const verticalDistance = (slot.display.heightMm / 2) / halfFovTan
+    const horizontalDistance = (slot.display.widthMm / 2) / (halfFovTan * aspect)
+    return Math.max(this.viewPoint.near * 2, Math.max(verticalDistance, horizontalDistance) * DISPLAY_NEAR_FIT_PADDING)
   }
 
   #cancelCameraAnimation(): void {

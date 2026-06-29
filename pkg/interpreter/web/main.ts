@@ -2930,7 +2930,11 @@ function handleBrowserFullscreenDisplayLayoutChange(activeDisplayId: string | nu
   refitVoiceHudPlacement()
   const displayId = activeDisplayId ?? uiCanvas?.activeDisplayId ?? null
   setSpaceOverviewPinned(false)
-  maybeAutoFocusDisplay(displayId)
+  if (uiCanvas?.displayMode === "near" && displayId !== null) {
+    uiCanvas.refitDisplay(displayId)
+  } else {
+    maybeAutoFocusDisplay(displayId)
+  }
   syncNetworkStatusRefresh()
 }
 
