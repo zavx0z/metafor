@@ -1,5 +1,6 @@
 import {Color} from "@metafor/engine"
 import {UiSurface, Z, drawIconCentered, uiIcons, type UiDisplayId} from "@ui/elements"
+import {t} from "./i18n.ts"
 
 type Point = {x: number; y: number}
 type Quad = {
@@ -14,7 +15,9 @@ type BrowserKeyboardLock = {
   unlock?: () => void
 }
 type DisplayHoverOutlinePaneOpts = {
+  autoFocusDisplaysOnAction?: boolean
   onBrowserFullscreenLayoutChange?: (activeDisplayId: UiDisplayId | null) => void
+  onAutoFocusDisplaysOnActionChange?: (enabled: boolean) => void
 }
 type FlightControl = {
   displayId: UiDisplayId
@@ -29,10 +32,12 @@ type ReturnDockControl = {
   island: Rect
   button: Rect
   fullscreenButton: Rect
+  settingsButton: Rect
   hit: Rect
   center: Point
   buttonCenter: Point
   fullscreenButtonCenter: Point
+  settingsButtonCenter: Point
   size: number
 }
 type LeaveAnimation = {
@@ -82,6 +87,10 @@ const RETURN_DOCK_KEY = "display-return-dock"
 const RETURN_DOCK_BRIDGE_KEY = "display-return-dock-bridge"
 const RETURN_BUTTON_KEY = "display-return-button"
 const FULLSCREEN_BUTTON_KEY = "display-fullscreen-button"
+const SETTINGS_BUTTON_KEY = "display-settings-button"
+const SETTINGS_PANEL_KEY = "display-settings-panel"
+const SETTINGS_CLOSE_KEY = "display-settings-close"
+const SETTINGS_AUTO_FOCUS_KEY = "display-settings-auto-focus"
 const BROWSER_FULLSCREEN_REFIT_STORAGE_KEY = "metafor.interpreter.browserFullscreen.refit:v1"
 
 function clamp(value: number, min: number, max: number): number {
@@ -306,7 +315,10 @@ export class DisplayHoverOutlinePane extends UiSurface {
   #lastDisplayDistanceMm: number | null = null
   #cameraMotionHoldUntilMs = 0
   #leaveAnimation: LeaveAnimation | null = null
+  #settingsOpen = false
+  #autoFocusDisplaysOnAction = false
   readonly #onBrowserFullscreenLayoutChange: ((activeDisplayId: UiDisplayId | null) => void) | undefined
+  readonly #onAutoFocusDisplaysOnActionChange: ((enabled: boolean) => void) | undefined
   readonly #handleBrowserFullscreenChange = (): void => {
     if (document.fullscreenElement !== null) {
       writeBrowserFullscreenRefitRequested(false)
@@ -321,7 +333,9 @@ export class DisplayHoverOutlinePane extends UiSurface {
 
   constructor(opts: DisplayHoverOutlinePaneOpts = {}) {
     super({bgColor: null, borderColor: null})
+    this.#autoFocusDisplaysOnAction = opts.autoFocusDisplaysOnAction === true
     this.#onBrowserFullscreenLayoutChange = opts.onBrowserFullscreenLayoutChange
+    this.#onAutoFocusDisplaysOnActionChange = opts.onAutoFocusDisplaysOnActionChange
     installBrowserFullscreenRefitLifecycleHooks()
     document.addEventListener("fullscreenchange", this.#handleBrowserFullscreenChange)
   }
@@ -343,6 +357,17 @@ export class DisplayHoverOutlinePane extends UiSurface {
 
   browserFullscreenActive(): boolean {
     return document.fullscreenElement !== null
+  }
+
+  autoFocusDisplaysOnAction(): boolean {
+    return this.#autoFocusDisplaysOnAction
+  }
+
+  setAutoFocusDisplaysOnAction(enabled: boolean): void {
+    if (this.#autoFocusDisplaysOnAction === enabled) return
+    this.#autoFocusDisplaysOnAction = enabled
+    this.#onAutoFocusDisplaysOnActionChange?.(enabled)
+    this.requestRender()
   }
 
   revealFlightControl(): void {
@@ -367,7 +392,10 @@ export class DisplayHoverOutlinePane extends UiSurface {
       const dock = this.#returnDockControl()
       if (dock === null) return false
       const point = {x: localX, y: localY}
-      return pointInRect(point, dock.island) || (this.#returnDockExpanded && pointInRect(point, dock.hit))
+      const panel = this.#settingsPanelRect(dock)
+      return pointInRect(point, dock.island)
+        || (this.#returnDockExpanded && pointInRect(point, dock.hit))
+        || (this.#settingsOpen && pointInRect(point, panel))
     }
     if (!this.#cornerFlightVisible) return false
     const control = this.#flightControl()
@@ -791,17 +819,19 @@ export class DisplayHoverOutlinePane extends UiSurface {
     const size = 38
     const buttonY = islandY - size - 11
     const buttonGap = 12
-    const buttonGroupW = size * 2 + buttonGap
+    const buttonGroupW = size * 3 + buttonGap * 2
     const buttonGroupX = clamp(this.rectW / 2 - buttonGroupW / 2, 8, Math.max(8, this.rectW - buttonGroupW - 8))
     const buttonX = buttonGroupX
     const fullscreenButtonX = buttonGroupX + size + buttonGap
+    const settingsButtonX = fullscreenButtonX + size + buttonGap
     const hitPad = 28
-    const maxX = Math.max(islandX + islandW, buttonX + size, fullscreenButtonX + size)
-    const minX = Math.min(islandX, buttonX, fullscreenButtonX)
+    const maxX = Math.max(islandX + islandW, buttonX + size, fullscreenButtonX + size, settingsButtonX + size)
+    const minX = Math.min(islandX, buttonX, fullscreenButtonX, settingsButtonX)
     return {
       island: {x: islandX, y: islandY, w: islandW, h: islandH},
       button: {x: buttonX, y: buttonY, w: size, h: size},
       fullscreenButton: {x: fullscreenButtonX, y: buttonY, w: size, h: size},
+      settingsButton: {x: settingsButtonX, y: buttonY, w: size, h: size},
       hit: {
         x: minX - hitPad,
         y: buttonY - hitPad,
@@ -811,8 +841,17 @@ export class DisplayHoverOutlinePane extends UiSurface {
       center: {x: this.rectW / 2, y: islandY + islandH / 2},
       buttonCenter: {x: buttonX + size / 2, y: buttonY + size / 2},
       fullscreenButtonCenter: {x: fullscreenButtonX + size / 2, y: buttonY + size / 2},
+      settingsButtonCenter: {x: settingsButtonX + size / 2, y: buttonY + size / 2},
       size,
     }
+  }
+
+  #settingsPanelRect(dock: ReturnDockControl): Rect {
+    const w = clamp(this.rectW * 0.32, 248, 340)
+    const h = 124
+    const x = clamp(dock.center.x - w / 2, 8, Math.max(8, this.rectW - w - 8))
+    const y = clamp(dock.button.y - h - 12, 8, Math.max(8, this.rectH - h - 8))
+    return {x, y, w, h}
   }
 
   #flightControlForQuad(quad: Quad, displayId: UiDisplayId | null): FlightControl | null {
@@ -867,10 +906,11 @@ export class DisplayHoverOutlinePane extends UiSurface {
     const bridgeHit = canReturn ? this.hitState(dock.hit.x, dock.hit.y, dock.hit.w, dock.hit.h, RETURN_DOCK_BRIDGE_KEY) : {hovered: false, pressed: false}
     const buttonHit = canReturn ? this.hitState(dock.button.x, dock.button.y, dock.button.w, dock.button.h, RETURN_BUTTON_KEY) : {hovered: false, pressed: false}
     const fullscreenHit = canReturn ? this.hitState(dock.fullscreenButton.x, dock.fullscreenButton.y, dock.fullscreenButton.w, dock.fullscreenButton.h, FULLSCREEN_BUTTON_KEY) : {hovered: false, pressed: false}
+    const settingsHit = canReturn ? this.hitState(dock.settingsButton.x, dock.settingsButton.y, dock.settingsButton.w, dock.settingsButton.h, SETTINGS_BUTTON_KEY) : {hovered: false, pressed: false}
     const now = performance.now()
-    const dockActive = islandHit.hovered || islandHit.pressed || bridgeHit.hovered || bridgeHit.pressed || buttonHit.hovered || buttonHit.pressed || fullscreenHit.hovered || fullscreenHit.pressed
-    if (dockActive || this.#returnDockPinned) this.#returnDockGraceUntilMs = now + RETURN_DOCK_TRANSFER_DEBOUNCE_MS
-    const expanded = canReturn && (this.#returnDockPinned || dockActive || now < this.#returnDockGraceUntilMs)
+    const dockActive = islandHit.hovered || islandHit.pressed || bridgeHit.hovered || bridgeHit.pressed || buttonHit.hovered || buttonHit.pressed || fullscreenHit.hovered || fullscreenHit.pressed || settingsHit.hovered || settingsHit.pressed
+    if (dockActive || this.#returnDockPinned || this.#settingsOpen) this.#returnDockGraceUntilMs = now + RETURN_DOCK_TRANSFER_DEBOUNCE_MS
+    const expanded = canReturn && (this.#returnDockPinned || this.#settingsOpen || dockActive || now < this.#returnDockGraceUntilMs)
     this.#returnDockExpanded = expanded
     if (expanded && !this.#returnDockPinned && !dockActive) this.requestRender()
 
@@ -955,6 +995,120 @@ export class DisplayHoverOutlinePane extends UiSurface {
     drawIconCentered(this, fullscreenIcon, dock.fullscreenButtonCenter.x, dock.fullscreenButtonCenter.y, clamp(dock.size * 0.6, 18, 25), {
       opacity: 0.9 * fullscreenStrength,
       z: LOCK_Z + 0.1,
+    })
+
+    this.hit(dock.settingsButton.x, dock.settingsButton.y, dock.settingsButton.w, dock.settingsButton.h, () => {
+      this.#settingsOpen = !this.#settingsOpen
+      this.#returnDockPinned = this.#settingsOpen
+      this.requestRender()
+    }, {
+      key: SETTINGS_BUTTON_KEY,
+      cursor: "pointer",
+      activeCursor: "pointer",
+      tooltip: {label: t("displaySettings"), delayMs: 420},
+    })
+
+    const settingsStrength = this.#settingsOpen ? 1.16 : settingsHit.pressed ? 1.18 : settingsHit.hovered ? 1 : 0.82
+    this.#drawLockLine(
+      {x: dock.settingsButtonCenter.x, y: dock.settingsButton.y + dock.settingsButton.h},
+      {x: dock.center.x, y: dock.island.y},
+      fade(LOCK_DIM, 0.38 * settingsStrength),
+      1.1,
+      LOCK_Z + 0.02,
+    )
+    this.#drawFlightCorners(dock.settingsButton, dock.size, settingsStrength)
+    drawIconCentered(this, uiIcons.settings, dock.settingsButtonCenter.x, dock.settingsButtonCenter.y, clamp(dock.size * 0.56, 17, 23), {
+      opacity: 0.9 * settingsStrength,
+      z: LOCK_Z + 0.1,
+    })
+
+    if (this.#settingsOpen) this.#drawSettingsPanel(dock)
+  }
+
+  #drawSettingsPanel(dock: ReturnDockControl): void {
+    const rect = this.#settingsPanelRect(dock)
+    const closeSize = 22
+    this.hit(rect.x, rect.y, rect.w, rect.h, () => {}, {
+      key: SETTINGS_PANEL_KEY,
+      cursor: "default",
+      activeCursor: "default",
+    })
+    this.drawRoundedRect(rect.x, rect.y, rect.w, rect.h, {
+      radius: 8,
+      fill: new Color(0.025, 0.04, 0.055, 0.94),
+      border: fade(LOCK_DIM, 0.82),
+      borderWidth: 1,
+      z: LOCK_Z + 0.22,
+    })
+    this.hit(rect.x + rect.w - closeSize - 9, rect.y + 8, closeSize, closeSize, () => {
+      this.#settingsOpen = false
+      this.requestRender()
+    }, {
+      key: SETTINGS_CLOSE_KEY,
+      cursor: "pointer",
+      activeCursor: "pointer",
+      tooltip: {label: t("close"), delayMs: 420},
+    })
+    drawIconCentered(this, uiIcons.close, rect.x + rect.w - closeSize / 2 - 9, rect.y + 8 + closeSize / 2, 15, {
+      opacity: 0.82,
+      z: LOCK_Z + 0.32,
+    })
+    this.drawText(t("displaySettings"), rect.x + 12, rect.y + 12, {
+      fontPx: 12,
+      material: this.materials.cyan,
+      maxWidthPx: rect.w - 54,
+      z: LOCK_Z + 0.32,
+    })
+    this.drawRect(rect.x + 10, rect.y + 38, rect.w - 20, 1, fade(LOCK_DIM, 0.64), LOCK_Z + 0.25)
+
+    const rowX = rect.x + 12
+    const rowY = rect.y + 52
+    const rowW = rect.w - 24
+    const rowH = 48
+    const active = this.#autoFocusDisplaysOnAction
+    const hit = this.hitState(rowX, rowY, rowW, rowH, SETTINGS_AUTO_FOCUS_KEY)
+    this.hit(rowX, rowY, rowW, rowH, () => this.setAutoFocusDisplaysOnAction(!active), {
+      key: SETTINGS_AUTO_FOCUS_KEY,
+      cursor: "pointer",
+      activeCursor: "pointer",
+    })
+    this.drawRoundedRect(rowX, rowY, rowW, rowH, {
+      radius: 7,
+      fill: fade(active ? LOCK_GLOW : LOCK_DIM, active ? 0.38 : hit.hovered ? 0.18 : 0.1),
+      border: fade(active ? LOCK : LOCK_DIM, active ? 0.74 : 0.44),
+      borderWidth: 1,
+      z: LOCK_Z + 0.24,
+    })
+    this.drawText(t("displayAutoFocusActions"), rowX + 10, rowY + 8, {
+      fontPx: 11,
+      material: this.materials.text,
+      maxWidthPx: rowW - 76,
+      z: LOCK_Z + 0.32,
+    })
+    this.drawText(t("displayAutoFocusActionsHint"), rowX + 10, rowY + 25, {
+      fontPx: 8.5,
+      material: this.materials.muted,
+      maxWidthPx: rowW - 76,
+      z: LOCK_Z + 0.32,
+    })
+    const switchW = 42
+    const switchH = 22
+    const switchX = rowX + rowW - switchW - 10
+    const switchY = rowY + 13
+    this.drawRoundedRect(switchX, switchY, switchW, switchH, {
+      radius: switchH / 2,
+      fill: fade(active ? LOCK : LOCK_DIM, active ? 0.48 : 0.2),
+      border: fade(active ? LOCK_HOT : LOCK_DIM, 0.76),
+      borderWidth: 1,
+      z: LOCK_Z + 0.3,
+    })
+    const knobSize = 16
+    const knobX = active ? switchX + switchW - knobSize - 3 : switchX + 3
+    this.drawRoundedRect(knobX, switchY + 3, knobSize, knobSize, {
+      radius: knobSize / 2,
+      fill: fade(active ? LOCK_HOT : LOCK_DIM, active ? 0.92 : 0.72),
+      border: null,
+      z: LOCK_Z + 0.34,
     })
   }
 

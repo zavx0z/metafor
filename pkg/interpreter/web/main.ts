@@ -619,6 +619,7 @@ const NETWORK_TERMINAL_HUD_RECT_STORAGE_KEY = "metafor.interpreter.networkTermin
 const NETWORK_TERMINAL_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.networkTerminal.hudDocked:v1"
 const NETWORK_STATUS_AUTO_REFRESH_STORAGE_KEY = "metafor.interpreter.networkStatus.autoRefresh:v1"
 const NETWORK_PRODUCT_INTERPRETER_STORAGE_KEY = "metafor.interpreter.networkProduct.viaInterpreter:v1"
+const DISPLAY_ACTION_AUTO_FOCUS_STORAGE_KEY = "metafor.interpreter.display.actionAutoFocus:v1"
 const ANDROID_HUD_RECT_STORAGE_KEY = "metafor.interpreter.android.hudRect:v1"
 const ANDROID_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.android.hudDocked:v1"
 const ANDROID_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.android.dockPlacement:v1"
@@ -797,6 +798,7 @@ let uiCanvas: UiRuntime | null = null
 let gpuCrashDebug: ReturnType<typeof createInterpreterGpuCrashDebug> | null = null
 let uiLoading = false
 let displayHoverOutlinePane: DisplayHoverOutlinePane | null = null
+let displayActionAutoFocusEnabled = readStoredDisplayActionAutoFocusEnabled()
 let todoPane: ToDoPane | null = null
 let todoDockPane: HostTerminalDockPane | null = null
 let todoContext: ToDoPaneContextSnapshot | null = null
@@ -2754,7 +2756,9 @@ async function initEngine(): Promise<void> {
       },
     })
     displayHoverOutlinePane = new DisplayHoverOutlinePane({
+      autoFocusDisplaysOnAction: displayActionAutoFocusEnabled,
       onBrowserFullscreenLayoutChange: handleBrowserFullscreenDisplayLayoutChange,
+      onAutoFocusDisplaysOnActionChange: setDisplayActionAutoFocusEnabled,
     })
     const todoStored = readStoredTodoPanelState()
     todoPane = new ToDoPane({
@@ -2884,11 +2888,23 @@ function handleBrowserFullscreenDisplayLayoutChange(activeDisplayId: string | nu
   refitVoiceHudPlacement()
   const displayId = activeDisplayId ?? uiCanvas?.activeDisplayId ?? null
   setSpaceOverviewPinned(false)
-  if (displayId !== null) {
-    uiCanvas?.focusDisplay(displayId)
-  }
+  maybeAutoFocusDisplay(displayId)
   fullscreenDockPane?.requestRender()
   syncNetworkStatusRefresh()
+}
+
+function displayActionAutoFocusEnabledNow(): boolean {
+  return displayHoverOutlinePane?.autoFocusDisplaysOnAction() ?? displayActionAutoFocusEnabled
+}
+
+function setDisplayActionAutoFocusEnabled(enabled: boolean): void {
+  displayActionAutoFocusEnabled = enabled
+  writeStoredDisplayActionAutoFocusEnabled(enabled)
+}
+
+function maybeAutoFocusDisplay(displayId: string | null): boolean {
+  if (!displayActionAutoFocusEnabledNow() || uiCanvas === null || displayId === null) return false
+  return uiCanvas.focusDisplay(displayId)
 }
 
 function refitVoiceHudPlacement(): void {
@@ -7829,7 +7845,7 @@ function removeModuleDisplay(moduleId: string): void {
   if (uiCanvas?.activeDisplayId === displayId) {
     const nextModuleId = moduleOrder.find((id) => id !== moduleId && moduleDisplayIds.has(id))
     const nextDisplayId = nextModuleId === undefined ? null : moduleDisplayId(nextModuleId)
-    if (nextDisplayId !== null) uiCanvas.focusDisplay(nextDisplayId)
+    maybeAutoFocusDisplay(nextDisplayId)
   }
   uiCanvas?.removeDisplay(displayId)
 }
@@ -8786,6 +8802,22 @@ function readStoredNetworkProductViaInterpreter(): boolean {
 function writeStoredNetworkProductViaInterpreter(enabled: boolean): void {
   try {
     localStorage.setItem(NETWORK_PRODUCT_INTERPRETER_STORAGE_KEY, enabled ? "1" : "0")
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+}
+
+function readStoredDisplayActionAutoFocusEnabled(): boolean {
+  try {
+    return localStorage.getItem(DISPLAY_ACTION_AUTO_FOCUS_STORAGE_KEY) === "1"
+  } catch {
+    return false
+  }
+}
+
+function writeStoredDisplayActionAutoFocusEnabled(enabled: boolean): void {
+  try {
+    localStorage.setItem(DISPLAY_ACTION_AUTO_FOCUS_STORAGE_KEY, enabled ? "1" : "0")
   } catch {
     // Storage can be disabled in private contexts.
   }
@@ -10056,15 +10088,18 @@ async function openSourcePatchedTarget(msg: Extract<ServerMessage, {type: "sourc
   if (controller === undefined || controller.sourceDirty || controller.sourceSaving) return
   const target = sourcePatchedEditorTarget(msg.files)
   if (target === null) return
-  uiCanvas?.focusDisplay(moduleDisplayId(controller.id))
+  const focusPatchedSource = displayActionAutoFocusEnabledNow()
+  if (focusPatchedSource) maybeAutoFocusDisplay(moduleDisplayId(controller.id))
   const result = await openWorkspaceSource(controller, target.sourceUrl, {
     line: target.line,
     column: target.column,
     revealInWorkspace: true,
   })
   if (!result.ok) return
-  uiCanvas?.setFocused(controller.source)
-  uiCanvas?.inputProxy?.focus()
+  if (focusPatchedSource) {
+    uiCanvas?.setFocused(controller.source)
+    uiCanvas?.inputProxy?.focus()
+  }
   queuePublishModuleContext(controller)
 }
 
