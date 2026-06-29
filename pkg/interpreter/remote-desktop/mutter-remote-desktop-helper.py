@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import math
 import signal
 import subprocess
 import sys
@@ -235,6 +236,13 @@ def dispatch_input(body):
         dy = float(body.get("deltaY", body.get("dy", 0)) or 0)
         remote_session.NotifyPointerAxis(dbus.Double(dx), dbus.Double(dy), dbus.UInt32(0))
         return {"type": "mouseWheel", "transport": "mutter-dbus", "deltaX": dx, "deltaY": dy, **point_result(body)}
+    if event_type in ("pinch", "zoom"):
+        move_pointer(body)
+        dx = clamp_float(numeric_input(body, ("deltaX", "dx"), 0.0), -240.0, 240.0)
+        dy = pinch_delta_y(body)
+        scale = numeric_input(body, ("scale",), 1.0)
+        send_control_wheel(dx, dy)
+        return {"type": "pinch", "transport": "mutter-dbus-ctrl-wheel", "deltaX": dx, "deltaY": dy, "scale": scale, **point_result(body)}
     if event_type in ("text", "type"):
         text = body.get("text")
         if not isinstance(text, str):
@@ -270,6 +278,17 @@ def send_pointer_button(button, pressed):
     remote_session.NotifyPointerButton(dbus.Int32(button), dbus.Boolean(pressed))
 
 
+def send_control_wheel(dx, dy):
+    control_keysym = KEYSYMS["Control"]
+    control_was_pressed = control_keysym in active_modifier_keysyms
+    set_modifier_key(control_keysym, True)
+    try:
+        remote_session.NotifyPointerAxis(dbus.Double(dx), dbus.Double(dy), dbus.UInt32(0))
+    finally:
+        if not control_was_pressed:
+            set_modifier_key(control_keysym, False)
+
+
 def input_point(body):
     x = float(body.get("x"))
     y = float(body.get("y"))
@@ -281,6 +300,38 @@ def input_point(body):
 def point_result(body):
     point = input_point(body)
     return {"x": round(point["x"]), "y": round(point["y"])}
+
+
+def numeric_input(body, names, default=0.0):
+    for name in names:
+        if name not in body:
+            continue
+        value = body.get(name)
+        if value is None or value == "":
+            continue
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(number):
+            return number
+    return default
+
+
+def clamp_float(value, minimum, maximum):
+    return min(maximum, max(minimum, value))
+
+
+def pinch_delta_y(body):
+    dy = numeric_input(body, ("deltaY", "dy"), 0.0)
+    if abs(dy) >= 0.01:
+        return clamp_float(dy, -240.0, 240.0)
+    scale = numeric_input(body, ("scale",), 1.0)
+    if scale > 1.01:
+        return -120.0
+    if scale < 0.99:
+        return 120.0
+    return 0.0
 
 
 def button_name(value):

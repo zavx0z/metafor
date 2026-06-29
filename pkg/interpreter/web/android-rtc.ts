@@ -37,6 +37,7 @@ export type RemoteDesktopRtcCommand =
   | {type: "pointerMove" | "mouseMove" | "move"; x: number; y: number; button?: string; buttons?: number; frameW?: number; frameH?: number}
   | {type: "pointerDown" | "mouseDown" | "pointerUp" | "mouseUp"; x: number; y: number; button?: string; buttons?: number; clickCount?: number; frameW?: number; frameH?: number}
   | {type: "wheel" | "mouseWheel"; x: number; y: number; deltaX?: number; deltaY?: number; dx?: number; dy?: number; frameW?: number; frameH?: number}
+  | {type: "pinch" | "zoom"; x: number; y: number; deltaX?: number; deltaY?: number; dx?: number; dy?: number; scale?: number; deltaMode?: number; ctrlKey?: boolean; frameW?: number; frameH?: number}
   | {type: "text" | "type"; text: string}
   | {type: "keyDown" | "keyUp" | "char"; key?: string; keyCode?: string; modifiers?: string[]}
 

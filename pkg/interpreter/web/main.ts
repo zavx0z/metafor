@@ -5157,7 +5157,7 @@ class RemoteDesktopPane extends UiSurface {
       return
     }
     event.preventDefault()
-    this.#onInput(this.#withFrameSize({
+    this.#onInput(this.#withFrameSize(remoteDesktopPinchCommand(event, point) ?? {
       type: "wheel",
       x: point.x,
       y: point.y,
@@ -5267,6 +5267,43 @@ class RemoteDesktopPane extends UiSurface {
     }
     event.preventDefault()
   }
+}
+
+function remoteDesktopPinchCommand(event: WheelEvent, point: RemoteDesktopPoint): RtcControlCommand | null {
+  if (!remoteDesktopWheelIsPinch(event)) return null
+  const deltaX = remoteDesktopWheelDeltaPx(event.deltaX, event.deltaMode)
+  const deltaY = remoteDesktopPinchDeltaY(event)
+  return {
+    type: "pinch",
+    x: point.x,
+    y: point.y,
+    deltaX,
+    deltaY,
+    deltaMode: 0,
+    scale: remoteDesktopPinchScale(deltaY),
+    ctrlKey: event.ctrlKey,
+  }
+}
+
+function remoteDesktopWheelIsPinch(event: WheelEvent): boolean {
+  return event.ctrlKey
+}
+
+function remoteDesktopPinchDeltaY(event: WheelEvent): number {
+  const deltaY = remoteDesktopWheelDeltaPx(event.deltaY, event.deltaMode)
+  if (Math.abs(deltaY) >= 0.01) return deltaY
+  return remoteDesktopWheelDeltaPx(event.deltaX, event.deltaMode)
+}
+
+function remoteDesktopWheelDeltaPx(delta: number, deltaMode: number): number {
+  if (!Number.isFinite(delta) || delta === 0) return 0
+  if (deltaMode === 1) return delta * 40
+  if (deltaMode === 2) return delta * 800
+  return delta
+}
+
+function remoteDesktopPinchScale(deltaY: number): number {
+  return clampNumber(Math.exp(-deltaY / 100), 0.1, 10)
 }
 
 function remoteDesktopKeyboardModifiers(event: KeyboardEvent): string[] {

@@ -1662,7 +1662,7 @@ export class UiRuntime {
     if (displayCoords === null || slot === undefined) {
       if (this.#isDisplayNavigationMode()) {
         event.preventDefault()
-        if (event.ctrlKey) this.#zoomDisplay(-event.deltaY, displayCoords?.displayId ?? null, canvasCoords)
+        if (event.ctrlKey) this.#zoomDisplay(-wheelZoomDeltaPx(event), displayCoords?.displayId ?? null, canvasCoords)
         else this.#panView(event.deltaX, event.deltaY)
       }
       return
@@ -2134,6 +2134,19 @@ function clampSurfaceRect(rect: UiSurfaceRect, boundsW: number, boundsH: number)
 
 function finiteOr(value: number, fallback: number): number {
   return Number.isFinite(value) ? value : fallback
+}
+
+function wheelZoomDeltaPx(event: WheelEvent): number {
+  const deltaY = wheelDeltaPx(event.deltaY, event.deltaMode, 800)
+  if (Math.abs(deltaY) >= 0.01) return deltaY
+  return wheelDeltaPx(event.deltaX, event.deltaMode, 800)
+}
+
+function wheelDeltaPx(delta: number, deltaMode: number, pageSizePx: number): number {
+  if (!Number.isFinite(delta) || delta === 0) return 0
+  if (deltaMode === 1) return delta * 40
+  if (deltaMode === 2) return delta * pageSizePx
+  return delta
 }
 
 function clampNumber(value: number, min: number, max: number): number {
