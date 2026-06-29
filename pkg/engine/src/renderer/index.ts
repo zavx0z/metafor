@@ -1131,7 +1131,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       preparedLayers.push(this.prepareRenderLayer(overlay, frameRenderItems, frameLights))
     }
     const renderIndexByItem = new Map<RenderItem, number>()
-    frameRenderItems.forEach((item, index) => renderIndexByItem.set(item, index))
+    frameRenderItems.forEach((item, index) => {
+      if (!renderIndexByItem.has(item)) renderIndexByItem.set(item, index)
+    })
 
     // Uniform buffers are written once for the whole frame. Rewriting them between
     // passes before submit would make earlier passes read the later data.
