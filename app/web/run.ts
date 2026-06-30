@@ -368,11 +368,16 @@ function matrixBoundaryWsUrl(): string {
   return `ws://${appWebBridgeHost()}:${appWebBridgePort()}/matrix/ws`
 }
 
+function normalizeClientConnectHost(value: string | undefined | null): string | null {
+  const host = value?.trim()
+  if (!host || host === "0.0.0.0" || host === "::") return null
+  return host
+}
+
 function appWebBridgeHost(): string {
-  return process.env.APP_WEB_MATRIX_HOST?.trim()
-    || process.env.APP_WEB_HOST?.trim()
-    || process.env.HOST?.trim()
-    || process.env.INTERPRETER_HTTP_HOST?.trim()
+  return normalizeClientConnectHost(process.env.APP_WEB_MATRIX_HOST)
+    || normalizeClientConnectHost(process.env.APP_WEB_HOST)
+    || normalizeClientConnectHost(process.env.HOST)
     || "127.0.0.1"
 }
 

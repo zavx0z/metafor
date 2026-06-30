@@ -3,6 +3,9 @@ import {bridgeUrlWithToken, createMatrixServerStatus, readMatrixBridgeIncomingMe
 
 describe("matrix server bridge helpers", () => {
   test("adds bridge token to URL", () => {
+    expect(bridgeUrlWithToken("ws://127.0.0.1:3004/matrix/ws", null)).toBe(
+      "ws://127.0.0.1:3004/matrix/ws",
+    )
     expect(bridgeUrlWithToken("ws://127.0.0.1:3004/matrix/ws", "secret")).toBe(
       "ws://127.0.0.1:3004/matrix/ws?token=secret",
     )
@@ -25,6 +28,15 @@ describe("matrix server bridge helpers", () => {
       type: "force",
       parts: [{part: "gluon", op: "replace", path: 17, value: {fields: {"1": "x"}}}],
     })
+  })
+
+  test("rejects malformed bridge messages", () => {
+    const snapshot = {version: 1, wimpIds: [], legacyProcessActorIds: [], runtime: {}, data: {}, strong: {}, weak: {}}
+
+    expect(readMatrixBridgeIncomingMessage("not-json")).toBeNull()
+    expect(readMatrixBridgeIncomingMessage(JSON.stringify({type: "matrix-snapshot", version: 2, snapshot}))).toBeNull()
+    expect(readMatrixBridgeIncomingMessage(JSON.stringify({type: "matrix-snapshot", version: 1}))).toBeNull()
+    expect(readMatrixBridgeIncomingMessage(JSON.stringify({type: "force", parts: null}))).toBeNull()
   })
 
   test("creates status payload", () => {
@@ -54,5 +66,26 @@ describe("matrix server bridge helpers", () => {
       braneCount: 2,
       fieldCount: 3,
     })
+  })
+
+  test("marks status connected only for connected socket state", () => {
+    expect(createMatrixServerStatus({
+      pid: 1,
+      startedAt: "2026-06-30T00:00:00.000Z",
+      host: "127.0.0.1",
+      port: 3005,
+      bridgeUrl: "ws://127.0.0.1:3004/matrix/ws",
+      socketState: "closed",
+      loaded: false,
+      snapshotVersion: null,
+      actorCount: 0,
+      braneCount: 0,
+      fieldCount: 0,
+      structuralDirty: false,
+      reconnects: 1,
+      lastSnapshotAt: null,
+      lastForceAt: null,
+      lastError: "closed",
+    }).connected).toBe(false)
   })
 })

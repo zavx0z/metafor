@@ -48,6 +48,9 @@ function log(tag: string, message: string, detail = ""): void {
   console.log(`[matrix:${tag}] ${new Date().toISOString()} ${message}${suffix}`)
 }
 
+const errorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error)
+
 function statusPayload() {
   return createMatrixServerStatus({
     pid: process.pid,
@@ -113,7 +116,10 @@ function connectBridge(): void {
   })
 
   socket.addEventListener("message", (event) => {
-    void handleBridgeData(event.data)
+    void handleBridgeData(event.data).catch((error) => {
+      lastError = errorMessage(error)
+      log("bridge", "message error", lastError)
+    })
   })
 
   socket.addEventListener("error", () => {
