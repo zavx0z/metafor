@@ -14,24 +14,36 @@ export type Part = "graviton" | "photon" | "gluon" | "higgs" | "w+" | "w-" | "z"
 export type ParticleOperation = "add" | "remove" | "replace" | "move" | "copy" | "test"
 
 /**
+ * Область действия Force-патча.
+ *
+ * `path` больше не является доменным путём или URI. Он выбирает область действия:
+ * WIMP SRC для патча класса/структуры или actor ID для патча рантайм-экземпляра.
+ * Конкретные поля, слоты Fuzzy/MACHO/Axion и другие внутренние элементы
+ * адресуются ID внутри `value`.
+ */
+export type DomainPath = string | number
+
+/**
  * Одна частица Force.
  *
  * Представляет один Force part: поле `part` задаёт смысловой канал, поле `path`
- * задаёт доменный тип сигнала, а данные изменения передаются через `value`,
- * `from` и дополнительные доменные поля.
+ * задаёт область действия патча, а данные изменения передаются через `value`,
+ * `from` и дополнительные доменные поля. Для области класса `path` содержит WIMP SRC.
+ * Для области экземпляра `path` содержит actor ID. Ключи и имена не являются
+ * адресами: они остаются изменяемыми свойствами внутри объекта патча.
  * @prop part — семантический канал частицы
  * @prop op — операция изменения
- * @prop path — доменный путь, к которому относится частица
+ * @prop path — ID области действия патча
  * @prop value — полезная нагрузка для операций с данными
- * @prop from — исходный путь для операций move/copy
+ * @prop from — исходная область действия для операций move/copy
  * @prop key — дополнительные доменные поля частицы
  */
 export type Particle = {
   part: Part
   op: ParticleOperation
-  path: string
+  path: DomainPath
   value?: unknown
-  from?: string
+  from?: DomainPath
   [key: string]: unknown
 }
 

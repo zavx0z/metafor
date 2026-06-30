@@ -20,6 +20,7 @@ const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5))
 /** Input descriptor for an ordinary field particle before Dark particle materialization. */
 export interface BulkFieldParticleInput {
   fieldParticleId: number
+  fieldId: number
   fieldKey: string
   fieldLabel: string
   fieldParticleKind: BulkFieldParticleKind
@@ -109,6 +110,7 @@ const cloneFieldParticleInput = (
   sphereRadius: number,
 ): LayoutFieldParticleNode => ({
   fieldParticleId: fieldParticle.fieldParticleId,
+  fieldId: fieldParticle.fieldId,
   parentDarkParticleId: descriptor.darkParticleId,
   fieldKey: fieldParticle.fieldKey,
   fieldLabel: fieldParticle.fieldLabel,
@@ -299,6 +301,7 @@ const flattenDarkParticleNode = (
   node.fieldParticles.forEach((fieldParticle, fieldOrder) => {
     fieldParticles.push({
       fieldParticleId: fieldParticle.fieldParticleId,
+      fieldId: fieldParticle.fieldId,
       parentDarkParticleId: node.darkParticleId,
       fieldKey: fieldParticle.fieldKey,
       fieldLabel: fieldParticle.fieldLabel,

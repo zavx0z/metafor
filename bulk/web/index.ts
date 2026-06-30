@@ -156,7 +156,7 @@ import {
 	THEME_TERTIARY_GLOW,
 } from "./constants"
 import { computeLerpFactor, easeOutCubic, getDistanceToSegmentPx, mixScalar } from "./math"
-import { resolveForceFieldsPayload } from "./force-protocol"
+import { resolveForceFieldId, resolveForceFieldsPayload } from "./force-protocol"
 
 const torusWireframeCache = new Map<string, BufferGeometry>()
 const sphereWireframeCache = new Map<string, BufferGeometry>()
@@ -657,13 +657,6 @@ const forceString = (value: unknown): string | null => {
 	if (typeof value !== "string") return null
 	const text = value.trim()
 	return text.length > 0 ? text : null
-}
-
-const forceFieldOrder = (address: string): number | null => {
-	if (!/^\d+$/.test(address)) return null
-	const oneBased = Number(address)
-	if (!Number.isSafeInteger(oneBased) || oneBased <= 0) return null
-	return oneBased - 1
 }
 
 const forcePositiveInteger = (value: unknown): number | null => {
@@ -2853,18 +2846,14 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return darkParticleRecord?.snapshot.src === wimp || darkParticleRecord?.snapshot.metaSrc === wimp
 	}
 
-	const fieldParticleRecordMatchesForceAddress = (record: FieldParticleRenderRecord, wimp: string, address: string): boolean => {
+	const fieldParticleRecordMatchesForceAddress = (record: FieldParticleRenderRecord, wimp: string, fieldId: number): boolean => {
 		if (!darkParticleRecordMatchesForceWimp(record.parentDarkParticleId, wimp)) return false
-		if (record.snapshot.fieldKey === address) return true
-		const fieldOrder = forceFieldOrder(address)
-		return fieldOrder !== null && record.snapshot.fieldOrder === fieldOrder
+		return record.snapshot.fieldId === fieldId
 	}
 
-	const fieldParticleRecordMatchesForceActorAddress = (record: FieldParticleRenderRecord, actorDarkParticleId: number, address: string): boolean => {
+	const fieldParticleRecordMatchesForceActorAddress = (record: FieldParticleRenderRecord, actorDarkParticleId: number, fieldId: number): boolean => {
 		if (record.parentDarkParticleId !== actorDarkParticleId) return false
-		if (record.snapshot.fieldKey === address) return true
-		const fieldOrder = forceFieldOrder(address)
-		return fieldOrder !== null && record.snapshot.fieldOrder === fieldOrder
+		return record.snapshot.fieldId === fieldId
 	}
 
 	const syncForceChangedFieldParticleRecords = (): void => {
@@ -2905,7 +2894,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 		let changed = false
 		for (const [address, rawPatch] of Object.entries(fields)) {
-			const records = [...fieldParticleRecords.values()].filter((record) => fieldParticleRecordMatchesForceAddress(record, wimp, address))
+			const fieldId = resolveForceFieldId(address)
+			if (fieldId === null) continue
+			const records = [...fieldParticleRecords.values()].filter((record) => fieldParticleRecordMatchesForceAddress(record, wimp, fieldId))
 			if (message.op === "remove") {
 				for (const record of records) {
 					removeFieldParticleRecord(record.snapshot.fieldParticleId)
@@ -2933,7 +2924,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 		let changed = false
 		for (const [address, rawValue] of Object.entries(fields)) {
-			const records = [...fieldParticleRecords.values()].filter((record) => fieldParticleRecordMatchesForceActorAddress(record, actorDarkParticleId, address))
+			const fieldId = resolveForceFieldId(address)
+			if (fieldId === null) continue
+			const records = [...fieldParticleRecords.values()].filter((record) => fieldParticleRecordMatchesForceActorAddress(record, actorDarkParticleId, fieldId))
 			if (message.op !== "replace" && message.op !== "remove") continue
 			for (const record of records) {
 				record.snapshot = {

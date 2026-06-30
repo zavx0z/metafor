@@ -62,20 +62,28 @@ Force фиксирует, как сила действует через кана
 Один `Particle` представляет ровно один Force part:
 
 ```ts
-{ part: "graviton", op: "add", path: "wimp", value: "zavx0z/git" }
-{ part: "graviton", op: "add", path: "matter", value: "<matter_particle_uuid>" }
-{ part: "graviton", op: "add", path: "actor", value: "<actor_uuid>" }
-{ part: "graviton", op: "add", path: "topology", value: "<topology_uuid>" }
-{ part: "gluon", op: "replace", path: "/field/<uuid>", value: 42 }
-{ part: "higgs", op: "replace", path: "/field/<uuid>", value: "branch" }
-{ part: "photon", op: "replace", path: "/wimp/<uuid>", value: "ready" }
-{ part: "w+", op: "test", path: "./actions/detect", value: { process: "<uuid>", data: {} } }
-{ part: "w-", op: "test", path: "./actions/detect", value: { process: "<uuid>", error: "..." } }
-{ part: "z", op: "test", path: "./actions/detect", value: { process: "<uuid>", coordination: "claim" } }
+{ part: "graviton", op: "replace", path: "zavx0z/git", value: { name: "Git" } }
+{ part: "graviton", op: "replace", path: "zavx0z/git", value: { fields: { "1": { key: "title", type: "string" } } } }
+{ part: "gluon", op: "replace", path: 17, value: { fields: { "1": "MetaFor" } } }
+{ part: "higgs", op: "replace", path: 17, value: { fields: { "2": "native" } } }
+{ part: "photon", op: "replace", path: 17, value: "ready" }
+{ part: "z", op: "test", path: 17, value: { action: "claim", token: "run-1" } }
+{ part: "w+", op: "replace", path: 17, value: { fields: { "1": "done" }, token: "run-1" } }
+{ part: "w-", op: "replace", path: 17, value: { error: "failed", token: "run-1" } }
 ```
 
-`part` хранит носитель силы, а доменный тип сигнала пишется в `path`.
-WIMP-сигнал не кодирует `/wimp/...`: он пишется как `{ part: "graviton", op: "add", path: "wimp", value: src }`.
+`part` хранит носитель силы, а `path` выбирает область действия патча.
+В v0 есть две основные публичные области действия:
+
+- WIMP SRC для патча класса или структуры;
+- actor ID для патча конкретного рантайм-экземпляра.
+
+Конкретные поля, слоты Fuzzy/MACHO/Axion, состояния и элементы процесса/рантайма
+адресуются ID внутри `value` или через кэш проекции. Key, name, label и type
+являются изменяемыми свойствами, а не адресами протокола.
+
+Текущий триггер материализации `graviton test wimp` остаётся legacy-управляющей
+поверхностью до отдельного перевода пути материализации.
 Для `Dark`/`Boundary` это может быть лёгкий control-сигнал, потому что `Dark`
 имеет доступ к `Boundary`.
 Для `Energy` и `Bulk` такой порядок запрещён: они не читают `Boundary` и не

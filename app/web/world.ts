@@ -265,6 +265,7 @@ export function buildBoundaryBulkManifest(
     const kind = fieldParticleKind(field.type)
     return {
       fieldParticleId: fieldParticleIdFromActorField(actor.id, field.id),
+      fieldId: field.id,
       fieldKey: field.key,
       fieldLabel: field.label ?? field.key,
       fieldParticleKind: kind,

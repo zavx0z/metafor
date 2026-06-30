@@ -260,8 +260,8 @@
 - `bulk/web/force-protocol.ts` намеренно принимает только `value.fields` для
   текущих Force-патчей полей и отвергает `value.fieldParticles`.
 - `bulk/web/index.ts` viewport adapter обрабатывает:
-  `higgs` с `path = wimp src`, `value.fields = { fieldKey|order: schemaPatch }`;
-  `gluon` с `path = actor id`, `value.fields = { fieldKey|order: scalar }`.
+  `higgs` с `path = WIMP SRC`, `value.fields = { [fieldId]: schemaPatch }`;
+  `gluon` с `path = actor ID`, `value.fields = { [fieldId]: scalar }`.
 - Bulk direct adapter обновляет render records, но не пишет Boundary.
 - `bulk/em/index.ts` остаётся историческим weak/process bridge:
   `/wimp/${wimpId}/process/${processId}`, `/field/${wimpFieldId}`,
@@ -454,7 +454,7 @@
 
 ## 4. Закон протокола Force
 
-Force — это domain-scoped JSON Patch-like operation.
+Force — это JSON Patch-подобная операция, ограниченная доменной областью.
 
 Текущая реализация пока ближе к этому типу:
 
@@ -588,9 +588,8 @@ type ForceParticle = {
 
 Адрес `path` v0:
 
-- `ActorId` как строка или число.
-- Это ближайшая безопасная форма для AppWeb/Bulk: instance WIMP является областью,
-  внутри которой резолвится `value.fields`.
+- actor ID как строка или число.
+- Экземпляр WIMP является областью, внутри которой резолвится `value.fields`.
 
 Форма `value` v0:
 
@@ -602,9 +601,10 @@ type ForceParticle = {
 
 Ключи в `fields`:
 
-- v0: `fieldKey` или текущий field order/key, как уже делают AppWeb/Bulk;
-- Boundary/Energy normalizer должен уметь резолвить это в field id через projection
-  cache.
+- v0: `fieldId` внутри WIMP declaration;
+- key/name/label/type являются изменяемой метаинформацией внутри патча;
+- Boundary/Energy normalizer должен резолвить `actor ID + fieldId` через
+  кэш проекции.
 
 Допустимые операции v0:
 
@@ -614,13 +614,13 @@ type ForceParticle = {
 
 Нужный cache:
 
-- `actorId -> wimpSrc`;
-- `wimpSrc + fieldKey -> fieldId`;
-- `actorId + fieldId -> valueId`;
+- `actorId -> WIMP SRC`;
+- `WIMP SRC + fieldId -> field declaration`;
+- `actor ID + fieldId -> valueId`;
 - `fieldId -> runtimeFieldIndex` в рамках actor;
 - `runtimeFieldIndex -> braneIndex`;
 - Bulk `actorId -> darkParticleId`;
-- Bulk `fieldKey -> fieldParticleId` внутри actor scope.
+- Bulk `actor ID + fieldId -> fieldParticleId` внутри области actor.
 
 Наблюдатели:
 
@@ -639,9 +639,10 @@ type ForceParticle = {
 Нужная миграция:
 
 - v0 сохраняет `value.fields`.
-- v1 может перейти к `path = FieldAddressId | ActorFieldAddressId` и
-  `value = scalar`, но только после появления resolver cache и после того, как все
-  потребители смогут резолвить адрес без чтения Boundary.
+- `path` остаётся ID области: WIMP SRC для патча класса/структуры или actor ID для
+  патча рантайм-экземпляра.
+- Более точные field/runtime IDs используются внутри `value` или кэша проекции,
+  но не становятся публичным Force `path` по умолчанию.
 
 ### 5.3. `higgs`
 
@@ -661,10 +662,8 @@ type ForceParticle = {
 
 Адрес `path` v0:
 
-- для текущих compatibility-патчей AppWeb: WIMP `src` или ActorId, в зависимости
-  от источника;
-- для runtime selection: ActorId-scoped connectivity до появления стабильного
-  ConnectivityId в projection.
+- WIMP SRC для патча класса/структуры;
+- actor ID для runtime selection.
 
 Форма `value` v0:
 
@@ -697,9 +696,9 @@ Compatibility note:
 
 Нужный cache:
 
-- ActorId -> WIMP src;
-- WIMP src + enum key -> Fuzzy topology id;
-- WIMP src + array key -> MACHO topology id;
+- actor ID -> WIMP SRC;
+- WIMP SRC + fieldId -> Fuzzy topology id для enum compatibility;
+- WIMP SRC + fieldId -> MACHO topology id для array compatibility;
 - Axion ids from topology projection;
 - topology id -> affected child actors;
 - topology id -> BulkDarkParticle id.
@@ -721,7 +720,8 @@ Compatibility note:
 
 - Фаза 1: задокументировать и охранять текущую форму.
 - Фаза 2: заполнить topology runtime в Energy.
-- Фаза 3: ввести opaque ConnectivityId path для Fuzzy/MACHO/Axion impulses.
+- Фаза 3: использовать внутренние ID связности внутри `value` и кэша проекции,
+  не вынося их в публичный `path`.
 
 ### 5.4. `photon`
 
@@ -997,13 +997,13 @@ normalizer.
 |---:|---|---|---|---|---|---|---|---|
 | 1 | Создать WIMP declaration | `MetaFor` -> `boundary.wimp.create` -> `graviton add wimp` | Dark authoring -> Boundary declaration snapshot | `graviton` | `wimp` | full WIMP snapshot | src -> WIMP declaration | Bulk projection names |
 | 2 | Изменить metadata WIMP | частично отсутствует | Boundary declaration patch -> projection refresh | `graviton` | Wimp src или legacy `wimp` | metadata patch | Wimp src resolver | `/wimp/...` |
-| 3 | Добавить/изменить StringField schema | root DSL -> WIMP fields snapshot | schema patch, затем projection refresh | `graviton` | Wimp src | `fields` schema patch | Wimp src + field key | `fieldParticles` |
-| 4 | Добавить/изменить NumberField schema | как StringField | как StringField | `graviton` | Wimp src | `fields` schema patch | Wimp src + field key | Bulk names |
-| 5 | Добавить/изменить BooleanField schema | как StringField | как StringField | `graviton` | Wimp src | `fields` schema patch | Wimp src + field key | Bulk names |
-| 6 | Удалить ordinary field schema | не оформлено | schema remove + value cleanup | `graviton` | Wimp src | field schema remove patch | field key -> field id | `/field/...` |
-| 7 | Добавить/изменить Fuzzy declaration вместо enum | enum field legacy | topology declaration patch | `higgs` | Wimp src или FuzzyId позже | connectivity patch | enum key -> topology id | enum as ordinary field |
+| 3 | Добавить/изменить StringField schema | root DSL -> WIMP fields snapshot | schema patch, затем projection refresh | `graviton` | WIMP SRC | `fields: { [fieldId]: patch }` | WIMP SRC + fieldId | `fieldParticles` |
+| 4 | Добавить/изменить NumberField schema | как StringField | как StringField | `graviton` | WIMP SRC | `fields: { [fieldId]: patch }` | WIMP SRC + fieldId | Bulk names |
+| 5 | Добавить/изменить BooleanField schema | как StringField | как StringField | `graviton` | WIMP SRC | `fields: { [fieldId]: patch }` | WIMP SRC + fieldId | Bulk names |
+| 6 | Удалить ordinary field schema | не оформлено | schema remove + value cleanup | `graviton` | WIMP SRC | `fields: { [fieldId]: patch }` | WIMP SRC + fieldId | `/field/...` |
+| 7 | Добавить/изменить Fuzzy declaration вместо enum | enum field legacy | topology declaration patch | `higgs` | WIMP SRC | патч связности по внутреннему ID | fieldId -> topology id | enum as ordinary field |
 | 8 | Добавить/изменить MACHO declaration вместо array | array field legacy | topology declaration patch | `higgs` | Wimp src или MachoId позже | connectivity patch | array key -> topology id | array as ordinary field |
-| 9 | Добавить/изменить Axion declaration | topology exists | topology declaration patch | `higgs` | Wimp src или AxionId позже | predicate/logic patch | axion id resolver | path prefix |
+| 9 | Добавить/изменить Axion declaration | topology exists | topology declaration patch | `higgs` | WIMP SRC | патч predicate/logic по внутреннему ID | axion id resolver | path prefix |
 | 10 | Изменить superposition/state graph | WIMP states snapshot | state graph declaration patch | `graviton` for declaration, `photon` for runtime | Wimp src | state graph patch | stateName/id map | full runtime object |
 | 11 | Изменить process declaration | DSL process exists | declaration patch + runtime cache rebuild | `graviton` | Wimp src | process schema patch | state -> process map | processId in runtime impulse if resolvable |
 | 12 | Изменить reaction declaration | DSL old `ReactionPart` | declaration patch | `graviton` | Wimp src | reaction schema patch | reaction id map | `/fields` path examples |
@@ -1012,11 +1012,11 @@ normalizer.
 | 15 | Создать WIMP instance/current actor | `matter(src)` -> actor create | materialization intent -> Boundary actor snapshot | `graviton` | legacy `actor` | full actor snapshot | actor id | Bulk record |
 | 16 | Удалить WIMP instance | not fully wired | actor removal + projection refresh | `graviton` | actor id later | remove snapshot | actor id -> children | direct SQLite from Bulk |
 | 17 | Переместить WIMP/Fuzzy/MACHO/Axion в hidden tree | topology create currently | topology patch + Bulk relayout | `higgs` | ActorId/topology id later | connectivity move patch | topology tree cache | torus names in payload |
-| 18 | Изменить ordinary value | AppWeb/Bulk `value.fields`; Energy `/field` | v0 ActorId + `value.fields`; v1 field address + scalar | `gluon` | ActorId | `{ fields }` | actor+field -> value/runtime index | `fieldParticles` |
-| 19 | Изменить Fuzzy branch selection | enum legacy, fuzzy activity branch exists | topology selection impulse | `higgs` | ActorId/FuzzyId later | selection | fuzzy id, branch actor ids | enum as ordinary field long-term |
-| 20 | Изменить MACHO multiplicity | array legacy | multiplicity impulse | `higgs` | ActorId/MachoId later | multiplicity delta | macho id, child mapping | array as ordinary field long-term |
-| 21 | Изменить Axion logical condition/result | topology exists, runtime incomplete | logical impulse | `higgs` | AxionId later | predicate/result | axion id resolver | path prefixes |
-| 22 | State transition | Energy photon with misleading `wimpIds` naming | ActorId-scoped photon | `photon` | ActorId | stateName | actor -> brane/state | processId unless needed |
+| 18 | Изменить ordinary value | AppWeb/Bulk `value.fields`; Energy `/field` | actor ID + `fields: { [fieldId]: value }` | `gluon` | actor ID | `{ fields }` | actor ID + fieldId -> value/runtime index | `fieldParticles` |
+| 19 | Изменить Fuzzy branch selection | enum legacy, fuzzy activity branch exists | topology selection impulse | `higgs` | actor ID | выбор по fieldId | fieldId -> fuzzy id, branch actor ids | enum as ordinary field long-term |
+| 20 | Изменить MACHO multiplicity | array legacy | multiplicity impulse | `higgs` | actor ID | multiplicity delta по fieldId | fieldId -> macho id, child mapping | array as ordinary field long-term |
+| 21 | Изменить Axion logical condition/result | topology exists, runtime incomplete | logical impulse | `higgs` | actor ID | predicate/result по внутреннему ID | axion id resolver | path prefixes |
+| 22 | State transition | Energy photon с ошибочным именованием `wimpIds` | photon в области actor ID | `photon` | ActorId | stateName | actor -> brane/state | processId unless needed |
 | 23 | Process-bound state photon | weak maps exist | photon triggers process claim | `photon` + `z` | ActorId | stateName | state -> process | full process declaration |
 | 24 | Process claim | historical `z` | lock token claim | `z` | ActorId/ProcessRunId | claim token | lock cache | `/wimp/.../process/...` |
 | 25 | Process accept/reject | historical flow | `z` accept/reject | `z` | ProcessRunId | decision | run cache | redundant ids |
@@ -1060,8 +1060,8 @@ type BoundaryEnergyRuntimeSnapshot = {
 }
 ```
 
-Ключи `Record<string, ...>` должны быть deterministic composite keys, например
-`"${actorId}:${fieldKey}"`, но это внутренний ключ проекции, а не Force `path`.
+Ключи `Record<string, ...>` должны быть детерминированными составными ключами, например
+`"${actorId}:${fieldId}"`, но это внутренний ключ проекции, а не Force `path`.
 
 Что это решает:
 
@@ -1225,10 +1225,10 @@ type BoundaryEnergyRuntimeSnapshot = {
 
 Изменение:
 
-- Добавить ActorId/fieldKey/topology resolver projection.
+- Добавить actor ID, fieldId и topology resolver projection.
 - Явно добавить `wimpSrcByActorId`, `actorIdByBraneIndex`,
   `braneIndexByActorId`.
-- Переименовать misleading identity fields после проверки потребителей.
+- Переименовать ошибочно названные identity fields после проверки потребителей.
 - Заполнить topology runtime после начала миграции `enum/array`.
 
 Тесты:
@@ -1246,7 +1246,7 @@ type BoundaryEnergyRuntimeSnapshot = {
 
 - Добавить normalizer accepting v0 ActorId + `value.fields`.
 - Keep legacy `/field` only behind adapter during migration.
-- Clarify photon path ActorId vs misleading `wimpIds` naming.
+- Уточнить photon path: actor ID против ошибочного именования `wimpIds`.
 
 Тесты:
 
@@ -1325,10 +1325,10 @@ Protocol parser/guard tests:
 
 Energy resolver tests:
 
-- ActorId + field key resolves to `fieldId`, `runtimeFieldIndex`, `braneIndex`.
+- Actor ID + fieldId резолвится в `runtimeFieldIndex`, `braneIndex`.
 - Photon ActorId + stateName resolves to brane/state index.
 - Process-bound state resolves to process without payload `processId`.
-- Current misleading `wimpIds` naming does not leak into public protocol.
+- Текущее ошибочное именование `wimpIds` не протекает в публичный протокол.
 
 Bulk direct Force adapter tests:
 
@@ -1375,7 +1375,7 @@ Regression tests:
 
 Риски:
 
-- ActorId, WIMP src и misleading `wimpIds` сейчас местами смешаны, особенно для
+- ActorId, WIMP src и ошибочно названные `wimpIds` сейчас местами смешаны, особенно для
   `photon`.
 - Bulk visual ids не равны Boundary ids во всех случаях: actor id и topology id
   адаптируются в `app/web/world.ts`.
@@ -1403,10 +1403,8 @@ Regression tests:
    Boundary владеет persistence, Energy владеет runtime transitions/processes,
    Bulk наблюдает manifestation.
 
-До появления resolver cache не переходить на:
-
-- `gluon.path = FieldParticleId`;
-- `higgs.path = FuzzyId | MachoId | AxionId`;
-- `w+`/`w-` without compatibility normalizer.
-
-Такой переход должен быть v1, а не v0.
+До появления resolver cache не переводить процессы и topology runtime в финальную
+модель. Даже после появления cache публичный `path` по умолчанию остаётся ID
+области: WIMP SRC для патча класса/структуры и actor ID для патча
+рантайм-экземпляра. Внутренние field/topology/process IDs передаются внутри
+`value` или кэша резолверов, а не выносятся в публичный `path`.

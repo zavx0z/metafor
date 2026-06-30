@@ -9,6 +9,7 @@ import type { BulkDarkParticle, BulkFieldParticle, BulkManifest } from "./world"
 
 const createFieldParticle = (fieldParticleId: number) => ({
   fieldParticleId,
+  fieldId: fieldParticleId,
   fieldKey: String(fieldParticleId),
   fieldLabel: String(fieldParticleId),
   fieldParticleKind: "string" as const,
@@ -138,6 +139,9 @@ describe("bulk/gravity/layout manifest", () => {
     const childField = getFieldParticle(manifest, 102)
     const leafField = getFieldParticle(manifest, 103)
 
+    expect(rootField.fieldId).toBe(101)
+    expect(childField.fieldId).toBe(102)
+    expect(leafField.fieldId).toBe(103)
     expect(getOuterRadius(root)).toBeGreaterThan(getOuterRadius(child))
     expect(getOuterRadius(child)).toBeGreaterThan(getOuterRadius(leaf))
     expect(rootField.sphereRadius).toBeGreaterThan(childField.sphereRadius)
@@ -259,7 +263,9 @@ describe("bulk/gravity/layout manifest", () => {
     const normalizedRoot = getDarkParticle(normalized, 1)
     const rawChild = getDarkParticle(raw, 2)
     const normalizedChild = getDarkParticle(normalized, 2)
+    const normalizedField = getFieldParticle(normalized, 100)
 
+    expect(normalizedField.fieldId).toBe(100)
     expect(getOuterRadius(normalizedRoot) * 2).toBeCloseTo(
       DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG.rootOuterDiameterMm,
       6,

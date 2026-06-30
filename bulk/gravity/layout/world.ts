@@ -34,6 +34,7 @@ export interface BulkDarkParticle {
 
 export interface BulkFieldParticle {
   fieldParticleId: number
+  fieldId: number
   parentDarkParticleId: number
   fieldKey: string
   fieldLabel: string

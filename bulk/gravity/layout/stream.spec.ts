@@ -5,6 +5,7 @@ import type { BulkDarkParticleInput } from "./snapshot"
 
 const createFieldParticle = (fieldParticleId: number) => ({
   fieldParticleId,
+  fieldId: fieldParticleId,
   fieldKey: String(fieldParticleId),
   fieldLabel: String(fieldParticleId),
   fieldParticleKind: "string" as const,
@@ -74,6 +75,10 @@ describe("bulk/gravity/layout streamBulkManifest", () => {
       2,
     ])
     expect(fieldParticleEvents.map((event) => (event.item as BulkFieldParticle).fieldParticleId).sort()).toEqual([
+      101,
+      102,
+    ])
+    expect(fieldParticleEvents.map((event) => (event.item as BulkFieldParticle).fieldId).sort()).toEqual([
       101,
       102,
     ])

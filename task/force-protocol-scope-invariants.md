@@ -33,8 +33,8 @@ instance patch = part + actor ID + value
 И ещё короче:
 
 ```text
-path  = scope id
-value = минимальный patch внутри scope
+path  = ID области
+value = минимальный патч внутри области
 part  = carrier / force semantics
 op    = операция
 ```
@@ -57,7 +57,7 @@ actor ID -> actor instance -> WIMP SRC -> internal ids from value -> exact targe
 
 Если вынести `FieldParticleId`, `FuzzyId`, `MACHOId`, `AxionId` или `ProcessId`
 в публичный `path`, протокол начнёт плодить множество публичных адресных
-пространств и потеряет главное упрощение: единый scope-поиск.
+пространств и потеряет главное упрощение: единый поиск от области действия.
 
 Эти ID могут и должны существовать внутри Boundary, Energy, Bulk и resolver cache,
 но они не являются публичным Force `path`.
@@ -113,7 +113,7 @@ actor ID -> actor instance -> WIMP SRC -> internal ids from value -> exact targe
 }
 ```
 
-## 4. Class-scope patch: path = WIMP SRC
+## 4. Патч области класса: path = WIMP SRC
 
 Structural-патчи идут по WIMP SRC.
 
@@ -158,10 +158,10 @@ value.fields[1] -> structural element id внутри WIMP declaration
 WIMP SRC -> все actor instance этого WIMP, если нужен projection/runtime refresh
 ```
 
-Такой class-scope patch позволяет не рассылать N одинаковых патчей по каждому
+Такой патч области класса позволяет не рассылать N одинаковых патчей по каждому
 actor instance.
 
-## 5. Instance-scope patch: path = actor ID
+## 5. Патч области экземпляра: path = actor ID
 
 Runtime-патчи идут по actor ID.
 
@@ -228,7 +228,7 @@ part higgs -> connectivity/runtime topology update
 
 `value` является минимальным объектным патчем внутри выбранной области.
 
-Для class scope:
+Для области класса:
 
 ```jsonc
 {
@@ -247,7 +247,7 @@ part higgs -> connectivity/runtime topology update
 }
 ```
 
-Для instance scope:
+Для области экземпляра:
 
 ```jsonc
 {
@@ -284,44 +284,26 @@ part higgs -> connectivity/runtime topology update
 | Process success | `w+` | actor ID | `{ fields?, state?, token? }` |
 | Process error | `w-` | actor ID | `{ fields?, error?, state?, token? }` |
 
-## 8. Что нужно исправить в основном исследовании
+## 8. Связь с основным исследованием
 
-В `task/force-protocol-research.md` нужно убрать или переписать формулировки,
-которые предлагают будущий публичный переход к:
-
-```text
-gluon.path = FieldParticleId
-higgs.path = FuzzyId | MACHOId | AxionId
-w.path = ProcessRunId как обязательный public path
-```
-
-Правильная формулировка:
+`task/force-protocol-research.md` должен использовать эту же формулировку:
 
 ```text
-Публичный Force path имеет два устойчивых scope:
-- WIMP SRC для class/structure patches;
-- actor ID для instance/runtime patches.
+Публичный Force path имеет две устойчивые области:
+- WIMP SRC для патчей класса/структуры;
+- actor ID для патчей рантайм-экземпляра.
 
 Field/Fuzzy/MACHO/Axion/process/runtime ids являются internal resolver ids.
 Они используются внутри `value` или projection cache, но не становятся публичным
 Force path по умолчанию.
 ```
 
-Также нужно заменить все формулировки вида:
-
-```text
-fieldKey или order/key
-WIMPId + fieldKey
-ActorId + fieldKey
-field key -> field id
-```
-
-на:
+Для полей и structural slots правильная адресация формулируется так:
 
 ```text
 fieldId
 WIMP SRC + fieldId
-ActorId + fieldId
+actor ID + fieldId
 key is mutable metadata, not address
 ```
 
