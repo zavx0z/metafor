@@ -1,6 +1,10 @@
 import {force} from "boundary"
+import type {DomainPath} from "boundary"
 
-export type PhotonPayload = { value: string; path: string }
+export type PhotonPayload = { value: string; path: DomainPath }
+type RuntimeFieldPatchValue = { fields: Record<string, unknown> }
+type DarkGluonPatchPart = { op: "replace" | "remove"; path: number; value: RuntimeFieldPatchValue }
+type DarkHiggsPatchPart = { op: "replace" | "remove"; path: number | string; value: RuntimeFieldPatchValue }
 
 export interface DarkPhotonStore {
   messages: PhotonPayload[]
@@ -11,10 +15,10 @@ export interface DarkPhotonSubscription {
 }
 
 export interface DarkElectromagnetismForce {
-  emitGluonParts(parts: Array<{ op: "replace"; path: string; value: unknown }>): void
-  emitHiggsParts(parts: Array<{ op: "replace"; path: string; value: unknown }>): void
-  emitGluonReplace(wimpFieldId: string, value: unknown): void
-  emitHiggsReplace(wimpFieldId: string, value: unknown): void
+  emitGluonParts(parts: DarkGluonPatchPart[]): void
+  emitHiggsParts(parts: DarkHiggsPatchPart[]): void
+  emitGluonReplace(actorId: number, fieldId: number, value: unknown): void
+  emitHiggsReplace(path: number | string, fieldId: number, value: unknown): void
   close(): void
 }
 
@@ -49,32 +53,44 @@ export const subscribeDarkPhotons = (
   }
 }
 
-const createReplacePart = (wimpFieldId: string, value: unknown): { op: "replace"; path: string; value: unknown } => ({
+const createRuntimeFieldPatchValue = (fieldId: number, value: unknown): RuntimeFieldPatchValue => ({
+  fields: {
+    [String(fieldId)]: value,
+  },
+})
+
+const createGluonReplacePart = (actorId: number, fieldId: number, value: unknown): DarkGluonPatchPart => ({
   op: "replace",
-  path: `/field/${wimpFieldId}`,
-  value,
+  path: actorId,
+  value: createRuntimeFieldPatchValue(fieldId, value),
+})
+
+const createHiggsReplacePart = (path: number | string, fieldId: number, value: unknown): DarkHiggsPatchPart => ({
+  op: "replace",
+  path,
+  value: createRuntimeFieldPatchValue(fieldId, value),
 })
 
 export const createDarkElectromagnetismForce = (
   options: { channelName?: string } = {},
 ): DarkElectromagnetismForce => {
   void options
-  const emitGluonParts = (parts: Array<{ op: "replace"; path: string; value: unknown }>): void => {
+  const emitGluonParts = (parts: DarkGluonPatchPart[]): void => {
     force.emit({ parts: parts.map((part) => ({ part: "gluon", ...part })) })
   }
-  const emitHiggsParts = (parts: Array<{ op: "replace"; path: string; value: unknown }>): void => {
+  const emitHiggsParts = (parts: DarkHiggsPatchPart[]): void => {
     force.emit({ parts: parts.map((part) => ({ part: "higgs", ...part })) })
   }
 
   return {
     emitGluonParts,
     emitHiggsParts,
-    emitGluonReplace(wimpFieldId, value) {
-      emitGluonParts([createReplacePart(wimpFieldId, value)])
+    emitGluonReplace(actorId, fieldId, value) {
+      emitGluonParts([createGluonReplacePart(actorId, fieldId, value)])
     },
 
-    emitHiggsReplace(wimpFieldId, value) {
-      emitHiggsParts([createReplacePart(wimpFieldId, value)])
+    emitHiggsReplace(path, fieldId, value) {
+      emitHiggsParts([createHiggsReplacePart(path, fieldId, value)])
     },
 
     close() {

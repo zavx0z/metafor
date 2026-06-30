@@ -32,9 +32,10 @@ import { energy$ } from "./store"
 import type { EnergyFieldValueRecord, EnergyStore } from "./store.t"
 import type { PreparedData } from "./energy.t"
 import {force, type EnergyForceMessage, type EnergyParticle} from "./channel"
-import { flattenEnergyData, validateData, type Data } from "@energy/gravity"
+import { FieldType, flattenEnergyData, validateData, type Data } from "@energy/gravity"
 import { createStoredStringInterner, normalizeFieldValue, assembleStoredEnergyData, strong$ } from "@energy/strong"
 import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@energy/weak"
+import {resolveForceFieldId, resolveForceFieldsPayload} from "../boundary/force-fields.ts"
 
 type EnergyValuePart = { op: "replace"; path: string; value: unknown }
 type EnergyWeakResultPayload = { wimpId: number; processId: number; parts: EnergyValuePart[] }
@@ -43,12 +44,20 @@ export type EnergyRuntimeSnapshot = {
   ok: true
   version: 1
   wimpIds: number[]
+  runtime: {
+    actorIdByBraneIndex: number[]
+    braneIndexByActorId: Array<[actorId: number, braneIndex: number]>
+    wimpSrcByActorId: Array<[actorId: number, wimpSrc: string]>
+    actorIdsByWimpSrc: Array<[wimpSrc: string, actorIds: number[]]>
+    runtimeFieldIndexByActorFieldId: Array<[actorId: number, fieldId: number, runtimeFieldIndex: number]>
+  }
   data: Data
   strong: {
     runtimeFieldIndexByWimpFieldId: Array<[number, number]>
     wimpFieldIdsByRuntimeFieldIndex: number[][]
     braneIndexByWimpFieldId: Array<[number, number]>
     topologyWimpFieldIds: number[]
+    topologyActorFieldIds: Array<[actorId: number, fieldId: number]>
   }
   weak: {
     stateMetaStateIdsByBraneIndex: number[][]
@@ -69,7 +78,10 @@ type AsyncGate = {
 
 const writeGate: AsyncGate = { pending: null }
 const updateGate: AsyncGate = { pending: null }
-const FIELD_PART_PATH_PREFIX = "/field/"
+const WEAK_RESULT_FIELD_PART_PATH_PREFIX = "/field/"
+
+const actorFieldKey = (actorId: number, fieldId: number): string =>
+  `${actorId}\0${fieldId}`
 
 const parseRuntimeId = (value: unknown): number | null => {
   if (typeof value === "number" && Number.isSafeInteger(value)) return value
@@ -144,8 +156,13 @@ export const applyPreparedData = (prepared: PreparedData): void => {
 
 const clearRuntimeAddressing = (): void => {
   gravity$.activeWimpIds = []
+  gravity$.activeActorIds = []
   gravity$.wimpIdToBraneIndex.clear()
+  gravity$.actorIdToBraneIndex.clear()
   gravity$.braneIndexToWimpId = []
+  gravity$.braneIndexToActorId = []
+  gravity$.wimpSrcByActorId.clear()
+  gravity$.actorIdsByWimpSrc.clear()
   gravity$.structuralDirty = false
 }
 
@@ -170,24 +187,69 @@ const requireRuntimeFieldAddress = (wimpFieldId: number): [braneIndex: number, r
   return [braneIndex, runtimeFieldIndex]
 }
 
-const collectPartValues = (parts: EnergyValuePart[], kind: "gluon" | "higgs"): Record<string, unknown> => {
-  const values: Record<string, unknown> = {}
+const parseActorIdPath = (path: EnergyParticle["path"]): number | null =>
+  typeof path === "number" && Number.isSafeInteger(path) && path > 0 ? path : null
+
+const isTopologyCompatibleActorField = (actorId: number, fieldId: number, runtimeFieldIndex: number): boolean => {
+  if (strong$.topologyActorFieldIds.has(actorFieldKey(actorId, fieldId))) return true
+  const field = energy$.fields[runtimeFieldIndex]
+  return field?.type === FieldType.U32 || field?.type === FieldType.ARRAY_PTR
+}
+
+const collectActorFieldUpdates = (
+  parts: EnergyParticle[],
+  kind: "gluon" | "higgs",
+): Array<[braneIndex: number, fieldUpdates: Array<[fieldIndex: number, value: unknown]>]> => {
+  const groupedUpdates = new Map<number, Array<[number, unknown]>>()
 
   for (const part of parts) {
-    const wimpFieldId = requireFieldPartId(part.path)
-    const isTopology = strong$.topologyWimpFieldIds.has(wimpFieldId)
+    if (part.part !== kind || (part.op !== "replace" && part.op !== "remove")) continue
+    const actorId = parseActorIdPath(part.path)
+    if (actorId === null) continue
+    const braneIndex = gravity$.getBraneIndexByActorId(actorId)
+    if (braneIndex === undefined) continue
+    const fields = resolveForceFieldsPayload(part.value)
+    if (fields === null) continue
 
-    if (kind === "gluon" && isTopology) {
-      throw new Error(`Gluon part cannot target topology field ${wimpFieldId}`)
-    }
-    if (kind === "higgs" && !isTopology) {
-      throw new Error(`Higgs part must target topology field ${wimpFieldId}`)
-    }
+    for (const [address, value] of Object.entries(fields)) {
+      const fieldId = resolveForceFieldId(address)
+      if (fieldId === null) continue
+      const runtimeFieldIndex = strong$.runtimeFieldIndexByActorFieldId.get(actorFieldKey(actorId, fieldId))
+      if (runtimeFieldIndex === undefined) continue
+      const isTopology = isTopologyCompatibleActorField(actorId, fieldId, runtimeFieldIndex)
+      if (kind === "gluon" && isTopology) continue
+      if (kind === "higgs" && !isTopology) continue
 
-    values[String(wimpFieldId)] = part.value
+      const fieldUpdates = groupedUpdates.get(braneIndex)
+      const nextValue = part.op === "remove" ? null : value
+      if (fieldUpdates) fieldUpdates.push([runtimeFieldIndex, nextValue])
+      else groupedUpdates.set(braneIndex, [[runtimeFieldIndex, nextValue]])
+    }
   }
 
-  return values
+  return Array.from(groupedUpdates, ([braneIndex, fieldUpdates]) => [braneIndex, fieldUpdates])
+}
+
+const markHiggsClassScopeDirty = (parts: EnergyParticle[]): void => {
+  for (const part of parts) {
+    if (part.part !== "higgs" || (part.op !== "replace" && part.op !== "remove")) continue
+    if (typeof part.path !== "string") continue
+    const fields = resolveForceFieldsPayload(part.value)
+    if (fields === null) continue
+    if (!Object.keys(fields).some((address) => resolveForceFieldId(address) !== null)) continue
+    if (gravity$.getActorIdsByWimpSrc(part.path).length === 0) continue
+    gravity$.structuralDirty = true
+  }
+}
+
+const applyRuntimeFieldParts = async (
+  parts: EnergyParticle[],
+  kind: "gluon" | "higgs",
+): Promise<[number, number][]> => {
+  if (kind === "higgs") markHiggsClassScopeDirty(parts)
+  const updates = collectActorFieldUpdates(parts, kind)
+  if (updates.length === 0) return []
+  return await update(updates)
 }
 
 const publishPhotonChanges = (changes: [number, number][]): void => {
@@ -195,13 +257,13 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
   const parts: EnergyParticle[] = []
 
   for (const [braneIndex, stateIndex] of changes) {
-    const id = gravity$.getWimpId(braneIndex)
-    if (!id) continue
+    const actorId = gravity$.getActorId(braneIndex)
+    if (actorId === undefined) continue
 
     const stateName = energy$.getStateName(braneIndex, stateIndex)
     if (!stateName) continue
 
-    parts.push({ part: "photon", op: "replace", path: String(id), value: stateName })
+    parts.push({ part: "photon", op: "replace", path: actorId, value: stateName })
   }
 
   if (parts.length === 0) return
@@ -225,14 +287,14 @@ const syncProcessLocksForChanges = (changes: [number, number][]): void => {
   }
 }
 
-const requireFieldPartId = (path: string): number => {
-  if (!path.startsWith(FIELD_PART_PATH_PREFIX)) {
-    throw new Error(`Unsupported Energy field part path: ${path}`)
+const requireWeakResultFieldPartId = (path: string): number => {
+  if (!path.startsWith(WEAK_RESULT_FIELD_PART_PATH_PREFIX)) {
+    throw new Error(`Unsupported Energy weak result field part path: ${path}`)
   }
 
-  const wimpFieldId = parseRuntimeId(path.slice(FIELD_PART_PATH_PREFIX.length))
+  const wimpFieldId = parseRuntimeId(path.slice(WEAK_RESULT_FIELD_PART_PATH_PREFIX.length))
   if (wimpFieldId === null) {
-    throw new Error(`Energy field part path is missing field id: ${path}`)
+    throw new Error(`Energy weak result field part path is missing field id: ${path}`)
   }
 
   return wimpFieldId
@@ -265,12 +327,34 @@ export async function loadRuntimeSnapshot(snapshot: EnergyRuntimeSnapshot): Prom
   gravity$.activeWimpIds = [...snapshot.wimpIds]
   gravity$.braneIndexToWimpId = [...snapshot.wimpIds]
   gravity$.wimpIdToBraneIndex = new Map(snapshot.wimpIds.map((wimpId, braneIndex) => [wimpId, braneIndex] as const))
+  gravity$.activeActorIds = [...snapshot.runtime.actorIdByBraneIndex]
+  gravity$.braneIndexToActorId = [...snapshot.runtime.actorIdByBraneIndex]
+  gravity$.actorIdToBraneIndex = new Map(snapshot.runtime.braneIndexByActorId)
+  gravity$.wimpSrcByActorId = new Map(snapshot.runtime.wimpSrcByActorId)
+  gravity$.actorIdsByWimpSrc = new Map(
+    snapshot.runtime.actorIdsByWimpSrc.map(([wimpSrc, actorIds]) => [wimpSrc, [...actorIds]] as const),
+  )
   gravity$.structuralDirty = false
 
   strong$.runtimeFieldIndexByWimpFieldId = new Map(snapshot.strong.runtimeFieldIndexByWimpFieldId)
   strong$.wimpFieldIdsByRuntimeFieldIndex = snapshot.strong.wimpFieldIdsByRuntimeFieldIndex.map((ids) => [...ids])
   strong$.braneIndexByWimpFieldId = new Map(snapshot.strong.braneIndexByWimpFieldId)
   strong$.topologyWimpFieldIds = new Set(snapshot.strong.topologyWimpFieldIds)
+  strong$.runtimeFieldIndexByActorFieldId = new Map(
+    snapshot.runtime.runtimeFieldIndexByActorFieldId.map(([actorId, fieldId, runtimeFieldIndex]) => [
+      actorFieldKey(actorId, fieldId),
+      runtimeFieldIndex,
+    ] as const),
+  )
+  strong$.actorFieldIdsByRuntimeFieldIndex = []
+  for (const [actorId, fieldId, runtimeFieldIndex] of snapshot.runtime.runtimeFieldIndexByActorFieldId) {
+    const bucket = strong$.actorFieldIdsByRuntimeFieldIndex[runtimeFieldIndex]
+    if (bucket) bucket.push([actorId, fieldId])
+    else strong$.actorFieldIdsByRuntimeFieldIndex[runtimeFieldIndex] = [[actorId, fieldId]]
+  }
+  strong$.topologyActorFieldIds = new Set(
+    snapshot.strong.topologyActorFieldIds.map(([actorId, fieldId]) => actorFieldKey(actorId, fieldId)),
+  )
 
   weak$.stateMetaStateIdsByBraneIndex = snapshot.weak.stateMetaStateIdsByBraneIndex.map((ids) => [...ids])
   weak$.stateProcessIdsByBraneIndex = snapshot.weak.stateProcessIdsByBraneIndex.map((ids) =>
@@ -387,6 +471,12 @@ export async function update(
         affectedBraneIndexes.add(braneIndex)
 
         // Runtime field may be shared across multiple id-addressed fields via source/entanglement.
+        for (const [actorId] of strong$.actorFieldIdsByRuntimeFieldIndex[fieldIndex] ?? []) {
+          const affectedBraneIndex = gravity$.getBraneIndexByActorId(actorId)
+          if (affectedBraneIndex !== undefined) {
+            affectedBraneIndexes.add(affectedBraneIndex)
+          }
+        }
         for (const wimpFieldId of strong$.wimpFieldIdsByRuntimeFieldIndex[fieldIndex] ?? []) {
           const affectedBraneIndex = strong$.braneIndexByWimpFieldId.get(wimpFieldId)
           if (affectedBraneIndex !== undefined) {
@@ -414,66 +504,6 @@ export async function update(
     publishPhotonChanges(photonTargets)
     return changes
   })
-}
-
-export async function setValues(values: Record<string, unknown>): Promise<[number, number][]> {
-  const groupedUpdates = new Map<number, Array<[number, unknown]>>()
-
-  for (const [rawWimpFieldId, value] of Object.entries(values)) {
-    const wimpFieldId = parseRuntimeId(rawWimpFieldId)
-    if (wimpFieldId === null) throw new Error(`Energy field id must be an integer: ${rawWimpFieldId}`)
-    const [braneIndex, runtimeFieldIndex] = requireRuntimeFieldAddress(wimpFieldId)
-
-    const fieldUpdates = groupedUpdates.get(braneIndex)
-    if (fieldUpdates) {
-      fieldUpdates.push([runtimeFieldIndex, value])
-    } else {
-      groupedUpdates.set(braneIndex, [[runtimeFieldIndex, value]])
-    }
-  }
-
-  return await update(Array.from(groupedUpdates, ([braneIndex, fieldUpdates]) => [braneIndex, fieldUpdates]))
-}
-
-const runtimeFieldIdFromPartPath = (path: string): number | null =>
-  parseRuntimeId(path.startsWith(FIELD_PART_PATH_PREFIX) ? path.slice(FIELD_PART_PATH_PREFIX.length) : path)
-
-export async function applyRuntimeValueParts(parts: EnergyParticle[]): Promise<[number, number][]> {
-  if (!weak$.initialized) return []
-
-  const stringInterner = createStoredStringInterner(energy$.stringTable)
-  const updates: Array<{kind: "field"; braneIndex: number; fieldIndex: number}> = []
-
-  for (const part of parts) {
-    if ((part.part !== "gluon" && part.part !== "higgs") || part.op !== "replace") continue
-
-    const wimpFieldId = runtimeFieldIdFromPartPath(part.path)
-    if (wimpFieldId === null) continue
-    const braneIndex = strong$.braneIndexByWimpFieldId.get(wimpFieldId)
-    const fieldIndex = strong$.runtimeFieldIndexByWimpFieldId.get(wimpFieldId)
-    if (braneIndex === undefined || fieldIndex === undefined) continue
-
-    const field = energy$.fields[fieldIndex]
-    const record = energy$.getField(braneIndex, fieldIndex)
-    if (!field || !record) continue
-
-    record.value = normalizeFieldValue(part.value, field, stringInterner)
-    updates.push({kind: "field", braneIndex, fieldIndex})
-  }
-
-  if (updates.length === 0) return []
-
-  weakHeapUpdate(updates)
-  const changes = await weakRunStep()
-  publishPhotonChanges(changes)
-  return changes
-}
-
-const applyValueParts = async (
-  parts: EnergyValuePart[],
-  kind: "gluon" | "higgs",
-): Promise<[number, number][]> => {
-  return await setValues(collectPartValues(parts, kind))
 }
 
 export async function applyWeakResultPacket(message: EnergyWeakResultPayload): Promise<[number, number][]> {
@@ -505,7 +535,7 @@ export async function applyWeakResultPacket(message: EnergyWeakResultPayload): P
   const fieldUpdates: Array<[fieldIndex: number, value: unknown]> = []
 
   for (const part of message.parts) {
-    const wimpFieldId = requireFieldPartId(part.path)
+    const wimpFieldId = requireWeakResultFieldPartId(part.path)
     const [ownerBraneIndex, runtimeFieldIndex] = requireRuntimeFieldAddress(wimpFieldId)
     if (ownerBraneIndex === undefined) {
       throw new Error(`Energy weak result field is not materialized: ${wimpFieldId}`)
@@ -521,11 +551,6 @@ export async function applyWeakResultPacket(message: EnergyWeakResultPayload): P
   return await update([[braneIndex, fieldUpdates, false]], {
     skipProcessRetriggerBraneIndexes: [braneIndex],
   })
-}
-
-const toEnergyValuePart = (part: EnergyParticle): EnergyValuePart | null => {
-  if (part.op !== "replace") return null
-  return { op: "replace", path: part.path, value: part.value }
 }
 
 const collectWeakResultPackets = (parts: EnergyParticle[]): EnergyWeakResultPayload[] => {
@@ -545,6 +570,7 @@ const collectWeakResultPackets = (parts: EnergyParticle[]): EnergyWeakResultPayl
       packets.set(key, packet)
     }
     if (part.op === "replace") {
+      if (typeof part.path !== "string") continue
       packet.parts.push({ op: "replace", path: part.path, value: part.value })
     }
   }
@@ -562,11 +588,7 @@ const subscribeEnergyValueBroadcast = (
   kind: "gluon" | "higgs",
 ): EnergyValueBroadcastSubscription => {
   return createSubscription(async (message) => {
-    const parts = message.parts
-      .filter((part) => part.part === kind)
-      .map(toEnergyValuePart)
-      .filter((part): part is EnergyValuePart => part !== null)
-    await applyValueParts(parts, kind)
+    await applyRuntimeFieldParts(message.parts, kind)
   })
 }
 

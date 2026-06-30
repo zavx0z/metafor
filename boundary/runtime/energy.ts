@@ -5,6 +5,13 @@ type EnergyFieldType = 0 | 1 | 2 | 3 | 4
 export type BoundaryEnergyRuntimeSnapshot = {
   version: 1
   wimpIds: number[]
+  runtime: {
+    actorIdByBraneIndex: number[]
+    braneIndexByActorId: Array<[actorId: number, braneIndex: number]>
+    wimpSrcByActorId: Array<[actorId: number, wimpSrc: string]>
+    actorIdsByWimpSrc: Array<[wimpSrc: string, actorIds: number[]]>
+    runtimeFieldIndexByActorFieldId: Array<[actorId: number, fieldId: number, runtimeFieldIndex: number]>
+  }
   data: {
     fields: Array<{type: EnergyFieldType; elementType?: "string"; enum?: unknown[]}>
     branes: Array<{
@@ -19,6 +26,7 @@ export type BoundaryEnergyRuntimeSnapshot = {
     wimpFieldIdsByRuntimeFieldIndex: number[][]
     braneIndexByWimpFieldId: Array<[number, number]>
     topologyWimpFieldIds: number[]
+    topologyActorFieldIds: Array<[actorId: number, fieldId: number]>
   }
   weak: {
     stateMetaStateIdsByBraneIndex: number[][]
@@ -226,9 +234,16 @@ export async function energyRuntime(sql: SQL): Promise<BoundaryEnergyRuntimeSnap
   const branes: BoundaryEnergyRuntimeSnapshot["data"]["branes"] = []
   const stateNames: string[][] = []
   const wimpIds: number[] = []
+  const actorIdByBraneIndex: number[] = []
+  const braneIndexByActorId: Array<[actorId: number, braneIndex: number]> = []
+  const wimpSrcByActorId: Array<[actorId: number, wimpSrc: string]> = []
+  const actorIdsByWimpSrc = new Map<string, number[]>()
+  const runtimeFieldIndexByActorFieldId: Array<[actorId: number, fieldId: number, runtimeFieldIndex: number]> = []
   const runtimeFieldIndexByWimpFieldId: Array<[number, number]> = []
   const braneIndexByWimpFieldId: Array<[number, number]> = []
   const wimpFieldIdsByRuntimeFieldIndex: number[][] = []
+  const topologyWimpFieldIds: number[] = []
+  const topologyActorFieldIds: Array<[actorId: number, fieldId: number]> = []
   const stateMetaStateIdsByBraneIndex: number[][] = []
   const stateProcessIdsByBraneIndex: Array<Array<number | null>> = []
   const runtimeFieldIndexByActorField = new Map<string, number>()
@@ -237,6 +252,12 @@ export async function energyRuntime(sql: SQL): Promise<BoundaryEnergyRuntimeSnap
     const actorFields = fieldsByWimp.get(actor.wimp) ?? []
     const values: Array<[number, unknown]> = []
     wimpIds.push(actor.id)
+    actorIdByBraneIndex[braneIndex] = actor.id
+    braneIndexByActorId.push([actor.id, braneIndex])
+    wimpSrcByActorId.push([actor.id, actor.wimp])
+    const actorIdsForWimp = actorIdsByWimpSrc.get(actor.wimp)
+    if (actorIdsForWimp) actorIdsForWimp.push(actor.id)
+    else actorIdsByWimpSrc.set(actor.wimp, [actor.id])
 
     for (const field of actorFields) {
       const runtimeFieldIndex = dataFields.length
@@ -244,9 +265,14 @@ export async function energyRuntime(sql: SQL): Promise<BoundaryEnergyRuntimeSnap
       dataFields.push(energyField(field))
       values.push([runtimeFieldIndex, decodeValue(actorValueByActorField.get(`${actor.id}\0${field.id}`), field)])
       runtimeFieldIndexByActorField.set(`${actor.id}\0${field.id}`, runtimeFieldIndex)
+      runtimeFieldIndexByActorFieldId.push([actor.id, field.id, runtimeFieldIndex])
       runtimeFieldIndexByWimpFieldId.push([wimpFieldId, runtimeFieldIndex])
       braneIndexByWimpFieldId.push([wimpFieldId, braneIndex])
       wimpFieldIdsByRuntimeFieldIndex[runtimeFieldIndex] = [wimpFieldId]
+      if (field.type === "enum" || field.type === "array") {
+        topologyWimpFieldIds.push(wimpFieldId)
+        topologyActorFieldIds.push([actor.id, field.id])
+      }
     }
 
     const actorStatesForWimp = statesByWimp.get(actor.wimp) ?? [{id: 0, wimp: actor.wimp, name: "default", position: 0}]
@@ -281,12 +307,23 @@ export async function energyRuntime(sql: SQL): Promise<BoundaryEnergyRuntimeSnap
   return {
     version: 1,
     wimpIds,
+    runtime: {
+      actorIdByBraneIndex,
+      braneIndexByActorId,
+      wimpSrcByActorId,
+      actorIdsByWimpSrc: [...actorIdsByWimpSrc.entries()].map(([wimpSrc, actorIds]): [string, number[]] => [
+        wimpSrc,
+        [...actorIds],
+      ]),
+      runtimeFieldIndexByActorFieldId,
+    },
     data: {fields: dataFields, branes, stateNames},
     strong: {
       runtimeFieldIndexByWimpFieldId,
       wimpFieldIdsByRuntimeFieldIndex,
       braneIndexByWimpFieldId,
-      topologyWimpFieldIds: [],
+      topologyWimpFieldIds,
+      topologyActorFieldIds,
     },
     weak: {
       stateMetaStateIdsByBraneIndex,

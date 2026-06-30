@@ -1107,9 +1107,13 @@ type BoundaryEnergyRuntimeSnapshot = {
 
 ### Фаза 3: убрать `/field/...` из публичной поверхности Energy
 
-- Добавить normalizer для `gluon.path = ActorId` + `value.fields`.
-- Сохранить legacy `/field` только внутри adapter.
-- Добавить тесты, что новый публичный путь не требует URI-like path.
+- Для обычного `gluon`/`higgs`/`photon` это выполнено: Energy принимает
+  `path = actor ID` или `path = WIMP SRC`, а поля читает из
+  `value.fields[fieldId]`.
+- Устаревший `/field/...` больше не является публичной поверхностью обычного
+  рантайм-потока.
+- Остаточный `/field/...` остаётся только в зоне процессов
+  `z`/`w+`/`w-` и `applyWeakResultPacket` до отдельного перевода процесса.
 
 ### Фаза 4: довести topology runtime Energy
 

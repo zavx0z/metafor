@@ -1,11 +1,13 @@
 export const FORCE = "force"
 
+export type EnergyDomainPath = string | number
+
 export type EnergyParticle = {
   part: string
   op: string
-  path: string
+  path: EnergyDomainPath
   value?: unknown
-  from?: string
+  from?: EnergyDomainPath
   [key: string]: unknown
 }
 

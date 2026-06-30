@@ -1,7 +1,6 @@
 export {
   FieldType,
   applyPreparedData,
-  applyRuntimeValueParts,
   applyWeakResultPacket,
   energy$,
   flattenEnergyData,
@@ -9,7 +8,6 @@ export {
   listRuntimeWimpIds,
   loadRuntimeSnapshot,
   prepareData,
-  setValues,
   strong$,
   subscribeEnergyGluonBroadcast,
   subscribeEnergyHiggsBroadcast,
@@ -40,6 +38,7 @@ export type {
   EnergyForce,
   EnergyForceBinding,
   EnergyForceChannel,
+  EnergyDomainPath,
   EnergyForceMessage,
   EnergyForceMessageListener,
   EnergyForceSurface,

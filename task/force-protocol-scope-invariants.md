@@ -94,6 +94,12 @@ actor ID -> actor instance -> WIMP SRC -> internal ids from value -> exact targe
 }
 ```
 
+Для обычного рантайм-потока это означает: `gluon` и `higgs` в области
+экземпляра используют `path = actor ID` и `value.fields[fieldId]`; `photon`
+возвращает `path = actor ID`. URI-подобный `/field/...` не является адресом
+обычного рантайм-протокола и остаётся только в устаревшем потоке результатов
+процессов до отдельной миграции процессов.
+
 Здесь:
 
 ```text

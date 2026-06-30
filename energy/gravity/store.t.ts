@@ -8,6 +8,7 @@
 export interface EnergyGravityStore {
   /** Целевая активная id-композиция для следующего/текущего runtime rebuild. */
   activeWimpIds: number[]
+  activeActorIds: number[]
 
   /**
    * Актуальное отображение id -> runtime braneIndex после последнего успешного rebuild.
@@ -16,6 +17,7 @@ export interface EnergyGravityStore {
    * последнему materialized `energy$`, а не к новой целевой composition.
    */
   wimpIdToBraneIndex: Map<number, number>
+  actorIdToBraneIndex: Map<number, number>
 
   /**
    * Актуальное отображение runtime braneIndex -> id после последнего успешного rebuild.
@@ -24,6 +26,9 @@ export interface EnergyGravityStore {
    * последнему materialized `energy$`, а не к новой целевой composition.
    */
   braneIndexToWimpId: number[]
+  braneIndexToActorId: number[]
+  wimpSrcByActorId: Map<number, string>
+  actorIdsByWimpSrc: Map<string, number[]>
 
   /**
    * Флаг расхождения composition/addressing слоя и materialized runtime.
@@ -36,4 +41,9 @@ export interface EnergyGravityStore {
   hasWimp(wimpId: number): boolean
   getBraneIndex(wimpId: number): number | undefined
   getWimpId(braneIndex: number): number | undefined
+  hasActor(actorId: number): boolean
+  getBraneIndexByActorId(actorId: number): number | undefined
+  getActorId(braneIndex: number): number | undefined
+  getWimpSrcByActorId(actorId: number): string | undefined
+  getActorIdsByWimpSrc(wimpSrc: string): number[]
 }
