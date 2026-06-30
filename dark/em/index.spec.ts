@@ -38,7 +38,7 @@ describe("dark/em Force helpers", () => {
     try {
       const em = createDarkElectromagnetismForce()
       em.emitHiggsReplace(17, 5, "native")
-      em.emitHiggsReplace("zavx0z/full-screen", 5, {key: "mode", type: "enum"})
+      em.emitHiggsReplace("zavx0z/linux", 5, {key: "mode", type: "enum"})
 
       expect(parts).toEqual([
         {
@@ -50,7 +50,7 @@ describe("dark/em Force helpers", () => {
         {
           part: "higgs",
           op: "replace",
-          path: "zavx0z/full-screen",
+          path: "zavx0z/linux",
           value: {fields: {"5": {key: "mode", type: "enum"}}},
         },
       ])

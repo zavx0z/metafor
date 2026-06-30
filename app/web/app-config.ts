@@ -41,10 +41,10 @@ export interface AppConfig {
  * у всех уже открывавших страницу. Бампать ВСЕГДА при изменении любого значения
  * в {@link APP_CONFIG_DEFAULTS}.
  */
-export const APP_CONFIG_REVISION = 6
+export const APP_CONFIG_REVISION = 7
 
 /** Дефолтный root-source сцены app/web. */
-export const DEFAULT_APP_WEB_SCENE_SRC = "zavx0z/git"
+export const DEFAULT_APP_WEB_SCENE_SRC = "zavx0z/linux"
 
 /** Дефолты, которые seedятся в IDB при первом open и применяются после bump revision. */
 export const APP_CONFIG_DEFAULTS: AppConfig = {

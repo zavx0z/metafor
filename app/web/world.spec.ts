@@ -2,7 +2,7 @@ import {describe, expect, test} from "bun:test"
 import type {BoundaryBulkRuntimeSnapshot} from "boundary"
 import {buildBoundaryBulkManifest} from "./world.ts"
 
-const SRC = "zavx0z/full-screen"
+const SRC = "zavx0z/linux"
 
 const createSnapshot = (): BoundaryBulkRuntimeSnapshot => ({
 	version: 1,

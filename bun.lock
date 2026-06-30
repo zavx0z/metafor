@@ -37,6 +37,7 @@
         "boundary": "workspace:*",
         "bulk": "workspace:*",
         "dark": "workspace:*",
+        "energy": "workspace:*",
       },
     },
     "boundary": {
@@ -132,29 +133,11 @@
     "dark/types": {
       "name": "@dark/types",
     },
-    "matrix": {
-      "name": "matrix",
-      "version": "0.0.1",
+    "energy": {
+      "name": "energy",
+      "version": "0.1.0",
       "dependencies": {
-        "@matrix/gravity": "workspace:*",
-        "@matrix/strong": "workspace:*",
-        "@matrix/weak": "workspace:*",
-      },
-    },
-    "matrix/gravity": {
-      "name": "@matrix/gravity",
-    },
-    "matrix/strong": {
-      "name": "@matrix/strong",
-      "dependencies": {
-        "@matrix/gravity": "workspace:*",
-      },
-    },
-    "matrix/weak": {
-      "name": "@matrix/weak",
-      "dependencies": {
-        "@matrix/gravity": "workspace:*",
-        "@matrix/strong": "workspace:*",
+        "boundary": "workspace:*",
       },
     },
     "fixture": {
@@ -450,8 +433,8 @@
       "name": "@person/human-wrist-right",
       "version": "0.1.0",
     },
-    "github/zavx0z/full-screen": {
-      "name": "@zavx0z/full-screen",
+    "github/zavx0z/codex": {
+      "name": "@zavx0z/codex",
       "version": "0.1.0",
       "devDependencies": {
         "@types/bun": "^1.3.14",
@@ -749,12 +732,53 @@
       "name": "@zavx0z/git-worktree-worktree",
       "version": "0.1.0",
     },
+    "github/zavx0z/linux": {
+      "name": "@zavx0z/linux",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/bun": "^1.3.14",
+        "@types/node": "^25.5.0",
+      },
+    },
     "github/zavx0z/test-meta": {
       "name": "@zavx0z/test-meta",
       "version": "0.1.0",
       "devDependencies": {
         "@types/bun": "^1.3.14",
         "@types/node": "^25.5.0",
+      },
+    },
+    "github/zavx0z/tmux": {
+      "name": "@zavx0z/tmux",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/bun": "^1.3.14",
+        "@types/node": "^25.5.0",
+      },
+    },
+    "matrix": {
+      "name": "matrix",
+      "version": "0.0.1",
+      "dependencies": {
+        "@matrix/gravity": "workspace:*",
+        "@matrix/strong": "workspace:*",
+        "@matrix/weak": "workspace:*",
+      },
+    },
+    "matrix/gravity": {
+      "name": "@matrix/gravity",
+    },
+    "matrix/strong": {
+      "name": "@matrix/strong",
+      "dependencies": {
+        "@matrix/gravity": "workspace:*",
+      },
+    },
+    "matrix/weak": {
+      "name": "@matrix/weak",
+      "dependencies": {
+        "@matrix/gravity": "workspace:*",
+        "@matrix/strong": "workspace:*",
       },
     },
     "pkg/android": {
@@ -872,13 +896,13 @@
 
     "@dark/types": ["@dark/types@workspace:dark/types"],
 
+    "@gerrit0/mini-shiki": ["@gerrit0/mini-shiki@3.23.0", "", { "dependencies": { "@shikijs/engine-oniguruma": "^3.23.0", "@shikijs/langs": "^3.23.0", "@shikijs/themes": "^3.23.0", "@shikijs/types": "^3.23.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-bEMORlG0cqdjVyCEuU0cDQbORWX+kYCeo0kV1lbxF5bt4r7SID2l9bqsxJEM0zndaxpOUT7riCyIVEuqq/Ynxg=="],
+
     "@matrix/gravity": ["@matrix/gravity@workspace:matrix/gravity"],
 
     "@matrix/strong": ["@matrix/strong@workspace:matrix/strong"],
 
     "@matrix/weak": ["@matrix/weak@workspace:matrix/weak"],
-
-    "@gerrit0/mini-shiki": ["@gerrit0/mini-shiki@3.23.0", "", { "dependencies": { "@shikijs/engine-oniguruma": "^3.23.0", "@shikijs/langs": "^3.23.0", "@shikijs/themes": "^3.23.0", "@shikijs/types": "^3.23.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-bEMORlG0cqdjVyCEuU0cDQbORWX+kYCeo0kV1lbxF5bt4r7SID2l9bqsxJEM0zndaxpOUT7riCyIVEuqq/Ynxg=="],
 
     "@metafor/android": ["@metafor/android@workspace:pkg/android"],
 
@@ -1086,7 +1110,7 @@
 
     "@webgpu/types": ["@webgpu/types@0.1.68", "https://registry.yarnpkg.com/@webgpu/types/-/types-0.1.68.tgz", {}, "sha512-3ab1B59Ojb6RwjOspYLsTpCzbNB3ZaamIAxBMmvnNkiDoLTZUOBXZ9p5nAYVEkQlDdf6qAZWi1pqj9+ypiqznA=="],
 
-    "@zavx0z/full-screen": ["@zavx0z/full-screen@workspace:github/zavx0z/full-screen"],
+    "@zavx0z/codex": ["@zavx0z/codex@workspace:github/zavx0z/codex"],
 
     "@zavx0z/git": ["@zavx0z/git@workspace:github/zavx0z/git"],
 
@@ -1232,7 +1256,11 @@
 
     "@zavx0z/git-worktree-worktree": ["@zavx0z/git-worktree-worktree@workspace:github/zavx0z/git-worktree-worktree"],
 
+    "@zavx0z/linux": ["@zavx0z/linux@workspace:github/zavx0z/linux"],
+
     "@zavx0z/test-meta": ["@zavx0z/test-meta@workspace:github/zavx0z/test-meta"],
+
+    "@zavx0z/tmux": ["@zavx0z/tmux@workspace:github/zavx0z/tmux"],
 
     "ansi-regex": ["ansi-regex@5.0.1", "https://registry.yarnpkg.com/ansi-regex/-/ansi-regex-5.0.1.tgz", {}, "sha512-quJQXlTSUGL2LH9SUXo8VwsY4soanhgo6LNSm84E1LBcE8s3O0wpdiRzyR9z/ZZJMlMWv37qOOb9pdJlMUEKFQ=="],
 
@@ -1274,7 +1302,7 @@
 
     "emoji-regex": ["emoji-regex@8.0.0", "https://registry.yarnpkg.com/emoji-regex/-/emoji-regex-8.0.0.tgz", {}, "sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A=="],
 
-    "matrix": ["matrix@workspace:matrix"],
+    "energy": ["energy@workspace:energy"],
 
     "entities": ["entities@4.5.0", "https://registry.yarnpkg.com/entities/-/entities-4.5.0.tgz", {}, "sha512-V0hjH4dGPh9Ao5p0MoRY6BVqtwCjhz6vI5LT8AJ55H+4g9/4vbHx1I54fS0XuclLhDHArPQCiMjDxjaL8fPxhw=="],
 
@@ -1293,6 +1321,8 @@
     "lunr": ["lunr@2.3.9", "https://registry.yarnpkg.com/lunr/-/lunr-2.3.9.tgz", {}, "sha512-zTU3DaZaF3Rt9rhN3uBMGQD3dD2/vFQqnvZCDv4dl5iOzq2IZQqTxu90r4E5J+nP70J3ilqVCrbho2eWaeW8Ow=="],
 
     "markdown-it": ["markdown-it@14.1.1", "", { "dependencies": { "argparse": "^2.0.1", "entities": "^4.4.0", "linkify-it": "^5.0.0", "mdurl": "^2.0.0", "punycode.js": "^2.3.1", "uc.micro": "^2.1.0" }, "bin": { "markdown-it": "bin/markdown-it.mjs" } }, "sha512-BuU2qnTti9YKgK5N+IeMubp14ZUKUUw7yeJbkjtosvHiP0AZ5c8IAgEMk79D0eC8F23r4Ac/q8cAIFdm2FtyoA=="],
+
+    "matrix": ["matrix@workspace:matrix"],
 
     "mdurl": ["mdurl@2.0.0", "https://registry.yarnpkg.com/mdurl/-/mdurl-2.0.0.tgz", {}, "sha512-Lf+9+2r+Tdp5wXDXC4PcIBjTDtq4UKjCPMQhKIuzpJNW0b96kVqSwW0bT7FhRSfmAiFYgP+SCRvdrDozfh0U5w=="],
 
@@ -1340,9 +1370,13 @@
 
     "@metafor/pty/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
-    "@zavx0z/full-screen/@types/bun": ["@types/bun@1.3.14", "", { "dependencies": { "bun-types": "1.3.14" } }, "sha512-h1hFqFVcvAvD9j9K7ZW7vd82aSA+rTdznZa+5bwvCwqSB1jmmfLcbIWhOLx1/+boy/xmjgCs/OMUL8hRJSmnPw=="],
+    "@zavx0z/codex/@types/bun": ["@types/bun@1.3.14", "", { "dependencies": { "bun-types": "1.3.14" } }, "sha512-h1hFqFVcvAvD9j9K7ZW7vd82aSA+rTdznZa+5bwvCwqSB1jmmfLcbIWhOLx1/+boy/xmjgCs/OMUL8hRJSmnPw=="],
+
+    "@zavx0z/linux/@types/bun": ["@types/bun@1.3.14", "", { "dependencies": { "bun-types": "1.3.14" } }, "sha512-h1hFqFVcvAvD9j9K7ZW7vd82aSA+rTdznZa+5bwvCwqSB1jmmfLcbIWhOLx1/+boy/xmjgCs/OMUL8hRJSmnPw=="],
 
     "@zavx0z/test-meta/@types/bun": ["@types/bun@1.3.14", "", { "dependencies": { "bun-types": "1.3.14" } }, "sha512-h1hFqFVcvAvD9j9K7ZW7vd82aSA+rTdznZa+5bwvCwqSB1jmmfLcbIWhOLx1/+boy/xmjgCs/OMUL8hRJSmnPw=="],
+
+    "@zavx0z/tmux/@types/bun": ["@types/bun@1.3.14", "", { "dependencies": { "bun-types": "1.3.14" } }, "sha512-h1hFqFVcvAvD9j9K7ZW7vd82aSA+rTdznZa+5bwvCwqSB1jmmfLcbIWhOLx1/+boy/xmjgCs/OMUL8hRJSmnPw=="],
 
     "create-metafor/@types/bun": ["@types/bun@1.3.14", "", { "dependencies": { "bun-types": "1.3.14" } }, "sha512-h1hFqFVcvAvD9j9K7ZW7vd82aSA+rTdznZa+5bwvCwqSB1jmmfLcbIWhOLx1/+boy/xmjgCs/OMUL8hRJSmnPw=="],
 
@@ -1354,9 +1388,13 @@
 
     "@metafor/pty/@types/bun/bun-types": ["bun-types@1.3.14", "", { "dependencies": { "@types/node": "*" } }, "sha512-4N0ig0fEomHt5R0KCFWjovxow98rIoRwKolrYdCcknNwMekCXRnWEUvgu5soYV8QXtVsrUD8B95MBOZGPvr6KQ=="],
 
-    "@zavx0z/full-screen/@types/bun/bun-types": ["bun-types@1.3.14", "", { "dependencies": { "@types/node": "*" } }, "sha512-4N0ig0fEomHt5R0KCFWjovxow98rIoRwKolrYdCcknNwMekCXRnWEUvgu5soYV8QXtVsrUD8B95MBOZGPvr6KQ=="],
+    "@zavx0z/codex/@types/bun/bun-types": ["bun-types@1.3.14", "", { "dependencies": { "@types/node": "*" } }, "sha512-4N0ig0fEomHt5R0KCFWjovxow98rIoRwKolrYdCcknNwMekCXRnWEUvgu5soYV8QXtVsrUD8B95MBOZGPvr6KQ=="],
+
+    "@zavx0z/linux/@types/bun/bun-types": ["bun-types@1.3.14", "", { "dependencies": { "@types/node": "*" } }, "sha512-4N0ig0fEomHt5R0KCFWjovxow98rIoRwKolrYdCcknNwMekCXRnWEUvgu5soYV8QXtVsrUD8B95MBOZGPvr6KQ=="],
 
     "@zavx0z/test-meta/@types/bun/bun-types": ["bun-types@1.3.14", "", { "dependencies": { "@types/node": "*" } }, "sha512-4N0ig0fEomHt5R0KCFWjovxow98rIoRwKolrYdCcknNwMekCXRnWEUvgu5soYV8QXtVsrUD8B95MBOZGPvr6KQ=="],
+
+    "@zavx0z/tmux/@types/bun/bun-types": ["bun-types@1.3.14", "", { "dependencies": { "@types/node": "*" } }, "sha512-4N0ig0fEomHt5R0KCFWjovxow98rIoRwKolrYdCcknNwMekCXRnWEUvgu5soYV8QXtVsrUD8B95MBOZGPvr6KQ=="],
 
     "create-metafor/@types/bun/bun-types": ["bun-types@1.3.14", "", { "dependencies": { "@types/node": "*" } }, "sha512-4N0ig0fEomHt5R0KCFWjovxow98rIoRwKolrYdCcknNwMekCXRnWEUvgu5soYV8QXtVsrUD8B95MBOZGPvr6KQ=="],
   }

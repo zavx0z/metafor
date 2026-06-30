@@ -96,8 +96,8 @@ const createRuntimeSnapshot = (): MatrixRuntimeSnapshot => ({
   runtime: {
     actorIdByBraneIndex: [17],
     braneIndexByActorId: [[17, 0]],
-    wimpSrcByActorId: [[17, "zavx0z/full-screen"]],
-    actorIdsByWimpSrc: [["zavx0z/full-screen", [17]]],
+    wimpSrcByActorId: [[17, "zavx0z/linux"]],
+    actorIdsByWimpSrc: [["zavx0z/linux", [17]]],
     runtimeFieldIndexByActorFieldId: [
       [17, 2, 0],
       [17, 5, 1],
@@ -409,14 +409,14 @@ describe("matrix Force v0 runtime addressing", () => {
         parts: [{
           part: "higgs",
           op: "replace",
-          path: "zavx0z/full-screen",
+          path: "zavx0z/linux",
           value: {fields: {"5": {key: "method", type: "enum"}}},
         }],
       })
 
       await waitFor(() => gravity$.structuralDirty)
 
-      expect(gravity$.getActorIdsByWimpSrc("zavx0z/full-screen")).toEqual([17])
+      expect(gravity$.getActorIdsByWimpSrc("zavx0z/linux")).toEqual([17])
       expect(gravity$.structuralDirty).toBe(true)
     } finally {
       subscription.close()

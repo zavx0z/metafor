@@ -2,7 +2,7 @@ import {describe, expect, test} from "bun:test"
 import type {BoundaryBulkRuntimeSnapshot, Particle} from "boundary"
 import {applyForcePartToSnapshot} from "./force-snapshot.ts"
 
-const SRC = "zavx0z/full-screen"
+const SRC = "zavx0z/linux"
 
 const createSnapshot = (): BoundaryBulkRuntimeSnapshot => ({
 	version: 1,
