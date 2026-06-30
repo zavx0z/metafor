@@ -41,6 +41,19 @@
 - `Energy` исполняет process и испускает `w+`/`w-`; текущий пакет пока является
   bridge/protocol shell
 
+Текущий уже подключённый рантайм-путь:
+
+- Matrix при входе actor в process-bound state создаёт `process-task`.
+- `process-task` не является Force particle; это bridge-сообщение доставки
+  задания исполнителям.
+- AppWeb получает task от Matrix через `/matrix/ws` и пересылает подключённым
+  Energy runtime через `/energy/ws`.
+- Energy claim-ит task через Force `z`.
+- Energy не исполняет action до `claim-accepted`.
+- Каноническое завершение процесса — только Force `w+`/`w-`.
+- `process-result`, если используется, является telemetry/debug, а не вторым
+  результатным каналом для Matrix.
+
 ## Целевая Форма
 
 Matrix принимает и проверяет результат процесса. `Energy` является

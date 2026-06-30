@@ -1,6 +1,6 @@
 import type {ServerWebSocket} from "bun"
 import type {BulkLayoutSettings} from "@bulk/gravity/layout"
-import type {BoundaryBulkRuntimeSnapshot, BoundaryMatrixRuntimeSnapshot, BoundaryUpdateMessage} from "boundary"
+import type {BoundaryBulkRuntimeSnapshot, BoundaryMatrixRuntimeSnapshot, BoundaryUpdateMessage, ProcessTask} from "boundary"
 import type {EnergyEnv, EnergyMass, EnergyProcessResult, EnergyProcessTask} from "energy"
 import type {VoiceProxySocketData} from "@metafor/interpreter/srv"
 import type {PtySocketData} from "@metafor/pty/server"
@@ -51,6 +51,7 @@ export type AppWebSocketData =
 export type MatrixBridgeIncomingMessage =
 	| {type: "force"; parts: BoundaryUpdateMessage["parts"]}
 	| {type: "hello"; runtime: "matrix"; pid: number; startedAt: string}
+	| {type: "process-task"; version: 1; task: ProcessTask}
 	| {type: "snapshot-request"; reason?: string}
 
 export type MatrixBridgeOutgoingMessage =

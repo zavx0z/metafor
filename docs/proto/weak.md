@@ -36,6 +36,10 @@
 Процессный протокол `z` / `w+` / `w-` остаётся отдельным долгом миграции.
 Целевая форма должна использовать `path = actor ID`, отдельный `processId` и
 набор записываемых результатов в форме `value.fields[fieldId]`.
+Текущий bridge-путь уже доставляет `process-task`: Matrix создаёт task при входе
+actor в process-bound state, AppWeb пересылает его Energy runtime, а Energy
+claim-ит task через `z`. Реальное завершение процесса остаётся Force `w+`/`w-`;
+`process-result` допускается только как telemetry/debug.
 Текущий аудит этого долга находится в
 [process-protocol-audit](../../task/process-protocol-audit.md).
 
@@ -60,6 +64,7 @@
 - вычисление runtime-перехода состояния,
 - вход actor/brane в process-bound state,
 - lock при входе в process-bound state,
+- создание `process-task` для Energy runtime,
 - испускание `photon` при смене состояния,
 - приём `w+`/`w-`, применение result write-set и снятие lock.
 
@@ -69,9 +74,10 @@ Energy здесь означает distributed process executor. Текущий 
 пока является server bridge оболочкой без реального исполнения DSL action:
 
 - слушает photons Matrix,
+- получает `process-task` через AppWeb bridge,
 - проверяет `env` и `mass`,
 - claim-ит process через `z`,
-- исполняет process action,
+- исполняет process action только после accepted claim,
 - возвращает результат через `w+`/`w-`.
 
 ### Bulk

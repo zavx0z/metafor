@@ -12,6 +12,7 @@ export type EnergyBridgeOutgoingMessage =
   | {type: "hello"; runtime: "energy"; env: EnergyEnv; pid: number; startedAt: string}
   | {type: "force"; parts: BoundaryUpdateMessage["parts"]}
   | {type: "claim"; actorId: number; processId: number; token: string; env: EnergyEnv; mass?: EnergyMass}
+  /** Telemetry only. Canonical process completion remains Force `w+` / `w-`. */
   | {type: "process-result"; result: EnergyProcessResult}
 
 export type EnergyServerSocketState = "idle" | "connecting" | "connected" | "closed" | "error"

@@ -1,5 +1,5 @@
 import type {Buffer} from "node:buffer"
-import type {BoundaryUpdateMessage} from "boundary"
+import type {BoundaryUpdateMessage, ProcessTask} from "boundary"
 import type {MatrixBridgeIncomingMessage} from "./server.t.ts"
 
 type MatrixBridgeAuthResult =
@@ -8,6 +8,9 @@ type MatrixBridgeAuthResult =
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value)
+
+const isPositiveId = (value: unknown): value is number =>
+	typeof value === "number" && Number.isSafeInteger(value) && value > 0
 
 export function readMatrixBridgeMessage(raw: string | Buffer): MatrixBridgeIncomingMessage | null {
 	let value: unknown
@@ -28,12 +31,33 @@ export function readMatrixBridgeMessage(raw: string | Buffer): MatrixBridgeIncom
 			? {type: "hello", runtime: "matrix", pid: value.pid, startedAt: value.startedAt}
 			: null
 	}
+	if (value.type === "process-task") {
+		const task = readProcessTask(value.task)
+		return value.version === 1 && task !== null ? {type: "process-task", version: 1, task} : null
+	}
 	if (value.type === "snapshot-request") {
 		return typeof value.reason === "string"
 			? {type: "snapshot-request", reason: value.reason}
 			: {type: "snapshot-request"}
 	}
 	return null
+}
+
+function readProcessTask(value: unknown): ProcessTask | null {
+	if (!isRecord(value) || !isPositiveId(value.actorId) || !isPositiveId(value.processId)) return null
+	if (typeof value.state !== "string" && typeof value.state !== "number") return null
+	if (typeof value.token !== "string" || value.token.length === 0) return null
+	if (value.fields !== undefined && !isRecord(value.fields)) return null
+	if (value.env !== undefined && !isRecord(value.env)) return null
+	return {
+		actorId: value.actorId,
+		state: value.state,
+		processId: value.processId,
+		token: value.token,
+		...(isRecord(value.env) ? {env: value.env} : {}),
+		...(isRecord(value.mass) ? {mass: value.mass} : {}),
+		...(isRecord(value.fields) ? {fields: value.fields} : {}),
+	}
 }
 
 export function isLoopbackHost(host: string): boolean {

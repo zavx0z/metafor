@@ -4,6 +4,7 @@
   "exports": {
     ".": "./index.ts",
     "./force": "./force.ts",
+    "./process-task": "./process-task.t.ts",
     "./sqlite": "./sqlite.ts"
   },
   "private": true,

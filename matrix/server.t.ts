@@ -1,4 +1,4 @@
-import type {BoundaryMatrixRuntimeSnapshot, BoundaryUpdateMessage} from "boundary"
+import type {BoundaryMatrixRuntimeSnapshot, BoundaryUpdateMessage, ProcessTask} from "boundary"
 
 export type MatrixBridgeIncomingMessage =
   | {type: "matrix-snapshot"; version: 1; reason?: string; snapshot: BoundaryMatrixRuntimeSnapshot}
@@ -8,6 +8,7 @@ export type MatrixBridgeIncomingMessage =
 export type MatrixBridgeOutgoingMessage =
   | {type: "hello"; runtime: "matrix"; pid: number; startedAt: string}
   | {type: "force"; parts: BoundaryUpdateMessage["parts"]}
+  | {type: "process-task"; version: 1; task: ProcessTask}
   | {type: "snapshot-request"; reason?: string}
 
 export type MatrixServerSocketState =

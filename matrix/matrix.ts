@@ -36,6 +36,7 @@ import { FieldType, flattenMatrixData, validateData, type Data } from "@matrix/g
 import { createStoredStringInterner, normalizeFieldValue, assembleStoredMatrixData, strong$ } from "@matrix/strong"
 import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@matrix/weak"
 import {resolveForceFieldId, resolveForceFieldsPayload} from "../boundary/force-fields.ts"
+import type {ProcessTask} from "boundary"
 
 type MatrixValuePart = { op: "replace"; path: string; value: unknown }
 type MatrixWeakResultPayload = { wimpId: number; processId: number; parts: MatrixValuePart[] }
@@ -74,6 +75,11 @@ export interface MatrixBroadcastSubscription {
 
 export type MatrixValueBroadcastSubscription = MatrixBroadcastSubscription
 export type MatrixWeakBroadcastSubscription = MatrixBroadcastSubscription
+export type MatrixProcessTask = ProcessTask
+
+export interface MatrixProcessTaskSubscription {
+  close(): void
+}
 
 type AsyncGate = {
   pending: null | Promise<void>
@@ -82,6 +88,8 @@ type AsyncGate = {
 const writeGate: AsyncGate = { pending: null }
 const updateGate: AsyncGate = { pending: null }
 const WEAK_RESULT_FIELD_PART_PATH_PREFIX = "/field/"
+const processTaskListeners = new Set<(task: MatrixProcessTask) => void>()
+let processTaskSequence = 0
 
 const actorFieldKey = (actorId: number, fieldId: number): string =>
   `${actorId}\0${fieldId}`
@@ -283,21 +291,70 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
   force.emit({parts})
 }
 
-const syncProcessLocksForChanges = (changes: [number, number][]): void => {
+const processTaskToken = (actorId: number, processId: number): string =>
+  `${actorId}:${processId}:${Date.now()}:${++processTaskSequence}`
+
+const collectProcessTaskFields = (actorId: number, braneIndex: number): Record<string, unknown> => {
+  const fields: Record<string, unknown> = {}
+
+  for (let runtimeFieldIndex = 0; runtimeFieldIndex < strong$.actorFieldIdsByRuntimeFieldIndex.length; runtimeFieldIndex++) {
+    for (const [fieldActorId, fieldId] of strong$.actorFieldIdsByRuntimeFieldIndex[runtimeFieldIndex] ?? []) {
+      if (fieldActorId !== actorId) continue
+      const value = matrix$.getFieldValue(braneIndex, runtimeFieldIndex)
+      if (value !== undefined) fields[String(fieldId)] = value
+    }
+  }
+
+  return fields
+}
+
+const createProcessTask = (braneIndex: number, stateIndex: number, processId: number): MatrixProcessTask | null => {
+  const actorId = gravity$.getActorId(braneIndex)
+  if (actorId === undefined) return null
+  const stateName = matrix$.getStateName(braneIndex, stateIndex)
+
+  return {
+    actorId,
+    state: stateName ?? stateIndex,
+    processId,
+    token: processTaskToken(actorId, processId),
+    mass: {actorId},
+    fields: collectProcessTaskFields(actorId, braneIndex),
+  }
+}
+
+const emitProcessTask = (task: MatrixProcessTask): void => {
+  for (const listener of processTaskListeners) listener(task)
+}
+
+const syncProcessLocksForChanges = (changes: [number, number][], stateChanges: [number, number][]): void => {
   const weakUpdates: Array<{ kind: "lock"; braneIndex: number; value: boolean }> = []
+  const processTasks: MatrixProcessTask[] = []
+  const stateChangeKeys = new Set(stateChanges.map(([braneIndex, stateIndex]) => `${braneIndex}\0${stateIndex}`))
 
   for (const [braneIndex, stateIndex] of changes) {
-    const shouldLock = weak$.stateProcessIdsByBraneIndex[braneIndex]?.[stateIndex] !== undefined
+    const processId = weak$.stateProcessIdsByBraneIndex[braneIndex]?.[stateIndex]
+    const shouldLock = processId !== undefined && processId !== null
     const brane = matrix$.branes[braneIndex]
-    if (!brane || brane.lock === shouldLock) continue
+    if (!brane) continue
 
-    brane.lock = shouldLock
-    weakUpdates.push({ kind: "lock", braneIndex, value: shouldLock })
+    const isStateChange = stateChangeKeys.has(`${braneIndex}\0${stateIndex}`)
+    if (brane.lock === shouldLock && (!shouldLock || !isStateChange)) continue
+
+    if (brane.lock !== shouldLock) {
+      brane.lock = shouldLock
+      weakUpdates.push({ kind: "lock", braneIndex, value: shouldLock })
+    }
+    if (shouldLock) {
+      const task = createProcessTask(braneIndex, stateIndex, processId)
+      if (task !== null) processTasks.push(task)
+    }
   }
 
   if (weakUpdates.length > 0) {
     weakHeapUpdate(weakUpdates)
   }
+  for (const task of processTasks) emitProcessTask(task)
 }
 
 const requireWeakResultFieldPartId = (path: string): number => {
@@ -516,7 +573,7 @@ export async function update(
             ),
           ]
 
-    syncProcessLocksForChanges(photonTargets)
+    syncProcessLocksForChanges(photonTargets, changes)
     publishPhotonChanges(photonTargets)
     return changes
   })
@@ -622,6 +679,17 @@ export function subscribeMatrixWeakResultBroadcast(): MatrixWeakBroadcastSubscri
       await applyWeakResultPacket(packet)
     }
   })
+}
+
+export function subscribeMatrixProcessTasks(
+  listener: (task: MatrixProcessTask) => void,
+): MatrixProcessTaskSubscription {
+  processTaskListeners.add(listener)
+  return {
+    close() {
+      processTaskListeners.delete(listener)
+    },
+  }
 }
 
 export function unlock(indexes: number[]): void {

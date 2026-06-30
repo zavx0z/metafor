@@ -11,6 +11,7 @@ export {
   strong$,
   subscribeMatrixGluonBroadcast,
   subscribeMatrixHiggsBroadcast,
+  subscribeMatrixProcessTasks,
   subscribeMatrixWeakResultBroadcast,
   unlock,
   update,
@@ -28,6 +29,8 @@ export {
 } from "./channel.ts"
 export type {
   MatrixBroadcastSubscription,
+  MatrixProcessTask,
+  MatrixProcessTaskSubscription,
   MatrixValueBroadcastSubscription,
   MatrixWeakBroadcastSubscription,
   MatrixGravityStore,

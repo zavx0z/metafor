@@ -86,7 +86,7 @@
 - `Dark` владеет логикой материализации и имеет доступ к `Boundary`;
 - `Boundary` владеет канонической персистентной реляционной формой (`wimp`, `actor`, `topology`);
 - `Matrix` владеет рантаймом состояния и не читает `Boundary`;
-- `Energy` слушает/будет слушать photons/process tasks Matrix, claim-ить process через `z` и возвращать `w+`/`w-`; текущий пакет пока является оболочкой protocol surface;
+- `Energy` получает photons/process tasks Matrix через AppWeb bridge, claim-ит process через `z` и возвращает `w+`/`w-`; текущий пакет пока является оболочкой protocol surface;
 - `Bulk` владеет рантаймом проявленной рендер-проекции и не читает `Boundary`;
 - Force/WebSocket переносит рантайм-данные между персистентным слоем и рантайм-слоями.
 Такое чтение не требует отдельного оркестратора времени исполнения `Dark`, но допускает минимальную явную репозиторную проекцию `dark/`, если она нужна для фиксации скрытой непрерывности и её рабочих контрактов.
@@ -393,9 +393,12 @@ claim/result и итоговое состояние как наблюдаему�
 4. запуск action в server/browser/worker/service-worker/main-process/desktop,
 5. возврат результата через `W boson` как `w+`/`w-`.
 
-Этот домен уже выделен как пакет-оболочка `energy/`. Matrix принимает и
-проверяет result, а следующий этап должен научить `Energy` исполнять process
-action и возвращать компактный write-set.
+Этот домен уже выделен как пакет-оболочка `energy/`. Matrix создаёт
+`process-task` при входе actor в process-bound state, AppWeb пересылает task
+подключённым Energy runtimes, а Energy отвечает claim через `z`. Matrix
+принимает и проверяет result только через Force `w+`/`w-`; `process-result`
+остаётся telemetry/debug. Следующий этап должен научить `Energy` исполнять
+process action после accepted claim и возвращать компактный write-set.
 
 ### Bulk × Electromagnetism
 
@@ -473,8 +476,8 @@ Process в целевой модели исполняется будущим `En
 
 1. В `Dark` `Process` читается только как историческая линия изменения модели, а не как самостоятельный процесс исполнения.
 2. `Boundary` знает только ту форму процесса, которая нужна для вычисления контракта состояния.
-3. `Matrix` вводит actor/brane в process-bound state и проверяет результат.
-4. `Energy` исполняет process action и возвращает `w+`/`w-`.
+3. `Matrix` вводит actor/brane в process-bound state, создаёт `process-task` и проверяет результат.
+4. `Energy` claim-ит task через `z`, исполняет process action после accepted claim и возвращает `w+`/`w-`.
 5. `Bulk` проявляет процесс как наблюдаемую форму.
 
 ### Boson

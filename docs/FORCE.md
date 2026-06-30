@@ -102,6 +102,12 @@ research/task-документы не являются источником ис
 и возвращает результат через `w+`/`w-`. Runtime-state слой называется `Matrix`.
 Пакет `energy/` сейчас является серверной оболочкой bridge/protocol surface;
 реальное исполнение DSL action остаётся следующим этапом.
+Matrix уже создаёт `process-task` при входе actor в process-bound state. AppWeb
+пересылает этот task подключённым Energy runtimes через `/energy/ws`, а Energy
+отвечает claim-сообщением, которое AppWeb прокидывает как Force `z`. Task и
+claim не меняют правило результата: завершение процесса для Matrix приходит
+только через Force `w+` или `w-`. `process-result` остаётся telemetry/debug, а не
+вторым результатным каналом.
 
 Текущий триггер материализации `graviton test wimp` остаётся legacy-управляющей
 поверхностью до отдельного перевода пути материализации.

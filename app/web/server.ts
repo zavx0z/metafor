@@ -201,6 +201,17 @@ function broadcastEnergyForceMessage(
   return clients
 }
 
+function broadcastEnergyProcessTask(task: import("boundary").ProcessTask): number {
+  const payload = JSON.stringify({type: "process-task", version: 1, task})
+  let clients = 0
+  for (const socket of energyBridgeSockets) {
+    if (socket.readyState !== WebSocket.OPEN) continue
+    socket.send(payload)
+    clients += 1
+  }
+  return clients
+}
+
 async function sendMatrixSnapshot(socket: ServerWebSocket<AppWebSocketData>, reason: string): Promise<void> {
   const started = Date.now()
   try {
@@ -236,6 +247,12 @@ async function handleMatrixBridgeMessage(
     return
   }
 
+  if (payload.type === "process-task") {
+    const energyClients = broadcastEnergyProcessTask(payload.task)
+    appLog("WS", "matrix process task", `actor=${payload.task.actorId} process=${payload.task.processId} energy=${energyClients}`, "cyan")
+    return
+  }
+
   const message: BoundaryUpdateMessage = {parts: payload.parts}
   try {
     await boundary.absorb(message)
@@ -267,7 +284,32 @@ async function handleEnergyBridgeMessage(
   }
 
   if (payload.type === "claim") {
-    appLog("WS", "energy claim", `actor=${payload.actorId} process=${payload.processId} env=${payload.env.id}`, "cyan")
+    const message: BoundaryUpdateMessage = {
+      parts: [{
+        part: "z",
+        op: "test",
+        path: payload.actorId,
+        value: {
+          kind: "claim",
+          processId: payload.processId,
+          token: payload.token,
+          env: payload.env,
+          ...(payload.mass !== undefined ? {mass: payload.mass} : {}),
+        },
+      }],
+    }
+    try {
+      await boundary.absorb(message)
+      const browserClients = broadcastForceMessage(message)
+      const matrixClients = broadcastMatrixForceMessage(message)
+      const energyClients = broadcastEnergyForceMessage(message, socket)
+      appLog("WS", "energy claim", `actor=${payload.actorId} process=${payload.processId} browser=${browserClients} matrix=${matrixClients} energy=${energyClients}`, "cyan")
+    } catch (error) {
+      appLog("ERR", "energy claim failed", errorMessage(error), "red")
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({type: "error", error: error instanceof Error ? error.message : String(error)}))
+      }
+    }
     return
   }
 

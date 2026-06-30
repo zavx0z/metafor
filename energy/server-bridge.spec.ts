@@ -2,6 +2,7 @@ import {describe, expect, test} from "bun:test"
 import {
   bridgeUrlWithToken,
   createEnergyFailureForce,
+  createEnergyClaim,
   createEnergyServerStatus,
   createEnergySuccessForce,
   readEnergyBridgeIncomingMessage,
@@ -21,10 +22,10 @@ describe("energy server bridge helpers", () => {
       type: "force",
       parts: [{part: "photon", op: "replace", path: 17, value: "ready"}],
     })
-    expect(readEnergyBridgeIncomingMessage(JSON.stringify({type: "process-task", version: 1, task: {actorId: 17, state: "ready", processId: 42, fields: {"2": "x"}}}))).toEqual({
+    expect(readEnergyBridgeIncomingMessage(JSON.stringify({type: "process-task", version: 1, task: {actorId: 17, state: "ready", processId: 42, token: "17:42:run", fields: {"2": "x"}}}))).toEqual({
       type: "process-task",
       version: 1,
-      task: {actorId: 17, state: "ready", processId: 42, fields: {"2": "x"}},
+      task: {actorId: 17, state: "ready", processId: 42, token: "17:42:run", fields: {"2": "x"}},
     })
     expect(readEnergyBridgeIncomingMessage(JSON.stringify({type: "claim-accepted", actorId: 17, processId: 42, token: "run-1"}))).toEqual({type: "claim-accepted", actorId: 17, processId: 42, token: "run-1"})
     expect(readEnergyBridgeIncomingMessage(JSON.stringify({type: "claim-rejected", actorId: 17, processId: 42, reason: "busy"}))).toEqual({type: "claim-rejected", actorId: 17, processId: 42, reason: "busy"})
@@ -36,6 +37,16 @@ describe("energy server bridge helpers", () => {
     expect(readEnergyBridgeIncomingMessage(JSON.stringify({type: "process-task", version: 1, task: {actorId: 17, processId: 42}}))).toBeNull()
     expect(readEnergyBridgeIncomingMessage(JSON.stringify({type: "claim-accepted", actorId: "17", processId: 42}))).toBeNull()
     expect(readEnergyBridgeIncomingMessage(JSON.stringify({type: "error", error: null}))).toBeNull()
+  })
+
+  test("creates claim messages from process tasks", () => {
+    expect(createEnergyClaim({actorId: 17, state: "ready", processId: 42, token: "17:42:run"}, env, "17:42:run")).toEqual({
+      type: "claim",
+      actorId: 17,
+      processId: 42,
+      token: "17:42:run",
+      env,
+    })
   })
 
   test("creates status payload", () => {

@@ -1,6 +1,7 @@
 import {Buffer} from "node:buffer"
 import {
   bridgeUrlWithToken,
+  createEnergyClaim,
   createEnergyHello,
   createEnergyServerStatus,
   createEnergySuccessForce,
@@ -130,11 +131,11 @@ async function handleBridgeData(raw: unknown): Promise<void> {
     return
   }
   if (message.type === "claim-accepted") {
-    log("claim", "accepted", `actor=${message.actorId} process=${message.processId}`)
+    await handleClaimAccepted(message)
     return
   }
   if (message.type === "claim-rejected") {
-    log("claim", "rejected", `actor=${message.actorId} process=${message.processId} reason=${message.reason}`)
+    handleClaimRejected(message)
     return
   }
 
@@ -147,7 +148,20 @@ async function handleProcessTask(task: EnergyProcessTask): Promise<void> {
   lastTaskAt = new Date().toISOString()
   log("task", "received", `actor=${task.actorId} process=${task.processId}`)
 
+  const sent = sendToBridge(createEnergyClaim(task, env, task.token))
+  log("claim", sent ? "sent" : "not connected", `actor=${task.actorId} process=${task.processId}`)
+}
+
+async function handleClaimAccepted(message: {actorId: number; processId: number; token?: string}): Promise<void> {
+  log("claim", "accepted", `actor=${message.actorId} process=${message.processId}`)
   if (Bun.env.ENERGY_ECHO_TASKS !== "1") return
+
+  const entry = findActiveTask(message.actorId, message.processId, message.token)
+  if (entry === null) {
+    log("task", "accepted without active task", `actor=${message.actorId} process=${message.processId}`)
+    return
+  }
+  const [key, task] = entry
 
   const result: EnergyProcessResult = {
     ok: true,
@@ -161,6 +175,14 @@ async function handleProcessTask(task: EnergyProcessTask): Promise<void> {
   lastResultAt = new Date().toISOString()
   sendToBridge({type: "process-result", result})
   sendToBridge({type: "force", parts: createEnergySuccessForce(result).parts})
+}
+
+function handleClaimRejected(message: {actorId: number; processId: number; token?: string; reason: string}): void {
+  const entry = findActiveTask(message.actorId, message.processId, message.token)
+  if (entry !== null) activeTasks.delete(entry[0])
+  failedTasks += 1
+  lastError = message.reason
+  log("claim", "rejected", `actor=${message.actorId} process=${message.processId} reason=${message.reason}`)
 }
 
 const server = Bun.serve({
@@ -183,7 +205,20 @@ const server = Bun.serve({
 })
 
 function taskKey(task: EnergyProcessTask): string {
-  return `${task.actorId}\0${task.processId}\0${task.token ?? ""}`
+  return `${task.actorId}\0${task.processId}\0${task.token}`
+}
+
+function findActiveTask(actorId: number, processId: number, token?: string): [string, EnergyProcessTask] | null {
+  if (token !== undefined) {
+    const key = `${actorId}\0${processId}\0${token}`
+    const task = activeTasks.get(key)
+    return task === undefined ? null : [key, task]
+  }
+
+  for (const [key, task] of activeTasks) {
+    if (task.actorId === actorId && task.processId === processId) return [key, task]
+  }
+  return null
 }
 
 function energyEnv(): EnergyEnv {

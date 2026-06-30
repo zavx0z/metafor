@@ -9,6 +9,7 @@ import {
   loadMatrixRuntimeSnapshot,
   subscribeMatrixGluonBroadcast,
   subscribeMatrixHiggsBroadcast,
+  subscribeMatrixProcessTasks,
   type MatrixRuntimeSnapshot,
 } from "./matrix"
 import * as matrixPublicApi from "./index"
@@ -196,6 +197,46 @@ describe("matrix Force v0 runtime addressing", () => {
     } finally {
       subscription.close()
       photonSubscription.close()
+    }
+  })
+
+  test("Matrix создаёт process-task при входе actor в process-bound state", async () => {
+    const snapshot = createRuntimeSnapshot()
+    snapshot.weak.stateProcessIdsByBraneIndex = [[null, 42]]
+    await loadMatrixRuntimeSnapshot(snapshot)
+    const tasks: unknown[] = []
+    const taskSubscription = subscribeMatrixProcessTasks((task) => {
+      tasks.push(task)
+    })
+    const gluonSubscription = subscribeMatrixGluonBroadcast()
+
+    try {
+      force.emit({
+        parts: [{
+          part: "gluon",
+          op: "replace",
+          path: 17,
+          value: {fields: {"2": 11}},
+        }],
+      })
+
+      await waitFor(() => tasks.length > 0)
+
+      expect(matrix$.branes[0]?.lock).toBe(true)
+      expect(tasks[0]).toMatchObject({
+        actorId: 17,
+        state: "ready",
+        processId: 42,
+        mass: {actorId: 17},
+        fields: {"2": 11, "5": 0, "7": 3, "9": [1]},
+      })
+      expect((tasks[0] as {token?: unknown}).token).toEqual(expect.stringMatching(/^17:42:/))
+      expect(JSON.stringify(tasks)).not.toContain(["/fi", "eld/"].join(""))
+      expect(JSON.stringify(tasks)).not.toContain(["wimp", "Id"].join(""))
+      expect(JSON.stringify(tasks)).not.toContain("method")
+    } finally {
+      gluonSubscription.close()
+      taskSubscription.close()
     }
   })
 

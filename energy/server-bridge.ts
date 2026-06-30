@@ -148,6 +148,7 @@ export function createEnergyFailureForce(result: Extract<EnergyProcessResult, {o
 function readProcessTask(value: unknown): EnergyProcessTask | null {
   if (!isRecord(value) || !isPositiveId(value.actorId) || !isPositiveId(value.processId)) return null
   if (typeof value.state !== "string" && typeof value.state !== "number") return null
+  if (typeof value.token !== "string" || value.token.length === 0) return null
   const mass = readMass(value.mass)
   if (value.mass !== undefined && mass === null) return null
   if (value.fields !== undefined && !isRecord(value.fields)) return null
@@ -156,7 +157,7 @@ function readProcessTask(value: unknown): EnergyProcessTask | null {
     actorId: value.actorId,
     state: value.state,
     processId: value.processId,
-    ...(typeof value.token === "string" ? {token: value.token} : {}),
+    token: value.token,
     ...(isRecord(value.env) ? {env: value.env} : {}),
     ...(mass !== undefined && mass !== null ? {mass} : {}),
     ...(isRecord(value.fields) ? {fields: value.fields} : {}),

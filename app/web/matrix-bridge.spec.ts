@@ -35,8 +35,35 @@ describe("app/web Matrix bridge helpers", () => {
 		})
 	})
 
+	test("accepts process task messages from Matrix", () => {
+		expect(readMatrixBridgeMessage(JSON.stringify({
+			type: "process-task",
+			version: 1,
+			task: {
+				actorId: 17,
+				state: "ready",
+				processId: 42,
+				token: "17:42:run",
+				fields: {"2": "x"},
+				mass: {actorId: 17},
+			},
+		}))).toEqual({
+			type: "process-task",
+			version: 1,
+			task: {
+				actorId: 17,
+				state: "ready",
+				processId: 42,
+				token: "17:42:run",
+				fields: {"2": "x"},
+				mass: {actorId: 17},
+			},
+		})
+	})
+
 	test("rejects malformed Force bridge messages", () => {
 		expect(readMatrixBridgeMessage(JSON.stringify({type: "force", parts: null}))).toBeNull()
+		expect(readMatrixBridgeMessage(JSON.stringify({type: "process-task", version: 1, task: {actorId: 17, processId: 42, state: "ready"}}))).toBeNull()
 		expect(readMatrixBridgeMessage("not-json")).toBeNull()
 	})
 

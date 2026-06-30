@@ -8,6 +8,7 @@ import {
   matrix$,
   subscribeMatrixGluonBroadcast,
   subscribeMatrixHiggsBroadcast,
+  subscribeMatrixProcessTasks,
   subscribeMatrixWeakResultBroadcast,
 } from "./index.ts"
 import {bridgeUrlWithToken, createMatrixServerStatus, readMatrixBridgeIncomingMessage} from "./server-bridge.ts"
@@ -41,6 +42,10 @@ const subscriptions: MatrixBroadcastSubscription[] = [
   subscribeMatrixHiggsBroadcast(),
   subscribeMatrixWeakResultBroadcast(),
 ]
+const processTaskSubscription = subscribeMatrixProcessTasks((task) => {
+  const sent = sendToBridge({type: "process-task", version: 1, task})
+  log("task", sent ? "sent" : "dropped", `actor=${task.actorId} process=${task.processId}`)
+})
 let entropySubscription: MatrixForceBinding | null = null
 
 function log(tag: string, message: string, detail = ""): void {
@@ -190,6 +195,7 @@ function shutdown(signal: string): void {
   closing = true
   if (reconnectTimer !== null) clearTimeout(reconnectTimer)
   entropySubscription?.close()
+  processTaskSubscription.close()
   for (const subscription of subscriptions) void subscription.close()
   bridgeSocket?.close(1000, signal)
   closeForceChannel()
