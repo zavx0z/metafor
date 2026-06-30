@@ -3,7 +3,7 @@ import { resolveForceFieldId, resolveForceFieldsPayload } from "./force-protocol
 
 describe("bulk/web Force protocol adapter", () => {
 	test("accepts protocol field patches from value.fields", () => {
-		const fields = {title: {type: "string", label: "Title"}}
+		const fields = {"1": {type: "string", label: "Title"}}
 
 		expect(resolveForceFieldsPayload({fields})).toBe(fields)
 	})

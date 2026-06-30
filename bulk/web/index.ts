@@ -156,7 +156,7 @@ import {
 	THEME_TERTIARY_GLOW,
 } from "./constants"
 import { computeLerpFactor, easeOutCubic, getDistanceToSegmentPx, mixScalar } from "./math"
-import { resolveForceFieldId, resolveForceFieldsPayload } from "./force-protocol"
+import { resolveForceFieldId, resolveForceFieldsPayload } from "../../force/fields.ts"
 
 const torusWireframeCache = new Map<string, BufferGeometry>()
 const sphereWireframeCache = new Map<string, BufferGeometry>()
