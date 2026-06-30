@@ -132,29 +132,29 @@
     "dark/types": {
       "name": "@dark/types",
     },
-    "energy": {
-      "name": "energy",
+    "matrix": {
+      "name": "matrix",
       "version": "0.0.1",
       "dependencies": {
-        "@energy/gravity": "workspace:*",
-        "@energy/strong": "workspace:*",
-        "@energy/weak": "workspace:*",
+        "@matrix/gravity": "workspace:*",
+        "@matrix/strong": "workspace:*",
+        "@matrix/weak": "workspace:*",
       },
     },
-    "energy/gravity": {
-      "name": "@energy/gravity",
+    "matrix/gravity": {
+      "name": "@matrix/gravity",
     },
-    "energy/strong": {
-      "name": "@energy/strong",
+    "matrix/strong": {
+      "name": "@matrix/strong",
       "dependencies": {
-        "@energy/gravity": "workspace:*",
+        "@matrix/gravity": "workspace:*",
       },
     },
-    "energy/weak": {
-      "name": "@energy/weak",
+    "matrix/weak": {
+      "name": "@matrix/weak",
       "dependencies": {
-        "@energy/gravity": "workspace:*",
-        "@energy/strong": "workspace:*",
+        "@matrix/gravity": "workspace:*",
+        "@matrix/strong": "workspace:*",
       },
     },
     "fixture": {
@@ -872,11 +872,11 @@
 
     "@dark/types": ["@dark/types@workspace:dark/types"],
 
-    "@energy/gravity": ["@energy/gravity@workspace:energy/gravity"],
+    "@matrix/gravity": ["@matrix/gravity@workspace:matrix/gravity"],
 
-    "@energy/strong": ["@energy/strong@workspace:energy/strong"],
+    "@matrix/strong": ["@matrix/strong@workspace:matrix/strong"],
 
-    "@energy/weak": ["@energy/weak@workspace:energy/weak"],
+    "@matrix/weak": ["@matrix/weak@workspace:matrix/weak"],
 
     "@gerrit0/mini-shiki": ["@gerrit0/mini-shiki@3.23.0", "", { "dependencies": { "@shikijs/engine-oniguruma": "^3.23.0", "@shikijs/langs": "^3.23.0", "@shikijs/themes": "^3.23.0", "@shikijs/types": "^3.23.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-bEMORlG0cqdjVyCEuU0cDQbORWX+kYCeo0kV1lbxF5bt4r7SID2l9bqsxJEM0zndaxpOUT7riCyIVEuqq/Ynxg=="],
 
@@ -1274,7 +1274,7 @@
 
     "emoji-regex": ["emoji-regex@8.0.0", "https://registry.yarnpkg.com/emoji-regex/-/emoji-regex-8.0.0.tgz", {}, "sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A=="],
 
-    "energy": ["energy@workspace:energy"],
+    "matrix": ["matrix@workspace:matrix"],
 
     "entities": ["entities@4.5.0", "https://registry.yarnpkg.com/entities/-/entities-4.5.0.tgz", {}, "sha512-V0hjH4dGPh9Ao5p0MoRY6BVqtwCjhz6vI5LT8AJ55H+4g9/4vbHx1I54fS0XuclLhDHArPQCiMjDxjaL8fPxhw=="],
 

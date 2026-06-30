@@ -3,18 +3,19 @@
 Рабочий план для текущей разработки. HUD ToDoPane читает этот файл и показывает
 только ближайшие незакрытые задачи.
 
-## 1. Процессный Протокол
+## 1. Process Protocol / Future Energy
 
+- [ ] Спроектировать новый `Energy` как распределённый исполнитель процессов.
 - [ ] Провести аудит `z` / `w+` / `w-` / `applyWeakResultPacket` / `collectWeakResultPackets`.
 - [ ] Убрать `/field/...` из протокола результатов процесса.
 - [ ] Перевести результат процесса на `path = actor ID`, `processId`, `value.fields[fieldId]`.
 - [ ] Добавить тесты успешного завершения, ошибки, блокировки, разблокировки и набора записываемых результатов.
 
-## 2. AppWeb / Energy Orchestration
+## 2. Matrix / AppWeb Orchestration
 
-- [ ] Подключить `BoundaryEnergyRuntimeSnapshot` к основному AppWeb bootstrap, если это ещё не сделано.
-- [ ] Связать вход Force, шаг Energy и визуальное обновление Bulk без чтения Boundary из Energy/Bulk.
-- [ ] Собрать сквозную проверку `Dark -> Boundary -> Energy -> Bulk -> AppWeb`.
+- [ ] Подключить `BoundaryMatrixRuntimeSnapshot` к основному AppWeb bootstrap, если это ещё не сделано.
+- [ ] Связать вход Force, шаг Matrix и визуальное обновление Bulk без чтения Boundary из Matrix/Bulk.
+- [ ] Собрать сквозную проверку `Dark -> Boundary -> Matrix -> Bulk -> AppWeb`.
 
 ## 3. Topology Runtime
 

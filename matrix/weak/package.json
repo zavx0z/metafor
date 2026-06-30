@@ -1,0 +1,10 @@
+{
+  "name": "@matrix/weak",
+  "type": "module",
+  "main": "index.ts",
+  "private": true,
+  "dependencies": {
+    "@matrix/gravity": "workspace:*",
+    "@matrix/strong": "workspace:*"
+  }
+}

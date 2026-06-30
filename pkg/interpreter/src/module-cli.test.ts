@@ -53,13 +53,13 @@ describe("interpreter module CLI", () => {
     const targets = startupTargetsFromArgs([
       "dark/server.spec.ts",
       "-timeout=2147483647",
-      "energy/energy.spec.ts",
+      "matrix/matrix.spec.ts",
       "dark/tmp/boundary.sqlite",
     ], cwd)
 
     expect(targets.modules.map((module) => module.label)).toEqual([
       "dark/server.spec.ts",
-      "energy/energy.spec.ts",
+      "matrix/matrix.spec.ts",
     ])
     expect(targets.sqliteDatabases).toEqual([join(cwd, "dark/tmp/boundary.sqlite")])
   })

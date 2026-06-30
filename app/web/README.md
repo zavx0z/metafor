@@ -71,7 +71,7 @@ APP_WEB_CLIENT_SOURCEMAP=0 bun run workspace.app.web:prod
 - `app/web/client.ts` импортирует `bulk/web` как пакет и остаётся тонким браузерным видовым клиентом.
 - `app/web/server.ts` статически импортирует `dark/server`, берёт `boundary` из `globalThis`, получает снимок уже наполненной базы через `boundary.bulkRuntime()` и отдаёт браузеру готовые строки мира. `BOUNDARY_PATH` передаётся при запуске и подхватывается самим `Boundary`.
 - `Dark` может работать совместно с `Boundary`: он открывает boundary-хранилище и материализует каноническую форму.
-- `Energy` и `Bulk` не открывают `Boundary`/SQLite и не синхронизируют базу. Это рантайм-слои.
+- `Matrix` и `Bulk` не открывают `Boundary`/SQLite и не синхронизируют базу. Это рантайм-слои.
 - `Bulk` должен получать события проекции/рантайма в реальном времени и вести собственный рантайм проекции; `AppWeb` получает уже готовые события рендера / строки мира.
 - `app/web` не открывает SQLite напрямую, не содержит SQLite HUD/панель базы и блокирует SQLite upstream routes в embedded interpreter proxy: персистентный снимок восстановления для визуализации готовит `Boundary`, а ручная инспекция базы остается инструментом interpreter.
 - Подробный разбор передачи materialize/force/process: `app/web/INTERACTION_FLOW.md`

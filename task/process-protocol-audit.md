@@ -36,10 +36,15 @@
 - `path = actor ID`
 - `processId` остаётся отдельным ID процесса
 - набор записываемых результатов использует `value.fields[fieldId]`
-- Energy проверяет блокировку по actor/brane и активному process-bound state
-- Energy не читает Boundary/SQLite
+- Matrix проверяет блокировку по actor/brane и активному process-bound state
+- Matrix не читает Boundary/SQLite
+- будущий `Energy` исполняет process и испускает `w+`/`w-`
 
 ## Целевая Форма
+
+Matrix принимает и проверяет результат процесса. Будущий `Energy` является
+распределённым исполнителем: он слушает photons Matrix, проверяет `env`/`mass`,
+claim-ит процесс через `z`, исполняет action и возвращает `w+`/`w-`.
 
 Захват/управление процессом:
 
@@ -88,8 +93,8 @@
 
 ## Файлы Для Следующего Аудита
 
-- `energy/energy.ts`
-- `energy/weak/*`
+- `matrix/matrix.ts`
+- `matrix/weak/*`
 - `bulk/weak/*`
 - `bulk/em/index.ts`
 - `app/web/runtime/bulk.process.ts`

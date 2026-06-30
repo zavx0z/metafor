@@ -27,7 +27,7 @@
     "interpreter": "bun --hot run interpreter.ts",
     "interpreter:dark-server": "bun --hot run interpreter.ts ../../dark/server.spec.ts -timeout=2147483647",
     "interpreter:web": "cd ../.. && bun run interpreter:web",
-    "interpreter:multi": "bun --hot run interpreter.ts ../../dark/server.spec.ts -timeout=2147483647 ../../energy/energy.spec.ts ../../dark/tmp/boundary.sqlite",
+    "interpreter:multi": "bun --hot run interpreter.ts ../../dark/server.spec.ts -timeout=2147483647 ../../matrix/matrix.spec.ts ../../dark/tmp/boundary.sqlite",
     "typecheck": "tsc --noEmit --pretty false"
   }
 }

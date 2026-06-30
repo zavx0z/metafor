@@ -4,14 +4,14 @@ import type {Wimp, WimpCreateInput} from "@boundary/wimp/sqlite"
 import type {BoundaryUpdateMessage} from "./sqlite.ts"
 import type {ForceSurface} from "./force.t.ts"
 import type {BoundaryBulkRuntimeSnapshot} from "./runtime/bulk.ts"
-import type {BoundaryEnergyRuntimeSnapshot} from "./runtime/energy.ts"
+import type {BoundaryMatrixRuntimeSnapshot} from "./runtime/matrix.ts"
 
 export {FORCE, force} from "./force.ts"
 export type {DomainPath, Force, ForceBinding, ForceMessage, ForceMessageListener, ForceSurface, ParticleOperation, Part, Particle} from "./force.t.ts"
 export {open} from "./sqlite.ts"
 export type {BoundaryPart, BoundaryParticle, BoundaryUpdateMessage} from "./sqlite.ts"
 export type {BoundaryBulkRuntimeSnapshot} from "./runtime/bulk.ts"
-export type {BoundaryEnergyRuntimeSnapshot} from "./runtime/energy.ts"
+export type {BoundaryMatrixRuntimeSnapshot} from "./runtime/matrix.ts"
 
 export interface WimpApi {
   /** Дешевая проверка существования декларации без создания ORM-объекта. */
@@ -69,7 +69,7 @@ export interface Boundary extends ForceSurface {
   readonly topology: TopologyApi
 
   bulkRuntime(): Promise<BoundaryBulkRuntimeSnapshot>
-  energyRuntime(): Promise<BoundaryEnergyRuntimeSnapshot>
+  matrixRuntime(): Promise<BoundaryMatrixRuntimeSnapshot>
 
   close(): Promise<void>
 }

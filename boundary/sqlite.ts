@@ -5,7 +5,7 @@ import {BoundaryWimpSqlite} from "@boundary/wimp/sqlite"
 import {BoundaryActorSqlite} from "@boundary/actor/sqlite"
 import {BoundaryTopologySqlite} from "@boundary/topology/sqlite"
 import {bulkRuntime as buildBulkRuntime} from "./runtime/bulk.ts"
-import {energyRuntime as buildEnergyRuntime} from "./runtime/energy.ts"
+import {matrixRuntime as buildMatrixRuntime} from "./runtime/matrix.ts"
 
 import type {Boundary} from "./index.ts"
 import {
@@ -409,8 +409,8 @@ export const open = async (filename?: string): Promise<Boundary> => {
     bulkRuntime() {
       return buildBulkRuntime(sql)
     },
-    energyRuntime() {
-      return buildEnergyRuntime(sql)
+    matrixRuntime() {
+      return buildMatrixRuntime(sql)
     },
     emit(message: BoundaryUpdateMessage) {
       emitForceMessage(message)

@@ -69,7 +69,7 @@ describe("boundary/tests github/zavx0z startup load", () => {
         FROM actor_state
         ORDER BY actor
       `
-      const runtime = await boundary.energyRuntime()
+      const runtime = await boundary.matrixRuntime()
       const bulkRuntime = await boundary.bulkRuntime()
       const topologyRows = await sql<Array<{id: number; kind: string}>>`
         SELECT id, kind

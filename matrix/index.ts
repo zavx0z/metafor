@@ -1,0 +1,47 @@
+export {
+  FieldType,
+  applyPreparedData,
+  applyWeakResultPacket,
+  matrix$,
+  flattenMatrixData,
+  gravity$,
+  listMatrixRuntimeActorIds,
+  loadMatrixRuntimeSnapshot,
+  prepareData,
+  strong$,
+  subscribeMatrixGluonBroadcast,
+  subscribeMatrixHiggsBroadcast,
+  subscribeMatrixWeakResultBroadcast,
+  unlock,
+  update,
+  write,
+} from "./matrix.ts"
+export {
+  FORCE,
+  absorbForceMessage,
+  closeForceChannel,
+  emitForceMessage,
+  emitForceParts,
+  force,
+  entropyForceMessage,
+  observeForceMessage,
+} from "./channel.ts"
+export type {
+  MatrixBroadcastSubscription,
+  MatrixValueBroadcastSubscription,
+  MatrixWeakBroadcastSubscription,
+  MatrixGravityStore,
+  MatrixRuntimeSnapshot,
+  PreparedData,
+} from "./matrix.ts"
+export type {
+  MatrixForce,
+  MatrixForceBinding,
+  MatrixForceChannel,
+  MatrixDomainPath,
+  MatrixForceMessage,
+  MatrixForceMessageListener,
+  MatrixForceSurface,
+  MatrixParticle,
+  TypedMatrixBroadcastChannel,
+} from "./channel.ts"
