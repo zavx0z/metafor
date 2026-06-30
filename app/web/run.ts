@@ -87,6 +87,18 @@ async function run(name: string): Promise<void> {
     await restartMatrixProcess()
     return
   }
+  if (name === "start:energy") {
+    await startEnergyProcess()
+    return
+  }
+  if (name === "stop:energy") {
+    await stopEnergyProcess()
+    return
+  }
+  if (name === "restart:energy") {
+    await restartEnergyProcess()
+    return
+  }
   if (name === "watch:ports") {
     await watchPorts()
     return
@@ -315,10 +327,68 @@ async function restartMatrixProcess(): Promise<void> {
   console.log(JSON.stringify(response, null, 2))
 }
 
+async function startEnergyProcess(): Promise<void> {
+  await waitForInterpreterApi()
+  const existing = await getEnergyProcess()
+  if (existing?.runtime?.target?.state === "running") {
+    console.log(`energy process already running: ${existing.id}`)
+    return
+  }
+  if (existing !== null) {
+    await deleteInterpreterProcess(energyProcessId())
+  }
+
+  const response = await interpreterJson("/processes", {
+    method: "POST",
+    body: JSON.stringify({
+      processId: energyProcessId(),
+      label: "energy/server.ts",
+      modulePath: "energy/server.ts",
+      command: ["bun", "energy/server.ts"],
+      cwd,
+      env: energyProcessEnv(),
+      pauseOnStart: false,
+    }),
+  })
+  console.log(JSON.stringify(response, null, 2))
+}
+
+async function stopEnergyProcess(): Promise<void> {
+  const existing = await getEnergyProcess()
+  if (existing === null) {
+    console.log("energy process is not registered")
+    return
+  }
+  const response = await interpreterJson(`/processes/${encodeURIComponent(existing.id)}/action`, {
+    method: "POST",
+    body: JSON.stringify({action: "stop"}),
+  })
+  console.log(JSON.stringify(response, null, 2))
+}
+
+async function restartEnergyProcess(): Promise<void> {
+  const existing = await getEnergyProcess()
+  if (existing === null) {
+    await startEnergyProcess()
+    return
+  }
+  const response = await interpreterJson(`/processes/${encodeURIComponent(existing.id)}/action`, {
+    method: "POST",
+    body: JSON.stringify({action: "restart"}),
+  })
+  console.log(JSON.stringify(response, null, 2))
+}
+
 async function getMatrixProcess(): Promise<Record<string, any> | null> {
   const payload = await interpreterJson("/processes")
   const processes = Array.isArray(payload.processes) ? payload.processes : []
   return processes.find((item: Record<string, any>) => item.id === matrixProcessId()) ?? null
+}
+
+async function getEnergyProcess(): Promise<Record<string, any> | null> {
+  const payload = await interpreterJson("/processes")
+  const processes = Array.isArray(payload.processes) ? payload.processes : []
+  return processes.find((item: Record<string, any>) => item.id === energyProcessId()) ?? null
 }
 
 async function deleteInterpreterProcess(processId: string): Promise<void> {
@@ -351,6 +421,10 @@ function matrixProcessId(): string {
   return process.env.MATRIX_PROCESS_ID?.trim() || "matrix-server.ts"
 }
 
+function energyProcessId(): string {
+  return process.env.ENERGY_PROCESS_ID?.trim() || "energy-server.ts"
+}
+
 function matrixProcessEnv(): Record<string, string> {
   const env: Record<string, string> = {
     MATRIX_BOUNDARY_WS_URL: matrixBoundaryWsUrl(),
@@ -362,10 +436,27 @@ function matrixProcessEnv(): Record<string, string> {
   return env
 }
 
+function energyProcessEnv(): Record<string, string> {
+  const env: Record<string, string> = {
+    ENERGY_BRIDGE_WS_URL: energyBridgeWsUrl(),
+    HOST: energyHost(),
+    PORT: energyPort(),
+  }
+  const token = process.env.ENERGY_BRIDGE_TOKEN?.trim()
+  if (token) env.ENERGY_BRIDGE_TOKEN = token
+  return env
+}
+
 function matrixBoundaryWsUrl(): string {
   const explicit = process.env.MATRIX_BOUNDARY_WS_URL?.trim() || process.env.APP_WEB_MATRIX_WS_URL?.trim()
   if (explicit) return explicit
   return `ws://${appWebBridgeHost()}:${appWebBridgePort()}/matrix/ws`
+}
+
+function energyBridgeWsUrl(): string {
+  const explicit = process.env.ENERGY_BRIDGE_WS_URL?.trim() || process.env.APP_WEB_ENERGY_WS_URL?.trim()
+  if (explicit) return explicit
+  return `ws://${appWebBridgeHost()}:${appWebBridgePort()}/energy/ws`
 }
 
 function normalizeClientConnectHost(value: string | undefined | null): string | null {
@@ -396,6 +487,16 @@ function matrixHost(): string {
 
 function matrixPort(): string {
   return process.env.MATRIX_PORT?.trim() || "3005"
+}
+
+function energyHost(): string {
+  return process.env.ENERGY_HOST?.trim()
+    || process.env.INTERPRETER_HTTP_HOST?.trim()
+    || "127.0.0.1"
+}
+
+function energyPort(): string {
+  return process.env.ENERGY_PORT?.trim() || "3006"
 }
 
 function titlePane(name: keyof typeof panes, title: string): void {
@@ -534,10 +635,12 @@ function interestingPort(port: number): boolean {
     || port === 3000
     || port === 3004
     || port === 3005
+    || port === 3006
     || port === 32133
     || port === 6499
     || port === 6500
     || port === 6501
+    || port === 6502
     || port === 7880
     || port === 7881
     || port === 7882
@@ -548,7 +651,7 @@ function interestingPort(port: number): boolean {
 
 function portTone(port: number): Tone {
   if (port === 80 || port === 443) return "green"
-  if (port === 3000 || port === 3004 || port === 3005 || port === 6499 || port === 6500 || port === 6501) return "cyan"
+  if (port === 3000 || port === 3004 || port === 3005 || port === 3006 || port === 6499 || port === 6500 || port === 6501 || port === 6502) return "cyan"
   if (port === 32133 || port === 9222 || port === 9223 || port === 9349) return "yellow"
   return "magenta"
 }

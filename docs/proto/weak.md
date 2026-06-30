@@ -65,7 +65,8 @@
 
 ### Energy
 
-Energy здесь означает будущий distributed process executor:
+Energy здесь означает distributed process executor. Текущий пакет `energy/`
+пока является server bridge оболочкой без реального исполнения DSL action:
 
 - слушает photons Matrix,
 - проверяет `env` и `mass`,

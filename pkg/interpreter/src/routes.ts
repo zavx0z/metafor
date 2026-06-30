@@ -133,7 +133,7 @@ const routeIndex = [
   {method: "POST", path: "/hud/terminal/network/show", description: "сфокусировать network display в Space"},
   {method: "POST", path: "/hud/terminal/network/dock", description: "оставить network tmux в Space без плавающего HUD"},
   {method: "POST", path: "/hud/terminal/network/toggle", description: "сфокусировать network display в Space"},
-  {method: "POST", path: "/space/network/action", description: "{action} — управлять tmux network layout и Matrix process: layout/status/start:tls/stop:tls/start:redirect/stop:redirect/start:matrix/stop:matrix/restart:matrix/tail/clear"},
+  {method: "POST", path: "/space/network/action", description: "{action} — управлять tmux network layout, Matrix process и Energy process: layout/status/start:tls/stop:tls/start:redirect/stop:redirect/start:matrix/stop:matrix/restart:matrix/start:energy/stop:energy/restart:energy/tail/clear"},
   {method: "GET", path: "/hud/android", description: "состояние Android HUD"},
   {method: "POST", path: "/hud/android/show", description: "развернуть Android HUD"},
   {method: "POST", path: "/hud/android/dock", description: "свернуть Android HUD"},

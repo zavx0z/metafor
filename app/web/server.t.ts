@@ -1,6 +1,7 @@
 import type {ServerWebSocket} from "bun"
 import type {BulkLayoutSettings} from "@bulk/gravity/layout"
 import type {BoundaryBulkRuntimeSnapshot, BoundaryMatrixRuntimeSnapshot, BoundaryUpdateMessage} from "boundary"
+import type {EnergyEnv, EnergyMass, EnergyProcessResult, EnergyProcessTask} from "energy"
 import type {VoiceProxySocketData} from "@metafor/interpreter/srv"
 import type {PtySocketData} from "@metafor/pty/server"
 import type {parseMarkdownTodo} from "@ui/panes/todo-model"
@@ -32,11 +33,17 @@ export type MatrixBridgeSocketData = {
 	connectedAt: number
 }
 
+export type EnergyBridgeSocketData = {
+	kind: "energy-bridge"
+	connectedAt: number
+}
+
 export type TerminalPtySocketData = PtySocketData
 
 export type AppWebSocketData =
 	| AppWebClientSocketData
 	| AppWebTerminalSocketData
+	| EnergyBridgeSocketData
 	| MatrixBridgeSocketData
 	| RtcSignalSocketData
 	| VoiceProxySocketData
@@ -49,6 +56,19 @@ export type MatrixBridgeIncomingMessage =
 export type MatrixBridgeOutgoingMessage =
 	| {type: "matrix-snapshot"; version: 1; reason: string; snapshot: BoundaryMatrixRuntimeSnapshot}
 	| {type: "force"; parts: BoundaryUpdateMessage["parts"]}
+
+export type EnergyBridgeIncomingMessage =
+	| {type: "force"; parts: BoundaryUpdateMessage["parts"]}
+	| {type: "hello"; runtime: "energy"; env: EnergyEnv; pid: number; startedAt: string}
+	| {type: "claim"; actorId: number; processId: number; token: string; env: EnergyEnv; mass?: EnergyMass}
+	| {type: "process-result"; result: EnergyProcessResult}
+
+export type EnergyBridgeOutgoingMessage =
+	| {type: "force"; parts: BoundaryUpdateMessage["parts"]}
+	| {type: "process-task"; version: 1; task: EnergyProcessTask}
+	| {type: "claim-accepted"; actorId: number; processId: number; token?: string}
+	| {type: "claim-rejected"; actorId: number; processId: number; reason: string}
+	| {type: "error"; error: string}
 
 export type TodoMarkdownPayload = {
 	ok: true

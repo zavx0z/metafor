@@ -24,6 +24,7 @@
     "@ui/panes": "workspace:*",
     "boundary": "workspace:*",
     "bulk": "workspace:*",
-    "dark": "workspace:*"
+    "dark": "workspace:*",
+    "energy": "workspace:*"
   }
 }

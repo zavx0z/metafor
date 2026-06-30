@@ -33,17 +33,20 @@ import type {
 	ClientMaterializePayload,
 	ClientMessage,
 	ClientRelayoutPayload,
+	EnergyBridgeSocketData,
 	MatrixBridgeSocketData,
 	ServerSnapshotPayload,
 	TerminalPtySocketData,
 	TodoMarkdownPayload,
 } from "./server.t.ts"
 import {DEFAULT_APP_WEB_SCENE_SRC} from "./app-config.ts"
+import {energyBridgeAuth, readEnergyBridgeMessage} from "./energy-bridge.ts"
 import {matrixBridgeAuth, readMatrixBridgeMessage} from "./matrix-bridge.ts"
 
 const boundary = globalThis.boundary
 const sockets = new Set<ServerWebSocket<AppWebSocketData>>()
 const matrixBridgeSockets = new Set<ServerWebSocket<AppWebSocketData>>()
+const energyBridgeSockets = new Set<ServerWebSocket<AppWebSocketData>>()
 const terminalSessions = createPtySessionManager({
   cwd: process.cwd(),
   shell: Bun.env.SHELL || "/bin/zsh",
@@ -53,6 +56,7 @@ const PORT = Number(Bun.env.PORT ?? 3000)
 const TLS_ENABLED = Boolean(Bun.env.TLS_KEY_FILE && Bun.env.TLS_CERT_FILE)
 const CHROME_API_URL = Bun.env.METAFOR_CHROME_API_URL?.trim() || null
 const MATRIX_BRIDGE_TOKEN = Bun.env.MATRIX_BRIDGE_TOKEN?.trim() || null
+const ENERGY_BRIDGE_TOKEN = Bun.env.ENERGY_BRIDGE_TOKEN?.trim() || null
 const {proxy: interpreterProxyRoutes} = interpreterRoutes
 const APP_WEB_BLOCKED_INTERPRETER_PATHS = new Set([
   "/hud/sqlite",
@@ -146,6 +150,7 @@ const buildSnapshot = async (
 boundary.entropy((event) => {
   broadcastForceMessage(event.data)
   broadcastMatrixForceMessage(event.data)
+  broadcastEnergyForceMessage(event.data)
 })
 
 function broadcastForceMessage(message: BoundaryUpdateMessage): number {
@@ -172,6 +177,23 @@ function broadcastMatrixForceMessage(
   })
   let clients = 0
   for (const socket of matrixBridgeSockets) {
+    if (socket === exceptSocket || socket.readyState !== WebSocket.OPEN) continue
+    socket.send(payload)
+    clients += 1
+  }
+  return clients
+}
+
+function broadcastEnergyForceMessage(
+  message: BoundaryUpdateMessage,
+  exceptSocket?: ServerWebSocket<AppWebSocketData>,
+): number {
+  const payload = JSON.stringify({
+    type: "force",
+    parts: message.parts,
+  })
+  let clients = 0
+  for (const socket of energyBridgeSockets) {
     if (socket === exceptSocket || socket.readyState !== WebSocket.OPEN) continue
     socket.send(payload)
     clients += 1
@@ -219,9 +241,50 @@ async function handleMatrixBridgeMessage(
     await boundary.absorb(message)
     const browserClients = broadcastForceMessage(message)
     const matrixClients = broadcastMatrixForceMessage(message, socket)
-    appLog("WS", "matrix force", `parts=${message.parts.length} browser=${browserClients} matrix=${matrixClients}`, "green")
+    const energyClients = broadcastEnergyForceMessage(message)
+    appLog("WS", "matrix force", `parts=${message.parts.length} browser=${browserClients} matrix=${matrixClients} energy=${energyClients}`, "green")
   } catch (error) {
     appLog("ERR", "matrix force failed", errorMessage(error), "red")
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({type: "error", error: error instanceof Error ? error.message : String(error)}))
+    }
+  }
+}
+
+async function handleEnergyBridgeMessage(
+  socket: ServerWebSocket<AppWebSocketData>,
+  raw: string | Buffer,
+): Promise<void> {
+  const payload = readEnergyBridgeMessage(raw)
+  if (payload === null) {
+    appLog("WS", "energy bridge ignored", "invalid message", "yellow")
+    return
+  }
+
+  if (payload.type === "hello") {
+    appLog("WS", "energy hello", `pid=${payload.pid} env=${payload.env.id} started=${payload.startedAt}`, "cyan")
+    return
+  }
+
+  if (payload.type === "claim") {
+    appLog("WS", "energy claim", `actor=${payload.actorId} process=${payload.processId} env=${payload.env.id}`, "cyan")
+    return
+  }
+
+  if (payload.type === "process-result") {
+    appLog("WS", "energy result", `ok=${payload.result.ok} actor=${payload.result.actorId} process=${payload.result.processId}`, payload.result.ok ? "green" : "yellow")
+    return
+  }
+
+  const message: BoundaryUpdateMessage = {parts: payload.parts}
+  try {
+    await boundary.absorb(message)
+    const browserClients = broadcastForceMessage(message)
+    const matrixClients = broadcastMatrixForceMessage(message)
+    const energyClients = broadcastEnergyForceMessage(message, socket)
+    appLog("WS", "energy force", `parts=${message.parts.length} browser=${browserClients} matrix=${matrixClients} energy=${energyClients}`, "green")
+  } catch (error) {
+    appLog("ERR", "energy force failed", errorMessage(error), "red")
     if (socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({type: "error", error: error instanceof Error ? error.message : String(error)}))
     }
@@ -276,6 +339,23 @@ const server = serve<AppWebSocketData>({
       logWsUpgrade(req, "matrix.bridge", ok)
       return ok ? undefined : new Response("WebSocket upgrade failed", {status: 426})
     },
+    "/energy/ws": (req: Request, wsServer: Server<AppWebSocketData>) => {
+      const auth = energyBridgeAuth({
+        url: new URL(req.url),
+        requestHost: wsServer.requestIP(req)?.address ?? null,
+        serverHost: HOST,
+        token: ENERGY_BRIDGE_TOKEN,
+        headerToken: energyBridgeHeaderToken(req),
+      })
+      if (!auth.ok) {
+        logWsUpgrade(req, "energy.bridge", false, auth.reason)
+        return new Response("Forbidden", {status: 403})
+      }
+      const data: EnergyBridgeSocketData = {kind: "energy-bridge", connectedAt: Date.now()}
+      const ok = wsServer.upgrade(req, {data})
+      logWsUpgrade(req, "energy.bridge", ok)
+      return ok ? undefined : new Response("WebSocket upgrade failed", {status: 426})
+    },
     "/hud/interpreter/reload": async (req: Request, wsServer: Server<AppWebSocketData>) => {
       return await reloadEmbeddedInterpreterClients(req, wsServer)
     },
@@ -300,8 +380,9 @@ const server = serve<AppWebSocketData>({
         await boundary.absorb(message)
         const clients = broadcastForceMessage(message)
         const matrixClients = broadcastMatrixForceMessage(message)
-        logHttp(req, "force", 200, started, `parts=${message.parts.length} clients=${clients} matrix=${matrixClients}`)
-        return jsonResponse({ok: true, parts: message.parts.length, clients, matrixClients})
+        const energyClients = broadcastEnergyForceMessage(message)
+        logHttp(req, "force", 200, started, `parts=${message.parts.length} clients=${clients} matrix=${matrixClients} energy=${energyClients}`)
+        return jsonResponse({ok: true, parts: message.parts.length, clients, matrixClients, energyClients})
       } catch (error) {
         logHttp(req, "force", 400, started, `error=${errorMessage(error)}`)
         return jsonResponse({ok: false, error: error instanceof Error ? error.message : String(error)}, 400)
@@ -412,6 +493,11 @@ const server = serve<AppWebSocketData>({
   },
   websocket: {
     open(ws) {
+      if (ws.data.kind === "energy-bridge") {
+        energyBridgeSockets.add(ws)
+        appLog("WS", "energy bridge opened", `clients=${energyBridgeSockets.size}`, "green")
+        return
+      }
       if (ws.data.kind === "matrix-bridge") {
         matrixBridgeSockets.add(ws)
         appLog("WS", "matrix bridge opened", `clients=${matrixBridgeSockets.size}`, "green")
@@ -448,6 +534,10 @@ const server = serve<AppWebSocketData>({
       voiceServer.sendVoiceLeaseSnapshot(ws, "connect")
     },
     message(ws, message) {
+      if (ws.data.kind === "energy-bridge") {
+        void handleEnergyBridgeMessage(ws, message)
+        return
+      }
       if (ws.data.kind === "matrix-bridge") {
         void handleMatrixBridgeMessage(ws, message)
         return
@@ -508,6 +598,11 @@ const server = serve<AppWebSocketData>({
       }
     },
     close(ws) {
+      if (ws.data.kind === "energy-bridge") {
+        energyBridgeSockets.delete(ws)
+        appLog("WS", "energy bridge closed", `clients=${energyBridgeSockets.size}`, "gray")
+        return
+      }
       if (ws.data.kind === "matrix-bridge") {
         matrixBridgeSockets.delete(ws)
         appLog("WS", "matrix bridge closed", `clients=${matrixBridgeSockets.size}`, "gray")
@@ -646,6 +741,14 @@ function isLoopbackHost(host: string): boolean {
 
 function matrixBridgeHeaderToken(req: Request): string | null {
   const explicit = req.headers.get("x-matrix-bridge-token")?.trim()
+  if (explicit) return explicit
+  const authorization = req.headers.get("authorization")?.trim()
+  const match = authorization?.match(/^Bearer\s+(.+)$/i)
+  return match?.[1]?.trim() || null
+}
+
+function energyBridgeHeaderToken(req: Request): string | null {
+  const explicit = req.headers.get("x-energy-bridge-token")?.trim()
   if (explicit) return explicit
   const authorization = req.headers.get("authorization")?.trim()
   const match = authorization?.match(/^Bearer\s+(.+)$/i)

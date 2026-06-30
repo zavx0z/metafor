@@ -55,23 +55,27 @@ systemctl --user status metafor-interpreter-web-dev.service --no-pager
 
 Shell `curl https://dev.proizvodstvo1.ru/...` не является надёжной проверкой runtime-состояния: он может вернуть SSO/nginx-ответ вместо состояния текущего interpreter host.
 
-Server-dev контур с Matrix запускается как один interpreter host и два child
-processes:
+Server-dev контур с Matrix и Energy-shell запускается как один interpreter host
+и три child processes:
 
 - `app/web/server.ts` слушает AppWeb HTTP/browser API и приватный bridge
-  `/matrix/ws`;
+  `/matrix/ws` и `/energy/ws`;
 - `matrix/server.ts` слушает `3005`, подключается к
   `ws://127.0.0.1:3004/matrix/ws`, получает `BoundaryMatrixRuntimeSnapshot` и
   Force-поток через AppWeb;
-- `Matrix` не импортирует `Boundary`/SQLite и не читает базу напрямую.
+- `energy/server.ts` слушает `3006`, подключается к
+  `ws://127.0.0.1:3004/energy/ws` и пока является оболочкой будущего
+  distributed process executor;
+- `Matrix` и `Energy` не импортируют `Boundary`/SQLite и не читают базу напрямую.
 
 Локальная проверка:
 
 ```bash
-bun run interpreter:web:matrix
+bun run interpreter:web:matrix:energy
 curl -sS http://127.0.0.1:6500/processes
 curl -sS http://127.0.0.1:3004/health
 curl -sS http://127.0.0.1:3005/health
+curl -sS http://127.0.0.1:3006/health
 ```
 
 В уже поднятом interpreter host Matrix запускается через существующий REST
@@ -87,10 +91,14 @@ curl -sS -X POST http://10.66.0.10:6500/space/network/action \
 curl -sS -X POST http://10.66.0.10:6500/space/network/action \
   -H 'content-type: application/json' \
   -d '{"action":"stop:matrix"}'
+curl -sS -X POST http://10.66.0.10:6500/space/network/action \
+  -H 'content-type: application/json' \
+  -d '{"action":"start:energy"}'
 ```
 
-Эти actions внутри используют `/processes`, поэтому Matrix получает нормальный
-process display, inspector URL и lifecycle в общем interpreter `Space`.
+Эти actions внутри используют `/processes`, поэтому Matrix и Energy получают
+нормальные process display, inspector URL и lifecycle в общем interpreter
+`Space`.
 
 ### Dev sourcemaps
 
@@ -107,8 +115,9 @@ APP_WEB_CLIENT_SOURCEMAP=0 bun run workspace.app.web:prod
 
 - `app/web/client.ts` импортирует `bulk/web` как пакет и остаётся тонким браузерным видовым клиентом.
 - `app/web/server.ts` статически импортирует `dark/server`, берёт `boundary` из `globalThis`, получает снимок уже наполненной базы через `boundary.bulkRuntime()` и отдаёт браузеру готовые строки мира. `BOUNDARY_PATH` передаётся при запуске и подхватывается самим `Boundary`.
-- `app/web/server.ts` отдаёт приватный `/matrix/ws`, через который отдельный
-  `matrix/server.ts` получает `boundary.matrixRuntime()` и Force-сообщения.
+- `app/web/server.ts` отдаёт приватные `/matrix/ws` и `/energy/ws`: отдельный
+  `matrix/server.ts` получает `boundary.matrixRuntime()` и Force-сообщения, а
+  `energy/server.ts` подключается как оболочка будущего process executor.
 - `Dark` может работать совместно с `Boundary`: он открывает boundary-хранилище и материализует каноническую форму.
 - `Matrix` и `Bulk` не открывают `Boundary`/SQLite и не синхронизируют базу. Это рантайм-слои.
 - `Bulk` должен получать события проекции/рантайма в реальном времени и вести собственный рантайм проекции; `AppWeb` получает уже готовые события рендера / строки мира.

@@ -52,6 +52,9 @@ MetaFor строится как система доменных проекций
 - относительные импорты между доменами допустимы только в тестах,
 - Matrix уже подключается к AppWeb через `/matrix/ws`, не читая
   `Boundary`/SQLite напрямую.
+- Energy-shell уже подключается к AppWeb через `/energy/ws`, не читая
+  `Boundary`/SQLite напрямую; реальное исполнение process action остаётся
+  следующим этапом.
 
 ## Архитектурный инвариант
 
@@ -97,30 +100,37 @@ MetaFor строится как система доменных проекций
 
 ## Практический Server-Dev Контур
 
-Текущий server-dev контур поднимает один interpreter host и два child
+Текущий server-dev контур поднимает один interpreter host и три child
 processes:
 
 - `app/web/server.ts` владеет Boundary, browser API, Bulk snapshot и приватным
-  Matrix bridge `/matrix/ws`;
+  Matrix bridge `/matrix/ws` и Energy bridge `/energy/ws`;
 - `matrix/server.ts` владеет Matrix runtime, слушает health/debug endpoint на
   `3005` и подключается к AppWeb bridge как WebSocket client.
+- `energy/server.ts` владеет оболочкой будущего distributed process executor,
+  слушает health/debug endpoint на `3006` и подключается к AppWeb bridge как
+  WebSocket client.
 
 AppWeb отправляет Matrix начальный `BoundaryMatrixRuntimeSnapshot` и Force
 сообщения. Matrix применяет входящие сообщения через локальный Force channel и
 отправляет порождённые сообщения, например `photon`, обратно в AppWeb. Matrix
 не импортирует `Boundary`/SQLite и не открывает базу напрямую.
+Energy пока принимает Force/process-task protocol surface через `/energy/ws`,
+может сформировать целевые `w+`/`w-` Force helpers, но не исполняет реальные DSL
+actions.
 
 Локальный запуск:
 
 ```bash
-bun run interpreter:web:matrix
+bun run interpreter:web:matrix:energy
 curl -sS http://127.0.0.1:6500/processes
 curl -sS http://127.0.0.1:3004/health
 curl -sS http://127.0.0.1:3005/health
+curl -sS http://127.0.0.1:3006/health
 ```
 
-В уже работающем server-dev контуре не запускайте Matrix вручную отдельным
-tmux-процессом. Используйте существующий control API:
+В уже работающем server-dev контуре не запускайте Matrix или Energy вручную
+отдельным tmux-процессом. Используйте существующий control API:
 
 ```bash
 curl -sS -X POST http://10.66.0.10:6500/space/network/action \
@@ -129,8 +139,8 @@ curl -sS -X POST http://10.66.0.10:6500/space/network/action \
 ```
 
 `start:matrix`, `stop:matrix` и `restart:matrix` вызывают interpreter
-`/processes`, поэтому Matrix остаётся управляемым child process того же
-interpreter host.
+`/processes`; `start:energy`, `stop:energy` и `restart:energy` работают так же.
+Оба runtime остаются управляемыми child processes того же interpreter host.
 
 ## Временный режим интеграционной разработки
 

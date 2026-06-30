@@ -58,6 +58,7 @@ server-dev контуре:
 - interpreter host: `http://10.66.0.10:6500`;
 - app-web dev server: `http://10.66.0.10:3004`;
 - matrix dev server: `http://10.66.0.10:3005`;
+- energy dev server: `http://10.66.0.10:3006`;
 - Bun inspector child `app/web/server.ts`: `ws://127.0.0.1:6499/`;
 - Bun inspector child `matrix/server.ts`: следующий auto-allocated inspector
   port после app-web, обычно `ws://127.0.0.1:6501/`;
@@ -71,12 +72,14 @@ server-dev контуре:
 API и `10.66.0.10:3004` для app-web dev health/API. LAN/TLS режим на `443` -
 отдельный локально-сетевой режим, не диагностика этого контура.
 
-Ожидаемый server-dev runtime - один interpreter host и два child processes:
+Ожидаемый server-dev runtime - один interpreter host и три child processes:
 
 - `app/web/server.ts`: владеет Boundary/AppWeb/browser bridge и отдаёт
-  приватный `/matrix/ws`;
+  приватные `/matrix/ws` и `/energy/ws`;
 - `matrix/server.ts`: держит Matrix runtime, подключается к `/matrix/ws`,
   получает `BoundaryMatrixRuntimeSnapshot` и Force через WebSocket.
+- `energy/server.ts`: держит оболочку будущего distributed process executor,
+  подключается к `/energy/ws` и пока не исполняет реальные DSL actions.
 
 Базовая проверка Matrix:
 
@@ -85,12 +88,16 @@ curl -sS -X POST http://10.66.0.10:6500/space/network/action \
   -H 'content-type: application/json' \
   -d '{"action":"start:matrix"}'
 curl -sS http://10.66.0.10:3005/health
+curl -sS -X POST http://10.66.0.10:6500/space/network/action \
+  -H 'content-type: application/json' \
+  -d '{"action":"start:energy"}'
+curl -sS http://10.66.0.10:3006/health
 ```
 
-Не запускай `matrix/server.ts` вручную в отдельном tmux pane, если работает
-interpreter host. Используй `/space/network/action` или прямой
-`POST /processes`: тогда Matrix получает отдельный process display, inspector
-URL и управляется тем же API, что `app/web/server.ts`.
+Не запускай `matrix/server.ts` или `energy/server.ts` вручную в отдельном tmux
+pane, если работает interpreter host. Используй `/space/network/action` или
+прямой `POST /processes`: тогда каждый runtime получает отдельный process
+display, inspector URL и управляется тем же API, что `app/web/server.ts`.
 
 Удаленный браузер для визуальной WebApp-разработки должен открывать
 `https://meta.proizvodstvo1.ru/`. Это не маркетинговая внешняя страница, а

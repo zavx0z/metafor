@@ -28,16 +28,19 @@ pkg/interpreter/AGENTS.md
 - interpreter host: `http://10.66.0.10:6500`;
 - app-web dev server: `http://10.66.0.10:3004`;
 - matrix dev server: `http://10.66.0.10:3005`;
+- energy dev server: `http://10.66.0.10:3006`;
 - visible WebApp target: `https://meta.proizvodstvo1.ru/`;
 - server Chrome remote desktop host: `http://127.0.0.1:32133`;
 - server Chrome CDP: `http://127.0.0.1:9349/json/list`.
 
-Текущий server-dev контур рассчитан на один interpreter host и два child
-processes: `app/web/server.ts` и `matrix/server.ts`. Управляй ими через
+Текущий server-dev контур рассчитан на один interpreter host и три child
+processes: `app/web/server.ts`, `matrix/server.ts` и `energy/server.ts`. Управляй ими через
 interpreter REST API, а не отдельными shell-командами: `/processes` для child
 process lifecycle и `/space/network/action` для окружения. `Matrix`
 подключается к AppWeb через приватный WebSocket bridge `/matrix/ws` и не читает
-`Boundary`/SQLite напрямую.
+`Boundary`/SQLite напрямую. `Energy` подключается через приватный bridge
+`/energy/ws`; сейчас это оболочка будущего distributed process executor, без
+реального исполнения DSL action.
 
 Локальный `127.0.0.1` workflow тоже поддерживается, но не путай его с текущим
 server-dev контуром. LAN/TLS режим на `443` - отдельный локально-сетевой режим,

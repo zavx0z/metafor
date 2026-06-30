@@ -3,9 +3,10 @@
 Рабочий план для текущей разработки. HUD ToDoPane читает этот файл и показывает
 только ближайшие незакрытые задачи.
 
-## 1. Process Protocol / Future Energy
+## 1. Process Protocol / Energy
 
-- [ ] Спроектировать новый `Energy` как распределённый исполнитель процессов.
+- [ ] Подключить генерацию `process-task` из Matrix/AppWeb в `energy/server.ts`.
+- [ ] Научить `Energy` исполнять process action по `env`/`mass` без чтения `Boundary`.
 - [ ] Провести аудит `z` / `w+` / `w-` / `applyWeakResultPacket` / `collectWeakResultPackets`.
 - [ ] Убрать `/field/...` из протокола результатов процесса.
 - [ ] Перевести результат процесса на `path = actor ID`, `processId`, `value.fields[fieldId]`.
@@ -14,7 +15,8 @@
 ## 2. Matrix / AppWeb Orchestration
 
 - [ ] Проверить live server-dev запуск `app/web/server.ts` + `matrix/server.ts` в одном interpreter host.
-- [ ] Закрепить `start:matrix` / `restart:matrix` / `stop:matrix` в текущем server-dev runbook после live-проверки.
+- [ ] Проверить live server-dev запуск `app/web/server.ts` + `matrix/server.ts` + `energy/server.ts` в одном interpreter host.
+- [ ] Закрепить `start:matrix` / `restart:matrix` / `stop:matrix` и `start:energy` / `restart:energy` / `stop:energy` в текущем server-dev runbook после live-проверки.
 - [ ] Связать Matrix photons и Bulk visual update в основном AppWeb runtime без чтения Boundary из Matrix/Bulk.
 - [ ] Собрать сквозную проверку `Dark -> Boundary -> Matrix -> Bulk -> AppWeb`.
 

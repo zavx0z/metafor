@@ -38,13 +38,16 @@
 - набор записываемых результатов использует `value.fields[fieldId]`
 - Matrix проверяет блокировку по actor/brane и активному process-bound state
 - Matrix не читает Boundary/SQLite
-- будущий `Energy` исполняет process и испускает `w+`/`w-`
+- `Energy` исполняет process и испускает `w+`/`w-`; текущий пакет пока является
+  bridge/protocol shell
 
 ## Целевая Форма
 
-Matrix принимает и проверяет результат процесса. Будущий `Energy` является
-распределённым исполнителем: он слушает photons Matrix, проверяет `env`/`mass`,
-claim-ит процесс через `z`, исполняет action и возвращает `w+`/`w-`.
+Matrix принимает и проверяет результат процесса. `Energy` является
+распределённым исполнителем: он слушает photons/process tasks Matrix, проверяет
+`env`/`mass`, claim-ит процесс через `z`, исполняет action и возвращает
+`w+`/`w-`. Текущий пакет `energy/` пока фиксирует server bridge и целевые
+result helpers, но не исполняет реальные DSL actions.
 В server-dev контуре Matrix уже живёт отдельным process `matrix/server.ts` и
 получает snapshot/Force через AppWeb bridge `/matrix/ws`.
 
@@ -97,6 +100,9 @@ claim-ит процесс через `z`, исполняет action и возв�
 
 - `matrix/matrix.ts`
 - `matrix/weak/*`
+- `energy/server.ts`
+- `energy/server-bridge.ts`
+- `app/web/energy-bridge.ts`
 - `bulk/weak/*`
 - `bulk/em/index.ts`
 - `app/web/runtime/bulk.process.ts`
