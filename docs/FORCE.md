@@ -67,9 +67,9 @@ Force фиксирует, как сила действует через кана
 { part: "gluon", op: "replace", path: 17, value: { fields: { "1": "MetaFor" } } }
 { part: "higgs", op: "replace", path: 17, value: { fields: { "2": "native" } } }
 { part: "photon", op: "replace", path: 17, value: "ready" }
-{ part: "z", op: "test", path: 17, value: { action: "claim", token: "run-1" } }
-{ part: "w+", op: "replace", path: 17, value: { fields: { "1": "done" }, token: "run-1" } }
-{ part: "w-", op: "replace", path: 17, value: { error: "failed", token: "run-1" } }
+{ part: "z", op: "test", path: 17, value: { kind: "claim", processId: 42, token: "run-1" } }
+{ part: "w+", op: "replace", path: 17, processId: 42, value: { fields: { "1": "done" } } }
+{ part: "w-", op: "replace", path: 17, processId: 42, value: { error: "failed" } }
 ```
 
 `part` хранит носитель силы, а `path` выбирает область действия патча.
@@ -94,6 +94,9 @@ superposition/triggers или в значении списка.
 Поля Energy runtime snapshot с именами `wimpIds` сохраняются только как
 устаревшие actor ID для старого протокола результатов процессов. Обычная
 рантайм-идентичность — actor ID.
+Текущий узкий аудит оставшегося процессного долга находится в
+[process-protocol-audit](../task/process-protocol-audit.md). Исторические
+research/task-документы не являются источником истины по Force-контракту.
 
 Текущий триггер материализации `graviton test wimp` остаётся legacy-управляющей
 поверхностью до отдельного перевода пути материализации.
