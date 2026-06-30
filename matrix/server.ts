@@ -148,6 +148,12 @@ async function handleBridgeData(raw: unknown): Promise<void> {
     return
   }
 
+  if (message.type === "error") {
+    lastError = message.error
+    log("bridge", "remote error", message.error)
+    return
+  }
+
   absorbForceMessage({parts: message.parts as MatrixParticle[]})
   lastForceAt = new Date().toISOString()
 }

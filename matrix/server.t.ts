@@ -3,6 +3,7 @@ import type {BoundaryMatrixRuntimeSnapshot, BoundaryUpdateMessage} from "boundar
 export type MatrixBridgeIncomingMessage =
   | {type: "matrix-snapshot"; version: 1; reason?: string; snapshot: BoundaryMatrixRuntimeSnapshot}
   | {type: "force"; parts: BoundaryUpdateMessage["parts"]}
+  | {type: "error"; error: string}
 
 export type MatrixBridgeOutgoingMessage =
   | {type: "hello"; runtime: "matrix"; pid: number; startedAt: string}

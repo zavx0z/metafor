@@ -28,6 +28,10 @@ describe("matrix server bridge helpers", () => {
       type: "force",
       parts: [{part: "gluon", op: "replace", path: 17, value: {fields: {"1": "x"}}}],
     })
+    expect(readMatrixBridgeIncomingMessage(JSON.stringify({type: "error", error: "snapshot failed"}))).toEqual({
+      type: "error",
+      error: "snapshot failed",
+    })
   })
 
   test("rejects malformed bridge messages", () => {
@@ -37,6 +41,7 @@ describe("matrix server bridge helpers", () => {
     expect(readMatrixBridgeIncomingMessage(JSON.stringify({type: "matrix-snapshot", version: 2, snapshot}))).toBeNull()
     expect(readMatrixBridgeIncomingMessage(JSON.stringify({type: "matrix-snapshot", version: 1}))).toBeNull()
     expect(readMatrixBridgeIncomingMessage(JSON.stringify({type: "force", parts: null}))).toBeNull()
+    expect(readMatrixBridgeIncomingMessage(JSON.stringify({type: "error", error: null}))).toBeNull()
   })
 
   test("creates status payload", () => {

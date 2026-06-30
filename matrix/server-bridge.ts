@@ -37,6 +37,10 @@ export function readMatrixBridgeIncomingMessage(raw: string | Buffer): MatrixBri
       : null
   }
 
+  if (value.type === "error") {
+    return typeof value.error === "string" ? {type: "error", error: value.error} : null
+  }
+
   return null
 }
 
