@@ -55,6 +55,43 @@ systemctl --user status metafor-interpreter-web-dev.service --no-pager
 
 Shell `curl https://dev.proizvodstvo1.ru/...` не является надёжной проверкой runtime-состояния: он может вернуть SSO/nginx-ответ вместо состояния текущего interpreter host.
 
+Server-dev контур с Matrix запускается как один interpreter host и два child
+processes:
+
+- `app/web/server.ts` слушает AppWeb HTTP/browser API и приватный bridge
+  `/matrix/ws`;
+- `matrix/server.ts` слушает `3005`, подключается к
+  `ws://127.0.0.1:3004/matrix/ws`, получает `BoundaryMatrixRuntimeSnapshot` и
+  Force-поток через AppWeb;
+- `Matrix` не импортирует `Boundary`/SQLite и не читает базу напрямую.
+
+Локальная проверка:
+
+```bash
+bun run interpreter:web:matrix
+curl -sS http://127.0.0.1:6500/processes
+curl -sS http://127.0.0.1:3004/health
+curl -sS http://127.0.0.1:3005/health
+```
+
+В уже поднятом interpreter host Matrix запускается через существующий REST
+контур управления окружением:
+
+```bash
+curl -sS -X POST http://10.66.0.10:6500/space/network/action \
+  -H 'content-type: application/json' \
+  -d '{"action":"start:matrix"}'
+curl -sS -X POST http://10.66.0.10:6500/space/network/action \
+  -H 'content-type: application/json' \
+  -d '{"action":"restart:matrix"}'
+curl -sS -X POST http://10.66.0.10:6500/space/network/action \
+  -H 'content-type: application/json' \
+  -d '{"action":"stop:matrix"}'
+```
+
+Эти actions внутри используют `/processes`, поэтому Matrix получает нормальный
+process display, inspector URL и lifecycle в общем interpreter `Space`.
+
 ### Dev sourcemaps
 
 В dev-контуре client bundle собирается с linked source maps, чтобы browser DevTools показывал исходные TypeScript-файлы `app/web`, `bulk/web` и связанных workspace-пакетов. Это включается автоматически вне production и при `NETWORK_TMUX_MODE=dev`.
@@ -70,6 +107,8 @@ APP_WEB_CLIENT_SOURCEMAP=0 bun run workspace.app.web:prod
 
 - `app/web/client.ts` импортирует `bulk/web` как пакет и остаётся тонким браузерным видовым клиентом.
 - `app/web/server.ts` статически импортирует `dark/server`, берёт `boundary` из `globalThis`, получает снимок уже наполненной базы через `boundary.bulkRuntime()` и отдаёт браузеру готовые строки мира. `BOUNDARY_PATH` передаётся при запуске и подхватывается самим `Boundary`.
+- `app/web/server.ts` отдаёт приватный `/matrix/ws`, через который отдельный
+  `matrix/server.ts` получает `boundary.matrixRuntime()` и Force-сообщения.
 - `Dark` может работать совместно с `Boundary`: он открывает boundary-хранилище и материализует каноническую форму.
 - `Matrix` и `Bulk` не открывают `Boundary`/SQLite и не синхронизируют базу. Это рантайм-слои.
 - `Bulk` должен получать события проекции/рантайма в реальном времени и вести собственный рантайм проекции; `AppWeb` получает уже готовые события рендера / строки мира.

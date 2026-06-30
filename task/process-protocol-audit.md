@@ -45,6 +45,8 @@
 Matrix принимает и проверяет результат процесса. Будущий `Energy` является
 распределённым исполнителем: он слушает photons Matrix, проверяет `env`/`mass`,
 claim-ит процесс через `z`, исполняет action и возвращает `w+`/`w-`.
+В server-dev контуре Matrix уже живёт отдельным process `matrix/server.ts` и
+получает snapshot/Force через AppWeb bridge `/matrix/ws`.
 
 Захват/управление процессом:
 

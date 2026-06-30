@@ -54,10 +54,13 @@ Protocol names вроде `Debugger.paused`, `Debugger.scriptParsed`, `Runtime.g
 server-dev контуре:
 
 - workspace: `/home/zavx0z/production/vendor/metafor`;
-- branch: `energy`;
+- branch: `main`;
 - interpreter host: `http://10.66.0.10:6500`;
 - app-web dev server: `http://10.66.0.10:3004`;
+- matrix dev server: `http://10.66.0.10:3005`;
 - Bun inspector child `app/web/server.ts`: `ws://127.0.0.1:6499/`;
+- Bun inspector child `matrix/server.ts`: следующий auto-allocated inspector
+  port после app-web, обычно `ws://127.0.0.1:6501/`;
 - visible WebApp target в серверном Chrome:
   `https://meta.proizvodstvo1.ru/`;
 - server Chrome remote desktop host: `http://127.0.0.1:32133`;
@@ -67,6 +70,27 @@ server-dev контуре:
 машине, но в текущем server-dev контуре используй `10.66.0.10:6500` для host
 API и `10.66.0.10:3004` для app-web dev health/API. LAN/TLS режим на `443` -
 отдельный локально-сетевой режим, не диагностика этого контура.
+
+Ожидаемый server-dev runtime - один interpreter host и два child processes:
+
+- `app/web/server.ts`: владеет Boundary/AppWeb/browser bridge и отдаёт
+  приватный `/matrix/ws`;
+- `matrix/server.ts`: держит Matrix runtime, подключается к `/matrix/ws`,
+  получает `BoundaryMatrixRuntimeSnapshot` и Force через WebSocket.
+
+Базовая проверка Matrix:
+
+```sh
+curl -sS -X POST http://10.66.0.10:6500/space/network/action \
+  -H 'content-type: application/json' \
+  -d '{"action":"start:matrix"}'
+curl -sS http://10.66.0.10:3005/health
+```
+
+Не запускай `matrix/server.ts` вручную в отдельном tmux pane, если работает
+interpreter host. Используй `/space/network/action` или прямой
+`POST /processes`: тогда Matrix получает отдельный process display, inspector
+URL и управляется тем же API, что `app/web/server.ts`.
 
 Удаленный браузер для визуальной WebApp-разработки должен открывать
 `https://meta.proizvodstvo1.ru/`. Это не маркетинговая внешняя страница, а

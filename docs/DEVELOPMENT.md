@@ -47,9 +47,11 @@ MetaFor строится как система доменных проекций
 - домены остаются изолированными,
 - production-код не получает прямых междоменных импортов, кроме явно
   зафиксированной пары `Dark` -> `Boundary`,
-- сквозная проверка делается только в тестах,
+- сквозная проверка делается в тестах и в server-dev контуре через явные
+  Force/WebSocket bridges,
 - относительные импорты между доменами допустимы только в тестах,
-- Force-каналы реализуются после того, как основной функционал доменов доказан и стабилизирован.
+- Matrix уже подключается к AppWeb через `/matrix/ws`, не читая
+  `Boundary`/SQLite напрямую.
 
 ## Архитектурный инвариант
 
@@ -92,6 +94,43 @@ MetaFor строится как система доменных проекций
 
 Это не отменяет Force-каналы как архитектурную цель.
 Это только означает, что Force-каналы не должны опережать проверку доменной логики.
+
+## Практический Server-Dev Контур
+
+Текущий server-dev контур поднимает один interpreter host и два child
+processes:
+
+- `app/web/server.ts` владеет Boundary, browser API, Bulk snapshot и приватным
+  Matrix bridge `/matrix/ws`;
+- `matrix/server.ts` владеет Matrix runtime, слушает health/debug endpoint на
+  `3005` и подключается к AppWeb bridge как WebSocket client.
+
+AppWeb отправляет Matrix начальный `BoundaryMatrixRuntimeSnapshot` и Force
+сообщения. Matrix применяет входящие сообщения через локальный Force channel и
+отправляет порождённые сообщения, например `photon`, обратно в AppWeb. Matrix
+не импортирует `Boundary`/SQLite и не открывает базу напрямую.
+
+Локальный запуск:
+
+```bash
+bun run interpreter:web:matrix
+curl -sS http://127.0.0.1:6500/processes
+curl -sS http://127.0.0.1:3004/health
+curl -sS http://127.0.0.1:3005/health
+```
+
+В уже работающем server-dev контуре не запускайте Matrix вручную отдельным
+tmux-процессом. Используйте существующий control API:
+
+```bash
+curl -sS -X POST http://10.66.0.10:6500/space/network/action \
+  -H 'content-type: application/json' \
+  -d '{"action":"start:matrix"}'
+```
+
+`start:matrix`, `stop:matrix` и `restart:matrix` вызывают interpreter
+`/processes`, поэтому Matrix остаётся управляемым child process того же
+interpreter host.
 
 ## Временный режим интеграционной разработки
 

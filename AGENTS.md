@@ -27,9 +27,17 @@ pkg/interpreter/AGENTS.md
 - branch: `main`;
 - interpreter host: `http://10.66.0.10:6500`;
 - app-web dev server: `http://10.66.0.10:3004`;
+- matrix dev server: `http://10.66.0.10:3005`;
 - visible WebApp target: `https://meta.proizvodstvo1.ru/`;
 - server Chrome remote desktop host: `http://127.0.0.1:32133`;
 - server Chrome CDP: `http://127.0.0.1:9349/json/list`.
+
+Текущий server-dev контур рассчитан на один interpreter host и два child
+processes: `app/web/server.ts` и `matrix/server.ts`. Управляй ими через
+interpreter REST API, а не отдельными shell-командами: `/processes` для child
+process lifecycle и `/space/network/action` для окружения. `Matrix`
+подключается к AppWeb через приватный WebSocket bridge `/matrix/ws` и не читает
+`Boundary`/SQLite напрямую.
 
 Локальный `127.0.0.1` workflow тоже поддерживается, но не путай его с текущим
 server-dev контуром. LAN/TLS режим на `443` - отдельный локально-сетевой режим,

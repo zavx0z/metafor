@@ -1,6 +1,6 @@
 import type {ServerWebSocket} from "bun"
 import type {BulkLayoutSettings} from "@bulk/gravity/layout"
-import type {BoundaryBulkRuntimeSnapshot, BoundaryUpdateMessage} from "boundary"
+import type {BoundaryBulkRuntimeSnapshot, BoundaryMatrixRuntimeSnapshot, BoundaryUpdateMessage} from "boundary"
 import type {VoiceProxySocketData} from "@metafor/interpreter/srv"
 import type {PtySocketData} from "@metafor/pty/server"
 import type {parseMarkdownTodo} from "@ui/panes/todo-model"
@@ -27,9 +27,28 @@ export type AppWebClientSocketData = {
 
 export type AppWebTerminalSocketData = {kind: "terminal"} & PtySocketData
 
+export type MatrixBridgeSocketData = {
+	kind: "matrix-bridge"
+	connectedAt: number
+}
+
 export type TerminalPtySocketData = PtySocketData
 
-export type AppWebSocketData = AppWebClientSocketData | AppWebTerminalSocketData | RtcSignalSocketData | VoiceProxySocketData
+export type AppWebSocketData =
+	| AppWebClientSocketData
+	| AppWebTerminalSocketData
+	| MatrixBridgeSocketData
+	| RtcSignalSocketData
+	| VoiceProxySocketData
+
+export type MatrixBridgeIncomingMessage =
+	| {type: "force"; parts: BoundaryUpdateMessage["parts"]}
+	| {type: "hello"; runtime: "matrix"; pid: number; startedAt: string}
+	| {type: "snapshot-request"; reason?: string}
+
+export type MatrixBridgeOutgoingMessage =
+	| {type: "matrix-snapshot"; version: 1; reason: string; snapshot: BoundaryMatrixRuntimeSnapshot}
+	| {type: "force"; parts: BoundaryUpdateMessage["parts"]}
 
 export type TodoMarkdownPayload = {
 	ok: true

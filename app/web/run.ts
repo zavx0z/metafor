@@ -75,6 +75,18 @@ async function run(name: string): Promise<void> {
     stopAll()
     return
   }
+  if (name === "start:matrix") {
+    await startMatrixProcess()
+    return
+  }
+  if (name === "stop:matrix") {
+    await stopMatrixProcess()
+    return
+  }
+  if (name === "restart:matrix") {
+    await restartMatrixProcess()
+    return
+  }
   if (name === "watch:ports") {
     await watchPorts()
     return
@@ -235,6 +247,152 @@ function spawnText(command: string[]): string {
   return stdout.length > 0 ? stdout : stderr
 }
 
+async function startMatrixProcess(): Promise<void> {
+  await waitForInterpreterApi()
+  const existing = await getMatrixProcess()
+  if (existing?.runtime?.target?.state === "running") {
+    console.log(`matrix process already running: ${existing.id}`)
+    return
+  }
+  if (existing !== null) {
+    await deleteInterpreterProcess(matrixProcessId())
+  }
+
+  const response = await interpreterJson("/processes", {
+    method: "POST",
+    body: JSON.stringify({
+      processId: matrixProcessId(),
+      label: "matrix/server.ts",
+      modulePath: "matrix/server.ts",
+      command: ["bun", "matrix/server.ts"],
+      cwd,
+      env: matrixProcessEnv(),
+      pauseOnStart: false,
+    }),
+  })
+  console.log(JSON.stringify(response, null, 2))
+}
+
+async function waitForInterpreterApi(timeoutMs = 15_000): Promise<void> {
+  const started = Date.now()
+  let lastError = ""
+  while (Date.now() - started < timeoutMs) {
+    try {
+      const response = await fetch(new URL("/health", interpreterApiUrl()))
+      if (response.ok) return
+      lastError = `${response.status} ${await response.text()}`
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error)
+    }
+    await Bun.sleep(250)
+  }
+  throw new Error(`interpreter API is not ready: ${lastError}`)
+}
+
+async function stopMatrixProcess(): Promise<void> {
+  const existing = await getMatrixProcess()
+  if (existing === null) {
+    console.log("matrix process is not registered")
+    return
+  }
+  const response = await interpreterJson(`/processes/${encodeURIComponent(existing.id)}/action`, {
+    method: "POST",
+    body: JSON.stringify({action: "stop"}),
+  })
+  console.log(JSON.stringify(response, null, 2))
+}
+
+async function restartMatrixProcess(): Promise<void> {
+  const existing = await getMatrixProcess()
+  if (existing === null) {
+    await startMatrixProcess()
+    return
+  }
+  const response = await interpreterJson(`/processes/${encodeURIComponent(existing.id)}/action`, {
+    method: "POST",
+    body: JSON.stringify({action: "restart"}),
+  })
+  console.log(JSON.stringify(response, null, 2))
+}
+
+async function getMatrixProcess(): Promise<Record<string, any> | null> {
+  const payload = await interpreterJson("/processes")
+  const processes = Array.isArray(payload.processes) ? payload.processes : []
+  return processes.find((item: Record<string, any>) => item.id === matrixProcessId()) ?? null
+}
+
+async function deleteInterpreterProcess(processId: string): Promise<void> {
+  await interpreterJson(`/processes/${encodeURIComponent(processId)}`, {method: "DELETE"})
+}
+
+async function interpreterJson(path: string, init: RequestInit = {}): Promise<Record<string, any>> {
+  const url = new URL(path, interpreterApiUrl())
+  const headers = new Headers(init.headers)
+  if (init.body !== undefined && !headers.has("content-type")) headers.set("content-type", "application/json")
+  const response = await fetch(url, {...init, headers})
+  const text = await response.text()
+  let payload: unknown = {}
+  if (text.trim().length > 0) payload = JSON.parse(text) as unknown
+  if (!response.ok) {
+    throw new Error(`interpreter ${init.method ?? "GET"} ${url.pathname} failed ${response.status}: ${text}`)
+  }
+  return typeof payload === "object" && payload !== null && !Array.isArray(payload) ? payload as Record<string, any> : {}
+}
+
+function interpreterApiUrl(): string {
+  const explicit = process.env.INTERPRETER_HTTP_URL?.trim()
+  if (explicit) return explicit
+  const host = process.env.INTERPRETER_HTTP_HOST?.trim() || "127.0.0.1"
+  const port = process.env.INTERPRETER_HTTP_PORT?.trim() || "6500"
+  return `http://${host}:${port}/`
+}
+
+function matrixProcessId(): string {
+  return process.env.MATRIX_PROCESS_ID?.trim() || "matrix-server.ts"
+}
+
+function matrixProcessEnv(): Record<string, string> {
+  const env: Record<string, string> = {
+    MATRIX_BOUNDARY_WS_URL: matrixBoundaryWsUrl(),
+    HOST: matrixHost(),
+    PORT: matrixPort(),
+  }
+  const token = process.env.MATRIX_BRIDGE_TOKEN?.trim()
+  if (token) env.MATRIX_BRIDGE_TOKEN = token
+  return env
+}
+
+function matrixBoundaryWsUrl(): string {
+  const explicit = process.env.MATRIX_BOUNDARY_WS_URL?.trim() || process.env.APP_WEB_MATRIX_WS_URL?.trim()
+  if (explicit) return explicit
+  return `ws://${appWebBridgeHost()}:${appWebBridgePort()}/matrix/ws`
+}
+
+function appWebBridgeHost(): string {
+  return process.env.APP_WEB_MATRIX_HOST?.trim()
+    || process.env.APP_WEB_HOST?.trim()
+    || process.env.HOST?.trim()
+    || process.env.INTERPRETER_HTTP_HOST?.trim()
+    || "127.0.0.1"
+}
+
+function appWebBridgePort(): string {
+  return process.env.APP_WEB_MATRIX_PORT?.trim()
+    || process.env.APP_WEB_PORT?.trim()
+    || process.env.PORT?.trim()
+    || "3004"
+}
+
+function matrixHost(): string {
+  return process.env.MATRIX_HOST?.trim()
+    || process.env.INTERPRETER_HTTP_HOST?.trim()
+    || "127.0.0.1"
+}
+
+function matrixPort(): string {
+  return process.env.MATRIX_PORT?.trim() || "3005"
+}
+
 function titlePane(name: keyof typeof panes, title: string): void {
   tmux(["select-pane", "-t", targetPane(name), "-T", title])
 }
@@ -366,13 +524,27 @@ function shellQuote(value: string): string {
 }
 
 function interestingPort(port: number): boolean {
-  return port === 80 || port === 443 || port === 3000 || port === 6500 || port === 7880 || port === 7881 || port === 7882 || port === 9222 || port === 9223
+  return port === 80
+    || port === 443
+    || port === 3000
+    || port === 3004
+    || port === 3005
+    || port === 32133
+    || port === 6499
+    || port === 6500
+    || port === 6501
+    || port === 7880
+    || port === 7881
+    || port === 7882
+    || port === 9222
+    || port === 9223
+    || port === 9349
 }
 
 function portTone(port: number): Tone {
   if (port === 80 || port === 443) return "green"
-  if (port === 3000 || port === 6500) return "cyan"
-  if (port === 9222 || port === 9223) return "yellow"
+  if (port === 3000 || port === 3004 || port === 3005 || port === 6499 || port === 6500 || port === 6501) return "cyan"
+  if (port === 32133 || port === 9222 || port === 9223 || port === 9349) return "yellow"
   return "magenta"
 }
 

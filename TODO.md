@@ -13,8 +13,9 @@
 
 ## 2. Matrix / AppWeb Orchestration
 
-- [ ] Подключить `BoundaryMatrixRuntimeSnapshot` к основному AppWeb bootstrap, если это ещё не сделано.
-- [ ] Связать вход Force, шаг Matrix и визуальное обновление Bulk без чтения Boundary из Matrix/Bulk.
+- [ ] Проверить live server-dev запуск `app/web/server.ts` + `matrix/server.ts` в одном interpreter host.
+- [ ] Закрепить `start:matrix` / `restart:matrix` / `stop:matrix` в текущем server-dev runbook после live-проверки.
+- [ ] Связать Matrix photons и Bulk visual update в основном AppWeb runtime без чтения Boundary из Matrix/Bulk.
 - [ ] Собрать сквозную проверку `Dark -> Boundary -> Matrix -> Bulk -> AppWeb`.
 
 ## 3. Topology Runtime
