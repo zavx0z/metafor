@@ -6,8 +6,9 @@
  */
 
 export interface EnergyGravityStore {
-  /** Целевая активная id-композиция для следующего/текущего runtime rebuild. */
+  /** @deprecated Actor IDs kept only for legacy process result addressing. */
   activeWimpIds: number[]
+  /** Целевая активная actor-композиция для следующего/текущего runtime rebuild. */
   activeActorIds: number[]
 
   /**
@@ -16,6 +17,7 @@ export interface EnergyGravityStore {
    * Пока `structuralDirty = true`, это соответствие всё ещё относится к
    * последнему materialized `energy$`, а не к новой целевой composition.
    */
+  /** @deprecated Actor ID -> braneIndex map kept only for legacy process result addressing. */
   wimpIdToBraneIndex: Map<number, number>
   actorIdToBraneIndex: Map<number, number>
 
@@ -25,6 +27,7 @@ export interface EnergyGravityStore {
    * Пока `structuralDirty = true`, это соответствие всё ещё относится к
    * последнему materialized `energy$`, а не к новой целевой composition.
    */
+  /** @deprecated braneIndex -> actor ID map kept only for legacy process result addressing. */
   braneIndexToWimpId: number[]
   braneIndexToActorId: number[]
   wimpSrcByActorId: Map<number, string>
@@ -38,8 +41,11 @@ export interface EnergyGravityStore {
    */
   structuralDirty: boolean
 
+  /** @deprecated Legacy process result addressing only. */
   hasWimp(wimpId: number): boolean
+  /** @deprecated Legacy process result addressing only. */
   getBraneIndex(wimpId: number): number | undefined
+  /** @deprecated Legacy process result addressing only. */
   getWimpId(braneIndex: number): number | undefined
   hasActor(actorId: number): boolean
   getBraneIndexByActorId(actorId: number): number | undefined

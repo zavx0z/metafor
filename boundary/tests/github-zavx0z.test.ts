@@ -90,6 +90,7 @@ describe("boundary/tests github/zavx0z startup load", () => {
       expect(actorRows.length).toBeGreaterThan(20)
       expect(runtime.version).toBe(1)
       expect(runtime.wimpIds).toHaveLength(actorRows.length)
+      expect(runtime.legacyProcessActorIds).toHaveLength(actorRows.length)
       expect(runtime.runtime.actorIdByBraneIndex).toHaveLength(actorRows.length)
       expect(runtime.runtime.braneIndexByActorId).toHaveLength(actorRows.length)
       expect(runtime.runtime.wimpSrcByActorId).toHaveLength(actorRows.length)

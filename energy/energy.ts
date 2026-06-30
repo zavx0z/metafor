@@ -29,7 +29,7 @@
 
 import { gravity$ } from "@energy/gravity/store.ts"
 import { energy$ } from "./store"
-import type { EnergyFieldValueRecord, EnergyStore } from "./store.t"
+import type { EnergyFieldRecord, EnergyFieldValueRecord, EnergyStore } from "./store.t"
 import type { PreparedData } from "./energy.t"
 import {force, type EnergyForceMessage, type EnergyParticle} from "./channel"
 import { FieldType, flattenEnergyData, validateData, type Data } from "@energy/gravity"
@@ -43,7 +43,10 @@ type EnergyWeakResultPayload = { wimpId: number; processId: number; parts: Energ
 export type EnergyRuntimeSnapshot = {
   ok: true
   version: 1
+  /** @deprecated Actor IDs kept only for legacy process result addressing. */
   wimpIds: number[]
+  /** Actor IDs kept only for legacy process result addressing. */
+  legacyProcessActorIds?: number[]
   runtime: {
     actorIdByBraneIndex: number[]
     braneIndexByActorId: Array<[actorId: number, braneIndex: number]>
@@ -193,7 +196,15 @@ const parseActorIdPath = (path: EnergyParticle["path"]): number | null =>
 const isTopologyCompatibleActorField = (actorId: number, fieldId: number, runtimeFieldIndex: number): boolean => {
   if (strong$.topologyActorFieldIds.has(actorFieldKey(actorId, fieldId))) return true
   const field = energy$.fields[runtimeFieldIndex]
-  return field?.type === FieldType.U32 || field?.type === FieldType.ARRAY_PTR
+  return field?.enum !== undefined || field?.type === FieldType.ARRAY_PTR
+}
+
+const defaultRuntimeFieldValue = (field: EnergyFieldRecord): unknown => {
+  if (field.enum !== undefined) return null
+  if (field.type === FieldType.ARRAY_PTR) return []
+  if (field.type === FieldType.STRING_PTR) return null
+  if (field.type === FieldType.BOOL) return false
+  return 0
 }
 
 const collectActorFieldUpdates = (
@@ -216,12 +227,14 @@ const collectActorFieldUpdates = (
       if (fieldId === null) continue
       const runtimeFieldIndex = strong$.runtimeFieldIndexByActorFieldId.get(actorFieldKey(actorId, fieldId))
       if (runtimeFieldIndex === undefined) continue
+      const field = energy$.fields[runtimeFieldIndex]
+      if (!field) continue
       const isTopology = isTopologyCompatibleActorField(actorId, fieldId, runtimeFieldIndex)
       if (kind === "gluon" && isTopology) continue
       if (kind === "higgs" && !isTopology) continue
 
       const fieldUpdates = groupedUpdates.get(braneIndex)
-      const nextValue = part.op === "remove" ? null : value
+      const nextValue = part.op === "remove" ? defaultRuntimeFieldValue(field) : value
       if (fieldUpdates) fieldUpdates.push([runtimeFieldIndex, nextValue])
       else groupedUpdates.set(braneIndex, [[runtimeFieldIndex, nextValue]])
     }
@@ -310,8 +323,8 @@ export function prepareData(data: Data): PreparedData {
   return assembleStoredEnergyData(flattenEnergyData(data))
 }
 
-export function listRuntimeWimpIds(): number[] {
-  return [...gravity$.activeWimpIds]
+export function listRuntimeActorIds(): number[] {
+  return [...gravity$.activeActorIds]
 }
 
 export async function loadRuntimeSnapshot(snapshot: EnergyRuntimeSnapshot): Promise<void> {
@@ -324,9 +337,12 @@ export async function loadRuntimeSnapshot(snapshot: EnergyRuntimeSnapshot): Prom
     weak$.reset()
   }
 
-  gravity$.activeWimpIds = [...snapshot.wimpIds]
-  gravity$.braneIndexToWimpId = [...snapshot.wimpIds]
-  gravity$.wimpIdToBraneIndex = new Map(snapshot.wimpIds.map((wimpId, braneIndex) => [wimpId, braneIndex] as const))
+  const legacyProcessActorIds = snapshot.legacyProcessActorIds ?? snapshot.wimpIds
+  gravity$.activeWimpIds = [...legacyProcessActorIds]
+  gravity$.braneIndexToWimpId = [...legacyProcessActorIds]
+  gravity$.wimpIdToBraneIndex = new Map(
+    legacyProcessActorIds.map((actorId, braneIndex) => [actorId, braneIndex] as const),
+  )
   gravity$.activeActorIds = [...snapshot.runtime.actorIdByBraneIndex]
   gravity$.braneIndexToActorId = [...snapshot.runtime.actorIdByBraneIndex]
   gravity$.actorIdToBraneIndex = new Map(snapshot.runtime.braneIndexByActorId)

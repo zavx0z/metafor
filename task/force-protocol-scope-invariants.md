@@ -99,6 +99,8 @@ actor ID -> actor instance -> WIMP SRC -> internal ids from value -> exact targe
 возвращает `path = actor ID`. URI-подобный `/field/...` не является адресом
 обычного рантайм-протокола и остаётся только в устаревшем потоке результатов
 процессов до отдельной миграции процессов.
+Старые поля Energy snapshot с именем `wimpIds` больше не являются обычной
+рантайм-идентичностью: они сохраняют actor ID только для legacy process flow.
 
 Здесь:
 

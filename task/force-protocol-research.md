@@ -1114,6 +1114,9 @@ type BoundaryEnergyRuntimeSnapshot = {
   рантайм-потока.
 - Остаточный `/field/...` остаётся только в зоне процессов
   `z`/`w+`/`w-` и `applyWeakResultPacket` до отдельного перевода процесса.
+- Поля `wimpIds` / `legacyProcessActorIds` в Energy snapshot — это
+  устаревшие actor IDs только для старого протокола результатов процессов.
+  Обычная рантайм-идентичность Energy — actor ID.
 
 ### Фаза 4: довести topology runtime Energy
 

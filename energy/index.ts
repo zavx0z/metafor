@@ -5,7 +5,7 @@ export {
   energy$,
   flattenEnergyData,
   gravity$,
-  listRuntimeWimpIds,
+  listRuntimeActorIds,
   loadRuntimeSnapshot,
   prepareData,
   strong$,

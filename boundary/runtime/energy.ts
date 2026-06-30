@@ -4,7 +4,10 @@ type EnergyFieldType = 0 | 1 | 2 | 3 | 4
 
 export type BoundaryEnergyRuntimeSnapshot = {
   version: 1
+  /** @deprecated Actor IDs kept only for legacy process result addressing. */
   wimpIds: number[]
+  /** Actor IDs kept only for legacy process result addressing. */
+  legacyProcessActorIds: number[]
   runtime: {
     actorIdByBraneIndex: number[]
     braneIndexByActorId: Array<[actorId: number, braneIndex: number]>
@@ -307,6 +310,7 @@ export async function energyRuntime(sql: SQL): Promise<BoundaryEnergyRuntimeSnap
   return {
     version: 1,
     wimpIds,
+    legacyProcessActorIds: [...wimpIds],
     runtime: {
       actorIdByBraneIndex,
       braneIndexByActorId,

@@ -5,11 +5,13 @@ import {closeForceChannel, force, type EnergyParticle} from "./channel"
 import {
   energy$,
   gravity$,
+  listRuntimeActorIds,
   loadRuntimeSnapshot,
   subscribeEnergyGluonBroadcast,
   subscribeEnergyHiggsBroadcast,
   type EnergyRuntimeSnapshot,
 } from "./energy"
+import * as energyPublicApi from "./index"
 import {FieldType} from "./gravity"
 
 const createServerDomainStore = (): EnergyStore => {
@@ -89,6 +91,7 @@ const createRuntimeSnapshot = (): EnergyRuntimeSnapshot => ({
   ok: true,
   version: 1,
   wimpIds: [17],
+  legacyProcessActorIds: [17],
   runtime: {
     actorIdByBraneIndex: [17],
     braneIndexByActorId: [[17, 0]],
@@ -97,18 +100,24 @@ const createRuntimeSnapshot = (): EnergyRuntimeSnapshot => ({
     runtimeFieldIndexByActorFieldId: [
       [17, 2, 0],
       [17, 5, 1],
+      [17, 7, 2],
+      [17, 9, 3],
     ],
   },
   data: {
     fields: [
       {type: FieldType.F32},
       {type: FieldType.U32, enum: ["native", "css"]},
+      {type: FieldType.U32},
+      {type: FieldType.ARRAY_PTR, elementType: "string"},
     ],
     branes: [
       {
         values: [
           [0, 0],
           [1, "native"],
+          [2, 3],
+          [3, ["seed"]],
         ],
         state: 0,
         collapses: [
@@ -121,10 +130,10 @@ const createRuntimeSnapshot = (): EnergyRuntimeSnapshot => ({
   },
   strong: {
     runtimeFieldIndexByWimpFieldId: [],
-    wimpFieldIdsByRuntimeFieldIndex: [[], []],
+    wimpFieldIdsByRuntimeFieldIndex: [[], [], [], []],
     braneIndexByWimpFieldId: [],
     topologyWimpFieldIds: [],
-    topologyActorFieldIds: [[17, 5]],
+    topologyActorFieldIds: [[17, 5], [17, 9]],
   },
   weak: {
     stateMetaStateIdsByBraneIndex: [[101, 102]],
@@ -153,6 +162,13 @@ afterEach(() => {
 })
 
 describe("energy Force v0 runtime addressing", () => {
+  test("публичный runtime identity API говорит actor, а не wimp", async () => {
+    await loadRuntimeSnapshot(createRuntimeSnapshot())
+
+    expect(listRuntimeActorIds()).toEqual([17])
+    expect("listRuntimeWimpIds" in energyPublicApi).toBe(false)
+  })
+
   test("gluon принимает actor ID и value.fields[fieldId], затем публикует photon с actor ID", async () => {
     await loadRuntimeSnapshot(createRuntimeSnapshot())
     const photons: EnergyParticle[] = []
@@ -246,6 +262,97 @@ describe("energy Force v0 runtime addressing", () => {
       expect(energy$.getFieldValue(0, 1)).toBe(1)
     } finally {
       subscription.close()
+    }
+  })
+
+  test("higgs remove сбрасывает enum field в default enum value", async () => {
+    await loadRuntimeSnapshot(createRuntimeSnapshot())
+    const subscription = subscribeEnergyHiggsBroadcast()
+
+    try {
+      force.emit({
+        parts: [{
+          part: "higgs",
+          op: "replace",
+          path: 17,
+          value: {fields: {"5": "css"}},
+        }],
+      })
+      await waitFor(() => energy$.getFieldValue(0, 1) === 1)
+
+      force.emit({
+        parts: [{
+          part: "higgs",
+          op: "remove",
+          path: 17,
+          value: {fields: {"5": true}},
+        }],
+      })
+      await waitFor(() => energy$.getFieldValue(0, 1) === 0)
+
+      expect(energy$.getFieldValue(0, 1)).toBe(0)
+    } finally {
+      subscription.close()
+    }
+  })
+
+  test("higgs remove сбрасывает array field в пустой массив и не падает", async () => {
+    await loadRuntimeSnapshot(createRuntimeSnapshot())
+    const subscription = subscribeEnergyHiggsBroadcast()
+
+    try {
+      expect(energy$.getFieldValue(0, 3)).toEqual([1])
+
+      force.emit({
+        parts: [{
+          part: "higgs",
+          op: "remove",
+          path: 17,
+          value: {fields: {"9": true}},
+        }],
+      })
+      await waitFor(() => {
+        const value = energy$.getFieldValue(0, 3)
+        return Array.isArray(value) && value.length === 0
+      })
+
+      expect(energy$.getFieldValue(0, 3)).toEqual([])
+    } finally {
+      subscription.close()
+    }
+  })
+
+  test("голый U32 без enum не считается topology-compatible", async () => {
+    await loadRuntimeSnapshot(createRuntimeSnapshot())
+    const higgsSubscription = subscribeEnergyHiggsBroadcast()
+    const gluonSubscription = subscribeEnergyGluonBroadcast()
+
+    try {
+      force.emit({
+        parts: [{
+          part: "higgs",
+          op: "replace",
+          path: 17,
+          value: {fields: {"7": 8}},
+        }],
+      })
+      await settleBroadcasts()
+      expect(energy$.getFieldValue(0, 2)).toBe(3)
+
+      force.emit({
+        parts: [{
+          part: "gluon",
+          op: "replace",
+          path: 17,
+          value: {fields: {"7": 8}},
+        }],
+      })
+      await waitFor(() => energy$.getFieldValue(0, 2) === 8)
+
+      expect(energy$.getFieldValue(0, 2)).toBe(8)
+    } finally {
+      higgsSubscription.close()
+      gluonSubscription.close()
     }
   })
 
