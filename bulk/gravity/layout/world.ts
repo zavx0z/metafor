@@ -38,7 +38,6 @@ export interface BulkFieldParticle {
   parentDarkParticleId: number
   fieldKey: string
   fieldLabel: string
-  fieldOrder: number
   fieldParticleKind: BulkFieldParticleKind
   valueText: string | null
   localX: number
