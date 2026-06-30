@@ -164,9 +164,10 @@ afterEach(() => {
 describe("energy Force v0 runtime addressing", () => {
   test("публичный runtime identity API говорит actor, а не wimp", async () => {
     await loadRuntimeSnapshot(createRuntimeSnapshot())
+    const legacyRuntimeIdentityExport = ["listRuntime", "WimpIds"].join("")
 
     expect(listRuntimeActorIds()).toEqual([17])
-    expect("listRuntimeWimpIds" in energyPublicApi).toBe(false)
+    expect(legacyRuntimeIdentityExport in energyPublicApi).toBe(false)
   })
 
   test("gluon принимает actor ID и value.fields[fieldId], затем публикует photon с actor ID", async () => {

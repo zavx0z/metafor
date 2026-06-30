@@ -24,7 +24,7 @@ pkg/interpreter/AGENTS.md
 По умолчанию новый агент должен считать, что он находится в server-dev контуре:
 
 - workspace: `/home/zavx0z/production/vendor/metafor`;
-- branch: `energy`;
+- branch: `main`;
 - interpreter host: `http://10.66.0.10:6500`;
 - app-web dev server: `http://10.66.0.10:3004`;
 - visible WebApp target: `https://meta.proizvodstvo1.ru/`;
@@ -34,6 +34,8 @@ pkg/interpreter/AGENTS.md
 Локальный `127.0.0.1` workflow тоже поддерживается, но не путай его с текущим
 server-dev контуром. LAN/TLS режим на `443` - отдельный локально-сетевой режим,
 не диагностика текущего server-dev.
+Ветка `energy` была staging-веткой протокольной консолидации и после
+продвижения больше не является источником истины.
 
 ## Документация
 

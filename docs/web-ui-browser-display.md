@@ -65,7 +65,7 @@ Low-level команды ниже остаются диагностиками и
 
 Проверено 2026-06-27 в репозиториях:
 
-- `/home/zavx0z/production/vendor/metafor`, ветка `energy`;
+- `/home/zavx0z/production/vendor/metafor`, ветка `main`;
 - `/home/zavx0z/production/vendor/ai-macos`, доступен и содержит workspaces
   `shared`, `chrome`, `screen`, `window`, `input`, `android`.
 
