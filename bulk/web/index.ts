@@ -156,7 +156,7 @@ import {
 	THEME_TERTIARY_GLOW,
 } from "./constants"
 import { computeLerpFactor, easeOutCubic, getDistanceToSegmentPx, mixScalar } from "./math"
-import { resolveForceFieldId, resolveForceFieldsPayload } from "../../force/fields.ts"
+import { resolveForceFieldId, resolveForceFieldsPayload } from "../../boundary/force-fields.ts"
 
 const torusWireframeCache = new Map<string, BufferGeometry>()
 const sphereWireframeCache = new Map<string, BufferGeometry>()
@@ -840,7 +840,7 @@ class FieldParticleBillboardSurface extends UiSurface {
 			borderWidth: 1,
 			z: Z.CONTAINER,
 		})
-		this.drawText(`id:${field.fieldParticleId} parent:${field.parentDarkParticleId} order:${field.fieldOrder}`, padX, 28, {
+		this.drawText(`id:${field.fieldParticleId} field:${field.fieldId} parent:${field.parentDarkParticleId}`, padX, 28, {
 			clip: false,
 			fontPx: 8,
 			material: this.#metaMaterial,
@@ -2595,7 +2595,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				.sort(
 					(left, right) =>
 						left.depth - right.depth ||
-						left.snapshot.fieldOrder - right.snapshot.fieldOrder ||
+						left.snapshot.fieldId - right.snapshot.fieldId ||
 						left.snapshot.fieldParticleId - right.snapshot.fieldParticleId,
 				)
 				.map((record) => record.pickTarget),
@@ -2966,7 +2966,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		field.parentDarkParticleId,
 		field.fieldKey,
 		field.fieldLabel,
-		field.fieldOrder,
+		field.fieldId,
 		field.fieldParticleKind,
 		field.valueText ?? "<null>",
 		field.colorR.toFixed(4),
@@ -3061,7 +3061,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		for (const record of [...fieldParticleRecords.values()].sort(
 			(left, right) =>
 				left.depth - right.depth ||
-				left.snapshot.fieldOrder - right.snapshot.fieldOrder ||
+				left.snapshot.fieldId - right.snapshot.fieldId ||
 				left.snapshot.fieldParticleId - right.snapshot.fieldParticleId,
 		)) {
 			nextFieldParticleIds.add(record.snapshot.fieldParticleId)
@@ -3247,7 +3247,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		for (const record of [...fieldParticleRecords.values()].sort(
 			(left, right) =>
 				left.depth - right.depth ||
-				left.snapshot.fieldOrder - right.snapshot.fieldOrder ||
+				left.snapshot.fieldId - right.snapshot.fieldId ||
 				left.snapshot.fieldParticleId - right.snapshot.fieldParticleId,
 		)) {
 			const spec = createFieldParticleLabelSpec(record)

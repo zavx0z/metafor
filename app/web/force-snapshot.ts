@@ -1,5 +1,5 @@
 import type {BoundaryBulkRuntimeSnapshot, Particle} from "boundary"
-import {resolveForceFieldId, resolveForceFieldsPayload} from "../../force/fields.ts"
+import {resolveForceFieldId, resolveForceFieldsPayload} from "../../boundary/force-fields.ts"
 
 type ActorSnapshotMessage = {
 	actor: BoundaryBulkRuntimeSnapshot["actors"][number]

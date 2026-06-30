@@ -16,6 +16,9 @@
 - `AppWeb` получает готовые события рендера / manifest items и остаётся вьюпорт-клиентом.
 - Torus/Sphere are geometry names, not ontology names.
 - Row is not part of Bulk vocabulary because Bulk manifest is not persistence.
+- Порядок полей не является логической сущностью Bulk/AppWeb. Полевые частицы
+  адресуются по `fieldId`; порядок отображения может быть произвольным или
+  детерминированным по ID.
 
 ## Контракт Проекции
 

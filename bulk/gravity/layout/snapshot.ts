@@ -114,7 +114,6 @@ const cloneFieldParticleInput = (
   parentDarkParticleId: descriptor.darkParticleId,
   fieldKey: fieldParticle.fieldKey,
   fieldLabel: fieldParticle.fieldLabel,
-  fieldOrder: 0,
   fieldParticleKind: fieldParticle.fieldParticleKind,
   valueText: fieldParticle.valueText,
   localX: 0,
@@ -225,9 +224,9 @@ const materializeCanonicalDarkParticleNode = (
   const descriptor = node.descriptor
   const canonicalMetrics = getCanonicalLevelGeometry(depthFromRoot, settings)
   const sphereRadius = canonicalMetrics.sphereRadiusMm
-  const fieldParticles: LayoutFieldParticleNode[] = descriptor.fieldParticles.map((fieldParticle) =>
-    cloneFieldParticleInput(descriptor, fieldParticle, sphereRadius),
-  )
+  const fieldParticles: LayoutFieldParticleNode[] = [...descriptor.fieldParticles]
+    .sort((left, right) => left.fieldId - right.fieldId || left.fieldParticleId - right.fieldParticleId)
+    .map((fieldParticle) => cloneFieldParticleInput(descriptor, fieldParticle, sphereRadius))
 
   const orbitItems: OrbitItem[] = [
     ...nestedChildren.map((darkParticle) => ({
@@ -298,14 +297,13 @@ const flattenDarkParticleNode = (
     activity: node.activity ?? "neutral",
   })
 
-  node.fieldParticles.forEach((fieldParticle, fieldOrder) => {
+  node.fieldParticles.forEach((fieldParticle) => {
     fieldParticles.push({
       fieldParticleId: fieldParticle.fieldParticleId,
       fieldId: fieldParticle.fieldId,
       parentDarkParticleId: node.darkParticleId,
       fieldKey: fieldParticle.fieldKey,
       fieldLabel: fieldParticle.fieldLabel,
-      fieldOrder,
       fieldParticleKind: fieldParticle.fieldParticleKind,
       valueText: fieldParticle.valueText,
       localX: fieldParticle.localX,

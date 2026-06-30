@@ -2,4 +2,4 @@ export {
 	resolveForceFieldId,
 	resolveForceFieldsPayload,
 	type ForceFieldId,
-} from "../../force/fields.ts"
+} from "../../boundary/force-fields.ts"
