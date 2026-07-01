@@ -1,7 +1,6 @@
 import {basename, join} from "node:path"
 import type {ServerWebSocket, Subprocess} from "bun"
 import type {PtyClientMessage, PtyServerMessage, PtyTerminalSize, PtyTerminalState} from "./protocol.ts"
-import {metaforTmuxCommandArgs} from "./tmux-profile.ts"
 
 export type {PtyClientMessage, PtyInputSource, PtyServerMessage, PtyStatusKind, PtyTerminalSize, PtyTerminalState} from "./protocol.ts"
 
@@ -9,9 +8,13 @@ export type PtySocketData = {
   session?: TerminalSession
   sessionId?: string
   sessionKey?: string
-  tmuxSession?: string
   replay: boolean
   connectedAt: number
+}
+
+export type PtyDaemonProxySocketData = {
+  ptydTerminalUrl: string
+  ptydProxy?: PtyDaemonProxy
 }
 
 export type PtyServerOptions = {
@@ -34,7 +37,6 @@ export type PtyServerOptions = {
 export type PtySessionInfo = {
   id: string
   key: string | null
-  tmuxSession: string | null
   shell: string
   cwd: string
   size: PtyTerminalSize
@@ -47,6 +49,23 @@ export type PtySessionInfo = {
 }
 
 type PtyRuntimeOptions = Required<PtyServerOptions>
+type PtyDaemonProxyPayload = string | ArrayBuffer
+type PtyDaemonProxyInput = string | ArrayBuffer | Uint8Array
+
+export type PtyDaemonProxy = {
+  upstream: WebSocket
+  connected: boolean
+  pending: PtyDaemonProxyPayload[]
+}
+
+export type PtyDaemonEnsureOptions = {
+  baseUrl?: string
+  cwd?: string
+  command?: string[]
+  healthTimeoutMs?: number
+  startupTimeoutMs?: number
+  log?: (message: string) => void
+}
 
 const DEFAULT_SIZE: PtyTerminalSize = {cols: 80, rows: 24}
 const DEFAULT_MAX_COLS = 300
@@ -54,6 +73,11 @@ const DEFAULT_MAX_ROWS = 120
 const DEFAULT_MAX_SESSIONS = 8
 const DEFAULT_SESSION_TTL_MS = 30 * 60_000
 const DEFAULT_SCROLLBACK_BYTES = 2 * 1024 * 1024
+const DEFAULT_PTYD_HOST = "127.0.0.1"
+const DEFAULT_PTYD_PORT = 6520
+const DEFAULT_PTYD_SESSION_TTL_MS = 24 * 60 * 60_000
+const DEFAULT_PTYD_HEALTH_TIMEOUT_MS = 800
+const DEFAULT_PTYD_STARTUP_TIMEOUT_MS = 4_000
 const TERMIOS_ECHO = 0x00000008
 const DEFAULT_TERM_PROGRAM = "iTerm.app"
 const DEFAULT_TERM_PROGRAM_VERSION = "3.5"
@@ -63,6 +87,7 @@ const DEFAULT_OSC_BACKGROUND = "rgb:0e10/151a/20ff"
 const DEFAULT_OSC_CURSOR = "rgb:94e2/d5ff/ffff"
 
 let buildAssets = new Map<string, Blob>()
+let ptyDaemonEnsurePromise: Promise<void> | null = null
 
 export class PtySessionManager {
   readonly #sessions = new Map<string, TerminalSession>()
@@ -96,7 +121,6 @@ export class PtySessionManager {
       },
       {
         key: requestedKey,
-        tmuxSession: normalizeTmuxSession(ws.data.tmuxSession),
       },
     )
     this.#sessions.set(session.id, session)
@@ -136,6 +160,95 @@ export function createPtySessionManager(options: PtyServerOptions = {}): PtySess
   return new PtySessionManager(normalizeOptions(options))
 }
 
+export function ptyDaemonBaseUrl(env: Record<string, string | undefined> = process.env): string {
+  const explicit = env.METAFOR_PTYD_URL?.trim()
+  if (explicit !== undefined && explicit.length > 0) return explicit
+  const host = env.METAFOR_PTYD_HOST?.trim() || DEFAULT_PTYD_HOST
+  const port = Number(env.METAFOR_PTYD_PORT ?? DEFAULT_PTYD_PORT)
+  return `http://${host}:${Number.isFinite(port) ? port : DEFAULT_PTYD_PORT}`
+}
+
+export function ptyDaemonTerminalUrlFromRequest(reqUrl: string | URL, baseUrl = ptyDaemonBaseUrl()): string {
+  const source = typeof reqUrl === "string" ? new URL(reqUrl) : reqUrl
+  const target = new URL("/terminal", baseUrl)
+  target.protocol = target.protocol === "https:" ? "wss:" : "ws:"
+  const replay = source.searchParams.get("replay")
+  target.searchParams.set("replay", replay ?? "1")
+  copySearchParam(source, target, "key")
+  copySearchParam(source, target, "session")
+  return target.toString()
+}
+
+export async function ensurePtyDaemon(options: PtyDaemonEnsureOptions = {}): Promise<void> {
+  const baseUrl = options.baseUrl ?? ptyDaemonBaseUrl()
+  if (await ptyDaemonHealthy(baseUrl, options.healthTimeoutMs)) return
+  ptyDaemonEnsurePromise ??= startPtyDaemon(baseUrl, options).finally(() => {
+    ptyDaemonEnsurePromise = null
+  })
+  await ptyDaemonEnsurePromise
+}
+
+export function attachPtyDaemonProxy(ws: ServerWebSocket<PtyDaemonProxySocketData>): PtyDaemonProxy {
+  const upstream = new WebSocket(ws.data.ptydTerminalUrl)
+  const proxy: PtyDaemonProxy = {upstream, connected: false, pending: []}
+  ws.data.ptydProxy = proxy
+
+  upstream.addEventListener("open", () => {
+    proxy.connected = true
+    const pending = proxy.pending.splice(0)
+    for (const item of pending) upstream.send(item)
+  })
+  upstream.addEventListener("message", (event) => {
+    if (ws.readyState !== WebSocket.OPEN) return
+    const data = event.data
+    if (typeof data === "string" || data instanceof ArrayBuffer) {
+      ws.send(data)
+      return
+    }
+    if (data instanceof Uint8Array) {
+      ws.send(uint8ArrayToArrayBuffer(data))
+      return
+    }
+    if (data instanceof Blob) {
+      void data.arrayBuffer().then((buffer) => {
+        if (ws.readyState === WebSocket.OPEN) ws.send(buffer)
+      })
+    }
+  })
+  upstream.addEventListener("error", () => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({type: "terminal.error", message: "ptyd websocket error"} satisfies PtyServerMessage))
+      ws.close(1011, "ptyd websocket error")
+    }
+  })
+  upstream.addEventListener("close", (event) => {
+    if (ws.readyState === WebSocket.OPEN) ws.close(event.code || 1001, event.reason || "ptyd closed")
+  })
+
+  return proxy
+}
+
+export function relayPtyDaemonProxyMessage(ws: ServerWebSocket<PtyDaemonProxySocketData>, message: PtyDaemonProxyInput): void {
+  const proxy = ws.data.ptydProxy
+  if (proxy === undefined) return
+  const payload = normalizePtyDaemonProxyPayload(message)
+  if (proxy.connected && proxy.upstream.readyState === WebSocket.OPEN) {
+    proxy.upstream.send(payload)
+    return
+  }
+  if (proxy.pending.length < 256) proxy.pending.push(payload)
+}
+
+export function detachPtyDaemonProxy(ws: ServerWebSocket<PtyDaemonProxySocketData>): void {
+  const proxy = ws.data.ptydProxy
+  delete ws.data.ptydProxy
+  if (proxy === undefined) return
+  proxy.pending.length = 0
+  if (proxy.upstream.readyState === WebSocket.OPEN || proxy.upstream.readyState === WebSocket.CONNECTING) {
+    proxy.upstream.close(1000, "client closed")
+  }
+}
+
 export class TerminalSession {
   readonly #decoder = new TextDecoder()
   readonly #proc: Subprocess<"ignore", "ignore", "ignore">
@@ -147,7 +260,6 @@ export class TerminalSession {
   readonly #stateTracker = new PtyTerminalStateTracker()
   readonly #probeResponder = new PtyTerminalProbeResponder((data) => this.write(data))
   readonly #key: string | null
-  readonly #tmuxSession: string | null
   readonly id = crypto.randomUUID()
   readonly createdAt = Date.now()
   #disposeTimer: ReturnType<typeof setTimeout> | null = null
@@ -158,11 +270,10 @@ export class TerminalSession {
   #updatedAt = this.createdAt
   #detachedAt: number | null = null
 
-  constructor(options: PtyRuntimeOptions, onDispose: (id: string, key: string | null) => void, sessionOptions: {key?: string | null; tmuxSession?: string | null} = {}) {
+  constructor(options: PtyRuntimeOptions, onDispose: (id: string, key: string | null) => void, sessionOptions: {key?: string | null} = {}) {
     this.#options = options
     this.#onDispose = onDispose
     this.#key = sessionOptions.key ?? null
-    this.#tmuxSession = sessionOptions.tmuxSession ?? null
     this.#size = clampSize(options.defaultSize, options)
     this.#proc = Bun.spawn(this.#spawnCommand(), {
       cwd: options.cwd,
@@ -245,13 +356,12 @@ export class TerminalSession {
 
     send(ws, {
       type: "terminal.ready",
-      shell: this.#options.shell,
+      shell: this.#programLabel(),
       size: this.#size,
       sessionId: this.id,
       restored,
       replayBytes: replay ? this.#scrollbackBytes : 0,
       state: this.#terminalState(),
-      tmuxSession: this.#tmuxSession,
     })
     send(ws, {
       type: "terminal.status",
@@ -332,8 +442,7 @@ export class TerminalSession {
     return {
       id: this.id,
       key: this.#key,
-      tmuxSession: this.#tmuxSession,
-      shell: this.#options.shell,
+      shell: this.#programLabel(),
       cwd: this.#options.cwd,
       size: this.#size,
       clients: this.#clients.size,
@@ -389,13 +498,16 @@ export class TerminalSession {
 
   #statusLabel(restored: boolean): string {
     if (this.#exited) return "exited"
-    const label = this.#tmuxSession === null ? basename(this.#options.shell) : `tmux:${this.#tmuxSession}`
+    const label = this.#programLabel()
     return restored ? `restored ${label}` : label
   }
 
   #spawnCommand(): string[] {
-    if (this.#tmuxSession === null) return [this.#options.shell, "-l"]
-    return metaforTmuxCommandArgs(["new-session", "-A", "-s", this.#tmuxSession])
+    return [this.#options.shell, "-l"]
+  }
+
+  #programLabel(): string {
+    return basename(this.#options.shell)
   }
 }
 
@@ -626,6 +738,14 @@ export function createPtyServer(options: PtyServerOptions = {}): ReturnType<type
     hostname: runtime.hostname,
     port: runtime.port,
     routes: {
+      "/health": {
+        GET: () => Response.json({
+          ok: true,
+          service: "metafor-ptyd",
+          pid: process.pid,
+          sessions: manager.list().length,
+        }),
+      },
       "/": () => indexResponse(runtime),
       "/style.css": () => new Response(Bun.file(runtime.stylePath), {headers: {"content-type": "text/css; charset=utf-8", "cache-control": "no-cache"}}),
       "/entry.js": () => buildEntry(runtime),
@@ -642,13 +762,11 @@ export function createPtyServer(options: PtyServerOptions = {}): ReturnType<type
         if (!isAllowedOrigin(req, url)) return new Response("Forbidden", {status: 403})
         const requestedSession = url.searchParams.get("session")
         const sessionKey = url.searchParams.get("key")
-        const tmuxSession = url.searchParams.get("tmux")
         const data: PtySocketData = {
           connectedAt: Date.now(),
           replay: url.searchParams.get("replay") !== "0",
           ...(requestedSession === null ? {} : {sessionId: requestedSession}),
           ...(sessionKey === null ? {} : {sessionKey}),
-          ...(tmuxSession === null ? {} : {tmuxSession}),
         }
         const upgraded = bunServer.upgrade(req, {
           data,
@@ -808,6 +926,69 @@ function clampInt(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Math.floor(value)))
 }
 
+function copySearchParam(source: URL, target: URL, name: string): void {
+  const value = source.searchParams.get(name)
+  if (value !== null && value.length > 0) target.searchParams.set(name, value)
+}
+
+function normalizePtyDaemonProxyPayload(message: PtyDaemonProxyInput): PtyDaemonProxyPayload {
+  if (typeof message === "string" || message instanceof ArrayBuffer) return message
+  return uint8ArrayToArrayBuffer(message)
+}
+
+function uint8ArrayToArrayBuffer(value: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(value.byteLength)
+  copy.set(value)
+  return copy.buffer
+}
+
+async function ptyDaemonHealthy(baseUrl: string, timeoutMs = DEFAULT_PTYD_HEALTH_TIMEOUT_MS): Promise<boolean> {
+  try {
+    const response = await fetch(new URL("/health", baseUrl), {signal: AbortSignal.timeout(timeoutMs)})
+    if (!response.ok) return false
+    const payload = await response.json() as {service?: unknown; ok?: unknown}
+    return payload.ok === true && payload.service === "metafor-ptyd"
+  } catch {
+    return false
+  }
+}
+
+async function startPtyDaemon(baseUrl: string, options: PtyDaemonEnsureOptions): Promise<void> {
+  const url = new URL(baseUrl)
+  const host = url.hostname || DEFAULT_PTYD_HOST
+  const port = Number(url.port || (url.protocol === "https:" ? 443 : DEFAULT_PTYD_PORT))
+  const command = options.command ?? [process.execPath, "pkg/pty/src/server.ts"]
+  const env = {
+    ...process.env,
+    HOST: host,
+    PORT: String(Number.isFinite(port) ? port : DEFAULT_PTYD_PORT),
+    METAFOR_PTYD: "1",
+    PTY_SESSION_TTL_MS: process.env.PTY_SESSION_TTL_MS ?? String(DEFAULT_PTYD_SESSION_TTL_MS),
+  }
+  const proc = Bun.spawn(command, {
+    cwd: options.cwd ?? process.cwd(),
+    env,
+    stdin: "ignore",
+    stdout: "ignore",
+    stderr: "ignore",
+    detached: true,
+  })
+  if ("unref" in proc && typeof proc.unref === "function") proc.unref()
+  options.log?.(`started metafor-ptyd pid=${proc.pid} url=${baseUrl}`)
+
+  const startedAt = Date.now()
+  const timeoutMs = options.startupTimeoutMs ?? DEFAULT_PTYD_STARTUP_TIMEOUT_MS
+  while (Date.now() - startedAt < timeoutMs) {
+    if (await ptyDaemonHealthy(baseUrl, options.healthTimeoutMs)) return
+    await sleep(120)
+  }
+  throw new Error(`metafor-ptyd did not become healthy at ${baseUrl}`)
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 function isAllowedOrigin(req: Request, url: URL): boolean {
   const origin = req.headers.get("origin")
   if (!origin) return true
@@ -870,11 +1051,6 @@ function normalizeSessionId(value: string | undefined): string | null {
 function normalizeSessionKey(value: string | undefined): string | null {
   if (value === undefined || value.length < 2 || value.length > 128) return null
   return /^[a-zA-Z0-9._:-]+$/.test(value) ? value : null
-}
-
-function normalizeTmuxSession(value: string | undefined): string | null {
-  if (value === undefined || value.length < 2 || value.length > 64) return null
-  return /^[a-zA-Z0-9._-]+$/.test(value) ? value : null
 }
 
 function byteLength(value: string): number {

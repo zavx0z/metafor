@@ -2317,6 +2317,7 @@ export class TerminalPane extends TerminalOutputPane {
 
   override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
     this.#softKeyboardInputArmed = this.#inputEnabled
+      && isTouchPointerEvent(event)
       && event.button === 0
       && !event.shiftKey
       && !isSecondaryPointer(event)

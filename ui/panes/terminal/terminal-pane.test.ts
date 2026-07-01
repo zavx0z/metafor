@@ -49,6 +49,20 @@ function touchCompatibilityMouseEvent(overrides: Partial<MouseEvent> = {}): Mous
   } as unknown as MouseEvent
 }
 
+function mouseEvent(overrides: Partial<MouseEvent> = {}): MouseEvent {
+  return {
+    button: 0,
+    buttons: 1,
+    shiftKey: false,
+    altKey: false,
+    ctrlKey: false,
+    metaKey: false,
+    detail: 1,
+    preventDefault: () => {},
+    ...overrides,
+  } as MouseEvent
+}
+
 function wheelEvent(overrides: Partial<WheelEvent> = {}): WheelEvent {
   const event = {
     deltaX: 0,
@@ -876,6 +890,36 @@ describe("TerminalPane control sequences", () => {
       terminal.onKey(keyEvent("2", {code: "Numpad2"}))
       terminal.onInputText("alpha")
       expect(responses).toEqual(["\x1bOr", "\x1b[200~alpha\x1b[201~"])
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("keeps desktop text input live after clicking the cursor line", async () => {
+    const responses: string[] = []
+    const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false, showHeader: false, onInput: (data) => responses.push(data)})
+    try {
+      await renderTerminalForWheel(terminal)
+      terminal.onPointerDown(mouseEvent(), 10, 2)
+      terminal.onInputText("a")
+      terminal.onKey(keyEvent("b", {code: "KeyB"}))
+      expect(responses).toEqual(["a", "b"])
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("keeps touch cursor-line taps in soft keyboard preview mode", async () => {
+    const responses: string[] = []
+    const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false, showHeader: false, onInput: (data) => responses.push(data)})
+    try {
+      await renderTerminalForWheel(terminal)
+      terminal.onPointerDown(touchMouseEvent(), 10, 2)
+      terminal.onInputText("a")
+      expect(responses).toEqual([])
+
+      terminal.onKey(keyEvent("Enter"))
+      expect(responses).toEqual(["a", "\r"])
     } finally {
       terminal.dispose()
     }

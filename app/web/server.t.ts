@@ -3,7 +3,7 @@ import type {BulkLayoutSettings} from "@bulk/gravity/layout"
 import type {BoundaryBulkRuntimeSnapshot, BoundaryMatrixRuntimeSnapshot, BoundaryUpdateMessage, ProcessTask} from "boundary"
 import type {EnergyEnv, EnergyMass, EnergyProcessResult, EnergyProcessTask} from "energy"
 import type {VoiceProxySocketData} from "@metafor/interpreter/srv"
-import type {PtySocketData} from "@metafor/pty/server"
+import type {PtyDaemonProxySocketData} from "@metafor/pty/server"
 import type {parseMarkdownTodo} from "@ui/panes/todo-model"
 
 export type {BoundaryUpdateMessage}
@@ -26,7 +26,10 @@ export type AppWebClientSocketData = {
 	voiceClientId?: string
 }
 
-export type AppWebTerminalSocketData = {kind: "terminal"} & PtySocketData
+export type AppWebTerminalSocketData = {
+	kind: "terminal"
+	connectedAt: number
+} & PtyDaemonProxySocketData
 
 export type MatrixBridgeSocketData = {
 	kind: "matrix-bridge"
@@ -38,7 +41,7 @@ export type EnergyBridgeSocketData = {
 	connectedAt: number
 }
 
-export type TerminalPtySocketData = PtySocketData
+export type TerminalPtySocketData = AppWebTerminalSocketData
 
 export type AppWebSocketData =
 	| AppWebClientSocketData

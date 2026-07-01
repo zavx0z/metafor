@@ -499,7 +499,7 @@ type PtyClientMessage =
   | {type: "terminal.resize"; size: TerminalSize}
   | {type: "terminal.clear"}
 type PtyServerMessage =
-  | {type: "terminal.ready"; shell: string; size: TerminalSize; sessionId: string; restored: boolean; replayBytes: number; state: PtyTerminalState; tmuxSession?: string | null}
+  | {type: "terminal.ready"; shell: string; size: TerminalSize; sessionId: string; restored: boolean; replayBytes: number; state: PtyTerminalState}
   | {type: "terminal.write"; data: string; state?: PtyTerminalState}
   | {type: "terminal.state"; state: PtyTerminalState}
   | {type: "terminal.local-echo"; id: number; accepted: boolean; state: PtyTerminalState}
@@ -553,9 +553,6 @@ type HostTerminalController = {
   title: string
   sessionStorageKey: string
   sessionKey: string
-  tmuxSession: string
-  initialCommand: string | null
-  initialCommandSent: boolean
   socket: WebSocket | null
   sessionId: string | null
   terminalSize: TerminalSize | null
@@ -602,16 +599,13 @@ const MODULE_DISPLAY_CENTER_Y_MM = 0
 const MODULE_DISPLAY_CENTER_Z_MM = 900
 const HOST_TERMINAL_SESSION_STORAGE_KEY = "metafor.interpreter.hostTerminal.sessionId"
 const HOST_TERMINAL_SESSION_KEY = "interpreter:host-terminal"
-const HOST_TERMINAL_TMUX_SESSION = "metafor-interpreter-host"
 const HOST_TERMINAL_HUD_RECT_STORAGE_KEY = "metafor.interpreter.hostTerminal.hudRect:v1"
 const HOST_TERMINAL_CODEX_COMPOSER_RECT_STORAGE_KEY = "metafor.interpreter.hostTerminal.codexComposerRect:v1"
 const HOST_TERMINAL_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.hostTerminal.hudDocked:v1"
 const HOST_TERMINAL_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.hostTerminal.dockPlacement:v1"
 const NETWORK_TERMINAL_SESSION_STORAGE_KEY = "metafor.interpreter.networkTerminal.sessionId:v1"
 const NETWORK_TERMINAL_SESSION_KEY = "interpreter:network-terminal"
-const NETWORK_TERMINAL_TMUX_SESSION = "metafor-app-web-net"
-const NETWORK_TERMINAL_TMUX_FALLBACK_COMMAND = `exec tmux new-session -A -s ${NETWORK_TERMINAL_TMUX_SESSION}\r`
-const NETWORK_DISPLAY_ID = "network:tmux"
+const NETWORK_DISPLAY_ID = "network:terminal"
 const REMOTE_DESKTOP_DISPLAY_ID = "remote-desktop:server"
 const PHYSICAL_DISPLAY_PIXEL_WIDTH = 1920
 const PHYSICAL_DISPLAY_PIXEL_HEIGHT = 1080
@@ -7985,8 +7979,8 @@ function ensureNetworkDisplay(): void {
   if (!networkDisplayInstalled) {
     networkDisplayInstalled = true
     networkDisplayControlsPane ??= new NetworkWatchPane({
-      title: "NetworkMux",
-      sessionLabel: `${NETWORK_TERMINAL_TMUX_SESSION}:network`,
+      title: "Network",
+      sessionLabel: "network",
       actions: {
         setTlsEnabled: (enabled) => {
           networkServiceSwitches = {...networkServiceSwitches, tls: enabled}
@@ -8046,7 +8040,7 @@ function networkDisplayFallbackCenter(metrics: DisplayLayoutMetrics): UiRuntimeV
 function ensureNetworkDisplayTerminal(controller: HostTerminalController): TerminalPane {
   if (networkDisplayTerminal !== null) return networkDisplayTerminal
   const terminal = createHostTerminalPane(controller, "InterpreterNetworkTerminalDisplay", {
-    title: "Network · tmux",
+    title: "Network",
     fontPx: 12,
     linePx: 17,
     fitToRect: true,
@@ -8116,9 +8110,6 @@ function ensureHostTerminalController(): HostTerminalController {
     title: hostTerminalTitle(),
     sessionStorageKey: HOST_TERMINAL_SESSION_STORAGE_KEY,
     sessionKey: HOST_TERMINAL_SESSION_KEY,
-    tmuxSession: HOST_TERMINAL_TMUX_SESSION,
-    initialCommand: null,
-    initialCommandSent: false,
     socket: null,
     sessionId: readStoredHostTerminalSessionId(HOST_TERMINAL_SESSION_STORAGE_KEY),
     terminalSize: null,
@@ -8160,7 +8151,7 @@ function ensureNetworkHostTerminalController(): HostTerminalController {
   if (networkHostTerminal !== null) return networkHostTerminal
   const controller = {} as HostTerminalController
   const hudTerminal = createHostTerminalPane(controller, "InterpreterNetworkTerminalHud", {
-    title: "Network · tmux",
+    title: "Network",
     fontPx: 12,
     linePx: 17,
     draggable: true,
@@ -8176,12 +8167,9 @@ function ensureNetworkHostTerminalController(): HostTerminalController {
     hudTerminal,
     codexComposer,
     codexEditor,
-    title: "Network · tmux",
+    title: "Network",
     sessionStorageKey: NETWORK_TERMINAL_SESSION_STORAGE_KEY,
     sessionKey: NETWORK_TERMINAL_SESSION_KEY,
-    tmuxSession: NETWORK_TERMINAL_TMUX_SESSION,
-    initialCommand: NETWORK_TERMINAL_TMUX_FALLBACK_COMMAND,
-    initialCommandSent: false,
     socket: null,
     sessionId: readStoredHostTerminalSessionId(NETWORK_TERMINAL_SESSION_STORAGE_KEY),
     terminalSize: null,
@@ -8333,7 +8321,6 @@ function hostTerminalWebSocketURL(controller: HostTerminalController): string {
   const url = new URL(`${protocol}//${location.host}/hud/terminal/stream`)
   url.searchParams.set("replay", "1")
   url.searchParams.set("key", controller.sessionKey)
-  url.searchParams.set("tmux", controller.tmuxSession)
   if (controller.sessionId !== null) url.searchParams.set("session", controller.sessionId)
   return url.toString()
 }
@@ -8418,11 +8405,6 @@ function handleHostTerminalMessage(controller: HostTerminalController, event: Me
     if (voiceActiveTarget === null) setVoiceActiveTarget({kind: "host", controller})
     else scheduleVoiceAutoWake()
     if (controller.terminalSize !== null) sendHostTerminal(controller, {type: "terminal.resize", size: controller.terminalSize})
-    const tmuxReady = message.tmuxSession === controller.tmuxSession
-    if (controller.initialCommand !== null && !controller.initialCommandSent && !tmuxReady && !message.restored) {
-      controller.initialCommandSent = true
-      window.setTimeout(() => sendHostTerminalInput(controller, controller.initialCommand ?? "", "api"), 80)
-    }
     return
   }
 

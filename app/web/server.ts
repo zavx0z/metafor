@@ -5,7 +5,14 @@ import {existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSyn
 import {networkInterfaces} from "node:os"
 import {basename, dirname, extname, join, relative, resolve} from "node:path"
 import "dark/server"
-import {createPtySessionManager, parsePtyClientMessage} from "@metafor/pty/server"
+import {
+  attachPtyDaemonProxy,
+  detachPtyDaemonProxy,
+  ensurePtyDaemon,
+  ptyDaemonBaseUrl,
+  ptyDaemonTerminalUrlFromRequest,
+  relayPtyDaemonProxyMessage,
+} from "@metafor/pty/server"
 import {
   EventLogger,
   InterpreterModuleManager,
@@ -47,10 +54,7 @@ const boundary = globalThis.boundary
 const sockets = new Set<ServerWebSocket<AppWebSocketData>>()
 const matrixBridgeSockets = new Set<ServerWebSocket<AppWebSocketData>>()
 const energyBridgeSockets = new Set<ServerWebSocket<AppWebSocketData>>()
-const terminalSessions = createPtySessionManager({
-  cwd: process.cwd(),
-  shell: Bun.env.SHELL || "/bin/zsh",
-})
+const PTYD_BASE_URL = ptyDaemonBaseUrl()
 const HOST = Bun.env.HOST ?? Bun.env.APP_WEB_HOST ?? "127.0.0.1"
 const PORT = Number(Bun.env.PORT ?? 3000)
 const TLS_ENABLED = Boolean(Bun.env.TLS_KEY_FILE && Bun.env.TLS_CERT_FILE)
@@ -430,19 +434,23 @@ const server = serve<AppWebSocketData>({
         return jsonResponse({ok: false, error: error instanceof Error ? error.message : String(error)}, 400)
       }
     },
-    "/hud/terminal/stream": (req: Request, wsServer: Server<AppWebSocketData>) => {
+    "/hud/terminal/stream": async (req: Request, wsServer: Server<AppWebSocketData>) => {
       const url = new URL(req.url)
+      try {
+        await ensurePtyDaemon({
+          baseUrl: PTYD_BASE_URL,
+          cwd: process.cwd(),
+          log: (message) => appLog("PTYD", "ensure", message, "cyan"),
+        })
+      } catch (error) {
+        logHttp(req, "terminal", 503, Date.now(), errorMessage(error))
+        return new Response(errorMessage(error), {status: 503})
+      }
       const data: AppWebTerminalSocketData = {
         kind: "terminal",
-        replay: url.searchParams.get("replay") !== "0",
         connectedAt: Date.now(),
+        ptydTerminalUrl: ptyDaemonTerminalUrlFromRequest(url, PTYD_BASE_URL),
       }
-      const session = url.searchParams.get("session")
-      if (session !== null && session.length > 0) data.sessionId = session
-      const key = url.searchParams.get("key")
-      if (key !== null && key.length > 0) data.sessionKey = key
-      const tmux = url.searchParams.get("tmux")
-      if (tmux !== null && tmux.length > 0) data.tmuxSession = tmux
       const ok = wsServer.upgrade(req, {data})
       logWsUpgrade(req, "terminal", ok, terminalUpgradeDetail(data))
       return ok ? undefined : new Response("WebSocket upgrade failed", {status: 426})
@@ -558,16 +566,15 @@ const server = serve<AppWebSocketData>({
       }
       if (ws.data.kind === "terminal") {
         try {
-          const session = terminalSessions.attach(ws as ServerWebSocket<TerminalPtySocketData>)
-          const info = session.info()
-          appLog("PTY", "attached", `session=${shortId(info.id)} key=${info.key ?? "-"} tmux=${info.tmuxSession ?? "-"} clients=${info.clients}`, "cyan")
+          attachPtyDaemonProxy(ws as ServerWebSocket<TerminalPtySocketData>)
+          appLog("PTY", "proxy attached", ws.data.ptydTerminalUrl, "cyan")
         } catch (error) {
           appLog("ERR", "terminal attach failed", errorMessage(error), "red")
           if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({
             type: "terminal.error",
-            message: error instanceof Error ? error.message : "shell failed",
+            message: error instanceof Error ? error.message : "ptyd attach failed",
           }))
-          ws.close(1011, "shell failed")
+          ws.close(1011, "ptyd attach failed")
         }
         return
       }
@@ -593,18 +600,7 @@ const server = serve<AppWebSocketData>({
         return
       }
       if (ws.data.kind === "terminal") {
-        const payload = parsePtyClientMessage(message)
-        const session = ws.data.session
-        if (payload === null || session === undefined) return
-        if (payload.type === "input.write") {
-          session.writeInput(ws as ServerWebSocket<TerminalPtySocketData>, payload.data, payload.localEchoId)
-          return
-        }
-        if (payload.type === "terminal.clear") {
-          session.clearScrollback()
-          return
-        }
-        session.resize(payload.size)
+        relayPtyDaemonProxyMessage(ws as ServerWebSocket<TerminalPtySocketData>, message)
         return
       }
 
@@ -660,13 +656,8 @@ const server = serve<AppWebSocketData>({
         return
       }
       if (ws.data.kind === "terminal") {
-        const session = ws.data.session
-        session?.detach(ws as ServerWebSocket<TerminalPtySocketData>)
-        if (session !== undefined) {
-          const info = session.info()
-          appLog("PTY", "detached", `session=${shortId(info.id)} key=${info.key ?? "-"} tmux=${info.tmuxSession ?? "-"} clients=${info.clients}`, "gray")
-        }
-        delete ws.data.session
+        detachPtyDaemonProxy(ws as ServerWebSocket<TerminalPtySocketData>)
+        appLog("PTY", "proxy detached", "", "gray")
         return
       }
       sockets.delete(ws)
@@ -1287,17 +1278,9 @@ function compactLogPath(url: URL): string {
 }
 
 function terminalUpgradeDetail(data: {
-  replay: boolean;
-  sessionId?: string;
-  sessionKey?: string;
-  tmuxSession?: string
+  ptydTerminalUrl: string
 }): string {
-  return [
-    `replay=${data.replay}`,
-    data.sessionId === undefined ? undefined : `session=${shortId(data.sessionId)}`,
-    data.sessionKey === undefined ? undefined : `key=${data.sessionKey}`,
-    data.tmuxSession === undefined ? undefined : `tmux=${data.tmuxSession}`,
-  ].filter((item): item is string => item !== undefined).join(" ")
+  return `ptyd=${data.ptydTerminalUrl}`
 }
 
 function shortId(value: string): string {

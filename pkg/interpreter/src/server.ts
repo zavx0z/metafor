@@ -35,7 +35,15 @@ import type {JsonObject} from "./types.ts"
 import {sourceMapMapper} from "./source-map.ts"
 import {applyPatch, createReplaceFilePatch, type ApplyPatchFileChange, type ApplyPatchResult} from "./apply-patch.ts"
 import {remapBreakpointLine, type BreakpointRegistration} from "./breakpoints.ts"
-import {createPtySessionManager, parsePtyClientMessage, type PtySocketData, type TerminalSession} from "@metafor/pty/server"
+import {
+  attachPtyDaemonProxy,
+  detachPtyDaemonProxy,
+  ensurePtyDaemon,
+  ptyDaemonBaseUrl,
+  ptyDaemonTerminalUrlFromRequest,
+  relayPtyDaemonProxyMessage,
+  type PtyDaemonProxySocketData,
+} from "@metafor/pty/server"
 import type {InterpreterModule, InterpreterModuleManager, StartupModuleOptions} from "./module.ts"
 import type {BreakpointSpec} from "./target.ts"
 import {workspaceFilesPayload, type WorkspaceFilesModuleContext} from "./workspace-files.ts"
@@ -79,9 +87,10 @@ type UiWsClientData = {
   id: number
 }
 
-type TerminalWsClientData = PtySocketData & {
+type TerminalWsClientData = PtyDaemonProxySocketData & {
   kind: "terminal"
   id: number
+  connectedAt: number
 }
 
 type RtcSignalWsClientData = {
@@ -104,7 +113,6 @@ const VALID_STOP_SIGNALS = new Set(["SIGTERM", "SIGKILL", "SIGINT", "SIGHUP", "S
 const CODEX_ATTACHMENT_DIR = "pkg/interpreter/tmp/codex-attachments"
 const CODEX_ATTACHMENT_MAX_BYTES = 16 * 1024 * 1024
 const CODEX_ATTACHMENT_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".heic", ".heif", ".tif", ".tiff", ".bmp", ".svg"])
-type InterpreterTerminalSessionManager = ReturnType<typeof createPtySessionManager>
 type UiHostCommandDispatcher = (command: string, params: JsonObject) => Promise<JsonObject>
 type UiHostPendingRequest = {
   clientId: number
@@ -146,15 +154,6 @@ class UiHostCommandError extends Error {
     super(message)
     this.status = status
   }
-}
-
-const terminalSessionsGlobal = globalThis as typeof globalThis & {
-  __metaforInterpreterTerminalSessions?: InterpreterTerminalSessionManager
-}
-
-function interpreterTerminalSessions(): InterpreterTerminalSessionManager {
-  terminalSessionsGlobal.__metaforInterpreterTerminalSessions ??= createPtySessionManager()
-  return terminalSessionsGlobal.__metaforInterpreterTerminalSessions
 }
 
 function createSqliteWatchRegistry(
@@ -298,7 +297,7 @@ function sqliteChangedPayload(entry: SqliteWatchEntry, available: boolean): Json
 
 export function createInterpreterHttpRoutes(options: HttpServerOptions) {
   const wsClients = new Set<ServerWebSocket<WsClientData>>()
-  const terminalSessions = interpreterTerminalSessions()
+  const ptydBaseUrl = ptyDaemonBaseUrl()
   let nextWsClientId = 1
   let nextTerminalClientId = 1
   let nextUiHostRequestId = 1
@@ -423,14 +422,14 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
       if (ws.data.kind === "terminal") {
         options.logger.event("terminal.client.opened", {id: ws.data.id})
         try {
-          const session = terminalSessions.attach(ws as ServerWebSocket<TerminalWsClientData>)
-          options.logger.event("terminal.session.attached", {clientId: ws.data.id, sessionId: session.id})
+          attachPtyDaemonProxy(ws as ServerWebSocket<TerminalWsClientData>)
+          options.logger.event("terminal.proxy.attached", {clientId: ws.data.id, target: ws.data.ptydTerminalUrl})
         } catch (error) {
           if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({
             type: "terminal.error",
-            message: error instanceof Error ? error.message : "shell failed",
+            message: error instanceof Error ? error.message : "ptyd attach failed",
           }))
-          ws.close(1011, "shell failed")
+          ws.close(1011, "ptyd attach failed")
         }
         return
       }
@@ -454,18 +453,7 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
         return
       }
       if (ws.data.kind === "terminal") {
-        const payload = parsePtyClientMessage(raw)
-        const session = ws.data.session
-        if (payload === null || session === undefined) return
-        if (payload.type === "input.write") {
-          session.writeInput(ws as ServerWebSocket<PtySocketData>, payload.data, payload.localEchoId)
-          return
-        }
-        if (payload.type === "terminal.clear") {
-          session.clearScrollback()
-          return
-        }
-        session.resize(payload.size)
+        relayPtyDaemonProxyMessage(ws as ServerWebSocket<TerminalWsClientData>, raw)
         return
       }
 
@@ -549,8 +537,7 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
         return
       }
       if (ws.data.kind === "terminal") {
-        ws.data.session?.detach(ws as ServerWebSocket<TerminalWsClientData>)
-        delete ws.data.session
+        detachPtyDaemonProxy(ws as ServerWebSocket<TerminalWsClientData>)
         options.logger.event("terminal.client.closed", {id: ws.data.id})
         return
       }
@@ -582,18 +569,21 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
       }
       if (path === "/hud/terminal/stream") {
         if (!isAllowedWebSocketOrigin(req, url)) return jsonResponse({ok: false, error: "forbidden origin"}, 403)
+        try {
+          await ensurePtyDaemon({
+            baseUrl: ptydBaseUrl,
+            cwd: process.cwd(),
+            log: (message) => options.logger.event("ptyd.ensure", {message}),
+          })
+        } catch (error) {
+          return jsonResponse({ok: false, error: serializeError(error)}, 503)
+        }
         const id = nextTerminalClientId++
-        const requestedSession = url.searchParams.get("session")
-        const sessionKey = url.searchParams.get("key")
-        const tmuxSession = url.searchParams.get("tmux")
         const data: TerminalWsClientData = {
           kind: "terminal",
           id,
           connectedAt: Date.now(),
-          replay: url.searchParams.get("replay") !== "0",
-          ...(requestedSession === null ? {} : {sessionId: requestedSession}),
-          ...(sessionKey === null ? {} : {sessionKey}),
-          ...(tmuxSession === null ? {} : {tmuxSession}),
+          ptydTerminalUrl: ptyDaemonTerminalUrlFromRequest(url, ptydBaseUrl),
         }
         const upgraded = server.upgrade(req, {data})
         if (upgraded) return undefined
@@ -631,13 +621,21 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
         return jsonResponse({ok: false, error: "expected websocket upgrade"}, 426)
       }
       if (method === "GET" && path === "/hud/terminal/sessions") {
-        return jsonResponse({sessions: terminalSessions.list()})
+        try {
+          await ensurePtyDaemon({baseUrl: ptydBaseUrl, cwd: process.cwd()})
+          return await fetch(new URL("/terminal/sessions", ptydBaseUrl))
+        } catch (error) {
+          return jsonResponse({ok: false, error: serializeError(error)}, 503)
+        }
       }
       if (method === "DELETE" && path.startsWith("/hud/terminal/sessions/")) {
         const id = decodePathParam(path.slice("/hud/terminal/sessions/".length))
-        return terminalSessions.close(id)
-          ? jsonResponse({ok: true})
-          : jsonResponse({ok: false, error: "terminal session not found"}, 404)
+        try {
+          await ensurePtyDaemon({baseUrl: ptydBaseUrl, cwd: process.cwd()})
+          return await fetch(new URL(`/terminal/sessions/${encodeURIComponent(id)}`, ptydBaseUrl), {method: "DELETE"})
+        } catch (error) {
+          return jsonResponse({ok: false, error: serializeError(error)}, 503)
+        }
       }
 
       const start = Date.now()
