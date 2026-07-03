@@ -1,6 +1,7 @@
 import {afterEach, describe, expect, test} from "bun:test"
 import type { MatrixFieldValueRecord, MatrixStore } from "./store.t"
-import { FIELD_TYPE, OP, CPUWeakRuntime, STATE_NONE, STATE_UNDEFINED } from "./weak"
+import { FIELD_TYPE, OP, CPUWeakRuntime } from "./weak"
+import { STATE_NONE, STATE_UNDEFINED } from "./state"
 import {closeForceChannel, force, type MatrixParticle} from "./channel"
 import {
   matrix$,
@@ -267,6 +268,44 @@ describe("matrix Force v0 runtime addressing", () => {
       expect(photons).toContainEqual({part: "photon", op: "replace", path: 17, value: "idle"})
     } finally {
       taskSubscription.close()
+      photonSubscription.close()
+    }
+  })
+
+  test("non-process runtime undefined entry unlocks brane for next Matrix update", async () => {
+    const snapshot = createRuntimeSnapshot()
+    snapshot.data.branes[0]!.state = STATE_UNDEFINED
+    snapshot.weak.stateProcessIdsByBraneIndex = [[null, null]]
+
+    await loadMatrixRuntimeSnapshot(snapshot)
+
+    expect(matrix$.states[0]).toBe(0)
+    expect(matrix$.branes[0]?.lock).toBe(false)
+
+    const photons: MatrixParticle[] = []
+    const photonSubscription = force.entropy((event) => {
+      photons.push(...event.data.parts.filter((part) => part.part === "photon"))
+    })
+    const subscription = subscribeMatrixGluonBroadcast()
+
+    try {
+      force.emit({
+        parts: [{
+          part: "gluon",
+          op: "replace",
+          path: 17,
+          value: {fields: {"2": 11}},
+        }],
+      })
+
+      await waitFor(() =>
+        photons.some((part) => part.part === "photon" && part.path === 17 && part.value === "ready")
+      )
+
+      expect(matrix$.states[0]).toBe(1)
+      expect(photons).toContainEqual({part: "photon", op: "replace", path: 17, value: "ready"})
+    } finally {
+      subscription.close()
       photonSubscription.close()
     }
   })

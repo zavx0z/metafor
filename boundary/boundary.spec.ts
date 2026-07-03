@@ -7,7 +7,7 @@ import type {BoundaryParticle} from "./sqlite.ts"
 import type {Particle} from "./index.ts"
 import {BooleanValue, EnumValue} from "@boundary/actor"
 import type {Boundary} from "./index.ts"
-import {STATE_NONE, STATE_UNDEFINED} from "../matrix/weak/constants.ts"
+import {STATE_NONE, STATE_UNDEFINED} from "../matrix/state.ts"
 
 const SRC = "owner/smoke"
 

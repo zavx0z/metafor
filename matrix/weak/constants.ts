@@ -46,8 +46,7 @@ export const OP = {
   IS_EMPTY: 11,
 } as const
 
-export const STATE_UNDEFINED = -1
-export const STATE_NONE = -2
+export { STATE_UNDEFINED, STATE_NONE } from "../state"
 
 export const GPU_STATE_UNDEFINED = 0xffffffff
 export const GPU_STATE_NONE = 0xfffffffe

@@ -1,5 +1,5 @@
 import type {SQL} from "bun"
-import {STATE_NONE, STATE_UNDEFINED} from "../../matrix/weak/constants.ts"
+import {STATE_NONE, STATE_UNDEFINED} from "../../matrix/state.ts"
 
 type MatrixFieldType = 0 | 1 | 2 | 3 | 4
 

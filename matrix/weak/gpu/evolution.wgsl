@@ -47,7 +47,7 @@ struct Uniforms {
    * и потоки с `id.x >= braneCount` досрочно завершаются.
    */
   braneCount: u32,
-  /** Режим шага: birth-only или полный transition loop. */
+  /** Режим шага: undefined-only или полный transition loop. */
   stepMode: u32,
   /** Padding для выравнивания до 16 байт. Значение игнорируется GPU. */
   _pad1: u32,
