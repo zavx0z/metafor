@@ -104,11 +104,6 @@ globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
           type 𝛴 = SuperpositionStateKeys<ψ>
           const normalizedSuperposition = superposition as SuperpositionInput<ɸ, ψ>
           validateNoUnconditionalCycles(normalizedSuperposition)
-          const symbolKeys = Object.getOwnPropertySymbols(normalizedSuperposition)
-          const undefinedSymbol = symbolKeys.find((key) => String(key) === "Symbol()")
-          if (undefinedSymbol) {
-            throw new Error("Legacy Symbol() undefined-state superposition is not supported; use declared string states only.")
-          }
           return {
             mass<m extends Mass>(mass?: m) {
               const dslFields = Object.entries(fields).map(([key, definition]) => ({key, ...definition}))
