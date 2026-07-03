@@ -106,10 +106,8 @@ globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
           validateNoUnconditionalCycles(normalizedSuperposition)
           const symbolKeys = Object.getOwnPropertySymbols(normalizedSuperposition)
           const undefinedSymbol = symbolKeys.find((key) => String(key) === "Symbol()")
-          const undefinedValue = normalizedSuperposition[undefinedSymbol as unknown as 𝛴]
-          if (undefinedValue) {
-            normalizedSuperposition["$undef$" as 𝛴] = undefinedValue
-            delete normalizedSuperposition[undefinedSymbol as unknown as 𝛴]
+          if (undefinedSymbol) {
+            throw new Error("Legacy Symbol() undefined-state superposition is not supported; use declared string states only.")
           }
           return {
             mass<m extends Mass>(mass?: m) {

@@ -13,6 +13,7 @@ import {
   createNoStateGraphFixture,
   createNullableStringPresenceFixture,
   createSimpleBraneFixture,
+  createUndefinedThenTransitionFixture,
   createUndefinedStateFixture,
   normalizeChanges,
   setBraneFieldValue,
@@ -168,6 +169,42 @@ describe("CPU/GPU parity — canonical cases", () => {
       expect(gpuRuntime.statesSnapshot()).toEqual([0])
       expect(cpuStore.getStateName(0, 0)).toBe("born")
       expect(gpuStore.getStateName(0, 0)).toBe("born")
+    } finally {
+      cpuRuntime.clear()
+    }
+  })
+
+  test("non-process undefined entry unlocks GPU before the next Full step", async () => {
+    const pair = await createRuntimePair(createUndefinedThenTransitionFixture())
+    if (!pair) return
+
+    const { cpuRuntime, gpuRuntime, cpuStore, gpuStore } = pair
+    try {
+      cpuRuntime.step(StepMode.UndefinedOnly)
+      gpuRuntime.step(StepMode.UndefinedOnly)
+
+      const cpuEntryChanges = await cpuRuntime.readChanges()
+      const gpuEntryChanges = await gpuRuntime.readChanges()
+      expect(normalizeChanges(gpuEntryChanges)).toEqual(normalizeChanges(cpuEntryChanges))
+      expect(cpuEntryChanges).toEqual([[0, 0]])
+
+      cpuStore.branes[0]!.lock = false
+      gpuStore.branes[0]!.lock = false
+      gpuRuntime.heapUpdate([{ kind: "lock", braneIndex: 0, value: false }])
+
+      setBraneFieldValue(cpuStore, 0, 0, 100)
+      setBraneFieldValue(gpuStore, 0, 0, 100)
+      gpuRuntime.heapUpdate([{ kind: "field", braneIndex: 0, fieldIndex: 0 }])
+
+      cpuRuntime.step()
+      gpuRuntime.step()
+
+      const cpuChanges = await cpuRuntime.readChanges()
+      const gpuChanges = await gpuRuntime.readChanges()
+      expect(normalizeChanges(gpuChanges)).toEqual(normalizeChanges(cpuChanges))
+      expect(cpuChanges).toEqual([[0, 1]])
+      expect(cpuRuntime.statesSnapshot()).toEqual([1])
+      expect(gpuRuntime.statesSnapshot()).toEqual([1])
     } finally {
       cpuRuntime.clear()
     }

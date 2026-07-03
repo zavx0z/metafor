@@ -2,6 +2,19 @@ import { describe, expect, test } from "bun:test"
 import { MetaFor } from "./metafor.ts"
 
 describe("matter validation", () => {
+  test("запрещает legacy Symbol() undefined-state adapter", () => {
+    const legacyUndefinedState = Symbol()
+
+    expect(() =>
+      MetaFor("invalid-legacy-undefined-state")
+        .fields(() => ({}))
+        .superposition({
+          idle: null,
+          [legacyUndefinedState]: { idle: {} },
+        } as any),
+    ).toThrow("Legacy Symbol() undefined-state superposition is not supported")
+  })
+
   test("нормализует template field paths на границе DSL", () => {
     const schema = MetaFor("normalized-matter")
       .fields((field) => ({

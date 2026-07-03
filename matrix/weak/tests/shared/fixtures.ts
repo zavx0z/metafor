@@ -264,6 +264,26 @@ export function createUndefinedStateFixture() {
   return { fields, store }
 }
 
+export function createUndefinedThenTransitionFixture() {
+  const fields: Field[] = [{ type: FieldType.F32 }]
+  const store = createBaseStore({
+    fields,
+    branes: [
+      {
+        values: [[0, 10]],
+        state: STATE_UNDEFINED,
+        collapses: [
+          [[1, { 0: { gt: 50 } }]],
+          [null],
+        ],
+      },
+    ],
+    stateNames: [["born", "ready"]],
+  })
+
+  return { fields, store }
+}
+
 export function createNoStateGraphFixture() {
   const fields: Field[] = [{ type: FieldType.F32 }]
   const store = createBaseStore({

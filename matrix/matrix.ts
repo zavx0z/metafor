@@ -339,12 +339,15 @@ const syncProcessLocksForChanges = (changes: [number, number][], stateChanges: [
     if (!brane) continue
 
     const isStateChange = stateChangeKeys.has(`${braneIndex}\0${stateIndex}`)
-    if (brane.lock === shouldLock && (!shouldLock || !isStateChange)) continue
-
-    if (brane.lock !== shouldLock) {
+    if (isStateChange) {
+      brane.lock = shouldLock
+      weakUpdates.push({ kind: "lock", braneIndex, value: shouldLock })
+    } else {
+      if (brane.lock === shouldLock) continue
       brane.lock = shouldLock
       weakUpdates.push({ kind: "lock", braneIndex, value: shouldLock })
     }
+
     if (shouldLock) {
       const task = createProcessTask(braneIndex, stateIndex, processId)
       if (task !== null) processTasks.push(task)
