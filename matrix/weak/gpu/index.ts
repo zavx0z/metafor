@@ -15,6 +15,7 @@ import { runGpuStep } from "./step"
 import type { ArrayHeapSlot } from "./heap"
 import { createInitialArrayHeapIndex, updateGpuHeapFields } from "./heap"
 import { createStringAtlasAppendExport } from "./string-pack"
+import { StepMode, type StepMode as WeakStepMode } from "../constants"
 
 let gpuOperationQueue: Promise<void> = Promise.resolve()
 
@@ -65,7 +66,7 @@ export class GPUWeakRuntime implements WeakRuntime {
     return new GPUWeakRuntime(context, store$)
   }
 
-  step(): void {
+  step(mode: WeakStepMode = StepMode.Full): void {
     this.schedule(() =>
       runGpuStep(
         this.context.device,
@@ -73,6 +74,9 @@ export class GPUWeakRuntime implements WeakRuntime {
         this.context.bindGroup,
         this.context.buffers.dirtyFlags,
         this.context.buffers.states,
+        this.context.buffers.uniforms,
+        this.context.braneCount,
+        mode,
       ),
     )
   }
@@ -326,6 +330,7 @@ export class GPUWeakRuntime implements WeakRuntime {
   private tryApplyHeapUpdates(updates: WeakHeapUpdate[]): boolean {
     const writes: Array<{ offset: number; value1: number; value2?: number }> = []
     let heapMirror = this.context.heapMirror
+    let requiresFullHeapWrite = false
 
     for (const update of updates) {
       if (update.kind === "lock") {
@@ -338,6 +343,9 @@ export class GPUWeakRuntime implements WeakRuntime {
         continue
       }
 
+      if (this.store$.fields[update.fieldIndex]?.type === FIELD_TYPE.ARRAY_PTR) {
+        requiresFullHeapWrite = true
+      }
       const nextResult = this.resolveFieldWrites(update.braneIndex, update.fieldIndex, heapMirror)
       if (!nextResult) {
         return false
@@ -354,7 +362,17 @@ export class GPUWeakRuntime implements WeakRuntime {
     }
 
     this.context.heapMirror = heapMirror
-    updateGpuHeapFields(this.context.device, this.context.buffers.heap, writes)
+    if (requiresFullHeapWrite) {
+      this.context.device.queue.writeBuffer(
+        this.context.buffers.heap,
+        0,
+        heapMirror.buffer,
+        heapMirror.byteOffset,
+        heapMirror.byteLength,
+      )
+    } else {
+      updateGpuHeapFields(this.context.device, this.context.buffers.heap, writes)
+    }
     return true
   }
 

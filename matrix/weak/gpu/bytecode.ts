@@ -122,7 +122,10 @@ function getArrayEncodingContext(ctx: PackContext, op: number, fieldType: number
     return ctx
   }
 
-  if (ctx.subType !== undefined && (op === OP.IN || op === OP.NOT_IN)) {
+  if (
+    ctx.subType !== undefined &&
+    (op === OP.IN || op === OP.NOT_IN || op === OP.INCLUDE || op === OP.NOT_INCLUDE)
+  ) {
     const nextContext: PackContext = { type: ctx.subType, stringTable: ctx.stringTable }
     if (ctx.enum !== undefined) {
       nextContext.enum = ctx.enum

@@ -1,6 +1,6 @@
 import {afterEach, describe, expect, test} from "bun:test"
 import type { MatrixFieldValueRecord, MatrixStore } from "./store.t"
-import { FIELD_TYPE, OP, CPUWeakRuntime } from "./weak"
+import { FIELD_TYPE, OP, CPUWeakRuntime, STATE_NONE, STATE_UNDEFINED } from "./weak"
 import {closeForceChannel, force, type MatrixParticle} from "./channel"
 import {
   matrix$,
@@ -237,6 +237,75 @@ describe("matrix Force v0 runtime addressing", () => {
     } finally {
       gluonSubscription.close()
       taskSubscription.close()
+    }
+  })
+
+  test("Matrix создаёт process-task при первом входе из runtime undefined", async () => {
+    const snapshot = createRuntimeSnapshot()
+    snapshot.data.branes[0]!.state = STATE_UNDEFINED
+    snapshot.weak.stateProcessIdsByBraneIndex = [[42, null]]
+    const tasks: unknown[] = []
+    const photons: MatrixParticle[] = []
+    const taskSubscription = subscribeMatrixProcessTasks((task) => {
+      tasks.push(task)
+    })
+    const photonSubscription = force.entropy((event) => {
+      photons.push(...event.data.parts.filter((part) => part.part === "photon"))
+    })
+
+    try {
+      await loadMatrixRuntimeSnapshot(snapshot)
+
+      expect(matrix$.states[0]).toBe(0)
+      expect(matrix$.branes[0]?.lock).toBe(true)
+      expect(tasks[0]).toMatchObject({
+        actorId: 17,
+        state: "idle",
+        processId: 42,
+        mass: {actorId: 17},
+      })
+      expect(photons).toContainEqual({part: "photon", op: "replace", path: 17, value: "idle"})
+    } finally {
+      taskSubscription.close()
+      photonSubscription.close()
+    }
+  })
+
+  test("actor без state graph остаётся адресуемым для field updates и не даёт Weak changes", async () => {
+    const snapshot = createRuntimeSnapshot()
+    snapshot.data.branes[0] = {
+      values: snapshot.data.branes[0]!.values,
+      state: STATE_NONE,
+      collapses: [],
+    }
+    snapshot.data.stateNames = [[]]
+    snapshot.weak.stateMetaStateIdsByBraneIndex = [[]]
+    snapshot.weak.stateProcessIdsByBraneIndex = [[]]
+    await loadMatrixRuntimeSnapshot(snapshot)
+    const photons: MatrixParticle[] = []
+    const photonSubscription = force.entropy((event) => {
+      photons.push(...event.data.parts.filter((part) => part.part === "photon"))
+    })
+    const subscription = subscribeMatrixGluonBroadcast()
+
+    try {
+      force.emit({
+        parts: [{
+          part: "gluon",
+          op: "replace",
+          path: 17,
+          value: {fields: {"2": 14}},
+        }],
+      })
+
+      await waitFor(() => matrix$.getFieldValue(0, 0) === 14)
+
+      expect(matrix$.states[0]).toBe(STATE_NONE)
+      expect(matrix$.getFieldValue(0, 0)).toBe(14)
+      expect(photons).toEqual([])
+    } finally {
+      subscription.close()
+      photonSubscription.close()
     }
   })
 

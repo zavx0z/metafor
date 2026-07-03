@@ -30,6 +30,11 @@ const WORKGROUP_SIZE: u32 = 64u;
 /** Padding для выравнивания uniform-буфера до 16 байт. */
 const UNIFORM_PADDING: u32 = 3u;
 
+const GPU_STATE_UNDEFINED: u32 = 0xffffffffu;
+const GPU_STATE_NONE: u32 = 0xfffffffeu;
+const STEP_UNDEFINED_ONLY: u32 = 1u;
+const STEP_FULL: u32 = 2u;
+
 // ============================================================================
 // UNIFORM STRUCT
 // ============================================================================
@@ -42,8 +47,8 @@ struct Uniforms {
    * и потоки с `id.x >= braneCount` досрочно завершаются.
    */
   braneCount: u32,
-  /** Padding для выравнивания до 16 байт. Значение игнорируется GPU. */
-  _pad0: u32,
+  /** Режим шага: birth-only или полный transition loop. */
+  stepMode: u32,
   /** Padding для выравнивания до 16 байт. Значение игнорируется GPU. */
   _pad1: u32,
   /** Padding для выравнивания до 16 байт. Значение игнорируется GPU. */
@@ -552,6 +557,25 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
   let current_state = states[idx];
   var next_state = current_state;
+
+  if (current_state == GPU_STATE_NONE) {
+    return;
+  }
+
+  if (u.stepMode == STEP_UNDEFINED_ONLY && current_state != GPU_STATE_UNDEFINED) {
+    return;
+  }
+
+  if (current_state == GPU_STATE_UNDEFINED) {
+    states[idx] = 0u;
+    atomicStore(&dirty_flags[idx], 1u);
+    heap[block_ptr + 2u] = 1u;
+    return;
+  }
+
+  if (u.stepMode != STEP_FULL) {
+    return;
+  }
 
   // Смещение bytecode хранится в отдельном специализированном буфере.
   let bytecode_base = bytecode_offsets[idx];

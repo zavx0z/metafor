@@ -120,8 +120,6 @@ async function* matterWimp(
     values.push({actor: actorTempId, field: fieldId, value: valueId})
   }
 
-  const initial = await wimp.states.initial()
-  const initialState = initial ? await initial.id() : null
   const actorData = {
     actor: {
       id: actorTempId,
@@ -132,7 +130,7 @@ async function* matterWimp(
     values,
     valueRecords,
     valueItems,
-    state: {actor: actorTempId, metaState: initialState},
+    state: {actor: actorTempId, metaState: null},
   }
   const actor = await boundary.actor.create(actorData)
   const actorId = actor.id

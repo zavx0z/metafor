@@ -6,6 +6,7 @@ import { createStoredStringInterner, normalizeFieldValue } from "../../../strong
 import { FieldType, type Collapse, type Data, type Field } from "../../../gravity"
 import type { MatrixData, MatrixStore } from "../../../store.t"
 import type { WeakRuntime } from "../../weak.t"
+import { STATE_NONE, STATE_UNDEFINED } from "../../constants"
 
 function clonePreparedStore(data: MatrixData): MatrixStore {
   const cloned: MatrixStore = {
@@ -238,6 +239,88 @@ export function createArrayFieldUpdateFixture() {
         ],
       },
     ],
+  })
+
+  return { fields, store }
+}
+
+export function createUndefinedStateFixture() {
+  const fields: Field[] = [{ type: FieldType.F32 }]
+  const store = createBaseStore({
+    fields,
+    branes: [
+      {
+        values: [[0, 10]],
+        state: STATE_UNDEFINED,
+        collapses: [
+          [[1, { 0: { gt: 50 } }]],
+          [null],
+        ],
+      },
+    ],
+    stateNames: [["born", "ready"]],
+  })
+
+  return { fields, store }
+}
+
+export function createNoStateGraphFixture() {
+  const fields: Field[] = [{ type: FieldType.F32 }]
+  const store = createBaseStore({
+    fields,
+    branes: [
+      {
+        values: [[0, 10]],
+        state: STATE_NONE,
+        collapses: [],
+      },
+    ],
+    stateNames: [[]],
+  })
+
+  return { fields, store }
+}
+
+export function createAlreadyDefinedStateFixture() {
+  const fields: Field[] = [{ type: FieldType.F32 }]
+  const store = createBaseStore({
+    fields,
+    branes: [
+      {
+        values: [[0, 100]],
+        state: 1,
+        collapses: [
+          [[2, { 0: { gt: 50 } }]],
+          [[2, { 0: { gt: 50 } }]],
+          [null],
+        ],
+      },
+    ],
+    stateNames: [["cold", "warm", "hot"]],
+  })
+
+  return { fields, store }
+}
+
+export function createBranchingFixture() {
+  const fields: Field[] = [{ type: FieldType.F32 }]
+  const store = createBaseStore({
+    fields,
+    branes: [
+      {
+        values: [[0, 75]],
+        state: 0,
+        collapses: [
+          [
+            [1, { 0: { gt: 50 } }],
+            [2, { 0: { gt: 20 } }],
+          ],
+          [null],
+          [null],
+        ],
+      },
+    ],
+    stateNames: [["idle", "first", "second"]],
   })
 
   return { fields, store }

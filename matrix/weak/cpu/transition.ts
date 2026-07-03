@@ -1,5 +1,5 @@
 import type { MatrixConditionRecord, MatrixScalarValue, MatrixStore, MatrixValue } from "../../store.t"
-import { OP, FIELD_TYPE } from "../constants"
+import { OP, FIELD_TYPE, STATE_NONE, STATE_UNDEFINED } from "../constants"
 
 function scalarEquals(left: MatrixScalarValue, right: MatrixScalarValue): boolean {
   return left === right
@@ -72,10 +72,14 @@ function evaluateCondition(store$: MatrixStore, braneIndex: number, condition: M
 export function evaluateBraneNextState(store$: MatrixStore, braneIndex: number): number {
   const brane = store$.branes[braneIndex]
   if (!brane) {
-    return store$.states[braneIndex] ?? 0
+    return store$.states[braneIndex] ?? STATE_NONE
   }
 
-  const currentState = store$.states[braneIndex] ?? 0
+  const currentState = store$.states[braneIndex] ?? STATE_NONE
+  if (currentState === STATE_NONE || currentState === STATE_UNDEFINED) {
+    return currentState
+  }
+
   const stateRecord = store$.getState(braneIndex, currentState)
   if (!stateRecord) {
     return currentState

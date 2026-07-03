@@ -7,6 +7,7 @@ import type {BoundaryParticle} from "./sqlite.ts"
 import type {Particle} from "./index.ts"
 import {BooleanValue, EnumValue} from "@boundary/actor"
 import type {Boundary} from "./index.ts"
+import {STATE_NONE, STATE_UNDEFINED} from "../matrix/weak/constants.ts"
 
 const SRC = "owner/smoke"
 
@@ -35,9 +36,9 @@ describe("boundary/sqlite smoke", () => {
     rmSync(`${filename}-wal`, {force: true})
   })
 
-  const fieldId = async (key: string): Promise<number> => {
+  const fieldId = async (key: string, src = SRC): Promise<number> => {
     const row = (
-      await sql<Array<{id: number}>>`SELECT id FROM field WHERE wimp = ${SRC} AND key = ${key} LIMIT 1`
+      await sql<Array<{id: number}>>`SELECT id FROM field WHERE wimp = ${src} AND key = ${key} LIMIT 1`
     )[0]
     if (!row) throw new Error(`field ${key} missing`)
     return row.id
@@ -256,6 +257,51 @@ describe("boundary/sqlite smoke", () => {
     expect(sharedValue.id).toBe(valueFlag)
     const owners = await sharedValue.owners()
     expect(owners.map((o) => o.actor).sort()).toEqual([actorId, actor2Id].sort())
+  })
+
+  test("matrixRuntime различает runtime undefined и отсутствие state graph", async () => {
+    const withStates = "owner/with-states"
+    const withoutStates = "owner/no-states"
+
+    await boundary.wimp.create(withStates, {
+      fields: [{key: "level", type: "number"}],
+      superposition: [{name: "idle"}, {name: "ready"}],
+    })
+    await boundary.wimp.create(withoutStates, {
+      fields: [{key: "level", type: "number"}],
+    })
+    const levelWithStates = await fieldId("level", withStates)
+    const levelWithoutStates = await fieldId("level", withoutStates)
+
+    await boundary.actor.create({
+      actor: {id: 11, parentActor: null, parentTopology: null, wimp: withStates},
+      values: [{actor: 11, field: levelWithStates, value: 111}],
+      valueRecords: [{id: 111, kind: "number", number: 7}],
+      valueItems: [],
+      state: {actor: 11, metaState: null},
+    })
+    await boundary.actor.create({
+      actor: {id: 12, parentActor: null, parentTopology: null, wimp: withoutStates},
+      values: [{actor: 12, field: levelWithoutStates, value: 112}],
+      valueRecords: [{id: 112, kind: "number", number: 9}],
+      valueItems: [],
+      state: {actor: 12, metaState: null},
+    })
+
+    const runtime = await boundary.matrixRuntime()
+    const withStatesIndex = runtime.runtime.braneIndexByActorId.find(([actorId]) => actorId === 11)?.[1]
+    const withoutStatesIndex = runtime.runtime.braneIndexByActorId.find(([actorId]) => actorId === 12)?.[1]
+    if (withStatesIndex === undefined || withoutStatesIndex === undefined) {
+      throw new Error("test actors were not materialized into matrix runtime")
+    }
+
+    expect(runtime.data.branes[withStatesIndex]?.state).toBe(STATE_UNDEFINED)
+    expect(runtime.data.stateNames[withStatesIndex]).toEqual(["idle", "ready"])
+    expect(runtime.weak.stateMetaStateIdsByBraneIndex[withStatesIndex]).toHaveLength(2)
+    expect(runtime.data.branes[withoutStatesIndex]?.state).toBe(STATE_NONE)
+    expect(runtime.data.branes[withoutStatesIndex]?.collapses).toEqual([])
+    expect(runtime.data.stateNames[withoutStatesIndex]).toEqual([])
+    expect(runtime.weak.stateMetaStateIdsByBraneIndex[withoutStatesIndex]).toEqual([])
   })
 
   test("absorb() обновляет БД и не выпускает входящие particles в entropy", async () => {

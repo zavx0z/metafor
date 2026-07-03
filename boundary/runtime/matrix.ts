@@ -1,4 +1,5 @@
 import type {SQL} from "bun"
+import {STATE_NONE, STATE_UNDEFINED} from "../../matrix/weak/constants.ts"
 
 type MatrixFieldType = 0 | 1 | 2 | 3 | 4
 
@@ -278,10 +279,14 @@ export async function matrixRuntime(sql: SQL): Promise<BoundaryMatrixRuntimeSnap
       }
     }
 
-    const actorStatesForWimp = statesByWimp.get(actor.wimp) ?? [{id: 0, wimp: actor.wimp, name: "default", position: 0}]
+    const actorStatesForWimp = statesByWimp.get(actor.wimp) ?? []
     const stateIndexById = new Map(actorStatesForWimp.map((state, index) => [state.id, index] as const))
     const selectedStateId = actorStateByActor.get(actor.id)
-    const selectedState = selectedStateId === null || selectedStateId === undefined ? 0 : (stateIndexById.get(selectedStateId) ?? 0)
+    const selectedState = actorStatesForWimp.length === 0
+      ? STATE_NONE
+      : selectedStateId === null || selectedStateId === undefined
+        ? STATE_UNDEFINED
+        : (stateIndexById.get(selectedStateId) ?? STATE_UNDEFINED)
     stateNames[braneIndex] = actorStatesForWimp.map((state) => state.name)
     stateMetaStateIdsByBraneIndex[braneIndex] = actorStatesForWimp.map((state) => state.id)
     stateProcessIdsByBraneIndex[braneIndex] = actorStatesForWimp.map((state) => processByWimpKey.get(`${actor.wimp}\0${state.name}`) ?? null)

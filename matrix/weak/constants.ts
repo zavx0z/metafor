@@ -45,3 +45,16 @@ export const OP = {
   LENGTH: 10,
   IS_EMPTY: 11,
 } as const
+
+export const STATE_UNDEFINED = -1
+export const STATE_NONE = -2
+
+export const GPU_STATE_UNDEFINED = 0xffffffff
+export const GPU_STATE_NONE = 0xfffffffe
+
+export const StepMode = {
+  UndefinedOnly: 1,
+  Full: 2,
+} as const
+
+export type StepMode = (typeof StepMode)[keyof typeof StepMode]

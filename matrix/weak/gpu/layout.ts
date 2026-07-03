@@ -1,7 +1,8 @@
 import { createStringAtlasExport } from "./string-pack"
+import { StepMode, type StepMode as WeakStepMode } from "../constants"
 
-export function createUniforms(braneCount: number): Uint32Array {
-  return new Uint32Array([braneCount, 0, 0, 0])
+export function createUniforms(braneCount: number, mode: WeakStepMode = StepMode.Full): Uint32Array {
+  return new Uint32Array([braneCount, mode, 0, 0])
 }
 
 export function resolveStringTableBuffers(stringTable: string[]): { registry: Uint32Array; heap: Uint32Array } {

@@ -1,3 +1,6 @@
+import { StepMode, type StepMode as WeakStepMode } from "../constants"
+import { createUniforms } from "./layout"
+
 /**
  * Запускает compute shader для эволюции матрицы на GPU (оркестрация).
  *
@@ -9,8 +12,12 @@ export function runGpuStep(
   bindGroup: GPUBindGroup,
   dirtyFlagsBuffer: GPUBuffer,
   statesBuffer: GPUBuffer,
+  uniformsBuffer: GPUBuffer,
+  braneCount: number,
+  mode: WeakStepMode = StepMode.Full,
 ): void {
   const cmd = device.createCommandEncoder()
+  device.queue.writeBuffer(uniformsBuffer, 0, createUniforms(braneCount, mode))
   cmd.clearBuffer(dirtyFlagsBuffer, 0, dirtyFlagsBuffer.size)
 
   const pass = cmd.beginComputePass()

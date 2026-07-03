@@ -1,8 +1,9 @@
 import type { WeakChanges } from "../weak.t.ts"
 import type { CpuRuntimeContext } from "./index.t.ts"
 import { evaluateBraneNextState } from "./transition"
+import { STATE_NONE, STATE_UNDEFINED, StepMode, type StepMode as WeakStepMode } from "../constants"
 
-export function executeCpuStep(context: CpuRuntimeContext): WeakChanges {
+export function executeCpuStep(context: CpuRuntimeContext, mode: WeakStepMode = StepMode.Full): WeakChanges {
   const { store$ } = context
   const nextStates = [...store$.states]
   const changes: WeakChanges = []
@@ -13,7 +14,22 @@ export function executeCpuStep(context: CpuRuntimeContext): WeakChanges {
       continue
     }
 
-    const currentState = store$.states[braneIndex] ?? 0
+    const currentState = store$.states[braneIndex] ?? STATE_NONE
+    if (currentState === STATE_NONE) {
+      continue
+    }
+
+    if (mode === StepMode.UndefinedOnly && currentState !== STATE_UNDEFINED) {
+      continue
+    }
+
+    if (currentState === STATE_UNDEFINED) {
+      nextStates[braneIndex] = 0
+      brane.lock = true
+      changes.push([braneIndex, 0])
+      continue
+    }
+
     const nextState = evaluateBraneNextState(store$, braneIndex)
     if (nextState === currentState) {
       continue

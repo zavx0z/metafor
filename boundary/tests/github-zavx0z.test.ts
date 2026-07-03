@@ -134,7 +134,7 @@ describe("boundary/tests github/zavx0z startup load", () => {
       if (!commitActor) throw new Error("zavx0z/git-history-commit actor was not materialized")
       const commit = (await boundary.actor.get(commitActor.id))!
       expect(await commit.values.count()).toBeGreaterThan(0)
-      expect((await commit.state())?.metaState).not.toBeNull()
+      expect((await commit.state())?.metaState).toBeNull()
 
       const actorParts = parts.filter((part) => part.part === "graviton" && part.op === "add" && part.path === "actor")
       const topologyParts = parts.filter((part) =>

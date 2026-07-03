@@ -2,6 +2,7 @@ import type { MatrixStore } from "../../store.t"
 import type { WeakChanges, WeakHeapUpdate, WeakRuntime } from "../weak.t.ts"
 import type { CpuRuntimeContext, CpuRuntimeState } from "./index.t.ts"
 import { executeCpuStep } from "./step"
+import { StepMode, type StepMode as WeakStepMode } from "../constants"
 
 export class CPUWeakRuntime implements WeakRuntime {
   private readonly context: CpuRuntimeContext
@@ -12,8 +13,8 @@ export class CPUWeakRuntime implements WeakRuntime {
     this.state = { bufferedChanges: [] }
   }
 
-  step(): void {
-    this.state.bufferedChanges = executeCpuStep(this.context)
+  step(mode: WeakStepMode = StepMode.Full): void {
+    this.state.bufferedChanges = executeCpuStep(this.context, mode)
   }
 
   async readChanges(): Promise<WeakChanges> {

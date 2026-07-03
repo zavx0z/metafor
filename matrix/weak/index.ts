@@ -7,7 +7,19 @@
 
 export {GPU} from "./device"
 export {weakInit, weakHeapUpdate, weakReadChanges, weakStep, weakRunStep, weak$} from "./weak"
-export {OP as CONDITION_OP, FIELD_TYPE, OP, VALUE_TYPE as TYPE, VALUE_TYPE} from "./constants"
+export {
+  GPU_STATE_NONE,
+  GPU_STATE_UNDEFINED,
+  OP as CONDITION_OP,
+  FIELD_TYPE,
+  OP,
+  STATE_NONE,
+  STATE_UNDEFINED,
+  StepMode,
+  VALUE_TYPE as TYPE,
+  VALUE_TYPE,
+} from "./constants"
+export type {StepMode as WeakStepMode} from "./constants"
 export {CPUWeakRuntime} from "./cpu"
 export {
   createFieldEncodingContext,

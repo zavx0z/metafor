@@ -27,7 +27,7 @@ export function createGpuRuntimeContext(
   const pipeline = createComputePipeline(device, shaderSource)
   const derived = deriveWeakData(store$)
   const atlas = resolveStringTableBuffers(store$.stringTable)
-  const braneCount = store$.states.length
+  const braneCount = store$.branes.length
   const statesData = derived.states.length > 0 ? derived.states : new Uint32Array(1)
   const dirtyData = new Uint32Array(Math.max(1, braneCount))
   const heapWords = derived.heap.length > 0 ? derived.heap.length : 1

@@ -1,4 +1,5 @@
 import type { WeakMode } from "./store.t.ts"
+import type { StepMode as WeakStepMode } from "./constants.ts"
 
 export type WeakHeapUpdate =
   | {
@@ -15,7 +16,7 @@ export type WeakHeapUpdate =
 export type WeakChanges = Array<[number, number]>
 
 export interface WeakRuntime {
-  step(): void
+  step(mode?: WeakStepMode): void
   readChanges(): Promise<WeakChanges>
   heapUpdate(updates: WeakHeapUpdate[]): void
   clear(): void

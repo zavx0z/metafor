@@ -34,7 +34,7 @@ import type { PreparedData } from "./matrix.t"
 import {force, type MatrixForceMessage, type MatrixParticle} from "./channel"
 import { FieldType, flattenMatrixData, validateData, type Data } from "@matrix/gravity"
 import { createStoredStringInterner, normalizeFieldValue, assembleStoredMatrixData, strong$ } from "@matrix/strong"
-import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@matrix/weak"
+import { StepMode, weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@matrix/weak"
 import {resolveForceFieldId, resolveForceFieldsPayload} from "../boundary/force-fields.ts"
 import type {ProcessTask} from "boundary"
 
@@ -385,6 +385,7 @@ export function listMatrixRuntimeActorIds(): number[] {
 }
 
 export async function loadMatrixRuntimeSnapshot(snapshot: MatrixRuntimeSnapshot): Promise<void> {
+  weak$.reset()
   const prepared = assembleStoredMatrixData(flattenMatrixData(snapshot.data))
   applyPreparedData(prepared)
 
@@ -433,6 +434,12 @@ export async function loadMatrixRuntimeSnapshot(snapshot: MatrixRuntimeSnapshot)
   weak$.stateProcessIdsByBraneIndex = snapshot.weak.stateProcessIdsByBraneIndex.map((ids) =>
     ids.map((id) => id ?? undefined),
   )
+
+  if (weak$.initialized) {
+    const changes = await weakRunStep(StepMode.UndefinedOnly)
+    syncProcessLocksForChanges(changes, changes)
+    publishPhotonChanges(changes)
+  }
 }
 
 type MatrixUpdateOptions = {

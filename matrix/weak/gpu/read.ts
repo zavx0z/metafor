@@ -1,4 +1,11 @@
 import type { GpuReadResult } from "./index.t.ts"
+import { GPU_STATE_NONE, GPU_STATE_UNDEFINED, STATE_NONE, STATE_UNDEFINED } from "../constants"
+
+function decodeGpuState(state: number): number {
+  if (state === GPU_STATE_UNDEFINED) return STATE_UNDEFINED
+  if (state === GPU_STATE_NONE) return STATE_NONE
+  return state
+}
 
 export async function readGpuChanges(
   device: GPUDevice,
@@ -21,7 +28,7 @@ export async function readGpuChanges(
   await stagingBuffer.mapAsync(GPUMapMode.READ)
   const data = new Uint32Array(stagingBuffer.getMappedRange().slice(0))
   const dirtyFlags = data.slice(0, braneCount)
-  const states = Array.from(data.slice(braneCount, braneCount * 2))
+  const states = Array.from(data.slice(braneCount, braneCount * 2), decodeGpuState)
 
   const changes: Array<[number, number]> = []
   for (let i = 0; i < braneCount; i++) {

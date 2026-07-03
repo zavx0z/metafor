@@ -2,6 +2,7 @@ import type { WeakChanges, WeakHeapUpdate } from "./weak.t"
 import type { MatrixStore } from "../store.t"
 import { createWeakRuntime } from "./factory"
 import { weak$ } from "./store"
+import { StepMode, type StepMode as WeakStepMode } from "./constants"
 
 const runWeakOperation = async <T>(task: () => Promise<T>): Promise<T> => {
   const prev = weak$.operationMutex
@@ -43,10 +44,10 @@ export async function weakInit(store$: MatrixStore): Promise<void> {
 /**
  * Выполняет один шаг активного слабого runtime.
  */
-export function weakStep(): void {
+export function weakStep(mode: WeakStepMode = StepMode.Full): void {
   if (!weak$.initialized) throw new Error("Weak runtime not initialized")
   if (!weak$.runtime) throw new Error("Weak runtime not initialized")
-  weak$.runtime.step()
+  weak$.runtime.step(mode)
 }
 
 /**
@@ -75,9 +76,9 @@ export function weakHeapUpdate(updates: WeakHeapUpdate[]): void {
 /**
  * Выполняет шаг и возвращает список изменившихся состояний.
  */
-export async function weakRunStep(): Promise<WeakChanges> {
+export async function weakRunStep(mode: WeakStepMode = StepMode.Full): Promise<WeakChanges> {
   if (!weak$.initialized) throw new Error("Weak runtime not initialized")
-  weakStep()
+  weakStep(mode)
   return await weakReadChanges()
 }
 
