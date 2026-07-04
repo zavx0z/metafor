@@ -14,7 +14,7 @@ export type {
   SettingsSnapshot,
 } from "./settings.t.ts"
 
-export const BULK_SETTINGS_REVISION = 7
+export const BULK_SETTINGS_REVISION = 8
 export const DEFAULT_BULK_SCENE_SRC = "zavx0z/linux"
 
 export const DEFAULT_BULK_SETTINGS: BulkSettingsConfig = {
@@ -25,7 +25,7 @@ export const DEFAULT_BULK_SETTINGS: BulkSettingsConfig = {
     rootSphereRadiusMm: 1470,
   },
   render: {
-    animationEnabled: true,
+    animationEnabled: false,
     detailDensityFactor: 2,
     detailLevelMultiplier: 1,
     labelVisibleLevels: 2,
