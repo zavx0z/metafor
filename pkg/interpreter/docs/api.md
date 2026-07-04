@@ -22,9 +22,9 @@ Interpreter
 
 `process` - текущий живой запуск кода. Сейчас это отдельный Bun process с `pid`, inspect target, жизненным циклом `start/stop/restart`, своим стеком, областями видимости, исходным кодом и точками останова. В будущей actor-модели это же имя остается корректным: actor/process будет исполняемой сущностью, а не UI-display.
 
-`display` - только визуальная поверхность в `Space`. Через display можно сфокусировать или разложить рабочие поверхности, но разработческие действия идут через `/processes/:id/...`.
+`display` - только визуальная поверхность в `Space`. Через display можно сфокусировать или разложить рабочие поверхности, но разработческие действия идут через `POST /tools`.
 
-`module` - единица исходного кода. Каталог модулей живет внутри контекста process: `/processes/:id/modules`.
+`module` - единица исходного кода. Каталог модулей читается через tool `process.modules` в контексте process.
 
 ## REST
 
@@ -38,9 +38,10 @@ http://127.0.0.1:6500
 
 ```text
 GET    /health
-GET    /context
 POST   /reload
 POST   /restart
+POST   /tools
+GET    /tools
 
 WS     /webrtc/signaling
 
@@ -70,24 +71,6 @@ POST   /remote-desktop/input
 GET    /remote-desktop/browser/windows
 POST   /remote-desktop/browser/open
 
-GET    /space
-POST   /space/focus
-POST   /space/frame
-
-GET    /processes
-POST   /processes
-POST   /processes/resolve
-POST   /processes/focus
-GET    /processes/:id
-DELETE /processes/:id
-POST   /processes/:id/focus
-GET    /processes/:id/context
-GET    /processes/:id/modules?q=<text>&limit=<n>
-POST   /processes/:id/tools
-GET    /processes/:id/breakpoints
-POST   /processes/:id/breakpoint
-DELETE /processes/:id/breakpoint
-
 GET    /hud/terminal
 POST   /hud/terminal/show
 POST   /hud/terminal/dock
@@ -107,18 +90,6 @@ POST   /hud/todo/show
 POST   /hud/todo/dock
 POST   /hud/todo/toggle
 
-GET    /devtools/targets
-GET    /devtools/state
-GET    /devtools/console
-POST   /devtools/console/clear
-POST   /devtools/reload
-POST   /devtools/viewport/sync
-POST   /devtools/breakpoints
-POST   /devtools/probe
-POST   /devtools/resume
-POST   /devtools/disable
-POST   /devtools/evaluate
-
 GET    /hud/sqlite
 POST   /hud/sqlite/show
 POST   /hud/sqlite/dock
@@ -127,9 +98,6 @@ GET    /sqlite?path=<file.sqlite>&table=<name>
 GET    /sqlite/fingerprint?path=<file.sqlite>
 POST   /sqlite/open
 POST   /sqlite/cell
-
-GET    /events?since=<iso|seq>&limit=<n>
-GET    /console?since=<iso|seq>&limit=<n>
 ```
 
 При работе через `app/web` embedded interpreter канонический proxy-префикс -
@@ -156,7 +124,7 @@ sender живет в отдельной service page
 
 ## Текущий Context
 
-`GET /context` возвращает один текущий контекст: то, что сейчас активно видно или выбрано в среде. Это главный endpoint для запроса вроде "смотри на значение".
+`context.get` через `POST /tools` возвращает один текущий контекст: то, что сейчас активно видно или выбрано в среде. Это главный tool для запроса вроде "смотри на значение".
 
 ```json
 {
@@ -300,7 +268,7 @@ WebRTC sender.
 на одном virtual monitor, а WebRTC capture брать другой. Рабочий live media
 path - `transport: "chrome-webrtc"` и `capture.frameSource:
 "chrome-get-display-media:monitor"`. Xwayland/current tab и PipeWire WebM/PCM
-остаются только историческими diagnostics.
+являются только diagnostic-only paths.
 Текущий host-код живет в `pkg/interpreter/remote-desktop`.
 
 Конфигурация bridge:
@@ -374,40 +342,40 @@ published candidate, который уходит browser viewer-у через si
 
 ## Web DevTools
 
-`/devtools/*` - agent-facing слой над текущим server Chrome CDP. По умолчанию
-он использует `http://127.0.0.1:9349` и видимый AppWeb target
+`devtools.*` tools - agent-facing слой над текущим server Chrome CDP. По умолчанию
+они используют `http://127.0.0.1:9349` и видимый AppWeb target
 `https://meta.proizvodstvo1.ru/`. Локальный `http://10.66.0.10:3004/` остается
 для server-side health/API диагностики. Это не замена визуальному docked
-DevTools: endpoint'ы нужны агенту для точных операций, пока пользователь и агент
+DevTools: tools нужны агенту для точных операций, пока пользователь и агент
 смотрят один и тот же `remote-desktop:server` display.
 
 ```text
-GET  /devtools/targets
-GET  /devtools/state
-GET  /devtools/console     # ?limit=100&level=error&kind=log&sinceId=123
-POST /devtools/console/clear
-POST /devtools/reload       # {targetUrl?, hard?, ignoreCache?, syncViewport?}
-POST /devtools/viewport/sync # {targetUrl?, width?, height?, deviceScaleFactor?}
-POST /devtools/breakpoints  # {source|url, line, column?, targetUrl?}
-POST /devtools/probe        # {source|url, line, trigger?, autoResumeMs?, clear?}
-POST /devtools/resume       # {targetUrl?|targetId?}
-POST /devtools/disable      # {targetUrl?|targetId?|all?}
-POST /devtools/evaluate     # {expression, targetUrl?, awaitPromise?, returnByValue?}
+devtools.targets
+devtools.state
+devtools.console          # {limit?, level?, kind?, sinceId?}
+devtools.console.clear
+devtools.reload           # {targetUrl?, hard?, ignoreCache?, syncViewport?}
+devtools.viewport.sync    # {targetUrl?, width?, height?, deviceScaleFactor?}
+devtools.breakpoint       # {source|url, line, column?, targetUrl?}
+devtools.probe            # {source|url, line, trigger?, autoResumeMs?, clear?}
+devtools.resume           # {targetUrl?|targetId?}
+devtools.disable          # {targetUrl?|targetId?|all?}
+devtools.evaluate         # {expression, targetUrl?, awaitPromise?, returnByValue?}
 ```
 
-`GET /devtools/console` включает capture событий `Runtime.consoleAPICalled`,
+`devtools.console` включает capture событий `Runtime.consoleAPICalled`,
 `Runtime.exceptionThrown`, `Log.entryAdded` и `Network.loadingFailed` и хранит
 bounded buffer последних событий. Для визуальных ошибок в AppWeb сначала
-проверь `?level=error&limit=50`; если capture был включен уже после появления
-ошибки, очисти буфер через `/devtools/console/clear`, сделай `/devtools/reload`
+передай `level:"error", limit:50`; если capture был включен уже после появления
+ошибки, очисти буфер через `devtools.console.clear`, сделай `devtools.reload`
 или повтори действие, затем прочитай console снова.
 
 Для `source` строки считаются 1-based, как в редакторе; `column` остается
 0-based. Interpreter читает linked sourcemap из AppWeb bundle и возвращает в
-ответе both original/generated coordinates. `POST /devtools/probe` ставит
+ответе both original/generated coordinates. `devtools.probe` ставит
 breakpoint, опционально выполняет HTTP `trigger`, ждет `Debugger.paused`, затем
 по умолчанию делает `resume` и снимает breakpoint. Если после restart breakpoint
-не ловится, сначала сделай `POST /devtools/reload`: Chrome target мог остаться
+не ловится, сначала сделай `devtools.reload`: Chrome target мог остаться
 открытым со stale AppWeb websocket.
 
 В docked DevTools Device Mode после ручного Rotate и `Page.reload` Chrome может
@@ -415,12 +383,12 @@ breakpoint, опционально выполняет HTTP `trigger`, ждет `
 surface, который видит DevTools preview. Симптомы: toolbar показывает `400x816`,
 target после reload получает `816x400`, `Page.captureScreenshot` отдает scaled
 surface вроде `612x300` при JS viewport `816x400`, canvas/torus считаются по
-неожиданному viewport. `/devtools/reload` по умолчанию после загрузки делает
+неожиданному viewport. `devtools.reload` по умолчанию после загрузки делает
 viewport sync. Managed DevTools CDP session дополнительно повторяет sync после
 `Page.frameResized`, `Page.frameNavigated` и `Page.loadEventFired`, чтобы ручной
 Rotate/reload не оставлял target и preview в разных размерах. Если managed
 session не была создана или видна серая область, вызови
-`POST /devtools/viewport/sync` вручную.
+`devtools.viewport.sync` вручную.
 
 ## TODO HUD
 
@@ -480,7 +448,7 @@ Views считаются read-only. В UI один клик выбирает с�
 
 ## Space
 
-`GET /space` возвращает визуальное состояние среды:
+`space.get` через `POST /tools` возвращает визуальное состояние среды:
 
 В текущем interpreter host module displays, `remote-desktop:server` и
 `network:tmux` публикуются как физические 1920x1080 displays при 96dpi
@@ -511,7 +479,7 @@ viewport host-клиента. Автораскладка задает отсут
 }
 ```
 
-Selectors для `/space/focus`, `/processes/resolve` и `/processes/focus`:
+Selectors для `space.focus`, `process.resolve` и `process.focus`:
 
 ```json
 {"selector":{"processId":"dark-server.spec.ts"}}
@@ -525,7 +493,7 @@ Selectors для `/space/focus`, `/processes/resolve` и `/processes/focus`:
 
 ## Processes
 
-`GET /processes` возвращает список исполняемых процессов:
+`process.list` возвращает список исполняемых процессов:
 
 ```json
 {
@@ -543,13 +511,26 @@ Selectors для `/space/focus`, `/processes/resolve` и `/processes/focus`:
 }
 ```
 
-`GET /processes/:id` возвращает рабочие данные process: `content`, `runtime`, `ui` и `capabilities`.
+Agent-facing команды выполняются только через `POST /tools`. Тело запроса всегда
+Codex-style:
 
-`DELETE /processes/:id` останавливает рантайм-процесс, удаляет его из списка процессов и синхронизирует UI так, чтобы display этого module исчез из Space.
+```json
+{
+  "tool_uses": [
+    {"recipient_name": "context.get", "parameters": {}}
+  ]
+}
+```
 
-API-редактирование исходного кода через `POST /processes/:id/tools` с `source.write` или `source.apply_patch` рассылает `source-patched`. UI process display с этим `:id` должен открыть первый измененный не-delete файл в редакторе исходного кода, раскрыть и выделить его в дереве файлов и поставить курсор на первую измененную строку (`lineChanges[0].newStart`, иначе строка 1). Если в редакторе есть несохраненные изменения или идет сохранение, авто-переход пропускается, чтобы не перетереть локальное dirty-состояние.
+`GET /tools` возвращает typed registry из `pkg/interpreter/src/tools.ts`.
 
-`POST /processes` запускает новый process:
+`process.get` возвращает рабочие данные process: `content`, `runtime`, `ui` и `capabilities`.
+
+`process.close` останавливает рантайм-процесс, удаляет его из списка процессов и синхронизирует UI так, чтобы display этого module исчез из Space.
+
+API-редактирование исходного кода через `POST /tools` с `source.write` или `source.apply_patch` рассылает `source-patched`. UI process display из `parameters.processId` должен открыть первый измененный не-delete файл в редакторе исходного кода, раскрыть и выделить его в дереве файлов и поставить курсор на первую измененную строку (`lineChanges[0].newStart`, иначе строка 1). Если в редакторе есть несохраненные изменения или идет сохранение, авто-переход пропускается, чтобы не перетереть локальное dirty-состояние.
+
+`process.start` запускает новый process:
 
 ```json
 {
@@ -567,12 +548,12 @@ API-редактирование исходного кода через `POST /p
 
 ## Действия Process
 
-`process.action` в `POST /processes/:id/tools` выполняет действие в конкретном process:
+`process.action` в `POST /tools` выполняет действие в конкретном process:
 
 ```sh
-curl -sS -X POST 'http://127.0.0.1:6500/processes/dark-server.spec.ts/tools' \
+curl -sS -X POST 'http://127.0.0.1:6500/tools' \
   -H 'content-type: application/json' \
-  -d '{"tool_uses":[{"recipient_name":"process.action","parameters":{"action":"step","params":{"kind":"over"}}}]}'
+  -d '{"tool_uses":[{"recipient_name":"process.action","parameters":{"processId":"dark-server.spec.ts","action":"step","params":{"kind":"over"}}}]}'
 ```
 
 Поддерживаемые действия:
@@ -593,16 +574,16 @@ curl -sS -X POST 'http://127.0.0.1:6500/processes/dark-server.spec.ts/tools' \
 Открыть source и выделить диапазон в редакторе:
 
 ```sh
-curl -sS -X POST 'http://127.0.0.1:6500/processes/dark-server.spec.ts/tools' \
+curl -sS -X POST 'http://127.0.0.1:6500/tools' \
   -H 'content-type: application/json' \
-  -d '{"tool_uses":[{"recipient_name":"process.action","parameters":{"action":"source.open","params":{"path":"/path/to/file.ts","selection":{"start":{"line":10,"column":2},"end":{"line":10,"column":14}}}}}]}'
+  -d '{"tool_uses":[{"recipient_name":"source.open","parameters":{"processId":"dark-server.spec.ts","path":"/path/to/file.ts","selection":{"start":{"line":10,"column":2},"end":{"line":10,"column":14}}}}]}'
 ```
 
 `selection.line` — 1-based, `selection.column` — 0-based.
 
 ## Каталог Кода
 
-`GET /processes/:id/modules` возвращает каталог кода в контексте process: entrypoint, launch root и импортированные локальные source files. Каталог строится по import graph, включая workspace package imports, а не рекурсивным обходом всех файлов.
+`process.modules` возвращает каталог кода в контексте process: entrypoint, launch root и импортированные локальные source files. Каталог строится по import graph, включая workspace package imports, а не рекурсивным обходом всех файлов.
 
 ```json
 {
@@ -620,14 +601,15 @@ curl -sS -X POST 'http://127.0.0.1:6500/processes/dark-server.spec.ts/tools' \
 Чтение и редактирование source:
 
 ```text
-POST /processes/:id/tools        # JSON {tool_uses:[{recipient_name, parameters}]}
+POST /tools        # JSON {tool_uses:[{recipient_name, parameters}]}
 ```
 
-`POST /processes/:id/tools` - единый process tools API.
-Тело запроса содержит `tool_uses`, где каждый элемент имеет
-`recipient_name`/`name` и `parameters`/`arguments`. Поддержанный набор tools:
+`POST /tools` - единый command API. Тело запроса содержит `tool_uses`, где
+каждый элемент имеет `recipient_name`/`name` и `parameters`/`arguments`.
+Для process-scoped tools передавай `parameters.processId`. Поддержанный набор tools:
 `source.read`, `source.read_many`, `source.open`, `source.openSelection`,
-`source.write`, `source.apply_patch`, `process.action`.
+`source.write`, `source.apply_patch`, `process.*`, `breakpoint.*`, `hud.*`,
+`todo.*`, `sqlite.*`, `devtools.*`, `browser.*`, `remote_desktop.*`.
 
 `source.open` и `source.openSelection` внутри API вызывают UI-host команду
 открытия исходника для указанного process. `source.read` остается чистым
@@ -643,9 +625,9 @@ POST /processes/:id/tools        # JSON {tool_uses:[{recipient_name, parameters}
 Точки останова принадлежат process, а не общему модулю исходного кода.
 
 ```text
-GET    /processes/:id/breakpoints
-POST   /processes/:id/breakpoint
-DELETE /processes/:id/breakpoint
+breakpoint.list
+breakpoint.set
+breakpoint.remove
 ```
 
 Форма breakpoint:
@@ -698,7 +680,7 @@ WS   /hud/terminal/stream
 GET  /hud/terminal/sessions
 ```
 
-Используй terminal endpoints только для запросов к terminal HUD. Навигация по рабочим поверхностям идет через `/space/*`, действия исполнения - через `/processes/*`.
+Используй terminal endpoints только для stream-запросов к terminal HUD. Навигация по рабочим поверхностям и действия исполнения идут через `POST /tools`.
 
 ## WebSocket `/ws`
 
@@ -714,4 +696,4 @@ SQLite HUD получает server-push событие, когда watcher на 
 {"type":"sqlite-changed","path":"/repo/dark/tmp/boundary.sqlite","label":"dark/tmp/boundary.sqlite","version":"main:...|wal:...","available":true}
 ```
 
-Публичный agent-facing API должен использовать REST-маршруты `/context`, `/space` и `/processes/:id/...`.
+Публичный agent-facing API должен использовать `POST /tools`; прямые REST routes остаются только для transport/stream/static plumbing.

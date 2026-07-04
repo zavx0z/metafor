@@ -1534,7 +1534,7 @@ class AppWebHud implements AppWebHudController {
 
 	async #refreshWorkspaceProcesses(): Promise<void> {
 		try {
-			const payload = await fetchJson("/hud/interpreter/processes")
+			const payload = await this.#interpreterTool("process.list")
 			this.#workspaceProcesses = workspaceProcessesFromPayload(payload)
 			this.#workspaceProcessLabel = this.#workspaceProcesses.length === 0 ? "Bun processes - none" : "Bun processes"
 			const autoAttachProcessId = this.#workspaceAutoAttachProcessId()
@@ -1565,7 +1565,7 @@ class AppWebHud implements AppWebHudController {
 		this.#workspaceCurrentEntry = null
 		this.#workspaceEditorDirty = false
 		try {
-			const payload = await fetchJson(`/hud/interpreter/processes/${encodeURIComponent(processId)}/modules?limit=500`)
+			const payload = await this.#interpreterTool("process.modules", {processId, limit: 500})
 			const modules = workspaceProcessModulesFromPayload(payload)
 			this.#workspaceProcessEntries = workspaceEntriesFromProcessModules(await this.#workspaceSourceModules(modules))
 			this.#workspaceProcessLabel = `Attached: ${modules.label}`
@@ -1625,13 +1625,7 @@ class AppWebHud implements AppWebHudController {
 		const processId = this.#workspaceAttachedProcessId
 		if (processId === null) return
 		try {
-			const payload = await fetchJson(`/hud/interpreter/processes/${encodeURIComponent(processId)}/tools`, {
-				method: "POST",
-				headers: {"content-type": "application/json"},
-				body: JSON.stringify({tool_uses: [{recipient_name: "process.action", parameters: {action}}]}),
-			})
-			const result = (payload as {tool_uses?: Array<{ok?: unknown; error?: unknown}>}).tool_uses?.[0]
-			if (result?.ok !== true) throw new Error(String(result?.error ?? "process action failed"))
+			await this.#interpreterTool("process.action", {processId, action})
 			this.#workspaceEditor.setTitle(`Inspector - ${action}`)
 			await this.#refreshWorkspaceProcesses()
 		} catch (error) {
@@ -1724,14 +1718,8 @@ class AppWebHud implements AppWebHudController {
 
 	async #readWorkspaceProcessSource(entry: WorkspaceFileEntry): Promise<string> {
 		if (entry.processId === undefined || entry.sourceUrl === undefined) throw new Error("process source is missing")
-		const payload = await fetchJson(`/hud/interpreter/processes/${encodeURIComponent(entry.processId)}/tools`, {
-			method: "POST",
-			headers: {"content-type": "application/json"},
-			body: JSON.stringify({tool_uses: [{recipient_name: "source.read", parameters: {sourceUrl: entry.sourceUrl}}]}),
-		})
-		const result = (payload as {tool_uses?: Array<{result?: {scriptSource?: unknown}; error?: unknown}>}).tool_uses?.[0]
-		if (result?.error !== undefined) throw new Error(String(result.error))
-		const source = result?.result?.scriptSource
+		const payload = await this.#interpreterTool("source.read", {processId: entry.processId, sourceUrl: entry.sourceUrl})
+		const source = payload.scriptSource
 		if (typeof source !== "string") throw new Error("source payload has no scriptSource")
 		return source
 	}
@@ -1763,13 +1751,7 @@ class AppWebHud implements AppWebHudController {
 		try {
 			if (entry.sourceKind === "process") {
 				if (entry.processId === undefined || entry.sourceUrl === undefined) throw new Error("process source is missing")
-				const payload = await fetchJson(`/hud/interpreter/processes/${encodeURIComponent(entry.processId)}/tools`, {
-					method: "POST",
-					headers: {"content-type": "application/json"},
-					body: JSON.stringify({tool_uses: [{recipient_name: "source.write", parameters: {sourceUrl: entry.sourceUrl, text}}]}),
-				})
-				const result = (payload as {tool_uses?: Array<{ok?: unknown; error?: unknown}>}).tool_uses?.[0]
-				if (result?.ok !== true) throw new Error(String(result?.error ?? "source write failed"))
+				await this.#interpreterTool("source.write", {processId: entry.processId, sourceUrl: entry.sourceUrl, text})
 			} else if (entry.sourceKind === "source") {
 				if (entry.sourcePath === undefined) throw new Error("source path is missing")
 				await fetchJson("/hud/source/file", {
@@ -1788,6 +1770,17 @@ class AppWebHud implements AppWebHudController {
 		} catch (error) {
 			this.#workspaceEditor.setTitle(`Save failed - ${errorMessage(error)}`)
 		}
+	}
+
+	async #interpreterTool(recipientName: string, parameters: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
+		const payload = await fetchJson("/hud/interpreter/tools", {
+			method: "POST",
+			headers: {"content-type": "application/json"},
+			body: JSON.stringify({tool_uses: [{recipient_name: recipientName, parameters}]}),
+		})
+		const tool = (payload as {tool_uses?: Array<{ok?: unknown; error?: unknown; result?: unknown}>}).tool_uses?.[0]
+		if (tool?.ok !== true) throw new Error(String(tool?.error ?? `${recipientName} failed`))
+		return typeof tool.result === "object" && tool.result !== null && !Array.isArray(tool.result) ? tool.result as Record<string, unknown> : {}
 	}
 
 	#syncWorkspaceFileTree(): void {

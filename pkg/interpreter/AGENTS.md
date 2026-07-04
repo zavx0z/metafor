@@ -45,8 +45,9 @@ Protocol names вроде `Debugger.paused`, `Debugger.scriptParsed`, `Runtime.g
   console, source maps, breakpoints, reload и probe;
 - `HUD` - host-level панели вроде TODO, SQLite и terminal.
 
-Если нужно понять, что видит человек и где сейчас работать, сначала читай
-`GET /context`, `GET /space`, затем process-specific endpoints.
+Если нужно понять, что видит человек и где сейчас работать, сначала вызывай
+`POST /tools` с `context.get` и `space.get`, затем process tools с нужным
+`parameters.processId`.
 
 ## Текущий Server-Dev Контур
 
@@ -72,7 +73,7 @@ server-dev контуре:
 API и `10.66.0.10:3004` для app-web dev health/API. LAN/TLS режим на `443` -
 отдельный локально-сетевой режим, не диагностика этого контура.
 
-Ожидаемый server-dev runtime - один interpreter host и три child processes:
+Текущий AppWeb bridge mode в server-dev управляется через interpreter tools:
 
 - `app/web/server.ts`: владеет Boundary/AppWeb/browser bridge и отдаёт
   приватные `/matrix/ws` и `/energy/ws`;
@@ -84,20 +85,20 @@ API и `10.66.0.10:3004` для app-web dev health/API. LAN/TLS режим на 
 Базовая проверка Matrix:
 
 ```sh
-curl -sS -X POST http://10.66.0.10:6500/space/network/action \
+curl -sS -X POST http://10.66.0.10:6500/tools \
   -H 'content-type: application/json' \
-  -d '{"action":"start:matrix"}'
+  -d '{"tool_uses":[{"recipient_name":"network.action","parameters":{"action":"start:matrix"}}]}'
 curl -sS http://10.66.0.10:3005/health
-curl -sS -X POST http://10.66.0.10:6500/space/network/action \
+curl -sS -X POST http://10.66.0.10:6500/tools \
   -H 'content-type: application/json' \
-  -d '{"action":"start:energy"}'
+  -d '{"tool_uses":[{"recipient_name":"network.action","parameters":{"action":"start:energy"}}]}'
 curl -sS http://10.66.0.10:3006/health
 ```
 
 Не запускай `matrix/server.ts` или `energy/server.ts` вручную в отдельном tmux
-pane, если работает interpreter host. Используй `/space/network/action` или
-прямой `POST /processes`: тогда каждый runtime получает отдельный process
-display, inspector URL и управляется тем же API, что `app/web/server.ts`.
+pane, если работает interpreter host. Используй `network.action` или
+`process.start` через `POST /tools`: тогда каждый runtime получает отдельный
+process display, inspector URL и управляется тем же API, что `app/web/server.ts`.
 
 Удаленный браузер для визуальной WebApp-разработки должен открывать
 `https://meta.proizvodstvo1.ru/`. Это не маркетинговая внешняя страница, а
@@ -109,8 +110,9 @@ display, inspector URL и управляется тем же API, что `app/we
 
 ```sh
 curl -sS http://10.66.0.10:6500/health
-curl -sS http://10.66.0.10:6500/context
-curl -sS http://10.66.0.10:6500/space
+curl -sS -X POST http://10.66.0.10:6500/tools \
+  -H 'content-type: application/json' \
+  -d '{"tool_uses":[{"recipient_name":"context.get","parameters":{}},{"recipient_name":"space.get","parameters":{}}]}'
 curl -sS http://10.66.0.10:3004/health
 curl -sS http://10.66.0.10:6500/remote-desktop/lifecycle
 ```
@@ -153,15 +155,14 @@ curl -sS http://10.66.0.10:6500/remote-desktop/lifecycle
 
 ## Привязка К Process
 
-Все agent-facing runtime-действия привязаны к process:
+Все agent-facing runtime-действия идут через единый Codex-style endpoint
+`POST /tools`. Process указывается в `parameters.processId` или через
+`parameters.selector`; process id больше не кодируется в URL.
 
-- REST paths используют основной маршрут `/processes/:id/...`;
-- source loading выполняется в контексте process;
-- breakpoints хранятся и применяются для runtime конкретного process;
-- command replies обновляют только process/display, в котором выполнялась команда;
-- protocol events с `moduleId` уходят только в owning process/display.
-
-Runtime-действия адресуются через process. `module` - source/code unit. Каталог кода process доступен как `/processes/:id/modules`.
+Source loading выполняется в контексте process. Breakpoints хранятся и
+применяются для runtime конкретного process. Command replies обновляют только
+process/display, в котором выполнялась команда. Protocol events с `moduleId`
+уходят только в owning process/display.
 
 ## Правило Инструментов
 
@@ -170,20 +171,21 @@ Runtime-действия адресуются через process. `module` - sou
 Перед правкой кода:
 
 1. Считай interpreter API рабочим по умолчанию. Не вызывай `GET /health` как обычный preflight; используй его только для диагностики после ошибки API, отсутствующего process, рестарта/закрытия или неизвестного контекста.
-2. Прочитай `GET /context` и определи `processId`, `source.identity.sourceUrl` / `source.identity.scriptUrl`.
+2. Вызови `POST /tools` с `context.get` и определи `processId`, `source.identity.sourceUrl` / `source.identity.scriptUrl`.
 3. Если изменяемый файл относится к текущему process/display, открыт в source интерпретатора или работа явно идёт в текущей interpreter/debugger-сессии, не используй локальный `apply_patch`, `sed`, shell-write, редактор или форматтер для записи файла.
 4. Применяй изменение только через API интерпретатора:
-   - `POST /processes/:id/tools` с `tool_uses` и tools `source.read`, `source.read_many`, `source.open`, `source.openSelection`, `source.write`, `source.apply_patch`, `process.action`.
-5. После правки проверь, что интерпретатор получил изменение: `source-patched`, replay/restart при необходимости, новый `/context` или `source.read` через `/processes/:id/tools`.
+   - `POST /tools` с `tool_uses`; `processId` передаётся внутри `parameters`.
+   - Для source используй `source.read`, `source.read_many`, `source.open`, `source.openSelection`, `source.write`, `source.apply_patch`.
+5. После правки проверь, что интерпретатор получил изменение: `source-patched`, replay/restart при необходимости, новый `context.get` или `source.read` через `POST /tools`.
 
 Причина: только interpreter source API сдвигает breakpoints, рассылает `source-patched`, обновляет source cache/display и сохраняет связь runtime/source context. Правка в обход API оставляет UI и текущий runtime на старом source snapshot.
 
 ### Workflow Для `apply_patch`
 
-Для правок через `source.apply_patch` в `POST /processes/:id/tools` сначала читай актуальный
-source всех файлов или точных диапазонов, которые войдут в patch. Затем собирай
-один patch только из этого свежего snapshot-а и применяй его через interpreter
-API.
+Для правок через `source.apply_patch` в `POST /tools` сначала читай актуальный
+source всех файлов или точных диапазонов через `source.read` / `source.read_many`.
+Затем собирай один patch только из этого свежего snapshot-а и применяй его
+через interpreter API.
 
 Большие patch-и допустимы и предпочтительны, если они построены сразу после
 чтения всех изменяемых файлов. Не продолжай применять patch-и из старого
@@ -210,11 +212,12 @@ http://127.0.0.1:6500
 Перед действием читай текущую ситуацию:
 
 ```sh
-curl -sS http://10.66.0.10:6500/context
-curl -sS http://10.66.0.10:6500/space
+curl -sS -X POST http://10.66.0.10:6500/tools \
+  -H 'content-type: application/json' \
+  -d '{"tool_uses":[{"recipient_name":"context.get","parameters":{}},{"recipient_name":"space.get","parameters":{}}]}'
 ```
 
-`GET /context` - главный endpoint для запроса "что сейчас видно/выделено". Он возвращает один текущий active context, а не полный dump всех runtime.
+`context.get` - главный tool для запроса "что сейчас видно/выделено". Он возвращает один текущий active context, а не полный dump всех runtime.
 
 `context.hud.todo` содержит текущее состояние HUD ToDoPane: подсвеченные человеком пункты `TODO.md`, чтобы агент понимал, о чем речь. Подсветка - состояние панели, не данные файла.
 
@@ -231,19 +234,19 @@ Host-level API:
 может быть shell/старый Codex. Подробный recovery описан в
 `pkg/interpreter/docs/troubleshooting.md`.
 
-Web DevTools API для server Chrome/AppWeb:
+Web DevTools tools для server Chrome/AppWeb:
 
-- `GET /devtools/targets` читает Chrome CDP targets с default `127.0.0.1:9349`.
-- `GET /devtools/state` показывает agent CDP sessions, breakpoints и paused state.
-- `GET /devtools/console` включает capture и возвращает последние console/log/exception/network события; для ошибок используй `?level=error&limit=50`.
-- `POST /devtools/console/clear` очищает agent buffer и Chrome console entries.
-- `POST /devtools/reload` делает `Page.reload` текущего AppWeb target и по умолчанию синхронизирует DevTools Device Mode viewport/surface после reload.
+- `devtools.targets` читает Chrome CDP targets с default `127.0.0.1:9349`.
+- `devtools.state` показывает agent CDP sessions, breakpoints и paused state.
+- `devtools.console` включает capture и возвращает последние console/log/exception/network события; для ошибок передавай `level:"error", limit:50`.
+- `devtools.console.clear` очищает agent buffer и Chrome console entries.
+- `devtools.reload` делает `Page.reload` текущего AppWeb target и по умолчанию синхронизирует DevTools Device Mode viewport/surface после reload.
 - Managed DevTools CDP session также событийно повторяет viewport sync после `Page.frameNavigated` / `Page.loadEventFired`, чтобы ручной reload в DevTools не сбрасывал target page из portrait в landscape при неизменном toolbar.
-- `POST /devtools/viewport/sync` вручную синхронизирует DevTools Device Mode toolbar, AppWeb target viewport и Chrome compositor surface, если после Rotate/reload видна серая область или target получил неправильный viewport.
-- `POST /devtools/breakpoints` ставит breakpoint по `source` + 1-based `line`; source maps мапятся на generated bundle автоматически.
-- `POST /devtools/probe` ставит breakpoint, дергает optional `trigger`, ждет `Debugger.paused`, затем по умолчанию делает resume и clear.
-- `POST /devtools/resume` продолжает paused target.
-- `POST /devtools/disable` снимает breakpoints, выключает Debugger и закрывает agent CDP session.
+- `devtools.viewport.sync` вручную синхронизирует DevTools Device Mode toolbar, AppWeb target viewport и Chrome compositor surface, если после Rotate/reload видна серая область или target получил неправильный viewport.
+- `devtools.breakpoint` ставит breakpoint по `source` + 1-based `line`; source maps мапятся на generated bundle автоматически.
+- `devtools.probe` ставит breakpoint, дергает optional `trigger`, ждет `Debugger.paused`, затем по умолчанию делает resume и clear.
+- `devtools.resume` продолжает paused target.
+- `devtools.disable` снимает breakpoints, выключает Debugger и закрывает agent CDP session.
 
 TODO HUD API:
 
@@ -260,31 +263,30 @@ TODO HUD API:
 `TODO.md` все же был изменен локально через git/apply_patch/merge, сразу вызови
 `POST /hud/todo/reload` и только потом сообщай пользователю, что TODO обновлен.
 
-Process API:
+Tools API:
 
-- `GET /processes` возвращает live processes.
-- `POST /processes` запускает новый process.
-- `POST /processes/resolve` находит process по selector и текущему Space.
-- `POST /processes/focus` фокусирует surface process в Space.
-- `GET /processes/:id` возвращает рабочий payload process: content, runtime status, текущий UI context, tail терминала и capabilities.
-- `GET /processes/:id/context` возвращает текущий source/frame/scope/terminal context одного process.
-- `GET /processes/:id/modules` возвращает import graph каталога кода process от entrypoint и workspace package imports.
-- `POST /processes/:id/tools` - основной process tools API; принимает Codex-style `tool_uses` для `source.read`, `source.read_many`, `source.open`, `source.openSelection`, `source.write`, `source.apply_patch`, `process.action`.
-- `GET /processes/:id/breakpoints` возвращает точки останова process.
-- `POST /processes/:id/breakpoint` ставит точку останова в process.
-- `DELETE /processes/:id/breakpoint` удаляет точку останова из process.
+- `POST /tools` - единственный agent-facing command endpoint.
+- `GET /tools` возвращает typed registry tools из `pkg/interpreter/src/tools.ts`.
+- `process.list` возвращает live processes.
+- `process.start` запускает новый process.
+- `process.resolve` находит process по selector и текущему Space.
+- `process.focus` фокусирует surface process в Space.
+- `process.get` возвращает рабочий payload process: content, runtime status, текущий UI context, tail терминала и capabilities.
+- `process.context` возвращает текущий source/frame/scope/terminal context одного process.
+- `process.modules` возвращает import graph каталога кода process от entrypoint и workspace package imports.
+- `breakpoint.list`, `breakpoint.set`, `breakpoint.remove` управляют точками останова process.
 
 API-редактирование source:
 
-- `POST /processes/:id/tools` с `source.write` или `source.apply_patch` после успешной правки должен приводить UI к отредактированному файлу в process display `:id`.
+- `POST /tools` с `source.write` или `source.apply_patch` после успешной правки должен приводить UI к отредактированному файлу в process display из `parameters.processId`.
 - На `source-patched` открывай первый измененный не-delete файл в source editor, раскрывай/выделяй его в file tree и ставь cursor на первую измененную строку (`lineChanges[0].newStart`, fallback строка 1).
 - Не перетирай локальный dirty editor: если target source dirty или saving, авто-переход нужно пропустить.
 
-Space API:
+Space tools:
 
-- `GET /space` возвращает `mode`, `activeDisplayId` и `displays[]`.
-- `POST /space/focus` фокусирует рабочую поверхность.
-- `POST /space/frame` возвращает обзор всех surfaces.
+- `space.get` возвращает `mode`, `activeDisplayId` и `displays[]`.
+- `space.focus` фокусирует рабочую поверхность.
+- `space.frame` возвращает обзор всех surfaces.
 
 Поддерживаемые process actions:
 
@@ -300,14 +302,16 @@ Space API:
 
 `evaluate` пишет выражение и результат агента в terminal process, чтобы человек видел общее действие.
 
-Для совместной работы с конкретным process используй `/context`, затем `/processes/:id/*`:
+Для совместной работы с конкретным process используй `context.get`, затем tools с `parameters.processId`:
 
 ```sh
-curl -sS http://10.66.0.10:6500/context
-
-curl -sS -X POST 'http://10.66.0.10:6500/processes/dark-server.spec.ts/tools' \
+curl -sS -X POST 'http://10.66.0.10:6500/tools' \
   -H 'content-type: application/json' \
-  -d '{"tool_uses":[{"recipient_name":"process.action","parameters":{"action":"evaluate","params":{"expr":"globalThis.location","frame":0}}}]}'
+  -d '{"tool_uses":[{"recipient_name":"context.get","parameters":{}}]}'
+
+curl -sS -X POST 'http://10.66.0.10:6500/tools' \
+  -H 'content-type: application/json' \
+  -d '{"tool_uses":[{"recipient_name":"process.action","parameters":{"processId":"dark-server.spec.ts","action":"evaluate","params":{"expr":"globalThis.location","frame":0}}}]}'
 ```
 
 SQLite HUD API:
@@ -344,7 +348,7 @@ Terminal HUD API:
 - `WS /hud/terminal/stream` - host PTY stream для browser host.
 - `GET /hud/terminal/sessions` возвращает diagnostics host PTY sessions.
 
-Используй terminal endpoints только для terminal requests. Если пользователь просит визуальный переход, вызывай только `/space/*`; если просит действие исполнения, вызывай `/processes/*`.
+Используй terminal endpoints только для terminal requests. Если пользователь просит визуальный переход, вызывай `space.*` tools; если просит действие исполнения, вызывай `process.*` tools.
 
 ## UI Architecture
 
@@ -392,9 +396,8 @@ WebRTC sender не должен жить в видимой продуктово�
 `ws://10.66.0.10:6500/webrtc/signaling`, input/audio - локальные routes
 `127.0.0.1:32133`. Не встраивай эти локальные URL в код видимой страницы
 продукта: она не должна владеть remote desktop соединением.
-`webrtc:chrome:browser`, Xwayland и PipeWire WebM/PCM/MJPEG оставляй только как
-исторические diagnostics, не возвращай их как основной
-realtime path.
+`webrtc:chrome:browser`, Xwayland и PipeWire WebM/PCM/MJPEG считай
+diagnostic-only paths и не возвращай их как основной realtime path.
 
 Cold restart для нового агента: сначала используй единый lifecycle API
 interpreter, а не ручную цепочку tmux/curl:

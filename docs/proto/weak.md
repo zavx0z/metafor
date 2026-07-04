@@ -40,8 +40,8 @@
 actor в process-bound state, AppWeb пересылает его Energy runtime, а Energy
 claim-ит task через `z`. Реальное завершение процесса остаётся Force `w+`/`w-`;
 `process-result` допускается только как telemetry/debug.
-Текущий аудит этого долга находится в
-[process-protocol-audit](../../task/process-protocol-audit.md).
+Актуальный процессный долг держится в `TODO.md`; этот документ описывает только
+действующий Weak/Process contract.
 
 ## Чтение по доменам
 

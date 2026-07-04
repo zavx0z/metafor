@@ -531,22 +531,16 @@ host-окна или инфраструктуры, когда сам интер�
 
 ```text
 GET  /health
-GET  /context
-GET  /space
-GET  /processes
-GET  /processes/:id/context
-POST /processes/:id/tools  # process.action
+GET  /tools
+POST /tools  # process.*, source.*, breakpoint.*
 GET  /sqlite
 POST /sqlite/open
 POST /sqlite/cell
-GET  /events
-GET  /console
 ```
 
-Публичный REST слой не имеет отдельного agent namespace: весь API
-интерпретатора предназначен для всех участников и host-клиентов. Endpoints
-называются по смысловым ресурсам среды: `/processes`, `/space`,
-`/hud/terminal`, `/context`, `/sqlite`.
+Публичный command слой для агента имеет одну точку: `POST /tools`. Transport и
+host-клиенты по-прежнему используют ресурсные endpoints для WebSocket, stream,
+static, HUD и SQLite plumbing.
 
 Если нужно понять, где мы находимся, какой модуль активен, где execution point,
 какой frame выбран, какие scopes/values доступны, какие терминальные данные
@@ -565,9 +559,9 @@ interpreter state.
 - какой frame выбран;
 - какой terminal input набран.
 
-Этот контекст читается через API интерпретатора (`/context`,
-`/processes/:id/context`, `/processes/:id`), а UI-host только обновляет его
-событиями среды.
+Этот контекст читается через API интерпретатора (`context.get`,
+`process.context`, `process.get` в `POST /tools`), а UI-host только обновляет
+его событиями среды.
 
 Внешний browser/desktop host может показывать это состояние, но не должен быть
 единственным местом, где оно существует.
@@ -697,7 +691,7 @@ process.restart
 source.open
 source.edit
 source.apply
-source.save
+source.write
 source.reveal
 source.openSelection
 
@@ -736,8 +730,10 @@ participant.pointAt
 
 Но часть общего живого контекста сейчас слишком сильно живет в browser-host:
 
-- маршруты среды (`/space`, `/processes`, `/hud/terminal`) пока
-  проксируют часть действий в подключенный UI-host;
+- agent-facing command слой (`POST /tools`) покрывает context, Space, process,
+  source и breakpoint действия;
+- transport/HUD routes остаются resource endpoints для WebSocket, terminal,
+  SQLite и host plumbing;
 - активный контекст исходного кода, кадра и терминала берется из UI-controller;
 - панель исходного кода в UI интерпретатора сейчас только для чтения;
 - файлы рабочей области есть как list/read source path, но нет полноценной серверной

@@ -17,7 +17,8 @@ pkg/interpreter/AGENTS.md
 
 Этот файл является кратким корневым указателем. Подробные operational rules
 лежат рядом с кодом interpreter package, чтобы они не расходились с
-реализацией.
+реализацией. Не дублируй здесь interpreter workflow: при изменении поведения
+обновляй `pkg/interpreter/AGENTS.md`, профильную документацию или TypeDoc.
 
 ## Текущий Server-Dev Контур
 
@@ -33,20 +34,28 @@ pkg/interpreter/AGENTS.md
 - server Chrome remote desktop host: `http://127.0.0.1:32133`;
 - server Chrome CDP: `http://127.0.0.1:9349/json/list`.
 
-Текущий server-dev контур рассчитан на один interpreter host и три child
-processes: `app/web/server.ts`, `matrix/server.ts` и `energy/server.ts`. Управляй ими через
-interpreter REST API, а не отдельными shell-командами: `/processes` для child
-process lifecycle и `/space/network/action` для окружения. `Matrix`
-подключается к AppWeb через приватный WebSocket bridge `/matrix/ws` и не читает
-`Boundary`/SQLite напрямую. `Energy` подключается через приватный bridge
-`/energy/ws`; сейчас это оболочка будущего distributed process executor, без
-реального исполнения DSL action.
+Текущий server-dev контур управляется через interpreter API. Для agent-facing
+команд используй единый Codex-style endpoint `POST /tools`; process id и другие
+параметры передаются внутри `tool_uses[].parameters`. Детали tools, Space,
+remote desktop, DevTools, HUD и source editing описаны в
+`pkg/interpreter/AGENTS.md`.
 
 Локальный `127.0.0.1` workflow тоже поддерживается, но не путай его с текущим
 server-dev контуром. LAN/TLS режим на `443` - отдельный локально-сетевой режим,
 не диагностика текущего server-dev.
-Ветка `energy` была staging-веткой протокольной консолидации и после
-продвижения больше не является источником истины.
+
+## Документационная Гигиена
+
+Не оставляй устаревшие заметки, старые endpoint-ы, временные runbook-и и
+архитектурные хвосты в scattered docs. Этот репозиторий развивается динамично:
+документация должна описывать текущий рабочий контракт.
+
+- актуальные правила агента держи в `AGENTS.md` или ближайшем package-level
+  `AGENTS.md`;
+- устойчивые contracts и workflow держи в профильной документации или TypeDoc;
+- pending work держи в `TODO.md`;
+- долгоживущие выводы для будущих агентов держи в `AGENT_MEMORY.md`;
+- устаревшие инструкции удаляй сразу, а не складируй в документации.
 
 ## Документация
 
@@ -54,5 +63,4 @@ server-dev контуром. LAN/TLS режим на `443` - отдельный 
 - Interpreter world model: `pkg/interpreter/docs/interpreter-world.md`
 - Interpreter REST/API contracts: `pkg/interpreter/docs/api.md`
 - Interpreter workflow: `pkg/interpreter/docs/workflow.md`
-- Remote desktop/WebApp runbook: `docs/web-ui-browser-display.md`
 - Long-lived agent memory: `AGENT_MEMORY.md`

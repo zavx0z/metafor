@@ -48,15 +48,17 @@ bun run workspace.app.web:dev
 Отдельный server/dev deployment на `dev.proizvodstvo1.ru` может быть поднят не LAN-скриптом напрямую, а user systemd unit `metafor-interpreter-web-dev.service`. Это не заменяет локальный/LAN-режим на `443`; это серверный контур за proxy/SSO. В таком контуре host interpreter обычно слушает `127.0.0.1:6500`, child `app/web/server.ts` слушает `127.0.0.1:3004`, а внешний домен проходит через серверный proxy/SSO. Для диагностики runtime сначала смотри локальные endpoints и service:
 
 ```bash
-curl -sS http://127.0.0.1:6500/context
 curl -sS http://127.0.0.1:6500/health
+curl -sS -X POST http://127.0.0.1:6500/tools \
+  -H 'content-type: application/json' \
+  -d '{"tool_uses":[{"recipient_name":"context.get","parameters":{}}]}'
 systemctl --user status metafor-interpreter-web-dev.service --no-pager
 ```
 
 Shell `curl https://dev.proizvodstvo1.ru/...` не является надёжной проверкой runtime-состояния: он может вернуть SSO/nginx-ответ вместо состояния текущего interpreter host.
 
-Server-dev контур с Matrix и Energy-shell запускается как один interpreter host
-и три child processes:
+Server-dev контур с Matrix и Energy-shell управляется одним interpreter host;
+Matrix/Energy запускаются как interpreter-managed processes через tools:
 
 - `app/web/server.ts` слушает AppWeb HTTP/browser API и приватный bridge
   `/matrix/ws` и `/energy/ws`;
@@ -72,31 +74,32 @@ Server-dev контур с Matrix и Energy-shell запускается как 
 
 ```bash
 bun run interpreter:web:matrix:energy
-curl -sS http://127.0.0.1:6500/processes
+curl -sS -X POST http://127.0.0.1:6500/tools \
+  -H 'content-type: application/json' \
+  -d '{"tool_uses":[{"recipient_name":"process.list","parameters":{}}]}'
 curl -sS http://127.0.0.1:3004/health
 curl -sS http://127.0.0.1:3005/health
 curl -sS http://127.0.0.1:3006/health
 ```
 
-В уже поднятом interpreter host Matrix запускается через существующий REST
-контур управления окружением:
+В уже поднятом interpreter host Matrix запускается через `network.action` tool:
 
 ```bash
-curl -sS -X POST http://10.66.0.10:6500/space/network/action \
+curl -sS -X POST http://10.66.0.10:6500/tools \
   -H 'content-type: application/json' \
-  -d '{"action":"start:matrix"}'
-curl -sS -X POST http://10.66.0.10:6500/space/network/action \
+  -d '{"tool_uses":[{"recipient_name":"network.action","parameters":{"action":"start:matrix"}}]}'
+curl -sS -X POST http://10.66.0.10:6500/tools \
   -H 'content-type: application/json' \
-  -d '{"action":"restart:matrix"}'
-curl -sS -X POST http://10.66.0.10:6500/space/network/action \
+  -d '{"tool_uses":[{"recipient_name":"network.action","parameters":{"action":"restart:matrix"}}]}'
+curl -sS -X POST http://10.66.0.10:6500/tools \
   -H 'content-type: application/json' \
-  -d '{"action":"stop:matrix"}'
-curl -sS -X POST http://10.66.0.10:6500/space/network/action \
+  -d '{"tool_uses":[{"recipient_name":"network.action","parameters":{"action":"stop:matrix"}}]}'
+curl -sS -X POST http://10.66.0.10:6500/tools \
   -H 'content-type: application/json' \
-  -d '{"action":"start:energy"}'
+  -d '{"tool_uses":[{"recipient_name":"network.action","parameters":{"action":"start:energy"}}]}'
 ```
 
-Эти actions внутри используют `/processes`, поэтому Matrix и Energy получают
+Эти actions внутри используют `process.*` tools, поэтому Matrix и Energy получают
 нормальные process display, inspector URL и lifecycle в общем interpreter
 `Space`.
 

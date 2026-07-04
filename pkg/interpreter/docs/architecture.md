@@ -66,26 +66,15 @@ Environment API:
 
 ```text
 GET    /health
-GET    /context
-GET    /space
-POST   /space/focus
-POST   /space/frame
 GET    /hud/todo
 POST   /hud/todo/highlight
 ```
 
-Processes API:
+Tools API:
 
 ```text
-GET    /processes
-POST   /processes
-GET    /processes/:id
-DELETE /processes/:id
-GET    /processes/:id/context
-POST   /processes/:id/tools
-GET    /processes/:id/breakpoints
-POST   /processes/:id/breakpoint
-DELETE /processes/:id/breakpoint
+GET    /tools
+POST   /tools
 ```
 
 `GET /hud/todo` читает корневой `TODO.md` для HUD ToDoPane. Текст пунктов и markdown checkbox `- [ ]` / `- [x]` являются данными файла. Подсветка пунктов является состоянием HUD-панели, не пишется в `TODO.md`, но входит в `context.hud.todo.highlightedItems`, чтобы агент видел, о чем сейчас речь.

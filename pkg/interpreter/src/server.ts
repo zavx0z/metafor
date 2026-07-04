@@ -1,15 +1,15 @@
 /**
- * HTTP+WebSocket сервер: REST API + полнофункциональный web-UI интерпретатора.
+ * HTTP+WebSocket сервер: Codex-style tools API + полнофункциональный web-UI интерпретатора.
  *
  * Архитектура:
- *   - REST поверх `executeCommand` — для curl/fetch.
+ *   - `POST /tools` поверх runtime/UI функций — для agent-facing команд.
  *   - WebSocket `/ws` — пуш state/resumed/console/result в браузерный UI и приём
  *     `{type:"command",...}` сообщений из UI.
  *   - HTML/JS UI отдаётся через Bun fullstack-bundler: `import indexHtml from "../web/index.html"`,
  *     все импорты внутри HTML транспилятся Bun'ом на лету.
  *
- * Файлы (`.events.log`, `.console.log`) сохранены — остаются архивом
- * и читаются через `GET /events` и `GET /console`.
+ * Файлы (`.events.log`, `.console.log`) сохранены как архив и читаются через
+ * tools `events.tail` и `console.tail`.
  */
 
 import type {ServerWebSocket, WebSocketHandler} from "bun"
@@ -49,7 +49,8 @@ import type {InterpreterModule, InterpreterModuleManager, StartupModuleOptions} 
 import type {BreakpointSpec} from "./target.ts"
 import {workspaceFilesPayload, type WorkspaceFilesModuleContext} from "./workspace-files.ts"
 import {sqliteDatabaseFingerprint, sqliteDatabaseInputPath, sqliteDatabasePayload, sqliteJsonError, updateSqliteCell, type SqliteDatabaseFingerprint, type SqliteDatabasePayload} from "./sqlite-db.ts"
-import {interpreterRoutes} from "./routes.ts"
+import {interpreterRoutes, interpreterTools} from "./routes.ts"
+import {parseInterpreterToolRequest, type InterpreterToolUse} from "./tools.ts"
 import {handleBrowserHostRoute} from "./browser-host.ts"
 import {handleChromeDevtoolsRoute} from "./chrome-devtools.ts"
 import {handleRemoteDesktopLifecycleRoute} from "./remote-desktop-lifecycle.ts"
@@ -134,11 +135,6 @@ type SourcePatchReplayResult = {
   status: "replayed" | "skipped" | "failed"
   reason?: string
   target?: ModuleSnapshot["target"]
-}
-type ProcessToolUse = {
-  toolUseId?: string
-  recipientName: string
-  parameters: JsonObject
 }
 type HudTodoContextStore = {context: JsonObject | null}
 type HudSqliteContextStore = {context: JsonObject | null}
@@ -314,7 +310,7 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
   const hudSqliteContext: HudSqliteContextStore = {context: null}
 
   if (!isLoopbackHost(options.host)) {
-    const warning = "/processes can execute local commands; bind the interpreter to loopback unless this is intentional"
+    const warning = "process.start in /tools can execute local commands; bind the interpreter to loopback unless this is intentional"
     options.logger.status(`warning: ${warning} (host=${options.host})`)
     options.logger.event("http.non_loopback_host", {host: options.host, warning})
   }
@@ -1193,16 +1189,11 @@ async function handleRoute(
     url.pathname = upstreamPath
   }
 
-  if (method === "GET" && path === "/") return jsonResponse({service: "@metafor/interpreter", routes: interpreterRoutes.index})
+  if (method === "GET" && path === "/") return jsonResponse({service: "@metafor/interpreter", routes: interpreterRoutes.index, tools: interpreterTools})
   if (method === "GET" && path === "/health") return jsonResponse(healthPayload(options))
-  if (method === "GET" && path === "/space") return await dispatchUiHostRoute("space.get", {}, dispatchUiHostCommand)
-  if (method === "POST" && path === "/space/focus") return await dispatchUiHostRouteFromBody("space.focus", req, dispatchUiHostCommand)
-  if (method === "POST" && path === "/space/frame") return await dispatchUiHostRouteFromBody("space.frame", req, dispatchUiHostCommand)
-  if (method === "GET" && path === "/context") return jsonResponse(contextPayload(options, moduleContexts, hudTodoContext, hudSqliteContext))
-  if (method === "GET" && path === "/viewport/screenshot") return await captureViewportScreenshot(url, dispatchUiHostCommand)
+  if (method === "GET" && path === "/tools") return jsonResponse({ok: true, tools: interpreterTools})
+  if (method === "POST" && path === "/tools") return await interpreterToolsRoute(req, options, moduleContexts, hudTodoContext, hudSqliteContext, broadcast, dispatchUiHostCommand, sqliteWatchRegistry)
   if (method === "GET" && path === "/webrtc/rooms") return jsonResponse(rtcRoomsPayload())
-  const chromeDevtoolsRoute = await handleChromeDevtoolsRoute(req, method, path)
-  if (chromeDevtoolsRoute !== null) return chromeDevtoolsRoute
   const remoteDesktopLifecycleRoute = await handleRemoteDesktopLifecycleRoute(req, method, path, options.logger)
   if (remoteDesktopLifecycleRoute !== null) return remoteDesktopLifecycleRoute
   const browserHostRoute = await handleBrowserHostRoute(req, method, path)
@@ -1217,7 +1208,6 @@ async function handleRoute(
   if (method === "GET" && path === "/hud/terminal/network/show") return await dispatchUiHostRoute("hud.terminal.network.show", {}, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/terminal/network/show") return await dispatchUiHostRouteFromBody("hud.terminal.network.show", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/terminal/network/toggle") return await dispatchUiHostRouteFromBody("hud.terminal.network.toggle", req, dispatchUiHostCommand)
-  if (method === "POST" && (path === "/space/network/action" || path === "/hud/network/action")) return await networkActionRoute(req)
   if (method === "GET" && path === "/hud/android") return await dispatchUiHostRoute("hud.android.get", {}, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/android/dock") return await dispatchUiHostRouteFromBody("hud.android.dock", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/android/show") return await dispatchUiHostRouteFromBody("hud.android.show", req, dispatchUiHostCommand)
@@ -1277,28 +1267,6 @@ async function handleRoute(
       return sqliteJsonError(error)
     }
   }
-  if (method === "GET" && path === "/processes") return jsonResponse({processes: processPayloads(options)})
-  if (method === "POST" && path === "/processes") return await runProcess(req, options)
-  if (method === "POST" && path === "/processes/resolve") return await dispatchUiHostRouteFromBody("processes.resolve", req, dispatchUiHostCommand)
-  if (method === "POST" && path === "/processes/focus") return await dispatchUiHostRouteFromBody("processes.focus", req, dispatchUiHostCommand)
-  const processDetail = /^\/processes\/([^/]+)$/.exec(path)
-  if (method === "GET" && processDetail !== null) return await dispatchUiHostRoute("processes.get", {processId: decodePathParam(processDetail[1]!)}, dispatchUiHostCommand)
-  if (method === "DELETE" && processDetail !== null) return await closeProcess(decodePathParam(processDetail[1]!), {}, options)
-  const processFocus = /^\/processes\/([^/]+)\/focus$/.exec(path)
-  if (method === "POST" && processFocus !== null) return await dispatchUiHostRouteForProcessFromBody("processes.focus", decodePathParam(processFocus[1]!), req, dispatchUiHostCommand)
-  const processContext = /^\/processes\/([^/]+)\/context$/.exec(path)
-  if (method === "GET" && processContext !== null) return getProcessContext(decodePathParam(processContext[1]!), options, moduleContexts, hudTodoContext, hudSqliteContext)
-  const processModules = /^\/processes\/([^/]+)\/modules$/.exec(path)
-  if (method === "GET" && processModules !== null) return getProcessModules(decodePathParam(processModules[1]!), url, options)
-  const processTools = /^\/processes\/([^/]+)\/tools$/.exec(path)
-  if (method === "POST" && processTools !== null) return await processToolsRoute(decodePathParam(processTools[1]!), req, options, broadcast, dispatchUiHostCommand)
-  const processBreakpoints = /^\/processes\/([^/]+)\/breakpoints$/.exec(path)
-  if (method === "GET" && processBreakpoints !== null) return getProcessBreakpoints(decodePathParam(processBreakpoints[1]!), options)
-  const processBreakpoint = /^\/processes\/([^/]+)\/breakpoint$/.exec(path)
-  if (method === "POST" && processBreakpoint !== null) return await setProcessBreakpoint(decodePathParam(processBreakpoint[1]!), req, options, broadcast)
-  if (method === "DELETE" && processBreakpoint !== null) return await removeProcessBreakpoint(decodePathParam(processBreakpoint[1]!), req, options, broadcast)
-  if (method === "GET" && path === "/events") return jsonResponse(readNdjsonTail(options.eventLogPath, url))
-  if (method === "GET" && path === "/console") return jsonResponse(readNdjsonTail(options.consoleLogPath, url))
   if (method === "POST" && path === "/client-event") return await recordClientEvent(req, options)
   if (method === "POST" && path === "/restart") return restartInterpreterHost(broadcast, options)
   // Триггер хард-релоада UI у всех подключённых WS-клиентов: используется
@@ -2078,12 +2046,6 @@ async function readModuleRunOptions(req: Request): Promise<{run: StartupModuleOp
   return {run}
 }
 
-function getProcessBreakpoints(processId: string, options: HttpServerOptions): Response {
-  const module = moduleForProcessId(processId, options)
-  if (module === undefined) return processNotFoundResponse(processId)
-  return jsonResponse(module.breakpoints.registrations)
-}
-
 async function setProcessBreakpoint(processId: string, req: Request, options: HttpServerOptions, broadcast: (payload: JsonObject) => void): Promise<Response> {
   const module = moduleForProcessId(processId, options)
   if (module === undefined) return processNotFoundResponse(processId)
@@ -2152,7 +2114,7 @@ async function removeBreakpoint(req: Request, module: InterpreterModule, broadca
   const breakpointId = asString(body["breakpointId"])
   const idOrBreakpointId = id ?? breakpointId
   if (idOrBreakpointId === undefined) {
-    return jsonResponse({ok: false, error: "id or breakpointId required (получи его из /processes/:id/breakpoint или /processes/:id/breakpoints)"}, 400)
+    return jsonResponse({ok: false, error: "id or breakpointId required (получи его через breakpoint.list tool)"}, 400)
   }
   try {
     const removed = await module.breakpoints.remove(idOrBreakpointId)
@@ -2332,85 +2294,205 @@ function sourceFileResponse(options: {
   })
 }
 
-async function processToolsRoute(
-  processId: string,
+async function interpreterToolsRoute(
   req: Request,
   options: HttpServerOptions,
+  moduleContexts: ModuleContextStore,
+  hudTodoContext: HudTodoContextStore,
+  hudSqliteContext: HudSqliteContextStore,
   broadcast: (payload: JsonObject) => void,
   dispatchUiHostCommand: UiHostCommandDispatcher,
+  sqliteWatchRegistry: ReturnType<typeof createSqliteWatchRegistry>,
 ): Promise<Response> {
-  const module = moduleForProcessId(processId, options)
-  if (module === undefined) return processNotFoundResponse(processId)
   const parsed = await readJsonObject(req)
-  if (parsed.error !== undefined) return jsonResponse({ok: false, processId, error: parsed.error}, 400)
-  const toolUses = processToolUsesFromBody(parsed.body)
-  if (toolUses.error !== undefined) return jsonResponse({ok: false, processId: module.id, error: toolUses.error}, 400)
+  if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
+  const toolUses = parseInterpreterToolRequest(parsed.body)
+  if (toolUses.error !== undefined) return jsonResponse({ok: false, error: toolUses.error}, 400)
 
-  const results: JsonObject[] = []
-  for (const toolUse of toolUses.toolUses) {
-    results.push(await runProcessToolUse(module, toolUse, options, broadcast, dispatchUiHostCommand))
-  }
+  const results = await runInterpreterToolUses(toolUses.toolUses, options, moduleContexts, hudTodoContext, hudSqliteContext, broadcast, dispatchUiHostCommand, sqliteWatchRegistry)
+  return interpreterToolsResponse(results)
+}
 
+function interpreterToolsResponse(results: JsonObject[]): Response {
   return jsonResponse({
     ok: results.every((result) => result["ok"] === true),
-    processId: module.id,
     tool_uses: results,
     results,
   })
 }
 
-function processToolUsesFromBody(body: JsonObject): {toolUses: ProcessToolUse[]; error?: string} {
-  const rawToolUses = body["tool_uses"] ?? body["toolUses"]
-  if (Array.isArray(rawToolUses)) {
-    if (rawToolUses.length === 0) return {toolUses: [], error: "tool_uses must not be empty"}
-    const toolUses: ProcessToolUse[] = []
-    for (const [index, value] of rawToolUses.entries()) {
-      const parsed = processToolUseFromValue(value, index)
-      if (parsed.error !== undefined) return {toolUses: [], error: parsed.error}
-      toolUses.push(parsed.toolUse!)
-    }
-    return {toolUses}
+async function runInterpreterToolUses(
+  toolUses: InterpreterToolUse[],
+  options: HttpServerOptions,
+  moduleContexts: ModuleContextStore | undefined,
+  hudTodoContext: HudTodoContextStore | undefined,
+  hudSqliteContext: HudSqliteContextStore | undefined,
+  broadcast: (payload: JsonObject) => void,
+  dispatchUiHostCommand: UiHostCommandDispatcher,
+  sqliteWatchRegistry: ReturnType<typeof createSqliteWatchRegistry> | undefined,
+): Promise<JsonObject[]> {
+  const results: JsonObject[] = []
+  for (const toolUse of toolUses) {
+    results.push(await runInterpreterToolUse(toolUse, options, moduleContexts, hudTodoContext, hudSqliteContext, broadcast, dispatchUiHostCommand, sqliteWatchRegistry))
   }
-
-  if (body["recipient_name"] !== undefined || body["recipientName"] !== undefined || body["name"] !== undefined || body["tool"] !== undefined) {
-    const parsed = processToolUseFromValue(body, 0)
-    if (parsed.error !== undefined) return {toolUses: [], error: parsed.error}
-    return {toolUses: [parsed.toolUse!]}
-  }
-
-  return {toolUses: [], error: "tool_uses must be a non-empty array"}
+  return results
 }
 
-function processToolUseFromValue(value: unknown, index: number): {toolUse?: ProcessToolUse; error?: string} {
-  const object = asObject(value)
-  if (object === undefined) return {error: `tool_uses[${index}] must be an object`}
+async function runInterpreterToolUse(
+  toolUse: InterpreterToolUse,
+  options: HttpServerOptions,
+  moduleContexts: ModuleContextStore | undefined,
+  hudTodoContext: HudTodoContextStore | undefined,
+  hudSqliteContext: HudSqliteContextStore | undefined,
+  broadcast: (payload: JsonObject) => void,
+  dispatchUiHostCommand: UiHostCommandDispatcher,
+  sqliteWatchRegistry: ReturnType<typeof createSqliteWatchRegistry> | undefined,
+): Promise<JsonObject> {
+  const base = toolResultBase(toolUse)
+  try {
+    if (isProcessScopedTool(toolUse.recipientName)) {
+      const module = moduleForToolUse(toolUse, options)
+      if (module === undefined) return {...base, ok: false, error: "processId required"}
+      return await runProcessToolUse(module, toolUse, options, broadcast, dispatchUiHostCommand)
+    }
+    if (toolUse.recipientName === "health.get") return {...base, ok: true, result: healthPayload(options)}
+    if (toolUse.recipientName === "context.get") {
+      if (moduleContexts === undefined || hudTodoContext === undefined || hudSqliteContext === undefined) return {...base, ok: false, error: "context.get is unavailable in this route scope"}
+      return {...base, ok: true, result: contextPayload(options, moduleContexts, hudTodoContext, hudSqliteContext)}
+    }
+    if (toolUse.recipientName === "space.get") return await toolResultFromResponse(base, await dispatchUiHostRoute("space.get", {}, dispatchUiHostCommand), "space.get failed")
+    if (toolUse.recipientName === "space.focus") return await toolResultFromResponse(base, await dispatchUiHostRoute("space.focus", toolUse.parameters, dispatchUiHostCommand), "space.focus failed")
+    if (toolUse.recipientName === "space.frame") return await toolResultFromResponse(base, await dispatchUiHostRoute("space.frame", toolUse.parameters, dispatchUiHostCommand), "space.frame failed")
+    if (toolUse.recipientName === "viewport.screenshot") return await toolResultFromResponse(base, await captureViewportScreenshot(toolUrlFromParams("/viewport/screenshot", toolUse.parameters), dispatchUiHostCommand), "viewport.screenshot failed")
+    if (toolUse.recipientName === "process.list") return {...base, ok: true, result: {ok: true, processes: processPayloads(options)}}
+    if (toolUse.recipientName === "process.start") return await toolResultFromResponse(base, await runProcess(jsonToolRequest("/tools", toolUse.parameters), options), "process.start failed")
+    if (toolUse.recipientName === "process.get") {
+      const processId = processIdForToolUse(toolUse)
+      if (processId === undefined) return {...base, ok: false, error: "processId required"}
+      return await toolResultFromResponse(base, await dispatchUiHostRoute("processes.get", {processId}, dispatchUiHostCommand), "process.get failed")
+    }
+    if (toolUse.recipientName === "process.focus") return await toolResultFromResponse(base, await dispatchUiHostRoute("processes.focus", processRouteParamsForTool(toolUse), dispatchUiHostCommand), "process.focus failed")
+    if (toolUse.recipientName === "process.resolve") return await toolResultFromResponse(base, await dispatchUiHostRoute("processes.resolve", toolUse.parameters, dispatchUiHostCommand), "process.resolve failed")
+    if (toolUse.recipientName === "process.context") {
+      if (moduleContexts === undefined || hudTodoContext === undefined || hudSqliteContext === undefined) return {...base, ok: false, error: "process.context is unavailable in this route scope"}
+      const processId = processIdForToolUse(toolUse)
+      if (processId === undefined) return {...base, ok: false, error: "processId required"}
+      return await toolResultFromResponse(base, getProcessContext(processId, options, moduleContexts, hudTodoContext, hudSqliteContext), "process.context failed")
+    }
+    if (toolUse.recipientName === "process.modules") {
+      const processId = processIdForToolUse(toolUse)
+      if (processId === undefined) return {...base, ok: false, error: "processId required"}
+      return await toolResultFromResponse(base, getProcessModules(processId, toolUrlFromParams("/tools", toolUse.parameters), options), "process.modules failed")
+    }
+    if (toolUse.recipientName === "process.close") {
+      const processId = processIdForToolUse(toolUse)
+      if (processId === undefined) return {...base, ok: false, error: "processId required"}
+      return await toolResultFromResponse(base, await closeProcess(processId, toolUse.parameters, options), "process.close failed")
+    }
+    if (toolUse.recipientName === "breakpoint.list") {
+      const module = moduleForToolUse(toolUse, options)
+      if (module === undefined) return {...base, ok: false, error: "processId required"}
+      return {...base, ok: true, result: {ok: true, processId: module.id, breakpoints: module.breakpoints.registrations}}
+    }
+    if (toolUse.recipientName === "breakpoint.set") {
+      const processId = processIdForToolUse(toolUse)
+      if (processId === undefined) return {...base, ok: false, error: "processId required"}
+      return await toolResultFromResponse(base, await setProcessBreakpoint(processId, jsonToolRequest("/tools", toolUse.parameters), options, broadcast), "breakpoint.set failed")
+    }
+    if (toolUse.recipientName === "breakpoint.remove") {
+      const processId = processIdForToolUse(toolUse)
+      if (processId === undefined) return {...base, ok: false, error: "processId required"}
+      return await toolResultFromResponse(base, await removeProcessBreakpoint(processId, jsonToolRequest("/tools", toolUse.parameters), options, broadcast), "breakpoint.remove failed")
+    }
 
-  const recipientName = asString(object["recipient_name"])
-    ?? asString(object["recipientName"])
-    ?? asString(object["name"])
-    ?? asString(object["tool"])
-  if (recipientName === undefined || recipientName.trim().length === 0) {
-    return {error: `tool_uses[${index}].recipient_name must be a string`}
+    const hostTool = await runHostToolUse(base, toolUse, broadcast, dispatchUiHostCommand, sqliteWatchRegistry, options)
+    if (hostTool !== null) return hostTool
+    return {...base, ok: false, error: `unknown tool recipient_name: ${toolUse.recipientName}`}
+  } catch (error) {
+    return {...base, ok: false, error: serializeError(error)}
   }
+}
 
-  const parameters = asObject(object["parameters"])
-    ?? asObject(object["arguments"])
-    ?? asObject(object["params"])
-    ?? {}
-  const toolUseId = asString(object["tool_use_id"]) ?? asString(object["toolUseId"]) ?? asString(object["id"])
-  const toolUse: ProcessToolUse = {
-    recipientName,
-    parameters,
+async function runHostToolUse(
+  base: JsonObject,
+  toolUse: InterpreterToolUse,
+  broadcast: (payload: JsonObject) => void,
+  dispatchUiHostCommand: UiHostCommandDispatcher,
+  sqliteWatchRegistry: ReturnType<typeof createSqliteWatchRegistry> | undefined,
+  options: HttpServerOptions,
+): Promise<JsonObject | null> {
+  const hudCommand = hudCommandForTool(toolUse.recipientName)
+  if (hudCommand !== null) return await toolResultFromResponse(base, await dispatchUiHostRoute(hudCommand.command, hudCommand.paramsFromBody ? toolUse.parameters : {}, dispatchUiHostCommand), `${toolUse.recipientName} failed`)
+  const devtoolsRoute = chromeDevtoolsRouteForTool(toolUse.recipientName)
+  if (devtoolsRoute !== null) return await toolResultFromNullableResponse(base, await handleChromeDevtoolsRoute(toolRequest(devtoolsRoute.path, toolUse.parameters, devtoolsRoute.method), devtoolsRoute.method, devtoolsRoute.path), `${toolUse.recipientName} failed`)
+  const browserRoute = browserHostRouteForTool(toolUse.recipientName)
+  if (browserRoute !== null) return await toolResultFromNullableResponse(base, await handleBrowserHostRoute(toolRequest(browserRoute.path, toolUse.parameters, browserRoute.method), browserRoute.method, browserRoute.path), `${toolUse.recipientName} failed`)
+  const remoteLifecycle = remoteDesktopLifecycleRouteForTool(toolUse.recipientName, toolUse.parameters)
+  if (remoteLifecycle !== null) return await toolResultFromNullableResponse(base, await handleRemoteDesktopLifecycleRoute(toolRequest(remoteLifecycle.path, toolUse.parameters, remoteLifecycle.method), remoteLifecycle.method, remoteLifecycle.path, options.logger), `${toolUse.recipientName} failed`)
+  if (toolUse.recipientName === "network.action") return await toolResultFromResponse(base, await networkActionRoute(jsonToolRequest("/tools", toolUse.parameters)), "network.action failed")
+  if (toolUse.recipientName === "todo.get") return await toolResultFromResponse(base, todoMarkdownResponse(), "todo.get failed")
+  if (toolUse.recipientName === "todo.replace") return await toolResultFromResponse(base, await replaceTodoMarkdown(jsonToolRequest("/tools", toolUse.parameters), broadcast), "todo.replace failed")
+  if (toolUse.recipientName === "todo.create") return await toolResultFromResponse(base, await createTodoItem(jsonToolRequest("/tools", toolUse.parameters), broadcast), "todo.create failed")
+  if (toolUse.recipientName === "todo.update") {
+    const id = requiredStringParam(toolUse.parameters, "id")
+    if (id === undefined) return {...base, ok: false, error: "id required"}
+    return await toolResultFromResponse(base, await patchTodoItem(id, jsonToolRequest("/tools", toolUse.parameters), broadcast), "todo.update failed")
   }
-  if (toolUseId !== undefined) toolUse.toolUseId = toolUseId
-  return {
-    toolUse,
+  if (toolUse.recipientName === "todo.delete") {
+    const id = requiredStringParam(toolUse.parameters, "id")
+    if (id === undefined) return {...base, ok: false, error: "id required"}
+    return await toolResultFromResponse(base, deleteTodoItem(id, broadcast), "todo.delete failed")
   }
+  if (toolUse.recipientName === "todo.reload") return await toolResultFromResponse(base, reloadTodoMarkdown(broadcast), "todo.reload failed")
+  if (toolUse.recipientName === "sqlite.get") {
+    try {
+      const url = toolUrlFromParams("/sqlite", toolUse.parameters)
+      sqliteWatchRegistry?.register(url.searchParams.get("path") ?? "")
+      const payload = sqliteDatabasePayload(url)
+      sqliteWatchRegistry?.acceptPayload(payload)
+      return {...base, ok: true, result: payload}
+    } catch (error) {
+      return {...base, ok: false, error: serializeError(error)}
+    }
+  }
+  if (toolUse.recipientName === "sqlite.fingerprint") {
+    try {
+      const path = asString(toolUse.parameters["path"]) ?? ""
+      sqliteWatchRegistry?.register(path)
+      const fingerprint = sqliteDatabaseFingerprint(path)
+      sqliteWatchRegistry?.acceptFingerprint(fingerprint)
+      return {...base, ok: true, result: fingerprint}
+    } catch (error) {
+      return {...base, ok: false, error: serializeError(error)}
+    }
+  }
+  if (toolUse.recipientName === "sqlite.open") {
+    if (sqliteWatchRegistry === undefined) return {...base, ok: false, error: "sqlite.open is unavailable in this route scope"}
+    return await toolResultFromResponse(base, await openSqliteDisplayFromBody(jsonToolRequest("/tools", toolUse.parameters), dispatchUiHostCommand, sqliteWatchRegistry), "sqlite.open failed")
+  }
+  if (toolUse.recipientName === "sqlite.cell") {
+    try {
+      const payload = await updateSqliteCell(jsonToolRequest("/tools", toolUse.parameters))
+      sqliteWatchRegistry?.acceptPayload(payload)
+      return {...base, ok: true, result: payload}
+    } catch (error) {
+      return {...base, ok: false, error: serializeError(error)}
+    }
+  }
+  const androidRoute = androidRouteForTool(toolUse.recipientName)
+  if (androidRoute !== null) return await toolResultFromResponse(base, await proxyAndroidRequest(toolRequest(androidRoute.path, toolUse.parameters, androidRoute.method), androidRoute.path), `${toolUse.recipientName} failed`)
+  if (toolUse.recipientName === "events.tail") return {...base, ok: true, result: readNdjsonTail(options.eventLogPath, toolUrlFromParams("/events", toolUse.parameters))}
+  if (toolUse.recipientName === "console.tail") return {...base, ok: true, result: readNdjsonTail(options.consoleLogPath, toolUrlFromParams("/console", toolUse.parameters))}
+  if (toolUse.recipientName === "host.reload") {
+    broadcast({type: "reload"})
+    return {...base, ok: true, result: {ok: true}}
+  }
+  return null
 }
 
 async function runProcessToolUse(
   module: InterpreterModule,
-  toolUse: ProcessToolUse,
+  toolUse: InterpreterToolUse,
   options: HttpServerOptions,
   broadcast: (payload: JsonObject) => void,
   dispatchUiHostCommand: UiHostCommandDispatcher,
@@ -2422,31 +2504,31 @@ async function runProcessToolUse(
     if (toolUse.recipientName === "source.read") {
       return {...base, ok: true, result: await sourceReadToolPayload(module, toolUse.parameters)}
     }
-    if (toolUse.recipientName === "source.read_many" || toolUse.recipientName === "source.readMany") {
+    if (toolUse.recipientName === "source.read_many") {
       return {...base, ok: true, result: await sourceReadManyToolPayload(module, toolUse.parameters)}
     }
-    if (toolUse.recipientName === "source.open" || toolUse.recipientName === "openSource") {
+    if (toolUse.recipientName === "source.open") {
       const payload = await sourceUiActionPayload(module.id, "source.open", toolUse.parameters, dispatchUiHostCommand)
       const ok = payload.status < 400 && payload.body["ok"] !== false
       const response: JsonObject = {...base, ok, status: payload.status, result: payload.body}
       if (!ok) response["error"] = asString(payload.body["error"]) ?? "source.open failed"
       return response
     }
-    if (toolUse.recipientName === "source.openSelection" || toolUse.recipientName === "source.open_selection" || toolUse.recipientName === "openSelection") {
+    if (toolUse.recipientName === "source.openSelection") {
       const payload = await sourceUiActionPayload(module.id, "source.openSelection", toolUse.parameters, dispatchUiHostCommand)
       const ok = payload.status < 400 && payload.body["ok"] !== false
       const response: JsonObject = {...base, ok, status: payload.status, result: payload.body}
       if (!ok) response["error"] = asString(payload.body["error"]) ?? "source.openSelection failed"
       return response
     }
-    if (toolUse.recipientName === "source.write" || toolUse.recipientName === "source.save") {
+    if (toolUse.recipientName === "source.write") {
       const payload = await saveModuleSourcePayload(module.id, toolUse.parameters, options, broadcast)
       const ok = payload.status < 400 && payload.body["ok"] === true
       const response: JsonObject = {...base, ok, status: payload.status, result: payload.body}
       if (!ok) response["error"] = asString(payload.body["error"]) ?? "source.write failed"
       return response
     }
-    if (toolUse.recipientName === "source.apply_patch" || toolUse.recipientName === "source.apply-patch" || toolUse.recipientName === "apply_patch") {
+    if (toolUse.recipientName === "source.apply_patch") {
       const patch = readPatchTextFromParams(toolUse.parameters)
       if (patch === undefined || patch.trim().length === 0) return {...base, ok: false, error: "patch required"}
       const payload = await applyModulePatchPayload(module.id, patch, options, broadcast)
@@ -2466,6 +2548,174 @@ async function runProcessToolUse(
   } catch (error) {
     return {...base, ok: false, error: serializeError(error)}
   }
+}
+
+function isProcessScopedTool(recipientName: string): boolean {
+  return recipientName === "source.read"
+    || recipientName === "source.read_many"
+    || recipientName === "source.open"
+    || recipientName === "source.openSelection"
+    || recipientName === "source.write"
+    || recipientName === "source.apply_patch"
+    || recipientName === "process.action"
+}
+
+function moduleForToolUse(toolUse: InterpreterToolUse, options: HttpServerOptions): InterpreterModule | undefined {
+  const processId = processIdForToolUse(toolUse)
+  return processId === undefined ? undefined : moduleForProcessId(processId, options)
+}
+
+function processIdForToolUse(toolUse: InterpreterToolUse): string | undefined {
+  return asString(toolUse.parameters["processId"])
+}
+
+function processRouteParamsForTool(toolUse: InterpreterToolUse): JsonObject {
+  const processId = processIdForToolUse(toolUse)
+  return processId === undefined ? toolUse.parameters : processRouteParams(processId, toolUse.parameters)
+}
+
+function toolResultBase(toolUse: InterpreterToolUse): JsonObject {
+  const base: JsonObject = {recipient_name: toolUse.recipientName}
+  if (toolUse.toolUseId !== undefined) base["tool_use_id"] = toolUse.toolUseId
+  return base
+}
+
+async function toolResultFromNullableResponse(base: JsonObject, response: Response | null, fallbackError: string): Promise<JsonObject> {
+  if (response === null) return {...base, ok: false, error: fallbackError}
+  return await toolResultFromResponse(base, response, fallbackError)
+}
+
+async function toolResultFromResponse(base: JsonObject, response: Response, fallbackError: string): Promise<JsonObject> {
+  const payload = await jsonAnyPayloadFromResponse(response)
+  const ok = payload.status < 400 && payload.body["ok"] !== false
+  const result: JsonObject = {...base, ok, status: payload.status, result: payload.body}
+  if (!ok) result["error"] = asString(payload.body["error"]) ?? fallbackError
+  return result
+}
+
+async function jsonAnyPayloadFromResponse(response: Response): Promise<{status: number; body: JsonObject}> {
+  const value = await response.json().catch((error) => ({ok: false, error: serializeError(error)}))
+  const object = asObject(value)
+  return {status: response.status, body: object ?? {ok: response.ok, value}}
+}
+
+function jsonToolRequest(path: string, body: JsonObject, method = "POST"): Request {
+  return new Request(`http://interpreter${path}`, {
+    method,
+    headers: {"content-type": "application/json"},
+    body: JSON.stringify(body),
+  })
+}
+
+function toolRequest(path: string, params: JsonObject, method: string): Request {
+  if (method === "GET") return new Request(toolUrlFromParams(path, params), {method})
+  return jsonToolRequest(path, params, method)
+}
+
+function toolUrlFromParams(path: string, params: JsonObject): URL {
+  const url = new URL(path, "http://interpreter")
+  for (const [key, value] of Object.entries(params)) {
+    if (key === "processId" || key === "moduleId" || key === "id") continue
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") url.searchParams.set(key, String(value))
+  }
+  return url
+}
+
+function requiredStringParam(params: JsonObject, name: string): string | undefined {
+  const value = asString(params[name])
+  return value === undefined || value.trim().length === 0 ? undefined : value
+}
+
+function hudCommandForTool(name: string): {command: string; paramsFromBody: boolean} | null {
+  const commands: Record<string, {command: string; paramsFromBody: boolean}> = {
+    "hud.terminal.get": {command: "hud.terminal.get", paramsFromBody: false},
+    "hud.terminal.dock": {command: "hud.terminal.dock", paramsFromBody: true},
+    "hud.terminal.show": {command: "hud.terminal.show", paramsFromBody: true},
+    "hud.terminal.toggle": {command: "hud.terminal.toggle", paramsFromBody: true},
+    "hud.terminal.network.get": {command: "hud.terminal.network.get", paramsFromBody: false},
+    "hud.terminal.network.dock": {command: "hud.terminal.network.dock", paramsFromBody: true},
+    "hud.terminal.network.show": {command: "hud.terminal.network.show", paramsFromBody: true},
+    "hud.terminal.network.toggle": {command: "hud.terminal.network.toggle", paramsFromBody: true},
+    "hud.android.get": {command: "hud.android.get", paramsFromBody: false},
+    "hud.android.dock": {command: "hud.android.dock", paramsFromBody: true},
+    "hud.android.show": {command: "hud.android.show", paramsFromBody: true},
+    "hud.android.toggle": {command: "hud.android.toggle", paramsFromBody: true},
+    "hud.android.refresh": {command: "hud.android.refresh", paramsFromBody: false},
+    "hud.android.control": {command: "hud.android.control", paramsFromBody: true},
+    "hud.android.secondary.get": {command: "hud.android.secondary.get", paramsFromBody: false},
+    "hud.android.secondary.dock": {command: "hud.android.secondary.dock", paramsFromBody: true},
+    "hud.android.secondary.show": {command: "hud.android.secondary.show", paramsFromBody: true},
+    "hud.android.secondary.toggle": {command: "hud.android.secondary.toggle", paramsFromBody: true},
+    "hud.android.secondary.control": {command: "hud.android.secondary.control", paramsFromBody: true},
+    "todo.panel": {command: "hud.todo.get", paramsFromBody: false},
+    "todo.highlight": {command: "hud.todo.highlight", paramsFromBody: true},
+    "todo.dock": {command: "hud.todo.dock", paramsFromBody: true},
+    "todo.show": {command: "hud.todo.show", paramsFromBody: true},
+    "todo.toggle": {command: "hud.todo.toggle", paramsFromBody: true},
+    "sqlite.panel": {command: "hud.sqlite.get", paramsFromBody: false},
+    "sqlite.dock": {command: "hud.sqlite.dock", paramsFromBody: true},
+    "sqlite.show": {command: "hud.sqlite.show", paramsFromBody: true},
+    "sqlite.toggle": {command: "hud.sqlite.toggle", paramsFromBody: true},
+  }
+  return commands[name] ?? null
+}
+
+function chromeDevtoolsRouteForTool(name: string): {method: string; path: string} | null {
+  const routes: Record<string, {method: string; path: string}> = {
+    "devtools.targets": {method: "GET", path: "/devtools/targets"},
+    "devtools.state": {method: "GET", path: "/devtools/state"},
+    "devtools.console": {method: "GET", path: "/devtools/console"},
+    "devtools.console.clear": {method: "POST", path: "/devtools/console/clear"},
+    "devtools.breakpoint": {method: "POST", path: "/devtools/breakpoints"},
+    "devtools.probe": {method: "POST", path: "/devtools/probe"},
+    "devtools.reload": {method: "POST", path: "/devtools/reload"},
+    "devtools.viewport.sync": {method: "POST", path: "/devtools/viewport/sync"},
+    "devtools.resume": {method: "POST", path: "/devtools/resume"},
+    "devtools.disable": {method: "POST", path: "/devtools/disable"},
+    "devtools.evaluate": {method: "POST", path: "/devtools/evaluate"},
+  }
+  return routes[name] ?? null
+}
+
+function browserHostRouteForTool(name: string): {method: string; path: string} | null {
+  const routes: Record<string, {method: string; path: string}> = {
+    "browser.health": {method: "GET", path: "/browser-display/health"},
+    "browser.state": {method: "GET", path: "/browser-display/state"},
+    "browser.status": {method: "GET", path: "/browser-display/status"},
+    "browser.navigate": {method: "POST", path: "/browser-display/navigate"},
+    "browser.reload": {method: "POST", path: "/browser-display/reload"},
+    "browser.back": {method: "POST", path: "/browser-display/back"},
+    "browser.forward": {method: "POST", path: "/browser-display/forward"},
+    "browser.devtools": {method: "POST", path: "/browser-display/devtools"},
+    "browser.fullscreen": {method: "POST", path: "/browser-display/fullscreen"},
+    "browser.viewport": {method: "POST", path: "/browser-display/viewport"},
+    "browser.input": {method: "POST", path: "/browser-display/input"},
+    "remote_desktop.health": {method: "GET", path: "/remote-desktop/health"},
+    "remote_desktop.state": {method: "GET", path: "/remote-desktop/state"},
+    "remote_desktop.status": {method: "GET", path: "/remote-desktop/status"},
+    "remote_desktop.rtc.state": {method: "GET", path: "/remote-desktop/rtc/state"},
+    "remote_desktop.rtc.restart": {method: "POST", path: "/remote-desktop/rtc/restart"},
+    "remote_desktop.input": {method: "POST", path: "/remote-desktop/input"},
+    "remote_desktop.browser.windows": {method: "GET", path: "/remote-desktop/browser/windows"},
+    "remote_desktop.browser.open": {method: "POST", path: "/remote-desktop/browser/open"},
+  }
+  return routes[name] ?? null
+}
+
+function remoteDesktopLifecycleRouteForTool(name: string, params: JsonObject): {method: string; path: string} | null {
+  if (name === "remote_desktop.lifecycle") return {method: asString(params["action"]) === undefined || params["action"] === "status" ? "GET" : "POST", path: "/remote-desktop/lifecycle"}
+  return null
+}
+
+function androidRouteForTool(name: string): {method: string; path: string} | null {
+  const routes: Record<string, {method: string; path: string}> = {
+    "android.size": {method: "GET", path: "/android/size"},
+    "android.screencap": {method: "GET", path: "/android/screencap"},
+    "android.tap": {method: "POST", path: "/android/tap"},
+    "android.swipe": {method: "POST", path: "/android/swipe"},
+    "android.key": {method: "POST", path: "/android/key"},
+  }
+  return routes[name] ?? null
 }
 
 async function sourceReadManyToolPayload(module: InterpreterModule, params: JsonObject): Promise<JsonObject> {

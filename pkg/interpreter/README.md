@@ -10,7 +10,7 @@
 
 - Interpreter один; внутри него есть `HUD` и один `Space`.
 - `Space` содержит независимые `UIDisplay`; display — визуальная поверхность, не единица исполнения.
-- Process — основной адрес действий агента: `/processes/:id/...`.
+- Process — исполняемая сущность; агент адресует её через `processId` в `POST /tools`.
 - Модуль — текущая единица source/catalog внутри process. Имя модуля берётся из пути запуска.
 - Путь без `-` начинает новый модуль; параметры после пути принадлежат этому модулю до следующего пути.
 - Кнопка UI “Перезапустить модуль” всегда запускает интерактивно: старый `--inspect*` удаляется из команды, новый старт идёт с `pauseOnStart: true`.
@@ -67,21 +67,8 @@ Snapshot текущей остановки:
 ## REST API
 
 ```text
-GET    /context
-GET    /space
-POST   /space/focus
-POST   /space/frame
-
-GET    /processes
-POST   /processes
-GET    /processes/:id
-DELETE /processes/:id
-GET    /processes/:id/context
-GET    /processes/:id/modules
-POST   /processes/:id/tools
-GET    /processes/:id/breakpoints
-POST   /processes/:id/breakpoint
-DELETE /processes/:id/breakpoint
+GET    /tools
+POST   /tools
 
 GET    /hud/terminal
 POST   /hud/terminal/show
@@ -91,19 +78,14 @@ WS     /hud/terminal/stream
 GET    /hud/terminal/sessions
 ```
 
-`GET /context` возвращает один текущий context — то, что сейчас видно/выделено. `GET /processes/:id/modules` возвращает import graph каталога кода process от entrypoint и workspace package imports.
+`context.get` через `POST /tools` возвращает один текущий context — то, что сейчас видно/выделено. Agent-facing команды идут через `POST /tools`; каталог кода process читает tool `process.modules`.
 
-Пример запуска нового Bun process через REST:
+Пример запуска нового Bun process через tools API:
 
 ```sh
-curl -sS -X POST http://127.0.0.1:6500/processes \
+curl -sS -X POST http://127.0.0.1:6500/tools \
   -H 'content-type: application/json' \
-  -d '{
-    "processId": "syntax",
-    "label": "pkg/interpreter/src/syntax.test.ts",
-    "command": ["bun", "test", "pkg/interpreter/src/syntax.test.ts"],
-    "pauseOnStart": true
-  }'
+  -d '{"tool_uses":[{"recipient_name":"process.start","parameters":{"processId":"syntax","label":"pkg/interpreter/src/syntax.test.ts","command":["bun","test","pkg/interpreter/src/syntax.test.ts"],"pauseOnStart":true}}]}'
 ```
 
 ## Переменные Окружения

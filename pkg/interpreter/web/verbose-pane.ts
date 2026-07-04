@@ -187,11 +187,7 @@ function isLowValueEvent(kind: "protocol" | "interpreter", name: string, payload
   if (name === "http.request") {
     const path = propString(payload, "path")
     const status = propNumber(payload, "status")
-    return status !== undefined && status < 400 && (
-      path === "/console"
-      || path === "/processes"
-      || /\/processes\/[^/]+\/(?:modules|source|breakpoints)$/.test(path ?? "")
-    )
+    return status !== undefined && status < 400 && path === "/tools"
   }
   if (name === "protocol.request") {
     const method = propString(payload, "method")

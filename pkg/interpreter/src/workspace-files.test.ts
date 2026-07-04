@@ -13,7 +13,7 @@ afterEach(() => {
 describe("workspaceFilesPayload", () => {
   test("uses launch cwd as root and follows imported workspace files", () => {
     const cwd = testWorkspace()
-    const payload = workspaceFilesPayload(new URL("http://127.0.0.1/processes/dark-server.spec.ts/modules?limit=500"), {
+    const payload = workspaceFilesPayload(new URL("http://127.0.0.1/tools?limit=500"), {
       cwd,
       module: {
         id: "dark-server.spec.ts",
@@ -38,7 +38,7 @@ describe("workspaceFilesPayload", () => {
 
   test("keeps independent import graphs for different processes", () => {
     const cwd = testWorkspace()
-    const dark = workspaceFilesPayload(new URL("http://127.0.0.1/processes/dark-server.spec.ts/modules?limit=500"), {
+    const dark = workspaceFilesPayload(new URL("http://127.0.0.1/tools?limit=500"), {
       cwd,
       module: {
         id: "dark-server.spec.ts",
@@ -47,7 +47,7 @@ describe("workspaceFilesPayload", () => {
         target: {command: ["bun", "test", join(cwd, "dark/server.spec.ts")], cwd},
       },
     })
-    const interpreter = workspaceFilesPayload(new URL("http://127.0.0.1/processes/syntax.test.ts/modules?limit=500"), {
+    const interpreter = workspaceFilesPayload(new URL("http://127.0.0.1/tools?limit=500"), {
       cwd,
       module: {
         id: "syntax.test.ts",
@@ -68,7 +68,7 @@ describe("workspaceFilesPayload", () => {
 
   test("falls back to command path when modulePath is unavailable", () => {
     const cwd = testWorkspace()
-    const payload = workspaceFilesPayload(new URL("http://127.0.0.1/processes/dark-server.spec.ts/modules?limit=500"), {
+    const payload = workspaceFilesPayload(new URL("http://127.0.0.1/tools?limit=500"), {
       cwd,
       module: {
         id: "dark-server.spec.ts",
@@ -83,7 +83,7 @@ describe("workspaceFilesPayload", () => {
 
   test("filters imported catalog by query", () => {
     const cwd = testWorkspace()
-    const payload = workspaceFilesPayload(new URL("http://127.0.0.1/processes/dark-server.spec.ts/modules?q=force&limit=500"), {
+    const payload = workspaceFilesPayload(new URL("http://127.0.0.1/tools?q=force&limit=500"), {
       cwd,
       module: {
         id: "dark-server.spec.ts",

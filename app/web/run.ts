@@ -270,17 +270,14 @@ async function startMatrixProcess(): Promise<void> {
     await deleteInterpreterProcess(matrixProcessId())
   }
 
-  const response = await interpreterJson("/processes", {
-    method: "POST",
-    body: JSON.stringify({
-      processId: matrixProcessId(),
-      label: "matrix/server.ts",
-      modulePath: "matrix/server.ts",
-      command: ["bun", "matrix/server.ts"],
-      cwd,
-      env: matrixProcessEnv(),
-      pauseOnStart: false,
-    }),
+  const response = await interpreterTool("process.start", {
+    processId: matrixProcessId(),
+    label: "matrix/server.ts",
+    modulePath: "matrix/server.ts",
+    command: ["bun", "matrix/server.ts"],
+    cwd,
+    env: matrixProcessEnv(),
+    pauseOnStart: false,
   })
   console.log(JSON.stringify(response, null, 2))
 }
@@ -332,17 +329,14 @@ async function startEnergyProcess(): Promise<void> {
     await deleteInterpreterProcess(energyProcessId())
   }
 
-  const response = await interpreterJson("/processes", {
-    method: "POST",
-    body: JSON.stringify({
-      processId: energyProcessId(),
-      label: "energy/server.ts",
-      modulePath: "energy/server.ts",
-      command: ["bun", "energy/server.ts"],
-      cwd,
-      env: energyProcessEnv(),
-      pauseOnStart: false,
-    }),
+  const response = await interpreterTool("process.start", {
+    processId: energyProcessId(),
+    label: "energy/server.ts",
+    modulePath: "energy/server.ts",
+    command: ["bun", "energy/server.ts"],
+    cwd,
+    env: energyProcessEnv(),
+    pauseOnStart: false,
   })
   console.log(JSON.stringify(response, null, 2))
 }
@@ -368,29 +362,34 @@ async function restartEnergyProcess(): Promise<void> {
 }
 
 async function getMatrixProcess(): Promise<Record<string, any> | null> {
-  const payload = await interpreterJson("/processes")
+  const payload = await interpreterTool("process.list")
   const processes = Array.isArray(payload.processes) ? payload.processes : []
   return processes.find((item: Record<string, any>) => item.id === matrixProcessId()) ?? null
 }
 
 async function getEnergyProcess(): Promise<Record<string, any> | null> {
-  const payload = await interpreterJson("/processes")
+  const payload = await interpreterTool("process.list")
   const processes = Array.isArray(payload.processes) ? payload.processes : []
   return processes.find((item: Record<string, any>) => item.id === energyProcessId()) ?? null
 }
 
 async function deleteInterpreterProcess(processId: string): Promise<void> {
-  await interpreterJson(`/processes/${encodeURIComponent(processId)}`, {method: "DELETE"})
+  await interpreterTool("process.close", {processId})
 }
 
 async function interpreterProcessAction(processId: string, action: string): Promise<Record<string, any>> {
-  const payload = await interpreterJson(`/processes/${encodeURIComponent(processId)}/tools`, {
+  return await interpreterTool("process.action", {processId, action})
+}
+
+async function interpreterTool(recipientName: string, parameters: Record<string, any> = {}): Promise<Record<string, any>> {
+  const payload = await interpreterJson("/tools", {
     method: "POST",
-    body: JSON.stringify({tool_uses: [{recipient_name: "process.action", parameters: {action}}]}),
+    body: JSON.stringify({tool_uses: [{recipient_name: recipientName, parameters}]}),
   })
   const tool = Array.isArray(payload.tool_uses) ? payload.tool_uses[0] as Record<string, any> | undefined : undefined
-  if (tool?.ok !== true) throw new Error(String(tool?.error ?? "process action failed"))
-  return payload
+  if (tool?.ok !== true) throw new Error(String(tool?.error ?? `${recipientName} failed`))
+  const result = tool.result
+  return typeof result === "object" && result !== null && !Array.isArray(result) ? result as Record<string, any> : tool
 }
 
 async function interpreterJson(path: string, init: RequestInit = {}): Promise<Record<string, any>> {

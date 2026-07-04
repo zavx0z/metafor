@@ -1441,11 +1441,9 @@ async function runProcessAction(params: unknown): Promise<unknown> {
       reply = await evaluateInterpreterExpression(controller, actionParams)
       break
     case "source.open":
-    case "openSource":
       reply = await openInterpreterSource(controller, actionParams)
       break
     case "source.openSelection":
-    case "openSelection":
       reply = await openInterpreterSelectedSource(controller)
       break
     case "restart":
@@ -4769,13 +4767,22 @@ async function postNetworkAction(action: string, opts: {signal?: AbortSignal} = 
     method: "POST",
     headers: {"content-type": "application/json"},
     body: JSON.stringify({
-      action,
-      tlsMode: networkProductViaInterpreter ? "interpreter" : "direct",
+      tool_uses: [{
+        recipient_name: "network.action",
+        parameters: {
+          action,
+          tlsMode: networkProductViaInterpreter ? "interpreter" : "direct",
+        },
+      }],
     }),
   }
   if (opts.signal !== undefined) requestInit.signal = opts.signal
-  const response = await fetch("/space/network/action", requestInit)
-  const payload = await response.json().catch(() => ({})) as NetworkActionPayload
+  const response = await fetch(toolsApiPath(), requestInit)
+  const envelope = await response.json().catch(() => null) as {tool_uses?: Array<{ok?: boolean; result?: unknown; error?: string}>; error?: string} | null
+  const tool = envelope?.tool_uses?.[0]
+  const payload = typeof tool?.result === "object" && tool.result !== null && !Array.isArray(tool.result)
+    ? tool.result as NetworkActionPayload
+    : {ok: false, error: tool?.error ?? envelope?.error ?? `network.action failed: ${response.status}`}
   return {response, payload}
 }
 
@@ -9289,8 +9296,8 @@ function moduleDisplayId(moduleId: string): string {
   return `module:${moduleId}`
 }
 
-function processApiPath(processId: string, suffix: string): string {
-  return `/processes/${encodeURIComponent(processId)}${suffix}`
+function toolsApiPath(): string {
+  return "/tools"
 }
 
 type ProcessToolUseResponse = {
@@ -9301,10 +9308,10 @@ type ProcessToolUseResponse = {
 }
 
 async function runProcessTool(processId: string, recipientName: string, parameters: Record<string, unknown>): Promise<ProcessToolUseResponse> {
-  const response = await fetch(processApiPath(processId, "/tools"), {
+  const response = await fetch(toolsApiPath(), {
     method: "POST",
     headers: {"content-type": "application/json"},
-    body: JSON.stringify({tool_uses: [{recipient_name: recipientName, parameters}]}),
+    body: JSON.stringify({tool_uses: [{recipient_name: recipientName, parameters: {...parameters, processId}}]}),
   })
   const payload = await response.json().catch(() => null) as {tool_uses?: ProcessToolUseResponse[]; error?: string} | null
   const tool = payload?.tool_uses?.[0]
@@ -9646,8 +9653,9 @@ async function refreshWorkspaceFiles(controller: ModuleDisplayController): Promi
   if (controller.workspaceFiles.loading !== null) return controller.workspaceFiles.loading
   controller.workspaceFiles.loading = (async () => {
     try {
-      const res = await fetch(processApiPath(controller.id, `/modules?limit=${WORKSPACE_FILES_LIMIT}`))
-      const data = await res.json() as WorkspaceFilesPayload
+      const tool = await runProcessTool(controller.id, "process.modules", {limit: WORKSPACE_FILES_LIMIT})
+      if (tool.ok !== true) throw new Error(tool.error ?? "process.modules failed")
+      const data = processToolResultObject(tool) as WorkspaceFilesPayload
       const files = Array.isArray(data.modules) ? data.modules : data.files
       const paths = Array.isArray(files)
         ? files.map((file) => typeof file.path === "string" ? file.path : "").filter((path) => path.length > 0)
@@ -11084,10 +11092,12 @@ function terminalTextTail(terminal: TerminalPane, limit: number): string[] {
 
 async function refreshModuleBreakpoints(controller: ModuleDisplayController): Promise<void> {
   try {
-    const res = await fetch(processApiPath(controller.id, "/breakpoints"))
-    const data = await res.json() as unknown
-    if (!Array.isArray(data)) return
-    controller.breakpointRegistrations = data.filter(isBreakpointRegistration)
+    const tool = await runProcessTool(controller.id, "breakpoint.list", {})
+    if (tool.ok !== true) return
+    const data = processToolResultObject(tool)
+    const breakpoints = data.breakpoints
+    if (!Array.isArray(breakpoints)) return
+    controller.breakpointRegistrations = breakpoints.filter(isBreakpointRegistration)
     controller.breakpointRegistrationsLoaded = true
     mergeStoredBreakpointSpecs(controller.id, controller.breakpointRegistrations.map((registration) => registration.spec))
     await syncStoredModuleBreakpoints(controller)
@@ -11106,14 +11116,10 @@ async function syncStoredModuleBreakpoints(controller: ModuleDisplayController):
   const errors: string[] = []
   for (const spec of missing) {
     try {
-      const res = await fetch(processApiPath(controller.id, "/breakpoint"), {
-        method: "POST",
-        headers: {"content-type": "application/json"},
-        body: JSON.stringify(spec),
-      })
-      const data = await res.json() as {ok?: boolean; error?: string; breakpoints?: unknown}
-      if (!res.ok || data.ok !== true) {
-        errors.push(data.error ?? res.statusText)
+      const tool = await runProcessTool(controller.id, "breakpoint.set", spec as Record<string, unknown>)
+      const data = processToolResultObject(tool) as {ok?: boolean; error?: string; breakpoints?: unknown}
+      if (tool.ok !== true || data.ok !== true) {
+        errors.push(tool.error ?? data.error ?? "breakpoint.set failed")
         continue
       }
       if (Array.isArray(data.breakpoints)) {
@@ -11174,17 +11180,13 @@ async function toggleModuleBreakpoint(controller: ModuleDisplayController, line:
 
   try {
     const body = existing === undefined ? nextSpec : {id: existing.id}
-    const res = await fetch(processApiPath(controller.id, "/breakpoint"), {
-      method: existing === undefined ? "POST" : "DELETE",
-      headers: {"content-type": "application/json"},
-      body: JSON.stringify(body),
-    })
-    const data = await res.json() as {ok?: boolean; error?: string; breakpoints?: unknown}
-    if (data.ok !== true) {
+    const tool = await runProcessTool(controller.id, existing === undefined ? "breakpoint.set" : "breakpoint.remove", body as Record<string, unknown>)
+    const data = processToolResultObject(tool) as {ok?: boolean; error?: string; breakpoints?: unknown}
+    if (tool.ok !== true || data.ok !== true) {
       appendModuleTerminal(controller, {
         ts: new Date().toISOString(),
         level: "error",
-        text: `[ui] breakpoint: ${data.error ?? "unknown error"}`,
+        text: `[ui] breakpoint: ${tool.error ?? data.error ?? "unknown error"}`,
       })
       return
     }

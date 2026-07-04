@@ -69,9 +69,9 @@ cat .metafor/interpreter/state.json
 Отправить action tool в конкретный process:
 
 ```sh
-curl -sS -X POST http://127.0.0.1:6500/processes/<process-id>/tools \
+curl -sS -X POST http://127.0.0.1:6500/tools \
   -H 'content-type: application/json' \
-  -d '{"tool_uses":[{"recipient_name":"process.action","parameters":{"action":"evaluate","params":{"frame":0,"expr":"wimp.children.length"}}}]}'
+  -d '{"tool_uses":[{"recipient_name":"process.action","parameters":{"processId":"<process-id>","action":"evaluate","params":{"frame":0,"expr":"wimp.children.length"}}}]}'
 ```
 
 Ожидается JSON response:
@@ -91,19 +91,9 @@ curl -sS -X POST http://127.0.0.1:6500/processes/<process-id>/tools \
 Для smoke без ручного UI можно запустить модуль и передать breakpoint:
 
 ```sh
-curl -sS -X POST http://127.0.0.1:6500/processes \
+curl -sS -X POST http://127.0.0.1:6500/tools \
   -H 'content-type: application/json' \
-  -d '{
-    "processId": "module-spec",
-    "label": "module.spec.ts",
-    "command": [
-      "bun", "test", "--timeout=2147483647", "./module.spec.ts"
-    ],
-    "cwd": "/absolute/path/to/metafor",
-    "breakpoints": [
-      {"url": "/absolute/path/to/metafor/module.ts", "line": 46}
-    ]
-  }'
+  -d '{"tool_uses":[{"recipient_name":"process.start","parameters":{"processId":"module-spec","label":"module.spec.ts","command":["bun","test","--timeout=2147483647","./module.spec.ts"],"cwd":"/absolute/path/to/metafor","breakpoints":[{"url":"/absolute/path/to/metafor/module.ts","line":46}]}}]}'
 ```
 
 Так проверяется:
@@ -121,11 +111,10 @@ curl -sS -X POST http://127.0.0.1:6500/processes \
 Минимальная проверка после pause:
 
 ```sh
-curl -sS http://127.0.0.1:6500/processes
-curl -sS -X POST http://127.0.0.1:6500/processes/module-spec/tools \
+curl -sS -X POST http://127.0.0.1:6500/tools \
   -H 'content-type: application/json' \
-  -d '{"tool_uses":[{"recipient_name":"process.action","parameters":{"action":"evaluate","params":{"frame":0,"expr":"wimp.src"}}}]}'
-curl -sS -X POST http://127.0.0.1:6500/processes/module-spec/tools \
+  -d '{"tool_uses":[{"recipient_name":"process.list","parameters":{}},{"recipient_name":"process.action","parameters":{"processId":"module-spec","action":"evaluate","params":{"frame":0,"expr":"wimp.src"}}}]}'
+curl -sS -X POST http://127.0.0.1:6500/tools \
   -H 'content-type: application/json' \
-  -d '{"tool_uses":[{"recipient_name":"process.action","parameters":{"action":"resume","params":{}}}]}'
+  -d '{"tool_uses":[{"recipient_name":"process.action","parameters":{"processId":"module-spec","action":"resume","params":{}}}]}'
 ```

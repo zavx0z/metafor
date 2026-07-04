@@ -4,29 +4,18 @@ export type InterpreterRouteDescription = {
   description: string
 }
 
+import {interpreterToolDescriptions} from "./tools.ts"
+
 const INTERPRETER_PROXY_PREFIX = "/hud/interpreter"
 const INTERPRETER_PROXY_ALIASES = [INTERPRETER_PROXY_PREFIX, "/interp"] as const
 const INTERPRETER_PROXY_EXACT_PATHS = new Set([
   "/",
   "/ws",
   "/health",
-  "/context",
-  "/viewport/screenshot",
-  "/events",
-  "/console",
   "/client-event",
+  "/tools",
   "/webrtc/signaling",
   "/webrtc/rooms",
-  "/devtools/targets",
-  "/devtools/state",
-  "/devtools/console",
-  "/devtools/console/clear",
-  "/devtools/breakpoints",
-  "/devtools/probe",
-  "/devtools/reload",
-  "/devtools/resume",
-  "/devtools/disable",
-  "/devtools/evaluate",
   "/remote-desktop/health",
   "/remote-desktop/state",
   "/remote-desktop/status",
@@ -38,9 +27,6 @@ const INTERPRETER_PROXY_EXACT_PATHS = new Set([
   "/remote-desktop/input",
   "/remote-desktop/browser/windows",
   "/remote-desktop/browser/open",
-  "/processes",
-  "/processes/resolve",
-  "/processes/focus",
   "/hud/sqlite",
   "/hud/sqlite/dock",
   "/hud/sqlite/show",
@@ -50,37 +36,14 @@ const INTERPRETER_PROXY_EXACT_PATHS = new Set([
   "/sqlite/open",
   "/sqlite/cell",
 ])
-const INTERPRETER_PROXY_PROCESS_SUBPATHS = new Set([
-  "",
-  "breakpoint",
-  "breakpoints",
-  "context",
-  "focus",
-  "modules",
-  "tools",
-])
 
 const routeIndex = [
   {method: "GET", path: "/health", description: "статус коннекта и параметры"},
   {method: "WS", path: "/ws", description: "основной websocket UI интерпретатора; в app/web доступен как /hud/interpreter/ws или /interp/ws"},
-  {method: "GET", path: "/space", description: "обзор визуального Space: рабочие поверхности и геометрия"},
-  {method: "POST", path: "/space/focus", description: "{selector:{side|processId|moduleId|label|order}, dockHostTerminal?} — сфокусировать рабочую поверхность"},
-  {method: "POST", path: "/space/frame", description: "показать все рабочие поверхности Space"},
-  {method: "GET", path: "/context", description: "server-owned текущий active context: ровно текущий display/source/scopes/terminal"},
-  {method: "GET", path: "/viewport/screenshot", description: "запросить PNG текущего viewport интерпретатора у подключенного UI-клиента и сохранить в tmp/codex-attachments"},
+  {method: "POST", path: "/tools", description: "единственный agent-facing command API: Codex-style {tool_uses:[{recipient_name,parameters}]}; см. tools ниже"},
+  {method: "GET", path: "/tools", description: "typed registry доступных interpreter tools"},
   {method: "WS", path: "/webrtc/signaling", description: "общий локальный WebRTC signaling для shared displays: remote desktop, Android и будущие video/datachannel peers"},
   {method: "GET", path: "/webrtc/rooms", description: "diagnostics текущих WebRTC signaling rooms/peers в этом interpreter host"},
-  {method: "GET", path: "/devtools/targets", description: "Chrome CDP targets текущего server browser; default CDP 127.0.0.1:9349"},
-  {method: "GET", path: "/devtools/state", description: "активные agent DevTools sessions/breakpoints/paused state"},
-  {method: "GET", path: "/devtools/console", description: "последние browser console/log/exception/network errors текущего server Chrome target; query: limit, level, kind, sinceId"},
-  {method: "POST", path: "/devtools/console/clear", description: "{targetUrl?|targetId?} — очистить buffered console events и Chrome console entries для target"},
-  {method: "POST", path: "/devtools/breakpoints", description: "{source|url,line,column?,targetUrl?} — поставить CDP breakpoint; source строки 1-based и мапятся через sourcemap"},
-  {method: "POST", path: "/devtools/probe", description: "{source|url,line,trigger?,autoResumeMs?} — поставить breakpoint, опционально дернуть trigger, дождаться pause и resume"},
-  {method: "POST", path: "/devtools/reload", description: "{targetUrl?,hard?|ignoreCache?} — Page.reload текущего server Chrome target через CDP"},
-  {method: "POST", path: "/devtools/viewport/sync", description: "{targetUrl?,width?,height?,deviceScaleFactor?} — синхронизировать DevTools Device Mode toolbar, target viewport и compositor surface"},
-  {method: "POST", path: "/devtools/resume", description: "{targetUrl?|targetId?} — продолжить выполнение paused Chrome target"},
-  {method: "POST", path: "/devtools/disable", description: "{targetUrl?|targetId?|all?} — снять breakpoints, disable Debugger и закрыть agent CDP session"},
-  {method: "POST", path: "/devtools/evaluate", description: "{expression,targetUrl?} — Runtime.evaluate в текущем server Chrome target"},
   {method: "GET", path: "/browser-display/health", description: "proxy к локальному browser-host health endpoint; требует INTERPRETER_BROWSER_HOST_URL или INTERPRETER_BROWSER_HOST_PORT"},
   {method: "GET", path: "/browser-display/state", description: "proxy к локальному browser-host state для browser-display"},
   {method: "GET", path: "/browser-display/status", description: "alias к browser-display state для UI/status controls"},
@@ -106,19 +69,6 @@ const routeIndex = [
   {method: "POST", path: "/remote-desktop/input", description: "control input в interpreter Chrome host или configured desktop input adapter"},
   {method: "GET", path: "/remote-desktop/browser/windows", description: "remote desktop browser/window adapter diagnostics, если configured"},
   {method: "POST", path: "/remote-desktop/browser/open", description: "{url} — открыть URL в managed server Chrome или configured browser adapter"},
-  {method: "GET", path: "/processes", description: "список runtime processes интерпретатора"},
-  {method: "POST", path: "/processes", description: "{label?, command, cwd?, env?, pauseOnStart?, breakpoints?} — запустить новый runtime process"},
-  {method: "POST", path: "/processes/resolve", description: "{selector:{side|processId|moduleId|label|order}} — найти process по текущему Space"},
-  {method: "POST", path: "/processes/focus", description: "{selector:{side|processId|moduleId|label|order}, dockHostTerminal?} — сфокусировать process"},
-  {method: "GET", path: "/processes/:id", description: "рабочий payload process: content + runtime/ui state/capabilities"},
-  {method: "POST", path: "/processes/:id/focus", description: "сфокусировать конкретный process"},
-  {method: "DELETE", path: "/processes/:id", description: "остановить runtime process и убрать его display из Space"},
-  {method: "GET", path: "/processes/:id/context", description: "текущий context конкретного process"},
-  {method: "GET", path: "/processes/:id/modules?q=<text>&limit=<n>", description: "каталог кода в контексте process"},
-  {method: "POST", path: "/processes/:id/tools", description: "основной process tools API: {tool_uses:[{recipient_name,parameters}]} для source.read/source.open/source.write/source.apply_patch/process.action"},
-  {method: "GET", path: "/processes/:id/breakpoints", description: "breakpoint registrations конкретного process"},
-  {method: "POST", path: "/processes/:id/breakpoint", description: "{url|sourceUrl|urlRegex, line, column?, condition?} — breakpoint в конкретном process"},
-  {method: "DELETE", path: "/processes/:id/breakpoint", description: "{id|breakpointId} — убрать breakpoint из конкретного process"},
   {method: "GET", path: "/hud/terminal", description: "состояние host terminal HUD"},
   {method: "POST", path: "/hud/terminal/dock", description: "свернуть host terminal HUD"},
   {method: "POST", path: "/hud/terminal/show", description: "развернуть host terminal HUD"},
@@ -127,7 +77,6 @@ const routeIndex = [
   {method: "POST", path: "/hud/terminal/network/show", description: "сфокусировать network display в Space"},
   {method: "POST", path: "/hud/terminal/network/dock", description: "оставить network tmux в Space без плавающего HUD"},
   {method: "POST", path: "/hud/terminal/network/toggle", description: "сфокусировать network display в Space"},
-  {method: "POST", path: "/space/network/action", description: "{action} — управлять tmux network layout, Matrix process и Energy process: layout/status/start:tls/stop:tls/start:redirect/stop:redirect/start:matrix/stop:matrix/restart:matrix/start:energy/stop:energy/restart:energy/tail/clear"},
   {method: "GET", path: "/hud/android", description: "состояние Android HUD"},
   {method: "POST", path: "/hud/android/show", description: "развернуть Android HUD"},
   {method: "POST", path: "/hud/android/dock", description: "свернуть Android HUD"},
@@ -167,12 +116,12 @@ const routeIndex = [
   {method: "GET", path: "/sqlite/fingerprint?path=<file.sqlite>", description: "дешевый fingerprint SQLite database по main/WAL для diagnostics/server watcher; SHM только diagnostic"},
   {method: "POST", path: "/sqlite/open", description: "{path} — открыть SQLite database в HUD"},
   {method: "POST", path: "/sqlite/cell", description: "{path, table, rowid, column, value} — обновить SQLite cell по rowid"},
-  {method: "GET", path: "/events?since=<iso>&limit=<n>", description: "хвост event-лога"},
-  {method: "GET", path: "/console?since=<iso>&limit=<n>", description: "хвост console-лога"},
   {method: "POST", path: "/client-event", description: "диагностическое событие от UI-клиента; пишет компактный client.* event в event-log"},
   {method: "POST", path: "/reload", description: "отправить hard reload всем подключенным UI-клиентам интерпретатора"},
   {method: "POST", path: "/restart", description: "перезапустить host interpreter через supervisor/tmux и предварительно обновить все UI-клиенты"},
 ] as const satisfies readonly InterpreterRouteDescription[]
+
+export const interpreterTools = interpreterToolDescriptions
 
 export const interpreterRoutes = {
   index: routeIndex,
@@ -200,10 +149,7 @@ function isInterpreterProxyPathname(pathname: string): boolean {
 
 function isInterpreterProxyPath(path: string): boolean {
   const normalized = normalizeInterpreterPath(path)
-  if (INTERPRETER_PROXY_EXACT_PATHS.has(normalized)) return true
-  const match = /^\/processes\/[^/]+(?:\/([^/]+))?$/.exec(normalized)
-  if (match === null) return false
-  return INTERPRETER_PROXY_PROCESS_SUBPATHS.has(match[1] ?? "")
+  return INTERPRETER_PROXY_EXACT_PATHS.has(normalized)
 }
 
 function normalizeInterpreterPath(path: string): string {

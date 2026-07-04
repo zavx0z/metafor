@@ -100,8 +100,8 @@ MetaFor строится как система доменных проекций
 
 ## Практический Server-Dev Контур
 
-Текущий server-dev контур поднимает один interpreter host и три child
-processes:
+Текущий server-dev контур управляется одним interpreter host. Agent-facing
+команды идут через `POST /tools`, а не через отдельные process URL:
 
 - `app/web/server.ts` владеет Boundary, browser API, Bulk snapshot и приватным
   Matrix bridge `/matrix/ws` и Energy bridge `/energy/ws`;
@@ -123,24 +123,26 @@ actions.
 
 ```bash
 bun run interpreter:web:matrix:energy
-curl -sS http://127.0.0.1:6500/processes
+curl -sS -X POST http://127.0.0.1:6500/tools \
+  -H 'content-type: application/json' \
+  -d '{"tool_uses":[{"recipient_name":"process.list","parameters":{}}]}'
 curl -sS http://127.0.0.1:3004/health
 curl -sS http://127.0.0.1:3005/health
 curl -sS http://127.0.0.1:3006/health
 ```
 
 В уже работающем server-dev контуре не запускайте Matrix или Energy вручную
-отдельным tmux-процессом. Используйте существующий control API:
+отдельным tmux-процессом. Используйте `network.action` tool:
 
 ```bash
-curl -sS -X POST http://10.66.0.10:6500/space/network/action \
+curl -sS -X POST http://10.66.0.10:6500/tools \
   -H 'content-type: application/json' \
-  -d '{"action":"start:matrix"}'
+  -d '{"tool_uses":[{"recipient_name":"network.action","parameters":{"action":"start:matrix"}}]}'
 ```
 
-`start:matrix`, `stop:matrix` и `restart:matrix` вызывают interpreter
-`/processes`; `start:energy`, `stop:energy` и `restart:energy` работают так же.
-Оба runtime остаются управляемыми child processes того же interpreter host.
+`start:matrix`, `stop:matrix`, `restart:matrix`, `start:energy`,
+`stop:energy` и `restart:energy` внутри используют `process.*` tools. Runtime
+остаются управляемыми process display того же interpreter host.
 
 ## Временный режим интеграционной разработки
 

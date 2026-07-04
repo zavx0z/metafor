@@ -179,7 +179,7 @@ async function devtoolsConsoleResponse(req: Request): Promise<Response> {
       capturing: session.consoleEnabled,
       totalBuffered: session.consoleEvents.length,
       events,
-      note: "CDP captures console/log/network events after this session enables capture; use /devtools/reload or reproduce the action for stale console history.",
+      note: "CDP captures console/log/network events after this session enables capture; use devtools.reload or reproduce the action for stale console history.",
     })
   } catch (error) {
     return devtoolsJsonResponse({ok: false, error: serializeError(error)}, 400)
@@ -369,8 +369,8 @@ async function evaluateDevtoolsResponse(req: Request): Promise<Response> {
  * что после reload AppWeb может успеть сконфигурировать canvas backing store под
  * промежуточный viewport, а Chrome не всегда доставляет новый resize event после
  * CDP visible-size resync.
- * Логика намеренно event-scoped: вызывай ее из `/devtools/reload` или
- * `/devtools/viewport/sync`, а managed CDP session дополнительно повторяет
+ * Логика намеренно event-scoped: вызывай ее из `devtools.reload` или
+ * `devtools.viewport.sync`, а managed CDP session дополнительно повторяет
  * sync после `Page.frameNavigated` / `Page.loadEventFired`, чтобы ручной reload
  * в DevTools не сбрасывал target page из portrait `400x816` обратно в
  * landscape `816x400`. Фоновый polling для этого состояния не добавлять.

@@ -58,7 +58,9 @@ curl -sS -X POST http://127.0.0.1:6500/restart
 
 ```sh
 curl -sS http://127.0.0.1:6500/health
-curl -sS http://127.0.0.1:6500/context
+curl -sS -X POST http://127.0.0.1:6500/tools \
+  -H 'content-type: application/json' \
+  -d '{"tool_uses":[{"recipient_name":"context.get","parameters":{}}]}'
 ```
 
 Не добавляй постоянные repaint/polling loops в UI ради этого симптома: причина должна решаться lifecycle-ом host restart и ожиданием готовности server.
@@ -247,7 +249,9 @@ INTERPRETER_INITIALIZE_FALLBACK_MS=0 bun run interpreter
 Проверить установленные точки:
 
 ```sh
-curl -sS http://127.0.0.1:6500/processes/<process-id>/breakpoints
+curl -sS -X POST http://127.0.0.1:6500/tools \
+  -H 'content-type: application/json' \
+  -d '{"tool_uses":[{"recipient_name":"breakpoint.list","parameters":{"processId":"<process-id>"}}]}'
 ```
 
 В event log должно быть:

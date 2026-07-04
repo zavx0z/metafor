@@ -50,9 +50,7 @@ async function runProductProcess(): Promise<void> {
   process.on("SIGTERM", stopAndExit)
 
   await deleteProductProcess(true)
-  const payload = await requestJson("/processes", {
-    method: "POST",
-    body: {
+  const payload = await interpreterTool("process.start", {
       processId: PRODUCT_PROCESS_ID,
       label: "app/web product server",
       modulePath: "app/web/server.ts",
@@ -60,7 +58,6 @@ async function runProductProcess(): Promise<void> {
       command: ["bun", "app/web/server.ts"],
       pauseOnStart: false,
       env: productServerEnv(),
-    },
   })
   const created = processFromPayload(payload)
   console.log(`[product-interpreter] started ${created?.processId ?? PRODUCT_PROCESS_ID} via ${apiBase}`)
@@ -108,20 +105,15 @@ async function printProductStatus(): Promise<void> {
 }
 
 async function productProcess(): Promise<ProcessPayload | null> {
-  const payload = await requestJson("/processes")
+  const payload = await interpreterTool("process.list")
   const processes = processesFromPayload(payload)
   return processes.find((processPayload) => (processPayload.processId ?? processPayload.id) === PRODUCT_PROCESS_ID) ?? null
 }
 
 async function deleteProductProcess(ignoreMissing: boolean): Promise<boolean> {
-  const payload = await requestJson(`/processes/${encodeURIComponent(PRODUCT_PROCESS_ID)}`, {
-    method: "DELETE",
-    allow404: true,
-  })
-  if (payload === null) {
-    if (!ignoreMissing) return false
-    return false
-  }
+  const existing = await productProcess()
+  if (existing === null) return false
+  await interpreterTool("process.close", {processId: PRODUCT_PROCESS_ID})
   return true
 }
 
@@ -152,6 +144,23 @@ async function requestJson(path: string, opts: {method?: string; body?: unknown;
     throw new Error(`${opts.method ?? "GET"} ${path} failed: ${message}`)
   }
   return payload
+}
+
+async function interpreterTool(recipientName: string, parameters: Record<string, unknown> = {}): Promise<unknown> {
+  const payload = await requestJson("/tools", {
+    method: "POST",
+    body: {tool_uses: [{recipient_name: recipientName, parameters}]},
+  })
+  const tool = toolResultFromPayload(payload)
+  if (tool?.ok !== true) throw new Error(String(tool?.error ?? `${recipientName} failed`))
+  return tool.result ?? null
+}
+
+function toolResultFromPayload(payload: unknown): {ok?: boolean; result?: unknown; error?: unknown} | null {
+  if (!isRecord(payload)) return null
+  const toolUses = payload["tool_uses"]
+  const tool = Array.isArray(toolUses) ? toolUses[0] : null
+  return isRecord(tool) ? tool : null
 }
 
 function processesFromPayload(payload: unknown): ProcessPayload[] {
