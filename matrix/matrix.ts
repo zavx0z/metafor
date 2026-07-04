@@ -8,7 +8,7 @@
  * - `write()` — запись канонической matrix-структуры в доменный store
  * - `gravity$` — runtime-адресация materialized branes
  * - `update()` — обновление полей и вычисление следующего перехода
- * - `applyWeakResultPacket()` / `subscribeMatrixWeakResultBroadcast()` — приём единого W-result envelope и unlock после apply
+ * - `BroadcastChannel("force")` — физическая подписка на Force и dispatch в Matrix pipeline
  * - `unlock()` — снятие блокировки с бран
  *
  * ## Архитектура
@@ -31,12 +31,47 @@ import { gravity$ } from "@matrix/gravity/store.ts"
 import { matrix$ } from "./store"
 import type { MatrixFieldRecord, MatrixFieldValueRecord, MatrixStore } from "./store.t"
 import type { PreparedData } from "./matrix.t"
-import {force, type MatrixForceMessage, type MatrixParticle} from "./channel"
 import { FieldType, flattenMatrixData, validateData, type Data } from "@matrix/gravity"
 import { createStoredStringInterner, normalizeFieldValue, assembleStoredMatrixData, strong$ } from "@matrix/strong"
 import { StepMode, weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@matrix/weak"
 import {resolveForceFieldId, resolveForceFieldsPayload} from "../boundary/force-fields.ts"
 import type {ProcessTask} from "boundary"
+
+export type MatrixDomainPath = string | number
+
+export type MatrixParticle = {
+  part: string
+  op: string
+  path: MatrixDomainPath
+  value?: unknown
+  from?: MatrixDomainPath
+  [key: string]: unknown
+}
+
+export type MatrixForceMessage = {
+  parts: MatrixParticle[]
+}
+
+export const force = new BroadcastChannel("force")
+
+force.onmessage = async (event) => {
+  for (const part of (event.data as MatrixForceMessage).parts) {
+    switch (part.part) {
+      case "gluon":
+        await applyRuntimeFieldParts([part], "gluon")
+        break
+      case "higgs":
+        await applyRuntimeFieldParts([part], "higgs")
+        break
+      case "w+":
+      case "w-":
+        for (const packet of collectWeakResultPackets([part])) {
+          await applyWeakResultPacket(packet)
+        }
+        break
+    }
+  }
+}
 
 type MatrixValuePart = { op: "replace"; path: string; value: unknown }
 type MatrixWeakResultPayload = { wimpId: number; processId: number; parts: MatrixValuePart[] }
@@ -69,12 +104,6 @@ export type MatrixRuntimeSnapshot = {
   }
 }
 
-export interface MatrixBroadcastSubscription {
-  close(): Promise<void>
-}
-
-export type MatrixValueBroadcastSubscription = MatrixBroadcastSubscription
-export type MatrixWeakBroadcastSubscription = MatrixBroadcastSubscription
 export type MatrixProcessTask = ProcessTask
 
 export interface MatrixProcessTaskSubscription {
@@ -116,22 +145,6 @@ const runExclusive = async <T>(gate: AsyncGate, task: () => Promise<T>): Promise
     return await task()
   } finally {
     release?.()
-  }
-}
-
-const createSubscription = (
-  onMessage: (message: MatrixForceMessage) => Promise<void> | void,
-): MatrixBroadcastSubscription => {
-  const subscription = force.observe((event) => {
-    void (async () => {
-      await onMessage(event.data)
-    })()
-  })
-
-  return {
-    async close() {
-      subscription.close()
-    },
   }
 }
 
@@ -288,11 +301,30 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
   }
 
   if (parts.length === 0) return
-  force.emit({parts})
+  force.postMessage({parts})
 }
 
 const processTaskToken = (actorId: number, processId: number): string =>
   `${actorId}:${processId}:${Date.now()}:${++processTaskSequence}`
+
+const publishProcessTask = (task: MatrixProcessTask): void => {
+  force.postMessage({
+    parts: [{
+      part: "z",
+      op: "test",
+      path: task.actorId,
+      processId: task.processId,
+      token: task.token,
+      value: {
+        kind: "process-task",
+        state: task.state,
+        ...(task.env !== undefined ? {env: task.env} : {}),
+        ...(task.mass !== undefined ? {mass: task.mass} : {}),
+        ...(task.fields !== undefined ? {fields: task.fields} : {}),
+      },
+    }],
+  })
+}
 
 const collectProcessTaskFields = (actorId: number, braneIndex: number): Record<string, unknown> => {
   const fields: Record<string, unknown> = {}
@@ -324,6 +356,7 @@ const createProcessTask = (braneIndex: number, stateIndex: number, processId: nu
 }
 
 const emitProcessTask = (task: MatrixProcessTask): void => {
+  publishProcessTask(task)
   for (const listener of processTaskListeners) listener(task)
 }
 
@@ -666,30 +699,6 @@ const isWeakResultMarker = (part: MatrixParticle): boolean =>
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
-
-const subscribeMatrixValueBroadcast = (
-  kind: "gluon" | "higgs",
-): MatrixValueBroadcastSubscription => {
-  return createSubscription(async (message) => {
-    await applyRuntimeFieldParts(message.parts, kind)
-  })
-}
-
-export function subscribeMatrixGluonBroadcast(): MatrixValueBroadcastSubscription {
-  return subscribeMatrixValueBroadcast("gluon")
-}
-
-export function subscribeMatrixHiggsBroadcast(): MatrixValueBroadcastSubscription {
-  return subscribeMatrixValueBroadcast("higgs")
-}
-
-export function subscribeMatrixWeakResultBroadcast(): MatrixWeakBroadcastSubscription {
-  return createSubscription(async (message) => {
-    for (const packet of collectWeakResultPackets(message.parts)) {
-      await applyWeakResultPacket(packet)
-    }
-  })
-}
 
 export function subscribeMatrixProcessTasks(
   listener: (task: MatrixProcessTask) => void,

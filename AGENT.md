@@ -28,6 +28,26 @@ MetaFor - открытая среда для общего AGI.
 Каждое обновление должно быть фактическим, коротким и применимым к дальнейшей работе.
 Не превращай живую память в стенограмму, changelog или архив удаленного legacy. То, что уже завершено и больше не влияет на будущие решения, должно уходить из memory; pending work живет в `TODO.md`, текущие правила - в `AGENT.md`/`AGENTS.md`, контракты и runbook-и - в профильной документации или TypeDoc.
 
+## Дисциплина Компактного Кода
+
+Не плодить лишний код. Агент не должен превращать локальную понятную логику в
+новую архитектуру только ради аккуратности, симметрии или гипотетического
+будущего переиспользования.
+
+Если логика нужна только в одном месте, держи ее там, где она происходит: в
+`switch case`, event handler, route handler, runtime flow или конкретном
+pipeline-шаге. Человек должен видеть причинный путь глазами в открытом source:
+вход -> ветка -> действие.
+
+Не выделяй одноразовый код в helper-функции, wrapper API, constants,
+дополнительные типы, классы, модули, dispatch-слои, промежуточные флаги или
+самовызывающиеся async-обертки без реальной необходимости. Вынос допустим
+только когда есть фактическое повторное использование, ясная доменная граница
+или когда прямой код стал объективно труднее читать.
+
+Меньше кода - меньше скрытого состояния, меньше поверхностей для ошибок и
+меньше риска случайно создать новый центр ответственности.
+
 ## Текущая модель совместной работы
 
 Пользователь и агент находятся в одной живой среде разработки.
@@ -95,19 +115,20 @@ MetaFor - открытая среда для общего AGI.
 Основные контуры:
 
 - Локальный standalone interpreter: `bun run interpreter ...`, UI/API обычно на `127.0.0.1:6500`, модуль запускается как child через Bun inspector. Systemd и `dev.proizvodstvo1.ru` здесь не предполагаются.
-- Локальный WebApp dev: `bun run workspace.app.web:dev` запускает AppWeb напрямую через `@app/web dev`. AppWeb не управляет interpreter.
-- Серверный dev-домен: `https://dev.proizvodstvo1.ru/` может вести к host interpreter/WebApp, который на сервере поднят user systemd unit `metafor-interpreter-web-dev.service`. В этом контуре внешний домен проходит через proxy/SSO, а runtime диагностируется через локальные server endpoints.
+- Локальный Dark dev: `bun run workspace.dark:dev` запускает `dark/index.ts` на `3004` с `BOUNDARY_PATH=dark/tmp/boundary.sqlite`.
+- Серверный dev-домен: `https://dev.proizvodstvo1.ru/` может вести к host interpreter/Dark, который на сервере поднят user systemd unit `metafor-interpreter-web-dev.service`. В этом контуре внешний домен проходит через proxy/SSO, а runtime диагностируется через локальные server endpoints.
 
 Если пользователь явно находится на `https://dev.proizvodstvo1.ru/`, не считай shell-запрос к этому внешнему URL диагностикой runtime: он может пройти через SSO/nginx и не отражать состояние живого interpreter host. Сначала строй карту текущего запуска изнутри.
 
 Для серверного dev-контура типичная карта:
 
 - `127.0.0.1:6500` - host interpreter HTTP/API/UI.
-- `127.0.0.1:6499` - Bun inspector protocol socket.
-- `127.0.0.1:3004` - `app/web/server.ts` как child process внутри interpreter.
+- `127.0.0.1:6499` - Bun inspector protocol socket первого child target.
+- `127.0.0.1:3004` - `dark/index.ts` как child process внутри interpreter.
+- `dark/tmp/boundary.sqlite` - Boundary SQLite, открытая и Dark runtime, и SQLite HUD.
 - `metafor-interpreter-web-dev.service` - user systemd unit, который держит host interpreter.
 - `/home/zavx0z/metafor-interpreter-web-dev/run.sh` - wrapper запуска этого service.
-- `metafor-interpreter-host` и `metafor-app-web-net` - tmux-сессии, которые host может поднимать для HUD/terminal; long-running процесс в этом контуре управляется systemd.
+- `metafor-interpreter-host` и network tmux-сессия - вспомогательные HUD/terminal sessions; long-running процесс в этом контуре управляется systemd/tmux wrapper.
 
 Диагностика серверного dev-контура, когда нужно проверить topology или перезапуск: сначала вызывай `context.get` и `space.get` через `POST /tools`, затем `/health` и нужные tools. Для обычной правки открытого source не начинай с `/health` вместо active context.
 
@@ -118,12 +139,12 @@ curl -sS -X POST http://127.0.0.1:6500/tools \
 curl -sS http://127.0.0.1:6500/health
 curl -sS -X POST http://127.0.0.1:6500/tools \
   -H 'content-type: application/json' \
-  -d '{"tool_uses":[{"recipient_name":"breakpoint.list","parameters":{"processId":"app-web-server.ts"}}]}'
+  -d '{"tool_uses":[{"recipient_name":"breakpoint.list","parameters":{"processId":"dark-index.ts"}}]}'
 systemctl --user status metafor-interpreter-web-dev.service --no-pager
 ss -ltnp | rg ':(6500|6499|3004)\b'
 ```
 
-Для server/systemd WebApp service нормальная команда child process - `bun --inspect=ws://127.0.0.1:6499/ app/web/server.ts`. Не возвращай `--inspect-wait` в этот контур: он нужен только для отдельных troubleshooting/test-сценариев. Обычный restart процесса должен сохранять breakpoint-ы и стартовать через `--inspect`; остановка на первой строке допустима только при явном `pauseOnStart:true` / `--inspect-brk`.
+Для server/systemd Dark service нормальная команда child process - `bun --inspect=ws://127.0.0.1:6499/ dark/index.ts` с `BOUNDARY_PATH=dark/tmp/boundary.sqlite`. Не возвращай `--inspect-wait` в этот контур: он нужен только для отдельных troubleshooting/test-сценариев. Обычный restart процесса должен сохранять breakpoint-ы и стартовать через `--inspect`; остановка на первой строке допустима только при явном `pauseOnStart:true` / `--inspect-brk`.
 
 Правки в файлах текущего child runtime делай через interpreter API; replay child обычно достаточен. Правки host interpreter-кода (`pkg/interpreter/src/server.ts`, `pkg/interpreter/web/main.ts`) после применения через API могут требовать restart самого host process, потому что host должен перечитать код и пересобрать/раздать UI. В server/systemd контуре это `systemctl --user restart metafor-interpreter-web-dev.service`; в локальном foreground/tmux-контуре перезапускай соответствующий локальный host process, а не создавай systemd unit.
 
@@ -236,8 +257,8 @@ Topology-поля отличаются от обычных data-fields:
 
 - `bun install`
 - `bun run interpreter`
-- `bun run workspace.app.web:dev`
-- `bun run workspace.app.web:prod`
+- `bun run workspace.dark:dev`
+- `bun run workspace.dark:prod`
 - `bun run build`
 - `bun run typegen`
 - `bun run space:build`

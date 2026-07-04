@@ -2971,9 +2971,6 @@ function installEnginePanes(): void {
   uiCanvas.addHudSurface(host.codexEditor, hostCodexEditorRect, {zIndex: HUD_LAYER_TOP - 19})
   if (host.socket === null) connectHostTerminal(host)
   installHostCodexComposerDragHandlers()
-  const networkTerminal = ensureNetworkHostTerminalController()
-  ensureNetworkDisplay()
-  if (networkTerminal.socket === null) connectHostTerminal(networkTerminal)
   if (androidPane !== null) {
     uiCanvas.addHudSurface(androidPane, androidHudRect)
     connectAndroidRtc()
@@ -7761,7 +7758,6 @@ function syncModuleDisplays(): void {
     }
   }
   ensureRemoteDesktopDisplay()
-  ensureNetworkDisplay()
 
   const displayIds = [
     ...(remoteDesktopDisplayInstalled ? [REMOTE_DESKTOP_DISPLAY_ID] : []),

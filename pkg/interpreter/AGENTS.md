@@ -11,6 +11,25 @@ HUD/TODO, breakpoints или совместного runtime/source контек�
 репозитория. Этот файл является source of truth для interpreter/server-dev
 workflow.
 
+## Стиль Изменений
+
+Не плодить лишний код. В interpreter/server-dev контуре особенно важно, чтобы
+человек видел причинный путь прямо в открытом source.
+
+- Одноразовую локальную логику оставляй рядом с местом использования: в handler,
+  `switch case`, process action, route или runtime flow.
+- Не выделяй helper-функции, wrapper API, constants, дополнительные типы,
+  промежуточные флаги или отдельные модули только ради аккуратности или
+  гипотетического будущего переиспользования.
+- Вынос допустим, когда есть реальное повторное использование, явная граница
+  ответственности или без выноса код становится объективно хуже читаемым.
+- Для обработчиков сообщений и live-runtime glue предпочитай прямой скриптовый
+  поток: получить вход -> `switch`/`if` -> выполнить действие в соответствующей
+  ветке.
+
+Цель - меньше скрытой архитектуры и больше кода, который можно понять глазами в
+текущем дисплее.
+
 ## Что Такое Интерпретатор
 
 `@metafor/interpreter` - live-интерпретатор MetaFor. Это не wrapper вокруг WebStorm, Chrome DevTools или отдельного debugger UI.
@@ -57,12 +76,11 @@ server-dev контуре:
 - workspace: `/home/zavx0z/production/vendor/metafor`;
 - branch: `main`;
 - interpreter host: `http://10.66.0.10:6500`;
-- app-web dev server: `http://10.66.0.10:3004`;
-- matrix dev server: `http://10.66.0.10:3005`;
+- dark dev server: `http://10.66.0.10:3004`;
+- boundary SQLite: `dark/tmp/boundary.sqlite`;
 - energy dev server: `http://10.66.0.10:3006`;
-- Bun inspector child `app/web/server.ts`: `ws://127.0.0.1:6499/`;
-- Bun inspector child `matrix/server.ts`: следующий auto-allocated inspector
-  port после app-web, обычно `ws://127.0.0.1:6501/`;
+- Bun inspector child `dark/index.ts`: первый auto-allocated inspector socket,
+  обычно `ws://127.0.0.1:6499/`;
 - visible WebApp target в серверном Chrome:
   `https://meta.proizvodstvo1.ru/`;
 - server Chrome remote desktop host: `http://127.0.0.1:32133`;
@@ -70,21 +88,22 @@ server-dev контуре:
 
 Локальный workflow через `127.0.0.1:6500` поддерживается для запуска на другой
 машине, но в текущем server-dev контуре используй `10.66.0.10:6500` для host
-API и `10.66.0.10:3004` для app-web dev health/API. LAN/TLS режим на `443` -
+API и `10.66.0.10:3004` для Dark dev health/API. LAN/TLS режим на `443` -
 отдельный локально-сетевой режим, не диагностика этого контура.
 
-Текущий AppWeb bridge mode в server-dev управляется через interpreter tools:
+Текущий Dark server-dev mode управляется через interpreter tools:
 
-- `app/web/server.ts`: владеет Boundary/AppWeb/browser bridge и отдаёт
-  приватные `/matrix/ws` и `/energy/ws`;
-- `matrix/server.ts`: держит Matrix runtime, подключается к `/matrix/ws`,
-  получает `BoundaryMatrixRuntimeSnapshot` и Force через WebSocket.
-- `energy/server.ts`: держит оболочку будущего distributed process executor,
-  подключается к `/energy/ws` и пока не исполняет реальные DSL actions.
+- `dark/index.ts`: основной server target на `3004`; импортирует
+  `dark/server.ts`, открывает Boundary через `BOUNDARY_PATH` и запускает
+  текущий server shell;
+- SQLite HUD открывает ту же базу `dark/tmp/boundary.sqlite` отдельным CLI
+  аргументом interpreter;
+- Matrix runtime pipeline живёт в `matrix/matrix.ts` и работает через общий
+  локальный `BroadcastChannel("force")`, без отдельного Matrix server;
+- AppWeb больше не является стартовым server-dev target.
 
-Если Matrix/Energy временно нужно поднять как отдельные debug-processes, делай
-это явным `process.start` через `POST /tools`. AppWeb запускается своим прямым
-workspace script и не управляется interpreter tools.
+Если Energy временно нужно поднять как отдельный debug-process, делай это явным
+`process.start` через `POST /tools`. Не возвращай AppWeb как default target.
 
 Удаленный браузер для визуальной WebApp-разработки должен открывать
 `https://meta.proizvodstvo1.ru/`. Это не маркетинговая внешняя страница, а

@@ -1,8 +1,8 @@
-const force = new BroadcastChannel("force")
+import "./server.ts"
+import {loadMatrixRuntimeSnapshot} from "../matrix/index.ts"
 
-force.onmessage = (event) => {
-  console.log("force", event.data)
-}
+const matrixRuntimeSnapshot = await globalThis.boundary.matrixRuntime()
+await loadMatrixRuntimeSnapshot(matrixRuntimeSnapshot)
 
 const server = Bun.serve({
   routes: {

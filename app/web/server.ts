@@ -1,6 +1,5 @@
 import {file, serve, type Server, type ServerWebSocket} from "bun"
 import {Buffer} from "node:buffer"
-import {networkInterfaces} from "node:os"
 import {join} from "node:path"
 import "dark/server"
 import type {
@@ -546,10 +545,6 @@ function printServerUrls(): void {
 	const port = server.port
 	const urls = new Set<string>()
 	urls.add(server.url.href)
-	if (HOST === "0.0.0.0" || HOST === "::") {
-		urls.add(`${protocol}://localhost:${port}/`)
-		for (const address of localNetworkAddresses()) urls.add(`${protocol}://${address}:${port}/`)
-	}
 	appLogBanner()
 	appLog("OK", `${TLS_ENABLED ? "HTTPS" : "HTTP"} online`, `pid=${process.pid} host=${HOST} port=${port}`, "green")
 	appLog("CFG", "boundary", `path=${Bun.env.BOUNDARY_PATH ?? "(default)"}`, "magenta")
@@ -583,16 +578,4 @@ function startHttpRedirectServer(): Server<never> {
 		throw new Error(`Failed to start HTTP redirect on ${REDIRECT_HOST}:${REDIRECT_PORT}: ${errorMessage(error)}`)
 	}
 }
-
-function localNetworkAddresses(): string[] {
-	const addresses: string[] = []
-	for (const interfaces of Object.values(networkInterfaces())) {
-		for (const item of interfaces ?? []) {
-			if (item.family !== "IPv4" || item.internal) continue
-			addresses.push(item.address)
-		}
-	}
-	return addresses
-}
-
 printServerUrls()

@@ -1,16 +1,16 @@
-import {afterEach, describe, expect, test} from "bun:test"
+import {afterAll, describe, expect, test} from "bun:test"
 import type { MatrixFieldValueRecord, MatrixStore } from "./store.t"
 import { FIELD_TYPE, OP, CPUWeakRuntime } from "./weak"
 import { STATE_NONE, STATE_UNDEFINED } from "./state"
-import {closeForceChannel, force, type MatrixParticle} from "./channel"
 import {
+  force,
   matrix$,
   gravity$,
   listMatrixRuntimeActorIds,
   loadMatrixRuntimeSnapshot,
-  subscribeMatrixGluonBroadcast,
-  subscribeMatrixHiggsBroadcast,
   subscribeMatrixProcessTasks,
+  type MatrixForceMessage,
+  type MatrixParticle,
   type MatrixRuntimeSnapshot,
 } from "./matrix"
 import * as matrixPublicApi from "./index"
@@ -159,8 +159,25 @@ const settleBroadcasts = async (): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, 0))
 }
 
-afterEach(() => {
-  closeForceChannel()
+const forceInput = new BroadcastChannel("force")
+
+const emitForce = (message: MatrixForceMessage): void => {
+  forceInput.postMessage(message)
+}
+
+const listenForce = (listener: (message: MatrixForceMessage) => void): {close(): void} => {
+  const channel = new BroadcastChannel("force")
+  channel.onmessage = (event) => listener(event.data as MatrixForceMessage)
+  return {
+    close() {
+      channel.close()
+    },
+  }
+}
+
+afterAll(() => {
+  forceInput.close()
+  force.close()
 })
 
 describe("matrix Force v0 runtime addressing", () => {
@@ -175,13 +192,12 @@ describe("matrix Force v0 runtime addressing", () => {
   test("gluon принимает actor ID и value.fields[fieldId], затем публикует photon с actor ID", async () => {
     await loadMatrixRuntimeSnapshot(createRuntimeSnapshot())
     const photons: MatrixParticle[] = []
-    const photonSubscription = force.entropy((event) => {
-      photons.push(...event.data.parts.filter((part) => part.part === "photon"))
+    const photonSubscription = listenForce((message) => {
+      photons.push(...message.parts.filter((part) => part.part === "photon"))
     })
-    const subscription = subscribeMatrixGluonBroadcast()
 
     try {
-      force.emit({
+      emitForce({
         parts: [{
           part: "gluon",
           op: "replace",
@@ -196,7 +212,6 @@ describe("matrix Force v0 runtime addressing", () => {
       expect(matrix$.states[0]).toBe(1)
       expect(photons).toContainEqual({part: "photon", op: "replace", path: 17, value: "ready"})
     } finally {
-      subscription.close()
       photonSubscription.close()
     }
   })
@@ -206,13 +221,16 @@ describe("matrix Force v0 runtime addressing", () => {
     snapshot.weak.stateProcessIdsByBraneIndex = [[null, 42]]
     await loadMatrixRuntimeSnapshot(snapshot)
     const tasks: unknown[] = []
+    const processTaskParts: MatrixParticle[] = []
     const taskSubscription = subscribeMatrixProcessTasks((task) => {
       tasks.push(task)
     })
-    const gluonSubscription = subscribeMatrixGluonBroadcast()
+    const processTaskForceSubscription = listenForce((message) => {
+      processTaskParts.push(...message.parts.filter((part) => part.part === "z"))
+    })
 
     try {
-      force.emit({
+      emitForce({
         parts: [{
           part: "gluon",
           op: "replace",
@@ -232,11 +250,24 @@ describe("matrix Force v0 runtime addressing", () => {
         fields: {"2": 11, "5": 0, "7": 3, "9": [1]},
       })
       expect((tasks[0] as {token?: unknown}).token).toEqual(expect.stringMatching(/^17:42:/))
+      expect(processTaskParts[0]).toMatchObject({
+        part: "z",
+        op: "test",
+        path: 17,
+        processId: 42,
+        token: (tasks[0] as {token?: unknown}).token,
+        value: {
+          kind: "process-task",
+          state: "ready",
+          mass: {actorId: 17},
+          fields: {"2": 11, "5": 0, "7": 3, "9": [1]},
+        },
+      })
       expect(JSON.stringify(tasks)).not.toContain(["/fi", "eld/"].join(""))
       expect(JSON.stringify(tasks)).not.toContain(["wimp", "Id"].join(""))
       expect(JSON.stringify(tasks)).not.toContain("method")
     } finally {
-      gluonSubscription.close()
+      processTaskForceSubscription.close()
       taskSubscription.close()
     }
   })
@@ -250,12 +281,14 @@ describe("matrix Force v0 runtime addressing", () => {
     const taskSubscription = subscribeMatrixProcessTasks((task) => {
       tasks.push(task)
     })
-    const photonSubscription = force.entropy((event) => {
-      photons.push(...event.data.parts.filter((part) => part.part === "photon"))
+    const photonSubscription = listenForce((message) => {
+      photons.push(...message.parts.filter((part) => part.part === "photon"))
     })
 
     try {
+      await settleBroadcasts()
       await loadMatrixRuntimeSnapshot(snapshot)
+      await waitFor(() => photons.length > 0)
 
       expect(matrix$.states[0]).toBe(0)
       expect(matrix$.branes[0]?.lock).toBe(true)
@@ -283,13 +316,12 @@ describe("matrix Force v0 runtime addressing", () => {
     expect(matrix$.branes[0]?.lock).toBe(false)
 
     const photons: MatrixParticle[] = []
-    const photonSubscription = force.entropy((event) => {
-      photons.push(...event.data.parts.filter((part) => part.part === "photon"))
+    const photonSubscription = listenForce((message) => {
+      photons.push(...message.parts.filter((part) => part.part === "photon"))
     })
-    const subscription = subscribeMatrixGluonBroadcast()
 
     try {
-      force.emit({
+      emitForce({
         parts: [{
           part: "gluon",
           op: "replace",
@@ -305,7 +337,6 @@ describe("matrix Force v0 runtime addressing", () => {
       expect(matrix$.states[0]).toBe(1)
       expect(photons).toContainEqual({part: "photon", op: "replace", path: 17, value: "ready"})
     } finally {
-      subscription.close()
       photonSubscription.close()
     }
   })
@@ -322,13 +353,12 @@ describe("matrix Force v0 runtime addressing", () => {
     snapshot.weak.stateProcessIdsByBraneIndex = [[]]
     await loadMatrixRuntimeSnapshot(snapshot)
     const photons: MatrixParticle[] = []
-    const photonSubscription = force.entropy((event) => {
-      photons.push(...event.data.parts.filter((part) => part.part === "photon"))
+    const photonSubscription = listenForce((message) => {
+      photons.push(...message.parts.filter((part) => part.part === "photon"))
     })
-    const subscription = subscribeMatrixGluonBroadcast()
 
     try {
-      force.emit({
+      emitForce({
         parts: [{
           part: "gluon",
           op: "replace",
@@ -343,191 +373,153 @@ describe("matrix Force v0 runtime addressing", () => {
       expect(matrix$.getFieldValue(0, 0)).toBe(14)
       expect(photons).toEqual([])
     } finally {
-      subscription.close()
       photonSubscription.close()
     }
   })
 
   test("gluon не применяет /field path, key-addressing и numeric order-addressing", async () => {
     await loadMatrixRuntimeSnapshot(createRuntimeSnapshot())
-    const subscription = subscribeMatrixGluonBroadcast()
 
-    try {
-      force.emit({
-        parts: [
-          {part: "gluon", op: "replace", path: "/field/2", value: {fields: {"2": 11}}},
-          {part: "gluon", op: "replace", path: 17, value: {fields: {method: 11}}},
-          {part: "gluon", op: "replace", path: 17, value: {fields: {"1": 11}}},
-        ],
-      })
+    emitForce({
+      parts: [
+        {part: "gluon", op: "replace", path: "/field/2", value: {fields: {"2": 11}}},
+        {part: "gluon", op: "replace", path: 17, value: {fields: {method: 11}}},
+        {part: "gluon", op: "replace", path: 17, value: {fields: {"1": 11}}},
+      ],
+    })
 
-      await settleBroadcasts()
+    await settleBroadcasts()
 
-      expect(matrix$.getFieldValue(0, 0)).toBe(0)
-      expect(matrix$.states[0] ?? 0).toBe(0)
-    } finally {
-      subscription.close()
-    }
+    expect(matrix$.getFieldValue(0, 0)).toBe(0)
+    expect(matrix$.states[0] ?? 0).toBe(0)
   })
 
   test("higgs actor-scope не обновляет ordinary field как gluon", async () => {
     await loadMatrixRuntimeSnapshot(createRuntimeSnapshot())
-    const subscription = subscribeMatrixHiggsBroadcast()
 
-    try {
-      force.emit({
-        parts: [{
-          part: "higgs",
-          op: "replace",
-          path: 17,
-          value: {fields: {"2": 11}},
-        }],
-      })
+    emitForce({
+      parts: [{
+        part: "higgs",
+        op: "replace",
+        path: 17,
+        value: {fields: {"2": 11}},
+      }],
+    })
 
-      await settleBroadcasts()
+    await settleBroadcasts()
 
-      expect(matrix$.getFieldValue(0, 0)).toBe(0)
-      expect(matrix$.states[0] ?? 0).toBe(0)
-    } finally {
-      subscription.close()
-    }
+    expect(matrix$.getFieldValue(0, 0)).toBe(0)
+    expect(matrix$.states[0] ?? 0).toBe(0)
   })
 
   test("higgs actor-scope применяет topology-compatible enum field по fieldId", async () => {
     await loadMatrixRuntimeSnapshot(createRuntimeSnapshot())
-    const subscription = subscribeMatrixHiggsBroadcast()
 
-    try {
-      force.emit({
-        parts: [{
-          part: "higgs",
-          op: "replace",
-          path: 17,
-          value: {fields: {"5": "css"}},
-        }],
-      })
+    emitForce({
+      parts: [{
+        part: "higgs",
+        op: "replace",
+        path: 17,
+        value: {fields: {"5": "css"}},
+      }],
+    })
 
-      await waitFor(() => matrix$.getFieldValue(0, 1) === 1)
+    await waitFor(() => matrix$.getFieldValue(0, 1) === 1)
 
-      expect(matrix$.getFieldValue(0, 1)).toBe(1)
-    } finally {
-      subscription.close()
-    }
+    expect(matrix$.getFieldValue(0, 1)).toBe(1)
   })
 
   test("higgs remove сбрасывает enum field в default enum value", async () => {
     await loadMatrixRuntimeSnapshot(createRuntimeSnapshot())
-    const subscription = subscribeMatrixHiggsBroadcast()
 
-    try {
-      force.emit({
-        parts: [{
-          part: "higgs",
-          op: "replace",
-          path: 17,
-          value: {fields: {"5": "css"}},
-        }],
-      })
-      await waitFor(() => matrix$.getFieldValue(0, 1) === 1)
+    emitForce({
+      parts: [{
+        part: "higgs",
+        op: "replace",
+        path: 17,
+        value: {fields: {"5": "css"}},
+      }],
+    })
+    await waitFor(() => matrix$.getFieldValue(0, 1) === 1)
 
-      force.emit({
-        parts: [{
-          part: "higgs",
-          op: "remove",
-          path: 17,
-          value: {fields: {"5": true}},
-        }],
-      })
-      await waitFor(() => matrix$.getFieldValue(0, 1) === 0)
+    emitForce({
+      parts: [{
+        part: "higgs",
+        op: "remove",
+        path: 17,
+        value: {fields: {"5": true}},
+      }],
+    })
+    await waitFor(() => matrix$.getFieldValue(0, 1) === 0)
 
-      expect(matrix$.getFieldValue(0, 1)).toBe(0)
-    } finally {
-      subscription.close()
-    }
+    expect(matrix$.getFieldValue(0, 1)).toBe(0)
   })
 
   test("higgs remove сбрасывает array field в пустой массив и не падает", async () => {
     await loadMatrixRuntimeSnapshot(createRuntimeSnapshot())
-    const subscription = subscribeMatrixHiggsBroadcast()
 
-    try {
-      expect(matrix$.getFieldValue(0, 3)).toEqual([1])
+    expect(matrix$.getFieldValue(0, 3)).toEqual([1])
 
-      force.emit({
-        parts: [{
-          part: "higgs",
-          op: "remove",
-          path: 17,
-          value: {fields: {"9": true}},
-        }],
-      })
-      await waitFor(() => {
-        const value = matrix$.getFieldValue(0, 3)
-        return Array.isArray(value) && value.length === 0
-      })
+    emitForce({
+      parts: [{
+        part: "higgs",
+        op: "remove",
+        path: 17,
+        value: {fields: {"9": true}},
+      }],
+    })
+    await waitFor(() => {
+      const value = matrix$.getFieldValue(0, 3)
+      return Array.isArray(value) && value.length === 0
+    })
 
-      expect(matrix$.getFieldValue(0, 3)).toEqual([])
-    } finally {
-      subscription.close()
-    }
+    expect(matrix$.getFieldValue(0, 3)).toEqual([])
   })
 
   test("голый U32 без enum не считается topology-compatible", async () => {
     await loadMatrixRuntimeSnapshot(createRuntimeSnapshot())
-    const higgsSubscription = subscribeMatrixHiggsBroadcast()
-    const gluonSubscription = subscribeMatrixGluonBroadcast()
 
-    try {
-      force.emit({
-        parts: [{
-          part: "higgs",
-          op: "replace",
-          path: 17,
-          value: {fields: {"7": 8}},
-        }],
-      })
-      await settleBroadcasts()
-      expect(matrix$.getFieldValue(0, 2)).toBe(3)
+    emitForce({
+      parts: [{
+        part: "higgs",
+        op: "replace",
+        path: 17,
+        value: {fields: {"7": 8}},
+      }],
+    })
+    await settleBroadcasts()
+    expect(matrix$.getFieldValue(0, 2)).toBe(3)
 
-      force.emit({
-        parts: [{
-          part: "gluon",
-          op: "replace",
-          path: 17,
-          value: {fields: {"7": 8}},
-        }],
-      })
-      await waitFor(() => matrix$.getFieldValue(0, 2) === 8)
+    emitForce({
+      parts: [{
+        part: "gluon",
+        op: "replace",
+        path: 17,
+        value: {fields: {"7": 8}},
+      }],
+    })
+    await waitFor(() => matrix$.getFieldValue(0, 2) === 8)
 
-      expect(matrix$.getFieldValue(0, 2)).toBe(8)
-    } finally {
-      higgsSubscription.close()
-      gluonSubscription.close()
-    }
+    expect(matrix$.getFieldValue(0, 2)).toBe(8)
   })
 
   test("higgs class-scope по WIMP SRC выставляет structural invalidation без Boundary reload", async () => {
     await loadMatrixRuntimeSnapshot(createRuntimeSnapshot())
-    const subscription = subscribeMatrixHiggsBroadcast()
 
-    try {
-      expect(gravity$.structuralDirty).toBe(false)
+    expect(gravity$.structuralDirty).toBe(false)
 
-      force.emit({
-        parts: [{
-          part: "higgs",
-          op: "replace",
-          path: "zavx0z/linux",
-          value: {fields: {"5": {key: "method", type: "enum"}}},
-        }],
-      })
+    emitForce({
+      parts: [{
+        part: "higgs",
+        op: "replace",
+        path: "zavx0z/linux",
+        value: {fields: {"5": {key: "method", type: "enum"}}},
+      }],
+    })
 
-      await waitFor(() => gravity$.structuralDirty)
+    await waitFor(() => gravity$.structuralDirty)
 
-      expect(gravity$.getActorIdsByWimpSrc("zavx0z/linux")).toEqual([17])
-      expect(gravity$.structuralDirty).toBe(true)
-    } finally {
-      subscription.close()
-    }
+    expect(gravity$.getActorIdsByWimpSrc("zavx0z/linux")).toEqual([17])
+    expect(gravity$.structuralDirty).toBe(true)
   })
 })

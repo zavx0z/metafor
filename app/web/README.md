@@ -6,25 +6,23 @@ interpreter processes.
 
 ## Запуск
 
-Локальный dev:
+AppWeb больше не является default server-dev target. Основной server-dev запуск
+идёт через Dark:
 
 ```bash
-bun run workspace.app.web:dev
-# или
+bun run workspace.dark:dev
+```
+
+Старые root scripts `workspace.app.web:*` оставлены совместимыми aliases на Dark,
+чтобы случайный старый запуск не возвращал AppWeb в роль серверного центра.
+Package-local scripts `bun --filter @app/web ...` являются только явным
+локальным запуском AppWeb-оболочки.
+
+Явный локальный AppWeb dev:
+
+```bash
 bun --filter @app/web dev
 ```
-
-HTTPS/LAN запуск:
-
-```bash
-bun --filter @app/web tls:selfsigned
-bun run workspace.app.web:prod
-# или
-bun --filter @app/web tls
-```
-
-`workspace.app.web:*` теперь запускает AppWeb напрямую. Interpreter-запуск AppWeb
-не является частью контракта этого пакета.
 
 ## Runtime
 

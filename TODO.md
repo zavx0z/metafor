@@ -5,7 +5,7 @@
 
 ## 1. Process Protocol / Energy
 
-- [ ] Подключить генерацию `process-task` из Matrix/AppWeb в `energy/server.ts`.
+- [ ] Подключить `Energy` к `process-task`, который Matrix публикует в общий Force-канал.
 - [ ] Научить `Energy` исполнять process action по `env`/`mass` без чтения `Boundary`.
 - [ ] Провести аудит `z` / `w+` / `w-` / `applyWeakResultPacket` / `collectWeakResultPackets`.
 - [ ] Убрать `/field/...` из протокола результатов процесса.
@@ -14,9 +14,8 @@
 
 ## 2. Matrix / AppWeb Orchestration
 
-- [ ] Проверить live server-dev запуск `app/web/server.ts` + `matrix/server.ts` в одном interpreter host.
-- [ ] Проверить live server-dev запуск `app/web/server.ts` + `matrix/server.ts` + `energy/server.ts` в одном interpreter host.
-- [ ] Закрепить `start:matrix` / `restart:matrix` / `stop:matrix` и `start:energy` / `restart:energy` / `stop:energy` в текущем server-dev runbook после live-проверки.
+- [ ] Проверить live server-dev запуск `dark/index.ts` как основной target с Matrix pipeline внутри процесса.
+- [ ] Закрепить `start:dark` / `restart:dark` / `stop:dark` и `start:energy` / `restart:energy` / `stop:energy` в текущем server-dev runbook после live-проверки.
 - [ ] Связать Matrix photons и Bulk visual update в основном AppWeb runtime без чтения Boundary из Matrix/Bulk.
 - [ ] Собрать сквозную проверку `Dark -> Boundary -> Matrix -> Bulk -> AppWeb`.
 

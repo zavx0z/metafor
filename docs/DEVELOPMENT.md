@@ -103,25 +103,29 @@ MetaFor строится как система доменных проекций
 Текущий server-dev контур управляется одним interpreter host. Agent-facing
 команды идут через `POST /tools`, а не через отдельные process URL:
 
-- `app/web/server.ts` владеет Boundary, browser API, Bulk snapshot и приватным
-  Matrix bridge `/matrix/ws` и Energy bridge `/energy/ws`;
-- `matrix/server.ts` владеет Matrix runtime, слушает health/debug endpoint на
-  `3005` и подключается к AppWeb bridge как WebSocket client.
+- `dark/index.ts` является основным server target на `3004`;
+- `dark/server.ts` открывает Boundary из `BOUNDARY_PATH=dark/tmp/boundary.sqlite`;
+- SQLite HUD открывает ту же базу `dark/tmp/boundary.sqlite` как отдельный CLI
+  startup target interpreter;
+- Matrix runtime pipeline живёт в `matrix/matrix.ts`: сам модуль открывает
+  общий локальный `BroadcastChannel("force")` и обрабатывает входящие Force
+  сообщения;
 - `energy/server.ts` владеет оболочкой будущего distributed process executor,
-  слушает health/debug endpoint на `3006` и подключается к AppWeb bridge как
-  WebSocket client.
+  но не является default server-dev target.
 
-AppWeb отправляет Matrix начальный `BoundaryMatrixRuntimeSnapshot` и Force
-сообщения. Matrix применяет входящие сообщения через локальный Force channel и
-отправляет порождённые сообщения, например `photon`, обратно в AppWeb. Matrix
-не импортирует `Boundary`/SQLite и не открывает базу напрямую.
+Dark получает начальный `BoundaryMatrixRuntimeSnapshot` из `Boundary` и загружает
+его в Matrix runtime. Matrix применяет входящие Force-сообщения через локальный
+Force channel и публикует порождённые сообщения, например `photon` и
+`process-task`, обратно в общий Force channel. Matrix не импортирует
+`Boundary`/SQLite и не открывает базу напрямую.
 Energy пока принимает Force/process-task protocol surface через `/energy/ws`,
 может сформировать целевые `w+`/`w-` Force helpers, но не исполняет реальные DSL
 actions.
 
-AppWeb запускается прямыми scripts `workspace.app.web:*`. Если Matrix/Energy
-временно нужно поднять в interpreter как отдельные debug-processes, используйте
-явный `process.start` через `POST /tools`.
+Root scripts `workspace.dark:*` запускают Dark. Старые `workspace.app.web:*`
+оставлены только как совместимые aliases на Dark, чтобы случайный старый запуск
+не поднимал AppWeb центром. Если Energy временно нужно поднять в interpreter как
+отдельный debug-process, используйте явный `process.start` через `POST /tools`.
 
 ## Временный режим интеграционной разработки
 
