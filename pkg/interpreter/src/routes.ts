@@ -6,40 +6,9 @@ export type InterpreterRouteDescription = {
 
 import {interpreterToolDescriptions} from "./tools.ts"
 
-const INTERPRETER_PROXY_PREFIX = "/hud/interpreter"
-const INTERPRETER_PROXY_ALIASES = [INTERPRETER_PROXY_PREFIX, "/interp"] as const
-const INTERPRETER_PROXY_EXACT_PATHS = new Set([
-  "/",
-  "/ws",
-  "/health",
-  "/client-event",
-  "/tools",
-  "/webrtc/signaling",
-  "/webrtc/rooms",
-  "/remote-desktop/health",
-  "/remote-desktop/state",
-  "/remote-desktop/status",
-  "/remote-desktop/lifecycle",
-  "/remote-desktop/rtc/state",
-  "/remote-desktop/rtc/restart",
-  "/remote-desktop/audio.pcm",
-  "/remote-desktop/snapshot",
-  "/remote-desktop/input",
-  "/remote-desktop/browser/windows",
-  "/remote-desktop/browser/open",
-  "/hud/sqlite",
-  "/hud/sqlite/dock",
-  "/hud/sqlite/show",
-  "/hud/sqlite/toggle",
-  "/sqlite",
-  "/sqlite/fingerprint",
-  "/sqlite/open",
-  "/sqlite/cell",
-])
-
 const routeIndex = [
   {method: "GET", path: "/health", description: "статус коннекта и параметры"},
-  {method: "WS", path: "/ws", description: "основной websocket UI интерпретатора; в app/web доступен как /hud/interpreter/ws или /interp/ws"},
+  {method: "WS", path: "/ws", description: "основной websocket UI интерпретатора"},
   {method: "POST", path: "/tools", description: "единственный agent-facing command API: Codex-style {tool_uses:[{recipient_name,parameters}]}; см. tools ниже"},
   {method: "GET", path: "/tools", description: "typed registry доступных interpreter tools"},
   {method: "WS", path: "/webrtc/signaling", description: "общий локальный WebRTC signaling для shared displays: remote desktop, Android и будущие video/datachannel peers"},
@@ -117,43 +86,10 @@ const routeIndex = [
   {method: "POST", path: "/sqlite/open", description: "{path} — открыть SQLite database в HUD"},
   {method: "POST", path: "/sqlite/cell", description: "{path, table, rowid, column, value} — обновить SQLite cell по rowid"},
   {method: "POST", path: "/client-event", description: "диагностическое событие от UI-клиента; пишет компактный client.* event в event-log"},
-  {method: "POST", path: "/reload", description: "отправить hard reload всем подключенным UI-клиентам интерпретатора"},
-  {method: "POST", path: "/restart", description: "перезапустить host interpreter через supervisor/tmux и предварительно обновить все UI-клиенты"},
 ] as const satisfies readonly InterpreterRouteDescription[]
 
 export const interpreterTools = interpreterToolDescriptions
 
 export const interpreterRoutes = {
   index: routeIndex,
-  proxy: {
-    prefix: INTERPRETER_PROXY_PREFIX,
-    toUpstreamPath: interpreterProxyUpstreamPath,
-    acceptsPath: isInterpreterProxyPath,
-    acceptsPathname: isInterpreterProxyPathname,
-  },
 } as const
-
-function interpreterProxyUpstreamPath(pathname: string): string | null {
-  for (const prefix of INTERPRETER_PROXY_ALIASES) {
-    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) {
-      return normalizeInterpreterPath(pathname.slice(prefix.length) || "/")
-    }
-  }
-  return null
-}
-
-function isInterpreterProxyPathname(pathname: string): boolean {
-  const upstreamPath = interpreterProxyUpstreamPath(pathname)
-  return upstreamPath !== null && isInterpreterProxyPath(upstreamPath)
-}
-
-function isInterpreterProxyPath(path: string): boolean {
-  const normalized = normalizeInterpreterPath(path)
-  return INTERPRETER_PROXY_EXACT_PATHS.has(normalized)
-}
-
-function normalizeInterpreterPath(path: string): string {
-  const clean = path.trim()
-  const withSlash = clean.startsWith("/") ? clean : `/${clean}`
-  return withSlash.replace(/\/+$/, "") || "/"
-}

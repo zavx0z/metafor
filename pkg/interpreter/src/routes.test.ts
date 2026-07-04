@@ -1,13 +1,13 @@
 import {describe, expect, test} from "bun:test"
 import {interpreterRoutes} from "./routes.ts"
 
-const {proxy} = interpreterRoutes
-
-describe("interpreterRoutes.proxy", () => {
+describe("interpreterRoutes", () => {
   test("publishes tools as the primary source editing API", () => {
     const publicRoutes = new Set(interpreterRoutes.index.map((route) => `${route.method} ${route.path}`))
     expect(publicRoutes.has("POST /tools")).toBe(true)
     expect(publicRoutes.has("GET /tools")).toBe(true)
+    expect(publicRoutes.has("POST /reload")).toBe(false)
+    expect(publicRoutes.has("POST /restart")).toBe(false)
     expect(publicRoutes.has("GET /context")).toBe(false)
     expect(publicRoutes.has("GET /space")).toBe(false)
     expect(publicRoutes.has("POST /space/focus")).toBe(false)
@@ -26,47 +26,10 @@ describe("interpreterRoutes.proxy", () => {
     expect(publicRoutes.has("POST /processes/:id/action")).toBe(false)
   })
 
-  test("maps app/web interpreter prefix to upstream paths", () => {
-    expect(proxy.toUpstreamPath("/hud/interpreter/tools")).toBe("/tools")
-    expect(proxy.toUpstreamPath("/hud/interpreter/ws")).toBe("/ws")
-    expect(proxy.toUpstreamPath("/hud/interpreter/webrtc/signaling")).toBe("/webrtc/signaling")
-    expect(proxy.toUpstreamPath("/hud/interpreter")).toBe("/")
-    expect(proxy.toUpstreamPath("/interp/webrtc/signaling")).toBe("/webrtc/signaling")
-    expect(proxy.toUpstreamPath("/hud/interpreter/remote-desktop/rtc/state")).toBe("/remote-desktop/rtc/state")
-    expect(proxy.toUpstreamPath("/interp/remote-desktop/rtc/state")).toBe("/remote-desktop/rtc/state")
-    expect(proxy.toUpstreamPath("/hud/interpreter/remote-desktop/lifecycle")).toBe("/remote-desktop/lifecycle")
-    expect(proxy.toUpstreamPath("/interp/remote-desktop/lifecycle")).toBe("/remote-desktop/lifecycle")
-    expect(proxy.toUpstreamPath("/hud/interpreter/remote-desktop/snapshot")).toBe("/remote-desktop/snapshot")
-    expect(proxy.toUpstreamPath("/interp/remote-desktop/snapshot")).toBe("/remote-desktop/snapshot")
-    expect(proxy.toUpstreamPath("/hud/terminal")).toBeNull()
-  })
-
-  test("accepts transport routes and the single tool entrypoint", () => {
-    expect(proxy.acceptsPath("/")).toBe(true)
-    expect(proxy.acceptsPath("/ws")).toBe(true)
-    expect(proxy.acceptsPath("/client-event")).toBe(true)
-    expect(proxy.acceptsPath("/webrtc/signaling")).toBe(true)
-    expect(proxy.acceptsPath("/remote-desktop/lifecycle")).toBe(true)
-    expect(proxy.acceptsPath("/remote-desktop/rtc/state")).toBe(true)
-    expect(proxy.acceptsPath("/remote-desktop/snapshot")).toBe(true)
-    expect(proxy.acceptsPath("/tools")).toBe(true)
-  })
-
-  test("blocks routes outside the app/web proxy surface", () => {
-    expect(proxy.acceptsPath("/space")).toBe(false)
-    expect(proxy.acceptsPath("/context")).toBe(false)
-    expect(proxy.acceptsPath("/events")).toBe(false)
-    expect(proxy.acceptsPath("/console")).toBe(false)
-    expect(proxy.acceptsPath("/devtools/targets")).toBe(false)
-    expect(proxy.acceptsPath("/space/network/action")).toBe(false)
-    expect(proxy.acceptsPath("/processes/app-web")).toBe(false)
-    expect(proxy.acceptsPath("/hud/terminal/stream")).toBe(false)
-    expect(proxy.acceptsPath("/processes/app-web/action")).toBe(false)
-    expect(proxy.acceptsPath("/processes/app-web/tools")).toBe(false)
-    expect(proxy.acceptsPath("/processes/app-web/modules")).toBe(false)
-    expect(proxy.acceptsPath("/processes/app-web/breakpoint")).toBe(false)
-    expect(proxy.acceptsPath("/processes/app-web/source")).toBe(false)
-    expect(proxy.acceptsPath("/processes/app-web/apply_patch")).toBe(false)
-    expect(proxy.acceptsPath("/processes/app-web/unknown")).toBe(false)
+  test("does not expose app/web interpreter proxy aliases", () => {
+    const publicPaths = new Set<string>(interpreterRoutes.index.map((route) => route.path))
+    expect(publicPaths.has("/hud/interpreter/*")).toBe(false)
+    expect(publicPaths.has("/interp/*")).toBe(false)
+    expect("proxy" in interpreterRoutes).toBe(false)
   })
 })

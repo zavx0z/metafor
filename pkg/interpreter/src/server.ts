@@ -976,73 +976,6 @@ async function dispatchUiHostRouteForProcessFromBody(command: string, processId:
   return await dispatchUiHostRoute(command, processRouteParams(processId, parsed.body), dispatch)
 }
 
-async function networkActionRoute(req: Request): Promise<Response> {
-  const parsed = await readJsonObject(req)
-  if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
-  const action = asString(parsed.body["action"]) ?? asString(parsed.body["cmd"]) ?? asString(parsed.body["command"])
-  if (action === undefined) return jsonResponse({ok: false, error: "network action must be a string"}, 400)
-  if (!isNetworkAction(action)) return jsonResponse({ok: false, action, error: "unknown network action"}, 400)
-  const started = Date.now()
-  const script = resolve(process.cwd(), "app/web/run.ts")
-  const env = {
-    ...process.env,
-    NETWORK_TMUX_SESSION: asString(parsed.body["session"]) ?? "metafor-app-web-net",
-    NETWORK_TMUX_WINDOW: asString(parsed.body["window"]) ?? "network",
-    NETWORK_TMUX_MODE: networkTmuxMode(),
-    ...(networkActionRestartsCurrentPane(action) ? {NETWORK_TMUX_START_DELAY_MS: "450"} : {}),
-  }
-  const command = [process.execPath, script, `--${networkTmuxMode()}`, action]
-  if (networkActionRestartsCurrentPane(action)) {
-    Bun.spawn(["nohup", ...command], {
-      cwd: process.cwd(),
-      stdin: "ignore",
-      stdout: "ignore",
-      stderr: "ignore",
-      env,
-    })
-    return jsonResponse({ok: true, action, detached: true, durationMs: Date.now() - started}, 202)
-  }
-  const result = Bun.spawnSync(command, {cwd: process.cwd(), stdout: "pipe", stderr: "pipe", env})
-  const stdout = new TextDecoder().decode(result.stdout)
-  const stderr = new TextDecoder().decode(result.stderr)
-  return jsonResponse({
-    ok: result.exitCode === 0,
-    action,
-    exitCode: result.exitCode,
-    durationMs: Date.now() - started,
-    stdout,
-    stderr,
-  }, result.exitCode === 0 ? 200 : 500)
-}
-
-function networkTmuxMode(): "dev" | "prod" {
-  return process.env.NETWORK_TMUX_MODE === "dev" ? "dev" : "prod"
-}
-
-function networkActionRestartsCurrentPane(action: string): boolean {
-  return action === "layout" || action === "start:tls" || action === "stop:tls"
-}
-
-function isNetworkAction(action: string): boolean {
-  return [
-    "layout",
-    "status",
-    "start:tls",
-    "stop:tls",
-    "start:redirect",
-    "stop:redirect",
-    "start:matrix",
-    "stop:matrix",
-    "restart:matrix",
-    "start:energy",
-    "stop:energy",
-    "restart:energy",
-    "tail",
-    "clear",
-    "stop",
-  ].includes(action)
-}
-
 async function closeProcess(processId: string, _params: JsonObject, options: HttpServerOptions): Promise<Response> {
   try {
     const removed = await options.modules.remove(processId)
@@ -1179,16 +1112,6 @@ async function handleRoute(
   dispatchUiHostCommand: UiHostCommandDispatcher,
   sqliteWatchRegistry: ReturnType<typeof createSqliteWatchRegistry>,
 ): Promise<Response> {
-  const upstreamPath = interpreterRoutes.proxy.toUpstreamPath(path)
-  if (upstreamPath !== null) {
-    if (!interpreterRoutes.proxy.acceptsPath(upstreamPath)) {
-      return jsonResponse({ok: false, error: `not found: ${method} ${path}`}, 404)
-    }
-    path = upstreamPath
-    url = new URL(url)
-    url.pathname = upstreamPath
-  }
-
   if (method === "GET" && path === "/") return jsonResponse({service: "@metafor/interpreter", routes: interpreterRoutes.index, tools: interpreterTools})
   if (method === "GET" && path === "/health") return jsonResponse(healthPayload(options))
   if (method === "GET" && path === "/tools") return jsonResponse({ok: true, tools: interpreterTools})
@@ -1226,7 +1149,6 @@ async function handleRoute(
   if (method === "POST" && path === "/hud/todo/items") return await createTodoItem(req, broadcast)
   if (method === "GET" && path === "/hud/todo/panel") return await dispatchUiHostRoute("hud.todo.get", {}, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/todo/highlight") return await dispatchUiHostRouteFromBody("hud.todo.highlight", req, dispatchUiHostCommand)
-  if (method === "POST" && path === "/hud/todo/reload") return reloadTodoMarkdown(broadcast)
   if (method === "POST" && path === "/hud/todo/dock") return await dispatchUiHostRouteFromBody("hud.todo.dock", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/todo/show") return await dispatchUiHostRouteFromBody("hud.todo.show", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/todo/toggle") return await dispatchUiHostRouteFromBody("hud.todo.toggle", req, dispatchUiHostCommand)
@@ -1268,14 +1190,6 @@ async function handleRoute(
     }
   }
   if (method === "POST" && path === "/client-event") return await recordClientEvent(req, options)
-  if (method === "POST" && path === "/restart") return restartInterpreterHost(broadcast, options)
-  // Триггер хард-релоада UI у всех подключённых WS-клиентов: используется
-  // когда мы выкатываем правку в bundle и хотим без юзерских Cmd+Shift+R
-  // увидеть свежий код во вкладке.
-  if (method === "POST" && path === "/reload") {
-    broadcast({type: "reload"})
-    return jsonResponse({ok: true})
-  }
 
   if (method === "GET" && path === "/JetBrainsMono-Bold.ttf") {
     return serveStatic(join(WEB_DIR, "JetBrainsMono-Bold.ttf"), "font/ttf")
@@ -1550,10 +1464,7 @@ function isAllowedRtcExternalOrigin(hostname: string): boolean {
 }
 
 function isRtcSignalingPath(path: string): boolean {
-  return path === "/webrtc/signaling"
-    || path === "/hud/interpreter/webrtc/signaling"
-    || path === "/interp/webrtc/signaling"
-    || path === "/hud/android/webrtc/signaling"
+  return path === "/webrtc/signaling" || path === "/hud/android/webrtc/signaling"
 }
 
 function voiceProxyRouteForPath(path: string): VoiceProxyRoute | null {
@@ -2429,7 +2340,6 @@ async function runHostToolUse(
   if (browserRoute !== null) return await toolResultFromNullableResponse(base, await handleBrowserHostRoute(toolRequest(browserRoute.path, toolUse.parameters, browserRoute.method), browserRoute.method, browserRoute.path), `${toolUse.recipientName} failed`)
   const remoteLifecycle = remoteDesktopLifecycleRouteForTool(toolUse.recipientName, toolUse.parameters)
   if (remoteLifecycle !== null) return await toolResultFromNullableResponse(base, await handleRemoteDesktopLifecycleRoute(toolRequest(remoteLifecycle.path, toolUse.parameters, remoteLifecycle.method), remoteLifecycle.method, remoteLifecycle.path, options.logger), `${toolUse.recipientName} failed`)
-  if (toolUse.recipientName === "network.action") return await toolResultFromResponse(base, await networkActionRoute(jsonToolRequest("/tools", toolUse.parameters)), "network.action failed")
   if (toolUse.recipientName === "todo.get") return await toolResultFromResponse(base, todoMarkdownResponse(), "todo.get failed")
   if (toolUse.recipientName === "todo.replace") return await toolResultFromResponse(base, await replaceTodoMarkdown(jsonToolRequest("/tools", toolUse.parameters), broadcast), "todo.replace failed")
   if (toolUse.recipientName === "todo.create") return await toolResultFromResponse(base, await createTodoItem(jsonToolRequest("/tools", toolUse.parameters), broadcast), "todo.create failed")
@@ -2487,6 +2397,7 @@ async function runHostToolUse(
     broadcast({type: "reload"})
     return {...base, ok: true, result: {ok: true}}
   }
+  if (toolUse.recipientName === "host.restart") return await toolResultFromResponse(base, restartInterpreterHost(broadcast, options), "host.restart failed")
   return null
 }
 

@@ -1087,7 +1087,7 @@ function scheduleReloadWhenServerReady(delayMs: number): void {
         return
       }
     } catch {
-      // The host can be briefly unavailable while /restart respawns the pane.
+      // The host can be briefly unavailable while host.restart respawns the pane.
     } finally {
       window.clearTimeout(timer)
     }
@@ -3201,7 +3201,6 @@ function postRemoteDesktopConnectStart(): void {
     path: window.location.pathname,
     protocol: window.location.protocol,
     host: window.location.host,
-    embeddedPrefix: currentEmbeddedInterpreterPathPrefix() ?? "",
   })
 }
 
@@ -3388,9 +3387,7 @@ function interpreterWebSocketUrl(path: string): string {
 }
 
 function interpreterHttpPath(path: string): string {
-  const suffix = path.startsWith("/") ? path : `/${path}`
-  const prefix = currentEmbeddedInterpreterPathPrefix()
-  return prefix === null ? suffix : `${prefix}${suffix}`
+  return path.startsWith("/") ? path : `/${path}`
 }
 
 function postInterpreterClientEvent(scope: string, label: string, detail: Record<string, unknown> = {}): void {
@@ -3503,9 +3500,6 @@ function normalizeRemoteDesktopSignalUrl(rawUrl: string): string {
 function remoteDesktopSignalUrlCandidates(rawUrl: string | null): string[] {
   const candidates: string[] = []
   if (rawUrl !== null) candidates.push(normalizeRemoteDesktopSignalUrl(rawUrl))
-  for (const prefix of embeddedInterpreterPathPrefixes()) {
-    candidates.push(interpreterRtcSignalUrl(`${prefix}/webrtc/signaling`))
-  }
   candidates.push(interpreterRtcSignalUrl("/webrtc/signaling"))
   if (rawUrl !== null && window.location.protocol !== "https:") candidates.push(rawUrl)
   return candidates
@@ -3513,38 +3507,11 @@ function remoteDesktopSignalUrlCandidates(rawUrl: string | null): string[] {
 
 function remoteDesktopApiPaths(path: string): string[] {
   const suffix = path.startsWith("/") ? path : `/${path}`
-  const direct = `/remote-desktop${suffix}`
-  const embedded = `/hud/interpreter/remote-desktop${suffix}`
-  const candidates = isEmbeddedInterpreterOrigin()
-    ? [embedded, direct]
-    : [direct, embedded]
-  return uniqueStrings(candidates)
+  return [`/remote-desktop${suffix}`]
 }
 
 function remoteDesktopRtcSignalPath(): string {
-  return `${embeddedInterpreterPathPrefixes()[0] ?? "/hud/interpreter"}/webrtc/signaling`
-}
-
-function isEmbeddedInterpreterOrigin(): boolean {
-  return currentEmbeddedInterpreterPathPrefix() !== null
-}
-
-function embeddedInterpreterPathPrefix(): string | null {
-  return currentEmbeddedInterpreterPathPrefix()
-}
-
-function embeddedInterpreterPathPrefixes(): string[] {
-  const prefix = currentEmbeddedInterpreterPathPrefix()
-  if (prefix === "/hud/interpreter") return ["/hud/interpreter", "/interp"]
-  if (prefix === "/interp") return ["/interp", "/hud/interpreter"]
-  return ["/hud/interpreter", "/interp"]
-}
-
-function currentEmbeddedInterpreterPathPrefix(): string | null {
-  const path = window.location.pathname
-  if (path === "/hud/interpreter" || path.startsWith("/hud/interpreter/")) return "/hud/interpreter"
-  if (path === "/interp" || path.startsWith("/interp/")) return "/interp"
-  return null
+  return "/webrtc/signaling"
 }
 
 function uniqueStrings(values: string[]): string[] {
@@ -4760,49 +4727,12 @@ function networkActionForSwitch(key: NetworkServiceKey, checked: boolean): strin
   return checked ? "start:redirect" : "stop:redirect"
 }
 
-type NetworkActionPayload = {ok?: boolean; durationMs?: number; stdout?: string; stderr?: string; error?: string}
-
-async function postNetworkAction(action: string, opts: {signal?: AbortSignal} = {}): Promise<{response: Response; payload: NetworkActionPayload}> {
-  const requestInit: RequestInit = {
-    method: "POST",
-    headers: {"content-type": "application/json"},
-    body: JSON.stringify({
-      tool_uses: [{
-        recipient_name: "network.action",
-        parameters: {
-          action,
-          tlsMode: networkProductViaInterpreter ? "interpreter" : "direct",
-        },
-      }],
-    }),
-  }
-  if (opts.signal !== undefined) requestInit.signal = opts.signal
-  const response = await fetch(toolsApiPath(), requestInit)
-  const envelope = await response.json().catch(() => null) as {tool_uses?: Array<{ok?: boolean; result?: unknown; error?: string}>; error?: string} | null
-  const tool = envelope?.tool_uses?.[0]
-  const payload = typeof tool?.result === "object" && tool.result !== null && !Array.isArray(tool.result)
-    ? tool.result as NetworkActionPayload
-    : {ok: false, error: tool?.error ?? envelope?.error ?? `network.action failed: ${response.status}`}
-  return {response, payload}
-}
-
 async function runNetworkAction(action: string): Promise<void> {
-  networkActionStatus = `running ${action}`
+  networkActionStatus = `${action} unavailable`
   updateNetworkWatchPane()
-  try {
-    const {response, payload} = await postNetworkAction(action)
-    if (!response.ok || payload.ok === false) {
-      const message = payload.error ?? payload.stderr ?? `${response.status}`
-      networkActionStatus = `${action} failed: ${String(message).slice(0, 64)}`
-    } else {
-      networkActionStatus = `${action} ok ${payload.durationMs ?? 0}ms`
-    }
-  } catch (error) {
-    networkActionStatus = `${action} failed: ${error instanceof Error ? error.message : String(error)}`
-  } finally {
-    updateNetworkWatchPane()
-    scheduleNetworkStatusRefresh(0, {force: true})
-  }
+  networkStatusLines = ["network actions moved out of interpreter"]
+  networkStatusUpdatedAt = new Date()
+  updateNetworkWatchPane()
 }
 
 function ensureNetworkStatusRefresh(): void {
@@ -4831,31 +4761,12 @@ async function refreshNetworkStatus(opts: {manual?: boolean} = {}): Promise<void
     stopNetworkStatusRefresh({abort: !networkStatusDisplayActive() || !networkStatusAutoRefreshEnabled})
     return
   }
-  const generation = networkStatusRefreshGeneration
-  const abortController = new AbortController()
-  networkStatusRefreshAbortController = abortController
   networkStatusRefreshInFlight = true
   updateNetworkWatchPane()
-  try {
-    const {response, payload} = await postNetworkAction("status", {signal: abortController.signal})
-    if (generation !== networkStatusRefreshGeneration) return
-    if (!response.ok || payload.ok === false) {
-      const message = payload.error ?? payload.stderr ?? `${response.status}`
-      networkStatusLines = [`status failed: ${String(message).slice(0, 160)}`]
-    } else {
-      networkStatusLines = networkStatusLinesFromOutput(payload.stdout ?? "")
-      networkStatusUpdatedAt = new Date()
-    }
-  } catch (error) {
-    if (generation !== networkStatusRefreshGeneration || isAbortError(error)) return
-    networkStatusLines = [`status failed: ${error instanceof Error ? error.message : String(error)}`]
-  } finally {
-    if (generation !== networkStatusRefreshGeneration) return
-    if (networkStatusRefreshAbortController === abortController) networkStatusRefreshAbortController = null
-    networkStatusRefreshInFlight = false
-    updateNetworkWatchPane()
-    if (networkStatusAutoRefreshActive()) scheduleNetworkStatusRefresh(NETWORK_STATUS_REFRESH_MS)
-  }
+  networkStatusLines = ["network actions moved out of interpreter"]
+  networkStatusUpdatedAt = new Date()
+  networkStatusRefreshInFlight = false
+  updateNetworkWatchPane()
 }
 
 function syncNetworkStatusRefresh(): void {

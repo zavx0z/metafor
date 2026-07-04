@@ -75,6 +75,23 @@ import {
 import type {UiDisplayId, UiSurfaceRect, UiRuntime, UiSurfaceNode} from "./runtime.ts"
 import {MaterialPalette, palette} from "./theme.ts"
 
+type UiFrameHandle = {kind: "raf"; id: number} | {kind: "timeout"; id: ReturnType<typeof setTimeout>}
+
+const scheduleUiFrame = (callback: FrameRequestCallback): UiFrameHandle => {
+  if (typeof globalThis.requestAnimationFrame === "function") {
+    return {kind: "raf", id: globalThis.requestAnimationFrame(callback)}
+  }
+  return {kind: "timeout", id: setTimeout(() => callback(Date.now()), 16)}
+}
+
+const cancelUiFrame = (handle: UiFrameHandle): void => {
+  if (handle.kind === "raf") {
+    if (typeof globalThis.cancelAnimationFrame === "function") globalThis.cancelAnimationFrame(handle.id)
+    return
+  }
+  clearTimeout(handle.id)
+}
+
 export type HitBox = {
   x: number
   y: number
@@ -338,8 +355,8 @@ export abstract class UiSurface implements UiSurfaceNode {
   #hoverTooltipTimer: ReturnType<typeof setTimeout> | null = null
   #pendingTooltipDraws: PendingTooltipDraw[] = []
   #backgroundImage: BackgroundImageOpts | null = null
-  #rerenderRafId: number | null = null
-  #layerRerenderRafId: number | null = null
+  #rerenderRafId: UiFrameHandle | null = null
+  #layerRerenderRafId: UiFrameHandle | null = null
   readonly #layerRerenderLayers = new Set<UiSurfaceDrawLayer>()
   #layerRerenderDraw: (() => void) | null = null
 
@@ -522,7 +539,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     if (this.font === null) return
     this.#cancelPendingLayerRerender()
     if (this.#rerenderRafId === null) {
-      this.#rerenderRafId = requestAnimationFrame(() => {
+      this.#rerenderRafId = scheduleUiFrame(() => {
         this.#rerenderRafId = null
         if (this.font === null) return
         this.#rerender()
@@ -570,7 +587,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     for (const layer of layers) this.#layerRerenderLayers.add(layer)
     this.#layerRerenderDraw = draw
     if (this.#layerRerenderRafId === null) {
-      this.#layerRerenderRafId = requestAnimationFrame(() => {
+      this.#layerRerenderRafId = scheduleUiFrame(() => {
         this.#redrawRequestedLayers()
         this.canvas?.requestRender()
       })
@@ -1194,7 +1211,7 @@ export abstract class UiSurface implements UiSurfaceNode {
 
   #redrawRequestedLayers(): void {
     if (this.#layerRerenderRafId !== null) {
-      cancelAnimationFrame(this.#layerRerenderRafId)
+      cancelUiFrame(this.#layerRerenderRafId)
       this.#layerRerenderRafId = null
     }
     const draw = this.#layerRerenderDraw
@@ -1209,13 +1226,13 @@ export abstract class UiSurface implements UiSurfaceNode {
 
   #cancelPendingRerender(): void {
     if (this.#rerenderRafId === null) return
-    cancelAnimationFrame(this.#rerenderRafId)
+    cancelUiFrame(this.#rerenderRafId)
     this.#rerenderRafId = null
   }
 
   #cancelPendingLayerRerender(): void {
     if (this.#layerRerenderRafId !== null) {
-      cancelAnimationFrame(this.#layerRerenderRafId)
+      cancelUiFrame(this.#layerRerenderRafId)
       this.#layerRerenderRafId = null
     }
     this.#layerRerenderLayers.clear()

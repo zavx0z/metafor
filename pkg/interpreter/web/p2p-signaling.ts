@@ -281,8 +281,6 @@ function isInterpreterRtcSignalUrl(value: string): boolean {
   try {
     const url = new URL(value, location.href)
     return url.pathname === "/webrtc/signaling"
-      || url.pathname === "/hud/interpreter/webrtc/signaling"
-      || url.pathname === "/interp/webrtc/signaling"
       || url.pathname === "/hud/android/webrtc/signaling"
   } catch {
     return false
