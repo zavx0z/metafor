@@ -535,7 +535,7 @@ GET  /context
 GET  /space
 GET  /processes
 GET  /processes/:id/context
-POST /processes/:id/action
+POST /processes/:id/tools  # process.action
 GET  /sqlite
 POST /sqlite/open
 POST /sqlite/cell

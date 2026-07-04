@@ -39,6 +39,8 @@ type PatchOperation =
   | {type: "delete"; path: string}
   | {type: "update"; path: string; moveTo?: string; hunks: PatchHunk[]}
 
+type UpdatePatchOperation = Extract<PatchOperation, {type: "update"}>
+
 type PatchHunk = {
   oldLines: string[]
   newLines: string[]
@@ -52,10 +54,11 @@ type PlannedPatchChange = ApplyPatchFileChange & {
 export function applyPatch(options: ApplyPatchOptions): ApplyPatchResult {
   const cwd = resolve(options.cwd ?? process.cwd())
   const parsed = parseApplyPatch(options.patch)
+  const operations = mergeRepeatedUpdateOperations(parsed.operations)
   const planned: PlannedPatchChange[] = []
   const touched = new Set<string>()
 
-  for (const operation of parsed.operations) {
+  for (const operation of operations) {
     if (operation.type === "add") {
       planned.push(planAdd(cwd, operation.path, operation.lines, touched))
       continue
@@ -81,6 +84,30 @@ export function applyPatch(options: ApplyPatchOptions): ApplyPatchResult {
     ok: true,
     files: planned.map(({writeText: _writeText, deletePath: _deletePath, ...change}) => change),
   }
+}
+
+function mergeRepeatedUpdateOperations(operations: PatchOperation[]): PatchOperation[] {
+  const out: PatchOperation[] = []
+  const updates = new Map<string, UpdatePatchOperation>()
+
+  for (const operation of operations) {
+    if (operation.type !== "update" || operation.moveTo !== undefined) {
+      out.push(operation)
+      continue
+    }
+
+    const existing = updates.get(operation.path)
+    if (existing !== undefined) {
+      existing.hunks.push(...operation.hunks)
+      continue
+    }
+
+    const next: UpdatePatchOperation = {type: "update", path: operation.path, hunks: [...operation.hunks]}
+    updates.set(operation.path, next)
+    out.push(next)
+  }
+
+  return out
 }
 
 export function createReplaceFilePatch(path: string, before: string, after: string, options: {cwd?: string} = {}): string | null {

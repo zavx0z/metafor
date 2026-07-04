@@ -83,13 +83,10 @@ DELETE /processes/:id
 POST   /processes/:id/focus
 GET    /processes/:id/context
 GET    /processes/:id/modules?q=<text>&limit=<n>
-GET    /processes/:id/source?scriptId=<id>&sourceUrl=<url>
-POST   /processes/:id/source
-POST   /processes/:id/apply_patch
+POST   /processes/:id/tools
 GET    /processes/:id/breakpoints
 POST   /processes/:id/breakpoint
 DELETE /processes/:id/breakpoint
-POST   /processes/:id/action
 
 GET    /hud/terminal
 POST   /hud/terminal/show
@@ -550,7 +547,7 @@ Selectors для `/space/focus`, `/processes/resolve` и `/processes/focus`:
 
 `DELETE /processes/:id` останавливает рантайм-процесс, удаляет его из списка процессов и синхронизирует UI так, чтобы display этого module исчез из Space.
 
-API-редактирование исходного кода через `POST /processes/:id/source` или `POST /processes/:id/apply_patch` рассылает `source-patched`. UI process display с этим `:id` должен открыть первый измененный не-delete файл в редакторе исходного кода, раскрыть и выделить его в дереве файлов и поставить курсор на первую измененную строку (`lineChanges[0].newStart`, иначе строка 1). Если в редакторе есть несохраненные изменения или идет сохранение, авто-переход пропускается, чтобы не перетереть локальное dirty-состояние.
+API-редактирование исходного кода через `POST /processes/:id/tools` с `source.write` или `source.apply_patch` рассылает `source-patched`. UI process display с этим `:id` должен открыть первый измененный не-delete файл в редакторе исходного кода, раскрыть и выделить его в дереве файлов и поставить курсор на первую измененную строку (`lineChanges[0].newStart`, иначе строка 1). Если в редакторе есть несохраненные изменения или идет сохранение, авто-переход пропускается, чтобы не перетереть локальное dirty-состояние.
 
 `POST /processes` запускает новый process:
 
@@ -570,12 +567,12 @@ API-редактирование исходного кода через `POST /p
 
 ## Действия Process
 
-`POST /processes/:id/action` выполняет действие в конкретном process:
+`process.action` в `POST /processes/:id/tools` выполняет действие в конкретном process:
 
 ```sh
-curl -sS -X POST 'http://127.0.0.1:6500/processes/dark-server.spec.ts/action' \
+curl -sS -X POST 'http://127.0.0.1:6500/processes/dark-server.spec.ts/tools' \
   -H 'content-type: application/json' \
-  -d '{"action":"step","params":{"kind":"over"}}'
+  -d '{"tool_uses":[{"recipient_name":"process.action","parameters":{"action":"step","params":{"kind":"over"}}}]}'
 ```
 
 Поддерживаемые действия:
@@ -596,9 +593,9 @@ curl -sS -X POST 'http://127.0.0.1:6500/processes/dark-server.spec.ts/action' \
 Открыть source и выделить диапазон в редакторе:
 
 ```sh
-curl -sS -X POST 'http://127.0.0.1:6500/processes/dark-server.spec.ts/action' \
+curl -sS -X POST 'http://127.0.0.1:6500/processes/dark-server.spec.ts/tools' \
   -H 'content-type: application/json' \
-  -d '{"action":"source.open","params":{"path":"/path/to/file.ts","selection":{"start":{"line":10,"column":2},"end":{"line":10,"column":14}}}}'
+  -d '{"tool_uses":[{"recipient_name":"process.action","parameters":{"action":"source.open","params":{"path":"/path/to/file.ts","selection":{"start":{"line":10,"column":2},"end":{"line":10,"column":14}}}}}]}'
 ```
 
 `selection.line` — 1-based, `selection.column` — 0-based.
@@ -623,12 +620,23 @@ curl -sS -X POST 'http://127.0.0.1:6500/processes/dark-server.spec.ts/action' \
 Чтение и редактирование source:
 
 ```text
-GET  /processes/:id/source?scriptId=<id>&sourceUrl=<url>
-POST /processes/:id/source       # JSON {sourceUrl, text}
-POST /processes/:id/apply_patch  # raw apply_patch text/plain
+POST /processes/:id/tools        # JSON {tool_uses:[{recipient_name, parameters}]}
 ```
 
-`POST /processes/:id/source` и `POST /processes/:id/apply_patch` применяют изменения через серверную реализацию apply_patch, сдвигают точки останова process, рассылают `source-patched` и повторно воспроизводят затронутые запуски, когда это нужно.
+`POST /processes/:id/tools` - единый process tools API.
+Тело запроса содержит `tool_uses`, где каждый элемент имеет
+`recipient_name`/`name` и `parameters`/`arguments`. Поддержанный набор tools:
+`source.read`, `source.read_many`, `source.open`, `source.openSelection`,
+`source.write`, `source.apply_patch`, `process.action`.
+
+`source.open` и `source.openSelection` внутри API вызывают UI-host команду
+открытия исходника для указанного process. `source.read` остается чистым
+чтением source payload, чтобы UI-клиент мог читать файл без рекурсивного
+повторного открытия.
+
+`source.write` и `source.apply_patch` применяют изменения через серверную
+реализацию apply_patch, сдвигают точки останова process, рассылают
+`source-patched` и повторно воспроизводят затронутые запуски, когда это нужно.
 
 ## Точки Останова
 

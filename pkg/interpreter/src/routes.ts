@@ -52,15 +52,12 @@ const INTERPRETER_PROXY_EXACT_PATHS = new Set([
 ])
 const INTERPRETER_PROXY_PROCESS_SUBPATHS = new Set([
   "",
-  "action",
-  "apply_patch",
-  "apply-patch",
   "breakpoint",
   "breakpoints",
   "context",
   "focus",
   "modules",
-  "source",
+  "tools",
 ])
 
 const routeIndex = [
@@ -116,12 +113,9 @@ const routeIndex = [
   {method: "GET", path: "/processes/:id", description: "рабочий payload process: content + runtime/ui state/capabilities"},
   {method: "POST", path: "/processes/:id/focus", description: "сфокусировать конкретный process"},
   {method: "DELETE", path: "/processes/:id", description: "остановить runtime process и убрать его display из Space"},
-  {method: "POST", path: "/processes/:id/action", description: "{action, params?} — выполнить pause|resume|step|setBreakpointsActive|muteBreakpoints|unmuteBreakpoints|evaluate|source.open({path,line?,column?,selection?})|source.openSelection|restart|stop|close|showExecutionPoint"},
   {method: "GET", path: "/processes/:id/context", description: "текущий context конкретного process"},
   {method: "GET", path: "/processes/:id/modules?q=<text>&limit=<n>", description: "каталог кода в контексте process"},
-  {method: "GET", path: "/processes/:id/source?scriptId=<id>", description: "исходник в контексте process"},
-  {method: "POST", path: "/processes/:id/source", description: "{sourceUrl, text} — сохранить локальный source file через apply_patch"},
-  {method: "POST", path: "/processes/:id/apply_patch", description: "raw apply_patch text — применить apply_patch к workspace process"},
+  {method: "POST", path: "/processes/:id/tools", description: "основной process tools API: {tool_uses:[{recipient_name,parameters}]} для source.read/source.open/source.write/source.apply_patch/process.action"},
   {method: "GET", path: "/processes/:id/breakpoints", description: "breakpoint registrations конкретного process"},
   {method: "POST", path: "/processes/:id/breakpoint", description: "{url|sourceUrl|urlRegex, line, column?, condition?} — breakpoint в конкретном process"},
   {method: "DELETE", path: "/processes/:id/breakpoint", description: "{id|breakpointId} — убрать breakpoint из конкретного process"},

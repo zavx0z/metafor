@@ -78,7 +78,7 @@ GET    /processes/:id
 DELETE /processes/:id
 GET    /processes/:id/context
 GET    /processes/:id/modules
-POST   /processes/:id/action
+POST   /processes/:id/tools
 GET    /processes/:id/breakpoints
 POST   /processes/:id/breakpoint
 DELETE /processes/:id/breakpoint

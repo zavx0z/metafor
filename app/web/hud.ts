@@ -1625,11 +1625,13 @@ class AppWebHud implements AppWebHudController {
 		const processId = this.#workspaceAttachedProcessId
 		if (processId === null) return
 		try {
-			await fetchJson(`/hud/interpreter/processes/${encodeURIComponent(processId)}/action`, {
+			const payload = await fetchJson(`/hud/interpreter/processes/${encodeURIComponent(processId)}/tools`, {
 				method: "POST",
 				headers: {"content-type": "application/json"},
-				body: JSON.stringify({action}),
+				body: JSON.stringify({tool_uses: [{recipient_name: "process.action", parameters: {action}}]}),
 			})
+			const result = (payload as {tool_uses?: Array<{ok?: unknown; error?: unknown}>}).tool_uses?.[0]
+			if (result?.ok !== true) throw new Error(String(result?.error ?? "process action failed"))
 			this.#workspaceEditor.setTitle(`Inspector - ${action}`)
 			await this.#refreshWorkspaceProcesses()
 		} catch (error) {
@@ -1722,9 +1724,14 @@ class AppWebHud implements AppWebHudController {
 
 	async #readWorkspaceProcessSource(entry: WorkspaceFileEntry): Promise<string> {
 		if (entry.processId === undefined || entry.sourceUrl === undefined) throw new Error("process source is missing")
-		const url = `/hud/interpreter/processes/${encodeURIComponent(entry.processId)}/source?sourceUrl=${encodeURIComponent(entry.sourceUrl)}&tokens=1`
-		const payload = await fetchJson(url)
-		const source = (payload as {scriptSource?: unknown}).scriptSource
+		const payload = await fetchJson(`/hud/interpreter/processes/${encodeURIComponent(entry.processId)}/tools`, {
+			method: "POST",
+			headers: {"content-type": "application/json"},
+			body: JSON.stringify({tool_uses: [{recipient_name: "source.read", parameters: {sourceUrl: entry.sourceUrl}}]}),
+		})
+		const result = (payload as {tool_uses?: Array<{result?: {scriptSource?: unknown}; error?: unknown}>}).tool_uses?.[0]
+		if (result?.error !== undefined) throw new Error(String(result.error))
+		const source = result?.result?.scriptSource
 		if (typeof source !== "string") throw new Error("source payload has no scriptSource")
 		return source
 	}
@@ -1756,11 +1763,13 @@ class AppWebHud implements AppWebHudController {
 		try {
 			if (entry.sourceKind === "process") {
 				if (entry.processId === undefined || entry.sourceUrl === undefined) throw new Error("process source is missing")
-				await fetchJson(`/hud/interpreter/processes/${encodeURIComponent(entry.processId)}/source`, {
+				const payload = await fetchJson(`/hud/interpreter/processes/${encodeURIComponent(entry.processId)}/tools`, {
 					method: "POST",
 					headers: {"content-type": "application/json"},
-					body: JSON.stringify({sourceUrl: entry.sourceUrl, text}),
+					body: JSON.stringify({tool_uses: [{recipient_name: "source.write", parameters: {sourceUrl: entry.sourceUrl, text}}]}),
 				})
+				const result = (payload as {tool_uses?: Array<{ok?: unknown; error?: unknown}>}).tool_uses?.[0]
+				if (result?.ok !== true) throw new Error(String(result?.error ?? "source write failed"))
 			} else if (entry.sourceKind === "source") {
 				if (entry.sourcePath === undefined) throw new Error("source path is missing")
 				await fetchJson("/hud/source/file", {

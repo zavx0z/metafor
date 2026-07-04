@@ -307,10 +307,7 @@ async function stopMatrixProcess(): Promise<void> {
     console.log("matrix process is not registered")
     return
   }
-  const response = await interpreterJson(`/processes/${encodeURIComponent(existing.id)}/action`, {
-    method: "POST",
-    body: JSON.stringify({action: "stop"}),
-  })
+  const response = await interpreterProcessAction(existing.id, "stop")
   console.log(JSON.stringify(response, null, 2))
 }
 
@@ -320,10 +317,7 @@ async function restartMatrixProcess(): Promise<void> {
     await startMatrixProcess()
     return
   }
-  const response = await interpreterJson(`/processes/${encodeURIComponent(existing.id)}/action`, {
-    method: "POST",
-    body: JSON.stringify({action: "restart"}),
-  })
+  const response = await interpreterProcessAction(existing.id, "restart")
   console.log(JSON.stringify(response, null, 2))
 }
 
@@ -359,10 +353,7 @@ async function stopEnergyProcess(): Promise<void> {
     console.log("energy process is not registered")
     return
   }
-  const response = await interpreterJson(`/processes/${encodeURIComponent(existing.id)}/action`, {
-    method: "POST",
-    body: JSON.stringify({action: "stop"}),
-  })
+  const response = await interpreterProcessAction(existing.id, "stop")
   console.log(JSON.stringify(response, null, 2))
 }
 
@@ -372,10 +363,7 @@ async function restartEnergyProcess(): Promise<void> {
     await startEnergyProcess()
     return
   }
-  const response = await interpreterJson(`/processes/${encodeURIComponent(existing.id)}/action`, {
-    method: "POST",
-    body: JSON.stringify({action: "restart"}),
-  })
+  const response = await interpreterProcessAction(existing.id, "restart")
   console.log(JSON.stringify(response, null, 2))
 }
 
@@ -393,6 +381,16 @@ async function getEnergyProcess(): Promise<Record<string, any> | null> {
 
 async function deleteInterpreterProcess(processId: string): Promise<void> {
   await interpreterJson(`/processes/${encodeURIComponent(processId)}`, {method: "DELETE"})
+}
+
+async function interpreterProcessAction(processId: string, action: string): Promise<Record<string, any>> {
+  const payload = await interpreterJson(`/processes/${encodeURIComponent(processId)}/tools`, {
+    method: "POST",
+    body: JSON.stringify({tool_uses: [{recipient_name: "process.action", parameters: {action}}]}),
+  })
+  const tool = Array.isArray(payload.tool_uses) ? payload.tool_uses[0] as Record<string, any> | undefined : undefined
+  if (tool?.ok !== true) throw new Error(String(tool?.error ?? "process action failed"))
+  return payload
 }
 
 async function interpreterJson(path: string, init: RequestInit = {}): Promise<Record<string, any>> {

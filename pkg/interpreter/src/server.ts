@@ -13,6 +13,7 @@
  */
 
 import type {ServerWebSocket, WebSocketHandler} from "bun"
+import {createHash} from "node:crypto"
 import {existsSync, statSync, openSync, readSync, closeSync, readFileSync, writeFileSync, mkdirSync, watch, type FSWatcher} from "node:fs"
 import {basename, dirname, extname, join, relative, resolve} from "node:path"
 import {fileURLToPath} from "node:url"
@@ -133,6 +134,11 @@ type SourcePatchReplayResult = {
   status: "replayed" | "skipped" | "failed"
   reason?: string
   target?: ModuleSnapshot["target"]
+}
+type ProcessToolUse = {
+  toolUseId?: string
+  recipientName: string
+  parameters: JsonObject
 }
 type HudTodoContextStore = {context: JsonObject | null}
 type HudSqliteContextStore = {context: JsonObject | null}
@@ -974,18 +980,6 @@ async function dispatchUiHostRouteForProcessFromBody(command: string, processId:
   return await dispatchUiHostRoute(command, processRouteParams(processId, parsed.body), dispatch)
 }
 
-async function processActionRoute(processId: string, req: Request, options: HttpServerOptions, dispatch: UiHostCommandDispatcher): Promise<Response> {
-  const parsed = await readJsonObject(req)
-  if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
-  const action = asString(parsed.body["action"]) ?? asString(parsed.body["cmd"]) ?? asString(parsed.body["command"])
-  if (action === undefined) return jsonResponse({ok: false, processId, error: "process action must be a string"}, 400)
-  const params = asObject(parsed.body["params"]) ?? parsed.body
-  if (action === "close" || action === "delete" || action === "remove") return await closeProcess(processId, params, options)
-  if (action === "stop") return await stopProcessTarget(processId, params, options)
-  if (action === "restart") return await restartProcessTarget(processId, params, options)
-  return await dispatchUiHostRoute("processes.action", processRouteParams(processId, parsed.body), dispatch)
-}
-
 async function networkActionRoute(req: Request): Promise<Response> {
   const parsed = await readJsonObject(req)
   if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
@@ -1292,17 +1286,12 @@ async function handleRoute(
   if (method === "DELETE" && processDetail !== null) return await closeProcess(decodePathParam(processDetail[1]!), {}, options)
   const processFocus = /^\/processes\/([^/]+)\/focus$/.exec(path)
   if (method === "POST" && processFocus !== null) return await dispatchUiHostRouteForProcessFromBody("processes.focus", decodePathParam(processFocus[1]!), req, dispatchUiHostCommand)
-  const processAction = /^\/processes\/([^/]+)\/action$/.exec(path)
-  if (method === "POST" && processAction !== null) return await processActionRoute(decodePathParam(processAction[1]!), req, options, dispatchUiHostCommand)
   const processContext = /^\/processes\/([^/]+)\/context$/.exec(path)
   if (method === "GET" && processContext !== null) return getProcessContext(decodePathParam(processContext[1]!), options, moduleContexts, hudTodoContext, hudSqliteContext)
   const processModules = /^\/processes\/([^/]+)\/modules$/.exec(path)
   if (method === "GET" && processModules !== null) return getProcessModules(decodePathParam(processModules[1]!), url, options)
-  const processSource = /^\/processes\/([^/]+)\/source$/.exec(path)
-  if (method === "GET" && processSource !== null) return await getProcessScriptSource(decodePathParam(processSource[1]!), url, options)
-  if (method === "POST" && processSource !== null) return await saveProcessSource(decodePathParam(processSource[1]!), req, options, broadcast)
-  const processApplyPatch = /^\/processes\/([^/]+)\/apply[-_]patch$/.exec(path)
-  if (method === "POST" && processApplyPatch !== null) return await applyProcessPatch(decodePathParam(processApplyPatch[1]!), req, options, broadcast)
+  const processTools = /^\/processes\/([^/]+)\/tools$/.exec(path)
+  if (method === "POST" && processTools !== null) return await processToolsRoute(decodePathParam(processTools[1]!), req, options, broadcast, dispatchUiHostCommand)
   const processBreakpoints = /^\/processes\/([^/]+)\/breakpoints$/.exec(path)
   if (method === "GET" && processBreakpoints !== null) return getProcessBreakpoints(decodePathParam(processBreakpoints[1]!), options)
   const processBreakpoint = /^\/processes\/([^/]+)\/breakpoint$/.exec(path)
@@ -2005,9 +1994,10 @@ function mimeForImageExtension(ext: string): string {
   return "image/png"
 }
 
-async function readPatchText(req: Request): Promise<{patch?: string; error?: string}> {
-  const patch = await req.text()
-  return patch.length === 0 ? {error: "patch required"} : {patch}
+function readPatchTextFromParams(params: JsonObject): string | undefined {
+  return asString(params["patch"])
+    ?? asString(params["input"])
+    ?? asString(params["text"])
 }
 
 function envStrings(value: unknown): Record<string, string> | undefined {
@@ -2216,12 +2206,6 @@ function isNonNegativeInteger(value: number | undefined): value is number {
   return value !== undefined && Number.isInteger(value) && value >= 0
 }
 
-async function getProcessScriptSource(processId: string, url: URL, options: HttpServerOptions): Promise<Response> {
-  const module = moduleForProcessId(processId, options)
-  if (module === undefined) return processNotFoundResponse(processId)
-  return await getScriptSourceForModule(url, module, processId)
-}
-
 async function getScriptSourceForModule(url: URL, module: InterpreterModule, cacheScope: string): Promise<Response> {
   const scriptId = url.searchParams.get("scriptId") ?? ""
   const sourceUrl = url.searchParams.get("sourceUrl") ?? undefined
@@ -2348,26 +2332,300 @@ function sourceFileResponse(options: {
   })
 }
 
-async function saveModuleSource(
-  moduleId: string,
+async function processToolsRoute(
+  processId: string,
   req: Request,
   options: HttpServerOptions,
   broadcast: (payload: JsonObject) => void,
+  dispatchUiHostCommand: UiHostCommandDispatcher,
 ): Promise<Response> {
-  if (options.modules.get(moduleId) === undefined) return jsonResponse({ok: false, error: `module not found: ${moduleId}`}, 404)
+  const module = moduleForProcessId(processId, options)
+  if (module === undefined) return processNotFoundResponse(processId)
   const parsed = await readJsonObject(req)
-  if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
-  const sourceUrl = asString(parsed.body["sourceUrl"])
-    ?? asString(parsed.body["path"])
-    ?? asString(parsed.body["modulePath"])
-  const text = asString(parsed.body["text"])
-    ?? asString(parsed.body["scriptSource"])
-    ?? asString(parsed.body["content"])
-  if (sourceUrl === undefined || sourceUrl.trim().length === 0) return jsonResponse({ok: false, error: "sourceUrl required"}, 400)
-  if (text === undefined) return jsonResponse({ok: false, error: "text required"}, 400)
+  if (parsed.error !== undefined) return jsonResponse({ok: false, processId, error: parsed.error}, 400)
+  const toolUses = processToolUsesFromBody(parsed.body)
+  if (toolUses.error !== undefined) return jsonResponse({ok: false, processId: module.id, error: toolUses.error}, 400)
+
+  const results: JsonObject[] = []
+  for (const toolUse of toolUses.toolUses) {
+    results.push(await runProcessToolUse(module, toolUse, options, broadcast, dispatchUiHostCommand))
+  }
+
+  return jsonResponse({
+    ok: results.every((result) => result["ok"] === true),
+    processId: module.id,
+    tool_uses: results,
+    results,
+  })
+}
+
+function processToolUsesFromBody(body: JsonObject): {toolUses: ProcessToolUse[]; error?: string} {
+  const rawToolUses = body["tool_uses"] ?? body["toolUses"]
+  if (Array.isArray(rawToolUses)) {
+    if (rawToolUses.length === 0) return {toolUses: [], error: "tool_uses must not be empty"}
+    const toolUses: ProcessToolUse[] = []
+    for (const [index, value] of rawToolUses.entries()) {
+      const parsed = processToolUseFromValue(value, index)
+      if (parsed.error !== undefined) return {toolUses: [], error: parsed.error}
+      toolUses.push(parsed.toolUse!)
+    }
+    return {toolUses}
+  }
+
+  if (body["recipient_name"] !== undefined || body["recipientName"] !== undefined || body["name"] !== undefined || body["tool"] !== undefined) {
+    const parsed = processToolUseFromValue(body, 0)
+    if (parsed.error !== undefined) return {toolUses: [], error: parsed.error}
+    return {toolUses: [parsed.toolUse!]}
+  }
+
+  return {toolUses: [], error: "tool_uses must be a non-empty array"}
+}
+
+function processToolUseFromValue(value: unknown, index: number): {toolUse?: ProcessToolUse; error?: string} {
+  const object = asObject(value)
+  if (object === undefined) return {error: `tool_uses[${index}] must be an object`}
+
+  const recipientName = asString(object["recipient_name"])
+    ?? asString(object["recipientName"])
+    ?? asString(object["name"])
+    ?? asString(object["tool"])
+  if (recipientName === undefined || recipientName.trim().length === 0) {
+    return {error: `tool_uses[${index}].recipient_name must be a string`}
+  }
+
+  const parameters = asObject(object["parameters"])
+    ?? asObject(object["arguments"])
+    ?? asObject(object["params"])
+    ?? {}
+  const toolUseId = asString(object["tool_use_id"]) ?? asString(object["toolUseId"]) ?? asString(object["id"])
+  const toolUse: ProcessToolUse = {
+    recipientName,
+    parameters,
+  }
+  if (toolUseId !== undefined) toolUse.toolUseId = toolUseId
+  return {
+    toolUse,
+  }
+}
+
+async function runProcessToolUse(
+  module: InterpreterModule,
+  toolUse: ProcessToolUse,
+  options: HttpServerOptions,
+  broadcast: (payload: JsonObject) => void,
+  dispatchUiHostCommand: UiHostCommandDispatcher,
+): Promise<JsonObject> {
+  const base: JsonObject = {recipient_name: toolUse.recipientName}
+  if (toolUse.toolUseId !== undefined) base["tool_use_id"] = toolUse.toolUseId
+
+  try {
+    if (toolUse.recipientName === "source.read") {
+      return {...base, ok: true, result: await sourceReadToolPayload(module, toolUse.parameters)}
+    }
+    if (toolUse.recipientName === "source.read_many" || toolUse.recipientName === "source.readMany") {
+      return {...base, ok: true, result: await sourceReadManyToolPayload(module, toolUse.parameters)}
+    }
+    if (toolUse.recipientName === "source.open" || toolUse.recipientName === "openSource") {
+      const payload = await sourceUiActionPayload(module.id, "source.open", toolUse.parameters, dispatchUiHostCommand)
+      const ok = payload.status < 400 && payload.body["ok"] !== false
+      const response: JsonObject = {...base, ok, status: payload.status, result: payload.body}
+      if (!ok) response["error"] = asString(payload.body["error"]) ?? "source.open failed"
+      return response
+    }
+    if (toolUse.recipientName === "source.openSelection" || toolUse.recipientName === "source.open_selection" || toolUse.recipientName === "openSelection") {
+      const payload = await sourceUiActionPayload(module.id, "source.openSelection", toolUse.parameters, dispatchUiHostCommand)
+      const ok = payload.status < 400 && payload.body["ok"] !== false
+      const response: JsonObject = {...base, ok, status: payload.status, result: payload.body}
+      if (!ok) response["error"] = asString(payload.body["error"]) ?? "source.openSelection failed"
+      return response
+    }
+    if (toolUse.recipientName === "source.write" || toolUse.recipientName === "source.save") {
+      const payload = await saveModuleSourcePayload(module.id, toolUse.parameters, options, broadcast)
+      const ok = payload.status < 400 && payload.body["ok"] === true
+      const response: JsonObject = {...base, ok, status: payload.status, result: payload.body}
+      if (!ok) response["error"] = asString(payload.body["error"]) ?? "source.write failed"
+      return response
+    }
+    if (toolUse.recipientName === "source.apply_patch" || toolUse.recipientName === "source.apply-patch" || toolUse.recipientName === "apply_patch") {
+      const patch = readPatchTextFromParams(toolUse.parameters)
+      if (patch === undefined || patch.trim().length === 0) return {...base, ok: false, error: "patch required"}
+      const payload = await applyModulePatchPayload(module.id, patch, options, broadcast)
+      const ok = payload.status < 400 && payload.body["ok"] === true
+      const response: JsonObject = {...base, ok, status: payload.status, result: payload.body}
+      if (!ok) response["error"] = asString(payload.body["error"]) ?? "source.apply_patch failed"
+      return response
+    }
+    if (toolUse.recipientName === "process.action") {
+      const payload = await processActionPayload(module.id, toolUse.parameters, options, dispatchUiHostCommand)
+      const ok = payload.status < 400 && payload.body["ok"] !== false
+      const response: JsonObject = {...base, ok, status: payload.status, result: payload.body}
+      if (!ok) response["error"] = asString(payload.body["error"]) ?? "process.action failed"
+      return response
+    }
+    return {...base, ok: false, error: `unknown tool recipient_name: ${toolUse.recipientName}`}
+  } catch (error) {
+    return {...base, ok: false, error: serializeError(error)}
+  }
+}
+
+async function sourceReadManyToolPayload(module: InterpreterModule, params: JsonObject): Promise<JsonObject> {
+  const sources = params["sources"]
+  if (!Array.isArray(sources)) throw new Error("sources must be an array")
+
+  const results: JsonObject[] = []
+  for (const [index, source] of sources.entries()) {
+    const sourceParams = typeof source === "string" ? {sourceUrl: source} : asObject(source)
+    if (sourceParams === undefined) {
+      results.push({ok: false, index, error: `sources[${index}] must be a string or object`})
+      continue
+    }
+    try {
+      results.push({ok: true, index, ...await sourceReadToolPayload(module, sourceParams)})
+    } catch (error) {
+      results.push({ok: false, index, error: serializeError(error)})
+    }
+  }
+
+  return {
+    ok: results.every((result) => result["ok"] === true),
+    sources: results,
+  }
+}
+
+async function sourceReadToolPayload(module: InterpreterModule, params: JsonObject): Promise<JsonObject> {
+  if (params["ranges"] === undefined) {
+    return await jsonObjectFromResponse(await getScriptSourceForModule(sourceReadUrlFromParams(params), module, module.id))
+  }
+
+  const sourceUrl = asString(params["sourceUrl"])
+    ?? asString(params["path"])
+    ?? asString(params["modulePath"])
+  if (sourceUrl === undefined || sourceUrl.trim().length === 0) throw new Error("sourceUrl required")
+
+  const path = sourceFilePath(sourceUrl)
+  if (path === undefined) throw new Error("sourceUrl is not a local file path")
+
+  const scriptSource = readFileSync(path, "utf8")
+  const stat = statSync(path)
+  const rangePayload = sourceReadRangesPayload(scriptSource, params)
+  return {
+    sourceUrl,
+    url: sourceUrl,
+    path,
+    sourceKind: "file",
+    cached: false,
+    size: stat.size,
+    mtimeMs: stat.mtimeMs,
+    sha256: sha256Text(scriptSource),
+    lineCount: sourceTextLines(scriptSource).length,
+    ...(rangePayload === undefined ? {scriptSource, text: scriptSource} : {ranges: rangePayload}),
+  }
+}
+
+function sourceReadUrlFromParams(params: JsonObject): URL {
+  const url = new URL("http://interpreter/source")
+  const scriptId = asString(params["scriptId"])
+  const sourceUrl = asString(params["sourceUrl"])
+    ?? asString(params["path"])
+    ?? asString(params["modulePath"])
+  const sourceKind = asString(params["sourceKind"])
+  const tokens = params["tokens"]
+  if (scriptId !== undefined) url.searchParams.set("scriptId", scriptId)
+  if (sourceUrl !== undefined) url.searchParams.set("sourceUrl", sourceUrl)
+  if (sourceKind !== undefined) url.searchParams.set("sourceKind", sourceKind)
+  if (tokens === false || tokens === 0 || tokens === "0") url.searchParams.set("tokens", "0")
+  return url
+}
+
+async function jsonObjectFromResponse(response: Response): Promise<JsonObject> {
+  const body = asObject(await response.json().catch((error) => ({ok: false, error: serializeError(error)}))) ?? {}
+  if (response.status >= 400) throw new Error(asString(body["error"]) ?? `request failed: ${response.status}`)
+  return body
+}
+
+function sourceReadRangesPayload(scriptSource: string, params: JsonObject): JsonObject[] | undefined {
+  const ranges = params["ranges"]
+  if (ranges === undefined) return undefined
+  if (!Array.isArray(ranges)) throw new Error("ranges must be an array")
+
+  const includeLineNumbers = asBoolean(params["includeLineNumbers"])
+    ?? asBoolean(params["lineNumbers"])
+    ?? false
+  const lines = sourceTextLines(scriptSource)
+  return ranges.map((range, index) => sourceReadRangePayload(lines, range, index, includeLineNumbers))
+}
+
+function sourceReadRangePayload(lines: string[], value: unknown, index: number, includeLineNumbers: boolean): JsonObject {
+  const range = asObject(value)
+  if (range === undefined) throw new Error(`ranges[${index}] must be an object`)
+
+  const startLine = positiveIntegerFromValue(range["startLine"])
+    ?? positiveIntegerFromValue(range["line"])
+    ?? positiveIntegerFromValue(range["start"])
+  if (startLine === undefined) throw new Error(`ranges[${index}].startLine must be a positive integer`)
+
+  const explicitEndLine = positiveIntegerFromValue(range["endLine"])
+    ?? positiveIntegerFromValue(range["end"])
+  const limit = positiveIntegerFromValue(range["limit"])
+    ?? positiveIntegerFromValue(range["lineCount"])
+  const endLine = explicitEndLine ?? (limit === undefined ? startLine : startLine + limit - 1)
+  if (endLine < startLine) throw new Error(`ranges[${index}].endLine must be greater than or equal to startLine`)
+
+  const clippedStartLine = Math.min(Math.max(startLine, 1), lines.length + 1)
+  const clippedEndLine = Math.min(endLine, lines.length)
+  const selected = clippedStartLine <= clippedEndLine ? lines.slice(clippedStartLine - 1, clippedEndLine) : []
+  return {
+    index,
+    startLine,
+    endLine,
+    clippedStartLine,
+    clippedEndLine,
+    lineCount: selected.length,
+    text: includeLineNumbers ? numberedSourceLines(selected, clippedStartLine) : selected.join("\n"),
+  }
+}
+
+function sourceTextLines(scriptSource: string): string[] {
+  const lines = scriptSource.split("\n")
+  if (scriptSource.endsWith("\n")) lines.pop()
+  return lines
+}
+
+function numberedSourceLines(lines: string[], startLine: number): string {
+  return lines.map((line, index) => `${startLine + index}\t${line}`).join("\n")
+}
+
+function positiveIntegerFromValue(value: unknown): number | undefined {
+  const number = typeof value === "number"
+    ? value
+    : typeof value === "string"
+      ? Number(value)
+      : Number.NaN
+  return Number.isInteger(number) && number > 0 ? number : undefined
+}
+
+function sha256Text(text: string): string {
+  return createHash("sha256").update(text).digest("hex")
+}
+
+async function saveModuleSourcePayload(
+  moduleId: string,
+  params: JsonObject,
+  options: HttpServerOptions,
+  broadcast: (payload: JsonObject) => void,
+): Promise<{status: number; body: JsonObject}> {
+  if (options.modules.get(moduleId) === undefined) return {status: 404, body: {ok: false, error: `module not found: ${moduleId}`}}
+  const sourceUrl = asString(params["sourceUrl"])
+    ?? asString(params["path"])
+    ?? asString(params["modulePath"])
+  const text = asString(params["text"])
+    ?? asString(params["scriptSource"])
+    ?? asString(params["content"])
+  if (sourceUrl === undefined || sourceUrl.trim().length === 0) return {status: 400, body: {ok: false, error: "sourceUrl required"}}
+  if (text === undefined) return {status: 400, body: {ok: false, error: "text required"}}
 
   const filePath = sourceFilePath(sourceUrl)
-  if (filePath === undefined) return jsonResponse({ok: false, sourceUrl, error: "sourceUrl is not a local file path"}, 400)
+  if (filePath === undefined) return {status: 400, body: {ok: false, sourceUrl, error: "sourceUrl is not a local file path"}}
 
   const before = readFileSync(filePath, "utf8")
   const patch = createReplaceFilePatch(filePath, before, text)
@@ -2378,13 +2636,13 @@ async function saveModuleSource(
       result = applyPatch({patch})
       breakpointUpdates = await remapBreakpointsForPatch(options, result, sourceUrl)
     } catch (error) {
-      return jsonResponse({ok: false, sourceUrl, path: filePath, error: serializeError(error)}, 400)
+      return {status: 400, body: {ok: false, sourceUrl, path: filePath, error: serializeError(error)}}
     }
     clearSourceCaches()
     broadcastSourcePatched(options, broadcast, moduleId, "save", result, sourceUrl, breakpointUpdates)
     broadcastTodoMarkdownForPatch(result, broadcast)
     const replay = await replayModulesForPatch(options, result)
-    return jsonResponse({
+    return {status: 200, body: {
       ok: true,
       moduleId,
       sourceUrl,
@@ -2394,10 +2652,10 @@ async function saveModuleSource(
       size: statSync(filePath).size,
       patch: result,
       replay,
-    })
+    }}
   }
   const stat = statSync(filePath)
-  return jsonResponse({
+  return {status: 200, body: {
     ok: true,
     moduleId,
     sourceUrl,
@@ -2407,31 +2665,17 @@ async function saveModuleSource(
     size: stat.size,
     patch: result,
     replay: [],
-  })
+  }}
 }
 
-async function saveProcessSource(
-  processId: string,
-  req: Request,
-  options: HttpServerOptions,
-  broadcast: (payload: JsonObject) => void,
-): Promise<Response> {
-  const module = moduleForProcessId(processId, options)
-  if (module === undefined) return processNotFoundResponse(processId)
-  return await saveModuleSource(module.id, req, options, broadcast)
-}
-
-async function applyModulePatch(
+async function applyModulePatchPayload(
   moduleId: string,
-  req: Request,
+  patch: string,
   options: HttpServerOptions,
   broadcast: (payload: JsonObject) => void,
-): Promise<Response> {
-  if (options.modules.get(moduleId) === undefined) return jsonResponse({ok: false, error: `module not found: ${moduleId}`}, 404)
-  const parsed = await readPatchText(req)
-  if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
-  const patch = parsed.patch
-  if (patch === undefined || patch.trim().length === 0) return jsonResponse({ok: false, error: "patch required"}, 400)
+): Promise<{status: number; body: JsonObject}> {
+  if (options.modules.get(moduleId) === undefined) return {status: 404, body: {ok: false, error: `module not found: ${moduleId}`}}
+  if (patch.trim().length === 0) return {status: 400, body: {ok: false, moduleId, error: "patch required"}}
 
   try {
     const result = applyPatch({patch})
@@ -2442,21 +2686,43 @@ async function applyModulePatch(
       broadcastTodoMarkdownForPatch(result, broadcast)
     }
     const replay = await replayModulesForPatch(options, result)
-    return jsonResponse({ok: true, moduleId, patch: result, breakpoints: breakpointUpdates, replay})
+    return {status: 200, body: {ok: true, moduleId, patch: result, breakpoints: breakpointUpdates, replay}}
   } catch (error) {
-    return jsonResponse({ok: false, moduleId, error: serializeError(error)}, 400)
+    return {status: 400, body: {ok: false, moduleId, error: serializeError(error)}}
   }
 }
 
-async function applyProcessPatch(
+async function processActionPayload(
   processId: string,
-  req: Request,
+  params: JsonObject,
   options: HttpServerOptions,
-  broadcast: (payload: JsonObject) => void,
-): Promise<Response> {
-  const module = moduleForProcessId(processId, options)
-  if (module === undefined) return processNotFoundResponse(processId)
-  return await applyModulePatch(module.id, req, options, broadcast)
+  dispatch: UiHostCommandDispatcher,
+): Promise<{status: number; body: JsonObject}> {
+  const action = asString(params["action"]) ?? asString(params["cmd"]) ?? asString(params["command"])
+  if (action === undefined) return {status: 400, body: {ok: false, processId, error: "process action must be a string"}}
+  const actionParams = asObject(params["params"]) ?? params
+  if (action === "close" || action === "delete" || action === "remove") return await jsonPayloadFromResponse(await closeProcess(processId, actionParams, options))
+  if (action === "stop") return await jsonPayloadFromResponse(await stopProcessTarget(processId, actionParams, options))
+  if (action === "restart") return await jsonPayloadFromResponse(await restartProcessTarget(processId, actionParams, options))
+  return await jsonPayloadFromResponse(await dispatchUiHostRoute("processes.action", processRouteParams(processId, params), dispatch))
+}
+
+async function sourceUiActionPayload(
+  processId: string,
+  action: "source.open" | "source.openSelection",
+  params: JsonObject,
+  dispatch: UiHostCommandDispatcher,
+): Promise<{status: number; body: JsonObject}> {
+  const body: JsonObject = {action}
+  if (Object.keys(params).length > 0) body["params"] = params
+  return await jsonPayloadFromResponse(await dispatchUiHostRoute("processes.action", processRouteParams(processId, body), dispatch))
+}
+
+async function jsonPayloadFromResponse(response: Response): Promise<{status: number; body: JsonObject}> {
+  return {
+    status: response.status,
+    body: asObject(await response.json().catch((error) => ({ok: false, error: serializeError(error)}))) ?? {},
+  }
 }
 
 async function remapBreakpointsForPatch(

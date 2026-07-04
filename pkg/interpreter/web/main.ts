@@ -9293,6 +9293,31 @@ function processApiPath(processId: string, suffix: string): string {
   return `/processes/${encodeURIComponent(processId)}${suffix}`
 }
 
+type ProcessToolUseResponse = {
+  ok?: boolean
+  result?: unknown
+  error?: string
+  status?: number
+}
+
+async function runProcessTool(processId: string, recipientName: string, parameters: Record<string, unknown>): Promise<ProcessToolUseResponse> {
+  const response = await fetch(processApiPath(processId, "/tools"), {
+    method: "POST",
+    headers: {"content-type": "application/json"},
+    body: JSON.stringify({tool_uses: [{recipient_name: recipientName, parameters}]}),
+  })
+  const payload = await response.json().catch(() => null) as {tool_uses?: ProcessToolUseResponse[]; error?: string} | null
+  const tool = payload?.tool_uses?.[0]
+  if (tool !== undefined) return tool
+  return {ok: false, status: response.status, error: payload?.error ?? `process tool failed: ${response.status}`}
+}
+
+function processToolResultObject(tool: ProcessToolUseResponse): Record<string, unknown> {
+  return typeof tool.result === "object" && tool.result !== null && !Array.isArray(tool.result)
+    ? tool.result as Record<string, unknown>
+    : {}
+}
+
 function moduleVerboseStorageKey(moduleId: string): string {
   return `interpreter:module:${moduleId}:verbose`
 }
@@ -9834,8 +9859,8 @@ async function openWorkspaceSource(
   }, "loading", false)
 
   try {
-    const res = await fetch(processApiPath(controller.id, `/source?sourceUrl=${encodeURIComponent(sourceUrl)}`))
-    const data = await res.json() as {
+    const tool = await runProcessTool(controller.id, "source.read", {sourceUrl})
+    const data = processToolResultObject(tool) as {
       url?: string
       scriptUrl?: string
       scriptSource?: string
@@ -9843,8 +9868,8 @@ async function openWorkspaceSource(
       sourceKind?: string
       error?: string
     }
-    if (typeof data.scriptSource !== "string") {
-      const error = data.error ?? "unknown"
+    if (tool.ok !== true || typeof data.scriptSource !== "string") {
+      const error = tool.error ?? data.error ?? "unknown"
       if (isMissingWorkspaceSourceError(error)) removeOpenedWorkspaceSource(controller, sourceUrl)
       setModuleSource(controller, {
         text: `no source: ${error}`,
@@ -9913,13 +9938,9 @@ async function saveModuleSource(controller: ModuleDisplayController, text: strin
   controller.sourceSaving = true
   controller.source.setTitle(moduleSourceTitle(controller))
   try {
-    const res = await fetch(processApiPath(controller.id, "/source"), {
-      method: "POST",
-      headers: {"content-type": "application/json"},
-      body: JSON.stringify({sourceUrl, text}),
-    })
-    const data = await res.json() as {ok?: boolean; error?: string}
-    if (!res.ok || data.ok !== true) throw new Error(data.error ?? `save failed: ${res.status}`)
+    const tool = await runProcessTool(controller.id, "source.write", {sourceUrl, text})
+    const data = processToolResultObject(tool) as {ok?: boolean; error?: string}
+    if (tool.ok !== true || data.ok !== true) throw new Error(tool.error ?? data.error ?? "save failed")
     controller.sourceDirty = false
     controller.sourceCache.clear()
   } catch (error) {
@@ -10571,17 +10592,17 @@ async function renderModuleSourceForFrame(controller: ModuleDisplayController, f
       identity: null,
     }, "loading", false)
     try {
-      const res = await fetch(processApiPath(controller.id, `/source?scriptId=${encodeURIComponent(scriptId)}&sourceUrl=${encodeURIComponent(frame.url)}&sourceKind=${sourceKind}`))
-      const data = await res.json() as {
+      const tool = await runProcessTool(controller.id, "source.read", {scriptId, sourceUrl: frame.url, sourceKind})
+      const data = processToolResultObject(tool) as {
         url?: string
         scriptUrl?: string
         scriptSource?: string
         tokens?: EditorTokens
         error?: string
       }
-      if (typeof data.scriptSource !== "string") {
+      if (tool.ok !== true || typeof data.scriptSource !== "string") {
         setModuleSource(controller, {
-          text: `no source: ${data.error ?? "unknown"}`,
+          text: `no source: ${tool.error ?? data.error ?? "unknown"}`,
           currentLine: 0,
           location,
           identity: null,
@@ -10749,17 +10770,13 @@ async function restartModule(moduleId: string): Promise<void> {
     syncModuleTerminalInput(controller)
   }
   try {
-    const res = await fetch(processApiPath(moduleId, "/action"), {
-      method: "POST",
-      headers: {"content-type": "application/json"},
-      body: JSON.stringify({action: "restart"}),
-    })
-    const data = await res.json().catch(() => null) as {ok?: boolean; error?: string} | null
-    if ((!res.ok || data?.ok === false) && controller !== undefined) {
+    const tool = await runProcessTool(moduleId, "process.action", {action: "restart"})
+    const data = processToolResultObject(tool) as {ok?: boolean; error?: string}
+    if ((tool.ok !== true || data.ok === false) && controller !== undefined) {
       appendModuleTerminal(controller, {
         ts: new Date().toISOString(),
         level: "error",
-        text: `[ui] ${t("restartTarget")}: ${data?.error ?? res.statusText}`,
+        text: `[ui] ${t("restartTarget")}: ${tool.error ?? data.error ?? "failed"}`,
       })
     }
   } catch (error) {
@@ -10782,20 +10799,16 @@ async function stopModule(moduleId: string, options: {force?: boolean} = {}): Pr
   const controller = moduleDisplays.get(moduleId)
   if (options.force !== true && controller?.activeCommand !== null && controller?.activeCommand !== undefined) return false
   try {
-    const res = await fetch(processApiPath(moduleId, "/action"), {
-      method: "POST",
-      headers: {"content-type": "application/json"},
-      body: JSON.stringify({action: "stop"}),
-    })
-    const data = await res.json().catch(() => null) as {ok?: boolean; error?: string} | null
-    if ((!res.ok || data?.ok === false) && controller !== undefined) {
+    const tool = await runProcessTool(moduleId, "process.action", {action: "stop"})
+    const data = processToolResultObject(tool) as {ok?: boolean; error?: string}
+    if ((tool.ok !== true || data.ok === false) && controller !== undefined) {
       appendModuleTerminal(controller, {
         ts: new Date().toISOString(),
         level: "error",
-        text: `[ui] process ${moduleId}/stop: ${data?.error ?? res.statusText}`,
+        text: `[ui] process ${moduleId}/stop: ${tool.error ?? data.error ?? "failed"}`,
       })
     }
-    return res.ok && data?.ok !== false
+    return tool.ok === true && data.ok !== false
   } catch (error) {
     if (controller !== undefined) {
       appendModuleTerminal(controller, {

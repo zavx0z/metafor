@@ -172,16 +172,15 @@ Runtime-действия адресуются через process. `module` - sou
 1. Считай interpreter API рабочим по умолчанию. Не вызывай `GET /health` как обычный preflight; используй его только для диагностики после ошибки API, отсутствующего process, рестарта/закрытия или неизвестного контекста.
 2. Прочитай `GET /context` и определи `processId`, `source.identity.sourceUrl` / `source.identity.scriptUrl`.
 3. Если изменяемый файл относится к текущему process/display, открыт в source интерпретатора или работа явно идёт в текущей interpreter/debugger-сессии, не используй локальный `apply_patch`, `sed`, shell-write, редактор или форматтер для записи файла.
-4. Применяй изменение только через:
-   - `POST /processes/:id/apply_patch` для raw `apply_patch`;
-   - `POST /processes/:id/source` для сохранения полного текста source.
-5. После правки проверь, что интерпретатор получил изменение: `source-patched`, replay/restart при необходимости, новый `/context` или `GET /processes/:id/source`.
+4. Применяй изменение только через API интерпретатора:
+   - `POST /processes/:id/tools` с `tool_uses` и tools `source.read`, `source.read_many`, `source.open`, `source.openSelection`, `source.write`, `source.apply_patch`, `process.action`.
+5. После правки проверь, что интерпретатор получил изменение: `source-patched`, replay/restart при необходимости, новый `/context` или `source.read` через `/processes/:id/tools`.
 
 Причина: только interpreter source API сдвигает breakpoints, рассылает `source-patched`, обновляет source cache/display и сохраняет связь runtime/source context. Правка в обход API оставляет UI и текущий runtime на старом source snapshot.
 
 ### Workflow Для `apply_patch`
 
-Для правок через `POST /processes/:id/apply_patch` сначала читай актуальный
+Для правок через `source.apply_patch` в `POST /processes/:id/tools` сначала читай актуальный
 source всех файлов или точных диапазонов, которые войдут в patch. Затем собирай
 один patch только из этого свежего snapshot-а и применяй его через interpreter
 API.
@@ -270,17 +269,14 @@ Process API:
 - `GET /processes/:id` возвращает рабочий payload process: content, runtime status, текущий UI context, tail терминала и capabilities.
 - `GET /processes/:id/context` возвращает текущий source/frame/scope/terminal context одного process.
 - `GET /processes/:id/modules` возвращает import graph каталога кода process от entrypoint и workspace package imports.
-- `GET /processes/:id/source` читает source в контексте process.
-- `POST /processes/:id/source` сохраняет source через серверный apply_patch flow.
-- `POST /processes/:id/apply_patch` принимает raw `apply_patch` text/plain для process.
+- `POST /processes/:id/tools` - основной process tools API; принимает Codex-style `tool_uses` для `source.read`, `source.read_many`, `source.open`, `source.openSelection`, `source.write`, `source.apply_patch`, `process.action`.
 - `GET /processes/:id/breakpoints` возвращает точки останова process.
 - `POST /processes/:id/breakpoint` ставит точку останова в process.
 - `DELETE /processes/:id/breakpoint` удаляет точку останова из process.
-- `POST /processes/:id/action` выполняет process action.
 
 API-редактирование source:
 
-- `POST /processes/:id/source` и `POST /processes/:id/apply_patch` после успешной правки должны приводить UI к отредактированному файлу в process display `:id`.
+- `POST /processes/:id/tools` с `source.write` или `source.apply_patch` после успешной правки должен приводить UI к отредактированному файлу в process display `:id`.
 - На `source-patched` открывай первый измененный не-delete файл в source editor, раскрывай/выделяй его в file tree и ставь cursor на первую измененную строку (`lineChanges[0].newStart`, fallback строка 1).
 - Не перетирай локальный dirty editor: если target source dirty или saving, авто-переход нужно пропустить.
 
@@ -309,9 +305,9 @@ Space API:
 ```sh
 curl -sS http://10.66.0.10:6500/context
 
-curl -sS -X POST 'http://10.66.0.10:6500/processes/dark-server.spec.ts/action' \
+curl -sS -X POST 'http://10.66.0.10:6500/processes/dark-server.spec.ts/tools' \
   -H 'content-type: application/json' \
-  -d '{"action":"evaluate","params":{"expr":"globalThis.location","frame":0}}'
+  -d '{"tool_uses":[{"recipient_name":"process.action","parameters":{"action":"evaluate","params":{"expr":"globalThis.location","frame":0}}}]}'
 ```
 
 SQLite HUD API:

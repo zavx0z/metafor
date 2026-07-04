@@ -112,3 +112,35 @@ test("applyPatch reports line changes for update hunks", () => {
   expect(readFileSync(path, "utf8")).toBe("a\nc\nd\n")
   expect(result.files[0]?.lineChanges).toEqual([{oldStart: 2, oldLines: 1, newStart: 2, newLines: 0}])
 })
+
+test("applyPatch applies repeated update sections for the same file in order", () => {
+  const cwd = tempWorkspace()
+  const path = join(cwd, "module.ts")
+  writeFileSync(path, "const value = 1\nconst label = \"old\"\n", "utf8")
+
+  const result = applyPatch({
+    cwd,
+    patch: [
+      "*** Begin Patch",
+      "*** Update File: module.ts",
+      "@@",
+      "-const value = 1",
+      "+const value = 2",
+      "*** Update File: module.ts",
+      "@@",
+      "-const value = 2",
+      "+const value = 3",
+      "*** Update File: module.ts",
+      "@@",
+      " const value = 3",
+      "-const label = \"old\"",
+      "+const label = \"new\"",
+      "*** End Patch",
+      "",
+    ].join("\n"),
+  })
+
+  expect(readFileSync(path, "utf8")).toBe("const value = 3\nconst label = \"new\"\n")
+  expect(result.files).toHaveLength(1)
+  expect(result.files[0]?.operation).toBe("update")
+})

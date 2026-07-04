@@ -66,12 +66,12 @@ cat .metafor/interpreter/state.json
 
 ## 6. Проверить eval
 
-Отправить REST action в конкретный process:
+Отправить action tool в конкретный process:
 
 ```sh
-curl -sS -X POST http://127.0.0.1:6500/processes/<process-id>/action \
+curl -sS -X POST http://127.0.0.1:6500/processes/<process-id>/tools \
   -H 'content-type: application/json' \
-  -d '{"action":"evaluate","params":{"frame":0,"expr":"wimp.children.length"}}'
+  -d '{"tool_uses":[{"recipient_name":"process.action","parameters":{"action":"evaluate","params":{"frame":0,"expr":"wimp.children.length"}}}]}'
 ```
 
 Ожидается JSON response:
@@ -122,10 +122,10 @@ curl -sS -X POST http://127.0.0.1:6500/processes \
 
 ```sh
 curl -sS http://127.0.0.1:6500/processes
-curl -sS -X POST http://127.0.0.1:6500/processes/module-spec/action \
+curl -sS -X POST http://127.0.0.1:6500/processes/module-spec/tools \
   -H 'content-type: application/json' \
-  -d '{"action":"evaluate","params":{"frame":0,"expr":"wimp.src"}}'
-curl -sS -X POST http://127.0.0.1:6500/processes/module-spec/action \
+  -d '{"tool_uses":[{"recipient_name":"process.action","parameters":{"action":"evaluate","params":{"frame":0,"expr":"wimp.src"}}}]}'
+curl -sS -X POST http://127.0.0.1:6500/processes/module-spec/tools \
   -H 'content-type: application/json' \
-  -d '{"action":"resume","params":{}}'
+  -d '{"tool_uses":[{"recipient_name":"process.action","parameters":{"action":"resume","params":{}}}]}'
 ```

@@ -74,7 +74,7 @@ Playwright-клиент. Snapshot endpoints допустимы только ка
 
 Кнопка UI “Перезапустить модуль” делает обычный restart текущего target: сохранённые breakpoint-ы переносятся в новый запуск, старый `--inspect*` нормализуется, а новый process стартует через `--inspect=<protocol-url>` без начальной остановки.
 
-Остановка на первой строке не является обычным поведением restart. Она нужна только для явного интерактивного запуска с `pauseOnStart: true`, который переводится в `--inspect-brk=<protocol-url>`. Для короткого модуля или теста, где нужно успеть поставить breakpoint до выполнения, использовать REST `POST /processes` или `POST /processes/:id/action` с явным `pauseOnStart: true`.
+Остановка на первой строке не является обычным поведением restart. Она нужна только для явного интерактивного запуска с `pauseOnStart: true`, который переводится в `--inspect-brk=<protocol-url>`. Для короткого модуля или теста, где нужно успеть поставить breakpoint до выполнения, использовать REST `POST /processes` или `process.action` через `POST /processes/:id/tools` с явным `pauseOnStart: true`.
 
 После `exited`/`failed` runtime-команды `pause`, `resume`, `step` и `stop` в UI блокируются: текущего runtime-контекста уже нет. Доступным остаётся перезапуск модуля, просмотр вывода и событий.
 
@@ -101,7 +101,7 @@ MetaFor UI является основным frontend интерпретатор
 
 ## API-Редактирование Source
 
-Когда агент или внешний host меняет код через `POST /processes/:id/source` или `POST /processes/:id/apply_patch`, UI получает `source-patched` и переводит соответствующий process display на измененный файл.
+Когда агент или внешний host меняет код через `POST /processes/:id/tools` с `source.write` или `source.apply_patch`, API внутри вызывает функции синхронизации source/runtime, UI получает `source-patched` и переводит соответствующий process display на измененный файл.
 
 Переход выбирает первый измененный не-delete файл из patch payload, открывает его в source editor, раскрывает и выделяет файл в file tree и ставит cursor на первую измененную строку. Если patch не содержит line changes, cursor ставится на строку 1.
 
