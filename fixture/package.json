@@ -1,9 +1,6 @@
 {
   "name": "fixture",
   "private": true,
-  "devDependencies": {
-    "boundary": "workspace:*"
-  },
   "peerDependencies": {
     "typescript": "^5"
   }
