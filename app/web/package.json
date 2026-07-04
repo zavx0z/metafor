@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "BOUNDARY_PATH=tmp/boundary.sqlite bun server --hot",
-    "product": "cd ../.. && bun app/web/run.ts --prod layout",
+    "product": "bun run tls",
     "typecheck": "tsc --noEmit --pretty false",
     "tls": "NODE_ENV=production BUN_ENV=production BOUNDARY_PATH=tmp/boundary.sqlite HOST=0.0.0.0 TLS_KEY_FILE=tls/privkey.pem TLS_CERT_FILE=tls/fullchain.pem bun server",
     "dev:tls": "NODE_ENV=production BUN_ENV=production BOUNDARY_PATH=tmp/boundary.sqlite HOST=0.0.0.0 TLS_KEY_FILE=tls/privkey.pem TLS_CERT_FILE=tls/fullchain.pem bun server",
@@ -16,12 +16,10 @@
   },
   "dependencies": {
     "@metafor/engine": "workspace:*",
-    "@metafor/pty": "workspace:*",
     "@bulk/gravity": "workspace:*",
     "@ui/components": "workspace:*",
     "@ui/elements": "workspace:*",
     "@ui/hud": "workspace:*",
-    "@ui/panes": "workspace:*",
     "boundary": "workspace:*",
     "bulk": "workspace:*",
     "dark": "workspace:*",

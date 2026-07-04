@@ -12,7 +12,6 @@ import {
 } from "bulk/settings"
 import type {BulkLayoutSettings} from "@bulk/gravity/layout"
 import {installAppWebHud, type AppWebHudController, type AppWebHudSettingsSnapshot} from "./hud.ts"
-import type {AndroidRtcCommand} from "./android-rtc.ts"
 import {applyForcePartToSnapshot} from "./force-snapshot.ts"
 
 const markAppWebBoot = (phase: string, detail?: unknown): void => {
@@ -41,27 +40,6 @@ type SnapshotMessage = {
 type ErrorMessage = {
 	type: "error"
 	error: string
-}
-
-type TodoChangedMessage = {
-	type: "hud-todo-changed"
-	todo: {
-		text: string
-		path: string
-	}
-}
-
-type HudAndroidControlMessage = {
-	type: "hud-android-control"
-	command: AndroidRtcCommand
-}
-
-type HudVoiceLeaseMessage = {
-	type: "hud-voice-lease"
-	ownerId: string | null
-	expiresAt: number
-	ttlMs?: number
-	reason?: string
 }
 
 type ClientMaterializePayload = {
@@ -100,33 +78,14 @@ let activeSettings: AppWebHudSettingsSnapshot = {
 let activeSrc = DEFAULT_BULK_SCENE_SRC
 let lastAppliedSceneState: {layoutSettings: Partial<BulkLayoutSettings>; src: string} | null = null
 let pendingSceneState: {layoutSettings: Partial<BulkLayoutSettings>; src: string} | null = null
-let voiceDictationActive = false
 
 const SETTINGS_LOAD_TIMEOUT_MS = 1_200
-const APP_WEB_VOICE_CLIENT_ID_STORAGE_KEY = "metafor.app-web.voice.clientId:v1"
 
 const socketScheme = window.location.protocol === "https:" ? "wss:" : "ws:"
 const socket = new WebSocket(`${socketScheme}//${window.location.host}/ws`)
-const voiceClientId = readVoiceClientId()
 
 const updateBulkStats = (stats: BulkViewportStats): void => {
 	hud?.setStats(stats)
-}
-
-const setVoiceDictationActive = (active: boolean): void => {
-	if (voiceDictationActive === active) return
-	voiceDictationActive = active
-	bulkViewport?.setAnimationSuspended(active)
-}
-
-const sendVoiceLease = (action: "request" | "release", reason: string): void => {
-	if (socket.readyState !== WebSocket.OPEN) return
-	socket.send(JSON.stringify({
-		type: "hud-voice-lease",
-		action,
-		clientId: voiceClientId,
-		reason,
-	}))
 }
 
 const applySnapshotWorld = (
@@ -288,23 +247,6 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: s
 	}
 }
 
-function readVoiceClientId(): string {
-	try {
-		const existing = sessionStorage.getItem(APP_WEB_VOICE_CLIENT_ID_STORAGE_KEY)
-		if (existing !== null && existing.length > 0) return existing
-		const next = `app-web-client-${randomClientId()}`
-		sessionStorage.setItem(APP_WEB_VOICE_CLIENT_ID_STORAGE_KEY, next)
-		return next
-	} catch {
-		return `app-web-client-${randomClientId()}`
-	}
-}
-
-function randomClientId(): string {
-	if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID()
-	return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
-}
-
 const showBootOverlay = (title: string, detail?: string, retry = false): void => {
 	const safeDetail = detail?.trim()
 	bootOverlay.innerHTML = ""
@@ -400,26 +342,19 @@ const initBulkViewport = async (): Promise<void> => {
 		canvas: bulkCanvas,
 		width: Math.max(1, Math.floor(rect.width)),
 		height: Math.max(1, Math.floor(rect.height)),
-		androidFrameSize: () => hud?.androidFrameSize() ?? null,
-		onAndroidControl: (command) => hud?.sendAndroidControl(command) === true,
 		onStats: updateBulkStats,
 	})
 	markAppWebBoot("client:viewport:done")
 	bulkViewport.setLayoutSettings(activeSettings.layoutSettings)
 	bulkViewport.setRenderSettings(activeSettings.renderSettings)
-	bulkViewport.setAnimationSuspended(voiceDictationActive)
 	markAppWebBoot("client:hud:start")
 	hud = installAppWebHud({
 		viewport: bulkViewport,
-		voiceClientId,
 		initialSrc: activeSrc,
 		initialSettings: activeSettings,
 		onApply: applyHudRequest,
 		onRenderSettingsChange: applyRenderSettingsFromHud,
 		onSettingsPersist: schedulePersistSettings,
-		onVoiceDictationActiveChange: setVoiceDictationActive,
-		onVoiceLeaseRequest: (reason) => sendVoiceLease("request", reason),
-		onVoiceLeaseRelease: (reason) => sendVoiceLease("release", reason),
 	})
 	markAppWebBoot("client:hud:done")
 	hideBootOverlay()
@@ -460,18 +395,16 @@ void initBulkViewport().catch((error) => {
 
 socket.onopen = () => {
 	hud?.setConnectionStatus(true)
-	hud?.syncVoiceLease("socket-open")
 	requestInitialMaterialization()
 }
 
 socket.onclose = () => {
 	hud?.setConnectionStatus(false)
 	hud?.setBusy(true)
-	hud?.setVoiceLease(null, 0)
 }
 
 socket.onmessage = (event) => {
-	const message = JSON.parse(String(event.data)) as ForceMessage | SnapshotMessage | ErrorMessage | TodoChangedMessage | HudAndroidControlMessage | HudVoiceLeaseMessage
+	const message = JSON.parse(String(event.data)) as ForceMessage | SnapshotMessage | ErrorMessage
 
 	if (message.type === "force") {
 		const forceMessage = message as ForceMessage
@@ -508,20 +441,6 @@ socket.onmessage = (event) => {
 		return
 	}
 
-	if (message.type === "hud-todo-changed") {
-		hud?.setTodoMarkdown(message.todo.text, message.todo.path)
-		return
-	}
-
-	if (message.type === "hud-android-control") {
-		hud?.sendAndroidControl(message.command)
-		return
-	}
-
-	if (message.type === "hud-voice-lease") {
-		hud?.setVoiceLease(message.ownerId, message.expiresAt, message.ttlMs)
-		return
-	}
 }
 
 function cloneSettings(settings: AppWebHudSettingsSnapshot): AppWebHudSettingsSnapshot {

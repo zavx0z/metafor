@@ -1,35 +1,14 @@
-import type {ServerWebSocket} from "bun"
 import type {BulkLayoutSettings} from "@bulk/gravity/layout"
 import type {BoundaryBulkRuntimeSnapshot, BoundaryMatrixRuntimeSnapshot, BoundaryUpdateMessage, ProcessTask} from "boundary"
 import type {EnergyEnv, EnergyMass, EnergyProcessResult, EnergyProcessTask} from "energy"
-import type {VoiceProxySocketData} from "@metafor/interpreter/srv"
-import type {PtyDaemonProxySocketData} from "@metafor/pty/server"
-import type {parseMarkdownTodo} from "@ui/panes/todo-model"
 
 export type {BoundaryUpdateMessage}
 
 export type AppLogTone = "cyan" | "gray" | "green" | "magenta" | "red" | "yellow"
 
-export type JsonReadResult =
-	| {body: Record<string, unknown>; error?: undefined}
-	| {body: Record<string, never>; error: string}
-
-export type RtcSignalSocketData = {
-	kind: "rtc-signal"
-	room: string
-	peerId: string
-	connectedAt: number
-}
-
 export type AppWebClientSocketData = {
 	kind: "app-web"
-	voiceClientId?: string
 }
-
-export type AppWebTerminalSocketData = {
-	kind: "terminal"
-	connectedAt: number
-} & PtyDaemonProxySocketData
 
 export type MatrixBridgeSocketData = {
 	kind: "matrix-bridge"
@@ -41,15 +20,10 @@ export type EnergyBridgeSocketData = {
 	connectedAt: number
 }
 
-export type TerminalPtySocketData = AppWebTerminalSocketData
-
 export type AppWebSocketData =
 	| AppWebClientSocketData
-	| AppWebTerminalSocketData
 	| EnergyBridgeSocketData
 	| MatrixBridgeSocketData
-	| RtcSignalSocketData
-	| VoiceProxySocketData
 
 export type MatrixBridgeIncomingMessage =
 	| {type: "force"; parts: BoundaryUpdateMessage["parts"]}
@@ -74,22 +48,6 @@ export type EnergyBridgeOutgoingMessage =
 	| {type: "claim-rejected"; actorId: number; processId: number; reason: string}
 	| {type: "error"; error: string}
 
-export type TodoMarkdownPayload = {
-	ok: true
-	path: string
-	mtimeMs: number
-	size: number
-	text: string
-	items: ReturnType<typeof parseMarkdownTodo>
-}
-
-export type AndroidControlCommand =
-	| {type: "tap"; x: number; y: number; frameW?: number; frameH?: number}
-	| {type: "swipe"; x1: number; y1: number; x2: number; y2: number; durationMs?: number; frameW?: number; frameH?: number}
-	| {type: "key"; code: string}
-	| {type: "launch"; packageName: string}
-	| {type: "open-accessibility"}
-
 export type AppClientAsset = {
 	body: ArrayBuffer
 	type: string
@@ -112,93 +70,10 @@ export type ClientRelayoutPayload = {
 	layoutSettings?: Partial<BulkLayoutSettings>
 }
 
-export type ClientVoiceLeasePayload = {
-	type: "hud-voice-lease"
-	action: "request" | "release"
-	clientId: string
-	reason?: string
-}
-
-export type ClientMessage = ClientMaterializePayload | ClientRelayoutPayload | ClientVoiceLeasePayload
+export type ClientMessage = ClientMaterializePayload | ClientRelayoutPayload
 
 export type ServerSnapshotPayload = {
 	type: "snapshot"
 	src: string
 	snapshot: BoundaryBulkRuntimeSnapshot
 }
-
-export type VoiceServerDeps = {
-	sockets: Set<ServerWebSocket<AppWebSocketData>>
-	chromeApiUrl: string | null
-	tlsEnabled: boolean
-	port: number
-	appLog(tag: string, label: string, detail: string, tone: AppLogTone): void
-	errorMessage(error: unknown): string
-	jsonResponse(value: unknown, status?: number): Response
-	readJsonObject(req: Request): Promise<JsonReadResult>
-	formatLogBytes(value: number): string
-	compactLogValue(value: string, maxLength?: number): string
-	shortId(value: string): string
-}
-
-export type ChromeWindowsPayload = {
-	windows?: Array<{
-		id?: number
-		kind?: string
-		tabs?: Array<{index?: number; title?: string; url?: string}>
-	}>
-}
-
-export type ChromeEvalPayload = {
-	ok?: boolean
-	parsed?: unknown
-	result?: string
-}
-
-export type ChromeEvalTarget = {
-	windowId: number
-	tabIndex: number
-}
-
-export type InterpreterVoiceSettingsPayload = {
-	origin?: string
-	values?: Record<string, string>
-}
-
-export type VoiceRtcDebugPayload = {
-	state: string
-	appPeerId: string
-	serverPeerId: string
-	sampleRate: number
-	localAudioBytes: number
-	localAudioRms: number
-	serverAudioBytes: number
-	serverAudioRms: number
-	asrMessages: number
-	asrTextMessages: number
-	lastAsrType: string
-	lastAsrText: string
-	fallbackReason: string
-	updatedAt: number
-}
-
-export type VoiceLocalStorageKey =
-	| "metafor.interpreter.voice.url"
-	| "metafor.interpreter.voice.wakeUrl"
-	| "metafor.interpreter.voice.context"
-	| "metafor.interpreter.voice.wakePhrases:v1"
-	| "metafor.interpreter.voice.activationPhrases:v1"
-	| "metafor.interpreter.voice.deactivationPhrases:v1"
-	| "metafor.interpreter.voice.stopPhrases:v1"
-	| "metafor.interpreter.voice.activationFuzzy:v1"
-	| "metafor.interpreter.voice.deactivationFuzzy:v1"
-	| "metafor.interpreter.voice.stopFuzzy:v1"
-	| "metafor.interpreter.voice.deactivationMode:v1"
-	| "metafor.interpreter.voice.recognitionTimeoutSeconds:v1"
-	| "metafor.interpreter.voice.autoSend:v1"
-	| "metafor.interpreter.voice.autoWakePaused:v1"
-	| "metafor.interpreter.voice.signalVolume:v1"
-	| "metafor.interpreter.voice.signalVolume:v2"
-	| "metafor.interpreter.hostTerminal.agentSoundEnabled:v1"
-	| "metafor.interpreter.hostTerminal.agentSoundVolume:v1"
-	| "metafor.interpreter.voice.agentReadyVolume:v1"
