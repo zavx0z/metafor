@@ -19,7 +19,7 @@ const AUDIO_VOLUME = (process.env.METAFOR_REMOTE_DESKTOP_AUDIO_VOLUME || "0.70")
 const TARGET_URL = process.env.METAFOR_URL || "https://meta.proizvodstvo1.ru/"
 const TARGET_HTTP_ORIGIN = targetHttpOrigin(TARGET_URL)
 const TARGET_WS_ORIGIN = targetWebSocketOrigin(TARGET_URL)
-const CHROME_RTC_INTERPRETER_PREFIX = normalizePathPrefix(process.env.METAFOR_REMOTE_DESKTOP_INTERPRETER_PREFIX || "/hud/interpreter")
+const CHROME_RTC_INTERPRETER_PREFIX = normalizePathPrefix(process.env.METAFOR_REMOTE_DESKTOP_INTERPRETER_PREFIX || "")
 const CHROME_RTC_SIGNAL_URL = process.env.METAFOR_REMOTE_DESKTOP_SIGNAL_URL || `${TARGET_WS_ORIGIN}${CHROME_RTC_INTERPRETER_PREFIX}/webrtc/signaling`
 const CHROME_RTC_INPUT_URL = process.env.METAFOR_REMOTE_DESKTOP_INPUT_URL || `http://${HOST}:${PORT}/desktop/input`
 const CHROME_RTC_AUDIO_PCM_URL = process.env.METAFOR_REMOTE_DESKTOP_AUDIO_PCM_URL || `http://${HOST}:${PORT}/desktop/audio.pcm`
@@ -68,7 +68,7 @@ const CHROME_USE_OZONE_FEATURE = envFlag(process.env.METAFOR_REMOTE_DESKTOP_CHRO
 const CHROME_RTC_PICKER_AUTOMATION = process.env.METAFOR_REMOTE_DESKTOP_CHROME_RTC_PICKER === undefined
   ? CHROME_RTC_AUTO_SELECT_SOURCE.length === 0
   : envFlag(process.env.METAFOR_REMOTE_DESKTOP_CHROME_RTC_PICKER)
-const CHROME_DEV_LAYOUT_ENABLED = envFlag(process.env.METAFOR_REMOTE_DESKTOP_CHROME_DEV_LAYOUT || "0")
+const CHROME_DEV_LAYOUT_ENABLED = envFlag(process.env.METAFOR_REMOTE_DESKTOP_CHROME_DEV_LAYOUT || "1")
 const CHROME_DEV_MOBILE_WIDTH = envNumber(process.env.METAFOR_REMOTE_DESKTOP_CHROME_DEV_MOBILE_WIDTH, 400)
 const CHROME_DEV_MOBILE_HEIGHT = envNumber(process.env.METAFOR_REMOTE_DESKTOP_CHROME_DEV_MOBILE_HEIGHT, 871)
 const CHROME_DEV_MOBILE_DPR = envNumber(process.env.METAFOR_REMOTE_DESKTOP_CHROME_DEV_MOBILE_DPR, 3)
@@ -228,6 +228,20 @@ async function route(req, res) {
       "content-length": Buffer.byteLength(html),
     })
     res.end(html)
+    return
+  }
+  if ((req.method === "GET" || req.method === "POST") && url.pathname === "/desktop/snapshot") {
+    const snapshot = await captureDesktopSnapshot()
+    res.writeHead(200, {
+      ...corsHeaders(),
+      "cache-control": "no-store",
+      "content-type": snapshot.mime,
+      "content-length": snapshot.bytes.byteLength,
+      "x-meta-snapshot-width": String(snapshot.width),
+      "x-meta-snapshot-height": String(snapshot.height),
+      "x-meta-snapshot-source": snapshot.source,
+    })
+    res.end(snapshot.bytes)
     return
   }
   if (req.method === "POST" && url.pathname === "/desktop/rtc/restart") {
@@ -563,7 +577,7 @@ function applyChromeDevLayoutPreferences(preferences) {
     window_placement: {
       bottom: HEIGHT,
       left: 0,
-      maximized: false,
+      maximized: true,
       right: WIDTH,
       top: 0,
       work_area_bottom: HEIGHT,
@@ -747,7 +761,7 @@ async function configureChromeDevLayout() {
   await applyChromeMobileEmulation()
   if (!await chromeDevToolsOpen()) {
     await withCdpPage((cdp) => cdp.send("Page.bringToFront").catch(() => undefined))
-    await sendHelperInput({type: "key", key: "i", modifiers: ["Control", "Shift"]})
+    await sendHelperInput({type: "key", key: "F12"})
     await sleep(900)
   }
   await applyChromeWindowBounds(await cdpPageTarget())
@@ -760,11 +774,7 @@ async function applyChromeWindowBounds(target) {
     if (typeof windowInfo?.windowId !== "number") return
     await browserCdp.send("Browser.setWindowBounds", {
       windowId: windowInfo.windowId,
-      bounds: {windowState: "normal"},
-    }).catch(() => undefined)
-    await browserCdp.send("Browser.setWindowBounds", {
-      windowId: windowInfo.windowId,
-      bounds: {left: 0, top: 0, width: WIDTH, height: HEIGHT},
+      bounds: {windowState: "maximized"},
     })
   })
 }
@@ -795,7 +805,7 @@ async function applyChromeMobileEmulation() {
 async function chromeDevToolsOpen() {
   const targets = await fetchChromeJson("/json/list")
   return Array.isArray(targets) && targets.some((target) => (
-    target?.type === "page"
+    (target?.type === "page" || target?.type === "other")
     && typeof target.url === "string"
     && target.url.startsWith("devtools://")
     && target.url.includes("can_dock=true")
@@ -1093,6 +1103,46 @@ function chromeRtcSenderScript(options = {}) {
       muted: track.muted,
       settings: typeof track.getSettings === "function" ? track.getSettings() : null,
     }));
+  }
+
+  async function snapshot() {
+    const track = stream?.getVideoTracks?.()[0] ?? null;
+    if (track === null || track.readyState !== "live") throw new Error("desktop video track is not live");
+    const settings = typeof track.getSettings === "function" ? track.getSettings() : {};
+    const frameWidth = Number(settings.width) || config.width;
+    const frameHeight = Number(settings.height) || config.height;
+    const video = document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    video.srcObject = new MediaStream([track]);
+    await video.play();
+    if (video.readyState < 2) {
+      await new Promise((resolve) => {
+        const timer = window.setTimeout(resolve, 1000);
+        video.addEventListener("loadeddata", () => {
+          window.clearTimeout(timer);
+          resolve();
+        }, {once: true});
+      });
+    }
+    const width = Math.max(1, Math.round(Number(video.videoWidth) || frameWidth));
+    const height = Math.max(1, Math.round(Number(video.videoHeight) || frameHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (context === null) throw new Error("2d canvas context is not available");
+    context.drawImage(video, 0, 0, width, height);
+    video.pause();
+    video.srcObject = null;
+    return {
+      ok: true,
+      mime: "image/png",
+      width,
+      height,
+      source: state.capture.frameSource,
+      dataUrl: canvas.toDataURL("image/png"),
+    };
   }
 
   async function startPipeWireAudioCapture() {
@@ -1638,6 +1688,7 @@ function chromeRtcSenderScript(options = {}) {
 
   window.__metaforChromeRtc = {
     state,
+    snapshot,
     stop() {
       stopped = true;
       socket?.close();
@@ -1661,6 +1712,34 @@ function chromeRtcSenderScript(options = {}) {
   return state;
 })()
 `
+}
+
+async function captureDesktopSnapshot() {
+  return await withCdpChromeRtcSenderPage(async (cdp) => {
+    const result = await cdp.send("Runtime.evaluate", {
+      expression: "window.__metaforChromeRtc && typeof window.__metaforChromeRtc.snapshot === 'function' ? window.__metaforChromeRtc.snapshot() : Promise.reject(new Error('Chrome RTC snapshot function is not available'))",
+      awaitPromise: true,
+      returnByValue: true,
+    })
+    const value = result?.result?.value
+    if (value === null || typeof value !== "object") throw new Error("Chrome RTC snapshot returned invalid payload")
+    const parsed = pngDataUrlToBuffer(typeof value.dataUrl === "string" ? value.dataUrl : "")
+    return {
+      bytes: parsed.bytes,
+      mime: parsed.mime,
+      width: Number(value.width) || WIDTH,
+      height: Number(value.height) || HEIGHT,
+      source: typeof value.source === "string" ? value.source : "chrome-rtc-sender",
+    }
+  })
+}
+
+function pngDataUrlToBuffer(dataUrl) {
+  const match = /^data:([^;,]+);base64,(.*)$/s.exec(dataUrl)
+  if (match === null) throw new Error("Chrome RTC snapshot did not return a base64 data URL")
+  const mime = match[1] || "image/png"
+  if (mime !== "image/png") throw new Error(`Chrome RTC snapshot returned unsupported mime ${mime}`)
+  return {mime, bytes: Buffer.from(match[2], "base64")}
 }
 
 async function sendAudioPcmStream(req, res) {

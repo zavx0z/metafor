@@ -156,6 +156,41 @@ test("remote desktop bridge exposes rtc state route", async () => {
   }
 })
 
+test("remote desktop bridge preserves snapshot metadata headers", async () => {
+  const server = Bun.serve({
+    port: 0,
+    fetch(req) {
+      const url = new URL(req.url)
+      if (url.pathname !== "/desktop/snapshot") return new Response("not found", {status: 404})
+      return new Response(new Uint8Array([1, 2, 3]), {
+        headers: {
+          "content-type": "image/png",
+          "x-meta-snapshot-width": "1920",
+          "x-meta-snapshot-height": "1080",
+          "x-meta-snapshot-source": "chrome-get-display-media:monitor",
+        },
+      })
+    },
+  })
+  try {
+    process.env.INTERPRETER_REMOTE_DESKTOP_HOST_PORT = String(server.port)
+    delete process.env.INTERPRETER_REMOTE_DESKTOP_HOST_URL
+    delete process.env.INTERPRETER_REMOTE_DESKTOP_RTC_HOST_URL
+    delete process.env.INTERPRETER_REMOTE_DESKTOP_RTC_HOST_PORT
+
+    const res = await handleBrowserHostRoute(new Request("http://interpreter/remote-desktop/snapshot"), "GET", "/remote-desktop/snapshot")
+    expect(res).not.toBeNull()
+    expect(res?.status).toBe(200)
+    expect(res?.headers.get("content-type")).toBe("image/png")
+    expect(res?.headers.get("x-meta-snapshot-width")).toBe("1920")
+    expect(res?.headers.get("x-meta-snapshot-height")).toBe("1080")
+    expect(res?.headers.get("x-meta-snapshot-source")).toBe("chrome-get-display-media:monitor")
+    expect([...new Uint8Array(await res!.arrayBuffer())]).toEqual([1, 2, 3])
+  } finally {
+    await server.stop()
+  }
+})
+
 test("browser host bridge rejects unsafe proxy paths", async () => {
   process.env.INTERPRETER_BROWSER_HOST_PORT = "32123"
   delete process.env.INTERPRETER_BROWSER_HOST_URL

@@ -237,6 +237,9 @@ function browserHostProxyResponse(upstream: Response, responseKind: BrowserHostR
   copyBrowserHostHeader(upstream.headers, headers, "content-length")
   copyBrowserHostHeader(upstream.headers, headers, "etag")
   copyBrowserHostHeader(upstream.headers, headers, "last-modified")
+  copyBrowserHostHeader(upstream.headers, headers, "x-meta-snapshot-width")
+  copyBrowserHostHeader(upstream.headers, headers, "x-meta-snapshot-height")
+  copyBrowserHostHeader(upstream.headers, headers, "x-meta-snapshot-source")
   const cacheControl = upstream.headers.get("cache-control") ?? "no-store"
   headers.set("cache-control", cacheControl)
 
