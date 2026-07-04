@@ -5,7 +5,7 @@ import {join} from "node:path"
 import type {Actor} from "@boundary/actor"
 import type {Boundary} from "boundary"
 import {open} from "boundary/sqlite"
-import {matter} from "../index.ts"
+import {matter} from "../dark.ts"
 
 let boundary: Awaited<ReturnType<typeof open>>
 let sql: SQL

@@ -2,7 +2,7 @@ import {afterEach, beforeEach, describe, expect, test} from "bun:test"
 import {SQL} from "bun"
 import type {Boundary} from "boundary"
 import {open} from "boundary/sqlite"
-import {matter} from "./index.ts"
+import {matter} from "./dark.ts"
 import {loadMeta} from "./load.ts"
 
 describe("wimp normalization", () => {

@@ -1,7 +1,7 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import type {Particle} from "boundary"
 import {open} from "boundary/sqlite"
-import {matter} from "../index.ts"
+import {matter} from "../dark.ts"
 
 const waitForParts = async (predicate: () => boolean): Promise<void> => {
   const deadline = Date.now() + 1000

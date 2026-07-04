@@ -2,7 +2,7 @@ import {beforeEach, describe, expect, test} from "bun:test"
 import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
 import {SQL} from "bun"
-import {matter} from "../../dark/index.ts"
+import {matter} from "../../dark/dark.ts"
 import type {Particle, Boundary} from "../index.ts"
 import {open} from "../sqlite.ts"
 
