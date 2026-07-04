@@ -3,6 +3,10 @@
 Рабочий план для текущей разработки. HUD ToDoPane читает этот файл и показывает
 только ближайшие незакрытые задачи.
 
+## 0. Interpreter HUD
+
+- [100] Стандартизировать HUD window title bars: слева свернуть/actions, центр title/subtitle, справа actions.
+
 ## 1. Process Protocol / Energy
 
 - [ ] Научить `Energy` исполнять process action по `env`/`mass` без чтения `Boundary`.

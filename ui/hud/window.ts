@@ -61,21 +61,18 @@ export function HudWindowTitleBar(host: UiSurface, x: number, y: number, w: numb
 
   const titleLeft = left + buttonGap
   const titleRight = rightStart - buttonGap
-  const titleMaxW = Math.max(1, titleRight - titleLeft)
+  const titleCenterX = x + w / 2
+  const titleMaxW = Math.max(1, Math.min(titleCenterX - titleLeft, titleRight - titleCenterX) * 2)
   const titleFontPx = props.titleFontPx ?? 12
   const subtitleFontPx = props.subtitleFontPx ?? 10
-  const titleW = Math.min(titleMaxW, host.measureText(props.title, titleFontPx))
-  const titleCx = clamp(x + w / 2, titleLeft + titleW / 2, titleRight - titleW / 2)
-  host.drawTextCentered(props.title, titleCx, y + (props.subtitle === undefined || props.subtitle.length === 0 ? 12 : 10), {
+  host.drawTextCentered(props.title, titleCenterX, y + (props.subtitle === undefined || props.subtitle.length === 0 ? 12 : 10), {
     fontPx: titleFontPx,
     material: host.materials.cyan,
     maxWidthPx: titleMaxW,
     z,
   })
   if (props.subtitle !== undefined && props.subtitle.length > 0) {
-    const subtitleW = Math.min(titleMaxW, host.measureText(props.subtitle, subtitleFontPx))
-    const subtitleCx = clamp(x + w / 2, titleLeft + subtitleW / 2, titleRight - subtitleW / 2)
-    host.drawTextCentered(props.subtitle, subtitleCx, y + 24, {
+    host.drawTextCentered(props.subtitle, titleCenterX, y + 24, {
       fontPx: subtitleFontPx,
       material: host.materials.muted,
       maxWidthPx: titleMaxW,
@@ -132,9 +129,4 @@ function titleBarActionsWidth(actions: readonly HudWindowTitleBarAction[], butto
     else if (i < actions.length - 1) width += gap
   }
   return width
-}
-
-function clamp(value: number, min: number, max: number): number {
-  if (max < min) return min
-  return Math.min(max, Math.max(min, value))
 }
