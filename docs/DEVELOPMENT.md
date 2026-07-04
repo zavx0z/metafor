@@ -45,14 +45,16 @@ MetaFor строится как система доменных проекций
 Поэтому текущий режим разработки таков:
 
 - домены остаются изолированными,
-- production-код не получает прямых междоменных импортов, кроме явно
-  зафиксированной пары `Dark` -> `Boundary`,
-- сквозная проверка делается в тестах и в server-dev контуре через явные
-  Force/WebSocket bridges,
+- production-код не получает прямых доменных API-импортов, кроме явно
+  зафиксированной пары `Dark` -> `Boundary`; `dark/index.ts` может
+  startup-import runtime pipeline modules только для загрузки локальных
+  Force-подписок в один Bun target,
+- сквозная проверка делается в тестах и в server-dev контуре через локальный
+  `BroadcastChannel("force")`,
 - относительные импорты между доменами допустимы только в тестах,
-- Matrix уже подключается к AppWeb через `/matrix/ws`, не читая
+- Matrix runtime pipeline работает через `matrix/matrix.ts`, не читая
   `Boundary`/SQLite напрямую.
-- Energy-shell уже подключается к AppWeb через `/energy/ws`, не читая
+- Energy runtime pipeline работает через `energy/energy.ts`, не читая
   `Boundary`/SQLite напрямую; реальное исполнение process action остаётся
   следующим этапом.
 
@@ -110,22 +112,22 @@ MetaFor строится как система доменных проекций
 - Matrix runtime pipeline живёт в `matrix/matrix.ts`: сам модуль открывает
   общий локальный `BroadcastChannel("force")` и обрабатывает входящие Force
   сообщения;
-- `energy/server.ts` владеет оболочкой будущего distributed process executor,
-  но не является default server-dev target.
+- Energy runtime pipeline живёт в `energy/energy.ts`: сам модуль открывает тот
+  же общий локальный `BroadcastChannel("force")` и claim-ит process-task через
+  `z`; отдельного Energy server target больше нет.
 
 Dark получает начальный `BoundaryMatrixRuntimeSnapshot` из `Boundary` и загружает
 его в Matrix runtime. Matrix применяет входящие Force-сообщения через локальный
 Force channel и публикует порождённые сообщения, например `photon` и
 `process-task`, обратно в общий Force channel. Matrix не импортирует
 `Boundary`/SQLite и не открывает базу напрямую.
-Energy пока принимает Force/process-task protocol surface через `/energy/ws`,
-может сформировать целевые `w+`/`w-` Force helpers, но не исполняет реальные DSL
-actions.
+Energy пока принимает `z` process-task через локальный Force channel и отвечает
+`z` claim-сообщением, но не исполняет реальные DSL actions.
 
 Root scripts `workspace.dark:*` запускают Dark. Старые `workspace.app.web:*`
 оставлены только как совместимые aliases на Dark, чтобы случайный старый запуск
-не поднимал AppWeb центром. Если Energy временно нужно поднять в interpreter как
-отдельный debug-process, используйте явный `process.start` через `POST /tools`.
+не поднимал AppWeb центром. Отдельный Energy server/debug-process не является
+частью текущего server-dev контура.
 
 ## Временный режим интеграционной разработки
 

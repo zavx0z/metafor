@@ -38,6 +38,10 @@ pkg/interpreter/AGENTS.md
 - Не добавляй bus/queue/router-style прослойки, самовызывающиеся async-обертки,
   наборы флагов и dispatch-функции, если тот же смысл можно увидеть напрямую в
   месте обработки.
+- Не расширяй `index.ts` / barrel files ради тестов. Если функция, тип или
+  runtime store нужны только spec-файлу, импортируй их в тесте относительным
+  путём из конкретного модуля. Re-export означает реальную внешнюю поверхность
+  пакета.
 
 Меньше кода - меньше скрытого состояния, меньше поверхностей для ошибок и
 меньше шансов случайно превратить локальный переход в новую архитектуру.
@@ -50,7 +54,8 @@ pkg/interpreter/AGENTS.md
 - branch: `main`;
 - interpreter host: `http://10.66.0.10:6500`;
 - dark dev server: `http://10.66.0.10:3004`;
-- energy dev server: `http://10.66.0.10:3006`;
+- Energy pipeline: `energy/energy.ts` loaded by `dark/index.ts`, no separate
+  default dev server;
 - visible WebApp target: `https://meta.proizvodstvo1.ru/`;
 - server Chrome remote desktop host: `http://127.0.0.1:32133`;
 - server Chrome CDP: `http://127.0.0.1:9349/json/list`.

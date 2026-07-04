@@ -26,6 +26,9 @@ workflow.
 - Для обработчиков сообщений и live-runtime glue предпочитай прямой скриптовый
   поток: получить вход -> `switch`/`if` -> выполнить действие в соответствующей
   ветке.
+- Не расширяй `index.ts` / barrel files ради тестов. Если API нужен только
+  spec-файлу, тест должен импортировать его относительным путём из конкретного
+  модуля. Re-export оставляй только для реальной внешней поверхности пакета.
 
 Цель - меньше скрытой архитектуры и больше кода, который можно понять глазами в
 текущем дисплее.
@@ -78,7 +81,8 @@ server-dev контуре:
 - interpreter host: `http://10.66.0.10:6500`;
 - dark dev server: `http://10.66.0.10:3004`;
 - boundary SQLite: `dark/tmp/boundary.sqlite`;
-- energy dev server: `http://10.66.0.10:3006`;
+- Energy pipeline: `energy/energy.ts` loaded by `dark/index.ts`, no separate
+  default dev server;
 - Bun inspector child `dark/index.ts`: первый auto-allocated inspector socket,
   обычно `ws://127.0.0.1:6499/`;
 - visible WebApp target в серверном Chrome:
@@ -100,10 +104,12 @@ API и `10.66.0.10:3004` для Dark dev health/API. LAN/TLS режим на `44
   аргументом interpreter;
 - Matrix runtime pipeline живёт в `matrix/matrix.ts` и работает через общий
   локальный `BroadcastChannel("force")`, без отдельного Matrix server;
+- Energy runtime pipeline живёт в `energy/energy.ts` и работает через тот же
+  локальный `BroadcastChannel("force")`, без отдельного Energy server;
 - AppWeb больше не является стартовым server-dev target.
 
-Если Energy временно нужно поднять как отдельный debug-process, делай это явным
-`process.start` через `POST /tools`. Не возвращай AppWeb как default target.
+Не поднимай отдельный Energy server/debug-process как default target. Не
+возвращай AppWeb как default target.
 
 Удаленный браузер для визуальной WebApp-разработки должен открывать
 `https://meta.proizvodstvo1.ru/`. Это не маркетинговая внешняя страница, а

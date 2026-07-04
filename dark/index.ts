@@ -1,4 +1,5 @@
 import "./server.ts"
+import "../energy/energy.ts"
 import {loadMatrixRuntimeSnapshot} from "../matrix/index.ts"
 
 const matrixRuntimeSnapshot = await globalThis.boundary.matrixRuntime()

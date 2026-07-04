@@ -99,14 +99,13 @@ superposition/triggers или в значении списка.
 Имя `Energy` в новых документах относится только к распределённому исполнителю
 процессов: он слушает photons/process tasks Matrix, claim-ит process через `z`
 и возвращает результат через `w+`/`w-`. Runtime-state слой называется `Matrix`.
-Пакет `energy/` сейчас является серверной оболочкой bridge/protocol surface;
-реальное исполнение DSL action остаётся следующим этапом.
-Matrix уже создаёт `process-task` при входе actor в process-bound state. AppWeb
-пересылает этот task подключённым Energy runtimes через `/energy/ws`, а Energy
-отвечает claim-сообщением, которое AppWeb прокидывает как Force `z`. Task и
-claim не меняют правило результата: завершение процесса для Matrix приходит
-только через Force `w+` или `w-`. `process-result` остаётся telemetry/debug, а не
-вторым результатным каналом.
+Пакет `energy/` сейчас является локальным Force pipeline, а не отдельной
+серверной оболочкой bridge/protocol surface; реальное исполнение DSL action
+остаётся следующим этапом.
+Matrix уже создаёт `z` process-task при входе actor в process-bound state.
+Energy слушает общий локальный `BroadcastChannel("force")` и отвечает `z`
+claim-сообщением в тот же канал. Task и claim не меняют правило результата:
+завершение процесса для Matrix приходит только через Force `w+` или `w-`.
 
 `graviton test wimp` не является общим Force-контрактом материализации. Сейчас
 это узкая управляющая поверхность до отдельного перевода пути материализации.
@@ -132,7 +131,7 @@ claim не меняют правило результата: завершени�
 
 - `Dark`/`Boundary` могут использовать лёгкие сигналы и перечитывать персистентную форму.
 - `Matrix`/`Bulk` получают рантайм-данные и ведут собственное состояние/проекцию в рантайме.
-- `Energy` получает process context через bridge и не читает `Boundary`/SQLite.
+- `Energy` получает process context через Force `z` process-task и не читает `Boundary`/SQLite.
 - WebSocket между доменами не является синхронизацией базы.
 - Если рантайм получил только UUID без данных, это ошибка контракта, а не повод читать `Boundary`.
 
