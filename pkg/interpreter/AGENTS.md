@@ -82,23 +82,9 @@ API и `10.66.0.10:3004` для app-web dev health/API. LAN/TLS режим на 
 - `energy/server.ts`: держит оболочку будущего distributed process executor,
   подключается к `/energy/ws` и пока не исполняет реальные DSL actions.
 
-Базовая проверка Matrix:
-
-```sh
-curl -sS -X POST http://10.66.0.10:6500/tools \
-  -H 'content-type: application/json' \
-  -d '{"tool_uses":[{"recipient_name":"network.action","parameters":{"action":"start:matrix"}}]}'
-curl -sS http://10.66.0.10:3005/health
-curl -sS -X POST http://10.66.0.10:6500/tools \
-  -H 'content-type: application/json' \
-  -d '{"tool_uses":[{"recipient_name":"network.action","parameters":{"action":"start:energy"}}]}'
-curl -sS http://10.66.0.10:3006/health
-```
-
-Не запускай `matrix/server.ts` или `energy/server.ts` вручную в отдельном tmux
-pane, если работает interpreter host. Используй `network.action` или
-`process.start` через `POST /tools`: тогда каждый runtime получает отдельный
-process display, inspector URL и управляется тем же API, что `app/web/server.ts`.
+Если Matrix/Energy временно нужно поднять как отдельные debug-processes, делай
+это явным `process.start` через `POST /tools`. AppWeb запускается своим прямым
+workspace script и не управляется interpreter tools.
 
 Удаленный браузер для визуальной WebApp-разработки должен открывать
 `https://meta.proizvodstvo1.ru/`. Это не маркетинговая внешняя страница, а
@@ -182,16 +168,15 @@ process/display, в котором выполнялась команда. Protoc
 
 ### Workflow Для `apply_patch`
 
-Для правок через `source.apply_patch` в `POST /tools` сначала читай актуальный
-source всех файлов или точных диапазонов через `source.read` / `source.read_many`.
-Затем собирай один patch только из этого свежего snapshot-а и применяй его
-через interpreter API.
+Для правок через `source.apply_patch` в `POST /tools` не читай большой файл
+целиком как обязательный preflight. Используй уже видимый source-контекст,
+точечные range-чтения или локальные read-only range-команды, чтобы собрать один
+крупный patch по актуальным фрагментам, и применяй его через interpreter API.
 
-Большие patch-и допустимы и предпочтительны, если они построены сразу после
-чтения всех изменяемых файлов. Не продолжай применять patch-и из старого
-ментального контекста после предыдущей правки тех же файлов. Если `apply_patch`
-вернул `hunk does not match`, заново прочитай affected file/range и только потом
-повторяй patch, при необходимости уже меньшим блоком.
+Если `apply_patch` вернул `hunk does not match`, не дроби patch вслепую. Сначала
+заново прочитай affected file/range через `source.read` / `source.read_many`,
+обнови контекст и повтори одним согласованным patch-ом. Большой patch
+предпочтительнее серии мелких, пока он построен из свежего контекста.
 
 Документацию, правила, внешние meta-файлы и код, который не является текущим совместно отлаживаемым process, можно править обычными локальными инструментами только когда работа не идёт внутри активной interpreter/debugger-сессии. Если интерпретатор запущен и текущая работа идёт через него, сначала используй interpreter API; локальный fallback допустим только после явной проверки, что API не может адресовать файл, и после сообщения пользователю.
 
@@ -221,11 +206,11 @@ curl -sS -X POST http://10.66.0.10:6500/tools \
 
 `context.hud.todo` содержит текущее состояние HUD ToDoPane: подсвеченные человеком пункты `TODO.md`, чтобы агент понимал, о чем речь. Подсветка - состояние панели, не данные файла.
 
-Host-level API:
+Host-level tools:
 
-- `POST /reload` рассылает подключенным UI-клиентам команду browser reload. Это не restart host process.
-- `POST /restart` перезапускает текущий interpreter host только когда host знает, как себя поднять снова: сейчас основной путь - tmux `respawn-pane` текущего `TMUX_PANE` или явно заданный `INTERPRETER_RESTART_COMMAND` / `INTERPRETER_RESTART_SCRIPT`. Клиенты получают delayed reload и должны дождаться `/health`, чтобы не показывать белый экран во время restart.
-- `POST /hud/todo/reload` перечитывает корневой `TODO.md` и рассылает `hud-todo-changed` всем UI-клиентам. Не dispatch-ить это через случайный UI-host client: TODO HUD является общим состоянием host.
+- `host.reload` в `POST /tools` рассылает подключенным UI-клиентам команду browser reload. Это не restart host process.
+- `host.restart` в `POST /tools` перезапускает текущий interpreter host только когда host знает, как себя поднять снова: сейчас основной путь - tmux `respawn-pane` текущего `TMUX_PANE` или явно заданный `INTERPRETER_RESTART_COMMAND` / `INTERPRETER_RESTART_SCRIPT`. Клиенты получают delayed reload и должны дождаться `/health`, чтобы не показывать белый экран во время restart.
+- `todo.reload` в `POST /tools` перечитывает корневой `TODO.md` и рассылает `hud-todo-changed` всем UI-клиентам. Не dispatch-ить это через случайный UI-host client: TODO HUD является общим состоянием host.
 
 Если nginx показывает `502 Bad Gateway`, сначала проверяй upstream:
 `curl http://10.66.0.10:6500/health`,
@@ -248,20 +233,20 @@ Web DevTools tools для server Chrome/AppWeb:
 - `devtools.resume` продолжает paused target.
 - `devtools.disable` снимает breakpoints, выключает Debugger и закрывает agent CDP session.
 
-TODO HUD API:
+TODO tools:
 
-- `GET /hud/todo` читает корневой `TODO.md` и parsed items.
-- `PUT /hud/todo` заменяет файл целиком.
-- `POST /hud/todo/items` добавляет пункт.
-- `PATCH /hud/todo/items/:id` меняет текст пункта или markdown checkbox `checked`.
-- `DELETE /hud/todo/items/:id` удаляет пункт.
-- `POST /hud/todo/highlight` подсвечивает пункт в HUD для `context.hud.todo.highlightedItems`.
+- `todo.get` читает корневой `TODO.md` и parsed items.
+- `todo.replace` заменяет файл целиком.
+- `todo.create` добавляет пункт.
+- `todo.update` меняет текст пункта или markdown checkbox `checked`.
+- `todo.delete` удаляет пункт.
+- `todo.highlight` подсвечивает пункт в HUD для `context.hud.todo.highlightedItems`.
 
 Когда пользователь должен сразу увидеть изменения в ToDoPane, меняй `TODO.md`
-через этот API, а не прямым редактированием файла. `PUT`, `POST`, `PATCH` и
-`DELETE` сами рассылают `hud-todo-changed` подключенным UI-клиентам. Если
-`TODO.md` все же был изменен локально через git/apply_patch/merge, сразу вызови
-`POST /hud/todo/reload` и только потом сообщай пользователю, что TODO обновлен.
+через `POST /tools`, а не прямым редактированием файла. Mutating TODO tools
+сами рассылают `hud-todo-changed` подключенным UI-клиентам. Если `TODO.md` все
+же был изменен локально через git/apply_patch/merge, сразу вызови `todo.reload`
+через `POST /tools` и только потом сообщай пользователю, что TODO обновлен.
 
 Tools API:
 
@@ -337,18 +322,21 @@ Display selectors:
 {"selector":{"order":0}}
 ```
 
-Focus в Space не меняет host terminal HUD. Не dock/hide/show/toggle terminal при запросах вида "открой левый display". Терминал меняется только через terminal endpoints или при явном `dockHostTerminal:true`.
+Focus в Space не меняет host terminal HUD. Не dock/hide/show/toggle terminal при запросах вида "открой левый display". Панель терминала меняется только через явные `hud.terminal.*` tools, terminal transport routes или при явном `dockHostTerminal:true`.
 
-Terminal HUD API:
+Terminal HUD tools and transport:
 
-- `GET /hud/terminal` возвращает `docked`, `sessionId`, `status`, `statusLabel`, `rect` и `dockPlacement`.
-- `POST /hud/terminal/show` раскрывает host terminal HUD.
-- `POST /hud/terminal/dock` докает/прячет host terminal HUD.
-- `POST /hud/terminal/toggle` переключает состояние.
-- `WS /hud/terminal/stream` - host PTY stream для browser host.
+- `hud.terminal.get` возвращает `docked`, `sessionId`, `status`, `statusLabel`, `rect` и `dockPlacement`.
+- `hud.terminal.show` раскрывает host terminal HUD.
+- `hud.terminal.dock` докает/прячет host terminal HUD.
+- `hud.terminal.toggle` переключает состояние.
+- `WS /hud/terminal/stream` - transport stream host PTY для browser host.
 - `GET /hud/terminal/sessions` возвращает diagnostics host PTY sessions.
 
-Используй terminal endpoints только для terminal requests. Если пользователь просит визуальный переход, вызывай `space.*` tools; если просит действие исполнения, вызывай `process.*` tools.
+Прямые terminal routes не являются основным agent-facing API. Используй terminal
+endpoints только для stream/diagnostics. Если пользователь просит визуальный
+переход, вызывай `space.*` tools; если просит действие исполнения, вызывай
+`process.*` tools через `POST /tools`.
 
 ## UI Architecture
 
@@ -376,6 +364,14 @@ Visual source по умолчанию - весь server `screen`, не browser t
 используй ближайший эквивалент видимого браузера, например CDP screenshot
 DevTools frontend target, сохраняй файл в `pkg/interpreter/tmp/codex-attachments`
 и явно указывай метод capture.
+Ввод в видимый WebApp/DevTools в server desktop должен проходить через рабочий
+desktop input path: `remote_desktop.input` в `POST /tools` или прямой
+`/remote-desktop/input` для низкоуровневой диагностики. Не имитируй клики через
+DOM (`Runtime.evaluate`, `HTMLElement.click`, `canvas.dispatchEvent`) и не
+выдавай такой обход за визуальную проверку: человек должен видеть движение той
+же мыши на `remote-desktop:server`. CDP `Input.dispatchMouseEvent` относится к
+page-target injection и может использоваться только как отдельная диагностика
+Chrome protocol; если нужна работа с общим экраном, используй desktop input.
 Interpreter воспроизводит audio через WebAudio spatial panner, привязанный к
 позиции display в Space. Не делай Playwright permanent runtime dependency и не
 завязывай архитектуру на macOS display пользователя. macOS/ai-macos и Linux

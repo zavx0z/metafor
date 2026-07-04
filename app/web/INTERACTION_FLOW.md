@@ -2,53 +2,42 @@
 
 ## Участники
 
-- `Dark` работает совместно с `Boundary`: открывает boundary-хранилище, материализует graph/wimp/actor/topology и рождает Force-частицы.
-- `Matrix` не имеет доступа к `Boundary`/SQLite. Он получает рантайм-частицы, ведёт состояние рантайма и публикует свои события обратно через Force.
-- будущий `Energy` слушает photons Matrix, проверяет `env`/`mass`, claim-ит process через `z`, исполняет action и возвращает `w+`/`w-`.
-- `Bulk` не имеет доступа к `Boundary`/SQLite. Он получает рендер/рантайм-проекцию в реальном времени и проявляет процесс как наблюдаемую форму, не исполняя process action.
-- `app/web` остаётся видовым клиентом: он не становится источником истины и не хранит рантайм-БД в браузерном `IndexedDB`.
+- `Dark` открывает `Boundary` и держит серверную истину.
+- `Boundary` отдаёт Bulk snapshot и публикует Force-события.
+- `app/web` остаётся browser view shell: показывает Bulk-проекцию, но не владеет
+  доменной истиной, interpreter lifecycle или процессной семантикой.
+- `Bulk` в браузере применяет готовый snapshot/Force-поток к viewport.
 
-## Материализация
+## Browser Flow
 
-1. Клиент открывает `/ws` и шлёт `{ type: "materialize", src }`
-2. Сервер просит `Dark` материализовать `src` в `Boundary`
-3. `Dark` пишет каноническую форму в `Boundary` и публикует полный Force-поток
-4. `Matrix` и `Bulk` получают нужные им рантайм-данные через Force и собирают свои рантайм-формы
-5. UI получает рендер-проекцию / события мира от рантайма, а не читает базу
+1. Клиент открывает `/ws`.
+2. Клиент отправляет `{ type: "materialize", src, layoutSettings }`.
+3. Сервер берёт snapshot из `boundary.bulkRuntime()`.
+4. Сервер отправляет `{ type: "snapshot", src, snapshot }`.
+5. Клиент строит Bulk manifest и применяет его через `bulkViewport.applyManifest()`.
+6. Последующие Boundary Force events приходят как `{ type: "force", parts }` и
+   применяются к текущему snapshot/viewport.
 
-## Поток Значений И Состояния
+## Settings Flow
 
-1. Клиент шлёт через `/ws` `{ type: "force", parts }`, где каждый part содержит `part`
-2. Серверный мост публикует `{ parts }` в единый Force-канал
-3. `Matrix` применяет рантайм-значения и делает weak-step без обратной записи в SQLite
-4. Если state сменился, `Matrix` публикует `Photon`
-5. `Bulk` применяет `Photon`/события проекции и обновляет проявленную форму
+1. `Settings` меняет `src`, `layoutSettings` или `renderSettings`.
+2. `renderSettings` применяются сразу в браузере.
+3. `src`/`layoutSettings` пересчитываются через `/ws` materialize/relayout.
+4. Persistent browser settings хранятся в `bulk/settings`.
 
-## Matrix / Future Energy / Bulk
+## Force HTTP
 
-1. `Matrix` применяет значения, делает weak-step, входит в process-bound state и ставит lock.
-2. `Matrix` публикует `Photon` с actor ID.
-3. Будущий `Energy` получает `Photon`, проверяет `env`/`mass` и отправляет координационную частицу `part: "z", op: "test", value: { kind: "claim", processId }`.
-4. `Energy` исполняет action module из рантайм-данных / контекста процесса, не читая `Boundary`.
-5. `Energy` возвращает:
-   - `part: "w+"` field parts, если процесс дал успешные частицы
-   - `part: "w-"` маркер результата/ошибки, если процесс вернул доменную ошибку
-6. `Matrix` применяет W-result, снимает рантайм-lock и при необходимости двигает состояние.
-7. `Bulk` применяет photon/projection/runtime events и проявляет процесс как наблюдаемую форму.
-8. `app/web` связывает каналы и остаётся host surface, но не становится владельцем process semantics.
+`POST /force` принимает тело:
 
-## Пример `git commit -m hi`
+```json
+{ "parts": [] }
+```
 
-1. `zavx0z/git.command` получает `git commit -m hi`
-2. Корневой процесс `определение операции` пишет `operation=history` и `args="-m hi"`
-3. Общие `args` доезжают до `zavx0z/git-history-commit`
-4. `Matrix` повторно запускает child state `парсинг опций` в рантайме
-5. Дочерний процесс парсит `-m hi`, пишет `message="hi"` и переводит brane в `коммит с сообщением`
-6. Будущий `Energy` запускает реальный `git commit -m hi`
-7. Если git возвращает stderr, это приходит как доменная ошибка в поле `error`, и brane переходит в `ошибка`
+Сервер отдаёт частицы в `boundary.absorb(...)` и ретранслирует результат текущим
+браузерным клиентам и bridge-подключениям.
 
-## Заметки О Хранении
+## Matrix / Energy Bridge
 
-- SQLite/Boundary принадлежит `Dark` + `Boundary`.
-- `Matrix` и `Bulk` не являются SQLite-репликами.
-- Рантайм-истина `Matrix` принадлежит Matrix; проявленная форма принадлежит `Bulk` и восстанавливается из Force-данных, а не через синхронизацию БД.
+Текущий AppWeb server всё ещё содержит приватные `/matrix/ws` и `/energy/ws`
+bridge endpoints. Они не должны превращать AppWeb в доменный центр: AppWeb здесь
+только сетевой край текущего контура, пока серверный центр переносится в Dark.

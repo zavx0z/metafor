@@ -119,30 +119,9 @@ Energy пока принимает Force/process-task protocol surface чере�
 может сформировать целевые `w+`/`w-` Force helpers, но не исполняет реальные DSL
 actions.
 
-Локальный запуск:
-
-```bash
-bun run interpreter:web:matrix:energy
-curl -sS -X POST http://127.0.0.1:6500/tools \
-  -H 'content-type: application/json' \
-  -d '{"tool_uses":[{"recipient_name":"process.list","parameters":{}}]}'
-curl -sS http://127.0.0.1:3004/health
-curl -sS http://127.0.0.1:3005/health
-curl -sS http://127.0.0.1:3006/health
-```
-
-В уже работающем server-dev контуре не запускайте Matrix или Energy вручную
-отдельным tmux-процессом. Используйте `network.action` tool:
-
-```bash
-curl -sS -X POST http://10.66.0.10:6500/tools \
-  -H 'content-type: application/json' \
-  -d '{"tool_uses":[{"recipient_name":"network.action","parameters":{"action":"start:matrix"}}]}'
-```
-
-`start:matrix`, `stop:matrix`, `restart:matrix`, `start:energy`,
-`stop:energy` и `restart:energy` внутри используют `process.*` tools. Runtime
-остаются управляемыми process display того же interpreter host.
+AppWeb запускается прямыми scripts `workspace.app.web:*`. Если Matrix/Energy
+временно нужно поднять в interpreter как отдельные debug-processes, используйте
+явный `process.start` через `POST /tools`.
 
 ## Временный режим интеграционной разработки
 

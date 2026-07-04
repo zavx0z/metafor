@@ -46,12 +46,14 @@ UI доступен на `http://127.0.0.1:6500/`.
 В tmux-контуре используй:
 
 ```sh
-curl -sS -X POST http://127.0.0.1:6500/restart
+curl -sS -X POST http://127.0.0.1:6500/tools \
+  -H 'content-type: application/json' \
+  -d '{"tool_uses":[{"recipient_name":"host.restart","parameters":{}}]}'
 ```
 
-Endpoint сначала отправляет подключенным UI-клиентам delayed reload, потом перезапускает текущий tmux pane. Клиент после задержки ждёт `/health` нового host и только затем перезагружает страницу, чтобы короткий restart не оставлял белый экран.
+Tool сначала отправляет подключенным UI-клиентам delayed reload, потом перезапускает текущий tmux pane. Клиент после задержки ждёт `/health` нового host и только затем перезагружает страницу, чтобы короткий restart не оставлял белый экран.
 
-Если host не запущен в tmux, `POST /restart` вернет `501`. Тогда используй supervisor текущего контура: `systemctl --user restart ...` для server/systemd deployment или ручной restart foreground-процесса в локальном запуске. Не смешивай эти контуры.
+Если host не запущен в tmux, `host.restart` вернет `501`. Тогда используй supervisor текущего контура: `systemctl --user restart ...` для server/systemd deployment или ручной restart foreground-процесса в локальном запуске. Не смешивай эти контуры.
 
 ## UIDisplay
 

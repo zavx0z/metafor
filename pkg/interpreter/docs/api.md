@@ -34,12 +34,15 @@ Base URL:
 http://127.0.0.1:6500
 ```
 
+Список ниже включает `POST /tools` и низкоуровневые UI/transport routes.
+Agent-facing команды выполняются через `POST /tools`; прямые REST/WS routes
+используются только там, где нужен transport, stream, static asset или browser/UI
+plumbing.
+
 Основные routes:
 
 ```text
 GET    /health
-POST   /reload
-POST   /restart
 POST   /tools
 GET    /tools
 
@@ -84,7 +87,6 @@ POST   /hud/todo/items
 PATCH  /hud/todo/items/:id
 DELETE /hud/todo/items/:id
 GET    /hud/todo/panel
-POST   /hud/todo/reload
 POST   /hud/todo/highlight
 POST   /hud/todo/show
 POST   /hud/todo/dock
@@ -100,19 +102,9 @@ POST   /sqlite/open
 POST   /sqlite/cell
 ```
 
-При работе через `app/web` embedded interpreter канонический proxy-префикс -
-`/hud/interpreter/*`; короткий `/interp/*` является alias. Для remote desktop
-WebRTC это означает:
-
-```text
-WS  /hud/interpreter/webrtc/signaling
-WS  /interp/webrtc/signaling
-GET /hud/interpreter/remote-desktop/rtc/state
-GET /interp/remote-desktop/rtc/state
-```
-
-Same-host cross-port `Origin` разрешен только для RTC signaling. Это нужно для
-локальных/dev вариантов с разными портами, но sender и browser UI все равно
+AppWeb не владеет embedded interpreter API и не публикует proxy-префиксы для
+interpreter. Same-host cross-port `Origin` разрешен только для RTC signaling.
+Это нужно для локальных/dev вариантов с разными портами, но sender и browser UI все равно
 должны сходиться в один in-memory signaling owner. В текущем server-dev контуре
 sender живет в отдельной service page
 `http://127.0.0.1:32133/desktop/rtc/sender` и использует
@@ -193,9 +185,9 @@ sender живет в отдельной service page
 
 ## Host Lifecycle
 
-`POST /reload` просит все подключенные UI-клиенты перезагрузить страницу. Он не перезапускает host process и не должен использоваться как замена restart после изменения `pkg/interpreter/src/*` или `pkg/interpreter/web/*`.
+`host.reload` в `POST /tools` просит все подключенные UI-клиенты перезагрузить страницу. Он не перезапускает host process и не должен использоваться как замена restart после изменения `pkg/interpreter/src/*` или `pkg/interpreter/web/*`.
 
-`POST /restart` выполняет контролируемый restart interpreter host, когда host запущен в поддерживаемом контуре. Основной путь - tmux: server рассылает UI-клиентам `reload` с задержкой, затем делает `respawn-pane` текущего `TMUX_PANE`. Команда запуска берется из `INTERPRETER_RESTART_COMMAND`, `INTERPRETER_RESTART_SCRIPT` или текущего `/proc/self/cmdline` с нужными env. Если host не в tmux и команда не задана, endpoint возвращает `501` и объясняет, что нужен внешний supervisor.
+`host.restart` в `POST /tools` выполняет контролируемый restart interpreter host, когда host запущен в поддерживаемом контуре. Основной путь - tmux: server рассылает UI-клиентам `reload` с задержкой, затем делает `respawn-pane` текущего `TMUX_PANE`. Команда запуска берется из `INTERPRETER_RESTART_COMMAND`, `INTERPRETER_RESTART_SCRIPT` или текущего `/proc/self/cmdline` с нужными env. Если host не в tmux и команда не задана, tool возвращает `501` и объясняет, что нужен внешний supervisor.
 
 UI-клиент после `reload` не должен сразу заменять страницу вслепую. Он ждет задержку, затем поллит `/health` с cache-busting и перезагружает страницу только когда новый host уже отвечает. Это защищает от белого экрана во время короткого падения socket-а.
 
@@ -392,7 +384,10 @@ session не была создана или видна серая область
 
 ## TODO HUD
 
-`GET /hud/todo` читает корневой `TODO.md` и возвращает Markdown плюс parsed items для HUD ToDoPane:
+Agent-facing действия TODO выполняются через `POST /tools` с `todo.*`. Прямые
+`/hud/todo*` routes являются UI/transport plumbing.
+
+`todo.get` читает корневой `TODO.md` и возвращает Markdown плюс parsed items для HUD ToDoPane:
 
 ```json
 {"ok": true, "path": "/repo/TODO.md", "mtimeMs": 1710000000000, "size": 1024, "text": "# MetaFor TODO\n", "items": []}
@@ -400,24 +395,23 @@ session не была создана или видна серая область
 
 Данные TODO хранятся в файле: текст пунктов и markdown checkbox `- [ ]` / `- [x]`. Подсветка строки хранится как состояние HUD-панели и попадает в `context.hud.todo.highlightedItems`.
 
-Редактирование файла:
+Редактирование файла через `POST /tools`:
 
 ```text
-PUT    /hud/todo                # {text}
-POST   /hud/todo/items          # {text, kind?: "task"|"note"|"heading", checked?, depth?, afterId?}
-PATCH  /hud/todo/items/:id      # {text?, checked?}
-DELETE /hud/todo/items/:id
-POST   /hud/todo/reload
+todo.replace   # {text}
+todo.create    # {text, kind?: "task"|"note"|"heading", checked?, depth?, afterId?}
+todo.update    # {id, text?, checked?}
+todo.delete    # {id}
 ```
 
-`POST /hud/todo/reload` перечитывает файл и рассылает `hud-todo-changed` всем UI-клиентам. Это host-wide событие, а не команда случайному UI-host client.
+`todo.reload` через `POST /tools` перечитывает файл и рассылает `hud-todo-changed` всем UI-клиентам. Это host-wide событие, а не команда случайному UI-host client.
 
-Состояние панели:
+Состояние панели через `POST /tools`:
 
 ```text
-GET    /hud/todo/panel
-POST   /hud/todo/highlight      # {id} или {ids:[...]}
-POST   /hud/todo/show|dock|toggle
+todo.panel
+todo.highlight      # {id} или {ids:[...]}
+todo.show|dock|toggle
 ```
 
 ## SQLite HUD
@@ -489,7 +483,7 @@ Selectors для `space.focus`, `process.resolve` и `process.focus`:
 {"selector":{"order":0}}
 ```
 
-Фокус рабочей поверхности не меняет host terminal HUD. Терминал меняется только через `/hud/terminal/*` или при явном `dockHostTerminal:true`.
+Фокус рабочей поверхности не меняет host terminal HUD. Панель терминала меняется только через явные `hud.terminal.*` tools в `POST /tools`, terminal transport routes или при явном `dockHostTerminal:true`.
 
 ## Processes
 
@@ -609,7 +603,7 @@ POST /tools        # JSON {tool_uses:[{recipient_name, parameters}]}
 Для process-scoped tools передавай `parameters.processId`. Поддержанный набор tools:
 `source.read`, `source.read_many`, `source.open`, `source.openSelection`,
 `source.write`, `source.apply_patch`, `process.*`, `breakpoint.*`, `hud.*`,
-`todo.*`, `sqlite.*`, `devtools.*`, `browser.*`, `remote_desktop.*`.
+`todo.*`, `sqlite.*`, `devtools.*`, `browser.*`, `remote_desktop.*`, `host.*`.
 
 `source.open` и `source.openSelection` внутри API вызывают UI-host команду
 открытия исходника для указанного process. `source.read` остается чистым
@@ -671,6 +665,18 @@ POST /sqlite/cell
 
 ## HUD Terminal
 
+Agent-facing управление host terminal HUD выполняется через `POST /tools`:
+
+```text
+hud.terminal.get
+hud.terminal.show
+hud.terminal.dock
+hud.terminal.toggle
+```
+
+Прямые routes ниже нужны для UI/stream/diagnostics. Навигация по рабочим
+поверхностям и действия исполнения идут через `POST /tools`.
+
 ```text
 GET  /hud/terminal
 POST /hud/terminal/show
@@ -680,7 +686,7 @@ WS   /hud/terminal/stream
 GET  /hud/terminal/sessions
 ```
 
-Используй terminal endpoints только для stream-запросов к terminal HUD. Навигация по рабочим поверхностям и действия исполнения идут через `POST /tools`.
+Используй terminal endpoints только для stream/diagnostic запросов к terminal HUD.
 
 ## WebSocket `/ws`
 

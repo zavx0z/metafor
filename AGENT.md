@@ -26,7 +26,7 @@ MetaFor - открытая среда для общего AGI.
 5. Состояние интерпретатора, процессы, снапшоты или тесты - когда знание является исполняемым поведением.
 
 Каждое обновление должно быть фактическим, коротким и применимым к дальнейшей работе.
-Не превращай живую память в стенограмму.
+Не превращай живую память в стенограмму, changelog или архив удаленного legacy. То, что уже завершено и больше не влияет на будущие решения, должно уходить из memory; pending work живет в `TODO.md`, текущие правила - в `AGENT.md`/`AGENTS.md`, контракты и runbook-и - в профильной документации или TypeDoc.
 
 ## Текущая модель совместной работы
 
@@ -49,7 +49,7 @@ MetaFor - открытая среда для общего AGI.
 ## Дисциплина непрерывной памяти
 
 Во время существенной работы держи короткое рабочее понимание того, что стало яснее про MetaFor.
-Если это понимание меняет будущие инженерные решения, обнови долговечную память в той же рабочей сессии.
+Если это понимание меняет будущие инженерные решения или оставляет незавершенную зависимость для будущих агентов, обнови долговечную память в той же рабочей сессии.
 
 Цикл:
 
@@ -63,14 +63,16 @@ MetaFor - открытая среда для общего AGI.
 
 ## Дисциплина правок через Interpreter API
 
-Когда интерпретатор запущен или работа идёт внутри сессии интерпретатора/отладчика, не редактируй файлы репозитория по привычке локальными patch-инструментами. По умолчанию считай, что interpreter API доступен; используй `/context` или нужный endpoint `/processes/:id/...` и сопоставляй целевой файл с активным контекстом процесса, отображения и исходного кода. Не вызывай `/health` как обычную предварительную проверку.
+Когда интерпретатор запущен или работа идёт внутри сессии интерпретатора/отладчика, не редактируй файлы репозитория по привычке локальными patch-инструментами. По умолчанию считай, что interpreter API доступен; agent-facing команды идут через единый Codex-style endpoint `POST /tools`, а `processId` передаётся внутри `tool_uses[].parameters`. Не вызывай `/health` как обычную предварительную проверку.
 
 Если целевой файл относится к активному процессу, открытому source интерпретатора или текущему общему отладочному контексту, правки должны идти только через interpreter API:
 
-- `POST /processes/:id/apply_patch` для raw-патчей;
-- `POST /processes/:id/source` для полной замены исходного кода.
+- `context.get` через `POST /tools` для определения текущего `processId` и source identity;
+- `source.read` / `source.read_many` через `POST /tools` для чтения актуального source;
+- `source.apply_patch` через `POST /tools` для raw-патчей;
+- `source.write` через `POST /tools` для полной замены исходного кода.
 
-Перед каждой такой правкой явно называй маршрут: `Правлю через interpreter API: <processId>`. Не используй локальный `apply_patch`, `sed`, shell-write, редактор или formatter для этих файлов. Локальные правки допустимы только после явного подтверждения, что файл вне активного контекста интерпретатора, или когда interpreter API не может адресовать этот файл и пользователь принимает запасной путь. `/health` используй только как диагностику после ошибки API, отсутствующего процесса, перезапуска/закрытия или неизвестного контекста.
+Перед каждой такой правкой явно называй маршрут: `Правлю через interpreter API: POST /tools <tool> processId=<processId>`. Не используй локальный `apply_patch`, `sed`, shell-write, редактор или formatter для этих файлов. Локальные правки допустимы только после явного подтверждения, что файл вне активного контекста интерпретатора, или когда interpreter API не может адресовать этот файл и пользователь принимает запасной путь. `/health` используй только как диагностику после ошибки API, отсутствующего процесса, перезапуска/закрытия или неизвестного контекста.
 
 ## Общение
 
@@ -82,6 +84,7 @@ MetaFor - открытая среда для общего AGI.
 
 - В серверной среде MetaFor не предполагается локальный Chrome, CDP-target или REST API браузера. Не используй `@meta/chrome`, порт `7880`, CDP или запуск локального Chrome как доступный путь по умолчанию.
 - Для проверки WebApp сначала используй серверные HTTP/interpreter endpoints и состояние приложения. Браузерную автоматизацию запускай только если пользователь явно дал доступ к браузерной среде или текущая Codex-сессия предоставляет browser skill/tool после перезапуска.
+- Для действий в видимом server Chrome/WebApp не имитируй клики через DOM (`Runtime.evaluate`, `HTMLElement.click`, `canvas.dispatchEvent`) и не считай это визуальной проверкой. Общий контур управляет рабочим столом: ввод должен идти через `remote_desktop.input` / `/remote-desktop/input`, чтобы реально двигалась мышь на server desktop. CDP screenshot/evaluate допустимы для наблюдения и диагностики, но не как замена desktop input.
 - Не открывай новые вкладки, окна или отдельные профили Chrome на сервере без явного подтверждения пользователя.
 - Если нужен общий видимый браузер для человека и агента, проектируй его как first-class `browser-display` в `Space`, а не как HUD-панель и не как постоянную Playwright-зависимость. Временный Playwright/Chrome automation допустим только для диагностики; рабочий контур должен иметь явный browser-host, snapshot/frame stream, input proxy, health/restart и общий видимый state.
 
@@ -92,7 +95,7 @@ MetaFor - открытая среда для общего AGI.
 Основные контуры:
 
 - Локальный standalone interpreter: `bun run interpreter ...`, UI/API обычно на `127.0.0.1:6500`, модуль запускается как child через Bun inspector. Systemd и `dev.proizvodstvo1.ru` здесь не предполагаются.
-- Локальный/LAN WebApp dev: `bun run workspace.app.web:dev`, используется для разработки в локальной сети и Android/secure origin. `app/web/run.ts --dev layout` поднимает interpreter + `app/web/server.ts` в tmux с production-like env, обычно `HOST=0.0.0.0`, `PORT=443`, TLS files.
+- Локальный WebApp dev: `bun run workspace.app.web:dev` запускает AppWeb напрямую через `@app/web dev`. AppWeb не управляет interpreter.
 - Серверный dev-домен: `https://dev.proizvodstvo1.ru/` может вести к host interpreter/WebApp, который на сервере поднят user systemd unit `metafor-interpreter-web-dev.service`. В этом контуре внешний домен проходит через proxy/SSO, а runtime диагностируется через локальные server endpoints.
 
 Если пользователь явно находится на `https://dev.proizvodstvo1.ru/`, не считай shell-запрос к этому внешнему URL диагностикой runtime: он может пройти через SSO/nginx и не отражать состояние живого interpreter host. Сначала строй карту текущего запуска изнутри.
@@ -106,12 +109,16 @@ MetaFor - открытая среда для общего AGI.
 - `/home/zavx0z/metafor-interpreter-web-dev/run.sh` - wrapper запуска этого service.
 - `metafor-interpreter-host` и `metafor-app-web-net` - tmux-сессии, которые host может поднимать для HUD/terminal; long-running процесс в этом контуре управляется systemd.
 
-Диагностика серверного dev-контура, когда нужно проверить topology или перезапуск: сначала смотри `/context`, затем `/health` и process endpoints. Для обычной правки открытого source не начинай с `/health` вместо active context.
+Диагностика серверного dev-контура, когда нужно проверить topology или перезапуск: сначала вызывай `context.get` и `space.get` через `POST /tools`, затем `/health` и нужные tools. Для обычной правки открытого source не начинай с `/health` вместо active context.
 
 ```sh
-curl -sS http://127.0.0.1:6500/context
+curl -sS -X POST http://127.0.0.1:6500/tools \
+  -H 'content-type: application/json' \
+  -d '{"tool_uses":[{"recipient_name":"context.get","parameters":{}},{"recipient_name":"space.get","parameters":{}}]}'
 curl -sS http://127.0.0.1:6500/health
-curl -sS http://127.0.0.1:6500/processes/app-web-server.ts/breakpoints
+curl -sS -X POST http://127.0.0.1:6500/tools \
+  -H 'content-type: application/json' \
+  -d '{"tool_uses":[{"recipient_name":"breakpoint.list","parameters":{"processId":"app-web-server.ts"}}]}'
 systemctl --user status metafor-interpreter-web-dev.service --no-pager
 ss -ltnp | rg ':(6500|6499|3004)\b'
 ```
@@ -120,7 +127,7 @@ ss -ltnp | rg ':(6500|6499|3004)\b'
 
 Правки в файлах текущего child runtime делай через interpreter API; replay child обычно достаточен. Правки host interpreter-кода (`pkg/interpreter/src/server.ts`, `pkg/interpreter/web/main.ts`) после применения через API могут требовать restart самого host process, потому что host должен перечитать код и пересобрать/раздать UI. В server/systemd контуре это `systemctl --user restart metafor-interpreter-web-dev.service`; в локальном foreground/tmux-контуре перезапускай соответствующий локальный host process, а не создавай systemd unit.
 
-`POST /reload` только просит подключенные UI-клиенты перезагрузиться; он не заменяет restart host. `POST /restart` - host-level endpoint для контролируемого restart текущего tmux-host: он сначала просит клиентов перезагрузиться с задержкой, а клиент после этого ждет `/health`, чтобы не попасть на белый экран во время падения socket-а. Если host не запущен в tmux, используй соответствующий внешний supervisor (`systemctl --user restart ...`, foreground restart или явно заданный `INTERPRETER_RESTART_COMMAND`). Не расширяй embedded proxy allowlist (`/hud/interpreter/*`) для внутренних host-команд вроде `/reload` без явного архитектурного решения. Если нужно перезагрузить interpreter UI, используй endpoint того host, который реально держит UI, и затем проверяй события/breakpoint state.
+`host.reload` через `POST /tools` только просит подключенные UI-клиенты перезагрузиться; он не заменяет restart host. `host.restart` через `POST /tools` - host-level tool для контролируемого restart текущего tmux-host: он сначала просит клиентов перезагрузиться с задержкой, а клиент после этого ждет `/health`, чтобы не попасть на белый экран во время падения socket-а. Если host не запущен в tmux, используй соответствующий внешний supervisor (`systemctl --user restart ...`, foreground restart или явно заданный `INTERPRETER_RESTART_COMMAND`). Не добавляй AppWeb/interpreter proxy для внутренних host-команд без явного архитектурного решения. Если нужно перезагрузить interpreter UI, используй `host.reload` или `host.restart` на том host, который реально держит UI, и затем проверяй события/breakpoint state.
 
 ## WebGPU-Движок (`pkg/engine`)
 
@@ -242,12 +249,13 @@ Topology-поля отличаются от обычных data-fields:
 
 Когда человек и агент совместно работают над кодом, который открыт или запущен в интерпретаторе, все изменения этого кода выполняются **только через API интерпретатора**. Это строгое правило, а не рекомендация.
 
-- `POST /processes/:id/apply_patch` для raw `apply_patch`;
-- `POST /processes/:id/source` для сохранения полного текста исходного кода.
+- `context.get` через `POST /tools` для определения текущего `processId` и source identity;
+- `source.apply_patch` через `POST /tools` для raw `apply_patch`;
+- `source.write` через `POST /tools` для сохранения полного текста исходного кода.
 
-Перед правкой кода сначала прочитай `GET /context` и определи текущий `processId` и `source.identity.sourceUrl` / `source.identity.scriptUrl`. Если файл относится к текущему процессу/отображению или открыт в source интерпретатора, не правь его локальным `apply_patch`, `sed`, редактором, форматтером или shell-write командой в обход интерпретатора.
+Перед правкой кода сначала вызови `context.get` через `POST /tools` и определи текущий `processId` и `source.identity.sourceUrl` / `source.identity.scriptUrl`. Если файл относится к текущему процессу/отображению или открыт в source интерпретатора, не правь его локальным `apply_patch`, `sed`, редактором, форматтером или shell-write командой в обход интерпретатора.
 
-После правки через API проверь, что интерпретатор получил изменение: `source-patched`, replay/restart при необходимости, новый `/context` или `GET /processes/:id/source`.
+После правки через API проверь, что интерпретатор получил изменение: `source-patched`, replay/restart при необходимости, новый `context.get` или `source.read` через `POST /tools`.
 
 Иначе интерпретатор не видит поток патчей, не обновляет точки останова, `source-patched`/replay и текущий рантайм/source-контекст.
 
@@ -255,7 +263,7 @@ Topology-поля отличаются от обычных data-fields:
 
 ## Дисциплина TODO
 
-Если агент завершил пункт из `TODO.md`, он обязан отметить этот пункт выполненным в TODO-списке и убедиться, что обновление видно в HUD ToDoPane или в `/context.hud.todo`. Нельзя оставлять выполненную работу как незакрытый пункт.
+Если агент завершил пункт из `TODO.md`, он обязан отметить этот пункт выполненным в TODO-списке и убедиться, что обновление видно в HUD ToDoPane или в `context.hud.todo` из `context.get`. Нельзя оставлять выполненную работу как незакрытый пункт.
 
 ## Междоменные правила
 

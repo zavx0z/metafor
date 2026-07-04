@@ -1,60 +1,21 @@
 # Память AppWeb
 
-Дата фиксации: 2026-06-14.
+`app/web` сейчас является тонкой браузерной поверхностью Bulk.
 
-Этот файл хранит рабочее понимание по `app/web`, которое нужно сохранять после компрессии контекста.
+Текущий контракт:
 
-## Текущий статус
+- AppWeb не управляет interpreter и не вызывает interpreter API.
+- HUD содержит только Settings и fullscreen.
+- AppWeb не содержит Codex, terminal, voice, Android, TODO, source inspector или WebRTC tooling.
+- `app/web/server.ts` импортирует `dark/server`, получает `globalThis.boundary` и отдаёт браузеру Bulk snapshot через `boundary.bulkRuntime()`.
+- AppWeb не открывает SQLite напрямую.
+- Browser settings идут через `bulk/settings`: `src`, `layoutSettings`, `renderSettings`.
+- Interpreter workflow и source-editing rules лежат в `pkg/interpreter/AGENTS.md`, а не в AppWeb.
 
-`AppWeb` на текущем этапе оставляем в покое как браузерную поверхность визуализации. Не нужно сейчас развивать его через временный браузерный `IndexedDB`, зеркальные пробросы, синхронизацию базы или восстановление старого воркер-рантайма.
+Не восстанавливать в AppWeb:
 
-Последняя зафиксированная чистка: `6d5a9bd8 Clean stale AppWeb worker runtime`.
-
-Текущий рабочий проход: AppWeb снова подключён к workspace и визуализация поднята через серверный `Boundary`.
-Сервер `app/web/server.ts` статически импортирует `dark/server`, берёт `boundary` из `globalThis`, получает самодостаточный снимок уже наполненной базы через `boundary.bulkRuntime()` и отдаёт браузеру `world`-сообщение. `BOUNDARY_PATH` передаётся командой запуска и подхватывается самим `Boundary`. Клиент строит `BulkManifest` и применяет его через `bulkViewport.applyManifest()`.
-Проверенный результат: `http://127.0.0.1:3000/`, root `zavx0z/git`, `85 Dark particles / 83 field particles` после исключения структурных `macho`/`fuzzy` из обычных полей.
-
-Что уже удалено и не нужно восстанавливать:
-
-- `app/web/runtime/dark.worker.ts`;
-- `app/web/runtime/boundary.worker.ts`;
-- `app/web/runtime/bulk.worker.ts`;
-- браузерная обработка `worker-status`;
-- старый браузерный путь `createIdbDbActorStore` / render-mirror в `client.ts`;
-- зависимости `@store/actor` и `@store/wimp` из `app/web/package.json`.
-
-## Направление
-
-Правильный ближайший путь - собрать чистую серверную логику без браузерного `IndexedDB`, без временных мостов БД и без доступа `Bulk` к `Boundary`.
-
-Серверная сторона должна вести рантайм-состояние, формировать рендер-проекцию и отдавать браузеру уже достаточные данные для визуализации. Браузерный `AppWeb` должен остаться тонким видовым клиентом:
-
-```text
-WebSocket -> события рендера / manifest items -> bulkViewport
-```
-
-Обычные доменные `Force parts` не равны рендер-проекции. Для визуализации нужны готовые manifest items / события рендера с полной геометрией, связями, глубиной, родителем, радиусами, полями, цветами и подписями. Поэтому не строить сцену из доменных патчей, если они не несут этих данных.
-
-## Следующий технический слой
-
-В этом проходе уже сделано:
-
-- вынести render projection типы из `@boundary/actor`;
-- завести явный контракт рендер-проекции Bulk;
-- убрать из `bulk/web` и `bulk/gravity/layout` ожидание Boundary store contracts из `@boundary/actor`;
-
-Следующий осмысленный проход не в `AppWeb`, а в рендер-проекции Bulk:
-
-- убрать из рантайма Bulk прямое чтение `Boundary`/БД; проекция должна приходить потоком Force/событий рендера и жить в рантайме Bulk;
-- после этого сервер сможет отдавать рендер-проекцию напрямую, без браузерного DB-index.
-- текущий серверный мост до появления потока использует только `boundary.bulkRuntime()`, а не прямой SQL из `app/web`.
-
-## Правила для дальнейшей работы
-
-- Не предполагать наличие локального браузера, CDP-target или browser REST API на сервере; для WebApp сначала использовать server/interpreter endpoints.
-- Не восстанавливать `*.worker.ts` в `app/web/runtime`; новый запуск будет строиться иначе, ближе к серверному тестовому пути.
-- Не добавлять обратно браузерный `IndexedDB` как временное хранилище рендер-проекции.
-- Не добавлять Bulk доступ к `Boundary`/SQLite как короткий путь. Рантайм Bulk получает данные в реальном времени и ведёт собственное состояние/проекцию.
-- Не открывать SQLite в `app/web` и не возвращать `worldSql`; персистентное восстановление для визуализации готовится внутри `Boundary` через `bulkRuntime()`.
-- Не считать `AppWeb` источником истины. Истина и вычисление проекции должны быть на серверной/доменной стороне.
-- Если нужно читать, открывать или редактировать активные файлы внутри текущей среды интерпретатора, использовать единый API интерпретатора: `POST /tools` с `processId` в `parameters` и tools `source.read`, `source.open`, `source.write` или `source.apply_patch`.
+- `runtime/*.worker.ts` как основной runtime;
+- browser IndexedDB как runtime DB mirror;
+- interpreter process/source inspector;
+- AppWeb-owned voice/WebRTC/Android/Codex/terminal/TODO panels;
+- AppWeb scripts, которые управляют interpreter `process.*` tools.

@@ -51,10 +51,12 @@ BUN_PROTOCOL_URL=ws://127.0.0.1:6501/ bun run interpreter
 Нормальный путь для tmux-контура:
 
 ```sh
-curl -sS -X POST http://127.0.0.1:6500/restart
+curl -sS -X POST http://127.0.0.1:6500/tools \
+  -H 'content-type: application/json' \
+  -d '{"tool_uses":[{"recipient_name":"host.restart","parameters":{}}]}'
 ```
 
-Этот endpoint отправляет UI-клиентам delayed reload, а клиент перед настоящей перезагрузкой ждёт успешный `/health`. Если белый экран всё равно появился, проверь, что открыта свежая версия `pkg/interpreter/web/main.ts`, а host действительно поднят:
+Этот tool отправляет UI-клиентам delayed reload, а клиент перед настоящей перезагрузкой ждёт успешный `/health`. Если белый экран всё равно появился, проверь, что открыта свежая версия `pkg/interpreter/web/main.ts`, а host действительно поднят:
 
 ```sh
 curl -sS http://127.0.0.1:6500/health
@@ -67,7 +69,7 @@ curl -sS -X POST http://127.0.0.1:6500/tools \
 
 ## 502 Bad Gateway От Nginx
 
-502 на `meta.proizvodstvo1.ru` или embedded interpreter routes обычно означает,
+502 на `meta.proizvodstvo1.ru` обычно означает,
 что nginx жив, но upstream interpreter/app-web не слушает `10.66.0.10:6500`
 или `10.66.0.10:3004`.
 
@@ -99,7 +101,9 @@ tmux new-session -d -s metafor-interpreter-host \
 ```sh
 curl -sS http://10.66.0.10:6500/health
 curl -sS http://10.66.0.10:3004/health
-curl -sS -X POST http://10.66.0.10:6500/reload
+curl -sS -X POST http://10.66.0.10:6500/tools \
+  -H 'content-type: application/json' \
+  -d '{"tool_uses":[{"recipient_name":"host.reload","parameters":{}}]}'
 ```
 
 ## Тест Падает По Timeout Пока Стоит Breakpoint
