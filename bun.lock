@@ -28,16 +28,11 @@
       "name": "@app/web",
       "dependencies": {
         "@bulk/gravity": "workspace:*",
-        "@metafor/engine": "workspace:*",
-        "@metafor/pty": "workspace:*",
         "@ui/components": "workspace:*",
         "@ui/elements": "workspace:*",
         "@ui/hud": "workspace:*",
-        "@ui/panes": "workspace:*",
         "boundary": "workspace:*",
         "bulk": "workspace:*",
-        "dark": "workspace:*",
-        "energy": "workspace:*",
       },
     },
     "boundary": {
@@ -142,9 +137,6 @@
     },
     "fixture": {
       "name": "fixture",
-      "devDependencies": {
-        "boundary": "workspace:*",
-      },
       "peerDependencies": {
         "typescript": "^5",
       },

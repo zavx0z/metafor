@@ -2,27 +2,12 @@
   "name": "@app/web",
   "private": true,
   "type": "module",
-  "scripts": {
-    "dev": "BOUNDARY_PATH=tmp/boundary.sqlite bun server --hot",
-    "product": "bun run tls",
-    "typecheck": "tsc --noEmit --pretty false",
-    "tls": "NODE_ENV=production BUN_ENV=production BOUNDARY_PATH=tmp/boundary.sqlite HOST=0.0.0.0 TLS_KEY_FILE=tls/privkey.pem TLS_CERT_FILE=tls/fullchain.pem bun server",
-    "dev:tls": "NODE_ENV=production BUN_ENV=production BOUNDARY_PATH=tmp/boundary.sqlite HOST=0.0.0.0 TLS_KEY_FILE=tls/privkey.pem TLS_CERT_FILE=tls/fullchain.pem bun server",
-    "tls:3333": "NODE_ENV=production BUN_ENV=production BOUNDARY_PATH=tmp/boundary.sqlite HOST=0.0.0.0 PORT=3333 TLS_KEY_FILE=tls/privkey.pem TLS_CERT_FILE=tls/fullchain.pem bun server",
-    "dev:tls:3333": "NODE_ENV=production BUN_ENV=production BOUNDARY_PATH=tmp/boundary.sqlite HOST=0.0.0.0 PORT=3333 TLS_KEY_FILE=tls/privkey.pem TLS_CERT_FILE=tls/fullchain.pem bun server",
-    "tls:issue": "bash ../../scripts/tls-issue.sh",
-    "tls:issue:staging": "STAGING=1 bash ../../scripts/tls-issue.sh",
-    "tls:selfsigned": "bash ../../scripts/tls-selfsigned.sh"
-  },
   "dependencies": {
-    "@metafor/engine": "workspace:*",
     "@bulk/gravity": "workspace:*",
     "@ui/components": "workspace:*",
     "@ui/elements": "workspace:*",
     "@ui/hud": "workspace:*",
     "boundary": "workspace:*",
-    "bulk": "workspace:*",
-    "dark": "workspace:*",
-    "energy": "workspace:*"
+    "bulk": "workspace:*"
   }
 }

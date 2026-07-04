@@ -50,7 +50,6 @@
     "pkg/engine/index.ts",
     "pkg/engine/server.ts",
     "pkg/engine/global.d.ts",
-    "app/web/runtime/**/*",
     "tests/tmp/**/*",
     ".idea/**/*",
     ".cursor/**/*",
