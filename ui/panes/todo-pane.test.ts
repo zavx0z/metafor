@@ -40,13 +40,38 @@ describe("ToDoPane markdown parser", () => {
       depth: item.depth,
       text: item.text,
       checked: item.checked,
+      marker: item.marker,
       section: item.section,
     }))).toEqual([
-      {kind: "heading", line: 1, depth: 0, text: "MetaFor TODO", checked: null, section: []},
-      {kind: "heading", line: 3, depth: 1, text: "Runtime", checked: null, section: ["MetaFor TODO"]},
-      {kind: "task", line: 5, depth: 0, text: "Сделать adapter", checked: false, section: ["MetaFor TODO", "Runtime"]},
-      {kind: "task", line: 6, depth: 1, text: "Проверить smoke", checked: true, section: ["MetaFor TODO", "Runtime"]},
-      {kind: "note", line: 7, depth: 0, text: "обычная заметка", checked: null, section: ["MetaFor TODO", "Runtime"]},
+      {kind: "heading", line: 1, depth: 0, text: "MetaFor TODO", checked: null, marker: null, section: []},
+      {kind: "heading", line: 3, depth: 1, text: "Runtime", checked: null, marker: null, section: ["MetaFor TODO"]},
+      {kind: "task", line: 5, depth: 0, text: "Сделать adapter", checked: false, marker: " ", section: ["MetaFor TODO", "Runtime"]},
+      {kind: "task", line: 6, depth: 1, text: "Проверить smoke", checked: true, marker: "x", section: ["MetaFor TODO", "Runtime"]},
+      {kind: "note", line: 7, depth: 0, text: "обычная заметка", checked: null, marker: null, section: ["MetaFor TODO", "Runtime"]},
+    ])
+  })
+
+  test("парсит общепринятые markdown markers", () => {
+    const items = parseMarkdownTodo([
+      "- [0] В работе",
+      "- [.0] На паузе",
+      "- [42] Частично",
+      "- [>] Следующее",
+      "- [?] Вопрос",
+      "- [!] Важно",
+      "- [I] Идея",
+      "- [100] Готово",
+    ].join("\n"))
+
+    expect(items.map((item) => ({text: item.text, checked: item.checked, marker: item.marker, progress: item.progress, paused: item.paused}))).toEqual([
+      {text: "В работе", checked: false, marker: "0", progress: 0, paused: false},
+      {text: "На паузе", checked: false, marker: ".0", progress: 0, paused: true},
+      {text: "Частично", checked: false, marker: "42", progress: 42, paused: false},
+      {text: "Следующее", checked: false, marker: ">", progress: null, paused: false},
+      {text: "Вопрос", checked: false, marker: "?", progress: null, paused: false},
+      {text: "Важно", checked: false, marker: "!", progress: null, paused: false},
+      {text: "Идея", checked: false, marker: "I", progress: null, paused: false},
+      {text: "Готово", checked: true, marker: "100", progress: 100, paused: false},
     ])
   })
 
@@ -76,6 +101,9 @@ describe("ToDoPane markdown parser", () => {
       text: "Сделать adapter",
       section: ["Runtime"],
       checked: false,
+      marker: " ",
+      progress: null,
+      paused: false,
     }])
     expect(context.highlightedText).toBe("- [ ] Сделать adapter")
   })
@@ -89,6 +117,20 @@ describe("ToDoPane markdown parser", () => {
 
     expect(result.markdown).toBe("## Runtime\n- [x] Сделать adapter\n")
     expect(result.item.checked).toBe(true)
+    expect(result.item.marker).toBe("x")
+  })
+
+  test("меняет markdown marker как данные TODO.md", () => {
+    const markdown = "## Runtime\n- [ ] Сделать adapter\n"
+    const taskId = parseMarkdownTodo(markdown).find((item) => item.kind === "task")?.id
+    if (taskId === undefined) throw new Error("task id not found")
+
+    const result = updateTodoMarkdownItem(markdown, taskId, {marker: "0"})
+
+    expect(result.markdown).toBe("## Runtime\n- [0] Сделать adapter\n")
+    expect(result.item.checked).toBe(false)
+    expect(result.item.marker).toBe("0")
+    expect(result.item.progress).toBe(0)
   })
 
   test("сворачивает completed-секцию и раскрывает ее по panel state", () => {

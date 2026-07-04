@@ -6,7 +6,7 @@
  */
 
 import {Color, TextMaterial} from "@metafor/engine"
-import {Checkbox, IconButton, uiIcons} from "@ui/components"
+import {IconButton, ProgressCheckbox, uiIcons} from "@ui/components"
 import {UiSurface, Z, div, divScrollTo, palette, radii, textMaterial, type DivScrollContext, type UiSurfaceRect} from "@ui/elements"
 import {
   todoCompletedSectionStates,
@@ -92,6 +92,7 @@ export class ToDoPane extends UiSurface {
   #onFrameDockRequest: (() => void) | undefined
   #titleMaterial = new TextMaterial({color: palette.cyan})
   #mutedMaterial = new TextMaterial({color: palette.muted})
+  #progressTextMaterial = new TextMaterial({color: withAlpha(palette.green, 0.82)})
   #highlightTextMaterial = new TextMaterial({color: palette.text})
 
   constructor(opts: ToDoPaneOpts = {}) {
@@ -284,9 +285,10 @@ export class ToDoPane extends UiSurface {
 
     const checkboxSize = 18
     if (item.kind === "task") {
-      Checkbox(this, checkX, y + Math.max(0, (h - checkboxSize) / 2), checkboxSize, checkboxSize, {
+      ProgressCheckbox(this, checkX, y + Math.max(0, (h - checkboxSize) / 2), checkboxSize, checkboxSize, {
         key: `todo-check:${item.id}`,
         checked: item.checked === true,
+        ...(item.progress === null ? {} : {progress: item.progress, paused: item.paused}),
         size: "small",
         tooltip: item.checked === true ? "Отметить невыполненным" : "Отметить выполненным",
         onChange: (checked) => this.#onItemCheckedChange?.(item.id, checked),
@@ -317,6 +319,8 @@ export class ToDoPane extends UiSurface {
       ? this.#titleMaterial
       : item.checked === true
         ? textMaterial(this, "muted")
+        : item.progress !== null
+          ? this.#progressTextMaterial
         : textMaterial(this, "text")
     const textH = row.lines.length * row.lineHeightPx
     let lineY = y + Math.max(0, (h - textH) / 2)

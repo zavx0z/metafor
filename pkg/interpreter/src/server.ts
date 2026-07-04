@@ -66,6 +66,7 @@ import {
 import {
   deleteTodoMarkdownItem,
   insertTodoMarkdownItem,
+  isTodoTaskMarker,
   parseMarkdownTodo,
   updateTodoMarkdownItem,
   type TodoMarkdownInsert,
@@ -1356,6 +1357,13 @@ function todoMarkdownPath(): string {
   return resolve(process.cwd(), "TODO.md")
 }
 
+function asTodoTaskMarker(value: unknown): TodoMarkdownInsert["marker"] {
+  if (typeof value !== "string") return undefined
+  const marker = value === "X" ? "x" : value
+  if (isTodoTaskMarker(marker)) return marker
+  return undefined
+}
+
 function readTodoMarkdownForEdit(): string {
   const path = todoMarkdownPath()
   return existsSync(path) ? readFileSync(path, "utf8") : "# MetaFor TODO\n"
@@ -1380,6 +1388,8 @@ async function createTodoItem(req: Request, broadcast: (payload: JsonObject) => 
   if (kind === "heading" || kind === "task" || kind === "note") insert.kind = kind
   const checked = asBoolean(body["checked"])
   if (checked !== undefined) insert.checked = checked
+  const marker = asTodoTaskMarker(body["marker"])
+  if (marker !== undefined) insert.marker = marker
   const depth = asNumber(body["depth"])
   if (depth !== undefined) insert.depth = depth
   const afterId = asString(body["afterId"])
@@ -1400,7 +1410,9 @@ async function patchTodoItem(id: string, req: Request, broadcast: (payload: Json
   if (text !== undefined) patch.text = text
   const checked = asBoolean(parsed.body["checked"])
   if (checked !== undefined) patch.checked = checked
-  if (patch.text === undefined && patch.checked === undefined) return jsonResponse({ok: false, error: "text or checked required"}, 400)
+  const marker = asTodoTaskMarker(parsed.body["marker"])
+  if (marker !== undefined) patch.marker = marker
+  if (patch.text === undefined && patch.checked === undefined && patch.marker === undefined) return jsonResponse({ok: false, error: "text, checked, or marker required"}, 400)
   try {
     const result = updateTodoMarkdownItem(readTodoMarkdownForEdit(), id, patch)
     return writeTodoMarkdown(result.markdown, broadcast, {item: result.item})

@@ -393,14 +393,14 @@ Agent-facing действия TODO выполняются через `POST /tool
 {"ok": true, "path": "/repo/TODO.md", "mtimeMs": 1710000000000, "size": 1024, "text": "# MetaFor TODO\n", "items": []}
 ```
 
-Данные TODO хранятся в файле: текст пунктов и markdown checkbox `- [ ]` / `- [x]`. Подсветка строки хранится как состояние HUD-панели и попадает в `context.hud.todo.highlightedItems`.
+Данные TODO хранятся в файле: текст пунктов и markdown checkbox markers. ToDoPane парсит явный список markers и возвращает его как `marker`: `[ ]`, `[x]`/`[X]`, `[/]`, `[~]`, `[-]`, `[>]`, `[<]`, `[?]`, `[!]`, `[*]`, `[\"]`, `[l]`, `[b]`, `[i]`, `[I]`, `[S]`, `[p]`, `[c]`, `[f]`, `[k]`, `[w]`, `[u]`, `[d]`, а также progress marker `[0]`..`[100]`. Пауза progress-задачи пишется точкой перед числом: `[.0]`..`[.100]`. В этом repo `[0]` означает задачу в работе, `[.0]` - пауза, `[x]` или `[100]` - сделано. Progress также возвращается как `progress`, пауза - как `paused`. Подсветка строки хранится как состояние HUD-панели и попадает в `context.hud.todo.highlightedItems`.
 
 Редактирование файла через `POST /tools`:
 
 ```text
 todo.replace   # {text}
-todo.create    # {text, kind?: "task"|"note"|"heading", checked?, depth?, afterId?}
-todo.update    # {id, text?, checked?}
+todo.create    # {text, kind?: "task"|"note"|"heading", checked?, marker?, depth?, afterId?}
+todo.update    # {id, text?, checked?, marker?}
 todo.delete    # {id}
 ```
 

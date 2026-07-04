@@ -1,4 +1,10 @@
 export type ToDoPaneItemKind = "heading" | "task" | "note"
+export type ToDoPaneTaskMarker = string
+
+export const TODO_MARKDOWN_TASK_MARKERS = [
+  " ", "x", "/", "~", "-", ">", "<", "?", "!", "*", '"',
+  "l", "b", "i", "I", "S", "p", "c", "f", "k", "w", "u", "d",
+] as const
 
 export type ToDoPaneItem = {
   id: string
@@ -10,9 +16,12 @@ export type ToDoPaneItem = {
   raw: string
   section: string[]
   checked: boolean | null
+  marker: ToDoPaneTaskMarker | null
+  progress: number | null
+  paused: boolean
 }
 
-export type ToDoPaneContextItem = Pick<ToDoPaneItem, "id" | "kind" | "line" | "column" | "depth" | "text" | "section" | "checked">
+export type ToDoPaneContextItem = Pick<ToDoPaneItem, "id" | "kind" | "line" | "column" | "depth" | "text" | "section" | "checked" | "marker" | "progress" | "paused">
 
 export type ToDoPaneContextSnapshot = {
   path: string
@@ -35,6 +44,7 @@ export type TodoMarkdownInsert = {
   kind?: ToDoPaneItemKind
   text: string
   checked?: boolean
+  marker?: ToDoPaneTaskMarker
   depth?: number
   afterId?: string
 }
@@ -42,6 +52,7 @@ export type TodoMarkdownInsert = {
 export type TodoMarkdownPatch = {
   text?: string
   checked?: boolean
+  marker?: ToDoPaneTaskMarker
 }
 
 export type TodoMarkdownEditResult = {
@@ -80,26 +91,35 @@ export function parseMarkdownTodo(markdown: string): ToDoPaneItem[] {
         raw,
         section: headings.slice(0, level - 1),
         checked: null,
+        marker: null,
+        progress: null,
+        paused: false,
       }, idCounts))
       continue
     }
 
-    const task = /^(\s*)[-*]\s+\[([ xX])\]\s+(.+?)\s*$/.exec(raw)
+    const task = /^(\s*)[-*]\s+\[([^\]]+)\]\s+(.+?)\s*$/.exec(raw)
     if (task !== null) {
       const indent = visualIndent(task[1]!)
-      const marker = task[2]!
-      const text = task[3]!.trim()
-      items.push(todoItemWithStableId({
-        kind: "task",
-        line,
-        column: raw.indexOf(text),
-        depth: Math.floor(indent / 2),
-        text,
-        raw,
-        section: activeHeadings(headings),
-        checked: marker.toLowerCase() === "x",
-      }, idCounts))
-      continue
+      const marker = todoTaskMarkerOrNull(task[2]!)
+      if (marker !== null) {
+        const progress = todoProgressFromMarker(marker)
+        const text = task[3]!.trim()
+        items.push(todoItemWithStableId({
+          kind: "task",
+          line,
+          column: raw.indexOf(text),
+          depth: Math.floor(indent / 2),
+          text,
+          raw,
+          section: activeHeadings(headings),
+          checked: marker === "x" || progress === 100,
+          marker,
+          progress,
+          paused: marker.startsWith("."),
+        }, idCounts))
+        continue
+      }
     }
 
     const note = /^(\s*)[-*]\s+(.+?)\s*$/.exec(raw)
@@ -115,6 +135,9 @@ export function parseMarkdownTodo(markdown: string): ToDoPaneItem[] {
         raw,
         section: activeHeadings(headings),
         checked: null,
+        marker: null,
+        progress: null,
+        paused: false,
       }, idCounts))
     }
   }
@@ -187,7 +210,8 @@ export function insertTodoMarkdownItem(markdown: string, input: TodoMarkdownInse
   const text = normalizedTodoText(input.text)
   const kind = input.kind ?? "task"
   const depth = normalizedTodoDepth(input.depth)
-  const nextLine = todoLineFromParts(kind, text, depth, input.checked === true)
+  const marker = input.checked === true ? "x" : input.marker ?? " "
+  const nextLine = todoLineFromParts(kind, text, depth, marker)
   const state = markdownLineState(markdown)
   const items = parseMarkdownTodo(markdown)
   const afterId = input.afterId
@@ -207,9 +231,12 @@ export function updateTodoMarkdownItem(markdown: string, id: string, patch: Todo
   const item = items.find((candidate) => candidate.id === id)
   if (item === undefined) throw new Error(`TODO item not found: ${id}`)
   if (patch.checked !== undefined && item.kind !== "task") throw new Error("checked can be changed only for task items")
+  if (patch.marker !== undefined && item.kind !== "task") throw new Error("marker can be changed only for task items")
   const text = patch.text === undefined ? item.text : normalizedTodoText(patch.text)
-  const checked = patch.checked ?? item.checked === true
-  state.lines[item.line - 1] = updatedTodoLine(item, state.lines[item.line - 1] ?? item.raw, text, checked)
+  const marker = patch.checked !== undefined
+    ? patch.checked ? "x" : " "
+    : patch.marker ?? item.marker ?? " "
+  state.lines[item.line - 1] = updatedTodoLine(item, state.lines[item.line - 1] ?? item.raw, text, marker)
   const nextMarkdown = joinMarkdownLines(state.lines, state.trailingNewline)
   const nextItems = parseMarkdownTodo(nextMarkdown)
   const nextItem = nextItems.find((candidate) => candidate.line === item.line)
@@ -237,6 +264,9 @@ export function todoContextItem(item: ToDoPaneItem): ToDoPaneContextItem {
     text: item.text,
     section: [...item.section],
     checked: item.checked,
+    marker: item.marker,
+    progress: item.progress,
+    paused: item.paused,
   }
 }
 
@@ -245,9 +275,7 @@ export function todoContextLine(item: ToDoPaneContextItem): string {
     ? "#".repeat(Math.max(1, item.depth + 1))
     : item.checked === null
       ? "-"
-      : item.checked
-        ? "- [x]"
-        : "- [ ]"
+      : `- [${item.marker ?? (item.checked ? "x" : " ")}]`
   return `${prefix} ${item.text}`
 }
 
@@ -261,26 +289,41 @@ function todoItemWithStableId(item: Omit<ToDoPaneItem, "id">, counts: Map<string
   }
 }
 
-function updatedTodoLine(item: ToDoPaneItem, raw: string, text: string, checked: boolean): string {
+function updatedTodoLine(item: ToDoPaneItem, raw: string, text: string, marker: ToDoPaneTaskMarker): string {
   if (item.kind === "heading") {
     const level = Math.max(1, Math.min(6, item.depth + 1))
     return `${"#".repeat(level)} ${text}`
   }
   if (item.kind === "task") {
-    const match = /^(\s*[-*]\s+\[)[ xX](\]\s+).*$/.exec(raw)
-    if (match !== null) return `${match[1]}${checked ? "x" : " "}${match[2]}${text}`
-    return `${" ".repeat(Math.max(0, item.depth) * 2)}- [${checked ? "x" : " "}] ${text}`
+    const match = /^(\s*[-*]\s+\[)[^\]]+(\]\s+).*$/.exec(raw)
+    if (match !== null) return `${match[1]}${marker}${match[2]}${text}`
+    return `${" ".repeat(Math.max(0, item.depth) * 2)}- [${marker}] ${text}`
   }
   const note = /^(\s*[-*]\s+).*$/.exec(raw)
   if (note !== null) return `${note[1]}${text}`
   return `${" ".repeat(Math.max(0, item.depth) * 2)}- ${text}`
 }
 
-function todoLineFromParts(kind: ToDoPaneItemKind, text: string, depth: number, checked: boolean): string {
+function todoLineFromParts(kind: ToDoPaneItemKind, text: string, depth: number, marker: ToDoPaneTaskMarker): string {
   if (kind === "heading") return `${"#".repeat(Math.max(1, Math.min(6, depth + 1)))} ${text}`
   const indent = " ".repeat(depth * 2)
   if (kind === "note") return `${indent}- ${text}`
-  return `${indent}- [${checked ? "x" : " "}] ${text}`
+  return `${indent}- [${marker}] ${text}`
+}
+
+export function isTodoTaskMarker(value: string): value is ToDoPaneTaskMarker {
+  return (TODO_MARKDOWN_TASK_MARKERS as readonly string[]).includes(value) || todoProgressFromMarker(value) !== null
+}
+
+function todoTaskMarkerOrNull(value: string): ToDoPaneTaskMarker | null {
+  const marker = value === "X" ? "x" : value
+  return isTodoTaskMarker(marker) ? marker : null
+}
+
+function todoProgressFromMarker(marker: string): number | null {
+  const value = marker.startsWith(".") ? marker.slice(1) : marker
+  if (!/^(?:100|[1-9]?\d)$/.test(value)) return null
+  return Number(value)
 }
 
 function todoHeadingSectionEndIndex(items: readonly ToDoPaneItem[], index: number): number {

@@ -13,7 +13,7 @@
 
 ## 2. Dark / Bulk Browser Shell
 
-- [ ] Перенести `app/web/client.ts` в `bulk` и обновить `bulk/index.html`.
+- [0] Перенести `app/web/client.ts` в `bulk` и обновить `bulk/index.html`.
 - [ ] Перенести `app/web/world.ts` в `bulk` как Boundary snapshot -> Bulk manifest adapter.
 - [ ] Перенести `app/web/hud.ts` в `bulk` и убрать старое имя браузерной оболочки.
 - [ ] Перенести `app/web/settings.ts` в `bulk` и убрать обратный импорт `bulk/web -> app/web/settings.ts`.
