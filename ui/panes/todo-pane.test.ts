@@ -311,6 +311,59 @@ describe("ToDoPane frame controls", () => {
       restoreRaf()
     }
   })
+
+  test("keeps resize edges above todo content hits", async () => {
+    const previews: Array<{x: number; y: number; w: number; h: number}> = []
+    const changes: Array<{x: number; y: number; w: number; h: number}> = []
+    const pane = new ToDoPane({
+      markdown: "- [ ] Первый пункт\n- [ ] Второй пункт\n",
+      draggable: true,
+      resizable: true,
+      onFrameRectPreview: (rect) => previews.push(rect),
+      onFrameRectChange: (rect) => changes.push(rect),
+    })
+    const canvas = {style: {cursor: "default"}}
+    let frameRect = {x: 10, y: 20, w: 360, h: 220}
+    const restoreRaf = installRafStub()
+    try {
+      pane.attachCanvas({
+        canvas,
+        renderer: {invalidateGeometry: () => {}},
+        uiRectToFramebufferClipBounds: (xMin: number, yMin: number, xMax: number, yMax: number) => [xMin, yMin, xMax, yMax],
+        setFocused: () => {},
+        inputProxy: {focus: () => {}},
+        requestRender: () => {},
+        surfaceFrame: () => ({rect: {...frameRect}, bounds: {w: 1000, h: 800}}),
+        setSurfaceRect: (_surface: unknown, rect: typeof frameRect) => {
+          frameRect = {...rect}
+          return {...frameRect}
+        },
+      } as never)
+      pane.setRect(frameRect, 1, await testFont())
+
+      pane.onPointerMove({clientX: 12, clientY: 74} as MouseEvent, 2, 54)
+      expect(canvas.style.cursor).toBe("ew-resize")
+
+      pane.onPointerDown({
+        button: 0,
+        clientX: 12,
+        clientY: 74,
+        detail: 1,
+        preventDefault: () => {},
+      } as MouseEvent, 2, 54)
+      pane.onPointerMove({clientX: 0, clientY: 74} as MouseEvent, 2, 54)
+      pane.onPointerUp({clientX: 0, clientY: 74} as MouseEvent, 2, 54)
+
+      expect(previews.at(-1)).toEqual({x: 0, y: 20, w: 370, h: 220})
+      expect(changes.at(-1)).toEqual({x: 0, y: 20, w: 370, h: 220})
+
+      pane.onPointerMove({clientX: 120, clientY: 22} as MouseEvent, 120, 2)
+      expect(canvas.style.cursor).toBe("ns-resize")
+    } finally {
+      pane.dispose()
+      restoreRaf()
+    }
+  })
 })
 
 function attachTestCanvas(pane: ToDoPane, frameRect: {x: number; y: number; w: number; h: number}): void {

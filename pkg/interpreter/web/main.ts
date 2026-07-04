@@ -2946,7 +2946,7 @@ function installEnginePanes(): void {
   if (uiCanvas === null || displayHoverOutlinePane === null) return
   uiCanvas.addHudSurface(displayHoverOutlinePane, ({w, h}) => ({x: 0, y: 0, w, h}), {zIndex: HUD_LAYER_TOP})
   if (todoPane !== null) {
-    uiCanvas.addHudSurface(todoPane, todoHudRect)
+    uiCanvas.addHudSurface(todoPane, todoHudRect, {zIndex: HUD_LAYER_TOP - 18})
   }
   todoDockPane ??= new HostTerminalDockPane({
     key: "todo-dock-restore",

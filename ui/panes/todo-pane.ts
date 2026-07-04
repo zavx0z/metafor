@@ -551,14 +551,23 @@ export class ToDoPane extends UiSurface {
   }
 
   #syncFrameCursor(localX: number, localY: number): void {
-    if (this.canvas === null || this.pressedHit !== null || this.hoveredHit !== null) return
+    if (this.canvas === null || this.pressedHit !== null) return
     const kind = paneFrameHit(localX, localY, this.rectW, this.rectH, this.#frameInteractionOpts())
     const cursor = paneFrameCursor(kind, false)
     const canvasElement = this.canvas.canvas
+    if (kind !== null && kind !== "move") {
+      if (canvasElement !== undefined) canvasElement.style.cursor = cursor ?? "default"
+      return
+    }
+    if (this.hoveredHit !== null) return
     if (canvasElement !== undefined) canvasElement.style.cursor = cursor ?? "default"
   }
 
   override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
+    const kind = paneFrameHit(localX, localY, this.rectW, this.rectH, this.#frameInteractionOpts())
+    if (event.button === 0 && kind !== null && kind !== "move") {
+      if (this.#beginFrameInteraction(event, localX, localY)) return
+    }
     super.onPointerDown(event, localX, localY)
     if (this.pressedHit !== null) return
     if (this.#beginFrameInteraction(event, localX, localY)) return
