@@ -1,33 +1,38 @@
 import { describe, expect, test } from "bun:test"
 import { IDBFactory } from "fake-indexeddb"
-import { APP_CONFIG_DEFAULTS, APP_CONFIG_REVISION, DEFAULT_APP_WEB_SCENE_SRC } from "./app-config.ts"
-import { APP_WEB_LAYOUT_SETTING_KEYS, APP_WEB_RENDER_SETTING_KEYS } from "./settings.ts"
-import { loadPersistedAppWebUiSettings, savePersistedAppWebUiSettings } from "./ui-settings-idb.ts"
+import {
+  BULK_LAYOUT_SETTING_KEYS,
+  BULK_RENDER_SETTING_KEYS,
+  BULK_SETTINGS_REVISION,
+  DEFAULT_BULK_SCENE_SRC,
+  DEFAULT_BULK_SETTINGS,
+  loadSettings,
+  saveSettings,
+} from "./settings.ts"
 
 const persistedLayoutDefaults = () =>
-  Object.fromEntries(APP_WEB_LAYOUT_SETTING_KEYS.map((key) => [key, APP_CONFIG_DEFAULTS.layout[key]]))
+  Object.fromEntries(BULK_LAYOUT_SETTING_KEYS.map((key) => [key, DEFAULT_BULK_SETTINGS.layout[key]]))
 
 const persistedRenderDefaults = () =>
-  Object.fromEntries(APP_WEB_RENDER_SETTING_KEYS.map((key) => [key, APP_CONFIG_DEFAULTS.render[key]]))
+  Object.fromEntries(BULK_RENDER_SETTING_KEYS.map((key) => [key, DEFAULT_BULK_SETTINGS.render[key]]))
 
 const createIndexedDbTarget = () => ({
   indexedDb: new IDBFactory(),
-  databaseName: `metafor-app-web-ui-${crypto.randomUUID()}`,
+  databaseName: `metafor-bulk-settings-${crypto.randomUUID()}`,
 })
 
-describe("app/web ui settings indexeddb", () => {
-  test("на пустой IDB сразу seed-ит APP_CONFIG_DEFAULTS и возвращает их", async () => {
+describe("bulk settings indexeddb", () => {
+  test("на пустой IDB сразу seed-ит DEFAULT_BULK_SETTINGS и возвращает их", async () => {
     const target = createIndexedDbTarget()
 
-    expect(await loadPersistedAppWebUiSettings(target)).toEqual({
-      src: DEFAULT_APP_WEB_SCENE_SRC,
+    expect(await loadSettings(target)).toEqual({
+      src: DEFAULT_BULK_SCENE_SRC,
       layoutSettings: persistedLayoutDefaults(),
       renderSettings: persistedRenderDefaults(),
     })
 
-    // повторный load возвращает то же самое — IDB уже seeded.
-    expect(await loadPersistedAppWebUiSettings(target)).toEqual({
-      src: DEFAULT_APP_WEB_SCENE_SRC,
+    expect(await loadSettings(target)).toEqual({
+      src: DEFAULT_BULK_SCENE_SRC,
       layoutSettings: persistedLayoutDefaults(),
       renderSettings: persistedRenderDefaults(),
     })
@@ -36,7 +41,7 @@ describe("app/web ui settings indexeddb", () => {
   test("сохраняет и восстанавливает только известные ui-настройки", async () => {
     const target = createIndexedDbTarget()
 
-    await savePersistedAppWebUiSettings(
+    await saveSettings(
       {
         src: " zavx0z/custom-scene ",
         layoutSettings: {
@@ -54,7 +59,7 @@ describe("app/web ui settings indexeddb", () => {
       target,
     )
 
-    expect(await loadPersistedAppWebUiSettings(target)).toEqual({
+    expect(await loadSettings(target)).toEqual({
       src: "zavx0z/custom-scene",
       layoutSettings: {
         rootInnerDiameterMm: 1440,
@@ -70,15 +75,15 @@ describe("app/web ui settings indexeddb", () => {
     })
   })
 
-  test("при revision записи равной текущему APP_CONFIG_REVISION фильтрует мусор и возвращает чистые значения", async () => {
+  test("при revision записи равной текущему BULK_SETTINGS_REVISION фильтрует мусор и возвращает чистые значения", async () => {
     const target = createIndexedDbTarget()
 
     const database = target.indexedDb.open(target.databaseName, 1)
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
       database.onupgradeneeded = () => {
         const upgrade = database.result
-        if (!upgrade.objectStoreNames.contains("ui_settings")) {
-          upgrade.createObjectStore("ui_settings", { keyPath: "id" })
+        if (!upgrade.objectStoreNames.contains("settings")) {
+          upgrade.createObjectStore("settings", { keyPath: "id" })
         }
       }
       database.onsuccess = () => resolve(database.result)
@@ -86,11 +91,11 @@ describe("app/web ui settings indexeddb", () => {
     })
 
     try {
-      const transaction = db.transaction("ui_settings", "readwrite")
-      const store = transaction.objectStore("ui_settings")
+      const transaction = db.transaction("settings", "readwrite")
+      const store = transaction.objectStore("settings")
       const request = store.put({
-        id: "display_settings",
-        revision: APP_CONFIG_REVISION,
+        id: "display",
+        revision: BULK_SETTINGS_REVISION,
         src: 42,
         layoutSettings: {
           rootInnerDiameterMm: "bad",
@@ -114,8 +119,8 @@ describe("app/web ui settings indexeddb", () => {
       db.close()
     }
 
-    expect(await loadPersistedAppWebUiSettings(target)).toEqual({
-      src: DEFAULT_APP_WEB_SCENE_SRC,
+    expect(await loadSettings(target)).toEqual({
+      src: DEFAULT_BULK_SCENE_SRC,
       layoutSettings: {},
       renderSettings: {
         animationEnabled: true,
@@ -131,8 +136,8 @@ describe("app/web ui settings indexeddb", () => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
       database.onupgradeneeded = () => {
         const upgrade = database.result
-        if (!upgrade.objectStoreNames.contains("ui_settings")) {
-          upgrade.createObjectStore("ui_settings", { keyPath: "id" })
+        if (!upgrade.objectStoreNames.contains("settings")) {
+          upgrade.createObjectStore("settings", { keyPath: "id" })
         }
       }
       database.onsuccess = () => resolve(database.result)
@@ -140,10 +145,10 @@ describe("app/web ui settings indexeddb", () => {
     })
 
     try {
-      const tx = db.transaction("ui_settings", "readwrite")
-      tx.objectStore("ui_settings").put({
-        id: "display_settings",
-        revision: APP_CONFIG_REVISION - 1,
+      const tx = db.transaction("settings", "readwrite")
+      tx.objectStore("settings").put({
+        id: "display",
+        revision: BULK_SETTINGS_REVISION - 1,
         src: "old/root",
         layoutSettings: { rootInnerDiameterMm: 999 },
         renderSettings: { torusTubularSegments: 999 },
@@ -156,8 +161,8 @@ describe("app/web ui settings indexeddb", () => {
       db.close()
     }
 
-    expect(await loadPersistedAppWebUiSettings(target)).toEqual({
-      src: DEFAULT_APP_WEB_SCENE_SRC,
+    expect(await loadSettings(target)).toEqual({
+      src: DEFAULT_BULK_SCENE_SRC,
       layoutSettings: persistedLayoutDefaults(),
       renderSettings: persistedRenderDefaults(),
     })

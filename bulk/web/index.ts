@@ -1,12 +1,9 @@
-import type { BulkFieldParticle, BulkFieldParticleKind, BulkDarkParticle, BulkManifest } from "@bulk/gravity/layout"
+import type { BulkFieldParticle, BulkFieldParticleKind, BulkDarkParticle, BulkManifest, BulkLayoutSettings } from "@bulk/gravity/layout"
+import { normalizeBulkLayoutSettings } from "@bulk/gravity/layout"
+import { DEFAULT_BULK_SETTINGS, type BulkRenderSettings } from "bulk/settings"
 import {
 	appWebLayoutConfig,
-	DEFAULT_APP_WEB_LAYOUT_SETTINGS,
-	DEFAULT_APP_WEB_RENDER_SETTINGS,
-	normalizeAppWebLayoutSettings,
-	type AppWebLayoutSettings,
-	normalizeAppWebRenderSettings,
-	type AppWebRenderSettings,
+	normalizeBulkRenderSettings,
 	toLevelGeometrySettings,
 	toLevelSettings,
 } from "../../app/web/settings.ts"
@@ -91,8 +88,8 @@ export interface BulkViewportController {
 	dispose(): void
 	handleForce(_channel: string, _message: unknown): void
 	setAnimationSuspended(suspended: boolean): void
-	setLayoutSettings(settings: Partial<AppWebLayoutSettings>): void
-	setRenderSettings(settings: Partial<AppWebRenderSettings>): void
+	setLayoutSettings(settings: Partial<BulkLayoutSettings>): void
+	setRenderSettings(settings: Partial<BulkRenderSettings>): void
 	setSize(width: number, height: number): void
 	applyManifest(manifest: BulkManifest): void
 	readonly hud: BulkViewportHudController
@@ -206,8 +203,8 @@ const BULK_RADIAL_MENU_PROJECTED_HIT_PAD_PX = 48
 const BULK_RADIAL_MENU_HUD_Z = 10
 const BULK_TOUCH_TAP_MOVE_PX = 14
 const ANDROID_RTC_FRAME_SRC = "metafor:app-web-android-rtc-frame"
-let activeLayoutSettings: AppWebLayoutSettings = { ...DEFAULT_APP_WEB_LAYOUT_SETTINGS }
-let activeRenderSettings: AppWebRenderSettings = { ...DEFAULT_APP_WEB_RENDER_SETTINGS }
+let activeLayoutSettings: BulkLayoutSettings = { ...DEFAULT_BULK_SETTINGS.layout }
+let activeRenderSettings: BulkRenderSettings = { ...DEFAULT_BULK_SETTINGS.render }
 let levelResolver: LevelResolver = createLevelResolver(
 	toLevelSettings(activeLayoutSettings, activeRenderSettings),
 )
@@ -2287,8 +2284,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	renderer.setPixelRatio(window.devicePixelRatio || 1)
 	renderer.setSize(options.width, options.height)
-	activeRenderSettings = normalizeAppWebRenderSettings(activeRenderSettings)
-	activeLayoutSettings = normalizeAppWebLayoutSettings(activeLayoutSettings)
+	activeRenderSettings = normalizeBulkRenderSettings(activeRenderSettings)
+	activeLayoutSettings = normalizeBulkLayoutSettings(activeLayoutSettings)
 	rebuildLevelResolver()
 	const uiFont = await TrueTypeFont.fromUrl("/engine-static/JetBrainsMono-Bold.ttf")
 	const labelFont = uiFont
@@ -5237,8 +5234,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			lastAnimationTimestamp = 0
 			if (!suspended && activeRenderSettings.animationEnabled) requestRenderLoop()
 		},
-		setLayoutSettings(settings: Partial<AppWebLayoutSettings>) {
-			activeLayoutSettings = normalizeAppWebLayoutSettings({
+		setLayoutSettings(settings: Partial<BulkLayoutSettings>) {
+			activeLayoutSettings = normalizeBulkLayoutSettings({
 				...activeLayoutSettings,
 				...settings,
 			})
@@ -5247,10 +5244,10 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			sphereWireframeCache.clear()
 			refreshSceneForSettings()
 		},
-		setRenderSettings(settings: Partial<AppWebRenderSettings>) {
+		setRenderSettings(settings: Partial<BulkRenderSettings>) {
 			const nextBaseDepth = settings.baseDepth !== undefined ? settings.baseDepth : activeRenderSettings.baseDepth
 			const wasCosmosMotionEnabled = activeRenderSettings.animationEnabled
-			activeRenderSettings = normalizeAppWebRenderSettings({
+			activeRenderSettings = normalizeBulkRenderSettings({
 				...activeRenderSettings,
 				...settings,
 				baseDepth: nextBaseDepth,

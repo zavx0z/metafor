@@ -72,15 +72,12 @@ import {
 	type VoiceInputTransport,
 } from "@metafor/interpreter/web"
 import {
-	APP_WEB_LAYOUT_SETTING_KEYS,
-	APP_WEB_RENDER_SETTING_KEYS,
 	APP_WEB_SETTINGS_BY_KEY,
-	type AppWebLayoutSettings,
-	type AppWebRenderSettings,
 	type AppWebSettingKey,
 } from "./settings.ts"
 import {createAndroidRtcClient, type AndroidRtcClient, type AndroidRtcCommand} from "./android-rtc.ts"
-import {DEFAULT_APP_WEB_SCENE_SRC} from "./app-config.ts"
+import {BULK_LAYOUT_SETTING_KEYS, DEFAULT_BULK_SCENE_SRC, type BulkRenderSettings} from "bulk/settings"
+import type {BulkLayoutSettings} from "@bulk/gravity/layout"
 import {
 	canCreateVoiceRtcAsrSocket,
 	createVoiceRtcAsrSocket,
@@ -129,8 +126,8 @@ let appFullscreenDebug: AppFullscreenDebugSnapshot = {
 const ANDROID_CONTROL_STATUS_HOLD_MS = 4_000
 
 export type AppWebHudSettingsSnapshot = {
-	layoutSettings: Partial<AppWebLayoutSettings>
-	renderSettings: Partial<AppWebRenderSettings>
+	layoutSettings: Partial<BulkLayoutSettings>
+	renderSettings: Partial<BulkRenderSettings>
 }
 
 export type AppWebHudOptions = {
@@ -139,7 +136,7 @@ export type AppWebHudOptions = {
 	initialSrc: string
 	initialSettings: AppWebHudSettingsSnapshot
 	onApply(src: string, settings: AppWebHudSettingsSnapshot): void
-	onRenderSettingsChange(settings: Partial<AppWebRenderSettings>): void
+	onRenderSettingsChange(settings: Partial<BulkRenderSettings>): void
 	onSettingsPersist(settings: AppWebHudSettingsSnapshot): void
 	onVoiceDictationActiveChange(active: boolean): void
 	onVoiceLeaseRequest(reason: string): void
@@ -1149,7 +1146,7 @@ class AppWebHud implements AppWebHudController {
 	apply(): void {
 		this.#busy = true
 		this.#settingsPane.requestRender()
-		this.#onApply(this.#src.trim() || DEFAULT_APP_WEB_SCENE_SRC, this.settingsSnapshot())
+		this.#onApply(this.#src.trim() || DEFAULT_BULK_SCENE_SRC, this.settingsSnapshot())
 	}
 
 	setDocked(kind: DockKind, docked: boolean): void {
@@ -1470,9 +1467,9 @@ class AppWebHud implements AppWebHudController {
 	settingValue(key: AppWebSettingKey): boolean | number {
 		const config = APP_WEB_SETTINGS_BY_KEY[key]
 		if (config.section === "render") {
-			return this.#settings.renderSettings[key as keyof AppWebRenderSettings] ?? config.defaultValue
+			return this.#settings.renderSettings[key as keyof BulkRenderSettings] ?? config.defaultValue
 		}
-		return this.#settings.layoutSettings[key as keyof AppWebLayoutSettings] ?? config.defaultValue
+		return this.#settings.layoutSettings[key as keyof BulkLayoutSettings] ?? config.defaultValue
 	}
 
 	stepSetting(key: AppWebSettingKey, direction: -1 | 1): void {
@@ -4008,7 +4005,7 @@ class AppWebSettingsPane extends UiSurface {
 			return
 		}
 		if (this.#tab === "geometry") {
-			this.#drawSection("Геометрия", APP_WEB_LAYOUT_SETTING_KEYS, x, y, w)
+			this.#drawSection("Геометрия", BULK_LAYOUT_SETTING_KEYS, x, y, w)
 			return
 		}
 		if (this.#tab === "render") {
@@ -4193,7 +4190,7 @@ class AppWebSettingsPane extends UiSurface {
 
 	#contentHeight(): number {
 		if (this.#tab === "scene") return 244
-		if (this.#tab === "geometry") return 36 + APP_WEB_LAYOUT_SETTING_KEYS.length * 46
+		if (this.#tab === "geometry") return 36 + BULK_LAYOUT_SETTING_KEYS.length * 46
 		if (this.#tab === "render") {
 			const sectionHeight = (rows: number): number => 19 + rows * 46 + 14
 			return 4 + sectionHeight(1) + sectionHeight(4) + sectionHeight(3) + sectionHeight(3)

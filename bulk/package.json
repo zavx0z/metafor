@@ -5,6 +5,7 @@
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",
+    "./settings": "./settings.ts",
     "./web": "./web/index.ts"
   },
   "private": true,

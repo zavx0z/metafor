@@ -9,13 +9,12 @@ import {
   toLevelGeometrySettings as toLevelGeometrySettingsFromBulk,
   type BulkLayoutSettings,
 } from "@bulk/gravity/layout"
-import { APP_CONFIG_DEFAULTS, type AppConfigRender } from "./app-config.ts"
-
-/** Реэкспорт top-down закона Bulk × Gravity под прежним именем для UI-слоя `app/web`. */
-export type AppWebLayoutSettings = BulkLayoutSettings
-
-/** Настройки плотности wireframe-детализации для WebGPU viewport. */
-export type AppWebRenderSettings = AppConfigRender
+import {
+  BULK_LAYOUT_SETTING_KEYS,
+  BULK_RENDER_SETTING_KEYS,
+  DEFAULT_BULK_SETTINGS,
+  type BulkRenderSettings,
+} from "bulk/settings"
 
 /** Layout-контракт UI: viewport-камера, сетка, fallback torus geometry. Snapshot-константы хранятся в `@bulk/gravity/layout`. */
 export interface AppWebLayoutConfig {
@@ -48,8 +47,8 @@ export interface AppWebLayoutConfig {
 
 export type AppWebSettingSection = "layout" | "render"
 export type AppWebSettingGroup = "animation" | "detail" | "geometry" | "labels" | "torus"
-export type AppWebLayoutSettingKey = keyof AppWebLayoutSettings
-export type AppWebRenderSettingKey = keyof AppWebRenderSettings
+export type AppWebLayoutSettingKey = keyof BulkLayoutSettings
+export type AppWebRenderSettingKey = keyof BulkRenderSettings
 export type AppWebSettingKey = AppWebLayoutSettingKey | AppWebRenderSettingKey
 
 /** Метаданные одной UI-настройки `app/web`, доступной по стабильному ключу. */
@@ -65,9 +64,6 @@ export interface AppWebSettingConfig {
   step?: number
   type?: "checkbox" | "range"
 }
-
-/** Реэкспорт layout-defaults из единого app-config-а. */
-export const DEFAULT_APP_WEB_LAYOUT_SETTINGS: AppWebLayoutSettings = APP_CONFIG_DEFAULTS.layout
 
 /** Layout-контракт `app/web`: viewport-камера, сетка, fallback torus geometry. */
 export const appWebLayoutConfig: AppWebLayoutConfig = {
@@ -102,9 +98,6 @@ export const appWebLayoutConfig: AppWebLayoutConfig = {
   },
 }
 
-/** Реэкспорт render-defaults из единого app-config-а. */
-export const DEFAULT_APP_WEB_RENDER_SETTINGS: AppWebRenderSettings = APP_CONFIG_DEFAULTS.render
-
 /** Классификация настроек `app/web` по ключам. Используется UI и runtime-слоями как единая карта. */
 export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebSettingConfig> = {
   // Запуск постоянного движения космораскладки.
@@ -113,7 +106,7 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebSettingConf
     section: "render",
     type: "checkbox",
     label: "Движение космоса",
-    defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.animationEnabled,
+    defaultValue: DEFAULT_BULK_SETTINGS.render.animationEnabled,
     description: "Запускает космораскладку: объекты вращаются вокруг оси и по орбитам вокруг родителя. Если выключено — постоянный цикл останавливается, а сцена рендерится по запросу.",
   },
   // Базовая детализация wireframe у root-уровня.
@@ -121,7 +114,7 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebSettingConf
     group: "detail",
     section: "render",
     label: "Детализация root",
-    defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.detailDensityFactor,
+    defaultValue: DEFAULT_BULK_SETTINGS.render.detailDensityFactor,
     description: "Задает базовую плотность wireframe-сетки для корневого уровня.",
     min: 0.05,
     max: 6,
@@ -132,7 +125,7 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebSettingConf
     group: "detail",
     section: "render",
     label: "Детализация внутрь",
-    defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.detailLevelMultiplier,
+    defaultValue: DEFAULT_BULK_SETTINGS.render.detailLevelMultiplier,
     description: "Уменьшает детализацию на каждом следующем вложенном уровне.",
     min: 0.5,
     max: 3,
@@ -143,7 +136,7 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebSettingConf
     group: "labels",
     section: "render",
     label: "Глубина подписей",
-    defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.labelVisibleLevels,
+    defaultValue: DEFAULT_BULK_SETTINGS.render.labelVisibleLevels,
     description: "Ограничивает глубину показа подписей, начиная от корневого уровня.",
     min: 1,
     max: 8,
@@ -154,7 +147,7 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebSettingConf
     group: "labels",
     section: "render",
     label: "Размер шрифта, мм",
-    defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.labelFontSizeMm,
+    defaultValue: DEFAULT_BULK_SETTINGS.render.labelFontSizeMm,
     description: "Задает размер шрифта подписей на торах и сферах.",
     min: 1,
     max: 1000,
@@ -165,7 +158,7 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebSettingConf
     group: "labels",
     section: "render",
     label: "Отступ подписи, мм",
-    defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.labelSurfaceOffsetMm,
+    defaultValue: DEFAULT_BULK_SETTINGS.render.labelSurfaceOffsetMm,
     description: "Отодвигает подпись от поверхности объекта, чтобы текст не врезался в wireframe.",
     min: 0,
     max: 1000,
@@ -176,7 +169,7 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebSettingConf
     group: "detail",
     section: "render",
     label: "Базовая глубина",
-    defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.baseDepth,
+    defaultValue: DEFAULT_BULK_SETTINGS.render.baseDepth,
     description: "Текущий базовый уровень viewport для отсчёта видимости (0 = root, -1 = все уровни).",
     min: -1,
     max: 16,
@@ -187,7 +180,7 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebSettingConf
     group: "torus",
     section: "render",
     label: "Число линий тора",
-    defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.torusRadialSegments,
+    defaultValue: DEFAULT_BULK_SETTINGS.render.torusRadialSegments,
     description: "Задает количество продольных колец (линий) тора.",
     min: 3,
     max: 128,
@@ -198,7 +191,7 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebSettingConf
     group: "torus",
     section: "render",
     label: "Сглаженность линий",
-    defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.torusTubularSegments,
+    defaultValue: DEFAULT_BULK_SETTINGS.render.torusTubularSegments,
     description: "Задает количество сегментов в каждом кольце тора.",
     min: 3,
     max: 128,
@@ -209,7 +202,7 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebSettingConf
     group: "detail",
     section: "render",
     label: "Прозрачность сетки",
-    defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.wireframeOpacity,
+    defaultValue: DEFAULT_BULK_SETTINGS.render.wireframeOpacity,
     description: "Задает общую прозрачность для всех wireframe-объектов: Dark particles и field particles.",
     min: 0,
     max: 1,
@@ -220,7 +213,7 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebSettingConf
     group: "geometry",
     section: "layout",
     label: "Зазор орбит, мм",
-    defaultValue: DEFAULT_APP_WEB_LAYOUT_SETTINGS.orbitEdgeGapMm,
+    defaultValue: DEFAULT_BULK_SETTINGS.layout.orbitEdgeGapMm,
     description: "Задает расстояние между краями объектов на орбитах и от внутренней кромки parent-тора до первого объекта.",
     min: 0,
     max: 1000,
@@ -231,7 +224,7 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebSettingConf
     group: "geometry",
     section: "layout",
     label: "Внутренний диаметр root, мм",
-    defaultValue: DEFAULT_APP_WEB_LAYOUT_SETTINGS.rootInnerDiameterMm,
+    defaultValue: DEFAULT_BULK_SETTINGS.layout.rootInnerDiameterMm,
     description: "Определяет размер отверстия root-тора и то же соотношение для внутренних уровней.",
     min: 10,
     max: 3900,
@@ -242,7 +235,7 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebSettingConf
     group: "geometry",
     section: "layout",
     label: "Размер root-сферы, мм",
-    defaultValue: DEFAULT_APP_WEB_LAYOUT_SETTINGS.rootSphereRadiusMm,
+    defaultValue: DEFAULT_BULK_SETTINGS.layout.rootSphereRadiusMm,
     description: "Задает диаметр сфер полей на корневом уровне и пропорционально уменьшает их вглубь.",
     min: 10,
     max: DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG.rootOuterDiameterMm,
@@ -253,38 +246,13 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebSettingConf
     group: "torus",
     section: "render",
     label: "Наклон линий тора, град",
-    defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.torusCrossRingRotationDeg,
+    defaultValue: DEFAULT_BULK_SETTINGS.render.torusCrossRingRotationDeg,
     description: "Наклоняет продольные линии тора, не деформируя их по высоте вне поверхности.",
     min: -180,
     max: 180,
     step: 1,
   },
 }
-
-/** Список layout-ключей, которые должны уходить в `dark` и layout-law snapshot-а. */
-export const APP_WEB_LAYOUT_SETTING_KEYS = [
-  "orbitEdgeGapMm",
-  "rootInnerDiameterMm",
-  "rootSphereRadiusMm",
-] as const satisfies readonly AppWebLayoutSettingKey[]
-
-/** Список render-ключей, которые должны применяться только в WebGPU viewport. */
-export const APP_WEB_RENDER_SETTING_KEYS = [
-  "animationEnabled",
-  "detailDensityFactor",
-  "detailLevelMultiplier",
-  "labelVisibleLevels",
-  "baseDepth",
-  "labelFontSizeMm",
-  "labelSurfaceOffsetMm",
-  "torusCrossRingRotationDeg",
-  "torusRadialSegments",
-  "torusTubularSegments",
-  "wireframeOpacity",
-] as const satisfies readonly AppWebRenderSettingKey[]
-
-/** Реэкспорт нормализатора Bulk × Gravity под именем UI-слоя. */
-export const normalizeAppWebLayoutSettings = normalizeBulkLayoutSettings
 
 const TORUS_MAX_SEGMENTS = 96
 const SPHERE_BASE_WIDTH_SEGMENTS = 16
@@ -293,18 +261,18 @@ const SPHERE_MAX_WIDTH_SEGMENTS = 64
 const SPHERE_MAX_HEIGHT_SEGMENTS = 48
 
 /**
- * Проекция UI-контракта `AppWebLayoutSettings` в domain-закон `LevelGeometrySettings` из Bulk × Gravity.
+ * Проекция layout settings в domain-закон `LevelGeometrySettings` из Bulk × Gravity.
  *
  * Опциональный `rootOuterDiameterMm` позволяет вызывающему подменить snapshot-константу
  * (используется в snapshot-builder-е при materialize с нестандартным целевым диаметром).
  */
 export const toLevelGeometrySettings = (
-  layout: AppWebLayoutSettings,
+  layout: BulkLayoutSettings,
   rootOuterDiameterMm: number = DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG.rootOuterDiameterMm,
 ) => toLevelGeometrySettingsFromBulk(layout, DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG, rootOuterDiameterMm)
 
-/** Проекция UI-контракта `AppWebRenderSettings` в domain-закон `LevelDetailSettings`. */
-export const toLevelDetailSettings = (render: AppWebRenderSettings): LevelDetailSettings => ({
+/** Проекция render settings в domain-закон `LevelDetailSettings`. */
+export const toLevelDetailSettings = (render: BulkRenderSettings): LevelDetailSettings => ({
   detailDensityFactor: render.detailDensityFactor,
   detailLevelMultiplier: render.detailLevelMultiplier,
   torusRadialSegments: render.torusRadialSegments,
@@ -316,18 +284,18 @@ export const toLevelDetailSettings = (render: AppWebRenderSettings): LevelDetail
   sphereMaxHeightSegments: SPHERE_MAX_HEIGHT_SEGMENTS,
 })
 
-/** Проекция UI-контракта `AppWebRenderSettings` в domain-закон `LevelLabelSettings`. */
-export const toLevelLabelSettings = (render: AppWebRenderSettings): LevelLabelSettings => ({
+/** Проекция render settings в domain-закон `LevelLabelSettings`. */
+export const toLevelLabelSettings = (render: BulkRenderSettings): LevelLabelSettings => ({
   baseDepth: render.baseDepth,
   fontSizeMm: render.labelFontSizeMm,
   surfaceOffsetMm: render.labelSurfaceOffsetMm,
   visibleLevels: render.labelVisibleLevels,
 })
 
-/** Составная проекция обоих UI-контрактов в `LevelSettings` для `createLevelResolver`. */
+/** Составная проекция layout/render settings в `LevelSettings` для `createLevelResolver`. */
 export const toLevelSettings = (
-  layout: AppWebLayoutSettings,
-  render: AppWebRenderSettings,
+  layout: BulkLayoutSettings,
+  render: BulkRenderSettings,
   rootOuterDiameterMm?: number,
 ): LevelSettings => ({
   geometry:
@@ -341,53 +309,53 @@ export const toLevelSettings = (
 /**
  * Нормализует частичные render-настройки в безопасный контракт wireframe-детализации.
  *
- * Некорректные и неположительные значения заменяются на {@link DEFAULT_APP_WEB_RENDER_SETTINGS}.
+ * Некорректные и неположительные значения заменяются на `DEFAULT_BULK_SETTINGS.render`.
  */
-export const normalizeAppWebRenderSettings = (
-  settings: Partial<AppWebRenderSettings> = {},
-): AppWebRenderSettings => ({
+export const normalizeBulkRenderSettings = (
+  settings: Partial<BulkRenderSettings> = {},
+): BulkRenderSettings => ({
   animationEnabled:
     typeof settings.animationEnabled === "boolean"
       ? settings.animationEnabled
-      : DEFAULT_APP_WEB_RENDER_SETTINGS.animationEnabled,
+      : DEFAULT_BULK_SETTINGS.render.animationEnabled,
   detailDensityFactor:
     Number.isFinite(settings.detailDensityFactor) && (settings.detailDensityFactor ?? 0) > 0
       ? settings.detailDensityFactor!
-      : DEFAULT_APP_WEB_RENDER_SETTINGS.detailDensityFactor,
+      : DEFAULT_BULK_SETTINGS.render.detailDensityFactor,
   detailLevelMultiplier:
     Number.isFinite(settings.detailLevelMultiplier) && (settings.detailLevelMultiplier ?? 0) > 0
       ? settings.detailLevelMultiplier!
-      : DEFAULT_APP_WEB_RENDER_SETTINGS.detailLevelMultiplier,
+      : DEFAULT_BULK_SETTINGS.render.detailLevelMultiplier,
   labelVisibleLevels:
     Number.isFinite(settings.labelVisibleLevels) && (settings.labelVisibleLevels ?? 0) > 0
       ? Math.max(1, Math.round(settings.labelVisibleLevels!))
-      : DEFAULT_APP_WEB_RENDER_SETTINGS.labelVisibleLevels,
+      : DEFAULT_BULK_SETTINGS.render.labelVisibleLevels,
   baseDepth:
     Number.isFinite(settings.baseDepth) && (settings.baseDepth ?? -1) >= -1
       ? Math.floor(settings.baseDepth!)
-      : DEFAULT_APP_WEB_RENDER_SETTINGS.baseDepth,
+      : DEFAULT_BULK_SETTINGS.render.baseDepth,
   labelFontSizeMm:
     Number.isFinite(settings.labelFontSizeMm) && (settings.labelFontSizeMm ?? 0) > 0
       ? settings.labelFontSizeMm!
-      : DEFAULT_APP_WEB_RENDER_SETTINGS.labelFontSizeMm,
+      : DEFAULT_BULK_SETTINGS.render.labelFontSizeMm,
   labelSurfaceOffsetMm:
     Number.isFinite(settings.labelSurfaceOffsetMm) && (settings.labelSurfaceOffsetMm ?? 0) >= 0
       ? settings.labelSurfaceOffsetMm!
-      : DEFAULT_APP_WEB_RENDER_SETTINGS.labelSurfaceOffsetMm,
+      : DEFAULT_BULK_SETTINGS.render.labelSurfaceOffsetMm,
   torusCrossRingRotationDeg:
     Number.isFinite(settings.torusCrossRingRotationDeg)
       ? settings.torusCrossRingRotationDeg!
-      : DEFAULT_APP_WEB_RENDER_SETTINGS.torusCrossRingRotationDeg,
+      : DEFAULT_BULK_SETTINGS.render.torusCrossRingRotationDeg,
   torusRadialSegments:
     Number.isFinite(settings.torusRadialSegments) && (settings.torusRadialSegments ?? 0) > 0
       ? Math.max(3, Math.round(settings.torusRadialSegments!))
-      : DEFAULT_APP_WEB_RENDER_SETTINGS.torusRadialSegments,
+      : DEFAULT_BULK_SETTINGS.render.torusRadialSegments,
   torusTubularSegments:
     Number.isFinite(settings.torusTubularSegments) && (settings.torusTubularSegments ?? 0) > 0
       ? Math.max(3, Math.round(settings.torusTubularSegments!))
-      : DEFAULT_APP_WEB_RENDER_SETTINGS.torusTubularSegments,
+      : DEFAULT_BULK_SETTINGS.render.torusTubularSegments,
   wireframeOpacity:
     Number.isFinite(settings.wireframeOpacity) && (settings.wireframeOpacity ?? 0) >= 0
       ? Math.max(0, Math.min(1, settings.wireframeOpacity!))
-      : DEFAULT_APP_WEB_RENDER_SETTINGS.wireframeOpacity,
+      : DEFAULT_BULK_SETTINGS.render.wireframeOpacity,
 })

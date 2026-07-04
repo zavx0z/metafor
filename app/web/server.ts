@@ -46,7 +46,7 @@ import type {
 	TerminalPtySocketData,
 	TodoMarkdownPayload,
 } from "./server.t.ts"
-import {DEFAULT_APP_WEB_SCENE_SRC} from "./app-config.ts"
+import {DEFAULT_BULK_SCENE_SRC} from "bulk/settings"
 import {energyBridgeAuth, readEnergyBridgeMessage} from "./energy-bridge.ts"
 import {matrixBridgeAuth, readMatrixBridgeMessage} from "./matrix-bridge.ts"
 
@@ -146,7 +146,7 @@ const redirectServer = REDIRECT_ENABLED ? startHttpRedirectServer() : null
 const buildSnapshot = async (
   message: ClientMaterializePayload | ClientRelayoutPayload,
 ): Promise<ServerSnapshotPayload> => {
-  const src = message.src.trim() || DEFAULT_APP_WEB_SCENE_SRC
+  const src = message.src.trim() || DEFAULT_BULK_SCENE_SRC
   const snapshot = await boundary.bulkRuntime()
   return {type: "snapshot", src, snapshot}
 }
@@ -622,7 +622,7 @@ const server = serve<AppWebSocketData>({
 
       if (payload.type === "materialize" || payload.type === "relayout") {
         const started = Date.now()
-        appLog("WS", "snapshot requested", `type=${payload.type} src=${payload.src.trim() || DEFAULT_APP_WEB_SCENE_SRC}`, "cyan")
+        appLog("WS", "snapshot requested", `type=${payload.type} src=${payload.src.trim() || DEFAULT_BULK_SCENE_SRC}`, "cyan")
         void buildSnapshot(payload)
           .then((world) => {
             appLog("WS", "snapshot ready", `type=${payload.type} in ${Date.now() - started}ms`, "green")

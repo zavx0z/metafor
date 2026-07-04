@@ -2,14 +2,15 @@ import type {BoundaryBulkRuntimeSnapshot, Particle} from "boundary"
 import {createBulkViewport, type BulkViewportController, type BulkViewportStats} from "bulk/web"
 import {buildBoundaryBulkManifest} from "./world.ts"
 import {
-	APP_WEB_LAYOUT_SETTING_KEYS,
-	DEFAULT_APP_WEB_LAYOUT_SETTINGS,
-	DEFAULT_APP_WEB_RENDER_SETTINGS,
-	type AppWebLayoutSettings,
-	type AppWebRenderSettings,
-} from "./settings.ts"
-import {DEFAULT_APP_WEB_SCENE_SRC} from "./app-config.ts"
-import {loadPersistedAppWebUiSettings, savePersistedAppWebUiSettings, type AppWebUiSettingsSnapshot} from "./ui-settings-idb.ts"
+	BULK_LAYOUT_SETTING_KEYS,
+	DEFAULT_BULK_SCENE_SRC,
+	DEFAULT_BULK_SETTINGS,
+	loadSettings,
+	saveSettings,
+	type BulkRenderSettings,
+	type SettingsSnapshot,
+} from "bulk/settings"
+import type {BulkLayoutSettings} from "@bulk/gravity/layout"
 import {installAppWebHud, type AppWebHudController, type AppWebHudSettingsSnapshot} from "./hud.ts"
 import type {AndroidRtcCommand} from "./android-rtc.ts"
 import {applyForcePartToSnapshot} from "./force-snapshot.ts"
@@ -66,7 +67,7 @@ type HudVoiceLeaseMessage = {
 type ClientMaterializePayload = {
 	type: "materialize"
 	src: string
-	layoutSettings: Partial<AppWebLayoutSettings>
+	layoutSettings: Partial<BulkLayoutSettings>
 }
 
 const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement | null
@@ -91,17 +92,17 @@ let hud: AppWebHudController | null = null
 let initialMaterializationRequested = false
 let pendingSnapshotMessage: SnapshotMessage | null = null
 let currentSnapshot: BoundaryBulkRuntimeSnapshot | null = null
-let persistUiSettingsTimer: ReturnType<typeof setTimeout> | null = null
+let persistSettingsTimer: ReturnType<typeof setTimeout> | null = null
 let activeSettings: AppWebHudSettingsSnapshot = {
-	layoutSettings: {...DEFAULT_APP_WEB_LAYOUT_SETTINGS},
-	renderSettings: {...DEFAULT_APP_WEB_RENDER_SETTINGS},
+	layoutSettings: {...DEFAULT_BULK_SETTINGS.layout},
+	renderSettings: {...DEFAULT_BULK_SETTINGS.render},
 }
-let activeSrc = DEFAULT_APP_WEB_SCENE_SRC
-let lastAppliedSceneState: {layoutSettings: Partial<AppWebLayoutSettings>; src: string} | null = null
-let pendingSceneState: {layoutSettings: Partial<AppWebLayoutSettings>; src: string} | null = null
+let activeSrc = DEFAULT_BULK_SCENE_SRC
+let lastAppliedSceneState: {layoutSettings: Partial<BulkLayoutSettings>; src: string} | null = null
+let pendingSceneState: {layoutSettings: Partial<BulkLayoutSettings>; src: string} | null = null
 let voiceDictationActive = false
 
-const APP_WEB_UI_SETTINGS_LOAD_TIMEOUT_MS = 1_200
+const SETTINGS_LOAD_TIMEOUT_MS = 1_200
 const APP_WEB_VOICE_CLIENT_ID_STORAGE_KEY = "metafor.app-web.voice.clientId:v1"
 
 const socketScheme = window.location.protocol === "https:" ? "wss:" : "ws:"
@@ -131,7 +132,7 @@ const sendVoiceLease = (action: "request" | "release", reason: string): void => 
 const applySnapshotWorld = (
 	src: string,
 	snapshot: BoundaryBulkRuntimeSnapshot,
-	layoutSettings: Partial<AppWebLayoutSettings>,
+	layoutSettings: Partial<BulkLayoutSettings>,
 ): void => {
 	if (!bulkViewport) return
 
@@ -157,47 +158,47 @@ const applySnapshotMessage = (message: SnapshotMessage): void => {
 }
 
 const areLayoutSettingsEqual = (
-	left: Partial<AppWebLayoutSettings> | null,
-	right: Partial<AppWebLayoutSettings> | null,
+	left: Partial<BulkLayoutSettings> | null,
+	right: Partial<BulkLayoutSettings> | null,
 ): boolean => {
 	if (!left || !right) return false
-	return APP_WEB_LAYOUT_SETTING_KEYS.every((key) => left[key] === right[key])
+	return BULK_LAYOUT_SETTING_KEYS.every((key) => left[key] === right[key])
 }
 
 const normalizeSceneSrc = (src: string | null | undefined): string => {
 	const next = src?.trim() ?? ""
-	return next.length > 0 ? next : DEFAULT_APP_WEB_SCENE_SRC
+	return next.length > 0 ? next : DEFAULT_BULK_SCENE_SRC
 }
 
-const persistedSettingsSnapshot = (): AppWebUiSettingsSnapshot => ({
+const persistedSettingsSnapshot = (): SettingsSnapshot => ({
 	src: activeSrc,
 	layoutSettings: activeSettings.layoutSettings,
 	renderSettings: activeSettings.renderSettings,
 })
 
-const persistUiSettings = async (): Promise<void> => {
-	await savePersistedAppWebUiSettings(persistedSettingsSnapshot())
+const persistSettings = async (): Promise<void> => {
+	await saveSettings(persistedSettingsSnapshot())
 }
 
-const schedulePersistUiSettings = (settings: AppWebHudSettingsSnapshot): void => {
+const schedulePersistSettings = (settings: AppWebHudSettingsSnapshot): void => {
 	activeSettings = cloneSettings(settings)
-	if (persistUiSettingsTimer !== null) clearTimeout(persistUiSettingsTimer)
-	persistUiSettingsTimer = setTimeout(() => {
-		persistUiSettingsTimer = null
-		void persistUiSettings().catch((error) => {
-			console.error("ui settings persist error:", error)
+	if (persistSettingsTimer !== null) clearTimeout(persistSettingsTimer)
+	persistSettingsTimer = setTimeout(() => {
+		persistSettingsTimer = null
+		void persistSettings().catch((error) => {
+			console.error("settings persist error:", error)
 		})
 	}, 120)
 }
 
-const flushPersistUiSettings = (): void => {
-	if (persistUiSettingsTimer !== null) {
-		clearTimeout(persistUiSettingsTimer)
-		persistUiSettingsTimer = null
+const flushPersistSettings = (): void => {
+	if (persistSettingsTimer !== null) {
+		clearTimeout(persistSettingsTimer)
+		persistSettingsTimer = null
 	}
 
-	void persistUiSettings().catch((error) => {
-		console.error("ui settings persist error:", error)
+	void persistSettings().catch((error) => {
+		console.error("settings persist error:", error)
 	})
 }
 
@@ -214,7 +215,7 @@ const applyHudRequest = (src: string, settings: AppWebHudSettingsSnapshot): void
 	activeSettings = cloneSettings(settings)
 	const payload = createMaterializePayload(src, settings)
 	activeSrc = payload.src
-	flushPersistUiSettings()
+	flushPersistSettings()
 	bulkViewport?.setLayoutSettings(payload.layoutSettings)
 	bulkViewport?.setRenderSettings(settings.renderSettings)
 
@@ -245,13 +246,13 @@ const applyHudRequest = (src: string, settings: AppWebHudSettingsSnapshot): void
 	socket.send(JSON.stringify(payload))
 }
 
-const applyRenderSettingsFromHud = (renderSettings: Partial<AppWebRenderSettings>): void => {
+const applyRenderSettingsFromHud = (renderSettings: Partial<BulkRenderSettings>): void => {
 	activeSettings = {
 		...activeSettings,
 		renderSettings: {...renderSettings},
 	}
 	bulkViewport?.setRenderSettings(renderSettings)
-	schedulePersistUiSettings(activeSettings)
+	schedulePersistSettings(activeSettings)
 }
 
 const requestInitialMaterialization = (): void => {
@@ -260,15 +261,15 @@ const requestInitialMaterialization = (): void => {
 	applyHudRequest(hud.currentSrc(), activeSettings)
 }
 
-const loadPersistedAppWebUiSettingsSafe = async (): Promise<AppWebUiSettingsSnapshot | null> => {
+const loadSettingsSafe = async (): Promise<SettingsSnapshot | null> => {
 	try {
 		return await withTimeout(
-			loadPersistedAppWebUiSettings(),
-			APP_WEB_UI_SETTINGS_LOAD_TIMEOUT_MS,
-			`app/web UI settings load timed out after ${APP_WEB_UI_SETTINGS_LOAD_TIMEOUT_MS}ms`,
+			loadSettings(),
+			SETTINGS_LOAD_TIMEOUT_MS,
+			`settings load timed out after ${SETTINGS_LOAD_TIMEOUT_MS}ms`,
 		)
 	} catch (error) {
-		console.warn("[app-web] using default UI settings:", error)
+		console.warn("[app-web] using default settings:", error)
 		return null
 	}
 }
@@ -382,13 +383,13 @@ const initBulkViewport = async (): Promise<void> => {
 	markAppWebBoot("client:init:start")
 	showBootOverlay("Инициализация WebGPU")
 	markAppWebBoot("client:idb:start")
-	const persisted = await loadPersistedAppWebUiSettingsSafe()
+	const persisted = await loadSettingsSafe()
 	markAppWebBoot("client:idb:done", persisted === null ? "defaults" : "persisted")
 	if (persisted !== null) {
 		activeSrc = normalizeSceneSrc(persisted.src)
 		activeSettings = {
-			layoutSettings: {...DEFAULT_APP_WEB_LAYOUT_SETTINGS, ...persisted.layoutSettings},
-			renderSettings: {...DEFAULT_APP_WEB_RENDER_SETTINGS, ...persisted.renderSettings},
+			layoutSettings: {...DEFAULT_BULK_SETTINGS.layout, ...persisted.layoutSettings},
+			renderSettings: {...DEFAULT_BULK_SETTINGS.render, ...persisted.renderSettings},
 		}
 	}
 
@@ -415,7 +416,7 @@ const initBulkViewport = async (): Promise<void> => {
 		initialSettings: activeSettings,
 		onApply: applyHudRequest,
 		onRenderSettingsChange: applyRenderSettingsFromHud,
-		onSettingsPersist: schedulePersistUiSettings,
+		onSettingsPersist: schedulePersistSettings,
 		onVoiceDictationActiveChange: setVoiceDictationActive,
 		onVoiceLeaseRequest: (reason) => sendVoiceLease("request", reason),
 		onVoiceLeaseRelease: (reason) => sendVoiceLease("release", reason),
