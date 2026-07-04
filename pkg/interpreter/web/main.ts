@@ -20,7 +20,7 @@ import {
   type UiSurfaceRect,
 } from "@ui/elements"
 import {Button, ButtonVoice, IconButton, Switcher, Table, TextField, VoiceInputHud, focusTextField, normalizeTableSelection, tableScrollTo, tableSelectionAfterClick, type ButtonVoiceSnapshot, type TableCellContext, type TableColumn, type TableRowId, type TableRowPointerContext, type TextFieldEditState, type VoiceInputHudDeactivationMode, type VoiceInputHudPhraseGroupId, type VoiceInputHudServiceState} from "@ui/components"
-import {HudSideTab, type HudSideTabEdge} from "@ui/hud"
+import {HudSideTab, HudWindowTitleBar, type HudWindowTitleBarAction, type HudSideTabEdge} from "@ui/hud"
 import {
   EditorPane,
   FileListPane,
@@ -32,7 +32,6 @@ import {
   beginPaneFrameDrag,
   networkWatchSectionsFromLines,
   normalizeFileListSelection,
-  paneHeaderRuleRect,
   paneFrameCursor,
   paneFrameDragRect,
   paneFrameHit,
@@ -5249,32 +5248,17 @@ class SqliteHudFramePane extends UiSurface {
   }
 
   protected render(): void {
-    const pad = 14
-    const dockButtonSize = 22
-    const dockButtonX = pad
-    const titleX = dockButtonX + dockButtonSize + 8
-    const titleW = Math.max(1, this.rectW - titleX - pad)
-    IconButton(this, dockButtonX, 8, dockButtonSize, dockButtonSize, {
-      label: "Dock SQLite",
-      iconSrc: uiIcons.minus,
-      color: "neutral",
-      action: this.onDock,
-    })
-    this.drawText("SQLite", titleX, 10, {fontPx: 13, material: this.materials.cyan, maxWidthPx: 76})
-    this.drawText(this.title(), titleX + 62, 10, {
-      fontPx: 12,
-      material: this.materials.text,
-      maxWidthPx: Math.max(1, titleW - 62),
-    })
     const subtitle = this.subtitle()
-    if (subtitle.length > 0) {
-      this.drawText(subtitle, titleX, 24, {
-        fontPx: 9,
-        material: this.materials.muted,
-        maxWidthPx: titleW,
-      })
-    }
-    this.drawRect(pad, SQLITE_HUD_HEADER_H - 1, Math.max(1, this.rectW - pad * 2), 1, palette.borderDim)
+    HudWindowTitleBar(this, 0, 0, this.rectW, {
+      title: "SQLite",
+      subtitle: subtitle.length > 0 ? subtitle : this.title(),
+      onMinimize: this.onDock,
+      minimizeLabel: "Dock SQLite",
+      height: SQLITE_HUD_HEADER_H - 1,
+      titleFontPx: 13,
+      subtitleFontPx: 9,
+      ruleColor: palette.borderDim,
+    })
   }
 
   override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
@@ -5532,64 +5516,46 @@ class HostTerminalCodexComposerPane extends UiSurface {
 
   #renderHeader(w: number): void {
     const buttonSize = HOST_TERMINAL_CODEX_COMPOSER_HEADER_BUTTON_SIZE
-    const gap = 5
-    const dockButtonX = PANE_FRAME.headerTextX
-    const titleLeft = dockButtonX + buttonSize + gap
-    const voiceButtonRect = this.#voiceButtonRect(w)
-    const voiceButtonX = voiceButtonRect.x
-    const attachButtonX = voiceButtonX - gap - buttonSize
-    const sendButtonX = attachButtonX - gap - buttonSize
-    const titleMaxW = Math.max(1, sendButtonX - titleLeft - 10)
-    const titleW = Math.min(titleMaxW, this.measureText("Codex message", 12))
-    const titleCx = Math.min(Math.max(w / 2, titleLeft + titleW / 2), Math.max(titleLeft + titleW / 2, sendButtonX - titleW / 2 - 8))
     const status = hostCodexComposerStatus(this.controller)
-    const statusW = Math.min(titleMaxW, this.measureText(status, 10))
-    const statusCx = Math.min(Math.max(w / 2, titleLeft + statusW / 2), Math.max(titleLeft + statusW / 2, sendButtonX - statusW / 2 - 8))
-    IconButton(this, dockButtonX, 6, buttonSize, buttonSize, {
-      label: "Свернуть Codex",
-      iconSrc: uiIcons.minus,
-      variant: "text",
-      radius: 7,
-      action: () => setHostTerminalHudDocked(true),
-    })
-    this.drawTextCentered("Codex message", titleCx, 11, {
-      fontPx: 12,
-      material: this.materials.cyan,
-      maxWidthPx: titleMaxW,
-      z: Z.TEXT,
-    })
-    this.drawTextCentered(status, statusCx, 24, {
-      fontPx: 10,
-      material: this.materials.muted,
-      maxWidthPx: titleMaxW,
-      z: Z.TEXT,
-    })
-    IconButton(this, sendButtonX, 6, buttonSize, buttonSize, {
-      label: "Отправить",
-      iconSrc: uiIcons.send,
-      disabled: !hostCodexComposerCanSubmit(this.controller),
-      variant: "text",
-      radius: 7,
-      action: () => submitHostCodexComposer(this.controller),
-    })
-    IconButton(this, attachButtonX, 6, buttonSize, buttonSize, {
-      label: "Прикрепить изображение",
-      iconSrc: uiIcons.image,
-      variant: "text",
-      radius: 7,
-      action: () => void chooseHostCodexImages(this.controller),
-    })
+    const rightActions: HudWindowTitleBarAction[] = [
+      {
+        label: "Отправить",
+        iconSrc: uiIcons.send,
+        disabled: !hostCodexComposerCanSubmit(this.controller),
+        action: () => submitHostCodexComposer(this.controller),
+        width: buttonSize,
+      },
+      {
+        label: "Прикрепить изображение",
+        iconSrc: uiIcons.image,
+        action: () => void chooseHostCodexImages(this.controller),
+        width: buttonSize,
+      },
+    ]
     if (HOST_TERMINAL_CODEX_COMPOSER_VOICE_BUTTON_VISIBLE) {
-      ButtonVoice(this, voiceButtonX, 6, buttonSize, {
-        key: "interpreter-codex-message-voice",
-        snapshot: voiceButtonSnapshot(),
-        soundPulse: voiceHudPane?.soundPulseAmount() ?? 0,
-        tooltip: "Голосовой ввод",
-        onClick: () => this.#queueVoiceToggleClick(),
+      rightActions.push({
+        label: "Голосовой ввод",
+        width: buttonSize,
+        render: (rect) => ButtonVoice(this, rect.x, rect.y, rect.w, {
+          key: "interpreter-codex-message-voice",
+          snapshot: voiceButtonSnapshot(),
+          soundPulse: voiceHudPane?.soundPulseAmount() ?? 0,
+          tooltip: "Голосовой ввод",
+          onClick: () => this.#queueVoiceToggleClick(),
+        }),
       })
     }
-    const rule = paneHeaderRuleRect(w, PANE_FRAME.headerHeight, PANE_FRAME.bodyInsetX)
-    this.drawRect(rule.x, rule.y, rule.w, rule.h, palette.borderDim, Z.SEPARATOR)
+    HudWindowTitleBar(this, 0, 0, w, {
+      title: "Codex message",
+      subtitle: status,
+      onMinimize: () => setHostTerminalHudDocked(true),
+      minimizeLabel: "Свернуть Codex",
+      rightActions,
+      height: PANE_FRAME.headerHeight,
+      buttonSize,
+      buttonGap: 5,
+      ruleColor: palette.borderDim,
+    })
   }
 
   #voiceButtonRect(w = Math.max(1, this.rectW)): UiSurfaceRect {

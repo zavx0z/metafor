@@ -1,6 +1,8 @@
 import {Color} from "@metafor/engine"
 import {Z, drawIconCentered, type DrawTextOpts, type HitState, type UiSurface} from "@ui/elements"
 
+export * from "./window.ts"
+
 export type HudPoint = {x: number; y: number}
 export type HudRect = {x: number; y: number; w: number; h: number}
 export type HudQuad = {

@@ -6,8 +6,9 @@
  */
 
 import {Color, TextMaterial} from "@metafor/engine"
-import {IconButton, ProgressCheckbox, uiIcons} from "@ui/components"
+import {ProgressCheckbox} from "@ui/components"
 import {UiSurface, Z, div, divScrollTo, palette, radii, textMaterial, type DivScrollContext, type UiSurfaceRect} from "@ui/elements"
+import {HudWindowTitleBar} from "@ui/hud"
 import {
   todoCompletedSectionStates,
   parseMarkdownTodo,
@@ -24,7 +25,6 @@ import {
   paneFrameCursor,
   paneFrameDragRect,
   paneFrameHit,
-  paneHeaderRuleRect,
   type PaneFrameDrag,
   type PaneFrameInteractionOpts,
   type PaneRect,
@@ -182,33 +182,17 @@ export class ToDoPane extends UiSurface {
   }
 
   #renderHeader(w: number): void {
-    const pad = PANE_FRAME.headerTextX
     const highlightedCount = this.#highlightedIds.size
-    const dockButtonSize = 22
-    const hasDock = this.#onFrameDockRequest !== undefined
-    const dockButtonX = pad
-    const titleX = hasDock ? dockButtonX + dockButtonSize + 8 : pad
-    const titleW = Math.max(1, w - titleX - pad)
-    if (this.#onFrameDockRequest !== undefined) {
-      IconButton(this, dockButtonX, 7, dockButtonSize, dockButtonSize, {
-        label: "Свернуть TODO",
-        iconSrc: uiIcons.minus,
-        action: this.#onFrameDockRequest,
-      })
+    const props = {
+      title: this.#title,
+      subtitle: `${highlightedCount} подсвечено`,
+      minimizeLabel: "Свернуть TODO",
+      height: TODO_HEADER_H,
+      titleFontPx: 13,
+      ruleColor: palette.borderDim,
+      ...(this.#onFrameDockRequest === undefined ? {} : {onMinimize: this.#onFrameDockRequest}),
     }
-    this.drawText(this.#title, titleX, PANE_FRAME.headerTextY, {
-      fontPx: 13,
-      material: this.#titleMaterial,
-      maxWidthPx: titleW,
-    })
-    const status = `${highlightedCount} подсвечено`
-    this.drawText(status, titleX + Math.min(titleW, Math.max(96, this.measureText(this.#title, 13) + 14)), PANE_FRAME.headerTextY + 1, {
-      fontPx: 10,
-      material: this.#mutedMaterial,
-      maxWidthPx: Math.max(1, w - titleX - pad - 108),
-    })
-    const rule = paneHeaderRuleRect(w, TODO_HEADER_H, PANE_FRAME.bodyInsetX)
-    this.drawRect(rule.x, rule.y, rule.w, rule.h, palette.borderDim)
+    HudWindowTitleBar(this, 0, 0, w, props)
   }
 
   #renderBody(rect: UiSurfaceRect): void {

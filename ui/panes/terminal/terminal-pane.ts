@@ -8,7 +8,7 @@
 
 import {Color, TextMaterial} from "@metafor/engine"
 import {UiSurface, Z, div, divScrollPosition, divScrollTo, palette, radii, visionBorder, visionGlass, type DivScrollContext, type Tone, type VirtualInputSoftKeyboardMode} from "@ui/elements"
-import {Divider as controlDivider, IconButton as controlIconButton, uiIcons} from "@ui/components"
+import {HudWindowTitleBar, type HudWindowTitleBarAction} from "@ui/hud"
 import {
   copyTextSelectionOrFallback,
   orderedTextSelection,
@@ -26,7 +26,6 @@ import {
   paneFrameCursor,
   paneFrameDragRect,
   paneFrameHit,
-  paneHeaderRuleRect,
   type PaneFrameDrag,
   type PaneFrameInteractionOpts,
   type PaneRect,
@@ -244,16 +243,11 @@ const DEFAULT_MIN_COLS = 24
 const DEFAULT_MIN_ROWS = 6
 const DEFAULT_MAX_SCROLLBACK = 5000
 const HEADER_H_PX = PANE_FRAME.headerHeight
-const HEADER_CONTROL_PAD_X = PANE_FRAME.headerTextX
 const HEADER_CONTROL_H_PX = 24
 const HEADER_CONTROL_W_PX = 26
 const HEADER_CONTROL_GAP_PX = 3
-const HEADER_CONTROL_DIVIDER_GAP_PX = 7
-const HEADER_CONTROL_DIVIDER_W_PX = 1
-const HEADER_STATUS_RADIUS_PX = 6
 const BODY_PAD_X_PX = 0
 const BODY_PAD_Y_PX = 0
-const STATUS_DOT_PX = 7
 const SCROLLBAR_W_PX = 4
 const CARET_BLINK_MS = 530
 const AUTOSCROLL_TOLERANCE_PX = 20
@@ -263,8 +257,6 @@ const TERMINAL_SCROLL_KEY = "terminal-pane:scroll"
 const TERMINAL_BG = withAlpha(visionGlass, 0.64)
 const TERMINAL_BORDER = visionBorder
 const HEADER_RULE = withAlpha(palette.borderDim, 0.82)
-const STATUS_FILL = withAlpha(palette.bgInput, 0.56)
-const STATUS_BORDER = withAlpha(palette.borderBright, 0.12)
 const CURSOR_FILL = withAlpha(palette.cyan, 0.74)
 const CURSOR_LINE_FILL = withAlpha(mixColor(TERMINAL_BG, palette.text, 0.08), 0.64)
 const SELECTION_FILL = new Color(92 / 255, 155 / 255, 0.34)
@@ -732,141 +724,34 @@ class TerminalOutputPane extends UiSurface {
 
   #renderHeader(): void {
     if (!this.#showHeader) return
-    if (this.#headerControls.primary.length > 0 || this.#headerControls.secondary.length > 0) {
-      this.#renderHeaderWithControls()
-      return
-    }
-    const headerY = 0
-    const hasStatus = this.#status.length > 0
-    const statusW = hasStatus ? Math.min(210, Math.max(96, this.measureText(this.#status, 11) + 32)) : 0
-    const statusX = hasStatus ? Math.max(PANE_FRAME.headerTextX, this.rectW - PANE_FRAME.headerTextX - statusW) : this.rectW - PANE_FRAME.headerTextX
-    const dockButtonSize = 22
-    const hasDock = this.#onFrameDockRequest !== undefined
-    const dockButtonX = PANE_FRAME.headerTextX
-    const titleX = hasDock ? dockButtonX + dockButtonSize + 8 : PANE_FRAME.headerTextX
-    const titleRight = hasStatus ? statusX - 10 : this.rectW - PANE_FRAME.headerTextX
-    if (hasDock) this.#renderFrameDockButton(dockButtonX, headerY + 8, dockButtonSize)
-    this.drawText(this.#title, titleX, PANE_FRAME.headerTextY, {
-      fontPx: 13,
-      material: this.materials.cyan,
-      maxWidthPx: Math.max(1, titleRight - titleX),
-    })
-    if (hasStatus) this.#renderHeaderStatus(statusX, headerY, statusW)
-    const rule = paneHeaderRuleRect(this.rectW, HEADER_H_PX)
-    this.drawRect(rule.x, rule.y, rule.w, rule.h, HEADER_RULE, Z.SEPARATOR)
-  }
-
-  #renderHeaderWithControls(): void {
-    const headerY = 0
-    const buttonY = headerY + Math.max(0, (HEADER_H_PX - HEADER_CONTROL_H_PX) / 2)
-    const dockButtonSize = 22
-    const hasDock = this.#onFrameDockRequest !== undefined
-    const dockButtonX = PANE_FRAME.headerTextX
-    const primaryX = hasDock ? dockButtonX + dockButtonSize + 8 : HEADER_CONTROL_PAD_X
-    const secondaryW = this.#buttonGroupWidth(this.#headerControls.secondary)
-    const secondaryX = this.#headerControls.secondary.length === 0
-      ? this.rectW - HEADER_CONTROL_PAD_X
-      : Math.max(HEADER_CONTROL_PAD_X, this.rectW - HEADER_CONTROL_PAD_X - secondaryW)
-    const primaryMaxRight = Math.max(primaryX, secondaryX - 8)
-    const primaryRight = this.#drawButtonGroup(this.#headerControls.primary, primaryX, buttonY, primaryMaxRight)
-
-    const hasStatus = this.#status.length > 0
-    const statusW = hasStatus ? Math.min(210, Math.max(96, this.measureText(this.#status, 11) + 32)) : 0
-    const statusRight = this.#headerControls.secondary.length === 0 ? this.rectW - HEADER_CONTROL_PAD_X : secondaryX - 8
-    const statusX = hasStatus ? Math.max(HEADER_CONTROL_PAD_X, statusRight - statusW) : statusRight
-    const canShowStatus = hasStatus && statusRight - statusW >= primaryRight + 8
-
-    const titleX = this.#headerControls.primary.length === 0 ? primaryX : primaryRight + 8
-    const titleRight = canShowStatus
-        ? statusX - 8
-        : this.#headerControls.secondary.length === 0
-          ? this.rectW - HEADER_CONTROL_PAD_X
-          : secondaryX - 8
-    const titleW = titleRight - titleX
-    if (hasDock) this.#renderFrameDockButton(dockButtonX, headerY + 8, dockButtonSize)
-    if (titleW >= 44) {
-      this.drawText(this.#title, titleX, PANE_FRAME.headerTextY, {
-        fontPx: 13,
-        material: this.materials.cyan,
-        maxWidthPx: titleW,
-      })
-    }
-    if (canShowStatus) this.#renderHeaderStatus(statusX, headerY, statusW)
-    this.#drawButtonGroup(this.#headerControls.secondary, secondaryX, buttonY)
-
-    const rule = paneHeaderRuleRect(this.rectW, HEADER_H_PX)
-    this.drawRect(rule.x, rule.y, rule.w, rule.h, HEADER_RULE, Z.SEPARATOR)
-  }
-
-  #renderHeaderStatus(statusX: number, headerY: number, statusW: number): void {
-    const dot = statusColor(this.#statusKind)
-    this.drawRoundedRect(statusX, headerY + 8, statusW, 22, {
-      radius: HEADER_STATUS_RADIUS_PX,
-      fill: STATUS_FILL,
-      border: STATUS_BORDER,
-      borderWidth: 1,
-      z: Z.ELEMENT,
-    })
-    this.drawRoundedRect(statusX + 10, headerY + 15.5, STATUS_DOT_PX, STATUS_DOT_PX, {
-      radius: STATUS_DOT_PX / 2,
-      fill: dot,
-      z: Z.ELEMENT_RULE,
-    })
-    this.drawText(this.#status, statusX + 24, headerY + 12, {
-      fontPx: 10,
-      material: this.materials.muted,
-      maxWidthPx: statusW - 32,
+    HudWindowTitleBar(this, 0, 0, this.rectW, {
+      title: this.#title,
+      ...(this.#status.length === 0 ? {} : {subtitle: this.#status}),
+      ...(this.#onFrameDockRequest === undefined ? {} : {onMinimize: this.#onFrameDockRequest}),
+      minimizeLabel: "Dock",
+      leftActions: this.#titleBarActions(this.#headerControls.primary),
+      rightActions: this.#titleBarActions(this.#headerControls.secondary),
+      height: HEADER_H_PX,
+      buttonSize: HEADER_CONTROL_H_PX,
+      buttonGap: HEADER_CONTROL_GAP_PX,
+      ruleColor: HEADER_RULE,
     })
   }
 
-  #drawButtonGroup(buttons: readonly TerminalHeaderControl[], x: number, y: number, maxRight = Number.POSITIVE_INFINITY): number {
-    let cursor = x
-    for (let i = 0; i < buttons.length; i++) {
-      const b = buttons[i]!
-      if (cursor + HEADER_CONTROL_W_PX > maxRight) break
-      controlIconButton(this, cursor, y, HEADER_CONTROL_W_PX, HEADER_CONTROL_H_PX, {
-        label: b.label,
-        iconSrc: b.iconSrc,
-        tooltip: b.label,
-        tone: b.tone ?? "neutral",
-        ...(b.active === true ? {variant: "contained" as const} : {}),
-        ...(b.disabled === undefined ? {} : {disabled: b.disabled}),
-        action: b.action,
-        onHover: () => this.requestRender(),
-        onLeave: () => this.requestRender(),
-      })
-      cursor += HEADER_CONTROL_W_PX + HEADER_CONTROL_GAP_PX
-      if (b.dividerAfter === true && i < buttons.length - 1) {
-        cursor += HEADER_CONTROL_DIVIDER_GAP_PX - HEADER_CONTROL_GAP_PX
-        if (cursor + HEADER_CONTROL_DIVIDER_W_PX <= maxRight) {
-          controlDivider(this, cursor + HEADER_CONTROL_DIVIDER_W_PX / 2, y + 5, HEADER_CONTROL_H_PX - 10, {
-            orientation: "vertical",
-            thickness: HEADER_CONTROL_DIVIDER_W_PX,
-          })
-        }
-        cursor += HEADER_CONTROL_DIVIDER_W_PX + HEADER_CONTROL_DIVIDER_GAP_PX
-      }
-    }
-    return cursor
-  }
-
-  #buttonGroupWidth(buttons: readonly TerminalHeaderControl[]): number {
-    if (buttons.length === 0) return 0
-    let width = buttons.length * HEADER_CONTROL_W_PX + (buttons.length - 1) * HEADER_CONTROL_GAP_PX
-    for (let i = 0; i < buttons.length - 1; i++) {
-      if (buttons[i]?.dividerAfter === true) width += HEADER_CONTROL_DIVIDER_GAP_PX * 2 + HEADER_CONTROL_DIVIDER_W_PX - HEADER_CONTROL_GAP_PX
-    }
-    return width
-  }
-
-  #renderFrameDockButton(x: number, y: number, size: number): void {
-    const onDock = this.#onFrameDockRequest
-    if (onDock === undefined) return
-    controlIconButton(this, x, y, size, size, {
-      label: "Dock",
-      iconSrc: uiIcons.minus,
-      action: onDock,
-    })
+  #titleBarActions(buttons: readonly TerminalHeaderControl[]): HudWindowTitleBarAction[] {
+    return buttons.map((button) => ({
+      label: button.label,
+      iconSrc: button.iconSrc,
+      tooltip: button.label,
+      tone: button.tone ?? "neutral",
+      ...(button.active === undefined ? {} : {active: button.active}),
+      ...(button.disabled === undefined ? {} : {disabled: button.disabled}),
+      ...(button.dividerAfter === undefined ? {} : {dividerAfter: button.dividerAfter}),
+      action: button.action,
+      width: HEADER_CONTROL_W_PX,
+      onHover: () => this.requestRender(),
+      onLeave: () => this.requestRender(),
+    }))
   }
 
   #renderBody(): void {
@@ -2971,12 +2856,6 @@ function lastNonEmptyLineIndex(lines: readonly string[]): number {
     if ((lines[i] ?? "").length > 0) return i
   }
   return 0
-}
-
-function statusColor(kind: TerminalStatusKind): Color {
-  if (kind === "connected" || kind === "running") return palette.green
-  if (kind === "error" || kind === "disconnected") return palette.red
-  return palette.orange
 }
 
 function isSecondaryPointer(event: MouseEvent): boolean {

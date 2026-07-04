@@ -26,6 +26,7 @@
   "dependencies": {
     "@ui/components": "workspace:*",
     "@ui/elements": "workspace:*",
+    "@ui/hud": "workspace:*",
     "@metafor/engine": "workspace:*"
   }
 }
