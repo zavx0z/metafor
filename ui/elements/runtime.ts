@@ -1441,7 +1441,10 @@ export class UiRuntime {
     slot.pixelScale = metrics.scale
     const visible = rect.visible !== false && rect.w > 0 && rect.h > 0
     slot.surface.node.visible = visible
-    if (!visible) return
+    if (!visible) {
+      this.#releaseHiddenSurfaceSlot(slot)
+      return
+    }
 
     slot.surface.node.position.x = (rect.x - metrics.w / 2) * metrics.scale
     slot.surface.node.position.y = (metrics.h / 2 - rect.y) * metrics.scale
@@ -1453,6 +1456,22 @@ export class UiRuntime {
       slot.surface.setRect(rect, metrics.scale, this.font)
     } else if (previous.x !== rect.x || previous.y !== rect.y) {
       slot.surface.moveRect?.(rect, metrics.scale, this.font) ?? slot.surface.setRect(rect, metrics.scale, this.font)
+    }
+  }
+
+  #releaseHiddenSurfaceSlot(slot: SurfaceSlot): void {
+    if (this.#hoveredSlot === slot) {
+      slot.surface.onPointerLeave?.()
+      this.#hoveredSlot = null
+    }
+    if (this.#pressedSlot === slot) {
+      this.#pressedSlot = null
+      this.#activeTouchId = null
+      this.#claimNextClick = false
+    }
+    if (this.#focused === slot.surface) {
+      this.setFocused(null)
+      this.inputProxy?.blur()
     }
   }
 
