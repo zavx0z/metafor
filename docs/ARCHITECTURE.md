@@ -27,7 +27,7 @@
 
 `Energy` зарезервирована для распределённого слоя исполнения процессов. В
 текущем коде старый runtime-state домен называется `Matrix`, а пакет `energy/`
-уже выделен как транспортная оболочка будущего executor без реального
+уже выделен как локальный Force pipeline будущего executor без реального
 исполнения DSL action.
 
 `Dark` не тождественен исполняемому `Boundary`.
@@ -86,7 +86,7 @@
 - `Dark` владеет логикой материализации и имеет доступ к `Boundary`;
 - `Boundary` владеет канонической персистентной реляционной формой (`wimp`, `actor`, `topology`);
 - `Matrix` владеет рантаймом состояния и не читает `Boundary`;
-- `Energy` получает photons/process tasks Matrix через AppWeb bridge, claim-ит process через `z` и возвращает `w+`/`w-`; текущий пакет пока является оболочкой protocol surface;
+- `Energy` получает photons/process tasks Matrix через локальный `BroadcastChannel("force")`, claim-ит process через `z` и возвращает `w+`/`w-`; текущий пакет пока только claim-ит task, а реальное исполнение action остаётся следующим этапом;
 - `Bulk` владеет рантаймом проявленной рендер-проекции и не читает `Boundary`;
 - Force/WebSocket переносит рантайм-данные между персистентным слоем и рантайм-слоями.
 Такое чтение не требует отдельного оркестратора времени исполнения `Dark`, но допускает минимальную явную репозиторную проекцию `dark/`, если она нужна для фиксации скрытой непрерывности и её рабочих контрактов.
@@ -393,12 +393,12 @@ claim/result и итоговое состояние как наблюдаему�
 4. запуск action в server/browser/worker/service-worker/main-process/desktop,
 5. возврат результата через `W boson` как `w+`/`w-`.
 
-Этот домен уже выделен как пакет-оболочка `energy/`. Matrix создаёт
-`process-task` при входе actor в process-bound state, AppWeb пересылает task
-подключённым Energy runtimes, а Energy отвечает claim через `z`. Matrix
-принимает и проверяет result только через Force `w+`/`w-`; `process-result`
-остаётся telemetry/debug. Следующий этап должен научить `Energy` исполнять
-process action после accepted claim и возвращать компактный write-set.
+Этот домен уже выделен как пакет `energy/`. Matrix создаёт `process-task`
+при входе actor в process-bound state и публикует его в общий Force-канал.
+Energy слушает локальный `BroadcastChannel("force")` и отвечает claim через
+`z`. Matrix принимает и проверяет result только через Force `w+`/`w-`.
+Следующий этап должен научить `Energy` исполнять process action после accepted
+claim и возвращать компактный write-set.
 
 ### Bulk × Electromagnetism
 

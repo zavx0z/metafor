@@ -364,7 +364,6 @@ export function buildBoundaryBulkManifest(
     .filter((actor) => actorById.has(actor.id))
     .map((actor) => wimpDarkParticleInputFromActor(actor, new Set()))
 
-  // Keep orphan topologies visible if they ever appear during manual debugging.
   for (const topology of sortByPosition(topologies.filter((item) => item.parentActor === null && item.parentTopology === null))) {
     if (topologyById.has(topology.id)) inputs.push(connectivityDarkParticleInputFromTopology(topology, new Set()))
   }

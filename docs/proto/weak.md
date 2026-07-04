@@ -36,10 +36,10 @@
 Процессный протокол `z` / `w+` / `w-` остаётся отдельным долгом миграции.
 Целевая форма должна использовать `path = actor ID`, отдельный `processId` и
 набор записываемых результатов в форме `value.fields[fieldId]`.
-Текущий bridge-путь уже доставляет `process-task`: Matrix создаёт task при входе
-actor в process-bound state, AppWeb пересылает его Energy runtime, а Energy
-claim-ит task через `z`. Реальное завершение процесса остаётся Force `w+`/`w-`;
-`process-result` допускается только как telemetry/debug.
+Текущий Force-путь уже доставляет `process-task`: Matrix создаёт task при входе
+actor в process-bound state и публикует его в общий Force-канал, а Energy
+слушает локальный `BroadcastChannel("force")` и claim-ит task через `z`.
+Реальное завершение процесса остаётся Force `w+`/`w-`.
 Актуальный процессный долг держится в `TODO.md`; этот документ описывает только
 действующий Weak/Process contract.
 
@@ -71,10 +71,10 @@ claim-ит task через `z`. Реальное завершение проце
 ### Energy
 
 Energy здесь означает distributed process executor. Текущий пакет `energy/`
-пока является server bridge оболочкой без реального исполнения DSL action:
+сейчас является локальным Force pipeline без реального исполнения DSL action:
 
 - слушает photons Matrix,
-- получает `process-task` через AppWeb bridge,
+- получает `process-task` через локальный `BroadcastChannel("force")`,
 - проверяет `env` и `mass`,
 - claim-ит process через `z`,
 - исполняет process action только после accepted claim,

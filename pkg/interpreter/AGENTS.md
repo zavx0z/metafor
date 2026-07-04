@@ -267,6 +267,12 @@ TODO tools:
 - `todo.delete` удаляет пункт.
 - `todo.highlight` подсвечивает пункт в HUD для `context.hud.todo.highlightedItems`.
 
+Когда человек говорит "открой TODO/Туду", "покажи TODO/Туду" или разговор
+идёт про TODO без явного уточнения "файл", агент должен работать с HUD
+ToDoPane: `todo.get`, `todo.show`, `todo.reload`, `todo.highlight` и mutating
+`todo.*` tools. Не открывай `TODO.md` в source editor через `source.open`, пока
+человек явно не попросит открыть именно файл `TODO.md` в редакторе/source.
+
 Когда пользователь должен сразу увидеть изменения в ToDoPane, меняй `TODO.md`
 через `POST /tools`, а не прямым редактированием файла. Mutating TODO tools
 сами рассылают `hud-todo-changed` подключенным UI-клиентам. Если `TODO.md` все

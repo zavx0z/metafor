@@ -14,18 +14,6 @@ import type {BulkLayoutSettings} from "@bulk/gravity/layout"
 import {installAppWebHud, type AppWebHudController, type AppWebHudSettingsSnapshot} from "./hud.ts"
 import {applyForcePartToSnapshot} from "./force-snapshot.ts"
 
-const markAppWebBoot = (phase: string, detail?: unknown): void => {
-	const target = globalThis as {__appWebBoot?: {events?: unknown[]}}
-	const boot = target.__appWebBoot ??= {events: []}
-	const events = boot.events
-	if (!Array.isArray(events)) {
-		boot.events = []
-	}
-	;(boot.events as unknown[]).push({phase, at: Date.now(), detail})
-}
-
-markAppWebBoot("client:module:start", {readyState: document.readyState})
-
 type ForceMessage = {
 	type: "force"
 	parts: Particle[]
@@ -50,20 +38,6 @@ type ClientMaterializePayload = {
 
 const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement | null
 if (bulkCanvas === null) throw new Error("bulk-canvas not found")
-
-const bootOverlay = document.createElement("div")
-bootOverlay.style.cssText = [
-	"position:fixed",
-	"inset:0",
-	"display:flex",
-	"align-items:center",
-	"justify-content:center",
-	"background:rgba(5,11,18,0.74)",
-	"color:#d6f6ff",
-	"font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace",
-	"z-index:2147483647",
-	"pointer-events:auto",
-].join(";")
 
 let bulkViewport: BulkViewportController | null = null
 let hud: AppWebHudController | null = null
@@ -227,8 +201,7 @@ const loadSettingsSafe = async (): Promise<SettingsSnapshot | null> => {
 			SETTINGS_LOAD_TIMEOUT_MS,
 			`settings load timed out after ${SETTINGS_LOAD_TIMEOUT_MS}ms`,
 		)
-	} catch (error) {
-		console.warn("[app-web] using default settings:", error)
+	} catch {
 		return null
 	}
 }
@@ -247,69 +220,8 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: s
 	}
 }
 
-const showBootOverlay = (title: string, detail?: string, retry = false): void => {
-	const safeDetail = detail?.trim()
-	bootOverlay.innerHTML = ""
-	const panel = document.createElement("div")
-	panel.style.cssText = [
-		"max-width:min(560px,calc(100vw - 48px))",
-		"border:1px solid rgba(89,213,255,0.34)",
-		"background:rgba(9,16,26,0.92)",
-		"box-shadow:0 18px 50px rgba(0,0,0,0.38)",
-		"border-radius:10px",
-		"padding:18px 20px",
-	].join(";")
-	const heading = document.createElement("div")
-	heading.textContent = title
-	heading.style.cssText = "font-size:14px;color:#66e4ff;margin-bottom:8px"
-	panel.append(heading)
-	if (safeDetail) {
-		const body = document.createElement("div")
-		body.textContent = safeDetail
-		body.style.cssText = "color:#9db3c3;white-space:pre-wrap;overflow-wrap:anywhere"
-		panel.append(body)
-	}
-	if (retry) {
-		const button = document.createElement("button")
-		button.type = "button"
-		button.textContent = "Перезагрузить"
-		button.style.cssText = [
-			"margin-top:14px",
-			"height:30px",
-			"padding:0 12px",
-			"border-radius:7px",
-			"border:1px solid rgba(102,228,255,0.52)",
-			"background:rgba(28,119,151,0.36)",
-			"color:#d6f6ff",
-			"font:inherit",
-			"cursor:pointer",
-		].join(";")
-		button.addEventListener("click", () => window.location.reload())
-		panel.append(button)
-	}
-	bootOverlay.append(panel)
-	if (!bootOverlay.isConnected) document.body.append(bootOverlay)
-}
-
-const hideBootOverlay = (): void => {
-	bootOverlay.remove()
-}
-
-const errorMessage = (error: unknown): string =>
-	error instanceof Error ? error.message : String(error)
-
-const webGpuBootDiagnostics = (): string => [
-	`origin: ${window.location.origin}`,
-	`secureContext: ${String(window.isSecureContext)}`,
-	`navigator.gpu: ${String("gpu" in navigator)}`,
-	`visibility: ${document.visibilityState}`,
-	`userAgent: ${navigator.userAgent}`,
-].join("\n")
-
 const waitForVisibleDocument = async (): Promise<void> => {
 	if (document.visibilityState === "visible") return
-	markAppWebBoot("client:visibility:wait", document.visibilityState)
-	showBootOverlay("Ожидаю активную вкладку", "Chrome задерживает WebGPU adapter/device, пока вкладка в фоне.")
 	await new Promise<void>((resolve) => {
 		const onVisibilityChange = (): void => {
 			if (document.visibilityState !== "visible") return
@@ -318,15 +230,10 @@ const waitForVisibleDocument = async (): Promise<void> => {
 		}
 		document.addEventListener("visibilitychange", onVisibilityChange)
 	})
-	markAppWebBoot("client:visibility:visible")
 }
 
 const initBulkViewport = async (): Promise<void> => {
-	markAppWebBoot("client:init:start")
-	showBootOverlay("Инициализация WebGPU")
-	markAppWebBoot("client:idb:start")
 	const persisted = await loadSettingsSafe()
-	markAppWebBoot("client:idb:done", persisted === null ? "defaults" : "persisted")
 	if (persisted !== null) {
 		activeSrc = normalizeSceneSrc(persisted.src)
 		activeSettings = {
@@ -337,17 +244,14 @@ const initBulkViewport = async (): Promise<void> => {
 
 	await waitForVisibleDocument()
 	const rect = bulkCanvas.getBoundingClientRect()
-	markAppWebBoot("client:viewport:start", {width: rect.width, height: rect.height})
 	bulkViewport = await createBulkViewport({
 		canvas: bulkCanvas,
 		width: Math.max(1, Math.floor(rect.width)),
 		height: Math.max(1, Math.floor(rect.height)),
 		onStats: updateBulkStats,
 	})
-	markAppWebBoot("client:viewport:done")
 	bulkViewport.setLayoutSettings(activeSettings.layoutSettings)
 	bulkViewport.setRenderSettings(activeSettings.renderSettings)
-	markAppWebBoot("client:hud:start")
 	hud = installAppWebHud({
 		viewport: bulkViewport,
 		initialSrc: activeSrc,
@@ -356,8 +260,6 @@ const initBulkViewport = async (): Promise<void> => {
 		onRenderSettingsChange: applyRenderSettingsFromHud,
 		onSettingsPersist: schedulePersistSettings,
 	})
-	markAppWebBoot("client:hud:done")
-	hideBootOverlay()
 	hud.setConnectionStatus(socket.readyState === WebSocket.OPEN)
 	requestInitialMaterialization()
 
@@ -383,15 +285,7 @@ const initBulkViewport = async (): Promise<void> => {
 	window.visualViewport?.addEventListener("resize", resizeBulkViewport)
 }
 
-void initBulkViewport().catch((error) => {
-	markAppWebBoot("client:init:error", errorMessage(error))
-	console.error("bulk init error:", error)
-	showBootOverlay(
-		"WebGPU не запустился",
-		`${errorMessage(error)}\n\n${webGpuBootDiagnostics()}\n\nChrome не вернул WebGPU adapter/device за отведённое время. Интерфейс не продолжит старт без WebGPU renderer.`,
-		true,
-	)
-})
+void initBulkViewport()
 
 socket.onopen = () => {
 	hud?.setConnectionStatus(true)
@@ -436,7 +330,6 @@ socket.onmessage = (event) => {
 	}
 
 	if (message.type === "error") {
-		console.error("app-web server error:", message.error)
 		hud?.setBusy(socket.readyState !== WebSocket.OPEN)
 		return
 	}
