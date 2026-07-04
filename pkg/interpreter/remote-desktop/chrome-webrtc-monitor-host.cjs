@@ -746,8 +746,8 @@ async function startChromeRtcSender(options = {}) {
     await sleep(1200)
     if (CHROME_RTC_PICKER_AUTOMATION) await automateChromeScreenPicker()
     await waitForChromeRtcReady()
-    await activateChromeAppWebTarget().catch((error) => {
-      state.remoteDesktop.rtc.lastError = `Chrome AppWeb focus failed: ${error instanceof Error ? error.message : String(error)}`
+    await activateChromeWebAppTarget().catch((error) => {
+      state.remoteDesktop.rtc.lastError = `Chrome WebApp focus failed: ${error instanceof Error ? error.message : String(error)}`
     })
     return publicState().remoteDesktop
   } finally {
@@ -812,7 +812,7 @@ async function chromeDevToolsOpen() {
   ))
 }
 
-async function activateChromeAppWebTarget() {
+async function activateChromeWebAppTarget() {
   const target = await cdpPageTarget()
   await withCdpBrowser((browserCdp) => browserCdp.send("Target.activateTarget", {targetId: target.id}))
   await withCdpPage((cdp) => cdp.send("Page.bringToFront").catch(() => undefined))

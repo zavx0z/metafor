@@ -124,10 +124,8 @@ Force channel и публикует порождённые сообщения, �
 Energy пока принимает `z` process-task через локальный Force channel и отвечает
 `z` claim-сообщением, но не исполняет реальные DSL actions.
 
-Root scripts `workspace.dark:*` запускают Dark. Старые `workspace.app.web:*`
-оставлены только как совместимые aliases на Dark, чтобы случайный старый запуск
-не поднимал AppWeb центром. Отдельный Energy server/debug-process не является
-частью текущего server-dev контура.
+Root scripts `workspace.dark:*` запускают Dark. Отдельный Energy
+server/debug-process не является частью текущего server-dev контура.
 
 ## Временный режим интеграционной разработки
 

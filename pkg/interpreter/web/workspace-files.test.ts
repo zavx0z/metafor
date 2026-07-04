@@ -62,13 +62,13 @@ describe("interpreter workspace files", () => {
 
   test("strips workspace path prefixes from opened sources", () => {
     const state = {
-      root: "/Users/me/project/app/web",
-      workspacePath: "app/web",
+      root: "/Users/me/project/bulk",
+      workspacePath: "bulk",
       items: [],
     }
 
-    expect(workspaceFileIdForSourcePath(state, "/Users/me/project/app/web/src/client.ts")).toBe("src/client.ts")
-    expect(workspaceFileIdForSourcePath(state, "app/web/src/client.ts")).toBe("src/client.ts")
+    expect(workspaceFileIdForSourcePath(state, "/Users/me/project/bulk/src/client.ts")).toBe("src/client.ts")
+    expect(workspaceFileIdForSourcePath(state, "bulk/src/client.ts")).toBe("src/client.ts")
     expect(workspaceFileIdForSourcePath(state, "src/client.ts")).toBe("src/client.ts")
   })
 

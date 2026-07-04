@@ -106,10 +106,10 @@ API и `10.66.0.10:3004` для Dark dev health/API. LAN/TLS режим на `44
   локальный `BroadcastChannel("force")`, без отдельного Matrix server;
 - Energy runtime pipeline живёт в `energy/energy.ts` и работает через тот же
   локальный `BroadcastChannel("force")`, без отдельного Energy server;
-- AppWeb больше не является стартовым server-dev target.
+- WebApp больше не является стартовым server-dev target.
 
 Не поднимай отдельный Energy server/debug-process как default target. Не
-возвращай AppWeb как default target.
+возвращай WebApp как default target.
 
 Удаленный браузер для визуальной WebApp-разработки должен открывать
 `https://meta.proizvodstvo1.ru/`. Это не маркетинговая внешняя страница, а
@@ -247,15 +247,15 @@ Host-level tools:
 может быть shell/старый Codex. Подробный recovery описан в
 `pkg/interpreter/docs/troubleshooting.md`.
 
-Web DevTools tools для server Chrome/AppWeb:
+Web DevTools tools для server Chrome/WebApp:
 
 - `devtools.targets` читает Chrome CDP targets с default `127.0.0.1:9349`.
 - `devtools.state` показывает agent CDP sessions, breakpoints и paused state.
 - `devtools.console` включает capture и возвращает последние console/log/exception/network события; для ошибок передавай `level:"error", limit:50`.
 - `devtools.console.clear` очищает agent buffer и Chrome console entries.
-- `devtools.reload` делает `Page.reload` текущего AppWeb target и по умолчанию синхронизирует DevTools Device Mode viewport/surface после reload.
+- `devtools.reload` делает `Page.reload` текущего WebApp target и по умолчанию синхронизирует DevTools Device Mode viewport/surface после reload.
 - Managed DevTools CDP session также событийно повторяет viewport sync после `Page.frameNavigated` / `Page.loadEventFired`, чтобы ручной reload в DevTools не сбрасывал target page из portrait в landscape при неизменном toolbar.
-- `devtools.viewport.sync` вручную синхронизирует DevTools Device Mode toolbar, AppWeb target viewport и Chrome compositor surface, если после Rotate/reload видна серая область или target получил неправильный viewport.
+- `devtools.viewport.sync` вручную синхронизирует DevTools Device Mode toolbar, WebApp target viewport и Chrome compositor surface, если после Rotate/reload видна серая область или target получил неправильный viewport.
 - `devtools.breakpoint` ставит breakpoint по `source` + 1-based `line`; source maps мапятся на generated bundle автоматически.
 - `devtools.probe` ставит breakpoint, дергает optional `trigger`, ждет `Debugger.paused`, затем по умолчанию делает resume и clear.
 - `devtools.resume` продолжает paused target.
@@ -296,6 +296,15 @@ TODO - обязательный рабочий журнал текущей ра�
 ToDoPane: `todo.get`, `todo.show`, `todo.reload`, `todo.highlight` и mutating
 `todo.*` tools. Не открывай `TODO.md` в source editor через `source.open`, пока
 человек явно не попросит открыть именно файл `TODO.md` в редакторе/source.
+
+Когда человек спрашивает "где задача", "где пункт", "что у нас в TODO",
+"покажи задачу" или ссылается на раздел/пункт TODO, агент должен сделать
+видимое действие в HUD ToDoPane: вызвать `todo.get`, найти соответствующий пункт,
+показать панель через `todo.show` при необходимости и подсветить конкретный item
+через `todo.highlight`, чтобы человек видел, о чем идет разговор. Если пункт
+отсутствует, агент должен предложить создать его или создать через `todo.create`,
+когда формулировка задачи уже дана человеком. Текстовый ответ без подсветки
+допустим только если HUD TODO API недоступен после явной попытки.
 
 Когда пользователь должен сразу увидеть изменения в ToDoPane, меняй `TODO.md`
 через `POST /tools`, а не прямым редактированием файла. Mutating TODO tools
@@ -413,7 +422,7 @@ Visual source по умолчанию - весь server `screen`, не browser t
 аналогичную визуальную проверку текущего WebApp/DevTools, это означает запросить
 удаленный screenshot из видимого server Chrome remote desktop/DevTools окна,
 которое видит человек. Не подменяй такой запрос `GET /viewport/screenshot`
-интерпретатора, AppWeb target-only `Page.captureScreenshot` или локальным
+интерпретатора, WebApp target-only `Page.captureScreenshot` или локальным
 снимком отдельного canvas: эти варианты допустимы только как diagnostics и
 должны быть явно так названы. Если remote desktop snapshot endpoint недоступен,
 используй ближайший эквивалент видимого браузера, например CDP screenshot

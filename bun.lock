@@ -24,17 +24,6 @@
         "@tauri-apps/cli": "^2.11.3",
       },
     },
-    "app/web": {
-      "name": "@app/web",
-      "dependencies": {
-        "@bulk/gravity": "workspace:*",
-        "@ui/components": "workspace:*",
-        "@ui/elements": "workspace:*",
-        "@ui/hud": "workspace:*",
-        "boundary": "workspace:*",
-        "bulk": "workspace:*",
-      },
-    },
     "boundary": {
       "name": "boundary",
       "dependencies": {
@@ -855,8 +844,6 @@
   },
   "packages": {
     "@app/tauri": ["@app/tauri@workspace:app/tauri"],
-
-    "@app/web": ["@app/web@workspace:app/web"],
 
     "@boundary/actor": ["@boundary/actor@workspace:boundary/actor"],
 

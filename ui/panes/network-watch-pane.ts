@@ -148,7 +148,7 @@ export class NetworkWatchPane extends UiSurface {
     const rowGap = 8
     const switchY = y + 1
     let sx = x + 2
-    sx = this.#switchRow(sx, switchY, "TLS", this.#snapshot.services.tls, "app/web HTTPS pane", (checked) => {
+    sx = this.#switchRow(sx, switchY, "TLS", this.#snapshot.services.tls, "bulk HTTPS pane", (checked) => {
       this.#actions?.setTlsEnabled(checked)
     }) + 18
     sx = this.#switchRow(sx, switchY, "80", this.#snapshot.services.redirect, "HTTP to HTTPS redirect pane", (checked) => {

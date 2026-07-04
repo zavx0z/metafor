@@ -2,31 +2,37 @@ import type {BulkViewportController, BulkViewportStats} from "bulk/web"
 import {UiSurface, Z, div, palette, radii, uiIcons, type DivScrollContext, type UiSurfaceRect} from "@ui/elements"
 import {Button, IconButton, SliderControl, Switcher, TextField} from "@ui/components"
 import {HudSideTab} from "@ui/hud"
-import {BULK_LAYOUT_SETTING_KEYS, BULK_RENDER_SETTING_KEYS, DEFAULT_BULK_SCENE_SRC, type BulkRenderSettings} from "bulk/settings"
+import {
+	BULK_LAYOUT_SETTING_KEYS,
+	BULK_RENDER_SETTING_KEYS,
+	BULK_SETTINGS_BY_KEY,
+	DEFAULT_BULK_SCENE_SRC,
+	type BulkRenderSettings,
+	type BulkSettingKey,
+} from "bulk/settings"
 import type {BulkLayoutSettings} from "@bulk/gravity/layout"
-import {APP_WEB_SETTINGS_BY_KEY, type AppWebSettingKey} from "./settings.ts"
 
-export type AppWebHudSettingsSnapshot = {
+export type BulkHudSettingsSnapshot = {
 	layoutSettings: Partial<BulkLayoutSettings>
 	renderSettings: Partial<BulkRenderSettings>
 }
 
-export type AppWebHudOptions = {
+export type BulkHudOptions = {
 	viewport: BulkViewportController
 	initialSrc: string
-	initialSettings: AppWebHudSettingsSnapshot
-	onApply(src: string, settings: AppWebHudSettingsSnapshot): void
+	initialSettings: BulkHudSettingsSnapshot
+	onApply(src: string, settings: BulkHudSettingsSnapshot): void
 	onRenderSettingsChange(settings: Partial<BulkRenderSettings>): void
-	onSettingsPersist(settings: AppWebHudSettingsSnapshot): void
+	onSettingsPersist(settings: BulkHudSettingsSnapshot): void
 }
 
-export type AppWebHudController = {
+export type BulkHudController = {
 	currentSrc(): string
 	relayout(): void
 	setBusy(busy: boolean): void
 	setConnectionStatus(online: boolean): void
 	setStats(stats: BulkViewportStats): void
-	settingsSnapshot(): AppWebHudSettingsSnapshot
+	settingsSnapshot(): BulkHudSettingsSnapshot
 }
 
 type SettingsTab = "scene" | "geometry" | "render"
@@ -36,7 +42,7 @@ const SETTINGS_MIN_W = 310
 const SETTINGS_MAX_W = 380
 const SETTINGS_MIN_H = 360
 const SETTINGS_MAX_H = 640
-const SETTINGS_SCROLL_KEY = "app-web-settings-scroll"
+const SETTINGS_SCROLL_KEY = "bulk-settings-scroll"
 const HUD_PANEL_Z = 80
 const HUD_DOCK_Z = 90
 const APP_FULLSCREEN_FALLBACK_CLASS = "metafor-app-fullscreen-fallback"
@@ -44,36 +50,36 @@ const APP_FULLSCREEN_FALLBACK_CLASS = "metafor-app-fullscreen-fallback"
 let appFullscreenFallbackActive = false
 let appFullscreenFallbackReason = ""
 
-export function installAppWebHud(options: AppWebHudOptions): AppWebHudController {
-	return new AppWebHud(options)
+export function installBulkHud(options: BulkHudOptions): BulkHudController {
+	return new BulkHud(options)
 }
 
-class AppWebHud implements AppWebHudController {
+class BulkHud implements BulkHudController {
 	readonly #viewport: BulkViewportController
-	readonly #onApply: AppWebHudOptions["onApply"]
-	readonly #onRenderSettingsChange: AppWebHudOptions["onRenderSettingsChange"]
-	readonly #onSettingsPersist: AppWebHudOptions["onSettingsPersist"]
-	readonly #settingsPane: AppWebSettingsPane
-	readonly #settingsDock: AppWebDockButton
-	readonly #fullscreenDock: AppWebDockButton
+	readonly #onApply: BulkHudOptions["onApply"]
+	readonly #onRenderSettingsChange: BulkHudOptions["onRenderSettingsChange"]
+	readonly #onSettingsPersist: BulkHudOptions["onSettingsPersist"]
+	readonly #settingsPane: BulkSettingsPane
+	readonly #settingsDock: BulkDockButton
+	readonly #fullscreenDock: BulkDockButton
 	#settingsOpen = false
 	#src: string
-	#settings: AppWebHudSettingsSnapshot
+	#settings: BulkHudSettingsSnapshot
 	#stats: BulkViewportStats = {darkParticleCount: 0, fieldParticleCount: 0}
 	#busy = true
 	#connected = false
 	#fullscreen = appFullscreenActive()
 
-	constructor(options: AppWebHudOptions) {
+	constructor(options: BulkHudOptions) {
 		this.#viewport = options.viewport
 		this.#onApply = options.onApply
 		this.#onRenderSettingsChange = options.onRenderSettingsChange
 		this.#onSettingsPersist = options.onSettingsPersist
 		this.#src = options.initialSrc
 		this.#settings = cloneSettings(options.initialSettings)
-		this.#settingsPane = new AppWebSettingsPane(this)
-		this.#settingsDock = new AppWebDockButton(this, "settings")
-		this.#fullscreenDock = new AppWebDockButton(this, "fullscreen")
+		this.#settingsPane = new BulkSettingsPane(this)
+		this.#settingsDock = new BulkDockButton(this, "settings")
+		this.#fullscreenDock = new BulkDockButton(this, "fullscreen")
 
 		this.#viewport.hud.addSurface(this.#settingsPane, (bounds) => this.#settingsRect(bounds), {zIndex: HUD_PANEL_Z})
 		this.#viewport.hud.addSurface(this.#settingsDock, (bounds) => this.#dockRect("settings", bounds), {zIndex: HUD_DOCK_Z})
@@ -86,7 +92,7 @@ class AppWebHud implements AppWebHudController {
 		return this.#src
 	}
 
-	settingsSnapshot(): AppWebHudSettingsSnapshot {
+	settingsSnapshot(): BulkHudSettingsSnapshot {
 		return cloneSettings(this.#settings)
 	}
 
@@ -172,14 +178,14 @@ class AppWebHud implements AppWebHudController {
 		this.#onApply(this.#src.trim() || DEFAULT_BULK_SCENE_SRC, this.settingsSnapshot())
 	}
 
-	settingValue(key: AppWebSettingKey): boolean | number {
-		const config = APP_WEB_SETTINGS_BY_KEY[key]
+	settingValue(key: BulkSettingKey): boolean | number {
+		const config = BULK_SETTINGS_BY_KEY[key]
 		if (config.section === "render") return this.#settings.renderSettings[key as keyof BulkRenderSettings] ?? config.defaultValue
 		return this.#settings.layoutSettings[key as keyof BulkLayoutSettings] ?? config.defaultValue
 	}
 
-	setSetting(key: AppWebSettingKey, value: boolean | number): void {
-		const config = APP_WEB_SETTINGS_BY_KEY[key]
+	setSetting(key: BulkSettingKey, value: boolean | number): void {
+		const config = BULK_SETTINGS_BY_KEY[key]
 		if (typeof config.defaultValue === "boolean") {
 			if (typeof value !== "boolean") return
 			if (config.section === "render") {
@@ -201,8 +207,8 @@ class AppWebHud implements AppWebHudController {
 		this.#settingsPane.requestRender()
 	}
 
-	stepSetting(key: AppWebSettingKey, direction: -1 | 1): void {
-		const config = APP_WEB_SETTINGS_BY_KEY[key]
+	stepSetting(key: BulkSettingKey, direction: -1 | 1): void {
+		const config = BULK_SETTINGS_BY_KEY[key]
 		if (typeof config.defaultValue === "boolean") {
 			this.setSetting(key, !(this.settingValue(key) === true))
 			return
@@ -239,12 +245,12 @@ class AppWebHud implements AppWebHudController {
 	}
 }
 
-class AppWebSettingsPane extends UiSurface {
+class BulkSettingsPane extends UiSurface {
 	#tab: SettingsTab = "scene"
 
-	constructor(private readonly hud: AppWebHud) {
+	constructor(private readonly hud: BulkHud) {
 		super({bgColor: null, borderColor: null})
-		this.node.name = "AppWebSettingsPane"
+		this.node.name = "BulkSettingsPane"
 	}
 
 	protected render(): void {
@@ -274,7 +280,7 @@ class AppWebSettingsPane extends UiSurface {
 			maxWidthPx: Math.max(1, w - 88),
 			z: Z.TEXT,
 		})
-		this.drawText("app/web", 120, 12, {
+		this.drawText("bulk", 120, 12, {
 			fontPx: 10,
 			material: this.materials.muted,
 			maxWidthPx: Math.max(1, w - 164),
@@ -354,7 +360,7 @@ class AppWebSettingsPane extends UiSurface {
 		this.#drawStatusRow(x, y, w)
 		y += 54
 		TextField(this, x, y, w, 34, {
-			key: "app-web-root-src",
+			key: "bulk-root-src",
 			value: this.hud.srcDraft(),
 			placeholder: "Root SRC",
 			submitOnEnter: true,
@@ -398,15 +404,15 @@ class AppWebSettingsPane extends UiSurface {
 		})
 	}
 
-	#drawSection(title: string, keys: readonly AppWebSettingKey[], x: number, y: number, w: number): number {
+	#drawSection(title: string, keys: readonly BulkSettingKey[], x: number, y: number, w: number): number {
 		this.drawText(title, x, y, {fontPx: 11, material: this.materials.cyan, maxWidthPx: w, z: Z.TEXT})
 		y += 19
 		for (const key of keys) y = this.#drawSetting(key, x, y, w)
 		return y + 14
 	}
 
-	#drawSetting(key: AppWebSettingKey, x: number, y: number, w: number): number {
-		const config = APP_WEB_SETTINGS_BY_KEY[key]
+	#drawSetting(key: BulkSettingKey, x: number, y: number, w: number): number {
+		const config = BULK_SETTINGS_BY_KEY[key]
 		const value = this.hud.settingValue(key)
 		if (typeof config.defaultValue === "boolean") {
 			return this.#drawBooleanRow(config.label, config.description, value === true, x, y, w, (checked) => this.hud.setSetting(key, checked))
@@ -414,7 +420,7 @@ class AppWebSettingsPane extends UiSurface {
 		const min = typeof config.min === "number" ? config.min : 0
 		const max = typeof config.max === "number" ? config.max : Math.max(1, Number(config.defaultValue) * 2)
 		return SliderControl(this, x, y, w, {
-			key: `app-web-setting:${key}`,
+			key: `bulk-setting:${key}`,
 			label: config.label,
 			value: Number(value),
 			min,
@@ -454,16 +460,16 @@ class AppWebSettingsPane extends UiSurface {
 	}
 }
 
-class AppWebDockButton extends UiSurface {
-	constructor(private readonly hud: AppWebHud, private readonly kind: DockButtonKind) {
+class BulkDockButton extends UiSurface {
+	constructor(private readonly hud: BulkHud, private readonly kind: DockButtonKind) {
 		super({bgColor: null, borderColor: null})
-		this.node.name = `AppWebDockButton:${kind}`
+		this.node.name = `BulkDockButton:${kind}`
 	}
 
 	protected render(): void {
 		HudSideTab(this, {
 			rect: {x: 0, y: 0, w: this.rectW, h: this.rectH},
-			key: `app-web-dock:${this.kind}`,
+			key: `bulk-dock:${this.kind}`,
 			edge: "top",
 			icon: this.#icon(),
 			label: this.kind === "settings" ? "Settings" : "",
@@ -487,15 +493,15 @@ class AppWebDockButton extends UiSurface {
 	}
 }
 
-function cloneSettings(settings: AppWebHudSettingsSnapshot): AppWebHudSettingsSnapshot {
+function cloneSettings(settings: BulkHudSettingsSnapshot): BulkHudSettingsSnapshot {
 	return {
 		layoutSettings: {...settings.layoutSettings},
 		renderSettings: {...settings.renderSettings},
 	}
 }
 
-function clampSettingValue(key: AppWebSettingKey, value: number): number {
-	const config = APP_WEB_SETTINGS_BY_KEY[key]
+function clampSettingValue(key: BulkSettingKey, value: number): number {
+	const config = BULK_SETTINGS_BY_KEY[key]
 	const min = typeof config.min === "number" ? config.min : -Infinity
 	const max = typeof config.max === "number" ? config.max : Infinity
 	const clamped = clampNumber(value, min, max)

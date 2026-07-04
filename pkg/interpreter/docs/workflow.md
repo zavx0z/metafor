@@ -61,7 +61,7 @@ UI создаёт один WebGPU `Space` и несколько равнопра
 
 Позиции display сохраняются per-display. Автораскладка задаёт только отсутствующие позиции и не должна перетирать ручное перемещение пользователя после reload/fullscreen.
 
-Fullscreen host-а в interpreter включается через нижний display dock. Отдельный верхний fullscreen-tab в interpreter не нужен; у AppWeb есть собственный fullscreen dock/tab внутри `app/web`.
+Fullscreen host-а в interpreter включается через нижний display dock. Отдельный верхний fullscreen-tab в interpreter не нужен; у WebApp есть собственный fullscreen dock/tab внутри `bulk`.
 
 Browser-страница сейчас является host-слоем для canvas/input/WebSocket. Это не продуктовая граница интерпретатора: для XR тот же process-scoped state должен рендериться как `UIDisplay`-контент в общем `Space`.
 

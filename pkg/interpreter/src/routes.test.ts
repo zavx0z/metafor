@@ -26,7 +26,7 @@ describe("interpreterRoutes", () => {
     expect(publicRoutes.has("POST /processes/:id/action")).toBe(false)
   })
 
-  test("does not expose app/web interpreter proxy aliases", () => {
+  test("does not expose legacy interpreter proxy aliases", () => {
     const publicPaths = new Set<string>(interpreterRoutes.index.map((route) => route.path))
     expect(publicPaths.has("/hud/interpreter/*")).toBe(false)
     expect(publicPaths.has("/interp/*")).toBe(false)

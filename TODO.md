@@ -13,12 +13,6 @@
 
 ## 2. Dark / Bulk Browser Shell
 
-- [1] Перенести `app/web/client.ts` в `bulk` и обновить `bulk/index.html`.
-- [ ] Перенести `app/web/world.ts` в `bulk` как Boundary snapshot -> Bulk manifest adapter.
-- [ ] Перенести `app/web/hud.ts` в `bulk` и убрать старое имя браузерной оболочки.
-- [ ] Перенести `app/web/settings.ts` в `bulk` и убрать обратный импорт `bulk/web -> app/web/settings.ts`.
-- [ ] Перенести `app/web/force-snapshot.ts` в `bulk` и обновить tests/imports.
-- [ ] После переноса удалить оставшийся browser shell/package из `app/web`.
 - [ ] Проверить live server-dev запуск `dark/index.ts` как основной target с Matrix pipeline внутри процесса.
 - [ ] Связать Matrix photons и Bulk visual update в основном browser shell без чтения Boundary из Matrix/Bulk.
 - [ ] Собрать сквозную проверку `Dark -> Boundary -> Matrix -> Bulk browser shell`.

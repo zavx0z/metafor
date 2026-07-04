@@ -9,15 +9,15 @@
 # Требования:
 #   - certbot установлен (apt install certbot / brew install certbot)
 #   - порт 80 свободен и доступен извне (standalone HTTP-01)
-#   - права на запись в OUT_DIR (по умолчанию app/web/tls)
+#   - права на запись в OUT_DIR (по умолчанию dark/tls)
 #
 # Результат:
 #   OUT_DIR/fullchain.pem
 #   OUT_DIR/privkey.pem
 #
 # После выпуска запустить сервер:
-#   TLS_KEY_FILE=app/web/tls/privkey.pem \
-#   TLS_CERT_FILE=app/web/tls/fullchain.pem \
+#   TLS_KEY_FILE=dark/tls/privkey.pem \
+#   TLS_CERT_FILE=dark/tls/fullchain.pem \
 #   bun run dev
 
 set -euo pipefail
@@ -26,8 +26,8 @@ set -euo pipefail
 : "${EMAIL:?EMAIL is required (ACME account email)}"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUT_DIR="${OUT_DIR:-$ROOT/app/web/tls}"
-WORK_DIR="${WORK_DIR:-$ROOT/app/web/tmp/letsencrypt}"
+OUT_DIR="${OUT_DIR:-$ROOT/dark/tls}"
+WORK_DIR="${WORK_DIR:-$ROOT/dark/tmp/letsencrypt}"
 CONFIG_DIR="$WORK_DIR/config"
 LOGS_DIR="$WORK_DIR/logs"
 WORK_SUBDIR="$WORK_DIR/work"

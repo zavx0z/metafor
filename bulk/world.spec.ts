@@ -23,7 +23,7 @@ const createSnapshot = (): BoundaryBulkRuntimeSnapshot => ({
 	matterChildWimpBindingPaths: [],
 })
 
-describe("app/web мост Boundary -> Bulk manifest", () => {
+describe("bulk мост Boundary -> Bulk manifest", () => {
 	test("передаёт Boundary field ID отдельно от Bulk field particle ID", () => {
 		const manifest = buildBoundaryBulkManifest(createSnapshot(), SRC)
 		const fieldParticle = manifest.fieldParticles[0]

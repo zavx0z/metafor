@@ -28,14 +28,14 @@ describe("interpreter web breakpoint storage", () => {
   test("keeps breakpoint specs isolated by process", () => {
     const storage = new MemoryStorage()
 
-    writeProcessBreakpointSpecs(storage, "app-web-server.ts", [
+    writeProcessBreakpointSpecs(storage, "bulk-client.ts", [
       {url: "/repo/boundary/sqlite.ts", line: 358},
     ])
     writeProcessBreakpointSpecs(storage, "dark-server.spec.ts", [
       {url: "/repo/dark/server.ts", line: 20},
     ])
 
-    expect(readProcessBreakpointSpecs(storage, "app-web-server.ts")).toEqual([
+    expect(readProcessBreakpointSpecs(storage, "bulk-client.ts")).toEqual([
       {url: "/repo/boundary/sqlite.ts", line: 358},
     ])
     expect(readProcessBreakpointSpecs(storage, "dark-server.spec.ts")).toEqual([
@@ -49,36 +49,36 @@ describe("interpreter web breakpoint storage", () => {
       {url: "/repo/boundary/sqlite.ts", line: 358},
     ]))
 
-    expect(readProcessBreakpointSpecs(storage, "app-web-server.ts")).toEqual([
+    expect(readProcessBreakpointSpecs(storage, "bulk-client.ts")).toEqual([
       {url: "/repo/boundary/sqlite.ts", line: 358},
     ])
 
-    writeProcessBreakpointSpecs(storage, "app-web-server.ts", [
+    writeProcessBreakpointSpecs(storage, "bulk-client.ts", [
       {url: "/repo/boundary/sqlite.ts", line: 360},
     ])
 
-    expect(readProcessBreakpointSpecs(storage, "app-web-server.ts")).toEqual([
+    expect(readProcessBreakpointSpecs(storage, "bulk-client.ts")).toEqual([
       {url: "/repo/boundary/sqlite.ts", line: 360},
     ])
-    expect(storage.getItem(BREAKPOINTS_STORAGE_KEY)).toContain("app-web-server.ts")
+    expect(storage.getItem(BREAKPOINTS_STORAGE_KEY)).toContain("bulk-client.ts")
   })
 
   test("merge and remove preserve other process buckets", () => {
     const storage = new MemoryStorage()
-    writeProcessBreakpointSpecs(storage, "app-web-server.ts", [
+    writeProcessBreakpointSpecs(storage, "bulk-client.ts", [
       {url: "/repo/boundary/sqlite.ts", line: 358},
     ])
     writeProcessBreakpointSpecs(storage, "dark-server.spec.ts", [
       {url: "/repo/dark/server.ts", line: 20},
     ])
 
-    mergeProcessBreakpointSpecs(storage, "app-web-server.ts", [
+    mergeProcessBreakpointSpecs(storage, "bulk-client.ts", [
       {url: "/repo/boundary/sqlite.ts", line: 358},
       {url: "/repo/boundary/sqlite.ts", line: 420},
     ])
-    removeProcessBreakpointSpec(storage, "app-web-server.ts", {url: "/repo/boundary/sqlite.ts", line: 358})
+    removeProcessBreakpointSpec(storage, "bulk-client.ts", {url: "/repo/boundary/sqlite.ts", line: 358})
 
-    expect(readProcessBreakpointSpecs(storage, "app-web-server.ts")).toEqual([
+    expect(readProcessBreakpointSpecs(storage, "bulk-client.ts")).toEqual([
       {url: "/repo/boundary/sqlite.ts", line: 420},
     ])
     expect(readProcessBreakpointSpecs(storage, "dark-server.spec.ts")).toEqual([

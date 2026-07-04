@@ -11,7 +11,7 @@ import {
 	type SettingsSnapshot,
 } from "bulk/settings"
 import type {BulkLayoutSettings} from "@bulk/gravity/layout"
-import {installAppWebHud, type AppWebHudController, type AppWebHudSettingsSnapshot} from "./hud.ts"
+import {installBulkHud, type BulkHudController, type BulkHudSettingsSnapshot} from "./hud.ts"
 import {applyForcePartToSnapshot} from "./force-snapshot.ts"
 
 type ForceMessage = {
@@ -40,12 +40,12 @@ const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement |
 if (bulkCanvas === null) throw new Error("bulk-canvas not found")
 
 let bulkViewport: BulkViewportController | null = null
-let hud: AppWebHudController | null = null
+let hud: BulkHudController | null = null
 let initialMaterializationRequested = false
 let pendingSnapshotMessage: SnapshotMessage | null = null
 let currentSnapshot: BoundaryBulkRuntimeSnapshot | null = null
 let persistSettingsTimer: ReturnType<typeof setTimeout> | null = null
-let activeSettings: AppWebHudSettingsSnapshot = {
+let activeSettings: BulkHudSettingsSnapshot = {
 	layoutSettings: {...DEFAULT_BULK_SETTINGS.layout},
 	renderSettings: {...DEFAULT_BULK_SETTINGS.render},
 }
@@ -113,7 +113,7 @@ const persistSettings = async (): Promise<void> => {
 	await saveSettings(persistedSettingsSnapshot())
 }
 
-const schedulePersistSettings = (settings: AppWebHudSettingsSnapshot): void => {
+const schedulePersistSettings = (settings: BulkHudSettingsSnapshot): void => {
 	activeSettings = cloneSettings(settings)
 	if (persistSettingsTimer !== null) clearTimeout(persistSettingsTimer)
 	persistSettingsTimer = setTimeout(() => {
@@ -137,14 +137,14 @@ const flushPersistSettings = (): void => {
 
 const createMaterializePayload = (
 	src: string,
-	settings: AppWebHudSettingsSnapshot,
+	settings: BulkHudSettingsSnapshot,
 ): ClientMaterializePayload => ({
 	type: "materialize",
 	src: normalizeSceneSrc(src),
 	layoutSettings: settings.layoutSettings,
 })
 
-const applyHudRequest = (src: string, settings: AppWebHudSettingsSnapshot): void => {
+const applyHudRequest = (src: string, settings: BulkHudSettingsSnapshot): void => {
 	activeSettings = cloneSettings(settings)
 	const payload = createMaterializePayload(src, settings)
 	activeSrc = payload.src
@@ -252,7 +252,7 @@ const initBulkViewport = async (): Promise<void> => {
 	})
 	bulkViewport.setLayoutSettings(activeSettings.layoutSettings)
 	bulkViewport.setRenderSettings(activeSettings.renderSettings)
-	hud = installAppWebHud({
+	hud = installBulkHud({
 		viewport: bulkViewport,
 		initialSrc: activeSrc,
 		initialSettings: activeSettings,
@@ -336,7 +336,7 @@ socket.onmessage = (event) => {
 
 }
 
-function cloneSettings(settings: AppWebHudSettingsSnapshot): AppWebHudSettingsSnapshot {
+function cloneSettings(settings: BulkHudSettingsSnapshot): BulkHudSettingsSnapshot {
 	return {
 		layoutSettings: {...settings.layoutSettings},
 		renderSettings: {...settings.renderSettings},

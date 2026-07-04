@@ -11,7 +11,7 @@
     }
   },
   "workspaces": [
-    "app/*",
+    "app/tauri",
     "ui/*",
     "pkg/**/*",
     "fixture",
@@ -51,10 +51,6 @@
     "workspace.dark:dev": "BOUNDARY_PATH=dark/tmp/boundary.sqlite PORT=3004 bun --hot dark/index.ts",
     "workspace.dark:prod": "NODE_ENV=production BUN_ENV=production BOUNDARY_PATH=dark/tmp/boundary.sqlite PORT=3004 bun dark/index.ts",
     "workspace.dark:product": "bun run workspace.dark:prod",
-    "workspace.app.web": "bun run workspace.dark",
-    "workspace.app.web:dev": "bun run workspace.dark:dev",
-    "workspace.app.web:prod": "bun run workspace.dark:prod",
-    "workspace.app.web:product": "bun run workspace.dark:product",
     "voice:assets": "bun --filter @metafor/voice assets",
     "voice:playground": "bun --filter @metafor/voice playground",
     "voice:smoke": "bun --filter @metafor/voice smoke",

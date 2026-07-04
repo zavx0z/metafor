@@ -70,7 +70,7 @@ curl -sS -X POST http://127.0.0.1:6500/tools \
 ## 502 Bad Gateway От Nginx
 
 502 на `meta.proizvodstvo1.ru` обычно означает,
-что nginx жив, но upstream interpreter/app-web не слушает `10.66.0.10:6500`
+что nginx жив, но upstream interpreter/Dark не слушает `10.66.0.10:6500`
 или `10.66.0.10:3004`.
 
 Проверить:

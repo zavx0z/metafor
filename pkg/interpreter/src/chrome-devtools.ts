@@ -354,19 +354,19 @@ async function evaluateDevtoolsResponse(req: Request): Promise<Response> {
  * Ручной Rotate и `Page.reload` могут оставить эти состояния рассинхронизированными.
  * Наблюдали toolbar `816x400`, когда target page уже был `1088x533`, и toolbar
  * `816x400`, когда compositor screenshot surface все еще был portrait `400x871`
- * или scaled `612x300`. В таком состоянии AppWeb может уже иметь canvas на всю
+ * или scaled `612x300`. В таком состоянии WebApp может уже иметь canvas на всю
  * ширину, но DevTools показывает серую пустую область или root torus fit считается
  * относительно неправильного viewport.
  *
  * Toolbar Device Mode считаем ожидаемым user-visible viewport. Этот helper читает
- * toolbar через DevTools frontend target, затем применяет к AppWeb target logical
+ * toolbar через DevTools frontend target, затем применяет к WebApp target logical
  * viewport через `Emulation.setDeviceMetricsOverride`, а compositor surface через
  * `Emulation.setVisibleSize` держит равным видимой `device-mode-screen-area` с
  * учетом DevTools zoom.
  * Если DevTools уже рассинхронизировал `devicePixelRatio`, helper сохраняет
  * фактический canvas DPR (`canvas.width / canvas.clientWidth`), когда он
  * выглядит валидным. После этого helper отправляет synthetic `resize` event в target page, потому
- * что после reload AppWeb может успеть сконфигурировать canvas backing store под
+ * что после reload WebApp может успеть сконфигурировать canvas backing store под
  * промежуточный viewport, а Chrome не всегда доставляет новый resize event после
  * CDP visible-size resync.
  * Логика намеренно event-scoped: вызывай ее из `devtools.reload` или
@@ -1337,7 +1337,7 @@ function cdpBaseUrl(): URL {
 
 function defaultTargetUrl(): string {
   return process.env.INTERPRETER_DEVTOOLS_TARGET_URL
-    ?? process.env.APP_WEB_URL
+    ?? process.env.BULK_WEB_URL
     ?? DEFAULT_TARGET_URL
 }
 
@@ -1353,8 +1353,8 @@ function cdpDiagnostic(): JsonObject {
           : "default",
       target: process.env.INTERPRETER_DEVTOOLS_TARGET_URL !== undefined
         ? "INTERPRETER_DEVTOOLS_TARGET_URL"
-        : process.env.APP_WEB_URL !== undefined
-          ? "APP_WEB_URL"
+        : process.env.BULK_WEB_URL !== undefined
+          ? "BULK_WEB_URL"
           : "default",
     },
   }

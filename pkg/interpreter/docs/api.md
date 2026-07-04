@@ -102,7 +102,7 @@ POST   /sqlite/open
 POST   /sqlite/cell
 ```
 
-AppWeb не владеет embedded interpreter API и не публикует proxy-префиксы для
+WebApp не владеет embedded interpreter API и не публикует proxy-префиксы для
 interpreter. Same-host cross-port `Origin` разрешен только для RTC signaling.
 Это нужно для локальных/dev вариантов с разными портами, но sender и browser UI все равно
 должны сходиться в один in-memory signaling owner. В текущем server-dev контуре
@@ -111,7 +111,7 @@ sender живет в отдельной service page
 `ws://10.66.0.10:6500/webrtc/signaling`. Не встраивай этот локальный URL в код
 видимой продуктовой страницы `https://meta.proizvodstvo1.ru/`; она не должна
 владеть remote desktop соединением.
-`3004` остается app-web dev server/embedded proxy. Исключение не расширяет доступ
+`3004` остается Dark dev server/API target. Исключение не расширяет доступ
 к terminal/voice WebSocket routes.
 
 ## Текущий Context
@@ -335,7 +335,7 @@ published candidate, который уходит browser viewer-у через si
 ## Web DevTools
 
 `devtools.*` tools - agent-facing слой над текущим server Chrome CDP. По умолчанию
-они используют `http://127.0.0.1:9349` и видимый AppWeb target
+они используют `http://127.0.0.1:9349` и видимый WebApp target
 `https://meta.proizvodstvo1.ru/`. Локальный `http://10.66.0.10:3004/` остается
 для server-side health/API диагностики. Это не замена визуальному docked
 DevTools: tools нужны агенту для точных операций, пока пользователь и агент
@@ -357,18 +357,18 @@ devtools.evaluate         # {expression, targetUrl?, awaitPromise?, returnByValu
 
 `devtools.console` включает capture событий `Runtime.consoleAPICalled`,
 `Runtime.exceptionThrown`, `Log.entryAdded` и `Network.loadingFailed` и хранит
-bounded buffer последних событий. Для визуальных ошибок в AppWeb сначала
+bounded buffer последних событий. Для визуальных ошибок в WebApp сначала
 передай `level:"error", limit:50`; если capture был включен уже после появления
 ошибки, очисти буфер через `devtools.console.clear`, сделай `devtools.reload`
 или повтори действие, затем прочитай console снова.
 
 Для `source` строки считаются 1-based, как в редакторе; `column` остается
-0-based. Interpreter читает linked sourcemap из AppWeb bundle и возвращает в
+0-based. Interpreter читает linked sourcemap из WebApp bundle и возвращает в
 ответе both original/generated coordinates. `devtools.probe` ставит
 breakpoint, опционально выполняет HTTP `trigger`, ждет `Debugger.paused`, затем
 по умолчанию делает `resume` и снимает breakpoint. Если после restart breakpoint
 не ловится, сначала сделай `devtools.reload`: Chrome target мог остаться
-открытым со stale AppWeb websocket.
+открытым со stale WebApp websocket.
 
 В docked DevTools Device Mode после ручного Rotate и `Page.reload` Chrome может
 рассинхронизировать toolbar Width/Height, JS viewport target page и compositor

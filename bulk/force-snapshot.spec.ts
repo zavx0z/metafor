@@ -27,7 +27,7 @@ const createSnapshot = (): BoundaryBulkRuntimeSnapshot => ({
 	matterChildWimpBindingPaths: [],
 })
 
-describe("app/web нормализатор Force snapshot", () => {
+describe("bulk нормализатор Force snapshot", () => {
 	test("higgs-патч класса адресует field по ID и обновляет key как метаданные", () => {
 		const snapshot = createSnapshot()
 		const part: Particle = {

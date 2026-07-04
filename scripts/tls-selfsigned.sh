@@ -13,14 +13,14 @@
 #   HOST  — один или несколько hostname через запятую (опционально; localhost + hostname по умолчанию)
 #   DAYS  — срок жизни сертификата (по умолчанию 3650 = 10 лет)
 #
-# Результат: app/web/tls/fullchain.pem + app/web/tls/privkey.pem
+# Результат: dark/tls/fullchain.pem + dark/tls/privkey.pem
 # Браузер покажет предупреждение "not trusted" — это нормально для self-signed.
-# Чтобы убрать предупреждение, импортируй app/web/tls/fullchain.pem как CA в системное хранилище.
+# Чтобы убрать предупреждение, импортируй dark/tls/fullchain.pem как CA в системное хранилище.
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUT_DIR="${OUT_DIR:-$ROOT/app/web/tls}"
+OUT_DIR="${OUT_DIR:-$ROOT/dark/tls}"
 DAYS="${DAYS:-3650}"
 mkdir -p "$OUT_DIR"
 

@@ -1,12 +1,13 @@
 import type { BulkFieldParticle, BulkFieldParticleKind, BulkDarkParticle, BulkManifest, BulkLayoutSettings } from "@bulk/gravity/layout"
 import { normalizeBulkLayoutSettings } from "@bulk/gravity/layout"
-import { DEFAULT_BULK_SETTINGS, type BulkRenderSettings } from "bulk/settings"
 import {
-	appWebLayoutConfig,
+	DEFAULT_BULK_SETTINGS,
+	bulkLayoutConfig,
 	normalizeBulkRenderSettings,
+	type BulkRenderSettings,
 	toLevelGeometrySettings,
 	toLevelSettings,
-} from "../../app/web/settings.ts"
+} from "bulk/settings"
 import {
 	createLevelResolver,
 	resolveOuterRadiusFromSphereRadius,
@@ -83,7 +84,7 @@ export interface BulkViewportStats {
 	darkParticleCount: number
 }
 
-/** Публичный API bulk viewport для `app/web`. */
+/** Публичный API bulk viewport для Bulk client. */
 export interface BulkViewportController {
 	dispose(): void
 	handleForce(_channel: string, _message: unknown): void
@@ -202,7 +203,7 @@ const BULK_RADIAL_MENU_LONG_PRESS_MOVE_PX = 10
 const BULK_RADIAL_MENU_PROJECTED_HIT_PAD_PX = 48
 const BULK_RADIAL_MENU_HUD_Z = 10
 const BULK_TOUCH_TAP_MOVE_PX = 14
-const ANDROID_RTC_FRAME_SRC = "metafor:app-web-android-rtc-frame"
+const ANDROID_RTC_FRAME_SRC = "metafor:bulk-android-rtc-frame"
 let activeLayoutSettings: BulkLayoutSettings = { ...DEFAULT_BULK_SETTINGS.layout }
 let activeRenderSettings: BulkRenderSettings = { ...DEFAULT_BULK_SETTINGS.render }
 let levelResolver: LevelResolver = createLevelResolver(
@@ -573,7 +574,7 @@ type FadingLabelRemovalRecord = {
 
 type FieldParticleBillboardMode = "summary" | "surface"
 
-const getViewportConfig = () => appWebLayoutConfig.viewport
+const getViewportConfig = () => bulkLayoutConfig.viewport
 const getTorusFallback = () => getViewportConfig().torusFallbackMm
 const getWorkspaceBaseZ = (): number => getViewportConfig().levelsMm.elbow
 const getFloorZ = (): number => getViewportConfig().levelsMm.floor
