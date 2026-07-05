@@ -1,25 +1,5 @@
-import type {MetaDSL, MetaFieldDSL} from "@metafor/types/metafor/metafor"
-import type {MatterBindingValue} from "@metafor/types/matter"
-
-/**
- * Описание начальной инициализации поля при материализации child wimp.
- * Если задан `source` — поле share-ит value.id с указанным родительским полем (entanglement).
- */
-export interface FieldInit {
-  key: string
-  /** Резолвленное runtime-значение (применяется когда нет share). */
-  value: unknown
-  /** Ссылка на родительское поле для разделения value.id через actor_value FK. */
-  source?: {
-    parentActorId: number
-    parentFieldKey: string
-  }
-}
-
-export interface Continuation {
-  fieldInits?: FieldInit[]
-  mass?: unknown
-}
+import type {MetaDSL, MetaFieldDSL} from "@metafor/types/metafor/schema"
+import type { Continuation, FieldInit, MatterBindingValue } from "@metafor/types/metafor/matter"
 
 const DIRECT_FIELD_LINK_RE = /(?:^|,)\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*:\s*_\[(\d+)\]\s*(?=,|$)/g
 

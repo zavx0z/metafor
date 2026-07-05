@@ -4,14 +4,10 @@
  * Модуль переводит графы состояний в линейную execution-форму, понятную WebGPU runtime.
  */
 
-import type {
-  GpuFlattenedTransition,
-  GpuPackContext,
-  MatrixCompiledConditionsResult,
-  MatrixConditionInstruction,
-  MatrixFieldRecord,
-  MatrixValue,
-} from "@metafor/types/matrix"
+import type { GpuFlattenedTransition, GpuPackContext } from "@metafor/types/matrix/gpu"
+import type { MatrixCompiledConditionsResult, MatrixConditionInstruction } from "@metafor/types/matrix/condition"
+import type { MatrixFieldRecord } from "@metafor/types/matrix/data"
+import type { MatrixValue } from "@metafor/types/matrix/store"
 import { OP, VALUE_TYPE } from "../constants"
 import { encodeValue, fieldTypeToBytecodeType } from "./pack"
 

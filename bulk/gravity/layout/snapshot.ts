@@ -1,15 +1,6 @@
-import type {
-  BulkDarkParticle,
-  BulkDarkParticleActivity,
-  BulkDarkParticleKind,
-  BulkDarkParticleInput,
-  BulkFieldParticle,
-  BulkFieldParticleInput,
-  BulkFieldParticleKind,
-  BulkLayoutSettings,
-  BulkManifest,
-  LevelGeometry,
-} from "@metafor/types/bulk"
+import type { BulkDarkParticle, BulkDarkParticleActivity, BulkDarkParticleKind, BulkDarkParticleInput, BulkFieldParticle, BulkFieldParticleInput, BulkFieldParticleKind, BulkManifest } from "@metafor/types/bulk/manifest"
+import type { BulkLayoutSettings, DarkParticleInputNode, LayoutDarkParticleNode, LayoutFieldParticleNode, OrbitItem } from "@metafor/types/bulk/layout"
+import type { LevelGeometry } from "@metafor/types/bulk/level"
 import { resolveLevelGeometry } from "../level"
 import {
   DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG,
@@ -19,36 +10,6 @@ import {
 
 const snapshotLayoutConfig = DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5))
-
-interface LayoutFieldParticleNode extends BulkFieldParticle {
-  extent: number
-}
-
-interface LayoutDarkParticleNode extends Omit<BulkDarkParticle, "parentDarkParticleId" | "depth" | "darkParticleOrder"> {
-  children: LayoutDarkParticleNode[]
-  fieldParticles: LayoutFieldParticleNode[]
-  depthFromRoot: number
-  innerRadius: number
-  outerRadius: number
-}
-
-interface DarkParticleInputNode {
-  descriptor: BulkDarkParticleInput
-  children: DarkParticleInputNode[]
-  depthFromRoot: number
-}
-
-type OrbitItem =
-  | {
-      extent: number
-      fieldParticle: LayoutFieldParticleNode
-      kind: "fieldParticle"
-    }
-  | {
-      extent: number
-      kind: "darkParticle"
-      darkParticle: LayoutDarkParticleNode
-    }
 
 const getCanonicalLevelGeometry = (
   depthFromRoot: number,

@@ -1,25 +1,7 @@
 import {force} from "boundary"
-import type {PhotonPayload} from "@metafor/types/force"
-
-type RuntimeFieldPatchValue = { fields: Record<string, unknown> }
-type DarkGluonPatchPart = { op: "replace" | "remove"; path: number; value: RuntimeFieldPatchValue }
-type DarkHiggsPatchPart = { op: "replace" | "remove"; path: number | string; value: RuntimeFieldPatchValue }
-
-export interface DarkPhotonStore {
-  messages: PhotonPayload[]
-}
-
-export interface DarkPhotonSubscription {
-  close(): void
-}
-
-export interface DarkElectromagnetismForce {
-  emitGluonParts(parts: DarkGluonPatchPart[]): void
-  emitHiggsParts(parts: DarkHiggsPatchPart[]): void
-  emitGluonReplace(actorId: number, fieldId: number, value: unknown): void
-  emitHiggsReplace(path: number | string, fieldId: number, value: unknown): void
-  close(): void
-}
+import type { DarkElectromagnetismForce, DarkPhotonStore, DarkPhotonSubscription } from "@metafor/types/force/channel"
+import type { DarkGluonPatchPart, DarkHiggsPatchPart, RuntimeFieldPatchValue } from "@metafor/types/force/fields"
+import type { PhotonPayload } from "@metafor/types/force/particle"
 
 export const darkPhoton$: DarkPhotonStore = {
   messages: [],

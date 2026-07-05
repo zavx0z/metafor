@@ -4,15 +4,15 @@ import valueSql from "./value.sql" with {type: "text"}
 import actorValueSql from "./actor_value.sql" with {type: "text"}
 import stateSql from "./state.sql" with {type: "text"}
 import {Actor, ActorRoots, decodeActorRow} from "./actor.ts"
-import {Value, type AnyValue} from "./value.ts"
-import type {ActorRecord, ActorRows} from "@metafor/types/persistence"
+import {Value} from "./value.ts"
+import type { ActorRecord, ActorRows } from "@metafor/types/boundary/actor"
 import {ActorFieldValue} from "./actor_value.ts"
 import {emitForceParts} from "../../force.ts"
 
 export class BoundaryActorSqlite {
   readonly roots: ActorRoots
   readonly value: {
-    get(id: number): Promise<AnyValue | null>
+    get(id: number): Promise<Value | null>
   }
   readonly link: {
     get(actor: number, field: number): Promise<ActorFieldValue | null>
@@ -21,7 +21,7 @@ export class BoundaryActorSqlite {
   private constructor(private readonly sql: SQL) {
     this.roots = new ActorRoots(sql)
     this.value = {
-      get: (id: number): Promise<AnyValue | null> => Value.get(sql, id),
+      get: (id: number): Promise<Value | null> => Value.get(sql, id),
     }
     this.link = {
       get: (actor: number, field: number): Promise<ActorFieldValue | null> => ActorFieldValue.get(sql, actor, field),

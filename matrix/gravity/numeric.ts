@@ -1,4 +1,5 @@
-import type { ConvertedSuperposition, MatrixCollapse, NamedSuperposition } from "@metafor/types/matrix"
+import type { ConvertedSuperposition, NamedSuperposition } from "@metafor/types/matrix/gravity"
+import type { MatrixCollapse } from "@metafor/types/matrix/data"
 
 export function convertToNumeric(
   superposition: NamedSuperposition,

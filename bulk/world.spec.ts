@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import type {BulkRuntimeSnapshot} from "@metafor/types/bulk"
+import type { BulkRuntimeSnapshot } from "@metafor/types/bulk/runtime"
 import {buildBoundaryBulkManifest} from "./world.ts"
 
 const SRC = "zavx0z/linux"

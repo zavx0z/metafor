@@ -1,31 +1,13 @@
 import { normalizeFunctionString, parseFunction } from "./action.ts"
 import type { Fields } from "@metafor/types/metafor/fields"
-import type { FinallyConfig, FinallyChain, ParsedFinally } from "@metafor/types/metafor/finally"
-import type { Mass } from "@metafor/types/metafor/metafor"
-import type { ExecutionEnv } from "@metafor/types/metafor/process"
-
-type FinallyBeforeHandler<m extends Mass> = ({ mass }: { mass: m }) => void | Promise<void>
-
-type FinallyInput<m extends Mass> = {
-  type: ParsedFinally["type"]
-  label?: string
-  desc?: string
-  env?: ExecutionEnv[]
-  before?: FinallyBeforeHandler<m>
-}
-
-type FinallyRuntimeResult<m extends Mass, s extends string = string> = FinallyInput<m> & {
-  state: s
-}
-
-export type FinallyChainResult<ɸ extends Fields = Fields, m extends Mass = Mass, s extends string = string> = FinallyChain<
-  ɸ,
-  m,
-  s
-> & {
-  readonly type: ParsedFinally["type"]
-  getResult: () => FinallyRuntimeResult<m, s>
-}
+import type {
+  FinallyChainResult,
+  FinallyConfig,
+  FinallyInput,
+  FinallyRuntimeResult,
+  ParsedFinally,
+} from "@metafor/types/metafor/finally"
+import type { Mass } from "@metafor/types/metafor/schema"
 
 const FINALLY_TYPE: ParsedFinally["type"] = "finally"
 

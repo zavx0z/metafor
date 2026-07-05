@@ -1,3 +1,18 @@
+export type ProcessRuntimeKind =
+  | "server"
+  | "browser-main"
+  | "worker"
+  | "service-worker"
+  | "desktop-main"
+  | "unknown"
+
+export interface ProcessEnv {
+  kind: ProcessRuntimeKind
+  id: string
+  labels?: string[]
+  capabilities?: string[]
+}
+
 export interface EnergyHandlerDescriptor {
   src: string
   readFields: Array<[fieldId: number, key: string]>
@@ -16,14 +31,4 @@ export interface EnergyProcessDescriptor {
   }
   success?: EnergyHandlerDescriptor
   error?: EnergyHandlerDescriptor
-}
-
-export interface EnergyRuntimeSnapshot {
-  version: 1
-  actors: Array<[actorId: number, wimp: string]>
-  processes: Array<{
-    wimp: string
-    state: string
-    descriptor: EnergyProcessDescriptor
-  }>
 }

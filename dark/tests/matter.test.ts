@@ -3,7 +3,7 @@ import {SQL} from "bun"
 import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
 import type {Actor} from "@boundary/actor"
-import type {Boundary} from "boundary"
+import type { Boundary } from "@metafor/types/boundary/api"
 import {open} from "boundary/sqlite"
 import {matter} from "../dark.ts"
 

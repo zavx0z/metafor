@@ -55,5 +55,3 @@ export const StepMode = {
   UndefinedOnly: 1,
   Full: 2,
 } as const
-
-export type StepMode = (typeof StepMode)[keyof typeof StepMode]

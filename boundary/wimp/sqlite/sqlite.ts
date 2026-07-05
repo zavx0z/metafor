@@ -19,15 +19,8 @@ import {SQL} from "bun"
 import {writeWimpCreate} from "./create.ts"
 import {Wimp} from "./wimp.ts"
 import {emitForceParts} from "../../force.ts"
-import type {Particle} from "@metafor/types/force"
-import type {WimpCreateInput} from "@metafor/types/persistence"
-
-type WimpSnapshot = {
-  wimp: {src: string; name: string | null; desc: string | null; view: string | null}
-  fields: Array<{id: number; wimp: string; key: string; type: string; required: boolean; label: string | null}>
-  enumVariants: Array<{id: number; field: number; position: number; itemValue: string}>
-  states: Array<{id: number; wimp: string; name: string; position: number}>
-}
+import type { Particle } from "@metafor/types/force/particle"
+import type { WimpCreateInput, WimpSnapshot } from "@metafor/types/boundary/wimp"
 
 const wimpSnapshot = async (sql: SQL, src: string): Promise<WimpSnapshot> => {
   const wimp = (await sql<Array<{src: string; name: string | null; desc: string | null; view_css: string | null}>>`

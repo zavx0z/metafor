@@ -5,7 +5,7 @@ import { test, expect, describe, beforeEach } from "bun:test"
 import { compileSuperposition, compileConditions, compileEnsemble } from "../weak/program"
 import { OP } from "../weak"
 import { FieldType } from "../gravity"
-import type { MatrixCollapse } from "@metafor/types/matrix"
+import type { MatrixCollapse } from "@metafor/types/matrix/data"
 
 describe("compileConditions — компиляция условий", () => {
   beforeEach(() => {

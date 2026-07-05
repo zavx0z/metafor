@@ -29,19 +29,15 @@
 
 import { gravity$ } from "@matrix/gravity/store.ts"
 import { matrix$ } from "./store"
-import type {
-  MatrixData,
-  MatrixFieldRecord,
-  MatrixFieldValueRecord,
-  MatrixInputData,
-  MatrixRuntimeSnapshot,
-  MatrixStore,
-} from "@metafor/types/matrix"
+import type { MatrixData, MatrixFieldValueRecord, MatrixStore } from "@metafor/types/matrix/store"
+import type { MatrixFieldRecord, MatrixInputData } from "@metafor/types/matrix/data"
+import type { AsyncGate, MatrixPendingProcessExecution, MatrixRuntimeSnapshot, MatrixUpdateOptions } from "@metafor/types/matrix/runtime"
 import { FieldType, flattenMatrixData, validateData } from "@matrix/gravity"
 import { createStoredStringInterner, normalizeFieldValue, assembleStoredMatrixData, strong$ } from "@matrix/strong"
 import { StepMode, weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@matrix/weak"
-import {resolveForceFieldId, resolveForceFieldsPayload} from "../boundary/force-fields.ts"
-import type {ForceMessage, Particle} from "@metafor/types/force"
+import {resolveForceFieldId, resolveForceFieldsPayload} from "@metafor/types/force/fields"
+import type { ForceMessage } from "@metafor/types/force/message"
+import type { Particle } from "@metafor/types/force/particle"
 
 export const force = new BroadcastChannel("force")
 
@@ -63,17 +59,6 @@ force.onmessage = async (event) => {
         break
     }
   }
-}
-
-type MatrixPendingProcessExecution = {
-  braneIndex: number
-  stateIndex: number
-  fields: Record<string, unknown>
-  acceptedEnergy?: string
-}
-
-type AsyncGate = {
-  pending: null | Promise<void>
 }
 
 const writeGate: AsyncGate = { pending: null }
@@ -453,11 +438,6 @@ export async function loadMatrixRuntimeSnapshot(snapshot: MatrixRuntimeSnapshot)
     syncProcessLocksForChanges(changes, changes)
     publishPhotonChanges(changes)
   }
-}
-
-type MatrixUpdateOptions = {
-  retriggerProcessStates?: boolean
-  skipProcessRetriggerBraneIndexes?: Iterable<number>
 }
 
 const collectProcessStateRetriggers = (

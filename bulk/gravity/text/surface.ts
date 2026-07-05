@@ -1,9 +1,7 @@
-import { Text, type TextMaterial, type TrueTypeFont } from "@metafor/engine"
-import type { FontMetrics } from "./font-metrics"
+import { Text } from "@metafor/engine"
+import type { CreateSurfaceLabelOptions, FontMetrics, SurfaceLabel, TextExtents } from "@metafor/types/bulk/layout"
 import { getFontMetrics } from "./font-metrics"
-import type { TextExtents } from "./extents"
 import { resolveTextExtents } from "./extents"
-import type { SurfaceArcLimits } from "./fit"
 import { resolveSurfaceFitScale } from "./fit"
 
 /**
@@ -13,29 +11,6 @@ import { resolveSurfaceFitScale } from "./fit"
  * Per-frame деформация пишет новые координаты в буфер `geometry` через {@link bendTextAroundEquator}
  * без пересборки Text.
  */
-export interface SurfaceLabel {
-  textNode: Text
-  fontMetrics: FontMetrics
-  extents: TextExtents
-  initialStencilPositions: Float32Array
-  initialCoverPositions: Float32Array
-  stencilCenterX: number
-  coverCenterX: number
-  fontSize: number
-}
-
-export interface CreateSurfaceLabelOptions {
-  text: string
-  font: TrueTypeFont
-  baseFontSize: number
-  material: TextMaterial
-  /** Canonical радиус параллели для выбора итогового fontSize. */
-  curveRadiusMm: number
-  limits: SurfaceArcLimits
-  /** Минимальный масштаб — ниже не сжимаем. */
-  minScale: number
-}
-
 const cloneInitialPositions = (text: Text): { stencil: Float32Array; cover: Float32Array } => {
   const stencil = text.stencilGeometry.attributes.position?.array ?? new Float32Array(0)
   const cover = text.coverGeometry.attributes.position?.array ?? new Float32Array(0)

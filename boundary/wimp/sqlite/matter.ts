@@ -1,13 +1,6 @@
 import type {SQL} from "bun"
-import type {
-  AxionParticleRow,
-  FuzzyParticleRow,
-  MachoParticleRow,
-  MatterBindingRow,
-  MatterParticleRow,
-  WimpParticleRow,
-} from "@metafor/types/persistence"
-import type {MatterBindingValue, MatterEdgeSlot, MatterParticle, MatterParticleKind} from "@metafor/types/matter"
+import type { AxionParticleRow, FuzzyParticleRow, MachoParticleRow, MatterBindingRow, MatterParticleRow, WimpParticleRow } from "@metafor/types/boundary/matter"
+import type { MatterBindingValue, MatterEdgeSlot, MatterParticle, MatterParticleKind } from "@metafor/types/metafor/matter"
 import type {Wimp} from "./wimp.ts"
 import {emitGravitonAdd} from "../../force.ts"
 

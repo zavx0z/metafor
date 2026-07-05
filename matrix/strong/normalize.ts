@@ -1,4 +1,5 @@
-import type { MatrixFieldRecord, MatrixScalarValue, MatrixValue } from "@metafor/types/matrix"
+import type { MatrixFieldRecord } from "@metafor/types/matrix/data"
+import type { MatrixScalarValue, MatrixValue } from "@metafor/types/matrix/store"
 import { FieldType } from "../gravity/schema"
 
 export function normalizeFieldValue(

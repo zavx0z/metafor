@@ -7,8 +7,8 @@
  * @packageDocumentation
  */
 import type {Fields} from "@metafor/types/metafor/fields"
-import type {Mass} from "@metafor/types/metafor/metafor"
-import type { ActionFn, ProcessConfig } from "@metafor/types/bulk"
+import type {Mass} from "@metafor/types/metafor/schema"
+import type { ActionFn, ProcessConfig } from "@metafor/types/bulk/weak"
 
 /**
  * Загружает модуль действия и возвращает экспортированную функцию.

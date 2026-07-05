@@ -51,7 +51,6 @@
     "boundary/wimp": {
       "name": "@boundary/wimp",
       "dependencies": {
-        "@dark/types": "workspace:*",
         "@metafor/types": "workspace:*",
       },
     },
@@ -103,7 +102,6 @@
         "@boundary/wimp": "workspace:*",
         "@dark/em": "workspace:*",
         "@dark/gravity": "workspace:*",
-        "@dark/types": "workspace:*",
         "@metafor/types": "workspace:*",
         "boundary": "workspace:*",
       },
@@ -111,7 +109,6 @@
     "dark/em": {
       "name": "@dark/em",
       "dependencies": {
-        "@dark/types": "workspace:*",
         "@metafor/types": "workspace:*",
         "boundary": "workspace:*",
       },
@@ -120,7 +117,6 @@
       "name": "@dark/gravity",
       "dependencies": {
         "@boundary/wimp": "workspace:*",
-        "@dark/types": "workspace:*",
         "@metafor/types": "workspace:*",
         "boundary": "workspace:*",
       },
@@ -130,14 +126,7 @@
       "dependencies": {
         "@boundary/wimp": "workspace:*",
         "@dark/gravity": "workspace:*",
-        "@dark/types": "workspace:*",
         "boundary": "workspace:*",
-      },
-    },
-    "dark/types": {
-      "name": "@dark/types",
-      "dependencies": {
-        "@metafor/types": "workspace:*",
       },
     },
     "energy": {
@@ -901,8 +890,6 @@
     "@dark/gravity": ["@dark/gravity@workspace:dark/gravity"],
 
     "@dark/strong": ["@dark/strong@workspace:dark/strong"],
-
-    "@dark/types": ["@dark/types@workspace:dark/types"],
 
     "@gerrit0/mini-shiki": ["@gerrit0/mini-shiki@3.23.0", "", { "dependencies": { "@shikijs/engine-oniguruma": "^3.23.0", "@shikijs/langs": "^3.23.0", "@shikijs/themes": "^3.23.0", "@shikijs/types": "^3.23.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-bEMORlG0cqdjVyCEuU0cDQbORWX+kYCeo0kV1lbxF5bt4r7SID2l9bqsxJEM0zndaxpOUT7riCyIVEuqq/Ynxg=="],
 

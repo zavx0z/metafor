@@ -1,5 +1,5 @@
 import type {Boundary} from "boundary"
-import type { MetaForFn } from "@metafor/types/metafor/metafor"
+import type { MetaForFn } from "@metafor/types/metafor/schema"
 
 declare global {
   var boundary: Boundary

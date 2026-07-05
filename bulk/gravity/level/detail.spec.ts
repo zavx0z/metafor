@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { resolveLevelDetail } from "./detail"
-import type { LevelDetailSettings } from "@metafor/types/bulk"
+import type { LevelDetailSettings } from "@metafor/types/bulk/level"
 
 const BASE: LevelDetailSettings = {
   detailDensityFactor: 2,

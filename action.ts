@@ -1,6 +1,6 @@
 import type { Fields } from "@metafor/types/metafor/fields"
 import type { ActionFieldUsage, ActionStructureValidationResult } from "@metafor/types/metafor/action"
-import type { Mass } from "@metafor/types/metafor/metafor"
+import type { Mass } from "@metafor/types/metafor/schema"
 import type { ReactionAction } from "@metafor/types/metafor/reactions"
 
 const PATTERN_UPDATE = /\bupdate\s*\(\s*({[\s\S]*?})\s*\)/g

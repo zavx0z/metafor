@@ -1,4 +1,4 @@
-import type { FontMetrics } from "./font-metrics"
+import type { FontMetrics, TextExtents } from "@metafor/types/bulk/layout"
 
 /**
  * Типографские размеры одного отрендеренного текста в миллиметрах.
@@ -10,19 +10,6 @@ import type { FontMetrics } from "./font-metrics"
  *
  * Baseline по соглашению всегда `y = 0` в координатах Text-геометрии.
  */
-export interface TextExtents {
-  /** Горизонтальный размер (maxX − minX) в мм. */
-  widthMm: number
-  /** Левый край bbox в мм (обычно ≈ 0). */
-  minXmm: number
-  /** Центр по X в мм. */
-  centerXmm: number
-  /** Высота ascender над baseline в мм. */
-  ascenderMm: number
-  /** Глубина descender под baseline в мм (положительная). */
-  descenderMm: number
-}
-
 /** Находит min/max по X в плоской массиве позиций (stride = 3 координаты на вершину). */
 const findXBounds = (positions: Float32Array): { minX: number; maxX: number } | null => {
   if (positions.length === 0) return null

@@ -10,7 +10,7 @@
  * - actors: Map<uuid, ActorRecord> — основное хранилище записей
  */
 
-import type { BulkActorRecord } from "@metafor/types/bulk"
+import type { BulkActorRecord } from "@metafor/types/bulk/weak"
 import { appendChild, removeChild, getChildren, resetGraphStore } from "./graph"
 
 // Состояние модуля

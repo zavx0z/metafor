@@ -1,5 +1,5 @@
 import type {Fields} from "./index.ts"
-import type {MetaFieldDSL} from "@metafor/types/metafor/metafor"
+import type {MetaFieldDSL} from "@metafor/types/metafor/schema"
 
 export abstract class Field {
   constructor(
@@ -9,6 +9,10 @@ export abstract class Field {
   }
 
   abstract readonly type: MetaFieldDSL["type"]
+
+  abstract default(): Promise<unknown>
+
+  abstract setDefault(value: unknown): Promise<void>
 
   async id(): Promise<number> {
     const row = (

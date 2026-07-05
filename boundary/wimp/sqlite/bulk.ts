@@ -1,4 +1,4 @@
-import type {MetaDSL} from "@metafor/types/metafor/metafor"
+import type {MetaDSL} from "@metafor/types/metafor/schema"
 import type {Wimp} from "./wimp.ts"
 
 export class Bulk {

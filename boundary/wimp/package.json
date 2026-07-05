@@ -9,8 +9,7 @@
     "./sqlite/fields/field": "./sqlite/fields/field.ts"
   },
   "dependencies": {
-    "@metafor/types": "workspace:*",
-    "@dark/types": "workspace:*"
+    "@metafor/types": "workspace:*"
   },
   "private": true
 }

@@ -1,6 +1,6 @@
 /** `@matrix/weak/runtime/store` хранит локальное runtime-состояние слабой силы. */
 
-import type { WeakStore } from "@metafor/types/matrix"
+import type { WeakStore } from "@metafor/types/matrix/weak"
 
 export const weak$: WeakStore = {
   runtime: null,

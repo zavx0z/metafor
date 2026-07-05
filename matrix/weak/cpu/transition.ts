@@ -1,9 +1,5 @@
-import type {
-  MatrixConditionRecord,
-  MatrixScalarValue,
-  MatrixStore,
-  MatrixValue,
-} from "@metafor/types/matrix"
+import type { MatrixConditionRecord } from "@metafor/types/matrix/condition"
+import type { MatrixScalarValue, MatrixStore, MatrixValue } from "@metafor/types/matrix/store"
 import { OP, FIELD_TYPE, STATE_NONE, STATE_UNDEFINED } from "../constants"
 
 function scalarEquals(left: MatrixScalarValue, right: MatrixScalarValue): boolean {

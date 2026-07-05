@@ -1,17 +1,8 @@
 import {force} from "boundary"
-import type {Particle} from "@metafor/types/force"
+import type { DarkGravityForce } from "@metafor/types/force/channel"
+import type { ForcePartInput } from "@metafor/types/force/particle"
 
 export const gravityCH = force
-
-type ForcePartInput = Pick<Particle, "part" | "op" | "path" | "value" | "from">
-
-export interface DarkGravityForce {
-  emitParts(parts: ForcePartInput[]): void
-  emitAdd(wimpId: string): void
-  emitRemove(wimpId: string): void
-  emitBarrier(value?: null | "" | Record<string, never>): void
-  close(): void
-}
 
 function emitParts(parts: ForcePartInput[]): void {
   force.emit({parts})

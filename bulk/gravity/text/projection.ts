@@ -1,4 +1,5 @@
 import type { BufferGeometry } from "@metafor/engine"
+import type { BendTextAroundEquatorOptions } from "@metafor/types/bulk/layout"
 
 /**
  * Деформация текста по экватору поверхности (horizontal bend only).
@@ -13,19 +14,6 @@ import type { BufferGeometry } from "@metafor/engine"
  * и ориентирован `(right, up, normal)`, поэтому локальная ось X = касательная вдоль параллели,
  * Y = касательная вдоль меридиана, Z = outward normal. Изгиб применяется в локальных координатах.
  */
-export interface BendTextAroundEquatorOptions {
-  /** Целевая geometry, в которую пишутся новые координаты. */
-  geometry: BufferGeometry
-  /** Исходные X/Y/Z координаты глифов относительно baseline и `centerX` до деформации. */
-  initialPositions: Float32Array
-  /** Горизонтальный якорь (обычно centerXmm из `resolveTextExtents`). */
-  centerX: number
-  /** Единый горизонтальный масштаб посадки. */
-  scale: number
-  /** Радиус параллели, вдоль которой текст изгибается. */
-  curveRadius: number
-}
-
 const getPositionArray = (geometry: BufferGeometry): Float32Array | null => {
   const array = geometry.attributes.position?.array
   return array instanceof Float32Array ? array : null

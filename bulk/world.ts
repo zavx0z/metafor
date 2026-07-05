@@ -1,25 +1,13 @@
-import type {
-  BulkDarkParticleActivity,
-  BulkDarkParticleInput,
-  BulkDarkParticleKind,
-  BulkFieldParticleInput,
-  BulkFieldParticleKind,
-  BulkManifest,
-} from "@metafor/types/bulk"
+import type { BulkDarkParticleActivity, BulkDarkParticleInput, BulkDarkParticleKind, BulkFieldParticleInput, BulkFieldParticleKind, BulkManifest } from "@metafor/types/bulk/manifest"
 import {
   createBulkManifestFromDarkParticleInputs,
   scaleBulkManifestToRootOuterDiameter,
 } from "@bulk/gravity/layout"
-import type {
-  BulkRuntimeField,
-  BulkLayoutSettings,
-  BulkRuntimeMatterBindingPath,
-  BulkRuntimeMatterChildBindingPath,
-  BulkRuntimeMatterParticle,
-  BulkRuntimeSnapshot,
-  BulkRuntimeValue,
-} from "@metafor/types/bulk"
-import type {ActorRecord, FieldEnumVariantRecord, TopologyRecord, ValueItemRecord} from "@metafor/types/persistence"
+import type { BulkRuntimeField, BulkRuntimeMatterBindingPath, BulkRuntimeMatterChildBindingPath, BulkRuntimeMatterParticle, BulkRuntimeSnapshot, BulkRuntimeValue } from "@metafor/types/bulk/runtime"
+import type { BulkLayoutSettings } from "@metafor/types/bulk/layout"
+import type { ActorRecord } from "@metafor/types/boundary/actor"
+import type { FieldEnumVariantRecord, ValueItemRecord } from "@metafor/types/boundary/value"
+import type { TopologyRecord } from "@metafor/types/boundary/topology"
 
 const wimpDarkParticleColor = {colorR: 0.4, colorG: 0.45, colorB: 0.98}
 const connectivityDarkParticleColors: Record<BulkDarkParticleKind, {colorR: number; colorG: number; colorB: number}> = {

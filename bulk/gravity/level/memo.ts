@@ -1,4 +1,4 @@
-import type { LevelDetail, LevelGeometry, LevelLabel, LevelSettings } from "@metafor/types/bulk"
+import type { LevelDetail, LevelGeometry, LevelLabel, LevelResolver, LevelSettings } from "@metafor/types/bulk/level"
 import { resolveLevelDetail } from "./detail"
 import { resolveLevelGeometry } from "./geometry"
 import { resolveLevelLabel } from "./label"
@@ -12,13 +12,6 @@ import { resolveLevelLabel } from "./label"
  *
  * При смене настроек (например, из UI) вызывающий должен вызвать {@link LevelResolver.invalidate}.
  */
-export interface LevelResolver {
-  getGeometry(depth: number, outerRadiusMm?: number): LevelGeometry
-  getDetail(depth: number): LevelDetail
-  getLabel(depth: number): LevelLabel
-  invalidate(): void
-}
-
 export const createLevelResolver = (settings: LevelSettings): LevelResolver => {
   const geometryCache = new Map<number, LevelGeometry>()
   const detailCache = new Map<number, LevelDetail>()

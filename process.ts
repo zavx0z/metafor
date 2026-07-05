@@ -10,40 +10,21 @@ import {
 import type {FinallyConfig} from "@metafor/types/metafor/finally"
 import {createFinallyChain, isFinallyChain, parseFinally} from "./finally.ts"
 import type {Fields, Values} from "@metafor/types/metafor/fields"
-import {Initiator, type Mass} from "@metafor/types/metafor/metafor"
+import {Initiator, type Mass} from "@metafor/types/metafor/schema"
 import {
   ProcessType,
   type ActionChain,
   type ParsedProcess,
   type Process,
   type ProcessChain,
+  type ProcessChainLike,
+  type ProcessChainResult,
   type ProcessConfig,
+  type ProcessRuntimeResult,
   type ProcessesDeclaration,
   type ProcessesList,
   type ProcessesSchema,
 } from "@metafor/types/metafor/process"
-
-type ProcessChainResult<ɸ extends Fields, m extends Mass, Res, v extends Values<ɸ>, s extends string> = ActionChain<
-  ɸ,
-  m,
-  Res,
-  v,
-  s
-> & {
-  readonly type: ProcessType.ACTION
-  getResult: () => Process<ɸ, m, Res, v, s>
-}
-
-type ProcessRuntimeResult<ɸ extends Fields, m extends Mass, Res, v extends Values<ɸ>, s extends string> =
-  Process<ɸ, m, Res, v, s>
-  & {
-  state: s
-}
-
-type ProcessChainLike<ɸ extends Fields, m extends Mass, v extends Values<ɸ> = Values<ɸ>, s extends string = string> = {
-  readonly type: ProcessType.ACTION
-  getResult: () => ProcessRuntimeResult<ɸ, m, unknown, v, s>
-}
 
 export function createProcessChain<ɸ extends Fields, m extends Mass, v extends Values<ɸ> = Values<ɸ>, s extends string = string>(
   state: s,

@@ -1,8 +1,6 @@
 import type { Process } from "./process.ts"
+import type { ProcessActionReadPhase, ProcessActionWritePhase } from "@metafor/types/boundary/wimp"
 import {emitGravitonAdd} from "../../../force.ts"
-
-type ReadPhase = "action" | "success" | "error"
-type WritePhase = "success" | "error"
 
 /**
  * Sub-ORM для таблицы `process_action_read` (PK (process, phase, field)).
@@ -11,7 +9,7 @@ type WritePhase = "success" | "error"
 export class ActionRead {
   constructor(readonly action: ProcessAction) {}
 
-  async add(phase: ReadPhase, fieldKey: string): Promise<void> {
+  async add(phase: ProcessActionReadPhase, fieldKey: string): Promise<void> {
     const sql = this.action.process.processes.wimp.sql
     const src = this.action.process.processes.wimp.src
     const processId = await this.action.process.id()
@@ -26,7 +24,7 @@ export class ActionRead {
     }
   }
 
-  async remove(phase: ReadPhase, fieldKey: string): Promise<void> {
+  async remove(phase: ProcessActionReadPhase, fieldKey: string): Promise<void> {
     const sql = this.action.process.processes.wimp.sql
     const src = this.action.process.processes.wimp.src
     const processId = await this.action.process.id()
@@ -38,7 +36,7 @@ export class ActionRead {
     `
   }
 
-  async all(phase: ReadPhase): Promise<string[]> {
+  async all(phase: ProcessActionReadPhase): Promise<string[]> {
     const sql = this.action.process.processes.wimp.sql
     const processId = await this.action.process.id()
     const rows = await sql<Array<{ key: string }>>`
@@ -51,7 +49,7 @@ export class ActionRead {
     return rows.map((row) => row.key)
   }
 
-  async has(phase: ReadPhase, fieldKey: string): Promise<boolean> {
+  async has(phase: ProcessActionReadPhase, fieldKey: string): Promise<boolean> {
     const sql = this.action.process.processes.wimp.sql
     const src = this.action.process.processes.wimp.src
     const processId = await this.action.process.id()
@@ -70,7 +68,7 @@ export class ActionRead {
     return row !== undefined
   }
 
-  async count(phase?: ReadPhase): Promise<number> {
+  async count(phase?: ProcessActionReadPhase): Promise<number> {
     const sql = this.action.process.processes.wimp.sql
     const processId = await this.action.process.id()
     if (phase === undefined) {
@@ -98,7 +96,7 @@ export class ActionRead {
 export class ActionWrite {
   constructor(readonly action: ProcessAction) {}
 
-  async add(phase: WritePhase, fieldKey: string): Promise<void> {
+  async add(phase: ProcessActionWritePhase, fieldKey: string): Promise<void> {
     const sql = this.action.process.processes.wimp.sql
     const src = this.action.process.processes.wimp.src
     const processId = await this.action.process.id()
@@ -113,7 +111,7 @@ export class ActionWrite {
     }
   }
 
-  async remove(phase: WritePhase, fieldKey: string): Promise<void> {
+  async remove(phase: ProcessActionWritePhase, fieldKey: string): Promise<void> {
     const sql = this.action.process.processes.wimp.sql
     const src = this.action.process.processes.wimp.src
     const processId = await this.action.process.id()
@@ -125,7 +123,7 @@ export class ActionWrite {
     `
   }
 
-  async all(phase: WritePhase): Promise<string[]> {
+  async all(phase: ProcessActionWritePhase): Promise<string[]> {
     const sql = this.action.process.processes.wimp.sql
     const processId = await this.action.process.id()
     const rows = await sql<Array<{ key: string }>>`
@@ -138,7 +136,7 @@ export class ActionWrite {
     return rows.map((row) => row.key)
   }
 
-  async has(phase: WritePhase, fieldKey: string): Promise<boolean> {
+  async has(phase: ProcessActionWritePhase, fieldKey: string): Promise<boolean> {
     const sql = this.action.process.processes.wimp.sql
     const src = this.action.process.processes.wimp.src
     const processId = await this.action.process.id()
@@ -157,7 +155,7 @@ export class ActionWrite {
     return row !== undefined
   }
 
-  async count(phase?: WritePhase): Promise<number> {
+  async count(phase?: ProcessActionWritePhase): Promise<number> {
     const sql = this.action.process.processes.wimp.sql
     const processId = await this.action.process.id()
     if (phase === undefined) {

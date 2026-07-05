@@ -1,5 +1,5 @@
 import type {SQL} from "bun"
-import type {TopologyKind, TopologyRecord} from "@metafor/types/persistence"
+import type { TopologyKind, TopologyRecord } from "@metafor/types/boundary/topology"
 
 export const decodeTopologyRow = (row: Record<string, unknown>): TopologyRecord => ({
   id: Number(row.id),
@@ -21,7 +21,7 @@ export class TopologyChildren {
     private readonly parentId: number,
   ) {}
 
-  async all(): Promise<AnyTopology[]> {
+  async all(): Promise<TopologyBase[]> {
     const rows = await this.sql<Array<Record<string, unknown>>>`
       SELECT id, parent_actor, parent_topology, kind, position
       FROM topology
@@ -41,7 +41,7 @@ export class TopologyChildren {
   }
 }
 
-abstract class TopologyBase {
+export abstract class TopologyBase {
   abstract readonly kind: TopologyKind
   readonly children: TopologyChildren
 
@@ -114,9 +114,7 @@ export class Macho extends TopologyBase {
   readonly kind = "macho" as const
 }
 
-export type AnyTopology = Fuzzy | Axion | Macho
-
-export const buildTopology = (sql: SQL, row: TopologyRecord): AnyTopology => {
+export const buildTopology = (sql: SQL, row: TopologyRecord): TopologyBase => {
   switch (row.kind) {
     case "fuzzy":
       return new Fuzzy(sql, row.id)

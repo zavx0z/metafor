@@ -1,4 +1,4 @@
 export {
 	resolveForceFieldId,
 	resolveForceFieldsPayload,
-} from "../../boundary/force-fields.ts"
+} from "@metafor/types/force/fields"

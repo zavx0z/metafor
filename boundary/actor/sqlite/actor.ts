@@ -1,5 +1,6 @@
 import type {SQL} from "bun"
-import type {ActorRecord, ActorRows, ActorStateRecord, ActorValueRecord, ValueItemRecord, ValueRecord} from "@metafor/types/persistence"
+import type { ActorRecord, ActorRows } from "@metafor/types/boundary/actor"
+import type { ActorStateRecord, ActorValueRecord, ValueItemRecord, ValueRecord } from "@metafor/types/boundary/value"
 import {ActorFieldValue} from "./actor_value.ts"
 
 const isStoredId = (id: number | null | undefined): id is number =>

@@ -1,6 +1,6 @@
 import type { Fields } from "../metafor/fields.ts"
 import type { MatterDefinitionParams } from "../metafor/matter.ts"
-import type { Mass } from "../metafor/metafor.ts"
+import type { Mass } from "../metafor/schema.ts"
 import type { NodeType } from "./node/index.ts"
 
 /**

@@ -14,4 +14,4 @@
 export { resolveLevelDetail } from "./detail"
 export { resolveLevelGeometry, resolveLevelScale, resolveOuterRadiusFromSphereRadius } from "./geometry"
 export { resolveLevelLabel } from "./label"
-export { createLevelResolver, type LevelResolver } from "./memo"
+export { createLevelResolver } from "./memo"

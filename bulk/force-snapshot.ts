@@ -1,27 +1,7 @@
-import type {
-	BulkRuntimeField,
-	BulkRuntimeSnapshot,
-	BulkRuntimeValue,
-} from "@metafor/types/bulk"
-import type {Particle} from "@metafor/types/force"
-import type {ActorRecord, ActorValueRecord, ValueItemRecord} from "@metafor/types/persistence"
-import {resolveForceFieldId, resolveForceFieldsPayload} from "../boundary/force-fields.ts"
-
-type ActorSnapshotMessage = {
-	actor: ActorRecord
-	values: ActorValueRecord[]
-	valueRecords: Array<{
-		id: number
-		kind: BulkRuntimeValue["kind"]
-		boolean?: boolean
-		number?: number
-		text?: string
-		variant?: number
-	}>
-	valueItems: ValueItemRecord[]
-}
-
-export type ForceSnapshotEffect = "none" | "partial" | "rebuild"
+import type { BulkRuntimeField, BulkRuntimeSnapshot, BulkRuntimeValue } from "@metafor/types/bulk/runtime"
+import type { ActorSnapshotMessage, ForceSnapshotEffect } from "@metafor/types/bulk/runtime"
+import type { Particle } from "@metafor/types/force/particle"
+import {resolveForceFieldId, resolveForceFieldsPayload} from "@metafor/types/force/fields"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null

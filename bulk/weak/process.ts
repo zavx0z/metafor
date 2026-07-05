@@ -5,7 +5,7 @@
  */
 
 import { weak$ } from "./store"
-import type {MetaDSL} from "@metafor/types/metafor/metafor"
+import type {MetaDSL} from "@metafor/types/metafor/schema"
 
 /**
  * Регистрирует схемы процессов из DSL.

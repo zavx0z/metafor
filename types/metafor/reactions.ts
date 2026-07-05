@@ -1,6 +1,6 @@
 import type { Fields, Update, Values } from "./fields.ts"
 import type { Condition, ConditionOptional, CondNumberRequired, CondStringRequired } from "./superposition.ts"
-import type { Mass, ReactionPart, Self } from "./metafor.ts"
+import type { Mass, ReactionPart, Self } from "./schema.ts"
 
 export interface ReactionParams {
   meta: string

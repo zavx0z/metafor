@@ -2,7 +2,8 @@ import {file, serve, type ServerWebSocket} from "bun"
 import "./server.ts"
 import {startEnergyProtocol} from "../energy/energy.ts"
 import index from "../bulk/index.html"
-import type {ForceMessage} from "@metafor/types/force"
+import type { BulkRuntimeSnapshot } from "@metafor/types/bulk/runtime"
+import type { ForceMessage } from "@metafor/types/force/message"
 import {DEFAULT_BULK_SCENE_SRC} from "bulk/settings"
 import {loadMatrixRuntimeSnapshot} from "../matrix/index.ts"
 
@@ -30,7 +31,7 @@ const acceptForce = async (message: ForceMessage, publishRuntime: boolean): Prom
   broadcastForce(message)
 }
 
-globalThis.boundary.entropy((event) => {
+globalThis.boundary.entropy((event: MessageEvent<ForceMessage>) => {
   broadcastForce(event.data)
 })
 
@@ -98,8 +99,8 @@ const server = serve<{kind: "browser"}>({
             ? payload.src.trim()
             : DEFAULT_BULK_SCENE_SRC
           void globalThis.boundary.bulkRuntime()
-            .then((snapshot) => ws.send(JSON.stringify({type: "snapshot", src, snapshot})))
-            .catch((error) => {
+            .then((snapshot: BulkRuntimeSnapshot) => ws.send(JSON.stringify({type: "snapshot", src, snapshot})))
+            .catch((error: unknown) => {
               if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type: "error", error: error instanceof Error ? error.message : String(error)}))
             })
           break
@@ -108,7 +109,7 @@ const server = serve<{kind: "browser"}>({
           if (!Array.isArray(payload.parts)) break
           const message: ForceMessage = {parts: payload.parts as ForceMessage["parts"]}
           void acceptForce(message, true)
-            .catch((error) => {
+            .catch((error: unknown) => {
               if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type: "error", error: error instanceof Error ? error.message : String(error)}))
             })
           break

@@ -1,5 +1,5 @@
 import type { Fields, Values } from "./fields.ts"
-import type { Mass, Self } from "./metafor.ts"
+import type { Mass, Self } from "./schema.ts"
 
 /**
  * Параметры для action.

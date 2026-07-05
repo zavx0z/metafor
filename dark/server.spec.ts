@@ -2,9 +2,8 @@ import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import {SQL, type ServerWebSocket} from "bun"
 import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
-import type {ForceBinding, ForceMessage} from "@metafor/types/force"
-
-type ForceSocketData = {kind: "force"}
+import type { ForceBinding } from "@metafor/types/force/channel"
+import type { ForceMessage } from "@metafor/types/force/message"
 
 const logBroadcastMessage = (event: MessageEvent<unknown>): void => {
   console.log("[force]", JSON.stringify(event.data, null, 2))
@@ -13,9 +12,9 @@ const logBroadcastMessage = (event: MessageEvent<unknown>): void => {
 describe("dark/server разворачивает дерево zavx0z/git по gravity part", () => {
   let boundaryPath: string
   let boundarySubscription: ForceBinding | null = null
-  let forceBridge: ReturnType<typeof Bun.serve<ForceSocketData>> | null = null
+  let forceBridge: ReturnType<typeof Bun.serve<{kind: "force"}>> | null = null
   let forceClient: WebSocket | null = null
-  const forceSockets = new Set<ServerWebSocket<ForceSocketData>>()
+  const forceSockets = new Set<ServerWebSocket<{kind: "force"}>>()
   const boundaryMessages: ForceMessage[] = []
   const forceMessages: ForceMessage[] = []
 
@@ -34,7 +33,7 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
     process.env.BOUNDARY_PATH = boundaryPath
     await import("./server.ts")
 
-    forceBridge = Bun.serve<ForceSocketData>({
+    forceBridge = Bun.serve<{kind: "force"}>({
       hostname: "127.0.0.1",
       port: 0,
       fetch(req, server) {
@@ -64,7 +63,7 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
     })
     await waitForWebSocketOpen(forceClient)
 
-    boundarySubscription = globalThis.boundary.entropy((event) => {
+    boundarySubscription = globalThis.boundary.entropy((event: MessageEvent<ForceMessage>) => {
       logBroadcastMessage(event)
       boundaryMessages.push(event.data)
       broadcastForceMessage(forceSockets, event.data)
@@ -175,7 +174,7 @@ async function actorCount(sql: SQL): Promise<number> {
   return (await sql<Array<{count: number}>>`SELECT COUNT(*) AS count FROM actor`)[0]?.count ?? 0
 }
 
-function broadcastForceMessage(sockets: Set<ServerWebSocket<ForceSocketData>>, message: ForceMessage): void {
+function broadcastForceMessage(sockets: Set<ServerWebSocket<{kind: "force"}>>, message: ForceMessage): void {
   const payload = JSON.stringify(message)
   for (const socket of sockets) {
     if (socket.readyState === WebSocket.OPEN) socket.send(payload)

@@ -1,10 +1,5 @@
 /** Строгая materialization подготовленного entanglement. */
-import type {
-  MatrixEntanglementMapping,
-  PreparedEntanglementBlock,
-  PreparedEntanglementField,
-  PreparedEntanglementProjection,
-} from "@metafor/types/matrix"
+import type { MatrixEntanglementMapping, PreparedEntanglementBlock, PreparedEntanglementField, PreparedEntanglementProjection } from "@metafor/types/matrix/entanglement"
 
 const valueEquals = (left: unknown, right: unknown): boolean => {
   if (Array.isArray(left) && Array.isArray(right)) {

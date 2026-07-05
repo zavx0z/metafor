@@ -1,12 +1,6 @@
-import type {
-  CpuRuntimeContext,
-  CpuRuntimeState,
-  MatrixStore,
-  WeakChanges,
-  WeakHeapUpdate,
-  WeakRuntime,
-  WeakStepMode,
-} from "@metafor/types/matrix"
+import type { CpuRuntimeContext, CpuRuntimeState } from "@metafor/types/matrix/cpu"
+import type { MatrixStore } from "@metafor/types/matrix/store"
+import type { WeakChanges, WeakHeapUpdate, WeakRuntime, WeakStepMode } from "@metafor/types/matrix/weak"
 import { executeCpuStep } from "./step"
 import { StepMode } from "../constants"
 

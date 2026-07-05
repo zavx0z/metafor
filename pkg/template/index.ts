@@ -34,7 +34,7 @@ import type { NodeType } from "@metafor/types/template/node/index"
 import { extractHtmlElements } from "./parser.ts"
 import type { Fields } from "@metafor/types/metafor/fields"
 import type { MatterDefinitionParams } from "@metafor/types/metafor/matter"
-import type { Mass } from "@metafor/types/metafor/metafor"
+import type { Mass } from "@metafor/types/metafor/schema"
 
 /**
  * Парсит HTML-шаблон и возвращает обогащенную иерархию с метаданными о путях к данным.

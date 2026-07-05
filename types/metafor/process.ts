@@ -1,6 +1,6 @@
 import type {Fields, Update, Values} from "./fields.ts"
 import type {ActionParams} from "./action.ts"
-import type {Mass} from "./metafor.ts"
+import type {Mass} from "./schema.ts"
 import type {FinallyChain, FinallyConfig, ParsedFinally} from "./finally.ts"
 import type {SuperpositionProcessValue} from "./superposition.ts"
 
@@ -265,3 +265,25 @@ export interface ActionChain<
   v extends Values<ɸ> = Values<ɸ>,
   s extends string = string,
 > extends ActionChainByState<s, ɸ, m, Res, v> {}
+
+export type ProcessChainResult<ɸ extends Fields, m extends Mass, Res, v extends Values<ɸ>, s extends string> = ActionChain<
+  ɸ,
+  m,
+  Res,
+  v,
+  s
+> & {
+  readonly type: ProcessType.ACTION
+  getResult: () => Process<ɸ, m, Res, v, s>
+}
+
+export type ProcessRuntimeResult<ɸ extends Fields, m extends Mass, Res, v extends Values<ɸ>, s extends string> =
+  Process<ɸ, m, Res, v, s>
+  & {
+  state: s
+}
+
+export type ProcessChainLike<ɸ extends Fields, m extends Mass, v extends Values<ɸ> = Values<ɸ>, s extends string = string> = {
+  readonly type: ProcessType.ACTION
+  getResult: () => ProcessRuntimeResult<ɸ, m, unknown, v, s>
+}

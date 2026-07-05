@@ -1,24 +1,17 @@
 import { parse } from "@metafor/template"
 import type { Fields } from "@metafor/types/metafor/fields"
-import type { MatterDeclaration, MatterFields, MatterSchema, MatterTemplateSchema } from "@metafor/types/metafor/matter"
-import type { Mass } from "@metafor/types/metafor/metafor"
-import type { MatterBindingValue, MatterChild, MatterParticle } from "@metafor/types/matter"
+import type { MatterDeclaration, MatterFields, MatterSchema, MatterTemplateSchema, TopologyBasis } from "@metafor/types/metafor/matter"
+import type { Mass } from "@metafor/types/metafor/schema"
+import type { MatterBindingValue, MatterChild, MatterParticle } from "@metafor/types/metafor/matter"
 import type { NodeType } from "@metafor/types/template/node/index"
 import type { NodeCondition } from "@metafor/types/template/node/condition"
 import type { NodeLogical } from "@metafor/types/template/node/logical"
 import type { NodeMap } from "@metafor/types/template/node/map"
 import type { NodeMeta } from "@metafor/types/template/node/meta"
 
-type TopologyBasis = "state" | "enum" | "array" | "ordinary" | "mass" | "unknown"
-
 const HUB_ADDRESS_RE = /^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_/-]+$/
 
 const FIELD_PATH_PREFIXES = ["/value/", "/fields/"] as const
-
-type BindingLike = string | {
-  data?: string | string[]
-  expr?: string
-}
 
 const normalizeMatterPath = (path: string): string => {
   const prefix = FIELD_PATH_PREFIXES.find((item) => path.startsWith(item))
@@ -32,9 +25,9 @@ const normalizeMatterPath = (path: string): string => {
 const normalizeMatterData = <T extends string | string[]>(data: T): T =>
   (Array.isArray(data) ? data.map(normalizeMatterPath) : normalizeMatterPath(data)) as T
 
-const normalizeMatterBinding = <T extends BindingLike | undefined>(value: T): T => {
+const normalizeMatterBinding = <T extends MatterBindingValue | undefined>(value: T): T => {
   if (value === undefined || typeof value === "string" || value.data === undefined) return value
-  const binding = value as Exclude<BindingLike, string>
+  const binding = value as Exclude<MatterBindingValue, string>
   return {...binding, data: normalizeMatterData(binding.data!)} as T
 }
 

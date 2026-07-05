@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-import type { WeakStoreState } from "@metafor/types/bulk"
+import type { WeakStoreState } from "@metafor/types/bulk/weak"
 
 /**
  * @module weak$ — локальное хранилище `Bulk × Weak`.

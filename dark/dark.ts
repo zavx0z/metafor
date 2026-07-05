@@ -1,9 +1,10 @@
 import {MetaFor} from ".."
-import type {AnyField} from "@boundary/wimp/sqlite/fields"
-import type {ActorValueRecord, ValueItemRecord, ValueRecord} from "@metafor/types/persistence"
-import type {BfsEntry, ParticleRef, PendingChildWimp} from "@dark/types/dark"
+import type {Field} from "@boundary/wimp/sqlite/fields/field"
+import type { ActorValueRecord, ValueItemRecord, ValueRecord } from "@metafor/types/boundary/value"
+import type { ForceMessage } from "@metafor/types/force/message"
+import type { BfsEntry, Continuation, MatterParticle, ParticleRef, PendingChildWimp } from "@metafor/types/metafor/matter"
 import {loadMeta} from "./load.ts"
-import {finalizeFieldValues, resolveFieldInits, type Continuation} from "./continuation.ts"
+import {finalizeFieldValues, resolveFieldInits} from "./continuation.ts"
 
 ;(globalThis as unknown as {MetaFor: typeof MetaFor}).MetaFor = MetaFor
 
@@ -17,7 +18,7 @@ export const ensureBoundaryObserver = (): void => {
 
   boundaryObserver?.close()
   observedBoundary = current
-  boundaryObserver = current.observe(async (event) => {
+  boundaryObserver = current.observe(async (event: MessageEvent<ForceMessage>) => {
     for (const part of event.data.parts) {
       if (part.part !== "graviton") continue
       if (part.op !== "test") continue
@@ -141,7 +142,7 @@ async function* matterWimp(
     fieldTypesSnapshot.set(key, fieldSchemaByKey.get(key)!.type)
   }
 
-  const plans = matterRelations
+  const plans: MatterParticle[] = matterRelations
   if (plans.length === 0) return
 
   let frontier: BfsEntry[] = plans.map((plan) => ({plan, parent: {kind: "actor", id: actorId}}))
@@ -193,7 +194,7 @@ const buildValueRecord = async (
   id: number,
   raw: unknown,
   fieldType: string,
-  field: AnyField,
+  field: Field,
   fieldKey: string,
 ): Promise<{ record: ValueRecord; items: ValueItemRecord[] }> => {
   if (raw === null || raw === undefined) return {record: {id, kind: "null"}, items: []}
@@ -206,7 +207,7 @@ const buildValueRecord = async (
       return {record: {id, kind: "string", text: String(raw)}, items: []}
     case "enum": {
       if (field.type !== "enum") throw new Error(`expected enum field for "${fieldKey}"`)
-      const variantId = await field.variantId(String(raw))
+      const variantId = await (field as unknown as {variantId(value: string): Promise<number | null>}).variantId(String(raw))
       if (!variantId) {
         throw new Error(`Unknown enum variant "${String(raw)}" for field "${fieldKey}"`)
       }

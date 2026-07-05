@@ -1,6 +1,6 @@
 import {describe, expect, test} from "bun:test"
-import type {BulkRuntimeSnapshot} from "@metafor/types/bulk"
-import type {Particle} from "@metafor/types/force"
+import type { BulkRuntimeSnapshot } from "@metafor/types/bulk/runtime"
+import type { Particle } from "@metafor/types/force/particle"
 import {applyForcePartToSnapshot} from "./force-snapshot.ts"
 
 const SRC = "zavx0z/linux"

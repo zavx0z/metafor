@@ -7,7 +7,7 @@
 
 import { describe, expect, test } from "bun:test"
 import { loadAction } from "./load"
-import type { ActionFn } from "@metafor/types/bulk"
+import type { ActionFn } from "@metafor/types/bulk/weak"
 
 const fixturesPath = import.meta.dir + "/fixtures"
 

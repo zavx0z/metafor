@@ -1,51 +1,12 @@
 import {existsSync} from "node:fs"
 import {dirname, isAbsolute, resolve} from "node:path"
 import {pathToFileURL} from "node:url"
-import type {EnergyHandlerDescriptor, EnergyProcessDescriptor, EnergyRuntimeSnapshot} from "@metafor/types/energy"
-import type {ForceMessage} from "@metafor/types/force"
-
-export type EnergyProtocol = {
-  close(): void
-}
-
-export type EnergyProtocolOptions = {
-  force?: BroadcastChannel
-  energyId?: string
-  timeoutMs?: number
-  runtimeKind?: string
-  catalog?: EnergyRuntimeSnapshot
-  massStore?: EnergyMassStore
-}
-
-export type EnergyMassContext = {
-  energyId: string
-  actorId: number
-  wimp: string
-  state: string
-}
-
-export type EnergyMassStore = {
-  get(ctx: EnergyMassContext): Record<string, unknown>
-  clear?(): void
-}
-
-type PendingEnergyProcess = {
-  actorId: number
-  wimp: string
-  state: string
-  descriptor: EnergyProcessDescriptor
-}
-
-type EnergyActionParams = {
-  field: Record<string, unknown>
-  value: Record<string, unknown>
-  mass: Record<string, unknown>
-  self: {
-    atom: string
-    meta: string
-    path: string
-  }
-}
+import type { EnergyHandlerDescriptor, EnergyProcessDescriptor } from "@metafor/types/energy/process"
+import type { EnergyRuntimeSnapshot } from "@metafor/types/energy/catalog"
+import type { EnergyMassContext, EnergyMassStore } from "@metafor/types/energy/mass"
+import type { EnergyProtocol, EnergyProtocolOptions } from "@metafor/types/energy/protocol"
+import type { EnergyActionParams, PendingEnergyProcess } from "@metafor/types/energy/runtime"
+import type { ForceMessage } from "@metafor/types/force/message"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)

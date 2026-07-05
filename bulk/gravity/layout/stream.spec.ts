@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { BulkDarkParticle, BulkDarkParticleInput, BulkFieldParticle, BulkManifestSink } from "@metafor/types/bulk"
+import type { BulkDarkParticle, BulkDarkParticleInput, BulkFieldParticle, BulkManifestSink } from "@metafor/types/bulk/manifest"
 import { streamBulkManifest } from "./stream"
 
 const createFieldParticle = (fieldParticleId: number) => ({
@@ -31,12 +31,10 @@ const createDarkParticle = (
   children,
 })
 
-interface CapturedSink extends BulkManifestSink {
+const createCapturingSink = (): BulkManifestSink & {
   events: Array<{ kind: "clear" | "darkParticle" | "fieldParticle"; rootSrc: string; item?: BulkDarkParticle | BulkFieldParticle }>
-}
-
-const createCapturingSink = (): CapturedSink => {
-  const events: CapturedSink["events"] = []
+} => {
+  const events: Array<{ kind: "clear" | "darkParticle" | "fieldParticle"; rootSrc: string; item?: BulkDarkParticle | BulkFieldParticle }> = []
   return {
     events,
     async clearManifest(rootSrc) {

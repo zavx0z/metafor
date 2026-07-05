@@ -1,12 +1,4 @@
-export interface DepthLabelVisibilityOptions {
-  baseDepth: number
-  depth: number
-  labelVisibleLevels: number
-}
-
-export interface DarkParticleLabelVisibilityOptions extends DepthLabelVisibilityOptions {
-  isActiveDarkParticle: boolean
-}
+import type { DarkParticleLabelVisibilityOptions, DepthLabelVisibilityOptions } from "@metafor/types/bulk/layout"
 
 export const isDepthLabelVisible = ({
   baseDepth,

@@ -1,6 +1,6 @@
 import type {SQL} from "bun"
-import type {ValueKind} from "@metafor/types/persistence"
-import {Value, type AnyValue} from "./value.ts"
+import type { ValueKind } from "@metafor/types/boundary/value"
+import {Value} from "./value.ts"
 
 export class ActorFieldValue {
   constructor(
@@ -9,7 +9,7 @@ export class ActorFieldValue {
     readonly field: number,
   ) {}
 
-  async value(): Promise<AnyValue> {
+  async value(): Promise<Value> {
     const row = (
       await this.sql<Array<{ value: number; kind: string }>>`
         SELECT av.value AS value, v.kind AS kind

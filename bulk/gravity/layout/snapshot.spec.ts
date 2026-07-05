@@ -4,7 +4,7 @@ import {
   scaleBulkManifestToRootOuterDiameter,
 } from "./snapshot"
 import { DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG } from "./settings"
-import type { BulkDarkParticle, BulkDarkParticleInput, BulkFieldParticle, BulkManifest } from "@metafor/types/bulk"
+import type { BulkDarkParticle, BulkDarkParticleInput, BulkFieldParticle, BulkManifest } from "@metafor/types/bulk/manifest"
 
 const createFieldParticle = (fieldParticleId: number) => ({
   fieldParticleId,

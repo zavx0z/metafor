@@ -1,11 +1,46 @@
+import type { BulkDarkParticle, BulkFieldParticle, BulkFieldParticleKind, BulkManifest } from "@metafor/types/bulk/manifest"
 import type {
-	BulkDarkParticle,
-	BulkFieldParticle,
-	BulkFieldParticleKind,
+	BotFloorPhones,
+	BotPhoneCameraFlight,
+	BotPhoneDisplayDockControl,
+	BotPhoneDisplayRect,
+	BotPhoneGesture,
+	BotPhoneHudPoint,
+	BotPhoneHudQuad,
+	BotPhoneScreenFrame,
+	BotPhoneScreenHit,
+	BotPhoneScreenTarget,
+	BotPhoneViewState,
+	BulkAndroidControlCommand,
+	BulkAndroidFrameSize,
+	BulkHudSurfaceSlot,
 	BulkLayoutSettings,
-	BulkManifest,
-	BulkRenderSettings,
-} from "@metafor/types/bulk"
+	BulkViewportController,
+	BulkViewportFitAxis,
+	BulkViewportHudController,
+	BulkViewportOptions,
+	BulkViewportStats,
+	BulkViewPose,
+	BulkWebkitFullscreenDocument,
+	BulkWebkitFullscreenElement,
+	CanvasTouchTapState,
+	DarkParticleRenderRecord,
+	FadingLabelRemovalRecord,
+	FadingRemovalRecord,
+	FieldParticleBillboardMode,
+	FieldParticleBillboardRecord,
+	FieldParticleRenderRecord,
+	HoverablePickTarget,
+	LabelRenderRecord,
+	LabelSpec,
+	RestoredBulkViewPose,
+	StoredBulkViewPose,
+	SurfaceArcLimits,
+	SurfaceLabelVisual,
+	TextExtents,
+	ViewNavigationState,
+} from "@metafor/types/bulk/layout"
+import type { BulkRenderSettings } from "@metafor/types/bulk/settings"
 import { normalizeBulkLayoutSettings } from "@bulk/gravity/layout"
 import {
 	DEFAULT_BULK_SETTINGS,
@@ -17,8 +52,8 @@ import {
 import {
 	createLevelResolver,
 	resolveOuterRadiusFromSphereRadius,
-	type LevelResolver,
 } from "@bulk/gravity/level"
+import type { LevelResolver } from "@metafor/types/bulk/level"
 import {
 	BufferAttribute,
 	BufferGeometry,
@@ -70,71 +105,14 @@ import {
 	resolveBulkPickHit,
 	resolveBulkPickHits,
 	resolveBulkViewportFitPose,
-	type BulkViewportFitAxis,
-	type BulkPickTarget,
-	type BulkHoverPriorityCandidate,
 } from "../web-navigation"
+import type { BulkHoverPriorityCandidate, BulkPickTarget } from "@metafor/types/bulk/layout"
 import { isDepthLabelVisible, isDarkParticleLabelVisible } from "../label-visibility"
 import {
 	bendTextAroundEquator,
 	createSurfaceLabel,
 	resolveSurfaceFitScale,
 } from "@bulk/gravity/text"
-import type { SurfaceArcLimits } from "@bulk/gravity/text/fit"
-import type { TextExtents } from "@bulk/gravity/text/extents"
-
-/** Краткая статистика текущего manifest-а, которую viewport отдаёт в UI. */
-export interface BulkViewportStats {
-	fieldParticleCount: number
-	rootSrc?: string
-	darkParticleCount: number
-}
-
-/** Публичный API bulk viewport для Bulk client. */
-export interface BulkViewportController {
-	dispose(): void
-	handleForce(_channel: string, _message: unknown): void
-	setAnimationSuspended(suspended: boolean): void
-	setLayoutSettings(settings: Partial<BulkLayoutSettings>): void
-	setRenderSettings(settings: Partial<BulkRenderSettings>): void
-	setSize(width: number, height: number): void
-	applyManifest(manifest: BulkManifest): void
-	readonly hud: BulkViewportHudController
-}
-
-/** HUD-слой поверх того же renderer/space, что и bulk viewport. */
-export interface BulkViewportHudController {
-	readonly canvas: HTMLCanvasElement
-	readonly renderer: Renderer
-	readonly inputProxy: VirtualInput | null
-	addSurface(surface: UiSurfaceNode, layout: UiSurfaceLayoutFn, opts?: UiSurfaceLayerOpts): void
-	clearSurfaceRect(surface: UiSurfaceNode): void
-	relayout(): void
-	requestRender(): void
-	setFocused(surface: UiSurfaceNode | null): void
-	setSurfaceRect(surface: UiSurfaceNode, rect: UiSurfaceRect): UiSurfaceRect | null
-	surfaceFrame(surface: UiSurfaceNode): {rect: UiSurfaceRect; bounds: {w: number; h: number}} | null
-}
-
-type BulkAndroidFrameSize = {
-	height: number
-	width: number
-}
-
-type BulkAndroidControlCommand =
-	| {type: "tap"; x: number; y: number; frameW?: number; frameH?: number}
-	| {type: "swipe"; x1: number; y1: number; x2: number; y2: number; durationMs?: number; frameW?: number; frameH?: number}
-	| {type: "key"; code: string}
-	| {type: "launch"; packageName: string}
-
-type BulkViewportOptions = {
-	androidFrameSize?: () => BulkAndroidFrameSize | null
-	canvas: HTMLCanvasElement
-	height: number
-	onAndroidControl?: (command: BulkAndroidControlCommand) => boolean
-	onStats?: (stats: BulkViewportStats) => void
-	width: number
-}
 
 import {
 	FOCUS_FLIGHT_MS,
@@ -160,7 +138,7 @@ import {
 	THEME_TERTIARY_GLOW,
 } from "./constants"
 import { computeLerpFactor, easeOutCubic, getDistanceToSegmentPx, mixScalar } from "./math"
-import { resolveForceFieldId, resolveForceFieldsPayload } from "../../boundary/force-fields.ts"
+import { resolveForceFieldId, resolveForceFieldsPayload } from "@metafor/types/force/fields"
 
 const torusWireframeCache = new Map<string, BufferGeometry>()
 const sphereWireframeCache = new Map<string, BufferGeometry>()
@@ -220,90 +198,6 @@ const rebuildLevelResolver = (): void => {
 	levelResolver = createLevelResolver(toLevelSettings(activeLayoutSettings, activeRenderSettings))
 }
 
-type HoverablePickTarget = BulkPickTarget & {
-	baseColor: Color
-	baseGlowColor: Color | null
-	baseGlowIntensity: number
-	baseOpacity: number
-	material: LineGlowMaterial
-}
-
-type BotPhoneScreenTarget = {
-	phone: Object3D
-	screen: Object3D
-	screenH: number
-	screenW: number
-}
-
-type BotPhoneDisplayRect = {
-	h: number
-	w: number
-	x: number
-	y: number
-}
-
-type BotFloorPhones = {
-	root: Object3D
-	screens: BotPhoneScreenTarget[]
-}
-
-type BotPhoneScreenHit = {
-	androidX: number
-	androidY: number
-	distance: number
-	frameH: number
-	frameW: number
-	localX: number
-	localY: number
-	target: BotPhoneScreenTarget
-}
-
-type BotPhoneHudPoint = {
-	x: number
-	y: number
-}
-
-type BotPhoneHudQuad = {
-	bottomLeft: BotPhoneHudPoint
-	bottomRight: BotPhoneHudPoint
-	topLeft: BotPhoneHudPoint
-	topRight: BotPhoneHudPoint
-}
-
-type BotPhoneScreenFrame = {
-	bounds: UiSurfaceRect
-	displayRect: BotPhoneDisplayRect
-	displaySizePx: number
-	quad: BotPhoneHudQuad
-	target: BotPhoneScreenTarget
-}
-
-type BotPhoneGesture = {
-	current: BotPhoneScreenHit
-	start: BotPhoneScreenHit
-	startClientX: number
-	startClientY: number
-	startedAt: number
-}
-
-type BulkViewPose = {
-	position: Vector3
-	target: Vector3
-	up: Vector3
-}
-
-type RestoredBulkViewPose = BulkViewPose & {
-	rootFitLockedToViewport: boolean
-}
-
-type StoredBulkViewPose = {
-	href: string
-	position: {x: number; y: number; z: number}
-	rootFitLockedToViewport?: boolean
-	target: {x: number; y: number; z: number}
-	up: {x: number; y: number; z: number}
-}
-
 const BULK_VIEW_POSE_STORAGE_KEY = "metafor.bulk.viewport.pose:v1"
 
 const vectorFromStoredBulkPose = (value: unknown): Vector3 | null => {
@@ -350,43 +244,8 @@ const writeStoredBulkViewPose = (pose: BulkViewPose, rootFitLockedToViewport: bo
 	}
 }
 
-type BotPhoneViewState = {
-	returnPose: BulkViewPose
-	target: BotPhoneScreenTarget
-}
-
-type BotPhoneCameraFlight = {
-	end: BulkViewPose
-	start: BulkViewPose
-	startedAt: number
-}
-
-type CanvasTouchTapState = {
-	cancelled: boolean
-	startX: number
-	startY: number
-	touchId: number
-}
-
-type BotPhoneDisplayDockControl = {
-	fullscreenButton: UiSurfaceRect
-	hit: UiSurfaceRect
-	returnButton: UiSurfaceRect
-}
-
 const BOT_PHONE_HOVER_HUD_Z = 8
 const BOT_PHONE_DISPLAY_DOCK_HUD_Z = 9
-
-type BulkWebkitFullscreenDocument = Document & {
-	webkitCancelFullScreen?: () => Promise<void> | void
-	webkitExitFullscreen?: () => Promise<void> | void
-	webkitFullscreenElement?: Element | null
-}
-
-type BulkWebkitFullscreenElement = Element & {
-	webkitRequestFullScreen?: () => Promise<void> | void
-	webkitRequestFullscreen?: () => Promise<void> | void
-}
 
 const sameBotPhoneScreenTarget = (left: BotPhoneScreenTarget, right: BotPhoneScreenTarget): boolean =>
 	left.screen === right.screen
@@ -468,117 +327,6 @@ const exitBulkFullscreen = async (): Promise<void> => {
 	const exit = webkitDocument.webkitExitFullscreen ?? webkitDocument.webkitCancelFullScreen
 	if (exit !== undefined && webkitDocument.webkitFullscreenElement !== null) await Promise.resolve(exit.call(document))
 }
-
-type ViewNavigationState = {
-	fallbackFitPoints: Vector3[]
-	fallbackFitRadius: number
-	fallbackTarget: Vector3
-	startedAt: number | null
-	startPose: BulkViewPose
-	targetKey: string | null
-}
-
-type DarkParticleRenderRecord = {
-	baseTorusScale: number
-	container: Object3D
-	cosmosOrbitAngle: number
-	currentTransitionScale: number
-	material: LineGlowMaterial
-	pickTarget: HoverablePickTarget
-	snapshot: BulkDarkParticle
-	targetLocalPosition: Vector3
-	torus: LineSegments
-}
-
-type FieldParticleRenderRecord = {
-	cosmosOrbitAngle: number
-	currentTransitionScale: number
-	depth: number
-	material: LineGlowMaterial
-	node: LineSegments
-	parentDarkParticleId: number
-	pickTarget: HoverablePickTarget
-	snapshot: BulkFieldParticle
-	targetLocalPosition: Vector3
-}
-
-type FieldParticleBillboardRecord = {
-	anchorObject: Object3D
-	container: Object3D
-	fieldParticleId: number
-	heightMm: number
-	pixelScale: number
-	signature: string
-	surface: FieldParticleBillboardSurface
-	widthMm: number
-}
-
-type FadingRemovalRecord = {
-	baseOpacity: number
-	durationMs: number
-	initialScale: Vector3
-	material: LineGlowMaterial
-	object: Object3D
-	startedAtMs: number
-}
-
-type SurfaceLabelVisual = {
-	container: Object3D
-	coverCenterX: number
-	extents: TextExtents
-	initialCoverPositions: Float32Array
-	initialStencilPositions: Float32Array
-	material: TextMaterial
-	stencilCenterX: number
-	textNode: Text
-}
-
-type LabelRenderRecord = {
-	anchorObject: Object3D
-	container: Object3D
-	coverCenterX: number
-	currentOpacity: number
-	currentScale: number
-	extents: TextExtents
-	initialCoverPositions: Float32Array
-	initialStencilPositions: Float32Array
-	key: string
-	kind: "darkParticle" | "fieldParticle"
-	material: TextMaterial
-	offset: number
-	torusRadius: number
-	torusTube: number
-	signature: string
-	sphereRadius: number
-	stencilCenterX: number
-	textNode: Text
-}
-
-type LabelSpec = {
-	anchorObject: Object3D
-	color: Color
-	depth: number
-	key: string
-	kind: "darkParticle" | "fieldParticle"
-	metricDepth: number
-	metricRadius: number
-	offset: number
-	torusRadius: number
-	torusTube: number
-	sphereRadius: number
-	text: string
-}
-
-type FadingLabelRemovalRecord = {
-	durationMs: number
-	initialOpacity: number
-	initialScale: Vector3
-	material: TextMaterial
-	object: Object3D
-	startedAtMs: number
-}
-
-type FieldParticleBillboardMode = "summary" | "surface"
 
 const getViewportConfig = () => bulkLayoutConfig.viewport
 const getTorusFallback = () => getViewportConfig().torusFallbackMm
@@ -1732,19 +1480,6 @@ const createAnthropomorphBotLight = (color: Color, intensity: number, position: 
 	light.position.copy(position)
 	light.updateMatrix()
 	return light
-}
-
-type BulkHudSurfaceSlot = {
-	surface: UiSurfaceNode
-	layout: UiSurfaceLayoutFn
-	rect: UiSurfaceRect
-	rectOverride?: UiSurfaceRect
-	pixelScale?: number
-	order: number
-	windowZIndex: number
-	zIndex: number
-	windowId: string | null
-	windowOrder: number
 }
 
 class BulkViewportHudRuntime implements BulkViewportHudController {

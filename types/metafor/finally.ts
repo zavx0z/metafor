@@ -1,5 +1,5 @@
 import type { Fields } from "./fields.ts"
-import type { Mass } from "./metafor.ts"
+import type { Mass } from "./schema.ts"
 import type { ExecutionEnv, ParsedActionHandler } from "./process.ts"
 
 declare const FinallyStateBrand: unique symbol
@@ -39,4 +39,27 @@ export interface ParsedFinally {
   /** Среды исполнения процесса */
   env?: ExecutionEnv[]
   before: ParsedActionHandler
+}
+
+export type FinallyBeforeHandler<m extends Mass> = ({ mass }: { mass: m }) => void | Promise<void>
+
+export type FinallyInput<m extends Mass> = {
+  type: ParsedFinally["type"]
+  label?: string
+  desc?: string
+  env?: ExecutionEnv[]
+  before?: FinallyBeforeHandler<m>
+}
+
+export type FinallyRuntimeResult<m extends Mass, s extends string = string> = FinallyInput<m> & {
+  state: s
+}
+
+export type FinallyChainResult<ɸ extends Fields = Fields, m extends Mass = Mass, s extends string = string> = FinallyChain<
+  ɸ,
+  m,
+  s
+> & {
+  readonly type: ParsedFinally["type"]
+  getResult: () => FinallyRuntimeResult<m, s>
 }

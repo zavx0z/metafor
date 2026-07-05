@@ -1,14 +1,8 @@
 import type {SQL} from "bun"
-import type {
-  BulkRuntimeField,
-  BulkRuntimeMatterBindingPath,
-  BulkRuntimeMatterChildBindingPath,
-  BulkRuntimeMatterParticle,
-  BulkRuntimeSnapshot,
-  BulkRuntimeValue,
-  BulkRuntimeWimp,
-} from "@metafor/types/bulk"
-import type {ActorRecord, ActorValueRecord, FieldEnumVariantRecord, TopologyRecord, ValueItemRecord} from "@metafor/types/persistence"
+import type { BulkRuntimeField, BulkRuntimeMatterBindingPath, BulkRuntimeMatterChildBindingPath, BulkRuntimeMatterParticle, BulkRuntimeSnapshot, BulkRuntimeValue, BulkRuntimeWimp } from "@metafor/types/bulk/runtime"
+import type { ActorRecord } from "@metafor/types/boundary/actor"
+import type { ActorValueRecord, FieldEnumVariantRecord, ValueItemRecord } from "@metafor/types/boundary/value"
+import type { TopologyRecord } from "@metafor/types/boundary/topology"
 
 export async function bulkRuntime(sql: SQL): Promise<BulkRuntimeSnapshot> {
   const actors = await sql<ActorRecord[]>`

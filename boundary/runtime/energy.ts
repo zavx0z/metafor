@@ -1,24 +1,12 @@
 import type {SQL} from "bun"
-import type {EnergyHandlerDescriptor, EnergyRuntimeSnapshot} from "@metafor/types/energy"
-
-type ActorRow = {id: number; wimp: string}
-type ProcessActionRow = {
-  wimp: string
-  key: string
-  action: string
-  importSpecifier: string | null
-  wrapperSrc: string | null
-  success: string | null
-  error: string | null
-}
-type ProcessEnvRow = {wimp: string; key: string; env: string}
-interface ProcessActionFieldAccessRow {
-  wimp: string
-  key: string
-  phase: string
-  field: number
-  fieldKey: string
-}
+import type { EnergyHandlerDescriptor } from "@metafor/types/energy/process"
+import type { EnergyRuntimeSnapshot } from "@metafor/types/energy/catalog"
+import type {
+  EnergyRuntimeActorRow,
+  EnergyRuntimeProcessActionFieldAccessRow,
+  EnergyRuntimeProcessActionRow,
+  EnergyRuntimeProcessEnvRow,
+} from "@metafor/types/boundary/runtime"
 
 const group = <T>(rows: T[], key: (row: T) => string): Map<string, T[]> => {
   const map = new Map<string, T[]>()
@@ -32,8 +20,8 @@ const group = <T>(rows: T[], key: (row: T) => string): Map<string, T[]> => {
 }
 
 export async function energyRuntime(sql: SQL): Promise<EnergyRuntimeSnapshot> {
-  const actors = await sql<ActorRow[]>`SELECT id, wimp FROM actor ORDER BY rowid`
-  const processActions = await sql<ProcessActionRow[]>`
+  const actors = await sql<EnergyRuntimeActorRow[]>`SELECT id, wimp FROM actor ORDER BY rowid`
+  const processActions = await sql<EnergyRuntimeProcessActionRow[]>`
     SELECT process.wimp, process.key,
            process_action.action,
            process_action.action_import_specifier AS importSpecifier,
@@ -44,13 +32,13 @@ export async function energyRuntime(sql: SQL): Promise<EnergyRuntimeSnapshot> {
     JOIN process ON process.id = process_action.process
     ORDER BY process.wimp, process.rowid
   `
-  const processEnvs = await sql<ProcessEnvRow[]>`
+  const processEnvs = await sql<EnergyRuntimeProcessEnvRow[]>`
     SELECT process.wimp, process.key, process_env.env
     FROM process_env
     JOIN process ON process.id = process_env.process
     ORDER BY process.wimp, process.rowid, process_env.env
   `
-  const processActionReads = await sql<ProcessActionFieldAccessRow[]>`
+  const processActionReads = await sql<EnergyRuntimeProcessActionFieldAccessRow[]>`
     SELECT process.wimp, process.key, par.phase, par.field, field.key AS fieldKey
     FROM process_action_read par
     JOIN process ON process.id = par.process
@@ -58,7 +46,7 @@ export async function energyRuntime(sql: SQL): Promise<EnergyRuntimeSnapshot> {
     WHERE par.phase IN ('action', 'success', 'error')
     ORDER BY process.wimp, process.rowid, par.phase, field.rowid
   `
-  const processActionWrites = await sql<ProcessActionFieldAccessRow[]>`
+  const processActionWrites = await sql<EnergyRuntimeProcessActionFieldAccessRow[]>`
     SELECT process.wimp, process.key, paw.phase, paw.field, field.key AS fieldKey
     FROM process_action_write paw
     JOIN process ON process.id = paw.process

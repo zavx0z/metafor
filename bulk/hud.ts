@@ -1,5 +1,13 @@
-import type {BulkViewportController, BulkViewportStats} from "bulk/web"
-import type {BulkLayoutSettings, BulkRenderSettings} from "@metafor/types/bulk"
+import type { BulkLayoutSettings, BulkViewportController, BulkViewportStats } from "@metafor/types/bulk/layout"
+import type {
+	BulkHudController,
+	BulkHudOptions,
+	BulkHudSettingsSnapshot,
+	BulkRenderSettings,
+	DockButtonKind,
+	SettingsPanelState,
+	SettingsTab,
+} from "@metafor/types/bulk/settings"
 import {UiSurface, Z, div, divScrollPosition, divScrollTo, palette, uiIcons, type DivScrollContext, type UiSurfaceRect} from "@ui/elements"
 import {Button, SliderControl, Switcher, TextField} from "@ui/components"
 import {HudSideTab, HudWindow} from "@ui/hud"
@@ -7,35 +15,8 @@ import {
 	BULK_LAYOUT_SETTING_KEYS,
 	BULK_SETTINGS_BY_KEY,
 	DEFAULT_BULK_SCENE_SRC,
-	type BulkSettingKey,
 } from "bulk/settings"
-
-export type BulkHudSettingsSnapshot = {
-	layoutSettings: Partial<BulkLayoutSettings>
-	renderSettings: Partial<BulkRenderSettings>
-}
-
-export type BulkHudOptions = {
-	viewport: BulkViewportController
-	initialSrc: string
-	initialSettings: BulkHudSettingsSnapshot
-	onApply(src: string, settings: BulkHudSettingsSnapshot): void
-	onRenderSettingsChange(settings: Partial<BulkRenderSettings>): void
-	onSettingsPersist(settings: BulkHudSettingsSnapshot): void
-}
-
-export type BulkHudController = {
-	currentSrc(): string
-	relayout(): void
-	setBusy(busy: boolean): void
-	setConnectionStatus(online: boolean): void
-	setStats(stats: BulkViewportStats): void
-	settingsSnapshot(): BulkHudSettingsSnapshot
-}
-
-type SettingsTab = "scene" | "geometry" | "render"
-type DockButtonKind = "settings" | "fullscreen"
-type SettingsPanelState = {open?: boolean; tab?: SettingsTab; scroll?: Partial<Record<SettingsTab, number>>}
+import type { BulkSettingKey } from "@metafor/types/bulk/settings"
 
 const SETTINGS_MIN_W = 310
 const SETTINGS_MAX_W = 380

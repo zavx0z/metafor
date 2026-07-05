@@ -3,7 +3,7 @@ import {SQL} from "bun"
 import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
 import type {Actor} from "@boundary/actor"
-import type {Boundary} from "boundary"
+import type { Boundary } from "@metafor/types/boundary/api"
 import {open} from "boundary/sqlite"
 import {matter} from "./dark.ts"
 
@@ -61,8 +61,8 @@ describe("matter(zavx0z/git) → boundary", () => {
           .get(src)
           .then((w) => w!.fields.get({key: "operation"}))
           .then((field) =>
-            field && field.type === "enum"
-              ? field.variants.all().then((variants) => variants.map((v) => v.value))
+            field?.type === "enum"
+              ? (field as unknown as {variants: {all(): Promise<Array<{value: string}>>}}).variants.all().then((variants) => variants.map((v) => v.value))
               : Promise.resolve([] as string[]),
           ),
       )

@@ -1,4 +1,6 @@
-import type {Force, ForceBinding, ForceChannel, ForceMessage, ForceMessageListener, Particle} from "@metafor/types/force"
+import type { Force, ForceBinding, ForceChannel } from "@metafor/types/force/channel"
+import type { ForceMessage, ForceMessageListener } from "@metafor/types/force/message"
+import type { Particle } from "@metafor/types/force/particle"
 
 export const FORCE = "force"
 

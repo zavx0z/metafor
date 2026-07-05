@@ -1,4 +1,5 @@
-import type { CpuRuntimeContext, WeakChanges, WeakStepMode } from "@metafor/types/matrix"
+import type { CpuRuntimeContext } from "@metafor/types/matrix/cpu"
+import type { WeakChanges, WeakStepMode } from "@metafor/types/matrix/weak"
 import { evaluateBraneNextState } from "./transition"
 import { STATE_NONE, STATE_UNDEFINED, StepMode } from "../constants"
 

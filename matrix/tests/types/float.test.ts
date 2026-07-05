@@ -6,7 +6,7 @@ import { setupDevice } from "fixture"
 import {write, update} from "../../matrix"
 import { GPU, weak$ } from "../../weak"
 import { FieldType } from "../../gravity"
-import type { MatrixCollapse } from "@metafor/types/matrix"
+import type { MatrixCollapse } from "@metafor/types/matrix/data"
 
 describe("weak - тип FLOAT (число) с bun-webgpu", () => {
   beforeAll(async () => {

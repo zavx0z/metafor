@@ -1,12 +1,12 @@
 import {Buffer} from "node:buffer"
 import {describe, expect, test} from "bun:test"
-import type {EnergyProcessDescriptor, EnergyRuntimeSnapshot} from "@metafor/types/energy"
-import type {ForceMessage, Particle} from "@metafor/types/force"
+import type { EnergyProcessDescriptor } from "@metafor/types/energy/process"
+import type { EnergyRuntimeSnapshot } from "@metafor/types/energy/catalog"
+import type { ForceMessage } from "@metafor/types/force/message"
+import type { Particle } from "@metafor/types/force/particle"
 import {startEnergyProtocol} from "./energy.ts"
 
 let channelSequence = 0
-
-type EnergyActionDescriptor = EnergyProcessDescriptor["action"]
 
 const waitFor = async (predicate: () => boolean): Promise<void> => {
   const deadline = Date.now() + 1000
@@ -25,7 +25,7 @@ const sleep = async (ms: number): Promise<void> => {
 
 const processEntry = (
   state: string,
-  action: EnergyActionDescriptor = {
+  action: EnergyProcessDescriptor["action"] = {
     src: "./actions/ready.ts",
     wrapperSrc: "async () => {}",
     readFields: [[2, "command"]],

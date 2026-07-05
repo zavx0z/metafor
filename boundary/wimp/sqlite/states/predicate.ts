@@ -1,16 +1,5 @@
 import type { Condition } from "./condition.ts"
-
-type PredicateRow = {
-  id: number
-  condition: number
-  predicate_order: number
-  operator: string
-  value_kind: "null" | "boolean" | "number" | "string" | "enum" | "list"
-  value_boolean: number | null
-  value_number: number | null
-  value_text: string | null
-  value_variant: number | null
-}
+import type { PredicateRow } from "@metafor/types/boundary/wimp"
 
 const decodeOperatorKey = (operator: string): string => {
   switch (operator) {

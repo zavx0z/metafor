@@ -1,14 +1,15 @@
+import type { LevelDetailSettings, LevelLabelSettings, LevelSettings } from "@metafor/types/bulk/level"
+import type { BulkLayoutSettings } from "@metafor/types/bulk/layout"
 import type {
-  LevelDetailSettings,
-  LevelLabelSettings,
-  LevelSettings,
-  BulkLayoutSettings,
+  BulkLayoutConfig,
   BulkRenderSettings,
+  BulkSettingConfig,
+  BulkSettingKey,
   BulkSettingsConfig,
   PersistedSettingsRecord,
   SettingsIndexedDbOptions,
   SettingsSnapshot,
-} from "@metafor/types/bulk"
+} from "@metafor/types/bulk/settings"
 import {
   DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG,
   toLevelGeometrySettings,
@@ -58,55 +59,6 @@ export const BULK_RENDER_SETTING_KEYS = [
   "torusTubularSegments",
   "wireframeOpacity",
 ] as const satisfies readonly (keyof BulkRenderSettings)[]
-
-/** Layout-контракт UI: viewport-камера, сетка, fallback torus geometry. Snapshot-константы хранятся в `@bulk/gravity/layout`. */
-export interface BulkLayoutConfig {
-  viewport: {
-    axesSizeMm: number
-    camera: {
-      far: number
-      fovRad: number
-      near: number
-      position: { x: number; y: number; z: number }
-      target: { x: number; y: number; z: number }
-    }
-    grid: {
-      centerColorHex: number
-      colorHex: number
-      divisions: number
-      sizeMm: number
-    }
-    levelsMm: {
-      eye: number
-      elbow: number
-      floor: number
-    }
-    torusFallbackMm: {
-      radius: number
-      tube: number
-    }
-  }
-}
-
-export type BulkSettingSection = "layout" | "render"
-export type BulkSettingGroup = "animation" | "detail" | "geometry" | "labels" | "torus"
-export type BulkLayoutSettingKey = keyof BulkLayoutSettings
-export type BulkRenderSettingKey = keyof BulkRenderSettings
-export type BulkSettingKey = BulkLayoutSettingKey | BulkRenderSettingKey
-
-/** Метаданные одной UI-настройки Bulk, доступной по стабильному ключу. */
-export interface BulkSettingConfig {
-  defaultValue: boolean | number
-  /** Короткое пояснение для пользователя, которое показывается рядом с настройкой. */
-  description: string
-  group: BulkSettingGroup
-  label: string
-  max?: number
-  min?: number
-  section: BulkSettingSection
-  step?: number
-  type?: "checkbox" | "range"
-}
 
 /** Layout-контракт Bulk: viewport-камера, сетка, fallback torus geometry. */
 export const bulkLayoutConfig: BulkLayoutConfig = {

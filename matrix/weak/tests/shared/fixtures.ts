@@ -4,8 +4,8 @@
 import { prepareData } from "../../../matrix"
 import { createStoredStringInterner, normalizeFieldValue } from "../../../strong"
 import { FieldType } from "../../../gravity"
-import type { MatrixCollapse, MatrixFieldRecord, MatrixInputData } from "@metafor/types/matrix"
-import type { MatrixData, MatrixStore, WeakRuntime } from "@metafor/types/matrix"
+import type { MatrixCollapse, MatrixFieldRecord, MatrixInputData } from "@metafor/types/matrix/data"
+import type { MatrixData, MatrixStore } from "@metafor/types/matrix/store"
 import { STATE_NONE, STATE_UNDEFINED } from "../../constants"
 
 function clonePreparedStore(data: MatrixData): MatrixStore {
@@ -353,8 +353,6 @@ export function createMatrixStore<T extends { store: MatrixStore }>(fixture: T):
 export function createIsolatedStore<T extends { store: MatrixStore }>(fixture: T): MatrixStore {
   return createMatrixStore(fixture)
 }
-
-export type RuntimeFactory = () => Promise<WeakRuntime>
 
 export function normalizeChanges(changes: Array<[number, number]>): Array<[number, number]> {
   return [...changes].sort((a, b) => a[0] - b[0])

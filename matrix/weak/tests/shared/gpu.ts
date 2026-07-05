@@ -1,15 +1,13 @@
 const executableDevicePromiseKey = Symbol.for("@matrix/weak/tests/executable-gpu-device")
 
-type GpuTestGlobal = typeof globalThis & {
-  [executableDevicePromiseKey]?: Promise<GPUDevice | null>
-}
-
 export async function skipIfNoGpu(): Promise<GPUDevice | null> {
   return await createExecutableDevice()
 }
 
 export async function createExecutableDevice(): Promise<GPUDevice | null> {
-  const global = globalThis as GpuTestGlobal
+  const global = globalThis as typeof globalThis & {
+    [executableDevicePromiseKey]?: Promise<GPUDevice | null>
+  }
   global[executableDevicePromiseKey] ??= (async () => {
     const device = await createDevice()
     if (!device) {

@@ -1,6 +1,9 @@
-import type {BulkLayoutSettings, BulkRenderSettings, BulkRuntimeSnapshot, SettingsSnapshot} from "@metafor/types/bulk"
-import type {Particle} from "@metafor/types/force"
-import {createBulkViewport, type BulkViewportController, type BulkViewportStats} from "bulk/web"
+import type { BulkLayoutSettings } from "@metafor/types/bulk/layout"
+import type { BulkViewportController, BulkViewportStats } from "@metafor/types/bulk/layout"
+import type { BulkRenderSettings, SettingsSnapshot } from "@metafor/types/bulk/settings"
+import type { BulkHudController, BulkHudSettingsSnapshot } from "@metafor/types/bulk/settings"
+import type { BulkErrorMessage, BulkRuntimeSnapshot, ClientMaterializePayload, ForceSocketMessage, SnapshotMessage } from "@metafor/types/bulk/runtime"
+import {createBulkViewport} from "bulk/web"
 import {buildBoundaryBulkManifest} from "./world.ts"
 import {
 	BULK_LAYOUT_SETTING_KEYS,
@@ -9,30 +12,8 @@ import {
 	loadSettings,
 	saveSettings,
 } from "bulk/settings"
-import {installBulkHud, type BulkHudController, type BulkHudSettingsSnapshot} from "./hud.ts"
+import {installBulkHud} from "./hud.ts"
 import {applyForcePartToSnapshot} from "./force-snapshot.ts"
-
-type ForceSocketMessage = {
-	type: "force"
-	parts: Particle[]
-}
-
-type SnapshotMessage = {
-	type: "snapshot"
-	src: string
-	snapshot: BulkRuntimeSnapshot
-}
-
-type ErrorMessage = {
-	type: "error"
-	error: string
-}
-
-type ClientMaterializePayload = {
-	type: "materialize"
-	src: string
-	layoutSettings: Partial<BulkLayoutSettings>
-}
 
 const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement | null
 if (bulkCanvas === null) throw new Error("bulk-canvas not found")
@@ -296,7 +277,7 @@ socket.onclose = () => {
 }
 
 socket.onmessage = (event) => {
-	const message = JSON.parse(String(event.data)) as ForceSocketMessage | SnapshotMessage | ErrorMessage
+	const message = JSON.parse(String(event.data)) as ForceSocketMessage | SnapshotMessage | BulkErrorMessage
 
 	if (message.type === "force") {
 		const forceMessage = message as ForceSocketMessage

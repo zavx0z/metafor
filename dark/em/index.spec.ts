@@ -1,6 +1,6 @@
 import {afterEach, describe, expect, test} from "bun:test"
 import {closeForceChannel, force} from "boundary/force"
-import type {Particle} from "@metafor/types/force"
+import type { Particle } from "@metafor/types/force/particle"
 import {createDarkElectromagnetismForce} from "./index"
 
 afterEach(() => {

@@ -2,7 +2,7 @@ import {afterAll, describe, expect, test} from "bun:test"
 import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
 import {SQL} from "bun"
-import type { MatrixFieldValueRecord, MatrixStore } from "@metafor/types/matrix"
+import type { MatrixFieldValueRecord, MatrixStore } from "@metafor/types/matrix/store"
 import { FIELD_TYPE, OP, CPUWeakRuntime } from "./weak"
 import { STATE_NONE, STATE_UNDEFINED } from "./state"
 import {
@@ -12,8 +12,9 @@ import {
   listMatrixRuntimeActorIds,
   loadMatrixRuntimeSnapshot,
 } from "./matrix"
-import type {ForceMessage, Particle} from "@metafor/types/force"
-import type {MatrixRuntimeSnapshot} from "@metafor/types/matrix"
+import type { ForceMessage } from "@metafor/types/force/message"
+import type { Particle } from "@metafor/types/force/particle"
+import type { MatrixRuntimeSnapshot } from "@metafor/types/matrix/runtime"
 import * as matrixPublicApi from "./index"
 import {FieldType} from "./gravity"
 import {open} from "../boundary/sqlite.ts"

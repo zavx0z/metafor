@@ -1,14 +1,7 @@
 import shaderSource from "./evolution.wgsl" with { type: "text" }
-import type {
-  ArrayHeapSlot,
-  GpuRuntimeContext,
-  MatrixStore,
-  MatrixValue,
-  WeakChanges,
-  WeakHeapUpdate,
-  WeakRuntime,
-  WeakStepMode,
-} from "@metafor/types/matrix"
+import type { ArrayHeapSlot, GpuRuntimeContext } from "@metafor/types/matrix/gpu"
+import type { MatrixStore, MatrixValue } from "@metafor/types/matrix/store"
+import type { WeakChanges, WeakHeapUpdate, WeakRuntime, WeakStepMode } from "@metafor/types/matrix/weak"
 import { FIELD_TYPE, VALUE_TYPE } from "../constants"
 import { deriveWeakData } from "./derived"
 import { findFieldValueOffset } from "./layout-heap"

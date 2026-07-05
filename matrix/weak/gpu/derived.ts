@@ -5,14 +5,10 @@
  * и не мутирует внешний store.
  */
 
-import type {
-  DerivedWeakData,
-  GpuFlattenedTransition,
-  MatrixConditionRecord,
-  MatrixData,
-  MatrixFieldRecord,
-  MatrixFieldValueRecord,
-} from "@metafor/types/matrix"
+import type { DerivedWeakData, GpuFlattenedTransition } from "@metafor/types/matrix/gpu"
+import type { MatrixConditionRecord } from "@metafor/types/matrix/condition"
+import type { MatrixData, MatrixFieldValueRecord } from "@metafor/types/matrix/store"
+import type { MatrixFieldRecord } from "@metafor/types/matrix/data"
 import { FIELD_TYPE, VALUE_TYPE } from "../constants"
 import { buildHeap } from "./layout-heap"
 import { compileFlattenedEnsemble } from "./bytecode"

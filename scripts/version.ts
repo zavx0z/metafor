@@ -1,14 +1,12 @@
 import { join } from "node:path"
 import { $ } from "bun"
 
-type VersionType = "patch" | "minor" | "major"
-
 /**
  * Обновляет версию в package.json в указанной директории и выполняет полную автоматизацию релиза.
  * @param path Путь к директории с package.json
  * @param versionType Тип версии: patch, minor, major
  */
-export const updateVersion = async (path: string, versionType: VersionType = "patch") => {
+export const updateVersion = async (path: string, versionType: "patch" | "minor" | "major" = "patch") => {
   // Валидация типа версии
   if (!["patch", "minor", "major"].includes(versionType)) {
     throw new Error(`Неверный тип версии: ${versionType}. Допустимые значения: patch, minor, major`)
@@ -42,6 +40,6 @@ export const updateVersion = async (path: string, versionType: VersionType = "pa
 }
 
 if (import.meta.main) {
-  const versionType = (process.argv[2] as VersionType) || "patch"
+  const versionType = (process.argv[2] as "patch" | "minor" | "major") || "patch"
   await updateVersion(process.cwd(), versionType)
 }

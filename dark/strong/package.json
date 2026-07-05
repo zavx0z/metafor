@@ -5,7 +5,6 @@
   "private": true,
   "dependencies": {
     "@dark/gravity": "workspace:*",
-    "@dark/types": "workspace:*",
     "@boundary/wimp": "workspace:*",
     "boundary": "workspace:*"
   }

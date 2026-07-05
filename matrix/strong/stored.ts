@@ -1,15 +1,7 @@
-import type {
-  MatrixBraneRecord,
-  MatrixConditionRecord,
-  MatrixData,
-  MatrixFieldRecord,
-  MatrixFieldValueRecord,
-  MatrixScalarValue,
-  MatrixSharedBlockRecord,
-  MatrixStateRecord,
-  MatrixTransitionRecord,
-  FlattenedMatrixInput,
-} from "@metafor/types/matrix"
+import type { MatrixBraneRecord, MatrixData, MatrixFieldValueRecord, MatrixScalarValue, MatrixSharedBlockRecord, MatrixStateRecord, MatrixTransitionRecord } from "@metafor/types/matrix/store"
+import type { MatrixConditionRecord } from "@metafor/types/matrix/condition"
+import type { MatrixFieldRecord, FlattenedMatrixInput } from "@metafor/types/matrix/data"
+import type { MatrixStateGraph } from "@metafor/types/matrix/strong"
 import { FieldType } from "../gravity/schema"
 import { OP } from "../weak"
 import { materializeEntanglement } from "./entangled"
@@ -88,12 +80,6 @@ function normalizeTransitionConditions(
   }
 
   return normalized
-}
-
-interface MatrixStateGraph {
-  stateTable: MatrixStateRecord[]
-  transitions: MatrixTransitionRecord[]
-  conditions: MatrixConditionRecord[]
 }
 
 function buildStateGraph(

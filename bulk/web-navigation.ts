@@ -1,102 +1,22 @@
 import { Ray, Vector3 } from "@metafor/engine"
-
-export interface BulkDarkParticlePickTarget {
-  center: Vector3
-  depth: number
-  kind: "darkParticle"
-  outerRadius: number
-  parentDarkParticleId: number | null
-  darkParticleId: number
-  torusRadius: number
-  torusTube: number
-}
-
-export interface BulkFieldParticlePickTarget {
-  center: Vector3
-  depth: number
-  parentDarkParticleId: number
-  fieldParticleId: number
-  kind: "fieldParticle"
-  outerRadius: number
-  sphereRadius: number
-}
-
-export type BulkPickTarget = BulkDarkParticlePickTarget | BulkFieldParticlePickTarget
-
-export interface ResolveBulkPickTargetOptions {
-  hitPaddingMm?: number
-}
-
-export interface ResolveBulkHoverTargetOptions extends ResolveBulkPickTargetOptions {
-  retentionHitPaddingMm?: number
-}
-
-export interface BulkPickHit {
-  distance: number
-  target: BulkPickTarget
-}
-
-export interface ResolveBulkViewportFocusPoseOptions {
-  currentPosition: Vector3
-  currentTarget: Vector3
-  focusRadius: number
-  fovRad: number
-  nextTarget: Vector3
-}
-
-export interface ResolveBulkViewportFitPoseOptions {
-  aspect: number
-  centerProjectedBounds?: boolean
-  currentPosition: Vector3
-  currentTarget: Vector3
-  fitAxis?: BulkViewportFitAxis
-  fovRad: number
-  paddingRatio?: number
-  points?: readonly Vector3[]
-  radius: number
-  target: Vector3
-  up?: Vector3
-}
-
-export interface BulkViewportFocusPose {
-  position: Vector3
-  target: Vector3
-}
-
-export type BulkViewportFitAxis = "auto" | "height" | "width"
-
-export interface ResolveBulkHoverTransitionOptions {
-  currentTarget: BulkPickTarget | null
-  delayMs?: number
-  nextTarget: BulkPickTarget | null
-  nowMs: number
-  pendingStartedAtMs: number | null
-  pendingTarget: BulkPickTarget | null
-}
-
-export interface BulkHoverTransitionResult {
-  committedTarget: BulkPickTarget | null
-  pendingStartedAtMs: number | null
-  pendingTarget: BulkPickTarget | null
-}
-
-export interface BulkHoverPriorityCandidate extends BulkPickHit {
-  score: number
-}
-
-export interface ResolveBulkHoverPriorityTargetOptions {
-  candidates: readonly BulkHoverPriorityCandidate[]
-  currentTarget: BulkPickTarget | null
-  hysteresisPx?: number
-  parentByDarkParticleId?: ReadonlyMap<number, number | null>
-}
-
-export interface BulkClientPoint {
-  x: number
-  y: number
-}
-
-export type BulkHoverDirection = -1 | 0 | 1
+import type {
+  BulkClientPoint,
+  BulkDarkParticlePickTarget,
+  BulkFieldParticlePickTarget,
+  BulkHoverDirection,
+  BulkHoverPriorityCandidate,
+  BulkHoverTransitionResult,
+  BulkPickHit,
+  BulkPickTarget,
+  BulkViewportFitAxis,
+  BulkViewportFocusPose,
+  ResolveBulkHoverPriorityTargetOptions,
+  ResolveBulkHoverTargetOptions,
+  ResolveBulkHoverTransitionOptions,
+  ResolveBulkPickTargetOptions,
+  ResolveBulkViewportFitPoseOptions,
+  ResolveBulkViewportFocusPoseOptions,
+} from "@metafor/types/bulk/layout"
 
 const DEFAULT_HIT_PADDING_MM = 32
 const DEFAULT_RETENTION_HIT_PADDING_MM = 44

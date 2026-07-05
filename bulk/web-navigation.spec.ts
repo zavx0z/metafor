@@ -10,8 +10,8 @@ import {
   resolveBulkPickTarget,
   resolveBulkViewportFitPose,
   resolveBulkViewportFocusPose,
-  type BulkPickTarget,
 } from "./web-navigation"
+import type { BulkPickTarget } from "@metafor/types/bulk/layout"
 
 describe("bulk web navigation", () => {
   test("по клику выбирает самый глубокий Dark particle среди всех попавших под луч", () => {

@@ -4,7 +4,7 @@ import type { MatterDeclaration, MatterSchema } from "./matter.ts"
 import type { ReactionsSchema } from "./reactions.ts"
 import type { SuperpositionInputCheck, SuperpositionStateKeys } from "./superposition.ts"
 import type { ReactionsDeclaration } from "./reactions.ts"
-import type { ParticleOperation } from "@metafor/types/force"
+import type { ParticleOperation } from "@metafor/types/force/particle"
 
 export interface BulkSchema {
   view: string

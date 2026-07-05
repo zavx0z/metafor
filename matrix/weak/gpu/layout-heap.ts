@@ -4,7 +4,7 @@
  * Это execution-форма для GPU, а не каноническая truth-модель.
  */
 
-import type { GpuFieldMeta, GpuHeapInput, GpuHeapLayout } from "@metafor/types/matrix"
+import type { GpuFieldMeta, GpuHeapInput, GpuHeapLayout } from "@metafor/types/matrix/gpu"
 
 const META_TYPE_SHIFT = 24
 const META_TYPE_MASK = 0xff

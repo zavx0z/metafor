@@ -1,5 +1,5 @@
 import type {SQL} from "bun"
-import type {ActorValueRecord, ValueItemRecord, ValueKind} from "@metafor/types/persistence"
+import type { ActorValueRecord, ValueItemRecord, ValueKind } from "@metafor/types/boundary/value"
 
 export abstract class Value {
   constructor(
@@ -16,7 +16,7 @@ export abstract class Value {
     return rows.map((row) => ({actor: Number(row.actor), field: Number(row.field), value: Number(row.value)}))
   }
 
-  static async get(sql: SQL, id: number): Promise<AnyValue | null> {
+  static async get(sql: SQL, id: number): Promise<Value | null> {
     const row = (
       await sql<Array<{ kind: string }>>`
         SELECT kind FROM value WHERE id = ${id} LIMIT 1
@@ -102,9 +102,7 @@ export class ListValue extends Value {
   }
 }
 
-export type AnyValue = NullValue | BooleanValue | NumberValue | StringValue | EnumValue | ListValue
-
-const buildValue = (sql: SQL, id: number, kind: ValueKind): AnyValue => {
+const buildValue = (sql: SQL, id: number, kind: ValueKind): Value => {
   switch (kind) {
     case "null":
       return new NullValue(sql, id)

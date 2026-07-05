@@ -2,8 +2,8 @@ import type {SQL} from "bun"
 import topologySql from "./topology.sql" with {type: "text"}
 import topologyFuzzyStateSql from "./topology_fuzzy_state.sql" with {type: "text"}
 import {buildTopology, decodeTopologyRow} from "./topology.ts"
-import type {AnyTopology} from "./topology.ts"
-import type {TopologyInput, TopologyRecord} from "@metafor/types/persistence"
+import type {TopologyBase} from "./topology.ts"
+import type { TopologyInput, TopologyRecord } from "@metafor/types/boundary/topology"
 import {emitForceParts} from "../../force.ts"
 
 const isStoredId = (id: number | null | undefined): id is number =>
@@ -28,7 +28,7 @@ export class BoundaryTopologySqlite {
    * `parentActor`/`parentTopology` должен быть задан.
    * Position вычисляется автоматически как next среди siblings.
    */
-  async create(input: TopologyInput): Promise<AnyTopology> {
+  async create(input: TopologyInput): Promise<TopologyBase> {
     const siblingCount = (
       await this.sql<Array<{count: number}>>`
         SELECT COUNT(*) AS count FROM topology
@@ -56,7 +56,7 @@ export class BoundaryTopologySqlite {
     return buildTopology(this.sql, topology)
   }
 
-  async get(id: number): Promise<AnyTopology | null> {
+  async get(id: number): Promise<TopologyBase | null> {
     const row = (
       await this.sql<Array<Record<string, unknown>>>`
         SELECT id, parent_actor, parent_topology, kind, position
@@ -82,7 +82,7 @@ export class BoundaryTopologySqlite {
   /**
    * Все topology-узлы, для которых указанный actor — родитель (parent_actor=actorId).
    */
-  async childrenOfActor(actorId: number): Promise<AnyTopology[]> {
+  async childrenOfActor(actorId: number): Promise<TopologyBase[]> {
     const rows = await this.sql<Array<Record<string, unknown>>>`
       SELECT id, parent_actor, parent_topology, kind, position
       FROM topology

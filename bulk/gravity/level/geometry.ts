@@ -1,4 +1,4 @@
-import type { LevelGeometry, LevelGeometrySettings, ResolveLevelGeometryOptions } from "@metafor/types/bulk"
+import type { LevelGeometry, LevelGeometrySettings, ResolveLevelGeometryOptions } from "@metafor/types/bulk/level"
 
 const MIN_POSITIVE = 1e-6
 const MIN_DIMENSION_MM = 0.001

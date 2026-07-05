@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { resolveLevelGeometry, resolveLevelScale, resolveOuterRadiusFromSphereRadius } from "./geometry"
-import type { LevelGeometrySettings } from "@metafor/types/bulk"
+import type { LevelGeometrySettings } from "@metafor/types/bulk/level"
 
 const BASE: LevelGeometrySettings = {
   rootInnerDiameterMm: 1000,

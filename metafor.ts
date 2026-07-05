@@ -88,7 +88,7 @@ import type { ProcessesDeclaration } from "@metafor/types/metafor/process"
 import { serializeStyle } from "./style.ts"
 import type { MatterDeclaration } from "@metafor/types/metafor/matter"
 
-import type { MetaForConfig, BulkDeclaration, MetaDSL, BulkSchema, Mass } from "@metafor/types/metafor/metafor"
+import type { MetaForConfig, BulkDeclaration, MetaDSL, BulkSchema, Mass } from "@metafor/types/metafor/schema"
 
 globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
   const desc = config?.desc

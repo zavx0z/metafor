@@ -1,7 +1,7 @@
 import type {SQL, ReservedSQL} from "bun"
-import type {WimpCreateInput, WimpCreateProcessInput} from "@metafor/types/persistence"
-import type {MetaFieldDSL, MetaReactionDSL, MetaSuperpositionDSL} from "@metafor/types/metafor/metafor"
-import type {MatterBindingValue, MatterEdgeSlot, MatterParticle} from "@metafor/types/matter"
+import type { WimpCreateInput, WimpCreateProcessInput } from "@metafor/types/boundary/wimp"
+import type {MetaFieldDSL, MetaReactionDSL, MetaSuperpositionDSL} from "@metafor/types/metafor/schema"
+import type { MatterBindingValue, MatterEdgeSlot, MatterParticle } from "@metafor/types/metafor/matter"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)

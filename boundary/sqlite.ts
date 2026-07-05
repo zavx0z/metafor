@@ -8,7 +8,7 @@ import {bulkRuntime} from "./runtime/bulk.ts"
 import {matrixRuntime} from "./runtime/matrix.ts"
 import {energyRuntime} from "./runtime/energy.ts"
 
-import type {Boundary} from "./index.ts"
+import type { Boundary } from "@metafor/types/boundary/api"
 import {
   absorbForceMessage,
   closeForceChannel,
@@ -16,8 +16,10 @@ import {
   emitForceMessage,
   observeForceMessage,
 } from "./force.ts"
-import type {ForceBinding, ForceMessage, ForceMessageListener, Particle, ParticleOperation, Part} from "@metafor/types/force"
-import type {TopologyKind} from "@metafor/types/persistence"
+import type { ForceBinding } from "@metafor/types/force/channel"
+import type { ForceMessage, ForceMessageListener } from "@metafor/types/force/message"
+import type { Particle, ParticleOperation, Part } from "@metafor/types/force/particle"
+import type { TopologyKind } from "@metafor/types/boundary/topology"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)

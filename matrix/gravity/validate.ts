@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-import type { MatrixInputData } from "@metafor/types/matrix"
+import type { MatrixInputData } from "@metafor/types/matrix/data"
 import { FieldType } from "./schema"
 
 /**

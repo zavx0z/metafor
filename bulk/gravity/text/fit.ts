@@ -1,4 +1,4 @@
-import type { TextExtents } from "./extents"
+import type { ResolveSurfaceFitScaleOptions } from "@metafor/types/bulk/layout"
 
 /**
  * Максимальная доля параллели, которую текст занимает по горизонтали (в радианах).
@@ -7,19 +7,6 @@ import type { TextExtents } from "./extents"
  * а по меридиану текст остаётся плоским, поэтому ascender/descender физически не могут
  * зайти за силуэт поверхности.
  */
-export interface SurfaceArcLimits {
-  horizontalRad: number
-}
-
-export interface ResolveSurfaceFitScaleOptions {
-  /** Радиус параллели, вдоль которой текст изгибается. */
-  curveRadiusMm: number
-  extents: TextExtents
-  limits: SurfaceArcLimits
-  /** Нижняя граница масштаба — текст не масштабируется ниже неё. */
-  minScale: number
-}
-
 /**
  * Единый масштаб посадки текста по ширине.
  *

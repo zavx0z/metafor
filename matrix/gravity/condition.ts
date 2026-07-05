@@ -8,11 +8,7 @@
  */
 
 import { OP } from "../weak"
-import type {
-  MatrixConditionScalarValue,
-  MatrixConditionValue,
-  MatrixParsedCheck,
-} from "@metafor/types/matrix"
+import type { MatrixConditionScalarValue, MatrixConditionValue, MatrixParsedCheck } from "@metafor/types/matrix/condition"
 
 /**
  * Парсит условие в массив проверок.

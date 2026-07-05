@@ -1,7 +1,7 @@
 import type { Fields, Values } from "@metafor/types/metafor/fields"
 import type { ReactionsDeclaration, Reaction, ReactionsSchema, ReactionAction, ReactionFilterConditions } from "@metafor/types/metafor/reactions"
 import { extractFields, normalizeFunctionString, updateAppendArg } from "./action.ts"
-import { Initiator, type Mass, type Self } from "@metafor/types/metafor/metafor"
+import { Initiator, type Mass, type Self } from "@metafor/types/metafor/schema"
 
 export const reactionsSchema = <ɸ extends Fields, 𝛴 extends string, m extends Mass = {}>(
   builder: ReactionsDeclaration<ɸ, 𝛴, m>

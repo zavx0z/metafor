@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { resolveSurfaceFitScale, type SurfaceArcLimits } from "./fit"
-import type { TextExtents } from "./extents"
+import { resolveSurfaceFitScale } from "./fit"
+import type { SurfaceArcLimits, TextExtents } from "@metafor/types/bulk/layout"
 
 const LIMITS: SurfaceArcLimits = { horizontalRad: Math.PI * 0.8 }
 
