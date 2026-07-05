@@ -2,5 +2,8 @@
   "name": "@matrix/gravity",
   "type": "module",
   "main": "index.ts",
-  "private": true
+  "private": true,
+  "dependencies": {
+    "@metafor/types": "workspace:*"
+  }
 }

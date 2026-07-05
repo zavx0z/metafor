@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { parseFinally } from "./finally.ts"
 import { fieldSchema } from "./fields.ts"
 import { processesSchema } from "./process.js"
-import type { ProcessesDeclaration } from "./process.t.ts"
+import type { ProcessesDeclaration } from "@metafor/types/metafor/process"
 
 describe("finally-процессы", () => {
   test("destroy в массиве с явной superposition", () => {

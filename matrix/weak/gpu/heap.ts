@@ -1,9 +1,6 @@
-import type { MatrixFieldRecord } from "../../store.t"
-import type { GpuHeapWordUpdate, ArrayHeapSlot } from "./heap.t"
+import type { ArrayHeapSlot, GpuHeapWordUpdate, MatrixFieldRecord } from "@metafor/types/matrix"
 import { FIELD_TYPE } from "../constants"
 import { unpackMeta } from "./layout-heap"
-
-export type { GpuHeapWordUpdate, ArrayHeapSlot } from "./heap.t"
 
 /**
  * Обновляет поля в GPU heap buffer (оркестрация).

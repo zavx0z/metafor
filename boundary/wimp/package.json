@@ -4,9 +4,12 @@
   "type": "module",
   "exports": {
     ".": "./index.ts",
-    "./sqlite": "./sqlite/index.ts"
+    "./sqlite": "./sqlite/index.ts",
+    "./sqlite/fields": "./sqlite/fields/index.ts",
+    "./sqlite/fields/field": "./sqlite/fields/field.ts"
   },
   "dependencies": {
+    "@metafor/types": "workspace:*",
     "@dark/types": "workspace:*"
   },
   "private": true

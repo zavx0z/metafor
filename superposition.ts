@@ -1,5 +1,5 @@
-import type { Fields } from "./fields.t.ts"
-import type { Superposition } from "./superposition.t.ts"
+import type { Fields } from "@metafor/types/metafor/fields"
+import type { Superposition } from "@metafor/types/metafor/superposition"
 
 /**
  * Проверяет, что в конфигурации superposition нет циклов безусловных переходов.

@@ -1,6 +1,4 @@
-import type { StoredStringTable, StringInterner } from "./string-table.t"
-
-export type { StoredStringTable, StringInterner } from "./string-table.t"
+import type { StringInterner } from "@metafor/types/matrix"
 
 /**
  * Изменяемая дедуплицированная таблица строк, которой владеет strong-слой.
@@ -9,10 +7,10 @@ export type { StoredStringTable, StringInterner } from "./string-table.t"
  * Производная вычислительная упаковка выводится отдельно.
  */
 export class StoredStringInterner implements StringInterner {
-  readonly table: StoredStringTable
+  readonly table: string[]
   private readonly ids = new Map<string, number>()
 
-  constructor(initial?: StoredStringTable) {
+  constructor(initial?: string[]) {
     this.table = initial ?? [""]
 
     for (let index = 0; index < this.table.length; index++) {
@@ -36,7 +34,7 @@ export class StoredStringInterner implements StringInterner {
   }
 }
 
-export function createStoredStringInterner(initial?: StoredStringTable): StoredStringInterner {
+export function createStoredStringInterner(initial?: string[]): StoredStringInterner {
   return new StoredStringInterner(initial)
 }
 

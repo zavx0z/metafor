@@ -13,6 +13,7 @@
     "serve": "BOUNDARY_PATH=tmp/boundary.sqlite PORT=3004 bun --hot index.ts"
   },
   "dependencies": {
+    "@metafor/types": "workspace:*",
     "@dark/types": "workspace:*",
     "@dark/gravity": "workspace:*",
     "@dark/em": "workspace:*",

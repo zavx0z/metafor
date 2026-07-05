@@ -1,7 +1,8 @@
 import {existsSync} from "node:fs"
 import {dirname, isAbsolute, resolve} from "node:path"
 import {pathToFileURL} from "node:url"
-import type {BoundaryEnergyHandlerDescriptor, BoundaryEnergyProcessDescriptor, BoundaryEnergyRuntimeSnapshot, ForceMessage} from "boundary"
+import type {EnergyHandlerDescriptor, EnergyProcessDescriptor, EnergyRuntimeSnapshot} from "@metafor/types/energy"
+import type {ForceMessage} from "@metafor/types/force"
 
 export type EnergyProtocol = {
   close(): void
@@ -12,7 +13,7 @@ export type EnergyProtocolOptions = {
   energyId?: string
   timeoutMs?: number
   runtimeKind?: string
-  catalog?: BoundaryEnergyRuntimeSnapshot
+  catalog?: EnergyRuntimeSnapshot
   massStore?: EnergyMassStore
 }
 
@@ -32,7 +33,7 @@ type PendingEnergyProcess = {
   actorId: number
   wimp: string
   state: string
-  descriptor: BoundaryEnergyProcessDescriptor
+  descriptor: EnergyProcessDescriptor
 }
 
 type EnergyActionParams = {
@@ -86,7 +87,7 @@ export function createInMemoryEnergyMassStore(): EnergyMassStore {
   }
 }
 
-const canExecuteInRuntime = (descriptor: BoundaryEnergyProcessDescriptor, runtimeKind: string): boolean => {
+const canExecuteInRuntime = (descriptor: EnergyProcessDescriptor, runtimeKind: string): boolean => {
   if (descriptor.env.length === 0) return true
   for (const env of descriptor.env) {
     if (env === "any" || env === "*" || env === runtimeKind) return true
@@ -157,7 +158,7 @@ const collectHandlerFields = (
 
 const executeProcessHandler = async (
   pending: PendingEnergyProcess,
-  handler: BoundaryEnergyHandlerDescriptor | undefined,
+  handler: EnergyHandlerDescriptor | undefined,
   fields: Record<string, unknown>,
   params: Record<string, unknown>,
 ): Promise<Record<string, unknown>> => {
@@ -211,7 +212,7 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
   const ownsMassStore = options.massStore === undefined
   const massStore = options.massStore ?? createInMemoryEnergyMassStore()
   const actorWimpById = new Map<number, string>(options.catalog?.actors ?? [])
-  const descriptorByWimpState = new Map<string, BoundaryEnergyProcessDescriptor>(
+  const descriptorByWimpState = new Map<string, EnergyProcessDescriptor>(
     options.catalog?.processes.map((process) => [descriptorKey(process.wimp, process.state), process.descriptor]) ?? [],
   )
   const pendingByActorId = new Map<number, PendingEnergyProcess>()
@@ -248,16 +249,17 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
           if (actorId === null) break
           if (part.from !== energyId) break
           if (!isRecord(part.value) || !isRecord(part.value.fields)) break
+          const processFields = part.value.fields
           if (runningActorIds.has(actorId) || fallbackTimersByActorId.has(actorId)) break
           const pending = pendingByActorId.get(actorId)
 
           if (pending) {
             runningActorIds.add(actorId)
-            void executeProcessAction(pending, energyId, part.value.fields, massStore)
+            void executeProcessAction(pending, energyId, processFields, massStore)
               .then(async (data) => {
                 let fields: Record<string, unknown>
                 try {
-                  fields = await executeProcessHandler(pending, pending.descriptor.success, part.value.fields, {data})
+                  fields = await executeProcessHandler(pending, pending.descriptor.success, processFields, {data})
                 } catch (error) {
                   force.postMessage({
                     parts: [{
@@ -281,7 +283,7 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
               .catch(async (thrown) => {
                 const actionError = toError(thrown)
                 try {
-                  const fields = await executeProcessHandler(pending, pending.descriptor.error, part.value.fields, {error: actionError})
+                  const fields = await executeProcessHandler(pending, pending.descriptor.error, processFields, {error: actionError})
                   force.postMessage({
                     parts: [{
                       part: "w-",

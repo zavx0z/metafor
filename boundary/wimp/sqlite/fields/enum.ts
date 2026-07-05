@@ -1,6 +1,5 @@
 import {Field} from "./field.ts"
 import type {Fields} from "./index.ts"
-import type {FieldKey} from "../../../../metafor.t.ts"
 
 export class EnumVariant {
   constructor(
@@ -134,7 +133,7 @@ export class EnumField extends Field {
   readonly type = "enum" as const
   readonly variants: EnumVariants
 
-  constructor(fields: Fields, key: FieldKey) {
+  constructor(fields: Fields, key: string) {
     super(fields, key)
     this.variants = new EnumVariants(this)
   }

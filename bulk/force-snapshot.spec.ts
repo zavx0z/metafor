@@ -1,10 +1,11 @@
 import {describe, expect, test} from "bun:test"
-import type {BoundaryBulkRuntimeSnapshot, Particle} from "boundary"
+import type {BulkRuntimeSnapshot} from "@metafor/types/bulk"
+import type {Particle} from "@metafor/types/force"
 import {applyForcePartToSnapshot} from "./force-snapshot.ts"
 
 const SRC = "zavx0z/linux"
 
-const createSnapshot = (): BoundaryBulkRuntimeSnapshot => ({
+const createSnapshot = (): BulkRuntimeSnapshot => ({
 	version: 1,
 	actors: [
 		{id: 17, parentActor: null, parentTopology: null, wimp: SRC, position: 0},

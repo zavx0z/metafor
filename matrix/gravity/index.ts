@@ -4,14 +4,13 @@
 
 import { parseCondition } from "./condition"
 import { validateData } from "./validate"
-import type { BraneValue, Data } from "./schema.t"
-import type { FlattenedMatrixInput } from "./flattened.t"
+import type { FlattenedMatrixInput, MatrixBraneValue, MatrixInputData } from "@metafor/types/matrix"
 
-export function flattenMatrixData(data: Data): FlattenedMatrixInput {
+export function flattenMatrixData(data: MatrixInputData): FlattenedMatrixInput {
   return {
     fields: [...(data.fields ?? [])],
     branes: (data.branes ?? []).map((brane, braneIndex) => ({
-      values: brane.values.map(([fieldIndex, value]) => [fieldIndex, value] as [number, BraneValue]),
+      values: brane.values.map(([fieldIndex, value]) => [fieldIndex, value] as [number, MatrixBraneValue]),
       state: brane.state,
       transitions: brane.collapses.map((stateTransitions) =>
         stateTransitions.map((collapse) =>
@@ -33,18 +32,5 @@ export function flattenMatrixData(data: Data): FlattenedMatrixInput {
 }
 
 export { parseCondition, validateData }
-export type { Data, FlattenedMatrixInput }
-export type { MatrixStore } from "../store.t"
-export type { ConditionOperator } from "./condition.t"
 export { convertToNumeric } from "./numeric"
-export type { NamedSuperposition } from "./numeric"
-export type {
-  Field,
-  Data as MatrixInput,
-  Brane,
-  Collapse,
-  BraneValue,
-  FieldTypeValue,
-} from "./schema.t"
-export type { FlattenedBraneInput, FlattenedFieldChecks, FlattenedTransition } from "./flattened.t"
-export { FieldType } from "./schema.t"
+export { FieldType } from "./schema"

@@ -1,5 +1,5 @@
 import { processBooleanAttributeWithVariables } from "./event.ts"
-import type { ParseContext } from "../parser.t.ts"
+import type { ParseContext } from "@metafor/types/template/parser"
 
 /**
  * Обрабатывает булевые атрибуты и создает соответствующие объекты.

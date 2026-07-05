@@ -126,7 +126,7 @@ export function normalizePlainText(text: string): string {
 export function applyPhoneticAliases(text: string, aliases: PhoneticAliases): string {
   let result = ` ${text} `;
   const entries = Object.entries(aliases)
-    .map(([spoken, canonical]) => [normalizePlainText(spoken), normalizePlainText(canonical)])
+    .map(([spoken, canonical]): [string, string] => [normalizePlainText(spoken), normalizePlainText(canonical)])
     .sort(([left], [right]) => right.length - left.length);
 
   for (const [spoken, canonical] of entries) {
@@ -150,16 +150,16 @@ export function levenshteinDistance(left: string, right: string): number {
     for (let rightIndex = 0; rightIndex < right.length; rightIndex += 1) {
       const substitutionCost = left[leftIndex] === right[rightIndex] ? 0 : 1;
       current[rightIndex + 1] = Math.min(
-        current[rightIndex] + 1,
-        previous[rightIndex + 1] + 1,
-        previous[rightIndex] + substitutionCost,
+        current[rightIndex]! + 1,
+        previous[rightIndex + 1]! + 1,
+        previous[rightIndex]! + substitutionCost,
       );
     }
 
     [previous, current] = [current, previous];
   }
 
-  return previous[right.length];
+  return previous[right.length]!;
 }
 
 export const defaultVoiceCommands: VoiceCommand[] = [
@@ -277,7 +277,7 @@ function phraseDistance(text: string, phrase: string): number {
 
     for (let start = 0; start <= textTokens.length - candidateLength; start += 1) {
       const candidateTokens = textTokens.slice(start, start + candidateLength);
-      const firstTokenDistance = levenshteinDistance(candidateTokens[0], phraseTokens[0]);
+      const firstTokenDistance = levenshteinDistance(candidateTokens[0]!, phraseTokens[0]!);
       if (firstTokenDistance > 1) continue;
 
       bestDistance = Math.min(bestDistance, levenshteinDistance(candidateTokens.join(" "), phrase));

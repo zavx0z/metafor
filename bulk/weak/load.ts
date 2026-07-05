@@ -6,8 +6,9 @@
  *
  * @packageDocumentation
  */
-import type { Mass, Fields } from "../../index.ts"
-import type { ProcessConfig, ActionFn } from "./load.t"
+import type {Fields} from "@metafor/types/metafor/fields"
+import type {Mass} from "@metafor/types/metafor/metafor"
+import type { ActionFn, ProcessConfig } from "@metafor/types/bulk"
 
 /**
  * Загружает модуль действия и возвращает экспортированную функцию.
@@ -65,7 +66,4 @@ export async function loadAction<ɸ extends Fields, m extends Mass>(
   return actionFn
 }
 
-// Ре-экспорт для удобства
 export { executeProcess } from "./execute"
-export type { ProcessConfig } from "./load.t"
-export type { ExecuteParams } from "./execute.t"

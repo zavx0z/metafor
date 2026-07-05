@@ -1,4 +1,5 @@
-import { StepMode, type StepMode as WeakStepMode } from "../constants"
+import type { WeakStepMode } from "@metafor/types/matrix"
+import { StepMode } from "../constants"
 import { createUniforms } from "./layout"
 
 /**

@@ -1,38 +1,13 @@
 import type {SQL} from "bun"
+import type {
+  MatrixBraneValue,
+  MatrixCollapse,
+  MatrixConditionScalarValue,
+  MatrixConditionValue,
+  MatrixRuntimeSnapshot,
+} from "@metafor/types/matrix"
+import type {ActorStateRecord, ActorValueRecord, FieldEnumVariantRecord, ValueItemRecord} from "@metafor/types/persistence"
 import {STATE_NONE, STATE_UNDEFINED} from "../../matrix/state.ts"
-
-type MatrixFieldType = 0 | 1 | 2 | 3 | 4
-
-export type BoundaryMatrixRuntimeSnapshot = {
-  version: 1
-  runtime: {
-    actorIdByBraneIndex: number[]
-    braneIndexByActorId: Array<[actorId: number, braneIndex: number]>
-    wimpSrcByActorId: Array<[actorId: number, wimpSrc: string]>
-    actorIdsByWimpSrc: Array<[wimpSrc: string, actorIds: number[]]>
-    runtimeFieldIndexByActorFieldId: Array<[actorId: number, fieldId: number, runtimeFieldIndex: number]>
-  }
-  data: {
-    fields: Array<{type: MatrixFieldType; elementType?: "string"; enum?: unknown[]}>
-    branes: Array<{
-      values: Array<[number, unknown]>
-      state: number
-      collapses: Array<Array<[number, Record<number, unknown>] | null>>
-    }>
-    stateNames: string[][]
-  }
-  strong: {
-    runtimeFieldIndexByWimpFieldId: Array<[number, number]>
-    wimpFieldIdsByRuntimeFieldIndex: number[][]
-    braneIndexByWimpFieldId: Array<[number, number]>
-    topologyWimpFieldIds: number[]
-    topologyActorFieldIds: Array<[actorId: number, fieldId: number]>
-  }
-  weak: {
-    stateMetaStateIdsByBraneIndex: number[][]
-    stateHasProcessByBraneIndex: boolean[][]
-  }
-}
 
 type ActorRow = {id: number; wimp: string; position: number}
 type FieldRow = {
@@ -43,7 +18,6 @@ type FieldRow = {
   required: number
   label: string | null
 }
-type EnumVariantRow = {id: number; field: number; position: number; itemValue: string}
 type StateRow = {id: number; wimp: string; name: string; position: number}
 type TransitionRow = {id: number; fromState: number; toState: number; position: number}
 type ConditionRow = {id: number; transition: number; field: number; position: number}
@@ -69,8 +43,6 @@ type PredicateListItemRow = {
   valueVariant: number | null
 }
 type ProcessRow = {wimp: string; key: string}
-type ActorValueRow = {actor: number; field: number; value: number}
-type ActorStateRow = {actor: number; metaState: number | null}
 type ValueRow = {
   id: number
   kind: "null" | "boolean" | "number" | "string" | "enum" | "list"
@@ -80,7 +52,6 @@ type ValueRow = {
   variant: number | null
   enumValue: string | null
 }
-type ValueListItemRow = {value: number; position: number; itemValue: string}
 
 const fieldType = {
   F32: 0,
@@ -110,10 +81,10 @@ const group = <T, K extends string | number>(rows: T[], key: (row: T) => K): Map
   return map
 }
 
-export async function matrixRuntime(sql: SQL): Promise<BoundaryMatrixRuntimeSnapshot> {
+export async function matrixRuntime(sql: SQL): Promise<MatrixRuntimeSnapshot> {
   const actors = await sql<ActorRow[]>`SELECT id, wimp, position FROM actor ORDER BY rowid`
   const fields = await sql<FieldRow[]>`SELECT id, wimp, key, type, required, label FROM field ORDER BY wimp, rowid`
-  const enumVariants = await sql<EnumVariantRow[]>`
+  const enumVariants = await sql<FieldEnumVariantRecord[]>`
     SELECT id, field, position, item_value AS itemValue FROM field_enum_variant ORDER BY field, position
   `
   const states = await sql<StateRow[]>`SELECT id, wimp, name, position FROM state ORDER BY wimp, position`
@@ -138,8 +109,8 @@ export async function matrixRuntime(sql: SQL): Promise<BoundaryMatrixRuntimeSnap
      ORDER BY predicate, item_order
   `
   const processes = await sql<ProcessRow[]>`SELECT wimp, key FROM process ORDER BY wimp, rowid`
-  const actorValues = await sql<ActorValueRow[]>`SELECT actor, field, value FROM actor_value ORDER BY actor, field`
-  const actorStates = await sql<ActorStateRow[]>`SELECT actor, metaState FROM actor_state ORDER BY actor`
+  const actorValues = await sql<ActorValueRecord[]>`SELECT actor, field, value FROM actor_value ORDER BY actor, field`
+  const actorStates = await sql<ActorStateRecord[]>`SELECT actor, metaState FROM actor_state ORDER BY actor`
   const valueRows = await sql<ValueRow[]>`
     SELECT value.id, value.kind,
            value_boolean.boolean AS booleanValue,
@@ -155,7 +126,7 @@ export async function matrixRuntime(sql: SQL): Promise<BoundaryMatrixRuntimeSnap
       LEFT JOIN field_enum_variant ON field_enum_variant.id = value_enum.variant
      ORDER BY value.rowid
   `
-  const valueListItems = await sql<ValueListItemRow[]>`
+  const valueListItems = await sql<ValueItemRecord[]>`
     SELECT value, position, item_value AS itemValue FROM value_list_item ORDER BY value, position
   `
 
@@ -173,14 +144,16 @@ export async function matrixRuntime(sql: SQL): Promise<BoundaryMatrixRuntimeSnap
   const valueItemsByValue = group(valueListItems, (item) => item.value)
   const enumValueByVariantId = new Map(enumVariants.map((variant) => [variant.id, variant.itemValue] as const))
 
-  const decodeScalar = (row: Pick<PredicateRow, "valueKind" | "valueBoolean" | "valueNumber" | "valueText" | "valueVariant">): string | number | boolean | null => {
+  const decodeScalar = (
+    row: Pick<PredicateRow, "valueKind" | "valueBoolean" | "valueNumber" | "valueText" | "valueVariant">,
+  ): MatrixConditionScalarValue => {
     if (row.valueKind === "boolean") return row.valueBoolean === 1
     if (row.valueKind === "number") return row.valueNumber ?? 0
     if (row.valueKind === "string") return row.valueText ?? ""
     if (row.valueKind === "enum") return row.valueVariant ? (enumValueByVariantId.get(row.valueVariant) ?? "") : ""
     return null
   }
-  const decodeValue = (valueId: number | undefined, field: FieldRow): unknown => {
+  const decodeValue = (valueId: number | undefined, field: FieldRow): MatrixBraneValue => {
     const row = valueId === undefined ? undefined : valueById.get(valueId)
     if (!row) {
       if (field.type === "number") return 0
@@ -196,7 +169,7 @@ export async function matrixRuntime(sql: SQL): Promise<BoundaryMatrixRuntimeSnap
     if (row.kind === "list") return (valueItemsByValue.get(row.id) ?? []).map((item) => item.itemValue)
     return null
   }
-  const matrixField = (field: FieldRow): {type: MatrixFieldType; elementType?: "string"; enum?: unknown[]} => {
+  const matrixField = (field: FieldRow): MatrixRuntimeSnapshot["data"]["fields"][number] => {
     if (field.type === "number") return {type: fieldType.F32}
     if (field.type === "boolean") return {type: fieldType.BOOL}
     if (field.type === "array") return {type: fieldType.ARRAY_PTR, elementType: "string"}
@@ -211,16 +184,21 @@ export async function matrixRuntime(sql: SQL): Promise<BoundaryMatrixRuntimeSnap
     if (operator === "is_empty") return "isEmpty"
     return operator
   }
-  const predicateValue = (predicate: PredicateRow): unknown => {
+  const predicateValue = (predicate: PredicateRow): MatrixConditionScalarValue | MatrixConditionScalarValue[] => {
     if (predicate.valueKind !== "list") return decodeScalar(predicate)
     return (predicateItemsByPredicate.get(predicate.id) ?? []).map(decodeScalar)
   }
-  const mergePredicate = (target: Record<string, unknown>, predicate: PredicateRow): void => {
+  const mergePredicate = (target: Record<string, MatrixConditionValue>, predicate: PredicateRow): void => {
     const value = predicateValue(predicate)
     const key = operatorKey(predicate.operator)
     if (predicate.subjectKind === "length") {
       if (key === "eq") target.length = value
-      else target.length = {...(typeof target.length === "object" && target.length !== null ? target.length : {}), [key]: value}
+      else {
+        const lengthTarget = typeof target.length === "object" && target.length !== null && !Array.isArray(target.length)
+          ? target.length
+          : {}
+        target.length = {...lengthTarget, [key]: value}
+      }
       return
     }
     if (predicate.valueKind === "null" && (predicate.operator === "eq" || predicate.operator === "neq")) {
@@ -230,8 +208,8 @@ export async function matrixRuntime(sql: SQL): Promise<BoundaryMatrixRuntimeSnap
     target[key] = value
   }
 
-  const dataFields: BoundaryMatrixRuntimeSnapshot["data"]["fields"] = []
-  const branes: BoundaryMatrixRuntimeSnapshot["data"]["branes"] = []
+  const dataFields: MatrixRuntimeSnapshot["data"]["fields"] = []
+  const branes: MatrixRuntimeSnapshot["data"]["branes"] = []
   const stateNames: string[][] = []
   const actorIdByBraneIndex: number[] = []
   const braneIndexByActorId: Array<[actorId: number, braneIndex: number]> = []
@@ -249,7 +227,7 @@ export async function matrixRuntime(sql: SQL): Promise<BoundaryMatrixRuntimeSnap
 
   actors.forEach((actor, braneIndex) => {
     const actorFields = fieldsByWimp.get(actor.wimp) ?? []
-    const values: Array<[number, unknown]> = []
+    const values: MatrixRuntimeSnapshot["data"]["branes"][number]["values"] = []
     actorIdByBraneIndex[braneIndex] = actor.id
     braneIndexByActorId.push([actor.id, braneIndex])
     wimpSrcByActorId.push([actor.id, actor.wimp])
@@ -286,20 +264,21 @@ export async function matrixRuntime(sql: SQL): Promise<BoundaryMatrixRuntimeSnap
     stateHasProcessByBraneIndex[braneIndex] = actorStatesForWimp.map((state) => processKeys.has(`${actor.wimp}\0${state.name}`))
 
     const collapses = actorStatesForWimp.map((state) =>
-      (transitionsByState.get(state.id) ?? []).map((transition) => {
+      (transitionsByState.get(state.id) ?? []).map((transition): MatrixCollapse => {
         const targetState = stateIndexById.get(transition.toState)
         if (targetState === undefined) return null
-        const transitionConditions: Record<number, unknown> = {}
+        const transitionConditions: Record<number, MatrixConditionValue> = {}
         for (const condition of conditionsByTransition.get(transition.id) ?? []) {
           const runtimeFieldIndex = runtimeFieldIndexByActorField.get(`${actor.id}\0${condition.field}`)
           if (runtimeFieldIndex === undefined) continue
-          const fieldCondition: Record<string, unknown> = {}
+          const fieldCondition: Record<string, MatrixConditionValue> = {}
           for (const predicate of predicatesByCondition.get(condition.id) ?? []) mergePredicate(fieldCondition, predicate)
-          transitionConditions[runtimeFieldIndex] = Object.keys(fieldCondition).length === 1 && "eq" in fieldCondition
+          const normalizedCondition = Object.keys(fieldCondition).length === 1 && "eq" in fieldCondition
             ? fieldCondition.eq
             : fieldCondition
+          if (normalizedCondition !== undefined) transitionConditions[runtimeFieldIndex] = normalizedCondition
         }
-        return [targetState, transitionConditions] as [number, Record<number, unknown>]
+        return [targetState, transitionConditions]
       }),
     )
 

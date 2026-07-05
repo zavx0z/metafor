@@ -1,8 +1,8 @@
 import { normalizeFunctionString, parseFunction } from "./action.ts"
-import type { Fields } from "./fields.t.ts"
-import type { FinallyConfig, FinallyChain, ParsedFinally } from "./finally.t.ts"
-import type { Mass } from "./metafor.t.ts"
-import type { ExecutionEnv } from "./process.t.ts"
+import type { Fields } from "@metafor/types/metafor/fields"
+import type { FinallyConfig, FinallyChain, ParsedFinally } from "@metafor/types/metafor/finally"
+import type { Mass } from "@metafor/types/metafor/metafor"
+import type { ExecutionEnv } from "@metafor/types/metafor/process"
 
 type FinallyBeforeHandler<m extends Mass> = ({ mass }: { mass: m }) => void | Promise<void>
 

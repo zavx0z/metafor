@@ -1,8 +1,6 @@
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value)
 
-export type ForceFieldId = number
-
 /**
  * Протокол Force публикует патчи полей через `value.fields`.
  * Нормализатор живёт у Boundary как общий контрактный слой и не принимает
@@ -22,7 +20,7 @@ export const resolveForceFieldsPayload = (value: unknown): Record<string, unknow
  * Адресация по `key` или порядку намеренно не поддерживается: ключ поля является
  * изменяемой метаинформацией, а порядок не является адресом протокола.
  */
-export const resolveForceFieldId = (address: string): ForceFieldId | null => {
+export const resolveForceFieldId = (address: string): number | null => {
 	if (!/^[1-9]\d*$/.test(address)) return null
 	const id = Number(address)
 	return Number.isSafeInteger(id) ? id : null

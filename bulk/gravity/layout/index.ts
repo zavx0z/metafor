@@ -9,25 +9,12 @@
  *
  * `BulkManifest` является runtime/projection contract-ом Bulk, не persistence table shape.
  */
-export type { BulkLayoutSettings, BulkLayoutSnapshotConfig } from "./settings.t"
 export {
   DEFAULT_BULK_LAYOUT_SETTINGS,
   DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG,
   normalizeBulkLayoutSettings,
   toLevelGeometrySettings,
 } from "./settings"
-export type { BulkDarkParticleInput, BulkFieldParticleInput } from "./snapshot"
-export type {
-  BulkDarkParticle,
-  BulkDarkParticleActivity,
-  BulkDarkParticleKind,
-  BulkFieldParticle,
-  BulkFieldParticleKind,
-  BulkLegacyFieldKind,
-  BulkManifest,
-  BulkManifestSink,
-  BulkOrdinaryFieldKind,
-} from "./world"
 export {
   createBulkManifestFromDarkParticleInputs,
   scaleBulkManifestToRootOuterDiameter,

@@ -21,14 +21,13 @@
  * @packageDocumentation
  */
 
-export type { MatrixStore, MatrixData } from "./store.t.ts"
 import type {
   MatrixStore,
   MatrixFieldValueRecord,
   MatrixFieldStorageLocation,
   MatrixValue,
   MatrixStateRecord,
-} from "./store.t.ts"
+} from "@metafor/types/matrix"
 
 export const matrix$: MatrixStore = {
   fields: [],

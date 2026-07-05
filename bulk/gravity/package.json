@@ -6,7 +6,12 @@
     ".": "./index.ts",
     "./layout": "./layout/index.ts",
     "./level": "./level/index.ts",
-    "./text": "./text/index.ts"
+    "./text": "./text/index.ts",
+    "./text/extents": "./text/extents.ts",
+    "./text/fit": "./text/fit.ts",
+    "./text/font-metrics": "./text/font-metrics.ts",
+    "./text/projection": "./text/projection.ts",
+    "./text/surface": "./text/surface.ts"
   },
   "private": true
 }

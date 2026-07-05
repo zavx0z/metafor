@@ -1,4 +1,4 @@
-import type { MatrixStrongStore } from "./store.t.ts"
+import type { MatrixStrongStore } from "@metafor/types/matrix"
 
 export const strong$: MatrixStrongStore = {
   runtimeFieldIndexByWimpFieldId: new Map(),

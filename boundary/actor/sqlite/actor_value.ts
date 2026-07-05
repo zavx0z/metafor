@@ -1,5 +1,5 @@
 import type {SQL} from "bun"
-import type {ValueKind} from "./value.t.ts"
+import type {ValueKind} from "@metafor/types/persistence"
 import {Value, type AnyValue} from "./value.ts"
 
 export class ActorFieldValue {

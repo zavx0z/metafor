@@ -2,7 +2,7 @@ import { SQL } from "bun"
 import { describe, expect, test, beforeEach, afterEach } from "bun:test"
 import { BoundaryWimpSqlite } from "./sqlite.ts"
 import {force} from "../../force.ts"
-import type {ForceMessage} from "../../force.t.ts"
+import type {ForceMessage} from "@metafor/types/force"
 
 const metaforDslTableNames = [
   "wimp",

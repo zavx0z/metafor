@@ -2,7 +2,7 @@ import {afterAll, describe, expect, test} from "bun:test"
 import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
 import {SQL} from "bun"
-import type { MatrixFieldValueRecord, MatrixStore } from "./store.t"
+import type { MatrixFieldValueRecord, MatrixStore } from "@metafor/types/matrix"
 import { FIELD_TYPE, OP, CPUWeakRuntime } from "./weak"
 import { STATE_NONE, STATE_UNDEFINED } from "./state"
 import {
@@ -11,10 +11,9 @@ import {
   gravity$,
   listMatrixRuntimeActorIds,
   loadMatrixRuntimeSnapshot,
-  type MatrixForceMessage,
-  type MatrixParticle,
-  type MatrixRuntimeSnapshot,
 } from "./matrix"
+import type {ForceMessage, Particle} from "@metafor/types/force"
+import type {MatrixRuntimeSnapshot} from "@metafor/types/matrix"
 import * as matrixPublicApi from "./index"
 import {FieldType} from "./gravity"
 import {open} from "../boundary/sqlite.ts"
@@ -94,7 +93,6 @@ describe("matrix domain smoke", () => {
 })
 
 const createRuntimeSnapshot = (): MatrixRuntimeSnapshot => ({
-  ok: true,
   version: 1,
   runtime: {
     actorIdByBraneIndex: [17],
@@ -163,13 +161,13 @@ const settleBroadcasts = async (): Promise<void> => {
 
 const forceInput = new BroadcastChannel("force")
 
-const emitForce = (message: MatrixForceMessage): void => {
+const emitForce = (message: ForceMessage): void => {
   forceInput.postMessage(message)
 }
 
-const listenForce = (listener: (message: MatrixForceMessage) => void): {close(): void} => {
+const listenForce = (listener: (message: ForceMessage) => void): {close(): void} => {
   const channel = new BroadcastChannel("force")
-  channel.onmessage = (event) => listener(event.data as MatrixForceMessage)
+  channel.onmessage = (event) => listener(event.data as ForceMessage)
   return {
     close() {
       channel.close()
@@ -194,7 +192,7 @@ const enterReadyProcessState = async (): Promise<void> => {
   await waitFor(() => matrix$.states[0] === 1 && matrix$.branes[0]?.lock === true)
 }
 
-const acceptEnergy = async (energy: string, zCopies: MatrixParticle[] = []): Promise<void> => {
+const acceptEnergy = async (energy: string, zCopies: Particle[] = []): Promise<void> => {
   const subscription = listenForce((message) => {
     zCopies.push(...message.parts.filter((part) => part.part === "z" && part.op === "copy"))
   })
@@ -231,7 +229,7 @@ describe("matrix Force v0 runtime addressing", () => {
 
   test("gluon принимает actor ID и value.fields[fieldId], затем публикует photon с actor ID", async () => {
     await loadMatrixRuntimeSnapshot(createRuntimeSnapshot())
-    const photons: MatrixParticle[] = []
+    const photons: Particle[] = []
     const photonSubscription = listenForce((message) => {
       photons.push(...message.parts.filter((part) => part.part === "photon"))
     })
@@ -260,8 +258,8 @@ describe("matrix Force v0 runtime addressing", () => {
     const snapshot = createRuntimeSnapshot()
     snapshot.weak.stateHasProcessByBraneIndex = [[false, true]]
     await loadMatrixRuntimeSnapshot(snapshot)
-    const photons: MatrixParticle[] = []
-    const zParts: MatrixParticle[] = []
+    const photons: Particle[] = []
+    const zParts: Particle[] = []
     const forceSubscription = listenForce((message) => {
       photons.push(...message.parts.filter((part) => part.part === "photon"))
       zParts.push(...message.parts.filter((part) => part.part === "z"))
@@ -292,7 +290,7 @@ describe("matrix Force v0 runtime addressing", () => {
     const snapshot = createRuntimeSnapshot()
     snapshot.weak.stateHasProcessByBraneIndex = [[false, true]]
     await loadMatrixRuntimeSnapshot(snapshot)
-    const zCopies: MatrixParticle[] = []
+    const zCopies: Particle[] = []
     const forceSubscription = listenForce((message) => {
       zCopies.push(...message.parts.filter((part) => part.part === "z" && part.op === "copy"))
     })
@@ -344,7 +342,7 @@ describe("matrix Force v0 runtime addressing", () => {
 
   test("Matrix accepts first z test with z copy", async () => {
     await enterReadyProcessState()
-    const zCopies: MatrixParticle[] = []
+    const zCopies: Particle[] = []
     const forceSubscription = listenForce((message) => {
       zCopies.push(...message.parts.filter((part) => part.part === "z" && part.op === "copy"))
     })
@@ -376,7 +374,7 @@ describe("matrix Force v0 runtime addressing", () => {
 
   test("Matrix ignores repeated z test after executor selected", async () => {
     await enterReadyProcessState()
-    const zParts: MatrixParticle[] = []
+    const zParts: Particle[] = []
     const forceSubscription = listenForce((message) => {
       zParts.push(...message.parts.filter((part) => part.part === "z"))
     })
@@ -414,7 +412,7 @@ describe("matrix Force v0 runtime addressing", () => {
     await enterReadyProcessState()
     await acceptEnergy("energy-local")
 
-    const zCopies: MatrixParticle[] = []
+    const zCopies: Particle[] = []
     const forceSubscription = listenForce((message) => {
       zCopies.push(...message.parts.filter((part) => part.part === "z" && part.op === "copy"))
     })
@@ -453,7 +451,7 @@ describe("matrix Force v0 runtime addressing", () => {
     await enterReadyProcessState()
     await acceptEnergy("energy-local")
 
-    const zCopies: MatrixParticle[] = []
+    const zCopies: Particle[] = []
     const forceSubscription = listenForce((message) => {
       zCopies.push(...message.parts.filter((part) => part.part === "z" && part.op === "copy"))
     })
@@ -496,7 +494,7 @@ describe("matrix Force v0 runtime addressing", () => {
     const filename = join(dir, `matrix-energy-${crypto.randomUUID()}.sqlite`)
     const boundary = await open(filename)
     const sql = new SQL(`sqlite://${filename}`)
-    const forceParts: MatrixParticle[] = []
+    const forceParts: Particle[] = []
     const forceSubscription = listenForce((message) => {
       forceParts.push(...message.parts)
     })
@@ -596,8 +594,8 @@ describe("matrix Force v0 runtime addressing", () => {
     const snapshot = createRuntimeSnapshot()
     snapshot.data.branes[0]!.state = STATE_UNDEFINED
     snapshot.weak.stateHasProcessByBraneIndex = [[true, false]]
-    const photons: MatrixParticle[] = []
-    const zParts: MatrixParticle[] = []
+    const photons: Particle[] = []
+    const zParts: Particle[] = []
     const forceSubscription = listenForce((message) => {
       photons.push(...message.parts.filter((part) => part.part === "photon"))
       zParts.push(...message.parts.filter((part) => part.part === "z"))
@@ -627,7 +625,7 @@ describe("matrix Force v0 runtime addressing", () => {
     expect(matrix$.states[0]).toBe(0)
     expect(matrix$.branes[0]?.lock).toBe(false)
 
-    const photons: MatrixParticle[] = []
+    const photons: Particle[] = []
     const photonSubscription = listenForce((message) => {
       photons.push(...message.parts.filter((part) => part.part === "photon"))
     })
@@ -664,7 +662,7 @@ describe("matrix Force v0 runtime addressing", () => {
     snapshot.weak.stateMetaStateIdsByBraneIndex = [[]]
     snapshot.weak.stateHasProcessByBraneIndex = [[]]
     await loadMatrixRuntimeSnapshot(snapshot)
-    const photons: MatrixParticle[] = []
+    const photons: Particle[] = []
     const photonSubscription = listenForce((message) => {
       photons.push(...message.parts.filter((part) => part.part === "photon"))
     })

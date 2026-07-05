@@ -3,11 +3,12 @@
  */
 import { test, expect, describe } from "bun:test"
 import { validateData } from "../gravity/validate"
-import { FieldType, type Data } from "../gravity"
+import { FieldType } from "../gravity"
+import type { MatrixInputData } from "@metafor/types/matrix"
 
 describe("validateData — валидация входных данных", () => {
   test("должен принимать валидные данные", () => {
-    const data: Data = {
+    const data: MatrixInputData = {
       fields: [{ type: FieldType.F32 }],
       branes: [{
         values: [[0, 100]],
@@ -19,21 +20,21 @@ describe("validateData — валидация входных данных", () =
   })
 
   test("должен принимать отсутствующие fields", () => {
-    const data: Data = {
+    const data: MatrixInputData = {
       branes: [],
     }
     expect(() => validateData(data)).not.toThrow()
   })
 
   test("должен принимать отсутствующие branes", () => {
-    const data: Data = {
+    const data: MatrixInputData = {
       fields: [{ type: FieldType.F32 }],
     }
     expect(() => validateData(data)).not.toThrow()
   })
 
   test("должен принимать пустые fields", () => {
-    const data: Data = {
+    const data: MatrixInputData = {
       fields: [],
       branes: [],
     }
@@ -48,7 +49,7 @@ describe("validateData — валидация входных данных", () =
         state: 0,
         collapses: [[null]],
       }],
-    } as unknown as Data
+    } as unknown as MatrixInputData
     expect(() => validateData(data)).toThrow("invalid type")
   })
 
@@ -60,12 +61,12 @@ describe("validateData — валидация входных данных", () =
         state: 0,
         collapses: [[null]],
       }],
-    } as Data
+    } as MatrixInputData
     expect(() => validateData(data)).toThrow("ARRAY_PTR requires elementType")
   })
 
   test("должен бросать ошибку для out of range field index", () => {
-    const data: Data = {
+    const data: MatrixInputData = {
       fields: [{ type: FieldType.F32 }],
       branes: [{
         values: [[999, 100]],
@@ -77,7 +78,7 @@ describe("validateData — валидация входных данных", () =
   })
 
   test("должен бросать ошибку для невалидного enum значения", () => {
-    const data: Data = {
+    const data: MatrixInputData = {
       fields: [{ type: FieldType.U32, enum: ["A", "B"] }],
       branes: [{
         values: [[0, "INVALID"]],
@@ -89,7 +90,7 @@ describe("validateData — валидация входных данных", () =
   })
 
   test("должен принимать валидное enum значение", () => {
-    const data: Data = {
+    const data: MatrixInputData = {
       fields: [{ type: FieldType.U32, enum: ["A", "B"] }],
       branes: [{
         values: [[0, "A"]],
@@ -101,7 +102,7 @@ describe("validateData — валидация входных данных", () =
   })
 
   test("должен бросать ошибку для невалидного target state", () => {
-    const data: Data = {
+    const data: MatrixInputData = {
       fields: [{ type: FieldType.F32 }],
       branes: [{
         values: [],
@@ -113,7 +114,7 @@ describe("validateData — валидация входных данных", () =
   })
 
   test("должен бросать ошибку для target state out of range", () => {
-    const data: Data = {
+    const data: MatrixInputData = {
       fields: [{ type: FieldType.F32 }],
       branes: [{
         values: [],

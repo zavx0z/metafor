@@ -76,19 +76,19 @@
  * @packageDocumentation
  */
 import { fieldSchema } from "./fields.ts"
-import type { Fields, Field } from "./fields.t.ts"
+import type { Fields, Field } from "@metafor/types/metafor/fields"
 import { parseMatter } from "./matter.ts"
 
 import { validateNoUnconditionalCycles } from "./superposition.ts"
-import type { SuperpositionInput, SuperpositionInputCheck, SuperpositionStateKeys } from "./superposition.t.ts"
+import type { SuperpositionInput, SuperpositionInputCheck, SuperpositionStateKeys } from "@metafor/types/metafor/superposition"
 import { reactionsSchema } from "./reactions.ts"
-import type { ReactionsDeclaration } from "./reactions.t.ts"
+import type { ReactionsDeclaration } from "@metafor/types/metafor/reactions"
 import { processesSchema } from "./process.ts"
-import type { ProcessesDeclaration } from "./process.t.ts"
+import type { ProcessesDeclaration } from "@metafor/types/metafor/process"
 import { serializeStyle } from "./style.ts"
-import type { MatterDeclaration } from "./matter.t.ts"
+import type { MatterDeclaration } from "@metafor/types/metafor/matter"
 
-import type { MetaForConfig, BulkDeclaration, MetaDSL, BulkSchema, Mass } from "./metafor.t.ts"
+import type { MetaForConfig, BulkDeclaration, MetaDSL, BulkSchema, Mass } from "@metafor/types/metafor/metafor"
 
 globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
   const desc = config?.desc

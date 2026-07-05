@@ -1,17 +1,13 @@
 import type {SQL} from "bun"
 import type {
   AxionParticleRow,
-  BindingRow,
-  BindingValue,
-  EdgeSlot,
   FuzzyParticleRow,
   MachoParticleRow,
-  MatterRelationBindingValue,
-  MatterRelationParticle,
-  ParticleKind,
-  ParticleRow,
+  MatterBindingRow,
+  MatterParticleRow,
   WimpParticleRow,
-} from "./matter.t.ts"
+} from "@metafor/types/persistence"
+import type {MatterBindingValue, MatterEdgeSlot, MatterParticle, MatterParticleKind} from "@metafor/types/matter"
 import type {Wimp} from "./wimp.ts"
 import {emitGravitonAdd} from "../../force.ts"
 
@@ -20,12 +16,12 @@ const hasMatter = async (sql: SQL, src: string): Promise<boolean> => {
   return rows.length > 0
 }
 
-const toBindingPaths = (value: BindingValue): string[] => {
+const toBindingPaths = (value: MatterBindingValue): string[] => {
   if (!value || typeof value !== "object" || !("data" in value) || value.data === undefined) return []
   return Array.isArray(value.data) ? value.data : [value.data]
 }
 
-const insertBinding = async (sql: SQL, src: string, value: BindingValue | undefined): Promise<number | undefined> => {
+const insertBinding = async (sql: SQL, src: string, value: MatterBindingValue | undefined): Promise<number | undefined> => {
   if (value === undefined) return
 
   if (typeof value === "string") {
@@ -69,9 +65,9 @@ const insertBinding = async (sql: SQL, src: string, value: BindingValue | undefi
 const insertParticle = async (
   sql: SQL,
   wimpSrc: string,
-  particleKind: ParticleKind,
+  particleKind: MatterParticleKind,
   parentParticle: number | null,
-  edgeSlot: EdgeSlot,
+  edgeSlot: MatterEdgeSlot,
   particleOrder: number,
 ): Promise<number> => {
   const row = (await sql<Array<{id: number}>>`
@@ -92,7 +88,7 @@ const insertWimpParticle = async (
   sql: SQL,
   wimpSrc: string,
   parentParticle: number | null,
-  edgeSlot: EdgeSlot,
+  edgeSlot: MatterEdgeSlot,
   particleOrder: number,
   childWimpSrc: string,
   fieldsBinding: number | undefined,
@@ -110,7 +106,7 @@ const insertCondFuzzyParticle = async (
   sql: SQL,
   wimpSrc: string,
   parentParticle: number | null,
-  edgeSlot: EdgeSlot,
+  edgeSlot: MatterEdgeSlot,
   particleOrder: number,
   predicateBinding: number,
 ): Promise<number> => {
@@ -126,7 +122,7 @@ const insertDynamicMetaFuzzyParticle = async (
   sql: SQL,
   wimpSrc: string,
   parentParticle: number | null,
-  edgeSlot: EdgeSlot,
+  edgeSlot: MatterEdgeSlot,
   particleOrder: number,
   predicateBinding: number | null,
 ): Promise<number> => {
@@ -156,7 +152,7 @@ const countChildParticles = async (sql: SQL, parentId: number): Promise<number> 
 
 const toMaybeArray = (values: string[]): string | string[] => (values.length === 1 ? values[0]! : values)
 
-const particleEdgeSlotOrder: Record<ParticleRow["edge_slot"], number> = {
+const particleEdgeSlotOrder: Record<MatterParticleRow["edge_slot"], number> = {
   root: 0,
   branch: 0,
   child: 0,
@@ -167,7 +163,7 @@ const particleEdgeSlotOrder: Record<ParticleRow["edge_slot"], number> = {
 const getParticleBindings = async (sql: SQL, src: string) => {
   const bindingRows = new Map(
     (
-      await sql<BindingRow[]>`
+      await sql<MatterBindingRow[]>`
         SELECT id, binding_kind, literal_kind, literal_text, literal_boolean, expr
         FROM matter_binding
         WHERE wimp = ${src}
@@ -189,15 +185,15 @@ const getParticleBindings = async (sql: SQL, src: string) => {
     bindingDeps.set(row.binding, deps)
   }
 
-  const cache = new Map<number, MatterRelationBindingValue | undefined>()
-  const getBinding = (bindingId: number | null | undefined): MatterRelationBindingValue | undefined => {
+  const cache = new Map<number, MatterBindingValue | undefined>()
+  const getBinding = (bindingId: number | null | undefined): MatterBindingValue | undefined => {
     if (!bindingId) return
     if (cache.has(bindingId)) return cache.get(bindingId)
 
     const row = bindingRows.get(bindingId)
     if (!row) return
 
-    let value: MatterRelationBindingValue | undefined
+    let value: MatterBindingValue | undefined
     if (row.binding_kind === "static") {
       if (row.literal_kind === "boolean") {
         throw new Error(`Boolean matter binding "${bindingId}" is not supported in particle relation runtime`)
@@ -216,14 +212,14 @@ const getParticleBindings = async (sql: SQL, src: string) => {
 }
 
 const buildParticleModel = (
-  row: ParticleRow,
-  rowsByParent: Map<number | null, ParticleRow[]>,
+  row: MatterParticleRow,
+  rowsByParent: Map<number | null, MatterParticleRow[]>,
   wimpRows: Map<number, WimpParticleRow>,
   fuzzyRows: Map<number, FuzzyParticleRow>,
   axionRows: Map<number, AxionParticleRow>,
   machoRows: Map<number, MachoParticleRow>,
-  getBinding: (bindingId: number | null | undefined) => MatterRelationBindingValue | undefined,
-): MatterRelationParticle => {
+  getBinding: (bindingId: number | null | undefined) => MatterBindingValue | undefined,
+): MatterParticle => {
   const children = (rowsByParent.get(row.id) ?? []).map((child) => ({
     edgeSlot: child.edge_slot === "root" ? "child" : child.edge_slot,
     particle: buildParticleModel(child, rowsByParent, wimpRows, fuzzyRows, axionRows, machoRows, getBinding),
@@ -279,17 +275,17 @@ const buildParticleModel = (
   }
 }
 
-const getMatterParticles = async (sql: SQL, src: string): Promise<MatterRelationParticle[]> => {
+const getMatterParticles = async (sql: SQL, src: string): Promise<MatterParticle[]> => {
   const {getBinding} = await getParticleBindings(sql, src)
 
-  const particleRows = await sql<ParticleRow[]>`
+  const particleRows = await sql<MatterParticleRow[]>`
     SELECT id, parent_particle, particle_kind, edge_slot, particle_order
     FROM matter_particle
     WHERE wimp = ${src}
     ORDER BY CASE WHEN parent_particle IS NULL THEN 0 ELSE 1 END, particle_order, rowid
   `
 
-  const rowsByParent = new Map<number | null, ParticleRow[]>()
+  const rowsByParent = new Map<number | null, MatterParticleRow[]>()
   for (const row of particleRows) {
     const rows = rowsByParent.get(row.parent_particle) ?? []
     rows.push(row)
@@ -358,10 +354,10 @@ const getMatterParticles = async (sql: SQL, src: string): Promise<MatterRelation
 const insertWimpAt = async (
   wimp: Wimp,
   parentParticle: number | null,
-  edgeSlot: EdgeSlot,
+  edgeSlot: MatterEdgeSlot,
   src: string,
-  fieldsBindingValue: BindingValue | undefined,
-  massBindingValue: BindingValue | undefined,
+  fieldsBindingValue: MatterBindingValue | undefined,
+  massBindingValue: MatterBindingValue | undefined,
 ): Promise<number> => {
   const fieldsBinding = await insertBinding(wimp.sql, wimp.src, fieldsBindingValue)
   const massBinding = await insertBinding(wimp.sql, wimp.src, massBindingValue)
@@ -373,9 +369,9 @@ const insertWimpAt = async (
 const insertFuzzyAt = async (
   wimp: Wimp,
   parentParticle: number | null,
-  edgeSlot: EdgeSlot,
+  edgeSlot: MatterEdgeSlot,
   fuzzyKind: "cond" | "dynamic-meta",
-  predicateBindingValue: BindingValue | undefined,
+  predicateBindingValue: MatterBindingValue | undefined,
 ): Promise<number> => {
   const particleOrder =
     parentParticle === null ? await countRootParticles(wimp.sql, wimp.src) : await countChildParticles(wimp.sql, parentParticle)
@@ -398,8 +394,8 @@ const insertFuzzyAt = async (
 const insertAxionAt = async (
   wimp: Wimp,
   parentParticle: number | null,
-  edgeSlot: EdgeSlot,
-  predicateBindingValue: BindingValue,
+  edgeSlot: MatterEdgeSlot,
+  predicateBindingValue: MatterBindingValue,
 ): Promise<number> => {
   const predicateBinding = await insertBinding(wimp.sql, wimp.src, predicateBindingValue)
   if (!predicateBinding) throw new Error(`Axion particle for meta "${wimp.src}" requires predicate binding`)
@@ -417,8 +413,8 @@ const insertAxionAt = async (
 const insertMachoAt = async (
   wimp: Wimp,
   parentParticle: number | null,
-  edgeSlot: EdgeSlot,
-  collectionBindingValue: BindingValue,
+  edgeSlot: MatterEdgeSlot,
+  collectionBindingValue: MatterBindingValue,
 ): Promise<number> => {
   const collectionBinding = await insertBinding(wimp.sql, wimp.src, collectionBindingValue)
   if (!collectionBinding) throw new Error(`Macho particle for meta "${wimp.src}" requires collection binding`)
@@ -433,7 +429,7 @@ const insertMachoAt = async (
   return particleId
 }
 
-export abstract class MatterParticle {
+export abstract class MatterOrmParticle {
   readonly id: number
   readonly children: MatterChildren
 
@@ -448,7 +444,7 @@ export abstract class MatterParticle {
   abstract readonly kind: "wimp" | "fuzzy" | "axion" | "macho"
 }
 
-export class MatterWimpParticle extends MatterParticle {
+export class MatterWimpParticle extends MatterOrmParticle {
   readonly kind = "wimp" as const
   constructor(
     matter: Matter,
@@ -459,7 +455,7 @@ export class MatterWimpParticle extends MatterParticle {
   }
 }
 
-export class MatterFuzzyParticle extends MatterParticle {
+export class MatterFuzzyParticle extends MatterOrmParticle {
   readonly kind = "fuzzy" as const
   constructor(
     matter: Matter,
@@ -470,22 +466,22 @@ export class MatterFuzzyParticle extends MatterParticle {
   }
 }
 
-export class MatterAxionParticle extends MatterParticle {
+export class MatterAxionParticle extends MatterOrmParticle {
   readonly kind = "axion" as const
 }
 
-export class MatterMachoParticle extends MatterParticle {
+export class MatterMachoParticle extends MatterOrmParticle {
   readonly kind = "macho" as const
 }
 
 export class MatterChildren {
-  constructor(readonly particle: MatterParticle) {}
+  constructor(readonly particle: MatterOrmParticle) {}
 
   async wimp(input: {
     edgeSlot: "child" | "branch"
     src: string
-    fieldsBinding?: BindingValue | undefined
-    massBinding?: BindingValue | undefined
+    fieldsBinding?: MatterBindingValue | undefined
+    massBinding?: MatterBindingValue | undefined
   }): Promise<MatterWimpParticle> {
     const id = await insertWimpAt(
       this.particle.matter.parent,
@@ -502,7 +498,7 @@ export class MatterChildren {
   async fuzzy(input: {
     edgeSlot: "child" | "then" | "else" | "branch"
     fuzzyKind: "cond" | "dynamic-meta"
-    predicateBinding?: BindingValue | undefined
+    predicateBinding?: MatterBindingValue | undefined
   }): Promise<MatterFuzzyParticle> {
     const id = await insertFuzzyAt(
       this.particle.matter.parent,
@@ -517,7 +513,7 @@ export class MatterChildren {
 
   async axion(input: {
     edgeSlot: "child" | "then" | "else" | "branch"
-    predicateBinding: BindingValue
+    predicateBinding: MatterBindingValue
   }): Promise<MatterAxionParticle> {
     const id = await insertAxionAt(
       this.particle.matter.parent,
@@ -531,7 +527,7 @@ export class MatterChildren {
 
   async macho(input: {
     edgeSlot: "child" | "then" | "else" | "branch"
-    collectionBinding: BindingValue
+    collectionBinding: MatterBindingValue
   }): Promise<MatterMachoParticle> {
     const id = await insertMachoAt(
       this.particle.matter.parent,
@@ -565,8 +561,8 @@ export class Matter {
 
   async wimp(input: {
     src: string
-    fieldsBinding?: BindingValue | undefined
-    massBinding?: BindingValue | undefined
+    fieldsBinding?: MatterBindingValue | undefined
+    massBinding?: MatterBindingValue | undefined
   }): Promise<MatterWimpParticle> {
     const id = await insertWimpAt(this.parent, null, "root", input.src, input.fieldsBinding, input.massBinding)
     emitGravitonAdd("matter", id)
@@ -575,26 +571,26 @@ export class Matter {
 
   async fuzzy(input: {
     fuzzyKind: "cond" | "dynamic-meta"
-    predicateBinding?: BindingValue | undefined
+    predicateBinding?: MatterBindingValue | undefined
   }): Promise<MatterFuzzyParticle> {
     const id = await insertFuzzyAt(this.parent, null, "root", input.fuzzyKind, input.predicateBinding)
     emitGravitonAdd("matter", id)
     return new MatterFuzzyParticle(this, id, input.fuzzyKind)
   }
 
-  async axion(input: {predicateBinding: BindingValue}): Promise<MatterAxionParticle> {
+  async axion(input: {predicateBinding: MatterBindingValue}): Promise<MatterAxionParticle> {
     const id = await insertAxionAt(this.parent, null, "root", input.predicateBinding)
     emitGravitonAdd("matter", id)
     return new MatterAxionParticle(this, id)
   }
 
-  async macho(input: {collectionBinding: BindingValue}): Promise<MatterMachoParticle> {
+  async macho(input: {collectionBinding: MatterBindingValue}): Promise<MatterMachoParticle> {
     const id = await insertMachoAt(this.parent, null, "root", input.collectionBinding)
     emitGravitonAdd("matter", id)
     return new MatterMachoParticle(this, id)
   }
 
-  async all(): Promise<MatterRelationParticle[]> {
+  async all(): Promise<MatterParticle[]> {
     if (!(await hasMatter(this.parent.sql, this.parent.src))) return []
     return getMatterParticles(this.parent.sql, this.parent.src)
   }

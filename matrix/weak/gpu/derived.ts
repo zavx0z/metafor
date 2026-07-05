@@ -6,18 +6,17 @@
  */
 
 import type {
+  DerivedWeakData,
+  GpuFlattenedTransition,
   MatrixConditionRecord,
   MatrixData,
   MatrixFieldRecord,
   MatrixFieldValueRecord,
-} from "../../store.t"
-import type { DerivedWeakData } from "./derived.t"
+} from "@metafor/types/matrix"
 import { FIELD_TYPE, VALUE_TYPE } from "../constants"
 import { buildHeap } from "./layout-heap"
-import { compileFlattenedEnsemble, type FlattenedTransition } from "./bytecode"
+import { compileFlattenedEnsemble } from "./bytecode"
 import { createPackContext, encodeValue, fieldTypeToBytecodeType } from "./pack"
-
-export type { DerivedWeakData } from "./derived.t"
 
 /** Собирает метаданные полей для производного кодирования. */
 function createFieldMetaMap(fields: MatrixFieldRecord[]): Map<number, { fieldType: number; fieldSize: number }> {
@@ -35,7 +34,7 @@ function groupTransitionConditions(
   store: MatrixData,
   conditionOffset: number,
   conditionCount: number,
-): FlattenedTransition["conditions"] {
+): GpuFlattenedTransition["conditions"] {
   const grouped = new Map<number, MatrixConditionRecord[]>()
   const conditionEnd = conditionOffset + conditionCount
 
@@ -63,7 +62,7 @@ function groupTransitionConditions(
 }
 
 /** Преобразует канонические переходы в уплощённую форму для компиляции bytecode. */
-function toFlattenedTransitions(store: MatrixData): Array<{ transitions: FlattenedTransition[][] }> {
+function toFlattenedTransitions(store: MatrixData): Array<{ transitions: GpuFlattenedTransition[][] }> {
   return store.branes.map((brane) => ({
     transitions: Array.from({ length: brane.stateCount }, (_, stateIndex) => {
       const state = store.stateTable[brane.stateOffset + stateIndex]
@@ -72,7 +71,7 @@ function toFlattenedTransitions(store: MatrixData): Array<{ transitions: Flatten
       }
 
       const transitionEnd = state.transitionOffset + state.transitionCount
-      const stateTransitions: FlattenedTransition[] = []
+      const stateTransitions: GpuFlattenedTransition[] = []
       for (let transitionIndex = state.transitionOffset; transitionIndex < transitionEnd; transitionIndex++) {
         const transition = store.transitions[transitionIndex]
         if (!transition) {

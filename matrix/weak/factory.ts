@@ -1,6 +1,5 @@
 import { ensureGPUDevice, resolveWeakMode } from "./device"
-import type { WeakRuntimeSelection } from "./weak.t"
-import type { MatrixStore } from "../store.t"
+import type { MatrixStore, WeakRuntimeSelection } from "@metafor/types/matrix"
 
 /**
  * Создаёт runtime через выбор CPU/GPU backend-адаптера.

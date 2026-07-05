@@ -4,12 +4,16 @@
  * Модуль переводит графы состояний в линейную execution-форму, понятную WebGPU runtime.
  */
 
-import type { MatrixFieldRecord, MatrixValue } from "../../store.t"
-import type { CompiledConditionsResult, ConditionInstruction, FlattenedTransition } from "./bytecode.t"
+import type {
+  GpuFlattenedTransition,
+  GpuPackContext,
+  MatrixCompiledConditionsResult,
+  MatrixConditionInstruction,
+  MatrixFieldRecord,
+  MatrixValue,
+} from "@metafor/types/matrix"
 import { OP, VALUE_TYPE } from "../constants"
-import { encodeValue, fieldTypeToBytecodeType, type PackContext } from "./pack"
-
-export type { CompiledConditionsResult, ConditionInstruction, FlattenedTransition } from "./bytecode.t"
+import { encodeValue, fieldTypeToBytecodeType } from "./pack"
 
 /**
  * Компилирует распарсенные условия в инструкции.
@@ -18,8 +22,8 @@ export function compileParsedConditions(
   parsedChecks: Array<{ fieldIndex: number; checks: Array<{ op: number; val: unknown }> }>,
   fields: MatrixFieldRecord[],
   stringTable: string[],
-): CompiledConditionsResult {
-  const instructions: ConditionInstruction[] = []
+): MatrixCompiledConditionsResult {
+  const instructions: MatrixConditionInstruction[] = []
   const heap: number[] = []
   const allChecks: Array<{
     fieldIndex: number
@@ -48,7 +52,7 @@ export function compileParsedConditions(
   let heapOffset = allChecks.length * 4
 
   for (const check of allChecks) {
-    const context: PackContext = { type: check.fieldType, stringTable }
+    const context: GpuPackContext = { type: check.fieldType, stringTable }
     const field = fields[check.fieldIndex]
     if (field?.enum !== undefined) {
       context.enum = field.enum
@@ -117,7 +121,7 @@ export function compileParsedConditions(
   return { instructions, heap }
 }
 
-function getArrayEncodingContext(ctx: PackContext, op: number, fieldType: number): PackContext {
+function getArrayEncodingContext(ctx: GpuPackContext, op: number, fieldType: number): GpuPackContext {
   if (fieldType !== VALUE_TYPE.ARRAY) {
     return ctx
   }
@@ -126,14 +130,14 @@ function getArrayEncodingContext(ctx: PackContext, op: number, fieldType: number
     ctx.subType !== undefined &&
     (op === OP.IN || op === OP.NOT_IN || op === OP.INCLUDE || op === OP.NOT_INCLUDE)
   ) {
-    const nextContext: PackContext = { type: ctx.subType, stringTable: ctx.stringTable }
+    const nextContext: GpuPackContext = { type: ctx.subType, stringTable: ctx.stringTable }
     if (ctx.enum !== undefined) {
       nextContext.enum = ctx.enum
     }
     return nextContext
   }
 
-  const nextContext: PackContext = { type: VALUE_TYPE.UINT, stringTable: ctx.stringTable }
+  const nextContext: GpuPackContext = { type: VALUE_TYPE.UINT, stringTable: ctx.stringTable }
   if (ctx.enum !== undefined) {
     nextContext.enum = ctx.enum
   }
@@ -144,7 +148,7 @@ function getArrayEncodingContext(ctx: PackContext, op: number, fieldType: number
  * Компилирует transitions одной браны в bytecode.
  */
 export function compileFlattenedSuperposition(
-  transitions: FlattenedTransition[][],
+  transitions: GpuFlattenedTransition[][],
   fields: MatrixFieldRecord[],
   stringTable: string[],
 ): { bytecode: Uint32Array; bytecodeOffset: number } {
@@ -226,7 +230,7 @@ export function compileFlattenedSuperposition(
  * Компилирует ансамбль бран в bytecode.
  */
 export function compileFlattenedEnsemble(
-  branes: Array<{ transitions: FlattenedTransition[][] }>,
+  branes: Array<{ transitions: GpuFlattenedTransition[][] }>,
   fields: MatrixFieldRecord[],
   stringTable: string[],
 ): { bytecode: Uint32Array; bytecodeOffsets: Uint32Array } {

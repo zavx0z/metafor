@@ -1,18 +1,18 @@
-import type {FieldDefinition, FieldKey, MetaDSL} from "../index.ts"
-import type {MatterRelationBindingValue} from "@boundary/wimp/sqlite"
+import type {MetaDSL, MetaFieldDSL} from "@metafor/types/metafor/metafor"
+import type {MatterBindingValue} from "@metafor/types/matter"
 
 /**
  * Описание начальной инициализации поля при материализации child wimp.
  * Если задан `source` — поле share-ит value.id с указанным родительским полем (entanglement).
  */
 export interface FieldInit {
-  key: FieldKey
+  key: string
   /** Резолвленное runtime-значение (применяется когда нет share). */
   value: unknown
   /** Ссылка на родительское поле для разделения value.id через actor_value FK. */
   source?: {
     parentActorId: number
-    parentFieldKey: FieldKey
+    parentFieldKey: string
   }
 }
 
@@ -29,7 +29,7 @@ const isOrdinaryFieldType = (type: string): boolean =>
 const evaluateAstExpression = (expr: string, values: unknown[]): unknown =>
   new Function("_", `return (${expr})`)(values)
 
-const extractFieldKey = (path: string): FieldKey | undefined => {
+const extractFieldKey = (path: string): string | undefined => {
   if (path.startsWith("/") || path.startsWith("[") || path.startsWith(".")) return undefined
   return path || undefined
 }
@@ -48,9 +48,9 @@ const toFieldObject = (value: unknown): Record<string, unknown> => {
 const resolveDirectFieldSources = (
   expr: string | undefined,
   paths: string[],
-  parentFieldTypes: Map<FieldKey, string>,
-): Map<FieldKey, FieldKey> => {
-  const directSources = new Map<FieldKey, FieldKey>()
+  parentFieldTypes: Map<string, string>,
+): Map<string, string> => {
+  const directSources = new Map<string, string>()
   if (!expr) return directSources
 
   const normalized = expr.trim()
@@ -79,11 +79,11 @@ const resolveDirectFieldSources = (
  *   и map типов (для решения direct-link entanglement).
  */
 export const resolveFieldInits = (
-  binding: MatterRelationBindingValue | undefined,
+  binding: MatterBindingValue | undefined,
   parent: {
     actorId: number
-    fieldValues: Map<FieldKey, unknown>
-    fieldTypes: Map<FieldKey, string>
+    fieldValues: Map<string, unknown>
+    fieldTypes: Map<string, string>
   },
 ): FieldInit[] | undefined => {
   if (binding === undefined) return undefined
@@ -128,7 +128,7 @@ export const resolveFieldInits = (
  * Default-значение поля по правилам схемы: `default` побеждает, `required` без `default` падает,
  * optional стартует как `null`.
  */
-export const fieldDefaultValue = (key: FieldKey, schema: FieldDefinition): unknown => {
+export const fieldDefaultValue = (key: string, schema: MetaFieldDSL): unknown => {
   if (Object.prototype.hasOwnProperty.call(schema, "default")) {
     return structuredClone((schema as {default?: unknown}).default)
   }
@@ -145,14 +145,14 @@ export const fieldDefaultValue = (key: FieldKey, schema: FieldDefinition): unkno
 export const finalizeFieldValues = (
   fieldSchemas: NonNullable<MetaDSL["fields"]>,
   fieldInits: FieldInit[] | undefined,
-): Map<FieldKey, FieldInit> => {
-  const initMap = new Map<FieldKey, FieldInit>()
+): Map<string, FieldInit> => {
+  const initMap = new Map<string, FieldInit>()
   for (const init of fieldInits ?? []) {
     if (!fieldSchemas.some((field) => field.key === init.key)) continue
     initMap.set(init.key, init)
   }
 
-  const finalValues = new Map<FieldKey, FieldInit>()
+  const finalValues = new Map<string, FieldInit>()
   for (const schema of fieldSchemas) {
     const key = schema.key
     const init = initMap.get(key)

@@ -1,15 +1,20 @@
 import { VALUE_TYPE } from "./constants"
-import type { EncodingContext, EncodedValueResult } from "./encode.t"
-import { FieldType, type Field, type FieldTypeValue } from "../gravity/schema.t"
+import type {
+  MatrixEncodedValueResult,
+  MatrixEncodingContext,
+  MatrixFieldRecord,
+  MatrixFieldType,
+} from "@metafor/types/matrix"
+import { FieldType } from "../gravity/schema"
 
 export function createFieldEncodingContext(
   fieldType: number,
-  field: Field | undefined,
+  field: MatrixFieldRecord | undefined,
   stringInterner: { intern(value: string): number },
   allocateHeap?: (size: number) => number,
   heap?: Uint32Array,
-): EncodingContext {
-  const context: EncodingContext = {
+): MatrixEncodingContext {
+  const context: MatrixEncodingContext = {
     type: fieldType,
     stringInterner,
   }
@@ -43,7 +48,7 @@ export function createFieldEncodingContext(
   return context
 }
 
-export function encodeValue(value: unknown, context: EncodingContext): EncodedValueResult {
+export function encodeValue(value: unknown, context: MatrixEncodingContext): MatrixEncodedValueResult {
   if (context.enum) {
     if (value === null) {
       return { value1: 0, value2: 0 }
@@ -75,10 +80,10 @@ export function encodeValue(value: unknown, context: EncodingContext): EncodedVa
       return { value1: value, value2: 0 }
     }
     if (typeof value !== "string") {
-      throw new Error(`Expected string for TYPE.STRING, got ${typeof value}`)
+      throw new Error(`Expected string for VALUE_TYPE.STRING, got ${typeof value}`)
     }
     if (!context.stringInterner) {
-      throw new Error("TYPE.STRING encoding requires EncodingContext.stringInterner")
+      throw new Error("VALUE_TYPE.STRING encoding requires EncodingContext.stringInterner")
     }
     return {
       value1: context.stringInterner.intern(value),
@@ -88,7 +93,7 @@ export function encodeValue(value: unknown, context: EncodingContext): EncodedVa
 
   if (context.type === VALUE_TYPE.ARRAY) {
     if (!Array.isArray(value)) {
-      throw new Error(`Expected array for TYPE.ARRAY, got ${typeof value}`)
+      throw new Error(`Expected array for VALUE_TYPE.ARRAY, got ${typeof value}`)
     }
     const items = value as unknown[]
 
@@ -109,7 +114,7 @@ export function encodeValue(value: unknown, context: EncodingContext): EncodedVa
       context.heap[pointer] = items.length
       const elementType = context.subType ?? VALUE_TYPE.FLOAT
       for (let index = 0; index < items.length; index++) {
-        const itemContext: EncodingContext = { type: elementType }
+        const itemContext: MatrixEncodingContext = { type: elementType }
         if (context.stringInterner !== undefined) {
           itemContext.stringInterner = context.stringInterner
         }
@@ -124,11 +129,11 @@ export function encodeValue(value: unknown, context: EncodingContext): EncodedVa
   return { value1: Number(value), value2: 0 }
 }
 
-export function encodeFieldValue(value: unknown, context: EncodingContext): number {
+export function encodeFieldValue(value: unknown, context: MatrixEncodingContext): number {
   return encodeValue(value, context).value1
 }
 
-export function fieldTypeToBytecodeType(fieldType: FieldTypeValue): number {
+export function fieldTypeToBytecodeType(fieldType: MatrixFieldType): number {
   switch (fieldType) {
     case FieldType.F32:
       return VALUE_TYPE.FLOAT

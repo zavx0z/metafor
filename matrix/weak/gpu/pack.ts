@@ -4,11 +4,13 @@
  * Модуль не меняет канонический store и работает только с локальными derived-структурами.
  */
 
-import type { MatrixFieldRecord, MatrixValue } from "../../store.t"
-import type { EncodedValue, PackContext } from "./pack.t"
+import type {
+  GpuPackContext,
+  MatrixEncodedValueResult,
+  MatrixFieldRecord,
+  MatrixValue,
+} from "@metafor/types/matrix"
 import { FIELD_TYPE, VALUE_TYPE } from "../constants"
-
-export type { EncodedValue, PackContext } from "./pack.t"
 
 /**
  * Преобразует тип поля из канонической схемы в execution-тип Weak.
@@ -38,8 +40,8 @@ export function createPackContext(
   stringTable: string[],
   allocateHeap?: (size: number) => number,
   heap?: Uint32Array,
-): PackContext {
-  const ctx: PackContext = {
+): GpuPackContext {
+  const ctx: GpuPackContext = {
     type: fieldTypeToBytecodeType(field.type),
     stringTable,
   }
@@ -79,7 +81,7 @@ export function createPackContext(
  * Это чистая функция: она не меняет канонический store и пишет только в
  * переданные derived-буферы, если они явно указаны в контексте.
  */
-export function encodeValue(value: MatrixValue, ctx: PackContext): EncodedValue {
+export function encodeValue(value: MatrixValue, ctx: GpuPackContext): MatrixEncodedValueResult {
   if (ctx.enum) {
     if (value === null || value === 0) {
       return { value1: 0, value2: 0 }
@@ -139,7 +141,7 @@ export function encodeValue(value: MatrixValue, ctx: PackContext): EncodedValue 
       ctx.heap[ptr] = arr.length
       const elementType = ctx.subType ?? VALUE_TYPE.FLOAT
       for (let index = 0; index < arr.length; index++) {
-        const itemContext: PackContext = { type: elementType, stringTable: ctx.stringTable }
+        const itemContext: GpuPackContext = { type: elementType, stringTable: ctx.stringTable }
         ctx.heap[ptr + 1 + index] = encodeValue(arr[index] as MatrixValue, itemContext).value1
       }
       return { value1: ptr, value2: 0 }

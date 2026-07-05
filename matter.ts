@@ -1,9 +1,13 @@
 import { parse } from "@metafor/template"
-import type { Fields } from "./fields.t.ts"
-import type { MatterDeclaration, MatterFields, MatterSchema, MatterTemplateSchema, NodeCondition, NodeLogical, NodeMap, NodeMeta, NodeType } from "./matter.t.ts"
-import type { Mass } from "./metafor.t.ts"
-import type { State } from "./superposition.t.ts"
-import type { MatterRelationBindingValue, MatterRelationChild, MatterRelationParticle } from "@boundary/wimp/sqlite"
+import type { Fields } from "@metafor/types/metafor/fields"
+import type { MatterDeclaration, MatterFields, MatterSchema, MatterTemplateSchema } from "@metafor/types/metafor/matter"
+import type { Mass } from "@metafor/types/metafor/metafor"
+import type { MatterBindingValue, MatterChild, MatterParticle } from "@metafor/types/matter"
+import type { NodeType } from "@metafor/types/template/node/index"
+import type { NodeCondition } from "@metafor/types/template/node/condition"
+import type { NodeLogical } from "@metafor/types/template/node/logical"
+import type { NodeMap } from "@metafor/types/template/node/map"
+import type { NodeMeta } from "@metafor/types/template/node/meta"
 
 type TopologyBasis = "state" | "enum" | "array" | "ordinary" | "mass" | "unknown"
 
@@ -244,21 +248,21 @@ const resolveMetaBranchSrcs = (fields: MatterFields, node: { src: string | { dat
   return (field.values ?? []).map((variant) => createContinuationSrc(source.expr, variant))
 }
 
-const childRelations = (fields: MatterFields, children: NodeType[] | undefined): MatterRelationChild[] | undefined => {
+const childRelations = (fields: MatterFields, children: NodeType[] | undefined): MatterChild[] | undefined => {
   if (!Array.isArray(children) || children.length === 0) return
 
   const relations = children.flatMap((child) => projectMatterNode(fields, child))
   return relations.length > 0
-    ? relations.map((particle): MatterRelationChild => ({edgeSlot: "child", particle}))
+    ? relations.map((particle): MatterChild => ({edgeSlot: "child", particle}))
     : undefined
 }
 
-const projectMatterNode = (fields: MatterFields, node: NodeType): MatterRelationParticle[] => {
+const projectMatterNode = (fields: MatterFields, node: NodeType): MatterParticle[] => {
   if (node.type === "meta") {
     const metaNode = node as {
       src: string | { data?: string | string[]; expr?: string }
-      fields?: MatterRelationBindingValue
-      mass?: MatterRelationBindingValue
+      fields?: MatterBindingValue
+      mass?: MatterBindingValue
       child?: NodeType[]
     }
     const children = childRelations(fields, metaNode.child)
@@ -280,7 +284,7 @@ const projectMatterNode = (fields: MatterFields, node: NodeType): MatterRelation
         kind: "fuzzy",
         fuzzyKind: "dynamic-meta",
         predicateBinding: metaNode.src,
-        children: resolveMetaBranchSrcs(fields, metaNode).map((src): MatterRelationChild => ({
+        children: resolveMetaBranchSrcs(fields, metaNode).map((src): MatterChild => ({
           edgeSlot: "branch",
           particle: {
             kind: "wimp",
@@ -298,7 +302,7 @@ const projectMatterNode = (fields: MatterFields, node: NodeType): MatterRelation
     const conditionNode = node as NodeCondition
     const thenParticle = conditionNode.child?.[0] ? projectMatterNode(fields, conditionNode.child[0])[0] : undefined
     const elseParticle = conditionNode.child?.[1] ? projectMatterNode(fields, conditionNode.child[1])[0] : undefined
-    const children: MatterRelationChild[] = []
+    const children: MatterChild[] = []
     if (thenParticle) children.push({edgeSlot: "then", particle: thenParticle})
     if (elseParticle) children.push({edgeSlot: "else", particle: elseParticle})
 
@@ -339,7 +343,7 @@ const projectMatterNode = (fields: MatterFields, node: NodeType): MatterRelation
   return []
 }
 
-export const parseMatter = <ɸ extends Fields = Fields, m extends Mass = Mass, 𝛴 extends State = State>(
+export const parseMatter = <ɸ extends Fields = Fields, m extends Mass = Mass, 𝛴 extends string = string>(
   matter: MatterDeclaration<ɸ, m, 𝛴>,
   fields: MatterFields,
   metaName?: string,

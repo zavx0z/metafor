@@ -1,4 +1,4 @@
-import type { Processes, ProcessType } from "./index.ts"
+import type { Processes, ProcessTypeValue } from "./index.ts"
 import { ProcessAction } from "./action.ts"
 import { ProcessFinally } from "./finally.ts"
 import { ProcessEnvs } from "./env.ts"
@@ -32,9 +32,9 @@ export class Process {
     return row.id
   }
 
-  async type(): Promise<ProcessType> {
+  async type(): Promise<ProcessTypeValue> {
     const row = (
-      await this.processes.wimp.sql<Array<{ type: ProcessType }>>`
+      await this.processes.wimp.sql<Array<{ type: ProcessTypeValue }>>`
         SELECT type FROM process WHERE wimp = ${this.processes.wimp.src} AND key = ${this.key}
       `
     )[0]

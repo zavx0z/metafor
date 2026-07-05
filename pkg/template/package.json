@@ -4,7 +4,10 @@
   "description": "HTML шаблонизатор для MetaFor",
   "author": "zavx0z",
   "main": "index.ts",
-  "types": "./index.t.ts",
+  "types": "../../types/template/index.ts",
   "type": "module",
-  "private": true
+  "private": true,
+  "dependencies": {
+    "@metafor/types": "workspace:*"
+  }
 }

@@ -1,20 +1,16 @@
-import type {Actor, ActorRecord, ActorRoots, AnyValue, ActorFieldValue, ActorRows} from "@boundary/actor"
-import type {AnyTopology, TopologyInput, TopologyRecord} from "@boundary/topology"
-import type {Wimp, WimpCreateInput} from "@boundary/wimp/sqlite"
-import type {BoundaryUpdateMessage} from "./sqlite.ts"
-import type {ForceSurface} from "./force.t.ts"
-import type {BoundaryBulkRuntimeSnapshot} from "./runtime/bulk.ts"
-import type {BoundaryMatrixRuntimeSnapshot} from "./runtime/matrix.ts"
-import type {BoundaryEnergyRuntimeSnapshot} from "./runtime/energy.ts"
+import type {Actor, ActorRoots, ActorFieldValue} from "@boundary/actor"
+import type {AnyValue} from "@boundary/actor/sqlite/value"
+import type {AnyTopology} from "@boundary/topology/sqlite/topology"
+import type {Wimp} from "@boundary/wimp/sqlite"
+import type {WimpCreateInput} from "@metafor/types/persistence"
+import type {ActorRecord, ActorRows, TopologyInput, TopologyRecord} from "@metafor/types/persistence"
+import type {ForceSurface} from "@metafor/types/force"
+import type {BulkRuntimeSnapshot} from "@metafor/types/bulk"
+import type {MatrixRuntimeSnapshot} from "@metafor/types/matrix"
+import type {EnergyRuntimeSnapshot} from "@metafor/types/energy"
 
 export {FORCE, force} from "./force.ts"
-export type {DomainPath, Force, ForceBinding, ForceMessage, ForceMessageListener, ForceSurface, ParticleOperation, Part, Particle} from "./force.t.ts"
-export type {ProcessEnv, ProcessMass, ProcessResult, ProcessRuntimeKind, ProcessTask} from "./process-task.t.ts"
 export {open} from "./sqlite.ts"
-export type {BoundaryPart, BoundaryParticle, BoundaryUpdateMessage} from "./sqlite.ts"
-export type {BoundaryBulkRuntimeSnapshot} from "./runtime/bulk.ts"
-export type {BoundaryMatrixRuntimeSnapshot} from "./runtime/matrix.ts"
-export type {BoundaryEnergyHandlerDescriptor, BoundaryEnergyProcessDescriptor, BoundaryEnergyRuntimeSnapshot} from "./runtime/energy.ts"
 
 export interface WimpApi {
   /** Дешевая проверка существования декларации без создания ORM-объекта. */
@@ -71,9 +67,9 @@ export interface Boundary extends ForceSurface {
   readonly actor: ActorApi
   readonly topology: TopologyApi
 
-  bulkRuntime(): Promise<BoundaryBulkRuntimeSnapshot>
-  matrixRuntime(): Promise<BoundaryMatrixRuntimeSnapshot>
-  energyRuntime(): Promise<BoundaryEnergyRuntimeSnapshot>
+  bulkRuntime(): Promise<BulkRuntimeSnapshot>
+  matrixRuntime(): Promise<MatrixRuntimeSnapshot>
+  energyRuntime(): Promise<EnergyRuntimeSnapshot>
 
   close(): Promise<void>
 }

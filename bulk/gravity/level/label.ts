@@ -1,5 +1,4 @@
-import type { LevelLabelSettings } from "./settings.t"
-import type { LevelLabel } from "./label.t"
+import type { LevelLabel, LevelLabelSettings } from "@metafor/types/bulk"
 
 const normalizeDepth = (depth: number): number =>
   Number.isFinite(depth) && depth > 0 ? Math.floor(depth) : 0

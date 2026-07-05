@@ -1,6 +1,6 @@
 import { processTemplateLiteralAttribute, resolveDataPath, ARGUMENTS_PREFIX } from "../parser.ts"
-import type { ParseContext } from "../parser.t.ts"
-import type { RawAttrArray, ValueArray } from "./array.t.ts"
+import type { ParseContext } from "@metafor/types/template/parser"
+import type { RawAttrArray, ValueArray } from "@metafor/types/template/attribute/array"
 
 /**
  * Обрабатывает массивные атрибуты и создает соответствующие объекты.

@@ -13,5 +13,10 @@ interface ImportMeta {
      * @param callback Функция, которая будет вызвана при обновлении.
      */
     accept(callback?: () => void): void
+    /**
+     * Регистрирует cleanup перед заменой текущего модуля.
+     * @param callback Функция, которая будет вызвана перед выгрузкой.
+     */
+    dispose(callback?: () => void | Promise<void>): void
   }
 }

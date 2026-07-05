@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from "bun:test"
-import { OP, TYPE } from "../weak"
+import { OP, VALUE_TYPE } from "../weak"
 
 describe("OP (коды операций)", () => {
   it("должен содержать все коды операций", () => {
@@ -34,17 +34,17 @@ describe("OP (коды операций)", () => {
   })
 })
 
-describe("TYPE (типы данных)", () => {
+describe("VALUE_TYPE (типы данных)", () => {
   it("должен содержать все типы данных", () => {
-    expect(TYPE.FLOAT).toBe(0)
-    expect(TYPE.UINT).toBe(1)
-    expect(TYPE.BOOL).toBe(2)
-    expect(TYPE.STRING).toBe(3)
-    expect(TYPE.ARRAY).toBe(4)
+    expect(VALUE_TYPE.FLOAT).toBe(0)
+    expect(VALUE_TYPE.UINT).toBe(1)
+    expect(VALUE_TYPE.BOOL).toBe(2)
+    expect(VALUE_TYPE.STRING).toBe(3)
+    expect(VALUE_TYPE.ARRAY).toBe(4)
   })
 
   it("должен иметь последовательные значения", () => {
-    const values = Object.values(TYPE) as number[]
+    const values = Object.values(VALUE_TYPE) as number[]
     for (let i = 0; i < values.length; i++) {
       expect(values[i]).toBe(i)
     }

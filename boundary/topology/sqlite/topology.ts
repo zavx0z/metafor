@@ -1,5 +1,5 @@
 import type {SQL} from "bun"
-import type {TopologyKind, TopologyRecord} from "./topology.t.ts"
+import type {TopologyKind, TopologyRecord} from "@metafor/types/persistence"
 
 export const decodeTopologyRow = (row: Record<string, unknown>): TopologyRecord => ({
   id: Number(row.id),

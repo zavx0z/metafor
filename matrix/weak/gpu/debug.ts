@@ -10,7 +10,7 @@ import type {
   StringAtlasDump,
   StringDump,
   TransitionDump,
-} from "./debug.t"
+} from "@metafor/types/matrix"
 
 export function debugLog(enabled: boolean, ...args: unknown[]): void {
   if (!enabled) {

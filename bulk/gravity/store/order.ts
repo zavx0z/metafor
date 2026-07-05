@@ -12,8 +12,6 @@
  * При переполнении длины добавляется дополнительный байт.
  */
 
-import type { OrderKey } from "./order.t"
-
 /**
  * Создает первый ключ в последовательности.
  *
@@ -24,7 +22,7 @@ import type { OrderKey } from "./order.t"
  * const first = first()  // Uint8Array(1) [128]
  * ```
  */
-export function first(): OrderKey {
+export function first(): Uint8Array {
   return new Uint8Array([128])
 }
 
@@ -38,7 +36,7 @@ export function first(): OrderKey {
  * const last = last()  // Uint8Array(1) [255]
  * ```
  */
-export function last(): OrderKey {
+export function last(): Uint8Array {
   return new Uint8Array([255])
 }
 
@@ -62,9 +60,9 @@ export function last(): OrderKey {
  * ```
  */
 export function between(
-  prevKey: OrderKey | null,
-  nextKey: OrderKey | null
-): OrderKey {
+  prevKey: Uint8Array | null,
+  nextKey: Uint8Array | null,
+): Uint8Array {
   // Оба null — создаём первый ключ
   if (!prevKey && !nextKey) {
     return first()
@@ -154,7 +152,7 @@ export function between(
  * compare(last(), first())  // 1
  * ```
  */
-export function compare(a: OrderKey, b: OrderKey): -1 | 0 | 1 {
+export function compare(a: Uint8Array, b: Uint8Array): -1 | 0 | 1 {
   const minLength = Math.min(a.length, b.length)
 
   for (let i = 0; i < minLength; i++) {

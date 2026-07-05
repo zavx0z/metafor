@@ -1,7 +1,7 @@
-import type { PartAttrMap } from "./map.t.ts"
-import type { ParseContext, ParseResult } from "../parser.t.ts"
+import type { PartAttrMap } from "@metafor/types/template/node/map"
+import type { ParseContext, ParseResult } from "@metafor/types/template/parser"
 import { createNode } from "./index.ts"
-import type { NodeMap, TokenMapClose, TokenMapOpen } from "./map.t.ts"
+import type { NodeMap, TokenMapClose, TokenMapOpen } from "@metafor/types/template/node/map"
 // Паттерны для парсинга map выражений
 const MAP_PATTERN = /(\w+(?:\.\w+)*)\.map\(([^)]*)\)/
 

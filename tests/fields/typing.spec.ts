@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { MetaFor } from "../../index.ts"
 import { fieldSchema } from "../../fields.ts"
-import type { FieldType, Update, Values } from "../../fields.t.ts"
+import type { FieldType, Update, Values } from "@metafor/types/metafor/fields"
 
 describe("field typing", () => {
   test("сохраняет инференс SchemaType, Values и Update", () => {

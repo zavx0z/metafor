@@ -162,7 +162,7 @@ const server = Bun.serve<WsData>({
   port: PORT,
   routes: {
     "/ws": {
-      GET(req, srv) {
+      GET(req: Bun.BunRequest<"/ws">, srv: Bun.Server<WsData>) {
         const upgraded = srv.upgrade(req, {
           data: {
             id: crypto.randomUUID(),
@@ -194,7 +194,7 @@ const server = Bun.serve<WsData>({
       POST: createWhisperUser,
     },
     "/api/whisper/users/:userId": {
-      DELETE(req) {
+      DELETE(req: Bun.BunRequest<"/api/whisper/users/:userId">) {
         return deleteWhisperUser(req.params.userId);
       },
     },
@@ -206,62 +206,62 @@ const server = Bun.serve<WsData>({
       POST: accentWhisperText,
     },
     "/api/whisper/sessions/:sessionId": {
-      DELETE(req) {
+      DELETE(req: Bun.BunRequest<"/api/whisper/sessions/:sessionId">) {
         return deleteWhisperSession(req.params.sessionId);
       },
     },
     "/api/whisper/sessions/:sessionId/reference": {
-      POST(req) {
+      POST(req: Bun.BunRequest<"/api/whisper/sessions/:sessionId/reference">) {
         return prepareWhisperReference(req, req.params.sessionId);
       },
     },
     "/api/whisper/sessions/:sessionId/tts": {
-      POST(req) {
+      POST(req: Bun.BunRequest<"/api/whisper/sessions/:sessionId/tts">) {
         return generateWhisperTts(req, req.params.sessionId);
       },
     },
     "/api/whisper/sessions/:sessionId/ready": {
-      POST(req) {
+      POST(req: Bun.BunRequest<"/api/whisper/sessions/:sessionId/ready">) {
         return markWhisperSessionReady(req, req.params.sessionId);
       },
     },
     "/api/whisper/sessions/:sessionId/audio.wav": {
-      GET(req) {
+      GET(req: Bun.BunRequest<"/api/whisper/sessions/:sessionId/audio.wav">) {
         return serveWhisperSessionFile(req.params.sessionId, "audio.wav");
       },
     },
     "/api/whisper/sessions/:sessionId/transcript.txt": {
-      GET(req) {
+      GET(req: Bun.BunRequest<"/api/whisper/sessions/:sessionId/transcript.txt">) {
         return serveWhisperSessionFile(req.params.sessionId, "transcript.txt");
       },
     },
     "/api/whisper/sessions/:sessionId/meta.json": {
-      GET(req) {
+      GET(req: Bun.BunRequest<"/api/whisper/sessions/:sessionId/meta.json">) {
         return serveWhisperSessionFile(req.params.sessionId, "meta.json");
       },
     },
     "/api/whisper/sessions/:sessionId/reference.wav": {
-      GET(req) {
+      GET(req: Bun.BunRequest<"/api/whisper/sessions/:sessionId/reference.wav">) {
         return serveWhisperSessionFile(req.params.sessionId, "reference.wav");
       },
     },
     "/api/whisper/sessions/:sessionId/reference.txt": {
-      GET(req) {
+      GET(req: Bun.BunRequest<"/api/whisper/sessions/:sessionId/reference.txt">) {
         return serveWhisperSessionFile(req.params.sessionId, "reference.txt");
       },
     },
     "/api/whisper/sessions/:sessionId/tts.wav": {
-      GET(req) {
+      GET(req: Bun.BunRequest<"/api/whisper/sessions/:sessionId/tts.wav">) {
         return serveWhisperSessionFile(req.params.sessionId, "tts.wav");
       },
     },
     "/api/whisper/sessions/:sessionId/tts.txt": {
-      GET(req) {
+      GET(req: Bun.BunRequest<"/api/whisper/sessions/:sessionId/tts.txt">) {
         return serveWhisperSessionFile(req.params.sessionId, "tts.txt");
       },
     },
     "/api/whisper/sessions/:sessionId/tts-meta.json": {
-      GET(req) {
+      GET(req: Bun.BunRequest<"/api/whisper/sessions/:sessionId/tts-meta.json">) {
         return serveWhisperSessionFile(req.params.sessionId, "tts-meta.json");
       },
     },
@@ -666,10 +666,11 @@ async function startRecognizer(
   ws.data.lastPartial = "";
   ws.data.startedAt = Date.now();
   ws.data.active = true;
+  const recognizerGrammar = options.grammar ?? (options.useGrammar ? grammar : undefined);
   ws.data.recognizer = model.createRecognizer({
     sampleRate: options.sampleRate,
-    grammar: options.grammar ?? (options.useGrammar ? grammar : undefined),
-    words: options.words,
+    ...(recognizerGrammar ? { grammar: recognizerGrammar } : {}),
+    ...(options.words === undefined ? {} : { words: options.words }),
   });
 
   send(ws, {
@@ -697,7 +698,7 @@ async function closeRecognizer(
   }
 
   recognizer.close();
-  ws.data.recognizer = undefined;
+  delete ws.data.recognizer;
   ws.data.active = false;
   if (notify) {
     send(ws, {
@@ -1118,7 +1119,7 @@ function splitSentences(text: string): string[] {
   let start = 0;
 
   for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
+    const char = text[index] ?? "";
     if (!/[.!?…]/.test(char)) continue;
 
     const next = text[index + 1] ?? "";

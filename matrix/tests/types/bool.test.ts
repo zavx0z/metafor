@@ -5,7 +5,8 @@ import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture"
 import {write, update} from "../../matrix"
 import { GPU, weak$ } from "../../weak"
-import { FieldType, type Collapse } from "../../gravity"
+import { FieldType } from "../../gravity"
+import type { MatrixCollapse } from "@metafor/types/matrix"
 
 describe("weak - тип BOOLEAN (логический) с bun-webgpu", () => {
   beforeAll(async () => {
@@ -18,7 +19,7 @@ describe("weak - тип BOOLEAN (логический) с bun-webgpu", () => {
 
   describe("Прямое значение", () => {
     test("должен выполнить переход, когда значение равно true", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: true }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: true }]], [null]]
       await write({
         fields: [{ type: FieldType.BOOL }],
         branes: [{ state: 0, values: [[0, false]], collapses }],
@@ -28,7 +29,7 @@ describe("weak - тип BOOLEAN (логический) с bun-webgpu", () => {
     })
 
     test("должен выполнить переход, когда значение равно false", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: false }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: false }]], [null]]
       await write({
         fields: [{ type: FieldType.BOOL }],
         branes: [{ state: 0, values: [[0, true]], collapses }],
@@ -40,7 +41,7 @@ describe("weak - тип BOOLEAN (логический) с bun-webgpu", () => {
 
   describe("Оператор EQ (равно)", () => {
     test("должен выполнить переход, когда значение равно true", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { eq: true } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { eq: true } }]], [null]]
       await write({
         fields: [{ type: FieldType.BOOL }],
         branes: [{ state: 0, values: [[0, false]], collapses }],
@@ -50,7 +51,7 @@ describe("weak - тип BOOLEAN (логический) с bun-webgpu", () => {
     })
 
     test("должен выполнить переход, когда значение равно false", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { eq: false } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { eq: false } }]], [null]]
       await write({
         fields: [{ type: FieldType.BOOL }],
         branes: [{ state: 0, values: [[0, true]], collapses }],
@@ -62,7 +63,7 @@ describe("weak - тип BOOLEAN (логический) с bun-webgpu", () => {
 
   describe("Оператор NEQ (не равно)", () => {
     test("должен выполнить переход, когда значение не равно true", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { neq: true } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { neq: true } }]], [null]]
       await write({
         fields: [{ type: FieldType.BOOL }],
         branes: [{ state: 0, values: [[0, true]], collapses }],

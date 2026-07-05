@@ -3,7 +3,11 @@
   "type": "module",
   "exports": {
     ".": "./index.ts",
-    "./sqlite": "./sqlite/index.ts"
+    "./sqlite": "./sqlite/index.ts",
+    "./sqlite/value": "./sqlite/value.ts"
+  },
+  "dependencies": {
+    "@metafor/types": "workspace:*"
   },
   "private": true
 }

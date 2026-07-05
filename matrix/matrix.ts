@@ -29,32 +29,24 @@
 
 import { gravity$ } from "@matrix/gravity/store.ts"
 import { matrix$ } from "./store"
-import type { MatrixFieldRecord, MatrixFieldValueRecord, MatrixStore } from "./store.t"
-import type { PreparedData } from "./matrix.t"
-import { FieldType, flattenMatrixData, validateData, type Data } from "@matrix/gravity"
+import type {
+  MatrixData,
+  MatrixFieldRecord,
+  MatrixFieldValueRecord,
+  MatrixInputData,
+  MatrixRuntimeSnapshot,
+  MatrixStore,
+} from "@metafor/types/matrix"
+import { FieldType, flattenMatrixData, validateData } from "@matrix/gravity"
 import { createStoredStringInterner, normalizeFieldValue, assembleStoredMatrixData, strong$ } from "@matrix/strong"
 import { StepMode, weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@matrix/weak"
 import {resolveForceFieldId, resolveForceFieldsPayload} from "../boundary/force-fields.ts"
-
-export type MatrixDomainPath = string | number
-
-export type MatrixParticle = {
-  part: string
-  op: string
-  path: MatrixDomainPath
-  value?: unknown
-  from?: MatrixDomainPath
-  [key: string]: unknown
-}
-
-export type MatrixForceMessage = {
-  parts: MatrixParticle[]
-}
+import type {ForceMessage, Particle} from "@metafor/types/force"
 
 export const force = new BroadcastChannel("force")
 
 force.onmessage = async (event) => {
-  for (const part of (event.data as MatrixForceMessage).parts) {
+  for (const part of (event.data as ForceMessage).parts) {
     switch (part.part) {
       case "gluon":
         await applyRuntimeFieldParts([part], "gluon")
@@ -78,30 +70,6 @@ type MatrixPendingProcessExecution = {
   stateIndex: number
   fields: Record<string, unknown>
   acceptedEnergy?: string
-}
-
-export type MatrixRuntimeSnapshot = {
-  ok: true
-  version: 1
-  runtime: {
-    actorIdByBraneIndex: number[]
-    braneIndexByActorId: Array<[actorId: number, braneIndex: number]>
-    wimpSrcByActorId: Array<[actorId: number, wimpSrc: string]>
-    actorIdsByWimpSrc: Array<[wimpSrc: string, actorIds: number[]]>
-    runtimeFieldIndexByActorFieldId: Array<[actorId: number, fieldId: number, runtimeFieldIndex: number]>
-  }
-  data: Data
-  strong: {
-    runtimeFieldIndexByWimpFieldId: Array<[number, number]>
-    wimpFieldIdsByRuntimeFieldIndex: number[][]
-    braneIndexByWimpFieldId: Array<[number, number]>
-    topologyWimpFieldIds: number[]
-    topologyActorFieldIds: Array<[actorId: number, fieldId: number]>
-  }
-  weak: {
-    stateMetaStateIdsByBraneIndex: number[][]
-    stateHasProcessByBraneIndex: boolean[][]
-  }
 }
 
 type AsyncGate = {
@@ -133,7 +101,7 @@ const runExclusive = async <T>(gate: AsyncGate, task: () => Promise<T>): Promise
   }
 }
 
-const createEmptyPreparedData = (): PreparedData => ({
+const createEmptyPreparedData = (): MatrixData => ({
   fields: [],
   stringTable: [""],
   sharedBlocks: [],
@@ -148,7 +116,7 @@ const createEmptyPreparedData = (): PreparedData => ({
   stateNames: [],
 })
 
-export const applyPreparedData = (prepared: PreparedData): void => {
+export const applyPreparedData = (prepared: MatrixData): void => {
   matrix$.fields = prepared.fields
   matrix$.stringTable = prepared.stringTable
   matrix$.sharedBlocks = prepared.sharedBlocks
@@ -180,7 +148,7 @@ const clearRuntimeState = (): void => {
   weak$.reset()
 }
 
-const parseActorIdPath = (path: MatrixParticle["path"]): number | null =>
+const parseActorIdPath = (path: Particle["path"]): number | null =>
   typeof path === "number" && Number.isSafeInteger(path) && path > 0 ? path : null
 
 const isTopologyCompatibleActorField = (actorId: number, fieldId: number, runtimeFieldIndex: number): boolean => {
@@ -198,7 +166,7 @@ const defaultRuntimeFieldValue = (field: MatrixFieldRecord): unknown => {
 }
 
 const collectActorFieldUpdates = (
-  parts: MatrixParticle[],
+  parts: Particle[],
   kind: "gluon" | "higgs",
 ): Array<[braneIndex: number, fieldUpdates: Array<[fieldIndex: number, value: unknown]>]> => {
   const groupedUpdates = new Map<number, Array<[number, unknown]>>()
@@ -233,7 +201,7 @@ const collectActorFieldUpdates = (
   return Array.from(groupedUpdates, ([braneIndex, fieldUpdates]) => [braneIndex, fieldUpdates])
 }
 
-const markHiggsClassScopeDirty = (parts: MatrixParticle[]): void => {
+const markHiggsClassScopeDirty = (parts: Particle[]): void => {
   for (const part of parts) {
     if (part.part !== "higgs" || (part.op !== "replace" && part.op !== "remove")) continue
     if (typeof part.path !== "string") continue
@@ -246,7 +214,7 @@ const markHiggsClassScopeDirty = (parts: MatrixParticle[]): void => {
 }
 
 const applyRuntimeFieldParts = async (
-  parts: MatrixParticle[],
+  parts: Particle[],
   kind: "gluon" | "higgs",
 ): Promise<[number, number][]> => {
   if (kind === "higgs") markHiggsClassScopeDirty(parts)
@@ -257,7 +225,7 @@ const applyRuntimeFieldParts = async (
 
 const publishPhotonChanges = (changes: [number, number][]): void => {
   if (changes.length === 0) return
-  const parts: MatrixParticle[] = []
+  const parts: Particle[] = []
 
   for (const [braneIndex, stateIndex] of changes) {
     const actorId = gravity$.getActorId(braneIndex)
@@ -346,7 +314,7 @@ const currentBraneHasProcess = (braneIndex: number): boolean => {
   return stateIndex !== undefined && weak$.stateHasProcessByBraneIndex[braneIndex]?.[stateIndex] === true
 }
 
-const applyEnergyExecutionRequest = (part: MatrixParticle): void => {
+const applyEnergyExecutionRequest = (part: Particle): void => {
   if (part.part !== "z" || part.op !== "test") return
   const actorId = parseActorIdPath(part.path)
   if (actorId === null) return
@@ -403,7 +371,7 @@ const collectActorWeakFieldUpdates = (
   return fieldUpdates
 }
 
-const applyActorWeakResult = async (part: MatrixParticle): Promise<boolean> => {
+const applyActorWeakResult = async (part: Particle): Promise<boolean> => {
   if ((part.part !== "w+" && part.part !== "w-") || part.op !== "replace") return false
   const actorId = parseActorIdPath(part.path)
   if (actorId === null) return false
@@ -428,7 +396,7 @@ const applyActorWeakResult = async (part: MatrixParticle): Promise<boolean> => {
   return true
 }
 
-export function prepareData(data: Data): PreparedData {
+export function prepareData(data: MatrixInputData): MatrixData {
   return assembleStoredMatrixData(flattenMatrixData(data))
 }
 
@@ -515,7 +483,7 @@ const collectProcessStateRetriggers = (
   return retriggers
 }
 
-async function writePreparedData(prepared: PreparedData): Promise<[number, number][]> {
+async function writePreparedData(prepared: MatrixData): Promise<[number, number][]> {
   return await runExclusive(writeGate, async () => {
     weak$.reset()
     applyPreparedData(prepared)
@@ -529,7 +497,7 @@ async function writePreparedData(prepared: PreparedData): Promise<[number, numbe
   })
 }
 
-export async function write(data: Data): Promise<[number, number][]> {
+export async function write(data: MatrixInputData): Promise<[number, number][]> {
   validateData(data)
   /**
    * `write(data)` остаётся отдельным bootstrap/bypass path и не порождает id-composition.
@@ -651,8 +619,6 @@ export function unlock(indexes: number[]): void {
   weakHeapUpdate(weakUpdates)
 }
 
-export type { PreparedData } from "./matrix.t"
-export type { MatrixGravityStore } from "./gravity/store.t"
 export { FieldType } from "./gravity"
 export { gravity$ }
 export { matrix$ }

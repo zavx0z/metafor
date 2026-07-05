@@ -5,23 +5,25 @@
  */
 
 import { parseCondition } from "../gravity/condition"
-import type { FlattenedTransition } from "../gravity/flattened.t"
-import type { Collapse, Field } from "../gravity/schema.t"
-import { createStoredStringInterner, type StringInterner } from "../strong/string-table"
+import type {
+  CompiledRules,
+  FieldBytecode,
+  FlattenedTransition,
+  MatrixCollapse,
+  MatrixCompiledConditionsResult,
+  MatrixConditionInstruction,
+  MatrixEncodingContext,
+  MatrixFieldRecord,
+  MatrixParsedCheck,
+  StringInterner,
+} from "@metafor/types/matrix"
+import { createStoredStringInterner } from "../strong/string-table"
 import { OP, VALUE_TYPE } from "./constants"
 import { encodeValue, fieldTypeToBytecodeType } from "./encode"
-import type {
-  CompiledConditionsResult,
-  CompiledRules,
-  ConditionInstruction,
-  FieldBytecode,
-} from "./program.t"
-import type { EncodingContext } from "./encode.t"
-import type { ParsedCheck } from "../gravity/condition.t"
 
 export function compileSuperposition(
-  collapses: Collapse[][],
-  fields: Field[],
+  collapses: MatrixCollapse[][],
+  fields: MatrixFieldRecord[],
   stringInterner = createStoredStringInterner(),
 ): FieldBytecode {
   const flattened = collapses.map((stateTransitions) =>
@@ -43,7 +45,7 @@ export function compileSuperposition(
 
 export function compileFlattenedSuperposition(
   transitions: FlattenedTransition[][],
-  fields: Field[],
+  fields: MatrixFieldRecord[],
   stringInterner: StringInterner,
 ): FieldBytecode {
   const numStates = transitions.length
@@ -119,20 +121,20 @@ export function compileFlattenedSuperposition(
   }
 }
 
-function getArrayEncodingContext(ctx: EncodingContext, op: number, fieldType: number): EncodingContext {
+function getArrayEncodingContext(ctx: MatrixEncodingContext, op: number, fieldType: number): MatrixEncodingContext {
   if (fieldType !== VALUE_TYPE.ARRAY) {
     return ctx
   }
 
   if (ctx.subType !== undefined && (op === OP.IN || op === OP.NOT_IN)) {
-    const nextContext: EncodingContext = { type: ctx.subType }
+    const nextContext: MatrixEncodingContext = { type: ctx.subType }
     if (ctx.stringInterner !== undefined) {
       nextContext.stringInterner = ctx.stringInterner
     }
     return nextContext
   }
 
-  const nextContext: EncodingContext = { type: VALUE_TYPE.UINT }
+  const nextContext: MatrixEncodingContext = { type: VALUE_TYPE.UINT }
   if (ctx.stringInterner !== undefined) {
     nextContext.stringInterner = ctx.stringInterner
   }
@@ -140,11 +142,11 @@ function getArrayEncodingContext(ctx: EncodingContext, op: number, fieldType: nu
 }
 
 export function compileParsedConditions(
-  parsedChecks: Array<{ fieldIndex: number; checks: ParsedCheck[] }>,
-  fields: Field[],
+  parsedChecks: Array<{ fieldIndex: number; checks: MatrixParsedCheck[] }>,
+  fields: MatrixFieldRecord[],
   stringInterner: StringInterner = createStoredStringInterner(),
-): CompiledConditionsResult {
-  const instructions: ConditionInstruction[] = []
+): MatrixCompiledConditionsResult {
+  const instructions: MatrixConditionInstruction[] = []
   const heap: number[] = []
   const allChecks: Array<{
     fieldIndex: number
@@ -173,7 +175,7 @@ export function compileParsedConditions(
   let heapOffset = allChecks.length * 4
 
   for (const check of allChecks) {
-    const ctx: EncodingContext = { type: check.fieldType, stringInterner }
+    const ctx: MatrixEncodingContext = { type: check.fieldType, stringInterner }
     const field = fields[check.fieldIndex]
     if (field?.enum !== undefined) {
       ctx.enum = field.enum
@@ -242,9 +244,9 @@ export function compileParsedConditions(
 
 export function compileConditions(
   conditions: Record<number, any>,
-  fields: Field[],
+  fields: MatrixFieldRecord[],
   stringInterner = createStoredStringInterner(),
-): CompiledConditionsResult {
+): MatrixCompiledConditionsResult {
   const parsedChecks = Object.entries(conditions).map(([fieldIdxStr, condValue]) => ({
     fieldIndex: Number(fieldIdxStr),
     checks: parseCondition(condValue),
@@ -254,8 +256,8 @@ export function compileConditions(
 }
 
 export function compileEnsemble(
-  branes: Array<{ collapses: Collapse[][] }>,
-  fields: Field[],
+  branes: Array<{ collapses: MatrixCollapse[][] }>,
+  fields: MatrixFieldRecord[],
   stringInterner = createStoredStringInterner(),
 ): CompiledRules {
   const allBytecode: number[] = []
@@ -275,7 +277,7 @@ export function compileEnsemble(
 
 export function compileFlattenedEnsemble(
   branes: Array<{ transitions: FlattenedTransition[][] }>,
-  fields: Field[],
+  fields: MatrixFieldRecord[],
   stringInterner = createStoredStringInterner(),
 ): CompiledRules {
   const allBytecode: number[] = []

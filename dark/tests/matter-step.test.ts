@@ -1,5 +1,5 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
-import type {Particle} from "boundary"
+import type {Particle} from "@metafor/types/force"
 import {open} from "boundary/sqlite"
 import {matter} from "../dark.ts"
 

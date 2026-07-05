@@ -4,7 +4,7 @@
  * Это execution-форма для GPU, а не каноническая truth-модель.
  */
 
-import type { FieldMeta, HeapInput, HeapLayout, PackedMeta } from "./layout-heap.t"
+import type { GpuFieldMeta, GpuHeapInput, GpuHeapLayout } from "@metafor/types/matrix"
 
 const META_TYPE_SHIFT = 24
 const META_TYPE_MASK = 0xff
@@ -12,7 +12,7 @@ const META_SIZE_SHIFT = 16
 const META_SIZE_MASK = 0xff
 const META_OFFSET_MASK = 0xffff
 
-export function packMeta(fieldType: number, fieldSize: number, fieldOffset: number): PackedMeta {
+export function packMeta(fieldType: number, fieldSize: number, fieldOffset: number): number {
   if (fieldType >= 256) throw new Error(`fieldType out of range: ${fieldType}`)
   if (fieldSize >= 256) throw new Error(`fieldSize out of range: ${fieldSize}`)
   if (fieldOffset >= 65536) throw new Error(`offset out of range: ${fieldOffset}`)
@@ -21,7 +21,7 @@ export function packMeta(fieldType: number, fieldSize: number, fieldOffset: numb
     (fieldOffset & META_OFFSET_MASK)
 }
 
-export function unpackMeta(packed: PackedMeta): FieldMeta {
+export function unpackMeta(packed: number): GpuFieldMeta {
   return {
     type: (packed >>> META_TYPE_SHIFT) & META_TYPE_MASK,
     size: (packed >>> META_SIZE_SHIFT) & META_SIZE_MASK,
@@ -29,7 +29,7 @@ export function unpackMeta(packed: PackedMeta): FieldMeta {
   }
 }
 
-export function buildHeap(input: HeapInput): HeapLayout {
+export function buildHeap(input: GpuHeapInput): GpuHeapLayout {
   const { localFields, braneEntangledMap, entangledFields, fieldMeta } = input
 
   const entangledKeys = Array.from(entangledFields.keys())

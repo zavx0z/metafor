@@ -5,7 +5,8 @@ import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture"
 import {write, update} from "../../matrix"
 import { GPU, weak$ } from "../../weak"
-import { FieldType, type Collapse } from "../../gravity"
+import { FieldType } from "../../gravity"
+import type { MatrixCollapse } from "@metafor/types/matrix"
 
 describe("weak - тип FLOAT (число) с bun-webgpu", () => {
   beforeAll(async () => {
@@ -18,7 +19,7 @@ describe("weak - тип FLOAT (число) с bun-webgpu", () => {
 
   describe("Оператор EQ (равно)", () => {
     test("должен выполнить переход, когда значение равно указанному", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { eq: 42 } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { eq: 42 } }]], [null]]
       // Начальное значение 0 ≠ 42, поэтому после write() state=0
       await write({
         fields: [{ type: FieldType.F32 }],
@@ -29,7 +30,7 @@ describe("weak - тип FLOAT (число) с bun-webgpu", () => {
     })
 
     test("должен работать с отрицательными числами", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { eq: -10 } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { eq: -10 } }]], [null]]
       await write({
         fields: [{ type: FieldType.F32 }],
         branes: [{ state: 0, values: [[0, 0]], collapses }],
@@ -39,7 +40,7 @@ describe("weak - тип FLOAT (число) с bun-webgpu", () => {
     })
 
     test("должен работать с дробными числами", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { eq: 3.14 } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { eq: 3.14 } }]], [null]]
       await write({
         fields: [{ type: FieldType.F32 }],
         branes: [{ state: 0, values: [[0, 0]], collapses }],
@@ -49,7 +50,7 @@ describe("weak - тип FLOAT (число) с bun-webgpu", () => {
     })
 
     test("должен работать с нулём", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { eq: 0 } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { eq: 0 } }]], [null]]
       // Начальное значение 1 ≠ 0, поэтому после write() state=0
       await write({
         fields: [{ type: FieldType.F32 }],
@@ -62,7 +63,7 @@ describe("weak - тип FLOAT (число) с bun-webgpu", () => {
 
   describe("Оператор NEQ (не равно)", () => {
     test("должен выполнить переход, когда значение не равно указанному", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { neq: 42 } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { neq: 42 } }]], [null]]
       // Начальное значение 42 = 42, поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.F32 }],
@@ -75,7 +76,7 @@ describe("weak - тип FLOAT (число) с bun-webgpu", () => {
 
   describe("Оператор GT (больше)", () => {
     test("должен выполнить переход, когда значение больше указанного", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { gt: 100 } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { gt: 100 } }]], [null]]
       // Начальное значение 50 ≤ 100, поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.F32 }],
@@ -88,7 +89,7 @@ describe("weak - тип FLOAT (число) с bun-webgpu", () => {
 
   describe("Оператор LT (меньше)", () => {
     test("должен выполнить переход, когда значение меньше указанного", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { lt: 50 } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { lt: 50 } }]], [null]]
       // Начальное значение 100 ≥ 50, поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.F32 }],
@@ -101,7 +102,7 @@ describe("weak - тип FLOAT (число) с bun-webgpu", () => {
 
   describe("Оператор GTE (больше или равно)", () => {
     test("должен выполнить переход, когда значение больше или равно", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { gte: 50 } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { gte: 50 } }]], [null]]
       // Начальное значение 0 < 50, поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.F32 }],
@@ -114,7 +115,7 @@ describe("weak - тип FLOAT (число) с bun-webgpu", () => {
 
   describe("Оператор LTE (меньше или равно)", () => {
     test("должен выполнить переход, когда значение меньше или равно", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { lte: 50 } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { lte: 50 } }]], [null]]
       // Начальное значение 100 > 50, поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.F32 }],

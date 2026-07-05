@@ -1,11 +1,12 @@
 import {Buffer} from "node:buffer"
 import {describe, expect, test} from "bun:test"
-import type {BoundaryEnergyProcessDescriptor, BoundaryEnergyRuntimeSnapshot, ForceMessage, Particle} from "boundary"
+import type {EnergyProcessDescriptor, EnergyRuntimeSnapshot} from "@metafor/types/energy"
+import type {ForceMessage, Particle} from "@metafor/types/force"
 import {startEnergyProtocol} from "./energy.ts"
 
 let channelSequence = 0
 
-type EnergyActionDescriptor = BoundaryEnergyProcessDescriptor["action"]
+type EnergyActionDescriptor = EnergyProcessDescriptor["action"]
 
 const waitFor = async (predicate: () => boolean): Promise<void> => {
   const deadline = Date.now() + 1000
@@ -30,8 +31,8 @@ const processEntry = (
     readFields: [[2, "command"]],
   },
   env: string[] = ["server"],
-  descriptor: Partial<Pick<BoundaryEnergyProcessDescriptor, "success" | "error">> = {},
-): BoundaryEnergyRuntimeSnapshot["processes"][number] => ({
+  descriptor: Partial<Pick<EnergyProcessDescriptor, "success" | "error">> = {},
+): EnergyRuntimeSnapshot["processes"][number] => ({
   wimp: "owner/process",
   state,
   descriptor: {
@@ -43,7 +44,7 @@ const processEntry = (
   },
 })
 
-const createCatalog = (env: string[] = ["server"]): BoundaryEnergyRuntimeSnapshot => ({
+const createCatalog = (env: string[] = ["server"]): EnergyRuntimeSnapshot => ({
   version: 1,
   actors: [[17, "owner/process"]],
   processes: [processEntry("ready", undefined, env)],
@@ -52,7 +53,7 @@ const createCatalog = (env: string[] = ["server"]): BoundaryEnergyRuntimeSnapsho
 const createHarness = (
   energyId = "energy-local",
   timeoutMs = 1,
-  catalog: BoundaryEnergyRuntimeSnapshot = createCatalog(),
+  catalog: EnergyRuntimeSnapshot = createCatalog(),
   runtimeKind = "server",
 ) => {
   const name = `force-energy-test-${Date.now()}-${++channelSequence}`
@@ -204,7 +205,7 @@ describe("Energy Weak protocol", () => {
   })
 
   test("Energy executes wrapperSrc and sends actor-addressed w+", async () => {
-    const catalog: BoundaryEnergyRuntimeSnapshot = {
+    const catalog: EnergyRuntimeSnapshot = {
       version: 1,
       actors: [[17, "owner/process"]],
       processes: [processEntry("ready", {
@@ -233,7 +234,7 @@ describe("Energy Weak protocol", () => {
   })
 
   test("Energy success handler writes declared field", async () => {
-    const catalog: BoundaryEnergyRuntimeSnapshot = {
+    const catalog: EnergyRuntimeSnapshot = {
       version: 1,
       actors: [[17, "owner/process"]],
       processes: [processEntry("ready", {
@@ -268,7 +269,7 @@ describe("Energy Weak protocol", () => {
   })
 
   test("Energy success handler cannot write undeclared fields", async () => {
-    const catalog: BoundaryEnergyRuntimeSnapshot = {
+    const catalog: EnergyRuntimeSnapshot = {
       version: 1,
       actors: [[17, "owner/process"]],
       processes: [processEntry("ready", {
@@ -298,7 +299,7 @@ describe("Energy Weak protocol", () => {
   })
 
   test("Energy sends w- when wrapperSrc throws", async () => {
-    const catalog: BoundaryEnergyRuntimeSnapshot = {
+    const catalog: EnergyRuntimeSnapshot = {
       version: 1,
       actors: [[17, "owner/process"]],
       processes: [processEntry("ready", {
@@ -324,7 +325,7 @@ describe("Energy Weak protocol", () => {
   })
 
   test("Energy error handler writes declared field", async () => {
-    const catalog: BoundaryEnergyRuntimeSnapshot = {
+    const catalog: EnergyRuntimeSnapshot = {
       version: 1,
       actors: [[17, "owner/process"]],
       processes: [processEntry("ready", {
@@ -356,7 +357,7 @@ describe("Energy Weak protocol", () => {
   })
 
   test("Energy success handler throw converts to w-", async () => {
-    const catalog: BoundaryEnergyRuntimeSnapshot = {
+    const catalog: EnergyRuntimeSnapshot = {
       version: 1,
       actors: [[17, "owner/process"]],
       processes: [processEntry("ready", {
@@ -387,7 +388,7 @@ describe("Energy Weak protocol", () => {
   })
 
   test("Energy error handler throw still sends w-", async () => {
-    const catalog: BoundaryEnergyRuntimeSnapshot = {
+    const catalog: EnergyRuntimeSnapshot = {
       version: 1,
       actors: [[17, "owner/process"]],
       processes: [processEntry("ready", {
@@ -418,7 +419,7 @@ describe("Energy Weak protocol", () => {
   })
 
   test("Imported action receives the same params object contract", async () => {
-    const catalog: BoundaryEnergyRuntimeSnapshot = {
+    const catalog: EnergyRuntimeSnapshot = {
       version: 1,
       actors: [[17, "owner/process"]],
       processes: [processEntry("ready", {
@@ -448,7 +449,7 @@ describe("Energy Weak protocol", () => {
   })
 
   test("Energy action value is keyed by field key, not field id", async () => {
-    const catalog: BoundaryEnergyRuntimeSnapshot = {
+    const catalog: EnergyRuntimeSnapshot = {
       version: 1,
       actors: [[17, "owner/process"]],
       processes: [processEntry("ready", {
@@ -485,7 +486,7 @@ describe("Energy Weak protocol", () => {
   })
 
   test("Energy mass persists between executions for same actor and wimp", async () => {
-    const catalog: BoundaryEnergyRuntimeSnapshot = {
+    const catalog: EnergyRuntimeSnapshot = {
       version: 1,
       actors: [[17, "owner/process"]],
       processes: [

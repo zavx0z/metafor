@@ -1,7 +1,7 @@
 import type {SQL} from "bun"
-import type {MetaDSL} from "../../../metafor.t.ts"
+import type {MetaDSL} from "@metafor/types/metafor/metafor"
 import type {Wimp} from "./wimp.ts"
-import type {WimpMassValueRow} from "./mass.t.ts"
+import type {WimpMassValueRow} from "@metafor/types/persistence"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)

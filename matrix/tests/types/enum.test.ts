@@ -5,7 +5,8 @@ import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture"
 import {write, update} from "../../matrix"
 import { GPU, weak$ } from "../../weak"
-import { FieldType, type Collapse } from "../../gravity"
+import { FieldType } from "../../gravity"
+import type { MatrixCollapse } from "@metafor/types/matrix"
 
 describe("weak - тип UINT (enum) с bun-webgpu", () => {
   beforeAll(async () => {
@@ -18,7 +19,7 @@ describe("weak - тип UINT (enum) с bun-webgpu", () => {
 
   describe("Прямое значение enum", () => {
     test("должен выполнить переход, когда значение равно указанному enum", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: "MAGE" }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: "MAGE" }]], [null]]
       await write({
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
         branes: [{ state: 0, values: [[0, "WARRIOR"]], collapses }],
@@ -28,7 +29,7 @@ describe("weak - тип UINT (enum) с bun-webgpu", () => {
     })
 
     test("не должен выполнить переход, когда значение не равно enum", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: "MAGE" }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: "MAGE" }]], [null]]
       await write({
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
         branes: [{ state: 0, values: [[0, "WARRIOR"]], collapses }],
@@ -40,7 +41,7 @@ describe("weak - тип UINT (enum) с bun-webgpu", () => {
 
   describe("Оператор EQ (равно)", () => {
     test("должен выполнить переход, когда значение равно указанному enum", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { eq: "WARRIOR" } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { eq: "WARRIOR" } }]], [null]]
       await write({
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
         branes: [{ state: 0, values: [[0, "ROGUE"]], collapses }],
@@ -52,7 +53,7 @@ describe("weak - тип UINT (enum) с bun-webgpu", () => {
 
   describe("Оператор NEQ (не равно)", () => {
     test("должен выполнить переход, когда значение не равно указанному enum", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { neq: "WARRIOR" } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { neq: "WARRIOR" } }]], [null]]
       // Начальное значение "WARRIOR" = "WARRIOR", поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
@@ -65,7 +66,7 @@ describe("weak - тип UINT (enum) с bun-webgpu", () => {
 
   describe("Оператор IN (список enum)", () => {
     test("должен выполнить переход, когда enum в списке", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { in: ["WARRIOR", "MAGE"] } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { in: ["WARRIOR", "MAGE"] } }]], [null]]
       // Начальное значение "ROGUE" не в списке, поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
@@ -76,7 +77,7 @@ describe("weak - тип UINT (enum) с bun-webgpu", () => {
     })
 
     test("должен работать с NOT_IN для enum", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { notIn: ["WARRIOR", "MAGE"] } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { notIn: ["WARRIOR", "MAGE"] } }]], [null]]
       // Начальное значение "WARRIOR" в списке, поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
@@ -89,7 +90,7 @@ describe("weak - тип UINT (enum) с bun-webgpu", () => {
 
   describe("Сравнение индексов enum", () => {
     test("должен работать с GT для enum (сравнение индексов)", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { gt: "WARRIOR" } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { gt: "WARRIOR" } }]], [null]]
       // WARRIOR=0, начальное значение WARRIOR не > WARRIOR, поэтому НЕ переходит
       await write({
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
@@ -100,7 +101,7 @@ describe("weak - тип UINT (enum) с bun-webgpu", () => {
     })
 
     test("должен работать с LT для enum (сравнение индексов)", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { lt: "ROGUE" } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { lt: "ROGUE" } }]], [null]]
       // ROGUE=2, начальное значение ROGUE не < ROGUE, поэтому НЕ переходит
       await write({
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
@@ -113,7 +114,7 @@ describe("weak - тип UINT (enum) с bun-webgpu", () => {
 
   describe("Ошибка при неизвестном значении enum", () => {
     test("должен выбросить ошибку при неизвестном значении enum в write()", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { eq: "MAGE" } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { eq: "MAGE" } }]], [null]]
       await expect(write({
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
         branes: [{ state: 0, values: [[0, "UNKNOWN"]], collapses }],
@@ -121,7 +122,7 @@ describe("weak - тип UINT (enum) с bun-webgpu", () => {
     })
 
     test("должен выбросить ошибку при неизвестном значении enum в update", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { eq: "MAGE" } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { eq: "MAGE" } }]], [null]]
       await write({
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
         branes: [{ state: 0, values: [[0, "WARRIOR"]], collapses }],

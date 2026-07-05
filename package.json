@@ -12,6 +12,7 @@
   },
   "workspaces": [
     "app/tauri",
+    "types",
     "ui/*",
     "pkg/**/*",
     "fixture",
@@ -36,6 +37,9 @@
     "fake-indexeddb": "^6.2.5",
     "typedoc": "^0.28.18",
     "typedoc-plugin-merge-modules": "^7.0.0"
+  },
+  "dependencies": {
+    "@metafor/types": "workspace:*"
   },
   "peerDependencies": {
     "typescript": "^6.0.2"

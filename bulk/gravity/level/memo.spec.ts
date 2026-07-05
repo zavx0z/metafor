@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { createLevelResolver } from "./memo"
-import type { LevelSettings } from "./settings.t"
+import type { LevelSettings } from "@metafor/types/bulk"
 
 const SETTINGS: LevelSettings = {
   geometry: {

@@ -1,5 +1,5 @@
 /**
- * Тест на синхронизацию констант OP и TYPE между TypeScript и WGSL.
+ * Тест на синхронизацию констант OP и VALUE_TYPE между TypeScript и WGSL.
  *
  * ## Важность
  *
@@ -14,7 +14,7 @@
  * - INCLUDE = 8u, NOT_INCLUDE = 9u
  * - LENGTH = 10u, IS_EMPTY = 11u
  *
- * **TYPE (типы данных):**
+ * **VALUE_TYPE (типы данных):**
  * - FLOAT = 0u, UINT = 1u, BOOL = 2u, STRING = 3u, ARRAY = 4u
  *
  * @see opcodes.ts — TypeScript константы
@@ -22,9 +22,9 @@
  */
 
 import { test, expect, describe } from "bun:test"
-import { OP, TYPE } from "../weak"
+import { OP, VALUE_TYPE } from "../weak"
 
-describe("Синхронизация констант OP/TYPE", () => {
+describe("Синхронизация констант OP/VALUE_TYPE", () => {
   describe("OP (операции сравнения)", () => {
     test("EQ должен быть 0 (wgsl: op == 0u)", () => {
       expect(OP.EQ).toBe(0)
@@ -75,25 +75,25 @@ describe("Синхронизация констант OP/TYPE", () => {
     })
   })
 
-  describe("TYPE (типы данных)", () => {
+  describe("VALUE_TYPE (типы данных)", () => {
     test("FLOAT должен быть 0 (wgsl: field_type == 0u)", () => {
-      expect(TYPE.FLOAT).toBe(0)
+      expect(VALUE_TYPE.FLOAT).toBe(0)
     })
 
     test("UINT должен быть 1 (wgsl: field_type == 1u)", () => {
-      expect(TYPE.UINT).toBe(1)
+      expect(VALUE_TYPE.UINT).toBe(1)
     })
 
     test("BOOL должен быть 2 (wgsl: field_type == 2u)", () => {
-      expect(TYPE.BOOL).toBe(2)
+      expect(VALUE_TYPE.BOOL).toBe(2)
     })
 
     test("STRING должен быть 3 (wgsl: field_type == 3u)", () => {
-      expect(TYPE.STRING).toBe(3)
+      expect(VALUE_TYPE.STRING).toBe(3)
     })
 
     test("ARRAY должен быть 4 (wgsl: field_type == 4u)", () => {
-      expect(TYPE.ARRAY).toBe(4)
+      expect(VALUE_TYPE.ARRAY).toBe(4)
     })
   })
 
@@ -105,8 +105,8 @@ describe("Синхронизация констант OP/TYPE", () => {
       }
     })
 
-    test("TYPE должен быть последовательным (0-4)", () => {
-      const values = Object.values(TYPE) as number[]
+    test("VALUE_TYPE должен быть последовательным (0-4)", () => {
+      const values = Object.values(VALUE_TYPE) as number[]
       for (let i = 0; i < values.length; i++) {
         expect(values[i]).toBe(i)
       }

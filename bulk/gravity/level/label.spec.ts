@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { resolveLevelLabel } from "./label"
-import type { LevelLabelSettings } from "./settings.t"
+import type { LevelLabelSettings } from "@metafor/types/bulk"
 
 const BASE: LevelLabelSettings = {
   baseDepth: 0,

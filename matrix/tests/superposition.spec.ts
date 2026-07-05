@@ -4,7 +4,8 @@
 import { test, expect, describe, beforeEach } from "bun:test"
 import { compileSuperposition, compileConditions, compileEnsemble } from "../weak/program"
 import { OP } from "../weak"
-import { FieldType, type Collapse } from "../gravity"
+import { FieldType } from "../gravity"
+import type { MatrixCollapse } from "@metafor/types/matrix"
 
 describe("compileConditions — компиляция условий", () => {
   beforeEach(() => {
@@ -16,7 +17,7 @@ describe("compileConditions — компиляция условий", () => {
 
     expect(result.instructions).toHaveLength(1)
     expect(result.instructions[0]!).toMatchObject({
-      fieldType: 0, // TYPE.FLOAT
+      fieldType: 0, // VALUE_TYPE.FLOAT
       fieldIndex: 0,
       op: OP.GT,
     })
@@ -88,7 +89,7 @@ describe("compileSuperposition — компиляция суперпозиции
 
   test("должен компилировать суперпозицию с 2 состояниями", () => {
     const fields = [{ type: FieldType.F32 }]
-    const collapses: Collapse[][] = [
+    const collapses: MatrixCollapse[][] = [
       [[1, { 0: { gt: 50 } }]], // из состояния 0
       [null], // состояние 1 терминальное
     ]
@@ -102,7 +103,7 @@ describe("compileSuperposition — компиляция суперпозиции
 
   test("должен создавать корректную структуру bytecode", () => {
     const fields = [{ type: FieldType.F32 }]
-    const collapses: Collapse[][] = [
+    const collapses: MatrixCollapse[][] = [
       [
         [1, { 0: { gt: 50 } }],
         [0, { 0: { lte: 50 } }],
@@ -119,7 +120,7 @@ describe("compileSuperposition — компиляция суперпозиции
 
   test("должен компилировать суперпозицию с оператором IN", () => {
     const fields = [{ type: FieldType.F32 }]
-    const collapses: Collapse[][] = [
+    const collapses: MatrixCollapse[][] = [
       [[1, { 0: { in: [1, 3, 5] } }]],
       [null],
     ]
@@ -134,7 +135,7 @@ describe("compileSuperposition — компиляция суперпозиции
 describe("compileEnsemble — компиляция ансамбля", () => {
   test("должен компилировать несколько бран", () => {
     const fields = [{ type: FieldType.F32 }]
-    const branes: Array<{ collapses: Collapse[][] }> = [
+    const branes: Array<{ collapses: MatrixCollapse[][] }> = [
       { collapses: [[[1, { 0: { gt: 50 } }]], [null]] },
       { collapses: [[[0, { 0: { lt: 10 } }]], [null]] },
     ]

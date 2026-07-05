@@ -38,7 +38,7 @@ let recognizer: ReturnType<VoskModel["createRecognizer"]> | undefined;
 
 try {
   model = openVoskModel(options.modelPath, library);
-  recognizer = model.createRecognizer({ sampleRate, grammar });
+  recognizer = model.createRecognizer({ sampleRate, ...(grammar ? { grammar } : {}) });
 
   for (const chunk of chunkPcm(audio.pcm, options.chunkBytes)) {
     const result = recognizer.acceptPcm(chunk);
@@ -82,6 +82,7 @@ function parseArgs(args: string[]): CliOptions {
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
+    if (!arg) continue;
     const next = () => {
       const value = args[++index];
       if (!value) throw new Error(`Missing value for ${arg}`);

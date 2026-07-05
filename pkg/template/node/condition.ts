@@ -1,7 +1,7 @@
-import type { PartAttrCondition } from "./condition.t.ts"
+import type { PartAttrCondition } from "@metafor/types/template/node/condition"
 import { parseCondition } from "../parser.ts"
-import type { ParseContext } from "../parser.t.ts"
-import type { NodeCondition, TokenCondClose, TokenCondElse, TokenCondOpen } from "./condition.t.ts"
+import type { ParseContext } from "@metafor/types/template/parser"
+import type { NodeCondition, TokenCondClose, TokenCondElse, TokenCondOpen } from "@metafor/types/template/node/condition"
 import { createNode } from "./index.ts"
 
 /**

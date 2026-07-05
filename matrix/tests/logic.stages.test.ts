@@ -5,7 +5,8 @@ import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture"
 import {write, update} from "../matrix"
 import { GPU, weak$ } from "../weak"
-import { FieldType, type Collapse } from "../gravity"
+import { FieldType } from "../gravity"
+import type { MatrixCollapse } from "@metafor/types/matrix"
 
 describe("weak — Логические стадии (bun-webgpu)", () => {
   beforeAll(async () => {
@@ -19,7 +20,7 @@ describe("weak — Логические стадии (bun-webgpu)", () => {
   describe("Оператор IN (Списки)", () => {
     test("должен перейти, если значение в списке (int/enum)", async () => {
       // Одна суперпозиция: из state 0 переходим в state 1 если value in [1, 3, 5]
-      const collapses: Collapse[][] = [
+      const collapses: MatrixCollapse[][] = [
         [[1, { 0: { in: [1, 3, 5] } }]],  // state 0 → state 1 если in [1,3,5]
         [null],  // state 1 терминальное
       ]
@@ -37,7 +38,7 @@ describe("weak — Логические стадии (bun-webgpu)", () => {
     })
 
     test("должен перейти, если float-значение в списке", async () => {
-      const collapses: Collapse[][] = [
+      const collapses: MatrixCollapse[][] = [
         [[1, { 0: { in: [36.6, 37.0] } }]],
         [null],
       ]
@@ -57,7 +58,7 @@ describe("weak — Логические стадии (bun-webgpu)", () => {
 
   describe("Оператор NOT_IN (Исключение)", () => {
     test("должен перейти, если значение НЕ в списке", async () => {
-      const collapses: Collapse[][] = [
+      const collapses: MatrixCollapse[][] = [
         [[1, { 0: { notIn: [0, 2] } }]],
         [null],
         [null],
@@ -77,7 +78,7 @@ describe("weak — Логические стадии (bun-webgpu)", () => {
 
   describe("Комбинированные условия", () => {
     test("должен работать с комбинацией диапазонов и списков", async () => {
-      const collapses: Collapse[][] = [
+      const collapses: MatrixCollapse[][] = [
         [[1, { 0: { gte: 100 }, 1: { in: [5, 7, 10] } }]],
         [null],
         [null],

@@ -4,24 +4,22 @@ import type {
   BulkDarkParticleKind,
   BulkFieldParticleInput,
   BulkFieldParticleKind,
-  BulkLayoutSettings,
   BulkManifest,
-} from "@bulk/gravity/layout"
+} from "@metafor/types/bulk"
 import {
   createBulkManifestFromDarkParticleInputs,
   scaleBulkManifestToRootOuterDiameter,
 } from "@bulk/gravity/layout"
-import type {BoundaryBulkRuntimeSnapshot} from "boundary"
-
-type BoundaryActorSnapshot = BoundaryBulkRuntimeSnapshot["actors"][number]
-type BoundaryTopologySnapshot = BoundaryBulkRuntimeSnapshot["topologies"][number]
-type BoundaryMatterParticleSnapshot = BoundaryBulkRuntimeSnapshot["matterParticles"][number]
-type BoundaryFieldSnapshot = BoundaryBulkRuntimeSnapshot["fields"][number]
-type BoundaryFieldEnumVariantSnapshot = BoundaryBulkRuntimeSnapshot["fieldEnumVariants"][number]
-type BoundaryValueSnapshot = BoundaryBulkRuntimeSnapshot["values"][number]
-type BoundaryValueListItemSnapshot = BoundaryBulkRuntimeSnapshot["valueItems"][number]
-type BoundaryMatterBindingPathSnapshot = BoundaryBulkRuntimeSnapshot["matterTopologyBindingPaths"][number]
-type BoundaryMatterChildBindingPathSnapshot = BoundaryBulkRuntimeSnapshot["matterChildWimpBindingPaths"][number]
+import type {
+  BulkRuntimeField,
+  BulkLayoutSettings,
+  BulkRuntimeMatterBindingPath,
+  BulkRuntimeMatterChildBindingPath,
+  BulkRuntimeMatterParticle,
+  BulkRuntimeSnapshot,
+  BulkRuntimeValue,
+} from "@metafor/types/bulk"
+import type {ActorRecord, FieldEnumVariantRecord, TopologyRecord, ValueItemRecord} from "@metafor/types/persistence"
 
 const wimpDarkParticleColor = {colorR: 0.4, colorG: 0.45, colorB: 0.98}
 const connectivityDarkParticleColors: Record<BulkDarkParticleKind, {colorR: number; colorG: number; colorB: number}> = {
@@ -41,7 +39,7 @@ const fieldParticleColor = (kind: BulkFieldParticleKind): {colorR: number; color
   return {colorR: 1, colorG: 0.16, colorB: 0.16}
 }
 
-const fieldParticleKind = (type: BoundaryFieldSnapshot["type"]): BulkFieldParticleKind => {
+const fieldParticleKind = (type: BulkRuntimeField["type"]): BulkFieldParticleKind => {
   if (type === "string") return "string"
   if (type === "number") return "number"
   if (type === "boolean") return "boolean"
@@ -87,8 +85,8 @@ const fieldParticleIdFromActorField = (actorId: number, fieldId: number): number
 
 const valueText = (
   valueId: number | undefined,
-  valuesById: Map<number, BoundaryValueSnapshot>,
-  valueItemsById: Map<number, BoundaryValueListItemSnapshot[]>,
+  valuesById: Map<number, BulkRuntimeValue>,
+  valueItemsById: Map<number, ValueItemRecord[]>,
 ): string | null => {
   if (valueId === undefined) return null
   const value = valuesById.get(valueId)
@@ -105,7 +103,7 @@ const valueText = (
 const sortByPosition = <T extends {position: number}>(entries: T[]): T[] =>
   [...entries].sort((left, right) => left.position - right.position)
 
-const matterEdgeSlotOrder: Record<BoundaryMatterParticleSnapshot["edgeSlot"], number> = {
+const matterEdgeSlotOrder: Record<BulkRuntimeMatterParticle["edgeSlot"], number> = {
   root: 0,
   branch: 0,
   child: 0,
@@ -113,7 +111,7 @@ const matterEdgeSlotOrder: Record<BoundaryMatterParticleSnapshot["edgeSlot"], nu
   else: 1,
 }
 
-const sortMatterParticles = (entries: BoundaryMatterParticleSnapshot[]): BoundaryMatterParticleSnapshot[] =>
+const sortMatterParticles = (entries: BulkRuntimeMatterParticle[]): BulkRuntimeMatterParticle[] =>
   [...entries].sort((left, right) =>
     matterEdgeSlotOrder[left.edgeSlot] - matterEdgeSlotOrder[right.edgeSlot] ||
     left.particleOrder - right.particleOrder,
@@ -128,7 +126,7 @@ const fieldKeyFromMatterPath = (path: string): string | null => {
 }
 
 export function buildBoundaryBulkManifest(
-  snapshot: BoundaryBulkRuntimeSnapshot,
+  snapshot: BulkRuntimeSnapshot,
   rootSrc: string,
   settings: Partial<BulkLayoutSettings> = {},
 ): BulkManifest {
@@ -166,11 +164,11 @@ export function buildBoundaryBulkManifest(
   const matterChildWimpBindingPathsByParticle = group(matterChildWimpBindingPaths, (entry) => entry.particle)
   const connectivityFieldKeys = new Set<string>()
   const topologyLabelById = new Map<number, string>()
-  const topologyPlanById = new Map<number, BoundaryMatterParticleSnapshot>()
-  const topologyActorById = new Map<number, BoundaryActorSnapshot>()
+  const topologyPlanById = new Map<number, BulkRuntimeMatterParticle>()
+  const topologyActorById = new Map<number, ActorRecord>()
   const activityByDarkParticleId = new Map<number, BulkDarkParticleActivity>()
 
-  const collectConnectivityFieldKeys = (entries: BoundaryMatterBindingPathSnapshot[] | BoundaryMatterChildBindingPathSnapshot[]): void => {
+  const collectConnectivityFieldKeys = (entries: BulkRuntimeMatterBindingPath[] | BulkRuntimeMatterChildBindingPath[]): void => {
     for (const entry of entries) {
       const key = fieldKeyFromMatterPath(entry.path)
       if (key === null) continue
@@ -182,7 +180,7 @@ export function buildBoundaryBulkManifest(
   collectConnectivityFieldKeys(matterTopologyBindingPaths)
   collectConnectivityFieldKeys(matterChildWimpBindingPaths)
 
-  const matterTopologyChildren = (wimp: string, parentMatterParticle: number | null): BoundaryMatterParticleSnapshot[] =>
+  const matterTopologyChildren = (wimp: string, parentMatterParticle: number | null): BulkRuntimeMatterParticle[] =>
     sortMatterParticles(matterParticlesByWimpParent.get(matterParentKey(wimp, parentMatterParticle)) ?? [])
       .filter((particle) => particle.particleKind !== "wimp")
 
@@ -202,25 +200,25 @@ export function buildBoundaryBulkManifest(
     return null
   }
 
-  const topologyPlanLabel = (wimp: string, plan: BoundaryMatterParticleSnapshot): string | null => {
+  const topologyPlanLabel = (wimp: string, plan: BulkRuntimeMatterParticle): string | null => {
     const childPaths = sortBindingPaths(matterChildWimpBindingPathsByParticle.get(plan.id) ?? [])
       .map((entry) => entry.path)
     return firstFieldLabelFromPaths(wimp, sortBindingPaths(matterTopologyBindingPathsByParticle.get(plan.id) ?? []).map((entry) => entry.path)) ??
       firstFieldLabelFromPaths(wimp, childPaths)
   }
 
-  const actorFieldValueText = (actor: BoundaryActorSnapshot, fieldKey: string): string | null => {
+  const actorFieldValueText = (actor: ActorRecord, fieldKey: string): string | null => {
     const field = fieldByWimpKey.get(`${actor.wimp}\0${fieldKey}`)
     if (!field) return null
     return valueText(actorValueByActorField.get(`${actor.id}\0${field.id}`), valuesById, valueItemsById)
   }
 
-  const enumValuePosition = (field: BoundaryFieldSnapshot, value: string | null): number | null => {
+  const enumValuePosition = (field: BulkRuntimeField, value: string | null): number | null => {
     if (value === null) return null
-    return enumVariantsByField.get(field.id)?.find((variant: BoundaryFieldEnumVariantSnapshot) => variant.itemValue === value)?.position ?? null
+    return enumVariantsByField.get(field.id)?.find((variant: FieldEnumVariantRecord) => variant.itemValue === value)?.position ?? null
   }
 
-  const assignTopologyLabels = (actor: BoundaryActorSnapshot, runtimeTopologies: BoundaryTopologySnapshot[], parentMatterParticle: number | null): void => {
+  const assignTopologyLabels = (actor: ActorRecord, runtimeTopologies: TopologyRecord[], parentMatterParticle: number | null): void => {
     const wimp = actor.wimp
     const plans = matterTopologyChildren(wimp, parentMatterParticle)
     const runtime = sortByPosition(runtimeTopologies)
@@ -261,7 +259,7 @@ export function buildBoundaryBulkManifest(
     })
   }
 
-  const fieldParticleInputFromBoundaryField = (actor: BoundaryActorSnapshot, field: BoundaryFieldSnapshot): BulkFieldParticleInput => {
+  const fieldParticleInputFromBoundaryField = (actor: ActorRecord, field: BulkRuntimeField): BulkFieldParticleInput => {
     const kind = fieldParticleKind(field.type)
     return {
       fieldParticleId: fieldParticleIdFromActorField(actor.id, field.id),
@@ -290,7 +288,7 @@ export function buildBoundaryBulkManifest(
     ]
   }
 
-  const wimpDarkParticleInputFromActor = (actor: BoundaryActorSnapshot, visited: Set<string>, inheritedActivity: BulkDarkParticleActivity = "neutral"): BulkDarkParticleInput => {
+  const wimpDarkParticleInputFromActor = (actor: ActorRecord, visited: Set<string>, inheritedActivity: BulkDarkParticleActivity = "neutral"): BulkDarkParticleInput => {
     const key = `actor:${actor.id}`
     const darkParticleId = wimpDarkParticleIdFromActorId(actor.id)
     const activity = activityByDarkParticleId.get(darkParticleId) ?? inheritedActivity
@@ -324,7 +322,7 @@ export function buildBoundaryBulkManifest(
     }
   }
 
-  const connectivityDarkParticleInputFromTopology = (topology: BoundaryTopologySnapshot, visited: Set<string>, inheritedActivity: BulkDarkParticleActivity = "neutral"): BulkDarkParticleInput => {
+  const connectivityDarkParticleInputFromTopology = (topology: TopologyRecord, visited: Set<string>, inheritedActivity: BulkDarkParticleActivity = "neutral"): BulkDarkParticleInput => {
     const key = `topology:${topology.id}`
     const label = topologyLabelById.get(topology.id) ?? ""
     const darkParticleId = connectivityDarkParticleIdFromTopologyId(topology.id)

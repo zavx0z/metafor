@@ -1,6 +1,5 @@
-import type { MatrixStore } from "../../store.t"
+import type { GpuBufferMap, GpuRuntimeContext, MatrixStore } from "@metafor/types/matrix"
 import { deriveWeakData } from "./derived"
-import type { GpuBufferMap, GpuRuntimeContext } from "./index.t.ts"
 import { createBuffer, createStorageBuffer, createStorageBufferWithCapacity, nextCapacityWords } from "./buffer"
 import { createInitialArrayHeapIndex } from "./heap"
 import { createUniforms, resolveStringTableBuffers } from "./layout"

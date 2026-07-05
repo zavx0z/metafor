@@ -5,7 +5,8 @@ import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture"
 import {write, update} from "../../matrix"
 import { GPU, weak$ } from "../../weak"
-import { FieldType, type Collapse } from "../../gravity"
+import { FieldType } from "../../gravity"
+import type { MatrixCollapse } from "@metafor/types/matrix"
 
 describe("weak - тип ARRAY (массив) с bun-webgpu", () => {
   beforeAll(async () => {
@@ -18,7 +19,7 @@ describe("weak - тип ARRAY (массив) с bun-webgpu", () => {
 
   describe("Оператор INCLUDE (содержит элемент)", () => {
     test("должен выполнить переход, когда массив содержит элемент", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { include: 5 } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { include: 5 } }]], [null]]
       // write() с пустым массивом [] не содержит 5, поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
@@ -29,7 +30,7 @@ describe("weak - тип ARRAY (массив) с bun-webgpu", () => {
     })
 
     test("не должен выполнить переход, когда массив не содержит элемент", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { include: 5 } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { include: 5 } }]], [null]]
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
         branes: [{ state: 0, values: [[0, []]], collapses }],
@@ -41,7 +42,7 @@ describe("weak - тип ARRAY (массив) с bun-webgpu", () => {
 
   describe("Оператор NOT_INCLUDE (не содержит элемент)", () => {
     test("должен выполнить переход, когда массив не содержит элемент", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { notInclude: 10 } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { notInclude: 10 } }]], [null]]
       // write() с пустым массивом, затем update() инициализирует [1, 2, 3]
       // [1, 2, 3] не содержит 10 → notInclude:10 = TRUE → transition
       await write({
@@ -53,7 +54,7 @@ describe("weak - тип ARRAY (массив) с bun-webgpu", () => {
     })
 
     test("не должен выполнить переход, когда массив содержит элемент", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { notInclude: 5 } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { notInclude: 5 } }]], [null]]
       // write() с пустым массивом, затем update() инициализирует [1, 5, 10]
       // [1, 5, 10] содержит 5 → notInclude:5 = FALSE → no transition
       await write({
@@ -67,7 +68,7 @@ describe("weak - тип ARRAY (массив) с bun-webgpu", () => {
 
   describe("Оператор LENGTH (длина массива)", () => {
     test("должен выполнить переход, когда длина равна указанному", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { length: 3 } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { length: 3 } }]], [null]]
       // Пустой массив имеет длину 0 ≠ 3, поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
@@ -78,7 +79,7 @@ describe("weak - тип ARRAY (массив) с bun-webgpu", () => {
     })
 
     test("должен выполнить переход, когда длина больше указанной", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { length: { gt: 2 } } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { length: { gt: 2 } } }]], [null]]
       // Пустой массив имеет длину 0 ≤ 2, поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
@@ -89,7 +90,7 @@ describe("weak - тип ARRAY (массив) с bun-webgpu", () => {
     })
 
     test("должен выполнить переход, когда длина меньше или равна", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { length: { lte: 3 } } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { length: { lte: 3 } } }]], [null]]
       // write() с пустым массивом (длина 0 ≤ 3) — TAKT 0: инициализация без перехода
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
@@ -107,7 +108,7 @@ describe("weak - тип ARRAY (массив) с bun-webgpu", () => {
 
   describe("Оператор IS_EMPTY (пустой массив)", () => {
     test("должен выполнить переход, когда массив пустой", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { isEmpty: true } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { isEmpty: true } }]], [null]]
       // write() с пустым массивом [] — TAKT 0: инициализация без перехода
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
@@ -123,7 +124,7 @@ describe("weak - тип ARRAY (массив) с bun-webgpu", () => {
     })
 
     test("не должен выполнить переход, когда массив не пустой", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { isEmpty: true } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { isEmpty: true } }]], [null]]
       // write() с пустым массивом [] — TAKT 0: инициализация
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
@@ -141,7 +142,7 @@ describe("weak - тип ARRAY (массив) с bun-webgpu", () => {
 
   describe("Массивы строк", () => {
     test("должен работать с массивом строк и оператором include", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { include: "hero" } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { include: "hero" } }]], [null]]
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "string" }],
         branes: [{ state: 0, values: [[0, []]], collapses }],
@@ -151,7 +152,7 @@ describe("weak - тип ARRAY (массив) с bun-webgpu", () => {
     })
 
     test("должен работать с массивом строк и оператором length", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { length: 2 } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { length: 2 } }]], [null]]
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "string" }],
         branes: [{ state: 0, values: [[0, []]], collapses }],
@@ -163,7 +164,7 @@ describe("weak - тип ARRAY (массив) с bun-webgpu", () => {
 
   describe("Комбинированные условия", () => {
     test("должен работать с комбинацией include и length", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { length: { gte: 3 }, include: 5 } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { length: { gte: 3 }, include: 5 } }]], [null]]
       // Пустой массив не удовлетворяет условиям, поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
@@ -176,7 +177,7 @@ describe("weak - тип ARRAY (массив) с bun-webgpu", () => {
 
   describe("Непустые массивы в write()", () => {
     test("должен поддержать непустой массив чисел в params", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { length: 3 } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { length: 3 } }]], [null]]
       // write() с непустым массивом [1, 2, 3] — TAKT 0: инициализация без перехода
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
@@ -192,7 +193,7 @@ describe("weak - тип ARRAY (массив) с bun-webgpu", () => {
     })
 
     test("должен поддержать непустой массив строк в params", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { include: "hero" } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { include: "hero" } }]], [null]]
       // write() с непустым массивом ["warrior", "hero"] — TAKT 0: инициализация
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "string" }],
@@ -208,7 +209,7 @@ describe("weak - тип ARRAY (массив) с bun-webgpu", () => {
     })
 
     test("должен поддержать пустой массив с переходом при isEmpty", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { isEmpty: true } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { isEmpty: true } }]], [null]]
       // write() с пустым массивом [] — TAKT 0: инициализация
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],

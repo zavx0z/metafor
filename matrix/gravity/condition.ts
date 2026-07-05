@@ -8,7 +8,11 @@
  */
 
 import { OP } from "../weak"
-import type { ConditionValue, ParsedCheck, ScalarValue } from "./condition.t"
+import type {
+  MatrixConditionScalarValue,
+  MatrixConditionValue,
+  MatrixParsedCheck,
+} from "@metafor/types/matrix"
 
 /**
  * Парсит условие в массив проверок.
@@ -24,17 +28,17 @@ import type { ConditionValue, ParsedCheck, ScalarValue } from "./condition.t"
  * parseCondition({ in: [1, 2, 3] })     // → [{ op: OP.IN, val: [1, 2, 3] }]
  * ```
  */
-export function parseCondition(cond: ConditionValue): ParsedCheck[] {
+export function parseCondition(cond: MatrixConditionValue): MatrixParsedCheck[] {
   // Простое условие — прямое сравнение на равенство
   if (typeof cond !== "object" || cond === null) {
     return [{ op: OP.EQ, val: cond }]
   }
 
-  const checks: ParsedCheck[] = []
+  const checks: MatrixParsedCheck[] = []
 
   // Обработка сложного объекта { gt: 5, lte: 10 }
   for (const [k, v] of Object.entries(cond)) {
-    const value = v as ScalarValue
+    const value = v as MatrixConditionScalarValue
     switch (k) {
       case "null":
         checks.push({ op: v === true ? OP.EQ : OP.NEQ, val: null })
@@ -60,10 +64,10 @@ export function parseCondition(cond: ConditionValue): ParsedCheck[] {
         checks.push({ op: OP.LTE, val: value })
         break
       case "in":
-        checks.push({ op: OP.IN, val: v as ScalarValue[] })
+        checks.push({ op: OP.IN, val: v as MatrixConditionScalarValue[] })
         break
       case "notIn":
-        checks.push({ op: OP.NOT_IN, val: v as ScalarValue[] })
+        checks.push({ op: OP.NOT_IN, val: v as MatrixConditionScalarValue[] })
         break
       // Array Operators
       case "include":
@@ -93,8 +97,8 @@ export function parseCondition(cond: ConditionValue): ParsedCheck[] {
         break
       case "between":
         if (Array.isArray(v) && v.length === 2) {
-          checks.push({ op: OP.GTE, val: v[0] as ScalarValue })
-          checks.push({ op: OP.LTE, val: v[1] as ScalarValue })
+          checks.push({ op: OP.GTE, val: v[0] as MatrixConditionScalarValue })
+          checks.push({ op: OP.LTE, val: v[1] as MatrixConditionScalarValue })
         }
         break
     }
@@ -109,16 +113,16 @@ export function parseCondition(cond: ConditionValue): ParsedCheck[] {
  * @param v - Значение условия (число или объект с операторами).
  * @returns Массив проверок.
  */
-function parseLengthCondition(v: any): ParsedCheck[] {
+function parseLengthCondition(v: any): MatrixParsedCheck[] {
   if (typeof v === "number") {
     return [{ op: OP.LENGTH, val: v }]
   }
 
-  const checks: ParsedCheck[] = []
+  const checks: MatrixParsedCheck[] = []
 
   if (typeof v === "object" && v !== null) {
     for (const [lengthOp, lengthVal] of Object.entries(v)) {
-      const value = lengthVal as ScalarValue
+      const value = lengthVal as MatrixConditionScalarValue
       switch (lengthOp) {
         case "eq":
           checks.push({ op: OP.LENGTH, val: value })

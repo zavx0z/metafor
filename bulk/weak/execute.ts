@@ -6,7 +6,7 @@
  *
  * @packageDocumentation
  */
-import type { ExecuteParams } from "./execute.t"
+import type { ExecuteParams } from "@metafor/types/bulk"
 
 /**
  * Выполняет действие процесса с обработкой синхронных и асинхронных результатов.

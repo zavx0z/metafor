@@ -3,9 +3,9 @@
  */
 import { prepareData } from "../../../matrix"
 import { createStoredStringInterner, normalizeFieldValue } from "../../../strong"
-import { FieldType, type Collapse, type Data, type Field } from "../../../gravity"
-import type { MatrixData, MatrixStore } from "../../../store.t"
-import type { WeakRuntime } from "../../weak.t"
+import { FieldType } from "../../../gravity"
+import type { MatrixCollapse, MatrixFieldRecord, MatrixInputData } from "@metafor/types/matrix"
+import type { MatrixData, MatrixStore, WeakRuntime } from "@metafor/types/matrix"
 import { STATE_NONE, STATE_UNDEFINED } from "../../constants"
 
 function clonePreparedStore(data: MatrixData): MatrixStore {
@@ -85,7 +85,7 @@ function clonePreparedStore(data: MatrixData): MatrixStore {
   return cloned
 }
 
-function createBaseStore(data: Data): MatrixStore {
+function createBaseStore(data: MatrixInputData): MatrixStore {
   return clonePreparedStore(prepareData(data))
 }
 
@@ -105,11 +105,11 @@ export function setBraneFieldValue(
   }
 
   const stringInterner = createStoredStringInterner(store.stringTable)
-  record.value = normalizeFieldValue(value, field as Field, stringInterner)
+  record.value = normalizeFieldValue(value, field as MatrixFieldRecord, stringInterner)
 }
 
 export function createSimpleBraneFixture() {
-  const fields: Field[] = [{ type: FieldType.F32 }]
+  const fields: MatrixFieldRecord[] = [{ type: FieldType.F32 }]
   const store = createBaseStore({
     fields,
     branes: [
@@ -128,8 +128,8 @@ export function createSimpleBraneFixture() {
 }
 
 export function createMultipleBranesFixture() {
-  const fields: Field[] = [{ type: FieldType.F32 }]
-  const collapses: Collapse[][] = [
+  const fields: MatrixFieldRecord[] = [{ type: FieldType.F32 }]
+  const collapses: MatrixCollapse[][] = [
     [[1, { 0: { gt: 50 } }]],
     [null],
   ]
@@ -146,7 +146,7 @@ export function createMultipleBranesFixture() {
 }
 
 export function createLockedBraneFixture() {
-  const fields: Field[] = [{ type: FieldType.F32 }]
+  const fields: MatrixFieldRecord[] = [{ type: FieldType.F32 }]
   const store = createBaseStore({
     fields,
     branes: [
@@ -166,7 +166,7 @@ export function createLockedBraneFixture() {
 }
 
 export function createFieldUpdateFixture() {
-  const fields: Field[] = [{ type: FieldType.F32 }, { type: FieldType.F32 }]
+  const fields: MatrixFieldRecord[] = [{ type: FieldType.F32 }, { type: FieldType.F32 }]
   const store = createBaseStore({
     fields,
     branes: [
@@ -188,7 +188,7 @@ export function createFieldUpdateFixture() {
 }
 
 export function createStringFieldUpdateFixture() {
-  const fields: Field[] = [{ type: FieldType.STRING_PTR }]
+  const fields: MatrixFieldRecord[] = [{ type: FieldType.STRING_PTR }]
   const store = createBaseStore({
     fields,
     branes: [
@@ -207,7 +207,7 @@ export function createStringFieldUpdateFixture() {
 }
 
 export function createNullableStringPresenceFixture() {
-  const fields: Field[] = [{ type: FieldType.STRING_PTR }]
+  const fields: MatrixFieldRecord[] = [{ type: FieldType.STRING_PTR }]
   const store = createBaseStore({
     fields,
     branes: [
@@ -226,7 +226,7 @@ export function createNullableStringPresenceFixture() {
 }
 
 export function createArrayFieldUpdateFixture() {
-  const fields: Field[] = [{ type: FieldType.ARRAY_PTR, elementType: "number" }]
+  const fields: MatrixFieldRecord[] = [{ type: FieldType.ARRAY_PTR, elementType: "number" }]
   const store = createBaseStore({
     fields,
     branes: [
@@ -245,7 +245,7 @@ export function createArrayFieldUpdateFixture() {
 }
 
 export function createUndefinedStateFixture() {
-  const fields: Field[] = [{ type: FieldType.F32 }]
+  const fields: MatrixFieldRecord[] = [{ type: FieldType.F32 }]
   const store = createBaseStore({
     fields,
     branes: [
@@ -265,7 +265,7 @@ export function createUndefinedStateFixture() {
 }
 
 export function createUndefinedThenTransitionFixture() {
-  const fields: Field[] = [{ type: FieldType.F32 }]
+  const fields: MatrixFieldRecord[] = [{ type: FieldType.F32 }]
   const store = createBaseStore({
     fields,
     branes: [
@@ -285,7 +285,7 @@ export function createUndefinedThenTransitionFixture() {
 }
 
 export function createNoStateGraphFixture() {
-  const fields: Field[] = [{ type: FieldType.F32 }]
+  const fields: MatrixFieldRecord[] = [{ type: FieldType.F32 }]
   const store = createBaseStore({
     fields,
     branes: [
@@ -302,7 +302,7 @@ export function createNoStateGraphFixture() {
 }
 
 export function createAlreadyDefinedStateFixture() {
-  const fields: Field[] = [{ type: FieldType.F32 }]
+  const fields: MatrixFieldRecord[] = [{ type: FieldType.F32 }]
   const store = createBaseStore({
     fields,
     branes: [
@@ -323,7 +323,7 @@ export function createAlreadyDefinedStateFixture() {
 }
 
 export function createBranchingFixture() {
-  const fields: Field[] = [{ type: FieldType.F32 }]
+  const fields: MatrixFieldRecord[] = [{ type: FieldType.F32 }]
   const store = createBaseStore({
     fields,
     branes: [

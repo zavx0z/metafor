@@ -1,8 +1,6 @@
-import type {EnergyEnv} from "./energy.t.ts"
+import type {ProcessEnv} from "@metafor/types/process"
 
-export type {EnergyEnv, EnergyMass, EnergyProcessResult, EnergyProcessTask, EnergyRuntimeKind} from "./energy.t.ts"
-
-export function readEnergyEnv(value: unknown): EnergyEnv | null {
+export function readEnergyEnv(value: unknown): ProcessEnv | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null
   const record = value as Record<string, unknown>
   const kind = record.kind
@@ -11,7 +9,7 @@ export function readEnergyEnv(value: unknown): EnergyEnv | null {
   if (record.labels !== undefined && (!Array.isArray(record.labels) || !record.labels.every((item) => typeof item === "string"))) return null
   if (record.capabilities !== undefined && (!Array.isArray(record.capabilities) || !record.capabilities.every((item) => typeof item === "string"))) return null
 
-  const env: EnergyEnv = {kind, id: record.id}
+  const env: ProcessEnv = {kind, id: record.id}
   if (Array.isArray(record.labels)) env.labels = record.labels as string[]
   if (Array.isArray(record.capabilities)) env.capabilities = record.capabilities as string[]
   return env

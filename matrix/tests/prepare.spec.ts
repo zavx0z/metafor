@@ -3,8 +3,9 @@
  */
 import { test, expect, describe } from "bun:test"
 import { flattenMatrixData, prepareData } from "../matrix"
-import type { MatrixData, MatrixTransitionRecord } from "../store.t"
-import { FieldType, type Data } from "../gravity"
+import type { MatrixData, MatrixTransitionRecord } from "@metafor/types/matrix"
+import { FieldType } from "../gravity"
+import type { MatrixInputData } from "@metafor/types/matrix"
 import { OP } from "../weak/constants"
 
 function getBraneLocalValues(store: MatrixData, braneIndex: number) {
@@ -55,7 +56,7 @@ function getBraneStateTransitions(store: MatrixData, braneIndex: number, stateIn
 
 describe("prepareData — подготовка canonical JS store", () => {
   test("Matrix flattening должен переводить nested conditions в parsed checks", () => {
-    const data: Data = {
+    const data: MatrixInputData = {
       fields: [{ type: FieldType.F32 }],
       branes: [{
         values: [[0, 100]],

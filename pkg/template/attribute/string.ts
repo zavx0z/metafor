@@ -1,5 +1,5 @@
 import { processTemplateLiteralAttribute } from "../parser.ts"
-import type { ParseContext } from "../parser.t.ts"
+import type { ParseContext } from "@metafor/types/template/parser"
 
 /**
  * Обрабатывает строковые атрибуты и создает соответствующие объекты.

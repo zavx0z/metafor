@@ -2,7 +2,7 @@ import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import {SQL, type ServerWebSocket} from "bun"
 import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
-import type {ForceBinding, ForceMessage} from "boundary"
+import type {ForceBinding, ForceMessage} from "@metafor/types/force"
 
 type ForceSocketData = {kind: "force"}
 
@@ -51,6 +51,7 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
         close(ws) {
           forceSockets.delete(ws)
         },
+        message() {},
       },
     })
 
@@ -116,6 +117,7 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
       message.parts.some((part) => part.part === "graviton" && part.op === "add" && part.path === "actor"),
     )
     expect(actorMessage, "Boundary должен был отправить runtime actor part").toBeDefined()
+    if (!actorMessage) throw new Error("Boundary должен был отправить runtime actor part")
     const actorMessagePayload = JSON.stringify(actorMessage)
     const bridgedActorMessage = await waitForForceMessage(
       forceMessages,

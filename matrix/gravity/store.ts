@@ -1,4 +1,4 @@
-import type { MatrixGravityStore } from "./store.t";
+import type { MatrixGravityStore } from "@metafor/types/matrix"
 
 
 export const gravity$: MatrixGravityStore = {

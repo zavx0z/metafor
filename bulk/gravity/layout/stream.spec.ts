@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import type { BulkDarkParticle, BulkFieldParticle, BulkManifestSink } from "./world"
+import type { BulkDarkParticle, BulkDarkParticleInput, BulkFieldParticle, BulkManifestSink } from "@metafor/types/bulk"
 import { streamBulkManifest } from "./stream"
-import type { BulkDarkParticleInput } from "./snapshot"
 
 const createFieldParticle = (fieldParticleId: number) => ({
   fieldParticleId,

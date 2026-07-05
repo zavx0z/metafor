@@ -43,7 +43,7 @@ let stopped = false;
 
 try {
   model = openVoskModel(options.modelPath, library);
-  recognizer = model.createRecognizer({ sampleRate: options.sampleRate, grammar });
+  recognizer = model.createRecognizer({ sampleRate: options.sampleRate, ...(grammar ? { grammar } : {}) });
 
   microphone = startFfmpegMicrophone(options);
   installShutdownHandlers(() => {
@@ -206,6 +206,7 @@ function parseArgs(args: string[]): CliOptions {
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
+    if (!arg) continue;
     const next = () => {
       const value = args[++index];
       if (!value) throw new Error(`Missing value for ${arg}`);

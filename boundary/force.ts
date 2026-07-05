@@ -1,18 +1,4 @@
-import type {DomainPath, Force, ForceBinding, ForceChannel, ForceMessage, ForceMessageListener, Particle} from "./force.t.ts"
-
-export type {
-  Force,
-  ForceBinding,
-  ForceChannel,
-  ForceMessage,
-  ForceMessageListener,
-  ForceSurface,
-  DomainPath,
-  Part,
-  Particle,
-  ParticleOperation,
-  TypedBroadcastChannel,
-} from "./force.t.ts"
+import type {Force, ForceBinding, ForceChannel, ForceMessage, ForceMessageListener, Particle} from "@metafor/types/force"
 
 export const FORCE = "force"
 
@@ -70,7 +56,7 @@ export const emitForceParts = (parts: Particle[]): void => {
   emitForceMessage({parts})
 }
 
-export const emitGravitonAdd = (path: DomainPath, value?: unknown): void => {
+export const emitGravitonAdd = (path: Particle["path"], value?: unknown): void => {
   emitForceParts([{part: "graviton", op: "add", path, ...(value !== undefined ? {value} : {})}])
 }
 

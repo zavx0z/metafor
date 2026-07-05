@@ -1,14 +1,12 @@
 export {BoundaryWimpSqlite} from "./sqlite/index.ts"
 export {Wimp} from "./sqlite/wimp.ts"
 export {Field} from "./sqlite/fields/field.ts"
-export type {FieldType} from "./sqlite/fields/field.ts"
 export {StringField} from "./sqlite/fields/string.ts"
 export {NumberField} from "./sqlite/fields/number.ts"
 export {BooleanField} from "./sqlite/fields/boolean.ts"
 export {ArrayField} from "./sqlite/fields/array.ts"
 export {EnumField, EnumVariant, EnumVariants} from "./sqlite/fields/enum.ts"
 export {Fields} from "./sqlite/fields/index.ts"
-export type {AnyField} from "./sqlite/fields/index.ts"
 export {States} from "./sqlite/states/index.ts"
 export {State} from "./sqlite/states/state.ts"
 export {Transition, Transitions} from "./sqlite/states/transition.ts"
@@ -23,12 +21,11 @@ export {Reactions} from "./sqlite/reactions.ts"
 export {Reaction, ReactionRead, ReactionWrite, ReactionStates} from "./sqlite/reaction.ts"
 export {
   Matter,
-  MatterParticle,
+  MatterOrmParticle,
   MatterWimpParticle,
   MatterFuzzyParticle,
   MatterAxionParticle,
   MatterMachoParticle,
   MatterChildren,
 } from "./sqlite/matter.ts"
-export type {MatterRelationParticle, EdgeSlot, BindingValue} from "./sqlite/matter.t.ts"
 export {Mass} from "./sqlite/mass.ts"

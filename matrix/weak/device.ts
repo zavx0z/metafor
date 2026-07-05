@@ -1,5 +1,4 @@
-import type { WeakMode } from "./store.t.ts"
-import type { MaybeGpuNavigator, WeakBackendPreference } from "./device.t.ts"
+import type { MaybeGpuNavigator, WeakBackendPreference, WeakMode } from "@metafor/types/matrix"
 
 function getNavigatorGpu(): MaybeGpuNavigator["gpu"] | undefined {
   const maybeNavigator = (globalThis as { navigator?: MaybeGpuNavigator }).navigator

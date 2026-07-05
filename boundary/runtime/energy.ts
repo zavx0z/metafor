@@ -1,34 +1,5 @@
 import type {SQL} from "bun"
-
-export type BoundaryEnergyHandlerDescriptor = {
-  src: string
-  readFields: Array<[fieldId: number, key: string]>
-  writeFields: Array<[fieldId: number, key: string]>
-}
-
-export type BoundaryEnergyProcessDescriptor = {
-  type: "action"
-  key: string
-  env: string[]
-  action: {
-    src: string
-    importSpecifier?: string
-    wrapperSrc?: string
-    readFields: Array<[fieldId: number, key: string]>
-  }
-  success?: BoundaryEnergyHandlerDescriptor
-  error?: BoundaryEnergyHandlerDescriptor
-}
-
-export type BoundaryEnergyRuntimeSnapshot = {
-  version: 1
-  actors: Array<[actorId: number, wimp: string]>
-  processes: Array<{
-    wimp: string
-    state: string
-    descriptor: BoundaryEnergyProcessDescriptor
-  }>
-}
+import type {EnergyHandlerDescriptor, EnergyRuntimeSnapshot} from "@metafor/types/energy"
 
 type ActorRow = {id: number; wimp: string}
 type ProcessActionRow = {
@@ -41,11 +12,16 @@ type ProcessActionRow = {
   error: string | null
 }
 type ProcessEnvRow = {wimp: string; key: string; env: string}
-type ProcessActionReadRow = {wimp: string; key: string; phase: string; field: number; fieldKey: string}
-type ProcessActionWriteRow = {wimp: string; key: string; phase: string; field: number; fieldKey: string}
+interface ProcessActionFieldAccessRow {
+  wimp: string
+  key: string
+  phase: string
+  field: number
+  fieldKey: string
+}
 
-const group = <T, K extends string | number>(rows: T[], key: (row: T) => K): Map<K, T[]> => {
-  const map = new Map<K, T[]>()
+const group = <T>(rows: T[], key: (row: T) => string): Map<string, T[]> => {
+  const map = new Map<string, T[]>()
   for (const row of rows) {
     const groupKey = key(row)
     const bucket = map.get(groupKey)
@@ -55,7 +31,7 @@ const group = <T, K extends string | number>(rows: T[], key: (row: T) => K): Map
   return map
 }
 
-export async function energyRuntime(sql: SQL): Promise<BoundaryEnergyRuntimeSnapshot> {
+export async function energyRuntime(sql: SQL): Promise<EnergyRuntimeSnapshot> {
   const actors = await sql<ActorRow[]>`SELECT id, wimp FROM actor ORDER BY rowid`
   const processActions = await sql<ProcessActionRow[]>`
     SELECT process.wimp, process.key,
@@ -74,7 +50,7 @@ export async function energyRuntime(sql: SQL): Promise<BoundaryEnergyRuntimeSnap
     JOIN process ON process.id = process_env.process
     ORDER BY process.wimp, process.rowid, process_env.env
   `
-  const processActionReads = await sql<ProcessActionReadRow[]>`
+  const processActionReads = await sql<ProcessActionFieldAccessRow[]>`
     SELECT process.wimp, process.key, par.phase, par.field, field.key AS fieldKey
     FROM process_action_read par
     JOIN process ON process.id = par.process
@@ -82,7 +58,7 @@ export async function energyRuntime(sql: SQL): Promise<BoundaryEnergyRuntimeSnap
     WHERE par.phase IN ('action', 'success', 'error')
     ORDER BY process.wimp, process.rowid, par.phase, field.rowid
   `
-  const processActionWrites = await sql<ProcessActionWriteRow[]>`
+  const processActionWrites = await sql<ProcessActionFieldAccessRow[]>`
     SELECT process.wimp, process.key, paw.phase, paw.field, field.key AS fieldKey
     FROM process_action_write paw
     JOIN process ON process.id = paw.process
@@ -99,7 +75,7 @@ export async function energyRuntime(sql: SQL): Promise<BoundaryEnergyRuntimeSnap
     actors: actors.map((actor) => [actor.id, actor.wimp]),
     processes: processActions.map((process) => {
       const key = `${process.wimp}\0${process.key}`
-      const handler = (src: string | null, phase: "success" | "error"): BoundaryEnergyHandlerDescriptor | undefined => src === null
+      const handler = (src: string | null, phase: "success" | "error"): EnergyHandlerDescriptor | undefined => src === null
         ? undefined
         : {
             src,

@@ -2,12 +2,15 @@ import type {
   BulkDarkParticle,
   BulkDarkParticleActivity,
   BulkDarkParticleKind,
+  BulkDarkParticleInput,
   BulkFieldParticle,
+  BulkFieldParticleInput,
   BulkFieldParticleKind,
+  BulkLayoutSettings,
   BulkManifest,
-} from "./world"
-import { resolveLevelGeometry, type LevelGeometry } from "../level"
-import type { BulkLayoutSettings } from "./settings.t"
+  LevelGeometry,
+} from "@metafor/types/bulk"
+import { resolveLevelGeometry } from "../level"
 import {
   DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG,
   normalizeBulkLayoutSettings,
@@ -16,34 +19,6 @@ import {
 
 const snapshotLayoutConfig = DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5))
-
-/** Input descriptor for an ordinary field particle before Dark particle materialization. */
-export interface BulkFieldParticleInput {
-  fieldParticleId: number
-  fieldId: number
-  fieldKey: string
-  fieldLabel: string
-  fieldParticleKind: BulkFieldParticleKind
-  valueText: string | null
-  colorR: number
-  colorG: number
-  colorB: number
-}
-
-/** Input descriptor for a Dark particle tree before geometric layout. */
-export interface BulkDarkParticleInput {
-  darkParticleId: number
-  darkParticleKind: BulkDarkParticleKind
-  src: string | null
-  metaSrc: string | null
-  label: string
-  colorR: number
-  colorG: number
-  colorB: number
-  activity?: BulkDarkParticleActivity
-  fieldParticles: BulkFieldParticleInput[]
-  children: BulkDarkParticleInput[]
-}
 
 interface LayoutFieldParticleNode extends BulkFieldParticle {
   extent: number

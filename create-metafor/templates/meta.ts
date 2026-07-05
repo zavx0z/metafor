@@ -1,6 +1,6 @@
-export default MetaFor({{nameJson}}, { desc: {{descriptionJson}} })
+export default MetaFor(/* @template nameJson */ "", { desc: /* @template descriptionJson */ "" })
   .fields((field) => ({
-    error: field.string.optional({ label: {{errorLabelJson}} }),
+    error: field.string.optional({ label: /* @template errorLabelJson */ "" }),
   }))
   .superposition({})
   .mass({})

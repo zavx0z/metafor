@@ -1,4 +1,4 @@
-import type {ActionParams} from "./action.t.ts"
+import type {ActionParams} from "@metafor/types/metafor/action"
 import {
   extractImportSpecifier,
   extractModuleSrc,
@@ -7,10 +7,10 @@ import {
   updateAppendArg,
   validateActionStructure,
 } from "./action.ts"
-import type {DestroyConfig} from "./finally.t.ts"
+import type {FinallyConfig} from "@metafor/types/metafor/finally"
 import {createFinallyChain, isFinallyChain, parseFinally} from "./finally.ts"
-import type {Fields, Values} from "./fields.t.ts"
-import {Initiator, type Mass} from "./metafor.t.ts"
+import type {Fields, Values} from "@metafor/types/metafor/fields"
+import {Initiator, type Mass} from "@metafor/types/metafor/metafor"
 import {
   ProcessType,
   type ActionChain,
@@ -21,7 +21,7 @@ import {
   type ProcessesDeclaration,
   type ProcessesList,
   type ProcessesSchema,
-} from "./process.t.ts"
+} from "@metafor/types/metafor/process"
 
 type ProcessChainResult<ɸ extends Fields, m extends Mass, Res, v extends Values<ɸ>, s extends string> = ActionChain<
   ɸ,
@@ -166,7 +166,7 @@ export const processesSchema = <
 ): ProcessesSchema => {
   const processFactory: Parameters<ProcessesDeclaration<ɸ, 𝛴, m, ψ>>[0] = ((state: string, config?: ProcessConfig) =>
     createProcessChain<ɸ, m, Values<ɸ>, string>(state, config)) as Parameters<ProcessesDeclaration<ɸ, 𝛴, m, ψ>>[0]
-  const destroyFactory: Parameters<ProcessesDeclaration<ɸ, 𝛴, m, ψ>>[1] = ((state: string, config?: DestroyConfig) =>
+  const destroyFactory: Parameters<ProcessesDeclaration<ɸ, 𝛴, m, ψ>>[1] = ((state: string, config?: FinallyConfig) =>
     createFinallyChain<ɸ, m, string>(state, config)) as Parameters<ProcessesDeclaration<ɸ, 𝛴, m, ψ>>[1]
   const chains = processes(processFactory, destroyFactory)
   const result: ProcessesSchema = {}

@@ -2,26 +2,17 @@ import type {
   LevelDetailSettings,
   LevelLabelSettings,
   LevelSettings,
-} from "@bulk/gravity/level"
-import {
-  DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG,
-  toLevelGeometrySettings as toLevelGeometrySettingsFromBulk,
-  type BulkLayoutSettings,
-} from "@bulk/gravity/layout"
-import type {
+  BulkLayoutSettings,
   BulkRenderSettings,
   BulkSettingsConfig,
   PersistedSettingsRecord,
   SettingsIndexedDbOptions,
   SettingsSnapshot,
-} from "./settings.t.ts"
-
-export type {
-  BulkRenderSettings,
-  BulkSettingsConfig,
-  SettingsIndexedDbOptions,
-  SettingsSnapshot,
-} from "./settings.t.ts"
+} from "@metafor/types/bulk"
+import {
+  DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG,
+  toLevelGeometrySettings,
+} from "@bulk/gravity/layout"
 
 export const BULK_SETTINGS_REVISION = 8
 export const DEFAULT_BULK_SCENE_SRC = "zavx0z/linux"
@@ -318,10 +309,10 @@ const SPHERE_MAX_HEIGHT_SEGMENTS = 48
  * Опциональный `rootOuterDiameterMm` позволяет вызывающему подменить snapshot-константу
  * (используется в snapshot-builder-е при materialize с нестандартным целевым диаметром).
  */
-export const toLevelGeometrySettings = (
+export const toBulkLevelGeometrySettings = (
   layout: BulkLayoutSettings,
   rootOuterDiameterMm: number = DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG.rootOuterDiameterMm,
-) => toLevelGeometrySettingsFromBulk(layout, DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG, rootOuterDiameterMm)
+) => toLevelGeometrySettings(layout, DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG, rootOuterDiameterMm)
 
 /** Проекция render settings в domain-закон `LevelDetailSettings`. */
 export const toLevelDetailSettings = (render: BulkRenderSettings): LevelDetailSettings => ({
@@ -352,8 +343,8 @@ export const toLevelSettings = (
 ): LevelSettings => ({
   geometry:
     rootOuterDiameterMm !== undefined
-      ? toLevelGeometrySettings(layout, rootOuterDiameterMm)
-      : toLevelGeometrySettings(layout),
+      ? toBulkLevelGeometrySettings(layout, rootOuterDiameterMm)
+      : toBulkLevelGeometrySettings(layout),
   detail: toLevelDetailSettings(render),
   label: toLevelLabelSettings(render),
 })

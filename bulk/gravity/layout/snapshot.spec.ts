@@ -2,10 +2,9 @@ import { describe, expect, test } from "bun:test"
 import {
   createBulkManifestFromDarkParticleInputs,
   scaleBulkManifestToRootOuterDiameter,
-  type BulkDarkParticleInput,
 } from "./snapshot"
 import { DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG } from "./settings"
-import type { BulkDarkParticle, BulkFieldParticle, BulkManifest } from "./world"
+import type { BulkDarkParticle, BulkDarkParticleInput, BulkFieldParticle, BulkManifest } from "@metafor/types/bulk"
 
 const createFieldParticle = (fieldParticleId: number) => ({
   fieldParticleId,

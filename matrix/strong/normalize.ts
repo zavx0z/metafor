@@ -1,14 +1,11 @@
-import type { Field } from "../gravity/schema.t"
-import { FieldType } from "../gravity/schema.t"
-
-export type NormalizedScalarValue = number | boolean
-export type NormalizedValue = NormalizedScalarValue | NormalizedScalarValue[]
+import type { MatrixFieldRecord, MatrixScalarValue, MatrixValue } from "@metafor/types/matrix"
+import { FieldType } from "../gravity/schema"
 
 export function normalizeFieldValue(
   value: unknown,
-  field: Field | undefined,
+  field: MatrixFieldRecord | undefined,
   stringInterner: { intern(value: string): number },
-): NormalizedValue {
+): MatrixValue {
   if (!field) {
     throw new Error("Field definition is required for normalization")
   }
@@ -57,9 +54,9 @@ function normalizeEnumValue(value: unknown, enumValues: unknown[]): number {
 
 function normalizeArrayItem(
   value: unknown,
-  elementType: Field["elementType"],
+  elementType: MatrixFieldRecord["elementType"],
   stringInterner: { intern(value: string): number },
-): NormalizedScalarValue {
+): MatrixScalarValue {
   switch (elementType) {
     case "boolean":
       return Boolean(value)

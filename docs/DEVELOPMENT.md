@@ -117,7 +117,7 @@ MetaFor строится как система доменных проекций
   до загрузки Matrix snapshot, и Energy работает через тот же общий локальный
   `BroadcastChannel("force")`; отдельного Energy server target больше нет.
 
-Dark получает начальный `BoundaryMatrixRuntimeSnapshot` из `Boundary` и загружает
+Dark получает начальный `MatrixRuntimeSnapshot` из `Boundary` и загружает
 его в Matrix runtime. Matrix snapshot содержит `stateHasProcessByBraneIndex`, но
 не содержит process descriptors. Matrix применяет входящие Force-сообщения через
 локальный Force channel и публикует `photon/replace` или `photon/test` обратно в

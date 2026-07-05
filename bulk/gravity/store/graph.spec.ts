@@ -17,13 +17,13 @@ import {
   getUuidByIndexPath,
   computeIndexPath,
   setOrderKey,
-  _resetStore,
+  resetGraphStore,
 } from "./graph"
 import { first, between } from "./order"
 
 describe("graph", () => {
   beforeEach(() => {
-    _resetStore()
+    resetGraphStore()
   })
 
   describe("appendChild()", () => {

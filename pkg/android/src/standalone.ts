@@ -29,7 +29,7 @@ const server = Bun.serve<AndroidSocketData>({
     "/android/swipe": { POST: androidSwipeResponse },
     "/android/key": { POST: androidKeyResponse },
     "/android/stream": {
-      GET(req, bunServer) {
+      GET(req: Bun.BunRequest<"/android/stream">, bunServer: Bun.Server<AndroidSocketData>) {
         const upgraded = bunServer.upgrade(req, {
           data: createAndroidSocketData({}),
         });
@@ -37,7 +37,7 @@ const server = Bun.serve<AndroidSocketData>({
       },
     },
     "/android/h264": {
-      GET(req, bunServer) {
+      GET(req: Bun.BunRequest<"/android/h264">, bunServer: Bun.Server<AndroidSocketData>) {
         const upgraded = bunServer.upgrade(req, {
           data: createAndroidH264SocketData({}),
         });

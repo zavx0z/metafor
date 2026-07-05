@@ -17,7 +17,7 @@ export default MetaFor("<name>")
 
 **Порядок вызовов:** `fields → superposition → mass → processes → reactions → matter → bulk`
 
-`MetaFor` в `meta.ts` предоставляется DSL-средой как глобал; локальный `import "metafor"` не нужен. Обычные TypeScript-модули действий могут импортировать типы явно: `import type { ActionParams } from "metafor"`.
+`MetaFor` в `meta.ts` предоставляется DSL-средой как глобал; локальный `import "metafor"` не нужен. Обычные TypeScript-модули действий могут импортировать типы явно: `import type { ActionParams } from "@metafor/types/metafor/action"`.
 
 ---
 
@@ -253,7 +253,7 @@ export default MetaFor("<name>")
 
 ```typescript
 // actions/fetchUser.ts
-import type { ActionParams } from "metafor"
+import type { ActionParams } from "@metafor/types/metafor/action"
 
 export interface FetchUserResult {
   name: string
@@ -500,7 +500,7 @@ export default MetaFor("git")
 
 ```typescript
 // actions/detectOperation.ts
-import type { ActionParams } from "metafor"
+import type { ActionParams } from "@metafor/types/metafor/action"
 
 interface DetectOperationValue {
   command?: string | null
@@ -701,7 +701,7 @@ export default MetaFor("git")
 
 ```typescript
 // actions/detectOperation.ts
-import type { ActionParams } from "metafor"
+import type { ActionParams } from "@metafor/types/metafor/action"
 
 interface DetectOperationValue {
   command?: string | null

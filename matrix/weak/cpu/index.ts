@@ -1,8 +1,14 @@
-import type { MatrixStore } from "../../store.t"
-import type { WeakChanges, WeakHeapUpdate, WeakRuntime } from "../weak.t.ts"
-import type { CpuRuntimeContext, CpuRuntimeState } from "./index.t.ts"
+import type {
+  CpuRuntimeContext,
+  CpuRuntimeState,
+  MatrixStore,
+  WeakChanges,
+  WeakHeapUpdate,
+  WeakRuntime,
+  WeakStepMode,
+} from "@metafor/types/matrix"
 import { executeCpuStep } from "./step"
-import { StepMode, type StepMode as WeakStepMode } from "../constants"
+import { StepMode } from "../constants"
 
 export class CPUWeakRuntime implements WeakRuntime {
   private readonly context: CpuRuntimeContext

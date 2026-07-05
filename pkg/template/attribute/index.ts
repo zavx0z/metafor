@@ -1,8 +1,8 @@
-import type { ValueType, SplitterResolved } from "./index.t.ts"
-import type { RawAttrArray } from "./array.t.ts"
-import type { RawAttrBoolean } from "./boolean.t.ts"
-import type { RawAttrEvent } from "./event.t.ts"
-import type { RawAttrString } from "./string.t.ts"
+import type {SplitterFn, SplitterResolved, ValueType} from "@metafor/types/template/attribute/index"
+import type { RawAttrArray } from "@metafor/types/template/attribute/array"
+import type { RawAttrBoolean } from "@metafor/types/template/attribute/boolean"
+import type { RawAttrEvent } from "@metafor/types/template/attribute/event"
+import type { RawAttrString } from "@metafor/types/template/attribute/string"
 
 // ============================
 // ВСПОМОГАТЕЛЬНЫЕ УТИЛИТЫ
@@ -246,8 +246,6 @@ export const splitByComma = (raw: string) => splitTopLevel(raw, ",")
  * @returns Массив подстрок, разбитых по точкам с запятой
  */
 export const splitBySemicolon = (raw: string) => splitTopLevel(raw, ";")
-
-export type SplitterFn = (raw: string) => string[]
 
 /**
  * Получить встроенный разделитель для атрибута по имени

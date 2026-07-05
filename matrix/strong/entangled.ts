@@ -1,10 +1,10 @@
 /** Строгая materialization подготовленного entanglement. */
 import type {
-  BraneMapping,
+  MatrixEntanglementMapping,
   PreparedEntanglementBlock,
   PreparedEntanglementField,
   PreparedEntanglementProjection,
-} from "./entangled.t"
+} from "@metafor/types/matrix"
 
 const valueEquals = (left: unknown, right: unknown): boolean => {
   if (Array.isArray(left) && Array.isArray(right)) {
@@ -42,7 +42,7 @@ const normalizeBlock = (block: PreparedEntanglementBlock): PreparedEntanglementB
 export function materializeEntanglement(
   values: [number, unknown][][],
   projection?: PreparedEntanglementProjection,
-): BraneMapping {
+): MatrixEntanglementMapping {
   const blocks = projection?.blocks?.map(normalizeBlock) ?? []
   const entangledFields = new Map<string, [number, unknown][]>()
   const braneEntangledMap = values.map(() => [] as number[])

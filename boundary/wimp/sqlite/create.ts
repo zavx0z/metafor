@@ -1,33 +1,25 @@
 import type {SQL, ReservedSQL} from "bun"
-import type {
-  WimpCreateFieldInput,
-  WimpCreateInput,
-  WimpCreateProcessInput,
-  WimpCreateReactionInput,
-  WimpCreateSuperpositionInput,
-} from "./create.t.ts"
-import type {EdgeSlot, MatterRelationBindingValue, MatterRelationParticle} from "./matter.t.ts"
-
-type Tx = SQL | ReservedSQL
-type Id = number
+import type {WimpCreateInput, WimpCreateProcessInput} from "@metafor/types/persistence"
+import type {MetaFieldDSL, MetaReactionDSL, MetaSuperpositionDSL} from "@metafor/types/metafor/metafor"
+import type {MatterBindingValue, MatterEdgeSlot, MatterParticle} from "@metafor/types/matter"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
-const insertId = async (rows: Promise<Array<{id: number}>>, label: string): Promise<Id> => {
+const insertId = async (rows: Promise<Array<{id: number}>>, label: string): Promise<number> => {
   const row = (await rows)[0]
   if (!row) throw new Error(`${label}: insert did not return id`)
   return row.id
 }
 
 const insertMassValue = async (
-  sql: Tx,
+  sql: SQL | ReservedSQL,
   src: string,
   value: unknown,
-  parentValue: Id | null,
+  parentValue: number | null,
   entryKey: string | null,
   entryOrder: number | null,
-): Promise<Id> => {
+): Promise<number> => {
   const kind = Array.isArray(value)
     ? "array"
     : isRecord(value)
@@ -70,10 +62,10 @@ const insertMassValue = async (
 }
 
 const insertFieldDefault = async (
-  sql: Tx,
-  fieldId: Id,
-  field: WimpCreateFieldInput,
-  enumVariants: Map<string, Id>,
+  sql: SQL | ReservedSQL,
+  fieldId: number,
+  field: MetaFieldDSL,
+  enumVariants: Map<string, number>,
 ): Promise<void> => {
   if (field.default === undefined) return
 
@@ -101,11 +93,11 @@ const insertFieldDefault = async (
 }
 
 const insertFields = async (
-  sql: Tx,
+  sql: SQL | ReservedSQL,
   src: string,
-  fields: readonly WimpCreateFieldInput[],
-): Promise<Map<string, Id>> => {
-  const fieldIds = new Map<string, Id>()
+  fields: readonly MetaFieldDSL[],
+): Promise<Map<string, number>> => {
+  const fieldIds = new Map<string, number>()
 
   for (const field of fields) {
     const fieldId = await insertId(sql<Array<{id: number}>>`
@@ -115,7 +107,7 @@ const insertFields = async (
     `, "insertFields")
     fieldIds.set(field.key, fieldId)
 
-    const enumVariants = new Map<string, Id>()
+    const enumVariants = new Map<string, number>()
     if (field.type === "enum" && field.values !== undefined) {
       for (let position = 0; position < field.values.length; position++) {
         const value = String(field.values[position])
@@ -156,7 +148,7 @@ const normalizeListItem = (value: unknown): {
   booleanValue: number | null
   numberValue: number | null
   textValue: string | null
-  variantValue: Id | null
+  variantValue: number | null
 } => {
   if (value === null) return {kind: "null", booleanValue: null, numberValue: null, textValue: null, variantValue: null}
   if (typeof value === "boolean") return {kind: "boolean", booleanValue: value ? 1 : 0, numberValue: null, textValue: null, variantValue: null}
@@ -165,8 +157,8 @@ const normalizeListItem = (value: unknown): {
 }
 
 const insertPredicate = async (
-  sql: Tx,
-  conditionId: Id,
+  sql: SQL | ReservedSQL,
+  conditionId: number,
   predicateOrder: number,
   op: string,
   value: unknown,
@@ -176,7 +168,7 @@ const insertPredicate = async (
   let valueBoolean: number | null = null
   let valueNumber: number | null = null
   let valueText: string | null = null
-  const valueVariant: Id | null = null
+  const valueVariant: number | null = null
 
   if (op === "null") {
     operator = value === false ? "neq" : "eq"
@@ -213,7 +205,7 @@ const insertPredicate = async (
   }
 }
 
-const insertPredicateGroup = async (sql: Tx, conditionId: Id, predicateDsl: unknown): Promise<void> => {
+const insertPredicateGroup = async (sql: SQL | ReservedSQL, conditionId: number, predicateDsl: unknown): Promise<void> => {
   const normalized = normalizePredicate(predicateDsl)
   if (!normalized) return
 
@@ -225,9 +217,9 @@ const insertPredicateGroup = async (sql: Tx, conditionId: Id, predicateDsl: unkn
 }
 
 const insertConditions = async (
-  sql: Tx,
-  fieldIds: Map<string, Id>,
-  transitionId: Id,
+  sql: SQL | ReservedSQL,
+  fieldIds: Map<string, number>,
+  transitionId: number,
   conditions: unknown,
 ): Promise<void> => {
   if (!isRecord(conditions)) return
@@ -248,12 +240,12 @@ const insertConditions = async (
 }
 
 const insertStates = async (
-  sql: Tx,
+  sql: SQL | ReservedSQL,
   src: string,
-  fieldIds: Map<string, Id>,
-  states: readonly WimpCreateSuperpositionInput[],
-): Promise<Map<string, Id>> => {
-  const stateIds = new Map<string, Id>()
+  fieldIds: Map<string, number>,
+  states: readonly MetaSuperpositionDSL[],
+): Promise<Map<string, number>> => {
+  const stateIds = new Map<string, number>()
 
   for (let position = 0; position < states.length; position++) {
     const state = states[position]!
@@ -288,10 +280,10 @@ const insertStates = async (
 }
 
 const insertProcessFieldLinks = async (
-  sql: Tx,
+  sql: SQL | ReservedSQL,
   table: "process_action_read" | "process_action_write" | "process_finally_read",
-  processId: Id,
-  fieldIds: Map<string, Id>,
+  processId: number,
+  fieldIds: Map<string, number>,
   fieldKeys: readonly string[] | undefined,
   phase?: "action" | "success" | "error",
 ): Promise<void> => {
@@ -310,9 +302,9 @@ const insertProcessFieldLinks = async (
 }
 
 const insertProcesses = async (
-  sql: Tx,
+  sql: SQL | ReservedSQL,
   src: string,
-  fieldIds: Map<string, Id>,
+  fieldIds: Map<string, number>,
   processes: readonly WimpCreateProcessInput[],
 ): Promise<void> => {
   for (const {key, declaration} of processes) {
@@ -347,11 +339,11 @@ const insertProcesses = async (
 }
 
 const insertReactions = async (
-  sql: Tx,
+  sql: SQL | ReservedSQL,
   src: string,
-  fieldIds: Map<string, Id>,
-  stateIds: Map<string, Id>,
-  reactions: readonly WimpCreateReactionInput[],
+  fieldIds: Map<string, number>,
+  stateIds: Map<string, number>,
+  reactions: readonly MetaReactionDSL[],
 ): Promise<void> => {
   for (const reaction of reactions) {
     const reactionId = await insertId(sql<Array<{id: number}>>`
@@ -375,16 +367,16 @@ const insertReactions = async (
   }
 }
 
-const matterBindingPaths = (value: MatterRelationBindingValue): string[] => {
+const matterBindingPaths = (value: MatterBindingValue): string[] => {
   if (typeof value === "string" || value.data === undefined) return []
   return Array.isArray(value.data) ? value.data : [value.data]
 }
 
 const insertMatterBinding = async (
-  sql: Tx,
+  sql: SQL | ReservedSQL,
   src: string,
-  value: MatterRelationBindingValue | undefined,
-): Promise<Id | null> => {
+  value: MatterBindingValue | undefined,
+): Promise<number | null> => {
   if (value === undefined) return null
 
   if (typeof value === "string") {
@@ -410,13 +402,13 @@ const insertMatterBinding = async (
 }
 
 const insertMatterParticle = async (
-  sql: Tx,
+  sql: SQL | ReservedSQL,
   src: string,
-  particle: MatterRelationParticle,
-  parentParticle: Id | null,
-  edgeSlot: EdgeSlot,
+  particle: MatterParticle,
+  parentParticle: number | null,
+  edgeSlot: MatterEdgeSlot,
   particleOrder: number,
-): Promise<Id> => {
+): Promise<number> => {
   const id = await insertId(sql<Array<{id: number}>>`
     INSERT INTO matter_particle (wimp, parent_particle, particle_kind, edge_slot, particle_order)
     VALUES (${src}, ${parentParticle}, ${particle.kind}, ${edgeSlot}, ${particleOrder})
@@ -453,13 +445,13 @@ const insertMatterParticle = async (
   return id
 }
 
-const insertMatter = async (sql: Tx, src: string, matter: readonly MatterRelationParticle[]): Promise<void> => {
+const insertMatter = async (sql: SQL | ReservedSQL, src: string, matter: readonly MatterParticle[]): Promise<void> => {
   for (let index = 0; index < matter.length; index++) {
     await insertMatterParticle(sql, src, matter[index]!, null, "root", index)
   }
 }
 
-export const writeWimpCreate = async (sql: Tx, src: string, input: WimpCreateInput): Promise<void> => {
+export const writeWimpCreate = async (sql: SQL | ReservedSQL, src: string, input: WimpCreateInput): Promise<void> => {
   await sql`
     INSERT INTO wimp (src, name, desc, view_css)
     VALUES (${src}, ${input.name ?? null}, ${input.desc ?? null}, ${input.bulk?.view ?? null})

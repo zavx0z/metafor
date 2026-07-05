@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { prepareData } from "../matrix"
-import type { MatrixData } from "../store.t"
-import { FieldType, type Data } from "../gravity"
+import type { MatrixData } from "@metafor/types/matrix"
+import { FieldType } from "../gravity"
+import type { MatrixInputData } from "@metafor/types/matrix"
 
 function getBraneLocalValues(store: MatrixData, braneIndex: number) {
   const brane = store.branes[braneIndex]
@@ -29,7 +30,7 @@ function getSharedBlockValues(store: MatrixData, blockIndex: number) {
 
 describe("prepared entanglement projection", () => {
   test("matrix не выводит entanglement из одинаковых values без projection", () => {
-    const data: Data = {
+    const data: MatrixInputData = {
       fields: [{ type: FieldType.F32 }],
       branes: [
         { values: [[0, 100]], state: 0, collapses: [[null]] },
@@ -47,7 +48,7 @@ describe("prepared entanglement projection", () => {
   })
 
   test("matrix materializes shared блоки только из prepared projection", () => {
-    const data: Data = {
+    const data: MatrixInputData = {
       fields: [
         { type: FieldType.F32 },
         { type: FieldType.F32 },
@@ -85,7 +86,7 @@ describe("prepared entanglement projection", () => {
   })
 
   test("matrix валидирует projection и не materializes расходящиеся shared values", () => {
-    const data: Data = {
+    const data: MatrixInputData = {
       fields: [{ type: FieldType.F32 }],
       branes: [
         { values: [[0, 100]], state: 0, collapses: [[null]] },
@@ -113,7 +114,7 @@ describe("prepared entanglement projection", () => {
   })
 
   test("legacy fieldIndices-only shorthand is rejected", () => {
-    const data: Data = {
+    const data: MatrixInputData = {
       fields: [
         { type: FieldType.F32 },
         { type: FieldType.F32 },

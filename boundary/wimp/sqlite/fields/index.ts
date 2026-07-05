@@ -1,6 +1,5 @@
-import type {FieldKey} from "../../../../metafor.t.ts"
 import type {Wimp} from "../wimp.ts"
-import type {FieldType} from "./field.ts"
+import type {MetaFieldDSL} from "@metafor/types/metafor/metafor"
 import {StringField} from "./string.ts"
 import {NumberField} from "./number.ts"
 import {BooleanField} from "./boolean.ts"
@@ -9,7 +8,7 @@ import {EnumField} from "./enum.ts"
 
 export type AnyField = StringField | NumberField | BooleanField | ArrayField | EnumField
 
-const buildField = (fields: Fields, key: FieldKey, type: FieldType): AnyField => {
+const buildField = (fields: Fields, key: string, type: MetaFieldDSL["type"]): AnyField => {
   switch (type) {
     case "string":
       return new StringField(fields, key)
@@ -36,9 +35,9 @@ export class Fields {
   }
 
   async add(
-    type: FieldType,
+    type: MetaFieldDSL["type"],
     input: {
-      key: FieldKey
+      key: string
       default?: unknown
       values?: ReadonlyArray<string | number>
       label?: string | null | undefined
@@ -78,7 +77,7 @@ export class Fields {
   }
 
   async all(): Promise<AnyField[]> {
-    const rows = await this.wimp.sql<Array<{ key: string; type: FieldType }>>`
+    const rows = await this.wimp.sql<Array<{ key: string; type: MetaFieldDSL["type"] }>>`
         SELECT key, type
         FROM field
         WHERE wimp = ${this.wimp.src}
@@ -87,9 +86,9 @@ export class Fields {
     return rows.map((row) => buildField(this, row.key, row.type))
   }
 
-  async get(filter: { key: FieldKey }): Promise<AnyField | null> {
+  async get(filter: { key: string }): Promise<AnyField | null> {
     const row = (
-      await this.wimp.sql<Array<{ type: FieldType }>>`
+      await this.wimp.sql<Array<{ type: MetaFieldDSL["type"] }>>`
           SELECT type
           FROM field
           WHERE wimp = ${this.wimp.src}

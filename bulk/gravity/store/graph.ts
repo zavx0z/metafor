@@ -11,17 +11,15 @@
  * - indexPaths: Map<uuid, indexPath> — карта индекс-путей для навигации
  */
 
-import type { IndexPath, ChildrenView } from "./graph.t"
-import type { OrderKey } from "./order.t"
 import { compare } from "./order"
 
 // Специальный ключ для корневого уровня
 const ROOT_KEY = "__ROOT__"
 
 // Состояние модуля
-let childrenView: ChildrenView = new Map()
-let indexPaths: Map<string, IndexPath> = new Map()
-let orderKeys: Map<string, OrderKey> = new Map()
+let childrenView: Map<string, string[]> = new Map()
+let indexPaths: Map<string, string> = new Map()
+let orderKeys: Map<string, Uint8Array> = new Map()
 
 /**
  * Добавляет актора в конец списка детей.
@@ -290,7 +288,7 @@ export function getRoots(): string[] {
  * getIndexPathByUuid("uuid-3")  // "0/1/2"
  * ```
  */
-export function getIndexPathByUuid(uuid: string): IndexPath | undefined {
+export function getIndexPathByUuid(uuid: string): string | undefined {
   return indexPaths.get(uuid)
 }
 
@@ -305,7 +303,7 @@ export function getIndexPathByUuid(uuid: string): IndexPath | undefined {
  * getUuidByIndexPath("0/1/2")  // "uuid-3"
  * ```
  */
-export function getUuidByIndexPath(indexPath: IndexPath): string | undefined {
+export function getUuidByIndexPath(indexPath: string): string | undefined {
   for (const [uuid, path] of indexPaths.entries()) {
     if (path === indexPath) {
       return uuid
@@ -330,7 +328,7 @@ export function getUuidByIndexPath(indexPath: IndexPath): string | undefined {
 export function computeIndexPath(
   parentUuid: string | null,
   childUuid: string
-): IndexPath {
+): string {
   const parentKey = parentUuid ?? ROOT_KEY
   const children = childrenView.get(parentKey) || []
 
@@ -356,7 +354,7 @@ export function computeIndexPath(
  * @param uuid - UUID актора
  * @param key - orderKey
  */
-export function setOrderKey(uuid: string, key: OrderKey): void {
+export function setOrderKey(uuid: string, key: Uint8Array): void {
   orderKeys.set(uuid, key)
 }
 
@@ -368,7 +366,7 @@ export function setOrderKey(uuid: string, key: OrderKey): void {
  * _resetStore()  // очистить всё состояние
  * ```
  */
-export function _resetStore(): void {
+export function resetGraphStore(): void {
   childrenView = new Map()
   indexPaths = new Map()
   orderKeys = new Map()

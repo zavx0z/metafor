@@ -1,21 +1,27 @@
 import shaderSource from "./evolution.wgsl" with { type: "text" }
-import type { MatrixStore } from "../../store.t"
+import type {
+  ArrayHeapSlot,
+  GpuRuntimeContext,
+  MatrixStore,
+  MatrixValue,
+  WeakChanges,
+  WeakHeapUpdate,
+  WeakRuntime,
+  WeakStepMode,
+} from "@metafor/types/matrix"
 import { FIELD_TYPE, VALUE_TYPE } from "../constants"
 import { deriveWeakData } from "./derived"
 import { findFieldValueOffset } from "./layout-heap"
-import type { WeakChanges, WeakHeapUpdate, WeakRuntime } from "../weak.t.ts"
 import { createPackContext, encodeValue } from "./pack"
-import type { GpuRuntimeContext } from "./index.t.ts"
 import { createStorageBuffer, createStorageBufferWithCapacity, destroyBuffers, nextCapacityWords } from "./buffer"
 import { createGpuRuntimeContext } from "./init"
 import { resolveStringTableBuffers } from "./layout"
 import { createBindGroup } from "./pipeline"
 import { readGpuChanges } from "./read"
 import { runGpuStep } from "./step"
-import type { ArrayHeapSlot } from "./heap"
 import { createInitialArrayHeapIndex, updateGpuHeapFields } from "./heap"
 import { createStringAtlasAppendExport } from "./string-pack"
-import { StepMode, type StepMode as WeakStepMode } from "../constants"
+import { StepMode } from "../constants"
 
 let gpuOperationQueue: Promise<void> = Promise.resolve()
 
@@ -419,7 +425,7 @@ export class GPUWeakRuntime implements WeakRuntime {
     heapMirror: Uint32Array,
     valueOffset: number,
     fieldIndex: number,
-    value: MatrixStore["braneValues"][number]["value"],
+    value: MatrixValue,
   ): { writes: Array<{ offset: number; value1: number; value2?: number }>; heapMirror?: Uint32Array } | null {
     if (!Array.isArray(value)) {
       return null

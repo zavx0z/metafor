@@ -1,7 +1,4 @@
-import type { LevelDetail } from "./detail.t"
-import type { LevelGeometry } from "./geometry.t"
-import type { LevelLabel } from "./label.t"
-import type { LevelSettings } from "./settings.t"
+import type { LevelDetail, LevelGeometry, LevelLabel, LevelSettings } from "@metafor/types/bulk"
 import { resolveLevelDetail } from "./detail"
 import { resolveLevelGeometry } from "./geometry"
 import { resolveLevelLabel } from "./label"

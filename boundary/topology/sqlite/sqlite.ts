@@ -3,7 +3,7 @@ import topologySql from "./topology.sql" with {type: "text"}
 import topologyFuzzyStateSql from "./topology_fuzzy_state.sql" with {type: "text"}
 import {buildTopology, decodeTopologyRow} from "./topology.ts"
 import type {AnyTopology} from "./topology.ts"
-import type {TopologyInput, TopologyRecord} from "./topology.t.ts"
+import type {TopologyInput, TopologyRecord} from "@metafor/types/persistence"
 import {emitForceParts} from "../../force.ts"
 
 const isStoredId = (id: number | null | undefined): id is number =>
@@ -94,4 +94,3 @@ export class BoundaryTopologySqlite {
 }
 
 export {Axion, Fuzzy, Macho, TopologyChildren, buildTopology, decodeTopologyRow} from "./topology.ts"
-export type {AnyTopology} from "./topology.ts"

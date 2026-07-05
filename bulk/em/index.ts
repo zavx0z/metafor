@@ -1,27 +1,6 @@
+import type {ForceBinding, ForceChannel, ForceMessage, ForceMessageListener, Particle, PhotonPayload} from "@metafor/types/force"
+
 export const FORCE = "force"
-
-export type Part = "graviton" | "photon" | "gluon" | "higgs" | "w+" | "w-" | "z"
-export type ParticleOperation = "add" | "remove" | "replace" | "move" | "copy" | "test"
-
-export type Particle = {
-  part: Part
-  op: ParticleOperation
-  path: string
-  value?: unknown
-  from?: string
-  [key: string]: unknown
-}
-
-export type ForceMessage = {
-  parts: Particle[]
-}
-
-type ForceMessageListener = (this: BroadcastChannel, ev: MessageEvent<ForceMessage>) => unknown
-type ForceBinding = { close(): void }
-type ForceChannel = Omit<BroadcastChannel, "onmessage" | "postMessage"> & {
-  onmessage: ((this: BroadcastChannel, ev: MessageEvent<ForceMessage>) => unknown) | null
-  postMessage(message: ForceMessage): void
-}
 
 let forceChannel: ForceChannel | null = null
 const forceObservers = new Set<ForceMessageListener>()
@@ -71,16 +50,12 @@ const force = {
   },
 }
 
-export type PhotonPayload = { value: string; path: string }
 export type WeakCoordinationKind = "claim" | "accept" | "reject" | "release"
 type WeakResultPart = "w+" | "w-"
 
 export interface BulkSubscription {
   close(): void
 }
-
-export type BulkPhotonSubscription = BulkSubscription
-export type BulkWeakCoordinationSubscription = BulkSubscription
 
 export interface BulkWeakForceOptions {
   channelName?: string
@@ -123,7 +98,7 @@ const createWeakResultFieldParts = (values: Record<string, unknown>): Array<{ op
 export const subscribeBulkPhotons = (
   listener?: (message: PhotonPayload) => void,
   options: { channelName?: string } = {},
-): BulkPhotonSubscription => {
+): BulkSubscription => {
   void options
   return createSubscription((message) => {
     for (const part of message.parts) {
@@ -136,7 +111,7 @@ export const subscribeBulkPhotons = (
 export const subscribeBulkWeakCoordination = (
   listener?: (message: { wimpId: string; processId: string; coordination: WeakCoordinationKind; executorId?: string }) => void,
   options: { channelName?: string } = {},
-): BulkWeakCoordinationSubscription => {
+): BulkSubscription => {
   void options
   return createSubscription((message) => {
     for (const part of message.parts) {

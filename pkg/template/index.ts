@@ -30,18 +30,11 @@
  * @packageDocumentation
  */
 import { createNode } from "./node"
-import type { NodeType } from "./node/index.t.ts"
-import type { NodeMeta } from "./node/meta.t.ts"
-import type { NodeLogical } from "./node/logical.t.ts"
-import type { NodeMap } from "./node/map.t.ts"
-import type { NodeCondition } from "./node/condition.t.ts"
+import type { NodeType } from "@metafor/types/template/node/index"
 import { extractHtmlElements } from "./parser.ts"
-import type { Fields } from "../../fields.t.ts"
-import type { MatterDefinitionParams } from "../../matter.t.ts"
-import type { Mass } from "../../metafor.t.ts"
-import type { State } from "../../superposition.t.ts"
-
-export type { NodeType, NodeMeta, NodeLogical, NodeMap, NodeCondition }
+import type { Fields } from "@metafor/types/metafor/fields"
+import type { MatterDefinitionParams } from "@metafor/types/metafor/matter"
+import type { Mass } from "@metafor/types/metafor/metafor"
 
 /**
  * Парсит HTML-шаблон и возвращает обогащенную иерархию с метаданными о путях к данным.
@@ -63,7 +56,7 @@ export type { NodeType, NodeMeta, NodeLogical, NodeMap, NodeCondition }
  * `)
  * ```
  */
-export const parse = <ɸ extends Fields = Fields, m extends Mass = Mass, 𝛴 extends State = State>(
+export const parse = <ɸ extends Fields = Fields, m extends Mass = Mass, 𝛴 extends string = string>(
   template: (params: MatterDefinitionParams<ɸ, m, 𝛴>) => void,
 ): NodeType[] => {
   const mainHtml = extractMainHtmlBlock(template)

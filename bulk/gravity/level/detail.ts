@@ -1,5 +1,4 @@
-import type { LevelDetailSettings } from "./settings.t"
-import type { LevelDetail } from "./detail.t"
+import type { LevelDetail, LevelDetailSettings } from "@metafor/types/bulk"
 
 const normalizeDepth = (depth: number): number =>
   Number.isFinite(depth) && depth > 0 ? Math.floor(depth) : 0

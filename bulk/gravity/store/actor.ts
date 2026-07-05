@@ -10,12 +10,11 @@
  * - actors: Map<uuid, ActorRecord> — основное хранилище записей
  */
 
-import type { ActorRecord } from "./actor.t"
-import type { OrderKey } from "./order.t"
-import { appendChild, removeChild, getChildren, _resetStore as resetGraph } from "./graph"
+import type { BulkActorRecord } from "@metafor/types/bulk"
+import { appendChild, removeChild, getChildren, resetGraphStore } from "./graph"
 
 // Состояние модуля
-let actors: Map<string, ActorRecord> = new Map()
+let actors: Map<string, BulkActorRecord> = new Map()
 
 /**
  * Создаёт нового актора и добавляет в иерархию.
@@ -36,8 +35,8 @@ let actors: Map<string, ActorRecord> = new Map()
  * )р
  * ```
  */
-export function createActor(uuid: string, src: string, parentUuid: string | null, orderKey: OrderKey): ActorRecord {
-  const record: ActorRecord = {
+export function createActor(uuid: string, src: string, parentUuid: string | null, orderKey: Uint8Array): BulkActorRecord {
+  const record: BulkActorRecord = {
     uuid,
     src,
     parentUuid,
@@ -63,7 +62,7 @@ export function createActor(uuid: string, src: string, parentUuid: string | null
  * if (actor) { ... }
  * ```
  */
-export function getActor(uuid: string): ActorRecord | undefined {
+export function getActor(uuid: string): BulkActorRecord | undefined {
   return actors.get(uuid)
 }
 
@@ -79,13 +78,13 @@ export function getActor(uuid: string): ActorRecord | undefined {
  * updateActor("uuid-123", { status: "active", src: "./next.ts" })
  * ```
  */
-export function updateActor(uuid: string, updates: Partial<ActorRecord>): ActorRecord | undefined {
+export function updateActor(uuid: string, updates: Partial<BulkActorRecord>): BulkActorRecord | undefined {
   const actor = actors.get(uuid)
   if (!actor) {
     return undefined
   }
 
-  const updated: ActorRecord = { ...actor, ...updates }
+  const updated: BulkActorRecord = { ...actor, ...updates }
   actors.set(uuid, updated)
 
   return updated
@@ -119,7 +118,7 @@ export function deleteActor(uuid: string): void {
  * const all = getAllActors()
  * ```
  */
-export function getAllActors(): ActorRecord[] {
+export function getAllActors(): BulkActorRecord[] {
   return Array.from(actors.values())
 }
 
@@ -134,9 +133,9 @@ export function getAllActors(): ActorRecord[] {
  * const children = getActorsByParent("uuid-456")
  * ```
  */
-export function getActorsByParent(parentUuid: string): ActorRecord[] {
+export function getActorsByParent(parentUuid: string): BulkActorRecord[] {
   const childUuids = getChildren(parentUuid)
-  return childUuids.map((uuid) => actors.get(uuid)).filter((actor): actor is ActorRecord => actor !== undefined)
+  return childUuids.map((uuid) => actors.get(uuid)).filter((actor): actor is BulkActorRecord => actor !== undefined)
 }
 
 /**
@@ -149,5 +148,5 @@ export function getActorsByParent(parentUuid: string): ActorRecord[] {
  */
 export function _resetStore(): void {
   actors = new Map()
-  resetGraph()
+  resetGraphStore()
 }

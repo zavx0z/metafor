@@ -4,9 +4,9 @@ import {dirname} from "node:path"
 import {BoundaryWimpSqlite} from "@boundary/wimp/sqlite"
 import {BoundaryActorSqlite} from "@boundary/actor/sqlite"
 import {BoundaryTopologySqlite} from "@boundary/topology/sqlite"
-import {bulkRuntime as buildBulkRuntime} from "./runtime/bulk.ts"
-import {matrixRuntime as buildMatrixRuntime} from "./runtime/matrix.ts"
-import {energyRuntime as buildEnergyRuntime} from "./runtime/energy.ts"
+import {bulkRuntime} from "./runtime/bulk.ts"
+import {matrixRuntime} from "./runtime/matrix.ts"
+import {energyRuntime} from "./runtime/energy.ts"
 
 import type {Boundary} from "./index.ts"
 import {
@@ -16,18 +16,8 @@ import {
   emitForceMessage,
   observeForceMessage,
 } from "./force.ts"
-import type {ForceBinding, ForceMessageListener, Particle, ParticleOperation, Part} from "./force.t.ts"
-
-export type BoundaryPart = Part
-
-export type BoundaryParticle = Particle
-
-export type BoundaryUpdateMessage = {
-  parts: BoundaryParticle[]
-}
-
-type Tx = SQL | ReservedSQL
-type TopologyDomainPath = "fuzzy" | "axion" | "macho"
+import type {ForceBinding, ForceMessage, ForceMessageListener, Particle, ParticleOperation, Part} from "@metafor/types/force"
+import type {TopologyKind} from "@metafor/types/persistence"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -97,11 +87,11 @@ const requireNumber = (value: unknown, key: string, path: string): number => {
   return v
 }
 
-const notSupported = (op: ParticleOperation, path: string, part: BoundaryPart): never => {
+const notSupported = (op: ParticleOperation, path: string, part: Part): never => {
   throw new Error(`Particle op "${op}" is not supported for "${path}" (part=${part})`)
 }
 
-const applyWimpSnapshot = async (tx: Tx, op: ParticleOperation, value: unknown): Promise<void> => {
+const applyWimpSnapshot = async (tx: SQL | ReservedSQL, op: ParticleOperation, value: unknown): Promise<void> => {
   const path = "wimp"
   const snapshot = requireRecord(value, path)
   const wimp = requireRecord(snapshot.wimp, path)
@@ -167,7 +157,7 @@ const applyWimpSnapshot = async (tx: Tx, op: ParticleOperation, value: unknown):
 // graviton — domain structural particles
 // =============================================================================
 
-const applyActorSnapshot = async (tx: Tx, op: ParticleOperation, value: unknown): Promise<void> => {
+const applyActorSnapshot = async (tx: SQL | ReservedSQL, op: ParticleOperation, value: unknown): Promise<void> => {
   const path = "actor"
   const snapshot = requireRecord(value, path)
   const actor = requireRecord(snapshot.actor, path)
@@ -251,9 +241,9 @@ const applyActorSnapshot = async (tx: Tx, op: ParticleOperation, value: unknown)
 }
 
 const applyTopologySnapshot = async (
-  tx: Tx,
+  tx: SQL | ReservedSQL,
   op: ParticleOperation,
-  kind: TopologyDomainPath,
+  kind: TopologyKind,
   value: unknown,
 ): Promise<void> => {
   const path = kind
@@ -283,7 +273,7 @@ const applyTopologySnapshot = async (
   `
 }
 
-const applyGravitonParticle = async (tx: Tx, particle: BoundaryParticle): Promise<boolean> => {
+const applyGravitonParticle = async (tx: SQL | ReservedSQL, particle: Particle): Promise<boolean> => {
   if (particle.op === "test") return false
   if (particle.op === "move" || particle.op === "copy") {
     throw new Error(`Particle op "${particle.op}" is not supported by graviton`)
@@ -313,7 +303,7 @@ const applyGravitonParticle = async (tx: Tx, particle: BoundaryParticle): Promis
 // value helpers for actor snapshots
 // =============================================================================
 
-const writeValueScalar = async (tx: Tx, id: number, kind: string, v: Record<string, unknown>, path: string): Promise<void> => {
+const writeValueScalar = async (tx: SQL | ReservedSQL, id: number, kind: string, v: Record<string, unknown>, path: string): Promise<void> => {
   switch (kind) {
     case "null":
     case "list":
@@ -338,7 +328,7 @@ const writeValueScalar = async (tx: Tx, id: number, kind: string, v: Record<stri
   }
 }
 
-const clearValueScalarTables = async (tx: Tx, id: number): Promise<void> => {
+const clearValueScalarTables = async (tx: SQL | ReservedSQL, id: number): Promise<void> => {
   await tx`DELETE FROM value_boolean WHERE value = ${id}`
   await tx`DELETE FROM value_number WHERE value = ${id}`
   await tx`DELETE FROM value_string WHERE value = ${id}`
@@ -349,7 +339,7 @@ const clearValueScalarTables = async (tx: Tx, id: number): Promise<void> => {
 // dispatcher
 // =============================================================================
 
-const applyOneParticle = async (tx: Tx, particle: BoundaryParticle): Promise<boolean> => {
+const applyOneParticle = async (tx: SQL | ReservedSQL, particle: Particle): Promise<boolean> => {
   switch (particle.part) {
     case "graviton":
       return applyGravitonParticle(tx, particle)
@@ -364,7 +354,7 @@ const applyOneParticle = async (tx: Tx, particle: BoundaryParticle): Promise<boo
   }
 }
 
-const applyMessageToDatabase = async (sql: SQL, message: BoundaryUpdateMessage): Promise<boolean> => {
+const applyMessageToDatabase = async (sql: SQL, message: ForceMessage): Promise<boolean> => {
   if (message.parts.length === 0) return false
   let applied = false
   await sql.begin(async (tx) => {
@@ -408,18 +398,18 @@ export const open = async (filename?: string): Promise<Boundary> => {
     actor,
     topology,
     bulkRuntime() {
-      return buildBulkRuntime(sql)
+      return bulkRuntime(sql)
     },
     matrixRuntime() {
-      return buildMatrixRuntime(sql)
+      return matrixRuntime(sql)
     },
     energyRuntime() {
-      return buildEnergyRuntime(sql)
+      return energyRuntime(sql)
     },
-    emit(message: BoundaryUpdateMessage) {
+    emit(message: ForceMessage) {
       emitForceMessage(message)
     },
-    absorb(message: BoundaryUpdateMessage) {
+    absorb(message: ForceMessage) {
       const task = absorbQueue.then(async () => {
         await applyMessageToDatabase(sql, message)
         absorbForceMessage(message)

@@ -1,4 +1,4 @@
-import type { GpuBufferMap } from "./index.t.ts"
+import type { GpuBufferMap } from "@metafor/types/matrix"
 
 export function createComputePipeline(device: GPUDevice, shaderSource: string): GPUComputePipeline {
   const module = device.createShaderModule({ code: shaderSource })

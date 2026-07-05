@@ -1,4 +1,5 @@
-import { parse, type NodeType } from "../index.ts"
+import { parse } from "../index.ts"
+import type { NodeType } from "@metafor/types/template/node/index"
 import { describe, expect, beforeAll, it } from "bun:test"
 
 describe("text", () => {

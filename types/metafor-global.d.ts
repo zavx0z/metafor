@@ -1,5 +1,5 @@
 import type {Boundary} from "boundary"
-import type { MetaForFn } from "../metafor.t.ts"
+import type { MetaForFn } from "@metafor/types/metafor/metafor"
 
 declare global {
   var boundary: Boundary

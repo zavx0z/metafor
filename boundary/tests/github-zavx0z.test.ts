@@ -3,7 +3,8 @@ import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
 import {SQL} from "bun"
 import {matter} from "../../dark/dark.ts"
-import type {Particle, Boundary} from "../index.ts"
+import type {Particle} from "@metafor/types/force"
+import type {Boundary} from "../index.ts"
 import {open} from "../sqlite.ts"
 
 const requiredRow = <T>(row: T | undefined, message: string): T => {

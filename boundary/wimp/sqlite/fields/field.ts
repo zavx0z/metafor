@@ -1,16 +1,14 @@
-import type {FieldKey} from "../../../../metafor.t.ts"
 import type {Fields} from "./index.ts"
-
-export type FieldType = "string" | "number" | "boolean" | "array" | "enum"
+import type {MetaFieldDSL} from "@metafor/types/metafor/metafor"
 
 export abstract class Field {
   constructor(
     protected readonly fields: Fields,
-    public key: FieldKey,
+    public key: string,
   ) {
   }
 
-  abstract readonly type: FieldType
+  abstract readonly type: MetaFieldDSL["type"]
 
   async id(): Promise<number> {
     const row = (
@@ -26,7 +24,7 @@ export abstract class Field {
     return row.id
   }
 
-  async setKey(newKey: FieldKey): Promise<void> {
+  async setKey(newKey: string): Promise<void> {
     await this.fields.wimp.sql`
         UPDATE field
         SET key = ${newKey}

@@ -5,7 +5,7 @@ import actorValueSql from "./actor_value.sql" with {type: "text"}
 import stateSql from "./state.sql" with {type: "text"}
 import {Actor, ActorRoots, decodeActorRow} from "./actor.ts"
 import {Value, type AnyValue} from "./value.ts"
-import type {ActorRecord, ActorRows} from "./actor.t.ts"
+import type {ActorRecord, ActorRows} from "@metafor/types/persistence"
 import {ActorFieldValue} from "./actor_value.ts"
 import {emitForceParts} from "../../force.ts"
 
@@ -88,5 +88,3 @@ export class BoundaryActorSqlite {
 export {Actor, ActorChildren, ActorRoots, ActorValues} from "./actor.ts"
 export {ActorFieldValue} from "./actor_value.ts"
 export {BooleanValue, EnumValue, ListValue, NullValue, NumberValue, StringValue, Value} from "./value.ts"
-export type {AnyValue} from "./value.ts"
-export type {ValueItemRecord} from "./value.t.ts"

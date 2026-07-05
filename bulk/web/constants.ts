@@ -1,5 +1,5 @@
 import { Color } from "@metafor/engine"
-import type { SurfaceArcLimits } from "@bulk/gravity/text"
+import type { SurfaceArcLimits } from "@bulk/gravity/text/fit"
 
 /**
  * Палитра, времена анимации и геометрические лимиты viewport-а.

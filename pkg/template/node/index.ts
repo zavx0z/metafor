@@ -1,11 +1,11 @@
-import type { ParseContext } from "../parser.t.ts"
+import type { ParseContext } from "@metafor/types/template/parser"
 import { createNodeDataCondition } from "./condition.ts"
 import { createNodeDataLogical } from "./logical.ts"
 import { createNodeDataMap } from "./map.ts"
 import { createNodeDataMeta } from "./meta.ts"
 import { parseText } from "./text.ts"
 import { createNodeDataElement } from "./element.ts"
-import type { NodeType, PartAttr } from "./index.t.ts"
+import type {NodeType, PartAttr} from "@metafor/types/template/node/index"
 
 /** Создает NodeType из PartAttr. */
 export const createNode = (node: PartAttr, context: ParseContext): NodeType => {

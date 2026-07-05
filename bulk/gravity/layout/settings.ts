@@ -1,5 +1,4 @@
-import type { LevelGeometrySettings } from "../level"
-import type { BulkLayoutSettings, BulkLayoutSnapshotConfig } from "./settings.t"
+import type { BulkLayoutSettings, BulkLayoutSnapshotConfig, LevelGeometrySettings } from "@metafor/types/bulk"
 
 /** Базовые размеры root Dark particle torus geometry; внутренние торы могут расширяться от содержимого. */
 export const DEFAULT_BULK_LAYOUT_SETTINGS: BulkLayoutSettings = {

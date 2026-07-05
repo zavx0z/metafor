@@ -1,5 +1,6 @@
 import { createStringAtlasExport } from "./string-pack"
-import { StepMode, type StepMode as WeakStepMode } from "../constants"
+import type { WeakStepMode } from "@metafor/types/matrix"
+import { StepMode } from "../constants"
 
 export function createUniforms(braneCount: number, mode: WeakStepMode = StepMode.Full): Uint32Array {
   return new Uint32Array([braneCount, mode, 0, 0])

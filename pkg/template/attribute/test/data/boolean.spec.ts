@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from "bun:test"
-import { parse, type NodeType } from "../../../index.ts"
+import { parse } from "../../../index.ts"
+import type { NodeType } from "@metafor/types/template/node/index"
 
 describe("boolean атрибуты", () => {
   describe("булевы атрибуты с переменными из разных уровней вложенности", () => {

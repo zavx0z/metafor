@@ -1,101 +1,17 @@
 import type {SQL} from "bun"
+import type {
+  BulkRuntimeField,
+  BulkRuntimeMatterBindingPath,
+  BulkRuntimeMatterChildBindingPath,
+  BulkRuntimeMatterParticle,
+  BulkRuntimeSnapshot,
+  BulkRuntimeValue,
+  BulkRuntimeWimp,
+} from "@metafor/types/bulk"
+import type {ActorRecord, ActorValueRecord, FieldEnumVariantRecord, TopologyRecord, ValueItemRecord} from "@metafor/types/persistence"
 
-export type BoundaryBulkParticleKind = "wimp" | "fuzzy" | "axion" | "macho"
-
-export type BoundaryBulkRuntimeActor = {
-  id: number
-  parentActor: number | null
-  parentTopology: number | null
-  wimp: string
-  position: number
-}
-
-export type BoundaryBulkRuntimeTopology = {
-  id: number
-  parentActor: number | null
-  parentTopology: number | null
-  kind: BoundaryBulkParticleKind
-  position: number
-}
-
-export type BoundaryBulkRuntimeMatterParticle = {
-  id: number
-  wimp: string
-  parentParticle: number | null
-  particleKind: BoundaryBulkParticleKind
-  edgeSlot: "root" | "child" | "then" | "else" | "branch"
-  particleOrder: number
-}
-
-export type BoundaryBulkRuntimeWimp = {
-  src: string
-  name: string | null
-}
-
-export type BoundaryBulkRuntimeField = {
-  id: number
-  wimp: string
-  key: string
-  type: "string" | "number" | "boolean" | "array" | "enum"
-  label: string | null
-}
-
-export type BoundaryBulkRuntimeFieldEnumVariant = {
-  id: number
-  field: number
-  position: number
-  itemValue: string
-}
-
-export type BoundaryBulkRuntimeActorValue = {
-  actor: number
-  field: number
-  value: number
-}
-
-export type BoundaryBulkRuntimeValue = {
-  id: number
-  kind: "null" | "boolean" | "number" | "string" | "enum" | "list"
-  booleanValue: number | null
-  numberValue: number | null
-  textValue: string | null
-  enumValue: string | null
-}
-
-export type BoundaryBulkRuntimeValueListItem = {
-  value: number
-  position: number
-  itemValue: string
-}
-
-export type BoundaryBulkRuntimeMatterBindingPath = {
-  wimp: string
-  particle: number
-  depOrder: number
-  path: string
-}
-
-export type BoundaryBulkRuntimeMatterChildBindingPath = BoundaryBulkRuntimeMatterBindingPath & {
-  childOrder: number
-}
-
-export type BoundaryBulkRuntimeSnapshot = {
-  version: 1
-  actors: BoundaryBulkRuntimeActor[]
-  topologies: BoundaryBulkRuntimeTopology[]
-  wimps: BoundaryBulkRuntimeWimp[]
-  fields: BoundaryBulkRuntimeField[]
-  fieldEnumVariants: BoundaryBulkRuntimeFieldEnumVariant[]
-  actorValues: BoundaryBulkRuntimeActorValue[]
-  values: BoundaryBulkRuntimeValue[]
-  valueItems: BoundaryBulkRuntimeValueListItem[]
-  matterParticles: BoundaryBulkRuntimeMatterParticle[]
-  matterTopologyBindingPaths: BoundaryBulkRuntimeMatterBindingPath[]
-  matterChildWimpBindingPaths: BoundaryBulkRuntimeMatterChildBindingPath[]
-}
-
-export async function bulkRuntime(sql: SQL): Promise<BoundaryBulkRuntimeSnapshot> {
-  const actors = await sql<BoundaryBulkRuntimeActor[]>`
+export async function bulkRuntime(sql: SQL): Promise<BulkRuntimeSnapshot> {
+  const actors = await sql<ActorRecord[]>`
     SELECT id,
            parent_actor AS parentActor,
            parent_topology AS parentTopology,
@@ -104,7 +20,7 @@ export async function bulkRuntime(sql: SQL): Promise<BoundaryBulkRuntimeSnapshot
       FROM actor
      ORDER BY rowid
   `
-  const topologies = await sql<BoundaryBulkRuntimeTopology[]>`
+  const topologies = await sql<TopologyRecord[]>`
     SELECT id,
            parent_actor AS parentActor,
            parent_topology AS parentTopology,
@@ -113,15 +29,15 @@ export async function bulkRuntime(sql: SQL): Promise<BoundaryBulkRuntimeSnapshot
       FROM topology
      ORDER BY rowid
   `
-  const wimps = await sql<BoundaryBulkRuntimeWimp[]>`SELECT src, name FROM wimp`
-  const fields = await sql<BoundaryBulkRuntimeField[]>`SELECT id, wimp, key, type, label FROM field ORDER BY wimp, rowid`
-  const fieldEnumVariants = await sql<BoundaryBulkRuntimeFieldEnumVariant[]>`
+  const wimps = await sql<BulkRuntimeWimp[]>`SELECT src, name FROM wimp`
+  const fields = await sql<BulkRuntimeField[]>`SELECT id, wimp, key, type, label FROM field ORDER BY wimp, rowid`
+  const fieldEnumVariants = await sql<FieldEnumVariantRecord[]>`
     SELECT id, field, position, item_value AS itemValue
       FROM field_enum_variant
      ORDER BY field, position
   `
-  const actorValues = await sql<BoundaryBulkRuntimeActorValue[]>`SELECT actor, field, value FROM actor_value ORDER BY actor, field`
-  const values = await sql<BoundaryBulkRuntimeValue[]>`
+  const actorValues = await sql<ActorValueRecord[]>`SELECT actor, field, value FROM actor_value ORDER BY actor, field`
+  const values = await sql<BulkRuntimeValue[]>`
     SELECT value.id,
            value.kind,
            value_boolean.boolean AS booleanValue,
@@ -136,12 +52,12 @@ export async function bulkRuntime(sql: SQL): Promise<BoundaryBulkRuntimeSnapshot
       LEFT JOIN field_enum_variant ON field_enum_variant.id = value_enum.variant
      ORDER BY value.rowid
   `
-  const valueItems = await sql<BoundaryBulkRuntimeValueListItem[]>`
+  const valueItems = await sql<ValueItemRecord[]>`
     SELECT value, position, item_value AS itemValue
       FROM value_list_item
      ORDER BY value, position
   `
-  const matterParticles = await sql<BoundaryBulkRuntimeMatterParticle[]>`
+  const matterParticles = await sql<BulkRuntimeMatterParticle[]>`
     SELECT id,
            wimp,
            parent_particle AS parentParticle,
@@ -151,7 +67,7 @@ export async function bulkRuntime(sql: SQL): Promise<BoundaryBulkRuntimeSnapshot
       FROM matter_particle
      ORDER BY wimp, rowid
   `
-  const matterTopologyBindingPaths = await sql<BoundaryBulkRuntimeMatterBindingPath[]>`
+  const matterTopologyBindingPaths = await sql<BulkRuntimeMatterBindingPath[]>`
     SELECT matter_particle.wimp AS wimp,
            matter_particle_fuzzy.particle AS particle,
            matter_binding_dep.dep_order AS depOrder,
@@ -177,7 +93,7 @@ export async function bulkRuntime(sql: SQL): Promise<BoundaryBulkRuntimeSnapshot
       JOIN matter_binding_dep ON matter_binding_dep.binding = matter_particle_macho.collection_binding
      ORDER BY particle, depOrder
   `
-  const matterChildWimpBindingPaths = await sql<BoundaryBulkRuntimeMatterChildBindingPath[]>`
+  const matterChildWimpBindingPaths = await sql<BulkRuntimeMatterChildBindingPath[]>`
     SELECT matter_particle.wimp AS wimp,
            matter_particle.parent_particle AS particle,
            matter_particle.particle_order AS childOrder,

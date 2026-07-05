@@ -5,8 +5,7 @@
  */
 
 import { weak$ } from "./store"
-import type { MetaDSL } from "../../index.ts"
-import type { Intention } from "./store.t"
+import type {MetaDSL} from "@metafor/types/metafor/metafor"
 
 /**
  * Регистрирует схемы процессов из DSL.
@@ -29,7 +28,7 @@ import type { Intention } from "./store.t"
  * })
  * ```
  */
-export function registerProcesses(processes: Record<Intention, MetaDSL>): void {
+export function registerProcesses(processes: Record<string, MetaDSL>): void {
   for (const [key, schema] of Object.entries(processes)) {
     weak$.processes.set(key, schema as MetaDSL)
   }
@@ -41,6 +40,6 @@ export function registerProcesses(processes: Record<Intention, MetaDSL>): void {
  * @param processKey - Ключ процесса (ID намерения).
  * @returns Схема процесса или undefined если не найдена.
  */
-export function getProcessSchema(processKey: Intention): MetaDSL | undefined {
-  return weak$.processes.get(processKey)
+export function getProcessSchema(processKey: string): MetaDSL | undefined {
+  return weak$.processes.get(processKey) as MetaDSL | undefined
 }

@@ -3,8 +3,7 @@ import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
 import {SQL} from "bun"
 import {open} from "./sqlite.ts"
-import type {BoundaryParticle} from "./sqlite.ts"
-import type {Particle} from "./index.ts"
+import type {Particle} from "@metafor/types/force"
 import {BooleanValue, EnumValue} from "@boundary/actor"
 import type {Boundary} from "./index.ts"
 import {STATE_NONE, STATE_UNDEFINED} from "../matrix/state.ts"
@@ -404,7 +403,7 @@ describe("boundary/sqlite smoke", () => {
     const observedBinding = boundary.observe((event) => observed.push(...event.data.parts))
     const entropyBinding = boundary.entropy((event) => outgoing.push(...event.data.parts))
     const actorId = 1
-    const part: BoundaryParticle = {
+    const part: Particle = {
       part: "graviton",
       op: "add",
       path: "actor",
@@ -437,7 +436,7 @@ describe("boundary/sqlite smoke", () => {
   })
 
   test("absorb() принимает wimp-сигнал без записи meta", async () => {
-    const part: BoundaryParticle = {part: "graviton", op: "add", path: "wimp", value: SRC}
+    const part: Particle = {part: "graviton", op: "add", path: "wimp", value: SRC}
     const observed: Particle[] = []
     const binding = boundary.observe((event) => observed.push(...event.data.parts))
 

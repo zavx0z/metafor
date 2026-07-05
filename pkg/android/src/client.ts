@@ -599,8 +599,9 @@ class H264AnnexBParser {
       return;
     }
 
-    if (starts[0].index > 0) {
-      this.buffer = this.buffer.slice(starts[0].index);
+    const firstStart = starts[0]!;
+    if (firstStart.index > 0) {
+      this.buffer = this.buffer.slice(firstStart.index);
       return this.push(new Uint8Array());
     }
 
@@ -610,10 +611,10 @@ class H264AnnexBParser {
     }
 
     for (let i = 0; i < starts.length - 1; i++) {
-      this.handleNal(this.buffer.slice(starts[i].index, starts[i + 1].index));
+      this.handleNal(this.buffer.slice(starts[i]!.index, starts[i + 1]!.index));
     }
 
-    this.buffer = this.buffer.slice(starts[starts.length - 1].index);
+    this.buffer = this.buffer.slice(starts[starts.length - 1]!.index);
     this.scheduleTailFlush();
   }
 
@@ -705,7 +706,7 @@ function findStartCodes(bytes: Uint8Array): StartCode[] {
 
 function nalType(nal: Uint8Array): number {
   const start = startCodeLength(nal);
-  return start === 0 || start >= nal.byteLength ? -1 : nal[start] & 0x1f;
+  return start === 0 || start >= nal.byteLength ? -1 : nal[start]! & 0x1f;
 }
 
 function codecFromSps(nal: Uint8Array): string | null {

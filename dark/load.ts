@@ -1,4 +1,4 @@
-import type { MetaDSL, SRC } from ".."
+import type {MetaDSL} from "@metafor/types/metafor/metafor"
 import settings from "./settings.yml"
 
 const { HUB, MODULE } = settings
@@ -11,7 +11,7 @@ const importMeta = async (sourcePath: string): Promise<MetaDSL> => {
 const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
 
-export const loadMeta = async (address: SRC): Promise<MetaDSL> => {
+export const loadMeta = async (address: string): Promise<MetaDSL> => {
   const sourcePath = new URL(`../${HUB}${address}/${MODULE}`, import.meta.url).href
   try {
     return await importMeta(sourcePath)

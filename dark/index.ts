@@ -2,7 +2,7 @@ import {file, serve, type ServerWebSocket} from "bun"
 import "./server.ts"
 import {startEnergyProtocol} from "../energy/energy.ts"
 import index from "../bulk/index.html"
-import type {BoundaryUpdateMessage} from "boundary"
+import type {ForceMessage} from "@metafor/types/force"
 import {DEFAULT_BULK_SCENE_SRC} from "bulk/settings"
 import {loadMatrixRuntimeSnapshot} from "../matrix/index.ts"
 
@@ -13,7 +13,7 @@ await loadMatrixRuntimeSnapshot(matrixRuntimeSnapshot)
 const sockets = new Set<ServerWebSocket<{kind: "browser"}>>()
 const force = new BroadcastChannel("force")
 
-const broadcastForce = (message: BoundaryUpdateMessage): void => {
+const broadcastForce = (message: ForceMessage): void => {
   const payload = JSON.stringify({type: "force", parts: message.parts})
   for (const socket of sockets) {
     if (socket.readyState !== WebSocket.OPEN) continue
@@ -21,7 +21,7 @@ const broadcastForce = (message: BoundaryUpdateMessage): void => {
   }
 }
 
-const acceptForce = async (message: BoundaryUpdateMessage, publishRuntime: boolean): Promise<void> => {
+const acceptForce = async (message: ForceMessage, publishRuntime: boolean): Promise<void> => {
   await globalThis.boundary.absorb(message)
   if (publishRuntime) {
     const runtimeParts = message.parts.filter((part) => part.part !== "graviton")
@@ -35,7 +35,7 @@ globalThis.boundary.entropy((event) => {
 })
 
 force.onmessage = (event) => {
-  const message = event.data as BoundaryUpdateMessage
+  const message = event.data as ForceMessage
   if (!Array.isArray(message.parts)) return
   if (!message.parts.some((part) => part.part !== "graviton")) return
   void acceptForce(message, false).catch((error) => console.error("[dark:force]", error))
@@ -52,7 +52,7 @@ const server = serve<{kind: "browser"}>({
     "/engine-static/JetBrainsMono-Bold.ttf": file("./pkg/engine/static/JetBrainsMono-Bold.ttf"),
     "/models/bots.glb": file("./pkg/engine/static/models/bots.glb"),
     "/force": {
-      async POST(req) {
+      async POST(req: Bun.BunRequest<"/force">) {
         let payload: {parts?: unknown}
         try {
           payload = await req.json() as {parts?: unknown}
@@ -60,7 +60,7 @@ const server = serve<{kind: "browser"}>({
           return Response.json({ok: false, error: error instanceof Error ? error.message : String(error)}, {status: 400})
         }
         if (!Array.isArray(payload.parts)) return Response.json({ok: false, error: "parts must be an array"}, {status: 400})
-        const message: BoundaryUpdateMessage = {parts: payload.parts as BoundaryUpdateMessage["parts"]}
+        const message: ForceMessage = {parts: payload.parts as ForceMessage["parts"]}
         try {
           await acceptForce(message, true)
           return Response.json({ok: true, parts: message.parts.length})
@@ -70,7 +70,7 @@ const server = serve<{kind: "browser"}>({
       },
     },
     "/ws": {
-      GET(req, server) {
+      GET(req: Bun.BunRequest<"/ws">, server: Bun.Server<{kind: "browser"}>) {
         const upgraded = server.upgrade(req, {data: {kind: "browser"}})
         return upgraded ? undefined : new Response("WebSocket upgrade failed", {status: 426})
       },
@@ -106,7 +106,7 @@ const server = serve<{kind: "browser"}>({
         }
         case "force": {
           if (!Array.isArray(payload.parts)) break
-          const message: BoundaryUpdateMessage = {parts: payload.parts as BoundaryUpdateMessage["parts"]}
+          const message: ForceMessage = {parts: payload.parts as ForceMessage["parts"]}
           void acceptForce(message, true)
             .catch((error) => {
               if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type: "error", error: error instanceof Error ? error.message : String(error)}))

@@ -7,7 +7,7 @@
 
 import { describe, expect, test, mock } from "bun:test"
 import { executeProcess } from "./execute"
-import type { ExecuteParams } from "./execute.t"
+import type { ExecuteParams } from "@metafor/types/bulk"
 
 describe("executeProcess", () => {
   test("выполняет синхронное действие", async () => {

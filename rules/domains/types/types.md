@@ -10,13 +10,13 @@
 
 ``` text
 {domain}/types/
-├── package.json      # exports: корень = shared.ts
-├── shared.ts         # shared types (корневой экспорт)
+├── package.json      # exports: прямые subpaths без barrel/reexport
+├── {domain}.ts       # общий доменный контракт, если он реально нужен
 ├── {module}.ts       # module-specific типы
 └── ...
 ```
 
-**Важно:** `index.ts` не используется. Корневой экспорт — это `shared.ts`.
+**Важно:** `index.ts` не используется. Корневой экспорт допускается только для реального общего доменного контракта; `shared.ts` ради primitive aliases не заводится.
 
 ## Именование типов store
 
@@ -44,7 +44,7 @@
 
 ```typescript
 // ✅ ПРАВИЛЬНО — порядок соблюдён
-import type { MetaDSL } from "metafor"           // 1. Сторонние пакеты
+import type { MetaDSL } from "@metafor/types/metafor/metafor"           // 1. Сторонние пакеты
 import type { DarkStore } from "@dark/types"          // 2. Типы из @domain/types
 import { gravity$ } from "@dark/gravity"              // 3. Собственные модули
 import { compileFragment } from "../metafor/dsl/ts"   // 4. Локальные импорты
@@ -52,7 +52,7 @@ import { loadMeta } from "./load.ts"                  // 4. Локальные �
 
 // ❌ НЕПРАВИЛЬНО — порядок нарушен
 import { gravity$ } from "./gravity/store.ts"         // локальные до сторонних
-import type { MetaDSL } from "metafor"           // сторонние после локальных
+import type { MetaDSL } from "@metafor/types/metafor/metafor"           // сторонние после локальных
 import type { DarkStore } from "@dark/types"
 ```
 
@@ -65,7 +65,7 @@ import type { DarkStore } from "@dark/types"
 ```typescript
 // ✅ Правильно — типы сверху
 import type { Store, Entity } from "@dark/types"
-import type { MetaDSL } from "metafor"
+import type { MetaDSL } from "@metafor/types/metafor/metafor"
 import { cloneSnapshot } from "./snapshot.ts"
 import { store$ } from "./store.ts"
 
@@ -95,7 +95,7 @@ import type { Store, StoreSnapshot } from "@dark/types"
 import type { Entity, Reference } from "@dark/types"
 ```
 
-### Shared types — из корня
+### Общие типы — из корня
 
 Типы, используемые несколькими пакетами, импортируются из корня `@{domain}/types`:
 
@@ -103,8 +103,8 @@ import type { Entity, Reference } from "@dark/types"
 // ✅ Правильно
 import type { Entity, Store, Indexes } from "@dark/types"
 
-// ❌ Неправильно — не нужно указывать /shared
-import type { Entity } from "@dark/types/shared"
+// ❌ Неправильно — не заводите отдельный shared-модуль для primitive aliases
+type EntityId = string
 ```
 
 ### Package-specific types — из модуля
@@ -120,12 +120,12 @@ import type { Address, UUID } from "@dark/types/internal"
 // ❌ Неправильно
 import type { Address } from "@dark/types"  // Address не в shared
 import type { StoreInstance } from "@dark/types"  // StoreInstance не в shared
-import type { Store } from "./store.t.ts"  // не из .t.ts
+import type { Store } from "./store.ts"  // локальный модуль вместо @{domain}/types
 ```
 
 ## Распределение типов
 
-### `shared.ts` — общие типы (корневой экспорт)
+### `{domain}.ts` — общий доменный контракт
 
 Типы, используемые несколькими подпакетами домена:
 
@@ -134,7 +134,7 @@ import type { Store } from "./store.t.ts"  // не из .t.ts
 - Индексы и snapshot типы
 - Общие опции и результаты
 
-Эти типы доступны через `@{domain}/types` или `@{domain}/types/shared`.
+Эти типы доступны через `@{domain}/types`. Отдельный `./shared` export не создаётся.
 
 ### `{module}.ts` — специфичные типы
 
@@ -153,16 +153,15 @@ import type { Store } from "./store.t.ts"  // не из .t.ts
 
 ## package.json
 
-Корневой экспорт указывает на `shared.ts`. Реэкспорты не используются:
+Корневой экспорт указывает на доменный контракт. Реэкспорты не используются:
 
 ```json
 {
   "name": "@dark/types",
   "type": "module",
-  "main": "shared.ts",
+  "main": "dark.ts",
   "exports": {
-    ".": "./shared.ts",
-    "./shared": "./shared.ts",
+    ".": "./dark.ts",
     "./store": "./store.ts",
     "./mutation": "./mutation.ts",
     "./internal": "./internal.ts"
@@ -171,7 +170,7 @@ import type { Store } from "./store.t.ts"  // не из .t.ts
 }
 ```
 
-**Принцип:** `@{domain}/types` и `@{domain}/types/shared` — это один и тот же файл.
+**Принцип:** каждый импорт указывает на один исходный файл пакета типов; reexport/barrel не нужен.
 
 ## Запрещено
 

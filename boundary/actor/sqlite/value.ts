@@ -1,6 +1,5 @@
 import type {SQL} from "bun"
-import type {ActorValueRecord} from "./actor_value.t.ts"
-import type {ValueItemRecord, ValueKind} from "./value.t.ts"
+import type {ActorValueRecord, ValueItemRecord, ValueKind} from "@metafor/types/persistence"
 
 export abstract class Value {
   constructor(

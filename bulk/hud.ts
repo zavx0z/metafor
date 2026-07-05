@@ -1,4 +1,5 @@
 import type {BulkViewportController, BulkViewportStats} from "bulk/web"
+import type {BulkLayoutSettings, BulkRenderSettings} from "@metafor/types/bulk"
 import {UiSurface, Z, div, divScrollPosition, divScrollTo, palette, uiIcons, type DivScrollContext, type UiSurfaceRect} from "@ui/elements"
 import {Button, SliderControl, Switcher, TextField} from "@ui/components"
 import {HudSideTab, HudWindow} from "@ui/hud"
@@ -6,10 +7,8 @@ import {
 	BULK_LAYOUT_SETTING_KEYS,
 	BULK_SETTINGS_BY_KEY,
 	DEFAULT_BULK_SCENE_SRC,
-	type BulkRenderSettings,
 	type BulkSettingKey,
 } from "bulk/settings"
-import type {BulkLayoutSettings} from "@bulk/gravity/layout"
 
 export type BulkHudSettingsSnapshot = {
 	layoutSettings: Partial<BulkLayoutSettings>

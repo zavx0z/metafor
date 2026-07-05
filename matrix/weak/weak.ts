@@ -1,8 +1,7 @@
-import type { WeakChanges, WeakHeapUpdate } from "./weak.t"
-import type { MatrixStore } from "../store.t"
+import type { MatrixStore, WeakChanges, WeakHeapUpdate, WeakStepMode } from "@metafor/types/matrix"
 import { createWeakRuntime } from "./factory"
 import { weak$ } from "./store"
-import { StepMode, type StepMode as WeakStepMode } from "./constants"
+import { StepMode } from "./constants"
 
 const runWeakOperation = async <T>(task: () => Promise<T>): Promise<T> => {
   const prev = weak$.operationMutex
@@ -83,4 +82,3 @@ export async function weakRunStep(mode: WeakStepMode = StepMode.Full): Promise<W
 }
 
 export { weak$ }
-export type { WeakMode, WeakStore } from "./store.t"

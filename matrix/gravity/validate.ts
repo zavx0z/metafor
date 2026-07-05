@@ -4,7 +4,8 @@
  * @packageDocumentation
  */
 
-import { FieldType, type Data } from "./schema.t"
+import type { MatrixInputData } from "@metafor/types/matrix"
+import { FieldType } from "./schema"
 
 /**
  * Валидирует входные данные перед обработкой.
@@ -15,7 +16,7 @@ import { FieldType, type Data } from "./schema.t"
  * @param data - Конфигурация для валидации
  * @throws {Error} При невалидных данных
  */
-export function validateData(data: Data): void {
+export function validateData(data: MatrixInputData): void {
   // Проверка на пустые/отсутствующие массивы — допустимо
   if (!data.fields || data.fields.length === 0) {
     return // Нет полей — нечего валидировать

@@ -1,11 +1,17 @@
-import type { BulkFieldParticle, BulkFieldParticleKind, BulkDarkParticle, BulkManifest, BulkLayoutSettings } from "@bulk/gravity/layout"
+import type {
+	BulkDarkParticle,
+	BulkFieldParticle,
+	BulkFieldParticleKind,
+	BulkLayoutSettings,
+	BulkManifest,
+	BulkRenderSettings,
+} from "@metafor/types/bulk"
 import { normalizeBulkLayoutSettings } from "@bulk/gravity/layout"
 import {
 	DEFAULT_BULK_SETTINGS,
 	bulkLayoutConfig,
 	normalizeBulkRenderSettings,
-	type BulkRenderSettings,
-	toLevelGeometrySettings,
+	toBulkLevelGeometrySettings,
 	toLevelSettings,
 } from "bulk/settings"
 import {
@@ -73,9 +79,9 @@ import {
 	bendTextAroundEquator,
 	createSurfaceLabel,
 	resolveSurfaceFitScale,
-	type SurfaceArcLimits,
-	type TextExtents,
 } from "@bulk/gravity/text"
+import type { SurfaceArcLimits } from "@bulk/gravity/text/fit"
+import type { TextExtents } from "@bulk/gravity/text/extents"
 
 /** Краткая статистика текущего manifest-а, которую viewport отдаёт в UI. */
 export interface BulkViewportStats {
@@ -1521,12 +1527,12 @@ const resolveFieldParticlePeerLevelMetrics = (
 ): { metricDepth: number; metricRadius: number } => {
 	const metricDepth = record.depth
 	return {
-		metricDepth,
-		metricRadius: resolveOuterRadiusFromSphereRadius(
 			metricDepth,
-			toLevelGeometrySettings(activeLayoutSettings),
-			record.snapshot.sphereRadius,
-		),
+			metricRadius: resolveOuterRadiusFromSphereRadius(
+				metricDepth,
+			toBulkLevelGeometrySettings(activeLayoutSettings),
+				record.snapshot.sphereRadius,
+			),
 	}
 }
 

@@ -1,8 +1,7 @@
-import {MetaFor, type FieldDefinition, type FieldKey, type SRC} from ".."
-import type {AnyField} from "@boundary/wimp/sqlite"
-import type {ActorValueRecord, ValueItemRecord, ValueRecord} from "@boundary/actor"
+import {MetaFor} from ".."
+import type {AnyField} from "@boundary/wimp/sqlite/fields"
+import type {ActorValueRecord, ValueItemRecord, ValueRecord} from "@metafor/types/persistence"
 import type {BfsEntry, ParticleRef, PendingChildWimp} from "@dark/types/dark"
-import {projectBoundaryMatterParticles} from "@dark/gravity"
 import {loadMeta} from "./load.ts"
 import {finalizeFieldValues, resolveFieldInits, type Continuation} from "./continuation.ts"
 
@@ -36,11 +35,11 @@ ensureBoundaryObserver()
  * Публичный entrypoint Dark.
  *
  * Использует `globalThis.boundary`, установленный в `dark/server.ts` либо в `dark/web.ts`.
- * Вызовы всегда передают только `SRC`; `Wimp` ORM создаётся внутри `matterWimp`
+ * Вызовы всегда передают только `string`; `Wimp` ORM создаётся внутри `matterWimp`
  * уже с декларационными matter-связями и разворачивает дерево через boundary ORM: создаёт actor + topology rows,
  * рекурсивно материализует дочерние wimps.
  *
- * Внутренняя рекурсия тоже передаёт только `SRC`: декларация WIMP создаётся один раз,
+ * Внутренняя рекурсия тоже передаёт только `string`: декларация WIMP создаётся один раз,
  * а runtime actor пропускается только если такой WIMP уже стоит под тем же parent.
  *
  * Обход дерева — послойный: на каждом BFS-слое топологии родительской wimp сначала
@@ -50,7 +49,7 @@ ensureBoundaryObserver()
  * `parent`/`continuation` — внутренние параметры рекурсии, caller'ам передавать не нужно.
  */
 export async function matter(
-  src: SRC,
+  src: string,
   parent: ParticleRef | null = null,
   continuation: Continuation | undefined = undefined,
 ): Promise<void> {
@@ -79,7 +78,7 @@ export async function matter(
  * как BFS перейдёт к следующему слою топологии.
  */
 async function* matterWimp(
-  src: SRC,
+  src: string,
   parent: ParticleRef | null,
   continuation: Continuation | undefined,
 ): AsyncGenerator<PendingChildWimp[], void, void> {
@@ -135,14 +134,14 @@ async function* matterWimp(
   const actor = await boundary.actor.create(actorData)
   const actorId = actor.id
 
-  const fieldValuesSnapshot = new Map<FieldKey, unknown>()
-  const fieldTypesSnapshot = new Map<FieldKey, string>()
+  const fieldValuesSnapshot = new Map<string, unknown>()
+  const fieldTypesSnapshot = new Map<string, string>()
   for (const [key, init] of finalValues) {
     fieldValuesSnapshot.set(key, init.value)
     fieldTypesSnapshot.set(key, fieldSchemaByKey.get(key)!.type)
   }
 
-  const plans = projectBoundaryMatterParticles(matterRelations)
+  const plans = matterRelations
   if (plans.length === 0) return
 
   let frontier: BfsEntry[] = plans.map((plan) => ({plan, parent: {kind: "actor", id: actorId}}))
@@ -195,7 +194,7 @@ const buildValueRecord = async (
   raw: unknown,
   fieldType: string,
   field: AnyField,
-  fieldKey: FieldKey,
+  fieldKey: string,
 ): Promise<{ record: ValueRecord; items: ValueItemRecord[] }> => {
   if (raw === null || raw === undefined) return {record: {id, kind: "null"}, items: []}
   switch (fieldType) {
@@ -225,7 +224,7 @@ const buildValueRecord = async (
 
 const resolveSourceValueId = async (
   parentActorId: number,
-  parentFieldKey: FieldKey,
+  parentFieldKey: string,
 ): Promise<number> => {
   const head = await boundary.actor.head(parentActorId)
   if (!head) throw new Error(`parent actor ${parentActorId} not found`)
@@ -239,5 +238,3 @@ const resolveSourceValueId = async (
   const value = await link.value()
   return value.id
 }
-
-export type {Continuation, FieldInit} from "./continuation.ts"

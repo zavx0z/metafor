@@ -5,7 +5,8 @@ import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture"
 import {write, update} from "../../matrix"
 import { GPU, weak$ } from "../../weak"
-import { FieldType, type Collapse } from "../../gravity"
+import { FieldType } from "../../gravity"
+import type { MatrixCollapse } from "@metafor/types/matrix"
 
 describe("weak - тип STRING (строка) с bun-webgpu", () => {
   beforeAll(async () => {
@@ -18,7 +19,7 @@ describe("weak - тип STRING (строка) с bun-webgpu", () => {
 
   describe("Оператор EQ (равно)", () => {
     test("должен выполнить переход, когда значение равно указанной строке", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { eq: "hero" } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { eq: "hero" } }]], [null]]
       await write({
         fields: [{ type: FieldType.STRING_PTR }],
         branes: [{ state: 0, values: [[0, ""]], collapses }],
@@ -28,7 +29,7 @@ describe("weak - тип STRING (строка) с bun-webgpu", () => {
     })
 
     test("не должен выполнить переход, когда значение не равно", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { eq: "hero" } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { eq: "hero" } }]], [null]]
       await write({
         fields: [{ type: FieldType.STRING_PTR }],
         branes: [{ state: 0, values: [[0, ""]], collapses }],
@@ -40,7 +41,7 @@ describe("weak - тип STRING (строка) с bun-webgpu", () => {
 
   describe("Оператор NEQ (не равно)", () => {
     test("должен выполнить переход, когда значение не равно указанному", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { neq: "hero" } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { neq: "hero" } }]], [null]]
       // Начальное значение "hero" = "hero", поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.STRING_PTR }],
@@ -53,7 +54,7 @@ describe("weak - тип STRING (строка) с bun-webgpu", () => {
 
   describe("Оператор IN (список строк)", () => {
     test("должен выполнить переход, когда строка в списке", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { in: ["hero", "mage", "rogue"] } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { in: ["hero", "mage", "rogue"] } }]], [null]]
       await write({
         fields: [{ type: FieldType.STRING_PTR }],
         branes: [
@@ -66,7 +67,7 @@ describe("weak - тип STRING (строка) с bun-webgpu", () => {
     })
 
     test("должен работать с Unicode строками в списке", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { in: ["привет", "мир", "тест"] } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { in: ["привет", "мир", "тест"] } }]], [null]]
       await write({
         fields: [{ type: FieldType.STRING_PTR }],
         branes: [{ state: 0, values: [[0, ""]], collapses }],
@@ -76,7 +77,7 @@ describe("weak - тип STRING (строка) с bun-webgpu", () => {
     })
 
     test("должен работать с эмодзи в списке", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { in: ["😀", "😂", "😍"] } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { in: ["😀", "😂", "😍"] } }]], [null]]
       await write({
         fields: [{ type: FieldType.STRING_PTR }],
         branes: [{ state: 0, values: [[0, ""]], collapses }],
@@ -88,7 +89,7 @@ describe("weak - тип STRING (строка) с bun-webgpu", () => {
 
   describe("Оператор NOT_IN (исключение строк)", () => {
     test("должен выполнить переход, когда строка НЕ в списке", async () => {
-      const collapses: Collapse[][] = [[[1, { 0: { notIn: ["hero", "mage", "rogue"] } }]], [null]]
+      const collapses: MatrixCollapse[][] = [[[1, { 0: { notIn: ["hero", "mage", "rogue"] } }]], [null]]
       // Начальное значение "hero" в списке, поэтому notIn:FALSE → НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.STRING_PTR }],
@@ -104,7 +105,7 @@ describe("weak - тип STRING (строка) с bun-webgpu", () => {
 
   describe("Интернирование строк", () => {
     test("должен интернировать одинаковые строки в один ID", async () => {
-      const collapses: Collapse[][] = [
+      const collapses: MatrixCollapse[][] = [
         [[1, { 0: { eq: "test" } }]],
         [[1, { 0: { eq: "test" } }]],
       ]

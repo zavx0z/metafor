@@ -1,7 +1,7 @@
-import type { Fields } from "./fields.t.ts"
-import type { ActionFieldUsage, ActionStructureValidationResult } from "./action.t.ts"
-import type { Mass } from "./metafor.t.ts"
-import type { ReactionAction } from "./reactions.t.ts"
+import type { Fields } from "@metafor/types/metafor/fields"
+import type { ActionFieldUsage, ActionStructureValidationResult } from "@metafor/types/metafor/action"
+import type { Mass } from "@metafor/types/metafor/metafor"
+import type { ReactionAction } from "@metafor/types/metafor/reactions"
 
 const PATTERN_UPDATE = /\bupdate\s*\(\s*({[\s\S]*?})\s*\)/g
 const PATTERN_ARROW = /^\s*(\([^)]+\))\s*=>/

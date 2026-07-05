@@ -10,6 +10,7 @@
     }
   },
   "dependencies": {
+    "@metafor/types": "workspace:*",
     "boundary": "workspace:*"
   }
 }

@@ -1,7 +1,6 @@
 import {force} from "boundary"
-import type {DomainPath} from "boundary"
+import type {PhotonPayload} from "@metafor/types/force"
 
-export type PhotonPayload = { value: string; path: DomainPath }
 type RuntimeFieldPatchValue = { fields: Record<string, unknown> }
 type DarkGluonPatchPart = { op: "replace" | "remove"; path: number; value: RuntimeFieldPatchValue }
 type DarkHiggsPatchPart = { op: "replace" | "remove"; path: number | string; value: RuntimeFieldPatchValue }

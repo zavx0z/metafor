@@ -1,4 +1,5 @@
-import type {BoundaryBulkRuntimeSnapshot, Particle} from "boundary"
+import type {BulkLayoutSettings, BulkRenderSettings, BulkRuntimeSnapshot, SettingsSnapshot} from "@metafor/types/bulk"
+import type {Particle} from "@metafor/types/force"
 import {createBulkViewport, type BulkViewportController, type BulkViewportStats} from "bulk/web"
 import {buildBoundaryBulkManifest} from "./world.ts"
 import {
@@ -7,14 +8,11 @@ import {
 	DEFAULT_BULK_SETTINGS,
 	loadSettings,
 	saveSettings,
-	type BulkRenderSettings,
-	type SettingsSnapshot,
 } from "bulk/settings"
-import type {BulkLayoutSettings} from "@bulk/gravity/layout"
 import {installBulkHud, type BulkHudController, type BulkHudSettingsSnapshot} from "./hud.ts"
 import {applyForcePartToSnapshot} from "./force-snapshot.ts"
 
-type ForceMessage = {
+type ForceSocketMessage = {
 	type: "force"
 	parts: Particle[]
 }
@@ -22,7 +20,7 @@ type ForceMessage = {
 type SnapshotMessage = {
 	type: "snapshot"
 	src: string
-	snapshot: BoundaryBulkRuntimeSnapshot
+	snapshot: BulkRuntimeSnapshot
 }
 
 type ErrorMessage = {
@@ -43,7 +41,7 @@ let bulkViewport: BulkViewportController | null = null
 let hud: BulkHudController | null = null
 let initialMaterializationRequested = false
 let pendingSnapshotMessage: SnapshotMessage | null = null
-let currentSnapshot: BoundaryBulkRuntimeSnapshot | null = null
+let currentSnapshot: BulkRuntimeSnapshot | null = null
 let persistSettingsTimer: ReturnType<typeof setTimeout> | null = null
 let activeSettings: BulkHudSettingsSnapshot = {
 	layoutSettings: {...DEFAULT_BULK_SETTINGS.layout},
@@ -64,7 +62,7 @@ const updateBulkStats = (stats: BulkViewportStats): void => {
 
 const applySnapshotWorld = (
 	src: string,
-	snapshot: BoundaryBulkRuntimeSnapshot,
+	snapshot: BulkRuntimeSnapshot,
 	layoutSettings: Partial<BulkLayoutSettings>,
 ): void => {
 	if (!bulkViewport) return
@@ -298,10 +296,10 @@ socket.onclose = () => {
 }
 
 socket.onmessage = (event) => {
-	const message = JSON.parse(String(event.data)) as ForceMessage | SnapshotMessage | ErrorMessage
+	const message = JSON.parse(String(event.data)) as ForceSocketMessage | SnapshotMessage | ErrorMessage
 
 	if (message.type === "force") {
-		const forceMessage = message as ForceMessage
+		const forceMessage = message as ForceSocketMessage
 		let snapshotNeedsRebuild = false
 		for (const part of forceMessage.parts) {
 			if (currentSnapshot && applyForcePartToSnapshot(currentSnapshot, part) === "rebuild") snapshotNeedsRebuild = true

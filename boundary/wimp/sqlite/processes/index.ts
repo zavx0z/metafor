@@ -1,10 +1,10 @@
 import type { Wimp } from "../wimp.ts"
-import type { ProcessType as ProcessTypeEnum } from "../../../../process.t.ts"
+import type { ProcessType } from "@metafor/types/metafor/process"
 import { Process } from "./process.ts"
 import {emitGravitonAdd} from "../../../force.ts"
 
 /** String-литералы значений `enum ProcessType` из metafor DSL — единый источник истины. */
-export type ProcessType = `${ProcessTypeEnum}`
+export type ProcessTypeValue = `${ProcessType}`
 
 export class Processes {
   readonly #wimp: Wimp
@@ -24,7 +24,7 @@ export class Processes {
    */
   async add(input: {
     key: string
-    type: ProcessType
+    type: ProcessTypeValue
     label?: string | null | undefined
     desc?: string | null | undefined
   }): Promise<Process> {

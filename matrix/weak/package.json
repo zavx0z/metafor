@@ -4,6 +4,7 @@
   "main": "index.ts",
   "private": true,
   "dependencies": {
+    "@metafor/types": "workspace:*",
     "@matrix/gravity": "workspace:*",
     "@matrix/strong": "workspace:*"
   }

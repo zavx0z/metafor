@@ -1,8 +1,8 @@
-import type { PartAttrMeta } from "./meta.t.ts"
+import type { PartAttrMeta } from "@metafor/types/template/node/meta"
 import { processBasicAttributes, processSemanticAttributes, processTemplateLiteralAttribute } from "../parser.ts"
 import { createNode } from "./index.ts"
-import type { ParseContext } from "../parser.t.ts"
-import type { NodeMeta } from "./meta.t.ts"
+import type { ParseContext } from "@metafor/types/template/parser"
+import type { NodeMeta } from "@metafor/types/template/node/meta"
 
 /**
  * Валидирует src атрибут в meta узлах.

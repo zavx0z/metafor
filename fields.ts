@@ -1,4 +1,4 @@
-import type {Fields, Field} from "./fields.t.ts"
+import type {Fields, Field} from "@metafor/types/metafor/fields"
 
 /** Создаёт нормализованную схему полей MetaFor. */
 export function fieldSchema<ɸ extends Fields>(schema: (field: Field) => ɸ): ɸ {

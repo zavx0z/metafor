@@ -1,24 +1,26 @@
-import type {BoundaryBulkRuntimeSnapshot, Particle} from "boundary"
+import type {
+	BulkRuntimeField,
+	BulkRuntimeSnapshot,
+	BulkRuntimeValue,
+} from "@metafor/types/bulk"
+import type {Particle} from "@metafor/types/force"
+import type {ActorRecord, ActorValueRecord, ValueItemRecord} from "@metafor/types/persistence"
 import {resolveForceFieldId, resolveForceFieldsPayload} from "../boundary/force-fields.ts"
 
 type ActorSnapshotMessage = {
-	actor: BoundaryBulkRuntimeSnapshot["actors"][number]
-	values: BoundaryBulkRuntimeSnapshot["actorValues"]
+	actor: ActorRecord
+	values: ActorValueRecord[]
 	valueRecords: Array<{
 		id: number
-		kind: BoundaryBulkRuntimeSnapshot["values"][number]["kind"]
+		kind: BulkRuntimeValue["kind"]
 		boolean?: boolean
 		number?: number
 		text?: string
 		variant?: number
 	}>
-	valueItems: BoundaryBulkRuntimeSnapshot["valueItems"]
+	valueItems: ValueItemRecord[]
 }
 
-type SnapshotField = BoundaryBulkRuntimeSnapshot["fields"][number]
-type SnapshotValue = BoundaryBulkRuntimeSnapshot["values"][number]
-type SnapshotValueKind = SnapshotValue["kind"]
-type SnapshotFieldType = SnapshotField["type"]
 export type ForceSnapshotEffect = "none" | "partial" | "rebuild"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -33,32 +35,32 @@ const forceString = (value: unknown): string | null => {
 	return text.length > 0 ? text : null
 }
 
-const forceFieldType = (value: unknown): SnapshotFieldType | null => {
+const forceFieldType = (value: unknown): BulkRuntimeField["type"] | null => {
 	const type = forceString(value)
 	if (type === "string" || type === "number" || type === "boolean" || type === "array" || type === "enum") return type
 	return null
 }
 
 const findSnapshotFieldById = (
-	snapshot: BoundaryBulkRuntimeSnapshot,
+	snapshot: BulkRuntimeSnapshot,
 	wimp: string,
 	fieldId: number,
-): SnapshotField | null =>
+): BulkRuntimeField | null =>
 	snapshot.fields.find((field) => field.wimp === wimp && field.id === fieldId) ?? null
 
 const nextNumericId = (entries: Array<{id: number}>): number =>
 	entries.reduce((max, entry) => Math.max(max, Number.isSafeInteger(entry.id) ? entry.id : 0), 0) + 1
 
 const createSnapshotField = (
-	snapshot: BoundaryBulkRuntimeSnapshot,
+	snapshot: BulkRuntimeSnapshot,
 	wimp: string,
 	fieldId: number,
 	rawPatch: Record<string, unknown>,
-): SnapshotField => {
+): BulkRuntimeField => {
 	const key = forceString(rawPatch.key)
 	const type = forceFieldType(rawPatch.type)
 	const label = forceString(rawPatch.label)
-	const field: SnapshotField = {
+	const field: BulkRuntimeField = {
 		id: fieldId,
 		wimp,
 		key: key ?? `field-${fieldId}`,
@@ -76,7 +78,7 @@ const forceEnumValues = (value: unknown): string[] | null => {
 }
 
 const replaceSnapshotFieldEnumVariants = (
-	snapshot: BoundaryBulkRuntimeSnapshot,
+	snapshot: BulkRuntimeSnapshot,
 	fieldId: number,
 	values: string[],
 ): void => {
@@ -93,9 +95,9 @@ const replaceSnapshotFieldEnumVariants = (
 }
 
 const removeSnapshotFieldEntries = (
-	snapshot: BoundaryBulkRuntimeSnapshot,
+	snapshot: BulkRuntimeSnapshot,
 	wimp: string,
-	fields: SnapshotField[],
+	fields: BulkRuntimeField[],
 ): void => {
 	const fieldIds = new Set(fields.map((field) => field.id))
 	const actorIds = new Set(snapshot.actors.filter((actor) => actor.wimp === wimp).map((actor) => actor.id))
@@ -118,7 +120,7 @@ const strongerEffect = (left: ForceSnapshotEffect, right: ForceSnapshotEffect): 
 }
 
 export const applyHiggsFieldsPartToSnapshot = (
-	snapshot: BoundaryBulkRuntimeSnapshot,
+	snapshot: BulkRuntimeSnapshot,
 	part: Particle,
 ): ForceSnapshotEffect => {
 	if (part.part !== "higgs") return "none"
@@ -149,7 +151,7 @@ export const applyHiggsFieldsPartToSnapshot = (
 		const key = forceString(rawPatch.key)
 		const label = forceString(rawPatch.label)
 		const enumValues = forceEnumValues(rawPatch.values)
-		const next: SnapshotField = {
+		const next: BulkRuntimeField = {
 			...current,
 			...(key !== null ? {key} : {}),
 			...(type !== null ? {type} : {}),
@@ -173,7 +175,7 @@ const actorIdFromForcePath = (path: unknown): number | null => {
 	return Number.isSafeInteger(id) && id > 0 ? id : null
 }
 
-const rawValueKind = (field: SnapshotField, value: unknown): SnapshotValueKind => {
+const rawValueKind = (field: BulkRuntimeField, value: unknown): BulkRuntimeValue["kind"] => {
 	if (value === null) return "null"
 	if (typeof value === "boolean") return "boolean"
 	if (typeof value === "number") return "number"
@@ -194,15 +196,15 @@ const rawValueText = (value: unknown): string | null => {
 }
 
 const upsertActorFieldValue = (
-	snapshot: BoundaryBulkRuntimeSnapshot,
+	snapshot: BulkRuntimeSnapshot,
 	actorId: number,
-	field: SnapshotField,
+	field: BulkRuntimeField,
 	value: unknown,
 ): void => {
 	const existing = snapshot.actorValues.find((entry) => entry.actor === actorId && entry.field === field.id)
 	const valueId = existing?.value ?? nextNumericId(snapshot.values)
 	const kind = rawValueKind(field, value)
-	const valueRecord: SnapshotValue = {
+	const valueRecord: BulkRuntimeValue = {
 		id: valueId,
 		kind,
 		booleanValue: kind === "boolean" ? (value === true ? 1 : 0) : null,
@@ -224,9 +226,9 @@ const upsertActorFieldValue = (
 }
 
 const removeActorFieldValue = (
-	snapshot: BoundaryBulkRuntimeSnapshot,
+	snapshot: BulkRuntimeSnapshot,
 	actorId: number,
-	field: SnapshotField,
+	field: BulkRuntimeField,
 ): void => {
 	const existing = snapshot.actorValues.find((entry) => entry.actor === actorId && entry.field === field.id)
 	if (!existing) return
@@ -236,7 +238,7 @@ const removeActorFieldValue = (
 }
 
 export const applyGluonFieldsPartToSnapshot = (
-	snapshot: BoundaryBulkRuntimeSnapshot,
+	snapshot: BulkRuntimeSnapshot,
 	part: Particle,
 ): ForceSnapshotEffect => {
 	if (part.part !== "gluon") return "none"
@@ -265,14 +267,14 @@ export const applyGluonFieldsPartToSnapshot = (
 const actorSnapshotMessage = (value: unknown): ActorSnapshotMessage | null => {
 	if (!isRecord(value) || !isRecord(value.actor) || !Array.isArray(value.values) || !Array.isArray(value.valueRecords)) return null
 	return {
-		actor: value.actor as ActorSnapshotMessage["actor"],
+		actor: value.actor as unknown as ActorSnapshotMessage["actor"],
 		values: value.values as ActorSnapshotMessage["values"],
 		valueRecords: value.valueRecords as ActorSnapshotMessage["valueRecords"],
 		valueItems: Array.isArray(value.valueItems) ? value.valueItems as ActorSnapshotMessage["valueItems"] : [],
 	}
 }
 
-const applyActorSnapshotPart = (snapshot: BoundaryBulkRuntimeSnapshot, value: unknown): boolean => {
+const applyActorSnapshotPart = (snapshot: BulkRuntimeSnapshot, value: unknown): boolean => {
 	const actorSnapshot = actorSnapshotMessage(value)
 	if (!actorSnapshot) return false
 	const enumValueByVariant = new Map(snapshot.fieldEnumVariants.map((variant) => [variant.id, variant.itemValue] as const))
@@ -300,7 +302,7 @@ const applyActorSnapshotPart = (snapshot: BoundaryBulkRuntimeSnapshot, value: un
 	return true
 }
 
-const applyTopologyPart = (snapshot: BoundaryBulkRuntimeSnapshot, part: Particle): boolean => {
+const applyTopologyPart = (snapshot: BulkRuntimeSnapshot, part: Particle): boolean => {
 	if (part.path !== "fuzzy" && part.path !== "axion" && part.path !== "macho") return false
 	if (!isRecord(part.value) || typeof part.value.id !== "number") return false
 	const topology = part.value
@@ -321,7 +323,7 @@ const applyTopologyPart = (snapshot: BoundaryBulkRuntimeSnapshot, part: Particle
 }
 
 export const applyForcePartToSnapshot = (
-	snapshot: BoundaryBulkRuntimeSnapshot,
+	snapshot: BulkRuntimeSnapshot,
 	part: Particle,
 ): ForceSnapshotEffect => {
 	const higgsEffect = applyHiggsFieldsPartToSnapshot(snapshot, part)

@@ -6,8 +6,8 @@ import {
   VALID_VARIABLE_PATTERN,
 } from "../parser.ts"
 import { cutBeforeNextHtml } from "../parser.ts"
-import type { ParseContext } from "../parser.t.ts"
-import type { NodeText, ParseTextPart } from "./text.t.ts"
+import type { ParseContext } from "@metafor/types/template/parser"
+import type { NodeText, ParseTextPart } from "@metafor/types/template/node/text"
 
 // ============================================================================
 // STRING METHOD SAFELIST

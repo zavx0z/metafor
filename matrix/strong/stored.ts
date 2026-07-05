@@ -8,16 +8,15 @@ import type {
   MatrixSharedBlockRecord,
   MatrixStateRecord,
   MatrixTransitionRecord,
-} from "../store.t"
-import type { Field } from "../gravity/schema.t"
-import { FieldType } from "../gravity/schema.t"
+  FlattenedMatrixInput,
+} from "@metafor/types/matrix"
+import { FieldType } from "../gravity/schema"
 import { OP } from "../weak"
-import type { FlattenedMatrixInput } from "../gravity/flattened.t"
 import { materializeEntanglement } from "./entangled"
 import { createStoredStringInterner } from "./string-table"
 import { normalizeFieldValue } from "./normalize"
 
-function normalizeFieldRecord(field: Field): MatrixFieldRecord {
+function normalizeFieldRecord(field: MatrixFieldRecord): MatrixFieldRecord {
   return {
     type: field.type,
     ...(field.elementType !== undefined ? { elementType: field.elementType } : {}),
@@ -27,7 +26,7 @@ function normalizeFieldRecord(field: Field): MatrixFieldRecord {
 
 function normalizeConditionScalar(
   value: unknown,
-  field: Field,
+  field: MatrixFieldRecord,
   op: number,
   stringInterner: { intern(value: string): number },
 ): MatrixScalarValue {
@@ -45,7 +44,7 @@ function normalizeConditionScalar(
       return normalizeFieldValue(value, field, stringInterner) as number
     case FieldType.ARRAY_PTR:
       if (op === OP.INCLUDE || op === OP.NOT_INCLUDE) {
-        const elementField: Field = {
+        const elementField: MatrixFieldRecord = {
           type:
             field.elementType === "string"
               ? FieldType.STRING_PTR
@@ -66,7 +65,7 @@ function normalizeConditionScalar(
 
 function normalizeTransitionConditions(
   conditions: FlattenedMatrixInput["branes"][number]["transitions"][number][number]["conditions"],
-  fields: Field[],
+  fields: MatrixFieldRecord[],
   stringInterner: { intern(value: string): number },
 ): MatrixConditionRecord[] {
   const normalized: MatrixConditionRecord[] = []
@@ -99,7 +98,7 @@ interface MatrixStateGraph {
 
 function buildStateGraph(
   braneTransitions: FlattenedMatrixInput["branes"][number]["transitions"],
-  fields: Field[],
+  fields: MatrixFieldRecord[],
   stringInterner: { intern(value: string): number },
 ): MatrixStateGraph {
   const stateTable: MatrixStateRecord[] = []

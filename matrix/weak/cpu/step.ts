@@ -1,7 +1,6 @@
-import type { WeakChanges } from "../weak.t.ts"
-import type { CpuRuntimeContext } from "./index.t.ts"
+import type { CpuRuntimeContext, WeakChanges, WeakStepMode } from "@metafor/types/matrix"
 import { evaluateBraneNextState } from "./transition"
-import { STATE_NONE, STATE_UNDEFINED, StepMode, type StepMode as WeakStepMode } from "../constants"
+import { STATE_NONE, STATE_UNDEFINED, StepMode } from "../constants"
 
 export function executeCpuStep(context: CpuRuntimeContext, mode: WeakStepMode = StepMode.Full): WeakChanges {
   const { store$ } = context

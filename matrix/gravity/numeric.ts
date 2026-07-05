@@ -1,9 +1,4 @@
-import type { Collapse } from "./schema.t"
-import type { ConvertedSuperposition } from "../weak/program.t"
-
-export interface NamedSuperposition {
-  [state: string]: Record<string, any> | null
-}
+import type { ConvertedSuperposition, MatrixCollapse, NamedSuperposition } from "@metafor/types/matrix"
 
 export function convertToNumeric(
   superposition: NamedSuperposition,
@@ -13,7 +8,7 @@ export function convertToNumeric(
   const stateIndex = new Map<string, number>()
   states.forEach((name, index) => stateIndex.set(name, index))
 
-  const transitions: Array<Array<Collapse>> = []
+  const transitions: Array<Array<MatrixCollapse>> = []
 
   for (const fromState of states) {
     const transObj = superposition[fromState]
@@ -22,7 +17,7 @@ export function convertToNumeric(
       continue
     }
 
-    const fromTransitions: Array<Collapse> = []
+    const fromTransitions: Array<MatrixCollapse> = []
     for (const [toState, conditions] of Object.entries(transObj)) {
       const toIdx = stateIndex.get(toState)
       if (toIdx === undefined) {

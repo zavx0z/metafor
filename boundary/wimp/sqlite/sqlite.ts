@@ -19,10 +19,8 @@ import {SQL} from "bun"
 import {writeWimpCreate} from "./create.ts"
 import {Wimp} from "./wimp.ts"
 import {emitForceParts} from "../../force.ts"
-import type {Particle} from "../../force.t.ts"
-import type {WimpCreateInput} from "./create.t.ts"
-
-export type {WimpCreateInput} from "./create.t.ts"
+import type {Particle} from "@metafor/types/force"
+import type {WimpCreateInput} from "@metafor/types/persistence"
 
 type WimpSnapshot = {
   wimp: {src: string; name: string | null; desc: string | null; view: string | null}

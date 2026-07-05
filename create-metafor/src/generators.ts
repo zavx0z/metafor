@@ -22,7 +22,9 @@ function loadTemplate(name: string): string {
  * Заменить плейсхолдеры в шаблоне
  */
 function render(template: string, data: Record<string, string>): string {
-  return template.replace(/{{(\w+)}}/g, (_, key) => data[key] || "")
+  return template
+    .replace(/\/\*\s*@template\s+(\w+)\s*\*\/\s*""/g, (_, key) => data[key] || "")
+    .replace(/{{(\w+)}}/g, (_, key) => data[key] || "")
 }
 
 function jsString(value: string): string {

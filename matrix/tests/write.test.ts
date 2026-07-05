@@ -5,7 +5,8 @@ import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture"
 import {write, update, } from "../matrix"
 import { GPU, weak$ } from "../weak"
-import { FieldType, type Collapse } from "../gravity"
+import { FieldType } from "../gravity"
+import type { MatrixCollapse } from "@metafor/types/matrix"
 
 describe("write() — возврат начальных состояний", () => {
   beforeAll(async () => {
@@ -17,7 +18,7 @@ describe("write() — возврат начальных состояний", () 
   })
 
   test("должен вернуть состояния после инициализации с переходом", async () => {
-    const collapses: Collapse[][] = [
+    const collapses: MatrixCollapse[][] = [
       [[1, { 0: { gt: 50 } }]],  // IDLE → PATROL при hp > 50
       [null],
     ]
@@ -34,7 +35,7 @@ describe("write() — возврат начальных состояний", () 
   })
 
   test("должен вернуть пустой массив если переходов не было", async () => {
-    const collapses: Collapse[][] = [
+    const collapses: MatrixCollapse[][] = [
       [[1, { 0: { gt: 50 } }]],  // IDLE → PATROL при hp > 50
       [null],
     ]
@@ -49,7 +50,7 @@ describe("write() — возврат начальных состояний", () 
   })
 
   test("должен вернуть состояния для нескольких бран", async () => {
-    const collapses: Collapse[][] = [
+    const collapses: MatrixCollapse[][] = [
       [[1, { 0: { gt: 50 } }]],
       [null],
     ]
@@ -77,7 +78,7 @@ describe("write() — возврат начальных состояний", () 
   })
 
   test("должен вернуть состояния для ARRAY полей", async () => {
-    const collapses: Collapse[][] = [
+    const collapses: MatrixCollapse[][] = [
       [[1, { 0: { length: 3 } }]],  // Переход при длине массива = 3
       [null],
     ]
@@ -94,7 +95,7 @@ describe("write() — возврат начальных состояний", () 
   })
 
   test("должен вернуть состояния для STRING полей", async () => {
-    const collapses: Collapse[][] = [
+    const collapses: MatrixCollapse[][] = [
       [[1, { 0: { eq: "hero" } }]],
       [null],
     ]
@@ -111,7 +112,7 @@ describe("write() — возврат начальных состояний", () 
   })
 
   test("должен вернуть состояния для BOOL полей", async () => {
-    const collapses: Collapse[][] = [
+    const collapses: MatrixCollapse[][] = [
       [[1, { 0: true }]],
       [null],
     ]
@@ -128,7 +129,7 @@ describe("write() — возврат начальных состояний", () 
   })
 
   test("должен вернуть состояния для enum полей", async () => {
-    const collapses: Collapse[][] = [
+    const collapses: MatrixCollapse[][] = [
       [[1, { 0: "MAGE" }]],
       [null],
     ]
@@ -145,7 +146,7 @@ describe("write() — возврат начальных состояний", () 
   })
 
   test("должен работать с несколькими переходами в одной суперпозиции", async () => {
-    const collapses: Collapse[][] = [
+    const collapses: MatrixCollapse[][] = [
       [[1, { 0: { gt: 50 } }]],  // IDLE → PATROL
       [[2, { 0: { lte: 0 } }]],  // PATROL → DEAD
       [null],
@@ -168,7 +169,7 @@ describe("write() — возврат начальных состояний", () 
   })
 
   test("должен возвращать только изменённые состояния", async () => {
-    const collapses: Collapse[][] = [
+    const collapses: MatrixCollapse[][] = [
       [[1, { 0: { gt: 50 } }]],
       [null],
     ]
