@@ -67,9 +67,10 @@ Force фиксирует, как сила действует через кана
 { part: "gluon", op: "replace", path: 17, value: { fields: { "1": "MetaFor" } } }
 { part: "higgs", op: "replace", path: 17, value: { fields: { "2": "native" } } }
 { part: "photon", op: "replace", path: 17, value: "ready" }
-{ part: "z", op: "test", path: 17, value: { kind: "claim", processId: 42, token: "run-1" } }
-{ part: "w+", op: "replace", path: 17, processId: 42, value: { fields: { "1": "done" } } }
-{ part: "w-", op: "replace", path: 17, processId: 42, value: { error: "failed" } }
+{ part: "z", op: "test", path: 17, value: { energy: "energy-local" } }
+{ part: "z", op: "copy", path: 17, from: "energy-local", value: { fields: { "1": "MetaFor" } } }
+{ part: "w+", op: "replace", path: 17, value: { fields: { "1": "done" } } }
+{ part: "w-", op: "replace", path: 17, value: { error: "failed", fields: {} } }
 ```
 
 `part` хранит носитель силы, а `path` выбирает область действия патча.
@@ -86,26 +87,36 @@ Force фиксирует, как сила действует через кана
 логики. Логический порядок допускается только там, где он участвует в переходах
 superposition/triggers или в значении списка.
 
-В обычном рантайм-потоке `gluon`, `higgs` и `photon` не используют `/field/...`.
-`gluon` и `higgs` в области экземпляра идут через `path = actor ID` и
-`value.fields[fieldId]`; `higgs` в области класса идёт через `path = WIMP SRC`.
-`/field/...` не является обычным Force-адресом. До миграции процессного
-результата он допустим только внутри текущего adapter-слоя `z`/`w+`/`w-`; новый
-код не должен строить на нём контракт.
+В обычном рантайм-потоке `gluon`, `higgs`, `photon` и новый Weak v0 process
+protocol не используют `/field/...`. `gluon`, `higgs`, `z copy`, `w+` и `w-` в
+области экземпляра идут через `path = actor ID` и `value.fields[fieldId]`;
+`higgs` в области класса идёт через `path = WIMP SRC`. `/field/...` не является
+обычным Force-адресом. Он остаётся только во временном legacy adapter-слое
+старого process-result path; новый код не должен строить на нём контракт.
 Поля Matrix runtime snapshot с именами `wimpIds` являются compatibility-данными
 оставшегося process-result adapter. Обычная рантайм-идентичность — actor ID.
 Актуальный процессный долг держится в `TODO.md`; этот документ описывает только
 действующий Force-контракт.
 Имя `Energy` в новых документах относится только к распределённому исполнителю
-процессов: он слушает photons/process tasks Matrix, claim-ит process через `z`
-и возвращает результат через `w+`/`w-`. Runtime-state слой называется `Matrix`.
+процессов: он слушает photons Matrix, запрашивает выполнение через `z test`,
+получает frozen context через `z copy` и возвращает результат через `w+`/`w-`.
+Runtime-state слой называется `Matrix`.
 Пакет `energy/` сейчас является локальным Force pipeline, а не отдельной
 серверной оболочкой bridge/protocol surface; реальное исполнение DSL action
 остаётся следующим этапом.
-Matrix уже создаёт `z` process-task при входе actor в process-bound state.
-Energy слушает общий локальный `BroadcastChannel("force")` и отвечает `z`
-claim-сообщением в тот же канал. Task и claim не меняют правило результата:
-завершение процесса для Matrix приходит только через Force `w+` или `w-`.
+Matrix не создаёт `z process-task` при входе actor в process-bound state.
+`photon` является публичным сигналом входа actor в state; при process-bound
+state Matrix до photon ставит lock и сохраняет frozen snapshot fields. Energy
+слушает общий локальный `BroadcastChannel("force")` и отвечает `z test` в тот же
+канал. Matrix выбирает первого валидного Energy и публикует `z copy`, где
+`from` равен Energy id, а `value.fields` содержит frozen snapshot. `rejected` в
+v0 не используется.
+Energy v0 вместо реального action ждёт timeout и публикует actor-addressed `w+`.
+
+Для нового Weak process protocol top-level частицы не расширяются за пределы
+`part`, `op`, `path`, `value`, `from`. `processId`, `token`, `wimpId`,
+`executorId` и `energyId` не являются top-level полями нового протокола. Energy
+id передаётся как `value.energy` в `z test` и как `from` в `z copy`.
 
 `graviton test wimp` не является общим Force-контрактом материализации. Сейчас
 это узкая управляющая поверхность до отдельного перевода пути материализации.
@@ -131,7 +142,7 @@ claim-сообщением в тот же канал. Task и claim не мен�
 
 - `Dark`/`Boundary` могут использовать лёгкие сигналы и перечитывать персистентную форму.
 - `Matrix`/`Bulk` получают рантайм-данные и ведут собственное состояние/проекцию в рантайме.
-- `Energy` получает process context через Force `z` process-task и не читает `Boundary`/SQLite.
+- `Energy` получает frozen process context через Force `z copy` и не читает `Boundary`/SQLite.
 - WebSocket между доменами не является синхронизацией базы.
 - Если рантайм получил только UUID без данных, это ошибка контракта, а не повод читать `Boundary`.
 

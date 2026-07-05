@@ -8,7 +8,6 @@ import {
   gravity$,
   listMatrixRuntimeActorIds,
   loadMatrixRuntimeSnapshot,
-  subscribeMatrixProcessTasks,
   type MatrixForceMessage,
   type MatrixParticle,
   type MatrixRuntimeSnapshot,
@@ -175,6 +174,44 @@ const listenForce = (listener: (message: MatrixForceMessage) => void): {close():
   }
 }
 
+const enterReadyProcessState = async (): Promise<void> => {
+  const snapshot = createRuntimeSnapshot()
+  snapshot.weak.stateProcessIdsByBraneIndex = [[null, 42]]
+  await loadMatrixRuntimeSnapshot(snapshot)
+
+  emitForce({
+    parts: [{
+      part: "gluon",
+      op: "replace",
+      path: 17,
+      value: {fields: {"2": 11}},
+    }],
+  })
+
+  await waitFor(() => matrix$.states[0] === 1 && matrix$.branes[0]?.lock === true)
+}
+
+const acceptEnergy = async (energy: string, zCopies: MatrixParticle[] = []): Promise<void> => {
+  const subscription = listenForce((message) => {
+    zCopies.push(...message.parts.filter((part) => part.part === "z" && part.op === "copy"))
+  })
+
+  try {
+    emitForce({
+      parts: [{
+        part: "z",
+        op: "test",
+        path: 17,
+        value: {energy},
+      }],
+    })
+
+    await waitFor(() => zCopies.some((part) => part.from === energy))
+  } finally {
+    subscription.close()
+  }
+}
+
 afterAll(() => {
   forceInput.close()
   force.close()
@@ -216,17 +253,15 @@ describe("matrix Force v0 runtime addressing", () => {
     }
   })
 
-  test("Matrix создаёт process-task при входе actor в process-bound state", async () => {
+  test("Matrix emits photon but not z process-task on process-bound state", async () => {
     const snapshot = createRuntimeSnapshot()
     snapshot.weak.stateProcessIdsByBraneIndex = [[null, 42]]
     await loadMatrixRuntimeSnapshot(snapshot)
-    const tasks: unknown[] = []
-    const processTaskParts: MatrixParticle[] = []
-    const taskSubscription = subscribeMatrixProcessTasks((task) => {
-      tasks.push(task)
-    })
-    const processTaskForceSubscription = listenForce((message) => {
-      processTaskParts.push(...message.parts.filter((part) => part.part === "z"))
+    const photons: MatrixParticle[] = []
+    const zParts: MatrixParticle[] = []
+    const forceSubscription = listenForce((message) => {
+      photons.push(...message.parts.filter((part) => part.part === "photon"))
+      zParts.push(...message.parts.filter((part) => part.part === "z"))
     })
 
     try {
@@ -239,50 +274,224 @@ describe("matrix Force v0 runtime addressing", () => {
         }],
       })
 
-      await waitFor(() => tasks.length > 0)
+      await waitFor(() => photons.length > 0)
+      await settleBroadcasts()
 
       expect(matrix$.branes[0]?.lock).toBe(true)
-      expect(tasks[0]).toMatchObject({
-        actorId: 17,
-        state: "ready",
-        processId: 42,
-        mass: {actorId: 17},
-        fields: {"2": 11, "5": 0, "7": 3, "9": [1]},
-      })
-      expect((tasks[0] as {token?: unknown}).token).toEqual(expect.stringMatching(/^17:42:/))
-      expect(processTaskParts[0]).toMatchObject({
-        part: "z",
-        op: "test",
-        path: 17,
-        processId: 42,
-        token: (tasks[0] as {token?: unknown}).token,
-        value: {
-          kind: "process-task",
-          state: "ready",
-          mass: {actorId: 17},
-          fields: {"2": 11, "5": 0, "7": 3, "9": [1]},
-        },
-      })
-      expect(JSON.stringify(tasks)).not.toContain(["/fi", "eld/"].join(""))
-      expect(JSON.stringify(tasks)).not.toContain(["wimp", "Id"].join(""))
-      expect(JSON.stringify(tasks)).not.toContain("method")
+      expect(photons).toContainEqual({part: "photon", op: "replace", path: 17, value: "ready"})
+      expect(zParts.some((part) => (part.value as {kind?: unknown} | undefined)?.kind === "process-task")).toBe(false)
     } finally {
-      processTaskForceSubscription.close()
-      taskSubscription.close()
+      forceSubscription.close()
     }
   })
 
-  test("Matrix создаёт process-task при первом входе из runtime undefined", async () => {
+  test("Matrix stores process field snapshot at state entry", async () => {
+    const snapshot = createRuntimeSnapshot()
+    snapshot.weak.stateProcessIdsByBraneIndex = [[null, 42]]
+    await loadMatrixRuntimeSnapshot(snapshot)
+    const zCopies: MatrixParticle[] = []
+    const forceSubscription = listenForce((message) => {
+      zCopies.push(...message.parts.filter((part) => part.part === "z" && part.op === "copy"))
+    })
+
+    try {
+      emitForce({
+        parts: [{
+          part: "gluon",
+          op: "replace",
+          path: 17,
+          value: {fields: {"2": 11}},
+        }],
+      })
+      await waitFor(() => matrix$.states[0] === 1 && matrix$.branes[0]?.lock === true)
+
+      emitForce({
+        parts: [{
+          part: "gluon",
+          op: "replace",
+          path: 17,
+          value: {fields: {"2": 14}},
+        }],
+      })
+      await waitFor(() => matrix$.getFieldValue(0, 0) === 14)
+
+      emitForce({
+        parts: [{
+          part: "z",
+          op: "test",
+          path: 17,
+          value: {energy: "energy-local"},
+        }],
+      })
+      await waitFor(() => zCopies.length > 0)
+
+      expect(matrix$.getFieldValue(0, 0)).toBe(14)
+      expect(zCopies[0]).toEqual({
+        part: "z",
+        op: "copy",
+        path: 17,
+        from: "energy-local",
+        value: {fields: {"2": 11, "5": 0, "7": 3, "9": [1]}},
+      })
+    } finally {
+      forceSubscription.close()
+    }
+  })
+
+  test("Matrix accepts first z test with z copy", async () => {
+    await enterReadyProcessState()
+    const zCopies: MatrixParticle[] = []
+    const forceSubscription = listenForce((message) => {
+      zCopies.push(...message.parts.filter((part) => part.part === "z" && part.op === "copy"))
+    })
+
+    try {
+      emitForce({
+        parts: [{
+          part: "z",
+          op: "test",
+          path: 17,
+          value: {energy: "energy-local"},
+        }],
+      })
+
+      await waitFor(() => zCopies.length > 0)
+
+      expect(zCopies[0]).toEqual({
+        part: "z",
+        op: "copy",
+        path: 17,
+        from: "energy-local",
+        value: {fields: {"2": 11, "5": 0, "7": 3, "9": [1]}},
+      })
+    } finally {
+      forceSubscription.close()
+    }
+  })
+
+  test("Matrix ignores repeated z test after executor selected", async () => {
+    await enterReadyProcessState()
+    const zParts: MatrixParticle[] = []
+    const forceSubscription = listenForce((message) => {
+      zParts.push(...message.parts.filter((part) => part.part === "z"))
+    })
+
+    try {
+      emitForce({
+        parts: [{
+          part: "z",
+          op: "test",
+          path: 17,
+          value: {energy: "energy-one"},
+        }],
+      })
+      await waitFor(() => zParts.some((part) => part.op === "copy" && part.from === "energy-one"))
+
+      emitForce({
+        parts: [{
+          part: "z",
+          op: "test",
+          path: 17,
+          value: {energy: "energy-two"},
+        }],
+      })
+      await settleBroadcasts()
+
+      expect(zParts.filter((part) => part.op === "copy")).toHaveLength(1)
+      expect(zParts.some((part) => part.op === "copy" && part.from === "energy-two")).toBe(false)
+      expect(zParts.some((part) => (part.value as {kind?: unknown} | undefined)?.kind === "rejected")).toBe(false)
+    } finally {
+      forceSubscription.close()
+    }
+  })
+
+  test("Matrix accepts w+ actor result and unlocks", async () => {
+    await enterReadyProcessState()
+    await acceptEnergy("energy-local")
+
+    const zCopies: MatrixParticle[] = []
+    const forceSubscription = listenForce((message) => {
+      zCopies.push(...message.parts.filter((part) => part.part === "z" && part.op === "copy"))
+    })
+
+    try {
+      emitForce({
+        parts: [{
+          part: "w+",
+          op: "replace",
+          path: 17,
+          value: {fields: {"2": 12}},
+        }],
+      })
+
+      await waitFor(() => matrix$.branes[0]?.lock === false && matrix$.getFieldValue(0, 0) === 12)
+
+      emitForce({
+        parts: [{
+          part: "z",
+          op: "test",
+          path: 17,
+          value: {energy: "energy-after"},
+        }],
+      })
+      await settleBroadcasts()
+
+      expect(matrix$.branes[0]?.lock).toBe(false)
+      expect(matrix$.getFieldValue(0, 0)).toBe(12)
+      expect(zCopies).toEqual([])
+    } finally {
+      forceSubscription.close()
+    }
+  })
+
+  test("Matrix accepts w- actor result and unlocks", async () => {
+    await enterReadyProcessState()
+    await acceptEnergy("energy-local")
+
+    const zCopies: MatrixParticle[] = []
+    const forceSubscription = listenForce((message) => {
+      zCopies.push(...message.parts.filter((part) => part.part === "z" && part.op === "copy"))
+    })
+
+    try {
+      emitForce({
+        parts: [{
+          part: "w-",
+          op: "replace",
+          path: 17,
+          value: {error: "failed", fields: {"2": 13}},
+        }],
+      })
+
+      await waitFor(() => matrix$.branes[0]?.lock === false && matrix$.getFieldValue(0, 0) === 13)
+
+      emitForce({
+        parts: [{
+          part: "z",
+          op: "test",
+          path: 17,
+          value: {energy: "energy-after"},
+        }],
+      })
+      await settleBroadcasts()
+
+      expect(matrix$.branes[0]?.lock).toBe(false)
+      expect(matrix$.getFieldValue(0, 0)).toBe(13)
+      expect(zCopies).toEqual([])
+    } finally {
+      forceSubscription.close()
+    }
+  })
+
+  test("Matrix emits photon and locks on first process-bound runtime undefined entry", async () => {
     const snapshot = createRuntimeSnapshot()
     snapshot.data.branes[0]!.state = STATE_UNDEFINED
     snapshot.weak.stateProcessIdsByBraneIndex = [[42, null]]
-    const tasks: unknown[] = []
     const photons: MatrixParticle[] = []
-    const taskSubscription = subscribeMatrixProcessTasks((task) => {
-      tasks.push(task)
-    })
-    const photonSubscription = listenForce((message) => {
+    const zParts: MatrixParticle[] = []
+    const forceSubscription = listenForce((message) => {
       photons.push(...message.parts.filter((part) => part.part === "photon"))
+      zParts.push(...message.parts.filter((part) => part.part === "z"))
     })
 
     try {
@@ -292,16 +501,10 @@ describe("matrix Force v0 runtime addressing", () => {
 
       expect(matrix$.states[0]).toBe(0)
       expect(matrix$.branes[0]?.lock).toBe(true)
-      expect(tasks[0]).toMatchObject({
-        actorId: 17,
-        state: "idle",
-        processId: 42,
-        mass: {actorId: 17},
-      })
       expect(photons).toContainEqual({part: "photon", op: "replace", path: 17, value: "idle"})
+      expect(zParts.some((part) => (part.value as {kind?: unknown} | undefined)?.kind === "process-task")).toBe(false)
     } finally {
-      taskSubscription.close()
-      photonSubscription.close()
+      forceSubscription.close()
     }
   })
 

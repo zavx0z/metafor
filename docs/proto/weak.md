@@ -33,15 +33,54 @@
 `photon` адресуются через actor ID или WIMP SRC и внутренние `fieldId` внутри
 `value.fields`.
 
-Процессный протокол `z` / `w+` / `w-` остаётся отдельным долгом миграции.
-Целевая форма должна использовать `path = actor ID`, отдельный `processId` и
-набор записываемых результатов в форме `value.fields[fieldId]`.
-Текущий Force-путь уже доставляет `process-task`: Matrix создаёт task при входе
-actor в process-bound state и публикует его в общий Force-канал, а Energy
-слушает локальный `BroadcastChannel("force")` и claim-ит task через `z`.
-Реальное завершение процесса остаётся Force `w+`/`w-`.
-Актуальный процессный долг держится в `TODO.md`; этот документ описывает только
-действующий Weak/Process contract.
+Текущий v0 процессного протокола использует один общий
+`BroadcastChannel("force")` и actor-addressed частицы:
+
+```text
+Matrix -> photon
+Energy -> z test
+Matrix -> z copy
+Energy -> timeout
+Energy -> w+
+Matrix -> apply result / unlock / next weak step
+```
+
+Matrix не публикует `z process-task`. `photon` является публичным сигналом
+входа actor в state. Если state process-bound, Matrix ставит lock, сохраняет
+frozen snapshot fields на момент входа и только затем испускает `photon`.
+
+Energy слушает `photon` и отправляет запрос:
+
+```ts
+{ part: "z", op: "test", path: 17, value: { energy: "energy-local" } }
+```
+
+Matrix выбирает первый валидный Energy и отвечает:
+
+```ts
+{ part: "z", op: "copy", path: 17, from: "energy-local", value: { fields: { "2": 11 } } }
+```
+
+`z copy` означает, что исполнитель выбран, а `value.fields` несёт frozen fields
+snapshot. `from` у `z copy` — Energy id. `rejected` в v0 не используется:
+повторные `z test` после выбора исполнителя игнорируются.
+
+Energy v0 не выполняет DSL process action. Он ждёт timeout и возвращает:
+
+```ts
+{ part: "w+", op: "replace", path: 17, value: { fields: {} } }
+```
+
+`w-` имеет ту же actor-addressed форму и может нести `error`:
+
+```ts
+{ part: "w-", op: "replace", path: 17, value: { error: "failed", fields: {} } }
+```
+
+Новый Weak process contract не использует top-level `processId`, `token`,
+`wimpId`, `executorId` или `/field/...`. Реальное DSL process action execution,
+process descriptor, `wrapperSrc`, dynamic import, env resolver и success/error
+handlers остаются следующим этапом.
 
 ## Чтение по доменам
 
@@ -64,8 +103,9 @@ actor в process-bound state и публикует его в общий Force-к
 - вычисление runtime-перехода состояния,
 - вход actor/brane в process-bound state,
 - lock при входе в process-bound state,
-- создание `process-task` для Energy runtime,
+- сохранение frozen fields snapshot для Energy runtime,
 - испускание `photon` при смене состояния,
+- выбор первого Energy через `z test` / `z copy`,
 - приём `w+`/`w-`, применение result write-set и снятие lock.
 
 ### Energy
@@ -74,11 +114,10 @@ Energy здесь означает distributed process executor. Текущий 
 сейчас является локальным Force pipeline без реального исполнения DSL action:
 
 - слушает photons Matrix,
-- получает `process-task` через локальный `BroadcastChannel("force")`,
-- проверяет `env` и `mass`,
-- claim-ит process через `z`,
-- исполняет process action только после accepted claim,
-- возвращает результат через `w+`/`w-`.
+- отправляет `z test` через локальный `BroadcastChannel("force")`,
+- принимает `z copy` только со своим Energy id в `from`,
+- в v0 ждёт timeout вместо исполнения process action,
+- возвращает actor result через `w+`.
 
 ### Bulk
 

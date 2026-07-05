@@ -1,48 +1,88 @@
-import type {BoundaryUpdateMessage} from "boundary"
-import type {EnergyEnv} from "./energy.t.ts"
+import type {ForceMessage} from "boundary"
 
-const kind = Bun.env.ENERGY_KIND
-const labels = Bun.env.ENERGY_LABELS?.split(",").map((item) => item.trim()).filter(Boolean) ?? []
-const capabilities = Bun.env.ENERGY_CAPABILITIES?.split(",").map((item) => item.trim()).filter(Boolean) ?? []
-const env: EnergyEnv = {
-  kind: kind === "server" || kind === "browser-main" || kind === "worker" || kind === "service-worker" || kind === "desktop-main" || kind === "unknown" ? kind : "server",
-  id: Bun.env.ENERGY_ID?.trim() || `energy-${process.pid}`,
-  ...(labels.length > 0 ? {labels} : {}),
-  ...(capabilities.length > 0 ? {capabilities} : {}),
+export type EnergyProtocol = {
+  close(): void
 }
-const force = new BroadcastChannel("force")
 
-force.onmessage = (event) => {
-  for (const part of (event.data as BoundaryUpdateMessage).parts) {
-    switch (part.part) {
-      case "z": {
-        if (part.op !== "test") break
-        if (typeof part.path !== "number" || !Number.isSafeInteger(part.path) || part.path <= 0) break
-        if (typeof part.processId !== "number" || !Number.isSafeInteger(part.processId) || part.processId <= 0) break
-        if (typeof part.token !== "string" || part.token.length === 0) break
-        if (typeof part.value !== "object" || part.value === null || Array.isArray(part.value)) break
+export type EnergyProtocolOptions = {
+  force?: BroadcastChannel
+  energyId?: string
+  timeoutMs?: number
+}
 
-        const value = part.value as Record<string, unknown>
-        if (value.kind !== "process-task") break
-        if (typeof value.state !== "string" && typeof value.state !== "number") break
-        if (value.mass !== undefined && (typeof value.mass !== "object" || value.mass === null || Array.isArray(value.mass))) break
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
 
-        force.postMessage({
-          parts: [{
-            part: "z",
-            op: "test",
-            path: part.path,
-            value: {
-              kind: "claim",
-              processId: part.processId,
-              token: part.token,
-              env,
-              ...(value.mass !== undefined ? {mass: value.mass} : {}),
-            },
-          }],
-        })
-        break
+const parseActorIdPath = (path: unknown): number | null =>
+  typeof path === "number" && Number.isSafeInteger(path) && path > 0 ? path : null
+
+const readEnergyId = (): string =>
+  Bun.env.ENERGY_ID?.trim() || "energy-local"
+
+const readTimeoutMs = (): number => {
+  const raw = Bun.env.ENERGY_TIMEOUT_MS?.trim()
+  if (!raw) return 2000
+  const timeout = Number(raw)
+  return Number.isFinite(timeout) && timeout >= 0 ? timeout : 2000
+}
+
+export function startEnergyProtocol(options: EnergyProtocolOptions = {}): EnergyProtocol {
+  const force = options.force ?? new BroadcastChannel("force")
+  const energyId = options.energyId ?? readEnergyId()
+  const timeoutMs = options.timeoutMs ?? readTimeoutMs()
+  const pendingActors = new Map<number, ReturnType<typeof setTimeout>>()
+
+  force.onmessage = (event) => {
+    for (const part of (event.data as ForceMessage).parts) {
+      switch (part.part) {
+        case "photon": {
+          if (part.op !== "replace") break
+          const actorId = parseActorIdPath(part.path)
+          if (actorId === null) break
+
+          force.postMessage({
+            parts: [{
+              part: "z",
+              op: "test",
+              path: actorId,
+              value: {energy: energyId},
+            }],
+          })
+          break
+        }
+        case "z": {
+          if (part.op !== "copy") break
+          const actorId = parseActorIdPath(part.path)
+          if (actorId === null) break
+          if (part.from !== energyId) break
+          if (!isRecord(part.value) || !isRecord(part.value.fields)) break
+          if (pendingActors.has(actorId)) break
+
+          const timer = setTimeout(() => {
+            pendingActors.delete(actorId)
+            force.postMessage({
+              parts: [{
+                part: "w+",
+                op: "replace",
+                path: actorId,
+                value: {fields: {}},
+              }],
+            })
+          }, timeoutMs)
+          pendingActors.set(actorId, timer)
+          break
+        }
       }
     }
   }
+
+  return {
+    close() {
+      for (const timer of pendingActors.values()) clearTimeout(timer)
+      pendingActors.clear()
+      force.close()
+    },
+  }
 }
+
+export const energyProtocol = startEnergyProtocol()

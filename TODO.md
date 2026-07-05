@@ -5,11 +5,12 @@
 
 ## 1. Process Protocol / Energy
 
-- [ ] Научить `Energy` исполнять process action по `env`/`mass` без чтения `Boundary`.
-- [ ] Провести аудит `z` / `w+` / `w-` / `applyWeakResultPacket` / `collectWeakResultPackets`.
-- [ ] Убрать `/field/...` из протокола результатов процесса.
-- [ ] Перевести результат процесса на `path = actor ID`, `processId`, `value.fields[fieldId]`.
-- [ ] Добавить тесты успешного завершения, ошибки, блокировки, разблокировки и набора записываемых результатов.
+После первого Weak/Energy v0 прохода осталось:
+
+- [ ] Подключить реальный process descriptor, `wrapperSrc`, dynamic import, env resolver и DSL process action execution.
+- [ ] Добавить success/error handlers поверх текущих `w+` / `w-`.
+- [ ] Удалить legacy result adapter на top-level `wimpId` / `processId` и `/field/...`, когда старые потребители будут мигрированы.
+- [ ] Расширить Energy tests на реальный action runtime без чтения `Boundary`/SQLite.
 
 ## 2. Dark / Bulk Browser Shell
 

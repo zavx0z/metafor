@@ -35,7 +35,6 @@ import { FieldType, flattenMatrixData, validateData, type Data } from "@matrix/g
 import { createStoredStringInterner, normalizeFieldValue, assembleStoredMatrixData, strong$ } from "@matrix/strong"
 import { StepMode, weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@matrix/weak"
 import {resolveForceFieldId, resolveForceFieldsPayload} from "../boundary/force-fields.ts"
-import type {ProcessTask} from "boundary"
 
 export type MatrixDomainPath = string | number
 
@@ -63,8 +62,12 @@ force.onmessage = async (event) => {
       case "higgs":
         await applyRuntimeFieldParts([part], "higgs")
         break
+      case "z":
+        applyEnergyExecutionRequest(part)
+        break
       case "w+":
       case "w-":
+        if (await applyActorWeakResult(part)) break
         for (const packet of collectWeakResultPackets([part])) {
           await applyWeakResultPacket(packet)
         }
@@ -75,6 +78,13 @@ force.onmessage = async (event) => {
 
 type MatrixValuePart = { op: "replace"; path: string; value: unknown }
 type MatrixWeakResultPayload = { wimpId: number; processId: number; parts: MatrixValuePart[] }
+type MatrixPendingProcessExecution = {
+  braneIndex: number
+  stateIndex: number
+  processId: number
+  fields: Record<string, unknown>
+  acceptedEnergy?: string
+}
 
 export type MatrixRuntimeSnapshot = {
   ok: true
@@ -104,12 +114,6 @@ export type MatrixRuntimeSnapshot = {
   }
 }
 
-export type MatrixProcessTask = ProcessTask
-
-export interface MatrixProcessTaskSubscription {
-  close(): void
-}
-
 type AsyncGate = {
   pending: null | Promise<void>
 }
@@ -117,8 +121,7 @@ type AsyncGate = {
 const writeGate: AsyncGate = { pending: null }
 const updateGate: AsyncGate = { pending: null }
 const WEAK_RESULT_FIELD_PART_PATH_PREFIX = "/field/"
-const processTaskListeners = new Set<(task: MatrixProcessTask) => void>()
-let processTaskSequence = 0
+const pendingProcessExecutionsByActorId = new Map<number, MatrixPendingProcessExecution>()
 
 const actorFieldKey = (actorId: number, fieldId: number): string =>
   `${actorId}\0${fieldId}`
@@ -191,6 +194,7 @@ const clearRuntimeAddressing = (): void => {
 }
 
 const clearRuntimeState = (): void => {
+  pendingProcessExecutionsByActorId.clear()
   applyPreparedData(createEmptyPreparedData())
   clearRuntimeAddressing()
   strong$.reset()
@@ -304,29 +308,7 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
   force.postMessage({parts})
 }
 
-const processTaskToken = (actorId: number, processId: number): string =>
-  `${actorId}:${processId}:${Date.now()}:${++processTaskSequence}`
-
-const publishProcessTask = (task: MatrixProcessTask): void => {
-  force.postMessage({
-    parts: [{
-      part: "z",
-      op: "test",
-      path: task.actorId,
-      processId: task.processId,
-      token: task.token,
-      value: {
-        kind: "process-task",
-        state: task.state,
-        ...(task.env !== undefined ? {env: task.env} : {}),
-        ...(task.mass !== undefined ? {mass: task.mass} : {}),
-        ...(task.fields !== undefined ? {fields: task.fields} : {}),
-      },
-    }],
-  })
-}
-
-const collectProcessTaskFields = (actorId: number, braneIndex: number): Record<string, unknown> => {
+const collectProcessExecutionFields = (actorId: number, braneIndex: number): Record<string, unknown> => {
   const fields: Record<string, unknown> = {}
 
   for (let runtimeFieldIndex = 0; runtimeFieldIndex < strong$.actorFieldIdsByRuntimeFieldIndex.length; runtimeFieldIndex++) {
@@ -340,29 +322,27 @@ const collectProcessTaskFields = (actorId: number, braneIndex: number): Record<s
   return fields
 }
 
-const createProcessTask = (braneIndex: number, stateIndex: number, processId: number): MatrixProcessTask | null => {
-  const actorId = gravity$.getActorId(braneIndex)
-  if (actorId === undefined) return null
-  const stateName = matrix$.getStateName(braneIndex, stateIndex)
+const cloneProcessExecutionFields = (fields: Record<string, unknown>): Record<string, unknown> =>
+  structuredClone(fields) as Record<string, unknown>
 
-  return {
-    actorId,
-    state: stateName ?? stateIndex,
+const rememberPendingProcessExecution = (braneIndex: number, stateIndex: number, processId: number): void => {
+  const actorId = gravity$.getActorId(braneIndex)
+  if (actorId === undefined) return
+  pendingProcessExecutionsByActorId.set(actorId, {
+    braneIndex,
+    stateIndex,
     processId,
-    token: processTaskToken(actorId, processId),
-    mass: {actorId},
-    fields: collectProcessTaskFields(actorId, braneIndex),
-  }
+    fields: cloneProcessExecutionFields(collectProcessExecutionFields(actorId, braneIndex)),
+  })
 }
 
-const emitProcessTask = (task: MatrixProcessTask): void => {
-  publishProcessTask(task)
-  for (const listener of processTaskListeners) listener(task)
+const clearPendingProcessExecution = (braneIndex: number): void => {
+  const actorId = gravity$.getActorId(braneIndex)
+  if (actorId !== undefined) pendingProcessExecutionsByActorId.delete(actorId)
 }
 
 const syncProcessLocksForChanges = (changes: [number, number][], stateChanges: [number, number][]): void => {
   const weakUpdates: Array<{ kind: "lock"; braneIndex: number; value: boolean }> = []
-  const processTasks: MatrixProcessTask[] = []
   const stateChangeKeys = new Set(stateChanges.map(([braneIndex, stateIndex]) => `${braneIndex}\0${stateIndex}`))
 
   for (const [braneIndex, stateIndex] of changes) {
@@ -382,15 +362,15 @@ const syncProcessLocksForChanges = (changes: [number, number][], stateChanges: [
     }
 
     if (shouldLock) {
-      const task = createProcessTask(braneIndex, stateIndex, processId)
-      if (task !== null) processTasks.push(task)
+      rememberPendingProcessExecution(braneIndex, stateIndex, processId)
+    } else {
+      clearPendingProcessExecution(braneIndex)
     }
   }
 
   if (weakUpdates.length > 0) {
     weakHeapUpdate(weakUpdates)
   }
-  for (const task of processTasks) emitProcessTask(task)
 }
 
 const requireWeakResultFieldPartId = (path: string): number => {
@@ -412,6 +392,90 @@ const getCurrentBraneProcessId = (braneIndex: number): number | undefined => {
   return weak$.stateProcessIdsByBraneIndex[braneIndex]?.[stateIndex]
 }
 
+const applyEnergyExecutionRequest = (part: MatrixParticle): void => {
+  if (part.part !== "z" || part.op !== "test") return
+  const actorId = parseActorIdPath(part.path)
+  if (actorId === null) return
+  const braneIndex = gravity$.getBraneIndexByActorId(actorId)
+  if (braneIndex === undefined) return
+  const brane = matrix$.branes[braneIndex]
+  if (!brane?.lock) return
+
+  const stateIndex = matrix$.states[braneIndex]
+  if (stateIndex === undefined) return
+  const processId = getCurrentBraneProcessId(braneIndex)
+  if (processId === undefined) return
+
+  const pending = pendingProcessExecutionsByActorId.get(actorId)
+  if (
+    !pending ||
+    pending.braneIndex !== braneIndex ||
+    pending.stateIndex !== stateIndex ||
+    pending.processId !== processId ||
+    pending.acceptedEnergy !== undefined
+  ) {
+    return
+  }
+  if (!isRecord(part.value)) return
+  const requestedEnergy = part.value.energy
+  if (typeof requestedEnergy !== "string" || requestedEnergy.trim().length === 0) return
+  const energy = requestedEnergy.trim()
+
+  pending.acceptedEnergy = energy
+  force.postMessage({
+    parts: [{
+      part: "z",
+      op: "copy",
+      path: actorId,
+      from: energy,
+      value: {fields: cloneProcessExecutionFields(pending.fields)},
+    }],
+  })
+}
+
+const collectActorWeakFieldUpdates = (
+  actorId: number,
+  fields: Record<string, unknown>,
+): Array<[fieldIndex: number, value: unknown]> => {
+  const fieldUpdates: Array<[fieldIndex: number, value: unknown]> = []
+
+  for (const [address, value] of Object.entries(fields)) {
+    const fieldId = resolveForceFieldId(address)
+    if (fieldId === null) continue
+    const runtimeFieldIndex = strong$.runtimeFieldIndexByActorFieldId.get(actorFieldKey(actorId, fieldId))
+    if (runtimeFieldIndex === undefined) continue
+    if (!matrix$.fields[runtimeFieldIndex]) continue
+    fieldUpdates.push([runtimeFieldIndex, value])
+  }
+
+  return fieldUpdates
+}
+
+const applyActorWeakResult = async (part: MatrixParticle): Promise<boolean> => {
+  if ((part.part !== "w+" && part.part !== "w-") || part.op !== "replace") return false
+  const actorId = parseActorIdPath(part.path)
+  if (actorId === null) return false
+  const braneIndex = gravity$.getBraneIndexByActorId(actorId)
+  if (braneIndex === undefined) return true
+  const brane = matrix$.branes[braneIndex]
+  if (!brane?.lock) return true
+  if (getCurrentBraneProcessId(braneIndex) === undefined) return true
+
+  const pending = pendingProcessExecutionsByActorId.get(actorId)
+  if (!pending?.acceptedEnergy) return true
+  if (!isRecord(part.value)) return true
+  if (part.part === "w-" && part.value.error !== undefined && typeof part.value.error !== "string") return true
+
+  const fields = part.value.fields
+  if (fields !== undefined && !isRecord(fields)) return true
+
+  pendingProcessExecutionsByActorId.delete(actorId)
+  await update([[braneIndex, collectActorWeakFieldUpdates(actorId, fields ?? {}), false]], {
+    skipProcessRetriggerBraneIndexes: [braneIndex],
+  })
+  return true
+}
+
 export function prepareData(data: Data): PreparedData {
   return assembleStoredMatrixData(flattenMatrixData(data))
 }
@@ -421,6 +485,7 @@ export function listMatrixRuntimeActorIds(): number[] {
 }
 
 export async function loadMatrixRuntimeSnapshot(snapshot: MatrixRuntimeSnapshot): Promise<void> {
+  pendingProcessExecutionsByActorId.clear()
   weak$.reset()
   const prepared = assembleStoredMatrixData(flattenMatrixData(snapshot.data))
   applyPreparedData(prepared)
@@ -639,7 +704,7 @@ export async function applyWeakResultPacket(message: MatrixWeakResultPayload): P
   }
 
   const activeProcessId = getCurrentBraneProcessId(braneIndex)
-  if (!activeProcessId) {
+  if (activeProcessId === undefined) {
     throw new Error(`Matrix weak result requires process-bound state for wimp ${message.wimpId}`)
   }
   if (activeProcessId !== message.processId) {
@@ -664,6 +729,7 @@ export async function applyWeakResultPacket(message: MatrixWeakResultPayload): P
     fieldUpdates.push([runtimeFieldIndex, part.value])
   }
 
+  clearPendingProcessExecution(braneIndex)
   return await update([[braneIndex, fieldUpdates, false]], {
     skipProcessRetriggerBraneIndexes: [braneIndex],
   })
@@ -700,17 +766,6 @@ const isWeakResultMarker = (part: MatrixParticle): boolean =>
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
-export function subscribeMatrixProcessTasks(
-  listener: (task: MatrixProcessTask) => void,
-): MatrixProcessTaskSubscription {
-  processTaskListeners.add(listener)
-  return {
-    close() {
-      processTaskListeners.delete(listener)
-    },
-  }
-}
-
 export function unlock(indexes: number[]): void {
   requireInitializedStore(matrix$)
   const weakUpdates: Array<{ kind: "lock"; braneIndex: number; value: boolean }> = []
@@ -720,6 +775,7 @@ export function unlock(indexes: number[]): void {
     if (!brane) {
       throw new Error(`Brane at index ${index} not found in matrix`)
     }
+    clearPendingProcessExecution(index)
     brane.lock = false
     weakUpdates.push({ kind: "lock", braneIndex: index, value: false })
   }
