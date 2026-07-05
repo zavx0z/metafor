@@ -9,7 +9,7 @@
 
 - [x] Перенести process catalog в Energy runtime и заменить Matrix process marker на boolean.
 - [x] Подключить реальный process descriptor, `wrapperSrc`, dynamic import, env resolver и DSL process action execution.
-- [ ] Добавить success/error handlers поверх текущих `w+` / `w-`.
+- [x] Добавить success/error handlers поверх текущих `w+` / `w-`.
 - [ ] Удалить legacy result adapter на top-level `wimpId` / `processId` и `/field/...`, когда старые потребители будут мигрированы.
 - [ ] Расширить Energy tests на реальный action runtime без чтения `Boundary`/SQLite.
 

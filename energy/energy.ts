@@ -1,7 +1,7 @@
 import {existsSync} from "node:fs"
 import {dirname, isAbsolute, resolve} from "node:path"
 import {pathToFileURL} from "node:url"
-import type {BoundaryEnergyProcessDescriptor, BoundaryEnergyRuntimeSnapshot, ForceMessage} from "boundary"
+import type {BoundaryEnergyHandlerDescriptor, BoundaryEnergyProcessDescriptor, BoundaryEnergyRuntimeSnapshot, ForceMessage} from "boundary"
 
 export type EnergyProtocol = {
   close(): void
@@ -133,12 +133,49 @@ const buildActionValue = (
   return value
 }
 
+const toError = (error: unknown): Error =>
+  error instanceof Error ? error : new Error(String(error))
+
+const collectHandlerFields = (
+  writeFields: Array<[fieldId: number, key: string]>,
+): {fields: Record<string, unknown>; update(values: unknown): Record<string, unknown>} => {
+  const fieldIdByKey = new Map(writeFields.map(([fieldId, key]) => [key, String(fieldId)]))
+  const fields: Record<string, unknown> = {}
+
+  return {
+    fields,
+    update(values: unknown) {
+      if (!isRecord(values)) return fields
+      for (const [key, value] of Object.entries(values)) {
+        const fieldId = fieldIdByKey.get(key)
+        if (fieldId !== undefined) fields[fieldId] = value
+      }
+      return fields
+    },
+  }
+}
+
+const executeProcessHandler = async (
+  pending: PendingEnergyProcess,
+  handler: BoundaryEnergyHandlerDescriptor | undefined,
+  fields: Record<string, unknown>,
+  params: Record<string, unknown>,
+): Promise<Record<string, unknown>> => {
+  if (!handler) return {}
+
+  const collector = collectHandlerFields(handler.writeFields)
+  const fn = (0, eval)(`(${rewriteWrapperDynamicImports(handler.src, pending.wimp)})`)
+  if (typeof fn !== "function") throw new Error("Energy process handler did not evaluate to a function")
+  await fn({...params, update: collector.update, value: buildActionValue(fields, handler.readFields)})
+  return collector.fields
+}
+
 const executeProcessAction = async (
   pending: PendingEnergyProcess,
   energyId: string,
   fields: Record<string, unknown>,
   massStore: EnergyMassStore,
-): Promise<void> => {
+): Promise<unknown> => {
   const params: EnergyActionParams = {
     field: {},
     value: buildActionValue(fields, pending.descriptor.action.readFields),
@@ -153,8 +190,7 @@ const executeProcessAction = async (
   if (pending.descriptor.action.wrapperSrc) {
     const fn = (0, eval)(`(${rewriteWrapperDynamicImports(pending.descriptor.action.wrapperSrc, pending.wimp)})`)
     if (typeof fn !== "function") throw new Error("Energy wrapperSrc did not evaluate to a function")
-    await fn(params)
-    return
+    return await fn(params)
   }
 
   const module = await import(resolveActionImportSpecifier(pending.descriptor.action.src, pending.wimp))
@@ -164,11 +200,8 @@ const executeProcessAction = async (
   if (typeof fn !== "function") {
     throw new Error(`Energy action export is not a function: ${pending.descriptor.action.importSpecifier ?? "default"}`)
   }
-  await fn(params)
+  return await fn(params)
 }
-
-const errorMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error)
 
 export function startEnergyProtocol(options: EnergyProtocolOptions = {}): EnergyProtocol {
   const force = options.force ?? new BroadcastChannel("force")
@@ -221,25 +254,52 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
           if (pending) {
             runningActorIds.add(actorId)
             void executeProcessAction(pending, energyId, part.value.fields, massStore)
-              .then(() => {
+              .then(async (data) => {
+                let fields: Record<string, unknown>
+                try {
+                  fields = await executeProcessHandler(pending, pending.descriptor.success, part.value.fields, {data})
+                } catch (error) {
+                  force.postMessage({
+                    parts: [{
+                      part: "w-",
+                      op: "replace",
+                      path: actorId,
+                      value: {error: toError(error).message, fields: {}},
+                    }],
+                  })
+                  return
+                }
                 force.postMessage({
                   parts: [{
                     part: "w+",
                     op: "replace",
                     path: actorId,
-                    value: {fields: {}},
+                    value: {fields},
                   }],
                 })
               })
-              .catch((error) => {
-                force.postMessage({
-                  parts: [{
-                    part: "w-",
-                    op: "replace",
-                    path: actorId,
-                    value: {error: errorMessage(error), fields: {}},
-                  }],
-                })
+              .catch(async (thrown) => {
+                const actionError = toError(thrown)
+                try {
+                  const fields = await executeProcessHandler(pending, pending.descriptor.error, part.value.fields, {error: actionError})
+                  force.postMessage({
+                    parts: [{
+                      part: "w-",
+                      op: "replace",
+                      path: actorId,
+                      value: {error: actionError.message, fields},
+                    }],
+                  })
+                } catch (handlerThrown) {
+                  force.postMessage({
+                    parts: [{
+                      part: "w-",
+                      op: "replace",
+                      path: actorId,
+                      value: {error: toError(handlerThrown).message, fields: {}},
+                    }],
+                  })
+                }
               })
               .finally(() => {
                 pendingByActorId.delete(actorId)

@@ -90,24 +90,32 @@ snapshot. `z copy` не несёт `process`. `from` у `z copy` — Energy id. 
 
 `value` keyed by field key, а не by fieldId. `mass` берётся из in-memory Energy
 mass store и не сериализуется в `Boundary`, не хранится в `Matrix` и не идёт по
-Force. Успех action сейчас возвращает:
+Force. Если action успешно завершился и descriptor содержит success handler,
+Energy выполняет handler и собирает write-set через `update(...)`. В `w+`
+попадают только keys, объявленные в `success.writeFields`, как string field IDs:
 
 ```ts
-{ part: "w+", op: "replace", path: 17, value: { fields: {} } }
+{ part: "w+", op: "replace", path: 17, value: { fields: { "3": "done" } } }
 ```
 
-Исключение action возвращает actor-addressed `w-`:
+Если success handler отсутствует или не вызвал `update(...)`, fields остаётся
+`{}`. Если action бросил исключение и descriptor содержит error handler, Energy
+передаёт handler объект `Error` и собирает write-set через `update(...)`. В
+`w-` попадают только keys, объявленные в `error.writeFields`:
 
 ```ts
-{ part: "w-", op: "replace", path: 17, value: { error: "failed", fields: {} } }
+{ part: "w-", op: "replace", path: 17, value: { error: "failed", fields: { "4": "failed" } } }
 ```
+
+Если error handler отсутствует или не вызвал `update(...)`, fields остаётся
+`{}`. Если handler сам бросил исключение, Energy всё равно публикует
+actor-addressed `w-` с ошибкой handler и пустым fields.
 
 Timeout fallback сохраняется только для debug/v0 compatibility, если `z copy`
 пришёл без pending descriptor.
 
 Новый Weak process contract не использует top-level `processId`, `token`,
-`wimpId`, `executorId` или `/field/...`. Success/error handlers остаются
-следующим этапом.
+`wimpId`, `executorId` или `/field/...`.
 
 ## Чтение по доменам
 

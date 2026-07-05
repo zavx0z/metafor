@@ -30,6 +30,7 @@ const processEntry = (
     readFields: [[2, "command"]],
   },
   env: string[] = ["server"],
+  descriptor: Partial<Pick<BoundaryEnergyProcessDescriptor, "success" | "error">> = {},
 ): BoundaryEnergyRuntimeSnapshot["processes"][number] => ({
   wimp: "owner/process",
   state,
@@ -38,6 +39,7 @@ const processEntry = (
     key: state,
     env,
     action,
+    ...descriptor,
   },
 })
 
@@ -230,6 +232,71 @@ describe("Energy Weak protocol", () => {
     }
   })
 
+  test("Energy success handler writes declared field", async () => {
+    const catalog: BoundaryEnergyRuntimeSnapshot = {
+      version: 1,
+      actors: [[17, "owner/process"]],
+      processes: [processEntry("ready", {
+        src: "./actions/ready.ts",
+        wrapperSrc: "async () => ({ result: 'done' })",
+        readFields: [[2, "command"]],
+      }, ["server"], {
+        success: {
+          src: "({ update, data }) => update({ result: data.result })",
+          readFields: [[3, "result"]],
+          writeFields: [[3, "result"]],
+        },
+      })],
+    }
+    const harness = createHarness("energy-local", 1, catalog)
+
+    try {
+      await claimAndCopy(harness, "ready", {"2": "commit", "3": "old"})
+      await waitFor(() => collectParts(harness.messages, "w+", "replace").length > 0)
+
+      const result = collectParts(harness.messages, "w+", "replace")[0]
+      expect(result).toEqual({
+        part: "w+",
+        op: "replace",
+        path: 17,
+        value: {fields: {"3": "done"}},
+      })
+      expectNoWeakExecutorIdentity(result)
+    } finally {
+      harness.close()
+    }
+  })
+
+  test("Energy success handler cannot write undeclared fields", async () => {
+    const catalog: BoundaryEnergyRuntimeSnapshot = {
+      version: 1,
+      actors: [[17, "owner/process"]],
+      processes: [processEntry("ready", {
+        src: "./actions/ready.ts",
+        wrapperSrc: "async () => ({ result: 'done' })",
+        readFields: [],
+      }, ["server"], {
+        success: {
+          src: "({ update }) => update({ result: 'done', secret: 'bad' })",
+          readFields: [],
+          writeFields: [[3, "result"]],
+        },
+      })],
+    }
+    const harness = createHarness("energy-local", 1, catalog)
+
+    try {
+      await claimAndCopy(harness, "ready", {})
+      await waitFor(() => collectParts(harness.messages, "w+", "replace").length > 0)
+
+      const result = collectParts(harness.messages, "w+", "replace")[0]
+      expect(result?.value).toEqual({fields: {"3": "done"}})
+      expectNoWeakExecutorIdentity(result)
+    } finally {
+      harness.close()
+    }
+  })
+
   test("Energy sends w- when wrapperSrc throws", async () => {
     const catalog: BoundaryEnergyRuntimeSnapshot = {
       version: 1,
@@ -249,6 +316,100 @@ describe("Energy Weak protocol", () => {
       const result = collectParts(harness.messages, "w-", "replace")[0]
       expect(result?.path).toBe(17)
       expect((result?.value as {error?: string; fields?: unknown}).error).toContain("wrapper failed")
+      expect((result?.value as {fields?: unknown}).fields).toEqual({})
+      expectNoWeakExecutorIdentity(result)
+    } finally {
+      harness.close()
+    }
+  })
+
+  test("Energy error handler writes declared field", async () => {
+    const catalog: BoundaryEnergyRuntimeSnapshot = {
+      version: 1,
+      actors: [[17, "owner/process"]],
+      processes: [processEntry("ready", {
+        src: "./actions/ready.ts",
+        wrapperSrc: "async () => { throw new Error('boom') }",
+        readFields: [[2, "command"]],
+      }, ["server"], {
+        error: {
+          src: "({ update, error }) => update({ errorText: error.message })",
+          readFields: [],
+          writeFields: [[4, "errorText"]],
+        },
+      })],
+    }
+    const harness = createHarness("energy-local", 1, catalog)
+
+    try {
+      await claimAndCopy(harness, "ready", {"2": "commit"})
+      await waitFor(() => collectParts(harness.messages, "w-", "replace").length > 0)
+
+      const result = collectParts(harness.messages, "w-", "replace")[0]
+      expect(result?.path).toBe(17)
+      expect((result?.value as {error?: string; fields?: unknown}).error).toBe("boom")
+      expect((result?.value as {fields?: unknown}).fields).toEqual({"4": "boom"})
+      expectNoWeakExecutorIdentity(result)
+    } finally {
+      harness.close()
+    }
+  })
+
+  test("Energy success handler throw converts to w-", async () => {
+    const catalog: BoundaryEnergyRuntimeSnapshot = {
+      version: 1,
+      actors: [[17, "owner/process"]],
+      processes: [processEntry("ready", {
+        src: "./actions/ready.ts",
+        wrapperSrc: "async () => ({ result: 'done' })",
+        readFields: [],
+      }, ["server"], {
+        success: {
+          src: "() => { throw new Error('success failed') }",
+          readFields: [],
+          writeFields: [[3, "result"]],
+        },
+      })],
+    }
+    const harness = createHarness("energy-local", 1, catalog)
+
+    try {
+      await claimAndCopy(harness, "ready", {})
+      await waitFor(() => collectParts(harness.messages, "w-", "replace").length > 0)
+
+      const result = collectParts(harness.messages, "w-", "replace")[0]
+      expect((result?.value as {error?: string; fields?: unknown}).error).toContain("success failed")
+      expect((result?.value as {fields?: unknown}).fields).toEqual({})
+      expectNoWeakExecutorIdentity(result)
+    } finally {
+      harness.close()
+    }
+  })
+
+  test("Energy error handler throw still sends w-", async () => {
+    const catalog: BoundaryEnergyRuntimeSnapshot = {
+      version: 1,
+      actors: [[17, "owner/process"]],
+      processes: [processEntry("ready", {
+        src: "./actions/ready.ts",
+        wrapperSrc: "async () => { throw new Error('action failed') }",
+        readFields: [],
+      }, ["server"], {
+        error: {
+          src: "() => { throw new Error('error handler failed') }",
+          readFields: [],
+          writeFields: [[4, "errorText"]],
+        },
+      })],
+    }
+    const harness = createHarness("energy-local", 1, catalog)
+
+    try {
+      await claimAndCopy(harness, "ready", {})
+      await waitFor(() => collectParts(harness.messages, "w-", "replace").length > 0)
+
+      const result = collectParts(harness.messages, "w-", "replace")[0]
+      expect((result?.value as {error?: string; fields?: unknown}).error).toContain("error handler failed")
       expect((result?.value as {fields?: unknown}).fields).toEqual({})
       expectNoWeakExecutorIdentity(result)
     } finally {

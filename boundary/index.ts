@@ -14,7 +14,7 @@ export {open} from "./sqlite.ts"
 export type {BoundaryPart, BoundaryParticle, BoundaryUpdateMessage} from "./sqlite.ts"
 export type {BoundaryBulkRuntimeSnapshot} from "./runtime/bulk.ts"
 export type {BoundaryMatrixRuntimeSnapshot} from "./runtime/matrix.ts"
-export type {BoundaryEnergyProcessDescriptor, BoundaryEnergyRuntimeSnapshot} from "./runtime/energy.ts"
+export type {BoundaryEnergyHandlerDescriptor, BoundaryEnergyProcessDescriptor, BoundaryEnergyRuntimeSnapshot} from "./runtime/energy.ts"
 
 export interface WimpApi {
   /** Дешевая проверка существования декларации без создания ORM-объекта. */

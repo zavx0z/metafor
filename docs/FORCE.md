@@ -115,10 +115,13 @@ Energy получает process catalog snapshot при старте, слуша
 подходящий `photon/test`. Matrix выбирает первого валидного Energy и публикует
 `z copy`, где `from` равен Energy id, а `value.fields` содержит frozen snapshot;
 свойство `process` в `z copy.value` в v0 отсутствует. `rejected` в v0 не используется.
-Energy исполняет cached process descriptor после `z copy`: success публикует
-actor-addressed `w+` с пустым `fields`, throw публикует actor-addressed `w-` с
-`error` и пустым `fields`. Success/error handlers, которые будут строить
-write-set, остаются следующим этапом.
+Energy исполняет cached process descriptor после `z copy`. Action success
+запускает success handler, если он есть, и публикует actor-addressed `w+` с
+fields, собранными через `update(...)`. Action throw запускает error handler,
+если он есть, и публикует actor-addressed `w-` с `error` и fields, собранными
+через `update(...)`. В W fields попадают только keys, объявленные в
+`success.writeFields` или `error.writeFields`; без handler или без `update(...)`
+fields остаётся `{}`.
 Energy владеет in-memory runtime mass store. `mass` не сериализуется в
 `Boundary`, не хранится в `Matrix` и не переносится через Force.
 

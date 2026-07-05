@@ -55,7 +55,8 @@ MetaFor строится как система доменных проекций
   `Boundary`/SQLite напрямую.
 - Energy runtime pipeline работает через `energy/energy.ts`; catalog snapshot
   приходит из `dark/index.ts` при старте, а сам пакет не читает `Boundary`/SQLite
-  напрямую. Реальное исполнение process action остаётся следующим этапом.
+  напрямую. Energy исполняет cached process action и success/error handlers
+  после `z copy`, а mass остаётся локальной in-memory runtime-памятью Energy.
 
 ## Архитектурный инвариант
 
@@ -123,7 +124,8 @@ Dark получает начальный `BoundaryMatrixRuntimeSnapshot` из `B
 общий Force channel. Matrix не импортирует `Boundary`/SQLite и не открывает базу
 напрямую. Energy принимает `photon/test`, отвечает `z test`, получает frozen
 fields через `z copy`, исполняет cached process descriptor с in-memory mass и
-возвращает actor-addressed `w+` / `w-`. Mass не проходит через Matrix или Force.
+запускает success/error handlers для declared write-set. Результат возвращается
+actor-addressed `w+` / `w-`. Mass не проходит через Matrix или Force.
 
 Root scripts `workspace.dark:*` запускают Dark. Отдельный Energy
 server/debug-process не является частью текущего server-dev контура.

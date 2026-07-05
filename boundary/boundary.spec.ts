@@ -311,7 +311,11 @@ describe("boundary/sqlite smoke", () => {
     const src = "owner/energy-runtime"
 
     await boundary.wimp.create(src, {
-      fields: [{key: "command", type: "string"}],
+      fields: [
+        {key: "command", type: "string"},
+        {key: "result", type: "string"},
+        {key: "errorText", type: "string"},
+      ],
       superposition: [{name: "ready"}],
       processes: [{
         key: "ready",
@@ -324,10 +328,22 @@ describe("boundary/sqlite smoke", () => {
             wrapperSrc: "async (params) => params.value",
             read: ["command"],
           },
+          success: {
+            src: "({ update, data }) => update({ result: data.result })",
+            read: ["result"],
+            write: ["result"],
+          },
+          error: {
+            src: "({ update, error }) => update({ errorText: error.message })",
+            read: ["errorText"],
+            write: ["errorText"],
+          },
         },
       }],
     })
     const commandId = await fieldId("command", src)
+    const resultId = await fieldId("result", src)
+    const errorTextId = await fieldId("errorText", src)
     const readyStateId = (
       await sql<Array<{id: number}>>`SELECT id FROM state WHERE wimp = ${src} AND name = ${"ready"} LIMIT 1`
     )[0]?.id
@@ -358,6 +374,16 @@ describe("boundary/sqlite smoke", () => {
           importSpecifier: "run",
           wrapperSrc: "async (params) => params.value",
           readFields: [[commandId, "command"]],
+        },
+        success: {
+          src: "({ update, data }) => update({ result: data.result })",
+          readFields: [[resultId, "result"]],
+          writeFields: [[resultId, "result"]],
+        },
+        error: {
+          src: "({ update, error }) => update({ errorText: error.message })",
+          readFields: [[errorTextId, "errorText"]],
+          writeFields: [[errorTextId, "errorText"]],
         },
       },
     })

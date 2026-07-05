@@ -86,7 +86,7 @@
 - `Dark` владеет логикой материализации и имеет доступ к `Boundary`;
 - `Boundary` владеет канонической персистентной реляционной формой (`wimp`, `actor`, `topology`);
 - `Matrix` владеет рантаймом состояния и не читает `Boundary`;
-- `Energy` получает process catalog snapshot при старте, слушает `photon/test` Matrix через локальный `BroadcastChannel("force")`, claim-ит process через `z test`, исполняет cached descriptor с in-memory mass и возвращает actor-addressed `w+`/`w-`; success/error handlers остаются следующим этапом;
+- `Energy` получает process catalog snapshot при старте, слушает `photon/test` Matrix через локальный `BroadcastChannel("force")`, claim-ит process через `z test`, исполняет cached descriptor с in-memory mass, запускает success/error handlers для declared write-set и возвращает actor-addressed `w+`/`w-`;
 - `Bulk` владеет рантаймом проявленной рендер-проекции и не читает `Boundary`;
 - Force/WebSocket переносит рантайм-данные между персистентным слоем и рантайм-слоями.
 Такое чтение не требует отдельного оркестратора времени исполнения `Dark`, но допускает минимальную явную репозиторную проекцию `dark/`, если она нужна для фиксации скрытой непрерывности и её рабочих контрактов.
@@ -399,9 +399,9 @@ process-bound state ставит lock, сохраняет frozen fields snapshot
 `BroadcastChannel("force")`, выбирает descriptor из startup catalog и отвечает
 claim через `z test`. Matrix отдаёт выбранному Energy `z copy` только с frozen
 fields. Energy исполняет cached descriptor с in-memory mass; mass не хранится в
-Boundary/Matrix и не переносится через Force. Matrix принимает и проверяет
-result только через Force `w+`/`w-`. Следующий этап должен добавить
-success/error handlers и компактный write-set.
+Boundary/Matrix и не переносится через Force. Success/error handlers собирают
+компактный write-set через `update(...)`, но только по declared writeFields.
+Matrix принимает и проверяет result только через Force `w+`/`w-`.
 
 ### Bulk × Electromagnetism
 
