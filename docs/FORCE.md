@@ -69,6 +69,7 @@ Force фиксирует, как сила действует через кана
 { part: "photon", op: "replace", path: 17, value: "ready" }
 { part: "z", op: "test", path: 17, value: { energy: "energy-local" } }
 { part: "z", op: "copy", path: 17, from: "energy-local", value: { fields: { "1": "MetaFor" } } }
+{ part: "z", op: "copy", path: 17, from: "energy-local", value: { fields: { "1": "MetaFor" }, process: { type: "action", action: { src: "./actions/run" } } } }
 { part: "w+", op: "replace", path: 17, value: { fields: { "1": "done" } } }
 { part: "w-", op: "replace", path: 17, value: { error: "failed", fields: {} } }
 ```
@@ -102,21 +103,26 @@ protocol не используют `/field/...`. `gluon`, `higgs`, `z copy`, `w+
 получает frozen context через `z copy` и возвращает результат через `w+`/`w-`.
 Runtime-state слой называется `Matrix`.
 Пакет `energy/` сейчас является локальным Force pipeline, а не отдельной
-серверной оболочкой bridge/protocol surface; реальное исполнение DSL action
-остаётся следующим этапом.
+серверной оболочкой bridge/protocol surface. Он исполняет process action только
+из descriptor, полученного в `z copy.value.process`, и не читает Boundary/SQLite.
 Matrix не создаёт `z process-task` при входе actor в process-bound state.
 `photon` является публичным сигналом входа actor в state; при process-bound
 state Matrix до photon ставит lock и сохраняет frozen snapshot fields. Energy
 слушает общий локальный `BroadcastChannel("force")` и отвечает `z test` в тот же
 канал. Matrix выбирает первого валидного Energy и публикует `z copy`, где
-`from` равен Energy id, а `value.fields` содержит frozen snapshot. `rejected` в
-v0 не используется.
-Energy v0 вместо реального action ждёт timeout и публикует actor-addressed `w+`.
+`from` равен Energy id, `value.fields` содержит frozen snapshot, а
+`value.process`, если он есть в runtime snapshot, несёт action descriptor:
+`env`, `action.src`, `action.importSpecifier`, `action.wrapperSrc` и
+`action.readFields`. `rejected` в v0 не используется.
+Energy исполняет descriptor через `wrapperSrc`/dynamic import и публикует
+actor-addressed `w+`; при ошибке action или неподходящем env публикует `w-`.
+Если descriptor отсутствует, сохраняется timeout fallback.
 
 Для нового Weak process protocol top-level частицы не расширяются за пределы
 `part`, `op`, `path`, `value`, `from`. `processId`, `token`, `wimpId`,
 `executorId` и `energyId` не являются top-level полями нового протокола. Energy
-id передаётся как `value.energy` в `z test` и как `from` в `z copy`.
+id передаётся как `value.energy` в `z test` и как `from` в `z copy`. Process
+descriptor, если нужен Energy, находится только внутри `value.process`.
 
 `graviton test wimp` не является общим Force-контрактом материализации. Сейчас
 это узкая управляющая поверхность до отдельного перевода пути материализации.

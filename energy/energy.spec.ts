@@ -51,6 +51,9 @@ const collectParts = (messages: ForceMessage[], part: string, op?: string): Part
     message.parts.filter((item) => item.part === part && (op === undefined || item.op === op)),
   )
 
+const actionModule = (src: string): string =>
+  `data:application/javascript;base64,${Buffer.from(src).toString("base64")}`
+
 describe("Energy Weak v0 protocol", () => {
   test("Energy sends z test on photon", async () => {
     const harness = createHarness("energy-local")
@@ -113,6 +116,134 @@ describe("Energy Weak v0 protocol", () => {
         path: 17,
         value: {fields: {}},
       })
+    } finally {
+      harness.close()
+    }
+  })
+
+  test("Energy executes process wrapper descriptor and sends w+", async () => {
+    const harness = createHarness("energy-local", 10_000)
+    const src = actionModule(`
+      export function run(value) {
+        if (value.command !== "commit") throw new Error("bad command " + value.command)
+      }
+    `)
+
+    try {
+      harness.emit({
+        parts: [{
+          part: "z",
+          op: "copy",
+          path: 17,
+          from: "energy-local",
+          value: {
+            fields: {"2": "commit"},
+            process: {
+              type: "action",
+              wimp: "",
+              key: "ready",
+              env: ["server"],
+              action: {
+                src,
+                importSpecifier: "run",
+                wrapperSrc: `async ({ value }) => { const { run } = await import("${src}"); return run(value) }`,
+                readFields: [[2, "command"]],
+              },
+            },
+          },
+        }],
+      })
+
+      await waitFor(() => collectParts(harness.messages, "w+", "replace").length > 0)
+
+      expect(collectParts(harness.messages, "w+", "replace")[0]).toEqual({
+        part: "w+",
+        op: "replace",
+        path: 17,
+        value: {fields: {}},
+      })
+      expect(collectParts(harness.messages, "w-", "replace")).toEqual([])
+    } finally {
+      harness.close()
+    }
+  })
+
+  test("Energy sends w- when process action throws", async () => {
+    const harness = createHarness("energy-local", 10_000)
+    const src = actionModule(`
+      export function run(value) {
+        throw new Error("boom " + value.command)
+      }
+    `)
+
+    try {
+      harness.emit({
+        parts: [{
+          part: "z",
+          op: "copy",
+          path: 17,
+          from: "energy-local",
+          value: {
+            fields: {"2": "commit"},
+            process: {
+              type: "action",
+              wimp: "",
+              key: "ready",
+              env: ["server"],
+              action: {
+                src,
+                importSpecifier: "run",
+                wrapperSrc: `async ({ value }) => { const { run } = await import("${src}"); return run(value) }`,
+                readFields: [[2, "command"]],
+              },
+            },
+          },
+        }],
+      })
+
+      await waitFor(() => collectParts(harness.messages, "w-", "replace").length > 0)
+
+      expect(collectParts(harness.messages, "w-", "replace")[0]).toEqual({
+        part: "w-",
+        op: "replace",
+        path: 17,
+        value: {error: "boom commit", fields: {}},
+      })
+    } finally {
+      harness.close()
+    }
+  })
+
+  test("Energy sends w- when process env does not match runtime", async () => {
+    const harness = createHarness("energy-local", 10_000)
+    const src = actionModule("export function run() {}")
+
+    try {
+      harness.emit({
+        parts: [{
+          part: "z",
+          op: "copy",
+          path: 17,
+          from: "energy-local",
+          value: {
+            fields: {"2": "commit"},
+            process: {
+              type: "action",
+              wimp: "",
+              key: "ready",
+              env: ["browser"],
+              action: {src, importSpecifier: "run", readFields: [[2, "command"]]},
+            },
+          },
+        }],
+      })
+
+      await waitFor(() => collectParts(harness.messages, "w-", "replace").length > 0)
+
+      const result = collectParts(harness.messages, "w-", "replace")[0]
+      expect(result?.path).toBe(17)
+      expect((result?.value as {error?: unknown} | undefined)?.error).toBe("Energy runtime server cannot execute process env browser")
+      expect(collectParts(harness.messages, "w+", "replace")).toEqual([])
     } finally {
       harness.close()
     }

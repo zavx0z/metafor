@@ -78,11 +78,24 @@ force.onmessage = async (event) => {
 
 type MatrixValuePart = { op: "replace"; path: string; value: unknown }
 type MatrixWeakResultPayload = { wimpId: number; processId: number; parts: MatrixValuePart[] }
+export type MatrixProcessActionDescriptor = {
+  type: "action"
+  wimp: string
+  key: string
+  env: string[]
+  action: {
+    src: string
+    importSpecifier?: string
+    wrapperSrc?: string
+    readFields: Array<[fieldId: number, key: string]>
+  }
+}
 type MatrixPendingProcessExecution = {
   braneIndex: number
   stateIndex: number
   processId: number
   fields: Record<string, unknown>
+  process?: MatrixProcessActionDescriptor
   acceptedEnergy?: string
 }
 
@@ -108,6 +121,9 @@ export type MatrixRuntimeSnapshot = {
     topologyWimpFieldIds: number[]
     topologyActorFieldIds: Array<[actorId: number, fieldId: number]>
   }
+  processes?: {
+    actionDescriptorsByProcessId?: Array<[processId: number, descriptor: MatrixProcessActionDescriptor]>
+  }
   weak: {
     stateMetaStateIdsByBraneIndex: number[][]
     stateProcessIdsByBraneIndex: Array<Array<number | null | undefined>>
@@ -122,6 +138,7 @@ const writeGate: AsyncGate = { pending: null }
 const updateGate: AsyncGate = { pending: null }
 const WEAK_RESULT_FIELD_PART_PATH_PREFIX = "/field/"
 const pendingProcessExecutionsByActorId = new Map<number, MatrixPendingProcessExecution>()
+const processActionDescriptorByProcessId = new Map<number, MatrixProcessActionDescriptor>()
 
 const actorFieldKey = (actorId: number, fieldId: number): string =>
   `${actorId}\0${fieldId}`
@@ -195,6 +212,7 @@ const clearRuntimeAddressing = (): void => {
 
 const clearRuntimeState = (): void => {
   pendingProcessExecutionsByActorId.clear()
+  processActionDescriptorByProcessId.clear()
   applyPreparedData(createEmptyPreparedData())
   clearRuntimeAddressing()
   strong$.reset()
@@ -333,6 +351,7 @@ const rememberPendingProcessExecution = (braneIndex: number, stateIndex: number,
     stateIndex,
     processId,
     fields: cloneProcessExecutionFields(collectProcessExecutionFields(actorId, braneIndex)),
+    process: processActionDescriptorByProcessId.get(processId),
   })
 }
 
@@ -422,13 +441,15 @@ const applyEnergyExecutionRequest = (part: MatrixParticle): void => {
   const energy = requestedEnergy.trim()
 
   pending.acceptedEnergy = energy
+  const value: Record<string, unknown> = {fields: cloneProcessExecutionFields(pending.fields)}
+  if (pending.process) value.process = structuredClone(pending.process) as MatrixProcessActionDescriptor
   force.postMessage({
     parts: [{
       part: "z",
       op: "copy",
       path: actorId,
       from: energy,
-      value: {fields: cloneProcessExecutionFields(pending.fields)},
+      value,
     }],
   })
 }
@@ -486,6 +507,7 @@ export function listMatrixRuntimeActorIds(): number[] {
 
 export async function loadMatrixRuntimeSnapshot(snapshot: MatrixRuntimeSnapshot): Promise<void> {
   pendingProcessExecutionsByActorId.clear()
+  processActionDescriptorByProcessId.clear()
   weak$.reset()
   const prepared = assembleStoredMatrixData(flattenMatrixData(snapshot.data))
   applyPreparedData(prepared)
@@ -535,6 +557,11 @@ export async function loadMatrixRuntimeSnapshot(snapshot: MatrixRuntimeSnapshot)
   weak$.stateProcessIdsByBraneIndex = snapshot.weak.stateProcessIdsByBraneIndex.map((ids) =>
     ids.map((id) => id ?? undefined),
   )
+  for (const [processId, descriptor] of snapshot.processes?.actionDescriptorsByProcessId ?? []) {
+    if (Number.isSafeInteger(processId) && descriptor.type === "action") {
+      processActionDescriptorByProcessId.set(processId, structuredClone(descriptor) as MatrixProcessActionDescriptor)
+    }
+  }
 
   if (weak$.initialized) {
     const changes = await weakRunStep(StepMode.UndefinedOnly)

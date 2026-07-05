@@ -304,6 +304,46 @@ describe("boundary/sqlite smoke", () => {
     expect(runtime.weak.stateMetaStateIdsByBraneIndex[withoutStatesIndex]).toEqual([])
   })
 
+  test("matrixRuntime включает action process descriptors", async () => {
+    const src = "owner/process-runtime"
+    await boundary.wimp.create(src, {
+      fields: [{key: "command", type: "string"}],
+      superposition: [{name: "ready"}],
+      processes: [{
+        key: "ready",
+        declaration: {
+          type: "action",
+          env: ["server"],
+          action: {
+            src: "./actions/run",
+            importSpecifier: "run",
+            wrapperSrc: "async ({ value }) => value.command",
+            read: ["command"],
+          },
+        },
+      }],
+    })
+    const commandId = await fieldId("command", src)
+
+    const runtime = await boundary.matrixRuntime()
+    const descriptor = runtime.processes.actionDescriptorsByProcessId.find(([, item]) =>
+      item.wimp === src && item.key === "ready"
+    )?.[1]
+
+    expect(descriptor).toEqual({
+      type: "action",
+      wimp: src,
+      key: "ready",
+      env: ["server"],
+      action: {
+        src: "./actions/run",
+        importSpecifier: "run",
+        wrapperSrc: "async ({ value }) => value.command",
+        readFields: [[commandId, "command"]],
+      },
+    })
+  })
+
   test("absorb() обновляет БД и не выпускает входящие particles в entropy", async () => {
     await boundary.wimp.create(SRC)
     const observed: Particle[] = []

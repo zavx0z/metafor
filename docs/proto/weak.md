@@ -40,8 +40,8 @@
 Matrix -> photon
 Energy -> z test
 Matrix -> z copy
-Energy -> timeout
-Energy -> w+
+Energy -> execute action / timeout fallback
+Energy -> w+ / w-
 Matrix -> apply result / unlock / next weak step
 ```
 
@@ -58,18 +58,48 @@ Energy слушает `photon` и отправляет запрос:
 Matrix выбирает первый валидный Energy и отвечает:
 
 ```ts
-{ part: "z", op: "copy", path: 17, from: "energy-local", value: { fields: { "2": 11 } } }
+{
+  part: "z",
+  op: "copy",
+  path: 17,
+  from: "energy-local",
+  value: {
+    fields: { "2": 11 },
+    process: {
+      type: "action",
+      wimp: "zavx0z/git",
+      key: "определение операции",
+      env: ["any"],
+      action: {
+        src: "./actions/detect",
+        importSpecifier: "detect",
+        wrapperSrc: "async ({ value }) => { ... }",
+        readFields: [[2, "command"]]
+      }
+    }
+  }
+}
 ```
 
 `z copy` означает, что исполнитель выбран, а `value.fields` несёт frozen fields
-snapshot. `from` у `z copy` — Energy id. `rejected` в v0 не используется:
-повторные `z test` после выбора исполнителя игнорируются.
+snapshot. Если process descriptor известен Matrix runtime snapshot, он передаётся
+в `value.process`; top-level форма частицы при этом не расширяется. `from` у
+`z copy` — Energy id. `rejected` в v0 не используется: повторные `z test` после
+выбора исполнителя игнорируются.
 
-Energy v0 не выполняет DSL process action. Он ждёт timeout и возвращает:
+Energy исполняет `value.process`, если descriptor присутствует: проверяет env
+текущего runtime, собирает `value` из frozen fields по `action.readFields`,
+исполняет `wrapperSrc` с dynamic import-ами, резолвя relative imports от
+`github/<wimp>/meta.ts` с fallback на `github/<wimp>/src/meta.ts`. Если
+`wrapperSrc` отсутствует, Energy импортирует `action.src` напрямую и вызывает
+`importSpecifier` или `default` export. На успех Energy возвращает:
 
 ```ts
 { part: "w+", op: "replace", path: 17, value: { fields: {} } }
 ```
+
+Если descriptor отсутствует, остаётся timeout fallback для v0-совместимости.
+Если action падает или env не подходит, Energy возвращает `w-`.
 
 `w-` имеет ту же actor-addressed форму и может нести `error`:
 
@@ -78,9 +108,9 @@ Energy v0 не выполняет DSL process action. Он ждёт timeout и �
 ```
 
 Новый Weak process contract не использует top-level `processId`, `token`,
-`wimpId`, `executorId` или `/field/...`. Реальное DSL process action execution,
-process descriptor, `wrapperSrc`, dynamic import, env resolver и success/error
-handlers остаются следующим этапом.
+`wimpId`, `executorId` или `/field/...`. Success/error handlers поверх результата
+action остаются следующим этапом; до них `w+`/`w-` возвращают пустой write-set,
+если сам Energy не получил explicit `value.fields` result.
 
 ## Чтение по доменам
 
@@ -111,13 +141,15 @@ handlers остаются следующим этапом.
 ### Energy
 
 Energy здесь означает distributed process executor. Текущий пакет `energy/`
-сейчас является локальным Force pipeline без реального исполнения DSL action:
+сейчас является локальным Force pipeline:
 
 - слушает photons Matrix,
 - отправляет `z test` через локальный `BroadcastChannel("force")`,
 - принимает `z copy` только со своим Energy id в `from`,
-- в v0 ждёт timeout вместо исполнения process action,
-- возвращает actor result через `w+`.
+- исполняет `value.process.action` через `wrapperSrc`/dynamic import, если Matrix
+  прислала descriptor,
+- при отсутствии descriptor ждёт timeout как v0 fallback,
+- возвращает actor result через `w+` или `w-`.
 
 ### Bulk
 
