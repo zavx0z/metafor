@@ -88,14 +88,13 @@ Force фиксирует, как сила действует через кана
 логики. Логический порядок допускается только там, где он участвует в переходах
 superposition/triggers или в значении списка.
 
-В обычном рантайм-потоке `gluon`, `higgs`, `photon` и новый Weak v0 process
+В обычном рантайм-потоке `gluon`, `higgs`, `photon` и Weak process
 protocol не используют `/field/...`. `gluon`, `higgs`, `z copy`, `w+` и `w-` в
 области экземпляра идут через `path = actor ID` и `value.fields[fieldId]`;
 `higgs` в области класса идёт через `path = WIMP SRC`. `/field/...` не является
-обычным Force-адресом. Он остаётся только во временном legacy adapter-слое
-старого process-result path; новый код не должен строить на нём контракт.
-Поля Matrix runtime snapshot с именами `wimpIds` являются compatibility-данными
-оставшегося process-result adapter. Обычная рантайм-идентичность — actor ID.
+обычным Force-адресом. Старый Weak result adapter для top-level `wimpId` /
+`processId` и `/field/...` удалён; новый код не должен строить на нём контракт.
+Обычная рантайм-идентичность — actor ID.
 Актуальный процессный долг держится в `TODO.md`; этот документ описывает только
 действующий Force-контракт.
 Имя `Energy` в новых документах относится только к распределённому исполнителю
@@ -105,7 +104,7 @@ protocol не используют `/field/...`. `gluon`, `higgs`, `z copy`, `w+
 Runtime-state слой называется `Matrix`.
 Пакет `energy/` сейчас является локальным Force pipeline, а не отдельной
 серверной оболочкой bridge/protocol surface.
-Matrix не создаёт `z process-task` при входе actor в process-bound state.
+Matrix не создаёт отдельную Z-задачу при входе actor в process-bound state.
 `photon` является публичным сигналом входа actor в state: `photon/replace` для
 обычного state и `photon/test` для process-bound state. При process-bound state
 Matrix до photon ставит lock и сохраняет frozen snapshot fields. Matrix snapshot
@@ -114,7 +113,8 @@ Energy получает process catalog snapshot при старте, слуша
 `BroadcastChannel("force")` и отвечает `z test` в тот же канал только на
 подходящий `photon/test`. Matrix выбирает первого валидного Energy и публикует
 `z copy`, где `from` равен Energy id, а `value.fields` содержит frozen snapshot;
-свойство `process` в `z copy.value` в v0 отсутствует. `rejected` в v0 не используется.
+свойство `process` в `z copy.value` отсутствует. Повторные `z test` после выбора
+исполнителя игнорируются без отрицательной частицы.
 Energy исполняет cached process descriptor после `z copy`. Action success
 запускает success handler, если он есть, и публикует actor-addressed `w+` с
 fields, собранными через `update(...)`. Action throw запускает error handler,

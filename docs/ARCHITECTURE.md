@@ -401,7 +401,9 @@ claim через `z test`. Matrix отдаёт выбранному Energy `z co
 fields. Energy исполняет cached descriptor с in-memory mass; mass не хранится в
 Boundary/Matrix и не переносится через Force. Success/error handlers собирают
 компактный write-set через `update(...)`, но только по declared writeFields.
-Matrix принимает и проверяет result только через Force `w+`/`w-`.
+Matrix принимает и проверяет result только через actor-addressed Force `w+`/`w-`;
+legacy Weak result adapter для top-level `wimpId` / `processId` и `/field/...`
+удалён.
 
 ### Bulk × Electromagnetism
 

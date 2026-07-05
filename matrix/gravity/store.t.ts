@@ -6,8 +6,6 @@
  */
 
 export interface MatrixGravityStore {
-  /** @deprecated Actor IDs kept only for legacy process result addressing. */
-  activeWimpIds: number[]
   /** Целевая активная actor-композиция для следующего/текущего runtime rebuild. */
   activeActorIds: number[]
 
@@ -17,8 +15,6 @@ export interface MatrixGravityStore {
    * Пока `structuralDirty = true`, это соответствие всё ещё относится к
    * последнему materialized `matrix$`, а не к новой целевой composition.
    */
-  /** @deprecated Actor ID -> braneIndex map kept only for legacy process result addressing. */
-  wimpIdToBraneIndex: Map<number, number>
   actorIdToBraneIndex: Map<number, number>
 
   /**
@@ -27,8 +23,6 @@ export interface MatrixGravityStore {
    * Пока `structuralDirty = true`, это соответствие всё ещё относится к
    * последнему materialized `matrix$`, а не к новой целевой composition.
    */
-  /** @deprecated braneIndex -> actor ID map kept only for legacy process result addressing. */
-  braneIndexToWimpId: number[]
   braneIndexToActorId: number[]
   wimpSrcByActorId: Map<number, string>
   actorIdsByWimpSrc: Map<string, number[]>
@@ -41,12 +35,6 @@ export interface MatrixGravityStore {
    */
   structuralDirty: boolean
 
-  /** @deprecated Legacy process result addressing only. */
-  hasWimp(wimpId: number): boolean
-  /** @deprecated Legacy process result addressing only. */
-  getBraneIndex(wimpId: number): number | undefined
-  /** @deprecated Legacy process result addressing only. */
-  getWimpId(braneIndex: number): number | undefined
   hasActor(actorId: number): boolean
   getBraneIndexByActorId(actorId: number): number | undefined
   getActorId(braneIndex: number): number | undefined

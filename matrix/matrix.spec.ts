@@ -1,4 +1,7 @@
 import {afterAll, describe, expect, test} from "bun:test"
+import {mkdirSync, rmSync} from "node:fs"
+import {join} from "node:path"
+import {SQL} from "bun"
 import type { MatrixFieldValueRecord, MatrixStore } from "./store.t"
 import { FIELD_TYPE, OP, CPUWeakRuntime } from "./weak"
 import { STATE_NONE, STATE_UNDEFINED } from "./state"
@@ -14,6 +17,8 @@ import {
 } from "./matrix"
 import * as matrixPublicApi from "./index"
 import {FieldType} from "./gravity"
+import {open} from "../boundary/sqlite.ts"
+import {startEnergyProtocol} from "../energy/energy.ts"
 
 const createServerDomainStore = (): MatrixStore => {
   const store: MatrixStore = {
@@ -91,8 +96,6 @@ describe("matrix domain smoke", () => {
 const createRuntimeSnapshot = (): MatrixRuntimeSnapshot => ({
   ok: true,
   version: 1,
-  wimpIds: [17],
-  legacyProcessActorIds: [17],
   runtime: {
     actorIdByBraneIndex: [17],
     braneIndexByActorId: [[17, 0]],
@@ -253,7 +256,7 @@ describe("matrix Force v0 runtime addressing", () => {
     }
   })
 
-  test("Matrix emits photon but not z process-task on process-bound state", async () => {
+  test("Matrix emits photon/test on process-bound state", async () => {
     const snapshot = createRuntimeSnapshot()
     snapshot.weak.stateHasProcessByBraneIndex = [[false, true]]
     await loadMatrixRuntimeSnapshot(snapshot)
@@ -279,7 +282,7 @@ describe("matrix Force v0 runtime addressing", () => {
 
       expect(matrix$.branes[0]?.lock).toBe(true)
       expect(photons).toContainEqual({part: "photon", op: "test", path: 17, value: "ready"})
-      expect(zParts.some((part) => (part.value as {kind?: unknown} | undefined)?.kind === "process-task")).toBe(false)
+      expect(zParts).toEqual([])
     } finally {
       forceSubscription.close()
     }
@@ -401,7 +404,7 @@ describe("matrix Force v0 runtime addressing", () => {
 
       expect(zParts.filter((part) => part.op === "copy")).toHaveLength(1)
       expect(zParts.some((part) => part.op === "copy" && part.from === "energy-two")).toBe(false)
-      expect(zParts.some((part) => (part.value as {kind?: unknown} | undefined)?.kind === "rejected")).toBe(false)
+      expect(zParts.filter((part) => part.op !== "test")).toHaveLength(1)
     } finally {
       forceSubscription.close()
     }
@@ -485,6 +488,110 @@ describe("matrix Force v0 runtime addressing", () => {
     }
   })
 
+  test("Boundary Matrix Energy runtime applies success handler write-set end-to-end", async () => {
+    const src = "owner/process-runtime-smoke"
+    const actorId = 1701
+    const dir = join(import.meta.dir, "..", "boundary", "tmp")
+    mkdirSync(dir, {recursive: true})
+    const filename = join(dir, `matrix-energy-${crypto.randomUUID()}.sqlite`)
+    const boundary = await open(filename)
+    const sql = new SQL(`sqlite://${filename}`)
+    const forceParts: MatrixParticle[] = []
+    const forceSubscription = listenForce((message) => {
+      forceParts.push(...message.parts)
+    })
+    let energyProtocol: ReturnType<typeof startEnergyProtocol> | undefined
+
+    try {
+      await boundary.wimp.create(src, {
+        fields: [
+          {key: "command", type: "number"},
+          {key: "result", type: "number"},
+        ],
+        superposition: [{name: "ready"}],
+        processes: [{
+          key: "ready",
+          declaration: {
+            type: "action",
+            env: ["server"],
+            action: {
+              src: "./actions/run.ts",
+              wrapperSrc: "async ({ value }) => ({ result: value.command + 35 })",
+              read: ["command"],
+            },
+            success: {
+              src: "({ update, data }) => update({ result: data.result })",
+              read: ["result"],
+              write: ["result"],
+            },
+          },
+        }],
+      })
+      const commandId = (
+        await sql<Array<{id: number}>>`SELECT id FROM field WHERE wimp = ${src} AND key = ${"command"} LIMIT 1`
+      )[0]?.id
+      const resultId = (
+        await sql<Array<{id: number}>>`SELECT id FROM field WHERE wimp = ${src} AND key = ${"result"} LIMIT 1`
+      )[0]?.id
+      if (commandId === undefined || resultId === undefined) throw new Error("smoke fields missing")
+
+      await boundary.actor.create({
+        actor: {id: actorId, parentActor: null, parentTopology: null, wimp: src},
+        values: [
+          {actor: actorId, field: commandId, value: 17101},
+          {actor: actorId, field: resultId, value: 17102},
+        ],
+        valueRecords: [
+          {id: 17101, kind: "number", number: 7},
+          {id: 17102, kind: "number", number: 0},
+        ],
+        valueItems: [],
+        state: {actor: actorId, metaState: null},
+      })
+
+      const catalog = await boundary.energyRuntime()
+      const runtime = await boundary.matrixRuntime()
+      const braneIndex = runtime.runtime.braneIndexByActorId.find(([id]) => id === actorId)?.[1]
+      const resultRuntimeFieldIndex = runtime.runtime.runtimeFieldIndexByActorFieldId.find(([id, fieldId]) => (
+        id === actorId && fieldId === resultId
+      ))?.[2]
+      if (braneIndex === undefined || resultRuntimeFieldIndex === undefined) throw new Error("smoke runtime mapping missing")
+
+      expect("processes" in runtime).toBe(false)
+      expect(JSON.stringify(runtime)).not.toContain("wrapperSrc")
+      expect(runtime.weak.stateHasProcessByBraneIndex[braneIndex]).toEqual([true])
+      expect(catalog.processes.find((item) => item.wimp === src && item.state === "ready")?.descriptor.success?.writeFields).toEqual([[resultId, "result"]])
+
+      energyProtocol = startEnergyProtocol({energyId: "energy-smoke", timeoutMs: 1, catalog})
+      await loadMatrixRuntimeSnapshot(runtime)
+
+      await waitFor(() => matrix$.branes[braneIndex]?.lock === false && matrix$.getFieldValue(braneIndex, resultRuntimeFieldIndex) === 42)
+
+      expect(forceParts).toContainEqual({part: "photon", op: "test", path: actorId, value: "ready"})
+      expect(forceParts).toContainEqual({part: "z", op: "test", path: actorId, value: {energy: "energy-smoke"}})
+      const zCopy = forceParts.find((part) => part.part === "z" && part.op === "copy" && part.path === actorId)
+      expect(zCopy?.from).toBe("energy-smoke")
+      expect(Object.keys(zCopy?.value as Record<string, unknown>)).toEqual(["fields"])
+      expect((zCopy?.value as {fields: Record<string, unknown>}).fields[String(commandId)]).toBe(7)
+      const wResult = forceParts.find((part) => part.part === "w+" && part.op === "replace" && part.path === actorId)
+      expect(wResult?.value).toEqual({fields: {[String(resultId)]: 42}})
+      expect("energyId" in wResult!).toBe(false)
+      expect("executorId" in wResult!).toBe(false)
+      expect("processId" in wResult!).toBe(false)
+      expect("token" in wResult!).toBe(false)
+      expect("wimpId" in wResult!).toBe(false)
+      expect(matrix$.branes[braneIndex]?.lock).toBe(false)
+    } finally {
+      energyProtocol?.close()
+      forceSubscription.close()
+      await sql.close()
+      await boundary.close()
+      rmSync(filename, {force: true})
+      rmSync(`${filename}-shm`, {force: true})
+      rmSync(`${filename}-wal`, {force: true})
+    }
+  })
+
   test("Matrix emits photon and locks on first process-bound runtime undefined entry", async () => {
     const snapshot = createRuntimeSnapshot()
     snapshot.data.branes[0]!.state = STATE_UNDEFINED
@@ -504,7 +611,7 @@ describe("matrix Force v0 runtime addressing", () => {
       expect(matrix$.states[0]).toBe(0)
       expect(matrix$.branes[0]?.lock).toBe(true)
       expect(photons).toContainEqual({part: "photon", op: "test", path: 17, value: "idle"})
-      expect(zParts.some((part) => (part.value as {kind?: unknown} | undefined)?.kind === "process-task")).toBe(false)
+      expect(zParts).toEqual([])
     } finally {
       forceSubscription.close()
     }

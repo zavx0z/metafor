@@ -125,7 +125,8 @@ Dark получает начальный `BoundaryMatrixRuntimeSnapshot` из `B
 напрямую. Energy принимает `photon/test`, отвечает `z test`, получает frozen
 fields через `z copy`, исполняет cached process descriptor с in-memory mass и
 запускает success/error handlers для declared write-set. Результат возвращается
-actor-addressed `w+` / `w-`. Mass не проходит через Matrix или Force.
+actor-addressed `w+` / `w-`. Legacy Weak result path через top-level `wimpId` /
+`processId` и `/field/...` удалён. Mass не проходит через Matrix или Force.
 
 Root scripts `workspace.dark:*` запускают Dark. Отдельный Energy
 server/debug-process не является частью текущего server-dev контура.

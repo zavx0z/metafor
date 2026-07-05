@@ -5,10 +5,6 @@ type MatrixFieldType = 0 | 1 | 2 | 3 | 4
 
 export type BoundaryMatrixRuntimeSnapshot = {
   version: 1
-  /** @deprecated Actor IDs kept only for legacy process result addressing. */
-  wimpIds: number[]
-  /** Actor IDs kept only for legacy process result addressing. */
-  legacyProcessActorIds: number[]
   runtime: {
     actorIdByBraneIndex: number[]
     braneIndexByActorId: Array<[actorId: number, braneIndex: number]>
@@ -237,7 +233,6 @@ export async function matrixRuntime(sql: SQL): Promise<BoundaryMatrixRuntimeSnap
   const dataFields: BoundaryMatrixRuntimeSnapshot["data"]["fields"] = []
   const branes: BoundaryMatrixRuntimeSnapshot["data"]["branes"] = []
   const stateNames: string[][] = []
-  const wimpIds: number[] = []
   const actorIdByBraneIndex: number[] = []
   const braneIndexByActorId: Array<[actorId: number, braneIndex: number]> = []
   const wimpSrcByActorId: Array<[actorId: number, wimpSrc: string]> = []
@@ -255,7 +250,6 @@ export async function matrixRuntime(sql: SQL): Promise<BoundaryMatrixRuntimeSnap
   actors.forEach((actor, braneIndex) => {
     const actorFields = fieldsByWimp.get(actor.wimp) ?? []
     const values: Array<[number, unknown]> = []
-    wimpIds.push(actor.id)
     actorIdByBraneIndex[braneIndex] = actor.id
     braneIndexByActorId.push([actor.id, braneIndex])
     wimpSrcByActorId.push([actor.id, actor.wimp])
@@ -314,8 +308,6 @@ export async function matrixRuntime(sql: SQL): Promise<BoundaryMatrixRuntimeSnap
 
   return {
     version: 1,
-    wimpIds,
-    legacyProcessActorIds: [...wimpIds],
     runtime: {
       actorIdByBraneIndex,
       braneIndexByActorId,

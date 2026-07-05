@@ -35,6 +35,8 @@
 отсутствует или не вызывает `update(...)`, Energy сохраняет прежнее поведение:
 `w+` / `w-` уходят с пустым `fields`. Если handler бросает исключение, Energy
 публикует actor-addressed `w-` и не пробрасывает ошибку наружу.
+Старый Weak result path через top-level `wimpId` / `processId` и `/field/...`
+удалён из Matrix и не является runtime protocol.
 
 Energy владеет in-memory runtime mass store. `mass` не сериализуется в
 `Boundary`, не хранится в `Matrix` и не переносится через Force. Default mass

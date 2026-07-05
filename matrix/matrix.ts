@@ -67,17 +67,12 @@ force.onmessage = async (event) => {
         break
       case "w+":
       case "w-":
-        if (await applyActorWeakResult(part)) break
-        for (const packet of collectWeakResultPackets([part])) {
-          await applyWeakResultPacket(packet)
-        }
+        await applyActorWeakResult(part)
         break
     }
   }
 }
 
-type MatrixValuePart = { op: "replace"; path: string; value: unknown }
-type MatrixWeakResultPayload = { wimpId: number; processId: number; parts: MatrixValuePart[] }
 type MatrixPendingProcessExecution = {
   braneIndex: number
   stateIndex: number
@@ -88,10 +83,6 @@ type MatrixPendingProcessExecution = {
 export type MatrixRuntimeSnapshot = {
   ok: true
   version: 1
-  /** @deprecated Actor IDs kept only for legacy process result addressing. */
-  wimpIds: number[]
-  /** Actor IDs kept only for legacy process result addressing. */
-  legacyProcessActorIds?: number[]
   runtime: {
     actorIdByBraneIndex: number[]
     braneIndexByActorId: Array<[actorId: number, braneIndex: number]>
@@ -119,18 +110,10 @@ type AsyncGate = {
 
 const writeGate: AsyncGate = { pending: null }
 const updateGate: AsyncGate = { pending: null }
-const WEAK_RESULT_FIELD_PART_PATH_PREFIX = "/field/"
 const pendingProcessExecutionsByActorId = new Map<number, MatrixPendingProcessExecution>()
 
 const actorFieldKey = (actorId: number, fieldId: number): string =>
   `${actorId}\0${fieldId}`
-
-const parseRuntimeId = (value: unknown): number | null => {
-  if (typeof value === "number" && Number.isSafeInteger(value)) return value
-  if (typeof value !== "string" || !/^\d+$/.test(value)) return null
-  const id = Number(value)
-  return Number.isSafeInteger(id) ? id : null
-}
 
 const runExclusive = async <T>(gate: AsyncGate, task: () => Promise<T>): Promise<T> => {
   const prev = gate.pending
@@ -181,11 +164,8 @@ export const applyPreparedData = (prepared: PreparedData): void => {
 }
 
 const clearRuntimeAddressing = (): void => {
-  gravity$.activeWimpIds = []
   gravity$.activeActorIds = []
-  gravity$.wimpIdToBraneIndex.clear()
   gravity$.actorIdToBraneIndex.clear()
-  gravity$.braneIndexToWimpId = []
   gravity$.braneIndexToActorId = []
   gravity$.wimpSrcByActorId.clear()
   gravity$.actorIdsByWimpSrc.clear()
@@ -198,20 +178,6 @@ const clearRuntimeState = (): void => {
   clearRuntimeAddressing()
   strong$.reset()
   weak$.reset()
-}
-
-const requireRuntimeFieldAddress = (wimpFieldId: number): [braneIndex: number, runtimeFieldIndex: number] => {
-  const braneIndex = strong$.braneIndexByWimpFieldId.get(wimpFieldId)
-  const runtimeFieldIndex = strong$.runtimeFieldIndexByWimpFieldId.get(wimpFieldId)
-
-  if (braneIndex === undefined) {
-    throw new Error(`Matrix id field is not materialized in current runtime: ${wimpFieldId}`)
-  }
-  if (runtimeFieldIndex === undefined) {
-    throw new Error(`Matrix runtime field index is missing for id field: ${wimpFieldId}`)
-  }
-
-  return [braneIndex, runtimeFieldIndex]
 }
 
 const parseActorIdPath = (path: MatrixParticle["path"]): number | null =>
@@ -375,19 +341,6 @@ const syncProcessLocksForChanges = (changes: [number, number][], stateChanges: [
   }
 }
 
-const requireWeakResultFieldPartId = (path: string): number => {
-  if (!path.startsWith(WEAK_RESULT_FIELD_PART_PATH_PREFIX)) {
-    throw new Error(`Unsupported Matrix weak result field part path: ${path}`)
-  }
-
-  const wimpFieldId = parseRuntimeId(path.slice(WEAK_RESULT_FIELD_PART_PATH_PREFIX.length))
-  if (wimpFieldId === null) {
-    throw new Error(`Matrix weak result field part path is missing field id: ${path}`)
-  }
-
-  return wimpFieldId
-}
-
 const currentBraneHasProcess = (braneIndex: number): boolean => {
   const stateIndex = matrix$.states[braneIndex]
   return stateIndex !== undefined && weak$.stateHasProcessByBraneIndex[braneIndex]?.[stateIndex] === true
@@ -495,12 +448,6 @@ export async function loadMatrixRuntimeSnapshot(snapshot: MatrixRuntimeSnapshot)
     weak$.reset()
   }
 
-  const legacyProcessActorIds = snapshot.legacyProcessActorIds ?? snapshot.wimpIds
-  gravity$.activeWimpIds = [...legacyProcessActorIds]
-  gravity$.braneIndexToWimpId = [...legacyProcessActorIds]
-  gravity$.wimpIdToBraneIndex = new Map(
-    legacyProcessActorIds.map((actorId, braneIndex) => [actorId, braneIndex] as const),
-  )
   gravity$.activeActorIds = [...snapshot.runtime.actorIdByBraneIndex]
   gravity$.braneIndexToActorId = [...snapshot.runtime.actorIdByBraneIndex]
   gravity$.actorIdToBraneIndex = new Map(snapshot.runtime.braneIndexByActorId)
@@ -683,76 +630,6 @@ export async function update(
     return changes
   })
 }
-
-export async function applyWeakResultPacket(message: MatrixWeakResultPayload): Promise<[number, number][]> {
-  requireInitializedStore(matrix$)
-
-  const braneIndex = gravity$.getBraneIndex(message.wimpId)
-  if (braneIndex === undefined) {
-    throw new Error(`Matrix weak result targets non-materialized wimp: ${message.wimpId}`)
-  }
-
-  const brane = matrix$.branes[braneIndex]
-  if (!brane) {
-    throw new Error(`Matrix weak result targets missing brane: ${braneIndex}`)
-  }
-  if (!brane.lock) {
-    throw new Error(`Matrix weak result requires locked brane for wimp ${message.wimpId}`)
-  }
-
-  if (!currentBraneHasProcess(braneIndex)) {
-    throw new Error(`Matrix weak result requires process-bound state for wimp ${message.wimpId}`)
-  }
-
-  const fieldUpdates: Array<[fieldIndex: number, value: unknown]> = []
-
-  for (const part of message.parts) {
-    const wimpFieldId = requireWeakResultFieldPartId(part.path)
-    const [ownerBraneIndex, runtimeFieldIndex] = requireRuntimeFieldAddress(wimpFieldId)
-    if (ownerBraneIndex === undefined) {
-      throw new Error(`Matrix weak result field is not materialized: ${wimpFieldId}`)
-    }
-    if (ownerBraneIndex !== braneIndex) {
-      throw new Error(
-        `Matrix weak result field ${wimpFieldId} belongs to brane ${ownerBraneIndex}, expected ${braneIndex}`,
-      )
-    }
-    fieldUpdates.push([runtimeFieldIndex, part.value])
-  }
-
-  clearPendingProcessExecution(braneIndex)
-  return await update([[braneIndex, fieldUpdates, false]], {
-    skipProcessRetriggerBraneIndexes: [braneIndex],
-  })
-}
-
-const collectWeakResultPackets = (parts: MatrixParticle[]): MatrixWeakResultPayload[] => {
-  const packets = new Map<string, MatrixWeakResultPayload>()
-
-  for (const part of parts) {
-    if (part.part !== "w+" && part.part !== "w-") continue
-    if (part.op !== "replace" && !isWeakResultMarker(part)) continue
-    const wimpId = parseRuntimeId(part.wimpId)
-    const processId = parseRuntimeId(part.processId)
-    if (wimpId === null || processId === null) continue
-
-    const key = `${wimpId}\0${processId}`
-    let packet = packets.get(key)
-    if (!packet) {
-      packet = { wimpId, processId, parts: [] }
-      packets.set(key, packet)
-    }
-    if (part.op === "replace") {
-      if (typeof part.path !== "string") continue
-      packet.parts.push({ op: "replace", path: part.path, value: part.value })
-    }
-  }
-
-  return [...packets.values()]
-}
-
-const isWeakResultMarker = (part: MatrixParticle): boolean =>
-  part.op === "test" && (part.kind === "result" || (isRecord(part.value) && part.value.kind === "result"))
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)

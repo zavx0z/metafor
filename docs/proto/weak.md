@@ -29,9 +29,10 @@
 
 ## Процессный Протокол
 
-Обычный рантайм-поток Force уже не использует `/field/...`: `gluon`, `higgs` и
+Обычный рантайм-поток Force не использует `/field/...`: `gluon`, `higgs` и
 `photon` адресуются через actor ID или WIMP SRC и внутренние `fieldId` внутри
-`value.fields`.
+`value.fields`. Старый Weak result adapter для top-level `wimpId` / `processId`
+и `/field/...` удалён.
 
 Текущий v0 процессного протокола использует один общий
 `BroadcastChannel("force")` и actor-addressed частицы:
@@ -45,7 +46,7 @@ Energy -> w+ / w-
 Matrix -> apply result / unlock / next weak step
 ```
 
-Matrix не публикует `z process-task`. `photon` является публичным сигналом
+Matrix не публикует отдельную Z-задачу. `photon` является публичным сигналом
 входа actor в state. Для обычного state Matrix испускает
 `{ part: "photon", op: "replace", path: actorId, value: stateName }`. Если
 state process-bound, Matrix ставит lock, сохраняет frozen snapshot fields на
@@ -77,8 +78,8 @@ Matrix выбирает первый валидный Energy и отвечает
 ```
 
 `z copy` означает, что исполнитель выбран, а `value.fields` несёт frozen fields
-snapshot. `z copy` не несёт `process`. `from` у `z copy` — Energy id. `rejected` в v0 не используется:
-повторные `z test` после выбора исполнителя игнорируются.
+snapshot. `z copy` не несёт `process`. `from` у `z copy` — Energy id. Повторные
+`z test` после выбора исполнителя игнорируются без отрицательной частицы.
 
 После `z copy` Energy исполняет cached process descriptor, найденный на
 `photon/test`, через `wrapperSrc` или dynamic import action. Action получает
