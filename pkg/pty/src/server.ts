@@ -49,6 +49,7 @@ export type PtySessionInfo = {
 }
 
 type PtyRuntimeOptions = Required<PtyServerOptions>
+type PtyHttpServer = ReturnType<typeof Bun.serve<PtySocketData>>
 type PtyDaemonProxyPayload = string | ArrayBuffer
 type PtyDaemonProxyInput = string | ArrayBuffer | Uint8Array
 
@@ -755,12 +756,12 @@ export function createPtyServer(options: PtyServerOptions = {}): ReturnType<type
         GET: () => Response.json({sessions: manager.list()}),
       },
       "/terminal/sessions/:id": {
-        DELETE(req) {
+        DELETE(req: Request & {params: {id: string}}) {
           return manager.close(req.params.id) ? Response.json({ok: true}) : Response.json({error: "not found"}, {status: 404})
         },
       },
       "/terminal": {
-        GET(req, bunServer) {
+        GET(req: Request, bunServer: PtyHttpServer) {
           const url = new URL(req.url)
           if (!isAllowedOrigin(req, url)) return new Response("Forbidden", {status: 403})
           const requestedSession = url.searchParams.get("session")
@@ -778,7 +779,7 @@ export function createPtyServer(options: PtyServerOptions = {}): ReturnType<type
         },
       },
       "/:asset": {
-        GET(req) {
+        GET(req: Request & {params: {asset: string}}) {
           const asset = buildAssets.get(`/${req.params.asset}`)
           return asset === undefined ? new Response("Not Found", {status: 404}) : new Response(asset)
         },

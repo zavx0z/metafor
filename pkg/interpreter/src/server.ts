@@ -651,7 +651,7 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
       "/favicon.ico": new Response(null, {status: 204}),
       "/manifest.json": Response.json(MANIFEST),
       "/ws": {
-        GET(req, server) {
+        GET(req: Request, server: HttpServer) {
           const id = nextWsClientId++
           const data: WsClientData = {kind: "ui", id}
           const upgraded = server.upgrade(req, {data})
@@ -659,7 +659,7 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
         },
       },
       "/hud/terminal/stream": {
-        async GET(req, server) {
+        async GET(req: Request, server: HttpServer) {
           const url = new URL(req.url)
           if (!isAllowedWebSocketOrigin(req, url)) return jsonResponse({ok: false, error: "forbidden origin"}, 403)
           try {
@@ -697,7 +697,7 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
         },
       },
       "/hud/terminal/sessions/:id": {
-        async DELETE(req) {
+        async DELETE(req: Request & {params: {id: string}}) {
           try {
             await ensurePtyDaemon({baseUrl: ptydBaseUrl, cwd: process.cwd()})
             return await fetch(new URL(`/terminal/sessions/${encodeURIComponent(req.params.id)}`, ptydBaseUrl), {method: "DELETE"})
@@ -758,11 +758,6 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
       "/hud/android/toggle": {POST: route("POST", "/hud/android/toggle", (req) => dispatchUiHostRouteFromBody("hud.android.toggle", req, dispatchUiHostCommand))},
       "/hud/android/refresh": {POST: route("POST", "/hud/android/refresh", () => dispatchUiHostRoute("hud.android.refresh", {}, dispatchUiHostCommand))},
       "/hud/android/control": {POST: route("POST", "/hud/android/control", (req) => dispatchUiHostRouteFromBody("hud.android.control", req, dispatchUiHostCommand))},
-      "/hud/android/secondary": {GET: route("GET", "/hud/android/secondary", () => dispatchUiHostRoute("hud.android.secondary.get", {}, dispatchUiHostCommand))},
-      "/hud/android/secondary/dock": {POST: route("POST", "/hud/android/secondary/dock", (req) => dispatchUiHostRouteFromBody("hud.android.secondary.dock", req, dispatchUiHostCommand))},
-      "/hud/android/secondary/show": {POST: route("POST", "/hud/android/secondary/show", (req) => dispatchUiHostRouteFromBody("hud.android.secondary.show", req, dispatchUiHostCommand))},
-      "/hud/android/secondary/toggle": {POST: route("POST", "/hud/android/secondary/toggle", (req) => dispatchUiHostRouteFromBody("hud.android.secondary.toggle", req, dispatchUiHostCommand))},
-      "/hud/android/secondary/control": {POST: route("POST", "/hud/android/secondary/control", (req) => dispatchUiHostRouteFromBody("hud.android.secondary.control", req, dispatchUiHostCommand))},
       "/android/size": {GET: route("GET", "/android/size", (req) => proxyAndroidRequest(req, "/android/size"))},
       "/android/screencap": {GET: route("GET", "/android/screencap", (req) => proxyAndroidRequest(req, "/android/screencap"))},
       "/android/tap": {POST: route("POST", "/android/tap", (req) => proxyAndroidRequest(req, "/android/tap"))},
@@ -771,9 +766,9 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
       "/hud/todo": {GET: route("GET", "/hud/todo", todoMarkdownResponse), PUT: route("PUT", "/hud/todo", (req) => replaceTodoMarkdown(req, broadcast))},
       "/hud/todo/items": {POST: route("POST", "/hud/todo/items", (req) => createTodoItem(req, broadcast))},
       "/hud/todo/items/:id": {
-        PATCH: requestRoute("PATCH", (req) => patchTodoItem(req.params.id, req, broadcast)),
-        POST: requestRoute("POST", (req) => patchTodoItem(req.params.id, req, broadcast)),
-        DELETE: requestRoute("DELETE", (req) => deleteTodoItem(req.params.id, broadcast)),
+        PATCH: requestRoute("PATCH", (req) => patchTodoItem(req.params.id!, req, broadcast)),
+        POST: requestRoute("POST", (req) => patchTodoItem(req.params.id!, req, broadcast)),
+        DELETE: requestRoute("DELETE", (req) => deleteTodoItem(req.params.id!, broadcast)),
       },
       "/hud/todo/panel": {GET: route("GET", "/hud/todo/panel", () => dispatchUiHostRoute("hud.todo.get", {}, dispatchUiHostCommand))},
       "/hud/todo/highlight": {POST: route("POST", "/hud/todo/highlight", (req) => dispatchUiHostRouteFromBody("hud.todo.highlight", req, dispatchUiHostCommand))},
@@ -2632,11 +2627,6 @@ function hudCommandForTool(name: string): {command: string; paramsFromBody: bool
     "hud.android.toggle": {command: "hud.android.toggle", paramsFromBody: true},
     "hud.android.refresh": {command: "hud.android.refresh", paramsFromBody: false},
     "hud.android.control": {command: "hud.android.control", paramsFromBody: true},
-    "hud.android.secondary.get": {command: "hud.android.secondary.get", paramsFromBody: false},
-    "hud.android.secondary.dock": {command: "hud.android.secondary.dock", paramsFromBody: true},
-    "hud.android.secondary.show": {command: "hud.android.secondary.show", paramsFromBody: true},
-    "hud.android.secondary.toggle": {command: "hud.android.secondary.toggle", paramsFromBody: true},
-    "hud.android.secondary.control": {command: "hud.android.secondary.control", paramsFromBody: true},
     "todo.panel": {command: "hud.todo.get", paramsFromBody: false},
     "todo.highlight": {command: "hud.todo.highlight", paramsFromBody: true},
     "todo.dock": {command: "hud.todo.dock", paramsFromBody: true},

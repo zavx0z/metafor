@@ -55,7 +55,7 @@ export type AndroidRtcClientOpts = {
   room?: string
   peerId?: string
   senderPeerId?: string
-  peerTarget?: "primary" | "secondary" | "any"
+  peerTarget?: "primary" | "any"
   signalUrl?: string
   signalUrls?: string[]
   iceServers?: RTCIceServer[]
@@ -1011,18 +1011,16 @@ function isAndroidRtcSenderPeer(peerId: string): boolean {
   return peerId === ANDROID_RTC_SENDER_PEER || peerId.startsWith(`${ANDROID_RTC_SENDER_PEER}-`)
 }
 
-function isTargetAndroidRtcSenderPeer(peerId: string, target: "primary" | "secondary" | "any"): boolean {
+function isTargetAndroidRtcSenderPeer(peerId: string, target: "primary" | "any"): boolean {
   if (!isAndroidRtcSenderPeer(peerId)) return false
   if (target === "any") return true
-  if (target === "secondary") return peerId !== ANDROID_RTC_SENDER_PEER
   return peerId === ANDROID_RTC_SENDER_PEER
 }
 
-function isTargetRtcSenderPeer(peerId: string, target: "primary" | "secondary" | "any", senderPeerId: string): boolean {
+function isTargetRtcSenderPeer(peerId: string, target: "primary" | "any", senderPeerId: string): boolean {
   if (senderPeerId === ANDROID_RTC_SENDER_PEER) return isTargetAndroidRtcSenderPeer(peerId, target)
   if (peerId !== senderPeerId && !peerId.startsWith(`${senderPeerId}-`)) return false
   if (target === "any") return true
-  if (target === "secondary") return peerId !== senderPeerId
   return peerId === senderPeerId
 }
 
