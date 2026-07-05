@@ -513,6 +513,8 @@ Focused input caret blinking разрешен. Не добавляй render loop
 
 MetaFor UI engine request-render based. Не добавляй continuous render loops, periodic repaint timers или repeated diagnostic repaints. Repaint только от state changes, input events, WebSocket/module events, resize/layout changes или focused input caret blink.
 
+HUD/window layout в interpreter должен идти через общие UI primitives: `flexRow`/`flexColumn` и `ui/panes/pane-frame.ts` для pane chrome. Не добавляй локальную параллельную геометрию, ручные sibling-surface offsets или отдельные floating surfaces для content, который визуально находится внутри окна. Если legacy/low-level content уже живет sibling `UiSurface`, parent и sibling должны использовать один общий rect от `pane-frame`. Для стандартных HUD panes title/header веди через общий title bar path, чтобы minimize/actions/title/subtitle оставались одинаковыми.
+
 После browser reload или hot reload серый canvas на моментальном screenshot может означать, что WebGPU еще не presented. Подожди перед выводом, что UI blank. Не добавляй permanent repaint logic ради раннего screenshot.
 
 При screenshot tests жди стабилизации UI перед capture. Для Chrome automation используй local Chrome service и exact browser window/tab.

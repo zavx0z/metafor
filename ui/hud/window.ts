@@ -1,6 +1,6 @@
 import {Color} from "@metafor/engine"
 import {IconButton, type ButtonVariant} from "@ui/components"
-import {Z, palette, uiIcons, type Tone, type UiSurface} from "@ui/elements"
+import {Z, flexRow, palette, uiIcons, type Tone, type UiSurface} from "@ui/elements"
 
 export type HudWindowTitleBarAction = {
   label: string
@@ -40,29 +40,48 @@ export function HudWindowTitleBar(host: UiSurface, x: number, y: number, w: numb
   const insetX = props.insetX ?? 16
   const buttonSize = props.buttonSize ?? 22
   const buttonGap = props.buttonGap ?? 5
-  const buttonY = y + Math.max(0, (h - buttonSize) / 2)
   const z = props.z ?? Z.TEXT
-  let left = x + insetX
-  if (props.onMinimize !== undefined) {
-    IconButton(host, left, buttonY, buttonSize, buttonSize, {
-      label: props.minimizeLabel ?? "Свернуть",
-      iconSrc: uiIcons.minus,
-      variant: "text",
-      radius: 7,
-      action: props.onMinimize,
-    })
-    left += buttonSize + buttonGap
-  }
-  left = drawTitleBarActions(host, props.leftActions ?? [], left, buttonY, buttonSize, buttonGap)
+  const leftActions = props.leftActions ?? []
+  const rightActions = props.rightActions ?? []
+  const leftActionsW = (props.onMinimize === undefined ? 0 : buttonSize + (leftActions.length > 0 ? buttonGap : 0))
+    + titleBarActionsWidth(leftActions, buttonSize, buttonGap)
+  const rightActionsW = titleBarActionsWidth(rightActions, buttonSize, buttonGap)
+  const sideW = Math.max(leftActionsW, rightActionsW)
+  let titleRect = {x: x + insetX + sideW, y, w: Math.max(1, w - insetX * 2 - sideW * 2), h}
+  flexRow({
+    x,
+    y,
+    w,
+    h,
+    paddingLeft: insetX,
+    paddingRight: insetX,
+    alignItems: "center",
+    items: [
+      {width: sideW, height: h, draw: (slotX, slotY, _slotW, slotH) => {
+        let left = slotX
+        const buttonY = slotY + Math.max(0, (slotH - buttonSize) / 2)
+        if (props.onMinimize !== undefined) {
+          IconButton(host, left, buttonY, buttonSize, buttonSize, {
+            label: props.minimizeLabel ?? "Свернуть",
+            iconSrc: uiIcons.minus,
+            variant: "text",
+            radius: 7,
+            action: props.onMinimize,
+          })
+          left += buttonSize + buttonGap
+        }
+        drawTitleBarActions(host, leftActions, left, buttonY, buttonSize, buttonGap)
+      }},
+      {width: "grow", height: h, draw: (slotX, slotY, slotW, slotH) => { titleRect = {x: slotX, y: slotY, w: Math.max(1, slotW), h: slotH} }},
+      {width: sideW, height: h, draw: (slotX, slotY, slotW, slotH) => {
+        const buttonY = slotY + Math.max(0, (slotH - buttonSize) / 2)
+        drawTitleBarActions(host, rightActions, slotX + Math.max(0, slotW - rightActionsW), buttonY, buttonSize, buttonGap)
+      }},
+    ],
+  })
 
-  const rightActionsW = titleBarActionsWidth(props.rightActions ?? [], buttonSize, buttonGap)
-  const rightStart = x + w - insetX - rightActionsW
-  drawTitleBarActions(host, props.rightActions ?? [], rightStart, buttonY, buttonSize, buttonGap)
-
-  const titleLeft = left + buttonGap
-  const titleRight = rightStart - buttonGap
-  const titleCenterX = x + w / 2
-  const titleMaxW = Math.max(1, Math.min(titleCenterX - titleLeft, titleRight - titleCenterX) * 2)
+  const titleCenterX = titleRect.x + titleRect.w / 2
+  const titleMaxW = Math.max(1, titleRect.w - buttonGap * 2)
   const titleFontPx = props.titleFontPx ?? 12
   const subtitleFontPx = props.subtitleFontPx ?? 10
   host.drawTextCentered(props.title, titleCenterX, y + (props.subtitle === undefined || props.subtitle.length === 0 ? 12 : 10), {

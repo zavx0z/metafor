@@ -5,6 +5,8 @@
  * TerminalPane и следующие panes не расходились из-за локальных magic numbers.
  */
 
+import {flexColumn} from "@ui/elements"
+
 export type PaneRect = {
   x: number
   y: number
@@ -78,12 +80,32 @@ export function paneBodyRect(
   const bottomInset = opts.bottomInset ?? PANE_FRAME.bodyBottomInset
   const headerHeight = opts.headerHeight ?? PANE_FRAME.headerHeight
   const y = showHeader ? headerHeight + topGap : 0
-  return {
+  const body = {
     x: insetX,
     y,
     w: Math.max(1, rectW - insetX * 2),
     h: Math.max(1, rectH - y - bottomInset),
   }
+  flexColumn({
+    x: 0,
+    y: 0,
+    w: rectW,
+    h: rectH,
+    paddingLeft: insetX,
+    paddingRight: insetX,
+    paddingBottom: bottomInset,
+    items: [
+      showHeader && {height: headerHeight, draw: () => {}},
+      showHeader && {height: topGap, draw: () => {}},
+      {height: "grow", draw: (x, y, w, h) => {
+        body.x = x
+        body.y = y
+        body.w = Math.max(1, w)
+        body.h = Math.max(1, h)
+      }},
+    ],
+  })
+  return body
 }
 
 export function paneFrameHit(localX: number, localY: number, rectW: number, rectH: number, opts: PaneFrameInteractionOpts = {}): PaneFrameInteractionKind | null {

@@ -1,6 +1,7 @@
 import {Color, TextMaterial} from "@metafor/engine"
 import {Button, Switcher, uiIcons} from "@ui/components"
 import {UiSurface, Z, palette, type UiSurfaceRect} from "@ui/elements"
+import {HudWindowTitleBar} from "@ui/hud"
 import {PANE_FRAME, paneBodyRect} from "./pane-frame.ts"
 
 export type NetworkWatchServiceKey = "tls" | "redirect"
@@ -109,8 +110,6 @@ export class NetworkWatchPane extends UiSurface {
   }
 
   #renderHeader(w: number): void {
-    const statusMaterial = this.#snapshot.actionStatus.includes("failed") ? this.materials.orange : this.materials.muted
-    const pad = PANE_FRAME.headerTextX
     const autoLabel = this.#snapshot.autoRefresh
       ? this.#snapshot.autoRefreshActive
         ? "stats active"
@@ -118,18 +117,14 @@ export class NetworkWatchPane extends UiSurface {
       : "stats off"
     const productLabel = this.#snapshot.productViaInterpreter ? "interpreter" : "direct"
     const status = `${this.#sessionLabel} | ${productLabel} | ${autoLabel} | ${this.#snapshot.actionStatus}`
-    const titleW = Math.min(Math.max(110, this.measureText(this.#title, 13) + 14), Math.max(1, w * 0.34))
-    this.drawText(this.#title, pad, PANE_FRAME.headerTextY, {
-      fontPx: 13,
-      material: this.materials.cyan,
-      maxWidthPx: titleW,
+    HudWindowTitleBar(this, 0, 0, w, {
+      title: this.#title,
+      subtitle: status,
+      height: NETWORK_HEADER_H,
+      titleFontPx: 13,
+      subtitleFontPx: 10,
+      ruleColor: palette.borderDim,
     })
-    this.drawText(status, pad + titleW, PANE_FRAME.headerTextY + 1, {
-      fontPx: 10,
-      material: statusMaterial,
-      maxWidthPx: Math.max(1, w - pad - titleW - 12),
-    })
-
   }
 
   #renderBody(rect: UiSurfaceRect): void {

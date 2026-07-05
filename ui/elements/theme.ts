@@ -26,6 +26,7 @@ export const palette = {
   borderDim: rgb(62, 74, 92, 1),
   borderRule: rgb(48, 54, 61, 1),     // Gutter / scrollbar-track / тонкие divider'ы.
   borderBright: rgb(180, 195, 220, 1), // Outline для контрастных поверхностей (console).
+  windowActiveBorder: rgb(132, 192, 220, 0.82),
 
   // Text.
   text: rgb(232, 238, 247, 1),

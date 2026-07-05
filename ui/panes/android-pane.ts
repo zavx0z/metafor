@@ -1,6 +1,7 @@
 import {Color, TextMaterial} from "@metafor/engine"
-import {Button, IconButton, uiIcons} from "@ui/components"
+import {Button, uiIcons} from "@ui/components"
 import {UiSurface, Z, palette, radii, type UiSurfaceRect} from "@ui/elements"
+import {HudWindowTitleBar, type HudWindowTitleBarAction} from "@ui/hud"
 import {
   PANE_FRAME,
   beginPaneFrameDrag,
@@ -8,7 +9,6 @@ import {
   paneFrameCursor,
   paneFrameDragRect,
   paneFrameHit,
-  paneHeaderRuleRect,
   type PaneFrameDrag,
   type PaneFrameInteractionOpts,
   type PaneRect,
@@ -89,7 +89,6 @@ export class AndroidPane extends UiSurface {
   #onFrameRectPreview: ((rect: PaneRect) => void) | undefined
   #onFrameRectChange: ((rect: PaneRect) => void) | undefined
   #onFrameDockRequest: (() => void) | undefined
-  #titleMaterial = new TextMaterial({color: palette.cyan})
   #mutedMaterial = new TextMaterial({color: palette.muted})
   #textMaterial = new TextMaterial({color: palette.text})
   #errorMaterial = new TextMaterial({color: palette.red})
@@ -154,7 +153,7 @@ export class AndroidPane extends UiSurface {
     this.drawRoundedRect(0, 0, w, h, {
       radius: radii.pane,
       fill: ANDROID_PANEL_BG,
-      border: palette.borderDim,
+      border: this.active ? palette.windowActiveBorder : palette.borderDim,
       borderWidth: 1,
       z: Z.CONTAINER,
     })
@@ -164,40 +163,27 @@ export class AndroidPane extends UiSurface {
   }
 
   #renderHeader(w: number): void {
-    const pad = PANE_FRAME.headerTextX
     const buttonSize = 22
-    const hasDock = this.#onFrameDockRequest !== undefined
-    const dockButtonX = pad
-    const titleX = hasDock ? dockButtonX + buttonSize + 8 : pad
-    const refreshButtonX = this.#onRefresh === undefined ? w - pad : w - pad - buttonSize
-    const titleMaxW = Math.max(1, refreshButtonX - titleX - 8)
-    if (this.#onFrameDockRequest !== undefined) {
-      IconButton(this, dockButtonX, 7, buttonSize, buttonSize, {
-        label: "Dock Android",
-        iconSrc: uiIcons.minus,
-        action: this.#onFrameDockRequest,
-      })
-    }
-    this.drawText(this.#title, titleX, PANE_FRAME.headerTextY, {
-      fontPx: 13,
-      material: this.#titleMaterial,
-      maxWidthPx: titleMaxW,
-    })
-    const titleW = Math.min(titleMaxW, this.measureText(this.#title, 13))
-    this.drawText(this.#status, titleX + titleW + 14, PANE_FRAME.headerTextY + 1, {
-      fontPx: 10,
-      material: this.#statusKind === "error" ? this.#errorMaterial : this.#mutedMaterial,
-      maxWidthPx: Math.max(1, refreshButtonX - titleX - titleW - 20),
-    })
+    const rightActions: HudWindowTitleBarAction[] = []
     if (this.#onRefresh !== undefined) {
-      IconButton(this, refreshButtonX, 7, buttonSize, buttonSize, {
+      rightActions.push({
         label: "Refresh Android",
         iconSrc: uiIcons.restart,
         action: this.#onRefresh,
+        width: buttonSize,
       })
     }
-    const rule = paneHeaderRuleRect(w, ANDROID_HEADER_H, PANE_FRAME.bodyInsetX)
-    this.drawRect(rule.x, rule.y, rule.w, rule.h, palette.borderDim)
+    HudWindowTitleBar(this, 0, 0, w, {
+      title: this.#title,
+      subtitle: this.#status,
+      ...(this.#onFrameDockRequest === undefined ? {} : {onMinimize: this.#onFrameDockRequest}),
+      minimizeLabel: "Dock Android",
+      rightActions,
+      height: ANDROID_HEADER_H,
+      titleFontPx: 13,
+      subtitleFontPx: 10,
+      ruleColor: palette.borderDim,
+    })
   }
 
   #renderBody(rect: UiSurfaceRect): void {

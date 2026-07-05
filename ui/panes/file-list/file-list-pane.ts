@@ -1,6 +1,7 @@
 import {Color, TextMaterial} from "@metafor/engine"
-import {IconButton, uiIcons} from "@ui/components"
+import {uiIcons} from "@ui/components"
 import {UiSurface, Z, divScrollPosition, divScrollTo, li, palette, radii, span, textMaterial, ul, type LiElementState} from "@ui/elements"
+import {HudWindowTitleBar, type HudWindowTitleBarAction} from "@ui/hud"
 import {
   PANE_FRAME,
   beginPaneFrameDrag,
@@ -8,7 +9,6 @@ import {
   paneFrameCursor,
   paneFrameDragRect,
   paneFrameHit,
-  paneHeaderRuleRect,
   type PaneFrameDrag,
   type PaneFrameInteractionOpts,
   type PaneRect,
@@ -233,14 +233,12 @@ export class FileListPane extends UiSurface {
   #onFrameRectChange: ((rect: PaneRect) => void) | undefined
   #onFrameDockRequest: (() => void) | undefined
 
-  #titleMaterial: TextMaterial
   #statusMaterial: TextMaterial
   #mutedMaterial: TextMaterial
 
   constructor(opts: FileListPaneOpts = {}) {
     super({bgColor: null, borderColor: null})
     this.#theme = resolveFileListPaneTheme(opts.theme)
-    this.#titleMaterial = new TextMaterial({color: this.#theme.header.title})
     this.#statusMaterial = new TextMaterial({color: this.#theme.row.muted})
     this.#mutedMaterial = new TextMaterial({color: this.#theme.row.disabledText})
     this.node.name = "FileListPane"
@@ -266,7 +264,6 @@ export class FileListPane extends UiSurface {
 
   setTheme(theme: FileListPaneThemeInput): void {
     this.#theme = resolveFileListPaneTheme(theme)
-    this.#titleMaterial = new TextMaterial({color: this.#theme.header.title})
     this.#statusMaterial = new TextMaterial({color: this.#theme.row.muted})
     this.#mutedMaterial = new TextMaterial({color: this.#theme.row.disabledText})
     this.requestRender()
@@ -528,7 +525,7 @@ export class FileListPane extends UiSurface {
     this.drawRoundedRect(0, 0, this.rectW, this.rectH, {
       radius: Math.min(surface.borderRadiusPx, Math.min(this.rectW, this.rectH) / 2),
       fill: surface.background,
-      border: surface.border,
+      border: this.active && surface.border !== null ? palette.windowActiveBorder : surface.border,
       borderWidth: surface.borderWidthPx,
       z: -0.16,
     })
@@ -536,40 +533,27 @@ export class FileListPane extends UiSurface {
 
   #renderHeader(): void {
     const buttonSize = 22
-    const hasDirectoryButton = this.#onOpenDirectoryRequest !== undefined
-    const hasDockButton = this.#onFrameDockRequest !== undefined
     const status = this.#headerStatus(this.#rows())
-    const statusW = Math.max(72, Math.min(180, this.rectW * 0.34))
-    const dockButtonX = PANE_FRAME.headerTextX
-    const titleX = hasDockButton ? dockButtonX + buttonSize + 8 : PANE_FRAME.headerTextX
-    const statusRight = this.rectW - PANE_FRAME.headerTextX
-    const statusX = statusRight - statusW
-    const buttonX = hasDirectoryButton ? statusX - buttonSize - 6 : statusX
-    const titleW = Math.max(1, (hasDirectoryButton ? buttonX : statusX) - titleX - 8)
-    if (hasDockButton) {
-      IconButton(this, dockButtonX, 7, buttonSize, buttonSize, {
-        label: "Dock",
-        iconSrc: uiIcons.minus,
-        action: () => this.#onFrameDockRequest?.(),
-      })
-    }
-    span(this, titleX, PANE_FRAME.headerTextY - 3, titleW, 22, {
-      children: this.#title,
-      style: {fontSize: 13, color: this.#theme.header.title},
-    })
-    if (hasDirectoryButton) {
-      IconButton(this, buttonX, 7, buttonSize, buttonSize, {
+    const rightActions: HudWindowTitleBarAction[] = []
+    if (this.#onOpenDirectoryRequest !== undefined) {
+      rightActions.push({
         label: "Open directory",
         iconSrc: uiIcons.plus,
         action: () => this.#onOpenDirectoryRequest?.(),
+        width: buttonSize,
       })
     }
-    span(this, statusX, PANE_FRAME.headerTextY - 3, statusW, 22, {
-      children: status,
-      style: {fontSize: 10, color: this.#theme.header.status, textAlign: "right"},
+    HudWindowTitleBar(this, 0, 0, this.rectW, {
+      title: this.#title,
+      subtitle: status,
+      ...(this.#onFrameDockRequest === undefined ? {} : {onMinimize: () => this.#onFrameDockRequest?.()}),
+      minimizeLabel: "Dock",
+      rightActions,
+      height: PANE_FRAME.headerHeight,
+      titleFontPx: 13,
+      subtitleFontPx: 10,
+      ruleColor: this.#theme.header.rule,
     })
-    const rule = paneHeaderRuleRect(this.rectW)
-    this.drawRect(rule.x, rule.y, rule.w, rule.h, this.#theme.header.rule, Z.SEPARATOR)
   }
 
   #renderRow(row: FileListVisibleRow, x: number, y: number, w: number, h: number): void {

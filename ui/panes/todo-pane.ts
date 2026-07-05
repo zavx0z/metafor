@@ -172,7 +172,7 @@ export class ToDoPane extends UiSurface {
     this.drawRoundedRect(0, 0, w, h, {
       radius: radii.pane,
       fill: TODO_PANEL_BG,
-      border: palette.borderDim,
+      border: this.active ? palette.windowActiveBorder : palette.borderDim,
       borderWidth: 1,
       z: Z.CONTAINER,
     })

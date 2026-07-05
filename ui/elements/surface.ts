@@ -330,6 +330,7 @@ export abstract class UiSurface implements UiSurfaceNode {
   readonly #roundedChrome: Mesh | null
   readonly #bgColor: Color | null
   readonly #borderColor: Color | null
+  #active = false
   readonly #backgroundLayer: Object3D
   readonly #underlayLayer: Object3D
   readonly #contentUnderlayLayer: Object3D
@@ -473,6 +474,17 @@ export abstract class UiSurface implements UiSurfaceNode {
 
   attachCanvas(canvas: UiRuntime): void {
     this.canvas = canvas
+  }
+
+  protected get active(): boolean {
+    return this.#active
+  }
+
+  setActive(active: boolean): void {
+    if (this.#active === active) return
+    this.#active = active
+    if (this.font !== null) this.#syncChrome(this.#fullRectW, this.#fullRectH)
+    this.requestRender()
   }
 
   setFramebufferClipSpace(space: "display" | "screen"): void {
@@ -1098,6 +1110,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     const ps = this.pixelScale
     const w = fullW
     const h = fullH
+    const borderColor = this.#active && this.#borderColor !== null ? palette.windowActiveBorder : this.#borderColor
 
     if (this.#roundedChrome !== null) {
       this.#replaceGeometry(this.#roundedChrome, new PlaneGeometry({width: w * ps, height: h * ps}))
@@ -1106,7 +1119,7 @@ export abstract class UiSurface implements UiSurfaceNode {
         height: h * ps,
         radius: Math.min(this.#borderRadiusPx, Math.min(w, h) / 2) * ps,
         fill: this.#bgColor ?? new Color(1, 1, 1, 0),
-        border: this.#borderColor,
+        border: borderColor,
         borderWidth: this.#borderWidthPx * ps,
       })
       this.#roundedChrome.position.x = (w / 2) * ps
@@ -1122,6 +1135,9 @@ export abstract class UiSurface implements UiSurfaceNode {
     }
 
     if (this.#borderTop !== null) {
+      for (const border of [this.#borderTop, this.#borderBottom!, this.#borderLeft!, this.#borderRight!]) {
+        if (border.material instanceof MeshBasicMaterial) border.material.color = borderColor?.clone() ?? palette.transparent.clone()
+      }
       const bw = this.#borderWidthPx
       const bwWorld = bw * ps
       const wWorld = w * ps

@@ -17,7 +17,6 @@ pkg/voice/recordings/
 **/.npmrc
 old
 .ai
-app/web/tls
 .claude/
 .ai/
 **/Снимок экрана*.png

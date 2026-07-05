@@ -20,7 +20,12 @@ import {handleActiveInputKey, insertActiveInputText, surfaceHasActiveInput} from
 export type UiSurfaceRect = {x: number; y: number; w: number; h: number; visible?: boolean}
 export type UiSurfaceLayoutFn = (canvas: {w: number; h: number}) => UiSurfaceRect
 export type UiSurfaceLayerOpts = {
+  /** Local order inside a window. Without windowId this is the legacy global surface layer. */
   zIndex?: number
+  /** OS-style window identity. Surfaces with the same id move together in window order. */
+  windowId?: string
+  /** Coarse outer layer for the whole window: ordinary windows, docks, overlays. */
+  windowZIndex?: number
 }
 export type UiRuntimeRelayoutScope = "space" | "hud" | "all"
 export type UiRuntimeRelayoutOpts = {
@@ -85,6 +90,7 @@ export interface UiSurfaceNode {
   setFramebufferClipSpace?(space: "display" | "screen"): void
   setFramebufferDisplayId?(displayId: UiDisplayId): void
   onPointerLeave?(): void
+  setActive?(active: boolean): void
   onActivate?(): void
   onDeactivate?(): void
   dispose?(): void
@@ -99,7 +105,10 @@ type SurfaceSlot = {
   target: "display" | "hud"
   displayId?: UiDisplayId
   order: number
+  windowZIndex: number
   zIndex: number
+  windowId: string | null
+  windowOrder: number
 }
 
 type DisplaySlot = {
@@ -263,6 +272,10 @@ export class UiRuntime {
   readonly #displaySlots = new Map<UiDisplayId, DisplaySlot>()
   readonly #surfaceDisplayId: UiDisplayId = "__surface__"
   #surfaceOrder = 0
+  #windowOrder = 0
+  readonly #windowOrders = new Map<string, number>()
+  readonly #windowZIndexes = new Map<string, number>()
+  #activeWindowId: string | null = null
   #activeDisplayId: UiDisplayId | null = null
   #focused: UiSurfaceNode | null = null
   #pixelWidth = 800
@@ -456,6 +469,7 @@ export class UiRuntime {
     else displaySlot.display.add(surface.node)
     const metrics = this.#surfaceMetrics("display", displayId)
     const rect = layout({w: metrics.w, h: metrics.h})
+    const windowId = this.#surfaceWindowId(opts)
     this.#surfaces.push({
       surface,
       layout,
@@ -463,8 +477,12 @@ export class UiRuntime {
       target: "display",
       displayId,
       order: this.#surfaceOrder++,
-      zIndex: opts.zIndex ?? 0,
+      windowZIndex: this.#surfaceWindowZIndexFor(windowId, opts),
+      zIndex: windowId === null ? 0 : opts.zIndex ?? 0,
+      windowId,
+      windowOrder: this.#windowOrderFor(windowId),
     })
+    this.#syncActiveSurfaceStates()
     this.#sortSurfaceSlots()
     this.#applyLayout({scope: "space"})
     this.requestRender()
@@ -477,14 +495,19 @@ export class UiRuntime {
     this.hud.add(surface.node)
     const metrics = this.#surfaceMetrics("hud")
     const rect = layout({w: metrics.w, h: metrics.h})
+    const windowId = this.#surfaceWindowId(opts)
     this.#surfaces.push({
       surface,
       layout,
       rect,
       target: "hud",
       order: this.#surfaceOrder++,
-      zIndex: opts.zIndex ?? 0,
+      windowZIndex: this.#surfaceWindowZIndexFor(windowId, opts),
+      zIndex: windowId === null ? 0 : opts.zIndex ?? 0,
+      windowId,
+      windowOrder: this.#windowOrderFor(windowId),
     })
+    this.#syncActiveSurfaceStates()
     this.#sortSurfaceSlots()
     this.#applyLayout({scope: "hud"})
     this.requestRender()
@@ -1337,11 +1360,57 @@ export class UiRuntime {
   }
 
   setFocused(surface: UiSurfaceNode | null): void {
+    if (surface !== null) {
+      const slot = this.#surfaces.find((surfaceSlot) => surfaceSlot.surface === surface)
+      if (slot !== undefined) this.#activateSurfaceWindow(slot)
+    }
     if (this.#focused === surface) return
     this.#focused?.onDeactivate?.()
     this.#focused = surface
     surface?.onActivate?.()
     this.requestRender()
+  }
+
+  #surfaceWindowId(opts: UiSurfaceLayerOpts): string | null {
+    const windowId = opts.windowId?.trim()
+    return windowId === undefined || windowId.length === 0 ? null : windowId
+  }
+
+  #surfaceWindowZIndexFor(windowId: string | null, opts: UiSurfaceLayerOpts): number {
+    if (windowId === null) return opts.zIndex ?? 0
+    const existing = this.#windowZIndexes.get(windowId)
+    if (existing !== undefined) return existing
+    const zIndex = opts.windowZIndex ?? 0
+    this.#windowZIndexes.set(windowId, zIndex)
+    return zIndex
+  }
+
+  #windowOrderFor(windowId: string | null): number {
+    if (windowId === null) return 0
+    const existing = this.#windowOrders.get(windowId)
+    if (existing !== undefined) return existing
+    const order = ++this.#windowOrder
+    this.#windowOrders.set(windowId, order)
+    return order
+  }
+
+  #activateSurfaceWindow(slot: SurfaceSlot): void {
+    if (slot.windowId === null) return
+    const order = ++this.#windowOrder
+    this.#windowOrders.set(slot.windowId, order)
+    for (const surfaceSlot of this.#surfaces) {
+      if (surfaceSlot.windowId === slot.windowId) surfaceSlot.windowOrder = order
+    }
+    this.#activeWindowId = slot.windowId
+    this.#syncActiveSurfaceStates()
+    this.#sortSurfaceSlots()
+    this.requestRender()
+  }
+
+  #syncActiveSurfaceStates(): void {
+    for (const slot of this.#surfaces) {
+      slot.surface.setActive?.(slot.windowId !== null && slot.windowId === this.#activeWindowId && slot.zIndex === 0)
+    }
   }
 
   #clearKeyboardFocus(): void {
@@ -1389,7 +1458,7 @@ export class UiRuntime {
   // ────────────────────────── Internal layout ──────────────────────────
 
   #sortSurfaceSlots(): void {
-    this.#surfaces.sort((a, b) => a.zIndex - b.zIndex || a.order - b.order)
+    this.#surfaces.sort((a, b) => a.windowZIndex - b.windowZIndex || a.windowOrder - b.windowOrder || a.zIndex - b.zIndex || a.order - b.order)
     this.#syncSurfaceNodeOrder()
   }
 

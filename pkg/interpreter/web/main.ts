@@ -9,6 +9,8 @@ import {Color, TextureLoader} from "@metafor/engine"
 import {
   UiRuntime,
   UiSurface,
+  flexColumn,
+  flexRow,
   palette,
   radii,
   uiIcons,
@@ -32,6 +34,7 @@ import {
   beginPaneFrameDrag,
   networkWatchSectionsFromLines,
   normalizeFileListSelection,
+  paneBodyRect,
   paneFrameCursor,
   paneFrameDragRect,
   paneFrameHit,
@@ -1656,8 +1659,8 @@ function showSqliteHudController(id: string): void {
 function installSqliteHudSurfaces(controller: SqliteDisplayController): void {
   if (uiCanvas === null || sqliteHudSurfaceIds.has(controller.id)) return
   sqliteHudSurfaceIds.add(controller.id)
-  uiCanvas.addHudSurface(controller.tables, (canvas) => sqliteHudRects(controller.id, canvas).tables)
-  uiCanvas.addHudSurface(controller.rows, (canvas) => sqliteHudRects(controller.id, canvas).rows)
+  uiCanvas.addHudSurface(controller.tables, (canvas) => sqliteHudRects(controller.id, canvas).tables, {windowId: "hud:sqlite", zIndex: 1})
+  uiCanvas.addHudSurface(controller.rows, (canvas) => sqliteHudRects(controller.id, canvas).rows, {windowId: "hud:sqlite", zIndex: 1})
 }
 
 function sqliteOpenParams(params: unknown): SqliteOpenParams {
@@ -2945,7 +2948,7 @@ function installEnginePanes(): void {
   if (uiCanvas === null || displayHoverOutlinePane === null) return
   uiCanvas.addHudSurface(displayHoverOutlinePane, ({w, h}) => ({x: 0, y: 0, w, h}), {zIndex: HUD_LAYER_TOP})
   if (todoPane !== null) {
-    uiCanvas.addHudSurface(todoPane, todoHudRect, {zIndex: HUD_LAYER_TOP - 18})
+    uiCanvas.addHudSurface(todoPane, todoHudRect, {windowId: "hud:todo"})
   }
   todoDockPane ??= new HostTerminalDockPane({
     key: "todo-dock-restore",
@@ -2962,16 +2965,16 @@ function installEnginePanes(): void {
     () => activeSqliteController()?.path ?? "",
     () => setSqliteHudDocked(true),
   )
-  uiCanvas.addHudSurface(sqliteHudPane, sqliteHudRect)
+  uiCanvas.addHudSurface(sqliteHudPane, sqliteHudRect, {windowId: "hud:sqlite"})
   for (const controller of sqliteDisplays.values()) installSqliteHudSurfaces(controller)
   const host = ensureHostTerminalController()
-  uiCanvas.addHudSurface(host.hudTerminal, hostTerminalHudRect)
-  uiCanvas.addHudSurface(host.codexComposer, hostCodexComposerRect, {zIndex: HUD_LAYER_TOP - 20})
-  uiCanvas.addHudSurface(host.codexEditor, hostCodexEditorRect, {zIndex: HUD_LAYER_TOP - 19})
+  uiCanvas.addHudSurface(host.hudTerminal, hostTerminalHudRect, {windowId: "hud:terminal"})
+  uiCanvas.addHudSurface(host.codexComposer, hostCodexComposerRect, {windowId: "hud:codex"})
+  uiCanvas.addHudSurface(host.codexEditor, hostCodexEditorRect, {windowId: "hud:codex", zIndex: 1})
   if (host.socket === null) connectHostTerminal(host)
   installHostCodexComposerDragHandlers()
   if (androidPane !== null) {
-    uiCanvas.addHudSurface(androidPane, androidHudRect)
+    uiCanvas.addHudSurface(androidPane, androidHudRect, {windowId: "hud:android"})
     connectAndroidRtc()
   }
   androidDockPane ??= new HostTerminalDockPane({
@@ -2985,7 +2988,7 @@ function installEnginePanes(): void {
   })
   uiCanvas.addHudSurface(androidDockPane, androidDockRect, {zIndex: HUD_LAYER_TOP})
   if (secondaryAndroidPane !== null) {
-    uiCanvas.addHudSurface(secondaryAndroidPane, secondaryAndroidHudRect)
+    uiCanvas.addHudSurface(secondaryAndroidPane, secondaryAndroidHudRect, {windowId: "hud:android-secondary"})
     connectSecondaryAndroidRtc()
   }
   secondaryAndroidDockPane ??= new HostTerminalDockPane({
@@ -5497,20 +5500,23 @@ class HostTerminalCodexComposerPane extends UiSurface {
   protected render(): void {
     const w = Math.max(1, this.rectW)
     const h = Math.max(1, this.rectH)
-    const pad = HOST_TERMINAL_CODEX_COMPOSER_PAD
     this.drawRoundedRect(0, 0, w, h, {
       radius: radii.pane,
-      fill: new Color(0.04, 0.06, 0.09, 0.74),
-      border: this.controller.codexDropActive ? palette.cyan : palette.borderDim,
+      fill: new Color(0.04, 0.06, 0.09, 0.52),
+      border: this.controller.codexDropActive ? palette.cyan : this.active ? palette.windowActiveBorder : palette.borderDim,
       borderWidth: this.controller.codexDropActive ? 1.3 : 1,
       z: Z.CONTAINER,
     })
     this.#renderHeader(w)
-    const bodyW = Math.max(1, w - pad * 2)
-    if (this.controller.codexAttachments.length > 0) {
-      const footerY = PANE_FRAME.headerHeight + PANE_FRAME.bodyTopGap + hostCodexComposerEditorHeight(h, true) + 8
-      this.#drawAttachmentRow(pad, footerY, bodyW, h - pad)
-    }
+    const layout = hostCodexComposerContentLayout(w, h, this.controller.codexAttachments.length > 0)
+    this.drawRoundedRect(layout.editor.x, layout.editor.y, layout.editor.w, layout.editor.h, {
+      radius: 8,
+      fill: new Color(0.04, 0.06, 0.09, 0.26),
+      border: palette.borderDim,
+      borderWidth: 1,
+      z: Z.CONTAINER + 0.02,
+    })
+    if (layout.attachments !== null) this.#drawAttachmentRow(layout.attachments.x, layout.attachments.y, layout.attachments.w, layout.attachments.y + layout.attachments.h)
     if (this.controller.codexDropActive) this.#drawDropOverlay(w, h)
   }
 
@@ -5706,7 +5712,7 @@ class HostTerminalCodexComposerPane extends UiSurface {
     const drag = this.#frameDrag
     const frame = this.canvas?.surfaceFrame(this)
     if (drag === null || frame === undefined || frame === null) return false
-    const next = paneFrameDragRect(drag, event, frame.bounds)
+    const next = clampHostCodexComposerRect(paneFrameDragRect(drag, event, frame.bounds), frame.bounds.w, frame.bounds.h)
     const applied = this.canvas?.setSurfaceRect(this, next) ?? next
     syncHostCodexEditorToComposer(this.controller, applied, "drag")
     const cursor = paneFrameCursor(drag.kind, true)
@@ -5723,6 +5729,7 @@ class HostTerminalCodexComposerPane extends UiSurface {
     this.#syncFrameCursor(localX, localY)
     if (frame !== undefined && frame !== null) {
       storeHostCodexComposerRect(frame.rect)
+      this.canvas?.clearSurfaceRect(this)
       syncHostCodexEditorToComposer(this.controller, frame.rect, "release")
     }
     return true
@@ -6589,10 +6596,34 @@ function isTouchPointerEvent(event: MouseEvent): boolean {
   return pointer.pointerType === "touch" || pointer.metaforPointerType === "touch" || pointer.sourceCapabilities?.firesTouchEvents === true
 }
 
-function hostCodexComposerEditorHeight(composerH: number, hasFooter: boolean): number {
-  const editorTop = PANE_FRAME.headerHeight + PANE_FRAME.bodyTopGap
-  const footerSpace = hasFooter ? HOST_TERMINAL_CODEX_COMPOSER_PAD + 30 : HOST_TERMINAL_CODEX_COMPOSER_PAD
-  return Math.max(82, composerH - editorTop - footerSpace)
+type HostCodexComposerContentLayout = {
+  editor: UiSurfaceRect
+  attachments: UiSurfaceRect | null
+}
+
+function hostCodexComposerContentLayout(w: number, h: number, hasAttachments: boolean): HostCodexComposerContentLayout {
+  const body = paneBodyRect(w, h, {
+    headerHeight: PANE_FRAME.headerHeight,
+    insetX: HOST_TERMINAL_CODEX_COMPOSER_PAD,
+    topGap: PANE_FRAME.bodyTopGap,
+    bottomInset: HOST_TERMINAL_CODEX_COMPOSER_PAD,
+  })
+  const layout: HostCodexComposerContentLayout = {
+    editor: {...body},
+    attachments: null,
+  }
+  flexColumn({
+    x: body.x,
+    y: body.y,
+    w: body.w,
+    h: body.h,
+    gap: hasAttachments ? 8 : 0,
+    items: [
+      {height: "grow", draw: (x, y, width, height) => { layout.editor = {x, y, w: Math.max(1, width), h: Math.max(1, height)} }},
+      hasAttachments && {height: 30, draw: (x, y, width, height) => { layout.attachments = {x, y, w: Math.max(1, width), h: Math.max(1, height)} }},
+    ],
+  })
+  return layout
 }
 
 function sanitizeHostTerminalVoiceInput(text: string): string {
@@ -7953,6 +7984,7 @@ function createHostCodexEditor(controller: HostTerminalController): EditorPane {
     showCaret: true,
     introAnimation: false,
     showHeader: false,
+    chrome: "none",
     indentGuides: false,
     showLineNumbers: false,
     wrapLines: true,
@@ -8986,7 +9018,10 @@ function setSqliteDockPlacement(placement: HostTerminalDockPlacement): void {
 }
 
 function setHostTerminalHudDocked(docked: boolean): void {
-  if (hostTerminalHudDocked === docked) return
+  if (hostTerminalHudDocked === docked) {
+    if (!docked) hostTerminal?.hudTerminal.focus()
+    return
+  }
   hostTerminalHudDocked = docked
   writeStoredHostTerminalHudDocked(docked)
   const controller = hostTerminal
@@ -9028,7 +9063,13 @@ function focusNetworkDisplay(): unknown {
 }
 
 function setAndroidHudDocked(docked: boolean): void {
-  if (androidHudDocked === docked) return
+  if (androidHudDocked === docked) {
+    if (!docked) {
+      uiCanvas?.setFocused(androidPane)
+      connectAndroidRtc()
+    }
+    return
+  }
   androidHudDocked = docked
   writeStoredAndroidHudDocked(docked)
   if (docked) {
@@ -9050,7 +9091,13 @@ function setAndroidHudDocked(docked: boolean): void {
 }
 
 function setSecondaryAndroidHudDocked(docked: boolean): void {
-  if (secondaryAndroidHudDocked === docked) return
+  if (secondaryAndroidHudDocked === docked) {
+    if (!docked) {
+      uiCanvas?.setFocused(secondaryAndroidPane)
+      connectSecondaryAndroidRtc()
+    }
+    return
+  }
   secondaryAndroidHudDocked = docked
   writeStoredSecondaryAndroidHudDocked(docked)
   if (docked) {
@@ -9068,7 +9115,10 @@ function setSecondaryAndroidHudDocked(docked: boolean): void {
 }
 
 function setTodoHudDocked(docked: boolean): void {
-  if (todoHudDocked === docked) return
+  if (todoHudDocked === docked) {
+    if (!docked) uiCanvas?.setFocused(todoPane)
+    return
+  }
   todoHudDocked = docked
   writeStoredTodoHudDocked(docked)
   if (docked && todoPane !== null) {
@@ -9081,7 +9131,10 @@ function setTodoHudDocked(docked: boolean): void {
 }
 
 function setSqliteHudDocked(docked: boolean): void {
-  if (sqliteHudDocked === docked) return
+  if (sqliteHudDocked === docked) {
+    if (!docked) uiCanvas?.setFocused(sqliteHudPane)
+    return
+  }
   sqliteHudDocked = docked
   writeStoredSqliteHudDocked(docked)
   if (docked) {
@@ -11251,11 +11304,19 @@ function hostCodexComposerRect(bounds: {w: number; h: number}): UiSurfaceRect {
     w: fallbackW,
     h: fallbackH,
   }
-  const rectW = clampNumber(raw.w, Math.min(HOST_TERMINAL_CODEX_COMPOSER_MIN_W, maxW), maxW)
-  const rectH = clampNumber(raw.h, Math.min(HOST_TERMINAL_CODEX_COMPOSER_MIN_H, maxH), maxH)
+  return clampHostCodexComposerRect(raw, bounds.w, bounds.h)
+}
+
+function clampHostCodexComposerRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): UiSurfaceRect {
+  const bw = Math.max(1, Math.round(boundsW))
+  const bh = Math.max(1, Math.round(boundsH))
+  const maxW = Math.max(1, bw - 24)
+  const maxH = Math.max(1, bh - 24)
+  const rectW = clampNumber(rect.w, Math.min(HOST_TERMINAL_CODEX_COMPOSER_MIN_W, maxW), maxW)
+  const rectH = clampNumber(rect.h, Math.min(HOST_TERMINAL_CODEX_COMPOSER_MIN_H, maxH), maxH)
   return {
-    x: clampNumber(raw.x, 12, Math.max(12, bounds.w - rectW - 12)),
-    y: clampNumber(raw.y, 12, Math.max(12, bounds.h - rectH - 12)),
+    x: clampNumber(rect.x, 12, Math.max(12, bw - rectW - 12)),
+    y: clampNumber(rect.y, 12, Math.max(12, bh - rectH - 12)),
     w: rectW,
     h: rectH,
   }
@@ -11267,12 +11328,12 @@ function hostCodexEditorRect(bounds: {w: number; h: number}): UiSurfaceRect {
 
 function hostCodexEditorRectForComposer(composer: UiSurfaceRect): UiSurfaceRect {
   if (composer.visible === false) return hiddenRect()
-  const editorH = hostCodexComposerEditorHeight(composer.h, (hostTerminal?.codexAttachments.length ?? 0) > 0)
+  const layout = hostCodexComposerContentLayout(composer.w, composer.h, (hostTerminal?.codexAttachments.length ?? 0) > 0)
   return {
-    x: composer.x + HOST_TERMINAL_CODEX_COMPOSER_PAD,
-    y: composer.y + PANE_FRAME.headerHeight + PANE_FRAME.bodyTopGap,
-    w: Math.max(1, composer.w - HOST_TERMINAL_CODEX_COMPOSER_PAD * 2),
-    h: editorH,
+    x: composer.x + layout.editor.x,
+    y: composer.y + layout.editor.y,
+    w: layout.editor.w,
+    h: layout.editor.h,
   }
 }
 
@@ -11372,18 +11433,28 @@ function sqliteHudRects(controllerId: string, bounds: {w: number; h: number}): S
   }
   const panel = sqliteHudRect(bounds)
   if (panel.visible === false) return {tables: hiddenRect(), rows: hiddenRect()}
-  const pad = SQLITE_HUD_CONTENT_PAD
-  const x = panel.x + pad
-  const y = panel.y + SQLITE_HUD_HEADER_H + pad
-  const bodyW = Math.max(1, panel.w - pad * 2)
-  const bodyH = Math.max(1, panel.h - SQLITE_HUD_HEADER_H - pad * 2)
+  const body = paneBodyRect(panel.w, panel.h, {
+    headerHeight: SQLITE_HUD_HEADER_H,
+    insetX: SQLITE_HUD_CONTENT_PAD,
+    topGap: SQLITE_HUD_CONTENT_PAD,
+    bottomInset: SQLITE_HUD_CONTENT_PAD,
+  })
   const tablesW = panel.w >= 900
-    ? Math.min(300, Math.max(230, Math.floor(bodyW * 0.24)))
-    : Math.min(245, Math.max(180, Math.floor(bodyW * 0.32)))
-  return {
-    tables: {x, y, w: tablesW, h: bodyH},
-    rows: {x: x + tablesW + GAP, y, w: Math.max(1, bodyW - tablesW - GAP), h: bodyH},
-  }
+    ? Math.min(300, Math.max(230, Math.floor(body.w * 0.24)))
+    : Math.min(245, Math.max(180, Math.floor(body.w * 0.32)))
+  const rects: SqliteRects = {tables: hiddenRect(), rows: hiddenRect()}
+  flexRow({
+    x: panel.x + body.x,
+    y: panel.y + body.y,
+    w: body.w,
+    h: body.h,
+    gap: GAP,
+    items: [
+      {width: tablesW, height: body.h, draw: (x, y, w, h) => { rects.tables = {x, y, w: Math.max(1, w), h: Math.max(1, h)} }},
+      {width: "grow", height: body.h, draw: (x, y, w, h) => { rects.rows = {x, y, w: Math.max(1, w), h: Math.max(1, h)} }},
+    ],
+  })
+  return rects
 }
 
 function hostTerminalAgentSignalRect(bounds: {w: number; h: number}): UiSurfaceRect {

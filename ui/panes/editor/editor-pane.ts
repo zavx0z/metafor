@@ -18,7 +18,8 @@
 
 import {Color, TextMaterial, type TrueTypeFont} from "@metafor/engine"
 import {UiSurface, Z, div, divScrollTo, palette, radii, type DivScrollContext, type UiSurfaceRect, type VirtualInputSoftKeyboardMode} from "@ui/elements"
-import {Button, IconButton, autoButtonWidth, uiIcons} from "@ui/components"
+import {Button, autoButtonWidth} from "@ui/components"
+import {HudWindowTitleBar} from "@ui/hud"
 import {resolveLanguageHighlighter} from "./highlighter.ts"
 import {
   createEditorTokenMaterials,
@@ -45,7 +46,6 @@ import {
   paneFrameCursor,
   paneFrameDragRect,
   paneFrameHit,
-  paneHeaderRuleRect,
   type PaneFrameDrag,
   type PaneFrameInteractionOpts,
   type PaneRect,
@@ -359,7 +359,6 @@ export class EditorPane extends UiSurface {
   /** Для длинных строк (≥ this porog) считаем позицию курсора через #charWidth — O(1). */
   static readonly #LONG_LINE_THRESHOLD = 500
 
-  readonly #titleMaterial = new TextMaterial({color: palette.cyan})
   readonly #lineMaterial = new TextMaterial({color: palette.text})
   readonly #gutterMaterial = new TextMaterial({color: palette.muted})
   readonly #gutterCurMaterial = new TextMaterial({color: palette.cyan})
@@ -1911,25 +1910,14 @@ export class EditorPane extends UiSurface {
 
   protected render(): void {
     if (this.#showHeader) {
-      const dockButtonSize = 22
-      const hasDock = this.#onFrameDockRequest !== undefined
-      const dockButtonX = PANE_FRAME.headerTextX
-      const titleX = hasDock ? dockButtonX + dockButtonSize + 8 : PANE_FRAME.headerTextX
-      const titleMaxW = Math.max(1, this.rectW - titleX - PANE_FRAME.headerTextX)
-      if (this.#onFrameDockRequest !== undefined) {
-        IconButton(this, dockButtonX, 7, dockButtonSize, dockButtonSize, {
-          label: "Dock",
-          iconSrc: uiIcons.minus,
-          action: this.#onFrameDockRequest,
-        })
-      }
-      this.drawText(this.#title, titleX, PANE_FRAME.headerTextY, {
-        fontPx: this.#titleFontPx,
-        material: this.#titleMaterial,
-        maxWidthPx: titleMaxW,
+      HudWindowTitleBar(this, 0, 0, this.rectW, {
+        title: this.#title,
+        ...(this.#onFrameDockRequest === undefined ? {} : {onMinimize: this.#onFrameDockRequest}),
+        minimizeLabel: "Dock",
+        height: HEADER_H_PX,
+        titleFontPx: this.#titleFontPx,
+        ruleColor: palette.borderDim,
       })
-      const rule = paneHeaderRuleRect(this.rectW, HEADER_H_PX)
-      this.drawRect(rule.x, rule.y, rule.w, rule.h, palette.borderDim, Z.SEPARATOR)
     }
 
     const total = this.#lines.length
