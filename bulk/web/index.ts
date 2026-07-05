@@ -1735,7 +1735,10 @@ type BulkHudSurfaceSlot = {
 	rectOverride?: UiSurfaceRect
 	pixelScale?: number
 	order: number
+	windowZIndex: number
 	zIndex: number
+	windowId: string | null
+	windowOrder: number
 }
 
 class BulkViewportHudRuntime implements BulkViewportHudController {
@@ -1748,6 +1751,10 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 	readonly #requestFrame: (wakeMs?: number) => void
 	readonly #surfaces: BulkHudSurfaceSlot[] = []
 	#surfaceOrder = 0
+	#windowOrder = 0
+	readonly #windowOrders = new Map<string, number>()
+	readonly #windowZIndexes = new Map<string, number>()
+	#activeWindowId: string | null = null
 	#width = 1
 	#height = 1
 	#pixelScale = 1
@@ -1808,13 +1815,18 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 		surface.setFramebufferClipSpace?.("screen")
 		this.#hud.add(surface.node)
 		const rect = layout({w: this.#width, h: this.#height})
+		const windowId = this.#surfaceWindowId(opts)
 		this.#surfaces.push({
 			surface,
 			layout,
 			rect,
 			order: this.#surfaceOrder++,
-			zIndex: opts.zIndex ?? 0,
+			windowZIndex: this.#surfaceWindowZIndexFor(windowId, opts),
+			zIndex: windowId === null ? 0 : opts.zIndex ?? 0,
+			windowId,
+			windowOrder: this.#windowOrderFor(windowId),
 	})
+		this.#syncActiveSurfaceStates()
 		this.#sortSurfaceSlots()
 		this.#applyLayout()
 		this.requestRender()
@@ -1882,6 +1894,10 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 	}
 
 	setFocused(surface: UiSurfaceNode | null): void {
+		if (surface !== null) {
+			const slot = this.#slotForSurface(surface)
+			if (slot !== null) this.#activateSurfaceWindow(slot)
+		}
 		if (this.#focused === surface) return
 		this.#focused?.onDeactivate?.()
 		this.#focused = surface
@@ -1964,8 +1980,50 @@ class BulkViewportHudRuntime implements BulkViewportHudController {
 	}
 
 	#sortSurfaceSlots(): void {
-		this.#surfaces.sort((a, b) => a.zIndex - b.zIndex || a.order - b.order)
+		this.#surfaces.sort((a, b) => a.windowZIndex - b.windowZIndex || a.windowOrder - b.windowOrder || a.zIndex - b.zIndex || a.order - b.order)
 		for (const slot of this.#surfaces) this.#hud.add(slot.surface.node)
+	}
+
+	#surfaceWindowId(opts: UiSurfaceLayerOpts): string | null {
+		const windowId = opts.windowId?.trim()
+		return windowId === undefined || windowId.length === 0 ? null : windowId
+	}
+
+	#surfaceWindowZIndexFor(windowId: string | null, opts: UiSurfaceLayerOpts): number {
+		if (windowId === null) return opts.zIndex ?? 0
+		const existing = this.#windowZIndexes.get(windowId)
+		if (existing !== undefined) return existing
+		const zIndex = opts.windowZIndex ?? 0
+		this.#windowZIndexes.set(windowId, zIndex)
+		return zIndex
+	}
+
+	#windowOrderFor(windowId: string | null): number {
+		if (windowId === null) return 0
+		const existing = this.#windowOrders.get(windowId)
+		if (existing !== undefined) return existing
+		const order = ++this.#windowOrder
+		this.#windowOrders.set(windowId, order)
+		return order
+	}
+
+	#activateSurfaceWindow(slot: BulkHudSurfaceSlot): void {
+		if (slot.windowId === null) return
+		const order = ++this.#windowOrder
+		this.#windowOrders.set(slot.windowId, order)
+		for (const surfaceSlot of this.#surfaces) {
+			if (surfaceSlot.windowId === slot.windowId) surfaceSlot.windowOrder = order
+		}
+		this.#activeWindowId = slot.windowId
+		this.#syncActiveSurfaceStates()
+		this.#sortSurfaceSlots()
+		this.requestRender()
+	}
+
+	#syncActiveSurfaceStates(): void {
+		for (const slot of this.#surfaces) {
+			slot.surface.setActive?.(slot.windowId !== null && slot.windowId === this.#activeWindowId && slot.zIndex === 0)
+		}
 	}
 
 	#releaseHiddenSurfaceSlot(slot: BulkHudSurfaceSlot): void {

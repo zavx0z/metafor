@@ -7,8 +7,8 @@
 
 import {Color, TextMaterial} from "@metafor/engine"
 import {ProgressCheckbox} from "@ui/components"
-import {UiSurface, Z, div, divScrollTo, palette, radii, textMaterial, type DivScrollContext, type UiSurfaceRect} from "@ui/elements"
-import {HudWindowTitleBar} from "@ui/hud"
+import {UiSurface, Z, div, divScrollTo, palette, textMaterial, type DivScrollContext, type UiSurfaceRect} from "@ui/elements"
+import {HudWindow} from "@ui/hud"
 import {
   todoCompletedSectionStates,
   parseMarkdownTodo,
@@ -169,30 +169,22 @@ export class ToDoPane extends UiSurface {
   protected render(): void {
     const w = Math.max(TODO_MIN_W, this.rectW)
     const h = Math.max(TODO_HEADER_H + 80, this.rectH)
-    this.drawRoundedRect(0, 0, w, h, {
-      radius: radii.pane,
+    const body = HudWindow(this, 0, 0, w, h, {
+      title: this.#title,
+      subtitle: `${this.#highlightedIds.size} подсвечено`,
+      minimizeLabel: "Свернуть TODO",
+      ...(this.#onFrameDockRequest === undefined ? {} : {onMinimize: this.#onFrameDockRequest}),
+      active: this.active,
       fill: TODO_PANEL_BG,
       border: this.active ? palette.windowActiveBorder : palette.borderDim,
-      borderWidth: 1,
-      z: Z.CONTAINER,
-    })
-    this.#renderHeader(w)
-    const body = paneBodyRect(w, h, {headerHeight: TODO_HEADER_H, insetX: 8, topGap: 6, bottomInset: 8})
-    this.#renderBody(body)
-  }
-
-  #renderHeader(w: number): void {
-    const highlightedCount = this.#highlightedIds.size
-    const props = {
-      title: this.#title,
-      subtitle: `${highlightedCount} подсвечено`,
-      minimizeLabel: "Свернуть TODO",
       height: TODO_HEADER_H,
       titleFontPx: 13,
       ruleColor: palette.borderDim,
-      ...(this.#onFrameDockRequest === undefined ? {} : {onMinimize: this.#onFrameDockRequest}),
-    }
-    HudWindowTitleBar(this, 0, 0, w, props)
+      bodyInsetX: 8,
+      bodyTopGap: 6,
+      bodyBottomInset: 8,
+    })
+    this.#renderBody(body)
   }
 
   #renderBody(rect: UiSurfaceRect): void {

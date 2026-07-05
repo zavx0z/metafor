@@ -1,6 +1,6 @@
 import {Color} from "@metafor/engine"
 import {IconButton, type ButtonVariant} from "@ui/components"
-import {Z, flexRow, palette, uiIcons, type Tone, type UiSurface} from "@ui/elements"
+import {Z, flexColumn, flexRow, palette, radii, uiIcons, type Tone, type UiSurface, type UiSurfaceRect} from "@ui/elements"
 
 export type HudWindowTitleBarAction = {
   label: string
@@ -33,6 +33,56 @@ export type HudWindowTitleBarProps = {
   titleFontPx?: number
   subtitleFontPx?: number
   z?: number
+}
+
+export type HudWindowProps = HudWindowTitleBarProps & {
+  active?: boolean
+  fill?: Color | null
+  border?: Color | null
+  borderWidth?: number
+  radius?: number
+  frameZ?: number
+  bodyInsetX?: number
+  bodyTopGap?: number
+  bodyBottomInset?: number
+}
+
+export function HudWindow(host: UiSurface, x: number, y: number, w: number, h: number, props: HudWindowProps): UiSurfaceRect {
+  const headerH = props.height ?? 36
+  const bodyInsetX = props.bodyInsetX ?? 8
+  const bodyTopGap = props.bodyTopGap ?? 6
+  const bodyBottomInset = props.bodyBottomInset ?? 6
+  const border = props.border ?? (props.active === true ? palette.windowActiveBorder : palette.borderDim)
+  host.drawRoundedRect(x, y, w, h, {
+    radius: props.radius ?? radii.pane,
+    fill: props.fill ?? palette.bgPanelDim,
+    border,
+    borderWidth: props.borderWidth ?? (border === null ? 0 : 1),
+    z: props.frameZ ?? Z.CONTAINER,
+  })
+
+  const body = {x: x + bodyInsetX, y: y + headerH + bodyTopGap, w: Math.max(1, w - bodyInsetX * 2), h: Math.max(1, h - headerH - bodyTopGap - bodyBottomInset)}
+  HudWindowTitleBar(host, x, y, w, props)
+  flexColumn({
+    x,
+    y,
+    w,
+    h,
+    paddingLeft: bodyInsetX,
+    paddingRight: bodyInsetX,
+    paddingBottom: bodyBottomInset,
+    items: [
+      {height: headerH, draw: () => {}},
+      bodyTopGap > 0 && {height: bodyTopGap, draw: () => {}},
+      {height: "grow", draw: (slotX, slotY, slotW, slotH) => {
+        body.x = slotX
+        body.y = slotY
+        body.w = Math.max(1, slotW)
+        body.h = Math.max(1, slotH)
+      }},
+    ],
+  })
+  return body
 }
 
 export function HudWindowTitleBar(host: UiSurface, x: number, y: number, w: number, props: HudWindowTitleBarProps): void {

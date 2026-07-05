@@ -1,11 +1,10 @@
 import {Color, TextMaterial} from "@metafor/engine"
 import {Button, uiIcons} from "@ui/components"
 import {UiSurface, Z, palette, radii, type UiSurfaceRect} from "@ui/elements"
-import {HudWindowTitleBar, type HudWindowTitleBarAction} from "@ui/hud"
+import {HudWindow, type HudWindowTitleBarAction} from "@ui/hud"
 import {
   PANE_FRAME,
   beginPaneFrameDrag,
-  paneBodyRect,
   paneFrameCursor,
   paneFrameDragRect,
   paneFrameHit,
@@ -150,19 +149,6 @@ export class AndroidPane extends UiSurface {
   protected render(): void {
     const w = Math.max(ANDROID_MIN_W, this.rectW)
     const h = Math.max(ANDROID_MIN_H, this.rectH)
-    this.drawRoundedRect(0, 0, w, h, {
-      radius: radii.pane,
-      fill: ANDROID_PANEL_BG,
-      border: this.active ? palette.windowActiveBorder : palette.borderDim,
-      borderWidth: 1,
-      z: Z.CONTAINER,
-    })
-    this.#renderHeader(w)
-    const body = paneBodyRect(w, h, {headerHeight: ANDROID_HEADER_H, insetX: 8, topGap: 8, bottomInset: 8})
-    this.#renderBody(body)
-  }
-
-  #renderHeader(w: number): void {
     const buttonSize = 22
     const rightActions: HudWindowTitleBarAction[] = []
     if (this.#onRefresh !== undefined) {
@@ -173,17 +159,24 @@ export class AndroidPane extends UiSurface {
         width: buttonSize,
       })
     }
-    HudWindowTitleBar(this, 0, 0, w, {
+    const body = HudWindow(this, 0, 0, w, h, {
       title: this.#title,
       subtitle: this.#status,
       ...(this.#onFrameDockRequest === undefined ? {} : {onMinimize: this.#onFrameDockRequest}),
       minimizeLabel: "Dock Android",
       rightActions,
+      active: this.active,
+      fill: ANDROID_PANEL_BG,
+      border: this.active ? palette.windowActiveBorder : palette.borderDim,
       height: ANDROID_HEADER_H,
       titleFontPx: 13,
       subtitleFontPx: 10,
       ruleColor: palette.borderDim,
+      bodyInsetX: 8,
+      bodyTopGap: 8,
+      bodyBottomInset: 8,
     })
+    this.#renderBody(body)
   }
 
   #renderBody(rect: UiSurfaceRect): void {

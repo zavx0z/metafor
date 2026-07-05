@@ -1,8 +1,8 @@
 import {Color, TextMaterial} from "@metafor/engine"
 import {Button, Switcher, uiIcons} from "@ui/components"
 import {UiSurface, Z, palette, type UiSurfaceRect} from "@ui/elements"
-import {HudWindowTitleBar} from "@ui/hud"
-import {PANE_FRAME, paneBodyRect} from "./pane-frame.ts"
+import {HudWindow} from "@ui/hud"
+import {PANE_FRAME} from "./pane-frame.ts"
 
 export type NetworkWatchServiceKey = "tls" | "redirect"
 
@@ -104,12 +104,6 @@ export class NetworkWatchPane extends UiSurface {
   protected render(): void {
     const w = Math.max(NETWORK_MIN_W, this.rectW)
     const h = Math.max(NETWORK_MIN_H, this.rectH)
-    this.#renderHeader(w)
-    const body = paneBodyRect(w, h, {headerHeight: NETWORK_HEADER_H, insetX: 8, topGap: 8, bottomInset: 8})
-    this.#renderBody(body)
-  }
-
-  #renderHeader(w: number): void {
     const autoLabel = this.#snapshot.autoRefresh
       ? this.#snapshot.autoRefreshActive
         ? "stats active"
@@ -117,14 +111,21 @@ export class NetworkWatchPane extends UiSurface {
       : "stats off"
     const productLabel = this.#snapshot.productViaInterpreter ? "interpreter" : "direct"
     const status = `${this.#sessionLabel} | ${productLabel} | ${autoLabel} | ${this.#snapshot.actionStatus}`
-    HudWindowTitleBar(this, 0, 0, w, {
+    const body = HudWindow(this, 0, 0, w, h, {
       title: this.#title,
       subtitle: status,
+      active: this.active,
+      fill: palette.bgPanelDim,
+      border: this.active ? palette.windowActiveBorder : palette.borderDim,
       height: NETWORK_HEADER_H,
       titleFontPx: 13,
       subtitleFontPx: 10,
       ruleColor: palette.borderDim,
+      bodyInsetX: 8,
+      bodyTopGap: 8,
+      bodyBottomInset: 8,
     })
+    this.#renderBody(body)
   }
 
   #renderBody(rect: UiSurfaceRect): void {

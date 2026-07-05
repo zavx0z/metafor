@@ -22,7 +22,7 @@ import {
   type UiSurfaceRect,
 } from "@ui/elements"
 import {Button, ButtonVoice, IconButton, Switcher, Table, TextField, VoiceInputHud, focusTextField, normalizeTableSelection, tableScrollTo, tableSelectionAfterClick, type ButtonVoiceSnapshot, type TableCellContext, type TableColumn, type TableRowId, type TableRowPointerContext, type TextFieldEditState, type VoiceInputHudDeactivationMode, type VoiceInputHudPhraseGroupId, type VoiceInputHudServiceState} from "@ui/components"
-import {HudSideTab, HudWindowTitleBar, type HudWindowTitleBarAction, type HudSideTabEdge} from "@ui/hud"
+import {HudSideTab, HudWindow, HudWindowTitleBar, type HudWindowTitleBarAction, type HudSideTabEdge} from "@ui/hud"
 import {
   EditorPane,
   FileListPane,
@@ -5106,17 +5106,20 @@ class SqliteHudFramePane extends UiSurface {
     private readonly subtitle: () => string,
     private readonly onDock: () => void,
   ) {
-    super({bgColor: HUD_PANEL_BG, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
+    super({bgColor: null, borderColor: null})
     this.node.name = "SqliteHudFramePane"
   }
 
   protected render(): void {
     const subtitle = this.subtitle()
-    HudWindowTitleBar(this, 0, 0, this.rectW, {
+    HudWindow(this, 0, 0, this.rectW, this.rectH, {
       title: "SQLite",
       subtitle: subtitle.length > 0 ? subtitle : this.title(),
       onMinimize: this.onDock,
       minimizeLabel: "Dock SQLite",
+      active: this.active,
+      fill: HUD_PANEL_BG,
+      border: this.active ? palette.windowActiveBorder : palette.borderDim,
       height: SQLITE_HUD_HEADER_H - 1,
       titleFontPx: 13,
       subtitleFontPx: 9,
@@ -5360,14 +5363,7 @@ class HostTerminalCodexComposerPane extends UiSurface {
   protected render(): void {
     const w = Math.max(1, this.rectW)
     const h = Math.max(1, this.rectH)
-    this.drawRoundedRect(0, 0, w, h, {
-      radius: radii.pane,
-      fill: new Color(0.04, 0.06, 0.09, 0.52),
-      border: this.controller.codexDropActive ? palette.cyan : this.active ? palette.windowActiveBorder : palette.borderDim,
-      borderWidth: this.controller.codexDropActive ? 1.3 : 1,
-      z: Z.CONTAINER,
-    })
-    this.#renderHeader(w)
+    this.#renderWindow(w, h)
     const layout = hostCodexComposerContentLayout(w, h, this.controller.codexAttachments.length > 0)
     this.drawRoundedRect(layout.editor.x, layout.editor.y, layout.editor.w, layout.editor.h, {
       radius: 8,
@@ -5380,7 +5376,7 @@ class HostTerminalCodexComposerPane extends UiSurface {
     if (this.controller.codexDropActive) this.#drawDropOverlay(w, h)
   }
 
-  #renderHeader(w: number): void {
+  #renderWindow(w: number, h: number): void {
     const buttonSize = HOST_TERMINAL_CODEX_COMPOSER_HEADER_BUTTON_SIZE
     const status = hostCodexComposerStatus(this.controller)
     const rightActions: HudWindowTitleBarAction[] = [
@@ -5411,16 +5407,23 @@ class HostTerminalCodexComposerPane extends UiSurface {
         }),
       })
     }
-    HudWindowTitleBar(this, 0, 0, w, {
+    HudWindow(this, 0, 0, w, h, {
       title: "Codex message",
       subtitle: status,
       onMinimize: () => setHostTerminalHudDocked(true),
       minimizeLabel: "Свернуть Codex",
       rightActions,
+      active: this.active,
+      fill: new Color(0.04, 0.06, 0.09, 0.52),
+      border: this.controller.codexDropActive ? palette.cyan : this.active ? palette.windowActiveBorder : palette.borderDim,
+      borderWidth: this.controller.codexDropActive ? 1.3 : 1,
       height: PANE_FRAME.headerHeight,
       buttonSize,
       buttonGap: 5,
       ruleColor: palette.borderDim,
+      bodyInsetX: HOST_TERMINAL_CODEX_COMPOSER_PAD,
+      bodyTopGap: PANE_FRAME.bodyTopGap,
+      bodyBottomInset: HOST_TERMINAL_CODEX_COMPOSER_PAD,
     })
   }
 

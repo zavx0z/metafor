@@ -1,10 +1,9 @@
 import type {BulkViewportController, BulkViewportStats} from "bulk/web"
-import {UiSurface, Z, div, palette, radii, uiIcons, type DivScrollContext, type UiSurfaceRect} from "@ui/elements"
-import {Button, IconButton, SliderControl, Switcher, TextField} from "@ui/components"
-import {HudSideTab} from "@ui/hud"
+import {UiSurface, Z, div, divScrollPosition, divScrollTo, palette, uiIcons, type DivScrollContext, type UiSurfaceRect} from "@ui/elements"
+import {Button, SliderControl, Switcher, TextField} from "@ui/components"
+import {HudSideTab, HudWindow} from "@ui/hud"
 import {
 	BULK_LAYOUT_SETTING_KEYS,
-	BULK_RENDER_SETTING_KEYS,
 	BULK_SETTINGS_BY_KEY,
 	DEFAULT_BULK_SCENE_SRC,
 	type BulkRenderSettings,
@@ -37,12 +36,16 @@ export type BulkHudController = {
 
 type SettingsTab = "scene" | "geometry" | "render"
 type DockButtonKind = "settings" | "fullscreen"
+type SettingsPanelState = {open?: boolean; tab?: SettingsTab; scroll?: Partial<Record<SettingsTab, number>>}
 
 const SETTINGS_MIN_W = 310
 const SETTINGS_MAX_W = 380
 const SETTINGS_MIN_H = 360
 const SETTINGS_MAX_H = 640
+const SETTINGS_HEADER_H = 36
+const SETTINGS_PANEL_STORAGE_KEY = "metafor.bulk.settingsPanel:v1"
 const SETTINGS_SCROLL_KEY = "bulk-settings-scroll"
+const SETTINGS_SCROLL_PERSIST_DELAY_MS = 120
 const HUD_PANEL_Z = 80
 const HUD_DOCK_Z = 90
 const APP_FULLSCREEN_FALLBACK_CLASS = "metafor-app-fullscreen-fallback"
@@ -63,6 +66,9 @@ class BulkHud implements BulkHudController {
 	readonly #settingsDock: BulkDockButton
 	readonly #fullscreenDock: BulkDockButton
 	#settingsOpen = false
+	#settingsTab: SettingsTab = "scene"
+	#settingsScroll: Partial<Record<SettingsTab, number>> = {}
+	#settingsStatePersistTimer: ReturnType<typeof setTimeout> | null = null
 	#src: string
 	#settings: BulkHudSettingsSnapshot
 	#stats: BulkViewportStats = {darkParticleCount: 0, fieldParticleCount: 0}
@@ -75,15 +81,25 @@ class BulkHud implements BulkHudController {
 		this.#onApply = options.onApply
 		this.#onRenderSettingsChange = options.onRenderSettingsChange
 		this.#onSettingsPersist = options.onSettingsPersist
+		try {
+			const rawState = localStorage.getItem(SETTINGS_PANEL_STORAGE_KEY)
+			if (rawState !== null) {
+				const state = JSON.parse(rawState) as SettingsPanelState
+				this.#settingsOpen = state.open === true
+				if (state.tab === "geometry" || state.tab === "render") this.#settingsTab = state.tab
+				if (state.scroll !== undefined && typeof state.scroll === "object") this.#settingsScroll = {...state.scroll}
+			}
+		} catch {}
 		this.#src = options.initialSrc
 		this.#settings = cloneSettings(options.initialSettings)
 		this.#settingsPane = new BulkSettingsPane(this)
 		this.#settingsDock = new BulkDockButton(this, "settings")
 		this.#fullscreenDock = new BulkDockButton(this, "fullscreen")
 
-		this.#viewport.hud.addSurface(this.#settingsPane, (bounds) => this.#settingsRect(bounds), {zIndex: HUD_PANEL_Z})
+		this.#viewport.hud.addSurface(this.#settingsPane, (bounds) => this.#settingsRect(bounds), {windowId: "bulk:settings", windowZIndex: HUD_PANEL_Z})
 		this.#viewport.hud.addSurface(this.#settingsDock, (bounds) => this.#dockRect("settings", bounds), {zIndex: HUD_DOCK_Z})
 		this.#viewport.hud.addSurface(this.#fullscreenDock, (bounds) => this.#dockRect("fullscreen", bounds), {zIndex: HUD_DOCK_Z})
+		window.addEventListener("beforeunload", () => this.#persistSettingsPanelState())
 		document.addEventListener("fullscreenchange", () => this.#handleFullscreenChange())
 		document.addEventListener("webkitfullscreenchange", () => this.#handleFullscreenChange())
 	}
@@ -121,8 +137,32 @@ class BulkHud implements BulkHudController {
 		return this.#settingsOpen
 	}
 
+	settingsTab(): SettingsTab {
+		return this.#settingsTab
+	}
+
+	setSettingsTab(tab: SettingsTab): void {
+		if (this.#settingsTab === tab) return
+		this.#settingsTab = tab
+		this.#persistSettingsPanelState()
+		this.#settingsPane.requestRender()
+	}
+
+	settingsScrollTop(tab: SettingsTab): number {
+		const top = this.#settingsScroll[tab]
+		return typeof top === "number" && Number.isFinite(top) ? Math.max(0, top) : 0
+	}
+
+	setSettingsScrollTop(tab: SettingsTab, top: number): void {
+		const next = Math.max(0, Math.round(top))
+		if (this.#settingsScroll[tab] === next) return
+		this.#settingsScroll = {...this.#settingsScroll, [tab]: next}
+		this.#scheduleSettingsPanelStatePersist()
+	}
+
 	toggleSettings(): void {
 		this.#settingsOpen = !this.#settingsOpen
+		this.#persistSettingsPanelState()
 		this.#viewport.hud.relayout()
 		this.#settingsDock.requestRender()
 		this.#settingsPane.requestRender()
@@ -243,10 +283,32 @@ class BulkHud implements BulkHudController {
 		this.#fullscreen = next
 		this.#fullscreenDock.requestRender()
 	}
+
+	#persistSettingsPanelState(): void {
+		if (this.#settingsStatePersistTimer !== null) {
+			clearTimeout(this.#settingsStatePersistTimer)
+			this.#settingsStatePersistTimer = null
+		}
+		try {
+			localStorage.setItem(SETTINGS_PANEL_STORAGE_KEY, JSON.stringify({
+				open: this.#settingsOpen,
+				tab: this.#settingsTab,
+				scroll: this.#settingsScroll,
+			}))
+		} catch {}
+	}
+
+	#scheduleSettingsPanelStatePersist(): void {
+		if (this.#settingsStatePersistTimer !== null) return
+		this.#settingsStatePersistTimer = setTimeout(() => {
+			this.#settingsStatePersistTimer = null
+			this.#persistSettingsPanelState()
+		}, SETTINGS_SCROLL_PERSIST_DELAY_MS)
+	}
 }
 
 class BulkSettingsPane extends UiSurface {
-	#tab: SettingsTab = "scene"
+	readonly #restoredScrollTabs = new Set<SettingsTab>()
 
 	constructor(private readonly hud: BulkHud) {
 		super({bgColor: null, borderColor: null})
@@ -256,62 +318,54 @@ class BulkSettingsPane extends UiSurface {
 	protected render(): void {
 		const w = Math.max(1, this.rectW)
 		const h = Math.max(1, this.rectH)
-		this.drawRoundedRect(0, 0, w, h, {
-			radius: radii.pane,
+		const body = HudWindow(this, 0, 0, w, h, {
+			title: "Settings",
+			subtitle: "bulk",
+			onMinimize: () => this.hud.toggleSettings(),
+			minimizeLabel: "Свернуть настройки",
+			active: this.active,
 			fill: palette.bgPanelDim,
-			border: palette.borderDim,
-			borderWidth: 1,
-			z: Z.CONTAINER,
+			border: this.active ? palette.windowActiveBorder : palette.borderDim,
+			height: SETTINGS_HEADER_H,
+			titleFontPx: 13,
+			subtitleFontPx: 10,
+			ruleColor: palette.borderDim,
+			bodyInsetX: 10,
+			bodyTopGap: 8,
+			bodyBottomInset: 10,
 		})
-		this.#renderHeader(w)
-		const body = {x: 10, y: 48, w: Math.max(1, w - 20), h: Math.max(1, h - 58)}
 		this.#renderBody(body)
-	}
-
-	#renderHeader(w: number): void {
-		IconButton(this, 10, 8, 24, 24, {
-			label: "Свернуть настройки",
-			iconSrc: uiIcons.minus,
-			action: () => this.hud.toggleSettings(),
-		})
-		this.drawText("Settings", 42, 11, {
-			fontPx: 13,
-			material: this.materials.cyan,
-			maxWidthPx: Math.max(1, w - 88),
-			z: Z.TEXT,
-		})
-		this.drawText("bulk", 120, 12, {
-			fontPx: 10,
-			material: this.materials.muted,
-			maxWidthPx: Math.max(1, w - 164),
-			z: Z.TEXT,
-		})
-		const ruleY = 40
-		this.drawRect(10, ruleY, Math.max(1, w - 20), 1, palette.borderDim, Z.SEPARATOR)
 	}
 
 	#renderBody(rect: UiSurfaceRect): void {
 		const tabsH = 30
 		this.#drawTabs(rect.x, rect.y, rect.w, tabsH)
+		const tab = this.hud.settingsTab()
+		const scrollKey = `${SETTINGS_SCROLL_KEY}:${tab}`
 		const scrollRect = {
 			x: rect.x,
 			y: rect.y + tabsH + 8,
 			w: rect.w,
 			h: Math.max(1, rect.h - tabsH - 8),
 		}
+		if (!this.#restoredScrollTabs.has(tab)) {
+			divScrollTo(this, scrollKey, {top: this.hud.settingsScrollTop(tab)})
+			this.#restoredScrollTabs.add(tab)
+		}
 		div(this, scrollRect.x, scrollRect.y, scrollRect.w, scrollRect.h, {
-			key: `${SETTINGS_SCROLL_KEY}:${this.#tab}`,
+			key: scrollKey,
 			scrollContentHeight: Math.max(scrollRect.h, this.#contentHeight()),
 			style: {
 				background: null,
 				borderColor: null,
 				borderRadius: 0,
 				padding: 0,
-				overflowY: "auto",
+				overflowY: "scroll",
 				scrollbarWidth: 4,
 			},
 			children: (ctx) => this.#renderScrolled(scrollRect, ctx),
 		})
+		this.hud.setSettingsScrollTop(tab, divScrollPosition(this, scrollKey).top)
 	}
 
 	#drawTabs(x: number, y: number, w: number, h: number): void {
@@ -323,7 +377,7 @@ class BulkSettingsPane extends UiSurface {
 		const gap = 6
 		const tabW = Math.max(1, (w - gap * (tabs.length - 1)) / tabs.length)
 		for (const [index, tab] of tabs.entries()) {
-			const active = this.#tab === tab.id
+			const active = this.hud.settingsTab() === tab.id
 			Button(this, x + index * (tabW + gap), y, tabW, h, {
 				label: tab.label,
 				size: "small",
@@ -331,8 +385,7 @@ class BulkSettingsPane extends UiSurface {
 				color: active ? "primary" : "neutral",
 				radius: 7,
 				action: () => {
-					this.#tab = tab.id
-					this.requestRender()
+					this.hud.setSettingsTab(tab.id)
 				},
 			})
 		}
@@ -342,11 +395,12 @@ class BulkSettingsPane extends UiSurface {
 		const x = rect.x + 2
 		let y = rect.y + 4 - ctx.scrollTop
 		const w = Math.max(1, rect.w - 10)
-		if (this.#tab === "scene") {
+		const tab = this.hud.settingsTab()
+		if (tab === "scene") {
 			this.#renderScene(x, y, w)
 			return
 		}
-		if (this.#tab === "geometry") {
+		if (tab === "geometry") {
 			this.#drawSection("Геометрия", BULK_LAYOUT_SETTING_KEYS, x, y, w)
 			return
 		}
@@ -378,7 +432,7 @@ class BulkSettingsPane extends UiSurface {
 			action: () => this.hud.apply(),
 		})
 		y += 52
-		return this.#drawSection("Быстрый рендер", ["animationEnabled", "wireframeOpacity", "labelVisibleLevels"], x, y, w)
+		return y
 	}
 
 	#drawStatusRow(x: number, y: number, w: number): void {
@@ -454,9 +508,10 @@ class BulkSettingsPane extends UiSurface {
 	}
 
 	#contentHeight(): number {
-		if (this.#tab === "scene") return 244
-		if (this.#tab === "geometry") return 36 + BULK_LAYOUT_SETTING_KEYS.length * 46
-		return 36 + BULK_RENDER_SETTING_KEYS.length * 46
+		const tab = this.hud.settingsTab()
+		if (tab === "scene") return 54 + 44 + 52
+		if (tab === "geometry") return 19 + BULK_LAYOUT_SETTING_KEYS.length * 46 + 18
+		return (19 + 1 * 46 + 14) + (19 + 4 * 46 + 14) + (19 + 3 * 46 + 14) + (19 + 3 * 46 + 18)
 	}
 }
 
