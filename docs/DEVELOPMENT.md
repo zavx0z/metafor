@@ -122,8 +122,8 @@ Dark получает начальный `BoundaryMatrixRuntimeSnapshot` из `B
 локальный Force channel и публикует `photon/replace` или `photon/test` обратно в
 общий Force channel. Matrix не импортирует `Boundary`/SQLite и не открывает базу
 напрямую. Energy принимает `photon/test`, отвечает `z test`, получает frozen
-fields через `z copy` и пока возвращает `w+` после timeout без исполнения DSL
-actions.
+fields через `z copy`, исполняет cached process descriptor с in-memory mass и
+возвращает actor-addressed `w+` / `w-`. Mass не проходит через Matrix или Force.
 
 Root scripts `workspace.dark:*` запускают Dark. Отдельный Energy
 server/debug-process не является частью текущего server-dev контура.

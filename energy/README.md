@@ -19,17 +19,34 @@
   `z copy` с `from = Energy id`;
 - `z copy.value` содержит только `fields`, без `process`;
 - Energy принимает только `z copy`, где `from` совпадает с его `ENERGY_ID`;
-- Energy v0 ждёт timeout и публикует actor-addressed `w+`;
+- Energy исполняет cached process descriptor через `wrapperSrc` или dynamic
+  import action и публикует actor-addressed `w+` / `w-`;
+- timeout fallback остаётся только для debug/v0 compatibility, когда `z copy`
+  пришёл без pending descriptor;
 - отдельного `energy/server.ts`, bridge protocol и dev server `3006` больше нет.
 
 Каноническое завершение процесса для Matrix — это Force `w+` или `w-` с
-`path = actor ID` и `value.fields[fieldId]`. Energy пока не исполняет DSL
-process action: default timeout — примерно `2000ms`, для тестов его можно
-ускорить через `ENERGY_TIMEOUT_MS=1`.
+`path = actor ID` и `value.fields[fieldId]`. Успешный action сейчас возвращает
+`w+` с пустым `fields`; исключение action возвращает `w-` с `error` и пустым
+`fields`. Success/error handlers, которые будут строить write-set, остаются
+следующим этапом.
+
+Energy владеет in-memory runtime mass store. `mass` не сериализуется в
+`Boundary`, не хранится в `Matrix` и не переносится через Force. Default mass
+scope на этом этапе — actor+wimp: `${wimp}\0${actorId}`; lifetime равен lifetime
+Energy protocol, а `close()` очищает default store.
+
+Action invocation contract един для `wrapperSrc` и imported action:
+
+```ts
+await fn({field, value, mass, self})
+```
+
+`value` собирается из frozen `z copy.value.fields` по `readFields` и keyed by
+field key, не by fieldId. `self` содержит `{atom, meta, path}` для actor.
 
 `energy/index.ts` остаётся тонким публичным входом для типов и парсера
 `readEnergyEnv`, без runtime-side-effect.
 
 `ENERGY_ID` задаёт id исполнителя; если env нет, используется стабильный
-`energy-local`. Реальное исполнение DSL action, `wrapperSrc`, dynamic import,
-env resolver и success/error handlers остаются следующим этапом.
+`energy-local`. Success/error handlers остаются следующим этапом.

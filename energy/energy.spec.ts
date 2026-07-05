@@ -1,8 +1,11 @@
+import {Buffer} from "node:buffer"
 import {describe, expect, test} from "bun:test"
-import type {BoundaryEnergyRuntimeSnapshot, ForceMessage, Particle} from "boundary"
+import type {BoundaryEnergyProcessDescriptor, BoundaryEnergyRuntimeSnapshot, ForceMessage, Particle} from "boundary"
 import {startEnergyProtocol} from "./energy.ts"
 
 let channelSequence = 0
+
+type EnergyActionDescriptor = BoundaryEnergyProcessDescriptor["action"]
 
 const waitFor = async (predicate: () => boolean): Promise<void> => {
   const deadline = Date.now() + 1000
@@ -19,22 +22,29 @@ const sleep = async (ms: number): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+const processEntry = (
+  state: string,
+  action: EnergyActionDescriptor = {
+    src: "./actions/ready.ts",
+    wrapperSrc: "async () => {}",
+    readFields: [[2, "command"]],
+  },
+  env: string[] = ["server"],
+): BoundaryEnergyRuntimeSnapshot["processes"][number] => ({
+  wimp: "owner/process",
+  state,
+  descriptor: {
+    type: "action",
+    key: state,
+    env,
+    action,
+  },
+})
+
 const createCatalog = (env: string[] = ["server"]): BoundaryEnergyRuntimeSnapshot => ({
   version: 1,
   actors: [[17, "owner/process"]],
-  processes: [{
-    wimp: "owner/process",
-    state: "ready",
-    descriptor: {
-      type: "action",
-      key: "ready",
-      env,
-      action: {
-        src: "./actions/ready.ts",
-        readFields: [[2, "level"]],
-      },
-    },
-  }],
+  processes: [processEntry("ready", undefined, env)],
 })
 
 const createHarness = (
@@ -71,6 +81,37 @@ const collectParts = (messages: ForceMessage[], part: string, op?: string): Part
   messages.flatMap((message) =>
     message.parts.filter((item) => item.part === part && (op === undefined || item.op === op)),
   )
+
+const claimAndCopy = async (
+  harness: ReturnType<typeof createHarness>,
+  state: string,
+  fields: Record<string, unknown>,
+): Promise<void> => {
+  const zCount = collectParts(harness.messages, "z", "test").length
+  harness.emit({parts: [{part: "photon", op: "test", path: 17, value: state}]})
+  await waitFor(() => collectParts(harness.messages, "z", "test").length > zCount)
+  harness.emit({
+    parts: [{
+      part: "z",
+      op: "copy",
+      path: 17,
+      from: "energy-local",
+      value: {fields},
+    }],
+  })
+}
+
+const expectNoWeakExecutorIdentity = (result: Particle | undefined): void => {
+  expect(result).toBeDefined()
+  expect("energyId" in result!).toBe(false)
+  expect("executorId" in result!).toBe(false)
+  expect("processId" in result!).toBe(false)
+  expect("token" in result!).toBe(false)
+  expect("wimpId" in result!).toBe(false)
+}
+
+const dataUrlAction = (source: string): string =>
+  `data:application/javascript;base64,${Buffer.from(source).toString("base64")}`
 
 describe("Energy Weak protocol", () => {
   test("Energy ignores photon/replace", async () => {
@@ -160,25 +201,20 @@ describe("Energy Weak protocol", () => {
     }
   })
 
-  test("Energy sends actor-addressed w+ after z copy timeout", async () => {
-    const harness = createHarness("energy-local", 1)
+  test("Energy executes wrapperSrc and sends actor-addressed w+", async () => {
+    const catalog: BoundaryEnergyRuntimeSnapshot = {
+      version: 1,
+      actors: [[17, "owner/process"]],
+      processes: [processEntry("ready", {
+        src: "./actions/ready.ts",
+        wrapperSrc: "async ({ value }) => { if (value.command !== 'commit') throw new Error('bad command') }",
+        readFields: [[2, "command"]],
+      })],
+    }
+    const harness = createHarness("energy-local", 1, catalog)
 
     try {
-      harness.emit({
-        parts: [{part: "photon", op: "test", path: 17, value: "ready"}],
-      })
-      await waitFor(() => collectParts(harness.messages, "z", "test").length > 0)
-
-      harness.emit({
-        parts: [{
-          part: "z",
-          op: "copy",
-          path: 17,
-          from: "energy-local",
-          value: {fields: {"2": 11}},
-        }],
-      })
-
+      await claimAndCopy(harness, "ready", {"2": "commit"})
       await waitFor(() => collectParts(harness.messages, "w+", "replace").length > 0)
 
       const result = collectParts(harness.messages, "w+", "replace")[0]
@@ -188,11 +224,159 @@ describe("Energy Weak protocol", () => {
         path: 17,
         value: {fields: {}},
       })
-      expect("energyId" in result!).toBe(false)
-      expect("executorId" in result!).toBe(false)
-      expect("processId" in result!).toBe(false)
-      expect("token" in result!).toBe(false)
-      expect("wimpId" in result!).toBe(false)
+      expectNoWeakExecutorIdentity(result)
+    } finally {
+      harness.close()
+    }
+  })
+
+  test("Energy sends w- when wrapperSrc throws", async () => {
+    const catalog: BoundaryEnergyRuntimeSnapshot = {
+      version: 1,
+      actors: [[17, "owner/process"]],
+      processes: [processEntry("ready", {
+        src: "./actions/ready.ts",
+        wrapperSrc: "async () => { throw new Error('wrapper failed') }",
+        readFields: [[2, "command"]],
+      })],
+    }
+    const harness = createHarness("energy-local", 1, catalog)
+
+    try {
+      await claimAndCopy(harness, "ready", {"2": "commit"})
+      await waitFor(() => collectParts(harness.messages, "w-", "replace").length > 0)
+
+      const result = collectParts(harness.messages, "w-", "replace")[0]
+      expect(result?.path).toBe(17)
+      expect((result?.value as {error?: string; fields?: unknown}).error).toContain("wrapper failed")
+      expect((result?.value as {fields?: unknown}).fields).toEqual({})
+      expectNoWeakExecutorIdentity(result)
+    } finally {
+      harness.close()
+    }
+  })
+
+  test("Imported action receives the same params object contract", async () => {
+    const catalog: BoundaryEnergyRuntimeSnapshot = {
+      version: 1,
+      actors: [[17, "owner/process"]],
+      processes: [processEntry("ready", {
+        src: dataUrlAction(`
+          export async function run(params) {
+            if (params.value.command !== "commit") throw new Error("bad value")
+            if (params.self.atom !== "17") throw new Error("bad atom")
+            if (params.self.meta !== "owner/process") throw new Error("bad meta")
+            if (params.self.path !== "17") throw new Error("bad path")
+            if (typeof params.mass !== "object" || params.mass === null) throw new Error("bad mass")
+          }
+        `),
+        importSpecifier: "run",
+        readFields: [[2, "command"]],
+      })],
+    }
+    const harness = createHarness("energy-local", 1, catalog)
+
+    try {
+      await claimAndCopy(harness, "ready", {"2": "commit"})
+      await waitFor(() => collectParts(harness.messages, "w+", "replace").length > 0)
+
+      expect(collectParts(harness.messages, "w+", "replace")[0]?.value).toEqual({fields: {}})
+    } finally {
+      harness.close()
+    }
+  })
+
+  test("Energy action value is keyed by field key, not field id", async () => {
+    const catalog: BoundaryEnergyRuntimeSnapshot = {
+      version: 1,
+      actors: [[17, "owner/process"]],
+      processes: [processEntry("ready", {
+        src: "./actions/ready.ts",
+        wrapperSrc: "async ({ value }) => { if ('2' in value) throw new Error('field id leaked'); if (value.command !== 'commit') throw new Error('missing command') }",
+        readFields: [[2, "command"]],
+      })],
+    }
+    const harness = createHarness("energy-local", 1, catalog)
+
+    try {
+      await claimAndCopy(harness, "ready", {"2": "commit"})
+      await waitFor(() => collectParts(harness.messages, "w+", "replace").length > 0)
+
+      expect(collectParts(harness.messages, "w+", "replace")[0]?.value).toEqual({fields: {}})
+      expect(collectParts(harness.messages, "w-", "replace")).toEqual([])
+    } finally {
+      harness.close()
+    }
+  })
+
+  test("Energy env resolver accepts any", async () => {
+    const harness = createHarness("energy-local", 1, createCatalog(["any"]), "server")
+
+    try {
+      await claimAndCopy(harness, "ready", {"2": "commit"})
+      await waitFor(() => collectParts(harness.messages, "w+", "replace").length > 0)
+
+      expect(collectParts(harness.messages, "z", "test")).toHaveLength(1)
+      expect(collectParts(harness.messages, "w+", "replace")[0]?.value).toEqual({fields: {}})
+    } finally {
+      harness.close()
+    }
+  })
+
+  test("Energy mass persists between executions for same actor and wimp", async () => {
+    const catalog: BoundaryEnergyRuntimeSnapshot = {
+      version: 1,
+      actors: [[17, "owner/process"]],
+      processes: [
+        processEntry("init", {
+          src: "./actions/init.ts",
+          wrapperSrc: "async ({ mass }) => { mass.client = { ready: true } }",
+          readFields: [],
+        }),
+        processEntry("ready", {
+          src: "./actions/ready.ts",
+          wrapperSrc: "async ({ mass }) => { if (!mass.client?.ready) throw new Error('missing mass client') }",
+          readFields: [],
+        }),
+      ],
+    }
+    const harness = createHarness("energy-local", 1, catalog)
+
+    try {
+      await claimAndCopy(harness, "init", {})
+      await waitFor(() => collectParts(harness.messages, "w+", "replace").length === 1)
+
+      await claimAndCopy(harness, "ready", {})
+      await waitFor(() => collectParts(harness.messages, "w+", "replace").length === 2)
+
+      expect(collectParts(harness.messages, "w-", "replace")).toEqual([])
+    } finally {
+      harness.close()
+    }
+  })
+
+  test("Energy timeout fallback still works without pending descriptor", async () => {
+    const harness = createHarness("energy-local", 1)
+
+    try {
+      harness.emit({
+        parts: [{
+          part: "z",
+          op: "copy",
+          path: 17,
+          from: "energy-local",
+          value: {fields: {"2": "commit"}},
+        }],
+      })
+
+      await waitFor(() => collectParts(harness.messages, "w+", "replace").length > 0)
+
+      expect(collectParts(harness.messages, "w+", "replace")[0]).toEqual({
+        part: "w+",
+        op: "replace",
+        path: 17,
+        value: {fields: {}},
+      })
     } finally {
       harness.close()
     }

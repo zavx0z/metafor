@@ -40,8 +40,8 @@
 Matrix -> photon/replace or photon/test
 Energy -> z test
 Matrix -> z copy
-Energy -> timeout
-Energy -> w+
+Energy -> execute cached descriptor
+Energy -> w+ / w-
 Matrix -> apply result / unlock / next weak step
 ```
 
@@ -80,21 +80,33 @@ Matrix выбирает первый валидный Energy и отвечает
 snapshot. `z copy` не несёт `process`. `from` у `z copy` — Energy id. `rejected` в v0 не используется:
 повторные `z test` после выбора исполнителя игнорируются.
 
-Energy v0 не выполняет DSL process action. Он ждёт timeout и возвращает:
+После `z copy` Energy исполняет cached process descriptor, найденный на
+`photon/test`, через `wrapperSrc` или dynamic import action. Action получает
+единый params object:
+
+```ts
+{ field, value, mass, self }
+```
+
+`value` keyed by field key, а не by fieldId. `mass` берётся из in-memory Energy
+mass store и не сериализуется в `Boundary`, не хранится в `Matrix` и не идёт по
+Force. Успех action сейчас возвращает:
 
 ```ts
 { part: "w+", op: "replace", path: 17, value: { fields: {} } }
 ```
 
-`w-` имеет ту же actor-addressed форму и может нести `error`:
+Исключение action возвращает actor-addressed `w-`:
 
 ```ts
 { part: "w-", op: "replace", path: 17, value: { error: "failed", fields: {} } }
 ```
 
+Timeout fallback сохраняется только для debug/v0 compatibility, если `z copy`
+пришёл без pending descriptor.
+
 Новый Weak process contract не использует top-level `processId`, `token`,
-`wimpId`, `executorId` или `/field/...`. Реальное DSL process action execution,
-`wrapperSrc`, dynamic import, env resolver и success/error handlers остаются
+`wimpId`, `executorId` или `/field/...`. Success/error handlers остаются
 следующим этапом.
 
 ## Чтение по доменам
@@ -132,8 +144,8 @@ Energy здесь означает distributed process executor. Текущий 
 - слушает только `photon/test` Matrix,
 - отправляет `z test` через локальный `BroadcastChannel("force")`,
 - принимает `z copy` только со своим Energy id в `from`,
-- в v0 ждёт timeout вместо исполнения process action,
-- возвращает actor result через `w+`.
+- исполняет cached descriptor с in-memory mass,
+- возвращает actor result через `w+` или `w-`.
 
 ### Bulk
 

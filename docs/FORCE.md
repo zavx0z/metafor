@@ -104,8 +104,7 @@ protocol не используют `/field/...`. `gluon`, `higgs`, `z copy`, `w+
 `w+`/`w-`.
 Runtime-state слой называется `Matrix`.
 Пакет `energy/` сейчас является локальным Force pipeline, а не отдельной
-серверной оболочкой bridge/protocol surface; реальное исполнение DSL action
-остаётся следующим этапом.
+серверной оболочкой bridge/protocol surface.
 Matrix не создаёт `z process-task` при входе actor в process-bound state.
 `photon` является публичным сигналом входа actor в state: `photon/replace` для
 обычного state и `photon/test` для process-bound state. При process-bound state
@@ -116,7 +115,12 @@ Energy получает process catalog snapshot при старте, слуша
 подходящий `photon/test`. Matrix выбирает первого валидного Energy и публикует
 `z copy`, где `from` равен Energy id, а `value.fields` содержит frozen snapshot;
 свойство `process` в `z copy.value` в v0 отсутствует. `rejected` в v0 не используется.
-Energy v0 вместо реального action ждёт timeout и публикует actor-addressed `w+`.
+Energy исполняет cached process descriptor после `z copy`: success публикует
+actor-addressed `w+` с пустым `fields`, throw публикует actor-addressed `w-` с
+`error` и пустым `fields`. Success/error handlers, которые будут строить
+write-set, остаются следующим этапом.
+Energy владеет in-memory runtime mass store. `mass` не сериализуется в
+`Boundary`, не хранится в `Matrix` и не переносится через Force.
 
 Для нового Weak process protocol top-level частицы не расширяются за пределы
 `part`, `op`, `path`, `value`, `from`. `processId`, `token`, `wimpId`,
@@ -147,7 +151,7 @@ id передаётся как `value.energy` в `z test` и как `from` в `z
 
 - `Dark`/`Boundary` могут использовать лёгкие сигналы и перечитывать персистентную форму.
 - `Matrix`/`Bulk` получают рантайм-данные и ведут собственное состояние/проекцию в рантайме.
-- `Energy` получает process catalog snapshot при старте через Dark/Boundary, затем работает по Force: frozen fields приходят через `z copy`, а сам пакет `energy/` не читает `Boundary`/SQLite.
+- `Energy` получает process catalog snapshot при старте через Dark/Boundary, затем работает по Force: frozen fields приходят через `z copy`, mass остаётся in-memory внутри Energy, а сам пакет `energy/` не читает `Boundary`/SQLite.
 - WebSocket между доменами не является синхронизацией базы.
 - Если рантайм получил только UUID без данных, это ошибка контракта, а не повод читать `Boundary`.
 
