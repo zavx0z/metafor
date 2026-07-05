@@ -9,7 +9,7 @@ Interpreter
   HUD
     terminal
     voice/status
-    todo
+    plan                 # `context.hud.todo`, storage `TODO.md`
     sqlite
   Space
     viewpoint
@@ -177,7 +177,7 @@ sender живет в отдельной service page
 
 Позиции в `source.cursor`, `source.selection` и `source.selections[]`: `line` - 1-based, `column` - 0-based. `selection.end.column` / `selections[].end.column` end-exclusive. `source.selection` - первичное выделение для обратной совместимости; `source.selections` содержит все активные выделения, включая первичное.
 
-`context.hud.todo` - состояние HUD ToDoPane. `highlightedItems` содержит пункты `TODO.md`, которые человек подсветил в панели, чтобы агент понимал, о чем сейчас речь. Это состояние панели, а не данные файла.
+`context.hud.todo` - состояние Plan HUD. `highlightedItems` содержит пункты `TODO.md`, которые человек подсветил в панели, чтобы агент понимал, о чем сейчас речь. Это состояние панели, а не данные файла.
 
 `context.hud.sqlite` - компактное состояние SQLite HUD. В context попадают активная база, таблица и выбранные человеком строки. Это не дамп базы и не полный набор данных таблицы: `selectedRows` ограничен первыми 20 выбранными строками, а при превышении лимита выставляется `selectionTruncated:true`.
 
@@ -382,18 +382,19 @@ Rotate/reload не оставлял target и preview в разных разме
 session не была создана или видна серая область, вызови
 `devtools.viewport.sync` вручную.
 
-## TODO HUD
+## Plan HUD
 
-Agent-facing действия TODO выполняются через `POST /tools` с `todo.*`. Прямые
-`/hud/todo*` routes являются UI/transport plumbing.
+Agent-facing действия Plan выполняются через `POST /tools` с `todo.*`. Прямые
+`/hud/todo*` routes являются UI/transport plumbing. Файл хранения остается
+`TODO.md`; пользовательское название панели и workflow - Plan.
 
-`todo.get` читает корневой `TODO.md` и возвращает Markdown плюс parsed items для HUD ToDoPane:
+`todo.get` читает корневой `TODO.md` и возвращает Markdown плюс parsed items для Plan HUD:
 
 ```json
-{"ok": true, "path": "/repo/TODO.md", "mtimeMs": 1710000000000, "size": 1024, "text": "# MetaFor TODO\n", "items": []}
+{"ok": true, "path": "/repo/TODO.md", "mtimeMs": 1710000000000, "size": 1024, "text": "# MetaFor Plan\n", "items": []}
 ```
 
-Данные TODO хранятся в файле: текст пунктов и markdown checkbox markers. ToDoPane парсит явный список markers и возвращает его как `marker`: `[ ]`, `[x]`/`[X]`, `[/]`, `[~]`, `[-]`, `[>]`, `[<]`, `[?]`, `[!]`, `[*]`, `[\"]`, `[l]`, `[b]`, `[i]`, `[I]`, `[S]`, `[p]`, `[c]`, `[f]`, `[k]`, `[w]`, `[u]`, `[d]`, а также progress marker `[0]`..`[100]`. Пауза progress-задачи пишется точкой перед числом: `[.0]`..`[.100]`. В этом repo `[0]` означает задачу в работе, `[.0]` - пауза, `[x]` или `[100]` - сделано. Progress также возвращается как `progress`, пауза - как `paused`. Подсветка строки хранится как состояние HUD-панели и попадает в `context.hud.todo.highlightedItems`.
+Данные Plan хранятся в файле `TODO.md`: текст пунктов и markdown checkbox markers. Plan HUD парсит явный список markers и возвращает его как `marker`: `[ ]`, `[x]`/`[X]`, `[/]`, `[~]`, `[-]`, `[>]`, `[<]`, `[?]`, `[!]`, `[*]`, `[\"]`, `[l]`, `[b]`, `[i]`, `[I]`, `[S]`, `[p]`, `[c]`, `[f]`, `[k]`, `[w]`, `[u]`, `[d]`, а также progress marker `[0]`..`[100]`. Пауза progress-задачи пишется точкой перед числом: `[.0]`..`[.100]`. В этом repo `[0]` означает задачу в работе, `[.0]` - пауза, `[x]` или `[100]` - сделано. Progress также возвращается как `progress`, пауза - как `paused`. Подсветка строки хранится как состояние HUD-панели и попадает в `context.hud.todo.highlightedItems`.
 
 Редактирование файла через `POST /tools`:
 

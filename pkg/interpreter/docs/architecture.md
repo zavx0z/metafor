@@ -77,7 +77,7 @@ GET    /tools
 POST   /tools
 ```
 
-`GET /hud/todo` читает корневой `TODO.md` для HUD ToDoPane. Текст пунктов и markdown checkbox `- [ ]` / `- [x]` являются данными файла. Подсветка пунктов является состоянием HUD-панели, не пишется в `TODO.md`, но входит в `context.hud.todo.highlightedItems`, чтобы агент видел, о чем сейчас речь.
+`GET /hud/todo` читает корневой `TODO.md` для Plan HUD. Текст пунктов и markdown checkbox `- [ ]` / `- [x]` являются данными файла. Подсветка пунктов является состоянием HUD-панели, не пишется в `TODO.md`, но входит в `context.hud.todo.highlightedItems`, чтобы агент видел, о чем сейчас речь.
 
 `hello` WebSocket-сообщение включает `modules`, поэтому UI сразу строит один `UIDisplay` на каждый модуль.
 

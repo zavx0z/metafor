@@ -3,7 +3,7 @@
 Этот файл задает локальные правила разработки для `pkg/interpreter` и текущего
 server-dev контура MetaFor. Следуй им при каждом изменении внутри interpreter
 package, WebApp debugging workflow, remote desktop display, DevTools bridge,
-HUD/TODO, breakpoints или совместного runtime/source контекста.
+HUD/Plan, breakpoints или совместного runtime/source контекста.
 
 Документация и правила пакета пишутся на русском. Технические имена endpoint, типов, команд и protocol methods оставляются как literal identifiers.
 
@@ -65,7 +65,7 @@ Protocol names вроде `Debugger.paused`, `Debugger.scriptParsed`, `Runtime.g
   разрабатывается первая реализация MetaFor;
 - `DevTools bridge` - agent API к Chrome DevTools Protocol для этой вкладки:
   console, source maps, breakpoints, reload и probe;
-- `HUD` - host-level панели вроде TODO, SQLite и terminal.
+- `HUD` - host-level панели вроде Plan, SQLite и terminal.
 
 Если нужно понять, что видит человек и где сейчас работать, сначала вызывай
 `POST /tools` с `context.get` и `space.get`, затем process tools с нужным
@@ -189,7 +189,7 @@ process/display, в котором выполнялась команда. Protoc
    - Для source используй `source.read`, `source.read_many`, `source.open`, `source.openSelection`, `source.write`, `source.apply_patch`.
 5. После правки проверь, что интерпретатор получил изменение: `source-patched`, replay/restart при необходимости, новый `context.get` или `source.read` через `POST /tools`.
 6. После правки агент сам доводит live-контур до примененного состояния: запускает нужные проверки, reload/restart/rebuild target-а и повторную диагностику. Не перекладывай на человека действия вроде "перезагрузи страницу", "пересобери bundle", "перезапусти process" или "проверь зависимости", если это можно сделать через interpreter API, DevTools/CDP, terminal или доступные host tools.
-7. Не путай UI интерпретатора и WebApp target. Если изменен browser-side код самого interpreter/HUD/TODO/Space (`pkg/interpreter/web`, `ui/elements`, `ui/panes`, `ui/components` в текущем HUD-контуре), перезагружай UI интерпретатора через `host.reload` и проверяй `context.get`, `todo.panel`, screenshot или профильный interpreter API.
+7. Не путай UI интерпретатора и WebApp target. Если изменен browser-side код самого interpreter/HUD/Plan/Space (`pkg/interpreter/web`, `ui/elements`, `ui/panes`, `ui/components` в текущем HUD-контуре), перезагружай UI интерпретатора через `host.reload` и проверяй `context.get`, `todo.panel`, screenshot или профильный interpreter API.
 8. Если изменен browser-side код WebApp target внутри server Chrome (`bulk/client.ts`, WebApp страницы, remote desktop target), перезагружай именно WebApp target через `devtools.reload` или Chrome CDP hard reload с cache bypass и проверяй `devtools.console`, screenshot или профильный WebApp API. Если изменен server/runtime код, сам перезапусти или replay соответствующий process и проверь health/output.
 
 Причина: только interpreter source API сдвигает breakpoints, рассылает `source-patched`, обновляет source cache/display и сохраняет связь runtime/source context. Правка в обход API оставляет UI и текущий runtime на старом source snapshot.
@@ -232,13 +232,13 @@ curl -sS -X POST http://10.66.0.10:6500/tools \
 
 `context.get` - главный tool для запроса "что сейчас видно/выделено". Он возвращает один текущий active context, а не полный dump всех runtime.
 
-`context.hud.todo` содержит текущее состояние HUD ToDoPane: подсвеченные человеком пункты `TODO.md`, чтобы агент понимал, о чем речь. Подсветка - состояние панели, не данные файла.
+`context.hud.todo` содержит текущее состояние Plan HUD: подсвеченные человеком пункты из `TODO.md`, чтобы агент понимал, о чем речь. Подсветка - состояние панели, не данные файла.
 
 Host-level tools:
 
 - `host.reload` в `POST /tools` рассылает подключенным UI-клиентам команду browser reload. Это не restart host process.
 - `host.restart` в `POST /tools` перезапускает текущий interpreter host только когда host знает, как себя поднять снова: сейчас основной путь - tmux `respawn-pane` текущего `TMUX_PANE` или явно заданный `INTERPRETER_RESTART_COMMAND` / `INTERPRETER_RESTART_SCRIPT`. Клиенты получают delayed reload и должны дождаться `/health`, чтобы не показывать белый экран во время restart.
-- `todo.reload` в `POST /tools` перечитывает корневой `TODO.md` и рассылает `hud-todo-changed` всем UI-клиентам. Не dispatch-ить это через случайный UI-host client: TODO HUD является общим состоянием host.
+- `todo.reload` в `POST /tools` перечитывает корневой `TODO.md` и рассылает `hud-todo-changed` всем UI-клиентам. Не dispatch-ить это через случайный UI-host client: Plan HUD является общим состоянием host.
 
 Если nginx показывает `502 Bad Gateway`, сначала проверяй upstream:
 `curl http://10.66.0.10:6500/health`,
@@ -261,7 +261,7 @@ Web DevTools tools для server Chrome/WebApp:
 - `devtools.resume` продолжает paused target.
 - `devtools.disable` снимает breakpoints, выключает Debugger и закрывает agent CDP session.
 
-TODO tools:
+Plan tools (`todo.*` API, storage file `TODO.md`):
 
 - `todo.get` читает корневой `TODO.md` и parsed items.
 - `todo.replace` заменяет файл целиком.
@@ -270,7 +270,7 @@ TODO tools:
 - `todo.delete` удаляет пункт.
 - `todo.highlight` подсвечивает пункт в HUD для `context.hud.todo.highlightedItems`.
 
-ToDoPane поддерживает явный список markdown task markers: `[ ]`, `[x]`/`[X]`,
+Plan HUD поддерживает явный список markdown task markers: `[ ]`, `[x]`/`[X]`,
 `[/]`, `[~]`, `[-]`, `[>]`, `[<]`, `[?]`, `[!]`, `[*]`, `[\"]`, `[l]`,
 `[b]`, `[i]`, `[I]`, `[S]`, `[p]`, `[c]`, `[f]`, `[k]`, `[w]`, `[u]`,
 `[d]`, а также progress marker `[0]`..`[100]`. Пауза progress-задачи
@@ -278,39 +278,40 @@ ToDoPane поддерживает явный список markdown task markers:
 помечается `[0]`, пауза - `[.0]`, сделано - `[x]` или `[100]`. Не прячь
 проценты прогресса в тексте пункта.
 
-TODO - обязательный рабочий журнал текущей разработки. Перед продолжением
-нетривиальной работы агент должен посмотреть ToDoPane/`todo.get`, понять
+Plan - обязательный рабочий журнал текущей разработки. Перед продолжением
+нетривиальной работы агент должен посмотреть Plan HUD/`todo.get`, понять
 актуальную задачу и ее состояние. Когда задача берется в работу, ставится на
 паузу, получает progress, завершается, добавляется или удаляется, это должно
 сразу отражаться через `todo.*` tools. Progress отмечай процентом в marker:
 `[1]`, `[25]`, `[99]`, `[100]`; для паузы ставь точку перед процентом:
 `[.1]`, `[.25]`. Не описывай progress словами в тексте пункта и не держи
 примерные проценты только в ответе агентом. Не веди параллельный список задач
-в ответах, памяти, временных файлах или тексте комментариев вместо TODO. Если
-работа меняет план или статус, сначала обнови TODO, затем продолжай код/анализ.
-Для текущей совместной разработки TODO является источником правды по тому, что
+в ответах, памяти, временных файлах или тексте комментариев вместо Plan. Если
+работа меняет план или статус, сначала обнови Plan, затем продолжай код/анализ.
+Без актуального Plan не начинай нетривиальную правку, перенос или проверку.
+Для текущей совместной разработки Plan является источником правды по тому, что
 мы делаем сейчас и что отложено.
 
-Когда человек говорит "открой TODO/Туду", "покажи TODO/Туду" или разговор
-идёт про TODO без явного уточнения "файл", агент должен работать с HUD
-ToDoPane: `todo.get`, `todo.show`, `todo.reload`, `todo.highlight` и mutating
+Когда человек говорит "открой Plan/План/TODO/Туду", "покажи Plan/План/TODO/Туду" или разговор
+идёт про планирование без явного уточнения "файл", агент должен работать с HUD
+Plan: `todo.get`, `todo.show`, `todo.reload`, `todo.highlight` и mutating
 `todo.*` tools. Не открывай `TODO.md` в source editor через `source.open`, пока
 человек явно не попросит открыть именно файл `TODO.md` в редакторе/source.
 
-Когда человек спрашивает "где задача", "где пункт", "что у нас в TODO",
-"покажи задачу" или ссылается на раздел/пункт TODO, агент должен сделать
-видимое действие в HUD ToDoPane: вызвать `todo.get`, найти соответствующий пункт,
+Когда человек спрашивает "где задача", "где пункт", "что у нас в Plan/План/TODO",
+"покажи задачу" или ссылается на раздел/пункт Plan, агент должен сделать
+видимое действие в Plan HUD: вызвать `todo.get`, найти соответствующий пункт,
 показать панель через `todo.show` при необходимости и подсветить конкретный item
 через `todo.highlight`, чтобы человек видел, о чем идет разговор. Если пункт
 отсутствует, агент должен предложить создать его или создать через `todo.create`,
 когда формулировка задачи уже дана человеком. Текстовый ответ без подсветки
-допустим только если HUD TODO API недоступен после явной попытки.
+допустим только если HUD Plan API недоступен после явной попытки.
 
-Когда пользователь должен сразу увидеть изменения в ToDoPane, меняй `TODO.md`
-через `POST /tools`, а не прямым редактированием файла. Mutating TODO tools
+Когда пользователь должен сразу увидеть изменения в Plan HUD, меняй `TODO.md`
+через `POST /tools`, а не прямым редактированием файла. Mutating `todo.*` tools
 сами рассылают `hud-todo-changed` подключенным UI-клиентам. Если `TODO.md` все
 же был изменен локально через git/apply_patch/merge, сразу вызови `todo.reload`
-через `POST /tools` и только потом сообщай пользователю, что TODO обновлен.
+через `POST /tools` и только потом сообщай пользователю, что Plan обновлен.
 
 Tools API:
 

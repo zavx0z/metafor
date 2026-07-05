@@ -149,9 +149,6 @@ export type EditorOpts = {
 
 const HEADER_H_PX = PANE_FRAME.headerHeight
 const PAD_TOP_PX = HEADER_H_PX + PANE_FRAME.bodyTopGap
-const PAD_LEFT_PX = PANE_FRAME.bodyInsetX
-const PAD_RIGHT_PX = PANE_FRAME.bodyInsetX
-const PAD_BOTTOM_PX = PANE_FRAME.bodyBottomInset
 const GUTTER_MIN_PX = 44
 const GUTTER_LEFT_PAD_PX = 6
 const GUTTER_RIGHT_PAD_PX = 8
@@ -670,8 +667,8 @@ export class EditorPane extends UiSurface {
       showHeader: this.#showHeader,
       movable: this.#draggable,
       resizable: this.#resizable,
-      minW: Math.max(300, PAD_LEFT_PX + GUTTER_MIN_PX + CODE_LEFT_PAD_PX + this.#getCharWidth() * 24 + PAD_RIGHT_PX + SCROLLBAR_W),
-      minH: Math.max(180, this.#padTopPx() + this.#linePx * 6 + PAD_BOTTOM_PX + SCROLLBAR_W),
+      minW: Math.max(300, this.#bodyInsetX * 2 + GUTTER_MIN_PX + CODE_LEFT_PAD_PX + this.#getCharWidth() * 24 + SCROLLBAR_W),
+      minH: Math.max(180, this.#padTopPx() + this.#linePx * 6 + this.#bodyBottomInset + SCROLLBAR_W),
     }
   }
 
@@ -970,7 +967,7 @@ export class EditorPane extends UiSurface {
   }
 
   #codeStartX(): number {
-    return PAD_LEFT_PX + this.#gutterWidthPx(this.#lines.length) + CODE_LEFT_PAD_PX
+    return this.#bodyInsetX + this.#gutterWidthPx(this.#lines.length) + CODE_LEFT_PAD_PX
   }
 
   #colAtLocalX(line: string, localX: number, bias: ColumnHitBias, row: EditorVisualRow | null = null): number {
@@ -1600,7 +1597,7 @@ export class EditorPane extends UiSurface {
   }
 
   #codeMaxPxForContentW(contentW: number, gutter: number): number {
-    return Math.max(1, contentW - gutter - CODE_LEFT_PAD_PX - 8)
+    return Math.max(1, contentW - gutter - CODE_LEFT_PAD_PX - this.#bodyInsetX)
   }
 
   #effectiveScrollLeftPx(): number {
@@ -1927,7 +1924,7 @@ export class EditorPane extends UiSurface {
     const visualRows = this.#visualRowsForCodeMaxPx(codeMaxPx)
     const scrollContentWidth = this.#wrapLines
       ? Math.max(1, viewport.w)
-      : Math.max(1, gutter + CODE_LEFT_PAD_PX + this.#maxLineWidthPx() + 8)
+      : Math.max(1, gutter + CODE_LEFT_PAD_PX + this.#maxLineWidthPx() + this.#bodyInsetX)
     const scrollPastEndPx = Math.max(0, viewport.h - this.#linePx * SCROLL_PAST_END_MIN_LINES)
     div(this, viewport.x, viewport.y, viewport.w, viewport.h, {
       key: EDITOR_SCROLL_KEY,
@@ -1996,9 +1993,9 @@ export class EditorPane extends UiSurface {
     const contentW = this.#viewportW
     const contentH = this.#viewportH
     const codeMaxPx = this.#codeMaxPxForContentW(contentW, gutter)
-    const codeClipX = PAD_LEFT_PX + gutter
+    const codeClipX = this.#bodyInsetX + gutter
     const codeClipW = Math.max(1, codeMaxPx + CODE_LEFT_PAD_PX)
-    const codeStartX = PAD_LEFT_PX + gutter + CODE_LEFT_PAD_PX
+    const codeStartX = this.#bodyInsetX + gutter + CODE_LEFT_PAD_PX
     const visualRows = this.#visualRowsForCodeMaxPx(codeMaxPx)
     return {
       totalRows: visualRows.length,
@@ -2018,8 +2015,9 @@ export class EditorPane extends UiSurface {
 
   #renderCurrentLineLayer(layout: EditorViewportLayout): void {
     const padTop = this.#padTopPx()
-    this.pushClip(PAD_LEFT_PX, padTop, layout.contentW, layout.contentH)
     const executionIndex = this.#executionLine === null ? null : this.#executionLine - 1
+    if (executionIndex === null && this.#bodyInsetX === 0 && !this.#showHeader && !this.#showLineNumbers) return
+    this.pushClip(this.#bodyInsetX, padTop, layout.contentW, layout.contentH)
     const rows = executionIndex === null
       ? [this.#visualRowForPosition(this.#currentPos(), layout.visualRows)]
       : layout.visualRows.filter((row) => row.lineIndex === executionIndex)
@@ -2029,15 +2027,16 @@ export class EditorPane extends UiSurface {
       const hY = padTop + cRowIdx * this.#linePx - layout.subPx
       const highlightY = this.#lineHighlightY(hY)
       const highlightH = this.#lineHighlightH()
+      const radius = this.#bodyInsetX === 0 ? 0 : 4
       if (executionIndex !== null) {
-        this.drawRoundedRect(PAD_LEFT_PX, highlightY, layout.contentW, highlightH, {
-          radius: 4,
+        this.drawRoundedRect(this.#bodyInsetX, highlightY, layout.contentW, highlightH, {
+          radius,
           fill: palette.pausedFill,
           z: Z.ELEMENT,
         })
       } else {
-        this.drawRoundedRect(PAD_LEFT_PX, highlightY, layout.contentW, highlightH, {
-          radius: 4,
+        this.drawRoundedRect(this.#bodyInsetX, highlightY, layout.contentW, highlightH, {
+          radius,
           fill: palette.bg,
           z: Z.ELEMENT,
         })
@@ -2088,7 +2087,7 @@ export class EditorPane extends UiSurface {
 
   #renderSelectionLayer(layout: EditorViewportLayout): void {
     const padTop = this.#padTopPx()
-    this.pushClip(PAD_LEFT_PX, padTop, layout.contentW, layout.contentH)
+    this.pushClip(this.#bodyInsetX, padTop, layout.contentW, layout.contentH)
     for (const line of this.#visibleLines(layout)) {
       this.pushClip(layout.codeClipX, line.rowY, layout.codeClipW, this.#linePx)
       this.#renderSelectionForLine(line, layout.codeStartX, line.rowY, layout.codeMaxPx)
@@ -2101,7 +2100,7 @@ export class EditorPane extends UiSurface {
     const visibleLines = this.#visibleLines(layout)
     const padTop = this.#padTopPx()
 
-    this.pushClip(PAD_LEFT_PX, padTop, layout.contentW, layout.contentH)
+    this.pushClip(this.#bodyInsetX, padTop, layout.contentW, layout.contentH)
     for (const line of visibleLines) {
       this.pushClip(layout.codeClipX, line.rowY, layout.codeClipW, this.#linePx)
       this.#renderCodeLine(line.lineIndex, line.lineText, layout.codeStartX, line.textY, layout.codeMaxPx, line.startCol, line.endCol)
@@ -2163,12 +2162,12 @@ export class EditorPane extends UiSurface {
 
   #gutterMetrics(gutter: number, contentH: number): EditorGutterMetrics {
     return {
-      x: PAD_LEFT_PX,
+      x: this.#bodyInsetX,
       y: this.#padTopPx(),
       w: gutter,
       h: contentH,
-      ruleX: PAD_LEFT_PX + gutter,
-      numberXMax: PAD_LEFT_PX + gutter - GUTTER_RIGHT_PAD_PX,
+      ruleX: this.#bodyInsetX + gutter,
+      numberXMax: this.#bodyInsetX + gutter - GUTTER_RIGHT_PAD_PX,
       numberW: gutter - GUTTER_LEFT_PAD_PX - GUTTER_RIGHT_PAD_PX,
     }
   }
@@ -2489,13 +2488,13 @@ export class EditorPane extends UiSurface {
     const rowY = visibleLine.rowY
     const itemWidths = SELECTION_MENU_ITEMS.map((item) => Math.max(58, autoButtonWidth(this, item.label, 10, 18)))
     const menuContentW = itemWidths.reduce((sum, w) => sum + w, 0) + 6 * (itemWidths.length - 1)
-    const maxMenuW = this.rectW - PAD_LEFT_PX - PAD_RIGHT_PX - SCROLLBAR_W - 16
+    const maxMenuW = this.rectW - this.#bodyInsetX * 2 - SCROLLBAR_W - 16
     const menuW = Math.min(maxMenuW, menuContentW + 12)
     const menuH = 34
-    const minMenuX = PAD_LEFT_PX + 4
-    const maxMenuX = this.rectW - PAD_RIGHT_PX - SCROLLBAR_W - 4 - menuW
+    const minMenuX = this.#bodyInsetX + 4
+    const maxMenuX = this.rectW - this.#bodyInsetX - SCROLLBAR_W - 4 - menuW
     const menuX = Math.max(minMenuX, Math.min(maxMenuX, anchorX - menuW / 2))
-    const contentBottom = this.rectH - PAD_BOTTOM_PX
+    const contentBottom = this.rectH - this.#bodyBottomInset
     const aboveY = rowY - menuH - 8
     const minMenuY = this.#showHeader ? HEADER_H_PX + 4 : 4
     const menuY = aboveY >= minMenuY
@@ -2524,12 +2523,12 @@ export class EditorPane extends UiSurface {
 
   #viewportContentW(): number {
     if (this.#viewportW > 1) return this.#viewportW
-    return Math.max(1, this.rectW - PAD_LEFT_PX - PAD_RIGHT_PX - SCROLLBAR_W - 10)
+    return Math.max(1, this.rectW - this.#bodyInsetX * 2 - SCROLLBAR_W - 10)
   }
 
   #viewportContentH(): number {
     if (this.#viewportH > 1) return this.#viewportH
-    return Math.max(1, this.rectH - this.#padTopPx() - PAD_BOTTOM_PX - SCROLLBAR_W - 10)
+    return Math.max(1, this.rectH - this.#padTopPx() - this.#bodyBottomInset - SCROLLBAR_W - 10)
   }
 
   #gutterWidthPx(lineCount: number): number {

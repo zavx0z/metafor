@@ -25,7 +25,7 @@ function installRafStub(): () => void {
 describe("ToDoPane markdown parser", () => {
   test("парсит заголовки и markdown checkbox задачи", () => {
     const items = parseMarkdownTodo([
-      "# MetaFor TODO",
+      "# MetaFor Plan",
       "",
       "## Runtime",
       "",
@@ -43,11 +43,11 @@ describe("ToDoPane markdown parser", () => {
       marker: item.marker,
       section: item.section,
     }))).toEqual([
-      {kind: "heading", line: 1, depth: 0, text: "MetaFor TODO", checked: null, marker: null, section: []},
-      {kind: "heading", line: 3, depth: 1, text: "Runtime", checked: null, marker: null, section: ["MetaFor TODO"]},
-      {kind: "task", line: 5, depth: 0, text: "Сделать adapter", checked: false, marker: " ", section: ["MetaFor TODO", "Runtime"]},
-      {kind: "task", line: 6, depth: 1, text: "Проверить smoke", checked: true, marker: "x", section: ["MetaFor TODO", "Runtime"]},
-      {kind: "note", line: 7, depth: 0, text: "обычная заметка", checked: null, marker: null, section: ["MetaFor TODO", "Runtime"]},
+      {kind: "heading", line: 1, depth: 0, text: "MetaFor Plan", checked: null, marker: null, section: []},
+      {kind: "heading", line: 3, depth: 1, text: "Runtime", checked: null, marker: null, section: ["MetaFor Plan"]},
+      {kind: "task", line: 5, depth: 0, text: "Сделать adapter", checked: false, marker: " ", section: ["MetaFor Plan", "Runtime"]},
+      {kind: "task", line: 6, depth: 1, text: "Проверить smoke", checked: true, marker: "x", section: ["MetaFor Plan", "Runtime"]},
+      {kind: "note", line: 7, depth: 0, text: "обычная заметка", checked: null, marker: null, section: ["MetaFor Plan", "Runtime"]},
     ])
   })
 

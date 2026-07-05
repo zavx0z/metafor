@@ -1423,7 +1423,7 @@ function asTodoTaskMarker(value: unknown): TodoMarkdownInsert["marker"] {
 
 function readTodoMarkdownForEdit(): string {
   const path = todoMarkdownPath()
-  return existsSync(path) ? readFileSync(path, "utf8") : "# MetaFor TODO\n"
+  return existsSync(path) ? readFileSync(path, "utf8") : "# MetaFor Plan\n"
 }
 
 async function replaceTodoMarkdown(req: Request, broadcast: (payload: JsonObject) => void): Promise<Response> {

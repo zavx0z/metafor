@@ -1,5 +1,5 @@
 /**
- * ToDoPane — HUD-поверхность рабочего TODO.md.
+ * ToDoPane — HUD-поверхность рабочего Plan.
  *
  * Pane не знает о сервере интерпретатора. Внешний слой подает Markdown,
  * принимает context-снимок и решает, как сохранять выбор.
@@ -58,7 +58,7 @@ const TODO_TEXT_LINE_HEIGHT = 1.22
 const TODO_HEADER_H = PANE_FRAME.headerHeight
 const TODO_MIN_W = 320
 const TODO_MIN_H = PANE_FRAME.headerHeight + 160
-const TODO_EMPTY = "TODO.md не загружен"
+const TODO_EMPTY = "Plan не загружен"
 const TODO_PANEL_BG = withAlpha(palette.bg, 0.68)
 
 type ToDoPaneRowLayout = {
@@ -97,8 +97,8 @@ export class ToDoPane extends UiSurface {
 
   constructor(opts: ToDoPaneOpts = {}) {
     super({bgColor: null, borderColor: null})
-    this.node.name = "ToDoPane"
-    this.#title = opts.title ?? "TODO.md"
+    this.node.name = "PlanPane"
+    this.#title = opts.title ?? "Plan"
     this.#path = opts.path ?? "TODO.md"
     this.#markdown = opts.markdown ?? ""
     this.#items = parseMarkdownTodo(this.#markdown)
@@ -172,7 +172,7 @@ export class ToDoPane extends UiSurface {
     const body = HudWindow(this, 0, 0, w, h, {
       title: this.#title,
       subtitle: `${this.#highlightedIds.size} подсвечено`,
-      minimizeLabel: "Свернуть TODO",
+      minimizeLabel: "Свернуть Plan",
       ...(this.#onFrameDockRequest === undefined ? {} : {onMinimize: this.#onFrameDockRequest}),
       active: this.active,
       fill: TODO_PANEL_BG,
@@ -189,7 +189,7 @@ export class ToDoPane extends UiSurface {
 
   #renderBody(rect: UiSurfaceRect): void {
     if (this.#items.length === 0) {
-      this.drawText(this.#markdown.trim().length === 0 ? TODO_EMPTY : "В TODO.md нет пунктов", rect.x + 8, rect.y + 12, {
+      this.drawText(this.#markdown.trim().length === 0 ? TODO_EMPTY : "В Plan нет пунктов", rect.x + 8, rect.y + 12, {
         fontPx: 12,
         material: this.#mutedMaterial,
         maxWidthPx: Math.max(1, rect.w - 16),

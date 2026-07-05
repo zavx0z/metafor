@@ -722,7 +722,6 @@ const HOST_TERMINAL_CODEX_COMPOSER_H = 268
 const HOST_TERMINAL_CODEX_COMPOSER_MIN_W = 420
 const HOST_TERMINAL_CODEX_COMPOSER_MIN_H = 220
 const HOST_TERMINAL_CODEX_COMPOSER_GAP = 8
-const HOST_TERMINAL_CODEX_COMPOSER_PAD = 12
 const HOST_TERMINAL_CODEX_COMPOSER_HEADER_BUTTON_SIZE = 24
 const HOST_TERMINAL_CODEX_COMPOSER_VOICE_BUTTON_VISIBLE = true
 const AGENT_READY_SOUND_IDLE_MS = 2_500
@@ -2032,7 +2031,7 @@ function hudAndroidPayload(): unknown {
 }
 
 function setHudTodoHighlight(params: unknown): unknown {
-  if (todoPane === null) throw new Error("TODO pane is not ready")
+  if (todoPane === null) throw new Error("Plan pane is not ready")
   const ids = todoHighlightIdsFromParams(params)
   if (todoHudDocked) setTodoHudDocked(false)
   todoPane.setHighlightedIds(ids)
@@ -2743,7 +2742,7 @@ async function initEngine(): Promise<void> {
     })
     const todoStored = readStoredTodoPanelState()
     todoPane = new ToDoPane({
-      title: "TODO.md",
+      title: "Plan",
       path: "TODO.md",
       highlightedIds: todoStored.highlightedIds,
       expandedCompletedIds: todoStored.expandedCompletedIds,
@@ -2890,8 +2889,8 @@ function installEnginePanes(): void {
   }
   todoDockPane ??= new HostTerminalDockPane({
     key: "todo-dock-restore",
-    label: "TODO",
-    tooltip: "TODO.md",
+    label: "Plan",
+    tooltip: "Plan",
     icon: uiIcons.apply,
     edge: currentTodoDockEdge,
     restore: () => setTodoHudDocked(false),
@@ -2963,7 +2962,7 @@ async function loadTodoPane(): Promise<void> {
     const payload = await response.json() as TodoMarkdownPayload
     loadTodoPaneFromPayload(payload)
   } catch (error) {
-    pane.setMarkdown(`- [ ] TODO.md не загружен: ${error instanceof Error ? error.message : String(error)}`, "TODO.md")
+    pane.setMarkdown(`- [ ] Plan не загружен: ${error instanceof Error ? error.message : String(error)}`, "TODO.md")
   }
 }
 
@@ -2986,7 +2985,7 @@ async function updateTodoItemChecked(id: string, checked: boolean): Promise<void
     const payload = await response.json() as TodoMarkdownPayload
     loadTodoPaneFromPayload(payload)
   } catch (error) {
-    console.warn("TODO checkbox update failed:", error)
+    console.warn("Plan checkbox update failed:", error)
     void loadTodoPane()
   }
 }
@@ -5365,13 +5364,6 @@ class HostTerminalCodexComposerPane extends UiSurface {
     const h = Math.max(1, this.rectH)
     this.#renderWindow(w, h)
     const layout = hostCodexComposerContentLayout(w, h, this.controller.codexAttachments.length > 0)
-    this.drawRoundedRect(layout.editor.x, layout.editor.y, layout.editor.w, layout.editor.h, {
-      radius: 8,
-      fill: new Color(0.04, 0.06, 0.09, 0.26),
-      border: palette.borderDim,
-      borderWidth: 1,
-      z: Z.CONTAINER + 0.02,
-    })
     if (layout.attachments !== null) this.#drawAttachmentRow(layout.attachments.x, layout.attachments.y, layout.attachments.w, layout.attachments.y + layout.attachments.h)
     if (this.controller.codexDropActive) this.#drawDropOverlay(w, h)
   }
@@ -5421,9 +5413,9 @@ class HostTerminalCodexComposerPane extends UiSurface {
       buttonSize,
       buttonGap: 5,
       ruleColor: palette.borderDim,
-      bodyInsetX: HOST_TERMINAL_CODEX_COMPOSER_PAD,
+      bodyInsetX: PANE_FRAME.bodyInsetX,
       bodyTopGap: PANE_FRAME.bodyTopGap,
-      bodyBottomInset: HOST_TERMINAL_CODEX_COMPOSER_PAD,
+      bodyBottomInset: PANE_FRAME.bodyInsetX,
     })
   }
 
@@ -5532,17 +5524,11 @@ class HostTerminalCodexComposerPane extends UiSurface {
   }
 
   #drawDropOverlay(w: number, h: number): void {
-    this.drawRoundedRect(3, 3, Math.max(1, w - 6), Math.max(1, h - 6), {
-      radius: 7,
-      fill: new Color(0.02, 0.16, 0.18, 0.34),
-      border: palette.cyan,
-      borderWidth: 1,
-      z: Z.CONTAINER + 0.2,
-    })
-    this.drawText("Drop image", HOST_TERMINAL_CODEX_COMPOSER_PAD, h - 25, {
+    this.drawRect(0, PANE_FRAME.headerHeight, w, Math.max(1, h - PANE_FRAME.headerHeight), new Color(0.02, 0.16, 0.18, 0.26), Z.CONTAINER + 0.2)
+    this.drawText("Drop image", 2, h - 22, {
       fontPx: 11,
       material: this.materials.cyan,
-      maxWidthPx: Math.max(1, w - HOST_TERMINAL_CODEX_COMPOSER_PAD * 2),
+      maxWidthPx: Math.max(1, w - 4),
       z: Z.TEXT + 0.2,
     })
   }
@@ -6467,9 +6453,9 @@ type HostCodexComposerContentLayout = {
 function hostCodexComposerContentLayout(w: number, h: number, hasAttachments: boolean): HostCodexComposerContentLayout {
   const body = paneBodyRect(w, h, {
     headerHeight: PANE_FRAME.headerHeight,
-    insetX: HOST_TERMINAL_CODEX_COMPOSER_PAD,
+    insetX: PANE_FRAME.bodyInsetX,
     topGap: PANE_FRAME.bodyTopGap,
-    bottomInset: HOST_TERMINAL_CODEX_COMPOSER_PAD,
+    bottomInset: PANE_FRAME.bodyInsetX,
   })
   const layout: HostCodexComposerContentLayout = {
     editor: {...body},
@@ -7848,6 +7834,9 @@ function createHostCodexEditor(controller: HostTerminalController): EditorPane {
     introAnimation: false,
     showHeader: false,
     chrome: "none",
+    bodyInsetX: 0,
+    bodyTopGap: 0,
+    bodyBottomInset: 0,
     indentGuides: false,
     showLineNumbers: false,
     wrapLines: true,

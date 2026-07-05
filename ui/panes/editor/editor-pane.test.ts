@@ -341,6 +341,24 @@ describe("EditorPane layout options", () => {
     }
   })
 
+  test("maps pointer hits from an edge-to-edge embedded body", () => {
+    const editor = new EditorPane({showHeader: false, showLineNumbers: false, bodyInsetX: 0, bodyTopGap: 0, bodyBottomInset: 0, wrapLines: true})
+    try {
+      setEditorTestSize(editor)
+      editor.setText("alpha beta")
+      const charW = 13 * 0.62
+      const x = 2 + charW * 7.1
+      const y = 5
+
+      editor.onPointerDown({shiftKey: false, detail: 2} as MouseEvent, x, y)
+      editor.onPointerUp({shiftKey: false, detail: 2} as MouseEvent, x, y)
+
+      expect(editor.getSelectedText()).toBe("beta")
+    } finally {
+      editor.dispose()
+    }
+  })
+
   test("maps pointer hits on wrapped visual rows back to the source line", () => {
     const editor = new EditorPane({showHeader: false, showLineNumbers: false, wrapLines: true})
     try {

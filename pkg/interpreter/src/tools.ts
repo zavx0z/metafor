@@ -80,7 +80,7 @@ export const interpreterToolDescriptions = [
   {name: "browser.*", description: "browser-display JSON actions", parameters: "см. docs/api.md"},
   {name: "remote_desktop.*", description: "remote desktop lifecycle/input/RTC/browser JSON actions", parameters: "см. docs/api.md"},
   {name: "hud.*", description: "HUD panel state/actions", parameters: "см. docs/api.md"},
-  {name: "todo.*", description: "TODO.md read/mutate/highlight actions", parameters: "см. docs/api.md"},
+  {name: "todo.*", description: "Plan read/mutate/highlight actions backed by TODO.md", parameters: "см. docs/api.md"},
   {name: "sqlite.*", description: "SQLite inspect/open/cell actions", parameters: "см. docs/api.md"},
   {name: "android.*", description: "Android HUD/control proxy actions", parameters: "см. docs/api.md"},
   {name: "events.tail", description: "прочитать event log tail", parameters: "{since?, limit?}"},
