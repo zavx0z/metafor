@@ -42,29 +42,36 @@ force.onmessage = (event) => {
 const server = serve<{kind: "browser"}>({
   routes: {
     "/": index,
-    "/health": () => Response.json({ok: true}),
+    "/health": {
+      GET() {
+        return Response.json({ok: true})
+      },
+    },
     "/engine-static/JetBrainsMono-Bold.ttf": file("./pkg/engine/static/JetBrainsMono-Bold.ttf"),
     "/models/bots.glb": file("./pkg/engine/static/models/bots.glb"),
-    "/force": async (req) => {
-      if (req.method !== "POST") return new Response("Method Not Allowed", {status: 405})
-      let payload: {parts?: unknown}
-      try {
-        payload = await req.json() as {parts?: unknown}
-      } catch (error) {
-        return Response.json({ok: false, error: error instanceof Error ? error.message : String(error)}, {status: 400})
-      }
-      if (!Array.isArray(payload.parts)) return Response.json({ok: false, error: "parts must be an array"}, {status: 400})
-      const message: BoundaryUpdateMessage = {parts: payload.parts as BoundaryUpdateMessage["parts"]}
-      try {
-        await acceptForce(message, true)
-        return Response.json({ok: true, parts: message.parts.length})
-      } catch (error) {
-        return Response.json({ok: false, error: error instanceof Error ? error.message : String(error)}, {status: 400})
-      }
+    "/force": {
+      async POST(req) {
+        let payload: {parts?: unknown}
+        try {
+          payload = await req.json() as {parts?: unknown}
+        } catch (error) {
+          return Response.json({ok: false, error: error instanceof Error ? error.message : String(error)}, {status: 400})
+        }
+        if (!Array.isArray(payload.parts)) return Response.json({ok: false, error: "parts must be an array"}, {status: 400})
+        const message: BoundaryUpdateMessage = {parts: payload.parts as BoundaryUpdateMessage["parts"]}
+        try {
+          await acceptForce(message, true)
+          return Response.json({ok: true, parts: message.parts.length})
+        } catch (error) {
+          return Response.json({ok: false, error: error instanceof Error ? error.message : String(error)}, {status: 400})
+        }
+      },
     },
-    "/ws": (req, server) => {
-      const upgraded = server.upgrade(req, {data: {kind: "browser"}})
-      return upgraded ? undefined : new Response("WebSocket upgrade failed", {status: 426})
+    "/ws": {
+      GET(req, server) {
+        const upgraded = server.upgrade(req, {data: {kind: "browser"}})
+        return upgraded ? undefined : new Response("WebSocket upgrade failed", {status: 426})
+      },
     },
   },
   websocket: {

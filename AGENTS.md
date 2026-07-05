@@ -46,6 +46,18 @@ pkg/interpreter/AGENTS.md
 Меньше кода - меньше скрытого состояния, меньше поверхностей для ошибок и
 меньше шансов случайно превратить локальный переход в новую архитектуру.
 
+## Bun Серверы
+
+Для Bun server/fullstack кода сначала сверяй текущие практики с
+`https://bun.sh/docs`. При создании или существенной правке серверов открывай
+`https://bun.sh/docs/bundler/fullstack` и используй нативный `Bun.serve`/`routes`
+формат: HTML/static entries оставляй прямыми route values, API routes оформляй
+как объект HTTP method handlers (`GET`, `POST`, `PUT`, `DELETE`), без ручной
+проверки `req.method`, когда тот же контракт выражается через route shape.
+Для производительности предпочитай exact routes для известных путей, `:param`
+для одного динамического сегмента, wildcard routes только для настоящих
+catch-all/proxy случаев, а static `Response` routes - для неизменяемых ответов.
+
 ## Текущий Server-Dev Контур
 
 По умолчанию новый агент должен считать, что он находится в server-dev контуре:

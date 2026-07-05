@@ -77,24 +77,17 @@ const DEFAULT_CONFIG: RemoteDesktopLifecycleConfig = {
   xvfbSession: "metafor-rdp-xvfb",
 }
 
-export async function handleRemoteDesktopLifecycleRoute(
-  req: Request,
-  method: string,
-  path: string,
-  logger?: EventLogger,
-): Promise<Response | null> {
-  if (path !== "/remote-desktop/lifecycle") return null
-  if (method === "GET") {
-    const normalized = normalizeRemoteDesktopLifecycleRequest({})
-    if (!normalized.ok) return lifecycleJsonResponse({ok: false, error: normalized.error}, 500)
-    return lifecycleJsonResponse({
-      ok: true,
-      schema: remoteDesktopLifecycleSchema(),
-      state: await remoteDesktopLifecycleStatus(normalized.request.config),
-    })
-  }
-  if (method !== "POST") return lifecycleJsonResponse({ok: false, error: `method not allowed: ${method}`}, 405)
+export async function remoteDesktopLifecycleStatusResponse(): Promise<Response> {
+  const normalized = normalizeRemoteDesktopLifecycleRequest({})
+  if (!normalized.ok) return lifecycleJsonResponse({ok: false, error: normalized.error}, 500)
+  return lifecycleJsonResponse({
+    ok: true,
+    schema: remoteDesktopLifecycleSchema(),
+    state: await remoteDesktopLifecycleStatus(normalized.request.config),
+  })
+}
 
+export async function remoteDesktopLifecycleCommandResponse(req: Request, logger?: EventLogger): Promise<Response> {
   const parsed = await readJsonObject(req)
   if (parsed.error !== undefined) return lifecycleJsonResponse({ok: false, error: parsed.error, schema: remoteDesktopLifecycleSchema()}, 400)
   const normalized = normalizeRemoteDesktopLifecycleRequest(parsed.body)

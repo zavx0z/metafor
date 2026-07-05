@@ -79,16 +79,12 @@ const server = Bun.serve({
     "/style.css": () => new Response(Bun.file(STYLE_PATH), {headers: {"content-type": "text/css; charset=utf-8", "cache-control": "no-cache"}}),
     "/entry.js": buildEntry,
     "/JetBrainsMono-Bold.ttf": () => new Response(Bun.file(FONT_PATH), {headers: {"content-type": "font/ttf"}}),
-    "/*": (req) => {
-      const url = new URL(req.url)
-      const asset = buildAssets.get(url.pathname)
-      if (asset !== undefined) return new Response(asset)
-      return indexResponse()
+    "/:asset": {
+      GET(req) {
+        const asset = buildAssets.get(`/${req.params.asset}`)
+        return asset === undefined ? new Response("Not Found", {status: 404}) : new Response(asset)
+      },
     },
-  },
-  fetch(req) {
-    const url = new URL(req.url)
-    return new Response(`not found: ${req.method} ${url.pathname}`, {status: 404})
   },
 })
 

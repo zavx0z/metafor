@@ -17,9 +17,9 @@
 
 ## 2. Dark / Bulk Browser Shell
 
-- [ ] Проверить live server-dev запуск `dark/index.ts` как основной target с Matrix pipeline внутри процесса.
-- [ ] Связать Matrix photons и Bulk visual update в основном browser shell без чтения Boundary из Matrix/Bulk.
-- [ ] Собрать сквозную проверку `Dark -> Boundary -> Matrix -> Bulk browser shell`.
+- [100] Проверить live server-dev запуск `dark/index.ts` как основной target с Matrix pipeline внутри процесса.
+- [.50] Связать Matrix photons и Bulk visual update в основном browser shell без чтения Boundary из Matrix/Bulk.
+- [100] Собрать сквозную проверку `Dark -> Boundary -> Matrix -> Bulk browser shell`.
 
 ## 3. Topology Runtime
 

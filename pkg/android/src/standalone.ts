@@ -28,6 +28,22 @@ const server = Bun.serve<AndroidSocketData>({
     "/android/tap": { POST: androidTapResponse },
     "/android/swipe": { POST: androidSwipeResponse },
     "/android/key": { POST: androidKeyResponse },
+    "/android/stream": {
+      GET(req, bunServer) {
+        const upgraded = bunServer.upgrade(req, {
+          data: createAndroidSocketData({}),
+        });
+        return upgraded ? undefined : new Response("WebSocket upgrade failed", { status: 400 });
+      },
+    },
+    "/android/h264": {
+      GET(req, bunServer) {
+        const upgraded = bunServer.upgrade(req, {
+          data: createAndroidH264SocketData({}),
+        });
+        return upgraded ? undefined : new Response("WebSocket upgrade failed", { status: 400 });
+      },
+    },
   },
   development:
     process.env.NODE_ENV === "production"
@@ -36,21 +52,6 @@ const server = Bun.serve<AndroidSocketData>({
           hmr: true,
           console: true,
         },
-  fetch(req, bunServer) {
-    const url = new URL(req.url);
-
-    if (url.pathname === "/android/stream" || url.pathname === "/android/h264") {
-      const upgraded = bunServer.upgrade(req, {
-        data: url.pathname === "/android/h264"
-          ? createAndroidH264SocketData({})
-          : createAndroidSocketData({}),
-      });
-
-      return upgraded ? undefined : new Response("WebSocket upgrade failed", { status: 400 });
-    }
-
-    return new Response("Not Found", { status: 404 });
-  },
   websocket: {
     idleTimeout: 0,
     maxPayloadLength: 1024 * 1024,

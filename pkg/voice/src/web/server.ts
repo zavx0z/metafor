@@ -160,8 +160,119 @@ const sockets = new Set<VoiceSocket>();
 const server = Bun.serve<WsData>({
   hostname: HOST,
   port: PORT,
-  fetch(req, srv) {
-    return handleRequest(req, srv);
+  routes: {
+    "/ws": {
+      GET(req, srv) {
+        const upgraded = srv.upgrade(req, {
+          data: {
+            id: crypto.randomUUID(),
+            active: false,
+            bytes: 0,
+            chunks: 0,
+            lastPartial: "",
+            sampleRate: DEFAULT_SAMPLE_RATE,
+          },
+        });
+        return upgraded ? undefined : text("WebSocket upgrade failed", 426);
+      },
+    },
+    "/health": {
+      GET() {
+        return json({ ok: true, service: "@metafor/voice", sockets: sockets.size });
+      },
+    },
+    "/api/info": {
+      GET() {
+        return json({ ok: true, ...serviceConfig() });
+      },
+    },
+    "/api/match": {
+      POST: matchCommand,
+    },
+    "/api/whisper/users": {
+      GET: listWhisperUsers,
+      POST: createWhisperUser,
+    },
+    "/api/whisper/users/:userId": {
+      DELETE(req) {
+        return deleteWhisperUser(req.params.userId);
+      },
+    },
+    "/api/whisper/sessions": {
+      GET: listWhisperSessions,
+      POST: saveWhisperSession,
+    },
+    "/api/whisper/accent": {
+      POST: accentWhisperText,
+    },
+    "/api/whisper/sessions/:sessionId": {
+      DELETE(req) {
+        return deleteWhisperSession(req.params.sessionId);
+      },
+    },
+    "/api/whisper/sessions/:sessionId/reference": {
+      POST(req) {
+        return prepareWhisperReference(req, req.params.sessionId);
+      },
+    },
+    "/api/whisper/sessions/:sessionId/tts": {
+      POST(req) {
+        return generateWhisperTts(req, req.params.sessionId);
+      },
+    },
+    "/api/whisper/sessions/:sessionId/ready": {
+      POST(req) {
+        return markWhisperSessionReady(req, req.params.sessionId);
+      },
+    },
+    "/api/whisper/sessions/:sessionId/audio.wav": {
+      GET(req) {
+        return serveWhisperSessionFile(req.params.sessionId, "audio.wav");
+      },
+    },
+    "/api/whisper/sessions/:sessionId/transcript.txt": {
+      GET(req) {
+        return serveWhisperSessionFile(req.params.sessionId, "transcript.txt");
+      },
+    },
+    "/api/whisper/sessions/:sessionId/meta.json": {
+      GET(req) {
+        return serveWhisperSessionFile(req.params.sessionId, "meta.json");
+      },
+    },
+    "/api/whisper/sessions/:sessionId/reference.wav": {
+      GET(req) {
+        return serveWhisperSessionFile(req.params.sessionId, "reference.wav");
+      },
+    },
+    "/api/whisper/sessions/:sessionId/reference.txt": {
+      GET(req) {
+        return serveWhisperSessionFile(req.params.sessionId, "reference.txt");
+      },
+    },
+    "/api/whisper/sessions/:sessionId/tts.wav": {
+      GET(req) {
+        return serveWhisperSessionFile(req.params.sessionId, "tts.wav");
+      },
+    },
+    "/api/whisper/sessions/:sessionId/tts.txt": {
+      GET(req) {
+        return serveWhisperSessionFile(req.params.sessionId, "tts.txt");
+      },
+    },
+    "/api/whisper/sessions/:sessionId/tts-meta.json": {
+      GET(req) {
+        return serveWhisperSessionFile(req.params.sessionId, "tts-meta.json");
+      },
+    },
+    "/": () => serveStatic("index.html"),
+    "/playground": () => serveStatic("index.html"),
+    "/playground/": () => serveStatic("index.html"),
+    "/whisper": () => serveStatic("whisper.html"),
+    "/whisper/": () => serveStatic("whisper.html"),
+    "/styles.css": () => serveStatic("styles.css"),
+    "/app.js": () => serveStatic("app.js"),
+    "/whisper.js": () => serveStatic("whisper.js"),
   },
   websocket: {
     idleTimeout: 0,
@@ -192,103 +303,6 @@ console.log(`[voice] lib=${libraryPath}`);
 
 process.once("SIGINT", () => shutdown(130));
 process.once("SIGTERM", () => shutdown(143));
-
-async function handleRequest(
-  req: Request,
-  srv: Bun.Server<WsData>,
-): Promise<Response | undefined> {
-  const url = new URL(req.url);
-
-  if (url.pathname === "/ws") {
-    const upgraded = srv.upgrade(req, {
-      data: {
-        id: crypto.randomUUID(),
-        active: false,
-        bytes: 0,
-        chunks: 0,
-        lastPartial: "",
-        sampleRate: DEFAULT_SAMPLE_RATE,
-      },
-    });
-    return upgraded ? undefined : text("WebSocket upgrade failed", 426);
-  }
-
-  if (url.pathname === "/health") {
-    return json({ ok: true, service: "@metafor/voice", sockets: sockets.size });
-  }
-
-  if (url.pathname === "/api/info") {
-    return json({ ok: true, ...serviceConfig() });
-  }
-
-  if (url.pathname === "/api/match" && req.method === "POST") {
-    return matchCommand(req);
-  }
-
-  if (url.pathname === "/api/whisper/users" && req.method === "GET") {
-    return listWhisperUsers();
-  }
-
-  if (url.pathname === "/api/whisper/users" && req.method === "POST") {
-    return createWhisperUser(req);
-  }
-
-  const whisperUser = matchWhisperUser(url.pathname);
-  if (whisperUser && req.method === "DELETE") {
-    return deleteWhisperUser(whisperUser.userId);
-  }
-
-  if (url.pathname === "/api/whisper/sessions" && req.method === "GET") {
-    return listWhisperSessions();
-  }
-
-  if (url.pathname === "/api/whisper/sessions" && req.method === "POST") {
-    return saveWhisperSession(req);
-  }
-
-  if (url.pathname === "/api/whisper/accent" && req.method === "POST") {
-    return accentWhisperText(req);
-  }
-
-  const whisperSession = matchWhisperSession(url.pathname);
-  if (whisperSession && req.method === "DELETE") {
-    return deleteWhisperSession(whisperSession.sessionId);
-  }
-
-  const whisperReference = matchWhisperSessionAction(url.pathname, "reference");
-  if (whisperReference && req.method === "POST") {
-    return prepareWhisperReference(req, whisperReference.sessionId);
-  }
-
-  const whisperTts = matchWhisperSessionAction(url.pathname, "tts");
-  if (whisperTts && req.method === "POST") {
-    return generateWhisperTts(req, whisperTts.sessionId);
-  }
-
-  const whisperReady = matchWhisperSessionAction(url.pathname, "ready");
-  if (whisperReady && req.method === "POST") {
-    return markWhisperSessionReady(req, whisperReady.sessionId);
-  }
-
-  const whisperSessionFile = matchWhisperSessionFile(url.pathname);
-  if (whisperSessionFile) {
-    return serveWhisperSessionFile(whisperSessionFile.sessionId, whisperSessionFile.fileName);
-  }
-
-  if (url.pathname === "/" || url.pathname === "/playground") {
-    return serveStatic("index.html");
-  }
-
-  if (url.pathname === "/whisper" || url.pathname === "/whisper/") {
-    return serveStatic("whisper.html");
-  }
-
-  if (url.pathname === "/styles.css") return serveStatic("styles.css");
-  if (url.pathname === "/app.js") return serveStatic("app.js");
-  if (url.pathname === "/whisper.js") return serveStatic("whisper.js");
-
-  return text("Not found", 404);
-}
 
 async function matchCommand(req: Request): Promise<Response> {
   try {
@@ -788,44 +802,6 @@ function contentTypeFor(path: string): string {
     default:
       return "application/octet-stream";
   }
-}
-
-function matchWhisperSessionFile(
-  pathname: string,
-): { sessionId: string; fileName: WhisperSessionFileName } | null {
-  const match =
-    /^\/api\/whisper\/sessions\/([^/]+)\/(audio\.wav|transcript\.txt|meta\.json|reference\.wav|reference\.txt|tts\.wav|tts\.txt|tts-meta\.json)$/.exec(
-      pathname,
-    );
-  if (!match) return null;
-  const sessionId = decodeURIComponent(match[1] ?? "");
-  const fileName = match[2] as WhisperSessionFileName | undefined;
-  if (!fileName || !isSafePathSegment(sessionId)) return null;
-  return { sessionId, fileName };
-}
-
-function matchWhisperSession(pathname: string): { sessionId: string } | null {
-  const match = /^\/api\/whisper\/sessions\/([^/]+)$/.exec(pathname);
-  if (!match) return null;
-  const sessionId = decodeURIComponent(match[1] ?? "");
-  return isSafePathSegment(sessionId) ? { sessionId } : null;
-}
-
-function matchWhisperUser(pathname: string): { userId: string } | null {
-  const match = /^\/api\/whisper\/users\/([^/]+)$/.exec(pathname);
-  if (!match) return null;
-  const userId = decodeURIComponent(match[1] ?? "");
-  return isSafePathSegment(userId) ? { userId } : null;
-}
-
-function matchWhisperSessionAction(
-  pathname: string,
-  action: "reference" | "tts" | "ready",
-): { sessionId: string } | null {
-  const match = new RegExp(`^/api/whisper/sessions/([^/]+)/${action}$`).exec(pathname);
-  if (!match) return null;
-  const sessionId = decodeURIComponent(match[1] ?? "");
-  return isSafePathSegment(sessionId) ? { sessionId } : null;
 }
 
 async function serveWhisperSessionFile(

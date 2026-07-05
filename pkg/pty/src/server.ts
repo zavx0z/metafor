@@ -754,35 +754,35 @@ export function createPtyServer(options: PtyServerOptions = {}): ReturnType<type
       "/terminal/sessions": {
         GET: () => Response.json({sessions: manager.list()}),
       },
-    },
-    fetch(req, bunServer) {
-      const url = new URL(req.url)
-
-      if (url.pathname === "/terminal") {
-        if (!isAllowedOrigin(req, url)) return new Response("Forbidden", {status: 403})
-        const requestedSession = url.searchParams.get("session")
-        const sessionKey = url.searchParams.get("key")
-        const data: PtySocketData = {
-          connectedAt: Date.now(),
-          replay: url.searchParams.get("replay") !== "0",
-          ...(requestedSession === null ? {} : {sessionId: requestedSession}),
-          ...(sessionKey === null ? {} : {sessionKey}),
-        }
-        const upgraded = bunServer.upgrade(req, {
-          data,
-        })
-        return upgraded ? undefined : new Response("WebSocket upgrade failed", {status: 400})
-      }
-
-      if (req.method === "DELETE" && url.pathname.startsWith("/terminal/sessions/")) {
-        const id = decodeURIComponent(url.pathname.slice("/terminal/sessions/".length))
-        return manager.close(id) ? Response.json({ok: true}) : Response.json({error: "not found"}, {status: 404})
-      }
-
-      const asset = buildAssets.get(url.pathname)
-      if (asset !== undefined) return new Response(asset)
-      if (req.method === "GET" && acceptsHtml(req)) return indexResponse(runtime)
-      return new Response(`not found: ${req.method} ${url.pathname}`, {status: 404})
+      "/terminal/sessions/:id": {
+        DELETE(req) {
+          return manager.close(req.params.id) ? Response.json({ok: true}) : Response.json({error: "not found"}, {status: 404})
+        },
+      },
+      "/terminal": {
+        GET(req, bunServer) {
+          const url = new URL(req.url)
+          if (!isAllowedOrigin(req, url)) return new Response("Forbidden", {status: 403})
+          const requestedSession = url.searchParams.get("session")
+          const sessionKey = url.searchParams.get("key")
+          const data: PtySocketData = {
+            connectedAt: Date.now(),
+            replay: url.searchParams.get("replay") !== "0",
+            ...(requestedSession === null ? {} : {sessionId: requestedSession}),
+            ...(sessionKey === null ? {} : {sessionKey}),
+          }
+          const upgraded = bunServer.upgrade(req, {
+            data,
+          })
+          return upgraded ? undefined : new Response("WebSocket upgrade failed", {status: 400})
+        },
+      },
+      "/:asset": {
+        GET(req) {
+          const asset = buildAssets.get(`/${req.params.asset}`)
+          return asset === undefined ? new Response("Not Found", {status: 404}) : new Response(asset)
+        },
+      },
     },
     websocket: {
       data: {} as PtySocketData,
@@ -997,11 +997,6 @@ function isAllowedOrigin(req: Request, url: URL): boolean {
   } catch {
     return false
   }
-}
-
-function acceptsHtml(req: Request): boolean {
-  const accept = req.headers.get("accept")
-  return accept === null || accept.includes("text/html")
 }
 
 export function terminalEnv(base: Record<string, string | undefined> = process.env): Record<string, string | undefined> {

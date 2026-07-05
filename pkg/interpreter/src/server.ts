@@ -53,7 +53,7 @@ import {interpreterRoutes, interpreterTools} from "./routes.ts"
 import {parseInterpreterToolRequest, type InterpreterToolUse} from "./tools.ts"
 import {handleBrowserHostRoute} from "./browser-host.ts"
 import {handleChromeDevtoolsRoute} from "./chrome-devtools.ts"
-import {handleRemoteDesktopLifecycleRoute} from "./remote-desktop-lifecycle.ts"
+import {remoteDesktopLifecycleCommandResponse, remoteDesktopLifecycleStatusResponse} from "./remote-desktop-lifecycle.ts"
 import {restartInspectOptionsFromParams} from "./restart-options.ts"
 import {
   attachVoiceProxySocket,
@@ -552,98 +552,15 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
     },
   }
 
-  return {
-    routes: {
-      "/": indexHtml,
-    },
-    async fetch(req: Request, server: HttpServer): Promise<Response | undefined> {
-      const url = new URL(req.url)
-      const path = url.pathname.replace(/\/+$/, "") || "/"
-      const method = req.method.toUpperCase()
-      if (method === "GET" && path === "/favicon.ico") return new Response(null, {status: 204})
-      if (path === "/manifest.json") return Response.json(MANIFEST)
+  type RouteRequest = Request & {params: Record<string, string>}
+  type RouteHandler = (req: RouteRequest) => Response | Promise<Response>
 
-      if (path === "/ws") {
-        const id = nextWsClientId++
-        const data: WsClientData = {kind: "ui", id}
-        const upgraded = server.upgrade(req, {data})
-        if (upgraded) return undefined
-        return jsonResponse({ok: false, error: "expected websocket upgrade"}, 426)
-      }
-      if (path === "/hud/terminal/stream") {
-        if (!isAllowedWebSocketOrigin(req, url)) return jsonResponse({ok: false, error: "forbidden origin"}, 403)
-        try {
-          await ensurePtyDaemon({
-            baseUrl: ptydBaseUrl,
-            cwd: process.cwd(),
-            log: (message) => options.logger.event("ptyd.ensure", {message}),
-          })
-        } catch (error) {
-          return jsonResponse({ok: false, error: serializeError(error)}, 503)
-        }
-        const id = nextTerminalClientId++
-        const data: TerminalWsClientData = {
-          kind: "terminal",
-          id,
-          connectedAt: Date.now(),
-          ptydTerminalUrl: ptyDaemonTerminalUrlFromRequest(url, ptydBaseUrl),
-        }
-        const upgraded = server.upgrade(req, {data})
-        if (upgraded) return undefined
-        return jsonResponse({ok: false, error: "expected websocket upgrade"}, 426)
-      }
-      if (isRtcSignalingPath(path)) {
-        if (!isAllowedWebSocketOrigin(req, url)) return jsonResponse({ok: false, error: "forbidden origin"}, 403)
-        const room = sanitizeRtcId(url.searchParams.get("room") ?? "android-display")
-        const peerId = sanitizeRtcId(url.searchParams.get("peer") ?? `peer-${nextWsClientId}`)
-        if (room === null || peerId === null) return jsonResponse({ok: false, error: "invalid WebRTC room or peer id"}, 400)
-        const id = nextWsClientId++
-        const data: RtcSignalWsClientData = {
-          kind: "rtc-signal",
-          id,
-          room,
-          peerId,
-          path,
-          connectedAt: Date.now(),
-        }
-        const upgraded = server.upgrade(req, {data})
-        if (upgraded) return undefined
-        return jsonResponse({ok: false, error: "expected websocket upgrade"}, 426)
-      }
-      const voiceProxyRoute = voiceProxyRouteForPath(path)
-      if (voiceProxyRoute !== null) {
-        if (!isAllowedWebSocketOrigin(req, url)) return jsonResponse({ok: false, error: "forbidden origin"}, 403)
-        const data = createVoiceProxySocketData(voiceProxyRoute)
-        const upgraded = server.upgrade(req, {data})
-        options.logger.event("voice.proxy.upgrade", {
-          route: voiceProxyRoute,
-          targetUrl: data.targetUrl,
-          accepted: upgraded,
-        })
-        if (upgraded) return undefined
-        return jsonResponse({ok: false, error: "expected websocket upgrade"}, 426)
-      }
-      if (method === "GET" && path === "/hud/terminal/sessions") {
-        try {
-          await ensurePtyDaemon({baseUrl: ptydBaseUrl, cwd: process.cwd()})
-          return await fetch(new URL("/terminal/sessions", ptydBaseUrl))
-        } catch (error) {
-          return jsonResponse({ok: false, error: serializeError(error)}, 503)
-        }
-      }
-      if (method === "DELETE" && path.startsWith("/hud/terminal/sessions/")) {
-        const id = decodePathParam(path.slice("/hud/terminal/sessions/".length))
-        try {
-          await ensurePtyDaemon({baseUrl: ptydBaseUrl, cwd: process.cwd()})
-          return await fetch(new URL(`/terminal/sessions/${encodeURIComponent(id)}`, ptydBaseUrl), {method: "DELETE"})
-        } catch (error) {
-          return jsonResponse({ok: false, error: serializeError(error)}, 503)
-        }
-      }
-
+  const routePath = (req: Request): string => new URL(req.url).pathname.replace(/\/+$/, "") || "/"
+  const route = (method: string, path: string, handler: RouteHandler) => {
+    return async (req: RouteRequest): Promise<Response> => {
       const start = Date.now()
       try {
-        const response = await handleRoute(method, path, url, req, options, moduleContexts, hudTodoContext, hudSqliteContext, broadcast, dispatchUiHostCommand, sqliteWatchRegistry)
+        const response = await handler(req)
         options.logger.event("http.request", {
           method,
           path,
@@ -656,6 +573,251 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
         options.logger.event("http.error", {method, path, error: message})
         return jsonResponse({ok: false, error: message}, 500)
       }
+    }
+  }
+  const requestRoute = (method: string, handler: (req: RouteRequest, path: string) => Response | Promise<Response>) => {
+    return async (req: RouteRequest): Promise<Response> => {
+      const path = routePath(req)
+      const start = Date.now()
+      try {
+        const response = await handler(req, path)
+        options.logger.event("http.request", {method, path, status: response.status, durationMs: Date.now() - start})
+        return response
+      } catch (error) {
+        const message = serializeError(error)
+        options.logger.event("http.error", {method, path, error: message})
+        return jsonResponse({ok: false, error: message}, 500)
+      }
+    }
+  }
+  const browserRoute = (method: string, path: string) => route(method, path, async (req) => {
+    const response = await handleBrowserHostRoute(req, method, path)
+    if (response === null) throw new Error(`browser host route did not match ${method} ${path}`)
+    return response
+  })
+  const browserRequestRoute = (method: string) => requestRoute(method, async (req, path) => {
+    const response = await handleBrowserHostRoute(req, method, path)
+    if (response === null) throw new Error(`browser host route did not match ${method} ${path}`)
+    return response
+  })
+  const browserProxyRoutes = {
+    GET: browserRequestRoute("GET"),
+    HEAD: browserRequestRoute("HEAD"),
+    POST: browserRequestRoute("POST"),
+    PUT: browserRequestRoute("PUT"),
+    PATCH: browserRequestRoute("PATCH"),
+    DELETE: browserRequestRoute("DELETE"),
+  }
+
+  function upgradeRtcSignal(req: Request, server: HttpServer): Response | undefined {
+    const url = new URL(req.url)
+    const path = routePath(req)
+    if (!isAllowedWebSocketOrigin(req, url)) return jsonResponse({ok: false, error: "forbidden origin"}, 403)
+    const room = sanitizeRtcId(url.searchParams.get("room") ?? "android-display")
+    const peerId = sanitizeRtcId(url.searchParams.get("peer") ?? `peer-${nextWsClientId}`)
+    if (room === null || peerId === null) return jsonResponse({ok: false, error: "invalid WebRTC room or peer id"}, 400)
+    const id = nextWsClientId++
+    const data: RtcSignalWsClientData = {
+      kind: "rtc-signal",
+      id,
+      room,
+      peerId,
+      path,
+      connectedAt: Date.now(),
+    }
+    const upgraded = server.upgrade(req, {data})
+    return upgraded ? undefined : jsonResponse({ok: false, error: "expected websocket upgrade"}, 426)
+  }
+
+  function upgradeVoiceProxy(req: Request, server: HttpServer): Response | undefined {
+    const url = new URL(req.url)
+    const path = routePath(req)
+    const voiceProxyRoute = voiceProxyRouteForPath(path)
+    if (voiceProxyRoute === null) return jsonResponse({ok: false, error: `not found: ${req.method} ${path}`}, 404)
+    if (!isAllowedWebSocketOrigin(req, url)) return jsonResponse({ok: false, error: "forbidden origin"}, 403)
+    const data = createVoiceProxySocketData(voiceProxyRoute)
+    const upgraded = server.upgrade(req, {data})
+    options.logger.event("voice.proxy.upgrade", {
+      route: voiceProxyRoute,
+      targetUrl: data.targetUrl,
+      accepted: upgraded,
+    })
+    return upgraded ? undefined : jsonResponse({ok: false, error: "expected websocket upgrade"}, 426)
+  }
+
+  return {
+    routes: {
+      "/": indexHtml,
+      "/favicon.ico": new Response(null, {status: 204}),
+      "/manifest.json": Response.json(MANIFEST),
+      "/ws": {
+        GET(req, server) {
+          const id = nextWsClientId++
+          const data: WsClientData = {kind: "ui", id}
+          const upgraded = server.upgrade(req, {data})
+          return upgraded ? undefined : jsonResponse({ok: false, error: "expected websocket upgrade"}, 426)
+        },
+      },
+      "/hud/terminal/stream": {
+        async GET(req, server) {
+          const url = new URL(req.url)
+          if (!isAllowedWebSocketOrigin(req, url)) return jsonResponse({ok: false, error: "forbidden origin"}, 403)
+          try {
+            await ensurePtyDaemon({
+              baseUrl: ptydBaseUrl,
+              cwd: process.cwd(),
+              log: (message) => options.logger.event("ptyd.ensure", {message}),
+            })
+          } catch (error) {
+            return jsonResponse({ok: false, error: serializeError(error)}, 503)
+          }
+          const id = nextTerminalClientId++
+          const data: TerminalWsClientData = {
+            kind: "terminal",
+            id,
+            connectedAt: Date.now(),
+            ptydTerminalUrl: ptyDaemonTerminalUrlFromRequest(url, ptydBaseUrl),
+          }
+          const upgraded = server.upgrade(req, {data})
+          return upgraded ? undefined : jsonResponse({ok: false, error: "expected websocket upgrade"}, 426)
+        },
+      },
+      "/webrtc/signaling": {GET: upgradeRtcSignal},
+      "/hud/android/webrtc/signaling": {GET: upgradeRtcSignal},
+      "/hud/voice/wake/ws": {GET: upgradeVoiceProxy},
+      "/hud/voice/asr/ws": {GET: upgradeVoiceProxy},
+      "/hud/terminal/sessions": {
+        async GET() {
+          try {
+            await ensurePtyDaemon({baseUrl: ptydBaseUrl, cwd: process.cwd()})
+            return await fetch(new URL("/terminal/sessions", ptydBaseUrl))
+          } catch (error) {
+            return jsonResponse({ok: false, error: serializeError(error)}, 503)
+          }
+        },
+      },
+      "/hud/terminal/sessions/:id": {
+        async DELETE(req) {
+          try {
+            await ensurePtyDaemon({baseUrl: ptydBaseUrl, cwd: process.cwd()})
+            return await fetch(new URL(`/terminal/sessions/${encodeURIComponent(req.params.id)}`, ptydBaseUrl), {method: "DELETE"})
+          } catch (error) {
+            return jsonResponse({ok: false, error: serializeError(error)}, 503)
+          }
+        },
+      },
+      "/health": {GET: route("GET", "/health", () => jsonResponse(healthPayload(options)))},
+      "/tools": {
+        GET: route("GET", "/tools", () => jsonResponse({ok: true, tools: interpreterTools})),
+        POST: route("POST", "/tools", (req) => interpreterToolsRoute(req, options, moduleContexts, hudTodoContext, hudSqliteContext, broadcast, dispatchUiHostCommand, sqliteWatchRegistry)),
+      },
+      "/webrtc/rooms": {GET: route("GET", "/webrtc/rooms", () => jsonResponse(rtcRoomsPayload()))},
+      "/remote-desktop/lifecycle": {
+        GET: route("GET", "/remote-desktop/lifecycle", remoteDesktopLifecycleStatusResponse),
+        POST: route("POST", "/remote-desktop/lifecycle", (req) => remoteDesktopLifecycleCommandResponse(req, options.logger)),
+      },
+      "/browser-display/health": {GET: browserRoute("GET", "/browser-display/health")},
+      "/browser-display/state": {GET: browserRoute("GET", "/browser-display/state")},
+      "/browser-display/status": {GET: browserRoute("GET", "/browser-display/status")},
+      "/browser-display/snapshot": {GET: browserRoute("GET", "/browser-display/snapshot")},
+      "/browser-display/navigate": {POST: browserRoute("POST", "/browser-display/navigate")},
+      "/browser-display/reload": {POST: browserRoute("POST", "/browser-display/reload")},
+      "/browser-display/back": {POST: browserRoute("POST", "/browser-display/back")},
+      "/browser-display/forward": {POST: browserRoute("POST", "/browser-display/forward")},
+      "/browser-display/devtools": {POST: browserRoute("POST", "/browser-display/devtools")},
+      "/browser-display/fullscreen": {POST: browserRoute("POST", "/browser-display/fullscreen")},
+      "/browser-display/viewport": {POST: browserRoute("POST", "/browser-display/viewport")},
+      "/browser-display/input": {POST: browserRoute("POST", "/browser-display/input")},
+      "/browser-display/proxy": browserProxyRoutes,
+      "/browser-display/proxy/*": browserProxyRoutes,
+      "/remote-desktop/health": {GET: browserRoute("GET", "/remote-desktop/health")},
+      "/remote-desktop/state": {GET: browserRoute("GET", "/remote-desktop/state")},
+      "/remote-desktop/status": {GET: browserRoute("GET", "/remote-desktop/status")},
+      "/remote-desktop/rtc/state": {GET: browserRoute("GET", "/remote-desktop/rtc/state")},
+      "/remote-desktop/rtc/restart": {POST: browserRoute("POST", "/remote-desktop/rtc/restart")},
+      "/remote-desktop/audio.pcm": {GET: browserRoute("GET", "/remote-desktop/audio.pcm")},
+      "/remote-desktop/snapshot": {GET: browserRoute("GET", "/remote-desktop/snapshot"), POST: browserRoute("POST", "/remote-desktop/snapshot")},
+      "/remote-desktop/input": {POST: browserRoute("POST", "/remote-desktop/input")},
+      "/remote-desktop/browser/windows": {GET: browserRoute("GET", "/remote-desktop/browser/windows")},
+      "/remote-desktop/browser/open": {POST: browserRoute("POST", "/remote-desktop/browser/open")},
+      "/hud/terminal": {GET: route("GET", "/hud/terminal", () => dispatchUiHostRoute("hud.terminal.get", {}, dispatchUiHostCommand))},
+      "/hud/terminal/dock": {POST: route("POST", "/hud/terminal/dock", (req) => dispatchUiHostRouteFromBody("hud.terminal.dock", req, dispatchUiHostCommand))},
+      "/hud/terminal/show": {POST: route("POST", "/hud/terminal/show", (req) => dispatchUiHostRouteFromBody("hud.terminal.show", req, dispatchUiHostCommand))},
+      "/hud/terminal/toggle": {POST: route("POST", "/hud/terminal/toggle", (req) => dispatchUiHostRouteFromBody("hud.terminal.toggle", req, dispatchUiHostCommand))},
+      "/hud/codex/attachments": {POST: route("POST", "/hud/codex/attachments", codexAttachmentResponse)},
+      "/hud/terminal/network": {GET: route("GET", "/hud/terminal/network", () => dispatchUiHostRoute("hud.terminal.network.get", {}, dispatchUiHostCommand))},
+      "/hud/terminal/network/dock": {POST: route("POST", "/hud/terminal/network/dock", (req) => dispatchUiHostRouteFromBody("hud.terminal.network.dock", req, dispatchUiHostCommand))},
+      "/hud/terminal/network/show": {
+        GET: route("GET", "/hud/terminal/network/show", () => dispatchUiHostRoute("hud.terminal.network.show", {}, dispatchUiHostCommand)),
+        POST: route("POST", "/hud/terminal/network/show", (req) => dispatchUiHostRouteFromBody("hud.terminal.network.show", req, dispatchUiHostCommand)),
+      },
+      "/hud/terminal/network/toggle": {POST: route("POST", "/hud/terminal/network/toggle", (req) => dispatchUiHostRouteFromBody("hud.terminal.network.toggle", req, dispatchUiHostCommand))},
+      "/hud/android": {GET: route("GET", "/hud/android", () => dispatchUiHostRoute("hud.android.get", {}, dispatchUiHostCommand))},
+      "/hud/android/dock": {POST: route("POST", "/hud/android/dock", (req) => dispatchUiHostRouteFromBody("hud.android.dock", req, dispatchUiHostCommand))},
+      "/hud/android/show": {POST: route("POST", "/hud/android/show", (req) => dispatchUiHostRouteFromBody("hud.android.show", req, dispatchUiHostCommand))},
+      "/hud/android/toggle": {POST: route("POST", "/hud/android/toggle", (req) => dispatchUiHostRouteFromBody("hud.android.toggle", req, dispatchUiHostCommand))},
+      "/hud/android/refresh": {POST: route("POST", "/hud/android/refresh", () => dispatchUiHostRoute("hud.android.refresh", {}, dispatchUiHostCommand))},
+      "/hud/android/control": {POST: route("POST", "/hud/android/control", (req) => dispatchUiHostRouteFromBody("hud.android.control", req, dispatchUiHostCommand))},
+      "/hud/android/secondary": {GET: route("GET", "/hud/android/secondary", () => dispatchUiHostRoute("hud.android.secondary.get", {}, dispatchUiHostCommand))},
+      "/hud/android/secondary/dock": {POST: route("POST", "/hud/android/secondary/dock", (req) => dispatchUiHostRouteFromBody("hud.android.secondary.dock", req, dispatchUiHostCommand))},
+      "/hud/android/secondary/show": {POST: route("POST", "/hud/android/secondary/show", (req) => dispatchUiHostRouteFromBody("hud.android.secondary.show", req, dispatchUiHostCommand))},
+      "/hud/android/secondary/toggle": {POST: route("POST", "/hud/android/secondary/toggle", (req) => dispatchUiHostRouteFromBody("hud.android.secondary.toggle", req, dispatchUiHostCommand))},
+      "/hud/android/secondary/control": {POST: route("POST", "/hud/android/secondary/control", (req) => dispatchUiHostRouteFromBody("hud.android.secondary.control", req, dispatchUiHostCommand))},
+      "/android/size": {GET: route("GET", "/android/size", (req) => proxyAndroidRequest(req, "/android/size"))},
+      "/android/screencap": {GET: route("GET", "/android/screencap", (req) => proxyAndroidRequest(req, "/android/screencap"))},
+      "/android/tap": {POST: route("POST", "/android/tap", (req) => proxyAndroidRequest(req, "/android/tap"))},
+      "/android/swipe": {POST: route("POST", "/android/swipe", (req) => proxyAndroidRequest(req, "/android/swipe"))},
+      "/android/key": {POST: route("POST", "/android/key", (req) => proxyAndroidRequest(req, "/android/key"))},
+      "/hud/todo": {GET: route("GET", "/hud/todo", todoMarkdownResponse), PUT: route("PUT", "/hud/todo", (req) => replaceTodoMarkdown(req, broadcast))},
+      "/hud/todo/items": {POST: route("POST", "/hud/todo/items", (req) => createTodoItem(req, broadcast))},
+      "/hud/todo/items/:id": {
+        PATCH: requestRoute("PATCH", (req) => patchTodoItem(req.params.id, req, broadcast)),
+        POST: requestRoute("POST", (req) => patchTodoItem(req.params.id, req, broadcast)),
+        DELETE: requestRoute("DELETE", (req) => deleteTodoItem(req.params.id, broadcast)),
+      },
+      "/hud/todo/panel": {GET: route("GET", "/hud/todo/panel", () => dispatchUiHostRoute("hud.todo.get", {}, dispatchUiHostCommand))},
+      "/hud/todo/highlight": {POST: route("POST", "/hud/todo/highlight", (req) => dispatchUiHostRouteFromBody("hud.todo.highlight", req, dispatchUiHostCommand))},
+      "/hud/todo/dock": {POST: route("POST", "/hud/todo/dock", (req) => dispatchUiHostRouteFromBody("hud.todo.dock", req, dispatchUiHostCommand))},
+      "/hud/todo/show": {POST: route("POST", "/hud/todo/show", (req) => dispatchUiHostRouteFromBody("hud.todo.show", req, dispatchUiHostCommand))},
+      "/hud/todo/toggle": {POST: route("POST", "/hud/todo/toggle", (req) => dispatchUiHostRouteFromBody("hud.todo.toggle", req, dispatchUiHostCommand))},
+      "/hud/sqlite": {GET: route("GET", "/hud/sqlite", () => dispatchUiHostRoute("hud.sqlite.get", {}, dispatchUiHostCommand))},
+      "/hud/sqlite/dock": {POST: route("POST", "/hud/sqlite/dock", (req) => dispatchUiHostRouteFromBody("hud.sqlite.dock", req, dispatchUiHostCommand))},
+      "/hud/sqlite/show": {POST: route("POST", "/hud/sqlite/show", (req) => dispatchUiHostRouteFromBody("hud.sqlite.show", req, dispatchUiHostCommand))},
+      "/hud/sqlite/toggle": {POST: route("POST", "/hud/sqlite/toggle", (req) => dispatchUiHostRouteFromBody("hud.sqlite.toggle", req, dispatchUiHostCommand))},
+      "/sqlite": {GET: route("GET", "/sqlite", (req) => {
+        try {
+          const url = new URL(req.url)
+          sqliteWatchRegistry.register(url.searchParams.get("path") ?? "")
+          const payload = sqliteDatabasePayload(url)
+          sqliteWatchRegistry.acceptPayload(payload)
+          return jsonResponse(payload)
+        } catch (error) {
+          return sqliteJsonError(error)
+        }
+      })},
+      "/sqlite/fingerprint": {GET: route("GET", "/sqlite/fingerprint", (req) => {
+        try {
+          const url = new URL(req.url)
+          sqliteWatchRegistry.register(url.searchParams.get("path") ?? "")
+          const fingerprint = sqliteDatabaseFingerprint(url.searchParams.get("path") ?? "")
+          sqliteWatchRegistry.acceptFingerprint(fingerprint)
+          return jsonResponse(fingerprint)
+        } catch (error) {
+          return sqliteJsonError(error)
+        }
+      })},
+      "/sqlite/open": {POST: route("POST", "/sqlite/open", (req) => openSqliteDisplayFromBody(req, dispatchUiHostCommand, sqliteWatchRegistry))},
+      "/sqlite/cell": {POST: route("POST", "/sqlite/cell", async (req) => {
+        try {
+          const payload = await updateSqliteCell(req)
+          sqliteWatchRegistry.acceptPayload(payload)
+          return jsonResponse(payload)
+        } catch (error) {
+          return sqliteJsonError(error)
+        }
+      })},
+      "/client-event": {POST: route("POST", "/client-event", (req) => recordClientEvent(req, options))},
+      "/JetBrainsMono-Bold.ttf": serveStatic(join(WEB_DIR, "JetBrainsMono-Bold.ttf"), "font/ttf"),
     },
     websocket,
     error(error: Error): Response {
@@ -669,13 +831,12 @@ export type InterpreterHttpRoutes = ReturnType<typeof createInterpreterHttpRoute
 
 export function startHttpServer(options: HttpServerOptions): HttpServer {
   const interpreterHttpRoutes = createInterpreterHttpRoutes(options)
-  const {routes, fetch, websocket, error} = interpreterHttpRoutes
+  const {routes, websocket, error} = interpreterHttpRoutes
   const server = Bun.serve({
     hostname: options.host,
     port: options.port,
     development: false,
     routes,
-    fetch,
     websocket,
     error,
   })
@@ -1098,105 +1259,6 @@ async function proxyAndroidRequest(req: Request, path: string): Promise<Response
   } catch (error) {
     return jsonResponse({ok: false, androidApi: ANDROID_API_URL, error: serializeError(error)}, 502)
   }
-}
-
-async function handleRoute(
-  method: string,
-  path: string,
-  url: URL,
-  req: Request,
-  options: HttpServerOptions,
-  moduleContexts: ModuleContextStore,
-  hudTodoContext: HudTodoContextStore,
-  hudSqliteContext: HudSqliteContextStore,
-  broadcast: (payload: JsonObject) => void,
-  dispatchUiHostCommand: UiHostCommandDispatcher,
-  sqliteWatchRegistry: ReturnType<typeof createSqliteWatchRegistry>,
-): Promise<Response> {
-  if (method === "GET" && path === "/") return jsonResponse({service: "@metafor/interpreter", routes: interpreterRoutes.index, tools: interpreterTools})
-  if (method === "GET" && path === "/health") return jsonResponse(healthPayload(options))
-  if (method === "GET" && path === "/tools") return jsonResponse({ok: true, tools: interpreterTools})
-  if (method === "POST" && path === "/tools") return await interpreterToolsRoute(req, options, moduleContexts, hudTodoContext, hudSqliteContext, broadcast, dispatchUiHostCommand, sqliteWatchRegistry)
-  if (method === "GET" && path === "/webrtc/rooms") return jsonResponse(rtcRoomsPayload())
-  const remoteDesktopLifecycleRoute = await handleRemoteDesktopLifecycleRoute(req, method, path, options.logger)
-  if (remoteDesktopLifecycleRoute !== null) return remoteDesktopLifecycleRoute
-  const browserHostRoute = await handleBrowserHostRoute(req, method, path)
-  if (browserHostRoute !== null) return browserHostRoute
-  if (method === "GET" && path === "/hud/terminal") return await dispatchUiHostRoute("hud.terminal.get", {}, dispatchUiHostCommand)
-  if (method === "POST" && path === "/hud/terminal/dock") return await dispatchUiHostRouteFromBody("hud.terminal.dock", req, dispatchUiHostCommand)
-  if (method === "POST" && path === "/hud/terminal/show") return await dispatchUiHostRouteFromBody("hud.terminal.show", req, dispatchUiHostCommand)
-  if (method === "POST" && path === "/hud/terminal/toggle") return await dispatchUiHostRouteFromBody("hud.terminal.toggle", req, dispatchUiHostCommand)
-  if (method === "POST" && path === "/hud/codex/attachments") return await codexAttachmentResponse(req)
-  if (method === "GET" && path === "/hud/terminal/network") return await dispatchUiHostRoute("hud.terminal.network.get", {}, dispatchUiHostCommand)
-  if (method === "POST" && path === "/hud/terminal/network/dock") return await dispatchUiHostRouteFromBody("hud.terminal.network.dock", req, dispatchUiHostCommand)
-  if (method === "GET" && path === "/hud/terminal/network/show") return await dispatchUiHostRoute("hud.terminal.network.show", {}, dispatchUiHostCommand)
-  if (method === "POST" && path === "/hud/terminal/network/show") return await dispatchUiHostRouteFromBody("hud.terminal.network.show", req, dispatchUiHostCommand)
-  if (method === "POST" && path === "/hud/terminal/network/toggle") return await dispatchUiHostRouteFromBody("hud.terminal.network.toggle", req, dispatchUiHostCommand)
-  if (method === "GET" && path === "/hud/android") return await dispatchUiHostRoute("hud.android.get", {}, dispatchUiHostCommand)
-  if (method === "POST" && path === "/hud/android/dock") return await dispatchUiHostRouteFromBody("hud.android.dock", req, dispatchUiHostCommand)
-  if (method === "POST" && path === "/hud/android/show") return await dispatchUiHostRouteFromBody("hud.android.show", req, dispatchUiHostCommand)
-  if (method === "POST" && path === "/hud/android/toggle") return await dispatchUiHostRouteFromBody("hud.android.toggle", req, dispatchUiHostCommand)
-  if (method === "POST" && path === "/hud/android/refresh") return await dispatchUiHostRoute("hud.android.refresh", {}, dispatchUiHostCommand)
-  if (method === "POST" && path === "/hud/android/control") return await dispatchUiHostRouteFromBody("hud.android.control", req, dispatchUiHostCommand)
-  if (method === "GET" && path === "/hud/android/secondary") return await dispatchUiHostRoute("hud.android.secondary.get", {}, dispatchUiHostCommand)
-  if (method === "POST" && path === "/hud/android/secondary/dock") return await dispatchUiHostRouteFromBody("hud.android.secondary.dock", req, dispatchUiHostCommand)
-  if (method === "POST" && path === "/hud/android/secondary/show") return await dispatchUiHostRouteFromBody("hud.android.secondary.show", req, dispatchUiHostCommand)
-  if (method === "POST" && path === "/hud/android/secondary/toggle") return await dispatchUiHostRouteFromBody("hud.android.secondary.toggle", req, dispatchUiHostCommand)
-  if (method === "POST" && path === "/hud/android/secondary/control") return await dispatchUiHostRouteFromBody("hud.android.secondary.control", req, dispatchUiHostCommand)
-  if (method === "GET" && (path === "/android/size" || path === "/android/screencap")) return await proxyAndroidRequest(req, path)
-  if (method === "POST" && (path === "/android/tap" || path === "/android/swipe" || path === "/android/key")) return await proxyAndroidRequest(req, path)
-  if (method === "GET" && path === "/hud/todo") return todoMarkdownResponse()
-  if (method === "PUT" && path === "/hud/todo") return await replaceTodoMarkdown(req, broadcast)
-  if (method === "POST" && path === "/hud/todo/items") return await createTodoItem(req, broadcast)
-  if (method === "GET" && path === "/hud/todo/panel") return await dispatchUiHostRoute("hud.todo.get", {}, dispatchUiHostCommand)
-  if (method === "POST" && path === "/hud/todo/highlight") return await dispatchUiHostRouteFromBody("hud.todo.highlight", req, dispatchUiHostCommand)
-  if (method === "POST" && path === "/hud/todo/dock") return await dispatchUiHostRouteFromBody("hud.todo.dock", req, dispatchUiHostCommand)
-  if (method === "POST" && path === "/hud/todo/show") return await dispatchUiHostRouteFromBody("hud.todo.show", req, dispatchUiHostCommand)
-  if (method === "POST" && path === "/hud/todo/toggle") return await dispatchUiHostRouteFromBody("hud.todo.toggle", req, dispatchUiHostCommand)
-  if (method === "GET" && path === "/hud/sqlite") return await dispatchUiHostRoute("hud.sqlite.get", {}, dispatchUiHostCommand)
-  if (method === "POST" && path === "/hud/sqlite/dock") return await dispatchUiHostRouteFromBody("hud.sqlite.dock", req, dispatchUiHostCommand)
-  if (method === "POST" && path === "/hud/sqlite/show") return await dispatchUiHostRouteFromBody("hud.sqlite.show", req, dispatchUiHostCommand)
-  if (method === "POST" && path === "/hud/sqlite/toggle") return await dispatchUiHostRouteFromBody("hud.sqlite.toggle", req, dispatchUiHostCommand)
-  const todoItem = /^\/hud\/todo\/items\/([^/]+)$/.exec(path)
-  if ((method === "PATCH" || method === "POST") && todoItem !== null) return await patchTodoItem(decodePathParam(todoItem[1]!), req, broadcast)
-  if (method === "DELETE" && todoItem !== null) return deleteTodoItem(decodePathParam(todoItem[1]!), broadcast)
-  if (method === "GET" && path === "/sqlite") {
-    try {
-      sqliteWatchRegistry.register(url.searchParams.get("path") ?? "")
-      const payload = sqliteDatabasePayload(url)
-      sqliteWatchRegistry.acceptPayload(payload)
-      return jsonResponse(payload)
-    } catch (error) {
-      return sqliteJsonError(error)
-    }
-  }
-  if (method === "GET" && path === "/sqlite/fingerprint") {
-    try {
-      sqliteWatchRegistry.register(url.searchParams.get("path") ?? "")
-      const fingerprint = sqliteDatabaseFingerprint(url.searchParams.get("path") ?? "")
-      sqliteWatchRegistry.acceptFingerprint(fingerprint)
-      return jsonResponse(fingerprint)
-    } catch (error) {
-      return sqliteJsonError(error)
-    }
-  }
-  if (method === "POST" && path === "/sqlite/open") return await openSqliteDisplayFromBody(req, dispatchUiHostCommand, sqliteWatchRegistry)
-  if (method === "POST" && path === "/sqlite/cell") {
-    try {
-      const payload = await updateSqliteCell(req)
-      sqliteWatchRegistry.acceptPayload(payload)
-      return jsonResponse(payload)
-    } catch (error) {
-      return sqliteJsonError(error)
-    }
-  }
-  if (method === "POST" && path === "/client-event") return await recordClientEvent(req, options)
-
-  if (method === "GET" && path === "/JetBrainsMono-Bold.ttf") {
-    return serveStatic(join(WEB_DIR, "JetBrainsMono-Bold.ttf"), "font/ttf")
-  }
-
-  return jsonResponse({ok: false, error: `not found: ${method} ${path}`}, 404)
 }
 
 function restartInterpreterHost(broadcast: (payload: JsonObject) => void, options: HttpServerOptions): Response {
@@ -2351,7 +2413,12 @@ async function runHostToolUse(
   const browserRoute = browserHostRouteForTool(toolUse.recipientName)
   if (browserRoute !== null) return await toolResultFromNullableResponse(base, await handleBrowserHostRoute(toolRequest(browserRoute.path, toolUse.parameters, browserRoute.method), browserRoute.method, browserRoute.path), `${toolUse.recipientName} failed`)
   const remoteLifecycle = remoteDesktopLifecycleRouteForTool(toolUse.recipientName, toolUse.parameters)
-  if (remoteLifecycle !== null) return await toolResultFromNullableResponse(base, await handleRemoteDesktopLifecycleRoute(toolRequest(remoteLifecycle.path, toolUse.parameters, remoteLifecycle.method), remoteLifecycle.method, remoteLifecycle.path, options.logger), `${toolUse.recipientName} failed`)
+  if (remoteLifecycle !== null) {
+    const response = remoteLifecycle.method === "GET"
+      ? await remoteDesktopLifecycleStatusResponse()
+      : await remoteDesktopLifecycleCommandResponse(toolRequest(remoteLifecycle.path, toolUse.parameters, remoteLifecycle.method), options.logger)
+    return await toolResultFromResponse(base, response, `${toolUse.recipientName} failed`)
+  }
   if (toolUse.recipientName === "todo.get") return await toolResultFromResponse(base, todoMarkdownResponse(), "todo.get failed")
   if (toolUse.recipientName === "todo.replace") return await toolResultFromResponse(base, await replaceTodoMarkdown(jsonToolRequest("/tools", toolUse.parameters), broadcast), "todo.replace failed")
   if (toolUse.recipientName === "todo.create") return await toolResultFromResponse(base, await createTodoItem(jsonToolRequest("/tools", toolUse.parameters), broadcast), "todo.create failed")
