@@ -119,6 +119,8 @@ export type EditorOpts = {
   linePx?: number
   /** Размер заголовка в px. Default 13. */
   titleFontPx?: number
+  subtitle?: string
+  subtitleFontPx?: number
   /** Read-only mode keeps navigation, scrolling, selection and copy, but blocks text mutations. */
   readOnly?: boolean
   /** Show the blinking caret. Defaults to false when readOnly=true, otherwise true. */
@@ -299,9 +301,11 @@ export class EditorPane extends UiSurface {
   #selectionMenuSticky = false
   #selectionContextMenuEnabled = false
   #title: string
+  #subtitle: string
   #fontPx: number
   #linePx: number
   #titleFontPx: number
+  #subtitleFontPx: number
   #tokenize: EditorTokenize | undefined
   #onChange: ((text: string) => void) | undefined
   #onSave: ((text: string) => void) | undefined
@@ -369,9 +373,11 @@ export class EditorPane extends UiSurface {
       : {bgColor: palette.bgCode, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
     this.node.name = "EditorPane"
     this.#title = opts.title ?? "Editor"
+    this.#subtitle = opts.subtitle ?? ""
     this.#fontPx = opts.fontPx ?? 13
     this.#linePx = opts.linePx ?? 18
     this.#titleFontPx = opts.titleFontPx ?? 13
+    this.#subtitleFontPx = opts.subtitleFontPx ?? 10
     this.#tokenize = opts.tokenize ?? resolveEditorTokenize(opts)
     this.#onChange = opts.onChange
     this.#onSave = opts.onSave
@@ -461,8 +467,9 @@ export class EditorPane extends UiSurface {
     return this.#lines.join("\n")
   }
 
-  setTitle(title: string): void {
+  setTitle(title: string, subtitle = ""): void {
     this.#title = title
+    this.#subtitle = subtitle
     this.requestRender()
   }
 
@@ -1909,10 +1916,12 @@ export class EditorPane extends UiSurface {
     if (this.#showHeader) {
       HudWindowTitleBar(this, 0, 0, this.rectW, {
         title: this.#title,
+        ...(this.#subtitle.length === 0 ? {} : {subtitle: this.#subtitle}),
         ...(this.#onFrameDockRequest === undefined ? {} : {onMinimize: this.#onFrameDockRequest}),
         minimizeLabel: "Dock",
         height: HEADER_H_PX,
         titleFontPx: this.#titleFontPx,
+        subtitleFontPx: this.#subtitleFontPx,
         ruleColor: palette.borderDim,
       })
     }

@@ -3887,7 +3887,7 @@ function toggleLocale(): void {
   hostTerminalAgentSignalPane?.requestRender()
   updateVoiceHud()
   for (const controller of moduleDisplays.values()) {
-    controller.source.setTitle(moduleSourceTitle(controller))
+    setModuleSourceHeader(controller)
     controller.frames.requestRender()
     controller.filesHeader.requestRender()
     controller.files.setTitle(t("sourceFiles"))
@@ -9614,12 +9614,12 @@ async function saveModuleSource(controller: ModuleDisplayController, text: strin
   if (controller.sourceSaving) return
   const sourceUrl = currentEditableSourceUrl(controller)
   if (sourceUrl === undefined) {
-    controller.source.setTitle(`${moduleSourceTitle(controller)} - no file`)
+    setModuleSourceHeader(controller, "no file")
     return
   }
 
   controller.sourceSaving = true
-  controller.source.setTitle(moduleSourceTitle(controller))
+  setModuleSourceHeader(controller)
   try {
     const tool = await runProcessTool(controller.id, "source.write", {sourceUrl, text})
     const data = processToolResultObject(tool) as {ok?: boolean; error?: string}
@@ -9627,10 +9627,10 @@ async function saveModuleSource(controller: ModuleDisplayController, text: strin
     controller.sourceDirty = false
     controller.sourceCache.clear()
   } catch (error) {
-    controller.source.setTitle(`${moduleSourceTitle(controller)} - ${error instanceof Error ? error.message : String(error)}`)
+    setModuleSourceHeader(controller, error instanceof Error ? error.message : String(error))
   } finally {
     controller.sourceSaving = false
-    controller.source.setTitle(moduleSourceTitle(controller))
+    setModuleSourceHeader(controller)
     queuePublishModuleContext(controller)
   }
 }
@@ -9640,7 +9640,7 @@ function handleModuleSourceTextChange(controller: ModuleDisplayController, text:
   controller.sourceText = text
   if (lineChanges.length > 0) applyLocalSourceLineChanges(controller, lineChanges)
   controller.sourceDirty = true
-  controller.source.setTitle(moduleSourceTitle(controller))
+  setModuleSourceHeader(controller)
   queuePublishModuleContext(controller)
 }
 
@@ -10331,7 +10331,7 @@ function setModuleSource(controller: ModuleDisplayController, payload: Source, s
   controller.sourceLocation = payload.location
   controller.sourceRuntimeState = state
   controller.sourceIdentity = payload.identity
-  controller.source.setTitle(moduleSourceTitle(controller))
+  setModuleSourceHeader(controller)
   const sourceKey = [
     payload.identity?.scriptId ?? "",
     payload.identity?.sourceUrl ?? "",
@@ -10355,25 +10355,30 @@ function setModuleSource(controller: ModuleDisplayController, payload: Source, s
 
 function setModuleSourceState(controller: ModuleDisplayController, state: SourceRuntimeState): void {
   controller.sourceRuntimeState = state
-  controller.source.setTitle(moduleSourceTitle(controller))
+  setModuleSourceHeader(controller)
   if (state !== "paused") controller.source.setExecutionLine(null, {scroll: false})
   queuePublishModuleContext(controller)
 }
 
-function moduleSourceTitle(controller: ModuleDisplayController): string {
+function setModuleSourceHeader(controller: ModuleDisplayController, subtitleOverride?: string): void {
   const snapshot = moduleSnapshots.get(controller.id)
   const dirty = controller.sourceDirty ? "*" : ""
-  const label = `${snapshot?.label ?? controller.id}${dirty}`
-  if (controller.sourceRuntimeState === "loading") return `${label} - ${t("sourceLoading")}`
+  const title = subtitleOverride ?? moduleSourceSubtitle(controller)
+  const subtitle = snapshot?.label ?? controller.id
+  controller.source.setTitle(`${title}${dirty}`, subtitle === title ? "" : subtitle)
+}
+
+function moduleSourceSubtitle(controller: ModuleDisplayController): string {
+  if (controller.sourceRuntimeState === "loading") return t("sourceLoading")
   if (controller.sourceRuntimeState === "running" && controller.sourceLocation.length > 0) {
-    return `${label} - ${t("sourceLastPaused")}: ${sourceDisplayLocation(controller.sourceLocation)}`
+    return `${t("sourceLastPaused")}: ${sourceDisplayLocation(controller.sourceLocation)}`
   }
-  if (controller.sourceRuntimeState === "running") return `${label} - ${t("sourceRunning")}`
-  if (controller.sourceRuntimeState === "exited") return `${label} - ${t("sourceExited")}`
-  if (controller.sourceRuntimeState === "failed") return `${label} - ${t("sourceFailed")}`
-  if (controller.sourceRuntimeState === "disconnected") return `${label} - ${t("sourceDisconnected")}`
+  if (controller.sourceRuntimeState === "running") return t("sourceRunning")
+  if (controller.sourceRuntimeState === "exited") return t("sourceExited")
+  if (controller.sourceRuntimeState === "failed") return t("sourceFailed")
+  if (controller.sourceRuntimeState === "disconnected") return t("sourceDisconnected")
   const location = sourceDisplayLocation(controller.sourceLocation) || t("sourceWaiting")
-  return `${label} - ${location}`
+  return location
 }
 
 async function runModuleInterpreterCommand(controller: ModuleDisplayController, cmd: string, params: Record<string, unknown>, label: string): Promise<CommandReply> {
