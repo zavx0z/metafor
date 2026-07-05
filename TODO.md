@@ -7,10 +7,10 @@
 
 После первого Weak/Energy v0 прохода осталось:
 
-- [x] Подключить реальный process descriptor, `wrapperSrc`, dynamic import, env resolver и DSL process action execution.
+- [ ] Подключить реальный process descriptor, `wrapperSrc`, dynamic import, env resolver и DSL process action execution.
 - [ ] Добавить success/error handlers поверх текущих `w+` / `w-`.
 - [ ] Удалить legacy result adapter на top-level `wimpId` / `processId` и `/field/...`, когда старые потребители будут мигрированы.
-- [x] Расширить Energy tests на реальный action runtime без чтения `Boundary`/SQLite.
+- [ ] Расширить Energy tests на реальный action runtime без чтения `Boundary`/SQLite.
 
 ## 2. Dark / Bulk Browser Shell
 

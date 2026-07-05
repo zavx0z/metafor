@@ -3,19 +3,6 @@ import {STATE_NONE, STATE_UNDEFINED} from "../../matrix/state.ts"
 
 type MatrixFieldType = 0 | 1 | 2 | 3 | 4
 
-export type BoundaryProcessActionDescriptor = {
-  type: "action"
-  wimp: string
-  key: string
-  env: string[]
-  action: {
-    src: string
-    importSpecifier?: string
-    wrapperSrc?: string
-    readFields: Array<[fieldId: number, key: string]>
-  }
-}
-
 export type BoundaryMatrixRuntimeSnapshot = {
   version: 1
   /** @deprecated Actor IDs kept only for legacy process result addressing. */
@@ -44,9 +31,6 @@ export type BoundaryMatrixRuntimeSnapshot = {
     braneIndexByWimpFieldId: Array<[number, number]>
     topologyWimpFieldIds: number[]
     topologyActorFieldIds: Array<[actorId: number, fieldId: number]>
-  }
-  processes: {
-    actionDescriptorsByProcessId: Array<[processId: number, descriptor: BoundaryProcessActionDescriptor]>
   }
   weak: {
     stateMetaStateIdsByBraneIndex: number[][]
@@ -89,9 +73,6 @@ type PredicateListItemRow = {
   valueVariant: number | null
 }
 type ProcessRow = {id: number; wimp: string; key: string}
-type ProcessActionRow = {process: number; action: string; importSpecifier: string | null; wrapperSrc: string | null}
-type ProcessEnvRow = {process: number; env: string}
-type ProcessActionReadRow = {process: number; field: number; key: string}
 type ActorValueRow = {actor: number; field: number; value: number}
 type ActorStateRow = {actor: number; metaState: number | null}
 type ValueRow = {
@@ -161,19 +142,6 @@ export async function matrixRuntime(sql: SQL): Promise<BoundaryMatrixRuntimeSnap
      ORDER BY predicate, item_order
   `
   const processes = await sql<ProcessRow[]>`SELECT id, wimp, key FROM process ORDER BY wimp, rowid`
-  const processActions = await sql<ProcessActionRow[]>`
-    SELECT process, action, action_import_specifier AS importSpecifier, action_wrapper_src AS wrapperSrc
-    FROM process_action
-    ORDER BY process
-  `
-  const processEnvs = await sql<ProcessEnvRow[]>`SELECT process, env FROM process_env ORDER BY process, env`
-  const processActionReads = await sql<ProcessActionReadRow[]>`
-    SELECT par.process, par.field, field.key
-    FROM process_action_read par
-    JOIN field ON field.id = par.field
-    WHERE par.phase = 'action'
-    ORDER BY par.process, field.rowid
-  `
   const actorValues = await sql<ActorValueRow[]>`SELECT actor, field, value FROM actor_value ORDER BY actor, field`
   const actorStates = await sql<ActorStateRow[]>`SELECT actor, metaState FROM actor_state ORDER BY actor`
   const valueRows = await sql<ValueRow[]>`
@@ -205,9 +173,6 @@ export async function matrixRuntime(sql: SQL): Promise<BoundaryMatrixRuntimeSnap
   const actorValueByActorField = new Map(actorValues.map((row) => [`${row.actor}\0${row.field}`, row.value] as const))
   const actorStateByActor = new Map(actorStates.map((row) => [row.actor, row.metaState] as const))
   const processByWimpKey = new Map(processes.map((row) => [`${row.wimp}\0${row.key}`, row.id] as const))
-  const processById = new Map(processes.map((row) => [row.id, row] as const))
-  const processEnvsByProcess = group(processEnvs, (row) => row.process)
-  const processActionReadsByProcess = group(processActionReads, (row) => row.process)
   const valueById = new Map(valueRows.map((row) => [row.id, row] as const))
   const valueItemsByValue = group(valueListItems, (item) => item.value)
   const enumValueByVariantId = new Map(enumVariants.map((variant) => [variant.id, variant.itemValue] as const))
@@ -286,24 +251,6 @@ export async function matrixRuntime(sql: SQL): Promise<BoundaryMatrixRuntimeSnap
   const stateMetaStateIdsByBraneIndex: number[][] = []
   const stateProcessIdsByBraneIndex: Array<Array<number | null>> = []
   const runtimeFieldIndexByActorField = new Map<string, number>()
-  const actionDescriptorsByProcessId: Array<[processId: number, descriptor: BoundaryProcessActionDescriptor]> = []
-
-  for (const action of processActions) {
-    const process = processById.get(action.process)
-    if (!process) continue
-    actionDescriptorsByProcessId.push([action.process, {
-      type: "action",
-      wimp: process.wimp,
-      key: process.key,
-      env: (processEnvsByProcess.get(action.process) ?? []).map((row) => row.env),
-      action: {
-        src: action.action,
-        ...(action.importSpecifier !== null ? {importSpecifier: action.importSpecifier} : {}),
-        ...(action.wrapperSrc !== null ? {wrapperSrc: action.wrapperSrc} : {}),
-        readFields: (processActionReadsByProcess.get(action.process) ?? []).map((row) => [row.field, row.key]),
-      },
-    }])
-  }
 
   actors.forEach((actor, braneIndex) => {
     const actorFields = fieldsByWimp.get(actor.wimp) ?? []
@@ -386,9 +333,6 @@ export async function matrixRuntime(sql: SQL): Promise<BoundaryMatrixRuntimeSnap
       braneIndexByWimpFieldId,
       topologyWimpFieldIds,
       topologyActorFieldIds,
-    },
-    processes: {
-      actionDescriptorsByProcessId,
     },
     weak: {
       stateMetaStateIdsByBraneIndex,

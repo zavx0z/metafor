@@ -10,7 +10,6 @@ import {
   loadMatrixRuntimeSnapshot,
   type MatrixForceMessage,
   type MatrixParticle,
-  type MatrixProcessActionDescriptor,
   type MatrixRuntimeSnapshot,
 } from "./matrix"
 import * as matrixPublicApi from "./index"
@@ -192,19 +191,6 @@ const enterReadyProcessState = async (): Promise<void> => {
   await waitFor(() => matrix$.states[0] === 1 && matrix$.branes[0]?.lock === true)
 }
 
-const createProcessDescriptor = (): MatrixProcessActionDescriptor => ({
-  type: "action",
-  wimp: "zavx0z/linux",
-  key: "ready",
-  env: ["server"],
-  action: {
-    src: "./actions/ready",
-    importSpecifier: "run",
-    wrapperSrc: "async ({ value }) => value",
-    readFields: [[2, "command"], [5, "method"]],
-  },
-})
-
 const acceptEnergy = async (energy: string, zCopies: MatrixParticle[] = []): Promise<void> => {
   const subscription = listenForce((message) => {
     zCopies.push(...message.parts.filter((part) => part.part === "z" && part.op === "copy"))
@@ -377,53 +363,6 @@ describe("matrix Force v0 runtime addressing", () => {
         path: 17,
         from: "energy-local",
         value: {fields: {"2": 11, "5": 0, "7": 3, "9": [1]}},
-      })
-    } finally {
-      forceSubscription.close()
-    }
-  })
-
-  test("Matrix includes process descriptor in z copy when pending process has descriptor", async () => {
-    const snapshot = createRuntimeSnapshot()
-    const descriptor = createProcessDescriptor()
-    snapshot.weak.stateProcessIdsByBraneIndex = [[null, 42]]
-    snapshot.processes = {actionDescriptorsByProcessId: [[42, descriptor]]}
-    await loadMatrixRuntimeSnapshot(snapshot)
-    const zCopies: MatrixParticle[] = []
-    const forceSubscription = listenForce((message) => {
-      zCopies.push(...message.parts.filter((part) => part.part === "z" && part.op === "copy"))
-    })
-
-    try {
-      emitForce({
-        parts: [{
-          part: "gluon",
-          op: "replace",
-          path: 17,
-          value: {fields: {"2": 11}},
-        }],
-      })
-      await waitFor(() => matrix$.states[0] === 1 && matrix$.branes[0]?.lock === true)
-
-      emitForce({
-        parts: [{
-          part: "z",
-          op: "test",
-          path: 17,
-          value: {energy: "energy-local"},
-        }],
-      })
-      await waitFor(() => zCopies.length > 0)
-
-      expect(zCopies[0]).toEqual({
-        part: "z",
-        op: "copy",
-        path: 17,
-        from: "energy-local",
-        value: {
-          fields: {"2": 11, "5": 0, "7": 3, "9": [1]},
-          process: descriptor,
-        },
       })
     } finally {
       forceSubscription.close()
