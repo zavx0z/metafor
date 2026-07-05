@@ -298,10 +298,77 @@ describe("boundary/sqlite smoke", () => {
     expect(runtime.data.branes[withStatesIndex]?.state).toBe(STATE_UNDEFINED)
     expect(runtime.data.stateNames[withStatesIndex]).toEqual(["idle", "ready"])
     expect(runtime.weak.stateMetaStateIdsByBraneIndex[withStatesIndex]).toHaveLength(2)
+    expect(runtime.weak.stateHasProcessByBraneIndex[withStatesIndex]).toEqual([false, false])
     expect(runtime.data.branes[withoutStatesIndex]?.state).toBe(STATE_NONE)
     expect(runtime.data.branes[withoutStatesIndex]?.collapses).toEqual([])
     expect(runtime.data.stateNames[withoutStatesIndex]).toEqual([])
     expect(runtime.weak.stateMetaStateIdsByBraneIndex[withoutStatesIndex]).toEqual([])
+    expect(runtime.weak.stateHasProcessByBraneIndex[withoutStatesIndex]).toEqual([])
+    expect(["state", "ProcessIds", "ByBraneIndex"].join("") in runtime.weak).toBe(false)
+  })
+
+  test("energyRuntime отдаёт actor/wimp mapping и process descriptors вне Matrix snapshot", async () => {
+    const src = "owner/energy-runtime"
+
+    await boundary.wimp.create(src, {
+      fields: [{key: "command", type: "string"}],
+      superposition: [{name: "ready"}],
+      processes: [{
+        key: "ready",
+        declaration: {
+          type: "action",
+          env: ["server"],
+          action: {
+            src: "./actions/run.ts",
+            importSpecifier: "run",
+            wrapperSrc: "async (params) => params.value",
+            read: ["command"],
+          },
+        },
+      }],
+    })
+    const commandId = await fieldId("command", src)
+    const readyStateId = (
+      await sql<Array<{id: number}>>`SELECT id FROM state WHERE wimp = ${src} AND name = ${"ready"} LIMIT 1`
+    )[0]?.id
+    if (readyStateId === undefined) throw new Error("ready state missing")
+
+    await boundary.actor.create({
+      actor: {id: 21, parentActor: null, parentTopology: null, wimp: src},
+      values: [{actor: 21, field: commandId, value: 211}],
+      valueRecords: [{id: 211, kind: "string", text: "echo"}],
+      valueItems: [],
+      state: {actor: 21, metaState: readyStateId},
+    })
+
+    const catalog = await boundary.energyRuntime()
+    const process = catalog.processes.find((item) => item.wimp === src && item.state === "ready")
+
+    expect(catalog.version).toBe(1)
+    expect(catalog.actors).toContainEqual([21, src])
+    expect(process).toEqual({
+      wimp: src,
+      state: "ready",
+      descriptor: {
+        type: "action",
+        key: "ready",
+        env: ["server"],
+        action: {
+          src: "./actions/run.ts",
+          importSpecifier: "run",
+          wrapperSrc: "async (params) => params.value",
+          readFields: [[commandId, "command"]],
+        },
+      },
+    })
+
+    const matrixRuntime = await boundary.matrixRuntime()
+    const braneIndex = matrixRuntime.runtime.braneIndexByActorId.find(([actorId]) => actorId === 21)?.[1]
+    if (braneIndex === undefined) throw new Error("test actor was not materialized into matrix runtime")
+
+    expect(matrixRuntime.weak.stateHasProcessByBraneIndex[braneIndex]).toEqual([true])
+    expect(["state", "ProcessIds", "ByBraneIndex"].join("") in matrixRuntime.weak).toBe(false)
+    expect("processes" in matrixRuntime).toBe(false)
   })
 
   test("absorb() обновляет БД и не выпускает входящие particles в entropy", async () => {

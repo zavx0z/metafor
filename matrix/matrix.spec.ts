@@ -138,7 +138,7 @@ const createRuntimeSnapshot = (): MatrixRuntimeSnapshot => ({
   },
   weak: {
     stateMetaStateIdsByBraneIndex: [[101, 102]],
-    stateProcessIdsByBraneIndex: [[null, null]],
+    stateHasProcessByBraneIndex: [[false, false]],
   },
 })
 
@@ -176,7 +176,7 @@ const listenForce = (listener: (message: MatrixForceMessage) => void): {close():
 
 const enterReadyProcessState = async (): Promise<void> => {
   const snapshot = createRuntimeSnapshot()
-  snapshot.weak.stateProcessIdsByBraneIndex = [[null, 42]]
+  snapshot.weak.stateHasProcessByBraneIndex = [[false, true]]
   await loadMatrixRuntimeSnapshot(snapshot)
 
   emitForce({
@@ -255,7 +255,7 @@ describe("matrix Force v0 runtime addressing", () => {
 
   test("Matrix emits photon but not z process-task on process-bound state", async () => {
     const snapshot = createRuntimeSnapshot()
-    snapshot.weak.stateProcessIdsByBraneIndex = [[null, 42]]
+    snapshot.weak.stateHasProcessByBraneIndex = [[false, true]]
     await loadMatrixRuntimeSnapshot(snapshot)
     const photons: MatrixParticle[] = []
     const zParts: MatrixParticle[] = []
@@ -278,7 +278,7 @@ describe("matrix Force v0 runtime addressing", () => {
       await settleBroadcasts()
 
       expect(matrix$.branes[0]?.lock).toBe(true)
-      expect(photons).toContainEqual({part: "photon", op: "replace", path: 17, value: "ready"})
+      expect(photons).toContainEqual({part: "photon", op: "test", path: 17, value: "ready"})
       expect(zParts.some((part) => (part.value as {kind?: unknown} | undefined)?.kind === "process-task")).toBe(false)
     } finally {
       forceSubscription.close()
@@ -287,7 +287,7 @@ describe("matrix Force v0 runtime addressing", () => {
 
   test("Matrix stores process field snapshot at state entry", async () => {
     const snapshot = createRuntimeSnapshot()
-    snapshot.weak.stateProcessIdsByBraneIndex = [[null, 42]]
+    snapshot.weak.stateHasProcessByBraneIndex = [[false, true]]
     await loadMatrixRuntimeSnapshot(snapshot)
     const zCopies: MatrixParticle[] = []
     const forceSubscription = listenForce((message) => {
@@ -333,6 +333,7 @@ describe("matrix Force v0 runtime addressing", () => {
         from: "energy-local",
         value: {fields: {"2": 11, "5": 0, "7": 3, "9": [1]}},
       })
+      expect(Object.keys(zCopies[0]?.value as Record<string, unknown>)).toEqual(["fields"])
     } finally {
       forceSubscription.close()
     }
@@ -364,6 +365,7 @@ describe("matrix Force v0 runtime addressing", () => {
         from: "energy-local",
         value: {fields: {"2": 11, "5": 0, "7": 3, "9": [1]}},
       })
+      expect(Object.keys(zCopies[0]?.value as Record<string, unknown>)).toEqual(["fields"])
     } finally {
       forceSubscription.close()
     }
@@ -486,7 +488,7 @@ describe("matrix Force v0 runtime addressing", () => {
   test("Matrix emits photon and locks on first process-bound runtime undefined entry", async () => {
     const snapshot = createRuntimeSnapshot()
     snapshot.data.branes[0]!.state = STATE_UNDEFINED
-    snapshot.weak.stateProcessIdsByBraneIndex = [[42, null]]
+    snapshot.weak.stateHasProcessByBraneIndex = [[true, false]]
     const photons: MatrixParticle[] = []
     const zParts: MatrixParticle[] = []
     const forceSubscription = listenForce((message) => {
@@ -501,7 +503,7 @@ describe("matrix Force v0 runtime addressing", () => {
 
       expect(matrix$.states[0]).toBe(0)
       expect(matrix$.branes[0]?.lock).toBe(true)
-      expect(photons).toContainEqual({part: "photon", op: "replace", path: 17, value: "idle"})
+      expect(photons).toContainEqual({part: "photon", op: "test", path: 17, value: "idle"})
       expect(zParts.some((part) => (part.value as {kind?: unknown} | undefined)?.kind === "process-task")).toBe(false)
     } finally {
       forceSubscription.close()
@@ -511,7 +513,7 @@ describe("matrix Force v0 runtime addressing", () => {
   test("non-process runtime undefined entry unlocks brane for next Matrix update", async () => {
     const snapshot = createRuntimeSnapshot()
     snapshot.data.branes[0]!.state = STATE_UNDEFINED
-    snapshot.weak.stateProcessIdsByBraneIndex = [[null, null]]
+    snapshot.weak.stateHasProcessByBraneIndex = [[false, false]]
 
     await loadMatrixRuntimeSnapshot(snapshot)
 
@@ -553,7 +555,7 @@ describe("matrix Force v0 runtime addressing", () => {
     }
     snapshot.data.stateNames = [[]]
     snapshot.weak.stateMetaStateIdsByBraneIndex = [[]]
-    snapshot.weak.stateProcessIdsByBraneIndex = [[]]
+    snapshot.weak.stateHasProcessByBraneIndex = [[]]
     await loadMatrixRuntimeSnapshot(snapshot)
     const photons: MatrixParticle[] = []
     const photonSubscription = listenForce((message) => {

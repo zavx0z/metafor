@@ -81,8 +81,8 @@ server-dev контуре:
 - interpreter host: `http://10.66.0.10:6500`;
 - dark dev server: `http://10.66.0.10:3004`;
 - boundary SQLite: `dark/tmp/boundary.sqlite`;
-- Energy pipeline: `energy/energy.ts` loaded by `dark/index.ts`, no separate
-  default dev server;
+- Energy pipeline: `dark/index.ts` starts `energy/energy.ts` with
+  `boundary.energyRuntime()` catalog, no separate default dev server;
 - Bun inspector child `dark/index.ts`: первый auto-allocated inspector socket,
   обычно `ws://127.0.0.1:6499/`;
 - visible WebApp target в серверном Chrome:
@@ -104,8 +104,9 @@ API и `10.66.0.10:3004` для Dark dev health/API. LAN/TLS режим на `44
   аргументом interpreter;
 - Matrix runtime pipeline живёт в `matrix/matrix.ts` и работает через общий
   локальный `BroadcastChannel("force")`, без отдельного Matrix server;
-- Energy runtime pipeline живёт в `energy/energy.ts` и работает через тот же
-  локальный `BroadcastChannel("force")`, без отдельного Energy server;
+- Energy runtime pipeline живёт в `energy/energy.ts`, явно стартует из
+  `dark/index.ts` с catalog snapshot и работает через тот же локальный
+  `BroadcastChannel("force")`, без отдельного Energy server;
 - WebApp больше не является стартовым server-dev target.
 
 Не поднимай отдельный Energy server/debug-process как default target. Не

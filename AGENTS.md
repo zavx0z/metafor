@@ -66,8 +66,8 @@ catch-all/proxy случаев, а static `Response` routes - для неизм�
 - branch: `main`;
 - interpreter host: `http://10.66.0.10:6500`;
 - dark dev server: `http://10.66.0.10:3004`;
-- Energy pipeline: `energy/energy.ts` loaded by `dark/index.ts`, no separate
-  default dev server;
+- Energy pipeline: `dark/index.ts` starts `energy/energy.ts` with
+  `boundary.energyRuntime()` catalog, no separate default dev server;
 - visible WebApp target: `https://meta.proizvodstvo1.ru/`;
 - server Chrome remote desktop host: `http://127.0.0.1:32133`;
 - server Chrome CDP: `http://127.0.0.1:9349/json/list`.

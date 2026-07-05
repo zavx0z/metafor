@@ -28,8 +28,8 @@ export interface WeakStore {
   /** Каноническая адресация состояний materialized runtime: `brane/stateIndex -> metaStateId`. */
   stateMetaStateIdsByBraneIndex: number[][]
 
-  /** Процессная адресация materialized runtime: `brane/stateIndex -> metaProcessId`. */
-  stateProcessIdsByBraneIndex: Array<Array<number | undefined>>
+  /** Process-bound marker materialized runtime: `brane/stateIndex -> hasProcess`. */
+  stateHasProcessByBraneIndex: boolean[][]
 
   /** Сбрасывает локальное runtime-состояние слабой силы. */
   reset(): void

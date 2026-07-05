@@ -67,6 +67,7 @@ Force фиксирует, как сила действует через кана
 { part: "gluon", op: "replace", path: 17, value: { fields: { "1": "MetaFor" } } }
 { part: "higgs", op: "replace", path: 17, value: { fields: { "2": "native" } } }
 { part: "photon", op: "replace", path: 17, value: "ready" }
+{ part: "photon", op: "test", path: 17, value: "ready" }
 { part: "z", op: "test", path: 17, value: { energy: "energy-local" } }
 { part: "z", op: "copy", path: 17, from: "energy-local", value: { fields: { "1": "MetaFor" } } }
 { part: "w+", op: "replace", path: 17, value: { fields: { "1": "done" } } }
@@ -98,19 +99,23 @@ protocol не используют `/field/...`. `gluon`, `higgs`, `z copy`, `w+
 Актуальный процессный долг держится в `TODO.md`; этот документ описывает только
 действующий Force-контракт.
 Имя `Energy` в новых документах относится только к распределённому исполнителю
-процессов: он слушает photons Matrix, запрашивает выполнение через `z test`,
-получает frozen context через `z copy` и возвращает результат через `w+`/`w-`.
+процессов: он слушает `photon/test` Matrix, запрашивает выполнение через
+`z test`, получает frozen context через `z copy` и возвращает результат через
+`w+`/`w-`.
 Runtime-state слой называется `Matrix`.
 Пакет `energy/` сейчас является локальным Force pipeline, а не отдельной
 серверной оболочкой bridge/protocol surface; реальное исполнение DSL action
 остаётся следующим этапом.
 Matrix не создаёт `z process-task` при входе actor в process-bound state.
-`photon` является публичным сигналом входа actor в state; при process-bound
-state Matrix до photon ставит lock и сохраняет frozen snapshot fields. Energy
-слушает общий локальный `BroadcastChannel("force")` и отвечает `z test` в тот же
-канал. Matrix выбирает первого валидного Energy и публикует `z copy`, где
-`from` равен Energy id, а `value.fields` содержит frozen snapshot. `rejected` в
-v0 не используется.
+`photon` является публичным сигналом входа actor в state: `photon/replace` для
+обычного state и `photon/test` для process-bound state. При process-bound state
+Matrix до photon ставит lock и сохраняет frozen snapshot fields. Matrix snapshot
+знает только `weak.stateHasProcessByBraneIndex`, без process id и descriptors.
+Energy получает process catalog snapshot при старте, слушает общий локальный
+`BroadcastChannel("force")` и отвечает `z test` в тот же канал только на
+подходящий `photon/test`. Matrix выбирает первого валидного Energy и публикует
+`z copy`, где `from` равен Energy id, а `value.fields` содержит frozen snapshot;
+свойство `process` в `z copy.value` в v0 отсутствует. `rejected` в v0 не используется.
 Energy v0 вместо реального action ждёт timeout и публикует actor-addressed `w+`.
 
 Для нового Weak process protocol top-level частицы не расширяются за пределы
@@ -142,7 +147,7 @@ id передаётся как `value.energy` в `z test` и как `from` в `z
 
 - `Dark`/`Boundary` могут использовать лёгкие сигналы и перечитывать персистентную форму.
 - `Matrix`/`Bulk` получают рантайм-данные и ведут собственное состояние/проекцию в рантайме.
-- `Energy` получает frozen process context через Force `z copy` и не читает `Boundary`/SQLite.
+- `Energy` получает process catalog snapshot при старте через Dark/Boundary, затем работает по Force: frozen fields приходят через `z copy`, а сам пакет `energy/` не читает `Boundary`/SQLite.
 - WebSocket между доменами не является синхронизацией базы.
 - Если рантайм получил только UUID без данных, это ошибка контракта, а не повод читать `Boundary`.
 

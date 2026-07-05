@@ -1,11 +1,13 @@
 import {file, serve, type ServerWebSocket} from "bun"
 import "./server.ts"
-import "../energy/energy.ts"
+import {startEnergyProtocol} from "../energy/energy.ts"
 import index from "../bulk/index.html"
 import type {BoundaryUpdateMessage} from "boundary"
 import {DEFAULT_BULK_SCENE_SRC} from "bulk/settings"
 import {loadMatrixRuntimeSnapshot} from "../matrix/index.ts"
 
+const energyRuntimeSnapshot = await globalThis.boundary.energyRuntime()
+const energyProtocol = startEnergyProtocol({catalog: energyRuntimeSnapshot})
 const matrixRuntimeSnapshot = await globalThis.boundary.matrixRuntime()
 await loadMatrixRuntimeSnapshot(matrixRuntimeSnapshot)
 const sockets = new Set<ServerWebSocket<{kind: "browser"}>>()

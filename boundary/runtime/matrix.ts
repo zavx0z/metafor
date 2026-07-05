@@ -34,7 +34,7 @@ export type BoundaryMatrixRuntimeSnapshot = {
   }
   weak: {
     stateMetaStateIdsByBraneIndex: number[][]
-    stateProcessIdsByBraneIndex: Array<Array<number | null>>
+    stateHasProcessByBraneIndex: boolean[][]
   }
 }
 
@@ -72,7 +72,7 @@ type PredicateListItemRow = {
   valueText: string | null
   valueVariant: number | null
 }
-type ProcessRow = {id: number; wimp: string; key: string}
+type ProcessRow = {wimp: string; key: string}
 type ActorValueRow = {actor: number; field: number; value: number}
 type ActorStateRow = {actor: number; metaState: number | null}
 type ValueRow = {
@@ -141,7 +141,7 @@ export async function matrixRuntime(sql: SQL): Promise<BoundaryMatrixRuntimeSnap
       FROM condition_list_item
      ORDER BY predicate, item_order
   `
-  const processes = await sql<ProcessRow[]>`SELECT id, wimp, key FROM process ORDER BY wimp, rowid`
+  const processes = await sql<ProcessRow[]>`SELECT wimp, key FROM process ORDER BY wimp, rowid`
   const actorValues = await sql<ActorValueRow[]>`SELECT actor, field, value FROM actor_value ORDER BY actor, field`
   const actorStates = await sql<ActorStateRow[]>`SELECT actor, metaState FROM actor_state ORDER BY actor`
   const valueRows = await sql<ValueRow[]>`
@@ -172,7 +172,7 @@ export async function matrixRuntime(sql: SQL): Promise<BoundaryMatrixRuntimeSnap
   const predicateItemsByPredicate = group(predicateListItems, (item) => item.predicate)
   const actorValueByActorField = new Map(actorValues.map((row) => [`${row.actor}\0${row.field}`, row.value] as const))
   const actorStateByActor = new Map(actorStates.map((row) => [row.actor, row.metaState] as const))
-  const processByWimpKey = new Map(processes.map((row) => [`${row.wimp}\0${row.key}`, row.id] as const))
+  const processKeys = new Set(processes.map((row) => `${row.wimp}\0${row.key}`))
   const valueById = new Map(valueRows.map((row) => [row.id, row] as const))
   const valueItemsByValue = group(valueListItems, (item) => item.value)
   const enumValueByVariantId = new Map(enumVariants.map((variant) => [variant.id, variant.itemValue] as const))
@@ -249,7 +249,7 @@ export async function matrixRuntime(sql: SQL): Promise<BoundaryMatrixRuntimeSnap
   const topologyWimpFieldIds: number[] = []
   const topologyActorFieldIds: Array<[actorId: number, fieldId: number]> = []
   const stateMetaStateIdsByBraneIndex: number[][] = []
-  const stateProcessIdsByBraneIndex: Array<Array<number | null>> = []
+  const stateHasProcessByBraneIndex: boolean[][] = []
   const runtimeFieldIndexByActorField = new Map<string, number>()
 
   actors.forEach((actor, braneIndex) => {
@@ -289,7 +289,7 @@ export async function matrixRuntime(sql: SQL): Promise<BoundaryMatrixRuntimeSnap
         : (stateIndexById.get(selectedStateId) ?? STATE_UNDEFINED)
     stateNames[braneIndex] = actorStatesForWimp.map((state) => state.name)
     stateMetaStateIdsByBraneIndex[braneIndex] = actorStatesForWimp.map((state) => state.id)
-    stateProcessIdsByBraneIndex[braneIndex] = actorStatesForWimp.map((state) => processByWimpKey.get(`${actor.wimp}\0${state.name}`) ?? null)
+    stateHasProcessByBraneIndex[braneIndex] = actorStatesForWimp.map((state) => processKeys.has(`${actor.wimp}\0${state.name}`))
 
     const collapses = actorStatesForWimp.map((state) =>
       (transitionsByState.get(state.id) ?? []).map((transition) => {
@@ -336,7 +336,7 @@ export async function matrixRuntime(sql: SQL): Promise<BoundaryMatrixRuntimeSnap
     },
     weak: {
       stateMetaStateIdsByBraneIndex,
-      stateProcessIdsByBraneIndex,
+      stateHasProcessByBraneIndex,
     },
   }
 }

@@ -1,8 +1,6 @@
 import {describe, expect, test} from "bun:test"
-import type {ForceMessage, Particle} from "boundary"
-import {energyProtocol, startEnergyProtocol} from "./energy.ts"
-
-energyProtocol.close()
+import type {BoundaryEnergyRuntimeSnapshot, ForceMessage, Particle} from "boundary"
+import {startEnergyProtocol} from "./energy.ts"
 
 let channelSequence = 0
 
@@ -21,13 +19,36 @@ const sleep = async (ms: number): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-const createHarness = (energyId = "energy-local", timeoutMs = 1) => {
+const createCatalog = (env: string[] = ["server"]): BoundaryEnergyRuntimeSnapshot => ({
+  version: 1,
+  actors: [[17, "owner/process"]],
+  processes: [{
+    wimp: "owner/process",
+    state: "ready",
+    descriptor: {
+      type: "action",
+      key: "ready",
+      env,
+      action: {
+        src: "./actions/ready.ts",
+        readFields: [[2, "level"]],
+      },
+    },
+  }],
+})
+
+const createHarness = (
+  energyId = "energy-local",
+  timeoutMs = 1,
+  catalog: BoundaryEnergyRuntimeSnapshot = createCatalog(),
+  runtimeKind = "server",
+) => {
   const name = `force-energy-test-${Date.now()}-${++channelSequence}`
   const energyForce = new BroadcastChannel(name)
   const input = new BroadcastChannel(name)
   const output = new BroadcastChannel(name)
   const messages: ForceMessage[] = []
-  const protocol = startEnergyProtocol({force: energyForce, energyId, timeoutMs})
+  const protocol = startEnergyProtocol({force: energyForce, energyId, timeoutMs, catalog, runtimeKind})
 
   output.onmessage = (event) => {
     messages.push(event.data as ForceMessage)
@@ -51,13 +72,29 @@ const collectParts = (messages: ForceMessage[], part: string, op?: string): Part
     message.parts.filter((item) => item.part === part && (op === undefined || item.op === op)),
   )
 
-describe("Energy Weak v0 protocol", () => {
-  test("Energy sends z test on photon", async () => {
+describe("Energy Weak protocol", () => {
+  test("Energy ignores photon/replace", async () => {
     const harness = createHarness("energy-local")
 
     try {
       harness.emit({
         parts: [{part: "photon", op: "replace", path: 17, value: "ready"}],
+      })
+      await sleep(10)
+
+      expect(collectParts(harness.messages, "z", "test")).toEqual([])
+      expect(collectParts(harness.messages, "w-", "replace")).toEqual([])
+    } finally {
+      harness.close()
+    }
+  })
+
+  test("Energy sends z test on photon/test with matching catalog and env", async () => {
+    const harness = createHarness("energy-local")
+
+    try {
+      harness.emit({
+        parts: [{part: "photon", op: "test", path: 17, value: "ready"}],
       })
 
       await waitFor(() => collectParts(harness.messages, "z", "test").length > 0)
@@ -73,12 +110,44 @@ describe("Energy Weak v0 protocol", () => {
     }
   })
 
+  test("Energy does not claim photon/test without descriptor", async () => {
+    const harness = createHarness("energy-local", 1, {...createCatalog(), processes: []})
+
+    try {
+      harness.emit({
+        parts: [{part: "photon", op: "test", path: 17, value: "ready"}],
+      })
+      await sleep(10)
+
+      expect(collectParts(harness.messages, "z", "test")).toEqual([])
+      expect(collectParts(harness.messages, "w-", "replace")).toEqual([])
+    } finally {
+      harness.close()
+    }
+  })
+
+  test("Energy does not claim photon/test when env does not match", async () => {
+    const harness = createHarness("energy-local", 1, createCatalog(["browser"]), "server")
+
+    try {
+      harness.emit({
+        parts: [{part: "photon", op: "test", path: 17, value: "ready"}],
+      })
+      await sleep(10)
+
+      expect(collectParts(harness.messages, "z", "test")).toEqual([])
+      expect(collectParts(harness.messages, "w-", "replace")).toEqual([])
+    } finally {
+      harness.close()
+    }
+  })
+
   test("Energy waits for z copy before w+", async () => {
     const harness = createHarness("energy-local", 1)
 
     try {
       harness.emit({
-        parts: [{part: "photon", op: "replace", path: 17, value: "ready"}],
+        parts: [{part: "photon", op: "test", path: 17, value: "ready"}],
       })
 
       await waitFor(() => collectParts(harness.messages, "z", "test").length > 0)
@@ -91,10 +160,15 @@ describe("Energy Weak v0 protocol", () => {
     }
   })
 
-  test("Energy sends w+ after z copy timeout", async () => {
+  test("Energy sends actor-addressed w+ after z copy timeout", async () => {
     const harness = createHarness("energy-local", 1)
 
     try {
+      harness.emit({
+        parts: [{part: "photon", op: "test", path: 17, value: "ready"}],
+      })
+      await waitFor(() => collectParts(harness.messages, "z", "test").length > 0)
+
       harness.emit({
         parts: [{
           part: "z",
@@ -107,12 +181,18 @@ describe("Energy Weak v0 protocol", () => {
 
       await waitFor(() => collectParts(harness.messages, "w+", "replace").length > 0)
 
-      expect(collectParts(harness.messages, "w+", "replace")[0]).toEqual({
+      const result = collectParts(harness.messages, "w+", "replace")[0]
+      expect(result).toEqual({
         part: "w+",
         op: "replace",
         path: 17,
         value: {fields: {}},
       })
+      expect("energyId" in result!).toBe(false)
+      expect("executorId" in result!).toBe(false)
+      expect("processId" in result!).toBe(false)
+      expect("token" in result!).toBe(false)
+      expect("wimpId" in result!).toBe(false)
     } finally {
       harness.close()
     }

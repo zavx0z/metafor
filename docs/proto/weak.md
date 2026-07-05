@@ -37,7 +37,7 @@
 `BroadcastChannel("force")` и actor-addressed частицы:
 
 ```text
-Matrix -> photon
+Matrix -> photon/replace or photon/test
 Energy -> z test
 Matrix -> z copy
 Energy -> timeout
@@ -46,10 +46,25 @@ Matrix -> apply result / unlock / next weak step
 ```
 
 Matrix не публикует `z process-task`. `photon` является публичным сигналом
-входа actor в state. Если state process-bound, Matrix ставит lock, сохраняет
-frozen snapshot fields на момент входа и только затем испускает `photon`.
+входа actor в state. Для обычного state Matrix испускает
+`{ part: "photon", op: "replace", path: actorId, value: stateName }`. Если
+state process-bound, Matrix ставит lock, сохраняет frozen snapshot fields на
+момент входа и испускает
+`{ part: "photon", op: "test", path: actorId, value: stateName }`.
 
-Energy слушает `photon` и отправляет запрос:
+Matrix runtime snapshot содержит только boolean marker процесса:
+`weak.stateHasProcessByBraneIndex[braneIndex][stateIndex]`. Matrix не получает
+process id, action source, wrapper, import specifier, env, read/write handlers
+или process descriptor.
+
+Energy стартует явно из Dark: Dark получает `boundary.energyRuntime()` и
+передаёт catalog в `startEnergyProtocol({catalog})` до загрузки Matrix snapshot.
+Catalog содержит `actors: Array<[actorId, wimp]>` и descriptors по
+`wimp + state`. Energy слушает только `photon/test`, находит descriptor по
+`actorId + stateName`, проверяет env и молчит, если descriptor отсутствует или
+env не подходит.
+
+Если descriptor найден, Energy отправляет запрос:
 
 ```ts
 { part: "z", op: "test", path: 17, value: { energy: "energy-local" } }
@@ -62,7 +77,7 @@ Matrix выбирает первый валидный Energy и отвечает
 ```
 
 `z copy` означает, что исполнитель выбран, а `value.fields` несёт frozen fields
-snapshot. `from` у `z copy` — Energy id. `rejected` в v0 не используется:
+snapshot. `z copy` не несёт `process`. `from` у `z copy` — Energy id. `rejected` в v0 не используется:
 повторные `z test` после выбора исполнителя игнорируются.
 
 Energy v0 не выполняет DSL process action. Он ждёт timeout и возвращает:
@@ -79,8 +94,8 @@ Energy v0 не выполняет DSL process action. Он ждёт timeout и �
 
 Новый Weak process contract не использует top-level `processId`, `token`,
 `wimpId`, `executorId` или `/field/...`. Реальное DSL process action execution,
-process descriptor, `wrapperSrc`, dynamic import, env resolver и success/error
-handlers остаются следующим этапом.
+`wrapperSrc`, dynamic import, env resolver и success/error handlers остаются
+следующим этапом.
 
 ## Чтение по доменам
 
@@ -104,7 +119,7 @@ handlers остаются следующим этапом.
 - вход actor/brane в process-bound state,
 - lock при входе в process-bound state,
 - сохранение frozen fields snapshot для Energy runtime,
-- испускание `photon` при смене состояния,
+- испускание `photon/replace` для обычного state и `photon/test` для process-state,
 - выбор первого Energy через `z test` / `z copy`,
 - приём `w+`/`w-`, применение result write-set и снятие lock.
 
@@ -113,7 +128,8 @@ handlers остаются следующим этапом.
 Energy здесь означает distributed process executor. Текущий пакет `energy/`
 сейчас является локальным Force pipeline без реального исполнения DSL action:
 
-- слушает photons Matrix,
+- получает process catalog snapshot при старте,
+- слушает только `photon/test` Matrix,
 - отправляет `z test` через локальный `BroadcastChannel("force")`,
 - принимает `z copy` только со своим Energy id в `from`,
 - в v0 ждёт timeout вместо исполнения process action,

@@ -46,17 +46,16 @@ MetaFor строится как система доменных проекций
 
 - домены остаются изолированными,
 - production-код не получает прямых доменных API-импортов, кроме явно
-  зафиксированной пары `Dark` -> `Boundary`; `dark/index.ts` может
-  startup-import runtime pipeline modules только для загрузки локальных
-  Force-подписок в один Bun target,
+  зафиксированной пары `Dark` -> `Boundary`; `dark/index.ts` явно стартует
+  runtime pipeline modules с нужными startup snapshots в одном Bun target,
 - сквозная проверка делается в тестах и в server-dev контуре через локальный
   `BroadcastChannel("force")`,
 - относительные импорты между доменами допустимы только в тестах,
 - Matrix runtime pipeline работает через `matrix/matrix.ts`, не читая
   `Boundary`/SQLite напрямую.
-- Energy runtime pipeline работает через `energy/energy.ts`, не читая
-  `Boundary`/SQLite напрямую; реальное исполнение process action остаётся
-  следующим этапом.
+- Energy runtime pipeline работает через `energy/energy.ts`; catalog snapshot
+  приходит из `dark/index.ts` при старте, а сам пакет не читает `Boundary`/SQLite
+  напрямую. Реальное исполнение process action остаётся следующим этапом.
 
 ## Архитектурный инвариант
 
@@ -112,17 +111,19 @@ MetaFor строится как система доменных проекций
 - Matrix runtime pipeline живёт в `matrix/matrix.ts`: сам модуль открывает
   общий локальный `BroadcastChannel("force")` и обрабатывает входящие Force
   сообщения;
-- Energy runtime pipeline живёт в `energy/energy.ts`: сам модуль открывает тот
-  же общий локальный `BroadcastChannel("force")` и claim-ит process-task через
-  `z`; отдельного Energy server target больше нет.
+- Energy runtime pipeline живёт в `energy/energy.ts`: `dark/index.ts` получает
+  `boundary.energyRuntime()` catalog, вызывает `startEnergyProtocol({catalog})`
+  до загрузки Matrix snapshot, и Energy работает через тот же общий локальный
+  `BroadcastChannel("force")`; отдельного Energy server target больше нет.
 
 Dark получает начальный `BoundaryMatrixRuntimeSnapshot` из `Boundary` и загружает
-его в Matrix runtime. Matrix применяет входящие Force-сообщения через локальный
-Force channel и публикует порождённые сообщения, например `photon` и
-`process-task`, обратно в общий Force channel. Matrix не импортирует
-`Boundary`/SQLite и не открывает базу напрямую.
-Energy пока принимает `z` process-task через локальный Force channel и отвечает
-`z` claim-сообщением, но не исполняет реальные DSL actions.
+его в Matrix runtime. Matrix snapshot содержит `stateHasProcessByBraneIndex`, но
+не содержит process descriptors. Matrix применяет входящие Force-сообщения через
+локальный Force channel и публикует `photon/replace` или `photon/test` обратно в
+общий Force channel. Matrix не импортирует `Boundary`/SQLite и не открывает базу
+напрямую. Energy принимает `photon/test`, отвечает `z test`, получает frozen
+fields через `z copy` и пока возвращает `w+` после timeout без исполнения DSL
+actions.
 
 Root scripts `workspace.dark:*` запускают Dark. Отдельный Energy
 server/debug-process не является частью текущего server-dev контура.

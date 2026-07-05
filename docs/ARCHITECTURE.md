@@ -86,7 +86,7 @@
 - `Dark` владеет логикой материализации и имеет доступ к `Boundary`;
 - `Boundary` владеет канонической персистентной реляционной формой (`wimp`, `actor`, `topology`);
 - `Matrix` владеет рантаймом состояния и не читает `Boundary`;
-- `Energy` получает photons/process tasks Matrix через локальный `BroadcastChannel("force")`, claim-ит process через `z` и возвращает `w+`/`w-`; текущий пакет пока только claim-ит task, а реальное исполнение action остаётся следующим этапом;
+- `Energy` получает process catalog snapshot при старте, слушает `photon/test` Matrix через локальный `BroadcastChannel("force")`, claim-ит process через `z test` и возвращает actor-addressed `w+`/`w-`; текущий пакет пока ждёт timeout, а реальное исполнение action остаётся следующим этапом;
 - `Bulk` владеет рантаймом проявленной рендер-проекции и не читает `Boundary`;
 - Force/WebSocket переносит рантайм-данные между персистентным слоем и рантайм-слоями.
 Такое чтение не требует отдельного оркестратора времени исполнения `Dark`, но допускает минимальную явную репозиторную проекцию `dark/`, если она нужна для фиксации скрытой непрерывности и её рабочих контрактов.
@@ -393,10 +393,12 @@ claim/result и итоговое состояние как наблюдаему�
 4. запуск action в server/browser/worker/service-worker/main-process/desktop,
 5. возврат результата через `W boson` как `w+`/`w-`.
 
-Этот домен уже выделен как пакет `energy/`. Matrix создаёт `process-task`
-при входе actor в process-bound state и публикует его в общий Force-канал.
-Energy слушает локальный `BroadcastChannel("force")` и отвечает claim через
-`z`. Matrix принимает и проверяет result только через Force `w+`/`w-`.
+Этот домен уже выделен как пакет `energy/`. Matrix при входе actor в
+process-bound state ставит lock, сохраняет frozen fields snapshot и публикует
+`photon/test` в общий Force-канал. Energy слушает локальный
+`BroadcastChannel("force")`, выбирает descriptor из startup catalog и отвечает
+claim через `z test`. Matrix отдаёт выбранному Energy `z copy` только с frozen
+fields. Matrix принимает и проверяет result только через Force `w+`/`w-`.
 Следующий этап должен научить `Energy` исполнять process action после accepted
 claim и возвращать компактный write-set.
 
@@ -476,8 +478,8 @@ Process в целевой модели исполняется будущим `En
 
 1. В `Dark` `Process` читается только как историческая линия изменения модели, а не как самостоятельный процесс исполнения.
 2. `Boundary` знает только ту форму процесса, которая нужна для вычисления контракта состояния.
-3. `Matrix` вводит actor/brane в process-bound state, создаёт `process-task` и проверяет результат.
-4. `Energy` claim-ит task через `z`, исполняет process action после accepted claim и возвращает `w+`/`w-`.
+3. `Matrix` вводит actor/brane в process-bound state, сохраняет frozen fields snapshot, публикует `photon/test` и проверяет actor-addressed result.
+4. `Energy` получает process catalog при старте, claim-ит через `z test`, исполняет process action после accepted claim и возвращает `w+`/`w-`.
 5. `Bulk` проявляет процесс как наблюдаемую форму.
 
 ### Boson

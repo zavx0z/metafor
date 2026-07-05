@@ -81,7 +81,6 @@ type MatrixWeakResultPayload = { wimpId: number; processId: number; parts: Matri
 type MatrixPendingProcessExecution = {
   braneIndex: number
   stateIndex: number
-  processId: number
   fields: Record<string, unknown>
   acceptedEnergy?: string
 }
@@ -110,7 +109,7 @@ export type MatrixRuntimeSnapshot = {
   }
   weak: {
     stateMetaStateIdsByBraneIndex: number[][]
-    stateProcessIdsByBraneIndex: Array<Array<number | null | undefined>>
+    stateHasProcessByBraneIndex: boolean[][]
   }
 }
 
@@ -301,7 +300,12 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
     const stateName = matrix$.getStateName(braneIndex, stateIndex)
     if (!stateName) continue
 
-    parts.push({ part: "photon", op: "replace", path: actorId, value: stateName })
+    parts.push({
+      part: "photon",
+      op: weak$.stateHasProcessByBraneIndex[braneIndex]?.[stateIndex] === true ? "test" : "replace",
+      path: actorId,
+      value: stateName,
+    })
   }
 
   if (parts.length === 0) return
@@ -325,13 +329,12 @@ const collectProcessExecutionFields = (actorId: number, braneIndex: number): Rec
 const cloneProcessExecutionFields = (fields: Record<string, unknown>): Record<string, unknown> =>
   structuredClone(fields) as Record<string, unknown>
 
-const rememberPendingProcessExecution = (braneIndex: number, stateIndex: number, processId: number): void => {
+const rememberPendingProcessExecution = (braneIndex: number, stateIndex: number): void => {
   const actorId = gravity$.getActorId(braneIndex)
   if (actorId === undefined) return
   pendingProcessExecutionsByActorId.set(actorId, {
     braneIndex,
     stateIndex,
-    processId,
     fields: cloneProcessExecutionFields(collectProcessExecutionFields(actorId, braneIndex)),
   })
 }
@@ -346,8 +349,7 @@ const syncProcessLocksForChanges = (changes: [number, number][], stateChanges: [
   const stateChangeKeys = new Set(stateChanges.map(([braneIndex, stateIndex]) => `${braneIndex}\0${stateIndex}`))
 
   for (const [braneIndex, stateIndex] of changes) {
-    const processId = weak$.stateProcessIdsByBraneIndex[braneIndex]?.[stateIndex]
-    const shouldLock = processId !== undefined && processId !== null
+    const shouldLock = weak$.stateHasProcessByBraneIndex[braneIndex]?.[stateIndex] === true
     const brane = matrix$.branes[braneIndex]
     if (!brane) continue
 
@@ -362,7 +364,7 @@ const syncProcessLocksForChanges = (changes: [number, number][], stateChanges: [
     }
 
     if (shouldLock) {
-      rememberPendingProcessExecution(braneIndex, stateIndex, processId)
+      rememberPendingProcessExecution(braneIndex, stateIndex)
     } else {
       clearPendingProcessExecution(braneIndex)
     }
@@ -386,10 +388,9 @@ const requireWeakResultFieldPartId = (path: string): number => {
   return wimpFieldId
 }
 
-const getCurrentBraneProcessId = (braneIndex: number): number | undefined => {
+const currentBraneHasProcess = (braneIndex: number): boolean => {
   const stateIndex = matrix$.states[braneIndex]
-  if (stateIndex === undefined) return undefined
-  return weak$.stateProcessIdsByBraneIndex[braneIndex]?.[stateIndex]
+  return stateIndex !== undefined && weak$.stateHasProcessByBraneIndex[braneIndex]?.[stateIndex] === true
 }
 
 const applyEnergyExecutionRequest = (part: MatrixParticle): void => {
@@ -403,15 +404,13 @@ const applyEnergyExecutionRequest = (part: MatrixParticle): void => {
 
   const stateIndex = matrix$.states[braneIndex]
   if (stateIndex === undefined) return
-  const processId = getCurrentBraneProcessId(braneIndex)
-  if (processId === undefined) return
+  if (!currentBraneHasProcess(braneIndex)) return
 
   const pending = pendingProcessExecutionsByActorId.get(actorId)
   if (
     !pending ||
     pending.braneIndex !== braneIndex ||
     pending.stateIndex !== stateIndex ||
-    pending.processId !== processId ||
     pending.acceptedEnergy !== undefined
   ) {
     return
@@ -459,7 +458,7 @@ const applyActorWeakResult = async (part: MatrixParticle): Promise<boolean> => {
   if (braneIndex === undefined) return true
   const brane = matrix$.branes[braneIndex]
   if (!brane?.lock) return true
-  if (getCurrentBraneProcessId(braneIndex) === undefined) return true
+  if (!currentBraneHasProcess(braneIndex)) return true
 
   const pending = pendingProcessExecutionsByActorId.get(actorId)
   if (!pending?.acceptedEnergy) return true
@@ -532,9 +531,7 @@ export async function loadMatrixRuntimeSnapshot(snapshot: MatrixRuntimeSnapshot)
   )
 
   weak$.stateMetaStateIdsByBraneIndex = snapshot.weak.stateMetaStateIdsByBraneIndex.map((ids) => [...ids])
-  weak$.stateProcessIdsByBraneIndex = snapshot.weak.stateProcessIdsByBraneIndex.map((ids) =>
-    ids.map((id) => id ?? undefined),
-  )
+  weak$.stateHasProcessByBraneIndex = snapshot.weak.stateHasProcessByBraneIndex.map((items) => [...items])
 
   if (weak$.initialized) {
     const changes = await weakRunStep(StepMode.UndefinedOnly)
@@ -563,7 +560,7 @@ const collectProcessStateRetriggers = (
 
     const stateIndex = matrix$.states[braneIndex]
     if (stateIndex === undefined) continue
-    if (weak$.stateProcessIdsByBraneIndex[braneIndex]?.[stateIndex] === undefined) continue
+    if (weak$.stateHasProcessByBraneIndex[braneIndex]?.[stateIndex] !== true) continue
 
     retriggers.push([braneIndex, stateIndex])
   }
@@ -703,14 +700,8 @@ export async function applyWeakResultPacket(message: MatrixWeakResultPayload): P
     throw new Error(`Matrix weak result requires locked brane for wimp ${message.wimpId}`)
   }
 
-  const activeProcessId = getCurrentBraneProcessId(braneIndex)
-  if (activeProcessId === undefined) {
+  if (!currentBraneHasProcess(braneIndex)) {
     throw new Error(`Matrix weak result requires process-bound state for wimp ${message.wimpId}`)
-  }
-  if (activeProcessId !== message.processId) {
-    throw new Error(
-      `Matrix weak result process mismatch for wimp ${message.wimpId}: expected ${activeProcessId}, got ${message.processId}`,
-    )
   }
 
   const fieldUpdates: Array<[fieldIndex: number, value: unknown]> = []
