@@ -19,6 +19,9 @@ export type InstalledBreakpoint = {
   breakpointId: string
   scriptId: string
   url: string
+  requestedLocation?: {lineNumber: number; columnNumber: number}
+  generatedLocation?: SourceMapLookup
+  actualLocation?: JsonObject | undefined
   result: unknown
 }
 
@@ -39,6 +42,13 @@ export type BreakpointSourceChange = {
   path: string
   sourceUrl?: string
   lineChanges: BreakpointLineChange[]
+}
+
+export type BreakpointSpecNormalization = {
+  spec: BreakpointSpec
+  requested?: BreakpointSpec
+  warning?: string
+  error?: string
 }
 
 type TrackedBreakpoint = BreakpointRegistration & {
@@ -257,6 +267,9 @@ export class BreakpointStore {
         breakpointId,
         scriptId: script.scriptId,
         url: script.url,
+        requestedLocation: mapped.requested,
+        generatedLocation: mapped.generated,
+        actualLocation: locations[0],
         result,
       })
       await this.#restoreBreakpointsActive()
@@ -296,12 +309,20 @@ export class BreakpointStore {
 
       if (breakpointId === undefined) return false
       tracked.logicalBreakpointIds.add(breakpointId)
-      this.#rememberInstalled(tracked, {
+      const installed: InstalledBreakpoint = {
         breakpointId,
         scriptId: "",
         url: logicalBreakpointUrl(params),
+        actualLocation: locations[0],
         result,
-      }, `logical:${breakpointId}`)
+      }
+      const lineNumber = typeof params["lineNumber"] === "number" ? params["lineNumber"] : undefined
+      const columnNumber = typeof params["columnNumber"] === "number" ? params["columnNumber"] : undefined
+      if (lineNumber !== undefined && columnNumber !== undefined) {
+        installed.requestedLocation = {lineNumber: Math.max(0, Math.floor(tracked.spec.line) - 1), columnNumber: tracked.spec.column ?? 0}
+        installed.generatedLocation = {line: lineNumber, column: columnNumber, verified: true}
+      }
+      this.#rememberInstalled(tracked, installed, `logical:${breakpointId}`)
       await this.#restoreBreakpointsActive()
       return true
     } catch (error) {
@@ -340,6 +361,9 @@ export class BreakpointStore {
         breakpointId,
         scriptId: script.scriptId,
         url: script.url,
+        requestedLocation: mapped.requested,
+        generatedLocation: mapped.generated,
+        actualLocation: actualLocationFromResult(result),
         result,
       }
       this.#rememberInstalled(tracked, installed)
@@ -533,6 +557,59 @@ export function runtimeBreakpointParams(spec: BreakpointSpec, cwd = process.cwd(
   } catch {
     return null
   }
+}
+
+export function normalizeBreakpointSpec(spec: BreakpointSpec, cwd = process.cwd()): BreakpointSpecNormalization {
+  if (spec.urlRegex !== undefined) return {spec}
+  const source = spec.sourceUrl ?? spec.url
+  if (source === undefined || source.length === 0) return {spec}
+
+  const path = localSourcePath(source, cwd)
+  if (path === null || transpilerLoader(path) === null) return {spec}
+
+  let sourceText: string
+  try {
+    sourceText = readFileSync(path, "utf8")
+  } catch {
+    return {spec}
+  }
+
+  const requestedLine = Math.max(1, Math.floor(spec.line))
+  const lines = sourceText.split("\n")
+  if (requestedLine > lines.length) {
+    return {
+      spec,
+      requested: spec,
+      error: `breakpoint line ${requestedLine} is outside ${path} (${lines.length} lines)`,
+    }
+  }
+
+  if (runtimeBreakpointParams(spec, cwd) !== null && !breakpointLineLooksLikeFunctionHeader(lines, requestedLine)) return {spec}
+
+  const maxLine = Math.min(lines.length, requestedLine + 80)
+  for (let line = requestedLine + 1; line <= maxLine; line++) {
+    const candidate = {...spec, line}
+    if (runtimeBreakpointParams(candidate, cwd) === null) continue
+    if (breakpointLineLooksLikeFunctionHeader(lines, line)) continue
+    return {
+      spec: candidate,
+      requested: spec,
+      warning: `breakpoint line ${requestedLine} is not runtime-breakpointable; normalized to line ${line}`,
+    }
+  }
+
+  return {
+    spec,
+    requested: spec,
+    error: `breakpoint line ${requestedLine} is not runtime-breakpointable and no executable line was found within ${maxLine - requestedLine} lines`,
+  }
+}
+
+function breakpointLineLooksLikeFunctionHeader(lines: readonly string[], line: number): boolean {
+  const index = line - 1
+  const source = lines[index]?.trim() ?? ""
+  if (!source.endsWith("{")) return false
+  return lines.slice(Math.max(0, index - 12), index + 1).join("\n").includes("function")
 }
 
 function generatedLocationFromTranspiledPrefix(
@@ -768,6 +845,13 @@ function samePathSuffix(a: string[], b: string[]): boolean {
 function breakpointIdFromResult(result: unknown): string | undefined {
   const object = asObject(result)
   return asString(object?.["breakpointId"])
+}
+
+function actualLocationFromResult(result: unknown): JsonObject | undefined {
+  const object = asObject(result)
+  const actualLocation = asObject(object?.["actualLocation"])
+  if (actualLocation !== undefined) return actualLocation
+  return locationsFromResult(result)[0]
 }
 
 function isDuplicateBreakpointError(error: unknown): boolean {

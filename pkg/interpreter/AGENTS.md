@@ -620,6 +620,23 @@ LocalStorage keys в UI должны быть scoped by module id/display id, е
 
 Breakpoints process-scoped и должны matched against source identity owning process.
 
+Agent-facing `breakpoint.set` не должен молча принимать неисполняемую строку:
+для локальных TS/JS source-файлов он нормализует breakpoint на ближайшую
+следующую runtime-исполняемую строку и возвращает `warning` +
+`requestedBreakpoint`, либо `ok:false`, если рядом нет подходящей строки.
+В `breakpoint.installed[]` должны быть видны `requestedLocation`,
+`generatedLocation` и `actualLocation`, чтобы агент проверял фактическую
+runtime-точку без чтения raw event log.
+
+Для semantic/debug задач агент не должен вручную считать номера строк по
+source-фрагменту или угадывать строку по открытому cursor/source-pane. Сначала
+используй `source.locate` или сразу `breakpoint.set` с `text`/`query`/`regex`
+locator. Если locator возвращает `ambiguous source locator`, уточни область
+через `after`/`before`, `occurrence` или более точный текст; не выбирай первый
+match молча. Line-only `breakpoint.set` допустим, когда line пришел из
+`currentFrame`/`sourceMatch`/gutter click/явной команды пользователя, а не из
+ручного подсчета агентом.
+
 Editor gutter clicks в одном display могут set/remove breakpoints только для owning process. Badge counts и marker rendering должны использовать ту же process-scoped matching logic.
 
 Используй logical source matching helpers из `web/breakpoint-matching.ts` и source map helpers из `src/source-map.ts`; не возвращай ad hoc global breakpoint matching.

@@ -30,3 +30,6 @@
 - [100] Научить Plan создавать пункты в профильных секциях, а не складывать все задачи в конец файла.
 - [100] Перенести видимость Plan updates в todo.* tools: mutating commands должны сами показывать/подсвечивать измененный пункт.
 - [100] Сделать так, чтобы Plan HUD прокручивал подсвеченный todo item в видимую область.
+- [100] Сделать breakpoint tools agent-friendly: не принимать неисполняемые строки молча и показывать фактическую runtime-точку.
+- [100] Починить agent-facing debug context: после step context.get не должен отдавать stale UI currentFrame вместо свежего runtime snapshot.
+- [100] Добавить source locator pipeline для агентов: найти строку/контекст без ручного подсчёта и ставить breakpoint по locator.

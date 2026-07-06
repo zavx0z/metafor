@@ -36,7 +36,7 @@ import type {EventLogger} from "./logger.ts"
 import type {JsonObject} from "./types.ts"
 import {sourceMapMapper} from "./source-map.ts"
 import {applyPatch, createReplaceFilePatch, type ApplyPatchFileChange, type ApplyPatchResult} from "./apply-patch.ts"
-import {remapBreakpointLine, type BreakpointRegistration} from "./breakpoints.ts"
+import {normalizeBreakpointSpec, remapBreakpointLine, type BreakpointRegistration} from "./breakpoints.ts"
 import {
   attachPtyDaemonProxy,
   detachPtyDaemonProxy,
@@ -1615,7 +1615,50 @@ function getProcessModules(processId: string, url: URL, options: HttpServerOptio
 }
 
 function contextForModule(module: ModuleSnapshot, contexts: ModuleContextStore): JsonObject {
-  return contexts.get(module.id) ?? runtimeFallbackContext(module)
+  const context = contexts.get(module.id)
+  if (context === undefined) return runtimeFallbackContext(module)
+  return runtimeAuthoritativeContext(module, context)
+}
+
+function runtimeAuthoritativeContext(module: ModuleSnapshot, context: JsonObject): JsonObject {
+  const runtimeContext = runtimeFallbackContext(module)
+  const runtimeSource = asObject(runtimeContext["source"]) ?? {}
+  const source = asObject(context["source"]) ?? {}
+  const currentFrame = asObject(runtimeContext["currentFrame"])
+  const nextSource: JsonObject = {
+    ...source,
+    state: runtimeSource["state"],
+  }
+
+  if (currentFrame !== undefined) {
+    nextSource["location"] = runtimeSource["location"]
+    nextSource["identity"] = sourceIdentityMatchesFrame(asObject(source["identity"]), currentFrame)
+      ? source["identity"]
+      : null
+  }
+
+  const next: JsonObject = {
+    ...context,
+    source: nextSource,
+    activeFrameIndex: runtimeContext["activeFrameIndex"],
+    currentFrame: runtimeContext["currentFrame"],
+  }
+  if (currentFrame !== undefined) next["updatedAt"] = runtimeContext["updatedAt"]
+  return next
+}
+
+function sourceIdentityMatchesFrame(identity: JsonObject | undefined, frame: JsonObject): boolean {
+  if (identity === undefined) return false
+
+  const frameScriptId = asString(frame["scriptId"])
+  const identityScriptId = asString(identity["scriptId"])
+  if (frameScriptId !== undefined && identityScriptId !== undefined) return frameScriptId === identityScriptId
+
+  const frameUrl = asString(frame["url"])
+  if (frameUrl === undefined || frameUrl.length === 0) return true
+  return asString(identity["sourceUrl"]) === frameUrl
+    || asString(identity["scriptUrl"]) === frameUrl
+    || asString(identity["key"]) === frameUrl
 }
 
 function contextWithHud(context: JsonObject, hudTodo: HudTodoContextStore, hudSqlite: HudSqliteContextStore): JsonObject {
@@ -1631,7 +1674,7 @@ function contextWithHud(context: JsonObject, hudTodo: HudTodoContextStore, hudSq
 }
 
 function runtimeFallbackContext(module: ModuleSnapshot): JsonObject {
-  const frame = module.dump?.frames[0] ?? null
+  const frame = module.paused ? module.dump?.frames[0] ?? null : null
   const sourceState = module.connection.state !== "connected"
     ? "disconnected"
     : module.target.state === "exited"
@@ -2053,15 +2096,54 @@ async function setBreakpoint(req: Request, module: InterpreterModule, broadcast:
       return jsonResponse({ok: false, error: `invalid JSON: ${serializeError(error)}`}, 400)
     }
   }
-  const line = asNumber(body["line"])
-  if (!isPositiveInteger(line)) return jsonResponse({ok: false, error: "line must be a positive integer (1-based)"}, 400)
+  const hasLocator = hasSourceLocator(body)
+  let line = asNumber(body["line"])
+  let sourceMatch: JsonObject | undefined
+  let sourceLocator: JsonObject | undefined
   const url = asString(body["url"])
   const urlRegex = asString(body["urlRegex"])
-  const sourceUrl = asString(body["sourceUrl"])
+  let sourceUrl = asString(body["sourceUrl"])
+    ?? asString(body["path"])
+    ?? asString(body["modulePath"])
+  if (hasLocator) {
+    if (urlRegex !== undefined) return jsonResponse({ok: false, error: "source locator requires sourceUrl, path, modulePath or url, not urlRegex"}, 400)
+    const located = sourceLocateToolPayload(body)
+    if (located["ok"] !== true) {
+      return jsonResponse({
+        ok: false,
+        error: asString(located["error"]) ?? "source locator failed",
+        sourceLocator: located["locator"],
+        sourceUrl: located["sourceUrl"],
+        path: located["path"],
+        matchCount: located["matchCount"],
+        truncated: located["truncated"],
+        matches: located["matches"],
+        requestedBreakpoint: body,
+      }, 400)
+    }
+    const match = asObject(located["match"])
+    const locatedLine = match === undefined ? undefined : asNumber(match["line"])
+    if (!isPositiveInteger(locatedLine)) return jsonResponse({ok: false, error: "source locator returned no line", sourceLocator: located["locator"], requestedBreakpoint: body}, 400)
+    if (line !== undefined && line !== locatedLine) {
+      return jsonResponse({
+        ok: false,
+        error: "line does not match source locator",
+        line,
+        sourceMatch: match,
+        sourceLocator: located["locator"],
+        requestedBreakpoint: body,
+      }, 400)
+    }
+    line = locatedLine
+    sourceMatch = match
+    sourceLocator = asObject(located["locator"])
+    sourceUrl ??= asString(located["sourceUrl"])
+  }
+  if (!isPositiveInteger(line)) return jsonResponse({ok: false, error: "line must be a positive integer (1-based) or source locator required"}, 400)
   if (url === undefined && urlRegex === undefined && sourceUrl === undefined) {
     return jsonResponse({ok: false, error: "url, sourceUrl or urlRegex required"}, 400)
   }
-  const column = asNumber(body["column"])
+  const column = asNumber(body["column"]) ?? (sourceMatch === undefined ? undefined : asNumber(sourceMatch["column"]))
   if (column !== undefined && !isNonNegativeInteger(column)) {
     return jsonResponse({ok: false, error: "column must be a non-negative integer (0-based)"}, 400)
   }
@@ -2072,14 +2154,23 @@ async function setBreakpoint(req: Request, module: InterpreterModule, broadcast:
   if (urlRegex !== undefined) spec.urlRegex = urlRegex
   if (column !== undefined) spec.column = column
   if (condition !== undefined) spec.condition = condition
+  const normalized = normalizeBreakpointSpec(spec)
+  if (normalized.error !== undefined) {
+    return jsonResponse({ok: false, error: normalized.error, requestedBreakpoint: spec}, 400)
+  }
 
   try {
-    const registration = module.breakpoints.add(spec)
+    const registration = module.breakpoints.add(normalized.spec)
     await module.breakpoints.armPendingByUrl([registration.id])
     await module.breakpoints.applyToScripts(module.snapshots.scripts)
     const breakpoints = module.breakpoints.registrations
     broadcast({type: "breakpoints-changed", moduleId: module.id, reason: "set", breakpoint: registration, breakpoints})
-    return jsonResponse({ok: true, breakpoint: registration, breakpoints})
+    const response: JsonObject = {ok: true, breakpoint: registration, breakpoints}
+    if (normalized.requested !== undefined) response["requestedBreakpoint"] = normalized.requested
+    if (normalized.warning !== undefined) response["warning"] = normalized.warning
+    if (sourceLocator !== undefined) response["sourceLocator"] = sourceLocator
+    if (sourceMatch !== undefined) response["sourceMatch"] = sourceMatch
+    return jsonResponse(response)
   } catch (error) {
     return jsonResponse({ok: false, error: serializeError(error)}, 500)
   }
@@ -2499,6 +2590,13 @@ async function runProcessToolUse(
     if (toolUse.recipientName === "source.read_many") {
       return {...base, ok: true, result: await sourceReadManyToolPayload(module, toolUse.parameters)}
     }
+    if (toolUse.recipientName === "source.locate") {
+      const result = sourceLocateToolPayload(toolUse.parameters)
+      const ok = result["ok"] === true
+      const response: JsonObject = {...base, ok, status: ok ? 200 : 409, result}
+      if (!ok) response["error"] = asString(result["error"]) ?? "source.locate failed"
+      return response
+    }
     if (toolUse.recipientName === "source.open") {
       const payload = await sourceUiActionPayload(module.id, "source.open", toolUse.parameters, dispatchUiHostCommand)
       const ok = payload.status < 400 && payload.body["ok"] !== false
@@ -2545,6 +2643,7 @@ async function runProcessToolUse(
 function isProcessScopedTool(recipientName: string): boolean {
   return recipientName === "source.read"
     || recipientName === "source.read_many"
+    || recipientName === "source.locate"
     || recipientName === "source.open"
     || recipientName === "source.openSelection"
     || recipientName === "source.write"
@@ -2782,6 +2881,186 @@ async function sourceReadToolPayload(module: InterpreterModule, params: JsonObje
     ...(gitBaseSource === undefined ? {} : {gitBaseSource}),
     ...(rangePayload === undefined ? {scriptSource, text: scriptSource} : {ranges: rangePayload}),
   }
+}
+
+type SourceLocateMatch = {line: number; column: number; text: string}
+
+function sourceLocateToolPayload(params: JsonObject): JsonObject {
+  const locatorParams = sourceLocatorParams(params)
+  if (asString(locatorParams["urlRegex"]) !== undefined) {
+    return {ok: false, error: "source.locate requires a concrete sourceUrl, path, modulePath or url"}
+  }
+  const sourceUrl = sourceLocatorSourceUrl(locatorParams)
+  if (sourceUrl === undefined || sourceUrl.trim().length === 0) return {ok: false, error: "sourceUrl required"}
+
+  const path = sourceFilePath(sourceUrl)
+  if (path === undefined) return {ok: false, sourceUrl, url: sourceUrl, error: "sourceUrl is not a local file path"}
+
+  const scriptSource = readFileSync(path, "utf8")
+  return sourceLocatePayload(sourceUrl, path, sourceTextLines(scriptSource), locatorParams)
+}
+
+function sourceLocatorParams(params: JsonObject): JsonObject {
+  const locator = asObject(params["locator"])
+  return locator === undefined ? params : {...params, ...locator}
+}
+
+function sourceLocatorSourceUrl(params: JsonObject): string | undefined {
+  return asString(params["sourceUrl"])
+    ?? asString(params["path"])
+    ?? asString(params["modulePath"])
+    ?? asString(params["url"])
+}
+
+function hasSourceLocator(params: JsonObject): boolean {
+  const locatorParams = sourceLocatorParams(params)
+  return asString(locatorParams["text"]) !== undefined
+    || asString(locatorParams["query"]) !== undefined
+    || asString(locatorParams["regex"]) !== undefined
+}
+
+function sourceLocatePayload(sourceUrl: string, path: string, lines: string[], params: JsonObject): JsonObject {
+  const text = asString(params["text"]) ?? asString(params["query"])
+  const regex = asString(params["regex"])
+  const locator = sourceLocatorSummary(sourceUrl, params)
+  if ((text === undefined || text.length === 0) && (regex === undefined || regex.length === 0)) {
+    return {ok: false, sourceUrl, url: sourceUrl, path, locator, error: "text, query or regex required"}
+  }
+  if (text !== undefined && regex !== undefined) {
+    return {ok: false, sourceUrl, url: sourceUrl, path, locator, error: "use either text/query or regex, not both"}
+  }
+
+  const caseSensitive = asBoolean(params["caseSensitive"]) ?? true
+  const bounds = sourceLocateBounds(lines, params, caseSensitive)
+  if (bounds.error !== undefined) return {ok: false, sourceUrl, url: sourceUrl, path, locator, error: bounds.error}
+
+  let matches: SourceLocateMatch[]
+  if (regex !== undefined) {
+    try {
+      matches = sourceLocateRegexMatches(lines, regex, asString(params["flags"]) ?? "", bounds.startIndex, bounds.endIndex)
+    } catch (error) {
+      return {ok: false, sourceUrl, url: sourceUrl, path, locator, error: `invalid regex: ${serializeError(error)}`}
+    }
+  } else {
+    matches = sourceLocateTextMatches(lines, text!, caseSensitive, bounds.startIndex, bounds.endIndex)
+  }
+
+  const nearLine = positiveIntegerFromValue(params["nearLine"])
+  if (nearLine !== undefined) {
+    matches = [...matches].sort((a, b) => Math.abs(a.line - nearLine) - Math.abs(b.line - nearLine) || a.line - b.line || a.column - b.column)
+  }
+
+  const contextLines = boundedInteger(params["contextLines"], 2, 0, 8)
+  const maxMatches = boundedInteger(params["maxMatches"], 20, 1, 100)
+  const occurrence = positiveIntegerFromValue(params["occurrence"])
+  const previewMatches = matches.slice(0, maxMatches).map((match) => sourceLocateMatchPayload(lines, match, contextLines))
+  const base: JsonObject = {
+    ok: false,
+    sourceUrl,
+    url: sourceUrl,
+    path,
+    locator,
+    matchCount: matches.length,
+    truncated: matches.length > maxMatches,
+    matches: previewMatches,
+  }
+
+  if (matches.length === 0) return {...base, error: "source locator not found"}
+  if (occurrence !== undefined) {
+    const match = matches[occurrence - 1]
+    if (match === undefined) return {...base, error: "source locator occurrence out of range"}
+    return {...base, ok: true, match: sourceLocateMatchPayload(lines, match, contextLines)}
+  }
+  if (matches.length > 1) return {...base, error: "ambiguous source locator"}
+  return {...base, ok: true, match: previewMatches[0]}
+}
+
+function sourceLocatorSummary(sourceUrl: string, params: JsonObject): JsonObject {
+  const locator: JsonObject = {sourceUrl}
+  for (const key of ["text", "query", "regex", "flags", "after", "before", "occurrence", "nearLine", "caseSensitive"] as const) {
+    if (params[key] !== undefined) locator[key] = params[key]
+  }
+  return locator
+}
+
+function sourceLocateBounds(lines: string[], params: JsonObject, caseSensitive: boolean): {startIndex: number; endIndex: number; error?: string} {
+  let startIndex = 0
+  let endIndex = lines.length - 1
+  const after = asString(params["after"])
+  if (after !== undefined) {
+    const index = lines.findIndex((line) => sourceLocateIncludes(line, after, caseSensitive))
+    if (index < 0) return {startIndex, endIndex, error: "source locator after marker not found"}
+    startIndex = index + 1
+  }
+  const before = asString(params["before"])
+  if (before !== undefined) {
+    const index = lines.findIndex((line, lineIndex) => lineIndex >= startIndex && sourceLocateIncludes(line, before, caseSensitive))
+    if (index < 0) return {startIndex, endIndex, error: "source locator before marker not found"}
+    endIndex = index - 1
+  }
+  return {startIndex, endIndex}
+}
+
+function sourceLocateIncludes(line: string, needle: string, caseSensitive: boolean): boolean {
+  return caseSensitive ? line.includes(needle) : line.toLowerCase().includes(needle.toLowerCase())
+}
+
+function sourceLocateTextMatches(lines: string[], text: string, caseSensitive: boolean, startIndex: number, endIndex: number): SourceLocateMatch[] {
+  const matches: SourceLocateMatch[] = []
+  const needle = caseSensitive ? text : text.toLowerCase()
+  for (let index = startIndex; index <= endIndex; index++) {
+    const line = lines[index] ?? ""
+    const haystack = caseSensitive ? line : line.toLowerCase()
+    let from = 0
+    while (from <= haystack.length) {
+      const column = haystack.indexOf(needle, from)
+      if (column < 0) break
+      matches.push({line: index + 1, column, text: line})
+      from = column + needle.length
+    }
+  }
+  return matches
+}
+
+function sourceLocateRegexMatches(lines: string[], pattern: string, flags: string, startIndex: number, endIndex: number): SourceLocateMatch[] {
+  const regex = new RegExp(pattern, flags.includes("g") ? flags : `${flags}g`)
+  const matches: SourceLocateMatch[] = []
+  for (let index = startIndex; index <= endIndex; index++) {
+    const line = lines[index] ?? ""
+    regex.lastIndex = 0
+    let match: RegExpExecArray | null = regex.exec(line)
+    while (match !== null) {
+      matches.push({line: index + 1, column: match.index, text: line})
+      if (match[0].length === 0) regex.lastIndex += 1
+      match = regex.exec(line)
+    }
+  }
+  return matches
+}
+
+function sourceLocateMatchPayload(lines: string[], match: SourceLocateMatch, contextLines: number): JsonObject {
+  const startLine = Math.max(1, match.line - contextLines)
+  const endLine = Math.min(lines.length, match.line + contextLines)
+  return {
+    line: match.line,
+    column: match.column,
+    text: match.text,
+    context: {
+      startLine,
+      endLine,
+      text: numberedSourceLines(lines.slice(startLine - 1, endLine), startLine),
+    },
+  }
+}
+
+function boundedInteger(value: unknown, fallback: number, min: number, max: number): number {
+  const number = typeof value === "number"
+    ? value
+    : typeof value === "string"
+      ? Number(value)
+      : Number.NaN
+  if (!Number.isInteger(number)) return fallback
+  return Math.min(Math.max(number, min), max)
 }
 
 function sourceReadUrlFromParams(params: JsonObject): URL {
@@ -3230,6 +3509,9 @@ function sourceFilePath(sourceUrl: string): string | undefined {
     }
   }
   if (/^[A-Za-z]:\//.test(clean) || clean.startsWith("/")) return existingSourcePath(clean) ?? clean
+
+  const withoutRuntimePrefix = clean.replace(/^r\//, "")
+  if (withoutRuntimePrefix !== clean) return existingSourcePath(withoutRuntimePrefix) ?? resolve(process.cwd(), withoutRuntimePrefix)
 
   const stripped = clean.replace(/^(?:\.\.\/)+/, "").replace(/^\.\//, "")
   return existingSourcePath(stripped) ?? resolve(process.cwd(), stripped)

@@ -181,7 +181,7 @@ sender живет в отдельной service page
 
 `context.hud.sqlite` - компактное состояние SQLite HUD. В context попадают активная база, таблица и выбранные человеком строки. Это не дамп базы и не полный набор данных таблицы: `selectedRows` ограничен первыми 20 выбранными строками, а при превышении лимита выставляется `selectionTruncated:true`.
 
-`origin:"ui"` означает, что context пришел от UI-host и включает реальные caret, selection и детализацию scopes. `origin:"runtime"` означает запасной вариант из текущей точки исполнения.
+`origin:"ui"` означает, что context пришел от UI-host и включает реальные caret, selection и детализацию scopes. При этом agent-facing execution-поля `source.state`, `source.location`, `activeFrameIndex` и `currentFrame` всегда берутся из свежего runtime snapshot, если process paused. `origin:"runtime"` означает запасной вариант из текущей точки исполнения, когда UI-context еще недоступен.
 
 ## Host Lifecycle
 
@@ -603,8 +603,8 @@ POST /tools        # JSON {tool_uses:[{recipient_name, parameters}]}
 `POST /tools` - единый command API. Тело запроса содержит `tool_uses`, где
 каждый элемент имеет `recipient_name`/`name` и `parameters`/`arguments`.
 Для process-scoped tools передавай `parameters.processId`. Поддержанный набор tools:
-`source.read`, `source.read_many`, `source.open`, `source.openSelection`,
-`source.write`, `source.apply_patch`, `process.*`, `breakpoint.*`, `hud.*`,
+`source.read`, `source.read_many`, `source.locate`, `source.open`,
+`source.openSelection`, `source.write`, `source.apply_patch`, `process.*`, `breakpoint.*`, `hud.*`,
 `todo.*`, `sqlite.*`, `devtools.*`, `browser.*`, `remote_desktop.*`, `host.*`.
 
 `source.open` и `source.openSelection` внутри API вызывают UI-host команду
@@ -615,6 +615,17 @@ POST /tools        # JSON {tool_uses:[{recipient_name, parameters}]}
 `source.write` и `source.apply_patch` применяют изменения через серверную
 реализацию apply_patch, сдвигают точки останова process, рассылают
 `source-patched` и повторно воспроизводят затронутые запуски, когда это нужно.
+
+`source.locate` находит строку в локальном source без ручного подсчета номеров.
+Он принимает `sourceUrl`/`path`/`modulePath`/`url` и один locator: `text`,
+`query` или line-local `regex`. Дополнительно можно ограничить область через
+`after`/`before`, выбрать явное `occurrence`, задать `nearLine` для сортировки
+совпадений и `contextLines` для размера возвращаемого фрагмента.
+
+Если совпадение одно, ответ содержит `match.line`, `match.column` и numbered
+`match.context.text`. Если совпадений несколько, команда возвращает `ok:false`,
+`error:"ambiguous source locator"`, `matchCount` и `matches[]`; агент должен
+уточнить locator или передать явное `occurrence`, а не выбирать строку наугад.
 
 ## Точки Останова
 
@@ -639,7 +650,31 @@ type BreakpointSpec = {
 }
 ```
 
-`line` - 1-based строка редактора. `column` - 0-based колонка. Интерпретатор переводит source-координаты через `sourceMapURL` из `Debugger.scriptParsed`.
+`line` - 1-based строка редактора. `column` - 0-based колонка. Для локальных
+TS/JS source-файлов `breakpoint.set` перед регистрацией проверяет, что строка
+может стать runtime breakpoint. Если запрошена пустая строка, комментарий,
+type-only участок или многострочная сигнатура без исполняемого кода,
+интерпретатор нормализует breakpoint на ближайшую следующую исполняемую строку
+и возвращает `warning` + `requestedBreakpoint`; если такой строки рядом нет,
+команда возвращает `ok:false` и breakpoint не регистрируется.
+
+Для agent-facing постановки предпочтителен source locator вместо ручного
+номера строки:
+
+```json
+{"processId":"dark-server.ts","sourceUrl":"r/dark/dark.ts","text":"await matter(part.value)"}
+```
+
+`breakpoint.set` использует тот же locator-контракт, что и `source.locate`, сам
+выводит `line`/`column`, затем применяет обычную нормализацию runtime-точки.
+Если одновременно переданы `line` и locator, и найденная строка отличается от
+`line`, команда возвращает `ok:false` с `error:"line does not match source locator"`.
+Если locator неоднозначен, breakpoint не регистрируется.
+
+Интерпретатор переводит source-координаты через `sourceMapURL` из
+`Debugger.scriptParsed`. Установленные runtime-точки в `breakpoint.installed[]`
+показывают `requestedLocation`, `generatedLocation` и `actualLocation`, чтобы
+агент видел фактическое место, куда попал breakpoint, а не только `ok:true`.
 
 `POST` и `DELETE` рассылают UI событие `breakpoints-changed`; редактор обновляет рантайм-регистрации и localStorage specs из ответа process, поэтому внешний API не оставляет устаревший маркер в gutter.
 

@@ -27,7 +27,7 @@ export type ContextGetTool = {
 
 /** Read, open, save, or patch source in a process. */
 export type SourceTool = {
-  recipient_name: "source.read" | "source.read_many" | "source.open" | "source.openSelection" | "source.write" | "source.apply_patch"
+  recipient_name: "source.read" | "source.read_many" | "source.locate" | "source.open" | "source.openSelection" | "source.write" | "source.apply_patch"
   parameters: JsonObject & {processId?: string; sourceUrl?: string; path?: string; text?: string; patch?: string}
 }
 
@@ -40,7 +40,7 @@ export type ProcessTool = {
 /** Manage process breakpoints through the same tool surface as source edits. */
 export type BreakpointTool = {
   recipient_name: "breakpoint.list" | "breakpoint.set" | "breakpoint.remove"
-  parameters: JsonObject & {processId?: string; line?: number; url?: string; sourceUrl?: string; id?: string; breakpointId?: string}
+  parameters: JsonObject & {processId?: string; line?: number; text?: string; query?: string; regex?: string; url?: string; sourceUrl?: string; id?: string; breakpointId?: string}
 }
 
 /** Inspect and control interpreter HUD, browser, DevTools, SQLite, Android, and remote desktop helpers. */
@@ -69,12 +69,13 @@ export const interpreterToolDescriptions = [
   {name: "process.action", description: "debug/action команда process", parameters: "{processId, action, params?}"},
   {name: "source.read", description: "прочитать source/runtime text", parameters: "{processId, sourceUrl?|scriptId?, ranges?, tokens?}"},
   {name: "source.read_many", description: "прочитать несколько source payloads", parameters: "{processId, sources:[sourceUrl|params]}"},
+  {name: "source.locate", description: "найти уникальную source строку по exact text или line-local regex", parameters: "{processId, sourceUrl|path|modulePath|url, text|query|regex, occurrence?, after?, before?, contextLines?}"},
   {name: "source.open", description: "открыть source в UI process display", parameters: "{processId, sourceUrl|path|modulePath|specifier, line?, column?, selection?}"},
   {name: "source.openSelection", description: "открыть import/source из текущего выделения", parameters: "{processId}"},
   {name: "source.write", description: "сохранить source через server sync/replay path", parameters: "{processId, sourceUrl, text}"},
   {name: "source.apply_patch", description: "применить Codex apply_patch через interpreter sync/replay path", parameters: "{processId, patch}"},
   {name: "breakpoint.list", description: "прочитать breakpoints process", parameters: "{processId}"},
-  {name: "breakpoint.set", description: "поставить breakpoint", parameters: "{processId, url|sourceUrl|urlRegex, line, column?, condition?}"},
+  {name: "breakpoint.set", description: "поставить breakpoint", parameters: "{processId, url|sourceUrl|path|urlRegex, line|text|query|regex|locator, column?, condition?}"},
   {name: "breakpoint.remove", description: "убрать breakpoint", parameters: "{processId, id|breakpointId}"},
   {name: "devtools.*", description: "Chrome DevTools target/console/breakpoint/probe/reload/evaluate commands", parameters: "см. docs/api.md"},
   {name: "browser.*", description: "browser-display JSON actions", parameters: "см. docs/api.md"},

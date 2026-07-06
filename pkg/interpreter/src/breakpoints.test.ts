@@ -3,7 +3,7 @@ import {mkdtempSync, rmSync, writeFileSync} from "node:fs"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
 import {SourceMapGenerator} from "source-map-js"
-import {BreakpointStore, logicalBreakpointParams, matchesBreakpointSpec, remapBreakpointLine, runtimeBreakpointParams} from "./breakpoints.ts"
+import {BreakpointStore, logicalBreakpointParams, matchesBreakpointSpec, normalizeBreakpointSpec, remapBreakpointLine, runtimeBreakpointParams} from "./breakpoints.ts"
 import {EventLogger} from "./logger.ts"
 import type {ProtocolClient} from "./protocol-client.ts"
 
@@ -147,6 +147,55 @@ describe("logicalBreakpointParams", () => {
     }
   })
 
+  test("normalizes local TypeScript breakpoints from comments to the next runtime line", () => {
+    const dir = mkdtempSync(join(tmpdir(), "metafor-bp-"))
+    try {
+      const file = join(dir, "dark.ts")
+      writeFileSync(file, [
+        "const force = true",
+        "",
+        "/**",
+        " * Stop at matter entry.",
+        " */",
+        "export async function matter(",
+        "  src: string,",
+        "): Promise<void> {",
+        "  ensureBoundaryObserver()",
+        "  return",
+        "}",
+        "",
+      ].join("\n"))
+
+      const normalized = normalizeBreakpointSpec({url: file, line: 3}, dir)
+
+      expect(normalized.spec.line).toBe(9)
+      expect(normalized.requested).toEqual({url: file, line: 3})
+      expect(normalized.warning).toBe("breakpoint line 3 is not runtime-breakpointable; normalized to line 9")
+    } finally {
+      rmSync(dir, {recursive: true, force: true})
+    }
+  })
+
+  test("rejects local TypeScript breakpoints that have no nearby runtime line", () => {
+    const dir = mkdtempSync(join(tmpdir(), "metafor-bp-"))
+    try {
+      const file = join(dir, "dark.ts")
+      writeFileSync(file, [
+        "// no runtime code here",
+        "type OnlyTypes = {value: string}",
+        "",
+      ].join("\n"))
+
+      const normalized = normalizeBreakpointSpec({url: file, line: 1}, dir)
+
+      expect(normalized.spec.line).toBe(1)
+      expect(normalized.requested).toEqual({url: file, line: 1})
+      expect(normalized.error).toBe("breakpoint line 1 is not runtime-breakpointable and no executable line was found within 2 lines")
+    } finally {
+      rmSync(dir, {recursive: true, force: true})
+    }
+  })
+
   test("arms local TypeScript breakpoints before the script is parsed", async () => {
     const dir = mkdtempSync(join(tmpdir(), "metafor-bp-"))
     try {
@@ -188,6 +237,11 @@ describe("logicalBreakpointParams", () => {
         },
       })
       expect(requests.map((request) => request.method)).toContain("Debugger.setBreakpointsActive")
+      expect(store.registrations[0]?.installed[0]).toMatchObject({
+        requestedLocation: {lineNumber: 3, columnNumber: 0},
+        generatedLocation: {line: 1, column: 0, verified: true},
+        actualLocation: {scriptId: "future", lineNumber: 1, columnNumber: 0},
+      })
     } finally {
       rmSync(dir, {recursive: true, force: true})
     }
@@ -283,6 +337,9 @@ describe("logicalBreakpointParams", () => {
         breakpointId: "script:1",
         scriptId: "116",
         url: file,
+        requestedLocation: {lineNumber: 3, columnNumber: 0},
+        generatedLocation: {line: 1, column: 0, verified: true},
+        actualLocation: {scriptId: "116", lineNumber: 1, columnNumber: 0},
         result: {
           breakpointId: "script:1",
           actualLocation: {scriptId: "116", lineNumber: 1, columnNumber: 0},
