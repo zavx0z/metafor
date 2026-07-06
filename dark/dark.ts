@@ -3,7 +3,8 @@ import type {Field} from "@boundary/wimp/sqlite/fields/field"
 import type { ActorValueRecord, ValueItemRecord, ValueRecord } from "@metafor/types/boundary/value"
 import type { BfsEntry, Continuation, MatterParticle, ParticleRef, PendingChildWimp } from "@metafor/types/metafor/matter"
 import {Force} from "force"
-import {loadMeta} from "./load.ts"
+import {loadMeta, loadMetaVersion} from "./load.ts"
+import {dark$} from "./store.ts"
 import {finalizeFieldValues, resolveFieldInits} from "./continuation.ts"
 
 ;(globalThis as unknown as {MetaFor: typeof MetaFor}).MetaFor = MetaFor
@@ -47,7 +48,18 @@ async function* matterWimp(
   parent: ParticleRef | null,
   continuation: Continuation | undefined,
 ): AsyncGenerator<PendingChildWimp[], void, void> {
+  const version = await loadMetaVersion(src)
+  if (dark$.hasVersion(src, version)) return
+  dark$.versions.set(src, version)
   const dsl = await loadMeta(src)
+  force.impulse({
+    parts: [{
+      part: "inflaton",
+      op: "add",
+      path: src,
+      value: {wimp: {src, version}},
+    }],
+  })
   // const wimp = (await boundary.wimp.get(src)) ?? (await boundary.wimp.create(src, dsl))
   // const matterRelations = await wimp.matter.all()
   return
