@@ -3495,6 +3495,7 @@ function agentSignalIcon(enabled: boolean): string {
 }
 
 function setVoiceActiveTarget(target: VoiceInputTarget): void {
+  if (target.kind !== "host" || target.controller !== hostTerminal) return
   const changed = voiceActiveTarget?.kind !== target.kind || voiceActiveTarget.controller !== target.controller
   if (changed) clearVoicePartialPreview()
   voiceActiveTarget = target
@@ -4858,10 +4859,11 @@ function voiceTargetLabel(): string {
 
 function voiceTargetCanAcceptInput(target: VoiceInputTarget): boolean {
   if (target.kind === "host") {
-    return target.controller.socket?.readyState === WebSocket.OPEN
+    return target.controller === hostTerminal
+      && target.controller.socket?.readyState === WebSocket.OPEN
       && target.controller.connectionState === "connected"
   }
-  return canAcceptTerminalInput(target.controller)
+  return false
 }
 
 function storeHostTerminalAgentSoundEnabled(enabled: boolean): void {
@@ -5539,7 +5541,6 @@ function createHostTerminalPane(
     onInput: (data, source) => sendHostTerminalInput(controller, data, source),
     onFocusChange: (focused) => {
       if (!focused) return
-      setVoiceActiveTarget({kind: "host", controller})
       if (terminal !== null) resizeHostTerminalFromPane(controller, terminal, terminal.getTerminalSize())
     },
     onAutoscrollPinnedChange: () => updateHostTerminalHeaderControls(controller),
@@ -6301,8 +6302,7 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
       cursorBlink: true,
       inputEnabled: false,
       onInput: (data) => handleModuleTerminalInput(controller, data),
-      onFocusChange: (focused) => {
-        if (focused) setVoiceActiveTarget({kind: "module", controller})
+      onFocusChange: () => {
         queuePublishModuleContext(controller)
       },
     }),
