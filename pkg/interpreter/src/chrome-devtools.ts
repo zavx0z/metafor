@@ -952,7 +952,10 @@ function sourceMapUrl(scriptText: string, scriptUrl: string): string | null {
 async function ensureSession(body: JsonObject): Promise<ChromeDevtoolsSession> {
   const target = await resolveTarget(body)
   const existing = sessions.get(target.id)
-  if (existing !== undefined && existing.socket.readyState === WebSocket.OPEN) return existing
+  if (existing !== undefined && existing.socket.readyState === WebSocket.OPEN) {
+    existing.target = target
+    return existing
+  }
 
   if (target.webSocketDebuggerUrl === undefined || target.webSocketDebuggerUrl.length === 0) {
     throw new Error(`Target ${target.id} has no webSocketDebuggerUrl`)
@@ -986,18 +989,37 @@ async function resolveTarget(body: JsonObject): Promise<ChromeTarget> {
   const targets = await fetchChromeTargets()
   const targetId = asString(body["targetId"])
   const targetUrl = asString(body["targetUrl"]) ?? defaultTargetUrl()
+  const explicitTargetUrl = asString(body["targetUrl"])
   const targetTitle = asString(body["targetTitle"])
   const urlContains = asString(body["urlContains"])
-  const candidates = targets.filter((target) => target.type === "page" && !target.url.startsWith("devtools://"))
+  const candidates = targets.filter(isPageDebugTarget)
 
-  const target = (targetId === undefined ? undefined : targets.find((item) => item.id === targetId))
-    ?? candidates.find((item) => item.url === targetUrl)
+  if (targetId !== undefined) {
+    const target = targets.find((item) => item.id === targetId)
+    if (target === undefined) throw new Error(`Chrome page target not found for targetId ${targetId}`)
+    return target
+  }
+
+  const target = candidates.find((item) => item.url === targetUrl)
     ?? (targetTitle === undefined ? undefined : candidates.find((item) => item.title === targetTitle))
     ?? (urlContains === undefined ? undefined : candidates.find((item) => item.url.includes(urlContains)))
-    ?? candidates[0]
+    ?? (explicitTargetUrl === undefined && targetTitle === undefined && urlContains === undefined ? candidates[0] : undefined)
 
-  if (target === undefined) throw new Error("Chrome page target not found")
+  if (target === undefined) throw new Error(`Chrome page target not found for ${targetSelectorSummary({targetUrl: explicitTargetUrl, targetTitle, urlContains})}`)
   return target
+}
+
+function isPageDebugTarget(target: ChromeTarget): boolean {
+  return target.type === "page"
+    && !target.url.startsWith("devtools://")
+    && !target.url.includes("/desktop/rtc/sender")
+}
+
+function targetSelectorSummary(selector: {targetUrl: string | undefined; targetTitle: string | undefined; urlContains: string | undefined}): string {
+  if (selector.targetUrl !== undefined) return `targetUrl ${selector.targetUrl}`
+  if (selector.targetTitle !== undefined) return `targetTitle ${selector.targetTitle}`
+  if (selector.urlContains !== undefined) return `urlContains ${selector.urlContains}`
+  return "default target"
 }
 
 async function fetchChromeTargets(): Promise<ChromeTarget[]> {
@@ -1045,6 +1067,12 @@ function handleSessionMessage(session: ChromeDevtoolsSession, event: MessageEven
   }
 
   const method = asString(message["method"])
+  if (method === "Page.frameNavigated") {
+    const frame = asObject(asObject(message["params"])?.["frame"])
+    const url = asString(frame?.["url"])
+    if (url !== undefined && url.length > 0) session.target.url = url
+  }
+
   if (method === "Debugger.paused") {
     const params = asObject(message["params"]) ?? {}
     const callFrames = Array.isArray(params["callFrames"]) ? params["callFrames"] : []
@@ -1446,7 +1474,9 @@ function consoleLevelFromType(type: string): string {
 function sourceMatches(candidate: string, requested: string): boolean {
   const normalizedCandidate = candidate.replaceAll("\\", "/")
   const normalizedRequested = requested.replaceAll("\\", "/")
-  return normalizedCandidate === normalizedRequested || normalizedCandidate.endsWith(`/${normalizedRequested}`)
+  return normalizedCandidate === normalizedRequested
+    || normalizedCandidate.endsWith(`/${normalizedRequested}`)
+    || normalizedRequested.endsWith(`/${normalizedCandidate}`)
 }
 
 function positiveInteger(value: unknown, name: string): number {

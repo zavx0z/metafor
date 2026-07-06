@@ -4,7 +4,7 @@ const BROWSER_HOST_PREFIX = "/browser-display"
 const BROWSER_HOST_PROXY_PREFIX = `${BROWSER_HOST_PREFIX}/proxy`
 const DEFAULT_BROWSER_HOST_TIMEOUT_MS = 8_000
 const SNAPSHOT_BROWSER_HOST_TIMEOUT_MS = 15_000
-const DEFAULT_REMOTE_DESKTOP_RTC_HOST_PORT = 32133
+const DEFAULT_REMOTE_DESKTOP_HOST_PORT = 32133
 
 type BrowserHostRoute = {
   method: string
@@ -125,15 +125,15 @@ function browserHostConfig(kind: BrowserHostRoute["configKind"]): BrowserHostCon
     }
   }
 
-  if (kind === "remoteDesktopRtc") {
+  if (kind === "remoteDesktop" || kind === "remoteDesktopRtc") {
     return {
       ok: true,
-      baseUrl: new URL(`http://127.0.0.1:${DEFAULT_REMOTE_DESKTOP_RTC_HOST_PORT}`),
-      configuredFrom: "default:INTERPRETER_REMOTE_DESKTOP_RTC_HOST_PORT",
+      baseUrl: new URL(`http://127.0.0.1:${DEFAULT_REMOTE_DESKTOP_HOST_PORT}`),
+      configuredFrom: kind === "remoteDesktop"
+        ? "default:INTERPRETER_REMOTE_DESKTOP_HOST_PORT"
+        : "default:INTERPRETER_REMOTE_DESKTOP_RTC_HOST_PORT",
     }
   }
-
-  if (kind === "remoteDesktop") return browserHostConfig("browser")
 
   return {
     ok: false,
