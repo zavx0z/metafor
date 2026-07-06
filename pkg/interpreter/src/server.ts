@@ -2468,6 +2468,9 @@ async function runInterpreterToolUse(
       if (processId === undefined) return {...base, ok: false, error: "processId required"}
       return await toolResultFromResponse(base, await closeProcess(processId, toolUse.parameters, options), "process.close failed")
     }
+    if (toolUse.recipientName === "git.status") return gitStatusToolResult(base, toolUse, options)
+    if (toolUse.recipientName === "git.commit") return gitCommitToolResult(base, toolUse, options, broadcast)
+    if (toolUse.recipientName === "git.push") return gitPushToolResult(base, toolUse, options, broadcast)
     if (toolUse.recipientName === "breakpoint.list") {
       const module = moduleForToolUse(toolUse, options)
       if (module === undefined) return {...base, ok: false, error: "processId required"}
@@ -3170,6 +3173,145 @@ function gitCommandText(args: readonly string[], cwd: string): string | undefine
     maxBuffer: 32 * 1024 * 1024,
   })
   return result.status === 0 && typeof result.stdout === "string" ? result.stdout : undefined
+}
+
+function gitStatusToolResult(base: JsonObject, toolUse: InterpreterToolUse, options: HttpServerOptions): JsonObject {
+  const repo = gitRepoRootForTool(toolUse, options)
+  if (repo.error !== undefined) return {...base, ok: false, error: repo.error}
+  const result = gitCommandResult(["status", "--short", "--branch"], repo.root)
+  return {
+    ...base,
+    ok: result.status === 0,
+    result: {
+      ok: result.status === 0,
+      root: repo.root,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      status: result.status,
+    },
+    ...(result.status === 0 ? {} : {error: result.stderr || result.stdout || "git status failed"}),
+  }
+}
+
+function gitCommitToolResult(base: JsonObject, toolUse: InterpreterToolUse, options: HttpServerOptions, broadcast: (payload: JsonObject) => void): JsonObject {
+  const repo = gitRepoRootForTool(toolUse, options)
+  if (repo.error !== undefined) return {...base, ok: false, error: repo.error}
+  const message = asString(toolUse.parameters["message"])?.trim()
+  if (message === undefined || message.length === 0) return {...base, ok: false, error: "message required"}
+
+  const paths = gitToolPaths(toolUse.parameters["paths"])
+  const all = asBoolean(toolUse.parameters["all"]) === true
+  if (!all && paths.length === 0) return {...base, ok: false, error: "paths required unless all is true"}
+
+  const add = all
+    ? gitCommandResult(["add", "-A"], repo.root)
+    : gitCommandResult(["add", "--", ...paths], repo.root)
+  if (add.status !== 0) return gitToolFailedResult(base, repo.root, "git add failed", add)
+
+  const commit = gitCommandResult(["commit", "-m", message], repo.root)
+  if (commit.status === 0) broadcast({type: "workspace-changed", reason: "git.commit", root: repo.root})
+  return {
+    ...base,
+    ok: commit.status === 0,
+    result: {
+      ok: commit.status === 0,
+      root: repo.root,
+      stdout: commit.stdout,
+      stderr: commit.stderr,
+      status: commit.status,
+    },
+    ...(commit.status === 0 ? {} : {error: commit.stderr || commit.stdout || "git commit failed"}),
+  }
+}
+
+function gitPushToolResult(base: JsonObject, toolUse: InterpreterToolUse, options: HttpServerOptions, broadcast: (payload: JsonObject) => void): JsonObject {
+  const repo = gitRepoRootForTool(toolUse, options)
+  if (repo.error !== undefined) return {...base, ok: false, error: repo.error}
+  const remote = asString(toolUse.parameters["remote"])?.trim()
+  const branch = asString(toolUse.parameters["branch"])?.trim()
+  const args = ["push"]
+  if (remote !== undefined && remote.length > 0) args.push(remote)
+  if (branch !== undefined && branch.length > 0) args.push(branch)
+
+  const push = gitCommandResult(args, repo.root)
+  if (push.status === 0) broadcast({type: "workspace-changed", reason: "git.push", root: repo.root})
+  return {
+    ...base,
+    ok: push.status === 0,
+    result: {
+      ok: push.status === 0,
+      root: repo.root,
+      stdout: push.stdout,
+      stderr: push.stderr,
+      status: push.status,
+    },
+    ...(push.status === 0 ? {} : {error: push.stderr || push.stdout || "git push failed"}),
+  }
+}
+
+function gitToolFailedResult(base: JsonObject, root: string, error: string, result: GitCommandResult): JsonObject {
+  return {
+    ...base,
+    ok: false,
+    error: result.stderr || result.stdout || error,
+    result: {
+      ok: false,
+      root,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      status: result.status,
+    },
+  }
+}
+
+function gitRepoRootForTool(toolUse: InterpreterToolUse, options: HttpServerOptions): {root: string; error?: undefined} | {root?: undefined; error: string} {
+  const cwd = gitToolCwd(toolUse, options)
+  const root = gitCommandResult(["rev-parse", "--show-toplevel"], cwd)
+  if (root.status !== 0) return {error: root.stderr || root.stdout || "git repository not found"}
+  const trimmed = root.stdout.trim()
+  return trimmed.length === 0 ? {error: "git repository not found"} : {root: trimmed}
+}
+
+function gitToolCwd(toolUse: InterpreterToolUse, options: HttpServerOptions): string {
+  const explicit = asString(toolUse.parameters["cwd"])
+  if (explicit !== undefined && explicit.trim().length > 0) return resolve(explicit)
+  const processId = processIdForToolUse(toolUse)
+  if (processId !== undefined) {
+    const targetCwd = options.modules.get(processId)?.snapshot().target.cwd
+    if (targetCwd !== undefined && targetCwd !== null && targetCwd.trim().length > 0) return targetCwd
+  }
+  return process.cwd()
+}
+
+function gitToolPaths(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  const paths: string[] = []
+  for (const item of value) {
+    if (typeof item !== "string") continue
+    const path = item.trim()
+    if (path.length === 0 || path.includes("\0")) continue
+    paths.push(path)
+  }
+  return paths
+}
+
+type GitCommandResult = {
+  status: number
+  stdout: string
+  stderr: string
+}
+
+function gitCommandResult(args: readonly string[], cwd: string): GitCommandResult {
+  const result = spawnSync("git", [...args], {
+    cwd,
+    encoding: "utf8",
+    maxBuffer: 32 * 1024 * 1024,
+  })
+  return {
+    status: result.status ?? 1,
+    stdout: typeof result.stdout === "string" ? result.stdout : "",
+    stderr: typeof result.stderr === "string" ? result.stderr : "",
+  }
 }
 
 async function saveModuleSourcePayload(

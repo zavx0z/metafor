@@ -267,6 +267,7 @@ type ServerMessage =
   | {type: "module-protocol-event"; moduleId: string; ts: string; method: string; params: unknown}
   | {type: "interpreter-event"; ts: string; event: string; detail: unknown}
   | {type: "source-patched"; moduleId: string; reason: "save" | "apply_patch"; files: SourcePatchedFile[]; breakpoints?: SourcePatchedBreakpoints[]}
+  | {type: "workspace-changed"; reason: "git.commit" | "git.push"; root?: string}
   | {type: "breakpoints-changed"; moduleId: string; reason: "set" | "remove"; breakpoint?: BreakpointRegistration; removed?: BreakpointRegistration | {breakpointId: string}; breakpoints: BreakpointRegistration[]}
   | {type: "result"; requestId: number; ok: boolean; result?: unknown; error?: string}
   | {type: "ui-host-command"; requestId: number; command: string; params?: unknown}
@@ -1022,6 +1023,9 @@ function handleServerMessage(msg: ServerMessage): void {
       return
     case "source-patched":
       handleSourcePatched(msg)
+      return
+    case "workspace-changed":
+      handleWorkspaceChanged()
       return
     case "breakpoints-changed":
       handleBreakpointsChanged(msg)
@@ -6866,6 +6870,17 @@ function handleSourcePatched(msg: Extract<ServerMessage, {type: "source-patched"
 
 function sourcePatchChangesWorkspaceFileTree(msg: Extract<ServerMessage, {type: "source-patched"}>): boolean {
   return msg.files.length > 0
+}
+
+function handleWorkspaceChanged(): void {
+  for (const controller of moduleDisplays.values()) {
+    controller.sourceCache.clear()
+    void refreshWorkspaceFiles(controller)
+    const sourceUrl = currentEditableSourceUrl(controller)
+    if (sourceUrl === undefined) continue
+    if (controller.sourceDirty || controller.sourceSaving) continue
+    void refreshOpenSourceFromDisk(controller, sourceUrl)
+  }
 }
 
 type SourcePatchedEditorTarget = {

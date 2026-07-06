@@ -637,7 +637,7 @@ POST /tools        # JSON {tool_uses:[{recipient_name, parameters}]}
 Для process-scoped tools передавай `parameters.processId`. Поддержанный набор tools:
 `source.read`, `source.read_many`, `source.locate`, `source.open`,
 `source.openSelection`, `source.write`, `source.apply_patch`, `process.*`, `breakpoint.*`, `hud.*`,
-`todo.*`, `sqlite.*`, `devtools.*`, `browser.*`, `remote_desktop.*`, `host.*`.
+`todo.*`, `sqlite.*`, `git.*`, `devtools.*`, `browser.*`, `remote_desktop.*`, `host.*`.
 
 `source.open` и `source.openSelection` внутри API вызывают UI-host команду
 открытия исходника для указанного process. `source.read` остается чистым
@@ -647,6 +647,13 @@ POST /tools        # JSON {tool_uses:[{recipient_name, parameters}]}
 `source.write` и `source.apply_patch` применяют изменения через серверную
 реализацию apply_patch, сдвигают точки останова process, рассылают
 `source-patched` и повторно воспроизводят затронутые запуски, когда это нужно.
+
+`git.status`, `git.commit` и `git.push` выполняют git в workspace repo через
+тот же `POST /tools` слой. `git.commit` принимает `message` и явные `paths`
+либо `all:true`. Успешные `git.commit` и `git.push` рассылают
+`workspace-changed`; UI после этого перечитывает `process.modules`, обновляет
+git-статистику в дереве файлов и перечитывает открытые clean source buffers,
+чтобы gutter diff считался относительно нового `HEAD`.
 
 `source.locate` находит строку в локальном source без ручного подсчета номеров.
 Он принимает `sourceUrl`/`path`/`modulePath`/`url` и один locator: `text`,

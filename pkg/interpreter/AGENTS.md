@@ -368,6 +368,17 @@ API-редактирование source:
 - На `source-patched` открывай первый измененный не-delete файл в source editor, раскрывай/выделяй его в file tree и ставь cursor на первую измененную строку (`lineChanges[0].newStart`, fallback строка 1).
 - Не перетирай локальный dirty editor: если target source dirty или saving, авто-переход нужно пропустить.
 
+Git-операции в live interpreter workspace:
+
+- Для `git status`, `git commit` и `git push` используй `POST /tools` с
+  `git.status`, `git.commit`, `git.push`, а не прямые shell-команды.
+- `git.commit` должен получать явные `paths`, если человек не попросил
+  коммитить всё. Это защищает параллельные правки Владимира от случайного
+  попадания в коммит.
+- Причина: `git.commit`/`git.push` через tools рассылают `workspace-changed`,
+  после чего UI перечитывает `process.modules`, обновляет git-статистику в
+  дереве файлов и пересчитывает gutter diff относительно нового `HEAD`.
+
 Space tools:
 
 - `space.get` возвращает `mode`, `activeDisplayId` и `displays[]`.
