@@ -54,7 +54,6 @@ import {
   type TerminalSize,
   type TerminalStatusKind,
   type ToDoPaneContextSnapshot,
-  type ToDoPanePanelStateSnapshot,
 } from "@ui/panes"
 import {
   DisplayHoverOutlinePane,
@@ -102,6 +101,7 @@ import {
   workspaceFilesStorageKey,
   writeStoredWorkspaceFilesState,
 } from "./workspace-files-storage.ts"
+import {readStoredTodoPanelState, storeTodoPanelState} from "./todo-panel-storage.ts"
 import {formatTerminalExpressionResult} from "./terminal-value-format.ts"
 import {createAndroidRtcClient, type AndroidRtcAudioStream, type AndroidRtcClient, type AndroidRtcCommand, type AndroidRtcFrame, type RtcControlCommand} from "./android-rtc.ts"
 import {RTC_ICE_SERVERS} from "./p2p-signaling.ts"
@@ -148,7 +148,7 @@ import {
   sqliteTableItems,
   type SqliteOpenParams,
 } from "./sqlite-display-helpers.ts"
-import {sameStringArray, storedStringArray} from "./array-utils.ts"
+import {sameStringArray} from "./array-utils.ts"
 import type {SqliteCellValue, SqliteDatabasePayload, SqliteHudContextSnapshot} from "./sqlite-types.ts"
 import {WorkspaceFilesChromePane, WorkspaceFilesHeaderPane} from "./workspace-panes.ts"
 import {HostTerminalAgentSignalPane, HostTerminalDockPane, SqliteHudFramePane} from "./hud-panes.ts"
@@ -668,7 +668,6 @@ const PHYSICAL_DISPLAY_METRICS: DisplayLayoutMetrics = {
 const HOST_TERMINAL_AGENT_SOUND_ENABLED_STORAGE_KEY = "metafor.interpreter.hostTerminal.agentSoundEnabled:v1"
 const HOST_TERMINAL_AGENT_SOUND_VOLUME_STORAGE_KEY = "metafor.interpreter.hostTerminal.agentSoundVolume:v1"
 const HOST_TERMINAL_AGENT_SOUND_VOLUME_LEGACY_STORAGE_KEY = "metafor.interpreter.voice.agentReadyVolume:v1"
-const TODO_PANEL_STATE_STORAGE_KEY = "metafor.interpreter.todo.panelState:v1"
 const INTERPRETER_VIEWPOINT_STORE_DELAY_MS = 120
 const INTERPRETER_DISPLAY_POSITION_STORE_DELAY_MS = 120
 const DEFAULT_HOST_TERMINAL_AGENT_SOUND_ENABLED = true
@@ -3302,36 +3301,6 @@ function todoContextSnapshot(): ToDoPaneContextSnapshot | null {
 
 function queuePublishAllModuleContexts(): void {
   for (const controller of moduleDisplays.values()) queuePublishModuleContext(controller)
-}
-
-function readStoredTodoPanelState(): ToDoPanePanelStateSnapshot {
-  try {
-    const raw = localStorage.getItem(TODO_PANEL_STATE_STORAGE_KEY)
-    if (raw === null) return emptyTodoPanelState()
-    const object = objectParamMaybe(JSON.parse(raw))
-    if (object === undefined) return emptyTodoPanelState()
-    return {
-      highlightedIds: storedStringArray(object["highlightedIds"]),
-      expandedCompletedIds: storedStringArray(object["expandedCompletedIds"]),
-    }
-  } catch {
-    return emptyTodoPanelState()
-  }
-}
-
-function emptyTodoPanelState(): ToDoPanePanelStateSnapshot {
-  return {highlightedIds: [], expandedCompletedIds: []}
-}
-
-function storeTodoPanelState(state: ToDoPanePanelStateSnapshot): void {
-  try {
-    localStorage.setItem(TODO_PANEL_STATE_STORAGE_KEY, JSON.stringify({
-      highlightedIds: state.highlightedIds,
-      expandedCompletedIds: state.expandedCompletedIds,
-    }))
-  } catch {
-    // Storage can be unavailable in private contexts.
-  }
 }
 
 function toggleLocale(): void {
