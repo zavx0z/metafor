@@ -1,7 +1,16 @@
 import type {ServerWebSocket} from "bun"
+import type {ForceMessage} from "@metafor/types/force/message"
 
 const clients = new Map<ServerWebSocket<{domain?: string; id?: string}>, {domain: string; id: string}>()
 const snapshots = new Map<string, unknown>()
+
+const deliverImpulse = (message: ForceMessage): void => {
+  const payload = JSON.stringify(message)
+  for (const [socket] of clients) {
+    if (socket.readyState !== WebSocket.OPEN) continue
+    socket.send(payload)
+  }
+}
 
 const deliverCreate = (domain: string, snapshot: unknown): void => {
   const payload = JSON.stringify({type: "create", snapshot})
@@ -17,6 +26,20 @@ const server = Bun.serve<{domain?: string; id?: string}>({
     "/health": {
       GET() {
         return Response.json({ok: true, domain: "force"})
+      },
+    },
+    "/force": {
+      async POST(req: Bun.BunRequest<"/force">) {
+        let payload: {parts?: unknown}
+        try {
+          payload = await req.json() as {parts?: unknown}
+        } catch (error) {
+          return Response.json({ok: false, error: error instanceof Error ? error.message : String(error)}, {status: 400})
+        }
+        if (!Array.isArray(payload.parts)) return Response.json({ok: false, error: "parts must be an array"}, {status: 400})
+        const message: ForceMessage = {parts: payload.parts as ForceMessage["parts"]}
+        deliverImpulse(message)
+        return Response.json({ok: true, parts: message.parts.length})
       },
     },
     "/ws": {

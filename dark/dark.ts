@@ -8,8 +8,20 @@ import {loadMeta} from "./load.ts"
 import {finalizeFieldValues, resolveFieldInits} from "./continuation.ts"
 
 const force = new Force("dark")
-force.onImpulse = (impulse) => {
-  console.log(`[dark] <- force parts=${impulse.parts.length}`)
+force.onImpulse = async (impulse) => {
+  for (const part of impulse.parts) {
+    switch (part.part) {
+      case "inflaton":
+        switch (part.op) {
+          case "test":
+            if (part.path === "wimp" && typeof part.value === "string") {
+              await matter(part.value)
+            }
+            break
+        }
+        break
+    }
+  }
 }
 
 ;(globalThis as unknown as {MetaFor: typeof MetaFor}).MetaFor = MetaFor
@@ -26,7 +38,7 @@ export const ensureBoundaryObserver = (): void => {
   // observedBoundary = current
   // boundaryObserver = current.observe(async (event: MessageEvent<ForceMessage>) => {
   //   for (const part of event.data.parts) {
-  //     if (part.part !== "graviton") continue
+  //     if (part.part !== "inflaton") continue
   //     if (part.op !== "test") continue
   //     if (part.path !== "wimp") continue
   //     if (typeof part.value !== "string") continue

@@ -1,4 +1,4 @@
-export type Part = "graviton" | "photon" | "gluon" | "higgs" | "w+" | "w-" | "z"
+export type Part = "inflaton" | "graviton" | "photon" | "gluon" | "higgs" | "w+" | "w-" | "z"
 
 export type ParticleOperation = "add" | "remove" | "replace" | "move" | "copy" | "test"
 
