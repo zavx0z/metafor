@@ -1,8 +1,19 @@
-import {file} from "bun"
+import {file, type ServerWebSocket} from "bun"
+import type {ForceMessage} from "@metafor/types/force/message"
 import index from "./index.html"
 import {Force} from "force"
 
-const server = Bun.serve({
+type BrowserClient = {domain?: string; id?: string}
+
+const browserClients = new Set<ServerWebSocket<BrowserClient>>()
+const force = new Force("bulk")
+
+const sendBrowser = (ws: ServerWebSocket<BrowserClient>, payload: unknown): void => {
+  if (ws.readyState !== WebSocket.OPEN) return
+  ws.send(JSON.stringify(payload))
+}
+
+const server = Bun.serve<BrowserClient>({
   port: 4004,
   routes: {
     "/": index,
@@ -11,14 +22,70 @@ const server = Bun.serve({
         return Response.json({ok: true, domain: "bulk"})
       },
     },
+    "/ws": {
+      GET(req: Bun.BunRequest<"/ws">, server: Bun.Server<BrowserClient>) {
+        const upgraded = server.upgrade(req, {data: {}})
+        return upgraded ? undefined : new Response("WebSocket upgrade failed", {status: 426})
+      },
+    },
     "/engine-static/JetBrainsMono-Bold.ttf": file(new URL("../pkg/engine/static/JetBrainsMono-Bold.ttf", import.meta.url)),
     "/models/bots.glb": file(new URL("../pkg/engine/static/models/bots.glb", import.meta.url)),
+  },
+  websocket: {
+    close(ws) {
+      browserClients.delete(ws)
+      if (ws.data.domain && ws.data.id) console.log(`[bulk] browser disconnected ${ws.data.domain} ${ws.data.id}`)
+    },
+    message(ws, raw) {
+      let payload: unknown
+      try {
+        payload = JSON.parse(String(raw)) as unknown
+      } catch {
+        sendBrowser(ws, {type: "error", error: "invalid json"})
+        return
+      }
+
+      if (typeof payload !== "object" || payload === null) {
+        sendBrowser(ws, {type: "error", error: "invalid message"})
+        return
+      }
+
+      if ((payload as {type?: unknown}).type === "register") {
+        const {domain, id} = payload as {domain?: unknown; id?: unknown}
+        if (typeof domain !== "string" || typeof id !== "string") {
+          sendBrowser(ws, {type: "error", error: "invalid register"})
+          return
+        }
+        ws.data.domain = domain
+        ws.data.id = id
+        browserClients.add(ws)
+        console.log(`[bulk] browser connected ${domain} ${id}`)
+        sendBrowser(ws, {type: "create", snapshot: {type: "connected"}})
+        return
+      }
+
+      if (Array.isArray((payload as {parts?: unknown}).parts)) {
+        const message = payload as ForceMessage
+        console.log(`[bulk] browser -> force parts=${message.parts.length}`)
+        force.impulse(message)
+        return
+      }
+
+      if ((payload as {type?: unknown}).type === "materialize" || (payload as {type?: unknown}).type === "relayout") {
+        console.log(`[bulk] browser ${String((payload as {type?: unknown}).type)}`)
+        sendBrowser(ws, {type: "error", error: "bulk snapshot materialization is not available in this server"})
+        return
+      }
+
+      sendBrowser(ws, {type: "error", error: "unsupported message"})
+    },
   },
 })
 
 console.log(`[bulk] listening on ${server.url}`)
 
-const force = new Force("bulk")
 force.onImpulse = (impulse) => {
   console.log(`[bulk] <- force parts=${impulse.parts.length}`)
+  const payload = {type: "force", parts: impulse.parts}
+  for (const client of browserClients) sendBrowser(client, payload)
 }

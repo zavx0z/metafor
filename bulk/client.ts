@@ -3,7 +3,8 @@ import type { BulkViewportStats } from "@metafor/types/bulk/viewport"
 import type { BulkRenderSettings, SettingsSnapshot } from "@metafor/types/bulk/settings"
 import type { BulkHudController, BulkHudSettingsSnapshot, BulkViewportWithHud } from "@metafor/types/bulk/hud"
 import type { BulkRuntimeSnapshot } from "@metafor/types/bulk/runtime"
-import type { BulkErrorMessage, ClientMaterializePayload, ForceSocketMessage, SnapshotMessage } from "@metafor/types/bulk/protocol"
+import type { ClientMaterializePayload, SnapshotMessage } from "@metafor/types/bulk/protocol"
+import {Force} from "force"
 import {createBulkViewport} from "bulk/web"
 import {buildBoundaryBulkManifest} from "./world.ts"
 import {
@@ -34,9 +35,8 @@ let lastAppliedSceneState: {layoutSettings: Partial<BulkLayoutSettings>; src: st
 let pendingSceneState: {layoutSettings: Partial<BulkLayoutSettings>; src: string} | null = null
 
 const SETTINGS_LOAD_TIMEOUT_MS = 1_200
-
-const socketScheme = window.location.protocol === "https:" ? "wss:" : "ws:"
-const socket = new WebSocket(`${socketScheme}//${window.location.host}/ws`)
+const force = new Force("bulk")
+let forceConnected = false
 
 const updateBulkStats = (stats: BulkViewportStats): void => {
 	hud?.setStats(stats)
@@ -54,7 +54,7 @@ const applySnapshotWorld = (
 		lastAppliedSceneState = pendingSceneState
 		pendingSceneState = null
 	}
-	hud?.setBusy(socket.readyState !== WebSocket.OPEN)
+	hud?.setBusy(!forceConnected)
 }
 
 const applySnapshotMessage = (message: SnapshotMessage): void => {
@@ -151,12 +151,12 @@ const applyHudRequest = (src: string, settings: BulkHudSettingsSnapshot): void =
 		return
 	}
 
-	if (socket.readyState !== WebSocket.OPEN) {
+	if (!forceConnected) {
 		hud?.setBusy(true)
 		return
 	}
 
-	socket.send(JSON.stringify(payload))
+	force.impulse(payload)
 }
 
 const applyRenderSettingsFromHud = (renderSettings: Partial<BulkRenderSettings>): void => {
@@ -169,7 +169,7 @@ const applyRenderSettingsFromHud = (renderSettings: Partial<BulkRenderSettings>)
 }
 
 const requestInitialMaterialization = (): void => {
-	if (initialMaterializationRequested || socket.readyState !== WebSocket.OPEN || hud === null || bulkViewport === null) return
+	if (initialMaterializationRequested || !forceConnected || hud === null || bulkViewport === null) return
 	initialMaterializationRequested = true
 	applyHudRequest(hud.currentSrc(), activeSettings)
 }
@@ -240,7 +240,7 @@ const initBulkViewport = async (): Promise<void> => {
 		onRenderSettingsChange: applyRenderSettingsFromHud,
 		onSettingsPersist: schedulePersistSettings,
 	})
-	hud.setConnectionStatus(socket.readyState === WebSocket.OPEN)
+	hud.setConnectionStatus(forceConnected)
 	requestInitialMaterialization()
 
 	if (pendingSnapshotMessage) {
@@ -267,21 +267,29 @@ const initBulkViewport = async (): Promise<void> => {
 
 void initBulkViewport()
 
-socket.onopen = () => {
+force.onCreate = (message: unknown) => {
+	forceConnected = true
 	hud?.setConnectionStatus(true)
 	requestInitialMaterialization()
+
+	if (typeof message !== "object" || message === null) return
+	if ((message as {type?: unknown}).type === "snapshot") {
+		applySnapshotMessage(message as SnapshotMessage)
+		return
+	}
+	if ((message as {type?: unknown}).type === "error") {
+		hud?.setBusy(!forceConnected)
+	}
 }
 
-socket.onclose = () => {
+force.onDestroy = () => {
+	forceConnected = false
+	initialMaterializationRequested = false
 	hud?.setConnectionStatus(false)
 	hud?.setBusy(true)
 }
 
-socket.onmessage = (event) => {
-	const message = JSON.parse(String(event.data)) as ForceSocketMessage | SnapshotMessage | BulkErrorMessage
-
-	if (message.type === "force") {
-		const forceMessage = message as ForceSocketMessage
+force.onImpulse = (forceMessage) => {
 		let snapshotNeedsRebuild = false
 		for (const part of forceMessage.parts) {
 			if (currentSnapshot && applyForcePartToSnapshot(currentSnapshot, part) === "rebuild") snapshotNeedsRebuild = true
@@ -292,7 +300,7 @@ socket.onmessage = (event) => {
 				if (pendingSceneState && pendingSceneState.src === rootSrc) {
 					lastAppliedSceneState = pendingSceneState
 					pendingSceneState = null
-					hud?.setBusy(socket.readyState !== WebSocket.OPEN)
+					hud?.setBusy(!forceConnected)
 				}
 				continue
 			}
@@ -301,19 +309,6 @@ socket.onmessage = (event) => {
 		if (snapshotNeedsRebuild && currentSnapshot && lastAppliedSceneState) {
 			applySnapshotWorld(lastAppliedSceneState.src, currentSnapshot, lastAppliedSceneState.layoutSettings)
 		}
-		return
-	}
-
-	if (message.type === "snapshot") {
-		applySnapshotMessage(message)
-		return
-	}
-
-	if (message.type === "error") {
-		hud?.setBusy(socket.readyState !== WebSocket.OPEN)
-		return
-	}
-
 }
 
 function cloneSettings(settings: BulkHudSettingsSnapshot): BulkHudSettingsSnapshot {
