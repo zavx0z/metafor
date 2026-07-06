@@ -18,6 +18,7 @@
     "@dark/gravity": "workspace:*",
     "@dark/em": "workspace:*",
     "@boundary/wimp": "workspace:*",
-    "boundary": "workspace:*"
+    "boundary": "workspace:*",
+    "force": "workspace:*"
   }
 }

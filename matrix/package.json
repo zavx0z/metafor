@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@metafor/types": "workspace:*",
+    "force": "workspace:*",
     "@matrix/gravity": "workspace:*",
     "@matrix/strong": "workspace:*",
     "@matrix/weak": "workspace:*"

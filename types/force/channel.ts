@@ -17,6 +17,11 @@ export interface Force extends ForceSurface {
   close(): void
 }
 
+export interface ForceDomain {
+  onImpulse(observer: (impulse: ForceMessage) => void): () => void
+  impulse(message: unknown): void
+}
+
 export interface ForceChannel extends Omit<BroadcastChannel, "onmessage" | "postMessage"> {
   onmessage: ((this: BroadcastChannel, ev: MessageEvent<ForceMessage>) => unknown) | null
   postMessage(message: ForceMessage): void

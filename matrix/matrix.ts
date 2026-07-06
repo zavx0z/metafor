@@ -8,7 +8,7 @@
  * - `write()` — запись канонической matrix-структуры в доменный store
  * - `gravity$` — runtime-адресация materialized branes
  * - `update()` — обновление полей и вычисление следующего перехода
- * - `BroadcastChannel("force")` — физическая подписка на Force и dispatch в Matrix pipeline
+ * - `force` — доменная Force-связь и dispatch в Matrix pipeline
  * - `unlock()` — снятие блокировки с бран
  *
  * ## Архитектура
@@ -36,13 +36,10 @@ import { FieldType, flattenMatrixData, validateData } from "@matrix/gravity"
 import { createStoredStringInterner, normalizeFieldValue, assembleStoredMatrixData, strong$ } from "@matrix/strong"
 import { StepMode, weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@matrix/weak"
 import {resolveForceFieldId, resolveForceFieldsPayload} from "@metafor/types/force/fields"
-import type { ForceMessage } from "@metafor/types/force/message"
 import type { Particle } from "@metafor/types/force/particle"
 
-export const force = new BroadcastChannel("force")
-
-force.onmessage = async (event) => {
-  for (const part of (event.data as ForceMessage).parts) {
+globalThis.force.onImpulse(async (impulse) => {
+  for (const part of impulse.parts) {
     switch (part.part) {
       case "gluon":
         await applyRuntimeFieldParts([part], "gluon")
@@ -59,7 +56,7 @@ force.onmessage = async (event) => {
         break
     }
   }
-}
+})
 
 const writeGate: AsyncGate = { pending: null }
 const updateGate: AsyncGate = { pending: null }
@@ -228,7 +225,7 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
   }
 
   if (parts.length === 0) return
-  force.postMessage({parts})
+  globalThis.force.impulse({parts})
 }
 
 const collectProcessExecutionFields = (actorId: number, braneIndex: number): Record<string, unknown> => {
@@ -327,7 +324,7 @@ const applyEnergyExecutionRequest = (part: Particle): void => {
   const energy = requestedEnergy.trim()
 
   pending.acceptedEnergy = energy
-  force.postMessage({
+  globalThis.force.impulse({
     parts: [{
       part: "z",
       op: "copy",
