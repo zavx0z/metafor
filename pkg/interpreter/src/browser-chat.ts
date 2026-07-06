@@ -8,6 +8,8 @@ const BROWSER_CHAT_READ_INTERVAL_MS = 650
 const BROWSER_CHAT_STABLE_TICKS = 8
 const BROWSER_CHAT_MIN_WAIT_MS = 6_000
 const BROWSER_CHAT_WAIT_TIMEOUT_MS = 90_000
+const BROWSER_CHAT_READ_RETRY_MS = 220
+const BROWSER_CHAT_READ_RETRIES = 2
 
 export async function runBrowserChatToolUse(name: string, params: JsonObject): Promise<JsonObject | null> {
   if (name === "browser_chat.send") return await browserChatSend(params)
@@ -24,7 +26,13 @@ async function browserChatSend(params: JsonObject): Promise<JsonObject> {
 }
 
 async function browserChatRead(params: JsonObject): Promise<JsonObject> {
-  return await evaluateBrowserChatPayload(params, qwenReadExpression())
+  let last: JsonObject = {ok: false, error: "browser_chat.read did not run"}
+  for (let attempt = 0; attempt <= BROWSER_CHAT_READ_RETRIES; attempt += 1) {
+    last = await evaluateBrowserChatPayload(params, qwenReadExpression())
+    if (last["ok"] === true || !isTransientBrowserChatError(asString(last["error"]))) return last
+    if (attempt < BROWSER_CHAT_READ_RETRIES) await delay(BROWSER_CHAT_READ_RETRY_MS)
+  }
+  return last
 }
 
 async function browserChatWait(params: JsonObject): Promise<JsonObject> {
@@ -127,6 +135,10 @@ function runtimeEvaluateValue(result: JsonObject): unknown {
 function browserChatMessageCount(payload: JsonObject): number {
   const messages = payload["messages"]
   return Array.isArray(messages) ? messages.length : 0
+}
+
+function isTransientBrowserChatError(error: string | undefined): boolean {
+  return error !== undefined && /Promise was collected|Execution context was destroyed|Cannot find context|Target closed|WebSocket/i.test(error)
 }
 
 function qwenSendExpression(message: string): string {

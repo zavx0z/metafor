@@ -4530,7 +4530,13 @@ async function pollBrowserChatRead(controller: BrowserChatController): Promise<v
       return
     }
   } catch (error) {
-    appendBrowserChatSystemMessage(controller, error instanceof Error ? error.message : String(error))
+    const message = error instanceof Error ? error.message : String(error)
+    if (isTransientBrowserChatReadError(message) && performance.now() - controller.readStartedAt <= 120_000) {
+      setBrowserChatStatus(controller, "read retry", 1200)
+      scheduleBrowserChatRead(controller, 900)
+      return
+    }
+    appendBrowserChatSystemMessage(controller, message)
     stopBrowserChatPolling(controller, true)
     setBrowserChatStatus(controller, "read failed", 5000)
     return
@@ -4737,6 +4743,10 @@ function setBrowserChatDropActive(controller: BrowserChatController, active: boo
 
 function stringValue(value: unknown): string | null {
   return typeof value === "string" ? value : null
+}
+
+function isTransientBrowserChatReadError(message: string): boolean {
+  return /Promise was collected|Execution context was destroyed|Cannot find context|Target closed|WebSocket/i.test(message)
 }
 
 function numberValue(value: unknown): number | null {
