@@ -33,7 +33,7 @@ import {executeCommand} from "./commands.ts"
 import {serializeError} from "./errors.ts"
 import {asBoolean, asNumber, asObject, asString} from "./guards.ts"
 import type {EventLogger} from "./logger.ts"
-import type {JsonObject} from "./types.ts"
+import type {FrameSnapshot, InterpreterDump, JsonObject} from "./types.ts"
 import {sourceMapMapper} from "./source-map.ts"
 import {applyPatch, createReplaceFilePatch, type ApplyPatchFileChange, type ApplyPatchResult} from "./apply-patch.ts"
 import {normalizeBreakpointSpec, remapBreakpointLine, type BreakpointRegistration} from "./breakpoints.ts"
@@ -111,6 +111,7 @@ type WsClientData = UiWsClientData | TerminalWsClientData | RtcSignalWsClientDat
 const NDJSON_TAIL_DEFAULT_LIMIT = 200
 const NDJSON_TAIL_MAX_LIMIT = 5_000
 const UI_HOST_COMMAND_TIMEOUT_MS = 8_000
+const DEBUGGER_ACTION_EVENT_TIMEOUT_MS = 10_000
 const ANDROID_API_URL = process.env.METAFOR_ANDROID_API_URL ?? "http://127.0.0.1:3007"
 const SQLITE_WATCH_DEBOUNCE_MS = 140
 const VALID_STOP_SIGNALS = new Set(["SIGTERM", "SIGKILL", "SIGINT", "SIGHUP", "SIGQUIT"])
@@ -2628,7 +2629,7 @@ async function runProcessToolUse(
       return response
     }
     if (toolUse.recipientName === "process.action") {
-      const payload = await processActionPayload(module.id, toolUse.parameters, options, dispatchUiHostCommand)
+      const payload = await processActionPayload(module.id, toolUse.parameters, options, broadcast, dispatchUiHostCommand)
       const ok = payload.status < 400 && payload.body["ok"] !== false
       const response: JsonObject = {...base, ok, status: payload.status, result: payload.body}
       if (!ok) response["error"] = asString(payload.body["error"]) ?? "process.action failed"
@@ -3259,6 +3260,7 @@ async function processActionPayload(
   processId: string,
   params: JsonObject,
   options: HttpServerOptions,
+  broadcast: (payload: JsonObject) => void,
   dispatch: UiHostCommandDispatcher,
 ): Promise<{status: number; body: JsonObject}> {
   const action = asString(params["action"]) ?? asString(params["cmd"]) ?? asString(params["command"])
@@ -3267,7 +3269,183 @@ async function processActionPayload(
   if (action === "close" || action === "delete" || action === "remove") return await jsonPayloadFromResponse(await closeProcess(processId, actionParams, options))
   if (action === "stop") return await jsonPayloadFromResponse(await stopProcessTarget(processId, actionParams, options))
   if (action === "restart") return await jsonPayloadFromResponse(await restartProcessTarget(processId, actionParams, options))
+  if (action === "source.open" || action === "source.openSelection") {
+    return await jsonPayloadFromResponse(await dispatchUiHostRoute("processes.action", processRouteParams(processId, params), dispatch))
+  }
+
+  const module = moduleForProcessId(processId, options)
+  if (module === undefined) return {status: 404, body: {ok: false, processId, error: `process not found: ${processId}`}}
+  if (isDebuggerProcessAction(action)) return await debuggerProcessActionPayload(module, action, actionParams, broadcast, dispatch)
+
   return await jsonPayloadFromResponse(await dispatchUiHostRoute("processes.action", processRouteParams(processId, params), dispatch))
+}
+
+function isDebuggerProcessAction(action: string): boolean {
+  return action === "pause"
+    || action === "resume"
+    || action === "step"
+    || action === "eval"
+    || action === "evaluate"
+    || action === "breakpointsActive"
+    || action === "setBreakpointsActive"
+    || action === "muteBreakpoints"
+    || action === "unmuteBreakpoints"
+    || action === "showExecutionPoint"
+    || action === "show-execution-point"
+}
+
+async function debuggerProcessActionPayload(
+  module: InterpreterModule,
+  action: string,
+  params: JsonObject,
+  broadcast: (payload: JsonObject) => void,
+  dispatch: UiHostCommandDispatcher,
+): Promise<{status: number; body: JsonObject}> {
+  try {
+    switch (action) {
+      case "pause": {
+        const details: JsonObject = {}
+        if (!module.snapshots.paused) {
+          const pauseSequence = module.snapshots.pauseSequence
+          await executeProcessDebuggerCommand(module, "pause", {})
+          await module.snapshots.waitForPauseAfter(pauseSequence, DEBUGGER_ACTION_EVENT_TIMEOUT_MS)
+          details["event"] = "Debugger.paused"
+        } else {
+          details["already"] = "paused"
+        }
+        return {status: 200, body: debuggerActionBody(module, "pause", details)}
+      }
+      case "resume": {
+        const details: JsonObject = {}
+        if (module.snapshots.paused) {
+          const resumeSequence = module.snapshots.resumeSequence
+          await executeProcessDebuggerCommand(module, "resume", {})
+          await module.snapshots.waitForResumeAfter(resumeSequence, DEBUGGER_ACTION_EVENT_TIMEOUT_MS)
+          details["event"] = "Debugger.resumed"
+        } else {
+          details["already"] = "running"
+        }
+        return {status: 200, body: debuggerActionBody(module, "resume", details)}
+      }
+      case "step": {
+        const kind = asString(params["kind"])
+        if (kind !== "over" && kind !== "into" && kind !== "out") return {status: 400, body: {ok: false, processId: module.id, action, error: 'step kind must be "over", "into", or "out"'}}
+        const pauseSequence = module.snapshots.pauseSequence
+        await executeProcessDebuggerCommand(module, "step", {kind})
+        const dump = await module.snapshots.waitForPauseAfter(pauseSequence, DEBUGGER_ACTION_EVENT_TIMEOUT_MS)
+        return {status: 200, body: debuggerActionBody(module, "step", {kind, event: "Debugger.paused"}, dump)}
+      }
+      case "eval":
+      case "evaluate": {
+        const expr = asString(params["expr"]) ?? asString(params["expression"])
+        if (expr === undefined) return {status: 400, body: {ok: false, processId: module.id, action, error: "evaluate expr must be a string"}}
+        const frame = asNumber(params["frame"])
+        const command: JsonObject = {expr}
+        if (frame !== undefined) command["frame"] = frame
+        const evaluation = await executeProcessDebuggerCommand(module, "eval", command)
+        return {status: 200, body: debuggerActionBody(module, "evaluate", {frame: frame ?? 0, evaluation})}
+      }
+      case "breakpointsActive":
+      case "setBreakpointsActive": {
+        const active = asBoolean(params["active"])
+        if (active === undefined) return {status: 400, body: {ok: false, processId: module.id, action, error: "breakpoints active must be a boolean"}}
+        await executeProcessDebuggerCommand(module, "setBreakpointsActive", {active})
+        broadcast({type: "module", module: module.snapshot()})
+        return {status: 200, body: debuggerActionBody(module, "setBreakpointsActive", {active})}
+      }
+      case "muteBreakpoints":
+        await executeProcessDebuggerCommand(module, "muteBreakpoints", {})
+        broadcast({type: "module", module: module.snapshot()})
+        return {status: 200, body: debuggerActionBody(module, "setBreakpointsActive", {active: false})}
+      case "unmuteBreakpoints":
+        await executeProcessDebuggerCommand(module, "unmuteBreakpoints", {})
+        broadcast({type: "module", module: module.snapshot()})
+        return {status: 200, body: debuggerActionBody(module, "setBreakpointsActive", {active: true})}
+      case "showExecutionPoint":
+      case "show-execution-point": {
+        const payload = await jsonPayloadFromResponse(await dispatchUiHostRoute("processes.action", processRouteParams(module.id, {action}), dispatch))
+        if (payload.status >= 400 || payload.body["ok"] === false) return payload
+        return {status: 200, body: debuggerActionBody(module, "showExecutionPoint")}
+      }
+    }
+  } catch (error) {
+    const message = serializeError(error)
+    return {status: message.startsWith("timed out waiting for Debugger.") ? 504 : 400, body: {...debuggerActionBody(module, action), ok: false, error: message}}
+  }
+
+  return {status: 400, body: {ok: false, processId: module.id, action, error: `unknown process action: ${action}`}}
+}
+
+async function executeProcessDebuggerCommand(module: InterpreterModule, cmd: string, params: JsonObject): Promise<unknown> {
+  return await executeCommand({
+    client: module.client,
+    snapshots: module.snapshots,
+    setBreakpointsActive: (active) => module.runtime.setBreakpointsActive(active),
+  }, params, cmd)
+}
+
+function debuggerActionBody(module: InterpreterModule, action: string, details: JsonObject = {}, dump?: InterpreterDump): JsonObject {
+  const runtime = debuggerRuntimePayload(module, dump)
+  return {
+    ok: true,
+    processId: module.id,
+    action,
+    ...details,
+    state: runtime["state"],
+    currentFrame: runtime["currentFrame"],
+    frames: runtime["frames"],
+    runtime,
+  }
+}
+
+function debuggerRuntimePayload(module: InterpreterModule, dump?: InterpreterDump): JsonObject {
+  const snapshot = module.snapshot()
+  const runtimeDump = dump ?? snapshot.dump ?? undefined
+  const paused = snapshot.paused && runtimeDump !== undefined
+  const frames = paused ? runtimeDump.frames.map((frame) => debuggerFramePayload(frame)) : []
+  return {
+    processId: snapshot.id,
+    moduleId: snapshot.id,
+    label: snapshot.label,
+    state: debuggerRuntimeState(snapshot),
+    paused: snapshot.paused,
+    connection: snapshot.connection,
+    target: {
+      state: snapshot.target.state,
+      pid: snapshot.target.pid,
+      exitCode: snapshot.target.exitCode,
+      signalCode: snapshot.target.signalCode,
+    },
+    breakpointsActive: snapshot.breakpointsActive,
+    scriptCount: snapshot.scriptCount,
+    pause: paused ? {
+      timestamp: runtimeDump.timestamp,
+      reason: runtimeDump.reason,
+      hitBreakpoints: runtimeDump.hitBreakpoints,
+    } : null,
+    currentFrame: frames[0] ?? null,
+    frames,
+  }
+}
+
+function debuggerRuntimeState(module: ReturnType<InterpreterModule["snapshot"]>): string {
+  if (module.connection.state !== "connected") return "disconnected"
+  if (module.target.state === "exited" || module.target.state === "failed") return module.target.state
+  if (module.paused) return "paused"
+  if (module.target.state === "running" || module.target.state === "starting") return "running"
+  return "idle"
+}
+
+function debuggerFramePayload(frame: FrameSnapshot): JsonObject {
+  return {
+    index: frame.index,
+    function: frame.function,
+    url: frame.url,
+    line: frame.line,
+    column: frame.column,
+    ...(frame.sourceKind === undefined ? {} : {sourceKind: frame.sourceKind}),
+    ...(frame.scriptId === undefined ? {} : {scriptId: frame.scriptId}),
+  }
 }
 
 async function sourceUiActionPayload(

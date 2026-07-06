@@ -386,7 +386,24 @@ Space tools:
 - `stop`
 - `showExecutionPoint`
 
-`evaluate` пишет выражение и результат агента в terminal process, чтобы человек видел общее действие.
+Agent-facing debugger actions (`pause`, `resume`, `step`, `evaluate`,
+`breakpointsActive`/`setBreakpointsActive`, `muteBreakpoints`,
+`unmuteBreakpoints`) должны отвечать только runtime outcome. В ответе этих
+команд не должно быть editor cursor, selection, source-pane, workspace tree,
+display geometry или других UI/display координат. Для `pause` и `step` ответ
+возвращается после события `Debugger.paused`; для `resume` - после
+`Debugger.resumed`. Агент делает вывод "вошли / не вошли / где остановились"
+только по `state`, `currentFrame`, `frames[]` и `runtime` из ответа команды.
+Поле `event` означает реально дождались соответствующего debugger-события. Если
+process уже был в нужном состоянии, ответ использует `already:"paused"` или
+`already:"running"`, а не фиктивный event.
+
+`evaluate` возвращает результат вычисления в runtime-only ответе. Если нужно
+отдельно показать вычисление человеку в UI/terminal, это должен быть явный
+UI-visible workflow, а не часть debugger response.
+
+`showExecutionPoint`, `source.open` и `source.openSelection` могут менять UI, но
+debugger outcome нельзя смешивать с editor/source-pane состоянием.
 
 Для совместной работы с конкретным process используй `context.get`, затем tools с `parameters.processId`:
 

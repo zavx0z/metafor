@@ -49,8 +49,10 @@ export class SnapshotStore {
   #mappers = new Map<string, SourceMapMapper>()
   #lastCallFrames: CallFrame[] = []
   #lastDump: InterpreterDump | undefined
+  #lastDumpSequence = 0
   #paused = false
   #pauseSequence = 0
+  #resumeSequence = 0
   #pauseHandlers = new Set<SnapshotPauseHandler>()
   #resumeHandlers = new Set<SnapshotResumeHandler>()
   #scriptParsedHandlers = new Set<ScriptParsedHandler>()
@@ -75,6 +77,14 @@ export class SnapshotStore {
 
   get dump(): InterpreterDump | undefined {
     return this.#lastDump
+  }
+
+  get pauseSequence(): number {
+    return this.#pauseSequence
+  }
+
+  get resumeSequence(): number {
+    return this.#resumeSequence
   }
 
   get scripts(): ScriptInfo[] {
@@ -155,13 +165,49 @@ export class SnapshotStore {
     return () => this.#scriptParsedHandlers.delete(handler)
   }
 
+  waitForPauseAfter(sequence: number, timeoutMs: number): Promise<InterpreterDump> {
+    if (this.#lastDumpSequence > sequence && this.#lastDump !== undefined) return Promise.resolve(this.#lastDump)
+
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        offPause()
+        reject(new Error("timed out waiting for Debugger.paused"))
+      }, timeoutMs)
+      const offPause = this.onPause((dump) => {
+        if (this.#lastDumpSequence <= sequence) return
+        clearTimeout(timeout)
+        offPause()
+        resolve(dump)
+      })
+    })
+  }
+
+  waitForResumeAfter(sequence: number, timeoutMs: number): Promise<void> {
+    if (this.#resumeSequence > sequence && !this.#paused) return Promise.resolve()
+
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        offResume()
+        reject(new Error("timed out waiting for Debugger.resumed"))
+      }, timeoutMs)
+      const offResume = this.onResume(() => {
+        if (this.#resumeSequence <= sequence) return
+        clearTimeout(timeout)
+        offResume()
+        resolve()
+      })
+    })
+  }
+
   reset(): void {
     this.#scripts.clear()
     this.#mappers.clear()
     this.#lastCallFrames = []
     this.#lastDump = undefined
+    this.#lastDumpSequence = 0
     this.#paused = false
     this.#pauseSequence += 1
+    this.#resumeSequence += 1
     this.#logger.event("snapshot.reset", {})
   }
 
@@ -200,6 +246,7 @@ export class SnapshotStore {
 
   handleResumed(): void {
     this.#paused = false
+    this.#resumeSequence += 1
     this.#logger.event("Debugger.resumed", {})
     for (const handler of this.#resumeHandlers) {
       try {
@@ -242,8 +289,9 @@ export class SnapshotStore {
       frames,
     }
 
-    this.#lastDump = dump
     if (sequence !== this.#pauseSequence) return
+    this.#lastDump = dump
+    this.#lastDumpSequence = sequence
 
     atomicWriteJson(this.#dumpPath, dump)
     this.#logger.event("interpreter.dump.written", {

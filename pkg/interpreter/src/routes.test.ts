@@ -233,6 +233,261 @@ describe("interpreterRoutes", () => {
     }
   })
 
+  test("process.action step waits for Debugger.paused and returns runtime-only state", async () => {
+    let paused = true
+    const requestedMethods: string[] = []
+    const pausedDump = {
+      timestamp: "2026-07-06T20:10:00.000Z",
+      reason: "step",
+      hitBreakpoints: [],
+      frames: [{index: 0, function: "matter", url: "r/dark/dark.ts", line: 75, column: 3, sourceKind: "sourcemap", scriptId: "14"}],
+    }
+    const moduleId = "dark-server.ts"
+    const fakeModule = {
+      id: moduleId,
+      client: {
+        request: async (method: string) => {
+          requestedMethods.push(method)
+          return {}
+        },
+      },
+      snapshots: {
+        get paused() {
+          return paused
+        },
+        pauseSequence: 4,
+        resumeSequence: 2,
+        callFrames: [],
+        sourceStepOverTarget: () => null,
+        markRunning: () => {
+          paused = false
+        },
+        waitForPauseAfter: async (sequence: number) => {
+          expect(sequence).toBe(4)
+          paused = true
+          return pausedDump
+        },
+      },
+      runtime: {setBreakpointsActive: async () => {}},
+      snapshot: () => ({
+        id: moduleId,
+        label: "dark/server.ts",
+        modulePath: "/repo/dark/server.ts",
+        protocolUrl: "ws://127.0.0.1:6502/",
+        connection: {state: "connected", error: null},
+        paused,
+        breakpointsActive: true,
+        scriptCount: 1,
+        hasDump: paused,
+        dump: paused ? pausedDump : null,
+        target: {state: "running", pid: 123, command: [], cwd: null, startedAt: null, exitedAt: null, exitCode: null, signalCode: null, outputLineCount: 0, output: [], pauseOnStart: false, pendingBreakpoints: []},
+      }),
+    }
+    const server = startHttpServer(({
+      host: "127.0.0.1",
+      port: 0,
+      modules: {
+        list: () => [],
+        snapshots: () => [],
+        onEvent: () => {},
+        get: (id: string) => id === moduleId ? fakeModule : undefined,
+      },
+      logger: {
+        status: () => {},
+        event: () => {},
+        onEvent: () => {},
+      },
+      eventLogPath: ".events.log",
+      consoleLogPath: ".console.log",
+    }) as unknown as Parameters<typeof startHttpServer>[0])
+
+    try {
+      const response = await fetch(`http://127.0.0.1:${server.port}/tools`, {
+        method: "POST",
+        headers: {"content-type": "application/json"},
+        body: JSON.stringify({tool_uses: [{recipient_name: "process.action", parameters: {processId: moduleId, action: "step", params: {kind: "into"}}}]}),
+      })
+      const body = await response.json() as {results: Array<{ok: boolean; result: Record<string, unknown>}>}
+      const result = body.results[0]!.result as {action: string; kind: string; event: string; state: string; currentFrame: {function: string; line: number}; runtime: {currentFrame: {function: string; line: number}}}
+
+      expect(requestedMethods).toEqual(["Debugger.stepInto"])
+      expect(body.results[0]!.ok).toBe(true)
+      expect(result.action).toBe("step")
+      expect(result.kind).toBe("into")
+      expect(result.event).toBe("Debugger.paused")
+      expect(result.state).toBe("paused")
+      expect(result.currentFrame).toMatchObject({function: "matter", line: 75})
+      expect(result.runtime.currentFrame).toMatchObject({function: "matter", line: 75})
+      expect("process" in result).toBe(false)
+      expect("resolved" in result).toBe(false)
+      expect(JSON.stringify(result)).not.toContain("cursor")
+      expect(JSON.stringify(result)).not.toContain("screenRect")
+    } finally {
+      server.stop(true)
+    }
+  })
+
+  test("process.action resume waits for Debugger.resumed and does not return stale frame", async () => {
+    let paused = true
+    const requestedMethods: string[] = []
+    const staleDump = {
+      timestamp: "2026-07-06T20:10:00.000Z",
+      reason: "breakpoint",
+      hitBreakpoints: [],
+      frames: [{index: 0, function: "matter", url: "r/dark/dark.ts", line: 75, column: 3, sourceKind: "sourcemap", scriptId: "14"}],
+    }
+    const moduleId = "dark-server.ts"
+    const fakeModule = {
+      id: moduleId,
+      client: {
+        request: async (method: string) => {
+          requestedMethods.push(method)
+          return {}
+        },
+      },
+      snapshots: {
+        get paused() {
+          return paused
+        },
+        pauseSequence: 4,
+        resumeSequence: 2,
+        callFrames: [],
+        markRunning: () => {
+          paused = false
+        },
+        waitForResumeAfter: async (sequence: number) => {
+          expect(sequence).toBe(2)
+          paused = false
+        },
+      },
+      runtime: {setBreakpointsActive: async () => {}},
+      snapshot: () => ({
+        id: moduleId,
+        label: "dark/server.ts",
+        modulePath: "/repo/dark/server.ts",
+        protocolUrl: "ws://127.0.0.1:6502/",
+        connection: {state: "connected", error: null},
+        paused,
+        breakpointsActive: true,
+        scriptCount: 1,
+        hasDump: true,
+        dump: staleDump,
+        target: {state: "running", pid: 123, command: [], cwd: null, startedAt: null, exitedAt: null, exitCode: null, signalCode: null, outputLineCount: 0, output: [], pauseOnStart: false, pendingBreakpoints: []},
+      }),
+    }
+    const server = startHttpServer(({
+      host: "127.0.0.1",
+      port: 0,
+      modules: {
+        list: () => [],
+        snapshots: () => [],
+        onEvent: () => {},
+        get: (id: string) => id === moduleId ? fakeModule : undefined,
+      },
+      logger: {
+        status: () => {},
+        event: () => {},
+        onEvent: () => {},
+      },
+      eventLogPath: ".events.log",
+      consoleLogPath: ".console.log",
+    }) as unknown as Parameters<typeof startHttpServer>[0])
+
+    try {
+      const response = await fetch(`http://127.0.0.1:${server.port}/tools`, {
+        method: "POST",
+        headers: {"content-type": "application/json"},
+        body: JSON.stringify({tool_uses: [{recipient_name: "process.action", parameters: {processId: moduleId, action: "resume"}}]}),
+      })
+      const body = await response.json() as {results: Array<{ok: boolean; result: Record<string, unknown>}>}
+      const result = body.results[0]!.result as {action: string; event: string; state: string; currentFrame: unknown; runtime: {currentFrame: unknown; paused: boolean}}
+
+      expect(requestedMethods).toEqual(["Debugger.resume"])
+      expect(body.results[0]!.ok).toBe(true)
+      expect(result.action).toBe("resume")
+      expect(result.event).toBe("Debugger.resumed")
+      expect(result.state).toBe("running")
+      expect(result.currentFrame).toBeNull()
+      expect(result.runtime.currentFrame).toBeNull()
+      expect(result.runtime.paused).toBe(false)
+      expect("process" in result).toBe(false)
+      expect("resolved" in result).toBe(false)
+    } finally {
+      server.stop(true)
+    }
+  })
+
+  test("process.action resume does not invent Debugger.resumed when already running", async () => {
+    const requestedMethods: string[] = []
+    const moduleId = "dark-server.ts"
+    const fakeModule = {
+      id: moduleId,
+      client: {
+        request: async (method: string) => {
+          requestedMethods.push(method)
+          return {}
+        },
+      },
+      snapshots: {
+        paused: false,
+        pauseSequence: 4,
+        resumeSequence: 2,
+        callFrames: [],
+        markRunning: () => {},
+      },
+      runtime: {setBreakpointsActive: async () => {}},
+      snapshot: () => ({
+        id: moduleId,
+        label: "dark/server.ts",
+        modulePath: "/repo/dark/server.ts",
+        protocolUrl: "ws://127.0.0.1:6502/",
+        connection: {state: "connected", error: null},
+        paused: false,
+        breakpointsActive: true,
+        scriptCount: 1,
+        hasDump: false,
+        dump: null,
+        target: {state: "running", pid: 123, command: [], cwd: null, startedAt: null, exitedAt: null, exitCode: null, signalCode: null, outputLineCount: 0, output: [], pauseOnStart: false, pendingBreakpoints: []},
+      }),
+    }
+    const server = startHttpServer(({
+      host: "127.0.0.1",
+      port: 0,
+      modules: {
+        list: () => [],
+        snapshots: () => [],
+        onEvent: () => {},
+        get: (id: string) => id === moduleId ? fakeModule : undefined,
+      },
+      logger: {
+        status: () => {},
+        event: () => {},
+        onEvent: () => {},
+      },
+      eventLogPath: ".events.log",
+      consoleLogPath: ".console.log",
+    }) as unknown as Parameters<typeof startHttpServer>[0])
+
+    try {
+      const response = await fetch(`http://127.0.0.1:${server.port}/tools`, {
+        method: "POST",
+        headers: {"content-type": "application/json"},
+        body: JSON.stringify({tool_uses: [{recipient_name: "process.action", parameters: {processId: moduleId, action: "resume"}}]}),
+      })
+      const body = await response.json() as {results: Array<{ok: boolean; result: Record<string, unknown>}>}
+      const result = body.results[0]!.result as {already: string; event?: string; state: string; currentFrame: unknown}
+
+      expect(requestedMethods).toEqual([])
+      expect(body.results[0]!.ok).toBe(true)
+      expect(result.already).toBe("running")
+      expect(result.event).toBeUndefined()
+      expect(result.state).toBe("running")
+      expect(result.currentFrame).toBeNull()
+    } finally {
+      server.stop(true)
+    }
+  })
+
   test("source.locate reports ambiguity and can select an occurrence", async () => {
     const cwd = process.cwd()
     const dir = mkdtempSync(join(tmpdir(), "metafor-source-locate-"))

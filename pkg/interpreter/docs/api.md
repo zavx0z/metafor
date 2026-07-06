@@ -565,7 +565,39 @@ curl -sS -X POST 'http://127.0.0.1:6500/tools' \
 - `close` / `delete` / `remove` - остановить process и убрать display module из Space
 - `showExecutionPoint`
 
-`evaluate` пишет выражение AI и результат в терминал process, чтобы человек видел общее действие.
+`evaluate` возвращает результат вычисления в runtime-only ответе. Если нужно
+отдельно показать вычисление человеку в UI/terminal, это должен быть явный
+UI-visible workflow, а не часть debugger response.
+
+Agent-facing debugger actions (`pause`, `resume`, `step`, `evaluate`,
+`breakpointsActive`/`setBreakpointsActive`, `muteBreakpoints`,
+`unmuteBreakpoints`) возвращают runtime-only ответ. В нем нет editor cursor,
+selection, открытого source-pane, display geometry или workspace tree. Для
+`pause` и `step` HTTP-ответ завершается после события `Debugger.paused`; для
+`resume` - после `Debugger.resumed`. Агент должен делать выводы только по
+`state`, `currentFrame`, `frames[]` и `runtime`, которые относятся к фактической
+точке выполнения process.
+
+Поле `event` появляется только когда соответствующее debugger-событие реально
+дождались. Если process уже был в нужном состоянии, ответ содержит
+`already:"paused"` или `already:"running"`, не подставляя фиктивный event.
+
+Пример ответа `step into`:
+
+```json
+{
+  "ok": true,
+  "processId": "dark-server.ts",
+  "action": "step",
+  "kind": "into",
+  "event": "Debugger.paused",
+  "state": "paused",
+  "currentFrame": {"function":"matter","url":"r/dark/dark.ts","line":75,"column":3}
+}
+```
+
+`showExecutionPoint`, `source.open` и `source.openSelection` могут менять UI, но
+debugger outcome всё равно не смешивается с editor/source-pane координатами.
 
 Открыть source и выделить диапазон в редакторе:
 
