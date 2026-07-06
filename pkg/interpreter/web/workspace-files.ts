@@ -190,6 +190,20 @@ export function normalizeWorkspaceExpandedIds(ids: readonly string[], items: rea
   return next
 }
 
+export function normalizeWorkspaceOpenedFileIds(ids: readonly string[]): string[] {
+  const next: string[] = []
+  for (const id of ids) {
+    const fileId = workspaceFileIdForSourcePath({
+      root: null,
+      workspacePath: "",
+      items: [],
+    }, id)
+    if (fileId === null || next.includes(fileId)) continue
+    next.push(fileId)
+  }
+  return next
+}
+
 export function workspaceRootLabel(root: string | undefined): string | null {
   if (root === undefined) return null
   const normalized = root.trim().replaceAll("\\", "/").replace(/\/+$/, "")

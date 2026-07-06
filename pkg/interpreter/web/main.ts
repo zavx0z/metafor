@@ -81,6 +81,7 @@ import {
 } from "./breakpoint-storage.ts"
 import {
   normalizeWorkspaceExpandedIds,
+  normalizeWorkspaceOpenedFileIds,
   normalizeWorkspacePath,
   shouldRevealWorkspaceForSourceOpen,
   stripSourceLine,
@@ -96,6 +97,11 @@ import {
   workspaceRootLabel,
   type WorkspaceFilesContextSnapshot,
 } from "./workspace-files.ts"
+import {
+  readStoredWorkspaceFilesState,
+  workspaceFilesStorageKey,
+  writeStoredWorkspaceFilesState,
+} from "./workspace-files-storage.ts"
 import {formatTerminalExpressionResult} from "./terminal-value-format.ts"
 import {createAndroidRtcClient, type AndroidRtcAudioStream, type AndroidRtcClient, type AndroidRtcCommand, type AndroidRtcFrame, type RtcControlCommand} from "./android-rtc.ts"
 import {RTC_ICE_SERVERS} from "./p2p-signaling.ts"
@@ -142,7 +148,7 @@ import {
   sqliteTableItems,
   type SqliteOpenParams,
 } from "./sqlite-display-helpers.ts"
-import {sameStringArray} from "./array-utils.ts"
+import {sameStringArray, storedStringArray} from "./array-utils.ts"
 import type {SqliteCellValue, SqliteDatabasePayload, SqliteHudContextSnapshot} from "./sqlite-types.ts"
 import {WorkspaceFilesChromePane, WorkspaceFilesHeaderPane} from "./workspace-panes.ts"
 import {HostTerminalAgentSignalPane, HostTerminalDockPane, SqliteHudFramePane} from "./hud-panes.ts"
@@ -422,12 +428,6 @@ type WorkspaceFilesPayload = {
   modules?: Array<{path?: string}>
 }
 
-type WorkspaceFilesStoredState = {
-  expandedIds: string[]
-  selectedIds: string[]
-  openedFileIds: string[]
-}
-
 type WorkspaceFilesState = {
   root: string | null
   workspacePath: string
@@ -671,7 +671,6 @@ const HOST_TERMINAL_AGENT_SOUND_VOLUME_LEGACY_STORAGE_KEY = "metafor.interpreter
 const TODO_PANEL_STATE_STORAGE_KEY = "metafor.interpreter.todo.panelState:v1"
 const INTERPRETER_VIEWPOINT_STORE_DELAY_MS = 120
 const INTERPRETER_DISPLAY_POSITION_STORE_DELAY_MS = 120
-const WORKSPACE_FILES_STATE_STORAGE_PREFIX = "metafor.interpreter.workspaceFiles:v1"
 const DEFAULT_HOST_TERMINAL_AGENT_SOUND_ENABLED = true
 const DEFAULT_HOST_TERMINAL_AGENT_SOUND_VOLUME = 1
 const MAX_HOST_TERMINAL_AGENT_SOUND_VOLUME = 1
@@ -6520,7 +6519,7 @@ async function refreshWorkspaceFiles(controller: ModuleDisplayController): Promi
       controller.workspaceFiles.openedFileIds = openedFileIds
       controller.workspaceFiles.expandedIds = normalizeWorkspaceExpandedIds(storedState.expandedIds, items)
       controller.workspaceFiles.selectedIds = normalizeFileListSelection(storedState.selectedIds, items, "multiple")
-      writeStoredWorkspaceFilesState(controller)
+      writeStoredWorkspaceFilesState(controller.workspaceFiles)
       applyWorkspaceFilesToModuleDisplay(controller)
       void openInitialWorkspaceSource(controller).catch((error) => {
         console.warn(`initial source open failed for ${controller.id}:`, error)
@@ -6548,20 +6547,6 @@ function workspaceFileItems(catalogPaths: readonly string[], openedFileIds: read
   const catalogFileIds = new Set(workspaceFileIds(catalogItems))
   const mutedFileIds = openedFileIds.filter((id) => !catalogFileIds.has(id))
   return workspaceFileTree([...catalogPaths, ...mutedFileIds], {mutedFileIds})
-}
-
-function normalizeWorkspaceOpenedFileIds(ids: readonly string[]): string[] {
-  const next: string[] = []
-  for (const id of ids) {
-    const fileId = workspaceFileIdForSourcePath({
-      root: null,
-      workspacePath: "",
-      items: [],
-    }, id)
-    if (fileId === null || next.includes(fileId)) continue
-    next.push(fileId)
-  }
-  return next
 }
 
 function applyWorkspaceFilesToModuleDisplay(controller: ModuleDisplayController): void {
@@ -6619,13 +6604,13 @@ function findWorkspaceFileItem(items: readonly FileListItem[], id: string): File
 
 function setWorkspaceFilesExpandedIds(controller: ModuleDisplayController, ids: readonly string[]): void {
   controller.workspaceFiles.expandedIds = normalizeWorkspaceExpandedIds(ids, controller.workspaceFiles.items)
-  writeStoredWorkspaceFilesState(controller)
+  writeStoredWorkspaceFilesState(controller.workspaceFiles)
   controller.files.setExpandedIds(controller.workspaceFiles.expandedIds)
 }
 
 function updateWorkspaceFilesSelectedState(controller: ModuleDisplayController, ids: readonly string[]): void {
   controller.workspaceFiles.selectedIds = normalizeFileListSelection(ids, controller.workspaceFiles.items, "multiple")
-  writeStoredWorkspaceFilesState(controller)
+  writeStoredWorkspaceFilesState(controller.workspaceFiles)
   queuePublishModuleContext(controller)
 }
 
@@ -6653,7 +6638,7 @@ function addOpenedWorkspaceSource(controller: ModuleDisplayController, sourceUrl
   controller.workspaceFiles.items = items
   controller.workspaceFiles.expandedIds = normalizeWorkspaceExpandedIds(controller.workspaceFiles.expandedIds, items)
   controller.workspaceFiles.selectedIds = normalizeFileListSelection(controller.workspaceFiles.selectedIds, items, "multiple")
-  writeStoredWorkspaceFilesState(controller)
+  writeStoredWorkspaceFilesState(controller.workspaceFiles)
   applyWorkspaceFilesToModuleDisplay(controller)
   return fileId
 }
@@ -6671,7 +6656,7 @@ function removeOpenedWorkspaceSource(controller: ModuleDisplayController, source
   controller.workspaceFiles.items = items
   controller.workspaceFiles.expandedIds = normalizeWorkspaceExpandedIds(controller.workspaceFiles.expandedIds, items)
   controller.workspaceFiles.selectedIds = normalizeFileListSelection(controller.workspaceFiles.selectedIds.filter((id) => id !== fileId), items, "multiple")
-  writeStoredWorkspaceFilesState(controller)
+  writeStoredWorkspaceFilesState(controller.workspaceFiles)
   applyWorkspaceFilesToModuleDisplay(controller)
   return true
 }
@@ -7110,49 +7095,6 @@ function revealWorkspaceSource(controller: ModuleDisplayController, sourceUrl: s
 function revealWorkspaceFileId(controller: ModuleDisplayController, fileId: string): void {
   setWorkspaceFilesExpandedIds(controller, [...new Set([...controller.workspaceFiles.expandedIds, ...workspaceParentIds(fileId)])])
   setWorkspaceFilesSelectedIds(controller, [fileId])
-}
-
-function workspaceFilesStorageKey(root: string | undefined, moduleId: string): string {
-  const normalized = root?.trim().replaceAll("\\", "/").replace(/\/+$/, "")
-  const rootKey = normalized === undefined || normalized.length === 0 ? "default" : normalized
-  return `${WORKSPACE_FILES_STATE_STORAGE_PREFIX}:${moduleId}:${rootKey}`
-}
-
-function readStoredWorkspaceFilesState(storageKey: string): WorkspaceFilesStoredState {
-  try {
-    const raw = localStorage.getItem(storageKey)
-    if (raw === null) return {expandedIds: [], selectedIds: [], openedFileIds: []}
-    const parsed = JSON.parse(raw) as Record<string, unknown>
-    return {
-      expandedIds: storedStringArray(parsed.expandedIds),
-      selectedIds: storedStringArray(parsed.selectedIds),
-      openedFileIds: normalizeWorkspaceOpenedFileIds(storedStringArray(parsed.openedFileIds)),
-    }
-  } catch {
-    return {expandedIds: [], selectedIds: [], openedFileIds: []}
-  }
-}
-
-function writeStoredWorkspaceFilesState(controller: ModuleDisplayController): void {
-  try {
-    localStorage.setItem(controller.workspaceFiles.storageKey, JSON.stringify({
-      expandedIds: controller.workspaceFiles.expandedIds,
-      selectedIds: controller.workspaceFiles.selectedIds,
-      openedFileIds: controller.workspaceFiles.openedFileIds,
-    }))
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
-}
-
-function storedStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
-  const next: string[] = []
-  for (const item of value) {
-    if (typeof item !== "string" || item.length === 0 || next.includes(item)) continue
-    next.push(item)
-  }
-  return next
 }
 
 function updateModuleHeaderControls(controller: ModuleDisplayController, module: ModulePaneSnapshot): void {
