@@ -321,23 +321,26 @@ async function disableDevtoolsResponse(req: Request): Promise<Response> {
 async function evaluateDevtoolsResponse(req: Request): Promise<Response> {
   const parsed = await readJsonObject(req)
   if (parsed.error !== undefined) return devtoolsJsonResponse({ok: false, error: parsed.error}, 400)
-  const expression = asString(parsed.body["expression"])
-  if (expression === undefined || expression.length === 0) {
-    return devtoolsJsonResponse({ok: false, error: "expression must be a non-empty string"}, 400)
-  }
   try {
-    const session = await ensureSession(parsed.body)
-    await sessionCommand(session, "Runtime.enable")
-    const result = await sessionCommand(session, "Runtime.evaluate", {
-      expression,
-      awaitPromise: asBoolean(parsed.body["awaitPromise"]) ?? true,
-      returnByValue: asBoolean(parsed.body["returnByValue"]) ?? true,
-      userGesture: asBoolean(parsed.body["userGesture"]) ?? true,
-    })
-    return devtoolsJsonResponse({ok: true, target: targetSummary(session.target), result})
+    const result = await evaluateChromeDevtoolsExpression(parsed.body)
+    return devtoolsJsonResponse({ok: true, ...result})
   } catch (error) {
     return devtoolsJsonResponse({ok: false, error: serializeError(error)}, 400)
   }
+}
+
+export async function evaluateChromeDevtoolsExpression(body: JsonObject): Promise<{target: JsonObject; result: JsonObject}> {
+  const expression = asString(body["expression"])
+  if (expression === undefined || expression.length === 0) throw new Error("expression must be a non-empty string")
+  const session = await ensureSession(body)
+  await sessionCommand(session, "Runtime.enable")
+  const result = await sessionCommand(session, "Runtime.evaluate", {
+    expression,
+    awaitPromise: asBoolean(body["awaitPromise"]) ?? true,
+    returnByValue: asBoolean(body["returnByValue"]) ?? true,
+    userGesture: asBoolean(body["userGesture"]) ?? true,
+  })
+  return {target: targetSummary(session.target), result}
 }
 
 /**
@@ -981,7 +984,7 @@ async function ensureSession(body: JsonObject): Promise<ChromeDevtoolsSession> {
   })
   socket.addEventListener("error", () => closePending(session, new Error("Chrome DevTools WebSocket error")))
   sessions.set(target.id, session)
-  if (DEVTOOLS_VIEWPORT_AUTOSYNC_ENABLED) await enableViewportAutoSync(session)
+  if (DEVTOOLS_VIEWPORT_AUTOSYNC_ENABLED && shouldEnableViewportAutoSync(target)) await enableViewportAutoSync(session)
   return session
 }
 
@@ -1013,6 +1016,10 @@ function isPageDebugTarget(target: ChromeTarget): boolean {
   return target.type === "page"
     && !target.url.startsWith("devtools://")
     && !target.url.includes("/desktop/rtc/sender")
+}
+
+function shouldEnableViewportAutoSync(target: ChromeTarget): boolean {
+  return target.type === "page" && (target.url.startsWith(defaultTargetUrl()) || target.url.startsWith("http://127.0.0.1:4004/"))
 }
 
 function targetSelectorSummary(selector: {targetUrl: string | undefined; targetTitle: string | undefined; urlContains: string | undefined}): string {
@@ -1097,7 +1104,7 @@ function handleSessionMessage(session: ChromeDevtoolsSession, event: MessageEven
     appendConsoleEvent(session, logEntryEvent(asObject(message["params"]) ?? {}))
   } else if (method === "Network.loadingFailed") {
     appendConsoleEvent(session, networkFailureEvent(asObject(message["params"]) ?? {}))
-  } else if (DEVTOOLS_VIEWPORT_AUTOSYNC_ENABLED && (method === "Page.frameNavigated" || method === "Page.loadEventFired" || method === "Page.frameResized")) {
+  } else if (DEVTOOLS_VIEWPORT_AUTOSYNC_ENABLED && session.viewportAutoSync.enabled && (method === "Page.frameNavigated" || method === "Page.loadEventFired" || method === "Page.frameResized")) {
     scheduleViewportAutoSync(session, method)
   }
 }

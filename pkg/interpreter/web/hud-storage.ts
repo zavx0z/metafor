@@ -7,6 +7,10 @@ export const HOST_TERMINAL_HUD_RECT_STORAGE_KEY = "metafor.interpreter.hostTermi
 export const HOST_TERMINAL_CODEX_COMPOSER_RECT_STORAGE_KEY = "metafor.interpreter.hostTerminal.codexComposerRect:v1"
 export const HOST_TERMINAL_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.hostTerminal.hudDocked:v1"
 export const HOST_TERMINAL_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.hostTerminal.dockPlacement:v1"
+export const BROWSER_CHAT_HUD_RECT_STORAGE_KEY = "metafor.interpreter.browserChat.hudRect:v1"
+export const BROWSER_CHAT_COMPOSER_RECT_STORAGE_KEY = "metafor.interpreter.browserChat.composerRect:v1"
+export const BROWSER_CHAT_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.browserChat.hudDocked:v1"
+export const BROWSER_CHAT_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.browserChat.dockPlacement:v1"
 export const NETWORK_TERMINAL_SESSION_STORAGE_KEY = "metafor.interpreter.networkTerminal.sessionId:v1"
 export const NETWORK_TERMINAL_HUD_RECT_STORAGE_KEY = "metafor.interpreter.networkTerminal.hudRect:v1"
 export const NETWORK_TERMINAL_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.networkTerminal.hudDocked:v1"
@@ -67,6 +71,30 @@ export function readStoredHostCodexComposerRect(): UiSurfaceRect | null {
 
 export function storeHostCodexComposerRect(rect: UiSurfaceRect): void {
   storePaneRect(HOST_TERMINAL_CODEX_COMPOSER_RECT_STORAGE_KEY, rect)
+}
+
+export function readStoredBrowserChatHudRect(): UiSurfaceRect | null {
+  try {
+    return parseStoredPaneRect(localStorage.getItem(BROWSER_CHAT_HUD_RECT_STORAGE_KEY))
+  } catch {
+    return null
+  }
+}
+
+export function storeBrowserChatHudRect(rect: UiSurfaceRect): void {
+  storePaneRect(BROWSER_CHAT_HUD_RECT_STORAGE_KEY, rect)
+}
+
+export function readStoredBrowserChatComposerRect(): UiSurfaceRect | null {
+  try {
+    return parseStoredPaneRect(localStorage.getItem(BROWSER_CHAT_COMPOSER_RECT_STORAGE_KEY))
+  } catch {
+    return null
+  }
+}
+
+export function storeBrowserChatComposerRect(rect: UiSurfaceRect): void {
+  storePaneRect(BROWSER_CHAT_COMPOSER_RECT_STORAGE_KEY, rect)
 }
 
 export function readStoredVoiceSettingsRect(): UiSurfaceRect | null {
@@ -149,6 +177,18 @@ export function readStoredHostTerminalHudDocked(): boolean {
 
 export function writeStoredHostTerminalHudDocked(docked: boolean): void {
   writeStoredBoolean(HOST_TERMINAL_HUD_DOCKED_STORAGE_KEY, docked)
+}
+
+export function readStoredBrowserChatHudDocked(): boolean {
+  try {
+    return localStorage.getItem(BROWSER_CHAT_HUD_DOCKED_STORAGE_KEY) === "1"
+  } catch {
+    return false
+  }
+}
+
+export function writeStoredBrowserChatHudDocked(docked: boolean): void {
+  writeStoredBoolean(BROWSER_CHAT_HUD_DOCKED_STORAGE_KEY, docked)
 }
 
 export function readStoredNetworkTerminalHudDocked(): boolean {
@@ -258,6 +298,10 @@ export function readStoredHostTerminalDockPlacement(): HostTerminalDockPlacement
   return readStoredDockPlacement(HOST_TERMINAL_DOCK_PLACEMENT_STORAGE_KEY)
 }
 
+export function readStoredBrowserChatDockPlacement(): HostTerminalDockPlacement | null {
+  return readStoredDockPlacement(BROWSER_CHAT_DOCK_PLACEMENT_STORAGE_KEY)
+}
+
 export function readStoredTodoDockPlacement(): HostTerminalDockPlacement | null {
   return readStoredDockPlacement(TODO_DOCK_PLACEMENT_STORAGE_KEY)
 }
@@ -268,6 +312,10 @@ export function readStoredSqliteDockPlacement(): HostTerminalDockPlacement | nul
 
 export function writeStoredHostTerminalDockPlacement(placement: HostTerminalDockPlacement): void {
   writeStoredDockPlacement(HOST_TERMINAL_DOCK_PLACEMENT_STORAGE_KEY, placement)
+}
+
+export function writeStoredBrowserChatDockPlacement(placement: HostTerminalDockPlacement): void {
+  writeStoredDockPlacement(BROWSER_CHAT_DOCK_PLACEMENT_STORAGE_KEY, placement)
 }
 
 export function writeStoredTodoDockPlacement(placement: HostTerminalDockPlacement): void {

@@ -34,6 +34,10 @@ export type HostCodexComposerController = {
 
 export type HostCodexComposerPaneOptions<T extends HostCodexComposerController> = {
   controller: T
+  title?: string
+  minimizeLabel?: string
+  voiceKey?: string
+  nodeName?: string
   status(controller: T): string
   canSubmit(controller: T): boolean
   submit(controller: T): void
@@ -61,7 +65,7 @@ export class HostTerminalCodexComposerPane<T extends HostCodexComposerController
 
   constructor(opts: HostCodexComposerPaneOptions<T>) {
     super({bgColor: null, borderColor: null})
-    this.node.name = "InterpreterHostCodexComposerPane"
+    this.node.name = opts.nodeName ?? "InterpreterHostCodexComposerPane"
     this.#opts = opts
   }
 
@@ -97,7 +101,7 @@ export class HostTerminalCodexComposerPane<T extends HostCodexComposerController
         label: "Голосовой ввод",
         width: buttonSize,
         render: (rect) => ButtonVoice(this, rect.x, rect.y, rect.w, {
-          key: "interpreter-codex-message-voice",
+          key: this.#opts.voiceKey ?? "interpreter-codex-message-voice",
           snapshot: this.#opts.voiceSnapshot(),
           soundPulse: this.#opts.voiceSoundPulse(),
           tooltip: "Голосовой ввод",
@@ -106,10 +110,10 @@ export class HostTerminalCodexComposerPane<T extends HostCodexComposerController
       })
     }
     HudWindow(this, 0, 0, w, h, {
-      title: "Codex message",
+      title: this.#opts.title ?? "Codex message",
       subtitle: status,
       onMinimize: () => this.#opts.setDocked(true),
-      minimizeLabel: "Свернуть Codex",
+      minimizeLabel: this.#opts.minimizeLabel ?? "Свернуть Codex",
       rightActions,
       active: this.active,
       fill: new Color(0.04, 0.06, 0.09, 0.52),

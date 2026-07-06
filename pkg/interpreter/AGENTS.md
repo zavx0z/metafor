@@ -467,6 +467,13 @@ endpoints только для stream/diagnostics. Если пользовате�
 переход, вызывай `space.*` tools; если просит действие исполнения, вызывай
 `process.*` tools через `POST /tools`.
 
+Codex message и Browser Agent message - разные transport:
+
+- Codex message отправляет текст, голос и image attachment paths в host PTY/Codex CLI через terminal transport.
+- Browser Agent message отправляет текст, голос и image attachment paths в уже открытый browser chat через Chrome DevTools DOM bridge.
+- MVP Browser Agent Chat сейчас завязан на текущий Qwen chat (`https://chat.qwen.ai/`) и доступен через `browser_chat.*` tools в `POST /tools`.
+- MVP Browser Agent Chat не парсит tool calls, не запускает автономный loop/planner и не выполняет tools из ответа Qwen; ответ Qwen только читается из DOM и показывается как chat text.
+
 ## UI Architecture
 
 `web/main.ts` - browser host/controller layer. Он создает `UiRuntime`, maps processes/modules to `UIDisplay` и wires process-scoped snapshots to panes.

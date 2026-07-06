@@ -53,6 +53,7 @@ import {sqliteDatabaseFingerprint, sqliteDatabaseInputPath, sqliteDatabasePayloa
 import {interpreterRoutes, interpreterTools} from "./routes.ts"
 import {parseInterpreterToolRequest, type InterpreterToolUse} from "./tools.ts"
 import {handleBrowserHostRoute} from "./browser-host.ts"
+import {runBrowserChatToolUse} from "./browser-chat.ts"
 import {handleChromeDevtoolsRoute} from "./chrome-devtools.ts"
 import {remoteDesktopLifecycleCommandResponse, remoteDesktopLifecycleStatusResponse} from "./remote-desktop-lifecycle.ts"
 import {restartInspectOptionsFromParams} from "./restart-options.ts"
@@ -2509,6 +2510,17 @@ async function runHostToolUse(
   if (devtoolsRoute !== null) return await toolResultFromNullableResponse(base, await handleChromeDevtoolsRoute(toolRequest(devtoolsRoute.path, toolUse.parameters, devtoolsRoute.method), devtoolsRoute.method, devtoolsRoute.path), `${toolUse.recipientName} failed`)
   const browserRoute = browserHostRouteForTool(toolUse.recipientName)
   if (browserRoute !== null) return await toolResultFromNullableResponse(base, await handleBrowserHostRoute(toolRequest(browserRoute.path, toolUse.parameters, browserRoute.method), browserRoute.method, browserRoute.path), `${toolUse.recipientName} failed`)
+  const browserChat = await runBrowserChatToolUse(toolUse.recipientName, toolUse.parameters)
+  if (browserChat !== null) {
+    const ok = browserChat["ok"] === true
+    return {
+      ...base,
+      ok,
+      status: ok ? 200 : 400,
+      result: browserChat,
+      ...(ok ? {} : {error: asString(browserChat["error"]) ?? `${toolUse.recipientName} failed`}),
+    }
+  }
   const remoteLifecycle = remoteDesktopLifecycleRouteForTool(toolUse.recipientName, toolUse.parameters)
   if (remoteLifecycle !== null) {
     const response = remoteLifecycle.method === "GET"

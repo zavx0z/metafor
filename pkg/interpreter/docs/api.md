@@ -355,6 +355,36 @@ devtools.disable          # {targetUrl?|targetId?|all?}
 devtools.evaluate         # {expression, targetUrl?, awaitPromise?, returnByValue?}
 ```
 
+## Browser Agent Chat
+
+`browser_chat.*` tools - минимальный transport для Browser Agent message. Он
+работает через тот же server Chrome CDP/DevTools слой, но не является заменой
+`devtools.*`: tools чата вставляют сообщение в уже открытый Qwen chat и читают
+ответ из DOM.
+
+```text
+browser_chat.send      # {message|text, targetId?, targetUrl?, targetTitle?, urlContains?}
+browser_chat.read      # {targetId?, targetUrl?, targetTitle?, urlContains?}
+browser_chat.wait      # {targetId?, targetUrl?, targetTitle?, urlContains?, previousAssistantText?, afterMessageCount?, intervalMs?, stableTicks?, timeoutMs?}
+browser_chat.exchange  # {message|text, targetId?, targetUrl?, targetTitle?, urlContains?, previousAssistantText?, afterMessageCount?, intervalMs?, stableTicks?, timeoutMs?}
+```
+
+По умолчанию target выбирается по `urlContains:"chat.qwen.ai"`. `send` ищет
+Qwen composer textarea/contenteditable, вставляет текст, диспатчит input/change
+events и нажимает send. `read` возвращает последние DOM-сообщения и
+`lastAssistantText`; `wait` считает ответ завершенным, когда assistant text
+стабилен несколько polling ticks. Чтобы не принять старый ответ за новый,
+`send` возвращает `previousAssistantText` и `previousMessageCount`, а
+`exchange` передает их в `wait` как baseline. UI Browser Agent Chat использует
+тот же baseline для streaming polling.
+
+Codex message и Browser Agent message используют общий UI composer flow для
+text/voice/image attachments, но transport разный: Codex message идет в
+host PTY/Codex CLI, Browser Agent message идет в remote browser chat. В MVP
+image attachments не загружаются в Qwen UI как файлы: composer добавляет пути к
+загруженным изображениям в текст сообщения. MVP не парсит tool calls, не
+запускает agent loop/planner и не выполняет tools по ответу Qwen.
+
 `devtools.console` включает capture событий `Runtime.consoleAPICalled`,
 `Runtime.exceptionThrown`, `Log.entryAdded` и `Network.loadingFailed` и хранит
 bounded buffer последних событий. Для визуальных ошибок в WebApp сначала
@@ -637,7 +667,7 @@ POST /tools        # JSON {tool_uses:[{recipient_name, parameters}]}
 Для process-scoped tools передавай `parameters.processId`. Поддержанный набор tools:
 `source.read`, `source.read_many`, `source.locate`, `source.open`,
 `source.openSelection`, `source.write`, `source.apply_patch`, `process.*`, `breakpoint.*`, `hud.*`,
-`todo.*`, `sqlite.*`, `git.*`, `devtools.*`, `browser.*`, `remote_desktop.*`, `host.*`.
+`todo.*`, `sqlite.*`, `git.*`, `devtools.*`, `browser.*`, `browser_chat.*`, `remote_desktop.*`, `host.*`.
 
 `source.open` и `source.openSelection` внутри API вызывают UI-host команду
 открытия исходника для указанного process. `source.read` остается чистым

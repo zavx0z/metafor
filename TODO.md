@@ -22,3 +22,4 @@
 - [ ] Уточнить структуру process action.
 
 ## 5. Interpreter / HUD / Space
+- [100] Сделать MVP Browser Agent Chat для Qwen в interpreter HUD.

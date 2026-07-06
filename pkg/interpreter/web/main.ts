@@ -170,6 +170,15 @@ import {
   HOST_TERMINAL_CODEX_COMPOSER_GAP,
 } from "./codex-composer-pane.ts"
 import {
+  BrowserChatPane,
+  BROWSER_CHAT_PANE_DEFAULT_H,
+  BROWSER_CHAT_PANE_DEFAULT_W,
+  BROWSER_CHAT_PANE_GAP,
+  BROWSER_CHAT_PANE_MIN_H,
+  BROWSER_CHAT_PANE_MIN_W,
+  type BrowserChatPaneMessage,
+} from "./browser-chat-pane.ts"
+import {
   HOST_TERMINAL_SESSION_STORAGE_KEY,
   NETWORK_TERMINAL_SESSION_STORAGE_KEY,
   readStoredHostTerminalSessionId,
@@ -178,6 +187,10 @@ import {
   storeHostTerminalHudRect,
   readStoredHostCodexComposerRect,
   storeHostCodexComposerRect,
+  readStoredBrowserChatHudRect,
+  storeBrowserChatHudRect,
+  readStoredBrowserChatComposerRect,
+  storeBrowserChatComposerRect,
   readStoredVoiceSettingsRect,
   storeVoiceSettingsRect,
   readStoredNetworkTerminalHudRect,
@@ -190,6 +203,8 @@ import {
   storeSqliteHudRect,
   readStoredHostTerminalHudDocked,
   writeStoredHostTerminalHudDocked,
+  readStoredBrowserChatHudDocked,
+  writeStoredBrowserChatHudDocked,
   readStoredNetworkTerminalHudDocked,
   writeStoredNetworkTerminalHudDocked,
   readStoredNetworkStatusAutoRefreshEnabled,
@@ -207,9 +222,11 @@ import {
   readStoredAndroidDockPlacement,
   writeStoredAndroidDockPlacement,
   readStoredHostTerminalDockPlacement,
+  readStoredBrowserChatDockPlacement,
   readStoredTodoDockPlacement,
   readStoredSqliteDockPlacement,
   writeStoredHostTerminalDockPlacement,
+  writeStoredBrowserChatDockPlacement,
   writeStoredTodoDockPlacement,
   writeStoredSqliteDockPlacement,
   type HostTerminalDockPlacement,
@@ -649,9 +666,39 @@ type HostTerminalController = {
   agentNotifyTimer: number | null
 }
 
+type BrowserChatMessage = BrowserChatPaneMessage & {
+  id: string
+  createdAt: number
+}
+
+type BrowserChatController = {
+  chatPane: BrowserChatPane
+  composer: HostTerminalCodexComposerPane<BrowserChatController>
+  editor: EditorPane
+  codexDraft: string
+  codexAttachments: CodexComposerAttachment[]
+  codexAttachmentUploadInFlight: boolean
+  codexSubmitAfterAttachmentUpload: boolean
+  codexDropActive: boolean
+  codexEditorSyncing: boolean
+  status: string
+  statusTimer: number | null
+  voiceComposerBaseDraft: string | null
+  voiceComposerGeneratedDraft: string
+  voiceComposerEdited: boolean
+  messages: BrowserChatMessage[]
+  sendInFlight: boolean
+  readTimer: number | null
+  readStartedAt: number
+  readStableTicks: number
+  readAfterMessageCount: number | null
+  lastAssistantText: string
+}
+
 type VoiceInputTarget =
   | {kind: "module"; controller: ModuleDisplayController}
   | {kind: "host"; controller: HostTerminalController}
+  | {kind: "browser-chat"; controller: BrowserChatController}
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string): T => {
   const element = document.getElementById(id)
@@ -704,6 +751,9 @@ const HOST_TERMINAL_HUD_PANEL_MIN_H = 160
 const HOST_TERMINAL_DOCK_SHORT = 32
 const HOST_TERMINAL_DOCK_LONG = 112
 const HOST_TERMINAL_DOCK_MARGIN = 8
+const BROWSER_CHAT_DOCK_SHORT = 32
+const BROWSER_CHAT_DOCK_LONG = 120
+const BROWSER_CHAT_DOCK_MARGIN = 8
 const HOST_TERMINAL_DOCK_LONG_PRESS_MS = 320
 const HOST_TERMINAL_DOCK_DRAG_THRESHOLD_PX = 6
 const ANDROID_HUD_MIN_W = 300
@@ -758,6 +808,7 @@ type NetworkServiceKey = NetworkWatchServiceKey
 
 const DEFAULT_HOST_TERMINAL_HUD_RECT: UiSurfaceRect = {x: 643, y: 60, w: 755, h: 943}
 const DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "top", offset: 858}
+const DEFAULT_BROWSER_CHAT_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "right", offset: 220}
 const DEFAULT_NETWORK_TERMINAL_HUD_RECT: UiSurfaceRect = {x: 24, y: 520, w: 1080, h: 560}
 const NETWORK_DISPLAY_COLUMN_GAP = 8
 const NETWORK_DISPLAY_COLUMN_MIN_W = 920
@@ -794,7 +845,9 @@ let sqliteHudPane: SqliteHudFramePane | null = null
 let sqliteDockPane: HostTerminalDockPane | null = null
 let hostTerminal: HostTerminalController | null = null
 let networkHostTerminal: HostTerminalController | null = null
+let browserChat: BrowserChatController | null = null
 let hostTerminalDockPane: HostTerminalDockPane | null = null
+let browserChatDockPane: HostTerminalDockPane | null = null
 let networkDisplayControlsPane: NetworkWatchPane | null = null
 let networkDisplayTerminal: TerminalPane | null = null
 let networkDisplayInstalled = false
@@ -818,6 +871,8 @@ let hostTerminalStatusLabelForLayout = t("terminalConnecting")
 let hostTerminalHudDocked = readStoredHostTerminalHudDocked()
 let hostTerminalDockPlacement: HostTerminalDockPlacement | null = readStoredHostTerminalDockPlacement() ?? DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT
 let hostTerminalHudRectPreview: UiSurfaceRect | null = null
+let browserChatHudDocked = readStoredBrowserChatHudDocked()
+let browserChatDockPlacement: HostTerminalDockPlacement | null = readStoredBrowserChatDockPlacement() ?? DEFAULT_BROWSER_CHAT_DOCK_PLACEMENT
 let networkHostTerminalHudDocked = readStoredNetworkTerminalHudDocked()
 let networkHostTerminalHudRectPreview: UiSurfaceRect | null = null
 let networkServiceSwitches: Record<NetworkServiceKey, boolean> = {tls: true, redirect: true}
@@ -880,6 +935,7 @@ let voiceServiceCheckInFlight = false
 let voiceServiceCheckTimer: number | null = null
 let hostTerminalUnloadInstalled = false
 let hostCodexComposerDragHandlersInstalled = false
+let browserChatComposerDragHandlersInstalled = false
 let hudNotificationAudioContext: AudioContext | null = null
 let remoteDesktopAudioContext: AudioContext | null = null
 let remoteDesktopAudioSource: MediaStreamAudioSourceNode | MediaElementAudioSourceNode | null = null
@@ -2473,7 +2529,10 @@ async function initEngine(): Promise<void> {
       onToggle: () => void toggleVoiceInput(),
       onMove: storeVoiceSettingsRectAndRelayout,
       settingsPresentation: "panel",
-      onPulseFrame: () => hostTerminal?.codexComposer.requestRender(),
+      onPulseFrame: () => {
+        hostTerminal?.codexComposer.requestRender()
+        browserChat?.composer.requestRender()
+      },
       onSettingsOpenChange: handleVoiceSettingsOpenChange,
       settings: () => ({
         title: t("voiceInput"),
@@ -2614,6 +2673,11 @@ function installEnginePanes(): void {
   uiCanvas.addHudSurface(host.codexEditor, hostCodexEditorRect, {windowId: "hud:codex", zIndex: 1})
   if (host.socket === null) connectHostTerminal(host)
   installHostCodexComposerDragHandlers()
+  const chat = ensureBrowserChatController()
+  uiCanvas.addHudSurface(chat.chatPane, browserChatPaneRect, {windowId: "hud:browser-chat"})
+  uiCanvas.addHudSurface(chat.composer, browserChatComposerRect, {windowId: "hud:browser-chat-composer"})
+  uiCanvas.addHudSurface(chat.editor, browserChatEditorRect, {windowId: "hud:browser-chat-composer", zIndex: 1})
+  installBrowserChatComposerDragHandlers()
   if (androidPane !== null) {
     uiCanvas.addHudSurface(androidPane, androidHudRect, {windowId: "hud:android"})
     connectAndroidRtc()
@@ -2651,6 +2715,17 @@ function installEnginePanes(): void {
     isTouchPointerEvent,
   })
   uiCanvas.addHudSurface(hostTerminalDockPane, hostTerminalDockRect, {zIndex: HUD_LAYER_TOP})
+  browserChatDockPane ??= new HostTerminalDockPane({
+    key: "browser-chat-dock-restore",
+    label: "Browser",
+    tooltip: "Browser Agent Chat",
+    icon: uiIcons.codex,
+    edge: currentBrowserChatDockEdge,
+    restore: () => setBrowserChatHudDocked(false),
+    moveTo: (point, bounds) => setBrowserChatDockPlacement(browserChatDockPlacementFromPoint(point, bounds)),
+    isTouchPointerEvent,
+  })
+  uiCanvas.addHudSurface(browserChatDockPane, browserChatDockRect, {zIndex: HUD_LAYER_TOP})
   sqliteDockPane ??= new HostTerminalDockPane({
     key: "sqlite-dock-restore",
     label: "SQLite",
@@ -3506,7 +3581,7 @@ function agentSignalIcon(enabled: boolean): string {
 }
 
 function setVoiceActiveTarget(target: VoiceInputTarget): void {
-  if (target.kind !== "host" || target.controller !== hostTerminal) return
+  if (target.kind === "host" && target.controller !== hostTerminal) return
   const changed = voiceActiveTarget?.kind !== target.kind || voiceActiveTarget.controller !== target.controller
   if (changed) clearVoicePartialPreview()
   voiceActiveTarget = target
@@ -3636,6 +3711,10 @@ function focusVoiceTarget(): void {
   if (target === null) return
   if (target.kind === "host" && target.controller === hostTerminal) {
     focusHostCodexComposer(target.controller)
+    return
+  }
+  if (target.kind === "browser-chat") {
+    focusBrowserChatComposer(target.controller)
     return
   }
   const terminal = target.kind === "host" ? target.controller.hudTerminal : target.controller.terminal
@@ -3787,6 +3866,11 @@ function showVoicePartialPreview(target: VoiceInputTarget, text: string): void {
     target.controller.codexComposer.requestRender()
     return
   }
+  if (target.kind === "browser-chat") {
+    applyBrowserChatVoiceComposerText(target.controller, text)
+    target.controller.composer.requestRender()
+    return
+  }
   for (const terminal of voicePreviewTerminals(target)) terminal.setInputPreview(text)
 }
 
@@ -3795,6 +3879,8 @@ function clearVoicePartialPreview(): void {
   if (target === null) return
   if (target.kind === "host" && target.controller === hostTerminal) {
     target.controller.codexComposer.requestRender()
+  } else if (target.kind === "browser-chat") {
+    target.controller.composer.requestRender()
   } else {
     for (const terminal of voicePreviewTerminals(target)) terminal.clearInputPreview()
   }
@@ -3819,6 +3905,7 @@ function sameVoiceInputTarget(a: VoiceInputTarget, b: VoiceInputTarget): boolean
 }
 
 function voicePreviewTerminals(target: VoiceInputTarget): TerminalPane[] {
+  if (target.kind === "browser-chat") return []
   if (target.kind === "host") return hostTerminalPanes(target.controller)
   return [target.controller.terminal]
 }
@@ -3865,6 +3952,8 @@ function preserveVoicePartialAsTerminalInput(): boolean {
     return true
   }
 
+  if (target.kind === "browser-chat") return stageBrowserChatDraft(target.controller, text, {focusComposer: false})
+
   if (!voiceTargetCanAcceptInput(target)) return false
   return stageHostCodexDraft(target.controller, text, {focusComposer: false})
 }
@@ -3897,9 +3986,11 @@ function flushVoiceAutoSendBuffer(): boolean {
 
   const autoSendEnabled = readVoiceAutoSendEnabled()
   const hostComposerEdited = target.kind === "host" && target.controller === hostTerminal && target.controller.voiceComposerEdited
+  const browserChatComposerEdited = target.kind === "browser-chat" && target.controller.voiceComposerEdited
   let handled: boolean
-  if (mode !== "draft" && autoSendEnabled && !hostComposerEdited) {
+  if (mode !== "draft" && autoSendEnabled && !hostComposerEdited && !browserChatComposerEdited) {
     if (target.kind === "host" && target.controller === hostTerminal) restoreHostVoiceComposerBaseDraft(target.controller)
+    if (target.kind === "browser-chat") restoreBrowserChatVoiceComposerBaseDraft(target.controller)
     handled = insertVoiceMessageForTarget(target, text)
   } else {
     handled = stageVoiceMessagesForTarget(target, [text], {focusHostComposer: !autoSendEnabled || mode === "draft"})
@@ -3921,6 +4012,17 @@ function voicePreviewWithBufferedInput(target: VoiceInputTarget, partialText: st
 function stageVoiceMessagesForTarget(target: VoiceInputTarget, messages: readonly string[], opts: {focusHostComposer?: boolean} = {}): boolean {
   const text = cleanupVoiceInputText(messages.join(" "))
   if (text.length === 0) return false
+  if (target.kind === "browser-chat") {
+    if (!voiceTargetCanAcceptInput(target)) {
+      flashVoiceHudError(t("voiceNoActiveInput"))
+      return false
+    }
+    return stageBrowserChatDraft(
+      target.controller,
+      text,
+      opts.focusHostComposer === undefined ? {} : {focusComposer: opts.focusHostComposer},
+    )
+  }
   if (target.kind === "host") {
     if (!voiceTargetCanAcceptInput(target)) {
       flashVoiceHudError(t("voiceNoActiveInput"))
@@ -3951,6 +4053,16 @@ function stageVoiceMessagesForTarget(target: VoiceInputTarget, messages: readonl
 }
 
 function insertVoiceMessageForTarget(target: VoiceInputTarget, text: string): boolean {
+  if (target.kind === "browser-chat") {
+    if (!voiceTargetCanAcceptInput(target)) {
+      flashVoiceHudError(t("voiceNoActiveInput"))
+      return false
+    }
+    if (!sendBrowserChatVoiceSubmit(target.controller, text)) return false
+    recordVoiceAutoEnter()
+    updateVoiceHud(undefined, `${t("voiceInserted")}: ${text}`)
+    return true
+  }
   if (target.kind === "host") {
     if (!voiceTargetCanAcceptInput(target)) {
       flashVoiceHudError(t("voiceNoActiveInput"))
@@ -4011,6 +4123,23 @@ function sendHostTerminalVoiceSubmit(controller: HostTerminalController, text: s
     : `${body}\r`
   sendHostTerminalInput(controller, payload, "api", body)
   return true
+}
+
+function sendBrowserChatVoiceSubmit(controller: BrowserChatController, text: string): boolean {
+  const body = sanitizeHostTerminalVoiceInput(text)
+  if (body.length === 0) return false
+  if (controller.codexAttachmentUploadInFlight) {
+    controller.codexSubmitAfterAttachmentUpload = true
+    return stageBrowserChatDraft(controller, body, {focusComposer: false})
+  }
+  const baseDraft = controller.voiceComposerEdited ? controller.codexDraft : (controller.voiceComposerBaseDraft ?? controller.codexDraft)
+  const nextDraft = mergeCodexComposerDraft(baseDraft, body)
+  clearVoicePartialPreviewForTarget({kind: "browser-chat", controller})
+  discardVoiceAutoSendBuffer()
+  voiceNextFlushMode = "auto"
+  resetBrowserChatVoiceComposerDraftTracking(controller)
+  setBrowserChatDraft(controller, nextDraft)
+  return submitBrowserChatComposer(controller, {flushPendingInput: false, focusAfterSubmit: false})
 }
 
 function hostCodexComposerStatus(controller: HostTerminalController): string {
@@ -4250,6 +4379,370 @@ function setHostCodexDropActive(controller: HostTerminalController, active: bool
   if (controller.codexDropActive === active) return
   controller.codexDropActive = active
   controller.codexComposer.requestRender()
+}
+
+function browserChatComposerStatus(controller: BrowserChatController): string {
+  if (controller.status) return controller.status
+  if (voiceActiveTarget?.kind === "browser-chat" && voiceActiveTarget.controller === controller && (voiceHudStatus === "listening" || voiceHudStatus === "committing")) {
+    return voiceStatusLabel(voiceHudStatus)
+  }
+  if (controller.sendInFlight) return "sending"
+  if (controller.readStartedAt > 0) return "reading Qwen"
+  return "ready"
+}
+
+function browserChatComposerCanSubmit(controller: BrowserChatController): boolean {
+  return !controller.sendInFlight
+    && !controller.codexAttachmentUploadInFlight
+    && codexComposerMessage(controller.codexDraft, controller.codexAttachments).length > 0
+}
+
+function setBrowserChatDraftFromEditor(controller: BrowserChatController, value: string): void {
+  if (controller.codexEditorSyncing) return
+  if (controller.codexDraft === value) return
+  if (controller.voiceComposerBaseDraft !== null && value !== controller.voiceComposerGeneratedDraft) {
+    controller.voiceComposerEdited = true
+  }
+  controller.codexDraft = value
+  controller.composer.requestRender()
+}
+
+function setBrowserChatDraft(controller: BrowserChatController, value: string): void {
+  if (controller.codexDraft === value) return
+  controller.codexDraft = value
+  syncBrowserChatEditor(controller)
+  controller.composer.requestRender()
+}
+
+function flushBrowserChatDraftFromEditor(controller: BrowserChatController): void {
+  if (controller.codexEditorSyncing) return
+  const text = controller.editor.getText()
+  if (text !== controller.codexDraft) setBrowserChatDraftFromEditor(controller, text)
+}
+
+function syncBrowserChatEditor(controller: BrowserChatController): void {
+  if (controller.codexEditorSyncing || controller.editor.getText() === controller.codexDraft) return
+  controller.codexEditorSyncing = true
+  try {
+    controller.editor.setText(controller.codexDraft)
+    const lines = controller.codexDraft.split("\n")
+    const lastLine = Math.max(0, lines.length - 1)
+    controller.editor.setCursor(lastLine, lines[lastLine]?.length ?? 0, {scroll: "nearest"})
+  } finally {
+    controller.codexEditorSyncing = false
+  }
+}
+
+function flushBrowserChatComposerPendingInput(controller: BrowserChatController): void {
+  flushBrowserChatDraftFromEditor(controller)
+  clearVoicePartialPreviewForTarget({kind: "browser-chat", controller}, "preserve")
+  flushBrowserChatDraftFromEditor(controller)
+}
+
+function submitBrowserChatComposer(controller: BrowserChatController, options: {flushPendingInput?: boolean; focusAfterSubmit?: boolean} = {}): boolean {
+  if (options.flushPendingInput ?? true) flushBrowserChatComposerPendingInput(controller)
+  if (controller.codexAttachmentUploadInFlight) {
+    controller.codexSubmitAfterAttachmentUpload = true
+    setBrowserChatStatus(controller, "waiting upload", 2400)
+    return false
+  }
+  if (!browserChatComposerCanSubmit(controller)) return false
+  const message = codexComposerMessage(controller.codexDraft, controller.codexAttachments)
+  clearVoicePartialPreviewForTarget({kind: "browser-chat", controller})
+  discardVoiceAutoSendBuffer()
+  voiceNextFlushMode = "auto"
+  addBrowserChatMessage(controller, {role: "user", text: message})
+  ensureBrowserChatAssistantMessage(controller)
+  controller.sendInFlight = true
+  setBrowserChatStatus(controller, "sending to Qwen", 6000)
+  void sendBrowserChatMessage(controller, message, options.focusAfterSubmit ?? true)
+  return true
+}
+
+async function sendBrowserChatMessage(controller: BrowserChatController, message: string, focusAfterSubmit: boolean): Promise<void> {
+  try {
+    const tool = await runHostTool("browser_chat.send", {message, urlContains: "chat.qwen.ai"})
+    const result = hostToolResultObject(tool)
+    if (tool.ok !== true || result["ok"] !== true) throw new Error(tool.error ?? stringValue(result["error"]) ?? "browser_chat.send failed")
+    const previousAssistantText = stringValue(result["previousAssistantText"]) ?? ""
+    const previousMessageCount = numberValue(result["previousMessageCount"])
+    resetBrowserChatVoiceComposerDraftTracking(controller)
+    setBrowserChatDraft(controller, "")
+    controller.codexAttachments = []
+    setBrowserChatStatus(controller, "sent", 1400)
+    if (focusAfterSubmit) focusBrowserChatComposer(controller)
+    startBrowserChatPolling(controller, previousAssistantText, previousMessageCount)
+  } catch (error) {
+    appendBrowserChatSystemMessage(controller, error instanceof Error ? error.message : String(error))
+    setBrowserChatStatus(controller, "send failed", 5000)
+  } finally {
+    controller.sendInFlight = false
+    controller.composer.requestRender()
+    controller.chatPane.requestRender()
+  }
+}
+
+function startBrowserChatPolling(controller: BrowserChatController, previousAssistantText: string, afterMessageCount: number | null): void {
+  stopBrowserChatPolling(controller, false)
+  controller.readStartedAt = performance.now()
+  controller.readStableTicks = 0
+  controller.readAfterMessageCount = afterMessageCount
+  controller.lastAssistantText = previousAssistantText
+  scheduleBrowserChatRead(controller, 260)
+}
+
+function scheduleBrowserChatRead(controller: BrowserChatController, delayMs = 650): void {
+  if (controller.readTimer !== null) window.clearTimeout(controller.readTimer)
+  controller.readTimer = window.setTimeout(() => {
+    controller.readTimer = null
+    void pollBrowserChatRead(controller)
+  }, delayMs)
+}
+
+async function pollBrowserChatRead(controller: BrowserChatController): Promise<void> {
+  if (controller.readStartedAt <= 0) return
+  try {
+    const tool = await runHostTool("browser_chat.read", {urlContains: "chat.qwen.ai"})
+    const result = hostToolResultObject(tool)
+    if (tool.ok !== true || result["ok"] !== true) throw new Error(tool.error ?? stringValue(result["error"]) ?? "browser_chat.read failed")
+    const text = stringValue(result["lastAssistantText"]) ?? ""
+    const messageCount = numberValue(result["messageCount"]) ?? arrayLengthValue(result["messages"])
+    const afterBaseline = controller.readAfterMessageCount === null
+      || messageCount >= controller.readAfterMessageCount + 2
+      || (messageCount > controller.readAfterMessageCount && text !== controller.lastAssistantText)
+    if (text.length > 0 && afterBaseline) {
+      if (text === controller.lastAssistantText) controller.readStableTicks += 1
+      else controller.readStableTicks = 0
+      controller.lastAssistantText = text
+      updateBrowserChatAssistantMessage(controller, text, true)
+    }
+    if (text.length > 0 && afterBaseline && controller.readStableTicks >= 3) {
+      updateBrowserChatAssistantMessage(controller, text, false)
+      stopBrowserChatPolling(controller, true)
+      setBrowserChatStatus(controller, "ready", 1200)
+      return
+    }
+    if (performance.now() - controller.readStartedAt > 120_000) {
+      stopBrowserChatPolling(controller, true)
+      setBrowserChatStatus(controller, "read timeout", 5000)
+      return
+    }
+  } catch (error) {
+    appendBrowserChatSystemMessage(controller, error instanceof Error ? error.message : String(error))
+    stopBrowserChatPolling(controller, true)
+    setBrowserChatStatus(controller, "read failed", 5000)
+    return
+  }
+  scheduleBrowserChatRead(controller)
+}
+
+function stopBrowserChatPolling(controller: BrowserChatController, render: boolean): void {
+  if (controller.readTimer !== null) {
+    window.clearTimeout(controller.readTimer)
+    controller.readTimer = null
+  }
+  controller.readStartedAt = 0
+  controller.readStableTicks = 0
+  controller.readAfterMessageCount = null
+  if (render) {
+    controller.chatPane.requestRender()
+    controller.composer.requestRender()
+  }
+}
+
+function addBrowserChatMessage(controller: BrowserChatController, message: Omit<BrowserChatMessage, "id" | "createdAt">): BrowserChatMessage {
+  const next: BrowserChatMessage = {
+    id: crypto.randomUUID(),
+    createdAt: Date.now(),
+    ...message,
+  }
+  controller.messages.push(next)
+  if (controller.messages.length > 80) controller.messages.splice(0, controller.messages.length - 80)
+  controller.chatPane.requestRender()
+  return next
+}
+
+function ensureBrowserChatAssistantMessage(controller: BrowserChatController): BrowserChatMessage {
+  const last = controller.messages[controller.messages.length - 1]
+  if (last?.role === "assistant" && last.streaming === true) return last
+  return addBrowserChatMessage(controller, {role: "assistant", text: "", streaming: true})
+}
+
+function updateBrowserChatAssistantMessage(controller: BrowserChatController, text: string, streaming: boolean): void {
+  const message = ensureBrowserChatAssistantMessage(controller)
+  message.text = text
+  message.streaming = streaming
+  controller.chatPane.requestRender()
+}
+
+function appendBrowserChatSystemMessage(controller: BrowserChatController, text: string): void {
+  addBrowserChatMessage(controller, {role: "system", text})
+}
+
+function stageBrowserChatDraft(controller: BrowserChatController, text: string, opts: {focusComposer?: boolean} = {}): boolean {
+  const body = sanitizeHostTerminalVoiceInput(text)
+  if (body.length === 0) return false
+  clearVoicePartialPreviewForTarget({kind: "browser-chat", controller})
+  const baseDraft = controller.voiceComposerEdited ? controller.codexDraft : (controller.voiceComposerBaseDraft ?? controller.codexDraft)
+  const nextDraft = mergeCodexComposerDraft(baseDraft, body)
+  resetBrowserChatVoiceComposerDraftTracking(controller)
+  setBrowserChatDraft(controller, nextDraft)
+  setBrowserChatStatus(controller, "voice added", 1800)
+  if (opts.focusComposer) focusBrowserChatComposer(controller)
+  controller.composer.requestRender()
+  return true
+}
+
+function applyBrowserChatVoiceComposerText(controller: BrowserChatController, text: string): boolean {
+  const body = sanitizeHostTerminalVoiceInput(text)
+  if (body.length === 0) return false
+  if (controller.voiceComposerBaseDraft === null) {
+    controller.voiceComposerBaseDraft = controller.codexDraft
+    controller.voiceComposerGeneratedDraft = controller.codexDraft
+  }
+  if (controller.voiceComposerEdited) return true
+  const nextDraft = mergeCodexComposerDraft(controller.voiceComposerBaseDraft, body)
+  controller.voiceComposerGeneratedDraft = nextDraft
+  if (controller.codexDraft === nextDraft) return true
+  setBrowserChatDraft(controller, nextDraft)
+  return true
+}
+
+function restoreBrowserChatVoiceComposerBaseDraft(controller: BrowserChatController): void {
+  if (controller.voiceComposerBaseDraft === null) return
+  if (!controller.voiceComposerEdited && controller.codexDraft === controller.voiceComposerGeneratedDraft) {
+    setBrowserChatDraft(controller, controller.voiceComposerBaseDraft)
+  }
+  resetBrowserChatVoiceComposerDraftTracking(controller)
+}
+
+function resetBrowserChatVoiceComposerDraftTracking(controller: BrowserChatController): void {
+  controller.voiceComposerBaseDraft = null
+  controller.voiceComposerGeneratedDraft = ""
+  controller.voiceComposerEdited = false
+}
+
+function focusBrowserChatComposer(controller: BrowserChatController): void {
+  uiCanvas?.setFocused(controller.editor)
+}
+
+function setBrowserChatStatus(controller: BrowserChatController, status: string, ttlMs = 2200): void {
+  if (controller.statusTimer !== null) {
+    window.clearTimeout(controller.statusTimer)
+    controller.statusTimer = null
+  }
+  controller.status = status
+  controller.composer.requestRender()
+  controller.chatPane.requestRender()
+  if (!status) return
+  controller.statusTimer = window.setTimeout(() => {
+    controller.statusTimer = null
+    controller.status = ""
+    controller.composer.requestRender()
+    controller.chatPane.requestRender()
+  }, ttlMs)
+}
+
+function removeBrowserChatAttachment(controller: BrowserChatController, id: string): void {
+  const next = controller.codexAttachments.filter((attachment) => attachment.id !== id)
+  if (next.length === controller.codexAttachments.length) return
+  controller.codexAttachments = next
+  setBrowserChatStatus(controller, next.length > 0 ? `${next.length} attachments` : "")
+  controller.composer.requestRender()
+}
+
+async function chooseBrowserChatImages(controller: BrowserChatController): Promise<void> {
+  flushBrowserChatComposerPendingInput(controller)
+  const files = await pickCodexImageFiles({multiple: true, parent: uiCanvas?.canvas.parentElement ?? document.body})
+  if (files.length === 0) return
+  await attachBrowserChatImages(controller, files)
+}
+
+async function attachBrowserChatImages(controller: BrowserChatController, files: readonly File[]): Promise<void> {
+  if (files.length === 0) {
+    setBrowserChatStatus(controller, "no image")
+    return
+  }
+  setBrowserChatStatus(controller, "uploading image", 6000)
+  controller.codexAttachmentUploadInFlight = true
+  let submitAfterUpload = false
+  try {
+    const uploaded = await uploadCodexAttachments(files)
+    controller.codexAttachments = [...controller.codexAttachments, ...uploaded]
+    setBrowserChatStatus(controller, `${controller.codexAttachments.length} attachments`)
+    focusBrowserChatComposer(controller)
+    submitAfterUpload = controller.codexSubmitAfterAttachmentUpload && controller.codexAttachments.length > 0
+  } catch (error) {
+    setBrowserChatStatus(controller, error instanceof Error ? error.message : String(error), 5000)
+  } finally {
+    controller.codexAttachmentUploadInFlight = false
+    controller.codexSubmitAfterAttachmentUpload = false
+    controller.composer.requestRender()
+  }
+  if (submitAfterUpload) submitBrowserChatComposer(controller)
+}
+
+function installBrowserChatComposerDragHandlers(): void {
+  if (browserChatComposerDragHandlersInstalled) return
+  browserChatComposerDragHandlersInstalled = true
+  document.addEventListener("dragover", handleBrowserChatDragOver, {capture: true})
+  document.addEventListener("drop", (event) => void handleBrowserChatDrop(event), {capture: true})
+  document.addEventListener("dragleave", handleBrowserChatDragLeave, {capture: true})
+}
+
+function handleBrowserChatDragOver(event: DragEvent): void {
+  const controller = browserChat
+  if (controller === null || !dragEventInsideBrowserChatComposer(event)) {
+    if (controller !== null) setBrowserChatDropActive(controller, false)
+    return
+  }
+  event.preventDefault()
+  event.stopPropagation()
+  if (event.dataTransfer !== null) event.dataTransfer.dropEffect = "copy"
+  setBrowserChatDropActive(controller, true)
+}
+
+function handleBrowserChatDragLeave(event: DragEvent): void {
+  const controller = browserChat
+  if (controller === null) return
+  const related = event.relatedTarget
+  if (related instanceof Node && document.contains(related)) return
+  setBrowserChatDropActive(controller, false)
+}
+
+async function handleBrowserChatDrop(event: DragEvent): Promise<void> {
+  const controller = browserChat
+  if (controller === null || !dragEventInsideBrowserChatComposer(event)) return
+  event.preventDefault()
+  event.stopPropagation()
+  setBrowserChatDropActive(controller, false)
+  const files = codexImageDropFiles(event.dataTransfer)
+  await attachBrowserChatImages(controller, files)
+}
+
+function dragEventInsideBrowserChatComposer(event: DragEvent): boolean {
+  const rect = browserChatComposerRect({w: window.innerWidth, h: window.innerHeight})
+  if (rect.visible === false) return false
+  return event.clientX >= rect.x && event.clientX <= rect.x + rect.w
+    && event.clientY >= rect.y && event.clientY <= rect.y + rect.h
+}
+
+function setBrowserChatDropActive(controller: BrowserChatController, active: boolean): void {
+  if (controller.codexDropActive === active) return
+  controller.codexDropActive = active
+  controller.composer.requestRender()
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === "string" ? value : null
+}
+
+function numberValue(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null
+}
+
+function arrayLengthValue(value: unknown): number {
+  return Array.isArray(value) ? value.length : 0
 }
 
 function isAndroidBrowser(): boolean {
@@ -4864,11 +5357,13 @@ function voiceTargetLabel(): string {
   const target = voiceActiveTarget
   if (target === null) return ""
   if (target.kind === "host") return t("voiceTargetHost")
+  if (target.kind === "browser-chat") return "Browser Agent"
   const snapshot = moduleSnapshots.get(target.controller.id)
   return `${t("voiceTargetModule")}: ${snapshot?.label ?? target.controller.id}`
 }
 
 function voiceTargetCanAcceptInput(target: VoiceInputTarget): boolean {
+  if (target.kind === "browser-chat") return !target.controller.sendInFlight
   if (target.kind === "host") {
     return target.controller === hostTerminal
       && target.controller.socket?.readyState === WebSocket.OPEN
@@ -5406,6 +5901,102 @@ function createHostCodexComposerPane(controller: HostTerminalController): HostTe
   })
 }
 
+function createBrowserChatEditor(controller: BrowserChatController): EditorPane {
+  const editor = new EditorPane({
+    path: "browser-agent-message.md",
+    fontPx: 12,
+    linePx: 17,
+    titleFontPx: 11,
+    readOnly: false,
+    showCaret: true,
+    introAnimation: false,
+    showHeader: false,
+    chrome: "none",
+    bodyInsetX: 0,
+    bodyTopGap: 0,
+    bodyBottomInset: 0,
+    indentGuides: false,
+    showLineNumbers: false,
+    wrapLines: true,
+    draggable: false,
+    resizable: false,
+    onChange: (text) => setBrowserChatDraftFromEditor(controller, text),
+    onSave: () => submitBrowserChatComposer(controller),
+    onSubmit: () => submitBrowserChatComposer(controller),
+  })
+  editor.node.name = "InterpreterBrowserChatEditor"
+  editor.setSelectionContextMenuEnabled(true)
+  return editor
+}
+
+function createBrowserChatComposerPane(controller: BrowserChatController): HostTerminalCodexComposerPane<BrowserChatController> {
+  return new HostTerminalCodexComposerPane({
+    controller,
+    title: "Browser Agent message",
+    minimizeLabel: "Dock Browser Agent",
+    voiceKey: "interpreter-browser-agent-message-voice",
+    nodeName: "InterpreterBrowserChatComposerPane",
+    status: browserChatComposerStatus,
+    canSubmit: browserChatComposerCanSubmit,
+    submit: (target) => { submitBrowserChatComposer(target) },
+    chooseImages: (target) => { void chooseBrowserChatImages(target) },
+    setDocked: setBrowserChatHudDocked,
+    voiceSnapshot: voiceButtonSnapshot,
+    voiceSoundPulse: () => voiceHudPane?.soundPulseAmount() ?? 0,
+    onVoiceToggle: (target) => {
+      setVoiceActiveTarget({kind: "browser-chat", controller: target})
+      focusBrowserChatComposer(target)
+      void toggleVoiceInput()
+    },
+    openVoiceSettings,
+    removeAttachment: removeBrowserChatAttachment,
+    clampRect: clampBrowserChatComposerRect,
+    syncEditorToComposer: syncBrowserChatEditorToComposer,
+    storeRect: storeBrowserChatComposerRect,
+    isAndroidBrowser,
+    isTouchPointerEvent,
+  })
+}
+
+function ensureBrowserChatController(): BrowserChatController {
+  if (browserChat !== null) return browserChat
+  const controller = {} as BrowserChatController
+  const chatPane = new BrowserChatPane({
+    messages: () => controller.messages,
+    status: () => browserChatComposerStatus(controller),
+    setDocked: setBrowserChatHudDocked,
+    clampRect: clampBrowserChatPaneRect,
+    storeRect: storeBrowserChatHudRect,
+  })
+  const composer = createBrowserChatComposerPane(controller)
+  const editor = createBrowserChatEditor(controller)
+  Object.assign(controller, {
+    chatPane,
+    composer,
+    editor,
+    codexDraft: "",
+    codexAttachments: [],
+    codexAttachmentUploadInFlight: false,
+    codexSubmitAfterAttachmentUpload: false,
+    codexDropActive: false,
+    codexEditorSyncing: false,
+    status: "",
+    statusTimer: null,
+    voiceComposerBaseDraft: null,
+    voiceComposerGeneratedDraft: "",
+    voiceComposerEdited: false,
+    messages: [],
+    sendInFlight: false,
+    readTimer: null,
+    readStartedAt: 0,
+    readStableTicks: 0,
+    readAfterMessageCount: null,
+    lastAssistantText: "",
+  } satisfies BrowserChatController)
+  browserChat = controller
+  return controller
+}
+
 function ensureHostTerminalController(): HostTerminalController {
   if (hostTerminal !== null) return hostTerminal
   const controller = {} as HostTerminalController
@@ -5906,6 +6497,15 @@ function setHostTerminalDockPlacement(placement: HostTerminalDockPlacement): voi
   relayoutHudSurfaces()
 }
 
+function setBrowserChatDockPlacement(placement: HostTerminalDockPlacement): void {
+  const previous = browserChatDockPlacement
+  if (previous !== null && previous.edge === placement.edge && Math.abs(previous.offset - placement.offset) < 0.5) return
+  browserChatDockPlacement = placement
+  writeStoredBrowserChatDockPlacement(placement)
+  browserChatDockPane?.requestRender()
+  relayoutHudSurfaces()
+}
+
 function setTodoDockPlacement(placement: HostTerminalDockPlacement): void {
   const previous = todoDockPlacement
   if (previous !== null && previous.edge === placement.edge && Math.abs(previous.offset - placement.offset) < 0.5) return
@@ -5950,6 +6550,28 @@ function setHostTerminalHudDocked(docked: boolean): void {
   }
   controller?.hudTerminal.requestRender()
   hostTerminalDockPane?.requestRender()
+  relayoutHudSurfaces()
+}
+
+function setBrowserChatHudDocked(docked: boolean): void {
+  if (browserChatHudDocked === docked) {
+    if (!docked && browserChat !== null) focusBrowserChatComposer(browserChat)
+    return
+  }
+  browserChatHudDocked = docked
+  writeStoredBrowserChatHudDocked(docked)
+  const controller = browserChat
+  if (docked) {
+    if (controller !== null && uiCanvas !== null) {
+      uiCanvas.setFocused(null)
+      uiCanvas.inputProxy?.blur()
+    }
+  } else if (controller !== null) {
+    focusBrowserChatComposer(controller)
+  }
+  controller?.chatPane.requestRender()
+  controller?.composer.requestRender()
+  browserChatDockPane?.requestRender()
   relayoutHudSurfaces()
 }
 
@@ -6058,6 +6680,10 @@ function currentHostTerminalDockEdge(): HudSideTabEdge {
   return hostTerminalDockPlacement?.edge ?? DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT.edge
 }
 
+function currentBrowserChatDockEdge(): HudSideTabEdge {
+  return browserChatDockPlacement?.edge ?? DEFAULT_BROWSER_CHAT_DOCK_PLACEMENT.edge
+}
+
 function currentTodoDockEdge(): HudSideTabEdge {
   return todoDockPlacement?.edge ?? DEFAULT_TODO_DOCK_PLACEMENT.edge
 }
@@ -6089,6 +6715,20 @@ type ProcessToolUseResponse = {
   status?: number
 }
 
+type HostToolUseResponse = ProcessToolUseResponse
+
+async function runHostTool(recipientName: string, parameters: Record<string, unknown>): Promise<HostToolUseResponse> {
+  const response = await fetch(toolsApiPath(), {
+    method: "POST",
+    headers: {"content-type": "application/json"},
+    body: JSON.stringify({tool_uses: [{recipient_name: recipientName, parameters}]}),
+  })
+  const payload = await response.json().catch(() => null) as {tool_uses?: HostToolUseResponse[]; error?: string} | null
+  const tool = payload?.tool_uses?.[0]
+  if (tool !== undefined) return tool
+  return {ok: false, status: response.status, error: payload?.error ?? `host tool failed: ${response.status}`}
+}
+
 async function runProcessTool(processId: string, recipientName: string, parameters: Record<string, unknown>): Promise<ProcessToolUseResponse> {
   const response = await fetch(toolsApiPath(), {
     method: "POST",
@@ -6102,6 +6742,12 @@ async function runProcessTool(processId: string, recipientName: string, paramete
 }
 
 function processToolResultObject(tool: ProcessToolUseResponse): Record<string, unknown> {
+  return typeof tool.result === "object" && tool.result !== null && !Array.isArray(tool.result)
+    ? tool.result as Record<string, unknown>
+    : {}
+}
+
+function hostToolResultObject(tool: HostToolUseResponse): Record<string, unknown> {
   return typeof tool.result === "object" && tool.result !== null && !Array.isArray(tool.result)
     ? tool.result as Record<string, unknown>
     : {}
@@ -8149,6 +8795,96 @@ function syncHostCodexEditorToComposer(controller: HostTerminalController, compo
   uiCanvas.relayout()
 }
 
+function browserChatPaneRect(bounds: {w: number; h: number}): UiSurfaceRect {
+  if (browserChatHudDocked) return hiddenRect()
+  const stored = readStoredBrowserChatHudRect()
+  if (stored !== null) return clampBrowserChatPaneRect(stored, bounds.w, bounds.h)
+  const rectW = Math.min(BROWSER_CHAT_PANE_DEFAULT_W, Math.max(1, bounds.w - 24))
+  const rectH = Math.min(BROWSER_CHAT_PANE_DEFAULT_H, Math.max(1, bounds.h - HOST_TERMINAL_CODEX_COMPOSER_H - 48))
+  return clampBrowserChatPaneRect({
+    x: Math.max(12, bounds.w - rectW - 24),
+    y: 72,
+    w: rectW,
+    h: rectH,
+  }, bounds.w, bounds.h)
+}
+
+function clampBrowserChatPaneRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): UiSurfaceRect {
+  const bw = Math.max(1, Math.round(boundsW))
+  const bh = Math.max(1, Math.round(boundsH))
+  const maxW = Math.max(1, bw - 24)
+  const maxH = Math.max(1, bh - HOST_TERMINAL_CODEX_COMPOSER_H - BROWSER_CHAT_PANE_GAP - 24)
+  const rectW = clampNumber(rect.w, Math.min(BROWSER_CHAT_PANE_MIN_W, maxW), maxW)
+  const rectH = clampNumber(rect.h, Math.min(BROWSER_CHAT_PANE_MIN_H, maxH), maxH)
+  return {
+    x: clampNumber(rect.x, 12, Math.max(12, bw - rectW - 12)),
+    y: clampNumber(rect.y, 12, Math.max(12, bh - rectH - HOST_TERMINAL_CODEX_COMPOSER_H - BROWSER_CHAT_PANE_GAP - 12)),
+    w: rectW,
+    h: rectH,
+  }
+}
+
+function browserChatComposerRect(bounds: {w: number; h: number}): UiSurfaceRect {
+  if (browserChatHudDocked) return hiddenRect()
+  const pane = browserChatPaneRect(bounds)
+  if (pane.visible === false) return hiddenRect()
+  const maxW = Math.max(1, bounds.w - 24)
+  const maxH = Math.max(1, bounds.h - 24)
+  const fallbackW = Math.min(Math.max(1, pane.w), maxW)
+  const fallbackH = Math.min(HOST_TERMINAL_CODEX_COMPOSER_H, maxH)
+  const belowY = pane.y + pane.h + BROWSER_CHAT_PANE_GAP
+  const fallbackY = belowY + fallbackH <= bounds.h - 12
+    ? belowY
+    : Math.max(12, pane.y - fallbackH - BROWSER_CHAT_PANE_GAP)
+  const raw = readStoredBrowserChatComposerRect() ?? {
+    x: pane.x,
+    y: fallbackY,
+    w: fallbackW,
+    h: fallbackH,
+  }
+  return clampBrowserChatComposerRect(raw, bounds.w, bounds.h)
+}
+
+function clampBrowserChatComposerRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): UiSurfaceRect {
+  const bw = Math.max(1, Math.round(boundsW))
+  const bh = Math.max(1, Math.round(boundsH))
+  const maxW = Math.max(1, bw - 24)
+  const maxH = Math.max(1, bh - 24)
+  const rectW = clampNumber(rect.w, Math.min(HOST_TERMINAL_CODEX_COMPOSER_MIN_W, maxW), maxW)
+  const rectH = clampNumber(rect.h, Math.min(HOST_TERMINAL_CODEX_COMPOSER_MIN_H, maxH), maxH)
+  return {
+    x: clampNumber(rect.x, 12, Math.max(12, bw - rectW - 12)),
+    y: clampNumber(rect.y, 12, Math.max(12, bh - rectH - 12)),
+    w: rectW,
+    h: rectH,
+  }
+}
+
+function browserChatEditorRect(bounds: {w: number; h: number}): UiSurfaceRect {
+  return browserChatEditorRectForComposer(browserChatComposerRect(bounds))
+}
+
+function browserChatEditorRectForComposer(composer: UiSurfaceRect): UiSurfaceRect {
+  if (composer.visible === false) return hiddenRect()
+  const layout = hostCodexComposerContentLayout(composer.w, composer.h, (browserChat?.codexAttachments.length ?? 0) > 0)
+  return {
+    x: composer.x + layout.editor.x,
+    y: composer.y + layout.editor.y,
+    w: layout.editor.w,
+    h: layout.editor.h,
+  }
+}
+
+function syncBrowserChatEditorToComposer(controller: BrowserChatController, composer: UiSurfaceRect, mode: "drag" | "release"): void {
+  if (uiCanvas === null) return
+  if (mode === "drag") {
+    uiCanvas.setSurfaceRect(controller.editor, browserChatEditorRectForComposer(composer))
+    return
+  }
+  uiCanvas.clearSurfaceRect(controller.editor)
+  uiCanvas.relayout()
+}
+
 function networkTerminalHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   if (networkHostTerminalHudDocked) return hiddenRect()
   if (networkHostTerminalHudRectPreview !== null) return clampHostTerminalHudRect(networkHostTerminalHudRectPreview, w, h)
@@ -8344,6 +9080,11 @@ function hostTerminalDockRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   return hostTerminalDockRectForPlacement(hostTerminalDockPlacement ?? defaultHostTerminalDockPlacement({w, h}), {w, h})
 }
 
+function browserChatDockRect({w, h}: {w: number; h: number}): UiSurfaceRect {
+  if (!browserChatHudDocked || w < 80 || h < 80) return hiddenRect()
+  return browserChatDockRectForPlacement(browserChatDockPlacement ?? defaultBrowserChatDockPlacement({w, h}), {w, h})
+}
+
 function todoDockRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   if (!todoHudDocked || w < 80 || h < 80) return hiddenRect()
   return todoDockRectForPlacement(todoDockPlacement ?? defaultTodoDockPlacement({w, h}), {w, h})
@@ -8384,6 +9125,40 @@ function hostTerminalDockRectForPlacement(placement: HostTerminalDockPlacement, 
     placement.offset,
     HOST_TERMINAL_DOCK_MARGIN + dockW / 2,
     Math.max(HOST_TERMINAL_DOCK_MARGIN + dockW / 2, bounds.w - HOST_TERMINAL_DOCK_MARGIN - dockW / 2),
+  )
+  return {
+    x: centerX - dockW / 2,
+    y: placement.edge === "top" ? 0 : Math.max(0, bounds.h - dockH),
+    w: dockW,
+    h: dockH,
+  }
+}
+
+function browserChatDockRectForPlacement(placement: HostTerminalDockPlacement, bounds: {w: number; h: number}): UiSurfaceRect {
+  const vertical = placement.edge === "left" || placement.edge === "right"
+  const dockW = vertical
+    ? Math.min(BROWSER_CHAT_DOCK_SHORT, Math.max(1, bounds.w - BROWSER_CHAT_DOCK_MARGIN))
+    : Math.min(BROWSER_CHAT_DOCK_LONG, Math.max(1, bounds.w - BROWSER_CHAT_DOCK_MARGIN * 2))
+  const dockH = vertical
+    ? Math.min(BROWSER_CHAT_DOCK_LONG, Math.max(1, bounds.h - BROWSER_CHAT_DOCK_MARGIN * 2))
+    : Math.min(BROWSER_CHAT_DOCK_SHORT, Math.max(1, bounds.h - BROWSER_CHAT_DOCK_MARGIN))
+  if (vertical) {
+    const centerY = clampNumber(
+      placement.offset,
+      BROWSER_CHAT_DOCK_MARGIN + dockH / 2,
+      Math.max(BROWSER_CHAT_DOCK_MARGIN + dockH / 2, bounds.h - BROWSER_CHAT_DOCK_MARGIN - dockH / 2),
+    )
+    return {
+      x: placement.edge === "left" ? 0 : Math.max(0, bounds.w - dockW),
+      y: centerY - dockH / 2,
+      w: dockW,
+      h: dockH,
+    }
+  }
+  const centerX = clampNumber(
+    placement.offset,
+    BROWSER_CHAT_DOCK_MARGIN + dockW / 2,
+    Math.max(BROWSER_CHAT_DOCK_MARGIN + dockW / 2, bounds.w - BROWSER_CHAT_DOCK_MARGIN - dockW / 2),
   )
   return {
     x: centerX - dockW / 2,
@@ -8500,6 +9275,27 @@ function defaultHostTerminalDockPlacement(bounds: {w: number; h: number}): HostT
   return defaultHostSizedDockPlacement(placement, bounds)
 }
 
+function defaultBrowserChatDockPlacement(bounds: {w: number; h: number}): HostTerminalDockPlacement {
+  const placement = DEFAULT_BROWSER_CHAT_DOCK_PLACEMENT
+  const vertical = placement.edge === "left" || placement.edge === "right"
+  const dockW = vertical
+    ? Math.min(BROWSER_CHAT_DOCK_SHORT, Math.max(1, bounds.w - BROWSER_CHAT_DOCK_MARGIN))
+    : Math.min(BROWSER_CHAT_DOCK_LONG, Math.max(1, bounds.w - BROWSER_CHAT_DOCK_MARGIN * 2))
+  const dockH = vertical
+    ? Math.min(BROWSER_CHAT_DOCK_LONG, Math.max(1, bounds.h - BROWSER_CHAT_DOCK_MARGIN * 2))
+    : Math.min(BROWSER_CHAT_DOCK_SHORT, Math.max(1, bounds.h - BROWSER_CHAT_DOCK_MARGIN))
+  const minOffset = vertical
+    ? BROWSER_CHAT_DOCK_MARGIN + dockH / 2
+    : BROWSER_CHAT_DOCK_MARGIN + dockW / 2
+  const maxOffset = vertical
+    ? Math.max(minOffset, bounds.h - BROWSER_CHAT_DOCK_MARGIN - dockH / 2)
+    : Math.max(minOffset, bounds.w - BROWSER_CHAT_DOCK_MARGIN - dockW / 2)
+  return {
+    edge: placement.edge,
+    offset: clampNumber(placement.offset, minOffset, maxOffset),
+  }
+}
+
 function defaultHostSizedDockPlacement(placement: HostTerminalDockPlacement, bounds: {w: number; h: number}): HostTerminalDockPlacement {
   const vertical = placement.edge === "left" || placement.edge === "right"
   const dockW = vertical
@@ -8592,6 +9388,27 @@ function defaultSqliteDockPlacement(bounds: {w: number; h: number}): HostTermina
 
 function hostTerminalDockPlacementFromPoint(point: {x: number; y: number}, bounds: {w: number; h: number}): HostTerminalDockPlacement {
   return hostSizedDockPlacementFromPoint(point, bounds)
+}
+
+function browserChatDockPlacementFromPoint(point: {x: number; y: number}, bounds: {w: number; h: number}): HostTerminalDockPlacement {
+  const distances: Array<{edge: HudSideTabEdge; distance: number}> = [
+    {edge: "left", distance: point.x},
+    {edge: "right", distance: bounds.w - point.x},
+    {edge: "top", distance: point.y},
+    {edge: "bottom", distance: bounds.h - point.y},
+  ]
+  let best = distances[0]!
+  for (const item of distances.slice(1)) {
+    if (item.distance < best.distance) best = item
+  }
+  const rect = browserChatDockRectForPlacement({
+    edge: best.edge,
+    offset: best.edge === "left" || best.edge === "right" ? point.y : point.x,
+  }, bounds)
+  return {
+    edge: best.edge,
+    offset: best.edge === "left" || best.edge === "right" ? rect.y + rect.h / 2 : rect.x + rect.w / 2,
+  }
 }
 
 function hostSizedDockPlacementFromPoint(point: {x: number; y: number}, bounds: {w: number; h: number}): HostTerminalDockPlacement {
