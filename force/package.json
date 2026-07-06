@@ -4,7 +4,8 @@
   "type": "module",
   "main": "index.ts",
   "exports": {
-    ".": "./index.ts"
+    ".": "./index.ts",
+    "./fixture": "./fixture.ts"
   },
   "private": true,
   "scripts": {

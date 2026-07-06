@@ -1,4 +1,4 @@
-import {Force} from "force"
+import "./matrix.ts"
 
 const server = Bun.serve({
   port: 4003,
@@ -13,9 +13,3 @@ const server = Bun.serve({
 
 console.log(`[matrix] listening on ${server.url}`)
 
-globalThis.force = new Force({webSocket: "ws://127.0.0.1:4000/ws", domain: "matrix", id: "matrix-local"})
-globalThis.force.onImpulse((impulse) => {
-  console.log(`[matrix] <- force parts=${impulse.parts.length}`)
-})
-
-await import("./matrix.ts")

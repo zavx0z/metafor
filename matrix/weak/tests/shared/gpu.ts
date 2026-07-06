@@ -1,19 +1,21 @@
+import { setupDevice } from "fixture"
+
 const executableDevicePromiseKey = Symbol.for("@matrix/weak/tests/executable-gpu-device")
 
-export async function skipIfNoGpu(): Promise<GPUDevice | null> {
+export async function skipIfNoGpu(): Promise<GPUDevice> {
   return await createExecutableDevice()
 }
 
-export async function createExecutableDevice(): Promise<GPUDevice | null> {
+export async function createExecutableDevice(): Promise<GPUDevice> {
   const global = globalThis as typeof globalThis & {
-    [executableDevicePromiseKey]?: Promise<GPUDevice | null>
+    [executableDevicePromiseKey]?: Promise<GPUDevice>
   }
   global[executableDevicePromiseKey] ??= (async () => {
-    const device = await createDevice()
-    if (!device) {
-      return null
+    const device = await setupDevice()
+    if (!(await canExecuteCompute(device))) {
+      throw new Error("GPU device cannot execute compute shader")
     }
-    return (await canExecuteCompute(device)) ? device : null
+    return device
   })()
 
   return await global[executableDevicePromiseKey]
@@ -24,19 +26,6 @@ export async function flushRuntime(runtime: { pending?: Promise<unknown> }): Pro
   if (pending) {
     await pending.catch(() => undefined)
   }
-}
-
-async function createDevice(): Promise<GPUDevice | null> {
-  if (!navigator.gpu) {
-    return null
-  }
-
-  const adapter = await navigator.gpu.requestAdapter()
-  if (!adapter) {
-    return null
-  }
-
-  return await adapter.requestDevice()
 }
 
 async function canExecuteCompute(device: GPUDevice): Promise<boolean> {

@@ -8,7 +8,7 @@
 Текущий этап создаёт локальный Force pipeline с явным стартом из `dark/index.ts`:
 
 - Dark получает `boundary.energyRuntime()` catalog и вызывает
-  `startEnergyProtocol({catalog})` до `loadMatrixRuntimeSnapshot()`;
+  `startEnergyProtocol({catalog})`; Matrix snapshot доставляется через Force create;
 - catalog содержит actor/wimp mapping и process descriptors по `wimp + state`;
 - `energy/energy.ts` открывает общий `BroadcastChannel("force")`;
 - `photon/replace` от Matrix игнорируется как обычный state;

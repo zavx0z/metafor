@@ -33,7 +33,8 @@ const server = Bun.serve({
 
 console.log(`[dark] listening on ${server.url}`)
 
-globalThis.force = new Force({webSocket: "ws://127.0.0.1:4000/ws", domain: "dark", id: "dark-local"})
-globalThis.force.onImpulse((impulse) => {
+const force = new Force("dark")
+force.impulse({type: "create", domain: "matrix", snapshot: await globalThis.boundary.matrixRuntime()})
+force.onImpulse = (impulse) => {
   console.log(`[dark] <- force parts=${impulse.parts.length}`)
-})
+}

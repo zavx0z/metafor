@@ -13,7 +13,7 @@ const server = Bun.serve({
 
 console.log(`[boundary] listening on ${server.url}`)
 
-globalThis.force = new Force({webSocket: "ws://127.0.0.1:4000/ws", domain: "boundary", id: "boundary-local"})
-globalThis.force.onImpulse((impulse) => {
+const force = new Force("boundary")
+force.onImpulse = (impulse) => {
   console.log(`[boundary] <- force parts=${impulse.parts.length}`)
-})
+}

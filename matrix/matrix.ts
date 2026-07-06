@@ -37,8 +37,61 @@ import { createStoredStringInterner, normalizeFieldValue, assembleStoredMatrixDa
 import { StepMode, weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@matrix/weak"
 import {resolveForceFieldId, resolveForceFieldsPayload} from "@metafor/types/force/fields"
 import type { Particle } from "@metafor/types/force/particle"
+import {Force} from "force"
 
-globalThis.force.onImpulse(async (impulse) => {
+const force = new Force("matrix")
+force.onCreate = async (snapshot: MatrixRuntimeSnapshot) => {
+  pendingProcessExecutionsByActorId.clear()
+  weak$.reset()
+  const prepared = assembleStoredMatrixData(flattenMatrixData(snapshot.data))
+  applyPreparedData(prepared)
+
+  if (prepared.fields.length > 0 || prepared.branes.length > 0) {
+    await weakInit(matrix$)
+  } else {
+    weak$.reset()
+  }
+
+  gravity$.activeActorIds = [...snapshot.runtime.actorIdByBraneIndex]
+  gravity$.braneIndexToActorId = [...snapshot.runtime.actorIdByBraneIndex]
+  gravity$.actorIdToBraneIndex = new Map(snapshot.runtime.braneIndexByActorId)
+  gravity$.wimpSrcByActorId = new Map(snapshot.runtime.wimpSrcByActorId)
+  gravity$.actorIdsByWimpSrc = new Map(
+    snapshot.runtime.actorIdsByWimpSrc.map(([wimpSrc, actorIds]) => [wimpSrc, [...actorIds]] as const),
+  )
+  gravity$.structuralDirty = false
+
+  strong$.runtimeFieldIndexByWimpFieldId = new Map(snapshot.strong.runtimeFieldIndexByWimpFieldId)
+  strong$.wimpFieldIdsByRuntimeFieldIndex = snapshot.strong.wimpFieldIdsByRuntimeFieldIndex.map((ids) => [...ids])
+  strong$.braneIndexByWimpFieldId = new Map(snapshot.strong.braneIndexByWimpFieldId)
+  strong$.topologyWimpFieldIds = new Set(snapshot.strong.topologyWimpFieldIds)
+  strong$.runtimeFieldIndexByActorFieldId = new Map(
+    snapshot.runtime.runtimeFieldIndexByActorFieldId.map(([actorId, fieldId, runtimeFieldIndex]) => [
+      actorFieldKey(actorId, fieldId),
+      runtimeFieldIndex,
+    ] as const),
+  )
+  strong$.actorFieldIdsByRuntimeFieldIndex = []
+  for (const [actorId, fieldId, runtimeFieldIndex] of snapshot.runtime.runtimeFieldIndexByActorFieldId) {
+    const bucket = strong$.actorFieldIdsByRuntimeFieldIndex[runtimeFieldIndex]
+    if (bucket) bucket.push([actorId, fieldId])
+    else strong$.actorFieldIdsByRuntimeFieldIndex[runtimeFieldIndex] = [[actorId, fieldId]]
+  }
+  strong$.topologyActorFieldIds = new Set(
+    snapshot.strong.topologyActorFieldIds.map(([actorId, fieldId]) => actorFieldKey(actorId, fieldId)),
+  )
+
+  weak$.stateMetaStateIdsByBraneIndex = snapshot.weak.stateMetaStateIdsByBraneIndex.map((ids) => [...ids])
+  weak$.stateHasProcessByBraneIndex = snapshot.weak.stateHasProcessByBraneIndex.map((items) => [...items])
+
+  if (weak$.initialized) {
+    const changes = await weakRunStep(StepMode.UndefinedOnly)
+    syncProcessLocksForChanges(changes, changes)
+    publishPhotonChanges(changes)
+  }
+}
+
+force.onImpulse = async (impulse) => {
   for (const part of impulse.parts) {
     switch (part.part) {
       case "gluon":
@@ -56,7 +109,7 @@ globalThis.force.onImpulse(async (impulse) => {
         break
     }
   }
-})
+}
 
 const writeGate: AsyncGate = { pending: null }
 const updateGate: AsyncGate = { pending: null }
@@ -225,7 +278,7 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
   }
 
   if (parts.length === 0) return
-  globalThis.force.impulse({parts})
+  force.impulse({parts})
 }
 
 const collectProcessExecutionFields = (actorId: number, braneIndex: number): Record<string, unknown> => {
@@ -324,7 +377,7 @@ const applyEnergyExecutionRequest = (part: Particle): void => {
   const energy = requestedEnergy.trim()
 
   pending.acceptedEnergy = energy
-  globalThis.force.impulse({
+  force.impulse({
     parts: [{
       part: "z",
       op: "copy",
@@ -384,57 +437,6 @@ export function prepareData(data: MatrixInputData): MatrixData {
 
 export function listMatrixRuntimeActorIds(): number[] {
   return [...gravity$.activeActorIds]
-}
-
-export async function loadMatrixRuntimeSnapshot(snapshot: MatrixRuntimeSnapshot): Promise<void> {
-  pendingProcessExecutionsByActorId.clear()
-  weak$.reset()
-  const prepared = assembleStoredMatrixData(flattenMatrixData(snapshot.data))
-  applyPreparedData(prepared)
-
-  if (prepared.fields.length > 0 || prepared.branes.length > 0) {
-    await weakInit(matrix$)
-  } else {
-    weak$.reset()
-  }
-
-  gravity$.activeActorIds = [...snapshot.runtime.actorIdByBraneIndex]
-  gravity$.braneIndexToActorId = [...snapshot.runtime.actorIdByBraneIndex]
-  gravity$.actorIdToBraneIndex = new Map(snapshot.runtime.braneIndexByActorId)
-  gravity$.wimpSrcByActorId = new Map(snapshot.runtime.wimpSrcByActorId)
-  gravity$.actorIdsByWimpSrc = new Map(
-    snapshot.runtime.actorIdsByWimpSrc.map(([wimpSrc, actorIds]) => [wimpSrc, [...actorIds]] as const),
-  )
-  gravity$.structuralDirty = false
-
-  strong$.runtimeFieldIndexByWimpFieldId = new Map(snapshot.strong.runtimeFieldIndexByWimpFieldId)
-  strong$.wimpFieldIdsByRuntimeFieldIndex = snapshot.strong.wimpFieldIdsByRuntimeFieldIndex.map((ids) => [...ids])
-  strong$.braneIndexByWimpFieldId = new Map(snapshot.strong.braneIndexByWimpFieldId)
-  strong$.topologyWimpFieldIds = new Set(snapshot.strong.topologyWimpFieldIds)
-  strong$.runtimeFieldIndexByActorFieldId = new Map(
-    snapshot.runtime.runtimeFieldIndexByActorFieldId.map(([actorId, fieldId, runtimeFieldIndex]) => [
-      actorFieldKey(actorId, fieldId),
-      runtimeFieldIndex,
-    ] as const),
-  )
-  strong$.actorFieldIdsByRuntimeFieldIndex = []
-  for (const [actorId, fieldId, runtimeFieldIndex] of snapshot.runtime.runtimeFieldIndexByActorFieldId) {
-    const bucket = strong$.actorFieldIdsByRuntimeFieldIndex[runtimeFieldIndex]
-    if (bucket) bucket.push([actorId, fieldId])
-    else strong$.actorFieldIdsByRuntimeFieldIndex[runtimeFieldIndex] = [[actorId, fieldId]]
-  }
-  strong$.topologyActorFieldIds = new Set(
-    snapshot.strong.topologyActorFieldIds.map(([actorId, fieldId]) => actorFieldKey(actorId, fieldId)),
-  )
-
-  weak$.stateMetaStateIdsByBraneIndex = snapshot.weak.stateMetaStateIdsByBraneIndex.map((ids) => [...ids])
-  weak$.stateHasProcessByBraneIndex = snapshot.weak.stateHasProcessByBraneIndex.map((items) => [...items])
-
-  if (weak$.initialized) {
-    const changes = await weakRunStep(StepMode.UndefinedOnly)
-    syncProcessLocksForChanges(changes, changes)
-    publishPhotonChanges(changes)
-  }
 }
 
 const collectProcessStateRetriggers = (

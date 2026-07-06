@@ -5,12 +5,9 @@ import index from "../bulk/index.html"
 import type { BulkRuntimeSnapshot } from "@metafor/types/bulk/runtime"
 import type { ForceMessage } from "@metafor/types/force/message"
 import {DEFAULT_BULK_SCENE_SRC} from "bulk/settings"
-import {loadMatrixRuntimeSnapshot} from "../matrix/index.ts"
 
 const energyRuntimeSnapshot = await globalThis.boundary.energyRuntime()
 const energyProtocol = startEnergyProtocol({catalog: energyRuntimeSnapshot})
-const matrixRuntimeSnapshot = await globalThis.boundary.matrixRuntime()
-await loadMatrixRuntimeSnapshot(matrixRuntimeSnapshot)
 const sockets = new Set<ServerWebSocket<{kind: "browser"}>>()
 const force = new BroadcastChannel("force")
 
