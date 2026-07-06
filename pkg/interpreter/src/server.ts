@@ -1451,6 +1451,10 @@ async function createTodoItem(req: Request, broadcast: (payload: JsonObject) => 
   if (depth !== undefined) insert.depth = depth
   const afterId = asString(body["afterId"])
   if (afterId !== undefined) insert.afterId = afterId
+  const section = asString(body["section"])
+  if (section !== undefined) insert.section = section
+  const sectionId = asString(body["sectionId"])
+  if (sectionId !== undefined) insert.sectionId = sectionId
   try {
     const result = insertTodoMarkdownItem(readTodoMarkdownForEdit(), insert)
     return writeTodoMarkdown(result.markdown, broadcast, {item: result.item})
@@ -2416,16 +2420,16 @@ async function runHostToolUse(
   }
   if (toolUse.recipientName === "todo.get") return await toolResultFromResponse(base, todoMarkdownResponse(), "todo.get failed")
   if (toolUse.recipientName === "todo.replace") return await toolResultFromResponse(base, await replaceTodoMarkdown(jsonToolRequest("/tools", toolUse.parameters), broadcast), "todo.replace failed")
-  if (toolUse.recipientName === "todo.create") return await toolResultFromResponse(base, await createTodoItem(jsonToolRequest("/tools", toolUse.parameters), broadcast), "todo.create failed")
+  if (toolUse.recipientName === "todo.create") return await todoMutationToolResult(base, await createTodoItem(jsonToolRequest("/tools", toolUse.parameters), broadcast), "todo.create failed", dispatchUiHostCommand)
   if (toolUse.recipientName === "todo.update") {
     const id = requiredStringParam(toolUse.parameters, "id")
     if (id === undefined) return {...base, ok: false, error: "id required"}
-    return await toolResultFromResponse(base, await patchTodoItem(id, jsonToolRequest("/tools", toolUse.parameters), broadcast), "todo.update failed")
+    return await todoMutationToolResult(base, await patchTodoItem(id, jsonToolRequest("/tools", toolUse.parameters), broadcast), "todo.update failed", dispatchUiHostCommand)
   }
   if (toolUse.recipientName === "todo.delete") {
     const id = requiredStringParam(toolUse.parameters, "id")
     if (id === undefined) return {...base, ok: false, error: "id required"}
-    return await toolResultFromResponse(base, deleteTodoItem(id, broadcast), "todo.delete failed")
+    return await todoMutationToolResult(base, deleteTodoItem(id, broadcast), "todo.delete failed", dispatchUiHostCommand)
   }
   if (toolUse.recipientName === "todo.reload") return await toolResultFromResponse(base, reloadTodoMarkdown(broadcast), "todo.reload failed")
   if (toolUse.recipientName === "sqlite.get") {
@@ -2575,6 +2579,29 @@ async function toolResultFromResponse(base: JsonObject, response: Response, fall
   const ok = payload.status < 400 && payload.body["ok"] !== false
   const result: JsonObject = {...base, ok, status: payload.status, result: payload.body}
   if (!ok) result["error"] = asString(payload.body["error"]) ?? fallbackError
+  return result
+}
+
+async function todoMutationToolResult(base: JsonObject, response: Response, fallbackError: string, dispatch: UiHostCommandDispatcher): Promise<JsonObject> {
+  const payload = await jsonAnyPayloadFromResponse(response)
+  const ok = payload.status < 400 && payload.body["ok"] !== false
+  const result: JsonObject = {...base, ok, status: payload.status, result: payload.body}
+  if (!ok) {
+    result["error"] = asString(payload.body["error"]) ?? fallbackError
+    return result
+  }
+
+  const item = asObject(payload.body["item"])
+  const itemId = item === undefined ? undefined : asString(item["id"])
+  const visibility: JsonObject = {}
+  try {
+    visibility["show"] = await dispatch("hud.todo.show", {})
+    visibility["highlight"] = await dispatch("hud.todo.highlight", itemId === undefined ? {ids: []} : {id: itemId})
+  } catch (error) {
+    visibility["ok"] = false
+    visibility["error"] = serializeError(error)
+  }
+  payload.body["visibility"] = visibility
   return result
 }
 

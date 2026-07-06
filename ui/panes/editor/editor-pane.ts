@@ -1023,6 +1023,7 @@ export class EditorPane extends UiSurface {
       else if (k === "v") void this.#paste()
       else if (k === "c") void this.#copySelectionOrCurrentLine()
       else if (k === "x") void this.#cutSelectionOrCurrentLine()
+      else if (event.metaKey && !event.ctrlKey && !event.altKey && (event.key === "Backspace" || event.key === "Delete" || event.code === "Backspace")) this.#deleteSelectionOrCurrentLine()
       else if (event.key === "ArrowLeft")  this.#setCursorPosition({line: this.#cline, col: 0}, {extendSelection})
       else if (event.key === "ArrowRight") this.#setCursorPosition({line: this.#cline, col: this.#lines[this.#cline]!.length}, {extendSelection})
       else if (event.key === "ArrowUp")    this.#setCursorPosition({line: 0, col: 0}, {extendSelection})
@@ -1111,18 +1112,29 @@ export class EditorPane extends UiSurface {
       this.#deleteSelection()
     } else {
       this.#pushHistory()
-      if (this.#lines.length === 1) {
-        this.#lines[0] = ""
-        this.#ccol = 0
-      } else {
-        this.#lines.splice(this.#cline, 1)
-        if (this.#cline >= this.#lines.length) this.#cline = this.#lines.length - 1
-        this.#ccol = Math.min(this.#ccol, this.#lines[this.#cline]!.length)
-      }
-      this.#clearSelectionState()
+      this.#deleteCurrentLine()
       this.#afterEdit()
     }
     return true
+  }
+
+  #deleteSelectionOrCurrentLine(): void {
+    if (this.#deleteSelection()) return
+    this.#pushHistory()
+    this.#deleteCurrentLine()
+    this.#afterEdit()
+  }
+
+  #deleteCurrentLine(): void {
+    if (this.#lines.length === 1) {
+      this.#lines[0] = ""
+      this.#ccol = 0
+    } else {
+      this.#lines.splice(this.#cline, 1)
+      if (this.#cline >= this.#lines.length) this.#cline = this.#lines.length - 1
+      this.#ccol = Math.min(this.#ccol, this.#lines[this.#cline]!.length)
+    }
+    this.#clearSelectionState()
   }
 
   async #copySelectedTextToClipboard(): Promise<boolean> {

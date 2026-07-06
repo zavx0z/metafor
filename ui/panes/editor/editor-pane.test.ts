@@ -306,6 +306,21 @@ describe("EditorPane selection", () => {
       editor.dispose()
     }
   })
+
+  test("deletes the current line with mac Command Delete", () => {
+    const editor = new EditorPane()
+    try {
+      editor.setText("alpha\nbeta\ngamma")
+      editor.setCursor(1, 2, {scroll: false})
+
+      pressKey(editor, "Backspace", {metaKey: true})
+
+      expect(editor.getText()).toBe("alpha\ngamma")
+      expect(editor.getSelectionSnapshot().cursor).toEqual({line: 1, col: 2})
+    } finally {
+      editor.dispose()
+    }
+  })
 })
 
 describe("EditorPane layout options", () => {
@@ -399,12 +414,18 @@ function setEditorTestSize(editor: EditorPane): void {
 }
 
 function pressEnter(editor: EditorPane): void {
+  pressKey(editor, "Enter")
+}
+
+function pressKey(editor: EditorPane, key: string, opts: Partial<Pick<KeyboardEvent, "altKey" | "code" | "ctrlKey" | "metaKey" | "shiftKey">> = {}): void {
   editor.onKey({
-    key: "Enter",
+    key,
+    code: opts.code ?? key,
     metaKey: false,
-    ctrlKey: false,
-    altKey: false,
-    shiftKey: false,
+    ctrlKey: opts.ctrlKey ?? false,
+    altKey: opts.altKey ?? false,
+    shiftKey: opts.shiftKey ?? false,
+    ...opts,
     preventDefault() {},
   } as KeyboardEvent)
 }

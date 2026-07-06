@@ -940,6 +940,8 @@ window.addEventListener("beforeunload", () => {
 window.addEventListener("pagehide", () => {
   pageUnloading = true
   suspendVoiceForInactiveDocument()
+  flushInterpreterViewPointStorage()
+  flushInterpreterDisplayPositionsStorage()
 })
 window.addEventListener("blur", () => suspendVoiceForInactiveDocument())
 document.addEventListener("visibilitychange", () => {
@@ -1058,6 +1060,8 @@ function scheduleReloadWhenServerReady(delayMs: number): void {
   reloadScheduled = true
   const startedAt = Date.now()
   const reload = () => {
+    flushInterpreterViewPointStorage()
+    flushInterpreterDisplayPositionsStorage()
     const url = new URL(window.location.href)
     url.searchParams.set("_r", String(Date.now()))
     window.location.replace(url.toString())
@@ -2548,39 +2552,8 @@ function displayCenterWithStored(displayId: string, fallback: UiRuntimeViewPoint
   return interpreterDisplayPositions.get(displayId) ?? fallback
 }
 
-function seedPhysicalDisplayRowPositions(moduleDisplayIds: readonly string[], metrics: DisplayLayoutMetrics): void {
-  const rowCenters = physicalDisplayRowCenters(moduleDisplayIds, metrics)
-  let changed = false
-  for (const [displayId, center] of rowCenters) {
-    if (interpreterDisplayPositions.has(displayId)) continue
-    interpreterDisplayPositions.set(displayId, center)
-    if (displayId === REMOTE_DESKTOP_DISPLAY_ID) updateRemoteDesktopAudioPosition(center)
-    changed = true
-  }
-  if (changed) scheduleInterpreterDisplayPositionsStorage()
-}
-
-function physicalDisplayRowCenters(moduleDisplayIds: readonly string[], metrics: DisplayLayoutMetrics): Map<string, UiRuntimeViewPointVector> {
-  const centers = new Map<string, UiRuntimeViewPointVector>()
-  const moduleTotalW = moduleDisplayRowWidth(moduleDisplayIds, metrics)
-  let cursorX = -moduleTotalW / 2
-  for (const displayId of moduleDisplayIds) {
-    const x = cursorX + metrics.widthMm / 2
-    cursorX += metrics.widthMm + MODULE_DISPLAY_GAP_MM
-    centers.set(displayId, physicalDisplayRowCenter(x))
-  }
-  const sideBaseW = moduleDisplayIds.length === 0 ? 0 : moduleTotalW
-  centers.set(REMOTE_DESKTOP_DISPLAY_ID, physicalDisplayRowCenter(-sideBaseW / 2 - MODULE_DISPLAY_GAP_MM - metrics.widthMm / 2))
-  centers.set(NETWORK_DISPLAY_ID, physicalDisplayRowCenter(sideBaseW / 2 + MODULE_DISPLAY_GAP_MM + metrics.widthMm / 2))
-  return centers
-}
-
 function moduleDisplayRowWidth(moduleDisplayIds: readonly string[], metrics: DisplayLayoutMetrics): number {
   return moduleDisplayIds.length * metrics.widthMm + Math.max(0, moduleDisplayIds.length - 1) * MODULE_DISPLAY_GAP_MM
-}
-
-function physicalDisplayRowCenter(x: number): UiRuntimeViewPointVector {
-  return {x, y: MODULE_DISPLAY_CENTER_Y_MM, z: MODULE_DISPLAY_CENTER_Z_MM}
 }
 
 function storeInterpreterDisplayPosition(change: UiRuntimeDisplayCenterChange): void {
@@ -7570,7 +7543,6 @@ function syncModuleDisplays(): void {
 
   const displayMetrics = physicalDisplayMetrics()
   const moduleDisplayIdList = orderedModules.map((module) => moduleDisplayId(module.id))
-  seedPhysicalDisplayRowPositions(moduleDisplayIdList, displayMetrics)
   const totalW = moduleDisplayRowWidth(moduleDisplayIdList, displayMetrics)
   let cursorX = -totalW / 2
 
@@ -7644,7 +7616,6 @@ function removeModuleDisplay(moduleId: string): void {
   moduleDisplays.delete(moduleId)
   moduleDisplayIds.delete(moduleId)
   moduleSnapshots.delete(moduleId)
-  interpreterDisplayPositions.delete(displayId)
   if (uiCanvas?.activeDisplayId === displayId) {
     const nextModuleId = moduleOrder.find((id) => id !== moduleId && moduleDisplayIds.has(id))
     const nextDisplayId = nextModuleId === undefined ? null : moduleDisplayId(nextModuleId)

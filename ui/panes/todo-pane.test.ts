@@ -1,7 +1,8 @@
 import {describe, expect, test} from "bun:test"
 import {TrueTypeFont} from "@metafor/engine"
+import {divScrollPosition} from "@ui/elements"
 import {ToDoPane} from "./todo-pane.ts"
-import {parseMarkdownTodo, todoVisibleItems, updateTodoMarkdownItem} from "./todo-model.ts"
+import {insertTodoMarkdownItem, parseMarkdownTodo, todoVisibleItems, updateTodoMarkdownItem} from "./todo-model.ts"
 
 let testFontPromise: Promise<TrueTypeFont> | null = null
 
@@ -133,6 +134,21 @@ describe("ToDoPane markdown parser", () => {
     expect(result.item.progress).toBe(0)
   })
 
+  test("добавляет новый пункт в указанную секцию", () => {
+    const markdown = "## Runtime\n- [ ] Старый пункт\n\n## Docs\n- [ ] Документация\n"
+    const result = insertTodoMarkdownItem(markdown, {text: "Новый runtime пункт", marker: "0", section: "Runtime"})
+
+    expect(result.markdown).toBe("## Runtime\n- [ ] Старый пункт\n- [0] Новый runtime пункт\n\n## Docs\n- [ ] Документация\n")
+    expect(result.item.section).toEqual(["Runtime"])
+  })
+
+  test("создает секцию для нового пункта, если ее еще нет", () => {
+    const result = insertTodoMarkdownItem("# Plan\n", {text: "Пункт интерпретатора", section: "Interpreter / HUD / Space"})
+
+    expect(result.markdown).toBe("# Plan\n\n## Interpreter / HUD / Space\n\n- [ ] Пункт интерпретатора\n")
+    expect(result.item.section).toEqual(["Plan", "Interpreter / HUD / Space"])
+  })
+
   test("сворачивает completed-секцию и раскрывает ее по panel state", () => {
     const markdown = [
       "## Готово",
@@ -176,6 +192,27 @@ describe("ToDoPane markdown parser", () => {
 
     expect(pane.expandedCompletedIds()).toEqual([doneId])
     expect(todoVisibleItems(parseMarkdownTodo(markdown), pane.expandedCompletedIds()).map((item) => item.text)).toContain("Второй пункт")
+  })
+
+  test("подсветка прокручивает выбранный пункт в видимую область", async () => {
+    const markdown = Array.from({length: 24}, (_, index) => `- [ ] Пункт ${index + 1}`).join("\n")
+    const lastId = parseMarkdownTodo(markdown).find((item) => item.text === "Пункт 24")?.id
+    if (lastId === undefined) throw new Error("last TODO id not found")
+    const pane = new ToDoPane({markdown})
+    const restoreRaf = installRafStub()
+    try {
+      attachTestCanvas(pane, {x: 10, y: 20, w: 360, h: 150})
+      pane.setRect({x: 10, y: 20, w: 360, h: 150}, 1, await testFont())
+      pane.flushPendingRender()
+      expect(divScrollPosition(pane, "todo-pane:scroll").top).toBe(0)
+
+      pane.setHighlightedIds([lastId])
+
+      expect(divScrollPosition(pane, "todo-pane:scroll").top).toBeGreaterThan(0)
+    } finally {
+      pane.dispose()
+      restoreRaf()
+    }
   })
 
   test("ручное сворачивание completed-секции переживает повторную синхронизацию той же подсветки", async () => {

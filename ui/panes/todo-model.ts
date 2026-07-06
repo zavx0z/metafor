@@ -47,6 +47,8 @@ export type TodoMarkdownInsert = {
   marker?: ToDoPaneTaskMarker
   depth?: number
   afterId?: string
+  section?: string
+  sectionId?: string
 }
 
 export type TodoMarkdownPatch = {
@@ -216,13 +218,31 @@ export function insertTodoMarkdownItem(markdown: string, input: TodoMarkdownInse
   const items = parseMarkdownTodo(markdown)
   const afterId = input.afterId
   const after = afterId === undefined ? undefined : items.find((item) => item.id === afterId)
-  const insertIndex = after === undefined ? state.lines.length : after.line
+  const insertIndex = after === undefined ? todoSectionInsertIndex(state.lines, items, input) : after.line
   state.lines.splice(insertIndex, 0, nextLine)
   const nextMarkdown = joinMarkdownLines(state.lines, true)
   const nextItems = parseMarkdownTodo(nextMarkdown)
   const item = nextItems.find((candidate) => candidate.line === insertIndex + 1)
   if (item === undefined) throw new Error("created TODO item was not parsed")
   return {markdown: nextMarkdown, item, items: nextItems}
+}
+
+function todoSectionInsertIndex(lines: string[], items: readonly ToDoPaneItem[], input: TodoMarkdownInsert): number {
+  const section = input.sectionId === undefined
+    ? items.find((item) => item.kind === "heading" && sectionNameMatches(item.text, input.section))
+    : items.find((item) => item.id === input.sectionId && item.kind === "heading")
+  if (section === undefined) {
+    const name = normalizedOptionalSectionName(input.section)
+    if (name !== undefined) {
+      if (lines.length > 0 && (lines.at(-1) ?? "").trim().length > 0) lines.push("")
+      lines.push(`## ${name}`, "")
+    }
+    return lines.length
+  }
+  const nextHeading = items.find((item) => item.kind === "heading" && item.line > section.line && item.depth <= section.depth)
+  let insertIndex = (nextHeading?.line ?? lines.length + 1) - 1
+  while (insertIndex > section.line && (lines[insertIndex - 1] ?? "").trim().length === 0) insertIndex -= 1
+  return insertIndex
 }
 
 export function updateTodoMarkdownItem(markdown: string, id: string, patch: TodoMarkdownPatch): TodoMarkdownEditResult {
@@ -358,6 +378,17 @@ function normalizedTodoText(value: string): string {
 function normalizedTodoDepth(value: number | undefined): number {
   if (value === undefined || !Number.isFinite(value)) return 0
   return Math.max(0, Math.min(12, Math.floor(value)))
+}
+
+function normalizedOptionalSectionName(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined
+  const text = value.trim().replace(/^#+\s*/, "").replace(/\s+/g, " ")
+  return text.length === 0 ? undefined : text
+}
+
+function sectionNameMatches(text: string, requested: string | undefined): boolean {
+  const normalized = normalizedOptionalSectionName(requested)?.toLowerCase()
+  return normalized !== undefined && text.trim().toLowerCase() === normalized
 }
 
 function activeHeadings(headings: readonly string[]): string[] {
