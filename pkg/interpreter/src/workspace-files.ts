@@ -1,3 +1,4 @@
+import {spawnSync} from "node:child_process"
 import {existsSync, readFileSync, readdirSync, statSync, type Dirent} from "node:fs"
 import {dirname, isAbsolute, join, relative, resolve} from "node:path"
 import {fileURLToPath} from "node:url"
@@ -17,8 +18,11 @@ export type WorkspaceFilesPayload = {
   workspacePath: string
   moduleId?: string
   modulePath?: string
-  files: Array<{path: string}>
+  files: Array<{path: string; vcsStatus?: WorkspaceFileVcsStatus; addedLines?: number; deletedLines?: number}>
 }
+
+export type WorkspaceFileVcsStatus = "added" | "modified" | "deleted"
+type WorkspaceFileLineStats = {addedLines: number; deletedLines: number}
 
 export type WorkspaceFilesPayloadOptions = {
   cwd?: string
@@ -76,6 +80,8 @@ export function workspaceFilesPayload(url: URL, options: WorkspaceFilesPayloadOp
   const root = workspaceRootForLaunch(options.module, targetPath, cwd)
   const query = (url.searchParams.get("q") ?? "").trim().toLowerCase()
   const limit = clampWorkspaceLimit(url.searchParams.get("limit") === null ? 120 : Number(url.searchParams.get("limit")))
+  const gitStatuses = workspaceGitStatusMap(root)
+  const gitStats = workspaceGitLineStatsMap(root, gitStatuses)
   const paths = mergeWorkspaceCatalogPaths([
     targetPath === undefined ? collectWorkspaceFiles(root, query) : collectImportedWorkspaceFiles(root, targetPath, query),
   ])
@@ -87,7 +93,15 @@ export function workspaceFilesPayload(url: URL, options: WorkspaceFilesPayloadOp
     workspacePath: workspacePathForRoot(root, cwd),
     ...(options.module === undefined ? {} : {moduleId: options.module.id}),
     ...(targetPath === undefined ? {} : {modulePath: targetPath}),
-    files: paths.map((path) => ({path})),
+    files: paths.map((path) => {
+      const vcsStatus = gitStatuses.get(path)
+      const stats = gitStats.get(path)
+      return {
+        path,
+        ...(vcsStatus === undefined ? {} : {vcsStatus}),
+        ...(stats === undefined ? {} : stats),
+      }
+    }),
   }
 }
 
@@ -433,6 +447,77 @@ function isTextImportSource(path: string): boolean {
     || ext === ".jsx"
     || ext === ".mjs"
     || ext === ".cjs"
+}
+
+function workspaceGitStatusMap(root: string): Map<string, WorkspaceFileVcsStatus> {
+  const output = gitCommandText(["status", "--porcelain", "--untracked-files=normal"], root)
+  const statuses = new Map<string, WorkspaceFileVcsStatus>()
+  if (output === undefined || output.length === 0) return statuses
+
+  for (const line of output.split("\n")) {
+    if (line.length < 4) continue
+    const code = line.slice(0, 2)
+    const path = normalizeGitStatusPath(line.slice(3))
+    if (path.length === 0) continue
+    statuses.set(path, gitStatusKind(code))
+  }
+  return statuses
+}
+
+function workspaceGitLineStatsMap(root: string, statuses: ReadonlyMap<string, WorkspaceFileVcsStatus>): Map<string, WorkspaceFileLineStats> {
+  const stats = new Map<string, WorkspaceFileLineStats>()
+  const output = gitCommandText(["diff", "--numstat", "HEAD", "--"], root)
+  if (output !== undefined) {
+    for (const line of output.split("\n")) {
+      const [addedRaw, deletedRaw, pathRaw] = line.split("\t")
+      if (addedRaw === undefined || deletedRaw === undefined || pathRaw === undefined) continue
+      const addedLines = nonNegativeInteger(addedRaw)
+      const deletedLines = nonNegativeInteger(deletedRaw)
+      if (addedLines === undefined || deletedLines === undefined) continue
+      const path = normalizeGitStatusPath(pathRaw)
+      if (path.length === 0) continue
+      stats.set(path, {addedLines, deletedLines})
+    }
+  }
+
+  for (const [path, status] of statuses) {
+    if (status !== "added" || stats.has(path)) continue
+    const source = readTextFile(join(root, path))
+    if (source === undefined) continue
+    stats.set(path, {addedLines: sourceLineCount(source), deletedLines: 0})
+  }
+  return stats
+}
+
+function normalizeGitStatusPath(path: string): string {
+  const renamed = path.includes(" -> ") ? path.slice(path.lastIndexOf(" -> ") + 4) : path
+  return renamed.trim().replaceAll("\\", "/").replace(/^"|"$/g, "")
+}
+
+function gitStatusKind(code: string): WorkspaceFileVcsStatus {
+  if (code.includes("D")) return "deleted"
+  if (code === "??" || code.includes("A")) return "added"
+  return "modified"
+}
+
+function gitCommandText(args: readonly string[], cwd: string): string | undefined {
+  const result = spawnSync("git", [...args], {
+    cwd,
+    encoding: "utf8",
+    maxBuffer: 16 * 1024 * 1024,
+  })
+  return result.status === 0 && typeof result.stdout === "string" ? result.stdout : undefined
+}
+
+function nonNegativeInteger(value: string): number | undefined {
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined
+}
+
+function sourceLineCount(source: string): number {
+  if (source.length === 0) return 0
+  const lines = source.split("\n").length
+  return source.endsWith("\n") ? lines - 1 : lines
 }
 
 function fileRank(path: string): number {

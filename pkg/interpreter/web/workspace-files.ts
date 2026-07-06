@@ -6,6 +6,8 @@ export type WorkspaceFilesLookupState = {
   items: readonly FileListItem[]
 }
 
+export type WorkspaceFileVcsStatus = "added" | "modified" | "deleted"
+
 export type WorkspaceFilesContextState = WorkspaceFilesLookupState & {
   modulePath: string | null
   rootLabel: string | null
@@ -44,11 +46,20 @@ export function shouldRevealWorkspaceForSourceOpen(options: WorkspaceSourceOpenR
 
 export type WorkspaceFileTreeOptions = {
   mutedFileIds?: readonly string[]
+  vcsStatuses?: ReadonlyMap<string, WorkspaceFileVcsStatus>
+  lineStats?: ReadonlyMap<string, WorkspaceFileLineStats>
+}
+
+export type WorkspaceFileLineStats = {
+  addedLines: number
+  deletedLines: number
 }
 
 export function workspaceFileTree(paths: readonly string[], options: WorkspaceFileTreeOptions = {}): FileListItem[] {
   const root: WorkspaceTreeNode = {id: "", name: "", dirs: new Map(), files: []}
   const mutedFileIds = new Set(options.mutedFileIds ?? [])
+  const vcsStatuses = options.vcsStatuses ?? new Map<string, WorkspaceFileVcsStatus>()
+  const lineStats = options.lineStats ?? new Map<string, WorkspaceFileLineStats>()
   for (const rawPath of paths) {
     const path = normalizeWorkspaceFilePath(rawPath)
     if (path === null) continue
@@ -70,15 +81,19 @@ export function workspaceFileTree(paths: readonly string[], options: WorkspaceFi
       }
       node = child
     }
+    const vcsStatus = vcsStatuses.get(path)
+    const stats = lineStats.get(path)
     node.files.push({
       id: path,
       name: fileName,
       kind: "file",
       path,
       ...(mutedFileIds.has(path) ? {muted: true} : {}),
+      ...(vcsStatus === undefined ? {} : {vcsStatus}),
+      ...(stats === undefined ? {} : {statusLabel: workspaceLineStatsLabel(stats)}),
     })
   }
-  return workspaceTreeChildren(root)
+  return workspaceTreeChildren(root, lineStats, vcsStatuses)
 }
 
 function addWorkspaceDirectory(root: WorkspaceTreeNode, path: string): void {
@@ -292,18 +307,58 @@ type WorkspaceTreeNode = {
   files: FileListItem[]
 }
 
-function workspaceTreeChildren(node: WorkspaceTreeNode): FileListItem[] {
+function workspaceTreeChildren(
+  node: WorkspaceTreeNode,
+  lineStats: ReadonlyMap<string, WorkspaceFileLineStats>,
+  vcsStatuses: ReadonlyMap<string, WorkspaceFileVcsStatus>,
+): FileListItem[] {
   const dirs = [...node.dirs.values()]
     .sort((a, b) => a.name.localeCompare(b.name))
-    .map((dir): FileListItem => ({
-      id: dir.id,
-      name: dir.name,
-      kind: "directory",
-      path: dir.id,
-      children: workspaceTreeChildren(dir),
-    }))
+    .map((dir): FileListItem => {
+      const children = workspaceTreeChildren(dir, lineStats, vcsStatuses)
+      const stats = workspaceDirectoryLineStats(dir.id, lineStats)
+      const vcsStatus = workspaceDirectoryVcsStatus(dir.id, vcsStatuses)
+      return {
+        id: dir.id,
+        name: dir.name,
+        kind: "directory",
+        path: dir.id,
+        children,
+        ...(vcsStatus === undefined ? {} : {vcsStatus}),
+        ...(stats.addedLines === 0 && stats.deletedLines === 0 ? {} : {statusLabel: workspaceLineStatsLabel(stats)}),
+      }
+    })
   const files = [...node.files].sort((a, b) => a.name.localeCompare(b.name))
   return [...dirs, ...files]
+}
+
+function workspaceDirectoryLineStats(dirId: string, lineStats: ReadonlyMap<string, WorkspaceFileLineStats>): WorkspaceFileLineStats {
+  let addedLines = 0
+  let deletedLines = 0
+  for (const [path, stats] of lineStats) {
+    if (!path.startsWith(`${dirId}/`)) continue
+    addedLines += stats.addedLines
+    deletedLines += stats.deletedLines
+  }
+  return {addedLines, deletedLines}
+}
+
+function workspaceDirectoryVcsStatus(dirId: string, vcsStatuses: ReadonlyMap<string, WorkspaceFileVcsStatus>): WorkspaceFileVcsStatus | undefined {
+  let status: WorkspaceFileVcsStatus | undefined
+  for (const [path, next] of vcsStatuses) {
+    if (!path.startsWith(`${dirId}/`)) continue
+    if (next === "modified") return "modified"
+    if (next === "deleted") status = "deleted"
+    else if (status === undefined) status = "added"
+  }
+  return status
+}
+
+function workspaceLineStatsLabel(stats: WorkspaceFileLineStats): string {
+  const parts: string[] = []
+  if (stats.addedLines > 0) parts.push(`+${stats.addedLines}`)
+  if (stats.deletedLines > 0) parts.push(`-${stats.deletedLines}`)
+  return parts.join(" ")
 }
 
 function workspaceSelectedContextItems(items: readonly FileListItem[], selectedIds: readonly string[], root: string | null): WorkspaceFileContextItem[] {

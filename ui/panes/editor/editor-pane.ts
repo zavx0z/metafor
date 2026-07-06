@@ -62,6 +62,14 @@ export type EditorBreakpoint = {
   hit?: boolean
 }
 
+export type EditorLineChangeKind = "added" | "modified" | "deleted"
+
+export type EditorLineChange = {
+  /** 1-based line in the current editor buffer. Deleted markers may point one line past EOF. */
+  line: number
+  kind: EditorLineChangeKind
+}
+
 export type EditorSelectionSnapshot = {
   /** 0-based cursor line inside the editor buffer. */
   cursor: TextPosition
@@ -176,6 +184,9 @@ const SCROLL_PAST_END_MIN_LINES = 1
 const SELECTION_FILL = new Color(92 / 255, 155 / 255, 255 / 255, 0.34)
 const GUTTER_RULE_FILL = new Color(120 / 255, 143 / 255, 166 / 255, 0.12)
 const INDENT_GUIDE_FILL = new Color(120 / 255, 143 / 255, 166 / 255, 0.12)
+const LINE_CHANGE_ADDED_MARKER_FILL = new Color(53 / 255, 204 / 255, 132 / 255, 0.95)
+const LINE_CHANGE_MODIFIED_MARKER_FILL = new Color(248 / 255, 194 / 255, 91 / 255, 0.95)
+const LINE_CHANGE_DELETED_MARKER_FILL = new Color(255 / 255, 105 / 255, 110 / 255, 0.95)
 const INDENT_GUIDE_STEP_COLUMNS = 2
 const EDITOR_INDENT_UNIT = "  "
 const INDENT_GUIDE_TEXT_OFFSET_PX = 2
@@ -318,6 +329,7 @@ export class EditorPane extends UiSurface {
   #draggable: boolean
   #resizable: boolean
   #breakpoints = new Map<number, EditorBreakpoint>()
+  #lineChanges = new Map<number, EditorLineChangeKind>()
   #readOnly: boolean
   #showCaret: boolean
   #introAnimation: boolean
@@ -522,6 +534,18 @@ export class EditorPane extends UiSurface {
 
   setBreakpoints(breakpoints: readonly EditorBreakpoint[]): void {
     this.#breakpoints = normalizeBreakpoints(breakpoints)
+    this.requestRender()
+  }
+
+  setLineChanges(changes: readonly EditorLineChange[]): void {
+    const next = new Map<number, EditorLineChangeKind>()
+    for (const change of changes) {
+      const maxLine = change.kind === "deleted" ? this.#lines.length + 1 : this.#lines.length
+      const line = Math.max(1, Math.min(maxLine, Math.floor(change.line)))
+      next.set(line, change.kind)
+    }
+    if (sameEditorLineChangeMap(this.#lineChanges, next)) return
+    this.#lineChanges = next
     this.requestRender()
   }
 
@@ -2204,6 +2228,11 @@ export class EditorPane extends UiSurface {
       if (breakpoint !== undefined) {
         this.#drawBreakpointMarker(this.#breakpointMarkerX(metrics), this.#lineCenterY(line.rowY), breakpoint)
       }
+      const lineChange = this.#lineChanges.get(sourceLine)
+      if (lineChange !== undefined) this.#drawLineChangeMarker(metrics, line.rowY, lineChange)
+      if (sourceLine === this.#lines.length && this.#lineChanges.get(sourceLine + 1) === "deleted") {
+        this.#drawLineChangeMarker(metrics, line.rowY + this.#linePx - 2, "deleted")
+      }
       if (this.#showLineNumbers) {
         const label = String(line.lineIndex + 1)
         const labelW = this.measureText(label, this.#fontPx)
@@ -2221,6 +2250,16 @@ export class EditorPane extends UiSurface {
         })
       }
     }
+  }
+
+  #drawLineChangeMarker(metrics: EditorGutterMetrics, rowY: number, kind: EditorLineChangeKind): void {
+    const fill = editorLineChangeMarkerFill(kind)
+    const x = Math.round(metrics.ruleX - 5)
+    if (kind === "deleted") {
+      this.drawRect(Math.round(metrics.ruleX - 10), Math.round(rowY + 1), 9, 2, fill, Z.ELEMENT_RULE)
+      return
+    }
+    this.drawRect(x, Math.floor(rowY), 3, Math.ceil(this.#linePx) + 1, fill, Z.ELEMENT_RULE)
   }
 
   #drawBreakpointMarker(cx: number, cy: number, breakpoint: EditorBreakpoint): void {
@@ -2892,6 +2931,18 @@ function easeOutCubic(value: number): number {
 function introAnimSeed(lineIndex: number, absCol: number): number {
   const raw = Math.sin((lineIndex + 1) * 127.1 + (absCol + 1) * 311.7) * 43758.5453
   return raw - Math.floor(raw)
+}
+
+function sameEditorLineChangeMap(a: ReadonlyMap<number, EditorLineChangeKind>, b: ReadonlyMap<number, EditorLineChangeKind>): boolean {
+  if (a.size !== b.size) return false
+  for (const [line, kind] of a) if (b.get(line) !== kind) return false
+  return true
+}
+
+function editorLineChangeMarkerFill(kind: EditorLineChangeKind): Color {
+  if (kind === "added") return LINE_CHANGE_ADDED_MARKER_FILL
+  if (kind === "modified") return LINE_CHANGE_MODIFIED_MARKER_FILL
+  return LINE_CHANGE_DELETED_MARKER_FILL
 }
 
 /**

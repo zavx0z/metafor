@@ -95,6 +95,7 @@ import {
   workspaceParentIds,
   workspaceRootLabel,
   type WorkspaceFilesContextSnapshot,
+  type WorkspaceFileVcsStatus,
 } from "./workspace-files.ts"
 import {
   readStoredWorkspaceFilesState,
@@ -125,7 +126,7 @@ import {
 } from "./voice-input.ts"
 import {hiddenRect, clampNumber, withAlpha} from "./geometry.ts"
 import {cleanupVoiceInputText, mergeVoiceInputText, sanitizeHostTerminalVoiceInput, voiceMessagesFromChunk} from "./voice-text.ts"
-import {sourceTextLineChanges, remapSourceLine, type SourceLineChange} from "./source-lines.ts"
+import {sourceTextEditorLineChanges, sourceTextLineChanges, remapSourceLine, type SourceLineChange} from "./source-lines.ts"
 import {parseSourceOpenSelection, type SourceOpenOptions, type SourceOpenPosition} from "./source-open-params.ts"
 import {RemoteDesktopPane, isValidRemoteDesktopFrame} from "./remote-desktop-pane.ts"
 import {
@@ -359,6 +360,7 @@ type BreakpointSourceIdentity = {
 
 type Source = {
   text: string
+  gitBaseText?: string
   currentLine: number
   location: string
   identity: BreakpointSourceIdentity | null
@@ -424,6 +426,7 @@ type CachedSource = {
   text: string
   sourceUrl: string
   scriptUrl: string
+  gitBaseText?: string
   tokens?: EditorTokens
 }
 
@@ -432,8 +435,8 @@ type WorkspaceFilesPayload = {
   workspacePath?: string
   modulePath?: string
   entrypoint?: string | null
-  files?: Array<{path?: string}>
-  modules?: Array<{path?: string}>
+  files?: Array<{path?: string; vcsStatus?: string; addedLines?: number; deletedLines?: number}>
+  modules?: Array<{path?: string; vcsStatus?: string; addedLines?: number; deletedLines?: number}>
 }
 
 type WorkspaceFilesState = {
@@ -442,6 +445,8 @@ type WorkspaceFilesState = {
   modulePath: string | null
   rootLabel: string | null
   catalogPaths: readonly string[]
+  vcsStatuses: ReadonlyMap<string, WorkspaceFileVcsStatus>
+  lineStats: ReadonlyMap<string, {addedLines: number; deletedLines: number}>
   items: readonly FileListItem[]
   expandedIds: readonly string[]
   selectedIds: readonly string[]
@@ -582,6 +587,8 @@ type ModuleDisplayController = {
   verbose: VerbosePane
   sourceCache: Map<string, CachedSource>
   sourceTextKey: string
+  sourceSavedText: string
+  sourceGitBaseText: string | null
   sourceText: string
   sourceIdentity: BreakpointSourceIdentity | null
   sourceDirty: boolean
@@ -6309,6 +6316,8 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
     verbose: new VerbosePane(moduleVerboseStorageKey(module.id)),
     sourceCache: new Map<string, CachedSource>(),
     sourceTextKey: "",
+    sourceSavedText: "",
+    sourceGitBaseText: null,
     sourceText: "",
     sourceIdentity: null,
     sourceDirty: false,
@@ -6409,6 +6418,8 @@ function initialWorkspaceFilesState(module: ModulePaneSnapshot): WorkspaceFilesS
     modulePath: module.modulePath ?? null,
     rootLabel: null,
     catalogPaths: [],
+    vcsStatuses: new Map(),
+    lineStats: new Map(),
     items: [],
     expandedIds: storedState.expandedIds,
     selectedIds: storedState.selectedIds,
@@ -6427,9 +6438,22 @@ async function refreshWorkspaceFiles(controller: ModuleDisplayController): Promi
       if (tool.ok !== true) throw new Error(tool.error ?? "process.modules failed")
       const data = processToolResultObject(tool) as WorkspaceFilesPayload
       const files = Array.isArray(data.modules) ? data.modules : data.files
-      const paths = Array.isArray(files)
-        ? files.map((file) => typeof file.path === "string" ? file.path : "").filter((path) => path.length > 0)
+      const fileEntries = Array.isArray(files)
+        ? files
+          .map((file) => ({
+            path: typeof file.path === "string" ? file.path : "",
+            vcsStatus: workspaceFileVcsStatus(file.vcsStatus),
+            addedLines: nonNegativeInteger(file.addedLines),
+            deletedLines: nonNegativeInteger(file.deletedLines),
+          }))
+          .filter((file) => file.path.length > 0)
         : []
+      const paths = fileEntries.map((file) => file.path)
+      const vcsStatuses = new Map(fileEntries.flatMap((file) => file.vcsStatus === undefined ? [] : [[file.path, file.vcsStatus] as const]))
+      const lineStats = new Map(fileEntries.flatMap((file) => file.addedLines === undefined && file.deletedLines === undefined ? [] : [[file.path, {
+        addedLines: file.addedLines ?? 0,
+        deletedLines: file.deletedLines ?? 0,
+      }] as const]))
       const storageKey = workspaceFilesStorageKey(data.root, controller.id)
       const storedState = readStoredWorkspaceFilesState(storageKey)
       const root = data.root ?? null
@@ -6440,12 +6464,14 @@ async function refreshWorkspaceFiles(controller: ModuleDisplayController): Promi
         .filter((id): id is string => id !== null)
       const openedFileIds = normalizeWorkspaceOpenedFileIds([...storedState.openedFileIds, ...currentOpenedFileIds])
         .filter((id) => catalogFileIds.has(id))
-      const items = workspaceFileItems(paths, openedFileIds)
+      const items = workspaceFileItems(paths, openedFileIds, vcsStatuses, lineStats)
       controller.workspaceFiles.root = root
       controller.workspaceFiles.workspacePath = workspacePath
       controller.workspaceFiles.modulePath = data.entrypoint ?? data.modulePath ?? controller.workspaceFiles.modulePath
       controller.workspaceFiles.rootLabel = workspaceRootLabel(data.root)
       controller.workspaceFiles.catalogPaths = paths
+      controller.workspaceFiles.vcsStatuses = vcsStatuses
+      controller.workspaceFiles.lineStats = lineStats
       controller.workspaceFiles.items = items
       controller.workspaceFiles.storageKey = storageKey
       controller.workspaceFiles.openedFileIds = openedFileIds
@@ -6462,6 +6488,8 @@ async function refreshWorkspaceFiles(controller: ModuleDisplayController): Promi
       controller.workspaceFiles.workspacePath = ""
       controller.workspaceFiles.rootLabel = null
       controller.workspaceFiles.catalogPaths = []
+      controller.workspaceFiles.vcsStatuses = new Map()
+      controller.workspaceFiles.lineStats = new Map()
       controller.workspaceFiles.items = []
       controller.workspaceFiles.expandedIds = []
       controller.workspaceFiles.selectedIds = []
@@ -6474,11 +6502,24 @@ async function refreshWorkspaceFiles(controller: ModuleDisplayController): Promi
   return controller.workspaceFiles.loading
 }
 
-function workspaceFileItems(catalogPaths: readonly string[], openedFileIds: readonly string[]): FileListItem[] {
-  const catalogItems = workspaceFileTree(catalogPaths)
+function workspaceFileItems(
+  catalogPaths: readonly string[],
+  openedFileIds: readonly string[],
+  vcsStatuses: ReadonlyMap<string, WorkspaceFileVcsStatus> = new Map(),
+  lineStats: ReadonlyMap<string, {addedLines: number; deletedLines: number}> = new Map(),
+): FileListItem[] {
+  const catalogItems = workspaceFileTree(catalogPaths, {vcsStatuses, lineStats})
   const catalogFileIds = new Set(workspaceFileIds(catalogItems))
   const mutedFileIds = openedFileIds.filter((id) => !catalogFileIds.has(id))
-  return workspaceFileTree([...catalogPaths, ...mutedFileIds], {mutedFileIds})
+  return workspaceFileTree([...catalogPaths, ...mutedFileIds], {mutedFileIds, vcsStatuses, lineStats})
+}
+
+function workspaceFileVcsStatus(value: unknown): WorkspaceFileVcsStatus | undefined {
+  return value === "added" || value === "modified" || value === "deleted" ? value : undefined
+}
+
+function nonNegativeInteger(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : undefined
 }
 
 function applyWorkspaceFilesToModuleDisplay(controller: ModuleDisplayController): void {
@@ -6561,7 +6602,7 @@ function addOpenedWorkspaceSource(controller: ModuleDisplayController, sourceUrl
   if (fileId === null) return null
 
   const openedFileIds = normalizeWorkspaceOpenedFileIds([...controller.workspaceFiles.openedFileIds, fileId])
-  const items = workspaceFileItems(controller.workspaceFiles.catalogPaths, openedFileIds)
+  const items = workspaceFileItems(controller.workspaceFiles.catalogPaths, openedFileIds, controller.workspaceFiles.vcsStatuses, controller.workspaceFiles.lineStats)
   const changed = !sameStringArray(openedFileIds, controller.workspaceFiles.openedFileIds)
     || findWorkspaceFileItem(controller.workspaceFiles.items, fileId)?.kind !== "file"
   if (!changed) return fileId
@@ -6579,7 +6620,7 @@ function removeOpenedWorkspaceSource(controller: ModuleDisplayController, source
   const fileId = workspaceFileIdForSourcePath(controller.workspaceFiles, sourceUrl)
   if (fileId === null) return false
   const openedFileIds = controller.workspaceFiles.openedFileIds.filter((id) => id !== fileId)
-  const items = workspaceFileItems(controller.workspaceFiles.catalogPaths, openedFileIds)
+  const items = workspaceFileItems(controller.workspaceFiles.catalogPaths, openedFileIds, controller.workspaceFiles.vcsStatuses, controller.workspaceFiles.lineStats)
   const changed = openedFileIds.length !== controller.workspaceFiles.openedFileIds.length ||
     findWorkspaceFileItem(controller.workspaceFiles.items, fileId)?.kind === "file"
   if (!changed) return false
@@ -6628,6 +6669,7 @@ async function openWorkspaceSource(
       url?: string
       scriptUrl?: string
       scriptSource?: string
+      gitBaseSource?: string
       tokens?: EditorTokens
       sourceKind?: string
       error?: string
@@ -6648,6 +6690,7 @@ async function openWorkspaceSource(
     controller.sourceDirty = false
     setModuleSource(controller, {
       text: data.scriptSource,
+      ...(typeof data.gitBaseSource === "string" ? {gitBaseText: data.gitBaseSource} : {}),
       currentLine: 0,
       location: responseSourceUrl,
       identity: {
@@ -6705,6 +6748,8 @@ async function saveModuleSource(controller: ModuleDisplayController, text: strin
     const tool = await runProcessTool(controller.id, "source.write", {sourceUrl, text})
     const data = processToolResultObject(tool) as {ok?: boolean; error?: string}
     if (tool.ok !== true || data.ok !== true) throw new Error(tool.error ?? data.error ?? "save failed")
+    controller.sourceSavedText = text
+    syncModuleSourceLineChanges(controller, text)
     controller.sourceDirty = false
     controller.sourceCache.clear()
   } catch (error) {
@@ -6719,10 +6764,16 @@ async function saveModuleSource(controller: ModuleDisplayController, text: strin
 function handleModuleSourceTextChange(controller: ModuleDisplayController, text: string): void {
   const lineChanges = sourceTextLineChanges(controller.sourceText, text)
   controller.sourceText = text
+  syncModuleSourceLineChanges(controller, text)
   if (lineChanges.length > 0) applyLocalSourceLineChanges(controller, lineChanges)
-  controller.sourceDirty = true
+  controller.sourceDirty = text !== controller.sourceSavedText
   setModuleSourceHeader(controller)
   queuePublishModuleContext(controller)
+}
+
+function syncModuleSourceLineChanges(controller: ModuleDisplayController, text: string): void {
+  const gitBaseText = controller.sourceGitBaseText
+  controller.source.setLineChanges(gitBaseText === null ? [] : sourceTextEditorLineChanges(gitBaseText, text))
 }
 
 function applyLocalSourceLineChanges(controller: ModuleDisplayController, lineChanges: readonly SourceLineChange[]): void {
@@ -6814,7 +6865,7 @@ function handleSourcePatched(msg: Extract<ServerMessage, {type: "source-patched"
 }
 
 function sourcePatchChangesWorkspaceFileTree(msg: Extract<ServerMessage, {type: "source-patched"}>): boolean {
-  return msg.files.some((file) => file.operation === "add" || file.operation === "delete" || file.operation === "move")
+  return msg.files.length > 0
 }
 
 type SourcePatchedEditorTarget = {
@@ -7264,6 +7315,7 @@ async function renderModuleSourceForFrame(controller: ModuleDisplayController, f
         url?: string
         scriptUrl?: string
         scriptSource?: string
+        gitBaseSource?: string
         tokens?: EditorTokens
         error?: string
       }
@@ -7280,6 +7332,7 @@ async function renderModuleSourceForFrame(controller: ModuleDisplayController, f
         text: data.scriptSource,
         sourceUrl: data.url ?? frame.url,
         scriptUrl: data.scriptUrl ?? "",
+        ...(typeof data.gitBaseSource === "string" ? {gitBaseText: data.gitBaseSource} : {}),
         ...(data.tokens === undefined ? {} : {tokens: data.tokens}),
       }
       controller.sourceCache.set(cacheKey, cached)
@@ -7299,6 +7352,7 @@ async function renderModuleSourceForFrame(controller: ModuleDisplayController, f
   controller.sourceDirty = false
   setModuleSource(controller, {
     text: cached.text,
+    ...(cached.gitBaseText === undefined ? {} : {gitBaseText: cached.gitBaseText}),
     currentLine: frame.line,
     location: sourceLocation(sourceUrl, scriptId, frame.line),
     identity: {
@@ -7324,13 +7378,17 @@ function setModuleSource(controller: ModuleDisplayController, payload: Source, s
     payload.text.length,
     stableStringHash(payload.text),
   ].join("\0")
+  controller.sourceSavedText = payload.text
+  controller.sourceGitBaseText = payload.gitBaseText ?? null
   controller.sourceText = payload.text
+  controller.sourceDirty = false
   if (controller.sourceTextKey !== sourceKey) {
     controller.sourceTextKey = sourceKey
     controller.source.setText(payload.text)
     if (payload.tokens !== undefined) controller.source.setTokens(payload.tokens)
     else controller.source.setLanguage({path: sourcePathFromLocation(payload.location)})
   }
+  syncModuleSourceLineChanges(controller, payload.text)
   const executionLine = state === "paused" && payload.currentLine > 0 ? payload.currentLine : null
   controller.source.setExecutionLine(executionLine, {scroll: executionLine !== null && forceScroll !== false})
   syncModuleBreakpointMarkers(controller)

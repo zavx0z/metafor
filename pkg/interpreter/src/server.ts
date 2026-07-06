@@ -13,6 +13,7 @@
  */
 
 import type {ServerWebSocket, WebSocketHandler} from "bun"
+import {spawnSync} from "node:child_process"
 import {createHash} from "node:crypto"
 import {existsSync, statSync, openSync, readSync, closeSync, readFileSync, writeFileSync, mkdirSync, watch, type FSWatcher} from "node:fs"
 import {basename, dirname, extname, join, relative, resolve} from "node:path"
@@ -2267,6 +2268,7 @@ function sourceFileResponse(options: {
   const stat = statSync(options.path)
   const cacheKey = sourceCacheKey(options.cacheScope, `file\0${options.path}\0${stat.size}\0${stat.mtimeMs}`)
   lruSet(sourceCache, cacheKey, scriptSource, SOURCE_CACHE_MAX)
+  const gitBaseSource = gitBaseSourceForFile(options.path)
   return jsonResponse({
     scriptId: options.scriptId,
     url: options.url,
@@ -2275,6 +2277,7 @@ function sourceFileResponse(options: {
     tokens: options.includeTokens ? tokensFor(cacheKey, scriptSource, options.url) : undefined,
     sourceKind: "file",
     cached: false,
+    ...(gitBaseSource === undefined ? {} : {gitBaseSource}),
   })
 }
 
@@ -2765,6 +2768,7 @@ async function sourceReadToolPayload(module: InterpreterModule, params: JsonObje
   const scriptSource = readFileSync(path, "utf8")
   const stat = statSync(path)
   const rangePayload = sourceReadRangesPayload(scriptSource, params)
+  const gitBaseSource = gitBaseSourceForFile(path)
   return {
     sourceUrl,
     url: sourceUrl,
@@ -2775,6 +2779,7 @@ async function sourceReadToolPayload(module: InterpreterModule, params: JsonObje
     mtimeMs: stat.mtimeMs,
     sha256: sha256Text(scriptSource),
     lineCount: sourceTextLines(scriptSource).length,
+    ...(gitBaseSource === undefined ? {} : {gitBaseSource}),
     ...(rangePayload === undefined ? {scriptSource, text: scriptSource} : {ranges: rangePayload}),
   }
 }
@@ -2863,6 +2868,28 @@ function positiveIntegerFromValue(value: unknown): number | undefined {
 
 function sha256Text(text: string): string {
   return createHash("sha256").update(text).digest("hex")
+}
+
+function gitBaseSourceForFile(path: string): string | undefined {
+  const repoRoot = gitCommandText(["rev-parse", "--show-toplevel"], dirname(path))?.trim()
+  if (repoRoot === undefined || repoRoot.length === 0) return undefined
+  const rel = relative(repoRoot, resolve(path)).replaceAll("\\", "/")
+  if (rel.length === 0 || rel === ".." || rel.startsWith("../")) return undefined
+
+  const base = gitCommandText(["show", `HEAD:${rel}`], repoRoot)
+  if (base !== undefined) return base
+
+  const status = gitCommandText(["status", "--porcelain", "--untracked-files=normal", "--", rel], repoRoot)
+  return status !== undefined && status.trim().length > 0 ? "" : undefined
+}
+
+function gitCommandText(args: readonly string[], cwd: string): string | undefined {
+  const result = spawnSync("git", [...args], {
+    cwd,
+    encoding: "utf8",
+    maxBuffer: 32 * 1024 * 1024,
+  })
+  return result.status === 0 && typeof result.stdout === "string" ? result.stdout : undefined
 }
 
 async function saveModuleSourcePayload(

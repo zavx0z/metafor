@@ -33,6 +33,19 @@ describe("interpreter workspace files", () => {
     expect(items[1]?.muted).toBeUndefined()
   })
 
+  test("aggregates vcs status and line stats on parent directories", () => {
+    const items = workspaceFileTree(["src/view/main.ts", "README.md"], {
+      vcsStatuses: new Map([["src/view/main.ts", "modified"]]),
+      lineStats: new Map([["src/view/main.ts", {addedLines: 3, deletedLines: 1}]]),
+    })
+
+    expect(items[0]?.vcsStatus).toBe("modified")
+    expect(items[0]?.statusLabel).toBe("+3 -1")
+    expect(items[0]?.children?.[0]?.vcsStatus).toBe("modified")
+    expect(items[0]?.children?.[0]?.statusLabel).toBe("+3 -1")
+    expect(items[0]?.children?.[0]?.children?.[0]?.statusLabel).toBe("+3 -1")
+  })
+
   test("resolves source URLs to workspace file ids", () => {
     const items = workspaceFileTree(["src/view/main.ts", "README.md"])
     const state = {

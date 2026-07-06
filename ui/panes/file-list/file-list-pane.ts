@@ -20,6 +20,7 @@ import {
   fileListVisibleRows,
   normalizeFileListSelection,
   type FileListItem,
+  type FileListItemVcsStatus,
   type FileListSelectionMode,
   type FileListVisibleRow,
 } from "./file-list-model.ts"
@@ -99,6 +100,9 @@ export type FileListPaneThemeInput = FileListPaneThemeName | FileListPaneThemeOv
 const FILE_LIST_SCROLL_KEY = "file-list-pane:scroll"
 const MIN_PANE_W = 300
 const MIN_PANE_H = PANE_FRAME.headerHeight + 160
+const FILE_LIST_VCS_ADDED = new Color(53 / 255, 204 / 255, 132 / 255, 0.95)
+const FILE_LIST_VCS_MODIFIED = new Color(248 / 255, 194 / 255, 91 / 255, 0.95)
+const FILE_LIST_VCS_DELETED = new Color(255 / 255, 105 / 255, 110 / 255, 0.95)
 
 export const FILE_LIST_INTELLIJ_THEME: FileListPaneTheme = {
   surface: {
@@ -601,8 +605,17 @@ export class FileListPane extends UiSurface {
     const nameRightGap = meta === null ? 8 : metaW + 10
     const nameW = Math.max(24, x + w - nameX - nameRightGap)
     const selectedText = this.#focused ? theme.row.selectedText : theme.row.selectedInactiveText
-    const textColor = muted ? theme.row.disabledText : selected ? selectedText : theme.row.text
+    const vcsColor = muted ? null : fileListVcsStatusColor(row.item.vcsStatus)
+    const textColor = muted ? theme.row.disabledText : selected ? selectedText : vcsColor ?? theme.row.text
     const mutedColor = muted ? theme.row.disabledText : selected ? selectedText : theme.row.muted
+
+    if (vcsColor !== null) {
+      this.drawRoundedRect(x + 2, y + 4, 3, Math.max(2, h - 8), {
+        radius: 1.5,
+        fill: vcsColor,
+        z: Z.ELEMENT_RULE + 0.01,
+      })
+    }
 
     if (row.expandable) {
       this.#drawDisclosureChevron(
@@ -949,7 +962,16 @@ export function fileListSelectionGroupStyle(theme: FileListPaneTheme, focused: b
 }
 
 function rowMeta(item: FileListItem): string | null {
+  if (item.statusLabel !== undefined && item.statusLabel.length > 0) return item.statusLabel
+  if (item.modifiedLabel !== undefined && item.modifiedLabel.length > 0) return item.modifiedLabel
   return item.sizeLabel ?? null
+}
+
+function fileListVcsStatusColor(status: FileListItemVcsStatus | undefined): Color | null {
+  if (status === "added") return FILE_LIST_VCS_ADDED
+  if (status === "modified") return FILE_LIST_VCS_MODIFIED
+  if (status === "deleted") return FILE_LIST_VCS_DELETED
+  return null
 }
 
 function resolveFileListPaneTheme(input: FileListPaneThemeInput | undefined): FileListPaneTheme {

@@ -1,4 +1,5 @@
 export type FileListItemKind = "file" | "directory"
+export type FileListItemVcsStatus = "added" | "modified" | "deleted"
 
 export type FileListItem = {
   id: string
@@ -9,6 +10,7 @@ export type FileListItem = {
   modifiedLabel?: string
   statusLabel?: string
   iconLabel?: string
+  vcsStatus?: FileListItemVcsStatus
   muted?: boolean
   disabled?: boolean
   children?: readonly FileListItem[]
