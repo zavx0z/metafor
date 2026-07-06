@@ -5,6 +5,7 @@ import {open} from "boundary/sqlite"
  * при остановке процесса. Протокольные сигналы рождаются в ORM.
  */
 const BOUNDARY_PATH = process.env.BOUNDARY_PATH ?? "./boundary.sqlite"
+const DARK_SERVER_PORT = Number(process.env.PORT ?? 4002)
 
 globalThis.boundary = await open(BOUNDARY_PATH)
 const dark = await import("./dark.ts")
@@ -19,7 +20,7 @@ process.on("SIGINT", () => void shutdown("SIGINT"))
 process.on("SIGTERM", () => void shutdown("SIGTERM"))
 
 const server = Bun.serve({
-  port: 4002,
+  port: Number.isFinite(DARK_SERVER_PORT) ? DARK_SERVER_PORT : 4002,
   routes: {
     "/health": {
       GET() {

@@ -2,8 +2,6 @@ import type { MatterParticleKind } from "../metafor/matter.ts"
 import type { ActorRecord } from "../boundary/actor.ts"
 import type { ActorValueRecord, FieldEnumVariantRecord, ValueItemRecord } from "../boundary/value.ts"
 import type { TopologyRecord } from "../boundary/topology.ts"
-import type { Particle } from "../force/particle.ts"
-import type { BulkLayoutSettings } from "./layout.ts"
 
 export interface BulkRuntimeMatterParticle {
   id: number
@@ -60,42 +58,4 @@ export interface BulkRuntimeSnapshot {
   matterParticles: BulkRuntimeMatterParticle[]
   matterTopologyBindingPaths: BulkRuntimeMatterBindingPath[]
   matterChildWimpBindingPaths: BulkRuntimeMatterChildBindingPath[]
-}
-
-export type ActorSnapshotMessage = {
-  actor: ActorRecord
-  values: ActorValueRecord[]
-  valueRecords: Array<{
-    id: number
-    kind: BulkRuntimeValue["kind"]
-    boolean?: boolean
-    number?: number
-    text?: string
-    variant?: number
-  }>
-  valueItems: ValueItemRecord[]
-}
-
-export type ForceSnapshotEffect = "none" | "partial" | "rebuild"
-
-export type ForceSocketMessage = {
-  type: "force"
-  parts: Particle[]
-}
-
-export type SnapshotMessage = {
-  type: "snapshot"
-  src: string
-  snapshot: BulkRuntimeSnapshot
-}
-
-export type BulkErrorMessage = {
-  type: "error"
-  error: string
-}
-
-export type ClientMaterializePayload = {
-  type: "materialize"
-  src: string
-  layoutSettings: Partial<BulkLayoutSettings>
 }

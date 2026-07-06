@@ -1,5 +1,5 @@
 import type { BulkRuntimeField, BulkRuntimeSnapshot, BulkRuntimeValue } from "@metafor/types/bulk/runtime"
-import type { ActorSnapshotMessage, ForceSnapshotEffect } from "@metafor/types/bulk/runtime"
+import type { ActorSnapshotMessage, ForceSnapshotEffect } from "@metafor/types/bulk/protocol"
 import type { Particle } from "@metafor/types/force/particle"
 import {resolveForceFieldId, resolveForceFieldsPayload} from "@metafor/types/force/fields"
 

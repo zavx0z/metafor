@@ -1,4 +1,4 @@
-import type { ResolveSurfaceFitScaleOptions } from "@metafor/types/bulk/layout"
+import type { ResolveSurfaceFitScaleOptions } from "@metafor/types/bulk/text"
 
 /**
  * Максимальная доля параллели, которую текст занимает по горизонтали (в радианах).

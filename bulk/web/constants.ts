@@ -1,5 +1,5 @@
 import { Color } from "@metafor/engine"
-import type { SurfaceArcLimits } from "@metafor/types/bulk/layout"
+import type { SurfaceArcLimits } from "@metafor/types/bulk/text"
 
 /**
  * Палитра, времена анимации и геометрические лимиты viewport-а.

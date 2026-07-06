@@ -1,13 +1,14 @@
-import type { BulkLayoutSettings, BulkViewportController, BulkViewportStats } from "@metafor/types/bulk/layout"
+import type { BulkLayoutSettings } from "@metafor/types/bulk/settings"
+import type { BulkViewportStats } from "@metafor/types/bulk/viewport"
 import type {
 	BulkHudController,
 	BulkHudOptions,
 	BulkHudSettingsSnapshot,
-	BulkRenderSettings,
 	DockButtonKind,
 	SettingsPanelState,
 	SettingsTab,
-} from "@metafor/types/bulk/settings"
+} from "@metafor/types/bulk/hud"
+import type { BulkRenderSettings } from "@metafor/types/bulk/settings"
 import {UiSurface, Z, div, divScrollPosition, divScrollTo, palette, uiIcons, type DivScrollContext, type UiSurfaceRect} from "@ui/elements"
 import {Button, SliderControl, Switcher, TextField} from "@ui/components"
 import {HudSideTab, HudWindow} from "@ui/hud"
@@ -38,7 +39,7 @@ export function installBulkHud(options: BulkHudOptions): BulkHudController {
 }
 
 class BulkHud implements BulkHudController {
-	readonly #viewport: BulkViewportController
+	readonly #viewport: BulkHudOptions["viewport"]
 	readonly #onApply: BulkHudOptions["onApply"]
 	readonly #onRenderSettingsChange: BulkHudOptions["onRenderSettingsChange"]
 	readonly #onSettingsPersist: BulkHudOptions["onSettingsPersist"]

@@ -1,6 +1,6 @@
 import type { LevelDetailSettings, LevelLabelSettings, LevelSettings } from "@metafor/types/bulk/level"
-import type { BulkLayoutSettings } from "@metafor/types/bulk/layout"
 import type {
+  BulkLayoutSettings,
   BulkLayoutConfig,
   BulkRenderSettings,
   BulkSettingConfig,

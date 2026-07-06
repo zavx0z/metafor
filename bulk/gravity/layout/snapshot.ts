@@ -1,5 +1,6 @@
 import type { BulkDarkParticle, BulkDarkParticleActivity, BulkDarkParticleKind, BulkDarkParticleInput, BulkFieldParticle, BulkFieldParticleInput, BulkFieldParticleKind, BulkManifest } from "@metafor/types/bulk/manifest"
-import type { BulkLayoutSettings, DarkParticleInputNode, LayoutDarkParticleNode, LayoutFieldParticleNode, OrbitItem } from "@metafor/types/bulk/layout"
+import type { DarkParticleInputNode, LayoutDarkParticleNode, LayoutFieldParticleNode, OrbitItem } from "@metafor/types/bulk/layout"
+import type { BulkLayoutSettings } from "@metafor/types/bulk/settings"
 import type { LevelGeometry } from "@metafor/types/bulk/level"
 import { resolveLevelGeometry } from "../level"
 import {

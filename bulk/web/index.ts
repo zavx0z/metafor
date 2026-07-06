@@ -2,22 +2,17 @@ import type { BulkDarkParticle, BulkFieldParticle, BulkFieldParticleKind, BulkMa
 import type {
 	BotFloorPhones,
 	BotPhoneCameraFlight,
-	BotPhoneDisplayDockControl,
 	BotPhoneDisplayRect,
 	BotPhoneGesture,
 	BotPhoneHudPoint,
 	BotPhoneHudQuad,
-	BotPhoneScreenFrame,
 	BotPhoneScreenHit,
 	BotPhoneScreenTarget,
 	BotPhoneViewState,
 	BulkAndroidControlCommand,
 	BulkAndroidFrameSize,
-	BulkHudSurfaceSlot,
-	BulkLayoutSettings,
 	BulkViewportController,
 	BulkViewportFitAxis,
-	BulkViewportHudController,
 	BulkViewportOptions,
 	BulkViewportStats,
 	BulkViewPose,
@@ -27,20 +22,26 @@ import type {
 	DarkParticleRenderRecord,
 	FadingLabelRemovalRecord,
 	FadingRemovalRecord,
-	FieldParticleBillboardMode,
-	FieldParticleBillboardRecord,
 	FieldParticleRenderRecord,
 	HoverablePickTarget,
 	LabelRenderRecord,
 	LabelSpec,
 	RestoredBulkViewPose,
 	StoredBulkViewPose,
-	SurfaceArcLimits,
 	SurfaceLabelVisual,
-	TextExtents,
 	ViewNavigationState,
-} from "@metafor/types/bulk/layout"
-import type { BulkRenderSettings } from "@metafor/types/bulk/settings"
+} from "@metafor/types/bulk/viewport"
+import type {
+	BotPhoneDisplayDockControl,
+	BotPhoneScreenFrame,
+	BulkHudSurfaceSlot,
+	BulkViewportHudController,
+	BulkViewportWithHud,
+	FieldParticleBillboardMode,
+	FieldParticleBillboardRecord,
+} from "@metafor/types/bulk/hud"
+import type { BulkLayoutSettings, BulkRenderSettings } from "@metafor/types/bulk/settings"
+import type { SurfaceArcLimits, TextExtents } from "@metafor/types/bulk/text"
 import { normalizeBulkLayoutSettings } from "@bulk/gravity/layout"
 import {
 	DEFAULT_BULK_SETTINGS,
@@ -106,7 +107,7 @@ import {
 	resolveBulkPickHits,
 	resolveBulkViewportFitPose,
 } from "../web-navigation"
-import type { BulkHoverPriorityCandidate, BulkPickTarget } from "@metafor/types/bulk/layout"
+import type { BulkHoverPriorityCandidate, BulkPickTarget } from "@metafor/types/bulk/viewport"
 import { isDepthLabelVisible, isDarkParticleLabelVisible } from "../label-visibility"
 import {
 	bendTextAroundEquator,
@@ -2075,7 +2076,7 @@ function isBulkHudKeyFallbackTarget(target: EventTarget | null, canvas: HTMLCanv
 	return target === canvas.parentElement || target.contains(canvas)
 }
 
-export const createBulkViewport = async (options: BulkViewportOptions): Promise<BulkViewportController> => {
+export const createBulkViewport = async (options: BulkViewportOptions): Promise<BulkViewportWithHud> => {
 	const renderer = new Renderer()
 	await renderer.init(options.canvas)
 	if (!renderer.canvas) {

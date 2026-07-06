@@ -11,6 +11,7 @@ const logBroadcastMessage = (event: MessageEvent<unknown>): void => {
 
 describe("dark/server разворачивает дерево zavx0z/git по gravity part", () => {
   let boundaryPath: string
+  let previousPort: string | undefined
   let boundarySubscription: ForceBinding | null = null
   let forceBridge: ReturnType<typeof Bun.serve<{kind: "force"}>> | null = null
   let forceClient: WebSocket | null = null
@@ -31,6 +32,8 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
     rmSync(`${boundaryPath}-wal`, {force: true})
 
     process.env.BOUNDARY_PATH = boundaryPath
+    previousPort = process.env.PORT
+    process.env.PORT = "0"
     await import("./server.ts")
 
     forceBridge = Bun.serve<{kind: "force"}>({
@@ -75,6 +78,8 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
     forceClient?.close()
     forceSockets.clear()
     await forceBridge?.stop(true)
+    if (previousPort === undefined) delete process.env.PORT
+    else process.env.PORT = previousPort
   })
 
   test("после test wimp zavx0z/git boundary содержит каноническое дерево git", async () => {

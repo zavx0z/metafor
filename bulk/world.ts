@@ -4,7 +4,7 @@ import {
   scaleBulkManifestToRootOuterDiameter,
 } from "@bulk/gravity/layout"
 import type { BulkRuntimeField, BulkRuntimeMatterBindingPath, BulkRuntimeMatterChildBindingPath, BulkRuntimeMatterParticle, BulkRuntimeSnapshot, BulkRuntimeValue } from "@metafor/types/bulk/runtime"
-import type { BulkLayoutSettings } from "@metafor/types/bulk/layout"
+import type { BulkLayoutSettings } from "@metafor/types/bulk/settings"
 import type { ActorRecord } from "@metafor/types/boundary/actor"
 import type { FieldEnumVariantRecord, ValueItemRecord } from "@metafor/types/boundary/value"
 import type { TopologyRecord } from "@metafor/types/boundary/topology"

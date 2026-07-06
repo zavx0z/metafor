@@ -1,8 +1,9 @@
-import type { BulkLayoutSettings } from "@metafor/types/bulk/layout"
-import type { BulkViewportController, BulkViewportStats } from "@metafor/types/bulk/layout"
+import type { BulkLayoutSettings } from "@metafor/types/bulk/settings"
+import type { BulkViewportStats } from "@metafor/types/bulk/viewport"
 import type { BulkRenderSettings, SettingsSnapshot } from "@metafor/types/bulk/settings"
-import type { BulkHudController, BulkHudSettingsSnapshot } from "@metafor/types/bulk/settings"
-import type { BulkErrorMessage, BulkRuntimeSnapshot, ClientMaterializePayload, ForceSocketMessage, SnapshotMessage } from "@metafor/types/bulk/runtime"
+import type { BulkHudController, BulkHudSettingsSnapshot, BulkViewportWithHud } from "@metafor/types/bulk/hud"
+import type { BulkRuntimeSnapshot } from "@metafor/types/bulk/runtime"
+import type { BulkErrorMessage, ClientMaterializePayload, ForceSocketMessage, SnapshotMessage } from "@metafor/types/bulk/protocol"
 import {createBulkViewport} from "bulk/web"
 import {buildBoundaryBulkManifest} from "./world.ts"
 import {
@@ -18,7 +19,7 @@ import {applyForcePartToSnapshot} from "./force-snapshot.ts"
 const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement | null
 if (bulkCanvas === null) throw new Error("bulk-canvas not found")
 
-let bulkViewport: BulkViewportController | null = null
+let bulkViewport: BulkViewportWithHud | null = null
 let hud: BulkHudController | null = null
 let initialMaterializationRequested = false
 let pendingSnapshotMessage: SnapshotMessage | null = null

@@ -16,7 +16,7 @@ import type {
   ResolveBulkPickTargetOptions,
   ResolveBulkViewportFitPoseOptions,
   ResolveBulkViewportFocusPoseOptions,
-} from "@metafor/types/bulk/layout"
+} from "@metafor/types/bulk/viewport"
 
 const DEFAULT_HIT_PADDING_MM = 32
 const DEFAULT_RETENTION_HIT_PADDING_MM = 44

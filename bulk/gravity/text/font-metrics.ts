@@ -1,5 +1,5 @@
 import type { TrueTypeFont } from "@metafor/engine"
-import type { FontMetrics } from "@metafor/types/bulk/layout"
+import type { FontMetrics } from "@metafor/types/bulk/text"
 
 /** Извлекает метрики шрифта из загруженного {@link TrueTypeFont}. */
 export const getFontMetrics = (font: TrueTypeFont): FontMetrics => ({

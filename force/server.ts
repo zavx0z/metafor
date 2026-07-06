@@ -11,7 +11,7 @@ const server = Bun.serve<{domain?: string; id?: string}>({
       },
     },
     "/ws": {
-      GET(req, server) {
+      GET(req: Bun.BunRequest<"/ws">, server: Bun.Server<{domain?: string; id?: string}>) {
         const upgraded = server.upgrade(req, {data: {}})
         return upgraded ? undefined : new Response("WebSocket upgrade failed", {status: 426})
       },

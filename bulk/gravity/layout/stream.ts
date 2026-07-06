@@ -3,7 +3,7 @@ import {
   scaleBulkManifestToRootOuterDiameter,
 } from "./snapshot"
 import type { BulkDarkParticleInput, BulkManifestSink } from "@metafor/types/bulk/manifest"
-import type { BulkLayoutSettings } from "@metafor/types/bulk/layout"
+import type { BulkLayoutSettings } from "@metafor/types/bulk/settings"
 
 /**
  * Строит Bulk manifest из Dark particle inputs и сразу пишет projection entities в `sink`.

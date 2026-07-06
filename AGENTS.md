@@ -20,6 +20,16 @@ pkg/interpreter/AGENTS.md
 реализацией. Не дублируй здесь interpreter workflow: при изменении поведения
 обновляй `pkg/interpreter/AGENTS.md`, профильную документацию или TypeDoc.
 
+Если задача касается `@metafor/types`, структуры `types/`, переноса или
+разделения типов, сначала читай и выполняй:
+
+```text
+types/AGENTS.md
+```
+
+Правила пакета типов лежат рядом с `types/package.json`, потому что именно там
+задаётся dependency layer для типовых контрактов.
+
 ## Стиль Изменений
 
 Не плодить лишний код. Это обязательное правило для всего репозитория.
@@ -104,6 +114,7 @@ server-dev контуром. LAN/TLS режим на `443` - отдельный 
 ## Документация
 
 - Interpreter rules: `pkg/interpreter/AGENTS.md`
+- Types package rules: `types/AGENTS.md`
 - Interpreter world model: `pkg/interpreter/docs/interpreter-world.md`
 - Interpreter REST/API contracts: `pkg/interpreter/docs/api.md`
 - Interpreter workflow: `pkg/interpreter/docs/workflow.md`
