@@ -524,7 +524,7 @@ Codex-style:
 
 `process.close` останавливает рантайм-процесс, удаляет его из списка процессов и синхронизирует UI так, чтобы display этого module исчез из Space.
 
-API-редактирование исходного кода через `POST /tools` с `source.write` или `source.apply_patch` рассылает `source-patched`. UI process display из `parameters.processId` должен открыть первый измененный не-delete файл в редакторе исходного кода, раскрыть и выделить его в дереве файлов и поставить курсор на первую измененную строку (`lineChanges[0].newStart`, иначе строка 1). Если в редакторе есть несохраненные изменения или идет сохранение, авто-переход пропускается, чтобы не перетереть локальное dirty-состояние.
+API-редактирование исходного кода через `POST /tools` с `source.write` или `source.apply_patch` рассылает `source-patched`. UI process display из `parameters.processId` должен открыть первый измененный не-delete файл в редакторе исходного кода, раскрыть и выделить его в дереве файлов и поставить курсор на первую измененную строку (`lineChanges[0].newStart`, иначе строка 1). Этот origin display обновляется даже если прежний editor buffer был dirty или process уже `exited`/`failed`; другие display с локальным dirty state не перетираются автоматически. Если в origin display прямо сейчас идет сохранение, авто-переход пропускается.
 
 `process.start` запускает новый process:
 
