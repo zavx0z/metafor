@@ -1,11 +1,12 @@
 import {MetaFor} from ".."
 import type {Field} from "@boundary/wimp/sqlite/fields/field"
 import type { ActorValueRecord, ValueItemRecord, ValueRecord } from "@metafor/types/boundary/value"
-import type { ForceMessage } from "@metafor/types/force/message"
 import type { BfsEntry, Continuation, MatterParticle, ParticleRef, PendingChildWimp } from "@metafor/types/metafor/matter"
 import {Force} from "force"
 import {loadMeta} from "./load.ts"
 import {finalizeFieldValues, resolveFieldInits} from "./continuation.ts"
+
+;(globalThis as unknown as {MetaFor: typeof MetaFor}).MetaFor = MetaFor
 
 const force = new Force("dark")
 force.onImpulse = async (impulse) => {
@@ -14,8 +15,8 @@ force.onImpulse = async (impulse) => {
       case "inflaton":
         switch (part.op) {
           case "test":
-            if (part.path === "wimp" && typeof part.value === "string") {
-              await matter(part.value)
+            if (typeof part.path === "string") {
+              await matter(part.path)
             }
             break
         }
@@ -24,58 +25,12 @@ force.onImpulse = async (impulse) => {
   }
 }
 
-;(globalThis as unknown as {MetaFor: typeof MetaFor}).MetaFor = MetaFor
 
-let observedBoundary: typeof globalThis.boundary | null = null
-let boundaryObserver: {close(): void} | null = null
-
-export const ensureBoundaryObserver = (): void => {
-  // const current = globalThis.boundary
-  // if (!current) return
-  // if (observedBoundary === current) return
-
-  // boundaryObserver?.close()
-  // observedBoundary = current
-  // boundaryObserver = current.observe(async (event: MessageEvent<ForceMessage>) => {
-  //   for (const part of event.data.parts) {
-  //     if (part.part !== "inflaton") continue
-  //     if (part.op !== "test") continue
-  //     if (part.path !== "wimp") continue
-  //     if (typeof part.value !== "string") continue
-  //     if (await current.wimp.exists(part.value)) continue
-  //     await matter(part.value)
-  //   }
-  // })
-}
-
-ensureBoundaryObserver()
-
-/**
- * Публичный entrypoint Dark.
- *
- * Использует `globalThis.boundary`, установленный в `dark/server.ts` либо в `dark/web.ts`.
- * Вызовы всегда передают только `string`; `Wimp` ORM создаётся внутри `matterWimp`
- * уже с декларационными matter-связями и разворачивает дерево через boundary ORM: создаёт actor + topology rows,
- * рекурсивно материализует дочерние wimps.
- *
- * Внутренняя рекурсия тоже передаёт только `string`: декларация WIMP создаётся один раз,
- * а runtime actor пропускается только если такой WIMP уже стоит под тем же parent.
- *
- * Обход дерева — послойный: на каждом BFS-слое топологии родительской wimp сначала
- * создаются все topology-узлы слоя, затем рекурсивно материализуются child wimps этого
- * же слоя, и только потом обход переходит к следующему слою.
- *
- * `parent`/`continuation` — внутренние параметры рекурсии, caller'ам передавать не нужно.
- */
 export async function matter(
   src: string,
   parent: ParticleRef | null = null,
   continuation: Continuation | undefined = undefined,
 ): Promise<void> {
-  ensureBoundaryObserver()
-  // if (await boundary.actor.findByParent({wimp: src, parent})) return
-  return
-
   const generator = matterWimp(src, parent, continuation)
 
   while (true) {
@@ -87,16 +42,6 @@ export async function matter(
   }
 }
 
-/**
- * Послойный проход одной wimp.
- *
- * Создаёт WIMP-декларацию с matter plan, root actor, эмитит actor part, затем BFS по plan-tree:
- * на каждой итерации обрабатывает все entries текущего фронтира — для topology-узлов
- * пишет topology particle, для wimp-узлов накапливает pending. По завершении слоя — yield-ит
- * накопленные pending child wimps наружу. Внешний оркестратор обязан рекурсивно
- * материализовать их перед `next()`, чтобы дочерние actors встали в БД до того,
- * как BFS перейдёт к следующему слою топологии.
- */
 async function* matterWimp(
   src: string,
   parent: ParticleRef | null,
