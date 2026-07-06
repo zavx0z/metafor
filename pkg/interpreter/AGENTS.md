@@ -79,12 +79,14 @@ server-dev контуре:
 - workspace: `/home/zavx0z/production/vendor/metafor`;
 - branch: `main`;
 - interpreter host: `http://10.66.0.10:6500`;
-- dark dev server: `http://10.66.0.10:3004`;
+- default interpreter command: `bun run force:development`;
+- Force server: `http://10.66.0.10:4000`;
+- domain servers: boundary `4001`, dark `4002`, matrix `4003`, bulk `4004`,
+  energy `4005`;
 - boundary SQLite: `dark/tmp/boundary.sqlite`;
-- Energy pipeline: `dark/index.ts` starts `energy/energy.ts` with
-  `boundary.energyRuntime()` catalog, no separate default dev server;
-- Bun inspector child `dark/index.ts`: первый auto-allocated inspector socket,
-  обычно `ws://127.0.0.1:6499/`;
+- Bun inspector children: `force/server.ts`, `boundary/server.ts`,
+  `dark/server.ts`, `matrix/server.ts`, `bulk/server.ts`, `energy/server.ts`,
+  with auto-allocated inspector sockets starting around `ws://127.0.0.1:6499/`;
 - visible WebApp target в серверном Chrome:
   `https://meta.proizvodstvo1.ru/`;
 - server Chrome remote desktop host: `http://127.0.0.1:32133`;
@@ -92,25 +94,21 @@ server-dev контуре:
 
 Локальный workflow через `127.0.0.1:6500` поддерживается для запуска на другой
 машине, но в текущем server-dev контуре используй `10.66.0.10:6500` для host
-API и `10.66.0.10:3004` для Dark dev health/API. LAN/TLS режим на `443` -
+API и `10.66.0.10:4000`-`4005` для domain dev health/API. LAN/TLS режим на `443` -
 отдельный локально-сетевой режим, не диагностика этого контура.
 
-Текущий Dark server-dev mode управляется через interpreter tools:
+Текущий Force development server-dev mode управляется через interpreter tools:
 
-- `dark/index.ts`: основной server target на `3004`; импортирует
-  `dark/server.ts`, открывает Boundary через `BOUNDARY_PATH` и запускает
-  текущий server shell;
+- `force/server.ts`: Force WebSocket registry на `4000`;
+- `boundary/server.ts`, `dark/server.ts`, `matrix/server.ts`, `bulk/server.ts`,
+  `energy/server.ts`: отдельные domain server targets на `4001`-`4005`, каждый
+  регистрируется в Force через `ws://127.0.0.1:4000/ws`;
+- `bulk/server.ts`: отдаёт WebApp HTML и минимальную engine static на `4004`;
 - SQLite HUD открывает ту же базу `dark/tmp/boundary.sqlite` отдельным CLI
   аргументом interpreter;
-- Matrix runtime pipeline живёт в `matrix/matrix.ts` и работает через общий
-  локальный `BroadcastChannel("force")`, без отдельного Matrix server;
-- Energy runtime pipeline живёт в `energy/energy.ts`, явно стартует из
-  `dark/index.ts` с catalog snapshot и работает через тот же локальный
-  `BroadcastChannel("force")`, без отдельного Energy server;
 - WebApp больше не является стартовым server-dev target.
 
-Не поднимай отдельный Energy server/debug-process как default target. Не
-возвращай WebApp как default target.
+Не возвращай WebApp/AppWeb как default target.
 
 Удаленный браузер для визуальной WebApp-разработки должен открывать
 `https://meta.proizvodstvo1.ru/`. Это не маркетинговая внешняя страница, а
@@ -125,7 +123,8 @@ curl -sS http://10.66.0.10:6500/health
 curl -sS -X POST http://10.66.0.10:6500/tools \
   -H 'content-type: application/json' \
   -d '{"tool_uses":[{"recipient_name":"context.get","parameters":{}},{"recipient_name":"space.get","parameters":{}}]}'
-curl -sS http://10.66.0.10:3004/health
+curl -sS http://10.66.0.10:4000/health
+curl -sS http://10.66.0.10:4004/health
 curl -sS http://10.66.0.10:6500/remote-desktop/lifecycle
 ```
 
@@ -243,7 +242,8 @@ Host-level tools:
 
 Если nginx показывает `502 Bad Gateway`, сначала проверяй upstream:
 `curl http://10.66.0.10:6500/health`,
-`curl http://10.66.0.10:3004/health` и `ss -ltnp`. Не доверяй только
+`curl http://10.66.0.10:4000/health`,
+`curl http://10.66.0.10:4004/health` и `ss -ltnp`. Не доверяй только
 `tmux ls`: session `metafor-interpreter-host` может существовать, но внутри
 может быть shell/старый Codex. Подробный recovery описан в
 `pkg/interpreter/docs/troubleshooting.md`.

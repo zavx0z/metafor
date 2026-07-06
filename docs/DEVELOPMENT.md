@@ -105,17 +105,13 @@ MetaFor строится как система доменных проекций
 Текущий server-dev контур управляется одним interpreter host. Agent-facing
 команды идут через `POST /tools`, а не через отдельные process URL:
 
-- `dark/index.ts` является основным server target на `3004`;
-- `dark/server.ts` открывает Boundary из `BOUNDARY_PATH=dark/tmp/boundary.sqlite`;
-- SQLite HUD открывает ту же базу `dark/tmp/boundary.sqlite` как отдельный CLI
-  startup target interpreter;
-- Matrix runtime pipeline живёт в `matrix/matrix.ts`: сам модуль открывает
-  общий локальный `BroadcastChannel("force")` и обрабатывает входящие Force
-  сообщения;
-- Energy runtime pipeline живёт в `energy/energy.ts`: `dark/index.ts` получает
-  `boundary.energyRuntime()` catalog, вызывает `startEnergyProtocol({catalog})`
-  до загрузки Matrix snapshot, и Energy работает через тот же общий локальный
-  `BroadcastChannel("force")`; отдельного Energy server target больше нет.
+- `force/server.ts` является Force registry target на `4000`;
+- `boundary/server.ts`, `dark/server.ts`, `matrix/server.ts`, `bulk/server.ts`,
+  `energy/server.ts` являются domain server targets на `4001`-`4005` и
+  регистрируются в Force через WebSocket;
+- `bulk/server.ts` отдаёт WebApp HTML и минимальную engine static на `4004`;
+- SQLite HUD открывает `dark/tmp/boundary.sqlite` как отдельный CLI startup
+  target interpreter.
 
 Dark получает начальный `MatrixRuntimeSnapshot` из `Boundary` и загружает
 его в Matrix runtime. Matrix snapshot содержит `stateHasProcessByBraneIndex`, но
@@ -128,8 +124,8 @@ fields через `z copy`, исполняет cached process descriptor с in-m
 actor-addressed `w+` / `w-`. Legacy Weak result path через top-level `wimpId` /
 `processId` и `/field/...` удалён. Mass не проходит через Matrix или Force.
 
-Root scripts `workspace.dark:*` запускают Dark. Отдельный Energy
-server/debug-process не является частью текущего server-dev контура.
+Root script `force:development` запускает текущий interpreter server-dev контур
+со всеми domain server targets и SQLite HUD database.
 
 ## Временный режим интеграционной разработки
 

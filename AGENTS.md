@@ -65,9 +65,11 @@ catch-all/proxy случаев, а static `Response` routes - для неизм�
 - workspace: `/home/zavx0z/production/vendor/metafor`;
 - branch: `main`;
 - interpreter host: `http://10.66.0.10:6500`;
-- dark dev server: `http://10.66.0.10:3004`;
-- Energy pipeline: `dark/index.ts` starts `energy/energy.ts` with
-  `boundary.energyRuntime()` catalog, no separate default dev server;
+- default interpreter command: `bun run force:development`;
+- Force server: `http://10.66.0.10:4000`;
+- domain servers: boundary `4001`, dark `4002`, matrix `4003`, bulk `4004`,
+  energy `4005`;
+- SQLite HUD startup database: `dark/tmp/boundary.sqlite`;
 - visible WebApp target: `https://meta.proizvodstvo1.ru/`;
 - server Chrome remote desktop host: `http://127.0.0.1:32133`;
 - server Chrome CDP: `http://127.0.0.1:9349/json/list`.
