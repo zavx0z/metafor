@@ -5,11 +5,9 @@
  * placements; public runtime/source API is scoped to processes.
  */
 
-import {Color, TextureLoader} from "@metafor/engine"
 import {
   UiRuntime,
   UiSurface,
-  flexColumn,
   flexRow,
   palette,
   radii,
@@ -21,8 +19,8 @@ import {
   type UiRuntimeViewPointVector,
   type UiSurfaceRect,
 } from "@ui/elements"
-import {Button, ButtonVoice, IconButton, Switcher, Table, TextField, VoiceInputHud, focusTextField, normalizeTableSelection, tableScrollTo, tableSelectionAfterClick, type ButtonVoiceSnapshot, type TableCellContext, type TableColumn, type TableRowId, type TableRowPointerContext, type TextFieldEditState, type VoiceInputHudDeactivationMode, type VoiceInputHudPhraseGroupId, type VoiceInputHudServiceState} from "@ui/components"
-import {HudSideTab, HudWindow, HudWindowTitleBar, type HudWindowTitleBarAction, type HudSideTabEdge} from "@ui/hud"
+import {VoiceInputHud, type ButtonVoiceSnapshot, type VoiceInputHudDeactivationMode, type VoiceInputHudPhraseGroupId, type VoiceInputHudServiceState} from "@ui/components"
+import {type HudSideTabEdge} from "@ui/hud"
 import {
   EditorPane,
   FileListPane,
@@ -31,18 +29,13 @@ import {
   TerminalPane,
   ToDoPane,
   PANE_FRAME,
-  beginPaneFrameDrag,
   networkWatchSectionsFromLines,
   normalizeFileListSelection,
   paneBodyRect,
-  paneFrameCursor,
-  paneFrameDragRect,
-  paneFrameHit,
   sourceDisplayLocation,
   sourcePathFromLocation,
   codexComposerMessage,
   codexImageDropFiles,
-  formatCodexAttachmentSize,
   mergeCodexComposerDraft,
   pickCodexImageFiles,
   uploadCodexAttachments,
@@ -55,8 +48,6 @@ import {
   type AndroidPaneSwipe,
   type NetworkWatchPaneSnapshot,
   type NetworkWatchServiceKey,
-  type PaneFrameDrag,
-  type PaneFrameInteractionOpts,
   type TerminalInputSource,
   type TerminalSelectionSnapshot,
   type TerminalPaneOpts,
@@ -109,13 +100,8 @@ import {formatTerminalExpressionResult} from "./terminal-value-format.ts"
 import {createAndroidRtcClient, type AndroidRtcAudioStream, type AndroidRtcClient, type AndroidRtcCommand, type AndroidRtcFrame, type RtcControlCommand} from "./android-rtc.ts"
 import {RTC_ICE_SERVERS} from "./p2p-signaling.ts"
 import {
-  DEFAULT_VOICE_ACTIVATION_PHRASES,
-  DEFAULT_VOICE_DEACTIVATION_PHRASES,
-  DEFAULT_VOICE_STOP_PHRASES,
   VoiceInputClient,
   VOICE_STOP_COMMAND_DETAIL,
-  cleanupVoiceText,
-  normalizeVoicePhrases,
   voiceInputWebSocketUrl,
   type VoiceDeactivationMode,
   type VoiceInputChunk,
@@ -123,6 +109,105 @@ import {
   type VoiceInputSignalTone,
   type VoiceInputStatus,
 } from "./voice-input.ts"
+import {hiddenRect, clampNumber, withAlpha} from "./geometry.ts"
+import {cleanupVoiceInputText, mergeVoiceInputText, sanitizeHostTerminalVoiceInput, voiceMessagesFromChunk} from "./voice-text.ts"
+import {sourceTextLineChanges, remapSourceLine, type SourceLineChange} from "./source-lines.ts"
+import {RemoteDesktopPane, isValidRemoteDesktopFrame} from "./remote-desktop-pane.ts"
+import {SqliteTablePane} from "./sqlite-table-pane.ts"
+import {sameStringArray} from "./array-utils.ts"
+import type {SqliteCellValue, SqliteDatabasePayload, SqliteHudContextSnapshot} from "./sqlite-types.ts"
+import {WorkspaceFilesChromePane, WorkspaceFilesHeaderPane} from "./workspace-panes.ts"
+import {HostTerminalAgentSignalPane, HostTerminalDockPane, SqliteHudFramePane} from "./hud-panes.ts"
+import {
+  HostTerminalCodexComposerPane,
+  hostCodexComposerContentLayout,
+  HOST_TERMINAL_CODEX_COMPOSER_H,
+  HOST_TERMINAL_CODEX_COMPOSER_MIN_W,
+  HOST_TERMINAL_CODEX_COMPOSER_MIN_H,
+  HOST_TERMINAL_CODEX_COMPOSER_GAP,
+} from "./codex-composer-pane.ts"
+import {
+  HOST_TERMINAL_SESSION_STORAGE_KEY,
+  NETWORK_TERMINAL_SESSION_STORAGE_KEY,
+  readStoredHostTerminalSessionId,
+  writeStoredHostTerminalSessionId,
+  readStoredHostTerminalHudRect,
+  storeHostTerminalHudRect,
+  readStoredHostCodexComposerRect,
+  storeHostCodexComposerRect,
+  readStoredVoiceSettingsRect,
+  storeVoiceSettingsRect,
+  readStoredNetworkTerminalHudRect,
+  storeNetworkTerminalHudRect,
+  readStoredAndroidHudRect,
+  storeAndroidHudRect,
+  readStoredTodoHudRect,
+  storeTodoHudRect,
+  readStoredSqliteHudRect,
+  storeSqliteHudRect,
+  readStoredHostTerminalHudDocked,
+  writeStoredHostTerminalHudDocked,
+  readStoredNetworkTerminalHudDocked,
+  writeStoredNetworkTerminalHudDocked,
+  readStoredNetworkStatusAutoRefreshEnabled,
+  writeStoredNetworkStatusAutoRefreshEnabled,
+  readStoredNetworkProductViaInterpreter,
+  writeStoredNetworkProductViaInterpreter,
+  readStoredDisplayActionAutoFocusEnabled,
+  writeStoredDisplayActionAutoFocusEnabled,
+  readStoredAndroidHudDocked,
+  writeStoredAndroidHudDocked,
+  readStoredTodoHudDocked,
+  writeStoredTodoHudDocked,
+  readStoredSqliteHudDocked,
+  writeStoredSqliteHudDocked,
+  readStoredAndroidDockPlacement,
+  writeStoredAndroidDockPlacement,
+  readStoredHostTerminalDockPlacement,
+  readStoredTodoDockPlacement,
+  readStoredSqliteDockPlacement,
+  writeStoredHostTerminalDockPlacement,
+  writeStoredTodoDockPlacement,
+  writeStoredSqliteDockPlacement,
+  type HostTerminalDockPlacement,
+} from "./hud-storage.ts"
+import {
+  objectParam,
+  objectParamMaybe,
+  importSpecifierFromText,
+  sourceDirname,
+  joinSourcePath,
+  stringParam,
+  numberParam,
+  booleanParam,
+  firstNumberParam,
+  sideParam,
+  type DisplaySelectorSide,
+} from "./command-params.ts"
+import {androidControlCommandFromParams, androidDimension, blobToDataUrl, withAndroidFrameSize} from "./android-control.ts"
+import {
+  MAX_VOICE_SIGNAL_VOLUME,
+  MIN_VOICE_RECOGNITION_TIMEOUT_SECONDS,
+  MAX_VOICE_RECOGNITION_TIMEOUT_SECONDS,
+  readVoiceInputUrl,
+  readVoiceWakeUrl,
+  readVoiceInputContext,
+  readVoiceSignalVolume,
+  clampVoiceSignalVolume,
+  writeVoiceSignalVolume,
+  readVoiceAutoSendEnabled,
+  writeVoiceAutoSendEnabled,
+  readVoiceDeactivationMode,
+  writeVoiceDeactivationMode,
+  readVoiceRecognitionTimeoutSeconds,
+  writeVoiceRecognitionTimeoutSeconds,
+  readVoicePhrases,
+  writeVoicePhrases,
+  readVoiceFuzzyTolerance,
+  writeVoiceFuzzyTolerance,
+  defaultVoicePhrases,
+  voicePhraseKey,
+} from "./voice-settings-storage.ts"
 
 type ConnectionInfo = {state: ConnectionState; error: string | null}
 type ConnectionState = "connecting" | "connected" | "disconnected"
@@ -158,8 +243,6 @@ type SourcePatchedFile = {
   mtimeMs?: number
   lineChanges?: SourceLineChange[]
 }
-
-type SourceLineChange = {oldStart: number; oldLines: number; newStart: number; newLines: number}
 
 type SourcePatchedBreakpoints = {
   moduleId: string
@@ -332,67 +415,9 @@ type WorkspaceFilesState = {
   suppressSelectionOpen: boolean
 }
 
-type SqliteCellValue = string | number | boolean | null | {type?: string; size?: number; hex?: string}
-type SqliteTableSummary = {
-  name: string
-  type: "table" | "view"
-  rowCount: number | null
-}
-type SqliteColumnInfo = {
-  name: string
-  type: string
-  notNull: boolean
-  defaultValue: string | null
-  primaryKey: boolean
-}
-type SqliteDatabasePayload = {
-  ok: true
-  path: string
-  label: string
-  version: string
-  selectedTable: string | null
-  limit: number
-  offset: number
-  tables: SqliteTableSummary[]
-  schema: SqliteColumnInfo[]
-  rows: Array<Record<string, SqliteCellValue>>
-}
-type SqliteSelectedRowContext = {
-  rowId: string
-  rowIndex: number
-  rowid: number | null
-  values: Record<string, SqliteCellValue>
-}
-type SqliteRowSelectionContext = {
-  selectedRowIds: string[]
-  selectedRowCount: number
-  selectedRows: SqliteSelectedRowContext[]
-  selectionTruncated: boolean
-}
-type SqliteHudContextSnapshot = {
-  activeId: string
-  docked: boolean
-  path: string
-  label: string
-  selectedTable: string | null
-  ready: boolean
-  loading: boolean
-  selectedRowIds: string[]
-  selectedRowCount: number
-  selectedRows: SqliteSelectedRowContext[]
-  selectionTruncated: boolean
-}
-type SqliteCellEditSession = {
-  rowid: number
-  column: string
-  previous: SqliteCellValue
-  onSubmit(rowid: number, column: string, value: SqliteCellValue): void
-}
-
 type CommandReply = {ok: boolean; result?: unknown; error?: string}
 type ActiveInterpreterCommand = {cmd: string; label: string; startedAt: number}
 type DisplayLayoutMetrics = {widthMm: number; heightMm: number; pixelWidth: number; pixelHeight: number}
-type DisplaySelectorSide = "left" | "right" | "top" | "bottom" | "center"
 type DisplayInfoBase = UiRuntimeDisplaySnapshot & {
   displayId: string
   label: string
@@ -550,7 +575,7 @@ type ModuleDisplayController = {
 
 type HostTerminalController = {
   hudTerminal: TerminalPane
-  codexComposer: HostTerminalCodexComposerPane
+  codexComposer: HostTerminalCodexComposerPane<HostTerminalController>
   codexEditor: EditorPane
   title: string
   sessionStorageKey: string
@@ -599,13 +624,7 @@ const RELOAD_HEALTH_REQUEST_TIMEOUT_MS = 1_200
 const MODULE_DISPLAY_GAP_MM = 52
 const MODULE_DISPLAY_CENTER_Y_MM = 0
 const MODULE_DISPLAY_CENTER_Z_MM = 900
-const HOST_TERMINAL_SESSION_STORAGE_KEY = "metafor.interpreter.hostTerminal.sessionId"
 const HOST_TERMINAL_SESSION_KEY = "interpreter:host-terminal"
-const HOST_TERMINAL_HUD_RECT_STORAGE_KEY = "metafor.interpreter.hostTerminal.hudRect:v1"
-const HOST_TERMINAL_CODEX_COMPOSER_RECT_STORAGE_KEY = "metafor.interpreter.hostTerminal.codexComposerRect:v1"
-const HOST_TERMINAL_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.hostTerminal.hudDocked:v1"
-const HOST_TERMINAL_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.hostTerminal.dockPlacement:v1"
-const NETWORK_TERMINAL_SESSION_STORAGE_KEY = "metafor.interpreter.networkTerminal.sessionId:v1"
 const NETWORK_TERMINAL_SESSION_KEY = "interpreter:network-terminal"
 const NETWORK_DISPLAY_ID = "network:terminal"
 const REMOTE_DESKTOP_DISPLAY_ID = "remote-desktop:server"
@@ -618,36 +637,6 @@ const PHYSICAL_DISPLAY_METRICS: DisplayLayoutMetrics = {
   pixelWidth: PHYSICAL_DISPLAY_PIXEL_WIDTH,
   pixelHeight: PHYSICAL_DISPLAY_PIXEL_HEIGHT,
 }
-const NETWORK_TERMINAL_HUD_RECT_STORAGE_KEY = "metafor.interpreter.networkTerminal.hudRect:v1"
-const NETWORK_TERMINAL_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.networkTerminal.hudDocked:v1"
-const NETWORK_STATUS_AUTO_REFRESH_STORAGE_KEY = "metafor.interpreter.networkStatus.autoRefresh:v1"
-const NETWORK_PRODUCT_INTERPRETER_STORAGE_KEY = "metafor.interpreter.networkProduct.viaInterpreter:v1"
-const DISPLAY_ACTION_AUTO_FOCUS_STORAGE_KEY = "metafor.interpreter.display.actionAutoFocus:v1"
-const ANDROID_HUD_RECT_STORAGE_KEY = "metafor.interpreter.android.hudRect:v1"
-const ANDROID_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.android.hudDocked:v1"
-const ANDROID_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.android.dockPlacement:v1"
-const VOICE_SETTINGS_RECT_STORAGE_KEY = "metafor.interpreter.voice.settingsRect:v1"
-const TODO_HUD_RECT_STORAGE_KEY = "metafor.interpreter.todo.hudRect:v1"
-const TODO_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.todo.hudDocked:v1"
-const TODO_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.todo.dockPlacement:v1"
-const SQLITE_HUD_RECT_STORAGE_KEY = "metafor.interpreter.sqlite.hudRect:v1"
-const SQLITE_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.sqlite.hudDocked:v1"
-const SQLITE_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.sqlite.dockPlacement:v1"
-const VOICE_INPUT_URL_STORAGE_KEY = "metafor.interpreter.voice.url"
-const VOICE_WAKE_URL_STORAGE_KEY = "metafor.interpreter.voice.wakeUrl"
-const VOICE_INPUT_CONTEXT_STORAGE_KEY = "metafor.interpreter.voice.context"
-const VOICE_WAKE_PHRASES_STORAGE_KEY = "metafor.interpreter.voice.wakePhrases:v1"
-const VOICE_ACTIVATION_PHRASES_STORAGE_KEY = "metafor.interpreter.voice.activationPhrases:v1"
-const VOICE_DEACTIVATION_PHRASES_STORAGE_KEY = "metafor.interpreter.voice.deactivationPhrases:v1"
-const VOICE_STOP_PHRASES_STORAGE_KEY = "metafor.interpreter.voice.stopPhrases:v1"
-const VOICE_ACTIVATION_FUZZY_STORAGE_KEY = "metafor.interpreter.voice.activationFuzzy:v1"
-const VOICE_DEACTIVATION_FUZZY_STORAGE_KEY = "metafor.interpreter.voice.deactivationFuzzy:v1"
-const VOICE_STOP_FUZZY_STORAGE_KEY = "metafor.interpreter.voice.stopFuzzy:v1"
-const VOICE_DEACTIVATION_MODE_STORAGE_KEY = "metafor.interpreter.voice.deactivationMode:v1"
-const VOICE_RECOGNITION_TIMEOUT_STORAGE_KEY = "metafor.interpreter.voice.recognitionTimeoutSeconds:v1"
-const VOICE_AUTO_SEND_STORAGE_KEY = "metafor.interpreter.voice.autoSend:v1"
-const VOICE_SIGNAL_VOLUME_LEGACY_STORAGE_KEY = "metafor.interpreter.voice.signalVolume:v1"
-const VOICE_SIGNAL_VOLUME_STORAGE_KEY = "metafor.interpreter.voice.signalVolume:v2"
 const HOST_TERMINAL_AGENT_SOUND_ENABLED_STORAGE_KEY = "metafor.interpreter.hostTerminal.agentSoundEnabled:v1"
 const HOST_TERMINAL_AGENT_SOUND_VOLUME_STORAGE_KEY = "metafor.interpreter.hostTerminal.agentSoundVolume:v1"
 const HOST_TERMINAL_AGENT_SOUND_VOLUME_LEGACY_STORAGE_KEY = "metafor.interpreter.voice.agentReadyVolume:v1"
@@ -657,17 +646,8 @@ const TODO_PANEL_STATE_STORAGE_KEY = "metafor.interpreter.todo.panelState:v1"
 const INTERPRETER_VIEWPOINT_STORE_DELAY_MS = 120
 const INTERPRETER_DISPLAY_POSITION_STORE_DELAY_MS = 120
 const WORKSPACE_FILES_STATE_STORAGE_PREFIX = "metafor.interpreter.workspaceFiles:v1"
-const DEFAULT_VOICE_INPUT_URL = "/hud/voice/asr/ws"
-const DEFAULT_VOICE_WAKE_URL = "/hud/voice/wake/ws"
-const DEFAULT_VOICE_SIGNAL_VOLUME = 0.2
-const DEFAULT_VOICE_DEACTIVATION_MODE: VoiceDeactivationMode = "phrase-timeout"
-const DEFAULT_VOICE_RECOGNITION_TIMEOUT_SECONDS = 3
-const DEFAULT_VOICE_AUTO_SEND_ENABLED = true
 const DEFAULT_HOST_TERMINAL_AGENT_SOUND_ENABLED = true
 const DEFAULT_HOST_TERMINAL_AGENT_SOUND_VOLUME = 1
-const MAX_VOICE_SIGNAL_VOLUME = 1
-const MIN_VOICE_RECOGNITION_TIMEOUT_SECONDS = 3
-const MAX_VOICE_RECOGNITION_TIMEOUT_SECONDS = 60
 const MAX_HOST_TERMINAL_AGENT_SOUND_VOLUME = 1
 const VOICE_SERVICE_CHECK_INTERVAL_MS = 12_000
 const VOICE_SERVICE_CHECK_TIMEOUT_MS = 2_500
@@ -710,7 +690,6 @@ const SQLITE_HUD_CONTENT_PAD = 8
 const SQLITE_DOCK_SHORT = 30
 const SQLITE_DOCK_LONG = 94
 const SQLITE_DOCK_MARGIN = 8
-const SQLITE_CONTEXT_SELECTED_ROW_LIMIT = 20
 const HOST_TERMINAL_BRAND_LABEL = "Codex"
 const HOST_TERMINAL_MODEL_LABEL = "GPT 5,5"
 const HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE = 22
@@ -718,24 +697,11 @@ const HOST_TERMINAL_AGENT_SIGNAL_HEADER_Y = 8
 const HOST_TERMINAL_AGENT_SIGNAL_HEADER_TEXT_X = 16
 const HOST_TERMINAL_AGENT_SIGNAL_PANEL_W = 300
 const HOST_TERMINAL_AGENT_SIGNAL_PANEL_H = 112
-const HOST_TERMINAL_CODEX_COMPOSER_H = 268
-const HOST_TERMINAL_CODEX_COMPOSER_MIN_W = 420
-const HOST_TERMINAL_CODEX_COMPOSER_MIN_H = 220
-const HOST_TERMINAL_CODEX_COMPOSER_GAP = 8
-const HOST_TERMINAL_CODEX_COMPOSER_HEADER_BUTTON_SIZE = 24
-const HOST_TERMINAL_CODEX_COMPOSER_VOICE_BUTTON_VISIBLE = true
 const AGENT_READY_SOUND_IDLE_MS = 2_500
 const AGENT_READY_SOUND_COOLDOWN_MS = 1_200
 const VOICE_SIGNAL_COOLDOWN_MS = 900
 const VOICE_SIGNAL_CAPTURE_FALLBACK_MS = 260
-const DEFAULT_VOICE_ACTIVATION_FUZZY = 0
-const DEFAULT_VOICE_DEACTIVATION_FUZZY = 0.05
-const DEFAULT_VOICE_STOP_FUZZY = 0.06
 const WORKSPACE_FILES_LIMIT = 500
-const SQLITE_TABLE_SCROLL_KEY = "sqlite-table-scroll"
-const SQLITE_CELL_EDIT_FIELD_KEY = "sqlite-cell-edit-value"
-const SQLITE_CELL_EDIT_MODAL_W = 500
-const SQLITE_CELL_EDIT_MODAL_H = 192
 const HUD_PANEL_BG = withAlpha(palette.bg, 0.68)
 const HUD_CODE_BG = withAlpha(palette.bgCode, 0.62)
 const HUD_LOCAL_BACKDROP_BG = withAlpha(palette.bg, 0.24)
@@ -744,11 +710,6 @@ const HUD_MODAL_BG = withAlpha(palette.bgElevated, 0.78)
 const HUD_LAYER_TOP = 1_000
 
 type HudNotificationKind = "activation" | "deactivation" | "stop" | "error" | "agent"
-
-type HostTerminalDockPlacement = {
-  edge: HudSideTabEdge
-  offset: number
-}
 
 type VoiceHudHorizontalAnchor = "left" | "right"
 type VoiceHudVerticalAnchor = "top" | "bottom"
@@ -2350,27 +2311,6 @@ function resolveDisplaySide(displays: DisplayInfo[], side: DisplaySelectorSide):
   return sorted[0] ?? null
 }
 
-function objectParam(value: unknown): Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {}
-}
-
-function objectParamMaybe(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : undefined
-}
-
-function importSpecifierFromText(text: string): string | undefined {
-  const clean = text.trim().replace(/;$/, "").trim()
-  const direct = /^["'`]([^"'`]+)["'`]$/.exec(clean)
-  if (direct?.[1] !== undefined) return direct[1]
-  const dynamicImport = /\bimport\s*\(\s*["'`]([^"'`]+)["'`]\s*\)/.exec(clean)
-  if (dynamicImport?.[1] !== undefined) return dynamicImport[1]
-  const staticImport = /\bfrom\s*["'`]([^"'`]+)["'`]/.exec(clean)
-  if (staticImport?.[1] !== undefined) return staticImport[1]
-  const sideEffectImport = /^import\s+["'`]([^"'`]+)["'`]/.exec(clean)
-  if (sideEffectImport?.[1] !== undefined) return sideEffectImport[1]
-  return clean.includes("/") || /\.(?:c|m)?(?:t|j)sx?$/.test(clean) ? clean : undefined
-}
-
 function resolveSourceSpecifier(controller: ModuleDisplayController, specifier: string): string {
   const clean = specifier.trim()
   if (!clean.startsWith(".")) return clean
@@ -2390,42 +2330,6 @@ function currentSourceUrlForResolution(controller: ModuleDisplayController): str
     if (typeof candidate === "string" && candidate.trim().length > 0) return stripSourceLine(candidate)
   }
   return undefined
-}
-
-function sourceDirname(sourceUrl: string): string {
-  const clean = stripSourceLine(sourceUrl).replaceAll("\\", "/").replace(/[?#].*$/, "")
-  const idx = clean.lastIndexOf("/")
-  if (idx < 0) return ""
-  if (idx === 0) return "/"
-  return clean.slice(0, idx)
-}
-
-function joinSourcePath(baseDir: string, path: string): string {
-  const joined = baseDir.length === 0 ? path : `${baseDir.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`
-  const absolute = joined.startsWith("/")
-  const parts: string[] = []
-  for (const part of joined.replaceAll("\\", "/").split("/")) {
-    if (part.length === 0 || part === ".") continue
-    if (part === "..") {
-      if (parts.length > 0 && parts[parts.length - 1] !== "..") parts.pop()
-      else if (!absolute) parts.push(part)
-      continue
-    }
-    parts.push(part)
-  }
-  return absolute ? `/${parts.join("/")}` : parts.join("/")
-}
-
-function stringParam(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim().length > 0 ? value : undefined
-}
-
-function numberParam(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined
-}
-
-function booleanParam(value: unknown): boolean | undefined {
-  return typeof value === "boolean" ? value : undefined
 }
 
 function parseSourceOpenSelection(params: Record<string, unknown>): SourceOpenSelection | undefined {
@@ -2464,19 +2368,6 @@ function parseSourceOpenPositionFields(params: Record<string, unknown>, lineKeys
   if (line === undefined) return undefined
   const column = firstNumberParam(params, columnKeys) ?? 0
   return {line, column}
-}
-
-function firstNumberParam(params: Record<string, unknown>, keys: readonly string[]): number | undefined {
-  for (const key of keys) {
-    const value = numberParam(params[key])
-    if (value !== undefined) return value
-  }
-  return undefined
-}
-
-function sideParam(value: unknown): DisplaySelectorSide | undefined {
-  if (value !== "left" && value !== "right" && value !== "top" && value !== "bottom" && value !== "center") return undefined
-  return value
 }
 
 function handleInterpreterViewPointChange(snapshot: UiRuntimeViewPointSnapshot): void {
@@ -2868,13 +2759,19 @@ function installEnginePanes(): void {
     edge: currentTodoDockEdge,
     restore: () => setTodoHudDocked(false),
     moveTo: (point, bounds) => setTodoDockPlacement(todoDockPlacementFromPoint(point, bounds)),
+    isTouchPointerEvent,
   })
   uiCanvas.addHudSurface(todoDockPane, todoDockRect, {zIndex: HUD_LAYER_TOP})
-  sqliteHudPane ??= new SqliteHudFramePane(
-    () => activeSqliteController()?.label ?? "SQLite",
-    () => activeSqliteController()?.path ?? "",
-    () => setSqliteHudDocked(true),
-  )
+  sqliteHudPane ??= new SqliteHudFramePane({
+    title: () => activeSqliteController()?.label ?? "SQLite",
+    subtitle: () => activeSqliteController()?.path ?? "",
+    onDock: () => setSqliteHudDocked(true),
+    onPreviewRect: previewSqliteHudRect,
+    onCommitRect: storeSqliteHudRectAndRelayout,
+    headerHeight: SQLITE_HUD_HEADER_H,
+    minW: SQLITE_HUD_MIN_W,
+    minH: SQLITE_HUD_MIN_H,
+  })
   uiCanvas.addHudSurface(sqliteHudPane, sqliteHudRect, {windowId: "hud:sqlite"})
   for (const controller of sqliteDisplays.values()) installSqliteHudSurfaces(controller)
   const host = ensureHostTerminalController()
@@ -2895,11 +2792,30 @@ function installEnginePanes(): void {
     edge: currentAndroidDockEdge,
     restore: () => setAndroidHudDocked(false),
     moveTo: (point, bounds) => setAndroidDockPlacement(androidDockPlacementFromPoint(point, bounds)),
+    isTouchPointerEvent,
   })
   uiCanvas.addHudSurface(androidDockPane, androidDockRect, {zIndex: HUD_LAYER_TOP})
-  hostTerminalAgentSignalPane ??= new HostTerminalAgentSignalPane()
+  hostTerminalAgentSignalPane ??= new HostTerminalAgentSignalPane({
+    buttonSize: HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE,
+    maxVolume: MAX_HOST_TERMINAL_AGENT_SOUND_VOLUME,
+    readEnabled: readHostTerminalAgentSoundEnabled,
+    readVolume: readHostTerminalAgentSoundVolume,
+    storeEnabled: storeHostTerminalAgentSoundEnabled,
+    storeVolume: storeHostTerminalAgentSoundVolume,
+    relayout: relayoutHudSurfaces,
+    clampVolume: clampHostTerminalAgentSoundVolume,
+  })
   uiCanvas.addHudSurface(hostTerminalAgentSignalPane, hostTerminalAgentSignalRect, {zIndex: HUD_LAYER_TOP})
-  hostTerminalDockPane ??= new HostTerminalDockPane(() => setHostTerminalHudDocked(false))
+  hostTerminalDockPane ??= new HostTerminalDockPane({
+    key: "host-terminal-dock-restore",
+    label: HOST_TERMINAL_MODEL_LABEL,
+    tooltip: hostTerminalTitle(),
+    icon: uiIcons.codex,
+    edge: currentHostTerminalDockEdge,
+    restore: () => setHostTerminalHudDocked(false),
+    moveTo: (point, bounds) => setHostTerminalDockPlacement(hostTerminalDockPlacementFromPoint(point, bounds)),
+    isTouchPointerEvent,
+  })
   uiCanvas.addHudSurface(hostTerminalDockPane, hostTerminalDockRect, {zIndex: HUD_LAYER_TOP})
   sqliteDockPane ??= new HostTerminalDockPane({
     key: "sqlite-dock-restore",
@@ -2909,6 +2825,7 @@ function installEnginePanes(): void {
     edge: currentSqliteDockEdge,
     restore: () => setSqliteHudDocked(false),
     moveTo: (point, bounds) => setSqliteDockPlacement(sqliteDockPlacementFromPoint(point, bounds)),
+    isTouchPointerEvent,
   })
   uiCanvas.addHudSurface(sqliteDockPane, sqliteDockRect, {zIndex: HUD_LAYER_TOP})
   if (voiceHudPane !== null) {
@@ -3224,10 +3141,6 @@ async function postRemoteDesktopControl(command: RtcControlCommand): Promise<voi
     }
   }
   remoteDesktopPane?.setStatus("error", `input ${lastError}`)
-}
-
-function isValidRemoteDesktopFrame(frame: AndroidRtcFrame): boolean {
-  return frame.width > 0 && frame.height > 0
 }
 
 function remoteDesktopRandomToken(): string {
@@ -3710,84 +3623,6 @@ async function postAndroidCommand(path: string, body: Record<string, unknown>): 
   }
 }
 
-function withAndroidFrameSize(command: AndroidRtcCommand, pane: AndroidPane | null): AndroidRtcCommand {
-  if (command.type !== "tap" && command.type !== "swipe") return command
-  if (command.frameW !== undefined && command.frameH !== undefined) return command
-  const frame = pane?.frameSnapshot() ?? null
-  if (frame === null) return command
-  return {...command, frameW: frame.width, frameH: frame.height}
-}
-
-function androidControlCommandFromParams(params: unknown): AndroidRtcCommand {
-  if (typeof params !== "object" || params === null || Array.isArray(params)) throw new Error("android control command must be an object")
-  const record = params as Record<string, unknown>
-  const type = record.type
-  if (type === "tap") {
-    return withAndroidCommandFrameSize(record, {
-      type,
-      x: requiredFiniteNumber(record.x, "x"),
-      y: requiredFiniteNumber(record.y, "y"),
-    })
-  }
-  if (type === "swipe") {
-    const command: AndroidRtcCommand = {
-      type,
-      x1: requiredFiniteNumber(record.x1, "x1"),
-      y1: requiredFiniteNumber(record.y1, "y1"),
-      x2: requiredFiniteNumber(record.x2, "x2"),
-      y2: requiredFiniteNumber(record.y2, "y2"),
-    }
-    if (record.durationMs !== undefined) command.durationMs = requiredFiniteNumber(record.durationMs, "durationMs")
-    return withAndroidCommandFrameSize(record, command)
-  }
-  if (type === "key") {
-    const code = record.code
-    if (typeof code !== "string" || code.length === 0) throw new Error("android key command requires code")
-    return {type, code}
-  }
-  if (type === "launch") {
-    const packageName = record.packageName
-    if (typeof packageName !== "string" || packageName.length === 0) throw new Error("android launch command requires packageName")
-    return {type, packageName}
-  }
-  if (type === "open-accessibility") return {type}
-  throw new Error("unsupported android control command")
-}
-
-function withAndroidCommandFrameSize<T extends Extract<AndroidRtcCommand, {type: "tap" | "swipe"}>>(
-  record: Record<string, unknown>,
-  command: T,
-): T {
-  if (record.frameW === undefined && record.frameH === undefined) return command
-  return {
-    ...command,
-    frameW: requiredFiniteNumber(record.frameW, "frameW"),
-    frameH: requiredFiniteNumber(record.frameH, "frameH"),
-  }
-}
-
-function requiredFiniteNumber(value: unknown, name: string): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`android control command requires numeric ${name}`)
-  return value
-}
-
-function androidDimension(value: unknown): number | null {
-  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return null
-  return Math.round(value)
-}
-
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.addEventListener("load", () => {
-      if (typeof reader.result === "string") resolve(reader.result)
-      else reject(new Error("android frame is not a data URL"))
-    })
-    reader.addEventListener("error", () => reject(reader.error ?? new Error("android frame read failed")))
-    reader.readAsDataURL(blob)
-  })
-}
-
 function updateTodoContext(context: ToDoPaneContextSnapshot): void {
   todoContext = context
   storeTodoPanelState(todoPane?.panelStateSnapshot() ?? {highlightedIds: context.highlightedIds, expandedCompletedIds: []})
@@ -3881,676 +3716,6 @@ function setVerboseVisible(controller: ModuleDisplayController, on: boolean): vo
   const snapshot = moduleSnapshots.get(controller.id)
   if (snapshot !== undefined) updateModuleHeaderControls(controller, snapshot)
   uiCanvas?.relayout()
-}
-
-class WorkspaceFilesHeaderPane extends UiSurface {
-  #rootLabel: string | null = null
-  readonly #onRevealCurrent: () => void
-  readonly #onCollapseAll: () => void
-  readonly #onExpandAll: () => void
-
-  constructor(onRevealCurrent: () => void, onCollapseAll: () => void, onExpandAll: () => void) {
-    super({bgColor: null, borderColor: null})
-    this.node.name = "WorkspaceFilesHeaderPane"
-    this.#onRevealCurrent = onRevealCurrent
-    this.#onCollapseAll = onCollapseAll
-    this.#onExpandAll = onExpandAll
-  }
-
-  setRootLabel(label: string | null): void {
-    if (this.#rootLabel === label) return
-    this.#rootLabel = label
-    this.requestRender()
-  }
-
-  protected render(): void {
-    const pad = 8
-    const titleX = 16
-    const buttonY = 6
-    const buttonSize = 24
-    const gap = 6
-    const revealCurrentLabel = t("sourceRevealCurrent")
-    const expandLabel = t("sourceExpandAll")
-    const collapseLabel = t("sourceCollapseAll")
-    const expandX = Math.max(pad, this.rectW - pad - buttonSize)
-    const collapseX = Math.max(pad, expandX - gap - buttonSize)
-    const revealCurrentX = Math.max(pad, collapseX - gap - buttonSize)
-    const titleW = Math.max(1, revealCurrentX - titleX - 8)
-
-    this.drawText(this.#rootLabel ?? t("sourceFiles"), titleX, 9, {
-      fontPx: 13,
-      material: this.materials.cyan,
-      maxWidthPx: titleW,
-    })
-    this.#drawHeaderAction(revealCurrentX, buttonY, buttonSize, revealCurrentLabel, "revealCurrent", this.#onRevealCurrent)
-    this.#drawHeaderAction(collapseX, buttonY, buttonSize, collapseLabel, "collapse", this.#onCollapseAll)
-    this.#drawHeaderAction(expandX, buttonY, buttonSize, expandLabel, "expand", this.#onExpandAll)
-    this.drawRect(pad, Math.max(0, this.rectH - 1), Math.max(1, this.rectW - pad * 2), 1, palette.borderDim)
-  }
-
-  #drawHeaderAction(x: number, y: number, size: number, label: string, kind: WorkspaceHeaderActionKind, action: () => void): void {
-    IconButton(this, x, y, size, size, {
-      label,
-      iconSrc: workspaceHeaderIcon(kind),
-      action,
-    })
-  }
-}
-
-type WorkspaceHeaderActionKind = "revealCurrent" | "collapse" | "expand"
-
-function workspaceHeaderIcon(kind: WorkspaceHeaderActionKind): string {
-  if (kind === "revealCurrent") return uiIcons.executionPoint
-  if (kind === "collapse") return uiIcons.collapse
-  return uiIcons.expand
-}
-
-class WorkspaceFilesChromePane extends UiSurface {
-  constructor() {
-    super({bgColor: HUD_PANEL_BG, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
-    this.node.name = "WorkspaceFilesChromePane"
-  }
-
-  protected render(): void {}
-}
-
-class SqliteTablePane extends UiSurface {
-  #payload: SqliteDatabasePayload | null = null
-  #status = "Open SQLite database"
-  #selectedRowIds: string[] = []
-  #selectionAnchorRowId: string | null = null
-  #editSession: SqliteCellEditSession | null = null
-  #editInput: TextFieldEditState = {value: "", cursor: 0, selectionAnchor: null}
-  readonly #onCellEdit: (rowid: number, column: string, value: SqliteCellValue) => void
-  readonly #onSelectionChange: () => void
-
-  constructor(onCellEdit: (rowid: number, column: string, value: SqliteCellValue) => void, onSelectionChange: () => void) {
-    super({bgColor: HUD_CODE_BG, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
-    this.node.name = "SqliteTablePane"
-    this.#onCellEdit = onCellEdit
-    this.#onSelectionChange = onSelectionChange
-  }
-
-  setPayload(payload: SqliteDatabasePayload): void {
-    const tableChanged = this.#payload?.path !== payload.path || this.#payload.selectedTable !== payload.selectedTable
-    this.#payload = payload
-    this.#status = payload.selectedTable === null ? "No tables" : `${payload.selectedTable} · ${payload.rows.length} rows`
-    const selectionChanged = tableChanged ? this.#clearSelectionState() : this.#normalizeSelectionState()
-    if (tableChanged) {
-      tableScrollTo(this, SQLITE_TABLE_SCROLL_KEY, {left: 0, top: 0})
-      this.#closeEdit({blur: false})
-    }
-    if (selectionChanged) this.#onSelectionChange()
-    this.requestRender()
-  }
-
-  setStatus(status: string): void {
-    this.#status = status
-    this.requestRender()
-  }
-
-  clearPayload(status: string): void {
-    this.#payload = null
-    this.#status = status
-    const selectionChanged = this.#clearSelectionState()
-    tableScrollTo(this, SQLITE_TABLE_SCROLL_KEY, {left: 0, top: 0})
-    this.#closeEdit({blur: false})
-    if (selectionChanged) this.#onSelectionChange()
-    this.requestRender()
-  }
-
-  selectedRowIds(): readonly string[] {
-    return [...this.#selectedRowIds]
-  }
-
-  contextSnapshot(limit = SQLITE_CONTEXT_SELECTED_ROW_LIMIT): SqliteRowSelectionContext {
-    const payload = this.#payload
-    if (payload === null) {
-      return {
-        selectedRowIds: [],
-        selectedRowCount: 0,
-        selectedRows: [],
-        selectionTruncated: false,
-      }
-    }
-    const selected = new Set(this.#selectedRowIds)
-    const selectedRows: SqliteSelectedRowContext[] = []
-    for (let rowIndex = 0; rowIndex < payload.rows.length; rowIndex += 1) {
-      const row = payload.rows[rowIndex]!
-      const rowId = sqliteRowSelectionId(row, rowIndex)
-      if (!selected.has(rowId)) continue
-      if (selectedRows.length < limit) {
-        selectedRows.push({
-          rowId,
-          rowIndex,
-          rowid: sqliteRowId(row["__rowid"]),
-          values: {...row},
-        })
-      }
-    }
-    return {
-      selectedRowIds: [...this.#selectedRowIds],
-      selectedRowCount: this.#selectedRowIds.length,
-      selectedRows,
-      selectionTruncated: selectedRows.length < this.#selectedRowIds.length,
-    }
-  }
-
-  protected render(): void {
-    const payload = this.#payload
-    const pad = 14
-    const headerH = 58
-    this.drawText("SQLite", pad, 10, {fontPx: 13, material: this.materials.cyan, maxWidthPx: 120})
-    this.drawText(payload?.label ?? this.#status, 78, 10, {
-      fontPx: 12,
-      material: this.materials.text,
-      maxWidthPx: Math.max(1, this.rectW - 78 - pad),
-    })
-    const status = this.#statusLabel()
-    this.drawText(status, pad, 34, {
-      fontPx: 11,
-      material: payload === null ? this.materials.muted : this.materials.green,
-      maxWidthPx: Math.max(1, this.rectW - pad * 2),
-    })
-    this.drawRect(pad, headerH - 1, Math.max(1, this.rectW - pad * 2), 1, palette.borderDim)
-
-    if (payload === null) return
-    if (payload.selectedTable === null) {
-      this.drawText("No tables in database", pad, headerH + 18, {
-        fontPx: 12,
-        material: this.materials.muted,
-        maxWidthPx: Math.max(1, this.rectW - pad * 2),
-      })
-      return
-    }
-
-    const schema = sqliteSchemaSummary(payload.schema)
-    this.drawText(schema, pad, headerH + 10, {
-      fontPx: 10,
-      material: this.materials.muted,
-      maxWidthPx: Math.max(1, this.rectW - pad * 2),
-    })
-
-    const tableY = headerH + 34
-    const tableH = Math.max(1, this.rectH - tableY - pad)
-    const columnNames = sqliteTableColumns(payload)
-    const widths = sqliteTableColumnWidths(this, payload, columnNames)
-    const selectedSummary = payload.tables.find((table) => table.name === payload.selectedTable)
-    const editableTable = selectedSummary?.type === "table"
-    const columns: Array<TableColumn<Record<string, SqliteCellValue>>> = columnNames.map((column, index) => ({
-      key: column,
-      label: sqliteTableColumnLabel(column),
-      ...(column === "__rowid" ? {getValue: (_row, rowIndex) => sqliteDisplayRowNumber(payload, rowIndex)} : {}),
-      width: widths[index] ?? 104,
-    }))
-    Table(this, pad, tableY, Math.max(1, this.rectW - pad * 2), tableH, {
-      key: SQLITE_TABLE_SCROLL_KEY,
-      columns,
-      rows: payload.rows,
-      rowHeight: 24,
-      headerHeight: 27,
-      emptyLabel: "No rows",
-      getRowId: (row, rowIndex) => sqliteRowSelectionId(row, rowIndex),
-      selectedRowIds: this.#selectedRowIds,
-      getHeaderMaterial: ({column}) => column.key === "__rowid" ? this.materials.muted : this.materials.cyan,
-      getCellText: ({value}) => sqliteCellLabel(value as SqliteCellValue | undefined),
-      getCellMaterial: ({column, value}) => column.key === "__rowid"
-        ? this.materials.muted
-        : value === null || value === undefined ? this.materials.muted : this.materials.text,
-      onRowClick: (ctx) => this.#selectRow(ctx),
-      ...(editableTable ? {onRowDoubleClick: (ctx: TableRowPointerContext<Record<string, SqliteCellValue>>) => this.#editRowCell(ctx)} : {}),
-    })
-    if (this.#editSession !== null) this.#renderEditOverlay()
-  }
-
-  #statusLabel(): string {
-    if (this.#payload === null || this.#selectedRowIds.length === 0) return this.#status
-    return `${this.#status} · ${this.#selectedRowIds.length} selected`
-  }
-
-  #selectRow(ctx: TableRowPointerContext<Record<string, SqliteCellValue>>): void {
-    const payload = this.#payload
-    if (payload === null) return
-    const rowIds = sqlitePayloadRowIds(payload)
-    const update = tableSelectionAfterClick(rowIds, this.#selectedRowIds, String(ctx.rowId), this.#selectionAnchorRowId, ctx.event)
-    this.#applySelection(update.selectedRowIds.map(String), String(update.anchorRowId))
-  }
-
-  #editRowCell(ctx: TableRowPointerContext<Record<string, SqliteCellValue>>): void {
-    if (ctx.cell === null) return
-    this.#editCell(ctx.cell)
-  }
-
-  #applySelection(selectedRowIds: readonly string[], anchorRowId: string): void {
-    const payload = this.#payload
-    const rowIds = payload === null ? [] : sqlitePayloadRowIds(payload)
-    const next = normalizeTableSelection(rowIds, selectedRowIds).map(String)
-    const nextAnchor = next.includes(anchorRowId) ? anchorRowId : next[0] ?? null
-    if (sameStringArray(next, this.#selectedRowIds) && nextAnchor === this.#selectionAnchorRowId) return
-    this.#selectedRowIds = next
-    this.#selectionAnchorRowId = nextAnchor
-    this.#onSelectionChange()
-    this.requestRender()
-  }
-
-  #normalizeSelectionState(): boolean {
-    const payload = this.#payload
-    const rowIds = payload === null ? [] : sqlitePayloadRowIds(payload)
-    const next = normalizeTableSelection(rowIds, this.#selectedRowIds).map(String)
-    const nextAnchor = this.#selectionAnchorRowId !== null && next.includes(this.#selectionAnchorRowId)
-      ? this.#selectionAnchorRowId
-      : next[0] ?? null
-    if (sameStringArray(next, this.#selectedRowIds) && nextAnchor === this.#selectionAnchorRowId) return false
-    this.#selectedRowIds = next
-    this.#selectionAnchorRowId = nextAnchor
-    return true
-  }
-
-  #clearSelectionState(): boolean {
-    if (this.#selectedRowIds.length === 0 && this.#selectionAnchorRowId === null) return false
-    this.#selectedRowIds = []
-    this.#selectionAnchorRowId = null
-    return true
-  }
-
-  #editCell(ctx: TableCellContext<Record<string, SqliteCellValue>>): void {
-    const rowid = sqliteRowId(ctx.row["__rowid"])
-    if (rowid === null || ctx.column.key === "__rowid") return
-    const value = ctx.row[ctx.column.key] ?? null
-    this.#openEdit({
-      rowid,
-      column: ctx.column.key,
-      previous: value,
-      onSubmit: this.#onCellEdit,
-    })
-  }
-
-  #openEdit(session: SqliteCellEditSession): void {
-    const raw = sqliteCellPromptValue(session.previous)
-    this.#editSession = session
-    this.#editInput = {value: raw, cursor: raw.length, selectionAnchor: raw.length > 0 ? 0 : null}
-    focusTextField(this, SQLITE_CELL_EDIT_FIELD_KEY, this.#editInput)
-    this.canvas?.setFocused(this)
-    this.canvas?.inputProxy?.focus()
-    this.requestRender()
-  }
-
-  #renderEditOverlay(): void {
-    const session = this.#editSession
-    if (session === null) return
-
-    const rect = this.#editModalRect()
-    this.hit(0, 0, this.rectW, this.rectH, () => this.#cancel(), {
-      key: "sqlite-cell-edit-backdrop",
-      cursor: "default",
-    })
-    this.drawRoundedRect(0, 0, this.rectW, this.rectH, {
-      radius: 0,
-      fill: HUD_LOCAL_BACKDROP_BG,
-      z: Z.CONTAINER,
-    })
-    this.drawRoundedRect(rect.x + 3, rect.y + 4, rect.w, rect.h, {
-      radius: radii.pane,
-      fill: HUD_MODAL_SHADOW_BG,
-      z: Z.ELEMENT,
-    })
-    this.drawRoundedRect(rect.x, rect.y, rect.w, rect.h, {
-      radius: radii.pane,
-      fill: HUD_MODAL_BG,
-      border: palette.borderDim,
-      borderWidth: 1,
-      z: Z.ELEMENT + 0.01,
-    })
-    this.hit(rect.x, rect.y, rect.w, rect.h, () => {}, {
-      key: "sqlite-cell-edit-panel",
-      cursor: "default",
-    })
-
-    const pad = 18
-    const titleY = rect.y + 16
-    this.drawText("Edit SQLite cell", rect.x + pad, titleY, {
-      fontPx: 14,
-      material: this.materials.cyan,
-      maxWidthPx: Math.max(1, rect.w - pad * 2),
-      z: Z.TEXT,
-    })
-    this.drawText(`rowid ${session.rowid} · ${session.column}`, rect.x + pad, titleY + 26, {
-      fontPx: 11,
-      material: this.materials.muted,
-      maxWidthPx: Math.max(1, rect.w - pad * 2),
-      z: Z.TEXT,
-    })
-
-    const fieldY = rect.y + 74
-    TextField(this, rect.x + pad, fieldY, Math.max(1, rect.w - pad * 2), 34, {
-      key: SQLITE_CELL_EDIT_FIELD_KEY,
-      value: this.#editInput.value,
-      cursor: this.#editInput.cursor,
-      selectionAnchor: this.#editInput.selectionAnchor,
-      active: true,
-      submitOnEnter: true,
-      fontPx: 12,
-      sx: {borderRadius: 8},
-      onChange: (_value, state) => {
-        this.#editInput = state
-      },
-      onSubmit: () => this.#submit(),
-    })
-    this.drawText("Use NULL for SQL null. Enter applies, Esc cancels.", rect.x + pad, fieldY + 45, {
-      fontPx: 10,
-      material: this.materials.muted,
-      maxWidthPx: Math.max(1, rect.w - pad * 2),
-      z: Z.TEXT,
-    })
-
-    const buttonY = rect.y + rect.h - 44
-    const buttonW = 104
-    Button(this, rect.x + rect.w - pad - buttonW, buttonY, buttonW, 30, {
-      label: "Apply",
-      variant: "contained",
-      color: "success",
-      onClick: () => this.#submit(),
-    })
-    Button(this, rect.x + rect.w - pad - buttonW * 2 - 10, buttonY, buttonW, 30, {
-      label: "Cancel",
-      variant: "outlined",
-      color: "neutral",
-      onClick: () => this.#cancel(),
-    })
-  }
-
-  onActivate(): void {
-    if (this.#editSession !== null) focusTextField(this, SQLITE_CELL_EDIT_FIELD_KEY, this.#editInput)
-  }
-
-  onKey(event: KeyboardEvent): void {
-    if (this.#editSession === null || event.key !== "Escape") return
-    event.preventDefault()
-    this.#cancel()
-  }
-
-  #submit(): void {
-    const session = this.#editSession
-    if (session === null) return
-    const next = sqliteCellInputValue(this.#editInput.value, session.previous)
-    this.#closeEdit()
-    session.onSubmit(session.rowid, session.column, next)
-  }
-
-  #cancel(): void {
-    if (this.#editSession === null) return
-    this.#closeEdit()
-  }
-
-  #closeEdit(opts: {blur?: boolean} = {}): void {
-    if (this.#editSession === null) return
-    this.#editSession = null
-    this.#editInput = {value: "", cursor: 0, selectionAnchor: null}
-    if (opts.blur !== false) {
-      this.canvas?.setFocused(null)
-      this.canvas?.inputProxy?.blur()
-    }
-    this.requestRender()
-  }
-
-  #editModalRect(): UiSurfaceRect {
-    const maxW = Math.max(1, Math.min(SQLITE_CELL_EDIT_MODAL_W, this.rectW - 32))
-    const maxH = Math.max(1, Math.min(SQLITE_CELL_EDIT_MODAL_H, this.rectH - 32))
-    const modalW = clampNumber(SQLITE_CELL_EDIT_MODAL_W, Math.min(280, maxW), maxW)
-    const modalH = clampNumber(SQLITE_CELL_EDIT_MODAL_H, Math.min(164, maxH), maxH)
-    return {
-      x: clampNumber(this.rectW / 2 - modalW / 2, 16, Math.max(16, this.rectW - modalW - 16)),
-      y: clampNumber(this.rectH / 2 - modalH / 2, 16, Math.max(16, this.rectH - modalH - 16)),
-      w: modalW,
-      h: modalH,
-    }
-  }
-}
-
-function sqliteSchemaSummary(schema: readonly SqliteColumnInfo[]): string {
-  if (schema.length === 0) return "No schema"
-  return schema.map((column) => {
-    const flags = [
-      column.type || "value",
-      column.primaryKey ? "pk" : "",
-      column.notNull ? "not null" : "",
-    ].filter(Boolean).join(" ")
-    return `${column.name}: ${flags}`
-  }).join(" · ")
-}
-
-function sqliteTableColumns(payload: SqliteDatabasePayload): string[] {
-  const out: string[] = []
-  if (payload.rows.some((row) => Object.prototype.hasOwnProperty.call(row, "__rowid"))) out.push("__rowid")
-  for (const column of payload.schema) if (!out.includes(column.name)) out.push(column.name)
-  for (const row of payload.rows) {
-    for (const key of Object.keys(row)) if (!out.includes(key)) out.push(key)
-  }
-  return out
-}
-
-function sqliteTableColumnLabel(column: string): string {
-  return column === "__rowid" ? "#" : column
-}
-
-function sqliteDisplayRowNumber(payload: SqliteDatabasePayload, rowIndex: number): number {
-  return payload.offset + rowIndex + 1
-}
-
-function sqliteTableColumnWidths(surface: UiSurface, payload: SqliteDatabasePayload, columns: readonly string[]): number[] {
-  const sampleRows = payload.rows.slice(0, 40)
-  return columns.map((column) => {
-    let width = surface.measureText(sqliteTableColumnLabel(column), 10) + 28
-    const schema = payload.schema.find((item) => item.name === column)
-    if (schema !== undefined) width = Math.max(width, surface.measureText(schema.type || "value", 9) + 28)
-    for (let rowIndex = 0; rowIndex < sampleRows.length; rowIndex += 1) {
-      const value = column === "__rowid" ? sqliteDisplayRowNumber(payload, rowIndex) : sampleRows[rowIndex]?.[column] ?? null
-      width = Math.max(width, surface.measureText(sqliteCellLabel(value), 10) + 28)
-    }
-    const min = column === "__rowid" ? 48 : 104
-    return Math.min(260, Math.max(min, Math.ceil(width)))
-  })
-}
-
-function sqlitePayloadRowIds(payload: SqliteDatabasePayload): TableRowId[] {
-  return payload.rows.map((row, rowIndex) => sqliteRowSelectionId(row, rowIndex))
-}
-
-function sqliteRowSelectionId(row: Record<string, SqliteCellValue>, rowIndex: number): string {
-  const rowid = sqliteRowId(row["__rowid"])
-  return rowid === null ? `index:${rowIndex}` : `rowid:${rowid}`
-}
-
-function sqliteRowId(value: SqliteCellValue | undefined): number | null {
-  if (typeof value === "number" && Number.isInteger(value)) return value
-  if (typeof value === "string" && /^\d+$/.test(value)) return Number(value)
-  return null
-}
-
-function sqliteCellLabel(value: SqliteCellValue | undefined): string {
-  if (value === undefined || value === null) return "NULL"
-  if (typeof value === "string") return value
-  if (typeof value === "number" || typeof value === "boolean") return String(value)
-  if (typeof value === "object") {
-    const size = typeof value.size === "number" ? `${value.size}b` : "blob"
-    const hex = typeof value.hex === "string" && value.hex.length > 0 ? ` ${value.hex}` : ""
-    return `<${size}${hex}>`
-  }
-  return String(value)
-}
-
-function sqliteCellPromptValue(value: SqliteCellValue): string {
-  if (value === null) return "NULL"
-  if (typeof value === "object") return sqliteCellLabel(value)
-  return String(value)
-}
-
-function sqliteCellInputValue(raw: string, previous: SqliteCellValue): SqliteCellValue {
-  const clean = raw.trim()
-  if (/^null$/i.test(clean)) return null
-  if (typeof previous === "number") {
-    const number = Number(clean)
-    return Number.isFinite(number) ? number : raw
-  }
-  if (typeof previous === "boolean") {
-    if (/^true$/i.test(clean)) return true
-    if (/^false$/i.test(clean)) return false
-  }
-  return raw
-}
-
-function sameStringArray(a: readonly string[], b: readonly string[]): boolean {
-  if (a.length !== b.length) return false
-  for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false
-  return true
-}
-
-type HostTerminalDockPaneOptions = {
-  key: string
-  label: string
-  tooltip: string | (() => string)
-  icon?: string | (() => string)
-  edge(): HudSideTabEdge
-  restore(): void
-  moveTo(point: {x: number; y: number}, bounds: {w: number; h: number}): void
-}
-
-class HostTerminalDockPane extends UiSurface {
-  #press: {
-    lastX: number
-    lastY: number
-    startX: number
-    startY: number
-    dragging: boolean
-    timer: ReturnType<typeof setTimeout> | null
-    touch: boolean
-  } | null = null
-  #suppressRestoreClick = false
-  readonly #options: HostTerminalDockPaneOptions
-
-  constructor(options: (() => void) | HostTerminalDockPaneOptions) {
-    super({bgColor: null, borderColor: null})
-    this.#options = typeof options === "function"
-      ? {
-        key: "host-terminal-dock-restore",
-        label: HOST_TERMINAL_MODEL_LABEL,
-        tooltip: hostTerminalTitle(),
-        icon: uiIcons.codex,
-        edge: currentHostTerminalDockEdge,
-        restore: options,
-        moveTo: (point, bounds) => setHostTerminalDockPlacement(hostTerminalDockPlacementFromPoint(point, bounds)),
-      }
-      : options
-    this.node.name = "HostTerminalDockPane"
-  }
-
-  protected render(): void {
-    HudSideTab(this, {
-      rect: {x: 0, y: 0, w: this.rectW, h: this.rectH},
-      key: this.#options.key,
-      edge: this.#options.edge(),
-      icon: typeof this.#options.icon === "function" ? this.#options.icon() : (this.#options.icon ?? uiIcons.codex),
-      label: this.#options.label,
-      tone: "neutral",
-      tooltip: typeof this.#options.tooltip === "function" ? this.#options.tooltip() : this.#options.tooltip,
-      onClick: () => this.#restoreFromClick(),
-    })
-  }
-
-  override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
-    super.onPointerDown(event, localX, localY)
-    if (event.button !== 0 || this.pressedHit === null) return
-    if (isTouchPointerEvent(event)) event.preventDefault()
-    const point = this.#canvasPoint(event)
-    if (point === null) return
-    const press = {
-      lastX: point.x,
-      lastY: point.y,
-      startX: point.x,
-      startY: point.y,
-      dragging: false,
-      timer: null as ReturnType<typeof setTimeout> | null,
-      touch: isTouchPointerEvent(event),
-    }
-    press.timer = setTimeout(() => {
-      if (this.#press !== press) return
-      press.dragging = true
-      this.#moveDockToCanvasPoint({x: press.lastX, y: press.lastY})
-    }, HOST_TERMINAL_DOCK_LONG_PRESS_MS)
-    this.#press = press
-  }
-
-  override onPointerMove(event: MouseEvent, localX: number, localY: number): void {
-    const press = this.#press
-    if (press === null) {
-      super.onPointerMove(event, localX, localY)
-      return
-    }
-    const point = this.#canvasPoint(event)
-    if (point !== null) {
-      press.lastX = point.x
-      press.lastY = point.y
-      if (!press.dragging && !press.touch && Math.hypot(press.lastX - press.startX, press.lastY - press.startY) >= HOST_TERMINAL_DOCK_DRAG_THRESHOLD_PX) {
-        press.dragging = true
-      }
-    }
-    if (!press.dragging) {
-      super.onPointerMove(event, localX, localY)
-      return
-    }
-    event.preventDefault()
-    this.#moveDockToCanvasPoint({x: press.lastX, y: press.lastY})
-    if (this.canvas?.canvas !== undefined) this.canvas.canvas.style.cursor = "grabbing"
-  }
-
-  override onPointerUp(event: MouseEvent, localX: number, localY: number): void {
-    const press = this.#press
-    this.#press = null
-    if (press?.timer !== null && press?.timer !== undefined) clearTimeout(press.timer)
-    const wasDragging = press?.dragging === true
-    if (wasDragging) this.#suppressRestoreClick = true
-    super.onPointerUp(event, localX, localY)
-    if (wasDragging) this.#suppressRestoreClick = false
-  }
-
-  override onPointerLeave(): void {
-    if (this.#press !== null) return
-    super.onPointerLeave()
-  }
-
-  override onDeactivate(): void {
-    super.onDeactivate()
-    this.#cancelPress()
-  }
-
-  override dispose(): void {
-    this.#cancelPress()
-    super.dispose()
-  }
-
-  #restoreFromClick(): void {
-    if (this.#suppressRestoreClick) return
-    this.#options.restore()
-  }
-
-  #cancelPress(): void {
-    const press = this.#press
-    this.#press = null
-    if (press?.timer !== null && press?.timer !== undefined) clearTimeout(press.timer)
-  }
-
-  #moveDockToCanvasPoint(point: {x: number; y: number}): void {
-    const frame = this.canvas?.surfaceFrame(this)
-    if (frame === undefined || frame === null) return
-    this.#options.moveTo(point, frame.bounds)
-  }
-
-  #canvasPoint(event: MouseEvent): {x: number; y: number} | null {
-    const canvas = this.canvas?.canvas
-    if (canvas === undefined) return null
-    const rect = canvas.getBoundingClientRect()
-    return {x: event.clientX - rect.left, y: event.clientY - rect.top}
-  }
 }
 
 function networkActionForSwitch(key: NetworkServiceKey, checked: boolean): string {
@@ -4683,950 +3848,6 @@ function networkWatchPaneSnapshot(): NetworkWatchPaneSnapshot {
 
 function updateNetworkWatchPane(): void {
   networkDisplayControlsPane?.setSnapshot(networkWatchPaneSnapshot())
-}
-
-type RemoteDesktopPoint = {x: number; y: number}
-type RemoteDesktopPointerState = {
-  button: string
-  buttons: number
-  clickCount: number
-  point: RemoteDesktopPoint
-}
-
-class RemoteDesktopPane extends UiSurface {
-  #statusKind: AndroidPaneStatusKind = "idle"
-  #status = "rtc idle"
-  #audioStatus = "audio idle"
-  #frame: AndroidRtcFrame | null = null
-  #visibleFrame: AndroidRtcFrame | null = null
-  #lastImageRect: UiSurfaceRect | null = null
-  #activePointer: RemoteDesktopPointerState | null = null
-  readonly #onRefresh: () => void
-  readonly #onInput: (command: RtcControlCommand) => void
-
-  constructor(opts: {onRefresh: () => void; onInput: (command: RtcControlCommand) => void}) {
-    super({bgColor: HUD_PANEL_BG, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
-    this.node.name = "RemoteDesktopPane"
-    this.#onRefresh = opts.onRefresh
-    this.#onInput = opts.onInput
-  }
-
-  setStatus(kind: AndroidPaneStatusKind, label: string): void {
-    if (this.#statusKind === kind && this.#status === label) return
-    this.#statusKind = kind
-    this.#status = label
-    this.requestRender()
-  }
-
-  setAudioStatus(label: string): void {
-    if (this.#audioStatus === label) return
-    this.#audioStatus = label
-    this.requestRender()
-  }
-
-  setFrame(frame: AndroidRtcFrame): void {
-    if (!isValidRemoteDesktopFrame(frame)) return
-    this.#frame = {...frame}
-    if (TextureLoader.status(frame.src) === "ready") this.#visibleFrame = this.#frame
-    this.requestRender()
-  }
-
-  frameSnapshot(): AndroidRtcFrame | null {
-    const frame = this.#visibleFrame ?? this.#frame
-    return frame === null ? null : {...frame}
-  }
-
-  focus(): void {
-    this.canvas?.setFocused(this)
-  }
-
-  protected render(): void {
-    const w = Math.max(360, this.rectW)
-    const h = Math.max(240, this.rectH)
-    this.drawRoundedRect(0, 0, w, h, {
-      radius: radii.pane,
-      fill: HUD_PANEL_BG,
-      border: palette.borderDim,
-      borderWidth: 1,
-      z: Z.CONTAINER,
-    })
-    this.#renderBody({x: 1, y: 1, w: Math.max(1, w - 2), h: Math.max(1, h - 2)})
-    this.#renderOverlay(w, h)
-  }
-
-  #renderOverlay(w: number, h: number): void {
-    const pad = 8
-    const buttonSize = 24
-    const refreshX = w - pad - buttonSize
-    const frame = this.#visibleFrame ?? this.#frame
-    const status = this.#statusKind === "error" || frame === null ? this.#status : ""
-    if (status.length > 0) {
-      const statusMaxW = Math.max(1, refreshX - pad - 8)
-      const statusW = Math.min(statusMaxW, Math.max(92, Math.ceil(this.measureText(status, 10)) + 18))
-      const statusX = Math.max(pad, refreshX - 8 - statusW)
-      this.drawRoundedRect(statusX, pad, statusW, buttonSize, {
-        radius: 7,
-        fill: new Color(0.04, 0.06, 0.09, 0.76),
-        border: this.#statusKind === "error" ? palette.red : palette.borderDim,
-        borderWidth: 1,
-        z: Z.TEXT,
-      })
-      this.drawText(status, statusX + 9, pad + 7, {
-        fontPx: 10,
-        material: this.#statusKind === "error" ? this.materials.red : this.materials.muted,
-        maxWidthPx: Math.max(1, statusW - 18),
-        z: Z.TEXT + 0.02,
-      })
-    }
-    if (this.#audioStatus !== "audio idle") {
-      const audioMaxW = Math.max(1, w - pad * 2)
-      const audioW = Math.min(audioMaxW, Math.max(104, Math.ceil(this.measureText(this.#audioStatus, 10)) + 18))
-      const audioY = Math.max(pad, h - pad - buttonSize)
-      this.drawRoundedRect(pad, audioY, audioW, buttonSize, {
-        radius: 7,
-        fill: new Color(0.04, 0.06, 0.09, 0.7),
-        border: palette.borderDim,
-        borderWidth: 1,
-        z: Z.TEXT,
-      })
-      this.drawText(this.#audioStatus, pad + 9, audioY + 7, {
-        fontPx: 10,
-        material: this.materials.muted,
-        maxWidthPx: Math.max(1, audioW - 18),
-        z: Z.TEXT + 0.02,
-      })
-    }
-    IconButton(this, refreshX, 8, buttonSize, buttonSize, {
-      label: "Reconnect remote desktop",
-      iconSrc: uiIcons.restart,
-      fill: new Color(0.04, 0.06, 0.09, 0.58),
-      border: palette.borderDim,
-      radius: 7,
-      action: this.#onRefresh,
-    })
-  }
-
-  #renderBody(rect: UiSurfaceRect): void {
-    this.#syncVisibleFrame()
-    this.drawRoundedRect(rect.x, rect.y, rect.w, rect.h, {
-      radius: radii.control,
-      fill: HUD_CODE_BG,
-      border: palette.borderDim,
-      borderWidth: 1,
-      z: Z.ELEMENT - 0.03,
-    })
-    const frame = this.#visibleFrame ?? this.#frame
-    const imageRect = this.#imageRect(rect, frame)
-    this.#lastImageRect = imageRect
-    if (imageRect !== null && frame !== null) {
-      this.drawImage(frame.src, imageRect.x, imageRect.y, imageRect.w, imageRect.h, {
-        fit: "contain",
-        z: Z.ELEMENT,
-      })
-      this.#primePendingFrameTexture(rect, frame)
-      this.hit(imageRect.x, imageRect.y, imageRect.w, imageRect.h, () => {}, {
-        cursor: "crosshair",
-        activeCursor: "crosshair",
-        key: "remote-desktop-frame",
-      })
-      return
-    }
-    this.drawText(this.#statusKind === "error" ? this.#status : "Waiting for desktop stream", rect.x + 14, rect.y + 16, {
-      fontPx: 12,
-      material: this.#statusKind === "error" ? this.materials.red : this.materials.muted,
-      maxWidthPx: Math.max(1, rect.w - 28),
-    })
-  }
-
-  #syncVisibleFrame(): void {
-    const frame = this.#frame
-    if (frame !== null && TextureLoader.status(frame.src) === "ready") {
-      this.#visibleFrame = frame
-    }
-  }
-
-  #primePendingFrameTexture(rect: UiSurfaceRect, drawnFrame: AndroidRtcFrame): void {
-    const pendingFrame = this.#frame
-    if (pendingFrame === null || pendingFrame.src === drawnFrame.src) return
-    this.drawImage(pendingFrame.src, rect.x, rect.y, 1, 1, {
-      fit: "contain",
-      opacity: 0,
-      z: Z.ELEMENT + 0.01,
-    })
-  }
-
-  #imageRect(rect: UiSurfaceRect, frame: AndroidRtcFrame | null): UiSurfaceRect | null {
-    if (frame === null || frame.width <= 0 || frame.height <= 0) return null
-    const pad = 1
-    const maxW = Math.max(1, rect.w - pad * 2)
-    const maxH = Math.max(1, rect.h - pad * 2)
-    const scale = Math.min(maxW / frame.width, maxH / frame.height)
-    const w = Math.max(1, frame.width * scale)
-    const h = Math.max(1, frame.height * scale)
-    return {
-      x: rect.x + (rect.w - w) / 2,
-      y: rect.y + (rect.h - h) / 2,
-      w,
-      h,
-    }
-  }
-
-  #localPointToFrame(localX: number, localY: number, opts: {clamp?: boolean} = {}): RemoteDesktopPoint | null {
-    const rect = this.#lastImageRect
-    const frame = this.#visibleFrame ?? this.#frame
-    if (rect === null || frame === null) return null
-    if (
-      opts.clamp !== true &&
-      (localX < rect.x || localY < rect.y || localX > rect.x + rect.w || localY > rect.y + rect.h)
-    ) {
-      return null
-    }
-    return {
-      x: clampNumber(((localX - rect.x) / rect.w) * frame.width, 0, frame.width - 1),
-      y: clampNumber(((localY - rect.y) / rect.h) * frame.height, 0, frame.height - 1),
-    }
-  }
-
-  #withFrameSize(command: RtcControlCommand): RtcControlCommand {
-    const frame = this.#visibleFrame ?? this.#frame
-    if (frame === null || !("x" in command)) return command
-    return {...command, frameW: frame.width, frameH: frame.height} as RtcControlCommand
-  }
-
-  override onWheel(event: WheelEvent, localX: number, localY: number): void {
-    const point = this.#localPointToFrame(localX, localY)
-    if (point === null) {
-      super.onWheel(event, localX, localY)
-      return
-    }
-    event.preventDefault()
-    this.#onInput(this.#withFrameSize(remoteDesktopPinchCommand(event, point) ?? {
-      type: "wheel",
-      x: point.x,
-      y: point.y,
-      deltaX: event.deltaX,
-      deltaY: event.deltaY,
-    }))
-  }
-
-  onKey(event: KeyboardEvent): void {
-    if (event.isComposing) return
-    const modifiers = remoteDesktopKeyboardModifiers(event)
-    if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
-      this.#onInput({type: "text", text: event.key})
-    } else {
-      const command = {key: event.key, keyCode: event.code || event.key, modifiers}
-      this.#onInput({type: "keyDown", ...command})
-      this.#onInput({type: "keyUp", ...command})
-    }
-    event.preventDefault()
-  }
-
-  onInputText(text: string): void {
-    if (text.length === 0) return
-    this.#onInput({type: "text", text})
-  }
-
-  override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
-    super.onPointerDown(event, localX, localY)
-    const point = this.#localPointToFrame(localX, localY)
-    if (point === null) return
-    const button = remoteDesktopMouseButton(event.button)
-    const clickCount = Math.max(1, event.detail || 1)
-    this.focus()
-    this.#activePointer = {
-      button,
-      buttons: remoteDesktopButtonsMask(button),
-      clickCount,
-      point,
-    }
-    this.#onInput({type: "focus"})
-    this.#onInput(this.#withFrameSize({
-      type: "pointerDown",
-      x: point.x,
-      y: point.y,
-      button,
-      buttons: remoteDesktopButtonsMask(button),
-      clickCount,
-    }))
-    event.preventDefault()
-  }
-
-  override onPointerMove(event: MouseEvent, localX: number, localY: number): void {
-    const active = this.#activePointer
-    if (active === null) {
-      const point = this.#localPointToFrame(localX, localY)
-      if (point === null) {
-        super.onPointerMove(event, localX, localY)
-        return
-      }
-      this.#onInput(this.#withFrameSize({
-        type: "pointerMove",
-        x: point.x,
-        y: point.y,
-        buttons: 0,
-      }))
-      event.preventDefault()
-      return
-    }
-    const point = this.#localPointToFrame(localX, localY, {clamp: true})
-    if (point === null) return
-    active.point = point
-    this.#onInput(this.#withFrameSize({
-      type: "pointerMove",
-      x: point.x,
-      y: point.y,
-      button: active.button,
-      buttons: active.buttons,
-    }))
-    event.preventDefault()
-  }
-
-  override onPointerUp(event: MouseEvent, localX: number, localY: number): void {
-    const active = this.#activePointer
-    this.#activePointer = null
-    const point = this.#localPointToFrame(localX, localY, {clamp: active !== null}) ?? active?.point ?? null
-    if (active !== null && point !== null) {
-      super.onPointerUp(event, localX, localY)
-      this.#onInput(this.#withFrameSize({
-        type: "pointerUp",
-        x: point.x,
-        y: point.y,
-        button: active.button,
-        buttons: 0,
-        clickCount: active.clickCount,
-      }))
-      event.preventDefault()
-      return
-    }
-    super.onPointerUp(event, localX, localY)
-  }
-
-  override onContextMenu(event: MouseEvent, localX: number, localY: number): void {
-    const point = this.#localPointToFrame(localX, localY)
-    if (point === null) {
-      super.onContextMenu(event, localX, localY)
-      return
-    }
-    event.preventDefault()
-  }
-}
-
-function remoteDesktopPinchCommand(event: WheelEvent, point: RemoteDesktopPoint): RtcControlCommand | null {
-  if (!remoteDesktopWheelIsPinch(event)) return null
-  const deltaX = remoteDesktopWheelDeltaPx(event.deltaX, event.deltaMode)
-  const deltaY = remoteDesktopPinchDeltaY(event)
-  return {
-    type: "pinch",
-    x: point.x,
-    y: point.y,
-    deltaX,
-    deltaY,
-    deltaMode: 0,
-    scale: remoteDesktopPinchScale(deltaY),
-    ctrlKey: event.ctrlKey,
-  }
-}
-
-function remoteDesktopWheelIsPinch(event: WheelEvent): boolean {
-  return event.ctrlKey
-}
-
-function remoteDesktopPinchDeltaY(event: WheelEvent): number {
-  const deltaY = remoteDesktopWheelDeltaPx(event.deltaY, event.deltaMode)
-  if (Math.abs(deltaY) >= 0.01) return deltaY
-  return remoteDesktopWheelDeltaPx(event.deltaX, event.deltaMode)
-}
-
-function remoteDesktopWheelDeltaPx(delta: number, deltaMode: number): number {
-  if (!Number.isFinite(delta) || delta === 0) return 0
-  if (deltaMode === 1) return delta * 40
-  if (deltaMode === 2) return delta * 800
-  return delta
-}
-
-function remoteDesktopPinchScale(deltaY: number): number {
-  return clampNumber(Math.exp(-deltaY / 100), 0.1, 10)
-}
-
-function remoteDesktopKeyboardModifiers(event: KeyboardEvent): string[] {
-  const modifiers: string[] = []
-  if (event.altKey) modifiers.push("alt")
-  if (event.ctrlKey) modifiers.push("control")
-  if (event.metaKey) modifiers.push("meta")
-  if (event.shiftKey) modifiers.push("shift")
-  return modifiers
-}
-
-function remoteDesktopMouseButton(button: number): string {
-  if (button === 1) return "middle"
-  if (button === 2) return "right"
-  return "left"
-}
-
-function remoteDesktopButtonsMask(button: string): number {
-  if (button === "right") return 2
-  if (button === "middle") return 4
-  return 1
-}
-
-class SqliteHudFramePane extends UiSurface {
-  #frameDrag: PaneFrameDrag | null = null
-
-  constructor(
-    private readonly title: () => string,
-    private readonly subtitle: () => string,
-    private readonly onDock: () => void,
-  ) {
-    super({bgColor: null, borderColor: null})
-    this.node.name = "SqliteHudFramePane"
-  }
-
-  protected render(): void {
-    const subtitle = this.subtitle()
-    HudWindow(this, 0, 0, this.rectW, this.rectH, {
-      title: "SQLite",
-      subtitle: subtitle.length > 0 ? subtitle : this.title(),
-      onMinimize: this.onDock,
-      minimizeLabel: "Dock SQLite",
-      active: this.active,
-      fill: HUD_PANEL_BG,
-      border: this.active ? palette.windowActiveBorder : palette.borderDim,
-      height: SQLITE_HUD_HEADER_H - 1,
-      titleFontPx: 13,
-      subtitleFontPx: 9,
-      ruleColor: palette.borderDim,
-    })
-  }
-
-  override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
-    super.onPointerDown(event, localX, localY)
-    if (this.pressedHit !== null || event.button !== 0) return
-    this.#beginFrameInteraction(event, localX, localY)
-  }
-
-  override onPointerMove(event: MouseEvent, localX: number, localY: number): void {
-    if (this.#frameDrag !== null) {
-      this.#updateFrameInteraction(event)
-      return
-    }
-    super.onPointerMove(event, localX, localY)
-    this.#syncFrameCursor(localX, localY)
-  }
-
-  override onPointerUp(event: MouseEvent, localX: number, localY: number): void {
-    if (this.#endFrameInteraction(event, localX, localY)) return
-    super.onPointerUp(event, localX, localY)
-  }
-
-  override onPointerLeave(): void {
-    super.onPointerLeave()
-    if (this.#frameDrag === null && this.canvas?.canvas !== undefined) this.canvas.canvas.style.cursor = "default"
-  }
-
-  override onDeactivate(): void {
-    super.onDeactivate()
-    this.#frameDrag = null
-  }
-
-  #frameInteractionOpts(): PaneFrameInteractionOpts {
-    return {
-      showHeader: true,
-      movable: true,
-      resizable: true,
-      minW: SQLITE_HUD_MIN_W,
-      minH: SQLITE_HUD_MIN_H,
-    }
-  }
-
-  #beginFrameInteraction(event: MouseEvent, localX: number, localY: number): boolean {
-    const opts = this.#frameInteractionOpts()
-    const kind = paneFrameHit(localX, localY, this.rectW, this.rectH, opts)
-    if (kind === null) return false
-    const frame = this.canvas?.surfaceFrame(this)
-    if (frame === undefined || frame === null) return false
-    this.#frameDrag = beginPaneFrameDrag(kind, event, frame.rect, opts)
-    event.preventDefault()
-    const cursor = paneFrameCursor(kind, true)
-    if (cursor !== null && this.canvas?.canvas !== undefined) this.canvas.canvas.style.cursor = cursor
-    return true
-  }
-
-  #updateFrameInteraction(event: MouseEvent): boolean {
-    const drag = this.#frameDrag
-    const frame = this.canvas?.surfaceFrame(this)
-    if (drag === null || frame === undefined || frame === null) return false
-    const next = paneFrameDragRect(drag, event, frame.bounds)
-    const applied = this.canvas?.setSurfaceRect(this, next)
-    if (applied !== undefined && applied !== null) previewSqliteHudRect(applied)
-    const cursor = paneFrameCursor(drag.kind, true)
-    if (cursor !== null && this.canvas?.canvas !== undefined) this.canvas.canvas.style.cursor = cursor
-    return true
-  }
-
-  #endFrameInteraction(event: MouseEvent, localX: number, localY: number): boolean {
-    if (this.#frameDrag === null) return false
-    this.#updateFrameInteraction(event)
-    const frame = this.canvas?.surfaceFrame(this)
-    this.#frameDrag = null
-    this.#syncFrameCursor(localX, localY)
-    if (frame !== undefined && frame !== null) storeSqliteHudRectAndRelayout(frame.rect)
-    return true
-  }
-
-  #syncFrameCursor(localX: number, localY: number): void {
-    if (this.canvas === null || this.pressedHit !== null || this.hoveredHit !== null) return
-    const kind = paneFrameHit(localX, localY, this.rectW, this.rectH, this.#frameInteractionOpts())
-    const cursor = paneFrameCursor(kind, false)
-    if (this.canvas.canvas !== undefined) this.canvas.canvas.style.cursor = cursor ?? "default"
-  }
-}
-
-class HostTerminalAgentSignalPane extends UiSurface {
-  #open = false
-
-  constructor() {
-    super({bgColor: null, borderColor: null})
-    this.node.name = "HostTerminalAgentSignalPane"
-  }
-
-  isOpen(): boolean {
-    return this.#open
-  }
-
-  toggle(): void {
-    this.#setOpen(!this.#open)
-  }
-
-  protected render(): void {
-    if (this.#open) this.#drawPanel()
-  }
-
-  containsPointer(localX: number, localY: number): boolean {
-    if (!this.#open) return false
-    return localX >= 0 && localX <= this.rectW && localY >= 0 && localY <= this.rectH
-  }
-
-  #drawPanel(): void {
-    const w = this.rectW
-    const panelY = 0
-    const panelH = Math.max(1, this.rectH)
-    const pad = 12
-    const enabled = readHostTerminalAgentSoundEnabled()
-    const volume = readHostTerminalAgentSoundVolume()
-    this.drawRoundedRect(0, panelY, w, panelH, {
-      radius: 8,
-      fill: HUD_PANEL_BG,
-      border: palette.borderDim,
-      borderWidth: 1,
-      z: 0.1,
-    })
-    this.drawText(t("terminalAgentSignal"), pad, panelY + 10, {
-      fontPx: 11,
-      material: this.materials.text,
-      maxWidthPx: Math.max(1, w - pad * 2 - HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE - 8),
-      z: 0.32,
-    })
-    const switchW = 44
-    const switchH = 22
-    const switchX = Math.max(pad, w - pad - switchW)
-    const switchY = panelY + 38
-    this.drawText(t("terminalAgentSignalDescription"), pad, panelY + 43, {
-      fontPx: 9,
-      material: this.materials.muted,
-      maxWidthPx: Math.max(1, switchX - pad - 10),
-      z: 0.32,
-    })
-    Switcher(this, switchX, switchY, switchW, switchH, {
-      checked: enabled,
-      color: "primary",
-      key: "host-terminal-agent-signal-enabled-switch",
-      tooltip: t("terminalAgentSignal"),
-      onChange: storeHostTerminalAgentSoundEnabled,
-      sx: {zIndex: 0.18},
-    })
-    this.#drawVolumeControl(pad, panelY + 76, Math.max(1, w - pad * 2), volume)
-  }
-
-  #drawVolumeControl(x: number, y: number, w: number, value: number): void {
-    const maxValue = MAX_HOST_TERMINAL_AGENT_SOUND_VOLUME
-    const clamped = clampHostTerminalAgentSoundVolume(value)
-    const ratio = maxValue <= 0 ? 0 : clamped / maxValue
-    const label = `${t("terminalAgentSignalVolume")}: ${Math.round(clamped * 100)}%`
-    this.drawText(label, x, y - 17, {
-      fontPx: 9,
-      material: this.materials.muted,
-      maxWidthPx: Math.max(1, w),
-      z: 0.32,
-    })
-
-    const buttonW = 28
-    IconButton(this, x, y, buttonW, 22, {
-      label: t("terminalAgentSignalVolumeDown"),
-      iconSrc: uiIcons.minus,
-      action: () => this.#setVolume(clamped - 0.1),
-    })
-    IconButton(this, x + w - buttonW, y, buttonW, 22, {
-      label: t("terminalAgentSignalVolumeUp"),
-      iconSrc: uiIcons.plus,
-      action: () => this.#setVolume(clamped + 0.1),
-    })
-
-    const trackX = x + buttonW + 10
-    const trackW = Math.max(1, w - buttonW * 2 - 20)
-    const trackY = y + 8
-    this.drawRoundedRect(trackX, trackY, trackW, 6, {
-      radius: 3,
-      fill: palette.borderDim,
-      border: null,
-      opacity: 0.42,
-      z: 0.16,
-    })
-    this.drawRoundedRect(trackX, trackY, Math.max(3, trackW * ratio), 6, {
-      radius: 3,
-      fill: palette.cyan,
-      border: null,
-      opacity: 0.64,
-      z: 0.18,
-    })
-    const knobX = trackX + trackW * ratio
-    this.drawRoundedRect(knobX - 5, trackY - 4, 10, 14, {
-      radius: 5,
-      fill: palette.cyan,
-      border: palette.borderBright,
-      borderWidth: 1,
-      opacity: 0.86,
-      z: 0.22,
-    })
-    const setFromPointer = (localX: number): void => this.#setVolume(((localX - trackX) / trackW) * maxValue)
-    this.hit(trackX - 4, y, trackW + 8, 22, () => undefined, {
-      key: "host-terminal-agent-signal-volume-track",
-      cursor: "pointer",
-      onPointerDown: (localX) => setFromPointer(localX),
-      onPointerMove: (localX) => setFromPointer(localX),
-    })
-  }
-
-  #setVolume(value: number): void {
-    storeHostTerminalAgentSoundVolume(Math.round(clampHostTerminalAgentSoundVolume(value) * 20) / 20)
-    this.requestRender()
-  }
-
-  #setOpen(open: boolean): void {
-    if (this.#open === open) return
-    this.#open = open
-    relayoutHudSurfaces()
-    this.requestRender()
-  }
-}
-
-class HostTerminalCodexComposerPane extends UiSurface {
-  #frameDrag: PaneFrameDrag | null = null
-  #voiceSettingsPressTimer: number | null = null
-  #voiceSettingsPressStart: {x: number; y: number} | null = null
-  #voiceSettingsLongPressOpened = false
-  #voiceToggleClickTimer: number | null = null
-
-  constructor(private readonly controller: HostTerminalController) {
-    super({bgColor: null, borderColor: null})
-    this.node.name = "InterpreterHostCodexComposerPane"
-  }
-
-  protected render(): void {
-    const w = Math.max(1, this.rectW)
-    const h = Math.max(1, this.rectH)
-    this.#renderWindow(w, h)
-    const layout = hostCodexComposerContentLayout(w, h, this.controller.codexAttachments.length > 0)
-    if (layout.attachments !== null) this.#drawAttachmentRow(layout.attachments.x, layout.attachments.y, layout.attachments.w, layout.attachments.y + layout.attachments.h)
-    if (this.controller.codexDropActive) this.#drawDropOverlay(w, h)
-  }
-
-  #renderWindow(w: number, h: number): void {
-    const buttonSize = HOST_TERMINAL_CODEX_COMPOSER_HEADER_BUTTON_SIZE
-    const status = hostCodexComposerStatus(this.controller)
-    const rightActions: HudWindowTitleBarAction[] = [
-      {
-        label: "Отправить",
-        iconSrc: uiIcons.send,
-        disabled: !hostCodexComposerCanSubmit(this.controller),
-        action: () => submitHostCodexComposer(this.controller),
-        width: buttonSize,
-      },
-      {
-        label: "Прикрепить изображение",
-        iconSrc: uiIcons.image,
-        action: () => void chooseHostCodexImages(this.controller),
-        width: buttonSize,
-      },
-    ]
-    if (HOST_TERMINAL_CODEX_COMPOSER_VOICE_BUTTON_VISIBLE) {
-      rightActions.push({
-        label: "Голосовой ввод",
-        width: buttonSize,
-        render: (rect) => ButtonVoice(this, rect.x, rect.y, rect.w, {
-          key: "interpreter-codex-message-voice",
-          snapshot: voiceButtonSnapshot(),
-          soundPulse: voiceHudPane?.soundPulseAmount() ?? 0,
-          tooltip: "Голосовой ввод",
-          onClick: () => this.#queueVoiceToggleClick(),
-        }),
-      })
-    }
-    HudWindow(this, 0, 0, w, h, {
-      title: "Codex message",
-      subtitle: status,
-      onMinimize: () => setHostTerminalHudDocked(true),
-      minimizeLabel: "Свернуть Codex",
-      rightActions,
-      active: this.active,
-      fill: new Color(0.04, 0.06, 0.09, 0.52),
-      border: this.controller.codexDropActive ? palette.cyan : this.active ? palette.windowActiveBorder : palette.borderDim,
-      borderWidth: this.controller.codexDropActive ? 1.3 : 1,
-      height: PANE_FRAME.headerHeight,
-      buttonSize,
-      buttonGap: 5,
-      ruleColor: palette.borderDim,
-      bodyInsetX: PANE_FRAME.bodyInsetX,
-      bodyTopGap: PANE_FRAME.bodyTopGap,
-      bodyBottomInset: PANE_FRAME.bodyInsetX,
-    })
-  }
-
-  #voiceButtonRect(w = Math.max(1, this.rectW)): UiSurfaceRect {
-    const buttonSize = HOST_TERMINAL_CODEX_COMPOSER_HEADER_BUTTON_SIZE
-    return {
-      x: w - PANE_FRAME.headerTextX - buttonSize,
-      y: 6,
-      w: buttonSize,
-      h: buttonSize,
-    }
-  }
-
-  #voiceButtonHit(localX: number, localY: number): boolean {
-    if (!HOST_TERMINAL_CODEX_COMPOSER_VOICE_BUTTON_VISIBLE) return false
-    return pointInUiRect(localX, localY, this.#voiceButtonRect())
-  }
-
-  #beginVoiceSettingsLongPress(localX: number, localY: number): void {
-    this.#cancelVoiceSettingsLongPress()
-    this.#voiceSettingsPressStart = {x: localX, y: localY}
-    this.#voiceSettingsLongPressOpened = false
-    this.#voiceSettingsPressTimer = window.setTimeout(() => {
-      this.#voiceSettingsPressTimer = null
-      if (this.#voiceSettingsPressStart === null) return
-      this.#cancelVoiceToggleClick()
-      this.#voiceSettingsLongPressOpened = true
-      openVoiceSettings()
-      super.onDeactivate()
-    }, VOICE_SETTINGS_LONG_PRESS_MS)
-  }
-
-  #cancelVoiceSettingsLongPress(): void {
-    if (this.#voiceSettingsPressTimer !== null) {
-      window.clearTimeout(this.#voiceSettingsPressTimer)
-      this.#voiceSettingsPressTimer = null
-    }
-    this.#voiceSettingsPressStart = null
-  }
-
-  #openVoiceSettingsFromButton(event: MouseEvent): void {
-    event.preventDefault()
-    event.stopPropagation()
-    this.#cancelVoiceToggleClick()
-    this.#cancelVoiceSettingsLongPress()
-    this.#voiceSettingsLongPressOpened = false
-    openVoiceSettings()
-    super.onDeactivate()
-  }
-
-  #queueVoiceToggleClick(): void {
-    this.#cancelVoiceToggleClick()
-    this.#voiceToggleClickTimer = window.setTimeout(() => {
-      this.#voiceToggleClickTimer = null
-      setVoiceActiveTarget({kind: "host", controller: this.controller})
-      focusHostCodexComposer(this.controller)
-      void toggleVoiceInput()
-    }, VOICE_TOGGLE_CLICK_DELAY_MS)
-  }
-
-  #cancelVoiceToggleClick(): void {
-    if (this.#voiceToggleClickTimer === null) return
-    window.clearTimeout(this.#voiceToggleClickTimer)
-    this.#voiceToggleClickTimer = null
-  }
-
-  #drawAttachmentRow(x: number, y: number, w: number, maxY: number): void {
-    let cx = x
-    let cy = y
-    const gap = 6
-    const chipH = 22
-    for (const attachment of this.controller.codexAttachments) {
-      if (cy + chipH > maxY - 18) break
-      const label = `${attachment.name} · ${formatCodexAttachmentSize(attachment.size)}`
-      const chipW = Math.min(w, Math.max(96, Math.ceil(this.measureText(label, 10)) + 34))
-      if (cx > x && cx + chipW > x + w) {
-        cx = x
-        cy += chipH + gap
-        if (cy + chipH > maxY - 18) break
-      }
-      this.drawRoundedRect(cx, cy, chipW, chipH, {
-        radius: 7,
-        fill: new Color(0.06, 0.12, 0.15, 0.72),
-        border: palette.borderDim,
-        borderWidth: 1,
-        z: Z.ELEMENT,
-      })
-      this.drawText(label, cx + 9, cy + 5, {
-        fontPx: 10,
-        material: this.materials.text,
-        maxWidthPx: Math.max(1, chipW - 28),
-        z: Z.TEXT,
-      })
-      this.drawText("x", cx + chipW - 16, cy + 5, {
-        fontPx: 10,
-        material: this.materials.muted,
-        maxWidthPx: 8,
-        z: Z.TEXT,
-      })
-      this.hit(cx, cy, chipW, chipH, () => removeHostCodexAttachment(this.controller, attachment.id), {
-        key: `interpreter-codex-attachment:${attachment.id}`,
-        cursor: "pointer",
-      })
-      cx += chipW + gap
-    }
-  }
-
-  #drawDropOverlay(w: number, h: number): void {
-    this.drawRect(0, PANE_FRAME.headerHeight, w, Math.max(1, h - PANE_FRAME.headerHeight), new Color(0.02, 0.16, 0.18, 0.26), Z.CONTAINER + 0.2)
-    this.drawText("Drop image", 2, h - 22, {
-      fontPx: 11,
-      material: this.materials.cyan,
-      maxWidthPx: Math.max(1, w - 4),
-      z: Z.TEXT + 0.2,
-    })
-  }
-
-  #frameInteractionOpts(): PaneFrameInteractionOpts {
-    return {
-      showHeader: true,
-      movable: true,
-      resizable: true,
-      minW: HOST_TERMINAL_CODEX_COMPOSER_MIN_W,
-      minH: HOST_TERMINAL_CODEX_COMPOSER_MIN_H,
-    }
-  }
-
-  #beginFrameInteraction(event: MouseEvent, localX: number, localY: number): boolean {
-    const opts = this.#frameInteractionOpts()
-    const kind = paneFrameHit(localX, localY, this.rectW, this.rectH, opts)
-    if (kind === null) return false
-    const frame = this.canvas?.surfaceFrame(this)
-    if (frame === undefined || frame === null) return false
-    this.#frameDrag = beginPaneFrameDrag(kind, event, frame.rect, opts)
-    event.preventDefault()
-    const cursor = paneFrameCursor(kind, true)
-    const canvasElement = this.canvas?.canvas
-    if (cursor !== null && canvasElement !== undefined) canvasElement.style.cursor = cursor
-    return true
-  }
-
-  #updateFrameInteraction(event: MouseEvent): boolean {
-    const drag = this.#frameDrag
-    const frame = this.canvas?.surfaceFrame(this)
-    if (drag === null || frame === undefined || frame === null) return false
-    const next = clampHostCodexComposerRect(paneFrameDragRect(drag, event, frame.bounds), frame.bounds.w, frame.bounds.h)
-    const applied = this.canvas?.setSurfaceRect(this, next) ?? next
-    syncHostCodexEditorToComposer(this.controller, applied, "drag")
-    const cursor = paneFrameCursor(drag.kind, true)
-    const canvasElement = this.canvas?.canvas
-    if (cursor !== null && canvasElement !== undefined) canvasElement.style.cursor = cursor
-    return true
-  }
-
-  #endFrameInteraction(event: MouseEvent, localX: number, localY: number): boolean {
-    if (this.#frameDrag === null) return false
-    this.#updateFrameInteraction(event)
-    const frame = this.canvas?.surfaceFrame(this)
-    this.#frameDrag = null
-    this.#syncFrameCursor(localX, localY)
-    if (frame !== undefined && frame !== null) {
-      storeHostCodexComposerRect(frame.rect)
-      this.canvas?.clearSurfaceRect(this)
-      syncHostCodexEditorToComposer(this.controller, frame.rect, "release")
-    }
-    return true
-  }
-
-  #syncFrameCursor(localX: number, localY: number): void {
-    if (this.canvas === null || this.pressedHit !== null || this.hoveredHit !== null) return
-    const kind = paneFrameHit(localX, localY, this.rectW, this.rectH, this.#frameInteractionOpts())
-    const cursor = paneFrameCursor(kind, false)
-    const canvasElement = this.canvas.canvas
-    if (canvasElement !== undefined) canvasElement.style.cursor = cursor ?? "default"
-  }
-
-  override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
-    if (this.#voiceButtonHit(localX, localY)) {
-      if (event.button === 0 && event.detail >= 2) {
-        this.#openVoiceSettingsFromButton(event)
-        return
-      }
-      if (event.button === 2 || (event.ctrlKey && event.button === 0)) {
-        this.#openVoiceSettingsFromButton(event)
-        return
-      }
-      if (event.button === 0 && (isAndroidBrowser() || isTouchPointerEvent(event))) this.#beginVoiceSettingsLongPress(localX, localY)
-    }
-    super.onPointerDown(event, localX, localY)
-    if (this.pressedHit !== null) return
-    this.#beginFrameInteraction(event, localX, localY)
-  }
-
-  override onPointerMove(event: MouseEvent, localX: number, localY: number): void {
-    const voicePressStart = this.#voiceSettingsPressStart
-    if (voicePressStart !== null && Math.hypot(localX - voicePressStart.x, localY - voicePressStart.y) > VOICE_SETTINGS_LONG_PRESS_MOVE_PX) {
-      this.#cancelVoiceSettingsLongPress()
-    }
-    if (this.#updateFrameInteraction(event)) return
-    super.onPointerMove(event, localX, localY)
-    this.#syncFrameCursor(localX, localY)
-  }
-
-  override onPointerUp(event: MouseEvent, localX: number, localY: number): void {
-    if (this.#voiceSettingsLongPressOpened) {
-      this.#voiceSettingsLongPressOpened = false
-      this.#cancelVoiceSettingsLongPress()
-      event.preventDefault()
-      this.#syncFrameCursor(localX, localY)
-      return
-    }
-    this.#cancelVoiceSettingsLongPress()
-    if (this.#endFrameInteraction(event, localX, localY)) return
-    super.onPointerUp(event, localX, localY)
-    this.#syncFrameCursor(localX, localY)
-  }
-
-  override onContextMenu(event: MouseEvent, localX: number, localY: number): void {
-    if (this.#voiceButtonHit(localX, localY)) {
-      this.#openVoiceSettingsFromButton(event)
-      return
-    }
-    super.onContextMenu(event, localX, localY)
-  }
-
-  override onPointerLeave(): void {
-    if (this.#frameDrag !== null) return
-    this.#cancelVoiceSettingsLongPress()
-    super.onPointerLeave()
-  }
-
-  override onDeactivate(): void {
-    this.#frameDrag = null
-    this.#cancelVoiceSettingsLongPress()
-    this.#cancelVoiceToggleClick()
-    this.#voiceSettingsLongPressOpened = false
-    super.onDeactivate()
-  }
 }
 
 const agentSignalIconCache = new Map<string, string>()
@@ -6052,18 +4273,6 @@ function discardVoiceAutoSendBuffer(): void {
   voiceAutoSendText = ""
 }
 
-function mergeVoiceInputText(base: string, addition: string): string {
-  const left = cleanupVoiceInputText(base)
-  const right = cleanupVoiceInputText(addition)
-  if (!left) return right
-  if (!right) return left
-  const leftKey = voiceInputCompareKey(left)
-  const rightKey = voiceInputCompareKey(right)
-  if (!rightKey || leftKey === rightKey || leftKey.endsWith(` ${rightKey}`)) return left
-  if (rightKey.startsWith(`${leftKey} `)) return right
-  return cleanupVoiceInputText(`${left} ${right}`)
-}
-
 function voicePreviewWithBufferedInput(target: VoiceInputTarget, partialText: string): string {
   if (voiceAutoSendTarget === null || !sameVoiceInputTarget(voiceAutoSendTarget, target)) return partialText
   return mergeVoiceInputText(voiceAutoSendText, partialText)
@@ -6155,7 +4364,7 @@ function sendHostTerminalVoiceSubmit(controller: HostTerminalController, text: s
     voiceNextFlushMode = "auto"
     resetHostVoiceComposerDraftTracking(controller)
     setHostCodexDraft(controller, nextDraft)
-    return submitHostCodexComposer(controller, {flushPendingInput: false})
+    return submitHostCodexComposer(controller, {flushPendingInput: false, focusAfterSubmit: false})
   }
   const payload = controller.terminalState?.bracketedPaste
     ? `\x1b[200~${body}\x1b[201~\r`
@@ -6231,7 +4440,7 @@ function flushHostCodexComposerPendingInput(controller: HostTerminalController):
   flushHostCodexDraftFromEditor(controller)
 }
 
-function submitHostCodexComposer(controller: HostTerminalController, options: {flushPendingInput?: boolean} = {}): boolean {
+function submitHostCodexComposer(controller: HostTerminalController, options: {flushPendingInput?: boolean; focusAfterSubmit?: boolean} = {}): boolean {
   if (options.flushPendingInput ?? true) flushHostCodexComposerPendingInput(controller)
   const message = codexComposerMessage(controller.codexDraft, controller.codexAttachments)
   if (message.length === 0 || !hostCodexComposerReady(controller)) return false
@@ -6246,7 +4455,7 @@ function submitHostCodexComposer(controller: HostTerminalController, options: {f
   setHostCodexDraft(controller, "")
   controller.codexAttachments = []
   setHostCodexComposerStatus(controller, "отправлено")
-  focusHostCodexComposer(controller)
+  if (options.focusAfterSubmit ?? true) focusHostCodexComposer(controller)
   controller.codexComposer.requestRender()
   return true
 }
@@ -6277,7 +4486,6 @@ function applyHostVoiceComposerText(controller: HostTerminalController, text: st
   controller.voiceComposerGeneratedDraft = nextDraft
   if (controller.codexDraft === nextDraft) return true
   setHostCodexDraft(controller, nextDraft)
-  focusHostCodexComposer(controller)
   return true
 }
 
@@ -6416,114 +4624,6 @@ function isTouchPointerEvent(event: MouseEvent): boolean {
     sourceCapabilities?: {firesTouchEvents?: boolean} | null
   }
   return pointer.pointerType === "touch" || pointer.metaforPointerType === "touch" || pointer.sourceCapabilities?.firesTouchEvents === true
-}
-
-type HostCodexComposerContentLayout = {
-  editor: UiSurfaceRect
-  attachments: UiSurfaceRect | null
-}
-
-function hostCodexComposerContentLayout(w: number, h: number, hasAttachments: boolean): HostCodexComposerContentLayout {
-  const body = paneBodyRect(w, h, {
-    headerHeight: PANE_FRAME.headerHeight,
-    insetX: PANE_FRAME.bodyInsetX,
-    topGap: PANE_FRAME.bodyTopGap,
-    bottomInset: PANE_FRAME.bodyInsetX,
-  })
-  const layout: HostCodexComposerContentLayout = {
-    editor: {...body},
-    attachments: null,
-  }
-  flexColumn({
-    x: body.x,
-    y: body.y,
-    w: body.w,
-    h: body.h,
-    gap: hasAttachments ? 8 : 0,
-    items: [
-      {height: "grow", draw: (x, y, width, height) => { layout.editor = {x, y, w: Math.max(1, width), h: Math.max(1, height)} }},
-      hasAttachments && {height: 30, draw: (x, y, width, height) => { layout.attachments = {x, y, w: Math.max(1, width), h: Math.max(1, height)} }},
-    ],
-  })
-  return layout
-}
-
-function sanitizeHostTerminalVoiceInput(text: string): string {
-  return cleanupVoiceInputText(text)
-    .replace(/\x1b\[201~/g, "")
-    .replace(/\x1b/g, "")
-}
-
-function voiceMessagesFromChunk(chunk: VoiceInputChunk): string[] {
-  if (chunk.messages.length > 1) return chunk.messages.map(cleanupVoiceInputText).filter(Boolean)
-
-  const byPause = voiceMessagesFromSegments(chunk.segments)
-  if (byPause.length > 1) return byPause
-
-  const source = chunk.messages[0] ?? chunk.text
-  const byParagraph = splitVoiceParagraphs(source)
-  return byParagraph.length > 0 ? byParagraph : byPause
-}
-
-const VOICE_MESSAGE_PAUSE_SECONDS = 1.6
-
-function voiceMessagesFromSegments(segments: VoiceInputSegment[]): string[] {
-  const messages: string[] = []
-  let current = ""
-  let lastEnd: number | null = null
-
-  for (const segment of segments) {
-    const text = cleanupVoiceInputText(segment.text ?? "")
-    if (!text) continue
-
-    const start = segment.start
-    const end = segment.end
-    const hasPause =
-      current.length > 0 &&
-      typeof start === "number" &&
-      typeof lastEnd === "number" &&
-      start - lastEnd >= VOICE_MESSAGE_PAUSE_SECONDS
-
-    if (hasPause) {
-      messages.push(current)
-      current = text
-    } else {
-      current = current ? `${current} ${text}` : text
-    }
-
-    if (typeof end === "number") lastEnd = end
-  }
-
-  if (current) messages.push(current)
-  return messages
-}
-
-function splitVoiceParagraphs(text: string): string[] {
-  return String(text)
-    .replace(/\r\n?/g, "\n")
-    .split(/\n\s*\n+/)
-    .map(cleanupVoiceInputText)
-    .filter(Boolean)
-}
-
-function cleanupVoiceInputText(text: string): string {
-  const cleaned = cleanupVoiceText(text).replace(/\s+/g, " ").trim()
-  return voiceTextHasContent(cleaned) ? cleaned : ""
-}
-
-function voiceTextHasContent(text: string): boolean {
-  return /[\p{L}\p{N}]/u.test(text)
-}
-
-function voiceInputCompareKey(text: string): string {
-  return cleanupVoiceInputText(text)
-    .toLocaleLowerCase("ru-RU")
-    .replace(/ё/g, "е")
-    .normalize("NFKD")
-    .replace(/\p{M}/gu, "")
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim()
 }
 
 function updateVoiceLevel(level: number): void {
@@ -7136,73 +5236,6 @@ function voiceTargetCanAcceptInput(target: VoiceInputTarget): boolean {
   return canAcceptTerminalInput(target.controller)
 }
 
-function readVoiceInputUrl(): string {
-  try {
-    return readVoiceEndpointUrl(VOICE_INPUT_URL_STORAGE_KEY, DEFAULT_VOICE_INPUT_URL, "8787")
-  } catch {
-    return DEFAULT_VOICE_INPUT_URL
-  }
-}
-
-function readVoiceWakeUrl(): string {
-  try {
-    return readVoiceEndpointUrl(VOICE_WAKE_URL_STORAGE_KEY, DEFAULT_VOICE_WAKE_URL, "4765")
-  } catch {
-    return DEFAULT_VOICE_WAKE_URL
-  }
-}
-
-function readVoiceEndpointUrl(key: string, fallback: string, legacyLoopbackPort: string): string {
-  const stored = localStorage.getItem(key)
-  if (stored === null || stored.trim().length === 0) return fallback
-  return isLegacyLoopbackVoiceUrl(stored, legacyLoopbackPort) ? fallback : stored
-}
-
-function isLegacyLoopbackVoiceUrl(raw: string, port: string): boolean {
-  try {
-    const url = new URL(raw, location.href)
-    return (url.protocol === "ws:" || url.protocol === "wss:")
-      && (url.hostname === "127.0.0.1" || url.hostname === "localhost" || url.hostname === "::1" || url.hostname === "[::1]")
-      && url.port === port
-      && url.pathname === "/ws"
-  } catch {
-    return false
-  }
-}
-
-function readVoiceInputContext(): string {
-  try {
-    return localStorage.getItem(VOICE_INPUT_CONTEXT_STORAGE_KEY) || ""
-  } catch {
-    return ""
-  }
-}
-
-function readVoiceSignalVolume(): number {
-  try {
-    const raw = localStorage.getItem(VOICE_SIGNAL_VOLUME_STORAGE_KEY)
-    if (raw === null) {
-      const legacy = readLegacyVoiceSignalVolume()
-      return legacy === null ? DEFAULT_VOICE_SIGNAL_VOLUME : clampVoiceSignalVolume(legacy * MAX_VOICE_SIGNAL_VOLUME)
-    }
-    const value = Number(raw)
-    return Number.isFinite(value) ? clampVoiceSignalVolume(value) : DEFAULT_VOICE_SIGNAL_VOLUME
-  } catch {
-    return DEFAULT_VOICE_SIGNAL_VOLUME
-  }
-}
-
-function readLegacyVoiceSignalVolume(): number | null {
-  try {
-    const raw = localStorage.getItem(VOICE_SIGNAL_VOLUME_LEGACY_STORAGE_KEY)
-    if (raw === null) return null
-    const value = Number(raw)
-    return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : null
-  } catch {
-    return null
-  }
-}
-
 function readHostTerminalAgentSoundEnabled(): boolean {
   try {
     const raw = localStorage.getItem(HOST_TERMINAL_AGENT_SOUND_ENABLED_STORAGE_KEY)
@@ -7223,22 +5256,8 @@ function storeHostTerminalAgentSoundEnabled(enabled: boolean): void {
   hostTerminalAgentSignalPane?.requestRender()
 }
 
-function readVoiceAutoSendEnabled(): boolean {
-  try {
-    const raw = localStorage.getItem(VOICE_AUTO_SEND_STORAGE_KEY)
-    if (raw === null) return DEFAULT_VOICE_AUTO_SEND_ENABLED
-    return raw !== "0"
-  } catch {
-    return DEFAULT_VOICE_AUTO_SEND_ENABLED
-  }
-}
-
 function storeVoiceAutoSendEnabled(enabled: boolean): void {
-  try {
-    localStorage.setItem(VOICE_AUTO_SEND_STORAGE_KEY, enabled ? "1" : "0")
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
+  writeVoiceAutoSendEnabled(enabled)
   renderVoiceHud()
 }
 
@@ -7259,12 +5278,7 @@ function readHostTerminalAgentSoundVolume(): number {
 }
 
 function storeVoiceSignalVolume(value: number): void {
-  const next = clampVoiceSignalVolume(value)
-  try {
-    localStorage.setItem(VOICE_SIGNAL_VOLUME_STORAGE_KEY, String(next))
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
+  writeVoiceSignalVolume(value)
   syncHudNotificationAudioVolume("activation")
   syncHudNotificationAudioVolume("deactivation")
   syncHudNotificationAudioVolume("stop")
@@ -7288,59 +5302,81 @@ function syncHudNotificationAudioVolume(kind: HudNotificationKind): void {
   audio.volume = htmlNotificationVolume(hudNotificationVolume(kind))
 }
 
-function clampVoiceSignalVolume(value: number): number {
-  return Math.min(MAX_VOICE_SIGNAL_VOLUME, Math.max(0, value))
-}
-
 function clampHostTerminalAgentSoundVolume(value: number): number {
   return Math.min(MAX_HOST_TERMINAL_AGENT_SOUND_VOLUME, Math.max(0, value))
 }
 
-function readVoiceDeactivationMode(): VoiceDeactivationMode {
-  try {
-    const raw = localStorage.getItem(VOICE_DEACTIVATION_MODE_STORAGE_KEY)
-    if (raw === "timeout" || raw === "phrase-timeout" || raw === "phrase") return raw
-    return DEFAULT_VOICE_DEACTIVATION_MODE
-  } catch {
-    return DEFAULT_VOICE_DEACTIVATION_MODE
-  }
+function storeVoiceSettingsRectAndRelayout(rect: UiSurfaceRect): void {
+  storeVoiceSettingsRect(rect)
+  relayoutHudSurfaces()
+}
+
+function previewHostTerminalHudRect(rect: UiSurfaceRect): void {
+  hostTerminalHudRectPreview = rect
+  relayoutHudSurfaces()
+}
+
+function storeHostTerminalHudRectAndRelayout(rect: UiSurfaceRect): void {
+  hostTerminalHudRectPreview = null
+  storeHostTerminalHudRect(rect)
+  relayoutHudSurfaces()
+}
+
+function previewNetworkTerminalHudRect(rect: UiSurfaceRect): void {
+  networkHostTerminalHudRectPreview = rect
+  relayoutHudSurfaces()
+}
+
+function storeNetworkTerminalHudRectAndRelayout(rect: UiSurfaceRect): void {
+  networkHostTerminalHudRectPreview = null
+  storeNetworkTerminalHudRect(rect)
+  relayoutHudSurfaces()
+}
+
+function previewAndroidHudRect(rect: UiSurfaceRect): void {
+  androidHudRectPreview = rect
+  relayoutHudSurfaces()
+}
+
+function storeAndroidHudRectAndRelayout(rect: UiSurfaceRect): void {
+  androidHudRectPreview = null
+  storeAndroidHudRect(rect)
+  relayoutHudSurfaces()
+}
+
+function previewTodoHudRect(rect: UiSurfaceRect): void {
+  todoHudRectPreview = rect
+  relayoutHudSurfaces()
+}
+
+function storeTodoHudRectAndRelayout(rect: UiSurfaceRect): void {
+  todoHudRectPreview = null
+  storeTodoHudRect(rect)
+  relayoutHudSurfaces()
+}
+
+function previewSqliteHudRect(rect: UiSurfaceRect): void {
+  sqliteHudRectPreview = rect
+  relayoutHudSurfaces()
+}
+
+function storeSqliteHudRectAndRelayout(rect: UiSurfaceRect): void {
+  sqliteHudRectPreview = null
+  storeSqliteHudRect(rect)
+  relayoutHudSurfaces()
 }
 
 function storeVoiceDeactivationMode(value: VoiceInputHudDeactivationMode): void {
   const next = voiceClientDeactivationMode(value)
-  try {
-    localStorage.setItem(VOICE_DEACTIVATION_MODE_STORAGE_KEY, next)
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
+  writeVoiceDeactivationMode(next)
   renderVoiceHud()
   voiceInputClient?.refreshDeactivationSettings()
-}
-
-function readVoiceRecognitionTimeoutSeconds(): number {
-  try {
-    const raw = localStorage.getItem(VOICE_RECOGNITION_TIMEOUT_STORAGE_KEY)
-    if (raw === null) return DEFAULT_VOICE_RECOGNITION_TIMEOUT_SECONDS
-    const value = Number(raw)
-    return Number.isFinite(value) ? clampVoiceRecognitionTimeoutSeconds(value) : DEFAULT_VOICE_RECOGNITION_TIMEOUT_SECONDS
-  } catch {
-    return DEFAULT_VOICE_RECOGNITION_TIMEOUT_SECONDS
-  }
 }
 
 function storeVoiceRecognitionTimeoutSeconds(value: number): void {
-  const next = clampVoiceRecognitionTimeoutSeconds(value)
-  try {
-    localStorage.setItem(VOICE_RECOGNITION_TIMEOUT_STORAGE_KEY, String(next))
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
+  writeVoiceRecognitionTimeoutSeconds(value)
   renderVoiceHud()
   voiceInputClient?.refreshDeactivationSettings()
-}
-
-function clampVoiceRecognitionTimeoutSeconds(value: number): number {
-  return Math.round(Math.min(MAX_VOICE_RECOGNITION_TIMEOUT_SECONDS, Math.max(MIN_VOICE_RECOGNITION_TIMEOUT_SECONDS, value)))
 }
 
 function voiceHudDeactivationMode(mode: VoiceDeactivationMode): VoiceInputHudDeactivationMode {
@@ -7416,65 +5452,20 @@ function voiceActivationReceivedLines(): string[] {
   return voiceWakePreviewHistory.map(({text, at}) => `${formatHudTime(at)} · ${debugVoiceText(text)}`)
 }
 
-function readVoicePhrases(groupId: VoiceInputHudPhraseGroupId): string[] {
-  try {
-    const raw = readVoicePhraseStorage(groupId)
-    if (raw !== null) {
-      const parsed = JSON.parse(raw) as unknown
-      if (Array.isArray(parsed)) {
-        const phrases = normalizeVoicePhrases(parsed.map((item) => String(item)))
-        if (phrases.length > 0) return phrases
-      }
-    }
-  } catch {
-    // Storage can be disabled or manually edited.
-  }
-  return [...defaultVoicePhrases(groupId)]
-}
-
-function readVoicePhraseStorage(groupId: VoiceInputHudPhraseGroupId): string | null {
-  const raw = localStorage.getItem(voicePhraseStorageKey(groupId))
-  if (raw !== null || groupId !== "activation") return raw
-  return localStorage.getItem(VOICE_WAKE_PHRASES_STORAGE_KEY)
-}
-
 function storeVoicePhrases(groupId: VoiceInputHudPhraseGroupId, phrases: readonly string[]): void {
-  const normalized = normalizeVoicePhrases(phrases)
-  const next = normalized.length > 0 ? normalized : [...defaultVoicePhrases(groupId)]
-  try {
-    localStorage.setItem(voicePhraseStorageKey(groupId), JSON.stringify(next))
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
+  writeVoicePhrases(groupId, phrases)
   renderVoiceHud()
   restartVoiceCommandRecognizerAfterSettingsChange()
 }
 
-function readVoiceFuzzyTolerance(groupId: VoiceInputHudPhraseGroupId): number {
-  try {
-    const raw = localStorage.getItem(voiceFuzzyStorageKey(groupId))
-    if (raw === null) return defaultVoiceFuzzyTolerance(groupId)
-    const value = Number(raw)
-    return Number.isFinite(value) ? clampVoiceFuzzyTolerance(value) : defaultVoiceFuzzyTolerance(groupId)
-  } catch {
-    return defaultVoiceFuzzyTolerance(groupId)
-  }
-}
-
 function storeVoiceFuzzyTolerance(groupId: VoiceInputHudPhraseGroupId, value: number): void {
-  const next = clampVoiceFuzzyTolerance(value)
-  try {
-    localStorage.setItem(voiceFuzzyStorageKey(groupId), String(next))
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
+  writeVoiceFuzzyTolerance(groupId, value)
   renderVoiceHud()
   restartVoiceCommandRecognizerAfterSettingsChange()
 }
 
 function addVoicePhrase(groupId: VoiceInputHudPhraseGroupId, phrase: string): void {
-  const phrases = normalizeVoicePhrases([...readVoicePhrases(groupId), phrase])
-  storeVoicePhrases(groupId, phrases)
+  storeVoicePhrases(groupId, [...readVoicePhrases(groupId), phrase])
 }
 
 function removeVoicePhrase(groupId: VoiceInputHudPhraseGroupId, phrase: string): void {
@@ -7486,40 +5477,6 @@ function removeVoicePhrase(groupId: VoiceInputHudPhraseGroupId, phrase: string):
 
 function resetVoicePhrases(groupId: VoiceInputHudPhraseGroupId): void {
   storeVoicePhrases(groupId, defaultVoicePhrases(groupId))
-}
-
-function voicePhraseKey(phrase: string): string | undefined {
-  const normalized = normalizeVoicePhrases([phrase])[0]
-  if (normalized === undefined) return undefined
-  return normalized.toLocaleLowerCase("ru-RU").replace(/ё/g, "е")
-}
-
-function defaultVoicePhrases(groupId: VoiceInputHudPhraseGroupId): readonly string[] {
-  if (groupId === "activation") return DEFAULT_VOICE_ACTIVATION_PHRASES
-  if (groupId === "deactivation") return DEFAULT_VOICE_DEACTIVATION_PHRASES
-  return DEFAULT_VOICE_STOP_PHRASES
-}
-
-function voicePhraseStorageKey(groupId: VoiceInputHudPhraseGroupId): string {
-  if (groupId === "activation") return VOICE_ACTIVATION_PHRASES_STORAGE_KEY
-  if (groupId === "deactivation") return VOICE_DEACTIVATION_PHRASES_STORAGE_KEY
-  return VOICE_STOP_PHRASES_STORAGE_KEY
-}
-
-function voiceFuzzyStorageKey(groupId: VoiceInputHudPhraseGroupId): string {
-  if (groupId === "activation") return VOICE_ACTIVATION_FUZZY_STORAGE_KEY
-  if (groupId === "deactivation") return VOICE_DEACTIVATION_FUZZY_STORAGE_KEY
-  return VOICE_STOP_FUZZY_STORAGE_KEY
-}
-
-function defaultVoiceFuzzyTolerance(groupId: VoiceInputHudPhraseGroupId): number {
-  if (groupId === "activation") return DEFAULT_VOICE_ACTIVATION_FUZZY
-  if (groupId === "deactivation") return DEFAULT_VOICE_DEACTIVATION_FUZZY
-  return DEFAULT_VOICE_STOP_FUZZY
-}
-
-function clampVoiceFuzzyTolerance(value: number): number {
-  return Math.min(0.5, Math.max(0, value))
 }
 
 function restartVoiceCommandRecognizerAfterSettingsChange(): void {
@@ -7822,6 +5779,31 @@ function createHostCodexEditor(controller: HostTerminalController): EditorPane {
   return editor
 }
 
+function createHostCodexComposerPane(controller: HostTerminalController): HostTerminalCodexComposerPane<HostTerminalController> {
+  return new HostTerminalCodexComposerPane({
+    controller,
+    status: hostCodexComposerStatus,
+    canSubmit: hostCodexComposerCanSubmit,
+    submit: (target) => { submitHostCodexComposer(target) },
+    chooseImages: (target) => { void chooseHostCodexImages(target) },
+    setDocked: setHostTerminalHudDocked,
+    voiceSnapshot: voiceButtonSnapshot,
+    voiceSoundPulse: () => voiceHudPane?.soundPulseAmount() ?? 0,
+    onVoiceToggle: (target) => {
+      setVoiceActiveTarget({kind: "host", controller: target})
+      focusHostCodexComposer(target)
+      void toggleVoiceInput()
+    },
+    openVoiceSettings,
+    removeAttachment: removeHostCodexAttachment,
+    clampRect: clampHostCodexComposerRect,
+    syncEditorToComposer: syncHostCodexEditorToComposer,
+    storeRect: storeHostCodexComposerRect,
+    isAndroidBrowser,
+    isTouchPointerEvent,
+  })
+}
+
 function ensureHostTerminalController(): HostTerminalController {
   if (hostTerminal !== null) return hostTerminal
   const controller = {} as HostTerminalController
@@ -7836,7 +5818,7 @@ function ensureHostTerminalController(): HostTerminalController {
     onFrameRectChange: storeHostTerminalHudRectAndRelayout,
     onFrameDockRequest: () => setHostTerminalHudDocked(true),
   })
-  const codexComposer = new HostTerminalCodexComposerPane(controller)
+  const codexComposer = createHostCodexComposerPane(controller)
   const codexEditor = createHostCodexEditor(controller)
   Object.assign(controller, {
     hudTerminal,
@@ -7896,7 +5878,7 @@ function ensureNetworkHostTerminalController(): HostTerminalController {
     onFrameRectChange: storeNetworkTerminalHudRectAndRelayout,
     onFrameDockRequest: () => setNetworkTerminalDocked(true),
   })
-  const codexComposer = new HostTerminalCodexComposerPane(controller)
+  const codexComposer = createHostCodexComposerPane(controller)
   const codexEditor = createHostCodexEditor(controller)
   Object.assign(controller, {
     hudTerminal,
@@ -8314,420 +6296,6 @@ function shellLabel(shell: string): string {
   return parts[parts.length - 1] || shell
 }
 
-function readStoredHostTerminalSessionId(storageKey: string): string | null {
-  try {
-    const value = localStorage.getItem(storageKey)
-    return value === null || value.length < 8 ? null : value
-  } catch {
-    return null
-  }
-}
-
-function writeStoredHostTerminalSessionId(storageKey: string, value: string): void {
-  try {
-    localStorage.setItem(storageKey, value)
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
-}
-
-function readStoredHostTerminalHudRect(): UiSurfaceRect | null {
-  try {
-    return parseStoredPaneRect(localStorage.getItem(HOST_TERMINAL_HUD_RECT_STORAGE_KEY))
-  } catch {
-    return null
-  }
-}
-
-function storeHostTerminalHudRect(rect: UiSurfaceRect): void {
-  const normalized = normalizeStoredPaneRect(rect)
-  if (normalized === null) return
-  try {
-    localStorage.setItem(HOST_TERMINAL_HUD_RECT_STORAGE_KEY, JSON.stringify(normalized))
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
-}
-
-function readStoredHostCodexComposerRect(): UiSurfaceRect | null {
-  try {
-    return parseStoredPaneRect(localStorage.getItem(HOST_TERMINAL_CODEX_COMPOSER_RECT_STORAGE_KEY))
-  } catch {
-    return null
-  }
-}
-
-function storeHostCodexComposerRect(rect: UiSurfaceRect): void {
-  const normalized = normalizeStoredPaneRect(rect)
-  if (normalized === null) return
-  try {
-    localStorage.setItem(HOST_TERMINAL_CODEX_COMPOSER_RECT_STORAGE_KEY, JSON.stringify(normalized))
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
-}
-
-function readStoredVoiceSettingsRect(): UiSurfaceRect | null {
-  try {
-    return parseStoredPaneRect(localStorage.getItem(VOICE_SETTINGS_RECT_STORAGE_KEY))
-  } catch {
-    return null
-  }
-}
-
-function storeVoiceSettingsRect(rect: UiSurfaceRect): void {
-  const normalized = normalizeStoredPaneRect(rect)
-  if (normalized === null) return
-  try {
-    localStorage.setItem(VOICE_SETTINGS_RECT_STORAGE_KEY, JSON.stringify(normalized))
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
-}
-
-function storeVoiceSettingsRectAndRelayout(rect: UiSurfaceRect): void {
-  storeVoiceSettingsRect(rect)
-  relayoutHudSurfaces()
-}
-
-function previewHostTerminalHudRect(rect: UiSurfaceRect): void {
-  hostTerminalHudRectPreview = rect
-  relayoutHudSurfaces()
-}
-
-function storeHostTerminalHudRectAndRelayout(rect: UiSurfaceRect): void {
-  hostTerminalHudRectPreview = null
-  storeHostTerminalHudRect(rect)
-  relayoutHudSurfaces()
-}
-
-function readStoredNetworkTerminalHudRect(): UiSurfaceRect | null {
-  try {
-    return parseStoredPaneRect(localStorage.getItem(NETWORK_TERMINAL_HUD_RECT_STORAGE_KEY))
-  } catch {
-    return null
-  }
-}
-
-function storeNetworkTerminalHudRect(rect: UiSurfaceRect): void {
-  const normalized = normalizeStoredPaneRect(rect)
-  if (normalized === null) return
-  try {
-    localStorage.setItem(NETWORK_TERMINAL_HUD_RECT_STORAGE_KEY, JSON.stringify(normalized))
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
-}
-
-function previewNetworkTerminalHudRect(rect: UiSurfaceRect): void {
-  networkHostTerminalHudRectPreview = rect
-  relayoutHudSurfaces()
-}
-
-function storeNetworkTerminalHudRectAndRelayout(rect: UiSurfaceRect): void {
-  networkHostTerminalHudRectPreview = null
-  storeNetworkTerminalHudRect(rect)
-  relayoutHudSurfaces()
-}
-
-function readStoredAndroidHudRect(): UiSurfaceRect | null {
-  try {
-    return parseStoredPaneRect(localStorage.getItem(ANDROID_HUD_RECT_STORAGE_KEY))
-  } catch {
-    return null
-  }
-}
-
-function storeAndroidHudRect(rect: UiSurfaceRect): void {
-  const normalized = normalizeStoredPaneRect(rect)
-  if (normalized === null) return
-  try {
-    localStorage.setItem(ANDROID_HUD_RECT_STORAGE_KEY, JSON.stringify(normalized))
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
-}
-
-function previewAndroidHudRect(rect: UiSurfaceRect): void {
-  androidHudRectPreview = rect
-  relayoutHudSurfaces()
-}
-
-function storeAndroidHudRectAndRelayout(rect: UiSurfaceRect): void {
-  androidHudRectPreview = null
-  storeAndroidHudRect(rect)
-  relayoutHudSurfaces()
-}
-
-function readStoredTodoHudRect(): UiSurfaceRect | null {
-  try {
-    return parseStoredPaneRect(localStorage.getItem(TODO_HUD_RECT_STORAGE_KEY))
-  } catch {
-    return null
-  }
-}
-
-function storeTodoHudRect(rect: UiSurfaceRect): void {
-  const normalized = normalizeStoredPaneRect(rect)
-  if (normalized === null) return
-  try {
-    localStorage.setItem(TODO_HUD_RECT_STORAGE_KEY, JSON.stringify(normalized))
-  } catch {
-    // Storage can be unavailable in private contexts.
-  }
-}
-
-function previewTodoHudRect(rect: UiSurfaceRect): void {
-  todoHudRectPreview = rect
-  relayoutHudSurfaces()
-}
-
-function storeTodoHudRectAndRelayout(rect: UiSurfaceRect): void {
-  todoHudRectPreview = null
-  storeTodoHudRect(rect)
-  relayoutHudSurfaces()
-}
-
-function readStoredSqliteHudRect(): UiSurfaceRect | null {
-  try {
-    return parseStoredPaneRect(localStorage.getItem(SQLITE_HUD_RECT_STORAGE_KEY))
-  } catch {
-    return null
-  }
-}
-
-function storeSqliteHudRect(rect: UiSurfaceRect): void {
-  const normalized = normalizeStoredPaneRect(rect)
-  if (normalized === null) return
-  try {
-    localStorage.setItem(SQLITE_HUD_RECT_STORAGE_KEY, JSON.stringify(normalized))
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
-}
-
-function previewSqliteHudRect(rect: UiSurfaceRect): void {
-  sqliteHudRectPreview = rect
-  relayoutHudSurfaces()
-}
-
-function storeSqliteHudRectAndRelayout(rect: UiSurfaceRect): void {
-  sqliteHudRectPreview = null
-  storeSqliteHudRect(rect)
-  relayoutHudSurfaces()
-}
-
-function readStoredHostTerminalHudDocked(): boolean {
-  try {
-    return localStorage.getItem(HOST_TERMINAL_HUD_DOCKED_STORAGE_KEY) === "1"
-  } catch {
-    return false
-  }
-}
-
-function writeStoredHostTerminalHudDocked(docked: boolean): void {
-  try {
-    localStorage.setItem(HOST_TERMINAL_HUD_DOCKED_STORAGE_KEY, docked ? "1" : "0")
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
-}
-
-function readStoredNetworkTerminalHudDocked(): boolean {
-  try {
-    const value = localStorage.getItem(NETWORK_TERMINAL_HUD_DOCKED_STORAGE_KEY)
-    return value === null ? true : value === "1"
-  } catch {
-    return true
-  }
-}
-
-function writeStoredNetworkTerminalHudDocked(docked: boolean): void {
-  try {
-    localStorage.setItem(NETWORK_TERMINAL_HUD_DOCKED_STORAGE_KEY, docked ? "1" : "0")
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
-}
-
-function readStoredNetworkStatusAutoRefreshEnabled(): boolean {
-  try {
-    const value = localStorage.getItem(NETWORK_STATUS_AUTO_REFRESH_STORAGE_KEY)
-    return value === null ? true : value === "1"
-  } catch {
-    return true
-  }
-}
-
-function writeStoredNetworkStatusAutoRefreshEnabled(enabled: boolean): void {
-  try {
-    localStorage.setItem(NETWORK_STATUS_AUTO_REFRESH_STORAGE_KEY, enabled ? "1" : "0")
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
-}
-
-function readStoredNetworkProductViaInterpreter(): boolean {
-  try {
-    return localStorage.getItem(NETWORK_PRODUCT_INTERPRETER_STORAGE_KEY) === "1"
-  } catch {
-    return false
-  }
-}
-
-function writeStoredNetworkProductViaInterpreter(enabled: boolean): void {
-  try {
-    localStorage.setItem(NETWORK_PRODUCT_INTERPRETER_STORAGE_KEY, enabled ? "1" : "0")
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
-}
-
-function readStoredDisplayActionAutoFocusEnabled(): boolean {
-  try {
-    return localStorage.getItem(DISPLAY_ACTION_AUTO_FOCUS_STORAGE_KEY) === "1"
-  } catch {
-    return false
-  }
-}
-
-function writeStoredDisplayActionAutoFocusEnabled(enabled: boolean): void {
-  try {
-    localStorage.setItem(DISPLAY_ACTION_AUTO_FOCUS_STORAGE_KEY, enabled ? "1" : "0")
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
-}
-
-function readStoredAndroidHudDocked(): boolean {
-  try {
-    const value = localStorage.getItem(ANDROID_HUD_DOCKED_STORAGE_KEY)
-    return value === null ? true : value === "1"
-  } catch {
-    return true
-  }
-}
-
-function writeStoredAndroidHudDocked(docked: boolean): void {
-  try {
-    localStorage.setItem(ANDROID_HUD_DOCKED_STORAGE_KEY, docked ? "1" : "0")
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
-}
-
-function readStoredAndroidDockPlacement(): HostTerminalDockPlacement | null {
-  try {
-    const raw = localStorage.getItem(ANDROID_DOCK_PLACEMENT_STORAGE_KEY)
-    if (raw === null) return null
-    const value = JSON.parse(raw) as Partial<HostTerminalDockPlacement>
-    if (!isHostTerminalDockEdge(value.edge) || typeof value.offset !== "number" || !Number.isFinite(value.offset)) return null
-    return {edge: value.edge, offset: value.offset}
-  } catch {
-    return null
-  }
-}
-
-function writeStoredAndroidDockPlacement(placement: HostTerminalDockPlacement): void {
-  try {
-    localStorage.setItem(ANDROID_DOCK_PLACEMENT_STORAGE_KEY, JSON.stringify(placement))
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
-}
-
-function readStoredTodoHudDocked(): boolean {
-  try {
-    return localStorage.getItem(TODO_HUD_DOCKED_STORAGE_KEY) === "1"
-  } catch {
-    return false
-  }
-}
-
-function writeStoredTodoHudDocked(docked: boolean): void {
-  try {
-    localStorage.setItem(TODO_HUD_DOCKED_STORAGE_KEY, docked ? "1" : "0")
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
-}
-
-function readStoredSqliteHudDocked(): boolean {
-  try {
-    return localStorage.getItem(SQLITE_HUD_DOCKED_STORAGE_KEY) === "1"
-  } catch {
-    return false
-  }
-}
-
-function writeStoredSqliteHudDocked(docked: boolean): void {
-  try {
-    localStorage.setItem(SQLITE_HUD_DOCKED_STORAGE_KEY, docked ? "1" : "0")
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
-}
-
-function readStoredHostTerminalDockPlacement(): HostTerminalDockPlacement | null {
-  try {
-    const raw = localStorage.getItem(HOST_TERMINAL_DOCK_PLACEMENT_STORAGE_KEY)
-    if (raw === null) return null
-    const value = JSON.parse(raw) as Partial<HostTerminalDockPlacement>
-    if (!isHostTerminalDockEdge(value.edge) || typeof value.offset !== "number" || !Number.isFinite(value.offset)) return null
-    return {edge: value.edge, offset: value.offset}
-  } catch {
-    return null
-  }
-}
-
-function readStoredTodoDockPlacement(): HostTerminalDockPlacement | null {
-  try {
-    const raw = localStorage.getItem(TODO_DOCK_PLACEMENT_STORAGE_KEY)
-    if (raw === null) return null
-    const value = JSON.parse(raw) as Partial<HostTerminalDockPlacement>
-    if (!isHostTerminalDockEdge(value.edge) || typeof value.offset !== "number" || !Number.isFinite(value.offset)) return null
-    return {edge: value.edge, offset: value.offset}
-  } catch {
-    return null
-  }
-}
-
-function readStoredSqliteDockPlacement(): HostTerminalDockPlacement | null {
-  try {
-    const raw = localStorage.getItem(SQLITE_DOCK_PLACEMENT_STORAGE_KEY)
-    if (raw === null) return null
-    const value = JSON.parse(raw) as Partial<HostTerminalDockPlacement>
-    if (!isHostTerminalDockEdge(value.edge) || typeof value.offset !== "number" || !Number.isFinite(value.offset)) return null
-    return {edge: value.edge, offset: value.offset}
-  } catch {
-    return null
-  }
-}
-
-function writeStoredHostTerminalDockPlacement(placement: HostTerminalDockPlacement): void {
-  try {
-    localStorage.setItem(HOST_TERMINAL_DOCK_PLACEMENT_STORAGE_KEY, JSON.stringify(placement))
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
-}
-
-function writeStoredTodoDockPlacement(placement: HostTerminalDockPlacement): void {
-  try {
-    localStorage.setItem(TODO_DOCK_PLACEMENT_STORAGE_KEY, JSON.stringify(placement))
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
-}
-
-function writeStoredSqliteDockPlacement(placement: HostTerminalDockPlacement): void {
-  try {
-    localStorage.setItem(SQLITE_DOCK_PLACEMENT_STORAGE_KEY, JSON.stringify(placement))
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
-}
-
 function setHostTerminalDockPlacement(placement: HostTerminalDockPlacement): void {
   const previous = hostTerminalDockPlacement
   if (previous !== null && previous.edge === placement.edge && Math.abs(previous.offset - placement.offset) < 0.5) return
@@ -8885,10 +6453,6 @@ function relayoutHudSurfaces(): void {
   uiCanvas?.relayout({scope: "hud", forceSetRect: false})
 }
 
-function isHostTerminalDockEdge(value: unknown): value is HudSideTabEdge {
-  return value === "left" || value === "right" || value === "top" || value === "bottom"
-}
-
 function currentHostTerminalDockEdge(): HudSideTabEdge {
   return hostTerminalDockPlacement?.edge ?? DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT.edge
 }
@@ -8903,35 +6467,6 @@ function currentAndroidDockEdge(): HudSideTabEdge {
 
 function currentSqliteDockEdge(): HudSideTabEdge {
   return sqliteDockPlacement?.edge ?? DEFAULT_SQLITE_DOCK_PLACEMENT.edge
-}
-
-function parseStoredPaneRect(raw: string | null): UiSurfaceRect | null {
-  if (raw === null) return null
-  try {
-    return normalizeStoredPaneRect(JSON.parse(raw))
-  } catch {
-    return null
-  }
-}
-
-function normalizeStoredPaneRect(value: unknown): UiSurfaceRect | null {
-  if (typeof value !== "object" || value === null) return null
-  const record = value as Record<string, unknown>
-  const x = finiteStoredNumber(record.x)
-  const y = finiteStoredNumber(record.y)
-  const w = finiteStoredNumber(record.w)
-  const h = finiteStoredNumber(record.h)
-  if (x === null || y === null || w === null || h === null || w <= 0 || h <= 0) return null
-  return {
-    x: Math.round(x),
-    y: Math.round(y),
-    w: Math.round(w),
-    h: Math.round(h),
-  }
-}
-
-function finiteStoredNumber(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null
 }
 
 function physicalDisplayMetrics(): DisplayLayoutMetrics {
@@ -9667,60 +7202,6 @@ function applyLocalSourceLineChanges(controller: ModuleDisplayController, lineCh
 
   if (controller.sourceRuntimeState === "paused") controller.source.setExecutionLine(executionLine, {scroll: false})
   if (breakpointsChanged) syncModuleBreakpointMarkers(controller)
-}
-
-function sourceTextLineChanges(before: string, after: string): SourceLineChange[] {
-  if (before === after) return []
-  const oldLines = before.split("\n")
-  const newLines = after.split("\n")
-  let prefix = 0
-  while (prefix < oldLines.length && prefix < newLines.length && oldLines[prefix] === newLines[prefix]) prefix += 1
-
-  let suffix = 0
-  while (
-    suffix < oldLines.length - prefix
-    && suffix < newLines.length - prefix
-    && oldLines[oldLines.length - 1 - suffix] === newLines[newLines.length - 1 - suffix]
-  ) {
-    suffix += 1
-  }
-
-  const oldChanged = oldLines.length - prefix - suffix
-  const newChanged = newLines.length - prefix - suffix
-  if (oldChanged === newChanged) return []
-  return [{
-    oldStart: prefix + 1,
-    oldLines: oldChanged,
-    newStart: prefix + 1,
-    newLines: newChanged,
-  }]
-}
-
-function remapSourceLine(line: number, changes: readonly SourceLineChange[]): number {
-  let current = Math.max(1, Math.floor(line))
-  for (const change of changes) {
-    const oldStart = Math.max(1, Math.floor(change.oldStart))
-    const oldLines = Math.max(0, Math.floor(change.oldLines))
-    const newStart = Math.max(1, Math.floor(change.newStart))
-    const newLines = Math.max(0, Math.floor(change.newLines))
-    const delta = newLines - oldLines
-
-    if (oldLines === 0) {
-      if (current >= oldStart) current += newLines
-      continue
-    }
-
-    const oldEnd = oldStart + oldLines - 1
-    if (current < oldStart) continue
-    if (current > oldEnd) {
-      current += delta
-      continue
-    }
-    current = newLines === 0
-      ? Math.max(1, newStart)
-      : newStart + Math.min(current - oldStart, newLines - 1)
-  }
-  return Math.max(1, current)
 }
 
 function frameMatchesSourceIdentity(frame: FrameSnapshot, source: BreakpointSourceIdentity): boolean {
@@ -10993,15 +8474,6 @@ type SqliteRects = {
   rows: UiSurfaceRect
 }
 
-function hiddenRect(): UiSurfaceRect {
-  return {x: -10000, y: -10000, w: 1, h: 1, visible: false}
-}
-
-function pointInUiRect(x: number, y: number, rect: UiSurfaceRect): boolean {
-  if (rect.visible === false) return false
-  return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h
-}
-
 function hostTerminalHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   if (hostTerminalHudDocked) return hiddenRect()
   const composerReserve = HOST_TERMINAL_CODEX_COMPOSER_H + HOST_TERMINAL_CODEX_COMPOSER_GAP + 12
@@ -11664,14 +9136,6 @@ function clampSqliteHudRect(rect: UiSurfaceRect, boundsW: number, boundsH: numbe
     w: rectW,
     h: rectH,
   }
-}
-
-function clampNumber(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value))
-}
-
-function withAlpha(color: Color, alpha: number): Color {
-  return new Color(color.r, color.g, color.b, alpha)
 }
 
 function interpreterRects({w, h}: {w: number; h: number}, verboseVisible: boolean): InterpreterRects {
