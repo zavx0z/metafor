@@ -3,8 +3,14 @@ import type {Field} from "@boundary/wimp/sqlite/fields/field"
 import type { ActorValueRecord, ValueItemRecord, ValueRecord } from "@metafor/types/boundary/value"
 import type { ForceMessage } from "@metafor/types/force/message"
 import type { BfsEntry, Continuation, MatterParticle, ParticleRef, PendingChildWimp } from "@metafor/types/metafor/matter"
+import {Force} from "force"
 import {loadMeta} from "./load.ts"
 import {finalizeFieldValues, resolveFieldInits} from "./continuation.ts"
+
+const force = new Force("dark")
+force.onImpulse = (impulse) => {
+  console.log(`[dark] <- force parts=${impulse.parts.length}`)
+}
 
 ;(globalThis as unknown as {MetaFor: typeof MetaFor}).MetaFor = MetaFor
 
@@ -12,22 +18,22 @@ let observedBoundary: typeof globalThis.boundary | null = null
 let boundaryObserver: {close(): void} | null = null
 
 export const ensureBoundaryObserver = (): void => {
-  const current = globalThis.boundary
-  if (!current) return
-  if (observedBoundary === current) return
+  // const current = globalThis.boundary
+  // if (!current) return
+  // if (observedBoundary === current) return
 
-  boundaryObserver?.close()
-  observedBoundary = current
-  boundaryObserver = current.observe(async (event: MessageEvent<ForceMessage>) => {
-    for (const part of event.data.parts) {
-      if (part.part !== "graviton") continue
-      if (part.op !== "test") continue
-      if (part.path !== "wimp") continue
-      if (typeof part.value !== "string") continue
-      if (await current.wimp.exists(part.value)) continue
-      await matter(part.value)
-    }
-  })
+  // boundaryObserver?.close()
+  // observedBoundary = current
+  // boundaryObserver = current.observe(async (event: MessageEvent<ForceMessage>) => {
+  //   for (const part of event.data.parts) {
+  //     if (part.part !== "graviton") continue
+  //     if (part.op !== "test") continue
+  //     if (part.path !== "wimp") continue
+  //     if (typeof part.value !== "string") continue
+  //     if (await current.wimp.exists(part.value)) continue
+  //     await matter(part.value)
+  //   }
+  // })
 }
 
 ensureBoundaryObserver()
@@ -55,7 +61,8 @@ export async function matter(
   continuation: Continuation | undefined = undefined,
 ): Promise<void> {
   ensureBoundaryObserver()
-  if (await boundary.actor.findByParent({wimp: src, parent})) return
+  // if (await boundary.actor.findByParent({wimp: src, parent})) return
+  return
 
   const generator = matterWimp(src, parent, continuation)
 
@@ -84,8 +91,9 @@ async function* matterWimp(
   continuation: Continuation | undefined,
 ): AsyncGenerator<PendingChildWimp[], void, void> {
   const dsl = await loadMeta(src)
-  const wimp = (await boundary.wimp.get(src)) ?? (await boundary.wimp.create(src, dsl))
-  const matterRelations = await wimp.matter.all()
+  // const wimp = (await boundary.wimp.get(src)) ?? (await boundary.wimp.create(src, dsl))
+  // const matterRelations = await wimp.matter.all()
+  return
 
   // ACTOR: переходим от Wimp-декларации к runtime-экземпляру.
   // fieldSchemas — схема полей Wimp; finalValues — значения полей Actor.
@@ -102,22 +110,23 @@ async function* matterWimp(
   const valueItems: ValueItemRecord[] = []
 
   for (const [key, init] of finalValues) {
-    const field = await wimp.fields.get({key})
-    if (!field) throw new Error(`Field "${key}" is not registered for "${src}"`)
-    const fieldId = await field.id()
+    // const field = await wimp.fields.get({key})
+    // if (!field) throw new Error(`Field "${key}" is not registered for "${src}"`)
+    // const fieldId = await field.id()
     const schema = fieldSchemaByKey.get(key)
     if (!schema) throw new Error(`Field schema "${key}" missing in DSL for "${src}"`)
 
     let valueId: number
     if (init.source) {
-      valueId = await resolveSourceValueId(init.source.parentActorId, init.source.parentFieldKey)
+      // valueId = await resolveSourceValueId(init.source.parentActorId, init.source.parentFieldKey)
+      valueId = nextTempId()
     } else {
       valueId = nextTempId()
-      const built = await buildValueRecord(valueId, init.value, schema.type, field, key)
+      const built = await buildValueRecord(valueId, init.value, schema.type, null as never, key)
       valueRecords.push(built.record)
       valueItems.push(...built.items)
     }
-    values.push({actor: actorTempId, field: fieldId, value: valueId})
+    // values.push({actor: actorTempId, field: fieldId, value: valueId})
   }
 
   const actorData = {
@@ -132,8 +141,9 @@ async function* matterWimp(
     valueItems,
     state: {actor: actorTempId, metaState: null},
   }
-  const actor = await boundary.actor.create(actorData)
-  const actorId = actor.id
+  // const actor = await boundary.actor.create(actorData)
+  // const actorId = actor.id
+  const actorId = actorTempId
 
   const fieldValuesSnapshot = new Map<string, unknown>()
   const fieldTypesSnapshot = new Map<string, string>()
@@ -142,7 +152,7 @@ async function* matterWimp(
     fieldTypesSnapshot.set(key, fieldSchemaByKey.get(key)!.type)
   }
 
-  const plans: MatterParticle[] = matterRelations
+  const plans: MatterParticle[] = []
   if (plans.length === 0) return
 
   let frontier: BfsEntry[] = plans.map((plan) => ({plan, parent: {kind: "actor", id: actorId}}))
@@ -172,13 +182,14 @@ async function* matterWimp(
         case "fuzzy":
         case "axion":
         case "macho": {
-          const topology = await boundary.topology.create({
-            parentActor: entry.parent.kind === "actor" ? entry.parent.id : null,
-            parentTopology: entry.parent.kind === "topology" ? entry.parent.id : null,
-            kind: entry.plan.kind,
-          })
+          // const topology = await boundary.topology.create({
+          //   parentActor: entry.parent.kind === "actor" ? entry.parent.id : null,
+          //   parentTopology: entry.parent.kind === "topology" ? entry.parent.id : null,
+          //   kind: entry.plan.kind,
+          // })
           for (const child of entry.plan.children ?? []) {
-            next.push({plan: child.particle, parent: {kind: "topology", id: topology.id}})
+            // next.push({plan: child.particle, parent: {kind: "topology", id: topology.id}})
+            next.push({plan: child.particle, parent: entry.parent})
           }
           break
         }
@@ -227,15 +238,16 @@ const resolveSourceValueId = async (
   parentActorId: number,
   parentFieldKey: string,
 ): Promise<number> => {
-  const head = await boundary.actor.head(parentActorId)
-  if (!head) throw new Error(`parent actor ${parentActorId} not found`)
-  const parentWimp = await boundary.wimp.get(head.wimp)
-  if (!parentWimp) throw new Error(`parent wimp ${head.wimp} not found`)
-  const parentField = await parentWimp.fields.get({key: parentFieldKey})
-  if (!parentField) throw new Error(`parent field "${parentFieldKey}" missing in wimp ${head.wimp}`)
-  const parentFieldId = await parentField.id()
-  const link = await boundary.actor.link.get(parentActorId, parentFieldId)
-  if (!link) throw new Error(`parent actor_value missing for (${parentActorId}, ${parentFieldKey})`)
-  const value = await link.value()
-  return value.id
+  // const head = await boundary.actor.head(parentActorId)
+  // if (!head) throw new Error(`parent actor ${parentActorId} not found`)
+  // const parentWimp = await boundary.wimp.get(head.wimp)
+  // if (!parentWimp) throw new Error(`parent wimp ${head.wimp} not found`)
+  // const parentField = await parentWimp.fields.get({key: parentFieldKey})
+  // if (!parentField) throw new Error(`parent field "${parentFieldKey}" missing in wimp ${head.wimp}`)
+  // const parentFieldId = await parentField.id()
+  // const link = await boundary.actor.link.get(parentActorId, parentFieldId)
+  // if (!link) throw new Error(`parent actor_value missing for (${parentActorId}, ${parentFieldKey})`)
+  // const value = await link.value()
+  // return value.id
+  throw new Error(`Boundary is disabled in dark.resolveSourceValueId(${parentActorId}, ${parentFieldKey})`)
 }
