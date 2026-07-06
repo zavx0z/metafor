@@ -130,6 +130,17 @@ import {
   writeStoredInterpreterViewPoint,
 } from "./interpreter-view-storage.ts"
 import {SqliteTablePane} from "./sqlite-table-pane.ts"
+import {
+  isSqliteMissingError,
+  isSqliteSourcePath,
+  sqliteComparablePath,
+  sqliteInitialLabel,
+  sqliteOpenParams,
+  sqliteResponseError,
+  sqliteTableItemId,
+  sqliteTableItems,
+  type SqliteOpenParams,
+} from "./sqlite-display-helpers.ts"
 import {sameStringArray} from "./array-utils.ts"
 import type {SqliteCellValue, SqliteDatabasePayload, SqliteHudContextSnapshot} from "./sqlite-types.ts"
 import {WorkspaceFilesChromePane, WorkspaceFilesHeaderPane} from "./workspace-panes.ts"
@@ -1503,13 +1514,6 @@ async function openInterpreterSelectedSource(controller: ModuleDisplayController
   }
 }
 
-type SqliteOpenParams = {
-  path: string
-  table?: string
-  notBefore?: string
-  reveal?: boolean
-}
-
 type SourceOpenOptions = {
   line?: number
   column?: number
@@ -1581,10 +1585,6 @@ function sqliteDisplayForPath(path: string): SqliteDisplayController | null {
   return sqliteDisplays.get(sqliteDisplayKey(path)) ?? null
 }
 
-function sqliteComparablePath(path: string): string {
-  return path.trim().replaceAll("\\", "/").replace(/[?#].*$/, "")
-}
-
 function activeSqliteController(): SqliteDisplayController | null {
   if (activeSqliteHudId !== null) {
     const active = sqliteDisplays.get(activeSqliteHudId)
@@ -1616,26 +1616,6 @@ function installSqliteHudSurfaces(controller: SqliteDisplayController): void {
   sqliteHudSurfaceIds.add(controller.id)
   uiCanvas.addHudSurface(controller.tables, (canvas) => sqliteHudRects(controller.id, canvas).tables, {windowId: "hud:sqlite", zIndex: 1})
   uiCanvas.addHudSurface(controller.rows, (canvas) => sqliteHudRects(controller.id, canvas).rows, {windowId: "hud:sqlite", zIndex: 1})
-}
-
-function sqliteOpenParams(params: unknown): SqliteOpenParams {
-  const direct = stringParam(params)
-  if (direct !== undefined) return {path: direct}
-  const body = objectParam(params)
-  const path = stringParam(body["path"])
-    ?? stringParam(body["sourceUrl"])
-    ?? stringParam(body["modulePath"])
-    ?? stringParam(body["database"])
-  if (path === undefined) throw new Error("sqlite.open requires path")
-  const table = stringParam(body["table"])
-  const notBefore = stringParam(body["notBefore"])
-  const reveal = booleanParam(body["reveal"])
-  return {
-    path,
-    ...(table === undefined ? {} : {table}),
-    ...(notBefore === undefined ? {} : {notBefore}),
-    ...(reveal === undefined ? {} : {reveal}),
-  }
 }
 
 function refreshSqliteDisplaysAfterTargetRestart(startedAt: string): void {
@@ -1753,21 +1733,6 @@ async function refreshSqliteDisplayFromServerEvent(controller: SqliteDisplayCont
   }
 }
 
-async function sqliteResponseError(response: Response): Promise<Error> {
-  const text = await response.text()
-  try {
-    const parsed = JSON.parse(text) as {error?: unknown}
-    const error = parsed.error
-    if (typeof error === "object" && error !== null && typeof (error as {message?: unknown}).message === "string") {
-      return new Error((error as {message: string}).message)
-    }
-    if (typeof error === "string") return new Error(error)
-  } catch {
-    // Use raw response text below.
-  }
-  return new Error(text.length > 0 ? text : `sqlite request failed: ${response.status}`)
-}
-
 function applySqlitePayload(controller: SqliteDisplayController, payload: SqliteDatabasePayload): void {
   controller.loading = null
   controller.path = payload.path
@@ -1827,21 +1792,6 @@ function sqliteDisplayPayload(controller: SqliteDisplayController): unknown {
   }
 }
 
-function sqliteTableItems(payload: SqliteDatabasePayload): FileListItem[] {
-  return payload.tables.map((table) => ({
-    id: sqliteTableItemId(table.name),
-    name: table.name,
-    kind: "file",
-    path: table.name,
-    sizeLabel: table.rowCount === null ? table.type : `${table.rowCount}`,
-    statusLabel: table.type,
-  }))
-}
-
-function sqliteTableItemId(name: string): string {
-  return `sqlite-table:${encodeURIComponent(name)}`
-}
-
 function sqliteDisplayKey(path: string): string {
   const normalized = path.trim().replaceAll("\\", "/")
   const leaf = normalized.split("/").pop()?.replace(/\.sqlite$/i, "") ?? "database"
@@ -1856,20 +1806,6 @@ function stableStringHash(value: string): string {
     hash = Math.imul(hash, 16777619)
   }
   return (hash >>> 0).toString(36)
-}
-
-function sqliteInitialLabel(path: string): string {
-  const clean = path.trim().replaceAll("\\", "/").replace(/[?#].*$/, "")
-  return clean.split("/").pop() ?? clean
-}
-
-function isSqliteSourcePath(path: string): boolean {
-  return /\.sqlite(?:[?#].*)?$/i.test(path.trim().replaceAll("\\", "/"))
-}
-
-function isSqliteMissingError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error)
-  return /sqlite database not found|sqlite database not ready|unable to open database file|no such file/i.test(message)
 }
 
 function setHudTerminalDocked(docked: boolean): unknown {
