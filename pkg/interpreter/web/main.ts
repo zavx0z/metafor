@@ -4511,7 +4511,7 @@ async function pollBrowserChatRead(controller: BrowserChatController): Promise<v
     const canFinish = performance.now() - controller.readStartedAt >= 6_000 && !generating
     const afterBaseline = controller.readAfterMessageCount === null
       || messageCount >= controller.readAfterMessageCount + 2
-      || (messageCount > controller.readAfterMessageCount && text !== controller.lastAssistantText)
+      || text !== controller.lastAssistantText
     if (text.length > 0 && afterBaseline) {
       if (text === controller.lastAssistantText) controller.readStableTicks += 1
       else controller.readStableTicks = 0
@@ -4585,6 +4585,33 @@ function updateBrowserChatAssistantMessage(controller: BrowserChatController, te
 
 function appendBrowserChatSystemMessage(controller: BrowserChatController, text: string): void {
   addBrowserChatMessage(controller, {role: "system", text})
+}
+
+async function hydrateBrowserChatFromQwen(controller: BrowserChatController): Promise<void> {
+  if (controller.sendInFlight || controller.readStartedAt > 0 || controller.messages.some((message) => message.text.trim().length > 0)) return
+  try {
+    const tool = await runHostTool("browser_chat.read", {urlContains: "chat.qwen.ai"})
+    const result = hostToolResultObject(tool)
+    if (tool.ok !== true || result["ok"] !== true) return
+    if (controller.sendInFlight || controller.readStartedAt > 0 || controller.messages.some((message) => message.text.trim().length > 0)) return
+    const sourceMessages = Array.isArray(result["messages"]) ? result["messages"] : []
+    const next: BrowserChatMessage[] = []
+    for (const source of sourceMessages.slice(-10)) {
+      if (typeof source !== "object" || source === null || Array.isArray(source)) continue
+      const roleValue = (source as Record<string, unknown>)["role"]
+      const role = roleValue === "user" || roleValue === "assistant" ? roleValue : null
+      const text = stringValue((source as Record<string, unknown>)["text"])?.trim()
+      if (role === null || text === undefined || text.length === 0) continue
+      next.push({id: crypto.randomUUID(), createdAt: Date.now(), role, text})
+    }
+    if (next.length === 0) return
+    controller.messages.splice(0, controller.messages.length, ...next)
+    controller.lastAssistantText = stringValue(result["lastAssistantText"]) ?? next.slice().reverse().find((message) => message.role === "assistant")?.text ?? ""
+    controller.chatPane.requestRender()
+    setBrowserChatStatus(controller, "ready", 1200)
+  } catch {
+    // Hydration is best-effort; active submit polling reports real read errors.
+  }
 }
 
 function stageBrowserChatDraft(controller: BrowserChatController, text: string, opts: {focusComposer?: boolean} = {}): boolean {
@@ -6006,6 +6033,7 @@ function ensureBrowserChatController(): BrowserChatController {
     lastAssistantText: "",
   } satisfies BrowserChatController)
   browserChat = controller
+  window.setTimeout(() => { void hydrateBrowserChatFromQwen(controller) }, 0)
   return controller
 }
 

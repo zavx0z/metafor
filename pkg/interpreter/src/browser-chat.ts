@@ -54,7 +54,7 @@ async function browserChatWait(params: JsonObject): Promise<JsonObject> {
     const canFinish = Date.now() - startedAt >= BROWSER_CHAT_MIN_WAIT_MS && !generating
     const afterBaseline = afterMessageCount === undefined
       || messageCount >= afterMessageCount + 2
-      || (messageCount > afterMessageCount && previousAssistantText !== undefined && text !== previousAssistantText)
+      || (previousAssistantText !== undefined && text !== previousAssistantText)
     if (text.length > 0 && afterBaseline) {
       const key = `${messageCount}:${text}`
       if (key === lastKey) stable += 1
