@@ -180,6 +180,7 @@ export const text = {
   voiceStop: {ru: "Остановить голосовой ввод", en: "Stop voice input"},
   voiceTarget: {ru: "Цель", en: "Target"},
   voiceTargetHost: {ru: "терминал", en: "terminal"},
+  voiceTargetComposer: {ru: "Codex message", en: "Codex message"},
   voiceTargetModule: {ru: "интерпретатор", en: "interpreter"},
   voiceWaitingWake: {ru: "жду: завхоз / метафор / метафора", en: "waiting: zavhoz / metafor / metafora"},
   voiceWakeAdd: {ru: "Добавить", en: "Add"},

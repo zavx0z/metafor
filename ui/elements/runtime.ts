@@ -1363,6 +1363,8 @@ export class UiRuntime {
     if (surface !== null) {
       const slot = this.#surfaces.find((surfaceSlot) => surfaceSlot.surface === surface)
       if (slot !== undefined) this.#activateSurfaceWindow(slot)
+    } else {
+      this.#deactivateSurfaceWindow()
     }
     if (this.#focused === surface) return
     this.#focused?.onDeactivate?.()
@@ -1395,7 +1397,10 @@ export class UiRuntime {
   }
 
   #activateSurfaceWindow(slot: SurfaceSlot): void {
-    if (slot.windowId === null) return
+    if (slot.windowId === null) {
+      this.#deactivateSurfaceWindow()
+      return
+    }
     const order = ++this.#windowOrder
     this.#windowOrders.set(slot.windowId, order)
     for (const surfaceSlot of this.#surfaces) {
@@ -1404,6 +1409,13 @@ export class UiRuntime {
     this.#activeWindowId = slot.windowId
     this.#syncActiveSurfaceStates()
     this.#sortSurfaceSlots()
+    this.requestRender()
+  }
+
+  #deactivateSurfaceWindow(): void {
+    if (this.#activeWindowId === null) return
+    this.#activeWindowId = null
+    this.#syncActiveSurfaceStates()
     this.requestRender()
   }
 
