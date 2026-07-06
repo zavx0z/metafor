@@ -235,12 +235,71 @@ function hunkLineChanges(hunk: PatchHunk, replacementIndex: number): ApplyPatchL
   const oldLines = hunk.oldLines.length - prefix - suffix
   const newLines = hunk.newLines.length - prefix - suffix
   if (oldLines === newLines) return []
+  const granular = granularLineChanges(
+    hunk.oldLines.slice(prefix, hunk.oldLines.length - suffix),
+    hunk.newLines.slice(prefix, hunk.newLines.length - suffix),
+    replacementIndex + prefix,
+  )
+  if (granular.length > 0) return granular
   return [{
     oldStart: replacementIndex + prefix + 1,
     oldLines,
     newStart: replacementIndex + prefix + 1,
     newLines,
   }]
+}
+
+function granularLineChanges(oldLines: string[], newLines: string[], baseIndex: number): ApplyPatchLineChange[] {
+  if (oldLines.length === 0 || newLines.length === 0) return []
+  if (oldLines.length * newLines.length > 40000) return []
+
+  const dp = Array.from({length: oldLines.length + 1}, () => Array<number>(newLines.length + 1).fill(0))
+  for (let oldIndex = oldLines.length - 1; oldIndex >= 0; oldIndex -= 1) {
+    for (let newIndex = newLines.length - 1; newIndex >= 0; newIndex -= 1) {
+      dp[oldIndex]![newIndex] = oldLines[oldIndex] === newLines[newIndex]
+        ? dp[oldIndex + 1]![newIndex + 1]! + 1
+        : Math.max(dp[oldIndex + 1]![newIndex]!, dp[oldIndex]![newIndex + 1]!)
+    }
+  }
+
+  const changes: ApplyPatchLineChange[] = []
+  let oldIndex = 0
+  let newIndex = 0
+  let currentLine = baseIndex + 1
+  let oldRun = 0
+  let newRun = 0
+  let runStart = currentLine
+
+  const flush = () => {
+    if (oldRun === 0 && newRun === 0) return
+    if (oldRun !== newRun) changes.push({oldStart: runStart, oldLines: oldRun, newStart: runStart, newLines: newRun})
+    currentLine = runStart + newRun
+    oldRun = 0
+    newRun = 0
+    runStart = currentLine
+  }
+
+  while (oldIndex < oldLines.length || newIndex < newLines.length) {
+    if (oldIndex < oldLines.length && newIndex < newLines.length && oldLines[oldIndex] === newLines[newIndex]) {
+      flush()
+      oldIndex += 1
+      newIndex += 1
+      currentLine += 1
+      runStart = currentLine
+      continue
+    }
+    if (oldRun === 0 && newRun === 0) runStart = currentLine
+    if (newIndex >= newLines.length || (oldIndex < oldLines.length && dp[oldIndex + 1]![newIndex]! >= dp[oldIndex]![newIndex + 1]!)) {
+      oldIndex += 1
+      oldRun += 1
+      continue
+    }
+    newIndex += 1
+    newRun += 1
+  }
+  flush()
+
+  return changes
 }
 
 function parseApplyPatch(patch: string): ParsedPatch {

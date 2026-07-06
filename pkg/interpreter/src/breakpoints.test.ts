@@ -3,6 +3,7 @@ import {mkdtempSync, rmSync, writeFileSync} from "node:fs"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
 import {SourceMapGenerator} from "source-map-js"
+import {applyPatch, createReplaceFilePatch} from "./apply-patch.ts"
 import {BreakpointStore, logicalBreakpointParams, matchesBreakpointSpec, normalizeBreakpointSpec, remapBreakpointLine, runtimeBreakpointParams} from "./breakpoints.ts"
 import {EventLogger} from "./logger.ts"
 import type {ProtocolClient} from "./protocol-client.ts"
@@ -448,6 +449,86 @@ describe("BreakpointStore", () => {
           columnNumber: 0,
         },
       })
+    } finally {
+      rmSync(dir, {recursive: true, force: true})
+    }
+  })
+
+  test("remaps breakpoint specs across whole-file source edits", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "metafor-bp-"))
+    try {
+      const file = join(dir, "dark.ts")
+      const before = [
+        "import {Force} from './force'",
+        "import {MetaFor} from './metafor'",
+        "import {matter} from './matter'",
+        "",
+        "type Part = {part: string; op: string; path: string; value: unknown}",
+        "type ForcePart = (part: Part) => Promise<void>",
+        "",
+        "const enabled = true",
+        "const label = \"dark\"",
+        "const version = 1",
+        "const force = new Force(\"dark\")",
+        "force.handle(async (part: Part) => {",
+        "  switch (part.part) {",
+        "    case \"inflaton\":",
+        "      switch (part.op) {",
+        "        case \"test\":",
+        "          if (part.path === \"wimp\" && typeof part.value === \"string\") {",
+        "            await matter(part.value)",
+        "          }",
+        "          break",
+        "      }",
+        "  }",
+        "})",
+        ";(globalThis as unknown as {MetaFor: typeof MetaFor}).MetaFor = MetaFor",
+        "",
+      ].join("\n")
+      const after = [
+        "import {Force} from './force'",
+        "import {MetaFor} from './metafor'",
+        "import {matter} from './matter'",
+        "",
+        "type Part = {part: string; op: string; path: string; value: unknown}",
+        "type ForcePart = (part: Part) => Promise<void>",
+        "",
+        "const enabled = true",
+        "const label = \"dark\"",
+        "const version = 1",
+        ";(globalThis as unknown as {MetaFor: typeof MetaFor}).MetaFor = MetaFor",
+        "",
+        "const force = new Force(\"dark\")",
+        "force.handle(async (part: Part) => {",
+        "  switch (part.part) {",
+        "    case \"inflaton\":",
+        "      switch (part.op) {",
+        "        case \"test\":",
+        "          if (part.path === \"wimp\" && typeof part.value === \"string\") {",
+        "            await matter(part.value)",
+        "          }",
+        "          break",
+        "      }",
+        "  }",
+        "})",
+        "",
+      ].join("\n")
+      writeFileSync(file, before, "utf8")
+      const client = {request: async () => ({})} as unknown as ProtocolClient
+      const logger = new EventLogger(join(dir, "events.log"))
+      const store = new BreakpointStore({client, logger})
+
+      store.add({url: file, line: 18})
+      const patch = createReplaceFilePatch(file, before, after, {cwd: dir})
+      expect(patch).not.toBeNull()
+      const result = applyPatch({cwd: dir, patch: patch!})
+      const remapped = await store.remapLinesForSource({
+        path: file,
+        lineChanges: result.files[0]?.lineChanges ?? [],
+      })
+
+      expect(remapped[0]?.spec.line).toBe(20)
+      expect(store.registrations[0]?.spec.line).toBe(20)
     } finally {
       rmSync(dir, {recursive: true, force: true})
     }
