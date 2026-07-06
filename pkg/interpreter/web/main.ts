@@ -4507,6 +4507,8 @@ async function pollBrowserChatRead(controller: BrowserChatController): Promise<v
     if (tool.ok !== true || result["ok"] !== true) throw new Error(tool.error ?? stringValue(result["error"]) ?? "browser_chat.read failed")
     const text = stringValue(result["lastAssistantText"]) ?? ""
     const messageCount = numberValue(result["messageCount"]) ?? arrayLengthValue(result["messages"])
+    const generating = result["generating"] === true
+    const canFinish = performance.now() - controller.readStartedAt >= 6_000 && !generating
     const afterBaseline = controller.readAfterMessageCount === null
       || messageCount >= controller.readAfterMessageCount + 2
       || (messageCount > controller.readAfterMessageCount && text !== controller.lastAssistantText)
@@ -4516,7 +4518,7 @@ async function pollBrowserChatRead(controller: BrowserChatController): Promise<v
       controller.lastAssistantText = text
       updateBrowserChatAssistantMessage(controller, text, true)
     }
-    if (text.length > 0 && afterBaseline && controller.readStableTicks >= 3) {
+    if (text.length > 0 && afterBaseline && canFinish && controller.readStableTicks >= 8) {
       updateBrowserChatAssistantMessage(controller, text, false)
       stopBrowserChatPolling(controller, true)
       setBrowserChatStatus(controller, "ready", 1200)

@@ -5,7 +5,8 @@ import {evaluateChromeDevtoolsExpression} from "./chrome-devtools.ts"
 
 const DEFAULT_QWEN_URL_CONTAINS = "chat.qwen.ai"
 const BROWSER_CHAT_READ_INTERVAL_MS = 650
-const BROWSER_CHAT_STABLE_TICKS = 3
+const BROWSER_CHAT_STABLE_TICKS = 8
+const BROWSER_CHAT_MIN_WAIT_MS = 6_000
 const BROWSER_CHAT_WAIT_TIMEOUT_MS = 90_000
 
 export async function runBrowserChatToolUse(name: string, params: JsonObject): Promise<JsonObject | null> {
@@ -41,6 +42,8 @@ async function browserChatWait(params: JsonObject): Promise<JsonObject> {
     lastRead = await browserChatRead(params)
     const text = asString(lastRead["lastAssistantText"]) ?? ""
     const messageCount = browserChatMessageCount(lastRead)
+    const generating = lastRead["generating"] === true
+    const canFinish = Date.now() - startedAt >= BROWSER_CHAT_MIN_WAIT_MS && !generating
     const afterBaseline = afterMessageCount === undefined
       || messageCount >= afterMessageCount + 2
       || (messageCount > afterMessageCount && previousAssistantText !== undefined && text !== previousAssistantText)
@@ -49,7 +52,7 @@ async function browserChatWait(params: JsonObject): Promise<JsonObject> {
       if (key === lastKey) stable += 1
       else stable = 0
       lastKey = key
-      if (stable >= stableTicks) return {...lastRead, ok: true, stable: true, waitedMs: Date.now() - startedAt}
+      if (canFinish && stable >= stableTicks) return {...lastRead, ok: true, stable: true, waitedMs: Date.now() - startedAt}
     } else {
       stable = 0
     }
