@@ -1,0 +1,13 @@
+{
+  "name": "force",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "private": true,
+  "scripts": {
+    "server": "bun --hot server.ts"
+  }
+}

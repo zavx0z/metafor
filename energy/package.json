@@ -9,6 +9,9 @@
       "types": "./index.ts"
     }
   },
+  "scripts": {
+    "server": "bun --hot server.ts"
+  },
   "dependencies": {
     "@metafor/types": "workspace:*",
     "boundary": "workspace:*"

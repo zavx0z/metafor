@@ -9,6 +9,9 @@
     "./web": "./web/index.ts"
   },
   "private": true,
+  "scripts": {
+    "server": "bun --hot server.ts"
+  },
   "dependencies": {
     "@metafor/types": "workspace:*",
     "@bulk/gravity": "workspace:*",

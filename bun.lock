@@ -143,6 +143,10 @@
         "typescript": "^5",
       },
     },
+    "force": {
+      "name": "force",
+      "version": "0.0.1",
+    },
     "github/person/human": {
       "name": "@person/human",
       "version": "0.1.0",
@@ -1306,6 +1310,8 @@
     "fake-indexeddb": ["fake-indexeddb@6.2.5", "", {}, "sha512-CGnyrvbhPlWYMngksqrSSUT1BAVP49dZocrHuK0SvtR0D5TMs5wP0o3j7jexDJW01KSadjBp1M/71o/KR3nD1w=="],
 
     "fixture": ["fixture@workspace:fixture"],
+
+    "force": ["force@workspace:force"],
 
     "get-caller-file": ["get-caller-file@2.0.5", "https://registry.yarnpkg.com/get-caller-file/-/get-caller-file-2.0.5.tgz", {}, "sha512-DyFP3BM/3YHTQOCUL/w0OZHR0lpKeGrxotcHWcqNEdnltqFwXVfhEBQ94eIo34AfQpo0rGki4cyIiftY06h2Fg=="],
 
