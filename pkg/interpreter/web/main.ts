@@ -102,6 +102,14 @@ import {
   writeStoredWorkspaceFilesState,
 } from "./workspace-files-storage.ts"
 import {readStoredTodoPanelState, storeTodoPanelState} from "./todo-panel-storage.ts"
+import {
+  clampHostTerminalAgentSoundVolume,
+  MAX_HOST_TERMINAL_AGENT_SOUND_VOLUME,
+  readHostTerminalAgentSoundEnabled,
+  readHostTerminalAgentSoundVolume,
+  writeHostTerminalAgentSoundEnabled,
+  writeHostTerminalAgentSoundVolume,
+} from "./host-agent-sound-storage.ts"
 import {formatTerminalExpressionResult} from "./terminal-value-format.ts"
 import {createAndroidRtcClient, type AndroidRtcAudioStream, type AndroidRtcClient, type AndroidRtcCommand, type AndroidRtcFrame, type RtcControlCommand} from "./android-rtc.ts"
 import {RTC_ICE_SERVERS} from "./p2p-signaling.ts"
@@ -665,14 +673,8 @@ const PHYSICAL_DISPLAY_METRICS: DisplayLayoutMetrics = {
   pixelWidth: PHYSICAL_DISPLAY_PIXEL_WIDTH,
   pixelHeight: PHYSICAL_DISPLAY_PIXEL_HEIGHT,
 }
-const HOST_TERMINAL_AGENT_SOUND_ENABLED_STORAGE_KEY = "metafor.interpreter.hostTerminal.agentSoundEnabled:v1"
-const HOST_TERMINAL_AGENT_SOUND_VOLUME_STORAGE_KEY = "metafor.interpreter.hostTerminal.agentSoundVolume:v1"
-const HOST_TERMINAL_AGENT_SOUND_VOLUME_LEGACY_STORAGE_KEY = "metafor.interpreter.voice.agentReadyVolume:v1"
 const INTERPRETER_VIEWPOINT_STORE_DELAY_MS = 120
 const INTERPRETER_DISPLAY_POSITION_STORE_DELAY_MS = 120
-const DEFAULT_HOST_TERMINAL_AGENT_SOUND_ENABLED = true
-const DEFAULT_HOST_TERMINAL_AGENT_SOUND_VOLUME = 1
-const MAX_HOST_TERMINAL_AGENT_SOUND_VOLUME = 1
 const VOICE_SERVICE_CHECK_INTERVAL_MS = 12_000
 const VOICE_SERVICE_CHECK_TIMEOUT_MS = 2_500
 const VOICE_AUTO_WAKE_RETRY_MS = 3_000
@@ -4862,22 +4864,8 @@ function voiceTargetCanAcceptInput(target: VoiceInputTarget): boolean {
   return canAcceptTerminalInput(target.controller)
 }
 
-function readHostTerminalAgentSoundEnabled(): boolean {
-  try {
-    const raw = localStorage.getItem(HOST_TERMINAL_AGENT_SOUND_ENABLED_STORAGE_KEY)
-    if (raw === null) return DEFAULT_HOST_TERMINAL_AGENT_SOUND_ENABLED
-    return raw !== "0"
-  } catch {
-    return DEFAULT_HOST_TERMINAL_AGENT_SOUND_ENABLED
-  }
-}
-
 function storeHostTerminalAgentSoundEnabled(enabled: boolean): void {
-  try {
-    localStorage.setItem(HOST_TERMINAL_AGENT_SOUND_ENABLED_STORAGE_KEY, enabled ? "1" : "0")
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
+  writeHostTerminalAgentSoundEnabled(enabled)
   if (hostTerminal !== null) updateHostTerminalHeaderControls(hostTerminal)
   hostTerminalAgentSignalPane?.requestRender()
 }
@@ -4885,22 +4873,6 @@ function storeHostTerminalAgentSoundEnabled(enabled: boolean): void {
 function storeVoiceAutoSendEnabled(enabled: boolean): void {
   writeVoiceAutoSendEnabled(enabled)
   renderVoiceHud()
-}
-
-function readHostTerminalAgentSoundVolume(): number {
-  try {
-    const raw = localStorage.getItem(HOST_TERMINAL_AGENT_SOUND_VOLUME_STORAGE_KEY)
-    if (raw === null) {
-      const legacy = localStorage.getItem(HOST_TERMINAL_AGENT_SOUND_VOLUME_LEGACY_STORAGE_KEY)
-      if (legacy === null) return DEFAULT_HOST_TERMINAL_AGENT_SOUND_VOLUME
-      const legacyValue = Number(legacy)
-      return Number.isFinite(legacyValue) ? clampHostTerminalAgentSoundVolume(legacyValue) : DEFAULT_HOST_TERMINAL_AGENT_SOUND_VOLUME
-    }
-    const value = Number(raw)
-    return Number.isFinite(value) ? clampHostTerminalAgentSoundVolume(value) : DEFAULT_HOST_TERMINAL_AGENT_SOUND_VOLUME
-  } catch {
-    return DEFAULT_HOST_TERMINAL_AGENT_SOUND_VOLUME
-  }
 }
 
 function storeVoiceSignalVolume(value: number): void {
@@ -4912,12 +4884,7 @@ function storeVoiceSignalVolume(value: number): void {
 }
 
 function storeHostTerminalAgentSoundVolume(value: number): void {
-  const next = clampHostTerminalAgentSoundVolume(value)
-  try {
-    localStorage.setItem(HOST_TERMINAL_AGENT_SOUND_VOLUME_STORAGE_KEY, String(next))
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
+  writeHostTerminalAgentSoundVolume(value)
   syncHudNotificationAudioVolume("agent")
   hostTerminalAgentSignalPane?.requestRender()
 }
@@ -4926,10 +4893,6 @@ function syncHudNotificationAudioVolume(kind: HudNotificationKind): void {
   const audio = hudNotificationAudioElements.get(kind)
   if (audio === undefined) return
   audio.volume = htmlNotificationVolume(hudNotificationVolume(kind))
-}
-
-function clampHostTerminalAgentSoundVolume(value: number): number {
-  return Math.min(MAX_HOST_TERMINAL_AGENT_SOUND_VOLUME, Math.max(0, value))
 }
 
 function storeVoiceSettingsRectAndRelayout(rect: UiSurfaceRect): void {
