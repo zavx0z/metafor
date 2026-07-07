@@ -109,11 +109,11 @@ describe("voice activation matching", () => {
     expect(cutoff?.at).toBe(4_740)
   })
 
-  test("activates exact fast partial wake candidates only", () => {
-    expect(isFastActivationPartial("завхоз", ["завхоз"])).toBe(true)
-    expect(isFastActivationPartial("завхоз открой терминал", ["завхоз"])).toBe(true)
-    expect(isFastActivationPartial("зав хоз", ["зав хоз"])).toBe(true)
-    expect(isFastActivationPartial("зав хоз открой терминал", ["зав хоз"])).toBe(true)
+  test("does not activate from fast partial candidates", () => {
+    expect(isFastActivationPartial("завхоз", ["завхоз"])).toBe(false)
+    expect(isFastActivationPartial("завхоз открой терминал", ["завхоз"])).toBe(false)
+    expect(isFastActivationPartial("зав хоз", ["зав хоз"])).toBe(false)
+    expect(isFastActivationPartial("зав хоз открой терминал", ["зав хоз"])).toBe(false)
     expect(isFastActivationPartial("зав хоз", ["завхоз"])).toBe(false)
     expect(isFastActivationPartial("зав хоз открой терминал", ["завхоз"])).toBe(false)
     expect(isFastActivationPartial("зав", ["завхоз"])).toBe(false)

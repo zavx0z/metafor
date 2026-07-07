@@ -3806,9 +3806,11 @@ function updateNetworkWatchPane(): void {
 
 const agentSignalIconCache = new Map<string, string>()
 const VOICE_MUX_SOCKET_URL = "/hud/voice/ws"
+const VOICE_MUX_RECONNECT_DELAY_MS = 800
 
 type VoiceMuxRoute = "wake" | "asr"
 let voiceMuxConnection: VoiceMuxConnection | null = null
+let voiceMuxReconnectTimer: number | null = null
 
 class VoiceMuxVirtualSocket extends EventTarget implements VoiceInputSocket {
   readonly keepAlive = true
@@ -3876,6 +3878,7 @@ class VoiceMuxConnection {
       this.sockets.clear()
       if (voiceMuxConnection === this) voiceMuxConnection = null
       for (const socket of sockets) socket.acceptClose()
+      scheduleVoiceMuxReconnect()
     })
   }
 
@@ -3948,14 +3951,29 @@ class VoiceMuxConnection {
   }
 }
 
-function createVoiceMuxSocket(route: VoiceMuxRoute, context: VoiceInputAsrSocketContext): VoiceInputSocket {
+function ensureVoiceMuxConnection(): VoiceMuxConnection {
   if (voiceMuxConnection === null || voiceMuxConnection.readyState === WebSocket.CLOSING || voiceMuxConnection.readyState === WebSocket.CLOSED) {
     voiceMuxConnection = new VoiceMuxConnection()
   }
-  const socket = voiceMuxConnection.createSocket(route)
+  return voiceMuxConnection
+}
+
+function scheduleVoiceMuxReconnect(): void {
+  if (voiceMuxReconnectTimer !== null) return
+  voiceMuxReconnectTimer = window.setTimeout(() => {
+    voiceMuxReconnectTimer = null
+    ensureVoiceMuxConnection()
+  }, VOICE_MUX_RECONNECT_DELAY_MS)
+}
+
+function createVoiceMuxSocket(route: VoiceMuxRoute, context: VoiceInputAsrSocketContext): VoiceInputSocket {
+  const connection = ensureVoiceMuxConnection()
+  const socket = connection.createSocket(route)
   if (route === "asr") socket.addEventListener("open", () => context.onTransport("ws"), {once: true})
   return socket
 }
+
+ensureVoiceMuxConnection()
 
 function agentSignalIcon(enabled: boolean): string {
   const key = enabled ? "on" : "off"

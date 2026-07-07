@@ -942,7 +942,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       this.stop(VOICE_STOP_COMMAND_DETAIL)
       return
     }
-    if (!isActivationRecognitionMessage(msg, activationPhrases) && !isFastActivationPartial(text, activationPhrases)) return
+    if (!isActivationRecognitionMessage(msg, activationPhrases)) return
 
     void this.#activateAsr(text, "wake").catch((error) => this.#recoverAsrFailure(error))
   }
@@ -2109,10 +2109,9 @@ function activationPhraseMatch(text: string, activationPhrases: readonly string[
 }
 
 export function isFastActivationPartial(text: string, activationPhrases: readonly string[]): boolean {
-  const normalized = normalizeWakeText(text)
-  if (!normalized) return false
-  const phrases = normalizePhrasesForRecognition(activationPhrases, DEFAULT_VOICE_ACTIVATION_PHRASES)
-  return phrases.some((phrase) => phrase.length >= 5 && activationPhraseInText(normalized, phrase))
+  void text
+  void activationPhrases
+  return false
 }
 
 function hasCommandPhrase(text: string, phrases: readonly string[]): boolean {
