@@ -63,6 +63,8 @@ describe("voice activation matching", () => {
 
   test("recognizes exact fast partial candidates without fuzzy confusers", () => {
     expect(isFastActivationPartial("завхоз", ["завхоз"])).toBe(true)
+    expect(isFastActivationPartial("зав хоз", ["завхоз"])).toBe(true)
+    expect(isFastActivationPartial("зав хоз открой терминал", ["завхоз"])).toBe(true)
     expect(isFastActivationPartial("завхоз открой терминал", ["завхоз"])).toBe(true)
     expect(isFastActivationPartial("зав", ["завхоз"])).toBe(false)
     expect(isFastActivationPartial("завтра", ["завхоз"])).toBe(false)
@@ -71,6 +73,17 @@ describe("voice activation matching", () => {
     expect(isFastActivationPartial("завуси", ["завхоз"])).toBe(false)
     expect(isFastActivationPartial("завася", ["завхоз"])).toBe(false)
     expect(isFastActivationPartial("заваня", ["завхоз"])).toBe(false)
+  })
+
+  test("keeps wake confusers blocked with default activation fuzzy tolerance", () => {
+    const defaultActivationFuzzy = 0.12
+    expect(isActivationPhrase("зав хоз", ["завхоз"], defaultActivationFuzzy)).toBe(true)
+    expect(isActivationPhrase("за вход", ["завхоз"], defaultActivationFuzzy)).toBe(false)
+    expect(isActivationPhrase("завтра", ["завхоз"], defaultActivationFuzzy)).toBe(false)
+    expect(isActivationPhrase("завтрак", ["завхоз"], defaultActivationFuzzy)).toBe(false)
+    expect(isActivationPhrase("завуси", ["завхоз"], defaultActivationFuzzy)).toBe(false)
+    expect(isActivationPhrase("завася", ["завхоз"], defaultActivationFuzzy)).toBe(false)
+    expect(isActivationPhrase("заваня", ["завхоз"], defaultActivationFuzzy)).toBe(false)
   })
 
   test("builds Vosk grammar from prefixes and number variants", () => {

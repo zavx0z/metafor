@@ -455,11 +455,13 @@ export class VoiceInputClient {
       this.#setStatus("idle")
       return
     }
+    const phraseGroups = this.#commandPhrases()
     await this.#connectCommand(this.options.wakeUrl())
     this.#sendCommand({
       type: "start",
       sampleRate: this.#audioContext?.sampleRate ?? TARGET_SAMPLE_RATE,
-      useGrammar: false,
+      useGrammar: true,
+      grammar: createWakeRecognitionGrammar(phraseGroups),
       words: true,
     })
     this.#setStatus("waitingWake", WAKE_WORD)
@@ -1363,7 +1365,22 @@ export function isFastActivationPartial(text: string, activationPhrases: readonl
   const normalized = normalizeWakeText(text)
   if (!normalized) return false
   const phrases = normalizePhrasesForRecognition(activationPhrases, DEFAULT_VOICE_ACTIVATION_PHRASES)
-  return phrases.some((phrase) => activationPhraseInText(normalized, phrase))
+  return phrases.some((phrase) => activationPhraseInText(normalized, phrase)
+    || compactActivationPhrasePrefixInText(normalized, phrase))
+}
+
+function compactActivationPhrasePrefixInText(text: string, phrase: string): boolean {
+  if (!text || !phrase) return false
+  const phraseWords = phrase.split(/\s+/).filter(Boolean)
+  const textWords = text.split(/\s+/).filter(Boolean)
+  if (phraseWords.length === 0 || textWords.length === 0) return false
+  const compactPhrase = phraseWords.join("")
+  const minWindow = Math.max(1, phraseWords.length - 1)
+  const maxWindow = Math.min(textWords.length, phraseWords.length + 1)
+  for (let size = minWindow; size <= maxWindow; size += 1) {
+    if (textWords.slice(0, size).join("") === compactPhrase) return true
+  }
+  return false
 }
 
 function hasCommandPhrase(text: string, phrases: readonly string[], tolerance: number): boolean {

@@ -29,7 +29,7 @@
 - [100] Отполировать Browser Agent docs/API: documented provider sessions, persisted state, browser_chat.configure/activate and DeepSeek modes.
 - [ ] Переименовать agent-facing Plan tools/API: добавить plan.* alias/contract поверх TODO.md storage и убрать путаницу с todo.* в инструкциях.
 - [100] Добавить voice activation routing для Browser Agent sessions: фразы Qwen/DeepSeek выбирают нужную session и voice target в общем Message composer без активации Chrome-вкладки; реальная browser tab переключается только ручным кликом по target switcher.
-- [ ] Переработать voice activation/deactivation noise policy: поднять надежность wake при тихом микрофоне/слабой сети, меньше ложных срабатываний на шум, короче ожидание на пустом шуме, явные состояния wake/listening/commit.
+- [100] Переработать voice activation/deactivation noise policy: поднять надежность wake при тихом микрофоне/слабой сети, меньше ложных срабатываний на шум, короче ожидание на пустом шуме, явные состояния wake/listening/commit.
 - [100] Исправить voice wake target routing: Завхоз/Метафор всегда возвращает voice target в Codex host, Qwen/DeepSeek оставляют Browser Agent session.
 
 ## 6. Browser Agent Chat: изображения
