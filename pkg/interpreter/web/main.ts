@@ -4054,6 +4054,8 @@ function handleVoiceStatus(status: VoiceInputStatus, detail?: string): void {
 }
 
 function voiceSignalForStatusChange(previousStatus: VoiceInputStatus, nextStatus: VoiceInputStatus, detail?: string): HudNotificationKind | null {
+  if (isVoiceSilentTransportTransition(detail ?? "")) return null
+  if (nextStatus === "error" && isVoiceServiceErrorText(detail ?? "")) return null
   if (nextStatus === "listening" && previousStatus !== "listening" && previousStatus !== "committing" && previousStatus !== "processing") return "activation"
   if (nextStatus === "error") return "error"
   if (nextStatus === "processing" && (previousStatus === "listening" || previousStatus === "committing")) return "deactivation"
@@ -6846,6 +6848,10 @@ async function checkVoiceService(): Promise<boolean> {
 
 function isVoiceServiceErrorText(text: string): boolean {
   return /ASR недоступен|ASR unavailable|websocket failed|websocket closed/i.test(text)
+}
+
+function isVoiceSilentTransportTransition(text: string): boolean {
+  return /ASR reconnecting|ASR reconnected|ASR queue|websocket failed|websocket closed|voice ASR websocket|voice command websocket|commit timeout/i.test(text)
 }
 
 function probeVoiceService(): Promise<Record<string, unknown> | null> {

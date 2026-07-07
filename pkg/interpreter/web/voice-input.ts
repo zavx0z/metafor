@@ -884,6 +884,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
 
     if (msg.type === "error") {
       this.#trace("wake.message.error", {error: msg.error ?? "voice command error"})
+      if (this.#asrEnabled && this.#status !== "idle" && this.#status !== "waitingWake") return
       this.#setStatus("error", msg.error ?? "voice command error")
       return
     }
@@ -1086,6 +1087,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
 
   #shouldSendCommandAudio(rms: number, peak: number, speechProbability: number | null, speechProbabilityAt: number, now: number): boolean {
     if (this.#status === "idle" || this.#stopRequested) return false
+    if (!this.#asrEnabled && this.#status === "waitingWake") return true
     const freshSilero = speechProbability !== null && speechProbabilityAt > 0 && now - speechProbabilityAt <= 260
     if (freshSilero && speechProbability >= 0.35 && peak >= VOICE_COMMAND_AUDIO_GATE_PEAK * 0.7) return true
     return rms >= VOICE_COMMAND_AUDIO_GATE_RMS && peak >= VOICE_COMMAND_AUDIO_GATE_PEAK
