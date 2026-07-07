@@ -4194,15 +4194,8 @@ function suspendVoiceForInactiveDocument(): void {
     window.clearTimeout(voiceAutoWakeTimer)
     voiceAutoWakeTimer = null
   }
-  if (voiceAutoWakeInFlight) return
-  if (voiceInputClient?.active === true) {
-    voiceNextFlushMode = "draft"
-    voiceInputClient.stop("document hidden")
-    discardVoiceAutoSendBuffer()
-    clearVoicePartialPreview()
-    clearVoiceWakePreview()
-    renderVoiceHud()
-  }
+  if (voiceAutoWakeInFlight || voiceInputClient?.active === true) return
+  renderVoiceHud()
 }
 
 function documentCanOwnVoice(): boolean {
@@ -6827,6 +6820,13 @@ function installVoiceServiceMonitor(): void {
 
 async function checkVoiceService(): Promise<boolean> {
   if (voiceServiceCheckInFlight) return voiceServiceState === "ok"
+  if (voiceInputClient?.active === true || voiceMuxConnection?.readyState === WebSocket.OPEN) {
+    voiceServiceState = "ok"
+    voiceServiceDetail = [t("voiceServiceOk"), "mux connected"].join(" · ")
+    voiceServiceCheckedAt = new Date()
+    renderVoiceHud()
+    return true
+  }
   voiceServiceCheckInFlight = true
   try {
     const data = await probeVoiceService()
