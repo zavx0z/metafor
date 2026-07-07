@@ -132,6 +132,7 @@ export const text = {
   voiceListening: {ru: "диктовка активна", en: "dictation active"},
   voiceNoActiveInput: {ru: "активный ввод недоступен", en: "active input unavailable"},
   voiceNoTarget: {ru: "кликни в терминал или ввод интерпретатора", en: "click terminal or interpreter input"},
+  voiceProcessing: {ru: "микрофон выключен, текст приходит", en: "microphone off, text incoming"},
   voiceServiceDown: {ru: "ASR недоступен", en: "ASR unavailable"},
   voiceServiceOk: {ru: "ASR работает", en: "ASR ok"},
   voiceServiceUnknown: {ru: "ASR не проверен", en: "ASR unchecked"},

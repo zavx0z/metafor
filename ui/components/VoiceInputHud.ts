@@ -4,7 +4,7 @@ import {ButtonVoice} from "./ButtonVoice.ts"
 import {SliderControl} from "./SliderControl.ts"
 import {Switcher} from "./Switcher.ts"
 
-export type VoiceInputHudStatus = "idle" | "connecting" | "waitingWake" | "listening" | "committing" | "error"
+export type VoiceInputHudStatus = "idle" | "connecting" | "waitingWake" | "listening" | "committing" | "processing" | "error"
 export type VoiceInputHudServiceState = "unknown" | "ok" | "down"
 
 export type VoiceInputHudSnapshot = {

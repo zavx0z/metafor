@@ -1,7 +1,7 @@
 import {Color} from "@metafor/engine"
 import {button, drawIconCentered, palette, type ButtonElementProps, type UiSurface} from "@ui/elements"
 
-export type ButtonVoiceStatus = "idle" | "connecting" | "waitingWake" | "listening" | "committing" | "error"
+export type ButtonVoiceStatus = "idle" | "connecting" | "waitingWake" | "listening" | "committing" | "processing" | "error"
 export type ButtonVoiceServiceState = "unknown" | "ok" | "down"
 
 export type ButtonVoiceSnapshot = {
@@ -26,6 +26,7 @@ export function ButtonVoice(host: UiSurface, x: number, y: number, size: number,
   const status = props.snapshot.status
   const error = status === "error" || props.snapshot.serviceState === "down"
   const active = status === "listening" || status === "committing"
+  const processing = status === "processing"
   const waiting = status === "waitingWake"
   const connecting = status === "connecting" || status === "committing"
   const soundPulse = Math.max(0, Math.min(1, props.soundPulse ?? 0))
@@ -35,6 +36,8 @@ export function ButtonVoice(host: UiSurface, x: number, y: number, size: number,
       ? palette.orange
       : active
         ? palette.cyan
+        : processing
+          ? fade(palette.cyan, 0.78)
         : soundPulse > 0
           ? mixColor(palette.cyan, palette.text, 0.28)
           : waiting
@@ -51,6 +54,7 @@ export function ButtonVoice(host: UiSurface, x: number, y: number, size: number,
       props.snapshot.level,
     )
   }
+  if (processing) drawProcessingLoader(host, centerX, centerY, buttonSize)
   if (soundPulse > 0) drawSoundPulse(host, centerX, centerY, buttonSize, soundPulse)
 
   const buttonProps: ButtonElementProps = {
@@ -58,24 +62,43 @@ export function ButtonVoice(host: UiSurface, x: number, y: number, size: number,
     tooltip: props.tooltip ?? "Голосовой ввод",
     onClick: props.onClick,
     style: (state) => {
-      const borderColor = error ? "red" : connecting ? "orange" : active ? "cyan" : null
+      const borderColor = error ? "red" : connecting ? "orange" : active || processing ? "cyan" : null
       return {
         background: state === "hover" ? "rgba(18, 28, 42, 0.82)" : "rgba(10, 16, 24, 0.72)",
         borderColor,
         borderRadius: buttonSize / 2,
-        borderWidth: borderColor === null ? 0 : active || connecting || error ? 1.2 : 1,
+        borderWidth: borderColor === null ? 0 : active || processing || connecting || error ? 1.2 : 1,
         glassTint: active || soundPulse > 0 ? "cyan" : null,
-        glassTintOpacity: active ? 0.08 : soundPulse > 0 ? 0.06 * soundPulse : 0,
+        glassTintOpacity: active ? 0.08 : processing ? 0.04 : soundPulse > 0 ? 0.06 * soundPulse : 0,
         zIndex: 0.3,
       }
     },
     children: (state) => drawIconCentered(host, micIcon(iconColor), centerX, centerY, Math.max(14, Math.min(22, Math.round(buttonSize * 0.42))), {
-      opacity: state === "hover" || active || soundPulse > 0 ? 0.96 : waiting || connecting ? 0.84 : 0.72,
+      opacity: state === "hover" || active || processing || soundPulse > 0 ? 0.96 : waiting || connecting ? 0.84 : 0.72,
       z: 0.55,
     }),
   }
   if (props.disabled !== undefined) buttonProps.disabled = props.disabled
   button(host, x, y, buttonSize, buttonSize, buttonProps)
+}
+
+function drawProcessingLoader(host: UiSurface, cx: number, cy: number, buttonSize: number): void {
+  const count = 24
+  const radius = buttonSize / 2 + Math.max(5, buttonSize * 0.1)
+  const phaseOffset = (performance.now() / 620) % 1
+  for (let index = 0; index < count; index += 1) {
+    const unit = index / count
+    const phase = unit * Math.PI * 2
+    const trail = (unit - phaseOffset + 1) % 1
+    const alpha = 0.16 + Math.pow(1 - trail, 2.6) * 0.72
+    const inner = radius
+    const outer = radius + 6
+    const x0 = cx + Math.cos(phase) * inner
+    const y0 = cy + Math.sin(phase) * inner
+    const x1 = cx + Math.cos(phase) * outer
+    const y1 = cy + Math.sin(phase) * outer
+    host.drawRoundedLine(x0, y0, x1, y1, fade(palette.cyan, alpha), 3, 0.2)
+  }
 }
 
 function drawSoundPulse(host: UiSurface, cx: number, cy: number, buttonSize: number, amount: number): void {

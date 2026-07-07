@@ -2,7 +2,7 @@ import {VoiceSessionManager, type VoiceChunk, type VoiceSessionDebugSnapshot} fr
 import {VoiceSileroVad, type VoiceSileroVadDebugSnapshot} from "./voice-silero-vad.ts"
 import {postInterpreterClientEvent} from "./remote-desktop-rtc-helpers.ts"
 
-export type VoiceInputStatus = "idle" | "connecting" | "waitingWake" | "listening" | "committing" | "error"
+export type VoiceInputStatus = "idle" | "connecting" | "waitingWake" | "listening" | "committing" | "processing" | "error"
 
 export type VoiceInputSegment = {
   start?: number
@@ -240,7 +240,7 @@ export class VoiceInputClient {
   }
 
   get active(): boolean {
-    return this.#status === "connecting" || this.#status === "waitingWake" || this.#status === "listening" || this.#status === "committing"
+    return this.#status === "connecting" || this.#status === "waitingWake" || this.#status === "listening" || this.#status === "committing" || this.#status === "processing"
   }
 
   debugSnapshot(): VoiceInputDebugSnapshot {
@@ -280,7 +280,7 @@ export class VoiceInputClient {
   }
 
   prewarmDictation(): void {
-    if (this.#status === "connecting" || this.#status === "listening" || this.#status === "committing") return
+    if (this.#status === "connecting" || this.#status === "listening" || this.#status === "committing" || this.#status === "processing") return
     if (this.#asrWs !== null || this.#asrEnabled || this.options.createAsrSocket === undefined) return
     void this.#connectAsr(this.options.url()).catch(() => {
       if (this.#status !== "idle" || this.#asrEnabled) return
@@ -439,6 +439,10 @@ export class VoiceInputClient {
     this.#trace("dictation.request")
     if (!this.active) {
       await this.#startDictationFromIdle()
+      return
+    }
+    if (this.#status === "processing") {
+      this.#trace("dictation.skip.processing")
       return
     }
     if (this.#stream === null) {
@@ -775,7 +779,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
 
     if (msg.type === "partial") {
       const text = recognitionText(msg)
-      if (this.#session.phase !== "draft" && this.#status !== "waitingWake") this.#setStatus("listening", compactDetail(text))
+      if (this.#stream !== null && this.#session.phase !== "draft" && this.#status !== "waitingWake") this.#setStatus("listening", compactDetail(text))
       if (cleanupVoiceText(text).length > 0) this.#touchRecognitionActivity()
       const partial = removeCommandTextFromString(text, this.#asrControlPhrases(), (groupId) => this.#phraseFuzzyTolerance(groupId))
       const partialText = trimStableVoiceTranscriptPrefix(partial.text, this.#deliveryState.transcript)
@@ -815,7 +819,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       this.#flushPendingCommittedChunk()
       if (committedChunkId !== null) this.#session.markChunkMerged(committedChunkId)
       this.#finishCommit()
-      if (!this.#stopRequested && this.#status !== "waitingWake" && this.#session.phase !== "draft") this.#setStatus("listening")
+      if (!this.#stopRequested && this.#stream !== null && this.#status !== "waitingWake" && this.#session.phase !== "draft") this.#setStatus("listening")
       return
     }
 
@@ -897,8 +901,8 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     const chunk = this.#session.nextQueuedChunk()
     if (chunk === null) {
       this.#trace("asr.queue.empty")
-      this.#maybePauseDraftAsrDrain()
       this.#maybeFinishDictationAfterFinalSilence()
+      this.#maybePauseDraftAsrDrain()
       return
     }
     if (chunk.pcmBytes <= 0) {
@@ -912,7 +916,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
 
   #maybeFinishDictationAfterFinalSilence(): void {
     if (!this.#finalSilenceRequested || this.#stopRequested || !this.#asrEnabled) return
-    if (this.#status === "waitingWake" || this.#session.phase === "draft") {
+    if (this.#session.phase === "draft") {
       this.#maybePauseDraftAsrDrain()
       return
     }
@@ -921,27 +925,38 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       this.#finalSilenceRequested = false
       return
     }
+    this.#stopCaptureForFinalSilence()
     if (this.#commitPending || this.#session.hasPendingChunks()) {
       this.#session.markAutoSendWaitingChunks()
+      this.#pumpAsrQueue()
       return
     }
     this.#session.markAutoSendReady()
     this.#finalSilenceRequested = false
-    void this.sleepToWake().catch((error) => {
-      this.#setStatus("error", error instanceof Error ? error.message : String(error))
-      this.#cleanup()
-    })
+    this.#maybePauseDraftAsrDrain()
+  }
+
+  #stopCaptureForFinalSilence(): void {
+    this.#trace("dictation.capture.stop-final-silence")
+    this.#session.closeCurrentChunk(performance.now(), "final silence")
+    this.#sendCommand({type: "stop"})
+    this.#disconnectCommandSocket()
+    if (this.#stream !== null) {
+      this.#stopAudioOnly()
+      this.options.onLevel(0)
+    }
+    if (this.#status !== "processing") this.#setStatus("processing", "ASR queue")
   }
 
   #maybePauseDraftAsrDrain(): void {
-    if (this.#status !== "waitingWake" && this.#session.phase !== "draft") return
+    if (this.#status !== "waitingWake" && this.#status !== "processing" && this.#session.phase !== "draft") return
     if (this.#commitPending || this.#session.hasPendingChunks()) return
     if (!this.#asrEnabled) return
     this.#sendAsr({type: "stop"})
     this.#pauseAsrSocketForWake()
     this.#asrEnabled = false
     this.#asrActivatedAt = 0
-    this.#setStatus("waitingWake", "draft")
+    this.#setStatus("waitingWake", this.#session.phase === "draft" ? "draft" : "ready")
   }
 
   #sendAsrChunk(chunk: VoiceChunk): void {
@@ -955,7 +970,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
         this.#debugAsrBytesSent += pcm.byteLength
       }
       ws.send(JSON.stringify({type: "commit"}))
-      this.#setStatus("committing")
+      this.#setStatus(this.#stream === null ? "processing" : "committing")
     } catch (error) {
       this.#session.markChunkFailed(chunk.id, error instanceof Error ? error.message : String(error), true)
       this.#finishCommit(false)
@@ -980,7 +995,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       this.#lastPartialChunk = null
       this.#finishCommit()
       if (!this.#stopRequested) {
-        this.#setStatus(this.#stream === null || this.#session.phase === "draft" ? "waitingWake" : "listening", "commit timeout")
+        this.#setStatus(this.#session.phase === "draft" ? "waitingWake" : this.#stream === null ? "processing" : "listening", "commit timeout")
         this.#pumpAsrQueue()
       }
     }, COMMIT_TIMEOUT_MS)
@@ -991,7 +1006,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#commitPending = false
     this.#processingChunkId = null
     this.#clearCommitTimer()
-    if (!this.#stopRequested && this.#status !== "waitingWake" && this.#status !== "idle") {
+    if (!this.#stopRequested && this.#stream !== null && this.#status !== "waitingWake" && this.#status !== "idle" && this.#status !== "processing") {
       this.#session.startRecording(this.#stream !== null && this.#session.phase !== "draft")
     }
     this.#resolveCommitWaiters()
@@ -1156,7 +1171,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     }
     this.#session.markReconnecting(message)
     this.#setTransport("connecting")
-    this.#setStatus(this.#stream === null || this.#session.phase === "draft" ? "waitingWake" : "listening", `ASR reconnecting: ${message}`)
+    this.#setStatus(this.#session.phase === "draft" ? "waitingWake" : this.#stream === null ? "processing" : "listening", `ASR reconnecting: ${message}`)
     this.#scheduleAsrReconnect()
   }
 
@@ -1184,7 +1199,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       })
       const resumeCapture = this.#stream !== null && this.#session.phase !== "draft"
       this.#session.startRecording(resumeCapture)
-      this.#setStatus(resumeCapture ? "listening" : "waitingWake", "ASR reconnected")
+      this.#setStatus(resumeCapture ? "listening" : this.#session.hasPendingChunks() ? "processing" : "waitingWake", "ASR reconnected")
       this.#touchRecognitionActivity()
       this.#pumpAsrQueue()
       this.#trace("asr.reconnect.ready", {resumeCapture})
@@ -1192,7 +1207,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       if (!this.#asrEnabled || this.#stopRequested) return
       this.#trace("asr.reconnect.error", {error: error instanceof Error ? error.message : String(error)})
       this.#session.markReconnecting(error instanceof Error ? error.message : String(error))
-      this.#setStatus(this.#stream === null || this.#session.phase === "draft" ? "waitingWake" : "listening", `ASR reconnecting: ${error instanceof Error ? error.message : String(error)}`)
+      this.#setStatus(this.#session.phase === "draft" ? "waitingWake" : this.#stream === null ? "processing" : "listening", `ASR reconnecting: ${error instanceof Error ? error.message : String(error)}`)
       this.#scheduleAsrReconnect()
     }
   }

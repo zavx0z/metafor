@@ -1056,6 +1056,7 @@ let voiceHudDetail = ""
 let voiceHudUpdatedAt = new Date()
 let voiceInputLevel = 0
 let voiceMeterRaf: number | null = null
+let voiceProcessingRaf: number | null = null
 let voiceAutoWakeTimer: number | null = null
 let voiceAutoWakeInFlight = false
 let voiceAutoWakePaused = false
@@ -3873,7 +3874,7 @@ function handleVoiceStatus(status: VoiceInputStatus, detail?: string): void {
     clearVoiceWakePreview()
   } else if (shouldHandleCompletedVoiceCommit(previousStatus, status)) {
     handleCompletedVoiceCommit(status)
-  } else if (shouldFlushVoiceBufferForDeactivation(previousStatus, status)) {
+  } else if (shouldFlushVoiceBufferForDeactivation(previousStatus, status, detail)) {
     flushVoiceInputForDeactivation()
   } else if (shouldPreserveVoicePartialForStatus(previousStatus, status, detail)) {
     preserveVoicePartialAsTerminalInput()
@@ -3887,8 +3888,9 @@ function handleVoiceStatus(status: VoiceInputStatus, detail?: string): void {
 }
 
 function voiceSignalForStatusChange(previousStatus: VoiceInputStatus, nextStatus: VoiceInputStatus, detail?: string): HudNotificationKind | null {
-  if (nextStatus === "listening" && previousStatus !== "listening" && previousStatus !== "committing") return "activation"
+  if (nextStatus === "listening" && previousStatus !== "listening" && previousStatus !== "committing" && previousStatus !== "processing") return "activation"
   if (nextStatus === "error") return "error"
+  if (nextStatus === "processing" && (previousStatus === "listening" || previousStatus === "committing")) return "deactivation"
   if (nextStatus === "waitingWake" && (previousStatus === "listening" || previousStatus === "committing")) return "deactivation"
   if (nextStatus === "idle" && detail === VOICE_STOP_COMMAND_DETAIL) return "stop"
   if (nextStatus === "idle" && (previousStatus === "listening" || previousStatus === "committing")) return "deactivation"
@@ -4071,7 +4073,7 @@ function handleVoiceCommandText(raw: string, final: boolean): boolean {
 }
 
 function maybeActivateHostVoiceSession(text: string): boolean {
-  if (voiceHudStatus === "listening" || voiceHudStatus === "committing") return false
+  if (voiceHudStatus === "listening" || voiceHudStatus === "committing" || voiceHudStatus === "processing") return false
   if (!hostVoiceActivationMatches(text)) return false
   const key = `host:${normalizeVoiceActivationText(text)}`
   if (voiceTargetActivationDeduped(key)) return true
@@ -4115,7 +4117,7 @@ function voiceTargetActivationDeduped(key: string): boolean {
 }
 
 function maybeActivateBrowserChatVoiceSession(text: string): boolean {
-  if (voiceHudStatus === "listening" || voiceHudStatus === "committing") return false
+  if (voiceHudStatus === "listening" || voiceHudStatus === "committing" || voiceHudStatus === "processing") return false
   const provider = browserChatVoiceActivationProvider(text)
   if (provider === null) return false
   const key = `browser-chat:${provider}:${normalizeVoiceActivationText(text)}`
@@ -4210,13 +4212,13 @@ function showVoicePartialPreview(target: VoiceInputTarget, text: string, mode: "
   voicePartialPreviewText = text
   voicePartialPreviewMode = mode
   if (target.kind === "host" && target.controller === hostTerminal) {
-    if (mode === "draft") applyHostVoiceComposerText(target.controller, text)
+    applyHostVoiceComposerText(target.controller, text)
     target.controller.codexComposer.requestRender()
     if (hostCodexUsesUnifiedComposer(target.controller)) browserChat!.composer.requestRender()
     return
   }
   if (target.kind === "browser-chat") {
-    if (mode === "draft") applyBrowserChatVoiceComposerText(target.controller, text)
+    applyBrowserChatVoiceComposerText(target.controller, text)
     target.controller.composer.requestRender()
     return
   }
@@ -4227,9 +4229,11 @@ function clearVoicePartialPreview(): void {
   const target = voicePartialPreviewTarget
   if (target === null) return
   if (target.kind === "host" && target.controller === hostTerminal) {
+    if (voicePartialPreviewMode === "partial") restoreHostVoiceComposerBaseDraft(target.controller)
     target.controller.codexComposer.requestRender()
     if (hostCodexUsesUnifiedComposer(target.controller)) browserChat!.composer.requestRender()
   } else if (target.kind === "browser-chat") {
+    if (voicePartialPreviewMode === "partial") restoreBrowserChatVoiceComposerBaseDraft(target.controller)
     target.controller.composer.requestRender()
   } else {
     for (const terminal of voicePreviewTerminals(target)) terminal.clearInputPreview()
@@ -4265,8 +4269,11 @@ function shouldHandleCompletedVoiceCommit(previousStatus: VoiceInputStatus, stat
   return previousStatus === "committing" && (status === "listening" || status === "waitingWake" || status === "idle")
 }
 
-function shouldFlushVoiceBufferForDeactivation(previousStatus: VoiceInputStatus, status: VoiceInputStatus): boolean {
-  return status === "waitingWake" && (previousStatus === "listening" || previousStatus === "committing")
+function shouldFlushVoiceBufferForDeactivation(previousStatus: VoiceInputStatus, status: VoiceInputStatus, detail?: string): boolean {
+  if (status !== "waitingWake") return false
+  if (detail === "draft" || detail === "ASR queue" || /reconnect/i.test(detail ?? "")) return false
+  if (previousStatus === "processing") return detail === "ready"
+  return previousStatus === "listening" || previousStatus === "committing" || detail === "ready"
 }
 
 function handleCompletedVoiceCommit(status: VoiceInputStatus): void {
@@ -4494,7 +4501,7 @@ function sendBrowserChatVoiceSubmit(controller: BrowserChatController, text: str
 
 function hostCodexComposerStatus(controller: HostTerminalController): string {
   if (controller.codexComposerStatus) return controller.codexComposerStatus
-  if (voiceActiveTarget?.kind === "host" && voiceActiveTarget.controller === controller && (voiceHudStatus === "listening" || voiceHudStatus === "committing")) {
+  if (voiceActiveTarget?.kind === "host" && voiceActiveTarget.controller === controller && (voiceHudStatus === "listening" || voiceHudStatus === "committing" || voiceHudStatus === "processing")) {
     return voiceStatusLabel(voiceHudStatus)
   }
   if (controller.socket?.readyState !== WebSocket.OPEN) return "Codex terminal не подключен"
@@ -5076,7 +5083,7 @@ function browserChatSessionStatus(controller: BrowserChatController, session: Br
   if (session.toolLoopPaused && session.pendingToolResults !== null) return "paused: tool results"
   if (session.toolLoopPaused && session.pendingToolCall !== null) return "paused: tool call"
   if (session.toolLoopPaused) return "agent paused"
-  if (voiceActiveTarget?.kind === "browser-chat" && voiceActiveTarget.controller === controller && (voiceHudStatus === "listening" || voiceHudStatus === "committing")) {
+  if (voiceActiveTarget?.kind === "browser-chat" && voiceActiveTarget.controller === controller && (voiceHudStatus === "listening" || voiceHudStatus === "committing" || voiceHudStatus === "processing")) {
     return voiceStatusLabel(voiceHudStatus)
   }
   if (session.toolLoopInFlight) return "running tools"
@@ -6411,7 +6418,7 @@ function isTouchPointerEvent(event: MouseEvent): boolean {
 }
 
 function updateVoiceLevel(level: number): void {
-  if (voiceHudStatus === "waitingWake") {
+  if (voiceHudStatus === "waitingWake" || voiceHudStatus === "processing") {
     voiceInputLevel = 0
     return
   }
@@ -6456,6 +6463,12 @@ function renderVoiceHud(): void {
   })
   hostTerminal?.codexComposer.requestRender()
   browserChat?.composer.requestRender()
+  if (currentStatus === "processing" && voiceProcessingRaf === null) {
+    voiceProcessingRaf = window.requestAnimationFrame(() => {
+      voiceProcessingRaf = null
+      if (voiceHudStatus === "processing") renderVoiceHud()
+    })
+  }
 }
 
 function openVoiceSettings(): void {
@@ -6490,6 +6503,7 @@ function voiceStatusDetail(status: VoiceInputStatus): string {
   if (status === "waitingWake") return t("voiceWaitingWake")
   if (status === "connecting") return t("voiceConnecting")
   if (status === "committing") return t("voiceCommitting")
+  if (status === "processing") return t("voiceProcessing")
   if (status === "error") return t("voiceError")
   return ""
 }
@@ -6530,7 +6544,7 @@ function voiceAutoEnterLine(): string {
 function voiceSettingsLiveLine(): string {
   const ru = getUiLocale() === "ru"
   if (voiceHudStatus === "waitingWake") return `wake-up: ${debugVoiceText(voiceWakePreviewText)}`
-  if (voiceHudStatus === "listening" || voiceHudStatus === "committing") return `asr: ${debugVoiceText(voiceLastPartialText)}`
+  if (voiceHudStatus === "listening" || voiceHudStatus === "committing" || voiceHudStatus === "processing") return `asr: ${debugVoiceText(voiceLastPartialText)}`
   return `${ru ? "голос" : "voice"}: -`
 }
 
