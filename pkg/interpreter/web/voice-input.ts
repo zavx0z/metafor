@@ -208,8 +208,6 @@ const VOICE_DICTATION_MEDIUM_TIMEOUT_MS = 2_800
 const VOICE_DICTATION_LONG_TIMEOUT_MS = 3_500
 const VOICE_DICTATION_VERY_LONG_TIMEOUT_MS = 4_200
 const VOICE_ACTIVATION_PREROLL_BUFFER_MS = 12_000
-const VOICE_ACTIVATION_PREROLL_MIN_VOICE_MS = 140
-const VOICE_ACTIVATION_PREROLL_STRONG_MIN_VOICE_MS = 64
 const VOICE_ACTIVATION_PREROLL_PAD_MS = 180
 const VOICE_ACTIVATION_PREROLL_RMS = 0.018
 const VOICE_ACTIVATION_PREROLL_PEAK = 0.026
@@ -1116,8 +1114,8 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     if (frames.length === 0) return
 
     const sampleRate = this.#audioContext?.sampleRate ?? TARGET_SAMPLE_RATE
-    let firstVoiceAt = 0
-    let lastVoiceAt = 0
+    let firstVoiceAt = frames[0]?.at ?? 0
+    let lastVoiceAt = frames.at(-1)?.at ?? 0
     let voicedMs = 0
     let maxRms = 0
     let maxPeak = 0
@@ -1129,17 +1127,10 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       const energyVoice = frame.rms >= VOICE_ACTIVATION_PREROLL_RMS && frame.peak >= VOICE_ACTIVATION_PREROLL_PEAK && frame.clippingRatio < 0.22
       const strongVoice = frame.rms >= VOICE_ACTIVATION_PREROLL_STRONG_RMS && frame.peak >= VOICE_ACTIVATION_PREROLL_STRONG_PEAK && frame.clippingRatio < 0.22
       if (sileroVoice || energyVoice || strongVoice) {
-        if (firstVoiceAt === 0) firstVoiceAt = frame.at
-        lastVoiceAt = frame.at
         voicedMs += durationMs
       }
     }
-    const enoughVoice = voicedMs >= VOICE_ACTIVATION_PREROLL_MIN_VOICE_MS
-      || (voicedMs >= VOICE_ACTIVATION_PREROLL_STRONG_MIN_VOICE_MS && maxRms >= VOICE_ACTIVATION_PREROLL_STRONG_RMS && maxPeak >= VOICE_ACTIVATION_PREROLL_STRONG_PEAK)
-    if (firstVoiceAt === 0 || !enoughVoice) {
-      this.#trace("activation.preroll.skip", {frames: frames.length, voicedMs: Math.round(voicedMs), maxRms: roundTraceNumber(maxRms), maxPeak: roundTraceNumber(maxPeak)})
-      return
-    }
+    if (firstVoiceAt === 0 || lastVoiceAt === 0) return
 
     const startedAt = Math.max(cutoff, firstVoiceAt - VOICE_ACTIVATION_PREROLL_PAD_MS)
     const endedAt = Math.min(now, lastVoiceAt + this.#sessionTimings.speechEndMs)
