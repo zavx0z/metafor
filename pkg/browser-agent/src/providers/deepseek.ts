@@ -18,7 +18,8 @@ export function deepseekSendExpression(message: string, newChat: boolean): strin
       const style = getComputedStyle(el);
       return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
     };
-    const disabled = (el) => !!el.disabled || el.getAttribute("aria-disabled") === "true" || el.getAttribute("disabled") !== null;
+    const disabled = (el) => !!el.disabled || el.getAttribute("aria-disabled") === "true" || el.getAttribute("disabled") !== null || /(?:^|\\s|--)disabled(?:\\s|$)/i.test(String(el.className || ""));
+    const stopButton = (el) => /M2 4\\.88|H11\\.12C12\\.3199|V11\\.12C14 12\\.3199/i.test(String(el.innerHTML || ""));
     const textOf = (el) => el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement ? el.value : (el.innerText || el.textContent || "");
     const comparable = (text) => clean(text).replace(/\\s+/g, " ").trim();
     const messageMatches = (expected, actual) => {
@@ -64,7 +65,7 @@ export function deepseekSendExpression(message: string, newChat: boolean): strin
       }).sort((left, right) => right.score - left.score);
       return candidates[0]?.el || null;
     };
-    const generating = () => Array.from(document.querySelectorAll("button, [role=button], [class*=loading i], [class*=generating i], [class*=thinking i]")).some((el) => visible(el) && /stop|停止|cancel|generating|loading|thinking/i.test([el.getAttribute("aria-label"), el.getAttribute("title"), el.className, el.innerText].join(" ")));
+    const generating = () => Array.from(document.querySelectorAll("button, [role=button], [class*=loading i], [class*=generating i], [class*=thinking i]")).some((el) => visible(el) && (/stop|停止|cancel|generating|loading|thinking/i.test([el.getAttribute("aria-label"), el.getAttribute("title"), el.className, el.innerText].join(" ")) || stopButton(el)));
     const transportState = () => {
       const input = findInput();
       const isGenerating = generating();
@@ -167,9 +168,10 @@ export function deepseekReadExpression(): string {
       const style = getComputedStyle(el);
       return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
     };
-    const disabled = (el) => !!el.disabled || el.getAttribute("aria-disabled") === "true" || el.getAttribute("disabled") !== null;
+    const disabled = (el) => !!el.disabled || el.getAttribute("aria-disabled") === "true" || el.getAttribute("disabled") !== null || /(?:^|\\s|--)disabled(?:\\s|$)/i.test(String(el.className || ""));
+    const stopButton = (el) => /M2 4\\.88|H11\\.12C12\\.3199|V11\\.12C14 12\\.3199/i.test(String(el.innerHTML || ""));
     const findInput = () => [document.querySelector("textarea"), document.querySelector("[contenteditable=true]"), document.querySelector("[role=textbox]")].filter(Boolean).find((el) => visible(el) && !disabled(el));
-    const generating = Array.from(document.querySelectorAll("button, [role=button], [class*=loading i], [class*=generating i], [class*=thinking i]")).some((el) => visible(el) && /stop|停止|cancel|generating|loading|thinking/i.test([el.getAttribute("aria-label"), el.getAttribute("title"), el.className, el.innerText].join(" ")));
+    const generating = Array.from(document.querySelectorAll("button, [role=button], [class*=loading i], [class*=generating i], [class*=thinking i]")).some((el) => visible(el) && (/stop|停止|cancel|generating|loading|thinking/i.test([el.getAttribute("aria-label"), el.getAttribute("title"), el.className, el.innerText].join(" ")) || stopButton(el)));
     const input = findInput();
     const canSend = !!input && !generating;
     const blockedReason = generating ? "DeepSeek is still generating" : !input ? "DeepSeek composer input not ready" : "";

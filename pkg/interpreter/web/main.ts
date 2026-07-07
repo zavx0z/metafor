@@ -4780,17 +4780,18 @@ function submitBrowserChatComposer(controller: BrowserChatController, options: {
   resetBrowserChatAgentControl(controller, session)
   session.toolLoopTurns = 0
   stopBrowserChatPolling(controller, session, false)
+  const provisionalMessageStart = session.messages.length
   addBrowserChatMessage(controller, session, {role: "user", text: message})
   ensureBrowserChatAssistantMessage(controller, session)
   session.sendInFlight = true
   setBrowserChatStatus(controller, `sending to ${session.label}`, 6000, session)
-  void sendBrowserChatMessage(controller, session, message, options.focusAfterSubmit ?? true)
+  void sendBrowserChatMessage(controller, session, message, provisionalMessageStart, options.focusAfterSubmit ?? true)
   return true
 }
 
-async function sendBrowserChatMessage(controller: BrowserChatController, session: BrowserChatSession, message: string, focusAfterSubmit: boolean): Promise<void> {
+async function sendBrowserChatMessage(controller: BrowserChatController, session: BrowserChatSession, message: string, provisionalMessageStart: number, focusAfterSubmit: boolean): Promise<void> {
   try {
-    const tool = await runHostTool("browser_chat.send", {...browserChatSessionToolParams(session), message, autoToolLoop: false})
+    const tool = await runHostTool("browser_chat.send", {...browserChatSessionToolParams(session), message, autoToolLoop: false, waitUntilReady: false})
     const result = hostToolResultObject(tool)
     updateBrowserChatTransportState(controller, session, result)
     if (tool.ok !== true || result["ok"] !== true) throw new Error(tool.error ?? stringValue(result["error"]) ?? "browser_chat.send failed")
@@ -4803,8 +4804,15 @@ async function sendBrowserChatMessage(controller: BrowserChatController, session
     if (focusAfterSubmit) focusBrowserChatComposer(controller)
     startBrowserChatPolling(controller, session, previousAssistantText, previousMessageCount)
   } catch (error) {
-    appendBrowserChatSystemMessage(controller, session, error instanceof Error ? error.message : String(error))
-    setBrowserChatStatus(controller, "send failed", 5000, session)
+    const message = error instanceof Error ? error.message : String(error)
+    session.messages.splice(provisionalMessageStart, session.messages.length - provisionalMessageStart)
+    if (/busy|generating|not ready|still thinking|composer|still generating/i.test(message)) {
+      setBrowserChatStatus(controller, message, 3000, session)
+      startBrowserChatPolling(controller, session, session.lastAssistantText, null)
+    } else {
+      appendBrowserChatSystemMessage(controller, session, message)
+      setBrowserChatStatus(controller, "send failed", 5000, session)
+    }
   } finally {
     session.sendInFlight = false
     controller.composer.requestRender()
