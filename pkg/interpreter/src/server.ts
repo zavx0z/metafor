@@ -2488,7 +2488,7 @@ async function runInterpreterToolUse(
       return await toolResultFromResponse(base, await removeProcessBreakpoint(processId, jsonToolRequest("/tools", toolUse.parameters), options, broadcast), "breakpoint.remove failed")
     }
 
-    const hostTool = await runHostToolUse(base, toolUse, broadcast, dispatchUiHostCommand, sqliteWatchRegistry, options)
+    const hostTool = await runHostToolUse(base, toolUse, options, moduleContexts, hudTodoContext, hudSqliteContext, broadcast, dispatchUiHostCommand, sqliteWatchRegistry)
     if (hostTool !== null) return hostTool
     return {...base, ok: false, error: `unknown tool recipient_name: ${toolUse.recipientName}`}
   } catch (error) {
@@ -2499,10 +2499,13 @@ async function runInterpreterToolUse(
 async function runHostToolUse(
   base: JsonObject,
   toolUse: InterpreterToolUse,
+  options: HttpServerOptions,
+  moduleContexts: ModuleContextStore | undefined,
+  hudTodoContext: HudTodoContextStore | undefined,
+  hudSqliteContext: HudSqliteContextStore | undefined,
   broadcast: (payload: JsonObject) => void,
   dispatchUiHostCommand: UiHostCommandDispatcher,
   sqliteWatchRegistry: ReturnType<typeof createSqliteWatchRegistry> | undefined,
-  options: HttpServerOptions,
 ): Promise<JsonObject | null> {
   const hudCommand = hudCommandForTool(toolUse.recipientName)
   if (hudCommand !== null) return await toolResultFromResponse(base, await dispatchUiHostRoute(hudCommand.command, hudCommand.paramsFromBody ? toolUse.parameters : {}, dispatchUiHostCommand), `${toolUse.recipientName} failed`)
@@ -2513,6 +2516,9 @@ async function runHostToolUse(
   const browserChat = await runBrowserChatToolUse(toolUse.recipientName, toolUse.parameters)
   if (browserChat !== null) {
     const ok = browserChat["ok"] === true
+    if (ok && toolUse.recipientName === "browser_chat.send") {
+      startBrowserChatToolPump(toolUse, browserChat, options, moduleContexts, hudTodoContext, hudSqliteContext, broadcast, dispatchUiHostCommand, sqliteWatchRegistry)
+    }
     return {
       ...base,
       ok,
@@ -2587,6 +2593,186 @@ async function runHostToolUse(
   }
   if (toolUse.recipientName === "host.restart") return await toolResultFromResponse(base, restartInterpreterHost(broadcast, options), "host.restart failed")
   return null
+}
+
+function startBrowserChatToolPump(
+  toolUse: InterpreterToolUse,
+  sendResult: JsonObject,
+  options: HttpServerOptions,
+  moduleContexts: ModuleContextStore | undefined,
+  hudTodoContext: HudTodoContextStore | undefined,
+  hudSqliteContext: HudSqliteContextStore | undefined,
+  broadcast: (payload: JsonObject) => void,
+  dispatchUiHostCommand: UiHostCommandDispatcher,
+  sqliteWatchRegistry: ReturnType<typeof createSqliteWatchRegistry> | undefined,
+): void {
+  if (asBoolean(toolUse.parameters["autoToolLoop"]) === false) return
+  const message = asString(toolUse.parameters["message"]) ?? asString(toolUse.parameters["text"]) ?? ""
+  if (/^\s*TOOL_RESULTS\b|<tool_results>/i.test(message)) return
+  setTimeout(() => {
+    void pumpBrowserChatToolLoop(toolUse.parameters, sendResult, options, moduleContexts, hudTodoContext, hudSqliteContext, broadcast, dispatchUiHostCommand, sqliteWatchRegistry)
+      .catch((error) => options.logger.event("browser_chat.tool_loop.failed", {error: serializeError(error)}))
+  }, 350)
+}
+
+async function pumpBrowserChatToolLoop(
+  params: JsonObject,
+  sendResult: JsonObject,
+  options: HttpServerOptions,
+  moduleContexts: ModuleContextStore | undefined,
+  hudTodoContext: HudTodoContextStore | undefined,
+  hudSqliteContext: HudSqliteContextStore | undefined,
+  broadcast: (payload: JsonObject) => void,
+  dispatchUiHostCommand: UiHostCommandDispatcher,
+  sqliteWatchRegistry: ReturnType<typeof createSqliteWatchRegistry> | undefined,
+): Promise<void> {
+  let previousAssistantText = asString(sendResult["previousAssistantText"]) ?? ""
+  let afterMessageCount = asNumber(sendResult["previousMessageCount"])
+  let lastProcessedKey = ""
+  for (let turn = 0; turn < 6; turn += 1) {
+    const candidate = await waitBrowserChatToolCallCandidate(params, previousAssistantText, afterMessageCount)
+    if (candidate === null || candidate.key === lastProcessedKey) return
+    lastProcessedKey = candidate.key
+    const results: JsonObject[] = []
+    for (const call of candidate.calls) {
+      if (call.recipientName.startsWith("browser_chat.")) {
+        results.push({recipient_name: call.recipientName, ...(call.toolUseId === undefined ? {} : {tool_use_id: call.toolUseId}), ok: false, error: "browser_chat.* is transport-internal and cannot be called by Browser Agent"})
+      } else {
+        results.push(await runInterpreterToolUse(call, options, moduleContexts, hudTodoContext, hudSqliteContext, broadcast, dispatchUiHostCommand, sqliteWatchRegistry))
+      }
+    }
+    const sent = await runBrowserChatToolUse("browser_chat.send", {...params, autoToolLoop: false, message: browserChatToolResultsMessage(results)})
+    if (sent === null || sent["ok"] !== true) {
+      options.logger.event("browser_chat.tool_results.failed", {error: asString(sent?.["error"]) ?? "browser_chat.send failed"})
+      return
+    }
+    previousAssistantText = asString(sent["previousAssistantText"]) ?? ""
+    afterMessageCount = asNumber(sent["previousMessageCount"])
+  }
+}
+
+async function waitBrowserChatToolCallCandidate(params: JsonObject, previousAssistantText: string, afterMessageCount: number | undefined): Promise<{key: string; calls: InterpreterToolUse[]} | null> {
+  const startedAt = Date.now()
+  while (Date.now() - startedAt < 45_000) {
+    const read = await runBrowserChatToolUse("browser_chat.read", params)
+    if (read !== null && read["ok"] === true) {
+      const candidate = browserChatToolCallCandidate(read)
+      const text = asString(read["lastAssistantText"]) ?? ""
+      const count = Array.isArray(read["messages"]) ? read["messages"].length : 0
+      const afterBaseline = afterMessageCount === undefined || count >= afterMessageCount + 2 || text !== previousAssistantText || candidate !== null
+      if (candidate !== null && afterBaseline) return candidate
+    }
+    await new Promise((resolve) => setTimeout(resolve, 650))
+  }
+  return null
+}
+
+function browserChatToolCallCandidate(read: JsonObject): {key: string; calls: InterpreterToolUse[]} | null {
+  const messages = Array.isArray(read["messages"]) ? read["messages"] : []
+  let lastUserIndex = -1
+  messages.forEach((message, index) => {
+    if (typeof message === "object" && message !== null && !Array.isArray(message) && asString((message as JsonObject)["role"]) === "user") lastUserIndex = index
+  })
+  for (let index = lastUserIndex + 1; index < messages.length; index += 1) {
+    const message = messages[index]
+    const record = asObject(message)
+    if (record === undefined || asString(record["role"]) !== "assistant") continue
+    const text = asString(record["text"])?.trim()
+    if (text === undefined || text.length === 0) continue
+    const calls = parseBrowserChatToolCalls(text)
+    if (calls.length > 0) return {key: browserChatToolCallKey(read, index), calls}
+  }
+  if (messages.length > 0) return null
+  const fallback = asString(read["lastAssistantText"])?.trim()
+  if (fallback === undefined || fallback.length === 0) return null
+  const calls = parseBrowserChatToolCalls(fallback)
+  return calls.length > 0 ? {key: fallback, calls} : null
+}
+
+function browserChatToolCallKey(read: JsonObject, sourceIndex: number): string {
+  const messages = Array.isArray(read["messages"]) ? read["messages"] : []
+  const tail = messages.slice(-8).map((message) => {
+    const record = asObject(message)
+    return record === undefined ? null : {role: asString(record["role"]) ?? "", text: asString(record["text"]) ?? ""}
+  }).filter((message) => message !== null)
+  return JSON.stringify({sourceIndex, tail})
+}
+
+function parseBrowserChatToolCalls(text: string): InterpreterToolUse[] {
+  const candidates: string[] = []
+  for (const match of text.matchAll(/<tool_calls>\s*([\s\S]*?)\s*<\/tool_calls>/gi)) if (match[1] !== undefined) candidates.push(match[1])
+  for (const match of text.matchAll(/```(?:json|tool_calls|tools)?\s*([\s\S]*?)```/gi)) if (match[1] !== undefined) candidates.push(match[1])
+  const trimmed = text.trim()
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) candidates.push(trimmed)
+  for (const candidate of candidates) {
+    try {
+      const calls = browserChatToolCallsFromPayload(JSON.parse(candidate) as unknown)
+      if (calls.length > 0) return calls
+    } catch {
+      // Keep scanning: model output may contain prose around an invalid block.
+    }
+  }
+  return []
+}
+
+function browserChatToolCallsFromPayload(payload: unknown): InterpreterToolUse[] {
+  const object = asObject(payload)
+  const rawCalls = Array.isArray(payload)
+    ? payload
+    : Array.isArray(object?.["tool_uses"])
+      ? object["tool_uses"]
+      : Array.isArray(object?.["toolUses"])
+        ? object["toolUses"]
+        : Array.isArray(object?.["tool_calls"])
+          ? object["tool_calls"]
+          : Array.isArray(object?.["toolCalls"])
+            ? object["toolCalls"]
+            : object !== undefined && browserChatToolRecipientName(object) !== undefined
+              ? [object]
+              : []
+  const calls: InterpreterToolUse[] = []
+  rawCalls.forEach((raw, index) => {
+    const record = asObject(raw)
+    if (record === undefined) return
+    const recipientName = browserChatToolRecipientName(record)
+    if (recipientName === undefined) return
+    calls.push({
+      toolUseId: asString(record["tool_use_id"]) ?? asString(record["toolUseId"]) ?? asString(record["id"]) ?? `browser-chat-tool-${index + 1}`,
+      recipientName,
+      parameters: browserChatToolParameters(record),
+    })
+  })
+  return calls
+}
+
+function browserChatToolRecipientName(record: JsonObject): string | undefined {
+  const value = asString(record["recipient_name"]) ?? asString(record["recipientName"]) ?? asString(record["name"]) ?? asString(record["tool"])
+  const trimmed = value?.trim()
+  return trimmed === undefined || trimmed.length === 0 ? undefined : trimmed
+}
+
+function browserChatToolParameters(record: JsonObject): JsonObject {
+  const raw = record["parameters"] ?? record["arguments"] ?? record["params"]
+  const object = asObject(raw)
+  if (object !== undefined) return object
+  const text = asString(raw)
+  if (text === undefined) return {}
+  try {
+    return asObject(JSON.parse(text) as unknown) ?? {}
+  } catch {
+    return {}
+  }
+}
+
+function browserChatToolResultsMessage(results: readonly JsonObject[]): string {
+  return `TOOL_RESULTS\n<tool_results>\n${JSON.stringify({tool_results: results.map(trimBrowserChatToolResult)}, null, 2)}\n</tool_results>\n\nUse these results. If you need more data, return another <tool_calls> JSON block. Otherwise answer the user.`
+}
+
+function trimBrowserChatToolResult(result: JsonObject): JsonObject {
+  const value = result["result"]
+  const json = value === undefined ? "" : JSON.stringify(value)
+  if (json.length <= 24_000) return result
+  return {...result, result: `${json.slice(0, 24_000)}\n...[truncated ${json.length - 24_000} chars]`}
 }
 
 async function runProcessToolUse(

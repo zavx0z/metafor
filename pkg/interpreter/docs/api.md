@@ -363,7 +363,7 @@ devtools.evaluate         # {expression, targetUrl?, awaitPromise?, returnByValu
 ответ из DOM.
 
 ```text
-browser_chat.send      # {message|text, targetId?, targetUrl?, targetTitle?, urlContains?}
+browser_chat.send      # {message|text, targetId?, targetUrl?, targetTitle?, urlContains?, autoToolLoop?}
 browser_chat.read      # {targetId?, targetUrl?, targetTitle?, urlContains?}
 browser_chat.wait      # {targetId?, targetUrl?, targetTitle?, urlContains?, previousAssistantText?, afterMessageCount?, intervalMs?, stableTicks?, timeoutMs?}
 browser_chat.exchange  # {message|text, targetId?, targetUrl?, targetTitle?, urlContains?, previousAssistantText?, afterMessageCount?, intervalMs?, stableTicks?, timeoutMs?}
@@ -384,14 +384,15 @@ host PTY/Codex CLI, Browser Agent message идет в remote browser chat. В MV
 image attachments не загружаются в Qwen UI как файлы: composer добавляет пути к
 загруженным изображениям в текст сообщения.
 
-Browser Agent UI поверх transport добавляет текстовый tool protocol для Qwen:
+Browser Agent поверх transport добавляет текстовый tool protocol для Qwen:
 если ответ assistant содержит блок `<tool_calls>{"tool_uses":[...]}</tool_calls>`,
-UI выполняет эти calls через общий `POST /tools`, затем отправляет обратно в
-Qwen блок `<tool_results>{"tool_results":[...]}</tool_results>`. Это не native
-function calling API Qwen и не универсальный planner: это ограниченный loop
-для уже открытого browser chat. `browser_chat.*` сами остаются только transport
-командами; Qwen не должен вызывать `browser_chat.*`, чтобы не рекурсировать
-чат в самого себя.
+ограниченный loop выполняет эти calls через общий `POST /tools`, затем отправляет
+обратно в Qwen блок `<tool_results>{"tool_results":[...]}</tool_results>`. Это
+не native function calling API Qwen и не универсальный planner. Для прямого
+`browser_chat.send` server-side pump включен по умолчанию; Browser Agent UI
+передает `autoToolLoop:false`, чтобы не дублировать свой streaming loop.
+`browser_chat.*` сами остаются только transport командами; Qwen не должен
+вызывать `browser_chat.*`, чтобы не рекурсировать чат в самого себя.
 
 `devtools.console` включает capture событий `Runtime.consoleAPICalled`,
 `Runtime.exceptionThrown`, `Log.entryAdded` и `Network.loadingFailed` и хранит

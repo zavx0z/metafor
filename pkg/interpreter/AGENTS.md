@@ -472,7 +472,7 @@ Codex message и Browser Agent message - разные transport:
 - Codex message отправляет текст, голос и image attachment paths в host PTY/Codex CLI через terminal transport.
 - Browser Agent message отправляет текст, голос и image attachment paths в уже открытый browser chat через Chrome DevTools DOM bridge.
 - MVP Browser Agent Chat сейчас завязан на текущий Qwen chat (`https://chat.qwen.ai/`) и доступен через `browser_chat.*` tools в `POST /tools`.
-- Browser Agent Chat использует текстовый tool protocol: Qwen может вернуть `<tool_calls>{"tool_uses":[...]}</tool_calls>`, UI выполнит эти calls через общий `POST /tools` и отправит Qwen `<tool_results>...`. Это не native Qwen function calling и не универсальный planner; `browser_chat.*` остаются внутренним transport и не вызываются Qwen напрямую.
+- Browser Agent Chat использует текстовый tool protocol: Qwen может вернуть `<tool_calls>{"tool_uses":[...]}</tool_calls>`, ограниченный loop выполнит эти calls через общий `POST /tools` и отправит Qwen `<tool_results>...`. Для прямого `browser_chat.send` работает server-side pump, Browser Agent UI передает `autoToolLoop:false` и использует свой streaming loop. Это не native Qwen function calling и не универсальный planner; `browser_chat.*` остаются внутренним transport и не вызываются Qwen напрямую.
 
 ## UI Architecture
 

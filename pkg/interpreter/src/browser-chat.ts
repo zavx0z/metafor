@@ -22,7 +22,12 @@ export async function runBrowserChatToolUse(name: string, params: JsonObject): P
 async function browserChatSend(params: JsonObject): Promise<JsonObject> {
   const message = asString(params["message"]) ?? asString(params["text"])
   if (message === undefined || message.trim().length === 0) return {ok: false, error: "message required"}
-  return await evaluateBrowserChatPayload(params, qwenSendExpression(message))
+  const sent = await evaluateBrowserChatPayload(params, qwenSendExpression(message))
+  if (sent["ok"] === true || !isTransientBrowserChatError(asString(sent["error"]))) return sent
+  await delay(300)
+  const read = await browserChatRead(params)
+  const recovered = browserChatRecoveredSendPayload(message, sent, read)
+  return recovered ?? sent
 }
 
 async function browserChatRead(params: JsonObject): Promise<JsonObject> {
@@ -166,6 +171,48 @@ function runtimeEvaluateValue(result: JsonObject): unknown {
 function browserChatMessageCount(payload: JsonObject): number {
   const messages = payload["messages"]
   return Array.isArray(messages) ? messages.length : 0
+}
+
+function browserChatRecoveredSendPayload(message: string, sent: JsonObject, read: JsonObject): JsonObject | null {
+  if (read["ok"] !== true || !Array.isArray(read["messages"])) return null
+  let lastUserIndex = -1
+  read["messages"].forEach((raw, index) => {
+    const record = asObject(raw)
+    if (record !== undefined && asString(record["role"]) === "user") lastUserIndex = index
+  })
+  if (lastUserIndex < 0) return null
+  const lastUser = asObject(read["messages"][lastUserIndex])
+  const lastUserText = asString(lastUser?.["text"])
+  if (lastUserText === undefined || !browserChatUserMessageMatches(message, lastUserText)) return null
+  let previousAssistantText = ""
+  for (let index = lastUserIndex - 1; index >= 0; index -= 1) {
+    const record = asObject(read["messages"][index])
+    if (record !== undefined && asString(record["role"]) === "assistant") {
+      previousAssistantText = asString(record["text"]) ?? ""
+      break
+    }
+  }
+  return {
+    ...sent,
+    ok: true,
+    recovered: true,
+    recovery: "last-user-message-present",
+    previousAssistantText,
+    previousMessageCount: lastUserIndex,
+  }
+}
+
+function browserChatUserMessageMatches(expected: string, actual: string): boolean {
+  const left = comparableBrowserChatText(expected)
+  const right = comparableBrowserChatText(actual)
+  if (left.length === 0 || right.length === 0) return false
+  if (left === right) return true
+  if (left.length <= 240) return right.includes(left)
+  return right.includes(left.slice(0, 180)) && right.includes(left.slice(-180))
+}
+
+function comparableBrowserChatText(text: string): string {
+  return text.replace(/\u200b/g, "").replace(/\s+/g, " ").trim()
 }
 
 function isTransientBrowserChatError(error: string | undefined): boolean {
