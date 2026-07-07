@@ -5,7 +5,6 @@ import {HudWindow, type HudWindowTitleBarAction} from "@ui/hud"
 import {
   PANE_FRAME,
   beginPaneFrameDrag,
-  formatCodexAttachmentSize,
   paneBodyRect,
   paneFrameCursor,
   paneFrameDragRect,
@@ -26,6 +25,10 @@ export const HOST_TERMINAL_CODEX_COMPOSER_VOICE_BUTTON_VISIBLE = true
 const VOICE_SETTINGS_LONG_PRESS_MS = 450
 const VOICE_SETTINGS_LONG_PRESS_MOVE_PX = 6
 const VOICE_TOGGLE_CLICK_DELAY_MS = 320
+const COMPOSER_ATTACHMENT_PREVIEW_SIZE = 66
+const COMPOSER_ATTACHMENT_PREVIEW_GAP = 8
+const COMPOSER_ATTACHMENT_PREVIEW_CLOSE = 18
+const COMPOSER_ATTACHMENT_PREVIEW_ROW_H = 78
 
 export type HostCodexComposerController = {
   codexAttachments: CodexComposerAttachment[]
@@ -196,41 +199,48 @@ export class HostTerminalCodexComposerPane<T extends HostCodexComposerController
   #drawAttachmentRow(x: number, y: number, w: number, maxY: number): void {
     let cx = x
     let cy = y
-    const gap = 6
-    const chipH = 22
+    const preview = COMPOSER_ATTACHMENT_PREVIEW_SIZE
+    const gap = COMPOSER_ATTACHMENT_PREVIEW_GAP
     for (const attachment of this.#opts.controller.codexAttachments) {
-      if (cy + chipH > maxY - 18) break
-      const label = `${attachment.name} · ${formatCodexAttachmentSize(attachment.size)}`
-      const chipW = Math.min(w, Math.max(96, Math.ceil(this.measureText(label, 10)) + 34))
-      if (cx > x && cx + chipW > x + w) {
+      if (cy + preview > maxY) break
+      if (cx > x && cx + preview > x + w) {
         cx = x
-        cy += chipH + gap
-        if (cy + chipH > maxY - 18) break
+        cy += preview + gap
+        if (cy + preview > maxY) break
       }
-      this.drawRoundedRect(cx, cy, chipW, chipH, {
-        radius: 7,
-        fill: new Color(0.06, 0.12, 0.15, 0.72),
+      this.drawRoundedRect(cx, cy, preview, preview, {
+        radius: 10,
+        fill: new Color(0.025, 0.04, 0.05, 0.84),
         border: palette.borderDim,
         borderWidth: 1,
         z: Z.ELEMENT,
       })
-      this.drawText(label, cx + 9, cy + 5, {
-        fontPx: 10,
-        material: this.materials.text,
-        maxWidthPx: Math.max(1, chipW - 28),
-        z: Z.TEXT,
+      this.drawImage(codexComposerAttachmentImageSrc(attachment), cx + 5, cy + 5, preview - 10, preview - 10, {
+        fit: "contain",
+        z: Z.ELEMENT + 0.06,
       })
-      this.drawText("x", cx + chipW - 16, cy + 5, {
-        fontPx: 10,
+      const close = COMPOSER_ATTACHMENT_PREVIEW_CLOSE
+      const closeX = cx + preview - close - 4
+      const closeY = cy + 4
+      this.drawRoundedRect(closeX, closeY, close, close, {
+        radius: close / 2,
+        fill: new Color(0.02, 0.03, 0.04, 0.88),
+        border: palette.borderDim,
+        borderWidth: 1,
+        z: Z.ELEMENT + 0.12,
+      })
+      this.drawTextCentered("x", closeX + close / 2, closeY + close / 2, {
+        fontPx: 11,
         material: this.materials.muted,
-        maxWidthPx: 8,
-        z: Z.TEXT,
+        maxWidthPx: close,
+        z: Z.TEXT + 0.12,
       })
-      this.hit(cx, cy, chipW, chipH, () => this.#opts.removeAttachment(this.#opts.controller, attachment.id), {
-        key: `interpreter-codex-attachment:${attachment.id}`,
+      this.hit(closeX, closeY, close, close, () => this.#opts.removeAttachment(this.#opts.controller, attachment.id), {
+        key: `interpreter-codex-attachment-remove:${attachment.id}`,
         cursor: "pointer",
+        tooltip: {label: "Remove image", delayMs: 350},
       })
-      cx += chipW + gap
+      cx += preview + gap
     }
   }
 
@@ -391,8 +401,14 @@ export function hostCodexComposerContentLayout(w: number, h: number, hasAttachme
     gap: hasAttachments ? 8 : 0,
     items: [
       {height: "grow", draw: (x, y, width, height) => { layout.editor = {x, y, w: Math.max(1, width), h: Math.max(1, height)} }},
-      hasAttachments && {height: 30, draw: (x, y, width, height) => { layout.attachments = {x, y, w: Math.max(1, width), h: Math.max(1, height)} }},
+      hasAttachments && {height: COMPOSER_ATTACHMENT_PREVIEW_ROW_H, draw: (x, y, width, height) => { layout.attachments = {x, y, w: Math.max(1, width), h: Math.max(1, height)} }},
     ],
   })
   return layout
+}
+
+function codexComposerAttachmentImageSrc(attachment: CodexComposerAttachment): string {
+  if (attachment.url !== undefined && attachment.url.length > 0) return attachment.url
+  const name = attachment.path.split(/[\\/]/g).pop() ?? ""
+  return name.length === 0 ? attachment.path : `/hud/codex/attachments/${encodeURIComponent(name)}`
 }
