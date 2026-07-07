@@ -4947,6 +4947,20 @@ function setBrowserChatToolPromptMode(controller: BrowserChatController, mode: B
   void configureBrowserChatProvider(controller, session, {deepseekMode: mode})
 }
 
+function openBrowserChatImageRecognitionChat(controller: BrowserChatController): void {
+  const session = activeBrowserChatSession(controller)
+  if (session.provider !== "deepseek") return
+  if (!browserChatToolPromptCanSend(controller)) {
+    setBrowserChatStatus(controller, "busy", 1400, session)
+    return
+  }
+  session.toolPromptMode = "vision"
+  scheduleStoreBrowserChatState(controller)
+  controller.chatPane.requestRender()
+  controller.composer.requestRender()
+  sendBrowserChatToolPrompt(controller)
+}
+
 function toggleBrowserChatDeepThinking(controller: BrowserChatController): void {
   const session = activeBrowserChatSession(controller)
   if (session.provider !== "deepseek") return
@@ -5231,7 +5245,8 @@ function sendBrowserChatToolPrompt(controller: BrowserChatController): void {
   scheduleStoreBrowserChatState(controller)
   stopBrowserChatPolling(controller, session, false)
   session.sendInFlight = true
-  setBrowserChatStatus(controller, `opening new ${session.label} chat`, 6000, session)
+  const modeLabel = session.provider === "deepseek" && session.toolPromptMode === "vision" ? " Image Recognition" : ""
+  setBrowserChatStatus(controller, `opening new ${session.label}${modeLabel} chat`, 6000, session)
   controller.chatPane.requestRender()
   void sendBrowserChatToolPromptMessage(controller, session)
 }
@@ -7473,7 +7488,10 @@ function ensureBrowserChatController(): BrowserChatController {
       const session = activeBrowserChatSession(controller)
       return session.provider === "deepseek" ? session.toolPromptMode : null
     },
-    setToolPromptMode: (mode) => setBrowserChatToolPromptMode(controller, mode),
+    setToolPromptMode: (mode) => {
+      if (mode === "vision") openBrowserChatImageRecognitionChat(controller)
+      else setBrowserChatToolPromptMode(controller, mode)
+    },
     deepThinking: () => {
       const session = activeBrowserChatSession(controller)
       return session.provider === "deepseek" ? session.deepThinking : null

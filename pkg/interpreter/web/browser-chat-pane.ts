@@ -143,8 +143,9 @@ export class BrowserChatPane extends UiSurface {
       }, {
         label: "DeepSeek Recognition",
         iconSrc: uiIcons.recognition,
-        tooltip: "DeepSeek Recognition",
+        tooltip: "New Image Recognition chat",
         active: mode === "vision",
+        disabled: !this.#opts.canSendToolPrompt(),
         action: () => this.#opts.setToolPromptMode("vision"),
       })
     }
