@@ -14,6 +14,7 @@ const BROWSER_CHAT_READ_RETRIES = 2
 const BROWSER_CHAT_SEND_READY_INTERVAL_MS = 650
 const BROWSER_CHAT_SEND_READY_TIMEOUT_MS = 90_000
 const BROWSER_CHAT_CONFIGURE_READY_TIMEOUT_MS = 30_000
+const BROWSER_CHAT_ATTACHMENT_UPLOAD_SETTLE_MS = 2_800
 
 const QWEN_PROVIDER: BrowserAgentProvider = {
   id: "qwen",
@@ -74,6 +75,7 @@ async function browserChatSend(host: BrowserAgentHost, params: BrowserAgentJsonO
       const uploaded = await uploadBrowserChatAttachments(host, provider, params, attachmentPaths)
       if (uploaded["ok"] !== true) return {...uploaded, provider: provider.id, waitedMs: Date.now() - startedAt}
       attachmentsUploaded = true
+      await delay(boundedNumber(asNumber(params["attachmentUploadSettleMs"]), BROWSER_CHAT_ATTACHMENT_UPLOAD_SETTLE_MS, 0, 15_000))
     }
     const sent = await evaluateBrowserChatPayload(host, provider, params, provider.sendExpression(message, newChat, params))
     if (sent["ok"] === true) return {...sent, provider: provider.id, waitedMs: Date.now() - startedAt}

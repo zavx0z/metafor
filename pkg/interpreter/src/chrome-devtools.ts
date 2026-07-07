@@ -360,32 +360,7 @@ export async function setChromeDevtoolsFileInputFiles(body: JsonObject): Promise
   const selector = asString(body["selector"]) ?? "input[type=file]"
   const session = await ensureSession(body)
   await sessionCommand(session, "DOM.enable")
-  let nodeId = await queryChromeNodeId(session, selector)
-  if (nodeId === null) {
-    await sessionCommand(session, "Runtime.evaluate", {
-      expression: String.raw`(() => {
-        const visible = (el) => {
-          const rect = el.getBoundingClientRect();
-          const style = getComputedStyle(el);
-          return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
-        };
-        const clean = (text) => String(text || "").replace(/\s+/g, " ").trim().toLowerCase();
-        const button = Array.from(document.querySelectorAll("button, [role=button], label")).find((el) => {
-          if (!visible(el)) return false;
-          const label = clean([el.innerText, el.textContent, el.getAttribute("aria-label"), el.getAttribute("title"), el.className].join(" "));
-          return /attach|upload|file|image|picture|скреп|файл|изображ|картин/.test(label);
-        });
-        if (!button) return {clicked:false};
-        button.click();
-        return {clicked:true};
-      })()`,
-      awaitPromise: false,
-      returnByValue: true,
-      userGesture: true,
-    }).catch(() => undefined)
-    await delay(300)
-    nodeId = await queryChromeNodeId(session, selector)
-  }
+  const nodeId = await queryChromeNodeId(session, selector)
   if (nodeId === null) throw new Error(`file input not found: ${selector}`)
   const result = await sessionCommand(session, "DOM.setFileInputFiles", {nodeId, files})
   await sessionCommand(session, "Runtime.evaluate", {
