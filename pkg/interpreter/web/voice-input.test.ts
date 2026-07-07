@@ -17,6 +17,7 @@ import {
   voiceDynamicRecognitionTimeoutMs,
   wakeAudioCutoffFromRecognitionMessage,
 } from "./voice-input.ts"
+import {VoiceSileroVad} from "./voice-silero-vad.ts"
 import {DEFAULT_VOICE_SESSION_TIMINGS, VoiceSessionManager} from "./voice-session-manager.ts"
 
 describe("voice activation matching", () => {
@@ -575,6 +576,20 @@ describe("voice wake gain", () => {
     expect(gain).toBeGreaterThan(1)
     expect(gain).toBeLessThanOrEqual(6)
     expect(Math.max(...Array.from(applyWakeAudioGain(quiet)).map(Math.abs))).toBeLessThanOrEqual(0.86)
+  })
+})
+
+describe("voice Silero VAD", () => {
+  test("resamples browser 48 kHz audio to 16 kHz Silero chunks", () => {
+    const vad = new VoiceSileroVad()
+
+    vad.acceptFrame(new Float32Array(1_536), 48_000)
+
+    const snapshot = vad.debugSnapshot()
+    expect(snapshot.inputSampleRate).toBe(48_000)
+    expect(snapshot.pendingChunks).toBe(1)
+    expect(snapshot.pendingSamples).toBe(0)
+    vad.stop()
   })
 })
 

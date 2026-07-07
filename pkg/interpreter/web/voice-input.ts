@@ -780,7 +780,7 @@ export class VoiceInputClient {
       const wakeGain = analyzeWakeAudioGain(samples, rms, peak, clippingRatio)
       this.#session.setWakeGainDebug(wakeGain)
       const wakePcm = floatToPcm16(applyWakeAudioGain(samples, wakeGain.gain))
-      this.#sileroVad?.acceptFrame(samples)
+      this.#sileroVad?.acceptFrame(samples, this.#audioContext?.sampleRate ?? TARGET_SAMPLE_RATE)
       const sileroProbability = this.#sileroVad?.probability()
       this.#trackSpeechAndMaybeCommit(samples, pcm, rms, peak, clippingRatio)
       this.#sendCommandPcm(wakePcm, rms, peak, sileroProbability?.probability ?? null, sileroProbability?.at ?? 0, now)

@@ -11,6 +11,8 @@ export type VoiceSileroVadDebugSnapshot = {
   processedChunks: number
   pendingChunks: number
   pendingSamples: number
+  inputSampleRate: number
+  resampleCarrySamples: number
 }
 
 export type VoiceSileroVadProbability = {
@@ -35,6 +37,9 @@ export class VoiceSileroVad {
   #scratch = new Float32Array(SILERO_CHUNK_SAMPLES)
   #scratchLength = 0
   #pendingChunks: Float32Array[] = []
+  #inputSampleRate = SILERO_SAMPLE_RATE
+  #resampleCarry = new Float32Array(0)
+  #resampleOffset = 0
   #speechProbability: number | null = null
   #lastInferenceAt = 0
   #processedChunks = 0
@@ -49,19 +54,28 @@ export class VoiceSileroVad {
     this.#stopped = true
     this.#pendingChunks = []
     this.#scratchLength = 0
+    this.#resampleCarry = new Float32Array(0)
+    this.#resampleOffset = 0
   }
 
   reset(): void {
     this.#state.fill(0)
     this.#pendingChunks = []
     this.#scratchLength = 0
+    this.#resampleCarry = new Float32Array(0)
+    this.#resampleOffset = 0
     this.#speechProbability = null
     this.#lastInferenceAt = 0
     this.#processedChunks = 0
   }
 
-  acceptFrame(samples: Float32Array): void {
+  acceptFrame(samples: Float32Array, sampleRate = SILERO_SAMPLE_RATE): void {
     if (this.#stopped || this.#error !== null) return
+    this.#acceptSileroSamples(this.#resampleInput(samples, sampleRate))
+    void this.#drain()
+  }
+
+  #acceptSileroSamples(samples: Float32Array): void {
     let offset = 0
     while (offset < samples.length) {
       const available = SILERO_CHUNK_SAMPLES - this.#scratchLength
@@ -75,7 +89,40 @@ export class VoiceSileroVad {
         while (this.#pendingChunks.length > MAX_PENDING_CHUNKS) this.#pendingChunks.shift()
       }
     }
-    void this.#drain()
+  }
+
+  #resampleInput(samples: Float32Array, sampleRate: number): Float32Array {
+    const inputSampleRate = Number.isFinite(sampleRate) && sampleRate > 0 ? sampleRate : SILERO_SAMPLE_RATE
+    if (Math.abs(inputSampleRate - this.#inputSampleRate) > 1) {
+      this.#inputSampleRate = inputSampleRate
+      this.#resampleCarry = new Float32Array(0)
+      this.#resampleOffset = 0
+    }
+    if (Math.abs(inputSampleRate - SILERO_SAMPLE_RATE) <= 1) return samples
+
+    const input = new Float32Array(this.#resampleCarry.length + samples.length)
+    input.set(this.#resampleCarry)
+    input.set(samples, this.#resampleCarry.length)
+
+    const ratio = inputSampleRate / SILERO_SAMPLE_RATE
+    const maxOutputSamples = Math.max(0, Math.ceil(input.length / ratio))
+    const output = new Float32Array(maxOutputSamples)
+    let outputLength = 0
+    let offset = this.#resampleOffset
+    while (offset + 1 < input.length) {
+      const leftIndex = Math.floor(offset)
+      const fraction = offset - leftIndex
+      const left = input[leftIndex] ?? 0
+      const right = input[leftIndex + 1] ?? left
+      output[outputLength] = left + (right - left) * fraction
+      outputLength += 1
+      offset += ratio
+    }
+
+    const consumed = Math.min(input.length, Math.floor(offset))
+    this.#resampleCarry = input.slice(consumed)
+    this.#resampleOffset = offset - consumed
+    return output.subarray(0, outputLength)
   }
 
   probability(): VoiceSileroVadProbability {
@@ -95,6 +142,8 @@ export class VoiceSileroVad {
       processedChunks: this.#processedChunks,
       pendingChunks: this.#pendingChunks.length,
       pendingSamples: this.#scratchLength,
+      inputSampleRate: this.#inputSampleRate,
+      resampleCarrySamples: this.#resampleCarry.length,
     }
   }
 
