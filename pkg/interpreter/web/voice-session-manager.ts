@@ -9,10 +9,50 @@ export type VoiceSessionPhase =
   | "draft"
   | "error"
 
+export type VoiceChunkState =
+  | "recording"
+  | "closed"
+  | "queued"
+  | "processing"
+  | "recognized"
+  | "merged"
+  | "failed"
+  | "retrying"
+
+export type VoiceChunk = {
+  id: string
+  index: number
+  state: VoiceChunkState
+  startedAt: number
+  endedAt: number | null
+  pcm: ArrayBuffer[]
+  pcmBytes: number
+  text: string
+  error: string | null
+  attempts: number
+}
+
+export type VoiceAutoSendState =
+  | "armed"
+  | "cancelled"
+  | "waitingChunks"
+  | "readyToSend"
+  | "sent"
+  | "draft"
+
+export type VoiceSessionTimings = {
+  speechStartMs: number
+  speechEndMs: number
+  paragraphBreakMs: number
+  finalSilenceMs: number
+  maxChunkMs: number
+}
+
 export type VoiceSessionVadFrame = {
   rms: number
   peak: number
   now: number
+  clippingRatio?: number | undefined
   speechProbability?: number | undefined
   speechProbabilityAt?: number | undefined
 }
@@ -21,6 +61,9 @@ export type VoiceSessionVadResult = {
   speaking: boolean
   started: boolean
   stopped: boolean
+  closedChunkIds: string[]
+  paragraphBreak: boolean
+  finalSilence: boolean
   source: VoiceSessionVadSource
   noiseFloor: number
   speechThreshold: number
@@ -28,9 +71,17 @@ export type VoiceSessionVadResult = {
 
 export type VoiceSessionVadSource = "silero" | "energy"
 
+export type VoiceWakeGainDebug = {
+  rms: number
+  peak: number
+  gain: number
+  clippingRatio: number
+}
+
 export type VoiceSessionDebugSnapshot = {
   phase: VoiceSessionPhase
   speaking: boolean
+  hasVoiceActivity: boolean
   vadSource: VoiceSessionVadSource
   speechProbability: number | null
   noiseFloor: number
@@ -40,19 +91,38 @@ export type VoiceSessionDebugSnapshot = {
   queuedPcmChunks: number
   lastSpeechAt: number
   lastVadAt: number
+  autoSendState: VoiceAutoSendState
+  currentChunkId: string | null
+  processingChunkId: string | null
+  chunks: Record<VoiceChunkState, number> & {total: number}
+  chunkPcmBytes: number
+  queuedChunkBytes: number
+  retryCount: number
+  lastError: string | null
+  timings: VoiceSessionTimings
+  wakeGain: VoiceWakeGainDebug | null
 }
 
-const DEFAULT_MAX_QUEUED_PCM_BYTES = 8 * 1024 * 1024
 const MIN_NOISE_FLOOR = 0.0015
 const MIN_SPEECH_THRESHOLD = 0.012
 const NEAR_VOICE_PEAK_THRESHOLD = 0.018
+const STRONG_VOICE_RMS_THRESHOLD = 0.035
+const STRONG_VOICE_PEAK_THRESHOLD = 0.075
 const NOISE_FLOOR_ATTACK = 0.025
 const NOISE_FLOOR_RELEASE = 0.002
 const SPEECH_THRESHOLD_FACTOR = 3.4
-const SPEECH_HOLD_MS = 220
 const SILERO_SPEECH_PROBABILITY = 0.54
-const SILERO_HOLD_PROBABILITY = 0.35
+const SILERO_ENERGY_FALLBACK_PROBABILITY = 0.18
 const SILERO_PROBABILITY_MAX_AGE_MS = 260
+const MAX_CLIPPING_RATIO_FOR_ENERGY = 0.22
+
+export const DEFAULT_VOICE_SESSION_TIMINGS: VoiceSessionTimings = {
+  speechStartMs: 90,
+  speechEndMs: 620,
+  paragraphBreakMs: 1_250,
+  finalSilenceMs: 1_850,
+  maxChunkMs: 12_000,
+}
 
 export class VoiceSessionManager {
   #phase: VoiceSessionPhase = "idle"
@@ -62,51 +132,97 @@ export class VoiceSessionManager {
   #noiseFloor = MIN_NOISE_FLOOR
   #speechThreshold = MIN_SPEECH_THRESHOLD
   #lastSpeechAt = 0
+  #lastSpeechEndedAt = 0
   #lastVadAt = 0
-  #outboundPcmChunks: ArrayBuffer[] = []
-  #outboundPcmBytes = 0
-  #queuedPcmChunks: ArrayBuffer[] = []
-  #queuedPcmBytes = 0
+  #recordingStartedAt = 0
+  #hasVoiceActivity = false
+  #speechCandidateStartedAt: number | null = null
+  #silenceCandidateStartedAt: number | null = null
+  #chunks: VoiceChunk[] = []
+  #currentChunk: VoiceChunk | null = null
+  #nextChunkIndex = 0
+  #autoSendState: VoiceAutoSendState = "armed"
+  #lastError: string | null = null
+  #wakeGain: VoiceWakeGainDebug | null = null
 
-  constructor(private readonly maxQueuedPcmBytes = DEFAULT_MAX_QUEUED_PCM_BYTES) {}
+  constructor(private readonly timings: VoiceSessionTimings = DEFAULT_VOICE_SESSION_TIMINGS) {}
 
   get phase(): VoiceSessionPhase {
     return this.#phase
   }
 
   get queuedPcmBytes(): number {
-    return this.#queuedPcmBytes
+    return this.#queuedChunkBytes()
   }
 
   get outboundPcmBytes(): number {
-    return this.#outboundPcmBytes
+    return 0
+  }
+
+  get currentChunkId(): string | null {
+    return this.#currentChunk?.id ?? null
   }
 
   startReady(): void {
     this.#phase = "ready"
+    this.#autoSendState = "armed"
   }
 
-  startRecording(): void {
-    this.#phase = "recording"
+  startRecording(force = false, now = performance.now()): void {
+    if (force || (this.#phase !== "reconnecting" && this.#phase !== "draft")) this.#phase = "recording"
+    if (force || (this.#autoSendState !== "draft" && this.#autoSendState !== "cancelled")) this.#autoSendState = "armed"
+    this.#recordingStartedAt = now
+    this.#lastSpeechAt = now
+    this.#lastSpeechEndedAt = now
+    this.#speechCandidateStartedAt = null
+    this.#silenceCandidateStartedAt = null
+    if (force) {
+      this.#hasVoiceActivity = false
+      this.#vadSource = "energy"
+      this.#speechProbability = null
+      this.#noiseFloor = MIN_NOISE_FLOOR
+      this.#speechThreshold = MIN_SPEECH_THRESHOLD
+    }
   }
 
-  markProcessing(): void {
+  markProcessing(chunkId?: string): void {
+    if (chunkId !== undefined) this.markChunkProcessing(chunkId)
     this.#phase = "processing"
+    if (this.#autoSendState === "armed" || this.#autoSendState === "readyToSend") this.#autoSendState = "waitingChunks"
   }
 
-  markReconnecting(): void {
+  markReconnecting(error?: string): void {
     this.#phase = "reconnecting"
+    if (error !== undefined && error.length > 0) this.#lastError = error
   }
 
   enterDraftMode(): void {
     this.#phase = "draft"
+    this.#autoSendState = "draft"
   }
 
-  markError(): void {
+  cancelAutoSend(): void {
+    this.#autoSendState = "cancelled"
+  }
+
+  markAutoSendWaitingChunks(): void {
+    if (this.#autoSendState !== "draft" && this.#autoSendState !== "cancelled") this.#autoSendState = "waitingChunks"
+  }
+
+  markAutoSendReady(): void {
+    if (this.#autoSendState !== "draft" && this.#autoSendState !== "cancelled") this.#autoSendState = "readyToSend"
+  }
+
+  markAutoSendSent(): void {
+    this.#autoSendState = "sent"
+  }
+
+  markError(error?: string): void {
     this.#phase = "error"
+    if (error !== undefined && error.length > 0) this.#lastError = error
   }
 
-  reset(clearQueuedPcm = true): void {
+  reset(): void {
     this.#phase = "idle"
     this.#speaking = false
     this.#vadSource = "energy"
@@ -114,18 +230,31 @@ export class VoiceSessionManager {
     this.#noiseFloor = MIN_NOISE_FLOOR
     this.#speechThreshold = MIN_SPEECH_THRESHOLD
     this.#lastSpeechAt = 0
+    this.#lastSpeechEndedAt = 0
     this.#lastVadAt = 0
-    this.clearOutboundPcm()
-    if (clearQueuedPcm) this.clearQueuedPcm()
+    this.#recordingStartedAt = 0
+    this.#hasVoiceActivity = false
+    this.#speechCandidateStartedAt = null
+    this.#silenceCandidateStartedAt = null
+    this.#currentChunk = null
+    this.#chunks = []
+    this.#nextChunkIndex = 0
+    this.#autoSendState = "armed"
+    this.#lastError = null
+    this.#wakeGain = null
   }
 
   acceptVadFrame(frame: VoiceSessionVadFrame): VoiceSessionVadResult {
     const rms = finitePositive(frame.rms)
     const peak = finitePositive(frame.peak)
+    const clippingRatio = finiteRatio(frame.clippingRatio ?? 0)
     const now = finitePositive(frame.now)
+    const closedChunkIds: string[] = []
     this.#lastVadAt = now
 
-    const likelySilence = !this.#speaking && peak < Math.max(NEAR_VOICE_PEAK_THRESHOLD, this.#speechThreshold * 2.2)
+    const likelySilence = !this.#speaking
+      && peak < NEAR_VOICE_PEAK_THRESHOLD * 0.9
+      && rms < Math.max(MIN_SPEECH_THRESHOLD, this.#noiseFloor * 2.4)
     if (likelySilence) {
       const factor = rms > this.#noiseFloor ? NOISE_FLOOR_ATTACK : NOISE_FLOOR_RELEASE
       this.#noiseFloor = this.#noiseFloor + (rms - this.#noiseFloor) * factor
@@ -142,110 +271,264 @@ export class VoiceSessionManager {
     this.#speechProbability = hasFreshSileroProbability ? speechProbability : null
     this.#vadSource = hasFreshSileroProbability ? "silero" : "energy"
 
-    const strongEnough = hasFreshSileroProbability
-      ? speechProbability >= SILERO_SPEECH_PROBABILITY && peak >= NEAR_VOICE_PEAK_THRESHOLD * 0.72
-      : rms >= this.#speechThreshold && peak >= NEAR_VOICE_PEAK_THRESHOLD
-    const held = hasFreshSileroProbability
-      ? this.#speaking && now - this.#lastSpeechAt <= SPEECH_HOLD_MS && speechProbability >= SILERO_HOLD_PROBABILITY
-      : this.#speaking && now - this.#lastSpeechAt <= SPEECH_HOLD_MS && rms >= this.#speechThreshold * 0.62
-    const speaking = strongEnough || held
-    const started = speaking && !this.#speaking
-    const stopped = !speaking && this.#speaking
-    this.#speaking = speaking
-    if (speaking) {
-      this.#lastSpeechAt = now
-      if (this.#phase === "ready" || this.#phase === "recording") this.#phase = "speaking"
-    } else if (this.#phase === "speaking") {
-      this.#phase = "recording"
+    const tooClippedForEnergy = clippingRatio >= MAX_CLIPPING_RATIO_FOR_ENERGY
+    const energySpeech = rms >= this.#speechThreshold && peak >= NEAR_VOICE_PEAK_THRESHOLD && !tooClippedForEnergy
+    const strongNearVoiceEnergy = rms >= Math.max(this.#speechThreshold * 1.35, 0.022)
+      && peak >= Math.max(NEAR_VOICE_PEAK_THRESHOLD * 1.35, 0.026)
+      && !tooClippedForEnergy
+    const sileroEnergyFallback = strongNearVoiceEnergy
+      && ((speechProbability ?? 0) >= SILERO_ENERGY_FALLBACK_PROBABILITY || rms >= STRONG_VOICE_RMS_THRESHOLD || peak >= STRONG_VOICE_PEAK_THRESHOLD)
+    const sileroSpeech = hasFreshSileroProbability
+      && speechProbability >= SILERO_SPEECH_PROBABILITY
+      && peak >= NEAR_VOICE_PEAK_THRESHOLD * 0.72
+      && clippingRatio < 0.35
+    const rawSpeech = hasFreshSileroProbability
+      ? sileroSpeech || sileroEnergyFallback
+      : energySpeech
+
+    let started = false
+    let stopped = false
+    if (rawSpeech) {
+      this.#silenceCandidateStartedAt = null
+      if (!this.#speaking) {
+        if (this.#speechCandidateStartedAt === null) this.#speechCandidateStartedAt = now
+        if (now - this.#speechCandidateStartedAt >= this.timings.speechStartMs) {
+          this.#speaking = true
+          started = true
+          this.#hasVoiceActivity = true
+          this.#lastSpeechAt = now
+          this.#createChunk(now)
+        }
+      } else {
+        this.#lastSpeechAt = now
+      }
+    } else {
+      this.#speechCandidateStartedAt = null
+      if (this.#speaking) {
+        if (this.#silenceCandidateStartedAt === null) this.#silenceCandidateStartedAt = now
+        if (now - this.#silenceCandidateStartedAt >= this.timings.speechEndMs) {
+          this.#speaking = false
+          stopped = true
+          this.#lastSpeechEndedAt = now
+          const chunk = this.closeCurrentChunk(now)
+          if (chunk !== null) closedChunkIds.push(chunk.id)
+        }
+      }
     }
 
+    if (this.#currentChunk !== null && now - this.#currentChunk.startedAt >= this.timings.maxChunkMs) {
+      const chunk = this.closeCurrentChunk(now, "max duration")
+      if (chunk !== null) closedChunkIds.push(chunk.id)
+      if (rawSpeech && this.#speaking) this.#createChunk(now)
+    }
+
+    if (this.#speaking) {
+      if (this.#phase === "ready" || this.#phase === "recording" || this.#phase === "queued") this.#phase = "speaking"
+    } else if (this.#phase === "speaking") {
+      this.#phase = this.#hasQueuedChunks() ? "queued" : "recording"
+    }
+
+    const silenceAnchor = this.#hasVoiceActivity ? Math.max(this.#lastSpeechAt, this.#lastSpeechEndedAt) : this.#recordingStartedAt || now
+    const silenceMs = this.#speaking ? 0 : now - silenceAnchor
     return {
-      speaking,
+      speaking: this.#speaking,
       started,
       stopped,
+      closedChunkIds,
+      paragraphBreak: this.#hasVoiceActivity && silenceMs >= this.timings.paragraphBreakMs,
+      finalSilence: this.#hasVoiceActivity && silenceMs >= this.timings.finalSilenceMs,
       source: this.#vadSource,
       noiseFloor: this.#noiseFloor,
       speechThreshold: this.#speechThreshold,
     }
   }
 
-  enqueueOutboundPcm(pcm: ArrayBuffer): number {
-    this.#outboundPcmChunks.push(pcm)
-    this.#outboundPcmBytes += pcm.byteLength
-    return this.#outboundPcmBytes
+  appendCurrentChunkPcm(pcm: ArrayBuffer): VoiceChunk | null {
+    if (this.#currentChunk === null || this.#currentChunk.state !== "recording") return null
+    this.#currentChunk.pcm.push(pcm)
+    this.#currentChunk.pcmBytes += pcm.byteLength
+    return this.#currentChunk
   }
 
-  takeOutboundPcm(): ArrayBuffer | null {
-    if (this.#outboundPcmBytes <= 0) return null
-    if (this.#outboundPcmChunks.length === 1) {
-      const [pcm] = this.#outboundPcmChunks
-      this.clearOutboundPcm()
-      return pcm ?? null
+  closeCurrentChunk(now = performance.now(), error?: string): VoiceChunk | null {
+    const chunk = this.#currentChunk
+    if (chunk === null) return null
+    this.#currentChunk = null
+    chunk.endedAt = now
+    if (chunk.pcmBytes > 0) {
+      chunk.state = "queued"
+      if (this.#autoSendState === "armed" || this.#autoSendState === "readyToSend") this.#autoSendState = "waitingChunks"
+      if (this.#phase !== "draft" && this.#phase !== "reconnecting") this.#phase = "queued"
+    } else {
+      chunk.state = "failed"
+      chunk.error = error ?? "empty audio chunk"
+      this.#lastError = chunk.error
+      if (this.#phase !== "draft" && this.#phase !== "reconnecting") this.#phase = "recording"
     }
-    const payload = new Uint8Array(this.#outboundPcmBytes)
-    let offset = 0
-    for (const pcm of this.#outboundPcmChunks) {
-      payload.set(new Uint8Array(pcm), offset)
-      offset += pcm.byteLength
+    return chunk
+  }
+
+  nextQueuedChunk(): VoiceChunk | null {
+    return this.#chunks.find((chunk) => chunk.state === "queued" || chunk.state === "retrying") ?? null
+  }
+
+  markChunkProcessing(id: string): VoiceChunk | null {
+    const chunk = this.#chunkById(id)
+    if (chunk === null) return null
+    chunk.state = "processing"
+    chunk.attempts += 1
+    chunk.error = null
+    this.#phase = "processing"
+    if (this.#autoSendState === "armed" || this.#autoSendState === "readyToSend") this.#autoSendState = "waitingChunks"
+    return chunk
+  }
+
+  markChunkRecognized(id: string, text: string): VoiceChunk | null {
+    const chunk = this.#chunkById(id)
+    if (chunk === null) return null
+    chunk.text = text
+    chunk.state = "recognized"
+    return chunk
+  }
+
+  markChunkMerged(id: string): VoiceChunk | null {
+    const chunk = this.#chunkById(id)
+    if (chunk === null) return null
+    chunk.state = "merged"
+    if (!this.#hasPendingChunks()) this.#autoSendState = this.#autoSendState === "draft" || this.#autoSendState === "cancelled" ? this.#autoSendState : "readyToSend"
+    return chunk
+  }
+
+  markChunkFailed(id: string, error: string, retry = true): VoiceChunk | null {
+    const chunk = this.#chunkById(id)
+    if (chunk === null) return null
+    if (chunk.state === "merged") return chunk
+    chunk.error = error
+    this.#lastError = error
+    chunk.state = retry ? "retrying" : "failed"
+    if (retry && this.#phase !== "draft") this.#phase = "reconnecting"
+    return chunk
+  }
+
+  requeueProcessingChunks(error: string): void {
+    for (const chunk of this.#chunks) {
+      if (chunk.state === "processing") this.markChunkFailed(chunk.id, error, true)
     }
-    this.clearOutboundPcm()
-    return payload.buffer
   }
 
-  clearOutboundPcm(): void {
-    this.#outboundPcmChunks = []
-    this.#outboundPcmBytes = 0
+  hasPendingChunks(): boolean {
+    return this.#hasPendingChunks()
   }
 
-  queueAsrPcm(pcm: ArrayBuffer): void {
-    this.#queuedPcmChunks.push(pcm)
-    this.#queuedPcmBytes += pcm.byteLength
-    this.trimQueuedPcm()
-    if (this.#phase !== "reconnecting" && this.#phase !== "draft") this.#phase = "queued"
+  hasVoiceActivity(): boolean {
+    return this.#hasVoiceActivity || this.#chunks.some((chunk) => chunk.state !== "failed")
   }
 
-  takeQueuedPcm(): ArrayBuffer[] {
-    const queued = this.#queuedPcmChunks
-    this.#queuedPcmChunks = []
-    this.#queuedPcmBytes = 0
-    return queued
-  }
-
-  requeuePcm(chunks: readonly ArrayBuffer[]): void {
-    for (const chunk of chunks) this.queueAsrPcm(chunk)
-  }
-
-  clearQueuedPcm(): void {
-    this.#queuedPcmChunks = []
-    this.#queuedPcmBytes = 0
+  setWakeGainDebug(debug: VoiceWakeGainDebug): void {
+    this.#wakeGain = debug
   }
 
   debugSnapshot(): VoiceSessionDebugSnapshot {
+    const counts = {
+      total: this.#chunks.length,
+      recording: 0,
+      closed: 0,
+      queued: 0,
+      processing: 0,
+      recognized: 0,
+      merged: 0,
+      failed: 0,
+      retrying: 0,
+    } satisfies Record<VoiceChunkState, number> & {total: number}
+    let chunkPcmBytes = 0
+    let retryCount = 0
+    let processingChunkId: string | null = null
+    for (const chunk of this.#chunks) {
+      counts[chunk.state] += 1
+      chunkPcmBytes += chunk.pcmBytes
+      retryCount += Math.max(0, chunk.attempts - 1)
+      if (chunk.state === "processing") processingChunkId = chunk.id
+    }
     return {
       phase: this.#phase,
       speaking: this.#speaking,
+      hasVoiceActivity: this.hasVoiceActivity(),
       vadSource: this.#vadSource,
       speechProbability: this.#speechProbability,
       noiseFloor: this.#noiseFloor,
       speechThreshold: this.#speechThreshold,
-      outboundPcmBytes: this.#outboundPcmBytes,
-      queuedPcmBytes: this.#queuedPcmBytes,
-      queuedPcmChunks: this.#queuedPcmChunks.length,
+      outboundPcmBytes: 0,
+      queuedPcmBytes: this.queuedPcmBytes,
+      queuedPcmChunks: counts.queued + counts.retrying,
       lastSpeechAt: this.#lastSpeechAt,
       lastVadAt: this.#lastVadAt,
+      autoSendState: this.#autoSendState,
+      currentChunkId: this.#currentChunk?.id ?? null,
+      processingChunkId,
+      chunks: counts,
+      chunkPcmBytes,
+      queuedChunkBytes: this.#queuedChunkBytes(),
+      retryCount,
+      lastError: this.#lastError,
+      timings: this.timings,
+      wakeGain: this.#wakeGain,
     }
   }
 
-  private trimQueuedPcm(): void {
-    while (this.#queuedPcmBytes > this.maxQueuedPcmBytes && this.#queuedPcmChunks.length > 0) {
-      const dropped = this.#queuedPcmChunks.shift()
-      this.#queuedPcmBytes -= dropped?.byteLength ?? 0
+  #createChunk(now: number): VoiceChunk {
+    if (this.#currentChunk !== null) return this.#currentChunk
+    const chunk: VoiceChunk = {
+      id: `voice-chunk-${Date.now().toString(36)}-${this.#nextChunkIndex.toString(36)}`,
+      index: this.#nextChunkIndex,
+      state: "recording",
+      startedAt: now,
+      endedAt: null,
+      pcm: [],
+      pcmBytes: 0,
+      text: "",
+      error: null,
+      attempts: 0,
     }
+    this.#nextChunkIndex += 1
+    this.#chunks.push(chunk)
+    this.#currentChunk = chunk
+    if (this.#phase !== "draft" && this.#phase !== "reconnecting") this.#phase = "speaking"
+    return chunk
+  }
+
+  #chunkById(id: string): VoiceChunk | null {
+    return this.#chunks.find((chunk) => chunk.id === id) ?? null
+  }
+
+  #hasQueuedChunks(): boolean {
+    return this.#chunks.some((chunk) => chunk.state === "queued" || chunk.state === "retrying")
+  }
+
+  #hasPendingChunks(): boolean {
+    return this.#currentChunk !== null || this.#chunks.some((chunk) => (
+      chunk.state === "queued"
+      || chunk.state === "retrying"
+      || chunk.state === "processing"
+      || chunk.state === "recognized"
+    ))
+  }
+
+  #queuedChunkBytes(): number {
+    let bytes = 0
+    for (const chunk of this.#chunks) {
+      if (chunk.state === "queued" || chunk.state === "retrying" || chunk.state === "processing") bytes += chunk.pcmBytes
+    }
+    return bytes
   }
 }
 
 function finitePositive(value: number): number {
   return Number.isFinite(value) && value > 0 ? value : 0
+}
+
+function finiteRatio(value: number): number {
+  if (!Number.isFinite(value)) return 0
+  return Math.min(1, Math.max(0, value))
 }
 
 function finiteProbability(value: number | undefined): number | null {

@@ -80,6 +80,7 @@ type PeerRecord = {
   id: string
   connection: RTCPeerConnection
   channel: RTCDataChannel | null
+  pendingIceCandidates: RTCIceCandidateInit[]
 }
 
 const DEFAULT_ANDROID_RTC_ROOM = "android-display"
@@ -190,7 +191,11 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
       if (typeof event.data !== "string") return
       const signal = parseSignal(event.data)
       if (signal === null) return
-      void handleSignal(signal)
+      void handleSignal(signal).catch((error) => {
+        const message = error instanceof Error ? error.message : String(error)
+        opts.onStatus("error", `rtc signal ${message}`)
+        opts.onDiagnostic?.("signal-error", {error: message})
+      })
     })
     socket.addEventListener("close", () => {
       if (socket !== currentSocket) return
@@ -285,6 +290,7 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     const peer = createPeer(signal.from, false)
     if (signal.type === "offer") {
       await peer.connection.setRemoteDescription(signal.description)
+      await flushPendingIceCandidates(peer)
       const answer = await peer.connection.createAnswer()
       await peer.connection.setLocalDescription(answer)
       sendSignal({type: "answer", to: signal.from, description: peer.connection.localDescription})
@@ -292,9 +298,10 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     }
     if (signal.type === "answer") {
       await peer.connection.setRemoteDescription(signal.description)
+      await flushPendingIceCandidates(peer)
       return
     }
-    await peer.connection.addIceCandidate(signal.candidate)
+    await addRemoteIceCandidate(peer, signal.candidate)
   }
 
   function connectPeer(remotePeerId: string): PeerRecord {
@@ -309,7 +316,7 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     const connection = new RTCPeerConnection({iceServers: opts.iceServers ?? RTC_ICE_SERVERS})
     applyVideoCodecPreference(connection.addTransceiver("video", {direction: "recvonly"}), opts.videoCodecPreference)
     if (opts.receiveAudio === true) connection.addTransceiver("audio", {direction: "recvonly"})
-    const peer: PeerRecord = {id: remotePeerId, connection, channel: null}
+    const peer: PeerRecord = {id: remotePeerId, connection, channel: null, pendingIceCandidates: []}
     peers.set(remotePeerId, peer)
 
     connection.addEventListener("icecandidate", (event) => {
@@ -359,6 +366,26 @@ export function createAndroidRtcClient(opts: AndroidRtcClientOpts): AndroidRtcCl
     }
 
     return peer
+  }
+
+  async function addRemoteIceCandidate(peer: PeerRecord, candidate: RTCIceCandidateInit): Promise<void> {
+    if (peer.connection.remoteDescription === null) {
+      peer.pendingIceCandidates.push(candidate)
+      if (peer.pendingIceCandidates.length > 64) peer.pendingIceCandidates.shift()
+      opts.onDiagnostic?.("ice-queued", {
+        peerId: peer.id,
+        pending: peer.pendingIceCandidates.length,
+        sdpMid: candidate.sdpMid ?? "",
+        sdpMLineIndex: candidate.sdpMLineIndex ?? -1,
+      })
+      return
+    }
+    await peer.connection.addIceCandidate(candidate)
+  }
+
+  async function flushPendingIceCandidates(peer: PeerRecord): Promise<void> {
+    const pending = peer.pendingIceCandidates.splice(0)
+    for (const candidate of pending) await addRemoteIceCandidate(peer, candidate)
   }
 
   async function startOffer(peer: PeerRecord): Promise<void> {

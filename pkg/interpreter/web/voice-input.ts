@@ -1,5 +1,6 @@
-import {VoiceSessionManager, type VoiceSessionDebugSnapshot} from "./voice-session-manager.ts"
+import {VoiceSessionManager, type VoiceChunk, type VoiceSessionDebugSnapshot} from "./voice-session-manager.ts"
 import {VoiceSileroVad, type VoiceSileroVadDebugSnapshot} from "./voice-silero-vad.ts"
+import {postInterpreterClientEvent} from "./remote-desktop-rtc-helpers.ts"
 
 export type VoiceInputStatus = "idle" | "connecting" | "waitingWake" | "listening" | "committing" | "error"
 
@@ -170,22 +171,16 @@ export const DEFAULT_VOICE_STOP_PHRASES = [
   "не подслушивай",
   "совсем выруби микрофон",
 ] as const
-const VOICE_WAKE_BASE_GAIN = 4.2
-const VOICE_WAKE_MAX_GAIN = 10
 const VOICE_WAKE_TARGET_RMS = 0.08
-const VOICE_WAKE_MIN_RMS = 0.001
+const VOICE_WAKE_GAIN_START_RMS = 0.035
+const VOICE_WAKE_HIGH_PEAK = 0.42
+const VOICE_WAKE_HEADROOM_PEAK = 0.86
+const VOICE_WAKE_MAX_GAIN = 6
 const MAX_SIGNAL_TONE_VOLUME = 3
-const SILENCE_COMMIT_MS = 1_550
-const MIN_COMMIT_AUDIO_MS = 1_500
-const MIN_COMMIT_INTERVAL_MS = 2_200
 const COMMIT_TIMEOUT_MS = 15_000
-const DEACTIVATION_COMMIT_TIMEOUT_MS = 3_000
 const FINAL_SETTLE_MS = 450
 const STOP_COMMAND_ARM_DELAY_MS = 1_800
 const ASR_RECONNECT_DELAY_MS = 900
-const PCM_FLUSH_BYTES = 4096
-const PCM_FLUSH_MS = 120
-const MAX_QUEUED_PCM_BYTES = 8 * 1024 * 1024
 const MAX_DELIVERED_TRANSCRIPT_CHARS = 8_000
 const MAX_REPEATED_VOICE_TOKEN_RUN = 120
 
@@ -196,7 +191,7 @@ export type VoiceInputDeliveryState = {
 }
 
 export class VoiceInputClient {
-  #session = new VoiceSessionManager(MAX_QUEUED_PCM_BYTES)
+  #session = new VoiceSessionManager()
   #sileroVad: VoiceSileroVad | null = null
   #commandWs: VoiceInputSocket | null = null
   #asrWs: VoiceInputSocket | null = null
@@ -217,18 +212,15 @@ export class VoiceInputClient {
 
   #commitPending = false
   #commitTimer: number | null = null
-  #hasSpeechSinceCommit = false
-  #lastSpeechAt = 0
-  #lastCommitAt = 0
   #lastRecognitionAt = 0
   #recognitionTimeoutTimer: number | null = null
-  #pcmSinceCommitBytes = 0
-  #outboundFlushTimer: number | null = null
   #pendingCommittedChunk: VoiceInputChunk | null = null
   #pendingCommittedChunkCommitId = 0
   #lastPartialChunk: VoiceInputChunk | null = null
   #pendingChunkFlushTimer: number | null = null
   #commitGeneration = 0
+  #processingChunkId: string | null = null
+  #finalSilenceRequested = false
   #commitWaiters: Array<() => void> = []
   #deliveryState = createVoiceInputDeliveryState()
   #debugAudioFrameCount = 0
@@ -237,6 +229,9 @@ export class VoiceInputClient {
   #debugLastInputPeak = 0
   #debugCommandBytesSent = 0
   #debugAsrBytesSent = 0
+  #traceSeq = 0
+  #lastAudioTraceAt = 0
+  #lastVadTraceAt = 0
 
   constructor(private readonly options: VoiceInputClientOptions) {}
 
@@ -309,6 +304,7 @@ export class VoiceInputClient {
   }
 
   async start(): Promise<void> {
+    this.#trace("start.request")
     if (this.active) return
     this.#stopRequested = false
     this.#wakeMatched = false
@@ -321,7 +317,9 @@ export class VoiceInputClient {
       await this.#startAudio()
       if (wakeEnabled) await this.#startCommandRecognizer()
       else this.#setStatus("idle")
+      this.#trace("start.ready", {wakeEnabled})
     } catch (error) {
+      this.#trace("start.error", {error: error instanceof Error ? error.message : String(error)})
       this.#setStatus("error", error instanceof Error ? error.message : String(error))
       this.#cleanup()
       throw error
@@ -329,6 +327,7 @@ export class VoiceInputClient {
   }
 
   stop(detail = ""): void {
+    this.#trace("stop.request", {detail})
     if (!this.active) return
     this.#stopRequested = true
     this.#sendCommand({type: "stop"})
@@ -404,57 +403,79 @@ export class VoiceInputClient {
   }
 
   async sleepToWake(): Promise<void> {
+    this.#trace("draft.request")
     if (!this.active) return
     this.#stopRequested = false
     this.#session.enterDraftMode()
+    this.#session.cancelAutoSend()
+    this.#finalSilenceRequested = false
+    this.#session.closeCurrentChunk(performance.now(), "draft mode")
+    this.#trace("draft.entered")
+    this.#flushPendingCommittedChunk()
+    this.#sendCommand({type: "stop"})
+    this.#disconnectCommandSocket()
+    this.#stopAudioOnly()
+    this.options.onLevel(0)
     if (!this.#asrEnabled) {
       this.#setStatus("waitingWake", WAKE_WORD)
       return
     }
-    await this.#commitCurrentChunkBeforeAsrShutdown()
-    this.#sendAsr({type: "stop"})
+    this.#setStatus("waitingWake", "draft")
+    this.#pumpAsrQueue()
     this.#clearAsrReconnectTimer()
-    this.#pauseAsrSocketForWake()
-    this.#asrEnabled = false
+    if (!this.#session.hasPendingChunks() && !this.#commitPending) {
+      this.#sendAsr({type: "stop"})
+      this.#pauseAsrSocketForWake()
+      this.#asrEnabled = false
+    } else if (this.#asrWs?.readyState !== WebSocket.OPEN) {
+      this.#scheduleAsrReconnect()
+    }
     this.#asrActivatedAt = 0
     this.#clearRecognitionTimeoutTimer()
-    this.#resetCommitState()
     this.#wakeMatched = false
-    if (this.#stream === null) {
-      await this.start()
-      return
-    }
-    if (this.#commandWs?.readyState !== WebSocket.OPEN) await this.#startCommandRecognizer()
-    else this.#setStatus("waitingWake", WAKE_WORD)
   }
 
   async startDictation(): Promise<void> {
+    this.#trace("dictation.request")
     if (!this.active) {
       await this.#startDictationFromIdle()
       return
     }
-    if (this.#asrEnabled) return
+    if (this.#stream === null) {
+      await this.#startDictationFromIdle()
+      return
+    }
+    if (this.#status === "waitingWake") {
+      this.#stopRequested = false
+      this.#wakeMatched = false
+      this.#finalSilenceRequested = false
+    } else if (this.#asrEnabled) {
+      this.#trace("dictation.skip.asr-enabled")
+      return
+    }
     try {
       await this.#activateAsr("")
     } catch (error) {
+      this.#trace("dictation.error", {error: error instanceof Error ? error.message : String(error)})
       this.#recoverAsrFailure(error)
-      throw error
     }
   }
 
   async #startDictationFromIdle(): Promise<void> {
+    this.#trace("dictation.idle-start")
     this.#stopRequested = false
     this.#wakeMatched = false
     this.#resetCommitState()
-    this.#session.startRecording()
+    this.#session.startRecording(true)
     this.#setStatus("connecting", this.options.url())
     try {
       await this.#startAudio()
       await this.#activateAsr("")
     } catch (error) {
+      this.#trace("dictation.idle-error", {error: error instanceof Error ? error.message : String(error)})
       if (this.#stream !== null && this.#asrEnabled) {
         this.#recoverAsrFailure(error)
-        throw error
+        return
       }
       this.#setStatus("error", error instanceof Error ? error.message : String(error))
       this.#cleanup()
@@ -472,6 +493,7 @@ export class VoiceInputClient {
       return
     }
     const phraseGroups = this.#commandPhrases()
+    this.#trace("wake.connect", {url: this.options.wakeUrl()})
     await this.#connectCommand(this.options.wakeUrl())
     this.#sendCommand({
       type: "start",
@@ -481,14 +503,16 @@ export class VoiceInputClient {
       words: true,
     })
     this.#setStatus("waitingWake", WAKE_WORD)
+    this.#trace("wake.started", {phraseCount: phraseGroups.activation.length})
   }
 
   async #activateAsr(wakeText: string): Promise<void> {
+    this.#trace("asr.activate.request", {wakeChars: cleanupVoiceText(wakeText).length, wakeText: debugTraceText(wakeText)})
     if (this.#wakeMatched || this.#stopRequested) return
     this.#wakeMatched = true
     this.options.onWake(wakeText)
     this.#resetCommitState()
-    this.#session.startRecording()
+    this.#session.startRecording(true)
     this.#clearAsrReconnectTimer()
     this.#asrEnabled = true
     this.#asrActivatedAt = performance.now()
@@ -502,23 +526,25 @@ export class VoiceInputClient {
       context: this.options.context().trim(),
       prompt: this.options.context().trim(),
     })
-    this.#flushOutboundPcm()
-    this.#flushQueuedPcm()
     this.#setStatus("listening")
-    this.#session.startRecording()
+    this.#session.startRecording(true)
+    this.#pumpAsrQueue()
     this.#touchRecognitionActivity()
+    this.#trace("asr.activate.ready")
   }
 
   async #connectCommand(url: string): Promise<void> {
     if (this.#commandWs?.readyState === WebSocket.OPEN) return
 
     const socketUrl = voiceInputWebSocketUrl(url)
+    this.#trace("wake.socket.connecting", {url: socketUrl})
     const ws = this.options.createCommandSocket?.(socketUrl, this.#socketContext()) ?? new WebSocket(socketUrl)
     ws.binaryType = "arraybuffer"
     this.#commandWs = ws
 
     ws.addEventListener("message", (event) => this.#handleCommandMessage(event as MessageEvent<unknown>))
     ws.addEventListener("close", () => {
+      this.#trace("wake.socket.close", {url: ws.url})
       if (this.#commandWs !== ws) return
       this.#commandWs = null
       if (this.#stopRequested || this.#status === "idle") return
@@ -527,8 +553,14 @@ export class VoiceInputClient {
     })
 
     await new Promise<void>((resolve, reject) => {
-      ws.addEventListener("open", () => resolve(), {once: true})
-      ws.addEventListener("error", () => reject(new Error(`voice command websocket failed: ${socketUrl}`)), {once: true})
+      ws.addEventListener("open", () => {
+        this.#trace("wake.socket.open", {url: socketUrl})
+        resolve()
+      }, {once: true})
+      ws.addEventListener("error", () => {
+        this.#trace("wake.socket.error", {url: socketUrl})
+        reject(new Error(`voice command websocket failed: ${socketUrl}`))
+      }, {once: true})
     })
   }
 
@@ -541,12 +573,14 @@ export class VoiceInputClient {
 
     this.#setTransport("connecting")
     const socketUrl = voiceInputWebSocketUrl(url)
+    this.#trace("asr.socket.connecting", {url: socketUrl})
     const ws = this.options.createAsrSocket?.(socketUrl, this.#socketContext()) ?? new WebSocket(socketUrl)
     ws.binaryType = "arraybuffer"
     this.#asrWs = ws
 
     ws.addEventListener("message", (event) => this.#handleAsrMessage(event as MessageEvent<unknown>))
     ws.addEventListener("close", () => {
+      this.#trace("asr.socket.close", {url: ws.url})
       if (this.#asrWs !== ws) return
       this.#asrWs = null
       this.#asrConnectPromise = null
@@ -560,9 +594,13 @@ export class VoiceInputClient {
       ws.addEventListener("open", () => {
         opened = true
         if (this.#asrTransport === "connecting" && ws instanceof WebSocket) this.#setTransport("ws")
+        this.#trace("asr.socket.open", {url: socketUrl})
         resolve()
       }, {once: true})
-      ws.addEventListener("error", () => reject(new Error(`voice ASR websocket failed: ${socketUrl}`)), {once: true})
+      ws.addEventListener("error", () => {
+        this.#trace("asr.socket.error", {url: socketUrl})
+        reject(new Error(`voice ASR websocket failed: ${socketUrl}`))
+      }, {once: true})
       ws.addEventListener("close", () => {
         if (!opened) reject(new Error(`voice ASR websocket closed before open: ${socketUrl}`))
       }, {once: true})
@@ -586,6 +624,7 @@ export class VoiceInputClient {
   }
 
   async #startAudio(): Promise<void> {
+    this.#trace("audio.start.request")
     try {
       this.#audioContext = new AudioContext({sampleRate: TARGET_SAMPLE_RATE})
     } catch {
@@ -600,6 +639,10 @@ export class VoiceInputClient {
         autoGainControl: true,
       },
       video: false,
+    })
+    this.#trace("audio.stream.ready", {
+      sampleRate: this.#audioContext.sampleRate,
+      tracks: this.#stream.getTracks().map((track) => `${track.kind}:${track.readyState}:${track.enabled ? "on" : "off"}`),
     })
 
     this.#sourceNode = this.#audioContext.createMediaStreamSource(this.#stream)
@@ -618,19 +661,29 @@ export class VoiceInputClient {
       if (!(samples instanceof Float32Array)) return
       this.#debugAudioFrameCount += 1
       this.#debugLastAudioFrameAt = performance.now()
-      this.#debugLastInputRms = rmsLevel(samples)
-      this.#debugLastInputPeak = peakLevel(samples)
+      const rms = rmsLevel(samples)
+      const peak = peakLevel(samples)
+      const clippingRatio = clippingRatioLevel(samples)
+      this.#debugLastInputRms = rms
+      this.#debugLastInputPeak = peak
+      const now = performance.now()
+      if (now - this.#lastAudioTraceAt >= 1_000) {
+        this.#lastAudioTraceAt = now
+        this.#trace("audio.frame", {rms: roundTraceNumber(rms), peak: roundTraceNumber(peak), clippingRatio: roundTraceNumber(clippingRatio)})
+      }
       const pcm = floatToPcm16(samples)
-      const wakePcm = floatToPcm16(applyWakeAudioGain(samples))
-      this.#pcmSinceCommitBytes += pcm.byteLength
+      const wakeGain = analyzeWakeAudioGain(samples, rms, peak, clippingRatio)
+      this.#session.setWakeGainDebug(wakeGain)
+      const wakePcm = floatToPcm16(applyWakeAudioGain(samples, wakeGain.gain))
       this.#sileroVad?.acceptFrame(samples)
-      this.#trackSpeechAndMaybeCommit(samples)
-      this.#sendPcm(pcm, wakePcm)
+      this.#trackSpeechAndMaybeCommit(samples, pcm, rms, peak, clippingRatio)
+      this.#sendCommandPcm(wakePcm)
     }
 
     this.#sourceNode.connect(this.#captureNode)
     this.#captureNode.connect(this.#sinkNode)
     this.#sinkNode.connect(this.#audioContext.destination)
+    this.#trace("audio.graph.ready", {sampleRate: this.#audioContext.sampleRate})
   }
 
   async #createCaptureNode(context: AudioContext): Promise<AudioWorkletNode> {
@@ -668,6 +721,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     }
 
     if (msg.type === "error") {
+      this.#trace("wake.message.error", {error: msg.error ?? "voice command error"})
       this.#setStatus("error", msg.error ?? "voice command error")
       return
     }
@@ -677,6 +731,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     if (!text) return
     const finalMessage = isFinalRecognitionMessage(msg)
     const commandTextHandled = this.options.onCommandText(cleanupVoiceText(text), finalMessage) === true
+    if (finalMessage) this.#trace("wake.message.final", {chars: cleanupVoiceText(text).length, text: debugTraceText(text), handled: commandTextHandled})
     if (commandTextHandled) return
 
     const phraseGroups = this.#commandPhrases()
@@ -720,7 +775,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
 
     if (msg.type === "partial") {
       const text = recognitionText(msg)
-      this.#setStatus("listening", compactDetail(text))
+      if (this.#session.phase !== "draft" && this.#status !== "waitingWake") this.#setStatus("listening", compactDetail(text))
       if (cleanupVoiceText(text).length > 0) this.#touchRecognitionActivity()
       const partial = removeCommandTextFromString(text, this.#asrControlPhrases(), (groupId) => this.#phraseFuzzyTolerance(groupId))
       const partialText = trimStableVoiceTranscriptPrefix(partial.text, this.#deliveryState.transcript)
@@ -732,6 +787,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     }
 
     if (msg.type === "result" || msg.type === "final") {
+      this.#trace("asr.message.final", {type: msg.type, chars: cleanupVoiceText(recognitionText(msg)).length, text: debugTraceText(recognitionText(msg))})
       const phraseGroups = this.#asrControlPhrases()
       const result = removeCommandText(chunkFromAsrMessage(msg, phraseGroups), phraseGroups, (groupId) => this.#phraseFuzzyTolerance(groupId))
       const chunk = result.chunk
@@ -739,6 +795,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
         this.#touchRecognitionActivity()
         this.#pendingCommittedChunk = chunk
         this.#pendingCommittedChunkCommitId = this.#commitPending ? this.#commitGeneration : 0
+        if (this.#processingChunkId !== null) this.#session.markChunkRecognized(this.#processingChunkId, voiceChunkDeliveryText(chunk))
         if (result.command === null) {
           this.options.onPartial(voiceChunkPreviewForDelivery(chunk, this.#deliveryState))
           this.#schedulePendingChunkFlush()
@@ -752,10 +809,13 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     }
 
     if (msg.type === "committed") {
+      this.#trace("asr.message.committed")
+      const committedChunkId = this.#processingChunkId
       this.#clearPendingChunkFlushTimer()
       this.#flushPendingCommittedChunk()
+      if (committedChunkId !== null) this.#session.markChunkMerged(committedChunkId)
       this.#finishCommit()
-      if (!this.#stopRequested) this.#setStatus("listening")
+      if (!this.#stopRequested && this.#status !== "waitingWake" && this.#session.phase !== "draft") this.#setStatus("listening")
       return
     }
 
@@ -766,6 +826,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     }
 
     if (msg.type === "error") {
+      this.#trace("asr.message.error", {error: msg.error ?? "voice error"})
       this.#recoverAsrFailure(msg.error ?? "voice error")
     }
   }
@@ -781,154 +842,166 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     })
   }
 
-  #trackSpeechAndMaybeCommit(samples: Float32Array): void {
+  #trackSpeechAndMaybeCommit(samples: Float32Array, pcm: ArrayBuffer, rms: number, peak: number, clippingRatio: number): void {
     const now = performance.now()
-    const rms = rmsLevel(samples)
     const sileroProbability = this.#sileroVad?.probability()
     this.options.onLevel(rms)
     if ((this.#status !== "listening" && this.#status !== "committing") || this.#stream === null) return
     const vad = this.#session.acceptVadFrame({
       rms,
-      peak: peakLevel(samples),
+      peak,
+      clippingRatio,
       now,
       speechProbability: sileroProbability?.probability ?? undefined,
       speechProbabilityAt: sileroProbability?.at ?? undefined,
     })
+    if (vad.started || vad.stopped || vad.closedChunkIds.length > 0 || vad.finalSilence || now - this.#lastVadTraceAt >= 1_000) {
+      this.#lastVadTraceAt = now
+      this.#trace(vad.started ? "vad.speech-start" : vad.stopped ? "vad.speech-stop" : vad.closedChunkIds.length > 0 ? "vad.chunk-closed" : vad.finalSilence ? "vad.final-silence" : "vad.frame", {
+        rms: roundTraceNumber(rms),
+        peak: roundTraceNumber(peak),
+        clippingRatio: roundTraceNumber(clippingRatio),
+        speechProbability: sileroProbability?.probability == null ? null : roundTraceNumber(sileroProbability.probability),
+        source: vad.source,
+        threshold: roundTraceNumber(vad.speechThreshold),
+        noiseFloor: roundTraceNumber(vad.noiseFloor),
+        closed: vad.closedChunkIds,
+      })
+    }
+    if (this.#asrEnabled && this.#session.currentChunkId !== null) this.#session.appendCurrentChunkPcm(pcm)
     if (vad.speaking) {
-      this.#hasSpeechSinceCommit = true
-      this.#lastSpeechAt = now
+      this.#finalSilenceRequested = false
       this.#lastRecognitionAt = now
     }
-    if (this.#status !== "listening") return
-
-    const sampleRate = this.#audioContext?.sampleRate ?? TARGET_SAMPLE_RATE
-    const minCommitBytes = Math.round(sampleRate * 2 * (MIN_COMMIT_AUDIO_MS / 1000))
-    const shouldCommit =
-      this.#hasSpeechSinceCommit &&
-      !this.#commitPending &&
-      this.#asrWs?.readyState === WebSocket.OPEN &&
-      this.#pcmSinceCommitBytes >= minCommitBytes &&
-      now - this.#lastSpeechAt >= SILENCE_COMMIT_MS &&
-      now - this.#lastCommitAt >= MIN_COMMIT_INTERVAL_MS
-
-    if (!shouldCommit) return
-
-    this.#beginCommit()
-    this.#hasSpeechSinceCommit = false
-    this.#lastCommitAt = now
-    this.#pcmSinceCommitBytes = 0
-    this.#flushOutboundPcm()
-    this.#sendAsr({type: "commit"})
-    this.#setStatus("committing")
+    if (vad.closedChunkIds.length > 0) this.#pumpAsrQueue()
+    if (vad.finalSilence) {
+      this.#finalSilenceRequested = true
+      this.#trace("dictation.final-silence")
+      this.#maybeFinishDictationAfterFinalSilence()
+    }
   }
 
-  #sendPcm(pcm: ArrayBuffer, commandPcm: ArrayBuffer): void {
+  #sendCommandPcm(commandPcm: ArrayBuffer): void {
     if (this.#commandWs?.readyState === WebSocket.OPEN) {
       this.#commandWs.send(commandPcm)
       this.#debugCommandBytesSent += commandPcm.byteLength
     }
+  }
+
+  #pumpAsrQueue(): void {
+    if (!this.#asrEnabled || this.#commitPending || this.#asrWs?.readyState !== WebSocket.OPEN) {
+      if (this.#session.hasPendingChunks()) this.#trace("asr.queue.wait", {reason: !this.#asrEnabled ? "asr-disabled" : this.#commitPending ? "commit-pending" : "socket-not-open"})
+      if (this.#session.hasPendingChunks()) this.#session.markAutoSendWaitingChunks()
+      return
+    }
+    const chunk = this.#session.nextQueuedChunk()
+    if (chunk === null) {
+      this.#trace("asr.queue.empty")
+      this.#maybePauseDraftAsrDrain()
+      this.#maybeFinishDictationAfterFinalSilence()
+      return
+    }
+    if (chunk.pcmBytes <= 0) {
+      this.#trace("asr.chunk.empty", {chunkId: chunk.id})
+      this.#session.markChunkFailed(chunk.id, "empty audio chunk", false)
+      this.#pumpAsrQueue()
+      return
+    }
+    this.#sendAsrChunk(chunk)
+  }
+
+  #maybeFinishDictationAfterFinalSilence(): void {
+    if (!this.#finalSilenceRequested || this.#stopRequested || !this.#asrEnabled) return
+    if (this.#status === "waitingWake" || this.#session.phase === "draft") {
+      this.#maybePauseDraftAsrDrain()
+      return
+    }
+    if (!this.#session.hasVoiceActivity()) {
+      this.#trace("dictation.final-silence.ignored", {reason: "no-voice-activity"})
+      this.#finalSilenceRequested = false
+      return
+    }
+    if (this.#commitPending || this.#session.hasPendingChunks()) {
+      this.#session.markAutoSendWaitingChunks()
+      return
+    }
+    this.#session.markAutoSendReady()
+    this.#finalSilenceRequested = false
+    void this.sleepToWake().catch((error) => {
+      this.#setStatus("error", error instanceof Error ? error.message : String(error))
+      this.#cleanup()
+    })
+  }
+
+  #maybePauseDraftAsrDrain(): void {
+    if (this.#status !== "waitingWake" && this.#session.phase !== "draft") return
+    if (this.#commitPending || this.#session.hasPendingChunks()) return
     if (!this.#asrEnabled) return
-    this.#enqueueOutboundPcm(pcm)
+    this.#sendAsr({type: "stop"})
+    this.#pauseAsrSocketForWake()
+    this.#asrEnabled = false
+    this.#asrActivatedAt = 0
+    this.#setStatus("waitingWake", "draft")
   }
 
-  #enqueueOutboundPcm(pcm: ArrayBuffer): void {
-    if (this.#session.enqueueOutboundPcm(pcm) >= PCM_FLUSH_BYTES) {
-      this.#flushOutboundPcm()
-      return
-    }
-    if (this.#outboundFlushTimer !== null) return
-    this.#outboundFlushTimer = window.setTimeout(() => {
-      this.#outboundFlushTimer = null
-      this.#flushOutboundPcm()
-    }, PCM_FLUSH_MS)
-  }
-
-  #flushOutboundPcm(): void {
-    if (this.#outboundFlushTimer !== null) {
-      window.clearTimeout(this.#outboundFlushTimer)
-      this.#outboundFlushTimer = null
-    }
-    const pcm = this.#session.takeOutboundPcm()
-    if (pcm === null) return
-    this.#sendAsrPcm(pcm)
-  }
-
-  #clearOutboundPcm(): void {
-    if (this.#outboundFlushTimer !== null) {
-      window.clearTimeout(this.#outboundFlushTimer)
-      this.#outboundFlushTimer = null
-    }
-    this.#session.clearOutboundPcm()
-  }
-
-  #sendAsrPcm(pcm: ArrayBuffer): void {
-    if (this.#asrWs?.readyState !== WebSocket.OPEN) {
-      this.#session.queueAsrPcm(pcm)
-      return
-    }
-    if (this.#commitPending) {
-      this.#session.queueAsrPcm(pcm)
-      return
-    }
-    this.#asrWs.send(pcm)
-    this.#debugAsrBytesSent += pcm.byteLength
-  }
-
-  #flushQueuedPcm(): void {
-    const queued = this.#session.takeQueuedPcm()
-    const unsent: ArrayBuffer[] = []
-    for (const pcm of queued) {
-      if (this.#asrWs?.readyState !== WebSocket.OPEN) {
-        unsent.push(pcm)
-        continue
+  #sendAsrChunk(chunk: VoiceChunk): void {
+    const ws = this.#asrWs
+    if (ws?.readyState !== WebSocket.OPEN) return
+    this.#beginCommit(chunk.id)
+    try {
+      this.#trace("asr.chunk.send", {chunkId: chunk.id, bytes: chunk.pcmBytes, parts: chunk.pcm.length, attempts: chunk.attempts})
+      for (const pcm of chunk.pcm) {
+        ws.send(pcm)
+        this.#debugAsrBytesSent += pcm.byteLength
       }
-      this.#asrWs.send(pcm)
-      this.#debugAsrBytesSent += pcm.byteLength
+      ws.send(JSON.stringify({type: "commit"}))
+      this.#setStatus("committing")
+    } catch (error) {
+      this.#session.markChunkFailed(chunk.id, error instanceof Error ? error.message : String(error), true)
+      this.#finishCommit(false)
+      this.#recoverAsrFailure(error)
     }
-    if (unsent.length > 0) this.#session.requeuePcm(unsent)
   }
 
-  #beginCommit(): void {
+  #beginCommit(chunkId: string): void {
+    this.#trace("asr.commit.begin", {chunkId})
     this.#commitPending = true
-    this.#session.markProcessing()
+    this.#processingChunkId = chunkId
+    this.#session.markProcessing(chunkId)
     this.#commitGeneration += 1
     this.#clearCommitTimer()
     this.#commitTimer = window.setTimeout(() => {
       if (!this.#commitPending) return
-      this.#flushPendingCommittedChunk()
+      const chunkId = this.#processingChunkId
+      this.#trace("asr.commit.timeout", {chunkId: chunkId ?? ""})
+      if (chunkId !== null) this.#session.markChunkFailed(chunkId, "commit timeout", true)
+      this.#pendingCommittedChunk = null
+      this.#pendingCommittedChunkCommitId = 0
+      this.#lastPartialChunk = null
       this.#finishCommit()
-      if (!this.#stopRequested && this.#asrWs?.readyState === WebSocket.OPEN) {
-        this.#setStatus("listening", "commit timeout")
+      if (!this.#stopRequested) {
+        this.#setStatus(this.#stream === null || this.#session.phase === "draft" ? "waitingWake" : "listening", "commit timeout")
+        this.#pumpAsrQueue()
       }
     }, COMMIT_TIMEOUT_MS)
   }
 
-  #finishCommit(): void {
+  #finishCommit(pump = true): void {
+    this.#trace("asr.commit.finish", {pump})
     this.#commitPending = false
+    this.#processingChunkId = null
     this.#clearCommitTimer()
-    this.#flushQueuedPcm()
-    this.#flushOutboundPcm()
     if (!this.#stopRequested && this.#status !== "waitingWake" && this.#status !== "idle") {
-      this.#session.startRecording()
+      this.#session.startRecording(this.#stream !== null && this.#session.phase !== "draft")
     }
     this.#resolveCommitWaiters()
+    if (pump) this.#pumpAsrQueue()
+    this.#maybeFinishDictationAfterFinalSilence()
   }
 
   async #commitCurrentChunkBeforeAsrShutdown(): Promise<void> {
-    if (this.#asrWs?.readyState !== WebSocket.OPEN) {
-      this.#flushPendingCommittedChunk()
-      return
-    }
-    if (!this.#commitPending) {
-      this.#flushOutboundPcm()
-      this.#beginCommit()
-      this.#hasSpeechSinceCommit = false
-      this.#lastCommitAt = performance.now()
-      this.#pcmSinceCommitBytes = 0
-      this.#sendAsr({type: "commit"})
-      this.#setStatus("committing", "deactivation commit")
-    }
-    await this.#waitForCommitSettled(DEACTIVATION_COMMIT_TIMEOUT_MS)
+    this.#session.closeCurrentChunk(performance.now(), "dictation stopped")
+    this.#pumpAsrQueue()
     this.#flushPendingCommittedChunk()
   }
 
@@ -963,17 +1036,13 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#resolveCommitWaiters()
     this.#clearPendingChunkFlushTimer()
     this.#commitPending = false
+    this.#processingChunkId = null
+    this.#finalSilenceRequested = false
     this.#pendingCommittedChunk = null
     this.#pendingCommittedChunkCommitId = 0
     this.#lastPartialChunk = null
-    this.#hasSpeechSinceCommit = false
-    this.#lastSpeechAt = performance.now()
-    this.#lastCommitAt = 0
     this.#commitGeneration = 0
     resetVoiceInputDeliveryState(this.#deliveryState)
-    this.#pcmSinceCommitBytes = 0
-    this.#clearOutboundPcm()
-    this.#session.clearQueuedPcm()
   }
 
   #touchRecognitionActivity(): void {
@@ -1069,26 +1138,31 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
 
   #recoverAsrFailure(error: unknown): void {
     const message = error instanceof Error ? error.message : String(error)
-    this.#flushPendingCommittedChunk()
+    this.#trace("asr.recover", {error: message})
+    this.#session.requeueProcessingChunks(message)
+    this.#pendingCommittedChunk = null
+    this.#pendingCommittedChunkCommitId = 0
+    this.#lastPartialChunk = null
     this.#disconnectAsrSocket()
-    this.#finishCommit()
-    if (!this.#asrEnabled || this.#stream === null || this.#stopRequested || this.#status === "idle" || this.#status === "waitingWake") {
+    this.#finishCommit(false)
+    if (!this.#asrEnabled || this.#stopRequested || this.#status === "idle") {
       this.#asrEnabled = false
       this.#asrActivatedAt = 0
       this.#wakeMatched = false
       this.#clearRecognitionTimeoutTimer()
-      this.#session.markError()
-      this.#setStatus("error", message)
+      this.#session.markReconnecting(message)
+      if (this.#status !== "idle") this.#setStatus("waitingWake", `ASR reconnecting: ${message}`)
       return
     }
-    this.#session.markReconnecting()
+    this.#session.markReconnecting(message)
     this.#setTransport("connecting")
-    this.#setStatus("listening", `ASR reconnecting: ${message}`)
+    this.#setStatus(this.#stream === null || this.#session.phase === "draft" ? "waitingWake" : "listening", `ASR reconnecting: ${message}`)
     this.#scheduleAsrReconnect()
   }
 
   #scheduleAsrReconnect(): void {
     if (this.#asrReconnectTimer !== null || !this.#asrEnabled || this.#stopRequested) return
+    this.#trace("asr.reconnect.scheduled", {delayMs: ASR_RECONNECT_DELAY_MS})
     this.#asrReconnectTimer = window.setTimeout(() => {
       this.#asrReconnectTimer = null
       void this.#reconnectAsr()
@@ -1096,7 +1170,8 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
   }
 
   async #reconnectAsr(): Promise<void> {
-    if (!this.#asrEnabled || this.#stopRequested || this.#stream === null) return
+    if (!this.#asrEnabled || this.#stopRequested) return
+    this.#trace("asr.reconnect.request")
     try {
       await this.#connectAsr(this.options.url())
       this.#sendAsr({
@@ -1107,15 +1182,17 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
         context: this.options.context().trim(),
         prompt: this.options.context().trim(),
       })
-      this.#flushOutboundPcm()
-      this.#flushQueuedPcm()
-      this.#session.startRecording()
-      this.#setStatus("listening", "ASR reconnected")
+      const resumeCapture = this.#stream !== null && this.#session.phase !== "draft"
+      this.#session.startRecording(resumeCapture)
+      this.#setStatus(resumeCapture ? "listening" : "waitingWake", "ASR reconnected")
       this.#touchRecognitionActivity()
+      this.#pumpAsrQueue()
+      this.#trace("asr.reconnect.ready", {resumeCapture})
     } catch (error) {
-      if (!this.#asrEnabled || this.#stopRequested || this.#stream === null) return
-      this.#session.markReconnecting()
-      this.#setStatus("listening", `ASR reconnecting: ${error instanceof Error ? error.message : String(error)}`)
+      if (!this.#asrEnabled || this.#stopRequested) return
+      this.#trace("asr.reconnect.error", {error: error instanceof Error ? error.message : String(error)})
+      this.#session.markReconnecting(error instanceof Error ? error.message : String(error))
+      this.#setStatus(this.#stream === null || this.#session.phase === "draft" ? "waitingWake" : "listening", `ASR reconnecting: ${error instanceof Error ? error.message : String(error)}`)
       this.#scheduleAsrReconnect()
     }
   }
@@ -1127,11 +1204,14 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
   }
 
   #setStatus(status: VoiceInputStatus, detail = ""): void {
+    const previous = this.#status
     this.#status = status
     this.options.onStatus(status, detail)
+    if (previous !== status || detail.length > 0) this.#trace("status", {from: previous, to: status, detail})
   }
 
   #stopAudioOnly(closeDelayMs = 0): void {
+    this.#trace("audio.stop", {closeDelayMs})
     const audioContext = this.#audioContext
     const workletUrl = this.#workletUrl
 
@@ -1157,6 +1237,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
   }
 
   #cleanup(closeAudioDelayMs = 0): void {
+    this.#trace("cleanup", {closeAudioDelayMs})
     this.#clearAsrReconnectTimer()
     this.#stopAudioOnly(closeAudioDelayMs)
     this.#disconnectAsrSocket()
@@ -1174,15 +1255,50 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
   #flushPendingCommittedChunk(): void {
     this.#clearPendingChunkFlushTimer()
     const pendingChunk = this.#pendingCommittedChunk
-    const fallbackChunk = this.#commitPending ? this.#lastPartialChunk : null
-    const chunk = pendingChunk ?? fallbackChunk
-    const commitId = pendingChunk !== null ? this.#pendingCommittedChunkCommitId : this.#commitGeneration
+    const chunk = pendingChunk
+    const commitId = this.#pendingCommittedChunkCommitId
+    const processingChunkId = this.#processingChunkId
     this.#pendingCommittedChunk = null
     this.#pendingCommittedChunkCommitId = 0
     this.#lastPartialChunk = null
     if (chunk === null || !voiceChunkHasText(chunk)) return
     const deliveryChunk = prepareVoiceInputChunkForDelivery(chunk, this.#deliveryState, commitId)
-    if (deliveryChunk !== null) this.options.onChunk(deliveryChunk)
+    if (deliveryChunk !== null) {
+      this.#trace("chunk.deliver", {chars: voiceChunkDeliveryText(deliveryChunk).length, text: debugTraceText(voiceChunkDeliveryText(deliveryChunk))})
+      this.options.onChunk(deliveryChunk)
+    }
+    if (processingChunkId !== null) this.#session.markChunkMerged(processingChunkId)
+  }
+
+  #trace(label: string, detail: Record<string, unknown> = {}): void {
+    const session = this.#session.debugSnapshot()
+    postInterpreterClientEvent("voice", label, {
+      ...detail,
+      seq: ++this.#traceSeq,
+      status: this.#status,
+      phase: session.phase,
+      autoSend: session.autoSendState,
+      speaking: session.speaking,
+      vad: session.vadSource,
+      chunksTotal: session.chunks.total,
+      chunksRecording: session.chunks.recording,
+      chunksQueued: session.chunks.queued + session.chunks.retrying,
+      chunksProcessing: session.chunks.processing,
+      chunksMerged: session.chunks.merged,
+      queuedBytes: session.queuedChunkBytes,
+      currentChunkId: session.currentChunkId,
+      processingChunkId: session.processingChunkId,
+      retry: session.retryCount,
+      asrEnabled: this.#asrEnabled,
+      transport: this.#asrTransport,
+      wakeState: this.#commandWs?.readyState ?? null,
+      asrState: this.#asrWs?.readyState ?? null,
+      streamActive: this.#stream?.active === true,
+      audioState: this.#audioContext?.state ?? null,
+      frames: this.#debugAudioFrameCount,
+      inputRms: roundTraceNumber(this.#debugLastInputRms),
+      inputPeak: roundTraceNumber(this.#debugLastInputPeak),
+    })
   }
 
   #schedulePendingChunkFlush(): void {
@@ -1294,6 +1410,16 @@ function voiceChunkDeliveryText(chunk: VoiceInputChunk): string {
   if (chunk.messages.length > 0) return chunk.messages.join(" ")
   if (chunk.text) return chunk.text
   return chunk.segments.map((segment) => segment.text ?? "").filter(Boolean).join(" ")
+}
+
+function debugTraceText(text: string): string {
+  const cleaned = cleanupVoiceText(text)
+  if (!cleaned) return ""
+  return cleaned.length <= 96 ? cleaned : `${cleaned.slice(0, 93)}...`
+}
+
+function roundTraceNumber(value: number): number {
+  return Math.round(value * 100_000) / 100_000
 }
 
 function voiceChunkPreviewForDelivery(chunk: VoiceInputChunk, state: VoiceInputDeliveryState): string {
@@ -1483,11 +1609,32 @@ function peakLevel(samples: Float32Array): number {
   return peak
 }
 
-function applyWakeAudioGain(samples: Float32Array): Float32Array {
-  const rms = rmsLevel(samples)
-  const gain = rms >= VOICE_WAKE_MIN_RMS
-    ? Math.min(VOICE_WAKE_MAX_GAIN, Math.max(VOICE_WAKE_BASE_GAIN, VOICE_WAKE_TARGET_RMS / rms))
-    : VOICE_WAKE_BASE_GAIN
+function clippingRatioLevel(samples: Float32Array): number {
+  if (samples.length === 0) return 0
+  let clipped = 0
+  for (const sample of samples) {
+    if (Math.abs(sample) >= 0.98) clipped += 1
+  }
+  return clipped / samples.length
+}
+
+export function analyzeWakeAudioGain(
+  samples: Float32Array,
+  rms = rmsLevel(samples),
+  peak = peakLevel(samples),
+  clippingRatio = clippingRatioLevel(samples),
+): {rms: number; peak: number; gain: number; clippingRatio: number} {
+  if (samples.length === 0) return {rms: 0, peak: 0, gain: 1, clippingRatio: 0}
+  if (rms >= VOICE_WAKE_GAIN_START_RMS || peak >= VOICE_WAKE_HIGH_PEAK || clippingRatio > 0) {
+    return {rms, peak, gain: 1, clippingRatio}
+  }
+  const rmsGain = VOICE_WAKE_TARGET_RMS / Math.max(0.001, rms)
+  const peakHeadroomGain = peak > 0 ? VOICE_WAKE_HEADROOM_PEAK / peak : VOICE_WAKE_MAX_GAIN
+  const gain = Math.max(1, Math.min(VOICE_WAKE_MAX_GAIN, rmsGain, peakHeadroomGain))
+  return {rms, peak, gain, clippingRatio}
+}
+
+export function applyWakeAudioGain(samples: Float32Array, gain = analyzeWakeAudioGain(samples).gain): Float32Array {
   const amplified = new Float32Array(samples.length)
   for (let index = 0; index < samples.length; index += 1) {
     amplified[index] = Math.max(-1, Math.min(1, (samples[index] ?? 0) * gain))

@@ -5,6 +5,8 @@ import {
   createWakeRecognitionGrammar,
   DEFAULT_VOICE_ACTIVATION_PHRASES,
   DEFAULT_VOICE_DEACTIVATION_PHRASES,
+  analyzeWakeAudioGain,
+  applyWakeAudioGain,
   isActivationPhrase,
   isActivationRecognitionMessage,
   isDeactivationPhrase,
@@ -179,8 +181,10 @@ describe("voice session manager", () => {
       expect(frame.speaking).toBe(false)
     }
 
-    const speech = session.acceptVadFrame({rms: 0.05, peak: 0.11, now: 600})
+    expect(session.acceptVadFrame({rms: 0.05, peak: 0.11, now: 600}).speaking).toBe(false)
+    const speech = session.acceptVadFrame({rms: 0.05, peak: 0.11, now: 700})
     expect(speech.speaking).toBe(true)
+    expect(speech.started).toBe(true)
     expect(speech.source).toBe("energy")
     expect(session.debugSnapshot().phase).toBe("speaking")
   })
@@ -189,12 +193,19 @@ describe("voice session manager", () => {
     const session = new VoiceSessionManager()
     session.startRecording()
 
-    const speech = session.acceptVadFrame({
+    expect(session.acceptVadFrame({
       rms: 0.006,
       peak: 0.018,
       now: 1000,
       speechProbability: 0.82,
       speechProbabilityAt: 980,
+    }).speaking).toBe(false)
+    const speech = session.acceptVadFrame({
+      rms: 0.006,
+      peak: 0.018,
+      now: 1100,
+      speechProbability: 0.82,
+      speechProbabilityAt: 1080,
     })
 
     expect(speech.speaking).toBe(true)
@@ -202,16 +213,165 @@ describe("voice session manager", () => {
     expect(session.debugSnapshot().speechProbability).toBe(0.82)
   })
 
-  test("keeps ASR PCM queued under a byte limit", () => {
-    const session = new VoiceSessionManager(1000)
-    session.queueAsrPcm(new ArrayBuffer(640))
-    session.queueAsrPcm(new ArrayBuffer(640))
+  test("does not finish dictation from silence before any speech chunk exists", () => {
+    const session = new VoiceSessionManager()
+    session.startRecording(true, 1_000)
+
+    const silence = session.acceptVadFrame({rms: 0.003, peak: 0.007, now: 4_000})
+
+    expect(silence.speaking).toBe(false)
+    expect(silence.finalSilence).toBe(false)
+    expect(session.hasVoiceActivity()).toBe(false)
+    expect(session.debugSnapshot().chunks.total).toBe(0)
+  })
+
+  test("lets strong near-voice energy start speech when Silero is uncertain", () => {
+    const session = new VoiceSessionManager()
+    session.startRecording(true, 1_000)
+
+    expect(session.acceptVadFrame({
+      rms: 0.032,
+      peak: 0.052,
+      now: 1_020,
+      speechProbability: 0.22,
+      speechProbabilityAt: 1_020,
+    }).speaking).toBe(false)
+    const speech = session.acceptVadFrame({
+      rms: 0.032,
+      peak: 0.052,
+      now: 1_130,
+      speechProbability: 0.22,
+      speechProbabilityAt: 1_130,
+    })
+
+    expect(speech.speaking).toBe(true)
+    expect(speech.started).toBe(true)
+    expect(speech.source).toBe("silero")
+    expect(session.hasVoiceActivity()).toBe(true)
+  })
+
+  test("does not let loud voice-like input poison the adaptive noise floor", () => {
+    const session = new VoiceSessionManager()
+    session.startRecording(true, 1_000)
+
+    for (let index = 0; index < 8; index += 1) {
+      session.acceptVadFrame({
+        rms: 0.064,
+        peak: 0.18,
+        now: 1_020 + index * 20,
+        speechProbability: 0.0005,
+        speechProbabilityAt: 1_020 + index * 20,
+      })
+    }
+
+    expect(session.debugSnapshot().noiseFloor).toBeLessThan(0.01)
+    expect(session.debugSnapshot().chunks.recording).toBe(1)
+
+    session.startRecording(true, 5_000)
+    const snapshot = session.debugSnapshot()
+    expect(snapshot.noiseFloor).toBeLessThan(0.002)
+    expect(snapshot.speechThreshold).toBe(0.012)
+  })
+
+  test("creates and closes speech chunks locally while ASR is offline", () => {
+    const session = new VoiceSessionManager()
+    session.startRecording()
+
+    session.acceptVadFrame({rms: 0.05, peak: 0.11, now: 100})
+    const started = session.acceptVadFrame({rms: 0.05, peak: 0.11, now: 210})
+    expect(started.started).toBe(true)
+    expect(session.debugSnapshot().chunks.recording).toBe(1)
+    session.appendCurrentChunkPcm(new ArrayBuffer(640))
+
+    expect(session.acceptVadFrame({rms: 0.002, peak: 0.004, now: 500}).stopped).toBe(false)
+    const stopped = session.acceptVadFrame({rms: 0.002, peak: 0.004, now: 1_200})
+    expect(stopped.stopped).toBe(true)
+    expect(stopped.closedChunkIds).toHaveLength(1)
 
     const snapshot = session.debugSnapshot()
-    expect(snapshot.queuedPcmBytes).toBeLessThanOrEqual(1000)
-    expect(snapshot.queuedPcmChunks).toBe(1)
-    expect(session.takeQueuedPcm()).toHaveLength(1)
-    expect(session.debugSnapshot().queuedPcmBytes).toBe(0)
+    expect(snapshot.chunks.recording).toBe(0)
+    expect(snapshot.chunks.queued).toBe(1)
+    expect(snapshot.queuedChunkBytes).toBe(640)
+    expect(session.nextQueuedChunk()?.state).toBe("queued")
+  })
+
+  test("keeps closed chunks queued until recognized and merged", () => {
+    const session = new VoiceSessionManager()
+    session.startRecording()
+    session.acceptVadFrame({rms: 0.05, peak: 0.11, now: 100})
+    session.acceptVadFrame({rms: 0.05, peak: 0.11, now: 210})
+    session.appendCurrentChunkPcm(new ArrayBuffer(320))
+    session.closeCurrentChunk(300)
+
+    const queued = session.nextQueuedChunk()
+    expect(queued?.state).toBe("queued")
+    expect(queued).not.toBeNull()
+    const id = queued!.id
+
+    session.markChunkProcessing(id)
+    expect(session.debugSnapshot().chunks.processing).toBe(1)
+    session.requeueProcessingChunks("socket closed")
+    expect(session.nextQueuedChunk()?.state).toBe("retrying")
+    expect(session.debugSnapshot().retryCount).toBe(0)
+    session.markChunkProcessing(id)
+    expect(session.debugSnapshot().retryCount).toBe(1)
+    session.markChunkRecognized(id, "готовый текст")
+    expect(session.debugSnapshot().chunks.recognized).toBe(1)
+    session.markChunkMerged(id)
+    expect(session.debugSnapshot().chunks.merged).toBe(1)
+    expect(session.hasPendingChunks()).toBe(false)
+    session.markChunkFailed(id, "late timeout", true)
+    expect(session.debugSnapshot().chunks.merged).toBe(1)
+    expect(session.nextQueuedChunk()).toBeNull()
+  })
+
+  test("repeat mic click draft mode closes current chunk and cancels auto-send without discarding audio", () => {
+    const session = new VoiceSessionManager()
+    session.startRecording()
+    session.acceptVadFrame({rms: 0.05, peak: 0.11, now: 100})
+    session.acceptVadFrame({rms: 0.05, peak: 0.11, now: 210})
+    session.appendCurrentChunkPcm(new ArrayBuffer(480))
+
+    session.enterDraftMode()
+    session.cancelAutoSend()
+    session.closeCurrentChunk(260)
+
+    const snapshot = session.debugSnapshot()
+    expect(snapshot.phase).toBe("draft")
+    expect(snapshot.autoSendState).toBe("cancelled")
+    expect(snapshot.chunks.queued).toBe(1)
+    expect(snapshot.queuedChunkBytes).toBe(480)
+  })
+
+  test("explicit dictation start exits draft mode", () => {
+    const session = new VoiceSessionManager()
+    session.enterDraftMode()
+    expect(session.debugSnapshot().phase).toBe("draft")
+
+    session.startRecording(true)
+    const snapshot = session.debugSnapshot()
+    expect(snapshot.phase).toBe("recording")
+    expect(snapshot.autoSendState).toBe("armed")
+  })
+
+})
+
+describe("voice wake gain", () => {
+  test("does not amplify already loud or peak-heavy wake audio", () => {
+    const loud = new Float32Array([0.2, -0.2, 0.24, -0.24])
+    expect(analyzeWakeAudioGain(loud).gain).toBe(1)
+    expect(Array.from(applyWakeAudioGain(loud))).toEqual(Array.from(loud))
+
+    const peakHeavy = new Float32Array([0.001, -0.002, 0.7, -0.001])
+    expect(analyzeWakeAudioGain(peakHeavy).gain).toBe(1)
+  })
+
+  test("amplifies only quiet wake audio within peak headroom", () => {
+    const quiet = new Float32Array([0.004, -0.005, 0.006, -0.004])
+    const gain = analyzeWakeAudioGain(quiet).gain
+    expect(gain).toBeGreaterThan(1)
+    expect(gain).toBeLessThanOrEqual(6)
+    expect(Math.max(...Array.from(applyWakeAudioGain(quiet)).map(Math.abs))).toBeLessThanOrEqual(0.86)
   })
 })
 

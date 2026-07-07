@@ -1046,6 +1046,7 @@ let voiceInputClient: VoiceInputClient | null = null
 let voiceActiveTarget: VoiceInputTarget | null = null
 let voicePartialPreviewTarget: VoiceInputTarget | null = null
 let voicePartialPreviewText = ""
+let voicePartialPreviewMode: "partial" | "draft" = "partial"
 let voiceTargetActivationLastKey = ""
 let voiceTargetActivationLastAt = 0
 let voiceHudErrorTimer: number | null = null
@@ -3923,11 +3924,7 @@ async function toggleVoiceInput(): Promise<void> {
       flashVoiceHudError(t("voiceNoActiveInput"))
       return
     }
-    const serviceOk = await checkVoiceService()
-    if (!serviceOk) {
-      flashVoiceHudError(voiceServiceDetail)
-      return
-    }
+    void checkVoiceService()
     await client.startDictation()
   } catch (error) {
     flashVoiceHudError(error instanceof Error ? error.message : String(error))
@@ -3976,11 +3973,7 @@ async function startVoiceWake(reportErrors: boolean): Promise<boolean> {
     return false
   }
 
-  const serviceOk = await checkVoiceService()
-  if (!serviceOk) {
-    if (reportErrors) flashVoiceHudError(voiceServiceDetail)
-    return false
-  }
+  void checkVoiceService()
 
   try {
     await client.start()
@@ -4095,11 +4088,7 @@ async function activateHostVoiceSession(): Promise<void> {
   focusHostCodexComposer(controller)
   setHostCodexComposerStatus(controller, "Codex voice", 1600)
   voiceAutoWakePaused = false
-  const serviceOk = await checkVoiceService()
-  if (!serviceOk) {
-    flashVoiceHudError(voiceServiceDetail)
-    return
-  }
+  void checkVoiceService()
   try {
     await ensureVoiceInputClient().startDictation()
   } catch (error) {
@@ -4144,11 +4133,7 @@ async function activateBrowserChatVoiceSession(provider: BrowserChatProviderId):
   const session = activeBrowserChatSession(controller)
   setBrowserChatStatus(controller, `${session.label} voice`, 1600, session)
   voiceAutoWakePaused = false
-  const serviceOk = await checkVoiceService()
-  if (!serviceOk) {
-    flashVoiceHudError(voiceServiceDetail)
-    return
-  }
+  void checkVoiceService()
   try {
     await ensureVoiceInputClient().startDictation()
   } catch (error) {
@@ -4212,25 +4197,26 @@ function handleVoicePartial(raw: string): void {
 
   voiceLastPartialText = text
   voiceLastPartialAt = new Date()
-  showVoicePartialPreview(target, voicePreviewWithBufferedInput(target, text))
+  showVoicePartialPreview(target, voicePreviewWithBufferedInput(target, text), "partial")
   if (target.kind === "module") showModuleTerminalPrompt(target.controller)
   renderVoiceHud()
 }
 
-function showVoicePartialPreview(target: VoiceInputTarget, text: string): void {
+function showVoicePartialPreview(target: VoiceInputTarget, text: string, mode: "partial" | "draft" = "draft"): void {
   if (voicePartialPreviewTarget !== null && !sameVoiceInputTarget(voicePartialPreviewTarget, target)) {
     clearVoicePartialPreview()
   }
   voicePartialPreviewTarget = target
   voicePartialPreviewText = text
+  voicePartialPreviewMode = mode
   if (target.kind === "host" && target.controller === hostTerminal) {
-    applyHostVoiceComposerText(target.controller, text)
+    if (mode === "draft") applyHostVoiceComposerText(target.controller, text)
     target.controller.codexComposer.requestRender()
     if (hostCodexUsesUnifiedComposer(target.controller)) browserChat!.composer.requestRender()
     return
   }
   if (target.kind === "browser-chat") {
-    applyBrowserChatVoiceComposerText(target.controller, text)
+    if (mode === "draft") applyBrowserChatVoiceComposerText(target.controller, text)
     target.controller.composer.requestRender()
     return
   }
@@ -4250,6 +4236,7 @@ function clearVoicePartialPreview(): void {
   }
   voicePartialPreviewTarget = null
   voicePartialPreviewText = ""
+  voicePartialPreviewMode = "partial"
 }
 
 function clearVoiceWakePreview(): void {
@@ -4293,6 +4280,7 @@ function flushVoiceInputForDeactivation(): void {
 
 function shouldPreserveVoicePartialForStatus(previousStatus: VoiceInputStatus, status: VoiceInputStatus, detail?: string): boolean {
   if (voicePartialPreviewTarget === null || voicePartialPreviewText.trim().length === 0) return false
+  if (voicePartialPreviewMode !== "draft") return false
   if (previousStatus !== "listening" && previousStatus !== "committing") return false
   if (status === "error") return isVoiceConnectionLossDetail(detail)
   return status === "waitingWake" && isVoiceConnectionLossDetail(detail)
@@ -4306,6 +4294,7 @@ function isVoiceConnectionLossDetail(detail: string | undefined): boolean {
 function preserveVoicePartialAsTerminalInput(): boolean {
   const target = voicePartialPreviewTarget
   const text = cleanupVoiceInputText(voicePartialPreviewText)
+  if (voicePartialPreviewMode !== "draft") return false
   if (target === null || text.length === 0) return false
   discardVoiceAutoSendBuffer()
 
@@ -4334,7 +4323,7 @@ function queueVoiceAutoSendText(target: VoiceInputTarget, raw: string): boolean 
   }
   voiceAutoSendTarget = target
   voiceAutoSendText = mergeVoiceInputText(voiceAutoSendText, text)
-  showVoicePartialPreview(target, voiceAutoSendText)
+  showVoicePartialPreview(target, voiceAutoSendText, "draft")
   updateVoiceHud(undefined, `${t("voiceDrafted")}: ${voiceAutoSendText}`)
   return true
 }
@@ -4347,6 +4336,9 @@ function flushVoiceAutoSendBuffer(): boolean {
   voiceAutoSendText = ""
   voiceNextFlushMode = "auto"
   if (target === null || text.length === 0) return false
+
+  if (target.kind === "host" && target.controller === hostTerminal) flushHostCodexDraftFromEditor(target.controller)
+  if (target.kind === "browser-chat") flushBrowserChatDraftFromEditor(target.controller)
 
   const autoSendEnabled = readVoiceAutoSendEnabled()
   const hostComposerEdited = target.kind === "host" && target.controller === hostTerminal && target.controller.voiceComposerEdited
@@ -6557,13 +6549,20 @@ function voiceDebugLines(): string[] {
     `${ru ? "деталь" : "detail"}: ${voiceHudDetail || "-"}`,
     `${ru ? "цель" : "target"}: ${target || "-"}`,
     `${ru ? "сессия" : "session"}: ${session?.phase ?? "-"}`,
+    `${ru ? "auto-send" : "auto-send"}: ${session?.autoSendState ?? "-"}`,
+    `${ru ? "capture" : "capture"}: ${debug === undefined ? "-" : `${debug.streamActive ? "on" : "off"} audio=${debug.audioContextState ?? "-"} frames=${debug.audioFrameCount}`}`,
+    `${ru ? "sockets" : "sockets"}: ${debug === undefined ? "-" : `wake=${readyStateLabel(debug.commandReadyState)} asr=${readyStateLabel(debug.asrReadyState)}`}`,
+    `${ru ? "asr enabled" : "asr enabled"}: ${debug?.asrEnabled === true ? "yes" : "no"}`,
     `${ru ? "говорит" : "speaking"}: ${session?.speaking === true ? "yes" : "no"}`,
     `VAD: ${session?.vadSource ?? "-"}`,
     `Silero: ${sileroState}${silero?.speechProbability === null || silero?.speechProbability === undefined ? "" : ` p=${silero.speechProbability.toFixed(2)}`}`,
+    `${ru ? "chunks" : "chunks"}: ${session === undefined ? "-" : `total=${session.chunks.total} rec=${session.chunks.recording} queued=${session.chunks.queued + session.chunks.retrying} proc=${session.chunks.processing} merged=${session.chunks.merged}`}`,
     `${ru ? "очередь ASR" : "ASR queue"}: ${debug === undefined ? "-" : `${debug.asrBytesQueued} bytes`}`,
+    `${ru ? "retry" : "retry"}: ${session?.retryCount ?? 0}`,
     `${ru ? "transport" : "transport"}: ${debug?.asrTransport ?? "-"}`,
     `${ru ? "noise floor" : "noise floor"}: ${session === undefined ? "-" : session.noiseFloor.toFixed(4)}`,
     `${ru ? "speech threshold" : "speech threshold"}: ${session === undefined ? "-" : session.speechThreshold.toFixed(4)}`,
+    `${ru ? "wake gain" : "wake gain"}: ${session?.wakeGain === null || session?.wakeGain === undefined ? "-" : `${session.wakeGain.gain.toFixed(2)} rms=${session.wakeGain.rms.toFixed(4)} peak=${session.wakeGain.peak.toFixed(3)} clip=${Math.round(session.wakeGain.clippingRatio * 100)}%`}`,
     `${ru ? "wake слышит" : "wake heard"}: ${debugVoiceText(voiceWakePreviewText)}`,
     `${ru ? "wake время" : "wake at"}: ${formatDebugTime(voiceWakePreviewAt)}`,
     `${ru ? "preview активен" : "preview active"}: ${previewActive ? "yes" : "no"}`,
@@ -6582,6 +6581,14 @@ function voiceDebugLines(): string[] {
     `${ru ? "левенштейн" : "levenshtein"}: a ${Math.round(readVoiceFuzzyTolerance("activation") * 100)}% · d ${Math.round(readVoiceFuzzyTolerance("deactivation") * 100)}% · s ${Math.round(readVoiceFuzzyTolerance("stop") * 100)}%`,
     `${ru ? "звук" : "sound"}: ${hudNotificationDebugLine()}`,
   ]
+}
+
+function readyStateLabel(state: number | null): string {
+  if (state === WebSocket.CONNECTING) return "connecting"
+  if (state === WebSocket.OPEN) return "open"
+  if (state === WebSocket.CLOSING) return "closing"
+  if (state === WebSocket.CLOSED) return "closed"
+  return "-"
 }
 
 function debugVoiceText(text: string): string {

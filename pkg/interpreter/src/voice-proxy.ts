@@ -102,7 +102,7 @@ export function relayVoiceProxyMessage(
   if (ws.data.pendingBytes > MAX_PENDING_BYTES) {
     ws.data.pending = []
     ws.data.pendingBytes = 0
-    closeVoiceProxyClient(ws, 1013, "voice proxy pending buffer limit")
+    sendVoiceProxyStatus(ws, "error", "voice proxy pending buffer limit")
   }
 }
 
@@ -160,8 +160,9 @@ async function sendVoiceProxyPayloadToClient(
   ws.send(String(payload))
 }
 
-function closeVoiceProxyClient(ws: ServerWebSocket<VoiceProxySocketData>, code: number, reason: string): void {
-  if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) ws.close(code, reason)
+function sendVoiceProxyStatus(ws: ServerWebSocket<VoiceProxySocketData>, type: "status" | "error", message: string): void {
+  if (ws.readyState !== WebSocket.OPEN) return
+  ws.send(JSON.stringify({type, error: message, message}))
 }
 
 function voiceProxyPayloadSize(payload: VoiceProxyPayload): number {
