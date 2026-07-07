@@ -1054,7 +1054,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       this.#finalSilenceRequested = false
       return
     }
-    this.#stopCaptureForFinalSilence()
+    this.#prepareFinalSilenceForAsrQueue()
     if (this.#commitPending || this.#session.hasPendingChunks()) {
       this.#session.markAutoSendWaitingChunks()
       this.#pumpAsrQueue()
@@ -1062,25 +1062,21 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     }
     this.#session.markAutoSendReady()
     this.#finalSilenceRequested = false
-    this.#maybePauseDraftAsrDrain()
+    this.#maybePauseDraftAsrDrain(true)
   }
 
-  #stopCaptureForFinalSilence(): void {
-    this.#trace("dictation.capture.stop-final-silence")
+  #prepareFinalSilenceForAsrQueue(): void {
+    this.#trace("dictation.capture.final-silence", {keepAudio: this.#stream !== null})
     this.#session.closeCurrentChunk(performance.now(), "final silence")
     this.#flushLiveAsrPcm()
     this.#sendCommand({type: "stop"})
     this.#disconnectCommandSocket()
     this.#clearRecognitionTimeoutTimer()
-    if (this.#stream !== null) {
-      this.#stopAudioOnly()
-      this.options.onLevel(0)
-    }
-    if (this.#status !== "processing") this.#setStatus("processing", "ASR queue")
+    if (this.#stream === null && this.#status !== "processing") this.#setStatus("processing", "ASR queue")
   }
 
-  #maybePauseDraftAsrDrain(): void {
-    if (this.#status !== "waitingWake" && this.#status !== "processing" && this.#session.phase !== "draft") return
+  #maybePauseDraftAsrDrain(force = false): void {
+    if (!force && this.#status !== "waitingWake" && this.#status !== "processing" && this.#session.phase !== "draft") return
     if (this.#commitPending || this.#session.hasPendingChunks()) return
     if (!this.#asrEnabled) return
     this.#sendAsr({type: "stop"})
@@ -1093,7 +1089,13 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     }
     else {
       this.#session.reset()
-      this.#setStatus("idle", "ready")
+      if (this.#wakeEnabled()) {
+        this.#setStatus("waitingWake", "ready")
+        void this.reconnectWaitingWake()
+      } else {
+        this.#stopAudioOnly()
+        this.#setStatus("idle", "ready")
+      }
     }
   }
 
@@ -1164,7 +1166,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#processingChunkId = null
     this.#clearCommitTimer()
     if (!this.#stopRequested && this.#stream !== null && this.#status !== "waitingWake" && this.#status !== "idle" && this.#status !== "processing") {
-      this.#session.startRecording(this.#stream !== null && this.#session.phase !== "draft")
+      this.#session.startRecording(false)
     }
     this.#resolveCommitWaiters()
     if (pump) this.#pumpAsrQueue()
