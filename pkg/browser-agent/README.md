@@ -2,14 +2,15 @@
 
 Browser-hosted LLM chat transport and tool-protocol runtime for MetaFor.
 
-This package owns provider/runtime logic for browser-based agents such as Qwen. It must stay independent from `@metafor/interpreter`: the interpreter is only a host that supplies Chrome DevTools callbacks and `/tools` wiring.
+This package owns provider/runtime logic for browser-based agents such as Qwen and DeepSeek. It must stay independent from `@metafor/interpreter`: the interpreter is only a host that supplies Chrome DevTools callbacks and `/tools` wiring.
 
 ## Boundary
 
 `@metafor/browser-agent` owns:
 
 - browser chat transport runtime (`browser_chat.send/read/wait/exchange`);
-- provider DOM expressions, currently Qwen;
+- provider DOM expressions for Qwen and DeepSeek;
+- provider selection via `provider`, `adapter`, `urlContains`, `targetUrl`, or `targetTitle`;
 - transport state fields such as `canSend`, `busy`, `generating`, `preferenceActive`, `blockedReason`, `limitReached`;
 - response wait/stability logic;
 - send recovery helpers.
@@ -36,6 +37,21 @@ createBrowserAgentRuntime({
 
 The package must not import from `pkg/interpreter` or `@metafor/interpreter`; keep dependencies one-way: interpreter -> browser-agent.
 
+## Providers
+
+Current provider ids:
+
+- `qwen` targets `chat.qwen.ai` and is the fallback provider.
+- `deepseek` targets `chat.deepseek.com`.
+
+Use `provider` when multiple browser LLM chats are open in the same Chrome instance:
+
+```json
+{"provider":"deepseek","message":"...","newChat":true}
+```
+
+If `provider` is not provided, the runtime infers it from `adapter`, `urlContains`, `targetUrl`, or `targetTitle`, then falls back to Qwen.
+
 ## Next providers
 
-Add new browser LLMs as provider adapters rather than forking interpreter code. DeepSeek should be added as a provider beside Qwen, not as another interpreter transport implementation.
+Add new browser LLMs as provider adapters rather than forking interpreter code.
