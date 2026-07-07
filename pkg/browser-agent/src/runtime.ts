@@ -1,8 +1,9 @@
 import {asBoolean, asNumber, asObject, asString} from "./guards.ts"
+import {DEFAULT_DEEPSEEK_URL_CONTAINS, deepseekReadExpression, deepseekSendExpression} from "./providers/deepseek.ts"
 import {DEFAULT_QWEN_URL_CONTAINS, qwenReadExpression, qwenSendExpression} from "./providers/qwen.ts"
-import type {BrowserAgentHost, BrowserAgentJsonObject, BrowserAgentRuntime} from "./types.ts"
+import type {BrowserAgentHost, BrowserAgentJsonObject, BrowserAgentProvider, BrowserAgentRuntime} from "./types.ts"
 
-export {DEFAULT_QWEN_URL_CONTAINS}
+export {DEFAULT_DEEPSEEK_URL_CONTAINS, DEFAULT_QWEN_URL_CONTAINS}
 
 const BROWSER_CHAT_READ_INTERVAL_MS = 650
 const BROWSER_CHAT_STABLE_TICKS = 8
@@ -12,6 +13,24 @@ const BROWSER_CHAT_READ_RETRY_MS = 220
 const BROWSER_CHAT_READ_RETRIES = 2
 const BROWSER_CHAT_SEND_READY_INTERVAL_MS = 650
 const BROWSER_CHAT_SEND_READY_TIMEOUT_MS = 90_000
+
+const QWEN_PROVIDER: BrowserAgentProvider = {
+  id: "qwen",
+  label: "Qwen",
+  urlContains: DEFAULT_QWEN_URL_CONTAINS,
+  sendExpression: qwenSendExpression,
+  readExpression: qwenReadExpression,
+}
+
+const DEEPSEEK_PROVIDER: BrowserAgentProvider = {
+  id: "deepseek",
+  label: "DeepSeek",
+  urlContains: DEFAULT_DEEPSEEK_URL_CONTAINS,
+  sendExpression: deepseekSendExpression,
+  readExpression: deepseekReadExpression,
+}
+
+const BROWSER_AGENT_PROVIDERS = [QWEN_PROVIDER, DEEPSEEK_PROVIDER] as const satisfies readonly BrowserAgentProvider[]
 
 export function createBrowserAgentRuntime(host: BrowserAgentHost): BrowserAgentRuntime {
   return {
@@ -30,38 +49,40 @@ async function runBrowserChatToolUse(host: BrowserAgentHost, name: string, param
 async function browserChatSend(host: BrowserAgentHost, params: BrowserAgentJsonObject): Promise<BrowserAgentJsonObject> {
   const message = asString(params["message"]) ?? asString(params["text"])
   if (message === undefined || message.trim().length === 0) return {ok: false, error: "message required"}
+  const provider = browserAgentProviderForParams(params)
   const newChat = asBoolean(params["newChat"]) ?? asBoolean(params["newConversation"]) ?? false
   const waitUntilReady = asBoolean(params["waitUntilReady"]) ?? true
   const timeoutMs = boundedNumber(asNumber(params["sendTimeoutMs"]), BROWSER_CHAT_SEND_READY_TIMEOUT_MS, 1_000, 300_000)
   const startedAt = Date.now()
 
   while (true) {
-    const sent = await evaluateBrowserChatPayload(host, params, qwenSendExpression(message, newChat))
-    if (sent["ok"] === true) return {...sent, waitedMs: Date.now() - startedAt}
-    if (sent["limitReached"] === true) return {...sent, waitedMs: Date.now() - startedAt}
+    const sent = await evaluateBrowserChatPayload(host, provider, params, provider.sendExpression(message, newChat))
+    if (sent["ok"] === true) return {...sent, provider: provider.id, waitedMs: Date.now() - startedAt}
+    if (sent["limitReached"] === true) return {...sent, provider: provider.id, waitedMs: Date.now() - startedAt}
     if (isTransientBrowserChatError(asString(sent["error"]))) {
       await delay(300)
       const read = await browserChatRead(host, params)
       const recovered = browserChatRecoveredSendPayload(message, sent, read)
-      if (recovered !== null) return {...recovered, waitedMs: Date.now() - startedAt}
+      if (recovered !== null) return {...recovered, provider: provider.id, waitedMs: Date.now() - startedAt}
       if (waitUntilReady && Date.now() - startedAt < timeoutMs) continue
-      return {...sent, waitedMs: Date.now() - startedAt}
+      return {...sent, provider: provider.id, waitedMs: Date.now() - startedAt}
     }
     if (!waitUntilReady || !isBrowserChatBusyPayload(sent) || Date.now() - startedAt >= timeoutMs) {
-      return {...sent, waitedMs: Date.now() - startedAt}
+      return {...sent, provider: provider.id, waitedMs: Date.now() - startedAt}
     }
     await delay(BROWSER_CHAT_SEND_READY_INTERVAL_MS)
   }
 }
 
 async function browserChatRead(host: BrowserAgentHost, params: BrowserAgentJsonObject): Promise<BrowserAgentJsonObject> {
-  let last: BrowserAgentJsonObject = {ok: false, error: "browser_chat.read did not run"}
+  const provider = browserAgentProviderForParams(params)
+  let last: BrowserAgentJsonObject = {ok: false, provider: provider.id, error: "browser_chat.read did not run"}
   for (let attempt = 0; attempt <= BROWSER_CHAT_READ_RETRIES; attempt += 1) {
-    last = await evaluateBrowserChatPayload(host, params, qwenReadExpression())
-    if (last["ok"] === true || !isTransientBrowserChatError(asString(last["error"]))) return last
+    last = await evaluateBrowserChatPayload(host, provider, params, provider.readExpression())
+    if (last["ok"] === true || !isTransientBrowserChatError(asString(last["error"]))) return {...last, provider: provider.id}
     if (attempt < BROWSER_CHAT_READ_RETRIES) await delay(BROWSER_CHAT_READ_RETRY_MS)
   }
-  return last
+  return {...last, provider: provider.id}
 }
 
 async function browserChatWait(host: BrowserAgentHost, params: BrowserAgentJsonObject): Promise<BrowserAgentJsonObject> {
@@ -110,9 +131,9 @@ async function browserChatExchange(host: BrowserAgentHost, params: BrowserAgentJ
   return {...wait, send}
 }
 
-async function evaluateBrowserChatPayload(host: BrowserAgentHost, params: BrowserAgentJsonObject, expression: string): Promise<BrowserAgentJsonObject> {
+async function evaluateBrowserChatPayload(host: BrowserAgentHost, provider: BrowserAgentProvider, params: BrowserAgentJsonObject, expression: string): Promise<BrowserAgentJsonObject> {
   try {
-    const targetParams = browserChatTargetParams(params)
+    const targetParams = browserChatTargetParams(params, provider)
     const viewport = await ensureBrowserChatDesktopViewport(host, targetParams)
     const evaluated = await host.evaluateExpression({
       ...targetParams,
@@ -123,23 +144,32 @@ async function evaluateBrowserChatPayload(host: BrowserAgentHost, params: Browse
     })
     const value = runtimeEvaluateValue(evaluated.result)
     const payload = asObject(value)
-    if (payload === undefined) return {ok: false, target: evaluated.target, error: "browser chat script returned non-object payload"}
-    return {...payload, target: evaluated.target, ...(viewport === null ? {} : {viewport})}
+    if (payload === undefined) return {ok: false, provider: provider.id, target: evaluated.target, error: "browser chat script returned non-object payload"}
+    return {...payload, provider: provider.id, target: evaluated.target, ...(viewport === null ? {} : {viewport})}
   } catch (error) {
-    return {ok: false, error: host.serializeError?.(error) ?? (error instanceof Error ? error.message : String(error))}
+    return {ok: false, provider: provider.id, error: host.serializeError?.(error) ?? (error instanceof Error ? error.message : String(error))}
   }
 }
 
-function browserChatTargetParams(params: BrowserAgentJsonObject): BrowserAgentJsonObject {
+function browserChatTargetParams(params: BrowserAgentJsonObject, provider: BrowserAgentProvider): BrowserAgentJsonObject {
   const target: BrowserAgentJsonObject = {}
   for (const key of ["targetId", "targetUrl", "targetTitle", "urlContains"] as const) {
     const value = asString(params[key])
     if (value !== undefined && value.length > 0) target[key] = value
   }
   if (target["targetId"] === undefined && target["targetUrl"] === undefined && target["targetTitle"] === undefined && target["urlContains"] === undefined) {
-    target["urlContains"] = DEFAULT_QWEN_URL_CONTAINS
+    target["urlContains"] = provider.urlContains
   }
   return target
+}
+
+function browserAgentProviderForParams(params: BrowserAgentJsonObject): BrowserAgentProvider {
+  const requested = asString(params["provider"]) ?? asString(params["adapter"])
+  const explicit = requested === undefined ? undefined : BROWSER_AGENT_PROVIDERS.find((provider) => provider.id === requested || provider.label.toLowerCase() === requested.toLowerCase())
+  if (explicit !== undefined) return explicit
+  const urlHint = `${asString(params["urlContains"]) ?? ""} ${asString(params["targetUrl"]) ?? ""} ${asString(params["targetTitle"]) ?? ""}`.toLowerCase()
+  if (urlHint.includes("deepseek")) return DEEPSEEK_PROVIDER
+  return QWEN_PROVIDER
 }
 
 async function ensureBrowserChatDesktopViewport(host: BrowserAgentHost, targetParams: BrowserAgentJsonObject): Promise<BrowserAgentJsonObject | null> {
