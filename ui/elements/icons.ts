@@ -27,6 +27,8 @@ const stepOutSvg = iconSvg("<path d=\"M12 20V5\"/><path d=\"M7 10l5-5 5 5\"/>")
 const logSvg = iconSvg("<path d=\"M4 5h16v14H4z\"/><path d=\"m7 9 3 3-3 3\"/><path d=\"M12 15h5\"/>")
 const databaseSvg = iconSvg("<ellipse cx=\"12\" cy=\"5\" rx=\"7\" ry=\"3\"/><path d=\"M5 5v6c0 1.66 3.13 3 7 3s7-1.34 7-3V5\"/><path d=\"M5 11v6c0 1.66 3.13 3 7 3s7-1.34 7-3v-6\"/>")
 const codexSvg = iconSvg("<path d=\"M17 6.5A7.5 7.5 0 1 0 17 17.5\"/><path d=\"M8.5 9.5 6 12l2.5 2.5\"/><path d=\"M15.5 9.5 18 12l-2.5 2.5\"/><path d=\"M13.5 8 10.5 16\"/>", "#5cf0ff")
+const qwenSvg = svgIcon("<svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><circle cx=\"12\" cy=\"12\" r=\"8.2\" fill=\"#111b26\" stroke=\"#5cf0ff\" stroke-width=\"1.8\"/><path d=\"M15.6 15.6 19 19\" stroke=\"#5cf0ff\" stroke-width=\"1.8\" stroke-linecap=\"round\"/><path d=\"M8.2 12.2c0-2.35 1.54-4 3.82-4 2.24 0 3.78 1.65 3.78 4 0 2.32-1.54 3.98-3.78 3.98-2.28 0-3.82-1.66-3.82-3.98Z\" stroke=\"#bffbff\" stroke-width=\"1.45\"/></svg>")
+const deepseekSvg = svgIcon("<svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M12 3c4.7 0 8.5 3.25 8.5 7.25 0 4.75-4.55 8.1-9.75 10.25-.65-2.2-2.05-3.05-4.35-3.35C4.6 15.85 3.5 13.65 3.5 10.9 3.5 6.55 7.3 3 12 3Z\" fill=\"#071b27\" stroke=\"#5cf0ff\" stroke-width=\"1.7\" stroke-linejoin=\"round\"/><path d=\"M8.2 10.3h.02M15.8 10.3h.02\" stroke=\"#bffbff\" stroke-width=\"2.4\" stroke-linecap=\"round\"/><path d=\"M8.8 14c1.8 1.25 4.6 1.25 6.4 0\" stroke=\"#5cf0ff\" stroke-width=\"1.5\" stroke-linecap=\"round\"/></svg>")
 const phoneSvg = iconSvg("<rect x=\"7\" y=\"2.5\" width=\"10\" height=\"19\" rx=\"2\"/><path d=\"M10.5 18.5h3\"/>")
 const clearSvg = iconSvg("<path d=\"M4 7h16\"/><path d=\"M10 11v6\"/><path d=\"M14 11v6\"/><path d=\"M6 7l1 14h10l1-14\"/><path d=\"M9 7V4h6v3\"/>")
 const autoscrollSvg = iconSvg("<path d=\"M12 4v11\"/><path d=\"M7 10l5 5 5-5\"/><path d=\"M5 20h14\"/>")
@@ -75,6 +77,8 @@ export const uiIcons = {
   log: logSvg,
   database: databaseSvg,
   codex: codexSvg,
+  qwen: qwenSvg,
+  deepseek: deepseekSvg,
   phone: phoneSvg,
   clear: clearSvg,
   autoscroll: autoscrollSvg,

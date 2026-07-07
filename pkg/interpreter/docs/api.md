@@ -413,26 +413,28 @@ callback; Browser Agent UI вызывает его при клике по вкл
 
 Codex message и Browser Agent message используют общий UI composer flow для
 text/voice/image attachments, но transport разный: Codex message идет в
-host PTY/Codex CLI, Browser Agent message идет в remote browser chat. В MVP
-image attachments не загружаются в provider UI как файлы: composer добавляет
-пути к загруженным изображениям в текст сообщения.
+host PTY/Codex CLI, Browser Agent message идет в remote browser chat. Оба
+направления используют один общий HUD composer с target-кнопками
+`Codex`/`Qwen`/`DeepSeek`: выбранный target определяет transport, draft,
+attachments и обработчик submit. В MVP image attachments не загружаются в
+provider UI как файлы: composer добавляет пути к загруженным изображениям в
+текст сообщения.
 
 Browser Agent Chat UI имеет provider sessions: `Qwen` и `DeepSeek`. Каждая
 session имеет отдельную историю, draft, attachments, transport state и tool loop
-state; переключение вкладок не очищает draft/history другой session. Один
-composer/editor работает с active session, а все вызовы `browser_chat.*` из UI
-передают `provider` и `urlContains` этой active session.
-Session state хранится в browser `localStorage`: active session, draft,
-attachments, сообщения, DeepSeek mode/deep-thinking, transport flags и tool loop
-control/pending state переживают reload UI. Ephemeral timers/read polling после
-reload создаются заново и live transport state дополнительно гидратируется через
-`browser_chat.read`.
+state; переключение target не очищает draft/history другой session. Все вызовы
+`browser_chat.*` из UI передают `provider` и `urlContains` выбранной browser
+session. Session state хранится в browser `localStorage`: active session, active
+composer target, draft, attachments, сообщения, DeepSeek mode/deep-thinking,
+transport flags и tool loop control/pending state переживают reload UI.
+Ephemeral timers/read polling после reload создаются заново и live transport
+state дополнительно гидратируется через `browser_chat.read`.
 Голосовые wake-команды `Завхоз`/`Запхоз`/`Метафор` возвращают текущий voice
-target в Codex message host composer. Команды `Квин`/`Qwen` и
-`Дипсик`/`DeepSeek` открывают Browser Agent Chat, переключают active session,
-активируют соответствующую Chrome вкладку через `browser_chat.activate` и
-назначают Browser Agent composer текущим voice target. Эти команды не
-вставляются в draft как пользовательский текст.
+target в общий composer с target `Codex`. Команды `Квин`/`Qwen` и
+`Дипсик`/`DeepSeek` открывают Browser Agent Chat, переключают active session и
+composer target, активируют соответствующую Chrome вкладку через
+`browser_chat.activate` и назначают Browser Agent target текущим voice target.
+Эти команды не вставляются в draft как пользовательский текст.
 
 Обычная отправка Browser Agent message передает в active provider только текст
 пользователя и attachment paths. Tool prompt не добавляется автоматически к

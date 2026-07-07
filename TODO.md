@@ -36,3 +36,4 @@
 
 - [100] MVP передаёт изображения в Qwen как текстовые пути через composer message.
 - [ ] Выбрать следующий transport для настоящего vision-ввода: Qwen API или headed browser upload.
+- [100] Объединить Codex message и Browser Agent message в один общий composer с target кнопками Codex/Qwen/DeepSeek, отдельными drafts/attachments и submit routing по выбранной цели.

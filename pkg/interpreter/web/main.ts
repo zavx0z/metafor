@@ -20,7 +20,7 @@ import {
   type UiSurfaceRect,
 } from "@ui/elements"
 import {VoiceInputHud, type ButtonVoiceSnapshot, type VoiceInputHudDeactivationMode, type VoiceInputHudPhraseGroupId, type VoiceInputHudServiceState} from "@ui/components"
-import {type HudSideTabEdge} from "@ui/hud"
+import {type HudSideTabEdge, type HudWindowTitleBarAction} from "@ui/hud"
 import {
   EditorPane,
   FileListPane,
@@ -167,7 +167,6 @@ import {
   HOST_TERMINAL_CODEX_COMPOSER_H,
   HOST_TERMINAL_CODEX_COMPOSER_MIN_W,
   HOST_TERMINAL_CODEX_COMPOSER_MIN_H,
-  HOST_TERMINAL_CODEX_COMPOSER_GAP,
 } from "./codex-composer-pane.ts"
 import {
   BrowserChatPane,
@@ -177,7 +176,6 @@ import {
   BROWSER_CHAT_PANE_MIN_H,
   BROWSER_CHAT_PANE_MIN_W,
   type BrowserChatPaneMessage,
-  type BrowserChatPaneSession,
   type BrowserChatPaneStatusKind,
 } from "./browser-chat-pane.ts"
 import {
@@ -187,7 +185,6 @@ import {
   writeStoredHostTerminalSessionId,
   readStoredHostTerminalHudRect,
   storeHostTerminalHudRect,
-  readStoredHostCodexComposerRect,
   storeHostCodexComposerRect,
   readStoredBrowserChatHudRect,
   storeBrowserChatHudRect,
@@ -694,6 +691,7 @@ type BrowserChatPendingToolResults = {message: string; summary: string}
 
 type BrowserChatProviderId = "qwen" | "deepseek"
 type BrowserChatToolPromptMode = "fast" | "expert" | "vision"
+type MessageComposerTargetId = "codex" | BrowserChatProviderId
 
 type BrowserChatSession = {
   id: string
@@ -742,6 +740,7 @@ type BrowserChatController = {
   editor: EditorPane
   sessions: BrowserChatSession[]
   activeSessionId: string
+  activeComposerTargetId: MessageComposerTargetId
   codexAttachments: CodexComposerAttachment[]
   codexDropActive: boolean
 }
@@ -749,6 +748,7 @@ type BrowserChatController = {
 type StoredBrowserChatState = {
   version: 1
   activeSessionId?: string
+  activeComposerTargetId?: MessageComposerTargetId
   sessions?: Record<string, StoredBrowserChatSession>
 }
 
@@ -1065,7 +1065,6 @@ let voiceServiceCheckedAt: Date | null = null
 let voiceServiceCheckInFlight = false
 let voiceServiceCheckTimer: number | null = null
 let hostTerminalUnloadInstalled = false
-let hostCodexComposerDragHandlersInstalled = false
 let browserChatComposerDragHandlersInstalled = false
 let hudNotificationAudioContext: AudioContext | null = null
 let remoteDesktopAudioContext: AudioContext | null = null
@@ -2891,10 +2890,7 @@ function installEnginePanes(): void {
   for (const controller of sqliteDisplays.values()) installSqliteHudSurfaces(controller)
   const host = ensureHostTerminalController()
   uiCanvas.addHudSurface(host.hudTerminal, hostTerminalHudRect, {windowId: "hud:terminal"})
-  uiCanvas.addHudSurface(host.codexComposer, hostCodexComposerRect, {windowId: "hud:codex"})
-  uiCanvas.addHudSurface(host.codexEditor, hostCodexEditorRect, {windowId: "hud:codex", zIndex: 1})
   if (host.socket === null) connectHostTerminal(host)
-  installHostCodexComposerDragHandlers()
   const chat = ensureBrowserChatController()
   uiCanvas.addHudSurface(chat.chatPane, browserChatPaneRect, {windowId: "hud:browser-chat"})
   uiCanvas.addHudSurface(chat.composer, browserChatComposerRect, {windowId: "hud:browser-chat-composer"})
@@ -4062,6 +4058,8 @@ function maybeActivateHostVoiceSession(text: string): boolean {
 
 async function activateHostVoiceSession(): Promise<void> {
   const controller = ensureHostTerminalController()
+  const chatController = ensureBrowserChatController()
+  setBrowserChatComposerTarget(chatController, "codex")
   setHostTerminalHudDocked(false)
   setVoiceActiveTarget({kind: "host", controller})
   focusHostCodexComposer(controller)
@@ -4198,6 +4196,7 @@ function showVoicePartialPreview(target: VoiceInputTarget, text: string): void {
   if (target.kind === "host" && target.controller === hostTerminal) {
     applyHostVoiceComposerText(target.controller, text)
     target.controller.codexComposer.requestRender()
+    if (hostCodexUsesUnifiedComposer(target.controller)) browserChat!.composer.requestRender()
     return
   }
   if (target.kind === "browser-chat") {
@@ -4213,6 +4212,7 @@ function clearVoicePartialPreview(): void {
   if (target === null) return
   if (target.kind === "host" && target.controller === hostTerminal) {
     target.controller.codexComposer.requestRender()
+    if (hostCodexUsesUnifiedComposer(target.controller)) browserChat!.composer.requestRender()
   } else if (target.kind === "browser-chat") {
     target.controller.composer.requestRender()
   } else {
@@ -4526,7 +4526,9 @@ function setHostCodexDraft(controller: HostTerminalController, value: string): v
   if (controller.codexDraft === value) return
   controller.codexDraft = value
   syncHostCodexEditor(controller)
+  if (hostCodexUsesUnifiedComposer(controller)) syncBrowserChatEditor(browserChat!)
   controller.codexComposer.requestRender()
+  if (hostCodexUsesUnifiedComposer(controller)) browserChat!.composer.requestRender()
 }
 
 function flushHostCodexDraftFromEditor(controller: HostTerminalController): void {
@@ -4571,6 +4573,7 @@ function submitHostCodexComposer(controller: HostTerminalController, options: {f
   setHostCodexComposerStatus(controller, "отправлено")
   if (options.focusAfterSubmit ?? true) focusHostCodexComposer(controller)
   controller.codexComposer.requestRender()
+  if (hostCodexUsesUnifiedComposer(controller)) browserChat!.composer.requestRender()
   return true
 }
 
@@ -4618,7 +4621,15 @@ function resetHostVoiceComposerDraftTracking(controller: HostTerminalController)
 }
 
 function focusHostCodexComposer(controller: HostTerminalController): void {
+  if (hostCodexUsesUnifiedComposer(controller)) {
+    uiCanvas?.setFocused(browserChat!.editor)
+    return
+  }
   uiCanvas?.setFocused(controller.codexEditor)
+}
+
+function hostCodexUsesUnifiedComposer(controller: HostTerminalController): boolean {
+  return controller === hostTerminal && browserChat !== null && browserChat.activeComposerTargetId === "codex"
 }
 
 function setHostCodexComposerStatus(controller: HostTerminalController, status: string, ttlMs = 2200): void {
@@ -4628,11 +4639,13 @@ function setHostCodexComposerStatus(controller: HostTerminalController, status: 
   }
   controller.codexComposerStatus = status
   controller.codexComposer.requestRender()
+  if (hostCodexUsesUnifiedComposer(controller)) browserChat!.composer.requestRender()
   if (!status) return
   controller.codexComposerStatusTimer = window.setTimeout(() => {
     controller.codexComposerStatusTimer = null
     controller.codexComposerStatus = ""
     controller.codexComposer.requestRender()
+    if (hostCodexUsesUnifiedComposer(controller)) browserChat!.composer.requestRender()
   }, ttlMs)
 }
 
@@ -4642,6 +4655,7 @@ function removeHostCodexAttachment(controller: HostTerminalController, id: strin
   controller.codexAttachments = next
   setHostCodexComposerStatus(controller, next.length > 0 ? `${next.length} влож.` : "")
   controller.codexComposer.requestRender()
+  if (hostCodexUsesUnifiedComposer(controller)) browserChat!.composer.requestRender()
 }
 
 async function chooseHostCodexImages(controller: HostTerminalController): Promise<void> {
@@ -4671,59 +4685,9 @@ async function attachHostCodexImages(controller: HostTerminalController, files: 
     controller.codexAttachmentUploadInFlight = false
     controller.codexSubmitAfterAttachmentUpload = false
     controller.codexComposer.requestRender()
+    if (hostCodexUsesUnifiedComposer(controller)) browserChat!.composer.requestRender()
   }
   if (submitAfterUpload) submitHostCodexComposer(controller)
-}
-
-function installHostCodexComposerDragHandlers(): void {
-  if (hostCodexComposerDragHandlersInstalled) return
-  hostCodexComposerDragHandlersInstalled = true
-  document.addEventListener("dragover", handleHostCodexDragOver, {capture: true})
-  document.addEventListener("drop", (event) => void handleHostCodexDrop(event), {capture: true})
-  document.addEventListener("dragleave", handleHostCodexDragLeave, {capture: true})
-}
-
-function handleHostCodexDragOver(event: DragEvent): void {
-  const controller = hostTerminal
-  if (controller === null || !dragEventInsideHostCodexComposer(event)) {
-    if (controller !== null) setHostCodexDropActive(controller, false)
-    return
-  }
-  event.preventDefault()
-  event.stopPropagation()
-  if (event.dataTransfer !== null) event.dataTransfer.dropEffect = "copy"
-  setHostCodexDropActive(controller, true)
-}
-
-function handleHostCodexDragLeave(event: DragEvent): void {
-  const controller = hostTerminal
-  if (controller === null) return
-  const related = event.relatedTarget
-  if (related instanceof Node && document.contains(related)) return
-  setHostCodexDropActive(controller, false)
-}
-
-async function handleHostCodexDrop(event: DragEvent): Promise<void> {
-  const controller = hostTerminal
-  if (controller === null || !dragEventInsideHostCodexComposer(event)) return
-  event.preventDefault()
-  event.stopPropagation()
-  setHostCodexDropActive(controller, false)
-  const files = codexImageDropFiles(event.dataTransfer)
-  await attachHostCodexImages(controller, files)
-}
-
-function dragEventInsideHostCodexComposer(event: DragEvent): boolean {
-  const rect = hostCodexComposerRect({w: window.innerWidth, h: window.innerHeight})
-  if (rect.visible === false) return false
-  return event.clientX >= rect.x && event.clientX <= rect.x + rect.w
-    && event.clientY >= rect.y && event.clientY <= rect.y + rect.h
-}
-
-function setHostCodexDropActive(controller: HostTerminalController, active: boolean): void {
-  if (controller.codexDropActive === active) return
-  controller.codexDropActive = active
-  controller.codexComposer.requestRender()
 }
 
 function createBrowserChatSession(id: BrowserChatProviderId, label: string, urlContains: string): BrowserChatSession {
@@ -4788,6 +4752,10 @@ function applyStoredBrowserChatState(controller: BrowserChatController): void {
   if (typeof stored.activeSessionId === "string" && controller.sessions.some((session) => session.id === stored.activeSessionId)) {
     controller.activeSessionId = stored.activeSessionId
   }
+  const activeComposerTargetId = stringValue(stored.activeComposerTargetId)
+  if (activeComposerTargetId === "codex" || controller.sessions.some((session) => session.id === activeComposerTargetId)) {
+    controller.activeComposerTargetId = activeComposerTargetId as MessageComposerTargetId
+  }
   const sessions = plainRecordValue(stored.sessions)
   if (sessions === null) return
   for (const session of controller.sessions) {
@@ -4850,7 +4818,7 @@ function storeBrowserChatState(controller: BrowserChatController): void {
         readWatchBaselineMessageCount: session.readWatchBaselineMessageCount,
       }
     }
-    localStorage.setItem(BROWSER_CHAT_STATE_STORAGE_KEY, JSON.stringify({version: 1, activeSessionId: controller.activeSessionId, sessions} satisfies StoredBrowserChatState))
+    localStorage.setItem(BROWSER_CHAT_STATE_STORAGE_KEY, JSON.stringify({version: 1, activeSessionId: controller.activeSessionId, activeComposerTargetId: controller.activeComposerTargetId, sessions} satisfies StoredBrowserChatState))
   } catch {
     // Best-effort persistence only; provider hydration still repairs live transport state.
   }
@@ -4858,6 +4826,43 @@ function storeBrowserChatState(controller: BrowserChatController): void {
 
 function activeBrowserChatSession(controller: BrowserChatController): BrowserChatSession {
   return controller.sessions.find((session) => session.id === controller.activeSessionId) ?? controller.sessions[0]!
+}
+
+function browserChatComposerTargetsCodex(controller: BrowserChatController): boolean {
+  return controller.activeComposerTargetId === "codex"
+}
+
+function activeBrowserChatComposerAttachments(controller: BrowserChatController): CodexComposerAttachment[] {
+  if (browserChatComposerTargetsCodex(controller)) return ensureHostTerminalController().codexAttachments
+  return activeBrowserChatSession(controller).codexAttachments
+}
+
+function activeBrowserChatComposerDropActive(controller: BrowserChatController): boolean {
+  if (browserChatComposerTargetsCodex(controller)) return ensureHostTerminalController().codexDropActive
+  return activeBrowserChatSession(controller).codexDropActive
+}
+
+function setBrowserChatComposerTarget(controller: BrowserChatController, target: MessageComposerTargetId): void {
+  if (controller.activeComposerTargetId === target) {
+    if (target !== "codex") void activateBrowserChatProviderTarget(controller, activeBrowserChatSession(controller))
+    focusBrowserChatComposer(controller)
+    return
+  }
+  flushBrowserChatDraftFromEditor(controller)
+  controller.activeComposerTargetId = target
+  if (target !== "codex") {
+    const next = controller.sessions.find((session) => session.id === target)
+    if (next !== undefined) {
+      controller.activeSessionId = next.id
+      void activateBrowserChatProviderTarget(controller, next)
+    }
+  }
+  syncBrowserChatEditor(controller)
+  controller.chatPane.requestRender()
+  controller.composer.requestRender()
+  uiCanvas?.relayout()
+  scheduleStoreBrowserChatState(controller)
+  focusBrowserChatComposer(controller)
 }
 
 function browserChatSessionToolParams(session: BrowserChatSession): Record<string, unknown> {
@@ -4912,15 +4917,24 @@ function toggleBrowserChatDeepThinking(controller: BrowserChatController): void 
   void configureBrowserChatProvider(controller, session, {deepThinking: session.deepThinking})
 }
 
-function activateBrowserChatSession(controller: BrowserChatController, id: string): void {
+function activateBrowserChatSession(controller: BrowserChatController, id: string, options: {flushComposer?: boolean} = {}): void {
   if (controller.activeSessionId === id) {
+    if (controller.activeComposerTargetId !== id) {
+      if (options.flushComposer ?? true) flushBrowserChatDraftFromEditor(controller)
+      controller.activeComposerTargetId = id as BrowserChatProviderId
+      syncBrowserChatEditor(controller)
+      controller.composer.requestRender()
+      scheduleStoreBrowserChatState(controller)
+    }
     void activateBrowserChatProviderTarget(controller, activeBrowserChatSession(controller))
+    focusBrowserChatComposer(controller)
     return
   }
-  flushBrowserChatDraftFromEditor(controller)
+  if (options.flushComposer ?? true) flushBrowserChatDraftFromEditor(controller)
   const next = controller.sessions.find((session) => session.id === id)
   if (next === undefined) return
   controller.activeSessionId = next.id
+  controller.activeComposerTargetId = next.provider
   syncBrowserChatEditor(controller)
   controller.chatPane.requestRender()
   controller.composer.requestRender()
@@ -4931,6 +4945,7 @@ function activateBrowserChatSession(controller: BrowserChatController, id: strin
 }
 
 function browserChatComposerStatus(controller: BrowserChatController): string {
+  if (browserChatComposerTargetsCodex(controller)) return hostCodexComposerStatus(ensureHostTerminalController())
   return browserChatSessionStatus(controller, activeBrowserChatSession(controller))
 }
 
@@ -4985,12 +5000,14 @@ function browserChatTextIsUsageLimit(text: string): boolean {
 }
 
 function browserChatComposerCanSubmit(controller: BrowserChatController): boolean {
+  if (browserChatComposerTargetsCodex(controller)) return hostCodexComposerCanSubmit(ensureHostTerminalController())
   const session = activeBrowserChatSession(controller)
   return browserChatTransportCanSend(controller)
     && codexComposerMessage(session.codexDraft, session.codexAttachments).length > 0
 }
 
 function browserChatTransportCanSend(controller: BrowserChatController): boolean {
+  if (browserChatComposerTargetsCodex(controller)) return hostCodexComposerReady(ensureHostTerminalController())
   const session = activeBrowserChatSession(controller)
   return !session.sendInFlight
     && !session.toolLoopInFlight
@@ -4999,6 +5016,7 @@ function browserChatTransportCanSend(controller: BrowserChatController): boolean
 }
 
 function browserChatToolPromptCanSend(controller: BrowserChatController): boolean {
+  if (browserChatComposerTargetsCodex(controller)) return false
   const session = activeBrowserChatSession(controller)
   return !session.sendInFlight
     && !session.toolLoopInFlight
@@ -5007,6 +5025,18 @@ function browserChatToolPromptCanSend(controller: BrowserChatController): boolea
 }
 
 function setBrowserChatDraftFromEditor(controller: BrowserChatController, value: string): void {
+  if (browserChatComposerTargetsCodex(controller)) {
+    const host = ensureHostTerminalController()
+    if (host.codexEditorSyncing) return
+    if (host.codexDraft === value) return
+    if (host.voiceComposerBaseDraft !== null && value !== host.voiceComposerGeneratedDraft) {
+      host.voiceComposerEdited = true
+    }
+    host.codexDraft = value
+    host.codexComposer.requestRender()
+    controller.composer.requestRender()
+    return
+  }
   const session = activeBrowserChatSession(controller)
   if (session.codexEditorSyncing) return
   if (session.codexDraft === value) return
@@ -5018,15 +5048,29 @@ function setBrowserChatDraftFromEditor(controller: BrowserChatController, value:
   controller.composer.requestRender()
 }
 
-function setBrowserChatDraft(controller: BrowserChatController, value: string, session = activeBrowserChatSession(controller)): void {
+function setBrowserChatDraft(controller: BrowserChatController, value: string, session?: BrowserChatSession): void {
+  if (session === undefined && browserChatComposerTargetsCodex(controller)) {
+    setHostCodexDraft(ensureHostTerminalController(), value)
+    syncBrowserChatEditor(controller)
+    controller.composer.requestRender()
+    return
+  }
+  session ??= activeBrowserChatSession(controller)
   if (session.codexDraft === value) return
   session.codexDraft = value
   scheduleStoreBrowserChatState(controller)
-  if (session.id === controller.activeSessionId) syncBrowserChatEditor(controller)
+  if (session.id === controller.activeSessionId && controller.activeComposerTargetId === session.id) syncBrowserChatEditor(controller)
   controller.composer.requestRender()
 }
 
 function flushBrowserChatDraftFromEditor(controller: BrowserChatController): void {
+  if (browserChatComposerTargetsCodex(controller)) {
+    const host = ensureHostTerminalController()
+    if (host.codexEditorSyncing) return
+    const text = controller.editor.getText()
+    if (text !== host.codexDraft) setBrowserChatDraftFromEditor(controller, text)
+    return
+  }
   const session = activeBrowserChatSession(controller)
   if (session.codexEditorSyncing) return
   const text = controller.editor.getText()
@@ -5034,6 +5078,20 @@ function flushBrowserChatDraftFromEditor(controller: BrowserChatController): voi
 }
 
 function syncBrowserChatEditor(controller: BrowserChatController): void {
+  if (browserChatComposerTargetsCodex(controller)) {
+    const host = ensureHostTerminalController()
+    if (host.codexEditorSyncing || controller.editor.getText() === host.codexDraft) return
+    host.codexEditorSyncing = true
+    try {
+      controller.editor.setText(host.codexDraft)
+      const lines = host.codexDraft.split("\n")
+      const lastLine = Math.max(0, lines.length - 1)
+      controller.editor.setCursor(lastLine, lines[lastLine]?.length ?? 0, {scroll: "nearest"})
+    } finally {
+      host.codexEditorSyncing = false
+    }
+    return
+  }
   const session = activeBrowserChatSession(controller)
   if (session.codexEditorSyncing || controller.editor.getText() === session.codexDraft) return
   session.codexEditorSyncing = true
@@ -5049,12 +5107,20 @@ function syncBrowserChatEditor(controller: BrowserChatController): void {
 
 function flushBrowserChatComposerPendingInput(controller: BrowserChatController): void {
   flushBrowserChatDraftFromEditor(controller)
-  clearVoicePartialPreviewForTarget({kind: "browser-chat", controller}, "preserve")
+  if (browserChatComposerTargetsCodex(controller)) clearVoicePartialPreviewForTarget({kind: "host", controller: ensureHostTerminalController()}, "preserve")
+  else clearVoicePartialPreviewForTarget({kind: "browser-chat", controller}, "preserve")
   flushBrowserChatDraftFromEditor(controller)
 }
 
 function submitBrowserChatComposer(controller: BrowserChatController, options: {flushPendingInput?: boolean; focusAfterSubmit?: boolean} = {}): boolean {
   if (options.flushPendingInput ?? true) flushBrowserChatComposerPendingInput(controller)
+  if (browserChatComposerTargetsCodex(controller)) {
+    const submitted = submitHostCodexComposer(ensureHostTerminalController(), {flushPendingInput: false, focusAfterSubmit: false})
+    syncBrowserChatEditor(controller)
+    controller.composer.requestRender()
+    if (options.focusAfterSubmit ?? true) focusBrowserChatComposer(controller)
+    return submitted
+  }
   const session = activeBrowserChatSession(controller)
   if (session.codexAttachmentUploadInFlight) {
     session.codexSubmitAfterAttachmentUpload = true
@@ -5928,6 +5994,11 @@ function setBrowserChatStatus(controller: BrowserChatController, status: string,
 }
 
 function removeBrowserChatAttachment(controller: BrowserChatController, id: string): void {
+  if (browserChatComposerTargetsCodex(controller)) {
+    removeHostCodexAttachment(ensureHostTerminalController(), id)
+    controller.composer.requestRender()
+    return
+  }
   const session = activeBrowserChatSession(controller)
   const next = session.codexAttachments.filter((attachment) => attachment.id !== id)
   if (next.length === session.codexAttachments.length) return
@@ -5945,6 +6016,11 @@ async function chooseBrowserChatImages(controller: BrowserChatController): Promi
 }
 
 async function attachBrowserChatImages(controller: BrowserChatController, files: readonly File[]): Promise<void> {
+  if (browserChatComposerTargetsCodex(controller)) {
+    await attachHostCodexImages(ensureHostTerminalController(), files)
+    controller.composer.requestRender()
+    return
+  }
   const session = activeBrowserChatSession(controller)
   if (files.length === 0) {
     setBrowserChatStatus(controller, "no image", 2200, session)
@@ -6016,6 +6092,14 @@ function dragEventInsideBrowserChatComposer(event: DragEvent): boolean {
 }
 
 function setBrowserChatDropActive(controller: BrowserChatController, active: boolean): void {
+  if (browserChatComposerTargetsCodex(controller)) {
+    const host = ensureHostTerminalController()
+    if (host.codexDropActive === active) return
+    host.codexDropActive = active
+    host.codexComposer.requestRender()
+    controller.composer.requestRender()
+    return
+  }
   const session = activeBrowserChatSession(controller)
   if (session.codexDropActive === active) return
   session.codexDropActive = active
@@ -6148,6 +6232,7 @@ function renderVoiceHud(): void {
     level: voiceHudStatus === "listening" || voiceHudStatus === "committing" ? voiceInputLevel : 0,
   })
   hostTerminal?.codexComposer.requestRender()
+  browserChat?.composer.requestRender()
 }
 
 function openVoiceSettings(): void {
@@ -6162,6 +6247,7 @@ function handleVoiceSettingsOpenChange(open: boolean): void {
   relayoutHudSurfaces()
   voiceHudPane?.requestRender()
   hostTerminal?.codexComposer.requestRender()
+  browserChat?.composer.requestRender()
 }
 
 function flashVoiceHudError(detail: string): void {
@@ -7276,19 +7362,23 @@ function createBrowserChatEditor(controller: BrowserChatController): EditorPane 
 function createBrowserChatComposerPane(controller: BrowserChatController): HostTerminalCodexComposerPane<BrowserChatController> {
   return new HostTerminalCodexComposerPane({
     controller,
-    title: "Browser Agent message",
+    title: "",
     minimizeLabel: "Dock Browser Agent",
     voiceKey: "interpreter-browser-agent-message-voice",
     nodeName: "InterpreterBrowserChatComposerPane",
+    leftActions: browserChatComposerLeftActions,
     status: browserChatComposerStatus,
     canSubmit: browserChatComposerCanSubmit,
     submit: (target) => { submitBrowserChatComposer(target) },
     chooseImages: (target) => { void chooseBrowserChatImages(target) },
     setDocked: setBrowserChatHudDocked,
-    voiceSnapshot: () => voiceButtonSnapshotForTarget((target) => target.kind === "browser-chat" && target.controller === controller),
+    voiceSnapshot: () => voiceButtonSnapshotForTarget((target) => browserChatComposerTargetsCodex(controller)
+      ? target.kind === "host" && target.controller === hostTerminal
+      : target.kind === "browser-chat" && target.controller === controller),
     voiceSoundPulse: () => voiceHudPane?.soundPulseAmount() ?? 0,
     onVoiceToggle: (target) => {
-      setVoiceActiveTarget({kind: "browser-chat", controller: target})
+      if (browserChatComposerTargetsCodex(target)) setVoiceActiveTarget({kind: "host", controller: ensureHostTerminalController()})
+      else setVoiceActiveTarget({kind: "browser-chat", controller: target})
       focusBrowserChatComposer(target)
       void toggleVoiceInput()
     },
@@ -7302,34 +7392,79 @@ function createBrowserChatComposerPane(controller: BrowserChatController): HostT
   })
 }
 
+function browserChatComposerLeftActions(controller: BrowserChatController): readonly HudWindowTitleBarAction[] {
+  const mode = activeBrowserChatSession(controller).toolPromptMode
+  const target = controller.activeComposerTargetId
+  const actions: HudWindowTitleBarAction[] = [
+    {
+      label: "Codex",
+      iconSrc: uiIcons.codex,
+      tooltip: "Send to Codex",
+      active: target === "codex",
+      action: () => setBrowserChatComposerTarget(controller, "codex"),
+    },
+    {
+      label: "Qwen",
+      iconSrc: uiIcons.qwen,
+      tooltip: "Send to Qwen",
+      active: target === "qwen",
+      action: () => setBrowserChatComposerTarget(controller, "qwen"),
+    },
+    {
+      label: "DeepSeek",
+      iconSrc: uiIcons.deepseek,
+      tooltip: "Send to DeepSeek",
+      active: target === "deepseek",
+      dividerAfter: true,
+      action: () => setBrowserChatComposerTarget(controller, "deepseek"),
+    },
+  ]
+  if (target !== "codex") {
+    actions.push({
+      label: "Tools Prompt",
+      iconSrc: uiIcons.apply,
+      tooltip: "New chat with tools prompt",
+      disabled: !browserChatToolPromptCanSend(controller),
+      action: () => sendBrowserChatToolPrompt(controller),
+    })
+  }
+  if (target === "deepseek") {
+    actions.push({
+      label: "DeepSeek Fast",
+      iconSrc: uiIcons.fast,
+      tooltip: "DeepSeek Fast",
+      active: mode === "fast",
+      action: () => setBrowserChatToolPromptMode(controller, "fast"),
+    }, {
+      label: "DeepSeek Expert",
+      iconSrc: uiIcons.expert,
+      tooltip: "DeepSeek Expert",
+      active: mode === "expert",
+      action: () => setBrowserChatToolPromptMode(controller, "expert"),
+    }, {
+      label: "DeepSeek Recognition",
+      iconSrc: uiIcons.recognition,
+      tooltip: "DeepSeek Recognition",
+      active: mode === "vision",
+      action: () => setBrowserChatToolPromptMode(controller, "vision"),
+    })
+  }
+  return actions
+}
+
 function ensureBrowserChatController(): BrowserChatController {
   if (browserChat !== null) return browserChat
   const controller = {} as BrowserChatController
   const chatPane = new BrowserChatPane({
     messages: () => activeBrowserChatSession(controller).messages,
-    sessions: () => controller.sessions.map((session): BrowserChatPaneSession => ({
-      id: session.id,
-      label: session.label,
-      provider: session.provider,
-      status: browserChatSessionStatus(controller, session),
-      statusKind: browserChatSessionStatusKind(controller, session),
-    })),
     activeSessionId: () => controller.activeSessionId,
-    activateSession: (id) => activateBrowserChatSession(controller, id),
     status: () => browserChatComposerStatus(controller),
     statusKind: () => browserChatStatusKind(controller),
-    toolPromptMode: () => {
-      const session = activeBrowserChatSession(controller)
-      return session.provider === "deepseek" ? session.toolPromptMode : null
-    },
-    setToolPromptMode: (mode) => setBrowserChatToolPromptMode(controller, mode),
     deepThinking: () => {
       const session = activeBrowserChatSession(controller)
       return session.provider === "deepseek" ? session.deepThinking : null
     },
     toggleDeepThinking: () => toggleBrowserChatDeepThinking(controller),
-    canSendToolPrompt: () => browserChatToolPromptCanSend(controller),
-    sendToolPrompt: () => sendBrowserChatToolPrompt(controller),
     paused: () => activeBrowserChatSession(controller).toolLoopPaused,
     stopped: () => activeBrowserChatSession(controller).toolLoopStopped,
     pause: () => pauseBrowserChatAgent(controller),
@@ -7350,18 +7485,25 @@ function ensureBrowserChatController(): BrowserChatController {
       createBrowserChatSession("deepseek", "DeepSeek", "chat.deepseek.com"),
     ],
     activeSessionId: "qwen",
+    activeComposerTargetId: "codex",
     codexAttachments: [],
     codexDropActive: false,
   } satisfies BrowserChatController)
   Object.defineProperties(controller, {
     codexAttachments: {
-      get: () => activeBrowserChatSession(controller).codexAttachments,
-      set: (value: CodexComposerAttachment[]) => { activeBrowserChatSession(controller).codexAttachments = value },
+      get: () => activeBrowserChatComposerAttachments(controller),
+      set: (value: CodexComposerAttachment[]) => {
+        if (browserChatComposerTargetsCodex(controller)) ensureHostTerminalController().codexAttachments = value
+        else activeBrowserChatSession(controller).codexAttachments = value
+      },
       configurable: true,
     },
     codexDropActive: {
-      get: () => activeBrowserChatSession(controller).codexDropActive,
-      set: (value: boolean) => { activeBrowserChatSession(controller).codexDropActive = value },
+      get: () => activeBrowserChatComposerDropActive(controller),
+      set: (value: boolean) => {
+        if (browserChatComposerTargetsCodex(controller)) ensureHostTerminalController().codexDropActive = value
+        else activeBrowserChatSession(controller).codexDropActive = value
+      },
       configurable: true,
     },
   })
@@ -7783,6 +7925,7 @@ function setHostTerminalStatus(controller: HostTerminalController, kind: PtyStat
     hostTerminalStatusLabelForLayout = label
     hostTerminalAgentSignalPane?.requestRender()
     controller.codexComposer.requestRender()
+    if (hostCodexUsesUnifiedComposer(controller)) browserChat!.composer.requestRender()
   }
   controller.connectionState = kind
   const paneKind = statusKindForHostTerminal(kind)
@@ -7837,7 +7980,10 @@ function updateHostTerminalHeaderControls(controller: HostTerminalController): v
 
 function setHostTerminalInputEnabled(controller: HostTerminalController, enabled: boolean): void {
   for (const pane of hostTerminalPanes(controller)) pane.setInputEnabled(enabled)
-  if (controller === hostTerminal) controller.codexComposer.requestRender()
+  if (controller === hostTerminal) {
+    controller.codexComposer.requestRender()
+    if (hostCodexUsesUnifiedComposer(controller)) browserChat!.composer.requestRender()
+  }
 }
 
 function rejectHostTerminalLocalEcho(controller: HostTerminalController): void {
@@ -10117,32 +10263,10 @@ type SqliteRects = {
 
 function hostTerminalHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   if (hostTerminalHudDocked) return hiddenRect()
-  const composerReserve = HOST_TERMINAL_CODEX_COMPOSER_H + HOST_TERMINAL_CODEX_COMPOSER_GAP + 12
-  if (hostTerminalHudRectPreview !== null) return clampHostTerminalHudRect(hostTerminalHudRectPreview, w, h, composerReserve)
+  if (hostTerminalHudRectPreview !== null) return clampHostTerminalHudRect(hostTerminalHudRectPreview, w, h)
   const stored = readStoredHostTerminalHudRect()
-  if (stored !== null) return clampHostTerminalHudRect(stored, w, h, composerReserve)
-  return clampHostTerminalHudRect(DEFAULT_HOST_TERMINAL_HUD_RECT, w, h, composerReserve)
-}
-
-function hostCodexComposerRect(bounds: {w: number; h: number}): UiSurfaceRect {
-  if (hostTerminalHudDocked) return hiddenRect()
-  const terminal = hostTerminalHudRect(bounds)
-  if (terminal.visible === false) return hiddenRect()
-  const maxW = Math.max(1, bounds.w - 24)
-  const maxH = Math.max(1, bounds.h - 24)
-  const fallbackW = Math.min(Math.max(1, terminal.w), maxW)
-  const fallbackH = Math.min(HOST_TERMINAL_CODEX_COMPOSER_H, maxH)
-  const belowY = terminal.y + terminal.h + HOST_TERMINAL_CODEX_COMPOSER_GAP
-  const fallbackY = belowY + fallbackH <= bounds.h - 12
-    ? belowY
-    : Math.max(12, terminal.y - fallbackH - HOST_TERMINAL_CODEX_COMPOSER_GAP)
-  const raw = readStoredHostCodexComposerRect() ?? {
-    x: terminal.x,
-    y: fallbackY,
-    w: fallbackW,
-    h: fallbackH,
-  }
-  return clampHostCodexComposerRect(raw, bounds.w, bounds.h)
+  if (stored !== null) return clampHostTerminalHudRect(stored, w, h)
+  return clampHostTerminalHudRect(DEFAULT_HOST_TERMINAL_HUD_RECT, w, h)
 }
 
 function clampHostCodexComposerRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): UiSurfaceRect {
@@ -10158,10 +10282,6 @@ function clampHostCodexComposerRect(rect: UiSurfaceRect, boundsW: number, bounds
     w: rectW,
     h: rectH,
   }
-}
-
-function hostCodexEditorRect(bounds: {w: number; h: number}): UiSurfaceRect {
-  return hostCodexEditorRectForComposer(hostCodexComposerRect(bounds))
 }
 
 function hostCodexEditorRectForComposer(composer: UiSurfaceRect): UiSurfaceRect {

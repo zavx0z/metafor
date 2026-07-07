@@ -1,7 +1,7 @@
 import {Color} from "@metafor/engine"
 import {IconButton} from "@ui/components"
 import {UiSurface, div, divScrollPosition, divScrollTo, flexRow, palette, uiIcons, Z, type DivScrollContext, type UiSurfaceRect} from "@ui/elements"
-import {HudWindow, type HudWindowTitleBarAction} from "@ui/hud"
+import {HudWindow} from "@ui/hud"
 import {
   PANE_FRAME,
   beginPaneFrameDrag,
@@ -21,30 +21,14 @@ export type BrowserChatPaneMessage = {
 }
 
 export type BrowserChatPaneStatusKind = "ready" | "sending" | "thinking" | "tools" | "blocked" | "error"
-export type BrowserChatPaneToolPromptMode = "fast" | "expert" | "vision"
-
-export type BrowserChatPaneSession = {
-  id: string
-  label: string
-  provider: "qwen" | "deepseek"
-  status: string
-  statusKind: BrowserChatPaneStatusKind
-  unread?: boolean
-}
 
 export type BrowserChatPaneOptions = {
   messages(): readonly BrowserChatPaneMessage[]
-  sessions(): readonly BrowserChatPaneSession[]
   activeSessionId(): string
-  activateSession(id: string): void
   status(): string
   statusKind(): BrowserChatPaneStatusKind
-  toolPromptMode(): BrowserChatPaneToolPromptMode | null
-  setToolPromptMode(mode: BrowserChatPaneToolPromptMode): void
   deepThinking(): boolean | null
   toggleDeepThinking(): void
-  canSendToolPrompt(): boolean
-  sendToolPrompt(): void
   paused(): boolean
   stopped(): boolean
   pause(): void
@@ -65,8 +49,6 @@ const MESSAGE_FONT = 11
 const MESSAGE_LINE_H = 16
 const MESSAGE_PAD = 10
 const MESSAGE_GAP = 8
-const TAB_ROW_H = 30
-const TAB_ROW_GAP = 8
 const CONTROL_TOOLBAR_H = 34
 const CONTROL_TOOLBAR_GAP = 6
 const BROWSER_CHAT_SCROLL_KEY = "interpreter:browser-chat:messages"
@@ -101,7 +83,6 @@ export class BrowserChatPane extends UiSurface {
       title: "Browser Agent Chat",
       onMinimize: () => this.#opts.setDocked(true),
       minimizeLabel: "Dock Browser Agent",
-      rightActions: this.#titleBarActions(),
       active: this.active,
       fill: new Color(0.035, 0.055, 0.06, 0.58),
       border: this.active ? palette.windowActiveBorder : palette.borderDim,
@@ -119,99 +100,13 @@ export class BrowserChatPane extends UiSurface {
     })
     const toolbarH = Math.min(CONTROL_TOOLBAR_H, Math.max(0, body.h - 80))
     const toolbarGap = toolbarH > 0 ? CONTROL_TOOLBAR_GAP : 0
-    const tabsH = Math.min(TAB_ROW_H, Math.max(0, body.h - toolbarH - toolbarGap - 80))
-    const tabsGap = tabsH > 0 ? TAB_ROW_GAP : 0
-    if (tabsH > 0) this.#renderTabs({x: body.x, y: body.y, w: body.w, h: tabsH})
     this.#renderMessages({
       x: body.x,
-      y: body.y + tabsH + tabsGap,
+      y: body.y,
       w: body.w,
-      h: Math.max(1, body.h - tabsH - tabsGap - toolbarH - toolbarGap),
+      h: Math.max(1, body.h - toolbarH - toolbarGap),
     })
     if (toolbarH > 0) this.#renderControlToolbar({x: body.x, y: body.y + body.h - toolbarH, w: body.w, h: toolbarH}, status, statusKind)
-  }
-
-  #titleBarActions(): HudWindowTitleBarAction[] {
-    const mode = this.#opts.toolPromptMode()
-    const actions: HudWindowTitleBarAction[] = [
-      {
-        label: "New Agent Chat Prompt",
-        iconSrc: uiIcons.codex,
-        tooltip: "New chat with tools prompt",
-        active: true,
-        disabled: !this.#opts.canSendToolPrompt(),
-        action: () => this.#opts.sendToolPrompt(),
-      },
-    ]
-    if (mode !== null) {
-      actions.push({
-        label: "DeepSeek Fast",
-        iconSrc: uiIcons.fast,
-        tooltip: "DeepSeek Fast",
-        active: mode === "fast",
-        action: () => this.#opts.setToolPromptMode("fast"),
-      }, {
-        label: "DeepSeek Expert",
-        iconSrc: uiIcons.expert,
-        tooltip: "DeepSeek Expert",
-        active: mode === "expert",
-        action: () => this.#opts.setToolPromptMode("expert"),
-      }, {
-        label: "DeepSeek Recognition",
-        iconSrc: uiIcons.recognition,
-        tooltip: "DeepSeek Recognition",
-        active: mode === "vision",
-        action: () => this.#opts.setToolPromptMode("vision"),
-      })
-    }
-    return actions
-  }
-
-  #renderTabs(rect: UiSurfaceRect): void {
-    const sessions = this.#opts.sessions()
-    if (sessions.length === 0) return
-    const activeId = this.#opts.activeSessionId()
-    let x = rect.x
-    const gap = 6
-    for (const session of sessions) {
-      const tabW = Math.min(Math.max(92, Math.ceil(this.measureText(session.label, 10) + 36)), Math.max(72, rect.x + rect.w - x))
-      const active = session.id === activeId
-      const kind = session.statusKind
-      const tone = kind === "ready" ? palette.green
-        : kind === "error" ? palette.red
-          : kind === "blocked" ? palette.orange
-            : palette.cyan
-      const fill = active ? new Color(0.055, 0.105, 0.12, 0.82) : new Color(0.03, 0.045, 0.05, 0.58)
-      const border = active ? tone : palette.borderDim
-      this.drawRoundedRect(x, rect.y + 2, tabW, Math.max(1, rect.h - 4), {
-        radius: 9,
-        fill,
-        border,
-        borderWidth: active ? 1.2 : 1,
-        z: Z.CONTAINER + 0.03,
-      })
-      this.drawRoundedRect(x + 10, rect.y + rect.h / 2 - 3, 6, 6, {
-        radius: 3,
-        fill: tone,
-        border: null,
-        z: Z.TEXT,
-      })
-      this.drawText(session.label, x + 24, rect.y + 9, {
-        fontPx: 10,
-        material: active ? this.materials.text : this.materials.muted,
-        maxWidthPx: Math.max(1, tabW - 32),
-        z: Z.TEXT,
-      })
-      if (session.unread === true) {
-        this.drawRoundedRect(x + tabW - 13, rect.y + 7, 6, 6, {radius: 3, fill: palette.cyan, border: null, z: Z.TEXT})
-      }
-      this.hit(x, rect.y + 2, tabW, Math.max(1, rect.h - 4), () => this.#opts.activateSession(session.id), {
-        key: `browser-chat-tab:${session.id}`,
-        cursor: "pointer",
-      })
-      x += tabW + gap
-      if (x >= rect.x + rect.w - 48) break
-    }
   }
 
   #drawStatusBadge(rect: UiSurfaceRect, label: string, kind: BrowserChatPaneStatusKind): void {
