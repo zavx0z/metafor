@@ -20,6 +20,7 @@ export type VoiceInputSignalTone = "activation" | "deactivation" | "stop"
 export type VoiceInputPhraseGroupId = "activation" | "deactivation" | "stop"
 export type VoiceDeactivationMode = "phrase" | "timeout" | "phrase-timeout"
 export type VoiceInputTransport = "idle" | "connecting" | "ws" | "p2p"
+export type VoiceInputTraceSnapshot = {at: number; label: string; detail: string}
 
 export type VoiceInputDebugSnapshot = {
   status: VoiceInputStatus
@@ -41,6 +42,7 @@ export type VoiceInputDebugSnapshot = {
   commandBytesSent: number
   asrBytesQueued: number
   asrBytesSent: number
+  trace: VoiceInputTraceSnapshot[]
 }
 
 type VoiceInputClientOptions = {
@@ -290,6 +292,7 @@ export class VoiceInputClient {
   #debugCommandBytesSent = 0
   #debugAsrBytesSent = 0
   #traceSeq = 0
+  #traceLog: VoiceInputTraceSnapshot[] = []
   #lastAudioTraceAt = 0
   #lastVadTraceAt = 0
   #audioStartedAt = 0
@@ -334,6 +337,7 @@ export class VoiceInputClient {
       commandBytesSent: this.#debugCommandBytesSent,
       asrBytesQueued: session.outboundPcmBytes + session.queuedPcmBytes,
       asrBytesSent: this.#debugAsrBytesSent,
+      trace: this.#traceLog.slice(-12),
     }
   }
 
@@ -1734,7 +1738,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
 
   #trace(label: string, detail: Record<string, unknown> = {}): void {
     const session = this.#session.debugSnapshot()
-    postInterpreterClientEvent("voice", label, {
+    const payload = {
       ...detail,
       seq: ++this.#traceSeq,
       status: this.#status,
@@ -1760,7 +1764,10 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       frames: this.#debugAudioFrameCount,
       inputRms: roundTraceNumber(this.#debugLastInputRms),
       inputPeak: roundTraceNumber(this.#debugLastInputPeak),
-    })
+    }
+    this.#traceLog.push({at: Date.now(), label, detail: JSON.stringify(payload).slice(0, 260)})
+    while (this.#traceLog.length > 24) this.#traceLog.shift()
+    postInterpreterClientEvent("voice", label, payload)
   }
 
   #schedulePendingChunkFlush(): void {

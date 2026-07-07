@@ -6733,6 +6733,7 @@ function voiceDebugLines(): string[] {
   return [
     `${ru ? "статус" : "status"}: ${voiceStatusLabel(voiceHudStatus)}`,
     `${ru ? "деталь" : "detail"}: ${voiceHudDetail || "-"}`,
+    `${ru ? "последние события" : "recent events"}: ${debug === undefined ? "-" : debug.trace.slice(-5).map((item) => item.label).join(" <- ") || "-"}`,
     `${ru ? "цель" : "target"}: ${target || "-"}`,
     `${ru ? "сессия" : "session"}: ${session?.phase ?? "-"}`,
     `${ru ? "auto-send" : "auto-send"}: ${session?.autoSendState ?? "-"}`,
@@ -6767,6 +6768,7 @@ function voiceDebugLines(): string[] {
     `${ru ? "тайм-аут распознавания" : "recognition timeout"}: ${readVoiceRecognitionTimeoutSeconds()}s`,
     `${ru ? "совпадение фраз" : "phrase matching"}: exact`,
     `${ru ? "звук" : "sound"}: ${hudNotificationDebugLine()}`,
+    ...(debug?.trace.slice(-8).reverse().map((item) => `${formatHudTime(new Date(item.at))} voice.${item.label}: ${debugVoiceText(item.detail)}`) ?? []),
   ]
 }
 
