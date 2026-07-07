@@ -28,6 +28,8 @@
 - [100] Довести Browser Agent Chat sessions: persist Qwen/DeepSeek state, sync browser tabs, DeepSeek mode/deep toggle and independent voice indicator.
 - [100] Отполировать Browser Agent docs/API: documented provider sessions, persisted state, browser_chat.configure/activate and DeepSeek modes.
 - [ ] Переименовать agent-facing Plan tools/API: добавить plan.* alias/contract поверх TODO.md storage и убрать путаницу с todo.* в инструкциях.
+- [100] Добавить voice activation routing для Browser Agent sessions: фразы Qwen/DeepSeek открывают нужную session, активируют browser tab и назначают voice target.
+- [ ] Переработать voice activation/deactivation noise policy: меньше ложных срабатываний на шум, короче ожидание на пустом шуме, явные состояния wake/listening/commit.
 
 ## 6. Browser Agent Chat: изображения
 

@@ -15,10 +15,12 @@ import {
 
 describe("voice activation matching", () => {
   test("uses metafor default activation phrases", () => {
-    expect(DEFAULT_VOICE_ACTIVATION_PHRASES).toEqual(["завхоз", "метафор", "метафора"])
+    expect(DEFAULT_VOICE_ACTIVATION_PHRASES).toEqual(["завхоз", "метафор", "метафора", "квин", "куэн", "qwen", "дипсик", "дип сик", "deepseek", "deep seek"])
     expect(isActivationPhrase("завхоз", [], 0)).toBe(true)
     expect(isActivationPhrase("метафор", [], 0)).toBe(true)
     expect(isActivationPhrase("метафора", [], 0)).toBe(true)
+    expect(isActivationPhrase("квин", [], 0)).toBe(true)
+    expect(isActivationPhrase("дипсик", [], 0)).toBe(true)
     expect(isActivationPhrase("агент", [], 0)).toBe(false)
   })
 

@@ -792,6 +792,7 @@ const RELOAD_HEALTH_TIMEOUT_MS = 60_000
 const RELOAD_HEALTH_REQUEST_TIMEOUT_MS = 1_200
 const BROWSER_CHAT_STATE_STORAGE_KEY = "interpreter:browser-agent-chat:sessions:v1"
 const BROWSER_CHAT_STORED_MESSAGES_LIMIT = 120
+const BROWSER_CHAT_VOICE_ACTIVATION_DEDUP_MS = 1_800
 const BROWSER_CHAT_TOOL_LOOP_MAX_TURNS = 6
 const BROWSER_CHAT_TOOL_RESULT_MAX_CHARS = 24_000
 const BROWSER_CHAT_TOOL_PROMPT = `Ты работаешь внутри live-интерпретатора MetaFor. Все реальные действия в среде выполняются только через tool calls. Не используй встроенный code interpreter, Python sandbox, web browsing или любые внутренние режимы платформы. Если нужны данные или действие, не угадывай и не описывай "что сделал бы" - верни только валидный блок <tool_calls>.
@@ -1032,6 +1033,8 @@ let voiceInputClient: VoiceInputClient | null = null
 let voiceActiveTarget: VoiceInputTarget | null = null
 let voicePartialPreviewTarget: VoiceInputTarget | null = null
 let voicePartialPreviewText = ""
+let browserChatVoiceActivationLastKey = ""
+let browserChatVoiceActivationLastAt = 0
 let voiceHudErrorTimer: number | null = null
 let voiceModuleSubmitQueue: Promise<void> = Promise.resolve()
 let voiceHudStatus: VoiceInputStatus = "idle"
@@ -4042,7 +4045,74 @@ function handleVoiceCommandText(raw: string): void {
   voiceWakePreviewText = text
   voiceWakePreviewAt = new Date()
   recordVoiceWakePreview(text, voiceWakePreviewAt)
+  if (maybeActivateBrowserChatVoiceSession(text)) return
   renderVoiceHud()
+}
+
+function maybeActivateBrowserChatVoiceSession(text: string): boolean {
+  if (voiceHudStatus === "listening" || voiceHudStatus === "committing") return false
+  const provider = browserChatVoiceActivationProvider(text)
+  if (provider === null) return false
+  const key = `${provider}:${normalizeBrowserChatVoiceActivationText(text)}`
+  const now = performance.now()
+  if (browserChatVoiceActivationLastKey === key && now - browserChatVoiceActivationLastAt < BROWSER_CHAT_VOICE_ACTIVATION_DEDUP_MS) return true
+  browserChatVoiceActivationLastKey = key
+  browserChatVoiceActivationLastAt = now
+  void activateBrowserChatVoiceSession(provider)
+  return true
+}
+
+async function activateBrowserChatVoiceSession(provider: BrowserChatProviderId): Promise<void> {
+  const controller = ensureBrowserChatController()
+  setBrowserChatHudDocked(false)
+  activateBrowserChatSession(controller, provider)
+  setVoiceActiveTarget({kind: "browser-chat", controller})
+  focusBrowserChatComposer(controller)
+  const session = activeBrowserChatSession(controller)
+  setBrowserChatStatus(controller, `${session.label} voice`, 1600, session)
+  voiceAutoWakePaused = false
+  const serviceOk = await checkVoiceService()
+  if (!serviceOk) {
+    flashVoiceHudError(voiceServiceDetail)
+    return
+  }
+  try {
+    await ensureVoiceInputClient().startDictation()
+  } catch (error) {
+    flashVoiceHudError(error instanceof Error ? error.message : String(error))
+  } finally {
+    focusBrowserChatComposer(controller)
+    renderVoiceHud()
+  }
+}
+
+function browserChatVoiceActivationProvider(text: string): BrowserChatProviderId | null {
+  const normalized = normalizeBrowserChatVoiceActivationText(text)
+  const words = normalized.split(/\s+/).filter(Boolean)
+  if (words.length === 0 || words.length > 5) return null
+  const qwen = ["qwen", "queen", "квин", "куин", "куэн", "квен", "квенн"]
+  const deepseek = ["deepseek", "deep seek", "дипсик", "дип сик", "дипсек", "дип сек", "дипсикк"]
+  if (browserChatVoicePhraseMatches(normalized, qwen)) return "qwen"
+  if (browserChatVoicePhraseMatches(normalized, deepseek)) return "deepseek"
+  return null
+}
+
+function browserChatVoicePhraseMatches(text: string, phrases: readonly string[]): boolean {
+  return phrases.some((phrase) => text === phrase
+    || text.startsWith(`${phrase} `)
+    || text === `открой ${phrase}`
+    || text.startsWith(`открой ${phrase} `)
+    || text === `переключись на ${phrase}`
+    || text.startsWith(`переключись на ${phrase} `))
+}
+
+function normalizeBrowserChatVoiceActivationText(text: string): string {
+  return text
+    .toLocaleLowerCase("ru-RU")
+    .replace(/ё/g, "е")
+    .replace(/[^а-яa-z0-9\s]+/giu, " ")
+    .replace(/\s+/g, " ")
+    .trim()
 }
 
 function recordVoiceWakePreview(text: string, at: Date): void {

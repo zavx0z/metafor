@@ -122,6 +122,13 @@ export const DEFAULT_VOICE_ACTIVATION_PHRASES = [
   "завхоз",
   "метафор",
   "метафора",
+  "квин",
+  "куэн",
+  "qwen",
+  "дипсик",
+  "дип сик",
+  "deepseek",
+  "deep seek",
 ] as const
 export const DEFAULT_VOICE_WAKE_PHRASES = DEFAULT_VOICE_ACTIVATION_PHRASES
 const DEFAULT_VOICE_WAKE_CONFUSER_PHRASES = [
