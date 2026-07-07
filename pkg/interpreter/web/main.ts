@@ -4043,7 +4043,10 @@ function handleVoiceStatus(status: VoiceInputStatus, detail?: string): void {
   }
   if (status === "waitingWake" && previousStatus !== "waitingWake") voiceInputClient?.prewarmDictation()
   updateVoiceHud(status, detail)
-  if (voiceSignal !== null) playVoiceSignal(voiceSignal)
+  if (voiceSignal !== null) {
+    postInterpreterClientEvent("voice", "signal", {kind: voiceSignal, from: previousStatus, to: status, detail: detail ?? ""})
+    playVoiceSignal(voiceSignal)
+  }
 }
 
 function voiceSignalForStatusChange(previousStatus: VoiceInputStatus, nextStatus: VoiceInputStatus, detail?: string): HudNotificationKind | null {
@@ -4052,6 +4055,7 @@ function voiceSignalForStatusChange(previousStatus: VoiceInputStatus, nextStatus
   if (nextStatus === "listening" && previousStatus !== "listening" && previousStatus !== "committing" && previousStatus !== "processing") return "activation"
   if (nextStatus === "error") return "error"
   if (nextStatus === "processing" && (previousStatus === "listening" || previousStatus === "committing")) return "deactivation"
+  if (nextStatus === "waitingWake" && detail === "ready") return null
   if (nextStatus === "waitingWake" && (previousStatus === "listening" || previousStatus === "committing")) return "deactivation"
   if (nextStatus === "idle" && detail === VOICE_STOP_COMMAND_DETAIL) return "stop"
   if (nextStatus === "idle" && (previousStatus === "listening" || previousStatus === "committing")) return "deactivation"
