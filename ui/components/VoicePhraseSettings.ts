@@ -1,7 +1,6 @@
 import {Color} from "@metafor/engine"
 import {Z, palette, uiIcons, type UiSurface} from "@ui/elements"
 import {IconButton} from "./Button.ts"
-import {SliderControl} from "./SliderControl.ts"
 import {TextField} from "./TextField.ts"
 import type {VoiceInputHudPhraseGroup, VoiceInputHudPhraseGroupId} from "./VoiceInputHud.ts"
 
@@ -14,7 +13,6 @@ export type VoicePhraseSettingsProps = {
   onAddPhrase(groupId: VoiceInputHudPhraseGroupId, phrase: string): void
   onRemovePhrase(groupId: VoiceInputHudPhraseGroupId, phrase: string): void
   onResetPhrases(groupId: VoiceInputHudPhraseGroupId): void
-  onFuzzyChange(groupId: VoiceInputHudPhraseGroupId, value: number): void
 }
 
 export function VoicePhraseSettings(host: UiSurface, x: number, y: number, w: number, props: VoicePhraseSettingsProps): number {
@@ -61,17 +59,6 @@ function drawVoicePhraseGroup(
     z: Z.TEXT,
   })
   y += 38
-  y = SliderControl(host, x, y, w, {
-    key: `${keyPrefix}:fuzzy:${group.id}`,
-    label: group.fuzzyLabel,
-    value: group.fuzzyValue,
-    min: 0,
-    max: 0.5,
-    step: 0.05,
-    format: (value) => `${Math.round(value * 100)}%`,
-    onChange: (value) => props.onFuzzyChange(group.id, Math.round(value * 20) / 20),
-  }) + 6
-
   const addW = 28
   TextField(host, x, y, Math.max(1, w - addW - 6), 26, {
     key: `${keyPrefix}:input:${group.id}`,

@@ -31,8 +31,6 @@ export type VoiceInputHudPhraseGroup = {
   addLabel: string
   placeholder: string
   resetLabel: string
-  fuzzyLabel: string
-  fuzzyValue: number
   receivedLabel?: string
   receivedLines?: string[]
 }
@@ -62,11 +60,6 @@ export type VoiceInputHudSettings = {
   signalVolumeMaxValue: number
   signalVolumeDownLabel: string
   signalVolumeUpLabel: string
-  fuzzyDownLabel: string
-  fuzzyUpLabel: string
-  fuzzyHintLabel: string
-  fuzzyStrictLabel: string
-  fuzzyLooseLabel: string
   wakeEndpoint: string
   inputEndpoint: string
   serviceLine: string
@@ -90,7 +83,6 @@ export type VoiceInputHudOptions = {
   onAutoSendChange(value: boolean): void
   onDeactivationModeChange(value: VoiceInputHudDeactivationMode): void
   onRecognitionTimeoutChange(value: number): void
-  onPhraseFuzzyChange(groupId: VoiceInputHudPhraseGroupId, value: number): void
 }
 
 const VOICE_HUD_LONG_PRESS_MS = 450
@@ -678,21 +670,6 @@ export class VoiceInputHud extends UiSurface {
       y = this.#drawDeactivationControls(settings, left, right, y, maxY) + 10
     }
     y = this.#drawReceivedLines(group, left, right, y, maxY)
-    y = SliderControl(this, left, y, Math.max(1, right - left), {
-      key: `voice-fuzzy:${group.id}`,
-      label: group.fuzzyLabel,
-      value: group.fuzzyValue,
-      downLabel: settings.fuzzyDownLabel,
-      upLabel: settings.fuzzyUpLabel,
-      hintLabel: settings.fuzzyHintLabel,
-      rangeStartLabel: settings.fuzzyStrictLabel,
-      rangeEndLabel: settings.fuzzyLooseLabel,
-      step: 0.05,
-      max: 0.5,
-      layout: "track",
-      format: (value) => `${Math.round(value * 100)}%`,
-      onChange: (value) => this.options.onPhraseFuzzyChange(group.id, Math.round(value * 20) / 20),
-    }) + 10
     const inputW = Math.max(1, right - left - 66)
     input(this, left, y, inputW, 22, {
       key: `voice-phrase-input:${group.id}`,

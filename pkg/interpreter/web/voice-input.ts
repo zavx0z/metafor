@@ -49,7 +49,6 @@ type VoiceInputClientOptions = {
   activationPhrases(): readonly string[]
   deactivationPhrases(): readonly string[]
   stopPhrases(): readonly string[]
-  phraseFuzzyTolerance(groupId: VoiceInputPhraseGroupId): number
   deactivationMode(): VoiceDeactivationMode
   recognitionTimeoutMs(): number
   language: string
@@ -110,7 +109,6 @@ export type VoiceCommandPhraseGroups = {
   deactivation: readonly string[]
   stop: readonly string[]
 }
-type VoicePhraseTolerance = (groupId: VoiceInputPhraseGroupId) => number
 type VoiceControlCommand = "deactivation" | "stop"
 type VoiceControlText = {
   text: string
@@ -126,7 +124,9 @@ const WAKE_WORD = "завхоз"
 export const VOICE_STOP_COMMAND_DETAIL = "voice stop command"
 export const DEFAULT_VOICE_ACTIVATION_PHRASES = [
   "завхоз",
+  "зав хоз",
   "запхоз",
+  "зап хоз",
   "метафор",
   "метафора",
   "квин",
@@ -181,6 +181,9 @@ const COMMIT_TIMEOUT_MS = 15_000
 const FINAL_SETTLE_MS = 450
 const STOP_COMMAND_ARM_DELAY_MS = 1_800
 const ASR_RECONNECT_DELAY_MS = 900
+const PCM_FLUSH_BYTES = 4096
+const PCM_FLUSH_MS = 120
+const VOICE_AUDIO_PREROLL_MS = 2_400
 const MAX_DELIVERED_TRANSCRIPT_CHARS = 8_000
 const MAX_REPEATED_VOICE_TOKEN_RUN = 120
 
@@ -224,6 +227,13 @@ export class VoiceInputClient {
   #finalSilenceRequested = false
   #commitWaiters: Array<() => void> = []
   #deliveryState = createVoiceInputDeliveryState()
+  #audioPreroll: Array<{at: number; pcm: ArrayBuffer}> = []
+  #firstChunkPrerollArmed = false
+  #liveAsrChunkId: string | null = null
+  #liveAsrPcm: ArrayBuffer[] = []
+  #liveAsrBytes = 0
+  #liveAsrFlushTimer: number | null = null
+  #liveAsrChunkBytesSent = new Map<string, number>()
   #debugAudioFrameCount = 0
   #debugLastAudioFrameAt = 0
   #debugLastInputRms = 0
@@ -459,7 +469,7 @@ export class VoiceInputClient {
       return
     }
     try {
-      await this.#activateAsr("")
+      await this.#activateAsr("", "manual")
     } catch (error) {
       this.#trace("dictation.error", {error: error instanceof Error ? error.message : String(error)})
       this.#recoverAsrFailure(error)
@@ -471,11 +481,12 @@ export class VoiceInputClient {
     this.#stopRequested = false
     this.#wakeMatched = false
     this.#resetCommitState()
+    if (!this.#commitPending && !this.#session.hasPendingChunks()) this.#session.reset()
     this.#session.startRecording(true)
     this.#setStatus("connecting", this.options.url())
     try {
       await this.#startAudio()
-      await this.#activateAsr("")
+      await this.#activateAsr("", "manual")
     } catch (error) {
       this.#trace("dictation.idle-error", {error: error instanceof Error ? error.message : String(error)})
       if (this.#stream !== null && this.#asrEnabled) {
@@ -512,17 +523,19 @@ export class VoiceInputClient {
     this.#trace("wake.started", {phraseCount: phraseGroups.activation.length})
   }
 
-  async #activateAsr(wakeText: string): Promise<void> {
-    this.#trace("asr.activate.request", {wakeChars: cleanupVoiceText(wakeText).length, wakeText: debugTraceText(wakeText)})
+  async #activateAsr(wakeText: string, source: "wake" | "manual" = "wake"): Promise<void> {
+    this.#trace("asr.activate.request", {source, wakeChars: cleanupVoiceText(wakeText).length, wakeText: debugTraceText(wakeText)})
     if (this.#wakeMatched || this.#stopRequested) return
     this.#wakeMatched = true
     this.options.onWake(wakeText)
     this.#resetCommitState()
     this.#syncSessionTimings()
+    if (!this.#commitPending && !this.#session.hasPendingChunks()) this.#session.reset()
     this.#session.startRecording(true)
     this.#clearAsrReconnectTimer()
     this.#asrEnabled = true
     this.#asrActivatedAt = performance.now()
+    this.#firstChunkPrerollArmed = true
     this.#setStatus("connecting", this.options.url())
     await this.#connectAsr(this.options.url())
     this.#sendAsr({
@@ -555,6 +568,10 @@ export class VoiceInputClient {
       if (this.#commandWs !== ws) return
       this.#commandWs = null
       if (this.#stopRequested || this.#status === "idle") return
+      if (this.#asrEnabled) {
+        this.#trace("wake.socket.close.ignored", {url: ws.url})
+        return
+      }
       this.#cleanup()
       this.#setStatus("error", `voice command websocket closed: ${ws.url}`)
     })
@@ -632,6 +649,15 @@ export class VoiceInputClient {
 
   async #startAudio(): Promise<void> {
     this.#trace("audio.start.request")
+    this.#debugAudioFrameCount = 0
+    this.#debugLastAudioFrameAt = 0
+    this.#debugLastInputRms = 0
+    this.#debugLastInputPeak = 0
+    this.#lastAudioTraceAt = 0
+    this.#lastVadTraceAt = 0
+    this.#clearLiveAsrPcm()
+    this.#audioPreroll = []
+    this.#firstChunkPrerollArmed = false
     try {
       this.#audioContext = new AudioContext({sampleRate: TARGET_SAMPLE_RATE})
     } catch {
@@ -685,6 +711,7 @@ export class VoiceInputClient {
       this.#sileroVad?.acceptFrame(samples)
       this.#trackSpeechAndMaybeCommit(samples, pcm, rms, peak, clippingRatio)
       this.#sendCommandPcm(wakePcm)
+      this.#rememberAudioPreroll(pcm, now)
     }
 
     this.#sourceNode.connect(this.#captureNode)
@@ -737,19 +764,15 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     const text = recognitionText(msg)
     if (!text) return
     const finalMessage = isFinalRecognitionMessage(msg)
-    const commandTextHandled = this.options.onCommandText(cleanupVoiceText(text), finalMessage) === true
-    if (finalMessage) this.#trace("wake.message.final", {chars: cleanupVoiceText(text).length, text: debugTraceText(text), handled: commandTextHandled})
-    if (commandTextHandled) return
-
     const phraseGroups = this.#commandPhrases()
     if (this.#asrEnabled) {
       const commandsArmed = performance.now() - this.#asrActivatedAt >= STOP_COMMAND_ARM_DELAY_MS
       if (commandsArmed && isFinalRecognitionMessage(msg)) {
-        if (hasStopCommand(text, phraseGroups.stop, this.#phraseFuzzyTolerance("stop"))) {
+        if (hasStopCommand(text, phraseGroups.stop)) {
           this.stop(VOICE_STOP_COMMAND_DETAIL)
           return
         }
-        if (deactivationModeAllowsPhrase(this.options.deactivationMode()) && hasCommandPhrase(text, phraseGroups.deactivation, this.#phraseFuzzyTolerance("deactivation"))) {
+        if (deactivationModeAllowsPhrase(this.options.deactivationMode()) && hasCommandPhrase(text, phraseGroups.deactivation)) {
           void this.sleepToWake().catch((error) => {
             this.#setStatus("error", error instanceof Error ? error.message : String(error))
             this.#cleanup()
@@ -759,16 +782,19 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       return
     }
 
+    const commandTextHandled = this.options.onCommandText(cleanupVoiceText(text), finalMessage) === true
+    if (finalMessage) this.#trace("wake.message.final", {chars: cleanupVoiceText(text).length, text: debugTraceText(text), handled: commandTextHandled})
+    if (commandTextHandled) return
+
     this.#setStatus("waitingWake", WAKE_WORD)
-    if (isFinalRecognitionMessage(msg) && hasStopCommand(text, phraseGroups.stop, this.#phraseFuzzyTolerance("stop"))) {
+    if (isFinalRecognitionMessage(msg) && hasStopCommand(text, phraseGroups.stop)) {
       this.stop(VOICE_STOP_COMMAND_DETAIL)
       return
     }
     const activationPhrases = phraseGroups.activation
-    const activationTolerance = this.#phraseFuzzyTolerance("activation")
-    if (!isActivationRecognitionMessage(msg, activationPhrases, activationTolerance)) return
+    if (!isActivationRecognitionMessage(msg, activationPhrases)) return
 
-    void this.#activateAsr(text).catch((error) => this.#recoverAsrFailure(error))
+    void this.#activateAsr(text, "wake").catch((error) => this.#recoverAsrFailure(error))
   }
 
   #handleAsrMessage(event: MessageEvent<unknown>): void {
@@ -784,7 +810,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       const text = recognitionText(msg)
       if (this.#stream !== null && this.#session.phase !== "draft" && this.#status !== "waitingWake") this.#setStatus("listening", compactDetail(text))
       if (cleanupVoiceText(text).length > 0) this.#touchRecognitionActivity()
-      const partial = removeCommandTextFromString(text, this.#asrControlPhrases(), (groupId) => this.#phraseFuzzyTolerance(groupId))
+      const partial = removeCommandTextFromString(text, this.#asrControlPhrases())
       const partialText = trimStableVoiceTranscriptPrefix(partial.text, this.#deliveryState.transcript)
       if (partial.command === null && partialText) {
         this.#lastPartialChunk = {text: partial.text, messages: [], segments: []}
@@ -796,7 +822,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     if (msg.type === "result" || msg.type === "final") {
       this.#trace("asr.message.final", {type: msg.type, chars: cleanupVoiceText(recognitionText(msg)).length, text: debugTraceText(recognitionText(msg))})
       const phraseGroups = this.#asrControlPhrases()
-      const result = removeCommandText(chunkFromAsrMessage(msg, phraseGroups), phraseGroups, (groupId) => this.#phraseFuzzyTolerance(groupId))
+      const result = removeCommandText(chunkFromAsrMessage(msg, phraseGroups), phraseGroups)
       const chunk = result.chunk
       if (voiceChunkHasText(chunk)) {
         this.#touchRecognitionActivity()
@@ -875,7 +901,12 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
         closed: vad.closedChunkIds,
       })
     }
-    if (this.#asrEnabled && this.#session.currentChunkId !== null) this.#session.appendCurrentChunkPcm(pcm)
+    if (this.#asrEnabled && this.#session.currentChunkId !== null) {
+      const chunkId = this.#session.currentChunkId
+      for (const frame of this.#appendFirstChunkPreroll(now)) this.#enqueueLiveAsrPcm(chunkId, frame)
+      this.#session.appendCurrentChunkPcm(pcm)
+      this.#enqueueLiveAsrPcm(chunkId, pcm)
+    }
     if (vad.speaking) {
       this.#finalSilenceRequested = false
       this.#lastRecognitionAt = now
@@ -893,6 +924,85 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       this.#commandWs.send(commandPcm)
       this.#debugCommandBytesSent += commandPcm.byteLength
     }
+  }
+
+  #rememberAudioPreroll(pcm: ArrayBuffer, now: number): void {
+    this.#audioPreroll.push({at: now, pcm})
+    const cutoff = now - VOICE_AUDIO_PREROLL_MS
+    while (this.#audioPreroll.length > 0 && (this.#audioPreroll[0]?.at ?? now) < cutoff) this.#audioPreroll.shift()
+  }
+
+  #appendFirstChunkPreroll(now: number): ArrayBuffer[] {
+    if (!this.#firstChunkPrerollArmed) return []
+    const chunkId = this.#session.currentChunkId
+    this.#firstChunkPrerollArmed = false
+    if (chunkId === null) return []
+    const cutoff = now - VOICE_AUDIO_PREROLL_MS
+    const appended: ArrayBuffer[] = []
+    let frames = 0
+    let bytes = 0
+    for (const frame of this.#audioPreroll) {
+      if (frame.at < cutoff) continue
+      this.#session.appendCurrentChunkPcm(frame.pcm)
+      appended.push(frame.pcm)
+      frames += 1
+      bytes += frame.pcm.byteLength
+    }
+    this.#trace("audio.preroll.append", {chunkId, frames, bytes})
+    return appended
+  }
+
+  #enqueueLiveAsrPcm(chunkId: string, pcm: ArrayBuffer): void {
+    if (!this.#asrEnabled || this.#commitPending || this.#asrWs?.readyState !== WebSocket.OPEN) return
+    if (this.#liveAsrChunkId !== null && this.#liveAsrChunkId !== chunkId) this.#flushLiveAsrPcm()
+    this.#liveAsrChunkId = chunkId
+    this.#liveAsrPcm.push(pcm)
+    this.#liveAsrBytes += pcm.byteLength
+    if (this.#liveAsrBytes >= PCM_FLUSH_BYTES) {
+      this.#flushLiveAsrPcm()
+      return
+    }
+    if (this.#liveAsrFlushTimer !== null) return
+    this.#liveAsrFlushTimer = window.setTimeout(() => {
+      this.#liveAsrFlushTimer = null
+      this.#flushLiveAsrPcm()
+    }, PCM_FLUSH_MS)
+  }
+
+  #flushLiveAsrPcm(): void {
+    if (this.#liveAsrFlushTimer !== null) {
+      window.clearTimeout(this.#liveAsrFlushTimer)
+      this.#liveAsrFlushTimer = null
+    }
+    const chunkId = this.#liveAsrChunkId
+    const frames = this.#liveAsrPcm.splice(0)
+    const bytes = this.#liveAsrBytes
+    this.#liveAsrBytes = 0
+    if (chunkId === null || frames.length === 0) return
+    const ws = this.#asrWs
+    if (!this.#asrEnabled || this.#commitPending || ws?.readyState !== WebSocket.OPEN) return
+    try {
+      for (const frame of frames) {
+        ws.send(frame)
+        this.#debugAsrBytesSent += frame.byteLength
+      }
+      this.#liveAsrChunkBytesSent.set(chunkId, (this.#liveAsrChunkBytesSent.get(chunkId) ?? 0) + bytes)
+    } catch (error) {
+      this.#trace("asr.live-pcm.error", {chunkId, error: error instanceof Error ? error.message : String(error)})
+      this.#clearLiveAsrPcm()
+      this.#recoverAsrFailure(error)
+    }
+  }
+
+  #clearLiveAsrPcm(): void {
+    if (this.#liveAsrFlushTimer !== null) {
+      window.clearTimeout(this.#liveAsrFlushTimer)
+      this.#liveAsrFlushTimer = null
+    }
+    this.#liveAsrChunkId = null
+    this.#liveAsrPcm = []
+    this.#liveAsrBytes = 0
+    this.#liveAsrChunkBytesSent.clear()
   }
 
   #pumpAsrQueue(): void {
@@ -942,6 +1052,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
   #stopCaptureForFinalSilence(): void {
     this.#trace("dictation.capture.stop-final-silence")
     this.#session.closeCurrentChunk(performance.now(), "final silence")
+    this.#flushLiveAsrPcm()
     this.#sendCommand({type: "stop"})
     this.#disconnectCommandSocket()
     this.#clearRecognitionTimeoutTimer()
@@ -960,25 +1071,48 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#pauseAsrSocketForWake()
     this.#asrEnabled = false
     this.#asrActivatedAt = 0
-    this.#setStatus("waitingWake", this.#session.phase === "draft" ? "draft" : "ready")
+    if (this.#session.phase === "draft") this.#setStatus("waitingWake", "draft")
+    else {
+      this.#session.reset()
+      this.#setStatus("idle", "ready")
+    }
   }
 
   #sendAsrChunk(chunk: VoiceChunk): void {
     const ws = this.#asrWs
     if (ws?.readyState !== WebSocket.OPEN) return
-    this.#beginCommit(chunk.id)
     try {
-      this.#trace("asr.chunk.send", {chunkId: chunk.id, bytes: chunk.pcmBytes, parts: chunk.pcm.length, attempts: chunk.attempts})
-      for (const pcm of chunk.pcm) {
-        ws.send(pcm)
-        this.#debugAsrBytesSent += pcm.byteLength
+      this.#flushLiveAsrPcm()
+      this.#beginCommit(chunk.id)
+      const liveSentBytes = this.#liveAsrChunkBytesSent.get(chunk.id) ?? 0
+      if (chunk.attempts === 1 && liveSentBytes >= chunk.pcmBytes) {
+        this.#trace("asr.chunk.commit-live", {chunkId: chunk.id, bytes: chunk.pcmBytes, liveSentBytes})
+        ws.send(JSON.stringify({type: "commit"}))
+        this.#setStatus(this.#stream === null ? "processing" : "committing")
+        return
       }
+      this.#trace("asr.chunk.send", {chunkId: chunk.id, bytes: chunk.pcmBytes, liveSentBytes, parts: chunk.pcm.length, attempts: chunk.attempts})
+      this.#sendChunkPcmTail(ws, chunk, chunk.attempts === 1 ? liveSentBytes : 0)
       ws.send(JSON.stringify({type: "commit"}))
       this.#setStatus(this.#stream === null ? "processing" : "committing")
     } catch (error) {
       this.#session.markChunkFailed(chunk.id, error instanceof Error ? error.message : String(error), true)
       this.#finishCommit(false)
       this.#recoverAsrFailure(error)
+    }
+  }
+
+  #sendChunkPcmTail(ws: VoiceInputSocket, chunk: VoiceChunk, skipBytes: number): void {
+    let remainingSkip = Math.min(Math.max(0, skipBytes), chunk.pcmBytes)
+    for (const pcm of chunk.pcm) {
+      if (remainingSkip >= pcm.byteLength) {
+        remainingSkip -= pcm.byteLength
+        continue
+      }
+      const payload = remainingSkip > 0 ? pcm.slice(remainingSkip) : pcm
+      remainingSkip = 0
+      ws.send(payload)
+      this.#debugAsrBytesSent += payload.byteLength
     }
   }
 
@@ -1173,6 +1307,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#pendingCommittedChunk = null
     this.#pendingCommittedChunkCommitId = 0
     this.#lastPartialChunk = null
+    this.#clearLiveAsrPcm()
     this.#disconnectAsrSocket()
     this.#finishCommit(false)
     if (!this.#asrEnabled || this.#stopRequested || this.#status === "idle") {
@@ -1258,6 +1393,8 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#sinkNode = null
     this.#workletUrl = null
     this.#sileroVad = null
+    this.#audioPreroll = []
+    this.#firstChunkPrerollArmed = false
 
     if (audioContext !== null) {
       if (closeDelayMs > 0) window.setTimeout(() => void audioContext.close(), closeDelayMs)
@@ -1361,11 +1498,6 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       deactivation: [],
     }
   }
-
-  #phraseFuzzyTolerance(groupId: VoiceInputPhraseGroupId): number {
-    const value = this.options.phraseFuzzyTolerance(groupId)
-    return Number.isFinite(value) ? Math.min(0.5, Math.max(0, value)) : 0
-  }
 }
 
 function voiceInputSignalTone(kind: VoiceInputSignalTone): {
@@ -1403,16 +1535,26 @@ function cleanupAsrText(text: string, activationPhrases: readonly string[]): str
   return stripPhrasePrefix(cleanupVoiceText(text), activationPhrases, DEFAULT_VOICE_ACTIVATION_PHRASES)
 }
 
-function removeCommandTextFromString(text: string, phraseGroups: VoiceCommandPhraseGroups, toleranceFor: VoicePhraseTolerance): VoiceControlText {
-  return stripControlCommandText(cleanupAsrText(text, phraseGroups.activation), phraseGroups, toleranceFor)
+function removeCommandTextFromString(text: string, phraseGroups: VoiceCommandPhraseGroups): VoiceControlText {
+  return stripControlCommandText(cleanupAsrText(text, phraseGroups.activation), phraseGroups)
 }
 
-function removeCommandText(chunk: VoiceInputChunk, phraseGroups: VoiceCommandPhraseGroups, toleranceFor: VoicePhraseTolerance): VoiceControlChunk {
-  const textResult = stripControlCommandText(chunk.text, phraseGroups, toleranceFor)
+export function prepareVoiceLivePreviewText(
+  text: string,
+  phraseGroups: VoiceCommandPhraseGroups,
+  deliveredTranscript = "",
+): string {
+  const preview = removeCommandTextFromString(text, phraseGroups)
+  if (preview.command !== null) return ""
+  return trimStableVoiceTranscriptPrefix(preview.text, deliveredTranscript)
+}
+
+function removeCommandText(chunk: VoiceInputChunk, phraseGroups: VoiceCommandPhraseGroups): VoiceControlChunk {
+  const textResult = stripControlCommandText(chunk.text, phraseGroups)
   let command = textResult.command
   const messages: string[] = []
   for (const message of chunk.messages) {
-    const result = stripControlCommandText(message, phraseGroups, toleranceFor)
+    const result = stripControlCommandText(message, phraseGroups)
     command = mergeControlCommand(command, result.command)
     if (result.text) messages.push(result.text)
   }
@@ -1488,25 +1630,25 @@ export function prepareVoiceInputChunkForDelivery(
   return {text, messages: [], segments: []}
 }
 
-function stripControlCommandText(text: string, phraseGroups: VoiceCommandPhraseGroups, toleranceFor: VoicePhraseTolerance): VoiceControlText {
+function stripControlCommandText(text: string, phraseGroups: VoiceCommandPhraseGroups): VoiceControlText {
   const controlPhrases = [
     ...normalizePhrasesForRecognition(phraseGroups.deactivation, DEFAULT_VOICE_DEACTIVATION_PHRASES),
     ...normalizePhrasesForRecognition(phraseGroups.stop, DEFAULT_VOICE_STOP_PHRASES),
   ]
-  let command = detectControlCommand(text, phraseGroups, toleranceFor)
+  let command = detectControlCommand(text, phraseGroups)
   let out = text
   for (const phrase of controlPhrases.sort((a, b) => b.length - a.length)) {
     const next = out.replace(new RegExp(`(^|[\\s,.;:!?…-]+)${voicePhraseRegexSource(phrase)}(?=$|[\\s,.;:!?…-]+)`, "giu"), " ")
-    if (next !== out && command === null) command = detectControlCommand(phrase, phraseGroups, toleranceFor)
+    if (next !== out && command === null) command = detectControlCommand(phrase, phraseGroups)
     out = next
   }
   if (command !== null && out === text) return {text: "", command}
   return {text: cleanupVoiceText(out), command}
 }
 
-function detectControlCommand(text: string, phraseGroups: VoiceCommandPhraseGroups, toleranceFor: VoicePhraseTolerance): VoiceControlCommand | null {
-  if (hasStopCommand(text, phraseGroups.stop, toleranceFor("stop"))) return "stop"
-  return isDeactivationPhrase(text, phraseGroups.deactivation, toleranceFor("deactivation")) ? "deactivation" : null
+function detectControlCommand(text: string, phraseGroups: VoiceCommandPhraseGroups): VoiceControlCommand | null {
+  if (hasStopCommand(text, phraseGroups.stop)) return "stop"
+  return isDeactivationPhrase(text, phraseGroups.deactivation) ? "deactivation" : null
 }
 
 function mergeControlCommand(a: VoiceControlCommand | null, b: VoiceControlCommand | null): VoiceControlCommand | null {
@@ -1514,16 +1656,16 @@ function mergeControlCommand(a: VoiceControlCommand | null, b: VoiceControlComma
   return a ?? b
 }
 
-function hasStopCommand(text: string, stopPhrases: readonly string[], tolerance: number): boolean {
+function hasStopCommand(text: string, stopPhrases: readonly string[]): boolean {
   const normalized = normalizeWakeText(text)
   if (!normalized) return false
   const phrases = normalizePhrasesForRecognition(stopPhrases, DEFAULT_VOICE_STOP_PHRASES)
-  return phrases.some((phrase) => phraseMatchesText(normalized, phrase, tolerance))
+  return phrases.some((phrase) => phraseMatchesText(normalized, phrase))
 }
 
-export function isDeactivationPhrase(text: string, deactivationPhrases: readonly string[], tolerance: number): boolean {
+export function isDeactivationPhrase(text: string, deactivationPhrases: readonly string[]): boolean {
   const phrases = normalizePhrasesForRecognition(deactivationPhrases, DEFAULT_VOICE_DEACTIVATION_PHRASES)
-  return hasCommandPhrase(text, phrases, tolerance)
+  return hasCommandPhrase(text, phrases)
 }
 
 function isFinalRecognitionMessage(msg: AsrMessage): boolean {
@@ -1540,37 +1682,23 @@ function recognitionText(msg: AsrMessage): string {
   return ""
 }
 
-export function isActivationPhrase(text: string, activationPhrases: readonly string[], tolerance: number): boolean {
-  return activationPhraseMatch(text, activationPhrases, tolerance) !== null
+export function isActivationPhrase(text: string, activationPhrases: readonly string[]): boolean {
+  return activationPhraseMatch(text, activationPhrases) !== null
 }
 
-export function isActivationRecognitionMessage(msg: {type?: string; text?: string; json?: unknown}, activationPhrases: readonly string[], tolerance: number): boolean {
+export function isActivationRecognitionMessage(msg: {type?: string; text?: string; json?: unknown}, activationPhrases: readonly string[]): boolean {
   if (!isFinalRecognitionMessage(msg)) return false
   const text = recognitionText(msg)
   if (!text) return false
-  return isActivationPhrase(text, activationPhrases, tolerance)
+  return isActivationPhrase(text, activationPhrases)
 }
 
-function activationPhraseMatch(text: string, activationPhrases: readonly string[], tolerance: number): {phrase: string} | null {
+function activationPhraseMatch(text: string, activationPhrases: readonly string[]): {phrase: string} | null {
   const normalized = normalizeWakeText(text)
   if (!normalized) return null
   const phrases = normalizePhrasesForRecognition(activationPhrases, DEFAULT_VOICE_ACTIVATION_PHRASES)
   const exactPhrase = phrases.find((phrase) => activationPhraseInText(normalized, phrase))
-  if (exactPhrase !== undefined) return {phrase: exactPhrase}
-
-  const words = normalized.split(/\s+/)
-  const shortWakeUtterance = words.length <= 3
-  if (!shortWakeUtterance) return null
-  if (tolerance > 0) {
-    const fuzzyPhrase = phrases.find((phrase) => fuzzyActivationPhraseAtStart(normalized, phrase, tolerance))
-    if (fuzzyPhrase !== undefined) return {phrase: fuzzyPhrase}
-  }
-
-  if (tolerance <= 0) return null
-  const [firstWord] = words
-  if (!firstWord) return null
-  const fuzzyWakeWord = phrases.find((phrase) => fuzzyWakeWordMatch(firstWord, phrase, tolerance))
-  return fuzzyWakeWord === undefined ? null : {phrase: fuzzyWakeWord}
+  return exactPhrase === undefined ? null : {phrase: exactPhrase}
 }
 
 export function isFastActivationPartial(text: string, activationPhrases: readonly string[]): boolean {
@@ -1579,10 +1707,10 @@ export function isFastActivationPartial(text: string, activationPhrases: readonl
   return false
 }
 
-function hasCommandPhrase(text: string, phrases: readonly string[], tolerance: number): boolean {
+function hasCommandPhrase(text: string, phrases: readonly string[]): boolean {
   const normalized = normalizeWakeText(text)
   if (!normalized) return false
-  return phrases.some((phrase) => phraseMatchesText(normalized, normalizeWakeText(phrase), tolerance))
+  return phrases.some((phrase) => phraseMatchesText(normalized, normalizeWakeText(phrase)))
 }
 
 function normalizeWakeText(text: string): string {
@@ -1593,27 +1721,6 @@ function normalizeWakeText(text: string): string {
     .replace(/\s+/g, " ")
     .trim()
   return normalized.split(/\s+/).filter(Boolean).map(normalizeWakeToken).join(" ")
-}
-
-function levenshtein(a: string, b: string): number {
-  if (a === b) return 0
-  if (a.length === 0) return b.length
-  if (b.length === 0) return a.length
-  const previous = Array.from({length: b.length + 1}, (_, index) => index)
-  const current = new Array<number>(b.length + 1)
-  for (let i = 1; i <= a.length; i += 1) {
-    current[0] = i
-    for (let j = 1; j <= b.length; j += 1) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1
-      current[j] = Math.min(
-        current[j - 1]! + 1,
-        previous[j]! + 1,
-        previous[j - 1]! + cost,
-      )
-    }
-    previous.splice(0, previous.length, ...current)
-  }
-  return previous[b.length] ?? Math.max(a.length, b.length)
 }
 
 function floatToPcm16(samples: Float32Array): ArrayBuffer {
@@ -2092,82 +2199,9 @@ function activationPhraseInText(text: string, phrase: string): boolean {
   return text === phrase || text.startsWith(`${phrase} `)
 }
 
-function phraseMatchesText(text: string, phrase: string, tolerance: number): boolean {
+function phraseMatchesText(text: string, phrase: string): boolean {
   if (!phrase) return false
-  if (phraseInText(text, phrase)) return true
-  return fuzzyPhraseInText(text, phrase, tolerance)
-}
-
-function fuzzyPhraseInText(text: string, phrase: string, tolerance: number): boolean {
-  if (tolerance <= 0 || !text || !phrase) return false
-  const phraseWords = phrase.split(/\s+/).filter(Boolean)
-  const textWords = text.split(/\s+/).filter(Boolean)
-  if (phraseWords.length === 0 || textWords.length === 0) return false
-
-  const minWindow = Math.max(1, phraseWords.length - 1)
-  const maxWindow = Math.min(textWords.length, phraseWords.length + 1)
-  const compactPhrase = phrase.replace(/\s+/g, "")
-  for (let size = minWindow; size <= maxWindow; size += 1) {
-    for (let start = 0; start + size <= textWords.length; start += 1) {
-      const candidate = textWords.slice(start, start + size).join(" ")
-      if (wakeNumberSignatureMismatch(candidate, phrase)) continue
-      const compactCandidate = candidate.replace(/\s+/g, "")
-      const score = Math.min(
-        normalizedLevenshtein(candidate, phrase),
-        normalizedLevenshtein(compactCandidate, compactPhrase),
-      )
-      if (score <= tolerance) return true
-    }
-  }
-  return false
-}
-
-function fuzzyActivationPhraseAtStart(text: string, phrase: string, tolerance: number): boolean {
-  if (tolerance <= 0 || !text || !phrase) return false
-  const phraseWords = phrase.split(/\s+/).filter(Boolean)
-  const textWords = text.split(/\s+/).filter(Boolean)
-  if (phraseWords.length === 0 || textWords.length === 0) return false
-
-  const minWindow = Math.max(1, phraseWords.length - 1)
-  const maxWindow = Math.min(textWords.length, phraseWords.length + 1)
-  const compactPhrase = phrase.replace(/\s+/g, "")
-  for (let size = minWindow; size <= maxWindow; size += 1) {
-    const candidate = textWords.slice(0, size).join(" ")
-    if (wakeNumberSignatureMismatch(candidate, phrase)) continue
-    const compactCandidate = candidate.replace(/\s+/g, "")
-    const score = Math.min(
-      normalizedLevenshtein(candidate, phrase),
-      normalizedLevenshtein(compactCandidate, compactPhrase),
-    )
-    if (score <= tolerance) return true
-  }
-  return false
-}
-
-function wakeNumberSignatureMismatch(text: string, phrase: string): boolean {
-  const textNumbers = wakeNumberSignature(text)
-  const phraseNumbers = wakeNumberSignature(phrase)
-  if (textNumbers.length === 0 && phraseNumbers.length === 0) return false
-  if (textNumbers.length !== phraseNumbers.length) return true
-  return textNumbers.some((number, index) => number !== phraseNumbers[index])
-}
-
-function wakeNumberSignature(text: string): string[] {
-  return normalizeWakeText(text)
-    .split(/\s+/)
-    .filter((token) => /^\d+$/.test(token))
-}
-
-function normalizedLevenshtein(a: string, b: string): number {
-  const length = Math.max(a.length, b.length)
-  if (length === 0) return 0
-  return levenshtein(a, b) / length
-}
-
-function fuzzyWakeWordMatch(word: string, phrase: string, tolerance: number): boolean {
-  if (phrase.includes(" ")) return false
-  if (word.length < 5 || word.length > Math.max(8, phrase.length + 2)) return false
-  return normalizedLevenshtein(word, phrase) <= tolerance
+  return phraseInText(text, phrase)
 }
 
 function escapeRegExp(value: string): string {

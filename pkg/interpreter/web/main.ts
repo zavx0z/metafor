@@ -266,8 +266,6 @@ import {
   writeVoiceRecognitionTimeoutSeconds,
   readVoicePhrases,
   writeVoicePhrases,
-  readVoiceFuzzyTolerance,
-  writeVoiceFuzzyTolerance,
   defaultVoicePhrases,
   voicePhraseKey,
 } from "./voice-settings-storage.ts"
@@ -2794,11 +2792,6 @@ async function initEngine(): Promise<void> {
         signalVolumeMaxValue: MAX_VOICE_SIGNAL_VOLUME,
         signalVolumeDownLabel: t("voiceSignalVolumeDown"),
         signalVolumeUpLabel: t("voiceSignalVolumeUp"),
-        fuzzyDownLabel: t("voiceFuzzyToleranceDown"),
-        fuzzyUpLabel: t("voiceFuzzyToleranceUp"),
-        fuzzyHintLabel: t("voiceFuzzyToleranceHint"),
-        fuzzyStrictLabel: t("voiceFuzzyToleranceStrict"),
-        fuzzyLooseLabel: t("voiceFuzzyToleranceLoose"),
         wakeEndpoint: voiceEndpointLabel(readVoiceWakeUrl()),
         inputEndpoint: voiceEndpointLabel(readVoiceInputUrl()),
         serviceLine: voiceServiceLine(),
@@ -2813,7 +2806,6 @@ async function initEngine(): Promise<void> {
       onAutoSendChange: storeVoiceAutoSendEnabled,
       onDeactivationModeChange: storeVoiceDeactivationMode,
       onRecognitionTimeoutChange: storeVoiceRecognitionTimeoutSeconds,
-      onPhraseFuzzyChange: storeVoiceFuzzyTolerance,
     })
     installEnginePanes()
     void loadTodoPane()
@@ -3843,7 +3835,6 @@ function ensureVoiceInputClient(): VoiceInputClient {
     activationPhrases: () => readVoicePhrases("activation"),
     deactivationPhrases: () => readVoicePhrases("deactivation"),
     stopPhrases: () => readVoicePhrases("stop"),
-    phraseFuzzyTolerance: readVoiceFuzzyTolerance,
     deactivationMode: readVoiceDeactivationMode,
     recognitionTimeoutMs: () => readVoiceRecognitionTimeoutSeconds() * 1000,
     language: "ru",
@@ -3882,6 +3873,7 @@ function handleVoiceStatus(status: VoiceInputStatus, detail?: string): void {
   if (status === "idle") {
     flushVoiceAutoSendBuffer()
     clearVoiceWakePreview()
+    if (!voiceAutoWakePaused) scheduleVoiceAutoWake(250)
   }
   updateVoiceHud(status, detail)
   if (voiceSignal !== null) playVoiceSignal(voiceSignal)
@@ -4266,7 +4258,8 @@ function voicePreviewTerminals(target: VoiceInputTarget): TerminalPane[] {
 }
 
 function shouldHandleCompletedVoiceCommit(previousStatus: VoiceInputStatus, status: VoiceInputStatus): boolean {
-  return previousStatus === "committing" && (status === "listening" || status === "waitingWake" || status === "idle")
+  if (previousStatus === "committing") return status === "listening" || status === "waitingWake" || status === "idle"
+  return previousStatus === "processing" && status === "idle"
 }
 
 function shouldFlushVoiceBufferForDeactivation(previousStatus: VoiceInputStatus, status: VoiceInputStatus, detail?: string): boolean {
@@ -6593,7 +6586,7 @@ function voiceDebugLines(): string[] {
     `${ru ? "автоотправка" : "auto-send"}: ${readVoiceAutoSendEnabled() ? "on" : "off"}`,
     `${ru ? "режим деактивации" : "deactivation mode"}: ${readVoiceDeactivationMode()}`,
     `${ru ? "тайм-аут распознавания" : "recognition timeout"}: ${readVoiceRecognitionTimeoutSeconds()}s`,
-    `${ru ? "левенштейн" : "levenshtein"}: a ${Math.round(readVoiceFuzzyTolerance("activation") * 100)}% · d ${Math.round(readVoiceFuzzyTolerance("deactivation") * 100)}% · s ${Math.round(readVoiceFuzzyTolerance("stop") * 100)}%`,
+    `${ru ? "совпадение фраз" : "phrase matching"}: exact`,
     `${ru ? "звук" : "sound"}: ${hudNotificationDebugLine()}`,
   ]
 }
@@ -7191,8 +7184,6 @@ function voicePhraseGroupsForHud(): Array<{
   addLabel: string
   placeholder: string
   resetLabel: string
-  fuzzyLabel: string
-  fuzzyValue: number
   receivedLabel?: string
   receivedLines?: string[]
 }> {
@@ -7207,8 +7198,6 @@ function voicePhraseGroupsForHud(): Array<{
       addLabel: t("voicePhraseAdd"),
       placeholder: t("voiceActivationPhrasePrompt"),
       resetLabel: t("voicePhraseReset"),
-      fuzzyLabel: t("voiceFuzzyTolerance"),
-      fuzzyValue: readVoiceFuzzyTolerance("activation"),
       receivedLabel: t("voiceActivationReceived"),
       receivedLines: voiceActivationReceivedLines(),
     },
@@ -7222,8 +7211,6 @@ function voicePhraseGroupsForHud(): Array<{
       addLabel: t("voicePhraseAdd"),
       placeholder: t("voiceDeactivationPhrasePrompt"),
       resetLabel: t("voicePhraseReset"),
-      fuzzyLabel: t("voiceFuzzyTolerance"),
-      fuzzyValue: readVoiceFuzzyTolerance("deactivation"),
     },
     {
       id: "stop",
@@ -7235,8 +7222,6 @@ function voicePhraseGroupsForHud(): Array<{
       addLabel: t("voicePhraseAdd"),
       placeholder: t("voiceStopPhrasePrompt"),
       resetLabel: t("voicePhraseReset"),
-      fuzzyLabel: t("voiceFuzzyTolerance"),
-      fuzzyValue: readVoiceFuzzyTolerance("stop"),
     },
   ]
 }
@@ -7248,12 +7233,6 @@ function voiceActivationReceivedLines(): string[] {
 
 function storeVoicePhrases(groupId: VoiceInputHudPhraseGroupId, phrases: readonly string[]): void {
   writeVoicePhrases(groupId, phrases)
-  renderVoiceHud()
-  restartVoiceCommandRecognizerAfterSettingsChange()
-}
-
-function storeVoiceFuzzyTolerance(groupId: VoiceInputHudPhraseGroupId, value: number): void {
-  writeVoiceFuzzyTolerance(groupId, value)
   renderVoiceHud()
   restartVoiceCommandRecognizerAfterSettingsChange()
 }

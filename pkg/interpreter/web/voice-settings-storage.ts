@@ -14,9 +14,6 @@ const VOICE_WAKE_PHRASES_STORAGE_KEY = "metafor.interpreter.voice.wakePhrases:v1
 const VOICE_ACTIVATION_PHRASES_STORAGE_KEY = "metafor.interpreter.voice.activationPhrases:v1"
 const VOICE_DEACTIVATION_PHRASES_STORAGE_KEY = "metafor.interpreter.voice.deactivationPhrases:v1"
 const VOICE_STOP_PHRASES_STORAGE_KEY = "metafor.interpreter.voice.stopPhrases:v1"
-const VOICE_ACTIVATION_FUZZY_STORAGE_KEY = "metafor.interpreter.voice.activationFuzzy:v1"
-const VOICE_DEACTIVATION_FUZZY_STORAGE_KEY = "metafor.interpreter.voice.deactivationFuzzy:v1"
-const VOICE_STOP_FUZZY_STORAGE_KEY = "metafor.interpreter.voice.stopFuzzy:v1"
 const VOICE_DEACTIVATION_MODE_STORAGE_KEY = "metafor.interpreter.voice.deactivationMode:v1"
 const VOICE_RECOGNITION_TIMEOUT_STORAGE_KEY = "metafor.interpreter.voice.recognitionTimeoutSeconds:v1"
 const VOICE_AUTO_SEND_STORAGE_KEY = "metafor.interpreter.voice.autoSend:v1"
@@ -29,9 +26,6 @@ const DEFAULT_VOICE_SIGNAL_VOLUME = 0.2
 const DEFAULT_VOICE_DEACTIVATION_MODE: VoiceDeactivationMode = "phrase-timeout"
 const DEFAULT_VOICE_RECOGNITION_TIMEOUT_SECONDS = 2
 const DEFAULT_VOICE_AUTO_SEND_ENABLED = true
-const DEFAULT_VOICE_ACTIVATION_FUZZY = 0
-const DEFAULT_VOICE_DEACTIVATION_FUZZY = 0.05
-const DEFAULT_VOICE_STOP_FUZZY = 0.06
 
 export const MAX_VOICE_SIGNAL_VOLUME = 1
 export const MIN_VOICE_RECOGNITION_TIMEOUT_SECONDS = 0.5
@@ -212,27 +206,6 @@ export function writeVoicePhrases(groupId: VoiceInputHudPhraseGroupId, phrases: 
   }
 }
 
-export function readVoiceFuzzyTolerance(groupId: VoiceInputHudPhraseGroupId): number {
-  try {
-    const raw = localStorage.getItem(voiceFuzzyStorageKey(groupId))
-    if (raw === null) return defaultVoiceFuzzyTolerance(groupId)
-    const value = Number(raw)
-    return Number.isFinite(value) ? clampVoiceFuzzyTolerance(value) : defaultVoiceFuzzyTolerance(groupId)
-  } catch {
-    return defaultVoiceFuzzyTolerance(groupId)
-  }
-}
-
-export function writeVoiceFuzzyTolerance(groupId: VoiceInputHudPhraseGroupId, value: number): number {
-  const next = clampVoiceFuzzyTolerance(value)
-  try {
-    localStorage.setItem(voiceFuzzyStorageKey(groupId), String(next))
-  } catch {
-    // Storage can be disabled in private contexts.
-  }
-  return next
-}
-
 export function voicePhraseKey(phrase: string): string | undefined {
   const normalized = normalizeVoicePhrases([phrase])[0]
   if (normalized === undefined) return undefined
@@ -249,20 +222,4 @@ function voicePhraseStorageKey(groupId: VoiceInputHudPhraseGroupId): string {
   if (groupId === "activation") return VOICE_ACTIVATION_PHRASES_STORAGE_KEY
   if (groupId === "deactivation") return VOICE_DEACTIVATION_PHRASES_STORAGE_KEY
   return VOICE_STOP_PHRASES_STORAGE_KEY
-}
-
-function voiceFuzzyStorageKey(groupId: VoiceInputHudPhraseGroupId): string {
-  if (groupId === "activation") return VOICE_ACTIVATION_FUZZY_STORAGE_KEY
-  if (groupId === "deactivation") return VOICE_DEACTIVATION_FUZZY_STORAGE_KEY
-  return VOICE_STOP_FUZZY_STORAGE_KEY
-}
-
-function defaultVoiceFuzzyTolerance(groupId: VoiceInputHudPhraseGroupId): number {
-  if (groupId === "activation") return DEFAULT_VOICE_ACTIVATION_FUZZY
-  if (groupId === "deactivation") return DEFAULT_VOICE_DEACTIVATION_FUZZY
-  return DEFAULT_VOICE_STOP_FUZZY
-}
-
-function clampVoiceFuzzyTolerance(value: number): number {
-  return Math.min(0.5, Math.max(0, value))
 }

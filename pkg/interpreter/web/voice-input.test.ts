@@ -11,6 +11,7 @@ import {
   isActivationRecognitionMessage,
   isDeactivationPhrase,
   isFastActivationPartial,
+  prepareVoiceLivePreviewText,
   prepareVoiceInputChunkForDelivery,
   trimStableVoiceTranscriptPrefix,
 } from "./voice-input.ts"
@@ -18,50 +19,52 @@ import {DEFAULT_VOICE_SESSION_TIMINGS, VoiceSessionManager} from "./voice-sessio
 
 describe("voice activation matching", () => {
   test("uses metafor default activation phrases", () => {
-    expect(DEFAULT_VOICE_ACTIVATION_PHRASES).toEqual(["завхоз", "запхоз", "метафор", "метафора", "квин", "куэн", "qwen", "дипсик", "дип сик", "deepseek", "deep seek"])
-    expect(isActivationPhrase("завхоз", [], 0)).toBe(true)
-    expect(isActivationPhrase("запхоз", [], 0)).toBe(true)
-    expect(isActivationPhrase("метафор", [], 0)).toBe(true)
-    expect(isActivationPhrase("метафора", [], 0)).toBe(true)
-    expect(isActivationPhrase("квин", [], 0)).toBe(true)
-    expect(isActivationPhrase("дипсик", [], 0)).toBe(true)
-    expect(isActivationPhrase("агент", [], 0)).toBe(false)
+    expect(DEFAULT_VOICE_ACTIVATION_PHRASES).toEqual(["завхоз", "зав хоз", "запхоз", "зап хоз", "метафор", "метафора", "квин", "куэн", "qwen", "дипсик", "дип сик", "deepseek", "deep seek"])
+    expect(isActivationPhrase("завхоз", [])).toBe(true)
+    expect(isActivationPhrase("зав хоз", [])).toBe(true)
+    expect(isActivationPhrase("запхоз", [])).toBe(true)
+    expect(isActivationPhrase("зап хоз", [])).toBe(true)
+    expect(isActivationPhrase("метафор", [])).toBe(true)
+    expect(isActivationPhrase("метафора", [])).toBe(true)
+    expect(isActivationPhrase("квин", [])).toBe(true)
+    expect(isActivationPhrase("дипсик", [])).toBe(true)
+    expect(isActivationPhrase("агент", [])).toBe(false)
   })
 
-  test("does not activate agent two from agent alone with zero tolerance", () => {
-    expect(isActivationPhrase("агент 2", ["агент 2"], 0)).toBe(true)
-    expect(isActivationPhrase("агент", ["агент 2"], 0)).toBe(false)
+  test("does not activate agent two from agent alone", () => {
+    expect(isActivationPhrase("агент 2", ["агент 2"])).toBe(true)
+    expect(isActivationPhrase("агент", ["агент 2"])).toBe(false)
     expect(isFastActivationPartial("агент", ["агент 2"])).toBe(false)
-    expect(isActivationPhrase("о агент", ["агент 2"], 0)).toBe(false)
+    expect(isActivationPhrase("о агент", ["агент 2"])).toBe(false)
   })
 
-  test("does not fuzzy activate a different numbered agent", () => {
-    expect(isActivationPhrase("агент 2", ["агент 2"], 0.25)).toBe(true)
-    expect(isActivationPhrase("агент 1", ["агент 2"], 0.25)).toBe(false)
-    expect(isActivationPhrase("агент один", ["агент 2"], 0.25)).toBe(false)
-    expect(isActivationPhrase("агент 2", ["агент 1"], 0.25)).toBe(false)
-    expect(isActivationPhrase("агент два", ["агент 1"], 0.25)).toBe(false)
-    expect(isActivationPhrase("агент", ["агент 2"], 0.25)).toBe(false)
+  test("matches numbered wake phrases exactly", () => {
+    expect(isActivationPhrase("агент 2", ["агент 2"])).toBe(true)
+    expect(isActivationPhrase("агент 1", ["агент 2"])).toBe(false)
+    expect(isActivationPhrase("агент один", ["агент 2"])).toBe(false)
+    expect(isActivationPhrase("агент 2", ["агент 1"])).toBe(false)
+    expect(isActivationPhrase("агент два", ["агент 1"])).toBe(false)
+    expect(isActivationPhrase("агент", ["агент 2"])).toBe(false)
   })
 
   test("requires wake phrases to start the utterance", () => {
-    expect(isActivationPhrase("агент открой терминал", ["агент"], 0)).toBe(true)
-    expect(isActivationPhrase("о агент", ["агент"], 0)).toBe(false)
+    expect(isActivationPhrase("агент открой терминал", ["агент"])).toBe(true)
+    expect(isActivationPhrase("о агент", ["агент"])).toBe(false)
     expect(isFastActivationPartial("о агент", ["агент"])).toBe(false)
   })
 
-  test("keeps fuzzy activation anchored at the first word", () => {
-    expect(isActivationPhrase("аген открой терминал", ["агент"], 0.25)).toBe(true)
-    expect(isActivationPhrase("о аген", ["агент"], 0.25)).toBe(false)
+  test("does not activate misspelled wake", () => {
+    expect(isActivationPhrase("аген открой терминал", ["агент"])).toBe(false)
+    expect(isActivationPhrase("о аген", ["агент"])).toBe(false)
   })
 
   test("activates only from final wake recognition messages", () => {
-    expect(isActivationRecognitionMessage({type: "partial", text: "завхоз"}, ["завхоз"], 0)).toBe(false)
-    expect(isActivationRecognitionMessage({type: "result", text: "завхоз"}, ["завхоз"], 0)).toBe(true)
-    expect(isActivationRecognitionMessage({type: "final", json: {text: "завхоз"}}, ["завхоз"], 0)).toBe(true)
-    expect(isActivationRecognitionMessage({type: "result", text: "зав"}, ["завхоз"], 0)).toBe(false)
-    expect(isActivationRecognitionMessage({type: "result", text: "завтра"}, ["завхоз"], 0)).toBe(false)
-    expect(isActivationRecognitionMessage({type: "result", text: "за вход"}, ["завхоз"], 0)).toBe(false)
+    expect(isActivationRecognitionMessage({type: "partial", text: "завхоз"}, ["завхоз"])).toBe(false)
+    expect(isActivationRecognitionMessage({type: "result", text: "завхоз"}, ["завхоз"])).toBe(true)
+    expect(isActivationRecognitionMessage({type: "final", json: {text: "завхоз"}}, ["завхоз"])).toBe(true)
+    expect(isActivationRecognitionMessage({type: "result", text: "зав"}, ["завхоз"])).toBe(false)
+    expect(isActivationRecognitionMessage({type: "result", text: "завтра"}, ["завхоз"])).toBe(false)
+    expect(isActivationRecognitionMessage({type: "result", text: "за вход"}, ["завхоз"])).toBe(false)
   })
 
   test("does not activate from fast partial candidates", () => {
@@ -78,15 +81,15 @@ describe("voice activation matching", () => {
     expect(isFastActivationPartial("заваня", ["завхоз"])).toBe(false)
   })
 
-  test("keeps wake confusers blocked when activation fuzzy tolerance is enabled manually", () => {
-    const activationFuzzy = 0.12
-    expect(isActivationPhrase("зав хоз", ["завхоз"], activationFuzzy)).toBe(true)
-    expect(isActivationPhrase("за вход", ["завхоз"], activationFuzzy)).toBe(false)
-    expect(isActivationPhrase("завтра", ["завхоз"], activationFuzzy)).toBe(false)
-    expect(isActivationPhrase("завтрак", ["завхоз"], activationFuzzy)).toBe(false)
-    expect(isActivationPhrase("завуси", ["завхоз"], activationFuzzy)).toBe(false)
-    expect(isActivationPhrase("завася", ["завхоз"], activationFuzzy)).toBe(false)
-    expect(isActivationPhrase("заваня", ["завхоз"], activationFuzzy)).toBe(false)
+  test("requires explicit wake variants", () => {
+    expect(isActivationPhrase("зав хоз", ["завхоз"])).toBe(false)
+    expect(isActivationPhrase("зав хоз", ["зав хоз"])).toBe(true)
+    expect(isActivationPhrase("за вход", ["завхоз"])).toBe(false)
+    expect(isActivationPhrase("завтра", ["завхоз"])).toBe(false)
+    expect(isActivationPhrase("завтрак", ["завхоз"])).toBe(false)
+    expect(isActivationPhrase("завуси", ["завхоз"])).toBe(false)
+    expect(isActivationPhrase("завася", ["завхоз"])).toBe(false)
+    expect(isActivationPhrase("заваня", ["завхоз"])).toBe(false)
   })
 
   test("builds Vosk grammar from prefixes and number variants", () => {
@@ -124,13 +127,13 @@ describe("voice activation matching", () => {
     expect(grammar).toContain("завуси")
     expect(grammar).toContain("завася")
     expect(grammar).toContain("заваня")
-    expect(isActivationPhrase("зав", ["завхоз"], 0)).toBe(false)
-    expect(isActivationPhrase("завтра", ["завхоз"], 0)).toBe(false)
-    expect(isActivationPhrase("завтрак", ["завхоз"], 0)).toBe(false)
-    expect(isActivationPhrase("за вход", ["завхоз"], 0)).toBe(false)
-    expect(isActivationPhrase("завуси", ["завхоз"], 0)).toBe(false)
-    expect(isActivationPhrase("завася", ["завхоз"], 0)).toBe(false)
-    expect(isActivationPhrase("заваня", ["завхоз"], 0)).toBe(false)
+    expect(isActivationPhrase("зав", ["завхоз"])).toBe(false)
+    expect(isActivationPhrase("завтра", ["завхоз"])).toBe(false)
+    expect(isActivationPhrase("завтрак", ["завхоз"])).toBe(false)
+    expect(isActivationPhrase("за вход", ["завхоз"])).toBe(false)
+    expect(isActivationPhrase("завуси", ["завхоз"])).toBe(false)
+    expect(isActivationPhrase("завася", ["завхоз"])).toBe(false)
+    expect(isActivationPhrase("заваня", ["завхоз"])).toBe(false)
   })
 
   test("keeps unsupported Vosk vocabulary out of generated grammar", () => {
@@ -152,22 +155,22 @@ describe("voice activation matching", () => {
   })
 
   test("matches common deactivation phrase variants", () => {
-    expect(isDeactivationPhrase("выключи микрофон", DEFAULT_VOICE_DEACTIVATION_PHRASES, 0)).toBe(true)
-    expect(isDeactivationPhrase("выключим микрофон", DEFAULT_VOICE_DEACTIVATION_PHRASES, 0)).toBe(true)
-    expect(isDeactivationPhrase("выключу микрофон", DEFAULT_VOICE_DEACTIVATION_PHRASES, 0)).toBe(true)
-    expect(isDeactivationPhrase("отключим микрофон", DEFAULT_VOICE_DEACTIVATION_PHRASES, 0)).toBe(true)
-    expect(isDeactivationPhrase("отключу микрофон", DEFAULT_VOICE_DEACTIVATION_PHRASES, 0)).toBe(true)
-    expect(isDeactivationPhrase("вырубим микрофон", DEFAULT_VOICE_DEACTIVATION_PHRASES, 0)).toBe(true)
-    expect(isDeactivationPhrase("вырублю микрофон", DEFAULT_VOICE_DEACTIVATION_PHRASES, 0)).toBe(true)
+    expect(isDeactivationPhrase("выключи микрофон", DEFAULT_VOICE_DEACTIVATION_PHRASES)).toBe(true)
+    expect(isDeactivationPhrase("выключим микрофон", DEFAULT_VOICE_DEACTIVATION_PHRASES)).toBe(true)
+    expect(isDeactivationPhrase("выключу микрофон", DEFAULT_VOICE_DEACTIVATION_PHRASES)).toBe(true)
+    expect(isDeactivationPhrase("отключим микрофон", DEFAULT_VOICE_DEACTIVATION_PHRASES)).toBe(true)
+    expect(isDeactivationPhrase("отключу микрофон", DEFAULT_VOICE_DEACTIVATION_PHRASES)).toBe(true)
+    expect(isDeactivationPhrase("вырубим микрофон", DEFAULT_VOICE_DEACTIVATION_PHRASES)).toBe(true)
+    expect(isDeactivationPhrase("вырублю микрофон", DEFAULT_VOICE_DEACTIVATION_PHRASES)).toBe(true)
   })
 
   test("matches deactivation variants from stored base phrases", () => {
-    expect(isDeactivationPhrase("выключим микрофон", ["выключи микрофон"], 0)).toBe(true)
-    expect(isDeactivationPhrase("выключу микрофон", ["выключи микрофон"], 0)).toBe(true)
-    expect(isDeactivationPhrase("отключить микрофон", ["отключи микрофон"], 0)).toBe(true)
-    expect(isDeactivationPhrase("отключу микрофон", ["отключи микрофон"], 0)).toBe(true)
-    expect(isDeactivationPhrase("вырубить микрофон", ["выруби микрофон"], 0)).toBe(true)
-    expect(isDeactivationPhrase("вырублю микрофон", ["выруби микрофон"], 0)).toBe(true)
+    expect(isDeactivationPhrase("выключим микрофон", ["выключи микрофон"])).toBe(true)
+    expect(isDeactivationPhrase("выключу микрофон", ["выключи микрофон"])).toBe(true)
+    expect(isDeactivationPhrase("отключить микрофон", ["отключи микрофон"])).toBe(true)
+    expect(isDeactivationPhrase("отключу микрофон", ["отключи микрофон"])).toBe(true)
+    expect(isDeactivationPhrase("вырубить микрофон", ["выруби микрофон"])).toBe(true)
+    expect(isDeactivationPhrase("вырублю микрофон", ["выруби микрофон"])).toBe(true)
   })
 })
 
@@ -464,5 +467,16 @@ describe("voice dictation cleanup", () => {
 
     expect(prepareVoiceInputChunkForDelivery({text: "Текст не рвался", messages: [], segments: []}, state, 1)?.text).toBe("Текст не рвался")
     expect(prepareVoiceInputChunkForDelivery({text: "Текст не рвался и не дублировался", messages: [], segments: []}, state, 2)?.text).toBe("и не дублировался")
+  })
+
+  test("builds ASR partial preview without using commands as dictation text", () => {
+    const groups = {
+      activation: ["завхоз"],
+      deactivation: ["выключи микрофон"],
+      stop: ["полная остановка"],
+    }
+    expect(prepareVoiceLivePreviewText("завхоз первое слово не потерялось", groups)).toBe("первое слово не потерялось")
+    expect(prepareVoiceLivePreviewText("Текст не рвался и не дублировался", groups, "Текст не рвался")).toBe("и не дублировался")
+    expect(prepareVoiceLivePreviewText("выключи микрофон", groups)).toBe("")
   })
 })
