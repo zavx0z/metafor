@@ -63,6 +63,7 @@
     "workspace.dark:prod": "NODE_ENV=production BUN_ENV=production BOUNDARY_PATH=dark/tmp/boundary.sqlite PORT=3004 bun dark/index.ts",
     "workspace.dark:product": "bun run workspace.dark:prod",
     "voice:assets": "bun --filter @metafor/voice assets",
+    "interpreter:voice:assets": "bun --filter @metafor/interpreter assets",
     "voice:playground": "bun --filter @metafor/voice playground",
     "voice:smoke": "bun --filter @metafor/voice smoke",
     "voice:asr:tunnel": "ssh -N -L 127.0.0.1:8787:127.0.0.1:8787 ai-srv",

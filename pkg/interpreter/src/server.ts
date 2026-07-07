@@ -692,6 +692,8 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
       "/hud/android/webrtc/signaling": {GET: upgradeRtcSignal},
       "/hud/voice/wake/ws": {GET: upgradeVoiceProxy},
       "/hud/voice/asr/ws": {GET: upgradeVoiceProxy},
+      "/assets/voice/models/silero_vad_16k_op15.onnx": serveStatic(join(WEB_DIR, "assets", "voice", "models", "silero_vad_16k_op15.onnx"), "application/octet-stream"),
+      "/assets/voice/ort/ort-wasm-simd-threaded.wasm": serveStatic(join(WEB_DIR, "assets", "voice", "ort", "ort-wasm-simd-threaded.wasm"), "application/wasm"),
       "/hud/terminal/sessions": {
         async GET() {
           try {

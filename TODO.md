@@ -31,6 +31,8 @@
 - [100] Добавить voice activation routing для Browser Agent sessions: фразы Qwen/DeepSeek выбирают нужную session и voice target в общем Message composer без активации Chrome-вкладки; реальная browser tab переключается только ручным кликом по target switcher.
 - [100] Переработать voice activation/deactivation noise policy: поднять надежность wake при тихом микрофоне/слабой сети, меньше ложных срабатываний на шум, короче ожидание на пустом шуме, явные состояния wake/listening/commit.
 - [100] Исправить voice wake target routing: Завхоз/Метафор всегда возвращает voice target в Codex host, Qwen/DeepSeek оставляют Browser Agent session.
+- [100] Ввести VoiceSessionManager: локальная voice session/queue, composer-as-source-of-truth, не-fatal ASR failure, безопасный wake routing.
+- [100] Доскачать Silero VAD assets и подключить browser-side Silero local VAD с fallback на adaptive noise-floor.
 
 ## 6. Browser Agent Chat: изображения
 

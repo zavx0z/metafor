@@ -12,6 +12,7 @@ import {
   prepareVoiceInputChunkForDelivery,
   trimStableVoiceTranscriptPrefix,
 } from "./voice-input.ts"
+import {VoiceSessionManager} from "./voice-session-manager.ts"
 
 describe("voice activation matching", () => {
   test("uses metafor default activation phrases", () => {
@@ -61,11 +62,11 @@ describe("voice activation matching", () => {
     expect(isActivationRecognitionMessage({type: "result", text: "за вход"}, ["завхоз"], 0)).toBe(false)
   })
 
-  test("recognizes exact fast partial candidates without fuzzy confusers", () => {
-    expect(isFastActivationPartial("завхоз", ["завхоз"])).toBe(true)
-    expect(isFastActivationPartial("зав хоз", ["завхоз"])).toBe(true)
-    expect(isFastActivationPartial("зав хоз открой терминал", ["завхоз"])).toBe(true)
-    expect(isFastActivationPartial("завхоз открой терминал", ["завхоз"])).toBe(true)
+  test("does not activate from fast partial candidates", () => {
+    expect(isFastActivationPartial("завхоз", ["завхоз"])).toBe(false)
+    expect(isFastActivationPartial("зав хоз", ["завхоз"])).toBe(false)
+    expect(isFastActivationPartial("зав хоз открой терминал", ["завхоз"])).toBe(false)
+    expect(isFastActivationPartial("завхоз открой терминал", ["завхоз"])).toBe(false)
     expect(isFastActivationPartial("зав", ["завхоз"])).toBe(false)
     expect(isFastActivationPartial("завтра", ["завхоз"])).toBe(false)
     expect(isFastActivationPartial("завтрак", ["завхоз"])).toBe(false)
@@ -75,15 +76,15 @@ describe("voice activation matching", () => {
     expect(isFastActivationPartial("заваня", ["завхоз"])).toBe(false)
   })
 
-  test("keeps wake confusers blocked with default activation fuzzy tolerance", () => {
-    const defaultActivationFuzzy = 0.12
-    expect(isActivationPhrase("зав хоз", ["завхоз"], defaultActivationFuzzy)).toBe(true)
-    expect(isActivationPhrase("за вход", ["завхоз"], defaultActivationFuzzy)).toBe(false)
-    expect(isActivationPhrase("завтра", ["завхоз"], defaultActivationFuzzy)).toBe(false)
-    expect(isActivationPhrase("завтрак", ["завхоз"], defaultActivationFuzzy)).toBe(false)
-    expect(isActivationPhrase("завуси", ["завхоз"], defaultActivationFuzzy)).toBe(false)
-    expect(isActivationPhrase("завася", ["завхоз"], defaultActivationFuzzy)).toBe(false)
-    expect(isActivationPhrase("заваня", ["завхоз"], defaultActivationFuzzy)).toBe(false)
+  test("keeps wake confusers blocked when activation fuzzy tolerance is enabled manually", () => {
+    const activationFuzzy = 0.12
+    expect(isActivationPhrase("зав хоз", ["завхоз"], activationFuzzy)).toBe(true)
+    expect(isActivationPhrase("за вход", ["завхоз"], activationFuzzy)).toBe(false)
+    expect(isActivationPhrase("завтра", ["завхоз"], activationFuzzy)).toBe(false)
+    expect(isActivationPhrase("завтрак", ["завхоз"], activationFuzzy)).toBe(false)
+    expect(isActivationPhrase("завуси", ["завхоз"], activationFuzzy)).toBe(false)
+    expect(isActivationPhrase("завася", ["завхоз"], activationFuzzy)).toBe(false)
+    expect(isActivationPhrase("заваня", ["завхоз"], activationFuzzy)).toBe(false)
   })
 
   test("builds Vosk grammar from prefixes and number variants", () => {
@@ -165,6 +166,52 @@ describe("voice activation matching", () => {
     expect(isDeactivationPhrase("отключу микрофон", ["отключи микрофон"], 0)).toBe(true)
     expect(isDeactivationPhrase("вырубить микрофон", ["выруби микрофон"], 0)).toBe(true)
     expect(isDeactivationPhrase("вырублю микрофон", ["выруби микрофон"], 0)).toBe(true)
+  })
+})
+
+describe("voice session manager", () => {
+  test("tracks adaptive VAD without treating steady low noise as speech", () => {
+    const session = new VoiceSessionManager()
+    session.startRecording()
+
+    for (let index = 0; index < 24; index += 1) {
+      const frame = session.acceptVadFrame({rms: 0.003, peak: 0.007, now: index * 20})
+      expect(frame.speaking).toBe(false)
+    }
+
+    const speech = session.acceptVadFrame({rms: 0.05, peak: 0.11, now: 600})
+    expect(speech.speaking).toBe(true)
+    expect(speech.source).toBe("energy")
+    expect(session.debugSnapshot().phase).toBe("speaking")
+  })
+
+  test("uses fresh Silero probability ahead of energy threshold", () => {
+    const session = new VoiceSessionManager()
+    session.startRecording()
+
+    const speech = session.acceptVadFrame({
+      rms: 0.006,
+      peak: 0.018,
+      now: 1000,
+      speechProbability: 0.82,
+      speechProbabilityAt: 980,
+    })
+
+    expect(speech.speaking).toBe(true)
+    expect(speech.source).toBe("silero")
+    expect(session.debugSnapshot().speechProbability).toBe(0.82)
+  })
+
+  test("keeps ASR PCM queued under a byte limit", () => {
+    const session = new VoiceSessionManager(1000)
+    session.queueAsrPcm(new ArrayBuffer(640))
+    session.queueAsrPcm(new ArrayBuffer(640))
+
+    const snapshot = session.debugSnapshot()
+    expect(snapshot.queuedPcmBytes).toBeLessThanOrEqual(1000)
+    expect(snapshot.queuedPcmChunks).toBe(1)
+    expect(session.takeQueuedPcm()).toHaveLength(1)
+    expect(session.debugSnapshot().queuedPcmBytes).toBe(0)
   })
 })
 

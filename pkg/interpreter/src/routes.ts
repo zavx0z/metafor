@@ -55,6 +55,8 @@ const routeIndex = [
   {method: "WS", path: "/hud/android/webrtc/signaling", description: "WebRTC signaling для Android APK video/datachannel"},
   {method: "WS", path: "/hud/voice/wake/ws", description: "public proxy к локальному voice wake/Vosk WebSocket"},
   {method: "WS", path: "/hud/voice/asr/ws", description: "public proxy к локальному ASR WebSocket"},
+  {method: "GET", path: "/assets/voice/models/silero_vad_16k_op15.onnx", description: "browser-side Silero VAD ONNX model для local voice activity detection"},
+  {method: "GET", path: "/assets/voice/ort/ort-wasm-simd-threaded.wasm", description: "ONNX Runtime Web WASM для browser-side Silero VAD"},
   {method: "GET", path: "/android/size", description: "proxy к Android panel API: размер устройства"},
   {method: "GET", path: "/android/screencap", description: "proxy к Android panel API: текущий PNG frame"},
   {method: "POST", path: "/android/tap", description: "{x,y} — proxy Android tap"},

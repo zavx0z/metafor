@@ -13,11 +13,13 @@ export type VoiceProxySocketData = {
   targetUrl: string
   connectedAt: number
   upstream: WebSocket | null
+  reconnectTimer: ReturnType<typeof setTimeout> | null
   pending: VoiceProxyPayload[]
   pendingBytes: number
 }
 
 const MAX_PENDING_BYTES = 8 * 1024 * 1024
+const RECONNECT_DELAY_MS = 700
 
 export function voiceProxyTargetUrl(route: VoiceProxyRoute): string {
   if (route === "wake") {
@@ -34,12 +36,24 @@ export function createVoiceProxySocketData(route: VoiceProxyRoute): VoiceProxySo
     targetUrl: voiceProxyTargetUrl(route),
     connectedAt: Date.now(),
     upstream: null,
+    reconnectTimer: null,
     pending: [],
     pendingBytes: 0,
   }
 }
 
 export function attachVoiceProxySocket(ws: ServerWebSocket<VoiceProxySocketData>): void {
+  connectVoiceProxyUpstream(ws)
+}
+
+function connectVoiceProxyUpstream(ws: ServerWebSocket<VoiceProxySocketData>): void {
+  if (ws.readyState !== WebSocket.OPEN) return
+  if (ws.data.reconnectTimer !== null) {
+    clearTimeout(ws.data.reconnectTimer)
+    ws.data.reconnectTimer = null
+  }
+  if (ws.data.upstream?.readyState === WebSocket.OPEN || ws.data.upstream?.readyState === WebSocket.CONNECTING) return
+
   const upstream = new WebSocket(ws.data.targetUrl)
   upstream.binaryType = "arraybuffer"
   ws.data.upstream = upstream
@@ -51,13 +65,25 @@ export function attachVoiceProxySocket(ws: ServerWebSocket<VoiceProxySocketData>
     void sendVoiceProxyPayloadToClient(ws, event.data)
   })
   upstream.addEventListener("error", () => {
-    closeVoiceProxyClient(ws, 1011, "voice upstream websocket error")
+    if (ws.data.upstream === upstream) scheduleVoiceProxyReconnect(ws, upstream)
   })
   upstream.addEventListener("close", () => {
     if (ws.data.upstream !== upstream) return
     ws.data.upstream = null
-    closeVoiceProxyClient(ws, 1011, "voice upstream websocket closed")
+    scheduleVoiceProxyReconnect(ws)
   })
+}
+
+function scheduleVoiceProxyReconnect(ws: ServerWebSocket<VoiceProxySocketData>, upstream?: WebSocket): void {
+  if (upstream !== undefined && ws.data.upstream === upstream) {
+    ws.data.upstream = null
+    if (upstream.readyState === WebSocket.OPEN || upstream.readyState === WebSocket.CONNECTING) upstream.close()
+  }
+  if (ws.readyState !== WebSocket.OPEN || ws.data.reconnectTimer !== null) return
+  ws.data.reconnectTimer = setTimeout(() => {
+    ws.data.reconnectTimer = null
+    connectVoiceProxyUpstream(ws)
+  }, RECONNECT_DELAY_MS)
 }
 
 export function relayVoiceProxyMessage(
@@ -69,10 +95,7 @@ export function relayVoiceProxyMessage(
     upstream.send(message)
     return
   }
-  if (upstream?.readyState !== WebSocket.CONNECTING) {
-    closeVoiceProxyClient(ws, 1011, "voice upstream websocket unavailable")
-    return
-  }
+  if (upstream?.readyState !== WebSocket.CONNECTING) scheduleVoiceProxyReconnect(ws)
 
   ws.data.pending.push(message)
   ws.data.pendingBytes += voiceProxyPayloadSize(message)
@@ -86,6 +109,10 @@ export function relayVoiceProxyMessage(
 export function detachVoiceProxySocket(ws: ServerWebSocket<VoiceProxySocketData>): void {
   const upstream = ws.data.upstream
   ws.data.upstream = null
+  if (ws.data.reconnectTimer !== null) {
+    clearTimeout(ws.data.reconnectTimer)
+    ws.data.reconnectTimer = null
+  }
   ws.data.pending = []
   ws.data.pendingBytes = 0
   if (upstream?.readyState === WebSocket.OPEN || upstream?.readyState === WebSocket.CONNECTING) upstream.close()
@@ -95,8 +122,16 @@ function flushPendingVoiceProxyMessages(ws: ServerWebSocket<VoiceProxySocketData
   const pending = ws.data.pending
   ws.data.pending = []
   ws.data.pendingBytes = 0
-  for (const payload of pending) {
-    if (upstream.readyState !== WebSocket.OPEN) return
+  for (let index = 0; index < pending.length; index += 1) {
+    const payload = pending[index]
+    if (payload === undefined) continue
+    if (upstream.readyState !== WebSocket.OPEN) {
+      const unsent = pending.slice(index)
+      ws.data.pending = unsent
+      ws.data.pendingBytes = unsent.reduce((size, item) => size + voiceProxyPayloadSize(item), 0)
+      scheduleVoiceProxyReconnect(ws, upstream)
+      return
+    }
     upstream.send(payload)
   }
 }

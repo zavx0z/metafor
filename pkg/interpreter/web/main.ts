@@ -4061,12 +4061,16 @@ function handleVoiceInputChunk(chunk: VoiceInputChunk): void {
   renderVoiceHud()
 }
 
-function handleVoiceCommandText(raw: string): boolean {
+function handleVoiceCommandText(raw: string, final: boolean): boolean {
   const text = cleanupVoiceInputText(raw)
   if (!text) return false
   voiceWakePreviewText = text
   voiceWakePreviewAt = new Date()
   recordVoiceWakePreview(text, voiceWakePreviewAt)
+  if (!final) {
+    renderVoiceHud()
+    return false
+  }
   if (maybeActivateHostVoiceSession(text)) return true
   if (maybeActivateBrowserChatVoiceSession(text)) return true
   renderVoiceHud()
@@ -4468,21 +4472,14 @@ function sendHostTerminalVoiceSubmit(controller: HostTerminalController, text: s
     controller.codexSubmitAfterAttachmentUpload = true
     return stageHostCodexDraft(controller, body, {focusComposer: false})
   }
-  if (controller.codexAttachments.length > 0) {
-    const baseDraft = controller.voiceComposerEdited ? controller.codexDraft : (controller.voiceComposerBaseDraft ?? controller.codexDraft)
-    const nextDraft = mergeCodexComposerDraft(baseDraft, body)
-    clearVoicePartialPreviewForTarget({kind: "host", controller})
-    discardVoiceAutoSendBuffer()
-    voiceNextFlushMode = "auto"
-    resetHostVoiceComposerDraftTracking(controller)
-    setHostCodexDraft(controller, nextDraft)
-    return submitHostCodexComposer(controller, {flushPendingInput: false, focusAfterSubmit: false})
-  }
-  const payload = controller.terminalState?.bracketedPaste
-    ? `\x1b[200~${body}\x1b[201~\r`
-    : `${body}\r`
-  sendHostTerminalInput(controller, payload, "api", body)
-  return true
+  const baseDraft = controller.voiceComposerEdited ? controller.codexDraft : (controller.voiceComposerBaseDraft ?? controller.codexDraft)
+  const nextDraft = mergeCodexComposerDraft(baseDraft, body)
+  clearVoicePartialPreviewForTarget({kind: "host", controller})
+  discardVoiceAutoSendBuffer()
+  voiceNextFlushMode = "auto"
+  resetHostVoiceComposerDraftTracking(controller)
+  setHostCodexDraft(controller, nextDraft)
+  return submitHostCodexComposer(controller, {flushPendingInput: false, focusAfterSubmit: false})
 }
 
 function sendBrowserChatVoiceSubmit(controller: BrowserChatController, text: string): boolean {
@@ -6549,10 +6546,24 @@ function voiceDebugLines(): string[] {
   const ru = getUiLocale() === "ru"
   const target = voiceTargetLabel()
   const previewActive = voicePartialPreviewTarget !== null
+  const debug = voiceInputClient?.debugSnapshot()
+  const session = debug?.session
+  const silero = debug?.sileroVad
+  const sileroState = silero === undefined || silero === null
+    ? "-"
+    : silero.ready ? "ready" : silero.loading ? "loading" : silero.error !== null ? "error" : "idle"
   return [
     `${ru ? "статус" : "status"}: ${voiceStatusLabel(voiceHudStatus)}`,
     `${ru ? "деталь" : "detail"}: ${voiceHudDetail || "-"}`,
     `${ru ? "цель" : "target"}: ${target || "-"}`,
+    `${ru ? "сессия" : "session"}: ${session?.phase ?? "-"}`,
+    `${ru ? "говорит" : "speaking"}: ${session?.speaking === true ? "yes" : "no"}`,
+    `VAD: ${session?.vadSource ?? "-"}`,
+    `Silero: ${sileroState}${silero?.speechProbability === null || silero?.speechProbability === undefined ? "" : ` p=${silero.speechProbability.toFixed(2)}`}`,
+    `${ru ? "очередь ASR" : "ASR queue"}: ${debug === undefined ? "-" : `${debug.asrBytesQueued} bytes`}`,
+    `${ru ? "transport" : "transport"}: ${debug?.asrTransport ?? "-"}`,
+    `${ru ? "noise floor" : "noise floor"}: ${session === undefined ? "-" : session.noiseFloor.toFixed(4)}`,
+    `${ru ? "speech threshold" : "speech threshold"}: ${session === undefined ? "-" : session.speechThreshold.toFixed(4)}`,
     `${ru ? "wake слышит" : "wake heard"}: ${debugVoiceText(voiceWakePreviewText)}`,
     `${ru ? "wake время" : "wake at"}: ${formatDebugTime(voiceWakePreviewAt)}`,
     `${ru ? "preview активен" : "preview active"}: ${previewActive ? "yes" : "no"}`,
