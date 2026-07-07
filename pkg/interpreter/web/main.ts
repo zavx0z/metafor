@@ -6572,6 +6572,7 @@ function voiceDebugLines(): string[] {
     `Silero: ${sileroState}${silero?.speechProbability === null || silero?.speechProbability === undefined ? "" : ` p=${silero.speechProbability.toFixed(2)}`}`,
     `${ru ? "chunks" : "chunks"}: ${session === undefined ? "-" : `total=${session.chunks.total} rec=${session.chunks.recording} queued=${session.chunks.queued + session.chunks.retrying} proc=${session.chunks.processing} merged=${session.chunks.merged}`}`,
     `${ru ? "очередь ASR" : "ASR queue"}: ${debug === undefined ? "-" : `${debug.asrBytesQueued} bytes`}`,
+    `${ru ? "тайминги" : "timings"}: ${session === undefined ? "-" : `speechEnd=${session.timings.speechEndMs} final=${session.timings.finalSilenceMs} total=${session.timings.speechEndMs + session.timings.finalSilenceMs}`}`,
     `${ru ? "retry" : "retry"}: ${session?.retryCount ?? 0}`,
     `${ru ? "transport" : "transport"}: ${debug?.asrTransport ?? "-"}`,
     `${ru ? "noise floor" : "noise floor"}: ${session === undefined ? "-" : session.noiseFloor.toFixed(4)}`,

@@ -1,4 +1,4 @@
-import {VoiceSessionManager, type VoiceChunk, type VoiceSessionDebugSnapshot} from "./voice-session-manager.ts"
+import {DEFAULT_VOICE_SESSION_TIMINGS, VoiceSessionManager, type VoiceChunk, type VoiceSessionDebugSnapshot, type VoiceSessionTimings} from "./voice-session-manager.ts"
 import {VoiceSileroVad, type VoiceSileroVadDebugSnapshot} from "./voice-silero-vad.ts"
 import {postInterpreterClientEvent} from "./remote-desktop-rtc-helpers.ts"
 
@@ -191,7 +191,8 @@ export type VoiceInputDeliveryState = {
 }
 
 export class VoiceInputClient {
-  #session = new VoiceSessionManager()
+  #sessionTimings: VoiceSessionTimings = {...DEFAULT_VOICE_SESSION_TIMINGS}
+  #session = new VoiceSessionManager(this.#sessionTimings)
   #sileroVad: VoiceSileroVad | null = null
   #commandWs: VoiceInputSocket | null = null
   #asrWs: VoiceInputSocket | null = null
@@ -488,6 +489,7 @@ export class VoiceInputClient {
   }
 
   refreshDeactivationSettings(): void {
+    this.#syncSessionTimings()
     this.#scheduleRecognitionTimeoutCheck()
   }
 
@@ -516,6 +518,7 @@ export class VoiceInputClient {
     this.#wakeMatched = true
     this.options.onWake(wakeText)
     this.#resetCommitState()
+    this.#syncSessionTimings()
     this.#session.startRecording(true)
     this.#clearAsrReconnectTimer()
     this.#asrEnabled = true
@@ -941,6 +944,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#session.closeCurrentChunk(performance.now(), "final silence")
     this.#sendCommand({type: "stop"})
     this.#disconnectCommandSocket()
+    this.#clearRecognitionTimeoutTimer()
     if (this.#stream !== null) {
       this.#stopAudioOnly()
       this.options.onLevel(0)
@@ -1083,6 +1087,11 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     if (!this.#asrEnabled || this.#stopRequested || !deactivationModeAllowsTimeout(this.options.deactivationMode())) return
     const timeoutMs = clampRecognitionTimeoutMs(this.options.recognitionTimeoutMs())
     if (timeoutMs <= 0) return
+    const session = this.#session.debugSnapshot()
+    if (session.speaking || session.chunks.recording > 0) {
+      this.#scheduleRecognitionTimeoutCheck()
+      return
+    }
     if (this.#commitPending) {
       this.#clearRecognitionTimeoutTimer()
       this.#recognitionTimeoutTimer = window.setTimeout(() => {
@@ -1096,10 +1105,16 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       this.#scheduleRecognitionTimeoutCheck()
       return
     }
-    void this.sleepToWake().catch((error) => {
-      this.#setStatus("error", error instanceof Error ? error.message : String(error))
-      this.#cleanup()
-    })
+    this.#trace("dictation.recognition-timeout", {timeoutMs, elapsed: Math.round(elapsed)})
+    this.#finalSilenceRequested = true
+    this.#maybeFinishDictationAfterFinalSilence()
+  }
+
+  #syncSessionTimings(): void {
+    const timeoutMs = deactivationModeAllowsTimeout(this.options.deactivationMode()) ? clampRecognitionTimeoutMs(this.options.recognitionTimeoutMs()) : 0
+    this.#sessionTimings.finalSilenceMs = timeoutMs > 0
+      ? Math.max(180, timeoutMs - this.#sessionTimings.speechEndMs)
+      : DEFAULT_VOICE_SESSION_TIMINGS.finalSilenceMs
   }
 
   #clearRecognitionTimeoutTimer(): void {

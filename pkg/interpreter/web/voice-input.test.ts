@@ -14,7 +14,7 @@ import {
   prepareVoiceInputChunkForDelivery,
   trimStableVoiceTranscriptPrefix,
 } from "./voice-input.ts"
-import {VoiceSessionManager} from "./voice-session-manager.ts"
+import {DEFAULT_VOICE_SESSION_TIMINGS, VoiceSessionManager} from "./voice-session-manager.ts"
 
 describe("voice activation matching", () => {
   test("uses metafor default activation phrases", () => {
@@ -325,6 +325,22 @@ describe("voice session manager", () => {
     session.markChunkFailed(id, "late timeout", true)
     expect(session.debugSnapshot().chunks.merged).toBe(1)
     expect(session.nextQueuedChunk()).toBeNull()
+  })
+
+  test("honors custom final silence timing after a speech chunk closes", () => {
+    const session = new VoiceSessionManager({...DEFAULT_VOICE_SESSION_TIMINGS, finalSilenceMs: 380})
+    session.startRecording()
+
+    session.acceptVadFrame({rms: 0.05, peak: 0.11, now: 100})
+    session.acceptVadFrame({rms: 0.05, peak: 0.11, now: 210})
+    session.appendCurrentChunkPcm(new ArrayBuffer(640))
+    expect(session.acceptVadFrame({rms: 0.002, peak: 0.004, now: 500}).finalSilence).toBe(false)
+    expect(session.acceptVadFrame({rms: 0.002, peak: 0.004, now: 1_120}).stopped).toBe(true)
+
+    const final = session.acceptVadFrame({rms: 0.002, peak: 0.004, now: 1_500})
+
+    expect(final.finalSilence).toBe(true)
+    expect(session.debugSnapshot().timings.finalSilenceMs).toBe(380)
   })
 
   test("repeat mic click draft mode closes current chunk and cancels auto-send without discarding audio", () => {
