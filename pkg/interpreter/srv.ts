@@ -21,6 +21,7 @@ export {
   createVoiceProxySocketData,
   detachVoiceProxySocket,
   relayVoiceProxyMessage,
+  type VoiceProxyClientRoute,
   type VoiceProxyRoute,
   type VoiceProxySocketData,
 } from "./src/voice-proxy.ts"

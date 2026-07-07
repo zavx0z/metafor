@@ -14,6 +14,7 @@ import {
   prepareVoiceLivePreviewText,
   prepareVoiceInputChunkForDelivery,
   trimStableVoiceTranscriptPrefix,
+  voiceDynamicRecognitionTimeoutMs,
   wakeAudioCutoffFromRecognitionMessage,
 } from "./voice-input.ts"
 import {DEFAULT_VOICE_SESSION_TIMINGS, VoiceSessionManager} from "./voice-session-manager.ts"
@@ -407,6 +408,25 @@ describe("voice session manager", () => {
     expect(snapshot.queuedChunkBytes).toBe(480)
   })
 
+  test("can seed a local chunk from buffered activation audio before ASR is ready", () => {
+    const session = new VoiceSessionManager()
+    session.startRecording(true, 1_000)
+
+    const chunk = session.startBufferedChunk([new ArrayBuffer(320), new ArrayBuffer(320)], 1_120, 1_260)
+
+    expect(chunk).not.toBeNull()
+    expect(session.debugSnapshot().phase).toBe("speaking")
+    expect(session.debugSnapshot().chunks.recording).toBe(1)
+    expect(session.debugSnapshot().chunkPcmBytes).toBe(640)
+
+    session.closeCurrentChunk(1_900, "activation preroll")
+
+    const snapshot = session.debugSnapshot()
+    expect(snapshot.chunks.recording).toBe(0)
+    expect(snapshot.chunks.queued).toBe(1)
+    expect(snapshot.queuedChunkBytes).toBe(640)
+  })
+
   test("explicit dictation start exits draft mode", () => {
     const session = new VoiceSessionManager()
     session.enterDraftMode()
@@ -436,6 +456,29 @@ describe("voice wake gain", () => {
     expect(gain).toBeGreaterThan(1)
     expect(gain).toBeLessThanOrEqual(6)
     expect(Math.max(...Array.from(applyWakeAudioGain(quiet)).map(Math.abs))).toBeLessThanOrEqual(0.86)
+  })
+})
+
+describe("voice auto-send timing", () => {
+  test("keeps configured timeout for short commands", () => {
+    expect(voiceDynamicRecognitionTimeoutMs(1_000, 42, 1)).toBe(1_000)
+  })
+
+  test("extends final pause window for long dictation", () => {
+    expect(voiceDynamicRecognitionTimeoutMs(1_000, 120, 1)).toBe(2_800)
+    expect(voiceDynamicRecognitionTimeoutMs(1_000, 180, 1)).toBe(3_500)
+    expect(voiceDynamicRecognitionTimeoutMs(1_000, 300, 1)).toBe(4_200)
+  })
+
+  test("extends timeout as dictation spans multiple chunks", () => {
+    expect(voiceDynamicRecognitionTimeoutMs(1_000, 60, 2)).toBe(3_500)
+    expect(voiceDynamicRecognitionTimeoutMs(1_000, 60, 3)).toBe(4_200)
+  })
+
+  test("extends timeout from local audio before ASR text arrives", () => {
+    expect(voiceDynamicRecognitionTimeoutMs(1_000, 0, 1, 6_600)).toBe(2_800)
+    expect(voiceDynamicRecognitionTimeoutMs(1_000, 0, 1, 10_100)).toBe(3_500)
+    expect(voiceDynamicRecognitionTimeoutMs(1_000, 0, 1, 18_100)).toBe(4_200)
   })
 })
 

@@ -120,8 +120,10 @@ import {
   voiceInputWebSocketUrl,
   type VoiceDeactivationMode,
   type VoiceInputChunk,
+  type VoiceInputAsrSocketContext,
   type VoiceInputSegment,
   type VoiceInputSignalTone,
+  type VoiceInputSocket,
   type VoiceInputStatus,
 } from "./voice-input.ts"
 import {hiddenRect, clampNumber, withAlpha} from "./geometry.ts"
@@ -3803,6 +3805,160 @@ function updateNetworkWatchPane(): void {
 }
 
 const agentSignalIconCache = new Map<string, string>()
+const VOICE_MUX_SOCKET_URL = "/hud/voice/ws"
+
+type VoiceMuxRoute = "wake" | "asr"
+let voiceMuxConnection: VoiceMuxConnection | null = null
+
+class VoiceMuxVirtualSocket extends EventTarget implements VoiceInputSocket {
+  readonly keepAlive = true
+  binaryType: BinaryType = "arraybuffer"
+  #closed = false
+
+  constructor(private readonly connection: VoiceMuxConnection, readonly route: VoiceMuxRoute) {
+    super()
+  }
+
+  get readyState(): number {
+    return this.#closed ? WebSocket.CLOSED : this.connection.readyState
+  }
+
+  get url(): string {
+    return this.connection.url
+  }
+
+  send(data: string | ArrayBuffer | Blob | ArrayBufferView<ArrayBuffer>): void {
+    if (this.#closed) return
+    this.connection.send(this.route, data)
+  }
+
+  close(): void {
+    if (this.#closed) return
+    this.#closed = true
+    this.connection.release(this)
+  }
+
+  acceptOpen(): void {
+    if (!this.#closed) this.dispatchEvent(new Event("open"))
+  }
+
+  acceptMessage(data: unknown): void {
+    if (!this.#closed) this.dispatchEvent(new MessageEvent("message", {data}))
+  }
+
+  acceptError(): void {
+    if (!this.#closed) this.dispatchEvent(new Event("error"))
+  }
+
+  acceptClose(): void {
+    if (this.#closed) return
+    this.#closed = true
+    this.dispatchEvent(new CloseEvent("close"))
+  }
+}
+
+class VoiceMuxConnection {
+  readonly url = voiceInputWebSocketUrl(VOICE_MUX_SOCKET_URL)
+  readonly ws = new WebSocket(this.url)
+  readonly sockets = new Set<VoiceMuxVirtualSocket>()
+
+  constructor() {
+    this.ws.binaryType = "arraybuffer"
+    this.ws.addEventListener("open", () => {
+      for (const socket of this.sockets) socket.acceptOpen()
+    })
+    this.ws.addEventListener("message", (event) => this.acceptMessage(event.data))
+    this.ws.addEventListener("error", () => {
+      for (const socket of this.sockets) socket.acceptError()
+    })
+    this.ws.addEventListener("close", () => {
+      const sockets = [...this.sockets]
+      this.sockets.clear()
+      if (voiceMuxConnection === this) voiceMuxConnection = null
+      for (const socket of sockets) socket.acceptClose()
+    })
+  }
+
+  get readyState(): number {
+    return this.ws.readyState
+  }
+
+  createSocket(route: VoiceMuxRoute): VoiceMuxVirtualSocket {
+    const socket = new VoiceMuxVirtualSocket(this, route)
+    this.sockets.add(socket)
+    if (this.ws.readyState === WebSocket.OPEN) queueMicrotask(() => socket.acceptOpen())
+    return socket
+  }
+
+  release(socket: VoiceMuxVirtualSocket): void {
+    this.sockets.delete(socket)
+    if (this.sockets.size > 0) return
+    if (voiceMuxConnection === this) voiceMuxConnection = null
+    if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) this.ws.close()
+  }
+
+  send(route: VoiceMuxRoute, data: string | ArrayBuffer | Blob | ArrayBufferView<ArrayBuffer>): void {
+    if (this.ws.readyState !== WebSocket.OPEN) return
+    if (typeof data === "string") {
+      this.ws.send(JSON.stringify({route, payload: data}))
+      return
+    }
+    if (data instanceof Blob) {
+      void data.arrayBuffer().then((buffer) => this.sendBinary(route, buffer))
+      return
+    }
+    this.sendBinary(route, data)
+  }
+
+  sendBinary(route: VoiceMuxRoute, data: ArrayBuffer | ArrayBufferView<ArrayBuffer>): void {
+    if (this.ws.readyState !== WebSocket.OPEN) return
+    const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
+    const framed = new Uint8Array(bytes.byteLength + 1)
+    framed[0] = route === "wake" ? 1 : 2
+    framed.set(bytes, 1)
+    this.ws.send(framed)
+  }
+
+  acceptMessage(data: unknown): void {
+    if (typeof data === "string") {
+      try {
+        const parsed = JSON.parse(data) as {route?: unknown; payload?: unknown}
+        if ((parsed.route === "wake" || parsed.route === "asr") && typeof parsed.payload === "string") {
+          this.dispatch(parsed.route, parsed.payload)
+          return
+        }
+      } catch {
+        // Fall through to broadcast proxy-level errors.
+      }
+      for (const socket of this.sockets) socket.acceptMessage(data)
+      return
+    }
+    const bytes = data instanceof ArrayBuffer
+      ? new Uint8Array(data)
+      : ArrayBuffer.isView(data)
+        ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
+        : null
+    if (bytes === null || bytes.byteLength === 0) return
+    const route = bytes[0] === 1 ? "wake" : bytes[0] === 2 ? "asr" : null
+    if (route === null) return
+    this.dispatch(route, bytes.slice(1).buffer)
+  }
+
+  dispatch(route: VoiceMuxRoute, data: unknown): void {
+    for (const socket of this.sockets) {
+      if (socket.route === route) socket.acceptMessage(data)
+    }
+  }
+}
+
+function createVoiceMuxSocket(route: VoiceMuxRoute, context: VoiceInputAsrSocketContext): VoiceInputSocket {
+  if (voiceMuxConnection === null || voiceMuxConnection.readyState === WebSocket.CLOSING || voiceMuxConnection.readyState === WebSocket.CLOSED) {
+    voiceMuxConnection = new VoiceMuxConnection()
+  }
+  const socket = voiceMuxConnection.createSocket(route)
+  if (route === "asr") socket.addEventListener("open", () => context.onTransport("ws"), {once: true})
+  return socket
+}
 
 function agentSignalIcon(enabled: boolean): string {
   const key = enabled ? "on" : "off"
@@ -3839,6 +3995,8 @@ function ensureVoiceInputClient(): VoiceInputClient {
     recognitionTimeoutMs: () => readVoiceRecognitionTimeoutSeconds() * 1000,
     language: "ru",
     context: readVoiceInputContext,
+    createAsrSocket: (_url, context) => createVoiceMuxSocket("asr", context),
+    createCommandSocket: (_url, context) => createVoiceMuxSocket("wake", context),
     onStatus: handleVoiceStatus,
     onWake: () => updateVoiceHud("connecting", readVoiceInputUrl()),
     onCommandText: handleVoiceCommandText,
@@ -3863,7 +4021,7 @@ function handleVoiceStatus(status: VoiceInputStatus, detail?: string): void {
     discardVoiceAutoSendBuffer()
     clearVoicePartialPreview()
     clearVoiceWakePreview()
-  } else if (shouldHandleCompletedVoiceCommit(previousStatus, status)) {
+  } else if (shouldHandleCompletedVoiceCommit(previousStatus, status, detail)) {
     handleCompletedVoiceCommit(status)
   } else if (shouldFlushVoiceBufferForDeactivation(previousStatus, status, detail)) {
     flushVoiceInputForDeactivation()
@@ -3875,6 +4033,7 @@ function handleVoiceStatus(status: VoiceInputStatus, detail?: string): void {
     clearVoiceWakePreview()
     if (!voiceAutoWakePaused) scheduleVoiceAutoWake(250)
   }
+  if (status === "waitingWake" && previousStatus !== "waitingWake") voiceInputClient?.prewarmDictation()
   updateVoiceHud(status, detail)
   if (voiceSignal !== null) playVoiceSignal(voiceSignal)
 }
@@ -4257,9 +4416,12 @@ function voicePreviewTerminals(target: VoiceInputTarget): TerminalPane[] {
   return [target.controller.terminal]
 }
 
-function shouldHandleCompletedVoiceCommit(previousStatus: VoiceInputStatus, status: VoiceInputStatus): boolean {
+function shouldHandleCompletedVoiceCommit(previousStatus: VoiceInputStatus, status: VoiceInputStatus, detail?: string): boolean {
+  if ((status === "waitingWake" || status === "idle") && detail !== "draft" && !/reconnect/i.test(detail ?? "")) {
+    if (voiceInputClient?.debugSnapshot().session.autoSendState === "readyToSend") return true
+  }
   if (previousStatus === "committing") return status === "listening" || status === "waitingWake" || status === "idle"
-  return previousStatus === "processing" && status === "idle"
+  return previousStatus === "processing" && (status === "idle" || (status === "waitingWake" && detail === "ready"))
 }
 
 function shouldFlushVoiceBufferForDeactivation(previousStatus: VoiceInputStatus, status: VoiceInputStatus, detail?: string): boolean {

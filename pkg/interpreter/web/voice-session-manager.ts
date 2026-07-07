@@ -350,6 +350,21 @@ export class VoiceSessionManager {
     return this.#currentChunk
   }
 
+  startBufferedChunk(pcm: ArrayBuffer[], startedAt: number, lastSpeechAt = startedAt): VoiceChunk | null {
+    if (this.#currentChunk !== null || pcm.length === 0) return null
+    const chunk = this.#createChunk(startedAt)
+    for (const frame of pcm) {
+      chunk.pcm.push(frame)
+      chunk.pcmBytes += frame.byteLength
+    }
+    this.#speaking = true
+    this.#hasVoiceActivity = true
+    this.#lastSpeechAt = Math.max(startedAt, lastSpeechAt)
+    this.#speechCandidateStartedAt = null
+    this.#silenceCandidateStartedAt = null
+    return chunk
+  }
+
   closeCurrentChunk(now = performance.now(), error?: string): VoiceChunk | null {
     const chunk = this.#currentChunk
     if (chunk === null) return null

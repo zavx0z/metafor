@@ -63,6 +63,7 @@ import {
   createVoiceProxySocketData,
   detachVoiceProxySocket,
   relayVoiceProxyMessage,
+  type VoiceProxyClientRoute,
   type VoiceProxyRoute,
   type VoiceProxySocketData,
 } from "./voice-proxy.ts"
@@ -690,6 +691,7 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
       },
       "/webrtc/signaling": {GET: upgradeRtcSignal},
       "/hud/android/webrtc/signaling": {GET: upgradeRtcSignal},
+      "/hud/voice/ws": {GET: upgradeVoiceProxy},
       "/hud/voice/wake/ws": {GET: upgradeVoiceProxy},
       "/hud/voice/asr/ws": {GET: upgradeVoiceProxy},
       "/assets/voice/models/silero_vad_16k_op15.onnx": serveStatic(join(WEB_DIR, "assets", "voice", "models", "silero_vad_16k_op15.onnx"), "application/octet-stream"),
@@ -1602,7 +1604,8 @@ function isRtcSignalingPath(path: string): boolean {
   return path === "/webrtc/signaling" || path === "/hud/android/webrtc/signaling"
 }
 
-function voiceProxyRouteForPath(path: string): VoiceProxyRoute | null {
+function voiceProxyRouteForPath(path: string): VoiceProxyClientRoute | null {
+  if (path === "/hud/voice/ws") return "mux"
   if (path === "/hud/voice/wake/ws") return "wake"
   if (path === "/hud/voice/asr/ws") return "asr"
   return null

@@ -20,8 +20,8 @@ const VOICE_AUTO_SEND_STORAGE_KEY = "metafor.interpreter.voice.autoSend:v1"
 const VOICE_SIGNAL_VOLUME_LEGACY_STORAGE_KEY = "metafor.interpreter.voice.signalVolume:v1"
 const VOICE_SIGNAL_VOLUME_STORAGE_KEY = "metafor.interpreter.voice.signalVolume:v2"
 
-const DEFAULT_VOICE_INPUT_URL = "/hud/voice/asr/ws"
-const DEFAULT_VOICE_WAKE_URL = "/hud/voice/wake/ws"
+const DEFAULT_VOICE_INPUT_URL = "/hud/voice/ws"
+const DEFAULT_VOICE_WAKE_URL = "/hud/voice/ws"
 const DEFAULT_VOICE_SIGNAL_VOLUME = 0.2
 const DEFAULT_VOICE_DEACTIVATION_MODE: VoiceDeactivationMode = "phrase-timeout"
 const DEFAULT_VOICE_RECOGNITION_TIMEOUT_SECONDS = 2
@@ -50,6 +50,7 @@ export function readVoiceWakeUrl(): string {
 function readVoiceEndpointUrl(key: string, fallback: string, legacyLoopbackPort: string): string {
   const stored = localStorage.getItem(key)
   if (stored === null || stored.trim().length === 0) return fallback
+  if (stored === "/hud/voice/asr/ws" || stored === "/hud/voice/wake/ws") return fallback
   return isLegacyLoopbackVoiceUrl(stored, legacyLoopbackPort) ? fallback : stored
 }
 
