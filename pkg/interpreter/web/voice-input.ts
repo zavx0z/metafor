@@ -1444,8 +1444,8 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     const timeoutMs = this.#currentRecognitionTimeoutMs()
     if (timeoutMs <= 0) return
     const now = performance.now()
-    const lastVoiceActivityAt = this.#lastVoiceActivityAt > 0 ? this.#lastVoiceActivityAt : now
-    const delay = Math.max(0, timeoutMs - (now - lastVoiceActivityAt))
+    const silenceAnchor = this.#recognitionSilenceAnchorMs() || now
+    const delay = Math.max(0, timeoutMs - (now - silenceAnchor))
     this.#recognitionTimeoutTimer = window.setTimeout(() => {
       this.#recognitionTimeoutTimer = null
       this.#handleRecognitionTimeout()
@@ -1469,7 +1469,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       }, timeoutMs)
       return
     }
-    const elapsed = performance.now() - this.#lastVoiceActivityAt
+    const elapsed = performance.now() - this.#recognitionSilenceAnchorMs()
     if (elapsed < timeoutMs) {
       this.#scheduleRecognitionTimeoutCheck()
       return
@@ -1479,10 +1479,15 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#maybeFinishDictationAfterFinalSilence()
   }
 
+  #recognitionSilenceAnchorMs(): number {
+    const session = this.#session.debugSnapshot()
+    return Math.max(this.#lastVoiceActivityAt, session.lastSpeechEndedAt)
+  }
+
   #syncSessionTimings(): void {
     const timeoutMs = deactivationModeAllowsTimeout(this.options.deactivationMode()) ? this.#currentRecognitionTimeoutMs() : 0
     this.#sessionTimings.finalSilenceMs = timeoutMs > 0
-      ? Math.max(180, timeoutMs - this.#sessionTimings.speechEndMs)
+      ? timeoutMs
       : DEFAULT_VOICE_SESSION_TIMINGS.finalSilenceMs
     if (timeoutMs === this.#lastDynamicRecognitionTimeoutMs) return
     this.#lastDynamicRecognitionTimeoutMs = timeoutMs

@@ -450,6 +450,7 @@ describe("voice session manager", () => {
     const stopped = session.acceptVadFrame({rms: 0.002, peak: 0.004, now: 1_200})
     expect(stopped.stopped).toBe(true)
     expect(stopped.closedChunkIds).toHaveLength(1)
+    expect(session.debugSnapshot().lastSpeechEndedAt).toBe(1_200)
 
     const snapshot = session.debugSnapshot()
     expect(snapshot.chunks.recording).toBe(0)

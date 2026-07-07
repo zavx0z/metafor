@@ -91,6 +91,7 @@ export type VoiceSessionDebugSnapshot = {
   queuedPcmBytes: number
   queuedPcmChunks: number
   lastSpeechAt: number
+  lastSpeechEndedAt: number
   lastPotentialVoiceAt: number
   lastVadAt: number
   autoSendState: VoiceAutoSendState
@@ -488,6 +489,7 @@ export class VoiceSessionManager {
       queuedPcmBytes: this.queuedPcmBytes,
       queuedPcmChunks: counts.queued + counts.retrying,
       lastSpeechAt: this.#lastSpeechAt,
+      lastSpeechEndedAt: this.#lastSpeechEndedAt,
       lastPotentialVoiceAt: this.#lastPotentialVoiceAt,
       lastVadAt: this.#lastVadAt,
       autoSendState: this.#autoSendState,
