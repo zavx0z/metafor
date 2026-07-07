@@ -280,20 +280,23 @@ export class VoiceSessionManager {
       && speechProbability >= SILERO_SPEECH_PROBABILITY
       && peak >= NEAR_VOICE_PEAK_THRESHOLD * 0.72
       && clippingRatio < 0.35
+    const energyPotentialVoice = rms >= Math.max(this.#noiseFloor * 1.8, 0.0045)
+      && peak >= NEAR_VOICE_PEAK_THRESHOLD * 0.36
+    const energyContinuationSpeech = rms >= this.#speechThreshold * 0.72
+      && peak >= NEAR_VOICE_PEAK_THRESHOLD * 0.72
     const potentialVoice = this.#hasVoiceActivity
       && !tooClippedForEnergy
       && (hasFreshSileroProbability
-        ? speechProbability >= 0.22 && peak >= NEAR_VOICE_PEAK_THRESHOLD * 0.34
-        : rms >= Math.max(this.#noiseFloor * 1.8, 0.0045) && peak >= NEAR_VOICE_PEAK_THRESHOLD * 0.36)
+        ? (speechProbability >= 0.22 && peak >= NEAR_VOICE_PEAK_THRESHOLD * 0.34) || energyPotentialVoice
+        : energyPotentialVoice)
     const continuationSpeech = this.#hasVoiceActivity
       && !tooClippedForEnergy
       && (hasFreshSileroProbability
-        ? speechProbability >= 0.34 && peak >= NEAR_VOICE_PEAK_THRESHOLD * 0.5
-        : rms >= this.#speechThreshold * 0.72 && peak >= NEAR_VOICE_PEAK_THRESHOLD * 0.72)
+        ? (speechProbability >= 0.34 && peak >= NEAR_VOICE_PEAK_THRESHOLD * 0.5) || energyContinuationSpeech
+        : energyContinuationSpeech)
     if (potentialVoice) this.#lastPotentialVoiceAt = now
-    const rawSpeech = hasFreshSileroProbability
-      ? sileroSpeech || continuationSpeech || (this.#speaking && potentialVoice)
-      : energySpeech || continuationSpeech || (this.#speaking && potentialVoice)
+    const energyFallbackSpeech = energySpeech && (!hasFreshSileroProbability || this.#hasVoiceActivity)
+    const rawSpeech = sileroSpeech || energyFallbackSpeech || continuationSpeech || (this.#speaking && potentialVoice)
 
     let started = false
     let stopped = false

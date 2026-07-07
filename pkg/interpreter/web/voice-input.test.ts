@@ -294,20 +294,20 @@ describe("voice session manager", () => {
     expect(session.hasVoiceActivity()).toBe(true)
   })
 
-  test("does not start speech from loud energy when fresh Silero rejects it", () => {
+  test("does not start speech from low noise when fresh Silero rejects it", () => {
     const session = new VoiceSessionManager()
     session.startRecording(true, 1_000)
 
     expect(session.acceptVadFrame({
-      rms: 0.08,
-      peak: 0.22,
+      rms: 0.006,
+      peak: 0.012,
       now: 1_020,
       speechProbability: 0.001,
       speechProbabilityAt: 1_020,
     }).speaking).toBe(false)
     const rejected = session.acceptVadFrame({
-      rms: 0.08,
-      peak: 0.22,
+      rms: 0.006,
+      peak: 0.012,
       now: 1_130,
       speechProbability: 0.001,
       speechProbabilityAt: 1_130,
@@ -320,7 +320,7 @@ describe("voice session manager", () => {
     expect(session.debugSnapshot().chunks.recording).toBe(0)
   })
 
-  test("lets fresh low Silero probability close active speech despite loud energy", () => {
+  test("does not let delayed low Silero probability close active voice-like speech", () => {
     const session = new VoiceSessionManager({...DEFAULT_VOICE_SESSION_TIMINGS, speechEndMs: 120})
     session.startRecording(true, 1_000)
 
@@ -329,12 +329,12 @@ describe("voice session manager", () => {
     session.appendCurrentChunkPcm(new ArrayBuffer(320))
 
     expect(session.acceptVadFrame({rms: 0.08, peak: 0.22, now: 1_260, speechProbability: 0.001, speechProbabilityAt: 1_260}).stopped).toBe(false)
-    const stopped = session.acceptVadFrame({rms: 0.08, peak: 0.22, now: 1_400, speechProbability: 0.001, speechProbabilityAt: 1_400})
+    const stopped = session.acceptVadFrame({rms: 0.08, peak: 0.22, now: 1_400, speechProbability: 0.001, speechProbabilityAt: 1_180})
 
-    expect(stopped.stopped).toBe(true)
-    expect(stopped.speaking).toBe(false)
-    expect(stopped.closedChunkIds).toHaveLength(1)
-    expect(session.debugSnapshot().chunks.queued).toBe(1)
+    expect(stopped.stopped).toBe(false)
+    expect(stopped.speaking).toBe(true)
+    expect(stopped.closedChunkIds).toHaveLength(0)
+    expect(session.debugSnapshot().chunks.recording).toBe(1)
   })
 
   test("keeps quiet continuation speech from closing an active dictation chunk", () => {
@@ -583,7 +583,7 @@ describe("voice Silero VAD", () => {
   test("resamples browser 48 kHz audio to 16 kHz Silero chunks", () => {
     const vad = new VoiceSileroVad()
 
-    vad.acceptFrame(new Float32Array(1_536), 48_000)
+    vad.acceptFrame(new Float32Array(1_536), 48_000, 2_000)
 
     const snapshot = vad.debugSnapshot()
     expect(snapshot.inputSampleRate).toBe(48_000)
