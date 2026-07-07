@@ -382,8 +382,16 @@ Codex message и Browser Agent message используют общий UI compos
 text/voice/image attachments, но transport разный: Codex message идет в
 host PTY/Codex CLI, Browser Agent message идет в remote browser chat. В MVP
 image attachments не загружаются в Qwen UI как файлы: composer добавляет пути к
-загруженным изображениям в текст сообщения. MVP не парсит tool calls, не
-запускает agent loop/planner и не выполняет tools по ответу Qwen.
+загруженным изображениям в текст сообщения.
+
+Browser Agent UI поверх transport добавляет текстовый tool protocol для Qwen:
+если ответ assistant содержит блок `<tool_calls>{"tool_uses":[...]}</tool_calls>`,
+UI выполняет эти calls через общий `POST /tools`, затем отправляет обратно в
+Qwen блок `<tool_results>{"tool_results":[...]}</tool_results>`. Это не native
+function calling API Qwen и не универсальный planner: это ограниченный loop
+для уже открытого browser chat. `browser_chat.*` сами остаются только transport
+командами; Qwen не должен вызывать `browser_chat.*`, чтобы не рекурсировать
+чат в самого себя.
 
 `devtools.console` включает capture событий `Runtime.consoleAPICalled`,
 `Runtime.exceptionThrown`, `Log.entryAdded` и `Network.loadingFailed` и хранит

@@ -671,6 +671,21 @@ type BrowserChatMessage = BrowserChatPaneMessage & {
   createdAt: number
 }
 
+type BrowserChatToolCall = {
+  toolUseId: string
+  recipientName: string
+  parameters: Record<string, unknown>
+}
+
+type BrowserChatToolResultForQwen = {
+  tool_use_id: string
+  recipient_name: string
+  ok: boolean
+  status?: number
+  result?: unknown
+  error?: string
+}
+
 type BrowserChatController = {
   chatPane: BrowserChatPane
   composer: HostTerminalCodexComposerPane<BrowserChatController>
@@ -693,6 +708,9 @@ type BrowserChatController = {
   readStableTicks: number
   readAfterMessageCount: number | null
   lastAssistantText: string
+  toolPromptSent: boolean
+  toolLoopInFlight: boolean
+  toolLoopTurns: number
 }
 
 type VoiceInputTarget =
@@ -712,6 +730,21 @@ const COMMAND_TIMEOUT_MS = 10_000
 const RELOAD_HEALTH_POLL_MS = 400
 const RELOAD_HEALTH_TIMEOUT_MS = 60_000
 const RELOAD_HEALTH_REQUEST_TIMEOUT_MS = 1_200
+const BROWSER_CHAT_TOOL_LOOP_MAX_TURNS = 6
+const BROWSER_CHAT_TOOL_RESULT_MAX_CHARS = 24_000
+const BROWSER_CHAT_TOOL_PROMPT = `Ты Browser Agent внутри live-интерпретатора MetaFor. У тебя нет native function calling в Qwen UI, поэтому используй текстовый tool protocol.
+
+Когда для ответа нужны runtime/source/debug/browser данные, НЕ угадывай. Ответь только блоком:
+
+<tool_calls>
+{"tool_uses":[{"recipient_name":"context.get","parameters":{}}]}
+</tool_calls>
+
+После сообщения TOOL_RESULTS продолжай ответ или запроси следующий блок tool_calls.
+
+Основные tools: context.get, space.get, viewport.screenshot, process.list, process.get, process.context, process.modules, process.action, source.read, source.read_many, source.locate, source.open, source.write, source.apply_patch, breakpoint.list, breakpoint.set, breakpoint.remove, devtools.targets/state/console/reload/evaluate/viewport.sync, browser.*, remote_desktop.*, hud.*, todo.*, sqlite.*, android.*, events.tail, console.tail, git.status, git.commit, git.push.
+
+Debug/source workflow: сначала context.get/process.context/process.modules/source.read/source.locate; для правок используй source.apply_patch или source.write через interpreter tools; для debugger используй breakpoint.* и process.action; для browser/WebApp используй devtools.* и viewport.screenshot. Не вызывай browser_chat.*: это внутренний transport. Destructive действия, commit/push/restart/close выполняй только если пользователь явно попросил.`
 const MODULE_DISPLAY_GAP_MM = 52
 const MODULE_DISPLAY_CENTER_Y_MM = 0
 const MODULE_DISPLAY_CENTER_Z_MM = 900
@@ -4386,6 +4419,7 @@ function browserChatComposerStatus(controller: BrowserChatController): string {
   if (voiceActiveTarget?.kind === "browser-chat" && voiceActiveTarget.controller === controller && (voiceHudStatus === "listening" || voiceHudStatus === "committing")) {
     return voiceStatusLabel(voiceHudStatus)
   }
+  if (controller.toolLoopInFlight) return "running tools"
   if (controller.sendInFlight) return "sending"
   if (controller.readStartedAt > 0) return "reading Qwen"
   return "ready"
@@ -4393,6 +4427,8 @@ function browserChatComposerStatus(controller: BrowserChatController): string {
 
 function browserChatComposerCanSubmit(controller: BrowserChatController): boolean {
   return !controller.sendInFlight
+    && !controller.toolLoopInFlight
+    && controller.readStartedAt <= 0
     && !controller.codexAttachmentUploadInFlight
     && codexComposerMessage(controller.codexDraft, controller.codexAttachments).length > 0
 }
@@ -4451,6 +4487,7 @@ function submitBrowserChatComposer(controller: BrowserChatController, options: {
   clearVoicePartialPreviewForTarget({kind: "browser-chat", controller})
   discardVoiceAutoSendBuffer()
   voiceNextFlushMode = "auto"
+  controller.toolLoopTurns = 0
   addBrowserChatMessage(controller, {role: "user", text: message})
   ensureBrowserChatAssistantMessage(controller)
   controller.sendInFlight = true
@@ -4461,9 +4498,12 @@ function submitBrowserChatComposer(controller: BrowserChatController, options: {
 
 async function sendBrowserChatMessage(controller: BrowserChatController, message: string, focusAfterSubmit: boolean): Promise<void> {
   try {
-    const tool = await runHostTool("browser_chat.send", {message, urlContains: "chat.qwen.ai"})
+    const promptNeeded = !controller.toolPromptSent
+    const qwenMessage = browserChatMessageForQwen(controller, message)
+    const tool = await runHostTool("browser_chat.send", {message: qwenMessage, urlContains: "chat.qwen.ai"})
     const result = hostToolResultObject(tool)
     if (tool.ok !== true || result["ok"] !== true) throw new Error(tool.error ?? stringValue(result["error"]) ?? "browser_chat.send failed")
+    if (promptNeeded) controller.toolPromptSent = true
     const previousAssistantText = stringValue(result["previousAssistantText"]) ?? ""
     const previousMessageCount = numberValue(result["previousMessageCount"])
     resetBrowserChatVoiceComposerDraftTracking(controller)
@@ -4524,6 +4564,7 @@ async function pollBrowserChatRead(controller: BrowserChatController): Promise<v
       const assistantMessages = browserChatAssistantMessagesFromReadResult(result, false)
       if (assistantMessages.length > 0) replaceBrowserChatAssistantMessages(controller, assistantMessages)
       else updateBrowserChatAssistantMessage(controller, text, false)
+      if (await continueBrowserChatToolLoop(controller, text)) return
       stopBrowserChatPolling(controller, true)
       setBrowserChatStatus(controller, "ready", 1200)
       return
@@ -4585,6 +4626,157 @@ function updateBrowserChatAssistantMessage(controller: BrowserChatController, te
   message.text = text
   message.streaming = streaming
   controller.chatPane.requestRender()
+}
+
+function browserChatMessageForQwen(controller: BrowserChatController, message: string): string {
+  if (controller.toolPromptSent) return message
+  return `${BROWSER_CHAT_TOOL_PROMPT}\n\nUSER_MESSAGE:\n${message}`
+}
+
+async function continueBrowserChatToolLoop(controller: BrowserChatController, text: string): Promise<boolean> {
+  const toolCalls = parseBrowserChatToolCalls(text)
+  if (toolCalls.length === 0) return false
+  stopBrowserChatPolling(controller, false)
+  if (controller.toolLoopTurns >= BROWSER_CHAT_TOOL_LOOP_MAX_TURNS) {
+    appendBrowserChatSystemMessage(controller, `tool loop stopped: ${BROWSER_CHAT_TOOL_LOOP_MAX_TURNS} turns reached`)
+    setBrowserChatStatus(controller, "tool loop stopped", 5000)
+    return false
+  }
+
+  controller.toolLoopTurns += 1
+  controller.toolLoopInFlight = true
+  controller.composer.requestRender()
+  appendBrowserChatSystemMessage(controller, `running tools: ${toolCalls.map((call) => call.recipientName).join(", ")}`)
+  setBrowserChatStatus(controller, "running tools", 8000)
+  try {
+    const results: BrowserChatToolResultForQwen[] = []
+    for (const call of toolCalls) {
+      const result: BrowserChatToolResultForQwen = {
+        tool_use_id: call.toolUseId,
+        recipient_name: call.recipientName,
+        ok: false,
+      }
+      if (call.recipientName.startsWith("browser_chat.")) {
+        result.error = "browser_chat.* is transport-internal and cannot be called by Browser Agent"
+      } else {
+        const tool = await runHostTool(call.recipientName, call.parameters)
+        result.ok = tool.ok === true
+        if (tool.status !== undefined) result.status = tool.status
+        if (tool.result !== undefined) result.result = tool.result
+        if (tool.error !== undefined) result.error = tool.error
+      }
+      results.push(result)
+    }
+
+    const toolResultsMessage = browserChatToolResultsMessage(results)
+    const send = await runHostTool("browser_chat.send", {message: toolResultsMessage, urlContains: "chat.qwen.ai"})
+    const sendResult = hostToolResultObject(send)
+    if (send.ok !== true || sendResult["ok"] !== true) throw new Error(send.error ?? stringValue(sendResult["error"]) ?? "browser_chat.send tool_results failed")
+    const previousAssistantText = stringValue(sendResult["previousAssistantText"]) ?? ""
+    const previousMessageCount = numberValue(sendResult["previousMessageCount"])
+    appendBrowserChatSystemMessage(controller, `tool results sent: ${results.filter((result) => result.ok).length}/${results.length} ok`)
+    setBrowserChatStatus(controller, "tool results sent", 2000)
+    startBrowserChatPolling(controller, previousAssistantText, previousMessageCount)
+  } catch (error) {
+    appendBrowserChatSystemMessage(controller, error instanceof Error ? error.message : String(error))
+    setBrowserChatStatus(controller, "tool loop failed", 5000)
+  } finally {
+    controller.toolLoopInFlight = false
+    controller.composer.requestRender()
+    controller.chatPane.requestRender()
+  }
+  return true
+}
+
+function parseBrowserChatToolCalls(text: string): BrowserChatToolCall[] {
+  const candidates: string[] = []
+  for (const match of text.matchAll(/<tool_calls>\s*([\s\S]*?)\s*<\/tool_calls>/gi)) {
+    if (match[1] !== undefined) candidates.push(match[1])
+  }
+  for (const match of text.matchAll(/```(?:json|tool_calls|tools)?\s*([\s\S]*?)```/gi)) {
+    if (match[1] !== undefined) candidates.push(match[1])
+  }
+  const trimmed = text.trim()
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) candidates.push(trimmed)
+
+  for (const candidate of candidates) {
+    try {
+      const calls = browserChatToolCallsFromPayload(JSON.parse(candidate) as unknown)
+      if (calls.length > 0) return calls
+    } catch {
+      // Keep scanning: Qwen may include prose around an invalid candidate.
+    }
+  }
+  return []
+}
+
+function browserChatToolCallsFromPayload(payload: unknown): BrowserChatToolCall[] {
+  const object = plainRecordValue(payload)
+  const rawCalls = Array.isArray(payload)
+    ? payload
+    : Array.isArray(object?.["tool_uses"])
+      ? object["tool_uses"]
+      : Array.isArray(object?.["toolUses"])
+        ? object["toolUses"]
+        : Array.isArray(object?.["tool_calls"])
+          ? object["tool_calls"]
+          : Array.isArray(object?.["toolCalls"])
+            ? object["toolCalls"]
+            : object !== null && browserChatToolRecipientName(object) !== null
+              ? [object]
+              : []
+  const calls: BrowserChatToolCall[] = []
+  rawCalls.forEach((raw, index) => {
+    const record = plainRecordValue(raw)
+    if (record === null) return
+    const recipientName = browserChatToolRecipientName(record)
+    if (recipientName === null) return
+    calls.push({
+      toolUseId: stringValue(record["tool_use_id"]) ?? stringValue(record["toolUseId"]) ?? stringValue(record["id"]) ?? `browser-chat-tool-${index + 1}`,
+      recipientName,
+      parameters: browserChatToolParameters(record),
+    })
+  })
+  return calls
+}
+
+function browserChatToolRecipientName(record: Record<string, unknown>): string | null {
+  const value = stringValue(record["recipient_name"])
+    ?? stringValue(record["recipientName"])
+    ?? stringValue(record["name"])
+    ?? stringValue(record["tool"])
+  const trimmed = value?.trim()
+  return trimmed === undefined || trimmed.length === 0 ? null : trimmed
+}
+
+function browserChatToolParameters(record: Record<string, unknown>): Record<string, unknown> {
+  const raw = record["parameters"] ?? record["arguments"] ?? record["params"]
+  const object = plainRecordValue(raw)
+  if (object !== null) return object
+  const text = stringValue(raw)
+  if (text === null) return {}
+  try {
+    return plainRecordValue(JSON.parse(text) as unknown) ?? {}
+  } catch {
+    return {}
+  }
+}
+
+function browserChatToolResultsMessage(results: readonly BrowserChatToolResultForQwen[]): string {
+  const payload = {
+    tool_results: results.map((result) => trimBrowserChatToolResult(result)),
+  }
+  return `TOOL_RESULTS\n<tool_results>\n${JSON.stringify(payload, null, 2)}\n</tool_results>\n\nUse these results. If you need more data, return another <tool_calls> JSON block. Otherwise answer the user.`
+}
+
+function trimBrowserChatToolResult(result: BrowserChatToolResultForQwen): BrowserChatToolResultForQwen {
+  if (result.result === undefined) return result
+  const json = JSON.stringify(result.result, null, 2)
+  if (json.length <= BROWSER_CHAT_TOOL_RESULT_MAX_CHARS) return result
+  return {
+    ...result,
+    result: `${json.slice(0, BROWSER_CHAT_TOOL_RESULT_MAX_CHARS)}\n...[truncated ${json.length - BROWSER_CHAT_TOOL_RESULT_MAX_CHARS} chars]`,
+  }
 }
 
 function browserChatAssistantMessagesFromReadResult(result: Record<string, unknown>, streaming: boolean): Array<Omit<BrowserChatMessage, "id" | "createdAt">> {
@@ -4823,6 +5015,10 @@ function setBrowserChatDropActive(controller: BrowserChatController, active: boo
 
 function stringValue(value: unknown): string | null {
   return typeof value === "string" ? value : null
+}
+
+function plainRecordValue(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null
 }
 
 function isTransientBrowserChatReadError(message: string): boolean {
@@ -6084,6 +6280,9 @@ function ensureBrowserChatController(): BrowserChatController {
     readStableTicks: 0,
     readAfterMessageCount: null,
     lastAssistantText: "",
+    toolPromptSent: false,
+    toolLoopInFlight: false,
+    toolLoopTurns: 0,
   } satisfies BrowserChatController)
   browserChat = controller
   window.setTimeout(() => { void hydrateBrowserChatFromQwen(controller) }, 0)
