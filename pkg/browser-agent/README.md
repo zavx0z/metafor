@@ -60,5 +60,6 @@ Runtime tools:
 - `browser_chat.send/read/wait/exchange` are the message transport.
 - `browser_chat.activate` asks the host to activate the selected provider target.
 - `browser_chat.configure` changes provider-specific UI state without sending a message. DeepSeek supports `deepseekMode: "fast" | "expert" | "vision"` and exact `deepThinking: boolean`.
+- `browser_chat.send` accepts `attachmentPaths?: string[]` for DeepSeek. The runtime asks the host to put those server-local files into the provider file input before sending the text message.
 
 Add new browser LLMs as provider adapters rather than forking interpreter code.

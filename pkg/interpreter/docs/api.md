@@ -368,7 +368,7 @@ CDP/DevTools слой, но не является заменой `devtools.*`: t
 `urlContains`/`targetUrl`/`targetTitle`, fallback - Qwen.
 
 ```text
-browser_chat.send      # {provider?:qwen|deepseek, message|text, targetId?, targetUrl?, targetTitle?, urlContains?, autoToolLoop?, newChat?, waitUntilReady?, sendTimeoutMs?}
+browser_chat.send      # {provider?:qwen|deepseek, message|text, attachmentPaths?, targetId?, targetUrl?, targetTitle?, urlContains?, autoToolLoop?, newChat?, waitUntilReady?, sendTimeoutMs?}
 browser_chat.read      # {provider?:qwen|deepseek, targetId?, targetUrl?, targetTitle?, urlContains?}
 browser_chat.wait      # {provider?:qwen|deepseek, targetId?, targetUrl?, targetTitle?, urlContains?, previousAssistantText?, afterMessageCount?, intervalMs?, stableTicks?, timeoutMs?}
 browser_chat.exchange  # {provider?:qwen|deepseek, message|text, targetId?, targetUrl?, targetTitle?, urlContains?, previousAssistantText?, afterMessageCount?, intervalMs?, stableTicks?, timeoutMs?}
@@ -417,9 +417,12 @@ text/voice/image attachments, но transport разный: Codex message иде�
 host PTY/Codex CLI, Browser Agent message идет в remote browser chat. Оба
 направления используют один общий HUD composer с target-кнопками
 `Codex`/`Qwen`/`DeepSeek`: выбранный target определяет transport, draft,
-attachments и обработчик submit. В MVP image attachments не загружаются в
-provider UI как файлы: composer добавляет пути к загруженным изображениям в
-текст сообщения.
+attachments и обработчик submit. Для Browser Agent sent user messages image
+attachments отображаются в `Agent` history как medium previews. Для DeepSeek
+`browser_chat.send` принимает `attachmentPaths?: string[]` и загружает эти
+server-local image paths в provider UI через host Chrome DevTools
+`DOM.setFileInputFiles`; при таком upload в DeepSeek transport не добавляется
+текстовый блок с filesystem paths.
 
 Browser Agent UI состоит из окна `Agent` и общего composer-окна `Message`.
 `Agent` показывает историю active provider-а, transport status и

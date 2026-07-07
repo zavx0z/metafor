@@ -58,8 +58,16 @@ async function browserChatSend(host: BrowserAgentHost, params: BrowserAgentJsonO
   const waitUntilReady = asBoolean(params["waitUntilReady"]) ?? true
   const timeoutMs = boundedNumber(asNumber(params["sendTimeoutMs"]), BROWSER_CHAT_SEND_READY_TIMEOUT_MS, 1_000, 300_000)
   const startedAt = Date.now()
+  const attachmentPaths = browserChatAttachmentPaths(params)
+  let attachmentsUploaded = false
 
   while (true) {
+    if (!attachmentsUploaded && attachmentPaths.length > 0) {
+      if (newChat) return {ok: false, provider: provider.id, error: "attachment upload with newChat is not supported; open a new chat first"}
+      const uploaded = await uploadBrowserChatAttachments(host, provider, params, attachmentPaths)
+      if (uploaded["ok"] !== true) return {...uploaded, provider: provider.id, waitedMs: Date.now() - startedAt}
+      attachmentsUploaded = true
+    }
     const sent = await evaluateBrowserChatPayload(host, provider, params, provider.sendExpression(message, newChat, params))
     if (sent["ok"] === true) return {...sent, provider: provider.id, waitedMs: Date.now() - startedAt}
     if (sent["limitReached"] === true) return {...sent, provider: provider.id, waitedMs: Date.now() - startedAt}
@@ -75,6 +83,21 @@ async function browserChatSend(host: BrowserAgentHost, params: BrowserAgentJsonO
       return {...sent, provider: provider.id, waitedMs: Date.now() - startedAt}
     }
     await delay(BROWSER_CHAT_SEND_READY_INTERVAL_MS)
+  }
+}
+
+async function uploadBrowserChatAttachments(host: BrowserAgentHost, provider: BrowserAgentProvider, params: BrowserAgentJsonObject, files: readonly string[]): Promise<BrowserAgentJsonObject> {
+  if (provider.id !== "deepseek") return {ok: false, provider: provider.id, error: `${provider.label} attachment upload is not supported`}
+  if (host.setFileInputFiles === undefined) return {ok: false, provider: provider.id, error: "setFileInputFiles host callback is not available"}
+  try {
+    const uploaded = await host.setFileInputFiles({
+      ...browserChatTargetParams(params, provider),
+      selector: asString(params["fileInputSelector"]) ?? "input[type=file]",
+      files,
+    })
+    return {ok: true, provider: provider.id, target: uploaded.target, upload: uploaded.result, attachmentCount: files.length}
+  } catch (error) {
+    return {ok: false, provider: provider.id, error: host.serializeError?.(error) ?? (error instanceof Error ? error.message : String(error))}
   }
 }
 
@@ -256,6 +279,12 @@ function runtimeEvaluateValue(result: BrowserAgentJsonObject): unknown {
 function browserChatMessageCount(payload: BrowserAgentJsonObject): number {
   const messages = payload["messages"]
   return Array.isArray(messages) ? messages.length : 0
+}
+
+function browserChatAttachmentPaths(params: BrowserAgentJsonObject): string[] {
+  const raw = params["attachmentPaths"] ?? params["filePaths"] ?? params["files"]
+  if (!Array.isArray(raw)) return []
+  return raw.filter((item): item is string => typeof item === "string" && item.length > 0)
 }
 
 function browserChatRecoveredSendPayload(message: string, sent: BrowserAgentJsonObject, read: BrowserAgentJsonObject): BrowserAgentJsonObject | null {

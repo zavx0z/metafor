@@ -1,4 +1,5 @@
 import {SourceMapConsumer, type RawSourceMap} from "source-map-js"
+import {existsSync} from "node:fs"
 import {serializeError} from "./errors.ts"
 import {asBoolean, asNumber, asObject, asString} from "./guards.ts"
 import type {JsonObject} from "./types.ts"
@@ -347,6 +348,59 @@ export async function activateChromeDevtoolsTarget(body: JsonObject): Promise<Js
   const target = await resolveTarget(body)
   await fetchText(new URL(`/json/activate/${encodeURIComponent(target.id)}`, cdpBaseUrl()).toString())
   return targetSummary(target)
+}
+
+export async function setChromeDevtoolsFileInputFiles(body: JsonObject): Promise<{target: JsonObject; result: JsonObject}> {
+  const rawFiles = body["files"] ?? body["filePaths"] ?? body["paths"] ?? body["attachmentPaths"]
+  const files = Array.isArray(rawFiles) ? rawFiles.filter((item): item is string => typeof item === "string" && item.length > 0) : []
+  if (files.length === 0) throw new Error("files must be a non-empty string array")
+  for (const file of files) {
+    if (!existsSync(file)) throw new Error(`file does not exist: ${file}`)
+  }
+  const selector = asString(body["selector"]) ?? "input[type=file]"
+  const session = await ensureSession(body)
+  await sessionCommand(session, "DOM.enable")
+  let nodeId = await queryChromeNodeId(session, selector)
+  if (nodeId === null) {
+    await sessionCommand(session, "Runtime.evaluate", {
+      expression: String.raw`(() => {
+        const visible = (el) => {
+          const rect = el.getBoundingClientRect();
+          const style = getComputedStyle(el);
+          return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+        };
+        const clean = (text) => String(text || "").replace(/\s+/g, " ").trim().toLowerCase();
+        const button = Array.from(document.querySelectorAll("button, [role=button], label")).find((el) => {
+          if (!visible(el)) return false;
+          const label = clean([el.innerText, el.textContent, el.getAttribute("aria-label"), el.getAttribute("title"), el.className].join(" "));
+          return /attach|upload|file|image|picture|скреп|файл|изображ|картин/.test(label);
+        });
+        if (!button) return {clicked:false};
+        button.click();
+        return {clicked:true};
+      })()`,
+      awaitPromise: false,
+      returnByValue: true,
+      userGesture: true,
+    }).catch(() => undefined)
+    await delay(300)
+    nodeId = await queryChromeNodeId(session, selector)
+  }
+  if (nodeId === null) throw new Error(`file input not found: ${selector}`)
+  const result = await sessionCommand(session, "DOM.setFileInputFiles", {nodeId, files})
+  await sessionCommand(session, "Runtime.evaluate", {
+    expression: `(() => {
+      const input = document.querySelector(${JSON.stringify(selector)});
+      if (!input) return {changed:false};
+      input.dispatchEvent(new Event("input", {bubbles:true}));
+      input.dispatchEvent(new Event("change", {bubbles:true}));
+      return {changed:true, files: input.files ? input.files.length : 0};
+    })()`,
+    awaitPromise: false,
+    returnByValue: true,
+    userGesture: true,
+  }).catch(() => undefined)
+  return {target: targetSummary(session.target), result}
 }
 
 export async function setChromeDevtoolsDeviceMetrics(body: JsonObject): Promise<{target: JsonObject; viewport: JsonObject}> {
@@ -1309,6 +1363,16 @@ function sessionCommand(session: ChromeDevtoolsSession, method: string, params: 
     session.pending.set(id, {method, resolve, reject, timer})
     session.socket.send(JSON.stringify({id, method, params}))
   })
+}
+
+async function queryChromeNodeId(session: ChromeDevtoolsSession, selector: string): Promise<number | null> {
+  const documentResult = await sessionCommand(session, "DOM.getDocument", {depth: -1, pierce: true})
+  const root = asObject(documentResult["root"])
+  const rootNodeId = asNumber(root?.["nodeId"])
+  if (rootNodeId === undefined) return null
+  const query = await sessionCommand(session, "DOM.querySelector", {nodeId: rootNodeId, selector})
+  const nodeId = asNumber(query["nodeId"])
+  return nodeId === undefined || nodeId <= 0 ? null : nodeId
 }
 
 async function openWebSocket(url: string): Promise<WebSocket> {

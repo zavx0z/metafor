@@ -5213,9 +5213,11 @@ function submitBrowserChatComposer(controller: BrowserChatController, options: {
     return false
   }
   if (!browserChatComposerCanSubmit(controller)) return false
-  const message = codexComposerMessage(session.codexDraft, session.codexAttachments)
   const displayText = session.codexDraft.replace(/\r\n?/g, "\n").trim()
   const attachments = session.codexAttachments.slice()
+  const message = session.provider === "deepseek" && attachments.length > 0
+    ? displayText || "Опиши изображение."
+    : codexComposerMessage(session.codexDraft, attachments)
   clearVoicePartialPreviewForTarget({kind: "browser-chat", controller})
   discardVoiceAutoSendBuffer()
   voiceNextFlushMode = "auto"
@@ -5231,13 +5233,23 @@ function submitBrowserChatComposer(controller: BrowserChatController, options: {
   ensureBrowserChatAssistantMessage(controller, session)
   session.sendInFlight = true
   setBrowserChatStatus(controller, `sending to ${session.label}`, 6000, session)
-  void sendBrowserChatMessage(controller, session, message, provisionalMessageStart, options.focusAfterSubmit ?? true)
+  void sendBrowserChatMessage(controller, session, message, attachments, provisionalMessageStart, options.focusAfterSubmit ?? true)
   return true
 }
 
-async function sendBrowserChatMessage(controller: BrowserChatController, session: BrowserChatSession, message: string, provisionalMessageStart: number, focusAfterSubmit: boolean): Promise<void> {
+async function sendBrowserChatMessage(controller: BrowserChatController, session: BrowserChatSession, message: string, attachments: readonly CodexComposerAttachment[], provisionalMessageStart: number, focusAfterSubmit: boolean): Promise<void> {
   try {
-    const tool = await runHostTool("browser_chat.send", {...browserChatSessionToolParams(session), message, autoToolLoop: false, waitUntilReady: false})
+    const attachmentPaths = attachments.map((attachment) => attachment.path)
+    const providerParams = session.provider === "deepseek"
+      ? {...browserChatSessionToolParams(session), deepseekMode: session.toolPromptMode, deepThinking: session.deepThinking}
+      : browserChatSessionToolParams(session)
+    const tool = await runHostTool("browser_chat.send", {
+      ...providerParams,
+      message,
+      ...(attachmentPaths.length === 0 ? {} : {attachmentPaths}),
+      autoToolLoop: false,
+      waitUntilReady: false,
+    })
     const result = hostToolResultObject(tool)
     updateBrowserChatTransportState(controller, session, result)
     if (tool.ok !== true || result["ok"] !== true) throw new Error(tool.error ?? stringValue(result["error"]) ?? "browser_chat.send failed")

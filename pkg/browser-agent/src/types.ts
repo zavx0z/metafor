@@ -8,6 +8,10 @@ export type BrowserAgentHost = {
     result: BrowserAgentJsonObject
   }>
   activateTarget?(params: BrowserAgentJsonObject): Promise<unknown>
+  setFileInputFiles?(params: BrowserAgentJsonObject): Promise<{
+    target?: unknown
+    result?: BrowserAgentJsonObject
+  }>
   setViewport?(params: BrowserAgentJsonObject): Promise<unknown>
   serializeError?(error: unknown): string
 }
