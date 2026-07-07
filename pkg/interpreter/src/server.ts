@@ -416,6 +416,8 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
   })
 
   const websocket: WebSocketHandler<WsClientData> = {
+    idleTimeout: 0,
+    sendPings: true,
     open(ws): void {
       if (ws.data.kind === "voice-proxy") {
         attachVoiceProxySocket(ws as ServerWebSocket<VoiceProxySocketData>)

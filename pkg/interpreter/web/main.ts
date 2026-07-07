@@ -3811,33 +3811,34 @@ const VOICE_MUX_RECONNECT_DELAY_MS = 800
 type VoiceMuxRoute = "wake" | "asr"
 let voiceMuxConnection: VoiceMuxConnection | null = null
 let voiceMuxReconnectTimer: number | null = null
+const voiceMuxSockets = new Set<VoiceMuxVirtualSocket>()
 
 class VoiceMuxVirtualSocket extends EventTarget implements VoiceInputSocket {
   readonly keepAlive = true
   binaryType: BinaryType = "arraybuffer"
   #closed = false
 
-  constructor(private readonly connection: VoiceMuxConnection, readonly route: VoiceMuxRoute) {
+  constructor(readonly route: VoiceMuxRoute) {
     super()
   }
 
   get readyState(): number {
-    return this.#closed ? WebSocket.CLOSED : this.connection.readyState
+    return this.#closed ? WebSocket.CLOSED : voiceMuxConnection?.readyState ?? WebSocket.CONNECTING
   }
 
   get url(): string {
-    return this.connection.url
+    return voiceInputWebSocketUrl(VOICE_MUX_SOCKET_URL)
   }
 
   send(data: string | ArrayBuffer | Blob | ArrayBufferView<ArrayBuffer>): void {
     if (this.#closed) return
-    this.connection.send(this.route, data)
+    ensureVoiceMuxConnection().send(this.route, data)
   }
 
   close(): void {
     if (this.#closed) return
     this.#closed = true
-    this.connection.release(this)
+    voiceMuxSockets.delete(this)
   }
 
   acceptOpen(): void {
@@ -3862,22 +3863,18 @@ class VoiceMuxVirtualSocket extends EventTarget implements VoiceInputSocket {
 class VoiceMuxConnection {
   readonly url = voiceInputWebSocketUrl(VOICE_MUX_SOCKET_URL)
   readonly ws = new WebSocket(this.url)
-  readonly sockets = new Set<VoiceMuxVirtualSocket>()
 
   constructor() {
     this.ws.binaryType = "arraybuffer"
     this.ws.addEventListener("open", () => {
-      for (const socket of this.sockets) socket.acceptOpen()
+      for (const socket of voiceMuxSockets) socket.acceptOpen()
     })
     this.ws.addEventListener("message", (event) => this.acceptMessage(event.data))
     this.ws.addEventListener("error", () => {
-      for (const socket of this.sockets) socket.acceptError()
+      for (const socket of voiceMuxSockets) socket.acceptError()
     })
     this.ws.addEventListener("close", () => {
-      const sockets = [...this.sockets]
-      this.sockets.clear()
       if (voiceMuxConnection === this) voiceMuxConnection = null
-      for (const socket of sockets) socket.acceptClose()
       scheduleVoiceMuxReconnect()
     })
   }
@@ -3887,14 +3884,10 @@ class VoiceMuxConnection {
   }
 
   createSocket(route: VoiceMuxRoute): VoiceMuxVirtualSocket {
-    const socket = new VoiceMuxVirtualSocket(this, route)
-    this.sockets.add(socket)
+    const socket = new VoiceMuxVirtualSocket(route)
+    voiceMuxSockets.add(socket)
     if (this.ws.readyState === WebSocket.OPEN) queueMicrotask(() => socket.acceptOpen())
     return socket
-  }
-
-  release(socket: VoiceMuxVirtualSocket): void {
-    this.sockets.delete(socket)
   }
 
   send(route: VoiceMuxRoute, data: string | ArrayBuffer | Blob | ArrayBufferView<ArrayBuffer>): void {
@@ -3930,7 +3923,7 @@ class VoiceMuxConnection {
       } catch {
         // Fall through to broadcast proxy-level errors.
       }
-      for (const socket of this.sockets) socket.acceptMessage(data)
+      for (const socket of voiceMuxSockets) socket.acceptMessage(data)
       return
     }
     const bytes = data instanceof ArrayBuffer
@@ -3945,7 +3938,7 @@ class VoiceMuxConnection {
   }
 
   dispatch(route: VoiceMuxRoute, data: unknown): void {
-    for (const socket of this.sockets) {
+    for (const socket of voiceMuxSockets) {
       if (socket.route === route) socket.acceptMessage(data)
     }
   }
