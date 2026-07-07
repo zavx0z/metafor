@@ -743,10 +743,11 @@ export class VoiceInputHud extends UiSurface {
       max: settings.recognitionTimeoutMaxValue,
       downLabel: settings.recognitionTimeoutDownLabel,
       upLabel: settings.recognitionTimeoutUpLabel,
-      step: 0.5,
+      step: 0.1,
       layout: "track",
+      trackTone: "warm",
       format: (value) => `${Number.isInteger(value) ? String(value) : value.toFixed(1)} ${settings.recognitionTimeoutUnitLabel}`,
-      onChange: (value) => this.options.onRecognitionTimeoutChange(Math.round(value * 2) / 2),
+      onChange: (value) => this.options.onRecognitionTimeoutChange(Math.round(value * 10) / 10),
     })
   }
 

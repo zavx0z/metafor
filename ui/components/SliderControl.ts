@@ -5,6 +5,7 @@ import {IconButton, type IconButtonProps} from "./Button.ts"
 export type SliderControlLayout = "header" | "track"
 
 export type SliderControlTone = "text" | "muted" | "cyan"
+export type SliderControlTrackTone = "cyan" | "warm"
 
 export type SliderControlProps = {
   key: string
@@ -22,6 +23,7 @@ export type SliderControlProps = {
   layout?: SliderControlLayout
   labelTone?: SliderControlTone
   valueTone?: SliderControlTone
+  trackTone?: SliderControlTrackTone
   labelFontPx?: number
   valueFontPx?: number
   buttonWidth?: number
@@ -62,7 +64,7 @@ function drawHeaderLayout(host: UiSurface, x: number, y: number, w: number, prop
   drawSliderIconButton(host, x + w - 24, y, buttonW, buttonH, props, props.upLabel ?? `${props.label}: больше`, uiIcons.plus, value + props.step, bounds.min, bounds.max, zBase + 0.04)
 
   const trackY = y + 28
-  drawTrack(host, x, trackY, w, ratio, zBase)
+  drawTrack(host, x, trackY, w, ratio, zBase, props.trackTone ?? "cyan")
   const setFromPointer = (localX: number): void => setSliderValue(host, props, bounds.min + ((localX - x) / Math.max(1, w)) * bounds.range, bounds.min, bounds.max)
   host.hit(x - 4, y + 22, w + 8, 18, () => undefined, {
     key: `${props.key}:track`,
@@ -110,7 +112,7 @@ function drawTrackLayout(host: UiSurface, x: number, y: number, w: number, props
   const trackX = x + buttonW + 10
   const trackW = Math.max(1, w - buttonW * 2 - 20)
   const trackY = rowY + 8
-  drawTrack(host, trackX, trackY, trackW, ratio, zBase)
+  drawTrack(host, trackX, trackY, trackW, ratio, zBase, props.trackTone ?? "cyan")
   for (const tick of [0, 0.25, 0.5, 0.75, 1]) {
     host.drawRect(trackX + trackW * tick, trackY + 10, 1, 3, fade(palette.borderDim, 0.68), zBase + 0.02)
   }
@@ -168,13 +170,15 @@ function drawSliderIconButton(
   IconButton(host, x, y, w, h, buttonProps)
 }
 
-function drawTrack(host: UiSurface, x: number, y: number, w: number, ratio: number, zBase: number): void {
+function drawTrack(host: UiSurface, x: number, y: number, w: number, ratio: number, zBase: number, tone: SliderControlTrackTone): void {
+  const active = tone === "warm" ? palette.orange : palette.cyan
+  const knob = tone === "warm" ? new Color(1, 0.36, 0.68, 1) : palette.cyan
   host.drawRoundedRect(x, y, w, 5, {radius: 3, fill: fade(palette.borderDim, 0.44), border: null, z: zBase})
-  host.drawRoundedRect(x, y, Math.max(3, w * ratio), 5, {radius: 3, fill: fade(palette.cyan, 0.64), border: null, z: zBase + 0.02})
+  host.drawRoundedRect(x, y, Math.max(3, w * ratio), 5, {radius: 3, fill: fade(active, 0.64), border: null, z: zBase + 0.02})
   const knobX = x + w * ratio
   host.drawRoundedRect(knobX - 5, y - 4, 10, 13, {
     radius: 5,
-    fill: fade(palette.cyan, 0.86),
+    fill: fade(knob, 0.86),
     border: fade(palette.borderBright, 0.9),
     borderWidth: 1,
     z: zBase + 0.04,

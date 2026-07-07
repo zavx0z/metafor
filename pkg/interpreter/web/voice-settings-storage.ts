@@ -28,8 +28,8 @@ const DEFAULT_VOICE_RECOGNITION_TIMEOUT_SECONDS = 2
 const DEFAULT_VOICE_AUTO_SEND_ENABLED = true
 
 export const MAX_VOICE_SIGNAL_VOLUME = 1
-export const MIN_VOICE_RECOGNITION_TIMEOUT_SECONDS = 0.5
-export const MAX_VOICE_RECOGNITION_TIMEOUT_SECONDS = 60
+export const MIN_VOICE_RECOGNITION_TIMEOUT_SECONDS = 0.4
+export const MAX_VOICE_RECOGNITION_TIMEOUT_SECONDS = 4
 
 export function readVoiceInputUrl(): string {
   try {
@@ -172,7 +172,7 @@ export function writeVoiceRecognitionTimeoutSeconds(value: number): number {
 
 export function clampVoiceRecognitionTimeoutSeconds(value: number): number {
   const clamped = Math.min(MAX_VOICE_RECOGNITION_TIMEOUT_SECONDS, Math.max(MIN_VOICE_RECOGNITION_TIMEOUT_SECONDS, value))
-  return Math.round(clamped * 2) / 2
+  return Math.round(clamped * 10) / 10
 }
 
 export function readVoicePhrases(groupId: VoiceInputHudPhraseGroupId): string[] {

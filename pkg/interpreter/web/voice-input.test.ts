@@ -297,6 +297,26 @@ describe("voice session manager", () => {
     expect(session.hasVoiceActivity()).toBe(true)
   })
 
+  test("keeps quiet continuation speech from closing an active dictation chunk", () => {
+    const session = new VoiceSessionManager()
+    session.startRecording(true, 1_000)
+
+    session.acceptVadFrame({rms: 0.05, peak: 0.11, now: 1_020})
+    expect(session.acceptVadFrame({rms: 0.05, peak: 0.11, now: 1_130}).started).toBe(true)
+
+    const quietContinuation = session.acceptVadFrame({
+      rms: 0.007,
+      peak: 0.010,
+      now: 1_850,
+      speechProbability: 0.36,
+      speechProbabilityAt: 1_850,
+    })
+
+    expect(quietContinuation.speaking).toBe(true)
+    expect(quietContinuation.stopped).toBe(false)
+    expect(session.debugSnapshot().chunks.recording).toBe(1)
+  })
+
   test("does not let loud voice-like input poison the adaptive noise floor", () => {
     const session = new VoiceSessionManager()
     session.startRecording(true, 1_000)
@@ -469,18 +489,18 @@ describe("voice auto-send timing", () => {
   test("extends final pause window for long dictation", () => {
     expect(voiceDynamicRecognitionTimeoutMs(1_000, 120, 1)).toBe(2_800)
     expect(voiceDynamicRecognitionTimeoutMs(1_000, 180, 1)).toBe(3_500)
-    expect(voiceDynamicRecognitionTimeoutMs(1_000, 300, 1)).toBe(4_200)
+    expect(voiceDynamicRecognitionTimeoutMs(1_000, 300, 1)).toBe(4_000)
   })
 
   test("extends timeout as dictation spans multiple chunks", () => {
     expect(voiceDynamicRecognitionTimeoutMs(1_000, 60, 2)).toBe(3_500)
-    expect(voiceDynamicRecognitionTimeoutMs(1_000, 60, 3)).toBe(4_200)
+    expect(voiceDynamicRecognitionTimeoutMs(1_000, 60, 3)).toBe(4_000)
   })
 
   test("extends timeout from local audio before ASR text arrives", () => {
     expect(voiceDynamicRecognitionTimeoutMs(1_000, 0, 1, 6_600)).toBe(2_800)
     expect(voiceDynamicRecognitionTimeoutMs(1_000, 0, 1, 10_100)).toBe(3_500)
-    expect(voiceDynamicRecognitionTimeoutMs(1_000, 0, 1, 18_100)).toBe(4_200)
+    expect(voiceDynamicRecognitionTimeoutMs(1_000, 0, 1, 18_100)).toBe(4_000)
   })
 })
 

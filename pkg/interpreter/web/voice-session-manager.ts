@@ -282,9 +282,15 @@ export class VoiceSessionManager {
       && speechProbability >= SILERO_SPEECH_PROBABILITY
       && peak >= NEAR_VOICE_PEAK_THRESHOLD * 0.72
       && clippingRatio < 0.35
+    const continuationSpeech = this.#hasVoiceActivity
+      && !tooClippedForEnergy
+      && (
+        (hasFreshSileroProbability && speechProbability >= 0.34 && peak >= NEAR_VOICE_PEAK_THRESHOLD * 0.5)
+        || (rms >= this.#speechThreshold * 0.72 && peak >= NEAR_VOICE_PEAK_THRESHOLD * 0.72)
+      )
     const rawSpeech = hasFreshSileroProbability
-      ? sileroSpeech || sileroEnergyFallback
-      : energySpeech
+      ? sileroSpeech || sileroEnergyFallback || continuationSpeech
+      : energySpeech || continuationSpeech
 
     let started = false
     let stopped = false

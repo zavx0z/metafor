@@ -206,7 +206,7 @@ const VOICE_DICTATION_LONG_AUDIO_MS = 10_000
 const VOICE_DICTATION_VERY_LONG_AUDIO_MS = 18_000
 const VOICE_DICTATION_MEDIUM_TIMEOUT_MS = 2_800
 const VOICE_DICTATION_LONG_TIMEOUT_MS = 3_500
-const VOICE_DICTATION_VERY_LONG_TIMEOUT_MS = 4_200
+const VOICE_DICTATION_VERY_LONG_TIMEOUT_MS = 4_000
 const VOICE_ACTIVATION_PREROLL_BUFFER_MS = 12_000
 const VOICE_ACTIVATION_PREROLL_PAD_MS = 180
 const VOICE_ACTIVATION_PREROLL_RMS = 0.018
@@ -262,7 +262,7 @@ export class VoiceInputClient {
 
   #commitPending = false
   #commitTimer: number | null = null
-  #lastRecognitionAt = 0
+  #lastVoiceActivityAt = 0
   #recognitionTimeoutTimer: number | null = null
   #pendingCommittedChunk: VoiceInputChunk | null = null
   #pendingCommittedChunkCommitId = 0
@@ -615,7 +615,7 @@ export class VoiceInputClient {
     this.#session.startRecording(true)
     this.#captureActivationPrerollChunk(performance.now())
     this.#pumpAsrQueue()
-    this.#touchRecognitionActivity()
+    this.#touchVoiceActivity()
     this.#trace("asr.activate.ready")
   }
 
@@ -962,7 +962,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     if (msg.type === "partial") {
       const text = recognitionText(msg)
       if (this.#stream !== null && this.#session.phase !== "draft" && this.#status !== "waitingWake") this.#setStatus("listening", compactDetail(text))
-      if (cleanupVoiceText(text).length > 0) this.#touchRecognitionActivity()
+      if (cleanupVoiceText(text).length > 0) this.#scheduleRecognitionTimeoutCheck()
       const partial = removeCommandTextFromString(text, this.#asrControlPhrases())
       const partialText = trimStableVoiceTranscriptPrefix(partial.text, this.#deliveryState.transcript)
       this.#observeDictationText(partialText)
@@ -984,7 +984,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       const result = removeCommandText(chunkFromAsrMessage(msg, phraseGroups), phraseGroups)
       const chunk = result.chunk
       if (voiceChunkHasText(chunk)) {
-        this.#touchRecognitionActivity()
+        this.#scheduleRecognitionTimeoutCheck()
         this.#pendingCommittedChunk = chunk
         this.#pendingCommittedChunkCommitId = this.#commitPending ? this.#commitGeneration : 0
         if (this.#processingChunkId !== null) this.#session.markChunkRecognized(this.#processingChunkId, voiceChunkDeliveryText(chunk))
@@ -1072,7 +1072,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     }
     if (vad.speaking) {
       this.#finalSilenceRequested = false
-      this.#lastRecognitionAt = now
+      this.#touchVoiceActivity(now)
     }
     if (vad.closedChunkIds.length > 0) this.#pumpAsrQueue()
     if (vad.finalSilence) {
@@ -1425,6 +1425,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#observedDictationChars = 0
     this.#deliveredVoiceChunkCount = 0
     this.#lastDynamicRecognitionTimeoutMs = -1
+    this.#lastVoiceActivityAt = 0
     this.#pendingCommittedChunk = null
     this.#pendingCommittedChunkCommitId = 0
     this.#lastPartialChunk = null
@@ -1432,8 +1433,8 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     resetVoiceInputDeliveryState(this.#deliveryState)
   }
 
-  #touchRecognitionActivity(): void {
-    this.#lastRecognitionAt = performance.now()
+  #touchVoiceActivity(now = performance.now()): void {
+    this.#lastVoiceActivityAt = now
     this.#scheduleRecognitionTimeoutCheck()
   }
 
@@ -1443,8 +1444,8 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     const timeoutMs = this.#currentRecognitionTimeoutMs()
     if (timeoutMs <= 0) return
     const now = performance.now()
-    const lastRecognitionAt = this.#lastRecognitionAt > 0 ? this.#lastRecognitionAt : now
-    const delay = Math.max(0, timeoutMs - (now - lastRecognitionAt))
+    const lastVoiceActivityAt = this.#lastVoiceActivityAt > 0 ? this.#lastVoiceActivityAt : now
+    const delay = Math.max(0, timeoutMs - (now - lastVoiceActivityAt))
     this.#recognitionTimeoutTimer = window.setTimeout(() => {
       this.#recognitionTimeoutTimer = null
       this.#handleRecognitionTimeout()
@@ -1468,12 +1469,12 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       }, timeoutMs)
       return
     }
-    const elapsed = performance.now() - this.#lastRecognitionAt
+    const elapsed = performance.now() - this.#lastVoiceActivityAt
     if (elapsed < timeoutMs) {
       this.#scheduleRecognitionTimeoutCheck()
       return
     }
-    this.#trace("dictation.recognition-timeout", {timeoutMs, elapsed: Math.round(elapsed)})
+    this.#trace("dictation.voice-timeout", {timeoutMs, elapsed: Math.round(elapsed)})
     this.#finalSilenceRequested = true
     this.#maybeFinishDictationAfterFinalSilence()
   }
@@ -1635,7 +1636,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       const resumeCapture = this.#stream !== null && this.#session.phase !== "draft"
       this.#session.startRecording(resumeCapture)
       this.#setStatus(resumeCapture ? "listening" : this.#session.hasPendingChunks() ? "processing" : "waitingWake", "ASR reconnected")
-      this.#touchRecognitionActivity()
+      if (resumeCapture) this.#touchVoiceActivity()
       this.#pumpAsrQueue()
       this.#trace("asr.reconnect.ready", {resumeCapture})
     } catch (error) {
