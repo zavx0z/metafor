@@ -244,7 +244,7 @@ function qwenReadExpression(): string {
       return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
     };
     const markdownText = (root) => {
-      const selector = "h1,h2,h3,h4,h5,h6,p,li,pre,blockquote";
+      const selector = "h1,h2,h3,h4,h5,h6,p,li,pre,blockquote,.qwen-markdown-paragraph";
       const nodes = Array.from(root.querySelectorAll(selector)).filter((node) => {
         let parent = node.parentElement;
         while (parent && parent !== root) {
