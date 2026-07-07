@@ -325,6 +325,8 @@ describe("voice session manager", () => {
     expect(session.debugSnapshot().chunks.merged).toBe(1)
     expect(session.debugSnapshot().autoSendState).toBe("readyToSend")
     expect(session.hasPendingChunks()).toBe(false)
+    session.startRecording(false, 420)
+    expect(session.debugSnapshot().autoSendState).toBe("readyToSend")
     session.markChunkFailed(id, "late timeout", true)
     expect(session.debugSnapshot().chunks.merged).toBe(1)
     expect(session.nextQueuedChunk()).toBeNull()

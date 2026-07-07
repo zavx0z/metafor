@@ -170,7 +170,7 @@ export class VoiceSessionManager {
 
   startRecording(force = false, now = performance.now()): void {
     if (force || (this.#phase !== "reconnecting" && this.#phase !== "draft")) this.#phase = "recording"
-    if (force || (this.#autoSendState !== "draft" && this.#autoSendState !== "cancelled")) this.#autoSendState = "armed"
+    if (force || this.#autoSendState === "sent") this.#autoSendState = "armed"
     this.#recordingStartedAt = now
     this.#lastSpeechAt = now
     this.#lastSpeechEndedAt = now
