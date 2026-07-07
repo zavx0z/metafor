@@ -7174,8 +7174,10 @@ function hudNotificationTone(kind: HudNotificationKind): {
   gain: number
   type: OscillatorType
 } {
-  if (kind === "activation" || kind === "deactivation" || kind === "stop") return {startHz: 587.33, endHz: 880, duration: 0.34, gain: 0.22, type: "triangle"}
-  if (kind === "error") return {startHz: 880, endHz: 220, duration: 0.38, gain: 0.42, type: "square"}
+  if (kind === "activation") return {startHz: 523.25, endHz: 659.25, duration: 0.18, gain: 0.16, type: "sine"}
+  if (kind === "deactivation") return {startHz: 659.25, endHz: 440, duration: 0.22, gain: 0.15, type: "sine"}
+  if (kind === "stop") return {startHz: 392, endHz: 293.66, duration: 0.26, gain: 0.17, type: "triangle"}
+  if (kind === "error") return {startHz: 440, endHz: 220, duration: 0.28, gain: 0.22, type: "triangle"}
   return {startHz: 520, endHz: 520, duration: 0.12, gain: 0.22, type: "sine"}
 }
 
