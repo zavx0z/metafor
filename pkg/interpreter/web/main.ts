@@ -6596,6 +6596,11 @@ function updateVoiceLevel(level: number): void {
   }
 
   const next = Math.max(0, Math.min(1, level * 12))
+  if (next <= 0.0001) {
+    voiceInputLevel = 0
+    renderVoiceMeter()
+    return
+  }
   voiceInputLevel = voiceInputLevel * 0.72 + next * 0.28
   if (voiceMeterRaf !== null) return
   voiceMeterRaf = window.requestAnimationFrame(() => {

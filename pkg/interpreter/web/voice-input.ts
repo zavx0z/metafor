@@ -1039,8 +1039,10 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
   #trackSpeechAndMaybeCommit(samples: Float32Array, pcm: ArrayBuffer, rms: number, peak: number, clippingRatio: number): void {
     const now = performance.now()
     const sileroProbability = this.#sileroVad?.probability()
-    this.options.onLevel(rms)
-    if ((this.#status !== "listening" && this.#status !== "committing") || this.#stream === null) return
+    if ((this.#status !== "listening" && this.#status !== "committing") || this.#stream === null) {
+      this.options.onLevel(0)
+      return
+    }
     this.#syncSessionTimings()
     const vad = this.#session.acceptVadFrame({
       rms,
@@ -1050,6 +1052,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       speechProbability: sileroProbability?.probability ?? undefined,
       speechProbabilityAt: sileroProbability?.at ?? undefined,
     })
+    this.options.onLevel(vad.speaking ? rms : 0)
     if (vad.started || vad.stopped || vad.closedChunkIds.length > 0 || vad.finalSilence || now - this.#lastVadTraceAt >= 1_000) {
       this.#lastVadTraceAt = now
       this.#trace(vad.started ? "vad.speech-start" : vad.stopped ? "vad.speech-stop" : vad.closedChunkIds.length > 0 ? "vad.chunk-closed" : vad.finalSilence ? "vad.final-silence" : "vad.frame", {
