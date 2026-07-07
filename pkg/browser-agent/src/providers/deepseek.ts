@@ -66,9 +66,21 @@ export function deepseekSendExpression(message: string, newChat: boolean): strin
       return candidates[0]?.el || null;
     };
     const generating = () => Array.from(document.querySelectorAll("button, [role=button], [class*=loading i], [class*=generating i], [class*=thinking i]")).some((el) => visible(el) && (/stop|停止|cancel|generating|loading|thinking/i.test([el.getAttribute("aria-label"), el.getAttribute("title"), el.className, el.innerText].join(" ")) || stopButton(el)));
+    const lastAssistantControlsVisible = () => {
+      const blocks = Array.from(document.querySelectorAll(".ds-markdown.ds-assistant-message-main-content, .markdown-body, .markdown")).filter((el) => visible(el) && !el.closest("textarea, [contenteditable=true], nav, header, aside, form"));
+      const last = blocks[blocks.length - 1];
+      if (!last) return false;
+      const rect = last.getBoundingClientRect();
+      return Array.from(document.querySelectorAll("button, [role=button]")).some((el) => {
+        if (!visible(el) || disabled(el)) return false;
+        const buttonRect = el.getBoundingClientRect();
+        return buttonRect.y >= rect.bottom - 12 && buttonRect.y <= rect.bottom + 70 && buttonRect.x >= rect.x - 60 && buttonRect.x <= rect.x + 260;
+      });
+    };
     const transportState = () => {
       const input = findInput();
-      const isGenerating = generating();
+      const read = readMessages();
+      const isGenerating = generating() || (read.assistantText.length > 0 && !lastAssistantControlsVisible());
       const inputReady = !!input && !disabled(input);
       const blockedReason = isGenerating ? "DeepSeek is still generating" : !inputReady ? "DeepSeek composer input not ready" : "";
       return {input, generating: isGenerating, preferenceActive: false, limitReached: false, canSend: inputReady && !isGenerating, blockedReason};
@@ -82,6 +94,7 @@ export function deepseekSendExpression(message: string, newChat: boolean): strin
       blockedReason: state.blockedReason,
     });
     const roleFor = (el) => {
+      if (el.matches(".ds-message")) return el.querySelector(".ds-assistant-message-main-content") ? "assistant" : "user";
       let node = el;
       for (let depth = 0; node && depth < 8; depth += 1, node = node.parentElement) {
         const label = String(node.className || "").toLowerCase() + " " + String(node.getAttribute("data-testid") || "").toLowerCase() + " " + String(node.getAttribute("data-role") || "").toLowerCase() + " " + String(node.getAttribute("role") || "").toLowerCase() + " " + String(node.getAttribute("aria-label") || "").toLowerCase();
@@ -94,16 +107,17 @@ export function deepseekSendExpression(message: string, newChat: boolean): strin
       const selectors = [
         "[data-testid*=message i]",
         "[data-message-id]",
+        ".ds-message",
         "[class*=message i]",
-        ".ds-markdown",
+        ".ds-markdown.ds-assistant-message-main-content",
         ".markdown-body",
-        ".markdown",
-        "[class*=markdown i]"
+        ".markdown"
       ].join(",");
       const seen = new Set();
       const messages = [];
       for (const el of Array.from(document.querySelectorAll(selectors))) {
         if (!visible(el) || el.closest("textarea, [contenteditable=true], nav, header, aside, form")) continue;
+        if (el.closest(".ds-message") && !el.matches(".ds-message")) continue;
         const rawToolText = el.textContent || el.innerText;
         const rawText = el.innerText || el.textContent;
         const text = hasToolCalls(rawToolText) ? String(rawToolText || "").replace(/\\u200b/g, "").trim() : clean(rawText);
@@ -171,11 +185,22 @@ export function deepseekReadExpression(): string {
     const disabled = (el) => !!el.disabled || el.getAttribute("aria-disabled") === "true" || el.getAttribute("disabled") !== null || /(?:^|\\s|--)disabled(?:\\s|$)/i.test(String(el.className || ""));
     const stopButton = (el) => /M2 4\\.88|H11\\.12C12\\.3199|V11\\.12C14 12\\.3199/i.test(String(el.innerHTML || ""));
     const findInput = () => [document.querySelector("textarea"), document.querySelector("[contenteditable=true]"), document.querySelector("[role=textbox]")].filter(Boolean).find((el) => visible(el) && !disabled(el));
-    const generating = Array.from(document.querySelectorAll("button, [role=button], [class*=loading i], [class*=generating i], [class*=thinking i]")).some((el) => visible(el) && (/stop|停止|cancel|generating|loading|thinking/i.test([el.getAttribute("aria-label"), el.getAttribute("title"), el.className, el.innerText].join(" ")) || stopButton(el)));
+    const buttonGenerating = Array.from(document.querySelectorAll("button, [role=button], [class*=loading i], [class*=generating i], [class*=thinking i]")).some((el) => visible(el) && (/stop|停止|cancel|generating|loading|thinking/i.test([el.getAttribute("aria-label"), el.getAttribute("title"), el.className, el.innerText].join(" ")) || stopButton(el)));
+    const lastAssistantControlsVisible = () => {
+      const blocks = Array.from(document.querySelectorAll(".ds-markdown.ds-assistant-message-main-content, .markdown-body, .markdown")).filter((el) => visible(el) && !el.closest("textarea, [contenteditable=true], nav, header, aside, form"));
+      const last = blocks[blocks.length - 1];
+      if (!last) return false;
+      const rect = last.getBoundingClientRect();
+      return Array.from(document.querySelectorAll("button, [role=button]")).some((el) => {
+        if (!visible(el) || disabled(el)) return false;
+        const buttonRect = el.getBoundingClientRect();
+        return buttonRect.y >= rect.bottom - 12 && buttonRect.y <= rect.bottom + 70 && buttonRect.x >= rect.x - 60 && buttonRect.x <= rect.x + 260;
+      });
+    };
     const input = findInput();
-    const canSend = !!input && !generating;
-    const blockedReason = generating ? "DeepSeek is still generating" : !input ? "DeepSeek composer input not ready" : "";
+    let generating = buttonGenerating;
     const roleFor = (el) => {
+      if (el.matches(".ds-message")) return el.querySelector(".ds-assistant-message-main-content") ? "assistant" : "user";
       let node = el;
       for (let depth = 0; node && depth < 8; depth += 1, node = node.parentElement) {
         const label = String(node.className || "").toLowerCase() + " " + String(node.getAttribute("data-testid") || "").toLowerCase() + " " + String(node.getAttribute("data-role") || "").toLowerCase() + " " + String(node.getAttribute("role") || "").toLowerCase() + " " + String(node.getAttribute("aria-label") || "").toLowerCase();
@@ -187,16 +212,17 @@ export function deepseekReadExpression(): string {
     const selectors = [
       "[data-testid*=message i]",
       "[data-message-id]",
+      ".ds-message",
       "[class*=message i]",
-      ".ds-markdown",
+      ".ds-markdown.ds-assistant-message-main-content",
       ".markdown-body",
-      ".markdown",
-      "[class*=markdown i]"
+      ".markdown"
     ].join(",");
     const seen = new Set();
     const messages = [];
     for (const el of Array.from(document.querySelectorAll(selectors))) {
       if (!visible(el) || el.closest("textarea, [contenteditable=true], nav, header, aside, form")) continue;
+      if (el.closest(".ds-message") && !el.matches(".ds-message")) continue;
       const rawToolText = el.textContent || el.innerText;
       const rawText = el.innerText || el.textContent;
       const text = hasToolCalls(rawToolText) ? cleanPreserved(rawToolText) : clean(rawText);
@@ -209,6 +235,9 @@ export function deepseekReadExpression(): string {
       messages.push({role: role || "assistant", text});
     }
     const lastAssistant = messages.slice().reverse().find((message) => message.role === "assistant");
+    if (!generating && lastAssistant && !lastAssistantControlsVisible()) generating = true;
+    const canSend = !!input && !generating;
+    const blockedReason = generating ? "DeepSeek is still generating" : !input ? "DeepSeek composer input not ready" : "";
     return {ok:true, adapter:"deepseek", url:location.href, title:document.title, messages, messageCount:messages.length, lastAssistantText:lastAssistant ? lastAssistant.text : "", generating, preferenceActive:false, canSend, busy:!canSend, blockedReason};
   })()`
 }
