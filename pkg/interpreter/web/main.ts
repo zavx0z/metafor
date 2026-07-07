@@ -5197,6 +5197,85 @@ function flushBrowserChatComposerPendingInput(controller: BrowserChatController)
   flushBrowserChatDraftFromEditor(controller)
 }
 
+function browserChatImageAttachmentsFromText(text: string): CodexComposerAttachment[] {
+  return browserChatImageAttachmentPathsFromText(text).map((path) => {
+    const name = browserChatAttachmentName(path)
+    return {
+      id: `text-path:${path}`,
+      name,
+      path,
+      url: `/hud/codex/attachments/${encodeURIComponent(name)}`,
+      mime: browserChatAttachmentMime(name),
+      size: 0,
+    }
+  })
+}
+
+function mergeBrowserChatAttachments(left: readonly CodexComposerAttachment[], right: readonly CodexComposerAttachment[]): CodexComposerAttachment[] {
+  const seen = new Set<string>()
+  const out: CodexComposerAttachment[] = []
+  for (const attachment of [...left, ...right]) {
+    if (seen.has(attachment.path)) continue
+    seen.add(attachment.path)
+    out.push(attachment)
+  }
+  return out
+}
+
+function browserChatTextWithoutImageAttachments(text: string): string {
+  const lines = text.replace(/\r\n?/g, "\n").split("\n")
+  const kept: string[] = []
+  let inImages = false
+  for (const line of lines) {
+    if (/^\s*Изображения\s*:\s*$/i.test(line)) {
+      inImages = true
+      continue
+    }
+    if (inImages) {
+      if (/^\s*-\s+\S+/.test(line) || line.trim().length === 0) continue
+      inImages = false
+    }
+    kept.push(line)
+  }
+  return kept.join("\n").trim()
+}
+
+function browserChatImageAttachmentPathsFromText(text: string): string[] {
+  const paths: string[] = []
+  let inImages = false
+  for (const line of text.replace(/\r\n?/g, "\n").split("\n")) {
+    if (/^\s*Изображения\s*:\s*$/i.test(line)) {
+      inImages = true
+      continue
+    }
+    if (!inImages) continue
+    const item = line.match(/^\s*-\s+(.+?)\s*$/)?.[1]
+    if (item !== undefined && browserChatPathLooksImage(item)) paths.push(item)
+    else if (line.trim().length > 0) inImages = false
+  }
+  return paths
+}
+
+function browserChatPathLooksImage(path: string): boolean {
+  return /\.(?:png|jpe?g|gif|webp|heic|heif|tiff?|bmp|svg)$/i.test(path)
+}
+
+function browserChatAttachmentName(path: string): string {
+  return path.split(/[\\/]/g).pop() || "image.png"
+}
+
+function browserChatAttachmentMime(name: string): string {
+  if (/\.jpe?g$/i.test(name)) return "image/jpeg"
+  if (/\.gif$/i.test(name)) return "image/gif"
+  if (/\.webp$/i.test(name)) return "image/webp"
+  if (/\.svg$/i.test(name)) return "image/svg+xml"
+  if (/\.bmp$/i.test(name)) return "image/bmp"
+  if (/\.heic$/i.test(name)) return "image/heic"
+  if (/\.heif$/i.test(name)) return "image/heif"
+  if (/\.tiff?$/i.test(name)) return "image/tiff"
+  return "image/png"
+}
+
 function submitBrowserChatComposer(controller: BrowserChatController, options: {flushPendingInput?: boolean; focusAfterSubmit?: boolean} = {}): boolean {
   if (options.flushPendingInput ?? true) flushBrowserChatComposerPendingInput(controller)
   if (browserChatComposerTargetsCodex(controller)) {
@@ -5213,10 +5292,12 @@ function submitBrowserChatComposer(controller: BrowserChatController, options: {
     return false
   }
   if (!browserChatComposerCanSubmit(controller)) return false
-  const displayText = session.codexDraft.replace(/\r\n?/g, "\n").trim()
-  const attachments = session.codexAttachments.slice()
+  const rawDisplayText = session.codexDraft.replace(/\r\n?/g, "\n").trim()
+  const textAttachments = session.provider === "deepseek" ? browserChatImageAttachmentsFromText(rawDisplayText) : []
+  const attachments = mergeBrowserChatAttachments(session.codexAttachments, textAttachments)
+  const displayText = session.provider === "deepseek" && attachments.length > 0 ? browserChatTextWithoutImageAttachments(rawDisplayText) : rawDisplayText
   const message = session.provider === "deepseek" && attachments.length > 0
-    ? displayText || "Опиши изображение."
+    ? displayText
     : codexComposerMessage(session.codexDraft, attachments)
   clearVoicePartialPreviewForTarget({kind: "browser-chat", controller})
   discardVoiceAutoSendBuffer()
@@ -5240,6 +5321,7 @@ function submitBrowserChatComposer(controller: BrowserChatController, options: {
 async function sendBrowserChatMessage(controller: BrowserChatController, session: BrowserChatSession, message: string, attachments: readonly CodexComposerAttachment[], provisionalMessageStart: number, focusAfterSubmit: boolean): Promise<void> {
   try {
     const attachmentPaths = attachments.map((attachment) => attachment.path)
+    const uploadsFiles = session.provider === "deepseek" && attachmentPaths.length > 0
     const providerParams = session.provider === "deepseek"
       ? {...browserChatSessionToolParams(session), deepseekMode: session.toolPromptMode, deepThinking: session.deepThinking}
       : browserChatSessionToolParams(session)
@@ -5248,7 +5330,8 @@ async function sendBrowserChatMessage(controller: BrowserChatController, session
       message,
       ...(attachmentPaths.length === 0 ? {} : {attachmentPaths}),
       autoToolLoop: false,
-      waitUntilReady: false,
+      waitUntilReady: uploadsFiles,
+      ...(uploadsFiles ? {sendTimeoutMs: 90000} : {}),
     })
     const result = hostToolResultObject(tool)
     updateBrowserChatTransportState(controller, session, result)

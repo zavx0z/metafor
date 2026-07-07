@@ -52,14 +52,14 @@ async function runBrowserChatToolUse(host: BrowserAgentHost, name: string, param
 }
 
 async function browserChatSend(host: BrowserAgentHost, params: BrowserAgentJsonObject): Promise<BrowserAgentJsonObject> {
-  const message = asString(params["message"]) ?? asString(params["text"])
-  if (message === undefined || message.trim().length === 0) return {ok: false, error: "message required"}
+  const message = asString(params["message"]) ?? asString(params["text"]) ?? ""
   const provider = browserAgentProviderForParams(params)
   const newChat = asBoolean(params["newChat"]) ?? asBoolean(params["newConversation"]) ?? false
   const waitUntilReady = asBoolean(params["waitUntilReady"]) ?? true
   const timeoutMs = boundedNumber(asNumber(params["sendTimeoutMs"]), BROWSER_CHAT_SEND_READY_TIMEOUT_MS, 1_000, 300_000)
   const startedAt = Date.now()
   const attachmentPaths = browserChatAttachmentPaths(params)
+  if (message.trim().length === 0 && attachmentPaths.length === 0) return {ok: false, provider: provider.id, error: "message or attachmentPaths required"}
   let attachmentsUploaded = false
 
   while (true) {

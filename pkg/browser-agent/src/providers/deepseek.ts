@@ -174,17 +174,19 @@ export function deepseekSendExpression(message: string, newChat: boolean, params
     if (!state.input) return {ok:false, adapter:"deepseek", ...statePayload(state), error:"DeepSeek composer input not found"};
     if (!state.canSend) return {ok:false, adapter:"deepseek", ...statePayload(state), error:state.blockedReason || "DeepSeek is not ready for input"};
     const input = state.input;
-    input.focus();
-    if (input instanceof HTMLTextAreaElement || input instanceof HTMLInputElement) {
-      const proto = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-      const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
-      if (setter) setter.call(input, message);
-      else input.value = message;
-    } else {
-      input.textContent = message;
+    if (message.trim().length > 0) {
+      input.focus();
+      if (input instanceof HTMLTextAreaElement || input instanceof HTMLInputElement) {
+        const proto = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+        const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+        if (setter) setter.call(input, message);
+        else input.value = message;
+      } else {
+        input.textContent = message;
+      }
+      input.dispatchEvent(new InputEvent("input", {bubbles:true, inputType:"insertText", data:message}));
+      input.dispatchEvent(new Event("change", {bubbles:true}));
     }
-    input.dispatchEvent(new InputEvent("input", {bubbles:true, inputType:"insertText", data:message}));
-    input.dispatchEvent(new Event("change", {bubbles:true}));
     await wait(180);
     state = transportState();
     if (!state.canSend) return {ok:false, adapter:"deepseek", ...statePayload(state), composerText:clean(textOf(input)), error:state.blockedReason || "DeepSeek became busy before send"};
@@ -197,7 +199,8 @@ export function deepseekSendExpression(message: string, newChat: boolean, params
     const afterState = transportState();
     const limitReason = after.messageCount > before.messageCount ? limitReasonFromText(after.assistantText) : "";
     if (limitReason) return {ok:false, adapter:"deepseek", action:"click", previousAssistantText:before.assistantText, previousMessageCount:before.messageCount, ...statePayload(afterState), limitReached:true, canSend:false, busy:true, blockedReason:limitReason, error:limitReason};
-    const accepted = currentInput.length === 0 || after.messageCount > before.messageCount || messageMatches(message, after.userText) || afterState.generating;
+    const messageHasText = comparable(message).length > 0;
+    const accepted = after.messageCount > before.messageCount || afterState.generating || (messageHasText && (currentInput.length === 0 || messageMatches(message, after.userText)));
     if (accepted) return {ok:true, adapter:"deepseek", action:"click", mode:selectedMode, deepThinking:selectedDeepThinking, previousAssistantText:before.assistantText, previousMessageCount:before.messageCount, ...statePayload(afterState)};
     return {ok:false, adapter:"deepseek", ...statePayload(afterState), busy:true, composerText:currentInput, error:"DeepSeek did not accept message yet"};
   })()`

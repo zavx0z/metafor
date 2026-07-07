@@ -368,7 +368,7 @@ CDP/DevTools слой, но не является заменой `devtools.*`: t
 `urlContains`/`targetUrl`/`targetTitle`, fallback - Qwen.
 
 ```text
-browser_chat.send      # {provider?:qwen|deepseek, message|text, attachmentPaths?, targetId?, targetUrl?, targetTitle?, urlContains?, autoToolLoop?, newChat?, waitUntilReady?, sendTimeoutMs?}
+browser_chat.send      # {provider?:qwen|deepseek, message?|text?, attachmentPaths?, targetId?, targetUrl?, targetTitle?, urlContains?, autoToolLoop?, newChat?, waitUntilReady?, sendTimeoutMs?}
 browser_chat.read      # {provider?:qwen|deepseek, targetId?, targetUrl?, targetTitle?, urlContains?}
 browser_chat.wait      # {provider?:qwen|deepseek, targetId?, targetUrl?, targetTitle?, urlContains?, previousAssistantText?, afterMessageCount?, intervalMs?, stableTicks?, timeoutMs?}
 browser_chat.exchange  # {provider?:qwen|deepseek, message|text, targetId?, targetUrl?, targetTitle?, urlContains?, previousAssistantText?, afterMessageCount?, intervalMs?, stableTicks?, timeoutMs?}
@@ -448,7 +448,9 @@ browser display. Реальная remote browser tab переключается 
 вставляются в draft как пользовательский текст.
 
 Обычная отправка Browser Agent message передает в active provider только текст
-пользователя и attachment paths. Tool prompt не добавляется автоматически к
+пользователя и attachment paths. Для DeepSeek image-only отправка разрешает
+пустой `message`, если переданы `attachmentPaths`; UI не подставляет caption и
+не отправляет текстовый список filesystem paths. Tool prompt не добавляется автоматически к
 пользовательским сообщениям: он отправляется отдельной кнопкой окна `Agent`,
 которая очищает только active session и создает новый chat выбранного provider
 через `browser_chat.send` с `newChat:true`.
