@@ -14,6 +14,7 @@ import {
   prepareVoiceLivePreviewText,
   prepareVoiceInputChunkForDelivery,
   trimStableVoiceTranscriptPrefix,
+  wakeAudioCutoffFromRecognitionMessage,
 } from "./voice-input.ts"
 import {DEFAULT_VOICE_SESSION_TIMINGS, VoiceSessionManager} from "./voice-session-manager.ts"
 
@@ -65,6 +66,46 @@ describe("voice activation matching", () => {
     expect(isActivationRecognitionMessage({type: "result", text: "зав"}, ["завхоз"])).toBe(false)
     expect(isActivationRecognitionMessage({type: "result", text: "завтра"}, ["завхоз"])).toBe(false)
     expect(isActivationRecognitionMessage({type: "result", text: "за вход"}, ["завхоз"])).toBe(false)
+  })
+
+  test("uses wake word timestamps to cut first Whisper preroll after the wake phrase", () => {
+    const cutoff = wakeAudioCutoffFromRecognitionMessage({
+      type: "result",
+      text: "завхоз первое слово",
+      json: {
+        result: [
+          {word: "завхоз", start: 2.1, end: 2.56},
+          {word: "первое", start: 2.72, end: 3.1},
+          {word: "слово", start: 3.15, end: 3.42},
+        ],
+      },
+    }, ["завхоз"], 1_000, 4_000)
+
+    expect(cutoff).toMatchObject({source: "absoluteWords", phrase: "завхоз", wordEndMs: 2_560})
+    expect(cutoff?.at).toBe(3_680)
+  })
+
+  test("uses relative wake word timestamps without cutting dictated tail words", () => {
+    const cutoff = wakeAudioCutoffFromRecognitionMessage({
+      type: "result",
+      text: "завхоз первое",
+      json: {
+        result: [
+          {word: "завхоз", start: 0.1, end: 0.6},
+          {word: "первое", start: 0.75, end: 1.1},
+        ],
+      },
+    }, ["завхоз"], 1_000, 50_000)
+
+    expect(cutoff).toMatchObject({source: "relativeWords", phrase: "завхоз", wordEndMs: 600})
+    expect(cutoff?.at).toBe(49_360)
+  })
+
+  test("falls back to final wake receive time when wake words are unavailable", () => {
+    const cutoff = wakeAudioCutoffFromRecognitionMessage({type: "result", text: "завхоз"}, ["завхоз"], 1_000, 5_000)
+
+    expect(cutoff).toMatchObject({source: "fallback", phrase: "завхоз", wordEndMs: null})
+    expect(cutoff?.at).toBe(4_740)
   })
 
   test("does not activate from fast partial candidates", () => {

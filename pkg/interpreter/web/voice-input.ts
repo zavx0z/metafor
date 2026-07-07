@@ -101,7 +101,16 @@ type AsrMessage = {
   config?: unknown
   messages?: unknown
   segments?: unknown
+  result?: unknown
+  words?: unknown
   error?: string
+}
+
+type VoiceWakeAudioCutoff = {
+  at: number
+  source: "absoluteWords" | "relativeWords" | "fallback"
+  phrase: string
+  wordEndMs: number | null
 }
 
 export type VoiceCommandPhraseGroups = {
@@ -184,6 +193,9 @@ const ASR_RECONNECT_DELAY_MS = 900
 const PCM_FLUSH_BYTES = 4096
 const PCM_FLUSH_MS = 120
 const VOICE_AUDIO_PREROLL_MS = 2_400
+const VOICE_WAKE_WORD_AUDIO_PADDING_MS = 120
+const VOICE_WAKE_RESULT_LATENCY_GUARD_MS = 260
+const VOICE_WAKE_FALLBACK_AUDIO_PREROLL_MS = 260
 const MAX_DELIVERED_TRANSCRIPT_CHARS = 8_000
 const MAX_REPEATED_VOICE_TOKEN_RUN = 120
 
@@ -213,6 +225,8 @@ export class VoiceInputClient {
   #wakeMatched = false
   #asrEnabled = false
   #asrActivatedAt = 0
+  #wakeRecognizerStartedAt = 0
+  #wakeAudioCutoff: VoiceWakeAudioCutoff | null = null
 
   #commitPending = false
   #commitTimer: number | null = null
@@ -515,6 +529,7 @@ export class VoiceInputClient {
     const phraseGroups = this.#commandPhrases()
     this.#trace("wake.connect", {url: this.options.wakeUrl()})
     await this.#connectCommand(this.options.wakeUrl())
+    this.#wakeRecognizerStartedAt = performance.now()
     this.#sendCommand({
       type: "start",
       sampleRate: this.#audioContext?.sampleRate ?? TARGET_SAMPLE_RATE,
@@ -538,6 +553,16 @@ export class VoiceInputClient {
     this.#clearAsrReconnectTimer()
     this.#asrEnabled = true
     this.#asrActivatedAt = performance.now()
+    if (source === "wake" && this.#wakeAudioCutoff === null) {
+      this.#wakeAudioCutoff = {
+        at: this.#asrActivatedAt - VOICE_WAKE_FALLBACK_AUDIO_PREROLL_MS,
+        source: "fallback",
+        phrase: cleanupVoiceText(wakeText),
+        wordEndMs: null,
+      }
+    } else if (source === "manual" && this.#wakeAudioCutoff !== null && this.#asrActivatedAt - this.#wakeAudioCutoff.at > VOICE_AUDIO_PREROLL_MS) {
+      this.#wakeAudioCutoff = null
+    }
     this.#firstChunkPrerollArmed = true
     this.#setStatus("connecting", this.options.url())
     await this.#connectAsr(this.options.url())
@@ -661,6 +686,7 @@ export class VoiceInputClient {
     this.#clearLiveAsrPcm()
     this.#audioPreroll = []
     this.#firstChunkPrerollArmed = false
+    this.#wakeAudioCutoff = null
     try {
       this.#audioContext = new AudioContext({sampleRate: TARGET_SAMPLE_RATE})
     } catch {
@@ -766,10 +792,12 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
 
     const text = recognitionText(msg)
     if (!text) return
+    const receivedAt = performance.now()
     const finalMessage = isFinalRecognitionMessage(msg)
     const phraseGroups = this.#commandPhrases()
+    const activationPhrases = phraseGroups.activation
     if (this.#asrEnabled) {
-      const commandsArmed = performance.now() - this.#asrActivatedAt >= STOP_COMMAND_ARM_DELAY_MS
+      const commandsArmed = receivedAt - this.#asrActivatedAt >= STOP_COMMAND_ARM_DELAY_MS
       if (commandsArmed && isFinalRecognitionMessage(msg)) {
         if (hasStopCommand(text, phraseGroups.stop)) {
           this.stop(VOICE_STOP_COMMAND_DETAIL)
@@ -793,6 +821,19 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       return
     }
 
+    if (finalMessage) {
+      const wakeAudioCutoff = wakeAudioCutoffFromRecognitionMessage(msg, activationPhrases, this.#wakeRecognizerStartedAt, receivedAt)
+      if (wakeAudioCutoff !== null) {
+        this.#wakeAudioCutoff = wakeAudioCutoff
+        this.#trace("wake.audio.cutoff", {
+          source: wakeAudioCutoff.source,
+          phrase: wakeAudioCutoff.phrase,
+          wordEndMs: wakeAudioCutoff.wordEndMs,
+          cutoffAgeMs: Math.round(receivedAt - wakeAudioCutoff.at),
+        })
+      }
+    }
+
     const commandTextHandled = this.options.onCommandText(cleanupVoiceText(text), finalMessage) === true
     if (finalMessage) this.#trace("wake.message.final", {chars: cleanupVoiceText(text).length, text: debugTraceText(text), handled: commandTextHandled})
     if (commandTextHandled) return
@@ -802,7 +843,6 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       this.stop(VOICE_STOP_COMMAND_DETAIL)
       return
     }
-    const activationPhrases = phraseGroups.activation
     if (!isActivationRecognitionMessage(msg, activationPhrases)) return
 
     void this.#activateAsr(text, "wake").catch((error) => this.#recoverAsrFailure(error))
@@ -953,7 +993,9 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     const chunkId = this.#session.currentChunkId
     this.#firstChunkPrerollArmed = false
     if (chunkId === null) return []
-    const cutoff = now - VOICE_AUDIO_PREROLL_MS
+    const wakeAudioCutoff = this.#wakeAudioCutoff
+    this.#wakeAudioCutoff = null
+    const cutoff = wakeAudioCutoff === null ? now - VOICE_AUDIO_PREROLL_MS : Math.max(now - VOICE_AUDIO_PREROLL_MS, wakeAudioCutoff.at)
     const appended: ArrayBuffer[] = []
     let frames = 0
     let bytes = 0
@@ -964,7 +1006,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       frames += 1
       bytes += frame.pcm.byteLength
     }
-    this.#trace("audio.preroll.append", {chunkId, frames, bytes})
+    this.#trace("audio.preroll.append", {chunkId, frames, bytes, wakeCutoff: wakeAudioCutoff?.source ?? null, cutoffAgeMs: Math.round(now - cutoff)})
     return appended
   }
 
@@ -1290,6 +1332,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     if (this.#commandWs === null) return
     const ws = this.#commandWs
     this.#commandWs = null
+    this.#wakeRecognizerStartedAt = 0
     if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) ws.close()
   }
 
@@ -1432,6 +1475,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#sileroVad = null
     this.#audioPreroll = []
     this.#firstChunkPrerollArmed = false
+    this.#wakeAudioCutoff = null
 
     if (audioContext !== null) {
       if (closeDelayMs > 0) window.setTimeout(() => void audioContext.close(), closeDelayMs)
@@ -1452,6 +1496,8 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#wakeMatched = false
     this.#asrEnabled = false
     this.#asrActivatedAt = 0
+    this.#wakeRecognizerStartedAt = 0
+    this.#wakeAudioCutoff = null
     this.#stopRequested = false
     this.options.onLevel(0)
   }
@@ -1738,6 +1784,110 @@ export function isActivationRecognitionMessage(msg: {type?: string; text?: strin
   const text = recognitionText(msg)
   if (!text) return false
   return isActivationPhrase(text, activationPhrases)
+}
+
+export function wakeAudioCutoffFromRecognitionMessage(
+  msg: {type?: string; text?: string; json?: unknown; result?: unknown; words?: unknown},
+  activationPhrases: readonly string[],
+  wakeRecognizerStartedAt: number,
+  receivedAt: number,
+): VoiceWakeAudioCutoff | null {
+  if (!isActivationRecognitionMessage(msg, activationPhrases)) return null
+  const match = activationPhraseMatch(recognitionText(msg), activationPhrases)
+  if (match === null) return null
+  const timing = activationPhraseWordTiming(msg, match.phrase)
+  if (timing !== null) {
+    const absoluteAt = wakeRecognizerStartedAt > 0 ? wakeRecognizerStartedAt + timing.endMs + VOICE_WAKE_WORD_AUDIO_PADDING_MS : 0
+    if (absoluteAt > 0 && absoluteAt >= receivedAt - VOICE_AUDIO_PREROLL_MS - VOICE_WAKE_RESULT_LATENCY_GUARD_MS && absoluteAt <= receivedAt + VOICE_WAKE_RESULT_LATENCY_GUARD_MS) {
+      return {at: absoluteAt, source: "absoluteWords", phrase: match.phrase, wordEndMs: timing.endMs}
+    }
+    const tailMs = Math.max(0, timing.lastEndMs - timing.endMs)
+    return {
+      at: Math.max(receivedAt - VOICE_AUDIO_PREROLL_MS, receivedAt - tailMs - VOICE_WAKE_RESULT_LATENCY_GUARD_MS + VOICE_WAKE_WORD_AUDIO_PADDING_MS),
+      source: "relativeWords",
+      phrase: match.phrase,
+      wordEndMs: timing.endMs,
+    }
+  }
+  return {
+    at: Math.max(receivedAt - VOICE_AUDIO_PREROLL_MS, receivedAt - VOICE_WAKE_FALLBACK_AUDIO_PREROLL_MS),
+    source: "fallback",
+    phrase: match.phrase,
+    wordEndMs: null,
+  }
+}
+
+function activationPhraseWordTiming(
+  msg: {json?: unknown; result?: unknown; words?: unknown},
+  phrase: string,
+): {endMs: number; lastEndMs: number} | null {
+  const words = recognitionWords(msg)
+  if (words.length === 0) return null
+  const lastEndMs = words.reduce((end, word) => Math.max(end, word.endMs), 0)
+  for (const phraseTokens of wakePhraseTimingTokenSequences(phrase)) {
+    for (let index = 0; index <= words.length - phraseTokens.length; index += 1) {
+      let matches = true
+      for (let offset = 0; offset < phraseTokens.length; offset += 1) {
+        if (words[index + offset]?.value !== phraseTokens[offset]) {
+          matches = false
+          break
+        }
+      }
+      if (matches) return {endMs: words[index + phraseTokens.length - 1]!.endMs, lastEndMs}
+    }
+  }
+  return null
+}
+
+function recognitionWords(msg: {json?: unknown; result?: unknown; words?: unknown}): Array<{value: string; endMs: number}> {
+  const candidates: unknown[] = []
+  if (Array.isArray(msg.result)) candidates.push(msg.result)
+  if (Array.isArray(msg.words)) candidates.push(msg.words)
+  if (typeof msg.json === "object" && msg.json !== null) {
+    const json = msg.json as {result?: unknown; words?: unknown}
+    if (Array.isArray(json.result)) candidates.push(json.result)
+    if (Array.isArray(json.words)) candidates.push(json.words)
+  }
+  for (const candidate of candidates) {
+    if (!Array.isArray(candidate)) continue
+    const words: Array<{value: string; endMs: number}> = []
+    for (const item of candidate) {
+      if (typeof item !== "object" || item === null) continue
+      const object = item as Record<string, unknown>
+      const rawWord = typeof object["word"] === "string" ? object["word"] : typeof object["text"] === "string" ? object["text"] : ""
+      const value = normalizeWakeText(rawWord)
+      const rawEnd = object["end"]
+      const end = typeof rawEnd === "number" ? rawEnd : typeof rawEnd === "string" ? Number(rawEnd) : Number.NaN
+      if (!value || !Number.isFinite(end) || end < 0) continue
+      words.push({value, endMs: Math.round(end * 1000)})
+    }
+    if (words.length > 0) return words
+  }
+  return []
+}
+
+function wakePhraseTimingTokenSequences(phrase: string): string[][] {
+  const tokens = normalizeWakeText(phrase).split(/\s+/).filter(Boolean)
+  const out: string[][] = []
+  const push = (next: string[]): void => {
+    if (next.length === 0 || out.some((item) => item.join(" ") === next.join(" "))) return
+    out.push(next)
+  }
+  push(tokens)
+  if (tokens.length > 1) push([tokens.join("")])
+  if (tokens.length === 1) {
+    const split = knownWakeCompoundTokenSplit(tokens[0]!)
+    if (split !== null) push(split)
+  }
+  return out
+}
+
+function knownWakeCompoundTokenSplit(token: string): string[] | null {
+  if (token === "завхоз") return ["зав", "хоз"]
+  if (token === "запхоз") return ["зап", "хоз"]
+  if (token === "дипсик") return ["дип", "сик"]
+  if (token === "deepseek") return ["deep", "seek"]
+  return null
 }
 
 function activationPhraseMatch(text: string, activationPhrases: readonly string[]): {phrase: string} | null {
