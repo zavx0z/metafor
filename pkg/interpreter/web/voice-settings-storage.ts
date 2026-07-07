@@ -16,6 +16,7 @@ const VOICE_DEACTIVATION_PHRASES_STORAGE_KEY = "metafor.interpreter.voice.deacti
 const VOICE_STOP_PHRASES_STORAGE_KEY = "metafor.interpreter.voice.stopPhrases:v1"
 const VOICE_DEACTIVATION_MODE_STORAGE_KEY = "metafor.interpreter.voice.deactivationMode:v1"
 const VOICE_RECOGNITION_TIMEOUT_STORAGE_KEY = "metafor.interpreter.voice.recognitionTimeoutSeconds:v1"
+const VOICE_RECOGNITION_MAX_TIMEOUT_STORAGE_KEY = "metafor.interpreter.voice.recognitionMaxTimeoutSeconds:v1"
 const VOICE_AUTO_SEND_STORAGE_KEY = "metafor.interpreter.voice.autoSend:v1"
 const VOICE_SIGNAL_VOLUME_LEGACY_STORAGE_KEY = "metafor.interpreter.voice.signalVolume:v1"
 const VOICE_SIGNAL_VOLUME_STORAGE_KEY = "metafor.interpreter.voice.signalVolume:v2"
@@ -24,7 +25,8 @@ const DEFAULT_VOICE_INPUT_URL = "/hud/voice/ws"
 const DEFAULT_VOICE_WAKE_URL = "/hud/voice/ws"
 const DEFAULT_VOICE_SIGNAL_VOLUME = 0.2
 const DEFAULT_VOICE_DEACTIVATION_MODE: VoiceDeactivationMode = "phrase-timeout"
-const DEFAULT_VOICE_RECOGNITION_TIMEOUT_SECONDS = 2
+const DEFAULT_VOICE_RECOGNITION_TIMEOUT_SECONDS = 1.5
+const DEFAULT_VOICE_RECOGNITION_MAX_TIMEOUT_SECONDS = 4
 const DEFAULT_VOICE_AUTO_SEND_ENABLED = true
 
 export const MAX_VOICE_SIGNAL_VOLUME = 1
@@ -164,6 +166,27 @@ export function writeVoiceRecognitionTimeoutSeconds(value: number): number {
   const next = clampVoiceRecognitionTimeoutSeconds(value)
   try {
     localStorage.setItem(VOICE_RECOGNITION_TIMEOUT_STORAGE_KEY, String(next))
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+  return next
+}
+
+export function readVoiceRecognitionMaxTimeoutSeconds(): number {
+  try {
+    const raw = localStorage.getItem(VOICE_RECOGNITION_MAX_TIMEOUT_STORAGE_KEY)
+    if (raw === null) return DEFAULT_VOICE_RECOGNITION_MAX_TIMEOUT_SECONDS
+    const value = Number(raw)
+    return Number.isFinite(value) ? clampVoiceRecognitionTimeoutSeconds(value) : DEFAULT_VOICE_RECOGNITION_MAX_TIMEOUT_SECONDS
+  } catch {
+    return DEFAULT_VOICE_RECOGNITION_MAX_TIMEOUT_SECONDS
+  }
+}
+
+export function writeVoiceRecognitionMaxTimeoutSeconds(value: number): number {
+  const next = clampVoiceRecognitionTimeoutSeconds(value)
+  try {
+    localStorage.setItem(VOICE_RECOGNITION_MAX_TIMEOUT_STORAGE_KEY, String(next))
   } catch {
     // Storage can be disabled in private contexts.
   }

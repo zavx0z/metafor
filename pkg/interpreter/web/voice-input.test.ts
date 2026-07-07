@@ -317,7 +317,7 @@ describe("voice session manager", () => {
     expect(session.debugSnapshot().chunks.recording).toBe(1)
   })
 
-  test("delays final silence while potential voice is still present", () => {
+  test("tracks potential voice without extending final silence", () => {
     const session = new VoiceSessionManager({...DEFAULT_VOICE_SESSION_TIMINGS, finalSilenceMs: 380})
     session.startRecording(true, 1_000)
 
@@ -331,7 +331,7 @@ describe("voice session manager", () => {
     expect(potential.finalSilence).toBe(false)
     expect(session.debugSnapshot().lastPotentialVoiceAt).toBe(2_740)
 
-    expect(session.acceptVadFrame({rms: 0.002, peak: 0.004, now: 3_000}).finalSilence).toBe(false)
+    expect(session.acceptVadFrame({rms: 0.002, peak: 0.004, now: 3_000}).finalSilence).toBe(true)
     expect(session.acceptVadFrame({rms: 0.002, peak: 0.004, now: 3_200}).finalSilence).toBe(true)
   })
 
@@ -552,6 +552,11 @@ describe("voice auto-send timing", () => {
   test("extends timeout as dictation spans multiple chunks", () => {
     expect(voiceDynamicRecognitionTimeoutMs(1_000, 60, 2)).toBe(3_500)
     expect(voiceDynamicRecognitionTimeoutMs(1_000, 60, 3)).toBe(4_000)
+  })
+
+  test("caps dynamic timeout at configured maximum", () => {
+    expect(voiceDynamicRecognitionTimeoutMs(1_500, 300, 3, 18_100, 2_400)).toBe(2_400)
+    expect(voiceDynamicRecognitionTimeoutMs(1_500, 300, 3, 18_100, 4_000)).toBe(4_000)
   })
 
   test("extends timeout from local audio before ASR text arrives", () => {

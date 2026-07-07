@@ -266,6 +266,8 @@ import {
   writeVoiceDeactivationMode,
   readVoiceRecognitionTimeoutSeconds,
   writeVoiceRecognitionTimeoutSeconds,
+  readVoiceRecognitionMaxTimeoutSeconds,
+  writeVoiceRecognitionMaxTimeoutSeconds,
   readVoicePhrases,
   writeVoicePhrases,
   defaultVoicePhrases,
@@ -2781,6 +2783,8 @@ async function initEngine(): Promise<void> {
         ],
         recognitionTimeoutLabel: t("voiceRecognitionTimeout"),
         recognitionTimeoutValue: readVoiceRecognitionTimeoutSeconds(),
+        recognitionTimeoutMaxLabel: t("voiceRecognitionMaxTimeout"),
+        recognitionTimeoutMaxPauseValue: Math.max(readVoiceRecognitionTimeoutSeconds(), readVoiceRecognitionMaxTimeoutSeconds()),
         recognitionTimeoutMinValue: MIN_VOICE_RECOGNITION_TIMEOUT_SECONDS,
         recognitionTimeoutMaxValue: MAX_VOICE_RECOGNITION_TIMEOUT_SECONDS,
         recognitionTimeoutUnitLabel: t("voiceRecognitionTimeoutUnit"),
@@ -2808,6 +2812,7 @@ async function initEngine(): Promise<void> {
       onAutoSendChange: storeVoiceAutoSendEnabled,
       onDeactivationModeChange: storeVoiceDeactivationMode,
       onRecognitionTimeoutChange: storeVoiceRecognitionTimeoutSeconds,
+      onRecognitionTimeoutMaxChange: storeVoiceRecognitionMaxTimeoutSeconds,
     })
     installEnginePanes()
     void loadTodoPane()
@@ -4001,6 +4006,7 @@ function ensureVoiceInputClient(): VoiceInputClient {
     stopPhrases: () => readVoicePhrases("stop"),
     deactivationMode: readVoiceDeactivationMode,
     recognitionTimeoutMs: () => readVoiceRecognitionTimeoutSeconds() * 1000,
+    recognitionMaxTimeoutMs: () => Math.max(readVoiceRecognitionTimeoutSeconds(), readVoiceRecognitionMaxTimeoutSeconds()) * 1000,
     language: "ru",
     context: readVoiceInputContext,
     createAsrSocket: (_url, context) => createVoiceMuxSocket("asr", context),
@@ -6761,7 +6767,7 @@ function voiceDebugLines(): string[] {
     `${ru ? "громкость микрофона" : "mic signal volume"}: ${Math.round(readVoiceSignalVolume() * 100)}%`,
     `${ru ? "автоотправка" : "auto-send"}: ${readVoiceAutoSendEnabled() ? "on" : "off"}`,
     `${ru ? "режим деактивации" : "deactivation mode"}: ${readVoiceDeactivationMode()}`,
-    `${ru ? "тайм-аут распознавания" : "recognition timeout"}: ${readVoiceRecognitionTimeoutSeconds()}s`,
+    `${ru ? "пауза отправки" : "send pause"}: ${readVoiceRecognitionTimeoutSeconds()}-${Math.max(readVoiceRecognitionTimeoutSeconds(), readVoiceRecognitionMaxTimeoutSeconds())}s`,
     `${ru ? "совпадение фраз" : "phrase matching"}: exact`,
     `${ru ? "звук" : "sound"}: ${hudNotificationDebugLine()}`,
     ...(debug?.trace.slice(-8).reverse().map((item) => `${formatHudTime(new Date(item.at))} voice.${item.label}: ${debugVoiceText(item.detail)}`) ?? []),
@@ -7349,7 +7355,15 @@ function storeVoiceDeactivationMode(value: VoiceInputHudDeactivationMode): void 
 }
 
 function storeVoiceRecognitionTimeoutSeconds(value: number): void {
-  writeVoiceRecognitionTimeoutSeconds(value)
+  const next = writeVoiceRecognitionTimeoutSeconds(value)
+  if (readVoiceRecognitionMaxTimeoutSeconds() < next) writeVoiceRecognitionMaxTimeoutSeconds(next)
+  renderVoiceHud()
+  voiceInputClient?.refreshDeactivationSettings()
+}
+
+function storeVoiceRecognitionMaxTimeoutSeconds(value: number): void {
+  const next = writeVoiceRecognitionMaxTimeoutSeconds(value)
+  if (readVoiceRecognitionTimeoutSeconds() > next) writeVoiceRecognitionTimeoutSeconds(next)
   renderVoiceHud()
   voiceInputClient?.refreshDeactivationSettings()
 }

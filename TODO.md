@@ -34,7 +34,7 @@
 - [100] Ввести VoiceSessionManager: локальная voice session/queue, composer-as-source-of-truth, не-fatal ASR failure, безопасный wake routing.
 - [100] Доскачать Silero VAD assets и подключить browser-side Silero local VAD с fallback на adaptive noise-floor.
 - [100] Стабилизировать voice input: local chunk/session manager, ASR-independent capture/VAD, composer/auto-send policy.
-- [80] Довести voice realtime preview и reactivation: ASR/Whisper live partial во время dictation, без Vosk-текста в composer, без потери ASR chunks.
+- [100] Довести voice realtime preview и reactivation: ASR/Whisper live partial во время dictation, без Vosk-текста в composer, без потери ASR chunks.
 
 ## 6. Browser Agent Chat: изображения
 

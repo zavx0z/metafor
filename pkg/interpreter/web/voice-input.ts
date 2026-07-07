@@ -53,6 +53,7 @@ type VoiceInputClientOptions = {
   stopPhrases(): readonly string[]
   deactivationMode(): VoiceDeactivationMode
   recognitionTimeoutMs(): number
+  recognitionMaxTimeoutMs(): number
   language: string
   context(): string
   wakeEnabled?(): boolean
@@ -1069,7 +1070,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       this.#session.appendCurrentChunkPcm(pcm)
       this.#enqueueLiveAsrPcm(chunkId, pcm)
     }
-    if (vad.speaking || vad.potentialVoice) {
+    if (vad.speaking) {
       this.#finalSilenceRequested = false
       this.#touchVoiceActivity(now)
     }
@@ -1504,6 +1505,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       Math.max(this.#observedDictationChars, cleanupVoiceText(this.#deliveryState.transcript).length),
       Math.max(this.#deliveredVoiceChunkCount, session.chunks.total),
       session.chunkPcmBytes / 2 / TARGET_SAMPLE_RATE * 1_000,
+      this.options.recognitionMaxTimeoutMs(),
     )
   }
 
@@ -2593,12 +2595,14 @@ function deactivationModeAllowsTimeout(mode: VoiceDeactivationMode): boolean {
   return mode === "timeout" || mode === "phrase-timeout"
 }
 
-export function voiceDynamicRecognitionTimeoutMs(baseTimeoutMs: number, observedChars: number, chunkCount: number, observedAudioMs = 0): number {
+export function voiceDynamicRecognitionTimeoutMs(baseTimeoutMs: number, observedChars: number, chunkCount: number, observedAudioMs = 0, maxTimeoutMs = VOICE_DICTATION_VERY_LONG_TIMEOUT_MS): number {
   const base = clampRecognitionTimeoutMs(baseTimeoutMs)
-  if (observedChars >= VOICE_DICTATION_VERY_LONG_CHARS || chunkCount >= 3 || observedAudioMs >= VOICE_DICTATION_VERY_LONG_AUDIO_MS) return Math.max(base, VOICE_DICTATION_VERY_LONG_TIMEOUT_MS)
-  if (observedChars >= VOICE_DICTATION_LONG_CHARS || chunkCount >= 2 || observedAudioMs >= VOICE_DICTATION_LONG_AUDIO_MS) return Math.max(base, VOICE_DICTATION_LONG_TIMEOUT_MS)
-  if (observedChars >= VOICE_DICTATION_MEDIUM_CHARS || observedAudioMs >= VOICE_DICTATION_MEDIUM_AUDIO_MS) return Math.max(base, VOICE_DICTATION_MEDIUM_TIMEOUT_MS)
-  return base
+  const max = Math.max(base, clampRecognitionTimeoutMs(maxTimeoutMs))
+  let dynamic = base
+  if (observedChars >= VOICE_DICTATION_VERY_LONG_CHARS || chunkCount >= 3 || observedAudioMs >= VOICE_DICTATION_VERY_LONG_AUDIO_MS) dynamic = Math.max(base, VOICE_DICTATION_VERY_LONG_TIMEOUT_MS)
+  else if (observedChars >= VOICE_DICTATION_LONG_CHARS || chunkCount >= 2 || observedAudioMs >= VOICE_DICTATION_LONG_AUDIO_MS) dynamic = Math.max(base, VOICE_DICTATION_LONG_TIMEOUT_MS)
+  else if (observedChars >= VOICE_DICTATION_MEDIUM_CHARS || observedAudioMs >= VOICE_DICTATION_MEDIUM_AUDIO_MS) dynamic = Math.max(base, VOICE_DICTATION_MEDIUM_TIMEOUT_MS)
+  return Math.min(max, dynamic)
 }
 
 function clampRecognitionTimeoutMs(value: number): number {

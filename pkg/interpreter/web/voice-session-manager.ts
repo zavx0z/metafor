@@ -346,16 +346,18 @@ export class VoiceSessionManager {
       this.#phase = this.#hasQueuedChunks() ? "queued" : "recording"
     }
 
-    const silenceAnchor = this.#hasVoiceActivity ? Math.max(this.#lastSpeechAt, this.#lastSpeechEndedAt, this.#lastPotentialVoiceAt) : this.#recordingStartedAt || now
-    const silenceMs = this.#speaking ? 0 : now - silenceAnchor
+    const paragraphSilenceAnchor = this.#hasVoiceActivity ? Math.max(this.#lastSpeechAt, this.#lastSpeechEndedAt, this.#lastPotentialVoiceAt) : this.#recordingStartedAt || now
+    const finalSilenceAnchor = this.#hasVoiceActivity ? Math.max(this.#lastSpeechAt, this.#lastSpeechEndedAt) : this.#recordingStartedAt || now
+    const paragraphSilenceMs = this.#speaking ? 0 : now - paragraphSilenceAnchor
+    const finalSilenceMs = this.#speaking ? 0 : now - finalSilenceAnchor
     return {
       speaking: this.#speaking,
       potentialVoice,
       started,
       stopped,
       closedChunkIds,
-      paragraphBreak: this.#hasVoiceActivity && silenceMs >= this.timings.paragraphBreakMs,
-      finalSilence: this.#hasVoiceActivity && silenceMs >= this.timings.finalSilenceMs,
+      paragraphBreak: this.#hasVoiceActivity && paragraphSilenceMs >= this.timings.paragraphBreakMs,
+      finalSilence: this.#hasVoiceActivity && finalSilenceMs >= this.timings.finalSilenceMs,
       source: this.#vadSource,
       noiseFloor: this.#noiseFloor,
       speechThreshold: this.#speechThreshold,

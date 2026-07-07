@@ -47,6 +47,8 @@ export type VoiceInputHudSettings = {
   deactivationModeOptions: Array<{value: VoiceInputHudDeactivationMode; label: string}>
   recognitionTimeoutLabel: string
   recognitionTimeoutValue: number
+  recognitionTimeoutMaxLabel: string
+  recognitionTimeoutMaxPauseValue: number
   recognitionTimeoutMinValue: number
   recognitionTimeoutMaxValue: number
   recognitionTimeoutUnitLabel: string
@@ -83,6 +85,7 @@ export type VoiceInputHudOptions = {
   onAutoSendChange(value: boolean): void
   onDeactivationModeChange(value: VoiceInputHudDeactivationMode): void
   onRecognitionTimeoutChange(value: number): void
+  onRecognitionTimeoutMaxChange(value: number): void
 }
 
 const VOICE_HUD_LONG_PRESS_MS = 450
@@ -735,19 +738,35 @@ export class VoiceInputHud extends UiSurface {
       })
       cx += buttonW + gap
     }
-    return SliderControl(this, left, rowY + buttonH + 10, w, {
+    const formatSeconds = (value: number): string => `${Number.isInteger(value) ? String(value) : value.toFixed(1)} ${settings.recognitionTimeoutUnitLabel}`
+    const nextY = SliderControl(this, left, rowY + buttonH + 10, w, {
       key: "voice-recognition-timeout",
       label: settings.recognitionTimeoutLabel,
       value: settings.recognitionTimeoutValue,
       min: settings.recognitionTimeoutMinValue,
+      max: Math.max(settings.recognitionTimeoutValue, settings.recognitionTimeoutMaxPauseValue),
+      downLabel: settings.recognitionTimeoutDownLabel,
+      upLabel: settings.recognitionTimeoutUpLabel,
+      step: 0.1,
+      layout: "track",
+      trackTone: "warm",
+      format: formatSeconds,
+      onChange: (value) => this.options.onRecognitionTimeoutChange(Math.round(value * 10) / 10),
+    })
+    if (nextY + 44 > maxY) return nextY
+    return SliderControl(this, left, nextY + 8, w, {
+      key: "voice-recognition-max-timeout",
+      label: settings.recognitionTimeoutMaxLabel,
+      value: settings.recognitionTimeoutMaxPauseValue,
+      min: Math.min(settings.recognitionTimeoutValue, settings.recognitionTimeoutMaxValue),
       max: settings.recognitionTimeoutMaxValue,
       downLabel: settings.recognitionTimeoutDownLabel,
       upLabel: settings.recognitionTimeoutUpLabel,
       step: 0.1,
       layout: "track",
       trackTone: "warm",
-      format: (value) => `${Number.isInteger(value) ? String(value) : value.toFixed(1)} ${settings.recognitionTimeoutUnitLabel}`,
-      onChange: (value) => this.options.onRecognitionTimeoutChange(Math.round(value * 10) / 10),
+      format: formatSeconds,
+      onChange: (value) => this.options.onRecognitionTimeoutMaxChange(Math.round(value * 10) / 10),
     })
   }
 
