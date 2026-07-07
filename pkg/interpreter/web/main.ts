@@ -818,6 +818,7 @@ JSON должен быть валидным: без комментариев, б
 - Если нужна информация о процессах/display, используй process.list и space.get.
 - Если пользователь просит открыть/перейти/сфокусировать display или модуль, используй process.focus или space.focus. Не используй source.open для перехода на display.
 - Если пользователь просит открыть файл/исходник/строку, используй source.locate/source.open/source.read.
+- Если пользователь просит показать "какие модули есть" в process или папке, используй process.modules с processId и q/limit. Не используй source.read/source.locate для директорий.
 - Если пользователь просит изменить код, сначала прочитай контекст через source.read/source.read_many, затем используй source.apply_patch или source.write.
 - Если пользователь просит визуально проверить UI, используй viewport.screenshot, devtools.state, devtools.console, devtools.evaluate.
 - Если пользователь просит открыть/закрыть Plan, используй todo.show/todo.dock/todo.toggle/todo.panel.
@@ -831,9 +832,13 @@ JSON должен быть валидным: без комментариев, б
 Display workflow:
 - Если пользователь просит перейти на конкретный process display, сначала определи реальный processId через process.list/context.get, затем вызови process.focus.
 - Если пользователь дал точный displayId, используй space.focus с этим displayId.
+- Пример: открыть модуль Dark = process.focus {"processId":"dark-server.ts"} или сначала process.resolve/process.list, если processId неизвестен.
 
 Source workflow:
-- Если пользователь просит открыть файл, сначала найди реальный processId/path через context.get/process.list/source.locate, затем используй source.open.
+- Для source.read/source.open/source.locate всегда передавай processId. Если processId неизвестен, сначала вызови context.get/process.list/process.resolve.
+- Если пользователь просит открыть файл, сначала найди реальный processId/path через context.get/process.list/process.modules/source.locate, затем используй source.open.
+- Пример: открыть dark/dark.ts = source.open {"processId":"dark-server.ts","path":"dark/dark.ts"}.
+- Пример: перечислить файлы Dark = process.modules {"processId":"dark-server.ts","q":"dark/","limit":50}.
 
 Plan workflow:
 - Если пользователь просит открыть план, используй todo.show/todo.panel.
@@ -4865,7 +4870,10 @@ function activeBrowserChatComposerDropActive(controller: BrowserChatController):
 
 function setBrowserChatComposerTarget(controller: BrowserChatController, target: MessageComposerTargetId, options: {activateProvider?: boolean} = {}): void {
   if (controller.activeComposerTargetId === target) {
-    if (target !== "codex" && options.activateProvider !== false) void activateBrowserChatProviderTarget(controller, activeBrowserChatSession(controller))
+    if (target !== "codex" && options.activateProvider !== false) {
+      focusBrowserChatRemoteDisplay()
+      void activateBrowserChatProviderTarget(controller, activeBrowserChatSession(controller))
+    }
     focusBrowserChatComposer(controller)
     return
   }
@@ -4875,7 +4883,10 @@ function setBrowserChatComposerTarget(controller: BrowserChatController, target:
     const next = controller.sessions.find((session) => session.id === target)
     if (next !== undefined) {
       controller.activeSessionId = next.id
-      if (options.activateProvider !== false) void activateBrowserChatProviderTarget(controller, next)
+      if (options.activateProvider !== false) {
+        focusBrowserChatRemoteDisplay()
+        void activateBrowserChatProviderTarget(controller, next)
+      }
     }
   }
   syncBrowserChatEditor(controller)
@@ -4884,6 +4895,14 @@ function setBrowserChatComposerTarget(controller: BrowserChatController, target:
   uiCanvas?.relayout()
   scheduleStoreBrowserChatState(controller)
   focusBrowserChatComposer(controller)
+}
+
+function focusBrowserChatRemoteDisplay(): void {
+  try {
+    focusSpace({selector: {displayId: REMOTE_DESKTOP_DISPLAY_ID}})
+  } catch (error) {
+    console.warn("failed to focus browser agent remote display", error)
+  }
 }
 
 function browserChatSessionToolParams(session: BrowserChatSession): Record<string, unknown> {

@@ -438,10 +438,11 @@ state дополнительно гидратируется через `browser_
 Голосовые wake-команды `Завхоз`/`Запхоз`/`Метафор` возвращают текущий voice
 target в общий `Message` composer с target `Codex`. Команды `Квин`/`Qwen` и
 `Дипсик`/`DeepSeek` открывают окно `Agent`, переключают active session и
-composer target, но не активируют Chrome-вкладку. Реальная remote browser tab
-переключается только ручным кликом по target switcher в `Message` через
-`browser_chat.activate`. Эти команды не вставляются в draft как
-пользовательский текст.
+composer target, но не активируют Chrome-вкладку и не переводят Space на
+browser display. Реальная remote browser tab переключается через
+`browser_chat.activate`, а `remote-desktop:server` display фокусируется только
+ручным кликом по target switcher `Qwen`/`DeepSeek` в `Message`. Эти команды не
+вставляются в draft как пользовательский текст.
 
 Обычная отправка Browser Agent message передает в active provider только текст
 пользователя и attachment paths. Tool prompt не добавляется автоматически к
