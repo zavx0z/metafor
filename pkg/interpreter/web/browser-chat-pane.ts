@@ -9,6 +9,7 @@ import {
   paneFrameCursor,
   paneFrameDragRect,
   paneFrameHit,
+  type CodexComposerAttachment,
   type PaneFrameDrag,
   type PaneFrameInteractionOpts,
 } from "@ui/panes"
@@ -18,6 +19,7 @@ export type BrowserChatPaneMessage = {
   text: string
   label?: string
   streaming?: boolean
+  attachments?: readonly CodexComposerAttachment[]
 }
 
 export type BrowserChatPaneStatusKind = "ready" | "sending" | "thinking" | "tools" | "blocked" | "error"
@@ -55,6 +57,8 @@ const MESSAGE_FONT = 11
 const MESSAGE_LINE_H = 16
 const MESSAGE_PAD = 10
 const MESSAGE_GAP = 8
+const MESSAGE_IMAGE_SIZE = 132
+const MESSAGE_IMAGE_GAP = 8
 const CONTROL_TOOLBAR_H = 34
 const CONTROL_TOOLBAR_GAP = 6
 const BROWSER_CHAT_SCROLL_KEY = "interpreter:browser-chat:messages"
@@ -63,6 +67,7 @@ type RenderBlock = {
   role: BrowserChatPaneMessage["role"]
   label: string
   lines: string[]
+  attachments: readonly CodexComposerAttachment[]
   top: number
   height: number
   streaming: boolean
@@ -324,12 +329,17 @@ export class BrowserChatPane extends UiSurface {
   #messageLayout(maxTextW: number): {blocks: RenderBlock[]; contentH: number} {
     let top = 0
     const blocks = this.#opts.messages().map((message) => {
-      const lines = wrapText(this, message.text, maxTextW, MESSAGE_FONT)
-      const height = (lines.length + 1) * MESSAGE_LINE_H + MESSAGE_PAD * 2
+      const text = message.text.trim()
+      const lines = text.length === 0 ? [] : wrapText(this, text, maxTextW, MESSAGE_FONT)
+      const attachments = message.attachments ?? []
+      const imageRows = attachments.length === 0 ? 0 : Math.ceil(attachments.length / Math.max(1, Math.floor(maxTextW / (MESSAGE_IMAGE_SIZE + MESSAGE_IMAGE_GAP))))
+      const imageH = imageRows === 0 ? 0 : imageRows * MESSAGE_IMAGE_SIZE + (imageRows - 1) * MESSAGE_IMAGE_GAP + MESSAGE_IMAGE_GAP
+      const height = (lines.length + 1) * MESSAGE_LINE_H + imageH + MESSAGE_PAD * 2
       const block: RenderBlock = {
         role: message.role,
         label: message.label ?? messageRoleLabel(message.role),
         lines,
+        attachments,
         top,
         height,
         streaming: message.streaming === true,
@@ -343,7 +353,8 @@ export class BrowserChatPane extends UiSurface {
   #messageKey(): string {
     const messages = this.#opts.messages()
     const last = messages[messages.length - 1]
-    return `${this.#opts.activeSessionId()}:${messages.length}:${last?.role ?? ""}:${last?.text.length ?? 0}:${last?.streaming === true ? 1 : 0}`
+    const attachments = last?.attachments?.map((attachment) => attachment.url ?? attachment.path).join("|") ?? ""
+    return `${this.#opts.activeSessionId()}:${messages.length}:${last?.role ?? ""}:${last?.text.length ?? 0}:${attachments}:${last?.streaming === true ? 1 : 0}`
   }
 
   #scrollKey(): string {
@@ -387,6 +398,33 @@ export class BrowserChatPane extends UiSurface {
         z: Z.TEXT,
       })
       cy += MESSAGE_LINE_H
+    }
+    if (block.attachments.length > 0) {
+      if (block.lines.length > 0) cy += MESSAGE_IMAGE_GAP
+      this.#drawMessageAttachments(block.attachments, x + MESSAGE_PAD, cy, Math.max(1, w - MESSAGE_PAD * 2))
+    }
+  }
+
+  #drawMessageAttachments(attachments: readonly CodexComposerAttachment[], x: number, y: number, w: number): void {
+    let cx = x
+    let cy = y
+    for (const attachment of attachments) {
+      if (cx > x && cx + MESSAGE_IMAGE_SIZE > x + w) {
+        cx = x
+        cy += MESSAGE_IMAGE_SIZE + MESSAGE_IMAGE_GAP
+      }
+      this.drawRoundedRect(cx, cy, MESSAGE_IMAGE_SIZE, MESSAGE_IMAGE_SIZE, {
+        radius: 10,
+        fill: new Color(0.025, 0.04, 0.05, 0.78),
+        border: palette.borderDim,
+        borderWidth: 1,
+        z: Z.CONTAINER + 0.03,
+      })
+      this.drawImage(attachmentImageSrc(attachment), cx + 6, cy + 6, MESSAGE_IMAGE_SIZE - 12, MESSAGE_IMAGE_SIZE - 12, {
+        fit: "contain",
+        z: Z.ELEMENT + 0.08,
+      })
+      cx += MESSAGE_IMAGE_SIZE + MESSAGE_IMAGE_GAP
     }
   }
 
@@ -478,6 +516,12 @@ function messageRoleLabel(role: BrowserChatPaneMessage["role"]): string {
   if (role === "user") return "You"
   if (role === "assistant") return "Assistant"
   return "Status"
+}
+
+function attachmentImageSrc(attachment: CodexComposerAttachment): string {
+  if (attachment.url !== undefined && attachment.url.length > 0) return attachment.url
+  const name = attachment.path.split(/[\\/]/g).pop() ?? ""
+  return name.length === 0 ? attachment.path : `/hud/codex/attachments/${encodeURIComponent(name)}`
 }
 
 function wrapText(surface: UiSurface, text: string, maxW: number, fontPx: number): string[] {

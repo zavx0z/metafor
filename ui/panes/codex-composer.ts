@@ -2,6 +2,7 @@ export type CodexComposerAttachment = {
   id: string
   name: string
   path: string
+  url?: string
   mime: string
   size: number
 }
@@ -129,10 +130,11 @@ export async function uploadCodexAttachment(file: File, options: CodexAttachment
   const id = stringValue(attachment["id"]) ?? crypto.randomUUID()
   const name = stringValue(attachment["name"]) ?? (file.name || "image")
   const path = stringValue(attachment["path"])
+  const url = stringValue(attachment["url"])
   const mime = stringValue(attachment["mime"]) ?? (file.type || "image/*")
   const size = typeof attachment["size"] === "number" && Number.isFinite(attachment["size"]) ? attachment["size"] : file.size
   if (path === null) throw new Error("attachment path is missing")
-  return {id, name, path, mime, size}
+  return {id, name, path, ...(url === null ? {} : {url}), mime, size}
 }
 
 export async function uploadCodexAttachments(files: readonly File[], options: CodexAttachmentUploadOptions = {}): Promise<CodexComposerAttachment[]> {

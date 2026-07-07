@@ -751,6 +751,7 @@ export function createInterpreterHttpRoutes(options: HttpServerOptions) {
       "/hud/terminal/show": {POST: route("POST", "/hud/terminal/show", (req) => dispatchUiHostRouteFromBody("hud.terminal.show", req, dispatchUiHostCommand))},
       "/hud/terminal/toggle": {POST: route("POST", "/hud/terminal/toggle", (req) => dispatchUiHostRouteFromBody("hud.terminal.toggle", req, dispatchUiHostCommand))},
       "/hud/codex/attachments": {POST: route("POST", "/hud/codex/attachments", codexAttachmentResponse)},
+      "/hud/codex/attachments/:name": {GET: route("GET", "/hud/codex/attachments/:name", codexAttachmentFileResponse)},
       "/hud/terminal/network": {GET: route("GET", "/hud/terminal/network", () => dispatchUiHostRoute("hud.terminal.network.get", {}, dispatchUiHostCommand))},
       "/hud/terminal/network/dock": {POST: route("POST", "/hud/terminal/network/dock", (req) => dispatchUiHostRouteFromBody("hud.terminal.network.dock", req, dispatchUiHostCommand))},
       "/hud/terminal/network/show": {
@@ -1996,6 +1997,7 @@ async function codexAttachmentResponse(req: Request): Promise<Response> {
   const safeName = safeAttachmentFilename(name, ext)
   const id = crypto.randomUUID()
   const path = join(dir, `${Date.now()}-${id.slice(0, 8)}-${safeName}`)
+  const fileName = basename(path)
   writeFileSync(path, bytes)
   return jsonResponse({
     ok: true,
@@ -2003,10 +2005,23 @@ async function codexAttachmentResponse(req: Request): Promise<Response> {
       id,
       name: safeName,
       path,
+      url: `/hud/codex/attachments/${encodeURIComponent(fileName)}`,
       mime: mime.startsWith("image/") ? mime : mimeForImageExtension(ext),
       size: bytes.length,
     },
   })
+}
+
+function codexAttachmentFileResponse(req: Request & {params: Record<string, string>}): Response {
+  const name = basename(req.params.name ?? "")
+  const ext = extname(name).toLowerCase()
+  if (name.length === 0 || name !== req.params.name || !CODEX_ATTACHMENT_IMAGE_EXTENSIONS.has(ext)) {
+    return jsonResponse({ok: false, error: "attachment not found"}, 404)
+  }
+  const path = resolve(process.cwd(), CODEX_ATTACHMENT_DIR, name)
+  const dir = resolve(process.cwd(), CODEX_ATTACHMENT_DIR)
+  if (!path.startsWith(`${dir}/`) || !existsSync(path)) return jsonResponse({ok: false, error: "attachment not found"}, 404)
+  return serveStatic(path, mimeForImageExtension(ext))
 }
 
 function imageAttachmentExtension(name: string, mime: string): string | null {

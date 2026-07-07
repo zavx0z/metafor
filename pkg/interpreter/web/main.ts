@@ -5214,6 +5214,8 @@ function submitBrowserChatComposer(controller: BrowserChatController, options: {
   }
   if (!browserChatComposerCanSubmit(controller)) return false
   const message = codexComposerMessage(session.codexDraft, session.codexAttachments)
+  const displayText = session.codexDraft.replace(/\r\n?/g, "\n").trim()
+  const attachments = session.codexAttachments.slice()
   clearVoicePartialPreviewForTarget({kind: "browser-chat", controller})
   discardVoiceAutoSendBuffer()
   voiceNextFlushMode = "auto"
@@ -5221,7 +5223,11 @@ function submitBrowserChatComposer(controller: BrowserChatController, options: {
   session.toolLoopTurns = 0
   stopBrowserChatPolling(controller, session, false)
   const provisionalMessageStart = session.messages.length
-  addBrowserChatMessage(controller, session, {role: "user", text: message})
+  addBrowserChatMessage(controller, session, {
+    role: "user",
+    text: displayText,
+    ...(attachments.length === 0 ? {} : {attachments}),
+  })
   ensureBrowserChatAssistantMessage(controller, session)
   session.sendInFlight = true
   setBrowserChatStatus(controller, `sending to ${session.label}`, 6000, session)
@@ -6208,9 +6214,10 @@ function storedCodexAttachments(value: unknown): CodexComposerAttachment[] {
     const id = stringValue(record?.["id"])
     const name = stringValue(record?.["name"])
     const path = stringValue(record?.["path"])
+    const url = stringValue(record?.["url"])
     const mime = stringValue(record?.["mime"])
     const size = numberValue(record?.["size"])
-    return id === null || name === null || path === null || mime === null || size === null ? [] : [{id, name, path, mime, size}]
+    return id === null || name === null || path === null || mime === null || size === null ? [] : [{id, name, path, ...(url === null ? {} : {url}), mime, size}]
   })
 }
 
@@ -6227,7 +6234,16 @@ function storedBrowserChatMessages(value: unknown): BrowserChatMessage[] {
     const createdAt = numberValue(record["createdAt"]) ?? Date.now()
     const label = stringValue(record["label"])
     const streaming = typeof record["streaming"] === "boolean" ? record["streaming"] : undefined
-    return [{id, createdAt, role, text, ...(label === null ? {} : {label}), ...(streaming === undefined ? {} : {streaming})}]
+    const attachments = storedCodexAttachments(record["attachments"])
+    return [{
+      id,
+      createdAt,
+      role,
+      text,
+      ...(label === null ? {} : {label}),
+      ...(streaming === undefined ? {} : {streaming}),
+      ...(attachments.length === 0 ? {} : {attachments}),
+    }]
   })
 }
 
