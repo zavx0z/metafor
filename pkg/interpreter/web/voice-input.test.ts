@@ -317,6 +317,24 @@ describe("voice session manager", () => {
     expect(session.debugSnapshot().chunks.recording).toBe(1)
   })
 
+  test("delays final silence while potential voice is still present", () => {
+    const session = new VoiceSessionManager({...DEFAULT_VOICE_SESSION_TIMINGS, finalSilenceMs: 380})
+    session.startRecording(true, 1_000)
+
+    session.acceptVadFrame({rms: 0.05, peak: 0.11, now: 1_020})
+    session.acceptVadFrame({rms: 0.05, peak: 0.11, now: 1_130})
+    session.acceptVadFrame({rms: 0.002, peak: 0.004, now: 1_760})
+    expect(session.acceptVadFrame({rms: 0.002, peak: 0.004, now: 2_400}).stopped).toBe(true)
+
+    const potential = session.acceptVadFrame({rms: 0.005, peak: 0.007, now: 2_740})
+    expect(potential.potentialVoice).toBe(true)
+    expect(potential.finalSilence).toBe(false)
+    expect(session.debugSnapshot().lastPotentialVoiceAt).toBe(2_740)
+
+    expect(session.acceptVadFrame({rms: 0.002, peak: 0.004, now: 3_000}).finalSilence).toBe(false)
+    expect(session.acceptVadFrame({rms: 0.002, peak: 0.004, now: 3_200}).finalSilence).toBe(true)
+  })
+
   test("does not let loud voice-like input poison the adaptive noise floor", () => {
     const session = new VoiceSessionManager()
     session.startRecording(true, 1_000)

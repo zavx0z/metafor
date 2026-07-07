@@ -59,6 +59,7 @@ export type VoiceSessionVadFrame = {
 
 export type VoiceSessionVadResult = {
   speaking: boolean
+  potentialVoice: boolean
   started: boolean
   stopped: boolean
   closedChunkIds: string[]
@@ -90,6 +91,7 @@ export type VoiceSessionDebugSnapshot = {
   queuedPcmBytes: number
   queuedPcmChunks: number
   lastSpeechAt: number
+  lastPotentialVoiceAt: number
   lastVadAt: number
   autoSendState: VoiceAutoSendState
   currentChunkId: string | null
@@ -133,6 +135,7 @@ export class VoiceSessionManager {
   #speechThreshold = MIN_SPEECH_THRESHOLD
   #lastSpeechAt = 0
   #lastSpeechEndedAt = 0
+  #lastPotentialVoiceAt = 0
   #lastVadAt = 0
   #recordingStartedAt = 0
   #hasVoiceActivity = false
@@ -174,6 +177,7 @@ export class VoiceSessionManager {
     this.#recordingStartedAt = now
     this.#lastSpeechAt = now
     this.#lastSpeechEndedAt = now
+    this.#lastPotentialVoiceAt = now
     this.#speechCandidateStartedAt = null
     this.#silenceCandidateStartedAt = null
     if (force) {
@@ -231,6 +235,7 @@ export class VoiceSessionManager {
     this.#speechThreshold = MIN_SPEECH_THRESHOLD
     this.#lastSpeechAt = 0
     this.#lastSpeechEndedAt = 0
+    this.#lastPotentialVoiceAt = 0
     this.#lastVadAt = 0
     this.#recordingStartedAt = 0
     this.#hasVoiceActivity = false
@@ -282,15 +287,22 @@ export class VoiceSessionManager {
       && speechProbability >= SILERO_SPEECH_PROBABILITY
       && peak >= NEAR_VOICE_PEAK_THRESHOLD * 0.72
       && clippingRatio < 0.35
+    const potentialVoice = this.#hasVoiceActivity
+      && !tooClippedForEnergy
+      && (
+        (hasFreshSileroProbability && speechProbability >= 0.22 && peak >= NEAR_VOICE_PEAK_THRESHOLD * 0.34)
+        || (rms >= Math.max(this.#noiseFloor * 1.8, 0.0045) && peak >= NEAR_VOICE_PEAK_THRESHOLD * 0.36)
+      )
     const continuationSpeech = this.#hasVoiceActivity
       && !tooClippedForEnergy
       && (
         (hasFreshSileroProbability && speechProbability >= 0.34 && peak >= NEAR_VOICE_PEAK_THRESHOLD * 0.5)
         || (rms >= this.#speechThreshold * 0.72 && peak >= NEAR_VOICE_PEAK_THRESHOLD * 0.72)
       )
+    if (potentialVoice) this.#lastPotentialVoiceAt = now
     const rawSpeech = hasFreshSileroProbability
-      ? sileroSpeech || sileroEnergyFallback || continuationSpeech
-      : energySpeech || continuationSpeech
+      ? sileroSpeech || sileroEnergyFallback || continuationSpeech || (this.#speaking && potentialVoice)
+      : energySpeech || continuationSpeech || (this.#speaking && potentialVoice)
 
     let started = false
     let stopped = false
@@ -334,10 +346,11 @@ export class VoiceSessionManager {
       this.#phase = this.#hasQueuedChunks() ? "queued" : "recording"
     }
 
-    const silenceAnchor = this.#hasVoiceActivity ? Math.max(this.#lastSpeechAt, this.#lastSpeechEndedAt) : this.#recordingStartedAt || now
+    const silenceAnchor = this.#hasVoiceActivity ? Math.max(this.#lastSpeechAt, this.#lastSpeechEndedAt, this.#lastPotentialVoiceAt) : this.#recordingStartedAt || now
     const silenceMs = this.#speaking ? 0 : now - silenceAnchor
     return {
       speaking: this.#speaking,
+      potentialVoice,
       started,
       stopped,
       closedChunkIds,
@@ -366,6 +379,7 @@ export class VoiceSessionManager {
     this.#speaking = true
     this.#hasVoiceActivity = true
     this.#lastSpeechAt = Math.max(startedAt, lastSpeechAt)
+    this.#lastPotentialVoiceAt = this.#lastSpeechAt
     this.#speechCandidateStartedAt = null
     this.#silenceCandidateStartedAt = null
     return chunk
@@ -482,6 +496,7 @@ export class VoiceSessionManager {
       queuedPcmBytes: this.queuedPcmBytes,
       queuedPcmChunks: counts.queued + counts.retrying,
       lastSpeechAt: this.#lastSpeechAt,
+      lastPotentialVoiceAt: this.#lastPotentialVoiceAt,
       lastVadAt: this.#lastVadAt,
       autoSendState: this.#autoSendState,
       currentChunkId: this.#currentChunk?.id ?? null,

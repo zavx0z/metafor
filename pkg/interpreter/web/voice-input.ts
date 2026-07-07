@@ -1051,7 +1051,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       speechProbabilityAt: sileroProbability?.at ?? undefined,
     })
     this.options.onLevel(vad.speaking ? rms : 0)
-    if (vad.started || vad.stopped || vad.closedChunkIds.length > 0 || vad.finalSilence || now - this.#lastVadTraceAt >= 1_000) {
+    if (vad.started || vad.stopped || vad.closedChunkIds.length > 0 || vad.finalSilence || vad.potentialVoice || now - this.#lastVadTraceAt >= 1_000) {
       this.#lastVadTraceAt = now
       this.#trace(vad.started ? "vad.speech-start" : vad.stopped ? "vad.speech-stop" : vad.closedChunkIds.length > 0 ? "vad.chunk-closed" : vad.finalSilence ? "vad.final-silence" : "vad.frame", {
         rms: roundTraceNumber(rms),
@@ -1059,6 +1059,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
         clippingRatio: roundTraceNumber(clippingRatio),
         speechProbability: sileroProbability?.probability == null ? null : roundTraceNumber(sileroProbability.probability),
         source: vad.source,
+        potentialVoice: vad.potentialVoice,
         threshold: roundTraceNumber(vad.speechThreshold),
         noiseFloor: roundTraceNumber(vad.noiseFloor),
         closed: vad.closedChunkIds,
@@ -1298,13 +1299,14 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       void this.#resumeWakeAfterDraftDrain()
     }
     else {
-      this.#session.reset()
       if (this.#wakeEnabled()) {
         this.#setStatus("waitingWake", "ready")
+        this.#session.reset()
         void this.reconnectWaitingWake()
       } else {
         this.#stopAudioOnly()
         this.#setStatus("idle", "ready")
+        this.#session.reset()
       }
     }
   }

@@ -6746,6 +6746,7 @@ function voiceDebugLines(): string[] {
     `${ru ? "sockets" : "sockets"}: ${debug === undefined ? "-" : `wake=${readyStateLabel(debug.commandReadyState)} asr=${readyStateLabel(debug.asrReadyState)}`}`,
     `${ru ? "asr enabled" : "asr enabled"}: ${debug?.asrEnabled === true ? "yes" : "no"}`,
     `${ru ? "говорит" : "speaking"}: ${session?.speaking === true ? "yes" : "no"}`,
+    `${ru ? "потенц. голос" : "potential voice"}: ${session === undefined ? "-" : session.lastPotentialVoiceAt > 0 && Date.now() - performance.timeOrigin - session.lastPotentialVoiceAt < 1_000 ? "yes" : "no"}`,
     `VAD: ${session?.vadSource ?? "-"}`,
     `Silero: ${sileroState}${silero?.speechProbability === null || silero?.speechProbability === undefined ? "" : ` p=${silero.speechProbability.toFixed(2)}`}`,
     `${ru ? "chunks" : "chunks"}: ${session === undefined ? "-" : `total=${session.chunks.total} rec=${session.chunks.recording} queued=${session.chunks.queued + session.chunks.retrying} proc=${session.chunks.processing} merged=${session.chunks.merged}`}`,
