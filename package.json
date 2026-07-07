@@ -14,6 +14,7 @@
     "app/tauri",
     "types",
     "ui/*",
+    "pkg/browser-agent",
     "pkg/android",
     "pkg/engine",
     "pkg/interpreter",

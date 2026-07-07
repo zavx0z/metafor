@@ -16,6 +16,7 @@
     "metafor-interpreter": "./interpreter.ts"
   },
   "dependencies": {
+    "@metafor/browser-agent": "workspace:*",
     "@metafor/pty": "workspace:*",
     "@ui/components": "workspace:*",
     "@ui/elements": "workspace:*",

@@ -34,6 +34,7 @@
         "@boundary/topology": "workspace:*",
         "@boundary/wimp": "workspace:*",
         "@metafor/types": "workspace:*",
+        "force": "workspace:*",
       },
     },
     "boundary/actor": {
@@ -67,6 +68,7 @@
         "@ui/components": "workspace:*",
         "@ui/elements": "workspace:*",
         "@ui/hud": "workspace:*",
+        "force": "workspace:*",
       },
     },
     "bulk/em": {
@@ -104,6 +106,7 @@
         "@dark/gravity": "workspace:*",
         "@metafor/types": "workspace:*",
         "boundary": "workspace:*",
+        "force": "workspace:*",
       },
     },
     "dark/em": {
@@ -135,6 +138,7 @@
       "dependencies": {
         "@metafor/types": "workspace:*",
         "boundary": "workspace:*",
+        "force": "workspace:*",
       },
     },
     "fixture": {
@@ -146,6 +150,9 @@
     "force": {
       "name": "force",
       "version": "0.0.1",
+      "dependencies": {
+        "@metafor/types": "workspace:*",
+      },
     },
     "github/person/human": {
       "name": "@person/human",
@@ -754,6 +761,7 @@
         "@matrix/strong": "workspace:*",
         "@matrix/weak": "workspace:*",
         "@metafor/types": "workspace:*",
+        "force": "workspace:*",
       },
     },
     "matrix/gravity": {
@@ -785,6 +793,10 @@
         "typescript": "^5.9.0",
       },
     },
+    "pkg/browser-agent": {
+      "name": "@metafor/browser-agent",
+      "version": "0.0.1",
+    },
     "pkg/engine": {
       "name": "@metafor/engine",
       "version": "1.0.0",
@@ -802,6 +814,7 @@
         "metafor-interpreter": "./interpreter.ts",
       },
       "dependencies": {
+        "@metafor/browser-agent": "workspace:*",
         "@metafor/pty": "workspace:*",
         "@ui/components": "workspace:*",
         "@ui/elements": "workspace:*",
@@ -904,6 +917,8 @@
     "@matrix/weak": ["@matrix/weak@workspace:matrix/weak"],
 
     "@metafor/android": ["@metafor/android@workspace:pkg/android"],
+
+    "@metafor/browser-agent": ["@metafor/browser-agent@workspace:pkg/browser-agent"],
 
     "@metafor/engine": ["@metafor/engine@workspace:pkg/engine"],
 
