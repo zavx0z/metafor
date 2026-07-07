@@ -54,7 +54,7 @@ type VoiceInputClientOptions = {
   onTransport?(transport: VoiceInputTransport): void
   onStatus(status: VoiceInputStatus, detail?: string): void
   onWake(text: string): void
-  onCommandText(text: string): void
+  onCommandText(text: string): boolean | void
   onPartial(text: string): void
   onChunk(chunk: VoiceInputChunk): void
   onLevel(level: number): void
@@ -120,6 +120,7 @@ const WAKE_WORD = "завхоз"
 export const VOICE_STOP_COMMAND_DETAIL = "voice stop command"
 export const DEFAULT_VOICE_ACTIVATION_PHRASES = [
   "завхоз",
+  "запхоз",
   "метафор",
   "метафора",
   "квин",
@@ -648,7 +649,8 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
 
     const text = recognitionText(msg)
     if (!text) return
-    this.options.onCommandText(cleanupVoiceText(text))
+    const commandTextHandled = this.options.onCommandText(cleanupVoiceText(text)) === true
+    if (commandTextHandled) return
 
     const phraseGroups = this.#commandPhrases()
     if (this.#asrEnabled) {

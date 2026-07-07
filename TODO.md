@@ -30,6 +30,7 @@
 - [ ] Переименовать agent-facing Plan tools/API: добавить plan.* alias/contract поверх TODO.md storage и убрать путаницу с todo.* в инструкциях.
 - [100] Добавить voice activation routing для Browser Agent sessions: фразы Qwen/DeepSeek открывают нужную session, активируют browser tab и назначают voice target.
 - [ ] Переработать voice activation/deactivation noise policy: меньше ложных срабатываний на шум, короче ожидание на пустом шуме, явные состояния wake/listening/commit.
+- [100] Исправить voice wake target routing: Завхоз/Метафор всегда возвращает voice target в Codex host, Qwen/DeepSeek оставляют Browser Agent session.
 
 ## 6. Browser Agent Chat: изображения
 

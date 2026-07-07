@@ -427,10 +427,12 @@ attachments, сообщения, DeepSeek mode/deep-thinking, transport flags и
 control/pending state переживают reload UI. Ephemeral timers/read polling после
 reload создаются заново и live transport state дополнительно гидратируется через
 `browser_chat.read`.
-Голосовые wake-команды `Квин`/`Qwen` и `Дипсик`/`DeepSeek` открывают Browser
-Agent Chat, переключают active session, активируют соответствующую Chrome
-вкладку через `browser_chat.activate` и назначают Browser Agent composer текущим
-voice target. Эти команды не вставляются в draft как пользовательский текст.
+Голосовые wake-команды `Завхоз`/`Запхоз`/`Метафор` возвращают текущий voice
+target в Codex message host composer. Команды `Квин`/`Qwen` и
+`Дипсик`/`DeepSeek` открывают Browser Agent Chat, переключают active session,
+активируют соответствующую Chrome вкладку через `browser_chat.activate` и
+назначают Browser Agent composer текущим voice target. Эти команды не
+вставляются в draft как пользовательский текст.
 
 Обычная отправка Browser Agent message передает в active provider только текст
 пользователя и attachment paths. Tool prompt не добавляется автоматически к
