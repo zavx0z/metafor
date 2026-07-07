@@ -20,6 +20,7 @@ This package owns provider/runtime logic for browser-based agents such as Qwen a
 - HTTP `/tools` routing;
 - Chrome DevTools session management;
 - HUD/Space UI;
+- Browser Agent Chat provider sessions (`Qwen`, `DeepSeek`) with separate draft/history/attachments/tool-loop state;
 - process/source/debug/git tools;
 - mapping browser-agent results back into interpreter tool responses.
 

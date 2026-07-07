@@ -177,6 +177,7 @@ import {
   BROWSER_CHAT_PANE_MIN_H,
   BROWSER_CHAT_PANE_MIN_W,
   type BrowserChatPaneMessage,
+  type BrowserChatPaneSession,
   type BrowserChatPaneStatusKind,
 } from "./browser-chat-pane.ts"
 import {
@@ -678,7 +679,7 @@ type BrowserChatToolCall = {
   parameters: Record<string, unknown>
 }
 
-type BrowserChatToolResultForQwen = {
+type BrowserChatToolResultForProvider = {
   tool_use_id: string
   recipient_name: string
   ok: boolean
@@ -691,10 +692,13 @@ type BrowserChatPendingToolCall = {text: string; key: string}
 
 type BrowserChatPendingToolResults = {message: string; summary: string}
 
-type BrowserChatController = {
-  chatPane: BrowserChatPane
-  composer: HostTerminalCodexComposerPane<BrowserChatController>
-  editor: EditorPane
+type BrowserChatProviderId = "qwen" | "deepseek"
+
+type BrowserChatSession = {
+  id: string
+  provider: BrowserChatProviderId
+  label: string
+  urlContains: string
   codexDraft: string
   codexAttachments: CodexComposerAttachment[]
   codexAttachmentUploadInFlight: boolean
@@ -714,10 +718,10 @@ type BrowserChatController = {
   readStableTicks: number
   readAfterMessageCount: number | null
   readWatchBaselineMessageCount: number | null
-  qwenGenerating: boolean
-  qwenCanSend: boolean
-  qwenBlockedReason: string
-  qwenLimitReached: boolean
+  providerGenerating: boolean
+  providerCanSend: boolean
+  providerBlockedReason: string
+  providerLimitReached: boolean
   lastAssistantText: string
   lastProcessedToolCallText: string | null
   toolPromptSent: boolean
@@ -727,6 +731,16 @@ type BrowserChatController = {
   toolLoopTurns: number
   pendingToolCall: BrowserChatPendingToolCall | null
   pendingToolResults: BrowserChatPendingToolResults | null
+}
+
+type BrowserChatController = {
+  chatPane: BrowserChatPane
+  composer: HostTerminalCodexComposerPane<BrowserChatController>
+  editor: EditorPane
+  sessions: BrowserChatSession[]
+  activeSessionId: string
+  codexAttachments: CodexComposerAttachment[]
+  codexDropActive: boolean
 }
 
 type VoiceInputTarget =
@@ -2031,6 +2045,7 @@ function setHudBrowserChatDocked(docked: boolean): unknown {
 
 function browserChatHudPayload(): unknown {
   const controller = browserChat
+  const activeSession = controller === null ? null : activeBrowserChatSession(controller)
   const paneFrame = controller === null || uiCanvas === null ? null : uiCanvas.surfaceFrame(controller.chatPane)
   const composerFrame = controller === null || uiCanvas === null ? null : uiCanvas.surfaceFrame(controller.composer)
   return {
@@ -2039,9 +2054,16 @@ function browserChatHudPayload(): unknown {
     composerRect: composerFrame?.rect ?? null,
     dockPlacement: browserChatDockPlacement,
     status: controller === null ? "idle" : browserChatComposerStatus(controller),
-    qwen: controller === null
+    provider: activeSession === null
       ? null
-      : {canSend: controller.qwenCanSend, generating: controller.qwenGenerating, blockedReason: controller.qwenBlockedReason, limitReached: controller.qwenLimitReached},
+      : {
+        id: activeSession.provider,
+        label: activeSession.label,
+        canSend: activeSession.providerCanSend,
+        generating: activeSession.providerGenerating,
+        blockedReason: activeSession.providerBlockedReason,
+        limitReached: activeSession.providerLimitReached,
+      },
   }
 }
 
@@ -4163,7 +4185,7 @@ function flushVoiceAutoSendBuffer(): boolean {
 
   const autoSendEnabled = readVoiceAutoSendEnabled()
   const hostComposerEdited = target.kind === "host" && target.controller === hostTerminal && target.controller.voiceComposerEdited
-  const browserChatComposerEdited = target.kind === "browser-chat" && target.controller.voiceComposerEdited
+  const browserChatComposerEdited = target.kind === "browser-chat" && activeBrowserChatSession(target.controller).voiceComposerEdited
   let handled: boolean
   if (mode !== "draft" && autoSendEnabled && !hostComposerEdited && !browserChatComposerEdited) {
     if (target.kind === "host" && target.controller === hostTerminal) restoreHostVoiceComposerBaseDraft(target.controller)
@@ -4305,17 +4327,18 @@ function sendHostTerminalVoiceSubmit(controller: HostTerminalController, text: s
 function sendBrowserChatVoiceSubmit(controller: BrowserChatController, text: string): boolean {
   const body = sanitizeHostTerminalVoiceInput(text)
   if (body.length === 0) return false
-  if (controller.codexAttachmentUploadInFlight) {
-    controller.codexSubmitAfterAttachmentUpload = true
+  const session = activeBrowserChatSession(controller)
+  if (session.codexAttachmentUploadInFlight) {
+    session.codexSubmitAfterAttachmentUpload = true
     return stageBrowserChatDraft(controller, body, {focusComposer: false})
   }
-  const baseDraft = controller.voiceComposerEdited ? controller.codexDraft : (controller.voiceComposerBaseDraft ?? controller.codexDraft)
+  const baseDraft = session.voiceComposerEdited ? session.codexDraft : (session.voiceComposerBaseDraft ?? session.codexDraft)
   const nextDraft = mergeCodexComposerDraft(baseDraft, body)
   clearVoicePartialPreviewForTarget({kind: "browser-chat", controller})
   discardVoiceAutoSendBuffer()
   voiceNextFlushMode = "auto"
-  resetBrowserChatVoiceComposerDraftTracking(controller)
-  setBrowserChatDraft(controller, nextDraft)
+  resetBrowserChatVoiceComposerDraftTracking(controller, session)
+  setBrowserChatDraft(controller, nextDraft, session)
   return submitBrowserChatComposer(controller, {flushPendingInput: false, focusAfterSubmit: false})
 }
 
@@ -4558,45 +4581,115 @@ function setHostCodexDropActive(controller: HostTerminalController, active: bool
   controller.codexComposer.requestRender()
 }
 
+function createBrowserChatSession(id: BrowserChatProviderId, label: string, urlContains: string): BrowserChatSession {
+  return {
+    id,
+    provider: id,
+    label,
+    urlContains,
+    codexDraft: "",
+    codexAttachments: [],
+    codexAttachmentUploadInFlight: false,
+    codexSubmitAfterAttachmentUpload: false,
+    codexDropActive: false,
+    codexEditorSyncing: false,
+    status: "",
+    statusTimer: null,
+    voiceComposerBaseDraft: null,
+    voiceComposerGeneratedDraft: "",
+    voiceComposerEdited: false,
+    messages: [],
+    sendInFlight: false,
+    readTimer: null,
+    readWatchTimer: null,
+    readStartedAt: 0,
+    readStableTicks: 0,
+    readAfterMessageCount: null,
+    readWatchBaselineMessageCount: null,
+    providerGenerating: false,
+    providerCanSend: true,
+    providerBlockedReason: "",
+    providerLimitReached: false,
+    lastAssistantText: "",
+    lastProcessedToolCallText: null,
+    toolPromptSent: false,
+    toolLoopInFlight: false,
+    toolLoopPaused: false,
+    toolLoopStopped: false,
+    toolLoopTurns: 0,
+    pendingToolCall: null,
+    pendingToolResults: null,
+  }
+}
+
+function activeBrowserChatSession(controller: BrowserChatController): BrowserChatSession {
+  return controller.sessions.find((session) => session.id === controller.activeSessionId) ?? controller.sessions[0]!
+}
+
+function browserChatSessionToolParams(session: BrowserChatSession): Record<string, unknown> {
+  return {provider: session.provider, urlContains: session.urlContains}
+}
+
+function activateBrowserChatSession(controller: BrowserChatController, id: string): void {
+  if (controller.activeSessionId === id) return
+  flushBrowserChatDraftFromEditor(controller)
+  const next = controller.sessions.find((session) => session.id === id)
+  if (next === undefined) return
+  controller.activeSessionId = next.id
+  syncBrowserChatEditor(controller)
+  controller.chatPane.requestRender()
+  controller.composer.requestRender()
+  uiCanvas?.relayout()
+  void hydrateBrowserChatSessionFromProvider(controller, next)
+}
+
 function browserChatComposerStatus(controller: BrowserChatController): string {
-  const staleTransientStatus = controller.status.length > 0
-    && controller.qwenCanSend
-    && !controller.qwenGenerating
-    && controller.qwenBlockedReason.length === 0
-    && !controller.sendInFlight
-    && controller.readStartedAt <= 0
-    && !controller.toolLoopInFlight
-    && !controller.toolLoopPaused
-    && !controller.toolLoopStopped
-    && /tool loop failed|send failed|read failed|read timeout|waiting qwen|qwen busy/i.test(controller.status)
+  return browserChatSessionStatus(controller, activeBrowserChatSession(controller))
+}
+
+function browserChatSessionStatus(controller: BrowserChatController, session: BrowserChatSession): string {
+  const staleTransientStatus = session.status.length > 0
+    && session.providerCanSend
+    && !session.providerGenerating
+    && session.providerBlockedReason.length === 0
+    && !session.sendInFlight
+    && session.readStartedAt <= 0
+    && !session.toolLoopInFlight
+    && !session.toolLoopPaused
+    && !session.toolLoopStopped
+    && /tool loop failed|send failed|read failed|read timeout|waiting .*|.* busy/i.test(session.status)
   if (staleTransientStatus) return "ready"
-  if (controller.qwenLimitReached) return "Qwen usage limit reached"
-  if (controller.status && /failed|timeout|retry|upload/i.test(controller.status)) return controller.status
-  if (controller.toolLoopStopped) return "agent stopped"
-  if (controller.toolLoopPaused && controller.pendingToolResults !== null) return "paused: tool results"
-  if (controller.toolLoopPaused && controller.pendingToolCall !== null) return "paused: tool call"
-  if (controller.toolLoopPaused) return "agent paused"
+  if (session.providerLimitReached) return `${session.label} usage limit reached`
+  if (session.status && /failed|timeout|retry|upload/i.test(session.status)) return session.status
+  if (session.toolLoopStopped) return "agent stopped"
+  if (session.toolLoopPaused && session.pendingToolResults !== null) return "paused: tool results"
+  if (session.toolLoopPaused && session.pendingToolCall !== null) return "paused: tool call"
+  if (session.toolLoopPaused) return "agent paused"
   if (voiceActiveTarget?.kind === "browser-chat" && voiceActiveTarget.controller === controller && (voiceHudStatus === "listening" || voiceHudStatus === "committing")) {
     return voiceStatusLabel(voiceHudStatus)
   }
-  if (controller.toolLoopInFlight) return "running tools"
-  if (controller.sendInFlight) return controller.qwenGenerating || !controller.qwenCanSend ? "waiting Qwen" : "sending"
-  if (controller.readStartedAt > 0) return controller.qwenGenerating ? "Qwen thinking" : "reading Qwen"
-  if (controller.qwenGenerating) return "Qwen thinking"
-  if (!controller.qwenCanSend) return controller.qwenBlockedReason || "Qwen busy"
-  if (controller.status) return controller.status
+  if (session.toolLoopInFlight) return "running tools"
+  if (session.sendInFlight) return session.providerGenerating || !session.providerCanSend ? `waiting ${session.label}` : "sending"
+  if (session.readStartedAt > 0) return session.providerGenerating ? `${session.label} thinking` : `reading ${session.label}`
+  if (session.providerGenerating) return `${session.label} thinking`
+  if (!session.providerCanSend) return session.providerBlockedReason || `${session.label} busy`
+  if (session.status) return session.status
   return "ready"
 }
 
 function browserChatStatusKind(controller: BrowserChatController): BrowserChatPaneStatusKind {
-  const status = browserChatComposerStatus(controller)
-  if (controller.qwenLimitReached) return "blocked"
+  return browserChatSessionStatusKind(controller, activeBrowserChatSession(controller))
+}
+
+function browserChatSessionStatusKind(controller: BrowserChatController, session: BrowserChatSession): BrowserChatPaneStatusKind {
+  const status = browserChatSessionStatus(controller, session)
+  if (session.providerLimitReached) return "blocked"
   if (/failed|timeout|error/i.test(status)) return "error"
-  if (controller.toolLoopPaused || controller.toolLoopStopped) return "blocked"
-  if (controller.toolLoopInFlight) return "tools"
-  if (controller.sendInFlight) return "sending"
-  if (controller.readStartedAt > 0 || controller.qwenGenerating) return "thinking"
-  if (!controller.qwenCanSend || /busy|waiting/i.test(status)) return "blocked"
+  if (session.toolLoopPaused || session.toolLoopStopped) return "blocked"
+  if (session.toolLoopInFlight) return "tools"
+  if (session.sendInFlight) return "sending"
+  if (session.readStartedAt > 0 || session.providerGenerating) return "thinking"
+  if (!session.providerCanSend || /busy|waiting/i.test(status)) return "blocked"
   return "ready"
 }
 
@@ -4605,57 +4698,63 @@ function browserChatTextIsUsageLimit(text: string): boolean {
 }
 
 function browserChatComposerCanSubmit(controller: BrowserChatController): boolean {
+  const session = activeBrowserChatSession(controller)
   return browserChatTransportCanSend(controller)
-    && codexComposerMessage(controller.codexDraft, controller.codexAttachments).length > 0
+    && codexComposerMessage(session.codexDraft, session.codexAttachments).length > 0
 }
 
 function browserChatTransportCanSend(controller: BrowserChatController): boolean {
-  return !controller.sendInFlight
-    && !controller.toolLoopInFlight
-    && !controller.codexAttachmentUploadInFlight
-    && controller.qwenCanSend
+  const session = activeBrowserChatSession(controller)
+  return !session.sendInFlight
+    && !session.toolLoopInFlight
+    && !session.codexAttachmentUploadInFlight
+    && session.providerCanSend
 }
 
 function browserChatToolPromptCanSend(controller: BrowserChatController): boolean {
-  return !controller.sendInFlight
-    && !controller.toolLoopInFlight
-    && !controller.codexAttachmentUploadInFlight
-    && controller.qwenCanSend
+  const session = activeBrowserChatSession(controller)
+  return !session.sendInFlight
+    && !session.toolLoopInFlight
+    && !session.codexAttachmentUploadInFlight
+    && session.providerCanSend
 }
 
 function setBrowserChatDraftFromEditor(controller: BrowserChatController, value: string): void {
-  if (controller.codexEditorSyncing) return
-  if (controller.codexDraft === value) return
-  if (controller.voiceComposerBaseDraft !== null && value !== controller.voiceComposerGeneratedDraft) {
-    controller.voiceComposerEdited = true
+  const session = activeBrowserChatSession(controller)
+  if (session.codexEditorSyncing) return
+  if (session.codexDraft === value) return
+  if (session.voiceComposerBaseDraft !== null && value !== session.voiceComposerGeneratedDraft) {
+    session.voiceComposerEdited = true
   }
-  controller.codexDraft = value
+  session.codexDraft = value
   controller.composer.requestRender()
 }
 
-function setBrowserChatDraft(controller: BrowserChatController, value: string): void {
-  if (controller.codexDraft === value) return
-  controller.codexDraft = value
-  syncBrowserChatEditor(controller)
+function setBrowserChatDraft(controller: BrowserChatController, value: string, session = activeBrowserChatSession(controller)): void {
+  if (session.codexDraft === value) return
+  session.codexDraft = value
+  if (session.id === controller.activeSessionId) syncBrowserChatEditor(controller)
   controller.composer.requestRender()
 }
 
 function flushBrowserChatDraftFromEditor(controller: BrowserChatController): void {
-  if (controller.codexEditorSyncing) return
+  const session = activeBrowserChatSession(controller)
+  if (session.codexEditorSyncing) return
   const text = controller.editor.getText()
-  if (text !== controller.codexDraft) setBrowserChatDraftFromEditor(controller, text)
+  if (text !== session.codexDraft) setBrowserChatDraftFromEditor(controller, text)
 }
 
 function syncBrowserChatEditor(controller: BrowserChatController): void {
-  if (controller.codexEditorSyncing || controller.editor.getText() === controller.codexDraft) return
-  controller.codexEditorSyncing = true
+  const session = activeBrowserChatSession(controller)
+  if (session.codexEditorSyncing || controller.editor.getText() === session.codexDraft) return
+  session.codexEditorSyncing = true
   try {
-    controller.editor.setText(controller.codexDraft)
-    const lines = controller.codexDraft.split("\n")
+    controller.editor.setText(session.codexDraft)
+    const lines = session.codexDraft.split("\n")
     const lastLine = Math.max(0, lines.length - 1)
     controller.editor.setCursor(lastLine, lines[lastLine]?.length ?? 0, {scroll: "nearest"})
   } finally {
-    controller.codexEditorSyncing = false
+    session.codexEditorSyncing = false
   }
 }
 
@@ -4667,294 +4766,296 @@ function flushBrowserChatComposerPendingInput(controller: BrowserChatController)
 
 function submitBrowserChatComposer(controller: BrowserChatController, options: {flushPendingInput?: boolean; focusAfterSubmit?: boolean} = {}): boolean {
   if (options.flushPendingInput ?? true) flushBrowserChatComposerPendingInput(controller)
-  if (controller.codexAttachmentUploadInFlight) {
-    controller.codexSubmitAfterAttachmentUpload = true
-    setBrowserChatStatus(controller, "waiting upload", 2400)
+  const session = activeBrowserChatSession(controller)
+  if (session.codexAttachmentUploadInFlight) {
+    session.codexSubmitAfterAttachmentUpload = true
+    setBrowserChatStatus(controller, "waiting upload", 2400, session)
     return false
   }
   if (!browserChatComposerCanSubmit(controller)) return false
-  const message = codexComposerMessage(controller.codexDraft, controller.codexAttachments)
+  const message = codexComposerMessage(session.codexDraft, session.codexAttachments)
   clearVoicePartialPreviewForTarget({kind: "browser-chat", controller})
   discardVoiceAutoSendBuffer()
   voiceNextFlushMode = "auto"
-  resetBrowserChatAgentControl(controller)
-  controller.toolLoopTurns = 0
-  stopBrowserChatPolling(controller, false)
-  addBrowserChatMessage(controller, {role: "user", text: message})
-  ensureBrowserChatAssistantMessage(controller)
-  controller.sendInFlight = true
-  setBrowserChatStatus(controller, "sending to Qwen", 6000)
-  void sendBrowserChatMessage(controller, message, options.focusAfterSubmit ?? true)
+  resetBrowserChatAgentControl(controller, session)
+  session.toolLoopTurns = 0
+  stopBrowserChatPolling(controller, session, false)
+  addBrowserChatMessage(controller, session, {role: "user", text: message})
+  ensureBrowserChatAssistantMessage(controller, session)
+  session.sendInFlight = true
+  setBrowserChatStatus(controller, `sending to ${session.label}`, 6000, session)
+  void sendBrowserChatMessage(controller, session, message, options.focusAfterSubmit ?? true)
   return true
 }
 
-async function sendBrowserChatMessage(controller: BrowserChatController, message: string, focusAfterSubmit: boolean): Promise<void> {
+async function sendBrowserChatMessage(controller: BrowserChatController, session: BrowserChatSession, message: string, focusAfterSubmit: boolean): Promise<void> {
   try {
-    const tool = await runHostTool("browser_chat.send", {message, urlContains: "chat.qwen.ai", autoToolLoop: false})
+    const tool = await runHostTool("browser_chat.send", {...browserChatSessionToolParams(session), message, autoToolLoop: false})
     const result = hostToolResultObject(tool)
-    updateBrowserChatTransportState(controller, result)
+    updateBrowserChatTransportState(controller, session, result)
     if (tool.ok !== true || result["ok"] !== true) throw new Error(tool.error ?? stringValue(result["error"]) ?? "browser_chat.send failed")
     const previousAssistantText = stringValue(result["previousAssistantText"]) ?? ""
     const previousMessageCount = numberValue(result["previousMessageCount"])
-    resetBrowserChatVoiceComposerDraftTracking(controller)
-    setBrowserChatDraft(controller, "")
-    controller.codexAttachments = []
-    setBrowserChatStatus(controller, "sent", 1400)
+    resetBrowserChatVoiceComposerDraftTracking(controller, session)
+    setBrowserChatDraft(controller, "", session)
+    session.codexAttachments = []
+    setBrowserChatStatus(controller, "sent", 1400, session)
     if (focusAfterSubmit) focusBrowserChatComposer(controller)
-    startBrowserChatPolling(controller, previousAssistantText, previousMessageCount)
+    startBrowserChatPolling(controller, session, previousAssistantText, previousMessageCount)
   } catch (error) {
-    appendBrowserChatSystemMessage(controller, error instanceof Error ? error.message : String(error))
-    setBrowserChatStatus(controller, "send failed", 5000)
+    appendBrowserChatSystemMessage(controller, session, error instanceof Error ? error.message : String(error))
+    setBrowserChatStatus(controller, "send failed", 5000, session)
   } finally {
-    controller.sendInFlight = false
+    session.sendInFlight = false
     controller.composer.requestRender()
     controller.chatPane.requestRender()
   }
 }
 
 function sendBrowserChatToolPrompt(controller: BrowserChatController): void {
+  const session = activeBrowserChatSession(controller)
   if (!browserChatToolPromptCanSend(controller)) {
-    setBrowserChatStatus(controller, "busy", 1400)
+    setBrowserChatStatus(controller, "busy", 1400, session)
     return
   }
-  resetBrowserChatAgentControl(controller)
-  controller.toolLoopTurns = 0
-  controller.lastProcessedToolCallText = null
-  controller.toolPromptSent = false
-  controller.messages.splice(0, controller.messages.length)
-  controller.lastAssistantText = ""
-  stopBrowserChatPolling(controller, false)
-  controller.sendInFlight = true
-  setBrowserChatStatus(controller, "opening new Qwen chat", 6000)
+  resetBrowserChatAgentControl(controller, session)
+  session.toolLoopTurns = 0
+  session.lastProcessedToolCallText = null
+  session.toolPromptSent = false
+  session.messages.splice(0, session.messages.length)
+  session.lastAssistantText = ""
+  stopBrowserChatPolling(controller, session, false)
+  session.sendInFlight = true
+  setBrowserChatStatus(controller, `opening new ${session.label} chat`, 6000, session)
   controller.chatPane.requestRender()
-  void sendBrowserChatToolPromptMessage(controller)
+  void sendBrowserChatToolPromptMessage(controller, session)
 }
 
-async function sendBrowserChatToolPromptMessage(controller: BrowserChatController): Promise<void> {
+async function sendBrowserChatToolPromptMessage(controller: BrowserChatController, session: BrowserChatSession): Promise<void> {
   try {
-    const tool = await runHostToolWithTimeout("browser_chat.send", {message: BROWSER_CHAT_TOOL_PROMPT, urlContains: "chat.qwen.ai", autoToolLoop: false, newChat: true}, 120000)
+    const tool = await runHostToolWithTimeout("browser_chat.send", {...browserChatSessionToolParams(session), message: BROWSER_CHAT_TOOL_PROMPT, autoToolLoop: false, newChat: true}, 120000)
     const result = hostToolResultObject(tool)
-    updateBrowserChatTransportState(controller, result)
+    updateBrowserChatTransportState(controller, session, result)
     if (tool.ok !== true || result["ok"] !== true) throw new Error(tool.error ?? stringValue(result["error"]) ?? "browser_chat.send tool prompt failed")
-    controller.toolPromptSent = true
+    session.toolPromptSent = true
     const previousAssistantText = stringValue(result["previousAssistantText"]) ?? ""
     const previousMessageCount = numberValue(result["previousMessageCount"])
-    setBrowserChatStatus(controller, "tools prompt sent", 1800)
+    setBrowserChatStatus(controller, "tools prompt sent", 1800, session)
     focusBrowserChatComposer(controller)
-    startBrowserChatPolling(controller, previousAssistantText, previousMessageCount)
+    startBrowserChatPolling(controller, session, previousAssistantText, previousMessageCount)
   } catch (error) {
-    appendBrowserChatSystemMessage(controller, error instanceof Error ? error.message : String(error))
-    setBrowserChatStatus(controller, "tools prompt failed", 5000)
+    appendBrowserChatSystemMessage(controller, session, error instanceof Error ? error.message : String(error))
+    setBrowserChatStatus(controller, "tools prompt failed", 5000, session)
   } finally {
-    controller.sendInFlight = false
+    session.sendInFlight = false
     controller.composer.requestRender()
     controller.chatPane.requestRender()
   }
 }
 
-function startBrowserChatPolling(controller: BrowserChatController, previousAssistantText: string, afterMessageCount: number | null): void {
-  stopBrowserChatPolling(controller, false)
-  controller.readStartedAt = performance.now()
-  controller.readStableTicks = 0
-  controller.readAfterMessageCount = afterMessageCount
-  controller.lastAssistantText = previousAssistantText
-  scheduleBrowserChatRead(controller, 260)
+function startBrowserChatPolling(controller: BrowserChatController, session: BrowserChatSession, previousAssistantText: string, afterMessageCount: number | null): void {
+  stopBrowserChatPolling(controller, session, false)
+  session.readStartedAt = performance.now()
+  session.readStableTicks = 0
+  session.readAfterMessageCount = afterMessageCount
+  session.lastAssistantText = previousAssistantText
+  scheduleBrowserChatRead(controller, session, 260)
 }
 
-function scheduleBrowserChatRead(controller: BrowserChatController, delayMs = 650): void {
-  if (controller.readTimer !== null) window.clearTimeout(controller.readTimer)
-  controller.readTimer = window.setTimeout(() => {
-    controller.readTimer = null
-    void pollBrowserChatRead(controller)
+function scheduleBrowserChatRead(controller: BrowserChatController, session: BrowserChatSession, delayMs = 650): void {
+  if (session.readTimer !== null) window.clearTimeout(session.readTimer)
+  session.readTimer = window.setTimeout(() => {
+    session.readTimer = null
+    void pollBrowserChatRead(controller, session)
   }, delayMs)
 }
 
-function scheduleBrowserChatReadWatch(controller: BrowserChatController, delayMs = 1200): void {
-  if (controller.readWatchTimer !== null) window.clearTimeout(controller.readWatchTimer)
-  controller.readWatchTimer = window.setTimeout(() => {
-    controller.readWatchTimer = null
-    void pollBrowserChatReadWatch(controller)
+function scheduleBrowserChatReadWatch(controller: BrowserChatController, session: BrowserChatSession, delayMs = 1200): void {
+  if (session.readWatchTimer !== null) window.clearTimeout(session.readWatchTimer)
+  session.readWatchTimer = window.setTimeout(() => {
+    session.readWatchTimer = null
+    void pollBrowserChatReadWatch(controller, session)
   }, delayMs)
 }
 
-async function pollBrowserChatReadWatch(controller: BrowserChatController): Promise<void> {
+async function pollBrowserChatReadWatch(controller: BrowserChatController, session: BrowserChatSession): Promise<void> {
   try {
-    if (!controller.sendInFlight && controller.readStartedAt <= 0 && !controller.toolLoopInFlight) {
-      const tool = await runHostToolWithTimeout("browser_chat.read", {urlContains: "chat.qwen.ai"}, 8000)
+    if (!session.sendInFlight && session.readStartedAt <= 0 && !session.toolLoopInFlight) {
+      const tool = await runHostToolWithTimeout("browser_chat.read", browserChatSessionToolParams(session), 8000)
       const result = hostToolResultObject(tool)
       if (tool.ok === true && result["ok"] === true) {
-        updateBrowserChatTransportState(controller, result)
+        updateBrowserChatTransportState(controller, session, result)
         const toolCall = browserChatToolCallCandidateFromReadResult(result)
         const text = stringValue(result["lastAssistantText"]) ?? ""
         const messageCount = numberValue(result["messageCount"]) ?? arrayLengthValue(result["messages"])
-        const previousBaseline = controller.readWatchBaselineMessageCount
+        const previousBaseline = session.readWatchBaselineMessageCount
         if (messageCount !== null && previousBaseline === null) {
-          controller.readWatchBaselineMessageCount = messageCount
-          controller.lastAssistantText = text
-          if (toolCall !== null) controller.lastProcessedToolCallText = toolCall.key
+          session.readWatchBaselineMessageCount = messageCount
+          session.lastAssistantText = text
+          if (toolCall !== null) session.lastProcessedToolCallText = toolCall.key
           return
         }
         if (messageCount !== null && previousBaseline !== null && messageCount <= previousBaseline) {
-          controller.lastAssistantText = text
-          if (toolCall !== null) controller.lastProcessedToolCallText = toolCall.key
+          session.lastAssistantText = text
+          if (toolCall !== null) session.lastProcessedToolCallText = toolCall.key
           return
         }
-        if (messageCount !== null) controller.readWatchBaselineMessageCount = messageCount
+        if (messageCount !== null) session.readWatchBaselineMessageCount = messageCount
         if (text.length > 0 || toolCall !== null) {
-          controller.lastAssistantText = text
+          session.lastAssistantText = text
           if (toolCall !== null && result["generating"] !== true) {
-            if (!holdBrowserChatToolCallIfControlled(controller, toolCall)) {
-              controller.toolLoopTurns = 0
-              await continueBrowserChatToolLoop(controller, toolCall.text, toolCall.key)
+            if (!holdBrowserChatToolCallIfControlled(controller, session, toolCall)) {
+              session.toolLoopTurns = 0
+              await continueBrowserChatToolLoop(controller, session, toolCall.text, toolCall.key)
             }
           } else {
-            controller.lastProcessedToolCallText = null
+            session.lastProcessedToolCallText = null
           }
         }
       }
     }
   } finally {
-    scheduleBrowserChatReadWatch(controller)
+    scheduleBrowserChatReadWatch(controller, session)
   }
 }
 
-async function pollBrowserChatRead(controller: BrowserChatController): Promise<void> {
-  if (controller.readStartedAt <= 0) return
+async function pollBrowserChatRead(controller: BrowserChatController, session: BrowserChatSession): Promise<void> {
+  if (session.readStartedAt <= 0) return
   try {
-    const tool = await runHostTool("browser_chat.read", {urlContains: "chat.qwen.ai"})
+    const tool = await runHostTool("browser_chat.read", browserChatSessionToolParams(session))
     const result = hostToolResultObject(tool)
     if (tool.ok !== true || result["ok"] !== true) throw new Error(tool.error ?? stringValue(result["error"]) ?? "browser_chat.read failed")
-    updateBrowserChatTransportState(controller, result)
+    updateBrowserChatTransportState(controller, session, result)
     const toolCall = browserChatToolCallCandidateFromReadResult(result)
     const text = stringValue(result["lastAssistantText"]) ?? ""
     const messageCount = numberValue(result["messageCount"]) ?? arrayLengthValue(result["messages"])
-    if (messageCount !== null) controller.readWatchBaselineMessageCount = Math.max(controller.readWatchBaselineMessageCount ?? 0, messageCount)
+    if (messageCount !== null) session.readWatchBaselineMessageCount = Math.max(session.readWatchBaselineMessageCount ?? 0, messageCount)
     const generating = result["generating"] === true
-    const qwenReady = result["canSend"] === true && !generating && result["preferenceActive"] !== true
-    const canFinish = (performance.now() - controller.readStartedAt >= 6_000 || qwenReady) && !generating
-    const afterBaseline = controller.readAfterMessageCount === null
-      || messageCount >= controller.readAfterMessageCount + 2
-      || text !== controller.lastAssistantText
-      || (toolCall !== null && toolCall.key !== controller.lastProcessedToolCallText)
+    const providerReady = result["canSend"] === true && !generating && result["preferenceActive"] !== true
+    const canFinish = (performance.now() - session.readStartedAt >= 6_000 || providerReady) && !generating
+    const afterBaseline = session.readAfterMessageCount === null
+      || messageCount >= session.readAfterMessageCount + 2
+      || text !== session.lastAssistantText
+      || (toolCall !== null && toolCall.key !== session.lastProcessedToolCallText)
     if ((text.length > 0 || toolCall !== null) && afterBaseline) {
       if (text.length > 0 && browserChatTextIsUsageLimit(text)) {
-        controller.qwenLimitReached = true
-        controller.qwenBlockedReason = "Qwen usage limit reached"
-        const assistantMessages = browserChatAssistantMessagesFromReadResult(result, false)
-        if (assistantMessages.length > 0) replaceBrowserChatAssistantMessages(controller, assistantMessages)
-        else updateBrowserChatAssistantMessage(controller, text, false)
-        stopBrowserChatPolling(controller, true)
-        setBrowserChatStatus(controller, "Qwen usage limit reached", 0)
+        session.providerLimitReached = true
+        session.providerBlockedReason = `${session.label} usage limit reached`
+        const assistantMessages = browserChatAssistantMessagesFromReadResult(session, result, false)
+        if (assistantMessages.length > 0) replaceBrowserChatAssistantMessages(controller, session, assistantMessages)
+        else updateBrowserChatAssistantMessage(controller, session, text, false)
+        stopBrowserChatPolling(controller, session, true)
+        setBrowserChatStatus(controller, `${session.label} usage limit reached`, 0, session)
         return
       }
-      if (text === controller.lastAssistantText) controller.readStableTicks += 1
-      else controller.readStableTicks = 0
-      controller.lastAssistantText = text
-      const assistantMessages = browserChatAssistantMessagesFromReadResult(result, true)
-      if (assistantMessages.length > 0) replaceBrowserChatAssistantMessages(controller, assistantMessages)
-      else updateBrowserChatAssistantMessage(controller, text, true)
+      if (text === session.lastAssistantText) session.readStableTicks += 1
+      else session.readStableTicks = 0
+      session.lastAssistantText = text
+      const assistantMessages = browserChatAssistantMessagesFromReadResult(session, result, true)
+      if (assistantMessages.length > 0) replaceBrowserChatAssistantMessages(controller, session, assistantMessages)
+      else updateBrowserChatAssistantMessage(controller, session, text, true)
       if (toolCall !== null) {
-        if (generating === false && canFinish && (qwenReady || controller.readStableTicks >= 8)) {
-          if (holdBrowserChatToolCallIfControlled(controller, toolCall)) return
-          if (await continueBrowserChatToolLoop(controller, toolCall.text, toolCall.key)) return
+        if (generating === false && canFinish && (providerReady || session.readStableTicks >= 8)) {
+          if (holdBrowserChatToolCallIfControlled(controller, session, toolCall)) return
+          if (await continueBrowserChatToolLoop(controller, session, toolCall.text, toolCall.key)) return
         }
       } else {
-        controller.lastProcessedToolCallText = null
+        session.lastProcessedToolCallText = null
       }
     }
-    if ((text.length > 0 || toolCall !== null) && afterBaseline && canFinish && (qwenReady || controller.readStableTicks >= 8)) {
-      const assistantMessages = browserChatAssistantMessagesFromReadResult(result, false)
-      if (assistantMessages.length > 0) replaceBrowserChatAssistantMessages(controller, assistantMessages)
-      else updateBrowserChatAssistantMessage(controller, text, false)
+    if ((text.length > 0 || toolCall !== null) && afterBaseline && canFinish && (providerReady || session.readStableTicks >= 8)) {
+      const assistantMessages = browserChatAssistantMessagesFromReadResult(session, result, false)
+      if (assistantMessages.length > 0) replaceBrowserChatAssistantMessages(controller, session, assistantMessages)
+      else updateBrowserChatAssistantMessage(controller, session, text, false)
       if (toolCall !== null) {
-        if (holdBrowserChatToolCallIfControlled(controller, toolCall)) return
-        if (await continueBrowserChatToolLoop(controller, toolCall.text, toolCall.key)) return
+        if (holdBrowserChatToolCallIfControlled(controller, session, toolCall)) return
+        if (await continueBrowserChatToolLoop(controller, session, toolCall.text, toolCall.key)) return
       }
-      stopBrowserChatPolling(controller, true)
-      setBrowserChatStatus(controller, "ready", 1200)
+      stopBrowserChatPolling(controller, session, true)
+      setBrowserChatStatus(controller, "ready", 1200, session)
       return
     }
-    if (performance.now() - controller.readStartedAt > 120_000) {
-      stopBrowserChatPolling(controller, true)
-      setBrowserChatStatus(controller, "read timeout", 5000)
+    if (performance.now() - session.readStartedAt > 120_000) {
+      stopBrowserChatPolling(controller, session, true)
+      setBrowserChatStatus(controller, "read timeout", 5000, session)
       return
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    if (isTransientBrowserChatReadError(message) && performance.now() - controller.readStartedAt <= 120_000) {
-      setBrowserChatStatus(controller, "read retry", 1200)
-      scheduleBrowserChatRead(controller, 900)
+    if (isTransientBrowserChatReadError(message) && performance.now() - session.readStartedAt <= 120_000) {
+      setBrowserChatStatus(controller, "read retry", 1200, session)
+      scheduleBrowserChatRead(controller, session, 900)
       return
     }
-    appendBrowserChatSystemMessage(controller, message)
-    stopBrowserChatPolling(controller, true)
-    setBrowserChatStatus(controller, "read failed", 5000)
+    appendBrowserChatSystemMessage(controller, session, message)
+    stopBrowserChatPolling(controller, session, true)
+    setBrowserChatStatus(controller, "read failed", 5000, session)
     return
   }
-  scheduleBrowserChatRead(controller)
+  scheduleBrowserChatRead(controller, session)
 }
 
-function stopBrowserChatPolling(controller: BrowserChatController, render: boolean): void {
-  if (controller.readTimer !== null) {
-    window.clearTimeout(controller.readTimer)
-    controller.readTimer = null
+function stopBrowserChatPolling(controller: BrowserChatController, session: BrowserChatSession, render: boolean): void {
+  if (session.readTimer !== null) {
+    window.clearTimeout(session.readTimer)
+    session.readTimer = null
   }
-  controller.readStartedAt = 0
-  controller.readStableTicks = 0
-  controller.readAfterMessageCount = null
+  session.readStartedAt = 0
+  session.readStableTicks = 0
+  session.readAfterMessageCount = null
   if (render) {
     controller.chatPane.requestRender()
     controller.composer.requestRender()
   }
 }
 
-function addBrowserChatMessage(controller: BrowserChatController, message: Omit<BrowserChatMessage, "id" | "createdAt">): BrowserChatMessage {
+function addBrowserChatMessage(controller: BrowserChatController, session: BrowserChatSession, message: Omit<BrowserChatMessage, "id" | "createdAt">): BrowserChatMessage {
   const next: BrowserChatMessage = {
     id: crypto.randomUUID(),
     createdAt: Date.now(),
     ...message,
   }
-  controller.messages.push(next)
-  if (controller.messages.length > 80) controller.messages.splice(0, controller.messages.length - 80)
+  session.messages.push(next)
+  if (session.messages.length > 80) session.messages.splice(0, session.messages.length - 80)
   controller.chatPane.requestRender()
   return next
 }
 
-function ensureBrowserChatAssistantMessage(controller: BrowserChatController): BrowserChatMessage {
-  const last = controller.messages[controller.messages.length - 1]
+function ensureBrowserChatAssistantMessage(controller: BrowserChatController, session: BrowserChatSession): BrowserChatMessage {
+  const last = session.messages[session.messages.length - 1]
   if (last?.role === "assistant" && last.streaming === true) return last
-  return addBrowserChatMessage(controller, {role: "assistant", text: "", streaming: true})
+  return addBrowserChatMessage(controller, session, {role: "assistant", text: "", label: session.label, streaming: true})
 }
 
-function updateBrowserChatAssistantMessage(controller: BrowserChatController, text: string, streaming: boolean): void {
-  const message = ensureBrowserChatAssistantMessage(controller)
+function updateBrowserChatAssistantMessage(controller: BrowserChatController, session: BrowserChatSession, text: string, streaming: boolean): void {
+  const message = ensureBrowserChatAssistantMessage(controller, session)
   message.text = text
   message.streaming = streaming
   controller.chatPane.requestRender()
 }
 
-async function continueBrowserChatToolLoop(controller: BrowserChatController, text: string, toolCallKey = text.trim()): Promise<boolean> {
+async function continueBrowserChatToolLoop(controller: BrowserChatController, session: BrowserChatSession, text: string, toolCallKey = text.trim()): Promise<boolean> {
   const toolCalls = parseBrowserChatToolCalls(text)
   if (toolCalls.length === 0) return false
-  if (controller.lastProcessedToolCallText === toolCallKey) return false
-  if (holdBrowserChatToolCallIfControlled(controller, {text, key: toolCallKey})) return true
-  stopBrowserChatPolling(controller, false)
-  if (controller.toolLoopTurns >= BROWSER_CHAT_TOOL_LOOP_MAX_TURNS) {
-    appendBrowserChatSystemMessage(controller, `tool loop stopped: ${BROWSER_CHAT_TOOL_LOOP_MAX_TURNS} turns reached`)
-    setBrowserChatStatus(controller, "tool loop stopped", 5000)
+  if (session.lastProcessedToolCallText === toolCallKey) return false
+  if (holdBrowserChatToolCallIfControlled(controller, session, {text, key: toolCallKey})) return true
+  stopBrowserChatPolling(controller, session, false)
+  if (session.toolLoopTurns >= BROWSER_CHAT_TOOL_LOOP_MAX_TURNS) {
+    appendBrowserChatSystemMessage(controller, session, `tool loop stopped: ${BROWSER_CHAT_TOOL_LOOP_MAX_TURNS} turns reached`)
+    setBrowserChatStatus(controller, "tool loop stopped", 5000, session)
     return false
   }
 
-  controller.toolLoopTurns += 1
-  controller.lastProcessedToolCallText = toolCallKey
-  controller.toolLoopInFlight = true
+  session.toolLoopTurns += 1
+  session.lastProcessedToolCallText = toolCallKey
+  session.toolLoopInFlight = true
   controller.composer.requestRender()
-  appendBrowserChatSystemMessage(controller, `running tools: ${toolCalls.map((call) => call.recipientName).join(", ")}`)
-  setBrowserChatStatus(controller, "running tools", 8000)
+  appendBrowserChatSystemMessage(controller, session, `running tools: ${toolCalls.map((call) => call.recipientName).join(", ")}`)
+  setBrowserChatStatus(controller, "running tools", 8000, session)
   try {
-    const results: BrowserChatToolResultForQwen[] = []
+    const results: BrowserChatToolResultForProvider[] = []
     for (const call of toolCalls) {
-      const result: BrowserChatToolResultForQwen = {
+      const result: BrowserChatToolResultForProvider = {
         tool_use_id: call.toolUseId,
         recipient_name: call.recipientName,
         ok: false,
@@ -4978,24 +5079,24 @@ async function continueBrowserChatToolLoop(controller: BrowserChatController, te
 
     const summary = `tool results sent: ${results.filter((result) => result.ok).length}/${results.length} ok`
     const toolResultsMessage = browserChatToolResultsMessage(results)
-    if (controller.toolLoopStopped) {
-      appendBrowserChatSystemMessage(controller, "agent stopped before tool results send")
+    if (session.toolLoopStopped) {
+      appendBrowserChatSystemMessage(controller, session, "agent stopped before tool results send")
       return true
     }
-    if (controller.toolLoopPaused) {
-      controller.pendingToolResults = {message: toolResultsMessage, summary}
-      appendBrowserChatSystemMessage(controller, "agent paused before tool results send")
+    if (session.toolLoopPaused) {
+      session.pendingToolResults = {message: toolResultsMessage, summary}
+      appendBrowserChatSystemMessage(controller, session, "agent paused before tool results send")
       controller.chatPane.requestRender()
       controller.composer.requestRender()
       return true
     }
-    await sendBrowserChatToolResults(controller, toolResultsMessage, summary)
+    await sendBrowserChatToolResults(controller, session, toolResultsMessage, summary)
   } catch (error) {
-    controller.lastProcessedToolCallText = null
-    appendBrowserChatSystemMessage(controller, error instanceof Error ? error.message : String(error))
-    setBrowserChatStatus(controller, "tool loop failed", 5000)
+    session.lastProcessedToolCallText = null
+    appendBrowserChatSystemMessage(controller, session, error instanceof Error ? error.message : String(error))
+    setBrowserChatStatus(controller, "tool loop failed", 5000, session)
   } finally {
-    controller.toolLoopInFlight = false
+    session.toolLoopInFlight = false
     controller.composer.requestRender()
     controller.chatPane.requestRender()
   }
@@ -5003,98 +5104,101 @@ async function continueBrowserChatToolLoop(controller: BrowserChatController, te
 }
 
 function pauseBrowserChatAgent(controller: BrowserChatController): void {
-  if (controller.toolLoopStopped || controller.toolLoopPaused) return
-  controller.toolLoopPaused = true
-  appendBrowserChatSystemMessage(controller, "agent paused")
+  const session = activeBrowserChatSession(controller)
+  if (session.toolLoopStopped || session.toolLoopPaused) return
+  session.toolLoopPaused = true
+  appendBrowserChatSystemMessage(controller, session, "agent paused")
   controller.chatPane.requestRender()
   controller.composer.requestRender()
 }
 
 function resumeBrowserChatAgent(controller: BrowserChatController): void {
-  if (!controller.toolLoopPaused) return
-  controller.toolLoopPaused = false
-  controller.toolLoopStopped = false
-  appendBrowserChatSystemMessage(controller, "agent resumed")
-  void resumeBrowserChatAgentAsync(controller)
+  const session = activeBrowserChatSession(controller)
+  if (!session.toolLoopPaused) return
+  session.toolLoopPaused = false
+  session.toolLoopStopped = false
+  appendBrowserChatSystemMessage(controller, session, "agent resumed")
+  void resumeBrowserChatAgentAsync(controller, session)
   controller.chatPane.requestRender()
   controller.composer.requestRender()
 }
 
-async function resumeBrowserChatAgentAsync(controller: BrowserChatController): Promise<void> {
-  const pendingResults = controller.pendingToolResults
+async function resumeBrowserChatAgentAsync(controller: BrowserChatController, session: BrowserChatSession): Promise<void> {
+  const pendingResults = session.pendingToolResults
   if (pendingResults !== null) {
-    controller.pendingToolResults = null
-    controller.toolLoopInFlight = true
+    session.pendingToolResults = null
+    session.toolLoopInFlight = true
     controller.chatPane.requestRender()
     controller.composer.requestRender()
     try {
-      await sendBrowserChatToolResults(controller, pendingResults.message, pendingResults.summary)
+      await sendBrowserChatToolResults(controller, session, pendingResults.message, pendingResults.summary)
     } catch (error) {
-      appendBrowserChatSystemMessage(controller, error instanceof Error ? error.message : String(error))
-      setBrowserChatStatus(controller, "tool loop failed", 5000)
+      appendBrowserChatSystemMessage(controller, session, error instanceof Error ? error.message : String(error))
+      setBrowserChatStatus(controller, "tool loop failed", 5000, session)
     } finally {
-      controller.toolLoopInFlight = false
+      session.toolLoopInFlight = false
       controller.chatPane.requestRender()
       controller.composer.requestRender()
     }
     return
   }
-  const pendingToolCall = controller.pendingToolCall
+  const pendingToolCall = session.pendingToolCall
   if (pendingToolCall !== null) {
-    controller.pendingToolCall = null
-    await continueBrowserChatToolLoop(controller, pendingToolCall.text, pendingToolCall.key)
+    session.pendingToolCall = null
+    await continueBrowserChatToolLoop(controller, session, pendingToolCall.text, pendingToolCall.key)
     return
   }
-  if (controller.readStartedAt <= 0) startBrowserChatPolling(controller, controller.lastAssistantText, null)
+  if (session.readStartedAt <= 0) startBrowserChatPolling(controller, session, session.lastAssistantText, null)
 }
 
 function stopBrowserChatAgent(controller: BrowserChatController): void {
-  controller.toolLoopStopped = true
-  controller.toolLoopPaused = false
-  controller.pendingToolCall = null
-  controller.pendingToolResults = null
-  controller.lastProcessedToolCallText = null
-  stopBrowserChatPolling(controller, false)
-  appendBrowserChatSystemMessage(controller, "agent stopped")
+  const session = activeBrowserChatSession(controller)
+  session.toolLoopStopped = true
+  session.toolLoopPaused = false
+  session.pendingToolCall = null
+  session.pendingToolResults = null
+  session.lastProcessedToolCallText = null
+  stopBrowserChatPolling(controller, session, false)
+  appendBrowserChatSystemMessage(controller, session, "agent stopped")
   controller.chatPane.requestRender()
   controller.composer.requestRender()
 }
 
-function resetBrowserChatAgentControl(controller: BrowserChatController): void {
-  controller.toolLoopPaused = false
-  controller.toolLoopStopped = false
-  controller.pendingToolCall = null
-  controller.pendingToolResults = null
+function resetBrowserChatAgentControl(controller: BrowserChatController, session = activeBrowserChatSession(controller)): void {
+  session.toolLoopPaused = false
+  session.toolLoopStopped = false
+  session.pendingToolCall = null
+  session.pendingToolResults = null
 }
 
-function holdBrowserChatToolCallIfControlled(controller: BrowserChatController, toolCall: BrowserChatPendingToolCall): boolean {
-  if (controller.toolLoopStopped) {
-    stopBrowserChatPolling(controller, false)
-    controller.pendingToolCall = null
+function holdBrowserChatToolCallIfControlled(controller: BrowserChatController, session: BrowserChatSession, toolCall: BrowserChatPendingToolCall): boolean {
+  if (session.toolLoopStopped) {
+    stopBrowserChatPolling(controller, session, false)
+    session.pendingToolCall = null
     controller.chatPane.requestRender()
     controller.composer.requestRender()
     return true
   }
-  if (!controller.toolLoopPaused) return false
-  stopBrowserChatPolling(controller, false)
-  controller.pendingToolCall = toolCall
+  if (!session.toolLoopPaused) return false
+  stopBrowserChatPolling(controller, session, false)
+  session.pendingToolCall = toolCall
   controller.chatPane.requestRender()
   controller.composer.requestRender()
   return true
 }
 
-async function sendBrowserChatToolResults(controller: BrowserChatController, message: string, summary: string): Promise<void> {
-  const send = await runHostToolWithTimeout("browser_chat.send", {message, urlContains: "chat.qwen.ai", autoToolLoop: false}, 120000)
+async function sendBrowserChatToolResults(controller: BrowserChatController, session: BrowserChatSession, message: string, summary: string): Promise<void> {
+  const send = await runHostToolWithTimeout("browser_chat.send", {...browserChatSessionToolParams(session), message, autoToolLoop: false}, 120000)
   const sendResult = hostToolResultObject(send)
-  updateBrowserChatTransportState(controller, sendResult)
+  updateBrowserChatTransportState(controller, session, sendResult)
   if (send.ok !== true || sendResult["ok"] !== true) throw new Error(send.error ?? stringValue(sendResult["error"]) ?? "browser_chat.send tool_results failed")
   const previousAssistantText = stringValue(sendResult["previousAssistantText"]) ?? ""
   const previousMessageCount = numberValue(sendResult["previousMessageCount"])
-  appendBrowserChatSystemMessage(controller, summary)
-  if (controller.toolLoopStopped) return
-  if (controller.toolLoopPaused) return
-  setBrowserChatStatus(controller, "tool results sent", 2000)
-  startBrowserChatPolling(controller, previousAssistantText, previousMessageCount)
+  appendBrowserChatSystemMessage(controller, session, summary)
+  if (session.toolLoopStopped) return
+  if (session.toolLoopPaused) return
+  setBrowserChatStatus(controller, "tool results sent", 2000, session)
+  startBrowserChatPolling(controller, session, previousAssistantText, previousMessageCount)
 }
 
 function parseBrowserChatToolCalls(text: string): BrowserChatToolCall[] {
@@ -5313,14 +5417,14 @@ function browserChatToolParameters(record: Record<string, unknown>): Record<stri
   }
 }
 
-function browserChatToolResultsMessage(results: readonly BrowserChatToolResultForQwen[]): string {
+function browserChatToolResultsMessage(results: readonly BrowserChatToolResultForProvider[]): string {
   const payload = {
     tool_results: results.map((result) => trimBrowserChatToolResult(result)),
   }
   return `TOOL_RESULTS\n<tool_results>\n${JSON.stringify(payload, null, 2)}\n</tool_results>\n\nUse these results. If you need more data, return another <tool_calls> JSON block. Otherwise answer the user.`
 }
 
-function trimBrowserChatToolResult(result: BrowserChatToolResultForQwen): BrowserChatToolResultForQwen {
+function trimBrowserChatToolResult(result: BrowserChatToolResultForProvider): BrowserChatToolResultForProvider {
   if (result.result === undefined) return result
   const json = JSON.stringify(result.result, null, 2)
   if (json.length <= BROWSER_CHAT_TOOL_RESULT_MAX_CHARS) return result
@@ -5330,7 +5434,7 @@ function trimBrowserChatToolResult(result: BrowserChatToolResultForQwen): Browse
   }
 }
 
-function browserChatAssistantMessagesFromReadResult(result: Record<string, unknown>, streaming: boolean): Array<Omit<BrowserChatMessage, "id" | "createdAt">> {
+function browserChatAssistantMessagesFromReadResult(session: BrowserChatSession, result: Record<string, unknown>, streaming: boolean): Array<Omit<BrowserChatMessage, "id" | "createdAt">> {
   const sourceMessages = Array.isArray(result["messages"]) ? result["messages"] : []
   let lastUserIndex = -1
   sourceMessages.forEach((source, index) => {
@@ -5347,64 +5451,63 @@ function browserChatAssistantMessagesFromReadResult(result: Record<string, unkno
     if (text === undefined || text.length === 0) continue
     const variantIndex = numberValue(record["variantIndex"])
     const variantCount = numberValue(record["variantCount"])
-    const label = variantIndex !== null && variantCount !== null ? `Qwen ${variantIndex}/${variantCount}` : undefined
+    const label = variantIndex !== null && variantCount !== null ? `${session.label} ${variantIndex}/${variantCount}` : session.label
     next.push({role: "assistant", text, streaming, ...(label === undefined ? {} : {label})})
   }
   return next
 }
 
-function replaceBrowserChatAssistantMessages(controller: BrowserChatController, messages: readonly Omit<BrowserChatMessage, "id" | "createdAt">[]): void {
+function replaceBrowserChatAssistantMessages(controller: BrowserChatController, session: BrowserChatSession, messages: readonly Omit<BrowserChatMessage, "id" | "createdAt">[]): void {
   let lastUserIndex = -1
-  controller.messages.forEach((message, index) => {
+  session.messages.forEach((message, index) => {
     if (message.role === "user") lastUserIndex = index
   })
   const start = lastUserIndex + 1
-  const existing = controller.messages.slice(start).filter((message) => message.role === "assistant")
+  const existing = session.messages.slice(start).filter((message) => message.role === "assistant")
   const now = Date.now()
   const next = messages.map((message, index) => ({
     id: existing[index]?.id ?? crypto.randomUUID(),
     createdAt: existing[index]?.createdAt ?? now,
     ...message,
   }))
-  controller.messages.splice(start, controller.messages.length - start, ...next)
+  session.messages.splice(start, session.messages.length - start, ...next)
   controller.chatPane.requestRender()
 }
 
-function appendBrowserChatSystemMessage(controller: BrowserChatController, text: string): void {
-  addBrowserChatMessage(controller, {role: "system", text})
+function appendBrowserChatSystemMessage(controller: BrowserChatController, session: BrowserChatSession, text: string): void {
+  addBrowserChatMessage(controller, session, {role: "system", text})
 }
 
-function updateBrowserChatTransportState(controller: BrowserChatController, result: Record<string, unknown>): void {
-  controller.qwenGenerating = result["generating"] === true
-  controller.qwenCanSend = result["canSend"] !== false
-  controller.qwenBlockedReason = stringValue(result["blockedReason"]) ?? ""
-  const limitText = stringValue(result["lastAssistantText"])
-  controller.qwenLimitReached = result["limitReached"] === true || (limitText !== null && browserChatTextIsUsageLimit(limitText))
-  if (controller.qwenLimitReached) controller.qwenBlockedReason = "Qwen usage limit reached"
-  if (controller.qwenCanSend
-    && !controller.qwenGenerating
-    && !controller.qwenLimitReached
-    && controller.qwenBlockedReason.length === 0
-    && !controller.sendInFlight
-    && controller.readStartedAt <= 0
-    && !controller.toolLoopInFlight
-    && !controller.toolLoopPaused
-    && !controller.toolLoopStopped
-    && /tool loop failed|send failed|read failed|read timeout|waiting qwen|qwen busy/i.test(controller.status)) {
-    setBrowserChatStatus(controller, "")
+function updateBrowserChatTransportState(controller: BrowserChatController, session: BrowserChatSession, result: Record<string, unknown>): void {
+  session.providerGenerating = result["generating"] === true
+  session.providerCanSend = result["canSend"] !== false
+  session.providerBlockedReason = stringValue(result["blockedReason"]) ?? ""
+  session.providerLimitReached = result["limitReached"] === true
+  if (session.providerLimitReached) session.providerBlockedReason = `${session.label} usage limit reached`
+  if (session.providerCanSend
+    && !session.providerGenerating
+    && !session.providerLimitReached
+    && session.providerBlockedReason.length === 0
+    && !session.sendInFlight
+    && session.readStartedAt <= 0
+    && !session.toolLoopInFlight
+    && !session.toolLoopPaused
+    && !session.toolLoopStopped
+    && /tool loop failed|send failed|read failed|read timeout|waiting .*|.* busy/i.test(session.status)) {
+    setBrowserChatStatus(controller, "", 2200, session)
   }
 }
 
-async function hydrateBrowserChatFromQwen(controller: BrowserChatController): Promise<void> {
-  if (controller.sendInFlight || controller.readStartedAt > 0 || controller.messages.some((message) => message.text.trim().length > 0)) return
+async function hydrateBrowserChatSessionFromProvider(controller: BrowserChatController, session: BrowserChatSession): Promise<void> {
+  if (session.sendInFlight || session.readStartedAt > 0 || session.messages.some((message) => message.text.trim().length > 0)) return
   try {
-    const tool = await runHostTool("browser_chat.read", {urlContains: "chat.qwen.ai"})
+    const tool = await runHostTool("browser_chat.read", browserChatSessionToolParams(session))
     const result = hostToolResultObject(tool)
     if (tool.ok !== true || result["ok"] !== true) return
-    updateBrowserChatTransportState(controller, result)
+    updateBrowserChatTransportState(controller, session, result)
     const messageCount = numberValue(result["messageCount"]) ?? arrayLengthValue(result["messages"])
-    if (messageCount !== null) controller.readWatchBaselineMessageCount = messageCount
-    if (controller.sendInFlight || controller.readStartedAt > 0 || controller.messages.some((message) => message.text.trim().length > 0)) return
+    if (messageCount !== null) session.readWatchBaselineMessageCount = messageCount
+    if (session.sendInFlight || session.readStartedAt > 0 || session.messages.some((message) => message.text.trim().length > 0)) return
     const sourceMessages = Array.isArray(result["messages"]) ? result["messages"] : []
     const lastUserIndex = sourceMessages.reduce((last, source, index) => {
       if (typeof source !== "object" || source === null || Array.isArray(source)) return last
@@ -5421,28 +5524,35 @@ async function hydrateBrowserChatFromQwen(controller: BrowserChatController): Pr
       if (role === null || text === undefined || text.length === 0) continue
       const variantIndex = numberValue(record["variantIndex"])
       const variantCount = numberValue(record["variantCount"])
-      const label = role === "assistant" && variantIndex !== null && variantCount !== null ? `Qwen ${variantIndex}/${variantCount}` : undefined
+      const label = role === "assistant" && variantIndex !== null && variantCount !== null ? `${session.label} ${variantIndex}/${variantCount}` : role === "assistant" ? session.label : undefined
       next.push({id: crypto.randomUUID(), createdAt: Date.now(), role, text, ...(label === undefined ? {} : {label})})
     }
     if (next.length === 0) return
-    controller.messages.splice(0, controller.messages.length, ...next)
-    controller.lastAssistantText = stringValue(result["lastAssistantText"]) ?? next.slice().reverse().find((message) => message.role === "assistant")?.text ?? ""
+    session.messages.splice(0, session.messages.length, ...next)
+    session.lastAssistantText = stringValue(result["lastAssistantText"]) ?? next.slice().reverse().find((message) => message.role === "assistant")?.text ?? ""
     controller.chatPane.requestRender()
-    setBrowserChatStatus(controller, "ready", 1200)
+    setBrowserChatStatus(controller, "ready", 1200, session)
   } catch {
     // Hydration is best-effort; active submit polling reports real read errors.
+  }
+}
+
+function hydrateBrowserChatSessions(controller: BrowserChatController): void {
+  for (const session of controller.sessions) {
+    void hydrateBrowserChatSessionFromProvider(controller, session)
   }
 }
 
 function stageBrowserChatDraft(controller: BrowserChatController, text: string, opts: {focusComposer?: boolean} = {}): boolean {
   const body = sanitizeHostTerminalVoiceInput(text)
   if (body.length === 0) return false
+  const session = activeBrowserChatSession(controller)
   clearVoicePartialPreviewForTarget({kind: "browser-chat", controller})
-  const baseDraft = controller.voiceComposerEdited ? controller.codexDraft : (controller.voiceComposerBaseDraft ?? controller.codexDraft)
+  const baseDraft = session.voiceComposerEdited ? session.codexDraft : (session.voiceComposerBaseDraft ?? session.codexDraft)
   const nextDraft = mergeCodexComposerDraft(baseDraft, body)
-  resetBrowserChatVoiceComposerDraftTracking(controller)
-  setBrowserChatDraft(controller, nextDraft)
-  setBrowserChatStatus(controller, "voice added", 1800)
+  resetBrowserChatVoiceComposerDraftTracking(controller, session)
+  setBrowserChatDraft(controller, nextDraft, session)
+  setBrowserChatStatus(controller, "voice added", 1800, session)
   if (opts.focusComposer) focusBrowserChatComposer(controller)
   controller.composer.requestRender()
   return true
@@ -5451,58 +5561,61 @@ function stageBrowserChatDraft(controller: BrowserChatController, text: string, 
 function applyBrowserChatVoiceComposerText(controller: BrowserChatController, text: string): boolean {
   const body = sanitizeHostTerminalVoiceInput(text)
   if (body.length === 0) return false
-  if (controller.voiceComposerBaseDraft === null) {
-    controller.voiceComposerBaseDraft = controller.codexDraft
-    controller.voiceComposerGeneratedDraft = controller.codexDraft
+  const session = activeBrowserChatSession(controller)
+  if (session.voiceComposerBaseDraft === null) {
+    session.voiceComposerBaseDraft = session.codexDraft
+    session.voiceComposerGeneratedDraft = session.codexDraft
   }
-  if (controller.voiceComposerEdited) return true
-  const nextDraft = mergeCodexComposerDraft(controller.voiceComposerBaseDraft, body)
-  controller.voiceComposerGeneratedDraft = nextDraft
-  if (controller.codexDraft === nextDraft) return true
-  setBrowserChatDraft(controller, nextDraft)
+  if (session.voiceComposerEdited) return true
+  const nextDraft = mergeCodexComposerDraft(session.voiceComposerBaseDraft, body)
+  session.voiceComposerGeneratedDraft = nextDraft
+  if (session.codexDraft === nextDraft) return true
+  setBrowserChatDraft(controller, nextDraft, session)
   return true
 }
 
 function restoreBrowserChatVoiceComposerBaseDraft(controller: BrowserChatController): void {
-  if (controller.voiceComposerBaseDraft === null) return
-  if (!controller.voiceComposerEdited && controller.codexDraft === controller.voiceComposerGeneratedDraft) {
-    setBrowserChatDraft(controller, controller.voiceComposerBaseDraft)
+  const session = activeBrowserChatSession(controller)
+  if (session.voiceComposerBaseDraft === null) return
+  if (!session.voiceComposerEdited && session.codexDraft === session.voiceComposerGeneratedDraft) {
+    setBrowserChatDraft(controller, session.voiceComposerBaseDraft, session)
   }
-  resetBrowserChatVoiceComposerDraftTracking(controller)
+  resetBrowserChatVoiceComposerDraftTracking(controller, session)
 }
 
-function resetBrowserChatVoiceComposerDraftTracking(controller: BrowserChatController): void {
-  controller.voiceComposerBaseDraft = null
-  controller.voiceComposerGeneratedDraft = ""
-  controller.voiceComposerEdited = false
+function resetBrowserChatVoiceComposerDraftTracking(controller: BrowserChatController, session = activeBrowserChatSession(controller)): void {
+  session.voiceComposerBaseDraft = null
+  session.voiceComposerGeneratedDraft = ""
+  session.voiceComposerEdited = false
 }
 
 function focusBrowserChatComposer(controller: BrowserChatController): void {
   uiCanvas?.setFocused(controller.editor)
 }
 
-function setBrowserChatStatus(controller: BrowserChatController, status: string, ttlMs = 2200): void {
-  if (controller.statusTimer !== null) {
-    window.clearTimeout(controller.statusTimer)
-    controller.statusTimer = null
+function setBrowserChatStatus(controller: BrowserChatController, status: string, ttlMs = 2200, session = activeBrowserChatSession(controller)): void {
+  if (session.statusTimer !== null) {
+    window.clearTimeout(session.statusTimer)
+    session.statusTimer = null
   }
-  controller.status = status
+  session.status = status
   controller.composer.requestRender()
   controller.chatPane.requestRender()
   if (!status) return
-  controller.statusTimer = window.setTimeout(() => {
-    controller.statusTimer = null
-    controller.status = ""
+  session.statusTimer = window.setTimeout(() => {
+    session.statusTimer = null
+    session.status = ""
     controller.composer.requestRender()
     controller.chatPane.requestRender()
   }, ttlMs)
 }
 
 function removeBrowserChatAttachment(controller: BrowserChatController, id: string): void {
-  const next = controller.codexAttachments.filter((attachment) => attachment.id !== id)
-  if (next.length === controller.codexAttachments.length) return
-  controller.codexAttachments = next
-  setBrowserChatStatus(controller, next.length > 0 ? `${next.length} attachments` : "")
+  const session = activeBrowserChatSession(controller)
+  const next = session.codexAttachments.filter((attachment) => attachment.id !== id)
+  if (next.length === session.codexAttachments.length) return
+  session.codexAttachments = next
+  setBrowserChatStatus(controller, next.length > 0 ? `${next.length} attachments` : "", 2200, session)
   controller.composer.requestRender()
 }
 
@@ -5514,24 +5627,25 @@ async function chooseBrowserChatImages(controller: BrowserChatController): Promi
 }
 
 async function attachBrowserChatImages(controller: BrowserChatController, files: readonly File[]): Promise<void> {
+  const session = activeBrowserChatSession(controller)
   if (files.length === 0) {
-    setBrowserChatStatus(controller, "no image")
+    setBrowserChatStatus(controller, "no image", 2200, session)
     return
   }
-  setBrowserChatStatus(controller, "uploading image", 6000)
-  controller.codexAttachmentUploadInFlight = true
+  setBrowserChatStatus(controller, "uploading image", 6000, session)
+  session.codexAttachmentUploadInFlight = true
   let submitAfterUpload = false
   try {
     const uploaded = await uploadCodexAttachments(files)
-    controller.codexAttachments = [...controller.codexAttachments, ...uploaded]
-    setBrowserChatStatus(controller, `${controller.codexAttachments.length} attachments`)
+    session.codexAttachments = [...session.codexAttachments, ...uploaded]
+    setBrowserChatStatus(controller, `${session.codexAttachments.length} attachments`, 2200, session)
     focusBrowserChatComposer(controller)
-    submitAfterUpload = controller.codexSubmitAfterAttachmentUpload && controller.codexAttachments.length > 0
+    submitAfterUpload = session.codexSubmitAfterAttachmentUpload && session.codexAttachments.length > 0
   } catch (error) {
-    setBrowserChatStatus(controller, error instanceof Error ? error.message : String(error), 5000)
+    setBrowserChatStatus(controller, error instanceof Error ? error.message : String(error), 5000, session)
   } finally {
-    controller.codexAttachmentUploadInFlight = false
-    controller.codexSubmitAfterAttachmentUpload = false
+    session.codexAttachmentUploadInFlight = false
+    session.codexSubmitAfterAttachmentUpload = false
     controller.composer.requestRender()
   }
   if (submitAfterUpload) submitBrowserChatComposer(controller)
@@ -5583,8 +5697,9 @@ function dragEventInsideBrowserChatComposer(event: DragEvent): boolean {
 }
 
 function setBrowserChatDropActive(controller: BrowserChatController, active: boolean): void {
-  if (controller.codexDropActive === active) return
-  controller.codexDropActive = active
+  const session = activeBrowserChatSession(controller)
+  if (session.codexDropActive === active) return
+  session.codexDropActive = active
   controller.composer.requestRender()
 }
 
@@ -6226,7 +6341,7 @@ function voiceTargetLabel(): string {
 }
 
 function voiceTargetCanAcceptInput(target: VoiceInputTarget): boolean {
-  if (target.kind === "browser-chat") return !target.controller.sendInFlight
+  if (target.kind === "browser-chat") return !activeBrowserChatSession(target.controller).sendInFlight
   if (target.kind === "host") {
     return target.controller === hostTerminal
       && target.controller.socket?.readyState === WebSocket.OPEN
@@ -6833,11 +6948,20 @@ function ensureBrowserChatController(): BrowserChatController {
   if (browserChat !== null) return browserChat
   const controller = {} as BrowserChatController
   const chatPane = new BrowserChatPane({
-    messages: () => controller.messages,
+    messages: () => activeBrowserChatSession(controller).messages,
+    sessions: () => controller.sessions.map((session): BrowserChatPaneSession => ({
+      id: session.id,
+      label: session.label,
+      provider: session.provider,
+      status: browserChatSessionStatus(controller, session),
+      statusKind: browserChatSessionStatusKind(controller, session),
+    })),
+    activeSessionId: () => controller.activeSessionId,
+    activateSession: (id) => activateBrowserChatSession(controller, id),
     status: () => browserChatComposerStatus(controller),
     statusKind: () => browserChatStatusKind(controller),
-    paused: () => controller.toolLoopPaused,
-    stopped: () => controller.toolLoopStopped,
+    paused: () => activeBrowserChatSession(controller).toolLoopPaused,
+    stopped: () => activeBrowserChatSession(controller).toolLoopStopped,
     pause: () => pauseBrowserChatAgent(controller),
     resume: () => resumeBrowserChatAgent(controller),
     stop: () => stopBrowserChatAgent(controller),
@@ -6851,42 +6975,29 @@ function ensureBrowserChatController(): BrowserChatController {
     chatPane,
     composer,
     editor,
-    codexDraft: "",
+    sessions: [
+      createBrowserChatSession("qwen", "Qwen", "chat.qwen.ai"),
+      createBrowserChatSession("deepseek", "DeepSeek", "chat.deepseek.com"),
+    ],
+    activeSessionId: "qwen",
     codexAttachments: [],
-    codexAttachmentUploadInFlight: false,
-    codexSubmitAfterAttachmentUpload: false,
     codexDropActive: false,
-    codexEditorSyncing: false,
-    status: "",
-    statusTimer: null,
-    voiceComposerBaseDraft: null,
-    voiceComposerGeneratedDraft: "",
-    voiceComposerEdited: false,
-    messages: [],
-    sendInFlight: false,
-    readTimer: null,
-    readWatchTimer: null,
-    readStartedAt: 0,
-    readStableTicks: 0,
-    readAfterMessageCount: null,
-    readWatchBaselineMessageCount: null,
-    qwenGenerating: false,
-    qwenCanSend: true,
-    qwenBlockedReason: "",
-    qwenLimitReached: false,
-    lastAssistantText: "",
-    lastProcessedToolCallText: null,
-    toolPromptSent: false,
-    toolLoopInFlight: false,
-    toolLoopPaused: false,
-    toolLoopStopped: false,
-    toolLoopTurns: 0,
-    pendingToolCall: null,
-    pendingToolResults: null,
   } satisfies BrowserChatController)
+  Object.defineProperties(controller, {
+    codexAttachments: {
+      get: () => activeBrowserChatSession(controller).codexAttachments,
+      set: (value: CodexComposerAttachment[]) => { activeBrowserChatSession(controller).codexAttachments = value },
+      configurable: true,
+    },
+    codexDropActive: {
+      get: () => activeBrowserChatSession(controller).codexDropActive,
+      set: (value: boolean) => { activeBrowserChatSession(controller).codexDropActive = value },
+      configurable: true,
+    },
+  })
   browserChat = controller
-  window.setTimeout(() => { void hydrateBrowserChatFromQwen(controller) }, 0)
-  scheduleBrowserChatReadWatch(controller)
+  window.setTimeout(() => hydrateBrowserChatSessions(controller), 0)
+  for (const session of controller.sessions) scheduleBrowserChatReadWatch(controller, session)
   return controller
 }
 

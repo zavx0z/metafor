@@ -374,15 +374,16 @@ browser_chat.wait      # {provider?:qwen|deepseek, targetId?, targetUrl?, target
 browser_chat.exchange  # {provider?:qwen|deepseek, message|text, targetId?, targetUrl?, targetTitle?, urlContains?, previousAssistantText?, afterMessageCount?, intervalMs?, stableTicks?, timeoutMs?}
 ```
 
-По умолчанию target выбирается по `urlContains:"chat.qwen.ai"`. `send` ищет
-Qwen composer textarea/contenteditable, проверяет, что Qwen не генерирует и не
-показывает выбор варианта ответа, вставляет текст, диспатчит input/change events
-и нажимает send. Если Qwen показывает выбор из нескольких ответов и один из
-вариантов содержит `<tool_calls>`, `send` автоматически выбирает этот вариант
-перед отправкой следующего сообщения/tool results, чтобы Browser Agent loop не
-останавливался на ручном выборе. Если передан `newChat:true`, `send` сначала
-открывает новый Qwen chat через `https://chat.qwen.ai/`, затем отправляет
-сообщение. Если Qwen занят, `send` по умолчанию ждет готовности до
+По умолчанию target выбирается по fallback provider `qwen`. `send` выбирает
+provider adapter, ищет composer textarea/contenteditable, проверяет, что chat не
+генерирует и не показывает выбор варианта ответа, вставляет текст, диспатчит
+input/change events и нажимает send. Если provider показывает выбор из
+нескольких ответов и один из вариантов содержит `<tool_calls>`, `send`
+автоматически выбирает этот вариант перед отправкой следующего сообщения/tool
+results, чтобы Browser Agent loop не останавливался на ручном выборе. Если
+передан `newChat:true`, `send` сначала открывает новый chat выбранного provider,
+затем отправляет сообщение. Если provider занят, `send` по умолчанию ждет
+готовности до
 `sendTimeoutMs` и не пишет в composer до готового состояния; при таймауте
 возвращает `ok:false`, `busy:true`/`canSend:false`, `blockedReason` и `waitedMs`.
 После клика `send` проверяет, что сообщение реально принято, и не возвращает
@@ -397,29 +398,36 @@ Qwen composer textarea/contenteditable, проверяет, что Qwen не г�
 streaming polling и запускает tool loop только после завершения генерации.
 Если свежая отправка получает дневной usage/quota limit вместо ответа, `send`
 возвращает `limitReached:true`, `canSend:false`, `busy:true` и
-`blockedReason:"Qwen usage limit reached"`. `read` не держит blocked state по
-старому limit-сообщению в истории: после сброса лимита активный composer снова
-должен дать `canSend:true`.
+provider-specific `blockedReason`. `read` не держит blocked state по старому
+limit-сообщению в истории: после сброса лимита активный composer снова должен
+дать `canSend:true`.
 
 Codex message и Browser Agent message используют общий UI composer flow для
 text/voice/image attachments, но transport разный: Codex message идет в
 host PTY/Codex CLI, Browser Agent message идет в remote browser chat. В MVP
-image attachments не загружаются в Qwen UI как файлы: composer добавляет пути к
-загруженным изображениям в текст сообщения.
+image attachments не загружаются в provider UI как файлы: composer добавляет
+пути к загруженным изображениям в текст сообщения.
 
-Обычная отправка Browser Agent message передает в Qwen только текст пользователя
-и attachment paths. Tool prompt не добавляется автоматически к пользовательским
-сообщениям: он отправляется отдельной кнопкой Browser Agent composer, которая
-создает новый Qwen chat через `browser_chat.send` с `newChat:true`.
+Browser Agent Chat UI имеет provider sessions: `Qwen` и `DeepSeek`. Каждая
+session имеет отдельную историю, draft, attachments, transport state и tool loop
+state; переключение вкладок не очищает draft/history другой session. Один
+composer/editor работает с active session, а все вызовы `browser_chat.*` из UI
+передают `provider` и `urlContains` этой active session.
 
-Browser Agent поверх transport добавляет текстовый tool protocol для Qwen:
+Обычная отправка Browser Agent message передает в active provider только текст
+пользователя и attachment paths. Tool prompt не добавляется автоматически к
+пользовательским сообщениям: он отправляется отдельной кнопкой Browser Agent
+composer, которая очищает только active session и создает новый chat выбранного
+provider через `browser_chat.send` с `newChat:true`.
+
+Browser Agent поверх transport добавляет текстовый tool protocol для active provider:
 если ответ assistant содержит блок `<tool_calls>{"tool_uses":[...]}</tool_calls>`,
 ограниченный loop выполняет эти calls через общий `POST /tools`, затем отправляет
-обратно в Qwen блок `<tool_results>{"tool_results":[...]}</tool_results>`. Это
-не native function calling API Qwen и не универсальный planner. Для прямого
+обратно в provider блок `<tool_results>{"tool_results":[...]}</tool_results>`. Это
+не native function calling API provider-а и не универсальный planner. Для прямого
 `browser_chat.send` server-side pump включен по умолчанию; Browser Agent UI
 передает `autoToolLoop:false`, чтобы не дублировать свой streaming loop.
-`browser_chat.*` сами остаются только transport командами; Qwen не должен
+`browser_chat.*` сами остаются только transport командами; browser LLM не должен
 вызывать `browser_chat.*`, чтобы не рекурсировать чат в самого себя.
 
 `devtools.console` включает capture событий `Runtime.consoleAPICalled`,
