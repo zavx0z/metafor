@@ -4950,7 +4950,7 @@ function setBrowserChatToolPromptMode(controller: BrowserChatController, mode: B
 function openBrowserChatImageRecognitionChat(controller: BrowserChatController): void {
   const session = activeBrowserChatSession(controller)
   if (session.provider !== "deepseek") return
-  if (!browserChatToolPromptCanSend(controller)) {
+  if (session.sendInFlight || session.toolLoopInFlight) {
     setBrowserChatStatus(controller, "busy", 1400, session)
     return
   }

@@ -145,7 +145,6 @@ export class BrowserChatPane extends UiSurface {
         iconSrc: uiIcons.recognition,
         tooltip: "New Image Recognition chat",
         active: mode === "vision",
-        disabled: !this.#opts.canSendToolPrompt(),
         action: () => this.#opts.setToolPromptMode("vision"),
       })
     }
