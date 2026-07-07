@@ -480,18 +480,16 @@ export class VoiceInputClient {
     this.#stopAudioOnly()
     this.options.onLevel(0)
     if (!this.#asrEnabled) {
-      this.#setStatus("waitingWake", "draft")
-      void this.#resumeWakeAfterDraftDrain()
+      this.#setStatus("idle", "draft")
       return
     }
-    this.#setStatus("waitingWake", "draft")
+    this.#setStatus(this.#session.hasPendingChunks() || this.#commitPending ? "processing" : "idle", "draft")
     this.#pumpAsrQueue()
     this.#clearAsrReconnectTimer()
     if (!this.#session.hasPendingChunks() && !this.#commitPending) {
       this.#sendAsr({type: "stop"})
       this.#pauseAsrSocketForWake()
       this.#asrEnabled = false
-      void this.#resumeWakeAfterDraftDrain()
     } else if (this.#asrWs?.readyState !== WebSocket.OPEN) {
       this.#scheduleAsrReconnect()
     }
@@ -1295,8 +1293,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#asrEnabled = false
     this.#asrActivatedAt = 0
     if (this.#session.phase === "draft") {
-      this.#setStatus("waitingWake", "draft")
-      void this.#resumeWakeAfterDraftDrain()
+      this.#setStatus("idle", "draft")
     }
     else {
       if (this.#wakeEnabled()) {
@@ -1637,7 +1634,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       })
       const resumeCapture = this.#stream !== null && this.#session.phase !== "draft"
       this.#session.startRecording(resumeCapture)
-      this.#setStatus(resumeCapture ? "listening" : this.#session.hasPendingChunks() ? "processing" : "waitingWake", "ASR reconnected")
+      this.#setStatus(resumeCapture ? "listening" : this.#session.phase === "draft" ? this.#session.hasPendingChunks() ? "processing" : "idle" : this.#session.hasPendingChunks() ? "processing" : "waitingWake", this.#session.phase === "draft" ? "draft" : "ASR reconnected")
       if (resumeCapture) this.#touchVoiceActivity()
       this.#pumpAsrQueue()
       this.#trace("asr.reconnect.ready", {resumeCapture})

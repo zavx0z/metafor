@@ -4083,7 +4083,7 @@ async function toggleVoiceInput(): Promise<void> {
         await client.startDictation()
         return
       }
-      voiceAutoWakePaused = false
+      voiceAutoWakePaused = true
       voiceNextFlushMode = "draft"
       await client.sleepToWake()
       return
