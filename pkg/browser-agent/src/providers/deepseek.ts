@@ -46,10 +46,21 @@ export function deepseekSendExpression(message: string, newChat: boolean, params
     const findSendButton = () => {
       const input = findInput();
       const inputRect = input ? input.getBoundingClientRect() : null;
+      const isUploadButton = (el) => {
+        const label = cleanInline([el.getAttribute("aria-label"), el.getAttribute("title"), el.getAttribute("data-testid"), el.className, el.innerText].join(" ")).toLowerCase();
+        const html = String(el.innerHTML || "");
+        return /stop|cancel|record|mic|voice|attach|upload|file|paperclip/.test(label)
+          || /M5\\.5498 9\\.75V5|C6\\.9502 9\\.75|V4\\.5C8\\.5696/i.test(html);
+      };
+      const isSendButton = (el) => {
+        const label = cleanInline([el.getAttribute("aria-label"), el.getAttribute("title"), el.getAttribute("data-testid"), el.className, el.innerText].join(" ")).toLowerCase();
+        const html = String(el.innerHTML || "");
+        return /send|submit|arrow|发送|送信/.test(label)
+          || /M8\\.3125 0\\.981587|L14\\.707 6\\.83608|9 3\\.95717V15\\.0431/i.test(html);
+      };
       const candidates = Array.from(document.querySelectorAll("button, [role=button]")).filter((el) => {
         if (!visible(el) || disabled(el)) return false;
-        const label = cleanInline([el.getAttribute("aria-label"), el.getAttribute("title"), el.getAttribute("data-testid"), el.className, el.innerText].join(" ")).toLowerCase();
-        if (/stop|cancel|record|mic|voice|attach|upload|file/.test(label)) return false;
+        if (isUploadButton(el) || !isSendButton(el)) return false;
         if (inputRect === null) return true;
         const rect = el.getBoundingClientRect();
         return rect.y >= inputRect.y - 80
