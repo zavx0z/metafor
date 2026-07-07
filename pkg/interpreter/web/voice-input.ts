@@ -300,12 +300,13 @@ export class VoiceInputClient {
   }
 
   async reconnectWaitingWake(): Promise<void> {
-    if (this.#status !== "waitingWake" || this.#stream === null) return
+    if (this.#status !== "waitingWake") return
     this.#stopRequested = false
     this.#wakeMatched = false
     this.#disconnectCommandSocket()
     if (!this.#asrEnabled) this.#disconnectAsrSocket()
     try {
+      if (this.#stream === null) await this.#startAudio()
       await this.#startCommandRecognizer()
     } catch (error) {
       this.#setStatus("error", error instanceof Error ? error.message : String(error))
@@ -428,7 +429,8 @@ export class VoiceInputClient {
     this.#stopAudioOnly()
     this.options.onLevel(0)
     if (!this.#asrEnabled) {
-      this.#setStatus("waitingWake", WAKE_WORD)
+      this.#setStatus("waitingWake", "draft")
+      void this.#resumeWakeAfterDraftDrain()
       return
     }
     this.#setStatus("waitingWake", "draft")
@@ -438,6 +440,7 @@ export class VoiceInputClient {
       this.#sendAsr({type: "stop"})
       this.#pauseAsrSocketForWake()
       this.#asrEnabled = false
+      void this.#resumeWakeAfterDraftDrain()
     } else if (this.#asrWs?.readyState !== WebSocket.OPEN) {
       this.#scheduleAsrReconnect()
     }
@@ -777,6 +780,14 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
             this.#setStatus("error", error instanceof Error ? error.message : String(error))
             this.#cleanup()
           })
+          return
+        }
+        if (deactivationModeAllowsPhrase(this.options.deactivationMode()) && isActivationDeactivationCommand(text, phraseGroups.activation)) {
+          void this.sleepToWake().catch((error) => {
+            this.#setStatus("error", error instanceof Error ? error.message : String(error))
+            this.#cleanup()
+          })
+          return
         }
       }
       return
@@ -822,6 +833,11 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     if (msg.type === "result" || msg.type === "final") {
       this.#trace("asr.message.final", {type: msg.type, chars: cleanupVoiceText(recognitionText(msg)).length, text: debugTraceText(recognitionText(msg))})
       const phraseGroups = this.#asrControlPhrases()
+      if (deactivationModeAllowsPhrase(this.options.deactivationMode()) && isActivationDeactivationCommand(recognitionText(msg), phraseGroups.activation)) {
+        this.#trace("asr.message.activation-deactivation", {text: debugTraceText(recognitionText(msg))})
+        this.#executeControlCommand("deactivation")
+        return
+      }
       const result = removeCommandText(chunkFromAsrMessage(msg, phraseGroups), phraseGroups)
       const chunk = result.chunk
       if (voiceChunkHasText(chunk)) {
@@ -1071,7 +1087,10 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#pauseAsrSocketForWake()
     this.#asrEnabled = false
     this.#asrActivatedAt = 0
-    if (this.#session.phase === "draft") this.#setStatus("waitingWake", "draft")
+    if (this.#session.phase === "draft") {
+      this.#setStatus("waitingWake", "draft")
+      void this.#resumeWakeAfterDraftDrain()
+    }
     else {
       this.#session.reset()
       this.#setStatus("idle", "ready")
@@ -1288,6 +1307,22 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       return
     }
     this.#disconnectAsrSocket()
+  }
+
+  async #resumeWakeAfterDraftDrain(): Promise<void> {
+    if (this.#stopRequested || this.#status !== "waitingWake" || this.#session.phase !== "draft") return
+    if (this.#asrEnabled || this.#commitPending || this.#session.hasPendingChunks()) return
+    if (!this.#wakeEnabled()) {
+      this.#setStatus("idle", "ready")
+      return
+    }
+    this.#trace("wake.resume-after-draft.request")
+    try {
+      await this.reconnectWaitingWake()
+      this.#trace("wake.resume-after-draft.ready")
+    } catch (error) {
+      this.#trace("wake.resume-after-draft.error", {error: error instanceof Error ? error.message : String(error)})
+    }
   }
 
   #setTransport(transport: VoiceInputTransport): void {
@@ -1536,6 +1571,7 @@ function cleanupAsrText(text: string, activationPhrases: readonly string[]): str
 }
 
 function removeCommandTextFromString(text: string, phraseGroups: VoiceCommandPhraseGroups): VoiceControlText {
+  if (isActivationDeactivationCommand(text, phraseGroups.activation)) return {text: "", command: "deactivation"}
   return stripControlCommandText(cleanupAsrText(text, phraseGroups.activation), phraseGroups)
 }
 
@@ -1649,6 +1685,15 @@ function stripControlCommandText(text: string, phraseGroups: VoiceCommandPhraseG
 function detectControlCommand(text: string, phraseGroups: VoiceCommandPhraseGroups): VoiceControlCommand | null {
   if (hasStopCommand(text, phraseGroups.stop)) return "stop"
   return isDeactivationPhrase(text, phraseGroups.deactivation) ? "deactivation" : null
+}
+
+function isActivationDeactivationCommand(text: string, activationPhrases: readonly string[]): boolean {
+  const normalized = normalizeWakeText(text)
+  if (!normalized) return false
+  const match = activationPhraseMatch(normalized, activationPhrases)
+  if (match === null) return false
+  const tail = normalized.slice(match.phrase.length).trim()
+  return tail === "" || tail === "и все" || tail === "все" || tail === "стоп" || tail === "и стоп"
 }
 
 function mergeControlCommand(a: VoiceControlCommand | null, b: VoiceControlCommand | null): VoiceControlCommand | null {

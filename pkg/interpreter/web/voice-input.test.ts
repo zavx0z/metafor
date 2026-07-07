@@ -471,12 +471,14 @@ describe("voice dictation cleanup", () => {
 
   test("builds ASR partial preview without using commands as dictation text", () => {
     const groups = {
-      activation: ["завхоз"],
+      activation: ["завхоз", "запхоз"],
       deactivation: ["выключи микрофон"],
       stop: ["полная остановка"],
     }
     expect(prepareVoiceLivePreviewText("завхоз первое слово не потерялось", groups)).toBe("первое слово не потерялось")
     expect(prepareVoiceLivePreviewText("Текст не рвался и не дублировался", groups, "Текст не рвался")).toBe("и не дублировался")
     expect(prepareVoiceLivePreviewText("выключи микрофон", groups)).toBe("")
+    expect(prepareVoiceLivePreviewText("запхоз и все", groups)).toBe("")
+    expect(prepareVoiceLivePreviewText("завхоз открой терминал", groups)).toBe("открой терминал")
   })
 })
