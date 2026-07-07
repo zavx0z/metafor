@@ -216,6 +216,8 @@ const VOICE_ACTIVATION_PREROLL_STRONG_RMS = 0.055
 const VOICE_ACTIVATION_PREROLL_STRONG_PEAK = 0.09
 const VOICE_COMMAND_AUDIO_GATE_RMS = 0.006
 const VOICE_COMMAND_AUDIO_GATE_PEAK = 0.010
+const VOICE_LEVEL_SILERO_PROBABILITY = 0.35
+const VOICE_LEVEL_SILERO_MAX_AGE_MS = 320
 const VOICE_WAKE_WORD_AUDIO_PADDING_MS = 120
 const VOICE_WAKE_RESULT_LATENCY_GUARD_MS = 260
 const VOICE_WAKE_FALLBACK_AUDIO_PREROLL_MS = 260
@@ -1049,7 +1051,12 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       speechProbability: sileroProbability?.probability ?? undefined,
       speechProbabilityAt: sileroProbability?.at ?? undefined,
     })
-    this.options.onLevel(vad.speaking ? rms : 0)
+    const freshSileroLevel = sileroProbability?.probability !== null
+      && sileroProbability?.probability !== undefined
+      && sileroProbability.at > 0
+      && now - sileroProbability.at <= VOICE_LEVEL_SILERO_MAX_AGE_MS
+      && sileroProbability.probability >= VOICE_LEVEL_SILERO_PROBABILITY
+    this.options.onLevel(freshSileroLevel ? rms : 0)
     if (vad.started || vad.stopped || vad.closedChunkIds.length > 0 || vad.finalSilence || vad.potentialVoice || now - this.#lastVadTraceAt >= 1_000) {
       this.#lastVadTraceAt = now
       this.#trace(vad.started ? "vad.speech-start" : vad.stopped ? "vad.speech-stop" : vad.closedChunkIds.length > 0 ? "vad.chunk-closed" : vad.finalSilence ? "vad.final-silence" : "vad.frame", {
