@@ -4064,6 +4064,7 @@ function voiceSignalForStatusChange(previousStatus: VoiceInputStatus, nextStatus
   if (nextStatus === "waitingWake" && detail === "ready") return null
   if (nextStatus === "waitingWake" && (previousStatus === "listening" || previousStatus === "committing")) return "deactivation"
   if (nextStatus === "idle" && detail === VOICE_STOP_COMMAND_DETAIL) return "stop"
+  if (nextStatus === "idle" && detail === "draft") return null
   if (nextStatus === "idle" && (previousStatus === "listening" || previousStatus === "committing")) return "deactivation"
   return null
 }
@@ -7355,15 +7356,13 @@ function storeVoiceDeactivationMode(value: VoiceInputHudDeactivationMode): void 
 }
 
 function storeVoiceRecognitionTimeoutSeconds(value: number): void {
-  const next = writeVoiceRecognitionTimeoutSeconds(value)
-  if (readVoiceRecognitionMaxTimeoutSeconds() < next) writeVoiceRecognitionMaxTimeoutSeconds(next)
+  writeVoiceRecognitionTimeoutSeconds(Math.min(value, readVoiceRecognitionMaxTimeoutSeconds()))
   renderVoiceHud()
   voiceInputClient?.refreshDeactivationSettings()
 }
 
 function storeVoiceRecognitionMaxTimeoutSeconds(value: number): void {
-  const next = writeVoiceRecognitionMaxTimeoutSeconds(value)
-  if (readVoiceRecognitionTimeoutSeconds() > next) writeVoiceRecognitionTimeoutSeconds(next)
+  writeVoiceRecognitionMaxTimeoutSeconds(Math.max(value, readVoiceRecognitionTimeoutSeconds()))
   renderVoiceHud()
   voiceInputClient?.refreshDeactivationSettings()
 }
