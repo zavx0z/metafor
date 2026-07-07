@@ -238,6 +238,11 @@ export function deepseekConfigureExpression(params: BrowserAgentJsonObject = {})
     if (mode === "expert" || mode === "fast" || mode === "vision") {
       const targetType = mode === "fast" ? "default" : mode;
       const radio = Array.from(document.querySelectorAll('[role=radio][data-model-type], [data-model-type]')).find((el) => visible(el) && el.getAttribute("data-model-type") === targetType);
+      if (!radio && newChat) {
+        location.assign("https://chat.deepseek.com/");
+        await wait(150);
+        return {ok:false, adapter:"deepseek", newChatNavigating:true, busy:true, canSend:false, generating:false, preferenceActive:false, blockedReason:"DeepSeek new chat navigation", error:"DeepSeek new chat navigation started"};
+      }
       if (!radio) return {ok:false, adapter:"deepseek", mode, deepThinking, error:"DeepSeek mode control not found"};
       const checked = radio.getAttribute("aria-checked") === "true" || /selected|active|checked/i.test(String(radio.className || ""));
       if (!checked) {
