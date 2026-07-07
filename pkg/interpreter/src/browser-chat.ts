@@ -10,6 +10,8 @@ const BROWSER_CHAT_MIN_WAIT_MS = 6_000
 const BROWSER_CHAT_WAIT_TIMEOUT_MS = 90_000
 const BROWSER_CHAT_READ_RETRY_MS = 220
 const BROWSER_CHAT_READ_RETRIES = 2
+const BROWSER_CHAT_SEND_READY_INTERVAL_MS = 650
+const BROWSER_CHAT_SEND_READY_TIMEOUT_MS = 90_000
 
 export async function runBrowserChatToolUse(name: string, params: JsonObject): Promise<JsonObject | null> {
   if (name === "browser_chat.send") return await browserChatSend(params)
@@ -22,12 +24,28 @@ export async function runBrowserChatToolUse(name: string, params: JsonObject): P
 async function browserChatSend(params: JsonObject): Promise<JsonObject> {
   const message = asString(params["message"]) ?? asString(params["text"])
   if (message === undefined || message.trim().length === 0) return {ok: false, error: "message required"}
-  const sent = await evaluateBrowserChatPayload(params, qwenSendExpression(message))
-  if (sent["ok"] === true || !isTransientBrowserChatError(asString(sent["error"]))) return sent
-  await delay(300)
-  const read = await browserChatRead(params)
-  const recovered = browserChatRecoveredSendPayload(message, sent, read)
-  return recovered ?? sent
+  const newChat = asBoolean(params["newChat"]) ?? asBoolean(params["newConversation"]) ?? false
+  const waitUntilReady = asBoolean(params["waitUntilReady"]) ?? true
+  const timeoutMs = boundedNumber(asNumber(params["sendTimeoutMs"]), BROWSER_CHAT_SEND_READY_TIMEOUT_MS, 1_000, 300_000)
+  const startedAt = Date.now()
+
+  while (true) {
+    const sent = await evaluateBrowserChatPayload(params, qwenSendExpression(message, newChat))
+    if (sent["ok"] === true) return {...sent, waitedMs: Date.now() - startedAt}
+    if (sent["limitReached"] === true) return {...sent, waitedMs: Date.now() - startedAt}
+    if (isTransientBrowserChatError(asString(sent["error"]))) {
+      await delay(300)
+      const read = await browserChatRead(params)
+      const recovered = browserChatRecoveredSendPayload(message, sent, read)
+      if (recovered !== null) return {...recovered, waitedMs: Date.now() - startedAt}
+      if (waitUntilReady && Date.now() - startedAt < timeoutMs) continue
+      return {...sent, waitedMs: Date.now() - startedAt}
+    }
+    if (!waitUntilReady || !isBrowserChatBusyPayload(sent) || Date.now() - startedAt >= timeoutMs) {
+      return {...sent, waitedMs: Date.now() - startedAt}
+    }
+    await delay(BROWSER_CHAT_SEND_READY_INTERVAL_MS)
+  }
 }
 
 async function browserChatRead(params: JsonObject): Promise<JsonObject> {
@@ -219,18 +237,112 @@ function isTransientBrowserChatError(error: string | undefined): boolean {
   return error !== undefined && /Promise was collected|Execution context was destroyed|Cannot find context|Target closed|WebSocket/i.test(error)
 }
 
-function qwenSendExpression(message: string): string {
+function isBrowserChatBusyPayload(payload: JsonObject): boolean {
+  if (payload["limitReached"] === true) return false
+  const error = asString(payload["error"]) ?? ""
+  return payload["busy"] === true
+    || payload["generating"] === true
+    || payload["canSend"] === false
+    || /busy|not ready|generating|preference|still thinking|composer/i.test(error)
+}
+
+function qwenSendExpression(message: string, newChat: boolean): string {
   return `(async function(){
     const message = ${JSON.stringify(message)};
+    const newChat = ${JSON.stringify(newChat)};
     const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const clean = (text) => String(text || "").replace(/\\u200b/g, "").replace(/\\s+\\n/g, "\\n").replace(/\\n\\s+/g, "\\n").replace(/[ \\t]+/g, " ").trim();
     const cleanAnswer = (text) => clean(text).split("\\n").map((line) => line.trim()).filter((line) => line && !/^(Finalize the response|Пропустить)$/i.test(line)).join("\\n").trim();
+    const hasToolCalls = (text) => /<tool_calls>|\"tool_uses\"|\"recipient_name\"|\"recipientName\"/i.test(String(text || ""));
+    const limitReasonFromText = (text) => {
+      const value = clean(text);
+      if (!value) return "";
+      const flat = value.split(String.fromCharCode(10)).join(" ");
+      return /дневн.*лимит|лимит использования|достигли.*лимит|usage limit|daily limit|quota|rate limit|too many requests/i.test(flat) ? "Qwen usage limit reached" : "";
+    };
+    const isPreferenceButton = (el) => /^(Предпочитаю этот ответ|Prefer this response)$/i.test(clean(el.innerText || el.textContent));
+    const comparable = (text) => clean(text).replace(/\\s+/g, " ").trim();
+    const messageMatches = (expected, actual) => {
+      const left = comparable(expected);
+      const right = comparable(actual);
+      if (!left || !right) return false;
+      if (left === right) return true;
+      if (left.length <= 240) return right.includes(left);
+      return right.includes(left.slice(0, 180)) && right.includes(left.slice(-180));
+    };
     const visible = (el) => {
       if (!el) return false;
       const rect = el.getBoundingClientRect();
       const style = getComputedStyle(el);
       return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
     };
+    const disabled = (el) => !!el.disabled || el.getAttribute("aria-disabled") === "true" || el.getAttribute("disabled") !== null;
+    const textOf = (el) => el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement ? el.value : (el.innerText || el.textContent || "");
+    const inputCandidates = () => [
+      document.querySelector("textarea.message-input-textarea"),
+      ...document.querySelectorAll("textarea, [contenteditable=true], [role=textbox]")
+    ].filter(Boolean);
+    const findInput = () => inputCandidates().find((el) => visible(el));
+    const findSendButton = () => [
+      document.querySelector(".message-input-right-button-send button.send-button"),
+      document.querySelector(".chat-prompt-send-button button.send-button"),
+      ...document.querySelectorAll("button.send-button, button[aria-label*=send i], [role=button][aria-label*=send i]")
+    ].find((el) => visible(el) && !disabled(el) && !String(el.className || "").toLowerCase().includes("record"));
+    const transportState = () => {
+      const input = findInput();
+      const generating = Array.from(document.querySelectorAll(".send-button.loading, .stop-button, [class*=stop-generating i], [class*=generating i]")).some((el) => visible(el));
+      const preferenceActive = Array.from(document.querySelectorAll("button, [role=button]")).some((el) => visible(el) && isPreferenceButton(el));
+      const inputReady = !!input && !disabled(input);
+      const blockedReason = generating ? "Qwen is still generating"
+        : preferenceActive ? "Qwen response choice is active"
+          : !inputReady ? "Qwen composer input not ready"
+            : "";
+      return {input, generating, preferenceActive, limitReached: false, canSend: inputReady && !generating && !preferenceActive, blockedReason};
+    };
+    const selectResponsePreference = () => {
+      const blocks = Array.from(document.querySelectorAll(".qwen-chat-message-dual-message, .dual-message, .qwen-chat-message")).filter(visible).reverse();
+      let fallbackButton = null;
+      for (const block of blocks) {
+        const buttons = Array.from(block.querySelectorAll("button, [role=button]")).filter((el) => visible(el) && isPreferenceButton(el));
+        if (buttons.length === 0) continue;
+        if (!fallbackButton) fallbackButton = buttons[0];
+        const nodes = Array.from(block.querySelectorAll(".response-message-content, .qwen-markdown, pre, code")).filter((el) => visible(el) && hasToolCalls(el.textContent || el.innerText));
+        const toolNode = nodes[0];
+        if (!toolNode) continue;
+        const toolRect = toolNode.getBoundingClientRect();
+        const toolCenterX = toolRect.x + toolRect.width / 2;
+        let selected = buttons[0];
+        let selectedScore = Infinity;
+        for (const button of buttons) {
+          const rect = button.getBoundingClientRect();
+          const score = Math.abs((rect.x + rect.width / 2) - toolCenterX);
+          if (score < selectedScore) {
+            selected = button;
+            selectedScore = score;
+          }
+        }
+        selected.click();
+        return "tool-call";
+      }
+      if (fallbackButton) {
+        fallbackButton.click();
+        return "first";
+      }
+      return "";
+    };
+    if (newChat && location.pathname.startsWith("/c/")) {
+      location.assign("https://chat.qwen.ai/");
+      await wait(150);
+      return {ok:false, adapter:"qwen", newChatNavigating:true, busy:true, canSend:false, generating:false, preferenceActive:false, blockedReason:"Qwen new chat navigation", error:"Qwen new chat navigation started"};
+    }
+    const statePayload = (state) => ({
+      generating: state.generating,
+      preferenceActive: state.preferenceActive,
+      limitReached: state.limitReached,
+      canSend: state.canSend,
+      busy: !state.canSend,
+      blockedReason: state.blockedReason,
+    });
     const snapshot = () => {
       const messages = Array.from(document.querySelectorAll(".qwen-chat-message")).filter(visible).map((el) => {
         const className = String(el.className || "").toLowerCase();
@@ -242,14 +354,28 @@ function qwenSendExpression(message: string): string {
         return {role, text: role === "assistant" ? cleanAnswer(rawText) : clean(rawText)};
       }).filter((message) => message.text.length > 0);
       const latestAssistant = messages.slice().reverse().find((message) => message.role === "assistant");
-      return {messageCount: messages.length, assistantText: latestAssistant ? latestAssistant.text : ""};
+      const latestUser = messages.slice().reverse().find((message) => message.role === "user");
+      return {messages, messageCount: messages.length, assistantText: latestAssistant ? latestAssistant.text : "", userText: latestUser ? latestUser.text : ""};
     };
-    const before = snapshot();
-    const input = [
-      document.querySelector("textarea.message-input-textarea"),
-      ...document.querySelectorAll("textarea, [contenteditable=true], [role=textbox]")
-    ].find(visible);
-    if (!input) return {ok:false, adapter:"qwen", error:"Qwen composer input not found"};
+    let before = snapshot();
+    let state = transportState();
+    let preferenceAutoSelected = "";
+    if (state.preferenceActive) {
+      preferenceAutoSelected = selectResponsePreference();
+      if (preferenceAutoSelected) {
+        await wait(700);
+        for (let attempt = 0; attempt < 12; attempt += 1) {
+          state = transportState();
+          if (!state.preferenceActive) break;
+          await wait(250);
+        }
+        before = snapshot();
+      }
+    }
+    if (!state.input) return {ok:false, adapter:"qwen", ...statePayload(state), error:"Qwen composer input not found"};
+    if (!state.canSend) return {ok:false, adapter:"qwen", ...statePayload(state), error:state.blockedReason || "Qwen is not ready for input"};
+
+    const input = state.input;
 
     input.focus();
     if (input instanceof HTMLTextAreaElement || input instanceof HTMLInputElement) {
@@ -262,36 +388,102 @@ function qwenSendExpression(message: string): string {
     }
     input.dispatchEvent(new InputEvent("input", {bubbles:true, inputType:"insertText", data:message}));
     input.dispatchEvent(new Event("change", {bubbles:true}));
-    await wait(90);
+    await wait(180);
 
-    const send = [
-      document.querySelector(".message-input-right-button-send button.send-button"),
-      document.querySelector(".chat-prompt-send-button button.send-button"),
-      ...document.querySelectorAll("button.send-button, button[aria-label*=send i], [role=button][aria-label*=send i]")
-    ].find((el) => visible(el) && !el.disabled && el.getAttribute("aria-disabled") !== "true" && !String(el.className || "").toLowerCase().includes("record"));
+    state = transportState();
+    if (!state.canSend) return {ok:false, adapter:"qwen", ...statePayload(state), composerText:clean(textOf(input)), error:state.blockedReason || "Qwen became busy before send"};
+    const send = findSendButton();
     if (send) {
       send.click();
-      return {ok:true, adapter:"qwen", action:"click", inputSelector:"textarea.message-input-textarea", sendSelector:"button.send-button", previousAssistantText:before.assistantText, previousMessageCount:before.messageCount};
+      await wait(1200);
+      const after = snapshot();
+      const currentInput = clean(textOf(findInput() || input));
+      const afterState = transportState();
+      const limitReason = after.messageCount > before.messageCount ? limitReasonFromText(after.assistantText) : "";
+      if (limitReason) return {ok:false, adapter:"qwen", action:"click", inputSelector:"textarea.message-input-textarea", sendSelector:"button.send-button", previousAssistantText:before.assistantText, previousMessageCount:before.messageCount, preferenceAutoSelected, ...statePayload(afterState), limitReached:true, canSend:false, busy:true, blockedReason:limitReason, error:limitReason};
+      const accepted = currentInput.length === 0 || after.messageCount > before.messageCount || messageMatches(message, after.userText) || afterState.generating;
+      if (accepted) return {ok:true, adapter:"qwen", action:"click", inputSelector:"textarea.message-input-textarea", sendSelector:"button.send-button", previousAssistantText:before.assistantText, previousMessageCount:before.messageCount, preferenceAutoSelected, ...statePayload(afterState)};
+      return {ok:false, adapter:"qwen", ...statePayload(afterState), busy:true, composerText:currentInput, error:"Qwen did not accept message yet"};
     }
 
-    input.dispatchEvent(new KeyboardEvent("keydown", {key:"Enter", code:"Enter", bubbles:true, cancelable:true}));
-    input.dispatchEvent(new KeyboardEvent("keyup", {key:"Enter", code:"Enter", bubbles:true, cancelable:true}));
-    return {ok:true, adapter:"qwen", action:"enter", inputSelector:"textarea.message-input-textarea", previousAssistantText:before.assistantText, previousMessageCount:before.messageCount};
+    return {ok:false, adapter:"qwen", ...statePayload(state), composerText:clean(textOf(input)), error:"Qwen send button not ready"};
   })()`
 }
 
 function qwenReadExpression(): string {
-  return String.raw`(function(){
+  return String.raw`(async function(){
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const clean = (text) => String(text || "").replace(/\u200b/g, "").replace(/\r\n?/g, "\n").split("\n").map((line) => line.replace(/[ \t]+/g, " ").trim()).join("\n").replace(/\n{3,}/g, "\n\n").trim();
     const cleanInline = (text) => String(text || "").replace(/\u200b/g, "").replace(/[ \t\r\n]+/g, " ").trim();
+    const cleanPreserved = (text) => String(text || "").replace(/\u200b/g, "").replace(/\u00a0/g, " ").replace(/\r\n?/g, "\n").trim();
+    const cleanPreservedAnswer = (text) => cleanPreserved(text).split("\n").filter((line) => !/^(Finalize the response|Пропустить|Завершено размышление)$/i.test(line.trim())).join("\n").trim();
     const cleanAnswer = (text) => clean(text).split("\n").map((line) => line.trim()).filter((line) => line && !/^(Finalize the response|Пропустить|Завершено размышление)$/i.test(line)).join("\n").trim();
+    const hasToolCalls = (text) => /<\s*tool_calls\s*>|"tool_uses"|"recipient_name"|"recipientName"/i.test(String(text || ""));
+    const isPreferenceButton = (el) => /^(Предпочитаю этот ответ|Prefer this response)$/i.test(cleanInline(el.innerText || el.textContent));
     const visible = (el) => {
       const rect = el.getBoundingClientRect();
       const style = getComputedStyle(el);
       return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
     };
+    const disabled = (el) => !!el.disabled || el.getAttribute("aria-disabled") === "true" || el.getAttribute("disabled") !== null;
+    const transportState = () => {
+      const input = [
+        document.querySelector("textarea.message-input-textarea"),
+        ...document.querySelectorAll("textarea, [contenteditable=true], [role=textbox]")
+      ].find((el) => el && visible(el));
+      const generating = Array.from(document.querySelectorAll(".send-button.loading, .stop-button, [class*=stop-generating i], [class*=generating i]")).some((el) => visible(el));
+      const preferenceActive = Array.from(document.querySelectorAll("button, [role=button]")).some((el) => visible(el) && isPreferenceButton(el));
+      const inputReady = !!input && !disabled(input);
+      const blockedReason = generating ? "Qwen is still generating"
+        : preferenceActive ? "Qwen response choice is active"
+          : !inputReady ? "Qwen composer input not ready"
+            : "";
+      return {generating, preferenceActive, canSend: inputReady && !generating && !preferenceActive, busy: !inputReady || generating || preferenceActive, blockedReason};
+    };
+    const selectResponsePreference = () => {
+      const blocks = Array.from(document.querySelectorAll(".qwen-chat-message-dual-message, .dual-message, .qwen-chat-message")).filter(visible).reverse();
+      let fallbackButton = null;
+      for (const block of blocks) {
+        const buttons = Array.from(block.querySelectorAll("button, [role=button]")).filter((el) => visible(el) && isPreferenceButton(el));
+        if (buttons.length === 0) continue;
+        if (!fallbackButton) fallbackButton = buttons[0];
+        const nodes = Array.from(block.querySelectorAll(".response-message-content, .qwen-markdown, pre, code")).filter((el) => visible(el) && hasToolCalls(el.innerText || el.textContent));
+        const toolNode = nodes[0];
+        if (!toolNode) continue;
+        const toolRect = toolNode.getBoundingClientRect();
+        const toolCenterX = toolRect.x + toolRect.width / 2;
+        let selected = buttons[0];
+        let selectedScore = Infinity;
+        for (const button of buttons) {
+          const rect = button.getBoundingClientRect();
+          const score = Math.abs((rect.x + rect.width / 2) - toolCenterX);
+          if (score < selectedScore) {
+            selected = button;
+            selectedScore = score;
+          }
+        }
+        selected.click();
+        return "tool-call";
+      }
+      if (fallbackButton) {
+        fallbackButton.click();
+        return "first";
+      }
+      return "";
+    };
     const markdownText = (root) => {
       const selector = "h1,h2,h3,h4,h5,h6,p,li,pre,blockquote,.qwen-markdown-paragraph";
+      const rawText = root.innerText || root.textContent;
+      const rawToolText = root.textContent || root.innerText;
+      if (hasToolCalls(rawToolText)) {
+        const toolNodes = Array.from(root.querySelectorAll("pre,code")).filter((node) => visible(node) && hasToolCalls(node.textContent || node.innerText));
+        if (toolNodes.length > 0) {
+          const text = toolNodes.map((node) => cleanPreservedAnswer(node.textContent || node.innerText)).filter((line) => line.length > 0).join("\n\n").trim();
+          if (text.length > 0 && hasToolCalls(text)) return text;
+        }
+        const raw = cleanPreservedAnswer(rawToolText);
+        if (raw.length > 0) return raw;
+      }
       const nodes = Array.from(root.querySelectorAll(selector)).filter((node) => {
         let parent = node.parentElement;
         while (parent && parent !== root) {
@@ -304,12 +496,14 @@ function qwenReadExpression(): string {
       const lines = [];
       for (const node of nodes) {
         const tag = node.tagName.toLowerCase();
-        const text = tag === "pre" ? clean(node.innerText || node.textContent) : cleanInline(node.innerText || node.textContent);
+        const text = tag === "pre" ? cleanPreservedAnswer(node.textContent || node.innerText) : cleanInline(node.innerText || node.textContent);
         if (!text || /^(Finalize the response|Пропустить|Завершено размышление)$/i.test(text)) continue;
         if (tag === "li") lines.push("- " + text);
         else lines.push(text);
       }
-      return cleanAnswer(lines.join("\n"));
+      const text = cleanAnswer(lines.join("\n"));
+      const raw = cleanAnswer(rawText);
+      return hasToolCalls(raw) && !hasToolCalls(text) ? raw : text;
     };
     const assistantTexts = (el) => {
       const parts = Array.from(el.querySelectorAll(".qwen-markdown")).filter(visible);
@@ -323,7 +517,9 @@ function qwenReadExpression(): string {
         texts.push(text);
       }
       if (texts.length > 0) return texts;
-      const fallback = cleanAnswer(el.innerText || el.textContent);
+      const rawText = el.innerText || el.textContent;
+      const rawToolText = el.textContent || el.innerText;
+      const fallback = hasToolCalls(rawToolText) ? cleanPreservedAnswer(rawToolText) : cleanAnswer(rawText);
       return fallback.length === 0 ? [] : [fallback];
     };
     const lastAssistantText = (messages) => {
@@ -336,6 +532,15 @@ function qwenReadExpression(): string {
         return message.variantCount > 1 ? "Вариант " + message.variantIndex + "/" + message.variantCount + ":\n" + message.text : message.text;
       }).join("\n\n").trim();
     };
+    let state = transportState();
+    let preferenceAutoSelected = "";
+    if (state.preferenceActive) {
+      preferenceAutoSelected = selectResponsePreference();
+      if (preferenceAutoSelected) {
+        await wait(700);
+        state = transportState();
+      }
+    }
     const qwenBlocks = Array.from(document.querySelectorAll(".qwen-chat-message")).filter(visible);
     if (qwenBlocks.length > 0) {
       const messages = [];
@@ -359,8 +564,7 @@ function qwenReadExpression(): string {
           messages.push(message);
         });
       }
-      const generating = !!document.querySelector(".send-button.loading, .stop-button, [class*=stop-generating i], [class*=generating i]");
-      return {ok:true, adapter:"qwen", url:location.href, title:document.title, messages, messageCount:messages.length, lastAssistantText:lastAssistantText(messages), generating};
+      return {ok:true, adapter:"qwen", url:location.href, title:document.title, messages, messageCount:messages.length, lastAssistantText:lastAssistantText(messages), preferenceAutoSelected, ...state};
     }
     const roleFor = (el) => {
       let node = el;
@@ -399,7 +603,9 @@ function qwenReadExpression(): string {
     const seen = new Set();
     const messages = [];
     for (const el of Array.from(document.querySelectorAll(selectors))) {
-      const text = clean(el.innerText || el.textContent);
+      const rawText = el.innerText || el.textContent;
+      const rawToolText = el.textContent || el.innerText;
+      const text = hasToolCalls(rawToolText) ? cleanPreservedAnswer(rawToolText) : clean(rawText);
       if (skip(el, text)) continue;
       const role = roleFor(el);
       if (role === null && text.length < 24) continue;
@@ -408,8 +614,7 @@ function qwenReadExpression(): string {
       seen.add(key);
       messages.push({role: role || "assistant", text});
     }
-    const generating = !!document.querySelector(".send-button.loading, .stop-button, [class*=stop-generating i], [class*=generating i]");
-    return {ok:true, adapter:"qwen", url:location.href, title:document.title, messages, messageCount:messages.length, lastAssistantText:lastAssistantText(messages), generating};
+    return {ok:true, adapter:"qwen", url:location.href, title:document.title, messages, messageCount:messages.length, lastAssistantText:lastAssistantText(messages), preferenceAutoSelected, ...state};
   })()`
 }
 

@@ -663,7 +663,7 @@ export class UiRuntime {
     this.requestRender()
   }
 
-  frameDisplays(displayIds?: readonly UiDisplayId[]): void {
+  frameDisplays(displayIds?: readonly UiDisplayId[], opts: {padding?: number} = {}): void {
     const slots = (displayIds ?? [...this.#displaySlots.keys()])
       .map((id) => this.#displaySlots.get(id))
       .filter((slot): slot is DisplaySlot => slot !== undefined)
@@ -684,7 +684,8 @@ export class UiRuntime {
     const aspect = Math.max(0.1, this.#pixelWidth / Math.max(1, this.#pixelHeight))
     const verticalDistance = (spanH / 2) / Math.tan(this.viewPoint.fov / 2)
     const horizontalDistance = (spanW / 2) / (Math.tan(this.viewPoint.fov / 2) * aspect)
-    const distance = Math.max(this.#displayNearDistanceMm, verticalDistance, horizontalDistance) * 1.2
+    const padding = Math.max(1, Math.min(2, opts.padding ?? 1.2))
+    const distance = Math.max(this.#displayNearDistanceMm, verticalDistance, horizontalDistance) * padding
     this.#cancelCameraAnimation()
     this.#displayMode = "far"
     this.viewPoint.getTarget().copy(target)

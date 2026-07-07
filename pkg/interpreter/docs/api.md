@@ -363,26 +363,49 @@ devtools.evaluate         # {expression, targetUrl?, awaitPromise?, returnByValu
 ответ из DOM.
 
 ```text
-browser_chat.send      # {message|text, targetId?, targetUrl?, targetTitle?, urlContains?, autoToolLoop?}
+browser_chat.send      # {message|text, targetId?, targetUrl?, targetTitle?, urlContains?, autoToolLoop?, newChat?}
 browser_chat.read      # {targetId?, targetUrl?, targetTitle?, urlContains?}
 browser_chat.wait      # {targetId?, targetUrl?, targetTitle?, urlContains?, previousAssistantText?, afterMessageCount?, intervalMs?, stableTicks?, timeoutMs?}
 browser_chat.exchange  # {message|text, targetId?, targetUrl?, targetTitle?, urlContains?, previousAssistantText?, afterMessageCount?, intervalMs?, stableTicks?, timeoutMs?}
 ```
 
 По умолчанию target выбирается по `urlContains:"chat.qwen.ai"`. `send` ищет
-Qwen composer textarea/contenteditable, вставляет текст, диспатчит input/change
-events и нажимает send. `read` возвращает последние DOM-сообщения и
-`lastAssistantText`; `wait` считает ответ завершенным, когда assistant text
-стабилен несколько polling ticks. Чтобы не принять старый ответ за новый,
-`send` возвращает `previousAssistantText` и `previousMessageCount`, а
-`exchange` передает их в `wait` как baseline. UI Browser Agent Chat использует
-тот же baseline для streaming polling.
+Qwen composer textarea/contenteditable, проверяет, что Qwen не генерирует и не
+показывает выбор варианта ответа, вставляет текст, диспатчит input/change events
+и нажимает send. Если Qwen показывает выбор из нескольких ответов и один из
+вариантов содержит `<tool_calls>`, `send` автоматически выбирает этот вариант
+перед отправкой следующего сообщения/tool results, чтобы Browser Agent loop не
+останавливался на ручном выборе. Если передан `newChat:true`, `send` сначала
+открывает новый Qwen chat через `https://chat.qwen.ai/`, затем отправляет
+сообщение. Если Qwen занят, `send` по умолчанию ждет готовности до
+`sendTimeoutMs` и не пишет в composer до готового состояния; при таймауте
+возвращает `ok:false`, `busy:true`/`canSend:false`, `blockedReason` и `waitedMs`.
+После клика `send` проверяет, что сообщение реально принято, и не возвращает
+ложный `ok:true` только из-за DOM click/Enter.
+
+`read` возвращает последние DOM-сообщения, `lastAssistantText` и transport-state
+поля `generating`, `canSend`, `busy`, `preferenceActive`, `blockedReason`. `wait`
+считает ответ завершенным, когда assistant text стабилен несколько polling ticks
+и `generating:false`. Чтобы не принять старый ответ за новый, `send` возвращает
+`previousAssistantText` и `previousMessageCount`, а `exchange` передает их в
+`wait` как baseline. UI Browser Agent Chat использует тот же baseline для
+streaming polling и запускает tool loop только после завершения генерации.
+Если свежая отправка получает дневной usage/quota limit вместо ответа, `send`
+возвращает `limitReached:true`, `canSend:false`, `busy:true` и
+`blockedReason:"Qwen usage limit reached"`. `read` не держит blocked state по
+старому limit-сообщению в истории: после сброса лимита активный composer снова
+должен дать `canSend:true`.
 
 Codex message и Browser Agent message используют общий UI composer flow для
 text/voice/image attachments, но transport разный: Codex message идет в
 host PTY/Codex CLI, Browser Agent message идет в remote browser chat. В MVP
 image attachments не загружаются в Qwen UI как файлы: composer добавляет пути к
 загруженным изображениям в текст сообщения.
+
+Обычная отправка Browser Agent message передает в Qwen только текст пользователя
+и attachment paths. Tool prompt не добавляется автоматически к пользовательским
+сообщениям: он отправляется отдельной кнопкой Browser Agent composer, которая
+создает новый Qwen chat через `browser_chat.send` с `newChat:true`.
 
 Browser Agent поверх transport добавляет текстовый tool protocol для Qwen:
 если ответ assistant содержит блок `<tool_calls>{"tool_uses":[...]}</tool_calls>`,
@@ -617,6 +640,22 @@ selection, открытого source-pane, display geometry или workspace tre
 `state`, `currentFrame`, `frames[]` и `runtime`, которые относятся к фактической
 точке выполнения process.
 
+`process.action` с `action:"restart"` по умолчанию ждёт post-restart
+debugger-ready состояние: новый target должен подключиться к inspector, а
+target-level `pendingBreakpoints` должны быть потреблены runtime-слоем. Если это
+не произошло до timeout, tool возвращает `ok:false`/504 с текущим `process`
+snapshot и `ready.state:"timeout"`, а не ложный успешный результат. Агент не
+должен достраивать restart через дополнительный `process.get` как часть
+нормального flow: сам tool обязан вернуть итог, достаточный для следующего
+решения.
+
+Если у process есть breakpoints, обычный `process.action` с `action:"restart"`
+по умолчанию работает как restart-and-stop-on-breakpoint: tool стартует process
+через `inspect-brk`, дождётся установки breakpoints, выполнит resume и вернёт
+ответ только после следующего `Debugger.paused` или timeout. Не делай это
+цепочкой отдельных tools `restart` -> `resume` -> `process.get`. Явный
+`params.runToBreakpoint:false` отключает этот режим.
+
 Поле `event` появляется только когда соответствующее debugger-событие реально
 дождались. Если process уже был в нужном состоянии, ответ содержит
 `already:"paused"` или `already:"running"`, не подставляя фиктивный event.
@@ -787,7 +826,16 @@ hud.terminal.get
 hud.terminal.show
 hud.terminal.dock
 hud.terminal.toggle
+hud.browser_chat.get
+hud.browser_chat.show
+hud.browser_chat.dock
+hud.browser_chat.toggle
 ```
+
+`space.arrange` в `POST /tools` расставляет текущие display ровной сеткой и затем
+делает frame. По умолчанию используется 3 колонки; параметры: `columns`,
+`gapMm`, `centerZMm`, `padding`, `frame:false`. `padding:1` приближает камеру
+максимально плотно к bounding box всех display.
 
 Прямые routes ниже нужны для UI/stream/diagnostics. Навигация по рабочим
 поверхностям и действия исполнения идут через `POST /tools`.

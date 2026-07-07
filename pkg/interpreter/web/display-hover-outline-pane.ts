@@ -16,6 +16,7 @@ type BrowserKeyboardLock = {
 }
 type DisplayHoverOutlinePaneOpts = {
   autoFocusDisplaysOnAction?: boolean
+  onDisplayFocusRequest?: (displayId: UiDisplayId) => void
   onBrowserFullscreenLayoutChange?: (activeDisplayId: UiDisplayId | null) => void
   onAutoFocusDisplaysOnActionChange?: (enabled: boolean) => void
 }
@@ -317,6 +318,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
   #leaveAnimation: LeaveAnimation | null = null
   #settingsOpen = false
   #autoFocusDisplaysOnAction = false
+  readonly #onDisplayFocusRequest: ((displayId: UiDisplayId) => void) | undefined
   readonly #onBrowserFullscreenLayoutChange: ((activeDisplayId: UiDisplayId | null) => void) | undefined
   readonly #onAutoFocusDisplaysOnActionChange: ((enabled: boolean) => void) | undefined
   readonly #handleBrowserFullscreenChange = (): void => {
@@ -334,6 +336,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
   constructor(opts: DisplayHoverOutlinePaneOpts = {}) {
     super({bgColor: null, borderColor: null})
     this.#autoFocusDisplaysOnAction = opts.autoFocusDisplaysOnAction === true
+    this.#onDisplayFocusRequest = opts.onDisplayFocusRequest
     this.#onBrowserFullscreenLayoutChange = opts.onBrowserFullscreenLayoutChange
     this.#onAutoFocusDisplaysOnActionChange = opts.onAutoFocusDisplaysOnActionChange
     installBrowserFullscreenRefitLifecycleHooks()
@@ -668,7 +671,8 @@ export class DisplayHoverOutlinePane extends UiSurface {
     const strength = hit.pressed ? 1.18 : hit.hovered ? 1 : 0.72
     if (hitEnabled && buttonProgress >= FLIGHT_BUTTON_HIT_PROGRESS) {
       this.hit(control.hit.x, control.hit.y, control.hit.w, control.hit.h, () => {
-        this.canvas?.focusDisplay(control.displayId)
+        if (this.#onDisplayFocusRequest !== undefined) this.#onDisplayFocusRequest(control.displayId)
+        else this.canvas?.focusDisplay(control.displayId)
       }, {
         key: FLIGHT_BUTTON_KEY,
         cursor: "pointer",

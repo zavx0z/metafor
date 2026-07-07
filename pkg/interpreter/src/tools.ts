@@ -55,6 +55,7 @@ export const interpreterToolDescriptions = [
   {name: "space.get", description: "прочитать Space/display state", parameters: "{}"},
   {name: "space.focus", description: "сфокусировать display", parameters: "{selector, dockHostTerminal?}"},
   {name: "space.frame", description: "показать все display в Space", parameters: "{}"},
+  {name: "space.arrange", description: "расставить все display аккуратной сеткой и показать их в Space", parameters: "{columns?, gapMm?, centerZMm?, padding?, frame?}"},
   {name: "viewport.screenshot", description: "сделать screenshot interpreter viewport и сохранить attachment", parameters: "{format?, quality?}"},
   {name: "host.reload", description: "перезагрузить подключенные UI-клиенты interpreter host", parameters: "{}"},
   {name: "host.restart", description: "перезапустить interpreter host через поддерживаемый supervisor/tmux", parameters: "{}"},

@@ -38,6 +38,7 @@ export type HostCodexComposerPaneOptions<T extends HostCodexComposerController> 
   minimizeLabel?: string
   voiceKey?: string
   nodeName?: string
+  leftActions?(controller: T): readonly HudWindowTitleBarAction[]
   status(controller: T): string
   canSubmit(controller: T): boolean
   submit(controller: T): void
@@ -81,6 +82,7 @@ export class HostTerminalCodexComposerPane<T extends HostCodexComposerController
   #renderWindow(w: number, h: number): void {
     const buttonSize = HOST_TERMINAL_CODEX_COMPOSER_HEADER_BUTTON_SIZE
     const status = this.#opts.status(this.#opts.controller)
+    const leftActions = this.#opts.leftActions?.(this.#opts.controller) ?? []
     const rightActions: HudWindowTitleBarAction[] = [
       {
         label: "Отправить",
@@ -114,6 +116,7 @@ export class HostTerminalCodexComposerPane<T extends HostCodexComposerController
       subtitle: status,
       onMinimize: () => this.#opts.setDocked(true),
       minimizeLabel: this.#opts.minimizeLabel ?? "Свернуть Codex",
+      leftActions,
       rightActions,
       active: this.active,
       fill: new Color(0.04, 0.06, 0.09, 0.52),

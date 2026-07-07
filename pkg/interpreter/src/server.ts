@@ -57,6 +57,7 @@ import {runBrowserChatToolUse} from "./browser-chat.ts"
 import {handleChromeDevtoolsRoute} from "./chrome-devtools.ts"
 import {remoteDesktopLifecycleCommandResponse, remoteDesktopLifecycleStatusResponse} from "./remote-desktop-lifecycle.ts"
 import {restartInspectOptionsFromParams} from "./restart-options.ts"
+import {sleep} from "./time.ts"
 import {
   attachVoiceProxySocket,
   createVoiceProxySocketData,
@@ -113,6 +114,8 @@ const NDJSON_TAIL_DEFAULT_LIMIT = 200
 const NDJSON_TAIL_MAX_LIMIT = 5_000
 const UI_HOST_COMMAND_TIMEOUT_MS = 8_000
 const DEBUGGER_ACTION_EVENT_TIMEOUT_MS = 10_000
+const PROCESS_RESTART_READY_TIMEOUT_MS = 12_000
+const PROCESS_RESTART_READY_INTERVAL_MS = 100
 const ANDROID_API_URL = process.env.METAFOR_ANDROID_API_URL ?? "http://127.0.0.1:3007"
 const SQLITE_WATCH_DEBOUNCE_MS = 140
 const VALID_STOP_SIGNALS = new Set(["SIGTERM", "SIGKILL", "SIGINT", "SIGHUP", "SIGQUIT"])
@@ -833,7 +836,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
   const server = Bun.serve({
     hostname: options.host,
     port: options.port,
-    development: false,
+    development: {hmr: false, console: false},
     routes,
     websocket,
     error,
@@ -1168,15 +1171,68 @@ async function restartProcessTarget(processId: string, params: JsonObject, optio
   try {
     const breakpoints = module.breakpoints.registrations.map((registration) => registration.spec)
     const restartInspect = restartInspectOptionsFromParams(params)
+    const runToBreakpoint = asBoolean(params["runToBreakpoint"])
+      ?? asBoolean(params["waitForBreakpoint"])
+      ?? asBoolean(params["waitForPause"])
+      ?? (breakpoints.length > 0 && !restartInspect.pauseOnStart)
     const target = await module.target.restart({
-      ...restartInspect,
+      ...(runToBreakpoint ? {inspectMode: "brk" as const, pauseOnStart: true} : restartInspect),
       signal: stopSignalFromParams(params),
       breakpoints,
     })
-    return jsonResponse({ok: true, processId: module.id, process: processPayload(module.snapshot()), target})
+    const ready = await waitForProcessRestartReady(module, target.pid, runToBreakpoint || restartInspect.pauseOnStart)
+    const process = processPayload(module.snapshot())
+    if (ready["state"] === "timeout") {
+      return jsonResponse({ok: false, processId: module.id, process, target, ready, error: "process restart did not reach debugger-ready state"}, 504)
+    }
+    if (runToBreakpoint) return await resumeRestartToBreakpoint(module, target, ready)
+    return jsonResponse({ok: true, processId: module.id, process, target, ready})
   } catch (error) {
     return jsonResponse({ok: false, processId, error: serializeError(error)}, 400)
   }
+}
+
+async function resumeRestartToBreakpoint(module: InterpreterModule, target: JsonObject, ready: JsonObject): Promise<Response> {
+  if (ready["state"] !== "paused") {
+    return jsonResponse({ok: false, processId: module.id, process: processPayload(module.snapshot()), target, ready, error: "process restart did not pause before runToBreakpoint resume"}, 504)
+  }
+  const pauseSequence = module.snapshots.pauseSequence
+  await executeProcessDebuggerCommand(module, "resume", {})
+  try {
+    const dump = await module.snapshots.waitForPauseAfter(pauseSequence, DEBUGGER_ACTION_EVENT_TIMEOUT_MS)
+    return jsonResponse({
+      ...debuggerActionBody(module, "restart", {ready, event: "Debugger.paused", runToBreakpoint: true}, dump),
+      process: processPayload(module.snapshot()),
+      target,
+      ready,
+    })
+  } catch (error) {
+    return jsonResponse({
+      ...debuggerActionBody(module, "restart", {ready, runToBreakpoint: true}),
+      ok: false,
+      process: processPayload(module.snapshot()),
+      target,
+      ready,
+      error: serializeError(error),
+    }, 504)
+  }
+}
+
+async function waitForProcessRestartReady(module: InterpreterModule, pid: number | null, expectPause = false): Promise<JsonObject> {
+  const startedAt = Date.now()
+  while (Date.now() - startedAt < PROCESS_RESTART_READY_TIMEOUT_MS) {
+    const snapshot = module.snapshot()
+    const pendingBreakpoints = snapshot.target.pendingBreakpoints.length
+    if (snapshot.target.pid !== pid) return {state: "changed", waitedMs: Date.now() - startedAt}
+    if (snapshot.target.state === "exited" || snapshot.target.state === "failed") return {state: snapshot.target.state, waitedMs: Date.now() - startedAt}
+    if (snapshot.connection.state === "connected" && pendingBreakpoints === 0) {
+      if (snapshot.paused) return {state: "paused", waitedMs: Date.now() - startedAt, scriptCount: snapshot.scriptCount, pendingBreakpoints}
+      if (!expectPause && snapshot.scriptCount > 0) return {state: "ready", waitedMs: Date.now() - startedAt, scriptCount: snapshot.scriptCount, pendingBreakpoints}
+    }
+    await sleep(PROCESS_RESTART_READY_INTERVAL_MS)
+  }
+  const snapshot = module.snapshot()
+  return {state: "timeout", waitedMs: Date.now() - startedAt, connection: snapshot.connection.state, targetState: snapshot.target.state, paused: snapshot.paused, scriptCount: snapshot.scriptCount, pendingBreakpoints: snapshot.target.pendingBreakpoints.length}
 }
 
 function stopSignalFromParams(params: JsonObject): NodeJS.Signals {
@@ -2443,13 +2499,16 @@ async function runInterpreterToolUse(
     if (toolUse.recipientName === "space.get") return await toolResultFromResponse(base, await dispatchUiHostRoute("space.get", {}, dispatchUiHostCommand), "space.get failed")
     if (toolUse.recipientName === "space.focus") return await toolResultFromResponse(base, await dispatchUiHostRoute("space.focus", toolUse.parameters, dispatchUiHostCommand), "space.focus failed")
     if (toolUse.recipientName === "space.frame") return await toolResultFromResponse(base, await dispatchUiHostRoute("space.frame", toolUse.parameters, dispatchUiHostCommand), "space.frame failed")
+    if (toolUse.recipientName === "space.arrange") return await toolResultFromResponse(base, await dispatchUiHostRoute("space.arrange", toolUse.parameters, dispatchUiHostCommand), "space.arrange failed")
     if (toolUse.recipientName === "viewport.screenshot") return await toolResultFromResponse(base, await captureViewportScreenshot(toolUrlFromParams("/viewport/screenshot", toolUse.parameters), dispatchUiHostCommand), "viewport.screenshot failed")
     if (toolUse.recipientName === "process.list") return {...base, ok: true, result: {ok: true, processes: processPayloads(options)}}
     if (toolUse.recipientName === "process.start") return await toolResultFromResponse(base, await runProcess(jsonToolRequest("/tools", toolUse.parameters), options), "process.start failed")
     if (toolUse.recipientName === "process.get") {
       const processId = processIdForToolUse(toolUse)
       if (processId === undefined) return {...base, ok: false, error: "processId required"}
-      return await toolResultFromResponse(base, await dispatchUiHostRoute("processes.get", {processId}, dispatchUiHostCommand), "process.get failed")
+      const module = moduleForProcessId(processId, options)
+      if (module === undefined) return {...base, ok: false, status: 404, error: `process not found: ${processId}`}
+      return {...base, ok: true, status: 200, result: {ok: true, process: processPayload(module.snapshot())}}
     }
     if (toolUse.recipientName === "process.focus") return await toolResultFromResponse(base, await dispatchUiHostRoute("processes.focus", processRouteParamsForTool(toolUse), dispatchUiHostCommand), "process.focus failed")
     if (toolUse.recipientName === "process.resolve") return await toolResultFromResponse(base, await dispatchUiHostRoute("processes.resolve", toolUse.parameters, dispatchUiHostCommand), "process.resolve failed")
@@ -2659,8 +2718,9 @@ async function waitBrowserChatToolCallCandidate(params: JsonObject, previousAssi
       const candidate = browserChatToolCallCandidate(read)
       const text = asString(read["lastAssistantText"]) ?? ""
       const count = Array.isArray(read["messages"]) ? read["messages"].length : 0
+      const generating = read["generating"] === true
       const afterBaseline = afterMessageCount === undefined || count >= afterMessageCount + 2 || text !== previousAssistantText || candidate !== null
-      if (candidate !== null && afterBaseline) return candidate
+      if (candidate !== null && afterBaseline && !generating) return candidate
     }
     await new Promise((resolve) => setTimeout(resolve, 650))
   }
@@ -2958,6 +3018,10 @@ function hudCommandForTool(name: string): {command: string; paramsFromBody: bool
     "hud.android.toggle": {command: "hud.android.toggle", paramsFromBody: true},
     "hud.android.refresh": {command: "hud.android.refresh", paramsFromBody: false},
     "hud.android.control": {command: "hud.android.control", paramsFromBody: true},
+    "hud.browser_chat.get": {command: "hud.browser_chat.get", paramsFromBody: false},
+    "hud.browser_chat.dock": {command: "hud.browser_chat.dock", paramsFromBody: true},
+    "hud.browser_chat.show": {command: "hud.browser_chat.show", paramsFromBody: true},
+    "hud.browser_chat.toggle": {command: "hud.browser_chat.toggle", paramsFromBody: true},
     "todo.panel": {command: "hud.todo.get", paramsFromBody: false},
     "todo.highlight": {command: "hud.todo.highlight", paramsFromBody: true},
     "todo.dock": {command: "hud.todo.dock", paramsFromBody: true},

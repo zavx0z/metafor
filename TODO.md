@@ -23,3 +23,10 @@
 
 ## 5. Interpreter / HUD / Space
 - [100] Сделать MVP Browser Agent Chat для Qwen в interpreter HUD.
+- [ ] Доработать быстрые Space display tools: авто-сетка по количеству display, максимально плотный fit/приближение камеры и удобные пресеты раскладки.
+- [100] Показывать в Browser Agent Chat отдельный blocked status, когда remote chat упёрся в дневной лимит/usage quota.
+
+## 6. Browser Agent Chat: изображения
+
+- [100] MVP передаёт изображения в Qwen как текстовые пути через composer message.
+- [ ] Выбрать следующий transport для настоящего vision-ввода: Qwen API или headed browser upload.

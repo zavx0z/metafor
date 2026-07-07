@@ -1,5 +1,6 @@
 import {Color} from "@metafor/engine"
-import {UiSurface, div, divScrollPosition, divScrollTo, palette, Z, type DivScrollContext, type UiSurfaceRect} from "@ui/elements"
+import {IconButton} from "@ui/components"
+import {UiSurface, div, divScrollPosition, divScrollTo, flexRow, palette, uiIcons, Z, type DivScrollContext, type UiSurfaceRect} from "@ui/elements"
 import {HudWindow} from "@ui/hud"
 import {
   PANE_FRAME,
@@ -19,9 +20,17 @@ export type BrowserChatPaneMessage = {
   streaming?: boolean
 }
 
+export type BrowserChatPaneStatusKind = "ready" | "sending" | "thinking" | "tools" | "blocked" | "error"
+
 export type BrowserChatPaneOptions = {
   messages(): readonly BrowserChatPaneMessage[]
   status(): string
+  statusKind(): BrowserChatPaneStatusKind
+  paused(): boolean
+  stopped(): boolean
+  pause(): void
+  resume(): void
+  stop(): void
   setDocked(docked: boolean): void
   clampRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): UiSurfaceRect
   storeRect(rect: UiSurfaceRect): void
@@ -37,6 +46,8 @@ const MESSAGE_FONT = 11
 const MESSAGE_LINE_H = 16
 const MESSAGE_PAD = 10
 const MESSAGE_GAP = 8
+const CONTROL_TOOLBAR_H = 34
+const CONTROL_TOOLBAR_GAP = 6
 const BROWSER_CHAT_SCROLL_KEY = "interpreter:browser-chat:messages"
 
 type RenderBlock = {
@@ -63,9 +74,10 @@ export class BrowserChatPane extends UiSurface {
   protected render(): void {
     const w = Math.max(1, this.rectW)
     const h = Math.max(1, this.rectH)
+    const status = this.#opts.status()
+    const statusKind = this.#opts.statusKind()
     HudWindow(this, 0, 0, w, h, {
       title: "Browser Agent Chat",
-      subtitle: this.#opts.status(),
       onMinimize: () => this.#opts.setDocked(true),
       minimizeLabel: "Dock Browser Agent",
       active: this.active,
@@ -83,7 +95,103 @@ export class BrowserChatPane extends UiSurface {
       topGap: PANE_FRAME.bodyTopGap,
       bottomInset: PANE_FRAME.bodyInsetX,
     })
-    this.#renderMessages(body)
+    const toolbarH = Math.min(CONTROL_TOOLBAR_H, Math.max(0, body.h - 80))
+    const toolbarGap = toolbarH > 0 ? CONTROL_TOOLBAR_GAP : 0
+    this.#renderMessages({...body, h: Math.max(1, body.h - toolbarH - toolbarGap)})
+    if (toolbarH > 0) this.#renderControlToolbar({x: body.x, y: body.y + body.h - toolbarH, w: body.w, h: toolbarH}, status, statusKind)
+  }
+
+  #drawStatusBadge(rect: UiSurfaceRect, label: string, kind: BrowserChatPaneStatusKind): void {
+    const tone = kind === "ready" ? palette.green
+      : kind === "error" ? palette.red
+        : kind === "blocked" ? palette.orange
+          : palette.cyan
+    const fill = kind === "ready" ? new Color(0.05, 0.13, 0.08, 0.72)
+      : kind === "error" ? new Color(0.16, 0.055, 0.045, 0.74)
+        : kind === "blocked" ? new Color(0.16, 0.11, 0.045, 0.74)
+          : new Color(0.045, 0.095, 0.13, 0.74)
+    const material = kind === "ready" ? this.materials.green
+      : kind === "error" ? this.materials.red
+        : kind === "blocked" ? this.materials.orange
+          : this.materials.cyan
+    const y = rect.y + 2
+    const h = Math.max(1, rect.h - 4)
+    const fontPx = 10
+    const labelW = Math.min(this.measureText(label, fontPx), Math.max(1, rect.w - 30))
+    this.drawRoundedRect(rect.x, y, rect.w, h, {radius: 8, fill, border: tone, borderWidth: 1, z: Z.CONTAINER + 0.04})
+    flexRow({
+      x: rect.x,
+      y,
+      w: rect.w,
+      h,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      items: [
+        {width: 6, height: 6, draw: (dotX, dotY, dotW, dotH) => {
+          this.drawRoundedRect(dotX, dotY, dotW, dotH, {radius: 3, fill: tone, border: null, z: Z.TEXT})
+        }},
+        {width: labelW, height: fontPx, draw: (textX, textY, textW, textH) => {
+          this.drawTextCentered(label, textX + textW / 2, textY + textH / 2, {
+            fontPx,
+            material,
+            maxWidthPx: textW,
+            z: Z.TEXT,
+          })
+        }},
+      ],
+    })
+  }
+
+  #renderControlToolbar(rect: UiSurfaceRect, status: string, kind: BrowserChatPaneStatusKind): void {
+    const buttonSize = 22
+    const gap = 5
+    const controlsW = buttonSize * 3 + gap * 2
+    const statusW = Math.max(82, Math.min(Math.ceil(this.measureText(status, 10) + 32), Math.max(82, rect.w - controlsW - 16)))
+    const y = rect.y + Math.max(0, (rect.h - buttonSize) / 2)
+    const paused = this.#opts.paused()
+    const stopped = this.#opts.stopped()
+    this.drawRect(rect.x, rect.y, rect.w, 1, palette.borderDim, Z.SEPARATOR)
+    this.drawRoundedRect(rect.x, rect.y + 4, rect.w, Math.max(1, rect.h - 4), {
+      radius: 10,
+      fill: new Color(0.025, 0.04, 0.045, 0.48),
+      border: null,
+      z: Z.CONTAINER + 0.01,
+    })
+    this.#drawStatusBadge({x: rect.x + 8, y, w: statusW, h: buttonSize}, status, kind)
+    let x = rect.x + rect.w - controlsW - 8
+    IconButton(this, x, y, buttonSize, buttonSize, {
+      label: "Pause Browser Agent",
+      iconSrc: uiIcons.pause,
+      tooltip: "Pause Browser Agent",
+      tone: "paused",
+      variant: paused ? "contained" : "text",
+      disabled: paused || stopped,
+      radius: 7,
+      action: () => this.#opts.pause(),
+    })
+    x += buttonSize + gap
+    IconButton(this, x, y, buttonSize, buttonSize, {
+      label: "Resume Browser Agent",
+      iconSrc: uiIcons.run,
+      tooltip: "Resume Browser Agent",
+      tone: "live",
+      variant: !paused && !stopped ? "contained" : "text",
+      disabled: !paused,
+      radius: 7,
+      action: () => this.#opts.resume(),
+    })
+    x += buttonSize + gap
+    IconButton(this, x, y, buttonSize, buttonSize, {
+      label: "Stop Browser Agent",
+      iconSrc: uiIcons.stop,
+      tooltip: "Stop Browser Agent",
+      tone: "warn",
+      variant: stopped ? "contained" : "text",
+      disabled: stopped,
+      radius: 7,
+      action: () => this.#opts.stop(),
+    })
   }
 
   #renderMessages(body: UiSurfaceRect): void {

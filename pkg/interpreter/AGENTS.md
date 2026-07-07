@@ -198,7 +198,7 @@ process/display, в котором выполнялась команда. Protoc
    - Для source используй `source.read`, `source.read_many`, `source.open`, `source.openSelection`, `source.write`, `source.apply_patch`.
 5. После правки проверь, что интерпретатор получил изменение: `source-patched`, replay/restart при необходимости, новый `context.get` или `source.read` через `POST /tools`.
 6. После правки агент сам доводит live-контур до примененного состояния: запускает нужные проверки, reload/restart/rebuild target-а и повторную диагностику. Не перекладывай на человека действия вроде "перезагрузи страницу", "пересобери bundle", "перезапусти process" или "проверь зависимости", если это можно сделать через interpreter API, DevTools/CDP, terminal или доступные host tools.
-7. Не путай UI интерпретатора и WebApp target. Если изменен browser-side код самого interpreter/HUD/Plan/Space (`pkg/interpreter/web`, `ui/elements`, `ui/panes`, `ui/components` в текущем HUD-контуре), перезагружай UI интерпретатора через `host.reload` и проверяй `context.get`, `todo.panel`, screenshot или профильный interpreter API.
+7. Не путай UI интерпретатора и WebApp target. Если изменен browser-side код самого interpreter/HUD/Plan/Space (`pkg/interpreter/web`, `ui/elements`, `ui/panes`, `ui/components` в текущем HUD-контуре), перезагружай UI интерпретатора через `host.reload` и проверяй `context.get`, `todo.panel`, screenshot или профильный interpreter API. Interpreter host должен отдавать `web/index.html` через Bun fullstack `development` mode; при `development:false` Bun держит bundled assets в памяти до restart-а, и `host.reload` не подхватывает свежий browser-side код.
 8. Если изменен browser-side код WebApp target внутри server Chrome (`bulk/client.ts`, WebApp страницы, remote desktop target), перезагружай именно WebApp target через `devtools.reload` или Chrome CDP hard reload с cache bypass и проверяй `devtools.console`, screenshot или профильный WebApp API. Если изменен server/runtime код, сам перезапусти или replay соответствующий process и проверь health/output.
 
 Причина: только interpreter source API сдвигает breakpoints, рассылает `source-patched`, обновляет source cache/display и сохраняет связь runtime/source context. Правка в обход API оставляет UI и текущий runtime на старом source snapshot.
@@ -409,6 +409,19 @@ display geometry или других UI/display координат. Для `paus
 process уже был в нужном состоянии, ответ использует `already:"paused"` или
 `already:"running"`, а не фиктивный event.
 
+`process.action` с `action:"restart"` должен сам возвращать итог restart-а,
+достаточный для следующего решения агента. Он ждёт post-restart debugger-ready
+состояние: inspector подключён, а target-level `pendingBreakpoints` потреблены
+runtime-слоем. Если это не произошло до timeout, tool возвращает `ok:false`/504
+с текущим `process` snapshot и `ready.state:"timeout"`, а не ложный success.
+Не достраивай штатный restart цепочкой `process.action restart` -> `process.get`:
+исправляй contract конкретного tool, чтобы tool возвращал ожидаемый результат.
+Если у process есть breakpoints, обычный `process.action` с `action:"restart"`
+по умолчанию работает как restart-and-stop-on-breakpoint: tool стартует через
+`inspect-brk`, дождётся установки breakpoints, выполнит resume и вернёт ответ
+только после следующего `Debugger.paused` или timeout. Явный
+`params.runToBreakpoint:false` отключает этот режим.
+
 `evaluate` возвращает результат вычисления в runtime-only ответе. Если нужно
 отдельно показать вычисление человеку в UI/terminal, это должен быть явный
 UI-visible workflow, а не часть debugger response.
@@ -472,7 +485,7 @@ Codex message и Browser Agent message - разные transport:
 - Codex message отправляет текст, голос и image attachment paths в host PTY/Codex CLI через terminal transport.
 - Browser Agent message отправляет текст, голос и image attachment paths в уже открытый browser chat через Chrome DevTools DOM bridge.
 - MVP Browser Agent Chat сейчас завязан на текущий Qwen chat (`https://chat.qwen.ai/`) и доступен через `browser_chat.*` tools в `POST /tools`.
-- Browser Agent Chat использует текстовый tool protocol: Qwen может вернуть `<tool_calls>{"tool_uses":[...]}</tool_calls>`, ограниченный loop выполнит эти calls через общий `POST /tools` и отправит Qwen `<tool_results>...`. Для прямого `browser_chat.send` работает server-side pump, Browser Agent UI передает `autoToolLoop:false` и использует свой streaming loop. Это не native Qwen function calling и не универсальный planner; `browser_chat.*` остаются внутренним transport и не вызываются Qwen напрямую.
+- Browser Agent Chat использует текстовый tool protocol: Qwen может вернуть `<tool_calls>{"tool_uses":[...]}</tool_calls>`, ограниченный loop выполнит эти calls через общий `POST /tools` и отправит Qwen `<tool_results>...` только после `generating:false`. Для прямого `browser_chat.send` работает server-side pump, Browser Agent UI передает `autoToolLoop:false` и использует свой streaming loop. `browser_chat.send/read` возвращают transport-state (`generating`, `canSend`, `busy`, `blockedReason`), а Browser Agent Chat показывает это отдельным toolbar-индикатором. Это не native Qwen function calling и не универсальный planner; `browser_chat.*` остаются внутренним transport и не вызываются Qwen напрямую.
 
 ## UI Architecture
 
