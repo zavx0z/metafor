@@ -358,15 +358,20 @@ devtools.evaluate         # {expression, targetUrl?, awaitPromise?, returnByValu
 ## Browser Agent Chat
 
 `browser_chat.*` tools - минимальный transport для Browser Agent message. Он
-работает через тот же server Chrome CDP/DevTools слой, но не является заменой
-`devtools.*`: tools чата вставляют сообщение в уже открытый Qwen chat и читают
-ответ из DOM.
+работает через `@metafor/browser-agent` runtime и тот же server Chrome
+CDP/DevTools слой, но не является заменой `devtools.*`: tools чата вставляют
+сообщение в уже открытый browser LLM chat и читают ответ из DOM.
+
+Поддерживаемые provider: `qwen` (`chat.qwen.ai`) и `deepseek`
+(`chat.deepseek.com`). Provider можно выбрать явно через
+`provider?:"qwen"|"deepseek"`; если он не указан, runtime выводит provider из
+`urlContains`/`targetUrl`/`targetTitle`, fallback - Qwen.
 
 ```text
-browser_chat.send      # {message|text, targetId?, targetUrl?, targetTitle?, urlContains?, autoToolLoop?, newChat?}
-browser_chat.read      # {targetId?, targetUrl?, targetTitle?, urlContains?}
-browser_chat.wait      # {targetId?, targetUrl?, targetTitle?, urlContains?, previousAssistantText?, afterMessageCount?, intervalMs?, stableTicks?, timeoutMs?}
-browser_chat.exchange  # {message|text, targetId?, targetUrl?, targetTitle?, urlContains?, previousAssistantText?, afterMessageCount?, intervalMs?, stableTicks?, timeoutMs?}
+browser_chat.send      # {provider?:qwen|deepseek, message|text, targetId?, targetUrl?, targetTitle?, urlContains?, autoToolLoop?, newChat?, waitUntilReady?, sendTimeoutMs?}
+browser_chat.read      # {provider?:qwen|deepseek, targetId?, targetUrl?, targetTitle?, urlContains?}
+browser_chat.wait      # {provider?:qwen|deepseek, targetId?, targetUrl?, targetTitle?, urlContains?, previousAssistantText?, afterMessageCount?, intervalMs?, stableTicks?, timeoutMs?}
+browser_chat.exchange  # {provider?:qwen|deepseek, message|text, targetId?, targetUrl?, targetTitle?, urlContains?, previousAssistantText?, afterMessageCount?, intervalMs?, stableTicks?, timeoutMs?}
 ```
 
 По умолчанию target выбирается по `urlContains:"chat.qwen.ai"`. `send` ищет

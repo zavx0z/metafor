@@ -36,12 +36,34 @@ export function deepseekSendExpression(message: string, newChat: boolean): strin
       document.querySelector("[data-testid*=chat-input i]"),
       document.querySelector("[class*=input i][contenteditable=true]")
     ].filter(Boolean).find((el) => visible(el) && !disabled(el));
-    const findSendButton = () => Array.from(document.querySelectorAll("button, [role=button]")).find((el) => {
-      if (!visible(el) || disabled(el)) return false;
-      const label = cleanInline([el.getAttribute("aria-label"), el.getAttribute("title"), el.getAttribute("data-testid"), el.className, el.innerText].join(" ")).toLowerCase();
-      if (/stop|cancel|record|mic|voice/.test(label)) return false;
-      return /send|submit|arrow|发送|送信/.test(label) || el.querySelector("svg") !== null && /send|arrow|paper/i.test(String(el.innerHTML || ""));
-    });
+    const findSendButton = () => {
+      const input = findInput();
+      const inputRect = input ? input.getBoundingClientRect() : null;
+      const candidates = Array.from(document.querySelectorAll("button, [role=button]")).filter((el) => {
+        if (!visible(el) || disabled(el)) return false;
+        const label = cleanInline([el.getAttribute("aria-label"), el.getAttribute("title"), el.getAttribute("data-testid"), el.className, el.innerText].join(" ")).toLowerCase();
+        if (/stop|cancel|record|mic|voice|attach|upload|file/.test(label)) return false;
+        if (inputRect === null) return true;
+        const rect = el.getBoundingClientRect();
+        return rect.y >= inputRect.y - 80
+          && rect.y <= inputRect.bottom + 120
+          && rect.x >= inputRect.x + inputRect.width * 0.5;
+      }).map((el) => {
+        const rect = el.getBoundingClientRect();
+        const label = cleanInline([el.getAttribute("aria-label"), el.getAttribute("title"), el.getAttribute("data-testid"), el.className, el.innerText].join(" ")).toLowerCase();
+        let score = 0;
+        if (/send|submit|arrow|发送|送信/.test(label)) score += 80;
+        if (/primary|filled|circle/.test(label)) score += 30;
+        if (el.querySelector("svg") !== null) score += 10;
+        if (inputRect !== null) {
+          score += rect.x;
+          if (rect.x >= inputRect.right - 80) score += 120;
+          score -= Math.abs((rect.y + rect.height / 2) - (inputRect.y + inputRect.height / 2)) / 10;
+        }
+        return {el, score};
+      }).sort((left, right) => right.score - left.score);
+      return candidates[0]?.el || null;
+    };
     const generating = () => Array.from(document.querySelectorAll("button, [role=button], [class*=loading i], [class*=generating i], [class*=thinking i]")).some((el) => visible(el) && /stop|停止|cancel|generating|loading|thinking/i.test([el.getAttribute("aria-label"), el.getAttribute("title"), el.className, el.innerText].join(" ")));
     const transportState = () => {
       const input = findInput();

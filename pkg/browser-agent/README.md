@@ -52,6 +52,4 @@ Use `provider` when multiple browser LLM chats are open in the same Chrome insta
 
 If `provider` is not provided, the runtime infers it from `adapter`, `urlContains`, `targetUrl`, or `targetTitle`, then falls back to Qwen.
 
-## Next providers
-
 Add new browser LLMs as provider adapters rather than forking interpreter code.
