@@ -2770,7 +2770,6 @@ async function initEngine(): Promise<void> {
       settings: () => ({
         title: t("voiceInput"),
         generalTabLabel: t("voiceGeneralSettings"),
-        debugTabLabel: t("voiceDebugTab"),
         fullStopLabel: t("voiceFullStop"),
         fullStopHint: t("voiceFullStopHint"),
         phraseGroups: voicePhraseGroupsForHud(),
@@ -2802,7 +2801,6 @@ async function initEngine(): Promise<void> {
         inputEndpoint: voiceEndpointLabel(readVoiceInputUrl()),
         serviceLine: voiceServiceLine(),
         liveLine: voiceSettingsLiveLine(),
-        debugLines: voiceDebugLines(),
       }),
       onFullStop: fullyStopVoiceInput,
       onAddPhrase: addVoicePhrase,
@@ -4050,7 +4048,6 @@ function handleVoiceStatus(status: VoiceInputStatus, detail?: string): void {
   if (status === "waitingWake" && previousStatus !== "waitingWake") voiceInputClient?.prewarmDictation()
   updateVoiceHud(status, detail)
   if (voiceSignal !== null) {
-    postInterpreterClientEvent("voice", "signal", {kind: voiceSignal, from: previousStatus, to: status, detail: detail ?? ""})
     playVoiceSignal(voiceSignal)
   }
 }
@@ -4433,7 +4430,7 @@ function voicePreviewTerminals(target: VoiceInputTarget): TerminalPane[] {
 
 function shouldHandleCompletedVoiceCommit(previousStatus: VoiceInputStatus, status: VoiceInputStatus, detail?: string): boolean {
   if ((status === "waitingWake" || status === "idle") && detail !== "draft" && !/reconnect/i.test(detail ?? "")) {
-    if (voiceInputClient?.debugSnapshot().session.autoSendState === "readyToSend") return true
+    if (voiceInputClient?.autoSendReady === true) return true
   }
   if (previousStatus === "committing") return status === "listening" || status === "waitingWake" || status === "idle"
   return previousStatus === "processing" && (status === "idle" || (status === "waitingWake" && detail === "ready"))
@@ -4690,13 +4687,13 @@ function voiceButtonSnapshot(): ButtonVoiceSnapshot {
   return {
     status: voiceHudStatus,
     serviceState: voiceServiceState,
-    level: voiceHudStatus === "listening" || voiceHudStatus === "committing" ? voiceInputLevel : 0,
+    level: voiceHudStatus === "waitingWake" || voiceHudStatus === "listening" || voiceHudStatus === "committing" ? voiceInputLevel : 0,
   }
 }
 
 function voiceButtonSnapshotForTarget(matches: (target: VoiceInputTarget) => boolean): ButtonVoiceSnapshot {
   const active = voiceActiveTarget !== null && matches(voiceActiveTarget)
-  if (active) return voiceButtonSnapshot()
+  if (active || voiceHudStatus === "waitingWake") return voiceButtonSnapshot()
   return {
     status: voiceHudStatus === "error" ? "error" : "idle",
     serviceState: voiceServiceState,
@@ -6588,7 +6585,7 @@ function isTouchPointerEvent(event: MouseEvent): boolean {
 }
 
 function updateVoiceLevel(level: number): void {
-  if (voiceHudStatus === "waitingWake" || voiceHudStatus === "processing") {
+  if (voiceHudStatus === "processing") {
     voiceInputLevel = 0
     return
   }
@@ -6634,7 +6631,7 @@ function renderVoiceHud(): void {
     detailLine: voiceHudDetail,
     serviceLine: voiceServiceLine(),
     serviceState: voiceServiceState,
-    level: voiceHudStatus === "listening" || voiceHudStatus === "committing" ? voiceInputLevel : 0,
+    level: voiceHudStatus === "waitingWake" || voiceHudStatus === "listening" || voiceHudStatus === "committing" ? voiceInputLevel : 0,
   })
   hostTerminal?.codexComposer.requestRender()
   browserChat?.composer.requestRender()
@@ -6666,7 +6663,6 @@ function flashVoiceHudError(detail: string): void {
   voiceLastErrorText = voiceReadableDetail(detail)
   voiceLastErrorAt = new Date()
   updateVoiceHud("error", detail)
-  postInterpreterClientEvent("voice", "signal", {kind: "error", from: voiceHudStatus, to: "error", detail, source: "flashVoiceHudError"})
   playVoiceSignal("error")
   voiceHudErrorTimer = window.setTimeout(() => {
     voiceHudErrorTimer = null
@@ -6719,85 +6715,15 @@ function voiceAutoEnterLine(): string {
 
 function voiceSettingsLiveLine(): string {
   const ru = getUiLocale() === "ru"
-  if (voiceHudStatus === "waitingWake") return `wake-up: ${debugVoiceText(voiceWakePreviewText)}`
-  if (voiceHudStatus === "listening" || voiceHudStatus === "committing" || voiceHudStatus === "processing") return `asr: ${debugVoiceText(voiceLastPartialText)}`
+  if (voiceHudStatus === "waitingWake") return `wake-up: ${compactVoiceText(voiceWakePreviewText)}`
+  if (voiceHudStatus === "listening" || voiceHudStatus === "committing" || voiceHudStatus === "processing") return `asr: ${compactVoiceText(voiceLastPartialText)}`
   return `${ru ? "голос" : "voice"}: -`
 }
 
-function voiceDebugLines(): string[] {
-  const ru = getUiLocale() === "ru"
-  const target = voiceTargetLabel()
-  const previewActive = voicePartialPreviewTarget !== null
-  const debug = voiceInputClient?.debugSnapshot()
-  const session = debug?.session
-  const silero = debug?.sileroVad
-  const sileroState = silero === undefined || silero === null
-    ? "-"
-    : silero.ready ? "ready" : silero.loading ? "loading" : silero.error !== null ? "error" : "idle"
-  return [
-    `${ru ? "статус" : "status"}: ${voiceStatusLabel(voiceHudStatus)}`,
-    `${ru ? "деталь" : "detail"}: ${voiceHudDetail || "-"}`,
-    `${ru ? "последние события" : "recent events"}: ${debug === undefined ? "-" : debug.trace.slice(-5).map((item) => item.label).join(" <- ") || "-"}`,
-    `${ru ? "цель" : "target"}: ${target || "-"}`,
-    `${ru ? "сессия" : "session"}: ${session?.phase ?? "-"}`,
-    `${ru ? "auto-send" : "auto-send"}: ${session?.autoSendState ?? "-"}`,
-    `${ru ? "capture" : "capture"}: ${debug === undefined ? "-" : `${debug.streamActive ? "on" : "off"} audio=${debug.audioContextState ?? "-"} frames=${debug.audioFrameCount}`}`,
-    `${ru ? "sockets" : "sockets"}: ${debug === undefined ? "-" : `wake=${readyStateLabel(debug.commandReadyState)} asr=${readyStateLabel(debug.asrReadyState)}`}`,
-    `${ru ? "asr enabled" : "asr enabled"}: ${debug?.asrEnabled === true ? "yes" : "no"}`,
-    `${ru ? "говорит" : "speaking"}: ${session?.speaking === true ? "yes" : "no"}`,
-    `${ru ? "потенц. голос" : "potential voice"}: ${session === undefined ? "-" : session.lastPotentialVoiceAt > 0 && Date.now() - performance.timeOrigin - session.lastPotentialVoiceAt < 1_000 ? "yes" : "no"}`,
-    `VAD: ${session?.vadSource ?? "-"}`,
-    `Silero: ${sileroState}${silero?.speechProbability === null || silero?.speechProbability === undefined ? "" : ` p=${silero.speechProbability.toFixed(2)}`}`,
-    `${ru ? "chunks" : "chunks"}: ${session === undefined ? "-" : `total=${session.chunks.total} rec=${session.chunks.recording} queued=${session.chunks.queued + session.chunks.retrying} proc=${session.chunks.processing} merged=${session.chunks.merged}`}`,
-    `${ru ? "очередь ASR" : "ASR queue"}: ${debug === undefined ? "-" : `${debug.asrBytesQueued} bytes`}`,
-    `${ru ? "тайминги" : "timings"}: ${session === undefined ? "-" : `speechEnd=${session.timings.speechEndMs} final=${session.timings.finalSilenceMs} total=${session.timings.speechEndMs + session.timings.finalSilenceMs}`}`,
-    `${ru ? "retry" : "retry"}: ${session?.retryCount ?? 0}`,
-    `${ru ? "transport" : "transport"}: ${debug?.asrTransport ?? "-"}`,
-    `${ru ? "noise floor" : "noise floor"}: ${session === undefined ? "-" : session.noiseFloor.toFixed(4)}`,
-    `${ru ? "speech threshold" : "speech threshold"}: ${session === undefined ? "-" : session.speechThreshold.toFixed(4)}`,
-    `${ru ? "wake gain" : "wake gain"}: ${session?.wakeGain === null || session?.wakeGain === undefined ? "-" : `${session.wakeGain.gain.toFixed(2)} rms=${session.wakeGain.rms.toFixed(4)} peak=${session.wakeGain.peak.toFixed(3)} clip=${Math.round(session.wakeGain.clippingRatio * 100)}%`}`,
-    `${ru ? "wake слышит" : "wake heard"}: ${debugVoiceText(voiceWakePreviewText)}`,
-    `${ru ? "wake время" : "wake at"}: ${formatDebugTime(voiceWakePreviewAt)}`,
-    `${ru ? "preview активен" : "preview active"}: ${previewActive ? "yes" : "no"}`,
-    `${ru ? "preview символов" : "preview chars"}: ${voiceLastPartialText.length}`,
-    `${ru ? "partial" : "partial"}: ${debugVoiceText(voiceLastPartialText)}`,
-    `${ru ? "partial время" : "partial at"}: ${formatDebugTime(voiceLastPartialAt)}`,
-    `${ru ? "chunk символов" : "chunk chars"}: ${voiceLastChunkText.length}`,
-    `${ru ? "chunk" : "chunk"}: ${debugVoiceText(voiceLastChunkText)}`,
-    `${ru ? "chunk время" : "chunk at"}: ${formatDebugTime(voiceLastChunkAt)}`,
-    `${ru ? "последняя ошибка" : "last error"}: ${debugVoiceText(voiceLastErrorText)}`,
-    `${ru ? "ошибка время" : "error at"}: ${formatDebugTime(voiceLastErrorAt)}`,
-    `${ru ? "громкость микрофона" : "mic signal volume"}: ${Math.round(readVoiceSignalVolume() * 100)}%`,
-    `${ru ? "автоотправка" : "auto-send"}: ${readVoiceAutoSendEnabled() ? "on" : "off"}`,
-    `${ru ? "режим деактивации" : "deactivation mode"}: ${readVoiceDeactivationMode()}`,
-    `${ru ? "пауза отправки" : "send pause"}: ${readVoiceRecognitionTimeoutSeconds()}-${Math.max(readVoiceRecognitionTimeoutSeconds(), readVoiceRecognitionMaxTimeoutSeconds())}s`,
-    `${ru ? "совпадение фраз" : "phrase matching"}: exact`,
-    `${ru ? "звук" : "sound"}: ${hudNotificationDebugLine()}`,
-    ...(debug?.trace.slice(-8).reverse().map((item) => `${formatHudTime(new Date(item.at))} voice.${item.label}: ${debugVoiceText(item.detail)}`) ?? []),
-  ]
-}
-
-function readyStateLabel(state: number | null): string {
-  if (state === WebSocket.CONNECTING) return "connecting"
-  if (state === WebSocket.OPEN) return "open"
-  if (state === WebSocket.CLOSING) return "closing"
-  if (state === WebSocket.CLOSED) return "closed"
-  return "-"
-}
-
-function debugVoiceText(text: string): string {
+function compactVoiceText(text: string): string {
   const cleaned = cleanupVoiceInputText(text)
   if (!cleaned) return "-"
   return cleaned.length <= 72 ? cleaned : `${cleaned.slice(0, 69)}...`
-}
-
-function formatDebugTime(date: Date | null): string {
-  return date === null ? "--:--:--" : formatHudTime(date)
-}
-
-function hudNotificationDebugLine(): string {
-  if (!hudNotificationLastLine) return "-"
-  return `${formatDebugTime(hudNotificationLastAt)} · ${hudNotificationLastLine}`
 }
 
 function renderVoiceMeter(): void {
@@ -7431,7 +7357,7 @@ function voicePhraseGroupsForHud(): Array<{
 
 function voiceActivationReceivedLines(): string[] {
   if (voiceWakePreviewHistory.length === 0) return [getUiLocale() === "ru" ? "пока нет данных" : "no data yet"]
-  return voiceWakePreviewHistory.map(({text, at}) => `${formatHudTime(at)} · ${debugVoiceText(text)}`)
+  return voiceWakePreviewHistory.map(({text, at}) => `${formatHudTime(at)} · ${compactVoiceText(text)}`)
 }
 
 function storeVoicePhrases(groupId: VoiceInputHudPhraseGroupId, phrases: readonly string[]): void {

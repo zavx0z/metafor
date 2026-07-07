@@ -1,6 +1,5 @@
-import {DEFAULT_VOICE_SESSION_TIMINGS, VoiceSessionManager, type VoiceChunk, type VoiceSessionDebugSnapshot, type VoiceSessionTimings} from "./voice-session-manager.ts"
-import {VoiceSileroVad, type VoiceSileroVadDebugSnapshot} from "./voice-silero-vad.ts"
-import {postInterpreterClientEvent} from "./remote-desktop-rtc-helpers.ts"
+import {DEFAULT_VOICE_SESSION_TIMINGS, VoiceSessionManager, type VoiceChunk, type VoiceSessionTimings} from "./voice-session-manager.ts"
+import {VoiceSileroVad} from "./voice-silero-vad.ts"
 
 export type VoiceInputStatus = "idle" | "connecting" | "waitingWake" | "listening" | "committing" | "processing" | "error"
 
@@ -20,31 +19,6 @@ export type VoiceInputSignalTone = "activation" | "deactivation" | "stop"
 export type VoiceInputPhraseGroupId = "activation" | "deactivation" | "stop"
 export type VoiceDeactivationMode = "phrase" | "timeout" | "phrase-timeout"
 export type VoiceInputTransport = "idle" | "connecting" | "ws" | "p2p"
-export type VoiceInputTraceSnapshot = {at: number; label: string; detail: string}
-
-export type VoiceInputDebugSnapshot = {
-  status: VoiceInputStatus
-  active: boolean
-  session: VoiceSessionDebugSnapshot
-  sileroVad: VoiceSileroVadDebugSnapshot | null
-  audioContextState: AudioContextState | null
-  audioSampleRate: number
-  streamActive: boolean
-  trackStates: Array<{kind: string; label: string; enabled: boolean; muted: boolean; readyState: MediaStreamTrackState}>
-  commandReadyState: number | null
-  asrReadyState: number | null
-  asrEnabled: boolean
-  asrTransport: VoiceInputTransport
-  audioFrameCount: number
-  lastAudioFrameAt: number
-  lastInputRms: number
-  lastInputPeak: number
-  commandBytesSent: number
-  asrBytesQueued: number
-  asrBytesSent: number
-  trace: VoiceInputTraceSnapshot[]
-}
-
 type VoiceInputClientOptions = {
   url(): string
   wakeUrl(): string
@@ -216,8 +190,10 @@ const VOICE_ACTIVATION_PREROLL_STRONG_RMS = 0.055
 const VOICE_ACTIVATION_PREROLL_STRONG_PEAK = 0.09
 const VOICE_COMMAND_AUDIO_GATE_RMS = 0.006
 const VOICE_COMMAND_AUDIO_GATE_PEAK = 0.010
-const VOICE_LEVEL_SILERO_PROBABILITY = 0.35
+const VOICE_LEVEL_SILERO_PROBABILITY = 0.01
 const VOICE_LEVEL_SILERO_MAX_AGE_MS = 320
+const VOICE_LEVEL_FALLBACK_RMS = 0.012
+const VOICE_LEVEL_FALLBACK_PEAK = 0.020
 const VOICE_WAKE_WORD_AUDIO_PADDING_MS = 120
 const VOICE_WAKE_RESULT_LATENCY_GUARD_MS = 260
 const VOICE_WAKE_FALLBACK_AUDIO_PREROLL_MS = 260
@@ -286,16 +262,7 @@ export class VoiceInputClient {
   #liveAsrBytes = 0
   #liveAsrFlushTimer: number | null = null
   #liveAsrChunkBytesSent = new Map<string, number>()
-  #debugAudioFrameCount = 0
-  #debugLastAudioFrameAt = 0
-  #debugLastInputRms = 0
-  #debugLastInputPeak = 0
-  #debugCommandBytesSent = 0
-  #debugAsrBytesSent = 0
-  #traceSeq = 0
-  #traceLog: VoiceInputTraceSnapshot[] = []
-  #lastAudioTraceAt = 0
-  #lastVadTraceAt = 0
+  #lastAudioFrameAt = 0
   #audioStartedAt = 0
   #audioWatchdogTimer: number | null = null
   #audioRestarting = false
@@ -310,36 +277,8 @@ export class VoiceInputClient {
     return this.#status === "connecting" || this.#status === "waitingWake" || this.#status === "listening" || this.#status === "committing" || this.#status === "processing"
   }
 
-  debugSnapshot(): VoiceInputDebugSnapshot {
-    const session = this.#session.debugSnapshot()
-    return {
-      status: this.#status,
-      active: this.active,
-      session,
-      sileroVad: this.#sileroVad?.debugSnapshot() ?? null,
-      audioContextState: this.#audioContext?.state ?? null,
-      audioSampleRate: this.#audioContext?.sampleRate ?? 0,
-      streamActive: this.#stream?.active === true,
-      trackStates: [...(this.#stream?.getTracks() ?? [])].map((track) => ({
-        kind: track.kind,
-        label: track.label,
-        enabled: track.enabled,
-        muted: track.muted,
-        readyState: track.readyState,
-      })),
-      commandReadyState: this.#commandWs?.readyState ?? null,
-      asrReadyState: this.#asrWs?.readyState ?? null,
-      asrEnabled: this.#asrEnabled,
-      asrTransport: this.#asrTransport,
-      audioFrameCount: this.#debugAudioFrameCount,
-      lastAudioFrameAt: this.#debugLastAudioFrameAt,
-      lastInputRms: this.#debugLastInputRms,
-      lastInputPeak: this.#debugLastInputPeak,
-      commandBytesSent: this.#debugCommandBytesSent,
-      asrBytesQueued: session.outboundPcmBytes + session.queuedPcmBytes,
-      asrBytesSent: this.#debugAsrBytesSent,
-      trace: this.#traceLog.slice(-12),
-    }
+  get autoSendReady(): boolean {
+    return this.#session.autoSendState === "readyToSend"
   }
 
   reset(): void {
@@ -371,7 +310,6 @@ export class VoiceInputClient {
   }
 
   async start(): Promise<void> {
-    this.#trace("start.request")
     if (this.active) return
     this.#stopRequested = false
     this.#wakeMatched = false
@@ -384,9 +322,7 @@ export class VoiceInputClient {
       await this.#startAudio()
       if (wakeEnabled) await this.#startCommandRecognizer()
       else this.#setStatus("idle")
-      this.#trace("start.ready", {wakeEnabled})
     } catch (error) {
-      this.#trace("start.error", {error: error instanceof Error ? error.message : String(error)})
       this.#setStatus("error", error instanceof Error ? error.message : String(error))
       this.#cleanup()
       throw error
@@ -394,7 +330,6 @@ export class VoiceInputClient {
   }
 
   stop(detail = ""): void {
-    this.#trace("stop.request", {detail})
     if (!this.active) return
     this.#stopRequested = true
     this.#sendCommand({type: "stop"})
@@ -470,14 +405,12 @@ export class VoiceInputClient {
   }
 
   async sleepToWake(): Promise<void> {
-    this.#trace("draft.request")
     if (!this.active) return
     this.#stopRequested = false
     this.#session.enterDraftMode()
     this.#session.cancelAutoSend()
     this.#finalSilenceRequested = false
     this.#session.closeCurrentChunk(performance.now(), "draft mode")
-    this.#trace("draft.entered")
     this.#flushPendingCommittedChunk()
     this.#sendCommand({type: "stop"})
     this.#stopAudioOnly()
@@ -502,13 +435,11 @@ export class VoiceInputClient {
   }
 
   async startDictation(): Promise<void> {
-    this.#trace("dictation.request")
     if (!this.active) {
       await this.#startDictationFromIdle()
       return
     }
     if (this.#status === "processing") {
-      this.#trace("dictation.skip.processing")
       return
     }
     if (this.#stream === null) {
@@ -520,19 +451,16 @@ export class VoiceInputClient {
       this.#wakeMatched = false
       this.#finalSilenceRequested = false
     } else if (this.#asrEnabled) {
-      this.#trace("dictation.skip.asr-enabled")
       return
     }
     try {
       await this.#activateAsr("", "manual")
     } catch (error) {
-      this.#trace("dictation.error", {error: error instanceof Error ? error.message : String(error)})
       this.#recoverAsrFailure(error)
     }
   }
 
   async #startDictationFromIdle(): Promise<void> {
-    this.#trace("dictation.idle-start")
     this.#stopRequested = false
     this.#wakeMatched = false
     this.#resetCommitState()
@@ -543,7 +471,6 @@ export class VoiceInputClient {
       await this.#startAudio()
       await this.#activateAsr("", "manual")
     } catch (error) {
-      this.#trace("dictation.idle-error", {error: error instanceof Error ? error.message : String(error)})
       if (this.#stream !== null && this.#asrEnabled) {
         this.#recoverAsrFailure(error)
         return
@@ -565,7 +492,6 @@ export class VoiceInputClient {
       return
     }
     const phraseGroups = this.#commandPhrases()
-    this.#trace("wake.connect", {url: this.options.wakeUrl()})
     await this.#connectCommand(this.options.wakeUrl())
     this.#wakeRecognizerStartedAt = performance.now()
     this.#sendCommand({
@@ -576,11 +502,9 @@ export class VoiceInputClient {
       words: true,
     })
     this.#setStatus("waitingWake", WAKE_WORD)
-    this.#trace("wake.started", {phraseCount: phraseGroups.activation.length})
   }
 
   async #activateAsr(wakeText: string, source: "wake" | "manual" = "wake"): Promise<void> {
-    this.#trace("asr.activate.request", {source, wakeChars: cleanupVoiceText(wakeText).length, wakeText: debugTraceText(wakeText)})
     if (this.#wakeMatched || this.#stopRequested) return
     this.#wakeMatched = true
     this.options.onWake(wakeText)
@@ -617,44 +541,36 @@ export class VoiceInputClient {
     this.#captureActivationPrerollChunk(performance.now())
     this.#pumpAsrQueue()
     this.#touchVoiceActivity()
-    this.#trace("asr.activate.ready")
   }
 
   async #connectCommand(url: string): Promise<void> {
     if (this.#commandWs?.readyState === WebSocket.OPEN) return
 
     const socketUrl = voiceInputWebSocketUrl(url)
-    this.#trace("wake.socket.connecting", {url: socketUrl})
     const ws = this.options.createCommandSocket?.(socketUrl, this.#socketContext()) ?? new WebSocket(socketUrl)
     ws.binaryType = "arraybuffer"
     this.#commandWs = ws
 
     ws.addEventListener("message", (event) => this.#handleCommandMessage(event as MessageEvent<unknown>))
     ws.addEventListener("close", () => {
-      this.#trace("wake.socket.close", {url: ws.url})
       if (this.#commandWs !== ws) return
       this.#commandWs = null
       if (this.#stopRequested || this.#status === "idle") return
       if (this.#asrEnabled) {
-        this.#trace("wake.socket.close.ignored", {url: ws.url})
         return
       }
-      this.#trace("wake.socket.reconnect.scheduled", {url: ws.url, delayMs: ASR_RECONNECT_DELAY_MS})
       window.setTimeout(() => {
         if (this.#stopRequested || this.#status === "idle" || this.#asrEnabled) return
         void this.#startCommandRecognizer().catch((error) => {
-          this.#trace("wake.socket.reconnect.error", {error: error instanceof Error ? error.message : String(error)})
         })
       }, ASR_RECONNECT_DELAY_MS)
     })
 
     await new Promise<void>((resolve, reject) => {
       ws.addEventListener("open", () => {
-        this.#trace("wake.socket.open", {url: socketUrl})
         resolve()
       }, {once: true})
       ws.addEventListener("error", () => {
-        this.#trace("wake.socket.error", {url: socketUrl})
         reject(new Error(`voice command websocket failed: ${socketUrl}`))
       }, {once: true})
     })
@@ -669,14 +585,12 @@ export class VoiceInputClient {
 
     this.#setTransport("connecting")
     const socketUrl = voiceInputWebSocketUrl(url)
-    this.#trace("asr.socket.connecting", {url: socketUrl})
     const ws = this.options.createAsrSocket?.(socketUrl, this.#socketContext()) ?? new WebSocket(socketUrl)
     ws.binaryType = "arraybuffer"
     this.#asrWs = ws
 
     ws.addEventListener("message", (event) => this.#handleAsrMessage(event as MessageEvent<unknown>))
     ws.addEventListener("close", () => {
-      this.#trace("asr.socket.close", {url: ws.url})
       if (this.#asrWs !== ws) return
       this.#asrWs = null
       this.#asrConnectPromise = null
@@ -690,11 +604,9 @@ export class VoiceInputClient {
       ws.addEventListener("open", () => {
         opened = true
         if (this.#asrTransport === "connecting" && ws instanceof WebSocket) this.#setTransport("ws")
-        this.#trace("asr.socket.open", {url: socketUrl})
         resolve()
       }, {once: true})
       ws.addEventListener("error", () => {
-        this.#trace("asr.socket.error", {url: socketUrl})
         reject(new Error(`voice ASR websocket failed: ${socketUrl}`))
       }, {once: true})
       ws.addEventListener("close", () => {
@@ -720,14 +632,8 @@ export class VoiceInputClient {
   }
 
   async #startAudio(): Promise<void> {
-    this.#trace("audio.start.request")
     this.#clearAudioWatchdog()
-    this.#debugAudioFrameCount = 0
-    this.#debugLastAudioFrameAt = 0
-    this.#debugLastInputRms = 0
-    this.#debugLastInputPeak = 0
-    this.#lastAudioTraceAt = 0
-    this.#lastVadTraceAt = 0
+    this.#lastAudioFrameAt = 0
     this.#clearLiveAsrPcm()
     this.#audioPreroll = []
     this.#firstChunkPrerollArmed = false
@@ -747,10 +653,6 @@ export class VoiceInputClient {
       },
       video: false,
     })
-    this.#trace("audio.stream.ready", {
-      sampleRate: this.#audioContext.sampleRate,
-      tracks: this.#stream.getTracks().map((track) => `${track.kind}:${track.readyState}:${track.enabled ? "on" : "off"}`),
-    })
 
     this.#sourceNode = this.#audioContext.createMediaStreamSource(this.#stream)
     this.#captureNode = await this.#createCaptureNode(this.#audioContext)
@@ -766,25 +668,18 @@ export class VoiceInputClient {
     this.#captureNode.port.onmessage = (event: MessageEvent<unknown>) => {
       const samples = event.data
       if (!(samples instanceof Float32Array)) return
-      this.#debugAudioFrameCount += 1
-      this.#debugLastAudioFrameAt = performance.now()
+      this.#lastAudioFrameAt = performance.now()
       const rms = rmsLevel(samples)
       const peak = peakLevel(samples)
       const clippingRatio = clippingRatioLevel(samples)
-      this.#debugLastInputRms = rms
-      this.#debugLastInputPeak = peak
       const now = performance.now()
-      if (now - this.#lastAudioTraceAt >= 1_000) {
-        this.#lastAudioTraceAt = now
-        this.#trace("audio.frame", {rms: roundTraceNumber(rms), peak: roundTraceNumber(peak), clippingRatio: roundTraceNumber(clippingRatio)})
-      }
       const pcm = floatToPcm16(samples)
       const wakeGain = analyzeWakeAudioGain(samples, rms, peak, clippingRatio)
-      this.#session.setWakeGainDebug(wakeGain)
       const wakePcm = floatToPcm16(applyWakeAudioGain(samples, wakeGain.gain))
       this.#sileroVad?.acceptFrame(samples, this.#audioContext?.sampleRate ?? TARGET_SAMPLE_RATE, now)
       const sileroProbability = this.#sileroVad?.probability()
       this.#trackSpeechAndMaybeCommit(samples, pcm, rms, peak, clippingRatio)
+      this.#updateVoiceLevel(now, rms, peak, clippingRatio, sileroProbability?.probability ?? null, sileroProbability?.at ?? 0)
       this.#sendCommandPcm(wakePcm, rms, peak, sileroProbability?.probability ?? null, sileroProbability?.at ?? 0, now)
       this.#rememberAudioPreroll(pcm, now, rms, peak, clippingRatio, sileroProbability?.probability ?? null, sileroProbability?.at ?? 0)
     }
@@ -794,7 +689,6 @@ export class VoiceInputClient {
     this.#sinkNode.connect(this.#audioContext.destination)
     this.#audioStartedAt = performance.now()
     this.#scheduleAudioWatchdog()
-    this.#trace("audio.graph.ready", {sampleRate: this.#audioContext.sampleRate})
   }
 
   #scheduleAudioWatchdog(): void {
@@ -809,16 +703,14 @@ export class VoiceInputClient {
   async #handleAudioWatchdog(): Promise<void> {
     if (this.#stream === null || this.#audioContext === null || this.#stopRequested || this.#status === "idle") return
     const now = performance.now()
-    const lastFrameAt = this.#debugLastAudioFrameAt > 0 ? this.#debugLastAudioFrameAt : this.#audioStartedAt
+    const lastFrameAt = this.#lastAudioFrameAt > 0 ? this.#lastAudioFrameAt : this.#audioStartedAt
     const elapsedMs = now - lastFrameAt
     const sinceStartMs = now - this.#audioStartedAt
     if (elapsedMs < VOICE_AUDIO_WATCHDOG_STALL_MS || sinceStartMs < VOICE_AUDIO_WATCHDOG_START_GRACE_MS) {
       this.#scheduleAudioWatchdog()
       return
     }
-    const session = this.#session.debugSnapshot()
-    if (this.#commitPending || session.currentChunkId !== null || session.queuedPcmChunks > 0 || session.chunks.processing > 0) {
-      this.#trace("audio.watchdog.defer", {elapsedMs: Math.round(elapsedMs), phase: session.phase})
+    if (this.#commitPending || this.#session.hasPendingChunks()) {
       this.#scheduleAudioWatchdog()
       return
     }
@@ -829,15 +721,12 @@ export class VoiceInputClient {
     if (this.#audioRestarting) return
     this.#audioRestarting = true
     const resumeWake = this.#status === "waitingWake" && !this.#asrEnabled && this.#wakeEnabled()
-    this.#trace("audio.watchdog.restart", {elapsedMs: Math.round(elapsedMs), status: this.#status, resumeWake})
     try {
       this.#sendCommand({type: "stop"})
       this.#stopAudioOnly()
       await this.#startAudio()
       if (resumeWake && this.#status === "waitingWake") await this.#startCommandRecognizer()
-      this.#trace("audio.watchdog.ready", {resumeWake})
     } catch (error) {
-      this.#trace("audio.watchdog.error", {error: error instanceof Error ? error.message : String(error)})
       this.#setStatus("error", error instanceof Error ? error.message : String(error))
       this.#cleanup()
     } finally {
@@ -886,7 +775,6 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     }
 
     if (msg.type === "error") {
-      this.#trace("wake.message.error", {error: msg.error ?? "voice command error"})
       if (this.#asrEnabled && this.#status !== "idle" && this.#status !== "waitingWake") return
       this.#setStatus("error", msg.error ?? "voice command error")
       return
@@ -928,17 +816,10 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       const wakeAudioCutoff = wakeAudioCutoffFromRecognitionMessage(msg, activationPhrases, this.#wakeRecognizerStartedAt, receivedAt)
       if (wakeAudioCutoff !== null) {
         this.#wakeAudioCutoff = wakeAudioCutoff
-        this.#trace("wake.audio.cutoff", {
-          source: wakeAudioCutoff.source,
-          phrase: wakeAudioCutoff.phrase,
-          wordEndMs: wakeAudioCutoff.wordEndMs,
-          cutoffAgeMs: Math.round(receivedAt - wakeAudioCutoff.at),
-        })
       }
     }
 
     const commandTextHandled = this.options.onCommandText(cleanupVoiceText(text), finalMessage) === true
-    if (finalMessage) this.#trace("wake.message.final", {chars: cleanupVoiceText(text).length, text: debugTraceText(text), handled: commandTextHandled})
     if (commandTextHandled) return
 
     this.#setStatus("waitingWake", WAKE_WORD)
@@ -975,10 +856,8 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     }
 
     if (msg.type === "result" || msg.type === "final") {
-      this.#trace("asr.message.final", {type: msg.type, chars: cleanupVoiceText(recognitionText(msg)).length, text: debugTraceText(recognitionText(msg))})
       const phraseGroups = this.#asrControlPhrases()
       if (deactivationModeAllowsPhrase(this.options.deactivationMode()) && isActivationDeactivationCommand(recognitionText(msg), phraseGroups.activation)) {
-        this.#trace("asr.message.activation-deactivation", {text: debugTraceText(recognitionText(msg))})
         this.#executeControlCommand("deactivation")
         return
       }
@@ -1002,7 +881,6 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     }
 
     if (msg.type === "committed") {
-      this.#trace("asr.message.committed")
       const committedChunkId = this.#processingChunkId
       this.#clearPendingChunkFlushTimer()
       this.#flushPendingCommittedChunk()
@@ -1019,7 +897,6 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     }
 
     if (msg.type === "error") {
-      this.#trace("asr.message.error", {error: msg.error ?? "voice error"})
       this.#recoverAsrFailure(msg.error ?? "voice error")
     }
   }
@@ -1051,26 +928,6 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       speechProbability: sileroProbability?.probability ?? undefined,
       speechProbabilityAt: sileroProbability?.at ?? undefined,
     })
-    const freshSileroLevel = sileroProbability?.probability !== null
-      && sileroProbability?.probability !== undefined
-      && sileroProbability.at > 0
-      && now - sileroProbability.at <= VOICE_LEVEL_SILERO_MAX_AGE_MS
-      && sileroProbability.probability >= VOICE_LEVEL_SILERO_PROBABILITY
-    this.options.onLevel(freshSileroLevel ? rms : 0)
-    if (vad.started || vad.stopped || vad.closedChunkIds.length > 0 || vad.finalSilence || vad.potentialVoice || now - this.#lastVadTraceAt >= 1_000) {
-      this.#lastVadTraceAt = now
-      this.#trace(vad.started ? "vad.speech-start" : vad.stopped ? "vad.speech-stop" : vad.closedChunkIds.length > 0 ? "vad.chunk-closed" : vad.finalSilence ? "vad.final-silence" : "vad.frame", {
-        rms: roundTraceNumber(rms),
-        peak: roundTraceNumber(peak),
-        clippingRatio: roundTraceNumber(clippingRatio),
-        speechProbability: sileroProbability?.probability == null ? null : roundTraceNumber(sileroProbability.probability),
-        source: vad.source,
-        potentialVoice: vad.potentialVoice,
-        threshold: roundTraceNumber(vad.speechThreshold),
-        noiseFloor: roundTraceNumber(vad.noiseFloor),
-        closed: vad.closedChunkIds,
-      })
-    }
     if (this.#asrEnabled && this.#session.currentChunkId !== null) {
       const chunkId = this.#session.currentChunkId
       for (const frame of this.#appendFirstChunkPreroll(now)) this.#enqueueLiveAsrPcm(chunkId, frame)
@@ -1084,16 +941,33 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     if (vad.closedChunkIds.length > 0) this.#pumpAsrQueue()
     if (vad.finalSilence) {
       this.#finalSilenceRequested = true
-      this.#trace("dictation.final-silence")
       this.#maybeFinishDictationAfterFinalSilence()
     }
+  }
+
+  #updateVoiceLevel(now: number, rms: number, peak: number, clippingRatio: number, speechProbability: number | null, speechProbabilityAt: number): void {
+    if (this.#status !== "waitingWake" && this.#status !== "listening" && this.#status !== "committing") {
+      this.options.onLevel(0)
+      return
+    }
+    const freshSilero = speechProbability !== null
+      && speechProbabilityAt > 0
+      && now - speechProbabilityAt <= VOICE_LEVEL_SILERO_MAX_AGE_MS
+    const sileroLevel = freshSilero
+      && speechProbability >= VOICE_LEVEL_SILERO_PROBABILITY
+      && rms >= 0.006
+      && peak >= 0.012
+    const fallbackLevel = !freshSilero
+      && rms >= VOICE_LEVEL_FALLBACK_RMS
+      && peak >= VOICE_LEVEL_FALLBACK_PEAK
+      && clippingRatio < 0.18
+    this.options.onLevel(sileroLevel || fallbackLevel ? rms : 0)
   }
 
   #sendCommandPcm(commandPcm: ArrayBuffer, rms: number, peak: number, speechProbability: number | null, speechProbabilityAt: number, now: number): void {
     if (this.#commandWs?.readyState === WebSocket.OPEN) {
       if (!this.#shouldSendCommandAudio(rms, peak, speechProbability, speechProbabilityAt, now)) return
       this.#commandWs.send(commandPcm)
-      this.#debugCommandBytesSent += commandPcm.byteLength
     }
   }
 
@@ -1148,16 +1022,6 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#wakeAudioCutoff = null
     for (const frame of chunkFrames) this.#enqueueLiveAsrPcm(chunk.id, frame.pcm)
     const closed = now - lastVoiceAt >= this.#sessionTimings.speechEndMs
-    this.#trace("activation.preroll.chunk", {
-      chunkId: chunk.id,
-      frames: chunkFrames.length,
-      bytes: chunk.pcmBytes,
-      voicedMs: Math.round(voicedMs),
-      voiceAgeMs: Math.round(now - lastVoiceAt),
-      closed,
-      maxRms: roundTraceNumber(maxRms),
-      maxPeak: roundTraceNumber(maxPeak),
-    })
     if (closed) {
       this.#session.closeCurrentChunk(endedAt, "activation preroll")
       this.#pumpAsrQueue()
@@ -1182,7 +1046,6 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       frames += 1
       bytes += frame.pcm.byteLength
     }
-    this.#trace("audio.preroll.append", {chunkId, frames, bytes, wakeCutoff: wakeAudioCutoff?.source ?? null, cutoffAgeMs: Math.round(now - cutoff)})
     return appended
   }
 
@@ -1218,11 +1081,9 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     try {
       for (const frame of frames) {
         ws.send(frame)
-        this.#debugAsrBytesSent += frame.byteLength
       }
       this.#liveAsrChunkBytesSent.set(chunkId, (this.#liveAsrChunkBytesSent.get(chunkId) ?? 0) + bytes)
     } catch (error) {
-      this.#trace("asr.live-pcm.error", {chunkId, error: error instanceof Error ? error.message : String(error)})
       this.#clearLiveAsrPcm()
       this.#recoverAsrFailure(error)
     }
@@ -1241,19 +1102,16 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
 
   #pumpAsrQueue(): void {
     if (!this.#asrEnabled || this.#commitPending || this.#asrWs?.readyState !== WebSocket.OPEN) {
-      if (this.#session.hasPendingChunks()) this.#trace("asr.queue.wait", {reason: !this.#asrEnabled ? "asr-disabled" : this.#commitPending ? "commit-pending" : "socket-not-open"})
       if (this.#session.hasPendingChunks()) this.#session.markAutoSendWaitingChunks()
       return
     }
     const chunk = this.#session.nextQueuedChunk()
     if (chunk === null) {
-      this.#trace("asr.queue.empty")
       this.#maybeFinishDictationAfterFinalSilence()
       this.#maybePauseDraftAsrDrain()
       return
     }
     if (chunk.pcmBytes <= 0) {
-      this.#trace("asr.chunk.empty", {chunkId: chunk.id})
       this.#session.markChunkFailed(chunk.id, "empty audio chunk", false)
       this.#pumpAsrQueue()
       return
@@ -1268,7 +1126,6 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       return
     }
     if (!this.#session.hasVoiceActivity()) {
-      this.#trace("dictation.final-silence.ignored", {reason: "no-voice-activity"})
       this.#finalSilenceRequested = false
       return
     }
@@ -1284,7 +1141,6 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
   }
 
   #prepareFinalSilenceForAsrQueue(): void {
-    this.#trace("dictation.capture.final-silence", {keepAudio: this.#stream !== null})
     this.#session.closeCurrentChunk(performance.now(), "final silence")
     this.#flushLiveAsrPcm()
     this.#sendCommand({type: "stop"})
@@ -1324,12 +1180,10 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       this.#beginCommit(chunk.id)
       const liveSentBytes = this.#liveAsrChunkBytesSent.get(chunk.id) ?? 0
       if (chunk.attempts === 1 && liveSentBytes >= chunk.pcmBytes) {
-        this.#trace("asr.chunk.commit-live", {chunkId: chunk.id, bytes: chunk.pcmBytes, liveSentBytes})
         ws.send(JSON.stringify({type: "commit"}))
         this.#setStatus(this.#stream === null ? "processing" : "committing")
         return
       }
-      this.#trace("asr.chunk.send", {chunkId: chunk.id, bytes: chunk.pcmBytes, liveSentBytes, parts: chunk.pcm.length, attempts: chunk.attempts})
       this.#sendChunkPcmTail(ws, chunk, chunk.attempts === 1 ? liveSentBytes : 0)
       ws.send(JSON.stringify({type: "commit"}))
       this.#setStatus(this.#stream === null ? "processing" : "committing")
@@ -1350,12 +1204,10 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       const payload = remainingSkip > 0 ? pcm.slice(remainingSkip) : pcm
       remainingSkip = 0
       ws.send(payload)
-      this.#debugAsrBytesSent += payload.byteLength
     }
   }
 
   #beginCommit(chunkId: string): void {
-    this.#trace("asr.commit.begin", {chunkId})
     this.#commitPending = true
     this.#processingChunkId = chunkId
     this.#session.markProcessing(chunkId)
@@ -1364,7 +1216,6 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#commitTimer = window.setTimeout(() => {
       if (!this.#commitPending) return
       const chunkId = this.#processingChunkId
-      this.#trace("asr.commit.timeout", {chunkId: chunkId ?? ""})
       if (chunkId !== null) this.#session.markChunkFailed(chunkId, "commit timeout", true)
       this.#pendingCommittedChunk = null
       this.#pendingCommittedChunkCommitId = 0
@@ -1378,7 +1229,6 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
   }
 
   #finishCommit(pump = true): void {
-    this.#trace("asr.commit.finish", {pump})
     this.#commitPending = false
     this.#processingChunkId = null
     this.#clearCommitTimer()
@@ -1463,8 +1313,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     if (!this.#asrEnabled || this.#stopRequested || !deactivationModeAllowsTimeout(this.options.deactivationMode())) return
     const timeoutMs = this.#currentRecognitionTimeoutMs()
     if (timeoutMs <= 0) return
-    const session = this.#session.debugSnapshot()
-    if (session.speaking || session.chunks.recording > 0) {
+    if (this.#session.speaking || this.#session.hasRecordingChunk()) {
       this.#scheduleRecognitionTimeoutCheck()
       return
     }
@@ -1481,14 +1330,12 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       this.#scheduleRecognitionTimeoutCheck()
       return
     }
-    this.#trace("dictation.voice-timeout", {timeoutMs, elapsed: Math.round(elapsed)})
     this.#finalSilenceRequested = true
     this.#maybeFinishDictationAfterFinalSilence()
   }
 
   #recognitionSilenceAnchorMs(): number {
-    const session = this.#session.debugSnapshot()
-    return Math.max(this.#lastVoiceActivityAt, session.lastSpeechEndedAt)
+    return Math.max(this.#lastVoiceActivityAt, this.#session.lastSpeechEndedAt)
   }
 
   #syncSessionTimings(): void {
@@ -1498,25 +1345,16 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       : DEFAULT_VOICE_SESSION_TIMINGS.finalSilenceMs
     if (timeoutMs === this.#lastDynamicRecognitionTimeoutMs) return
     this.#lastDynamicRecognitionTimeoutMs = timeoutMs
-    const session = this.#session.debugSnapshot()
-    if (!session.hasVoiceActivity) return
-    this.#trace("dictation.dynamic-timeout", {
-      chars: Math.max(this.#observedDictationChars, cleanupVoiceText(this.#deliveryState.transcript).length),
-      chunkCount: Math.max(this.#deliveredVoiceChunkCount, session.chunks.total),
-      audioMs: Math.round(session.chunkPcmBytes / 2 / TARGET_SAMPLE_RATE * 1_000),
-      timeoutMs,
-      finalSilenceMs: this.#sessionTimings.finalSilenceMs,
-    })
+    if (!this.#session.hasVoiceActivity()) return
   }
 
   #currentRecognitionTimeoutMs(): number {
     if (!deactivationModeAllowsTimeout(this.options.deactivationMode())) return 0
-    const session = this.#session.debugSnapshot()
     return voiceDynamicRecognitionTimeoutMs(
       this.options.recognitionTimeoutMs(),
       Math.max(this.#observedDictationChars, cleanupVoiceText(this.#deliveryState.transcript).length),
-      Math.max(this.#deliveredVoiceChunkCount, session.chunks.total),
-      session.chunkPcmBytes / 2 / TARGET_SAMPLE_RATE * 1_000,
+      Math.max(this.#deliveredVoiceChunkCount, this.#session.totalChunkCount),
+      this.#session.chunkPcmBytes / 2 / TARGET_SAMPLE_RATE * 1_000,
       this.options.recognitionMaxTimeoutMs(),
     )
   }
@@ -1580,12 +1418,9 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       this.#setStatus("idle", "ready")
       return
     }
-    this.#trace("wake.resume-after-draft.request")
     try {
       await this.reconnectWaitingWake()
-      this.#trace("wake.resume-after-draft.ready")
     } catch (error) {
-      this.#trace("wake.resume-after-draft.error", {error: error instanceof Error ? error.message : String(error)})
     }
   }
 
@@ -1601,7 +1436,6 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
 
   #recoverAsrFailure(error: unknown): void {
     const message = error instanceof Error ? error.message : String(error)
-    this.#trace("asr.recover", {error: message})
     this.#session.requeueProcessingChunks(message)
     this.#pendingCommittedChunk = null
     this.#pendingCommittedChunkCommitId = 0
@@ -1626,7 +1460,6 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
 
   #scheduleAsrReconnect(): void {
     if (this.#asrReconnectTimer !== null || !this.#asrEnabled || this.#stopRequested) return
-    this.#trace("asr.reconnect.scheduled", {delayMs: ASR_RECONNECT_DELAY_MS})
     this.#asrReconnectTimer = window.setTimeout(() => {
       this.#asrReconnectTimer = null
       void this.#reconnectAsr()
@@ -1635,7 +1468,6 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
 
   async #reconnectAsr(): Promise<void> {
     if (!this.#asrEnabled || this.#stopRequested) return
-    this.#trace("asr.reconnect.request")
     try {
       await this.#connectAsr(this.options.url())
       this.#sendAsr({
@@ -1651,10 +1483,8 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       this.#setStatus(resumeCapture ? "listening" : this.#session.phase === "draft" ? this.#session.hasPendingChunks() ? "processing" : "idle" : this.#session.hasPendingChunks() ? "processing" : "waitingWake", this.#session.phase === "draft" ? "draft" : "ASR reconnected")
       if (resumeCapture) this.#touchVoiceActivity()
       this.#pumpAsrQueue()
-      this.#trace("asr.reconnect.ready", {resumeCapture})
     } catch (error) {
       if (!this.#asrEnabled || this.#stopRequested) return
-      this.#trace("asr.reconnect.error", {error: error instanceof Error ? error.message : String(error)})
       this.#session.markReconnecting(error instanceof Error ? error.message : String(error))
       this.#setStatus(this.#session.phase === "draft" ? "waitingWake" : this.#stream === null ? "processing" : "listening", `ASR reconnecting: ${error instanceof Error ? error.message : String(error)}`)
       this.#scheduleAsrReconnect()
@@ -1671,11 +1501,9 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     const previous = this.#status
     this.#status = status
     this.options.onStatus(status, detail)
-    if (previous !== status || detail.length > 0) this.#trace("status", {from: previous, to: status, detail})
   }
 
   #stopAudioOnly(closeDelayMs = 0): void {
-    this.#trace("audio.stop", {closeDelayMs})
     this.#clearAudioWatchdog()
     const audioContext = this.#audioContext
     const workletUrl = this.#workletUrl
@@ -1706,7 +1534,6 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
   }
 
   #cleanup(closeAudioDelayMs = 0): void {
-    this.#trace("cleanup", {closeAudioDelayMs})
     this.#clearAsrReconnectTimer()
     this.#stopAudioOnly(closeAudioDelayMs)
     this.#disconnectAsrSocket()
@@ -1738,44 +1565,9 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       const deliveryText = voiceChunkDeliveryText(deliveryChunk)
       this.#deliveredVoiceChunkCount += 1
       this.#observeDictationText(deliveryText)
-      this.#trace("chunk.deliver", {chars: deliveryText.length, text: debugTraceText(deliveryText)})
       this.options.onChunk(deliveryChunk)
     }
     if (processingChunkId !== null) this.#session.markChunkMerged(processingChunkId)
-  }
-
-  #trace(label: string, detail: Record<string, unknown> = {}): void {
-    const session = this.#session.debugSnapshot()
-    const payload = {
-      ...detail,
-      seq: ++this.#traceSeq,
-      status: this.#status,
-      phase: session.phase,
-      autoSend: session.autoSendState,
-      speaking: session.speaking,
-      vad: session.vadSource,
-      chunksTotal: session.chunks.total,
-      chunksRecording: session.chunks.recording,
-      chunksQueued: session.chunks.queued + session.chunks.retrying,
-      chunksProcessing: session.chunks.processing,
-      chunksMerged: session.chunks.merged,
-      queuedBytes: session.queuedChunkBytes,
-      currentChunkId: session.currentChunkId,
-      processingChunkId: session.processingChunkId,
-      retry: session.retryCount,
-      asrEnabled: this.#asrEnabled,
-      transport: this.#asrTransport,
-      wakeState: this.#commandWs?.readyState ?? null,
-      asrState: this.#asrWs?.readyState ?? null,
-      streamActive: this.#stream?.active === true,
-      audioState: this.#audioContext?.state ?? null,
-      frames: this.#debugAudioFrameCount,
-      inputRms: roundTraceNumber(this.#debugLastInputRms),
-      inputPeak: roundTraceNumber(this.#debugLastInputPeak),
-    }
-    this.#traceLog.push({at: Date.now(), label, detail: JSON.stringify(payload).slice(0, 260)})
-    while (this.#traceLog.length > 24) this.#traceLog.shift()
-    postInterpreterClientEvent("voice", label, payload)
   }
 
   #schedulePendingChunkFlush(): void {
@@ -1895,15 +1687,6 @@ function voiceChunkDeliveryText(chunk: VoiceInputChunk): string {
   return chunk.segments.map((segment) => segment.text ?? "").filter(Boolean).join(" ")
 }
 
-function debugTraceText(text: string): string {
-  const cleaned = cleanupVoiceText(text)
-  if (!cleaned) return ""
-  return cleaned.length <= 96 ? cleaned : `${cleaned.slice(0, 93)}...`
-}
-
-function roundTraceNumber(value: number): number {
-  return Math.round(value * 100_000) / 100_000
-}
 
 function voiceChunkPreviewForDelivery(chunk: VoiceInputChunk, state: VoiceInputDeliveryState): string {
   return trimStableVoiceTranscriptPrefix(cleanupVoiceText(voiceChunkPreviewText(chunk)), state.transcript)

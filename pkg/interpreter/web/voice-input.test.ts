@@ -234,7 +234,7 @@ describe("voice session manager", () => {
     expect(speech.speaking).toBe(true)
     expect(speech.started).toBe(true)
     expect(speech.source).toBe("energy")
-    expect(session.debugSnapshot().phase).toBe("speaking")
+    expect(session.snapshot().phase).toBe("speaking")
   })
 
   test("uses fresh Silero probability ahead of energy threshold", () => {
@@ -258,7 +258,7 @@ describe("voice session manager", () => {
 
     expect(speech.speaking).toBe(true)
     expect(speech.source).toBe("silero")
-    expect(session.debugSnapshot().speechProbability).toBe(0.82)
+    expect(session.snapshot().speechProbability).toBe(0.82)
   })
 
   test("does not finish dictation from silence before any speech chunk exists", () => {
@@ -270,7 +270,7 @@ describe("voice session manager", () => {
     expect(silence.speaking).toBe(false)
     expect(silence.finalSilence).toBe(false)
     expect(session.hasVoiceActivity()).toBe(false)
-    expect(session.debugSnapshot().chunks.total).toBe(0)
+    expect(session.snapshot().chunks.total).toBe(0)
   })
 
   test("lets strong near-voice energy start speech when Silero is unavailable", () => {
@@ -317,7 +317,7 @@ describe("voice session manager", () => {
     expect(rejected.speaking).toBe(false)
     expect(rejected.potentialVoice).toBe(false)
     expect(rejected.source).toBe("silero")
-    expect(session.debugSnapshot().chunks.recording).toBe(0)
+    expect(session.snapshot().chunks.recording).toBe(0)
   })
 
   test("does not let delayed low Silero probability close active voice-like speech", () => {
@@ -334,7 +334,7 @@ describe("voice session manager", () => {
     expect(stopped.stopped).toBe(false)
     expect(stopped.speaking).toBe(true)
     expect(stopped.closedChunkIds).toHaveLength(0)
-    expect(session.debugSnapshot().chunks.recording).toBe(1)
+    expect(session.snapshot().chunks.recording).toBe(1)
   })
 
   test("keeps quiet continuation speech from closing an active dictation chunk", () => {
@@ -354,7 +354,7 @@ describe("voice session manager", () => {
 
     expect(quietContinuation.speaking).toBe(true)
     expect(quietContinuation.stopped).toBe(false)
-    expect(session.debugSnapshot().chunks.recording).toBe(1)
+    expect(session.snapshot().chunks.recording).toBe(1)
   })
 
   test("tracks potential voice without extending final silence", () => {
@@ -369,7 +369,7 @@ describe("voice session manager", () => {
     const potential = session.acceptVadFrame({rms: 0.005, peak: 0.007, now: 2_740})
     expect(potential.potentialVoice).toBe(true)
     expect(potential.finalSilence).toBe(false)
-    expect(session.debugSnapshot().lastPotentialVoiceAt).toBe(2_740)
+    expect(session.snapshot().lastPotentialVoiceAt).toBe(2_740)
 
     expect(session.acceptVadFrame({rms: 0.002, peak: 0.004, now: 3_000}).finalSilence).toBe(true)
     expect(session.acceptVadFrame({rms: 0.002, peak: 0.004, now: 3_200}).finalSilence).toBe(true)
@@ -384,15 +384,15 @@ describe("voice session manager", () => {
     session.appendCurrentChunkPcm(new ArrayBuffer(320))
     session.acceptVadFrame({rms: 0.002, peak: 0.004, now: 1_760})
     expect(session.acceptVadFrame({rms: 0.002, peak: 0.004, now: 2_400}).stopped).toBe(true)
-    expect(session.debugSnapshot().chunks.queued).toBe(1)
+    expect(session.snapshot().chunks.queued).toBe(1)
 
     session.acceptVadFrame({rms: 0.005, peak: 0.010, now: 2_740, speechProbability: 0.36, speechProbabilityAt: 2_740})
     const quietRestart = session.acceptVadFrame({rms: 0.005, peak: 0.010, now: 2_850, speechProbability: 0.36, speechProbabilityAt: 2_850})
 
     expect(quietRestart.started).toBe(true)
     expect(quietRestart.speaking).toBe(true)
-    expect(session.debugSnapshot().chunks.recording).toBe(1)
-    expect(session.debugSnapshot().chunks.queued).toBe(1)
+    expect(session.snapshot().chunks.recording).toBe(1)
+    expect(session.snapshot().chunks.queued).toBe(1)
   })
 
   test("does not open a new chunk from weak energy-only potential voice", () => {
@@ -411,7 +411,7 @@ describe("voice session manager", () => {
     expect(weakNoise.potentialVoice).toBe(true)
     expect(weakNoise.started).toBe(false)
     expect(weakNoise.speaking).toBe(false)
-    expect(session.debugSnapshot().chunks.recording).toBe(0)
+    expect(session.snapshot().chunks.recording).toBe(0)
   })
 
   test("does not let loud voice-like input poison the adaptive noise floor", () => {
@@ -428,11 +428,11 @@ describe("voice session manager", () => {
       })
     }
 
-    expect(session.debugSnapshot().noiseFloor).toBeLessThan(0.01)
-    expect(session.debugSnapshot().chunks.recording).toBe(0)
+    expect(session.snapshot().noiseFloor).toBeLessThan(0.01)
+    expect(session.snapshot().chunks.recording).toBe(0)
 
     session.startRecording(true, 5_000)
-    const snapshot = session.debugSnapshot()
+    const snapshot = session.snapshot()
     expect(snapshot.noiseFloor).toBeLessThan(0.002)
     expect(snapshot.speechThreshold).toBe(0.012)
   })
@@ -444,16 +444,16 @@ describe("voice session manager", () => {
     session.acceptVadFrame({rms: 0.05, peak: 0.11, now: 100})
     const started = session.acceptVadFrame({rms: 0.05, peak: 0.11, now: 210})
     expect(started.started).toBe(true)
-    expect(session.debugSnapshot().chunks.recording).toBe(1)
+    expect(session.snapshot().chunks.recording).toBe(1)
     session.appendCurrentChunkPcm(new ArrayBuffer(640))
 
     expect(session.acceptVadFrame({rms: 0.002, peak: 0.004, now: 500}).stopped).toBe(false)
     const stopped = session.acceptVadFrame({rms: 0.002, peak: 0.004, now: 1_200})
     expect(stopped.stopped).toBe(true)
     expect(stopped.closedChunkIds).toHaveLength(1)
-    expect(session.debugSnapshot().lastSpeechEndedAt).toBe(1_200)
+    expect(session.snapshot().lastSpeechEndedAt).toBe(1_200)
 
-    const snapshot = session.debugSnapshot()
+    const snapshot = session.snapshot()
     expect(snapshot.chunks.recording).toBe(0)
     expect(snapshot.chunks.queued).toBe(1)
     expect(snapshot.queuedChunkBytes).toBe(640)
@@ -472,25 +472,25 @@ describe("voice session manager", () => {
     expect(queued?.state).toBe("queued")
     expect(queued).not.toBeNull()
     const id = queued!.id
-    expect(session.debugSnapshot().autoSendState).toBe("waitingChunks")
+    expect(session.snapshot().autoSendState).toBe("waitingChunks")
 
     session.markChunkProcessing(id)
-    expect(session.debugSnapshot().chunks.processing).toBe(1)
+    expect(session.snapshot().chunks.processing).toBe(1)
     session.requeueProcessingChunks("socket closed")
     expect(session.nextQueuedChunk()?.state).toBe("retrying")
-    expect(session.debugSnapshot().retryCount).toBe(0)
+    expect(session.snapshot().retryCount).toBe(0)
     session.markChunkProcessing(id)
-    expect(session.debugSnapshot().retryCount).toBe(1)
+    expect(session.snapshot().retryCount).toBe(1)
     session.markChunkRecognized(id, "готовый текст")
-    expect(session.debugSnapshot().chunks.recognized).toBe(1)
+    expect(session.snapshot().chunks.recognized).toBe(1)
     session.markChunkMerged(id)
-    expect(session.debugSnapshot().chunks.merged).toBe(1)
-    expect(session.debugSnapshot().autoSendState).toBe("readyToSend")
+    expect(session.snapshot().chunks.merged).toBe(1)
+    expect(session.snapshot().autoSendState).toBe("readyToSend")
     expect(session.hasPendingChunks()).toBe(false)
     session.startRecording(false, 420)
-    expect(session.debugSnapshot().autoSendState).toBe("readyToSend")
+    expect(session.snapshot().autoSendState).toBe("readyToSend")
     session.markChunkFailed(id, "late timeout", true)
-    expect(session.debugSnapshot().chunks.merged).toBe(1)
+    expect(session.snapshot().chunks.merged).toBe(1)
     expect(session.nextQueuedChunk()).toBeNull()
   })
 
@@ -507,7 +507,7 @@ describe("voice session manager", () => {
     const final = session.acceptVadFrame({rms: 0.002, peak: 0.004, now: 1_500})
 
     expect(final.finalSilence).toBe(true)
-    expect(session.debugSnapshot().timings.finalSilenceMs).toBe(380)
+    expect(session.snapshot().timings.finalSilenceMs).toBe(380)
   })
 
   test("repeat mic click draft mode closes current chunk and cancels auto-send without discarding audio", () => {
@@ -521,7 +521,7 @@ describe("voice session manager", () => {
     session.cancelAutoSend()
     session.closeCurrentChunk(260)
 
-    const snapshot = session.debugSnapshot()
+    const snapshot = session.snapshot()
     expect(snapshot.phase).toBe("draft")
     expect(snapshot.autoSendState).toBe("cancelled")
     expect(snapshot.chunks.queued).toBe(1)
@@ -535,13 +535,13 @@ describe("voice session manager", () => {
     const chunk = session.startBufferedChunk([new ArrayBuffer(320), new ArrayBuffer(320)], 1_120, 1_260)
 
     expect(chunk).not.toBeNull()
-    expect(session.debugSnapshot().phase).toBe("speaking")
-    expect(session.debugSnapshot().chunks.recording).toBe(1)
-    expect(session.debugSnapshot().chunkPcmBytes).toBe(640)
+    expect(session.snapshot().phase).toBe("speaking")
+    expect(session.snapshot().chunks.recording).toBe(1)
+    expect(session.snapshot().chunkPcmBytes).toBe(640)
 
     session.closeCurrentChunk(1_900, "activation preroll")
 
-    const snapshot = session.debugSnapshot()
+    const snapshot = session.snapshot()
     expect(snapshot.chunks.recording).toBe(0)
     expect(snapshot.chunks.queued).toBe(1)
     expect(snapshot.queuedChunkBytes).toBe(640)
@@ -550,10 +550,10 @@ describe("voice session manager", () => {
   test("explicit dictation start exits draft mode", () => {
     const session = new VoiceSessionManager()
     session.enterDraftMode()
-    expect(session.debugSnapshot().phase).toBe("draft")
+    expect(session.snapshot().phase).toBe("draft")
 
     session.startRecording(true)
-    const snapshot = session.debugSnapshot()
+    const snapshot = session.snapshot()
     expect(snapshot.phase).toBe("recording")
     expect(snapshot.autoSendState).toBe("armed")
   })
@@ -585,7 +585,7 @@ describe("voice Silero VAD", () => {
 
     vad.acceptFrame(new Float32Array(1_536), 48_000, 2_000)
 
-    const snapshot = vad.debugSnapshot()
+    const snapshot = vad.snapshot()
     expect(snapshot.inputSampleRate).toBe(48_000)
     expect(snapshot.pendingChunks).toBe(1)
     expect(snapshot.pendingSamples).toBe(0)

@@ -72,14 +72,14 @@ export type VoiceSessionVadResult = {
 
 export type VoiceSessionVadSource = "silero" | "energy"
 
-export type VoiceWakeGainDebug = {
+export type VoiceWakeGainSnapshot = {
   rms: number
   peak: number
   gain: number
   clippingRatio: number
 }
 
-export type VoiceSessionDebugSnapshot = {
+export type VoiceSessionSnapshot = {
   phase: VoiceSessionPhase
   speaking: boolean
   hasVoiceActivity: boolean
@@ -103,7 +103,7 @@ export type VoiceSessionDebugSnapshot = {
   retryCount: number
   lastError: string | null
   timings: VoiceSessionTimings
-  wakeGain: VoiceWakeGainDebug | null
+  wakeGain: VoiceWakeGainSnapshot | null
 }
 
 const MIN_NOISE_FLOOR = 0.0015
@@ -144,7 +144,7 @@ export class VoiceSessionManager {
   #nextChunkIndex = 0
   #autoSendState: VoiceAutoSendState = "armed"
   #lastError: string | null = null
-  #wakeGain: VoiceWakeGainDebug | null = null
+  #wakeGain: VoiceWakeGainSnapshot | null = null
 
   constructor(private readonly timings: VoiceSessionTimings = DEFAULT_VOICE_SESSION_TIMINGS) {}
 
@@ -162,6 +162,32 @@ export class VoiceSessionManager {
 
   get currentChunkId(): string | null {
     return this.#currentChunk?.id ?? null
+  }
+
+  get autoSendState(): VoiceAutoSendState {
+    return this.#autoSendState
+  }
+
+  get speaking(): boolean {
+    return this.#speaking
+  }
+
+  get lastSpeechEndedAt(): number {
+    return this.#lastSpeechEndedAt
+  }
+
+  get totalChunkCount(): number {
+    return this.#chunks.length
+  }
+
+  get chunkPcmBytes(): number {
+    let bytes = 0
+    for (const chunk of this.#chunks) bytes += chunk.pcmBytes
+    return bytes
+  }
+
+  hasRecordingChunk(): boolean {
+    return this.#currentChunk !== null || this.#chunks.some((chunk) => chunk.state === "recording")
   }
 
   startReady(): void {
@@ -455,11 +481,11 @@ export class VoiceSessionManager {
     return this.#hasVoiceActivity || this.#chunks.some((chunk) => chunk.state !== "failed")
   }
 
-  setWakeGainDebug(debug: VoiceWakeGainDebug): void {
-    this.#wakeGain = debug
+  setWakeGainSnapshot(snapshot: VoiceWakeGainSnapshot): void {
+    this.#wakeGain = snapshot
   }
 
-  debugSnapshot(): VoiceSessionDebugSnapshot {
+  snapshot(): VoiceSessionSnapshot {
     const counts = {
       total: this.#chunks.length,
       recording: 0,

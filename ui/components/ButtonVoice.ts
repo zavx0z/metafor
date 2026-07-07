@@ -28,6 +28,7 @@ export function ButtonVoice(host: UiSurface, x: number, y: number, size: number,
   const active = status === "listening" || status === "committing"
   const processing = status === "processing"
   const waiting = status === "waitingWake"
+  const metering = active || waiting
   const connecting = status === "connecting" || status === "committing"
   const soundPulse = Math.max(0, Math.min(1, props.soundPulse ?? 0))
   const iconColor = error
@@ -44,13 +45,13 @@ export function ButtonVoice(host: UiSurface, x: number, y: number, size: number,
             ? fade(palette.cyan, 0.68)
             : palette.muted
 
-  if (active || waiting) {
+  if (metering) {
     drawRadialMeter(
       host,
       centerX,
       centerY,
       waiting ? buttonSize / 2 - Math.max(6, buttonSize * 0.19) : buttonSize / 2 + Math.max(4, buttonSize * 0.12),
-      active ? Math.max(8, buttonSize * 0.31) : 0,
+      active ? Math.max(8, buttonSize * 0.31) : Math.max(5, buttonSize * 0.22),
       props.snapshot.level,
     )
   }
@@ -62,14 +63,14 @@ export function ButtonVoice(host: UiSurface, x: number, y: number, size: number,
     tooltip: props.tooltip ?? "Голосовой ввод",
     onClick: props.onClick,
     style: (state) => {
-      const borderColor = error ? "red" : connecting ? "orange" : active || processing ? "cyan" : null
+      const borderColor = error ? "red" : connecting ? "orange" : active || processing || waiting ? "cyan" : null
       return {
         background: state === "hover" ? "rgba(18, 28, 42, 0.82)" : "rgba(10, 16, 24, 0.72)",
         borderColor,
         borderRadius: buttonSize / 2,
-        borderWidth: borderColor === null ? 0 : active || processing || connecting || error ? 1.2 : 1,
-        glassTint: active || soundPulse > 0 ? "cyan" : null,
-        glassTintOpacity: active ? 0.08 : processing ? 0.04 : soundPulse > 0 ? 0.06 * soundPulse : 0,
+        borderWidth: borderColor === null ? 0 : active || processing || connecting || waiting || error ? 1.2 : 1,
+        glassTint: active || waiting || soundPulse > 0 ? "cyan" : null,
+        glassTintOpacity: active ? 0.08 : waiting ? 0.035 : processing ? 0.04 : soundPulse > 0 ? 0.06 * soundPulse : 0,
         zIndex: 0.3,
       }
     },

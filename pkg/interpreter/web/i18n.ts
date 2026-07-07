@@ -140,7 +140,6 @@ export const text = {
   voiceGeneralSettings: {ru: "Общие", en: "General"},
   voiceFullStop: {ru: "Полностью выключить микрофон", en: "Turn microphone fully off"},
   voiceFullStopHint: {ru: "Закрывает ASR и wake-up до ручного запуска.", en: "Closes ASR and wake-up until manual start."},
-  voiceDebugTab: {ru: "Отладка", en: "Debug"},
   voiceSignalVolume: {ru: "Громкость сигнала", en: "Signal volume"},
   voiceMicSignalVolume: {ru: "Звук микрофона", en: "Microphone sound"},
   voiceSignalVolumeDown: {ru: "Тише", en: "Quieter"},

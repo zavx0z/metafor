@@ -7,7 +7,7 @@ type PendingSileroChunk = {
   endedAt: number
 }
 
-export type VoiceSileroVadDebugSnapshot = {
+export type VoiceSileroVadSnapshot = {
   ready: boolean
   loading: boolean
   error: string | null
@@ -29,6 +29,8 @@ const SILERO_MODEL_URL = "/assets/voice/models/silero_vad_16k_op15.onnx"
 const ORT_WASM_URL = "/assets/voice/ort/ort-wasm-simd-threaded.wasm"
 const SILERO_SAMPLE_RATE = 16_000
 const SILERO_CHUNK_SAMPLES = 512
+const SILERO_CONTEXT_SAMPLES = 64
+const SILERO_INPUT_SAMPLES = SILERO_CONTEXT_SAMPLES + SILERO_CHUNK_SAMPLES
 const SILERO_STATE_SIZE = 2 * 1 * 128
 const MAX_PENDING_CHUNKS = 8
 
@@ -39,6 +41,7 @@ export class VoiceSileroVad {
   #running = false
   #stopped = false
   #state = new Float32Array(SILERO_STATE_SIZE)
+  #context = new Float32Array(SILERO_CONTEXT_SAMPLES)
   #scratch = new Float32Array(SILERO_CHUNK_SAMPLES)
   #scratchLength = 0
   #pendingChunks: PendingSileroChunk[] = []
@@ -58,6 +61,7 @@ export class VoiceSileroVad {
   stop(): void {
     this.#stopped = true
     this.#pendingChunks = []
+    this.#context.fill(0)
     this.#scratchLength = 0
     this.#resampleCarry = new Float32Array(0)
     this.#resampleOffset = 0
@@ -65,6 +69,7 @@ export class VoiceSileroVad {
 
   reset(): void {
     this.#state.fill(0)
+    this.#context.fill(0)
     this.#pendingChunks = []
     this.#scratchLength = 0
     this.#resampleCarry = new Float32Array(0)
@@ -104,6 +109,7 @@ export class VoiceSileroVad {
     const inputSampleRate = Number.isFinite(sampleRate) && sampleRate > 0 ? sampleRate : SILERO_SAMPLE_RATE
     if (Math.abs(inputSampleRate - this.#inputSampleRate) > 1) {
       this.#inputSampleRate = inputSampleRate
+      this.#context.fill(0)
       this.#resampleCarry = new Float32Array(0)
       this.#resampleOffset = 0
     }
@@ -141,7 +147,7 @@ export class VoiceSileroVad {
     }
   }
 
-  debugSnapshot(): VoiceSileroVadDebugSnapshot {
+  snapshot(): VoiceSileroVadSnapshot {
     return {
       ready: this.#session !== null,
       loading: this.#loadPromise !== null,
@@ -210,9 +216,12 @@ export class VoiceSileroVad {
   }
 
   async #runChunk(ort: OrtModule, session: OrtSession, chunk: PendingSileroChunk): Promise<void> {
+    const input = new Float32Array(SILERO_INPUT_SAMPLES)
+    input.set(this.#context)
+    input.set(chunk.samples, SILERO_CONTEXT_SAMPLES)
     const stateDims: [number, number, number] = [2, 1, this.#state.length / 2]
     const feeds: Record<string, OrtTensor> = {
-      input: new ort.Tensor("float32", chunk.samples, [1, SILERO_CHUNK_SAMPLES]),
+      input: new ort.Tensor("float32", input, [1, SILERO_INPUT_SAMPLES]),
       state: new ort.Tensor("float32", this.#state, stateDims),
     }
     if (session.inputNames.includes("sr")) {
@@ -230,6 +239,7 @@ export class VoiceSileroVad {
     if (nextState !== null && nextState.length === this.#state.length) {
       this.#state = new Float32Array(nextState)
     }
+    this.#context.set(chunk.samples.subarray(SILERO_CHUNK_SAMPLES - SILERO_CONTEXT_SAMPLES))
   }
 }
 

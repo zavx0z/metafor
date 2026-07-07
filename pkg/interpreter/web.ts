@@ -20,7 +20,6 @@ export {
   type VoiceDeactivationMode,
   type VoiceInputAsrSocketContext,
   type VoiceInputChunk,
-  type VoiceInputDebugSnapshot,
   type VoiceInputDeliveryState,
   type VoiceInputPhraseGroupId,
   type VoiceInputSegment,

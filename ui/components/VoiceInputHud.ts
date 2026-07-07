@@ -38,7 +38,6 @@ export type VoiceInputHudPhraseGroup = {
 export type VoiceInputHudSettings = {
   title: string
   generalTabLabel: string
-  debugTabLabel: string
   fullStopLabel: string
   fullStopHint: string
   phraseGroups: VoiceInputHudPhraseGroup[]
@@ -66,7 +65,6 @@ export type VoiceInputHudSettings = {
   inputEndpoint: string
   serviceLine: string
   liveLine: string
-  debugLines: string[]
 }
 
 export type VoiceInputHudOptions = {
@@ -96,7 +94,7 @@ const DEFAULT_BUTTON_SIZE = 58
 const SETTINGS_W = 460
 const SETTINGS_H = 760
 const SETTINGS_PANEL_HEADER_H = 44
-type VoiceInputHudTab = "general" | VoiceInputHudPhraseGroupId | "debug"
+type VoiceInputHudTab = "general" | VoiceInputHudPhraseGroupId
 
 export class VoiceInputHud extends UiSurface {
   #press: {
@@ -495,8 +493,6 @@ export class VoiceInputHud extends UiSurface {
     y = this.#drawSettingsTabs(settings, left, y, Math.max(1, right - left)) + 12
     if (this.#settingsTab === "general") {
       this.#drawGeneralSettings(settings, left, right, y, maxY)
-    } else if (this.#settingsTab === "debug") {
-      this.#drawDebugTab(settings.debugLines, left, y, Math.max(1, right - left), maxY)
     } else {
       const group = this.#activePhraseGroup(settings.phraseGroups)
       if (group !== null) this.#drawPhraseGroup(settings, group, left, right, y, maxY)
@@ -521,7 +517,6 @@ export class VoiceInputHud extends UiSurface {
     const tabs: Array<{id: VoiceInputHudTab; label: string}> = [
       {id: "general", label: settings.generalTabLabel},
       ...settings.phraseGroups.map((group) => ({id: group.id, label: group.title})),
-      {id: "debug", label: settings.debugTabLabel},
     ]
     const tabW = Math.max(1, (w - gap * Math.max(0, tabs.length - 1)) / Math.max(1, tabs.length))
     let cx = x
@@ -792,22 +787,6 @@ export class VoiceInputHud extends UiSurface {
       y += 14
     }
     return y + 6
-  }
-
-  #drawDebugTab(lines: readonly string[], x: number, y: number, w: number, maxY: number): void {
-    const lineH = 16
-    let cy = y
-    for (const line of lines) {
-      if (cy + lineH > maxY) break
-      const warn = /error|ошибка|ASR недоступен|unavailable|closed|failed/i.test(line)
-      this.drawText(line, x, cy + 2, {
-        fontPx: 9,
-        material: warn ? this.materials.orange : this.materials.muted,
-        maxWidthPx: w,
-        z: 0.46,
-      })
-      cy += lineH
-    }
   }
 
   #phraseDraft(groupId: VoiceInputHudPhraseGroupId): string {
