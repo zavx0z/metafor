@@ -213,8 +213,8 @@ const VOICE_ACTIVATION_PREROLL_RMS = 0.018
 const VOICE_ACTIVATION_PREROLL_PEAK = 0.026
 const VOICE_ACTIVATION_PREROLL_STRONG_RMS = 0.055
 const VOICE_ACTIVATION_PREROLL_STRONG_PEAK = 0.09
-const VOICE_COMMAND_AUDIO_GATE_RMS = 0.010
-const VOICE_COMMAND_AUDIO_GATE_PEAK = 0.015
+const VOICE_COMMAND_AUDIO_GATE_RMS = 0.006
+const VOICE_COMMAND_AUDIO_GATE_PEAK = 0.010
 const VOICE_WAKE_WORD_AUDIO_PADDING_MS = 120
 const VOICE_WAKE_RESULT_LATENCY_GUARD_MS = 260
 const VOICE_WAKE_FALLBACK_AUDIO_PREROLL_MS = 260
@@ -942,7 +942,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       this.stop(VOICE_STOP_COMMAND_DETAIL)
       return
     }
-    if (!isActivationRecognitionMessage(msg, activationPhrases)) return
+    if (!isActivationRecognitionMessage(msg, activationPhrases) && !isFastActivationPartial(text, activationPhrases)) return
 
     void this.#activateAsr(text, "wake").catch((error) => this.#recoverAsrFailure(error))
   }
@@ -2109,9 +2109,10 @@ function activationPhraseMatch(text: string, activationPhrases: readonly string[
 }
 
 export function isFastActivationPartial(text: string, activationPhrases: readonly string[]): boolean {
-  void text
-  void activationPhrases
-  return false
+  const normalized = normalizeWakeText(text)
+  if (!normalized) return false
+  const phrases = normalizePhrasesForRecognition(activationPhrases, DEFAULT_VOICE_ACTIVATION_PHRASES)
+  return phrases.some((phrase) => phrase.length >= 5 && activationPhraseInText(normalized, phrase))
 }
 
 function hasCommandPhrase(text: string, phrases: readonly string[]): boolean {

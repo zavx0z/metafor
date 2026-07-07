@@ -3892,9 +3892,6 @@ class VoiceMuxConnection {
 
   release(socket: VoiceMuxVirtualSocket): void {
     this.sockets.delete(socket)
-    if (this.sockets.size > 0) return
-    if (voiceMuxConnection === this) voiceMuxConnection = null
-    if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) this.ws.close()
   }
 
   send(route: VoiceMuxRoute, data: string | ArrayBuffer | Blob | ArrayBufferView<ArrayBuffer>): void {
