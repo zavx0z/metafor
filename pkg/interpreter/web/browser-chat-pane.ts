@@ -1,7 +1,7 @@
 import {Color} from "@metafor/engine"
 import {IconButton} from "@ui/components"
 import {UiSurface, div, divScrollPosition, divScrollTo, flexRow, palette, uiIcons, Z, type DivScrollContext, type UiSurfaceRect} from "@ui/elements"
-import {HudWindow} from "@ui/hud"
+import {HudWindow, type HudWindowTitleBarAction} from "@ui/hud"
 import {
   PANE_FRAME,
   beginPaneFrameDrag,
@@ -21,6 +21,7 @@ export type BrowserChatPaneMessage = {
 }
 
 export type BrowserChatPaneStatusKind = "ready" | "sending" | "thinking" | "tools" | "blocked" | "error"
+export type BrowserChatPaneToolPromptMode = "fast" | "expert" | "vision"
 
 export type BrowserChatPaneSession = {
   id: string
@@ -38,6 +39,12 @@ export type BrowserChatPaneOptions = {
   activateSession(id: string): void
   status(): string
   statusKind(): BrowserChatPaneStatusKind
+  toolPromptMode(): BrowserChatPaneToolPromptMode | null
+  setToolPromptMode(mode: BrowserChatPaneToolPromptMode): void
+  deepThinking(): boolean | null
+  toggleDeepThinking(): void
+  canSendToolPrompt(): boolean
+  sendToolPrompt(): void
   paused(): boolean
   stopped(): boolean
   pause(): void
@@ -94,6 +101,7 @@ export class BrowserChatPane extends UiSurface {
       title: "Browser Agent Chat",
       onMinimize: () => this.#opts.setDocked(true),
       minimizeLabel: "Dock Browser Agent",
+      rightActions: this.#titleBarActions(),
       active: this.active,
       fill: new Color(0.035, 0.055, 0.06, 0.58),
       border: this.active ? palette.windowActiveBorder : palette.borderDim,
@@ -121,6 +129,42 @@ export class BrowserChatPane extends UiSurface {
       h: Math.max(1, body.h - tabsH - tabsGap - toolbarH - toolbarGap),
     })
     if (toolbarH > 0) this.#renderControlToolbar({x: body.x, y: body.y + body.h - toolbarH, w: body.w, h: toolbarH}, status, statusKind)
+  }
+
+  #titleBarActions(): HudWindowTitleBarAction[] {
+    const mode = this.#opts.toolPromptMode()
+    const actions: HudWindowTitleBarAction[] = [
+      {
+        label: "New Agent Chat Prompt",
+        iconSrc: uiIcons.codex,
+        tooltip: "New chat with tools prompt",
+        active: true,
+        disabled: !this.#opts.canSendToolPrompt(),
+        action: () => this.#opts.sendToolPrompt(),
+      },
+    ]
+    if (mode !== null) {
+      actions.push({
+        label: "DeepSeek Fast",
+        iconSrc: uiIcons.fast,
+        tooltip: "DeepSeek Fast",
+        active: mode === "fast",
+        action: () => this.#opts.setToolPromptMode("fast"),
+      }, {
+        label: "DeepSeek Expert",
+        iconSrc: uiIcons.expert,
+        tooltip: "DeepSeek Expert",
+        active: mode === "expert",
+        action: () => this.#opts.setToolPromptMode("expert"),
+      }, {
+        label: "DeepSeek Recognition",
+        iconSrc: uiIcons.recognition,
+        tooltip: "DeepSeek Recognition",
+        active: mode === "vision",
+        action: () => this.#opts.setToolPromptMode("vision"),
+      })
+    }
+    return actions
   }
 
   #renderTabs(rect: UiSurfaceRect): void {
@@ -215,9 +259,11 @@ export class BrowserChatPane extends UiSurface {
   #renderControlToolbar(rect: UiSurfaceRect, status: string, kind: BrowserChatPaneStatusKind): void {
     const buttonSize = 22
     const gap = 5
-    const controlsW = buttonSize * 3 + gap * 2
-    const statusW = Math.max(82, Math.min(Math.ceil(this.measureText(status, 10) + 32), Math.max(82, rect.w - controlsW - 16)))
-    const y = rect.y + Math.max(0, (rect.h - buttonSize) / 2)
+    const deepThinking = this.#opts.deepThinking()
+    const deepW = deepThinking === null ? 0 : 58
+    const controlsFixedW = buttonSize * 3 + deepW
+    const controlsGapW = gap * (deepThinking === null ? 3 : 4)
+    const statusW = Math.max(82, Math.min(Math.ceil(this.measureText(status, 10) + 32), Math.max(82, rect.w - 16 - controlsFixedW - controlsGapW - 18)))
     const paused = this.#opts.paused()
     const stopped = this.#opts.stopped()
     this.drawRect(rect.x, rect.y, rect.w, 1, palette.borderDim, Z.SEPARATOR)
@@ -227,39 +273,75 @@ export class BrowserChatPane extends UiSurface {
       border: null,
       z: Z.CONTAINER + 0.01,
     })
-    this.#drawStatusBadge({x: rect.x + 8, y, w: statusW, h: buttonSize}, status, kind)
-    let x = rect.x + rect.w - controlsW - 8
-    IconButton(this, x, y, buttonSize, buttonSize, {
-      label: "Pause Browser Agent",
-      iconSrc: uiIcons.pause,
-      tooltip: "Pause Browser Agent",
-      tone: "paused",
-      variant: paused ? "contained" : "text",
-      disabled: paused || stopped,
-      radius: 7,
-      action: () => this.#opts.pause(),
+    flexRow({
+      x: rect.x + 8,
+      y: rect.y + 4,
+      w: Math.max(1, rect.w - 16),
+      h: Math.max(1, rect.h - 4),
+      alignItems: "center",
+      gap,
+      items: [
+        {width: statusW, height: buttonSize, draw: (x, y, w, h) => this.#drawStatusBadge({x, y, w, h}, status, kind)},
+        {width: "grow", height: 0, draw: () => {}},
+        deepThinking !== null && {width: deepW, height: buttonSize, draw: (x, y, w, h) => this.#drawDeepThinkingToggle({x, y, w, h}, deepThinking)},
+        {width: buttonSize, height: buttonSize, draw: (x, y, w, h) => {
+          IconButton(this, x, y, w, h, {
+            label: "Pause Browser Agent",
+            iconSrc: uiIcons.pause,
+            tooltip: "Pause Browser Agent",
+            tone: "paused",
+            variant: paused ? "contained" : "text",
+            disabled: paused || stopped,
+            radius: 7,
+            action: () => this.#opts.pause(),
+          })
+        }},
+        {width: buttonSize, height: buttonSize, draw: (x, y, w, h) => {
+          IconButton(this, x, y, w, h, {
+            label: "Resume Browser Agent",
+            iconSrc: uiIcons.run,
+            tooltip: "Resume Browser Agent",
+            tone: "live",
+            variant: !paused && !stopped ? "contained" : "text",
+            disabled: !paused,
+            radius: 7,
+            action: () => this.#opts.resume(),
+          })
+        }},
+        {width: buttonSize, height: buttonSize, draw: (x, y, w, h) => {
+          IconButton(this, x, y, w, h, {
+            label: "Stop Browser Agent",
+            iconSrc: uiIcons.stop,
+            tooltip: "Stop Browser Agent",
+            tone: "warn",
+            variant: stopped ? "contained" : "text",
+            disabled: stopped,
+            radius: 7,
+            action: () => this.#opts.stop(),
+          })
+        }},
+      ],
     })
-    x += buttonSize + gap
-    IconButton(this, x, y, buttonSize, buttonSize, {
-      label: "Resume Browser Agent",
-      iconSrc: uiIcons.run,
-      tooltip: "Resume Browser Agent",
-      tone: "live",
-      variant: !paused && !stopped ? "contained" : "text",
-      disabled: !paused,
-      radius: 7,
-      action: () => this.#opts.resume(),
+  }
+
+  #drawDeepThinkingToggle(rect: UiSurfaceRect, active: boolean): void {
+    this.drawRoundedRect(rect.x, rect.y, rect.w, rect.h, {
+      radius: 8,
+      fill: active ? palette.liveFill : palette.bgPanelDim,
+      border: active ? palette.cyan : palette.borderDim,
+      borderWidth: 1,
+      z: Z.CONTAINER + 0.04,
     })
-    x += buttonSize + gap
-    IconButton(this, x, y, buttonSize, buttonSize, {
-      label: "Stop Browser Agent",
-      iconSrc: uiIcons.stop,
-      tooltip: "Stop Browser Agent",
-      tone: "warn",
-      variant: stopped ? "contained" : "text",
-      disabled: stopped,
-      radius: 7,
-      action: () => this.#opts.stop(),
+    this.drawTextCentered("Deep", rect.x + rect.w / 2, rect.y + rect.h / 2, {
+      fontPx: 10,
+      material: active ? this.materials.cyan : this.materials.muted,
+      maxWidthPx: Math.max(1, rect.w - 10),
+      z: Z.TEXT,
+    })
+    this.hit(rect.x, rect.y, rect.w, rect.h, () => this.#opts.toggleDeepThinking(), {
+      key: "browser-chat-deep-thinking",
+      cursor: "pointer",
+      tooltip: {label: active ? "DeepSeek deep thinking on" : "DeepSeek deep thinking off", delayMs: 450},
     })
   }
 

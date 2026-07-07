@@ -693,6 +693,7 @@ type BrowserChatPendingToolCall = {text: string; key: string}
 type BrowserChatPendingToolResults = {message: string; summary: string}
 
 type BrowserChatProviderId = "qwen" | "deepseek"
+type BrowserChatToolPromptMode = "fast" | "expert" | "vision"
 
 type BrowserChatSession = {
   id: string
@@ -724,6 +725,8 @@ type BrowserChatSession = {
   providerLimitReached: boolean
   lastAssistantText: string
   lastProcessedToolCallText: string | null
+  toolPromptMode: BrowserChatToolPromptMode
+  deepThinking: boolean
   toolPromptSent: boolean
   toolLoopInFlight: boolean
   toolLoopPaused: boolean
@@ -743,6 +746,33 @@ type BrowserChatController = {
   codexDropActive: boolean
 }
 
+type StoredBrowserChatState = {
+  version: 1
+  activeSessionId?: string
+  sessions?: Record<string, StoredBrowserChatSession>
+}
+
+type StoredBrowserChatSession = {
+  codexDraft?: string
+  codexAttachments?: CodexComposerAttachment[]
+  messages?: BrowserChatMessage[]
+  lastAssistantText?: string
+  lastProcessedToolCallText?: string | null
+  toolPromptMode?: BrowserChatToolPromptMode
+  deepThinking?: boolean
+  toolPromptSent?: boolean
+  toolLoopPaused?: boolean
+  toolLoopStopped?: boolean
+  toolLoopTurns?: number
+  pendingToolCall?: BrowserChatPendingToolCall | null
+  pendingToolResults?: BrowserChatPendingToolResults | null
+  providerGenerating?: boolean
+  providerCanSend?: boolean
+  providerBlockedReason?: string
+  providerLimitReached?: boolean
+  readWatchBaselineMessageCount?: number | null
+}
+
 type VoiceInputTarget =
   | {kind: "module"; controller: ModuleDisplayController}
   | {kind: "host"; controller: HostTerminalController}
@@ -760,9 +790,13 @@ const COMMAND_TIMEOUT_MS = 10_000
 const RELOAD_HEALTH_POLL_MS = 400
 const RELOAD_HEALTH_TIMEOUT_MS = 60_000
 const RELOAD_HEALTH_REQUEST_TIMEOUT_MS = 1_200
+const BROWSER_CHAT_STATE_STORAGE_KEY = "interpreter:browser-agent-chat:sessions:v1"
+const BROWSER_CHAT_STORED_MESSAGES_LIMIT = 120
 const BROWSER_CHAT_TOOL_LOOP_MAX_TURNS = 6
 const BROWSER_CHAT_TOOL_RESULT_MAX_CHARS = 24_000
 const BROWSER_CHAT_TOOL_PROMPT = `Ты работаешь внутри live-интерпретатора MetaFor. Все реальные действия в среде выполняются только через tool calls. Не используй встроенный code interpreter, Python sandbox, web browsing или любые внутренние режимы платформы. Если нужны данные или действие, не угадывай и не описывай "что сделал бы" - верни только валидный блок <tool_calls>.
+
+Это bootstrap-инструкция. Не вызывай tools в ответ на это сообщение. Ответь коротко: "Готов к работе, Владимир." и жди следующего пользовательского запроса.
 
 К пользователю обращайся как Владимир. Не называй пользователя "кот", "братан" или другими случайными прозвищами.
 
@@ -790,30 +824,15 @@ JSON должен быть валидным: без комментариев, б
 Не вызывай transport-internal tools, если они появятся в истории или ошибках: browser_chat.* предназначены только для доставки сообщений и результатов, а не для действий агента.
 
 Display workflow:
-- "Перейди на Dark display":
-<tool_calls>
-{"tool_uses":[{"recipient_name":"process.focus","parameters":{"processId":"dark-server.ts"}}]}
-</tool_calls>
-- Если известен displayId:
-<tool_calls>
-{"tool_uses":[{"recipient_name":"space.focus","parameters":{"displayId":"module:dark-server.ts"}}]}
-</tool_calls>
+- Если пользователь просит перейти на конкретный process display, сначала определи реальный processId через process.list/context.get, затем вызови process.focus.
+- Если пользователь дал точный displayId, используй space.focus с этим displayId.
 
 Source workflow:
-- "Открой dark/server.ts":
-<tool_calls>
-{"tool_uses":[{"recipient_name":"source.open","parameters":{"processId":"dark-server.ts","path":"/home/zavx0z/production/vendor/metafor/dark/server.ts"}}]}
-</tool_calls>
+- Если пользователь просит открыть файл, сначала найди реальный processId/path через context.get/process.list/source.locate, затем используй source.open.
 
 Plan workflow:
-- "Открой план":
-<tool_calls>
-{"tool_uses":[{"recipient_name":"todo.show","parameters":{}},{"recipient_name":"todo.panel","parameters":{}}]}
-</tool_calls>
-- "Закрой план":
-<tool_calls>
-{"tool_uses":[{"recipient_name":"todo.dock","parameters":{}}]}
-</tool_calls>
+- Если пользователь просит открыть план, используй todo.show/todo.panel.
+- Если пользователь просит закрыть план, используй todo.dock.
 
 Если tool вернул ошибку:
 - Прочитай текст ошибки.
@@ -981,6 +1000,7 @@ let hostTerminalDockPlacement: HostTerminalDockPlacement | null = readStoredHost
 let hostTerminalHudRectPreview: UiSurfaceRect | null = null
 let browserChatHudDocked = readStoredBrowserChatHudDocked()
 let browserChatDockPlacement: HostTerminalDockPlacement | null = readStoredBrowserChatDockPlacement() ?? DEFAULT_BROWSER_CHAT_DOCK_PLACEMENT
+let browserChatStateStoreTimer: number | null = null
 let networkHostTerminalHudDocked = readStoredNetworkTerminalHudDocked()
 let networkHostTerminalHudRectPreview: UiSurfaceRect | null = null
 let networkServiceSwitches: Record<NetworkServiceKey, boolean> = {tls: true, redirect: true}
@@ -4367,6 +4387,16 @@ function voiceButtonSnapshot(): ButtonVoiceSnapshot {
   }
 }
 
+function voiceButtonSnapshotForTarget(matches: (target: VoiceInputTarget) => boolean): ButtonVoiceSnapshot {
+  const active = voiceActiveTarget !== null && matches(voiceActiveTarget)
+  if (active) return voiceButtonSnapshot()
+  return {
+    status: voiceHudStatus === "error" ? "error" : "idle",
+    serviceState: voiceServiceState,
+    level: 0,
+  }
+}
+
 function setHostCodexDraftFromEditor(controller: HostTerminalController, value: string): void {
   if (controller.codexEditorSyncing) return
   if (controller.codexDraft === value) return
@@ -4612,6 +4642,8 @@ function createBrowserChatSession(id: BrowserChatProviderId, label: string, urlC
     providerLimitReached: false,
     lastAssistantText: "",
     lastProcessedToolCallText: null,
+    toolPromptMode: id === "deepseek" ? "expert" : "fast",
+    deepThinking: id === "deepseek",
     toolPromptSent: false,
     toolLoopInFlight: false,
     toolLoopPaused: false,
@@ -4619,6 +4651,93 @@ function createBrowserChatSession(id: BrowserChatProviderId, label: string, urlC
     toolLoopTurns: 0,
     pendingToolCall: null,
     pendingToolResults: null,
+  }
+}
+
+function readStoredBrowserChatState(): StoredBrowserChatState | null {
+  try {
+    const raw = localStorage.getItem(BROWSER_CHAT_STATE_STORAGE_KEY)
+    if (raw === null) return null
+    const parsed = JSON.parse(raw) as unknown
+    const object = plainRecordValue(parsed)
+    if (object === null || object["version"] !== 1) return null
+    return object as StoredBrowserChatState
+  } catch {
+    return null
+  }
+}
+
+function applyStoredBrowserChatState(controller: BrowserChatController): void {
+  const stored = readStoredBrowserChatState()
+  if (stored === null) return
+  if (typeof stored.activeSessionId === "string" && controller.sessions.some((session) => session.id === stored.activeSessionId)) {
+    controller.activeSessionId = stored.activeSessionId
+  }
+  const sessions = plainRecordValue(stored.sessions)
+  if (sessions === null) return
+  for (const session of controller.sessions) {
+    const storedSession = plainRecordValue(sessions[session.id])
+    if (storedSession === null) continue
+    const draft = stringValue(storedSession["codexDraft"])
+    if (draft !== null) session.codexDraft = draft
+    session.codexAttachments = storedCodexAttachments(storedSession["codexAttachments"])
+    session.messages = storedBrowserChatMessages(storedSession["messages"])
+    session.lastAssistantText = stringValue(storedSession["lastAssistantText"]) ?? session.messages.slice().reverse().find((message) => message.role === "assistant")?.text ?? ""
+    session.lastProcessedToolCallText = stringValue(storedSession["lastProcessedToolCallText"])
+    const mode = stringValue(storedSession["toolPromptMode"])
+    if (mode === "fast" || mode === "expert" || mode === "vision") session.toolPromptMode = mode
+    if (typeof storedSession["deepThinking"] === "boolean") session.deepThinking = storedSession["deepThinking"]
+    if (typeof storedSession["toolPromptSent"] === "boolean") session.toolPromptSent = storedSession["toolPromptSent"]
+    if (typeof storedSession["toolLoopPaused"] === "boolean") session.toolLoopPaused = storedSession["toolLoopPaused"]
+    if (typeof storedSession["toolLoopStopped"] === "boolean") session.toolLoopStopped = storedSession["toolLoopStopped"]
+    const turns = numberValue(storedSession["toolLoopTurns"])
+    if (turns !== null) session.toolLoopTurns = Math.max(0, Math.min(BROWSER_CHAT_TOOL_LOOP_MAX_TURNS, Math.round(turns)))
+    session.pendingToolCall = storedPendingToolCall(storedSession["pendingToolCall"])
+    session.pendingToolResults = storedPendingToolResults(storedSession["pendingToolResults"])
+    if (typeof storedSession["providerGenerating"] === "boolean") session.providerGenerating = storedSession["providerGenerating"]
+    if (typeof storedSession["providerCanSend"] === "boolean") session.providerCanSend = storedSession["providerCanSend"]
+    session.providerBlockedReason = stringValue(storedSession["providerBlockedReason"]) ?? ""
+    if (typeof storedSession["providerLimitReached"] === "boolean") session.providerLimitReached = storedSession["providerLimitReached"]
+    session.readWatchBaselineMessageCount = numberValue(storedSession["readWatchBaselineMessageCount"])
+  }
+}
+
+function scheduleStoreBrowserChatState(controller: BrowserChatController): void {
+  if (browserChatStateStoreTimer !== null) window.clearTimeout(browserChatStateStoreTimer)
+  browserChatStateStoreTimer = window.setTimeout(() => {
+    browserChatStateStoreTimer = null
+    storeBrowserChatState(controller)
+  }, 120)
+}
+
+function storeBrowserChatState(controller: BrowserChatController): void {
+  try {
+    const sessions: Record<string, StoredBrowserChatSession> = {}
+    for (const session of controller.sessions) {
+      sessions[session.id] = {
+        codexDraft: session.codexDraft,
+        codexAttachments: session.codexAttachments,
+        messages: session.messages.slice(-BROWSER_CHAT_STORED_MESSAGES_LIMIT),
+        lastAssistantText: session.lastAssistantText,
+        lastProcessedToolCallText: session.lastProcessedToolCallText,
+        toolPromptMode: session.toolPromptMode,
+        deepThinking: session.deepThinking,
+        toolPromptSent: session.toolPromptSent,
+        toolLoopPaused: session.toolLoopPaused,
+        toolLoopStopped: session.toolLoopStopped,
+        toolLoopTurns: session.toolLoopTurns,
+        pendingToolCall: session.pendingToolCall,
+        pendingToolResults: session.pendingToolResults,
+        providerGenerating: session.providerGenerating,
+        providerCanSend: session.providerCanSend,
+        providerBlockedReason: session.providerBlockedReason,
+        providerLimitReached: session.providerLimitReached,
+        readWatchBaselineMessageCount: session.readWatchBaselineMessageCount,
+      }
+    }
+    localStorage.setItem(BROWSER_CHAT_STATE_STORAGE_KEY, JSON.stringify({version: 1, activeSessionId: controller.activeSessionId, sessions} satisfies StoredBrowserChatState))
+  } catch {
+    // Best-effort persistence only; provider hydration still repairs live transport state.
   }
 }
 
@@ -4630,8 +4749,59 @@ function browserChatSessionToolParams(session: BrowserChatSession): Record<strin
   return {provider: session.provider, urlContains: session.urlContains}
 }
 
+function browserChatSessionToolPromptParams(session: BrowserChatSession): Record<string, unknown> {
+  return session.provider === "deepseek"
+    ? {...browserChatSessionToolParams(session), deepseekMode: session.toolPromptMode, deepThinking: session.deepThinking}
+    : browserChatSessionToolParams(session)
+}
+
+async function activateBrowserChatProviderTarget(controller: BrowserChatController, session: BrowserChatSession): Promise<void> {
+  try {
+    const tool = await runHostToolWithTimeout("browser_chat.activate", browserChatSessionToolParams(session), 6000)
+    const result = hostToolResultObject(tool)
+    if (tool.ok !== true || result["ok"] !== true) throw new Error(tool.error ?? stringValue(result["error"]) ?? "browser_chat.activate failed")
+  } catch (error) {
+    setBrowserChatStatus(controller, error instanceof Error ? error.message : String(error), 3200, session)
+  }
+}
+
+async function configureBrowserChatProvider(controller: BrowserChatController, session: BrowserChatSession, params: Record<string, unknown>): Promise<void> {
+  if (session.provider !== "deepseek") return
+  try {
+    const tool = await runHostToolWithTimeout("browser_chat.configure", {...browserChatSessionToolParams(session), ...params}, 8000)
+    const result = hostToolResultObject(tool)
+    if (tool.ok !== true || result["ok"] !== true) throw new Error(tool.error ?? stringValue(result["error"]) ?? "browser_chat.configure failed")
+  } catch (error) {
+    setBrowserChatStatus(controller, error instanceof Error ? error.message : String(error), 3200, session)
+  }
+}
+
+function setBrowserChatToolPromptMode(controller: BrowserChatController, mode: BrowserChatToolPromptMode): void {
+  const session = activeBrowserChatSession(controller)
+  if (session.provider !== "deepseek" || session.toolPromptMode === mode) return
+  session.toolPromptMode = mode
+  setBrowserChatStatus(controller, `${session.label} prompt: ${session.toolPromptMode}`, 1600, session)
+  scheduleStoreBrowserChatState(controller)
+  controller.chatPane.requestRender()
+  controller.composer.requestRender()
+  void configureBrowserChatProvider(controller, session, {deepseekMode: mode})
+}
+
+function toggleBrowserChatDeepThinking(controller: BrowserChatController): void {
+  const session = activeBrowserChatSession(controller)
+  if (session.provider !== "deepseek") return
+  session.deepThinking = !session.deepThinking
+  setBrowserChatStatus(controller, `${session.label} deep thinking ${session.deepThinking ? "on" : "off"}`, 1600, session)
+  scheduleStoreBrowserChatState(controller)
+  controller.chatPane.requestRender()
+  void configureBrowserChatProvider(controller, session, {deepThinking: session.deepThinking})
+}
+
 function activateBrowserChatSession(controller: BrowserChatController, id: string): void {
-  if (controller.activeSessionId === id) return
+  if (controller.activeSessionId === id) {
+    void activateBrowserChatProviderTarget(controller, activeBrowserChatSession(controller))
+    return
+  }
   flushBrowserChatDraftFromEditor(controller)
   const next = controller.sessions.find((session) => session.id === id)
   if (next === undefined) return
@@ -4640,6 +4810,8 @@ function activateBrowserChatSession(controller: BrowserChatController, id: strin
   controller.chatPane.requestRender()
   controller.composer.requestRender()
   uiCanvas?.relayout()
+  scheduleStoreBrowserChatState(controller)
+  void activateBrowserChatProviderTarget(controller, next)
   void hydrateBrowserChatSessionFromProvider(controller, next)
 }
 
@@ -4727,12 +4899,14 @@ function setBrowserChatDraftFromEditor(controller: BrowserChatController, value:
     session.voiceComposerEdited = true
   }
   session.codexDraft = value
+  scheduleStoreBrowserChatState(controller)
   controller.composer.requestRender()
 }
 
 function setBrowserChatDraft(controller: BrowserChatController, value: string, session = activeBrowserChatSession(controller)): void {
   if (session.codexDraft === value) return
   session.codexDraft = value
+  scheduleStoreBrowserChatState(controller)
   if (session.id === controller.activeSessionId) syncBrowserChatEditor(controller)
   controller.composer.requestRender()
 }
@@ -4800,6 +4974,7 @@ async function sendBrowserChatMessage(controller: BrowserChatController, session
     resetBrowserChatVoiceComposerDraftTracking(controller, session)
     setBrowserChatDraft(controller, "", session)
     session.codexAttachments = []
+    scheduleStoreBrowserChatState(controller)
     setBrowserChatStatus(controller, "sent", 1400, session)
     if (focusAfterSubmit) focusBrowserChatComposer(controller)
     startBrowserChatPolling(controller, session, previousAssistantText, previousMessageCount)
@@ -4832,6 +5007,7 @@ function sendBrowserChatToolPrompt(controller: BrowserChatController): void {
   session.toolPromptSent = false
   session.messages.splice(0, session.messages.length)
   session.lastAssistantText = ""
+  scheduleStoreBrowserChatState(controller)
   stopBrowserChatPolling(controller, session, false)
   session.sendInFlight = true
   setBrowserChatStatus(controller, `opening new ${session.label} chat`, 6000, session)
@@ -4841,15 +5017,15 @@ function sendBrowserChatToolPrompt(controller: BrowserChatController): void {
 
 async function sendBrowserChatToolPromptMessage(controller: BrowserChatController, session: BrowserChatSession): Promise<void> {
   try {
-    const tool = await runHostToolWithTimeout("browser_chat.send", {...browserChatSessionToolParams(session), message: BROWSER_CHAT_TOOL_PROMPT, autoToolLoop: false, newChat: true}, 120000)
+    const tool = await runHostToolWithTimeout("browser_chat.send", {...browserChatSessionToolPromptParams(session), message: BROWSER_CHAT_TOOL_PROMPT, autoToolLoop: false, newChat: true}, 120000)
     const result = hostToolResultObject(tool)
     updateBrowserChatTransportState(controller, session, result)
     if (tool.ok !== true || result["ok"] !== true) throw new Error(tool.error ?? stringValue(result["error"]) ?? "browser_chat.send tool prompt failed")
     session.toolPromptSent = true
+    scheduleStoreBrowserChatState(controller)
     const previousAssistantText = stringValue(result["previousAssistantText"]) ?? ""
     const previousMessageCount = numberValue(result["previousMessageCount"])
     setBrowserChatStatus(controller, "tools prompt sent", 1800, session)
-    focusBrowserChatComposer(controller)
     startBrowserChatPolling(controller, session, previousAssistantText, previousMessageCount)
   } catch (error) {
     appendBrowserChatSystemMessage(controller, session, error instanceof Error ? error.message : String(error))
@@ -5026,6 +5202,7 @@ function addBrowserChatMessage(controller: BrowserChatController, session: Brows
   session.messages.push(next)
   if (session.messages.length > 80) session.messages.splice(0, session.messages.length - 80)
   controller.chatPane.requestRender()
+  scheduleStoreBrowserChatState(controller)
   return next
 }
 
@@ -5040,6 +5217,7 @@ function updateBrowserChatAssistantMessage(controller: BrowserChatController, se
   message.text = text
   message.streaming = streaming
   controller.chatPane.requestRender()
+  scheduleStoreBrowserChatState(controller)
 }
 
 async function continueBrowserChatToolLoop(controller: BrowserChatController, session: BrowserChatSession, text: string, toolCallKey = text.trim()): Promise<boolean> {
@@ -5057,6 +5235,7 @@ async function continueBrowserChatToolLoop(controller: BrowserChatController, se
   session.toolLoopTurns += 1
   session.lastProcessedToolCallText = toolCallKey
   session.toolLoopInFlight = true
+  scheduleStoreBrowserChatState(controller)
   controller.composer.requestRender()
   appendBrowserChatSystemMessage(controller, session, `running tools: ${toolCalls.map((call) => call.recipientName).join(", ")}`)
   setBrowserChatStatus(controller, "running tools", 8000, session)
@@ -5094,6 +5273,7 @@ async function continueBrowserChatToolLoop(controller: BrowserChatController, se
     if (session.toolLoopPaused) {
       session.pendingToolResults = {message: toolResultsMessage, summary}
       appendBrowserChatSystemMessage(controller, session, "agent paused before tool results send")
+      scheduleStoreBrowserChatState(controller)
       controller.chatPane.requestRender()
       controller.composer.requestRender()
       return true
@@ -5116,6 +5296,7 @@ function pauseBrowserChatAgent(controller: BrowserChatController): void {
   if (session.toolLoopStopped || session.toolLoopPaused) return
   session.toolLoopPaused = true
   appendBrowserChatSystemMessage(controller, session, "agent paused")
+  scheduleStoreBrowserChatState(controller)
   controller.chatPane.requestRender()
   controller.composer.requestRender()
 }
@@ -5126,6 +5307,7 @@ function resumeBrowserChatAgent(controller: BrowserChatController): void {
   session.toolLoopPaused = false
   session.toolLoopStopped = false
   appendBrowserChatSystemMessage(controller, session, "agent resumed")
+  scheduleStoreBrowserChatState(controller)
   void resumeBrowserChatAgentAsync(controller, session)
   controller.chatPane.requestRender()
   controller.composer.requestRender()
@@ -5168,6 +5350,7 @@ function stopBrowserChatAgent(controller: BrowserChatController): void {
   session.lastProcessedToolCallText = null
   stopBrowserChatPolling(controller, session, false)
   appendBrowserChatSystemMessage(controller, session, "agent stopped")
+  scheduleStoreBrowserChatState(controller)
   controller.chatPane.requestRender()
   controller.composer.requestRender()
 }
@@ -5177,6 +5360,7 @@ function resetBrowserChatAgentControl(controller: BrowserChatController, session
   session.toolLoopStopped = false
   session.pendingToolCall = null
   session.pendingToolResults = null
+  scheduleStoreBrowserChatState(controller)
 }
 
 function holdBrowserChatToolCallIfControlled(controller: BrowserChatController, session: BrowserChatSession, toolCall: BrowserChatPendingToolCall): boolean {
@@ -5190,6 +5374,7 @@ function holdBrowserChatToolCallIfControlled(controller: BrowserChatController, 
   if (!session.toolLoopPaused) return false
   stopBrowserChatPolling(controller, session, false)
   session.pendingToolCall = toolCall
+  scheduleStoreBrowserChatState(controller)
   controller.chatPane.requestRender()
   controller.composer.requestRender()
   return true
@@ -5480,6 +5665,7 @@ function replaceBrowserChatAssistantMessages(controller: BrowserChatController, 
   }))
   session.messages.splice(start, session.messages.length - start, ...next)
   controller.chatPane.requestRender()
+  scheduleStoreBrowserChatState(controller)
 }
 
 function appendBrowserChatSystemMessage(controller: BrowserChatController, session: BrowserChatSession, text: string): void {
@@ -5492,6 +5678,7 @@ function updateBrowserChatTransportState(controller: BrowserChatController, sess
   session.providerBlockedReason = stringValue(result["blockedReason"]) ?? ""
   session.providerLimitReached = result["limitReached"] === true
   if (session.providerLimitReached) session.providerBlockedReason = `${session.label} usage limit reached`
+  scheduleStoreBrowserChatState(controller)
   if (session.providerCanSend
     && !session.providerGenerating
     && !session.providerLimitReached
@@ -5507,7 +5694,8 @@ function updateBrowserChatTransportState(controller: BrowserChatController, sess
 }
 
 async function hydrateBrowserChatSessionFromProvider(controller: BrowserChatController, session: BrowserChatSession): Promise<void> {
-  if (session.sendInFlight || session.readStartedAt > 0 || session.messages.some((message) => message.text.trim().length > 0)) return
+  if (session.sendInFlight || session.readStartedAt > 0) return
+  const hasStoredMessages = session.messages.some((message) => message.text.trim().length > 0)
   try {
     const tool = await runHostTool("browser_chat.read", browserChatSessionToolParams(session))
     const result = hostToolResultObject(tool)
@@ -5515,7 +5703,12 @@ async function hydrateBrowserChatSessionFromProvider(controller: BrowserChatCont
     updateBrowserChatTransportState(controller, session, result)
     const messageCount = numberValue(result["messageCount"]) ?? arrayLengthValue(result["messages"])
     if (messageCount !== null) session.readWatchBaselineMessageCount = messageCount
-    if (session.sendInFlight || session.readStartedAt > 0 || session.messages.some((message) => message.text.trim().length > 0)) return
+    if (hasStoredMessages || session.sendInFlight || session.readStartedAt > 0 || session.messages.some((message) => message.text.trim().length > 0)) {
+      controller.chatPane.requestRender()
+      controller.composer.requestRender()
+      scheduleStoreBrowserChatState(controller)
+      return
+    }
     const sourceMessages = Array.isArray(result["messages"]) ? result["messages"] : []
     const lastUserIndex = sourceMessages.reduce((last, source, index) => {
       if (typeof source !== "object" || source === null || Array.isArray(source)) return last
@@ -5539,6 +5732,7 @@ async function hydrateBrowserChatSessionFromProvider(controller: BrowserChatCont
     session.messages.splice(0, session.messages.length, ...next)
     session.lastAssistantText = stringValue(result["lastAssistantText"]) ?? next.slice().reverse().find((message) => message.role === "assistant")?.text ?? ""
     controller.chatPane.requestRender()
+    scheduleStoreBrowserChatState(controller)
     setBrowserChatStatus(controller, "ready", 1200, session)
   } catch {
     // Hydration is best-effort; active submit polling reports real read errors.
@@ -5623,6 +5817,7 @@ function removeBrowserChatAttachment(controller: BrowserChatController, id: stri
   const next = session.codexAttachments.filter((attachment) => attachment.id !== id)
   if (next.length === session.codexAttachments.length) return
   session.codexAttachments = next
+  scheduleStoreBrowserChatState(controller)
   setBrowserChatStatus(controller, next.length > 0 ? `${next.length} attachments` : "", 2200, session)
   controller.composer.requestRender()
 }
@@ -5646,6 +5841,7 @@ async function attachBrowserChatImages(controller: BrowserChatController, files:
   try {
     const uploaded = await uploadCodexAttachments(files)
     session.codexAttachments = [...session.codexAttachments, ...uploaded]
+    scheduleStoreBrowserChatState(controller)
     setBrowserChatStatus(controller, `${session.codexAttachments.length} attachments`, 2200, session)
     focusBrowserChatComposer(controller)
     submitAfterUpload = session.codexSubmitAfterAttachmentUpload && session.codexAttachments.length > 0
@@ -5708,6 +5904,7 @@ function setBrowserChatDropActive(controller: BrowserChatController, active: boo
   const session = activeBrowserChatSession(controller)
   if (session.codexDropActive === active) return
   session.codexDropActive = active
+  scheduleStoreBrowserChatState(controller)
   controller.composer.requestRender()
 }
 
@@ -5717,6 +5914,52 @@ function stringValue(value: unknown): string | null {
 
 function plainRecordValue(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null
+}
+
+function storedCodexAttachments(value: unknown): CodexComposerAttachment[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item): CodexComposerAttachment[] => {
+    const record = plainRecordValue(item)
+    const id = stringValue(record?.["id"])
+    const name = stringValue(record?.["name"])
+    const path = stringValue(record?.["path"])
+    const mime = stringValue(record?.["mime"])
+    const size = numberValue(record?.["size"])
+    return id === null || name === null || path === null || mime === null || size === null ? [] : [{id, name, path, mime, size}]
+  })
+}
+
+function storedBrowserChatMessages(value: unknown): BrowserChatMessage[] {
+  if (!Array.isArray(value)) return []
+  return value.slice(-BROWSER_CHAT_STORED_MESSAGES_LIMIT).flatMap((item): BrowserChatMessage[] => {
+    const record = plainRecordValue(item)
+    if (record === null) return []
+    const role = record["role"]
+    if (role !== "user" && role !== "assistant" && role !== "system") return []
+    const text = stringValue(record["text"])
+    if (text === null) return []
+    const id = stringValue(record["id"]) ?? crypto.randomUUID()
+    const createdAt = numberValue(record["createdAt"]) ?? Date.now()
+    const label = stringValue(record["label"])
+    const streaming = typeof record["streaming"] === "boolean" ? record["streaming"] : undefined
+    return [{id, createdAt, role, text, ...(label === null ? {} : {label}), ...(streaming === undefined ? {} : {streaming})}]
+  })
+}
+
+function storedPendingToolCall(value: unknown): BrowserChatPendingToolCall | null {
+  const record = plainRecordValue(value)
+  if (record === null) return null
+  const text = stringValue(record["text"])
+  const key = stringValue(record["key"])
+  return text === null || key === null ? null : {text, key}
+}
+
+function storedPendingToolResults(value: unknown): BrowserChatPendingToolResults | null {
+  const record = plainRecordValue(value)
+  if (record === null) return null
+  const message = stringValue(record["message"])
+  const summary = stringValue(record["summary"])
+  return message === null || summary === null ? null : {message, summary}
 }
 
 function isTransientBrowserChatReadError(message: string): boolean {
@@ -6870,7 +7113,7 @@ function createHostCodexComposerPane(controller: HostTerminalController): HostTe
     submit: (target) => { submitHostCodexComposer(target) },
     chooseImages: (target) => { void chooseHostCodexImages(target) },
     setDocked: setHostTerminalHudDocked,
-    voiceSnapshot: voiceButtonSnapshot,
+    voiceSnapshot: () => voiceButtonSnapshotForTarget((target) => target.kind === "host" && target.controller === controller),
     voiceSoundPulse: () => voiceHudPane?.soundPulseAmount() ?? 0,
     onVoiceToggle: (target) => {
       setVoiceActiveTarget({kind: "host", controller: target})
@@ -6922,20 +7165,12 @@ function createBrowserChatComposerPane(controller: BrowserChatController): HostT
     minimizeLabel: "Dock Browser Agent",
     voiceKey: "interpreter-browser-agent-message-voice",
     nodeName: "InterpreterBrowserChatComposerPane",
-    leftActions: (target) => [{
-      label: "Отправить prompt инструментов",
-      iconSrc: uiIcons.codex,
-      active: true,
-      disabled: !browserChatToolPromptCanSend(target),
-      dividerAfter: true,
-      action: () => sendBrowserChatToolPrompt(target),
-    }],
     status: browserChatComposerStatus,
     canSubmit: browserChatComposerCanSubmit,
     submit: (target) => { submitBrowserChatComposer(target) },
     chooseImages: (target) => { void chooseBrowserChatImages(target) },
     setDocked: setBrowserChatHudDocked,
-    voiceSnapshot: voiceButtonSnapshot,
+    voiceSnapshot: () => voiceButtonSnapshotForTarget((target) => target.kind === "browser-chat" && target.controller === controller),
     voiceSoundPulse: () => voiceHudPane?.soundPulseAmount() ?? 0,
     onVoiceToggle: (target) => {
       setVoiceActiveTarget({kind: "browser-chat", controller: target})
@@ -6968,6 +7203,18 @@ function ensureBrowserChatController(): BrowserChatController {
     activateSession: (id) => activateBrowserChatSession(controller, id),
     status: () => browserChatComposerStatus(controller),
     statusKind: () => browserChatStatusKind(controller),
+    toolPromptMode: () => {
+      const session = activeBrowserChatSession(controller)
+      return session.provider === "deepseek" ? session.toolPromptMode : null
+    },
+    setToolPromptMode: (mode) => setBrowserChatToolPromptMode(controller, mode),
+    deepThinking: () => {
+      const session = activeBrowserChatSession(controller)
+      return session.provider === "deepseek" ? session.deepThinking : null
+    },
+    toggleDeepThinking: () => toggleBrowserChatDeepThinking(controller),
+    canSendToolPrompt: () => browserChatToolPromptCanSend(controller),
+    sendToolPrompt: () => sendBrowserChatToolPrompt(controller),
     paused: () => activeBrowserChatSession(controller).toolLoopPaused,
     stopped: () => activeBrowserChatSession(controller).toolLoopStopped,
     pause: () => pauseBrowserChatAgent(controller),
@@ -7003,7 +7250,10 @@ function ensureBrowserChatController(): BrowserChatController {
       configurable: true,
     },
   })
+  applyStoredBrowserChatState(controller)
+  syncBrowserChatEditor(controller)
   browserChat = controller
+  window.addEventListener("beforeunload", () => storeBrowserChatState(controller), {once: true})
   window.setTimeout(() => hydrateBrowserChatSessions(controller), 0)
   for (const session of controller.sessions) scheduleBrowserChatReadWatch(controller, session)
   return controller

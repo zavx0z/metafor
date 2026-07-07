@@ -48,6 +48,9 @@ const micSvg = iconSvg("<path d=\"M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 
 const keyboardSvg = iconSvg("<rect x=\"3\" y=\"6\" width=\"18\" height=\"12\" rx=\"2\"/><path d=\"M7 10h.01\"/><path d=\"M11 10h.01\"/><path d=\"M15 10h.01\"/><path d=\"M19 10h.01\"/><path d=\"M7 14h10\"/>", "#5cf0ff")
 const sendSvg = iconSvg("<path d=\"M22 2 11 13\"/><path d=\"m22 2-7 20-4-9-9-4 20-7Z\"/>", "#5cf0ff")
 const imageSvg = iconSvg("<rect x=\"3\" y=\"5\" width=\"18\" height=\"14\" rx=\"2\"/><circle cx=\"8.5\" cy=\"10\" r=\"1.5\"/><path d=\"M21 16l-5.2-5.2a1.6 1.6 0 0 0-2.2 0L5 19\"/>", "#5cf0ff")
+const fastSvg = iconSvg("<path d=\"M13 2 5 13h6l-1 9 8-11h-6l1-9Z\"/>", "#5cf0ff")
+const expertSvg = iconSvg("<path d=\"M12 3h4.2L21 10l-9 11-9-11 4.8-7H12Z\"/><path d=\"M4 10h16\"/><path d=\"M8 3l4 18 4-18\"/>", "#5cf0ff")
+const recognitionSvg = imageSvg
 const zoomInSvg = iconSvg("<circle cx=\"11\" cy=\"11\" r=\"7\"/><path d=\"M20 20l-4.5-4.5\"/><path d=\"M11 8v6\"/><path d=\"M8 11h6\"/>", "#5cf0ff")
 const zoomOutSvg = iconSvg("<circle cx=\"11\" cy=\"11\" r=\"7\"/><path d=\"M20 20l-4.5-4.5\"/><path d=\"M8 11h6\"/>", "#5cf0ff")
 
@@ -93,6 +96,9 @@ export const uiIcons = {
   keyboard: keyboardSvg,
   send: sendSvg,
   image: imageSvg,
+  fast: fastSvg,
+  expert: expertSvg,
+  recognition: recognitionSvg,
   eval: runSvg,
   zoomIn: zoomInSvg,
   zoomOut: zoomOutSvg,

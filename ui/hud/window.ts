@@ -13,7 +13,7 @@ export type HudWindowTitleBarAction = {
   action?: () => void
   onHover?: () => void
   onLeave?: () => void
-  render?: (rect: {x: number; y: number; w: number; h: number}) => void
+  render?: (rect: {x: number; y: number; w: number; h: number}, host: UiSurface) => void
   width?: number
 }
 
@@ -162,7 +162,7 @@ function drawTitleBarActions(host: UiSurface, actions: readonly HudWindowTitleBa
     const action = actions[i]!
     const width = action.width ?? buttonSize
     if (action.render !== undefined) {
-      action.render({x: cursor, y, w: width, h: buttonSize})
+      action.render({x: cursor, y, w: width, h: buttonSize}, host)
     } else if (action.iconSrc !== undefined) {
       const variant: ButtonVariant = action.active === true ? "contained" : "text"
       IconButton(host, cursor, y, width, buttonSize, {
