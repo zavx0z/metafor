@@ -1,56 +1,26 @@
-import {asObject, asString} from "./guards.ts"
 import type {JsonObject} from "./types.ts"
 
-/**
- * Codex-style interpreter tool call. `recipient_name` is the semantic command,
- * while all addressing lives in `parameters` (`processId`, `selector`,
- * `targetUrl`, `path`, etc.).
- */
 export type InterpreterToolUse = {
+  /**
+   * Codex-style tool call id. Optional for handwritten curl calls.
+   */
   toolUseId?: string
+  /**
+   * Semantic command name, e.g. `process.list`, `source.read`, `breakpoint.set`.
+   * Addressing data such as processId stays in parameters, not in recipientName.
+   */
   recipientName: string
   parameters: JsonObject
 }
 
-/** Metadata published in docs and the route index for agent-facing tools. */
 export type InterpreterToolDescription = {
   name: string
   description: string
   parameters: string
 }
 
-/** Read current interpreter/process/UI state. */
-export type ContextGetTool = {
-  recipient_name: "context.get"
-  parameters?: Record<string, never>
-}
-
-/** Read, open, save, or patch source in a process. */
-export type SourceTool = {
-  recipient_name: "source.read" | "source.read_many" | "source.locate" | "source.open" | "source.openSelection" | "source.write" | "source.apply_patch"
-  parameters: JsonObject & {processId?: string; sourceUrl?: string; path?: string; text?: string; patch?: string}
-}
-
-/** Start, focus, inspect, stop, restart, or debug a runtime process. */
-export type ProcessTool = {
-  recipient_name: "process.list" | "process.start" | "process.get" | "process.focus" | "process.resolve" | "process.context" | "process.modules" | "process.close" | "process.action"
-  parameters?: JsonObject & {processId?: string; selector?: JsonObject; action?: string}
-}
-
-/** Manage process breakpoints through the same tool surface as source edits. */
-export type BreakpointTool = {
-  recipient_name: "breakpoint.list" | "breakpoint.set" | "breakpoint.remove"
-  parameters: JsonObject & {processId?: string; line?: number; text?: string; query?: string; regex?: string; url?: string; sourceUrl?: string; id?: string; breakpointId?: string}
-}
-
-/** Inspect and control interpreter HUD, browser, DevTools, SQLite, Android, and remote desktop helpers. */
-export type HostTool = {
-  recipient_name: string
-  parameters?: JsonObject
-}
-
 export const interpreterToolDescriptions = [
-  {name: "health.get", description: "прочитать health payload host-а", parameters: "{}"},
+  {name: "health.get", description: "проверить, что interpreter HTTP host жив", parameters: "{}"},
   {name: "context.get", description: "прочитать текущий active context", parameters: "{}"},
   {name: "space.get", description: "прочитать Space/display state", parameters: "{}"},
   {name: "space.focus", description: "сфокусировать display", parameters: "{selector, dockHostTerminal?}"},
@@ -82,7 +52,7 @@ export const interpreterToolDescriptions = [
   {name: "breakpoint.set", description: "поставить breakpoint", parameters: "{processId, url|sourceUrl|path|urlRegex, line|text|query|regex|locator, column?, condition?}"},
   {name: "breakpoint.remove", description: "убрать breakpoint", parameters: "{processId, id|breakpointId}"},
   {name: "devtools.*", description: "Chrome DevTools target/console/breakpoint/probe/reload/evaluate commands", parameters: "см. docs/api.md"},
-  {name: "browser_chat.*", description: "MVP chat transport в уже открытый browser Qwen chat: send/read/wait/exchange", parameters: "{message?|text?, targetId?|targetUrl?|targetTitle?|urlContains?, previousAssistantText?, afterMessageCount?, intervalMs?, stableTicks?, timeoutMs?}"},
+  {name: "browser_chat.*", description: "transport для browser-hosted LLM чата из @metafor/browser-agent: send/read/wait/exchange", parameters: "{message?|text?, targetId?|targetUrl?|targetTitle?|urlContains?, autoToolLoop?, newChat?, waitUntilReady?, sendTimeoutMs?, previousAssistantText?, afterMessageCount?, intervalMs?, stableTicks?, timeoutMs?}"},
   {name: "browser.*", description: "browser-display JSON actions", parameters: "см. docs/api.md"},
   {name: "remote_desktop.*", description: "remote desktop lifecycle/input/RTC/browser JSON actions", parameters: "см. docs/api.md"},
   {name: "hud.*", description: "HUD panel state/actions", parameters: "см. docs/api.md"},
@@ -98,44 +68,42 @@ export function parseInterpreterToolRequest(body: JsonObject): {toolUses: Interp
   if (Array.isArray(rawToolUses)) {
     if (rawToolUses.length === 0) return {toolUses: [], error: "tool_uses must not be empty"}
     const toolUses: InterpreterToolUse[] = []
-    for (const [index, value] of rawToolUses.entries()) {
-      const parsed = parseInterpreterToolUse(value, index)
-      if (parsed.error !== undefined) return {toolUses: [], error: parsed.error}
-      toolUses.push(parsed.toolUse!)
+    for (const [index, raw] of rawToolUses.entries()) {
+      const parsed = parseSingleToolUse(raw)
+      if (parsed.error !== undefined) return {toolUses: [], error: `tool_uses[${index}]: ${parsed.error}`}
+      toolUses.push(parsed.toolUse)
     }
     return {toolUses}
   }
 
-  if (body["recipient_name"] !== undefined || body["recipientName"] !== undefined || body["name"] !== undefined || body["tool"] !== undefined) {
-    const parsed = parseInterpreterToolUse(body, 0)
-    if (parsed.error !== undefined) return {toolUses: [], error: parsed.error}
-    return {toolUses: [parsed.toolUse!]}
-  }
-
-  return {toolUses: [], error: "tool_uses must be a non-empty array"}
+  const parsed = parseSingleToolUse(body)
+  if (parsed.error !== undefined) return {toolUses: [], error: parsed.error}
+  return {toolUses: [parsed.toolUse]}
 }
 
-function parseInterpreterToolUse(value: unknown, index: number): {toolUse?: InterpreterToolUse; error?: string} {
-  const object = asObject(value)
-  if (object === undefined) return {error: `tool_uses[${index}] must be an object`}
-
-  const recipientName = asString(object["recipient_name"])
-    ?? asString(object["recipientName"])
-    ?? asString(object["name"])
-    ?? asString(object["tool"])
-  if (recipientName === undefined || recipientName.trim().length === 0) {
-    return {error: `tool_uses[${index}].recipient_name must be a string`}
+function parseSingleToolUse(raw: unknown): {toolUse: InterpreterToolUse; error?: undefined} | {error: string; toolUse?: undefined} {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return {error: "tool use must be an object"}
+  const obj = raw as Record<string, unknown>
+  const recipientName = stringValue(obj["recipient_name"]) ?? stringValue(obj["recipientName"]) ?? stringValue(obj["name"]) ?? stringValue(obj["tool"])
+  if (recipientName === undefined || recipientName.trim().length === 0) return {error: "recipient_name is required"}
+  const rawParams = obj["parameters"] ?? obj["arguments"] ?? obj["params"] ?? {}
+  const parameters = jsonObjectValue(rawParams)
+  if (parameters === undefined) return {error: "parameters must be a JSON object"}
+  const toolUseId = stringValue(obj["tool_use_id"]) ?? stringValue(obj["toolUseId"]) ?? stringValue(obj["id"])
+  return {
+    toolUse: {
+      ...(toolUseId === undefined ? {} : {toolUseId}),
+      recipientName: recipientName.trim(),
+      parameters,
+    },
   }
+}
 
-  const parameters = asObject(object["parameters"])
-    ?? asObject(object["arguments"])
-    ?? asObject(object["params"])
-    ?? {}
-  const toolUseId = asString(object["tool_use_id"]) ?? asString(object["toolUseId"]) ?? asString(object["id"])
-  const toolUse: InterpreterToolUse = {
-    recipientName,
-    parameters,
-  }
-  if (toolUseId !== undefined) toolUse.toolUseId = toolUseId
-  return {toolUse}
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined
+}
+
+function jsonObjectValue(value: unknown): JsonObject | undefined {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined
+  return value as JsonObject
 }
