@@ -9,6 +9,7 @@ This package owns provider/runtime logic for browser-based agents such as Qwen a
 `@metafor/browser-agent` owns:
 
 - browser chat transport runtime (`browser_chat.send/read/wait/exchange`);
+- provider activation/configuration runtime (`browser_chat.activate/configure`);
 - provider DOM expressions for Qwen and DeepSeek;
 - provider selection via `provider`, `adapter`, `urlContains`, `targetUrl`, or `targetTitle`;
 - transport state fields such as `canSend`, `busy`, `generating`, `preferenceActive`, `blockedReason`, `limitReached`;
@@ -31,6 +32,7 @@ The runtime is created by passing a host object:
 ```ts
 createBrowserAgentRuntime({
   evaluateExpression,
+  activateTarget,
   setViewport,
   serializeError,
 })
@@ -52,5 +54,11 @@ Use `provider` when multiple browser LLM chats are open in the same Chrome insta
 ```
 
 If `provider` is not provided, the runtime infers it from `adapter`, `urlContains`, `targetUrl`, or `targetTitle`, then falls back to Qwen.
+
+Runtime tools:
+
+- `browser_chat.send/read/wait/exchange` are the message transport.
+- `browser_chat.activate` asks the host to activate the selected provider target.
+- `browser_chat.configure` changes provider-specific UI state without sending a message. DeepSeek supports `deepseekMode: "fast" | "expert" | "vision"` and exact `deepThinking: boolean`.
 
 Add new browser LLMs as provider adapters rather than forking interpreter code.

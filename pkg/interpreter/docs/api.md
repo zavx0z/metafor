@@ -372,6 +372,8 @@ browser_chat.send      # {provider?:qwen|deepseek, message|text, targetId?, targ
 browser_chat.read      # {provider?:qwen|deepseek, targetId?, targetUrl?, targetTitle?, urlContains?}
 browser_chat.wait      # {provider?:qwen|deepseek, targetId?, targetUrl?, targetTitle?, urlContains?, previousAssistantText?, afterMessageCount?, intervalMs?, stableTicks?, timeoutMs?}
 browser_chat.exchange  # {provider?:qwen|deepseek, message|text, targetId?, targetUrl?, targetTitle?, urlContains?, previousAssistantText?, afterMessageCount?, intervalMs?, stableTicks?, timeoutMs?}
+browser_chat.configure # {provider:deepseek, targetId?, targetUrl?, targetTitle?, urlContains?, deepseekMode?:fast|expert|vision, mode?, providerMode?, deepThinking?, thinking?}
+browser_chat.activate  # {provider?:qwen|deepseek, targetId?, targetUrl?, targetTitle?, urlContains?}
 ```
 
 По умолчанию target выбирается по fallback provider `qwen`. `send` выбирает
@@ -402,6 +404,13 @@ provider-specific `blockedReason`. `read` не держит blocked state по �
 limit-сообщению в истории: после сброса лимита активный composer снова должен
 дать `canSend:true`.
 
+`configure` - provider-specific настройка открытого browser chat без отправки
+сообщения. Сейчас она поддержана для DeepSeek: `deepseekMode`/`mode`/`providerMode`
+выбирает `fast`, `expert` или `vision`, а `deepThinking`/`thinking` задает точное
+состояние Deep Thinking toggle (`true` включает, `false` выключает). `activate`
+переключает реальную вкладку Chrome на target выбранного provider-а через host
+callback; Browser Agent UI вызывает его при клике по вкладкам `Qwen`/`DeepSeek`.
+
 Codex message и Browser Agent message используют общий UI composer flow для
 text/voice/image attachments, но transport разный: Codex message идет в
 host PTY/Codex CLI, Browser Agent message идет в remote browser chat. В MVP
@@ -413,6 +422,11 @@ session имеет отдельную историю, draft, attachments, transp
 state; переключение вкладок не очищает draft/history другой session. Один
 composer/editor работает с active session, а все вызовы `browser_chat.*` из UI
 передают `provider` и `urlContains` этой active session.
+Session state хранится в browser `localStorage`: active session, draft,
+attachments, сообщения, DeepSeek mode/deep-thinking, transport flags и tool loop
+control/pending state переживают reload UI. Ephemeral timers/read polling после
+reload создаются заново и live transport state дополнительно гидратируется через
+`browser_chat.read`.
 
 Обычная отправка Browser Agent message передает в active provider только текст
 пользователя и attachment paths. Tool prompt не добавляется автоматически к

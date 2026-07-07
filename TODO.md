@@ -25,6 +25,9 @@
 - [100] Сделать MVP Browser Agent Chat для Qwen в interpreter HUD.
 - [ ] Доработать быстрые Space display tools: авто-сетка по количеству display, максимально плотный fit/приближение камеры и удобные пресеты раскладки.
 - [100] Показывать в Browser Agent Chat отдельный blocked status, когда remote chat упёрся в дневной лимит/usage quota.
+- [100] Довести Browser Agent Chat sessions: persist Qwen/DeepSeek state, sync browser tabs, DeepSeek mode/deep toggle and independent voice indicator.
+- [100] Отполировать Browser Agent docs/API: documented provider sessions, persisted state, browser_chat.configure/activate and DeepSeek modes.
+- [ ] Переименовать agent-facing Plan tools/API: добавить plan.* alias/contract поверх TODO.md storage и убрать путаницу с todo.* в инструкциях.
 
 ## 6. Browser Agent Chat: изображения
 

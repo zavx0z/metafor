@@ -52,7 +52,7 @@ export const interpreterToolDescriptions = [
   {name: "breakpoint.set", description: "поставить breakpoint", parameters: "{processId, url|sourceUrl|path|urlRegex, line|text|query|regex|locator, column?, condition?}"},
   {name: "breakpoint.remove", description: "убрать breakpoint", parameters: "{processId, id|breakpointId}"},
   {name: "devtools.*", description: "Chrome DevTools target/console/breakpoint/probe/reload/evaluate commands", parameters: "см. docs/api.md"},
-  {name: "browser_chat.*", description: "transport для browser-hosted LLM чата из @metafor/browser-agent: send/read/wait/exchange", parameters: "{provider?:qwen|deepseek, message?|text?, targetId?|targetUrl?|targetTitle?|urlContains?, autoToolLoop?, newChat?, waitUntilReady?, sendTimeoutMs?, previousAssistantText?, afterMessageCount?, intervalMs?, stableTicks?, timeoutMs?}"},
+  {name: "browser_chat.*", description: "transport для browser-hosted LLM чата из @metafor/browser-agent: send/read/wait/exchange/configure/activate", parameters: "{provider?:qwen|deepseek, message?|text?, targetId?|targetUrl?|targetTitle?|urlContains?, autoToolLoop?, newChat?, waitUntilReady?, sendTimeoutMs?, previousAssistantText?, afterMessageCount?, intervalMs?, stableTicks?, timeoutMs?, deepseekMode?:fast|expert|vision, deepThinking?}"},
   {name: "browser.*", description: "browser-display JSON actions", parameters: "см. docs/api.md"},
   {name: "remote_desktop.*", description: "remote desktop lifecycle/input/RTC/browser JSON actions", parameters: "см. docs/api.md"},
   {name: "hud.*", description: "HUD panel state/actions", parameters: "см. docs/api.md"},
