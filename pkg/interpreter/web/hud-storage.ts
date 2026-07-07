@@ -10,7 +10,9 @@ export const HOST_TERMINAL_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.hos
 export const BROWSER_CHAT_HUD_RECT_STORAGE_KEY = "metafor.interpreter.browserChat.hudRect:v1"
 export const BROWSER_CHAT_COMPOSER_RECT_STORAGE_KEY = "metafor.interpreter.browserChat.composerRect:v1"
 export const BROWSER_CHAT_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.browserChat.hudDocked:v1"
+export const BROWSER_CHAT_COMPOSER_DOCKED_STORAGE_KEY = "metafor.interpreter.browserChat.composerDocked:v1"
 export const BROWSER_CHAT_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.browserChat.dockPlacement:v1"
+export const BROWSER_CHAT_COMPOSER_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.browserChat.composerDockPlacement:v1"
 export const NETWORK_TERMINAL_SESSION_STORAGE_KEY = "metafor.interpreter.networkTerminal.sessionId:v1"
 export const NETWORK_TERMINAL_HUD_RECT_STORAGE_KEY = "metafor.interpreter.networkTerminal.hudRect:v1"
 export const NETWORK_TERMINAL_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.networkTerminal.hudDocked:v1"
@@ -191,6 +193,18 @@ export function writeStoredBrowserChatHudDocked(docked: boolean): void {
   writeStoredBoolean(BROWSER_CHAT_HUD_DOCKED_STORAGE_KEY, docked)
 }
 
+export function readStoredBrowserChatComposerDocked(): boolean {
+  try {
+    return localStorage.getItem(BROWSER_CHAT_COMPOSER_DOCKED_STORAGE_KEY) === "1"
+  } catch {
+    return false
+  }
+}
+
+export function writeStoredBrowserChatComposerDocked(docked: boolean): void {
+  writeStoredBoolean(BROWSER_CHAT_COMPOSER_DOCKED_STORAGE_KEY, docked)
+}
+
 export function readStoredNetworkTerminalHudDocked(): boolean {
   try {
     return localStorage.getItem(NETWORK_TERMINAL_HUD_DOCKED_STORAGE_KEY) === "1"
@@ -302,6 +316,10 @@ export function readStoredBrowserChatDockPlacement(): HostTerminalDockPlacement 
   return readStoredDockPlacement(BROWSER_CHAT_DOCK_PLACEMENT_STORAGE_KEY)
 }
 
+export function readStoredBrowserChatComposerDockPlacement(): HostTerminalDockPlacement | null {
+  return readStoredDockPlacement(BROWSER_CHAT_COMPOSER_DOCK_PLACEMENT_STORAGE_KEY)
+}
+
 export function readStoredTodoDockPlacement(): HostTerminalDockPlacement | null {
   return readStoredDockPlacement(TODO_DOCK_PLACEMENT_STORAGE_KEY)
 }
@@ -316,6 +334,10 @@ export function writeStoredHostTerminalDockPlacement(placement: HostTerminalDock
 
 export function writeStoredBrowserChatDockPlacement(placement: HostTerminalDockPlacement): void {
   writeStoredDockPlacement(BROWSER_CHAT_DOCK_PLACEMENT_STORAGE_KEY, placement)
+}
+
+export function writeStoredBrowserChatComposerDockPlacement(placement: HostTerminalDockPlacement): void {
+  writeStoredDockPlacement(BROWSER_CHAT_COMPOSER_DOCK_PLACEMENT_STORAGE_KEY, placement)
 }
 
 export function writeStoredTodoDockPlacement(placement: HostTerminalDockPlacement): void {

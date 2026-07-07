@@ -204,6 +204,8 @@ import {
   writeStoredHostTerminalHudDocked,
   readStoredBrowserChatHudDocked,
   writeStoredBrowserChatHudDocked,
+  readStoredBrowserChatComposerDocked,
+  writeStoredBrowserChatComposerDocked,
   readStoredNetworkTerminalHudDocked,
   writeStoredNetworkTerminalHudDocked,
   readStoredNetworkStatusAutoRefreshEnabled,
@@ -222,10 +224,12 @@ import {
   writeStoredAndroidDockPlacement,
   readStoredHostTerminalDockPlacement,
   readStoredBrowserChatDockPlacement,
+  readStoredBrowserChatComposerDockPlacement,
   readStoredTodoDockPlacement,
   readStoredSqliteDockPlacement,
   writeStoredHostTerminalDockPlacement,
   writeStoredBrowserChatDockPlacement,
+  writeStoredBrowserChatComposerDockPlacement,
   writeStoredTodoDockPlacement,
   writeStoredSqliteDockPlacement,
   type HostTerminalDockPlacement,
@@ -937,6 +941,7 @@ type NetworkServiceKey = NetworkWatchServiceKey
 const DEFAULT_HOST_TERMINAL_HUD_RECT: UiSurfaceRect = {x: 643, y: 60, w: 755, h: 943}
 const DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "top", offset: 858}
 const DEFAULT_BROWSER_CHAT_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "right", offset: 220}
+const DEFAULT_BROWSER_CHAT_COMPOSER_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "bottom", offset: 920}
 const DEFAULT_NETWORK_TERMINAL_HUD_RECT: UiSurfaceRect = {x: 24, y: 520, w: 1080, h: 560}
 const NETWORK_DISPLAY_COLUMN_GAP = 8
 const NETWORK_DISPLAY_COLUMN_MIN_W = 920
@@ -976,6 +981,7 @@ let networkHostTerminal: HostTerminalController | null = null
 let browserChat: BrowserChatController | null = null
 let hostTerminalDockPane: HostTerminalDockPane | null = null
 let browserChatDockPane: HostTerminalDockPane | null = null
+let browserChatComposerDockPane: HostTerminalDockPane | null = null
 let networkDisplayControlsPane: NetworkWatchPane | null = null
 let networkDisplayTerminal: TerminalPane | null = null
 let networkDisplayInstalled = false
@@ -1001,6 +1007,8 @@ let hostTerminalDockPlacement: HostTerminalDockPlacement | null = readStoredHost
 let hostTerminalHudRectPreview: UiSurfaceRect | null = null
 let browserChatHudDocked = readStoredBrowserChatHudDocked()
 let browserChatDockPlacement: HostTerminalDockPlacement | null = readStoredBrowserChatDockPlacement() ?? DEFAULT_BROWSER_CHAT_DOCK_PLACEMENT
+let browserChatComposerDocked = readStoredBrowserChatComposerDocked()
+let browserChatComposerDockPlacement: HostTerminalDockPlacement | null = readStoredBrowserChatComposerDockPlacement() ?? DEFAULT_BROWSER_CHAT_COMPOSER_DOCK_PLACEMENT
 let browserChatStateStoreTimer: number | null = null
 let networkHostTerminalHudDocked = readStoredNetworkTerminalHudDocked()
 let networkHostTerminalHudRectPreview: UiSurfaceRect | null = null
@@ -2072,9 +2080,11 @@ function browserChatHudPayload(): unknown {
   const composerFrame = controller === null || uiCanvas === null ? null : uiCanvas.surfaceFrame(controller.composer)
   return {
     docked: browserChatHudDocked,
+    composerDocked: browserChatComposerDocked,
     paneRect: paneFrame?.rect ?? null,
     composerRect: composerFrame?.rect ?? null,
     dockPlacement: browserChatDockPlacement,
+    composerDockPlacement: browserChatComposerDockPlacement,
     status: controller === null ? "idle" : browserChatComposerStatus(controller),
     provider: activeSession === null
       ? null
@@ -2944,6 +2954,17 @@ function installEnginePanes(): void {
     isTouchPointerEvent,
   })
   uiCanvas.addHudSurface(browserChatDockPane, browserChatDockRect, {zIndex: HUD_LAYER_TOP})
+  browserChatComposerDockPane ??= new HostTerminalDockPane({
+    key: "browser-chat-composer-dock-restore",
+    label: "Message",
+    tooltip: "Message",
+    icon: uiIcons.send,
+    edge: currentBrowserChatComposerDockEdge,
+    restore: () => setBrowserChatComposerDocked(false),
+    moveTo: (point, bounds) => setBrowserChatComposerDockPlacement(browserChatDockPlacementFromPoint(point, bounds)),
+    isTouchPointerEvent,
+  })
+  uiCanvas.addHudSurface(browserChatComposerDockPane, browserChatComposerDockRect, {zIndex: HUD_LAYER_TOP})
   sqliteDockPane ??= new HostTerminalDockPane({
     key: "sqlite-dock-restore",
     label: "SQLite",
@@ -7371,7 +7392,7 @@ function createBrowserChatComposerPane(controller: BrowserChatController): HostT
     canSubmit: browserChatComposerCanSubmit,
     submit: (target) => { submitBrowserChatComposer(target) },
     chooseImages: (target) => { void chooseBrowserChatImages(target) },
-    setDocked: setBrowserChatHudDocked,
+    setDocked: setBrowserChatComposerDocked,
     voiceSnapshot: () => voiceButtonSnapshotForTarget((target) => browserChatComposerTargetsCodex(controller)
       ? target.kind === "host" && target.controller === hostTerminal
       : target.kind === "browser-chat" && target.controller === controller),
@@ -8005,6 +8026,15 @@ function setBrowserChatDockPlacement(placement: HostTerminalDockPlacement): void
   relayoutHudSurfaces()
 }
 
+function setBrowserChatComposerDockPlacement(placement: HostTerminalDockPlacement): void {
+  const previous = browserChatComposerDockPlacement
+  if (previous !== null && previous.edge === placement.edge && Math.abs(previous.offset - placement.offset) < 0.5) return
+  browserChatComposerDockPlacement = placement
+  writeStoredBrowserChatComposerDockPlacement(placement)
+  browserChatComposerDockPane?.requestRender()
+  relayoutHudSurfaces()
+}
+
 function setTodoDockPlacement(placement: HostTerminalDockPlacement): void {
   const previous = todoDockPlacement
   if (previous !== null && previous.edge === placement.edge && Math.abs(previous.offset - placement.offset) < 0.5) return
@@ -8054,7 +8084,7 @@ function setHostTerminalHudDocked(docked: boolean): void {
 
 function setBrowserChatHudDocked(docked: boolean): void {
   if (browserChatHudDocked === docked) {
-    if (!docked && browserChat !== null) focusBrowserChatComposer(browserChat)
+    if (!docked && browserChat !== null && !browserChatComposerDocked) focusBrowserChatComposer(browserChat)
     return
   }
   browserChatHudDocked = docked
@@ -8065,12 +8095,34 @@ function setBrowserChatHudDocked(docked: boolean): void {
       uiCanvas.setFocused(null)
       uiCanvas.inputProxy?.blur()
     }
-  } else if (controller !== null) {
+  } else if (controller !== null && !browserChatComposerDocked) {
     focusBrowserChatComposer(controller)
   }
   controller?.chatPane.requestRender()
   controller?.composer.requestRender()
   browserChatDockPane?.requestRender()
+  relayoutHudSurfaces()
+}
+
+function setBrowserChatComposerDocked(docked: boolean): void {
+  if (browserChatComposerDocked === docked) {
+    if (!docked && browserChat !== null) focusBrowserChatComposer(browserChat)
+    return
+  }
+  browserChatComposerDocked = docked
+  writeStoredBrowserChatComposerDocked(docked)
+  const controller = browserChat
+  if (docked) {
+    if (controller !== null && uiCanvas !== null) {
+      uiCanvas.setFocused(null)
+      uiCanvas.inputProxy?.blur()
+    }
+  } else if (controller !== null) {
+    focusBrowserChatComposer(controller)
+  }
+  controller?.composer.requestRender()
+  controller?.editor.requestRender()
+  browserChatComposerDockPane?.requestRender()
   relayoutHudSurfaces()
 }
 
@@ -8181,6 +8233,10 @@ function currentHostTerminalDockEdge(): HudSideTabEdge {
 
 function currentBrowserChatDockEdge(): HudSideTabEdge {
   return browserChatDockPlacement?.edge ?? DEFAULT_BROWSER_CHAT_DOCK_PLACEMENT.edge
+}
+
+function currentBrowserChatComposerDockEdge(): HudSideTabEdge {
+  return browserChatComposerDockPlacement?.edge ?? DEFAULT_BROWSER_CHAT_COMPOSER_DOCK_PLACEMENT.edge
 }
 
 function currentTodoDockEdge(): HudSideTabEdge {
@@ -10311,24 +10367,24 @@ function clampBrowserChatPaneRect(rect: UiSurfaceRect, boundsW: number, boundsH:
 }
 
 function browserChatComposerRect(bounds: {w: number; h: number}): UiSurfaceRect {
-  if (browserChatHudDocked) return hiddenRect()
+  if (browserChatComposerDocked) return hiddenRect()
+  const raw = readStoredBrowserChatComposerRect()
+  if (raw !== null) return clampBrowserChatComposerRect(raw, bounds.w, bounds.h)
   const pane = browserChatPaneRect(bounds)
-  if (pane.visible === false) return hiddenRect()
   const maxW = Math.max(1, bounds.w - 24)
   const maxH = Math.max(1, bounds.h - 24)
-  const fallbackW = Math.min(Math.max(1, pane.w), maxW)
+  const fallbackW = Math.min(Math.max(420, pane.visible === false ? 620 : pane.w), maxW)
   const fallbackH = Math.min(HOST_TERMINAL_CODEX_COMPOSER_H, maxH)
   const belowY = pane.y + pane.h + BROWSER_CHAT_PANE_GAP
-  const fallbackY = belowY + fallbackH <= bounds.h - 12
+  const fallbackY = pane.visible !== false && belowY + fallbackH <= bounds.h - 12
     ? belowY
-    : Math.max(12, pane.y - fallbackH - BROWSER_CHAT_PANE_GAP)
-  const raw = readStoredBrowserChatComposerRect() ?? {
-    x: pane.x,
+    : Math.max(12, bounds.h - fallbackH - 24)
+  return clampBrowserChatComposerRect({
+    x: pane.visible === false ? Math.max(12, bounds.w - fallbackW - 24) : pane.x,
     y: fallbackY,
     w: fallbackW,
     h: fallbackH,
-  }
-  return clampBrowserChatComposerRect(raw, bounds.w, bounds.h)
+  }, bounds.w, bounds.h)
 }
 
 function clampBrowserChatComposerRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): UiSurfaceRect {
@@ -10571,6 +10627,11 @@ function browserChatDockRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   return browserChatDockRectForPlacement(browserChatDockPlacement ?? defaultBrowserChatDockPlacement({w, h}), {w, h})
 }
 
+function browserChatComposerDockRect({w, h}: {w: number; h: number}): UiSurfaceRect {
+  if (!browserChatComposerDocked || w < 80 || h < 80) return hiddenRect()
+  return browserChatDockRectForPlacement(browserChatComposerDockPlacement ?? defaultBrowserChatComposerDockPlacement({w, h}), {w, h})
+}
+
 function todoDockRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   if (!todoHudDocked || w < 80 || h < 80) return hiddenRect()
   return todoDockRectForPlacement(todoDockPlacement ?? defaultTodoDockPlacement({w, h}), {w, h})
@@ -10762,7 +10823,14 @@ function defaultHostTerminalDockPlacement(bounds: {w: number; h: number}): HostT
 }
 
 function defaultBrowserChatDockPlacement(bounds: {w: number; h: number}): HostTerminalDockPlacement {
-  const placement = DEFAULT_BROWSER_CHAT_DOCK_PLACEMENT
+  return defaultBrowserChatSizedDockPlacement(DEFAULT_BROWSER_CHAT_DOCK_PLACEMENT, bounds)
+}
+
+function defaultBrowserChatComposerDockPlacement(bounds: {w: number; h: number}): HostTerminalDockPlacement {
+  return defaultBrowserChatSizedDockPlacement(DEFAULT_BROWSER_CHAT_COMPOSER_DOCK_PLACEMENT, bounds)
+}
+
+function defaultBrowserChatSizedDockPlacement(placement: HostTerminalDockPlacement, bounds: {w: number; h: number}): HostTerminalDockPlacement {
   const vertical = placement.edge === "left" || placement.edge === "right"
   const dockW = vertical
     ? Math.min(BROWSER_CHAT_DOCK_SHORT, Math.max(1, bounds.w - BROWSER_CHAT_DOCK_MARGIN))
