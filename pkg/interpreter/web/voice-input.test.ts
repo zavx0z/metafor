@@ -346,13 +346,32 @@ describe("voice session manager", () => {
     expect(session.acceptVadFrame({rms: 0.002, peak: 0.004, now: 2_400}).stopped).toBe(true)
     expect(session.debugSnapshot().chunks.queued).toBe(1)
 
-    session.acceptVadFrame({rms: 0.005, peak: 0.007, now: 2_740})
-    const quietRestart = session.acceptVadFrame({rms: 0.005, peak: 0.007, now: 2_850})
+    session.acceptVadFrame({rms: 0.005, peak: 0.010, now: 2_740, speechProbability: 0.36, speechProbabilityAt: 2_740})
+    const quietRestart = session.acceptVadFrame({rms: 0.005, peak: 0.010, now: 2_850, speechProbability: 0.36, speechProbabilityAt: 2_850})
 
     expect(quietRestart.started).toBe(true)
     expect(quietRestart.speaking).toBe(true)
     expect(session.debugSnapshot().chunks.recording).toBe(1)
     expect(session.debugSnapshot().chunks.queued).toBe(1)
+  })
+
+  test("does not open a new chunk from weak energy-only potential voice", () => {
+    const session = new VoiceSessionManager()
+    session.startRecording(true, 1_000)
+
+    session.acceptVadFrame({rms: 0.05, peak: 0.11, now: 1_020})
+    session.acceptVadFrame({rms: 0.05, peak: 0.11, now: 1_130})
+    session.appendCurrentChunkPcm(new ArrayBuffer(320))
+    session.acceptVadFrame({rms: 0.002, peak: 0.004, now: 1_760})
+    expect(session.acceptVadFrame({rms: 0.002, peak: 0.004, now: 2_400}).stopped).toBe(true)
+
+    session.acceptVadFrame({rms: 0.005, peak: 0.007, now: 2_740})
+    const weakNoise = session.acceptVadFrame({rms: 0.005, peak: 0.007, now: 2_850})
+
+    expect(weakNoise.potentialVoice).toBe(true)
+    expect(weakNoise.started).toBe(false)
+    expect(weakNoise.speaking).toBe(false)
+    expect(session.debugSnapshot().chunks.recording).toBe(0)
   })
 
   test("does not let loud voice-like input poison the adaptive noise floor", () => {

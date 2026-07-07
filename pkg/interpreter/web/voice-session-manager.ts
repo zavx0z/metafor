@@ -301,8 +301,8 @@ export class VoiceSessionManager {
       )
     if (potentialVoice) this.#lastPotentialVoiceAt = now
     const rawSpeech = hasFreshSileroProbability
-      ? sileroSpeech || sileroEnergyFallback || continuationSpeech || potentialVoice
-      : energySpeech || continuationSpeech || potentialVoice
+      ? sileroSpeech || sileroEnergyFallback || continuationSpeech || (this.#speaking && potentialVoice)
+      : energySpeech || continuationSpeech || (this.#speaking && potentialVoice)
 
     let started = false
     let stopped = false
