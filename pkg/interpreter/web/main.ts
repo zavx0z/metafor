@@ -4868,6 +4868,39 @@ function activeBrowserChatComposerDropActive(controller: BrowserChatController):
   return activeBrowserChatSession(controller).codexDropActive
 }
 
+function browserChatComposerContentForTarget(controller: BrowserChatController, target: MessageComposerTargetId): {draft: string; attachments: CodexComposerAttachment[]} {
+  if (target === "codex") {
+    const host = ensureHostTerminalController()
+    return {draft: host.codexDraft, attachments: host.codexAttachments.slice()}
+  }
+  const session = controller.sessions.find((item) => item.id === target)
+  return {draft: session?.codexDraft ?? "", attachments: session?.codexAttachments.slice() ?? []}
+}
+
+function setBrowserChatComposerContentForTarget(controller: BrowserChatController, target: MessageComposerTargetId, content: {draft: string; attachments: readonly CodexComposerAttachment[]}): void {
+  if (target === "codex") {
+    const host = ensureHostTerminalController()
+    host.codexDraft = content.draft
+    host.codexAttachments = content.attachments.slice()
+    resetHostVoiceComposerDraftTracking(host)
+    host.codexComposer.requestRender()
+    return
+  }
+  const session = controller.sessions.find((item) => item.id === target)
+  if (session === undefined) return
+  session.codexDraft = content.draft
+  session.codexAttachments = content.attachments.slice()
+  resetBrowserChatVoiceComposerDraftTracking(controller, session)
+}
+
+function clearBrowserChatSharedComposerContent(controller: BrowserChatController): void {
+  setBrowserChatComposerContentForTarget(controller, "codex", {draft: "", attachments: []})
+  for (const session of controller.sessions) setBrowserChatComposerContentForTarget(controller, session.provider, {draft: "", attachments: []})
+  syncBrowserChatEditor(controller)
+  controller.composer.requestRender()
+  scheduleStoreBrowserChatState(controller)
+}
+
 function setBrowserChatComposerTarget(controller: BrowserChatController, target: MessageComposerTargetId, options: {activateProvider?: boolean} = {}): void {
   if (controller.activeComposerTargetId === target) {
     if (target !== "codex" && options.activateProvider !== false) {
@@ -4878,6 +4911,7 @@ function setBrowserChatComposerTarget(controller: BrowserChatController, target:
     return
   }
   flushBrowserChatDraftFromEditor(controller)
+  const content = browserChatComposerContentForTarget(controller, controller.activeComposerTargetId)
   controller.activeComposerTargetId = target
   if (target !== "codex") {
     const next = controller.sessions.find((session) => session.id === target)
@@ -4889,6 +4923,7 @@ function setBrowserChatComposerTarget(controller: BrowserChatController, target:
       }
     }
   }
+  setBrowserChatComposerContentForTarget(controller, target, content)
   syncBrowserChatEditor(controller)
   controller.chatPane.requestRender()
   controller.composer.requestRender()
@@ -5280,6 +5315,7 @@ function submitBrowserChatComposer(controller: BrowserChatController, options: {
   if (options.flushPendingInput ?? true) flushBrowserChatComposerPendingInput(controller)
   if (browserChatComposerTargetsCodex(controller)) {
     const submitted = submitHostCodexComposer(ensureHostTerminalController(), {flushPendingInput: false, focusAfterSubmit: false})
+    if (submitted) clearBrowserChatSharedComposerContent(controller)
     syncBrowserChatEditor(controller)
     controller.composer.requestRender()
     if (options.focusAfterSubmit ?? true) focusBrowserChatComposer(controller)
@@ -5341,6 +5377,7 @@ async function sendBrowserChatMessage(controller: BrowserChatController, session
     resetBrowserChatVoiceComposerDraftTracking(controller, session)
     setBrowserChatDraft(controller, "", session)
     session.codexAttachments = []
+    clearBrowserChatSharedComposerContent(controller)
     scheduleStoreBrowserChatState(controller)
     setBrowserChatStatus(controller, "sent", 1400, session)
     if (focusAfterSubmit) focusBrowserChatComposer(controller)
