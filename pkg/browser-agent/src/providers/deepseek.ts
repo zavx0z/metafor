@@ -71,7 +71,7 @@ export function deepseekSendExpression(message: string, newChat: boolean, params
       }).sort((left, right) => right.score - left.score);
       return candidates[0]?.el || null;
     };
-    const generating = () => Array.from(document.querySelectorAll("button, [role=button], [class*=loading i], [class*=generating i], [class*=thinking i]")).some((el) => visible(el) && (/stop|停止|cancel|generating|loading|thinking/i.test([el.getAttribute("aria-label"), el.getAttribute("title"), el.className, el.innerText].join(" ")) || stopButton(el)));
+    const generating = () => Array.from(document.querySelectorAll("button, [role=button], [class*=generating i], [class*=thinking i]")).some((el) => visible(el) && (/stop|停止|cancel|generating|thinking/i.test([el.getAttribute("aria-label"), el.getAttribute("title"), el.className, el.innerText].join(" ")) || stopButton(el)));
     const selectMode = async () => {
       if (mode !== "expert" && mode !== "fast" && mode !== "vision") return "";
       const targetType = mode === "fast" ? "default" : mode;
@@ -295,7 +295,7 @@ export function deepseekReadExpression(): string {
     const disabled = (el) => !!el.disabled || el.getAttribute("aria-disabled") === "true" || el.getAttribute("disabled") !== null || /(?:^|\\s|--)disabled(?:\\s|$)/i.test(String(el.className || ""));
     const stopButton = (el) => /M2 4\\.88|H11\\.12C12\\.3199|V11\\.12C14 12\\.3199/i.test(String(el.innerHTML || ""));
     const findInput = () => [document.querySelector("textarea"), document.querySelector("[contenteditable=true]"), document.querySelector("[role=textbox]")].filter(Boolean).find((el) => visible(el) && !disabled(el));
-    const buttonGenerating = Array.from(document.querySelectorAll("button, [role=button], [class*=loading i], [class*=generating i], [class*=thinking i]")).some((el) => visible(el) && (/stop|停止|cancel|generating|loading|thinking/i.test([el.getAttribute("aria-label"), el.getAttribute("title"), el.className, el.innerText].join(" ")) || stopButton(el)));
+    const buttonGenerating = Array.from(document.querySelectorAll("button, [role=button], [class*=generating i], [class*=thinking i]")).some((el) => visible(el) && (/stop|停止|cancel|generating|thinking/i.test([el.getAttribute("aria-label"), el.getAttribute("title"), el.className, el.innerText].join(" ")) || stopButton(el)));
     const lastAssistantControlsVisible = () => {
       const blocks = Array.from(document.querySelectorAll(".ds-markdown.ds-assistant-message-main-content, .markdown-body, .markdown")).filter((el) => visible(el) && !el.closest("textarea, [contenteditable=true], nav, header, aside, form"));
       const last = blocks[blocks.length - 1];
