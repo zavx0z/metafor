@@ -64,6 +64,13 @@ async function browserChatSend(host: BrowserAgentHost, params: BrowserAgentJsonO
   while (true) {
     if (!attachmentsUploaded && attachmentPaths.length > 0) {
       if (newChat) return {ok: false, provider: provider.id, error: "attachment upload with newChat is not supported; open a new chat first"}
+      const ready = await browserChatRead(host, params)
+      if (ready["limitReached"] === true) return {...ready, provider: provider.id, waitedMs: Date.now() - startedAt}
+      if (isBrowserChatBusyPayload(ready)) {
+        if (!waitUntilReady || Date.now() - startedAt >= timeoutMs) return {...ready, provider: provider.id, waitedMs: Date.now() - startedAt}
+        await delay(BROWSER_CHAT_SEND_READY_INTERVAL_MS)
+        continue
+      }
       const uploaded = await uploadBrowserChatAttachments(host, provider, params, attachmentPaths)
       if (uploaded["ok"] !== true) return {...uploaded, provider: provider.id, waitedMs: Date.now() - startedAt}
       attachmentsUploaded = true
