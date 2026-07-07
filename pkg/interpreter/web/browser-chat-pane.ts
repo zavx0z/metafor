@@ -1,5 +1,5 @@
 import {Color} from "@metafor/engine"
-import {UiSurface, palette, Z, type UiSurfaceRect} from "@ui/elements"
+import {UiSurface, div, divScrollPosition, divScrollTo, palette, Z, type DivScrollContext, type UiSurfaceRect} from "@ui/elements"
 import {HudWindow} from "@ui/hud"
 import {
   PANE_FRAME,
@@ -15,6 +15,7 @@ import {
 export type BrowserChatPaneMessage = {
   role: "user" | "assistant" | "system"
   text: string
+  label?: string
   streaming?: boolean
 }
 
@@ -36,17 +37,22 @@ const MESSAGE_FONT = 11
 const MESSAGE_LINE_H = 16
 const MESSAGE_PAD = 10
 const MESSAGE_GAP = 8
+const BROWSER_CHAT_SCROLL_KEY = "interpreter:browser-chat:messages"
 
-type RenderLine = {
+type RenderBlock = {
   role: BrowserChatPaneMessage["role"]
-  text: string
-  first: boolean
+  label: string
+  lines: string[]
+  top: number
+  height: number
   streaming: boolean
 }
 
 export class BrowserChatPane extends UiSurface {
   #frameDrag: PaneFrameDrag | null = null
   readonly #opts: BrowserChatPaneOptions
+  #lastMessageKey = ""
+  #lastContentH = 0
 
   constructor(opts: BrowserChatPaneOptions) {
     super({bgColor: null, borderColor: null})
@@ -81,8 +87,8 @@ export class BrowserChatPane extends UiSurface {
   }
 
   #renderMessages(body: UiSurfaceRect): void {
-    const rows = this.#messageRows(Math.max(80, body.w - MESSAGE_PAD * 2))
-    if (rows.length === 0) {
+    const layout = this.#messageLayout(Math.max(80, body.w - MESSAGE_PAD * 2 - 8))
+    if (layout.blocks.length === 0) {
       this.drawText("No browser chat messages yet", body.x + 8, body.y + 8, {
         fontPx: 11,
         material: this.materials.muted,
@@ -92,30 +98,70 @@ export class BrowserChatPane extends UiSurface {
       return
     }
 
-    const contentH = rows.reduce((sum, block) => sum + block.length * MESSAGE_LINE_H + MESSAGE_PAD * 2 + MESSAGE_GAP, 0)
-    let y = body.y + Math.min(0, body.h - contentH)
-    for (const block of rows) {
-      const blockH = block.length * MESSAGE_LINE_H + MESSAGE_PAD * 2
-      if (y + blockH >= body.y && y <= body.y + body.h) this.#drawMessageBlock(block, body.x, y, body.w, blockH)
-      y += blockH + MESSAGE_GAP
+    const contentH = Math.max(body.h, layout.contentH)
+    const messageKey = this.#messageKey()
+    const scroll = divScrollPosition(this, BROWSER_CHAT_SCROLL_KEY)
+    const wasAtBottom = this.#lastContentH <= body.h || scroll.top >= Math.max(0, this.#lastContentH - body.h - 12)
+    if (messageKey !== this.#lastMessageKey && (this.#lastMessageKey.length === 0 || wasAtBottom)) {
+      divScrollTo(this, BROWSER_CHAT_SCROLL_KEY, {top: Math.max(0, contentH - body.h)})
     }
-  }
+    this.#lastMessageKey = messageKey
+    this.#lastContentH = contentH
 
-  #messageRows(maxTextW: number): RenderLine[][] {
-    return this.#opts.messages().map((message) => {
-      const lines = wrapText(this, message.text, maxTextW, MESSAGE_FONT)
-      return lines.map((line, index) => ({
-        role: message.role,
-        text: line,
-        first: index === 0,
-        streaming: message.streaming === true,
-      }))
+    div(this, body.x, body.y, body.w, body.h, {
+      key: BROWSER_CHAT_SCROLL_KEY,
+      scrollContentHeight: contentH,
+      style: {
+        background: null,
+        borderColor: null,
+        borderRadius: 0,
+        padding: 0,
+        overflowX: "hidden",
+        overflowY: "auto",
+        scrollbarWidth: 4,
+      },
+      children: (ctx) => this.#renderMessageBlocks(body, ctx, layout.blocks),
     })
   }
 
-  #drawMessageBlock(block: readonly RenderLine[], x: number, y: number, w: number, h: number): void {
-    const role = block[0]?.role ?? "system"
-    const streaming = block.some((line) => line.streaming)
+  #messageLayout(maxTextW: number): {blocks: RenderBlock[]; contentH: number} {
+    let top = 0
+    const blocks = this.#opts.messages().map((message) => {
+      const lines = wrapText(this, message.text, maxTextW, MESSAGE_FONT)
+      const height = (lines.length + 1) * MESSAGE_LINE_H + MESSAGE_PAD * 2
+      const block: RenderBlock = {
+        role: message.role,
+        label: message.label ?? messageRoleLabel(message.role),
+        lines,
+        top,
+        height,
+        streaming: message.streaming === true,
+      }
+      top += height + MESSAGE_GAP
+      return block
+    })
+    return {blocks, contentH: Math.max(0, top - MESSAGE_GAP)}
+  }
+
+  #messageKey(): string {
+    const messages = this.#opts.messages()
+    const last = messages[messages.length - 1]
+    return `${messages.length}:${last?.role ?? ""}:${last?.text.length ?? 0}:${last?.streaming === true ? 1 : 0}`
+  }
+
+  #renderMessageBlocks(body: UiSurfaceRect, ctx: DivScrollContext, blocks: readonly RenderBlock[]): void {
+    const viewportTop = ctx.scrollTop - MESSAGE_GAP
+    const viewportBottom = ctx.scrollTop + ctx.viewportHeight + MESSAGE_GAP
+    for (const block of blocks) {
+      if (block.top + block.height < viewportTop) continue
+      if (block.top > viewportBottom) break
+      this.#drawMessageBlock(block, body.x, body.y + block.top - ctx.scrollTop, Math.max(1, ctx.viewportWidth), block.height)
+    }
+  }
+
+  #drawMessageBlock(block: RenderBlock, x: number, y: number, w: number, h: number): void {
+    const role = block.role
+    const streaming = block.streaming
     const fill = role === "user"
       ? new Color(0.07, 0.11, 0.16, 0.72)
       : role === "assistant"
@@ -125,18 +171,18 @@ export class BrowserChatPane extends UiSurface {
     this.drawRoundedRect(x, y, w, h, {radius: 10, fill, border, borderWidth: streaming ? 1.2 : 1, z: Z.CONTAINER})
 
     let cy = y + MESSAGE_PAD
-    for (const line of block) {
-      const label = line.first ? `${messageRoleLabel(role)}: ` : ""
-      const labelW = label.length === 0 ? 0 : this.drawText(label, x + MESSAGE_PAD, cy, {
-        fontPx: MESSAGE_FONT,
-        material: role === "assistant" ? this.materials.cyan : role === "user" ? this.materials.text : this.materials.muted,
-        maxWidthPx: 80,
-        z: Z.TEXT,
-      })
-      this.drawText(line.text, x + MESSAGE_PAD + labelW, cy, {
+    this.drawText(`${block.label}:`, x + MESSAGE_PAD, cy, {
+      fontPx: MESSAGE_FONT,
+      material: role === "assistant" ? this.materials.cyan : role === "user" ? this.materials.text : this.materials.muted,
+      maxWidthPx: Math.max(1, w - MESSAGE_PAD * 2),
+      z: Z.TEXT,
+    })
+    cy += MESSAGE_LINE_H
+    for (const line of block.lines) {
+      if (line.length > 0) this.drawText(line, x + MESSAGE_PAD, cy, {
         fontPx: MESSAGE_FONT,
         material: role === "system" ? this.materials.muted : this.materials.text,
-        maxWidthPx: Math.max(1, w - MESSAGE_PAD * 2 - labelW),
+        maxWidthPx: Math.max(1, w - MESSAGE_PAD * 2),
         z: Z.TEXT,
       })
       cy += MESSAGE_LINE_H
@@ -236,24 +282,35 @@ function messageRoleLabel(role: BrowserChatPaneMessage["role"]): string {
 function wrapText(surface: UiSurface, text: string, maxW: number, fontPx: number): string[] {
   const out: string[] = []
   for (const sourceLine of text.replace(/\r\n?/g, "\n").split("\n")) {
-    const words = sourceLine.length === 0 ? [""] : sourceLine.split(/\s+/g)
-    let line = ""
+    const normalized = sourceLine.replace(/\t/g, "  ").replace(/[ ]+$/g, "")
+    if (normalized.trim().length === 0) {
+      out.push("")
+      continue
+    }
+    const marker = normalized.match(/^(\s*(?:[-*•]|\d+[.)])\s+)/)
+    const leading = marker?.[1] ?? normalized.match(/^(\s+)/)?.[1] ?? ""
+    const continuation = marker === null ? leading : " ".repeat(Math.min(12, marker[1]?.length ?? 0))
+    const words = normalized.slice(leading.length).trim().split(/\s+/g)
+    let prefix = leading
+    let line = prefix
     for (const word of words) {
-      const next = line.length === 0 ? word : `${line} ${word}`
+      const next = line.length === prefix.length ? `${line}${word}` : `${line} ${word}`
       if (surface.measureText(next, fontPx) <= maxW) {
         line = next
         continue
       }
-      if (line.length > 0) out.push(line)
-      line = word
+      if (line.length > prefix.length) out.push(line)
+      prefix = continuation
+      line = `${prefix}${word}`
       while (surface.measureText(line, fontPx) > maxW && line.length > 1) {
         let cut = line.length - 1
         while (cut > 1 && surface.measureText(line.slice(0, cut), fontPx) > maxW) cut -= 1
         out.push(line.slice(0, cut))
         line = line.slice(cut)
+        prefix = ""
       }
     }
-    out.push(line)
+    out.push(line.length === 0 ? normalized : line)
   }
   return out.length === 0 ? [""] : out
 }

@@ -4516,10 +4516,14 @@ async function pollBrowserChatRead(controller: BrowserChatController): Promise<v
       if (text === controller.lastAssistantText) controller.readStableTicks += 1
       else controller.readStableTicks = 0
       controller.lastAssistantText = text
-      updateBrowserChatAssistantMessage(controller, text, true)
+      const assistantMessages = browserChatAssistantMessagesFromReadResult(result, true)
+      if (assistantMessages.length > 0) replaceBrowserChatAssistantMessages(controller, assistantMessages)
+      else updateBrowserChatAssistantMessage(controller, text, true)
     }
     if (text.length > 0 && afterBaseline && canFinish && controller.readStableTicks >= 8) {
-      updateBrowserChatAssistantMessage(controller, text, false)
+      const assistantMessages = browserChatAssistantMessagesFromReadResult(result, false)
+      if (assistantMessages.length > 0) replaceBrowserChatAssistantMessages(controller, assistantMessages)
+      else updateBrowserChatAssistantMessage(controller, text, false)
       stopBrowserChatPolling(controller, true)
       setBrowserChatStatus(controller, "ready", 1200)
       return
@@ -4583,6 +4587,46 @@ function updateBrowserChatAssistantMessage(controller: BrowserChatController, te
   controller.chatPane.requestRender()
 }
 
+function browserChatAssistantMessagesFromReadResult(result: Record<string, unknown>, streaming: boolean): Array<Omit<BrowserChatMessage, "id" | "createdAt">> {
+  const sourceMessages = Array.isArray(result["messages"]) ? result["messages"] : []
+  let lastUserIndex = -1
+  sourceMessages.forEach((source, index) => {
+    if (typeof source === "object" && source !== null && !Array.isArray(source) && (source as Record<string, unknown>)["role"] === "user") {
+      lastUserIndex = index
+    }
+  })
+  const next: Array<Omit<BrowserChatMessage, "id" | "createdAt">> = []
+  for (const source of sourceMessages.slice(lastUserIndex + 1)) {
+    if (typeof source !== "object" || source === null || Array.isArray(source)) continue
+    const record = source as Record<string, unknown>
+    if (record["role"] !== "assistant") continue
+    const text = stringValue(record["text"])?.trim()
+    if (text === undefined || text.length === 0) continue
+    const variantIndex = numberValue(record["variantIndex"])
+    const variantCount = numberValue(record["variantCount"])
+    const label = variantIndex !== null && variantCount !== null ? `Qwen ${variantIndex}/${variantCount}` : undefined
+    next.push({role: "assistant", text, streaming, ...(label === undefined ? {} : {label})})
+  }
+  return next
+}
+
+function replaceBrowserChatAssistantMessages(controller: BrowserChatController, messages: readonly Omit<BrowserChatMessage, "id" | "createdAt">[]): void {
+  let lastUserIndex = -1
+  controller.messages.forEach((message, index) => {
+    if (message.role === "user") lastUserIndex = index
+  })
+  const start = lastUserIndex + 1
+  const existing = controller.messages.slice(start).filter((message) => message.role === "assistant")
+  const now = Date.now()
+  const next = messages.map((message, index) => ({
+    id: existing[index]?.id ?? crypto.randomUUID(),
+    createdAt: existing[index]?.createdAt ?? now,
+    ...message,
+  }))
+  controller.messages.splice(start, controller.messages.length - start, ...next)
+  controller.chatPane.requestRender()
+}
+
 function appendBrowserChatSystemMessage(controller: BrowserChatController, text: string): void {
   addBrowserChatMessage(controller, {role: "system", text})
 }
@@ -4595,14 +4639,23 @@ async function hydrateBrowserChatFromQwen(controller: BrowserChatController): Pr
     if (tool.ok !== true || result["ok"] !== true) return
     if (controller.sendInFlight || controller.readStartedAt > 0 || controller.messages.some((message) => message.text.trim().length > 0)) return
     const sourceMessages = Array.isArray(result["messages"]) ? result["messages"] : []
+    const lastUserIndex = sourceMessages.reduce((last, source, index) => {
+      if (typeof source !== "object" || source === null || Array.isArray(source)) return last
+      return (source as Record<string, unknown>)["role"] === "user" ? index : last
+    }, -1)
+    const visibleSourceMessages = lastUserIndex >= 0 ? sourceMessages.slice(lastUserIndex) : sourceMessages.slice(-10)
     const next: BrowserChatMessage[] = []
-    for (const source of sourceMessages.slice(-10)) {
+    for (const source of visibleSourceMessages) {
       if (typeof source !== "object" || source === null || Array.isArray(source)) continue
-      const roleValue = (source as Record<string, unknown>)["role"]
+      const record = source as Record<string, unknown>
+      const roleValue = record["role"]
       const role = roleValue === "user" || roleValue === "assistant" ? roleValue : null
-      const text = stringValue((source as Record<string, unknown>)["text"])?.trim()
+      const text = stringValue(record["text"])?.trim()
       if (role === null || text === undefined || text.length === 0) continue
-      next.push({id: crypto.randomUUID(), createdAt: Date.now(), role, text})
+      const variantIndex = numberValue(record["variantIndex"])
+      const variantCount = numberValue(record["variantCount"])
+      const label = role === "assistant" && variantIndex !== null && variantCount !== null ? `Qwen ${variantIndex}/${variantCount}` : undefined
+      next.push({id: crypto.randomUUID(), createdAt: Date.now(), role, text, ...(label === undefined ? {} : {label})})
     }
     if (next.length === 0) return
     controller.messages.splice(0, controller.messages.length, ...next)

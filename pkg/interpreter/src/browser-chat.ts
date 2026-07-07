@@ -1,7 +1,7 @@
 import {serializeError} from "./errors.ts"
 import {asBoolean, asNumber, asObject, asString} from "./guards.ts"
 import type {JsonObject} from "./types.ts"
-import {evaluateChromeDevtoolsExpression} from "./chrome-devtools.ts"
+import {evaluateChromeDevtoolsExpression, setChromeDevtoolsDeviceMetrics} from "./chrome-devtools.ts"
 
 const DEFAULT_QWEN_URL_CONTAINS = "chat.qwen.ai"
 const BROWSER_CHAT_READ_INTERVAL_MS = 650
@@ -83,8 +83,10 @@ async function browserChatExchange(params: JsonObject): Promise<JsonObject> {
 
 async function evaluateBrowserChatPayload(params: JsonObject, expression: string): Promise<JsonObject> {
   try {
+    const targetParams = browserChatTargetParams(params)
+    const viewport = await ensureBrowserChatDesktopViewport(targetParams)
     const evaluated = await evaluateChromeDevtoolsExpression({
-      ...browserChatTargetParams(params),
+      ...targetParams,
       expression,
       awaitPromise: true,
       returnByValue: true,
@@ -93,7 +95,7 @@ async function evaluateBrowserChatPayload(params: JsonObject, expression: string
     const value = runtimeEvaluateValue(evaluated.result)
     const payload = asObject(value)
     if (payload === undefined) return {ok: false, target: evaluated.target, error: "browser chat script returned non-object payload"}
-    return {...payload, target: evaluated.target}
+    return {...payload, target: evaluated.target, ...(viewport === null ? {} : {viewport})}
   } catch (error) {
     return {ok: false, error: serializeError(error)}
   }
@@ -109,6 +111,35 @@ function browserChatTargetParams(params: JsonObject): JsonObject {
     target["urlContains"] = DEFAULT_QWEN_URL_CONTAINS
   }
   return target
+}
+
+async function ensureBrowserChatDesktopViewport(targetParams: JsonObject): Promise<JsonObject | null> {
+  try {
+    const state = await evaluateChromeDevtoolsExpression({
+      ...targetParams,
+      expression: "({innerWidth, innerHeight, outerWidth, outerHeight, devicePixelRatio})",
+      awaitPromise: false,
+      returnByValue: true,
+      userGesture: false,
+    })
+    const viewport = asObject(runtimeEvaluateValue(state.result))
+    const width = asNumber(viewport?.["innerWidth"])
+    const height = asNumber(viewport?.["innerHeight"])
+    if (width !== undefined && height !== undefined && width >= 900 && height >= 500) return null
+    const repaired = await setChromeDevtoolsDeviceMetrics({
+      ...targetParams,
+      width: 1920,
+      height: 963,
+      visibleWidth: 1920,
+      visibleHeight: 963,
+      deviceScaleFactor: 1,
+      mobile: false,
+      scale: 1,
+    })
+    return repaired.viewport
+  } catch {
+    return null
+  }
 }
 
 function runtimeEvaluateValue(result: JsonObject): unknown {
@@ -203,13 +234,60 @@ function qwenSendExpression(message: string): string {
 }
 
 function qwenReadExpression(): string {
-  return `(function(){
-    const clean = (text) => String(text || "").replace(/\\u200b/g, "").replace(/\\s+\\n/g, "\\n").replace(/\\n\\s+/g, "\\n").replace(/[ \\t]+/g, " ").trim();
-    const cleanAnswer = (text) => clean(text).split("\\n").map((line) => line.trim()).filter((line) => line && !/^(Finalize the response|Пропустить)$/i.test(line)).join("\\n").trim();
+  return String.raw`(function(){
+    const clean = (text) => String(text || "").replace(/\u200b/g, "").replace(/\r\n?/g, "\n").split("\n").map((line) => line.replace(/[ \t]+/g, " ").trim()).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+    const cleanInline = (text) => String(text || "").replace(/\u200b/g, "").replace(/[ \t\r\n]+/g, " ").trim();
+    const cleanAnswer = (text) => clean(text).split("\n").map((line) => line.trim()).filter((line) => line && !/^(Finalize the response|Пропустить|Завершено размышление)$/i.test(line)).join("\n").trim();
     const visible = (el) => {
       const rect = el.getBoundingClientRect();
       const style = getComputedStyle(el);
       return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+    };
+    const markdownText = (root) => {
+      const selector = "h1,h2,h3,h4,h5,h6,p,li,pre,blockquote";
+      const nodes = Array.from(root.querySelectorAll(selector)).filter((node) => {
+        let parent = node.parentElement;
+        while (parent && parent !== root) {
+          if (parent.matches(selector)) return false;
+          parent = parent.parentElement;
+        }
+        return visible(node);
+      });
+      if (nodes.length === 0) return cleanAnswer(root.innerText || root.textContent);
+      const lines = [];
+      for (const node of nodes) {
+        const tag = node.tagName.toLowerCase();
+        const text = tag === "pre" ? clean(node.innerText || node.textContent) : cleanInline(node.innerText || node.textContent);
+        if (!text || /^(Finalize the response|Пропустить|Завершено размышление)$/i.test(text)) continue;
+        if (tag === "li") lines.push("- " + text);
+        else lines.push(text);
+      }
+      return cleanAnswer(lines.join("\n"));
+    };
+    const assistantTexts = (el) => {
+      const parts = Array.from(el.querySelectorAll(".qwen-markdown")).filter(visible);
+      const content = parts.length > 0 ? parts : [el.querySelector(".response-message-content, .custom-qwen-markdown") || el];
+      const seen = new Set();
+      const texts = [];
+      for (const part of content) {
+        const text = markdownText(part);
+        if (text.length === 0 || seen.has(text)) continue;
+        seen.add(text);
+        texts.push(text);
+      }
+      if (texts.length > 0) return texts;
+      const fallback = cleanAnswer(el.innerText || el.textContent);
+      return fallback.length === 0 ? [] : [fallback];
+    };
+    const lastAssistantText = (messages) => {
+      let last = messages.length - 1;
+      while (last >= 0 && messages[last].role !== "assistant") last -= 1;
+      if (last < 0) return "";
+      let first = last;
+      while (first > 0 && messages[first - 1].role === "assistant" && messages[first - 1].variantCount === messages[last].variantCount) first -= 1;
+      return messages.slice(first, last + 1).filter((message) => message.role === "assistant").map((message) => {
+        return message.variantCount > 1 ? "Вариант " + message.variantIndex + "/" + message.variantCount + ":\n" + message.text : message.text;
+      }).join("\n\n").trim();
     };
     const qwenBlocks = Array.from(document.querySelectorAll(".qwen-chat-message")).filter(visible);
     if (qwenBlocks.length > 0) {
@@ -217,17 +295,25 @@ function qwenReadExpression(): string {
       for (const el of qwenBlocks) {
         const className = String(el.className || "").toLowerCase();
         const role = className.includes("qwen-chat-message-user") ? "user" : "assistant";
-        const content = role === "user"
-          ? (el.querySelector(".user-message-content, .chat-user-message") || el)
-          : (el.querySelector(".response-message-content .qwen-markdown, .custom-qwen-markdown, .qwen-markdown, .response-message-content") || el);
-        const rawText = content.innerText || content.textContent;
-        const text = role === "assistant" ? cleanAnswer(rawText) : clean(rawText);
-        if (text.length === 0) continue;
-        messages.push({role, text});
+        if (role === "user") {
+          const content = el.querySelector(".user-message-content, .chat-user-message") || el;
+          const text = clean(content.innerText || content.textContent);
+          if (text.length > 0) messages.push({role, text});
+          continue;
+        }
+        const texts = assistantTexts(el);
+        const variantCount = className.includes("dual-message") || texts.length > 1 ? texts.length : 0;
+        texts.forEach((text, index) => {
+          const message = {role, text};
+          if (variantCount > 1) {
+            message.variantIndex = index + 1;
+            message.variantCount = variantCount;
+          }
+          messages.push(message);
+        });
       }
-      const latestAssistant = messages.slice().reverse().find((message) => message.role === "assistant");
       const generating = !!document.querySelector(".send-button.loading, .stop-button, [class*=stop-generating i], [class*=generating i]");
-      return {ok:true, adapter:"qwen", url:location.href, title:document.title, messages, messageCount:messages.length, lastAssistantText:latestAssistant ? latestAssistant.text : "", generating};
+      return {ok:true, adapter:"qwen", url:location.href, title:document.title, messages, messageCount:messages.length, lastAssistantText:lastAssistantText(messages), generating};
     }
     const roleFor = (el) => {
       let node = el;
@@ -275,9 +361,8 @@ function qwenReadExpression(): string {
       seen.add(key);
       messages.push({role: role || "assistant", text});
     }
-    const lastAssistant = [...messages].reverse().find((message) => message.role === "assistant");
     const generating = !!document.querySelector(".send-button.loading, .stop-button, [class*=stop-generating i], [class*=generating i]");
-    return {ok:true, adapter:"qwen", url:location.href, title:document.title, messages, messageCount:messages.length, lastAssistantText:lastAssistant ? lastAssistant.text : "", generating};
+    return {ok:true, adapter:"qwen", url:location.href, title:document.title, messages, messageCount:messages.length, lastAssistantText:lastAssistantText(messages), generating};
   })()`
 }
 

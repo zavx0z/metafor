@@ -343,6 +343,44 @@ export async function evaluateChromeDevtoolsExpression(body: JsonObject): Promis
   return {target: targetSummary(session.target), result}
 }
 
+export async function setChromeDevtoolsDeviceMetrics(body: JsonObject): Promise<{target: JsonObject; viewport: JsonObject}> {
+  const session = await ensureSession(body)
+  const width = optionalPositiveInteger(body["width"], "width") ?? 1920
+  const height = optionalPositiveInteger(body["height"], "height") ?? 963
+  const visibleWidth = optionalPositiveInteger(body["visibleWidth"], "visibleWidth") ?? width
+  const visibleHeight = optionalPositiveInteger(body["visibleHeight"], "visibleHeight") ?? height
+  const deviceScaleFactor = optionalPositiveNumber(body["deviceScaleFactor"], "deviceScaleFactor") ?? 1
+  const mobile = asBoolean(body["mobile"]) ?? false
+  const scale = optionalPositiveNumber(body["scale"], "scale") ?? 1
+  const request = {width, height, visibleWidth, visibleHeight, deviceScaleFactor, mobile, scale}
+
+  await sessionCommand(session, "Runtime.enable")
+  await sessionCommand(session, "Page.enable").catch(() => undefined)
+  await sessionCommand(session, "Emulation.clearDeviceMetricsOverride").catch(() => undefined)
+  await sessionCommand(session, "Emulation.setDeviceMetricsOverride", {
+    width,
+    height,
+    deviceScaleFactor,
+    mobile,
+    screenWidth: width,
+    screenHeight: height,
+    positionX: 0,
+    positionY: 0,
+    scale,
+    screenOrientation: {
+      type: width >= height ? "landscapePrimary" : "portraitPrimary",
+      angle: width >= height ? 90 : 0,
+    },
+  })
+  const visibleSizeRequest = {width: visibleWidth, height: visibleHeight}
+  const visibleSize = await sessionCommand(session, "Emulation.setVisibleSize", visibleSizeRequest)
+    .then(() => ({ok: true, ...visibleSizeRequest}), (error) => ({ok: false, ...visibleSizeRequest, error: serializeError(error)}))
+  await delay(DEVTOOLS_VIEWPORT_SETTLE_MS)
+  await dispatchTargetResize(session)
+  const after = await readTargetViewportState(session).catch((error) => ({error: serializeError(error)}))
+  return {target: targetSummary(session.target), viewport: {request, visibleSize, after}}
+}
+
 /**
  * Синхронизирует Chrome DevTools Device Mode после drift на reload/rotate.
  *
