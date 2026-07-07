@@ -1071,7 +1071,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       this.#session.appendCurrentChunkPcm(pcm)
       this.#enqueueLiveAsrPcm(chunkId, pcm)
     }
-    if (vad.speaking) {
+    if (vad.speaking || vad.potentialVoice) {
       this.#finalSilenceRequested = false
       this.#touchVoiceActivity(now)
     }
