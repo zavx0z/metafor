@@ -1,9 +1,15 @@
+import type {BrowserAgentJsonObject} from "../types.ts"
+
 export const DEFAULT_DEEPSEEK_URL_CONTAINS = "chat.deepseek.com"
 
-export function deepseekSendExpression(message: string, newChat: boolean): string {
+export function deepseekSendExpression(message: string, newChat: boolean, params: BrowserAgentJsonObject = {}): string {
+  const mode = deepseekModeFromParams(params)
+  const deepThinking = deepseekDeepThinkingFromParams(params)
   return `(async function(){
     const message = ${JSON.stringify(message)};
     const newChat = ${JSON.stringify(newChat)};
+    const mode = ${JSON.stringify(mode)};
+    const deepThinking = ${JSON.stringify(deepThinking)};
     const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const clean = (text) => String(text || "").replace(/\\u200b/g, "").replace(/\\r\\n?/g, "\\n").split("\\n").map((line) => line.replace(/[ \\t]+/g, " ").trim()).join("\\n").replace(/\\n{3,}/g, "\\n\\n").trim();
     const cleanInline = (text) => String(text || "").replace(/\\u200b/g, "").replace(/[ \\t\\r\\n]+/g, " ").trim();
@@ -66,6 +72,29 @@ export function deepseekSendExpression(message: string, newChat: boolean): strin
       return candidates[0]?.el || null;
     };
     const generating = () => Array.from(document.querySelectorAll("button, [role=button], [class*=loading i], [class*=generating i], [class*=thinking i]")).some((el) => visible(el) && (/stop|停止|cancel|generating|loading|thinking/i.test([el.getAttribute("aria-label"), el.getAttribute("title"), el.className, el.innerText].join(" ")) || stopButton(el)));
+    const selectMode = async () => {
+      if (mode !== "expert" && mode !== "fast" && mode !== "vision") return "";
+      const targetType = mode === "fast" ? "default" : mode;
+      const radio = Array.from(document.querySelectorAll('[role=radio][data-model-type], [data-model-type]')).find((el) => visible(el) && el.getAttribute("data-model-type") === targetType);
+      if (!radio) return "";
+      const checked = radio.getAttribute("aria-checked") === "true" || /selected|active|checked/i.test(String(radio.className || ""));
+      if (!checked) {
+        radio.click();
+        await wait(180);
+      }
+      return mode;
+    };
+    const selectDeepThinking = async () => {
+      const toggle = Array.from(document.querySelectorAll(".ds-toggle-button, [role=button], button")).find((el) => visible(el) && /глубокое мышление|deep think|deepseek-r1|reason/i.test(cleanInline([el.innerText, el.textContent, el.getAttribute("aria-label"), el.getAttribute("title"), el.className].join(" "))));
+      if (!toggle) return false;
+      const selected = toggle.getAttribute("aria-pressed") === "true" || /selected/i.test(String(toggle.className || ""));
+      if (deepThinking !== null && selected !== deepThinking) {
+        toggle.click();
+        await wait(180);
+      }
+      const nextSelected = toggle.getAttribute("aria-pressed") === "true" || /selected/i.test(String(toggle.className || ""));
+      return nextSelected;
+    };
     const lastAssistantControlsVisible = () => {
       const blocks = Array.from(document.querySelectorAll(".ds-markdown.ds-assistant-message-main-content, .markdown-body, .markdown")).filter((el) => visible(el) && !el.closest("textarea, [contenteditable=true], nav, header, aside, form"));
       const last = blocks[blocks.length - 1];
@@ -138,6 +167,8 @@ export function deepseekSendExpression(message: string, newChat: boolean): strin
       await wait(150);
       return {ok:false, adapter:"deepseek", newChatNavigating:true, busy:true, canSend:false, generating:false, preferenceActive:false, blockedReason:"DeepSeek new chat navigation", error:"DeepSeek new chat navigation started"};
     }
+    const selectedMode = await selectMode();
+    const selectedDeepThinking = await selectDeepThinking();
     const before = readMessages();
     let state = transportState();
     if (!state.input) return {ok:false, adapter:"deepseek", ...statePayload(state), error:"DeepSeek composer input not found"};
@@ -167,9 +198,81 @@ export function deepseekSendExpression(message: string, newChat: boolean): strin
     const limitReason = after.messageCount > before.messageCount ? limitReasonFromText(after.assistantText) : "";
     if (limitReason) return {ok:false, adapter:"deepseek", action:"click", previousAssistantText:before.assistantText, previousMessageCount:before.messageCount, ...statePayload(afterState), limitReached:true, canSend:false, busy:true, blockedReason:limitReason, error:limitReason};
     const accepted = currentInput.length === 0 || after.messageCount > before.messageCount || messageMatches(message, after.userText) || afterState.generating;
-    if (accepted) return {ok:true, adapter:"deepseek", action:"click", previousAssistantText:before.assistantText, previousMessageCount:before.messageCount, ...statePayload(afterState)};
+    if (accepted) return {ok:true, adapter:"deepseek", action:"click", mode:selectedMode, deepThinking:selectedDeepThinking, previousAssistantText:before.assistantText, previousMessageCount:before.messageCount, ...statePayload(afterState)};
     return {ok:false, adapter:"deepseek", ...statePayload(afterState), busy:true, composerText:currentInput, error:"DeepSeek did not accept message yet"};
   })()`
+}
+
+export function deepseekConfigureExpression(params: BrowserAgentJsonObject = {}): string {
+  const mode = deepseekModeFromParams(params)
+  const deepThinking = deepseekDeepThinkingFromParams(params)
+  return `(async function(){
+    const mode = ${JSON.stringify(mode)};
+    const deepThinking = ${JSON.stringify(deepThinking)};
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const cleanInline = (text) => String(text || "").replace(/\\u200b/g, "").replace(/[ \\t\\r\\n]+/g, " ").trim();
+    const visible = (el) => {
+      if (!el) return false;
+      const rect = el.getBoundingClientRect();
+      const style = getComputedStyle(el);
+      return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+    };
+    const selectedRadio = () => {
+      const radio = Array.from(document.querySelectorAll('[role=radio][data-model-type], [data-model-type]')).find((el) => visible(el) && (el.getAttribute("aria-checked") === "true" || /selected|active|checked/i.test(String(el.className || ""))));
+      const value = radio?.getAttribute("data-model-type") || "";
+      return value === "default" ? "fast" : value;
+    };
+    const selectedDeepThinking = () => {
+      const toggle = Array.from(document.querySelectorAll(".ds-toggle-button, [role=button], button")).find((el) => visible(el) && /глубокое мышление|deep think|deepseek-r1|reason/i.test(cleanInline([el.innerText, el.textContent, el.getAttribute("aria-label"), el.getAttribute("title"), el.className].join(" "))));
+      if (!toggle) return null;
+      return toggle.getAttribute("aria-pressed") === "true" || /selected/i.test(String(toggle.className || ""));
+    };
+    let changed = false;
+    if (mode === "expert" || mode === "fast" || mode === "vision") {
+      const targetType = mode === "fast" ? "default" : mode;
+      const radio = Array.from(document.querySelectorAll('[role=radio][data-model-type], [data-model-type]')).find((el) => visible(el) && el.getAttribute("data-model-type") === targetType);
+      if (!radio) return {ok:false, adapter:"deepseek", mode, deepThinking, error:"DeepSeek mode control not found"};
+      const checked = radio.getAttribute("aria-checked") === "true" || /selected|active|checked/i.test(String(radio.className || ""));
+      if (!checked) {
+        radio.click();
+        changed = true;
+        await wait(180);
+      }
+    }
+    if (deepThinking !== null) {
+      const toggle = Array.from(document.querySelectorAll(".ds-toggle-button, [role=button], button")).find((el) => visible(el) && /глубокое мышление|deep think|deepseek-r1|reason/i.test(cleanInline([el.innerText, el.textContent, el.getAttribute("aria-label"), el.getAttribute("title"), el.className].join(" "))));
+      if (!toggle) return {ok:false, adapter:"deepseek", mode, deepThinking, selectedMode:selectedRadio(), error:"DeepSeek thinking control not found"};
+      const selected = toggle.getAttribute("aria-pressed") === "true" || /selected/i.test(String(toggle.className || ""));
+      if (selected !== deepThinking) {
+        toggle.click();
+        changed = true;
+        await wait(180);
+      }
+    }
+    return {ok:true, adapter:"deepseek", mode, deepThinking, selectedMode:selectedRadio(), selectedDeepThinking:selectedDeepThinking(), changed};
+  })()`
+}
+
+function deepseekModeFromParams(params: BrowserAgentJsonObject): "fast" | "expert" | "vision" | "" {
+  const rawMode = typeof params["mode"] === "string" ? params["mode"]
+    : typeof params["deepseekMode"] === "string" ? params["deepseekMode"]
+      : typeof params["providerMode"] === "string" ? params["providerMode"]
+        : ""
+  return /vision|recognition|recognize|image|распозн/i.test(rawMode)
+    ? "vision"
+    : /expert|эксперт/i.test(rawMode)
+      ? "expert"
+      : /fast|quick|basic|быстр/i.test(rawMode) ? "fast" : ""
+}
+
+function deepseekDeepThinkingFromParams(params: BrowserAgentJsonObject): boolean | null {
+  if (typeof params["deepThinking"] === "boolean") return params["deepThinking"]
+  if (typeof params["thinking"] === "boolean") return params["thinking"]
+  const rawMode = typeof params["mode"] === "string" ? params["mode"]
+    : typeof params["deepseekMode"] === "string" ? params["deepseekMode"]
+      : typeof params["providerMode"] === "string" ? params["providerMode"]
+        : ""
+  return /deep.?thinking|reason|глубокое мышление/i.test(rawMode) ? true : null
 }
 
 export function deepseekReadExpression(): string {

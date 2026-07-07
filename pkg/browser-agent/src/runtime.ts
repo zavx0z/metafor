@@ -1,5 +1,5 @@
 import {asBoolean, asNumber, asObject, asString} from "./guards.ts"
-import {DEFAULT_DEEPSEEK_URL_CONTAINS, deepseekReadExpression, deepseekSendExpression} from "./providers/deepseek.ts"
+import {DEFAULT_DEEPSEEK_URL_CONTAINS, deepseekConfigureExpression, deepseekReadExpression, deepseekSendExpression} from "./providers/deepseek.ts"
 import {DEFAULT_QWEN_URL_CONTAINS, qwenReadExpression, qwenSendExpression} from "./providers/qwen.ts"
 import type {BrowserAgentHost, BrowserAgentJsonObject, BrowserAgentProvider, BrowserAgentRuntime} from "./types.ts"
 
@@ -28,6 +28,7 @@ const DEEPSEEK_PROVIDER: BrowserAgentProvider = {
   urlContains: DEFAULT_DEEPSEEK_URL_CONTAINS,
   sendExpression: deepseekSendExpression,
   readExpression: deepseekReadExpression,
+  configureExpression: deepseekConfigureExpression,
 }
 
 const BROWSER_AGENT_PROVIDERS = [QWEN_PROVIDER, DEEPSEEK_PROVIDER] as const satisfies readonly BrowserAgentProvider[]
@@ -43,6 +44,8 @@ async function runBrowserChatToolUse(host: BrowserAgentHost, name: string, param
   if (name === "browser_chat.read") return await browserChatRead(host, params)
   if (name === "browser_chat.wait") return await browserChatWait(host, params)
   if (name === "browser_chat.exchange") return await browserChatExchange(host, params)
+  if (name === "browser_chat.configure") return await browserChatConfigure(host, params)
+  if (name === "browser_chat.activate") return await browserChatActivate(host, params)
   return null
 }
 
@@ -56,7 +59,7 @@ async function browserChatSend(host: BrowserAgentHost, params: BrowserAgentJsonO
   const startedAt = Date.now()
 
   while (true) {
-    const sent = await evaluateBrowserChatPayload(host, provider, params, provider.sendExpression(message, newChat))
+    const sent = await evaluateBrowserChatPayload(host, provider, params, provider.sendExpression(message, newChat, params))
     if (sent["ok"] === true) return {...sent, provider: provider.id, waitedMs: Date.now() - startedAt}
     if (sent["limitReached"] === true) return {...sent, provider: provider.id, waitedMs: Date.now() - startedAt}
     if (isTransientBrowserChatError(asString(sent["error"]))) {
@@ -129,6 +132,23 @@ async function browserChatExchange(host: BrowserAgentHost, params: BrowserAgentJ
     afterMessageCount: asNumber(send["previousMessageCount"]) ?? asNumber(params["afterMessageCount"]),
   })
   return {...wait, send}
+}
+
+async function browserChatConfigure(host: BrowserAgentHost, params: BrowserAgentJsonObject): Promise<BrowserAgentJsonObject> {
+  const provider = browserAgentProviderForParams(params)
+  if (provider.configureExpression === undefined) return {ok: false, provider: provider.id, error: `${provider.label} configure is not supported`}
+  return await evaluateBrowserChatPayload(host, provider, params, provider.configureExpression(params))
+}
+
+async function browserChatActivate(host: BrowserAgentHost, params: BrowserAgentJsonObject): Promise<BrowserAgentJsonObject> {
+  const provider = browserAgentProviderForParams(params)
+  if (host.activateTarget === undefined) return {ok: false, provider: provider.id, error: "activateTarget host callback is not available"}
+  try {
+    const target = await host.activateTarget(browserChatTargetParams(params, provider))
+    return {ok: true, provider: provider.id, target}
+  } catch (error) {
+    return {ok: false, provider: provider.id, error: host.serializeError?.(error) ?? (error instanceof Error ? error.message : String(error))}
+  }
 }
 
 async function evaluateBrowserChatPayload(host: BrowserAgentHost, provider: BrowserAgentProvider, params: BrowserAgentJsonObject, expression: string): Promise<BrowserAgentJsonObject> {

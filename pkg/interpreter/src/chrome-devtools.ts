@@ -343,6 +343,12 @@ export async function evaluateChromeDevtoolsExpression(body: JsonObject): Promis
   return {target: targetSummary(session.target), result}
 }
 
+export async function activateChromeDevtoolsTarget(body: JsonObject): Promise<JsonObject> {
+  const target = await resolveTarget(body)
+  await fetchText(new URL(`/json/activate/${encodeURIComponent(target.id)}`, cdpBaseUrl()).toString())
+  return targetSummary(target)
+}
+
 export async function setChromeDevtoolsDeviceMetrics(body: JsonObject): Promise<{target: JsonObject; viewport: JsonObject}> {
   const session = await ensureSession(body)
   const width = optionalPositiveInteger(body["width"], "width") ?? 1920
