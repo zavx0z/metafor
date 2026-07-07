@@ -272,7 +272,7 @@ describe("voice session manager", () => {
     expect(session.debugSnapshot().chunks.total).toBe(0)
   })
 
-  test("lets strong near-voice energy start speech when Silero is uncertain", () => {
+  test("lets strong near-voice energy start speech when Silero is unavailable", () => {
     const session = new VoiceSessionManager()
     session.startRecording(true, 1_000)
 
@@ -280,21 +280,60 @@ describe("voice session manager", () => {
       rms: 0.032,
       peak: 0.052,
       now: 1_020,
-      speechProbability: 0.22,
-      speechProbabilityAt: 1_020,
     }).speaking).toBe(false)
     const speech = session.acceptVadFrame({
       rms: 0.032,
       peak: 0.052,
       now: 1_130,
-      speechProbability: 0.22,
-      speechProbabilityAt: 1_130,
     })
 
     expect(speech.speaking).toBe(true)
     expect(speech.started).toBe(true)
-    expect(speech.source).toBe("silero")
+    expect(speech.source).toBe("energy")
     expect(session.hasVoiceActivity()).toBe(true)
+  })
+
+  test("does not start speech from loud energy when fresh Silero rejects it", () => {
+    const session = new VoiceSessionManager()
+    session.startRecording(true, 1_000)
+
+    expect(session.acceptVadFrame({
+      rms: 0.08,
+      peak: 0.22,
+      now: 1_020,
+      speechProbability: 0.001,
+      speechProbabilityAt: 1_020,
+    }).speaking).toBe(false)
+    const rejected = session.acceptVadFrame({
+      rms: 0.08,
+      peak: 0.22,
+      now: 1_130,
+      speechProbability: 0.001,
+      speechProbabilityAt: 1_130,
+    })
+
+    expect(rejected.started).toBe(false)
+    expect(rejected.speaking).toBe(false)
+    expect(rejected.potentialVoice).toBe(false)
+    expect(rejected.source).toBe("silero")
+    expect(session.debugSnapshot().chunks.recording).toBe(0)
+  })
+
+  test("lets fresh low Silero probability close active speech despite loud energy", () => {
+    const session = new VoiceSessionManager({...DEFAULT_VOICE_SESSION_TIMINGS, speechEndMs: 120})
+    session.startRecording(true, 1_000)
+
+    session.acceptVadFrame({rms: 0.05, peak: 0.11, now: 1_020, speechProbability: 0.82, speechProbabilityAt: 1_020})
+    expect(session.acceptVadFrame({rms: 0.05, peak: 0.11, now: 1_130, speechProbability: 0.82, speechProbabilityAt: 1_130}).started).toBe(true)
+    session.appendCurrentChunkPcm(new ArrayBuffer(320))
+
+    expect(session.acceptVadFrame({rms: 0.08, peak: 0.22, now: 1_260, speechProbability: 0.001, speechProbabilityAt: 1_260}).stopped).toBe(false)
+    const stopped = session.acceptVadFrame({rms: 0.08, peak: 0.22, now: 1_400, speechProbability: 0.001, speechProbabilityAt: 1_400})
+
+    expect(stopped.stopped).toBe(true)
+    expect(stopped.speaking).toBe(false)
+    expect(stopped.closedChunkIds).toHaveLength(1)
+    expect(session.debugSnapshot().chunks.queued).toBe(1)
   })
 
   test("keeps quiet continuation speech from closing an active dictation chunk", () => {
@@ -389,7 +428,7 @@ describe("voice session manager", () => {
     }
 
     expect(session.debugSnapshot().noiseFloor).toBeLessThan(0.01)
-    expect(session.debugSnapshot().chunks.recording).toBe(1)
+    expect(session.debugSnapshot().chunks.recording).toBe(0)
 
     session.startRecording(true, 5_000)
     const snapshot = session.debugSnapshot()

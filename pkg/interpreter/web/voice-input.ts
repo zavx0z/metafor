@@ -1805,9 +1805,7 @@ function voiceInputSignalTone(kind: VoiceInputSignalTone): {
   gain: number
   type: OscillatorType
 } {
-  if (kind === "activation") return {startHz: 640, endHz: 960, duration: 0.24, gain: 0.34, type: "triangle"}
-  if (kind === "deactivation") return {startHz: 740, endHz: 430, duration: 0.22, gain: 0.32, type: "sine"}
-  return {startHz: 360, endHz: 210, duration: 0.34, gain: 0.38, type: "square"}
+  return {startHz: 587.33, endHz: 880, duration: 0.34, gain: 0.22, type: "triangle"}
 }
 
 function chunkFromAsrMessage(msg: AsrMessage, phraseGroups: VoiceCommandPhraseGroups): VoiceInputChunk {

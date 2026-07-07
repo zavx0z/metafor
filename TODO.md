@@ -35,6 +35,7 @@
 - [100] Доскачать Silero VAD assets и подключить browser-side Silero local VAD с fallback на adaptive noise-floor.
 - [100] Стабилизировать voice input: local chunk/session manager, ASR-independent capture/VAD, composer/auto-send policy.
 - [100] Довести voice realtime preview и reactivation: ASR/Whisper live partial во время dictation, без Vosk-текста в composer, без потери ASR chunks.
+- [100] Сделать Silero VAD authoritative для индикатора/сегментации: fresh low probability не перебивается energy fallback.
 
 ## 6. Browser Agent Chat: изображения
 

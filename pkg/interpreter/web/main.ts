@@ -4061,6 +4061,7 @@ function voiceSignalForStatusChange(previousStatus: VoiceInputStatus, nextStatus
   if (nextStatus === "listening" && previousStatus !== "listening" && previousStatus !== "committing" && previousStatus !== "processing") return "activation"
   if (nextStatus === "error") return "error"
   if (nextStatus === "processing" && (previousStatus === "listening" || previousStatus === "committing")) return "deactivation"
+  if (nextStatus === "waitingWake" && detail === "ready" && (previousStatus === "listening" || previousStatus === "committing")) return "deactivation"
   if (nextStatus === "waitingWake" && detail === "ready") return null
   if (nextStatus === "waitingWake" && (previousStatus === "listening" || previousStatus === "committing")) return "deactivation"
   if (nextStatus === "idle" && detail === VOICE_STOP_COMMAND_DETAIL) return "stop"
@@ -6665,6 +6666,7 @@ function flashVoiceHudError(detail: string): void {
   voiceLastErrorText = voiceReadableDetail(detail)
   voiceLastErrorAt = new Date()
   updateVoiceHud("error", detail)
+  postInterpreterClientEvent("voice", "signal", {kind: "error", from: voiceHudStatus, to: "error", detail, source: "flashVoiceHudError"})
   playVoiceSignal("error")
   voiceHudErrorTimer = window.setTimeout(() => {
     voiceHudErrorTimer = null
@@ -7172,9 +7174,7 @@ function hudNotificationTone(kind: HudNotificationKind): {
   gain: number
   type: OscillatorType
 } {
-  if (kind === "activation") return {startHz: 640, endHz: 960, duration: 0.24, gain: 0.34, type: "triangle"}
-  if (kind === "deactivation") return {startHz: 740, endHz: 430, duration: 0.22, gain: 0.32, type: "sine"}
-  if (kind === "stop") return {startHz: 360, endHz: 210, duration: 0.34, gain: 0.38, type: "square"}
+  if (kind === "activation" || kind === "deactivation" || kind === "stop") return {startHz: 587.33, endHz: 880, duration: 0.34, gain: 0.22, type: "triangle"}
   if (kind === "error") return {startHz: 880, endHz: 220, duration: 0.38, gain: 0.42, type: "square"}
   return {startHz: 520, endHz: 520, duration: 0.12, gain: 0.22, type: "sine"}
 }
