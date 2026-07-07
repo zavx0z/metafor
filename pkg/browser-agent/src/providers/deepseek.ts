@@ -206,9 +206,11 @@ export function deepseekSendExpression(message: string, newChat: boolean, params
 export function deepseekConfigureExpression(params: BrowserAgentJsonObject = {}): string {
   const mode = deepseekModeFromParams(params)
   const deepThinking = deepseekDeepThinkingFromParams(params)
+  const newChat = params["newChat"] === true || params["newConversation"] === true
   return `(async function(){
     const mode = ${JSON.stringify(mode)};
     const deepThinking = ${JSON.stringify(deepThinking)};
+    const newChat = ${JSON.stringify(newChat)};
     const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const cleanInline = (text) => String(text || "").replace(/\\u200b/g, "").replace(/[ \\t\\r\\n]+/g, " ").trim();
     const visible = (el) => {
@@ -227,6 +229,11 @@ export function deepseekConfigureExpression(params: BrowserAgentJsonObject = {})
       if (!toggle) return null;
       return toggle.getAttribute("aria-pressed") === "true" || /selected/i.test(String(toggle.className || ""));
     };
+    if (newChat && location.hostname.includes("deepseek") && location.pathname !== "/") {
+      location.assign("https://chat.deepseek.com/");
+      await wait(150);
+      return {ok:false, adapter:"deepseek", newChatNavigating:true, busy:true, canSend:false, generating:false, preferenceActive:false, blockedReason:"DeepSeek new chat navigation", error:"DeepSeek new chat navigation started"};
+    }
     let changed = false;
     if (mode === "expert" || mode === "fast" || mode === "vision") {
       const targetType = mode === "fast" ? "default" : mode;

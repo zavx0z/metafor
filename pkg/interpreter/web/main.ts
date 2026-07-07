@@ -4955,10 +4955,41 @@ function openBrowserChatImageRecognitionChat(controller: BrowserChatController):
     return
   }
   session.toolPromptMode = "vision"
+  resetBrowserChatAgentControl(controller, session)
+  session.toolLoopTurns = 0
+  session.lastProcessedToolCallText = null
+  session.toolPromptSent = false
+  session.messages.splice(0, session.messages.length)
+  session.lastAssistantText = ""
   scheduleStoreBrowserChatState(controller)
+  stopBrowserChatPolling(controller, session, false)
+  session.sendInFlight = true
+  setBrowserChatStatus(controller, `opening new ${session.label} Image Recognition chat`, 6000, session)
   controller.chatPane.requestRender()
   controller.composer.requestRender()
-  sendBrowserChatToolPrompt(controller)
+  void openBrowserChatImageRecognitionChatInProvider(controller, session)
+}
+
+async function openBrowserChatImageRecognitionChatInProvider(controller: BrowserChatController, session: BrowserChatSession): Promise<void> {
+  try {
+    const tool = await runHostToolWithTimeout("browser_chat.configure", {
+      ...browserChatSessionToolParams(session),
+      deepseekMode: "vision",
+      newChat: true,
+    }, 60000)
+    const result = hostToolResultObject(tool)
+    updateBrowserChatTransportState(controller, session, result)
+    if (tool.ok !== true || result["ok"] !== true) throw new Error(tool.error ?? stringValue(result["error"]) ?? "browser_chat.configure image recognition failed")
+    setBrowserChatStatus(controller, "Image Recognition ready", 1800, session)
+  } catch (error) {
+    appendBrowserChatSystemMessage(controller, session, error instanceof Error ? error.message : String(error))
+    setBrowserChatStatus(controller, "Image Recognition failed", 5000, session)
+  } finally {
+    session.sendInFlight = false
+    scheduleStoreBrowserChatState(controller)
+    controller.composer.requestRender()
+    controller.chatPane.requestRender()
+  }
 }
 
 function toggleBrowserChatDeepThinking(controller: BrowserChatController): void {

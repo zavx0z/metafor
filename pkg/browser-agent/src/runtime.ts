@@ -13,6 +13,7 @@ const BROWSER_CHAT_READ_RETRY_MS = 220
 const BROWSER_CHAT_READ_RETRIES = 2
 const BROWSER_CHAT_SEND_READY_INTERVAL_MS = 650
 const BROWSER_CHAT_SEND_READY_TIMEOUT_MS = 90_000
+const BROWSER_CHAT_CONFIGURE_READY_TIMEOUT_MS = 30_000
 
 const QWEN_PROVIDER: BrowserAgentProvider = {
   id: "qwen",
@@ -137,7 +138,17 @@ async function browserChatExchange(host: BrowserAgentHost, params: BrowserAgentJ
 async function browserChatConfigure(host: BrowserAgentHost, params: BrowserAgentJsonObject): Promise<BrowserAgentJsonObject> {
   const provider = browserAgentProviderForParams(params)
   if (provider.configureExpression === undefined) return {ok: false, provider: provider.id, error: `${provider.label} configure is not supported`}
-  return await evaluateBrowserChatPayload(host, provider, params, provider.configureExpression(params))
+  const waitUntilReady = asBoolean(params["waitUntilReady"]) ?? true
+  const timeoutMs = boundedNumber(asNumber(params["configureTimeoutMs"]), BROWSER_CHAT_CONFIGURE_READY_TIMEOUT_MS, 1_000, 120_000)
+  const startedAt = Date.now()
+  while (true) {
+    const configured = await evaluateBrowserChatPayload(host, provider, params, provider.configureExpression(params))
+    if (configured["ok"] === true) return {...configured, provider: provider.id, waitedMs: Date.now() - startedAt}
+    if (!waitUntilReady || !isBrowserChatBusyPayload(configured) || Date.now() - startedAt >= timeoutMs) {
+      return {...configured, provider: provider.id, waitedMs: Date.now() - startedAt}
+    }
+    await delay(BROWSER_CHAT_SEND_READY_INTERVAL_MS)
+  }
 }
 
 async function browserChatActivate(host: BrowserAgentHost, params: BrowserAgentJsonObject): Promise<BrowserAgentJsonObject> {
