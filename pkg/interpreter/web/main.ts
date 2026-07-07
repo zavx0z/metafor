@@ -2935,8 +2935,8 @@ function installEnginePanes(): void {
   uiCanvas.addHudSurface(hostTerminalDockPane, hostTerminalDockRect, {zIndex: HUD_LAYER_TOP})
   browserChatDockPane ??= new HostTerminalDockPane({
     key: "browser-chat-dock-restore",
-    label: "Browser",
-    tooltip: "Browser Agent Chat",
+    label: "Agent",
+    tooltip: "Agent",
     icon: uiIcons.codex,
     edge: currentBrowserChatDockEdge,
     restore: () => setBrowserChatHudDocked(false),
@@ -4059,7 +4059,7 @@ function maybeActivateHostVoiceSession(text: string): boolean {
 async function activateHostVoiceSession(): Promise<void> {
   const controller = ensureHostTerminalController()
   const chatController = ensureBrowserChatController()
-  setBrowserChatComposerTarget(chatController, "codex")
+  setBrowserChatComposerTarget(chatController, "codex", {activateProvider: false})
   setHostTerminalHudDocked(false)
   setVoiceActiveTarget({kind: "host", controller})
   focusHostCodexComposer(controller)
@@ -4108,7 +4108,7 @@ function maybeActivateBrowserChatVoiceSession(text: string): boolean {
 async function activateBrowserChatVoiceSession(provider: BrowserChatProviderId): Promise<void> {
   const controller = ensureBrowserChatController()
   setBrowserChatHudDocked(false)
-  activateBrowserChatSession(controller, provider)
+  setBrowserChatComposerTarget(controller, provider, {activateProvider: false})
   setVoiceActiveTarget({kind: "browser-chat", controller})
   focusBrowserChatComposer(controller)
   const session = activeBrowserChatSession(controller)
@@ -4842,9 +4842,9 @@ function activeBrowserChatComposerDropActive(controller: BrowserChatController):
   return activeBrowserChatSession(controller).codexDropActive
 }
 
-function setBrowserChatComposerTarget(controller: BrowserChatController, target: MessageComposerTargetId): void {
+function setBrowserChatComposerTarget(controller: BrowserChatController, target: MessageComposerTargetId, options: {activateProvider?: boolean} = {}): void {
   if (controller.activeComposerTargetId === target) {
-    if (target !== "codex") void activateBrowserChatProviderTarget(controller, activeBrowserChatSession(controller))
+    if (target !== "codex" && options.activateProvider !== false) void activateBrowserChatProviderTarget(controller, activeBrowserChatSession(controller))
     focusBrowserChatComposer(controller)
     return
   }
@@ -4854,7 +4854,7 @@ function setBrowserChatComposerTarget(controller: BrowserChatController, target:
     const next = controller.sessions.find((session) => session.id === target)
     if (next !== undefined) {
       controller.activeSessionId = next.id
-      void activateBrowserChatProviderTarget(controller, next)
+      if (options.activateProvider !== false) void activateBrowserChatProviderTarget(controller, next)
     }
   }
   syncBrowserChatEditor(controller)
@@ -6787,7 +6787,7 @@ function voiceTargetLabel(): string {
   const target = voiceActiveTarget
   if (target === null) return ""
   if (target.kind === "host") return t("voiceTargetHost")
-  if (target.kind === "browser-chat") return "Browser Agent"
+  if (target.kind === "browser-chat") return `Agent: ${activeBrowserChatSession(target.controller).label}`
   const snapshot = moduleSnapshots.get(target.controller.id)
   return `${t("voiceTargetModule")}: ${snapshot?.label ?? target.controller.id}`
 }
@@ -7362,8 +7362,8 @@ function createBrowserChatEditor(controller: BrowserChatController): EditorPane 
 function createBrowserChatComposerPane(controller: BrowserChatController): HostTerminalCodexComposerPane<BrowserChatController> {
   return new HostTerminalCodexComposerPane({
     controller,
-    title: "",
-    minimizeLabel: "Dock Browser Agent",
+    title: "Message",
+    minimizeLabel: "Dock Message",
     voiceKey: "interpreter-browser-agent-message-voice",
     nodeName: "InterpreterBrowserChatComposerPane",
     leftActions: browserChatComposerLeftActions,
@@ -7393,7 +7393,6 @@ function createBrowserChatComposerPane(controller: BrowserChatController): HostT
 }
 
 function browserChatComposerLeftActions(controller: BrowserChatController): readonly HudWindowTitleBarAction[] {
-  const mode = activeBrowserChatSession(controller).toolPromptMode
   const target = controller.activeComposerTargetId
   const actions: HudWindowTitleBarAction[] = [
     {
@@ -7415,40 +7414,9 @@ function browserChatComposerLeftActions(controller: BrowserChatController): read
       iconSrc: uiIcons.deepseek,
       tooltip: "Send to DeepSeek",
       active: target === "deepseek",
-      dividerAfter: true,
       action: () => setBrowserChatComposerTarget(controller, "deepseek"),
     },
   ]
-  if (target !== "codex") {
-    actions.push({
-      label: "Tools Prompt",
-      iconSrc: uiIcons.apply,
-      tooltip: "New chat with tools prompt",
-      disabled: !browserChatToolPromptCanSend(controller),
-      action: () => sendBrowserChatToolPrompt(controller),
-    })
-  }
-  if (target === "deepseek") {
-    actions.push({
-      label: "DeepSeek Fast",
-      iconSrc: uiIcons.fast,
-      tooltip: "DeepSeek Fast",
-      active: mode === "fast",
-      action: () => setBrowserChatToolPromptMode(controller, "fast"),
-    }, {
-      label: "DeepSeek Expert",
-      iconSrc: uiIcons.expert,
-      tooltip: "DeepSeek Expert",
-      active: mode === "expert",
-      action: () => setBrowserChatToolPromptMode(controller, "expert"),
-    }, {
-      label: "DeepSeek Recognition",
-      iconSrc: uiIcons.recognition,
-      tooltip: "DeepSeek Recognition",
-      active: mode === "vision",
-      action: () => setBrowserChatToolPromptMode(controller, "vision"),
-    })
-  }
   return actions
 }
 
@@ -7456,15 +7424,23 @@ function ensureBrowserChatController(): BrowserChatController {
   if (browserChat !== null) return browserChat
   const controller = {} as BrowserChatController
   const chatPane = new BrowserChatPane({
+    title: () => activeBrowserChatSession(controller).label,
     messages: () => activeBrowserChatSession(controller).messages,
     activeSessionId: () => controller.activeSessionId,
     status: () => browserChatComposerStatus(controller),
     statusKind: () => browserChatStatusKind(controller),
+    toolPromptMode: () => {
+      const session = activeBrowserChatSession(controller)
+      return session.provider === "deepseek" ? session.toolPromptMode : null
+    },
+    setToolPromptMode: (mode) => setBrowserChatToolPromptMode(controller, mode),
     deepThinking: () => {
       const session = activeBrowserChatSession(controller)
       return session.provider === "deepseek" ? session.deepThinking : null
     },
     toggleDeepThinking: () => toggleBrowserChatDeepThinking(controller),
+    canSendToolPrompt: () => browserChatToolPromptCanSend(controller),
+    sendToolPrompt: () => sendBrowserChatToolPrompt(controller),
     paused: () => activeBrowserChatSession(controller).toolLoopPaused,
     stopped: () => activeBrowserChatSession(controller).toolLoopStopped,
     pause: () => pauseBrowserChatAgent(controller),

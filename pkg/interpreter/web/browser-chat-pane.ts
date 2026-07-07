@@ -1,7 +1,7 @@
 import {Color} from "@metafor/engine"
 import {IconButton} from "@ui/components"
 import {UiSurface, div, divScrollPosition, divScrollTo, flexRow, palette, uiIcons, Z, type DivScrollContext, type UiSurfaceRect} from "@ui/elements"
-import {HudWindow} from "@ui/hud"
+import {HudWindow, type HudWindowTitleBarAction} from "@ui/hud"
 import {
   PANE_FRAME,
   beginPaneFrameDrag,
@@ -21,14 +21,20 @@ export type BrowserChatPaneMessage = {
 }
 
 export type BrowserChatPaneStatusKind = "ready" | "sending" | "thinking" | "tools" | "blocked" | "error"
+export type BrowserChatPaneToolPromptMode = "fast" | "expert" | "vision"
 
 export type BrowserChatPaneOptions = {
+  title(): string
   messages(): readonly BrowserChatPaneMessage[]
   activeSessionId(): string
   status(): string
   statusKind(): BrowserChatPaneStatusKind
+  toolPromptMode(): BrowserChatPaneToolPromptMode | null
+  setToolPromptMode(mode: BrowserChatPaneToolPromptMode): void
   deepThinking(): boolean | null
   toggleDeepThinking(): void
+  canSendToolPrompt(): boolean
+  sendToolPrompt(): void
   paused(): boolean
   stopped(): boolean
   pause(): void
@@ -80,9 +86,10 @@ export class BrowserChatPane extends UiSurface {
     const status = this.#opts.status()
     const statusKind = this.#opts.statusKind()
     HudWindow(this, 0, 0, w, h, {
-      title: "Browser Agent Chat",
+      title: this.#opts.title(),
       onMinimize: () => this.#opts.setDocked(true),
-      minimizeLabel: "Dock Browser Agent",
+      minimizeLabel: "Dock Agent",
+      rightActions: this.#titleBarActions(),
       active: this.active,
       fill: new Color(0.035, 0.055, 0.06, 0.58),
       border: this.active ? palette.windowActiveBorder : palette.borderDim,
@@ -107,6 +114,41 @@ export class BrowserChatPane extends UiSurface {
       h: Math.max(1, body.h - toolbarH - toolbarGap),
     })
     if (toolbarH > 0) this.#renderControlToolbar({x: body.x, y: body.y + body.h - toolbarH, w: body.w, h: toolbarH}, status, statusKind)
+  }
+
+  #titleBarActions(): HudWindowTitleBarAction[] {
+    const mode = this.#opts.toolPromptMode()
+    const actions: HudWindowTitleBarAction[] = [
+      {
+        label: "New Agent Chat Prompt",
+        iconSrc: uiIcons.apply,
+        tooltip: "New chat with tools prompt",
+        disabled: !this.#opts.canSendToolPrompt(),
+        action: () => this.#opts.sendToolPrompt(),
+      },
+    ]
+    if (mode !== null) {
+      actions.push({
+        label: "DeepSeek Fast",
+        iconSrc: uiIcons.fast,
+        tooltip: "DeepSeek Fast",
+        active: mode === "fast",
+        action: () => this.#opts.setToolPromptMode("fast"),
+      }, {
+        label: "DeepSeek Expert",
+        iconSrc: uiIcons.expert,
+        tooltip: "DeepSeek Expert",
+        active: mode === "expert",
+        action: () => this.#opts.setToolPromptMode("expert"),
+      }, {
+        label: "DeepSeek Recognition",
+        iconSrc: uiIcons.recognition,
+        tooltip: "DeepSeek Recognition",
+        active: mode === "vision",
+        action: () => this.#opts.setToolPromptMode("vision"),
+      })
+    }
+    return actions
   }
 
   #drawStatusBadge(rect: UiSurfaceRect, label: string, kind: BrowserChatPaneStatusKind): void {
@@ -181,9 +223,9 @@ export class BrowserChatPane extends UiSurface {
         deepThinking !== null && {width: deepW, height: buttonSize, draw: (x, y, w, h) => this.#drawDeepThinkingToggle({x, y, w, h}, deepThinking)},
         {width: buttonSize, height: buttonSize, draw: (x, y, w, h) => {
           IconButton(this, x, y, w, h, {
-            label: "Pause Browser Agent",
+            label: "Pause Agent",
             iconSrc: uiIcons.pause,
-            tooltip: "Pause Browser Agent",
+            tooltip: "Pause Agent",
             tone: "paused",
             variant: paused ? "contained" : "text",
             disabled: paused || stopped,
@@ -193,9 +235,9 @@ export class BrowserChatPane extends UiSurface {
         }},
         {width: buttonSize, height: buttonSize, draw: (x, y, w, h) => {
           IconButton(this, x, y, w, h, {
-            label: "Resume Browser Agent",
+            label: "Resume Agent",
             iconSrc: uiIcons.run,
-            tooltip: "Resume Browser Agent",
+            tooltip: "Resume Agent",
             tone: "live",
             variant: !paused && !stopped ? "contained" : "text",
             disabled: !paused,
@@ -205,9 +247,9 @@ export class BrowserChatPane extends UiSurface {
         }},
         {width: buttonSize, height: buttonSize, draw: (x, y, w, h) => {
           IconButton(this, x, y, w, h, {
-            label: "Stop Browser Agent",
+            label: "Stop Agent",
             iconSrc: uiIcons.stop,
-            tooltip: "Stop Browser Agent",
+            tooltip: "Stop Agent",
             tone: "warn",
             variant: stopped ? "contained" : "text",
             disabled: stopped,

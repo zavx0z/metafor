@@ -409,9 +409,10 @@ limit-сообщению в истории: после сброса лимита
 выбирает `fast`, `expert` или `vision`, а `deepThinking`/`thinking` задает точное
 состояние Deep Thinking toggle (`true` включает, `false` выключает). `activate`
 переключает реальную вкладку Chrome на target выбранного provider-а через host
-callback; Browser Agent UI вызывает его при клике по вкладкам `Qwen`/`DeepSeek`.
+callback; Browser Agent UI вызывает его только при ручном клике по target
+switcher `Qwen`/`DeepSeek` в окне `Message`.
 
-Codex message и Browser Agent message используют общий UI composer flow для
+Codex message и Browser Agent message используют общий UI composer flow `Message` для
 text/voice/image attachments, но transport разный: Codex message идет в
 host PTY/Codex CLI, Browser Agent message идет в remote browser chat. Оба
 направления используют один общий HUD composer с target-кнопками
@@ -419,6 +420,11 @@ host PTY/Codex CLI, Browser Agent message идет в remote browser chat. Об�
 attachments и обработчик submit. В MVP image attachments не загружаются в
 provider UI как файлы: composer добавляет пути к загруженным изображениям в
 текст сообщения.
+
+Browser Agent UI состоит из окна `Agent` и общего composer-окна `Message`.
+`Agent` показывает историю active provider-а, transport status и
+provider-specific controls; `Message` содержит единый ввод, target switcher
+`Codex`/`Qwen`/`DeepSeek` и общие send/image/voice controls.
 
 Browser Agent Chat UI имеет provider sessions: `Qwen` и `DeepSeek`. Каждая
 session имеет отдельную историю, draft, attachments, transport state и tool loop
@@ -430,17 +436,18 @@ transport flags и tool loop control/pending state переживают reload U
 Ephemeral timers/read polling после reload создаются заново и live transport
 state дополнительно гидратируется через `browser_chat.read`.
 Голосовые wake-команды `Завхоз`/`Запхоз`/`Метафор` возвращают текущий voice
-target в общий composer с target `Codex`. Команды `Квин`/`Qwen` и
-`Дипсик`/`DeepSeek` открывают Browser Agent Chat, переключают active session и
-composer target, активируют соответствующую Chrome вкладку через
-`browser_chat.activate` и назначают Browser Agent target текущим voice target.
-Эти команды не вставляются в draft как пользовательский текст.
+target в общий `Message` composer с target `Codex`. Команды `Квин`/`Qwen` и
+`Дипсик`/`DeepSeek` открывают окно `Agent`, переключают active session и
+composer target, но не активируют Chrome-вкладку. Реальная remote browser tab
+переключается только ручным кликом по target switcher в `Message` через
+`browser_chat.activate`. Эти команды не вставляются в draft как
+пользовательский текст.
 
 Обычная отправка Browser Agent message передает в active provider только текст
 пользователя и attachment paths. Tool prompt не добавляется автоматически к
-пользовательским сообщениям: он отправляется отдельной кнопкой Browser Agent
-composer, которая очищает только active session и создает новый chat выбранного
-provider через `browser_chat.send` с `newChat:true`.
+пользовательским сообщениям: он отправляется отдельной кнопкой окна `Agent`,
+которая очищает только active session и создает новый chat выбранного provider
+через `browser_chat.send` с `newChat:true`.
 
 Browser Agent поверх transport добавляет текстовый tool protocol для active provider:
 если ответ assistant содержит блок `<tool_calls>{"tool_uses":[...]}</tool_calls>`,
