@@ -1,5 +1,6 @@
 import type {EnergyActorEntity, EnergyProcessEntity} from "@metafor/types/energy/catalog"
 import type {Particle} from "@metafor/types/force/particle"
+import {applyForceDelta, forceValueEqual, replaceForceRecord} from "@metafor/types/force/delta"
 
 type Address =
   | {kind: "actor"; id: number}
@@ -7,6 +8,7 @@ type Address =
   | {kind: "process"; src: string; localId: string}
 
 export type EnergyCatalogChange = {changed: boolean; affectedActorIds: number[]}
+export type EnergyProcessEntry = {key: string; process: EnergyProcessEntity; revision: number}
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -24,38 +26,21 @@ const address = (path: unknown): Address | null => {
 
 const clone = <T>(value: T): T => structuredClone(value)
 
-const same = (left: unknown, right: unknown): boolean => {
-  if (Object.is(left, right)) return true
-  if (Array.isArray(left) && Array.isArray(right)) return left.length === right.length && left.every((item, i) => same(item, right[i]))
-  if (!isRecord(left) || !isRecord(right)) return false
-  const keys = Object.keys(left)
-  return keys.length === Object.keys(right).length && keys.every((key) => key in right && same(left[key], right[key]))
-}
-
-const patch = (target: Record<string, unknown>, delta: Record<string, unknown>): void => {
-  for (const [key, value] of Object.entries(delta)) {
-    if (isRecord(value) && isRecord(target[key])) patch(target[key] as Record<string, unknown>, value)
-    else target[key] = clone(value)
-  }
-}
-
-const actorFromValue = (value: unknown): EnergyActorEntity | null => {
+const actorRecord = (value: unknown): Record<string, unknown> | null => {
   const actor = isRecord(value) && isRecord(value.actor) ? value.actor : value
-  if (!isRecord(actor) || typeof actor.id !== "number" || typeof actor.wimp !== "string") return null
-  return clone(actor as unknown as EnergyActorEntity)
+  return isRecord(actor) && typeof actor.id === "number" && typeof actor.wimp === "string" ? actor : null
 }
 
-const processFromValue = (value: unknown): EnergyProcessEntity | null => {
-  if (!isRecord(value) || typeof value.id !== "number" || typeof value.wimp !== "string" || typeof value.state !== "string" || !isRecord(value.descriptor)) return null
-  return clone(value as unknown as EnergyProcessEntity)
-}
+const processRecord = (value: unknown): Record<string, unknown> | null =>
+  isRecord(value) && typeof value.id === "number" && typeof value.wimp === "string" &&
+  typeof value.state === "string" && isRecord(value.descriptor) ? value : null
 
 const parentKey = (entity: {parentActor?: unknown; parentTopology?: unknown}): string | null => {
   if (typeof entity.parentActor === "number") return `actor:${entity.parentActor}`
   return typeof entity.parentTopology === "number" ? `topology:${entity.parentTopology}` : null
 }
 
-/** Incremental process/actor catalog owned by one Energy runtime. */
+/** Exact incremental process/actor catalog owned by one Energy runtime. */
 export class EnergyCatalogStore {
   readonly actors = new Map<number, EnergyActorEntity>()
   readonly topologies = new Map<number, Record<string, unknown>>()
@@ -63,19 +48,22 @@ export class EnergyCatalogStore {
   readonly actorIdsByWimp = new Map<string, Set<number>>()
   readonly processKeysByWimp = new Map<string, Set<string>>()
   readonly childrenByParent = new Map<string, Set<string>>()
+  readonly processRevisionByKey = new Map<string, number>()
 
   apply(part: Particle): EnergyCatalogChange {
     if (part.part !== "graviton") return {changed: false, affectedActorIds: []}
     const target = address(part.path)
     if (!target) return {changed: false, affectedActorIds: []}
     if (part.op === "test") {
-      if (part.value !== undefined && !same(this.read(target), part.value)) throw new Error(`Energy catalog test failed at ${String(part.path)}`)
+      if (part.value !== undefined && !forceValueEqual(this.read(target), part.value)) {
+        throw new Error(`Energy catalog test failed at ${String(part.path)}`)
+      }
       return {changed: false, affectedActorIds: []}
     }
     if (part.op === "move" || part.op === "copy") return this.transfer(part, target)
     if (part.op === "remove") return this.remove(target)
     if (part.op !== "add" && part.op !== "replace") return {changed: false, affectedActorIds: []}
-    return this.upsert(target, part.value)
+    return this.upsert(target, part.value, part.op)
   }
 
   actorWimp(actorId: number): string | undefined {
@@ -83,9 +71,15 @@ export class EnergyCatalogStore {
   }
 
   process(wimp: string, state: string): EnergyProcessEntity | undefined {
+    return this.processEntry(wimp, state)?.process
+  }
+
+  processEntry(wimp: string, state: string): EnergyProcessEntry | undefined {
     for (const key of this.processKeysByWimp.get(wimp) ?? []) {
       const process = this.processes.get(key)
-      if (process?.state === state) return process
+      if (process?.state === state) {
+        return {key, process, revision: this.processRevisionByKey.get(key) ?? 0}
+      }
     }
     return undefined
   }
@@ -96,54 +90,72 @@ export class EnergyCatalogStore {
     return this.processes.get(`${target.src}\0${target.localId}`)
   }
 
-  private upsert(target: Address, value: unknown): EnergyCatalogChange {
+  private upsert(target: Address, value: unknown, op: "add" | "replace"): EnergyCatalogChange {
     if (target.kind === "actor") {
-      const next = actorFromValue(value)
+      const raw = actorRecord(value)
       const current = this.actors.get(target.id)
       if (current) {
         const delta = isRecord(value) && isRecord(value.actor) ? value.actor : value
-        if (!isRecord(delta) || same(current, delta)) return {changed: false, affectedActorIds: []}
+        if (!isRecord(delta)) return {changed: false, affectedActorIds: []}
+        const before = clone(current)
         this.unlinkActor(current)
-        patch(current as unknown as Record<string, unknown>, delta)
+        if (op === "add") replaceForceRecord(current as unknown as Record<string, unknown>, raw ?? delta)
+        else applyForceDelta(current as unknown as Record<string, unknown>, delta)
         this.linkActor(current)
-        return {changed: true, affectedActorIds: [target.id]}
+        return {
+          changed: !forceValueEqual(before, current),
+          affectedActorIds: forceValueEqual(before, current) ? [] : [target.id],
+        }
       }
-      if (!next || next.id !== target.id) return {changed: false, affectedActorIds: []}
+      if (!raw || raw.id !== target.id) return {changed: false, affectedActorIds: []}
+      const next = clone(raw as unknown as EnergyActorEntity)
       this.actors.set(target.id, next)
       this.linkActor(next)
       return {changed: true, affectedActorIds: [target.id]}
     }
+
     if (target.kind === "topology") {
       if (!isRecord(value)) return {changed: false, affectedActorIds: []}
       const current = this.topologies.get(target.id)
       if (current) {
-        if (same(current, value)) return {changed: false, affectedActorIds: []}
+        const before = clone(current)
         this.unlinkChild("topology", target.id, current)
-        patch(current, value)
+        if (op === "add") replaceForceRecord(current, value)
+        else applyForceDelta(current, value)
         this.linkChild("topology", target.id, current)
-      } else {
-        const next = clone(value)
-        this.topologies.set(target.id, next)
-        this.linkChild("topology", target.id, next)
+        const changed = !forceValueEqual(before, current)
+        return {changed, affectedActorIds: changed ? this.descendantActors(`topology:${target.id}`) : []}
       }
-      return {changed: true, affectedActorIds: this.descendantActors(`topology:${target.id}`)}
+      if (value.id !== target.id) return {changed: false, affectedActorIds: []}
+      const next = clone(value)
+      this.topologies.set(target.id, next)
+      this.linkChild("topology", target.id, next)
+      return {changed: true, affectedActorIds: []}
     }
-    const next = processFromValue(value)
+
     const key = `${target.src}\0${target.localId}`
     const current = this.processes.get(key)
     if (current) {
-      if (!isRecord(value) || same(current, value)) return {changed: false, affectedActorIds: []}
+      if (!isRecord(value)) return {changed: false, affectedActorIds: []}
+      const before = clone(current)
       const previousWimp = current.wimp
-      patch(current as unknown as Record<string, unknown>, value)
+      if (op === "add") replaceForceRecord(current as unknown as Record<string, unknown>, value)
+      else applyForceDelta(current as unknown as Record<string, unknown>, value)
+      const changed = !forceValueEqual(before, current)
+      if (!changed) return {changed: false, affectedActorIds: []}
       if (previousWimp !== current.wimp) {
         this.processKeysByWimp.get(previousWimp)?.delete(key)
         this.indexProcess(key, current)
       }
+      this.bumpProcess(key)
       return {changed: true, affectedActorIds: [...(this.actorIdsByWimp.get(current.wimp) ?? [])]}
     }
-    if (!next) return {changed: false, affectedActorIds: []}
+    const raw = processRecord(value)
+    if (!raw) return {changed: false, affectedActorIds: []}
+    const next = clone(raw as unknown as EnergyProcessEntity)
     this.processes.set(key, next)
     this.indexProcess(key, next)
+    this.bumpProcess(key)
     return {changed: true, affectedActorIds: [...(this.actorIdsByWimp.get(next.wimp) ?? [])]}
   }
 
@@ -154,6 +166,7 @@ export class EnergyCatalogStore {
       if (!current) return {changed: false, affectedActorIds: []}
       this.processes.delete(key)
       this.processKeysByWimp.get(current.wimp)?.delete(key)
+      this.bumpProcess(key)
       return {changed: true, affectedActorIds: [...(this.actorIdsByWimp.get(current.wimp) ?? [])]}
     }
     const key = `${target.kind}:${target.id}`
@@ -172,7 +185,7 @@ export class EnergyCatalogStore {
     if (part.op === "copy") {
       const copied = clone(current)
       if ((target.kind === "actor" || target.kind === "topology") && isRecord(copied)) copied.id = target.id
-      return this.upsert(target, copied)
+      return this.upsert(target, copied, "add")
     }
     if (source.kind === "actor" && target.kind === "actor") {
       const actor = current as EnergyActorEntity
@@ -203,9 +216,15 @@ export class EnergyCatalogStore {
       this.processKeysByWimp.get(process.wimp)?.delete(sourceKey)
       this.processes.set(targetKey, process)
       this.indexProcess(targetKey, process)
+      this.bumpProcess(sourceKey)
+      this.bumpProcess(targetKey)
       return {changed: true, affectedActorIds: [...(this.actorIdsByWimp.get(process.wimp) ?? [])]}
     }
     return {changed: false, affectedActorIds: []}
+  }
+
+  private bumpProcess(key: string): void {
+    this.processRevisionByKey.set(key, (this.processRevisionByKey.get(key) ?? 0) + 1)
   }
 
   private indexProcess(key: string, process: EnergyProcessEntity): void {
