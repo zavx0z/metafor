@@ -14,6 +14,7 @@
     "./force/particle": "./force/particle.ts",
     "./force/message": "./force/message.ts",
     "./force/replay": "./force/replay.ts",
+    "./force/delta": "./force/delta.ts",
     "./force/fields": "./force/fields.ts",
     "./boundary/actor": "./boundary/actor.ts",
     "./boundary/value": "./boundary/value.ts",
