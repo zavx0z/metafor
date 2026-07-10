@@ -1,0 +1,7 @@
+@metafor/interpreter typecheck: web/voice-chunk-journal.ts(347,60): error TS2345: Argument of type 'Uint8Array<ArrayBufferLike>' is not assignable to parameter of type 'BufferSource'.
+@metafor/interpreter typecheck:   Type 'Uint8Array<ArrayBufferLike>' is not assignable to type 'ArrayBufferView<ArrayBuffer>'.
+@metafor/interpreter typecheck:     Types of property 'buffer' are incompatible.
+@metafor/interpreter typecheck:       Type 'ArrayBufferLike' is not assignable to type 'ArrayBuffer'.
+@metafor/interpreter typecheck:         Type 'SharedArrayBuffer' is missing the following properties from type 'ArrayBuffer': resizable, resize, detached, transfer, transferToFixedLength
+@metafor/interpreter typecheck: web/voice-input.ts(799,23): error TS2339: Property 'replaceAudioStream' does not exist on type 'VoiceInputSocket'.
+@metafor/interpreter typecheck: Exited with code 2
