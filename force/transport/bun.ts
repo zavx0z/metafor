@@ -28,6 +28,7 @@ export class Force extends ForceBase {
   #outbox: ForceMessage[] = []
   #replayPending: boolean
   override onImpulse: (impulse: ForceMessage) => void | Promise<void> = () => {}
+  override onReplayStart?: (requestPath: string) => void | Promise<void>
   override onReady?: () => void | Promise<void>
   override onDestroy?: () => void | Promise<void>
   override readonly id: string
@@ -70,7 +71,7 @@ export class Force extends ForceBase {
         } satisfies ForceMessage))
       } else {
         this.#flushOutbox(socket)
-        this.#ready()
+        this.#enqueue(async () => this.onReady?.())
       }
     }
     socket.onmessage = (event) => {
@@ -105,19 +106,23 @@ export class Force extends ForceBase {
       if (begin) {
         if (!sameClient(begin, this.domain, this.id)) return
         this.#replayPending = true
+        const requestPath = forceReplayPath(this.domain, this.id)
+        this.#enqueue(async () => this.onReplayStart?.(requestPath))
         return
       }
 
       const end = parseForceReplayEndPath(part.path)
       if (end) {
         if (!sameClient(end, this.domain, this.id)) return
-        this.#replayPending = false
-        this.#flushOutbox(socket)
-        this.#ready()
+        this.#enqueue(async () => {
+          this.#replayPending = false
+          this.#flushOutbox(socket)
+          await this.onReady?.()
+        })
         return
       }
 
-      this.#emit(message)
+      this.#enqueue(() => this.onImpulse(message))
     }
     socket.onclose = () => this.#reconnect()
     socket.onerror = () => socket.close()
@@ -139,10 +144,9 @@ export class Force extends ForceBase {
     }
   }
 
-  #ready(): void {
-    if (!this.onReady) return
-    void Promise.resolve(this.onReady()).catch((error) => {
-      console.error(`[${this.domain}] Force onReady failed`, error)
+  #enqueue(task: () => void | Promise<void>): void {
+    this.#receiving = this.#receiving.then(task).catch((error) => {
+      console.error(`[${this.domain}] Force receive lifecycle failed`, error)
     })
   }
 
@@ -155,15 +159,10 @@ export class Force extends ForceBase {
     this.#socket.close()
   }
 
-  #emit(impulse: ForceMessage): void {
-    this.#receiving = this.#receiving.then(() => this.onImpulse(impulse)).catch((error) => {
-      console.error(`[${this.domain}] Force onImpulse failed`, error)
-    })
-  }
-
   async #destroy(): Promise<void> {
     this.#closeTransport()
     try {
+      await this.#receiving
       if (this.onDestroy) await this.onDestroy()
     } catch (error) {
       console.error(`[${this.domain}] Force onDestroy failed`, error)
