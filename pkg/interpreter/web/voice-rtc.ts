@@ -174,7 +174,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
       const response = await fetch(voiceRtcOfferUrl(), {
         method: "POST",
         credentials: "include",
-        headers: {"content-type": "application/json"},
+        headers: {"content-type": "text/plain"},
         body: JSON.stringify({
           peerId: this.#peerId,
           serverPeerId: VOICE_RTC_SERVER_PEER_ID,
