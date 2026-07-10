@@ -25,6 +25,7 @@ export class Force extends ForceBase {
   #outbox: ForceMessage[] = []
   #replayPending: boolean
   override onImpulse: (impulse: ForceMessage) => void | Promise<void> = () => {}
+  override onReady?: () => void | Promise<void>
   override onDestroy?: () => void | Promise<void>
   override readonly id: string
 
@@ -49,6 +50,7 @@ export class Force extends ForceBase {
         } satisfies ForceMessage))
       } else {
         this.#flushOutbox(socket)
+        this.#ready()
       }
     }
     socket.onmessage = (event) => {
@@ -83,6 +85,7 @@ export class Force extends ForceBase {
         if (!sameClient(end, this.domain, this.id)) return
         this.#replayPending = false
         this.#flushOutbox(socket)
+        this.#ready()
         return
       }
 
@@ -106,6 +109,13 @@ export class Force extends ForceBase {
     while (this.#outbox.length > 0 && socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify(this.#outbox.shift()))
     }
+  }
+
+  #ready(): void {
+    if (!this.onReady) return
+    void Promise.resolve(this.onReady()).catch((error) => {
+      console.error(`[${this.domain}] Force onReady failed`, error)
+    })
   }
 
   #closeTransport(): void {
