@@ -1,0 +1,25 @@
+name: Voice integration source export
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Archive source
+        run: tar --exclude=.git -czf /tmp/metafor-source.tar.gz .
+      - name: Upload source
+        uses: actions/upload-artifact@v4
+        with:
+          name: metafor-source
+          path: /tmp/metafor-source.tar.gz
+          retention-days: 1
