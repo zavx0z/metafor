@@ -49,6 +49,25 @@ jobs:
           echo "f62ec1ccaa76257621ecaf7b6044662ac141db0a7658800e062063846d507c30  /tmp/voice-engine-v2.patch" | sha256sum -c -
           git apply --check /tmp/voice-engine-v2.patch
           git apply /tmp/voice-engine-v2.patch
+          python3 - <<'PY'
+          from pathlib import Path
+
+          journal = Path("pkg/interpreter/web/voice-chunk-journal.ts")
+          text = journal.read_text()
+          old = '      const digest = await crypto.subtle.digest("SHA-256", bytes)'
+          new = '      const digestInput = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer\n      const digest = await crypto.subtle.digest("SHA-256", digestInput)'
+          if old not in text:
+              raise SystemExit("voice journal digest marker missing")
+          journal.write_text(text.replace(old, new, 1))
+
+          transport = Path("pkg/interpreter/web/voice-transport.ts")
+          text = transport.read_text()
+          old = '  sendProtocol?(message: VoiceProtocolMessage): void\n}'
+          new = '  sendProtocol?(message: VoiceProtocolMessage): void\n  replaceAudioStream?(stream: MediaStream): void | Promise<void>\n}'
+          if old not in text:
+              raise SystemExit("voice transport marker missing")
+          transport.write_text(text.replace(old, new, 1))
+          PY
           rm -rf .github/voice-integration
           rm -f .github/workflows/apply-voice-engine-v2.yml
           git diff --check
@@ -56,37 +75,35 @@ jobs:
         run: |
           bun install --ignore-scripts
           git checkout -- bun.lock
-      - name: Voice tests
-        run: |
-          bun test pkg/interpreter/web/voice-input.test.ts
-          bun test pkg/interpreter/web/voice-chunk-journal.test.ts
-          bun test pkg/interpreter/web/voice-rtc.test.ts
-          bun test pkg/interpreter/web/voice-text.test.ts
-          bun test ui/components/voice-runtime-state.test.ts
-          bun test ui/components/ButtonVoice.test.ts
-      - name: Interpreter web tests
-        run: bun test pkg/interpreter/web
-      - name: Typecheck interpreter
+      - name: Verify Voice Engine V2
         shell: bash
         run: |
           set +e
-          bun --filter @metafor/interpreter typecheck > /tmp/interpreter-typecheck.log 2>&1
+          bash -c '
+            set -euo pipefail
+            bun test pkg/interpreter/web/voice-input.test.ts
+            bun test pkg/interpreter/web/voice-chunk-journal.test.ts
+            bun test pkg/interpreter/web/voice-rtc.test.ts
+            bun test pkg/interpreter/web/voice-text.test.ts
+            bun test ui/components/voice-runtime-state.test.ts
+            bun test ui/components/ButtonVoice.test.ts
+            bun test pkg/interpreter/web
+            bun --filter @metafor/interpreter typecheck
+            bunx tsc --noEmit --pretty false -p ui/components/tsconfig.json
+            bun build pkg/interpreter/web/main.ts --target=browser --outdir /tmp/metafor-interpreter-web
+            bun build ui/components/index.ts --target=browser --outdir /tmp/metafor-ui-components
+            git diff --check
+          ' > /tmp/voice-engine-v2-verify.log 2>&1
           status=$?
-          cat /tmp/interpreter-typecheck.log
+          cat /tmp/voice-engine-v2-verify.log
           if [ "$status" -ne 0 ]; then
             mkdir -p .github/voice-integration
-            tail -n 240 /tmp/interpreter-typecheck.log > .github/voice-integration/typecheck-error.txt
-            git add .github/voice-integration/typecheck-error.txt
-            git commit -m "chore: record Voice Engine V2 typecheck failure [skip ci]"
+            tail -n 300 /tmp/voice-engine-v2-verify.log > .github/voice-integration/verify-error.txt
+            git add .github/voice-integration/verify-error.txt
+            git commit -m "chore: record Voice Engine V2 verification failure [skip ci]"
             git push origin HEAD:main
             exit "$status"
           fi
-      - name: Typecheck UI components
-        run: bunx tsc --noEmit --pretty false -p ui/components/tsconfig.json
-      - name: Browser bundles
-        run: |
-          bun build pkg/interpreter/web/main.ts --target=browser --outdir /tmp/metafor-interpreter-web
-          bun build ui/components/index.ts --target=browser --outdir /tmp/metafor-ui-components
       - name: Commit verified integration
         shell: bash
         run: |
