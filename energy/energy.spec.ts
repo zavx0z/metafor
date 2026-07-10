@@ -4,7 +4,7 @@ import {mkdtemp, rm, writeFile} from "node:fs/promises"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
 import type { EnergyActionProcessDescriptor } from "@metafor/types/energy/process"
-import type { EnergyRuntimeSnapshot } from "@metafor/types/energy/catalog"
+import type {EnergyProcessEntity} from "@metafor/types/energy/catalog"
 import type { EnergyMassStore } from "@metafor/types/energy/mass"
 import type { EnergyForce } from "@metafor/types/energy/protocol"
 import type { ForceMessage } from "@metafor/types/force/message"
@@ -35,7 +35,8 @@ const processEntry = (
   },
   env: string[] = ["server"],
   descriptor: Partial<Pick<EnergyActionProcessDescriptor, "success" | "error">> = {},
-): EnergyRuntimeSnapshot["processes"][number] => ({
+): EnergyProcessEntity => ({
+  id: state === "ready" ? 101 : state.length + 101,
   wimp: "owner/process",
   state,
   descriptor: {
@@ -51,7 +52,8 @@ const finallyProcessEntry = (
   state: string,
   src: string,
   env: string[] = ["server"],
-): EnergyRuntimeSnapshot["processes"][number] => ({
+): EnergyProcessEntity => ({
+  id: state.length + 201,
   wimp: "owner/process",
   state,
   descriptor: {
@@ -62,21 +64,24 @@ const finallyProcessEntry = (
   },
 })
 
-const createCatalog = (env: string[] = ["server"]): EnergyRuntimeSnapshot => ({
-  version: 1,
+type TestCatalog = {
+  actors: Array<[number, string]>
+  processes: EnergyProcessEntity[]
+}
+
+const createCatalog = (env: string[] = ["server"]): TestCatalog => ({
   actors: [[17, "owner/process"]],
   processes: [processEntry("ready", undefined, env)],
 })
 
 const createHarness = (
   energyId = "energy-local",
-  catalog: EnergyRuntimeSnapshot = createCatalog(),
+  catalog: TestCatalog = createCatalog(),
   runtimeKind = "server",
   massStore?: EnergyMassStore,
 ) => {
   const messages: ForceMessage[] = []
   const force: EnergyForce = {
-    onCreate: () => {},
     onImpulse: () => {},
     impulse(message) {
       messages.push(structuredClone(message))
@@ -85,15 +90,34 @@ const createHarness = (
   const protocol = startEnergyProtocol({
     force,
     energyId,
-    catalog,
     runtimeKind,
     ...(massStore ? {massStore} : {}),
   })
 
+  const seed = (next: TestCatalog): void => {
+    for (const [actorId, wimp] of next.actors) {
+      void force.onImpulse({parts: [{
+        part: "graviton",
+        op: "add",
+        path: `actor/${actorId}`,
+        value: {actor: {id: actorId, parentActor: null, parentTopology: null, wimp, position: 0}, values: [], valueRecords: [], valueItems: [], state: null},
+      }]})
+    }
+    next.processes.forEach((process, index) => {
+      void force.onImpulse({parts: [{
+        part: "graviton",
+        op: "add",
+        path: `declaration/${process.wimp}/processes/${index + 1}`,
+        value: structuredClone(process),
+      }]})
+    })
+  }
+  seed(catalog)
+
   return {
     messages,
-    create(snapshot: EnergyRuntimeSnapshot) {
-      void force.onCreate(structuredClone(snapshot))
+    seed(next: TestCatalog) {
+      seed(structuredClone(next))
     },
     emit(message: ForceMessage) {
       void force.onImpulse(structuredClone(message))
@@ -178,8 +202,8 @@ describe("Energy Weak protocol", () => {
     }
   })
 
-  test("Energy receives its process catalog through Force create", async () => {
-    const harness = createHarness("energy-local", {version: 1, actors: [], processes: []})
+  test("Energy receives its process catalog through incremental graviton particles", async () => {
+    const harness = createHarness("energy-local", {actors: [], processes: []})
 
     try {
       harness.emit({
@@ -188,7 +212,7 @@ describe("Energy Weak protocol", () => {
       await sleep(10)
       expect(collectParts(harness.messages, "z", "test")).toEqual([])
 
-      harness.create(createCatalog())
+      harness.seed(createCatalog())
       harness.emit({
         parts: [{part: "photon", op: "test", path: 17, value: "ready"}],
       })
@@ -251,8 +275,7 @@ describe("Energy Weak protocol", () => {
   })
 
   test("Energy executes wrapperSrc and sends actor-addressed w+", async () => {
-    const catalog: EnergyRuntimeSnapshot = {
-      version: 1,
+    const catalog: TestCatalog = {
       actors: [[17, "owner/process"]],
       processes: [processEntry("ready", {
         src: "./actions/ready.ts",
@@ -280,8 +303,7 @@ describe("Energy Weak protocol", () => {
   })
 
   test("Energy success handler writes declared field", async () => {
-    const catalog: EnergyRuntimeSnapshot = {
-      version: 1,
+    const catalog: TestCatalog = {
       actors: [[17, "owner/process"]],
       processes: [processEntry("ready", {
         src: "./actions/ready.ts",
@@ -315,8 +337,7 @@ describe("Energy Weak protocol", () => {
   })
 
   test("Energy success handler cannot write undeclared fields", async () => {
-    const catalog: EnergyRuntimeSnapshot = {
-      version: 1,
+    const catalog: TestCatalog = {
       actors: [[17, "owner/process"]],
       processes: [processEntry("ready", {
         src: "./actions/ready.ts",
@@ -345,8 +366,7 @@ describe("Energy Weak protocol", () => {
   })
 
   test("Energy sends w- when wrapperSrc throws", async () => {
-    const catalog: EnergyRuntimeSnapshot = {
-      version: 1,
+    const catalog: TestCatalog = {
       actors: [[17, "owner/process"]],
       processes: [processEntry("ready", {
         src: "./actions/ready.ts",
@@ -371,8 +391,7 @@ describe("Energy Weak protocol", () => {
   })
 
   test("Energy error handler writes declared field", async () => {
-    const catalog: EnergyRuntimeSnapshot = {
-      version: 1,
+    const catalog: TestCatalog = {
       actors: [[17, "owner/process"]],
       processes: [processEntry("ready", {
         src: "./actions/ready.ts",
@@ -403,8 +422,7 @@ describe("Energy Weak protocol", () => {
   })
 
   test("Energy success handler throw converts to w-", async () => {
-    const catalog: EnergyRuntimeSnapshot = {
-      version: 1,
+    const catalog: TestCatalog = {
       actors: [[17, "owner/process"]],
       processes: [processEntry("ready", {
         src: "./actions/ready.ts",
@@ -434,8 +452,7 @@ describe("Energy Weak protocol", () => {
   })
 
   test("Energy error handler throw still sends w-", async () => {
-    const catalog: EnergyRuntimeSnapshot = {
-      version: 1,
+    const catalog: TestCatalog = {
       actors: [[17, "owner/process"]],
       processes: [processEntry("ready", {
         src: "./actions/ready.ts",
@@ -465,8 +482,7 @@ describe("Energy Weak protocol", () => {
   })
 
   test("Imported action receives the same params object contract", async () => {
-    const catalog: EnergyRuntimeSnapshot = {
-      version: 1,
+    const catalog: TestCatalog = {
       actors: [[17, "owner/process"]],
       processes: [processEntry("ready", {
         src: dataUrlAction(`
@@ -495,8 +511,7 @@ describe("Energy Weak protocol", () => {
   })
 
   test("Energy action value is keyed by field key, not field id", async () => {
-    const catalog: EnergyRuntimeSnapshot = {
-      version: 1,
+    const catalog: TestCatalog = {
       actors: [[17, "owner/process"]],
       processes: [processEntry("ready", {
         src: "./actions/ready.ts",
@@ -532,8 +547,7 @@ describe("Energy Weak protocol", () => {
   })
 
   test("Energy mass persists between executions for same actor and wimp", async () => {
-    const catalog: EnergyRuntimeSnapshot = {
-      version: 1,
+    const catalog: TestCatalog = {
       actors: [[17, "owner/process"]],
       processes: [
         processEntry("init", {
@@ -565,8 +579,7 @@ describe("Energy Weak protocol", () => {
 
   test("Energy executes finally before against mass and releases the actor with compact w+", async () => {
     const mass: Record<string, unknown> = {resource: "open"}
-    const catalog: EnergyRuntimeSnapshot = {
-      version: 1,
+    const catalog: TestCatalog = {
       actors: [[17, "owner/process"]],
       processes: [finallyProcessEntry(
         "done",
@@ -590,8 +603,7 @@ describe("Energy Weak protocol", () => {
   test("Energy keeps a filesystem tool payload in mass and returns only a compact W result", async () => {
     const root = await mkdtemp(join(tmpdir(), "metafor-energy-tool-"))
     const mass: Record<string, unknown> = {filesystemRoot: root}
-    const catalog: EnergyRuntimeSnapshot = {
-      version: 1,
+    const catalog: TestCatalog = {
       actors: [[17, "owner/process"]],
       processes: [processEntry("ready", {
         src: new URL("../fixture/tools/filesystem.read.ts", import.meta.url).href,

@@ -84,9 +84,13 @@ MetaFor задуман для противоположной траектори�
 - `Bulk` как проявленная объёмная композиция, наблюдаемая форма и пространственная принадлежность.
 
 `Force` связывает эти проекции единым transport-ом: Dark передаёт declaration
-через Inflaton, Boundary фиксирует current world и испускает materialized
-Graviton, Matrix передаёт process-bound state через Photon, а Energy claim-ит
-process через `z` и возвращает `w+`/`w-`.
+через поштучные Inflaton particles, Boundary фиксирует только адресованное
+изменение current world и испускает его локальные Graviton-последствия, Matrix
+передаёт process-bound state через Photon, а Energy claim-ит process через `z`
+и возвращает `w+`/`w-`. Каждый домен удерживает собственную инкрементальную
+проекцию и parent-child/dependency индексы. Одна изменённая сущность передаётся
+одним `ForceMessage` с одной `Particle`; snapshot, `type:"create"`, reset и
+полная пересборка мира запрещены также при cold start и reconnect.
 
 Это не декоративные метафоры и не главная входная загадка проекта.
 Это архитектурное следствие более длинного поиска, описанного выше, и оно формализовано в текущих документах по онтологии и архитектуре.

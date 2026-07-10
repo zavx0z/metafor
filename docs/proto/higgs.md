@@ -46,9 +46,9 @@
 
 ### Matrix
 
-- получение topology markers в самодостаточном runtime snapshot,
+- накопление topology markers в локальном runtime store,
 - применение actor-scoped `higgs` по `value.fields[fieldId]`,
-- class-scoped structural dirty signal без чтения Boundary.
+- отправка actor-scoped Higgs к Boundary для локального transaction.
 
 ### Bulk
 
@@ -104,14 +104,10 @@ Boundary.
 - `Higgs boson` меняет topology,
 - `Photon` продолжает переносить `State`,
 - `Graviton` удерживает ту рамку отношения и локализации, в которой изменение topology получает место,
-- `Matrix` применяет runtime Higgs и помечает structural projection изменённой,
-- `Bulk` проявляет полученную структурную перестройку.
+- `Boundary` фиксирует actor value и перестраивает только зависимую ветвь,
+- `Matrix` и `Bulk` применяют отдельные derived particles этой ветви.
 
 Dark не является runtime-наблюдателем этих изменений. Он читает source topology
 declaration и передаёт её через Inflaton; runtime consequences принадлежат
-самодостаточным Matrix/Bulk projections.
-
-В текущем core Matrix применяет actor-scoped Higgs и помечает structural
-projection dirty. Обратный Boundary transaction с персистентной фиксацией
-нового value и перестройкой Fuzzy/Macho branches ещё не реализован и явно
-зафиксирован в [`TODO.md`](../../TODO.md).
+локальным Boundary/Matrix/Bulk projections. Ни один topology change не даёт
+права очистить или повторно построить весь current world.

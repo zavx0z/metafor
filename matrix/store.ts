@@ -1,8 +1,8 @@
 /**
  * `matrix/store` — derived materialized runtime store Matrix.
  *
- * Заполняется в `matrix` после rebuild из `gravity$`,
- * читается слабым вычислительным слоем.
+ * Используется standalone packed-matrix API и читается слабым вычислительным
+ * слоем. Живой Force runtime хранит actor-centric projection отдельно.
  *
  * @property fields {@link MatrixStore.fields|каноническая схема полей}
  * @property stringTable {@link MatrixStore.stringTable|дедуплицированная таблица строк}

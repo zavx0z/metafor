@@ -14,7 +14,7 @@ describe("weak - тип STRING (строка) с bun-webgpu", () => {
   })
 
   afterEach(() => {
-    weak$.reset()
+    weak$.dispose()
   })
 
   describe("Оператор EQ (равно)", () => {

@@ -114,7 +114,8 @@ export interface BulkViewportController {
   setLayoutSettings(settings: Partial<BulkLayoutSettings>): void
   setRenderSettings(settings: Partial<BulkRenderSettings>): void
   setSize(width: number, height: number): void
-  applyManifest(manifest: BulkManifest): void
+  /** Applies a manifest diff while retaining all unchanged render records. */
+  applyManifestPatch(manifest: BulkManifest): void
 }
 
 export type BulkAndroidFrameSize = {

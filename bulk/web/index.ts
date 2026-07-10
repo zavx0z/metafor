@@ -108,6 +108,7 @@ import {
 	resolveBulkViewportFitPose,
 } from "../web-navigation"
 import type { BulkHoverPriorityCandidate, BulkPickTarget } from "@metafor/types/bulk/viewport"
+import {BulkSceneStore} from "../scene"
 import { isDepthLabelVisible, isDarkParticleLabelVisible } from "../label-visibility"
 import {
 	bendTextAroundEquator,
@@ -2155,6 +2156,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const darkParticleRecords = new Map<number, DarkParticleRenderRecord>()
 	const fieldParticleRecords = new Map<number, FieldParticleRenderRecord>()
+	const sceneProjection = new BulkSceneStore()
 	const fieldParticleBillboardRecords = new Map<number, FieldParticleBillboardRecord>()
 	const fadingRemovalRecords: FadingRemovalRecord[] = []
 	const labelRecords = new Map<string, LabelRenderRecord>()
@@ -2534,7 +2536,13 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			const created = createDarkParticleRecord(darkParticle)
 			darkParticleRecords.set(darkParticle.darkParticleId, created)
 			return created
-	}
+		}
+		if (
+			Object.keys(darkParticle).every((key) => Object.is(
+				existing.snapshot[key as keyof BulkDarkParticle],
+				darkParticle[key as keyof BulkDarkParticle],
+			))
+		) return existing
 
 		const previousLocalOuterRadius =
 			(existing.snapshot.torusRadius + existing.snapshot.torusTube) *
@@ -2570,7 +2578,14 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			const created = createFieldParticleRecord(field, depth)
 			fieldParticleRecords.set(field.fieldParticleId, created)
 			return created
-	}
+		}
+		if (
+			existing.depth === depth &&
+			Object.keys(field).every((key) => Object.is(
+				existing.snapshot[key as keyof BulkFieldParticle],
+				field[key as keyof BulkFieldParticle],
+			))
+		) return existing
 
 		const previousLocalRadius = existing.snapshot.sphereRadius * existing.currentTransitionScale
 		const geometryChanged =
@@ -3076,43 +3091,41 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		requestRenderLoop(INPUT_RENDER_WAKE_MS)
 	}
 
-	const applyManifestToScene = (nextManifest: BulkManifest): void => {
+	const applyManifestPatchToScene = (nextManifest: BulkManifest): void => {
 		manifest = nextManifest
-
-		const nextDarkParticleIds = new Set<number>()
-		const nextFieldParticleIds = new Set<number>()
+		const patch = sceneProjection.apply(nextManifest)
+		const changedDarkParticleIds = new Set(patch.darkParticleIds)
+		const changedFieldParticleIds = new Set(patch.fieldParticleIds)
 
 		for (const darkParticle of nextManifest.darkParticles) {
-			nextDarkParticleIds.add(darkParticle.darkParticleId)
+			if (!changedDarkParticleIds.has(darkParticle.darkParticleId)) continue
 			upsertDarkParticleRecord(darkParticle)
-	}
+		}
 
 		for (const darkParticle of nextManifest.darkParticles) {
+			if (!changedDarkParticleIds.has(darkParticle.darkParticleId)) continue
 			const record = darkParticleRecords.get(darkParticle.darkParticleId)
 			if (!record) continue
 			const parentObject = darkParticle.parentDarkParticleId
 				? darkParticleRecords.get(darkParticle.parentDarkParticleId)?.container ?? workspace
 				: workspace
-			parentObject.add(record.container)
+			if (record.container.parent !== parentObject) parentObject.add(record.container)
 	}
 
 		for (const field of nextManifest.fieldParticles) {
+			if (!changedFieldParticleIds.has(field.fieldParticleId)) continue
 			const parentDarkParticle = darkParticleRecords.get(field.parentDarkParticleId)
 			if (!parentDarkParticle) continue
-			nextFieldParticleIds.add(field.fieldParticleId)
 			const record = upsertFieldParticleRecord(field, parentDarkParticle.snapshot.depth + 1)
-			parentDarkParticle.container.add(record.node)
+			if (record.node.parent !== parentDarkParticle.container) parentDarkParticle.container.add(record.node)
 	}
 
-		for (const staleFieldParticleId of [...fieldParticleRecords.keys()]) {
-			if (!nextFieldParticleIds.has(staleFieldParticleId)) removeFieldParticleRecord(staleFieldParticleId)
-	}
+		for (const removedFieldParticleId of patch.removedFieldParticleIds) removeFieldParticleRecord(removedFieldParticleId)
 
-		for (const staleDarkParticleId of [...darkParticleRecords.values()]
-			.sort((left, right) => right.snapshot.depth - left.snapshot.depth)
-			.map((record) => record.snapshot.darkParticleId)) {
-			if (!nextDarkParticleIds.has(staleDarkParticleId)) removeDarkParticleRecord(staleDarkParticleId)
-	}
+		for (const removedDarkParticleId of patch.removedDarkParticleIds
+			.sort((left, right) => (darkParticleRecords.get(right)?.snapshot.depth ?? 0) - (darkParticleRecords.get(left)?.snapshot.depth ?? 0))) {
+			removeDarkParticleRecord(removedDarkParticleId)
+		}
 
 		refreshParentByDarkParticleId()
 		refreshPickTargets()
@@ -5075,8 +5088,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			hudRuntime.handleSize(width, height)
 			requestRenderLoop(INPUT_RENDER_WAKE_MS)
 		},
-		applyManifest(nextManifest: BulkManifest) {
-			applyManifestToScene(nextManifest)
+		applyManifestPatch(nextManifest: BulkManifest) {
+			applyManifestPatchToScene(nextManifest)
 		},
 		hud: hudRuntime,
 	}

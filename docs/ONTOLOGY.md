@@ -21,15 +21,20 @@ MetaFor различает:
 
 Текущая онтология MetaFor строится в призме голографического принципа.
 Скрытая возможность формы получает каноническую запись на Boundary, а
-проявленные runtime-миры восстанавливаются из соответствующих проекций этой
-границы.
+проявленные runtime-миры постепенно складываются в локальных проекциях доменов
+из причинного потока минимальных particles.
 
 Здесь важны три различения:
 
 1. declaration не является materialized world;
 2. граница не является только хранилищем — она фиксирует текущую действительность;
-3. проекция не является ссылкой на скрытый источник — она несёт достаточно
-   данных для своего домена.
+3. локальная проекция не является ссылкой на скрытый источник и не приходит
+   готовым снимком — домен наращивает её по одной адресованной entity и хранит
+   собственные parent-child/dependency индексы.
+
+Главный инвариант: одна изменённая сущность передаётся одним `ForceMessage` с
+одной `Particle`. Reset проекции, полная рематериализация и пересоздание
+неизменённых сущностей запрещены, в том числе при cold start и reconnect.
 
 Это не утверждение, что MetaFor буквально симулирует физическую Вселенную.
 Голографический принцип используется как архитектурный инвариант целостности,
@@ -52,7 +57,9 @@ Force не является шестым доменом. Это универса
 
 Dark — домен скрытой связности, деклараций и возможности формы.
 Он читает `meta`, нормализует WIMP/matter description, назначает local
-declaration IDs и передаёт Inflaton stream Boundary через Force.
+declaration IDs и передаёт Boundary поток отдельных Inflaton particles через
+Force. Внутренняя проекция Dark хранит declaration entities и parent-child
+индексы, необходимые для точного diff.
 
 Ключевой инвариант: Dark не имеет собственного проявленного пространства.
 В нём есть связность и её declaration, но нет actor instances текущего мира.
@@ -82,13 +89,16 @@ Boundary удерживает:
 - materialized current hierarchy.
 
 Boundary владеет runtime/materialization identity и испускает проекции только
-после атомарной фиксации.
+после атомарной фиксации. Каждый входной patch меняет одну entity, а после
+commit Boundary испускает отдельными particles только её реальные локальные
+последствия.
 
 ### Matrix
 
 Matrix — домен runtime-state, переходов, locks и actor/brane processing.
-Он получает самодостаточную проекцию current world и не является
-персистентной копией Boundary.
+Он поштучно принимает runtime entities и deltas, наращивает собственную
+проекцию actors/branes/values и поддерживает parent-child индексы. Matrix не
+является персистентной копией Boundary.
 
 Matrix проводит допустимые переходы, фиксирует process-bound state, сохраняет
 frozen fields для executor-а и принимает результаты исполнения.
@@ -96,7 +106,8 @@ frozen fields для executor-а и принимает результаты ис
 ### Energy
 
 Energy — домен исполнения процессов.
-Он получает process catalog и runtime context через Force, выбирает подходящий
+Он получает actors и process descriptors отдельными particles, поддерживает
+локальные actor/WIMP/process и parent-child индексы, выбирает подходящий
 execution runtime, исполняет action и возвращает результат.
 
 Energy владеет рабочей mass процесса. Он не является внешним tool API и не
@@ -105,8 +116,8 @@ Energy владеет рабочей mass процесса. Он не являе
 ### Bulk
 
 Bulk — домен проявления, объёма, композиции и наблюдаемой формы.
-Он получает собственную runtime-проекцию и не становится вторым canonical
-хранилищем.
+Он наращивает собственную runtime-проекцию по одной visual/runtime entity,
+хранит parent-child/layout индексы и не становится вторым canonical хранилищем.
 
 В текущей визуальной метафоре `Wimp`/`Fuzzy`/`Macho`/`Axion` могут
 проявляться как Dark Matter, а обычные fields — как полевые частицы.
@@ -142,8 +153,8 @@ topology:
 Gravity задаёт отношение, локализацию, адресуемость и структурную организацию.
 Её канал — `Graviton`.
 
-В текущем protocol Graviton исходит из Boundary и переносит materialized
-структуру current world. Dark declaration не является Graviton.
+В текущем protocol Graviton исходит из Boundary и переносит одну materialized
+entity или её локальную delta. Dark declaration не является Graviton.
 
 ### Electromagnetism
 
@@ -169,13 +180,15 @@ Topology fields изменяются через `Higgs boson`.
 
 ## Declaration particle: Inflaton
 
-`Inflaton` — частица возможности формы и declaration stream:
+`Inflaton` — частица возможности формы и одного declaration change:
 
 ```text
 Dark -> inflaton -> Force -> Boundary
 ```
 
-Он переносит `meta`/WIMP declaration с `path = meta SRC`.
+Он переносит одну declaration entity с адресом
+`<wimp src>/<section>/<local id>`; singleton sections адресуются без
+`<local id>`.
 Inflaton не является runtime actor patch, не создаёт actor и не подменяет
 Graviton.
 
@@ -188,7 +201,8 @@ states, transitions, conditions, processes, reactions, matter, serializable
 mass declaration и bulk declaration. Canonical form появляется после atomic
 Boundary commit.
 
-Declaration может приходить частями, но все части адресуются одним WIMP SRC.
+Каждая declaration entity приходит отдельным impulse. Один impulse не содержит
+целую WIMP declaration, таблицу или вложенный подграф.
 
 ### Actor / Brane
 
@@ -240,7 +254,7 @@ Dark декларирует их, Boundary канонизирует, Matrix вы
 Process — declaration исполняемого действия, привязанного к state.
 
 - Dark переносит declaration;
-- Boundary хранит canonical catalog;
+- Boundary хранит отдельные canonical process entities;
 - Matrix знает только process-bound marker и runtime lock;
 - Energy получает descriptor, исполняет action и handlers;
 - Bulk может проявлять intent и result, не исполняя action.
@@ -269,7 +283,7 @@ Matrix fields, Force particles или содержимым in-memory Energy mass
 
 Boson — тип силового канала:
 
-- Graviton — materialized structure;
+- Graviton — одно локальное изменение materialized structure;
 - Photon — state signal;
 - Gluon — ordinary field change;
 - Higgs boson — topology change;
@@ -281,6 +295,12 @@ Boson не совпадает с силой и не совпадает с сод
 
 Impulse — содержимое изменения. В сериализуемой проекции оно выражается
 `Particle` с `op`, `path`, `value` и при необходимости `from`.
+
+Один Impulse относится к одной entity. Он не является контейнером мира,
+таблицы или подграфа. Каждый домен удерживает внутренний store своей проекции и
+parent-child/dependency indices, применяя Impulse локально. Reset уничтожил бы
+причинную непрерывность и поэтому не является допустимой операцией ни для
+обычной работы, ни для cold start/reconnect.
 
 ## Идентичность
 
@@ -301,8 +321,9 @@ Runtime identity задаёт Boundary:
 - topology instance ID;
 - value ID;
 
-Отдельного публичного ID для всего materialization snapshot сейчас нет:
-current world определяется согласованным набором Boundary-owned rows.
+Отдельного публичного ID для всего мира нет: current world определяется
+согласованным набором Boundary-owned rows и причинной последовательностью
+локальных commits. Он никогда не переносится или пересоздаётся целиком.
 
 Runtime index Matrix/Bulk является локальной геометрией проекции и не
 подменяет устойчивую identity.
@@ -336,4 +357,4 @@ Boundary-проекцию и действует через Force.
 - что существует;
 - где оно существует;
 - через какую силу меняется;
-- какая самодостаточная проекция пересекает границу.
+- какая минимальная entity или delta пересекает границу.

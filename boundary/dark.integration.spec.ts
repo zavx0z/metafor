@@ -1,72 +1,51 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
-import {mkdirSync, rmSync} from "node:fs"
-import {join} from "node:path"
-import {SQL} from "bun"
 import type {ForceMessage} from "@metafor/types/force/message"
 import {createForceTestFixture, type ForceTestFixture} from "force/fixture"
 import {open, type BoundaryDatabase} from "./sqlite.ts"
 
 const ROOT = "zavx0z/linux"
 
-describe("Dark -> Inflaton -> Boundary", () => {
+describe("Dark -> Inflaton -> Boundary incremental flow", () => {
   let fixture: ForceTestFixture
   let boundary: BoundaryDatabase
-  let sql: SQL
-  let filename: string
-  let declaration: ForceMessage
+  let messages: ForceMessage[]
 
   beforeAll(async () => {
     fixture = createForceTestFixture()
     await import(`../dark/dark.ts?boundary-integration=${crypto.randomUUID()}`)
     const dark = await fixture.waitForClient("dark", 5_000)
     const fromIndex = fixture.messages.length
-    fixture.impulse(dark, {
-      parts: [{part: "inflaton", op: "test", path: ROOT}],
-    })
-    declaration = (await fixture.waitForMessage(
-      ({domain, message}) => (
-        domain === "dark" &&
-        message.parts[0]?.path === ROOT &&
-        message.parts.some((part) => part.path === "zavx0z/codex")
-      ),
+    fixture.impulse(dark, {parts: [{part: "inflaton", op: "test", path: ROOT}]})
+    await fixture.waitForMessage(
+      ({domain, message}) => domain === "dark" && message.parts[0].part === "inflaton" &&
+        message.parts[0].op === "test" && message.parts[0].path === ROOT,
       fromIndex,
       30_000,
-    )).message
-
-    mkdirSync(join(import.meta.dir, "tmp"), {recursive: true})
-    filename = join(import.meta.dir, "tmp", `dark-boundary-${crypto.randomUUID()}.sqlite`)
-    boundary = await open(filename)
-    sql = new SQL(`sqlite://${filename}`)
+    )
+    messages = fixture.messages.slice(fromIndex).filter(({domain}) => domain === "dark").map(({message}) => message)
+    boundary = await open(":memory:")
   })
 
   afterAll(async () => {
     fixture.close()
-    await sql.close()
     await boundary.close()
-    rmSync(filename, {force: true})
-    rmSync(`${filename}-shm`, {force: true})
-    rmSync(`${filename}-wal`, {force: true})
   })
 
-  test("materializes the real root-first Dark declaration stream", async () => {
-    const commit = await boundary.materialize(declaration)
-    if (!commit) throw new Error("Boundary did not accept the Dark declaration")
+  test("applies the real stream particle-by-particle without replacing the world", async () => {
+    const derived: ForceMessage[] = []
+    for (const message of messages) {
+      const commit = await boundary.materialize(message)
+      if (commit) derived.push(...commit.messages)
+    }
 
-    expect(commit.rootSrc).toBe(ROOT)
-    expect(
-      await sql<Array<{src: string}>>`
-        SELECT src FROM wimp WHERE src IN (${ROOT}, ${"zavx0z/codex"}) ORDER BY src
-      `,
-    ).toEqual([{src: "zavx0z/codex"}, {src: ROOT}])
-
-    const actors = await sql<Array<{id: number; wimp: string}>>`
-      SELECT id, wimp FROM actor ORDER BY id
-    `
-    expect(actors.map(({wimp}) => wimp)).toEqual([ROOT, "zavx0z/codex"])
-    expect(commit.graviton.parts.filter((part) => (
-      part.part === "graviton" && part.op === "add" && part.path === "actor"
-    ))).toHaveLength(2)
-    expect(commit.matrix.runtime.actorIdByBraneIndex).toEqual(actors.map(({id}) => id))
-    expect(commit.energy.actors).toEqual(actors.map(({id, wimp}) => [id, wimp]))
-  })
+    expect(messages.every((message) => message.parts.length === 1)).toBe(true)
+    expect(await boundary.projection.sql<Array<{src: string}>>`
+      SELECT src FROM wimp WHERE src IN (${ROOT}, ${"zavx0z/codex"}) ORDER BY src
+    `).toEqual([{src: "zavx0z/codex"}, {src: ROOT}])
+    expect((await boundary.projection.sql`SELECT id FROM actor WHERE wimp = ${ROOT}`).length).toBe(1)
+    expect((await boundary.projection.sql`SELECT id FROM actor WHERE wimp = ${"zavx0z/codex"}`).length).toBe(1)
+    expect(derived.every((message) => message.parts.length === 1)).toBe(true)
+    expect(derived.some((message) => message.parts[0].path === `declaration/${ROOT}/meta`)).toBe(true)
+    expect(derived.some((message) => typeof message.parts[0].path === "string" && String(message.parts[0].path).startsWith("actor/"))).toBe(true)
+  }, 30_000)
 })

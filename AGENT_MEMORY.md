@@ -42,9 +42,9 @@ MetaFor доводится как цифровая среда, в которой
 `Axion`, bindings, processes и reactions и передаёт declaration через Inflaton.
 Он не создаёт actor/topology/value instances и не открывает Boundary.
 
-`Boundary` принимает Inflaton только через Force, атомарно фиксирует canonical
-declaration, материализует current world и после commit испускает Graviton и
-самодостаточные target `create` projections для Matrix, Energy и Bulk.
+`Boundary` принимает каждый Inflaton только через Force, атомарно фиксирует
+адресованную declaration entity и после commit испускает только её реальные
+локальные последствия отдельными Graviton/Gluon/Higgs/Photon particles.
 
 ## Boundary, Коммит И Частицы Force
 
@@ -54,17 +54,20 @@ Force transport.
 
 `Matrix`, `Energy` и `Bulk` не являются репликами `Boundary`, не читают SQLite и не
 используют Boundary ORM как скрытый загрузчик. Это рантайм-слои: они получают
-самодостаточные Force/WebSocket-данные в реальном времени и ведут собственное
+адресованные Force/WebSocket-изменения в реальном времени и ведут собственное
 состояние и проекцию в рантайме.
 
-Force-сообщение называется `{ parts: Particle[] }`; смысловой канал задается
+Force-сообщение называется `{ parts: [Particle] }`; смысловой канал задается
 полем `part` внутри каждой частицы. Физический канал называется `force` и не
 должен дробиться на доменно-именованные каналы, очереди или bus-слои.
+Одна изменённая entity всегда означает один `ForceMessage` и одну `Particle`;
+`value` содержит только эту entity либо delta её изменившихся свойств.
 
-ID без данных не является достаточной междоменной проекцией. Inflaton несёт
-source declaration, Graviton — materialized structure, а target `create`
-snapshot содержит все данные, необходимые соответствующему runtime-домену без
-чтения Boundary DB.
+Каждый домен хранит собственную локальную проекцию и parent-child/dependency
+индексы. Она только наращивается и патчится обычными particles. Полный snapshot,
+`type:"create"`, reset, очистка мира и глобальная рематериализация запрещены.
+Cold start и reconnect используют тот же упорядоченный поток idempotent `add`,
+а не отдельный bootstrap-протокол.
 
 В распределенной системе нельзя возвращаться к независимому `db-sync` и
 отдельному domain `Particle`: это создает гонку сигнала против данных и делает

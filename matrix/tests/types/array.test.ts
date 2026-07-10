@@ -14,7 +14,7 @@ describe("weak - тип ARRAY (массив) с bun-webgpu", () => {
   })
 
   afterEach(() => {
-    weak$.reset()
+    weak$.dispose()
   })
 
   describe("Оператор INCLUDE (содержит элемент)", () => {

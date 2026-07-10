@@ -45,8 +45,8 @@ export interface BulkRuntimeMatterChildBindingPath extends BulkRuntimeMatterBind
   childOrder: number
 }
 
-export interface BulkRuntimeSnapshot {
-  version: 1
+/** Local Bulk projection assembled incrementally from ordinary particles. */
+export interface BulkRuntimeProjection {
   actors: ActorRecord[]
   topologies: TopologyRecord[]
   wimps: BulkRuntimeWimp[]

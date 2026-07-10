@@ -7,22 +7,16 @@
 
 - [.50] Связать Matrix photons и Bulk visual update в основном browser shell без чтения Boundary из Matrix/Bulk.
 
-## 2. Topology Runtime
-
-- [ ] Провести actor-scoped runtime `higgs` через Boundary transaction: сохранить
-  новое `enum`/`array` value, перестроить затронутые Fuzzy/Macho branches и после
-  commit выпустить Graviton и свежие target `create` projections.
-
-## 3. Source / Entanglement
+## 2. Source / Entanglement
 
 - [ ] Решить, хватает ли общего `actor_value.value` для source/entanglement.
 
-## 4. Документация DSL
+## 3. Документация DSL
 
 - [ ] Привести раздел `Reactions` к реальному API.
 - [ ] Уточнить структуру process action.
 
-## 5. Interpreter / HUD / Space
+## 4. Interpreter / HUD / Space
 - [100] Сделать MVP Browser Agent Chat для Qwen в interpreter HUD.
 - [ ] Доработать быстрые Space display tools: авто-сетка по количеству display, максимально плотный fit/приближение камеры и удобные пресеты раскладки.
 - [100] Показывать в Browser Agent Chat отдельный blocked status, когда remote chat упёрся в дневной лимит/usage quota.
@@ -38,7 +32,7 @@
 - [100] Довести voice realtime preview и reactivation: ASR/Whisper live partial во время dictation, без Vosk-текста в composer, без потери ASR chunks.
 - [100] Сделать Silero VAD authoritative для индикатора/сегментации: fresh low probability не перебивается energy fallback.
 
-## 6. Browser Agent Chat: изображения
+## 5. Browser Agent Chat: изображения
 
 - [100] MVP передаёт изображения в Qwen как текстовые пути через composer message.
 - [ ] Выбрать следующий transport для настоящего vision-ввода: Qwen API или headed browser upload.

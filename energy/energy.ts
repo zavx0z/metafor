@@ -2,12 +2,12 @@ import {existsSync} from "node:fs"
 import {dirname, isAbsolute, resolve} from "node:path"
 import {pathToFileURL} from "node:url"
 import type { EnergyHandlerDescriptor, EnergyProcessDescriptor } from "@metafor/types/energy/process"
-import type { EnergyRuntimeSnapshot } from "@metafor/types/energy/catalog"
 import type { EnergyMassContext, EnergyMassStore } from "@metafor/types/energy/mass"
 import type { EnergyProtocol, EnergyProtocolOptions } from "@metafor/types/energy/protocol"
 import type { EnergyActionParams, PendingEnergyProcess } from "@metafor/types/energy/runtime"
 import type { ForceMessage } from "@metafor/types/force/message"
 import {Force} from "force"
+import {EnergyCatalogStore} from "./catalog.ts"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -20,8 +20,6 @@ const readEnergyId = (): string =>
 
 const readRuntimeKind = (): string =>
   Bun.env.ENERGY_RUNTIME_KIND?.trim() || "server"
-
-const descriptorKey = (wimp: string, state: string): string => `${wimp}\0${state}`
 
 export function createInMemoryEnergyMassStore(): EnergyMassStore {
   const masses = new Map<string, Record<string, unknown>>()
@@ -172,41 +170,33 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
   const runtimeKind = options.runtimeKind ?? readRuntimeKind()
   const ownsMassStore = options.massStore === undefined
   const massStore = options.massStore ?? createInMemoryEnergyMassStore()
-  const actorWimpById = new Map<number, string>()
-  const descriptorByWimpState = new Map<string, EnergyProcessDescriptor>()
+  const catalog = new EnergyCatalogStore()
   const pendingByActorId = new Map<number, PendingEnergyProcess>()
   const runningActorIds = new Set<number>()
 
-  const loadCatalog = (catalog: EnergyRuntimeSnapshot): void => {
-    actorWimpById.clear()
-    descriptorByWimpState.clear()
-    pendingByActorId.clear()
-    for (const [actorId, wimp] of catalog.actors) actorWimpById.set(actorId, wimp)
-    for (const process of catalog.processes) {
-      descriptorByWimpState.set(descriptorKey(process.wimp, process.state), process.descriptor)
-    }
-  }
-
-  if (options.catalog) loadCatalog(options.catalog)
-
-  force.onCreate = (snapshot) => {
-    if (!isRecord(snapshot) || snapshot.version !== 1 || !Array.isArray(snapshot.actors) || !Array.isArray(snapshot.processes)) {
+  force.onImpulse = (message: ForceMessage) => {
+    const part = message.parts[0]
+    if (part.part === "graviton") {
+      const change = catalog.apply(part)
+      for (const actorId of change.affectedActorIds) {
+        const pending = pendingByActorId.get(actorId)
+        if (!pending) continue
+        const actorWimp = catalog.actorWimp(actorId)
+        const process = actorWimp && catalog.process(actorWimp, pending.state)
+        if (!process || process.descriptor !== pending.descriptor) pendingByActorId.delete(actorId)
+      }
       return
     }
-    loadCatalog(snapshot as unknown as EnergyRuntimeSnapshot)
-  }
-
-  force.onImpulse = (message: ForceMessage) => {
-    for (const part of message.parts) {
-      switch (part.part) {
+    switch (part.part) {
         case "photon": {
           if (part.op !== "test") break
           const actorId = parseActorIdPath(part.path)
           if (actorId === null) break
           if (typeof part.value !== "string") break
-          const wimp = actorWimpById.get(actorId)
+          const wimp = catalog.actorWimp(actorId)
           if (wimp === undefined) break
-          const descriptor = descriptorByWimpState.get(descriptorKey(wimp, part.value))
+          const process = catalog.process(wimp, part.value)
+          const descriptor = process?.descriptor
           if (!descriptor || !canExecuteInRuntime(descriptor, runtimeKind)) break
 
           pendingByActorId.set(actorId, {actorId, wimp, state: part.value, descriptor})
@@ -308,7 +298,6 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
               })
           break
         }
-      }
     }
   }
 
@@ -317,9 +306,6 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
       pendingByActorId.clear()
       runningActorIds.clear()
       if (ownsMassStore) massStore.clear?.()
-      actorWimpById.clear()
-      descriptorByWimpState.clear()
-      force.onCreate = () => {}
       force.onImpulse = () => {}
     },
   }

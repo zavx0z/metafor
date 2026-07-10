@@ -39,7 +39,7 @@ export interface WeakStore {
   matrix$: MatrixStore | null
   stateMetaStateIdsByBraneIndex: number[][]
   stateHasProcessByBraneIndex: boolean[][]
-  reset(): void
+  dispose(): void
 }
 
 export interface WeakStateExport {

@@ -11,7 +11,7 @@ export const weak$: WeakStore = {
   stateMetaStateIdsByBraneIndex: [],
   stateHasProcessByBraneIndex: [],
 
-  reset() {
+  dispose() {
     if (this.runtime) {
       this.runtime.clear()
     }

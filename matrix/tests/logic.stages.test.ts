@@ -14,7 +14,7 @@ describe("weak — Логические стадии (bun-webgpu)", () => {
   })
 
   afterEach(() => {
-    weak$.reset()
+    weak$.dispose()
   })
 
   describe("Оператор IN (Списки)", () => {

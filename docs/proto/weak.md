@@ -23,8 +23,9 @@ process declaration вместе с:
 - success/error read/write fields;
 - finally/before handler.
 
-Energy target `create` catalog проецирует action descriptors с success/error
-handlers и finally descriptor с `before`. Для finally Energy выполняет
+Boundary передаёт каждый process descriptor отдельным declaration Graviton.
+Energy инкрементально индексирует descriptors с success/error handlers и
+finally descriptor с `before`. Для finally Energy выполняет
 `before({mass})` и возвращает `w+` с пустым write-set либо `w-` с ошибкой.
 Matrix не получает ни один из этих descriptors.
 
@@ -61,8 +62,8 @@ Matrix -> apply result, unlock, continue
 {part: "photon", op: "test", path: 17, value: "ready"}
 ```
 
-Matrix snapshot знает только process-bound marker по state. Process ID и
-descriptor в Matrix не передаются.
+Matrix store знает только process-bound marker по state. Process descriptor в
+Matrix не передаётся.
 
 ### Claim через Z
 
@@ -90,13 +91,13 @@ Matrix принимает первого подходящего исполнит
 
 ### Execution и W
 
-Energy исполняет cached descriptor. Action получает:
+Energy исполняет descriptor из своего локального store. Action получает:
 
 ```ts
 {field, value, mass, self}
 ```
 
-`value` адресован field keys, хотя Force snapshot адресует fields по
+`value` адресован field keys, хотя Force runtime particles адресуют fields по
 `fieldId`. `mass` принадлежит Energy и не переносится в Matrix.
 
 Успех:
@@ -153,9 +154,9 @@ Weak частицы несут только управляющий резуль�
 
 ### Boundary
 
-- canonical process catalog;
+- отдельные canonical process entities;
 - state/process binding;
-- self-contained Energy projection.
+- поштучные actor/process consequences после commit.
 
 ### Matrix
 
@@ -166,7 +167,8 @@ Weak частицы несут только управляющий резуль�
 
 ### Energy
 
-- catalog cache;
+- инкрементальный actor/process store;
+- actor/WIMP/process и parent-child индексы;
 - env check;
 - `z test`;
 - action/handler execution;

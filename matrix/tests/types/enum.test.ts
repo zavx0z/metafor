@@ -14,7 +14,7 @@ describe("weak - тип UINT (enum) с bun-webgpu", () => {
   })
 
   afterEach(() => {
-    weak$.reset()
+    weak$.dispose()
   })
 
   describe("Прямое значение enum", () => {

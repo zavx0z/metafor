@@ -5,22 +5,23 @@
 Этот пакет не является прежним runtime-state слоем: этот слой уже называется
 `Matrix`. Energy не читает `Boundary`/SQLite и не держит Matrix store.
 
-Текущий этап создаёт Force pipeline с самостоятельным запуском `energy/server.ts`:
+Energy ведёт собственный инкрементальный store и запускается самостоятельно
+через `energy/server.ts`:
 
-- Boundary формирует самодостаточный process catalog и доставляет его Energy
-  через адресованный Force `create`;
-- catalog содержит actor/wimp mapping и process descriptors по `wimp + state`;
+- Boundary доставляет actor и каждый process descriptor отдельным Graviton;
+- store содержит actor/wimp mapping, process descriptors по `wimp + state` и
+  parent-child/dependency индексы;
 - `energy/energy.ts` создаёт `Force("energy")` и получает обычные `{parts}` через
   тот же WebSocket transport, что и остальные домены;
 - `photon/replace` от Matrix игнорируется как обычный state;
 - `photon/test` от Matrix означает process-bound state;
-- Energy ищет descriptor в catalog, проверяет env и отвечает через `z test` с
+- Energy ищет descriptor в store, проверяет env и отвечает через `z test` с
   `value.energy` только при совпадении;
-- Matrix выбирает первого валидного Energy и отдаёт frozen snapshot через
+- Matrix выбирает первого валидного Energy и отдаёт frozen fields через
   `z copy` с `from = Energy id`;
 - `z copy.value` содержит только `fields`, без `process`;
 - Energy принимает только `z copy`, где `from` совпадает с его `ENERGY_ID`;
-- Energy исполняет cached process descriptor через `wrapperSrc` или dynamic
+- Energy исполняет process descriptor из своего store через `wrapperSrc` или dynamic
   import action и публикует actor-addressed `w+` / `w-`;
 - action success запускает success handler, если он есть; action throw запускает
   error handler, если он есть;
@@ -29,6 +30,14 @@
   `error.writeFields`;
 - `energy/server.ts` поднимает только домен Energy и health endpoint на `4005`;
   bridge protocol и прямого доступа к Boundary нет.
+
+Каждое actor/process изменение приходит отдельным `ForceMessage` с одной
+`Particle`; `replace` содержит только delta адресованной entity. Energy не
+принимает aggregate catalog и не использует reset.
+
+Replay после cold start/reconnect состоит из обычных actor/process `add`.
+Повторный add upsert-ит ту же identity. Energy не очищает store, pending
+processes или unrelated mass при изменении другой entity.
 
 Каноническое завершение процесса для Matrix — это Force `w+` или `w-` с
 `path = actor ID` и `value.fields[fieldId]`. Если success/error handler

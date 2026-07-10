@@ -14,7 +14,7 @@ describe("weak - тип FLOAT (число) с bun-webgpu", () => {
   })
 
   afterEach(() => {
-    weak$.reset()
+    weak$.dispose()
   })
 
   describe("Оператор EQ (равно)", () => {

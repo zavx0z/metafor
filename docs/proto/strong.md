@@ -10,7 +10,7 @@
 Он изменяет значения обычных `Field`, не разрушая связность формы.
 
 `Gluon` описывает силовой механизм такого runtime-изменения, но не подменяет
-каноническую фиксацию declaration и initial materialization в Boundary.
+каноническую фиксацию declaration и локальную materialization в Boundary.
 
 ## Чтение по доменам
 
@@ -24,13 +24,13 @@
 ### Boundary
 
 - canonical field declaration и defaults;
-- initial materialized actor values;
+- materialized actor values, изменяемые локальными patches;
 - устойчивое представление value records на границе;
-- self-contained runtime projections после commit.
+- один derived runtime particle после commit каждого значения.
 
 ### Matrix
 
-- получение compact values из `MatrixRuntimeSnapshot`;
+- накопление compact values в локальном Matrix store;
 - применение actor-scoped `gluon` по `value.fields[fieldId]`;
 - вычисление переходов после изменения обычного field;
 - отсутствие прямого чтения Boundary.

@@ -32,9 +32,11 @@
 - нити связности между частицами,
 - историческую непрерывность скрытой организации.
 
-В текущем ядре это представлено source declaration stream, а не отдельной Dark
-database с materialized actors. Историческая непрерывность должна выражаться
-через явные declarations и их будущую эволюцию, а не через скрытый runtime store.
+В текущем ядре это представлено потоком отдельных declaration particles и
+внутренним Dark store декларации, который нужен для точного diff и parent-child
+индексов. Этот store не является Boundary database и не содержит materialized
+actors: он удерживает только локальную проекцию Dark и причинную непрерывность
+изменений.
 
 Ключевой инвариант: **`Dark` не имеет пространства**.
 В `Dark` нет «сцены размещения» в смысле объёма; есть только связность и её правила.
@@ -89,13 +91,15 @@ DSL выполняет локальную нормализацию описан�
 ### Dark
 
 `Dark` читает нормализованные локальные описания, назначает deterministic local
-declaration IDs и отправляет один Inflaton stream. Он не хранит current world,
-не создаёт actors и не выполняет каноникализацию Boundary.
+declaration IDs и отправляет отдельный Inflaton impulse для каждой изменённой
+entity. Он хранит declaration projection для diff, но не current materialized
+world, не создаёт actors и не выполняет каноникализацию Boundary.
 
 ## Адресация
 
-Force адресует declaration целиком через `inflaton.path = WIMP SRC`. Внутри
-именованных sections Dark использует положительные local numbers.
+Force адресует одну declaration entity путём `WIMP SRC/section/localId`; для
+singleton sections используется `WIMP SRC/section`. Dark использует
+положительные local numbers внутри именованных sections.
 
 Declaration identity имеет форму:
 
@@ -140,5 +144,10 @@ Boundary во время materialization.
 8. `Axion` — динамическая логическая связность.
 9. `matter` в `meta` описывает локальную скрытую связность текущей `meta` относительно других `meta`; в чтении `Dark` это проявляется через другие `Wimp`.
 10. `Boundary` — граница уплощения и слой отпечатка; `Bulk` — объёмное проявление и пространственная принадлежность.
-11. Declaration address — WIMP SRC, identity — WIMP SRC + local number в table context.
+11. Declaration entity address — WIMP SRC + section + local number; identity —
+    WIMP SRC + local number в table context.
 12. Runtime/materialization identity создаёт Boundary, не Dark.
+13. Каждый домен хранит локальные parent-child индексы и патчит только
+    адресованную ветвь.
+14. Полный reset/rebuild topology запрещён; replay состоит из обычных
+    idempotent particles.

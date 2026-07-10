@@ -2,23 +2,66 @@ import ".."
 import type {MatterEdgeSlot, MatterParticle} from "@metafor/types/metafor/matter"
 import type {MetaDSL} from "@metafor/types/metafor/schema"
 import type {Particle} from "@metafor/types/force/particle"
+import {parseForceReplayPath} from "@metafor/types/force/replay"
 import {Force} from "force"
 import {loadMeta} from "./load.ts"
 
-const force = new Force("dark")
+type MetaLoader = (src: string) => Promise<MetaDSL>
 
-force.onImpulse = async (impulse) => {
-  for (const part of impulse.parts) {
-    if (part.part === "inflaton" && part.op === "test" && typeof part.path === "string") {
-      await matter(part.path)
-    }
-  }
+type DeclarationEntity = {
+  path: string
+  section: string
+  value: unknown
 }
+
+type WimpProjection = {
+  entities: DeclarationEntity[]
+  children: string[]
+}
+
+const force = new Force("dark")
+const projection = new Map<string, WimpProjection>()
+const roots = new Set<string>()
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
-const declaration = (src: string, dsl: MetaDSL): {parts: Particle[]; children: string[]} => {
+const jsonValue = (value: unknown): unknown => {
+  const json = JSON.stringify(value ?? null)
+  if (json === undefined) return null
+  return JSON.parse(json) as unknown
+}
+
+const equal = (left: unknown, right: unknown): boolean => {
+  if (Object.is(left, right)) return true
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) && Array.isArray(right) && left.length === right.length &&
+      left.every((item, index) => equal(item, right[index]))
+  }
+  if (!isRecord(left) || !isRecord(right)) return false
+  const leftKeys = Object.keys(left)
+  const rightKeys = Object.keys(right)
+  return leftKeys.length === rightKeys.length &&
+    leftKeys.every((key) => Object.hasOwn(right, key) && equal(left[key], right[key]))
+}
+
+const changedProperties = (previous: unknown, next: unknown): unknown => {
+  if (!isRecord(previous) || !isRecord(next)) return next
+  const changed: Record<string, unknown> = {}
+  for (const key of new Set([...Object.keys(previous), ...Object.keys(next)])) {
+    if (!Object.hasOwn(next, key)) changed[key] = null
+    else if (!Object.hasOwn(previous, key) || !equal(previous[key], next[key])) changed[key] = next[key]
+  }
+  return changed
+}
+
+const entity = (src: string, section: string, value: unknown, id?: string): DeclarationEntity => ({
+  path: id === undefined ? `${src}/${section}` : `${src}/${section}/${id}`,
+  section,
+  value: jsonValue(value),
+})
+
+const declaration = (src: string, dsl: MetaDSL): WimpProjection => {
   const fields: Record<string, Record<string, unknown>> = {}
   const variants: Record<string, Record<string, unknown>> = {}
   const states: Record<string, Record<string, unknown>> = {}
@@ -103,9 +146,9 @@ const declaration = (src: string, dsl: MetaDSL): {parts: Particle[]; children: s
       key: process.key,
       type: processDeclaration.type,
       env: [...(processDeclaration.env ?? [])],
+      label: processDeclaration.label ?? null,
+      desc: processDeclaration.desc ?? null,
     }
-    if (processDeclaration.label !== undefined) record.label = processDeclaration.label
-    if (processDeclaration.desc !== undefined) record.desc = processDeclaration.desc
 
     if (processDeclaration.type === "finally") {
       const {read, ...before} = processDeclaration.before
@@ -119,6 +162,8 @@ const declaration = (src: string, dsl: MetaDSL): {parts: Particle[]; children: s
         ...action,
         read: fieldReferences(actionRead, `Process "${process.key}" action`),
       }
+      record.success = null
+      record.error = null
       if (processDeclaration.success) {
         const {read, write, ...handler} = processDeclaration.success
         record.success = {
@@ -186,45 +231,172 @@ const declaration = (src: string, dsl: MetaDSL): {parts: Particle[]; children: s
     addMatter(dsl.matter![index]!, null, "root", index)
   }
 
-  const parts: Particle[] = [
-    {
+  const entities = [entity(src, "meta", {name: dsl.name, desc: dsl.desc ?? null})]
+  for (const [section, records] of [
+    ["fields", fields],
+    ["variants", variants],
+    ["states", states],
+    ["transitions", transitions],
+    ["conditions", conditions],
+    ["processes", processes],
+    ["reactions", reactions],
+    ["matter", matter],
+  ] as const) {
+    for (const [id, value] of Object.entries(records)) entities.push(entity(src, section, value, id))
+  }
+  if (dsl.mass !== undefined) entities.push(entity(src, "mass", dsl.mass))
+  if (dsl.bulk !== undefined) entities.push(entity(src, "bulk", dsl.bulk))
+
+  return {entities, children}
+}
+
+const emit = (particle: Particle): void => force.impulse({parts: [particle]})
+
+const add = (item: DeclarationEntity): Particle => ({
+  part: "inflaton",
+  op: "add",
+  path: item.path,
+  value: item.value,
+})
+
+const remove = (item: DeclarationEntity): Particle => ({
+  part: "inflaton",
+  op: "remove",
+  path: item.path,
+})
+
+const emitChanges = (
+  previous: WimpProjection | undefined,
+  next: WimpProjection,
+  section: "matter" | "declaration",
+): void => {
+  const matches = (item: DeclarationEntity): boolean =>
+    section === "matter" ? item.section === "matter" : item.section !== "matter"
+  const previousByPath = new Map(previous?.entities.map((item) => [item.path, item]))
+  const nextPaths = new Set(next.entities.map((item) => item.path))
+
+  if (previous) {
+    for (const item of previous.entities.toReversed()) {
+      if (matches(item) && !nextPaths.has(item.path)) emit(remove(item))
+    }
+  }
+
+  for (const item of next.entities) {
+    if (!matches(item)) continue
+    const current = previousByPath.get(item.path)
+    if (!current) {
+      emit(add(item))
+      continue
+    }
+    if (equal(current.value, item.value)) continue
+    emit({
       part: "inflaton",
       op: "replace",
-      path: src,
-      value: {meta: {name: dsl.name, desc: dsl.desc ?? null}},
-    },
-    {part: "inflaton", op: "replace", path: src, value: {fields}},
-    {part: "inflaton", op: "replace", path: src, value: {variants}},
-    {part: "inflaton", op: "replace", path: src, value: {states}},
-    {part: "inflaton", op: "replace", path: src, value: {transitions}},
-    {part: "inflaton", op: "replace", path: src, value: {conditions}},
-    {part: "inflaton", op: "replace", path: src, value: {processes}},
-    {part: "inflaton", op: "replace", path: src, value: {reactions}},
-    {part: "inflaton", op: "replace", path: src, value: {matter}},
-    {part: "inflaton", op: "replace", path: src, value: {mass: dsl.mass ?? null}},
-    {part: "inflaton", op: "replace", path: src, value: {bulk: dsl.bulk ?? null}},
-  ]
+      path: item.path,
+      value: changedProperties(current.value, item.value),
+    })
+  }
+}
 
-  return {parts, children}
+const projectionOrder = (store: Map<string, WimpProjection>, includeUnreachable = true): string[] => {
+  const seen = new Set<string>()
+  const order: string[] = []
+  const visit = (src: string): void => {
+    if (seen.has(src)) return
+    const current = store.get(src)
+    if (!current) return
+    seen.add(src)
+    order.push(src)
+    for (const child of current.children) visit(child)
+  }
+  for (const root of roots) visit(root)
+  if (includeUnreachable) for (const src of store.keys()) visit(src)
+  return order
 }
 
 /**
- * Читает root meta и все явно представленные в её matter-графе дочерние WIMP,
- * затем отправляет их declaration stream одним атомарным Force-сообщением.
+ * Reads a root declaration into Dark's local projection and emits only the
+ * declaration entities that changed since the previous read.
  */
-export async function matter(src: string): Promise<void> {
-  const seen = new Set<string>()
-  const parts: Particle[] = []
+export async function matter(src: string, readMeta: MetaLoader = loadMeta): Promise<void> {
+  const next = new Map<string, WimpProjection>()
+  const order: string[] = []
 
   const read = async (address: string): Promise<void> => {
-    if (seen.has(address)) return
-    seen.add(address)
-
-    const result = declaration(address, await loadMeta(address))
-    parts.push(...result.parts)
+    if (next.has(address)) return
+    const result = declaration(address, await readMeta(address))
+    next.set(address, result)
+    order.push(address)
     for (const child of result.children) await read(child)
   }
 
   await read(src)
-  force.impulse({parts})
+  const target = new Map(projection)
+  for (const [address, current] of next) target.set(address, current)
+  roots.add(src)
+  const retained = new Set(projectionOrder(target, false))
+  const previousOrder = projectionOrder(projection)
+
+  // Referenced WIMP declarations must exist before any matter edge points at them.
+  for (const address of order) {
+    const current = next.get(address)!
+    emitChanges(projection.get(address), current, "declaration")
+  }
+  for (const address of order) {
+    const current = next.get(address)!
+    emitChanges(projection.get(address), current, "matter")
+  }
+
+  // Detach every outgoing edge before deleting an unreachable WIMP declaration.
+  for (const address of previousOrder) {
+    if (retained.has(address)) continue
+    const previous = projection.get(address)
+    if (!previous) continue
+    for (const item of previous.entities.toReversed()) {
+      if (item.section === "matter") emit(remove(item))
+    }
+  }
+  for (const address of previousOrder.toReversed()) {
+    if (retained.has(address)) continue
+    const previous = projection.get(address)
+    if (!previous) continue
+    for (const item of previous.entities.toReversed()) {
+      if (item.section !== "matter") emit(remove(item))
+    }
+  }
+
+  for (const address of previousOrder) if (!retained.has(address)) projection.delete(address)
+  for (const [address, current] of next) projection.set(address, current)
+  emit({part: "inflaton", op: "test", path: src})
+}
+
+const replay = (): void => {
+  const order = projectionOrder(projection, false)
+  for (const src of order) {
+    const current = projection.get(src)
+    if (!current) continue
+    for (const item of current.entities) {
+      if (item.section !== "matter") emit(add(item))
+    }
+  }
+  for (const src of order) {
+    const current = projection.get(src)
+    if (!current) continue
+    for (const item of current.entities) {
+      if (item.section === "matter") emit(add(item))
+    }
+  }
+  for (const root of roots) emit({part: "inflaton", op: "test", path: root})
+}
+
+force.onImpulse = async (impulse) => {
+  for (const part of impulse.parts) {
+    if (part.part === "inflaton" && part.op === "test" && typeof part.path === "string") {
+      await matter(part.path)
+      continue
+    }
+    if (part.part !== "z" || part.op !== "test") continue
+    const request = parseForceReplayPath(part.path)
+    if (request?.domain === "boundary") replay()
+  }
 }

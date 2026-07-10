@@ -1,11 +1,10 @@
 import {describe, expect, test} from "bun:test"
-import type { BulkRuntimeSnapshot } from "@metafor/types/bulk/runtime"
+import type { BulkRuntimeProjection } from "@metafor/types/bulk/runtime"
 import {buildBoundaryBulkManifest} from "./world.ts"
 
 const SRC = "zavx0z/linux"
 
-const createSnapshot = (): BulkRuntimeSnapshot => ({
-	version: 1,
+const createProjection = (): BulkRuntimeProjection => ({
 	actors: [
 		{id: 17, parentActor: null, parentTopology: null, wimp: SRC, position: 0},
 	],
@@ -25,7 +24,7 @@ const createSnapshot = (): BulkRuntimeSnapshot => ({
 
 describe("bulk мост Boundary -> Bulk manifest", () => {
 	test("передаёт Boundary field ID отдельно от Bulk field particle ID", () => {
-		const manifest = buildBoundaryBulkManifest(createSnapshot(), SRC)
+		const manifest = buildBoundaryBulkManifest(createProjection(), SRC)
 		const fieldParticle = manifest.fieldParticles[0]
 
 		expect(fieldParticle).toBeDefined()

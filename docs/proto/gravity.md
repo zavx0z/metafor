@@ -17,10 +17,11 @@ Source/meta declaration переносится отдельно через `Infl
 
 ```text
 Dark -> inflaton -> Force -> Boundary declaration/materialization
-Boundary -> graviton + target create -> Force -> Matrix / Energy / Bulk
+Boundary -> one local graviton consequence -> Force -> Matrix / Energy / Bulk
 ```
 
-Inflaton и Graviton не являются двумя именами одного snapshot.
+Inflaton и Graviton не являются двумя именами одной проекции. Каждый переносит
+изменение одной entity на своей стороне Boundary.
 
 ## Чтение по доменам
 
@@ -36,11 +37,11 @@ Inflaton и Graviton не являются двумя именами одног�
 - canonical current world,
 - создание actor/topology/value identity,
 - адресуемая materialized hierarchy,
-- испускание Graviton и самодостаточных runtime projections после commit.
+- испускание поштучных Graviton consequences после commit.
 
 ### Matrix
 
-- runtime actor/brane addressing из самодостаточного snapshot,
+- инкрементальный actor/brane store с parent-child индексами,
 - локализация state transition без чтения Boundary.
 
 ### Bulk
@@ -57,4 +58,4 @@ Inflaton и Graviton не являются двумя именами одног�
 - `Gravity` не изменяет поля topology; это делает `Higgs boson`.
 - `Gravity` не проводит переход между состояниями; это делает `Weak` через `W boson` и `Z boson`.
 - `Gravity` задаёт рамку отношения и локализации, в которой остальные изменения получают место, адресуемость и структурную согласованность.
-- ID без materialized данных не является достаточной runtime-проекцией Gravity.
+- replay одной identity является idempotent add, а не новым runtime instance.

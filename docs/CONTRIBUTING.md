@@ -19,7 +19,15 @@ MetaFor пока находится в стадии архитектурного
 
 - Не превращайте домены в прямые зависимости времени исполнения друг от друга.
 - Рассматривайте `Dark`, `Boundary`, `Matrix`, `Energy` и `Bulk` как изолированные доменные проекции, связанные одним Force transport.
-- Dark передаёт Boundary только Inflaton declaration stream; ни Dark, ни Matrix, ни Energy, ни Bulk не читают Boundary/SQLite напрямую.
+- Каждый домен поддерживает внутренний store своей локальной проекции и
+  parent-child/dependency индексы.
+- Dark передаёт Boundary поток отдельных Inflaton particles; ни Dark, ни Matrix,
+  ни Energy, ни Bulk не читают Boundary/SQLite напрямую.
+- Одна изменённая entity передаётся одним `ForceMessage` с одной `Particle`;
+  `value` содержит только эту entity или delta её изменившихся свойств.
+- Cold start и reconnect используют replay обычных particles. Snapshot,
+  `type:"create"`, reset, полная рематериализация и пересоздание неизменённых
+  сущностей запрещены.
 - Относительные импорты между доменами могут быть допустимы в тестах, но не как сокращение для production-кода.
 
 ## Проверка

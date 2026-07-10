@@ -1,11 +1,16 @@
 import type { EnergyProcessDescriptor } from "./process.ts"
 
-export interface EnergyRuntimeSnapshot {
-  version: 1
-  actors: Array<[actorId: number, wimp: string]>
-  processes: Array<{
-    wimp: string
-    state: string
-    descriptor: EnergyProcessDescriptor
-  }>
+export interface EnergyActorEntity {
+  id: number
+  parentActor: number | null
+  parentTopology: number | null
+  wimp: string
+  position: number
+}
+
+export interface EnergyProcessEntity {
+  id: number
+  wimp: string
+  state: string
+  descriptor: EnergyProcessDescriptor
 }

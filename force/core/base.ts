@@ -16,9 +16,9 @@ import type {ForceMessage} from "@metafor/types/force/message"
  *
  * 1. `new Force(domain)` создает доменный transport instance.
  * 2. Runtime регистрирует соединение как `domain/id`.
- * 3. Служебный payload `{type: "create", snapshot}` вызывает
- *    `onCreate(snapshot)`.
- * 4. Чистый ForceMessage `{parts: [...]}` вызывает `onImpulse(message)`.
+ * 3. После регистрации runtime отправляет обычный `z/test` replay marker.
+ * 4. Каждый чистый ForceMessage `{parts: [particle]}` вызывает
+ *    `onImpulse(message)`.
  * 5. Закрытие runtime transport-а вызывает `onDestroy`, если adapter
  *    поддерживает такой lifecycle.
  *
@@ -26,15 +26,16 @@ import type {ForceMessage} from "@metafor/types/force/message"
  *
  * Обязательные сообщения transport-а:
  *
- * - `{type: "create", snapshot}` - bootstrap/create payload;
- * - `{parts: [...]}` - чистый ForceMessage без transport metadata.
+ * - `{type: "register", domain, id}` - единственный служебный payload;
+ * - `{parts: [particle]}` - чистый одночастичный ForceMessage.
  *
  * ## Гарантии порядка
  *
- * - `onImpulse` не вызывается до завершения активного `onCreate`;
  * - импульсы передаются в порядке получения transport-ом;
+ * - reconnect не очищает локальную проекцию домена;
+ * - cold start запрашивает replay обычным particle-потоком, без snapshot;
  * - `onDestroy` не является публичным close API;
- * - публичный surface: `domain`, `id`, `onCreate`, `onImpulse`, `onDestroy`,
+ * - публичный surface: `domain`, `id`, `onImpulse`, `onDestroy`,
  *   `impulse()`.
  */
 export abstract class ForceBase {
@@ -44,18 +45,12 @@ export abstract class ForceBase {
   /** Runtime-local идентификатор соединения, формируется adapter-ом. */
   abstract readonly id: string
 
-  /**
-   * Handler bootstrap/create payload-а. Пока он выполняется, входящие
-   * ForceMessage должны ждать и не попадать в `onImpulse`.
-   */
-  abstract onCreate: (snapshot: any) => void | Promise<void>
-
-  /** Handler входящего чистого ForceMessage `{parts: [...]}`. */
+  /** Handler входящего чистого ForceMessage `{parts: [particle]}`. */
   abstract onImpulse: (impulse: ForceMessage) => void | Promise<void>
 
   /** Handler завершения transport lifecycle для cleanup ресурсов домена. */
   abstract onDestroy?: () => void | Promise<void>
 
-  /** Отправляет control payload или чистый ForceMessage в transport. */
-  abstract impulse(message: unknown): void
+  /** Отправляет один чистый ForceMessage в transport. */
+  abstract impulse(message: ForceMessage): void
 }

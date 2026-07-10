@@ -9,7 +9,6 @@ export interface MatrixStrongStore {
   runtimeFieldIndexByActorFieldId: Map<string, number>
   actorFieldIdsByRuntimeFieldIndex: Array<Array<[actorId: number, fieldId: number]>>
   topologyActorFieldIds: Set<string>
-  reset(): void
 }
 
 export interface StringInterner {

@@ -5,18 +5,7 @@ import {BoundaryWimpSqlite} from "@boundary/wimp/sqlite"
 import {BoundaryActorSqlite} from "@boundary/actor/sqlite"
 import {BoundaryTopologySqlite} from "@boundary/topology/sqlite"
 import type {ForceMessage} from "@metafor/types/force/message"
-import {bulkRuntime} from "./runtime/bulk.ts"
-import {matrixRuntime} from "./runtime/matrix.ts"
-import {energyRuntime} from "./runtime/energy.ts"
-import {applyInflaton, migrateDeclarationIds} from "./inflaton.ts"
-
-export interface BoundaryMaterialization {
-  rootSrc: string
-  graviton: ForceMessage
-  matrix: Awaited<ReturnType<typeof matrixRuntime>>
-  energy: Awaited<ReturnType<typeof energyRuntime>>
-  bulk: Awaited<ReturnType<typeof bulkRuntime>>
-}
+import {BoundaryIncrementalStore, type BoundaryIncrementalCommit} from "./incremental.ts"
 
 export const open = async (filename?: string) => {
   const fileBacked = filename !== undefined && filename !== ":memory:"
@@ -34,21 +23,12 @@ export const open = async (filename?: string) => {
   const topology = await BoundaryTopologySqlite.open(sql)
   const actor = await BoundaryActorSqlite.open(sql)
   const wimp = await BoundaryWimpSqlite.open(sql)
-  await migrateDeclarationIds(sql)
+  const projection = new BoundaryIncrementalStore(sql)
+  await projection.init()
   let absorbQueue: Promise<unknown> = Promise.resolve()
 
-  const materialize = (message: ForceMessage): Promise<BoundaryMaterialization | null> => {
-    const task = absorbQueue.then(async () => {
-      const inflaton = await sql.begin((tx) => applyInflaton(tx, message))
-      if (!inflaton) return null
-      return {
-        rootSrc: inflaton.rootSrc,
-        graviton: inflaton.graviton,
-        matrix: await matrixRuntime(sql),
-        energy: await energyRuntime(sql),
-        bulk: await bulkRuntime(sql),
-      }
-    })
+  const materialize = (message: ForceMessage): Promise<BoundaryIncrementalCommit | null> => {
+    const task = absorbQueue.then(() => projection.apply(message))
     absorbQueue = task.then(() => undefined, () => undefined)
     return task
   }
@@ -57,9 +37,8 @@ export const open = async (filename?: string) => {
     wimp,
     actor,
     topology,
-    bulkRuntime: () => bulkRuntime(sql),
-    matrixRuntime: () => matrixRuntime(sql),
-    energyRuntime: () => energyRuntime(sql),
+    projection,
+    replay: () => projection.replay(),
     materialize,
     async close() {
       try {

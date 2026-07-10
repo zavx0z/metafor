@@ -2,7 +2,6 @@ import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import type {ForceMessage} from "@metafor/types/force/message"
 
 type ForceConstructor = new (domain: string) => {
-  onCreate: (snapshot: unknown) => void | Promise<void>
   onImpulse: (message: ForceMessage) => void | Promise<void>
 }
 
@@ -21,6 +20,7 @@ class FakeWebSocket {
   onmessage: ((event: MessageEvent) => unknown) | null = null
   onclose: ((event: CloseEvent) => unknown) | null = null
   onerror: ((event: Event) => unknown) | null = null
+  readonly sent: unknown[] = []
 
   constructor(readonly url: string | URL) {
     sockets.push(this)
@@ -30,7 +30,9 @@ class FakeWebSocket {
     })
   }
 
-  send(_data: unknown): void {}
+  send(data: unknown): void {
+    this.sent.push(JSON.parse(String(data)) as unknown)
+  }
 
   close(): void {
     this.readyState = FakeWebSocket.CLOSED
@@ -77,50 +79,44 @@ const verifyRawOrderedTransport = async (Force: ForceConstructor, domain: string
   const socket = sockets.at(-1)!
   const order: string[] = []
   let releaseFirst!: () => void
-  let releaseSecond!: () => void
   const first = new Promise<void>((resolve) => {
     releaseFirst = resolve
   })
-  const second = new Promise<void>((resolve) => {
-    releaseSecond = resolve
-  })
 
-  force.onCreate = async (snapshot) => {
-    const revision = (snapshot as {revision: number}).revision
-    order.push(`create:${revision}:start`)
-    await (revision === 1 ? first : second)
-    order.push(`create:${revision}:end`)
+  force.onImpulse = async (message) => {
+    const path = Number(message.parts[0].path)
+    order.push(`impulse:${path}:start`)
+    if (path === 1) await first
+    order.push(`impulse:${path}:end`)
   }
-  force.onImpulse = () => {
-    order.push("impulse")
-  }
+
+  await waitFor(() => socket.sent.length === 2)
+  expect(socket.sent).toEqual([
+    {type: "register", domain, id: `${domain}-${domain.startsWith("browser") ? "web" : "local"}`},
+    {parts: [{part: "z", op: "test", path: `force/replay/${domain}/${domain}-${domain.startsWith("browser") ? "web" : "local"}`}]},
+  ])
 
   socket.receive({type: "force", parts: [{part: "photon", op: "test", path: 1}]})
   socket.receive({type: "snapshot", revision: 0})
+  socket.receive({type: "create", snapshot: {revision: 0}})
   socket.receive({type: "error", error: "legacy"})
   await Bun.sleep(0)
   expect(order).toEqual([])
 
-  socket.receive({type: "create", snapshot: {revision: 1}})
-  socket.receive({type: "create", snapshot: {revision: 2}})
   socket.receive({parts: [{part: "photon", op: "test", path: 1}]})
+  socket.receive({parts: [{part: "photon", op: "test", path: 2}]})
 
-  await waitFor(() => order.includes("create:1:start"))
+  await waitFor(() => order.includes("impulse:1:start"))
   await Bun.sleep(0)
-  expect(order).toEqual(["create:1:start"])
+  expect(order).toEqual(["impulse:1:start"])
 
   releaseFirst()
-  await waitFor(() => order.includes("create:2:start"))
-  expect(order).toEqual(["create:1:start", "create:1:end", "create:2:start"])
-
-  releaseSecond()
-  await waitFor(() => order.includes("impulse"))
+  await waitFor(() => order.includes("impulse:2:end"))
   expect(order).toEqual([
-    "create:1:start",
-    "create:1:end",
-    "create:2:start",
-    "create:2:end",
-    "impulse",
+    "impulse:1:start",
+    "impulse:1:end",
+    "impulse:2:start",
+    "impulse:2:end",
   ])
 }
 
@@ -158,11 +154,11 @@ const verifyOrdinaryImpulseOrder = async (Force: ForceConstructor, domain: strin
 }
 
 describe("Force runtime transports", () => {
-  test("Bun serializes repeated create before a raw ForceMessage", async () => {
+  test("Bun requests replay and serializes raw ForceMessages", async () => {
     await verifyRawOrderedTransport(BunForce, "bun-test")
   })
 
-  test("browser serializes repeated create and rejects legacy wrappers", async () => {
+  test("browser requests replay, serializes particles, and rejects legacy wrappers", async () => {
     await verifyRawOrderedTransport(BrowserForce, "browser-test")
   })
 

@@ -27,7 +27,12 @@ const runWeakOperation = async <T>(task: () => Promise<T>): Promise<T> => {
  */
 export async function weakInit(store$: MatrixStore): Promise<void> {
   await runWeakOperation(async () => {
-    weak$.reset()
+    // Legacy packed-matrix harness may replace its canonical arrays between
+    // tests. Preserve the newly written state while disposing the prior weak
+    // backend. The live Force projection does not use weakInit.
+    const nextStates = [...store$.states]
+    weak$.dispose()
+    store$.states = nextStates
     const selected = await createWeakRuntime(store$)
     weak$.initialized = true
     weak$.mode = selected.mode

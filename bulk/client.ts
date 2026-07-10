@@ -2,8 +2,6 @@ import type { BulkLayoutSettings } from "@metafor/types/bulk/settings"
 import type { BulkViewportStats } from "@metafor/types/bulk/viewport"
 import type { BulkRenderSettings, SettingsSnapshot } from "@metafor/types/bulk/settings"
 import type { BulkHudController, BulkHudSettingsSnapshot, BulkViewportWithHud } from "@metafor/types/bulk/hud"
-import type { BulkRuntimeSnapshot } from "@metafor/types/bulk/runtime"
-import type { ClientMaterializePayload, SnapshotMessage } from "@metafor/types/bulk/protocol"
 import {Force} from "force"
 import {createBulkViewport} from "bulk/web"
 import {buildBoundaryBulkManifest} from "./world.ts"
@@ -15,16 +13,14 @@ import {
 	saveSettings,
 } from "bulk/settings"
 import {installBulkHud} from "./hud.ts"
-import {applyForcePartToSnapshot} from "./force-snapshot.ts"
+import {BulkProjectionStore} from "./projection.ts"
 
 const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement | null
 if (bulkCanvas === null) throw new Error("bulk-canvas not found")
 
 let bulkViewport: BulkViewportWithHud | null = null
 let hud: BulkHudController | null = null
-let initialMaterializationRequested = false
-let pendingSnapshotMessage: SnapshotMessage | null = null
-let currentSnapshot: BulkRuntimeSnapshot | null = null
+const projection = new BulkProjectionStore()
 let persistSettingsTimer: ReturnType<typeof setTimeout> | null = null
 let activeSettings: BulkHudSettingsSnapshot = {
 	layoutSettings: {...DEFAULT_BULK_SETTINGS.layout},
@@ -42,32 +38,18 @@ const updateBulkStats = (stats: BulkViewportStats): void => {
 	hud?.setStats(stats)
 }
 
-const applySnapshotWorld = (
+const applyProjectionWorld = (
 	src: string,
-	snapshot: BulkRuntimeSnapshot,
 	layoutSettings: Partial<BulkLayoutSettings>,
 ): void => {
 	if (!bulkViewport) return
 
-	bulkViewport.applyManifest(buildBoundaryBulkManifest(snapshot, src, layoutSettings))
+	bulkViewport.applyManifestPatch(buildBoundaryBulkManifest(projection.view(), src, layoutSettings))
 	if (pendingSceneState && pendingSceneState.src === src) {
 		lastAppliedSceneState = pendingSceneState
 		pendingSceneState = null
-	}
+	} else lastAppliedSceneState = {src, layoutSettings}
 	hud?.setBusy(!forceConnected)
-}
-
-const applySnapshotMessage = (message: SnapshotMessage): void => {
-	currentSnapshot = message.snapshot
-	if (!bulkViewport) {
-		pendingSnapshotMessage = message
-		return
-	}
-
-	const layoutSettings = pendingSceneState?.src === message.src
-		? pendingSceneState.layoutSettings
-		: activeSettings.layoutSettings
-	applySnapshotWorld(message.src, message.snapshot, layoutSettings)
 }
 
 const areLayoutSettingsEqual = (
@@ -115,48 +97,28 @@ const flushPersistSettings = (): void => {
 	})
 }
 
-const createMaterializePayload = (
-	src: string,
-	settings: BulkHudSettingsSnapshot,
-): ClientMaterializePayload => ({
-	type: "materialize",
-	src: normalizeSceneSrc(src),
-	layoutSettings: settings.layoutSettings,
-})
-
 const applyHudRequest = (src: string, settings: BulkHudSettingsSnapshot): void => {
 	activeSettings = cloneSettings(settings)
-	const payload = createMaterializePayload(src, settings)
-	activeSrc = payload.src
+	const nextSrc = normalizeSceneSrc(src)
+	activeSrc = nextSrc
 	flushPersistSettings()
-	bulkViewport?.setLayoutSettings(payload.layoutSettings)
+	bulkViewport?.setLayoutSettings(settings.layoutSettings)
 	bulkViewport?.setRenderSettings(settings.renderSettings)
 
-	const needsMaterialize = !lastAppliedSceneState || lastAppliedSceneState.src !== payload.src
+	const needsProjection = !lastAppliedSceneState || lastAppliedSceneState.src !== nextSrc
 	const needsRelayout =
-		!needsMaterialize && lastAppliedSceneState && !areLayoutSettingsEqual(lastAppliedSceneState.layoutSettings, payload.layoutSettings)
-	if (!needsMaterialize && !needsRelayout) {
+		!needsProjection && lastAppliedSceneState && !areLayoutSettingsEqual(lastAppliedSceneState.layoutSettings, settings.layoutSettings)
+	if (!needsProjection && !needsRelayout) {
 		hud?.setBusy(false)
 		return
 	}
 
 	hud?.setBusy(true)
 	pendingSceneState = {
-		src: payload.src,
-		layoutSettings: payload.layoutSettings,
+		src: nextSrc,
+		layoutSettings: settings.layoutSettings,
 	}
-
-	if (needsRelayout && currentSnapshot) {
-		applySnapshotWorld(payload.src, currentSnapshot, payload.layoutSettings)
-		return
-	}
-
-	if (!forceConnected) {
-		hud?.setBusy(true)
-		return
-	}
-
-	force.impulse(payload)
+	applyProjectionWorld(nextSrc, settings.layoutSettings)
 }
 
 const applyRenderSettingsFromHud = (renderSettings: Partial<BulkRenderSettings>): void => {
@@ -166,12 +128,6 @@ const applyRenderSettingsFromHud = (renderSettings: Partial<BulkRenderSettings>)
 	}
 	bulkViewport?.setRenderSettings(renderSettings)
 	schedulePersistSettings(activeSettings)
-}
-
-const requestInitialMaterialization = (): void => {
-	if (initialMaterializationRequested || !forceConnected || hud === null || bulkViewport === null) return
-	initialMaterializationRequested = true
-	applyHudRequest(hud.currentSrc(), activeSettings)
 }
 
 const loadSettingsSafe = async (): Promise<SettingsSnapshot | null> => {
@@ -241,13 +197,7 @@ const initBulkViewport = async (): Promise<void> => {
 		onSettingsPersist: schedulePersistSettings,
 	})
 	hud.setConnectionStatus(forceConnected)
-	requestInitialMaterialization()
-
-	if (pendingSnapshotMessage) {
-		const snapshotMessage = pendingSnapshotMessage
-		pendingSnapshotMessage = null
-		applySnapshotMessage(snapshotMessage)
-	}
+	applyProjectionWorld(activeSrc, activeSettings.layoutSettings)
 
 	const resizeBulkViewport = (): void => {
 		if (!bulkViewport) return
@@ -267,58 +217,20 @@ const initBulkViewport = async (): Promise<void> => {
 
 void initBulkViewport()
 
-force.onCreate = (message: unknown) => {
-	forceConnected = true
-	hud?.setConnectionStatus(true)
-
-	if (typeof message !== "object" || message === null) return
-	if (
-		(message as {version?: unknown}).version === 1 &&
-		Array.isArray((message as {actors?: unknown}).actors) &&
-		Array.isArray((message as {wimps?: unknown}).wimps)
-	) {
-		initialMaterializationRequested = true
-		applySnapshotMessage({type: "snapshot", src: activeSrc, snapshot: message as BulkRuntimeSnapshot})
-		return
-	}
-	if ((message as {type?: unknown}).type === "snapshot") {
-		initialMaterializationRequested = true
-		applySnapshotMessage(message as SnapshotMessage)
-		return
-	}
-	if ((message as {type?: unknown}).type === "error") {
-		hud?.setBusy(!forceConnected)
-	}
-	requestInitialMaterialization()
-}
-
 force.onDestroy = () => {
 	forceConnected = false
-	initialMaterializationRequested = false
 	hud?.setConnectionStatus(false)
 	hud?.setBusy(true)
 }
 
 force.onImpulse = (forceMessage) => {
-		let snapshotNeedsRebuild = false
-		for (const part of forceMessage.parts) {
-			if (currentSnapshot && applyForcePartToSnapshot(currentSnapshot, part) === "rebuild") snapshotNeedsRebuild = true
-			if (part.part === "graviton" && part.path === "/structural") {
-				const signal = part.value as {rootSrc?: unknown}
-				const rootSrc = signal.rootSrc
-				if (typeof rootSrc !== "string") continue
-				if (pendingSceneState && pendingSceneState.src === rootSrc) {
-					lastAppliedSceneState = pendingSceneState
-					pendingSceneState = null
-					hud?.setBusy(!forceConnected)
-				}
-				continue
-			}
-			bulkViewport?.handleForce(part.part, part)
-		}
-		if (snapshotNeedsRebuild && currentSnapshot && lastAppliedSceneState) {
-			applySnapshotWorld(lastAppliedSceneState.src, currentSnapshot, lastAppliedSceneState.layoutSettings)
-		}
+	forceConnected = true
+	hud?.setConnectionStatus(true)
+	const part = forceMessage.parts[0]
+	const change = projection.apply(part)
+	bulkViewport?.handleForce(part.part, part)
+	if (change.changed && change.structural) applyProjectionWorld(activeSrc, activeSettings.layoutSettings)
+	else if (change.changed) hud?.setBusy(false)
 }
 
 function cloneSettings(settings: BulkHudSettingsSnapshot): BulkHudSettingsSnapshot {

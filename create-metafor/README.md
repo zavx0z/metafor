@@ -20,6 +20,11 @@ bun create metafor auth
 
 Создаётся универсальный каркас Мета без привязки к конкретному типу интерфейса или процесса.
 
+Сгенерированная Мета является source declaration, а не runtime snapshot. Dark
+индексирует её parent-child связи и передаёт каждую добавленную, удалённую или
+изменённую declaration entity отдельным `ForceMessage` с одной `Particle`.
+Повторное чтение не пересылает неизменённые сущности и не выполняет reset.
+
 ## Опции
 
 | Option              | Description                 | Default             |

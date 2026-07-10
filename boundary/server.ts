@@ -1,5 +1,6 @@
 import {join} from "node:path"
 import {Force} from "force"
+import {parseForceReplayPath} from "@metafor/types/force/replay"
 import {open} from "./sqlite.ts"
 
 const filename = (process.argv[2] ?? Bun.env.BOUNDARY_PATH?.trim()) || join(import.meta.dir, "tmp", "boundary.sqlite")
@@ -7,13 +8,18 @@ const boundary = await open(filename)
 const force = new Force("boundary")
 
 force.onImpulse = async (message) => {
+  const part = message.parts[0]
+  if (part.part === "z" && part.op === "test") {
+    const request = parseForceReplayPath(part.path)
+    if (request && (request.domain === "matrix" || request.domain === "energy" || request.domain === "bulk")) {
+      for (const replay of await boundary.replay()) force.impulse(replay)
+    }
+    return
+  }
   const commit = await boundary.materialize(message)
   if (!commit) return
-  force.impulse(commit.graviton)
-  force.impulse({type: "create", domain: "matrix", snapshot: commit.matrix})
-  force.impulse({type: "create", domain: "energy", snapshot: commit.energy})
-  force.impulse({type: "create", domain: "bulk", snapshot: commit.bulk})
-  console.log(`[boundary] materialized ${commit.rootSrc} parts=${commit.graviton.parts.length}`)
+  for (const derived of commit.messages) force.impulse(derived)
+  console.log(`[boundary] committed ${commit.rootSrc ?? "declaration"} impulses=${commit.messages.length}`)
 }
 
 const server = Bun.serve({

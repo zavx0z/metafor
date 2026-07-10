@@ -7,7 +7,6 @@ type BrowserClient = {domain?: string; id?: string}
 
 const browserClients = new Set<ServerWebSocket<BrowserClient>>()
 const force = new Force("bulk")
-let snapshot: unknown
 
 const sendBrowser = (ws: ServerWebSocket<BrowserClient>, payload: unknown): void => {
   if (ws.readyState !== WebSocket.OPEN) return
@@ -61,20 +60,13 @@ const server = Bun.serve<BrowserClient>({
         ws.data.id = id
         browserClients.add(ws)
         console.log(`[bulk] browser connected ${domain} ${id}`)
-        sendBrowser(ws, {type: "create", snapshot: snapshot ?? {type: "connected"}})
         return
       }
 
-      if (Array.isArray((payload as {parts?: unknown}).parts)) {
+      if (Array.isArray((payload as {parts?: unknown}).parts) && (payload as {parts: unknown[]}).parts.length === 1) {
         const message = payload as ForceMessage
-        console.log(`[bulk] browser -> force parts=${message.parts.length}`)
+        console.log(`[bulk] browser -> force part=${message.parts[0].part}`)
         force.impulse(message)
-        return
-      }
-
-      if ((payload as {type?: unknown}).type === "materialize" || (payload as {type?: unknown}).type === "relayout") {
-        console.log(`[bulk] browser ${String((payload as {type?: unknown}).type)}`)
-        sendBrowser(ws, {type: "error", error: "bulk snapshot materialization is not available in this server"})
         return
       }
 
@@ -86,11 +78,6 @@ const server = Bun.serve<BrowserClient>({
 console.log(`[bulk] listening on ${server.url}`)
 
 force.onImpulse = (impulse) => {
-  console.log(`[bulk] <- force parts=${impulse.parts.length}`)
+  console.log(`[bulk] <- force part=${impulse.parts[0].part}`)
   for (const client of browserClients) sendBrowser(client, impulse)
-}
-
-force.onCreate = (next) => {
-  snapshot = next
-  for (const client of browserClients) sendBrowser(client, {type: "create", snapshot: next})
 }

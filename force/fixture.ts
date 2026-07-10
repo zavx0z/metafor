@@ -30,13 +30,14 @@ export type ForceTestFixture = {
     fromIndex?: number,
     timeoutMs?: number,
   ): Promise<ForceTestMessage>
-  create(target: ForceTestClient | string, snapshot: unknown): void
   impulse(target: ForceTestClient | string, message: ForceMessage): void
   close(): void
 }
 
 const isForceMessage = (value: unknown): value is ForceMessage =>
-  typeof value === "object" && value !== null && Array.isArray((value as {parts?: unknown}).parts)
+  typeof value === "object" && value !== null &&
+  Array.isArray((value as {parts?: unknown}).parts) &&
+  (value as {parts: unknown[]}).parts.length === 1
 
 export function createForceTestFixture(): ForceTestFixture {
   const clients: ForceTestClient[] = []
@@ -196,9 +197,6 @@ export function createForceTestFixture(): ForceTestFixture {
         }
         messageWaiters.add(waiter)
       })
-    },
-    create(target, snapshot) {
-      send(target, {type: "create", snapshot})
     },
     impulse(target, message) {
       send(target, message)

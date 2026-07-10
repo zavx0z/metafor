@@ -3,7 +3,7 @@ import {
   createBulkManifestFromDarkParticleInputs,
   scaleBulkManifestToRootOuterDiameter,
 } from "@bulk/gravity/layout"
-import type { BulkRuntimeField, BulkRuntimeMatterBindingPath, BulkRuntimeMatterChildBindingPath, BulkRuntimeMatterParticle, BulkRuntimeSnapshot, BulkRuntimeValue } from "@metafor/types/bulk/runtime"
+import type { BulkRuntimeField, BulkRuntimeMatterBindingPath, BulkRuntimeMatterChildBindingPath, BulkRuntimeMatterParticle, BulkRuntimeProjection, BulkRuntimeValue } from "@metafor/types/bulk/runtime"
 import type { BulkLayoutSettings } from "@metafor/types/bulk/settings"
 import type { ActorRecord } from "@metafor/types/boundary/actor"
 import type { FieldEnumVariantRecord, ValueItemRecord } from "@metafor/types/boundary/value"
@@ -114,7 +114,7 @@ const fieldKeyFromMatterPath = (path: string): string | null => {
 }
 
 export function buildBoundaryBulkManifest(
-  snapshot: BulkRuntimeSnapshot,
+  projection: BulkRuntimeProjection,
   rootSrc: string,
   settings: Partial<BulkLayoutSettings> = {},
 ): BulkManifest {
@@ -129,14 +129,14 @@ export function buildBoundaryBulkManifest(
     matterParticles,
     matterTopologyBindingPaths,
     matterChildWimpBindingPaths,
-  } = snapshot
+  } = projection
 
   const actorById = new Map(actors.map((actor) => [actor.id, actor] as const))
   const topologyById = new Map(topologies.map((topology) => [topology.id, topology] as const))
   const wimpBySrc = new Map(wimps.map((wimp) => [wimp.src, wimp] as const))
   const fieldsByWimp = group(fields, (field) => field.wimp)
   const fieldByWimpKey = new Map(fields.map((field) => [`${field.wimp}\0${field.key}`, field] as const))
-  const enumVariantsByField = group(snapshot.fieldEnumVariants, (variant) => variant.field)
+  const enumVariantsByField = group(projection.fieldEnumVariants, (variant) => variant.field)
   const actorValueByActorField = new Map(actorValues.map((entry) => [`${entry.actor}\0${entry.field}`, entry.value] as const))
   const valuesById = new Map(values.map((value) => [value.id, value] as const))
   const valueItemsById = group(valueItems, (item) => item.value)

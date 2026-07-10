@@ -1,60 +1,55 @@
 # Force
 
-Force — единый транспорт импульсов между изолированными доменами MetaFor.
-Он переносит протокол, но не владеет ни декларациями, ни БД, ни runtime-state,
-ни исполнением процессов.
+Force — единый упорядоченный transport между изолированными доменами MetaFor.
+Он переносит impulses, но не владеет declaration, SQLite, runtime state,
+process execution или visual scene.
 
-Онтология описана в [ONTOLOGY.md](./ONTOLOGY.md), доменные границы — в
-[ARCHITECTURE.md](./ARCHITECTURE.md), а силовые каналы подробнее разобраны в
-[Gravity](./proto/gravity.md), [Electromagnetism](./proto/electromagnetism.md),
-[Strong](./proto/strong.md), [Weak](./proto/weak.md) и
-[Higgs](./proto/higgs.md).
-
-## Один транспорт
-
-Server и browser используют один публичный смысл:
+## Публичный API
 
 ```ts
 import {Force} from "force"
 
 const force = new Force("matrix")
 
-force.onCreate = (snapshot) => {}
-force.onImpulse = (message) => {}
-force.impulse({parts: []})
+force.onImpulse = async (message) => {
+  const particle = message.parts[0]
+  // patch local projection
+}
+
+force.impulse({
+  parts: [{part: "photon", op: "replace", path: 17, value: "ready"}],
+})
 ```
 
-Runtime-adapter различается, Force API и формат сообщения — нет.
-Локальный `BroadcastChannel` не является междоменным transport-ом ядра.
+У Force нет `onCreate`, snapshot callback или reset lifecycle.
 
-Центральный server принимает:
+## Transport protocol
+
+WebSocket `/ws` принимает:
 
 ```text
-WS /ws:
-  {type:"register", domain, id}
-  {type:"create", domain, snapshot}
-  {parts:[...]}
-
-HTTP POST /force:
-  {parts:[...]}
+{type:"register", domain, id}
+{parts:[particle]}
 ```
 
-`register` и `create` — transport-control. Обычный `ForceMessage` всегда
-передаётся как `{parts}` и не оборачивается в `{type:"force"}`.
-`create` доставляет bootstrap snapshot указанному домену; ordinary messages
-пока broadcast-ятся всем зарегистрированным доменам, а каждый домен игнорирует
-нерелевантные частицы.
+HTTP `POST /force` принимает только:
 
-Force не применяет патчи, не открывает SQLite, не знает бизнес-логику доменов и
-не добавляет ack, ordinary impulse replay, seq, queue или routing policy.
-Последний target `create` snapshot хранится отдельно как bootstrap для нового
-клиента соответствующего домена.
+```text
+{parts:[particle]}
+```
+
+`register` — единственный служебный payload. Любые `type:"create"`,
+`type:"snapshot"`, `{type:"force"}` и сообщения с нулём или несколькими
+particles отклоняются.
+
+WebSocket impulse доставляется всем зарегистрированным получателям, кроме
+отправившего socket. HTTP impulse не имеет socket-origin и доставляется всем.
 
 ## Message и Particle
 
 ```ts
 interface ForceMessage {
-  parts: Particle[]
+  parts: [Particle]
 }
 
 interface Particle {
@@ -67,132 +62,158 @@ interface Particle {
 }
 ```
 
-Конверт не дублирует `part`, `channel`, `source` или `boson`.
-Смысл маршрута читается с каждой частицы.
+Particle не содержит transport metadata. Разрешены только поля `part`, `op`,
+`path`, `value`, `from`.
+
+## Главный инвариант
+
+```text
+one changed entity = one ForceMessage = one Particle
+```
+
+Нельзя объединять в message:
+
+- WIMP declaration целиком;
+- несколько declaration tables;
+- process catalog;
+- actors collection;
+- Matrix runtime;
+- Bulk world.
+
+Будущее физическое batching transport-а не должно быть видно consumer-у как
+многочастичный logical message.
+
+## Operations
+
+Force использует только JSON Patch operation names:
+
+- `add` — новая адресованная entity;
+- `remove` — удаление адресованной entity без копии прежнего подграфа;
+- `replace` — delta изменившихся свойств entity;
+- `move` — перенос identity/value из `from` в `path`;
+- `copy` — копирование адресованного значения из `from`;
+- `test` — marker, claim или проверка адресованного значения.
+
+Force не применяет эти операции. Их атомарно применяет store домена-получателя.
 
 ## Семантика частиц
 
-| `part/op`   | Направление                | Смысл                                     |
-| ----------- | -------------------------- | ----------------------------------------- |
-| `inflaton`  | Dark → Boundary            | Поток source/meta/WIMP declarations       |
-| `graviton`  | Boundary → runtime domains | Материализованная структура current world |
-| `gluon`     | runtime                    | Значение обычного field у actor           |
-| `higgs`     | runtime                    | Изменение topology field: enum/array      |
-| `photon`    | Matrix → observers/Energy  | Наблюдаемый state signal                  |
-| `z/test`    | Energy → Matrix            | Запрос на claim процесса                  |
-| `z/copy`    | Matrix → Energy            | Выбор исполнителя и frozen fields         |
-| `w+`        | Energy → Matrix            | Успешный result write-set                 |
-| `w-`        | Energy → Matrix            | Ошибка и error write-set                  |
+| Part       | Основное направление       | Локальное изменение                         |
+| ---------- | -------------------------- | ------------------------------------------- |
+| `inflaton` | Dark → Boundary            | Одна canonical declaration entity           |
+| `graviton` | Boundary → runtime domains | Один actor/topology/declaration runtime row |
+| `gluon`    | runtime                    | Одно обычное field одного actor             |
+| `higgs`    | runtime                    | Одна topology-зависимая ветвь/field         |
+| `photon`   | Matrix → observers/Energy  | State одного actor                          |
+| `z`        | Matrix ↔ Energy/lifecycle  | Claim/copy или replay marker                |
+| `w+`       | Energy → Matrix            | Успешный локальный write-set                |
+| `w-`       | Energy → Matrix            | Error и локальный error write-set           |
 
-`Inflaton` и `Graviton` не взаимозаменяемы. Первый переносит возможность
-формы, второй — уже материализованную Boundary-проекцию.
+## Inflaton addressing
 
-## Inflaton: declaration stream
-
-Для `inflaton`:
+Collection entity:
 
 ```text
-part = inflaton
-path = meta SRC
-value = именованная часть WIMP declaration
+<wimp src>/<section>/<local id>
 ```
 
-Пример:
+Singleton entity:
+
+```text
+<wimp src>/<meta|mass|bulk>
+```
+
+Пример одного field add:
 
 ```ts
 {
-  parts: [
-    {
-      part: "inflaton",
-      op: "replace",
-      path: "zavx0z/git",
-      value: {meta: {name: "git", desc: "Git"}}
-    },
-    {
-      part: "inflaton",
-      op: "replace",
-      path: "zavx0z/git",
-      value: {
-        fields: {
-          "1": {key: "command", type: "string", required: false}
-        }
-      }
-    }
-  ]
+  parts: [{
+    part: "inflaton",
+    op: "add",
+    path: "zavx0z/git/fields/1",
+    value: {key: "command", type: "string", required: false},
+  }],
 }
 ```
 
-Поток покрывает реально представленные в DSL sections:
-`meta`, `fields`, enum `variants`, `states`, `transitions`,
-`conditions`, `processes` с action/env/read/write/handlers/finally,
-`reactions`, `matter`, `mass` и `bulk`.
-
-Dark выдаёт детерминированные local declaration IDs. Идентичность declaration
-составляется как `WIMP SRC + localNumber` внутри конкретной таблицы:
-
-```text
-field("zavx0z/git", "1")
-state("zavx0z/git", "1")
-process("zavx0z/git", "1")
-matter("zavx0z/git", "1")
-```
-
-Тип сущности уже задан таблицей и не кодируется в ID. Actor, topology instance,
-value и прочие materialized row IDs в Dark не создаются.
-
-## Graviton: materialized projection
-
-Boundary атомарно применяет declaration stream, создаёт canonical declaration
-rows и материализует actor/topology/value/current-world rows. Только после
-commit он испускает `graviton`.
+Изменение label передаётся без неизменившихся свойств:
 
 ```ts
 {
-  part: "graviton",
-  op: "add",
-  path: "actor",
-  value: {
-    actor: {id: 17, parentActor: null, parentTopology: null, wimp: "zavx0z/git", position: 0},
-    values: [],
-    valueRecords: [],
-    valueItems: [],
-    state: {actor: 17, metaState: null}
-  }
+  parts: [{
+    part: "inflaton",
+    op: "replace",
+    path: "zavx0z/git/fields/1",
+    value: {label: "Command"},
+  }],
 }
 ```
 
-Topology instances идут отдельными Graviton parts с `path = fuzzy | axion |
-macho`.
+Dark завершает причинную серию marker-ом:
 
-Runtime domain не должен получать UUID/ID с подразумеваемым последующим чтением
-Boundary. Для полного bootstrap Boundary дополнительно отправляет
-самодостаточные target `create` snapshots:
-
-```text
-Boundary commit
-  -> graviton materialized parts
-  -> create(matrix, matrixRuntime)
-  -> create(energy, processCatalog)
-  -> create(bulk, bulkRuntime)
+```ts
+{parts: [{part: "inflaton", op: "test", path: "zavx0z/git"}]}
 ```
 
-Так голографический инвариант становится техническим: данные, пересекающие
-границу, достаточны для восстановления соответствующей runtime-проекции.
+Marker не разрешает Boundary пересобирать мир.
 
 ## Runtime addressing
 
-- `inflaton.path` — WIMP SRC;
-- materialized `graviton.path` — collection kind (`actor`, `fuzzy`, `axion`,
-  `macho`), а instance ID находится в snapshot value;
-- class-scope `higgs.path` — WIMP SRC;
-- actor-scope `gluon`, `higgs`, `photon`, `z`, `w+`, `w-` используют
-  `path = actor ID`;
-- fields адресуются внутри `value.fields[fieldId]`;
-- key, label, name и display order не являются protocol addresses;
-- `/field/...` не является обычным Force path.
+```text
+actor/<runtime id>
+topology/<runtime id>
+declaration/<wimp src>/<section>/<local id>
+```
 
-Обычные `string`, `number`, `boolean` fields меняются через `gluon`.
-`enum` и `array` являются topology fields и меняются через `higgs`.
+Actor add несёт только одну actor entity с её локальными initial values. Actor
+replace несёт delta, например новый `parentTopology` или `position`. Remove
+содержит только path.
+
+Process descriptor переносится как один declaration Graviton, а не catalog:
+
+```ts
+{
+  parts: [{
+    part: "graviton",
+    op: "add",
+    path: "declaration/zavx0z/git/processes/1",
+    value: {id: 101, wimp: "zavx0z/git", state: "ready", descriptor: {}},
+  }],
+}
+```
+
+Actor-scoped field/state particles используют numeric actor ID. Field ID
+находится внутри `value.fields[fieldId]`.
+
+## Atomicity
+
+Каждый входной patch является отдельной transaction Boundary. Derived
+particles формируются из committed state и отправляются после commit по одной.
+Транспортный порядок сохраняет причинную последовательность.
+
+Целостность нельзя обеспечивать reset, очисткой таблиц или повторной сборкой
+всех actors.
+
+## Cold start и reconnect
+
+После регистрации Force runtime отправляет обычный marker:
+
+```ts
+{
+  parts: [{
+    part: "z",
+    op: "test",
+    path: "force/replay/<domain>/<connection id>",
+  }],
+}
+```
+
+Force сообщает новому соединению также о уже подключённых consumers обычными
+markers. Поэтому startup order не важен.
+
+Domain store отвечает idempotent `add` particles своей текущей проекции.
+Получатель upsert-ит те же identity и не очищает имеющееся состояние. Force не
+хранит history, snapshot cache или replay log.
 
 ## Weak process flow
 
@@ -202,21 +223,18 @@ Energy -> z/test(actor, {energy})
 Matrix -> z/copy(actor, from=energy, {fields})
 Energy -> execute cached descriptor
 Energy -> w+ | w-
-Matrix -> apply write-set, unlock, continue transition
+Matrix -> patch actor fields and continue
 ```
 
-Matrix snapshot содержит только то, что нужно автомату. Process catalog и
-action descriptors получает Energy. `z copy` несёт frozen fields, но не
-process descriptor.
+Process descriptor уже находится в локальном Energy store. Большие outputs
+остаются в mass/artifacts.
 
-## Данные инструментов
+## Запрещённые механизмы
 
-Force переносит управляющие события и ограниченные runtime-проекции, но не
-является хранилищем артефактов. Содержимое файлов, большой stdout/stderr,
-скриншоты, архивы и объёмные tool results должны жить в filesystem-backed
-operation mass/artifacts. Текущая in-memory Energy mass предназначена только
-для compact process-local data. Matrix удерживает только состояние операции, а
-Force возвращает небольшой status/write-set.
-
-Внешний tool adapter не должен раскрывать агенту `actorId`, WIMP или частицы:
-снаружи остаётся стандартный tool contract, внутри действует MetaFor.
+- snapshot/bootstrap payload;
+- target `create`;
+- reset/clear/restore projection;
+- full declaration, catalog, runtime или world message;
+- полная рематериализация после локального patch;
+- прямое чтение чужого store после получения ID;
+- доменная семантика внутри Force server.

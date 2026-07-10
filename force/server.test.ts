@@ -53,7 +53,7 @@ afterAll(() => {
 })
 
 describe("Force transport", () => {
-  test("registers clients, delivers create, and broadcasts plain ForceMessage over WS and HTTP", async () => {
+  test("is stateless and broadcasts one-particle ForceMessages over WS and HTTP", async () => {
     const [dark, boundary] = await Promise.all([
       connect("dark", "dark-test"),
       connect("boundary", "boundary-test"),
@@ -61,13 +61,17 @@ describe("Force transport", () => {
     const wsMessage: ForceMessage = {
       parts: [{part: "inflaton", op: "test", path: "zavx0z/git"}],
     }
-    const darkWsDelivery = nextMessage(dark)
     const boundaryWsDelivery = nextMessage(boundary)
+    let echoedToDark = false
+    dark.addEventListener("message", () => {
+      echoedToDark = true
+    }, {once: true})
 
     dark.send(JSON.stringify(wsMessage))
 
-    expect(await darkWsDelivery).toEqual(wsMessage)
     expect(await boundaryWsDelivery).toEqual(wsMessage)
+    await Bun.sleep(25)
+    expect(echoedToDark).toBe(false)
 
     const httpMessage: ForceMessage = {
       parts: [{part: "graviton", op: "replace", path: "zavx0z/git", value: {actor: 17}}],
@@ -85,17 +89,11 @@ describe("Force transport", () => {
     expect(await darkHttpDelivery).toEqual(httpMessage)
     expect(await boundaryHttpDelivery).toEqual(httpMessage)
 
-    const snapshot = {version: 1, runtime: {actors: [17]}}
-    const createDelivery = nextMessage(boundary)
-    dark.send(JSON.stringify({type: "create", domain: "boundary", snapshot}))
-
-    expect(await createDelivery).toEqual({type: "create", snapshot})
-
     const lateAddress = new URL("/ws", server.url)
     lateAddress.protocol = "ws:"
     const lateBoundary = new WebSocket(lateAddress)
     sockets.add(lateBoundary)
-    const lateCreate = nextMessage(lateBoundary)
+    const lifecycleDelivery = nextMessage(lateBoundary)
     await new Promise<void>((resolve, reject) => {
       lateBoundary.addEventListener("open", () => {
         lateBoundary.send(JSON.stringify({type: "register", domain: "boundary", id: "boundary-late"}))
@@ -103,8 +101,12 @@ describe("Force transport", () => {
       }, {once: true})
       lateBoundary.addEventListener("error", () => reject(new Error("Failed connecting late Force client")), {once: true})
     })
-
-    expect(await lateCreate).toEqual({type: "create", snapshot})
+    const lifecycle = await lifecycleDelivery as ForceMessage
+    expect(lifecycle.parts).toHaveLength(1)
+    expect(lifecycle.parts[0]).toMatchObject({part: "z", op: "test"})
+    expect(String(lifecycle.parts[0].path)).toStartWith("force/replay/")
+    expect(lifecycle).not.toEqual(wsMessage)
+    expect(lifecycle).not.toEqual(httpMessage)
   })
 
   test("rejects an HTTP payload without parts", async () => {
@@ -115,17 +117,49 @@ describe("Force transport", () => {
     })
 
     expect(response.status).toBe(400)
-    expect(await response.json()).toEqual({ok: false, error: "body must be a plain ForceMessage with parts array"})
+    expect(await response.json()).toEqual({ok: false, error: "body must be a plain ForceMessage with exactly one minimal particle"})
   })
 
-  test("rejects a legacy typed ForceMessage wrapper over HTTP", async () => {
-    const response = await fetch(`${server.url}force`, {
-      method: "POST",
-      headers: {"content-type": "application/json"},
-      body: JSON.stringify({type: "force", parts: []}),
-    })
+  test("rejects create, snapshots, batches, and non-minimal particles", async () => {
+    for (const body of [
+      {type: "create", domain: "matrix", snapshot: {}},
+      {type: "snapshot", snapshot: {}},
+      {parts: []},
+      {parts: [
+        {part: "photon", op: "test", path: 1},
+        {part: "photon", op: "test", path: 2},
+      ]},
+      {parts: [{part: "photon", op: "test", path: 1, domain: "matrix"}]},
+    ]) {
+      const response = await fetch(`${server.url}force`, {
+        method: "POST",
+        headers: {"content-type": "application/json"},
+        body: JSON.stringify(body),
+      })
 
-    expect(response.status).toBe(400)
-    expect(await response.json()).toEqual({ok: false, error: "body must be a plain ForceMessage with parts array"})
+      expect(response.status).toBe(400)
+      expect(await response.json()).toEqual({
+        ok: false,
+        error: "body must be a plain ForceMessage with exactly one minimal particle",
+      })
+    }
+  })
+
+  test("drops invalid WebSocket batches and create payloads", async () => {
+    const [dark, boundary] = await Promise.all([
+      connect("dark", "dark-invalid"),
+      connect("boundary", "boundary-invalid"),
+    ])
+    const received: unknown[] = []
+    boundary.addEventListener("message", (event) => received.push(JSON.parse(String(event.data)) as unknown))
+
+    dark.send(JSON.stringify({parts: [
+      {part: "inflaton", op: "add", path: "owner/a/meta", value: {name: "A"}},
+      {part: "inflaton", op: "add", path: "owner/b/meta", value: {name: "B"}},
+    ]}))
+    dark.send(JSON.stringify({type: "create", domain: "boundary", snapshot: {world: true}}))
+
+    await Bun.sleep(25)
+    expect(received).toEqual([])
   })
 })

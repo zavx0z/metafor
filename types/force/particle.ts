@@ -8,7 +8,6 @@ export interface Particle {
   path: string | number
   value?: unknown
   from?: string | number
-  [key: string]: unknown
 }
 
 export interface PhotonPayload {

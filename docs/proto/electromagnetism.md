@@ -21,8 +21,8 @@
 
 ### Boundary
 
-- canonical state graph и initial current imprint;
-- включение state data в self-contained Matrix projection;
+- canonical state graph и current state imprint;
+- испускание только адресованных state/structure consequences после commit;
 - отсутствие runtime Photon routing или direct consumer reads.
 
 ### Matrix
@@ -39,7 +39,8 @@
 
 ### Bulk
 
-- приём наблюдаемой runtime projection;
+- приём отдельных наблюдаемых state/runtime particles;
+- хранение собственной state-проекции и parent-child индексов;
 - проявление state без исполнения transition logic;
 - визуальная связь активных частей системы.
 
