@@ -9,6 +9,11 @@ import {ForceBase} from "../core/base"
 
 const FORCE_DEFAULT_ADDRESS = "ws://127.0.0.1:4000/ws"
 
+type ForceOptions = {
+  /** Forward replay traffic for other ids of the same domain to onImpulse. */
+  relayReplay?: boolean
+}
+
 const sameClient = (
   address: {domain: string; id: string} | null,
   domain: string,
@@ -27,17 +32,19 @@ export class Force extends ForceBase {
   #closed = false
   #outbox: ForceMessage[] = []
   #replayPending: boolean
+  #relayReplay: boolean
   override onImpulse: (impulse: ForceMessage) => void | Promise<void> = () => {}
   override onReplayStart?: (requestPath: string) => void | Promise<void>
   override onReady?: () => void | Promise<void>
   override onDestroy?: () => void | Promise<void>
   override readonly id: string
 
-  constructor(override readonly domain: string) {
+  constructor(override readonly domain: string, options: ForceOptions = {}) {
     super()
     this.id = `${domain}-local`
     this.#address = Bun.env.FORCE_ADDRESS?.trim() || FORCE_DEFAULT_ADDRESS
     this.#replayPending = domain !== "dark"
+    this.#relayReplay = options.relayReplay === true
     if (Force.#instance) Force.#instance.#closeTransport()
     Force.#instance = this
     Force.#shutdown = undefined
@@ -100,11 +107,17 @@ export class Force extends ForceBase {
       const message = impulse as ForceMessage
       const part = message.parts[0]
       const replaySource = typeof part.from === "string" ? parseForceReplayPath(part.from) : null
-      if (replaySource && !sameClient(replaySource, this.domain, this.id)) return
+      if (replaySource && !sameClient(replaySource, this.domain, this.id)) {
+        if (this.#relayReplay && replaySource.domain === this.domain) this.#enqueue(() => this.onImpulse(message))
+        return
+      }
 
       const begin = parseForceReplayBeginPath(part.path)
+      if (begin && !sameClient(begin, this.domain, this.id)) {
+        if (this.#relayReplay && begin.domain === this.domain) this.#enqueue(() => this.onImpulse(message))
+        return
+      }
       if (begin) {
-        if (!sameClient(begin, this.domain, this.id)) return
         this.#replayPending = true
         const requestPath = forceReplayPath(this.domain, this.id)
         this.#enqueue(async () => this.onReplayStart?.(requestPath))
@@ -112,8 +125,11 @@ export class Force extends ForceBase {
       }
 
       const end = parseForceReplayEndPath(part.path)
+      if (end && !sameClient(end, this.domain, this.id)) {
+        if (this.#relayReplay && end.domain === this.domain) this.#enqueue(() => this.onImpulse(message))
+        return
+      }
       if (end) {
-        if (!sameClient(end, this.domain, this.id)) return
         this.#enqueue(async () => {
           this.#replayPending = false
           this.#flushOutbox(socket)
