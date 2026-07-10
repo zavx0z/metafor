@@ -4,6 +4,9 @@ export type PendingEnergyProcess = {
   actorId: number
   wimp: string
   state: string
+  execution: string
+  processKey: string
+  processRevision: number
   descriptor: EnergyProcessDescriptor
 }
 
