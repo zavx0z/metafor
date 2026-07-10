@@ -1,8 +1,19 @@
 import type {ForceMessage} from "@metafor/types/force/message"
-import {forceReplayPath} from "@metafor/types/force/replay"
+import {
+  forceReplayPath,
+  parseForceReplayBeginPath,
+  parseForceReplayEndPath,
+  parseForceReplayPath,
+} from "@metafor/types/force/replay"
 import {ForceBase} from "../core/base"
 
 const FORCE_DEFAULT_ADDRESS = "ws://127.0.0.1:4000/ws"
+
+const sameClient = (
+  address: {domain: string; id: string} | null,
+  domain: string,
+  id: string,
+): boolean => address?.domain === domain && address.id === id
 
 export class Force extends ForceBase {
   static #instance: Force | undefined
@@ -15,6 +26,7 @@ export class Force extends ForceBase {
   #receiving: Promise<void> = Promise.resolve()
   #closed = false
   #outbox: ForceMessage[] = []
+  #replayPending: boolean
   override onImpulse: (impulse: ForceMessage) => void | Promise<void> = () => {}
   override onDestroy?: () => void | Promise<void>
   override readonly id: string
@@ -23,6 +35,7 @@ export class Force extends ForceBase {
     super()
     this.id = `${domain}-local`
     this.#address = Bun.env.FORCE_ADDRESS?.trim() || FORCE_DEFAULT_ADDRESS
+    this.#replayPending = domain !== "dark"
     if (Force.#instance) Force.#instance.#closeTransport()
     Force.#instance = this
     Force.#shutdown = undefined
@@ -49,12 +62,14 @@ export class Force extends ForceBase {
     socket.onopen = () => {
       socket.send(JSON.stringify({type: "register", domain: this.domain, id: this.id}))
       console.log(`[${this.domain}] connected to Force`)
-      while (this.#outbox.length > 0 && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify(this.#outbox.shift()))
+      this.#replayPending = this.domain !== "dark"
+      if (this.#replayPending) {
+        socket.send(JSON.stringify({
+          parts: [{part: "z", op: "test", path: forceReplayPath(this.domain, this.id)}],
+        } satisfies ForceMessage))
+      } else {
+        this.#flushOutbox(socket)
       }
-      socket.send(JSON.stringify({
-        parts: [{part: "z", op: "test", path: forceReplayPath(this.domain, this.id)}],
-      } satisfies ForceMessage))
     }
     socket.onmessage = (event) => {
       const data = event.data
@@ -78,19 +93,47 @@ export class Force extends ForceBase {
         !Array.isArray((impulse as {parts?: unknown}).parts) ||
         (impulse as {parts: unknown[]}).parts.length !== 1
       ) return
-      this.#emit(impulse as ForceMessage)
+
+      const message = impulse as ForceMessage
+      const part = message.parts[0]
+      const replaySource = typeof part.from === "string" ? parseForceReplayPath(part.from) : null
+      if (replaySource && !sameClient(replaySource, this.domain, this.id)) return
+
+      const begin = parseForceReplayBeginPath(part.path)
+      if (begin) {
+        if (!sameClient(begin, this.domain, this.id)) return
+        this.#replayPending = true
+        return
+      }
+
+      const end = parseForceReplayEndPath(part.path)
+      if (end) {
+        if (!sameClient(end, this.domain, this.id)) return
+        this.#replayPending = false
+        this.#flushOutbox(socket)
+        return
+      }
+
+      this.#emit(message)
     }
     socket.onclose = () => this.#reconnect()
-    socket.onerror = () => this.#reconnect()
+    socket.onerror = () => socket.close()
     return socket
   }
 
   override impulse(message: ForceMessage): void {
-    if (this.#socket.readyState !== WebSocket.OPEN) {
+    if (this.#socket.readyState !== WebSocket.OPEN || this.#replayPending) {
       this.#outbox.push(message)
       return
     }
     this.#socket.send(JSON.stringify(message))
+  }
+
+  #flushOutbox(socket = this.#socket): void {
+    if (this.#replayPending || socket.readyState !== WebSocket.OPEN) return
+    while (this.#outbox.length > 0 && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(this.#outbox.shift()))
+    }
   }
 
   #closeTransport(): void {
