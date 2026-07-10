@@ -53,20 +53,8 @@ jobs:
           rm -f .github/workflows/apply-voice-engine-v2.yml
           git diff --check
       - name: Install dependencies
-        shell: bash
         run: |
-          set +e
-          bun install --ignore-scripts > /tmp/bun-install.log 2>&1
-          status=$?
-          cat /tmp/bun-install.log
-          if [ "$status" -ne 0 ]; then
-            mkdir -p .github/voice-integration
-            tail -n 160 /tmp/bun-install.log > .github/voice-integration/install-error.txt
-            git add .github/voice-integration/install-error.txt
-            git commit -m "chore: record Voice Engine V2 install failure [skip ci]"
-            git push origin HEAD:main
-            exit "$status"
-          fi
+          bun install --ignore-scripts
           git checkout -- bun.lock
       - name: Voice tests
         run: |
@@ -79,7 +67,20 @@ jobs:
       - name: Interpreter web tests
         run: bun test pkg/interpreter/web
       - name: Typecheck interpreter
-        run: bun --filter @metafor/interpreter typecheck
+        shell: bash
+        run: |
+          set +e
+          bun --filter @metafor/interpreter typecheck > /tmp/interpreter-typecheck.log 2>&1
+          status=$?
+          cat /tmp/interpreter-typecheck.log
+          if [ "$status" -ne 0 ]; then
+            mkdir -p .github/voice-integration
+            tail -n 240 /tmp/interpreter-typecheck.log > .github/voice-integration/typecheck-error.txt
+            git add .github/voice-integration/typecheck-error.txt
+            git commit -m "chore: record Voice Engine V2 typecheck failure [skip ci]"
+            git push origin HEAD:main
+            exit "$status"
+          fi
       - name: Typecheck UI components
         run: bunx tsc --noEmit --pretty false -p ui/components/tsconfig.json
       - name: Browser bundles
