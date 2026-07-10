@@ -1,0 +1,43 @@
+name: Voice Engine V2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "pkg/interpreter/web/**"
+      - "ui/components/**"
+      - "docs/VOICE_ENGINE_V2.md"
+      - ".github/workflows/voice-engine-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install dependencies
+        run: bun install --ignore-scripts
+      - name: Voice tests
+        run: |
+          bun test pkg/interpreter/web/voice-input.test.ts
+          bun test pkg/interpreter/web/voice-chunk-journal.test.ts
+          bun test pkg/interpreter/web/voice-rtc.test.ts
+          bun test pkg/interpreter/web/voice-text.test.ts
+          bun test ui/components/voice-runtime-state.test.ts
+          bun test ui/components/ButtonVoice.test.ts
+      - name: Interpreter web tests
+        run: bun test pkg/interpreter/web
+      - name: Typecheck interpreter
+        run: bun --filter @metafor/interpreter typecheck
+      - name: Typecheck UI components
+        run: bunx tsc --noEmit --pretty false -p ui/components/tsconfig.json
+      - name: Browser bundles
+        run: |
+          bun build pkg/interpreter/web/main.ts --target=browser --outdir /tmp/metafor-interpreter-web
+          bun build ui/components/index.ts --target=browser --outdir /tmp/metafor-ui-components
