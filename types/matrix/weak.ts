@@ -14,8 +14,8 @@ export interface WeakRuntime {
   step(mode?: WeakStepMode): void
   readChanges(): Promise<WeakChanges>
   heapUpdate(updates: WeakHeapUpdate[]): void
-  /** Rebuilds only derived backend buffers from the same canonical Matrix store. */
-  reconfigure(): void
+  /** Optional backend-local refresh; weakReconfigure falls back to recreation. */
+  reconfigure?(): void
   clear(): void
   statesSnapshot(): number[]
 }
