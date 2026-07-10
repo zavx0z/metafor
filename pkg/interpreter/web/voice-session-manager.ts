@@ -20,6 +20,8 @@ export type VoiceChunkState =
   | "retrying"
 
 export type VoiceChunk = {
+  sessionId: string
+  turnId: string
   id: string
   index: number
   state: VoiceChunkState
@@ -30,6 +32,12 @@ export type VoiceChunk = {
   text: string
   error: string | null
   attempts: number
+  captureEpoch: string
+  sequenceStart: number | null
+  sequenceEnd: number | null
+  acknowledgedSequence: number | null
+  paragraphIndex: number
+  audioHash: string
 }
 
 export type VoiceAutoSendState =
@@ -80,6 +88,8 @@ export type VoiceWakeGainSnapshot = {
 }
 
 export type VoiceSessionSnapshot = {
+  sessionId: string
+  turnId: string
   phase: VoiceSessionPhase
   speaking: boolean
   hasVoiceActivity: boolean
@@ -104,6 +114,9 @@ export type VoiceSessionSnapshot = {
   lastError: string | null
   timings: VoiceSessionTimings
   wakeGain: VoiceWakeGainSnapshot | null
+  captureEpoch: string
+  nextSequence: number
+  paragraphIndex: number
 }
 
 const MIN_NOISE_FLOOR = 0.0015
@@ -112,9 +125,11 @@ const NEAR_VOICE_PEAK_THRESHOLD = 0.018
 const NOISE_FLOOR_ATTACK = 0.025
 const NOISE_FLOOR_RELEASE = 0.002
 const SPEECH_THRESHOLD_FACTOR = 3.4
-const SILERO_SPEECH_PROBABILITY = 0.54
+const SILERO_START_PROBABILITY = 0.54
+const SILERO_CONTINUE_PROBABILITY = 0.22
 const SILERO_PROBABILITY_MAX_AGE_MS = 260
 const MAX_CLIPPING_RATIO_FOR_ENERGY = 0.22
+const HARD_MAX_CHUNK_FACTOR = 1.5
 
 export const DEFAULT_VOICE_SESSION_TIMINGS: VoiceSessionTimings = {
   speechStartMs: 90,
@@ -125,6 +140,8 @@ export const DEFAULT_VOICE_SESSION_TIMINGS: VoiceSessionTimings = {
 }
 
 export class VoiceSessionManager {
+  #sessionId = voiceId("voice-session")
+  #turnId = voiceId("voice-turn")
   #phase: VoiceSessionPhase = "idle"
   #speaking = false
   #vadSource: VoiceSessionVadSource = "energy"
@@ -145,8 +162,21 @@ export class VoiceSessionManager {
   #autoSendState: VoiceAutoSendState = "armed"
   #lastError: string | null = null
   #wakeGain: VoiceWakeGainSnapshot | null = null
+  #captureEpoch = voiceId("capture")
+  #nextSequence = 0
+  #paragraphIndex = 0
+  #paragraphBreakEmitted = false
+  #finalSilenceEmitted = false
 
-  constructor(private readonly timings: VoiceSessionTimings = DEFAULT_VOICE_SESSION_TIMINGS) {}
+  constructor(readonly timings: VoiceSessionTimings = {...DEFAULT_VOICE_SESSION_TIMINGS}) {}
+
+  get sessionId(): string {
+    return this.#sessionId
+  }
+
+  get turnId(): string {
+    return this.#turnId
+  }
 
   get phase(): VoiceSessionPhase {
     return this.#phase
@@ -177,12 +207,14 @@ export class VoiceSessionManager {
   }
 
   get totalChunkCount(): number {
-    return this.#chunks.length
+    return this.#chunks.filter((chunk) => chunk.turnId === this.#turnId && chunk.state !== "failed").length
   }
 
   get chunkPcmBytes(): number {
     let bytes = 0
-    for (const chunk of this.#chunks) bytes += chunk.pcmBytes
+    for (const chunk of this.#chunks) {
+      if (chunk.turnId === this.#turnId && chunk.state !== "failed") bytes += chunk.pcmBytes
+    }
     return bytes
   }
 
@@ -192,12 +224,21 @@ export class VoiceSessionManager {
 
   startReady(): void {
     this.#phase = "ready"
-    this.#autoSendState = "armed"
+    if (this.#autoSendState === "sent") this.#autoSendState = "armed"
   }
 
   startRecording(force = false, now = performance.now()): void {
+    if (force) {
+      if (!this.#hasPendingChunks()) this.#beginNewSession()
+      this.#turnId = voiceId("voice-turn")
+      this.#paragraphIndex = 0
+      this.#paragraphBreakEmitted = false
+      this.#finalSilenceEmitted = false
+    }
     if (force || (this.#phase !== "reconnecting" && this.#phase !== "draft")) this.#phase = "recording"
-    if (force || this.#autoSendState === "sent") this.#autoSendState = "armed"
+    if (force || this.#autoSendState === "sent" || this.#autoSendState === "cancelled" || this.#autoSendState === "draft") {
+      this.#autoSendState = "armed"
+    }
     this.#recordingStartedAt = now
     this.#lastSpeechAt = now
     this.#lastSpeechEndedAt = now
@@ -206,6 +247,7 @@ export class VoiceSessionManager {
     this.#silenceCandidateStartedAt = null
     if (force) {
       this.#hasVoiceActivity = false
+      this.#speaking = false
       this.#vadSource = "energy"
       this.#speechProbability = null
       this.#noiseFloor = MIN_NOISE_FLOOR
@@ -220,7 +262,7 @@ export class VoiceSessionManager {
   }
 
   markReconnecting(error?: string): void {
-    this.#phase = "reconnecting"
+    if (this.#phase !== "draft") this.#phase = "reconnecting"
     if (error !== undefined && error.length > 0) this.#lastError = error
   }
 
@@ -250,7 +292,9 @@ export class VoiceSessionManager {
     if (error !== undefined && error.length > 0) this.#lastError = error
   }
 
-  reset(): void {
+  reset(options: {discardPending?: boolean} = {}): void {
+    const discardPending = options.discardPending === true
+    const kept = discardPending ? [] : this.#chunks.filter((chunk) => chunk.state !== "merged")
     this.#phase = "idle"
     this.#speaking = false
     this.#vadSource = "energy"
@@ -262,15 +306,31 @@ export class VoiceSessionManager {
     this.#lastPotentialVoiceAt = 0
     this.#lastVadAt = 0
     this.#recordingStartedAt = 0
-    this.#hasVoiceActivity = false
+    this.#hasVoiceActivity = kept.length > 0
     this.#speechCandidateStartedAt = null
     this.#silenceCandidateStartedAt = null
     this.#currentChunk = null
-    this.#chunks = []
-    this.#nextChunkIndex = 0
-    this.#autoSendState = "armed"
+    this.#chunks = kept
+    this.#nextChunkIndex = kept.reduce((next, chunk) => Math.max(next, chunk.index + 1), 0)
+    this.#autoSendState = kept.length > 0 ? "waitingChunks" : "armed"
     this.#lastError = null
     this.#wakeGain = null
+    this.#paragraphIndex = kept.reduce((index, chunk) => Math.max(index, chunk.paragraphIndex), 0)
+    this.#paragraphBreakEmitted = false
+    this.#finalSilenceEmitted = false
+    if (kept.length === 0) this.#beginNewSession()
+  }
+
+  setCaptureEpoch(captureEpoch: string, nextSequence = 0): void {
+    const value = captureEpoch.trim()
+    this.#captureEpoch = value || voiceId("capture")
+    this.#nextSequence = Math.max(0, Math.trunc(nextSequence))
+  }
+
+  nextCaptureSequence(): number {
+    const sequence = this.#nextSequence
+    this.#nextSequence += 1
+    return sequence
   }
 
   acceptVadFrame(frame: VoiceSessionVadFrame): VoiceSessionVadResult {
@@ -296,14 +356,18 @@ export class VoiceSessionManager {
 
     const speechProbability = finiteProbability(frame.speechProbability)
     const speechProbabilityAt = finitePositive(frame.speechProbabilityAt ?? 0)
-    const hasFreshSileroProbability = speechProbability !== null && speechProbabilityAt > 0 && now - speechProbabilityAt <= SILERO_PROBABILITY_MAX_AGE_MS
+    const hasFreshSileroProbability = speechProbability !== null
+      && speechProbabilityAt > 0
+      && now - speechProbabilityAt <= SILERO_PROBABILITY_MAX_AGE_MS
     this.#speechProbability = hasFreshSileroProbability ? speechProbability : null
     this.#vadSource = hasFreshSileroProbability ? "silero" : "energy"
 
     const tooClippedForEnergy = clippingRatio >= MAX_CLIPPING_RATIO_FOR_ENERGY
-    const energySpeech = rms >= this.#speechThreshold && peak >= NEAR_VOICE_PEAK_THRESHOLD && !tooClippedForEnergy
+    const energySpeech = rms >= this.#speechThreshold
+      && peak >= NEAR_VOICE_PEAK_THRESHOLD
+      && !tooClippedForEnergy
     const sileroSpeech = hasFreshSileroProbability
-      && speechProbability >= SILERO_SPEECH_PROBABILITY
+      && speechProbability >= SILERO_START_PROBABILITY
       && peak >= NEAR_VOICE_PEAK_THRESHOLD * 0.72
       && clippingRatio < 0.35
     const energyPotentialVoice = rms >= Math.max(this.#noiseFloor * 1.8, 0.0045)
@@ -313,7 +377,7 @@ export class VoiceSessionManager {
     const potentialVoice = this.#hasVoiceActivity
       && !tooClippedForEnergy
       && (hasFreshSileroProbability
-        ? (speechProbability >= 0.22 && peak >= NEAR_VOICE_PEAK_THRESHOLD * 0.34) || energyPotentialVoice
+        ? (speechProbability >= SILERO_CONTINUE_PROBABILITY && peak >= NEAR_VOICE_PEAK_THRESHOLD * 0.34) || energyPotentialVoice
         : energyPotentialVoice)
     const continuationSpeech = this.#hasVoiceActivity
       && !tooClippedForEnergy
@@ -328,6 +392,8 @@ export class VoiceSessionManager {
     let stopped = false
     if (rawSpeech) {
       this.#silenceCandidateStartedAt = null
+      this.#paragraphBreakEmitted = false
+      this.#finalSilenceEmitted = false
       if (!this.#speaking) {
         if (this.#speechCandidateStartedAt === null) this.#speechCandidateStartedAt = now
         if (now - this.#speechCandidateStartedAt >= this.timings.speechStartMs) {
@@ -354,50 +420,98 @@ export class VoiceSessionManager {
       }
     }
 
-    if (this.#currentChunk !== null && now - this.#currentChunk.startedAt >= this.timings.maxChunkMs) {
-      const chunk = this.closeCurrentChunk(now, "max duration")
-      if (chunk !== null) closedChunkIds.push(chunk.id)
-      if (rawSpeech && this.#speaking) this.#createChunk(now)
+    if (this.#currentChunk !== null) {
+      const duration = now - this.#currentChunk.startedAt
+      const hardMax = this.timings.maxChunkMs * HARD_MAX_CHUNK_FACTOR
+      const canSplitAtBoundary = !rawSpeech || this.#silenceCandidateStartedAt !== null
+      if ((duration >= this.timings.maxChunkMs && canSplitAtBoundary) || duration >= hardMax) {
+        const chunk = this.closeCurrentChunk(now, "max duration")
+        if (chunk !== null) closedChunkIds.push(chunk.id)
+        if (rawSpeech && this.#speaking) this.#createChunk(now)
+      }
     }
 
     if (this.#speaking) {
-      if (this.#phase === "ready" || this.#phase === "recording" || this.#phase === "queued") this.#phase = "speaking"
+      if (this.#phase === "ready" || this.#phase === "recording" || this.#phase === "queued" || this.#phase === "processing") {
+        this.#phase = "speaking"
+      }
     } else if (this.#phase === "speaking") {
       this.#phase = this.#hasQueuedChunks() ? "queued" : "recording"
     }
 
-    const paragraphSilenceAnchor = this.#hasVoiceActivity ? Math.max(this.#lastSpeechAt, this.#lastSpeechEndedAt, this.#lastPotentialVoiceAt) : this.#recordingStartedAt || now
-    const finalSilenceAnchor = this.#hasVoiceActivity ? Math.max(this.#lastSpeechAt, this.#lastSpeechEndedAt) : this.#recordingStartedAt || now
+    const paragraphSilenceAnchor = this.#hasVoiceActivity
+      ? Math.max(this.#lastSpeechAt, this.#lastSpeechEndedAt, this.#lastPotentialVoiceAt)
+      : this.#recordingStartedAt || now
+    const finalSilenceAnchor = this.#hasVoiceActivity
+      ? Math.max(this.#lastSpeechAt, this.#lastSpeechEndedAt)
+      : this.#recordingStartedAt || now
     const paragraphSilenceMs = this.#speaking ? 0 : now - paragraphSilenceAnchor
     const finalSilenceMs = this.#speaking ? 0 : now - finalSilenceAnchor
+    const paragraphBreak = this.#hasVoiceActivity
+      && paragraphSilenceMs >= this.timings.paragraphBreakMs
+    const finalSilence = this.#hasVoiceActivity
+      && finalSilenceMs >= this.timings.finalSilenceMs
+    if (paragraphBreak && !this.#paragraphBreakEmitted) {
+      this.#paragraphBreakEmitted = true
+      this.#paragraphIndex += 1
+    }
+    if (finalSilence) this.#finalSilenceEmitted = true
+
     return {
       speaking: this.#speaking,
       potentialVoice,
       started,
       stopped,
       closedChunkIds,
-      paragraphBreak: this.#hasVoiceActivity && paragraphSilenceMs >= this.timings.paragraphBreakMs,
-      finalSilence: this.#hasVoiceActivity && finalSilenceMs >= this.timings.finalSilenceMs,
+      paragraphBreak,
+      finalSilence,
       source: this.#vadSource,
       noiseFloor: this.#noiseFloor,
       speechThreshold: this.#speechThreshold,
     }
   }
 
-  appendCurrentChunkPcm(pcm: ArrayBuffer): VoiceChunk | null {
+  appendCurrentChunkPcm(pcm: ArrayBuffer, sequence?: number, captureEpoch?: string): VoiceChunk | null {
     if (this.#currentChunk === null || this.#currentChunk.state !== "recording") return null
-    this.#currentChunk.pcm.push(pcm)
-    this.#currentChunk.pcmBytes += pcm.byteLength
+    const copy = pcm.slice(0)
+    this.#currentChunk.pcm.push(copy)
+    this.#currentChunk.pcmBytes += copy.byteLength
+    if (captureEpoch !== undefined && captureEpoch.trim().length > 0) this.#currentChunk.captureEpoch = captureEpoch
+    const frameSequence = sequence ?? this.nextCaptureSequence()
+    if (this.#currentChunk.sequenceStart === null) this.#currentChunk.sequenceStart = frameSequence
+    this.#currentChunk.sequenceEnd = frameSequence
     return this.#currentChunk
   }
 
-  startBufferedChunk(pcm: ArrayBuffer[], startedAt: number, lastSpeechAt = startedAt): VoiceChunk | null {
+  prependCurrentChunkPcm(
+    frames: readonly {pcm: ArrayBuffer; sequence: number}[],
+    startedAt: number,
+    captureEpoch?: string,
+  ): VoiceChunk | null {
+    const chunk = this.#currentChunk
+    if (chunk === null || chunk.state !== "recording" || frames.length === 0) return chunk
+    const copies = frames.map((frame) => ({pcm: frame.pcm.slice(0), sequence: frame.sequence}))
+    chunk.pcm = [...copies.map((frame) => frame.pcm), ...chunk.pcm]
+    chunk.pcmBytes += copies.reduce((sum, frame) => sum + frame.pcm.byteLength, 0)
+    chunk.startedAt = Math.min(chunk.startedAt, startedAt)
+    if (captureEpoch !== undefined && captureEpoch.trim().length > 0) chunk.captureEpoch = captureEpoch
+    const firstSequence = copies[0]?.sequence
+    const lastSequence = copies.at(-1)?.sequence
+    if (firstSequence !== undefined) chunk.sequenceStart = chunk.sequenceStart === null ? firstSequence : Math.min(chunk.sequenceStart, firstSequence)
+    if (lastSequence !== undefined) chunk.sequenceEnd = chunk.sequenceEnd === null ? lastSequence : Math.max(chunk.sequenceEnd, lastSequence)
+    return chunk
+  }
+
+  startBufferedChunk(
+    pcm: ArrayBuffer[],
+    startedAt: number,
+    lastSpeechAt = startedAt,
+    sequences?: readonly number[],
+    captureEpoch?: string,
+  ): VoiceChunk | null {
     if (this.#currentChunk !== null || pcm.length === 0) return null
     const chunk = this.#createChunk(startedAt)
-    for (const frame of pcm) {
-      chunk.pcm.push(frame)
-      chunk.pcmBytes += frame.byteLength
-    }
+    pcm.forEach((frame, index) => this.appendCurrentChunkPcm(frame, sequences?.[index], captureEpoch))
     this.#speaking = true
     this.#hasVoiceActivity = true
     this.#lastSpeechAt = Math.max(startedAt, lastSpeechAt)
@@ -429,9 +543,46 @@ export class VoiceSessionManager {
     return this.#chunks.find((chunk) => chunk.state === "queued" || chunk.state === "retrying") ?? null
   }
 
+  getChunk(id: string): VoiceChunk | null {
+    return this.#chunkById(id)
+  }
+
+  allChunks(): readonly VoiceChunk[] {
+    return this.#chunks
+  }
+
+  pendingChunks(): VoiceChunk[] {
+    return this.#chunks.filter((chunk) => isPendingChunkState(chunk.state))
+  }
+
+  restoreChunks(chunks: readonly VoiceChunk[]): number {
+    let restored = 0
+    const existing = new Set(this.#chunks.map((chunk) => `${chunk.sessionId}:${chunk.id}`))
+    for (const source of chunks) {
+      const key = `${source.sessionId}:${source.id}`
+      if (existing.has(key) || source.state === "merged") continue
+      const chunk = cloneChunk(source)
+      if (chunk.state === "processing") chunk.state = "retrying"
+      if (chunk.state === "recording" || chunk.state === "closed") chunk.state = chunk.pcmBytes > 0 ? "retrying" : "failed"
+      this.#chunks.push(chunk)
+      existing.add(key)
+      this.#nextChunkIndex = Math.max(this.#nextChunkIndex, chunk.index + 1)
+      this.#paragraphIndex = Math.max(this.#paragraphIndex, chunk.paragraphIndex)
+      restored += 1
+    }
+    if (restored > 0) {
+      this.#chunks.sort((a, b) => a.startedAt - b.startedAt || a.index - b.index)
+      const pending = this.#hasPendingChunks()
+      this.#autoSendState = pending ? "waitingChunks" : "armed"
+      this.#phase = pending ? "reconnecting" : "idle"
+      this.#hasVoiceActivity = pending
+    }
+    return restored
+  }
+
   markChunkProcessing(id: string): VoiceChunk | null {
     const chunk = this.#chunkById(id)
-    if (chunk === null) return null
+    if (chunk === null || chunk.state === "merged") return chunk
     chunk.state = "processing"
     chunk.attempts += 1
     chunk.error = null
@@ -440,9 +591,19 @@ export class VoiceSessionManager {
     return chunk
   }
 
+  markChunkAcknowledged(id: string, sequence: number): VoiceChunk | null {
+    const chunk = this.#chunkById(id)
+    if (chunk === null || !Number.isFinite(sequence)) return chunk
+    const value = Math.trunc(sequence)
+    chunk.acknowledgedSequence = chunk.acknowledgedSequence === null
+      ? value
+      : Math.max(chunk.acknowledgedSequence, value)
+    return chunk
+  }
+
   markChunkRecognized(id: string, text: string): VoiceChunk | null {
     const chunk = this.#chunkById(id)
-    if (chunk === null) return null
+    if (chunk === null || chunk.state === "merged") return chunk
     chunk.text = text
     chunk.state = "recognized"
     return chunk
@@ -452,7 +613,20 @@ export class VoiceSessionManager {
     const chunk = this.#chunkById(id)
     if (chunk === null) return null
     chunk.state = "merged"
-    if (!this.#hasPendingChunks()) this.#autoSendState = this.#autoSendState === "draft" || this.#autoSendState === "cancelled" ? this.#autoSendState : "readyToSend"
+    chunk.error = null
+    if (!this.#hasPendingChunks()) {
+      this.#autoSendState = this.#autoSendState === "draft" || this.#autoSendState === "cancelled"
+        ? this.#autoSendState
+        : "readyToSend"
+    }
+    return chunk
+  }
+
+  releaseMergedChunkAudio(id: string): VoiceChunk | null {
+    const chunk = this.#chunkById(id)
+    if (chunk === null || chunk.state !== "merged") return chunk
+    chunk.pcm = []
+    chunk.pcmBytes = 0
     return chunk
   }
 
@@ -462,7 +636,7 @@ export class VoiceSessionManager {
     if (chunk.state === "merged") return chunk
     chunk.error = error
     this.#lastError = error
-    chunk.state = retry ? "retrying" : "failed"
+    chunk.state = retry && chunk.pcmBytes > 0 ? "retrying" : "failed"
     if (retry && this.#phase !== "draft") this.#phase = "reconnecting"
     return chunk
   }
@@ -471,6 +645,21 @@ export class VoiceSessionManager {
     for (const chunk of this.#chunks) {
       if (chunk.state === "processing") this.markChunkFailed(chunk.id, error, true)
     }
+  }
+
+  retryFailedChunks(): number {
+    let count = 0
+    for (const chunk of this.#chunks) {
+      if (chunk.state !== "failed" || chunk.pcmBytes <= 0) continue
+      chunk.state = "retrying"
+      chunk.error = null
+      count += 1
+    }
+    if (count > 0) {
+      this.#autoSendState = "waitingChunks"
+      if (this.#phase !== "draft") this.#phase = "reconnecting"
+    }
+    return count
   }
 
   hasPendingChunks(): boolean {
@@ -507,6 +696,8 @@ export class VoiceSessionManager {
       if (chunk.state === "processing") processingChunkId = chunk.id
     }
     return {
+      sessionId: this.#sessionId,
+      turnId: this.#turnId,
       phase: this.#phase,
       speaking: this.#speaking,
       hasVoiceActivity: this.hasVoiceActivity(),
@@ -529,15 +720,20 @@ export class VoiceSessionManager {
       queuedChunkBytes: this.#queuedChunkBytes(),
       retryCount,
       lastError: this.#lastError,
-      timings: this.timings,
+      timings: {...this.timings},
       wakeGain: this.#wakeGain,
+      captureEpoch: this.#captureEpoch,
+      nextSequence: this.#nextSequence,
+      paragraphIndex: this.#paragraphIndex,
     }
   }
 
   #createChunk(now: number): VoiceChunk {
     if (this.#currentChunk !== null) return this.#currentChunk
     const chunk: VoiceChunk = {
-      id: `voice-chunk-${Date.now().toString(36)}-${this.#nextChunkIndex.toString(36)}`,
+      sessionId: this.#sessionId,
+      turnId: this.#turnId,
+      id: voiceId("voice-chunk"),
       index: this.#nextChunkIndex,
       state: "recording",
       startedAt: now,
@@ -547,6 +743,12 @@ export class VoiceSessionManager {
       text: "",
       error: null,
       attempts: 0,
+      captureEpoch: this.#captureEpoch,
+      sequenceStart: null,
+      sequenceEnd: null,
+      acknowledgedSequence: null,
+      paragraphIndex: this.#paragraphIndex,
+      audioHash: "",
     }
     this.#nextChunkIndex += 1
     this.#chunks.push(chunk)
@@ -564,12 +766,7 @@ export class VoiceSessionManager {
   }
 
   #hasPendingChunks(): boolean {
-    return this.#currentChunk !== null || this.#chunks.some((chunk) => (
-      chunk.state === "queued"
-      || chunk.state === "retrying"
-      || chunk.state === "processing"
-      || chunk.state === "recognized"
-    ))
+    return this.#currentChunk !== null || this.#chunks.some((chunk) => isPendingChunkState(chunk.state))
   }
 
   #queuedChunkBytes(): number {
@@ -579,6 +776,37 @@ export class VoiceSessionManager {
     }
     return bytes
   }
+
+  #beginNewSession(): void {
+    this.#chunks = this.#chunks.filter((chunk) => chunk.state === "failed")
+    this.#currentChunk = null
+    this.#sessionId = voiceId("voice-session")
+    this.#turnId = voiceId("voice-turn")
+    this.#captureEpoch = voiceId("capture")
+    this.#nextSequence = 0
+    this.#nextChunkIndex = 0
+  }
+}
+
+function isPendingChunkState(state: VoiceChunkState): boolean {
+  return state === "recording"
+    || state === "closed"
+    || state === "queued"
+    || state === "retrying"
+    || state === "processing"
+    || state === "recognized"
+}
+
+function cloneChunk(chunk: VoiceChunk): VoiceChunk {
+  return {...chunk, pcm: chunk.pcm.map((buffer) => buffer.slice(0))}
+}
+
+function voiceId(prefix: string): string {
+  const cryptoApi = globalThis.crypto
+  const token = typeof cryptoApi?.randomUUID === "function"
+    ? cryptoApi.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+  return `${prefix}-${token}`
 }
 
 function finitePositive(value: number): number {
