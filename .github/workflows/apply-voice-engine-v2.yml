@@ -69,7 +69,7 @@ jobs:
           transport.write_text(text.replace(old, new, 1))
           PY
           rm -rf .github/voice-integration
-          rm -f .github/workflows/apply-voice-engine-v2.yml
+          rm -f .github/workflows/voice-engine-v2.yml
           git diff --check
       - name: Install dependencies
         run: |
