@@ -28,7 +28,11 @@ export class CPUWeakRuntime implements WeakRuntime {
   }
 
   heapUpdate(_updates: WeakHeapUpdate[]): void {
-    // CPU runtime читает canonical Matrix store напрямую.
+    // CPU runtime reads the canonical Matrix store directly.
+  }
+
+  reconfigure(): void {
+    // The canonical store object is stable; structural edits are already visible.
   }
 
   clear(): void {
