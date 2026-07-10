@@ -1,12 +1,8 @@
 /**
- * `@matrix/weak` вычисляет переход состояния поверх канонического store Matrix.
- *
- * Корневой вход этой силы остаётся оркестратором, а конкретные роли разложены
- * по подпакетам `runtime`, `program`, `encode`.
+ * `@matrix/weak` computes state transitions over the canonical Matrix store.
  */
-
 export {GPU} from "./device"
-export {weakInit, weakHeapUpdate, weakReadChanges, weakStep, weakRunStep, weak$} from "./weak"
+export {weakInit, weakReconfigure, weakHeapUpdate, weakReadChanges, weakStep, weakRunStep, weak$} from "./weak"
 export {
   GPU_STATE_NONE,
   GPU_STATE_UNDEFINED,
