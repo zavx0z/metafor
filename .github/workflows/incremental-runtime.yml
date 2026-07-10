@@ -22,5 +22,18 @@ jobs:
         with:
           name: generated-bun-lock
           path: bun.lock
-      - run: bun run tsc --noEmit
-      - run: bun test force dark boundary matrix energy bulk
+      - id: typecheck
+        continue-on-error: true
+        run: bun run tsc --noEmit 2>&1 | tee tsc.log
+      - id: tests
+        continue-on-error: true
+        run: bun test force dark boundary matrix energy bulk 2>&1 | tee tests.log
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-logs
+          path: |
+            tsc.log
+            tests.log
+      - if: steps.typecheck.outcome == 'failure' || steps.tests.outcome == 'failure'
+        run: exit 1
