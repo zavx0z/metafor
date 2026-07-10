@@ -19,7 +19,6 @@ export const open = async (filename?: string) => {
     await sql.unsafe("PRAGMA busy_timeout = 5000;")
   }
 
-  // Topology precedes actor because both tables reference each other.
   const topology = await BoundaryTopologySqlite.open(sql)
   const actor = await BoundaryActorSqlite.open(sql)
   const wimp = await BoundaryWimpSqlite.open(sql)
@@ -38,7 +37,7 @@ export const open = async (filename?: string) => {
     actor,
     topology,
     projection,
-    replay: () => projection.replay(),
+    replay: (requestPath?: string) => projection.replay(requestPath),
     materialize,
     async close() {
       try {
