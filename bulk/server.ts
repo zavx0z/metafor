@@ -6,7 +6,7 @@ import {Force} from "force"
 type BrowserClient = {domain?: string; id?: string}
 
 const browserClients = new Set<ServerWebSocket<BrowserClient>>()
-const force = new Force("bulk")
+const force = new Force("bulk", {relayReplay: true})
 
 const sendBrowser = (ws: ServerWebSocket<BrowserClient>, payload: unknown): void => {
   if (ws.readyState !== WebSocket.OPEN) return
@@ -44,12 +44,10 @@ const server = Bun.serve<BrowserClient>({
         sendBrowser(ws, {type: "error", error: "invalid json"})
         return
       }
-
       if (typeof payload !== "object" || payload === null) {
         sendBrowser(ws, {type: "error", error: "invalid message"})
         return
       }
-
       if ((payload as {type?: unknown}).type === "register") {
         const {domain, id} = payload as {domain?: unknown; id?: unknown}
         if (typeof domain !== "string" || typeof id !== "string") {
@@ -62,14 +60,11 @@ const server = Bun.serve<BrowserClient>({
         console.log(`[bulk] browser connected ${domain} ${id}`)
         return
       }
-
       if (Array.isArray((payload as {parts?: unknown}).parts) && (payload as {parts: unknown[]}).parts.length === 1) {
         const message = payload as ForceMessage
-        console.log(`[bulk] browser -> force part=${message.parts[0].part}`)
         force.impulse(message)
         return
       }
-
       sendBrowser(ws, {type: "error", error: "unsupported message"})
     },
   },
@@ -78,6 +73,5 @@ const server = Bun.serve<BrowserClient>({
 console.log(`[bulk] listening on ${server.url}`)
 
 force.onImpulse = (impulse) => {
-  console.log(`[bulk] <- force part=${impulse.parts[0].part}`)
   for (const client of browserClients) sendBrowser(client, impulse)
 }
