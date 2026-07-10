@@ -1,6 +1,14 @@
 import {UiSurface, button, input, palette, type UiSurfaceRect} from "@ui/elements"
 import {Color} from "@metafor/engine"
 import {ButtonVoice} from "./ButtonVoice.ts"
+import {
+  VOICE_ENGINE_VERSION,
+  readVoiceRuntimeState,
+  setVoiceContinuousSuspended,
+  subscribeVoiceRuntimeState,
+  writeVoiceContinuousModeEnabled,
+  type VoiceRuntimeSnapshot,
+} from "./voice-runtime-state.ts"
 import {SliderControl} from "./SliderControl.ts"
 import {Switcher} from "./Switcher.ts"
 
@@ -113,6 +121,7 @@ export class VoiceInputHud extends UiSurface {
   #phraseDrafts = new Map<VoiceInputHudPhraseGroupId, string>()
   #soundPulseStartedAt = 0
   #soundPulseRaf: number | null = null
+  #runtimeUnsubscribe: (() => void) | null = null
   #snapshot: VoiceInputHudSnapshot = {
     status: "idle",
     statusLine: "",
@@ -126,6 +135,7 @@ export class VoiceInputHud extends UiSurface {
 
   constructor(private readonly options: VoiceInputHudOptions) {
     super({bgColor: null, borderColor: null})
+    this.#runtimeUnsubscribe = subscribeVoiceRuntimeState(() => this.requestRender())
   }
 
   setSnapshot(snapshot: VoiceInputHudSnapshot): void {
@@ -282,6 +292,8 @@ export class VoiceInputHud extends UiSurface {
     this.#cancelPress()
     if (this.#soundPulseRaf !== null) cancelAnimationFrame(this.#soundPulseRaf)
     this.#soundPulseRaf = null
+    this.#runtimeUnsubscribe?.()
+    this.#runtimeUnsubscribe = null
     super.dispose()
   }
 
@@ -548,6 +560,7 @@ export class VoiceInputHud extends UiSurface {
 
   #drawGeneralSettings(settings: VoiceInputHudSettings, left: number, right: number, y: number, maxY: number): number {
     const w = Math.max(1, right - left)
+    y = this.#drawContinuousModeControl(settings, left, y, w) + 12
     if (y + 48 <= maxY) {
       button(this, left, y, w, 34, {
         key: "voice-full-stop",
@@ -572,7 +585,66 @@ export class VoiceInputHud extends UiSurface {
     }
 
     y = this.#drawAutoSendControl(settings, left, y, w) + 12
-    y = this.#drawSignalVolumeControl(settings, left, y, w) + 14
+    y = this.#drawSignalVolumeControl(settings, left, y, w) + 12
+    y = this.#drawRuntimeDebug(settings, left, y, w, maxY)
+    return y
+  }
+
+  #drawContinuousModeControl(settings: VoiceInputHudSettings, x: number, y: number, w: number): number {
+    const runtime = readVoiceRuntimeState()
+    const switchW = 44
+    const switchH = 22
+    const label = voiceSettingsText(settings, "Постоянная диктовка", "Continuous dictation")
+    const hint = voiceSettingsText(
+      settings,
+      "Речь отправляется после паузы; фраза активации не нужна.",
+      "Speech is sent after a pause; no wake phrase is required.",
+    )
+    this.drawText(label, x, y, {
+      fontPx: 9,
+      material: this.materials.text,
+      maxWidthPx: Math.max(1, w - switchW - 12),
+      z: 0.46,
+    })
+    this.drawText(hint, x, y + 14, {
+      fontPx: 8,
+      material: this.materials.muted,
+      maxWidthPx: Math.max(1, w - switchW - 12),
+      z: 0.46,
+    })
+    Switcher(this, x + w - switchW, y + 3, switchW, switchH, {
+      key: "voice-continuous-mode",
+      checked: runtime.mode === "continuous",
+      color: "success",
+      onChange: (checked) => {
+        writeVoiceContinuousModeEnabled(checked)
+        setVoiceContinuousSuspended(false)
+        this.requestRender()
+      },
+    })
+    return y + 38
+  }
+
+  #drawRuntimeDebug(settings: VoiceInputHudSettings, x: number, y: number, w: number, maxY: number): number {
+    const runtime = readVoiceRuntimeState()
+    if (y + 54 > maxY) return y
+    this.drawText(voiceSettingsText(settings, "Состояние", "State"), x, y, {
+      fontPx: 9,
+      material: this.materials.cyan,
+      maxWidthPx: w,
+      z: 0.46,
+    })
+    y += 14
+    for (const line of voiceRuntimeDebugLines(settings, runtime)) {
+      if (y + 13 > maxY) break
+      this.drawText(line, x, y, {
+        fontPx: 8,
+        material: this.materials.muted,
+        maxWidthPx: w,
+        z: 0.46,
+      })
+      y += 13
+    }
     return y
   }
 
@@ -594,13 +666,17 @@ export class VoiceInputHud extends UiSurface {
   #drawAutoSendControl(settings: VoiceInputHudSettings, x: number, y: number, w: number): number {
     const switchW = 44
     const switchH = 22
+    const continuous = readVoiceRuntimeState().mode === "continuous"
+    const hint = continuous
+      ? voiceSettingsText(settings, "Обязательна в постоянном режиме.", "Required in continuous mode.")
+      : settings.autoSendHint
     this.drawText(settings.autoSendLabel, x, y, {
       fontPx: 9,
       material: this.materials.text,
       maxWidthPx: Math.max(1, w - switchW - 12),
       z: 0.46,
     })
-    this.drawText(settings.autoSendHint, x, y + 14, {
+    this.drawText(hint, x, y + 14, {
       fontPx: 8,
       material: this.materials.muted,
       maxWidthPx: Math.max(1, w - switchW - 12),
@@ -608,9 +684,9 @@ export class VoiceInputHud extends UiSurface {
     })
     Switcher(this, x + w - switchW, y + 3, switchW, switchH, {
       key: "voice-auto-send",
-      checked: settings.autoSendValue,
+      checked: continuous || settings.autoSendValue,
+      disabled: continuous,
       color: "primary",
-      tooltip: settings.autoSendHint,
       onChange: (checked) => this.options.onAutoSendChange(checked),
     })
     return y + 34
@@ -884,6 +960,31 @@ export class VoiceInputHud extends UiSurface {
     const rect = canvas.getBoundingClientRect()
     return {x: event.clientX - rect.left, y: event.clientY - rect.top}
   }
+}
+
+function voiceSettingsText(settings: VoiceInputHudSettings, ru: string, en: string): string {
+  return /[А-Яа-яЁё]/.test(settings.title) ? ru : en
+}
+
+function voiceRuntimeDebugLines(settings: VoiceInputHudSettings, runtime: VoiceRuntimeSnapshot): string[] {
+  const transport = runtime.transport === "webrtc"
+    ? "WebRTC"
+    : runtime.transport === "websocket"
+      ? "WebSocket fallback"
+      : runtime.transport
+  const mode = runtime.mode === "continuous"
+    ? voiceSettingsText(settings, "постоянный", "continuous")
+    : voiceSettingsText(settings, "по активации", "activation")
+  const paused = runtime.mode === "continuous" && runtime.continuousSuspended
+    ? voiceSettingsText(settings, " · тихое ожидание", " · quiet waiting")
+    : ""
+  return [
+    `engine ${VOICE_ENGINE_VERSION} · ${mode}${paused}`,
+    `runtime ${runtime.status} · session ${runtime.sessionPhase}`,
+    `transport ${transport}${runtime.transportDetail ? ` · ${runtime.transportDetail}` : ""}`,
+    `speech ${runtime.speechActive ? "active" : "silent"} · queue ${runtime.queuedChunks}/${runtime.processingChunks}/${runtime.failedChunks}`,
+    `journal ${runtime.journalBackend} · writes ${runtime.journalPendingWrites}${runtime.journalError ? ` · ${runtime.journalError}` : ""}`,
+  ]
 }
 
 function fade(color: Color, opacity: number): Color {

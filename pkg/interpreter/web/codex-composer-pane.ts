@@ -109,7 +109,6 @@ export class HostTerminalCodexComposerPane<T extends HostCodexComposerController
           key: this.#opts.voiceKey ?? "interpreter-codex-message-voice",
           snapshot: this.#opts.voiceSnapshot(),
           soundPulse: this.#opts.voiceSoundPulse(),
-          tooltip: "Голосовой ввод",
           onClick: () => this.#queueVoiceToggleClick(),
         }),
       })

@@ -127,7 +127,7 @@ const NOISE_FLOOR_RELEASE = 0.002
 const SPEECH_THRESHOLD_FACTOR = 3.4
 const SILERO_START_PROBABILITY = 0.54
 const SILERO_CONTINUE_PROBABILITY = 0.22
-const SILERO_PROBABILITY_MAX_AGE_MS = 260
+const SILERO_PROBABILITY_MAX_AGE_MS = 180
 const MAX_CLIPPING_RATIO_FOR_ENERGY = 0.22
 const HARD_MAX_CHUNK_FACTOR = 1.5
 
@@ -268,6 +268,9 @@ export class VoiceSessionManager {
 
   enterDraftMode(): void {
     this.#phase = "draft"
+    this.#speaking = false
+    this.#speechCandidateStartedAt = null
+    this.#silenceCandidateStartedAt = null
     this.#autoSendState = "draft"
   }
 
@@ -377,15 +380,15 @@ export class VoiceSessionManager {
     const potentialVoice = this.#hasVoiceActivity
       && !tooClippedForEnergy
       && (hasFreshSileroProbability
-        ? (speechProbability >= SILERO_CONTINUE_PROBABILITY && peak >= NEAR_VOICE_PEAK_THRESHOLD * 0.34) || energyPotentialVoice
+        ? speechProbability >= SILERO_CONTINUE_PROBABILITY && peak >= NEAR_VOICE_PEAK_THRESHOLD * 0.34
         : energyPotentialVoice)
     const continuationSpeech = this.#hasVoiceActivity
       && !tooClippedForEnergy
       && (hasFreshSileroProbability
-        ? (speechProbability >= 0.34 && peak >= NEAR_VOICE_PEAK_THRESHOLD * 0.5) || energyContinuationSpeech
+        ? speechProbability >= 0.34 && peak >= NEAR_VOICE_PEAK_THRESHOLD * 0.5
         : energyContinuationSpeech)
     if (potentialVoice) this.#lastPotentialVoiceAt = now
-    const energyFallbackSpeech = energySpeech && (!hasFreshSileroProbability || this.#hasVoiceActivity)
+    const energyFallbackSpeech = energySpeech && !hasFreshSileroProbability
     const rawSpeech = sileroSpeech || energyFallbackSpeech || continuationSpeech || (this.#speaking && potentialVoice)
 
     let started = false

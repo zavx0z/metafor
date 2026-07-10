@@ -68,6 +68,8 @@ describe("voice activation matching", () => {
     expect(isActivationRecognitionMessage({type: "result", text: "зав"}, ["завхоз"])).toBe(false)
     expect(isActivationRecognitionMessage({type: "result", text: "завтра"}, ["завхоз"])).toBe(false)
     expect(isActivationRecognitionMessage({type: "result", text: "за вход"}, ["завхоз"])).toBe(false)
+    expect(isActivationRecognitionMessage({type: "result", text: "завхоз", result: [{word: "завхоз", conf: 0.42}]}, ["завхоз"])).toBe(false)
+    expect(isActivationRecognitionMessage({type: "result", text: "завхоз", result: [{word: "завхоз", conf: 0.91}]}, ["завхоз"])).toBe(true)
   })
 
   test("uses wake word timestamps to cut first Whisper preroll after the wake phrase", () => {
@@ -556,6 +558,22 @@ describe("voice session manager", () => {
     const snapshot = session.snapshot()
     expect(snapshot.phase).toBe("recording")
     expect(snapshot.autoSendState).toBe("armed")
+  })
+
+
+  test("fresh Silero rejection lets background energy close active speech", () => {
+    const session = new VoiceSessionManager({...DEFAULT_VOICE_SESSION_TIMINGS, speechEndMs: 120})
+    session.startRecording(true, 1_000)
+    session.acceptVadFrame({rms: 0.05, peak: 0.11, now: 1_020, speechProbability: 0.82, speechProbabilityAt: 1_020})
+    expect(session.acceptVadFrame({rms: 0.05, peak: 0.11, now: 1_130, speechProbability: 0.82, speechProbabilityAt: 1_130}).started).toBe(true)
+    session.appendCurrentChunkPcm(new ArrayBuffer(320))
+
+    expect(session.acceptVadFrame({rms: 0.08, peak: 0.22, now: 1_260, speechProbability: 0.001, speechProbabilityAt: 1_260}).stopped).toBe(false)
+    const stopped = session.acceptVadFrame({rms: 0.08, peak: 0.22, now: 1_400, speechProbability: 0.001, speechProbabilityAt: 1_400})
+
+    expect(stopped.stopped).toBe(true)
+    expect(stopped.speaking).toBe(false)
+    expect(session.snapshot().chunks.queued).toBe(1)
   })
 
 })

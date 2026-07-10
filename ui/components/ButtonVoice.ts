@@ -1,5 +1,6 @@
 import {Color} from "@metafor/engine"
 import {button, drawIconCentered, palette, type ButtonElementProps, type UiSurface} from "@ui/elements"
+import {readVoiceRuntimeState, type VoiceRuntimeTransport} from "./voice-runtime-state.ts"
 
 export type ButtonVoiceStatus = "idle" | "connecting" | "waitingWake" | "listening" | "committing" | "processing" | "error"
 export type ButtonVoiceServiceState = "unknown" | "ok" | "down"
@@ -24,63 +25,105 @@ export function ButtonVoice(host: UiSurface, x: number, y: number, size: number,
   const centerX = x + buttonSize / 2
   const centerY = y + buttonSize / 2
   const status = props.snapshot.status
+  const runtime = readVoiceRuntimeState()
   const error = status === "error" || props.snapshot.serviceState === "down"
-  const active = status === "listening" || status === "committing"
   const processing = status === "processing"
-  const waiting = status === "waitingWake"
-  const metering = active || waiting
   const connecting = status === "connecting" || status === "committing"
+  const speaking = runtime.speechActive
+    && props.snapshot.level > 0.0001
+    && (status === "listening" || status === "committing")
+  const continuousReady = runtime.mode === "continuous"
+    && !runtime.continuousSuspended
+    && (status === "waitingWake" || status === "listening")
+    && !processing
+    && !error
   const soundPulse = Math.max(0, Math.min(1, props.soundPulse ?? 0))
+  const transport = status === "idle" && runtime.status !== "idle" ? "off" : runtime.transport
   const iconColor = error
     ? palette.red
     : connecting
       ? palette.orange
-      : active
+      : speaking || continuousReady
         ? palette.cyan
         : processing
           ? fade(palette.cyan, 0.78)
-        : soundPulse > 0
-          ? mixColor(palette.cyan, palette.text, 0.28)
-          : waiting
-            ? fade(palette.cyan, 0.68)
+          : soundPulse > 0
+            ? mixColor(palette.cyan, palette.text, 0.28)
             : palette.muted
 
-  if (metering) {
+  if (continuousReady) drawContinuousReadyRing(host, centerX, centerY, buttonSize)
+  if (speaking) {
     drawRadialMeter(
       host,
       centerX,
       centerY,
-      waiting ? buttonSize / 2 - Math.max(6, buttonSize * 0.19) : buttonSize / 2 + Math.max(4, buttonSize * 0.12),
-      active ? Math.max(8, buttonSize * 0.31) : Math.max(5, buttonSize * 0.22),
+      buttonSize / 2 + Math.max(4, buttonSize * 0.12),
+      Math.max(8, buttonSize * 0.31),
       props.snapshot.level,
     )
   }
   if (processing) drawProcessingLoader(host, centerX, centerY, buttonSize)
   if (soundPulse > 0) drawSoundPulse(host, centerX, centerY, buttonSize, soundPulse)
+  drawTransportDot(host, x, y, buttonSize, transport)
 
   const buttonProps: ButtonElementProps = {
     key: props.key ?? `button-voice:${x}:${y}:${buttonSize}`,
-    tooltip: props.tooltip ?? "Голосовой ввод",
     onClick: props.onClick,
     style: (state) => {
-      const borderColor = error ? "red" : connecting ? "orange" : active || processing || waiting ? "cyan" : null
+      const borderColor = error ? "red" : connecting ? "orange" : speaking || processing ? "cyan" : null
       return {
         background: state === "hover" ? "rgba(18, 28, 42, 0.82)" : "rgba(10, 16, 24, 0.72)",
         borderColor,
         borderRadius: buttonSize / 2,
-        borderWidth: borderColor === null ? 0 : active || processing || connecting || waiting || error ? 1.2 : 1,
-        glassTint: active || waiting || soundPulse > 0 ? "cyan" : null,
-        glassTintOpacity: active ? 0.08 : waiting ? 0.035 : processing ? 0.04 : soundPulse > 0 ? 0.06 * soundPulse : 0,
+        borderWidth: borderColor === null ? 0 : 1.2,
+        glassTint: speaking || continuousReady || soundPulse > 0 ? "cyan" : null,
+        glassTintOpacity: speaking ? 0.08 : continuousReady ? 0.025 : processing ? 0.04 : soundPulse > 0 ? 0.06 * soundPulse : 0,
         zIndex: 0.3,
       }
     },
     children: (state) => drawIconCentered(host, micIcon(iconColor), centerX, centerY, Math.max(14, Math.min(22, Math.round(buttonSize * 0.42))), {
-      opacity: state === "hover" || active || processing || soundPulse > 0 ? 0.96 : waiting || connecting ? 0.84 : 0.72,
+      opacity: state === "hover" || speaking || continuousReady || processing || soundPulse > 0 ? 0.96 : connecting ? 0.84 : 0.72,
       z: 0.55,
     }),
   }
+  if (props.tooltip !== undefined) buttonProps.tooltip = props.tooltip
   if (props.disabled !== undefined) buttonProps.disabled = props.disabled
   button(host, x, y, buttonSize, buttonSize, buttonProps)
+}
+
+function drawContinuousReadyRing(host: UiSurface, cx: number, cy: number, buttonSize: number): void {
+  const ringSize = buttonSize + Math.max(5, buttonSize * 0.11)
+  host.drawRoundedRect(cx - ringSize / 2, cy - ringSize / 2, ringSize, ringSize, {
+    radius: ringSize / 2,
+    fill: null,
+    border: fade(palette.cyan, 0.72),
+    borderWidth: 1.25,
+    opacity: 1,
+    z: 0.23,
+  })
+}
+
+function drawTransportDot(host: UiSurface, x: number, y: number, buttonSize: number, transport: VoiceRuntimeTransport): void {
+  const size = Math.max(5, Math.min(8, buttonSize * 0.16))
+  const cx = x + buttonSize - size * 0.35
+  const cy = y + size * 0.35
+  const fill = transport === "webrtc"
+    ? palette.green
+    : transport === "websocket"
+      ? palette.cyan
+      : transport === "connecting"
+        ? palette.orange
+        : transport === "failed"
+          ? palette.red
+          : palette.muted
+  host.drawRoundedRect(cx - size / 2, cy - size / 2, size, size, {
+    radius: size / 2,
+    fill: fade(fill, transport === "off" ? 0.52 : 0.92),
+    border: fade(palette.bg, 0.92),
+    borderWidth: 1,
+    opacity: 1,
+    z: 0.72,
+  })
 }
 
 function drawProcessingLoader(host: UiSurface, cx: number, cy: number, buttonSize: number): void {

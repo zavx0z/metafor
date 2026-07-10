@@ -19,7 +19,16 @@ import {
   type UiRuntimeViewPointVector,
   type UiSurfaceRect,
 } from "@ui/elements"
-import {VoiceInputHud, type ButtonVoiceSnapshot, type VoiceInputHudDeactivationMode, type VoiceInputHudPhraseGroupId, type VoiceInputHudServiceState} from "@ui/components"
+import {
+  VoiceInputHud,
+  readVoiceRuntimeState,
+  setVoiceContinuousSuspended,
+  updateVoiceRuntimeState,
+  type ButtonVoiceSnapshot,
+  type VoiceInputHudDeactivationMode,
+  type VoiceInputHudPhraseGroupId,
+  type VoiceInputHudServiceState,
+} from "@ui/components"
 import {type HudSideTabEdge, type HudWindowTitleBarAction} from "@ui/hud"
 import {
   EditorPane,
@@ -126,6 +135,7 @@ import {
   type VoiceInputSocket,
   type VoiceInputStatus,
 } from "./voice-input.ts"
+import {createVoiceRtcAsrSocket} from "./voice-rtc.ts"
 import {hiddenRect, clampNumber, withAlpha} from "./geometry.ts"
 import {cleanupVoiceInputText, mergeVoiceInputText, sanitizeHostTerminalVoiceInput, voiceMessagesFromChunk} from "./voice-text.ts"
 import {sourceTextEditorLineChanges, sourceTextLineChanges, remapSourceLine, type SourceLineChange} from "./source-lines.ts"
@@ -1066,6 +1076,7 @@ let voiceAutoEnterCount = 0
 let voiceAutoEnterAt: Date | null = null
 let voiceAutoSendTarget: VoiceInputTarget | null = null
 let voiceAutoSendText = ""
+let voiceAutoSendParagraphIndex: number | null = null
 let voiceNextFlushMode: "auto" | "draft" = "auto"
 let voiceWakePreviewText = ""
 let voiceWakePreviewAt: Date | null = null
@@ -4007,8 +4018,9 @@ function ensureVoiceInputClient(): VoiceInputClient {
     recognitionMaxTimeoutMs: () => Math.max(readVoiceRecognitionTimeoutSeconds(), readVoiceRecognitionMaxTimeoutSeconds()) * 1000,
     language: "ru",
     context: readVoiceInputContext,
-    createAsrSocket: (_url, context) => createVoiceMuxSocket("asr", context),
+    createAsrSocket: (url, context) => createVoiceRtcAsrSocket(url, context, () => createVoiceMuxSocket("asr", context)),
     createCommandSocket: (_url, context) => createVoiceMuxSocket("wake", context),
+    onTransport: () => renderVoiceHud(),
     onStatus: handleVoiceStatus,
     onWake: () => updateVoiceHud("connecting", readVoiceInputUrl()),
     onCommandText: handleVoiceCommandText,
@@ -4021,7 +4033,7 @@ function ensureVoiceInputClient(): VoiceInputClient {
 
 function handleVoiceStatus(status: VoiceInputStatus, detail?: string): void {
   const previousStatus = voiceHudStatus
-  if (status === "idle" && detail === VOICE_STOP_COMMAND_DETAIL) voiceAutoWakePaused = true
+  if (status === "idle" && (detail === VOICE_STOP_COMMAND_DETAIL || detail === "draft")) voiceAutoWakePaused = true
   const voiceSignal = voiceSignalForStatusChange(previousStatus, status, detail)
   const voiceTransportError = status === "error" && isVoiceServiceErrorText(detail ?? "")
   if (status === "error") {
@@ -4041,7 +4053,7 @@ function handleVoiceStatus(status: VoiceInputStatus, detail?: string): void {
     preserveVoicePartialAsTerminalInput()
   }
   if (status === "idle") {
-    flushVoiceAutoSendBuffer()
+    if (detail !== "draft" && detail !== VOICE_STOP_COMMAND_DETAIL && voiceInputClient?.autoSendReady === true) flushVoiceAutoSendBuffer()
     clearVoiceWakePreview()
     if (!voiceAutoWakePaused) scheduleVoiceAutoWake(250)
   }
@@ -4078,19 +4090,29 @@ function playVoiceSignal(kind: HudNotificationKind): void {
 
 async function toggleVoiceInput(): Promise<void> {
   const client = ensureVoiceInputClient()
+  const runtime = readVoiceRuntimeState()
   try {
     if (client.active) {
-      if (client.status === "waitingWake") {
+      if (runtime.mode === "continuous" && runtime.continuousSuspended) {
+        setVoiceContinuousSuspended(false)
         voiceAutoWakePaused = false
         await client.startDictation()
         return
       }
+      if (client.status === "waitingWake") {
+        if (runtime.mode === "continuous") setVoiceContinuousSuspended(false)
+        voiceAutoWakePaused = false
+        await client.startDictation()
+        return
+      }
+      if (runtime.mode === "continuous") setVoiceContinuousSuspended(true)
       voiceAutoWakePaused = true
       voiceNextFlushMode = "draft"
       await client.sleepToWake()
       return
     }
 
+    if (runtime.mode === "continuous") setVoiceContinuousSuspended(false)
     voiceAutoWakePaused = false
     if (voiceActiveTarget === null || !voiceTargetCanAcceptInput(voiceActiveTarget)) {
       flashVoiceHudError(t("voiceNoActiveInput"))
@@ -4107,6 +4129,8 @@ async function toggleVoiceInput(): Promise<void> {
 
 function fullyStopVoiceInput(): void {
   voiceAutoWakePaused = true
+  setVoiceContinuousSuspended(true)
+  updateVoiceRuntimeState({transport: "off", transportDetail: "", speechActive: false, level: 0})
   if (voiceAutoWakeTimer !== null) {
     window.clearTimeout(voiceAutoWakeTimer)
     voiceAutoWakeTimer = null
@@ -4205,18 +4229,20 @@ function documentCanOwnVoice(): boolean {
   return focused && document.visibilityState === "visible" && !document.hidden
 }
 
-function handleVoiceInputChunk(chunk: VoiceInputChunk): void {
+function handleVoiceInputChunk(chunk: VoiceInputChunk): boolean {
   const target = voicePartialPreviewTarget ?? voiceActiveTarget
   const messages = voiceMessagesFromChunk(chunk)
-  if (messages.length === 0) return
+  if (messages.length === 0) return false
   voiceLastChunkText = messages.join("\n\n")
   voiceLastChunkAt = new Date()
-  if (target !== null) {
-    queueVoiceAutoSendMessages(target, messages)
-  } else {
+  if (target === null) {
     flashVoiceHudError(t("voiceNoActiveInput"))
+    renderVoiceHud()
+    return false
   }
+  const accepted = queueVoiceAutoSendMessages(target, messages, chunk.paragraphIndex)
   renderVoiceHud()
+  return accepted
 }
 
 function handleVoiceCommandText(raw: string, final: boolean): boolean {
@@ -4428,16 +4454,14 @@ function voicePreviewTerminals(target: VoiceInputTarget): TerminalPane[] {
   return [target.controller.terminal]
 }
 
-function shouldHandleCompletedVoiceCommit(previousStatus: VoiceInputStatus, status: VoiceInputStatus, detail?: string): boolean {
-  if ((status === "waitingWake" || status === "idle") && detail !== "draft" && !/reconnect/i.test(detail ?? "")) {
-    if (voiceInputClient?.autoSendReady === true) return true
-  }
-  if (previousStatus === "committing") return status === "listening" || status === "waitingWake" || status === "idle"
-  return previousStatus === "processing" && (status === "idle" || (status === "waitingWake" && detail === "ready"))
+function shouldHandleCompletedVoiceCommit(_previousStatus: VoiceInputStatus, status: VoiceInputStatus, detail?: string): boolean {
+  if (detail === "draft" || /reconnect/i.test(detail ?? "")) return false
+  if (voiceInputClient?.autoSendReady !== true) return false
+  return status === "waitingWake" || status === "idle"
 }
 
 function shouldFlushVoiceBufferForDeactivation(previousStatus: VoiceInputStatus, status: VoiceInputStatus, detail?: string): boolean {
-  if (status !== "waitingWake") return false
+  if (voiceInputClient?.autoSendReady !== true || status !== "waitingWake") return false
   if (detail === "draft" || detail === "ASR queue" || /reconnect/i.test(detail ?? "")) return false
   if (previousStatus === "processing") return detail === "ready"
   return previousStatus === "listening" || previousStatus === "committing" || detail === "ready"
@@ -4485,18 +4509,26 @@ function preserveVoicePartialAsTerminalInput(): boolean {
   return stageHostCodexDraft(target.controller, text, {focusComposer: false})
 }
 
-function queueVoiceAutoSendMessages(target: VoiceInputTarget, messages: readonly string[]): boolean {
-  return queueVoiceAutoSendText(target, messages.join(" "))
+function queueVoiceAutoSendMessages(target: VoiceInputTarget, messages: readonly string[], paragraphIndex?: number): boolean {
+  const separator = voiceAutoSendText.length > 0
+    && paragraphIndex !== undefined
+    && voiceAutoSendParagraphIndex !== null
+    && paragraphIndex !== voiceAutoSendParagraphIndex
+    ? "\n\n"
+    : " "
+  const accepted = queueVoiceAutoSendText(target, messages.join("\n\n"), separator)
+  if (accepted && paragraphIndex !== undefined) voiceAutoSendParagraphIndex = paragraphIndex
+  return accepted
 }
 
-function queueVoiceAutoSendText(target: VoiceInputTarget, raw: string): boolean {
+function queueVoiceAutoSendText(target: VoiceInputTarget, raw: string, separator: " " | "\n\n" = " "): boolean {
   const text = cleanupVoiceInputText(raw)
   if (text.length === 0) return false
   if (voiceAutoSendTarget !== null && !sameVoiceInputTarget(voiceAutoSendTarget, target)) {
     flushVoiceAutoSendBuffer()
   }
   voiceAutoSendTarget = target
-  voiceAutoSendText = mergeVoiceInputText(voiceAutoSendText, text)
+  voiceAutoSendText = mergeVoiceInputText(voiceAutoSendText, text, separator)
   showVoicePartialPreview(target, voiceAutoSendText, "draft")
   updateVoiceHud(undefined, `${t("voiceDrafted")}: ${voiceAutoSendText}`)
   return true
@@ -4508,6 +4540,7 @@ function flushVoiceAutoSendBuffer(): boolean {
   const mode = voiceNextFlushMode
   voiceAutoSendTarget = null
   voiceAutoSendText = ""
+  voiceAutoSendParagraphIndex = null
   voiceNextFlushMode = "auto"
   if (target === null || text.length === 0) return false
 
@@ -4532,6 +4565,15 @@ function flushVoiceAutoSendBuffer(): boolean {
 function discardVoiceAutoSendBuffer(): void {
   voiceAutoSendTarget = null
   voiceAutoSendText = ""
+  voiceAutoSendParagraphIndex = null
+}
+
+function cancelVoiceAutoSendForManualComposerEdit(): void {
+  voiceNextFlushMode = "draft"
+  if (readVoiceRuntimeState().mode === "continuous") setVoiceContinuousSuspended(true)
+  const client = voiceInputClient
+  if (client === null || !client.active || client.status === "waitingWake") return
+  void client.sleepToWake().catch((error) => flashVoiceHudError(error instanceof Error ? error.message : String(error)))
 }
 
 function voicePreviewWithBufferedInput(target: VoiceInputTarget, partialText: string): string {
@@ -4540,7 +4582,7 @@ function voicePreviewWithBufferedInput(target: VoiceInputTarget, partialText: st
 }
 
 function stageVoiceMessagesForTarget(target: VoiceInputTarget, messages: readonly string[], opts: {focusHostComposer?: boolean} = {}): boolean {
-  const text = cleanupVoiceInputText(messages.join(" "))
+  const text = cleanupVoiceInputText(messages.join("\n\n"))
   if (text.length === 0) return false
   if (target.kind === "browser-chat") {
     if (!voiceTargetCanAcceptInput(target)) {
@@ -4706,6 +4748,7 @@ function setHostCodexDraftFromEditor(controller: HostTerminalController, value: 
   if (controller.codexDraft === value) return
   if (controller.voiceComposerBaseDraft !== null && value !== controller.voiceComposerGeneratedDraft) {
     controller.voiceComposerEdited = true
+    cancelVoiceAutoSendForManualComposerEdit()
   }
   controller.codexDraft = value
   controller.codexComposer.requestRender()
@@ -5314,6 +5357,7 @@ function setBrowserChatDraftFromEditor(controller: BrowserChatController, value:
     if (host.codexDraft === value) return
     if (host.voiceComposerBaseDraft !== null && value !== host.voiceComposerGeneratedDraft) {
       host.voiceComposerEdited = true
+      cancelVoiceAutoSendForManualComposerEdit()
     }
     host.codexDraft = value
     host.codexComposer.requestRender()
@@ -5325,6 +5369,7 @@ function setBrowserChatDraftFromEditor(controller: BrowserChatController, value:
   if (session.codexDraft === value) return
   if (session.voiceComposerBaseDraft !== null && value !== session.voiceComposerGeneratedDraft) {
     session.voiceComposerEdited = true
+    cancelVoiceAutoSendForManualComposerEdit()
   }
   session.codexDraft = value
   scheduleStoreBrowserChatState(controller)
@@ -6754,7 +6799,9 @@ async function checkVoiceService(): Promise<boolean> {
   if (voiceServiceCheckInFlight) return voiceServiceState === "ok"
   if (voiceInputClient?.active === true || voiceMuxConnection?.readyState === WebSocket.OPEN) {
     voiceServiceState = "ok"
-    voiceServiceDetail = [t("voiceServiceOk"), "mux connected"].join(" · ")
+    const transport = readVoiceRuntimeState().transport
+    const transportLabel = transport === "webrtc" ? "WebRTC" : transport === "websocket" ? "WebSocket fallback" : "voice connected"
+    voiceServiceDetail = [t("voiceServiceOk"), transportLabel].join(" · ")
     voiceServiceCheckedAt = new Date()
     renderVoiceHud()
     return true

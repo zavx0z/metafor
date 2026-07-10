@@ -53,8 +53,9 @@ export class VoiceChunkJournal {
   }
 
   saveChunk(chunk: VoiceChunk): Promise<void> {
+    const snapshot = snapshotVoiceChunk(chunk)
     return this.#enqueue(async () => {
-      const record = await chunkRecord(chunk)
+      const record = await chunkRecord(snapshot)
       const db = await this.#database()
       if (db === null) {
         memoryJournal().set(record.key, cloneRecord(record))
@@ -71,9 +72,10 @@ export class VoiceChunkJournal {
   }
 
   saveChunks(chunks: readonly VoiceChunk[]): Promise<void> {
+    const snapshots = chunks.map(snapshotVoiceChunk)
     return this.#enqueue(async () => {
-      if (chunks.length === 0) return
-      const records = await Promise.all(chunks.map(chunkRecord))
+      if (snapshots.length === 0) return
+      const records = await Promise.all(snapshots.map(chunkRecord))
       const db = await this.#database()
       if (db === null) {
         const memory = memoryJournal()
@@ -250,7 +252,7 @@ export class VoiceChunkJournal {
 
 async function chunkRecord(chunk: VoiceChunk): Promise<VoiceJournalChunkRecord> {
   const pcm = chunk.pcm.map(copyArrayBuffer)
-  const audioHash = chunk.audioHash || await hashPcm(pcm)
+  const audioHash = chunk.audioHash || (chunk.state === "recording" ? "" : await hashPcm(pcm))
   chunk.audioHash = audioHash
   return {
     key: recordKey(chunk.sessionId, chunk.id),
@@ -320,6 +322,10 @@ function cloneRecord(record: VoiceJournalChunkRecord): VoiceJournalChunkRecord {
   return {...record, pcm: record.pcm.map(copyArrayBuffer)}
 }
 
+function snapshotVoiceChunk(chunk: VoiceChunk): VoiceChunk {
+  return {...chunk, pcm: chunk.pcm.map(copyArrayBuffer)}
+}
+
 function copyArrayBuffer(buffer: ArrayBuffer): ArrayBuffer {
   return buffer.slice(0)
 }
@@ -338,7 +344,8 @@ async function hashPcm(pcm: readonly ArrayBuffer[]): Promise<string> {
   const bytes = concatenatePcm(pcm)
   try {
     if (typeof crypto?.subtle?.digest === "function") {
-      const digest = await crypto.subtle.digest("SHA-256", bytes)
+      const digestInput = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+      const digest = await crypto.subtle.digest("SHA-256", digestInput)
       return hex(new Uint8Array(digest))
     }
   } catch {

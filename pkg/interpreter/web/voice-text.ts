@@ -2,7 +2,7 @@ import {cleanupVoiceText, type VoiceInputChunk, type VoiceInputSegment} from "./
 
 const VOICE_MESSAGE_PAUSE_SECONDS = 1.6
 
-export function mergeVoiceInputText(base: string, addition: string): string {
+export function mergeVoiceInputText(base: string, addition: string, separator: " " | "\n\n" = " "): string {
   const left = cleanupVoiceInputText(base)
   const right = cleanupVoiceInputText(addition)
   if (!left) return right
@@ -11,7 +11,7 @@ export function mergeVoiceInputText(base: string, addition: string): string {
   const rightKey = voiceInputCompareKey(right)
   if (!rightKey || leftKey === rightKey || leftKey.endsWith(` ${rightKey}`)) return left
   if (rightKey.startsWith(`${leftKey} `)) return right
-  return cleanupVoiceInputText(`${left} ${right}`)
+  return cleanupVoiceInputText(`${left}${separator}${right}`)
 }
 
 export function sanitizeHostTerminalVoiceInput(text: string): string {
@@ -71,7 +71,11 @@ function splitVoiceParagraphs(text: string): string[] {
 }
 
 export function cleanupVoiceInputText(text: string): string {
-  const cleaned = cleanupVoiceText(text).replace(/\s+/g, " ").trim()
+  const cleaned = cleanupVoiceText(text)
+    .split(/\n\s*\n+/)
+    .map((paragraph) => paragraph.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n\n")
   return voiceTextHasContent(cleaned) ? cleaned : ""
 }
 

@@ -1,4 +1,4 @@
-import {type VoiceInputHudDeactivationMode, type VoiceInputHudPhraseGroupId} from "@ui/components"
+import {readVoiceContinuousModeEnabled, type VoiceInputHudDeactivationMode, type VoiceInputHudPhraseGroupId} from "@ui/components"
 import {
   DEFAULT_VOICE_ACTIVATION_PHRASES,
   DEFAULT_VOICE_DEACTIVATION_PHRASES,
@@ -112,6 +112,7 @@ export function writeVoiceSignalVolume(value: number): number {
 }
 
 export function readVoiceAutoSendEnabled(): boolean {
+  if (readVoiceContinuousModeEnabled()) return true
   try {
     const raw = localStorage.getItem(VOICE_AUTO_SEND_STORAGE_KEY)
     if (raw === null) return DEFAULT_VOICE_AUTO_SEND_ENABLED
@@ -122,6 +123,7 @@ export function readVoiceAutoSendEnabled(): boolean {
 }
 
 export function writeVoiceAutoSendEnabled(enabled: boolean): void {
+  if (readVoiceContinuousModeEnabled() && !enabled) return
   try {
     localStorage.setItem(VOICE_AUTO_SEND_STORAGE_KEY, enabled ? "1" : "0")
   } catch {

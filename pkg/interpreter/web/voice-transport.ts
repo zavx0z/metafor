@@ -40,6 +40,7 @@ export type VoiceInputSocket = {
   close(): void
   send(data: string | ArrayBuffer | Blob | ArrayBufferView<ArrayBuffer>): void
   sendProtocol?(message: VoiceProtocolMessage): void
+  replaceAudioStream?(stream: MediaStream): void | Promise<void>
 }
 
 export type VoiceSocketFactory = (url: string, context: VoiceInputAsrSocketContext) => VoiceInputSocket | null
