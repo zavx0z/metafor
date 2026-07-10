@@ -5,16 +5,8 @@ export type WeakMode = "cpu" | "gpu"
 export type WeakStepMode = 1 | 2
 
 export type WeakHeapUpdate =
-  | {
-      kind: "field"
-      braneIndex: number
-      fieldIndex: number
-    }
-  | {
-      kind: "lock"
-      braneIndex: number
-      value: boolean
-    }
+  | {kind: "field"; braneIndex: number; fieldIndex: number}
+  | {kind: "lock"; braneIndex: number; value: boolean}
 
 export interface WeakChanges extends Array<[number, number]> {}
 
@@ -22,6 +14,8 @@ export interface WeakRuntime {
   step(mode?: WeakStepMode): void
   readChanges(): Promise<WeakChanges>
   heapUpdate(updates: WeakHeapUpdate[]): void
+  /** Rebuilds only derived backend buffers from the same canonical Matrix store. */
+  reconfigure(): void
   clear(): void
   statesSnapshot(): number[]
 }
