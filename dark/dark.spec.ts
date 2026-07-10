@@ -1,124 +1,149 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
-import {SQL} from "bun"
-import {mkdirSync, rmSync} from "node:fs"
-import {join} from "node:path"
-import type {Actor} from "@boundary/actor"
-import type { Boundary } from "@metafor/types/boundary/api"
-import {open} from "boundary/sqlite"
-import {matter} from "./dark.ts"
+import {createForceTestFixture, type ForceTestFixture} from "force/fixture"
+import type {ForceMessage} from "@metafor/types/force/message"
 
 const src = "zavx0z/git"
+const section = <T>(message: ForceMessage, path: string, name: string): T => {
+  const part = message.parts.find((candidate) => {
+    if (candidate.path !== path || typeof candidate.value !== "object" || candidate.value === null) return false
+    return name in candidate.value
+  })
+  if (!part) throw new Error(`Missing ${name} declaration for ${path}`)
+  return (part.value as Record<string, unknown>)[name] as T
+}
 
-describe("matter(zavx0z/git) → boundary", () => {
-  let boundary: Awaited<ReturnType<typeof open>>
-  let sql: SQL
-  let root: Actor
-  let tmpFile: string
+describe("Dark inflaton declaration stream", () => {
+  let fixture: ForceTestFixture
+  let message: ForceMessage
 
   beforeAll(async () => {
-    const tmpDir = join(import.meta.dir, "tmp")
-    mkdirSync(tmpDir, {recursive: true})
-    tmpFile = join(tmpDir, `dark-spec-${crypto.randomUUID()}.sqlite`)
-    boundary = await open(tmpFile)
-    globalThis.boundary = boundary
-    sql = new SQL(`sqlite://${tmpFile}`)
-    await matter(src)
-    const roots = await boundary.actor.roots.all()
-    if (roots.length === 0) throw new Error("root actor not created")
-    root = roots[0]!
+    fixture = createForceTestFixture()
+    await import("./dark.ts")
+    const dark = await fixture.waitForClient("dark", 5_000)
+    fixture.impulse(dark, {
+      parts: [{part: "inflaton", op: "test", path: src, value: null}],
+    })
+    message = (await fixture.waitForMessage(
+      ({domain, message}) => domain === "dark" && message.parts.some((part) =>
+        part.path === src &&
+        typeof part.value === "object" &&
+        part.value !== null &&
+        "meta" in part.value
+      ),
+      0,
+      30_000,
+    )).message
   })
 
-  afterAll(async () => {
-    await sql.close()
-    await boundary.close()
-    rmSync(tmpFile, {force: true})
-    rmSync(`${tmpFile}-shm`, {force: true})
-    rmSync(`${tmpFile}-wal`, {force: true})
+  afterAll(() => fixture.close())
+
+  test("emits only inflaton/replace with meta SRC as path", () => {
+    expect(message.parts.length).toBeGreaterThan(11)
+    expect(message.parts.every((part) =>
+      part.part === "inflaton" && part.op === "replace" && typeof part.path === "string"
+    )).toBe(true)
+    expect(message.parts.some((part) => part.part === "graviton")).toBe(false)
+    expect(message.parts.slice(0, 11).every((part) => part.path === src)).toBe(true)
   })
 
-  test("root actor создан, привязан к wimp zavx0z/git", async () => {
-    expect(root.id).toBeDefined()
-    expect(await root.wimp()).toBe(src)
-    expect(await root.position()).toBe(0)
-    const ref = await root.parentRef()
-    expect(ref).toBeNull()
+  test("emits deterministic field IDs and separate enum variants", () => {
+    const fields = section<Record<string, Record<string, unknown>>>(message, src, "fields")
+    const variants = section<Record<string, Record<string, unknown>>>(message, src, "variants")
+
+    expect(fields["1"]).toEqual({key: "operation", type: "enum", label: "Тип операции"})
+    expect(fields["2"]?.key).toBe("error")
+    expect(fields["3"]?.key).toBe("command")
+    expect(fields["4"]?.key).toBe("args")
+    expect(variants["1"]).toEqual({field: "1", position: 0, value: "start"})
+    expect(variants["10"]).toEqual({field: "1", position: 9, value: "plumbing"})
   })
 
-  test("у root есть topology-узлы Fuzzy и Axion (первый слой git)", async () => {
-    const topology = await boundary.topology.childrenOfActor(root.id)
-    const kinds = topology.map((t) => t.kind).sort()
-    expect(kinds).toEqual(["axion", "fuzzy"])
+  test("normalizes states, transitions and conditions with local references", () => {
+    const states = section<Record<string, Record<string, unknown>>>(message, src, "states")
+    const transitions = section<Record<string, Record<string, unknown>>>(message, src, "transitions")
+    const conditions = section<Record<string, Record<string, unknown>>>(message, src, "conditions")
+
+    expect(states["1"]).toEqual({name: "получение команды", position: 0})
+    expect(transitions["1"]).toEqual({from: "1", to: "2", position: 0})
+    expect(conditions["1"]).toEqual({
+      transition: "1",
+      field: "3",
+      position: 0,
+      predicate: {null: false},
+    })
   })
 
-  test("Fuzzy раскрыт на статические Wimp-ветви соответствующие values enum operation", async () => {
-    const topology = await boundary.topology.childrenOfActor(root.id)
-    const fuzzy = topology.find((t) => t.kind === "fuzzy")
-    if (!fuzzy) throw new Error("fuzzy missing")
-    const branches = await boundary
-      .actor.head(root.id) // sanity
-      .then(() =>
-        boundary.wimp
-          .get(src)
-          .then((w) => w!.fields.get({key: "operation"}))
-          .then((field) =>
-            field?.type === "enum"
-              ? (field as unknown as {variants: {all(): Promise<Array<{value: string}>>}}).variants.all().then((variants) => variants.map((v) => v.value))
-              : Promise.resolve([] as string[]),
-          ),
-      )
-    expect(branches.length).toBeGreaterThan(0)
+  test("preserves process action/env/read/write/handlers and finally", () => {
+    const processes = section<Record<string, Record<string, any>>>(message, src, "processes")
+    expect(processes["1"]?.key).toBe("определение операции")
+    expect(processes["1"]?.env).toEqual(["any"])
+    expect(processes["1"]?.action.read).toEqual(["3"])
+    expect(processes["1"]?.success.write).toEqual(["4", "1"])
+    expect(processes["1"]?.error.write).toEqual(["2"])
 
-    const wimpRows = await sql<Array<{src: string}>>`
-      SELECT wimp AS src FROM actor
-      WHERE parent_topology = ${fuzzy.id}
-      ORDER BY position
-    `
-    const expectedBranchSrcs = branches.map((value) => `${src}-${value}`)
-    expect(wimpRows.map((r) => r.src).sort()).toEqual(expectedBranchSrcs.sort())
+    const commitProcesses = section<Record<string, Record<string, any>>>(
+      message,
+      "zavx0z/git-history-commit",
+      "processes",
+    )
+    const finalProcess = Object.values(commitProcesses).find((process) => process.type === "finally")
+    expect(finalProcess).toEqual({
+      key: "выполнено",
+      type: "finally",
+      env: [],
+      before: {src: "() => {}", read: []},
+    })
   })
 
-  test("под Axion ровно один child wimp — zavx0z/git-error", async () => {
-    const topology = await boundary.topology.childrenOfActor(root.id)
-    const axion = topology.find((t) => t.kind === "axion")
-    if (!axion) throw new Error("axion missing")
-    const wimps = await sql<Array<{wimp: string}>>`
-      SELECT wimp FROM actor WHERE parent_topology = ${axion.id}
-    `
-    expect(wimps.length).toBe(1)
-    expect(wimps[0]!.wimp).toBe(`${src}-error`)
+  test("flattens matter with deterministic IDs and recursively includes child declarations", () => {
+    const matter = section<Record<string, Record<string, unknown>>>(message, src, "matter")
+    expect(matter["1"]?.kind).toBe("fuzzy")
+    expect(matter["1"]?.parent).toBeNull()
+    expect(matter["1"]?.edgeSlot).toBe("root")
+    expect(matter["2"]?.kind).toBe("wimp")
+    expect(matter["2"]?.parent).toBe("1")
+    expect(matter["2"]?.edgeSlot).toBe("branch")
+    expect(Object.keys(matter)).toEqual(Object.keys(matter).map((_, index) => String(index + 1)))
+
+    const paths = new Set(message.parts.map((part) => part.path))
+    expect(paths.has("zavx0z/git-start")).toBe(true)
+    expect(paths.has("zavx0z/git-error")).toBe(true)
+    expect(paths.has("zavx0z/git-history-commit")).toBe(true)
   })
 
-  test("entanglement: поле args дочернего git-start должно share value.id с args корневого git", async () => {
-    // Под fuzzy → wimp git-start. У wimp git-start есть поле args (мapping от parent).
-    // root.args значение null (default), и git-start.args тоже null — но через shared value.id.
-    const topology = await boundary.topology.childrenOfActor(root.id)
-    const fuzzy = topology.find((t) => t.kind === "fuzzy")!
-    const startRow = (
-      await sql<Array<{id: number}>>`
-        SELECT id FROM actor
-        WHERE parent_topology = ${fuzzy.id} AND wimp = ${src + "-start"}
-      `
-    )[0]
-    if (!startRow) throw new Error("git-start actor not found")
+  test("emits explicit empty and optional section replacements", () => {
+    expect(section<Record<string, unknown>>(message, src, "reactions")).toEqual({})
+    expect(section<Record<string, unknown>>(message, src, "mass")).toEqual({})
+    expect(section<unknown>(message, src, "bulk")).toBeNull()
+  })
 
-    const rootArgsField = (
-      await sql<Array<{id: number}>>`
-        SELECT id FROM field WHERE wimp = ${src} AND key = ${"args"} LIMIT 1
-      `
-    )[0]?.id
-    const startArgsField = (
-      await sql<Array<{id: number}>>`
-        SELECT id FROM field WHERE wimp = ${src + "-start"} AND key = ${"args"} LIMIT 1
-      `
-    )[0]?.id
-    expect(rootArgsField).toBeDefined()
-    expect(startArgsField).toBeDefined()
+  test("repeated test produces exactly the same declaration IDs and stream", async () => {
+    const dark = await fixture.waitForClient("dark")
+    const fromIndex = fixture.messages.length
+    fixture.impulse(dark, {
+      parts: [{part: "inflaton", op: "test", path: src, value: null}],
+    })
+    const repeated = (await fixture.waitForMessage(
+      ({domain, message: candidate}) => domain === "dark" && candidate.parts[0]?.path === src,
+      fromIndex,
+      30_000,
+    )).message
+    expect(repeated).toEqual(message)
+  })
 
-    const rootLink = await boundary.actor.link.get(root.id, rootArgsField!)
-    const startLink = await boundary.actor.link.get(startRow.id, startArgsField!)
-    const rootValue = await rootLink!.value()
-    const startValue = await startLink!.value()
-    // entanglement через shared value.id
-    expect(startValue.id).toBe(rootValue.id)
+  test("emits represented bulk declaration and its child catalog", async () => {
+    const dark = await fixture.waitForClient("dark")
+    const fromIndex = fixture.messages.length
+    fixture.impulse(dark, {
+      parts: [{part: "inflaton", op: "test", path: "zavx0z/linux", value: null}],
+    })
+    const linux = (await fixture.waitForMessage(
+      ({domain, message: candidate}) => domain === "dark" && candidate.parts[0]?.path === "zavx0z/linux",
+      fromIndex,
+      10_000,
+    )).message
+
+    expect(section<{view: string}>(linux, "zavx0z/linux", "bulk")).toEqual({view: ""})
+    expect(linux.parts.some((part) => part.path === "zavx0z/codex")).toBe(true)
   })
 })

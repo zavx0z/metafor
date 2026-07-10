@@ -7,6 +7,7 @@ import type { EnergyMassContext, EnergyMassStore } from "@metafor/types/energy/m
 import type { EnergyProtocol, EnergyProtocolOptions } from "@metafor/types/energy/protocol"
 import type { EnergyActionParams, PendingEnergyProcess } from "@metafor/types/energy/runtime"
 import type { ForceMessage } from "@metafor/types/force/message"
+import {Force} from "force"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -16,13 +17,6 @@ const parseActorIdPath = (path: unknown): number | null =>
 
 const readEnergyId = (): string =>
   Bun.env.ENERGY_ID?.trim() || "energy-local"
-
-const readTimeoutMs = (): number => {
-  const raw = Bun.env.ENERGY_TIMEOUT_MS?.trim()
-  if (!raw) return 2000
-  const timeout = Number(raw)
-  return Number.isFinite(timeout) && timeout >= 0 ? timeout : 2000
-}
 
 const readRuntimeKind = (): string =>
   Bun.env.ENERGY_RUNTIME_KIND?.trim() || "server"
@@ -132,16 +126,23 @@ const executeProcessHandler = async (
   return collector.fields
 }
 
-const executeProcessAction = async (
+const executeProcess = async (
   pending: PendingEnergyProcess,
   energyId: string,
   fields: Record<string, unknown>,
   massStore: EnergyMassStore,
 ): Promise<unknown> => {
+  const mass = massStore.get({energyId, actorId: pending.actorId, wimp: pending.wimp, state: pending.state})
+  if (pending.descriptor.type === "finally") {
+    const fn = (0, eval)(`(${rewriteWrapperDynamicImports(pending.descriptor.before.src, pending.wimp)})`)
+    if (typeof fn !== "function") throw new Error("Energy finally before did not evaluate to a function")
+    return await fn({mass})
+  }
+
   const params: EnergyActionParams = {
     field: {},
     value: buildActionValue(fields, pending.descriptor.action.readFields),
-    mass: massStore.get({energyId, actorId: pending.actorId, wimp: pending.wimp, state: pending.state}),
+    mass,
     self: {
       atom: String(pending.actorId),
       meta: pending.wimp,
@@ -166,22 +167,37 @@ const executeProcessAction = async (
 }
 
 export function startEnergyProtocol(options: EnergyProtocolOptions = {}): EnergyProtocol {
-  const force = options.force ?? new BroadcastChannel("force")
+  const force = options.force ?? new Force("energy")
   const energyId = options.energyId ?? readEnergyId()
-  const timeoutMs = options.timeoutMs ?? readTimeoutMs()
   const runtimeKind = options.runtimeKind ?? readRuntimeKind()
   const ownsMassStore = options.massStore === undefined
   const massStore = options.massStore ?? createInMemoryEnergyMassStore()
-  const actorWimpById = new Map<number, string>(options.catalog?.actors ?? [])
-  const descriptorByWimpState = new Map<string, EnergyProcessDescriptor>(
-    options.catalog?.processes.map((process) => [descriptorKey(process.wimp, process.state), process.descriptor]) ?? [],
-  )
+  const actorWimpById = new Map<number, string>()
+  const descriptorByWimpState = new Map<string, EnergyProcessDescriptor>()
   const pendingByActorId = new Map<number, PendingEnergyProcess>()
-  const fallbackTimersByActorId = new Map<number, ReturnType<typeof setTimeout>>()
   const runningActorIds = new Set<number>()
 
-  force.onmessage = (event) => {
-    for (const part of (event.data as ForceMessage).parts) {
+  const loadCatalog = (catalog: EnergyRuntimeSnapshot): void => {
+    actorWimpById.clear()
+    descriptorByWimpState.clear()
+    pendingByActorId.clear()
+    for (const [actorId, wimp] of catalog.actors) actorWimpById.set(actorId, wimp)
+    for (const process of catalog.processes) {
+      descriptorByWimpState.set(descriptorKey(process.wimp, process.state), process.descriptor)
+    }
+  }
+
+  if (options.catalog) loadCatalog(options.catalog)
+
+  force.onCreate = (snapshot) => {
+    if (!isRecord(snapshot) || snapshot.version !== 1 || !Array.isArray(snapshot.actors) || !Array.isArray(snapshot.processes)) {
+      return
+    }
+    loadCatalog(snapshot as unknown as EnergyRuntimeSnapshot)
+  }
+
+  force.onImpulse = (message: ForceMessage) => {
+    for (const part of message.parts) {
       switch (part.part) {
         case "photon": {
           if (part.op !== "test") break
@@ -194,7 +210,7 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
           if (!descriptor || !canExecuteInRuntime(descriptor, runtimeKind)) break
 
           pendingByActorId.set(actorId, {actorId, wimp, state: part.value, descriptor})
-          force.postMessage({
+          force.impulse({
             parts: [{
               part: "z",
               op: "test",
@@ -211,18 +227,29 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
           if (part.from !== energyId) break
           if (!isRecord(part.value) || !isRecord(part.value.fields)) break
           const processFields = part.value.fields
-          if (runningActorIds.has(actorId) || fallbackTimersByActorId.has(actorId)) break
+          if (runningActorIds.has(actorId)) break
           const pending = pendingByActorId.get(actorId)
+          if (!pending) break
 
-          if (pending) {
-            runningActorIds.add(actorId)
-            void executeProcessAction(pending, energyId, processFields, massStore)
+          runningActorIds.add(actorId)
+          void executeProcess(pending, energyId, processFields, massStore)
               .then(async (data) => {
+                if (pending.descriptor.type === "finally") {
+                  force.impulse({
+                    parts: [{
+                      part: "w+",
+                      op: "replace",
+                      path: actorId,
+                      value: {fields: {}},
+                    }],
+                  })
+                  return
+                }
                 let fields: Record<string, unknown>
                 try {
                   fields = await executeProcessHandler(pending, pending.descriptor.success, processFields, {data})
                 } catch (error) {
-                  force.postMessage({
+                  force.impulse({
                     parts: [{
                       part: "w-",
                       op: "replace",
@@ -232,7 +259,7 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
                   })
                   return
                 }
-                force.postMessage({
+                force.impulse({
                   parts: [{
                     part: "w+",
                     op: "replace",
@@ -243,9 +270,20 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
               })
               .catch(async (thrown) => {
                 const actionError = toError(thrown)
+                if (pending.descriptor.type === "finally") {
+                  force.impulse({
+                    parts: [{
+                      part: "w-",
+                      op: "replace",
+                      path: actorId,
+                      value: {error: actionError.message, fields: {}},
+                    }],
+                  })
+                  return
+                }
                 try {
                   const fields = await executeProcessHandler(pending, pending.descriptor.error, processFields, {error: actionError})
-                  force.postMessage({
+                  force.impulse({
                     parts: [{
                       part: "w-",
                       op: "replace",
@@ -254,7 +292,7 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
                     }],
                   })
                 } catch (handlerThrown) {
-                  force.postMessage({
+                  force.impulse({
                     parts: [{
                       part: "w-",
                       op: "replace",
@@ -268,21 +306,6 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
                 pendingByActorId.delete(actorId)
                 runningActorIds.delete(actorId)
               })
-            break
-          }
-
-          const timer = setTimeout(() => {
-            fallbackTimersByActorId.delete(actorId)
-            force.postMessage({
-              parts: [{
-                part: "w+",
-                op: "replace",
-                path: actorId,
-                value: {fields: {}},
-              }],
-            })
-          }, timeoutMs)
-          fallbackTimersByActorId.set(actorId, timer)
           break
         }
       }
@@ -291,12 +314,13 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
 
   return {
     close() {
-      for (const timer of fallbackTimersByActorId.values()) clearTimeout(timer)
-      fallbackTimersByActorId.clear()
       pendingByActorId.clear()
       runningActorIds.clear()
       if (ownsMassStore) massStore.clear?.()
-      force.close()
+      actorWimpById.clear()
+      descriptorByWimpState.clear()
+      force.onCreate = () => {}
+      force.onImpulse = () => {}
     },
   }
 }

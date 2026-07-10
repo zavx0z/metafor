@@ -1,12 +1,15 @@
 import {Buffer} from "node:buffer"
 import {describe, expect, test} from "bun:test"
-import type { EnergyProcessDescriptor } from "@metafor/types/energy/process"
+import {mkdtemp, rm, writeFile} from "node:fs/promises"
+import {tmpdir} from "node:os"
+import {join} from "node:path"
+import type { EnergyActionProcessDescriptor } from "@metafor/types/energy/process"
 import type { EnergyRuntimeSnapshot } from "@metafor/types/energy/catalog"
+import type { EnergyMassStore } from "@metafor/types/energy/mass"
+import type { EnergyForce } from "@metafor/types/energy/protocol"
 import type { ForceMessage } from "@metafor/types/force/message"
 import type { Particle } from "@metafor/types/force/particle"
 import {startEnergyProtocol} from "./energy.ts"
-
-let channelSequence = 0
 
 const waitFor = async (predicate: () => boolean): Promise<void> => {
   const deadline = Date.now() + 1000
@@ -25,13 +28,13 @@ const sleep = async (ms: number): Promise<void> => {
 
 const processEntry = (
   state: string,
-  action: EnergyProcessDescriptor["action"] = {
+  action: EnergyActionProcessDescriptor["action"] = {
     src: "./actions/ready.ts",
     wrapperSrc: "async () => {}",
     readFields: [[2, "command"]],
   },
   env: string[] = ["server"],
-  descriptor: Partial<Pick<EnergyProcessDescriptor, "success" | "error">> = {},
+  descriptor: Partial<Pick<EnergyActionProcessDescriptor, "success" | "error">> = {},
 ): EnergyRuntimeSnapshot["processes"][number] => ({
   wimp: "owner/process",
   state,
@@ -44,6 +47,21 @@ const processEntry = (
   },
 })
 
+const finallyProcessEntry = (
+  state: string,
+  src: string,
+  env: string[] = ["server"],
+): EnergyRuntimeSnapshot["processes"][number] => ({
+  wimp: "owner/process",
+  state,
+  descriptor: {
+    type: "finally",
+    key: state,
+    env,
+    before: {src, readFields: []},
+  },
+})
+
 const createCatalog = (env: string[] = ["server"]): EnergyRuntimeSnapshot => ({
   version: 1,
   actors: [[17, "owner/process"]],
@@ -52,30 +70,36 @@ const createCatalog = (env: string[] = ["server"]): EnergyRuntimeSnapshot => ({
 
 const createHarness = (
   energyId = "energy-local",
-  timeoutMs = 1,
   catalog: EnergyRuntimeSnapshot = createCatalog(),
   runtimeKind = "server",
+  massStore?: EnergyMassStore,
 ) => {
-  const name = `force-energy-test-${Date.now()}-${++channelSequence}`
-  const energyForce = new BroadcastChannel(name)
-  const input = new BroadcastChannel(name)
-  const output = new BroadcastChannel(name)
   const messages: ForceMessage[] = []
-  const protocol = startEnergyProtocol({force: energyForce, energyId, timeoutMs, catalog, runtimeKind})
-
-  output.onmessage = (event) => {
-    messages.push(event.data as ForceMessage)
+  const force: EnergyForce = {
+    onCreate: () => {},
+    onImpulse: () => {},
+    impulse(message) {
+      messages.push(structuredClone(message))
+    },
   }
+  const protocol = startEnergyProtocol({
+    force,
+    energyId,
+    catalog,
+    runtimeKind,
+    ...(massStore ? {massStore} : {}),
+  })
 
   return {
     messages,
+    create(snapshot: EnergyRuntimeSnapshot) {
+      void force.onCreate(structuredClone(snapshot))
+    },
     emit(message: ForceMessage) {
-      input.postMessage(message)
+      void force.onImpulse(structuredClone(message))
     },
     close() {
       protocol.close()
-      input.close()
-      output.close()
     },
   }
 }
@@ -154,8 +178,30 @@ describe("Energy Weak protocol", () => {
     }
   })
 
+  test("Energy receives its process catalog through Force create", async () => {
+    const harness = createHarness("energy-local", {version: 1, actors: [], processes: []})
+
+    try {
+      harness.emit({
+        parts: [{part: "photon", op: "test", path: 17, value: "ready"}],
+      })
+      await sleep(10)
+      expect(collectParts(harness.messages, "z", "test")).toEqual([])
+
+      harness.create(createCatalog())
+      harness.emit({
+        parts: [{part: "photon", op: "test", path: 17, value: "ready"}],
+      })
+
+      await waitFor(() => collectParts(harness.messages, "z", "test").length > 0)
+      expect(collectParts(harness.messages, "z", "test")[0]?.value).toEqual({energy: "energy-local"})
+    } finally {
+      harness.close()
+    }
+  })
+
   test("Energy does not claim photon/test without descriptor", async () => {
-    const harness = createHarness("energy-local", 1, {...createCatalog(), processes: []})
+    const harness = createHarness("energy-local", {...createCatalog(), processes: []})
 
     try {
       harness.emit({
@@ -171,7 +217,7 @@ describe("Energy Weak protocol", () => {
   })
 
   test("Energy does not claim photon/test when env does not match", async () => {
-    const harness = createHarness("energy-local", 1, createCatalog(["browser"]), "server")
+    const harness = createHarness("energy-local", createCatalog(["browser"]), "server")
 
     try {
       harness.emit({
@@ -187,7 +233,7 @@ describe("Energy Weak protocol", () => {
   })
 
   test("Energy waits for z copy before w+", async () => {
-    const harness = createHarness("energy-local", 1)
+    const harness = createHarness("energy-local")
 
     try {
       harness.emit({
@@ -214,7 +260,7 @@ describe("Energy Weak protocol", () => {
         readFields: [[2, "command"]],
       })],
     }
-    const harness = createHarness("energy-local", 1, catalog)
+    const harness = createHarness("energy-local", catalog)
 
     try {
       await claimAndCopy(harness, "ready", {"2": "commit"})
@@ -249,7 +295,7 @@ describe("Energy Weak protocol", () => {
         },
       })],
     }
-    const harness = createHarness("energy-local", 1, catalog)
+    const harness = createHarness("energy-local", catalog)
 
     try {
       await claimAndCopy(harness, "ready", {"2": "commit", "3": "old"})
@@ -284,7 +330,7 @@ describe("Energy Weak protocol", () => {
         },
       })],
     }
-    const harness = createHarness("energy-local", 1, catalog)
+    const harness = createHarness("energy-local", catalog)
 
     try {
       await claimAndCopy(harness, "ready", {})
@@ -308,7 +354,7 @@ describe("Energy Weak protocol", () => {
         readFields: [[2, "command"]],
       })],
     }
-    const harness = createHarness("energy-local", 1, catalog)
+    const harness = createHarness("energy-local", catalog)
 
     try {
       await claimAndCopy(harness, "ready", {"2": "commit"})
@@ -340,7 +386,7 @@ describe("Energy Weak protocol", () => {
         },
       })],
     }
-    const harness = createHarness("energy-local", 1, catalog)
+    const harness = createHarness("energy-local", catalog)
 
     try {
       await claimAndCopy(harness, "ready", {"2": "commit"})
@@ -372,7 +418,7 @@ describe("Energy Weak protocol", () => {
         },
       })],
     }
-    const harness = createHarness("energy-local", 1, catalog)
+    const harness = createHarness("energy-local", catalog)
 
     try {
       await claimAndCopy(harness, "ready", {})
@@ -403,7 +449,7 @@ describe("Energy Weak protocol", () => {
         },
       })],
     }
-    const harness = createHarness("energy-local", 1, catalog)
+    const harness = createHarness("energy-local", catalog)
 
     try {
       await claimAndCopy(harness, "ready", {})
@@ -436,7 +482,7 @@ describe("Energy Weak protocol", () => {
         readFields: [[2, "command"]],
       })],
     }
-    const harness = createHarness("energy-local", 1, catalog)
+    const harness = createHarness("energy-local", catalog)
 
     try {
       await claimAndCopy(harness, "ready", {"2": "commit"})
@@ -458,7 +504,7 @@ describe("Energy Weak protocol", () => {
         readFields: [[2, "command"]],
       })],
     }
-    const harness = createHarness("energy-local", 1, catalog)
+    const harness = createHarness("energy-local", catalog)
 
     try {
       await claimAndCopy(harness, "ready", {"2": "commit"})
@@ -472,7 +518,7 @@ describe("Energy Weak protocol", () => {
   })
 
   test("Energy env resolver accepts any", async () => {
-    const harness = createHarness("energy-local", 1, createCatalog(["any"]), "server")
+    const harness = createHarness("energy-local", createCatalog(["any"]), "server")
 
     try {
       await claimAndCopy(harness, "ready", {"2": "commit"})
@@ -502,7 +548,7 @@ describe("Energy Weak protocol", () => {
         }),
       ],
     }
-    const harness = createHarness("energy-local", 1, catalog)
+    const harness = createHarness("energy-local", catalog)
 
     try {
       await claimAndCopy(harness, "init", {})
@@ -517,35 +563,62 @@ describe("Energy Weak protocol", () => {
     }
   })
 
-  test("Energy timeout fallback still works without pending descriptor", async () => {
-    const harness = createHarness("energy-local", 1)
+  test("Energy executes finally before against mass and releases the actor with compact w+", async () => {
+    const mass: Record<string, unknown> = {resource: "open"}
+    const catalog: EnergyRuntimeSnapshot = {
+      version: 1,
+      actors: [[17, "owner/process"]],
+      processes: [finallyProcessEntry(
+        "done",
+        "async ({ mass }) => { mass.resource = 'closed'; mass.finalized = true }",
+      )],
+    }
+    const harness = createHarness("energy-local", catalog, "server", {get: () => mass})
 
     try {
-      harness.emit({
-        parts: [{
-          part: "z",
-          op: "copy",
-          path: 17,
-          from: "energy-local",
-          value: {fields: {"2": "commit"}},
-        }],
-      })
-
+      await claimAndCopy(harness, "done", {})
       await waitFor(() => collectParts(harness.messages, "w+", "replace").length > 0)
 
-      expect(collectParts(harness.messages, "w+", "replace")[0]).toEqual({
-        part: "w+",
-        op: "replace",
-        path: 17,
-        value: {fields: {}},
-      })
+      expect(mass).toEqual({resource: "closed", finalized: true})
+      expect(collectParts(harness.messages, "w+", "replace")[0]?.value).toEqual({fields: {}})
+      expect(collectParts(harness.messages, "w-", "replace")).toEqual([])
     } finally {
       harness.close()
     }
   })
 
+  test("Energy keeps a filesystem tool payload in mass and returns only a compact W result", async () => {
+    const root = await mkdtemp(join(tmpdir(), "metafor-energy-tool-"))
+    const mass: Record<string, unknown> = {filesystemRoot: root}
+    const catalog: EnergyRuntimeSnapshot = {
+      version: 1,
+      actors: [[17, "owner/process"]],
+      processes: [processEntry("ready", {
+        src: new URL("../fixture/tools/filesystem.read.ts", import.meta.url).href,
+        readFields: [[2, "path"]],
+      })],
+    }
+    const harness = createHarness("energy-local", catalog, "server", {
+      get: () => mass,
+    })
+
+    try {
+      await writeFile(join(root, "input.txt"), "MetaFor tool payload")
+      await claimAndCopy(harness, "ready", {"2": "input.txt"})
+      await waitFor(() => collectParts(harness.messages, "w+", "replace").length > 0)
+
+      expect(mass.result).toEqual({
+        dataBase64: Buffer.from("MetaFor tool payload").toString("base64"),
+      })
+      expect(collectParts(harness.messages, "w+", "replace")[0]?.value).toEqual({fields: {}})
+    } finally {
+      harness.close()
+      await rm(root, {recursive: true, force: true})
+    }
+  })
+
   test("Energy ignores z copy for another energy", async () => {
-    const harness = createHarness("energy-local", 1)
+    const harness = createHarness("energy-local")
 
     try {
       harness.emit({

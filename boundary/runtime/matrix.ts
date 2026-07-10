@@ -14,7 +14,7 @@ import type {
   BoundaryMatrixTransitionRow,
   BoundaryMatrixValueRow,
 } from "@metafor/types/boundary/runtime"
-import {STATE_NONE, STATE_UNDEFINED} from "../../matrix/state.ts"
+import {STATE_NONE, STATE_UNDEFINED} from "@metafor/types/matrix/runtime"
 
 const fieldType = {
   F32: 0,
@@ -23,15 +23,6 @@ const fieldType = {
   STRING_PTR: 3,
   ARRAY_PTR: 4,
 } as const
-
-const fieldAddressId = (actorId: number, fieldId: number): number => {
-  const sum = actorId + fieldId
-  const id = (sum * (sum + 1)) / 2 + fieldId
-  if (!Number.isSafeInteger(id)) {
-    throw new Error(`Matrix field address id is not safe: actor=${actorId} field=${fieldId}`)
-  }
-  return id
-}
 
 const group = <T, K extends string | number>(rows: T[], key: (row: T) => K): Map<K, T[]> => {
   const map = new Map<K, T[]>()
@@ -200,7 +191,7 @@ export async function matrixRuntime(sql: SQL): Promise<MatrixRuntimeSnapshot> {
 
     for (const field of actorFields) {
       const runtimeFieldIndex = dataFields.length
-      const wimpFieldId = fieldAddressId(actor.id, field.id)
+      const wimpFieldId = runtimeFieldIndex
       dataFields.push(matrixField(field))
       values.push([runtimeFieldIndex, decodeValue(actorValueByActorField.get(`${actor.id}\0${field.id}`), field)])
       runtimeFieldIndexByActorField.set(`${actor.id}\0${field.id}`, runtimeFieldIndex)

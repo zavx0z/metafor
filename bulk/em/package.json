@@ -1,9 +1,0 @@
-{
-  "name": "@bulk/em",
-  "type": "module",
-  "main": "index.ts",
-  "dependencies": {
-    "@metafor/types": "workspace:*"
-  },
-  "private": true
-}

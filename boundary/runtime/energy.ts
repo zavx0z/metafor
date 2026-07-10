@@ -6,6 +6,8 @@ import type {
   EnergyRuntimeProcessActionFieldAccessRow,
   EnergyRuntimeProcessActionRow,
   EnergyRuntimeProcessEnvRow,
+  EnergyRuntimeProcessFinallyFieldAccessRow,
+  EnergyRuntimeProcessFinallyRow,
 } from "@metafor/types/boundary/runtime"
 
 const group = <T>(rows: T[], key: (row: T) => string): Map<string, T[]> => {
@@ -54,41 +56,75 @@ export async function energyRuntime(sql: SQL): Promise<EnergyRuntimeSnapshot> {
     WHERE paw.phase IN ('success', 'error')
     ORDER BY process.wimp, process.rowid, paw.phase, field.rowid
   `
+  const processFinallys = await sql<EnergyRuntimeProcessFinallyRow[]>`
+    SELECT process.wimp, process.key, process_finally.before
+    FROM process_finally
+    JOIN process ON process.id = process_finally.process
+    ORDER BY process.wimp, process.rowid
+  `
+  const processFinallyReads = await sql<EnergyRuntimeProcessFinallyFieldAccessRow[]>`
+    SELECT process.wimp, process.key, pfr.field, field.key AS fieldKey
+    FROM process_finally_read pfr
+    JOIN process ON process.id = pfr.process
+    JOIN field ON field.id = pfr.field
+    ORDER BY process.wimp, process.rowid, field.rowid
+  `
   const envsByProcess = group(processEnvs, (row) => `${row.wimp}\0${row.key}`)
   const readsByProcessPhase = group(processActionReads, (row) => `${row.wimp}\0${row.key}\0${row.phase}`)
   const writesByProcessPhase = group(processActionWrites, (row) => `${row.wimp}\0${row.key}\0${row.phase}`)
+  const finallyReadsByProcess = group(processFinallyReads, (row) => `${row.wimp}\0${row.key}`)
+
+  const processes: EnergyRuntimeSnapshot["processes"] = processActions.map((process) => {
+    const key = `${process.wimp}\0${process.key}`
+    const handler = (src: string | null, phase: "success" | "error"): EnergyHandlerDescriptor | undefined => src === null
+      ? undefined
+      : {
+          src,
+          readFields: (readsByProcessPhase.get(`${key}\0${phase}`) ?? []).map((row) => [row.field, row.fieldKey]),
+          writeFields: (writesByProcessPhase.get(`${key}\0${phase}`) ?? []).map((row) => [row.field, row.fieldKey]),
+        }
+    const success = handler(process.success, "success")
+    const error = handler(process.error, "error")
+    return {
+      wimp: process.wimp,
+      state: process.key,
+      descriptor: {
+        type: "action",
+        key: process.key,
+        env: (envsByProcess.get(key) ?? []).map((row) => row.env),
+        action: {
+          src: process.action,
+          ...(process.importSpecifier !== null ? {importSpecifier: process.importSpecifier} : {}),
+          ...(process.wrapperSrc !== null ? {wrapperSrc: process.wrapperSrc} : {}),
+          readFields: (readsByProcessPhase.get(`${key}\0action`) ?? []).map((row) => [row.field, row.fieldKey]),
+        },
+        ...(success !== undefined ? {success} : {}),
+        ...(error !== undefined ? {error} : {}),
+      },
+    }
+  })
+
+  for (const process of processFinallys) {
+    const key = `${process.wimp}\0${process.key}`
+    processes.push({
+      wimp: process.wimp,
+      state: process.key,
+      descriptor: {
+        type: "finally",
+        key: process.key,
+        env: (envsByProcess.get(key) ?? []).map((row) => row.env),
+        before: {
+          src: process.before,
+          readFields: (finallyReadsByProcess.get(key) ?? []).map((row) => [row.field, row.fieldKey]),
+        },
+      },
+    })
+  }
+  processes.sort((left, right) => left.wimp.localeCompare(right.wimp) || left.state.localeCompare(right.state))
 
   return {
     version: 1,
     actors: actors.map((actor) => [actor.id, actor.wimp]),
-    processes: processActions.map((process) => {
-      const key = `${process.wimp}\0${process.key}`
-      const handler = (src: string | null, phase: "success" | "error"): EnergyHandlerDescriptor | undefined => src === null
-        ? undefined
-        : {
-            src,
-            readFields: (readsByProcessPhase.get(`${key}\0${phase}`) ?? []).map((row) => [row.field, row.fieldKey]),
-            writeFields: (writesByProcessPhase.get(`${key}\0${phase}`) ?? []).map((row) => [row.field, row.fieldKey]),
-          }
-      const success = handler(process.success, "success")
-      const error = handler(process.error, "error")
-      return {
-        wimp: process.wimp,
-        state: process.key,
-        descriptor: {
-          type: "action",
-          key: process.key,
-          env: (envsByProcess.get(key) ?? []).map((row) => row.env),
-          action: {
-            src: process.action,
-            ...(process.importSpecifier !== null ? {importSpecifier: process.importSpecifier} : {}),
-            ...(process.wrapperSrc !== null ? {wrapperSrc: process.wrapperSrc} : {}),
-            readFields: (readsByProcessPhase.get(`${key}\0action`) ?? []).map((row) => [row.field, row.fieldKey]),
-          },
-          ...(success !== undefined ? {success} : {}),
-          ...(error !== undefined ? {error} : {}),
-        },
-      }
-    }),
+    processes,
   }
 }

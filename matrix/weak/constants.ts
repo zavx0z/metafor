@@ -46,7 +46,7 @@ export const OP = {
   IS_EMPTY: 11,
 } as const
 
-export { STATE_UNDEFINED, STATE_NONE } from "../state"
+export { STATE_UNDEFINED, STATE_NONE } from "@metafor/types/matrix/runtime"
 
 export const GPU_STATE_UNDEFINED = 0xffffffff
 export const GPU_STATE_NONE = 0xfffffffe

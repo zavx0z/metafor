@@ -59,7 +59,6 @@
       "name": "bulk",
       "version": "0.0.1",
       "dependencies": {
-        "@bulk/em": "workspace:*",
         "@bulk/gravity": "workspace:*",
         "@bulk/strong": "workspace:*",
         "@bulk/weak": "workspace:*",
@@ -69,12 +68,6 @@
         "@ui/elements": "workspace:*",
         "@ui/hud": "workspace:*",
         "force": "workspace:*",
-      },
-    },
-    "bulk/em": {
-      "name": "@bulk/em",
-      "dependencies": {
-        "@metafor/types": "workspace:*",
       },
     },
     "bulk/gravity": {
@@ -101,35 +94,20 @@
       "name": "dark",
       "version": "0.0.1",
       "dependencies": {
-        "@boundary/wimp": "workspace:*",
-        "@dark/em": "workspace:*",
-        "@dark/gravity": "workspace:*",
         "@metafor/types": "workspace:*",
-        "boundary": "workspace:*",
         "force": "workspace:*",
-      },
-    },
-    "dark/em": {
-      "name": "@dark/em",
-      "dependencies": {
-        "@metafor/types": "workspace:*",
-        "boundary": "workspace:*",
       },
     },
     "dark/gravity": {
       "name": "@dark/gravity",
       "dependencies": {
-        "@boundary/wimp": "workspace:*",
         "@metafor/types": "workspace:*",
-        "boundary": "workspace:*",
       },
     },
     "dark/strong": {
       "name": "@dark/strong",
       "dependencies": {
-        "@boundary/wimp": "workspace:*",
         "@dark/gravity": "workspace:*",
-        "boundary": "workspace:*",
       },
     },
     "energy": {
@@ -137,7 +115,6 @@
       "version": "0.1.0",
       "dependencies": {
         "@metafor/types": "workspace:*",
-        "boundary": "workspace:*",
         "force": "workspace:*",
       },
     },
@@ -895,15 +872,11 @@
 
     "@boundary/wimp": ["@boundary/wimp@workspace:boundary/wimp"],
 
-    "@bulk/em": ["@bulk/em@workspace:bulk/em"],
-
     "@bulk/gravity": ["@bulk/gravity@workspace:bulk/gravity"],
 
     "@bulk/strong": ["@bulk/strong@workspace:bulk/strong"],
 
     "@bulk/weak": ["@bulk/weak@workspace:bulk/weak"],
-
-    "@dark/em": ["@dark/em@workspace:dark/em"],
 
     "@dark/gravity": ["@dark/gravity@workspace:dark/gravity"],
 

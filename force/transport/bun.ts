@@ -11,8 +11,7 @@ export class Force extends ForceBase {
   #address: string
   #socket: WebSocket
   #reconnectTimer: ReturnType<typeof setTimeout> | undefined
-  #creating: Promise<void> | undefined
-  #created = false
+  #receiving: Promise<void> = Promise.resolve()
   #closed = false
   #outbox: unknown[] = []
   override onCreate: (snapshot: any) => void | Promise<void> = () => {}
@@ -73,7 +72,12 @@ export class Force extends ForceBase {
         this.#create((impulse as {snapshot: unknown}).snapshot)
         return
       }
-      if (typeof impulse !== "object" || impulse === null || !Array.isArray((impulse as {parts?: unknown}).parts)) return
+      if (
+        typeof impulse !== "object" ||
+        impulse === null ||
+        (impulse as {type?: unknown}).type !== undefined ||
+        !Array.isArray((impulse as {parts?: unknown}).parts)
+      ) return
       this.#emit(impulse as ForceMessage)
     }
     socket.onclose = () => this.#reconnect()
@@ -99,29 +103,15 @@ export class Force extends ForceBase {
   }
 
   #create(snapshot: unknown): void {
-    if (this.#created) return
-    this.#created = true
-    try {
-      this.#creating = Promise.resolve(this.onCreate(snapshot)).catch((error) => {
-        console.error(`[${this.domain}] Force onCreate failed`, error)
-      }).finally(() => {
-        this.#creating = undefined
-      })
-      void this.#creating
-    } catch (error) {
+    this.#receiving = this.#receiving.then(() => this.onCreate(snapshot)).catch((error) => {
       console.error(`[${this.domain}] Force onCreate failed`, error)
-    }
+    })
   }
 
-  async #emit(impulse: ForceMessage): Promise<void> {
-    try {
-      if (this.#creating) await this.#creating
-      await Promise.resolve(this.onImpulse(impulse)).catch((error) => {
-        console.error(`[${this.domain}] Force onImpulse failed`, error)
-      })
-    } catch (error) {
+  #emit(impulse: ForceMessage): void {
+    this.#receiving = this.#receiving.then(() => this.onImpulse(impulse)).catch((error) => {
       console.error(`[${this.domain}] Force onImpulse failed`, error)
-    }
+    })
   }
 
   async #destroy(): Promise<void> {

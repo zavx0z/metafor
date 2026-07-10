@@ -19,7 +19,7 @@ export interface EnergyHandlerDescriptor {
   writeFields: Array<[fieldId: number, key: string]>
 }
 
-export interface EnergyProcessDescriptor {
+export interface EnergyActionProcessDescriptor {
   type: "action"
   key: string
   env: string[]
@@ -32,3 +32,15 @@ export interface EnergyProcessDescriptor {
   success?: EnergyHandlerDescriptor
   error?: EnergyHandlerDescriptor
 }
+
+export interface EnergyFinallyProcessDescriptor {
+  type: "finally"
+  key: string
+  env: string[]
+  before: {
+    src: string
+    readFields: Array<[fieldId: number, key: string]>
+  }
+}
+
+export type EnergyProcessDescriptor = EnergyActionProcessDescriptor | EnergyFinallyProcessDescriptor

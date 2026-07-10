@@ -7,7 +7,7 @@ import type { Particle } from "@metafor/types/force/particle"
 import type { MatrixRuntimeSnapshot } from "@metafor/types/matrix/runtime"
 import {createForceTestFixture, type ForceTestClient, type ForceTestFixture} from "force/fixture"
 import {FieldType} from "./gravity"
-import { STATE_NONE, STATE_UNDEFINED } from "./state"
+import { STATE_NONE, STATE_UNDEFINED } from "@metafor/types/matrix/runtime"
 import {open} from "../boundary/sqlite.ts"
 
 let forceFixture: ForceTestFixture

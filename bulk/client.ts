@@ -270,16 +270,26 @@ void initBulkViewport()
 force.onCreate = (message: unknown) => {
 	forceConnected = true
 	hud?.setConnectionStatus(true)
-	requestInitialMaterialization()
 
 	if (typeof message !== "object" || message === null) return
+	if (
+		(message as {version?: unknown}).version === 1 &&
+		Array.isArray((message as {actors?: unknown}).actors) &&
+		Array.isArray((message as {wimps?: unknown}).wimps)
+	) {
+		initialMaterializationRequested = true
+		applySnapshotMessage({type: "snapshot", src: activeSrc, snapshot: message as BulkRuntimeSnapshot})
+		return
+	}
 	if ((message as {type?: unknown}).type === "snapshot") {
+		initialMaterializationRequested = true
 		applySnapshotMessage(message as SnapshotMessage)
 		return
 	}
 	if ((message as {type?: unknown}).type === "error") {
 		hud?.setBusy(!forceConnected)
 	}
+	requestInitialMaterialization()
 }
 
 force.onDestroy = () => {

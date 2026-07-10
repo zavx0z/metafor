@@ -10,12 +10,25 @@ export type EnergyRuntimeProcessActionRow = {
   error: string | null
 }
 
+export type EnergyRuntimeProcessFinallyRow = {
+  wimp: string
+  key: string
+  before: string
+}
+
 export type EnergyRuntimeProcessEnvRow = {wimp: string; key: string; env: string}
 
 export interface EnergyRuntimeProcessActionFieldAccessRow {
   wimp: string
   key: string
   phase: string
+  field: number
+  fieldKey: string
+}
+
+export interface EnergyRuntimeProcessFinallyFieldAccessRow {
+  wimp: string
+  key: string
   field: number
   fieldKey: string
 }

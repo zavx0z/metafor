@@ -2,12 +2,14 @@ CREATE TABLE IF NOT EXISTS reaction
 (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     wimp          TEXT NOT NULL,
+    local_id      INTEGER,
     key           TEXT NOT NULL CHECK (length(trim(key)) > 0),
     label         TEXT NOT NULL,
     desc          TEXT,
     cond_source   TEXT NOT NULL,
     update_source TEXT NOT NULL,
     UNIQUE (wimp, key),
+    UNIQUE (wimp, local_id),
     FOREIGN KEY (wimp) REFERENCES wimp (src) ON DELETE CASCADE
 );
 

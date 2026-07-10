@@ -5,12 +5,13 @@
 Этот пакет не является прежним runtime-state слоем: этот слой уже называется
 `Matrix`. Energy не читает `Boundary`/SQLite и не держит Matrix store.
 
-Текущий этап создаёт локальный Force pipeline с явным стартом из `dark/index.ts`:
+Текущий этап создаёт Force pipeline с самостоятельным запуском `energy/server.ts`:
 
-- Dark получает `boundary.energyRuntime()` catalog и вызывает
-  `startEnergyProtocol({catalog})`; Matrix snapshot доставляется через Force create;
+- Boundary формирует самодостаточный process catalog и доставляет его Energy
+  через адресованный Force `create`;
 - catalog содержит actor/wimp mapping и process descriptors по `wimp + state`;
-- `energy/energy.ts` открывает общий `BroadcastChannel("force")`;
+- `energy/energy.ts` создаёт `Force("energy")` и получает обычные `{parts}` через
+  тот же WebSocket transport, что и остальные домены;
 - `photon/replace` от Matrix игнорируется как обычный state;
 - `photon/test` от Matrix означает process-bound state;
 - Energy ищет descriptor в catalog, проверяет env и отвечает через `z test` с
@@ -26,9 +27,8 @@
 - handlers собирают W write-set через `update(...)`, но в `value.fields`
   попадают только keys, объявленные в `success.writeFields` /
   `error.writeFields`;
-- timeout fallback остаётся только для debug/v0 compatibility, когда `z copy`
-  пришёл без pending descriptor;
-- отдельного `energy/server.ts`, bridge protocol и dev server `3006` больше нет.
+- `energy/server.ts` поднимает только домен Energy и health endpoint на `4005`;
+  bridge protocol и прямого доступа к Boundary нет.
 
 Каноническое завершение процесса для Matrix — это Force `w+` или `w-` с
 `path = actor ID` и `value.fields[fieldId]`. Если success/error handler

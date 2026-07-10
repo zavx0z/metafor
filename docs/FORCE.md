@@ -1,309 +1,222 @@
-
 # Force
 
-Этот документ является корневой точкой входа в Force-слой MetaFor.
-Он задаёт общий строй сил, каналов и содержимого изменения.
-Детальные разборы отдельных сил и канала изменения полей topology вынесены в [Gravity](./proto/gravity.md), [Electromagnetism](./proto/electromagnetism.md), [Strong](./proto/strong.md), [Weak](./proto/weak.md) и [Higgs](./proto/higgs.md).
+Force — единый транспорт импульсов между изолированными доменами MetaFor.
+Он переносит протокол, но не владеет ни декларациями, ни БД, ни runtime-state,
+ни исполнением процессов.
 
-## Назначение
+Онтология описана в [ONTOLOGY.md](./ONTOLOGY.md), доменные границы — в
+[ARCHITECTURE.md](./ARCHITECTURE.md), а силовые каналы подробнее разобраны в
+[Gravity](./proto/gravity.md), [Electromagnetism](./proto/electromagnetism.md),
+[Strong](./proto/strong.md), [Weak](./proto/weak.md) и
+[Higgs](./proto/higgs.md).
 
-[ONTOLOGY.md](./ONTOLOGY.md) фиксирует, что существует в системе.
-[ARCHITECTURE.md](./ARCHITECTURE.md) фиксирует, как это выражается в кодовой проекции.
-Force фиксирует, как сила действует через канал и как изменение получает переносимую форму.
+## Один транспорт
 
-Этот слой углубляет онтологию и архитектуру, но не перераспределяет их обязанности.
-Каноникализация, дедупликация, интернирование и уплотнение остаются за `Boundary × Strong`.
-Типовое различие между обычными полями данных и полями topology остаётся первичным и не определяется самим Force-слоем задним числом.
-
-## Центральные различия
-
-### Сила
-
-Сила задаёт характер преобразования.
-Она не является переносимой единицей и не совпадает с содержимым изменения.
-
-### Boson
-
-`Boson` является общим типом силового канала и переносимой единицы.
-Он не является силой.
-
-Подтипами `Boson` в Force-слое MetaFor являются:
-
-- `Graviton`,
-- `Photon`,
-- `Gluon`,
-- `Higgs boson`,
-- `W boson`,
-- `Z boson`.
-
-Каждый такой подтип принадлежит своей силе или отдельному каналу изменения полей topology и не должен смешиваться с другими.
-
-### Impulse
-
-`Impulse` является содержимым изменения.
-Он не является силой, не является `Boson` и не является каналом.
-
-В архитектурной сериализуемой проекции `Impulse` может быть выражен через `ParticleOperation` и поля данных.
-Это не превращает его в переносчик.
-
-Силовая связка читается так:
-
-- сила задаёт характер преобразования,
-- `Boson` задаёт общий тип канала,
-- подтип `Boson` задаёт конкретный силовой канал,
-- `Impulse` задаёт содержимое изменения.
-
-## Транспорт и `part`
-
-Физический транспорт MetaFor использует один `BroadcastChannel`: `FORCE`.
-Отдельных физических каналов `gravity`, `gluon`, `higgs`, `weak` и т.п. в рантайме Force быть не должно.
-
-Каждый `Particle` несёт смысловой канал в поле `part`.
-Один `Particle` представляет ровно один Force part:
+Server и browser используют один публичный смысл:
 
 ```ts
-{ part: "graviton", op: "replace", path: "zavx0z/git", value: { name: "Git" } }
-{ part: "graviton", op: "replace", path: "zavx0z/git", value: { fields: { "1": { key: "title", type: "string" } } } }
-{ part: "gluon", op: "replace", path: 17, value: { fields: { "1": "MetaFor" } } }
-{ part: "higgs", op: "replace", path: 17, value: { fields: { "2": "native" } } }
-{ part: "photon", op: "replace", path: 17, value: "ready" }
-{ part: "photon", op: "test", path: 17, value: "ready" }
-{ part: "z", op: "test", path: 17, value: { energy: "energy-local" } }
-{ part: "z", op: "copy", path: 17, from: "energy-local", value: { fields: { "1": "MetaFor" } } }
-{ part: "w+", op: "replace", path: 17, value: { fields: { "1": "done" } } }
-{ part: "w-", op: "replace", path: 17, value: { error: "failed", fields: {} } }
+import {Force} from "force"
+
+const force = new Force("matrix")
+
+force.onCreate = (snapshot) => {}
+force.onImpulse = (message) => {}
+force.impulse({parts: []})
 ```
 
-`part` хранит носитель силы, а `path` выбирает область действия патча.
-В v0 есть две основные публичные области действия:
+Runtime-adapter различается, Force API и формат сообщения — нет.
+Локальный `BroadcastChannel` не является междоменным transport-ом ядра.
 
-- WIMP SRC для патча класса или структуры;
-- actor ID для патча конкретного рантайм-экземпляра.
-
-Конкретные поля, слоты Fuzzy/MACHO/Axion, состояния и элементы процесса/рантайма
-адресуются ID внутри `value` или через кэш проекции. Key, name, label и type
-являются изменяемыми свойствами, а не адресами протокола.
-Порядок полей не является логической сущностью и не входит в протокол. Полевые
-частицы адресуются по `fieldId`; порядок отображения не имеет значения для
-логики. Логический порядок допускается только там, где он участвует в переходах
-superposition/triggers или в значении списка.
-
-В обычном рантайм-потоке `gluon`, `higgs`, `photon` и Weak process
-protocol не используют `/field/...`. `gluon`, `higgs`, `z copy`, `w+` и `w-` в
-области экземпляра идут через `path = actor ID` и `value.fields[fieldId]`;
-`higgs` в области класса идёт через `path = WIMP SRC`. `/field/...` не является
-обычным Force-адресом. Старый Weak result adapter для top-level `wimpId` /
-`processId` и `/field/...` удалён; новый код не должен строить на нём контракт.
-Обычная рантайм-идентичность — actor ID.
-Актуальный процессный долг держится в `TODO.md`; этот документ описывает только
-действующий Force-контракт.
-Имя `Energy` в новых документах относится только к распределённому исполнителю
-процессов: он слушает `photon/test` Matrix, запрашивает выполнение через
-`z test`, получает frozen context через `z copy` и возвращает результат через
-`w+`/`w-`.
-Runtime-state слой называется `Matrix`.
-Пакет `energy/` сейчас является локальным Force pipeline, а не отдельной
-серверной оболочкой bridge/protocol surface.
-Matrix не создаёт отдельную Z-задачу при входе actor в process-bound state.
-`photon` является публичным сигналом входа actor в state: `photon/replace` для
-обычного state и `photon/test` для process-bound state. При process-bound state
-Matrix до photon ставит lock и сохраняет frozen snapshot fields. Matrix snapshot
-знает только `weak.stateHasProcessByBraneIndex`, без process id и descriptors.
-Energy получает process catalog snapshot при старте, слушает общий локальный
-`BroadcastChannel("force")` и отвечает `z test` в тот же канал только на
-подходящий `photon/test`. Matrix выбирает первого валидного Energy и публикует
-`z copy`, где `from` равен Energy id, а `value.fields` содержит frozen snapshot;
-свойство `process` в `z copy.value` отсутствует. Повторные `z test` после выбора
-исполнителя игнорируются без отрицательной частицы.
-Energy исполняет cached process descriptor после `z copy`. Action success
-запускает success handler, если он есть, и публикует actor-addressed `w+` с
-fields, собранными через `update(...)`. Action throw запускает error handler,
-если он есть, и публикует actor-addressed `w-` с `error` и fields, собранными
-через `update(...)`. В W fields попадают только keys, объявленные в
-`success.writeFields` или `error.writeFields`; без handler или без `update(...)`
-fields остаётся `{}`.
-Energy владеет in-memory runtime mass store. `mass` не сериализуется в
-`Boundary`, не хранится в `Matrix` и не переносится через Force.
-
-Для нового Weak process protocol top-level частицы не расширяются за пределы
-`part`, `op`, `path`, `value`, `from`. `processId`, `token`, `wimpId`,
-`executorId` и `energyId` не являются top-level полями нового протокола. Energy
-id передаётся как `value.energy` в `z test` и как `from` в `z copy`.
-
-`graviton test wimp` не является общим Force-контрактом материализации. Сейчас
-это узкая управляющая поверхность до отдельного перевода пути материализации.
-Для `Dark`/`Boundary` это может быть лёгкий control-сигнал, потому что `Dark`
-имеет доступ к `Boundary`.
-Для `Matrix` и `Bulk` такой порядок запрещён: они не читают `Boundary` и не
-являются репликами БД. Поэтому частица, обращённая к рантайму, должна нести
-самодостаточные данные.
-
-Пакет `parts` может содержать разные `part`, но маршрутизация всегда читается с самого Particle, а не с конверта.
-Конверт не должен дублировать `part`, `channel`, `source` или `boson`.
-
-Транспортный слой не строит собственные очереди поверх `BroadcastChannel`.
-Если нужен порядок, дедупликация, повторное воспроизведение или целостность, это обязанность транзакции Boundary, revision/domain tick или владельца рантайма, а не Promise-очереди подписчика.
-
-## Коммит Boundary И Рантайм-Данные
-
-`Boundary` хранит каноническую персистентную форму мира, доступную `Dark`.
-`Matrix` и `Bulk` не имеют доступа к `Boundary`/SQLite и не должны получать
-сигнал, который требует последующего чтения БД.
-
-Главное различие:
-
-- `Dark`/`Boundary` могут использовать лёгкие сигналы и перечитывать персистентную форму.
-- `Matrix`/`Bulk` получают рантайм-данные и ведут собственное состояние/проекцию в рантайме.
-- `Energy` получает process catalog snapshot при старте через Dark/Boundary, затем работает по Force: frozen fields приходят через `z copy`, mass остаётся in-memory внутри Energy, а сам пакет `energy/` не читает `Boundary`/SQLite.
-- WebSocket между доменами не является синхронизацией базы.
-- Если рантайм получил только UUID без данных, это ошибка контракта, а не повод читать `Boundary`.
-
-Правильный порядок для персистентного слоя:
+Центральный server принимает:
 
 ```text
-полное доменное изменение
-  -> локальная транзакция Boundary
-  -> коммит(txId / revision / parents)
-  -> сигналы Boundary entropy
+WS /ws:
+  {type:"register", domain, id}
+  {type:"create", domain, snapshot}
+  {parts:[...]}
+
+HTTP POST /force:
+  {parts:[...]}
 ```
 
-Правильный порядок для рантайм-слоя:
+`register` и `create` — transport-control. Обычный `ForceMessage` всегда
+передаётся как `{parts}` и не оборачивается в `{type:"force"}`.
+`create` доставляет bootstrap snapshot указанному домену; ordinary messages
+пока broadcast-ятся всем зарегистрированным доменам, а каждый домен игнорирует
+нерелевантные частицы.
+
+Force не применяет патчи, не открывает SQLite, не знает бизнес-логику доменов и
+не добавляет ack, ordinary impulse replay, seq, queue или routing policy.
+Последний target `create` snapshot хранится отдельно как bootstrap для нового
+клиента соответствующего домена.
+
+## Message и Particle
+
+```ts
+interface ForceMessage {
+  parts: Particle[]
+}
+
+interface Particle {
+  part: "inflaton" | "graviton" | "gluon" | "higgs" |
+        "photon" | "z" | "w+" | "w-"
+  op: "add" | "remove" | "replace" | "move" | "copy" | "test"
+  path: string | number
+  value?: unknown
+  from?: string | number
+}
+```
+
+Конверт не дублирует `part`, `channel`, `source` или `boson`.
+Смысл маршрута читается с каждой частицы.
+
+## Семантика частиц
+
+| `part/op`   | Направление                | Смысл                                     |
+| ----------- | -------------------------- | ----------------------------------------- |
+| `inflaton`  | Dark → Boundary            | Поток source/meta/WIMP declarations       |
+| `graviton`  | Boundary → runtime domains | Материализованная структура current world |
+| `gluon`     | runtime                    | Значение обычного field у actor           |
+| `higgs`     | runtime                    | Изменение topology field: enum/array      |
+| `photon`    | Matrix → observers/Energy  | Наблюдаемый state signal                  |
+| `z/test`    | Energy → Matrix            | Запрос на claim процесса                  |
+| `z/copy`    | Matrix → Energy            | Выбор исполнителя и frozen fields         |
+| `w+`        | Energy → Matrix            | Успешный result write-set                 |
+| `w-`        | Energy → Matrix            | Ошибка и error write-set                  |
+
+`Inflaton` и `Graviton` не взаимозаменяемы. Первый переносит возможность
+формы, второй — уже материализованную Boundary-проекцию.
+
+## Inflaton: declaration stream
+
+Для `inflaton`:
 
 ```text
-получить рантайм-данные частицы/проекции
-  -> применить к рантайм-состоянию/проекции
-  -> испустить рантайм-частицы Force при локальном изменении рантайм-состояния
+part = inflaton
+path = meta SRC
+value = именованная часть WIMP declaration
 ```
 
-Нельзя строить `Matrix` или `Bulk` как вторую `Boundary`-реплику. Если им
-нужны данные, эти данные должны быть частью рантайм-данных или данных проекции.
+Пример:
 
-Следствие: отправка доменной частицы Force принадлежит слою `Boundary`/коммита, а
-не вызывающей стороне, которая уже записала данные.
-Транспортный модуль Force живёт в `boundary/force`; подписки и прямые
-низкоуровневые каналы импортируются оттуда, а не из корня проекта.
-Текущая стартовая поверхность для доменного emit после Boundary-записи встроена в
-ORM write-методы: `actor.create`, `topology.create`, `wimp.states.add`,
-`wimp.processes.add`, `wimp.matter.*` и связанные sub-ORM методы рождают
-Force part после SQL-записи. Дальше эта поверхность должна схлопываться в
-полноценный конверт коммита, но вызывающая сторона уже не должна сама создавать
-`BroadcastChannel` или вручную слать второй Force part.
-Домен, агент, UI или другой участник среды не должен выполнять двойное ручное
-действие:
+```ts
+{
+  parts: [
+    {
+      part: "inflaton",
+      op: "replace",
+      path: "zavx0z/git",
+      value: {meta: {name: "git", desc: "Git"}}
+    },
+    {
+      part: "inflaton",
+      op: "replace",
+      path: "zavx0z/git",
+      value: {
+        fields: {
+          "1": {key: "command", type: "string", required: false}
+        }
+      }
+    }
+  ]
+}
+```
+
+Поток покрывает реально представленные в DSL sections:
+`meta`, `fields`, enum `variants`, `states`, `transitions`,
+`conditions`, `processes` с action/env/read/write/handlers/finally,
+`reactions`, `matter`, `mass` и `bulk`.
+
+Dark выдаёт детерминированные local declaration IDs. Идентичность declaration
+составляется как `WIMP SRC + localNumber` внутри конкретной таблицы:
 
 ```text
-write Boundary
-send Force part separately
+field("zavx0z/git", "1")
+state("zavx0z/git", "1")
+process("zavx0z/git", "1")
+matter("zavx0z/git", "1")
 ```
 
-Для участника среды должен существовать один смысловой вход: изменить значение
-поля, состояние или контекст. Внутри этого входа среда выполняет транзакцию
-Boundary, формирует конверт коммита и только после коммита доставляет
-`signals` как Force parts.
+Тип сущности уже задан таблицей и не кодируется в ID. Actor, topology instance,
+value и прочие materialized row IDs в Dark не создаются.
 
-Если API требует от участника одновременно менять БД и вручную слать Force part, это
-означает, что рантайм-контракт ещё не доведён: отправку Force part нужно перенести в
-путь Boundary/коммита или сделать рантайм-данные самодостаточными.
+## Graviton: materialized projection
 
-## Типы полей
+Boundary атомарно применяет declaration stream, создаёт canonical declaration
+rows и материализует actor/topology/value/current-world rows. Только после
+commit он испускает `graviton`.
 
-Force различает:
+```ts
+{
+  part: "graviton",
+  op: "add",
+  path: "actor",
+  value: {
+    actor: {id: 17, parentActor: null, parentTopology: null, wimp: "zavx0z/git", position: 0},
+    values: [],
+    valueRecords: [],
+    valueItems: [],
+    state: {actor: 17, metaState: null}
+  }
+}
+```
 
-- обычные поля данных,
-- поля topology.
+Topology instances идут отдельными Graviton parts с `path = fuzzy | axion |
+macho`.
 
-`enum` и `array` относятся к полям topology по своей типовой природе.
-Это первичная категория модели, а не постфактум-вывод из формы контракта.
-Контракт только разворачивает уже существующую topology-семантику.
+Runtime domain не должен получать UUID/ID с подразумеваемым последующим чтением
+Boundary. Для полного bootstrap Boundary дополнительно отправляет
+самодостаточные target `create` snapshots:
 
-Поля topology в MetaFor читаются как поля Higgs:
+```text
+Boundary commit
+  -> graviton materialized parts
+  -> create(matrix, matrixRuntime)
+  -> create(energy, processCatalog)
+  -> create(bulk, bulkRuntime)
+```
 
-- `enum` всегда выражает выбор topology,
-- `array` всегда выражает множественность topology и разворачивание ветвей.
+Так голографический инвариант становится техническим: данные, пересекающие
+границу, достаточны для восстановления соответствующей runtime-проекции.
 
-Ни `enum`, ни `array` нельзя читать как обычное поле значения.
-Ни одно из них не принадлежит режиму обычного обновления поля.
-Оба меняются только как изменение topology через `Higgs boson`, а не как обычная мутация значения.
+## Runtime addressing
 
-Ограничения полей topology таковы:
+- `inflaton.path` — WIMP SRC;
+- materialized `graviton.path` — collection kind (`actor`, `fuzzy`, `axion`,
+  `macho`), а instance ID находится в snapshot value;
+- class-scope `higgs.path` — WIMP SRC;
+- actor-scope `gluon`, `higgs`, `photon`, `z`, `w+`, `w-` используют
+  `path = actor ID`;
+- fields адресуются внутри `value.fields[fieldId]`;
+- key, label, name и display order не являются protocol addresses;
+- `/field/...` не является обычным Force path.
 
-- `enum` не является просто ограниченным литеральным полем,
-- `enum` меняется как выбор topology, а не как обычная мутация значения,
-- `array` не является обычной изменяемой коллекцией,
-- `array` меняется как множественность topology, а не как обычная мутация значения,
-- `array` не участвует в entanglement,
-- `array` не мутируется внешними реакциями,
-- `array` может меняться только внутренним процессом атома и только проходя через изменение `State`.
+Обычные `string`, `number`, `boolean` fields меняются через `gluon`.
+`enum` и `array` являются topology fields и меняются через `higgs`.
 
-Формальная topology-модель, типизированная topology-адресация и topology-уровневая адресация entanglement вынесены в [TOPOLOGY.md](./TOPOLOGY.md), чтобы Force не подменял архитектурную сборку скрытого мира.
+## Weak process flow
 
-## Глобальная симметрия
+```text
+Matrix -> photon/test(actor, state)
+Energy -> z/test(actor, {energy})
+Matrix -> z/copy(actor, from=energy, {fields})
+Energy -> execute cached descriptor
+Energy -> w+ | w-
+Matrix -> apply write-set, unlock, continue transition
+```
 
-Силовая симметрия MetaFor задаётся так:
+Matrix snapshot содержит только то, что нужно автомату. Process catalog и
+action descriptors получает Energy. `z copy` несёт frozen fields, но не
+process descriptor.
 
-- `Gravity -> Graviton`
-- `Electromagnetism -> Photon`
-- `Strong -> Gluon`
-- `Higgs field change -> Higgs boson`
-- `Weak -> W boson / Z boson`
+## Данные инструментов
 
-Это соответствие должно читаться единообразно в онтологии, архитектуре и Forceе.
+Force переносит управляющие события и ограниченные runtime-проекции, но не
+является хранилищем артефактов. Содержимое файлов, большой stdout/stderr,
+скриншоты, архивы и объёмные tool results должны жить в filesystem-backed
+operation mass/artifacts. Текущая in-memory Energy mass предназначена только
+для compact process-local data. Matrix удерживает только состояние операции, а
+Force возвращает небольшой status/write-set.
 
-## Силовые взаимодействия
-
-### Gravity
-
-`Gravity` отвечает за отношение, инварианты локализации, адресуемость и структурную организацию.
-Её `Dark`-проекция проявляется как скрытая связность и внутренняя геометрия, `Boundary`-проекция — как геометрия персистентного уплощения, `Matrix`-проекция — как рантайм-локализация перехода, а `Bulk`-проекция — как проявленная раскладка и пространственная локализация.
-Её каналом является `Graviton`, который относится к внутреннему структурному Forceу, а не к наблюдаемому сигналу.
-
-Подробный разбор вынесен в [Gravity](./proto/gravity.md).
-
-### Electromagnetism
-
-`Electromagnetism` отвечает за наблюдаемое распространение и перенос `State`.
-Её каналом является `Photon`, который приносит состояние в сигнальную, гранично-видимую и проявленную форму.
-
-Подробный разбор вынесен в [Electromagnetism](./proto/electromagnetism.md).
-
-### Strong
-
-`Strong` отвечает за удержание, сцепление, связность и устойчивость формы.
-Её каналом является `Gluon`, через который изменяются значения обычных `Field`.
-
-При этом `Gluon` не заменяет архитектурную роль `Boundary × Strong`.
-Каноникализация, дедупликация, интернирование и уплотнение остаются отдельной обязанностью границы.
-Глюонный октет и соответствия типам `Field` вынесены в [Strong](./proto/strong.md).
-
-### Higgs
-
-`Higgs` в MetaFor обозначает изменение полей topology.
-Его каналом является `Higgs boson`, который изменяет поля topology как поля Higgs.
-
-Здесь важно различать:
-
-- `Photon` переносит `State`,
-- `Gluon` изменяет обычные `Field`,
-- `Higgs boson` изменяет поля topology,
-- `Graviton` удерживает рамку отношения и локализации, в которой эти изменения получают место.
-
-Подробный разбор вынесен в [Higgs](./proto/higgs.md).
-
-### Weak
-
-`Weak` отвечает за переход, прохождение, мутацию и медицию состояния.
-Её каналы — `W boson` и `Z boson`.
-
-`W boson` относится к активному переходу.
-`Z boson` относится к нейтральной медиции и внутренней связке переходных состояний.
-Это не превращает `Weak` в сигнальный канал уровня `Photon`.
-
-Подробный разбор вынесен в [Weak](./proto/weak.md).
-
-## Детальные документы
-
-- [Gravity](./proto/gravity.md) — отношение, инварианты локализации, адресуемость и структурная организация по доменным проекциям.
-- [Electromagnetism](./proto/electromagnetism.md) — наблюдаемое распространение, сигнал и перенос `State`.
-- [Strong](./proto/strong.md) — изменение значений обычных `Field`, удержание формы и границы действия `Gluon`.
-- [Higgs](./proto/higgs.md) — поля topology как поля Higgs, выбор ветви, множественность ветвей и `Higgs boson`.
-- [Weak](./proto/weak.md) — активный переход, нейтральная медиция и различие между `W boson` и `Z boson`.
+Внешний tool adapter не должен раскрывать агенту `actorId`, WIMP или частицы:
+снаружи остаётся стандартный tool contract, внутри действует MetaFor.

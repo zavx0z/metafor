@@ -1,6 +1,5 @@
 import type { Process } from "./process.ts"
 import type { ProcessActionReadPhase, ProcessActionWritePhase } from "@metafor/types/boundary/wimp"
-import {emitGravitonAdd} from "../../../force.ts"
 
 /**
  * Sub-ORM для таблицы `process_action_read` (PK (process, phase, field)).
@@ -13,15 +12,11 @@ export class ActionRead {
     const sql = this.action.process.processes.wimp.sql
     const src = this.action.process.processes.wimp.src
     const processId = await this.action.process.id()
-    const existing = await this.has(phase, fieldKey)
     await sql`
       INSERT OR IGNORE INTO process_action_read (process, field, phase)
       SELECT ${processId}, field.id, ${phase}
       FROM field WHERE field.wimp = ${src} AND field.key = ${fieldKey}
     `
-    if (!existing && await this.has(phase, fieldKey)) {
-      emitGravitonAdd("process_action_read", `${processId}/action/read/${phase}/${fieldKey}`)
-    }
   }
 
   async remove(phase: ProcessActionReadPhase, fieldKey: string): Promise<void> {
@@ -100,15 +95,11 @@ export class ActionWrite {
     const sql = this.action.process.processes.wimp.sql
     const src = this.action.process.processes.wimp.src
     const processId = await this.action.process.id()
-    const existing = await this.has(phase, fieldKey)
     await sql`
       INSERT OR IGNORE INTO process_action_write (process, field, phase)
       SELECT ${processId}, field.id, ${phase}
       FROM field WHERE field.wimp = ${src} AND field.key = ${fieldKey}
     `
-    if (!existing && await this.has(phase, fieldKey)) {
-      emitGravitonAdd("process_action_write", `${processId}/action/write/${phase}/${fieldKey}`)
-    }
   }
 
   async remove(phase: ProcessActionWritePhase, fieldKey: string): Promise<void> {
@@ -228,7 +219,6 @@ export class ProcessAction {
       INSERT INTO process_action (process, action, action_import_specifier, action_wrapper_src, success, error)
       VALUES (${processId}, ${input.src}, ${importSpecifier}, ${wrapperSrc}, ${success}, ${error})
     `
-    emitGravitonAdd("process_action", `${processId}/action`)
   }
 
   async setSuccess(src: string | null): Promise<void> {

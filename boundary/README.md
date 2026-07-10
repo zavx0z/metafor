@@ -1,108 +1,125 @@
 # Boundary
 
-> Обновление 2026-06-14: прежний рантайм-смысл этого пакета перенесён в
-> `Matrix`. Текущий `Boundary` — это персистентная граница: ORM, SQLite,
-> `wimp`/`actor`/`topology` и Force-поверхность вокруг канонического отпечатка.
-> `Matrix` и `Bulk` не должны читать `Boundary`/SQLite напрямую.
+`Boundary` — голографическая граница MetaFor: самостоятельный домен, который
+канонизирует source declaration, фиксирует её в SQLite и материализует
+адресуемый current world.
 
-`Boundary` — домен границы, который держит каноническую персистентную форму мира.
+Boundary не загружает `meta` вместо Dark, не исполняет процессы вместо Energy и
+не ведёт runtime-переходы вместо Matrix.
 
-## Первый смысл Boundary
-
-Для текущего этапа `Boundary` нужно читать как слой канонизации и фиксации.
-Первая читаемая плоскость визуализации и рантайм-переход теперь относятся к
-`Matrix`/`Bulk`, а не к boundary-базе.
-
-Именно здесь скрытая связность из `Dark` превращается в:
-
-- адресуемые персистентные акторы,
-- фиксированные `Field`,
-- фиксируемые `State`,
-- стабильные id-идентичности, которые потом могут быть показаны человеку,
-- основу для рантайм-данных, которые дальше получат `Matrix` и `Bulk`.
-
-Практически это означает:
-
-- сначала `Dark` должен материализовать структуру в персистентной границе,
-- затем `Boundary` должен зафиксировать её реляционно и адресуемо,
-- затем `Matrix`/`Bulk` должны получить самодостаточные рантайм-данные без чтения БД.
-
-Отдельное подробное описание этого направления зафиксировано в
-[boundary/docs/multiverse-visualization.md](./docs/multiverse-visualization.md).
-Issue-driven архитектурная карта зафиксирована в
-[boundary/docs/issue-map.md](./docs/issue-map.md).
-
-## Слои
-
-- `boundary/wimp` фиксирует декларативный и материализованный контракт WIMP.
-- `boundary/actor` фиксирует персистентный слой `actor`/`value`/`state`.
-- `boundary/topology` фиксирует персистентный слой `topology`.
-- `boundary/sqlite.ts` открывает персистентный Boundary.
-- `boundary/force.ts` удерживает Force-поверхность вокруг коммита Boundary.
-
-Рантайм-слои `gravity`/`strong`/`weak`, которые раньше описывались здесь как
-часть Boundary, должны читаться как зона `Matrix`.
-
-## Инварианты
-
-- `Boundary` владеет персистентной формой и не становится владельцем рантайма.
-- `Dark` может открывать `Boundary` для материализации.
-- `Matrix` и `Bulk` не открывают `Boundary`/SQLite как DB/ORM-зависимость.
-- Рантайм-данные для `Matrix` и `Bulk` должны быть самодостаточными.
-- Производные рантайм-формы не подменяют каноническую boundary-форму.
-
-Для визуализации мультивселенной дополнительно фиксируются такие инварианты:
-
-- `Boundary` остаётся источником канонической персистентной формы мира, а не произвольным UI-кэшем.
-- Визуальный слой не должен изобретать собственные идентичности поверх id.
-- `Matrix` отвечает за рантайм-переход и состояние.
-- `Bulk` отвечает за проявленную проекцию и пространственную форму.
-- Представление агента, человека, чата, `git`-мира или tool-рантайма должно опираться на рантайм-данные, собранные из персистентного Boundary, а не на прямое чтение Boundary из `Bulk`.
-
-## Передача В Рантайм
-
-`Boundary` не является визуальным или рантайм-слоем. Его задача — после
-материализации иметь адресуемое каноническое состояние и отдать дальше
-самодостаточные данные:
+## Основной поток
 
 ```text
-Dark -> персистентная форма Boundary -> Force/рантайм-данные -> рантайм Matrix/Bulk
+meta/WIMP source
+  -> Dark
+  -> inflaton declaration stream
+  -> Force
+  -> Boundary atomic commit and materialization
+  -> graviton materialized parts
+  -> Force
+  -> Matrix / Energy / Bulk
 ```
 
-Это означает:
+После успешного commit Boundary также отправляет адресованные bootstrap
+snapshots:
 
-1. `Boundary` фиксирует `wimp`, `actor`, `topology`, values и state.
-2. `Matrix` получает рантайм-данные и ведёт переход.
-3. `Bulk` получает события проекции/рантайма и проявляет форму.
-4. `Matrix` и `Bulk` не читают БД Boundary.
-5. Если рантайм-получателю нужен процесс, actor, field или value, это должно быть в данных сообщения.
+```text
+create(matrix, matrixRuntime)
+create(energy, processCatalog)
+create(bulk, bulkRuntime)
+```
 
-Для восстановления после старта Boundary может подготовить самодостаточные
-снимки из своей персистентной формы:
+`Graviton` и `create` испускаются только после атомарной фиксации declaration и
+materialized world. ID без самодостаточных данных не считается runtime-проекцией.
 
-- `boundary.matrixRuntime()` — данные для рантайм-перехода `Matrix`;
-- `boundary.bulkRuntime()` — данные для восстановления проекции `Bulk`.
+## Ответственность
 
-Эти методы находятся в Boundary именно потому, что только Boundary читает SQLite.
-Получатели работают уже со снимком и не получают DB/ORM-зависимость.
+Boundary владеет:
 
-## Публичный вход
+- canonical WIMP declaration;
+- fields, enum variants, states, transitions и conditions;
+- processes, handlers и reactions;
+- matter, serializable mass declaration и bulk declaration;
+- actor, topology и value instances;
+- current materialized hierarchy;
+- построением самодостаточных Matrix, Energy и Bulk projections.
 
-Текущий публичный вход Boundary должен читаться через персистентный API:
+Текущий реализованный commit materializes world из declaration/default values.
+Обратная фиксация actor-scoped runtime `higgs` из Matrix и перестройка уже
+живущих Fuzzy/Macho branches остаются отдельной задачей в [`TODO.md`](../TODO.md).
+
+Boundary не владеет:
+
+- source/meta loading и declaration normalization — это Dark;
+- runtime state machine, locks и transitions — это Matrix;
+- process execution и process-local runtime mass — это Energy;
+- проявленной пространственной формой — это Bulk;
+- междоменным хранением или бизнес-маршрутизацией — Force остаётся transport-ом.
+
+## Идентичность
+
+Declaration identity приходит из Dark как детерминированная пара:
+
+```text
+(wimpSrc, localNumber) внутри конкретной declaration table
+```
+
+Одинаковый local number допустим в разных tables: тип сущности уже задан table
+context и не кодируется в ID. Версия declaration в identity сейчас не входит.
+
+Boundary самостоятельно создаёт runtime/materialization identity:
+
+- actor ID;
+- topology instance ID;
+- value ID;
+
+Текущий materialized world определяется этим согласованным набором Boundary
+rows; отдельный публичный materialization ID сейчас не вводится.
+
+SQLite autoincrement допустим для этих runtime instances, но не определяет
+declaration identity.
+
+## Изоляция доменов
+
+В production только Boundary открывает свою SQLite database.
+
+- Dark не импортирует Boundary и передаёт только Inflaton через Force.
+- Matrix получает `MatrixRuntimeSnapshot` и runtime particles.
+- Energy получает self-contained process catalog и runtime signals.
+- Bulk получает собственную projection.
+- Ни один получатель не использует ID как указание затем прочитать Boundary DB.
+- Междоменное взаимодействие проходит только через публичный Force transport,
+  без локальной шины или direct ORM read.
+
+Тесты могут открывать Boundary напрямую для подготовки fixture и проверки rows,
+но такой import не становится production API между доменами.
+
+## Server flow
+
+`boundary/server.ts`:
+
+1. открывает SQLite через `boundary/sqlite.ts`;
+2. создаёт `Force("boundary")`;
+3. принимает ordinary `{parts}` через `force.onImpulse`;
+4. применяет Inflaton одной транзакцией;
+5. материализует actor/topology/value current world;
+6. публикует Graviton и target `create` snapshots после commit.
+
+Путь к database передаётся первым позиционным аргументом server script. Если его
+нет, Boundary читает `BOUNDARY_PATH`; без обоих используется
+`boundary/tmp/boundary.sqlite`.
+
+## Персистентный API
+
+Низкоуровневый вход нужен самому Boundary server и test fixtures:
 
 ```ts
-import { open } from "boundary/sqlite"
-import { force } from "boundary/force"
+import {open} from "boundary/sqlite"
+
+const boundary = await open(filename)
 ```
 
-Внутренние ORM-области:
-
-- `boundary.wimp`;
-- `boundary.actor`;
-- `boundary.topology`;
-- `boundary.matrixRuntime()` / `boundary.bulkRuntime()` для самодостаточного восстановления runtime-слоёв;
-- `boundary.onmessage` / `boundary.postMessage` для Force-поверхности.
-
-Старые рантайм-экспорты вида `gravity$`, `strong$`, `weak$`, `update`,
-`unlock`, `rebuildRuntime` и `subscribeBoundaryWeakResultBroadcast` относятся к
-предыдущей архитектурной форме и не должны возвращаться как текущий Boundary API.
+`boundary.materialize(message)` применяет входной Force message и возвращает
+готовые projections после commit. `matrixRuntime()`, `energyRuntime()` и
+`bulkRuntime()` строят snapshots внутри Boundary; runtime domains получают их
+через target `create`, а не вызывают эти методы напрямую.

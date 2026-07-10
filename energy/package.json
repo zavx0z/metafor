@@ -14,7 +14,6 @@
   },
   "dependencies": {
     "@metafor/types": "workspace:*",
-    "force": "workspace:*",
-    "boundary": "workspace:*"
+    "force": "workspace:*"
   }
 }

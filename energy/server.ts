@@ -1,4 +1,6 @@
-import {Force} from "force"
+import {startEnergyProtocol} from "./energy.ts"
+
+startEnergyProtocol()
 
 const server = Bun.serve({
   port: 4005,
@@ -12,8 +14,3 @@ const server = Bun.serve({
 })
 
 console.log(`[energy] listening on ${server.url}`)
-
-const force = new Force("energy")
-force.onImpulse = (impulse) => {
-  console.log(`[energy] <- force parts=${impulse.parts.length}`)
-}

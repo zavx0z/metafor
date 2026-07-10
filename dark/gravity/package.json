@@ -4,8 +4,6 @@
   "type": "module",
   "private": true,
   "dependencies": {
-    "@metafor/types": "workspace:*",
-    "@boundary/wimp": "workspace:*",
-    "boundary": "workspace:*"
+    "@metafor/types": "workspace:*"
   }
 }

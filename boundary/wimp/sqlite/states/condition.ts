@@ -1,6 +1,5 @@
 import type { Transition } from "./transition.ts"
 import { Predicate } from "./predicate.ts"
-import {emitGravitonAdd} from "../../../force.ts"
 
 /**
  * Резолвит `field.id` по ключу поля внутри текущей wimp.
@@ -105,7 +104,6 @@ export class Predicates {
       RETURNING id
     `)[0]
     if (!row) throw new Error("Predicates.add: insert did not return id")
-    emitGravitonAdd("predicate", row.id)
     return new Predicate(this.condition, row.id)
   }
 
@@ -172,7 +170,6 @@ export class Conditions {
       VALUES (${transitionId}, ${fieldId}, ${position})
       RETURNING id
     `)[0]
-    emitGravitonAdd("condition", row?.id)
     return new Condition(this.transition, fieldKey)
   }
 

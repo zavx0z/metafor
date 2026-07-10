@@ -25,16 +25,3 @@ export const loadMeta = async (address: string): Promise<MetaDSL> => {
     }
   }
 }
-
-export const loadMetaVersion = async (address: string): Promise<{major: number; minor: number; patch: number}> => {
-  const packagePath = new URL(`${metaPath(address)}/package.json`, import.meta.url)
-  const pkg = await Bun.file(packagePath).json() as {version?: unknown}
-  if (typeof pkg.version !== "string" || pkg.version.length === 0) {
-    throw new Error(`Package version is missing in ${packagePath}`)
-  }
-  const match = /^(\d+)\.(\d+)\.(\d+)/.exec(pkg.version)
-  if (!match) {
-    throw new Error(`Package version is invalid in ${packagePath}: ${pkg.version}`)
-  }
-  return {major: Number(match[1]), minor: Number(match[2]), patch: Number(match[3])}
-}

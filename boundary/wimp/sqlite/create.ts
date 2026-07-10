@@ -12,7 +12,7 @@ const insertId = async (rows: Promise<Array<{id: number}>>, label: string): Prom
   return row.id
 }
 
-const insertMassValue = async (
+export const insertMassValue = async (
   sql: SQL | ReservedSQL,
   src: string,
   value: unknown,
@@ -61,7 +61,7 @@ const insertMassValue = async (
   return id
 }
 
-const insertFieldDefault = async (
+export const insertFieldDefault = async (
   sql: SQL | ReservedSQL,
   fieldId: number,
   field: MetaFieldDSL,
@@ -205,7 +205,7 @@ const insertPredicate = async (
   }
 }
 
-const insertPredicateGroup = async (sql: SQL | ReservedSQL, conditionId: number, predicateDsl: unknown): Promise<void> => {
+export const insertPredicateGroup = async (sql: SQL | ReservedSQL, conditionId: number, predicateDsl: unknown): Promise<void> => {
   const normalized = normalizePredicate(predicateDsl)
   if (!normalized) return
 
@@ -372,7 +372,7 @@ const matterBindingPaths = (value: MatterBindingValue): string[] => {
   return Array.isArray(value.data) ? value.data : [value.data]
 }
 
-const insertMatterBinding = async (
+export const insertMatterBinding = async (
   sql: SQL | ReservedSQL,
   src: string,
   value: MatterBindingValue | undefined,

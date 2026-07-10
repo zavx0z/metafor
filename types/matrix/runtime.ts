@@ -1,5 +1,8 @@
 import type { MatrixRuntimeData } from "./data.ts"
 
+export const STATE_UNDEFINED = -1
+export const STATE_NONE = -2
+
 export interface MatrixRuntimeSnapshot {
   version: 1
   runtime: {

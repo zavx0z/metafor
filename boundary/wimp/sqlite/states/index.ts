@@ -1,6 +1,5 @@
 import type { Wimp } from "../wimp.ts"
 import { State } from "./state.ts"
-import {emitGravitonAdd} from "../../../force.ts"
 
 export class States {
   readonly #wimp: Wimp
@@ -43,7 +42,6 @@ export class States {
       INSERT INTO state (wimp, name, position) VALUES (${src}, ${name}, ${position})
       RETURNING id
     `)[0]
-    emitGravitonAdd("state", row?.id)
     return new State(this, name)
   }
 

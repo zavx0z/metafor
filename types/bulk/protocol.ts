@@ -1,6 +1,5 @@
 import type { ActorRecord } from "../boundary/actor.ts"
 import type { ActorValueRecord, ValueItemRecord } from "../boundary/value.ts"
-import type { Particle } from "../force/particle.ts"
 import type { BulkRuntimeSnapshot, BulkRuntimeValue } from "./runtime.ts"
 import type { BulkLayoutSettings } from "./settings.ts"
 
@@ -19,11 +18,6 @@ export type ActorSnapshotMessage = {
 }
 
 export type ForceSnapshotEffect = "none" | "partial" | "rebuild"
-
-export type ForceSocketMessage = {
-  type: "force"
-  parts: Particle[]
-}
 
 export type SnapshotMessage = {
   type: "snapshot"

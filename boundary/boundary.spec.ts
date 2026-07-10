@@ -2,21 +2,13 @@ import {afterEach, beforeEach, describe, expect, test} from "bun:test"
 import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
 import {SQL} from "bun"
-import {open} from "./sqlite.ts"
-import type { Particle } from "@metafor/types/force/particle"
-import {BooleanValue, EnumValue} from "@boundary/actor"
-import type { Boundary } from "@metafor/types/boundary/api"
-import {STATE_NONE, STATE_UNDEFINED} from "../matrix/state.ts"
+import {open, type BoundaryDatabase} from "./sqlite.ts"
+import {STATE_NONE, STATE_UNDEFINED} from "@metafor/types/matrix/runtime"
 
 const SRC = "owner/smoke"
 
-const wimpPartSrc = (part: Particle): unknown => {
-  if (typeof part.value !== "object" || part.value === null || Array.isArray(part.value)) return part.value
-  return (part.value as {wimp?: {src?: unknown}}).wimp?.src
-}
-
 describe("boundary/sqlite smoke", () => {
-  let boundary: Boundary
+  let boundary: BoundaryDatabase
   let sql: SQL
   let filename: string
 
@@ -43,24 +35,6 @@ describe("boundary/sqlite smoke", () => {
     return row.id
   }
 
-  const enumVariantId = async (field: number, value: string): Promise<number> => {
-    const row = (
-      await sql<Array<{id: number}>>`
-        SELECT id FROM field_enum_variant WHERE field = ${field} AND item_value = ${value} LIMIT 1
-      `
-    )[0]
-    if (!row) throw new Error(`enum variant ${value} missing`)
-    return row.id
-  }
-
-  const stateId = async (name: string): Promise<number> => {
-    const row = (
-      await sql<Array<{id: number}>>`SELECT id FROM state WHERE wimp = ${SRC} AND name = ${name} LIMIT 1`
-    )[0]
-    if (!row) throw new Error(`state ${name} missing`)
-    return row.id
-  }
-
   test("open() поднимает обе схемы — meta и actor — на одной БД", async () => {
     const tables = (
       await sql<Array<{ name: string }>>`
@@ -79,183 +53,26 @@ describe("boundary/sqlite smoke", () => {
     expect(tables).toContain("value_list_item")
   })
 
-  test("wimp.create пишет декларацию и отправляет graviton-сигнал source", async () => {
-    const received: Particle[] = []
-    const subscription = boundary.observe((event) => {
-      received.push(...event.data.parts)
-    })
-
-    try {
-      await boundary.wimp.create(SRC, {
-        name: "smoke",
-        mass: {title: "draft"},
-        fields: [{key: "flag", type: "boolean", label: "Flag", default: false}],
-        superposition: [{name: "idle"}],
-      })
-
-      const meta = await boundary.wimp.get(SRC)
-      if (!meta) throw new Error("meta missing")
-      expect(await meta.name.get()).toBe("smoke")
-      expect(await meta.mass.exists()).toBe(true)
-      expect(await meta.fields.count()).toBe(1)
-      expect(await meta.states.count()).toBe(1)
-
-      const flag = await meta.fields.get({key: "flag"})
-      if (!flag) throw new Error("flag field missing")
-      if (flag.type !== "boolean") throw new Error("expected boolean field")
-      expect(await flag.default()).toBe(false)
-      expect(await flag.label()).toBe("Flag")
-
-      const signal = received.find(
-        (part) => part.part === "graviton" && part.op === "add" && part.path === "wimp" && wimpPartSrc(part) === SRC,
-      )
-      expect(signal).toBeDefined()
-    } finally {
-      subscription.close()
-    }
-  })
-
-  test("observe поддерживает несколько независимых слушателей", async () => {
-    const first: Particle[] = []
-    const second: Particle[] = []
-    const firstSubscription = boundary.observe((event) => {
-      first.push(...event.data.parts)
-    })
-    const secondSubscription = boundary.observe((event) => {
-      second.push(...event.data.parts)
-    })
-
-    try {
-      await boundary.wimp.create("owner/multi-a")
-
-      expect(first.some((part) => part.part === "graviton" && part.path === "wimp" && wimpPartSrc(part) === "owner/multi-a")).toBe(true)
-      expect(second.some((part) => part.part === "graviton" && part.path === "wimp" && wimpPartSrc(part) === "owner/multi-a")).toBe(true)
-
-      const firstLength = first.length
-      firstSubscription.close()
-      await boundary.wimp.create("owner/multi-b")
-
-      expect(first).toHaveLength(firstLength)
-      expect(second.some((part) => part.part === "graviton" && part.path === "wimp" && wimpPartSrc(part) === "owner/multi-b")).toBe(true)
-    } finally {
-      firstSubscription.close()
-      secondSubscription.close()
-    }
-  })
-
-  test("actor snapshot: graviton/actor с полным value читается через ORM", async () => {
+  test("wimp.create writes the declaration without a second transport surface", async () => {
     await boundary.wimp.create(SRC, {
       name: "smoke",
-      fields: [
-        {key: "flag", type: "boolean"},
-        {key: "status", type: "enum", values: ["idle"]},
-      ],
+      mass: {title: "draft"},
+      fields: [{key: "flag", type: "boolean", label: "Flag", default: false}],
       superposition: [{name: "idle"}],
     })
-    const flagId = (await fieldId("flag"))
-    const statusId = (await fieldId("status"))
-    const idleVariantId = (await enumVariantId(statusId, "idle"))
-    const idleStateId = (await stateId("idle"))
 
-    // actor-1
-    const actorId = 1
-    const valueFlag = 101
-    const valueStatus = 102
+    const meta = await boundary.wimp.get(SRC)
+    if (!meta) throw new Error("meta missing")
+    expect(await meta.name.get()).toBe("smoke")
+    expect(await meta.mass.exists()).toBe(true)
+    expect(await meta.fields.count()).toBe(1)
+    expect(await meta.states.count()).toBe(1)
 
-    await boundary.absorb({
-      parts: [{
-        part: "graviton",
-        op: "add",
-        path: "actor",
-        value: {
-          actor: {id: actorId, parentActor: null, parentTopology: null, wimp: SRC, position: 0},
-          values: [
-            {actor: actorId, field: flagId, value: valueFlag},
-            {actor: actorId, field: statusId, value: valueStatus},
-          ],
-          valueRecords: [
-            {id: valueFlag, kind: "boolean", boolean: true},
-            {id: valueStatus, kind: "enum", variant: idleVariantId},
-          ],
-          valueItems: [],
-          state: {actor: actorId, metaState: idleStateId},
-        },
-      }],
-    })
-
-    const actor = await boundary.actor.get(actorId)
-    if (!actor) throw new Error("actor missing")
-    expect(actor.id).toBe(actorId)
-    expect(await actor.wimp()).toBe(SRC)
-    expect(await actor.parent()).toBeNull()
-    expect(await actor.position()).toBe(0)
-    expect((await actor.state())?.metaState).toBe(idleStateId)
-    expect(await actor.values.count()).toBe(2)
-
-    const flagLink = await actor.values.get({field: flagId})
-    const flagValue = await flagLink!.value()
-    expect(flagValue).toBeInstanceOf(BooleanValue)
-    expect(await (flagValue as BooleanValue).boolean()).toBe(true)
-
-    const statusLink = await actor.values.get({field: statusId})
-    const statusValue = await statusLink!.value()
-    expect(statusValue).toBeInstanceOf(EnumValue)
-    expect(await (statusValue as EnumValue).variant()).toBe(idleVariantId)
-
-    // gluon-replace: переключаем actor_value на shared value (entanglement через shared id)
-    const actor2Id = 2
-    const valueFlag2 = 201
-    const valueStatus2 = 202
-
-    await boundary.absorb({
-      parts: [{
-        part: "graviton",
-        op: "add",
-        path: "actor",
-        value: {
-          actor: {id: actor2Id, parentActor: null, parentTopology: null, wimp: SRC, position: 1},
-          values: [
-            {actor: actor2Id, field: flagId, value: valueFlag2},
-            {actor: actor2Id, field: statusId, value: valueStatus2},
-          ],
-          valueRecords: [
-            {id: valueFlag2, kind: "boolean", boolean: true},
-            {id: valueStatus2, kind: "enum", variant: idleVariantId},
-          ],
-          valueItems: [],
-          state: {actor: actor2Id, metaState: idleStateId},
-        },
-      }],
-    })
-
-    // share: actor2.flag → valueFlag (тот же, что у actor1)
-    await boundary.absorb({
-      parts: [{
-        part: "graviton",
-        op: "replace",
-        path: "actor",
-        value: {
-          actor: {id: actor2Id, parentActor: null, parentTopology: null, wimp: SRC, position: 1},
-          values: [
-            {actor: actor2Id, field: flagId, value: valueFlag},
-            {actor: actor2Id, field: statusId, value: valueStatus2},
-          ],
-          valueRecords: [
-            {id: valueFlag, kind: "boolean", boolean: true},
-            {id: valueStatus2, kind: "enum", variant: idleVariantId},
-          ],
-          valueItems: [],
-          state: {actor: actor2Id, metaState: idleStateId},
-        },
-      }],
-    })
-
-    const actor2 = (await boundary.actor.get(actor2Id))!
-    const link2 = (await actor2.values.get({field: flagId}))!
-    const sharedValue = await link2.value()
-    expect(sharedValue.id).toBe(valueFlag)
-    const owners = await sharedValue.owners()
-    expect(owners.map((o) => o.actor).sort()).toEqual([actorId, actor2Id].sort())
+    const flag = await meta.fields.get({key: "flag"})
+    if (!flag) throw new Error("flag field missing")
+    if (flag.type !== "boolean") throw new Error("expected boolean field")
+    expect(await flag.default()).toBe(false)
+    expect(await flag.label()).toBe("Flag")
   })
 
   test("matrixRuntime различает runtime undefined и отсутствие state graph", async () => {
@@ -396,69 +213,8 @@ describe("boundary/sqlite smoke", () => {
     expect("processes" in matrixRuntime).toBe(false)
   })
 
-  test("absorb() обновляет БД и не выпускает входящие particles в entropy", async () => {
-    await boundary.wimp.create(SRC)
-    const observed: Particle[] = []
-    const outgoing: Particle[] = []
-    const observedBinding = boundary.observe((event) => observed.push(...event.data.parts))
-    const entropyBinding = boundary.entropy((event) => outgoing.push(...event.data.parts))
-    const actorId = 1
-    const part: Particle = {
-      part: "graviton",
-      op: "add",
-      path: "actor",
-      value: {
-        actor: {id: actorId, parentActor: null, parentTopology: null, wimp: SRC, position: 0},
-        values: [],
-        valueRecords: [],
-        valueItems: [],
-        state: {actor: actorId, metaState: null},
-      },
-    }
-
-    try {
-      await boundary.absorb({parts: [part]})
-      await waitFor(() => observed.some((item) => item.part === part.part && item.op === part.op && item.path === part.path))
-      expect(outgoing).toEqual([])
-
-      const row = (
-        await sql<Array<{wimp: string}>>`
-          SELECT wimp
-          FROM actor
-          WHERE id = ${actorId}
-        `
-      )[0]
-      expect(row?.wimp).toBe(SRC)
-    } finally {
-      observedBinding.close()
-      entropyBinding.close()
-    }
-  })
-
-  test("absorb() принимает wimp-сигнал без записи meta", async () => {
-    const part: Particle = {part: "graviton", op: "add", path: "wimp", value: SRC}
-    const observed: Particle[] = []
-    const binding = boundary.observe((event) => observed.push(...event.data.parts))
-
-    try {
-      await boundary.absorb({parts: [part]})
-      expect(await boundary.wimp.exists(SRC)).toBe(false)
-      expect(observed).toEqual([part])
-    } finally {
-      binding.close()
-    }
-  })
-
   test("close() идемпотентен — повторный вызов не падает", async () => {
     await boundary.close()
     expect(true).toBe(true)
   })
 })
-
-const waitFor = async (predicate: () => boolean): Promise<void> => {
-  const deadline = Date.now() + 1000
-  while (!predicate()) {
-    if (Date.now() > deadline) throw new Error("Expected force part")
-    await new Promise((resolve) => setTimeout(resolve, 0))
-  }
-}

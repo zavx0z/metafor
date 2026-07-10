@@ -1,7 +1,7 @@
 import "./dark.ts"
 
 const server = Bun.serve({
-  port: 4002,
+  port: Number(Bun.env.PORT ?? 4002),
   routes: {
     "/health": {
       GET() {

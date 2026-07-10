@@ -1,7 +1,6 @@
 import type { Wimp } from "../wimp.ts"
 import type { ProcessTypeValue } from "@metafor/types/boundary/wimp"
 import { Process } from "./process.ts"
-import {emitGravitonAdd} from "../../../force.ts"
 
 export class Processes {
   readonly #wimp: Wimp
@@ -40,7 +39,6 @@ export class Processes {
       VALUES (${src}, ${input.key}, ${input.type}, ${input.label ?? null}, ${input.desc ?? null})
       RETURNING id
     `)[0]
-    emitGravitonAdd("process", row?.id)
     return new Process(this, input.key)
   }
 

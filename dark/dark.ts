@@ -1,222 +1,230 @@
-import {MetaFor} from ".."
-import type {Field} from "@boundary/wimp/sqlite/fields/field"
-import type { ActorValueRecord, ValueItemRecord, ValueRecord } from "@metafor/types/boundary/value"
-import type { BfsEntry, Continuation, MatterParticle, ParticleRef, PendingChildWimp } from "@metafor/types/metafor/matter"
+import ".."
+import type {MatterEdgeSlot, MatterParticle} from "@metafor/types/metafor/matter"
+import type {MetaDSL} from "@metafor/types/metafor/schema"
+import type {Particle} from "@metafor/types/force/particle"
 import {Force} from "force"
-import {loadMeta, loadMetaVersion} from "./load.ts"
-import {dark$} from "./store.ts"
-import {finalizeFieldValues, resolveFieldInits} from "./continuation.ts"
-
-;(globalThis as unknown as {MetaFor: typeof MetaFor}).MetaFor = MetaFor
+import {loadMeta} from "./load.ts"
 
 const force = new Force("dark")
+
 force.onImpulse = async (impulse) => {
   for (const part of impulse.parts) {
-    switch (part.part) {
-      case "inflaton":
-        switch (part.op) {
-          case "test":
-            if (typeof part.path === "string") {
-              await matter(part.path)
-            }
-            break
+    if (part.part === "inflaton" && part.op === "test" && typeof part.path === "string") {
+      await matter(part.path)
+    }
+  }
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+
+const declaration = (src: string, dsl: MetaDSL): {parts: Particle[]; children: string[]} => {
+  const fields: Record<string, Record<string, unknown>> = {}
+  const variants: Record<string, Record<string, unknown>> = {}
+  const states: Record<string, Record<string, unknown>> = {}
+  const transitions: Record<string, Record<string, unknown>> = {}
+  const conditions: Record<string, Record<string, unknown>> = {}
+  const processes: Record<string, Record<string, unknown>> = {}
+  const reactions: Record<string, Record<string, unknown>> = {}
+  const matter: Record<string, Record<string, unknown>> = {}
+  const fieldIds = new Map<string, string>()
+  const stateIds = new Map<string, string>()
+
+  let variantNumber = 0
+  for (let index = 0; index < dsl.fields.length; index++) {
+    const field = dsl.fields[index]!
+    const id = String(index + 1)
+    fieldIds.set(field.key, id)
+
+    if (field.type === "enum") {
+      const {values, ...definition} = field
+      fields[id] = definition
+      for (let position = 0; position < (values?.length ?? 0); position++) {
+        variants[String(++variantNumber)] = {
+          field: id,
+          position,
+          value: values![position],
         }
-        break
-    }
-  }
-}
-
-
-export async function matter(
-  src: string,
-  parent: ParticleRef | null = null,
-  continuation: Continuation | undefined = undefined,
-): Promise<void> {
-  const generator = matterWimp(src, parent, continuation)
-
-  while (true) {
-    const result = await generator.next()
-    if (result.done) return
-    for (const pending of result.value) {
-      await matter(pending.src, pending.parent, pending.continuation)
-    }
-  }
-}
-
-async function* matterWimp(
-  src: string,
-  parent: ParticleRef | null,
-  continuation: Continuation | undefined,
-): AsyncGenerator<PendingChildWimp[], void, void> {
-  const version = await loadMetaVersion(src)
-  if (dark$.hasVersion(src, version)) return
-  dark$.versions.set(src, version)
-  const dsl = await loadMeta(src)
-  force.impulse({
-    parts: [{
-      part: "inflaton",
-      op: "add",
-      path: src,
-      value: {wimp: {src, version}},
-    }],
-  })
-  // const wimp = (await boundary.wimp.get(src)) ?? (await boundary.wimp.create(src, dsl))
-  // const matterRelations = await wimp.matter.all()
-  return
-
-  // ACTOR: переходим от Wimp-декларации к runtime-экземпляру.
-  // fieldSchemas — схема полей Wimp; finalValues — значения полей Actor.
-  const fieldSchemas = dsl.fields ?? []
-  const fieldSchemaByKey = new Map(fieldSchemas.map((field) => [field.key, field]))
-  const finalValues = finalizeFieldValues(fieldSchemas, continuation?.fieldInits)
-
-  let tempId = -1
-  const nextTempId = (): number => tempId--
-  const actorTempId = nextTempId()
-
-  const values: ActorValueRecord[] = []
-  const valueRecords: ValueRecord[] = []
-  const valueItems: ValueItemRecord[] = []
-
-  for (const [key, init] of finalValues) {
-    // const field = await wimp.fields.get({key})
-    // if (!field) throw new Error(`Field "${key}" is not registered for "${src}"`)
-    // const fieldId = await field.id()
-    const schema = fieldSchemaByKey.get(key)
-    if (!schema) throw new Error(`Field schema "${key}" missing in DSL for "${src}"`)
-
-    let valueId: number
-    if (init.source) {
-      // valueId = await resolveSourceValueId(init.source.parentActorId, init.source.parentFieldKey)
-      valueId = nextTempId()
+      }
     } else {
-      valueId = nextTempId()
-      const built = await buildValueRecord(valueId, init.value, schema.type, null as never, key)
-      valueRecords.push(built.record)
-      valueItems.push(...built.items)
+      fields[id] = {...field}
     }
-    // values.push({actor: actorTempId, field: fieldId, value: valueId})
   }
 
-  const actorData = {
-    actor: {
-      id: actorTempId,
-      parentActor: parent?.kind === "actor" ? parent.id : null,
-      parentTopology: parent?.kind === "topology" ? parent.id : null,
-      wimp: src,
+  for (let index = 0; index < dsl.superposition.length; index++) {
+    const state = dsl.superposition[index]!
+    const id = String(index + 1)
+    stateIds.set(state.name, id)
+    states[id] = {name: state.name, position: index}
+  }
+
+  let transitionNumber = 0
+  let conditionNumber = 0
+  for (const state of dsl.superposition) {
+    const from = stateIds.get(state.name)!
+    if (!isRecord(state.transitions)) continue
+
+    let position = 0
+    for (const [toName, transitionConditions] of Object.entries(state.transitions)) {
+      const to = stateIds.get(toName)
+      if (!to) throw new Error(`Transition from "${state.name}" references unknown state "${toName}" in "${src}"`)
+
+      const transition = String(++transitionNumber)
+      transitions[transition] = {from, to, position}
+      position++
+
+      if (!isRecord(transitionConditions)) continue
+      let conditionPosition = 0
+      for (const [fieldKey, predicate] of Object.entries(transitionConditions)) {
+        const field = fieldIds.get(fieldKey)
+        if (!field) throw new Error(`Transition from "${state.name}" references unknown field "${fieldKey}" in "${src}"`)
+        conditions[String(++conditionNumber)] = {
+          transition,
+          field,
+          position: conditionPosition,
+          predicate,
+        }
+        conditionPosition++
+      }
+    }
+  }
+
+  const fieldReferences = (keys: readonly string[] | undefined, owner: string): string[] =>
+    (keys ?? []).map((key) => {
+      const id = fieldIds.get(key)
+      if (!id) throw new Error(`${owner} references unknown field "${key}" in "${src}"`)
+      return id
+    })
+
+  for (let index = 0; index < (dsl.processes?.length ?? 0); index++) {
+    const process = dsl.processes![index]!
+    const processDeclaration = process.declaration
+    const record: Record<string, unknown> = {
+      key: process.key,
+      type: processDeclaration.type,
+      env: [...(processDeclaration.env ?? [])],
+    }
+    if (processDeclaration.label !== undefined) record.label = processDeclaration.label
+    if (processDeclaration.desc !== undefined) record.desc = processDeclaration.desc
+
+    if (processDeclaration.type === "finally") {
+      const {read, ...before} = processDeclaration.before
+      record.before = {
+        ...before,
+        read: fieldReferences(read, `Process "${process.key}" before handler`),
+      }
+    } else {
+      const {read: actionRead, ...action} = processDeclaration.action
+      record.action = {
+        ...action,
+        read: fieldReferences(actionRead, `Process "${process.key}" action`),
+      }
+      if (processDeclaration.success) {
+        const {read, write, ...handler} = processDeclaration.success
+        record.success = {
+          ...handler,
+          read: fieldReferences(read, `Process "${process.key}" success handler`),
+          write: fieldReferences(write, `Process "${process.key}" success handler`),
+        }
+      }
+      if (processDeclaration.error) {
+        const {read, write, ...handler} = processDeclaration.error
+        record.error = {
+          ...handler,
+          read: fieldReferences(read, `Process "${process.key}" error handler`),
+          write: fieldReferences(write, `Process "${process.key}" error handler`),
+        }
+      }
+    }
+
+    processes[String(index + 1)] = record
+  }
+
+  for (let index = 0; index < (dsl.reactions?.length ?? 0); index++) {
+    const reaction = dsl.reactions![index]!
+    reactions[String(index + 1)] = {
+      key: reaction.key,
+      label: reaction.label,
+      desc: reaction.desc ?? null,
+      cond: reaction.cond,
+      src: reaction.src,
+      read: fieldReferences(reaction.read, `Reaction "${reaction.key}"`),
+      write: fieldReferences(reaction.write, `Reaction "${reaction.key}"`),
+      states: (reaction.states ?? []).map((name) => {
+        const id = stateIds.get(name)
+        if (!id) throw new Error(`Reaction "${reaction.key}" references unknown state "${name}" in "${src}"`)
+        return id
+      }),
+    }
+  }
+
+  const children: string[] = []
+  let matterNumber = 0
+  const addMatter = (
+    particle: MatterParticle,
+    parent: string | null,
+    edgeSlot: MatterEdgeSlot,
+    position: number,
+  ): void => {
+    const id = String(++matterNumber)
+    const {children: particleChildren, ...definition} = particle
+    matter[id] = {
+      parent,
+      edgeSlot,
+      position,
+      ...definition,
+    }
+    if (particle.kind === "wimp") children.push(particle.src)
+
+    for (let index = 0; index < (particleChildren?.length ?? 0); index++) {
+      const child = particleChildren![index]!
+      addMatter(child.particle, id, child.edgeSlot, index)
+    }
+  }
+
+  for (let index = 0; index < (dsl.matter?.length ?? 0); index++) {
+    addMatter(dsl.matter![index]!, null, "root", index)
+  }
+
+  const parts: Particle[] = [
+    {
+      part: "inflaton",
+      op: "replace",
+      path: src,
+      value: {meta: {name: dsl.name, desc: dsl.desc ?? null}},
     },
-    values,
-    valueRecords,
-    valueItems,
-    state: {actor: actorTempId, metaState: null},
-  }
-  // const actor = await boundary.actor.create(actorData)
-  // const actorId = actor.id
-  const actorId = actorTempId
+    {part: "inflaton", op: "replace", path: src, value: {fields}},
+    {part: "inflaton", op: "replace", path: src, value: {variants}},
+    {part: "inflaton", op: "replace", path: src, value: {states}},
+    {part: "inflaton", op: "replace", path: src, value: {transitions}},
+    {part: "inflaton", op: "replace", path: src, value: {conditions}},
+    {part: "inflaton", op: "replace", path: src, value: {processes}},
+    {part: "inflaton", op: "replace", path: src, value: {reactions}},
+    {part: "inflaton", op: "replace", path: src, value: {matter}},
+    {part: "inflaton", op: "replace", path: src, value: {mass: dsl.mass ?? null}},
+    {part: "inflaton", op: "replace", path: src, value: {bulk: dsl.bulk ?? null}},
+  ]
 
-  const fieldValuesSnapshot = new Map<string, unknown>()
-  const fieldTypesSnapshot = new Map<string, string>()
-  for (const [key, init] of finalValues) {
-    fieldValuesSnapshot.set(key, init.value)
-    fieldTypesSnapshot.set(key, fieldSchemaByKey.get(key)!.type)
-  }
-
-  const plans: MatterParticle[] = []
-  if (plans.length === 0) return
-
-  let frontier: BfsEntry[] = plans.map((plan) => ({plan, parent: {kind: "actor", id: actorId}}))
-
-  while (frontier.length > 0) {
-    const next: BfsEntry[] = []
-    const layerPendingChildren: PendingChildWimp[] = []
-
-    for (const entry of frontier) {
-      switch (entry.plan.kind) {
-        case "wimp": {
-          const childContinuation: Continuation = {}
-          if (entry.plan.fieldsBinding !== undefined) {
-            const inits = resolveFieldInits(entry.plan.fieldsBinding, {
-              actorId: actorId,
-              fieldValues: fieldValuesSnapshot,
-              fieldTypes: fieldTypesSnapshot,
-            })
-            if (inits) childContinuation.fieldInits = inits
-          }
-          if (entry.plan.massBinding !== undefined) {
-            childContinuation.mass = entry.plan.massBinding
-          }
-          layerPendingChildren.push({src: entry.plan.src, parent: entry.parent, continuation: childContinuation})
-          break
-        }
-        case "fuzzy":
-        case "axion":
-        case "macho": {
-          // const topology = await boundary.topology.create({
-          //   parentActor: entry.parent.kind === "actor" ? entry.parent.id : null,
-          //   parentTopology: entry.parent.kind === "topology" ? entry.parent.id : null,
-          //   kind: entry.plan.kind,
-          // })
-          for (const child of entry.plan.children ?? []) {
-            // next.push({plan: child.particle, parent: {kind: "topology", id: topology.id}})
-            next.push({plan: child.particle, parent: entry.parent})
-          }
-          break
-        }
-      }
-    }
-
-    yield layerPendingChildren
-    frontier = next
-  }
+  return {parts, children}
 }
 
-const buildValueRecord = async (
-  id: number,
-  raw: unknown,
-  fieldType: string,
-  field: Field,
-  fieldKey: string,
-): Promise<{ record: ValueRecord; items: ValueItemRecord[] }> => {
-  if (raw === null || raw === undefined) return {record: {id, kind: "null"}, items: []}
-  switch (fieldType) {
-    case "boolean":
-      return {record: {id, kind: "boolean", boolean: Boolean(raw)}, items: []}
-    case "number":
-      return {record: {id, kind: "number", number: Number(raw)}, items: []}
-    case "string":
-      return {record: {id, kind: "string", text: String(raw)}, items: []}
-    case "enum": {
-      if (field.type !== "enum") throw new Error(`expected enum field for "${fieldKey}"`)
-      const variantId = await (field as unknown as {variantId(value: string): Promise<number | null>}).variantId(String(raw))
-      if (!variantId) {
-        throw new Error(`Unknown enum variant "${String(raw)}" for field "${fieldKey}"`)
-      }
-      return {record: {id, kind: "enum", variant: variantId}, items: []}
-    }
-    case "array": {
-      const items: ValueItemRecord[] = Array.isArray(raw)
-        ? raw.map((item, position) => ({value: id, position, itemValue: String(item)}))
-        : []
-      return {record: {id, kind: "list"}, items}
-    }
-  }
-  throw new Error(`Unsupported field type for value emission: ${fieldType}`)
-}
+/**
+ * Читает root meta и все явно представленные в её matter-графе дочерние WIMP,
+ * затем отправляет их declaration stream одним атомарным Force-сообщением.
+ */
+export async function matter(src: string): Promise<void> {
+  const seen = new Set<string>()
+  const parts: Particle[] = []
 
-const resolveSourceValueId = async (
-  parentActorId: number,
-  parentFieldKey: string,
-): Promise<number> => {
-  // const head = await boundary.actor.head(parentActorId)
-  // if (!head) throw new Error(`parent actor ${parentActorId} not found`)
-  // const parentWimp = await boundary.wimp.get(head.wimp)
-  // if (!parentWimp) throw new Error(`parent wimp ${head.wimp} not found`)
-  // const parentField = await parentWimp.fields.get({key: parentFieldKey})
-  // if (!parentField) throw new Error(`parent field "${parentFieldKey}" missing in wimp ${head.wimp}`)
-  // const parentFieldId = await parentField.id()
-  // const link = await boundary.actor.link.get(parentActorId, parentFieldId)
-  // if (!link) throw new Error(`parent actor_value missing for (${parentActorId}, ${parentFieldKey})`)
-  // const value = await link.value()
-  // return value.id
-  throw new Error(`Boundary is disabled in dark.resolveSourceValueId(${parentActorId}, ${parentFieldKey})`)
+  const read = async (address: string): Promise<void> => {
+    if (seen.has(address)) return
+    seen.add(address)
+
+    const result = declaration(address, await loadMeta(address))
+    parts.push(...result.parts)
+    for (const child of result.children) await read(child)
+  }
+
+  await read(src)
+  force.impulse({parts})
 }

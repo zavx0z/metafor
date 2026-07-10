@@ -16,7 +16,7 @@ import type {ForceMessage} from "@metafor/types/force/message"
  *
  * 1. `new Force(domain)` создает доменный transport instance.
  * 2. Runtime регистрирует соединение как `domain/id`.
- * 3. Служебный payload `create` или совместимый bootstrap payload вызывает
+ * 3. Служебный payload `{type: "create", snapshot}` вызывает
  *    `onCreate(snapshot)`.
  * 4. Чистый ForceMessage `{parts: [...]}` вызывает `onImpulse(message)`.
  * 5. Закрытие runtime transport-а вызывает `onDestroy`, если adapter
@@ -28,9 +28,6 @@ import type {ForceMessage} from "@metafor/types/force/message"
  *
  * - `{type: "create", snapshot}` - bootstrap/create payload;
  * - `{parts: [...]}` - чистый ForceMessage без transport metadata.
- *
- * Browser endpoint Bulk может передавать snapshot/error как bootstrap payload
- * через `onCreate`; `onImpulse` при этом получает только `{parts}`.
  *
  * ## Гарантии порядка
  *

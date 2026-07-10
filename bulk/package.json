@@ -18,7 +18,6 @@
     "@bulk/gravity": "workspace:*",
     "@bulk/strong": "workspace:*",
     "@bulk/weak": "workspace:*",
-    "@bulk/em": "workspace:*",
     "@metafor/engine": "workspace:*",
     "@ui/components": "workspace:*",
     "@ui/hud": "workspace:*",

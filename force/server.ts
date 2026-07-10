@@ -20,8 +20,8 @@ const deliverCreate = (domain: string, snapshot: unknown): void => {
   }
 }
 
-const server = Bun.serve<{domain?: string; id?: string}>({
-  port: 4000,
+export const server = Bun.serve<{domain?: string; id?: string}>({
+  port: Number(Bun.env.PORT ?? 4000),
   routes: {
     "/health": {
       GET() {
@@ -30,14 +30,21 @@ const server = Bun.serve<{domain?: string; id?: string}>({
     },
     "/force": {
       async POST(req: Bun.BunRequest<"/force">) {
-        let payload: {parts?: unknown}
+        let payload: unknown
         try {
-          payload = await req.json() as {parts?: unknown}
+          payload = await req.json()
         } catch (error) {
           return Response.json({ok: false, error: error instanceof Error ? error.message : String(error)}, {status: 400})
         }
-        if (!Array.isArray(payload.parts)) return Response.json({ok: false, error: "parts must be an array"}, {status: 400})
-        const message: ForceMessage = {parts: payload.parts as ForceMessage["parts"]}
+        if (
+          typeof payload !== "object" ||
+          payload === null ||
+          (payload as {type?: unknown}).type !== undefined ||
+          !Array.isArray((payload as {parts?: unknown}).parts)
+        ) {
+          return Response.json({ok: false, error: "body must be a plain ForceMessage with parts array"}, {status: 400})
+        }
+        const message: ForceMessage = {parts: (payload as ForceMessage).parts}
         deliverImpulse(message)
         return Response.json({ok: true, parts: message.parts.length})
       },
@@ -54,27 +61,34 @@ const server = Bun.serve<{domain?: string; id?: string}>({
       clients.delete(ws)
     },
     message(ws, raw) {
-      let payload: {type?: unknown; domain?: unknown; id?: unknown; snapshot?: unknown}
+      let payload: unknown
       try {
-        payload = JSON.parse(String(raw)) as {type?: unknown; domain?: unknown; id?: unknown; snapshot?: unknown}
+        payload = JSON.parse(String(raw)) as unknown
       } catch {
         return
       }
+      if (typeof payload !== "object" || payload === null) return
 
-      switch (payload.type) {
+      const message = payload as {type?: unknown; domain?: unknown; id?: unknown; snapshot?: unknown; parts?: unknown}
+      switch (message.type) {
         case "register": {
-          if (typeof payload.domain !== "string" || typeof payload.id !== "string") break
-          clients.set(ws, {domain: payload.domain, id: payload.id})
-          ws.data.domain = payload.domain
-          ws.data.id = payload.id
-          console.log(`[force] connected: ${payload.domain} ${payload.id}`)
-          if (snapshots.has(payload.domain)) deliverCreate(payload.domain, snapshots.get(payload.domain))
+          if (typeof message.domain !== "string" || typeof message.id !== "string") return
+          clients.set(ws, {domain: message.domain, id: message.id})
+          ws.data.domain = message.domain
+          ws.data.id = message.id
+          console.log(`[force] connected: ${message.domain} ${message.id}`)
+          if (snapshots.has(message.domain)) ws.send(JSON.stringify({type: "create", snapshot: snapshots.get(message.domain)}))
           break
         }
         case "create": {
-          if (typeof payload.domain !== "string") break
-          snapshots.set(payload.domain, payload.snapshot)
-          deliverCreate(payload.domain, payload.snapshot)
+          if (typeof message.domain !== "string") return
+          snapshots.set(message.domain, message.snapshot)
+          deliverCreate(message.domain, message.snapshot)
+          break
+        }
+        case undefined: {
+          if (!Array.isArray(message.parts)) return
+          deliverImpulse({parts: message.parts as ForceMessage["parts"]})
           break
         }
       }

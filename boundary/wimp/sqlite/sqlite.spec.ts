@@ -1,8 +1,6 @@
 import { SQL } from "bun"
 import { describe, expect, test, beforeEach, afterEach } from "bun:test"
 import { BoundaryWimpSqlite } from "./sqlite.ts"
-import {force} from "../../force.ts"
-import type { ForceMessage } from "@metafor/types/force/message"
 
 const metaforDslTableNames = [
   "wimp",
@@ -80,17 +78,12 @@ describe("sqlite ddl", () => {
   })
 
   afterEach(async () => {
-    force.close()
     if (db) {
       await db.close()
     }
   })
 
-  test("wimp.create принимает опциональные параметры и отправляет particles после записи", async () => {
-    const messages: ForceMessage[] = []
-    const subscription = force.observe((event) => messages.push(event.data))
-
-    try {
+  test("wimp.create принимает опциональные параметры и сохраняет полную декларацию", async () => {
       const wimp = await wimps.create("alpha/meta", {
         name: "Alpha",
         desc: "Demo",
@@ -169,19 +162,6 @@ describe("sqlite ddl", () => {
         },
       ])
 
-      expect(messages.length).toBe(1)
-      const parts = messages[0]!.parts
-      expect(parts).toHaveLength(1)
-      expect(parts[0]?.part).toBe("graviton")
-      expect(parts[0]?.op).toBe("add")
-      expect(parts[0]?.path).toBe("wimp")
-      expect((parts[0]?.value as {wimp?: {src?: string}}).wimp?.src).toBe("alpha/meta")
-      expect((parts[0]?.value as {fields?: unknown[]}).fields).toHaveLength(2)
-      expect((parts[0]?.value as {enumVariants?: unknown[]}).enumVariants).toHaveLength(2)
-      expect((parts[0]?.value as {states?: unknown[]}).states).toHaveLength(2)
-    } finally {
-      subscription.close()
-    }
   })
 
   test("wimp.exists проверяет декларацию без ORM get", async () => {
@@ -302,15 +282,15 @@ describe("sqlite ddl", () => {
       "number_value",
       "boolean_value",
     ])
-    expect(fieldColumns).toEqual(["id", "wimp", "key", "type", "required", "label"])
+    expect(fieldColumns).toEqual(["id", "wimp", "local_id", "key", "type", "required", "label"])
     expect(fieldDefaultColumns).toEqual(["field"])
     expect(fieldArrayItemColumns).toEqual(["id", "field", "position", "item_value"])
-    expect(fieldEnumVariantColumns).toEqual(["id", "field", "position", "item_value"])
+    expect(fieldEnumVariantColumns).toEqual(["id", "wimp", "local_id", "field", "position", "item_value"])
     expect(fieldEnumDefaultColumns).toEqual(["field", "variant"])
 
-    expect(stateColumns).toEqual(["id", "wimp", "name", "position"])
-    expect(transitionColumns).toEqual(["id", "from_state", "to_state", "position"])
-    expect(conditionColumns).toEqual(["id", "transition", "field", "position"])
+    expect(stateColumns).toEqual(["id", "wimp", "local_id", "name", "position"])
+    expect(transitionColumns).toEqual(["id", "wimp", "local_id", "from_state", "to_state", "position"])
+    expect(conditionColumns).toEqual(["id", "wimp", "local_id", "transition", "field", "position"])
     expect(conditionPredicateColumns).toEqual([
       "id",
       "condition",
@@ -345,7 +325,7 @@ describe("sqlite ddl", () => {
     expect(processFinallyColumns).toEqual(["process", "before"])
     expect(reactionStateColumns).toEqual(["reaction", "state"])
 
-    expect(matterParticleColumns).toEqual(["id", "wimp", "parent_particle", "particle_kind", "edge_slot", "particle_order"])
+    expect(matterParticleColumns).toEqual(["id", "wimp", "local_id", "parent_particle", "particle_kind", "edge_slot", "particle_order"])
     expect(matterParticleWimpColumns).toEqual(["particle", "src", "fields_binding", "mass_binding"])
     expect(matterParticleFuzzyColumns).toEqual(["particle", "fuzzy_kind", "predicate_binding"])
     expect(matterParticleAxionColumns).toEqual(["particle", "predicate_binding"])

@@ -1,4 +1,3 @@
-
 # Higgs
 
 `higgs.md` разворачивает силовое чтение изменения полей topology в MetaFor.
@@ -32,17 +31,24 @@
 
 ### Dark
 
-- скрытая topology как часть скрытого мира,
-- наблюдение глобальной перестройки topology,
-- удержание topology/gravity-непрерывности,
-- чтение структурных следствий `Higgs boson` без превращения `Dark` в оркестратор исполнения.
+- declaration topology как часть WIMP source,
+- `enum` variants и `array` schema с deterministic local IDs,
+- matter declaration `Fuzzy`/`Macho`/`Axion` без runtime actors,
+- передача declaration через Inflaton, а не через Higgs runtime patch.
 
 ### Boundary
 
-- каноническая фиксация выбора topology,
-- каноническая фиксация множественности ветвей,
-- различение изменения поля topology и обычного обновления поля,
+- canonical topology declaration и initial choice/multiplicity,
+- materialization actor/topology/value instances,
+- Macho expansion по runtime array value конкретного actor,
+- различение topology field и обычного field в runtime projection,
 - запрет внешней реактивной мутации `array`.
+
+### Matrix
+
+- получение topology markers в самодостаточном runtime snapshot,
+- применение actor-scoped `higgs` по `value.fields[fieldId]`,
+- class-scoped structural dirty signal без чтения Boundary.
 
 ### Bulk
 
@@ -84,6 +90,10 @@
 - такое изменение должно проходить через изменение `State`,
 - внешний мир может наблюдать результат изменения topology, но не должен напрямую вмешиваться в её разворачивание.
 
+Dark не может создать Macho child actors: multiplicity определяется current
+array value materialized actor. Этой identity и разворачиванием владеет
+Boundary.
+
 Эти ограничения нужны, чтобы избежать неконтролируемого сцепления topology.
 Если внешние реакции могли бы произвольно мутировать `array`, topology становилась бы побочным эффектом чужих сигналов, а не результатом собственной эволюции атома.
 
@@ -94,7 +104,14 @@
 - `Higgs boson` меняет topology,
 - `Photon` продолжает переносить `State`,
 - `Graviton` удерживает ту рамку отношения и локализации, в которой изменение topology получает место,
-- `Dark` наблюдает структурные следствия изменений, приходящих через `Electromagnetism`, `Higgs field change` и `Gravity`.
+- `Matrix` применяет runtime Higgs и помечает structural projection изменённой,
+- `Bulk` проявляет полученную структурную перестройку.
 
-Это не делает `Dark` центром исполнения.
-`Dark` остаётся скрытым держателем непрерывности topology и скрытым наблюдателем её глобальной согласованности.
+Dark не является runtime-наблюдателем этих изменений. Он читает source topology
+declaration и передаёт её через Inflaton; runtime consequences принадлежат
+самодостаточным Matrix/Bulk projections.
+
+В текущем core Matrix применяет actor-scoped Higgs и помечает structural
+projection dirty. Обратный Boundary transaction с персистентной фиксацией
+нового value и перестройкой Fuzzy/Macho branches ещё не реализован и явно
+зафиксирован в [`TODO.md`](../../TODO.md).

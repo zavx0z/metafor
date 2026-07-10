@@ -1,172 +1,185 @@
-
 # Weak
 
-`weak.md` разворачивает силовое чтение `Weak`.
-Общие различения силы, `Boson`, подтипа канала и `Impulse` заданы в [корневом Force](../FORCE.md).
+Weak отвечает за переход, claim, исполнение связанного процесса и возврат
+результата. Общий Force contract задан в [FORCE.md](../FORCE.md).
 
-## Сила и каналы
+## Каналы
 
-`Weak` отвечает за переход, прохождение, мутацию, трансформацию и медицию состояния.
-Она не распределяет наблюдаемый сигнал, а проводит сущность через изменение.
+- `Z boson` — нейтральная медиция и выбор исполнителя;
+- `W boson` — завершение активного прохождения как `w+` или `w-`.
 
-У `Weak` два канала:
+`Photon` остаётся наблюдаемым state signal. Он запускает Weak process flow,
+но не становится W/Z channel.
 
-- `W boson` — активный переход,
-- `Z boson` — нейтральная медиция перехода.
+## Declaration
 
-Оба являются подтипами `Boson` и принадлежат одной силе `Weak`.
+Dark переносит process declaration через Inflaton. Boundary хранит canonical
+process declaration вместе с:
 
-## Различие между `W boson` и `Z boson`
+- state binding;
+- env;
+- action source/import/wrapper;
+- action read fields;
+- success/error read/write fields;
+- finally/before handler.
 
-`W boson` проводит активную смену состояния.
-Он относится к самому акту перехода из одного состояния в другое.
+Energy target `create` catalog проецирует action descriptors с success/error
+handlers и finally descriptor с `before`. Для finally Energy выполняет
+`before({mass})` и возвращает `w+` с пустым write-set либо `w-` с ошибкой.
+Matrix не получает ни один из этих descriptors.
 
-`Z boson` удерживает нейтральную связку переходных состояний.
-Он относится к внутреннему сопряжению, медиции и согласованию перехода.
-
-Это различие не превращает `Weak` в распределённый сигнальный канал уровня `Photon`.
-Оно только разводит активный проход и нейтральную переходную медицию внутри одной силы.
-
-## Процессный Протокол
-
-Обычный рантайм-поток Force не использует `/field/...`: `gluon`, `higgs` и
-`photon` адресуются через actor ID или WIMP SRC и внутренние `fieldId` внутри
-`value.fields`. Старый Weak result adapter для top-level `wimpId` / `processId`
-и `/field/...` удалён.
-
-Текущий v0 процессного протокола использует один общий
-`BroadcastChannel("force")` и actor-addressed частицы:
+## Runtime protocol
 
 ```text
 Matrix -> photon/replace or photon/test
 Energy -> z test
 Matrix -> z copy
 Energy -> execute cached descriptor
-Energy -> w+ / w-
-Matrix -> apply result / unlock / next weak step
+Energy -> w+ or w-
+Matrix -> apply result, unlock, continue
 ```
 
-Matrix не публикует отдельную Z-задачу. `photon` является публичным сигналом
-входа actor в state. Для обычного state Matrix испускает
-`{ part: "photon", op: "replace", path: actorId, value: stateName }`. Если
-state process-bound, Matrix ставит lock, сохраняет frozen snapshot fields на
-момент входа и испускает
-`{ part: "photon", op: "test", path: actorId, value: stateName }`.
+Все сообщения идут через один Force transport как обычные `{parts}`.
+`BroadcastChannel("force")` и direct Boundary read не являются частью
+протокола.
 
-Matrix runtime snapshot содержит только boolean marker процесса:
-`weak.stateHasProcessByBraneIndex[braneIndex][stateIndex]`. Matrix не получает
-process id, action source, wrapper, import specifier, env, read/write handlers
-или process descriptor.
+### Photon
 
-Energy стартует явно из Dark: Dark получает `boundary.energyRuntime()` и
-передаёт catalog в `startEnergyProtocol({catalog})` до загрузки Matrix snapshot.
-Catalog содержит `actors: Array<[actorId, wimp]>` и descriptors по
-`wimp + state`. Energy слушает только `photon/test`, находит descriptor по
-`actorId + stateName`, проверяет env и молчит, если descriptor отсутствует или
-env не подходит.
-
-Если descriptor найден, Energy отправляет запрос:
+При обычном state Matrix испускает:
 
 ```ts
-{ part: "z", op: "test", path: 17, value: { energy: "energy-local" } }
+{part: "photon", op: "replace", path: 17, value: "ready"}
 ```
 
-Matrix выбирает первый валидный Energy и отвечает:
+При process-bound state Matrix:
+
+1. ставит lock;
+2. сохраняет frozen actor fields;
+3. испускает:
 
 ```ts
-{ part: "z", op: "copy", path: 17, from: "energy-local", value: { fields: { "2": 11 } } }
+{part: "photon", op: "test", path: 17, value: "ready"}
 ```
 
-`z copy` означает, что исполнитель выбран, а `value.fields` несёт frozen fields
-snapshot. `z copy` не несёт `process`. `from` у `z copy` — Energy id. Повторные
-`z test` после выбора исполнителя игнорируются без отрицательной частицы.
+Matrix snapshot знает только process-bound marker по state. Process ID и
+descriptor в Matrix не передаются.
 
-После `z copy` Energy исполняет cached process descriptor, найденный на
-`photon/test`, через `wrapperSrc` или dynamic import action. Action получает
-единый params object:
+### Claim через Z
+
+Energy находит descriptor по `actor -> WIMP` и `WIMP + state`, проверяет
+env и отправляет:
 
 ```ts
-{ field, value, mass, self }
+{part: "z", op: "test", path: 17, value: {energy: "energy-local"}}
 ```
 
-`value` keyed by field key, а не by fieldId. `mass` берётся из in-memory Energy
-mass store и не сериализуется в `Boundary`, не хранится в `Matrix` и не идёт по
-Force. Если action успешно завершился и descriptor содержит success handler,
-Energy выполняет handler и собирает write-set через `update(...)`. В `w+`
-попадают только keys, объявленные в `success.writeFields`, как string field IDs:
+Matrix принимает первого подходящего исполнителя и отвечает:
 
 ```ts
-{ part: "w+", op: "replace", path: 17, value: { fields: { "3": "done" } } }
+{
+  part: "z",
+  op: "copy",
+  path: 17,
+  from: "energy-local",
+  value: {fields: {"2": "commit"}}
+}
 ```
 
-Если success handler отсутствует или не вызвал `update(...)`, fields остаётся
-`{}`. Если action бросил исключение и descriptor содержит error handler, Energy
-передаёт handler объект `Error` и собирает write-set через `update(...)`. В
-`w-` попадают только keys, объявленные в `error.writeFields`:
+`z copy` содержит frozen fields и не содержит process descriptor.
+Повторные claims после выбора игнорируются.
+
+### Execution и W
+
+Energy исполняет cached descriptor. Action получает:
 
 ```ts
-{ part: "w-", op: "replace", path: 17, value: { error: "failed", fields: { "4": "failed" } } }
+{field, value, mass, self}
 ```
 
-Если error handler отсутствует или не вызвал `update(...)`, fields остаётся
-`{}`. Если handler сам бросил исключение, Energy всё равно публикует
-actor-addressed `w-` с ошибкой handler и пустым fields.
+`value` адресован field keys, хотя Force snapshot адресует fields по
+`fieldId`. `mass` принадлежит Energy и не переносится в Matrix.
 
-Timeout fallback сохраняется только для debug/v0 compatibility, если `z copy`
-пришёл без pending descriptor.
+Успех:
 
-Новый Weak process contract не использует top-level `processId`, `token`,
-`wimpId`, `executorId` или `/field/...`.
+```ts
+{
+  part: "w+",
+  op: "replace",
+  path: 17,
+  value: {fields: {"3": "done"}}
+}
+```
+
+Ошибка:
+
+```ts
+{
+  part: "w-",
+  op: "replace",
+  path: 17,
+  value: {error: "failed", fields: {"4": "failed"}}
+}
+```
+
+Success/error handler может записать только fields, объявленные в его
+`writeFields`. Без handler или `update(...)` write-set остаётся пустым.
+После результата Matrix применяет write-set, снимает lock и продолжает
+transition.
+
+## Addressing
+
+- `path = actor ID`;
+- fields находятся в `value.fields[fieldId]`;
+- Energy identity находится в `z test.value.energy` и `z copy.from`;
+- `processId`, `wimpId`, `executorId`, `token` не добавляются как
+  top-level поля;
+- `/field/...` не является Weak path.
+
+## Данные инструментов
+
+Weak частицы несут только управляющий результат и компактный write-set.
+Текущая in-memory Energy mass подходит для compact process-local data.
+Содержимое файлов, stdout/stderr и другие большие tool results должны
+сохраняться в filesystem-backed operation mass/artifacts. Matrix и Force не
+превращаются в хранилище результата.
 
 ## Чтение по доменам
 
 ### Dark
 
-- активный сдвиг между латентными структурными версиями через `W boson`,
-- скрытая связка переходных конфигураций через `Z boson`,
-- историческая реконфигурация модели,
-- эволюция структуры как линия изменений, а не как процесс исполнения.
+- process/reaction declaration;
+- deterministic local declaration IDs;
+- отсутствие runtime claim и execution.
 
 ### Boundary
 
-- допустимый шаг перехода через `W boson`,
-- согласование условий перехода через `Z boson`,
-- вычисление переходной логики,
-- фиксация канонически допустимого прохождения между состояниями.
+- canonical process catalog;
+- state/process binding;
+- self-contained Energy projection.
 
 ### Matrix
 
-- вычисление runtime-перехода состояния,
-- вход actor/brane в process-bound state,
-- lock при входе в process-bound state,
-- сохранение frozen fields snapshot для Energy runtime,
-- испускание `photon/replace` для обычного state и `photon/test` для process-state,
-- выбор первого Energy через `z test` / `z copy`,
-- приём `w+`/`w-`, применение result write-set и снятие lock.
+- state transition;
+- lock и frozen fields;
+- первый accepted Energy;
+- применение `w+`/`w-`.
 
 ### Energy
 
-Energy здесь означает distributed process executor. Текущий пакет `energy/`
-сейчас является локальным Force pipeline без реального исполнения DSL action:
-
-- получает process catalog snapshot при старте,
-- слушает только `photon/test` Matrix,
-- отправляет `z test` через локальный `BroadcastChannel("force")`,
-- принимает `z copy` только со своим Energy id в `from`,
-- исполняет cached descriptor с in-memory mass,
-- возвращает actor result через `w+` или `w-`.
+- catalog cache;
+- env check;
+- `z test`;
+- action/handler execution;
+- runtime mass;
+- `w+`/`w-`.
 
 ### Bulk
 
-- проявление перехода и process intent в наблюдаемой форме через `W boson`,
-- внутреннее сопряжение переходных состояний через `Z boson`,
-- проявление процесса без исполнения process action,
-- жизненный цикл после изменения состояния.
+- наблюдаемое проявление state/process/result без исполнения action.
 
 ## Силовые различия
 
-- `Weak` не переносит наблюдаемое состояние по системе; это делает `Photon`.
-- `Weak` не изменяет значения обычных `Field` как сила удержания; это делает `Gluon`.
-- `Weak` не изменяет поля topology; это делает `Higgs boson`.
-- `Weak` не удерживает скрытую геометрию и адресуемость; это делает `Graviton`.
-- `W boson` и `Z boson` вместе завершают слабую симметрию силовых каналов MetaFor.
+- Weak не переносит state как сигнал — это Photon.
+- Weak не меняет ordinary field как Strong — это Gluon.
+- Weak не меняет topology — это Higgs boson.
+- Weak не материализует структуру — это Boundary/Graviton.

@@ -1,6 +1,5 @@
 import type { Wimp } from "./wimp.ts"
 import { Reaction } from "./reaction.ts"
-import {emitGravitonAdd} from "../../force.ts"
 
 /**
  * Коллекция реакций для одного wimp.
@@ -45,7 +44,6 @@ export class Reactions {
       VALUES (${src}, ${input.key}, ${input.label}, ${input.desc ?? null}, ${input.cond}, ${input.src})
       RETURNING id
     `)[0]
-    emitGravitonAdd("reaction", row?.id)
     return new Reaction(this, input.key)
   }
 

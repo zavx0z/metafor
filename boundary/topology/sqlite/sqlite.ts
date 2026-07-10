@@ -4,7 +4,6 @@ import topologyFuzzyStateSql from "./topology_fuzzy_state.sql" with {type: "text
 import {buildTopology, decodeTopologyRow} from "./topology.ts"
 import type {TopologyBase} from "./topology.ts"
 import type { TopologyInput, TopologyRecord } from "@metafor/types/boundary/topology"
-import {emitForceParts} from "../../force.ts"
 
 const isStoredId = (id: number | null | undefined): id is number =>
   typeof id === "number" && Number.isInteger(id) && id > 0
@@ -52,7 +51,6 @@ export class BoundaryTopologySqlite {
       `
     }
     const topology = {...input, id, position}
-    emitForceParts([{part: "graviton", op: "add", path: input.kind, value: topology}])
     return buildTopology(this.sql, topology)
   }
 

@@ -175,16 +175,16 @@ ss -ltnp | rg ':(6500|6499|3004)\b'
 
 **Ключевые абстракции** (`pkg/engine/src/`):
 
-| Класс | Файл | Роль |
-|---|---|---|
-| `Renderer` | `renderer/index.ts` | WebGPU-устройство, пайплайны, многопроходный рендер |
-| `ViewPoint` | `core/ViewPoint.ts` | Единая камера + trackball вместо Camera + OrbitControls |
-| `Object3D` | `core/Object3D.ts` | Базовый узел сцены: `position`, `rotation`, `quaternion`, `scale`, `modelMatrix`, `matrixWorld` |
-| `Scene` | `scenes/Scene.ts` | Корневой контейнер графа сцены |
-| `Mesh` | `core/Mesh.ts` | Геометрия + материал |
-| `InstancedMesh` | `core/InstancedMesh.ts` | GPU-инстансинг, один `Matrix4` на экземпляр |
-| `WireframeInstancedMesh` | `core/WireframeInstancedMesh.ts` | Инстансированные wireframe-линии, цвет и glow на экземпляр |
-| `BufferGeometry` | `core/BufferGeometry.ts` | GPU-атрибуты буфера: position, normal, index |
+| Класс                    | Файл                             | Роль                                                                                            |
+| ------------------------ | -------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `Renderer`               | `renderer/index.ts`              | WebGPU-устройство, пайплайны, многопроходный рендер                                             |
+| `ViewPoint`              | `core/ViewPoint.ts`              | Единая камера + trackball вместо Camera + OrbitControls                                         |
+| `Object3D`               | `core/Object3D.ts`               | Базовый узел сцены: `position`, `rotation`, `quaternion`, `scale`, `modelMatrix`, `matrixWorld` |
+| `Scene`                  | `scenes/Scene.ts`                | Корневой контейнер графа сцены                                                                  |
+| `Mesh`                   | `core/Mesh.ts`                   | Геометрия + материал                                                                            |
+| `InstancedMesh`          | `core/InstancedMesh.ts`          | GPU-инстансинг, один `Matrix4` на экземпляр                                                     |
+| `WireframeInstancedMesh` | `core/WireframeInstancedMesh.ts` | Инстансированные wireframe-линии, цвет и glow на экземпляр                                      |
+| `BufferGeometry`         | `core/BufferGeometry.ts`         | GPU-атрибуты буфера: position, normal, index                                                    |
 
 **Рендер-пайплайны**: все WGSL shaders лежат в `renderer/shaders/`.
 - `basicMeshPipeline` - плоский цвет без освещения.
@@ -207,20 +207,16 @@ ss -ltnp | rg ':(6500|6499|3004)\b'
 - `Dark` - скрытая связность, память, иерархия, история, эволюция модели.
 - `Boundary` - персистентное уплощение, фиксация, каноникализация.
 - `Matrix` - рантайм времени, перехода и изменения состояния.
+- `Energy` - исполнитель процессов и владелец рабочей runtime mass.
 - `Bulk` - проявление, объём, наблюдаемая форма, пространственная принадлежность.
-
-`Energy` зарезервирована для будущего распределённого исполнителя процессов и
-не является текущим runtime-state доменом.
 
 Ключевые инварианты:
 
-- `Dark`, `Boundary`, `Matrix` и `Bulk` являются изолированными доменными проекциями.
+- `Dark`, `Boundary`, `Matrix`, `Energy` и `Bulk` являются изолированными доменными проекциями.
 - Production-код не должен использовать прямые доменные API-импорты между
-  доменами. Исключения: зафиксированная пара `Dark` -> `Boundary`, а также
-  startup-import runtime pipeline модулей в `dark/index.ts`, чтобы загрузить
-  локальные Force-подписки в один Bun target. Общение между такими модулями всё
-  равно идёт через Force, не через прямые вызовы.
-- `Matrix` и `Bulk` не читают `Boundary`/SQLite как DB/ORM-зависимость.
+  доменами: Dark передаёт declaration через Inflaton, а Boundary возвращает
+  Graviton и target `create` projections через Force.
+- `Matrix`, `Energy` и `Bulk` не читают `Boundary`/SQLite как DB/ORM-зависимость.
 - Междоменное взаимодействие принадлежит Force-каналам, а не прямым импортам.
 - `Boundary` - персистентная граница уплощения.
 - `Field` - слой отпечатка после уплощения и носитель значений и различий.

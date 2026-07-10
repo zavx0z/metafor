@@ -1,5 +1,4 @@
 import type { Reactions } from "./reactions.ts"
-import {emitGravitonAdd} from "../../force.ts"
 
 /**
  * Sub-ORM для таблицы `reaction_read` (PK (reaction, field)).
@@ -12,15 +11,11 @@ export class ReactionRead {
     const sql = this.reaction.reactions.wimp.sql
     const src = this.reaction.reactions.wimp.src
     const reactionId = await this.reaction.id()
-    const existing = await this.has(fieldKey)
     await sql`
       INSERT OR IGNORE INTO reaction_read (reaction, field)
       SELECT ${reactionId}, field.id
       FROM field WHERE field.wimp = ${src} AND field.key = ${fieldKey}
     `
-    if (!existing && await this.has(fieldKey)) {
-      emitGravitonAdd("reaction_read", `${reactionId}/read/${fieldKey}`)
-    }
   }
 
   async remove(fieldKey: string): Promise<void> {
@@ -88,15 +83,11 @@ export class ReactionWrite {
     const sql = this.reaction.reactions.wimp.sql
     const src = this.reaction.reactions.wimp.src
     const reactionId = await this.reaction.id()
-    const existing = await this.has(fieldKey)
     await sql`
       INSERT OR IGNORE INTO reaction_write (reaction, field)
       SELECT ${reactionId}, field.id
       FROM field WHERE field.wimp = ${src} AND field.key = ${fieldKey}
     `
-    if (!existing && await this.has(fieldKey)) {
-      emitGravitonAdd("reaction_write", `${reactionId}/write/${fieldKey}`)
-    }
   }
 
   async remove(fieldKey: string): Promise<void> {
@@ -165,15 +156,11 @@ export class ReactionStates {
     const sql = this.reaction.reactions.wimp.sql
     const src = this.reaction.reactions.wimp.src
     const reactionId = await this.reaction.id()
-    const existing = await this.has(stateName)
     await sql`
       INSERT OR IGNORE INTO reaction_state (reaction, state)
       SELECT ${reactionId}, state.id
       FROM state WHERE state.wimp = ${src} AND state.name = ${stateName}
     `
-    if (!existing && await this.has(stateName)) {
-      emitGravitonAdd("reaction_state", `${reactionId}/state/${stateName}`)
-    }
   }
 
   async remove(stateName: string): Promise<void> {

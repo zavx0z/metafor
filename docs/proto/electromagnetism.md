@@ -1,4 +1,3 @@
-
 # Electromagnetism
 
 `electromagnetism.md` разворачивает силовое чтение `Electromagnetism`.
@@ -16,23 +15,33 @@
 
 ### Dark
 
-- возможность вынесения состояния в наблюдаемое распространение,
-- связь скрытого состояния с его будущей явной проекцией,
-- подготовка состояния к сигнальному переносу.
+- declaration states, transitions и conditions как часть WIMP source;
+- передача declaration через Inflaton;
+- отсутствие runtime Photon emission или наблюдения.
 
 ### Boundary
 
-- фиксация переноса `State` на границе,
-- сигнальная передача через контракт,
-- сериализуемая форма доставки состояния,
-- граница видимого прохождения изменения.
+- canonical state graph и initial current imprint;
+- включение state data в self-contained Matrix projection;
+- отсутствие runtime Photon routing или direct consumer reads.
+
+### Matrix
+
+- вычисление runtime state transition;
+- `photon/replace` для обычного наблюдаемого state;
+- `photon/test` для process-bound state;
+- публикация Photon через единый Force transport.
+
+### Energy
+
+- приём только `photon/test` как сигнала process-bound state;
+- отсутствие реакции на обычный `photon/replace`.
 
 ### Bulk
 
-- приём `Photon`,
-- доставка состояния в событие, реакцию или действие,
-- распространение наблюдаемого сигнала,
-- связь активных частей системы через проявленный перенос.
+- приём наблюдаемой runtime projection;
+- проявление state без исполнения transition logic;
+- визуальная связь активных частей системы.
 
 ## Силовые различия
 

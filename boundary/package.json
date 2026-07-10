@@ -3,7 +3,6 @@
   "type": "module",
   "exports": {
     ".": "./index.ts",
-    "./force": "./force.ts",
     "./sqlite": "./sqlite.ts"
   },
   "private": true,

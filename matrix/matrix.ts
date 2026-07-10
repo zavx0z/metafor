@@ -17,8 +17,9 @@
  * `@matrix/gravity`, собирает канонический store через `@matrix/strong`
  * и оркестрирует вычисление перехода через `@matrix/weak`.
  *
- * Matrix работает с уже подготовленным runtime-снимком. Persistent Boundary DB
- * принадлежит Dark, а Matrix держит только runtime-состояние процесса.
+ * Matrix работает с уже подготовленным самодостаточным runtime-снимком.
+ * Persistent DB принадлежит Boundary, а Matrix не читает её и держит только
+ * runtime-состояние процесса.
  *
  * Matrix НЕ содержит:
  * - source graph loading и primary addressing — это `dark`

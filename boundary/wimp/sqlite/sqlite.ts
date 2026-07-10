@@ -18,35 +18,7 @@ import matterSchemaSql from "./matter.sql" with {type: "text"}
 import {SQL} from "bun"
 import {writeWimpCreate} from "./create.ts"
 import {Wimp} from "./wimp.ts"
-import {emitForceParts} from "../../force.ts"
-import type { Particle } from "@metafor/types/force/particle"
-import type { WimpCreateInput, WimpSnapshot } from "@metafor/types/boundary/wimp"
-
-const wimpSnapshot = async (sql: SQL, src: string): Promise<WimpSnapshot> => {
-  const wimp = (await sql<Array<{src: string; name: string | null; desc: string | null; view_css: string | null}>>`
-    SELECT src, name, desc, view_css FROM wimp WHERE src = ${src} LIMIT 1
-  `)[0]
-  if (!wimp) throw new Error(`wimp ${src} missing after create`)
-
-  const fields = (await sql<Array<{id: number; wimp: string; key: string; type: string; required: number; label: string | null}>>`
-    SELECT id, wimp, key, type, required, label FROM field WHERE wimp = ${src} ORDER BY rowid
-  `).map((field) => ({...field, required: field.required === 1}))
-  const enumVariants = await sql<Array<{id: number; field: number; position: number; itemValue: string}>>`
-    SELECT id, field, position, item_value AS itemValue
-    FROM field_enum_variant
-    WHERE field IN (SELECT id FROM field WHERE wimp = ${src})
-    ORDER BY field, position
-  `
-  const states = await sql<Array<{id: number; wimp: string; name: string; position: number}>>`
-    SELECT id, wimp, name, position FROM state WHERE wimp = ${src} ORDER BY position
-  `
-
-  return {wimp: {src: wimp.src, name: wimp.name, desc: wimp.desc, view: wimp.view_css}, fields, enumVariants, states}
-}
-
-const collectWimpCreateParticles = async (sql: SQL, src: string): Promise<Particle[]> => [
-  {part: "graviton", op: "add", path: "wimp", value: await wimpSnapshot(sql, src)},
-]
+import type { WimpCreateInput } from "@metafor/types/boundary/wimp"
 
 export class BoundaryWimpSqlite {
   private constructor(private readonly sql: SQL) {}
@@ -102,7 +74,6 @@ export class BoundaryWimpSqlite {
     })
 
     const wimp = new Wimp(this.sql, src)
-    emitForceParts(await collectWimpCreateParticles(this.sql, src))
     return wimp
   }
 

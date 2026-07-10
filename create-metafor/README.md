@@ -22,12 +22,12 @@ bun create metafor auth
 
 ## Опции
 
-| Option              | Description             | Default             |
-|---------------------|-------------------------|---------------------|
-| `-n, --name <name>` | Имя Мета                | positional argument |
-| `-d, --desc <desc>` | Описание Мета           | `"MetaFor {name}"`  |
-| `--dir <dir>`       | Директория для создания | `.`                 |
-| `-l, --lang <lang>` | Язык вывода (ru\|en)    | автодетект          |
+| Option              | Description                 | Default             |
+| ------------------- | --------------------------- | ------------------- |
+| `-n, --name <name>` | Имя Мета                    | positional argument |
+| `-d, --desc <desc>` | Описание Мета               | `"MetaFor {name}"`  |
+| `--dir <dir>`       | Директория для создания     | `.`                 |
+| `-l, --lang <lang>` | Язык вывода (`ru` или `en`) | автодетект          |
 
 ## Примеры
 
@@ -61,7 +61,7 @@ my-meta/
 
 ## Требования
 
-- NodeType.js >= 18 или Bun >= 1.0.0
+- Node.js >= 18 или Bun >= 1.0.0
 
 ## Лицензия
 

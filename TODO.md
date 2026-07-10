@@ -9,8 +9,9 @@
 
 ## 2. Topology Runtime
 
-- [ ] Спроектировать миграцию `enum -> Fuzzy`.
-- [ ] Спроектировать миграцию `array -> MACHO`.
+- [ ] Провести actor-scoped runtime `higgs` через Boundary transaction: сохранить
+  новое `enum`/`array` value, перестроить затронутые Fuzzy/Macho branches и после
+  commit выпустить Graviton и свежие target `create` projections.
 
 ## 3. Source / Entanglement
 

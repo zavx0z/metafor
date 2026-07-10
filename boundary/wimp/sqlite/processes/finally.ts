@@ -1,5 +1,4 @@
 import type { Process } from "./process.ts"
-import {emitGravitonAdd} from "../../../force.ts"
 
 /**
  * Sub-ORM для таблицы `process_finally_read` (PK (process, field)).
@@ -12,15 +11,11 @@ export class FinallyRead {
     const sql = this.finallyPhase.process.processes.wimp.sql
     const src = this.finallyPhase.process.processes.wimp.src
     const processId = await this.finallyPhase.process.id()
-    const existing = await this.has(fieldKey)
     await sql`
       INSERT OR IGNORE INTO process_finally_read (process, field)
       SELECT ${processId}, field.id
       FROM field WHERE field.wimp = ${src} AND field.key = ${fieldKey}
     `
-    if (!existing && await this.has(fieldKey)) {
-      emitGravitonAdd("process_finally_read", `${processId}/finally/read/${fieldKey}`)
-    }
   }
 
   async remove(fieldKey: string): Promise<void> {
@@ -105,7 +100,6 @@ export class ProcessFinally {
     }
 
     await sql`INSERT INTO process_finally (process, before) VALUES (${processId}, ${beforeSrc})`
-    emitGravitonAdd("process_finally", `${processId}/finally`)
   }
 
   async before(): Promise<string | null> {

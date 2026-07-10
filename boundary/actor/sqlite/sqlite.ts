@@ -7,7 +7,6 @@ import {Actor, ActorRoots, decodeActorRow} from "./actor.ts"
 import {Value} from "./value.ts"
 import type { ActorRecord, ActorRows } from "@metafor/types/boundary/actor"
 import {ActorFieldValue} from "./actor_value.ts"
-import {emitForceParts} from "../../force.ts"
 
 export class BoundaryActorSqlite {
   readonly roots: ActorRoots
@@ -43,7 +42,6 @@ export class BoundaryActorSqlite {
   async create(rows: ActorRows): Promise<Actor> {
     const actorId = await Actor.writeRows(this.sql, rows)
     const actor = new Actor(this.sql, actorId)
-    emitForceParts([{part: "graviton", op: "add", path: "actor", value: await actor.rows()}])
     return actor
   }
 

@@ -2,7 +2,6 @@ import type {SQL} from "bun"
 import type { AxionParticleRow, FuzzyParticleRow, MachoParticleRow, MatterBindingRow, MatterParticleRow, WimpParticleRow } from "@metafor/types/boundary/matter"
 import type { MatterBindingValue, MatterEdgeSlot, MatterParticle, MatterParticleKind } from "@metafor/types/metafor/matter"
 import type {Wimp} from "./wimp.ts"
-import {emitGravitonAdd} from "../../force.ts"
 
 const hasMatter = async (sql: SQL, src: string): Promise<boolean> => {
   const rows = await sql`SELECT 1 AS one FROM matter_particle WHERE wimp = ${src} LIMIT 1`
@@ -484,7 +483,6 @@ export class MatterChildren {
       input.fieldsBinding,
       input.massBinding,
     )
-    emitGravitonAdd("matter", id)
     return new MatterWimpParticle(this.particle.matter, id, input.src)
   }
 
@@ -500,7 +498,6 @@ export class MatterChildren {
       input.fuzzyKind,
       input.predicateBinding,
     )
-    emitGravitonAdd("matter", id)
     return new MatterFuzzyParticle(this.particle.matter, id, input.fuzzyKind)
   }
 
@@ -514,7 +511,6 @@ export class MatterChildren {
       input.edgeSlot,
       input.predicateBinding,
     )
-    emitGravitonAdd("matter", id)
     return new MatterAxionParticle(this.particle.matter, id)
   }
 
@@ -528,7 +524,6 @@ export class MatterChildren {
       input.edgeSlot,
       input.collectionBinding,
     )
-    emitGravitonAdd("matter", id)
     return new MatterMachoParticle(this.particle.matter, id)
   }
 
@@ -558,7 +553,6 @@ export class Matter {
     massBinding?: MatterBindingValue | undefined
   }): Promise<MatterWimpParticle> {
     const id = await insertWimpAt(this.parent, null, "root", input.src, input.fieldsBinding, input.massBinding)
-    emitGravitonAdd("matter", id)
     return new MatterWimpParticle(this, id, input.src)
   }
 
@@ -567,19 +561,16 @@ export class Matter {
     predicateBinding?: MatterBindingValue | undefined
   }): Promise<MatterFuzzyParticle> {
     const id = await insertFuzzyAt(this.parent, null, "root", input.fuzzyKind, input.predicateBinding)
-    emitGravitonAdd("matter", id)
     return new MatterFuzzyParticle(this, id, input.fuzzyKind)
   }
 
   async axion(input: {predicateBinding: MatterBindingValue}): Promise<MatterAxionParticle> {
     const id = await insertAxionAt(this.parent, null, "root", input.predicateBinding)
-    emitGravitonAdd("matter", id)
     return new MatterAxionParticle(this, id)
   }
 
   async macho(input: {collectionBinding: MatterBindingValue}): Promise<MatterMachoParticle> {
     const id = await insertMachoAt(this.parent, null, "root", input.collectionBinding)
-    emitGravitonAdd("matter", id)
     return new MatterMachoParticle(this, id)
   }
 

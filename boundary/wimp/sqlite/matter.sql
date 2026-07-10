@@ -39,12 +39,14 @@ CREATE TABLE IF NOT EXISTS matter_particle
 (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     wimp            TEXT    NOT NULL,
+    local_id        INTEGER,
     parent_particle INTEGER,
     particle_kind   TEXT    NOT NULL CHECK (particle_kind IN ('wimp', 'fuzzy', 'axion', 'macho')),
     edge_slot       TEXT    NOT NULL CHECK (edge_slot IN ('root', 'child', 'then', 'else', 'branch')),
     particle_order  INTEGER NOT NULL CHECK (particle_order >= 0),
     FOREIGN KEY (wimp) REFERENCES wimp (src) ON DELETE CASCADE,
     FOREIGN KEY (parent_particle) REFERENCES matter_particle (id) ON DELETE CASCADE,
+    UNIQUE (wimp, local_id),
     CHECK (
         (parent_particle IS NULL AND edge_slot = 'root') OR
         (parent_particle IS NOT NULL AND edge_slot IN ('child', 'then', 'else', 'branch'))

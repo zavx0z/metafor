@@ -7,6 +7,7 @@ type BrowserClient = {domain?: string; id?: string}
 
 const browserClients = new Set<ServerWebSocket<BrowserClient>>()
 const force = new Force("bulk")
+let snapshot: unknown
 
 const sendBrowser = (ws: ServerWebSocket<BrowserClient>, payload: unknown): void => {
   if (ws.readyState !== WebSocket.OPEN) return
@@ -60,7 +61,7 @@ const server = Bun.serve<BrowserClient>({
         ws.data.id = id
         browserClients.add(ws)
         console.log(`[bulk] browser connected ${domain} ${id}`)
-        sendBrowser(ws, {type: "create", snapshot: {type: "connected"}})
+        sendBrowser(ws, {type: "create", snapshot: snapshot ?? {type: "connected"}})
         return
       }
 
@@ -86,6 +87,10 @@ console.log(`[bulk] listening on ${server.url}`)
 
 force.onImpulse = (impulse) => {
   console.log(`[bulk] <- force parts=${impulse.parts.length}`)
-  const payload = {type: "force", parts: impulse.parts}
-  for (const client of browserClients) sendBrowser(client, payload)
+  for (const client of browserClients) sendBrowser(client, impulse)
+}
+
+force.onCreate = (next) => {
+  snapshot = next
+  for (const client of browserClients) sendBrowser(client, {type: "create", snapshot: next})
 }
