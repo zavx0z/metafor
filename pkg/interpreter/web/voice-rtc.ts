@@ -9,7 +9,8 @@ import type {
 const VOICE_RTC_APP_PEER_PREFIX = "app-web-voice"
 const VOICE_RTC_SERVER_PEER_ID = "voice-server"
 const VOICE_RTC_OFFER_PATH = "/voice/offer"
-const VOICE_RTC_CONNECT_TIMEOUT_MS = 8_000
+const VOICE_RTC_ICE_GATHER_TIMEOUT_MS = 8_000
+const VOICE_RTC_CONNECT_TIMEOUT_MS = 20_000
 const VOICE_RTC_MEDIA_TIMEOUT_MS = 6_000
 const VOICE_RTC_ASR_TEXT_TIMEOUT_MS = 18_000
 const VOICE_RTC_RETRY_MS = 1_500
@@ -170,7 +171,7 @@ class VoiceRtcAsrSocket extends EventTarget implements VoiceInputSocket {
     try {
       const offer = await connection.createOffer()
       await connection.setLocalDescription(offer)
-      await waitForIceGatheringComplete(connection, VOICE_RTC_CONNECT_TIMEOUT_MS)
+      await waitForIceGatheringComplete(connection, VOICE_RTC_ICE_GATHER_TIMEOUT_MS)
       const response = await fetch(voiceRtcOfferUrl(), {
         method: "POST",
         credentials: "include",
