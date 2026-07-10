@@ -1,4 +1,4 @@
-import "./matrix.ts"
+import "./live.ts"
 
 const server = Bun.serve({
   port: 4003,
@@ -12,4 +12,3 @@ const server = Bun.serve({
 })
 
 console.log(`[matrix] listening on ${server.url}`)
-
