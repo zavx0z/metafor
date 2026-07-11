@@ -33,8 +33,8 @@ describe("Boundary -> packed Matrix runtime", () => {
   test("derives one Weak-ready brane without creating a second world store", async () => {
     await apply({part: "inflaton", op: "add", path: `${ROOT}/meta`, value: {name: "Runtime"}})
     await declaration("fields", "1", {key: "input", type: "number", default: 0, position: 0})
-    await declaration("states", "1", {key: "idle", position: 0})
-    await declaration("states", "2", {key: "ready", position: 1})
+    await declaration("states", "1", {name: "idle", position: 0})
+    await declaration("states", "2", {name: "ready", position: 1})
     await declaration("transitions", "1", {from: "1", to: "2", position: 0})
     await declaration("conditions", "1", {transition: "1", field: "1", position: 0, predicate: {eq: 1}})
     await declaration("processes", "1", {
