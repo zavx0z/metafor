@@ -1,121 +1,212 @@
-# Правила Agent Для MetaFor Repo
+# Канонические инструкции агентам `zavx0z/metafor`
 
-Этот репозиторий часто разрабатывается прямо из live-интерпретатора MetaFor.
-Интерпретатор сейчас является рабочей средой разработки MetaFor: в нем есть
-server runtime/source debugging и уже подключенный WebApp-контур через
-server Chrome remote desktop, WebRTC, DevTools, console и source maps.
-`https://meta.proizvodstvo1.ru/` - текущая первая живая реализация MetaFor,
-которую мы развиваем через эту среду.
+Статус: **обязательные правила текущей реализации**.  
+Дата последнего прямого решения автора: **2026-07-11**.
 
-Если задача касается interpreter, WebApp, server-dev браузера, remote desktop,
-DevTools, HUD/TODO, breakpoints или текущего совместного runtime/source
-контекста, сначала читай и выполняй:
+Этот файл имеет приоритет над конфликтующими старыми указаниями в `AGENT.md`,
+`AGENT_MEMORY.md`, package-local документации, старых PR и историческом коде.
+
+Полное концептуальное ядро находится в `zavx0z/concept`:
+
+1. `CORE.md`
+2. `core/FORMAL_MODEL.md`
+3. `core/MISSION.md`
+4. `core/RUNTIME_INVARIANTS.md`
+5. `core/LAUNCH_PLAN.md`
+6. `core/REPOSITORY_SPLIT_PLAN.md`
+
+## 1. Текущая точка
+
+MetaFor — эволюционирующий порождающий бесконечно-конечный автомат. Каждая
+актуальная materialization конечна; Matter рекурсивно порождает новые автоматы;
+Inflaton меняет правила дальнейшей materialization.
+
+Ближайшая инженерная задача — не расширять interpreter и не строить новую
+прослойку Matrix, а запустить минимальный наблюдаемый core lifecycle.
+
+## 2. Единственный Matrix runtime
+
+Production Matrix имеет один вычислительный pipeline:
 
 ```text
-pkg/interpreter/AGENTS.md
+gravity → strong → weak
 ```
 
-Этот файл является кратким корневым указателем. Подробные operational rules
-лежат рядом с кодом interpreter package, чтобы они не расходились с
-реализацией. Не дублируй здесь interpreter workflow: при изменении поведения
-обновляй `pkg/interpreter/AGENTS.md`, профильную документацию или TypeDoc.
+Обязательные инварианты:
 
-Если задача касается `@metafor/types`, структуры `types/`, переноса или
-разделения типов, сначала читай и выполняй:
+- WebGPU-backed Weak — основной параллельный backend;
+- CPU — fallback и reference backend для parity tests;
+- default backend policy — `auto`: WebGPU при наличии, иначе CPU;
+- `gpu` — строгий режим; отсутствие WebGPU является ошибкой;
+- `cpu` — явный fallback/debug режим;
+- GPU и CPU должны давать одинаковые State/lock/Photon traces.
+
+Запрещено:
+
+- возвращать `MatrixProjectionStore`;
+- создавать отдельные Actor/Field maps, которые сами вычисляют State;
+- вычислять conditions/transitions вторым TypeScript evaluator;
+- публиковать Photon в обход Weak;
+- считать CPU отдельной семантической реализацией Matrix;
+- держать вторую durable truth рядом с Boundary.
+
+Boundary может передать Matrix **производный target-specific packed bootstrap**.
+Он не является вторым миром: snapshot полностью перестраивается из canonical
+Boundary и нужен только для инициализации `gravity/strong/weak`. После boot
+обычные Gluon/Higgs/Z/W идут напрямую через packed runtime.
+
+## 3. Boundary и Force
+
+- Boundary — canonical materialized persistence.
+- Dark передаёт declaration как Inflaton через Force.
+- Matrix, Energy и Bulk не читают Boundary SQLite напрямую.
+- Один ForceMessage содержит одну минимальную Particle.
+- Изменения мира коммитятся в Boundary, затем локальные consequences идут через
+  Force.
+- Производный Matrix bootstrap адресуется `runtime/matrix` и не считается
+  canonical history или operational world snapshot.
+
+Не путай запрет на второй canonical full snapshot с разрешённой производной
+проекцией для вычислительного backend. Критерий: её можно удалить и полностью
+восстановить из Boundary без потери мира или identity.
+
+## 4. Наблюдаемость и первый milestone
+
+Первый полный запуск допускается без Bulk и UI:
 
 ```text
-types/AGENTS.md
+Meta/DSL
+→ Dark/Inflaton
+→ Boundary
+→ Matrix WebGPU (CPU fallback)
+→ Photon
+→ Energy
+→ W result
+→ structured server logs
 ```
 
-Правила пакета типов лежат рядом с `types/package.json`, потому что именно там
-задаётся dependency layer для типовых контрактов.
+Используй:
 
-## Стиль Изменений
+```text
+bun run runtime
+bun run runtime:logs
+bun run runtime:cpu
+bun run runtime:gpu
+```
 
-Не плодить лишний код. Это обязательное правило для всего репозитория.
+Логи должны показывать фактические send/receive Impulse. Они являются временной
+наблюдаемостью, но не нативной Летописью.
 
-- Если логика нужна только в одном месте, держи ее прямо в этом месте: в
-  обработчике события, `switch case`, route handler или конкретном runtime flow.
-- Не выноси одноразовую логику в функции, классы, wrapper API, constants,
-  helper-модули или промежуточные переменные только ради аккуратности,
-  симметрии или возможного будущего переиспользования.
-- Новая функция, тип, модуль или слой допустимы, когда есть реальное повторное
-  использование, явная доменная граница или код без выделения становится
-  объективно труднее читать.
-- Для glue-кода, `BroadcastChannel` handlers, bridge/pipeline сообщений и
-  локальных runtime сценариев предпочитай прямой скриптовый поток: получить
-  сообщение -> `switch`/`if` -> выполнить действие рядом с соответствующим case.
-- Не добавляй bus/queue/router-style прослойки, самовызывающиеся async-обертки,
-  наборы флагов и dispatch-функции, если тот же смысл можно увидеть напрямую в
-  месте обработки.
-- Не расширяй `index.ts` / barrel files ради тестов. Если функция, тип или
-  runtime store нужны только spec-файлу, импортируй их в тесте относительным
-  путём из конкретного модуля. Re-export означает реальную внешнюю поверхность
-  пакета.
+## 5. Interpreter больше не development center
 
-Меньше кода - меньше скрытого состояния, меньше поверхностей для ошибок и
-меньше шансов случайно превратить локальный переход в новую архитектуру.
+Interpreter был экспериментальной средой для проверки lifecycle, UI-компонентов
+и способов взаимодействия. Он сохраняется как исторический прототип и источник
+reusable UI, но больше не определяет способ разработки ядра.
 
-## Bun Серверы
+Текущий workflow:
 
-Для Bun server/fullstack кода сначала сверяй текущие практики с
-`https://bun.sh/docs`. При создании или существенной правке серверов открывай
-`https://bun.sh/docs/bundler/fullstack` и используй нативный `Bun.serve`/`routes`
-формат: HTML/static entries оставляй прямыми route values, API routes оформляй
-как объект HTTP method handlers (`GET`, `POST`, `PUT`, `DELETE`), без ручной
-проверки `req.method`, когда тот же контракт выражается через route shape.
-Для производительности предпочитай exact routes для известных путей, `:param`
-для одного динамического сегмента, wildcard routes только для настоящих
-catch-all/proxy случаев, а static `Response` routes - для неизменяемых ответов.
+- локальное приложение Codex;
+- обычные Git branches/PR;
+- прямое чтение и изменение repository files;
+- terminal commands и tests;
+- structured runtime logs.
 
-## Текущий Server-Dev Контур
+Не требуй `POST /tools`, `source.apply_patch`, server interpreter, remote desktop
+или активный `processId` для обычной разработки core. Эти маршруты применимы
+только к отдельному interpreter-приложению, когда работа над ним явно выбрана.
 
-По умолчанию новый агент должен считать, что он находится в server-dev контуре:
+## 6. Граница корневого репозитория
 
-- workspace: `/home/zavx0z/production/vendor/metafor`;
-- branch: `main`;
-- interpreter host: `http://10.66.0.10:6500`;
-- default interpreter command: `bun run force:development`;
-- Force server: `http://10.66.0.10:4000`;
-- domain servers: boundary `4001`, dark `4002`, matrix `4003`, bulk `4004`,
-  energy `4005`;
-- SQLite HUD startup database: `dark/tmp/boundary.sqlite`;
-- visible WebApp target: `https://meta.proizvodstvo1.ru/`;
-- server Chrome remote desktop host: `http://127.0.0.1:32133`;
-- server Chrome CDP: `http://127.0.0.1:9349/json/list`.
+В `zavx0z/metafor` должны остаться:
 
-Текущий server-dev контур управляется через interpreter API. Для agent-facing
-команд используй единый Codex-style endpoint `POST /tools`; process id и другие
-параметры передаются внутри `tool_uses[].parameters`. Детали tools, Space,
-remote desktop, DevTools, HUD и source editing описаны в
-`pkg/interpreter/AGENTS.md`.
+- root public package MetaFor;
+- DSL, Matter, declarations и template/create tooling;
+- shared protocol/types, необходимые ядру;
+- Force;
+- Dark;
+- Boundary;
+- Matrix, включая WebGPU и CPU fallback;
+- Energy;
+- Bulk, включая его WebGPU manifestation runtime;
+- reusable UI components;
+- neutral fixtures/tests/tools.
 
-Локальный `127.0.0.1` workflow тоже поддерживается, но не путай его с текущим
-server-dev контуром. LAN/TLS режим на `443` - отдельный локально-сетевой режим,
-не диагностика текущего server-dev.
+На extraction:
 
-## Документационная Гигиена
+- `pkg/interpreter` product shell;
+- `pkg/voice` → `zavx0z/voice-engine`;
+- Android;
+- browser-agent application shell;
+- PTY/Tauri/desktop shell;
+- provider-specific и product-specific integrations.
 
-Не оставляй устаревшие заметки, старые endpoint-ы, временные runbook-и и
-архитектурные хвосты в scattered docs. Этот репозиторий развивается динамично:
-документация должна описывать текущий рабочий контракт.
+До удаления обязательны archive branch/tag, dependency manifest, target
+repository, сохранение Git history, зелёный target build и migration map.
 
-- актуальные правила агента держи в `AGENTS.md` или ближайшем package-level
-  `AGENTS.md`;
-- устойчивые contracts и workflow держи в профильной документации или TypeDoc;
-- pending work держи в `TODO.md`;
-- долгоживущие выводы держи в `AGENT_MEMORY.md` только когда они меняют
-  будущие инженерные решения или остаются незавершенной зависимостью;
-- историю завершенных чисток, удаленные legacy-слои, старые endpoint-ы и
-  временные runbook-и не записывай в memory; если прошлое нужно только как факт
-  истории, достаточно git history;
-- устаревшие инструкции удаляй сразу, а не складируй в документации.
+Archive point уже создан:
 
-## Документация
+```text
+archive/pre-core-split-2026-07-11
+```
 
-- Interpreter rules: `pkg/interpreter/AGENTS.md`
-- Types package rules: `types/AGENTS.md`
-- Interpreter world model: `pkg/interpreter/docs/interpreter-world.md`
-- Interpreter REST/API contracts: `pkg/interpreter/docs/api.md`
-- Interpreter workflow: `pkg/interpreter/docs/workflow.md`
-- Long-lived agent memory: `AGENT_MEMORY.md`
+Не выполняй массовое удаление и Matrix restoration в одном PR.
+
+## 7. Порядок ближайших изменений
+
+1. structured Force/server logs;
+2. восстановить packed Matrix bootstrap;
+3. удалить второй projection/evaluator;
+4. WebGPU auto-primary и CPU fallback;
+5. GPU/CPU parity tests;
+6. minimal universe без Bulk;
+7. canonical `W result → Boundary world update`;
+8. Reaction consequences;
+9. Bulk manifestation;
+10. phased repository extraction;
+11. Capsule и первый bounded agent Experience.
+
+## 8. Работа со старым кодом и PR
+
+- Старый commit — свидетельство стадии, а не автоматическая истина.
+- Для Matrix semantic reference используется рабочий packed runtime до появления
+  projection layer, но запрещён широкий rollback всего repository.
+- Закрытый PR `#79` архитектурно superseded и не должен быть merged целиком.
+- Полезные изменения из старых веток переносятся только по одному после проверки
+  текущих инвариантов.
+
+## 9. Проверка изменений
+
+Минимум для Matrix PR:
+
+```text
+bun test boundary/runtime/matrix.spec.ts matrix/matrix.spec.ts
+bun test matrix/weak
+bun run runtime:cpu
+bun run runtime:gpu  # в WebGPU-capable среде
+```
+
+Затем сравни traces CPU и GPU. Отсутствие доступного GPU нужно зафиксировать
+честно; нельзя объявлять GPU path проверенным только по компиляции.
+
+Каждый существенный PR должен указать:
+
+- baseline commit;
+- ожидаемый причинный переход;
+- фактический результат;
+- tests/environment;
+- первый оставшийся gap;
+- изменение canonical concept, если смысл действительно изменился.
+
+## 10. Нельзя додумывать
+
+Не угадывай:
+
+- окончательный owner canonical W result;
+- полную семантику Dark Matter и Dark WIMP;
+- финальную relation Brane/Actor;
+- intervention semantics;
+- достаточные условия цифрового сознания;
+- конечный repository для Android, browser-agent и interpreter shell без
+  dependency audit и решения автора.
+
+Отмечай точный open gap и продолжай всё, что от него не зависит.
