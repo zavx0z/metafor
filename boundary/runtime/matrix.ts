@@ -1,6 +1,10 @@
 import type {SQL} from "bun"
 import type {MatrixConditionValue} from "@metafor/types/matrix/condition"
-import type {MatrixFieldRecord, MatrixInputBrane} from "@metafor/types/matrix/data"
+import type {
+  MatrixBraneValue,
+  MatrixFieldRecord,
+  MatrixInputBrane,
+} from "@metafor/types/matrix/data"
 import {
   STATE_NONE,
   STATE_UNDEFINED,
@@ -19,7 +23,6 @@ type DeclarationRow = {
 type ActorRow = {
   id: number
   wimp: string
-  position: number
 }
 
 type ActorFieldRow = {
@@ -38,6 +41,12 @@ type DeclarationRecord = {
   section: string
   localId: string
   value: JsonRecord
+}
+
+type NormalizedState = {
+  id: number
+  name: string
+  declaration: DeclarationRecord
 }
 
 const fieldType = {
@@ -87,6 +96,18 @@ const sortByPosition = <T extends {value: JsonRecord; localId: string}>(items: r
     return leftPosition - rightPosition
   })
 
+const matrixBraneValue = (value: unknown): MatrixBraneValue => {
+  if (value === null || typeof value === "number" || typeof value === "boolean" || typeof value === "string") {
+    return value
+  }
+  if (Array.isArray(value)) {
+    if (value.every((item): item is number => typeof item === "number")) return [...value]
+    if (value.every((item): item is boolean => typeof item === "boolean")) return [...value]
+    if (value.every((item): item is string => typeof item === "string")) return [...value]
+  }
+  throw new Error(`Boundary value cannot be encoded in Matrix: ${JSON.stringify(value)}`)
+}
+
 const inferArrayElementType = (field: JsonRecord): "number" | "string" | "boolean" => {
   const declared = field.elementType
   if (declared === "number" || declared === "string" || declared === "boolean") return declared
@@ -95,12 +116,12 @@ const inferArrayElementType = (field: JsonRecord): "number" | "string" | "boolea
   return "string"
 }
 
-const fallbackFieldValue = (field: JsonRecord, enumValues: readonly unknown[]): unknown => {
-  if (Object.prototype.hasOwnProperty.call(field, "default")) return clone(field.default)
+const fallbackFieldValue = (field: JsonRecord, enumValues: readonly unknown[]): MatrixBraneValue => {
+  if (Object.prototype.hasOwnProperty.call(field, "default")) return matrixBraneValue(clone(field.default))
   if (field.type === "number") return 0
   if (field.type === "boolean") return false
   if (field.type === "array") return []
-  if (field.type === "enum") return enumValues[0] ?? null
+  if (field.type === "enum") return matrixBraneValue(enumValues[0] ?? null)
   return ""
 }
 
@@ -136,7 +157,7 @@ export async function matrixRuntime(sql: SQL): Promise<MatrixRuntimeSnapshot> {
      ORDER BY rowid
   `
   const actors = await sql<ActorRow[]>`
-    SELECT id, wimp, position FROM actor ORDER BY id
+    SELECT id, wimp FROM actor ORDER BY id
   `
   const actorFields = await sql<ActorFieldRow[]>`
     SELECT actor, field, value_json AS valueJson
@@ -159,18 +180,19 @@ export async function matrixRuntime(sql: SQL): Promise<MatrixRuntimeSnapshot> {
   )
   const selectedStateByActor = new Map(actorStates.map((row) => [Number(row.actor), row.metaState] as const))
 
-  const enumVariantsByField = new Map<number, unknown[]>()
+  const enumVariantRecordsByField = new Map<number, DeclarationRecord[]>()
   for (const variant of declarations.filter((item) => item.section === "variants")) {
     const fieldId = integer(variant.value.field)
     if (fieldId === null) continue
-    const bucket = enumVariantsByField.get(fieldId)
+    const bucket = enumVariantRecordsByField.get(fieldId)
     if (bucket) bucket.push(variant)
-    else enumVariantsByField.set(fieldId, [variant])
+    else enumVariantRecordsByField.set(fieldId, [variant])
   }
-  for (const [fieldId, variants] of enumVariantsByField) {
-    enumVariantsByField.set(
+  const enumValuesByField = new Map<number, unknown[]>()
+  for (const [fieldId, variants] of enumVariantRecordsByField) {
+    enumValuesByField.set(
       fieldId,
-      sortByPosition(variants as DeclarationRecord[]).map((variant) => clone(variant.value.itemValue)),
+      sortByPosition(variants).map((variant) => clone(variant.value.itemValue)),
     )
   }
 
@@ -219,15 +241,15 @@ export async function matrixRuntime(sql: SQL): Promise<MatrixRuntimeSnapshot> {
       const fieldId = integer(fieldRecord.value.id)
       if (fieldId === null) continue
       const runtimeFieldIndex = dataFields.length
-      const variants = enumVariantsByField.get(fieldId) ?? []
-      const value = valuesByActorField.get(`${actor.id}\0${fieldId}`)
+      const variants = enumValuesByField.get(fieldId) ?? []
+      const storedValue = valuesByActorField.get(`${actor.id}\0${fieldId}`)
+      const value = storedValue === undefined
+        ? fallbackFieldValue(fieldRecord.value, variants)
+        : matrixBraneValue(clone(storedValue))
       const wimpFieldId = fieldAddressId(Number(actor.id), fieldId)
 
       dataFields.push(matrixField(fieldRecord.value, variants))
-      values.push([
-        runtimeFieldIndex,
-        clone(value === undefined ? fallbackFieldValue(fieldRecord.value, variants) : value),
-      ])
+      values.push([runtimeFieldIndex, value])
       runtimeFieldIndexByActorField.set(`${actor.id}\0${fieldId}`, runtimeFieldIndex)
       runtimeFieldIndexByActorFieldId.push([Number(actor.id), fieldId, runtimeFieldIndex])
       runtimeFieldIndexByWimpFieldId.push([wimpFieldId, runtimeFieldIndex])
@@ -240,20 +262,17 @@ export async function matrixRuntime(sql: SQL): Promise<MatrixRuntimeSnapshot> {
       }
     }
 
-    const stateIndexById = new Map<number, number>()
-    const stateNamesForActor: string[] = []
-    const stateIdsForActor: number[] = []
-    stateRecords.forEach((state, index) => {
-      const stateId = integer(state.value.id)
-      const name = text(state.value.name)
-      if (stateId === null || name === null) return
-      stateIndexById.set(stateId, index)
-      stateIdsForActor[index] = stateId
-      stateNamesForActor[index] = name
+    const normalizedStates: NormalizedState[] = stateRecords.flatMap((state) => {
+      const id = integer(state.value.id)
+      const name = text(state.value.name) ?? text(state.value.key)
+      return id === null || name === null ? [] : [{id, name, declaration: state}]
     })
+    const stateIndexById = new Map(normalizedStates.map((state, index) => [state.id, index] as const))
+    const stateNamesForActor = normalizedStates.map((state) => state.name)
+    const stateIdsForActor = normalizedStates.map((state) => state.id)
 
     const selectedStateId = selectedStateByActor.get(Number(actor.id))
-    const selectedState = stateRecords.length === 0
+    const selectedState = normalizedStates.length === 0
       ? STATE_NONE
       : selectedStateId === null || selectedStateId === undefined
         ? STATE_UNDEFINED
@@ -262,15 +281,13 @@ export async function matrixRuntime(sql: SQL): Promise<MatrixRuntimeSnapshot> {
     const processStateNames = new Set(
       processRecords
         .map((process) => text(process.value.state) ?? text(process.value.key) ?? process.localId)
-        .filter((name): name is string => name.length > 0),
+        .filter((name) => name.length > 0),
     )
 
     const conditionsByTransition = group(conditionRecords, (condition) => integer(condition.value.transition) ?? -1)
     const transitionsByState = group(transitionRecords, (transition) => integer(transition.value.fromState) ?? -1)
-    const collapses: MatrixInputBrane["collapses"] = stateRecords.map((state) => {
-      const stateId = integer(state.value.id)
-      if (stateId === null) return []
-      return (transitionsByState.get(stateId) ?? []).map((transition) => {
+    const collapses: MatrixInputBrane["collapses"] = normalizedStates.map((state) =>
+      (transitionsByState.get(state.id) ?? []).map((transition) => {
         const transitionId = integer(transition.value.id)
         const targetId = integer(transition.value.toState)
         if (transitionId === null || targetId === null) return null
@@ -285,8 +302,8 @@ export async function matrixRuntime(sql: SQL): Promise<MatrixRuntimeSnapshot> {
           transitionConditions[runtimeFieldIndex] = predicateValue(condition.value)
         }
         return [targetState, transitionConditions]
-      })
-    })
+      }),
+    )
 
     stateNames[braneIndex] = stateNamesForActor
     stateMetaStateIdsByBraneIndex[braneIndex] = stateIdsForActor
