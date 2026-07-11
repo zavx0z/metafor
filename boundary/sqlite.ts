@@ -6,6 +6,7 @@ import {BoundaryActorSqlite} from "@boundary/actor/sqlite"
 import {BoundaryTopologySqlite} from "@boundary/topology/sqlite"
 import type {ForceMessage} from "@metafor/types/force/message"
 import {BoundaryIncrementalStore, type BoundaryIncrementalCommit} from "./incremental.ts"
+import {matrixRuntime} from "./runtime/matrix.ts"
 
 export const open = async (filename?: string) => {
   const fileBacked = filename !== undefined && filename !== ":memory:"
@@ -40,6 +41,7 @@ export const open = async (filename?: string) => {
     projection,
     replay: () => projection.replay(),
     materialize,
+    matrixRuntime: () => matrixRuntime(sql),
     async close() {
       try {
         if (fileBacked) await sql.unsafe("PRAGMA wal_checkpoint(TRUNCATE);")
