@@ -1,1 +1,4 @@
-export {}
+export {
+  loadMatrixRuntimeSnapshot,
+  listMatrixRuntimeActorIds,
+} from "./matrix.ts"
