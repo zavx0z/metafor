@@ -65,7 +65,13 @@ describe("Boundary -> packed Matrix runtime", () => {
     ])
     expect(snapshot.weak.stateHasProcessByBraneIndex).toEqual([[false, true]])
 
-    expect((await boundary.projection.sql`SELECT COUNT(*) AS count FROM actor`).length).toBe(1)
-    expect((await boundary.projection.sql`SELECT COUNT(*) AS count FROM boundary_declaration_entity`).length).toBe(1)
+    const actorCount = (await boundary.projection.sql<Array<{count: number}>>`
+      SELECT COUNT(*) AS count FROM actor
+    `)[0]!.count
+    const declarationCount = (await boundary.projection.sql<Array<{count: number}>>`
+      SELECT COUNT(*) AS count FROM boundary_declaration_entity
+    `)[0]!.count
+    expect(Number(actorCount)).toBe(1)
+    expect(Number(declarationCount)).toBe(7)
   })
 })
