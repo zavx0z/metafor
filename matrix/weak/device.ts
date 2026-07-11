@@ -1,8 +1,8 @@
-import type { MaybeGpuNavigator } from "@metafor/types/matrix/gpu"
-import type { WeakBackendPreference, WeakMode } from "@metafor/types/matrix/weak"
+import type {MaybeGpuNavigator} from "@metafor/types/matrix/gpu"
+import type {WeakBackendPreference, WeakMode} from "@metafor/types/matrix/weak"
 
 function getNavigatorGpu(): MaybeGpuNavigator["gpu"] | undefined {
-  const maybeNavigator = (globalThis as { navigator?: MaybeGpuNavigator }).navigator
+  const maybeNavigator = (globalThis as {navigator?: MaybeGpuNavigator}).navigator
   return maybeNavigator?.gpu
 }
 
@@ -25,31 +25,19 @@ async function ensureBunWebGpuGlobals(): Promise<void> {
   await bunWebGpuBootstrap
 }
 
-/**
- * Глобальное GPU-устройство для matrix.
- * В тестах может устанавливаться напрямую: `GPU._device = ...`.
- */
+/** Global WebGPU device used by Matrix and replaceable in tests. */
 export const GPU = {
   _device: null as GPUDevice | null,
 
-  /**
-   * Текущее GPU-устройство.
-   * @throws {Error} Если устройство не установлено.
-   */
   get device(): GPUDevice {
     if (!this._device) throw new Error("GPU-устройство не установлено.")
     return this._device
   },
 }
 
-/**
- * Пытается получить GPU-устройство из текущей среды.
- * Возвращает `null`, если WebGPU недоступен или инициализация не удалась.
- */
+/** Returns a WebGPU device, or null when the current environment has no GPU. */
 export async function ensureGPUDevice(): Promise<GPUDevice | null> {
-  if (GPU._device) {
-    return GPU._device
-  }
+  if (GPU._device) return GPU._device
 
   if (!getNavigatorGpu()) {
     try {
@@ -60,15 +48,11 @@ export async function ensureGPUDevice(): Promise<GPUDevice | null> {
   }
 
   const gpu = getNavigatorGpu()
-  if (!gpu) {
-    return null
-  }
+  if (!gpu) return null
 
   try {
     const adapter = await gpu.requestAdapter()
-    if (!adapter) {
-      return null
-    }
+    if (!adapter) return null
     GPU._device = await adapter.requestDevice()
     return GPU._device
   } catch {
@@ -77,11 +61,14 @@ export async function ensureGPUDevice(): Promise<GPUDevice | null> {
 }
 
 /**
- * Определяет режим слабой силы по конфигурации и доступности среды.
+ * `auto` is the production default: WebGPU first, deterministic CPU fallback.
+ * `gpu` is strict and fails when WebGPU cannot be initialized.
+ * `cpu` is an explicit fallback/reference mode.
  */
 export async function resolveWeakMode(): Promise<WeakMode> {
-  const maybeProcess = globalThis as { process?: { env?: Record<string, string | undefined> } }
-  const configured = (maybeProcess.process?.env?.METAFOR_WEAK_BACKEND ?? "cpu").toLowerCase() as WeakBackendPreference
+  const maybeProcess = globalThis as {process?: {env?: Record<string, string | undefined>}}
+  const raw = (maybeProcess.process?.env?.METAFOR_WEAK_BACKEND ?? "auto").trim().toLowerCase()
+  const configured: WeakBackendPreference = raw === "gpu" || raw === "cpu" || raw === "auto" ? raw : "auto"
 
   if (configured === "gpu") {
     const device = await ensureGPUDevice()
