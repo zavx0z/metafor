@@ -1,210 +1,61 @@
 /**
- * matrix — доменный оркестратор детерминированного перехода состояний.
+ * Matrix — доменный оркестратор детерминированного перехода состояний.
  *
- * @packageDocumentation
- *
- * ## Ответственность
- *
- * - `write()` — запись канонической matrix-структуры в доменный store
- * - `gravity$` — runtime-адресация materialized branes
- * - `update()` — обновление полей и вычисление следующего перехода
- * - `force` — доменная Force-связь и dispatch в Matrix pipeline
- * - `unlock()` — снятие блокировки с бран
- *
- * ## Архитектура
- *
- * Matrix раскладывает уже подготовленную matrix-форму через
- * `@matrix/gravity`, собирает канонический store через `@matrix/strong`
- * и оркестрирует вычисление перехода через `@matrix/weak`.
- *
- * Matrix наращивает локальную actor/declaration projection отдельными
- * particles. Persistent DB принадлежит Boundary; Matrix не читает её и не
- * сбрасывает runtime при cold start или reconnect.
- *
- * Matrix НЕ содержит:
- * - source graph loading и primary addressing — это `dark`
- * - раскладку структуры и проверку входа — это `@matrix/gravity`
- * - канонизацию и сборку store-формы — это `@matrix/strong`
- * - вычисление перехода и backend-адаптеры — это `@matrix/weak`
+ * Boundary передаёт Matrix производный packed bootstrap. После загрузки все
+ * runtime-изменения идут через один pipeline `gravity → strong → weak`.
+ * WebGPU является основным параллельным backend, CPU — fallback/reference.
  */
 
-import { gravity$ } from "@matrix/gravity/store.ts"
-import { matrix$ } from "./store"
-import type { MatrixData, MatrixFieldValueRecord, MatrixStore } from "@metafor/types/matrix/store"
-import type { MatrixFieldRecord, MatrixInputData } from "@metafor/types/matrix/data"
-import type { AsyncGate, MatrixPendingProcessExecution, MatrixUpdateOptions } from "@metafor/types/matrix/runtime"
-import { FieldType, flattenMatrixData, validateData } from "@matrix/gravity"
-import { createStoredStringInterner, normalizeFieldValue, assembleStoredMatrixData, strong$ } from "@matrix/strong"
-import { StepMode, weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@matrix/weak"
+import {gravity$} from "@matrix/gravity/store.ts"
+import {matrix$} from "./store"
+import type {MatrixData, MatrixFieldValueRecord, MatrixStore} from "@metafor/types/matrix/store"
+import type {MatrixFieldRecord, MatrixInputData} from "@metafor/types/matrix/data"
+import {
+  MATRIX_RUNTIME_PATH,
+  type AsyncGate,
+  type MatrixPendingProcessExecution,
+  type MatrixRuntimeSnapshot,
+  type MatrixUpdateOptions,
+} from "@metafor/types/matrix/runtime"
+import {FieldType, flattenMatrixData, validateData} from "@matrix/gravity"
+import {createStoredStringInterner, normalizeFieldValue, assembleStoredMatrixData, strong$} from "@matrix/strong"
+import {StepMode, weakHeapUpdate, weakInit, weakRunStep, weak$} from "@matrix/weak"
 import {resolveForceFieldId, resolveForceFieldsPayload} from "@metafor/types/force/fields"
-import type { Particle } from "@metafor/types/force/particle"
+import type {Particle} from "@metafor/types/force/particle"
 import {Force} from "force"
-import {MatrixProjectionStore, type MatrixDeclarationRecord} from "./projection.ts"
 
 const force = new Force("matrix")
-export const matrixProjection$ = new MatrixProjectionStore()
-
-type IncrementalPendingProcess = {
-  state: string
-  fields: Record<string, unknown>
-  acceptedEnergy?: string
-}
-
-const incrementalPendingByActorId = new Map<number, IncrementalPendingProcess>()
+const writeGate: AsyncGate = {pending: null}
+const updateGate: AsyncGate = {pending: null}
+const pendingProcessExecutionsByActorId = new Map<number, MatrixPendingProcessExecution>()
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
-const numeric = (value: unknown): number | null =>
-  typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : null
-
-const declarationId = (record: MatrixDeclarationRecord): number | null => numeric(record.id)
-
-const stateRecords = (wimp: string): MatrixDeclarationRecord[] =>
-  matrixProjection$.declaration(wimp, "states").sort((left, right) => Number(left.position ?? 0) - Number(right.position ?? 0))
-
-const processForState = (wimp: string, state: string): MatrixDeclarationRecord | undefined =>
-  matrixProjection$.declaration(wimp, "processes").find((process) => process.state === state || process.key === state)
-
-const actorFields = (actorId: number): Record<string, unknown> =>
-  Object.fromEntries([...(matrixProjection$.fieldValuesByActorId.get(actorId) ?? [])].map(([id, value]) => [String(id), structuredClone(value)]))
-
-const publishIncrementalPhoton = (actorId: number, state: string): void => {
-  const actor = matrixProjection$.actors.get(actorId)
-  if (!actor) return
-  const hasProcess = processForState(actor.actor.wimp, state) !== undefined
-  if (hasProcess) incrementalPendingByActorId.set(actorId, {state, fields: actorFields(actorId)})
-  else incrementalPendingByActorId.delete(actorId)
-  force.impulse({parts: [{part: "photon", op: hasProcess ? "test" : "replace", path: actorId, value: state}]})
-}
-
-const comparePredicate = (actual: unknown, raw: unknown): boolean => {
-  if (!isRecord(raw)) return Object.is(actual, raw)
-  for (const [operator, expected] of Object.entries(raw)) {
-    if (operator === "eq" && !Object.is(actual, expected)) return false
-    if (operator === "neq" && Object.is(actual, expected)) return false
-    if (operator === "gt" && !(Number(actual) > Number(expected))) return false
-    if (operator === "gte" && !(Number(actual) >= Number(expected))) return false
-    if (operator === "lt" && !(Number(actual) < Number(expected))) return false
-    if (operator === "lte" && !(Number(actual) <= Number(expected))) return false
-    if (operator === "in" && (!Array.isArray(expected) || !expected.some((item) => Object.is(item, actual)))) return false
-    if (operator === "notIn" && Array.isArray(expected) && expected.some((item) => Object.is(item, actual))) return false
-    if (operator === "include" && (!Array.isArray(actual) || !actual.some((item) => Object.is(item, expected)))) return false
-    if (operator === "notInclude" && Array.isArray(actual) && actual.some((item) => Object.is(item, expected))) return false
-    if (operator === "isEmpty" && ((Array.isArray(actual) || typeof actual === "string") ? actual.length === 0 : actual == null) !== Boolean(expected)) return false
-    if (operator === "null" && (actual === null) !== Boolean(expected)) return false
-    if (operator === "length") {
-      const length = Array.isArray(actual) || typeof actual === "string" ? actual.length : 0
-      if (!comparePredicate(length, expected)) return false
-    }
-  }
-  return true
-}
-
-const conditionPredicate = (condition: MatrixDeclarationRecord): unknown =>
-  condition.predicate ?? condition.predicates ?? condition.value
-
-const evaluateIncrementalActor = (actorId: number, retriggerProcess = true): void => {
-  const actor = matrixProjection$.actors.get(actorId)
-  if (!actor) return
-  const states = stateRecords(actor.actor.wimp)
-  if (states.length === 0) return
-  if (actor.state === null) {
-    const first = states[0]?.name
-    if (typeof first === "string") {
-      matrixProjection$.setActorState(actorId, first)
-      publishIncrementalPhoton(actorId, first)
-    }
-    return
-  }
-
-  const current = states.find((state) => state.name === actor.state)
-  const currentId = current && declarationId(current)
-  if (currentId === null) return
-  const transitions = matrixProjection$.declaration(actor.actor.wimp, "transitions")
-    .filter((transition) => transition.fromState === currentId || transition.from === currentId)
-    .sort((left, right) => Number(left.position ?? 0) - Number(right.position ?? 0))
-  const fields = matrixProjection$.fieldValuesByActorId.get(actorId) ?? new Map<number, unknown>()
-
-  for (const transition of transitions) {
-    const transitionId = declarationId(transition)
-    if (transitionId === null) continue
-    const conditions = matrixProjection$.declaration(actor.actor.wimp, "conditions")
-      .filter((condition) => condition.transition === transitionId)
-      .sort((left, right) => Number(left.position ?? 0) - Number(right.position ?? 0))
-    const passed = conditions.every((condition) => {
-      const fieldId = numeric(condition.field)
-      return fieldId !== null && comparePredicate(fields.get(fieldId), conditionPredicate(condition))
-    })
-    if (!passed) continue
-    const targetId = numeric(transition.toState ?? transition.to)
-    const target = targetId === null ? undefined : states.find((state) => declarationId(state) === targetId)
-    if (typeof target?.name !== "string" || target.name === actor.state) break
-    matrixProjection$.setActorState(actorId, target.name)
-    publishIncrementalPhoton(actorId, target.name)
-    return
-  }
-
-  if (retriggerProcess && processForState(actor.actor.wimp, actor.state)) publishIncrementalPhoton(actorId, actor.state)
-}
-
-force.onImpulse = async (impulse) => {
-  const part = impulse.parts[0]
-  if (part.part === "graviton") {
-    const change = matrixProjection$.apply(part)
-    for (const actorId of change.affectedActorIds) evaluateIncrementalActor(actorId, false)
-    return
-  }
-  if (part.part === "gluon" || part.part === "higgs") {
-    const change = matrixProjection$.applyFields(part)
-    for (const actorId of change.affectedActorIds) evaluateIncrementalActor(actorId)
-    return
-  }
-  if (part.part === "photon") {
-    const actorId = numeric(part.path)
-    if (actorId !== null && (part.op === "add" || part.op === "replace") && typeof part.value === "string") {
-      matrixProjection$.setActorState(actorId, part.value)
-    }
-    return
-  }
-  if (part.part === "z" && part.op === "test") {
-    const actorId = numeric(part.path)
-    const pending = actorId === null ? undefined : incrementalPendingByActorId.get(actorId)
-    if (actorId === null || !pending || pending.acceptedEnergy !== undefined || !isRecord(part.value)) return
-    const energy = typeof part.value.energy === "string" ? part.value.energy.trim() : ""
-    if (!energy) return
-    pending.acceptedEnergy = energy
-    force.impulse({parts: [{part: "z", op: "copy", path: actorId, from: energy, value: {fields: structuredClone(pending.fields)}}]})
-    return
-  }
-  if ((part.part === "w+" || part.part === "w-") && part.op === "replace") {
-    const actorId = numeric(part.path)
-    if (actorId === null || !incrementalPendingByActorId.has(actorId) || !isRecord(part.value)) return
-    const fields = isRecord(part.value.fields) ? part.value.fields : {}
-    matrixProjection$.applyFields({part: "gluon", op: "replace", path: actorId, value: {fields}})
-    incrementalPendingByActorId.delete(actorId)
-    evaluateIncrementalActor(actorId, false)
-    return
-  }
-}
-
-const writeGate: AsyncGate = { pending: null }
-const updateGate: AsyncGate = { pending: null }
-const pendingProcessExecutionsByActorId = new Map<number, MatrixPendingProcessExecution>()
+const isMatrixRuntimeSnapshot = (value: unknown): value is MatrixRuntimeSnapshot =>
+  isRecord(value) &&
+  value.ok === true &&
+  value.version === 1 &&
+  isRecord(value.runtime) &&
+  isRecord(value.data) &&
+  isRecord(value.strong) &&
+  isRecord(value.weak) &&
+  Array.isArray(value.runtime.actorIdByBraneIndex) &&
+  Array.isArray(value.data.fields) &&
+  Array.isArray(value.data.branes) &&
+  Array.isArray(value.data.stateNames)
 
 const actorFieldKey = (actorId: number, fieldId: number): string =>
   `${actorId}\0${fieldId}`
 
 const runExclusive = async <T>(gate: AsyncGate, task: () => Promise<T>): Promise<T> => {
-  const prev = gate.pending
+  const previous = gate.pending
   let release: (() => void) | undefined
   gate.pending = new Promise<void>((resolve) => {
     release = resolve
   })
 
-  if (prev) {
-    await prev
-  }
+  if (previous) await previous
 
   try {
     return await task()
@@ -212,6 +63,21 @@ const runExclusive = async <T>(gate: AsyncGate, task: () => Promise<T>): Promise
     release?.()
   }
 }
+
+const emptyPreparedData = (): MatrixData => ({
+  fields: [],
+  stringTable: [""],
+  sharedBlocks: [],
+  sharedValues: [],
+  branes: [],
+  braneValues: [],
+  braneSharedBlockRefs: [],
+  stateTable: [],
+  transitions: [],
+  conditions: [],
+  states: [],
+  stateNames: [],
+})
 
 export const applyPreparedData = (prepared: MatrixData): void => {
   matrix$.fields = prepared.fields
@@ -226,6 +92,33 @@ export const applyPreparedData = (prepared: MatrixData): void => {
   matrix$.conditions = prepared.conditions
   matrix$.states = prepared.states
   matrix$.stateNames = prepared.stateNames
+}
+
+const clearGravityRuntime = (): void => {
+  gravity$.activeActorIds = []
+  gravity$.actorIdToBraneIndex.clear()
+  gravity$.braneIndexToActorId = []
+  gravity$.wimpSrcByActorId.clear()
+  gravity$.actorIdsByWimpSrc.clear()
+  gravity$.structuralDirty = false
+}
+
+const clearStrongRuntime = (): void => {
+  strong$.runtimeFieldIndexByWimpFieldId.clear()
+  strong$.wimpFieldIdsByRuntimeFieldIndex = []
+  strong$.braneIndexByWimpFieldId.clear()
+  strong$.topologyWimpFieldIds.clear()
+  strong$.runtimeFieldIndexByActorFieldId.clear()
+  strong$.actorFieldIdsByRuntimeFieldIndex = []
+  strong$.topologyActorFieldIds.clear()
+}
+
+const clearRuntime = (): void => {
+  pendingProcessExecutionsByActorId.clear()
+  weak$.dispose()
+  applyPreparedData(emptyPreparedData())
+  clearGravityRuntime()
+  clearStrongRuntime()
 }
 
 const parseActorIdPath = (path: Particle["path"]): number | null =>
@@ -252,7 +145,7 @@ const collectActorFieldUpdates = (
   const groupedUpdates = new Map<number, Array<[number, unknown]>>()
 
   for (const part of parts) {
-    if (part.part !== kind || (part.op !== "replace" && part.op !== "remove")) continue
+    if (part.part !== kind || (part.op !== "replace" && part.op !== "remove" && part.op !== "add")) continue
     const actorId = parseActorIdPath(part.path)
     if (actorId === null) continue
     const braneIndex = gravity$.getBraneIndexByActorId(actorId)
@@ -283,7 +176,7 @@ const collectActorFieldUpdates = (
 
 const markHiggsClassScopeDirty = (parts: Particle[]): void => {
   for (const part of parts) {
-    if (part.part !== "higgs" || (part.op !== "replace" && part.op !== "remove")) continue
+    if (part.part !== "higgs" || (part.op !== "replace" && part.op !== "remove" && part.op !== "add")) continue
     if (typeof part.path !== "string") continue
     const fields = resolveForceFieldsPayload(part.value)
     if (fields === null) continue
@@ -297,6 +190,7 @@ const applyRuntimeFieldParts = async (
   parts: Particle[],
   kind: "gluon" | "higgs",
 ): Promise<[number, number][]> => {
+  if (!weak$.initialized) return []
   if (kind === "higgs") markHiggsClassScopeDirty(parts)
   const updates = collectActorFieldUpdates(parts, kind)
   if (updates.length === 0) return []
@@ -304,12 +198,9 @@ const applyRuntimeFieldParts = async (
 }
 
 const publishPhotonChanges = (changes: [number, number][]): void => {
-  if (changes.length === 0) return
-
   for (const [braneIndex, stateIndex] of changes) {
     const actorId = gravity$.getActorId(braneIndex)
     if (actorId === undefined) continue
-
     const stateName = matrix$.getStateName(braneIndex, stateIndex)
     if (!stateName) continue
 
@@ -355,7 +246,7 @@ const clearPendingProcessExecution = (braneIndex: number): void => {
 }
 
 const syncProcessLocksForChanges = (changes: [number, number][], stateChanges: [number, number][]): void => {
-  const weakUpdates: Array<{ kind: "lock"; braneIndex: number; value: boolean }> = []
+  const weakUpdates: Array<{kind: "lock"; braneIndex: number; value: boolean}> = []
   const stateChangeKeys = new Set(stateChanges.map(([braneIndex, stateIndex]) => `${braneIndex}\0${stateIndex}`))
 
   for (const [braneIndex, stateIndex] of changes) {
@@ -366,23 +257,18 @@ const syncProcessLocksForChanges = (changes: [number, number][], stateChanges: [
     const isStateChange = stateChangeKeys.has(`${braneIndex}\0${stateIndex}`)
     if (isStateChange) {
       brane.lock = shouldLock
-      weakUpdates.push({ kind: "lock", braneIndex, value: shouldLock })
+      weakUpdates.push({kind: "lock", braneIndex, value: shouldLock})
     } else {
       if (brane.lock === shouldLock) continue
       brane.lock = shouldLock
-      weakUpdates.push({ kind: "lock", braneIndex, value: shouldLock })
+      weakUpdates.push({kind: "lock", braneIndex, value: shouldLock})
     }
 
-    if (shouldLock) {
-      rememberPendingProcessExecution(braneIndex, stateIndex)
-    } else {
-      clearPendingProcessExecution(braneIndex)
-    }
+    if (shouldLock) rememberPendingProcessExecution(braneIndex, stateIndex)
+    else clearPendingProcessExecution(braneIndex)
   }
 
-  if (weakUpdates.length > 0) {
-    weakHeapUpdate(weakUpdates)
-  }
+  if (weakUpdates.length > 0) weakHeapUpdate(weakUpdates)
 }
 
 const currentBraneHasProcess = (braneIndex: number): boolean => {
@@ -400,50 +286,43 @@ const applyEnergyExecutionRequest = (part: Particle): void => {
   if (!brane?.lock) return
 
   const stateIndex = matrix$.states[braneIndex]
-  if (stateIndex === undefined) return
-  if (!currentBraneHasProcess(braneIndex)) return
+  if (stateIndex === undefined || !currentBraneHasProcess(braneIndex)) return
 
   const pending = pendingProcessExecutionsByActorId.get(actorId)
   if (
     !pending ||
     pending.braneIndex !== braneIndex ||
     pending.stateIndex !== stateIndex ||
-    pending.acceptedEnergy !== undefined
-  ) {
-    return
-  }
-  if (!isRecord(part.value)) return
+    pending.acceptedEnergy !== undefined ||
+    !isRecord(part.value)
+  ) return
+
   const requestedEnergy = part.value.energy
   if (typeof requestedEnergy !== "string" || requestedEnergy.trim().length === 0) return
   const energy = requestedEnergy.trim()
-
   pending.acceptedEnergy = energy
-  force.impulse({
-    parts: [{
-      part: "z",
-      op: "copy",
-      path: actorId,
-      from: energy,
-      value: {fields: cloneProcessExecutionFields(pending.fields)},
-    }],
-  })
+
+  force.impulse({parts: [{
+    part: "z",
+    op: "copy",
+    path: actorId,
+    from: energy,
+    value: {fields: cloneProcessExecutionFields(pending.fields)},
+  }]})
 }
 
 const collectActorWeakFieldUpdates = (
   actorId: number,
   fields: Record<string, unknown>,
 ): Array<[fieldIndex: number, value: unknown]> => {
-  const fieldUpdates: Array<[fieldIndex: number, value: unknown]> = []
-
+  const fieldUpdates: Array<[number, unknown]> = []
   for (const [address, value] of Object.entries(fields)) {
     const fieldId = resolveForceFieldId(address)
     if (fieldId === null) continue
     const runtimeFieldIndex = strong$.runtimeFieldIndexByActorFieldId.get(actorFieldKey(actorId, fieldId))
-    if (runtimeFieldIndex === undefined) continue
-    if (!matrix$.fields[runtimeFieldIndex]) continue
+    if (runtimeFieldIndex === undefined || !matrix$.fields[runtimeFieldIndex]) continue
     fieldUpdates.push([runtimeFieldIndex, value])
   }
-
   return fieldUpdates
 }
 
@@ -454,14 +333,11 @@ const applyActorWeakResult = async (part: Particle): Promise<boolean> => {
   const braneIndex = gravity$.getBraneIndexByActorId(actorId)
   if (braneIndex === undefined) return true
   const brane = matrix$.branes[braneIndex]
-  if (!brane?.lock) return true
-  if (!currentBraneHasProcess(braneIndex)) return true
+  if (!brane?.lock || !currentBraneHasProcess(braneIndex)) return true
 
   const pending = pendingProcessExecutionsByActorId.get(actorId)
-  if (!pending?.acceptedEnergy) return true
-  if (!isRecord(part.value)) return true
+  if (!pending?.acceptedEnergy || !isRecord(part.value)) return true
   if (part.part === "w-" && part.value.error !== undefined && typeof part.value.error !== "string") return true
-
   const fields = part.value.fields
   if (fields !== undefined && !isRecord(fields)) return true
 
@@ -480,6 +356,61 @@ export function listMatrixRuntimeActorIds(): number[] {
   return [...gravity$.activeActorIds]
 }
 
+export async function loadMatrixRuntimeSnapshot(snapshot: MatrixRuntimeSnapshot): Promise<void> {
+  if (!isMatrixRuntimeSnapshot(snapshot)) throw new Error("Invalid Matrix runtime snapshot")
+  validateData(snapshot.data)
+
+  await runExclusive(writeGate, async () => {
+    clearRuntime()
+    const prepared = prepareData(snapshot.data)
+    applyPreparedData(prepared)
+
+    if (prepared.fields.length > 0 || prepared.branes.length > 0) await weakInit(matrix$)
+
+    gravity$.activeActorIds = [...snapshot.runtime.actorIdByBraneIndex]
+    gravity$.braneIndexToActorId = [...snapshot.runtime.actorIdByBraneIndex]
+    gravity$.actorIdToBraneIndex = new Map(snapshot.runtime.braneIndexByActorId)
+    gravity$.wimpSrcByActorId = new Map(snapshot.runtime.wimpSrcByActorId)
+    gravity$.actorIdsByWimpSrc = new Map(
+      snapshot.runtime.actorIdsByWimpSrc.map(([src, actorIds]) => [src, [...actorIds]]),
+    )
+    gravity$.structuralDirty = false
+
+    strong$.runtimeFieldIndexByWimpFieldId = new Map(snapshot.strong.runtimeFieldIndexByWimpFieldId)
+    strong$.wimpFieldIdsByRuntimeFieldIndex = snapshot.strong.wimpFieldIdsByRuntimeFieldIndex.map((ids) => [...ids])
+    strong$.braneIndexByWimpFieldId = new Map(snapshot.strong.braneIndexByWimpFieldId)
+    strong$.topologyWimpFieldIds = new Set(snapshot.strong.topologyWimpFieldIds)
+    strong$.runtimeFieldIndexByActorFieldId = new Map(
+      snapshot.runtime.runtimeFieldIndexByActorFieldId.map(([actorId, fieldId, runtimeFieldIndex]) => [
+        actorFieldKey(actorId, fieldId),
+        runtimeFieldIndex,
+      ]),
+    )
+    strong$.actorFieldIdsByRuntimeFieldIndex = []
+    for (const [actorId, fieldId, runtimeFieldIndex] of snapshot.runtime.runtimeFieldIndexByActorFieldId) {
+      const bucket = strong$.actorFieldIdsByRuntimeFieldIndex[runtimeFieldIndex]
+      if (bucket) bucket.push([actorId, fieldId])
+      else strong$.actorFieldIdsByRuntimeFieldIndex[runtimeFieldIndex] = [[actorId, fieldId]]
+    }
+    strong$.topologyActorFieldIds = new Set(
+      snapshot.strong.topologyActorFieldIds.map(([actorId, fieldId]) => actorFieldKey(actorId, fieldId)),
+    )
+
+    weak$.stateMetaStateIdsByBraneIndex = snapshot.weak.stateMetaStateIdsByBraneIndex.map((ids) => [...ids])
+    weak$.stateHasProcessByBraneIndex = snapshot.weak.stateHasProcessByBraneIndex.map((items) => [...items])
+
+    if (weak$.initialized) {
+      const changes = await weakRunStep(StepMode.UndefinedOnly)
+      syncProcessLocksForChanges(changes, changes)
+      publishPhotonChanges(changes)
+    }
+
+    console.log(
+      `[matrix] runtime loaded actors=${snapshot.runtime.actorIdByBraneIndex.length} fields=${snapshot.data.fields.length} backend=${weak$.mode}`,
+    )
+  })
+}
+
 const collectProcessStateRetriggers = (
   updatedBraneIndexes: Iterable<number>,
   changes: [number, number][],
@@ -490,13 +421,10 @@ const collectProcessStateRetriggers = (
   const retriggers: [number, number][] = []
 
   for (const braneIndex of updatedBraneIndexes) {
-    if (changedBraneIndexes.has(braneIndex)) continue
-    if (skippedBraneIndexes.has(braneIndex)) continue
-
+    if (changedBraneIndexes.has(braneIndex) || skippedBraneIndexes.has(braneIndex)) continue
     const stateIndex = matrix$.states[braneIndex]
     if (stateIndex === undefined) continue
     if (weak$.stateHasProcessByBraneIndex[braneIndex]?.[stateIndex] !== true) continue
-
     retriggers.push([braneIndex, stateIndex])
   }
 
@@ -505,27 +433,25 @@ const collectProcessStateRetriggers = (
 
 async function writePreparedData(prepared: MatrixData): Promise<[number, number][]> {
   return await runExclusive(writeGate, async () => {
+    weak$.dispose()
     applyPreparedData(prepared)
-
-    if (!prepared.fields.length && !prepared.branes.length) {
-      return []
-    }
-
+    if (!prepared.fields.length && !prepared.branes.length) return []
     await weakInit(matrix$)
     return []
   })
 }
 
 export async function write(data: MatrixInputData): Promise<[number, number][]> {
-  // Legacy standalone packed-data harness. The Force runtime never calls it.
   validateData(data)
-  return await writePreparedData(assembleStoredMatrixData(flattenMatrixData(data)))
+  clearRuntime()
+  return await writePreparedData(prepareData(data))
 }
 
 function requireInitializedStore(store$: MatrixStore): void {
   if (!store$.fields.length && !store$.branes.length) {
-    throw new Error("Store not initialized. Call write() first.")
+    throw new Error("Store not initialized. Call write() or loadMatrixRuntimeSnapshot() first.")
   }
+  if (!weak$.initialized) throw new Error("Weak runtime not initialized")
 }
 
 function findMutableFieldRecord(
@@ -533,15 +459,9 @@ function findMutableFieldRecord(
   braneIndex: number,
   fieldIndex: number,
 ): MatrixFieldValueRecord {
-  if (!store$.branes[braneIndex]) {
-    throw new Error(`Brane index out of range: ${braneIndex}`)
-  }
-
+  if (!store$.branes[braneIndex]) throw new Error(`Brane index out of range: ${braneIndex}`)
   const fieldRecord = store$.getField(braneIndex, fieldIndex)
-  if (fieldRecord) {
-    return fieldRecord
-  }
-
+  if (fieldRecord) return fieldRecord
   throw new Error(`Field ${fieldIndex} not found in brane ${braneIndex}`)
 }
 
@@ -553,60 +473,51 @@ export async function update(
     requireInitializedStore(matrix$)
     const stringInterner = createStoredStringInterner(matrix$.stringTable)
     const weakUpdates: Array<
-      { kind: "field"; braneIndex: number; fieldIndex: number } | { kind: "lock"; braneIndex: number; value: boolean }
+      {kind: "field"; braneIndex: number; fieldIndex: number} |
+      {kind: "lock"; braneIndex: number; value: boolean}
     > = []
     const affectedBraneIndexes = new Set<number>()
 
     for (const [braneIndex, fieldUpdates, lock] of updates) {
       const brane = matrix$.branes[braneIndex]
-      if (!brane) {
-        throw new Error(`Brane index out of range: ${braneIndex}`)
-      }
+      if (!brane) throw new Error(`Brane index out of range: ${braneIndex}`)
 
       if (lock !== undefined) {
         brane.lock = lock
-        weakUpdates.push({ kind: "lock", braneIndex, value: lock })
+        weakUpdates.push({kind: "lock", braneIndex, value: lock})
       }
 
       for (const [fieldIndex, value] of fieldUpdates) {
         const field = matrix$.fields[fieldIndex]
-        if (!field) {
-          throw new Error(`Field ${fieldIndex} not defined`)
-        }
+        if (!field) throw new Error(`Field ${fieldIndex} not defined`)
         const record = findMutableFieldRecord(matrix$, braneIndex, fieldIndex)
         record.value = normalizeFieldValue(value, field, stringInterner)
-        weakUpdates.push({ kind: "field", braneIndex, fieldIndex })
+        weakUpdates.push({kind: "field", braneIndex, fieldIndex})
         affectedBraneIndexes.add(braneIndex)
 
-        // Runtime field may be shared across multiple id-addressed fields via source/entanglement.
         for (const [actorId] of strong$.actorFieldIdsByRuntimeFieldIndex[fieldIndex] ?? []) {
           const affectedBraneIndex = gravity$.getBraneIndexByActorId(actorId)
-          if (affectedBraneIndex !== undefined) {
-            affectedBraneIndexes.add(affectedBraneIndex)
-          }
+          if (affectedBraneIndex !== undefined) affectedBraneIndexes.add(affectedBraneIndex)
         }
         for (const wimpFieldId of strong$.wimpFieldIdsByRuntimeFieldIndex[fieldIndex] ?? []) {
           const affectedBraneIndex = strong$.braneIndexByWimpFieldId.get(wimpFieldId)
-          if (affectedBraneIndex !== undefined) {
-            affectedBraneIndexes.add(affectedBraneIndex)
-          }
+          if (affectedBraneIndex !== undefined) affectedBraneIndexes.add(affectedBraneIndex)
         }
       }
     }
 
     weakHeapUpdate(weakUpdates)
     const changes = await weakRunStep()
-    const photonTargets =
-      options.retriggerProcessStates === false
-        ? changes
-        : [
-            ...changes,
-            ...collectProcessStateRetriggers(
-              affectedBraneIndexes,
-              changes,
-              options.skipProcessRetriggerBraneIndexes,
-            ),
-          ]
+    const photonTargets = options.retriggerProcessStates === false
+      ? changes
+      : [
+          ...changes,
+          ...collectProcessStateRetriggers(
+            affectedBraneIndexes,
+            changes,
+            options.skipProcessRetriggerBraneIndexes,
+          ),
+        ]
 
     syncProcessLocksForChanges(photonTargets, changes)
     publishPhotonChanges(photonTargets)
@@ -616,23 +527,47 @@ export async function update(
 
 export function unlock(indexes: number[]): void {
   requireInitializedStore(matrix$)
-  const weakUpdates: Array<{ kind: "lock"; braneIndex: number; value: boolean }> = []
+  const weakUpdates: Array<{kind: "lock"; braneIndex: number; value: boolean}> = []
 
   for (const index of indexes) {
     const brane = matrix$.branes[index]
-    if (!brane) {
-      throw new Error(`Brane at index ${index} not found in matrix`)
-    }
+    if (!brane) throw new Error(`Brane at index ${index} not found in matrix`)
     clearPendingProcessExecution(index)
     brane.lock = false
-    weakUpdates.push({ kind: "lock", braneIndex: index, value: false })
+    weakUpdates.push({kind: "lock", braneIndex: index, value: false})
   }
 
   weakHeapUpdate(weakUpdates)
 }
 
-export { FieldType } from "./gravity"
-export { gravity$ }
-export { matrix$ }
-export { strong$ }
-export { flattenMatrixData } from "./gravity"
+force.onImpulse = async (impulse) => {
+  const part = impulse.parts[0]
+
+  if (
+    part.part === "graviton" &&
+    part.op === "replace" &&
+    part.path === MATRIX_RUNTIME_PATH
+  ) {
+    if (!isMatrixRuntimeSnapshot(part.value)) throw new Error("Boundary sent an invalid Matrix runtime snapshot")
+    await loadMatrixRuntimeSnapshot(part.value)
+    return
+  }
+
+  if (part.part === "gluon" || part.part === "higgs") {
+    await applyRuntimeFieldParts([part], part.part)
+    return
+  }
+  if (part.part === "z") {
+    applyEnergyExecutionRequest(part)
+    return
+  }
+  if (part.part === "w+" || part.part === "w-") {
+    await applyActorWeakResult(part)
+  }
+}
+
+export {FieldType} from "./gravity"
+export {gravity$}
+export {matrix$}
+export {strong$}
+export {flattenMatrixData} from "./gravity"
