@@ -1,19 +1,17 @@
-import type { MatrixStore } from "@metafor/types/matrix/store"
-import type { WeakChanges, WeakHeapUpdate, WeakStepMode } from "@metafor/types/matrix/weak"
-import { createWeakRuntime } from "./factory"
-import { weak$ } from "./store"
-import { StepMode } from "./constants"
+import type {MatrixStore} from "@metafor/types/matrix/store"
+import type {WeakChanges, WeakHeapUpdate, WeakStepMode} from "@metafor/types/matrix/weak"
+import {createWeakRuntime} from "./factory"
+import {weak$} from "./store"
+import {StepMode} from "./constants"
 
 const runWeakOperation = async <T>(task: () => Promise<T>): Promise<T> => {
-  const prev = weak$.operationMutex
+  const previous = weak$.operationMutex
   let release: (() => void) | undefined
   weak$.operationMutex = new Promise<void>((resolve) => {
     release = resolve
   })
 
-  if (prev) {
-    await prev
-  }
+  if (previous) await previous
 
   try {
     return await task()
@@ -22,14 +20,12 @@ const runWeakOperation = async <T>(task: () => Promise<T>): Promise<T> => {
   }
 }
 
-/**
- * Инициализирует слабый runtime и фиксирует выбранную среду.
- */
+/** Initializes the one live Matrix Weak backend over the packed Matrix store. */
 export async function weakInit(store$: MatrixStore): Promise<void> {
   await runWeakOperation(async () => {
-    // Legacy packed-matrix harness may replace its canonical arrays between
-    // tests. Preserve the newly written state while disposing the prior weak
-    // backend. The live Force projection does not use weakInit.
+    // Preserve the newly prepared Matrix states while disposing the previous
+    // WebGPU/CPU backend. Both the live Force runtime and standalone tests enter
+    // Weak through this function.
     const nextStates = [...store$.states]
     weak$.dispose()
     store$.states = nextStates
@@ -40,51 +36,36 @@ export async function weakInit(store$: MatrixStore): Promise<void> {
     weak$.matrix$ = store$
 
     const snapshot = selected.runtime.statesSnapshot()
-    if (snapshot) {
-      store$.states = snapshot
-    }
+    if (snapshot) store$.states = snapshot
   })
 }
 
-/**
- * Выполняет один шаг активного слабого runtime.
- */
+/** Executes one step on the active WebGPU/CPU Weak backend. */
 export function weakStep(mode: WeakStepMode = StepMode.Full): void {
-  if (!weak$.initialized) throw new Error("Weak runtime not initialized")
-  if (!weak$.runtime) throw new Error("Weak runtime not initialized")
+  if (!weak$.initialized || !weak$.runtime) throw new Error("Weak runtime not initialized")
   weak$.runtime.step(mode)
 }
 
-/**
- * Читает изменения состояний после последнего шага слабого runtime.
- */
+/** Reads changed states produced by the last Weak step. */
 export async function weakReadChanges(): Promise<WeakChanges> {
-  if (!weak$.initialized) throw new Error("Weak runtime not initialized")
-  if (!weak$.runtime) throw new Error("Weak runtime not initialized")
+  if (!weak$.initialized || !weak$.runtime) throw new Error("Weak runtime not initialized")
   const changes = await weak$.runtime.readChanges()
   const snapshot = weak$.runtime.statesSnapshot()
-  if (snapshot && weak$.matrix$) {
-    weak$.matrix$.states = snapshot
-  }
+  if (snapshot && weak$.matrix$) weak$.matrix$.states = snapshot
   return changes
 }
 
-/**
- * Синхронизирует канонические обновления store с активной средой слабого runtime.
- */
+/** Synchronizes packed field/lock updates into the active Weak backend. */
 export function weakHeapUpdate(updates: WeakHeapUpdate[]): void {
-  if (!weak$.initialized) throw new Error("Weak runtime not initialized")
-  if (!weak$.runtime) throw new Error("Weak runtime not initialized")
+  if (!weak$.initialized || !weak$.runtime) throw new Error("Weak runtime not initialized")
   weak$.runtime.heapUpdate(updates)
 }
 
-/**
- * Выполняет шаг и возвращает список изменившихся состояний.
- */
+/** Executes a Weak step and returns the changed states. */
 export async function weakRunStep(mode: WeakStepMode = StepMode.Full): Promise<WeakChanges> {
   if (!weak$.initialized) throw new Error("Weak runtime not initialized")
   weakStep(mode)
   return await weakReadChanges()
 }
 
-export { weak$ }
+export {weak$}
