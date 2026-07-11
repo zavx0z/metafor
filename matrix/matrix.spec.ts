@@ -1,74 +1,103 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
-import type {ForceMessage} from "@metafor/types/force/message"
+import {join} from "node:path"
 import type {Particle} from "@metafor/types/force/particle"
+import {
+  MATRIX_RUNTIME_PATH,
+  STATE_UNDEFINED,
+  type MatrixRuntimeSnapshot,
+} from "@metafor/types/matrix/runtime"
 import {createForceTestFixture, type ForceTestClient, type ForceTestFixture} from "force/fixture"
 import {weak$} from "./weak"
-import {strong$} from "./strong"
 
 let fixture: ForceTestFixture
+const previousBackend = Bun.env.METAFOR_WEAK_BACKEND
 
 beforeAll(() => {
+  Bun.env.METAFOR_WEAK_BACKEND = "cpu"
   fixture = createForceTestFixture()
 })
 
-afterAll(() => fixture.close())
+afterAll(() => {
+  fixture.close()
+  if (previousBackend === undefined) delete Bun.env.METAFOR_WEAK_BACKEND
+  else Bun.env.METAFOR_WEAK_BACKEND = previousBackend
+})
 
 const settle = async (): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, 0))
   await new Promise((resolve) => setTimeout(resolve, 0))
 }
 
-const send = (client: ForceTestClient, particle: Particle): void => fixture.impulse(client, {parts: [particle]})
+const send = (client: ForceTestClient, particle: Particle): void =>
+  fixture.impulse(client, {parts: [particle]})
 
-const waitForPart = async (client: ForceTestClient, predicate: (part: Particle) => boolean, from = 0): Promise<Particle> => {
-  const entry = await fixture.waitForMessage((message) => message.client === client && predicate(message.message.parts[0]), from)
+const waitForPart = async (
+  client: ForceTestClient,
+  predicate: (part: Particle) => boolean,
+  from = 0,
+): Promise<Particle> => {
+  const entry = await fixture.waitForMessage(
+    (message) => message.client === client && predicate(message.message.parts[0]),
+    from,
+  )
   return entry.message.parts[0]
 }
 
-const startMatrixRuntime = async () => {
-  const waiting = fixture.nextClient("matrix")
-  const runtime = await import(`./matrix.ts?incremental-test=${crypto.randomUUID()}`)
-  const client = await waiting
-  await settle()
-  return {client, runtime}
-}
+const runtimeSnapshot = (): MatrixRuntimeSnapshot => ({
+  ok: true,
+  version: 1,
+  runtime: {
+    actorIdByBraneIndex: [17],
+    braneIndexByActorId: [[17, 0]],
+    wimpSrcByActorId: [[17, "owner/process"]],
+    actorIdsByWimpSrc: [["owner/process", [17]]],
+    runtimeFieldIndexByActorFieldId: [[17, 101, 0]],
+  },
+  data: {
+    fields: [{type: 0}],
+    branes: [{
+      values: [[0, 0]],
+      state: STATE_UNDEFINED,
+      collapses: [
+        [[1, {0: {gt: 10}}]],
+        [[2, {0: {gt: 11}}]],
+        [],
+      ],
+    }],
+    stateNames: [["idle", "ready", "done"]],
+  },
+  strong: {
+    runtimeFieldIndexByWimpFieldId: [[17_101, 0]],
+    wimpFieldIdsByRuntimeFieldIndex: [[17_101]],
+    braneIndexByWimpFieldId: [[17_101, 0]],
+    topologyWimpFieldIds: [],
+    topologyActorFieldIds: [],
+  },
+  weak: {
+    stateMetaStateIdsByBraneIndex: [[201, 202, 203]],
+    stateHasProcessByBraneIndex: [[false, true, false]],
+  },
+})
 
-const startMatrix = async (): Promise<ForceTestClient> => (await startMatrixRuntime()).client
+describe("Matrix packed Force runtime", () => {
+  test("loads Boundary bootstrap and executes the Weak process handshake", async () => {
+    const waiting = fixture.nextClient("matrix")
+    const runtime = await import(`./matrix.ts?packed-force-test=${crypto.randomUUID()}`)
+    const client = await waiting
+    await settle()
 
-const declaration = (path: string, value: unknown): Particle => ({part: "graviton", op: "add", path, value})
-
-const seedRuntime = (client: ForceTestClient): void => {
-  const src = "owner/process"
-  for (const particle of [
-    declaration(`declaration/${src}/fields/1`, {id: 101, wimp: src, key: "count", type: "number"}),
-    declaration(`declaration/${src}/states/1`, {id: 201, wimp: src, name: "idle", position: 0}),
-    declaration(`declaration/${src}/states/2`, {id: 202, wimp: src, name: "ready", position: 1}),
-    declaration(`declaration/${src}/states/3`, {id: 203, wimp: src, name: "done", position: 2}),
-    declaration(`declaration/${src}/transitions/1`, {id: 301, wimp: src, fromState: 201, toState: 202, position: 0}),
-    declaration(`declaration/${src}/transitions/2`, {id: 302, wimp: src, fromState: 202, toState: 203, position: 0}),
-    declaration(`declaration/${src}/conditions/1`, {id: 401, wimp: src, transition: 301, field: 101, position: 0, predicate: {gt: 10}}),
-    declaration(`declaration/${src}/conditions/2`, {id: 402, wimp: src, transition: 302, field: 101, position: 0, predicate: {gt: 11}}),
-    declaration(`declaration/${src}/processes/1`, {
-      id: 501,
-      wimp: src,
-      state: "ready",
-      descriptor: {type: "action", key: "ready", env: ["server"], action: {src: "./action.ts", readFields: [[101, "count"]]}},
-    }),
-    declaration("actor/17", {
-      actor: {id: 17, parentActor: null, parentTopology: null, wimp: src, position: 0},
-      values: [], valueRecords: [], valueItems: [], state: null,
-    }),
-  ]) send(client, particle)
-}
-
-describe("Matrix incremental Force runtime", () => {
-  test("builds an actor one entity at a time and executes process handshake", async () => {
-    const client = await startMatrix()
-    const fromSeed = fixture.messages.length
-    seedRuntime(client)
-    expect(await waitForPart(client, (part) => part.part === "photon" && part.value === "idle", fromSeed)).toEqual({
+    const fromBootstrap = fixture.messages.length
+    send(client, {
+      part: "graviton",
+      op: "replace",
+      path: MATRIX_RUNTIME_PATH,
+      value: runtimeSnapshot(),
+    })
+    expect(await waitForPart(client, (part) => part.part === "photon" && part.value === "idle", fromBootstrap)).toEqual({
       part: "photon", op: "replace", path: 17, value: "idle",
     })
+    expect(runtime.listMatrixRuntimeActorIds()).toEqual([17])
+    expect(weak$.mode).toBe("cpu")
 
     const fromField = fixture.messages.length
     send(client, {part: "gluon", op: "replace", path: 17, value: {fields: {"101": 11}}})
@@ -89,34 +118,12 @@ describe("Matrix incremental Force runtime", () => {
     })
   })
 
-  test("ignores replay marker instead of replacing local state", async () => {
-    const client = await startMatrix()
-    const from = fixture.messages.length
-    const replay: ForceMessage = {parts: [{part: "z", op: "test", path: "force/replay/matrix/test"}]}
-    fixture.impulse(client, replay)
-    await settle()
-    expect(fixture.messages.slice(from).filter((entry) => entry.client === client)).toEqual([])
-  })
-
-  test("live particle path never disposes the packed backend or clears its projection", async () => {
-    let backendDisposals = 0
-    const originalDispose = weak$.dispose
-    weak$.dispose = () => { backendDisposals++ }
-    try {
-      const {client, runtime} = await startMatrixRuntime()
-      send(client, declaration("actor/71", {
-        actor: {id: 71, parentActor: null, parentTopology: null, wimp: "owner/live", position: 0},
-        values: [], valueRecords: [], valueItems: [], state: null,
-      }))
-      await settle()
-      const identity = runtime.matrixProjection$.actors.get(71)
-      send(client, {part: "z", op: "test", path: "force/replay/matrix/check"})
-      await settle()
-
-      expect(backendDisposals).toBe(0)
-      expect(runtime.matrixProjection$.actors.get(71)).toBe(identity)
-    } finally {
-      weak$.dispose = originalDispose
-    }
+  test("contains no projection evaluator beside packed Weak", async () => {
+    const source = await Bun.file(join(import.meta.dir, "matrix.ts")).text()
+    expect(source).not.toContain("MatrixProjectionStore")
+    expect(source).not.toContain("comparePredicate")
+    expect(source).not.toContain("evaluateIncrementalActor")
+    expect(source).toContain("weakRunStep")
+    expect(source).toContain("MATRIX_RUNTIME_PATH")
   })
 })
