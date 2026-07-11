@@ -1,6 +1,7 @@
 import type {ForceMessage} from "@metafor/types/force/message"
 import {forceReplayPath} from "@metafor/types/force/replay"
 import {ForceBase} from "../core/base"
+import {logImpulse} from "../core/log"
 
 const FORCE_BROWSER_ADDRESS = `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`
 
@@ -30,11 +31,12 @@ export class Force extends ForceBase {
       socket.send(JSON.stringify({type: "register", domain: this.domain, id: this.id}))
       console.log(`[${this.domain}] connected to Force`)
       while (this.#outbox.length > 0 && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify(this.#outbox.shift()))
+        const message = this.#outbox.shift()
+        if (message) this.#send(socket, message)
       }
-      socket.send(JSON.stringify({
+      this.#send(socket, {
         parts: [{part: "z", op: "test", path: forceReplayPath(this.domain, this.id)}],
-      } satisfies ForceMessage))
+      } satisfies ForceMessage)
     }
     socket.onmessage = (event) => {
       let impulse: unknown
@@ -50,7 +52,9 @@ export class Force extends ForceBase {
         !Array.isArray((impulse as {parts?: unknown}).parts) ||
         (impulse as {parts: unknown[]}).parts.length !== 1
       ) return
-      this.#emit(impulse as ForceMessage)
+      const message = impulse as ForceMessage
+      logImpulse(this.domain, "<-", message)
+      this.#emit(message)
     }
     socket.onclose = () => this.#reconnect()
     socket.onerror = () => socket.close()
@@ -62,7 +66,12 @@ export class Force extends ForceBase {
       this.#outbox.push(message)
       return
     }
-    this.#socket.send(JSON.stringify(message))
+    this.#send(this.#socket, message)
+  }
+
+  #send(socket: WebSocket, message: ForceMessage): void {
+    logImpulse(this.domain, "->", message)
+    socket.send(JSON.stringify(message))
   }
 
   #closeTransport(): void {
