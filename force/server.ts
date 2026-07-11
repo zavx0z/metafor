@@ -2,6 +2,7 @@ import type {ServerWebSocket} from "bun"
 import type {ForceMessage} from "@metafor/types/force/message"
 import type {Particle} from "@metafor/types/force/particle"
 import {forceReplayPath} from "@metafor/types/force/replay"
+import {logImpulse} from "./core/log"
 
 const clients = new Map<ServerWebSocket<{domain?: string; id?: string}>, {domain: string; id: string}>()
 
@@ -31,6 +32,8 @@ const deliverImpulse = (
   message: ForceMessage,
   origin?: ServerWebSocket<{domain?: string; id?: string}>,
 ): void => {
+  const source = origin?.data.domain ? `force:${origin.data.domain}` : "force:http"
+  logImpulse(source, "<-", message)
   const payload = JSON.stringify(message)
   for (const [socket] of clients) {
     if (socket === origin || socket.readyState !== WebSocket.OPEN) continue
@@ -90,9 +93,11 @@ export const server = Bun.serve<{domain?: string; id?: string}>({
         console.log(`[force] connected: ${message.domain} ${message.id}`)
         for (const [socket, client] of clients) {
           if (socket === ws || socket.readyState !== WebSocket.OPEN) continue
-          ws.send(JSON.stringify({
+          const replayRequest = {
             parts: [{part: "z", op: "test", path: forceReplayPath(client.domain, client.id)}],
-          } satisfies ForceMessage))
+          } satisfies ForceMessage
+          logImpulse("force", "->", replayRequest)
+          ws.send(JSON.stringify(replayRequest))
         }
         return
       }
