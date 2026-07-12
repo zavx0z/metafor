@@ -1,7 +1,9 @@
+/** Stable causal identity of one external observation or action. */
 export const INPUT_EXECUTION_PREFIX = "input:" as const
 
 export type InputExecutionId = `${typeof INPUT_EXECUTION_PREFIX}${string}`
 
+/** Candidate Field values; `test` remains non-materialized until Boundary commit. */
 export type ExternalInputProposal = {
   fields: Record<string, unknown>
 }
