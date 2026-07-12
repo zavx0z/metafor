@@ -30,7 +30,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: core-runtime-${{ github.workflow }}-${{ github.ref }}
@@ -54,48 +54,31 @@ jobs:
         with:
           bun-version: 1.3.11
 
-      - name: Install dependencies and capture lockfile drift
+      - name: Install dependencies
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          bun install --ignore-scripts 2>&1 | tee artifacts/install.log
-          cp bun.lock artifacts/bun.lock.generated
-          git diff -- bun.lock > artifacts/bun-lock.diff
-
-      - name: Commit refreshed lockfile to the PR branch
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        shell: bash
-        env:
-          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
-        run: |
-          set -euo pipefail
-          if git diff --quiet -- bun.lock; then
-            echo "bun.lock is already synchronized"
-            exit 0
-          fi
-          cp bun.lock /tmp/bun.lock.generated
-          git fetch origin "$PR_BRANCH"
-          git checkout -B "$PR_BRANCH" "origin/$PR_BRANCH"
-          cp /tmp/bun.lock.generated bun.lock
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add bun.lock
-          git commit -m "Обновить bun.lock после удаления stale workspaces"
-          git push origin "HEAD:$PR_BRANCH"
+          bun install --frozen-lockfile --ignore-scripts 2>&1 | tee artifacts/install.log
 
       - name: Targeted runtime tests
         shell: bash
         run: |
           set -euo pipefail
-          bun test \
-            force/core/log.test.ts \
-            force/server.test.ts \
-            boundary/runtime/matrix.spec.ts \
-            matrix/matrix.spec.ts \
-            matrix/weak/device.spec.ts \
-            matrix/runtime.parity.spec.ts \
-            2>&1 | tee artifacts/core-targeted.log
+          {
+            for test_file in \
+              force/core/log.test.ts \
+              force/server.test.ts \
+              boundary/runtime/matrix.spec.ts \
+              matrix/matrix.spec.ts \
+              matrix/weak/device.spec.ts \
+              matrix/runtime.parity.spec.ts
+            do
+              echo "::group::$test_file"
+              bun test "$test_file"
+              echo "::endgroup::"
+            done
+          } 2>&1 | tee artifacts/core-targeted.log
 
       - name: Complete Weak suite
         shell: bash
@@ -148,7 +131,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bun install --ignore-scripts 2>&1 | tee artifacts/install.log
+          bun install --frozen-lockfile --ignore-scripts 2>&1 | tee artifacts/install.log
 
       - name: Run strict WebGPU parity
         shell: bash
