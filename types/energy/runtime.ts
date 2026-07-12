@@ -1,9 +1,12 @@
-import type { EnergyProcessDescriptor } from "./process.ts"
+import type {ProcessExecutionId} from "../force/execution.ts"
+import type {EnergyProcessDescriptor} from "./process.ts"
 
 export type PendingEnergyProcess = {
   actorId: number
   wimp: string
   state: string
+  processId: number
+  processExecutionId: ProcessExecutionId
   descriptor: EnergyProcessDescriptor
 }
 
