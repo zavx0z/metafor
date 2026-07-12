@@ -17,6 +17,12 @@ import {
   type MatrixRuntimeSnapshot,
   type MatrixUpdateOptions,
 } from "@metafor/types/matrix/runtime"
+import type {
+  ProcessExecutionClaim,
+  ProcessExecutionGrant,
+  ProcessResultCommit,
+} from "@metafor/types/force/execution"
+import {isProcessExecutionId} from "@metafor/types/force/execution"
 import {FieldType, flattenMatrixData, validateData} from "@matrix/gravity"
 import {createStoredStringInterner, normalizeFieldValue, assembleStoredMatrixData, strong$} from "@matrix/strong"
 import {StepMode, weakHeapUpdate, weakInit, weakRunStep, weak$} from "@matrix/weak"
@@ -192,9 +198,21 @@ const applyRuntimeFieldParts = async (
 ): Promise<[number, number][]> => {
   if (!weak$.initialized) return []
   if (kind === "higgs") markHiggsClassScopeDirty(parts)
+
+  const committedExecutionId = parts.length === 1 && isProcessExecutionId(parts[0]?.from)
+    ? parts[0]!.from
+    : null
+  if (committedExecutionId) {
+    const actorId = parseActorIdPath(parts[0]!.path)
+    const pending = actorId === null ? undefined : pendingProcessExecutionsByActorId.get(actorId)
+    if (!pending || pending.processExecutionId !== committedExecutionId) return []
+  }
+
   const updates = collectActorFieldUpdates(parts, kind)
   if (updates.length === 0) return []
-  return await update(updates)
+  return await update(updates, {
+    retriggerProcessStates: committedExecutionId === null,
+  })
 }
 
 const publishPhotonChanges = (changes: [number, number][]): void => {
@@ -204,10 +222,13 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
     const stateName = matrix$.getStateName(braneIndex, stateIndex)
     if (!stateName) continue
 
+    const hasProcess = weak$.stateHasProcessByBraneIndex[braneIndex]?.[stateIndex] === true
+    const pending = hasProcess ? pendingProcessExecutionsByActorId.get(actorId) : undefined
     force.impulse({parts: [{
       part: "photon",
-      op: weak$.stateHasProcessByBraneIndex[braneIndex]?.[stateIndex] === true ? "test" : "replace",
+      op: hasProcess ? "test" : "replace",
       path: actorId,
+      ...(pending ? {from: pending.processExecutionId} : {}),
       value: stateName,
     }]})
   }
@@ -236,6 +257,7 @@ const rememberPendingProcessExecution = (braneIndex: number, stateIndex: number)
   pendingProcessExecutionsByActorId.set(actorId, {
     braneIndex,
     stateIndex,
+    processExecutionId: crypto.randomUUID(),
     fields: cloneProcessExecutionFields(collectProcessExecutionFields(actorId, braneIndex)),
   })
 }
@@ -297,37 +319,31 @@ const applyEnergyExecutionRequest = (part: Particle): void => {
     !isRecord(part.value)
   ) return
 
-  const requestedEnergy = part.value.energy
-  if (typeof requestedEnergy !== "string" || requestedEnergy.trim().length === 0) return
-  const energy = requestedEnergy.trim()
+  const claim = part.value as Partial<ProcessExecutionClaim>
+  if (
+    typeof claim.energy !== "string" ||
+    claim.energy.trim().length === 0 ||
+    claim.processExecutionId !== pending.processExecutionId
+  ) return
+
+  const energy = claim.energy.trim()
   pending.acceptedEnergy = energy
+  const grant: ProcessExecutionGrant = {
+    processExecutionId: pending.processExecutionId,
+    fields: cloneProcessExecutionFields(pending.fields),
+  }
 
   force.impulse({parts: [{
     part: "z",
     op: "copy",
     path: actorId,
     from: energy,
-    value: {fields: cloneProcessExecutionFields(pending.fields)},
+    value: grant,
   }]})
 }
 
-const collectActorWeakFieldUpdates = (
-  actorId: number,
-  fields: Record<string, unknown>,
-): Array<[fieldIndex: number, value: unknown]> => {
-  const fieldUpdates: Array<[number, unknown]> = []
-  for (const [address, value] of Object.entries(fields)) {
-    const fieldId = resolveForceFieldId(address)
-    if (fieldId === null) continue
-    const runtimeFieldIndex = strong$.runtimeFieldIndexByActorFieldId.get(actorFieldKey(actorId, fieldId))
-    if (runtimeFieldIndex === undefined || !matrix$.fields[runtimeFieldIndex]) continue
-    fieldUpdates.push([runtimeFieldIndex, value])
-  }
-  return fieldUpdates
-}
-
-const applyActorWeakResult = async (part: Particle): Promise<boolean> => {
-  if ((part.part !== "w+" && part.part !== "w-") || part.op !== "replace") return false
+const applyCommittedWeakResult = async (part: Particle): Promise<boolean> => {
+  if ((part.part !== "w+" && part.part !== "w-") || part.op !== "copy") return false
   const actorId = parseActorIdPath(part.path)
   if (actorId === null) return false
   const braneIndex = gravity$.getBraneIndexByActorId(actorId)
@@ -337,12 +353,17 @@ const applyActorWeakResult = async (part: Particle): Promise<boolean> => {
 
   const pending = pendingProcessExecutionsByActorId.get(actorId)
   if (!pending?.acceptedEnergy || !isRecord(part.value)) return true
-  if (part.part === "w-" && part.value.error !== undefined && typeof part.value.error !== "string") return true
-  const fields = part.value.fields
-  if (fields !== undefined && !isRecord(fields)) return true
+  const commit = part.value as Partial<ProcessResultCommit>
+  if (
+    part.from !== pending.processExecutionId ||
+    commit.processExecutionId !== pending.processExecutionId ||
+    commit.energy !== pending.acceptedEnergy ||
+    typeof commit.processId !== "number"
+  ) return true
 
   pendingProcessExecutionsByActorId.delete(actorId)
-  await update([[braneIndex, collectActorWeakFieldUpdates(actorId, fields ?? {}), false]], {
+  await update([[braneIndex, [], false]], {
+    retriggerProcessStates: false,
     skipProcessRetriggerBraneIndexes: [braneIndex],
   })
   return true
@@ -562,7 +583,7 @@ force.onImpulse = async (impulse) => {
     return
   }
   if (part.part === "w+" || part.part === "w-") {
-    await applyActorWeakResult(part)
+    await applyCommittedWeakResult(part)
   }
 }
 
