@@ -65,9 +65,14 @@ export interface MatrixRuntimeSnapshot {
     braneIndexByActorId: Array<[actorId: number, braneIndex: number]>
     wimpSrcByActorId: Array<[actorId: number, wimpSrc: string]>
     actorIdsByWimpSrc: Array<[wimpSrc: string, actorIds: number[]]>
+    /** Canonical Matrix field identity remains the explicit actor/field pair. */
     runtimeFieldIndexByActorFieldId: Array<[actorId: number, fieldId: number, runtimeFieldIndex: number]>
   }
   data: Required<Pick<MatrixInputData, "fields" | "branes" | "stateNames">>
+  /**
+   * Compact addresses below are scoped to this rebuildable projection. They
+   * are not canonical Boundary IDs and may be regenerated with the snapshot.
+   */
   strong: {
     runtimeFieldIndexByWimpFieldId: Array<[wimpFieldId: number, runtimeFieldIndex: number]>
     wimpFieldIdsByRuntimeFieldIndex: number[][]
