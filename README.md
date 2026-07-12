@@ -34,9 +34,9 @@ Meta / DSL
 → Matrix gravity → strong → weak
 → Photon
 → Energy Z claim/copy
-→ W result
+→ W proposal
 → Boundary canonical commit
-→ derived consequences
+→ Gluon/Higgs consequences
 → Reaction
 → Bulk
 ```
@@ -57,22 +57,28 @@ Boundary может передать Matrix производную `runtime/matr
 
 ## Текущий статус
 
-Уже подтверждено GitHub Actions:
+GitHub Actions подтверждает:
 
 - CPU и WebGPU исполняют одинаковые State/lock/Photon traces;
 - WebGPU compute реально работает через Vulkan software adapter;
-- минимальный universe проходит `Dark → Boundary → Matrix → Energy` без Bulk;
-- structured logs восстанавливают порядок Inflaton, Graviton, Gluon, Photon, Z и W;
-- Matrix не принимает сырой результат Energy как canonical world truth.
+- внешний Field input сначала коммитится Boundary и только затем достигает Matrix;
+- Process result становится world truth только после Boundary validation и commit;
+- Reaction исполняется Energy и использует тот же canonical world writer;
+- минимальный universe проходит полный путь `Input → Process → Reaction` без Bulk;
+- structured logs восстанавливают порядок Inflaton, Graviton, Gluon, Higgs,
+  Photon, Z и W.
 
-Текущая реализационная задача — завершить атомарный контракт:
+Рабочий non-visual контур уже замкнут:
 
 ```text
-W proposal
-→ Boundary validation and commit
-→ Gluon/Higgs consequences
-→ Matrix unlock and re-evaluation
-→ Reaction
+external Input
+→ Boundary
+→ Matrix
+→ Process / Energy
+→ Boundary
+→ Reaction / Energy
+→ Boundary
+→ Matrix
 ```
 
 ## Быстрый запуск
@@ -83,7 +89,23 @@ W proposal
 bun install
 ```
 
-Минимальный runtime без Bulk:
+Одна команда поднимает Force, Boundary, Dark, Matrix и Energy, ждёт health и
+регистрацию доменов, затем активирует `METAFOR_ROOT`:
+
+```bash
+bun start
+```
+
+По умолчанию активируется нейтральная Meta `test/runtime-universe`. Другой корень
+и постоянная Boundary database задаются окружением:
+
+```bash
+METAFOR_ROOT=owner/project \
+BOUNDARY_PATH=./data/boundary.sqlite \
+bun start
+```
+
+Эквивалентная команда:
 
 ```bash
 bun run runtime
@@ -102,9 +124,25 @@ bun run runtime:cpu
 bun run runtime:gpu
 ```
 
-Минимальный сквозной тест:
+`runtime:gpu` является строгим режимом: отсутствие WebGPU завершает запуск
+ошибкой. `auto` предпочитает WebGPU и использует CPU только как fallback.
+
+Для запуска доменов без автоматической активации Meta:
 
 ```bash
+METAFOR_AUTO_ACTIVATE=0 bun run runtime
+```
+
+Либо без launcher lifecycle:
+
+```bash
+bun run runtime:domains
+```
+
+Проверка one-command launch и полного universe:
+
+```bash
+bun run test:runtime-launch
 bun run test:runtime-universe
 ```
 
