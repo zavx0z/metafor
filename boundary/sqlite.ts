@@ -7,6 +7,7 @@ import {BoundaryTopologySqlite} from "@boundary/topology/sqlite"
 import type {ForceMessage} from "@metafor/types/force/message"
 import {BoundaryIncrementalStore, type BoundaryIncrementalCommit} from "./incremental.ts"
 import {BoundaryExecutionStore} from "./execution.ts"
+import {BoundaryInputStore} from "./input.ts"
 import {BoundaryReactionStore} from "./reaction.ts"
 import {initBoundaryStateDeclarations} from "./state-declaration.ts"
 import {matrixRuntime} from "./runtime/matrix.ts"
@@ -30,6 +31,8 @@ export const open = async (filename?: string) => {
   const projection = new BoundaryIncrementalStore(sql)
   await projection.init()
   await initBoundaryStateDeclarations(sql)
+  const input = new BoundaryInputStore(sql)
+  await input.init()
   const execution = new BoundaryExecutionStore(sql)
   await execution.init()
   const reaction = new BoundaryReactionStore(sql)
@@ -38,13 +41,18 @@ export const open = async (filename?: string) => {
 
   const materialize = (message: ForceMessage): Promise<BoundaryIncrementalCommit | null> => {
     const task = absorbQueue.then(async () => {
-      const executionCommit = await execution.apply(message)
-      const reactionCommit = await reaction.apply(message)
-      const commit = executionCommit !== undefined
-        ? executionCommit
-        : reactionCommit !== undefined
-          ? reactionCommit
-          : await projection.apply(message)
+      const inputCommit = await input.apply(message)
+      const executionCommit = inputCommit === undefined ? await execution.apply(message) : undefined
+      const reactionCommit = inputCommit === undefined && executionCommit === undefined
+        ? await reaction.apply(message)
+        : undefined
+      const commit = inputCommit !== undefined
+        ? inputCommit
+        : executionCommit !== undefined
+          ? executionCommit
+          : reactionCommit !== undefined
+            ? reactionCommit
+            : await projection.apply(message)
       if (!commit) return null
 
       const reactionSignals = await reaction.derive(commit.messages)
@@ -61,6 +69,7 @@ export const open = async (filename?: string) => {
     actor,
     topology,
     projection,
+    input,
     execution,
     reaction,
     replay: () => projection.replay(),
