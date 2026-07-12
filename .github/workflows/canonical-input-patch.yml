@@ -3,6 +3,8 @@ name: Apply canonical Input patch
 on:
   push:
     branches: [agent/canonical-input]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: write
