@@ -3,7 +3,7 @@ import {startEnergyProtocol} from "./energy.ts"
 startEnergyProtocol()
 
 const server = Bun.serve({
-  port: 4005,
+  port: Number(Bun.env.PORT ?? 4005),
   routes: {
     "/health": {
       GET() {

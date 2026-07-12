@@ -55,7 +55,7 @@ force.onImpulse = async (message) => {
 }
 
 const server = Bun.serve({
-  port: 4001,
+  port: Number(Bun.env.PORT ?? 4001),
   routes: {
     "/health": {
       GET() {
