@@ -1,18 +1,18 @@
 # Разработка MetaFor
 
-Этот документ описывает только активное ядро и его воспроизводимую проверку.
-Исторические product shells не участвуют в сборке и запуске.
+Этот документ описывает только активное ядро и его воспроизводимый запуск.
+Исторические product shells не участвуют в сборке и runtime.
 
 ## Домены
 
-| Domain   | Port | Entry                |
-| -------- | ---- | -------------------- |
-| Force    | 4000 | `force/server.ts`    |
-| Boundary | 4001 | `boundary/server.ts` |
-| Dark     | 4002 | `dark/server.ts`     |
-| Matrix   | 4003 | `matrix/server.ts`   |
-| Bulk     | 4004 | `bulk/server.ts`     |
-| Energy   | 4005 | `energy/server.ts`   |
+| Domain   | Default port | Entry                |
+| -------- | ------------ | -------------------- |
+| Force    | 4000         | `force/server.ts`    |
+| Boundary | 4001         | `boundary/server.ts` |
+| Dark     | 4002         | `dark/server.ts`     |
+| Matrix   | 4003         | `matrix/server.ts`   |
+| Bulk     | 4004         | `bulk/server.ts`     |
+| Energy   | 4005         | `energy/server.ts`   |
 
 Основной причинный контур:
 
@@ -24,42 +24,132 @@ Matrix → Photon
 Energy ↔ Z claim/copy
 Energy → W proposal
 Boundary → canonical commit → Gluon/Higgs → W acknowledgment
+Boundary consequence → Reaction → Energy → Boundary
 ```
 
-Boundary является единственной канонической materialized persistence. Matrix,
+Boundary является единственной canonical materialized persistence. Matrix,
 Energy и Bulk не читают Boundary SQLite напрямую.
 
-## Запуск
+## One-command launcher
 
-Минимальный runtime без Bulk:
+Основной запуск:
+
+```bash
+bun start
+```
+
+или:
 
 ```bash
 bun run runtime
 ```
 
-С полными Impulse logs:
+`runtime/start.ts` выполняет последовательность:
 
-```bash
-bun run runtime:logs
+1. запускает Force;
+2. ждёт Force health;
+3. запускает Boundary, Matrix, Energy и Dark;
+4. ждёт health каждого домена;
+5. ждёт их регистрации в Force;
+6. отправляет `inflaton/test` для `METAFOR_ROOT`;
+7. оставляет runtime работающим до `SIGINT` или `SIGTERM`;
+8. завершает дочерние процессы в обратном порядке.
+
+Launcher не является новым доменом и не владеет world state. Это минимальный
+операционный lifecycle существующих доменов.
+
+### Настройки
+
+```text
+METAFOR_ROOT            default: test/runtime-universe
+BOUNDARY_PATH            default: boundary/tmp/runtime.sqlite
+METAFOR_AUTO_ACTIVATE    default: 1; 0 отключает activation
+METAFOR_WEAK_BACKEND     auto | cpu | gpu
+METAFOR_FORCE_PORT       default: 4000
+METAFOR_BOUNDARY_PORT    default: 4001
+METAFOR_DARK_PORT        default: 4002
+METAFOR_MATRIX_PORT      default: 4003
+METAFOR_ENERGY_PORT      default: 4005
 ```
 
-Backend Matrix:
+Пример:
+
+```bash
+METAFOR_ROOT=owner/project \
+BOUNDARY_PATH=./data/boundary.sqlite \
+METAFOR_LOG_IMPULSES=full \
+bun start
+```
+
+`runtime:gpu` является строгим режимом и завершается ошибкой без WebGPU:
 
 ```bash
 bun run runtime:cpu
 bun run runtime:gpu
 ```
 
-`runtime:gpu` является строгим режимом и завершается ошибкой без WebGPU. Default
-режим `auto` предпочитает WebGPU и использует CPU только как fallback.
+Для ручного запуска доменов без launcher lifecycle:
 
-Полный контур с Bulk:
+```bash
+bun run runtime:domains
+```
+
+Полный контур с Bulk остаётся отдельной командой:
 
 ```bash
 bun run force
 ```
 
-## Загрузка Meta
+## Force health
+
+`GET /health` Force возвращает зарегистрированные clients:
+
+```json
+{
+  "ok": true,
+  "domain": "force",
+  "clients": [
+    {"domain": "boundary", "id": "boundary-local"},
+    {"domain": "dark", "id": "dark-local"},
+    {"domain": "energy", "id": "energy-local"},
+    {"domain": "matrix", "id": "matrix-local"}
+  ]
+}
+```
+
+Launcher использует это как registration barrier. Фиксированный `sleep` не
+считается доказательством готовности.
+
+## Canonical external input
+
+Uncommitted external `Gluon/Higgs` без `from` Force направляет только Boundary.
+Matrix не видит mutation до commit.
+
+```text
+external Field mutation
+→ Force boundary-only routing
+→ Boundary validation and atomic commit
+→ boundary:* Gluon/Higgs consequence
+→ Matrix Weak
+```
+
+Если Boundary недоступен, HTTP `/force` возвращает `503`, а input не
+рассылается другим доменам.
+
+Пример после materialization нужного Actor:
+
+```bash
+curl -sS -X POST http://127.0.0.1:4000/force \
+  -H 'content-type: application/json' \
+  -d '{"parts":[{"part":"gluon","op":"replace","path":1,"value":{"fields":{"101":1}}}]}'
+```
+
+Actor и Field IDs являются адресами materialized мира; production-клиент должен
+получать их из общей среды, а не угадывать.
+
+## Ручная загрузка Meta
+
+При `METAFOR_AUTO_ACTIVATE=0`:
 
 ```bash
 curl -sS -X POST http://127.0.0.1:4000/force \
@@ -73,13 +163,14 @@ curl -sS -X POST http://127.0.0.1:4000/force \
 2. Boundary коммитит declaration и materialization.
 3. Boundary выпускает Actor/Process consequences и `runtime/matrix` bootstrap.
 4. Matrix строит packed `gravity/strong/weak` и выпускает начальный Photon.
-5. Gluon/Higgs обновляют packed heap.
+5. External Field mutation проходит canonical Boundary path.
 6. Process-bound State выпускает Photon с `processExecutionId`.
 7. Energy claim-ит Process через Z и получает frozen fields.
 8. Energy возвращает W proposal.
 9. Boundary валидирует execution identity и declared write set.
-10. Только после atomic commit Boundary выпускает field consequences и W acknowledgment.
+10. Только после atomic commit Boundary выпускает consequences и W acknowledgment.
 11. Matrix снимает lock и повторно выполняет Weak.
+12. Активные Reaction проходят через Energy и тот же canonical world writer.
 
 ## Наблюдаемость
 
@@ -102,14 +193,19 @@ METAFOR_LOG_PARTS=inflaton,graviton,gluon,higgs,photon,z,w+,w-
 ## Проверка
 
 ```bash
+bun run test:runtime-launch
 bun run test:runtime-universe
 bun test boundary/runtime/matrix.spec.ts
+bun test boundary/input.spec.ts
+bun test boundary/execution.spec.ts
+bun test boundary/reaction.spec.ts
 bun test matrix/matrix.spec.ts
 bun test matrix/runtime.parity.spec.ts
 bun test matrix/weak/tests/weak.cpu.test.ts
 bun test matrix/weak/tests/weak.gpu.test.ts
 bun test matrix/weak/tests/weak.parity.test.ts
 bun test energy/energy.spec.ts
+bun test energy/reaction.spec.ts
 bun run tsc --noEmit
 ```
 
@@ -123,5 +219,8 @@ Production domains общаются только через Force. Сквозн�
 processes и временную Boundary database. Test-only чтение SQLite допустимо только
 для assertions и не становится runtime API.
 
-Исторический код до очистки сохранён в ветке
-`archive/pre-core-split-2026-07-11`.
+Исторический код до очистки сохранён в ветке:
+
+```text
+archive/pre-core-split-2026-07-11
+```
