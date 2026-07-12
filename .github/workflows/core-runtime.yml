@@ -30,7 +30,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: core-runtime-${{ github.workflow }}-${{ github.ref }}
@@ -57,16 +57,37 @@ jobs:
       - name: Install dependencies and capture lockfile drift
         shell: bash
         run: |
-          set -o pipefail
+          set -euo pipefail
           mkdir -p artifacts
           bun install --ignore-scripts 2>&1 | tee artifacts/install.log
           cp bun.lock artifacts/bun.lock.generated
           git diff -- bun.lock > artifacts/bun-lock.diff
 
+      - name: Commit refreshed lockfile to the PR branch
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        shell: bash
+        env:
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- bun.lock; then
+            echo "bun.lock is already synchronized"
+            exit 0
+          fi
+          cp bun.lock /tmp/bun.lock.generated
+          git fetch origin "$PR_BRANCH"
+          git checkout -B "$PR_BRANCH" "origin/$PR_BRANCH"
+          cp /tmp/bun.lock.generated bun.lock
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bun.lock
+          git commit -m "Обновить bun.lock после удаления stale workspaces"
+          git push origin "HEAD:$PR_BRANCH"
+
       - name: Targeted runtime tests
         shell: bash
         run: |
-          set -o pipefail
+          set -euo pipefail
           bun test \
             force/core/log.test.ts \
             force/server.test.ts \
@@ -79,13 +100,13 @@ jobs:
       - name: Complete Weak suite
         shell: bash
         run: |
-          set -o pipefail
+          set -euo pipefail
           bun test matrix/weak 2>&1 | tee artifacts/matrix-weak.log
 
       - name: Typecheck
         shell: bash
         run: |
-          set -o pipefail
+          set -euo pipefail
           bun run tsc --noEmit 2>&1 | tee artifacts/tsc.log
 
       - name: Upload CPU evidence
@@ -126,13 +147,13 @@ jobs:
       - name: Install dependencies
         shell: bash
         run: |
-          set -o pipefail
+          set -euo pipefail
           bun install --ignore-scripts 2>&1 | tee artifacts/install.log
 
       - name: Run strict WebGPU parity
         shell: bash
         run: |
-          set -o pipefail
+          set -euo pipefail
           bun test matrix/runtime.parity.spec.ts 2>&1 | tee artifacts/webgpu-parity.log
 
       - name: Upload WebGPU evidence
