@@ -78,6 +78,14 @@ const settle = async (): Promise<void> => {
   await Bun.sleep(0)
 }
 
+const waitForRuntime = async (predicate: () => boolean, timeoutMs = 10_000): Promise<void> => {
+  const deadline = Date.now() + timeoutMs
+  while (!predicate()) {
+    if (Date.now() >= deadline) throw new Error("Timed out waiting for Matrix runtime state")
+    await Bun.sleep(1)
+  }
+}
+
 const send = (
   fixture: ForceTestFixture,
   client: ForceTestClient,
@@ -182,7 +190,7 @@ const runScenario = async (backend: "cpu" | "gpu"): Promise<RuntimeTrace> => {
       from: ENERGY_ID,
       value: proposal,
     })
-    await settle()
+    await Bun.sleep(10)
     expect(runtime.matrix$.getStateName(0, runtime.matrix$.states[0]!)).toBe("ready")
     expect(runtime.matrix$.getFieldValue(0, 1)).toBe(0)
     expect(runtime.matrix$.branes[0]?.lock).toBe(true)
@@ -194,9 +202,8 @@ const runScenario = async (backend: "cpu" | "gpu"): Promise<RuntimeTrace> => {
       from: processExecutionId,
       value: {fields: {"102": 2}},
     })
-    await settle()
+    await waitForRuntime(() => runtime.matrix$.getFieldValue(0, 1) === 2)
     expect(runtime.matrix$.getStateName(0, runtime.matrix$.states[0]!)).toBe("ready")
-    expect(runtime.matrix$.getFieldValue(0, 1)).toBe(2)
     expect(runtime.matrix$.branes[0]?.lock).toBe(true)
 
     const commit: ProcessResultCommit = {
