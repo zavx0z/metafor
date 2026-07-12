@@ -1,9 +1,6 @@
 import type {MetaDSL} from "@metafor/types/metafor/schema"
 
-/**
- * Neutral integration universe for the first observable core lifecycle.
- * It intentionally has no Matter children, Bulk, browser or provider binding.
- */
+/** Neutral source Actor for the observable Process → Reaction lifecycle. */
 const meta = {
   name: "Runtime Universe",
   desc: "input=0 → input=1 → Energy process → output=2 → complete",
@@ -32,6 +29,7 @@ const meta = {
       },
     },
   }],
+  matter: [{kind: "wimp", src: "test/runtime-reaction-target"}],
 } satisfies MetaDSL
 
 export default meta

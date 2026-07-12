@@ -7,6 +7,8 @@ import {BoundaryTopologySqlite} from "@boundary/topology/sqlite"
 import type {ForceMessage} from "@metafor/types/force/message"
 import {BoundaryIncrementalStore, type BoundaryIncrementalCommit} from "./incremental.ts"
 import {BoundaryExecutionStore} from "./execution.ts"
+import {BoundaryReactionStore} from "./reaction.ts"
+import {initBoundaryStateDeclarations} from "./state-declaration.ts"
 import {matrixRuntime} from "./runtime/matrix.ts"
 
 export const open = async (filename?: string) => {
@@ -27,14 +29,28 @@ export const open = async (filename?: string) => {
   const wimp = await BoundaryWimpSqlite.open(sql)
   const projection = new BoundaryIncrementalStore(sql)
   await projection.init()
+  await initBoundaryStateDeclarations(sql)
   const execution = new BoundaryExecutionStore(sql)
   await execution.init()
+  const reaction = new BoundaryReactionStore(sql)
+  await reaction.init()
   let absorbQueue: Promise<unknown> = Promise.resolve()
 
   const materialize = (message: ForceMessage): Promise<BoundaryIncrementalCommit | null> => {
     const task = absorbQueue.then(async () => {
       const executionCommit = await execution.apply(message)
-      return executionCommit === undefined ? await projection.apply(message) : executionCommit
+      const reactionCommit = await reaction.apply(message)
+      const commit = executionCommit !== undefined
+        ? executionCommit
+        : reactionCommit !== undefined
+          ? reactionCommit
+          : await projection.apply(message)
+      if (!commit) return null
+
+      const reactionSignals = await reaction.derive(commit.messages)
+      return reactionSignals.length === 0
+        ? commit
+        : {...commit, messages: [...commit.messages, ...reactionSignals]}
     })
     absorbQueue = task.then(() => undefined, () => undefined)
     return task
@@ -46,6 +62,7 @@ export const open = async (filename?: string) => {
     topology,
     projection,
     execution,
+    reaction,
     replay: () => projection.replay(),
     materialize,
     matrixRuntime: () => matrixRuntime(sql),
