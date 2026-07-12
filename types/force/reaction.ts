@@ -40,6 +40,7 @@ export type ReactionExecutionClaim = {
 export type ReactionResultProposal = {
   reactionExecutionId: string
   reactionId: number
+  matched: boolean
   fields: Record<string, unknown>
   error?: string
 }
@@ -48,6 +49,7 @@ export type ReactionResultCommit = {
   reactionExecutionId: string
   reactionId: number
   energy: string
+  status: "committed" | "skipped" | "failed"
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -77,5 +79,5 @@ export const isReactionExecutionClaim = (value: unknown): value is ReactionExecu
 
 export const isReactionResultProposal = (value: unknown): value is ReactionResultProposal =>
   isRecord(value) && isReactionExecutionId(value.reactionExecutionId) &&
-  positiveId(value.reactionId) && isRecord(value.fields) &&
-  (value.error === undefined || typeof value.error === "string")
+  positiveId(value.reactionId) && typeof value.matched === "boolean" &&
+  isRecord(value.fields) && (value.error === undefined || typeof value.error === "string")
