@@ -13,6 +13,7 @@ on:
       - "boundary/**"
       - "matrix/**"
       - "energy/**"
+      - "runtime/**"
       - "fixture/**"
       - "github/**"
   push:
@@ -27,6 +28,7 @@ on:
       - "boundary/**"
       - "matrix/**"
       - "energy/**"
+      - "runtime/**"
       - "fixture/**"
       - "github/**"
   workflow_dispatch:
@@ -81,7 +83,8 @@ jobs:
               matrix/runtime.parity.spec.ts \
               energy/energy.spec.ts \
               energy/reaction.spec.ts \
-              fixture/runtime-universe.spec.ts
+              fixture/runtime-universe.spec.ts \
+              runtime/universe.spec.ts
             do
               echo "::group::$test_file"
               bun test "$test_file"
