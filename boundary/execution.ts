@@ -19,6 +19,11 @@ type ActorRow = {
   wimp: string
 }
 
+type StateRow = {
+  id: number
+  name: string
+}
+
 type ExecutionRow = {
   executionId: string
   actor: number
@@ -58,12 +63,6 @@ const executionValue = (value: unknown): ProcessExecutionGrant | null => {
   }
 }
 
-const claimValue = (value: unknown): ProcessExecutionClaim | null => {
-  if (!isRecord(value) || typeof value.energy !== "string" || !isProcessExecutionId(value.processExecutionId)) return null
-  const energy = value.energy.trim()
-  return energy.length > 0 ? {energy, processExecutionId: value.processExecutionId} : null
-}
-
 const proposalValue = (value: unknown): ProcessResultProposal | null => {
   if (
     !isRecord(value) ||
@@ -81,9 +80,10 @@ const proposalValue = (value: unknown): ProcessResultProposal | null => {
 }
 
 /**
- * Boundary-owned process execution handshake and canonical W-result commit.
- * Matrix owns transition computation, Energy owns execution, Boundary alone
- * turns a proposed result into durable actor fields and committed consequences.
+ * Boundary-owned State and Process execution lifecycle.
+ *
+ * Matrix computes State, Energy executes Process, but Boundary alone persists
+ * the materialized State and turns a proposed W result into durable Fields.
  */
 export class BoundaryExecutionStore {
   constructor(readonly sql: SQL) {}
@@ -110,6 +110,7 @@ export class BoundaryExecutionStore {
 
   async apply(input: ForceMessage): Promise<BoundaryIncrementalCommit | null | undefined> {
     const part = input.parts[0]
+    if (part.part === "photon" && part.op === "replace") return await this.commitState(part)
     if (part.part === "photon" && part.op === "test") return await this.registerExecution(part)
     if (part.part === "z" && part.op === "copy") return await this.selectEnergy(part)
     if ((part.part === "w+" || part.part === "w-") && part.op === "replace") {
@@ -118,17 +119,61 @@ export class BoundaryExecutionStore {
     return undefined
   }
 
-  private async registerExecution(part: Particle): Promise<null | undefined> {
+  /** Persists a non-Process State without echoing another Photon. */
+  private async commitState(part: Particle): Promise<null | undefined> {
     const actorId = positiveId(part.path)
-    const state = typeof part.value === "string" ? part.value : null
-    const processExecutionId = isProcessExecutionId(part.from) ? part.from : null
-    if (actorId === null || state === null || processExecutionId === null) return undefined
-
-    const actor = await this.actor(this.sql, actorId)
-    const process = actor ? await this.processForState(this.sql, actor.wimp, state) : null
-    if (!actor || !process) throw new Error(`Cannot register process execution for actor=${actorId} state=${state}`)
+    const stateName = typeof part.value === "string" ? part.value : null
+    if (actorId === null || stateName === null) return undefined
 
     await this.sql.begin(async (tx) => {
+      const actor = await this.actor(tx, actorId)
+      const state = actor ? await this.stateForName(tx, actor.wimp, stateName) : null
+      if (!actor || !state) throw new Error(`Cannot commit State for actor=${actorId} state=${stateName}`)
+
+      await tx`
+        INSERT INTO actor_state (actor, metaState)
+        VALUES (${actorId}, ${state.id})
+        ON CONFLICT (actor) DO UPDATE SET metaState = excluded.metaState
+      `
+      await tx`
+        UPDATE boundary_process_execution
+           SET status = ${"superseded"}
+         WHERE actor = ${actorId}
+           AND status = ${"pending"}
+      `
+    })
+    return null
+  }
+
+  /** Atomically persists a Process State and registers its execution identity. */
+  private async registerExecution(part: Particle): Promise<null | undefined> {
+    const actorId = positiveId(part.path)
+    const stateName = typeof part.value === "string" ? part.value : null
+    const processExecutionId = isProcessExecutionId(part.from) ? part.from : null
+    if (actorId === null || stateName === null || processExecutionId === null) return undefined
+
+    await this.sql.begin(async (tx) => {
+      const actor = await this.actor(tx, actorId)
+      const state = actor ? await this.stateForName(tx, actor.wimp, stateName) : null
+      const process = actor ? await this.processForState(tx, actor.wimp, stateName) : null
+      if (!actor || !state || !process) {
+        throw new Error(`Cannot register process execution for actor=${actorId} state=${stateName}`)
+      }
+
+      const existing = await this.execution(tx, processExecutionId)
+      if (existing) {
+        if (existing.actor !== actorId || existing.process !== process.id || existing.state !== stateName) {
+          throw new Error(`Process execution identity collision: ${processExecutionId}`)
+        }
+        // A delayed duplicate must not move a completed actor back into its old State.
+        if (existing.status !== "pending") return
+      }
+
+      await tx`
+        INSERT INTO actor_state (actor, metaState)
+        VALUES (${actorId}, ${state.id})
+        ON CONFLICT (actor) DO UPDATE SET metaState = excluded.metaState
+      `
       await tx`
         UPDATE boundary_process_execution
            SET status = ${"superseded"}
@@ -138,11 +183,12 @@ export class BoundaryExecutionStore {
       `
       await tx`
         INSERT INTO boundary_process_execution (execution_id, actor, process, state, status)
-        VALUES (${processExecutionId}, ${actorId}, ${process.id}, ${state}, ${"pending"})
+        VALUES (${processExecutionId}, ${actorId}, ${process.id}, ${stateName}, ${"pending"})
         ON CONFLICT (execution_id) DO NOTHING
       `
-      const existing = await this.execution(tx, processExecutionId)
-      if (!existing || existing.actor !== actorId || existing.process !== process.id || existing.state !== state) {
+
+      const inserted = await this.execution(tx, processExecutionId)
+      if (!inserted || inserted.actor !== actorId || inserted.process !== process.id || inserted.state !== stateName) {
         throw new Error(`Process execution identity collision: ${processExecutionId}`)
       }
     })
@@ -198,8 +244,9 @@ export class BoundaryExecutionStore {
 
       const actor = await this.actor(tx, actorId)
       const process = actor ? await this.processById(tx, actor.wimp, proposal.processId) : null
-      if (!actor || !process || process.state !== execution.state) {
-        throw new Error(`Process declaration changed during execution ${proposal.processExecutionId}`)
+      const currentState = actor ? await this.currentState(tx, actorId) : null
+      if (!actor || !process || process.state !== execution.state || currentState?.name !== execution.state) {
+        throw new Error(`Process declaration or State changed during execution ${proposal.processExecutionId}`)
       }
 
       const handlerName = part.part === "w+" ? "success" : "error"
@@ -296,6 +343,23 @@ export class BoundaryExecutionStore {
       SELECT id, wimp FROM actor WHERE id = ${actorId}
     `)[0]
     return actor ? {id: Number(actor.id), wimp: actor.wimp} : null
+  }
+
+  private async stateForName(sql: Database, wimp: string, name: string): Promise<StateRow | null> {
+    const state = (await sql<StateRow[]>`
+      SELECT id, name FROM state WHERE wimp = ${wimp} AND name = ${name}
+    `)[0]
+    return state ? {id: Number(state.id), name: state.name} : null
+  }
+
+  private async currentState(sql: Database, actorId: number): Promise<StateRow | null> {
+    const state = (await sql<StateRow[]>`
+      SELECT state.id, state.name
+        FROM actor_state
+        JOIN state ON state.id = actor_state.metaState
+       WHERE actor_state.actor = ${actorId}
+    `)[0]
+    return state ? {id: Number(state.id), name: state.name} : null
   }
 
   private async execution(sql: Database, processExecutionId: string): Promise<ExecutionRow | null> {
