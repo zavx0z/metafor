@@ -1,15 +1,14 @@
 import type {ReservedSQL, SQL} from "bun"
 import type {
-  ProcessExecutionClaim,
   ProcessExecutionGrant,
   ProcessResultCommit,
   ProcessResultProposal,
 } from "@metafor/types/force/execution"
 import {isProcessExecutionId} from "@metafor/types/force/execution"
-import {resolveForceFieldId} from "@metafor/types/force/fields"
 import type {ForceMessage} from "@metafor/types/force/message"
 import type {Particle} from "@metafor/types/force/particle"
 import type {BoundaryIncrementalCommit} from "./incremental.ts"
+import {commitBoundaryActorFields} from "./world.ts"
 
 type Database = SQL | ReservedSQL
 type JsonRecord = Record<string, unknown>
@@ -40,11 +39,6 @@ type CanonicalProcess = {
   wimp: string
   state: string
   descriptor: JsonRecord
-}
-
-type FieldRow = {
-  id: number
-  type: string
 }
 
 const isRecord = (value: unknown): value is JsonRecord =>
@@ -81,7 +75,6 @@ const proposalValue = (value: unknown): ProcessResultProposal | null => {
 
 /**
  * Boundary-owned State and Process execution lifecycle.
- *
  * Matrix computes State, Energy executes Process, but Boundary alone persists
  * the materialized State and turns a proposed W result into durable Fields.
  */
@@ -114,12 +107,12 @@ export class BoundaryExecutionStore {
     if (part.part === "photon" && part.op === "test") return await this.registerExecution(part)
     if (part.part === "z" && part.op === "copy") return await this.selectEnergy(part)
     if ((part.part === "w+" || part.part === "w-") && part.op === "replace") {
-      return await this.commitResult(part)
+      const proposal = proposalValue(part.value)
+      return proposal ? await this.commitResult(part, proposal) : undefined
     }
     return undefined
   }
 
-  /** Persists a non-Process State without echoing another Photon. */
   private async commitState(part: Particle): Promise<null | undefined> {
     const actorId = positiveId(part.path)
     const stateName = typeof part.value === "string" ? part.value : null
@@ -145,7 +138,6 @@ export class BoundaryExecutionStore {
     return null
   }
 
-  /** Atomically persists a Process State and registers its execution identity. */
   private async registerExecution(part: Particle): Promise<null | undefined> {
     const actorId = positiveId(part.path)
     const stateName = typeof part.value === "string" ? part.value : null
@@ -165,7 +157,6 @@ export class BoundaryExecutionStore {
         if (existing.actor !== actorId || existing.process !== process.id || existing.state !== stateName) {
           throw new Error(`Process execution identity collision: ${processExecutionId}`)
         }
-        // A delayed duplicate must not move a completed actor back into its old State.
         if (existing.status !== "pending") return
       }
 
@@ -216,11 +207,13 @@ export class BoundaryExecutionStore {
     return null
   }
 
-  private async commitResult(part: Particle): Promise<BoundaryIncrementalCommit | null> {
+  private async commitResult(
+    part: Particle,
+    proposal: ProcessResultProposal,
+  ): Promise<BoundaryIncrementalCommit | null> {
     const actorId = positiveId(part.path)
-    const proposal = proposalValue(part.value)
     const energy = typeof part.from === "string" ? part.from.trim() : ""
-    if (actorId === null || !proposal || energy.length === 0) {
+    if (actorId === null || energy.length === 0) {
       throw new Error("W result requires actor path, Energy source, processExecutionId, processId and fields")
     }
 
@@ -259,34 +252,14 @@ export class BoundaryExecutionStore {
         }
       }
 
-      const fields = new Map<number, unknown>()
-      for (const [address, value] of Object.entries(proposal.fields)) {
-        const fieldId = resolveForceFieldId(address)
-        if (fieldId === null || !allowed.has(fieldId)) {
-          throw new Error(`Process ${proposal.processId} cannot write field ${address}`)
-        }
-        if (JSON.stringify(value) === undefined) throw new Error(`Field ${address} result is not serializable`)
-        fields.set(fieldId, value)
-      }
-
-      const fieldRows = await tx<FieldRow[]>`
-        SELECT id, type FROM field WHERE wimp = ${actor.wimp}
-      `
-      const fieldById = new Map(fieldRows.map((field) => [Number(field.id), field]))
-      const scalar: Record<string, unknown> = {}
-      const topology: Record<string, unknown> = {}
-
-      for (const [fieldId, value] of fields) {
-        const field = fieldById.get(fieldId)
-        if (!field) throw new Error(`Field ${fieldId} does not belong to actor ${actorId}`)
-        await tx`
-          INSERT INTO boundary_actor_field (actor, field, value_json)
-          VALUES (${actorId}, ${fieldId}, ${JSON.stringify(value)})
-          ON CONFLICT (actor, field) DO UPDATE SET value_json = excluded.value_json
-        `
-        const target = field.type === "enum" || field.type === "array" ? topology : scalar
-        target[String(fieldId)] = value
-      }
+      const fieldCommit = await commitBoundaryActorFields(
+        tx,
+        actorId,
+        actor.wimp,
+        allowed,
+        proposal.fields,
+        `Process ${proposal.processId}`,
+      )
 
       const status = part.part === "w+" ? "committed" : "failed"
       const updated = await tx<Array<{executionId: string}>>`
@@ -300,7 +273,7 @@ export class BoundaryExecutionStore {
         RETURNING execution_id AS executionId
       `
       if (updated.length !== 1) throw new Error(`Concurrent W commit for ${proposal.processExecutionId}`)
-      return {actor, scalar, topology}
+      return {actor, ...fieldCommit}
     })
 
     if (!committed) return null
