@@ -1,7 +1,14 @@
+import {SQL} from "bun"
 import {describe, expect, test} from "bun:test"
 import {mkdtempSync, rmSync} from "node:fs"
 import {tmpdir} from "node:os"
 import {join, resolve} from "node:path"
+import type {
+  ProcessExecutionClaim,
+  ProcessExecutionGrant,
+  ProcessResultCommit,
+  ProcessResultProposal,
+} from "@metafor/types/force/execution"
 import type {ForceMessage} from "@metafor/types/force/message"
 import type {Particle} from "@metafor/types/force/particle"
 import {boundaryEntityId} from "../boundary/incremental.ts"
@@ -21,7 +28,11 @@ type ManagedProcess = {
   name: string
   process: ReturnType<typeof Bun.spawn>
   lines: ProcessLine[]
-  waitForLine(predicate: (line: string) => boolean, fromIndex?: number, timeoutMs?: number): Promise<{lineIndex: number; line: string}>
+  waitForLine(
+    predicate: (line: string) => boolean,
+    fromIndex?: number,
+    timeoutMs?: number,
+  ): Promise<{lineIndex: number; line: string}>
   stop(): Promise<void>
 }
 
@@ -153,11 +164,13 @@ const postImpulse = async (baseUrl: string, part: Particle): Promise<void> => {
 
 const eventLabel = (event: ForceEvent): string => {
   const part = particle(event)
-  return `${event.source} ${part.part}/${part.op} ${String(part.path)}${part.value === undefined ? "" : ` ${JSON.stringify(part.value)}`}`
+  const from = part.from === undefined ? "" : ` from=${String(part.from)}`
+  const value = part.value === undefined ? "" : ` ${JSON.stringify(part.value)}`
+  return `${event.source} ${part.part}/${part.op} ${String(part.path)}${from}${value}`
 }
 
 describe("minimal MetaFor runtime universe", () => {
-  test("runs Dark → Boundary → Matrix → Energy without Bulk or interpreter", async () => {
+  test("commits Energy result through Boundary without Bulk or product shells", async () => {
     const temporary = mkdtempSync(join(tmpdir(), "metafor-runtime-universe-"))
     const database = join(temporary, "boundary.sqlite")
     const processes: ManagedProcess[] = []
@@ -247,6 +260,7 @@ describe("minimal MetaFor runtime universe", () => {
 
       const inputFieldId = boundaryEntityId(`${ROOT}/fields/1`)
       const outputFieldId = boundaryEntityId(`${ROOT}/fields/2`)
+      const processId = boundaryEntityId(`${ROOT}/processes/1`)
       const inputStart = force.lines.length
       await postImpulse(forceHttp, {
         part: "gluon",
@@ -267,51 +281,111 @@ describe("minimal MetaFor runtime universe", () => {
           particle(event).op === "test" && particle(event).path === actorId && particle(event).value === "ready",
         input.lineIndex + 1,
       )
+      expect(typeof particle(ready).from).toBe("string")
+      const processExecutionId = String(particle(ready).from)
+
       const claim = await waitForForceEvent(
         force,
         (event) => event.source === "force:energy" && particle(event).part === "z" &&
           particle(event).op === "test" && particle(event).path === actorId,
         ready.lineIndex + 1,
       )
+      const claimValue = particle(claim).value as ProcessExecutionClaim
+      expect(claimValue).toEqual({energy: "energy-universe", processExecutionId})
+
       const copy = await waitForForceEvent(
         force,
         (event) => event.source === "force:matrix" && particle(event).part === "z" &&
           particle(event).op === "copy" && particle(event).path === actorId,
         claim.lineIndex + 1,
       )
-      const result = await waitForForceEvent(
+      const grant = particle(copy).value as ProcessExecutionGrant
+      expect(particle(copy).from).toBe("energy-universe")
+      expect(grant).toEqual({
+        processExecutionId,
+        fields: {
+          [String(inputFieldId)]: 1,
+          [String(outputFieldId)]: 0,
+        },
+      })
+
+      const proposal = await waitForForceEvent(
         force,
         (event) => event.source === "force:energy" && particle(event).part === "w+" &&
           particle(event).op === "replace" && particle(event).path === actorId,
         copy.lineIndex + 1,
       )
+      expect(particle(proposal).from).toBe("energy-universe")
+      expect(particle(proposal).value as ProcessResultProposal).toEqual({
+        processExecutionId,
+        processId,
+        fields: {[String(outputFieldId)]: 2},
+      })
+
+      const committedField = await waitForForceEvent(
+        force,
+        (event) => event.source === "force:boundary" && particle(event).part === "gluon" &&
+          particle(event).op === "replace" && particle(event).path === actorId &&
+          particle(event).from === processExecutionId,
+        proposal.lineIndex + 1,
+      )
+      expect(particle(committedField).value).toEqual({fields: {[String(outputFieldId)]: 2}})
+
+      const acknowledgement = await waitForForceEvent(
+        force,
+        (event) => event.source === "force:boundary" && particle(event).part === "w+" &&
+          particle(event).op === "copy" && particle(event).path === actorId &&
+          particle(event).from === processExecutionId,
+        committedField.lineIndex + 1,
+      )
+      expect(particle(acknowledgement).value as ProcessResultCommit).toEqual({
+        processExecutionId,
+        processId,
+        energy: "energy-universe",
+      })
+
       const complete = await waitForForceEvent(
         force,
         (event) => event.source === "force:matrix" && particle(event).part === "photon" &&
           particle(event).op === "replace" && particle(event).path === actorId && particle(event).value === "complete",
-        result.lineIndex + 1,
+        acknowledgement.lineIndex + 1,
       )
 
-      expect((particle(claim).value as {energy?: unknown}).energy).toBe("energy-universe")
-      expect(particle(copy).from).toBe("energy-universe")
-      expect((particle(copy).value as {fields?: unknown}).fields).toEqual({
-        [String(inputFieldId)]: 1,
-        [String(outputFieldId)]: 0,
-      })
-      expect((particle(result).value as {fields?: unknown}).fields).toEqual({
-        [String(outputFieldId)]: 2,
-      })
+      const inspection = new SQL(`sqlite://${database}`)
+      try {
+        const row = (await inspection<Array<{valueJson: string}>>`
+          SELECT value_json AS valueJson
+            FROM boundary_actor_field
+           WHERE actor = ${actorId} AND field = ${outputFieldId}
+        `)[0]
+        expect(row && JSON.parse(row.valueJson)).toBe(2)
+      } finally {
+        await inspection.close()
+      }
+
       expect(force.lines.some((item) => item.text.includes("[force] connected: bulk "))).toBe(false)
       expect(force.lines.some((item) => item.text.includes("[force] connected: interpreter "))).toBe(false)
 
       expect(boundaryActor.lineIndex).toBeGreaterThan(darkMeta.lineIndex)
       expect(boundaryProcess.lineIndex).toBeGreaterThan(darkMeta.lineIndex)
       expect(bootstrap.lineIndex).toBeGreaterThan(Math.max(boundaryActor.lineIndex, boundaryProcess.lineIndex))
-      const runtimeTrace = [bootstrap, idle, input, ready, claim, copy, result, complete]
+      const runtimeTrace = [
+        bootstrap,
+        idle,
+        input,
+        ready,
+        claim,
+        copy,
+        proposal,
+        committedField,
+        acknowledgement,
+        complete,
+      ]
       for (let index = 1; index < runtimeTrace.length; index++) {
         expect(runtimeTrace[index]!.lineIndex).toBeGreaterThan(runtimeTrace[index - 1]!.lineIndex)
       }
-      const trace = [darkMeta, boundaryActor, boundaryProcess, ...runtimeTrace].sort((left, right) => left.lineIndex - right.lineIndex)
+      const trace = [darkMeta, boundaryActor, boundaryProcess, ...runtimeTrace]
+        .sort((left, right) => left.lineIndex - right.lineIndex)
       console.log(`[runtime-universe]\n${trace.map(eventLabel).join("\n")}`)
     } finally {
       for (const managed of processes.toReversed()) await managed.stop()
