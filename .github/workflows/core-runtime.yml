@@ -72,11 +72,14 @@ jobs:
               force/core/log.test.ts \
               force/server.test.ts \
               boundary/runtime/matrix.spec.ts \
+              boundary/state.spec.ts \
               boundary/execution.spec.ts \
+              boundary/reaction.spec.ts \
               matrix/matrix.spec.ts \
               matrix/weak/device.spec.ts \
               matrix/runtime.parity.spec.ts \
               energy/energy.spec.ts \
+              energy/reaction.spec.ts \
               fixture/runtime-universe.spec.ts
             do
               echo "::group::$test_file"
