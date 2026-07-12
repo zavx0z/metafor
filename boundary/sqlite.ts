@@ -5,6 +5,7 @@ import {BoundaryWimpSqlite} from "@boundary/wimp/sqlite"
 import {BoundaryActorSqlite} from "@boundary/actor/sqlite"
 import {BoundaryTopologySqlite} from "@boundary/topology/sqlite"
 import type {ForceMessage} from "@metafor/types/force/message"
+import {isReactionResultProposal} from "@metafor/types/force/reaction"
 import {BoundaryIncrementalStore, type BoundaryIncrementalCommit} from "./incremental.ts"
 import {BoundaryExecutionStore} from "./execution.ts"
 import {BoundaryReactionStore} from "./reaction.ts"
@@ -12,25 +13,40 @@ import {BoundaryInputStore} from "./input.ts"
 import {initBoundaryStateDeclarations} from "./state-declaration.ts"
 import {matrixRuntime} from "./runtime/matrix.ts"
 
-const isUncommittedFieldMutation = (message: ForceMessage): boolean => {
+const isFieldConsequence = (message: ForceMessage): boolean => {
   const part = message.parts[0]
   return (part.part === "gluon" || part.part === "higgs") &&
-    (part.op === "add" || part.op === "replace" || part.op === "remove") &&
-    part.from === undefined
+    (part.op === "add" || part.op === "replace" || part.op === "remove")
+}
+
+const isUncommittedFieldMutation = (message: ForceMessage): boolean =>
+  isFieldConsequence(message) && message.parts[0].from === undefined
+
+const reactionExecutionId = (input: ForceMessage): string | null => {
+  const part = input.parts[0]
+  if ((part.part !== "w+" && part.part !== "w-") || part.op !== "replace") return null
+  return isReactionResultProposal(part.value) ? part.value.reactionExecutionId : null
 }
 
 const stampBoundaryCommit = (
   input: ForceMessage,
   commit: BoundaryIncrementalCommit,
 ): BoundaryIncrementalCommit => {
-  if (!isUncommittedFieldMutation(input)) return commit
-  const commitId = `boundary:${crypto.randomUUID()}`
+  const external = isUncommittedFieldMutation(input)
+  const reactionId = reactionExecutionId(input)
+  if (!external && reactionId === null) return commit
+
+  const origin = external
+    ? `boundary:${crypto.randomUUID()}`
+    : `reaction:${reactionId}`
   return {
     ...commit,
     messages: commit.messages.map((message) => {
+      if (!isFieldConsequence(message)) return message
       const part = message.parts[0]
-      if ((part.part !== "gluon" && part.part !== "higgs") || part.from !== undefined) return message
-      return {parts: [{...part, from: commitId}]}
+      if (!external && part.from !== reactionId) return message
+      if (external && part.from !== undefined) return message
+      return {parts: [{...part, from: origin}]}
     }),
   }
 }
