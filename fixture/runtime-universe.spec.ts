@@ -309,7 +309,7 @@ describe("minimal MetaFor runtime universe", () => {
 
       const reactionSignalEvent = await waitForForceEvent(force, (event) => {
         const value = particle(event).value as ReactionExecutionSignal | undefined
-        const sourceValue = value?.source.part.value
+        const sourceValue = value?.kind === "reaction" ? value.source.part.value : undefined
         return event.source === "force:boundary" && particle(event).part === "photon" &&
           value?.kind === "reaction" && value.reactionId === reactionId &&
           sourceValue !== undefined &&
