@@ -59,7 +59,13 @@ export const server = Bun.serve<{domain?: string; id?: string}>({
   routes: {
     "/health": {
       GET() {
-        return Response.json({ok: true, domain: "force"})
+        return Response.json({
+          ok: true,
+          domain: "force",
+          clients: [...clients.values()]
+            .map((client) => ({...client}))
+            .sort((left, right) => left.domain.localeCompare(right.domain) || left.id.localeCompare(right.id)),
+        })
       },
     },
     "/force": {
