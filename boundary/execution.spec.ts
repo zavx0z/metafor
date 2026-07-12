@@ -4,6 +4,7 @@ import type {
   ProcessResultCommit,
   ProcessResultProposal,
 } from "@metafor/types/force/execution"
+import type {ForceMessage} from "@metafor/types/force/message"
 import type {Particle} from "@metafor/types/force/particle"
 import {boundaryEntityId} from "./incremental.ts"
 import {open, type BoundaryDatabase} from "./sqlite.ts"
@@ -15,7 +16,7 @@ const ERROR = boundaryEntityId(`${ROOT}/fields/3`)
 const PROCESS = boundaryEntityId(`${ROOT}/processes/1`)
 const ENERGY = "energy-test"
 
-const message = (part: Particle) => ({parts: [part]})
+const message = (part: Particle): ForceMessage => ({parts: [part]})
 
 describe("Boundary canonical Process result", () => {
   let boundary: BoundaryDatabase
