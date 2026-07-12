@@ -14,7 +14,7 @@ const meta = {
     key: "observe-source",
     label: "Observe source commit",
     cond: "() => ({meta: 'test/runtime-universe', op: 'replace', path: '/context'})",
-    src: "({update}) => update({observed: 2})",
+    src: "({update, part}) => { const fields = part.value?.fields; if (fields && Object.values(fields).some((value) => value === 2)) update({observed: 2}) }",
     read: ["observed"],
     write: ["observed"],
     states: ["idle"],
