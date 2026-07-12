@@ -41,18 +41,21 @@ export const open = async (filename?: string) => {
 
   const materialize = (message: ForceMessage): Promise<BoundaryIncrementalCommit | null> => {
     const task = absorbQueue.then(async () => {
+      // One Impulse may change several Boundary aspects. For example, Photon
+      // commits canonical State/Process identity and supersedes stale Reactions.
+      // All domain handlers therefore observe it before a result is selected.
       const inputCommit = await input.apply(message)
-      const executionCommit = inputCommit === undefined ? await execution.apply(message) : undefined
-      const reactionCommit = inputCommit === undefined && executionCommit === undefined
-        ? await reaction.apply(message)
-        : undefined
-      const commit = inputCommit !== undefined
-        ? inputCommit
-        : executionCommit !== undefined
-          ? executionCommit
-          : reactionCommit !== undefined
-            ? reactionCommit
-            : await projection.apply(message)
+      const executionCommit = await execution.apply(message)
+      const reactionCommit = await reaction.apply(message)
+      const handled = [inputCommit, executionCommit, reactionCommit]
+        .filter((commit): commit is BoundaryIncrementalCommit | null => commit !== undefined)
+
+      const produced = handled.filter((commit): commit is BoundaryIncrementalCommit => commit !== null)
+      if (produced.length > 1) throw new Error("One Boundary Impulse produced competing canonical commits")
+
+      const commit = handled.length > 0
+        ? produced[0] ?? null
+        : await projection.apply(message)
       if (!commit) return null
 
       const reactionSignals = await reaction.derive(commit.messages)
