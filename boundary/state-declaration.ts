@@ -37,8 +37,7 @@ const canonicalState = (row: StoredStateDeclaration): CanonicalState | null => {
  *
  * `boundary_declaration_entity` remains the declaration source of truth. The
  * relational row only gives `actor_state` a foreign-keyed canonical identity.
- * Trigger work runs inside the same SQLite statement/transaction that changes
- * the declaration, so an invalid State cannot leave the two projections split.
+ * Triggers execute in the same SQLite transaction as declaration changes.
  */
 export async function initBoundaryStateDeclarations(sql: SQL): Promise<void> {
   const existing = await sql<StoredStateDeclaration[]>`
@@ -61,11 +60,11 @@ export async function initBoundaryStateDeclarations(sql: SQL): Promise<void> {
     `
   }
 
-  await sql.unsafe(`
-    DROP TRIGGER IF EXISTS boundary_state_declaration_insert;
-    DROP TRIGGER IF EXISTS boundary_state_declaration_update;
-    DROP TRIGGER IF EXISTS boundary_state_declaration_delete;
+  await sql.unsafe("DROP TRIGGER IF EXISTS boundary_state_declaration_insert")
+  await sql.unsafe("DROP TRIGGER IF EXISTS boundary_state_declaration_update")
+  await sql.unsafe("DROP TRIGGER IF EXISTS boundary_state_declaration_delete")
 
+  await sql.unsafe(`
     CREATE TRIGGER boundary_state_declaration_insert
     AFTER INSERT ON boundary_declaration_entity
     WHEN NEW.section = 'states'
@@ -84,8 +83,10 @@ export async function initBoundaryStateDeclarations(sql: SQL): Promise<void> {
              name = CAST(json_extract(NEW.canonical_json, '$.name') AS TEXT),
              position = CAST(COALESCE(json_extract(NEW.canonical_json, '$.position'), NEW.local_id) AS INTEGER)
        WHERE id = CAST(json_extract(NEW.canonical_json, '$.id') AS INTEGER);
-    END;
+    END
+  `)
 
+  await sql.unsafe(`
     CREATE TRIGGER boundary_state_declaration_update
     AFTER UPDATE OF canonical_json, src, local_id, section ON boundary_declaration_entity
     WHEN NEW.section = 'states'
@@ -104,14 +105,16 @@ export async function initBoundaryStateDeclarations(sql: SQL): Promise<void> {
              name = CAST(json_extract(NEW.canonical_json, '$.name') AS TEXT),
              position = CAST(COALESCE(json_extract(NEW.canonical_json, '$.position'), NEW.local_id) AS INTEGER)
        WHERE id = CAST(json_extract(NEW.canonical_json, '$.id') AS INTEGER);
-    END;
+    END
+  `)
 
+  await sql.unsafe(`
     CREATE TRIGGER boundary_state_declaration_delete
     AFTER DELETE ON boundary_declaration_entity
     WHEN OLD.section = 'states'
     BEGIN
       DELETE FROM state
        WHERE id = CAST(json_extract(OLD.canonical_json, '$.id') AS INTEGER);
-    END;
+    END
   `)
 }
