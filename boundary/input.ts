@@ -82,6 +82,7 @@ export class BoundaryInputStore {
       part: part.part,
       fields: proposal.fields,
     }))
+    if (payloadJson === undefined) throw new Error(`Input ${inputId} payload is not serializable`)
 
     const committed = await this.sql.begin(async (tx) => {
       const previous = await this.input(tx, inputId)
