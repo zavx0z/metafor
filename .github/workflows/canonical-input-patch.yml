@@ -1,8 +1,6 @@
 name: Apply canonical Input patch
 
 on:
-  push:
-    branches: [agent/canonical-input]
   pull_request:
     branches: [main]
 
@@ -24,36 +22,28 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          def replace_once(path: str, old: str, new: str) -> None:
+          def replace_slice(path: str, start_marker: str, end_marker: str, replacement: str) -> None:
               file = Path(path)
               text = file.read_text()
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f"{path}: expected one match, found {count}")
-              file.write_text(text.replace(old, new))
+              start = text.find(start_marker)
+              if start < 0:
+                  raise SystemExit(f"{path}: missing start marker: {start_marker}")
+              end = text.find(end_marker, start)
+              if end < 0:
+                  raise SystemExit(f"{path}: missing end marker: {end_marker}")
+              end += len(end_marker)
+              file.write_text(text[:start] + replacement + text[end:])
 
-          matrix = "matrix/matrix.ts"
-          replace_once(
-              matrix,
-              'import {isProcessExecutionId} from "@metafor/types/force/execution"\n',
-              '',
-          )
-          replace_once(
-              matrix,
-              '''  const committedExecutionId = parts.length === 1 && isProcessExecutionId(parts[0]?.from)
-            ? parts[0]!.from
-            : null
-          if (committedExecutionId) {
-            const actorId = parseActorIdPath(parts[0]!.path)
-            const pending = actorId === null ? undefined : pendingProcessExecutionsByActorId.get(actorId)
-            if (!pending || pending.processExecutionId !== committedExecutionId) return []
-          }
-
-          const updates = collectActorFieldUpdates(parts, kind)
-          if (updates.length === 0) return []
-          return await update(updates, {
-            retriggerProcessStates: committedExecutionId === null,
-          })''',
+          matrix = Path("matrix/matrix.ts")
+          matrix_text = matrix.read_text()
+          import_line = 'import {isProcessExecutionId} from "@metafor/types/force/execution"\n'
+          if matrix_text.count(import_line) != 1:
+              raise SystemExit("matrix/matrix.ts: Process ID import not found exactly once")
+          matrix.write_text(matrix_text.replace(import_line, ""))
+          replace_slice(
+              "matrix/matrix.ts",
+              "  const committedExecutionId = parts.length === 1 && isProcessExecutionId(parts[0]?.from)",
+              "  })",
               '''  const origin = parts.length === 1 ? parts[0] : undefined
           const actorId = origin ? parseActorIdPath(origin.path) : null
           const pending = actorId === null ? undefined : pendingProcessExecutionsByActorId.get(actorId)
@@ -67,17 +57,10 @@ jobs:
           })''',
           )
 
-          fixture = "fixture/runtime-universe.spec.ts"
-          replace_once(
-              fixture,
-              '''      const inputStart = force.lines.length
-          await postImpulse(forceHttp, {part: "gluon", op: "replace", path: sourceActorId, value: {fields: {[String(inputFieldId)]: 1}}})
-          const input = await waitForForceEvent(force, (event) =>
-            event.source === "force:http" && particle(event).part === "gluon" && particle(event).path === sourceActorId, inputStart)
-          const ready = await waitForForceEvent(force, (event) =>
-            event.source === "force:matrix" && particle(event).part === "photon" &&
-            particle(event).op === "test" && particle(event).path === sourceActorId && particle(event).value === "ready",
-            input.lineIndex + 1)''',
+          replace_slice(
+              "fixture/runtime-universe.spec.ts",
+              "      const inputStart = force.lines.length",
+              "        input.lineIndex + 1)",
               '''      const inputId = `input:${crypto.randomUUID()}`
           const inputStart = force.lines.length
           await postImpulse(forceHttp, {
@@ -101,45 +84,35 @@ jobs:
             particle(event).op === "test" && particle(event).path === sourceActorId && particle(event).value === "ready",
             input.lineIndex + 1)''',
           )
-          replace_once(
-              fixture,
-              '''        const values = await inspection<Array<{actor: number; field: number; valueJson: string}>>`
-              SELECT actor, field, value_json AS valueJson
-                FROM boundary_actor_field
-               WHERE (actor = ${sourceActorId} AND field = ${outputFieldId})
-                  OR (actor = ${targetActorId} AND field = ${targetFieldId})
-               ORDER BY actor
-            `
-            expect(values.map((row) => [Number(row.actor), Number(row.field), JSON.parse(row.valueJson)])).toEqual([
-              [sourceActorId, outputFieldId, 2],
-              [targetActorId, targetFieldId, 2],
-            ])''',
-              '''        const values = await inspection<Array<{actor: number; field: number; valueJson: string}>>`
-              SELECT actor, field, value_json AS valueJson
-                FROM boundary_actor_field
-               WHERE (actor = ${sourceActorId} AND field IN (${inputFieldId}, ${outputFieldId}))
-                  OR (actor = ${targetActorId} AND field = ${targetFieldId})
-            `
-            const materialized = new Map(values.map((row) => [
-              `${Number(row.actor)}:${Number(row.field)}`,
-              JSON.parse(row.valueJson) as unknown,
-            ]))
-            expect(materialized.get(`${sourceActorId}:${inputFieldId}`)).toBe(1)
-            expect(materialized.get(`${sourceActorId}:${outputFieldId}`)).toBe(2)
-            expect(materialized.get(`${targetActorId}:${targetFieldId}`)).toBe(2)''',
-          )
-          replace_once(
-              fixture,
-              '''      const ordered = [
-            bootstrap,
-            input,
-            ready,''',
-              '''      const ordered = [
-            bootstrap,
-            inputProposal,
-            input,
-            ready,''',
-          )
+
+          fixture_path = Path("fixture/runtime-universe.spec.ts")
+          fixture_text = fixture_path.read_text()
+          values_start = fixture_text.find("        const values = await inspection")
+          states_start = fixture_text.find("        const states = await inspection", values_start)
+          if values_start < 0 or states_start < 0:
+              raise SystemExit("fixture/runtime-universe.spec.ts: values/state block not found")
+          values_block = '''        const values = await inspection<Array<{actor: number; field: number; valueJson: string}>>`
+            SELECT actor, field, value_json AS valueJson
+              FROM boundary_actor_field
+             WHERE (actor = ${sourceActorId} AND field IN (${inputFieldId}, ${outputFieldId}))
+                OR (actor = ${targetActorId} AND field = ${targetFieldId})
+          `
+          const materialized = new Map(values.map((row) => [
+            `${Number(row.actor)}:${Number(row.field)}`,
+            JSON.parse(row.valueJson) as unknown,
+          ]))
+          expect(materialized.get(`${sourceActorId}:${inputFieldId}`)).toBe(1)
+          expect(materialized.get(`${sourceActorId}:${outputFieldId}`)).toBe(2)
+          expect(materialized.get(`${targetActorId}:${targetFieldId}`)).toBe(2)
+          '''
+          fixture_path.write_text(fixture_text[:values_start] + values_block + fixture_text[states_start:])
+
+          fixture_text = fixture_path.read_text()
+          ordered_old = "      const ordered = [\n        bootstrap,\n        input,\n        ready,"
+          ordered_new = "      const ordered = [\n        bootstrap,\n        inputProposal,\n        input,\n        ready,"
+          if fixture_text.count(ordered_old) != 1:
+              raise SystemExit("fixture/runtime-universe.spec.ts: ordered block not found exactly once")
+          fixture_path.write_text(fixture_text.replace(ordered_old, ordered_new))
 
           Path(".github/workflows/canonical-input-patch.yml").unlink()
           PY
