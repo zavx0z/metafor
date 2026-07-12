@@ -6,6 +6,7 @@ import {BoundaryActorSqlite} from "@boundary/actor/sqlite"
 import {BoundaryTopologySqlite} from "@boundary/topology/sqlite"
 import type {ForceMessage} from "@metafor/types/force/message"
 import {BoundaryIncrementalStore, type BoundaryIncrementalCommit} from "./incremental.ts"
+import {BoundaryExecutionStore} from "./execution.ts"
 import {matrixRuntime} from "./runtime/matrix.ts"
 
 export const open = async (filename?: string) => {
@@ -26,10 +27,15 @@ export const open = async (filename?: string) => {
   const wimp = await BoundaryWimpSqlite.open(sql)
   const projection = new BoundaryIncrementalStore(sql)
   await projection.init()
+  const execution = new BoundaryExecutionStore(sql)
+  await execution.init()
   let absorbQueue: Promise<unknown> = Promise.resolve()
 
   const materialize = (message: ForceMessage): Promise<BoundaryIncrementalCommit | null> => {
-    const task = absorbQueue.then(() => projection.apply(message))
+    const task = absorbQueue.then(async () => {
+      const executionCommit = await execution.apply(message)
+      return executionCommit === undefined ? await projection.apply(message) : executionCommit
+    })
     absorbQueue = task.then(() => undefined, () => undefined)
     return task
   }
@@ -39,6 +45,7 @@ export const open = async (filename?: string) => {
     actor,
     topology,
     projection,
+    execution,
     replay: () => projection.replay(),
     materialize,
     matrixRuntime: () => matrixRuntime(sql),
