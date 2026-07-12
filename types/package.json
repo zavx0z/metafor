@@ -15,6 +15,7 @@
     "./force/message": "./force/message.ts",
     "./force/replay": "./force/replay.ts",
     "./force/fields": "./force/fields.ts",
+    "./force/input": "./force/input.ts",
     "./force/execution": "./force/execution.ts",
     "./force/reaction": "./force/reaction.ts",
     "./boundary/actor": "./boundary/actor.ts",
