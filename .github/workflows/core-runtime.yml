@@ -73,9 +73,11 @@ jobs:
               force/server.test.ts \
               boundary/runtime/matrix.spec.ts \
               boundary/state.spec.ts \
+              boundary/input.spec.ts \
               boundary/execution.spec.ts \
               boundary/reaction.spec.ts \
               matrix/matrix.spec.ts \
+              matrix/input.spec.ts \
               matrix/weak/device.spec.ts \
               matrix/runtime.parity.spec.ts \
               energy/energy.spec.ts \
