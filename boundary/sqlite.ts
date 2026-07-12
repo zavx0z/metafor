@@ -8,8 +8,32 @@ import type {ForceMessage} from "@metafor/types/force/message"
 import {BoundaryIncrementalStore, type BoundaryIncrementalCommit} from "./incremental.ts"
 import {BoundaryExecutionStore} from "./execution.ts"
 import {BoundaryReactionStore} from "./reaction.ts"
+import {BoundaryInputStore} from "./input.ts"
 import {initBoundaryStateDeclarations} from "./state-declaration.ts"
 import {matrixRuntime} from "./runtime/matrix.ts"
+
+const isUncommittedFieldMutation = (message: ForceMessage): boolean => {
+  const part = message.parts[0]
+  return (part.part === "gluon" || part.part === "higgs") &&
+    (part.op === "add" || part.op === "replace" || part.op === "remove") &&
+    part.from === undefined
+}
+
+const stampBoundaryCommit = (
+  input: ForceMessage,
+  commit: BoundaryIncrementalCommit,
+): BoundaryIncrementalCommit => {
+  if (!isUncommittedFieldMutation(input)) return commit
+  const commitId = `boundary:${crypto.randomUUID()}`
+  return {
+    ...commit,
+    messages: commit.messages.map((message) => {
+      const part = message.parts[0]
+      if ((part.part !== "gluon" && part.part !== "higgs") || part.from !== undefined) return message
+      return {parts: [{...part, from: commitId}]}
+    }),
+  }
+}
 
 export const open = async (filename?: string) => {
   const fileBacked = filename !== undefined && filename !== ":memory:"
@@ -34,19 +58,24 @@ export const open = async (filename?: string) => {
   await execution.init()
   const reaction = new BoundaryReactionStore(sql)
   await reaction.init()
+  const input = new BoundaryInputStore(sql)
   let absorbQueue: Promise<unknown> = Promise.resolve()
 
   const materialize = (message: ForceMessage): Promise<BoundaryIncrementalCommit | null> => {
     const task = absorbQueue.then(async () => {
       const executionCommit = await execution.apply(message)
       const reactionCommit = await reaction.apply(message)
-      const commit = executionCommit !== undefined
+      const inputCommit = await input.apply(message)
+      const rawCommit = executionCommit !== undefined
         ? executionCommit
         : reactionCommit !== undefined
           ? reactionCommit
-          : await projection.apply(message)
-      if (!commit) return null
+          : inputCommit !== undefined
+            ? inputCommit
+            : await projection.apply(message)
+      if (!rawCommit) return null
 
+      const commit = stampBoundaryCommit(message, rawCommit)
       const reactionSignals = await reaction.derive(commit.messages)
       return reactionSignals.length === 0
         ? commit
@@ -63,6 +92,7 @@ export const open = async (filename?: string) => {
     projection,
     execution,
     reaction,
+    input,
     replay: () => projection.replay(),
     materialize,
     matrixRuntime: () => matrixRuntime(sql),
