@@ -1,40 +1,74 @@
 # MetaFor Plan
 
-Рабочий план для текущей разработки. HUD Plan читает этот файл и показывает
-только ближайшие незакрытые задачи.
+Рабочий план текущей реализации. Здесь находятся только ближайшие причинно
+зависимые задачи ядра. Исторические interpreter, Voice и Browser Agent задачи
+сохраняются в Git и будут перенесены в repositories, которые ими владеют.
 
-## 1. Dark / Bulk Browser Shell
+Канонический подробный маршрут:
 
-- [.50] Связать Matrix photons и Bulk visual update в основном browser shell без чтения Boundary из Matrix/Bulk.
+- `zavx0z/concept/core/LAUNCH_PLAN.md`;
+- `zavx0z/concept/core/REPOSITORY_SPLIT_PLAN.md`.
 
-## 2. Source / Entanglement
+## 1. Каноническое основание и наблюдаемость
 
-- [ ] Решить, хватает ли общего `actor_value.value` для source/entanglement.
+- [100] Слить каноническое ядро, математическую модель и миссию MetaFor в `zavx0z/concept/main`.
+- [100] Зафиксировать WebGPU Matrix, CPU fallback, границу interpreter и план разделения monorepo.
+- [100] Создать `archive/pre-core-split-2026-07-11` до удаления peripheral packages.
+- [100] Добавить structured Force/server Impulse logs.
+- [100] Добавить core-only команды `runtime`, `runtime:logs`, `runtime:cpu`, `runtime:gpu`.
 
-## 3. Документация DSL
+## 2. Matrix: фактическая проверка восстановления
 
-- [ ] Привести раздел `Reactions` к реальному API.
-- [ ] Уточнить структуру process action.
+- [.75] Удалить `MatrixProjectionStore` и отдельный TypeScript evaluator; вернуть единственный `gravity → strong → weak` runtime.
+- [.75] Восстановить производный Boundary bootstrap `runtime/matrix` без чтения SQLite из Matrix.
+- [.75] Сделать WebGPU automatic primary backend, CPU — fallback/reference.
+- [ ] Запустить `bun test boundary/runtime/matrix.spec.ts matrix/matrix.spec.ts matrix/weak/device.spec.ts`.
+- [ ] Запустить весь `bun test matrix/weak` и `bun run tsc --noEmit`.
+- [ ] Запустить `bun run runtime:cpu`, проверить полный Photon/Z/W trace в логах.
+- [ ] Запустить `bun run runtime:gpu` на реальном WebGPU adapter и сохранить adapter/trace.
+- [ ] Добавить один общий CPU/GPU parity fixture для State, lock и Photon sequence.
+- [ ] Исправить только фактически обнаруженные failures; не возвращать второй Matrix runtime.
 
-## 4. Interpreter / HUD / Space
-- [100] Сделать MVP Browser Agent Chat для Qwen в interpreter HUD.
-- [ ] Доработать быстрые Space display tools: авто-сетка по количеству display, максимально плотный fit/приближение камеры и удобные пресеты раскладки.
-- [100] Показывать в Browser Agent Chat отдельный blocked status, когда remote chat упёрся в дневной лимит/usage quota.
-- [100] Довести Browser Agent Chat sessions: persist Qwen/DeepSeek state, sync browser tabs, DeepSeek mode/deep toggle and independent voice indicator.
-- [100] Отполировать Browser Agent docs/API: documented provider sessions, persisted state, browser_chat.configure/activate and DeepSeek modes.
-- [ ] Переименовать agent-facing Plan tools/API: добавить plan.* alias/contract поверх TODO.md storage и убрать путаницу с todo.* в инструкциях.
-- [100] Добавить voice activation routing для Browser Agent sessions: фразы Qwen/DeepSeek выбирают нужную session и voice target в общем Message composer без активации Chrome-вкладки; реальная browser tab переключается только ручным кликом по target switcher.
-- [100] Переработать voice activation/deactivation noise policy: поднять надежность wake при тихом микрофоне/слабой сети, меньше ложных срабатываний на шум, короче ожидание на пустом шуме, явные состояния wake/listening/commit.
-- [100] Исправить voice wake target routing: Завхоз/Метафор всегда возвращает voice target в Codex host, Qwen/DeepSeek оставляют Browser Agent session.
-- [100] Ввести VoiceSessionManager: локальная voice session/queue, composer-as-source-of-truth, не-fatal ASR failure, безопасный wake routing.
-- [100] Доскачать Silero VAD assets и подключить browser-side Silero local VAD с fallback на adaptive noise-floor.
-- [100] Стабилизировать voice input: local chunk/session manager, ASR-independent capture/VAD, composer/auto-send policy.
-- [100] Довести voice realtime preview и reactivation: ASR/Whisper live partial во время dictation, без Vosk-текста в composer, без потери ASR chunks.
-- [100] Сделать Silero VAD authoritative для индикатора/сегментации: fresh low probability не перебивается energy fallback.
+## 3. Минимальный universe без Bulk
 
-## 5. Browser Agent Chat: изображения
+- [ ] Добавить нейтральную Meta: `input=0 → ready when input=1 → Process → output=2 → complete`.
+- [ ] Провести её через Dark, Boundary, Matrix и Energy только по Force.
+- [ ] Зафиксировать в logs: Inflaton, Matrix bootstrap, Gluon, Photon, Z, W result.
+- [ ] Добавить end-to-end test без interpreter, browser shell и Bulk.
 
-- [100] MVP передаёт изображения в Qwen как текстовые пути через composer message.
-- [ ] Выбрать следующий transport для настоящего vision-ввода: Qwen API или headed browser upload.
-- [100] Объединить Codex message и Browser Agent message в один общий composer с target кнопками Codex/Qwen/DeepSeek, отдельными drafts/attachments и submit routing по выбранной цели.
-- [100] Разделить Agent/Message HUD: окно Agent показывает историю и provider-specific controls активного Qwen/DeepSeek, окно Message содержит единый ввод и только переключатели Codex/Qwen/DeepSeek слева плюс общие send/image/voice controls справа.
+## 4. Canonical W result и Reaction
+
+- [ ] Определить одну атомарную операцию `W result → Boundary/world commit`.
+- [ ] Валидировать declared write set до commit.
+- [ ] Выпускать derived Gluon/Higgs только после canonical commit.
+- [ ] Разблокировать и повторно вычислять affected Matrix branes.
+- [ ] Провести Reaction через тот же canonical world transaction path.
+- [ ] Запретить Matrix и Energy закреплять W result как отдельную durable truth.
+
+## 5. Bulk и reusable UI
+
+- [ ] Подключить local canonical consequences к Bulk без чтения Boundary store.
+- [ ] Сохранить Bulk WebGPU runtime в корневом MetaFor repository.
+- [ ] Выделить reusable UI components из interpreter shell.
+- [ ] Подключить UI как наблюдатель runtime, не владеющий domain state.
+
+## 6. Разделение monorepo
+
+- [ ] Создать implementation manifest: каждый workspace, imports, scripts, assets, target owner.
+- [ ] Отвязать root install/test/build от interpreter и product shells.
+- [ ] Перенести `pkg/voice` с Git history в `zavx0z/voice-engine`.
+- [ ] Определить владельца interpreter product shell и перенести его после extraction reusable UI.
+- [ ] Определить владельца `pkg/browser-agent` после dependency audit: Capsule, AI либо отдельный repository.
+- [ ] Извлечь Android в отдельный integration/application repository.
+- [ ] Перенести PTY/Tauri вместе с владеющим desktop shell.
+- [ ] Удалять source packages из `metafor/main` только после зелёной target-сборки и migration map.
+- [ ] Оставить в root: MetaFor package, DSL/Matter/template, Force, Dark, Boundary, Matrix, Energy, Bulk, WebGPU и reusable UI.
+
+## 7. Capsule и первый Experience агента
+
+- [ ] Подключить Capsule сначала как read-only declared adapter.
+- [ ] Представлять frame/video как artifact/reference, не Force payload.
+- [ ] Добавить одну обратимую bounded capability через MetaFor Process.
+- [ ] Зафиксировать prediction до действия, actual result, divergence и consequence cost.
+- [ ] Построить первую counterfactual branch.
+- [ ] Сохранить принятый вывод как patch понимания, а не автоматическое знание агента.
