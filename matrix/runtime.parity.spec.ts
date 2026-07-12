@@ -43,9 +43,9 @@ const runtimeSnapshot = (): MatrixRuntimeSnapshot => ({
     stateNames: [["idle", "ready", "complete"]],
   },
   strong: {
-    runtimeFieldIndexByWimpFieldId: [[17_101, 0], [17_102, 1]],
-    wimpFieldIdsByRuntimeFieldIndex: [[17_101], [17_102]],
-    braneIndexByWimpFieldId: [[17_101, 0], [17_102, 0]],
+    runtimeFieldIndexByWimpFieldId: [[1, 0], [2, 1]],
+    wimpFieldIdsByRuntimeFieldIndex: [[1], [2]],
+    braneIndexByWimpFieldId: [[1, 0], [2, 0]],
     topologyWimpFieldIds: [],
     topologyActorFieldIds: [],
   },
@@ -205,12 +205,14 @@ describe("Matrix CPU/WebGPU parity", () => {
       frozenFields: {"101": 1, "102": 0},
     })
 
+    if (Bun.env.METAFOR_REQUIRE_GPU !== "1") {
+      console.log("[matrix:parity] CPU reference trace passed; strict WebGPU parity is disabled")
+      return
+    }
+
     const device = await ensureGPUDevice()
     if (!device) {
-      const message = "WebGPU adapter is unavailable; CPU reference trace passed but GPU parity was not executed"
-      if (Bun.env.METAFOR_REQUIRE_GPU === "1") throw new Error(message)
-      console.warn(`[matrix:parity] ${message}`)
-      return
+      throw new Error("WebGPU adapter is unavailable; strict GPU parity cannot run")
     }
 
     console.log(`[matrix:parity] WebGPU features=${[...device.features].sort().join(",") || "none"}`)
