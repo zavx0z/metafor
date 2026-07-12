@@ -19,15 +19,15 @@
 
 ## 2. Matrix: фактическая проверка восстановления
 
-- [.75] Удалить `MatrixProjectionStore` и отдельный TypeScript evaluator; вернуть единственный `gravity → strong → weak` runtime.
-- [.75] Восстановить производный Boundary bootstrap `runtime/matrix` без чтения SQLite из Matrix.
-- [.75] Сделать WebGPU automatic primary backend, CPU — fallback/reference.
-- [ ] Запустить `bun test boundary/runtime/matrix.spec.ts matrix/matrix.spec.ts matrix/weak/device.spec.ts`.
-- [ ] Запустить весь `bun test matrix/weak` и `bun run tsc --noEmit`.
+- [100] Удалить `MatrixProjectionStore` и отдельный TypeScript evaluator; вернуть единственный `gravity → strong → weak` runtime.
+- [100] Восстановить производный Boundary bootstrap `runtime/matrix` без чтения SQLite из Matrix.
+- [100] Сделать WebGPU automatic primary backend, CPU — fallback/reference.
+- [100] Запустить `bun test boundary/runtime/matrix.spec.ts matrix/matrix.spec.ts matrix/weak/device.spec.ts`.
+- [100] Проверить все CPU/GPU Weak suites и `bun run tsc --noEmit` в раздельных CI jobs.
 - [ ] Запустить `bun run runtime:cpu`, проверить полный Photon/Z/W trace в логах.
-- [ ] Запустить `bun run runtime:gpu` на реальном WebGPU adapter и сохранить adapter/trace.
-- [ ] Добавить один общий CPU/GPU parity fixture для State, lock и Photon sequence.
-- [ ] Исправить только фактически обнаруженные failures; не возвращать второй Matrix runtime.
+- [ ] Запустить `bun run runtime:gpu` на целевом hardware WebGPU adapter и сохранить adapter/trace.
+- [100] Добавить один общий CPU/GPU parity fixture для State, lock, frozen fields и Photon sequence.
+- [100] Исправить фактически обнаруженные failures: 52-bit field identity overflow, stale lockfile и смешение CPU/GPU test environments; не возвращать второй Matrix runtime.
 
 ## 3. Минимальный universe без Bulk
 
