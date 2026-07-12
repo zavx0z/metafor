@@ -28,6 +28,14 @@ const settle = async (): Promise<void> => {
   await Bun.sleep(0)
 }
 
+const waitFor = async (predicate: () => boolean, timeoutMs = 1_000): Promise<void> => {
+  const deadline = Date.now() + timeoutMs
+  while (!predicate()) {
+    if (Date.now() >= deadline) throw new Error("Timed out waiting for Matrix runtime change")
+    await Bun.sleep(1)
+  }
+}
+
 const send = (client: ForceTestClient, particle: Particle): void =>
   fixture.impulse(client, {parts: [particle]})
 
@@ -113,8 +121,7 @@ describe("Matrix canonical Input boundary", () => {
       from: "input:matrix-2",
       value: {fields: {"101": 2}},
     })
-    await settle()
-    expect(runtime.matrix$.getFieldValue(0, 0)).toBe(2)
+    await waitFor(() => runtime.matrix$.getFieldValue(0, 0) === 2)
     expect(runtime.matrix$.getStateName(0, runtime.matrix$.states[0]!)).toBe("ready")
     expect(runtime.matrix$.branes[0]?.lock).toBe(true)
     expect(fixture.messages.slice(beforeLockedInput).filter((entry) => entry.client === client)).toEqual([])
