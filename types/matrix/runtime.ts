@@ -1,4 +1,5 @@
 import type {MatrixInputData} from "./data.ts"
+import type {ProcessExecutionId} from "../force/execution.ts"
 
 export const STATE_UNDEFINED = -1
 export const STATE_NONE = -2
@@ -89,6 +90,7 @@ export interface MatrixRuntimeSnapshot {
 export type MatrixPendingProcessExecution = {
   braneIndex: number
   stateIndex: number
+  processExecutionId: ProcessExecutionId
   fields: Record<string, unknown>
   acceptedEnergy?: string
 }
