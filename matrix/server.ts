@@ -1,7 +1,7 @@
 import "./matrix.ts"
 
 const server = Bun.serve({
-  port: 4003,
+  port: Number(Bun.env.PORT ?? 4003),
   routes: {
     "/health": {
       GET() {
@@ -12,4 +12,3 @@ const server = Bun.serve({
 })
 
 console.log(`[matrix] listening on ${server.url}`)
-
