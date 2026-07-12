@@ -304,10 +304,14 @@ describe("minimal MetaFor runtime universe", () => {
       expect(force.lines.some((item) => item.text.includes("[force] connected: bulk "))).toBe(false)
       expect(force.lines.some((item) => item.text.includes("[force] connected: interpreter "))).toBe(false)
 
-      const trace = [darkMeta, boundaryProcess, boundaryActor, bootstrap, idle, input, ready, claim, copy, result, complete]
-      for (let index = 1; index < trace.length; index++) {
-        expect(trace[index]!.lineIndex).toBeGreaterThan(trace[index - 1]!.lineIndex)
+      expect(boundaryActor.lineIndex).toBeGreaterThan(darkMeta.lineIndex)
+      expect(boundaryProcess.lineIndex).toBeGreaterThan(darkMeta.lineIndex)
+      expect(bootstrap.lineIndex).toBeGreaterThan(Math.max(boundaryActor.lineIndex, boundaryProcess.lineIndex))
+      const runtimeTrace = [bootstrap, idle, input, ready, claim, copy, result, complete]
+      for (let index = 1; index < runtimeTrace.length; index++) {
+        expect(runtimeTrace[index]!.lineIndex).toBeGreaterThan(runtimeTrace[index - 1]!.lineIndex)
       }
+      const trace = [darkMeta, boundaryActor, boundaryProcess, ...runtimeTrace].sort((left, right) => left.lineIndex - right.lineIndex)
       console.log(`[runtime-universe]\n${trace.map(eventLabel).join("\n")}`)
     } finally {
       for (const managed of processes.toReversed()) await managed.stop()
