@@ -80,11 +80,20 @@ jobs:
             done
           } 2>&1 | tee artifacts/core-targeted.log
 
-      - name: Complete Weak suite
+      - name: CPU Weak suite
         shell: bash
         run: |
           set -euo pipefail
-          bun test matrix/weak 2>&1 | tee artifacts/matrix-weak.log
+          {
+            for test_file in \
+              matrix/weak/gpu/debug.spec.ts \
+              matrix/weak/tests/weak.cpu.test.ts
+            do
+              echo "::group::$test_file"
+              bun test "$test_file"
+              echo "::endgroup::"
+            done
+          } 2>&1 | tee artifacts/matrix-weak-cpu.log
 
       - name: Typecheck
         shell: bash
@@ -133,11 +142,21 @@ jobs:
           set -euo pipefail
           bun install --frozen-lockfile --ignore-scripts 2>&1 | tee artifacts/install.log
 
-      - name: Run strict WebGPU parity
+      - name: Strict WebGPU suites
         shell: bash
         run: |
           set -euo pipefail
-          bun test matrix/runtime.parity.spec.ts 2>&1 | tee artifacts/webgpu-parity.log
+          {
+            for test_file in \
+              matrix/runtime.parity.spec.ts \
+              matrix/weak/tests/weak.gpu.test.ts \
+              matrix/weak/tests/weak.parity.test.ts
+            do
+              echo "::group::$test_file"
+              bun test "$test_file"
+              echo "::endgroup::"
+            done
+          } 2>&1 | tee artifacts/webgpu-parity.log
 
       - name: Upload WebGPU evidence
         if: always()
