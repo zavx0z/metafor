@@ -1,4 +1,5 @@
 import {afterEach, beforeEach, describe, expect, test} from "bun:test"
+import type {ForceMessage} from "@metafor/types/force/message"
 import type {Particle} from "@metafor/types/force/particle"
 import {boundaryEntityId} from "./incremental.ts"
 import {open, type BoundaryDatabase} from "./sqlite.ts"
@@ -6,7 +7,7 @@ import {open, type BoundaryDatabase} from "./sqlite.ts"
 const ROOT = "test/external-input"
 const INPUT = boundaryEntityId(`${ROOT}/fields/1`)
 const LINKS = boundaryEntityId(`${ROOT}/fields/2`)
-const message = (part: Particle) => ({parts: [part]})
+const message = (part: Particle): ForceMessage => ({parts: [part]})
 
 describe("Boundary canonical external Field input", () => {
   let boundary: BoundaryDatabase
