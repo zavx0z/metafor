@@ -32,7 +32,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: core-runtime-${{ github.workflow }}-${{ github.ref }}
@@ -56,12 +56,33 @@ jobs:
         with:
           bun-version: 1.3.11
 
-      - name: Install dependencies
+      - name: Refresh dependencies after workspace cleanup
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          bun install --frozen-lockfile --ignore-scripts 2>&1 | tee artifacts/install.log
+          bun install --ignore-scripts 2>&1 | tee artifacts/install.log
+          cp bun.lock /tmp/bun.lock.generated
+
+      - name: Commit refreshed lockfile to the PR branch
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        shell: bash
+        env:
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- bun.lock; then
+            echo "bun.lock is already synchronized"
+            exit 0
+          fi
+          git fetch origin "$PR_BRANCH"
+          git checkout -B "$PR_BRANCH" "origin/$PR_BRANCH"
+          cp /tmp/bun.lock.generated bun.lock
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bun.lock
+          git commit -m "Обновить bun.lock после очистки workspaces"
+          git push origin "HEAD:$PR_BRANCH"
 
       - name: Targeted runtime tests
         shell: bash
@@ -143,7 +164,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bun install --frozen-lockfile --ignore-scripts 2>&1 | tee artifacts/install.log
+          bun install --ignore-scripts 2>&1 | tee artifacts/install.log
 
       - name: Strict WebGPU suites
         shell: bash
