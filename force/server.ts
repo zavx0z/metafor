@@ -28,17 +28,30 @@ const isForceMessage = (value: unknown): value is ForceMessage =>
   (value as {parts: unknown[]}).parts.length === 1 &&
   isParticle((value as {parts: unknown[]}).parts[0])
 
+const isUncommittedWorldMutation = (message: ForceMessage): boolean => {
+  const part = message.parts[0]
+  return (part.part === "gluon" || part.part === "higgs") &&
+    (part.op === "add" || part.op === "replace" || part.op === "remove") &&
+    part.from === undefined
+}
+
 const deliverImpulse = (
   message: ForceMessage,
   origin?: ServerWebSocket<{domain?: string; id?: string}>,
-): void => {
+): number => {
   const source = origin?.data.domain ? `force:${origin.data.domain}` : "force:http"
   logImpulse(source, "<-", message)
   const payload = JSON.stringify(message)
-  for (const [socket] of clients) {
+  const boundaryOnly = isUncommittedWorldMutation(message) && origin?.data.domain !== "boundary"
+  let delivered = 0
+
+  for (const [socket, client] of clients) {
     if (socket === origin || socket.readyState !== WebSocket.OPEN) continue
+    if (boundaryOnly && client.domain !== "boundary") continue
     socket.send(payload)
+    delivered++
   }
+  return delivered
 }
 
 export const server = Bun.serve<{domain?: string; id?: string}>({
@@ -60,7 +73,10 @@ export const server = Bun.serve<{domain?: string; id?: string}>({
         if (!isForceMessage(payload)) {
           return Response.json({ok: false, error: "body must be a plain ForceMessage with exactly one minimal particle"}, {status: 400})
         }
-        deliverImpulse(payload)
+        const delivered = deliverImpulse(payload)
+        if (isUncommittedWorldMutation(payload) && delivered === 0) {
+          return Response.json({ok: false, error: "Boundary is unavailable for canonical world mutation"}, {status: 503})
+        }
         return Response.json({ok: true, parts: 1})
       },
     },

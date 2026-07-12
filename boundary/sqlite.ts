@@ -5,11 +5,51 @@ import {BoundaryWimpSqlite} from "@boundary/wimp/sqlite"
 import {BoundaryActorSqlite} from "@boundary/actor/sqlite"
 import {BoundaryTopologySqlite} from "@boundary/topology/sqlite"
 import type {ForceMessage} from "@metafor/types/force/message"
+import {isReactionResultProposal} from "@metafor/types/force/reaction"
 import {BoundaryIncrementalStore, type BoundaryIncrementalCommit} from "./incremental.ts"
 import {BoundaryExecutionStore} from "./execution.ts"
 import {BoundaryReactionStore} from "./reaction.ts"
+import {BoundaryInputStore} from "./input.ts"
 import {initBoundaryStateDeclarations} from "./state-declaration.ts"
 import {matrixRuntime} from "./runtime/matrix.ts"
+
+const isFieldConsequence = (message: ForceMessage): boolean => {
+  const part = message.parts[0]
+  return (part.part === "gluon" || part.part === "higgs") &&
+    (part.op === "add" || part.op === "replace" || part.op === "remove")
+}
+
+const isUncommittedFieldMutation = (message: ForceMessage): boolean =>
+  isFieldConsequence(message) && message.parts[0].from === undefined
+
+const reactionExecutionId = (input: ForceMessage): string | null => {
+  const part = input.parts[0]
+  if ((part.part !== "w+" && part.part !== "w-") || part.op !== "replace") return null
+  return isReactionResultProposal(part.value) ? part.value.reactionExecutionId : null
+}
+
+const stampBoundaryCommit = (
+  input: ForceMessage,
+  commit: BoundaryIncrementalCommit,
+): BoundaryIncrementalCommit => {
+  const external = isUncommittedFieldMutation(input)
+  const reactionId = reactionExecutionId(input)
+  if (!external && reactionId === null) return commit
+
+  const origin = external
+    ? `boundary:${crypto.randomUUID()}`
+    : `reaction:${reactionId}`
+  return {
+    ...commit,
+    messages: commit.messages.map((message) => {
+      if (!isFieldConsequence(message)) return message
+      const part = message.parts[0]
+      if (!external && part.from !== reactionId) return message
+      if (external && part.from !== undefined) return message
+      return {parts: [{...part, from: origin}]}
+    }),
+  }
+}
 
 export const open = async (filename?: string) => {
   const fileBacked = filename !== undefined && filename !== ":memory:"
@@ -34,19 +74,24 @@ export const open = async (filename?: string) => {
   await execution.init()
   const reaction = new BoundaryReactionStore(sql)
   await reaction.init()
+  const input = new BoundaryInputStore(sql)
   let absorbQueue: Promise<unknown> = Promise.resolve()
 
   const materialize = (message: ForceMessage): Promise<BoundaryIncrementalCommit | null> => {
     const task = absorbQueue.then(async () => {
       const executionCommit = await execution.apply(message)
       const reactionCommit = await reaction.apply(message)
-      const commit = executionCommit !== undefined
+      const inputCommit = await input.apply(message)
+      const rawCommit = executionCommit !== undefined
         ? executionCommit
         : reactionCommit !== undefined
           ? reactionCommit
-          : await projection.apply(message)
-      if (!commit) return null
+          : inputCommit !== undefined
+            ? inputCommit
+            : await projection.apply(message)
+      if (!rawCommit) return null
 
+      const commit = stampBoundaryCommit(message, rawCommit)
       const reactionSignals = await reaction.derive(commit.messages)
       return reactionSignals.length === 0
         ? commit
@@ -63,6 +108,7 @@ export const open = async (filename?: string) => {
     projection,
     execution,
     reaction,
+    input,
     replay: () => projection.replay(),
     materialize,
     matrixRuntime: () => matrixRuntime(sql),

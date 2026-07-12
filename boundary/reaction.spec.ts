@@ -136,7 +136,7 @@ describe("Boundary Reaction lifecycle", () => {
       part: "gluon",
       op: "replace",
       path: targetActorId,
-      from: signal.reactionExecutionId,
+      from: `reaction:${signal.reactionExecutionId}`,
       value: {fields: {[String(TARGET_RESULT)]: 2}},
     })
     expect(commit?.messages[1]?.parts[0]).toEqual({

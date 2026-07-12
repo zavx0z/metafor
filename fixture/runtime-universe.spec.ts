@@ -31,7 +31,11 @@ type ManagedProcess = {
   name: string
   process: ReturnType<typeof Bun.spawn>
   lines: ProcessLine[]
-  waitForLine(predicate: (line: string) => boolean, fromIndex?: number, timeoutMs?: number): Promise<{lineIndex: number; line: string}>
+  waitForLine(
+    predicate: (line: string) => boolean,
+    fromIndex?: number,
+    timeoutMs?: number,
+  ): Promise<{lineIndex: number; line: string}>
   stop(): Promise<void>
 }
 type ForceEvent = {
@@ -159,8 +163,22 @@ const eventLabel = (event: ForceEvent): string => {
   return `${event.source} ${part.part}/${part.op} ${String(part.path)}${from}${value}`
 }
 
+const waitForWorld = async (
+  database: string,
+  predicate: (sql: SQL) => Promise<boolean>,
+): Promise<SQL> => {
+  const sql = new SQL(`sqlite://${database}`)
+  const deadline = Date.now() + 10_000
+  while (Date.now() < deadline) {
+    if (await predicate(sql)) return sql
+    await Bun.sleep(20)
+  }
+  await sql.close()
+  throw new Error("Timed out waiting for canonical Boundary state")
+}
+
 describe("minimal MetaFor runtime universe", () => {
-  test("runs Process and Reaction through canonical Boundary commits", async () => {
+  test("runs external input, Process and Reaction through canonical Boundary commits", async () => {
     const temporary = mkdtempSync(join(tmpdir(), "metafor-runtime-universe-"))
     const database = join(temporary, "boundary.sqlite")
     const processes: ManagedProcess[] = []
@@ -229,13 +247,23 @@ describe("minimal MetaFor runtime universe", () => {
       const reactionId = boundaryEntityId(`${TARGET}/reactions/1`)
 
       const inputStart = force.lines.length
-      await postImpulse(forceHttp, {part: "gluon", op: "replace", path: sourceActorId, value: {fields: {[String(inputFieldId)]: 1}}})
-      const input = await waitForForceEvent(force, (event) =>
-        event.source === "force:http" && particle(event).part === "gluon" && particle(event).path === sourceActorId, inputStart)
+      await postImpulse(forceHttp, {
+        part: "gluon",
+        op: "replace",
+        path: sourceActorId,
+        value: {fields: {[String(inputFieldId)]: 1}},
+      })
+      const inputRequest = await waitForForceEvent(force, (event) =>
+        event.source === "force:http" && particle(event).part === "gluon" &&
+        particle(event).path === sourceActorId && particle(event).from === undefined, inputStart)
+      const inputCommit = await waitForForceEvent(force, (event) =>
+        event.source === "force:boundary" && particle(event).part === "gluon" &&
+        particle(event).path === sourceActorId && String(particle(event).from).startsWith("boundary:"),
+        inputRequest.lineIndex + 1)
       const ready = await waitForForceEvent(force, (event) =>
         event.source === "force:matrix" && particle(event).part === "photon" &&
         particle(event).op === "test" && particle(event).path === sourceActorId && particle(event).value === "ready",
-        input.lineIndex + 1)
+        inputCommit.lineIndex + 1)
       const processExecutionId = String(particle(ready).from)
       expect(processExecutionId.length).toBeGreaterThan(0)
 
@@ -280,9 +308,12 @@ describe("minimal MetaFor runtime universe", () => {
         processAck.lineIndex + 1)
 
       const reactionSignalEvent = await waitForForceEvent(force, (event) => {
-        const value = particle(event).value as Partial<ReactionExecutionSignal> | undefined
+        const value = particle(event).value as ReactionExecutionSignal | undefined
+        const sourceValue = value?.kind === "reaction" ? value.source.part.value : undefined
         return event.source === "force:boundary" && particle(event).part === "photon" &&
-          value?.kind === "reaction" && value.reactionId === reactionId && particle(event).path === targetActorId
+          value?.kind === "reaction" && value.reactionId === reactionId &&
+          sourceValue !== undefined &&
+          JSON.stringify(sourceValue).includes(`\"${String(outputFieldId)}\":2`)
       }, sourceCommit.lineIndex + 1)
       const reactionSignal = particle(reactionSignalEvent).value as ReactionExecutionSignal
       expect(reactionSignal.target).toEqual({actorId: targetActorId, wimp: TARGET, state: "idle"})
@@ -311,7 +342,8 @@ describe("minimal MetaFor runtime universe", () => {
       })
       const targetCommit = await waitForForceEvent(force, (event) =>
         event.source === "force:boundary" && particle(event).part === "gluon" &&
-        particle(event).path === targetActorId && particle(event).from === reactionSignal.reactionExecutionId,
+        particle(event).path === targetActorId &&
+        particle(event).from === `reaction:${reactionSignal.reactionExecutionId}`,
         reactionProposal.lineIndex + 1)
       const reactionAck = await waitForForceEvent(force, (event) => {
         const value = particle(event).value as Partial<ReactionResultCommit> | undefined
@@ -324,20 +356,31 @@ describe("minimal MetaFor runtime universe", () => {
         energy: "energy-universe",
         status: "committed",
       })
+      const targetReacted = await waitForForceEvent(force, (event) =>
+        event.source === "force:matrix" && particle(event).part === "photon" &&
+        particle(event).op === "replace" && particle(event).path === targetActorId && particle(event).value === "reacted",
+        targetCommit.lineIndex + 1)
 
-      const inspection = new SQL(`sqlite://${database}`)
+      const inspection = await waitForWorld(database, async (sql) => {
+        const row = (await sql<Array<{name: string}>>`
+          SELECT state.name AS name
+            FROM actor_state JOIN state ON state.id = actor_state.metaState
+           WHERE actor_state.actor = ${targetActorId}
+        `)[0]
+        return row?.name === "reacted"
+      })
       try {
         const values = await inspection<Array<{actor: number; field: number; valueJson: string}>>`
           SELECT actor, field, value_json AS valueJson
             FROM boundary_actor_field
-           WHERE (actor = ${sourceActorId} AND field = ${outputFieldId})
+           WHERE (actor = ${sourceActorId} AND field IN (${inputFieldId}, ${outputFieldId}))
               OR (actor = ${targetActorId} AND field = ${targetFieldId})
-           ORDER BY actor
         `
-        expect(values.map((row) => [Number(row.actor), Number(row.field), JSON.parse(row.valueJson)])).toEqual([
-          [sourceActorId, outputFieldId, 2],
-          [targetActorId, targetFieldId, 2],
-        ])
+        const materialized = values.map((row) => [Number(row.actor), Number(row.field), JSON.parse(row.valueJson)])
+        expect(materialized).toContainEqual([sourceActorId, inputFieldId, 1])
+        expect(materialized).toContainEqual([sourceActorId, outputFieldId, 2])
+        expect(materialized).toContainEqual([targetActorId, targetFieldId, 2])
+
         const states = await inspection<Array<{actor: number; name: string}>>`
           SELECT actor_state.actor AS actor, state.name AS name
             FROM actor_state JOIN state ON state.id = actor_state.metaState
@@ -346,7 +389,7 @@ describe("minimal MetaFor runtime universe", () => {
         `
         expect(states.map((row) => [Number(row.actor), row.name])).toEqual([
           [sourceActorId, "complete"],
-          [targetActorId, "idle"],
+          [targetActorId, "reacted"],
         ])
       } finally {
         await inspection.close()
@@ -357,7 +400,8 @@ describe("minimal MetaFor runtime universe", () => {
 
       const ordered = [
         bootstrap,
-        input,
+        inputRequest,
+        inputCommit,
         ready,
         processClaim,
         processGrant,
@@ -377,6 +421,7 @@ describe("minimal MetaFor runtime universe", () => {
       expect(sourceIdle.lineIndex).toBeGreaterThan(bootstrap.lineIndex)
       expect(targetIdle.lineIndex).toBeGreaterThan(bootstrap.lineIndex)
       expect(complete.lineIndex).toBeGreaterThan(processAck.lineIndex)
+      expect(targetReacted.lineIndex).toBeGreaterThan(targetCommit.lineIndex)
       const trace = [
         darkMeta,
         boundaryProcess,
@@ -387,6 +432,7 @@ describe("minimal MetaFor runtime universe", () => {
         targetIdle,
         ...ordered,
         complete,
+        targetReacted,
       ].sort((left, right) => left.lineIndex - right.lineIndex)
       console.log(`[runtime-universe]\n${trace.map(eventLabel).join("\n")}`)
     } finally {

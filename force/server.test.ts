@@ -19,6 +19,26 @@ const nextMessage = (socket: WebSocket): Promise<unknown> => new Promise((resolv
   socket.addEventListener("message", onMessage, {once: true})
 })
 
+const nextMatchingMessage = (
+  socket: WebSocket,
+  predicate: (message: ForceMessage) => boolean,
+): Promise<ForceMessage> => new Promise((resolve, reject) => {
+  const timeout = setTimeout(() => {
+    socket.removeEventListener("message", onMessage)
+    reject(new Error("Timed out waiting for matching Force message"))
+  }, 1000)
+  const onMessage = (event: MessageEvent) => {
+    const value = JSON.parse(String(event.data)) as unknown
+    if (typeof value !== "object" || value === null || !Array.isArray((value as {parts?: unknown}).parts)) return
+    const message = value as ForceMessage
+    if (!predicate(message)) return
+    clearTimeout(timeout)
+    socket.removeEventListener("message", onMessage)
+    resolve(message)
+  }
+  socket.addEventListener("message", onMessage)
+})
+
 const connect = (domain: string, id: string): Promise<WebSocket> => new Promise((resolve, reject) => {
   const address = new URL("/ws", server.url)
   address.protocol = "ws:"
@@ -107,6 +127,46 @@ describe("Force transport", () => {
     expect(String(lifecycle.parts[0].path)).toStartWith("force/replay/")
     expect(lifecycle).not.toEqual(wsMessage)
     expect(lifecycle).not.toEqual(httpMessage)
+  })
+
+  test("routes uncommitted Field mutations only to Boundary", async () => {
+    const [boundary, matrix] = await Promise.all([
+      connect("boundary", "boundary-routing"),
+      connect("matrix", "matrix-routing"),
+    ])
+    await Bun.sleep(25)
+
+    const input: ForceMessage = {
+      parts: [{part: "gluon", op: "replace", path: 17, value: {fields: {101: 1}}}],
+    }
+    const boundaryDelivery = nextMatchingMessage(boundary, (message) =>
+      message.parts[0]?.part === "gluon" && message.parts[0].path === 17,
+    )
+    let uncommittedReachedMatrix = false
+    const matrixListener = (event: MessageEvent) => {
+      const message = JSON.parse(String(event.data)) as ForceMessage
+      const part = message.parts[0]
+      if (part?.part === "gluon" && part.path === 17 && part.from === undefined) uncommittedReachedMatrix = true
+    }
+    matrix.addEventListener("message", matrixListener)
+
+    const response = await fetch(new URL("/force", server.url), {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify(input),
+    })
+    expect(response.status).toBe(200)
+    expect(await boundaryDelivery).toEqual(input)
+    await Bun.sleep(25)
+    expect(uncommittedReachedMatrix).toBe(false)
+
+    const committed: ForceMessage = {
+      parts: [{part: "gluon", op: "replace", path: 17, from: "boundary:test", value: {fields: {101: 1}}}],
+    }
+    const matrixDelivery = nextMatchingMessage(matrix, (message) => message.parts[0]?.from === "boundary:test")
+    boundary.send(JSON.stringify(committed))
+    expect(await matrixDelivery).toEqual(committed)
+    matrix.removeEventListener("message", matrixListener)
   })
 
   test("rejects an HTTP payload without parts", async () => {
