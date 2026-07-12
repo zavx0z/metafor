@@ -1,71 +1,112 @@
 import type {SQL} from "bun"
 
+type StoredStateDeclaration = {
+  src: string
+  localId: string
+  canonicalJson: string
+}
+
+type CanonicalState = {
+  id: number
+  name: string
+  position: number
+}
+
+const canonicalState = (row: StoredStateDeclaration): CanonicalState | null => {
+  const value = JSON.parse(row.canonicalJson) as unknown
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null
+  const state = value as Record<string, unknown>
+  if (
+    typeof state.id !== "number" ||
+    !Number.isSafeInteger(state.id) ||
+    state.id <= 0 ||
+    typeof state.name !== "string" ||
+    state.name.trim().length === 0
+  ) return null
+
+  const localPosition = Number(row.localId)
+  const position = typeof state.position === "number" && Number.isSafeInteger(state.position)
+    ? state.position
+    : localPosition
+  if (!Number.isSafeInteger(position) || position < 0) return null
+  return {id: state.id, name: state.name, position}
+}
+
 /**
- * Keeps the relational `state` table aligned with incremental State declarations.
+ * Keeps the relational `state` projection aligned with incremental declarations.
  *
  * `boundary_declaration_entity` remains the declaration source of truth. The
- * relational row exists so runtime `actor_state` can retain a foreign-keyed
- * canonical State. Triggers run in the same SQLite transaction as declaration
- * insert/update/remove; they do not create another declaration store.
+ * relational row only gives `actor_state` a foreign-keyed canonical identity.
+ * Trigger work runs inside the same SQLite statement/transaction that changes
+ * the declaration, so an invalid State cannot leave the two projections split.
  */
 export async function initBoundaryStateDeclarations(sql: SQL): Promise<void> {
-  await sql.unsafe(`
-    INSERT INTO state (id, wimp, local_id, name, position)
-    SELECT
-      CAST(json_extract(canonical_json, '$.id') AS INTEGER),
-      src,
-      CAST(local_id AS INTEGER),
-      CAST(json_extract(canonical_json, '$.name') AS TEXT),
-      CAST(COALESCE(json_extract(canonical_json, '$.position'), local_id) AS INTEGER)
-    FROM boundary_declaration_entity
-    WHERE section = 'states'
-      AND json_type(canonical_json, '$.id') = 'integer'
-      AND json_type(canonical_json, '$.name') = 'text'
-    ON CONFLICT(id) DO UPDATE SET
-      wimp = excluded.wimp,
-      local_id = excluded.local_id,
-      name = excluded.name,
-      position = excluded.position;
+  const existing = await sql<StoredStateDeclaration[]>`
+    SELECT src, local_id AS localId, canonical_json AS canonicalJson
+      FROM boundary_declaration_entity
+     WHERE section = ${"states"}
+     ORDER BY rowid
+  `
+  for (const row of existing) {
+    const state = canonicalState(row)
+    if (!state) continue
+    await sql`
+      INSERT INTO state (id, wimp, local_id, name, position)
+      VALUES (${state.id}, ${row.src}, ${Number(row.localId)}, ${state.name}, ${state.position})
+      ON CONFLICT (id) DO UPDATE SET
+        wimp = excluded.wimp,
+        local_id = excluded.local_id,
+        name = excluded.name,
+        position = excluded.position
+    `
+  }
 
-    CREATE TRIGGER IF NOT EXISTS boundary_state_declaration_insert
+  await sql.unsafe(`
+    DROP TRIGGER IF EXISTS boundary_state_declaration_insert;
+    DROP TRIGGER IF EXISTS boundary_state_declaration_update;
+    DROP TRIGGER IF EXISTS boundary_state_declaration_delete;
+
+    CREATE TRIGGER boundary_state_declaration_insert
     AFTER INSERT ON boundary_declaration_entity
     WHEN NEW.section = 'states'
     BEGIN
-      INSERT INTO state (id, wimp, local_id, name, position)
+      INSERT OR IGNORE INTO state (id, wimp, local_id, name, position)
       VALUES (
         CAST(json_extract(NEW.canonical_json, '$.id') AS INTEGER),
         NEW.src,
         CAST(NEW.local_id AS INTEGER),
         CAST(json_extract(NEW.canonical_json, '$.name') AS TEXT),
         CAST(COALESCE(json_extract(NEW.canonical_json, '$.position'), NEW.local_id) AS INTEGER)
-      )
-      ON CONFLICT(id) DO UPDATE SET
-        wimp = excluded.wimp,
-        local_id = excluded.local_id,
-        name = excluded.name,
-        position = excluded.position;
+      );
+      UPDATE state
+         SET wimp = NEW.src,
+             local_id = CAST(NEW.local_id AS INTEGER),
+             name = CAST(json_extract(NEW.canonical_json, '$.name') AS TEXT),
+             position = CAST(COALESCE(json_extract(NEW.canonical_json, '$.position'), NEW.local_id) AS INTEGER)
+       WHERE id = CAST(json_extract(NEW.canonical_json, '$.id') AS INTEGER);
     END;
 
-    CREATE TRIGGER IF NOT EXISTS boundary_state_declaration_update
+    CREATE TRIGGER boundary_state_declaration_update
     AFTER UPDATE OF canonical_json, src, local_id, section ON boundary_declaration_entity
     WHEN NEW.section = 'states'
     BEGIN
-      INSERT INTO state (id, wimp, local_id, name, position)
+      INSERT OR IGNORE INTO state (id, wimp, local_id, name, position)
       VALUES (
         CAST(json_extract(NEW.canonical_json, '$.id') AS INTEGER),
         NEW.src,
         CAST(NEW.local_id AS INTEGER),
         CAST(json_extract(NEW.canonical_json, '$.name') AS TEXT),
         CAST(COALESCE(json_extract(NEW.canonical_json, '$.position'), NEW.local_id) AS INTEGER)
-      )
-      ON CONFLICT(id) DO UPDATE SET
-        wimp = excluded.wimp,
-        local_id = excluded.local_id,
-        name = excluded.name,
-        position = excluded.position;
+      );
+      UPDATE state
+         SET wimp = NEW.src,
+             local_id = CAST(NEW.local_id AS INTEGER),
+             name = CAST(json_extract(NEW.canonical_json, '$.name') AS TEXT),
+             position = CAST(COALESCE(json_extract(NEW.canonical_json, '$.position'), NEW.local_id) AS INTEGER)
+       WHERE id = CAST(json_extract(NEW.canonical_json, '$.id') AS INTEGER);
     END;
 
-    CREATE TRIGGER IF NOT EXISTS boundary_state_declaration_delete
+    CREATE TRIGGER boundary_state_declaration_delete
     AFTER DELETE ON boundary_declaration_entity
     WHEN OLD.section = 'states'
     BEGIN
