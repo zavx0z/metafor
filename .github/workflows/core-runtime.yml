@@ -72,6 +72,7 @@ jobs:
               force/core/log.test.ts \
               force/server.test.ts \
               boundary/runtime/matrix.spec.ts \
+              boundary/input.spec.ts \
               boundary/state.spec.ts \
               boundary/execution.spec.ts \
               boundary/reaction.spec.ts \
