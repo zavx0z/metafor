@@ -102,7 +102,8 @@ const inferArrayElementType = (field: JsonRecord): "number" | "string" | "boolea
   const declared = field.elementType
   if (declared === "number" || declared === "string" || declared === "boolean") return declared
   const sample = Array.isArray(field.default) ? field.default[0] : undefined
-  if (typeof sample === "number" || typeof sample === "boolean") return typeof sample
+  if (typeof sample === "number") return "number"
+  if (typeof sample === "boolean") return "boolean"
   return "string"
 }
 
