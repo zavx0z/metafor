@@ -1,5 +1,6 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import {join} from "node:path"
+import type {ProcessResultCommit, ProcessResultProposal} from "@metafor/types/force/execution"
 import type {Particle} from "@metafor/types/force/particle"
 import {
   MATRIX_RUNTIME_PATH,
@@ -67,9 +68,9 @@ const runtimeSnapshot = (): MatrixRuntimeSnapshot => ({
     stateNames: [["idle", "ready", "done"]],
   },
   strong: {
-    runtimeFieldIndexByWimpFieldId: [[17_101, 0]],
-    wimpFieldIdsByRuntimeFieldIndex: [[17_101]],
-    braneIndexByWimpFieldId: [[17_101, 0]],
+    runtimeFieldIndexByWimpFieldId: [[1, 0]],
+    wimpFieldIdsByRuntimeFieldIndex: [[1]],
+    braneIndexByWimpFieldId: [[1, 0]],
     topologyWimpFieldIds: [],
     topologyActorFieldIds: [],
   },
@@ -80,7 +81,7 @@ const runtimeSnapshot = (): MatrixRuntimeSnapshot => ({
 })
 
 describe("Matrix packed Force runtime", () => {
-  test("loads Boundary bootstrap and executes the Weak process handshake", async () => {
+  test("waits for Boundary commit before applying Energy W result", async () => {
     const waiting = fixture.nextClient("matrix")
     const runtime = await import(`./matrix.ts?packed-force-test=${crypto.randomUUID()}`)
     const client = await waiting
@@ -101,21 +102,77 @@ describe("Matrix packed Force runtime", () => {
 
     const fromField = fixture.messages.length
     send(client, {part: "gluon", op: "replace", path: 17, value: {fields: {"101": 11}}})
-    expect(await waitForPart(client, (part) => part.part === "photon" && part.op === "test", fromField)).toEqual({
-      part: "photon", op: "test", path: 17, value: "ready",
-    })
+    const ready = await waitForPart(client, (part) => part.part === "photon" && part.op === "test", fromField)
+    expect(ready).toMatchObject({part: "photon", op: "test", path: 17, value: "ready"})
+    expect(typeof ready.from).toBe("string")
+    const processExecutionId = String(ready.from)
+    expect(runtime.matrix$.branes[0]?.lock).toBe(true)
 
     const fromClaim = fixture.messages.length
-    send(client, {part: "z", op: "test", path: 17, value: {energy: "energy-local"}})
+    send(client, {
+      part: "z",
+      op: "test",
+      path: 17,
+      value: {energy: "energy-local", processExecutionId},
+    })
     expect(await waitForPart(client, (part) => part.part === "z" && part.op === "copy", fromClaim)).toEqual({
-      part: "z", op: "copy", path: 17, from: "energy-local", value: {fields: {"101": 11}},
+      part: "z",
+      op: "copy",
+      path: 17,
+      from: "energy-local",
+      value: {processExecutionId, fields: {"101": 11}},
     })
 
-    const fromResult = fixture.messages.length
-    send(client, {part: "w+", op: "replace", path: 17, value: {fields: {"101": 12}}})
-    expect(await waitForPart(client, (part) => part.part === "photon" && part.value === "done", fromResult)).toEqual({
+    const proposal: ProcessResultProposal = {
+      processExecutionId,
+      processId: 501,
+      fields: {"101": 12},
+    }
+    const beforeProposal = fixture.messages.length
+    send(client, {
+      part: "w+",
+      op: "replace",
+      path: 17,
+      from: "energy-local",
+      value: proposal,
+    })
+    await settle()
+    expect(fixture.messages.slice(beforeProposal).filter((entry) => entry.client === client)).toEqual([])
+    expect(runtime.matrix$.getStateName(0, runtime.matrix$.states[0]!)).toBe("ready")
+    expect(runtime.matrix$.getFieldValue(0, 0)).toBe(11)
+    expect(runtime.matrix$.branes[0]?.lock).toBe(true)
+
+    const beforeConsequence = fixture.messages.length
+    send(client, {
+      part: "gluon",
+      op: "replace",
+      path: 17,
+      from: processExecutionId,
+      value: {fields: {"101": 12}},
+    })
+    await settle()
+    expect(fixture.messages.slice(beforeConsequence).filter((entry) => entry.client === client)).toEqual([])
+    expect(runtime.matrix$.getFieldValue(0, 0)).toBe(12)
+    expect(runtime.matrix$.getStateName(0, runtime.matrix$.states[0]!)).toBe("ready")
+    expect(runtime.matrix$.branes[0]?.lock).toBe(true)
+
+    const commit: ProcessResultCommit = {
+      processExecutionId,
+      processId: 501,
+      energy: "energy-local",
+    }
+    const fromCommit = fixture.messages.length
+    send(client, {
+      part: "w+",
+      op: "copy",
+      path: 17,
+      from: processExecutionId,
+      value: commit,
+    })
+    expect(await waitForPart(client, (part) => part.part === "photon" && part.value === "done", fromCommit)).toEqual({
       part: "photon", op: "replace", path: 17, value: "done",
     })
+    expect(runtime.matrix$.branes[0]?.lock).toBe(false)
   })
 
   test("contains no projection evaluator beside packed Weak", async () => {
