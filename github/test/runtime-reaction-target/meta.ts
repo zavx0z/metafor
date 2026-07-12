@@ -7,7 +7,8 @@ const meta = {
     {key: "observed", type: "number", required: true, default: 0},
   ],
   superposition: [
-    {name: "idle"},
+    {name: "idle", transitions: {reacted: {observed: {eq: 2}}}},
+    {name: "reacted"},
   ],
   reactions: [{
     key: "observe-source",
