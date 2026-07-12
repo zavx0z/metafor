@@ -228,14 +228,28 @@ describe("minimal MetaFor runtime universe", () => {
       const targetFieldId = boundaryEntityId(`${TARGET}/fields/1`)
       const reactionId = boundaryEntityId(`${TARGET}/reactions/1`)
 
-      const inputStart = force.lines.length
-      await postImpulse(forceHttp, {part: "gluon", op: "replace", path: sourceActorId, value: {fields: {[String(inputFieldId)]: 1}}})
-      const input = await waitForForceEvent(force, (event) =>
-        event.source === "force:http" && particle(event).part === "gluon" && particle(event).path === sourceActorId, inputStart)
-      const ready = await waitForForceEvent(force, (event) =>
-        event.source === "force:matrix" && particle(event).part === "photon" &&
-        particle(event).op === "test" && particle(event).path === sourceActorId && particle(event).value === "ready",
-        input.lineIndex + 1)
+      const inputId = `input:${crypto.randomUUID()}`
+const inputStart = force.lines.length
+await postImpulse(forceHttp, {
+  part: "gluon",
+  op: "test",
+  path: sourceActorId,
+  from: inputId,
+  value: {fields: {[String(inputFieldId)]: 1}},
+})
+const inputProposal = await waitForForceEvent(force, (event) =>
+  event.source === "force:http" && particle(event).part === "gluon" &&
+  particle(event).op === "test" && particle(event).path === sourceActorId && particle(event).from === inputId,
+  inputStart)
+const input = await waitForForceEvent(force, (event) =>
+  event.source === "force:boundary" && particle(event).part === "gluon" &&
+  particle(event).op === "replace" && particle(event).path === sourceActorId && particle(event).from === inputId,
+  inputProposal.lineIndex + 1)
+expect(particle(input).value).toEqual({fields: {[String(inputFieldId)]: 1}})
+const ready = await waitForForceEvent(force, (event) =>
+  event.source === "force:matrix" && particle(event).part === "photon" &&
+  particle(event).op === "test" && particle(event).path === sourceActorId && particle(event).value === "ready",
+  input.lineIndex + 1)
       const processExecutionId = String(particle(ready).from)
       expect(processExecutionId.length).toBeGreaterThan(0)
 
@@ -328,16 +342,18 @@ describe("minimal MetaFor runtime universe", () => {
       const inspection = new SQL(`sqlite://${database}`)
       try {
         const values = await inspection<Array<{actor: number; field: number; valueJson: string}>>`
-          SELECT actor, field, value_json AS valueJson
-            FROM boundary_actor_field
-           WHERE (actor = ${sourceActorId} AND field = ${outputFieldId})
-              OR (actor = ${targetActorId} AND field = ${targetFieldId})
-           ORDER BY actor
-        `
-        expect(values.map((row) => [Number(row.actor), Number(row.field), JSON.parse(row.valueJson)])).toEqual([
-          [sourceActorId, outputFieldId, 2],
-          [targetActorId, targetFieldId, 2],
-        ])
+  SELECT actor, field, value_json AS valueJson
+    FROM boundary_actor_field
+   WHERE (actor = ${sourceActorId} AND field IN (${inputFieldId}, ${outputFieldId}))
+      OR (actor = ${targetActorId} AND field = ${targetFieldId})
+`
+const materialized = new Map(values.map((row) => [
+  `${Number(row.actor)}:${Number(row.field)}`,
+  JSON.parse(row.valueJson) as unknown,
+]))
+expect(materialized.get(`${sourceActorId}:${inputFieldId}`)).toBe(1)
+expect(materialized.get(`${sourceActorId}:${outputFieldId}`)).toBe(2)
+expect(materialized.get(`${targetActorId}:${targetFieldId}`)).toBe(2)
         const states = await inspection<Array<{actor: number; name: string}>>`
           SELECT actor_state.actor AS actor, state.name AS name
             FROM actor_state JOIN state ON state.id = actor_state.metaState
@@ -357,6 +373,7 @@ describe("minimal MetaFor runtime universe", () => {
 
       const ordered = [
         bootstrap,
+        inputProposal,
         input,
         ready,
         processClaim,

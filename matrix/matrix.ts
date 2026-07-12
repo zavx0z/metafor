@@ -22,7 +22,6 @@ import type {
   ProcessExecutionGrant,
   ProcessResultCommit,
 } from "@metafor/types/force/execution"
-import {isProcessExecutionId} from "@metafor/types/force/execution"
 import {FieldType, flattenMatrixData, validateData} from "@matrix/gravity"
 import {createStoredStringInterner, normalizeFieldValue, assembleStoredMatrixData, strong$} from "@matrix/strong"
 import {StepMode, weakHeapUpdate, weakInit, weakRunStep, weak$} from "@matrix/weak"
@@ -199,20 +198,17 @@ const applyRuntimeFieldParts = async (
   if (!weak$.initialized) return []
   if (kind === "higgs") markHiggsClassScopeDirty(parts)
 
-  const committedExecutionId = parts.length === 1 && isProcessExecutionId(parts[0]?.from)
-    ? parts[0]!.from
-    : null
-  if (committedExecutionId) {
-    const actorId = parseActorIdPath(parts[0]!.path)
-    const pending = actorId === null ? undefined : pendingProcessExecutionsByActorId.get(actorId)
-    if (!pending || pending.processExecutionId !== committedExecutionId) return []
-  }
+  const origin = parts.length === 1 ? parts[0] : undefined
+const actorId = origin ? parseActorIdPath(origin.path) : null
+const pending = actorId === null ? undefined : pendingProcessExecutionsByActorId.get(actorId)
 
-  const updates = collectActorFieldUpdates(parts, kind)
-  if (updates.length === 0) return []
-  return await update(updates, {
-    retriggerProcessStates: committedExecutionId === null,
-  })
+const updates = collectActorFieldUpdates(parts, kind)
+if (updates.length === 0) return []
+return await update(updates, {
+  // Any canonical consequence may update a locked Actor, but an active
+  // Process must not be claimed again before its Boundary acknowledgment.
+  retriggerProcessStates: pending === undefined,
+})
 }
 
 const publishPhotonChanges = (changes: [number, number][]): void => {
