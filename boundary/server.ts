@@ -25,14 +25,16 @@ force.onImpulse = async (message) => {
   const part = message.parts[0]
   if (part.part === "z" && part.op === "test") {
     const request = parseForceReplayPath(part.path)
-    if (request?.domain === "matrix") {
-      await publishMatrixRuntime()
+    if (request) {
+      if (request.domain === "matrix") {
+        await publishMatrixRuntime()
+        return
+      }
+      if (request.domain === "energy" || request.domain === "bulk") {
+        for (const replay of await boundary.replay()) force.impulse(replay)
+      }
       return
     }
-    if (request && (request.domain === "energy" || request.domain === "bulk")) {
-      for (const replay of await boundary.replay()) force.impulse(replay)
-    }
-    return
   }
 
   const commit = await boundary.materialize(message)
