@@ -1,4 +1,0 @@
-<resources>
-  <string name="app_name">MetaFor Android RTC</string>
-  <string name="accessibility_description">Allows MetaFor to control taps, swipes, and system navigation from the interpreter panel.</string>
-</resources>

@@ -1,0 +1,27 @@
+export type ProcessExecutionId = string
+
+export interface ProcessExecutionClaim {
+  energy: string
+  processExecutionId: ProcessExecutionId
+}
+
+export interface ProcessExecutionGrant {
+  processExecutionId: ProcessExecutionId
+  fields: Record<string, unknown>
+}
+
+export interface ProcessResultProposal {
+  processExecutionId: ProcessExecutionId
+  processId: number
+  fields: Record<string, unknown>
+  error?: string
+}
+
+export interface ProcessResultCommit {
+  processExecutionId: ProcessExecutionId
+  processId: number
+  energy: string
+}
+
+export const isProcessExecutionId = (value: unknown): value is ProcessExecutionId =>
+  typeof value === "string" && value.length > 0 && value.length <= 128

@@ -63,7 +63,7 @@ jobs:
           mkdir -p artifacts
           bun install --frozen-lockfile --ignore-scripts 2>&1 | tee artifacts/install.log
 
-      - name: Targeted runtime tests
+      - name: Core causal tests
         shell: bash
         run: |
           set -euo pipefail
@@ -72,16 +72,18 @@ jobs:
               force/core/log.test.ts \
               force/server.test.ts \
               boundary/runtime/matrix.spec.ts \
+              boundary/execution.spec.ts \
               matrix/matrix.spec.ts \
               matrix/weak/device.spec.ts \
               matrix/runtime.parity.spec.ts \
+              energy/energy.spec.ts \
               fixture/runtime-universe.spec.ts
             do
               echo "::group::$test_file"
               bun test "$test_file"
               echo "::endgroup::"
             done
-          } 2>&1 | tee artifacts/core-targeted.log
+          } 2>&1 | tee artifacts/core-causal.log
 
       - name: CPU Weak suite
         shell: bash

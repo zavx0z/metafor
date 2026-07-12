@@ -3,27 +3,29 @@ import {describe, expect, test} from "bun:test"
 import {mkdtemp, rm, writeFile} from "node:fs/promises"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
-import type { EnergyActionProcessDescriptor } from "@metafor/types/energy/process"
 import type {EnergyProcessEntity} from "@metafor/types/energy/catalog"
-import type { EnergyMassStore } from "@metafor/types/energy/mass"
-import type { EnergyForce } from "@metafor/types/energy/protocol"
-import type { ForceMessage } from "@metafor/types/force/message"
-import type { Particle } from "@metafor/types/force/particle"
+import type {EnergyMassStore} from "@metafor/types/energy/mass"
+import type {EnergyActionProcessDescriptor} from "@metafor/types/energy/process"
+import type {EnergyForce} from "@metafor/types/energy/protocol"
+import type {
+  ProcessExecutionClaim,
+  ProcessExecutionGrant,
+  ProcessResultProposal,
+} from "@metafor/types/force/execution"
+import type {ForceMessage} from "@metafor/types/force/message"
+import type {Particle} from "@metafor/types/force/particle"
 import {startEnergyProtocol} from "./energy.ts"
 
 const waitFor = async (predicate: () => boolean): Promise<void> => {
   const deadline = Date.now() + 1000
-
   while (!predicate()) {
-    if (Date.now() > deadline) {
-      throw new Error("Expected asynchronous Energy broadcast effect")
-    }
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    if (Date.now() > deadline) throw new Error("Expected asynchronous Energy broadcast effect")
+    await Bun.sleep(0)
   }
 }
 
 const sleep = async (ms: number): Promise<void> => {
-  await new Promise((resolve) => setTimeout(resolve, ms))
+  await Bun.sleep(ms)
 }
 
 const processEntry = (
@@ -81,6 +83,7 @@ const createHarness = (
   massStore?: EnergyMassStore,
 ) => {
   const messages: ForceMessage[] = []
+  const processByState = new Map<string, EnergyProcessEntity>()
   const force: EnergyForce = {
     onImpulse: () => {},
     impulse(message) {
@@ -100,10 +103,17 @@ const createHarness = (
         part: "graviton",
         op: "add",
         path: `actor/${actorId}`,
-        value: {actor: {id: actorId, parentActor: null, parentTopology: null, wimp, position: 0}, values: [], valueRecords: [], valueItems: [], state: null},
+        value: {
+          actor: {id: actorId, parentActor: null, parentTopology: null, wimp, position: 0},
+          values: [],
+          valueRecords: [],
+          valueItems: [],
+          state: null,
+        },
       }]})
     }
     next.processes.forEach((process, index) => {
+      processByState.set(process.state, process)
       void force.onImpulse({parts: [{
         part: "graviton",
         op: "add",
@@ -115,12 +125,18 @@ const createHarness = (
   seed(catalog)
 
   return {
+    energyId,
     messages,
     seed(next: TestCatalog) {
       seed(structuredClone(next))
     },
     emit(message: ForceMessage) {
       void force.onImpulse(structuredClone(message))
+    },
+    processId(state: string): number {
+      const process = processByState.get(state)
+      if (!process) throw new Error(`Missing process for state ${state}`)
+      return process.id
     },
     close() {
       protocol.close()
@@ -133,47 +149,82 @@ const collectParts = (messages: ForceMessage[], part: string, op?: string): Part
     message.parts.filter((item) => item.part === part && (op === undefined || item.op === op)),
   )
 
+type ExecutionContext = {
+  processExecutionId: string
+  processId: number
+}
+
 const claimAndCopy = async (
   harness: ReturnType<typeof createHarness>,
   state: string,
   fields: Record<string, unknown>,
-): Promise<void> => {
+): Promise<ExecutionContext> => {
+  const processExecutionId = `execution-${state}-${crypto.randomUUID()}`
   const zCount = collectParts(harness.messages, "z", "test").length
-  harness.emit({parts: [{part: "photon", op: "test", path: 17, value: state}]})
+  harness.emit({parts: [{
+    part: "photon",
+    op: "test",
+    path: 17,
+    from: processExecutionId,
+    value: state,
+  }]})
   await waitFor(() => collectParts(harness.messages, "z", "test").length > zCount)
-  harness.emit({
-    parts: [{
-      part: "z",
-      op: "copy",
-      path: 17,
-      from: "energy-local",
-      value: {fields},
-    }],
+
+  const claim = collectParts(harness.messages, "z", "test").at(-1)
+  expect(claim).toEqual({
+    part: "z",
+    op: "test",
+    path: 17,
+    value: {energy: harness.energyId, processExecutionId} satisfies ProcessExecutionClaim,
   })
+
+  const grant: ProcessExecutionGrant = {processExecutionId, fields}
+  harness.emit({parts: [{
+    part: "z",
+    op: "copy",
+    path: 17,
+    from: harness.energyId,
+    value: grant,
+  }]})
+  return {processExecutionId, processId: harness.processId(state)}
 }
 
-const expectNoWeakExecutorIdentity = (result: Particle | undefined): void => {
-  expect(result).toBeDefined()
-  expect("energyId" in result!).toBe(false)
+const expectProposal = (
+  result: Particle | undefined,
+  part: "w+" | "w-",
+  harness: ReturnType<typeof createHarness>,
+  execution: ExecutionContext,
+  fields: Record<string, unknown>,
+  error?: string,
+): void => {
+  const proposal: ProcessResultProposal = {
+    processExecutionId: execution.processExecutionId,
+    processId: execution.processId,
+    fields,
+    ...(error === undefined ? {} : {error}),
+  }
+  expect(result).toEqual({
+    part,
+    op: "replace",
+    path: 17,
+    from: harness.energyId,
+    value: proposal,
+  })
   expect("executorId" in result!).toBe(false)
-  expect("processId" in result!).toBe(false)
   expect("token" in result!).toBe(false)
   expect("wimpId" in result!).toBe(false)
+  expect("energyId" in (result!.value as Record<string, unknown>)).toBe(false)
 }
 
 const dataUrlAction = (source: string): string =>
   `data:application/javascript;base64,${Buffer.from(source).toString("base64")}`
 
-describe("Energy Weak protocol", () => {
-  test("Energy ignores photon/replace", async () => {
-    const harness = createHarness("energy-local")
-
+describe("Energy process protocol", () => {
+  test("ignores photon/replace", async () => {
+    const harness = createHarness()
     try {
-      harness.emit({
-        parts: [{part: "photon", op: "replace", path: 17, value: "ready"}],
-      })
+      harness.emit({parts: [{part: "photon", op: "replace", path: 17, value: "ready"}]})
       await sleep(10)
-
       expect(collectParts(harness.messages, "z", "test")).toEqual([])
       expect(collectParts(harness.messages, "w-", "replace")).toEqual([])
     } finally {
@@ -181,307 +232,231 @@ describe("Energy Weak protocol", () => {
     }
   })
 
-  test("Energy sends z test on photon/test with matching catalog and env", async () => {
-    const harness = createHarness("energy-local")
-
+  test("claims matching process with explicit execution identity", async () => {
+    const harness = createHarness()
     try {
-      harness.emit({
-        parts: [{part: "photon", op: "test", path: 17, value: "ready"}],
-      })
-
+      const processExecutionId = "execution-claim"
+      harness.emit({parts: [{
+        part: "photon",
+        op: "test",
+        path: 17,
+        from: processExecutionId,
+        value: "ready",
+      }]})
       await waitFor(() => collectParts(harness.messages, "z", "test").length > 0)
-
       expect(collectParts(harness.messages, "z", "test")[0]).toEqual({
         part: "z",
         op: "test",
         path: 17,
-        value: {energy: "energy-local"},
+        value: {energy: harness.energyId, processExecutionId},
       })
     } finally {
       harness.close()
     }
   })
 
-  test("Energy receives its process catalog through incremental graviton particles", async () => {
+  test("receives actor and process catalog through Graviton", async () => {
     const harness = createHarness("energy-local", {actors: [], processes: []})
-
     try {
-      harness.emit({
-        parts: [{part: "photon", op: "test", path: 17, value: "ready"}],
-      })
+      harness.emit({parts: [{
+        part: "photon",
+        op: "test",
+        path: 17,
+        from: "execution-before-catalog",
+        value: "ready",
+      }]})
       await sleep(10)
       expect(collectParts(harness.messages, "z", "test")).toEqual([])
 
       harness.seed(createCatalog())
-      harness.emit({
-        parts: [{part: "photon", op: "test", path: 17, value: "ready"}],
-      })
-
+      harness.emit({parts: [{
+        part: "photon",
+        op: "test",
+        path: 17,
+        from: "execution-after-catalog",
+        value: "ready",
+      }]})
       await waitFor(() => collectParts(harness.messages, "z", "test").length > 0)
-      expect(collectParts(harness.messages, "z", "test")[0]?.value).toEqual({energy: "energy-local"})
+      expect(collectParts(harness.messages, "z", "test")[0]?.value).toEqual({
+        energy: harness.energyId,
+        processExecutionId: "execution-after-catalog",
+      })
     } finally {
       harness.close()
     }
   })
 
-  test("Energy does not claim photon/test without descriptor", async () => {
-    const harness = createHarness("energy-local", {...createCatalog(), processes: []})
-
-    try {
-      harness.emit({
-        parts: [{part: "photon", op: "test", path: 17, value: "ready"}],
-      })
-      await sleep(10)
-
-      expect(collectParts(harness.messages, "z", "test")).toEqual([])
-      expect(collectParts(harness.messages, "w-", "replace")).toEqual([])
-    } finally {
-      harness.close()
+  test("does not claim missing or incompatible process", async () => {
+    for (const harness of [
+      createHarness("energy-local", {...createCatalog(), processes: []}),
+      createHarness("energy-local", createCatalog(["browser"]), "server"),
+    ]) {
+      try {
+        harness.emit({parts: [{
+          part: "photon",
+          op: "test",
+          path: 17,
+          from: crypto.randomUUID(),
+          value: "ready",
+        }]})
+        await sleep(10)
+        expect(collectParts(harness.messages, "z", "test")).toEqual([])
+      } finally {
+        harness.close()
+      }
     }
   })
 
-  test("Energy does not claim photon/test when env does not match", async () => {
-    const harness = createHarness("energy-local", createCatalog(["browser"]), "server")
-
+  test("waits for matching Z grant before execution", async () => {
+    const harness = createHarness()
     try {
-      harness.emit({
-        parts: [{part: "photon", op: "test", path: 17, value: "ready"}],
-      })
-      await sleep(10)
-
-      expect(collectParts(harness.messages, "z", "test")).toEqual([])
-      expect(collectParts(harness.messages, "w-", "replace")).toEqual([])
-    } finally {
-      harness.close()
-    }
-  })
-
-  test("Energy waits for z copy before w+", async () => {
-    const harness = createHarness("energy-local")
-
-    try {
-      harness.emit({
-        parts: [{part: "photon", op: "test", path: 17, value: "ready"}],
-      })
-
+      harness.emit({parts: [{
+        part: "photon",
+        op: "test",
+        path: 17,
+        from: "execution-wait",
+        value: "ready",
+      }]})
       await waitFor(() => collectParts(harness.messages, "z", "test").length > 0)
       await sleep(10)
-
-      expect(collectParts(harness.messages, "z", "test")).toHaveLength(1)
       expect(collectParts(harness.messages, "w+", "replace")).toEqual([])
     } finally {
       harness.close()
     }
   })
 
-  test("Energy executes wrapperSrc and sends actor-addressed w+", async () => {
+  test("executes wrapper and returns identified W+ proposal", async () => {
     const catalog: TestCatalog = {
       actors: [[17, "owner/process"]],
       processes: [processEntry("ready", {
         src: "./actions/ready.ts",
-        wrapperSrc: "async ({ value }) => { if (value.command !== 'commit') throw new Error('bad command') }",
+        wrapperSrc: "async ({value}) => { if (value.command !== 'commit') throw new Error('bad command') }",
         readFields: [[2, "command"]],
       })],
     }
     const harness = createHarness("energy-local", catalog)
-
     try {
-      await claimAndCopy(harness, "ready", {"2": "commit"})
+      const execution = await claimAndCopy(harness, "ready", {"2": "commit"})
       await waitFor(() => collectParts(harness.messages, "w+", "replace").length > 0)
-
-      const result = collectParts(harness.messages, "w+", "replace")[0]
-      expect(result).toEqual({
-        part: "w+",
-        op: "replace",
-        path: 17,
-        value: {fields: {}},
-      })
-      expectNoWeakExecutorIdentity(result)
+      expectProposal(collectParts(harness.messages, "w+", "replace")[0], "w+", harness, execution, {})
     } finally {
       harness.close()
     }
   })
 
-  test("Energy success handler writes declared field", async () => {
+  test("success handler emits only declared fields", async () => {
     const catalog: TestCatalog = {
       actors: [[17, "owner/process"]],
       processes: [processEntry("ready", {
         src: "./actions/ready.ts",
-        wrapperSrc: "async () => ({ result: 'done' })",
+        wrapperSrc: "async () => ({result: 'done'})",
         readFields: [[2, "command"]],
       }, ["server"], {
         success: {
-          src: "({ update, data }) => update({ result: data.result })",
+          src: "({update, data}) => update({result: data.result, secret: 'bad'})",
           readFields: [[3, "result"]],
           writeFields: [[3, "result"]],
         },
       })],
     }
     const harness = createHarness("energy-local", catalog)
-
     try {
-      await claimAndCopy(harness, "ready", {"2": "commit", "3": "old"})
+      const execution = await claimAndCopy(harness, "ready", {"2": "commit", "3": "old"})
       await waitFor(() => collectParts(harness.messages, "w+", "replace").length > 0)
-
-      const result = collectParts(harness.messages, "w+", "replace")[0]
-      expect(result).toEqual({
-        part: "w+",
-        op: "replace",
-        path: 17,
-        value: {fields: {"3": "done"}},
-      })
-      expectNoWeakExecutorIdentity(result)
+      expectProposal(
+        collectParts(harness.messages, "w+", "replace")[0],
+        "w+",
+        harness,
+        execution,
+        {"3": "done"},
+      )
     } finally {
       harness.close()
     }
   })
 
-  test("Energy success handler cannot write undeclared fields", async () => {
-    const catalog: TestCatalog = {
-      actors: [[17, "owner/process"]],
-      processes: [processEntry("ready", {
-        src: "./actions/ready.ts",
-        wrapperSrc: "async () => ({ result: 'done' })",
-        readFields: [],
-      }, ["server"], {
-        success: {
-          src: "({ update }) => update({ result: 'done', secret: 'bad' })",
+  test("wrapper and handlers produce identified W- proposals", async () => {
+    const cases: Array<{
+      process: EnergyProcessEntity
+      expectedError: string
+      expectedFields: Record<string, unknown>
+    }> = [
+      {
+        process: processEntry("ready", {
+          src: "./actions/ready.ts",
+          wrapperSrc: "async () => { throw new Error('wrapper failed') }",
           readFields: [],
-          writeFields: [[3, "result"]],
-        },
-      })],
-    }
-    const harness = createHarness("energy-local", catalog)
-
-    try {
-      await claimAndCopy(harness, "ready", {})
-      await waitFor(() => collectParts(harness.messages, "w+", "replace").length > 0)
-
-      const result = collectParts(harness.messages, "w+", "replace")[0]
-      expect(result?.value).toEqual({fields: {"3": "done"}})
-      expectNoWeakExecutorIdentity(result)
-    } finally {
-      harness.close()
-    }
-  })
-
-  test("Energy sends w- when wrapperSrc throws", async () => {
-    const catalog: TestCatalog = {
-      actors: [[17, "owner/process"]],
-      processes: [processEntry("ready", {
-        src: "./actions/ready.ts",
-        wrapperSrc: "async () => { throw new Error('wrapper failed') }",
-        readFields: [[2, "command"]],
-      })],
-    }
-    const harness = createHarness("energy-local", catalog)
-
-    try {
-      await claimAndCopy(harness, "ready", {"2": "commit"})
-      await waitFor(() => collectParts(harness.messages, "w-", "replace").length > 0)
-
-      const result = collectParts(harness.messages, "w-", "replace")[0]
-      expect(result?.path).toBe(17)
-      expect((result?.value as {error?: string; fields?: unknown}).error).toContain("wrapper failed")
-      expect((result?.value as {fields?: unknown}).fields).toEqual({})
-      expectNoWeakExecutorIdentity(result)
-    } finally {
-      harness.close()
-    }
-  })
-
-  test("Energy error handler writes declared field", async () => {
-    const catalog: TestCatalog = {
-      actors: [[17, "owner/process"]],
-      processes: [processEntry("ready", {
-        src: "./actions/ready.ts",
-        wrapperSrc: "async () => { throw new Error('boom') }",
-        readFields: [[2, "command"]],
-      }, ["server"], {
-        error: {
-          src: "({ update, error }) => update({ errorText: error.message })",
+        }),
+        expectedError: "wrapper failed",
+        expectedFields: {},
+      },
+      {
+        process: processEntry("ready", {
+          src: "./actions/ready.ts",
+          wrapperSrc: "async () => { throw new Error('boom') }",
           readFields: [],
-          writeFields: [[4, "errorText"]],
-        },
-      })],
-    }
-    const harness = createHarness("energy-local", catalog)
-
-    try {
-      await claimAndCopy(harness, "ready", {"2": "commit"})
-      await waitFor(() => collectParts(harness.messages, "w-", "replace").length > 0)
-
-      const result = collectParts(harness.messages, "w-", "replace")[0]
-      expect(result?.path).toBe(17)
-      expect((result?.value as {error?: string; fields?: unknown}).error).toBe("boom")
-      expect((result?.value as {fields?: unknown}).fields).toEqual({"4": "boom"})
-      expectNoWeakExecutorIdentity(result)
-    } finally {
-      harness.close()
-    }
-  })
-
-  test("Energy success handler throw converts to w-", async () => {
-    const catalog: TestCatalog = {
-      actors: [[17, "owner/process"]],
-      processes: [processEntry("ready", {
-        src: "./actions/ready.ts",
-        wrapperSrc: "async () => ({ result: 'done' })",
-        readFields: [],
-      }, ["server"], {
-        success: {
-          src: "() => { throw new Error('success failed') }",
+        }, ["server"], {
+          error: {
+            src: "({update, error}) => update({errorText: error.message})",
+            readFields: [],
+            writeFields: [[4, "errorText"]],
+          },
+        }),
+        expectedError: "boom",
+        expectedFields: {"4": "boom"},
+      },
+      {
+        process: processEntry("ready", {
+          src: "./actions/ready.ts",
+          wrapperSrc: "async () => ({result: 'done'})",
           readFields: [],
-          writeFields: [[3, "result"]],
-        },
-      })],
-    }
-    const harness = createHarness("energy-local", catalog)
-
-    try {
-      await claimAndCopy(harness, "ready", {})
-      await waitFor(() => collectParts(harness.messages, "w-", "replace").length > 0)
-
-      const result = collectParts(harness.messages, "w-", "replace")[0]
-      expect((result?.value as {error?: string; fields?: unknown}).error).toContain("success failed")
-      expect((result?.value as {fields?: unknown}).fields).toEqual({})
-      expectNoWeakExecutorIdentity(result)
-    } finally {
-      harness.close()
-    }
-  })
-
-  test("Energy error handler throw still sends w-", async () => {
-    const catalog: TestCatalog = {
-      actors: [[17, "owner/process"]],
-      processes: [processEntry("ready", {
-        src: "./actions/ready.ts",
-        wrapperSrc: "async () => { throw new Error('action failed') }",
-        readFields: [],
-      }, ["server"], {
-        error: {
-          src: "() => { throw new Error('error handler failed') }",
+        }, ["server"], {
+          success: {
+            src: "() => { throw new Error('success failed') }",
+            readFields: [],
+            writeFields: [[3, "result"]],
+          },
+        }),
+        expectedError: "success failed",
+        expectedFields: {},
+      },
+      {
+        process: processEntry("ready", {
+          src: "./actions/ready.ts",
+          wrapperSrc: "async () => { throw new Error('action failed') }",
           readFields: [],
-          writeFields: [[4, "errorText"]],
-        },
-      })],
-    }
-    const harness = createHarness("energy-local", catalog)
+        }, ["server"], {
+          error: {
+            src: "() => { throw new Error('error handler failed') }",
+            readFields: [],
+            writeFields: [[4, "errorText"]],
+          },
+        }),
+        expectedError: "error handler failed",
+        expectedFields: {},
+      },
+    ]
 
-    try {
-      await claimAndCopy(harness, "ready", {})
-      await waitFor(() => collectParts(harness.messages, "w-", "replace").length > 0)
-
-      const result = collectParts(harness.messages, "w-", "replace")[0]
-      expect((result?.value as {error?: string; fields?: unknown}).error).toContain("error handler failed")
-      expect((result?.value as {fields?: unknown}).fields).toEqual({})
-      expectNoWeakExecutorIdentity(result)
-    } finally {
-      harness.close()
+    for (const item of cases) {
+      const harness = createHarness("energy-local", {actors: [[17, "owner/process"]], processes: [item.process]})
+      try {
+        const execution = await claimAndCopy(harness, "ready", {})
+        await waitFor(() => collectParts(harness.messages, "w-", "replace").length > 0)
+        expectProposal(
+          collectParts(harness.messages, "w-", "replace")[0],
+          "w-",
+          harness,
+          execution,
+          item.expectedFields,
+          item.expectedError,
+        )
+      } finally {
+        harness.close()
+      }
     }
   })
 
-  test("Imported action receives the same params object contract", async () => {
+  test("imported action receives the same params contract", async () => {
     const catalog: TestCatalog = {
       actors: [[17, "owner/process"]],
       processes: [processEntry("ready", {
@@ -499,151 +474,142 @@ describe("Energy Weak protocol", () => {
       })],
     }
     const harness = createHarness("energy-local", catalog)
-
     try {
-      await claimAndCopy(harness, "ready", {"2": "commit"})
+      const execution = await claimAndCopy(harness, "ready", {"2": "commit"})
       await waitFor(() => collectParts(harness.messages, "w+", "replace").length > 0)
-
-      expect(collectParts(harness.messages, "w+", "replace")[0]?.value).toEqual({fields: {}})
+      expectProposal(collectParts(harness.messages, "w+", "replace")[0], "w+", harness, execution, {})
     } finally {
       harness.close()
     }
   })
 
-  test("Energy action value is keyed by field key, not field id", async () => {
+  test("action value is keyed by field key, not field id", async () => {
     const catalog: TestCatalog = {
       actors: [[17, "owner/process"]],
       processes: [processEntry("ready", {
         src: "./actions/ready.ts",
-        wrapperSrc: "async ({ value }) => { if ('2' in value) throw new Error('field id leaked'); if (value.command !== 'commit') throw new Error('missing command') }",
+        wrapperSrc: "async ({value}) => { if ('2' in value) throw new Error('field id leaked'); if (value.command !== 'commit') throw new Error('missing command') }",
         readFields: [[2, "command"]],
       })],
     }
     const harness = createHarness("energy-local", catalog)
-
     try {
-      await claimAndCopy(harness, "ready", {"2": "commit"})
+      const execution = await claimAndCopy(harness, "ready", {"2": "commit"})
       await waitFor(() => collectParts(harness.messages, "w+", "replace").length > 0)
-
-      expect(collectParts(harness.messages, "w+", "replace")[0]?.value).toEqual({fields: {}})
+      expectProposal(collectParts(harness.messages, "w+", "replace")[0], "w+", harness, execution, {})
       expect(collectParts(harness.messages, "w-", "replace")).toEqual([])
     } finally {
       harness.close()
     }
   })
 
-  test("Energy env resolver accepts any", async () => {
+  test("env any is executable", async () => {
     const harness = createHarness("energy-local", createCatalog(["any"]), "server")
-
     try {
-      await claimAndCopy(harness, "ready", {"2": "commit"})
+      const execution = await claimAndCopy(harness, "ready", {"2": "commit"})
       await waitFor(() => collectParts(harness.messages, "w+", "replace").length > 0)
-
-      expect(collectParts(harness.messages, "z", "test")).toHaveLength(1)
-      expect(collectParts(harness.messages, "w+", "replace")[0]?.value).toEqual({fields: {}})
+      expectProposal(collectParts(harness.messages, "w+", "replace")[0], "w+", harness, execution, {})
     } finally {
       harness.close()
     }
   })
 
-  test("Energy mass persists between executions for same actor and wimp", async () => {
+  test("mass persists between executions for the same actor and WIMP", async () => {
     const catalog: TestCatalog = {
       actors: [[17, "owner/process"]],
       processes: [
         processEntry("init", {
           src: "./actions/init.ts",
-          wrapperSrc: "async ({ mass }) => { mass.client = { ready: true } }",
+          wrapperSrc: "async ({mass}) => { mass.client = {ready: true} }",
           readFields: [],
         }),
         processEntry("ready", {
           src: "./actions/ready.ts",
-          wrapperSrc: "async ({ mass }) => { if (!mass.client?.ready) throw new Error('missing mass client') }",
+          wrapperSrc: "async ({mass}) => { if (!mass.client?.ready) throw new Error('missing mass client') }",
           readFields: [],
         }),
       ],
     }
     const harness = createHarness("energy-local", catalog)
-
     try {
       await claimAndCopy(harness, "init", {})
       await waitFor(() => collectParts(harness.messages, "w+", "replace").length === 1)
-
       await claimAndCopy(harness, "ready", {})
       await waitFor(() => collectParts(harness.messages, "w+", "replace").length === 2)
-
       expect(collectParts(harness.messages, "w-", "replace")).toEqual([])
     } finally {
       harness.close()
     }
   })
 
-  test("Energy executes finally before against mass and releases the actor with compact w+", async () => {
+  test("finally Process executes against Mass", async () => {
     const mass: Record<string, unknown> = {resource: "open"}
-    const catalog: TestCatalog = {
-      actors: [[17, "owner/process"]],
-      processes: [finallyProcessEntry(
-        "done",
-        "async ({ mass }) => { mass.resource = 'closed'; mass.finalized = true }",
-      )],
-    }
-    const harness = createHarness("energy-local", catalog, "server", {get: () => mass})
-
+    const process = finallyProcessEntry(
+      "done",
+      "async ({mass}) => { mass.resource = 'closed'; mass.finalized = true }",
+    )
+    const harness = createHarness(
+      "energy-local",
+      {actors: [[17, "owner/process"]], processes: [process]},
+      "server",
+      {get: () => mass},
+    )
     try {
-      await claimAndCopy(harness, "done", {})
+      const execution = await claimAndCopy(harness, "done", {})
       await waitFor(() => collectParts(harness.messages, "w+", "replace").length > 0)
-
       expect(mass).toEqual({resource: "closed", finalized: true})
-      expect(collectParts(harness.messages, "w+", "replace")[0]?.value).toEqual({fields: {}})
-      expect(collectParts(harness.messages, "w-", "replace")).toEqual([])
+      expectProposal(collectParts(harness.messages, "w+", "replace")[0], "w+", harness, execution, {})
     } finally {
       harness.close()
     }
   })
 
-  test("Energy keeps a filesystem tool payload in mass and returns only a compact W result", async () => {
+  test("keeps filesystem payload in Mass and returns compact proposal", async () => {
     const root = await mkdtemp(join(tmpdir(), "metafor-energy-tool-"))
     const mass: Record<string, unknown> = {filesystemRoot: root}
-    const catalog: TestCatalog = {
-      actors: [[17, "owner/process"]],
-      processes: [processEntry("ready", {
-        src: new URL("../fixture/tools/filesystem.read.ts", import.meta.url).href,
-        readFields: [[2, "path"]],
-      })],
-    }
-    const harness = createHarness("energy-local", catalog, "server", {
-      get: () => mass,
+    const process = processEntry("ready", {
+      src: new URL("../fixture/tools/filesystem.read.ts", import.meta.url).href,
+      readFields: [[2, "path"]],
     })
-
+    const harness = createHarness(
+      "energy-local",
+      {actors: [[17, "owner/process"]], processes: [process]},
+      "server",
+      {get: () => mass},
+    )
     try {
       await writeFile(join(root, "input.txt"), "MetaFor tool payload")
-      await claimAndCopy(harness, "ready", {"2": "input.txt"})
+      const execution = await claimAndCopy(harness, "ready", {"2": "input.txt"})
       await waitFor(() => collectParts(harness.messages, "w+", "replace").length > 0)
-
       expect(mass.result).toEqual({
         dataBase64: Buffer.from("MetaFor tool payload").toString("base64"),
       })
-      expect(collectParts(harness.messages, "w+", "replace")[0]?.value).toEqual({fields: {}})
+      expectProposal(collectParts(harness.messages, "w+", "replace")[0], "w+", harness, execution, {})
     } finally {
       harness.close()
       await rm(root, {recursive: true, force: true})
     }
   })
 
-  test("Energy ignores z copy for another energy", async () => {
+  test("ignores a grant addressed to another Energy", async () => {
     const harness = createHarness("energy-local")
-
     try {
-      harness.emit({
-        parts: [{
-          part: "z",
-          op: "copy",
-          path: 17,
-          from: "energy-other",
-          value: {fields: {"2": 11}},
-        }],
-      })
+      harness.emit({parts: [{
+        part: "photon",
+        op: "test",
+        path: 17,
+        from: "execution-foreign",
+        value: "ready",
+      }]})
+      await waitFor(() => collectParts(harness.messages, "z", "test").length > 0)
+      harness.emit({parts: [{
+        part: "z",
+        op: "copy",
+        path: 17,
+        from: "energy-other",
+        value: {processExecutionId: "execution-foreign", fields: {"2": 11}},
+      }]})
       await sleep(10)
-
       expect(collectParts(harness.messages, "w+", "replace")).toEqual([])
     } finally {
       harness.close()

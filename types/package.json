@@ -15,6 +15,7 @@
     "./force/message": "./force/message.ts",
     "./force/replay": "./force/replay.ts",
     "./force/fields": "./force/fields.ts",
+    "./force/execution": "./force/execution.ts",
     "./boundary/actor": "./boundary/actor.ts",
     "./boundary/value": "./boundary/value.ts",
     "./boundary/topology": "./boundary/topology.ts",

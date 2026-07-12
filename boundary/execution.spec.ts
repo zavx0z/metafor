@@ -1,0 +1,236 @@
+import {afterEach, beforeEach, describe, expect, test} from "bun:test"
+import type {
+  ProcessExecutionGrant,
+  ProcessResultCommit,
+  ProcessResultProposal,
+} from "@metafor/types/force/execution"
+import type {ForceMessage} from "@metafor/types/force/message"
+import type {Particle} from "@metafor/types/force/particle"
+import {boundaryEntityId} from "./incremental.ts"
+import {open, type BoundaryDatabase} from "./sqlite.ts"
+
+const ROOT = "test/execution"
+const INPUT = boundaryEntityId(`${ROOT}/fields/1`)
+const OUTPUT = boundaryEntityId(`${ROOT}/fields/2`)
+const ERROR = boundaryEntityId(`${ROOT}/fields/3`)
+const PROCESS = boundaryEntityId(`${ROOT}/processes/1`)
+const ENERGY = "energy-test"
+
+const message = (part: Particle): ForceMessage => ({parts: [part]})
+
+describe("Boundary canonical Process result", () => {
+  let boundary: BoundaryDatabase
+  let actorId: number
+
+  beforeEach(async () => {
+    boundary = await open(":memory:")
+
+    const declarations: Particle[] = [
+      {part: "inflaton", op: "add", path: `${ROOT}/meta`, value: {name: "Execution"}},
+      {part: "inflaton", op: "add", path: `${ROOT}/fields/1`, value: {key: "input", type: "number", default: 0}},
+      {part: "inflaton", op: "add", path: `${ROOT}/fields/2`, value: {key: "output", type: "number", default: 0}},
+      {part: "inflaton", op: "add", path: `${ROOT}/fields/3`, value: {key: "error", type: "string", default: ""}},
+      {part: "inflaton", op: "add", path: `${ROOT}/states/1`, value: {name: "idle", position: 0}},
+      {part: "inflaton", op: "add", path: `${ROOT}/states/2`, value: {name: "ready", position: 1}},
+      {
+        part: "inflaton",
+        op: "add",
+        path: `${ROOT}/processes/1`,
+        value: {
+          key: "ready",
+          type: "action",
+          env: ["server"],
+          action: {src: "./ready.ts", read: ["1"]},
+          success: {src: "({update}) => update({output: 2})", read: ["2"], write: ["2"]},
+          error: {src: "({update, error}) => update({error: error.message})", read: ["3"], write: ["3"]},
+        },
+      },
+      {part: "inflaton", op: "test", path: ROOT},
+    ]
+
+    for (const part of declarations) await boundary.materialize(message(part))
+    const actor = (await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM actor WHERE wimp = ${ROOT} ORDER BY id LIMIT 1
+    `)[0]
+    if (!actor) throw new Error("Boundary did not materialize root actor")
+    actorId = Number(actor.id)
+  })
+
+  afterEach(async () => {
+    await boundary.close()
+  })
+
+  const fieldValue = async (fieldId: number): Promise<unknown> => {
+    const row = (await boundary.projection.sql<Array<{valueJson: string}>>`
+      SELECT value_json AS valueJson
+        FROM boundary_actor_field
+       WHERE actor = ${actorId} AND field = ${fieldId}
+    `)[0]
+    return row ? JSON.parse(row.valueJson) as unknown : undefined
+  }
+
+  const beginExecution = async (processExecutionId: string, energy = ENERGY): Promise<void> => {
+    await boundary.materialize(message({
+      part: "photon",
+      op: "test",
+      path: actorId,
+      from: processExecutionId,
+      value: "ready",
+    }))
+    const grant: ProcessExecutionGrant = {
+      processExecutionId,
+      fields: {
+        [String(INPUT)]: await fieldValue(INPUT),
+        [String(OUTPUT)]: await fieldValue(OUTPUT),
+        [String(ERROR)]: await fieldValue(ERROR),
+      },
+    }
+    await boundary.materialize(message({
+      part: "z",
+      op: "copy",
+      path: actorId,
+      from: energy,
+      value: grant,
+    }))
+  }
+
+  test("commits declared writes once and emits consequences only after commit", async () => {
+    const processExecutionId = "execution-success"
+    await beginExecution(processExecutionId)
+
+    const proposal: ProcessResultProposal = {
+      processExecutionId,
+      processId: PROCESS,
+      fields: {[String(OUTPUT)]: 2},
+    }
+    const commit = await boundary.materialize(message({
+      part: "w+",
+      op: "replace",
+      path: actorId,
+      from: ENERGY,
+      value: proposal,
+    }))
+
+    expect(await fieldValue(OUTPUT)).toBe(2)
+    const parts = commit?.messages.map((item) => item.parts[0])
+    expect(parts).toHaveLength(2)
+    expect(parts?.[0]).toEqual({
+      part: "gluon",
+      op: "replace",
+      path: actorId,
+      from: processExecutionId,
+      value: {fields: {[String(OUTPUT)]: 2}},
+    })
+    const acknowledgement: ProcessResultCommit = {
+      processExecutionId,
+      processId: PROCESS,
+      energy: ENERGY,
+    }
+    expect(parts?.[1]).toEqual({
+      part: "w+",
+      op: "copy",
+      path: actorId,
+      from: processExecutionId,
+      value: acknowledgement,
+    })
+
+    expect(await boundary.materialize(message({
+      part: "w+",
+      op: "replace",
+      path: actorId,
+      from: ENERGY,
+      value: proposal,
+    }))).toBeNull()
+
+    await expect(boundary.materialize(message({
+      part: "w+",
+      op: "replace",
+      path: actorId,
+      from: ENERGY,
+      value: {...proposal, fields: {[String(OUTPUT)]: 3}},
+    }))).rejects.toThrow("already committed")
+    expect(await fieldValue(OUTPUT)).toBe(2)
+  })
+
+  test("rejects undeclared and mismatched writes without partial world mutation", async () => {
+    const processExecutionId = "execution-rollback"
+    await beginExecution(processExecutionId)
+
+    await expect(boundary.materialize(message({
+      part: "w+",
+      op: "replace",
+      path: actorId,
+      from: ENERGY,
+      value: {
+        processExecutionId,
+        processId: PROCESS,
+        fields: {
+          [String(OUTPUT)]: 2,
+          [String(INPUT)]: 9,
+        },
+      } satisfies ProcessResultProposal,
+    }))).rejects.toThrow("cannot write field")
+    expect(await fieldValue(INPUT)).toBe(0)
+    expect(await fieldValue(OUTPUT)).toBe(0)
+
+    const valid = await boundary.materialize(message({
+      part: "w+",
+      op: "replace",
+      path: actorId,
+      from: ENERGY,
+      value: {
+        processExecutionId,
+        processId: PROCESS,
+        fields: {[String(OUTPUT)]: 2},
+      } satisfies ProcessResultProposal,
+    }))
+    expect(valid?.messages).toHaveLength(2)
+    expect(await fieldValue(OUTPUT)).toBe(2)
+
+    const wrongEnergyExecution = "execution-wrong-energy"
+    await beginExecution(wrongEnergyExecution)
+    await expect(boundary.materialize(message({
+      part: "w+",
+      op: "replace",
+      path: actorId,
+      from: "energy-other",
+      value: {
+        processExecutionId: wrongEnergyExecution,
+        processId: PROCESS,
+        fields: {[String(OUTPUT)]: 4},
+      } satisfies ProcessResultProposal,
+    }))).rejects.toThrow("does not match selected execution")
+    expect(await fieldValue(OUTPUT)).toBe(2)
+  })
+
+  test("commits error handler writes through the same transaction path", async () => {
+    const processExecutionId = "execution-error"
+    await beginExecution(processExecutionId)
+
+    const commit = await boundary.materialize(message({
+      part: "w-",
+      op: "replace",
+      path: actorId,
+      from: ENERGY,
+      value: {
+        processExecutionId,
+        processId: PROCESS,
+        error: "boom",
+        fields: {[String(ERROR)]: "boom"},
+      } satisfies ProcessResultProposal,
+    }))
+
+    expect(await fieldValue(ERROR)).toBe("boom")
+    expect(commit?.messages.at(-1)?.parts[0]).toEqual({
+      part: "w-",
+      op: "copy",
+      path: actorId,
+      from: processExecutionId,
+      value: {
+        processExecutionId,
+        processId: PROCESS,
+        energy: ENERGY,
+      },
+    })
+  })
+})

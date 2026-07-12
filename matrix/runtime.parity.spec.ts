@@ -1,4 +1,10 @@
 import {afterAll, describe, expect, test} from "bun:test"
+import type {
+  ProcessExecutionClaim,
+  ProcessExecutionGrant,
+  ProcessResultCommit,
+  ProcessResultProposal,
+} from "@metafor/types/force/execution"
 import type {Particle} from "@metafor/types/force/particle"
 import {
   MATRIX_RUNTIME_PATH,
@@ -15,6 +21,8 @@ import {weak$} from "./weak"
 
 const previousBackend = Bun.env.METAFOR_WEAK_BACKEND
 const previousDevice = GPU._device
+const PROCESS_ID = 501
+const ENERGY_ID = "energy-parity"
 
 const runtimeSnapshot = (): MatrixRuntimeSnapshot => ({
   ok: true,
@@ -68,6 +76,14 @@ type MatrixRuntimeModule = typeof import("./matrix.ts")
 const settle = async (): Promise<void> => {
   await Bun.sleep(0)
   await Bun.sleep(0)
+}
+
+const waitForRuntime = async (predicate: () => boolean, timeoutMs = 10_000): Promise<void> => {
+  const deadline = Date.now() + timeoutMs
+  while (!predicate()) {
+    if (Date.now() >= deadline) throw new Error("Timed out waiting for Matrix runtime state")
+    await Bun.sleep(1)
+  }
 }
 
 const send = (
@@ -138,15 +154,18 @@ const runScenario = async (backend: "cpu" | "gpu"): Promise<RuntimeTrace> => {
       (part) => part.part === "photon" && part.value === "ready",
       from,
     )
+    expect(typeof ready.from).toBe("string")
+    const processExecutionId = String(ready.from)
     photons.push(`${ready.op}:${String(ready.value)}`)
     recordRuntime()
 
+    const claim: ProcessExecutionClaim = {energy: ENERGY_ID, processExecutionId}
     from = fixture.messages.length
     send(fixture, client, {
       part: "z",
       op: "test",
       path: 17,
-      value: {energy: "energy-parity"},
+      value: claim,
     })
     const copy = await waitForPart(
       fixture,
@@ -154,16 +173,51 @@ const runScenario = async (backend: "cpu" | "gpu"): Promise<RuntimeTrace> => {
       (part) => part.part === "z" && part.op === "copy",
       from,
     )
-    const frozenFields = structuredClone(
-      (copy.value as {fields?: Record<string, unknown>} | undefined)?.fields ?? {},
-    )
+    const grant = copy.value as ProcessExecutionGrant
+    expect(copy.from).toBe(ENERGY_ID)
+    expect(grant.processExecutionId).toBe(processExecutionId)
+    const frozenFields = structuredClone(grant.fields)
 
-    from = fixture.messages.length
+    const proposal: ProcessResultProposal = {
+      processExecutionId,
+      processId: PROCESS_ID,
+      fields: {"102": 2},
+    }
     send(fixture, client, {
       part: "w+",
       op: "replace",
       path: 17,
+      from: ENERGY_ID,
+      value: proposal,
+    })
+    await Bun.sleep(10)
+    expect(runtime.matrix$.getStateName(0, runtime.matrix$.states[0]!)).toBe("ready")
+    expect(runtime.matrix$.getFieldValue(0, 1)).toBe(0)
+    expect(runtime.matrix$.branes[0]?.lock).toBe(true)
+
+    send(fixture, client, {
+      part: "gluon",
+      op: "replace",
+      path: 17,
+      from: processExecutionId,
       value: {fields: {"102": 2}},
+    })
+    await waitForRuntime(() => runtime.matrix$.getFieldValue(0, 1) === 2)
+    expect(runtime.matrix$.getStateName(0, runtime.matrix$.states[0]!)).toBe("ready")
+    expect(runtime.matrix$.branes[0]?.lock).toBe(true)
+
+    const commit: ProcessResultCommit = {
+      processExecutionId,
+      processId: PROCESS_ID,
+      energy: ENERGY_ID,
+    }
+    from = fixture.messages.length
+    send(fixture, client, {
+      part: "w+",
+      op: "copy",
+      path: 17,
+      from: processExecutionId,
+      value: commit,
     })
     const complete = await waitForPart(
       fixture,
@@ -211,9 +265,7 @@ describe("Matrix CPU/WebGPU parity", () => {
     }
 
     const device = await ensureGPUDevice()
-    if (!device) {
-      throw new Error("WebGPU adapter is unavailable; strict GPU parity cannot run")
-    }
+    if (!device) throw new Error("WebGPU adapter is unavailable; strict GPU parity cannot run")
 
     console.log(`[matrix:parity] WebGPU features=${[...device.features].sort().join(",") || "none"}`)
     const gpu = await runScenario("gpu")
