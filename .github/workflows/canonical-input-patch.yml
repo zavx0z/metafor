@@ -1,0 +1,153 @@
+name: Apply canonical Input patch
+
+on:
+  push:
+    branches: [agent/canonical-input]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/canonical-input
+          fetch-depth: 0
+
+      - name: Patch Matrix and runtime universe
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one match, found {count}")
+              file.write_text(text.replace(old, new))
+
+          matrix = "matrix/matrix.ts"
+          replace_once(
+              matrix,
+              'import {isProcessExecutionId} from "@metafor/types/force/execution"\n',
+              '',
+          )
+          replace_once(
+              matrix,
+              '''  const committedExecutionId = parts.length === 1 && isProcessExecutionId(parts[0]?.from)
+            ? parts[0]!.from
+            : null
+          if (committedExecutionId) {
+            const actorId = parseActorIdPath(parts[0]!.path)
+            const pending = actorId === null ? undefined : pendingProcessExecutionsByActorId.get(actorId)
+            if (!pending || pending.processExecutionId !== committedExecutionId) return []
+          }
+
+          const updates = collectActorFieldUpdates(parts, kind)
+          if (updates.length === 0) return []
+          return await update(updates, {
+            retriggerProcessStates: committedExecutionId === null,
+          })''',
+              '''  const origin = parts.length === 1 ? parts[0] : undefined
+          const actorId = origin ? parseActorIdPath(origin.path) : null
+          const pending = actorId === null ? undefined : pendingProcessExecutionsByActorId.get(actorId)
+
+          const updates = collectActorFieldUpdates(parts, kind)
+          if (updates.length === 0) return []
+          return await update(updates, {
+            // Any canonical consequence may update a locked Actor, but an active
+            // Process must not be claimed again before its Boundary acknowledgment.
+            retriggerProcessStates: pending === undefined,
+          })''',
+          )
+
+          fixture = "fixture/runtime-universe.spec.ts"
+          replace_once(
+              fixture,
+              '''      const inputStart = force.lines.length
+          await postImpulse(forceHttp, {part: "gluon", op: "replace", path: sourceActorId, value: {fields: {[String(inputFieldId)]: 1}}})
+          const input = await waitForForceEvent(force, (event) =>
+            event.source === "force:http" && particle(event).part === "gluon" && particle(event).path === sourceActorId, inputStart)
+          const ready = await waitForForceEvent(force, (event) =>
+            event.source === "force:matrix" && particle(event).part === "photon" &&
+            particle(event).op === "test" && particle(event).path === sourceActorId && particle(event).value === "ready",
+            input.lineIndex + 1)''',
+              '''      const inputId = `input:${crypto.randomUUID()}`
+          const inputStart = force.lines.length
+          await postImpulse(forceHttp, {
+            part: "gluon",
+            op: "test",
+            path: sourceActorId,
+            from: inputId,
+            value: {fields: {[String(inputFieldId)]: 1}},
+          })
+          const inputProposal = await waitForForceEvent(force, (event) =>
+            event.source === "force:http" && particle(event).part === "gluon" &&
+            particle(event).op === "test" && particle(event).path === sourceActorId && particle(event).from === inputId,
+            inputStart)
+          const input = await waitForForceEvent(force, (event) =>
+            event.source === "force:boundary" && particle(event).part === "gluon" &&
+            particle(event).op === "replace" && particle(event).path === sourceActorId && particle(event).from === inputId,
+            inputProposal.lineIndex + 1)
+          expect(particle(input).value).toEqual({fields: {[String(inputFieldId)]: 1}})
+          const ready = await waitForForceEvent(force, (event) =>
+            event.source === "force:matrix" && particle(event).part === "photon" &&
+            particle(event).op === "test" && particle(event).path === sourceActorId && particle(event).value === "ready",
+            input.lineIndex + 1)''',
+          )
+          replace_once(
+              fixture,
+              '''        const values = await inspection<Array<{actor: number; field: number; valueJson: string}>>`
+              SELECT actor, field, value_json AS valueJson
+                FROM boundary_actor_field
+               WHERE (actor = ${sourceActorId} AND field = ${outputFieldId})
+                  OR (actor = ${targetActorId} AND field = ${targetFieldId})
+               ORDER BY actor
+            `
+            expect(values.map((row) => [Number(row.actor), Number(row.field), JSON.parse(row.valueJson)])).toEqual([
+              [sourceActorId, outputFieldId, 2],
+              [targetActorId, targetFieldId, 2],
+            ])''',
+              '''        const values = await inspection<Array<{actor: number; field: number; valueJson: string}>>`
+              SELECT actor, field, value_json AS valueJson
+                FROM boundary_actor_field
+               WHERE (actor = ${sourceActorId} AND field IN (${inputFieldId}, ${outputFieldId}))
+                  OR (actor = ${targetActorId} AND field = ${targetFieldId})
+            `
+            const materialized = new Map(values.map((row) => [
+              `${Number(row.actor)}:${Number(row.field)}`,
+              JSON.parse(row.valueJson) as unknown,
+            ]))
+            expect(materialized.get(`${sourceActorId}:${inputFieldId}`)).toBe(1)
+            expect(materialized.get(`${sourceActorId}:${outputFieldId}`)).toBe(2)
+            expect(materialized.get(`${targetActorId}:${targetFieldId}`)).toBe(2)''',
+          )
+          replace_once(
+              fixture,
+              '''      const ordered = [
+            bootstrap,
+            input,
+            ready,''',
+              '''      const ordered = [
+            bootstrap,
+            inputProposal,
+            input,
+            ready,''',
+          )
+
+          Path(".github/workflows/canonical-input-patch.yml").unlink()
+          PY
+
+      - name: Commit patch and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Замкнуть canonical Input через Boundary"
+          git push origin HEAD:agent/canonical-input
