@@ -5,15 +5,18 @@ import type {EnergyHandlerDescriptor, EnergyProcessDescriptor} from "@metafor/ty
 import type {EnergyMassContext, EnergyMassStore} from "@metafor/types/energy/mass"
 import type {EnergyProtocol, EnergyProtocolOptions} from "@metafor/types/energy/protocol"
 import type {EnergyActionParams, PendingEnergyProcess} from "@metafor/types/energy/runtime"
-import type {
-  ProcessExecutionClaim,
-  ProcessExecutionGrant,
-  ProcessResultProposal,
-} from "@metafor/types/force/execution"
-import {isProcessExecutionId} from "@metafor/types/force/execution"
+import type {ProcessExecutionClaim, ProcessExecutionGrant, ProcessResultProposal} from "@metafor/types/force/execution"
 import type {ForceMessage} from "@metafor/types/force/message"
+import {
+  REACTION_CLAIM_KIND,
+  isReactionExecutionSignal,
+  type ReactionExecutionClaim,
+  type ReactionExecutionSignal,
+  type ReactionResultProposal,
+} from "@metafor/types/force/reaction"
 import {Force} from "force"
 import {EnergyCatalogStore} from "./catalog.ts"
+import {executeReaction} from "./reaction.ts"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -179,28 +182,21 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
   const catalog = new EnergyCatalogStore()
   const pendingByActorId = new Map<number, PendingEnergyProcess>()
   const runningActorIds = new Set<number>()
+  const pendingReactions = new Map<string, ReactionExecutionSignal>()
+  const runningReactionIds = new Set<string>()
 
-  const emitResult = (
+  const emitReactionProposal = (
     part: "w+" | "w-",
-    pending: PendingEnergyProcess,
-    fields: Record<string, unknown>,
-    error?: string,
+    signal: ReactionExecutionSignal,
+    proposal: ReactionResultProposal,
   ): void => {
-    const proposal: ProcessResultProposal = {
-      processExecutionId: pending.processExecutionId,
-      processId: pending.processId,
-      fields,
-      ...(error === undefined ? {} : {error}),
-    }
-    force.impulse({
-      parts: [{
-        part,
-        op: "replace",
-        path: pending.actorId,
-        from: energyId,
-        value: proposal,
-      }],
-    })
+    force.impulse({parts: [{
+      part,
+      op: "replace",
+      path: signal.target.actorId,
+      from: energyId,
+      value: proposal,
+    }]})
   }
 
   force.onImpulse = (message: ForceMessage) => {
@@ -212,11 +208,7 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
         if (!pending) continue
         const actorWimp = catalog.actorWimp(actorId)
         const process = actorWimp && catalog.process(actorWimp, pending.state)
-        if (
-          !process ||
-          process.id !== pending.processId ||
-          process.descriptor !== pending.descriptor
-        ) pendingByActorId.delete(actorId)
+        if (!process || process.descriptor !== pending.descriptor) pendingByActorId.delete(actorId)
       }
       return
     }
@@ -225,7 +217,22 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
       case "photon": {
         if (part.op !== "test") break
         const actorId = parseActorIdPath(part.path)
-        if (actorId === null || typeof part.value !== "string" || !isProcessExecutionId(part.from)) break
+        if (actorId === null) break
+
+        if (isReactionExecutionSignal(part.value)) {
+          const signal = part.value
+          if (signal.target.actorId !== actorId || part.from !== signal.reactionExecutionId) break
+          pendingReactions.set(signal.reactionExecutionId, structuredClone(signal))
+          const claim: ReactionExecutionClaim = {
+            kind: REACTION_CLAIM_KIND,
+            energy: energyId,
+            reactionExecutionId: signal.reactionExecutionId,
+          }
+          force.impulse({parts: [{part: "z", op: "test", path: actorId, value: claim}]})
+          break
+        }
+
+        if (typeof part.value !== "string" || typeof part.from !== "string" || part.from.trim().length === 0) break
         const wimp = catalog.actorWimp(actorId)
         if (wimp === undefined) break
         const process = catalog.process(wimp, part.value)
@@ -236,61 +243,127 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
           actorId,
           wimp,
           state: part.value,
-          processId: process.id,
-          processExecutionId: part.from,
           descriptor,
+          processExecutionId: part.from,
+          processId: process.id,
         }
         pendingByActorId.set(actorId, pending)
-        const claim: ProcessExecutionClaim = {
-          energy: energyId,
-          processExecutionId: pending.processExecutionId,
-        }
-        force.impulse({
-          parts: [{
-            part: "z",
-            op: "test",
-            path: actorId,
-            value: claim,
-          }],
-        })
+        const claim: ProcessExecutionClaim = {energy: energyId, processExecutionId: part.from}
+        force.impulse({parts: [{part: "z", op: "test", path: actorId, value: claim}]})
         break
       }
+
       case "z": {
         if (part.op !== "copy") break
         const actorId = parseActorIdPath(part.path)
-        if (actorId === null || part.from !== energyId || !isRecord(part.value)) break
-        const grant = part.value as Partial<ProcessExecutionGrant>
-        if (!isProcessExecutionId(grant.processExecutionId) || !isRecord(grant.fields)) break
+        if (actorId === null || part.from !== energyId) break
+
+        if (isReactionExecutionSignal(part.value)) {
+          const signal = part.value
+          const pending = pendingReactions.get(signal.reactionExecutionId)
+          if (!pending || pending.target.actorId !== actorId || runningReactionIds.has(signal.reactionExecutionId)) break
+          runningReactionIds.add(signal.reactionExecutionId)
+          void executeReaction(signal, energyId, massStore)
+            .then((result) => {
+              if (!result.matched) {
+                emitReactionProposal("w-", signal, {
+                  reactionExecutionId: signal.reactionExecutionId,
+                  reactionId: signal.reactionId,
+                  matched: false,
+                  fields: {},
+                })
+                return
+              }
+              emitReactionProposal("w+", signal, {
+                reactionExecutionId: signal.reactionExecutionId,
+                reactionId: signal.reactionId,
+                matched: true,
+                fields: result.fields,
+              })
+            })
+            .catch((thrown) => {
+              emitReactionProposal("w-", signal, {
+                reactionExecutionId: signal.reactionExecutionId,
+                reactionId: signal.reactionId,
+                matched: false,
+                fields: {},
+                error: toError(thrown).message,
+              })
+            })
+            .finally(() => {
+              pendingReactions.delete(signal.reactionExecutionId)
+              runningReactionIds.delete(signal.reactionExecutionId)
+            })
+          break
+        }
+
+        if (!isRecord(part.value) || !isRecord(part.value.fields) || typeof part.value.processExecutionId !== "string") break
+        const grant = part.value as unknown as ProcessExecutionGrant
         if (runningActorIds.has(actorId)) break
         const pending = pendingByActorId.get(actorId)
-        if (!pending || grant.processExecutionId !== pending.processExecutionId) break
-        const processFields = grant.fields
+        if (!pending || pending.processExecutionId !== grant.processExecutionId) break
 
         runningActorIds.add(actorId)
-        void executeProcess(pending, energyId, processFields, massStore)
+        void executeProcess(pending, energyId, grant.fields, massStore)
           .then(async (data) => {
             if (pending.descriptor.type === "finally") {
-              emitResult("w+", pending, {})
+              const proposal: ProcessResultProposal = {
+                processExecutionId: pending.processExecutionId,
+                processId: pending.processId,
+                fields: {},
+              }
+              force.impulse({parts: [{part: "w+", op: "replace", path: actorId, from: energyId, value: proposal}]})
               return
             }
+            let fields: Record<string, unknown>
             try {
-              const fields = await executeProcessHandler(pending, pending.descriptor.success, processFields, {data})
-              emitResult("w+", pending, fields)
+              fields = await executeProcessHandler(pending, pending.descriptor.success, grant.fields, {data})
             } catch (error) {
-              emitResult("w-", pending, {}, toError(error).message)
+              const proposal: ProcessResultProposal = {
+                processExecutionId: pending.processExecutionId,
+                processId: pending.processId,
+                fields: {},
+                error: toError(error).message,
+              }
+              force.impulse({parts: [{part: "w-", op: "replace", path: actorId, from: energyId, value: proposal}]})
+              return
             }
+            const proposal: ProcessResultProposal = {
+              processExecutionId: pending.processExecutionId,
+              processId: pending.processId,
+              fields,
+            }
+            force.impulse({parts: [{part: "w+", op: "replace", path: actorId, from: energyId, value: proposal}]})
           })
           .catch(async (thrown) => {
             const actionError = toError(thrown)
             if (pending.descriptor.type === "finally") {
-              emitResult("w-", pending, {}, actionError.message)
+              const proposal: ProcessResultProposal = {
+                processExecutionId: pending.processExecutionId,
+                processId: pending.processId,
+                fields: {},
+                error: actionError.message,
+              }
+              force.impulse({parts: [{part: "w-", op: "replace", path: actorId, from: energyId, value: proposal}]})
               return
             }
             try {
-              const fields = await executeProcessHandler(pending, pending.descriptor.error, processFields, {error: actionError})
-              emitResult("w-", pending, fields, actionError.message)
+              const fields = await executeProcessHandler(pending, pending.descriptor.error, grant.fields, {error: actionError})
+              const proposal: ProcessResultProposal = {
+                processExecutionId: pending.processExecutionId,
+                processId: pending.processId,
+                fields,
+                error: actionError.message,
+              }
+              force.impulse({parts: [{part: "w-", op: "replace", path: actorId, from: energyId, value: proposal}]})
             } catch (handlerThrown) {
-              emitResult("w-", pending, {}, toError(handlerThrown).message)
+              const proposal: ProcessResultProposal = {
+                processExecutionId: pending.processExecutionId,
+                processId: pending.processId,
+                fields: {},
+                error: toError(handlerThrown).message,
+              }
+              force.impulse({parts: [{part: "w-", op: "replace", path: actorId, from: energyId, value: proposal}]})
             }
           })
           .finally(() => {
@@ -306,6 +379,8 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
     close() {
       pendingByActorId.clear()
       runningActorIds.clear()
+      pendingReactions.clear()
+      runningReactionIds.clear()
       if (ownsMassStore) massStore.clear?.()
       force.onImpulse = () => {}
     },
