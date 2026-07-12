@@ -1,0 +1,168 @@
+name: Core Runtime Verification
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/core-runtime.yml"
+      - "package.json"
+      - "bun.lock"
+      - "types/**"
+      - "force/**"
+      - "dark/**"
+      - "boundary/**"
+      - "matrix/**"
+      - "energy/**"
+      - "fixture/**"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/core-runtime.yml"
+      - "package.json"
+      - "bun.lock"
+      - "types/**"
+      - "force/**"
+      - "dark/**"
+      - "boundary/**"
+      - "matrix/**"
+      - "energy/**"
+      - "fixture/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: core-runtime-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cpu-reference:
+    name: CPU reference and typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: "1"
+      METAFOR_WEAK_BACKEND: cpu
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          bun install --frozen-lockfile --ignore-scripts 2>&1 | tee artifacts/install.log
+
+      - name: Targeted runtime tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            for test_file in \
+              force/core/log.test.ts \
+              force/server.test.ts \
+              boundary/runtime/matrix.spec.ts \
+              matrix/matrix.spec.ts \
+              matrix/weak/device.spec.ts \
+              matrix/runtime.parity.spec.ts
+            do
+              echo "::group::$test_file"
+              bun test "$test_file"
+              echo "::endgroup::"
+            done
+          } 2>&1 | tee artifacts/core-targeted.log
+
+      - name: CPU Weak suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            for test_file in \
+              matrix/weak/gpu/debug.spec.ts \
+              matrix/weak/tests/weak.cpu.test.ts
+            do
+              echo "::group::$test_file"
+              bun test "$test_file"
+              echo "::endgroup::"
+            done
+          } 2>&1 | tee artifacts/matrix-weak-cpu.log
+
+      - name: Typecheck
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun run tsc --noEmit 2>&1 | tee artifacts/tsc.log
+
+      - name: Upload CPU evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-runtime-cpu-${{ github.sha }}
+          path: artifacts
+          if-no-files-found: warn
+          retention-days: 14
+
+  webgpu-parity:
+    name: WebGPU parity on Vulkan software adapter
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: "1"
+      METAFOR_WEAK_BACKEND: gpu
+      METAFOR_REQUIRE_GPU: "1"
+      WGPU_BACKEND: vulkan
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Vulkan software adapter
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvulkan1 mesa-vulkan-drivers vulkan-tools
+          mkdir -p artifacts
+          vulkaninfo --summary 2>&1 | tee artifacts/vulkaninfo.log || true
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun install --frozen-lockfile --ignore-scripts 2>&1 | tee artifacts/install.log
+
+      - name: Strict WebGPU suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            for test_file in \
+              matrix/runtime.parity.spec.ts \
+              matrix/weak/tests/weak.gpu.test.ts \
+              matrix/weak/tests/weak.parity.test.ts
+            do
+              echo "::group::$test_file"
+              bun test "$test_file"
+              echo "::endgroup::"
+            done
+          } 2>&1 | tee artifacts/webgpu-parity.log
+
+      - name: Upload WebGPU evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-runtime-webgpu-${{ github.sha }}
+          path: artifacts
+          if-no-files-found: warn
+          retention-days: 14

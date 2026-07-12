@@ -79,16 +79,6 @@ const group = <T, K extends string | number>(rows: readonly T[], key: (row: T) =
   return result
 }
 
-/** Stable derived address for one materialized actor field. */
-const fieldAddressId = (actorId: number, fieldId: number): number => {
-  const sum = actorId + fieldId
-  const id = (sum * (sum + 1)) / 2 + fieldId
-  if (!Number.isSafeInteger(id)) {
-    throw new Error(`Matrix field address id is not safe: actor=${actorId} field=${fieldId}`)
-  }
-  return id
-}
-
 const sortByPosition = <T extends {value: JsonRecord; localId: string}>(items: readonly T[]): T[] =>
   [...items].sort((left, right) => {
     const leftPosition = Number(left.value.position ?? left.localId)
@@ -112,7 +102,8 @@ const inferArrayElementType = (field: JsonRecord): "number" | "string" | "boolea
   const declared = field.elementType
   if (declared === "number" || declared === "string" || declared === "boolean") return declared
   const sample = Array.isArray(field.default) ? field.default[0] : undefined
-  if (typeof sample === "number" || typeof sample === "boolean") return typeof sample
+  if (typeof sample === "number") return "number"
+  if (typeof sample === "boolean") return "boolean"
   return "string"
 }
 
@@ -212,6 +203,7 @@ export async function matrixRuntime(sql: SQL): Promise<MatrixRuntimeSnapshot> {
   const stateMetaStateIdsByBraneIndex: number[][] = []
   const stateHasProcessByBraneIndex: boolean[][] = []
   const runtimeFieldIndexByActorField = new Map<string, number>()
+  let nextProjectionFieldId = 1
 
   for (let braneIndex = 0; braneIndex < actors.length; braneIndex++) {
     const actor = actors[braneIndex]!
@@ -246,7 +238,9 @@ export async function matrixRuntime(sql: SQL): Promise<MatrixRuntimeSnapshot> {
       const value = storedValue === undefined
         ? fallbackFieldValue(fieldRecord.value, variants)
         : matrixBraneValue(clone(storedValue))
-      const wimpFieldId = fieldAddressId(Number(actor.id), fieldId)
+      // This compact address exists only inside one derived Matrix snapshot.
+      // Canonical identity remains the explicit (actorId, fieldId) pair below.
+      const wimpFieldId = nextProjectionFieldId++
 
       dataFields.push(matrixField(fieldRecord.value, variants))
       values.push([runtimeFieldIndex, value])
