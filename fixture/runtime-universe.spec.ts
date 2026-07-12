@@ -308,11 +308,12 @@ describe("minimal MetaFor runtime universe", () => {
         processAck.lineIndex + 1)
 
       const reactionSignalEvent = await waitForForceEvent(force, (event) => {
-        const value = particle(event).value as Partial<ReactionExecutionSignal> | undefined
+        const value = particle(event).value as ReactionExecutionSignal | undefined
+        const sourceValue = value?.source.part.value
         return event.source === "force:boundary" && particle(event).part === "photon" &&
           value?.kind === "reaction" && value.reactionId === reactionId &&
-          value.source.part.value !== undefined &&
-          JSON.stringify(value.source.part.value).includes(`\"${String(outputFieldId)}\":2`)
+          sourceValue !== undefined &&
+          JSON.stringify(sourceValue).includes(`\"${String(outputFieldId)}\":2`)
       }, sourceCommit.lineIndex + 1)
       const reactionSignal = particle(reactionSignalEvent).value as ReactionExecutionSignal
       expect(reactionSignal.target).toEqual({actorId: targetActorId, wimp: TARGET, state: "idle"})
