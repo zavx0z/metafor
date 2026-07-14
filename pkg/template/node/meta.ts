@@ -6,7 +6,7 @@ import type { NodeMeta } from "@metafor/types/template/node/meta"
 
 /**
  * Валидирует src атрибут в meta узлах.
- * src должен быть hub-адресом вида owner/path (например, zavx0z/git).
+ * src должен быть hub-адресом вида owner/path (например, owner/project).
  *
  * @param src - Значение src атрибута
  * @param path - Путь узла для сообщения об ошибке
@@ -18,7 +18,7 @@ function validateSrc(src: string, path: string): void {
   if (!hubAddressRegex.test(src)) {
     throw new Error(
       `Невалидный src в meta узле "${path}": "${src}". ` +
-        `src должен быть hub-адресом вида owner/path (например, zavx0z/git).`,
+        `src должен быть hub-адресом вида owner/path (например, owner/project).`,
     )
   }
 }

@@ -2,7 +2,7 @@ import {describe, expect, test} from "bun:test"
 import type { BulkRuntimeProjection } from "@metafor/types/bulk/runtime"
 import {buildBoundaryBulkManifest} from "./world.ts"
 
-const SRC = "zavx0z/git"
+const SRC = "owner/project"
 
 const createProjection = (): BulkRuntimeProjection => ({
 	actors: [
@@ -69,18 +69,18 @@ describe("bulk мост Boundary -> Bulk manifest", () => {
 	test("строит сцену только из выбранного root WIMP и его реальных descendants", () => {
 		const projection = createProjection()
 		projection.wimps.push(
-			{src: "zavx0z/git/tree", name: "Git tree"},
+			{src: "owner/project/tree", name: "Git tree"},
 			{src: "zavx0z/other", name: "Other root"},
 		)
 		projection.actors.push(
-			{id: 18, parentActor: 17, parentTopology: null, wimp: "zavx0z/git/tree", position: 0},
+			{id: 18, parentActor: 17, parentTopology: null, wimp: "owner/project/tree", position: 0},
 			{id: 99, parentActor: null, parentTopology: null, wimp: "zavx0z/other", position: 1},
 		)
 		projection.topologies.push({id: 77, parentActor: null, parentTopology: null, kind: "macho", position: 0})
 
 		const manifest = buildBoundaryBulkManifest(projection, SRC)
 
-		expect(manifest.darkParticles.map((particle) => particle.src)).toEqual([SRC, "zavx0z/git/tree"])
+		expect(manifest.darkParticles.map((particle) => particle.src)).toEqual([SRC, "owner/project/tree"])
 		expect(manifest.darkParticles.some((particle) => particle.darkParticleId === 99 * 2)).toBe(false)
 		expect(manifest.darkParticles.some((particle) => particle.darkParticleId === 77 * 2 + 1)).toBe(false)
 	})

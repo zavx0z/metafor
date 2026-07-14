@@ -79,7 +79,7 @@ describe("Force transport", () => {
       connect("boundary", "boundary-test"),
     ])
     const wsMessage: ForceMessage = {
-      parts: [{part: "inflaton", op: "test", path: "zavx0z/git"}],
+      parts: [{part: "inflaton", op: "test", path: "owner/project"}],
     }
     const boundaryWsDelivery = nextMessage(boundary)
     let echoedToDark = false
@@ -94,7 +94,7 @@ describe("Force transport", () => {
     expect(echoedToDark).toBe(false)
 
     const httpMessage: ForceMessage = {
-      parts: [{part: "graviton", op: "replace", path: "zavx0z/git", value: {actor: 17}}],
+      parts: [{part: "graviton", op: "replace", path: "owner/project", value: {actor: 17}}],
     }
     const darkHttpDelivery = nextMessage(dark)
     const boundaryHttpDelivery = nextMessage(boundary)

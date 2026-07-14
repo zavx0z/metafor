@@ -375,11 +375,11 @@ return { group: group as "start" | "work" | "examine" }
 ```typescript
 .matter(({ state, value, html }) => html`
   <meta-for
-    src="zavx0z/git-${value.operation}"
+    src="owner/project-${value.operation}"
     fields=${{ command: value.command, args: value.args }} />
   ${state === "ошибка" && html`
     <meta-for
-      src="zavx0z/git-error"
+      src="owner/project-error"
       fields=${{ message: value.error }} />
   `}
 `)
@@ -411,7 +411,7 @@ return { group: group as "start" | "work" | "examine" }
   ${state === "загрузка"
     ? html`<meta-for src="zavx0z/spinner" />`
     : html`<meta-for src="zavx0z/content" />`}
-  <meta-for src="zavx0z/git-${value.mode}" />
+  <meta-for src="owner/project-${value.mode}" />
   ${value.mode === "card"
     ? html`<meta-for src="zavx0z/card" />`
     : html`<meta-for src="zavx0z/table" />`}
@@ -429,7 +429,7 @@ return { group: group as "start" | "work" | "examine" }
 
 // ❌ Нельзя: optional enum не нужно проверять через truthy/null guard
 .matter(({ value, html }) => html`
-  ${value.mode && html`<meta-for src="zavx0z/git-${value.mode}" />`}
+  ${value.mode && html`<meta-for src="owner/project-${value.mode}" />`}
 `)
 
 // ❌ Нельзя: HTML belongs to Bulk, not matter
@@ -488,9 +488,9 @@ export default MetaFor("git")
       .success(({ update }) => update({ operation: null })),
   ])
   .matter(({ state, value, html }) => html`
-    <meta-for src="zavx0z/git-${value.operation}" fields=${{ command: value.command }} />
+    <meta-for src="owner/project-${value.operation}" fields=${{ command: value.command }} />
     ${state === "ошибка" && html`
-      <meta-for src="zavx0z/git-error" fields=${{ message: value.error }} />
+      <meta-for src="owner/project-error" fields=${{ message: value.error }} />
     `}
   `)
   .bulk()
@@ -531,7 +531,7 @@ export default async function action({
 
 ## Соглашения
 
-1. Файл: `<username>/<name>/meta.ts` (например: `zavx0z/git/meta.ts`)
+1. Файл: `<username>/<name>/meta.ts` (например: `owner/project/meta.ts`)
 2. Имя: `MetaFor("<name>")`
 3. Enum: всегда с `label`
 4. Импорт в `meta.ts` не нужен: `MetaFor` предоставляет DSL-среда
@@ -592,9 +592,9 @@ export default MetaFor("git")
 **Структура на GitHub:**
 
 ```text
-github.com/zavx0z/git/              # главное репо
-github.com/zavx0z/git-start/        # группа start
-github.com/zavx0z/git-start-clone/  # команда clone
+github.com/owner/project/              # главное репо
+github.com/owner/project-start/        # группа start
+github.com/owner/project-start-clone/  # команда clone
 github.com/otheruser/git-work/      # группа work от другого пользователя
 ```
 
@@ -602,11 +602,11 @@ github.com/otheruser/git-work/      # группа work от другого по
 
 ```text
 ~/github/
-  zavx0z/git/              # главное репо
+  owner/project/              # главное репо
     meta.ts
-  zavx0z/git-start/        # группа start
+  owner/project-start/        # группа start
     meta.ts
-  zavx0z/git-start-clone/  # команда clone
+  owner/project-start-clone/  # команда clone
     meta.ts
   otheruser/git-work/      # группа work от другого пользователя
     meta.ts
@@ -631,7 +631,7 @@ github.com/otheruser/git-work/      # группа work от другого по
 ```typescript
 .matter(({ value, html }) => html`
   ${value.operation === "start" && html`
-    <meta-for src="zavx0z/git-start" fields=${{ command: value.command, args: value.args }} />
+    <meta-for src="owner/project-start" fields=${{ command: value.command, args: value.args }} />
   `}
   ${value.operation === "work" && html`
     <meta-for src="otheruser/git-work" fields=${{ command: value.command, args: value.args }} />
@@ -643,7 +643,7 @@ github.com/otheruser/git-work/      # группа work от другого по
 **Главное репо загружает группы:**
 
 ```typescript
-// zavx0z/git/meta.ts
+// owner/project/meta.ts
 export default MetaFor("git")
   .fields((field) => ({
     operation: field.enum("start", "work").optional({ label: "Тип операции" }),
@@ -688,7 +688,7 @@ export default MetaFor("git")
   ])
   .matter(({ value, html }) => html`
     ${value.operation === "start" && html`
-      <meta-for src="zavx0z/git-start" fields=${{ command: value.command, args: value.args }} />
+      <meta-for src="owner/project-start" fields=${{ command: value.command, args: value.args }} />
     `}
     ${value.operation === "work" && html`
       <meta-for src="otheruser/git-work" fields=${{ command: value.command, args: value.args }} />

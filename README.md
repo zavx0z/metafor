@@ -55,21 +55,7 @@ Boundary может передать Matrix производную `runtime/matr
 инициализации packed runtime. Она не является второй истиной: её можно удалить и
 полностью восстановить из Boundary.
 
-## Подтверждённый минимальный цикл
-
-GitHub Actions фактически проверяет:
-
-- внешний Gluon сначала коммитится в Boundary и только затем достигает Matrix;
-- Matrix переводит Source `idle → ready`;
-- Energy исполняет Process с замороженным read set;
-- Boundary валидирует declared write set и атомарно фиксирует `output=2`;
-- Matrix переводит Source `ready → complete`;
-- Reaction исполняется в Energy, но коммитится тем же Boundary world writer;
-- Reaction consequence достигает Matrix и переводит Target `idle → reacted`;
-- Boundary хранит `input=1`, `output=2`, `observed=2` и оба итоговых State;
-- CPU и реальный WebGPU/Vulkan backend дают одинаковые Matrix traces.
-
-## Запуск живого universe
+## Запуск ядра
 
 Установка:
 
@@ -77,58 +63,8 @@ GitHub Actions фактически проверяет:
 bun install
 ```
 
-Поднять свежий минимальный universe, провести полный причинный цикл и оставить его
-работающим:
-
-```bash
-bun run runtime:universe
-```
-
-Команда сама запускает `Force`, `Boundary`, `Dark`, `Matrix`, `Energy` и `Bulk`, загружает
-Meta, вводит внешний `input=1`, ждёт завершения Process и Reaction, печатает
-структурированную трассу, печатает URL Capsule и подтверждает:
-
-```text
-input=1
-output=2
-observed=2
-sourceState=complete
-targetState=reacted
-linuxActorId=<stable runtime id>
-codexActorId=<stable runtime id>
-capsuleUrl=http://localhost:4004/
-```
-
-Capsule восстанавливает структуру обычными Graviton-частицами и затем наблюдает
-живые Photon, Gluon, Z и W±. Она показывает WIMP/Atom как прозрачную тороидальную
-оболочку, все Fields как сферы общего ядра, полный State-граф с текущим рукавом,
-одиночные Process/Reaction и реальные condition-связи. Enum и array остаются
-видимыми Field-протонами и одновременно являются основаниями Fuzzy/Macho.
-В ядре Runtime Universe также материализуется существующая DSL-ветвь
-`zavx0z/linux → zavx0z/codex`, поэтому Codex присутствует в Capsule как реальная
-вложенная сущность, а не как декоративная метка.
-
-Геометрия рукавов в этой версии детерминирована графом, но не выдаётся за
-окончательную Hopf/Möbius-формализацию: её математический закон остаётся отдельной
-задачей модели мира.
-
-Проверить тот же запуск и завершиться после одного полного цикла:
-
-```bash
-bun run runtime:universe:once
-```
-
-По умолчанию используется свежая временная Boundary database. Для явно заданного
-постоянного пути:
-
-```bash
-BOUNDARY_PATH=boundary/tmp/world.sqlite \
-METAFOR_RUNTIME_RESET=1 \
-bun run runtime:universe
-```
-
-`METAFOR_RUNTIME_RESET=1` удаляет предыдущую database перед запуском. Без этого
-флага явно заданный `BOUNDARY_PATH` сохраняется.
+Ядро запускается без встроенной Meta. Текущие итерационные Meta создаются в
+`github/<owner>/<name>/meta.ts` и загружаются явно через Dark.
 
 ## Низкоуровневый запуск доменов
 
@@ -157,12 +93,9 @@ bun run runtime:gpu
 ## Проверка
 
 ```bash
-bun run test:runtime-universe
 bun test
 bun run tsc --noEmit
 ```
-
-GitHub Actions разделяет CPU reference/typecheck и строгую WebGPU/Vulkan parity.
 
 ## Активная граница репозитория
 

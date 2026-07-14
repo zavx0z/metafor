@@ -6,7 +6,7 @@
  * Пакет не владеет source graph loading и читает уже подготовленный projection contract.
  *
  * Домен изолирован. Прямые импорты из `@bulk` в production-коде запрещены.
- * Тесты используют `@github/zavx0z/git` для интеграционной проверки.
+ * Конкретный Meta source задаётся явно и не принадлежит пакету Bulk.
  *
  * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/ONTOLOGY.md | ONTOLOGY.md} — онтология доменов
  * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/ARCHITECTURE.md | ARCHITECTURE.md} — архитектурная проекция

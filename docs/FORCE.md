@@ -130,7 +130,7 @@ Singleton entity:
   parts: [{
     part: "inflaton",
     op: "add",
-    path: "zavx0z/git/fields/1",
+    path: "owner/project/fields/1",
     value: {key: "command", type: "string", required: false},
   }],
 }
@@ -143,7 +143,7 @@ Singleton entity:
   parts: [{
     part: "inflaton",
     op: "replace",
-    path: "zavx0z/git/fields/1",
+    path: "owner/project/fields/1",
     value: {label: "Command"},
   }],
 }
@@ -152,7 +152,7 @@ Singleton entity:
 Dark завершает причинную серию marker-ом:
 
 ```ts
-{parts: [{part: "inflaton", op: "test", path: "zavx0z/git"}]}
+{parts: [{part: "inflaton", op: "test", path: "owner/project"}]}
 ```
 
 Marker не разрешает Boundary пересобирать мир.
@@ -176,8 +176,8 @@ Process descriptor переносится как один declaration Graviton, 
   parts: [{
     part: "graviton",
     op: "add",
-    path: "declaration/zavx0z/git/processes/1",
-    value: {id: 101, wimp: "zavx0z/git", state: "ready", descriptor: {}},
+    path: "declaration/owner/project/processes/1",
+    value: {id: 101, wimp: "owner/project", state: "ready", descriptor: {}},
   }],
 }
 ```

@@ -16,7 +16,7 @@ import {
 } from "@bulk/gravity/layout"
 
 export const BULK_SETTINGS_REVISION = 14
-export const DEFAULT_BULK_SCENE_SRC = "zavx0z/git"
+export const DEFAULT_BULK_SCENE_SRC = ""
 
 export const DEFAULT_BULK_SETTINGS: BulkSettingsConfig = {
   src: DEFAULT_BULK_SCENE_SRC,

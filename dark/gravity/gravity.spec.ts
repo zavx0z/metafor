@@ -10,7 +10,7 @@ describe("resolveContinuationSources", () => {
       tag: "meta-for",
       src: {
         data: "operation",
-        expr: "zavx0z/git-history-${_[0]}",
+        expr: "owner/project-history-${_[0]}",
       },
     }
 
@@ -23,9 +23,9 @@ describe("resolveContinuationSources", () => {
     }
 
     expect(resolveContinuationSources(node, fields)).toEqual([
-      "zavx0z/git-history-switch",
-      "zavx0z/git-history-checkout",
-      "zavx0z/git-history-commit",
+      "owner/project-history-switch",
+      "owner/project-history-checkout",
+      "owner/project-history-commit",
     ])
   })
 })

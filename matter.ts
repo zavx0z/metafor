@@ -91,7 +91,7 @@ const validateStaticSrc = (src: string, location: string): void => {
   if (!HUB_ADDRESS_RE.test(src)) {
     throw new Error(
       `Matter violation at "${location}": src "${src}" is not a valid hub address. ` +
-        `Use owner/path form such as "zavx0z/git".`,
+        `Use owner/path form such as "owner/project".`,
     )
   }
 }

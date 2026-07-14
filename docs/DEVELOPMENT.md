@@ -1,7 +1,7 @@
 # Разработка MetaFor
 
 Этот документ описывает только активное ядро и его воспроизводимый запуск.
-Исторические product shells не участвуют в сборке, runtime и CI.
+Исторические product shells не участвуют в сборке и runtime.
 
 ## Домены
 
@@ -33,60 +33,6 @@ Meta / DSL
 Boundary является единственной канонической materialized persistence. Matrix,
 Energy и Bulk не читают Boundary SQLite напрямую и не владеют второй world truth.
 
-## Запуск готового минимального universe
-
-```bash
-bun run runtime:universe
-```
-
-Launcher:
-
-1. создаёт свежую временную Boundary database;
-2. запускает Force на свободном порту;
-3. подключает Boundary, Matrix, Energy, Bulk и Dark;
-4. загружает `test/runtime-universe`;
-5. ждёт packed Matrix bootstrap;
-6. отправляет внешний `input=1`;
-7. ждёт canonical Process и Reaction commits;
-8. проверяет Boundary values и State;
-9. публикует Capsule URL и оставляет universe работающим до `Ctrl+C`.
-
-Ожидаемое подтверждение:
-
-```text
-[metafor] universe ready {
-  "input":1,
-  "output":2,
-  "observed":2,
-  "sourceState":"complete",
-  "targetState":"reacted",
-  "capsuleUrl":"http://localhost:4004/"
-}
-```
-
-Однократный проверочный запуск:
-
-```bash
-bun run runtime:universe:once
-```
-
-Явная database:
-
-```bash
-BOUNDARY_PATH=boundary/tmp/world.sqlite bun run runtime:universe
-```
-
-С очисткой явно заданной database:
-
-```bash
-BOUNDARY_PATH=boundary/tmp/world.sqlite \
-METAFOR_RUNTIME_RESET=1 \
-bun run runtime:universe
-```
-
-Если `BOUNDARY_PATH` не задан, launcher использует временный файл и удаляет его
-после остановки.
-
 ## Низкоуровневый запуск
 
 Поднять домены без автоматической загрузки Meta:
@@ -117,9 +63,9 @@ bun run runtime:gpu
 bun run force
 ```
 
-`runtime:universe` уже поднимает Bulk вместе с причинным proof. Команда `force`
-остаётся низкоуровневым параллельным запуском доменных серверов без fixture и
-проверки итогового State.
+Команда `force` остаётся низкоуровневым параллельным запуском доменных серверов
+без встроенной Meta и проверки итогового State. Meta для текущей итерации
+создаётся в `github/` и загружается явно.
 
 ## Canonical external input
 
@@ -202,18 +148,6 @@ METAFOR_LOG_PARTS=inflaton,graviton,gluon,higgs,photon,z,w+,w-
 
 ## Проверка
 
-Однократный launch smoke:
-
-```bash
-bun run runtime:universe:once
-```
-
-Сквозные тесты:
-
-```bash
-bun run test:runtime-universe
-```
-
 Полная локальная проверка:
 
 ```bash
@@ -234,9 +168,8 @@ bun test energy/energy.spec.ts
 bun test energy/reaction.spec.ts
 ```
 
-GitHub Actions выполняет CPU reference/typecheck отдельно от строгого
-WebGPU/Vulkan job. Оба backend обязаны давать одинаковые State, lock, frozen
-fields и Photon traces.
+CPU и WebGPU backend должны давать одинаковые State, lock, frozen fields и
+Photon traces; это проверяется локальными suites.
 
 ## Изоляция
 

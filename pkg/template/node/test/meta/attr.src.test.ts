@@ -5,25 +5,25 @@ describe("meta > src атрибут", () => {
   describe("валидные hub-адреса", () => {
     test("простой hub-адрес", () => {
       const result = parse(({ html }) => {
-        html`<meta-for src="zavx0z/git"></meta-for>`
+        html`<meta-for src="owner/project"></meta-for>`
       })
       expect(result).toHaveLength(1)
       expect(result[0]).toMatchObject({
         type: "meta",
         tag: "meta-for",
-        src: "zavx0z/git",
+        src: "owner/project",
       })
     })
 
     test("hub-адрес с подпутём", () => {
       const result = parse(({ html }) => {
-        html`<meta-for src="zavx0z/git/sub/path"></meta-for>`
+        html`<meta-for src="owner/project/sub/path"></meta-for>`
       })
       expect(result).toHaveLength(1)
       expect(result[0]).toMatchObject({
         type: "meta",
         tag: "meta-for",
-        src: "zavx0z/git/sub/path",
+        src: "owner/project/sub/path",
       })
     })
 

@@ -1,8 +1,0 @@
-[submodule "github/zavx0z"]
-	path = github/zavx0z
-	url = git@github.com:zavx0z/metafor-git.git
-	branch = main
-[submodule "github/person"]
-	path = github/person
-	url = git@github.com:zavx0z/person.git
-	branch = main

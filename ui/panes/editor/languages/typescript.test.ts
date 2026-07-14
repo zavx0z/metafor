@@ -29,7 +29,7 @@ describe("tokenizeTypeScript", () => {
 
   test("highlights sqlite inside sql tagged template literals", () => {
     const lines = [
-      "await sql<Array<{src: string}>>`SELECT src FROM wimp WHERE src = 'zavx0z/git-history-commit'`",
+      "await sql<Array<{src: string}>>`SELECT src FROM wimp WHERE src = 'owner/project-history-commit'`",
     ]
     const tokens = tokenizeTypeScript(lines)
 
@@ -39,7 +39,7 @@ describe("tokenizeTypeScript", () => {
     expect(tokenFor(lines[0]!, tokens[0]!, "SELECT")?.c).toBe("k")
     expect(tokenFor(lines[0]!, tokens[0]!, "FROM")?.c).toBe("k")
     expect(tokenFor(lines[0]!, tokens[0]!, "WHERE")?.c).toBe("k")
-    expect(tokenFor(lines[0]!, tokens[0]!, "'zavx0z/git-history-commit'")?.c).toBe("s")
+    expect(tokenFor(lines[0]!, tokens[0]!, "'owner/project-history-commit'")?.c).toBe("s")
   })
 
   test("highlights TypeScript expressions inside template literals", () => {
