@@ -13,10 +13,8 @@ export class Force extends ForceBase {
   #address: string
   #socket: WebSocket
   #reconnectTimer: ReturnType<typeof setTimeout> | undefined
-  #receiving: Promise<void> = Promise.resolve()
   #closed = false
   #outbox: ForceMessage[] = []
-  override onImpulse: (impulse: ForceMessage) => void | Promise<void> = () => {}
   override onDestroy?: () => void | Promise<void>
   override readonly id: string
 
@@ -82,7 +80,7 @@ export class Force extends ForceBase {
       ) return
       const message = impulse as ForceMessage
       logImpulse(this.domain, "<-", message)
-      this.#emit(message)
+      this.emitImpulse(message)
     }
     socket.onclose = () => this.#reconnect()
     socket.onerror = () => this.#reconnect()
@@ -109,12 +107,6 @@ export class Force extends ForceBase {
       this.#reconnectTimer = undefined
     }
     this.#socket.close()
-  }
-
-  #emit(impulse: ForceMessage): void {
-    this.#receiving = this.#receiving.then(() => this.onImpulse(impulse)).catch((error) => {
-      console.error(`[${this.domain}] Force onImpulse failed`, error)
-    })
   }
 
   async #destroy(): Promise<void> {

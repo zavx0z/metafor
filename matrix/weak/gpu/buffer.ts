@@ -1,6 +1,8 @@
 export function createBuffer(device: GPUDevice, data: ArrayBufferView, usage: GPUBufferUsageFlags): GPUBuffer {
   const buffer = device.createBuffer({
-    size: Math.ceil(data.byteLength / 4) * 4,
+    // WebGPU storage/uniform bindings cannot reference a zero-byte buffer.
+    // Keep empty logical arrays empty while allocating one addressable word.
+    size: Math.max(4, Math.ceil(data.byteLength / 4) * 4),
     usage,
     mappedAtCreation: true,
   })

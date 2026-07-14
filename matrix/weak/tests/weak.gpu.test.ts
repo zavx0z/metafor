@@ -5,6 +5,7 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { GPUWeakRuntime } from "../gpu"
 import {
   createSimpleBraneFixture,
+  createEmptyFixture,
   createMultipleBranesFixture,
   createLockedBraneFixture,
   createFieldUpdateFixture,
@@ -42,6 +43,21 @@ afterEach(async () => {
 })
 
 describe("GPU runtime — specific tests", () => {
+  test("initializes an empty Matrix store", async () => {
+    const device = await skipIfNoGpu()
+    if (!device) return
+
+    device.pushErrorScope("validation")
+    const store = createIsolatedStore(createEmptyFixture())
+    const runtime = await GPUWeakRuntime.create(device, store)
+    trackRuntime(runtime)
+    await device.queue.onSubmittedWorkDone()
+    const validationError = await device.popErrorScope()
+
+    expect(runtime.statesSnapshot()).toEqual([])
+    expect(validationError).toBeNull()
+  })
+
   test("statesSnapshot returns canonical store snapshot", async () => {
     const device = await skipIfNoGpu()
     if (!device) return

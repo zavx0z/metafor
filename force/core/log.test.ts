@@ -1,12 +1,11 @@
 import {afterEach, beforeEach, describe, expect, test} from "bun:test"
 import type {ForceMessage} from "@metafor/types/force/message"
-import {formatImpulseLog, resetImpulseLogSequenceForTests} from "./log"
+import {formatImpulseLog} from "./log"
 
 const ENV_NAMES = ["METAFOR_LOG_IMPULSES", "METAFOR_LOG_DOMAINS", "METAFOR_LOG_PARTS"] as const
 const previous = new Map<string, string | undefined>()
 
 beforeEach(() => {
-  resetImpulseLogSequenceForTests()
   for (const name of ENV_NAMES) {
     previous.set(name, Bun.env[name])
     delete Bun.env[name]
@@ -31,9 +30,8 @@ describe("Force impulse logger", () => {
     expect(formatImpulseLog("matrix", "<-", message, {
       mode: "compact",
       now: new Date("2026-07-11T20:41:03.221Z"),
-      sequence: 42,
     })).toBe(
-      "[2026-07-11T20:41:03.221Z] #000042 matrix <- gluon replace path=17 from=\"source\" value={\"3\":1}",
+      "[2026-07-11T20:41:03.221Z] matrix <- gluon replace path=17 from=\"source\" value={\"3\":1}",
     )
   })
 
@@ -50,12 +48,28 @@ describe("Force impulse logger", () => {
     const line = formatImpulseLog("energy", "->", message, {
       mode: "full",
       now: new Date("2026-07-11T20:41:03.221Z"),
-      sequence: 1,
     })
 
+    expect(line).toStartWith("[2026-07-11T20:41:03.221Z] energy ->\n{\n  \"parts\": [")
     expect(line).toContain("[redacted]")
     expect(line).not.toContain("must-not-be-logged")
     expect(line).not.toContain("hidden")
+  })
+
+  test("does not truncate large messages in full mode", () => {
+    const marker = "complete-tail-marker"
+    const message: ForceMessage = {
+      parts: [{part: "graviton", op: "replace", value: `${"x".repeat(5_000)}${marker}`}],
+    }
+
+    const line = formatImpulseLog("boundary", "->", message, {
+      mode: "full",
+      now: new Date("2026-07-11T20:41:03.221Z"),
+    })
+
+    expect(line).toContain(marker)
+    expect(line).not.toEndWith("…")
+    expect(line).not.toContain("#000")
   })
 
   test("applies domain and particle filters without changing the message", () => {

@@ -61,14 +61,14 @@ export async function ensureGPUDevice(): Promise<GPUDevice | null> {
 }
 
 /**
- * `auto` is the production default: WebGPU first, deterministic CPU fallback.
- * `gpu` is strict and fails when WebGPU cannot be initialized.
- * `cpu` is an explicit fallback/reference mode.
+ * `gpu` is the production default and fails when WebGPU cannot be initialized.
+ * `auto` explicitly enables WebGPU-first selection with deterministic CPU fallback.
+ * `cpu` explicitly selects the fallback/reference backend.
  */
 export async function resolveWeakMode(): Promise<WeakMode> {
   const maybeProcess = globalThis as {process?: {env?: Record<string, string | undefined>}}
-  const raw = (maybeProcess.process?.env?.METAFOR_WEAK_BACKEND ?? "auto").trim().toLowerCase()
-  const configured: WeakBackendPreference = raw === "gpu" || raw === "cpu" || raw === "auto" ? raw : "auto"
+  const raw = (maybeProcess.process?.env?.METAFOR_WEAK_BACKEND ?? "gpu").trim().toLowerCase()
+  const configured: WeakBackendPreference = raw === "gpu" || raw === "cpu" || raw === "auto" ? raw : "gpu"
 
   if (configured === "gpu") {
     const device = await ensureGPUDevice()

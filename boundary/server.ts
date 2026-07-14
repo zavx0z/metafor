@@ -4,7 +4,7 @@ import {parseForceReplayPath} from "@metafor/types/force/replay"
 import {MATRIX_RUNTIME_PATH} from "@metafor/types/matrix/runtime"
 import {open} from "./sqlite.ts"
 
-const filename = (process.argv[2] ?? Bun.env.BOUNDARY_PATH?.trim()) || join(import.meta.dir, "tmp", "boundary.sqlite")
+const filename = (process.argv[2] ?? Bun.env.BOUNDARY_PATH?.trim()) || join(import.meta.dir, "..", "boundary.sqlite")
 const boundary = await open(filename)
 const force = new Force("boundary")
 

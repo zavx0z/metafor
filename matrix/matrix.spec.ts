@@ -80,12 +80,47 @@ const runtimeSnapshot = (): MatrixRuntimeSnapshot => ({
   },
 })
 
+const emptyRuntimeSnapshot = (): MatrixRuntimeSnapshot => ({
+  ok: true,
+  version: 1,
+  runtime: {
+    actorIdByBraneIndex: [],
+    braneIndexByActorId: [],
+    wimpSrcByActorId: [],
+    actorIdsByWimpSrc: [],
+    runtimeFieldIndexByActorFieldId: [],
+  },
+  data: {fields: [], branes: [], stateNames: []},
+  strong: {
+    runtimeFieldIndexByWimpFieldId: [],
+    wimpFieldIdsByRuntimeFieldIndex: [],
+    braneIndexByWimpFieldId: [],
+    topologyWimpFieldIds: [],
+    topologyActorFieldIds: [],
+  },
+  weak: {
+    stateMetaStateIdsByBraneIndex: [],
+    stateHasProcessByBraneIndex: [],
+  },
+})
+
 describe("Matrix packed Force runtime", () => {
   test("waits for Boundary commit before applying Energy W result", async () => {
     const waiting = fixture.nextClient("matrix")
     const runtime = await import(`./matrix.ts?packed-force-test=${crypto.randomUUID()}`)
     const client = await waiting
     await settle()
+
+    send(client, {
+      part: "graviton",
+      op: "replace",
+      path: MATRIX_RUNTIME_PATH,
+      value: emptyRuntimeSnapshot(),
+    })
+    await settle()
+    expect(runtime.listMatrixRuntimeActorIds()).toEqual([])
+    expect(weak$.initialized).toBe(true)
+    expect(weak$.mode).toBe("cpu")
 
     const fromBootstrap = fixture.messages.length
     send(client, {

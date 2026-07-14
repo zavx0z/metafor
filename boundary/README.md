@@ -107,7 +107,7 @@ declaration identity.
 
 Путь к database передаётся первым позиционным аргументом server script. Если его
 нет, Boundary читает `BOUNDARY_PATH`; без обоих используется
-`boundary/tmp/boundary.sqlite`.
+корневая project database `boundary.sqlite`.
 
 ## Персистентный API
 

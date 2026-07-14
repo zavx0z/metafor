@@ -153,6 +153,26 @@ const verifyOrdinaryImpulseOrder = async (Force: ForceConstructor, domain: strin
   ])
 }
 
+const verifyEarlyReplayBuffer = async (Force: ForceConstructor, domain: string): Promise<void> => {
+  const force = new Force(domain)
+  const socket = sockets.at(-1)!
+  const replay: ForceMessage = {
+    parts: [{part: "z", op: "test", path: `force/replay/${domain}/peer`}],
+  }
+  const received: ForceMessage[] = []
+
+  socket.receive(replay)
+  await Bun.sleep(0)
+  expect(received).toEqual([])
+
+  force.onImpulse = (message) => {
+    received.push(message)
+  }
+
+  await waitFor(() => received.length === 1)
+  expect(received).toEqual([replay])
+}
+
 describe("Force runtime transports", () => {
   test("Bun requests replay and serializes raw ForceMessages", async () => {
     await verifyRawOrderedTransport(BunForce, "bun-test")
@@ -168,5 +188,13 @@ describe("Force runtime transports", () => {
 
   test("browser serializes asynchronous ordinary ForceMessages", async () => {
     await verifyOrdinaryImpulseOrder(BrowserForce, "browser-ordinary-test")
+  })
+
+  test("Bun buffers replay received before runtime installs its handler", async () => {
+    await verifyEarlyReplayBuffer(BunForce, "bun-early-replay")
+  })
+
+  test("browser buffers replay received before runtime installs its handler", async () => {
+    await verifyEarlyReplayBuffer(BrowserForce, "browser-early-replay")
   })
 })

@@ -89,6 +89,10 @@ function createBaseStore(data: MatrixInputData): MatrixStore {
   return clonePreparedStore(prepareData(data))
 }
 
+export function createEmptyFixture() {
+  return {fields: [], store: createBaseStore({fields: [], branes: []})}
+}
+
 export function setBraneFieldValue(
   store: MatrixStore,
   braneIndex: number,

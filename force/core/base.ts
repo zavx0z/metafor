@@ -39,18 +39,54 @@ import type {ForceMessage} from "@metafor/types/force/message"
  *   `impulse()`.
  */
 export abstract class ForceBase {
+  #onImpulse: ((impulse: ForceMessage) => void | Promise<void>) | undefined
+  #pendingImpulses: ForceMessage[] = []
+  #receiving: Promise<void> = Promise.resolve()
+
   /** Домен runtime-а, например `matrix`, `bulk` или `energy`. */
   abstract readonly domain: string
 
   /** Runtime-local идентификатор соединения, формируется adapter-ом. */
   abstract readonly id: string
 
-  /** Handler входящего чистого ForceMessage `{parts: [particle]}`. */
-  abstract onImpulse: (impulse: ForceMessage) => void | Promise<void>
+  /**
+   * Handler входящего чистого ForceMessage `{parts: [particle]}`.
+   *
+   * Transport может открыться раньше, чем runtime закончит конструирование и
+   * назначит handler. Такие стартовые replay-импульсы сохраняются и передаются
+   * после назначения handler без потери порядка.
+   */
+  get onImpulse(): (impulse: ForceMessage) => void | Promise<void> {
+    return this.#onImpulse ?? (() => {})
+  }
+
+  set onImpulse(handler: (impulse: ForceMessage) => void | Promise<void>) {
+    this.#onImpulse = handler
+    for (const impulse of this.#pendingImpulses.splice(0)) this.#enqueue(handler, impulse)
+  }
 
   /** Handler завершения transport lifecycle для cleanup ресурсов домена. */
   abstract onDestroy?: () => void | Promise<void>
 
   /** Отправляет один чистый ForceMessage в transport. */
   abstract impulse(message: ForceMessage): void
+
+  /** Передаёт transport message runtime-обработчику с сохранением порядка. */
+  protected emitImpulse(impulse: ForceMessage): void {
+    const handler = this.#onImpulse
+    if (!handler) {
+      this.#pendingImpulses.push(impulse)
+      return
+    }
+    this.#enqueue(handler, impulse)
+  }
+
+  #enqueue(
+    handler: (impulse: ForceMessage) => void | Promise<void>,
+    impulse: ForceMessage,
+  ): void {
+    this.#receiving = this.#receiving.then(() => handler(impulse)).catch((error) => {
+      console.error(`[${this.domain}] Force onImpulse failed`, error)
+    })
+  }
 }

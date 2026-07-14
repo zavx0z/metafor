@@ -16,7 +16,7 @@ afterEach(() => {
 })
 
 describe("Weak backend policy", () => {
-  test("auto is the default and prefers an available WebGPU device", async () => {
+  test("GPU is the strict default when a WebGPU device is available", async () => {
     GPU._device = {} as GPUDevice
     expect(await resolveWeakMode()).toBe("gpu")
   })
@@ -33,7 +33,13 @@ describe("Weak backend policy", () => {
     expect(await resolveWeakMode()).toBe("gpu")
   })
 
-  test("unknown values fall back to auto instead of silently forcing CPU", async () => {
+  test("auto explicitly prefers an available WebGPU device", async () => {
+    GPU._device = {} as GPUDevice
+    Bun.env.METAFOR_WEAK_BACKEND = "auto"
+    expect(await resolveWeakMode()).toBe("gpu")
+  })
+
+  test("unknown values keep the strict GPU default instead of enabling fallback", async () => {
     GPU._device = {} as GPUDevice
     Bun.env.METAFOR_WEAK_BACKEND = "unexpected"
     expect(await resolveWeakMode()).toBe("gpu")

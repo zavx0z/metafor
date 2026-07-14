@@ -107,13 +107,18 @@ export const server = Bun.serve<{domain?: string; id?: string}>({
         ws.data.domain = message.domain
         ws.data.id = message.id
         console.log(`[force] connected: ${message.domain} ${message.id}`)
+        const joiningReplayRequest = {
+          parts: [{part: "z", op: "test", path: forceReplayPath(message.domain, message.id)}],
+        } satisfies ForceMessage
         for (const [socket, client] of clients) {
           if (socket === ws || socket.readyState !== WebSocket.OPEN) continue
-          const replayRequest = {
+          const existingReplayRequest = {
             parts: [{part: "z", op: "test", path: forceReplayPath(client.domain, client.id)}],
           } satisfies ForceMessage
-          logImpulse("force", "->", replayRequest)
-          ws.send(JSON.stringify(replayRequest))
+          logImpulse("force", "->", existingReplayRequest)
+          ws.send(JSON.stringify(existingReplayRequest))
+          logImpulse("force", "->", joiningReplayRequest)
+          socket.send(JSON.stringify(joiningReplayRequest))
         }
         return
       }

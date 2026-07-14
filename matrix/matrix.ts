@@ -396,7 +396,7 @@ export async function loadMatrixRuntimeSnapshot(snapshot: MatrixRuntimeSnapshot)
     const prepared = prepareData(snapshot.data)
     applyPreparedData(prepared)
 
-    if (prepared.fields.length > 0 || prepared.branes.length > 0) await weakInit(matrix$)
+    await weakInit(matrix$)
 
     gravity$.activeActorIds = [...snapshot.runtime.actorIdByBraneIndex]
     gravity$.braneIndexToActorId = [...snapshot.runtime.actorIdByBraneIndex]

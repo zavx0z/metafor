@@ -169,6 +169,21 @@ describe("Force transport", () => {
     matrix.removeEventListener("message", matrixListener)
   })
 
+  test("notifies existing clients when a new domain requests replay", async () => {
+    const boundary = await connect("boundary", "boundary-replay-order")
+    const matrixReplay = nextMatchingMessage(boundary, (message) =>
+      message.parts[0]?.part === "z" &&
+      message.parts[0].op === "test" &&
+      message.parts[0].path === "force/replay/matrix/matrix-replay-order",
+    )
+
+    await connect("matrix", "matrix-replay-order")
+
+    expect(await matrixReplay).toEqual({
+      parts: [{part: "z", op: "test", path: "force/replay/matrix/matrix-replay-order"}],
+    })
+  })
+
   test("rejects an HTTP payload without parts", async () => {
     const response = await fetch(new URL("/force", server.url), {
       method: "POST",

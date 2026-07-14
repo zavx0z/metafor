@@ -6,9 +6,6 @@ export type ImpulseLogMode = "off" | "compact" | "full"
 
 const SECRET_KEY = /(?:authorization|cookie|password|passwd|secret|token|api[-_]?key|private[-_]?key)/i
 const DEFAULT_COMPACT_LIMIT = 240
-const DEFAULT_FULL_LIMIT = 4_000
-
-let sequence = 0
 
 type RuntimeGlobals = typeof globalThis & {
   Bun?: {env?: Record<string, string | undefined>}
@@ -41,7 +38,7 @@ const parseFilter = (name: string): Set<string> | null => {
   return items.length > 0 ? new Set(items) : null
 }
 
-const safeSerialize = (value: unknown, limit: number): string => {
+const safeSerialize = (value: unknown, limit?: number, pretty = false): string => {
   const seen = new WeakSet<object>()
   let result: string | undefined
 
@@ -66,13 +63,14 @@ const safeSerialize = (value: unknown, limit: number): string => {
         seen.add(current)
       }
       return current
-    })
+    }, pretty ? 2 : undefined)
   } catch (error) {
     result = JSON.stringify({serializationError: error instanceof Error ? error.message : String(error)})
   }
 
   const text = result ?? String(value)
-  return text.length <= limit ? text : `${text.slice(0, Math.max(0, limit - 1))}…`
+  if (limit === undefined || text.length <= limit) return text
+  return `${text.slice(0, Math.max(0, limit - 1))}…`
 }
 
 const formatPath = (path: Particle["path"] | Particle["from"]): string =>
@@ -92,7 +90,6 @@ export const formatImpulseLog = (
   options: {
     mode?: ImpulseLogMode
     now?: Date
-    sequence?: number
   } = {},
 ): string | null => {
   const particle = message.parts[0]
@@ -102,11 +99,10 @@ export const formatImpulseLog = (
   if (mode === "off") return null
 
   const now = options.now ?? new Date()
-  const currentSequence = options.sequence ?? ++sequence
-  const prefix = `[${now.toISOString()}] #${String(currentSequence).padStart(6, "0")} ${domain} ${direction}`
+  const prefix = `[${now.toISOString()}] ${domain} ${direction}`
 
   if (mode === "full") {
-    return `${prefix} ${safeSerialize(message, DEFAULT_FULL_LIMIT)}`
+    return `${prefix}\n${safeSerialize(message, undefined, true)}`
   }
 
   const fields = [
@@ -126,8 +122,4 @@ export const logImpulse = (
 ): void => {
   const line = formatImpulseLog(domain, direction, message)
   if (line !== null) console.log(line)
-}
-
-export const resetImpulseLogSequenceForTests = (): void => {
-  sequence = 0
 }
