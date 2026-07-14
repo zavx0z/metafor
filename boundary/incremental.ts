@@ -248,6 +248,76 @@ export class BoundaryIncrementalStore {
     return particles.map(particleMessage)
   }
 
+  /** Reconciles only State-driven Axion branches after Boundary commits Photon. */
+  async reconcileStateMatter(part: Particle): Promise<BoundaryIncrementalCommit | null> {
+    if (
+      part.part !== "photon" ||
+      (part.op !== "replace" && part.op !== "test") ||
+      typeof part.path !== "number" ||
+      !Number.isSafeInteger(part.path)
+    ) return null
+    const actorId = part.path
+
+    const effects = await this.sql.begin(async (tx) => {
+      const committed: Particle[] = []
+      const currentState = (await tx<Array<{name: string}>>`
+        SELECT state.name AS name
+          FROM actor_state JOIN state ON state.id = actor_state.metaState
+         WHERE actor_state.actor = ${actorId}
+      `)[0]?.name
+
+      for (const topology of await tx<Array<{runtime_id: number; declaration_path: string}>>`
+        SELECT boundary_runtime_origin.runtime_id,
+               boundary_runtime_origin.declaration_path
+          FROM boundary_runtime_origin
+          JOIN topology ON topology.id = boundary_runtime_origin.runtime_id
+         WHERE boundary_runtime_origin.kind = ${"topology"}
+           AND boundary_runtime_origin.owner_actor = ${actorId}
+           AND topology.kind = ${"axion"}
+         ORDER BY boundary_runtime_origin.sequence
+      `) {
+        const address = parseInflatonAddress(topology.declaration_path)
+        if (!address) continue
+        const parent: RuntimeRef = {kind: "topology", id: Number(topology.runtime_id), ownerActor: actorId}
+        const children = await this.matterRows(tx, address.src, address.localId)
+        const selected: string[] = []
+        for (const child of children) {
+          if (await this.branchSelected(tx, parent, child.value)) selected.push(child.address.path)
+        }
+        const existing = (await tx<Array<{declaration_path: string}>>`
+          SELECT declaration_path
+            FROM boundary_runtime_origin
+           WHERE parent_key = ${actorParentKey(parent)}
+           ORDER BY declaration_path, ordinal
+        `).map((row) => row.declaration_path)
+        selected.sort()
+        existing.sort()
+        if (same(existing, selected)) continue
+
+        for (const child of await tx<Array<{kind: "actor" | "topology"; runtime_id: number}>>`
+          SELECT kind, runtime_id
+            FROM boundary_runtime_origin
+           WHERE parent_key = ${actorParentKey(parent)}
+           ORDER BY sequence DESC
+        `) committed.push(...await this.removeRuntimeBranch(tx, child.kind, Number(child.runtime_id)))
+
+        committed.push({
+          part: "higgs",
+          op: "replace",
+          path: `topology/${topology.runtime_id}`,
+          value: {state: currentState ?? null},
+        })
+        for (const child of children) {
+          committed.push(...await this.materializeMatter(tx, child.address, child.value, committed, parent))
+        }
+      }
+      return committed
+    })
+    if (effects.length === 0) return null
+    await this.updateIndexes(effects)
+    return {rootSrc: await this.rootSrc(), messages: effects.map(particleMessage)}
+  }
+
   private async rememberRoot(part: Particle): Promise<BoundaryIncrementalCommit | null> {
     if (typeof part.path !== "string" || part.path.startsWith("force/replay/")) return null
     const src = part.path
@@ -348,6 +418,8 @@ export class BoundaryIncrementalStore {
         descriptor: {
           type: "finally",
           key: String(raw.key ?? address.localId),
+          label: typeof raw.label === "string" ? raw.label : null,
+          desc: typeof raw.desc === "string" ? raw.desc : null,
           env,
           before: {src: String(before.src ?? ""), readFields: await fields(before.read)},
         },
@@ -363,6 +435,8 @@ export class BoundaryIncrementalStore {
       descriptor: {
         type: "action",
         key: String(raw.key ?? address.localId),
+        label: typeof raw.label === "string" ? raw.label : null,
+        desc: typeof raw.desc === "string" ? raw.desc : null,
         env,
         action: {
           src: String(action.src ?? ""),
@@ -514,6 +588,7 @@ export class BoundaryIncrementalStore {
     parent: RuntimeRef | null,
     originPath: string,
     ordinal: number,
+	initialFields?: JsonRecord,
   ): Promise<Particle[]> {
     const parentKey = parent ? actorParentKey(parent) : "root"
     const found = (await sql<Array<{runtime_id: number}>>`
@@ -535,17 +610,25 @@ export class BoundaryIncrementalStore {
       INSERT INTO boundary_runtime_origin (kind, runtime_id, declaration_path, parent_key, owner_actor, ordinal)
       VALUES (${"actor"}, ${actor}, ${originPath}, ${parentKey}, ${actor}, ${ordinal})
     `
+	const remainingInitialFields = new Set(Object.keys(initialFields ?? {}))
     for (const row of await sql<Array<{path: string; value_json: string}>>`
       SELECT path, value_json FROM boundary_declaration_entity
       WHERE src = ${src} AND section = ${"fields"} ORDER BY CAST(local_id AS INTEGER)
     `) {
       const field = JSON.parse(row.value_json) as unknown
-      if (!isRecord(field) || !Object.prototype.hasOwnProperty.call(field, "default")) continue
+	  if (!isRecord(field) || typeof field.key !== "string") continue
+	  const hasInitial = Object.prototype.hasOwnProperty.call(initialFields ?? {}, field.key)
+	  if (!hasInitial && !Object.prototype.hasOwnProperty.call(field, "default")) continue
+	  const fieldValue = hasInitial ? initialFields?.[field.key] : field.default
+	  remainingInitialFields.delete(field.key)
       await sql`
         INSERT INTO boundary_actor_field (actor, field, value_json)
-        VALUES (${actor}, ${boundaryEntityId(row.path)}, ${JSON.stringify(field.default)})
+		VALUES (${actor}, ${boundaryEntityId(row.path)}, ${JSON.stringify(fieldValue)})
       `
     }
+	if (remainingInitialFields.size > 0) {
+		throw new Error(`Matter fields for ${src} contain undeclared keys: ${[...remainingInitialFields].join(", ")}`)
+	}
     const entity = await this.actorEntity(sql, actor)
     const effects: Particle[] = entity ? [{part: "graviton", op: "add", path: `actor/${actor}`, value: entity}] : []
     for (const row of await this.matterRows(sql, src, null)) {
@@ -600,7 +683,35 @@ export class BoundaryIncrementalStore {
       const repeats = await this.repetitionCount(sql, parent)
       for (let ordinal = 0; ordinal < repeats; ordinal++) {
         if (value.kind === "wimp" && typeof value.src === "string") {
-          created.push(...await this.createActor(sql, value.src, parent, address.path, ordinal))
+		  const binding = value.fieldsBinding
+		  let initialFields: JsonRecord | undefined
+		  if (typeof binding === "string") {
+			const resolved = await this.actorFieldByKey(sql, parent.ownerActor, binding)
+			if (isRecord(resolved)) initialFields = resolved
+		  } else if (isRecord(binding)) {
+			const paths = typeof binding.data === "string"
+			  ? [binding.data]
+			  : Array.isArray(binding.data)
+				? binding.data.filter((path): path is string => typeof path === "string")
+				: []
+			const values: unknown[] = []
+			for (const path of paths) {
+			  if (path === "/state") {
+				values.push((await sql<Array<{name: string}>>`
+				  SELECT state.name AS name
+					FROM actor_state JOIN state ON state.id = actor_state.metaState
+				   WHERE actor_state.actor = ${parent.ownerActor}
+				`)[0]?.name)
+			  } else {
+				values.push(await this.actorFieldByKey(sql, parent.ownerActor, path))
+			  }
+			}
+			const resolved = typeof binding.expr === "string"
+			  ? new Function("_", `"use strict"; return (${binding.expr})`)(values) as unknown
+			  : values[0]
+			if (isRecord(resolved)) initialFields = resolved
+		  }
+		  created.push(...await this.createActor(sql, value.src, parent, address.path, ordinal, initialFields))
           continue
         }
         if (value.kind !== "fuzzy" && value.kind !== "axion" && value.kind !== "macho") continue
@@ -671,11 +782,23 @@ export class BoundaryIncrementalStore {
     const raw = await this.rawFromRow(sql, origin.declaration_path)
     if (!isRecord(raw)) return false
     const binding = isRecord(raw.predicateBinding) ? raw.predicateBinding : null
-    const current = binding && typeof binding.data === "string"
-      ? await this.actorFieldByKey(sql, Number(origin.owner_actor), binding.data)
-      : undefined
-    if (topology.kind === "axion") return Boolean(current)
-    if (raw.fuzzyKind === "cond") return child.edgeSlot === (Boolean(current) ? "then" : "else")
+    const current = binding && binding.data === "/state"
+      ? (await sql<Array<{name: string}>>`
+          SELECT state.name AS name
+            FROM actor_state JOIN state ON state.id = actor_state.metaState
+           WHERE actor_state.actor = ${Number(origin.owner_actor)}
+        `)[0]?.name
+      : binding && typeof binding.data === "string"
+        ? await this.actorFieldByKey(sql, Number(origin.owner_actor), binding.data)
+        : undefined
+    if (topology.kind === "axion") {
+      const selected = binding && typeof binding.expr === "string"
+        ? Boolean(new Function("_", `"use strict"; return (${binding.expr})`)([current]))
+        : Boolean(current)
+      if (child.edgeSlot === "then") return selected
+      if (child.edgeSlot === "else") return !selected
+      return selected
+    }
     if (raw.fuzzyKind === "dynamic-meta") {
       const expression = binding && typeof binding.expr === "string" ? binding.expr : String(current ?? "")
       const selected = expression.replace(/\$\{_\[0\]\}/g, String(current ?? ""))
@@ -755,14 +878,30 @@ export class BoundaryIncrementalStore {
         }
       }
       committed.push(clone(part))
+      const changedFieldKeys = new Set<string>()
+      const actor = (await tx<Array<{wimp: string}>>`SELECT wimp FROM actor WHERE id = ${part.path}`)[0]
+      if (actor) {
+        for (const field of await tx<Array<{path: string; value_json: string}>>`
+          SELECT path, value_json FROM boundary_declaration_entity
+           WHERE src = ${actor.wimp} AND section = ${"fields"}
+        `) {
+          if (!Object.prototype.hasOwnProperty.call(fields, String(boundaryEntityId(field.path)))) continue
+          const value = JSON.parse(field.value_json) as unknown
+          if (isRecord(value) && typeof value.key === "string") changedFieldKeys.add(value.key)
+        }
+      }
       for (const topology of await tx<Array<{runtime_id: number; declaration_path: string}>>`
         SELECT runtime_id, declaration_path FROM boundary_runtime_origin
         WHERE kind = ${"topology"} AND owner_actor = ${part.path}
       `) {
         const raw = await this.rawFromRow(tx, topology.declaration_path)
-        const serialized = JSON.stringify(raw)
-        const affected = Object.keys(fields).some((field) => serialized.includes(String(field))) || Object.keys(fields).length > 0
-        if (!affected) continue
+        if (!isRecord(raw) || raw.kind === "axion") continue
+        const binding = raw.kind === "fuzzy" && isRecord(raw.predicateBinding)
+          ? raw.predicateBinding
+          : raw.kind === "macho" && isRecord(raw.collectionBinding)
+            ? raw.collectionBinding
+            : null
+        if (!binding || typeof binding.data !== "string" || !changedFieldKeys.has(binding.data)) continue
         for (const actor of await tx<Array<{id: number}>>`SELECT id FROM actor WHERE parent_topology = ${topology.runtime_id}`) {
           committed.push(...await this.removeRuntimeBranch(tx, "actor", Number(actor.id)))
         }
@@ -789,6 +928,9 @@ export class BoundaryIncrementalStore {
       SELECT id, parent_actor, parent_topology, wimp, position FROM actor WHERE id = ${id}
     `)[0]
     if (!actor) return null
+    const actorState = (await sql<Array<{metaState: number | null}>>`
+      SELECT metaState AS metaState FROM actor_state WHERE actor = ${id}
+    `)[0]
     const values: Array<{actor: number; field: number; value: number}> = []
     const records: JsonRecord[] = []
     const items: Array<{value: number; position: number; itemValue: string}> = []
@@ -811,7 +953,7 @@ export class BoundaryIncrementalStore {
       values,
       valueRecords: records,
       valueItems: items,
-      state: null,
+      state: {actor: id, metaState: actorState?.metaState === null || actorState === undefined ? null : Number(actorState.metaState)},
     }
   }
 

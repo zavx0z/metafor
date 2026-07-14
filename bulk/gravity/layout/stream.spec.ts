@@ -2,13 +2,13 @@ import { describe, expect, test } from "bun:test"
 import type { BulkDarkParticle, BulkDarkParticleInput, BulkFieldParticle, BulkManifestSink } from "@metafor/types/bulk/manifest"
 import { streamBulkManifest } from "./stream"
 
-const createFieldParticle = (fieldParticleId: number) => ({
-  fieldParticleId,
-  fieldId: fieldParticleId,
-  fieldKey: String(fieldParticleId),
-  fieldLabel: String(fieldParticleId),
+const createFieldParticle = (fieldId: number) => ({
+  fieldParticleId: `field:${fieldId}`,
+  fieldId,
+  fieldKey: String(fieldId),
+  fieldLabel: String(fieldId),
   fieldParticleKind: "string" as const,
-  valueText: String(fieldParticleId),
+  valueText: String(fieldId),
   colorR: 1,
   colorG: 1,
   colorB: 1,
@@ -72,8 +72,8 @@ describe("bulk/gravity/layout streamBulkManifest", () => {
       2,
     ])
     expect(fieldParticleEvents.map((event) => (event.item as BulkFieldParticle).fieldParticleId).sort()).toEqual([
-      101,
-      102,
+      "field:101",
+      "field:102",
     ])
     expect(fieldParticleEvents.map((event) => (event.item as BulkFieldParticle).fieldId).sort()).toEqual([
       101,

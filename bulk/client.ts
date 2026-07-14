@@ -229,8 +229,7 @@ force.onImpulse = (forceMessage) => {
 	const part = forceMessage.parts[0]
 	const change = projection.apply(part)
 	bulkViewport?.handleForce(part.part, part)
-	if (change.changed && change.structural) applyProjectionWorld(activeSrc, activeSettings.layoutSettings)
-	else if (change.changed) hud?.setBusy(false)
+	if (change.changed) applyProjectionWorld(activeSrc, activeSettings.layoutSettings)
 }
 
 function cloneSettings(settings: BulkHudSettingsSnapshot): BulkHudSettingsSnapshot {

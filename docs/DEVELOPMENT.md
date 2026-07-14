@@ -43,13 +43,13 @@ Launcher:
 
 1. создаёт свежую временную Boundary database;
 2. запускает Force на свободном порту;
-3. подключает Boundary, Matrix, Energy и Dark;
+3. подключает Boundary, Matrix, Energy, Bulk и Dark;
 4. загружает `test/runtime-universe`;
 5. ждёт packed Matrix bootstrap;
 6. отправляет внешний `input=1`;
 7. ждёт canonical Process и Reaction commits;
 8. проверяет Boundary values и State;
-9. оставляет universe работающим до `Ctrl+C`.
+9. публикует Capsule URL и оставляет universe работающим до `Ctrl+C`.
 
 Ожидаемое подтверждение:
 
@@ -59,7 +59,8 @@ Launcher:
   "output":2,
   "observed":2,
   "sourceState":"complete",
-  "targetState":"reacted"
+  "targetState":"reacted",
+  "capsuleUrl":"http://localhost:4004/"
 }
 ```
 
@@ -116,8 +117,9 @@ bun run runtime:gpu
 bun run force
 ```
 
-Bulk не участвует в минимальном причинном proof, но остаётся доменной силой и
-WebGPU manifestation runtime ядра.
+`runtime:universe` уже поднимает Bulk вместе с причинным proof. Команда `force`
+остаётся низкоуровневым параллельным запуском доменных серверов без fixture и
+проверки итогового State.
 
 ## Canonical external input
 

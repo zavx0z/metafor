@@ -1,4 +1,13 @@
-import type { BulkDarkParticle, BulkFieldParticle, BulkFieldParticleKind, BulkManifest } from "@metafor/types/bulk/manifest"
+import type {
+	BulkDarkParticle,
+	BulkFieldParticle,
+	BulkFieldParticleKind,
+	BulkFieldProxy,
+	BulkManifest,
+	BulkOrbitalParticle,
+	BulkRelationChannel,
+	BulkTransitionChannel,
+} from "@metafor/types/bulk/manifest"
 import type {
 	BotFloorPhones,
 	BotPhoneCameraFlight,
@@ -144,13 +153,47 @@ import { resolveForceFieldId, resolveForceFieldsPayload } from "@metafor/types/f
 
 const torusWireframeCache = new Map<string, BufferGeometry>()
 const sphereWireframeCache = new Map<string, BufferGeometry>()
+const sphereSurfaceCache = new Map<string, BufferGeometry>()
 const LABEL_TEXT_COLOR = new Color(1, 1, 1)
 const COSMOS_ORBIT_RAD_PER_MS = (Math.PI * 2) / 180_000
 const COSMOS_AXIS_RAD_PER_MS = (Math.PI * 2) / 90_000
 const BULK_SCENE_DEVICES_ENABLED = false
-const FIELD_GLOW_ALPHA = 0.22
-const FIELD_GLOW_INTENSITY = 1.65
-const FIELD_OPACITY_MULTIPLIER = 1.22
+
+type OrbitalParticleRenderRecord = {
+	node: LineSegments
+	material: LineGlowMaterial
+	snapshot: BulkOrbitalParticle
+	targetLocalPosition: Vector3
+}
+
+type TransitionChannelRenderRecord = {
+	line: LineSegments
+	material: LineGlowMaterial
+	snapshot: BulkTransitionChannel
+}
+
+type FieldProxyRenderRecord = {
+	node: LineSegments
+	material: LineGlowMaterial
+	snapshot: BulkFieldProxy
+}
+
+type RelationChannelRenderRecord = {
+	line: LineSegments
+	material: LineGlowMaterial
+	snapshot: BulkRelationChannel
+}
+
+type ImpulseRenderRecord = {
+	node: Mesh
+	start: Vector3
+	target: Vector3
+	startedAtMs: number
+	durationMs: number
+}
+const FIELD_GLOW_ALPHA = 0.1
+const FIELD_GLOW_INTENSITY = 0.8
+const FIELD_OPACITY_MULTIPLIER = 0.9
 const FIELD_BILLBOARD_PIXEL_WIDTH = 240
 const FIELD_BILLBOARD_PIXEL_HEIGHT = FIELD_BILLBOARD_PIXEL_WIDTH
 const FIELD_BILLBOARD_BORDER_RADIUS_PX = 6
@@ -200,7 +243,7 @@ const rebuildLevelResolver = (): void => {
 	levelResolver = createLevelResolver(toLevelSettings(activeLayoutSettings, activeRenderSettings))
 }
 
-const BULK_VIEW_POSE_STORAGE_KEY = "metafor.bulk.viewport.pose:v1"
+const BULK_VIEW_POSE_STORAGE_KEY = "metafor.bulk.viewport.pose:v2"
 
 const vectorFromStoredBulkPose = (value: unknown): Vector3 | null => {
 	if (typeof value !== "object" || value === null) return null
@@ -437,7 +480,6 @@ const forceFieldParticleColor = (kind: BulkFieldParticleKind): {colorR: number; 
 	if (kind === "string") return {colorR: 1, colorG: 0.08, colorB: 0.58}
 	if (kind === "number") return {colorR: 1, colorG: 0.88, colorB: 0}
 	if (kind === "boolean") return {colorR: 0, colorG: 0.9, colorB: 1}
-	// TODO: enum/array are connectivity particles and should be manifested as Fuzzy/MACHO, not ordinary field particles.
 	if (kind === "enum") return {colorR: 0.58, colorG: 0.32, colorB: 1}
 	if (kind === "array") return {colorR: 1, colorG: 0.42, colorB: 0}
 	return {colorR: 1, colorG: 0.16, colorB: 0.16}
@@ -1412,6 +1454,16 @@ const getSphereWireframeGeometry = (radius: number, depth: number): BufferGeomet
 	return wireframe
 }
 
+const getSphereSurfaceGeometry = (radius: number, depth: number): BufferGeometry => {
+	const detail = getSphereDetail(radius, depth)
+	const key = `${radius}:${detail.widthSegments}:${detail.heightSegments}`
+	const cached = sphereSurfaceCache.get(key)
+	if (cached) return cached
+	const geometry = new SphereGeometry({radius, ...detail})
+	sphereSurfaceCache.set(key, geometry)
+	return geometry
+}
+
 const createDarkParticleMaterial = (darkParticle: BulkDarkParticle): LineGlowMaterial =>
 	new LineGlowMaterial(resolveDarkParticleVisualState(darkParticle))
 
@@ -1427,8 +1479,11 @@ const brightenColor = (color: Color, amount: number): Color => mixColor(color, n
 
 const resolveDarkParticleVisualState = (darkParticle: BulkDarkParticle): { color: Color; glowColor: Color; glowIntensity: number; opacity: number } => {
 	const baseColor = particleColor(darkParticle)
-	const glowIntensity = darkParticle.darkParticleKind === "wimp" ? 1.4 : 1.15
-	const opacity = activeRenderSettings.wireframeOpacity
+	const root = darkParticle.parentDarkParticleId === null
+	const glowIntensity = root ? 0.95 : darkParticle.darkParticleKind === "wimp" ? 0.58 : 0.36
+	const opacity = activeRenderSettings.wireframeOpacity * (
+		root ? 1.25 : darkParticle.darkParticleKind === "wimp" ? 0.52 : 0.32
+	)
 	if (darkParticle.activity === "active") {
 		return {
 			color: mixColor(baseColor, new Color(1, 1, 1), 0.18),
@@ -1442,7 +1497,7 @@ const resolveDarkParticleVisualState = (darkParticle: BulkDarkParticle): { color
 			color: mixColor(mixColor(baseColor, new Color(1, 1, 1), 0.24), ROOT_BACKGROUND, 0.28),
 			glowColor: glowColor(mixColor(baseColor, new Color(1, 1, 1), 0.3), 0.08),
 			glowIntensity: glowIntensity * 0.35,
-			opacity,
+			opacity: opacity * 0.58,
 	}
 	}
 	return {
@@ -2155,9 +2210,14 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	let botPhoneDisplayDock: BotPhoneDisplayDockPane | null = null
 
 	const darkParticleRecords = new Map<number, DarkParticleRenderRecord>()
-	const fieldParticleRecords = new Map<number, FieldParticleRenderRecord>()
+	const fieldParticleRecords = new Map<string, FieldParticleRenderRecord>()
+	const orbitalParticleRecords = new Map<string, OrbitalParticleRenderRecord>()
+	const transitionChannelRecords = new Map<string, TransitionChannelRenderRecord>()
+	const fieldProxyRecords = new Map<string, FieldProxyRenderRecord>()
+	const relationChannelRecords = new Map<string, RelationChannelRenderRecord>()
+	const impulseRecords: ImpulseRenderRecord[] = []
 	const sceneProjection = new BulkSceneStore()
-	const fieldParticleBillboardRecords = new Map<number, FieldParticleBillboardRecord>()
+	const fieldParticleBillboardRecords = new Map<string, FieldParticleBillboardRecord>()
 	const fadingRemovalRecords: FadingRemovalRecord[] = []
 	const labelRecords = new Map<string, LabelRenderRecord>()
 	const fadingLabelRemovalRecords: FadingLabelRemovalRecord[] = []
@@ -2384,6 +2444,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const refreshPickTargets = (): void => {
 		pickTargets = [
 			...[...darkParticleRecords.values()]
+				.filter((record) => record.snapshot.darkParticleKind !== "axion")
 				.sort(
 					(left, right) =>
 						left.snapshot.depth - right.snapshot.depth ||
@@ -2396,7 +2457,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 					(left, right) =>
 						left.depth - right.depth ||
 						left.snapshot.fieldId - right.snapshot.fieldId ||
-						left.snapshot.fieldParticleId - right.snapshot.fieldParticleId,
+						left.snapshot.fieldParticleId.localeCompare(right.snapshot.fieldParticleId),
 				)
 				.map((record) => record.pickTarget),
 		]
@@ -2418,6 +2479,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			record.snapshot.depth,
 		)
 		const visual = resolveDarkParticleVisualState(record.snapshot)
+		record.torus.visible = record.snapshot.darkParticleKind !== "axion"
 		record.pickTarget.baseColor.copy(visual.color)
 		record.pickTarget.baseGlowColor = visual.glowColor.clone()
 		record.pickTarget.baseGlowIntensity = visual.glowIntensity
@@ -2445,6 +2507,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			),
 			material,
 		)
+		torus.visible = darkParticle.darkParticleKind !== "axion"
 		torus.updateMatrix()
 
 		const container = new Object3D()
@@ -2610,7 +2673,219 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return existing
 	}
 
-	const removeFieldParticleRecord = (fieldParticleId: number): void => {
+	const orbitalMaterialVisual = (particle: BulkOrbitalParticle): {color: Color; glowColor: Color; glowIntensity: number} => {
+		const isState = particle.orbitalParticleKind === "state"
+		const alpha = isState
+			? particle.current ? 0.82 : particle.active ? 0.3 : 0.015
+			: particle.current ? 0.82 : particle.active ? 0.5 : 0.16
+		const glowAlpha = isState
+			? particle.current ? 0.34 : particle.active ? 0.1 : 0.002
+			: particle.current ? 0.34 : particle.active ? 0.16 : 0.035
+		return {
+			color: new Color(particle.colorR, particle.colorG, particle.colorB, alpha),
+			glowColor: new Color(particle.colorR, particle.colorG, particle.colorB, glowAlpha),
+			glowIntensity: isState
+				? particle.current ? 1.9 : particle.active ? 1.05 : 0.08
+				: particle.current ? 1.9 : particle.active ? 1.15 : 0.42,
+		}
+	}
+
+	const upsertOrbitalParticleRecord = (particle: BulkOrbitalParticle, depth: number): OrbitalParticleRenderRecord => {
+		const existing = orbitalParticleRecords.get(particle.orbitalParticleId)
+		const visual = orbitalMaterialVisual(particle)
+		if (!existing) {
+			const material = new LineGlowMaterial({...visual, opacity: 1})
+			const node = new LineSegments(getSphereWireframeGeometry(particle.sphereRadius, depth), material)
+			node.position.set(particle.localX, particle.localY, particle.localZ)
+			node.updateMatrix()
+			const record = {
+				node,
+				material,
+				snapshot: {...particle, relatedStateIds: [...particle.relatedStateIds]},
+				targetLocalPosition: new Vector3(particle.localX, particle.localY, particle.localZ),
+			}
+			orbitalParticleRecords.set(particle.orbitalParticleId, record)
+			return record
+		}
+		existing.snapshot = {...particle, relatedStateIds: [...particle.relatedStateIds]}
+		existing.targetLocalPosition.set(particle.localX, particle.localY, particle.localZ)
+		existing.node.geometry = getSphereWireframeGeometry(particle.sphereRadius, depth)
+		existing.material.color.copy(visual.color)
+		existing.material.glowColor?.copy(visual.glowColor)
+		existing.material.glowIntensity = visual.glowIntensity
+		return existing
+	}
+
+	const transitionGeometry = (channel: BulkTransitionChannel): BufferGeometry => {
+		const from = orbitalParticleRecords.get(channel.fromOrbitalParticleId)?.snapshot
+		const to = orbitalParticleRecords.get(channel.toOrbitalParticleId)?.snapshot
+		const geometry = new BufferGeometry()
+		if (!from || !to) {
+			geometry.setAttribute("position", new BufferAttribute(new Float32Array(), 3))
+			return geometry
+		}
+		const dx = to.localX - from.localX
+		const dy = to.localY - from.localY
+		const length = Math.max(1, Math.hypot(dx, dy))
+		const bend = Math.min(length * 0.32, Math.max(from.sphereRadius, to.sphereRadius) * 5)
+		const nx = -dy / length
+		const ny = dx / length
+		const segments = 24
+		const positions: number[] = []
+		let previous: [number, number, number] | null = null
+		for (let index = 0; index <= segments; index++) {
+			const t = index / segments
+			const curve = Math.sin(Math.PI * t)
+			const point: [number, number, number] = [
+				from.localX + dx * t + nx * bend * curve,
+				from.localY + dy * t + ny * bend * curve,
+				from.localZ + (to.localZ - from.localZ) * t + Math.sin(Math.PI * 2 * t) * bend * 0.16,
+			]
+			if (previous) positions.push(...previous, ...point)
+			previous = point
+		}
+		geometry.setAttribute("position", new BufferAttribute(new Float32Array(positions), 3))
+		return geometry
+	}
+
+	const upsertTransitionChannelRecord = (channel: BulkTransitionChannel): TransitionChannelRenderRecord => {
+		const existing = transitionChannelRecords.get(channel.transitionChannelId)
+		const color = particleColor(channel)
+		if (!existing) {
+			const material = new LineGlowMaterial({
+				color: new Color(color.r, color.g, color.b, channel.active ? 0.82 : 0.008),
+				glowColor: new Color(color.r, color.g, color.b, channel.active ? 0.3 : 0),
+				glowIntensity: channel.active ? 2.15 : 0.06,
+				opacity: 1,
+			})
+			const line = new LineSegments(transitionGeometry(channel), material)
+			line.updateMatrix()
+			const record = {line, material, snapshot: {...channel, conditionIds: [...channel.conditionIds], conditionFieldIds: [...channel.conditionFieldIds]}}
+			transitionChannelRecords.set(channel.transitionChannelId, record)
+			return record
+		}
+		existing.snapshot = {...channel, conditionIds: [...channel.conditionIds], conditionFieldIds: [...channel.conditionFieldIds]}
+		existing.line.geometry = transitionGeometry(channel)
+		existing.material.color.setRGBA(color.r, color.g, color.b, channel.active ? 0.82 : 0.008)
+		existing.material.glowColor?.setRGBA(color.r, color.g, color.b, channel.active ? 0.3 : 0)
+		existing.material.glowIntensity = channel.active ? 2.15 : 0.06
+		return existing
+	}
+
+	const orientFieldProxy = (record: FieldProxyRenderRecord): void => {
+		const state = orbitalParticleRecords.get(record.snapshot.stateOrbitalParticleId)?.snapshot
+		if (!state) return
+		const normal = new Vector3(
+			record.snapshot.localX - state.localX,
+			record.snapshot.localY - state.localY,
+			record.snapshot.localZ - state.localZ,
+		).normalize()
+		const angle = Math.acos(Math.max(-1, Math.min(1, normal.z)))
+		const axis = new Vector3(-normal.y, normal.x, 0)
+		if (axis.length() <= 1e-6) axis.set(1, 0, 0)
+		else axis.normalize()
+		record.node.quaternion.setFromAxisAngle(axis, angle)
+		record.node.updateMatrix()
+	}
+
+	const upsertFieldProxyRecord = (proxy: BulkFieldProxy, depth: number): FieldProxyRenderRecord => {
+		const existing = fieldProxyRecords.get(proxy.fieldProxyId)
+		const active = orbitalParticleRecords.get(proxy.stateOrbitalParticleId)?.snapshot.active ?? false
+		const color = new Color(proxy.colorR, proxy.colorG, proxy.colorB, active ? 0.26 : 0.004)
+		const glow = new Color(proxy.colorR, proxy.colorG, proxy.colorB, active ? 0.12 : 0)
+		if (!existing) {
+			const material = new LineGlowMaterial({color, glowColor: glow, glowIntensity: active ? 1.4 : 0.04, opacity: 1})
+			const node = new LineSegments(
+				getTorusWireframeGeometry(proxy.ringRadius, Math.max(0.45, proxy.ringRadius * 0.14), depth),
+				material,
+			)
+			node.position.set(proxy.localX, proxy.localY, proxy.localZ)
+			const record = {node, material, snapshot: {...proxy}}
+			fieldProxyRecords.set(proxy.fieldProxyId, record)
+			orientFieldProxy(record)
+			return record
+		}
+		existing.snapshot = {...proxy}
+		existing.material.color.copy(color)
+		existing.material.glowColor?.copy(glow)
+		existing.material.glowIntensity = active ? 1.4 : 0.04
+		existing.node.geometry = getTorusWireframeGeometry(proxy.ringRadius, Math.max(0.45, proxy.ringRadius * 0.14), depth)
+		existing.node.position.set(proxy.localX, proxy.localY, proxy.localZ)
+		orientFieldProxy(existing)
+		return existing
+	}
+
+	const relationEndpointPosition = (kind: BulkRelationChannel["fromKind"], id: string): Vector3 | null => {
+		if (kind === "field") {
+			const field = fieldParticleRecords.get(id)?.snapshot
+			return field ? new Vector3(field.localX, field.localY, field.localZ) : null
+		}
+		if (kind === "field-proxy") {
+			const proxy = fieldProxyRecords.get(id)?.snapshot
+			return proxy ? new Vector3(proxy.localX, proxy.localY, proxy.localZ) : null
+		}
+		const orbital = orbitalParticleRecords.get(id)?.snapshot
+		return orbital ? new Vector3(orbital.localX, orbital.localY, orbital.localZ) : null
+	}
+
+	const relationGeometry = (channel: BulkRelationChannel): BufferGeometry => {
+		const from = relationEndpointPosition(channel.fromKind, channel.fromId)
+		const to = relationEndpointPosition(channel.toKind, channel.toId)
+		const geometry = new BufferGeometry()
+		if (!from || !to) {
+			geometry.setAttribute("position", new BufferAttribute(new Float32Array(), 3))
+			return geometry
+		}
+		const delta = to.clone().sub(from)
+		const length = Math.max(1, delta.length())
+		const axis = delta.clone().normalize()
+		const side = new Vector3(0, 0, 1).sub(axis.clone().multiplyScalar(axis.z))
+		if (side.length() <= 1e-6) side.set(1, 0, 0)
+		else side.normalize()
+		const center = from.clone().add(to).multiplyScalar(0.5)
+		const major = delta.clone().multiplyScalar(0.5)
+		const minor = side.multiplyScalar(Math.min(length * 0.23, 180))
+		const positions: number[] = []
+		for (const half of [1, -1]) {
+			let previous: Vector3 | null = null
+			for (let index = 0; index <= 32; index += 1) {
+				const angle = Math.PI * index / 32
+				const point = center.clone()
+					.add(major.clone().multiplyScalar(-Math.cos(angle)))
+					.add(minor.clone().multiplyScalar(Math.sin(angle) * half))
+				if (previous) positions.push(previous.x, previous.y, previous.z, point.x, point.y, point.z)
+				previous = point
+			}
+		}
+		geometry.setAttribute("position", new BufferAttribute(new Float32Array(positions), 3))
+		return geometry
+	}
+
+	const upsertRelationChannelRecord = (channel: BulkRelationChannel): RelationChannelRenderRecord => {
+		const existing = relationChannelRecords.get(channel.relationChannelId)
+		const color = new Color(channel.colorR, channel.colorG, channel.colorB, channel.active ? 0.78 : 0.006)
+		if (!existing) {
+			const material = new LineGlowMaterial({
+				color,
+				glowColor: new Color(channel.colorR, channel.colorG, channel.colorB, channel.active ? 0.26 : 0),
+				glowIntensity: channel.active ? 1.9 : 0.05,
+				opacity: 1,
+			})
+			const line = new LineSegments(relationGeometry(channel), material)
+			line.updateMatrix()
+			const record = {line, material, snapshot: {...channel}}
+			relationChannelRecords.set(channel.relationChannelId, record)
+			return record
+		}
+		existing.snapshot = {...channel}
+		existing.line.geometry = relationGeometry(channel)
+		existing.material.color.copy(color)
+		existing.material.glowColor?.setRGBA(channel.colorR, channel.colorG, channel.colorB, channel.active ? 0.26 : 0)
+		existing.material.glowIntensity = channel.active ? 1.9 : 0.05
+		return existing
+	}
+
+	const removeFieldParticleRecord = (fieldParticleId: string): void => {
 		const record = fieldParticleRecords.get(fieldParticleId)
 		if (!record) return
 		if (getPickTargetKey(hoveredPickTarget) === getPickTargetKey(record.pickTarget)) {
@@ -2800,7 +3075,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		record.surface.node.updateMatrix()
 	}
 
-	const removeFieldParticleBillboardRecord = (fieldParticleId: number): void => {
+	const removeFieldParticleBillboardRecord = (fieldParticleId: string): void => {
 		const record = fieldParticleBillboardRecords.get(fieldParticleId)
 		if (!record) return
 		record.surface.dispose()
@@ -2870,12 +3145,12 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const syncFieldParticleBillboardRecords = (): void => {
-		const nextFieldParticleIds = new Set<number>()
+		const nextFieldParticleIds = new Set<string>()
 		for (const record of [...fieldParticleRecords.values()].sort(
 			(left, right) =>
 				left.depth - right.depth ||
 				left.snapshot.fieldId - right.snapshot.fieldId ||
-				left.snapshot.fieldParticleId - right.snapshot.fieldParticleId,
+				left.snapshot.fieldParticleId.localeCompare(right.snapshot.fieldParticleId),
 		)) {
 			nextFieldParticleIds.add(record.snapshot.fieldParticleId)
 			upsertFieldParticleBillboardRecord(record)
@@ -2907,6 +3182,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const createDarkParticleLabelSpec = (record: DarkParticleRenderRecord): LabelSpec | null => {
 		if (!labelFont) return null
+		if (record.snapshot.darkParticleKind === "axion") return null
 		if (!isDarkParticleLabelDepthVisible(record.snapshot.darkParticleId, record.snapshot.depth)) return null
 		const text = normalizeLabelText(record.snapshot.label)
 		if (!text) return null
@@ -2956,6 +3232,32 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			sphereRadius: sphereRadiusMm,
 			text,
 	}
+	}
+
+	const createOrbitalParticleLabelSpec = (record: OrbitalParticleRenderRecord): LabelSpec | null => {
+		if (!labelFont) return null
+		if (record.snapshot.orbitalParticleKind === "state" &&
+			record.snapshot.sleeveRootStateId !== record.snapshot.sourceId &&
+			!record.snapshot.current) return null
+		const parent = darkParticleRecords.get(record.snapshot.parentDarkParticleId)
+		const depth = (parent?.snapshot.depth ?? 0) + 1
+		if (!isLabelDepthVisible(depth)) return null
+		const text = normalizeLabelText(record.snapshot.label)
+		if (!text) return null
+		return {
+			anchorObject: record.node,
+			color: particleColor(record.snapshot),
+			depth,
+			key: `orbitalParticle:${record.snapshot.orbitalParticleId}`,
+			kind: "orbitalParticle",
+			metricDepth: depth,
+			metricRadius: record.snapshot.sphereRadius,
+			offset: resolveSurfaceOffsetMm(depth, record.snapshot.sphereRadius),
+			torusRadius: 0,
+			torusTube: 0,
+			sphereRadius: record.snapshot.sphereRadius,
+			text,
+		}
 	}
 
 	const removeLabelRecord = (key: string): void => {
@@ -3061,13 +3363,20 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			(left, right) =>
 				left.depth - right.depth ||
 				left.snapshot.fieldId - right.snapshot.fieldId ||
-				left.snapshot.fieldParticleId - right.snapshot.fieldParticleId,
+				left.snapshot.fieldParticleId.localeCompare(right.snapshot.fieldParticleId),
 		)) {
 			const spec = createFieldParticleLabelSpec(record)
 			if (!spec) continue
 			nextLabelKeys.add(spec.key)
 			upsertLabelRecord(spec)
-	}
+		}
+
+		for (const record of orbitalParticleRecords.values()) {
+			const spec = createOrbitalParticleLabelSpec(record)
+			if (!spec) continue
+			nextLabelKeys.add(spec.key)
+			upsertLabelRecord(spec)
+		}
 
 		for (const key of [...labelRecords.keys()]) {
 			if (!nextLabelKeys.has(key)) removeLabelRecord(key)
@@ -3084,7 +3393,19 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			refreshFieldParticleRecordOrientation(record)
 			refreshFieldParticleRecordGeometryAndMaterial(record)
 			applyFieldParticleRecordScale(record)
-	}
+		}
+
+		for (const record of orbitalParticleRecords.values()) {
+			const parent = darkParticleRecords.get(record.snapshot.parentDarkParticleId)
+			const visual = orbitalMaterialVisual(record.snapshot)
+			record.node.geometry = getSphereWireframeGeometry(record.snapshot.sphereRadius, (parent?.snapshot.depth ?? 0) + 1)
+			record.material.color.copy(visual.color)
+			record.material.glowColor?.copy(visual.glowColor)
+			record.material.glowIntensity = visual.glowIntensity
+		}
+		for (const record of fieldProxyRecords.values()) orientFieldProxy(record)
+		for (const record of transitionChannelRecords.values()) record.line.geometry = transitionGeometry(record.snapshot)
+		for (const record of relationChannelRecords.values()) record.line.geometry = relationGeometry(record.snapshot)
 
 		syncLabelRecords()
 		syncFieldParticleBillboardRecords()
@@ -3096,6 +3417,10 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		const patch = sceneProjection.apply(nextManifest)
 		const changedDarkParticleIds = new Set(patch.darkParticleIds)
 		const changedFieldParticleIds = new Set(patch.fieldParticleIds)
+		const changedOrbitalParticleIds = new Set(patch.orbitalParticleIds)
+		const changedTransitionChannelIds = new Set(patch.transitionChannelIds)
+		const changedFieldProxyIds = new Set(patch.fieldProxyIds)
+		const changedRelationChannelIds = new Set(patch.relationChannelIds)
 
 		for (const darkParticle of nextManifest.darkParticles) {
 			if (!changedDarkParticleIds.has(darkParticle.darkParticleId)) continue
@@ -3127,6 +3452,67 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			removeDarkParticleRecord(removedDarkParticleId)
 		}
 
+		for (const particle of nextManifest.orbitalParticles ?? []) {
+			if (!changedOrbitalParticleIds.has(particle.orbitalParticleId)) continue
+			const parent = darkParticleRecords.get(particle.parentDarkParticleId)
+			if (!parent) continue
+			const record = upsertOrbitalParticleRecord(particle, parent.snapshot.depth + 1)
+			if (record.node.parent !== parent.container) parent.container.add(record.node)
+		}
+
+		for (const proxy of nextManifest.fieldProxies ?? []) {
+			if (!changedFieldProxyIds.has(proxy.fieldProxyId) && !changedOrbitalParticleIds.has(proxy.stateOrbitalParticleId)) continue
+			const parent = darkParticleRecords.get(proxy.parentDarkParticleId)
+			if (!parent) continue
+			const record = upsertFieldProxyRecord(proxy, parent.snapshot.depth + 1)
+			if (record.node.parent !== parent.container) parent.container.add(record.node)
+		}
+
+		for (const channel of nextManifest.transitionChannels ?? []) {
+			if (!changedTransitionChannelIds.has(channel.transitionChannelId) &&
+				!changedOrbitalParticleIds.has(channel.fromOrbitalParticleId) &&
+				!changedOrbitalParticleIds.has(channel.toOrbitalParticleId)) continue
+			const parent = darkParticleRecords.get(channel.parentDarkParticleId)
+			if (!parent) continue
+			const record = upsertTransitionChannelRecord(channel)
+			if (record.line.parent !== parent.container) parent.container.add(record.line)
+		}
+
+		for (const channel of nextManifest.relationChannels ?? []) {
+			if (!changedRelationChannelIds.has(channel.relationChannelId) &&
+				!(channel.fromKind === "field" && changedFieldParticleIds.has(channel.fromId)) &&
+				!(channel.toKind === "field" && changedFieldParticleIds.has(channel.toId)) &&
+				!(channel.fromKind === "field-proxy" && changedFieldProxyIds.has(channel.fromId)) &&
+				!(channel.toKind === "field-proxy" && changedFieldProxyIds.has(channel.toId)) &&
+				!(channel.fromKind === "orbital" && changedOrbitalParticleIds.has(channel.fromId)) &&
+				!(channel.toKind === "orbital" && changedOrbitalParticleIds.has(channel.toId))) continue
+			const parent = darkParticleRecords.get(channel.parentDarkParticleId)
+			if (!parent) continue
+			const record = upsertRelationChannelRecord(channel)
+			if (record.line.parent !== parent.container) parent.container.add(record.line)
+		}
+
+		for (const transitionChannelId of patch.removedTransitionChannelIds) {
+			const record = transitionChannelRecords.get(transitionChannelId)
+			if (record) detachObject(record.line)
+			transitionChannelRecords.delete(transitionChannelId)
+		}
+		for (const relationChannelId of patch.removedRelationChannelIds) {
+			const record = relationChannelRecords.get(relationChannelId)
+			if (record) detachObject(record.line)
+			relationChannelRecords.delete(relationChannelId)
+		}
+		for (const fieldProxyId of patch.removedFieldProxyIds) {
+			const record = fieldProxyRecords.get(fieldProxyId)
+			if (record) detachObject(record.node)
+			fieldProxyRecords.delete(fieldProxyId)
+		}
+		for (const orbitalParticleId of patch.removedOrbitalParticleIds) {
+			const record = orbitalParticleRecords.get(orbitalParticleId)
+			if (record) detachObject(record.node)
+			orbitalParticleRecords.delete(orbitalParticleId)
+		}
+
 		refreshParentByDarkParticleId()
 		refreshPickTargets()
 		syncLabelRecords()
@@ -3138,7 +3524,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			rootSrc: nextManifest.rootSrc,
 			darkParticleCount: nextManifest.darkParticles.length,
 			fieldParticleCount: nextManifest.fieldParticles.length,
-	})
+			orbitalParticleCount: nextManifest.orbitalParticles?.length ?? 0,
+			transitionChannelCount: nextManifest.transitionChannels?.length ?? 0,
+		})
 	}
 
 	const projectWorldToClientPoint = (manifestPoint: Vector3): { x: number; y: number } | null => {
@@ -4199,6 +4587,61 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		requestRenderLoop(SCENE_TRANSITION_WAKE_MS)
 	}
 
+	const spawnImpulseParticle = (message: unknown): boolean => {
+		if (!isRecord(message) || typeof message.part !== "string") return false
+		if (!new Set(["photon", "gluon", "higgs", "z", "w+", "w-"]).has(message.part)) return false
+
+		let targetObject: Object3D | null = null
+		const actorDarkParticleId = forceActorDarkParticleId(message.path)
+		const value = isRecord(message.value) ? message.value : null
+		const sourceId = forcePositiveInteger(value?.processId) ?? forcePositiveInteger(value?.reactionId)
+		if (sourceId !== null) {
+			targetObject = [...orbitalParticleRecords.values()].find((record) => record.snapshot.sourceId === sourceId)?.node ?? null
+		}
+		if (!targetObject && message.part === "photon" && typeof message.value === "string" && actorDarkParticleId !== null) {
+			targetObject = [...orbitalParticleRecords.values()].find((record) =>
+				record.snapshot.parentDarkParticleId === actorDarkParticleId &&
+				record.snapshot.orbitalParticleKind === "state" &&
+				record.snapshot.label === message.value &&
+				record.snapshot.orbitalParticleId.endsWith("/root"),
+			)?.node ?? null
+		}
+		if (!targetObject && message.part === "gluon" && actorDarkParticleId !== null) {
+			const fields = resolveForceFieldsPayload(message.value)
+			const firstFieldId = fields ? resolveForceFieldId(Object.keys(fields)[0] ?? "") : null
+			if (firstFieldId !== null) targetObject = [...fieldParticleRecords.values()].find((record) =>
+				record.parentDarkParticleId === actorDarkParticleId && record.snapshot.fieldId === firstFieldId,
+			)?.node ?? null
+		}
+		if (!targetObject && actorDarkParticleId !== null) targetObject = darkParticleRecords.get(actorDarkParticleId)?.container ?? null
+		if (!targetObject) targetObject = [...darkParticleRecords.values()].find((record) => record.snapshot.parentDarkParticleId === null)?.container ?? null
+		if (!targetObject) return false
+
+		space.updateWorldMatrix()
+		const target = readObjectWorldPosition(targetObject, new Vector3()).clone()
+		const parent = actorDarkParticleId === null ? null : darkParticleRecords.get(actorDarkParticleId)
+		const radius = Math.max(4, Math.min(14, (parent?.snapshot.torusTube ?? 60) * 0.08))
+		const colors: Record<string, Color> = {
+			photon: new Color(1, 0.94, 0.28, 0.94),
+			gluon: new Color(0.2, 1, 0.58, 0.94),
+			higgs: new Color(1, 0.52, 0.18, 0.94),
+			z: new Color(0.68, 0.42, 1, 0.94),
+			"w+": new Color(0.24, 0.92, 1, 0.94),
+			"w-": new Color(1, 0.22, 0.28, 0.94),
+		}
+		const node = new Mesh(
+			getSphereSurfaceGeometry(radius, 0),
+			new MeshBasicMaterial({color: colors[message.part] ?? new Color(1, 1, 1, 0.94)}),
+		)
+		const start = target.clone().add(new Vector3(radius * 5, -radius * 3, radius * 8))
+		node.position.copy(start)
+		node.updateMatrix()
+		space.add(node)
+		impulseRecords.push({node, start, target, startedAtMs: performance.now(), durationMs: 900})
+		requestRenderLoop(950)
+		return true
+	}
+
 	const updateAnimatedRecords = (deltaMs: number): boolean => {
 		let hasPendingMotion = false
 		const freezeCosmosPose = activeRenderSettings.animationEnabled && animationSuspended
@@ -4239,6 +4682,38 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			if (record.currentTransitionScale !== 1) hasPendingMotion = true
 			applyFieldParticleRecordScale(record)
 			record.node.updateMatrix()
+		}
+
+		for (const record of orbitalParticleRecords.values()) {
+			if (!freezeCosmosPose) {
+				record.node.position.set(
+					mixScalar(record.node.position.x, record.targetLocalPosition.x, positionFactor),
+					mixScalar(record.node.position.y, record.targetLocalPosition.y, positionFactor),
+					mixScalar(record.node.position.z, record.targetLocalPosition.z, positionFactor),
+				)
+				if (record.node.position.distanceTo(record.targetLocalPosition) > 0.01) hasPendingMotion = true
+			}
+			record.node.updateMatrix()
+		}
+
+		if (impulseRecords.length > 0) {
+			const now = performance.now()
+			for (let index = impulseRecords.length - 1; index >= 0; index--) {
+				const record = impulseRecords[index]!
+				const linear = Math.min(1, Math.max(0, (now - record.startedAtMs) / record.durationMs))
+				const progress = easeOutCubic(linear)
+				record.node.position.set(
+					mixScalar(record.start.x, record.target.x, progress),
+					mixScalar(record.start.y, record.target.y, progress),
+					mixScalar(record.start.z, record.target.z, progress),
+				)
+				;(record.node.material as MeshBasicMaterial).color.a = 0.94 * (1 - linear)
+				record.node.updateMatrix()
+				if (linear >= 1) {
+					detachObject(record.node)
+					impulseRecords.splice(index, 1)
+				} else hasPendingMotion = true
+			}
 		}
 
 		if (fadingRemovalRecords.length > 0) {
@@ -4447,8 +4922,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			let surfaceTitleAmount = 0
 			let fieldBillboard: FieldParticleBillboardRecord | undefined
 			if (tracker.kind === "fieldParticle") {
-				const fieldParticleId = Number(tracker.key.slice("fieldParticle:".length))
-				fieldBillboard = Number.isFinite(fieldParticleId) ? fieldParticleBillboardRecords.get(fieldParticleId) : undefined
+				const fieldParticleId = tracker.key.slice("fieldParticle:".length)
+				fieldBillboard = fieldParticleRecords.has(fieldParticleId) ? fieldParticleBillboardRecords.get(fieldParticleId) : undefined
 				if (fieldBillboard !== undefined) {
 					surfaceTitleAmount = resolveFieldLabelTitleMorph(cameraDistanceMm, Math.max(sphereRadius, 1e-6))
 				}
@@ -5035,12 +5510,23 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			anthropomorphBotMixer = null
 			anthropomorphBotSkinnedMeshes = []
 			for (const fieldParticleId of [...fieldParticleBillboardRecords.keys()]) removeFieldParticleBillboardRecord(fieldParticleId)
+			for (const record of transitionChannelRecords.values()) detachObject(record.line)
+			for (const record of relationChannelRecords.values()) detachObject(record.line)
+			for (const record of fieldProxyRecords.values()) detachObject(record.node)
+			for (const record of orbitalParticleRecords.values()) detachObject(record.node)
+			for (const record of impulseRecords) detachObject(record.node)
+			transitionChannelRecords.clear()
+			relationChannelRecords.clear()
+			fieldProxyRecords.clear()
+			orbitalParticleRecords.clear()
+			impulseRecords.length = 0
 			hudRuntime.dispose()
 			viewPoint.dispose()
 		},
 		handleForce(_channel: string, _message: unknown) {
 			applyHiggsFieldsForce(_message)
 			applyGluonFieldsForce(_message)
+			spawnImpulseParticle(_message)
 		},
 		setAnimationSuspended(suspended: boolean) {
 			if (animationSuspended === suspended) return
@@ -5056,6 +5542,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			rebuildLevelResolver()
 			torusWireframeCache.clear()
 			sphereWireframeCache.clear()
+			sphereSurfaceCache.clear()
 			refreshSceneForSettings()
 		},
 		setRenderSettings(settings: Partial<BulkRenderSettings>) {
@@ -5074,6 +5561,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			if (settings.baseDepth !== undefined) activeDarkParticleId = null
 			torusWireframeCache.clear()
 			sphereWireframeCache.clear()
+			sphereSurfaceCache.clear()
 			refreshSceneForSettings()
 		},
 		setSize(width: number, height: number) {

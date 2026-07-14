@@ -10,6 +10,14 @@ export interface BulkRuntimeMatterParticle {
   particleKind: MatterParticleKind
   edgeSlot: "root" | "child" | "then" | "else" | "branch"
   particleOrder: number
+  predicateBinding?: {
+    data: string | string[]
+    expr: string
+  }
+  fieldsBinding?: {
+    data: string | string[]
+    expr: string
+  }
 }
 
 export interface BulkRuntimeWimp {
@@ -23,6 +31,59 @@ export interface BulkRuntimeField {
   key: string
   type: "string" | "number" | "boolean" | "array" | "enum"
   label: string | null
+}
+
+export interface BulkRuntimeState {
+  id: number
+  wimp: string
+  name: string
+  position: number
+}
+
+export interface BulkRuntimeTransition {
+  id: number
+  wimp: string
+  fromState: number
+  toState: number
+  position: number
+}
+
+export interface BulkRuntimeCondition {
+  id: number
+  wimp: string
+  transition: number
+  field: number
+  position: number
+  predicate: unknown
+}
+
+export interface BulkRuntimeProcess {
+  id: number
+  wimp: string
+  state: string
+  descriptor: {
+    type: "action" | "finally"
+    key: string
+    label?: string | null
+    desc?: string | null
+    [key: string]: unknown
+  }
+}
+
+export interface BulkRuntimeReaction {
+  id: number
+  wimp: string
+  key: string
+  label?: string | null
+  desc?: string | null
+  read: number[]
+  write: number[]
+  states: number[]
+}
+
+export interface BulkRuntimeActorState {
+  actor: number
+  state: number | null
 }
 
 export interface BulkRuntimeValue {
@@ -51,6 +112,12 @@ export interface BulkRuntimeProjection {
   topologies: TopologyRecord[]
   wimps: BulkRuntimeWimp[]
   fields: BulkRuntimeField[]
+  states: BulkRuntimeState[]
+  transitions: BulkRuntimeTransition[]
+  conditions: BulkRuntimeCondition[]
+  processes: BulkRuntimeProcess[]
+  reactions: BulkRuntimeReaction[]
+  actorStates: BulkRuntimeActorState[]
   fieldEnumVariants: FieldEnumVariantRecord[]
   actorValues: ActorValueRecord[]
   values: BulkRuntimeValue[]

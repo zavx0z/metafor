@@ -15,15 +15,15 @@ import {
   toLevelGeometrySettings,
 } from "@bulk/gravity/layout"
 
-export const BULK_SETTINGS_REVISION = 8
-export const DEFAULT_BULK_SCENE_SRC = "zavx0z/linux"
+export const BULK_SETTINGS_REVISION = 14
+export const DEFAULT_BULK_SCENE_SRC = "zavx0z/git"
 
 export const DEFAULT_BULK_SETTINGS: BulkSettingsConfig = {
   src: DEFAULT_BULK_SCENE_SRC,
   layout: {
     orbitEdgeGapMm: 0,
     rootInnerDiameterMm: 1000,
-    rootSphereRadiusMm: 1470,
+    rootSphereRadiusMm: 50,
   },
   render: {
     animationEnabled: false,
@@ -31,12 +31,12 @@ export const DEFAULT_BULK_SETTINGS: BulkSettingsConfig = {
     detailLevelMultiplier: 1,
     labelVisibleLevels: 2,
     baseDepth: 0,
-    labelFontSizeMm: 77,
+    labelFontSizeMm: 42,
     labelSurfaceOffsetMm: 19,
     torusCrossRingRotationDeg: 44,
     torusRadialSegments: 14,
     torusTubularSegments: 48,
-    wireframeOpacity: 0.18,
+    wireframeOpacity: 0.08,
   },
 }
 
@@ -78,8 +78,8 @@ export const bulkLayoutConfig: BulkLayoutConfig = {
     grid: {
       sizeMm: 8000,
       divisions: 16,
-      centerColorHex: 0x444444,
-      colorHex: 0x888888,
+      centerColorHex: 0x202631,
+      colorHex: 0x343b49,
     },
     levelsMm: {
       floor: 0,
@@ -214,13 +214,13 @@ export const BULK_SETTINGS_BY_KEY: Record<BulkSettingKey, BulkSettingConfig> = {
     max: 1000,
     step: 1,
   },
-  // Внутренний диаметр root-тора и базовое отношение отверстия для внутренних уровней.
+  // Резервный внутренний диаметр root-тора, когда у Atom ещё нет Field-ядра.
   rootInnerDiameterMm: {
     group: "geometry",
     section: "layout",
-    label: "Внутренний диаметр root, мм",
+    label: "Резерв ядра, мм",
     defaultValue: DEFAULT_BULK_SETTINGS.layout.rootInnerDiameterMm,
-    description: "Определяет размер отверстия root-тора и то же соотношение для внутренних уровней.",
+    description: "Используется только для Atom без Fields; при наличии Fields размер общей пустоты определяет реальное Field-ядро.",
     min: 10,
     max: 3900,
     step: 10,
@@ -229,9 +229,9 @@ export const BULK_SETTINGS_BY_KEY: Record<BulkSettingKey, BulkSettingConfig> = {
   rootSphereRadiusMm: {
     group: "geometry",
     section: "layout",
-    label: "Размер root-сферы, мм",
+    label: "Радиус Field/State, мм",
     defaultValue: DEFAULT_BULK_SETTINGS.layout.rootSphereRadiusMm,
-    description: "Задает диаметр сфер полей на корневом уровне и пропорционально уменьшает их вглубь.",
+    description: "Задает единый радиус сфер Field и State-electron во всей сцене.",
     min: 10,
     max: DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG.rootOuterDiameterMm,
     step: 10,

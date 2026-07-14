@@ -6,8 +6,11 @@ import type {ForceMessage} from "@metafor/types/force/message"
 import type {Particle} from "@metafor/types/force/particle"
 import {boundaryEntityId} from "../boundary/incremental.ts"
 
-const ROOT = "test/runtime-universe"
+const ROOT = Bun.env.METAFOR_ROOT_SRC?.trim() || "test/runtime-universe"
 const TARGET = "test/runtime-reaction-target"
+const LINUX = "zavx0z/linux"
+const CODEX = "zavx0z/codex"
+const GIT = "zavx0z/git"
 const repositoryRoot = resolve(import.meta.dir, "..")
 const once = process.argv.includes("--once")
 const explicitDatabase = Bun.env.BOUNDARY_PATH?.trim()
@@ -25,13 +28,22 @@ type ManagedProcess = {
 
 type UniverseSummary = {
   database: string
+  capsuleUrl: string
+  rootSrc: string
   sourceActorId: number
-  targetActorId: number
-  input: unknown
-  output: unknown
-  observed: unknown
+  targetActorId?: number
+  linuxActorId?: number
+  codexActorId?: number
+  gitHistoryActorId?: number
+  gitCommitActorId?: number
+  input?: unknown
+  output?: unknown
+  observed?: unknown
+  command?: unknown
+  operation?: unknown
+  subcommand?: unknown
   sourceState: string
-  targetState: string
+  targetState?: string
 }
 
 const processes: ManagedProcess[] = []
@@ -195,6 +207,13 @@ const launch = async (): Promise<UniverseSummary> => {
     ENERGY_RUNTIME_KIND: Bun.env.ENERGY_RUNTIME_KIND ?? "server",
   })
   await force.waitForLine((line) => line.includes("[force] connected: energy energy-local"))
+  const bulk = spawnDomain("bulk", "bulk/server.ts", {
+    ...domainEnv,
+    PORT: Bun.env.BULK_PORT?.trim() || (once ? "0" : "4004"),
+  })
+  await force.waitForLine((line) => line.includes("[force] connected: bulk bulk-local"))
+  const bulkListening = await bulk.waitForLine((line) => line.includes("[bulk] listening on "))
+  const capsuleUrl = bulkListening.slice(bulkListening.indexOf("http"))
   spawnDomain("dark", "dark/server.ts", domainEnv)
   await force.waitForLine((line) => line.includes("[force] connected: dark dark-local"))
 
@@ -204,14 +223,70 @@ const launch = async (): Promise<UniverseSummary> => {
   if (!existsSync(database)) throw new Error(`Boundary database was not created: ${database}`)
   const sql = new SQL(`sqlite://${database}`)
   try {
-    const actors = await waitFor("runtime Actors", async () => {
+    if (ROOT === GIT) {
+      const sourceActorId = await waitFor("Git root Atom", async () => {
+        const row = (await sql<Array<{id: number}>>`
+          SELECT id FROM actor WHERE wimp = ${GIT} ORDER BY id LIMIT 1
+        `)[0]
+        return row ? Number(row.id) : null
+      })
+      const commandFieldId = boundaryEntityId(`${GIT}/fields/3`)
+      const operationFieldId = boundaryEntityId(`${GIT}/fields/1`)
+      const subcommandFieldId = boundaryEntityId(`${GIT}/fields/4`)
+      await postImpulse(forceHttp, {
+        part: "gluon",
+        op: "replace",
+        path: sourceActorId,
+        value: {fields: {[String(commandFieldId)]: "git commit --dry-run -m capsule"}},
+      })
+
+      const summary = await waitFor("Git capsule hierarchy", async () => {
+        const childActors = await sql<Array<{id: number; wimp: string}>>`
+          SELECT id, wimp FROM actor
+           WHERE wimp IN (${"zavx0z/git-history"}, ${"zavx0z/git-history-commit"})
+           ORDER BY id
+        `
+        const gitHistoryActor = childActors.find((actor) => actor.wimp === "zavx0z/git-history")
+        const gitCommitActor = childActors.find((actor) => actor.wimp === "zavx0z/git-history-commit")
+        const command = await fieldValue(sql, sourceActorId, commandFieldId)
+        const operation = await fieldValue(sql, sourceActorId, operationFieldId)
+        const subcommand = await fieldValue(sql, sourceActorId, subcommandFieldId)
+        const sourceState = await actorState(sql, sourceActorId)
+        if (!gitHistoryActor || !gitCommitActor || operation !== "history" || subcommand !== "commit" || !sourceState) return null
+        return {
+          database,
+          capsuleUrl,
+          rootSrc: ROOT,
+          sourceActorId,
+          gitHistoryActorId: Number(gitHistoryActor.id),
+          gitCommitActorId: Number(gitCommitActor.id),
+          command,
+          operation,
+          subcommand,
+          sourceState,
+        }
+      }, 60_000)
+
+      console.log(`[metafor] universe ready ${JSON.stringify(summary)}`)
+      console.log(`[metafor] capsule ${summary.capsuleUrl}`)
+      return summary
+    }
+
+    const actors = await waitFor("runtime Atoms", async () => {
       const rows = await sql<Array<{id: number; wimp: string}>>`
-        SELECT id, wimp FROM actor WHERE wimp IN (${ROOT}, ${TARGET}) ORDER BY id
+        SELECT id, wimp FROM actor WHERE wimp IN (${ROOT}, ${TARGET}, ${LINUX}, ${CODEX}) ORDER BY id
       `
       const source = rows.find((row) => row.wimp === ROOT)
       const target = rows.find((row) => row.wimp === TARGET)
-      return source && target
-        ? {sourceActorId: Number(source.id), targetActorId: Number(target.id)}
+      const linux = rows.find((row) => row.wimp === LINUX)
+      const codex = rows.find((row) => row.wimp === CODEX)
+      return source && target && linux && codex
+        ? {
+            sourceActorId: Number(source.id),
+            targetActorId: Number(target.id),
+            linuxActorId: Number(linux.id),
+            codexActorId: Number(codex.id),
+          }
         : null
     })
 
@@ -236,6 +311,8 @@ const launch = async (): Promise<UniverseSummary> => {
       }
       return {
         database,
+        capsuleUrl,
+        rootSrc: ROOT,
         ...actors,
         input,
         output,
@@ -246,6 +323,7 @@ const launch = async (): Promise<UniverseSummary> => {
     })
 
     console.log(`[metafor] universe ready ${JSON.stringify(summary)}`)
+    console.log(`[metafor] capsule ${summary.capsuleUrl}`)
     return summary
   } finally {
     await sql.close()

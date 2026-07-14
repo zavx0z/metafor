@@ -32,8 +32,8 @@ export interface MatterWimp {
 
 export interface MatterFuzzy {
   kind: "fuzzy"
-  fuzzyKind: "dynamic-meta" | "cond"
-  predicateBinding?: MatterBindingValue
+  fuzzyKind: "dynamic-meta"
+  predicateBinding: MatterBindingValue
   children?: MatterChild[]
 }
 
@@ -104,7 +104,7 @@ export interface MatterFields {
  * - `mass` — масса для сложных данных и зависимостей от среды
  *
  * Matter описывает только иерархию акторов.
- * Выбор topology в matter допускается только по `state`, `enum` и `array`.
+ * State-условия создают Axion, dynamic enum src создаёт Fuzzy, array map создаёт Macho.
  * Обычные HTML-элементы и текст должны жить вне matter.
  *
  * @example

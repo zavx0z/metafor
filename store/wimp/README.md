@@ -336,8 +336,8 @@ Default-массив разложен поэлементно: одна стро�
 Type-specific подтаблицы. Одна строка на каждую частицу — в той подтаблице, которая соответствует её `particle_kind`.
 
 - **wimp**: `src` (адрес дочерней меты), `fields_binding` (FK на `matter_binding`), `mass_binding` (FK)
-- **fuzzy**: `fuzzy_kind` (`dynamic-meta` / `cond`), `predicate_binding` (FK; для `cond` обязателен, для `dynamic-meta` NULL)
-- **axion**: `predicate_binding` (FK, обязателен)
+- **fuzzy**: только `fuzzy_kind = dynamic-meta`; `predicate_binding` обязателен и указывает на enum Field, выбирающий WIMP-ветвь
+- **axion**: `predicate_binding` обязателен и зависит только от текущего State
 - **macho**: `collection_binding` (FK, обязателен — что итерировать)
 
 **Алгоритм заполнения matter**:
@@ -357,7 +357,11 @@ Matter в DSL — это вложенное дерево узлов разног
    2. INSERT в одну из подтаблиц `matter_particle_<kind>` со ссылками на `matter_binding.uuid` из шага 1
    3. Рекурсивно обработать детей
 
-Slot `then`/`else` используется для `cond`-fuzzy узлов (двухветочное условие). Slot `branch` — для `dynamic-meta`-fuzzy (множество ветвей по enum-значению или массиву). Slot `child` — для `wimp` / `axion` / `macho` (произвольное число потомков).
+Slot `then`/`else` используется для State-driven Axion. Slot `branch` — для
+dynamic-meta Fuzzy, где enum выбирает WIMP-ветвь. Slot `child` используется для
+обычной вложенности WIMP/Axion/Macho; множественность создаёт только Macho из
+array Field. Enum не участвует в conditional/logical matter, а State не создаёт
+Fuzzy.
 
 ---
 

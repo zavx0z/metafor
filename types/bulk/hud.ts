@@ -58,7 +58,7 @@ export type FieldParticleBillboardSurfaceControl = UiSurface & {
 export type FieldParticleBillboardRecord = {
   anchorObject: Object3D
   container: Object3D
-  fieldParticleId: number
+  fieldParticleId: string
   heightMm: number
   pixelScale: number
   signature: string

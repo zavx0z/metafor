@@ -13,24 +13,24 @@ describe("matter validation", () => {
       .processes()
       .reactions()
       .matter(
-        ({ value, html }) => html`
-          ${value.mode === "card"
+        ({ state, value, html }) => html`
+          ${state === "idle"
             ? html`<meta-for src="demo/${value.mode}" fields=${{ title: value.title }} />`
             : html`<meta-for src="demo/table" />`}
         `,
       )
       .bulk()
 
-    const condition = schema.matter?.find((particle) => particle.kind === "fuzzy" && particle.fuzzyKind === "cond") as any
+    const condition = schema.matter?.find((particle) => particle.kind === "axion") as any
     const dynamicMeta = condition.children.find((child: any) => child.particle.kind === "fuzzy" && child.particle.fuzzyKind === "dynamic-meta").particle
     const dynamicChild = dynamicMeta.children[0].particle
 
-    expect(condition.predicateBinding.data).toBe("mode")
+    expect(condition.predicateBinding.data).toBe("/state")
     expect(dynamicMeta.predicateBinding.data).toBe("mode")
     expect(dynamicChild.fieldsBinding.data).toBe("title")
   })
 
-  test("разрешает topology в matter только через state, enum и array", () => {
+  test("разводит Axion по state, Fuzzy по dynamic enum src и Macho по array", () => {
     expect(() =>
       MetaFor("valid-matter")
         .fields((field) => ({
@@ -49,7 +49,7 @@ describe("matter validation", () => {
         .matter(
           ({ state, value, html }) => html`
             ${state === "готово" && html`<meta-for src="demo/panel" />`}
-            ${value.mode === "card" ? html`<meta-for src="demo/card" />` : html`<meta-for src="demo/table" />`}
+            <meta-for src="demo/${value.mode}" />
             ${value.branches.map((branch) => html`<meta-for src="demo/branch" fields=${{ branch }} />`)}
           `,
         )
@@ -124,7 +124,7 @@ describe("matter validation", () => {
     )
   })
 
-  test("запрещает redundant null-guard вокруг dynamic enum src", () => {
+  test("запрещает enum в conditional/logical branch", () => {
     expect(() =>
       MetaFor("invalid-enum-null-guard")
         .fields((field) => ({
@@ -137,7 +137,7 @@ describe("matter validation", () => {
         .matter(({ value, html }) => html`${value.operation && html`<meta-for src="demo/${value.operation}" />`}`)
         .bulk(),
     ).toThrow(
-      'Matter violation at "invalid-enum-null-guard.matter[0]": enum field "operation" must not be used as a null-guard for its own dynamic src.',
+      'Matter violation at "invalid-enum-null-guard.matter[0]": logical branch uses field "operation" of type "enum".',
     )
   })
 

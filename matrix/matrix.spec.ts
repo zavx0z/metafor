@@ -52,12 +52,12 @@ const runtimeSnapshot = (): MatrixRuntimeSnapshot => ({
     braneIndexByActorId: [[17, 0]],
     wimpSrcByActorId: [[17, "owner/process"]],
     actorIdsByWimpSrc: [["owner/process", [17]]],
-    runtimeFieldIndexByActorFieldId: [[17, 101, 0]],
+    runtimeFieldIndexByActorFieldId: [[17, 101, 0], [17, 102, 1]],
   },
   data: {
-    fields: [{type: 0}],
+    fields: [{type: 0}, {type: 3}],
     branes: [{
-      values: [[0, 0]],
+      values: [[0, 0], [1, ""]],
       state: STATE_UNDEFINED,
       collapses: [
         [[1, {0: {gt: 10}}]],
@@ -68,9 +68,9 @@ const runtimeSnapshot = (): MatrixRuntimeSnapshot => ({
     stateNames: [["idle", "ready", "done"]],
   },
   strong: {
-    runtimeFieldIndexByWimpFieldId: [[1, 0]],
-    wimpFieldIdsByRuntimeFieldIndex: [[1]],
-    braneIndexByWimpFieldId: [[1, 0]],
+    runtimeFieldIndexByWimpFieldId: [[1, 0], [2, 1]],
+    wimpFieldIdsByRuntimeFieldIndex: [[1], [2]],
+    braneIndexByWimpFieldId: [[1, 0], [2, 0]],
     topologyWimpFieldIds: [],
     topologyActorFieldIds: [],
   },
@@ -101,7 +101,12 @@ describe("Matrix packed Force runtime", () => {
     expect(weak$.mode).toBe("cpu")
 
     const fromField = fixture.messages.length
-    send(client, {part: "gluon", op: "replace", path: 17, value: {fields: {"101": 11}}})
+    send(client, {
+      part: "gluon",
+      op: "replace",
+      path: 17,
+      value: {fields: {"101": 11, "102": "git commit --dry-run -m capsule"}},
+    })
     const ready = await waitForPart(client, (part) => part.part === "photon" && part.op === "test", fromField)
     expect(ready).toMatchObject({part: "photon", op: "test", path: 17, value: "ready"})
     expect(typeof ready.from).toBe("string")
@@ -120,7 +125,10 @@ describe("Matrix packed Force runtime", () => {
       op: "copy",
       path: 17,
       from: "energy-local",
-      value: {processExecutionId, fields: {"101": 11}},
+      value: {
+        processExecutionId,
+        fields: {"101": 11, "102": "git commit --dry-run -m capsule"},
+      },
     })
 
     const proposal: ProcessResultProposal = {

@@ -13,8 +13,10 @@ const ROOT = "test/execution"
 const INPUT = boundaryEntityId(`${ROOT}/fields/1`)
 const OUTPUT = boundaryEntityId(`${ROOT}/fields/2`)
 const ERROR = boundaryEntityId(`${ROOT}/fields/3`)
+const OPERATION = boundaryEntityId(`${ROOT}/fields/4`)
 const PROCESS = boundaryEntityId(`${ROOT}/processes/1`)
 const ENERGY = "energy-test"
+const HISTORY = "test/execution-history"
 
 const message = (part: Particle): ForceMessage => ({parts: [part]})
 
@@ -30,6 +32,7 @@ describe("Boundary canonical Process result", () => {
       {part: "inflaton", op: "add", path: `${ROOT}/fields/1`, value: {key: "input", type: "number", default: 0}},
       {part: "inflaton", op: "add", path: `${ROOT}/fields/2`, value: {key: "output", type: "number", default: 0}},
       {part: "inflaton", op: "add", path: `${ROOT}/fields/3`, value: {key: "error", type: "string", default: ""}},
+	  {part: "inflaton", op: "add", path: `${ROOT}/fields/4`, value: {key: "operation", type: "enum", enum: ["start", "history"], default: "start"}},
       {part: "inflaton", op: "add", path: `${ROOT}/states/1`, value: {name: "idle", position: 0}},
       {part: "inflaton", op: "add", path: `${ROOT}/states/2`, value: {name: "ready", position: 1}},
       {
@@ -41,10 +44,26 @@ describe("Boundary canonical Process result", () => {
           type: "action",
           env: ["server"],
           action: {src: "./ready.ts", read: ["1"]},
-          success: {src: "({update}) => update({output: 2})", read: ["2"], write: ["2"]},
+          success: {src: "({update}) => update({output: 2})", read: ["2"], write: ["2", "4"]},
           error: {src: "({update, error}) => update({error: error.message})", read: ["3"], write: ["3"]},
         },
       },
+	  {part: "inflaton", op: "add", path: `${HISTORY}/meta`, value: {name: "History"}},
+	  {part: "inflaton", op: "add", path: `${ROOT}/matter/1`, value: {
+		parent: null,
+		edgeSlot: "root",
+		position: 0,
+		kind: "fuzzy",
+		fuzzyKind: "dynamic-meta",
+		predicateBinding: {data: "operation", expr: "test/execution-${_[0]}"},
+	  }},
+	  {part: "inflaton", op: "add", path: `${ROOT}/matter/2`, value: {
+		parent: "1",
+		edgeSlot: "branch",
+		position: 0,
+		kind: "wimp",
+		src: HISTORY,
+	  }},
       {part: "inflaton", op: "test", path: ROOT},
     ]
 
@@ -233,4 +252,27 @@ describe("Boundary canonical Process result", () => {
       },
     })
   })
+
+	test("materializes Fuzzy children in the same Process commit as an enum write", async () => {
+		const processExecutionId = "execution-topology"
+		await beginExecution(processExecutionId)
+
+		const commit = await boundary.materialize(message({
+			part: "w+",
+			op: "replace",
+			path: actorId,
+			from: ENERGY,
+			value: {
+				processExecutionId,
+				processId: PROCESS,
+				fields: {[String(OPERATION)]: "history"},
+			} satisfies ProcessResultProposal,
+		}))
+
+		expect(await fieldValue(OPERATION)).toBe("history")
+		expect((await boundary.projection.sql<Array<{wimp: string}>>`
+			SELECT wimp FROM actor WHERE wimp = ${HISTORY}
+		`)).toEqual([{wimp: HISTORY}])
+		expect(commit?.messages.some((item) => item.parts[0]?.part === "graviton" && item.parts[0]?.op === "add")).toBe(true)
+	})
 })

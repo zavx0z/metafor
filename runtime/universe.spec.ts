@@ -42,7 +42,8 @@ describe("MetaFor universe launcher", () => {
       sourceState: "complete",
       targetState: "reacted",
     })
-    expect(output).not.toContain("connected: bulk")
+    expect(summary.capsuleUrl).toStartWith("http://")
+    expect(output).toContain("connected: bulk")
     expect(output).not.toContain("connected: interpreter")
   }, 70_000)
 })

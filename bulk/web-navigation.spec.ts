@@ -97,7 +97,7 @@ describe("bulk web navigation", () => {
         {
           kind: "fieldParticle",
           parentDarkParticleId: 1,
-          fieldParticleId: 101,
+          fieldParticleId: "field:101",
           depth: 3,
           center: new Vector3(120, 40, 0),
           sphereRadius: 90,
@@ -107,7 +107,7 @@ describe("bulk web navigation", () => {
     )
 
     expect(hit?.kind).toBe("fieldParticle")
-    expect(hit && "fieldParticleId" in hit ? hit.fieldParticleId : null).toBe(101)
+    expect(hit && "fieldParticleId" in hit ? hit.fieldParticleId : null).toBe("field:101")
   })
 
   test("hover retention не удерживает родителя, если найден более глубокий target", () => {
@@ -125,7 +125,7 @@ describe("bulk web navigation", () => {
     const fieldParticle: BulkPickTarget = {
       kind: "fieldParticle",
       parentDarkParticleId: 1,
-      fieldParticleId: 101,
+      fieldParticleId: "field:101",
       depth: 3,
       center: new Vector3(120, 40, 0),
       sphereRadius: 90,
@@ -135,7 +135,7 @@ describe("bulk web navigation", () => {
     const hit = resolveBulkHoverTarget(ray, [root, fieldParticle], root)
 
     expect(hit?.kind).toBe("fieldParticle")
-    expect(hit && "fieldParticleId" in hit ? hit.fieldParticleId : null).toBe(101)
+    expect(hit && "fieldParticleId" in hit ? hit.fieldParticleId : null).toBe("field:101")
   })
 
   test("hover retention удерживает текущий target только если нового точного hit нет", () => {

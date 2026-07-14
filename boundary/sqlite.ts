@@ -82,14 +82,34 @@ export const open = async (filename?: string) => {
       const executionCommit = await execution.apply(message)
       const reactionCommit = await reaction.apply(message)
       const inputCommit = await input.apply(message)
-      const rawCommit = executionCommit !== undefined
-        ? executionCommit
+      const stateMatterCommit = executionCommit !== undefined
+        ? await projection.reconcileStateMatter(message.parts[0])
+        : null
+      let rawCommit = executionCommit !== undefined
+        ? stateMatterCommit ?? executionCommit
         : reactionCommit !== undefined
           ? reactionCommit
           : inputCommit !== undefined
             ? inputCommit
             : await projection.apply(message)
       if (!rawCommit) return null
+
+	  // Boundary-originated topology consequences are not echoed back to the
+	  // sender by Force. Expand them through the canonical Matter projection in
+	  // the same commit, so enum/array writes materialize Fuzzy/Macho children
+	  // atomically with the Process or Reaction result.
+	  if (executionCommit || reactionCommit) {
+		const messages: ForceMessage[] = []
+		for (const consequence of rawCommit.messages) {
+			if (consequence.parts[0]?.part !== "higgs") {
+				messages.push(consequence)
+				continue
+			}
+			const projected = await projection.apply(consequence)
+			messages.push(...(projected?.messages ?? [consequence]))
+		}
+		rawCommit = {...rawCommit, messages}
+	  }
 
       const commit = stampBoundaryCommit(message, rawCommit)
       const reactionSignals = await reaction.derive(commit.messages)

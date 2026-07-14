@@ -99,6 +99,31 @@ describe("Boundary incremental projection", () => {
     expect(boundary.projection.childrenByParent.get(`actor/${rootId}`)).toEqual(new Set([`actor/${peerId}`]))
   })
 
+	test("materializes child Fields from the parent's declared Matter binding", async () => {
+		const rootId = await declareRoot()
+		await apply(inflaton("add", `${ROOT}/fields/1`, {key: "operation", type: "string", default: "commit"}))
+		await apply(inflaton("add", `${ROOT}/fields/2`, {key: "args", type: "string", default: "--dry-run"}))
+		await apply(inflaton("add", `${CHILD}/meta`, {name: "Child"}))
+		await apply(inflaton("add", `${CHILD}/fields/1`, {key: "operation", type: "string"}))
+		await apply(inflaton("add", `${CHILD}/fields/2`, {key: "args", type: "string"}))
+		await apply(inflaton("add", `${ROOT}/matter/1`, {
+			parent: null,
+			edgeSlot: "root",
+			position: 0,
+			kind: "wimp",
+			src: CHILD,
+			fieldsBinding: {data: ["operation", "args"], expr: "{operation: _[0], args: _[1]}"},
+		}))
+
+		const childId = Number((await boundary.projection.sql<Array<{id: number}>>`
+			SELECT id FROM actor WHERE wimp = ${CHILD}
+		`)[0]!.id)
+		expect(rootId).toBeGreaterThan(0)
+		expect(await boundary.projection.sql<Array<{value: string}>>`
+			SELECT value_json AS value FROM boundary_actor_field WHERE actor = ${childId} ORDER BY field
+		`).toEqual([{value: '"commit"'}, {value: '"--dry-run"'}])
+	})
+
   test("Macho materializes multiplicity locally and Higgs rebuilds only its children", async () => {
     const rootId = await declareRoot()
     const fieldPath = `${ROOT}/fields/1`
@@ -127,7 +152,56 @@ describe("Boundary incremental projection", () => {
     expect((await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM actor WHERE wimp = ${PEER}`)[0]!.id).toBe(peerId)
     expect(commit?.messages).toContainEqual({parts: [{
       part: "higgs", op: "replace", path: `topology/${topologyId}`, value: {fields: {[String(fieldId)]: ["one"]}},
+      from: expect.any(String),
     }]})
+  })
+
+  test("Photon reconciles only the selected State-driven Axion branch", async () => {
+    const rootId = await declareRoot()
+    await apply(inflaton("add", `${ROOT}/states/1`, {name: "ready", position: 0}))
+    await apply(inflaton("add", `${CHILD}/meta`, {name: "Ready child"}))
+    await apply(inflaton("add", `${PEER}/meta`, {name: "Fallback child"}))
+    await apply(inflaton("add", `${ROOT}/matter/1`, {
+      parent: null,
+      edgeSlot: "root",
+      position: 0,
+      kind: "axion",
+      predicateBinding: {data: "/state", expr: "_[0] === 'ready'"},
+    }))
+    await apply(inflaton("add", `${ROOT}/matter/2`, {
+      parent: "1", edgeSlot: "then", position: 0, kind: "wimp", src: CHILD,
+    }))
+    await apply(inflaton("add", `${ROOT}/matter/3`, {
+      parent: "1", edgeSlot: "else", position: 1, kind: "wimp", src: PEER,
+    }))
+
+    const topologyId = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM topology WHERE kind = ${"axion"}
+    `)[0]!.id)
+    const fallbackId = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM actor WHERE wimp = ${PEER}
+    `)[0]!.id)
+    expect(await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM actor WHERE wimp = ${CHILD}`).toEqual([])
+
+    const commit = await apply({part: "photon", op: "replace", path: rootId, value: "ready"})
+
+    expect((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM topology WHERE kind = ${"axion"}
+    `)[0]!.id).toBe(topologyId)
+    expect(await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM actor WHERE wimp = ${PEER}`).toEqual([])
+    expect((await boundary.projection.sql`SELECT id FROM actor WHERE wimp = ${CHILD}`).length).toBe(1)
+    expect(commit?.messages).toContainEqual({parts: [{part: "graviton", op: "remove", path: `actor/${fallbackId}`}]})
+    expect(commit?.messages).toContainEqual({parts: [{
+      part: "higgs", op: "replace", path: `topology/${topologyId}`, value: {state: "ready"},
+    }]})
+
+    const readyId = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM actor WHERE wimp = ${CHILD}
+    `)[0]!.id)
+    expect(await apply({part: "photon", op: "replace", path: rootId, value: "ready"})).toBeNull()
+    expect((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM actor WHERE wimp = ${CHILD}
+    `)[0]!.id).toBe(readyId)
   })
 
   test("canonical process particle resolves field identities for Energy", async () => {
@@ -154,6 +228,8 @@ describe("Boundary incremental projection", () => {
         descriptor: {
           type: "action",
           key: "ready",
+          label: null,
+          desc: null,
           env: ["server"],
           action: {
             src: "./run.ts",

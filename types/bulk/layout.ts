@@ -24,6 +24,7 @@ export interface LayoutFieldParticleNode extends BulkFieldParticle {
 
 export interface LayoutDarkParticleNode extends Omit<BulkDarkParticle, "parentDarkParticleId" | "depth" | "darkParticleOrder"> {
   children: LayoutDarkParticleNode[]
+  contentWeight: number
   fieldParticles: LayoutFieldParticleNode[]
   depthFromRoot: number
   innerRadius: number

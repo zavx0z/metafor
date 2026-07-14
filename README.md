@@ -84,9 +84,9 @@ bun install
 bun run runtime:universe
 ```
 
-Команда сама запускает `Force`, `Boundary`, `Dark`, `Matrix` и `Energy`, загружает
+Команда сама запускает `Force`, `Boundary`, `Dark`, `Matrix`, `Energy` и `Bulk`, загружает
 Meta, вводит внешний `input=1`, ждёт завершения Process и Reaction, печатает
-структурированную трассу и подтверждает:
+структурированную трассу, печатает URL Capsule и подтверждает:
 
 ```text
 input=1
@@ -94,7 +94,23 @@ output=2
 observed=2
 sourceState=complete
 targetState=reacted
+linuxActorId=<stable runtime id>
+codexActorId=<stable runtime id>
+capsuleUrl=http://localhost:4004/
 ```
+
+Capsule восстанавливает структуру обычными Graviton-частицами и затем наблюдает
+живые Photon, Gluon, Z и W±. Она показывает WIMP/Atom как прозрачную тороидальную
+оболочку, все Fields как сферы общего ядра, полный State-граф с текущим рукавом,
+одиночные Process/Reaction и реальные condition-связи. Enum и array остаются
+видимыми Field-протонами и одновременно являются основаниями Fuzzy/Macho.
+В ядре Runtime Universe также материализуется существующая DSL-ветвь
+`zavx0z/linux → zavx0z/codex`, поэтому Codex присутствует в Capsule как реальная
+вложенная сущность, а не как декоративная метка.
+
+Геометрия рукавов в этой версии детерминирована графом, но не выдаётся за
+окончательную Hopf/Möbius-формализацию: её математический закон остаётся отдельной
+задачей модели мира.
 
 Проверить тот же запуск и завершиться после одного полного цикла:
 

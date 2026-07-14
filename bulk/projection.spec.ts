@@ -69,6 +69,21 @@ describe("Bulk incremental projection", () => {
     expect(store.values.get(binding!.value)?.textValue).toBe("new")
   })
 
+  test("replay and Photon keep the Atom current State in the same projection", () => {
+    const store = new BulkProjectionStore()
+    store.apply(part("add", "declaration/owner/root/states/1", {id: 201, wimp: "owner/root", name: "idle", position: 0}))
+    store.apply(part("add", "declaration/owner/root/states/2", {id: 202, wimp: "owner/root", name: "ready", position: 1}))
+    store.apply(part("add", "actor/1", {...actor(1, "owner/root"), state: {actor: 1, metaState: 201}}))
+
+    expect(store.actorStates.get(1)?.state).toBe(201)
+    expect(store.apply({part: "photon", op: "replace", path: 1, value: "ready"})).toEqual({
+      changed: true,
+      affectedActorIds: [1],
+      structural: false,
+    })
+    expect(store.actorStates.get(1)?.state).toBe(202)
+  })
+
   test("remove drops one branch while retaining an unrelated root", () => {
     const store = new BulkProjectionStore()
     store.apply(part("add", "actor/1", actor(1, "owner/root")))
@@ -85,13 +100,15 @@ describe("Bulk incremental projection", () => {
 
   test("copy, move and test keep operations granular", () => {
     const store = new BulkProjectionStore()
-    store.apply(part("add", "actor/1", actor(1, "owner/root")))
+    store.apply(part("add", "actor/1", {...actor(1, "owner/root"), state: {actor: 1, metaState: 201}}))
     store.apply(part("copy", "actor/2", undefined, "actor/1"))
     expect(store.actors.get(2)).not.toBe(store.actors.get(1))
 
     const original = store.actors.get(1)
     store.apply(part("move", "actor/3", undefined, "actor/1"))
     expect(store.actors.get(3)).toBe(original)
+    expect(store.actorStates.get(1)).toBeUndefined()
+    expect(store.actorStates.get(3)).toEqual({actor: 3, state: 201})
     expect(() => store.apply(part("test", "actor/3", store.actors.get(3)))).not.toThrow()
     expect(() => store.apply(part("test", "actor/3", {id: 99}))).toThrow("test failed")
   })

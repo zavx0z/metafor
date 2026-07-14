@@ -68,11 +68,6 @@ const describeBasis = (path: string, fields: MatterFields): string => {
 
 const toPathList = (value: string | string[]): string[] => (Array.isArray(value) ? value : [value])
 
-const toSinglePath = (value: string | string[]): string | undefined => {
-  const paths = toPathList(value)
-  return paths.length === 1 ? paths[0] : undefined
-}
-
 const validateBasisList = (
   paths: string | string[],
   fields: MatterFields,
@@ -130,30 +125,6 @@ const validateMetaNode = (node: NodeMeta, fields: MatterFields, location: string
   validateDynamicSrc(node.src, fields, `${location}.src`)
 }
 
-const validateRedundantEnumNullGuard = (
-  node: NodeLogical | NodeCondition,
-  fields: MatterFields,
-  location: string,
-): void => {
-  const basisPath = toSinglePath(node.data)
-  if (!basisPath) return
-  if (resolveTopologyBasis(basisPath, fields) !== "enum") return
-  if (node.child.length !== 1) return
-
-  const child = node.child[0]
-  if (!child || child.type !== "meta") return
-  if (typeof child.src === "string") return
-
-  const srcPath = toSinglePath(child.src.data)
-  if (srcPath !== basisPath) return
-
-  const key = extractFieldKey(basisPath) ?? basisPath
-  throw new Error(
-    `Matter violation at "${location}": enum field "${key}" must not be used as a null-guard for its own dynamic src. ` +
-      `Render <meta-for /> directly; optional enum null must not produce a "...-null" actor.`,
-  )
-}
-
 const validateNode = (node: NodeType, fields: MatterFields, location: string): void => {
   switch (node.type) {
     case "meta":
@@ -161,13 +132,11 @@ const validateNode = (node: NodeType, fields: MatterFields, location: string): v
       node.child?.forEach((child, index) => validateNode(child, fields, `${location}.child[${index}]`))
       return
     case "log":
-      validateBasisList(node.data, fields, location, ["state", "enum"], "logical branch")
-      validateRedundantEnumNullGuard(node, fields, location)
+      validateBasisList(node.data, fields, location, ["state"], "logical branch")
       node.child.forEach((child, index) => validateNode(child, fields, `${location}.child[${index}]`))
       return
     case "cond":
-      validateBasisList(node.data, fields, location, ["state", "enum"], "conditional branch")
-      validateRedundantEnumNullGuard(node, fields, location)
+      validateBasisList(node.data, fields, location, ["state"], "conditional branch")
       node.child.forEach((child, index) => validateNode(child, fields, `${location}.child[${index}]`))
       return
     case "map":
@@ -301,8 +270,7 @@ const projectMatterNode = (fields: MatterFields, node: NodeType): MatterParticle
 
     return [
       {
-        kind: "fuzzy",
-        fuzzyKind: "cond",
+        kind: "axion",
         predicateBinding: conditionNode.expr !== undefined ? {data: conditionNode.data, expr: conditionNode.expr} : {data: conditionNode.data},
         ...(children.length > 0 ? {children} : {}),
       },

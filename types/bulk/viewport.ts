@@ -18,7 +18,7 @@ export interface BulkFieldParticlePickTarget {
   center: Vector3
   depth: number
   parentDarkParticleId: number
-  fieldParticleId: number
+  fieldParticleId: string
   kind: "fieldParticle"
   outerRadius: number
   sphereRadius: number
@@ -103,6 +103,8 @@ export type BulkHoverDirection = -1 | 0 | 1
 
 export interface BulkViewportStats {
   fieldParticleCount: number
+  orbitalParticleCount?: number
+  transitionChannelCount?: number
   rootSrc?: string
   darkParticleCount: number
 }
@@ -306,7 +308,7 @@ export type LabelRenderRecord = {
   initialCoverPositions: Float32Array
   initialStencilPositions: Float32Array
   key: string
-  kind: "darkParticle" | "fieldParticle"
+  kind: "darkParticle" | "fieldParticle" | "orbitalParticle"
   material: TextMaterial
   offset: number
   torusRadius: number
@@ -322,7 +324,7 @@ export type LabelSpec = {
   color: Color
   depth: number
   key: string
-  kind: "darkParticle" | "fieldParticle"
+  kind: "darkParticle" | "fieldParticle" | "orbitalParticle"
   metricDepth: number
   metricRadius: number
   offset: number

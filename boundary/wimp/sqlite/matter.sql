@@ -85,14 +85,10 @@ CREATE TABLE IF NOT EXISTS matter_particle_wimp
 CREATE TABLE IF NOT EXISTS matter_particle_fuzzy
 (
     particle          INTEGER PRIMARY KEY,
-    fuzzy_kind        TEXT NOT NULL CHECK (fuzzy_kind IN ('dynamic-meta', 'cond')),
-    predicate_binding INTEGER,
+    fuzzy_kind        TEXT NOT NULL CHECK (fuzzy_kind = 'dynamic-meta'),
+    predicate_binding INTEGER NOT NULL,
     FOREIGN KEY (particle) REFERENCES matter_particle (id) ON DELETE CASCADE,
-    FOREIGN KEY (predicate_binding) REFERENCES matter_binding (id) ON DELETE CASCADE,
-    CHECK (
-        fuzzy_kind = 'dynamic-meta' OR
-        (fuzzy_kind = 'cond' AND predicate_binding IS NOT NULL)
-        )
+    FOREIGN KEY (predicate_binding) REFERENCES matter_binding (id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS matter_particle_axion

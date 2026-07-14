@@ -26,8 +26,8 @@ export interface WimpParticleRow {
 
 export interface FuzzyParticleRow {
   particle: number
-  fuzzy_kind: "dynamic-meta" | "cond"
-  predicate_binding: number | null
+  fuzzy_kind: "dynamic-meta"
+  predicate_binding: number
 }
 
 export interface AxionParticleRow {

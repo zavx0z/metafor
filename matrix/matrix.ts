@@ -8,7 +8,7 @@
 
 import {gravity$} from "@matrix/gravity/store.ts"
 import {matrix$} from "./store"
-import type {MatrixData, MatrixFieldValueRecord, MatrixStore} from "@metafor/types/matrix/store"
+import type {MatrixData, MatrixFieldValueRecord, MatrixStore, MatrixValue} from "@metafor/types/matrix/store"
 import type {MatrixFieldRecord, MatrixInputData} from "@metafor/types/matrix/data"
 import {
   MATRIX_RUNTIME_PATH,
@@ -241,7 +241,17 @@ const collectProcessExecutionFields = (actorId: number, braneIndex: number): Rec
     for (const [fieldActorId, fieldId] of strong$.actorFieldIdsByRuntimeFieldIndex[runtimeFieldIndex] ?? []) {
       if (fieldActorId !== actorId) continue
       const value = matrix$.getFieldValue(braneIndex, runtimeFieldIndex)
-      if (value !== undefined) fields[String(fieldId)] = value
+      if (value === undefined) continue
+      const field = matrix$.fields[runtimeFieldIndex]
+      if (field?.enum !== undefined && typeof value === "number") {
+        fields[String(fieldId)] = structuredClone(field.enum[value])
+      } else if (field?.type === FieldType.STRING_PTR && typeof value === "number") {
+        fields[String(fieldId)] = matrix$.stringTable[value] ?? ""
+      } else if (field?.type === FieldType.ARRAY_PTR && field.elementType === "string" && Array.isArray(value)) {
+        fields[String(fieldId)] = value.map((item) => typeof item === "number" ? matrix$.stringTable[item] ?? "" : "")
+      } else {
+        fields[String(fieldId)] = structuredClone(value satisfies MatrixValue)
+      }
     }
   }
 

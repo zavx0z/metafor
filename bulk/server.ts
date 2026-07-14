@@ -14,7 +14,7 @@ const sendBrowser = (ws: ServerWebSocket<BrowserClient>, payload: unknown): void
 }
 
 const server = Bun.serve<BrowserClient>({
-  port: 4004,
+  port: Number(Bun.env.PORT ?? 4004),
   routes: {
     "/": index,
     "/health": {

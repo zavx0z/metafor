@@ -2,11 +2,17 @@ import type {ActorRecord} from "@metafor/types/boundary/actor"
 import type {ActorValueRecord, FieldEnumVariantRecord, ValueItemRecord} from "@metafor/types/boundary/value"
 import type {TopologyRecord} from "@metafor/types/boundary/topology"
 import type {
+  BulkRuntimeActorState,
+  BulkRuntimeCondition,
   BulkRuntimeField,
   BulkRuntimeMatterBindingPath,
   BulkRuntimeMatterChildBindingPath,
   BulkRuntimeMatterParticle,
   BulkRuntimeProjection,
+  BulkRuntimeProcess,
+  BulkRuntimeReaction,
+  BulkRuntimeState,
+  BulkRuntimeTransition,
   BulkRuntimeValue,
   BulkRuntimeWimp,
 } from "@metafor/types/bulk/runtime"
@@ -89,6 +95,12 @@ export class BulkProjectionStore {
   readonly topologies = new Map<number, TopologyRecord>()
   readonly wimps = new Map<string, BulkRuntimeWimp>()
   readonly fields = new Map<number, BulkRuntimeField>()
+  readonly states = new Map<number, BulkRuntimeState>()
+  readonly transitions = new Map<number, BulkRuntimeTransition>()
+  readonly conditions = new Map<number, BulkRuntimeCondition>()
+  readonly processes = new Map<number, BulkRuntimeProcess>()
+  readonly reactions = new Map<number, BulkRuntimeReaction>()
+  readonly actorStates = new Map<number, BulkRuntimeActorState>()
   readonly variants = new Map<number, FieldEnumVariantRecord>()
   readonly actorValues = new Map<string, ActorValueRecord>()
   readonly values = new Map<number, BulkRuntimeValue>()
@@ -103,6 +115,7 @@ export class BulkProjectionStore {
 
   apply(part: Particle): BulkProjectionChange {
     if (part.part === "gluon") return this.applyGluon(part)
+    if (part.part === "photon") return this.applyPhoton(part)
     if (part.part !== "graviton") return {changed: false, affectedActorIds: [], structural: false}
     const target = address(part.path)
     if (!target) return {changed: false, affectedActorIds: [], structural: false}
@@ -122,6 +135,12 @@ export class BulkProjectionStore {
       topologies: [...this.topologies.values()],
       wimps: [...this.wimps.values()],
       fields: [...this.fields.values()],
+      states: [...this.states.values()],
+      transitions: [...this.transitions.values()],
+      conditions: [...this.conditions.values()],
+      processes: [...this.processes.values()],
+      reactions: [...this.reactions.values()],
+      actorStates: [...this.actorStates.values()],
       fieldEnumVariants: [...this.variants.values()],
       actorValues: [...this.actorValues.values()],
       values: [...this.values.values()],
@@ -182,6 +201,20 @@ export class BulkProjectionStore {
       changed = true
     }
     if (Array.isArray(value.values) && Array.isArray(value.valueRecords)) changed = this.projectActorValues(id, value) || changed
+    if (isRecord(value.state)) {
+      const metaState = value.state.metaState
+      if (metaState === null || (typeof metaState === "number" && Number.isSafeInteger(metaState))) {
+        const next = {actor: id, state: metaState as number | null}
+        const currentState = this.actorStates.get(id)
+        if (!currentState) {
+          this.actorStates.set(id, next)
+          changed = true
+        } else if (currentState.state !== next.state) {
+          currentState.state = next.state
+          changed = true
+        }
+      }
+    }
     return {changed, affectedActorIds: changed ? [id] : [], structural: changed}
   }
 
@@ -276,6 +309,26 @@ export class BulkProjectionStore {
       const current = this.variants.get(id)
       if (current) patch(current as unknown as Record<string, unknown>, normalized as unknown as Record<string, unknown>)
       else this.variants.set(id, clone(normalized))
+    } else if (target.section === "states") {
+      const current = this.states.get(id)
+      if (current) patch(current as unknown as Record<string, unknown>, record)
+      else this.states.set(id, clone(record as unknown as BulkRuntimeState))
+    } else if (target.section === "transitions") {
+      const current = this.transitions.get(id)
+      if (current) patch(current as unknown as Record<string, unknown>, record)
+      else this.transitions.set(id, clone(record as unknown as BulkRuntimeTransition))
+    } else if (target.section === "conditions") {
+      const current = this.conditions.get(id)
+      if (current) patch(current as unknown as Record<string, unknown>, record)
+      else this.conditions.set(id, clone(record as unknown as BulkRuntimeCondition))
+    } else if (target.section === "processes") {
+      const current = this.processes.get(id)
+      if (current) patch(current as unknown as Record<string, unknown>, record)
+      else this.processes.set(id, clone(record as unknown as BulkRuntimeProcess))
+    } else if (target.section === "reactions") {
+      const current = this.reactions.get(id)
+      if (current) patch(current as unknown as Record<string, unknown>, record)
+      else this.reactions.set(id, clone(record as unknown as BulkRuntimeReaction))
     } else if (target.section === "matter") {
       const current = this.matterParticles.get(id)
       if (current) patch(current as unknown as Record<string, unknown>, record)
@@ -328,6 +381,21 @@ export class BulkProjectionStore {
     return {changed, affectedActorIds: changed ? [part.path] : [], structural: false}
   }
 
+  private applyPhoton(part: Particle): BulkProjectionChange {
+    if (typeof part.path !== "number" || typeof part.value !== "string") {
+      return {changed: false, affectedActorIds: [], structural: false}
+    }
+    const actor = this.actors.get(part.path)
+    if (!actor) return {changed: false, affectedActorIds: [], structural: false}
+    const state = [...this.states.values()].find((entry) => entry.wimp === actor.wimp && entry.name === part.value)
+    if (!state) return {changed: false, affectedActorIds: [], structural: false}
+    const current = this.actorStates.get(part.path)
+    if (current?.state === state.id) return {changed: false, affectedActorIds: [], structural: false}
+    if (current) current.state = state.id
+    else this.actorStates.set(part.path, {actor: part.path, state: state.id})
+    return {changed: true, affectedActorIds: [part.path], structural: false}
+  }
+
   private remove(target: Address): BulkProjectionChange {
     if (target.kind === "actor" || target.kind === "topology") {
       const key = `${target.kind}:${target.id}`
@@ -343,6 +411,11 @@ export class BulkProjectionStore {
     const id = Number(record.id)
     if (target.section === "fields") this.fields.delete(id)
     if (target.section === "variants") this.variants.delete(id)
+    if (target.section === "states") this.states.delete(id)
+    if (target.section === "transitions") this.transitions.delete(id)
+    if (target.section === "conditions") this.conditions.delete(id)
+    if (target.section === "processes") this.processes.delete(id)
+    if (target.section === "reactions") this.reactions.delete(id)
     if (target.section === "matter") this.matterParticles.delete(id)
     if (target.section === "meta") this.wimps.delete(target.src)
     return {changed: true, affectedActorIds: [...(this.actorIdsByWimp.get(target.src) ?? [])], structural: true}
@@ -366,6 +439,12 @@ export class BulkProjectionStore {
       actor.id = target.id
       this.actors.set(target.id, actor)
       this.link("actor", target.id, actor)
+      const actorState = this.actorStates.get(source.id)
+      if (actorState) {
+        this.actorStates.delete(source.id)
+        actorState.actor = target.id
+        this.actorStates.set(target.id, actorState)
+      }
       for (const [key, binding] of [...this.actorValues]) {
         if (binding.actor !== source.id) continue
         this.actorValues.delete(key)
@@ -456,6 +535,7 @@ export class BulkProjectionStore {
       const actor = this.actors.get(id)
       if (actor) this.unlink(kind, id, actor)
       this.actors.delete(id)
+      this.actorStates.delete(id)
       for (const valueKey of [...this.actorValues.keys()]) if (valueKey.startsWith(`${id}\0`)) this.actorValues.delete(valueKey)
     } else {
       const topology = this.topologies.get(id)

@@ -94,29 +94,13 @@ const insertWimpParticle = async (
   return particleId
 }
 
-const insertCondFuzzyParticle = async (
-  sql: SQL,
-  wimpSrc: string,
-  parentParticle: number | null,
-  edgeSlot: MatterEdgeSlot,
-  particleOrder: number,
-  predicateBinding: number,
-): Promise<number> => {
-  const particleId = await insertParticle(sql, wimpSrc, "fuzzy", parentParticle, edgeSlot, particleOrder)
-  await sql`
-    INSERT INTO matter_particle_fuzzy (particle, fuzzy_kind, predicate_binding)
-    VALUES (${particleId}, ${"cond"}, ${predicateBinding})
-  `
-  return particleId
-}
-
 const insertDynamicMetaFuzzyParticle = async (
   sql: SQL,
   wimpSrc: string,
   parentParticle: number | null,
   edgeSlot: MatterEdgeSlot,
   particleOrder: number,
-  predicateBinding: number | null,
+  predicateBinding: number,
 ): Promise<number> => {
   const particleId = await insertParticle(sql, wimpSrc, "fuzzy", parentParticle, edgeSlot, particleOrder)
   await sql`
@@ -235,13 +219,10 @@ const buildParticleModel = (
   if (row.particle_kind === "fuzzy") {
     const fuzzyRow = fuzzyRows.get(row.id)
     if (!fuzzyRow) throw new Error(`Fuzzy particle row "${row.id}" is not found in canonical SQLite projection`)
-    const predicateBinding =
-      fuzzyRow.predicate_binding !== null ? getBinding(fuzzyRow.predicate_binding) : undefined
-
     return {
       kind: "fuzzy",
       fuzzyKind: fuzzyRow.fuzzy_kind,
-      ...(predicateBinding !== undefined ? {predicateBinding} : {}),
+      predicateBinding: getBinding(fuzzyRow.predicate_binding) ?? {data: []},
       ...(children.length > 0 ? {children} : {}),
     }
   }
@@ -362,25 +343,21 @@ const insertFuzzyAt = async (
   wimp: Wimp,
   parentParticle: number | null,
   edgeSlot: MatterEdgeSlot,
-  fuzzyKind: "cond" | "dynamic-meta",
-  predicateBindingValue: MatterBindingValue | undefined,
+  fuzzyKind: "dynamic-meta",
+  predicateBindingValue: MatterBindingValue,
 ): Promise<number> => {
   const particleOrder =
     parentParticle === null ? await countRootParticles(wimp.sql, wimp.src) : await countChildParticles(wimp.sql, parentParticle)
 
-  if (fuzzyKind === "cond") {
-    const predicateBinding = await insertBinding(wimp.sql, wimp.src, predicateBindingValue)
-    return insertCondFuzzyParticle(
-      wimp.sql,
-      wimp.src,
-      parentParticle,
-      edgeSlot,
-      particleOrder,
-      requireBinding(predicateBinding, `Condition particle for meta "${wimp.src}" requires predicate binding`),
-    )
-  }
   const predicateBinding = await insertBinding(wimp.sql, wimp.src, predicateBindingValue)
-  return insertDynamicMetaFuzzyParticle(wimp.sql, wimp.src, parentParticle, edgeSlot, particleOrder, predicateBinding ?? null)
+  return insertDynamicMetaFuzzyParticle(
+    wimp.sql,
+    wimp.src,
+    parentParticle,
+    edgeSlot,
+    particleOrder,
+    requireBinding(predicateBinding, `Fuzzy particle for meta "${wimp.src}" requires enum predicate binding`),
+  )
 }
 
 const insertAxionAt = async (
@@ -452,7 +429,7 @@ export class MatterFuzzyParticle extends MatterOrmParticle {
   constructor(
     matter: Matter,
     id: number,
-    readonly fuzzyKind: "cond" | "dynamic-meta",
+    readonly fuzzyKind: "dynamic-meta",
   ) {
     super(matter, id)
   }
@@ -488,8 +465,8 @@ export class MatterChildren {
 
   async fuzzy(input: {
     edgeSlot: "child" | "then" | "else" | "branch"
-    fuzzyKind: "cond" | "dynamic-meta"
-    predicateBinding?: MatterBindingValue | undefined
+    fuzzyKind: "dynamic-meta"
+    predicateBinding: MatterBindingValue
   }): Promise<MatterFuzzyParticle> {
     const id = await insertFuzzyAt(
       this.particle.matter.parent,
@@ -557,8 +534,8 @@ export class Matter {
   }
 
   async fuzzy(input: {
-    fuzzyKind: "cond" | "dynamic-meta"
-    predicateBinding?: MatterBindingValue | undefined
+    fuzzyKind: "dynamic-meta"
+    predicateBinding: MatterBindingValue
   }): Promise<MatterFuzzyParticle> {
     const id = await insertFuzzyAt(this.parent, null, "root", input.fuzzyKind, input.predicateBinding)
     return new MatterFuzzyParticle(this, id, input.fuzzyKind)

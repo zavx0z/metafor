@@ -30,7 +30,8 @@ export interface BulkDarkParticle {
 }
 
 export interface BulkFieldParticle {
-  fieldParticleId: number
+  /** Stable occurrence identity: one declared Field inside one manifested Atom. */
+  fieldParticleId: string
   fieldId: number
   parentDarkParticleId: number
   fieldKey: string
@@ -46,10 +47,84 @@ export interface BulkFieldParticle {
   colorB: number
 }
 
+export type BulkOrbitalParticleKind = "state" | "process" | "reaction" | "axion" | "finally"
+
+/** A persistent declaration occurrence in an Atom's visible causal shell. */
+export interface BulkOrbitalParticle {
+  orbitalParticleId: string
+  sourceId: number
+  parentDarkParticleId: number
+  orbitalParticleKind: BulkOrbitalParticleKind
+  label: string
+  current: boolean
+  active: boolean
+  sleeveRootStateId: number | null
+  relatedStateIds: number[]
+  localX: number
+  localY: number
+  localZ: number
+  sphereRadius: number
+  colorR: number
+  colorG: number
+  colorB: number
+}
+
+/** A real declared Transition and the condition Fields that permit it. */
+export interface BulkTransitionChannel {
+  transitionChannelId: string
+  sourceId: number
+  parentDarkParticleId: number
+  fromOrbitalParticleId: string
+  toOrbitalParticleId: string
+  conditionIds: number[]
+  conditionFieldIds: number[]
+  active: boolean
+  colorR: number
+  colorG: number
+  colorB: number
+}
+
+/** A virtual projection of one real nucleus Field on a State-electron surface. */
+export interface BulkFieldProxy {
+  fieldProxyId: string
+  fieldParticleId: string
+  fieldId: number
+  parentDarkParticleId: number
+  stateOrbitalParticleId: string
+  localX: number
+  localY: number
+  localZ: number
+  ringRadius: number
+  colorR: number
+  colorG: number
+  colorB: number
+}
+
+export type BulkRelationEndpointKind = "field" | "field-proxy" | "orbital"
+
+/** A real dependency rendered as one directed elliptic channel. */
+export interface BulkRelationChannel {
+  relationChannelId: string
+  parentDarkParticleId: number
+  relationKind: "field-projection" | "process-read" | "process-write" | "reaction-read" | "reaction-write" | "axion-read"
+  fromKind: BulkRelationEndpointKind
+  fromId: string
+  toKind: BulkRelationEndpointKind
+  toId: string
+  active: boolean
+  colorR: number
+  colorG: number
+  colorB: number
+}
+
 export interface BulkManifest {
   rootSrc: string
   darkParticles: BulkDarkParticle[]
   fieldParticles: BulkFieldParticle[]
+  orbitalParticles?: BulkOrbitalParticle[]
+  transitionChannels?: BulkTransitionChannel[]
+  fieldProxies?: BulkFieldProxy[]
+  relationChannels?: BulkRelationChannel[]
 }
 
 export interface BulkManifestSink {
@@ -59,7 +134,7 @@ export interface BulkManifestSink {
 }
 
 export interface BulkFieldParticleInput {
-  fieldParticleId: number
+  fieldParticleId: string
   fieldId: number
   fieldKey: string
   fieldLabel: string
@@ -80,6 +155,12 @@ export interface BulkDarkParticleInput {
   colorG: number
   colorB: number
   activity?: BulkDarkParticleActivity
+  orbitalComplexity?: {
+    states: number
+    transitions: number
+    processes: number
+    reactions: number
+  }
   fieldParticles: BulkFieldParticleInput[]
   children: BulkDarkParticleInput[]
 }

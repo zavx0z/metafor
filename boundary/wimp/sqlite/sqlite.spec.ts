@@ -123,6 +123,7 @@ describe("sqlite ddl", () => {
           {
             kind: "fuzzy",
             fuzzyKind: "dynamic-meta",
+            predicateBinding: {data: "status"},
             children: [
               {
                 edgeSlot: "branch",
@@ -149,6 +150,7 @@ describe("sqlite ddl", () => {
         {
           kind: "fuzzy",
           fuzzyKind: "dynamic-meta",
+          predicateBinding: {data: "status"},
           children: [
             {
               edgeSlot: "branch",
@@ -515,13 +517,13 @@ describe("sqlite ddl", () => {
              VALUES (${2}, ${"beta/meta"}, ${"variable"})`
 
     await db`INSERT INTO matter_particle(id, wimp, parent_particle, particle_kind, edge_slot, particle_order)
-             VALUES (${1}, ${"alpha/meta"}, ${null}, ${"fuzzy"}, ${"root"}, ${0})`
+             VALUES (${1}, ${"alpha/meta"}, ${null}, ${"axion"}, ${"root"}, ${0})`
 
     await db`INSERT INTO matter_particle(id, wimp, parent_particle, particle_kind, edge_slot, particle_order)
              VALUES (${2}, ${"beta/meta"}, ${1}, ${"wimp"}, ${"child"}, ${0})`
 
-    await db`INSERT INTO matter_particle_fuzzy(particle, fuzzy_kind, predicate_binding)
-             VALUES (${1}, ${"cond"}, ${2})`
+    await db`INSERT INTO matter_particle_axion(particle, predicate_binding)
+             VALUES (${1}, ${2})`
 
     await db`INSERT INTO matter_particle(id, wimp, parent_particle, particle_kind, edge_slot, particle_order)
              VALUES (${3}, ${"alpha/meta"}, ${null}, ${"fuzzy"}, ${"root"}, ${1})`
@@ -547,10 +549,12 @@ describe("sqlite ddl", () => {
 
     const particleCount = ((await db`SELECT COUNT(*) as count FROM matter_particle`) as Array<{ count: number }>)[0]!
     const fuzzyCount = ((await db`SELECT COUNT(*) as count FROM matter_particle_fuzzy`) as Array<{ count: number }>)[0]!
+    const axionCount = ((await db`SELECT COUNT(*) as count FROM matter_particle_axion`) as Array<{ count: number }>)[0]!
     const wimpCount = ((await db`SELECT COUNT(*) as count FROM matter_particle_wimp`) as Array<{ count: number }>)[0]!
 
     expect(particleCount.count).toBe(4)
-    expect(fuzzyCount.count).toBe(2)
+    expect(fuzzyCount.count).toBe(1)
+    expect(axionCount.count).toBe(1)
     expect(wimpCount.count).toBe(1)
   })
 })
