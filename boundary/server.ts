@@ -1,10 +1,13 @@
-import {join} from "node:path"
+import {mkdir} from "node:fs/promises"
+import {dirname, join, resolve} from "node:path"
 import {Force} from "force"
 import {parseForceReplayPath} from "@metafor/types/force/replay"
 import {MATRIX_RUNTIME_PATH} from "@metafor/types/matrix/runtime"
 import {open} from "./sqlite.ts"
 
-const filename = (process.argv[2] ?? Bun.env.BOUNDARY_PATH?.trim()) || join(import.meta.dir, "..", "boundary.sqlite")
+const configuredFilename = process.argv[2]?.trim() || Bun.env.BOUNDARY_PATH?.trim()
+const filename = resolve(configuredFilename || join(import.meta.dir, "..", ".metafor", "dev.sqlite"))
+await mkdir(dirname(filename), {recursive: true})
 const boundary = await open(filename)
 const force = new Force("boundary")
 

@@ -26,7 +26,7 @@ describe("TextureLoader virtual textures", () => {
     globalThis.fetch = (() => {
       calls += 1
       throw new Error("fetch should not be called")
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     try {
       const entry = TextureLoader.load({} as GPUDevice, `metafor:test-${Date.now()}`)

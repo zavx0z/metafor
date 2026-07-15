@@ -66,35 +66,34 @@ bun install
 Ядро запускается без встроенной Meta. Текущие итерационные Meta создаются в
 `github/<owner>/<name>/meta.ts` и загружаются явно через Dark.
 
-## Низкоуровневый запуск доменов
+## Запуск доменов
 
-Только поднять core-домены без автоматической загрузки Meta:
-
-```bash
-bun run runtime
-```
-
-Полный журнал Impulse:
+Development core без автоматической загрузки Meta:
 
 ```bash
-bun run runtime:logs
+bun run dev:core
 ```
 
-Явные backend-режимы Matrix:
+Development contour с Bulk:
 
 ```bash
-bun run runtime:cpu
-bun run runtime:gpu
+bun run dev:world
 ```
 
-`runtime:gpu` является строгим режимом и завершается ошибкой без WebGPU. Default
-`auto` предпочитает WebGPU и использует CPU только как fallback.
+Обычный non-hot запуск и полный журнал:
+
+```bash
+bun run start:core
+bun run start:world
+bun run logs:core
+```
+
+Matrix backend задаётся через `METAFOR_WEAK_BACKEND=auto|cpu|gpu`.
 
 ## Проверка
 
 ```bash
-bun test
-bun run tsc --noEmit
+bun run check
 ```
 
 ## Активная граница репозитория
@@ -111,10 +110,10 @@ archive/pre-core-split-2026-07-11
 ## Документация
 
 - [Каноническая концепция](https://github.com/zavx0z/concept)
-- [Философия](docs/PHILOSOPHY.md)
-- [Онтология](docs/ONTOLOGY.md)
+- [Указатель канонической философии](docs/PHILOSOPHY.md)
+- [Указатель канонической онтологии](docs/ONTOLOGY.md)
 - [Архитектура](docs/ARCHITECTURE.md)
-- [Topology](docs/TOPOLOGY.md)
+- [Указатель canonical topology](docs/TOPOLOGY.md)
 - [Force](docs/FORCE.md)
 - [Разработка](docs/DEVELOPMENT.md)
 - [Вклад](docs/CONTRIBUTING.md)

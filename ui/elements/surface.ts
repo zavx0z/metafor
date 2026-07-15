@@ -253,7 +253,7 @@ export type TextBlockMetrics = {
 
 // UiSurface по умолчанию ПРОЗРАЧНА: ни заливки, ни border'а. Чтобы вернуть
 // «классическую» тёмную surface с обводкой — передайте bgColor/borderColor
-// явно в UiSurfaceOpts (см. примеры в playground'е). null отключает явно.
+// явно в UiSurfaceOpts. null отключает явно.
 const DEFAULT_BG: Color | null = null
 const DEFAULT_BORDER: Color | null = null
 const CLIP_LOCAL_RECT: unique symbol = Symbol("UiSurface.clipLocalRect")

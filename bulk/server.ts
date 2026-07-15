@@ -29,7 +29,6 @@ const server = Bun.serve<BrowserClient>({
       },
     },
     "/engine-static/JetBrainsMono-Bold.ttf": file(new URL("../pkg/engine/static/JetBrainsMono-Bold.ttf", import.meta.url)),
-    "/models/bots.glb": file(new URL("../pkg/engine/static/models/bots.glb", import.meta.url)),
   },
   websocket: {
     close(ws) {

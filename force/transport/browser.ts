@@ -27,6 +27,7 @@ export class Force extends ForceBase {
     const socket = new WebSocket(FORCE_BROWSER_ADDRESS)
     socket.onopen = () => {
       socket.send(JSON.stringify({type: "register", domain: this.domain, id: this.id}))
+      this.emitConnection(true)
       console.log(`[${this.domain}] connected to Force`)
       while (this.#outbox.length > 0 && socket.readyState === WebSocket.OPEN) {
         const message = this.#outbox.shift()
@@ -54,7 +55,10 @@ export class Force extends ForceBase {
       logImpulse(this.domain, "<-", message)
       this.emitImpulse(message)
     }
-    socket.onclose = () => this.#reconnect()
+    socket.onclose = () => {
+      this.emitConnection(false)
+      this.#reconnect()
+    }
     socket.onerror = () => socket.close()
     return socket
   }
@@ -74,6 +78,7 @@ export class Force extends ForceBase {
 
   #closeTransport(): void {
     this.#closed = true
+    this.emitConnection(false)
     if (this.#reconnectTimer) {
       clearTimeout(this.#reconnectTimer)
       this.#reconnectTimer = undefined

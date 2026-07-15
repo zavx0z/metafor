@@ -10,9 +10,6 @@ import type {
 import type { BulkFieldParticle } from "./manifest.ts"
 import type { BulkLayoutSettings, BulkRenderSettings } from "./settings.ts"
 import type {
-  BotPhoneDisplayRect,
-  BotPhoneHudQuad,
-  BotPhoneScreenTarget,
   BulkViewportController,
   BulkViewportStats,
 } from "./viewport.ts"
@@ -32,20 +29,6 @@ export interface BulkViewportHudController {
 
 export type BulkViewportWithHud = BulkViewportController & {
   readonly hud: BulkViewportHudController
-}
-
-export type BotPhoneScreenFrame = {
-  bounds: UiSurfaceRect
-  displayRect: BotPhoneDisplayRect
-  displaySizePx: number
-  quad: BotPhoneHudQuad
-  target: BotPhoneScreenTarget
-}
-
-export type BotPhoneDisplayDockControl = {
-  fullscreenButton: UiSurfaceRect
-  hit: UiSurfaceRect
-  returnButton: UiSurfaceRect
 }
 
 export type FieldParticleBillboardMode = "summary" | "surface"

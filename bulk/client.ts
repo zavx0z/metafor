@@ -223,9 +223,13 @@ force.onDestroy = () => {
 	hud?.setBusy(true)
 }
 
+force.onConnectionChange = (connected) => {
+	forceConnected = connected
+	hud?.setConnectionStatus(connected)
+	hud?.setBusy(!connected)
+}
+
 force.onImpulse = (forceMessage) => {
-	forceConnected = true
-	hud?.setConnectionStatus(true)
 	const part = forceMessage.parts[0]
 	const change = projection.apply(part)
 	bulkViewport?.handleForce(part.part, part)

@@ -120,22 +120,9 @@ export interface BulkViewportController {
   applyManifestPatch(manifest: BulkManifest): void
 }
 
-export type BulkAndroidFrameSize = {
-  height: number
-  width: number
-}
-
-export type BulkAndroidControlCommand =
-  | {type: "tap"; x: number; y: number; frameW?: number; frameH?: number}
-  | {type: "swipe"; x1: number; y1: number; x2: number; y2: number; durationMs?: number; frameW?: number; frameH?: number}
-  | {type: "key"; code: string}
-  | {type: "launch"; packageName: string}
-
 export type BulkViewportOptions = {
-  androidFrameSize?: () => BulkAndroidFrameSize | null
   canvas: HTMLCanvasElement
   height: number
-  onAndroidControl?: (command: BulkAndroidControlCommand) => boolean
   onStats?: (stats: BulkViewportStats) => void
   width: number
 }
@@ -146,56 +133,6 @@ export type HoverablePickTarget = BulkPickTarget & {
   baseGlowIntensity: number
   baseOpacity: number
   material: LineGlowMaterial
-}
-
-export type BotPhoneScreenTarget = {
-  phone: Object3D
-  screen: Object3D
-  screenH: number
-  screenW: number
-}
-
-export type BotPhoneDisplayRect = {
-  h: number
-  w: number
-  x: number
-  y: number
-}
-
-export type BotFloorPhones = {
-  root: Object3D
-  screens: BotPhoneScreenTarget[]
-}
-
-export type BotPhoneScreenHit = {
-  androidX: number
-  androidY: number
-  distance: number
-  frameH: number
-  frameW: number
-  localX: number
-  localY: number
-  target: BotPhoneScreenTarget
-}
-
-export type BotPhoneHudPoint = {
-  x: number
-  y: number
-}
-
-export type BotPhoneHudQuad = {
-  bottomLeft: BotPhoneHudPoint
-  bottomRight: BotPhoneHudPoint
-  topLeft: BotPhoneHudPoint
-  topRight: BotPhoneHudPoint
-}
-
-export type BotPhoneGesture = {
-  current: BotPhoneScreenHit
-  start: BotPhoneScreenHit
-  startClientX: number
-  startClientY: number
-  startedAt: number
 }
 
 export type BulkViewPose = {
@@ -214,17 +151,6 @@ export type StoredBulkViewPose = {
   rootFitLockedToViewport?: boolean
   target: {x: number; y: number; z: number}
   up: {x: number; y: number; z: number}
-}
-
-export type BotPhoneViewState = {
-  returnPose: BulkViewPose
-  target: BotPhoneScreenTarget
-}
-
-export type BotPhoneCameraFlight = {
-  end: BulkViewPose
-  start: BulkViewPose
-  startedAt: number
 }
 
 export type CanvasTouchTapState = {

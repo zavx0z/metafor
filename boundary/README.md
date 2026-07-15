@@ -1,125 +1,65 @@
-# Boundary
+# Boundary runtime
 
-`Boundary` — голографическая граница MetaFor: самостоятельный домен, который
-канонизирует source declaration, фиксирует её в SQLite и материализует
-адресуемый current world.
+Канонические понятия MetaFor определяются в
+[`zavx0z/concept`](https://github.com/zavx0z/concept). Этот файл описывает
+только текущую Boundary implementation.
 
-Boundary не загружает `meta` вместо Dark, не исполняет процессы вместо Energy и
-не ведёт runtime-переходы вместо Matrix.
-
-## Основной поток
-
-```text
-meta/WIMP source
-  -> Dark
-  -> inflaton declaration stream
-  -> Force
-  -> Boundary atomic commit and materialization
-  -> graviton materialized parts
-  -> Force
-  -> Matrix / Energy / Bulk
-```
-
-После успешного commit Boundary также отправляет адресованные bootstrap
-snapshots:
-
-```text
-create(matrix, matrixRuntime)
-create(energy, processCatalog)
-create(bulk, bulkRuntime)
-```
-
-`Graviton` и `create` испускаются только после атомарной фиксации declaration и
-materialized world. ID без самодостаточных данных не считается runtime-проекцией.
-
-## Ответственность
-
-Boundary владеет:
-
-- canonical WIMP declaration;
-- fields, enum variants, states, transitions и conditions;
-- processes, handlers и reactions;
-- matter, serializable mass declaration и bulk declaration;
-- actor, topology и value instances;
-- current materialized hierarchy;
-- построением самодостаточных Matrix, Energy и Bulk projections.
-
-Текущий реализованный commit materializes world из declaration/default values.
-Обратная фиксация actor-scoped runtime `higgs` из Matrix и перестройка уже
-живущих Fuzzy/Macho branches остаются отдельной задачей в [`TODO.md`](../TODO.md).
-
-Boundary не владеет:
-
-- source/meta loading и declaration normalization — это Dark;
-- runtime state machine, locks и transitions — это Matrix;
-- process execution и process-local runtime mass — это Energy;
-- проявленной пространственной формой — это Bulk;
-- междоменным хранением или бизнес-маршрутизацией — Force остаётся transport-ом.
-
-## Идентичность
-
-Declaration identity приходит из Dark как детерминированная пара:
-
-```text
-(wimpSrc, localNumber) внутри конкретной declaration table
-```
-
-Одинаковый local number допустим в разных tables: тип сущности уже задан table
-context и не кодируется в ID. Версия declaration в identity сейчас не входит.
-
-Boundary самостоятельно создаёт runtime/materialization identity:
-
-- actor ID;
-- topology instance ID;
-- value ID;
-
-Текущий materialized world определяется этим согласованным набором Boundary
-rows; отдельный публичный materialization ID сейчас не вводится.
-
-SQLite autoincrement допустим для этих runtime instances, но не определяет
-declaration identity.
-
-## Изоляция доменов
-
-В production только Boundary открывает свою SQLite database.
-
-- Dark не импортирует Boundary и передаёт только Inflaton через Force.
-- Matrix получает `MatrixRuntimeSnapshot` и runtime particles.
-- Energy получает self-contained process catalog и runtime signals.
-- Bulk получает собственную projection.
-- Ни один получатель не использует ID как указание затем прочитать Boundary DB.
-- Междоменное взаимодействие проходит только через публичный Force transport,
-  без локальной шины или direct ORM read.
-
-Тесты могут открывать Boundary напрямую для подготовки fixture и проверки rows,
-но такой import не становится production API между доменами.
-
-## Server flow
+## Entry и storage
 
 `boundary/server.ts`:
 
-1. открывает SQLite через `boundary/sqlite.ts`;
-2. создаёт `Force("boundary")`;
-3. принимает ordinary `{parts}` через `force.onImpulse`;
-4. применяет Inflaton одной транзакцией;
-5. материализует actor/topology/value current world;
-6. публикует Graviton и target `create` snapshots после commit.
+1. выбирает database path;
+2. создаёт parent directory;
+3. открывает SQLite через `boundary/sqlite.ts`;
+4. подключает `Force("boundary")`;
+5. применяет входные messages через `boundary.materialize(message)`;
+6. отправляет возвращённые messages после commit;
+7. закрывает server и database через Force shutdown hook.
 
-Путь к database передаётся первым позиционным аргументом server script. Если его
-нет, Boundary читает `BOUNDARY_PATH`; без обоих используется
-корневая project database `boundary.sqlite`.
+Приоритет пути:
 
-## Персистентный API
+1. первый позиционный аргумент;
+2. `BOUNDARY_PATH`;
+3. `.metafor/dev.sqlite` в корне репозитория.
 
-Низкоуровневый вход нужен самому Boundary server и test fixtures:
+Health response содержит фактически открытый absolute database path.
+
+## Development и tests
+
+Development server использует persistent file. Tests открывают собственные
+`:memory:` databases и закрывают их в `afterEach`; они не читают и не
+изменяют `.metafor/dev.sqlite`.
+
+Явный запуск Boundary с отдельным файлом:
+
+```bash
+BOUNDARY_PATH=/absolute/path/boundary.sqlite bun run --filter boundary start
+```
+
+## Реализованные handlers
+
+- replay marker для Matrix вызывает `matrixRuntime()` и отправляет
+  `graviton/replace` по `runtime/matrix`;
+- replay marker для Energy или Bulk отправляет результат `boundary.replay()`
+  по одному message;
+- остальные messages проходят через `materialize()`;
+- terminal non-replay `inflaton/test` вызывает публикацию Matrix runtime.
+
+Это наблюдаемое поведение исходного runtime. Cleanup не меняет его и не решает
+открытые snapshot/create/replay вопросы.
+
+## Низкоуровневый API
 
 ```ts
 import {open} from "boundary/sqlite"
 
 const boundary = await open(filename)
+try {
+  await boundary.materialize(message)
+} finally {
+  await boundary.close()
+}
 ```
 
-`boundary.materialize(message)` применяет входной Force message и возвращает
-готовые projections после commit. `matrixRuntime()`, `energyRuntime()` и
-`bulkRuntime()` строят snapshots внутри Boundary; runtime domains получают их
-через target `create`, а не вызывают эти методы напрямую.
+Production domains не открывают эту database напрямую; test imports
+используются для fixtures и assertions.

@@ -45,16 +45,10 @@
     "**/docs/**/*",
     "*/dist/**/*",
     "*/node_modules/**/*",
-    "pkg/engine/examples/**/*",
-    "pkg/engine/src/**/*",
-    "pkg/engine/index.ts",
-    "pkg/engine/server.ts",
-    "pkg/engine/global.d.ts",
     "tests/tmp/**/*",
     ".idea/**/*",
     ".cursor/**/*",
     ".vscode/**/*",
-    "./metafor.ts",
     ".ai"
   ]
 }

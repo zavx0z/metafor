@@ -35,10 +35,12 @@ import type {ForceMessage} from "@metafor/types/force/message"
  * - reconnect не очищает локальную проекцию домена;
  * - cold start запрашивает replay обычным particle-потоком, без snapshot;
  * - `onDestroy` не является публичным close API;
- * - публичный surface: `domain`, `id`, `onImpulse`, `onDestroy`,
- *   `impulse()`.
+ * - публичный surface: `domain`, `id`, `connected`, `onConnectionChange`,
+ *   `onImpulse`, `onDestroy`, `impulse()`.
  */
 export abstract class ForceBase {
+  #connected = false
+  #onConnectionChange: ((connected: boolean) => void) | undefined
   #onImpulse: ((impulse: ForceMessage) => void | Promise<void>) | undefined
   #pendingImpulses: ForceMessage[] = []
   #receiving: Promise<void> = Promise.resolve()
@@ -48,6 +50,26 @@ export abstract class ForceBase {
 
   /** Runtime-local идентификатор соединения, формируется adapter-ом. */
   abstract readonly id: string
+
+  /** Текущее состояние регистрации transport-а в Force. */
+  get connected(): boolean {
+    return this.#connected
+  }
+
+  /**
+   * Handler изменения состояния transport-а.
+   *
+   * При назначении handler немедленно получает текущее состояние, поэтому
+   * поздно созданный HUD не пропускает уже состоявшееся подключение.
+   */
+  get onConnectionChange(): (connected: boolean) => void {
+    return this.#onConnectionChange ?? (() => {})
+  }
+
+  set onConnectionChange(handler: (connected: boolean) => void) {
+    this.#onConnectionChange = handler
+    this.#notifyConnection(handler, this.#connected)
+  }
 
   /**
    * Handler входящего чистого ForceMessage `{parts: [particle]}`.
@@ -79,6 +101,22 @@ export abstract class ForceBase {
       return
     }
     this.#enqueue(handler, impulse)
+  }
+
+  /** Обновляет transport status независимо от causal impulse-потока. */
+  protected emitConnection(connected: boolean): void {
+    if (this.#connected === connected) return
+    this.#connected = connected
+    const handler = this.#onConnectionChange
+    if (handler) this.#notifyConnection(handler, connected)
+  }
+
+  #notifyConnection(handler: (connected: boolean) => void, connected: boolean): void {
+    try {
+      handler(connected)
+    } catch (error) {
+      console.error(`[${this.domain}] Force onConnectionChange failed`, error)
+    }
   }
 
   #enqueue(

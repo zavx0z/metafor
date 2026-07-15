@@ -7,11 +7,9 @@
   "main": "index.ts",
   "types": "index.ts",
   "exports": {
-    ".": "./index.ts",
-    "./playground": "./playground/server.ts"
+    ".": "./index.ts"
   },
   "scripts": {
-    "playground": "bun --hot playground/server.ts",
     "typecheck": "tsc --noEmit --pretty false"
   },
   "dependencies": {

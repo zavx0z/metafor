@@ -9,17 +9,6 @@ import type {
 	BulkTransitionChannel,
 } from "@metafor/types/bulk/manifest"
 import type {
-	BotFloorPhones,
-	BotPhoneCameraFlight,
-	BotPhoneDisplayRect,
-	BotPhoneGesture,
-	BotPhoneHudPoint,
-	BotPhoneHudQuad,
-	BotPhoneScreenHit,
-	BotPhoneScreenTarget,
-	BotPhoneViewState,
-	BulkAndroidControlCommand,
-	BulkAndroidFrameSize,
 	BulkViewportController,
 	BulkViewportFitAxis,
 	BulkViewportOptions,
@@ -41,8 +30,6 @@ import type {
 	ViewNavigationState,
 } from "@metafor/types/bulk/viewport"
 import type {
-	BotPhoneDisplayDockControl,
-	BotPhoneScreenFrame,
 	BulkHudSurfaceSlot,
 	BulkViewportHudController,
 	BulkViewportWithHud,
@@ -67,14 +54,10 @@ import type { LevelResolver } from "@metafor/types/bulk/level"
 import {
 	BufferAttribute,
 	BufferGeometry,
-	BoxGeometry,
 	Color,
-	GLTFLoader,
 	GridHelper,
-	ImageMaterial,
 	LineGlowMaterial,
 	LineSegments,
-	Light,
 	Matrix4,
 	Mesh,
 	MeshBasicMaterial,
@@ -82,13 +65,11 @@ import {
 	PlaneGeometry,
 	Quaternion,
 	Renderer,
-	SkinnedMesh,
 	Space,
 	SphereGeometry,
 	Text,
 	TextMaterial,
 	TrueTypeFont,
-	AnimationMixer,
 	Raycaster,
 	Vector3,
 	ViewPoint,
@@ -157,7 +138,6 @@ const sphereSurfaceCache = new Map<string, BufferGeometry>()
 const LABEL_TEXT_COLOR = new Color(1, 1, 1)
 const COSMOS_ORBIT_RAD_PER_MS = (Math.PI * 2) / 180_000
 const COSMOS_AXIS_RAD_PER_MS = (Math.PI * 2) / 90_000
-const BULK_SCENE_DEVICES_ENABLED = false
 
 type OrbitalParticleRenderRecord = {
 	node: LineSegments
@@ -204,26 +184,6 @@ const FIELD_BILLBOARD_TITLE_Z_MM = 0.7
 const NAVIGATION_VIEWPORT_FIT_PADDING_RATIO = 1.25
 const FIELD_LABEL_TITLE_MORPH_START_DISTANCE_RATIO = 4
 const FIELD_LABEL_TITLE_MORPH_END_DISTANCE_RATIO = 2
-const ANTHROPOMORPH_BOT_MODEL_URL = "/models/bots.glb"
-const ANTHROPOMORPH_BOT_SCALE_MM = 1000
-const ANTHROPOMORPH_BOT_STAGE_X_MM = 0
-const ANTHROPOMORPH_BOT_STAGE_Y_MM = 0
-const ANTHROPOMORPH_BOT_STAGE_Z_MM = 0
-const ANTHROPOMORPH_BOT_RENDER_WAKE_MS = 3000
-const BOT_WORK_PHONE_WIDTH = 12
-const BOT_WORK_PHONE_HEIGHT = 24
-const BOT_WORK_PHONE_DEPTH = 1.6
-const BOT_WORK_PHONE_SCREEN_WIDTH = BOT_WORK_PHONE_WIDTH - 1.8
-const BOT_WORK_PHONE_SCREEN_HEIGHT = BOT_WORK_PHONE_HEIGHT - 3
-const BOT_FLOOR_PHONE_SCALE = 10
-const BOT_FLOOR_PHONE_Y_MM = -95
-const BOT_ANDROID_FALLBACK_FRAME_WIDTH = 1080
-const BOT_ANDROID_FALLBACK_FRAME_HEIGHT = 2400
-const BOT_PHONE_GESTURE_TAP_PX = 14
-const BOT_PHONE_CAMERA_FLIGHT_MS = 560
-const BOT_PHONE_HOVER_PAD_PX = 96
-const BOT_PHONE_HIT_PAD_PX = 24
-const BOT_PHONE_MIN_HUD_DISPLAY_PX = 62
 const BULK_RADIAL_MENU_SECTOR_COUNT = 12
 const BULK_RADIAL_MENU_SIZE_PX = 296
 const BULK_RADIAL_MENU_INNER_SIZE_PX = 150
@@ -232,7 +192,6 @@ const BULK_RADIAL_MENU_LONG_PRESS_MOVE_PX = 10
 const BULK_RADIAL_MENU_PROJECTED_HIT_PAD_PX = 48
 const BULK_RADIAL_MENU_HUD_Z = 10
 const BULK_TOUCH_TAP_MOVE_PX = 14
-const ANDROID_RTC_FRAME_SRC = "metafor:bulk-android-rtc-frame"
 let activeLayoutSettings: BulkLayoutSettings = { ...DEFAULT_BULK_SETTINGS.layout }
 let activeRenderSettings: BulkRenderSettings = { ...DEFAULT_BULK_SETTINGS.render }
 let levelResolver: LevelResolver = createLevelResolver(
@@ -288,12 +247,6 @@ const writeStoredBulkViewPose = (pose: BulkViewPose, rootFitLockedToViewport: bo
 		// Session storage is best-effort. Reload still works without pose persistence.
 	}
 }
-
-const BOT_PHONE_HOVER_HUD_Z = 8
-const BOT_PHONE_DISPLAY_DOCK_HUD_Z = 9
-
-const sameBotPhoneScreenTarget = (left: BotPhoneScreenTarget, right: BotPhoneScreenTarget): boolean =>
-	left.screen === right.screen
 
 const bulkFullscreenElement = (): Element | null => {
 	const webkitDocument = document as BulkWebkitFullscreenDocument
@@ -671,447 +624,6 @@ class FieldParticleBillboardSurface extends UiSurface {
 			maxWidthPx: Math.max(1, valueW),
 			z: Z.TEXT,
 		})
-	}
-}
-
-const createChamferedRectPrismGeometry = (width: number, height: number, depth: number, chamfer: number): BufferGeometry => {
-	const halfW = width / 2
-	const halfH = height / 2
-	const halfD = depth / 2
-	const c = Math.max(0, Math.min(chamfer, halfW, halfH))
-	const points = [
-		{x: -halfW + c, y: -halfH},
-		{x: halfW - c, y: -halfH},
-		{x: halfW, y: -halfH + c},
-		{x: halfW, y: halfH - c},
-		{x: halfW - c, y: halfH},
-		{x: -halfW + c, y: halfH},
-		{x: -halfW, y: halfH - c},
-		{x: -halfW, y: -halfH + c},
-	]
-	const vertices: number[] = []
-	const normals: number[] = []
-	const uvs: number[] = []
-	const indices: number[] = []
-
-	const addVertex = (x: number, y: number, z: number, nx: number, ny: number, nz: number): number => {
-		const index = vertices.length / 3
-		vertices.push(x, y, z)
-		normals.push(nx, ny, nz)
-		uvs.push((x + halfW) / width, 1 - (y + halfH) / height)
-		return index
-	}
-
-	const frontCenter = addVertex(0, 0, halfD, 0, 0, 1)
-	const front = points.map((point) => addVertex(point.x, point.y, halfD, 0, 0, 1))
-	for (let index = 0; index < front.length; index++) {
-		indices.push(frontCenter, front[index]!, front[(index + 1) % front.length]!)
-	}
-
-	const backCenter = addVertex(0, 0, -halfD, 0, 0, -1)
-	const back = points.map((point) => addVertex(point.x, point.y, -halfD, 0, 0, -1))
-	for (let index = 0; index < back.length; index++) {
-		indices.push(backCenter, back[(index + 1) % back.length]!, back[index]!)
-	}
-
-	for (let index = 0; index < points.length; index++) {
-		const current = points[index]!
-		const next = points[(index + 1) % points.length]!
-		const edgeX = next.x - current.x
-		const edgeY = next.y - current.y
-		const length = Math.hypot(edgeX, edgeY) || 1
-		const nx = edgeY / length
-		const ny = -edgeX / length
-		const a = addVertex(current.x, current.y, halfD, nx, ny, 0)
-		const b = addVertex(current.x, current.y, -halfD, nx, ny, 0)
-		const cIndex = addVertex(next.x, next.y, halfD, nx, ny, 0)
-		const d = addVertex(next.x, next.y, -halfD, nx, ny, 0)
-		indices.push(a, b, cIndex)
-		indices.push(cIndex, b, d)
-	}
-
-	const geometry = new BufferGeometry()
-	geometry.setIndex(new BufferAttribute(new Uint16Array(indices), 1))
-	geometry.setAttribute("position", new BufferAttribute(new Float32Array(vertices), 3))
-	geometry.setAttribute("normal", new BufferAttribute(new Float32Array(normals), 3))
-	geometry.setAttribute("uv", new BufferAttribute(new Float32Array(uvs), 2))
-	return geometry
-}
-
-const createBotWorkPhone = (accent: Color, onTextureChange: () => void): Object3D => {
-	const root = new Object3D()
-	root.name = "BotWorkPhone"
-	const bodyGeometry = createChamferedRectPrismGeometry(
-		BOT_WORK_PHONE_WIDTH,
-		BOT_WORK_PHONE_HEIGHT,
-		BOT_WORK_PHONE_DEPTH,
-		1.7,
-	)
-	const body = new Mesh(
-		bodyGeometry,
-		new MeshBasicMaterial({color: new Color(0.011, 0.014, 0.02)}),
-	)
-	body.name = "BotWorkPhone:body"
-	body.frustumCulled = false
-	root.add(body)
-
-	const screenWidth = BOT_WORK_PHONE_SCREEN_WIDTH
-	const screenHeight = BOT_WORK_PHONE_SCREEN_HEIGHT
-	const screenBack = new Mesh(
-		new PlaneGeometry({width: screenWidth, height: screenHeight}),
-		new MeshBasicMaterial({color: new Color(0.03 + accent.r * 0.12, 0.04 + accent.g * 0.12, 0.055 + accent.b * 0.12)}),
-	)
-	screenBack.name = "BotWorkPhone:screen-bg"
-	screenBack.position.y = -0.35
-	screenBack.position.z = BOT_WORK_PHONE_DEPTH / 2 + 0.055
-	screenBack.frustumCulled = false
-	screenBack.updateMatrix()
-	root.add(screenBack)
-
-	const screen = new Mesh(
-		new PlaneGeometry({width: screenWidth, height: screenHeight}),
-		new ImageMaterial({
-			src: ANDROID_RTC_FRAME_SRC,
-			fit: "contain",
-			boxAspect: screenWidth / screenHeight,
-			onTextureChange,
-		}),
-	)
-	screen.name = "BotWorkPhone:screen"
-	screen.position.y = -0.35
-	screen.position.z = BOT_WORK_PHONE_DEPTH / 2 + 0.08
-	screen.frustumCulled = false
-	screen.updateMatrix()
-	root.add(screen)
-
-	const speaker = new Mesh(
-		new BoxGeometry({width: 4, height: 0.32, depth: 0.14}),
-		new MeshBasicMaterial({color: new Color(0.006, 0.008, 0.012)}),
-	)
-	speaker.name = "BotWorkPhone:speaker"
-	speaker.position.set(0, BOT_WORK_PHONE_HEIGHT / 2 - 1.25, BOT_WORK_PHONE_DEPTH / 2 + 0.12)
-	speaker.frustumCulled = false
-	speaker.updateMatrix()
-	root.add(speaker)
-
-	const frontCamera = new Mesh(
-		new SphereGeometry({radius: 0.32, widthSegments: 6, heightSegments: 4}),
-		new MeshBasicMaterial({color: new Color(0.004, 0.007, 0.012)}),
-	)
-	frontCamera.name = "BotWorkPhone:front-camera"
-	frontCamera.position.set(BOT_WORK_PHONE_WIDTH / 2 - 1.65, BOT_WORK_PHONE_HEIGHT / 2 - 1.28, BOT_WORK_PHONE_DEPTH / 2 + 0.18)
-	frontCamera.frustumCulled = false
-	frontCamera.updateMatrix()
-	root.add(frontCamera)
-
-	const backCamera = new Mesh(
-		new SphereGeometry({radius: 0.55, widthSegments: 7, heightSegments: 5}),
-		new MeshBasicMaterial({color: new Color(0.005, 0.007, 0.011)}),
-	)
-	backCamera.name = "BotWorkPhone:back-camera"
-	backCamera.position.set(-BOT_WORK_PHONE_WIDTH / 2 + 1.8, BOT_WORK_PHONE_HEIGHT / 2 - 2.1, -BOT_WORK_PHONE_DEPTH / 2 - 0.14)
-	backCamera.frustumCulled = false
-	backCamera.updateMatrix()
-	root.add(backCamera)
-
-	const wireframe = new LineSegments(
-		bodyGeometry.toWireframe(),
-		new LineGlowMaterial({
-			color: accent,
-			glowColor: new Color(accent.r, accent.g, accent.b, 0.22),
-			glowIntensity: 0.7,
-			opacity: 0.72,
-		}),
-	)
-	wireframe.name = "BotWorkPhone:outline"
-	wireframe.frustumCulled = false
-	root.add(wireframe)
-	return root
-}
-
-const createBotFloorPhones = (onTextureChange: () => void): BotFloorPhones => {
-	const root = new Object3D()
-	root.name = "BotFloorPhones"
-	const screens: BotPhoneScreenTarget[] = []
-	for (const [index, sideSign] of ([-1, 1] as const).entries()) {
-		const phone = createBotWorkPhone(index === 0 ? THEME_PRIMARY : new Color(1, 0.48, 0.34), onTextureChange)
-		phone.name = `BotFloorPhone:${index + 1}`
-		phone.position.set(
-			sideSign * 105,
-			BOT_FLOOR_PHONE_Y_MM,
-			getFloorZ() + BOT_WORK_PHONE_DEPTH * BOT_FLOOR_PHONE_SCALE * 0.5 + 1,
-		)
-		phone.rotation.z = sideSign * 0.22
-		phone.scale.set(BOT_FLOOR_PHONE_SCALE, BOT_FLOOR_PHONE_SCALE, BOT_FLOOR_PHONE_SCALE)
-		phone.updateMatrix()
-		const screen = phone.getObjectByName("BotWorkPhone:screen")
-		if (screen !== undefined) {
-			screens.push({
-				phone,
-				screen,
-				screenW: BOT_WORK_PHONE_SCREEN_WIDTH,
-				screenH: BOT_WORK_PHONE_SCREEN_HEIGHT,
-			})
-		}
-		root.add(phone)
-	}
-	root.updateMatrix()
-	return {root, screens}
-}
-
-class BotPhoneDisplayDockPane extends UiSurface {
-	#visible = false
-	readonly #onFullscreen: () => void
-	readonly #onReturn: () => void
-
-	constructor(onReturn: () => void, onFullscreen: () => void) {
-		super({bgColor: null, borderColor: null})
-		this.node.name = "BotPhoneDisplayDockPane"
-		this.#onReturn = onReturn
-		this.#onFullscreen = onFullscreen
-	}
-
-	setVisible(visible: boolean): void {
-		if (this.#visible === visible) return
-		this.#visible = visible
-		this.requestRender()
-	}
-
-	acceptsPointerEvents(): boolean {
-		return this.#visible
-	}
-
-	containsPointer(localX: number, localY: number): boolean {
-		if (!this.#visible) return false
-		const rect = this.#controlRects().hit
-		const pad = 26
-		return (
-			localX >= rect.x - pad &&
-			localX <= rect.x + rect.w + pad &&
-			localY >= rect.y - pad &&
-			localY <= rect.y + rect.h + pad
-		)
-	}
-
-	protected render(): void {
-		if (!this.#visible) return
-		const control = this.#controlRects()
-		const returnHit = this.hitState(control.returnButton.x, control.returnButton.y, control.returnButton.w, control.returnButton.h, "bot-display-return")
-		const fullscreenHit = this.hitState(control.fullscreenButton.x, control.fullscreenButton.y, control.fullscreenButton.w, control.fullscreenButton.h, "bot-display-fullscreen")
-
-		this.hit(control.returnButton.x, control.returnButton.y, control.returnButton.w, control.returnButton.h, this.#onReturn, {
-			key: "bot-display-return",
-			cursor: "pointer",
-			activeCursor: "pointer",
-		})
-		this.hit(control.fullscreenButton.x, control.fullscreenButton.y, control.fullscreenButton.w, control.fullscreenButton.h, this.#onFullscreen, {
-			key: "bot-display-fullscreen",
-			cursor: "pointer",
-			activeCursor: "pointer",
-		})
-
-		this.#drawButton(control.returnButton, returnHit.pressed ? 1.15 : returnHit.hovered ? 1 : 0.82, uiIcons.zoomOut)
-		this.#drawButton(
-			control.fullscreenButton,
-			fullscreenHit.pressed ? 1.15 : fullscreenHit.hovered ? 1 : 0.82,
-			bulkFullscreenElement() === null ? uiIcons.expand : uiIcons.collapse,
-		)
-	}
-
-	#drawButton(rect: UiSurfaceRect, strength: number, icon: (typeof uiIcons)[keyof typeof uiIcons]): void {
-		const glow = new Color(0.08, 0.52, 1, 0.18 * strength)
-		const border = new Color(0.22, 0.68, 0.95, 0.64 * strength)
-		this.drawRoundedRect(rect.x, rect.y, rect.w, rect.h, {
-			radius: rect.h / 2,
-			fill: glow,
-			border,
-			borderWidth: 1.2,
-			z: Z.TEXT + 0.22,
-		})
-		drawIconCentered(this, icon, rect.x + rect.w / 2, rect.y + rect.h / 2, 24, {
-			opacity: 0.92 * strength,
-			z: Z.TEXT + 0.32,
-		})
-	}
-
-	#controlRects(): BotPhoneDisplayDockControl {
-		const size = 42
-		const gap = 12
-		const x = 58
-		const y = 72
-		const returnButton = {x, y, w: size, h: size}
-		const fullscreenButton = {x: x + size + gap, y, w: size, h: size}
-		return {
-			returnButton,
-			fullscreenButton,
-			hit: {
-				x,
-				y,
-				w: size * 2 + gap,
-				h: size,
-			},
-		}
-	}
-}
-
-class BotPhoneHoverControlsPane extends UiSurface {
-	#activeTarget: BotPhoneScreenTarget | null = null
-	#frames: BotPhoneScreenFrame[] = []
-	#signature = ""
-	readonly #onZoom: (target: BotPhoneScreenTarget) => void
-
-	constructor(onZoom: (target: BotPhoneScreenTarget) => void) {
-		super({bgColor: null, borderColor: null})
-		this.node.name = "BotPhoneHoverControlsPane"
-		this.#onZoom = onZoom
-	}
-
-	setFrame(frame: BotPhoneScreenFrame | null): void {
-		this.setFrames(frame === null ? [] : [frame], frame?.target ?? null)
-	}
-
-	setFrames(frames: BotPhoneScreenFrame[], activeTarget: BotPhoneScreenTarget | null): void {
-		const signature = this.#frameSignature(frames, activeTarget)
-		if (signature === this.#signature) return
-		this.#signature = signature
-		this.#frames = frames
-		this.#activeTarget = activeTarget
-		this.requestRender()
-	}
-
-	acceptsPointerEvents(): boolean {
-		return this.#activeFrame() !== null
-	}
-
-	containsPointer(localX: number, localY: number): boolean {
-		const frame = this.#activeFrame()
-		if (frame === null) return false
-		const rect = this.#zoomButtonRect(frame)
-		const pad = 12
-		return (
-			localX >= rect.x - pad &&
-			localX <= rect.x + rect.w + pad &&
-			localY >= rect.y - pad &&
-			localY <= rect.y + rect.h + pad
-		)
-	}
-
-	protected render(): void {
-		if (this.#frames.length === 0) return
-		for (const frame of this.#frames) {
-			const active = this.#activeTarget !== null && sameBotPhoneScreenTarget(frame.target, this.#activeTarget)
-			this.#drawFrame(frame, active ? 1.06 : 0.58)
-		}
-		const frame = this.#activeFrame()
-		if (frame === null) return
-		const rect = this.#zoomButtonRect(frame)
-		const hit = this.hitState(rect.x, rect.y, rect.w, rect.h, "bot-phone-zoom-in")
-		const strength = hit.pressed ? 1.18 : hit.hovered ? 1 : 0.78
-		this.hit(rect.x, rect.y, rect.w, rect.h, () => this.#onZoom(frame.target), {
-			key: "bot-phone-zoom-in",
-			cursor: "pointer",
-			activeCursor: "pointer",
-		})
-		this.#drawFrame(frame, strength)
-		const center = this.#center(rect)
-		const anchor = this.#center(this.#visualBounds(this.#visualQuad(frame)))
-		this.drawRoundedLine(anchor.x, anchor.y, center.x, center.y, new Color(0.18, 0.72, 1, 0.28 * strength), 1.4, Z.TEXT + 0.21)
-		this.drawRoundedRect(rect.x, rect.y, rect.w, rect.h, {
-			radius: rect.h / 2,
-			fill: new Color(0.06, 0.32, 0.55, 0.32 * strength),
-			border: new Color(0.32, 0.82, 1, 0.74 * strength),
-			borderWidth: 1.2,
-			z: Z.TEXT + 0.24,
-		})
-		drawIconCentered(this, uiIcons.zoomIn, center.x, center.y, Math.min(26, rect.w * 0.62), {
-			opacity: 0.94 * strength,
-			z: Z.TEXT + 0.34,
-		})
-	}
-
-	#activeFrame(): BotPhoneScreenFrame | null {
-		if (this.#activeTarget === null) return null
-		return this.#frames.find((frame) => sameBotPhoneScreenTarget(frame.target, this.#activeTarget!)) ?? null
-	}
-
-	#frameSignature(frames: BotPhoneScreenFrame[], activeTarget: BotPhoneScreenTarget | null): string {
-		const activeName = activeTarget?.phone.name ?? ""
-		return `${activeName}|${frames.map((frame) => {
-			const q = frame.quad
-			return [
-				frame.target.phone.name,
-				Math.round(q.topLeft.x),
-				Math.round(q.topLeft.y),
-				Math.round(q.topRight.x),
-				Math.round(q.topRight.y),
-				Math.round(q.bottomRight.x),
-				Math.round(q.bottomRight.y),
-				Math.round(q.bottomLeft.x),
-				Math.round(q.bottomLeft.y),
-			].join(",")
-		}).join(";")}`
-	}
-
-	#drawFrame(frame: BotPhoneScreenFrame, strength: number): void {
-		const color = new Color(0.28, 0.9, 1, 0.86 * strength)
-		const glow = new Color(0.06, 0.5, 1, 0.34 * strength)
-		const q = this.#visualQuad(frame)
-		for (const [a, b] of [
-			[q.topLeft, q.topRight],
-			[q.topRight, q.bottomRight],
-			[q.bottomRight, q.bottomLeft],
-			[q.bottomLeft, q.topLeft],
-		] as const) {
-			this.drawRoundedLine(a.x, a.y, b.x, b.y, glow, 10, Z.TEXT + 0.18)
-			this.drawRoundedLine(a.x, a.y, b.x, b.y, color, 2.8, Z.TEXT + 0.28)
-		}
-	}
-
-	#zoomButtonRect(frame: BotPhoneScreenFrame): UiSurfaceRect {
-		const visualBounds = this.#visualBounds(this.#visualQuad(frame))
-		const visualSizePx = Math.max(frame.displaySizePx, BOT_PHONE_MIN_HUD_DISPLAY_PX)
-		const size = Math.max(48, Math.min(66, visualSizePx * 0.82))
-		const gap = 18
-		let x = visualBounds.x + visualBounds.w + gap
-		if (x + size > this.rectW - 10) x = visualBounds.x - size - gap
-		x = clampBulkHudNumber(x, 10, Math.max(10, this.rectW - size - 10))
-		const preferredY = visualBounds.y - size - gap
-		const y = clampBulkHudNumber(preferredY, 10, Math.max(10, this.rectH - size - 10))
-		return {x, y, w: size, h: size}
-	}
-
-	#visualQuad(frame: BotPhoneScreenFrame): BotPhoneHudQuad {
-		if (frame.displaySizePx >= BOT_PHONE_MIN_HUD_DISPLAY_PX) return frame.quad
-		const center = this.#center(frame.bounds)
-		const scale = BOT_PHONE_MIN_HUD_DISPLAY_PX / Math.max(1, frame.displaySizePx)
-		return {
-			topLeft: this.#scalePointFrom(center, frame.quad.topLeft, scale),
-			topRight: this.#scalePointFrom(center, frame.quad.topRight, scale),
-			bottomRight: this.#scalePointFrom(center, frame.quad.bottomRight, scale),
-			bottomLeft: this.#scalePointFrom(center, frame.quad.bottomLeft, scale),
-		}
-	}
-
-	#scalePointFrom(center: BotPhoneHudPoint, point: BotPhoneHudPoint, scale: number): BotPhoneHudPoint {
-		return {
-			x: center.x + (point.x - center.x) * scale,
-			y: center.y + (point.y - center.y) * scale,
-		}
-	}
-
-	#visualBounds(quad: BotPhoneHudQuad): UiSurfaceRect {
-		const minX = Math.min(quad.topLeft.x, quad.topRight.x, quad.bottomRight.x, quad.bottomLeft.x)
-		const maxX = Math.max(quad.topLeft.x, quad.topRight.x, quad.bottomRight.x, quad.bottomLeft.x)
-		const minY = Math.min(quad.topLeft.y, quad.topRight.y, quad.bottomRight.y, quad.bottomLeft.y)
-		const maxY = Math.max(quad.topLeft.y, quad.topRight.y, quad.bottomRight.y, quad.bottomLeft.y)
-		return {x: minX, y: minY, w: maxX - minX, h: maxY - minY}
-	}
-
-	#center(rect: UiSurfaceRect): BotPhoneHudPoint {
-		return {
-			x: rect.x + rect.w / 2,
-			y: rect.y + rect.h / 2,
-		}
 	}
 }
 
@@ -1530,13 +1042,6 @@ const createWorkspaceGrid = (): GridHelper => {
 	grid.frustumCulled = false
 	grid.updateMatrix()
 	return grid
-}
-
-const createAnthropomorphBotLight = (color: Color, intensity: number, position: Vector3): Light => {
-	const light = new Light(color, intensity)
-	light.position.copy(position)
-	light.updateMatrix()
-	return light
 }
 
 class BulkViewportHudRuntime implements BulkViewportHudController {
@@ -2195,20 +1700,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	let renderWakeUntilMs = 0
 	let lastAnimationTimestamp = 0
 	let animationSuspended = false
-	let anthropomorphBotRoot: Object3D | null = null
-	let anthropomorphBotMixer: AnimationMixer | null = null
-	let anthropomorphBotSkinnedMeshes: SkinnedMesh[] = []
-	let botFloorPhonesRoot: Object3D | null = null
-	let botFloorPhoneScreens: BotPhoneScreenTarget[] = []
-	let botPhoneGesture: BotPhoneGesture | null = null
-	let botPhonePointerCaptured = false
-	let botPhoneTouchId: number | null = null
-	let botPhoneViewState: BotPhoneViewState | null = null
-	let botPhoneCameraFlight: BotPhoneCameraFlight | null = null
-	let botPhoneHoverTarget: BotPhoneScreenTarget | null = null
-	let botPhoneHoverPane: BotPhoneHoverControlsPane | null = null
-	let botPhoneDisplayDock: BotPhoneDisplayDockPane | null = null
-
 	const darkParticleRecords = new Map<number, DarkParticleRenderRecord>()
 	const fieldParticleRecords = new Map<string, FieldParticleRenderRecord>()
 	const orbitalParticleRecords = new Map<string, OrbitalParticleRenderRecord>()
@@ -2294,57 +1785,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		},
 	} as unknown as UiRuntime
 	let hudRuntime: BulkViewportHudRuntime
-
-	const installBotFloorPhones = (): void => {
-		const {root, screens} = createBotFloorPhones(() => requestRenderLoop(INPUT_RENDER_WAKE_MS))
-		botFloorPhonesRoot = root
-		botFloorPhoneScreens = screens
-		space.add(root)
-		requestRenderLoop(INPUT_RENDER_WAKE_MS)
-	}
-
-	const loadAnthropomorphBots = async (): Promise<void> => {
-		try {
-			const gltf = await new GLTFLoader().load(ANTHROPOMORPH_BOT_MODEL_URL)
-			if (disposed) return
-
-			const root = gltf.space
-			root.position.set(ANTHROPOMORPH_BOT_STAGE_X_MM, ANTHROPOMORPH_BOT_STAGE_Y_MM, getFloorZ() + ANTHROPOMORPH_BOT_STAGE_Z_MM)
-			root.rotation.z = Math.PI
-			root.scale.set(ANTHROPOMORPH_BOT_SCALE_MM, ANTHROPOMORPH_BOT_SCALE_MM, ANTHROPOMORPH_BOT_SCALE_MM)
-			const skinnedMeshes: SkinnedMesh[] = []
-			root.traverse((object) => {
-				object.frustumCulled = false
-				if (object instanceof SkinnedMesh) skinnedMeshes.push(object)
-			})
-			root.updateMatrix()
-		space.add(root)
-
-			const keyLight = createAnthropomorphBotLight(new Color(1, 0.96, 0.86), 2.6, new Vector3(2600, -2600, 3600))
-			const fillLight = createAnthropomorphBotLight(new Color(0.45, 0.76, 1), 1.35, new Vector3(-2200, 1800, 2400))
-			space.add(keyLight)
-			space.add(fillLight)
-
-			if (gltf.animations.length > 0) {
-				const mixer = new AnimationMixer(root)
-				const modelRoot = root.children[0] ?? root
-				gltf.animations.forEach((clip, index) => {
-					const localRoot =
-						modelRoot.children.find((child) => child.name === clip.name) ??
-						modelRoot.children[index] ??
-						root
-					mixer.clipAction(clip, localRoot).play()
-				})
-				anthropomorphBotMixer = mixer
-			}
-
-			anthropomorphBotRoot = root
-			requestRenderLoop(ANTHROPOMORPH_BOT_RENDER_WAKE_MS)
-			anthropomorphBotSkinnedMeshes = skinnedMeshes
-	} catch (error) {
-			console.warn("[bulk/web] Failed to load anthropomorph bots", error)
-	}
-	}
 
 	const resetHoverMaterial = (target: HoverablePickTarget): void => {
 		target.material.color.copy(target.baseColor)
@@ -3740,274 +3180,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		syncPickTargetsFromScene()
 	}
 
-	const updateBotPhoneDisplayWorldState = (): void => {
-		botFloorPhonesRoot?.updateWorldMatrix(true)
-	}
-
-	const androidFrameSizeForBotPhone = (): BulkAndroidFrameSize => {
-		const frame = options.androidFrameSize?.()
-		return {
-			width: Math.max(1, Math.round(frame?.width ?? BOT_ANDROID_FALLBACK_FRAME_WIDTH)),
-			height: Math.max(1, Math.round(frame?.height ?? BOT_ANDROID_FALLBACK_FRAME_HEIGHT)),
-		}
-	}
-
-	const botPhoneDisplayRectForFrame = (
-		target: BotPhoneScreenTarget,
-		frame: BulkAndroidFrameSize,
-	): BotPhoneDisplayRect => {
-		const screenAspect = target.screenW / Math.max(0.0001, target.screenH)
-		const frameAspect = frame.width / Math.max(0.0001, frame.height)
-		let w = target.screenW
-		let h = target.screenH
-		if (frameAspect > screenAspect) h = target.screenW / frameAspect
-		else w = target.screenH * frameAspect
-		return {
-			x: -w / 2,
-			y: -h / 2,
-			w,
-			h,
-		}
-	}
-
-	const sameBotPhoneScreen = (left: BotPhoneScreenTarget, right: BotPhoneScreenTarget): boolean =>
-		left.screen === right.screen
-
-	const projectBotPhoneWorldPoint = (manifestPoint: Vector3, rect: DOMRect): BotPhoneHudPoint | null => {
-		const projected = manifestPoint.clone().applyMatrix4(viewPoint.viewMatrix).applyMatrix4(viewPoint.projectionMatrix)
-		if (!Number.isFinite(projected.x) || !Number.isFinite(projected.y) || !Number.isFinite(projected.z)) return null
-		return {
-			x: ((projected.x + 1) / 2) * rect.width,
-			y: ((1 - projected.y) / 2) * rect.height,
-		}
-	}
-
-	const botPhoneScreenFrameForTarget = (target: BotPhoneScreenTarget, rect: DOMRect): BotPhoneScreenFrame | null => {
-		const displayRect = botPhoneDisplayRectForFrame(target, androidFrameSizeForBotPhone())
-		const left = displayRect.x
-		const right = displayRect.x + displayRect.w
-		const bottom = displayRect.y
-		const top = displayRect.y + displayRect.h
-		const topLeft = projectBotPhoneWorldPoint(new Vector3(left, top, 0).applyMatrix4(target.screen.matrixWorld), rect)
-		const topRight = projectBotPhoneWorldPoint(new Vector3(right, top, 0).applyMatrix4(target.screen.matrixWorld), rect)
-		const bottomRight = projectBotPhoneWorldPoint(new Vector3(right, bottom, 0).applyMatrix4(target.screen.matrixWorld), rect)
-		const bottomLeft = projectBotPhoneWorldPoint(new Vector3(left, bottom, 0).applyMatrix4(target.screen.matrixWorld), rect)
-		if (topLeft === null || topRight === null || bottomRight === null || bottomLeft === null) return null
-		const minX = Math.min(topLeft.x, topRight.x, bottomRight.x, bottomLeft.x)
-		const maxX = Math.max(topLeft.x, topRight.x, bottomRight.x, bottomLeft.x)
-		const minY = Math.min(topLeft.y, topRight.y, bottomRight.y, bottomLeft.y)
-		const maxY = Math.max(topLeft.y, topRight.y, bottomRight.y, bottomLeft.y)
-		const displaySizePx = Math.max(
-			Math.hypot(topRight.x - topLeft.x, topRight.y - topLeft.y),
-			Math.hypot(bottomRight.x - topRight.x, bottomRight.y - topRight.y),
-		)
-		if (displaySizePx < 8) return null
-		return {
-			target,
-			displayRect,
-			quad: {topLeft, topRight, bottomRight, bottomLeft},
-			bounds: {x: minX, y: minY, w: maxX - minX, h: maxY - minY},
-			displaySizePx,
-		}
-	}
-
-	const botPhoneScreenFrameAtClientPoint = (
-		clientX: number,
-		clientY: number,
-		padPx: number,
-	): BotPhoneScreenFrame | null => {
-		if (botFloorPhoneScreens.length === 0) return null
-		const rect = options.canvas.getBoundingClientRect()
-		if (rect.width <= 0 || rect.height <= 0) return null
-		const x = clientX - rect.left
-		const y = clientY - rect.top
-		let best: {distance: number; frame: BotPhoneScreenFrame} | null = null
-			for (const target of botFloorPhoneScreens) {
-				const frame = botPhoneScreenFrameForTarget(target, rect)
-				if (frame === null) continue
-				const centerX = frame.bounds.x + frame.bounds.w / 2
-				const centerY = frame.bounds.y + frame.bounds.h / 2
-			const effectivePadPx = Math.max(padPx, Math.min(132, frame.displaySizePx * 2.6))
-			if (
-				x < frame.bounds.x - effectivePadPx ||
-				x > frame.bounds.x + frame.bounds.w + effectivePadPx ||
-				y < frame.bounds.y - effectivePadPx ||
-				y > frame.bounds.y + frame.bounds.h + effectivePadPx
-			) {
-				continue
-			}
-			const distance = Math.hypot(x - centerX, y - centerY)
-			if (best === null || distance < best.distance) best = {distance, frame}
-		}
-		return best?.frame ?? null
-	}
-
-	const botPhoneScreenHitFromFrame = (
-		frame: BotPhoneScreenFrame,
-		clientX: number,
-		clientY: number,
-	): BotPhoneScreenHit => {
-		const canvasRect = options.canvas.getBoundingClientRect()
-		const androidFrame = androidFrameSizeForBotPhone()
-		const localX = clientX - canvasRect.left
-		const localY = clientY - canvasRect.top
-		const u = clampBulkHudNumber((localX - frame.bounds.x) / Math.max(1, frame.bounds.w), 0, 1)
-		const v = clampBulkHudNumber((localY - frame.bounds.y) / Math.max(1, frame.bounds.h), 0, 1)
-		const center = new Vector3(0, 0, 0).applyMatrix4(frame.target.screen.matrixWorld)
-		return {
-			target: frame.target,
-			localX: frame.displayRect.x + u * frame.displayRect.w,
-			localY: frame.displayRect.y + (1 - v) * frame.displayRect.h,
-			androidX: clampBulkHudNumber(u * androidFrame.width, 0, androidFrame.width - 1),
-			androidY: clampBulkHudNumber(v * androidFrame.height, 0, androidFrame.height - 1),
-			frameW: androidFrame.width,
-			frameH: androidFrame.height,
-			distance: viewPoint.position.distanceTo(center),
-		}
-	}
-
-	const botPhoneScreenHitForTargetAtClientPoint = (
-		target: BotPhoneScreenTarget,
-		clientX: number,
-		clientY: number,
-	): BotPhoneScreenHit | null => {
-		const rect = options.canvas.getBoundingClientRect()
-		if (rect.width <= 0 || rect.height <= 0) return null
-		raycaster.setFromCamera(
-			{
-				x: ((clientX - rect.left) / rect.width) * 2 - 1,
-				y: -((clientY - rect.top) / rect.height) * 2 + 1,
-			},
-			viewPoint,
-		)
-		const inverse = new Matrix4().copy(target.screen.matrixWorld).invert()
-		const localOrigin = raycaster.ray.origin.clone().applyMatrix4(inverse)
-		const localEnd = raycaster.ray.origin.clone().add(raycaster.ray.direction).applyMatrix4(inverse)
-		const localDirection = localEnd.sub(localOrigin).normalize()
-		if (Math.abs(localDirection.z) >= 1e-6) {
-			const t = -localOrigin.z / localDirection.z
-			if (t >= 0) {
-				const localPoint = localOrigin.clone().add(localDirection.multiplyScalar(t))
-				const frame = androidFrameSizeForBotPhone()
-				const displayRect = botPhoneDisplayRectForFrame(target, frame)
-				const left = displayRect.x
-				const right = displayRect.x + displayRect.w
-				const bottom = displayRect.y
-				const top = displayRect.y + displayRect.h
-				if (localPoint.x >= left && localPoint.x <= right && localPoint.y >= bottom && localPoint.y <= top) {
-					const manifestPoint = localPoint.clone().applyMatrix4(target.screen.matrixWorld)
-					const u = clampBulkHudNumber((localPoint.x - left) / displayRect.w, 0, 1)
-					const v = clampBulkHudNumber((top - localPoint.y) / displayRect.h, 0, 1)
-					return {
-						target,
-						localX: localPoint.x,
-						localY: localPoint.y,
-						androidX: clampBulkHudNumber(u * frame.width, 0, frame.width - 1),
-						androidY: clampBulkHudNumber(v * frame.height, 0, frame.height - 1),
-						frameW: frame.width,
-						frameH: frame.height,
-						distance: raycaster.ray.origin.distanceTo(manifestPoint),
-					}
-				}
-			}
-		}
-		const projectedFrame = botPhoneScreenFrameForTarget(target, rect)
-		if (projectedFrame === null) return null
-		const localX = clientX - rect.left
-		const localY = clientY - rect.top
-		if (
-			localX < projectedFrame.bounds.x ||
-			localX > projectedFrame.bounds.x + projectedFrame.bounds.w ||
-			localY < projectedFrame.bounds.y ||
-			localY > projectedFrame.bounds.y + projectedFrame.bounds.h
-		) {
-			return null
-		}
-		return botPhoneScreenHitFromFrame(projectedFrame, clientX, clientY)
-	}
-
-	const botPhoneScreenHitAtClientPoint = (clientX: number, clientY: number): BotPhoneScreenHit | null => {
-		if (botFloorPhoneScreens.length === 0) return null
-		const rect = options.canvas.getBoundingClientRect()
-		if (rect.width <= 0 || rect.height <= 0) return null
-		updateBotPhoneDisplayWorldState()
-		raycaster.setFromCamera(
-			{
-				x: ((clientX - rect.left) / rect.width) * 2 - 1,
-				y: -((clientY - rect.top) / rect.height) * 2 + 1,
-			},
-			viewPoint,
-		)
-		const frame = androidFrameSizeForBotPhone()
-		let best: BotPhoneScreenHit | null = null
-		for (const target of botFloorPhoneScreens) {
-			const hit = botPhoneScreenHitForTargetAtClientPoint(target, clientX, clientY)
-			if (hit === null) continue
-			const distance = hit.distance
-			if (best !== null && distance >= best.distance) continue
-			best = {
-				...hit,
-				androidX: clampBulkHudNumber(hit.androidX, 0, frame.width - 1),
-				androidY: clampBulkHudNumber(hit.androidY, 0, frame.height - 1),
-				frameW: frame.width,
-				frameH: frame.height,
-				distance,
-			}
-		}
-		if (best !== null) return best
-		const projectedFrame = botPhoneScreenFrameAtClientPoint(clientX, clientY, BOT_PHONE_HIT_PAD_PX)
-		return projectedFrame === null ? null : botPhoneScreenHitFromFrame(projectedFrame, clientX, clientY)
-	}
-
-	const syncBotPhoneHoverPane = (): void => {
-		const pane = botPhoneHoverPane
-		if (pane === null) return
-		if (botPhoneViewState !== null || botPhoneHoverTarget === null) {
-			pane.setFrame(null)
-			return
-		}
-		const rect = options.canvas.getBoundingClientRect()
-		if (rect.width <= 0 || rect.height <= 0) {
-			pane.setFrame(null)
-			return
-		}
-		updateBotPhoneDisplayWorldState()
-		pane.setFrame(botPhoneScreenFrameForTarget(botPhoneHoverTarget, rect))
-	}
-
-	const setBotPhoneHoverFrame = (frame: BotPhoneScreenFrame | null): void => {
-		const target = frame?.target ?? null
-		const changed = botPhoneHoverTarget !== target
-		botPhoneHoverTarget = target
-		botPhoneHoverPane?.setFrame(frame)
-		if (changed) requestRenderLoop(INPUT_RENDER_WAKE_MS)
-	}
-
-	const setBotPhoneHoverTarget = (target: BotPhoneScreenTarget | null): void => {
-		if (target === null) {
-			setBotPhoneHoverFrame(null)
-			return
-		}
-		const rect = options.canvas.getBoundingClientRect()
-		if (rect.width <= 0 || rect.height <= 0) {
-			setBotPhoneHoverFrame(null)
-			return
-		}
-		updateBotPhoneDisplayWorldState()
-		setBotPhoneHoverFrame(botPhoneScreenFrameForTarget(target, rect))
-	}
-
-	const updateBotPhoneHoverAtClientPoint = (clientX: number, clientY: number): BotPhoneScreenFrame | null => {
-		if (botPhoneViewState !== null) {
-			setBotPhoneHoverFrame(null)
-			return null
-		}
-		updateBotPhoneDisplayWorldState()
-		const frame = botPhoneScreenFrameAtClientPoint(clientX, clientY, BOT_PHONE_HOVER_PAD_PX)
-		setBotPhoneHoverFrame(frame)
-		return frame
-	}
-
 	const captureViewPose = (): BulkViewPose => ({
 		position: viewPoint.position.clone(),
 		target: viewPoint.getTarget().clone(),
@@ -4165,33 +3337,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return new Vector3(elements[12] ?? 0, elements[13] ?? 0, elements[14] ?? 0)
 	}
 
-	const botPhoneViewPose = (target: BotPhoneScreenTarget): BulkViewPose => {
-		updateBotPhoneDisplayWorldState()
-		const displayRect = botPhoneDisplayRectForFrame(target, androidFrameSizeForBotPhone())
-		const localCenter = new Vector3(displayRect.x + displayRect.w / 2, displayRect.y + displayRect.h / 2, 0)
-		const center = localCenter.clone().applyMatrix4(target.screen.matrixWorld)
-		const normal = new Vector3(localCenter.x, localCenter.y, 1).applyMatrix4(target.screen.matrixWorld).sub(center).normalize()
-		const up = new Vector3(localCenter.x, localCenter.y + 1, 0).applyMatrix4(target.screen.matrixWorld).sub(center).normalize()
-		const left = new Vector3(displayRect.x, localCenter.y, 0).applyMatrix4(target.screen.matrixWorld)
-		const right = new Vector3(displayRect.x + displayRect.w, localCenter.y, 0).applyMatrix4(target.screen.matrixWorld)
-		const top = new Vector3(localCenter.x, displayRect.y + displayRect.h, 0).applyMatrix4(target.screen.matrixWorld)
-		const bottom = new Vector3(localCenter.x, displayRect.y, 0).applyMatrix4(target.screen.matrixWorld)
-		const manifestW = Math.max(1, left.distanceTo(right))
-		const manifestH = Math.max(1, top.distanceTo(bottom))
-		const halfVerticalFov = viewPoint.fov / 2
-		const halfHorizontalFov = Math.atan(Math.tan(halfVerticalFov) * Math.max(0.1, viewPoint.aspect))
-		const distance = Math.max(
-			manifestH / (2 * Math.tan(halfVerticalFov)),
-			manifestW / (2 * Math.tan(halfHorizontalFov)),
-			35,
-		) * 1.025
-		return {
-			position: center.clone().add(normal.multiplyScalar(distance)),
-			target: center,
-			up,
-		}
-	}
-
 	const mixViewPose = (start: BulkViewPose, end: BulkViewPose, t: number): BulkViewPose => ({
 		position: new Vector3(
 			mixScalar(start.position.x, end.position.x, t),
@@ -4209,202 +3354,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			mixScalar(start.up.z, end.up.z, t),
 		).normalize(),
 	})
-
-	const startBotPhoneCameraFlight = (end: BulkViewPose): void => {
-		botPhoneCameraFlight = {
-			start: captureViewPose(),
-			end,
-			startedAt: performance.now(),
-		}
-		navigationState = null
-		requestRenderLoop(SCENE_TRANSITION_WAKE_MS)
-	}
-
-	const applyBotPhoneCameraFlight = (): boolean => {
-		if (botPhoneCameraFlight === null) return false
-		const elapsed = performance.now() - botPhoneCameraFlight.startedAt
-		const linear = clampBulkHudNumber(elapsed / BOT_PHONE_CAMERA_FLIGHT_MS, 0, 1)
-		const eased = easeOutCubic(linear)
-		applyViewPose(mixViewPose(botPhoneCameraFlight.start, botPhoneCameraFlight.end, eased))
-		if (linear >= 1) {
-			applyViewPose(botPhoneCameraFlight.end)
-			botPhoneCameraFlight = null
-		}
-		return botPhoneCameraFlight !== null
-	}
-
-	const enterBotPhoneView = (target: BotPhoneScreenTarget): void => {
-		const returnPose = botPhoneViewState?.returnPose ?? captureViewPose()
-		setBotPhoneHoverTarget(null)
-		botPhoneViewState = {target, returnPose}
-		botPhoneDisplayDock?.setVisible(true)
-		startBotPhoneCameraFlight(botPhoneViewPose(target))
-	}
-
-	const exitBotPhoneView = (): void => {
-		if (botPhoneViewState === null) return
-		const returnPose = botPhoneViewState.returnPose
-		botPhoneViewState = null
-		botPhoneGesture = null
-		botPhonePointerCaptured = false
-		botPhoneDisplayDock?.setVisible(false)
-		setBotPhoneHoverTarget(null)
-		startBotPhoneCameraFlight(returnPose)
-	}
-
-	const toggleBotPhoneDisplayFullscreen = (): void => {
-		const target = options.canvas
-		void (async () => {
-			try {
-				if (bulkFullscreenElement() === null) await requestBulkFullscreen(target)
-				else await exitBulkFullscreen()
-			} catch (error) {
-				console.warn("[bulk/web] Display fullscreen toggle failed", error)
-			} finally {
-				botPhoneDisplayDock?.requestRender()
-				requestRenderLoop(INPUT_RENDER_WAKE_MS)
-			}
-		})()
-	}
-
-	const sendBotPhoneGesture = (gesture: BotPhoneGesture, end: BotPhoneScreenHit, event: MouseEvent): void => {
-		const sender = options.onAndroidControl
-		if (sender === undefined) return
-		const dx = event.clientX - gesture.startClientX
-		const dy = event.clientY - gesture.startClientY
-		if (Math.hypot(dx, dy) <= BOT_PHONE_GESTURE_TAP_PX) {
-			sender({type: "tap", x: gesture.start.androidX, y: gesture.start.androidY, frameW: gesture.start.frameW, frameH: gesture.start.frameH})
-			return
-		}
-		const durationMs = Math.max(60, Math.min(1000, Math.round(performance.now() - gesture.startedAt)))
-		sender({
-			type: "swipe",
-			x1: gesture.start.androidX,
-			y1: gesture.start.androidY,
-			x2: end.androidX,
-			y2: end.androidY,
-			frameW: gesture.start.frameW,
-			frameH: gesture.start.frameH,
-			durationMs,
-		})
-	}
-
-	const claimBotPhonePointerEvent = (event: MouseEvent | TouchEvent): void => {
-		event.preventDefault()
-		event.stopImmediatePropagation()
-	}
-
-	const beginBotPhonePointer = (event: MouseEvent): boolean => {
-		if (event.button !== 0) return false
-		const currentView = botPhoneViewState
-		const hit = currentView === null
-			? botPhoneScreenHitAtClientPoint(event.clientX, event.clientY)
-			: botPhoneScreenHitForTargetAtClientPoint(currentView.target, event.clientX, event.clientY)
-		if (hit === null) return false
-		cancelNavigation()
-		isPrimaryPointerDown = false
-		clickNavigationSuppressed = true
-		if (currentView === null || !sameBotPhoneScreen(currentView.target, hit.target)) {
-			enterBotPhoneView(hit.target)
-			botPhoneGesture = null
-		} else {
-			botPhoneGesture = {
-				start: hit,
-				current: hit,
-				startClientX: event.clientX,
-				startClientY: event.clientY,
-				startedAt: performance.now(),
-			}
-		}
-		botPhonePointerCaptured = true
-		options.canvas.style.cursor = "pointer"
-		requestRenderLoop(INPUT_RENDER_WAKE_MS)
-		return true
-	}
-
-	const updateBotPhonePointer = (event: MouseEvent): boolean => {
-		if (!botPhonePointerCaptured) return false
-		const gesture = botPhoneGesture
-		if (gesture !== null) {
-			const hit = botPhoneScreenHitForTargetAtClientPoint(gesture.start.target, event.clientX, event.clientY)
-			if (hit !== null) {
-				gesture.current = hit
-			}
-		}
-		requestRenderLoop(INPUT_RENDER_WAKE_MS)
-		return true
-	}
-
-	const endBotPhonePointer = (event: MouseEvent): boolean => {
-		if (!botPhonePointerCaptured) return false
-		const gesture = botPhoneGesture
-		if (gesture !== null) {
-			const hit = botPhoneScreenHitForTargetAtClientPoint(gesture.start.target, event.clientX, event.clientY)
-			const end = hit ?? gesture.current
-			sendBotPhoneGesture(gesture, end, event)
-		}
-		botPhoneGesture = null
-		botPhonePointerCaptured = false
-		botPhoneTouchId = null
-		options.canvas.style.cursor = ""
-		requestRenderLoop(INPUT_RENDER_WAKE_MS)
-		return true
-	}
-
-	const handleBotPhoneMouseDown = (event: MouseEvent): void => {
-		if (!beginBotPhonePointer(event)) return
-		claimBotPhonePointerEvent(event)
-	}
-
-	const handleBotPhoneMouseMove = (event: MouseEvent): void => {
-		if (!updateBotPhonePointer(event)) return
-		claimBotPhonePointerEvent(event)
-	}
-
-	const handleBotPhoneMouseUp = (event: MouseEvent): void => {
-		if (!endBotPhonePointer(event)) return
-		claimBotPhonePointerEvent(event)
-	}
-
-	const botPhoneMouseEventFromTouch = (type: "mousedown" | "mousemove" | "mouseup", touch: Touch): MouseEvent =>
-		new MouseEvent(type, {
-			bubbles: true,
-			cancelable: true,
-			button: 0,
-			buttons: type === "mouseup" ? 0 : 1,
-			clientX: touch.clientX,
-			clientY: touch.clientY,
-			screenX: touch.screenX,
-			screenY: touch.screenY,
-		})
-
-	const botPhoneChangedTouch = (event: TouchEvent): Touch | null => {
-		if (botPhoneTouchId === null) return event.changedTouches[0] ?? null
-		for (const touch of event.changedTouches) {
-			if (touch.identifier === botPhoneTouchId) return touch
-		}
-		return null
-	}
-
-	const handleBotPhoneTouchStart = (event: TouchEvent): void => {
-		if (botPhoneTouchId !== null || event.changedTouches.length === 0 || event.touches.length !== 1) return
-		const touch = event.changedTouches[0]!
-		if (!beginBotPhonePointer(botPhoneMouseEventFromTouch("mousedown", touch))) return
-		botPhoneTouchId = touch.identifier
-		claimBotPhonePointerEvent(event)
-	}
-
-	const handleBotPhoneTouchMove = (event: TouchEvent): void => {
-		const touch = botPhoneChangedTouch(event)
-		if (touch === null || !updateBotPhonePointer(botPhoneMouseEventFromTouch("mousemove", touch))) return
-		claimBotPhonePointerEvent(event)
-	}
-
-	const handleBotPhoneTouchEnd = (event: TouchEvent): void => {
-		const touch = botPhoneChangedTouch(event)
-		if (touch === null || !endBotPhonePointer(botPhoneMouseEventFromTouch("mouseup", touch))) return
-		claimBotPhonePointerEvent(event)
-	}
 
 	const pickTargetAtClientPoint = (
 		clientX: number,
@@ -4824,19 +3773,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return darkParticleRecords.size > 0 || fieldParticleRecords.size > 0
 	}
 
-	const updateAnthropomorphBotAnimation = (deltaMs: number): boolean => {
-		if (!activeRenderSettings.animationEnabled || animationSuspended || deltaMs <= 0) return false
-		if (anthropomorphBotMixer === null) return false
-		anthropomorphBotMixer.update(deltaMs / 1000)
-		return true
-	}
-
-	const updateAnthropomorphBotSkinning = (): void => {
-		for (const mesh of anthropomorphBotSkinnedMeshes) {
-			mesh.skeleton.update()
-		}
-	}
-
 	const updateLabelTrackers = (): void => {
 		const cameraPos = viewPoint.position
 
@@ -5106,12 +4042,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			return
 		}
 
-		if (updateBotPhoneHoverAtClientPoint(event.clientX, event.clientY) !== null) {
-			setHoveredPickTarget(null)
-			options.canvas.style.cursor = "pointer"
-			return
-		}
-		setBotPhoneHoverTarget(null)
 		setHoveredPickTarget(pickTargetAtClientPoint(event.clientX, event.clientY, true))
 	}
 
@@ -5124,7 +4054,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const resetCanvasPointerState = (): void => {
 		isPrimaryPointerDown = false
 		cancelRadialMenuLongPress()
-		setBotPhoneHoverTarget(null)
 		setHoveredPickTarget(null)
 	}
 
@@ -5333,11 +4262,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		}
 	}
 
-	const handleBotPhoneFullscreenChange = (): void => {
-		botPhoneDisplayDock?.requestRender()
-		requestRenderLoop(INPUT_RENDER_WAKE_MS)
-	}
-
 	options.canvas.addEventListener("mousedown", handleCanvasMouseDown)
 	options.canvas.addEventListener("mousemove", handleCanvasMouseMove)
 	options.canvas.addEventListener("mouseup", handleCanvasMouseUp)
@@ -5359,9 +4283,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	window.addEventListener("touchcancel", handleCanvasTouchEndForRadialMenu, true)
 	document.addEventListener("mousemove", wakeRenderFromDocumentMouseMove)
 	document.addEventListener("mouseup", wakeRenderFromDocumentMouseUp)
-	document.addEventListener("fullscreenchange", handleBotPhoneFullscreenChange)
-	document.addEventListener("webkitfullscreenchange", handleBotPhoneFullscreenChange)
-
 	const calculateActiveDarkParticleRecord = (): DarkParticleRenderRecord | null => {
 		const cameraPos = viewPoint.position
 		let bestRecord: DarkParticleRenderRecord | null = null
@@ -5402,12 +4323,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 		const hasPendingMotion = updateAnimatedRecords(deltaMs)
 		const hasCosmosMotion = updateCosmosAnimation(deltaMs)
-		const hasBotMotion = updateAnthropomorphBotAnimation(deltaMs)
 		updateSceneWorldState()
 		applyNavigationFrame(timestamp)
-		const hasBotPhoneCameraMotion = applyBotPhoneCameraFlight()
 		syncRadialMenuAnchor()
-		syncBotPhoneHoverPane()
 
 		const activeDarkParticleRecord = calculateActiveDarkParticleRecord()
 		const nextBaseDepth = activeDarkParticleRecord?.snapshot.depth ?? -1
@@ -5426,9 +4344,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		flushFieldParticleBillboardSurfaces()
 		hudRuntime.flushPendingRender()
 		space.updateWorldMatrix()
-		updateAnthropomorphBotSkinning()
 		renderer.renderFrame(space, hudRuntime.overlay, viewPoint)
-		if (navigationState || hasBotPhoneCameraMotion || hasPendingMotion || hasCosmosMotion || hasBotMotion || timestamp < renderWakeUntilMs) {
+		if (navigationState || hasPendingMotion || hasCosmosMotion || timestamp < renderWakeUntilMs) {
 			frameHandle = requestAnimationFrame(animate)
 		} else {
 			lastAnimationTimestamp = 0
@@ -5438,21 +4355,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	hudRuntime = new BulkViewportHudRuntime(options.canvas, renderer, viewPoint, uiFont, requestRenderLoop)
 	hudRuntime.handleSize(options.width, options.height)
 	hudRuntime.addSurface(radialMenuPane, ({w, h}) => ({x: 0, y: 0, w, h}), {zIndex: BULK_RADIAL_MENU_HUD_Z})
-	if (BULK_SCENE_DEVICES_ENABLED) {
-		options.canvas.addEventListener("mousedown", handleBotPhoneMouseDown, true)
-		window.addEventListener("mousemove", handleBotPhoneMouseMove, true)
-		window.addEventListener("mouseup", handleBotPhoneMouseUp, true)
-		options.canvas.addEventListener("touchstart", handleBotPhoneTouchStart, {capture: true, passive: false})
-		window.addEventListener("touchmove", handleBotPhoneTouchMove, {capture: true, passive: false})
-		window.addEventListener("touchend", handleBotPhoneTouchEnd, true)
-		window.addEventListener("touchcancel", handleBotPhoneTouchEnd, true)
-		botPhoneHoverPane = new BotPhoneHoverControlsPane(enterBotPhoneView)
-		hudRuntime.addSurface(botPhoneHoverPane, ({w, h}) => ({x: 0, y: 0, w, h}), {zIndex: BOT_PHONE_HOVER_HUD_Z})
-		botPhoneDisplayDock = new BotPhoneDisplayDockPane(exitBotPhoneView, toggleBotPhoneDisplayFullscreen)
-		hudRuntime.addSurface(botPhoneDisplayDock, ({w, h}) => ({x: 0, y: 0, w, h}), {zIndex: BOT_PHONE_DISPLAY_DOCK_HUD_Z})
-		installBotFloorPhones()
-		void loadAnthropomorphBots()
-	}
 	requestRenderLoop()
 
 	return {
@@ -5480,35 +4382,11 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			window.removeEventListener("touchmove", handleCanvasTouchMoveForRadialMenu, true)
 			window.removeEventListener("touchend", handleCanvasTouchEndForRadialMenu, true)
 			window.removeEventListener("touchcancel", handleCanvasTouchEndForRadialMenu, true)
-			options.canvas.removeEventListener("mousedown", handleBotPhoneMouseDown, true)
-			window.removeEventListener("mousemove", handleBotPhoneMouseMove, true)
-			window.removeEventListener("mouseup", handleBotPhoneMouseUp, true)
-			options.canvas.removeEventListener("touchstart", handleBotPhoneTouchStart, true)
-			window.removeEventListener("touchmove", handleBotPhoneTouchMove, true)
-			window.removeEventListener("touchend", handleBotPhoneTouchEnd, true)
-			window.removeEventListener("touchcancel", handleBotPhoneTouchEnd, true)
 			document.removeEventListener("mousemove", wakeRenderFromDocumentMouseMove)
 			document.removeEventListener("mouseup", wakeRenderFromDocumentMouseUp)
-			document.removeEventListener("fullscreenchange", handleBotPhoneFullscreenChange)
-			document.removeEventListener("webkitfullscreenchange", handleBotPhoneFullscreenChange)
 			cancelRadialMenuLongPress()
 			setRadialMenuPickTarget(null)
 			setHoveredPickTarget(null)
-			if (botFloorPhonesRoot !== null) detachObject(botFloorPhonesRoot)
-			botFloorPhonesRoot = null
-			botFloorPhoneScreens = []
-			botPhoneGesture = null
-			botPhonePointerCaptured = false
-			botPhoneTouchId = null
-			botPhoneViewState = null
-			botPhoneCameraFlight = null
-			botPhoneHoverTarget = null
-			botPhoneHoverPane = null
-			botPhoneDisplayDock = null
-			if (anthropomorphBotRoot !== null) detachObject(anthropomorphBotRoot)
-			anthropomorphBotRoot = null
-			anthropomorphBotMixer = null
-			anthropomorphBotSkinnedMeshes = []
 			for (const fieldParticleId of [...fieldParticleBillboardRecords.keys()]) removeFieldParticleBillboardRecord(fieldParticleId)
 			for (const record of transitionChannelRecords.values()) detachObject(record.line)
 			for (const record of relationChannelRecords.values()) detachObject(record.line)

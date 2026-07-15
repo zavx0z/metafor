@@ -59,7 +59,7 @@ describe("Force impulse logger", () => {
   test("does not truncate large messages in full mode", () => {
     const marker = "complete-tail-marker"
     const message: ForceMessage = {
-      parts: [{part: "graviton", op: "replace", value: `${"x".repeat(5_000)}${marker}`}],
+      parts: [{part: "graviton", op: "replace", path: "runtime/test", value: `${"x".repeat(5_000)}${marker}`}],
     }
 
     const line = formatImpulseLog("boundary", "->", message, {

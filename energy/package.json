@@ -10,7 +10,8 @@
     }
   },
   "scripts": {
-    "server": "bun --hot server.ts"
+    "dev": "bun --hot server.ts",
+    "start": "bun server.ts"
   },
   "dependencies": {
     "@metafor/types": "workspace:*",

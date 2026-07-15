@@ -2,6 +2,8 @@ import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import type {ForceMessage} from "@metafor/types/force/message"
 
 type ForceConstructor = new (domain: string) => {
+  readonly connected: boolean
+  onConnectionChange: (connected: boolean) => void
   onImpulse: (message: ForceMessage) => void | Promise<void>
 }
 
@@ -77,6 +79,8 @@ const waitFor = async (predicate: () => boolean): Promise<void> => {
 const verifyRawOrderedTransport = async (Force: ForceConstructor, domain: string): Promise<void> => {
   const force = new Force(domain)
   const socket = sockets.at(-1)!
+  const connectionStates: boolean[] = []
+  force.onConnectionChange = (connected) => connectionStates.push(connected)
   const order: string[] = []
   let releaseFirst!: () => void
   const first = new Promise<void>((resolve) => {
@@ -91,6 +95,8 @@ const verifyRawOrderedTransport = async (Force: ForceConstructor, domain: string
   }
 
   await waitFor(() => socket.sent.length === 2)
+  expect(force.connected).toBe(true)
+  expect(connectionStates).toEqual([false, true])
   expect(socket.sent).toEqual([
     {type: "register", domain, id: `${domain}-${domain.startsWith("browser") ? "web" : "local"}`},
     {parts: [{part: "z", op: "test", path: `force/replay/${domain}/${domain}-${domain.startsWith("browser") ? "web" : "local"}`}]},
