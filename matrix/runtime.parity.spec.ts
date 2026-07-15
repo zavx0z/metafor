@@ -259,11 +259,6 @@ describe("Matrix CPU/WebGPU parity", () => {
       frozenFields: {"101": 1, "102": 0},
     })
 
-    if (Bun.env.METAFOR_REQUIRE_GPU !== "1") {
-      console.log("[matrix:parity] CPU reference trace passed; strict WebGPU parity is disabled")
-      return
-    }
-
     const device = await ensureGPUDevice()
     if (!device) throw new Error("WebGPU adapter is unavailable; strict GPU parity cannot run")
 
