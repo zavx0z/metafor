@@ -1,4 +1,4 @@
-export type BulkDarkParticleKind = "wimp" | "fuzzy" | "macho" | "axion"
+export type BulkDarkParticleKind = "atom" | "fuzzy" | "macho" | "axion"
 
 export type BulkOrdinaryFieldKind = "string" | "number" | "boolean"
 
@@ -12,7 +12,9 @@ export interface BulkDarkParticle {
   darkParticleId: number
   parentDarkParticleId: number | null
   darkParticleKind: BulkDarkParticleKind
+  /** WIMP declaration source materialized by this Atom. */
   src: string | null
+  /** Meta source backing the Atom's WIMP declaration. */
   metaSrc: string | null
   label: string
   depth: number
@@ -148,7 +150,9 @@ export interface BulkFieldParticleInput {
 export interface BulkDarkParticleInput {
   darkParticleId: number
   darkParticleKind: BulkDarkParticleKind
+  /** WIMP declaration source materialized by this Atom. */
   src: string | null
+  /** Meta source backing the Atom's WIMP declaration. */
   metaSrc: string | null
   label: string
   colorR: number
