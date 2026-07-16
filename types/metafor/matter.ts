@@ -55,6 +55,7 @@ export interface FieldInit {
   key: string
   value: unknown
   source?: {
+    /** Legacy storage key; identifies the parent Atom. */
     parentActorId: number
     parentFieldKey: string
   }
@@ -65,6 +66,7 @@ export interface Continuation {
   mass?: unknown
 }
 
+/** Runtime storage reference. `actor` currently identifies a materialized Atom. */
 export type ParticleRef = { kind: "actor"; id: number } | { kind: "topology"; id: number }
 
 export interface BfsEntry {
@@ -94,34 +96,34 @@ export interface MatterFields {
 /**
  * Параметры функции matter атома.
  *
- * Предназначены для декларирования иерархии акторов через `<meta-for>`.
+ * Предназначены для декларирования materialization дочерних Atom через `<meta-for>`.
  *
  * ## API
  * - `state` — текущее состояние для условий matter
  * - `html` — шаблонизация для `<meta-for>` элементов
- * - `value` — данные атома для передачи дочерним акторам
+ * - `value` — данные Atom для передачи дочерним Atom
  * - `update` — функция обновления контекста
  * - `mass` — масса для сложных данных и зависимостей от среды
  *
- * Matter описывает только иерархию акторов.
+ * Matter описывает только порождение и topology Atom.
  * State-условия создают Axion, dynamic enum src создаёт Fuzzy, array map создаёт Macho.
  * Обычные HTML-элементы и текст должны жить вне matter.
  *
  * @example
  * ```ts
- * // Иерархия акторов на основе состояния
+ * // Иерархия Atom на основе состояния
  * matter: ({ state, html }) => html`
  *   ${state === "коммит" && html`<meta-for src="demo/status" fields=${{ message: "В процессе..." }} />`}
  *   ${state === "завершено" && html`<meta-for src="demo/success" fields=${{ message: "Готово!" }} />`}
  *   ${state === "ошибка" && html`<meta-for src="demo/error" fields=${{ message: "Ошибка" }} />`}
  * `
  *
- * // Передача данных дочернему актору
+ * // Передача данных дочернему Atom
  * matter: ({ value, html }) => html`
  *   <meta-for src="demo/child" fields=${{ data: value.data }} />
  * `
  *
- * // Несколько акторов в иерархии
+ * // Несколько Atom в topology
  * matter: ({ html }) => html`
  *   <meta-for src="demo/header" />
  *   <meta-for src="demo/content" />
@@ -131,14 +133,14 @@ export interface MatterFields {
  */
 export type MatterDefinitionParams<ɸ extends Fields = Fields, m extends Mass = Mass, 𝛴 extends string = string> = {
   /**
-   * Функция для обновления контекста атома.
+   * Функция для обновления контекста Atom.
    * Используется в обработчиках событий для изменения состояния.
    */
   update: Update<ɸ>
   /**
    * Текущие значения полей.
    * Содержит все значения полей, определённых в `.fields(...)`.
-   * Используется для передачи данных дочерним акторам.
+   * Используется для передачи данных дочерним Atom.
    * @example
    * ```ts
    * matter: ({ value, html }) => html`
@@ -147,13 +149,13 @@ export type MatterDefinitionParams<ɸ extends Fields = Fields, m extends Mass = 
    */
   value: Values<ɸ>
   /**
-   * Масса атома для сложных данных и зависимостей от среды.
+   * Масса Atom для сложных данных и зависимостей от среды.
    * Содержит объекты, массивы и структуры, которые не помещаются в контекст.
    * Масса определяет локализацию процесса и не сериализуется в Boundary.
    */
   mass: m
   /**
-   * Текущее состояние автомата.
+   * Текущее состояние автомата Atom.
    * Строка из `.superposition(...)`, используется для условий matter.
    * @example
    * ```ts
@@ -163,8 +165,8 @@ export type MatterDefinitionParams<ɸ extends Fields = Fields, m extends Mass = 
    */
   state: 𝛴
   /**
-   * Функция шаблонизации для создания HTML.
-   * Используется для декларирования иерархии акторов через `<meta-for>`.
+   * Функция шаблонизации для создания Matter declaration.
+   * Используется для декларирования дочерних Atom через `<meta-for>`.
    *
    * @example
    * ```ts
@@ -175,14 +177,14 @@ export type MatterDefinitionParams<ɸ extends Fields = Fields, m extends Mass = 
    * ```
    *
    * @remarks
-   * Атрибут `src` задаёт hub-адрес вида `owner/path` — канонический идентификатор meta-сущности,
-   * который loader резолвит в meta-модуль по этому адресу.
+   * Атрибут `src` задаёт hub-адрес вида `owner/path` — канонический идентификатор Meta/WIMP declaration,
+   * который loader резолвит в meta-модуль по этому адресу. Каждый occurrence materializes отдельный Atom.
    */
   html: (strings: TemplateStringsArray, ...values: any[]) => void
 }
 
 /**
- * Тип matter-декларации для иерархии акторов.
+ * Тип matter-декларации для topology и порождения Atom.
  */
 export type MatterDeclaration<ɸ extends Fields = Fields, m extends Mass = Mass, 𝛴 extends string = string> = (
   params: MatterDefinitionParams<ɸ, m, 𝛴>,
