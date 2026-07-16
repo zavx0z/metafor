@@ -7,7 +7,7 @@ export const STATE_NONE = -2
 /** Boundary emits this target-specific derived projection to bootstrap Matrix. */
 export const MATRIX_RUNTIME_PATH = "runtime/matrix" as const
 
-export interface MatrixRuntimeActor {
+export interface MatrixRuntimeAtom {
   id: number
   parentActor: number | null
   parentTopology: number | null
@@ -15,11 +15,18 @@ export interface MatrixRuntimeActor {
   position: number
 }
 
-export interface MatrixRuntimeActorValue {
+/** @deprecated Use MatrixRuntimeAtom. */
+export type MatrixRuntimeActor = MatrixRuntimeAtom
+
+export interface MatrixRuntimeAtomValue {
+  /** Legacy storage key; identifies the materialized Atom. */
   actor: number
   field: number
   value: number
 }
+
+/** @deprecated Use MatrixRuntimeAtomValue. */
+export type MatrixRuntimeActorValue = MatrixRuntimeAtomValue
 
 export interface MatrixRuntimeValueRecord {
   id: number
@@ -36,14 +43,18 @@ export interface MatrixRuntimeValueItem {
   itemValue: string
 }
 
-/** One actor is the largest structural entity Boundary exposes incrementally. */
-export interface MatrixRuntimeActorEntity {
-  actor: MatrixRuntimeActor
-  values: MatrixRuntimeActorValue[]
+/** One Atom is the largest structural entity Boundary exposes incrementally. */
+export interface MatrixRuntimeAtomEntity {
+  /** Legacy payload key; the value is the materialized Atom. */
+  actor: MatrixRuntimeAtom
+  values: MatrixRuntimeAtomValue[]
   valueRecords: MatrixRuntimeValueRecord[]
   valueItems: MatrixRuntimeValueItem[]
   state: string | null
 }
+
+/** @deprecated Use MatrixRuntimeAtomEntity. */
+export type MatrixRuntimeActorEntity = MatrixRuntimeAtomEntity
 
 export interface MatrixRuntimeTopology {
   id: number
@@ -57,17 +68,20 @@ export interface MatrixRuntimeTopology {
  * Derived, target-specific bootstrap projection for the packed Matrix runtime.
  * Boundary remains the canonical world store; this snapshot can always be
  * rebuilt from its current materialization and declarations.
+ *
+ * The actor-prefixed keys below are retained only as the current wire format.
+ * Their IDs identify Atoms.
  */
 export interface MatrixRuntimeSnapshot {
   ok: true
   version: 1
   runtime: {
     actorIdByBraneIndex: number[]
-    braneIndexByActorId: Array<[actorId: number, braneIndex: number]>
-    wimpSrcByActorId: Array<[actorId: number, wimpSrc: string]>
-    actorIdsByWimpSrc: Array<[wimpSrc: string, actorIds: number[]]>
-    /** Canonical Matrix field identity remains the explicit actor/field pair. */
-    runtimeFieldIndexByActorFieldId: Array<[actorId: number, fieldId: number, runtimeFieldIndex: number]>
+    braneIndexByActorId: Array<[atomId: number, braneIndex: number]>
+    wimpSrcByActorId: Array<[atomId: number, wimpSrc: string]>
+    actorIdsByWimpSrc: Array<[wimpSrc: string, atomIds: number[]]>
+    /** Canonical Matrix field identity remains the explicit Atom/Field pair. */
+    runtimeFieldIndexByActorFieldId: Array<[atomId: number, fieldId: number, runtimeFieldIndex: number]>
   }
   data: Required<Pick<MatrixInputData, "fields" | "branes" | "stateNames">>
   /**
@@ -79,7 +93,7 @@ export interface MatrixRuntimeSnapshot {
     wimpFieldIdsByRuntimeFieldIndex: number[][]
     braneIndexByWimpFieldId: Array<[wimpFieldId: number, braneIndex: number]>
     topologyWimpFieldIds: number[]
-    topologyActorFieldIds: Array<[actorId: number, fieldId: number]>
+    topologyActorFieldIds: Array<[atomId: number, fieldId: number]>
   }
   weak: {
     stateMetaStateIdsByBraneIndex: number[][]
