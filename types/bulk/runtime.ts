@@ -1,6 +1,6 @@
 import type { MatterParticleKind } from "../metafor/matter.ts"
-import type { ActorRecord } from "../boundary/actor.ts"
-import type { ActorValueRecord, FieldEnumVariantRecord, ValueItemRecord } from "../boundary/value.ts"
+import type { AtomRecord } from "../boundary/atom.ts"
+import type { AtomValueRecord, FieldEnumVariantRecord, ValueItemRecord } from "../boundary/value.ts"
 import type { TopologyRecord } from "../boundary/topology.ts"
 
 export interface BulkRuntimeMatterParticle {
@@ -81,10 +81,14 @@ export interface BulkRuntimeReaction {
   states: number[]
 }
 
-export interface BulkRuntimeActorState {
+export interface BulkRuntimeAtomState {
+  /** Legacy storage key; identifies the materialized Atom. */
   actor: number
   state: number | null
 }
+
+/** @deprecated Use BulkRuntimeAtomState. */
+export type BulkRuntimeActorState = BulkRuntimeAtomState
 
 export interface BulkRuntimeValue {
   id: number
@@ -108,7 +112,8 @@ export interface BulkRuntimeMatterChildBindingPath extends BulkRuntimeMatterBind
 
 /** Local Bulk projection assembled incrementally from ordinary particles. */
 export interface BulkRuntimeProjection {
-  actors: ActorRecord[]
+  /** Legacy projection key; values are materialized Atoms. */
+  actors: AtomRecord[]
   topologies: TopologyRecord[]
   wimps: BulkRuntimeWimp[]
   fields: BulkRuntimeField[]
@@ -117,9 +122,11 @@ export interface BulkRuntimeProjection {
   conditions: BulkRuntimeCondition[]
   processes: BulkRuntimeProcess[]
   reactions: BulkRuntimeReaction[]
-  actorStates: BulkRuntimeActorState[]
+  /** Legacy projection key; values are current Atom states. */
+  actorStates: BulkRuntimeAtomState[]
   fieldEnumVariants: FieldEnumVariantRecord[]
-  actorValues: ActorValueRecord[]
+  /** Legacy projection key; values belong to materialized Atoms. */
+  actorValues: AtomValueRecord[]
   values: BulkRuntimeValue[]
   valueItems: ValueItemRecord[]
   matterParticles: BulkRuntimeMatterParticle[]
