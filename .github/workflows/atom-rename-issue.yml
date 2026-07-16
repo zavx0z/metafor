@@ -3,13 +3,18 @@ name: One-shot Actor to Atom migration
 on:
   issues:
     types: [edited, labeled, reopened]
+  pull_request_target:
+    types: [opened]
 
 permissions:
   contents: write
+  pull-requests: read
 
 jobs:
   rename:
-    if: github.event.issue.number == 93
+    if: >-
+      (github.event_name == 'issues' && github.event.issue.number == 93) ||
+      (github.event_name == 'pull_request_target' && github.event.pull_request.title == 'trigger: Actor to Atom migration')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
