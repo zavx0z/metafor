@@ -1,4 +1,4 @@
-export type BulkDarkParticleKind = "atom" | "fuzzy" | "macho" | "axion"
+export type BulkDarkParticleKind = "atom" | "wimp" | "fuzzy" | "macho" | "axion"
 
 export type BulkOrdinaryFieldKind = "string" | "number" | "boolean"
 
