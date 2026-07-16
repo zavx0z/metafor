@@ -1,31 +1,10 @@
-import type { AtomStateRecord, AtomValueRecord, ValueItemRecord, ValueRecord } from "./value.ts"
+import type {AtomInputRow, AtomRecord, AtomRows} from "./atom.ts"
 
-export interface AtomRecord {
-  id: number
-  parentActor: number | null
-  parentTopology: number | null
-  wimp: string
-  position: number
-}
+export type {AtomInputRow, AtomRecord, AtomRows} from "./atom.ts"
 
-export interface AtomInputRow {
-  id?: number | undefined
-  parentActor: number | null
-  parentTopology: number | null
-  wimp: string
-}
-
-export interface AtomRows {
-  actor: AtomInputRow
-  values: AtomValueRecord[]
-  valueRecords: ValueRecord[]
-  valueItems: ValueItemRecord[]
-  state: AtomStateRecord
-}
-
-/** @deprecated Use AtomRecord. Kept only for storage/protocol compatibility. */
+/** @deprecated Use AtomRecord from @metafor/types/boundary/atom. */
 export type ActorRecord = AtomRecord
-/** @deprecated Use AtomInputRow. Kept only for storage/protocol compatibility. */
+/** @deprecated Use AtomInputRow from @metafor/types/boundary/atom. */
 export type ActorInputRow = AtomInputRow
-/** @deprecated Use AtomRows. Kept only for storage/protocol compatibility. */
+/** @deprecated Use AtomRows from @metafor/types/boundary/atom. */
 export type ActorRows = AtomRows
