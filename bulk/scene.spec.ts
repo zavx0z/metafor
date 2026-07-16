@@ -7,7 +7,7 @@ const manifest = (secondLabel = "two"): BulkManifest => ({
   darkParticles: [1, 2].map((id) => ({
     darkParticleId: id,
     parentDarkParticleId: null,
-    darkParticleKind: "wimp",
+    darkParticleKind: "atom",
     src: `owner/${id}`,
     metaSrc: `owner/${id}`,
     label: id === 2 ? secondLabel : "one",
@@ -26,7 +26,7 @@ const manifest = (secondLabel = "two"): BulkManifest => ({
   fieldParticles: [],
 })
 
-describe("Bulk live scene patch gate", () => {
+describe("Bulk live Atom scene patch gate", () => {
   test("an unchanged visual record is not emitted or recreated", () => {
     const store = new BulkSceneStore()
     store.apply(manifest())
