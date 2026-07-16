@@ -1,10 +1,10 @@
-import type { BulkManifest } from "@metafor/types/bulk/manifest"
 import type { BulkLayoutSettings } from "@metafor/types/bulk/settings"
 import type { BulkViewportStats } from "@metafor/types/bulk/viewport"
 import type { BulkRenderSettings, SettingsSnapshot } from "@metafor/types/bulk/settings"
 import type { BulkHudController, BulkHudSettingsSnapshot, BulkViewportWithHud } from "@metafor/types/bulk/hud"
 import {Force} from "force"
 import {createBulkViewport} from "bulk/web"
+import {manifestAtoms} from "./atom.ts"
 import {buildBoundaryBulkManifest} from "./world.ts"
 import {
 	BULK_LAYOUT_SETTING_KEYS,
@@ -34,15 +34,6 @@ let pendingSceneState: {layoutSettings: Partial<BulkLayoutSettings>; src: string
 const SETTINGS_LOAD_TIMEOUT_MS = 1_200
 const force = new Force("bulk")
 let forceConnected = false
-
-const manifestAtoms = (manifest: BulkManifest): BulkManifest => ({
-	...manifest,
-	darkParticles: manifest.darkParticles.map((particle) =>
-		particle.darkParticleKind === "wimp"
-			? {...particle, darkParticleKind: "atom" as const}
-			: particle
-	),
-})
 
 const updateBulkStats = (stats: BulkViewportStats): void => {
 	hud?.setStats(stats)
