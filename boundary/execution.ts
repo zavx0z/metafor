@@ -8,12 +8,12 @@ import {isProcessExecutionId} from "@metafor/types/force/execution"
 import type {ForceMessage} from "@metafor/types/force/message"
 import type {Particle} from "@metafor/types/force/particle"
 import type {BoundaryIncrementalCommit} from "./incremental.ts"
-import {commitBoundaryActorFields} from "./world.ts"
+import {commitBoundaryAtomFields} from "./world.ts"
 
 type Database = SQL | ReservedSQL
 type JsonRecord = Record<string, unknown>
 
-type ActorRow = {
+type AtomRow = {
   id: number
   wimp: string
 }
@@ -25,7 +25,7 @@ type StateRow = {
 
 type ExecutionRow = {
   executionId: string
-  actor: number
+  atom: number
   process: number
   state: string
   energy: string | null
@@ -85,7 +85,7 @@ export class BoundaryExecutionStore {
     await this.sql.unsafe(`
       CREATE TABLE IF NOT EXISTS boundary_process_execution (
         execution_id TEXT PRIMARY KEY,
-        actor INTEGER NOT NULL,
+        atom INTEGER NOT NULL,
         process INTEGER NOT NULL,
         state TEXT NOT NULL,
         energy TEXT,
@@ -94,10 +94,10 @@ export class BoundaryExecutionStore {
         result_json TEXT,
         created_at INTEGER NOT NULL DEFAULT (unixepoch()),
         committed_at INTEGER,
-        FOREIGN KEY (actor) REFERENCES actor (id) ON DELETE CASCADE
+        FOREIGN KEY (atom) REFERENCES atom (id) ON DELETE CASCADE
       );
-      CREATE INDEX IF NOT EXISTS boundary_execution_actor_status
-        ON boundary_process_execution (actor, status);
+      CREATE INDEX IF NOT EXISTS boundary_execution_atom_status
+        ON boundary_process_execution (atom, status);
     `)
   }
 
@@ -114,24 +114,24 @@ export class BoundaryExecutionStore {
   }
 
   private async commitState(part: Particle): Promise<null | undefined> {
-    const actorId = positiveId(part.path)
+    const atomId = positiveId(part.path)
     const stateName = typeof part.value === "string" ? part.value : null
-    if (actorId === null || stateName === null) return undefined
+    if (atomId === null || stateName === null) return undefined
 
     await this.sql.begin(async (tx) => {
-      const actor = await this.actor(tx, actorId)
-      const state = actor ? await this.stateForName(tx, actor.wimp, stateName) : null
-      if (!actor || !state) throw new Error(`Cannot commit State for actor=${actorId} state=${stateName}`)
+      const atom = await this.atom(tx, atomId)
+      const state = atom ? await this.stateForName(tx, atom.wimp, stateName) : null
+      if (!atom || !state) throw new Error(`Cannot commit State for atom=${atomId} state=${stateName}`)
 
       await tx`
-        INSERT INTO actor_state (actor, metaState)
-        VALUES (${actorId}, ${state.id})
-        ON CONFLICT (actor) DO UPDATE SET metaState = excluded.metaState
+        INSERT INTO atom_state (atom, metaState)
+        VALUES (${atomId}, ${state.id})
+        ON CONFLICT (atom) DO UPDATE SET metaState = excluded.metaState
       `
       await tx`
         UPDATE boundary_process_execution
            SET status = ${"superseded"}
-         WHERE actor = ${actorId}
+         WHERE atom = ${atomId}
            AND status = ${"pending"}
       `
     })
@@ -139,47 +139,47 @@ export class BoundaryExecutionStore {
   }
 
   private async registerExecution(part: Particle): Promise<null | undefined> {
-    const actorId = positiveId(part.path)
+    const atomId = positiveId(part.path)
     const stateName = typeof part.value === "string" ? part.value : null
     const processExecutionId = isProcessExecutionId(part.from) ? part.from : null
-    if (actorId === null || stateName === null || processExecutionId === null) return undefined
+    if (atomId === null || stateName === null || processExecutionId === null) return undefined
 
     await this.sql.begin(async (tx) => {
-      const actor = await this.actor(tx, actorId)
-      const state = actor ? await this.stateForName(tx, actor.wimp, stateName) : null
-      const process = actor ? await this.processForState(tx, actor.wimp, stateName) : null
-      if (!actor || !state || !process) {
-        throw new Error(`Cannot register process execution for actor=${actorId} state=${stateName}`)
+      const atom = await this.atom(tx, atomId)
+      const state = atom ? await this.stateForName(tx, atom.wimp, stateName) : null
+      const process = atom ? await this.processForState(tx, atom.wimp, stateName) : null
+      if (!atom || !state || !process) {
+        throw new Error(`Cannot register process execution for atom=${atomId} state=${stateName}`)
       }
 
       const existing = await this.execution(tx, processExecutionId)
       if (existing) {
-        if (existing.actor !== actorId || existing.process !== process.id || existing.state !== stateName) {
+        if (existing.atom !== atomId || existing.process !== process.id || existing.state !== stateName) {
           throw new Error(`Process execution identity collision: ${processExecutionId}`)
         }
         if (existing.status !== "pending") return
       }
 
       await tx`
-        INSERT INTO actor_state (actor, metaState)
-        VALUES (${actorId}, ${state.id})
-        ON CONFLICT (actor) DO UPDATE SET metaState = excluded.metaState
+        INSERT INTO atom_state (atom, metaState)
+        VALUES (${atomId}, ${state.id})
+        ON CONFLICT (atom) DO UPDATE SET metaState = excluded.metaState
       `
       await tx`
         UPDATE boundary_process_execution
            SET status = ${"superseded"}
-         WHERE actor = ${actorId}
+         WHERE atom = ${atomId}
            AND status = ${"pending"}
            AND execution_id <> ${processExecutionId}
       `
       await tx`
-        INSERT INTO boundary_process_execution (execution_id, actor, process, state, status)
-        VALUES (${processExecutionId}, ${actorId}, ${process.id}, ${stateName}, ${"pending"})
+        INSERT INTO boundary_process_execution (execution_id, atom, process, state, status)
+        VALUES (${processExecutionId}, ${atomId}, ${process.id}, ${stateName}, ${"pending"})
         ON CONFLICT (execution_id) DO NOTHING
       `
 
       const inserted = await this.execution(tx, processExecutionId)
-      if (!inserted || inserted.actor !== actorId || inserted.process !== process.id || inserted.state !== stateName) {
+      if (!inserted || inserted.atom !== atomId || inserted.process !== process.id || inserted.state !== stateName) {
         throw new Error(`Process execution identity collision: ${processExecutionId}`)
       }
     })
@@ -187,16 +187,16 @@ export class BoundaryExecutionStore {
   }
 
   private async selectEnergy(part: Particle): Promise<null | undefined> {
-    const actorId = positiveId(part.path)
+    const atomId = positiveId(part.path)
     const grant = executionValue(part.value)
     const energy = typeof part.from === "string" ? part.from.trim() : ""
-    if (actorId === null || !grant || energy.length === 0) return undefined
+    if (atomId === null || !grant || energy.length === 0) return undefined
 
     const updated = await this.sql<Array<{executionId: string}>>`
       UPDATE boundary_process_execution
          SET energy = COALESCE(energy, ${energy})
        WHERE execution_id = ${grant.processExecutionId}
-         AND actor = ${actorId}
+         AND atom = ${atomId}
          AND status = ${"pending"}
          AND (energy IS NULL OR energy = ${energy})
       RETURNING execution_id AS executionId
@@ -211,10 +211,10 @@ export class BoundaryExecutionStore {
     part: Particle,
     proposal: ProcessResultProposal,
   ): Promise<BoundaryIncrementalCommit | null> {
-    const actorId = positiveId(part.path)
+    const atomId = positiveId(part.path)
     const energy = typeof part.from === "string" ? part.from.trim() : ""
-    if (actorId === null || energy.length === 0) {
-      throw new Error("W result requires actor path, Energy source, processExecutionId, processId and fields")
+    if (atomId === null || energy.length === 0) {
+      throw new Error("W result requires atom path, Energy source, processExecutionId, processId and fields")
     }
 
     const resultJson = JSON.stringify(proposal)
@@ -223,7 +223,7 @@ export class BoundaryExecutionStore {
       if (!execution) throw new Error(`Unknown process execution: ${proposal.processExecutionId}`)
       if (execution.status !== "pending") {
         if (
-          execution.actor === actorId &&
+          execution.atom === atomId &&
           execution.process === proposal.processId &&
           execution.energy === energy &&
           execution.resultPart === part.part &&
@@ -231,14 +231,14 @@ export class BoundaryExecutionStore {
         ) return null
         throw new Error(`Process execution ${proposal.processExecutionId} is already ${execution.status}`)
       }
-      if (execution.actor !== actorId || execution.process !== proposal.processId || execution.energy !== energy) {
+      if (execution.atom !== atomId || execution.process !== proposal.processId || execution.energy !== energy) {
         throw new Error(`W result does not match selected execution ${proposal.processExecutionId}`)
       }
 
-      const actor = await this.actor(tx, actorId)
-      const process = actor ? await this.processById(tx, actor.wimp, proposal.processId) : null
-      const currentState = actor ? await this.currentState(tx, actorId) : null
-      if (!actor || !process || process.state !== execution.state || currentState?.name !== execution.state) {
+      const atom = await this.atom(tx, atomId)
+      const process = atom ? await this.processById(tx, atom.wimp, proposal.processId) : null
+      const currentState = atom ? await this.currentState(tx, atomId) : null
+      if (!atom || !process || process.state !== execution.state || currentState?.name !== execution.state) {
         throw new Error(`Process declaration or State changed during execution ${proposal.processExecutionId}`)
       }
 
@@ -252,10 +252,10 @@ export class BoundaryExecutionStore {
         }
       }
 
-      const fieldCommit = await commitBoundaryActorFields(
+      const fieldCommit = await commitBoundaryAtomFields(
         tx,
-        actorId,
-        actor.wimp,
+        atomId,
+        atom.wimp,
         allowed,
         proposal.fields,
         `Process ${proposal.processId}`,
@@ -273,7 +273,7 @@ export class BoundaryExecutionStore {
         RETURNING execution_id AS executionId
       `
       if (updated.length !== 1) throw new Error(`Concurrent W commit for ${proposal.processExecutionId}`)
-      return {actor, ...fieldCommit}
+      return {atom, ...fieldCommit}
     })
 
     if (!committed) return null
@@ -282,7 +282,7 @@ export class BoundaryExecutionStore {
       consequences.push(message({
         part: "gluon",
         op: "replace",
-        path: actorId,
+        path: atomId,
         from: proposal.processExecutionId,
         value: {fields: committed.scalar},
       }))
@@ -291,7 +291,7 @@ export class BoundaryExecutionStore {
       consequences.push(message({
         part: "higgs",
         op: "replace",
-        path: actorId,
+        path: atomId,
         from: proposal.processExecutionId,
         value: {fields: committed.topology},
       }))
@@ -304,18 +304,18 @@ export class BoundaryExecutionStore {
     consequences.push(message({
       part: part.part,
       op: "copy",
-      path: actorId,
+      path: atomId,
       from: proposal.processExecutionId,
       value: acknowledgement,
     }))
-    return {rootSrc: committed.actor.wimp, messages: consequences}
+    return {rootSrc: committed.atom.wimp, messages: consequences}
   }
 
-  private async actor(sql: Database, actorId: number): Promise<ActorRow | null> {
-    const actor = (await sql<ActorRow[]>`
-      SELECT id, wimp FROM actor WHERE id = ${actorId}
+  private async atom(sql: Database, atomId: number): Promise<AtomRow | null> {
+    const atom = (await sql<AtomRow[]>`
+      SELECT id, wimp FROM atom WHERE id = ${atomId}
     `)[0]
-    return actor ? {id: Number(actor.id), wimp: actor.wimp} : null
+    return atom ? {id: Number(atom.id), wimp: atom.wimp} : null
   }
 
   private async stateForName(sql: Database, wimp: string, name: string): Promise<StateRow | null> {
@@ -325,12 +325,12 @@ export class BoundaryExecutionStore {
     return state ? {id: Number(state.id), name: state.name} : null
   }
 
-  private async currentState(sql: Database, actorId: number): Promise<StateRow | null> {
+  private async currentState(sql: Database, atomId: number): Promise<StateRow | null> {
     const state = (await sql<StateRow[]>`
       SELECT state.id, state.name
-        FROM actor_state
-        JOIN state ON state.id = actor_state.metaState
-       WHERE actor_state.actor = ${actorId}
+        FROM atom_state
+        JOIN state ON state.id = atom_state.metaState
+       WHERE atom_state.atom = ${atomId}
     `)[0]
     return state ? {id: Number(state.id), name: state.name} : null
   }
@@ -338,7 +338,7 @@ export class BoundaryExecutionStore {
   private async execution(sql: Database, processExecutionId: string): Promise<ExecutionRow | null> {
     const row = (await sql<ExecutionRow[]>`
       SELECT execution_id AS executionId,
-             actor,
+             atom,
              process,
              state,
              energy,
@@ -350,7 +350,7 @@ export class BoundaryExecutionStore {
     `)[0]
     return row ? {
       ...row,
-      actor: Number(row.actor),
+      atom: Number(row.atom),
       process: Number(row.process),
     } : null
   }

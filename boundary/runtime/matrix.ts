@@ -20,19 +20,19 @@ type DeclarationRow = {
   canonicalJson: string
 }
 
-type ActorRow = {
+type AtomRow = {
   id: number
   wimp: string
 }
 
-type ActorFieldRow = {
-  actor: number
+type AtomFieldRow = {
+  atom: number
   field: number
   valueJson: string
 }
 
-type ActorStateRow = {
-  actor: number
+type AtomStateRow = {
+  atom: number
   metaState: number | null
 }
 
@@ -147,16 +147,16 @@ export async function matrixRuntime(sql: SQL): Promise<MatrixRuntimeSnapshot> {
       FROM boundary_declaration_entity
      ORDER BY rowid
   `
-  const actors = await sql<ActorRow[]>`
-    SELECT id, wimp FROM actor ORDER BY id
+  const atoms = await sql<AtomRow[]>`
+    SELECT id, wimp FROM atom ORDER BY id
   `
-  const actorFields = await sql<ActorFieldRow[]>`
-    SELECT actor, field, value_json AS valueJson
-      FROM boundary_actor_field
-     ORDER BY actor, field
+  const atomFields = await sql<AtomFieldRow[]>`
+    SELECT atom, field, value_json AS valueJson
+      FROM boundary_atom_field
+     ORDER BY atom, field
   `
-  const actorStates = await sql<ActorStateRow[]>`
-    SELECT actor, metaState FROM actor_state ORDER BY actor
+  const atomStates = await sql<AtomStateRow[]>`
+    SELECT atom, metaState FROM atom_state ORDER BY atom
   `
 
   const declarations: DeclarationRecord[] = declarationRows.map((row) => {
@@ -166,10 +166,10 @@ export async function matrixRuntime(sql: SQL): Promise<MatrixRuntimeSnapshot> {
   })
 
   const declarationsByWimpSection = group(declarations, (item) => `${item.src}\0${item.section}`)
-  const valuesByActorField = new Map(
-    actorFields.map((row) => [`${Number(row.actor)}\0${Number(row.field)}`, JSON.parse(row.valueJson) as unknown] as const),
+  const valuesByAtomField = new Map(
+    atomFields.map((row) => [`${Number(row.atom)}\0${Number(row.field)}`, JSON.parse(row.valueJson) as unknown] as const),
   )
-  const selectedStateByActor = new Map(actorStates.map((row) => [Number(row.actor), row.metaState] as const))
+  const selectedStateByAtom = new Map(atomStates.map((row) => [Number(row.atom), row.metaState] as const))
 
   const enumVariantRecordsByField = new Map<number, DeclarationRecord[]>()
   for (const variant of declarations.filter((item) => item.section === "variants")) {
@@ -190,43 +190,43 @@ export async function matrixRuntime(sql: SQL): Promise<MatrixRuntimeSnapshot> {
   const dataFields: MatrixFieldRecord[] = []
   const branes: MatrixInputBrane[] = []
   const stateNames: string[][] = []
-  const actorIdByBraneIndex: number[] = []
-  const braneIndexByActorId: Array<[number, number]> = []
-  const wimpSrcByActorId: Array<[number, string]> = []
-  const actorIdsByWimpSrc = new Map<string, number[]>()
-  const runtimeFieldIndexByActorFieldId: Array<[number, number, number]> = []
+  const atomIdByBraneIndex: number[] = []
+  const braneIndexByAtomId: Array<[number, number]> = []
+  const wimpSrcByAtomId: Array<[number, string]> = []
+  const atomIdsByWimpSrc = new Map<string, number[]>()
+  const runtimeFieldIndexByAtomFieldId: Array<[number, number, number]> = []
   const runtimeFieldIndexByWimpFieldId: Array<[number, number]> = []
   const wimpFieldIdsByRuntimeFieldIndex: number[][] = []
   const braneIndexByWimpFieldId: Array<[number, number]> = []
   const topologyWimpFieldIds: number[] = []
-  const topologyActorFieldIds: Array<[number, number]> = []
+  const topologyAtomFieldIds: Array<[number, number]> = []
   const stateMetaStateIdsByBraneIndex: number[][] = []
   const stateHasProcessByBraneIndex: boolean[][] = []
-  const runtimeFieldIndexByActorField = new Map<string, number>()
+  const runtimeFieldIndexByAtomField = new Map<string, number>()
   let nextProjectionFieldId = 1
 
-  for (let braneIndex = 0; braneIndex < actors.length; braneIndex++) {
-    const actor = actors[braneIndex]!
+  for (let braneIndex = 0; braneIndex < atoms.length; braneIndex++) {
+    const atom = atoms[braneIndex]!
     const fieldRecords = sortByPosition(
-      declarationsByWimpSection.get(`${actor.wimp}\0fields`) ?? [],
+      declarationsByWimpSection.get(`${atom.wimp}\0fields`) ?? [],
     )
     const stateRecords = sortByPosition(
-      declarationsByWimpSection.get(`${actor.wimp}\0states`) ?? [],
+      declarationsByWimpSection.get(`${atom.wimp}\0states`) ?? [],
     )
     const transitionRecords = sortByPosition(
-      declarationsByWimpSection.get(`${actor.wimp}\0transitions`) ?? [],
+      declarationsByWimpSection.get(`${atom.wimp}\0transitions`) ?? [],
     )
     const conditionRecords = sortByPosition(
-      declarationsByWimpSection.get(`${actor.wimp}\0conditions`) ?? [],
+      declarationsByWimpSection.get(`${atom.wimp}\0conditions`) ?? [],
     )
-    const processRecords = declarationsByWimpSection.get(`${actor.wimp}\0processes`) ?? []
+    const processRecords = declarationsByWimpSection.get(`${atom.wimp}\0processes`) ?? []
 
-    actorIdByBraneIndex.push(Number(actor.id))
-    braneIndexByActorId.push([Number(actor.id), braneIndex])
-    wimpSrcByActorId.push([Number(actor.id), actor.wimp])
-    const actorIds = actorIdsByWimpSrc.get(actor.wimp)
-    if (actorIds) actorIds.push(Number(actor.id))
-    else actorIdsByWimpSrc.set(actor.wimp, [Number(actor.id)])
+    atomIdByBraneIndex.push(Number(atom.id))
+    braneIndexByAtomId.push([Number(atom.id), braneIndex])
+    wimpSrcByAtomId.push([Number(atom.id), atom.wimp])
+    const atomIds = atomIdsByWimpSrc.get(atom.wimp)
+    if (atomIds) atomIds.push(Number(atom.id))
+    else atomIdsByWimpSrc.set(atom.wimp, [Number(atom.id)])
 
     const values: MatrixInputBrane["values"] = []
     for (const fieldRecord of fieldRecords) {
@@ -234,25 +234,25 @@ export async function matrixRuntime(sql: SQL): Promise<MatrixRuntimeSnapshot> {
       if (fieldId === null) continue
       const runtimeFieldIndex = dataFields.length
       const variants = enumValuesByField.get(fieldId) ?? []
-      const storedValue = valuesByActorField.get(`${actor.id}\0${fieldId}`)
+      const storedValue = valuesByAtomField.get(`${atom.id}\0${fieldId}`)
       const value = storedValue === undefined
         ? fallbackFieldValue(fieldRecord.value, variants)
         : matrixBraneValue(clone(storedValue))
       // This compact address exists only inside one derived Matrix snapshot.
-      // Canonical identity remains the explicit (actorId, fieldId) pair below.
+      // Canonical identity remains the explicit (atomId, fieldId) pair below.
       const wimpFieldId = nextProjectionFieldId++
 
       dataFields.push(matrixField(fieldRecord.value, variants))
       values.push([runtimeFieldIndex, value])
-      runtimeFieldIndexByActorField.set(`${actor.id}\0${fieldId}`, runtimeFieldIndex)
-      runtimeFieldIndexByActorFieldId.push([Number(actor.id), fieldId, runtimeFieldIndex])
+      runtimeFieldIndexByAtomField.set(`${atom.id}\0${fieldId}`, runtimeFieldIndex)
+      runtimeFieldIndexByAtomFieldId.push([Number(atom.id), fieldId, runtimeFieldIndex])
       runtimeFieldIndexByWimpFieldId.push([wimpFieldId, runtimeFieldIndex])
       wimpFieldIdsByRuntimeFieldIndex[runtimeFieldIndex] = [wimpFieldId]
       braneIndexByWimpFieldId.push([wimpFieldId, braneIndex])
 
       if (fieldRecord.value.type === "enum" || fieldRecord.value.type === "array") {
         topologyWimpFieldIds.push(wimpFieldId)
-        topologyActorFieldIds.push([Number(actor.id), fieldId])
+        topologyAtomFieldIds.push([Number(atom.id), fieldId])
       }
     }
 
@@ -262,10 +262,10 @@ export async function matrixRuntime(sql: SQL): Promise<MatrixRuntimeSnapshot> {
       return id === null || name === null ? [] : [{id, name, declaration: state}]
     })
     const stateIndexById = new Map(normalizedStates.map((state, index) => [state.id, index] as const))
-    const stateNamesForActor = normalizedStates.map((state) => state.name)
-    const stateIdsForActor = normalizedStates.map((state) => state.id)
+    const stateNamesForAtom = normalizedStates.map((state) => state.name)
+    const stateIdsForAtom = normalizedStates.map((state) => state.id)
 
-    const selectedStateId = selectedStateByActor.get(Number(actor.id))
+    const selectedStateId = selectedStateByAtom.get(Number(atom.id))
     const selectedState = normalizedStates.length === 0
       ? STATE_NONE
       : selectedStateId === null || selectedStateId === undefined
@@ -291,7 +291,7 @@ export async function matrixRuntime(sql: SQL): Promise<MatrixRuntimeSnapshot> {
         for (const condition of conditionsByTransition.get(transitionId) ?? []) {
           const fieldId = integer(condition.value.field)
           if (fieldId === null) continue
-          const runtimeFieldIndex = runtimeFieldIndexByActorField.get(`${actor.id}\0${fieldId}`)
+          const runtimeFieldIndex = runtimeFieldIndexByAtomField.get(`${atom.id}\0${fieldId}`)
           if (runtimeFieldIndex === undefined) continue
           transitionConditions[runtimeFieldIndex] = predicateValue(condition.value)
         }
@@ -299,9 +299,9 @@ export async function matrixRuntime(sql: SQL): Promise<MatrixRuntimeSnapshot> {
       }),
     )
 
-    stateNames[braneIndex] = stateNamesForActor
-    stateMetaStateIdsByBraneIndex[braneIndex] = stateIdsForActor
-    stateHasProcessByBraneIndex[braneIndex] = stateNamesForActor.map((name) => processStateNames.has(name))
+    stateNames[braneIndex] = stateNamesForAtom
+    stateMetaStateIdsByBraneIndex[braneIndex] = stateIdsForAtom
+    stateHasProcessByBraneIndex[braneIndex] = stateNamesForAtom.map((name) => processStateNames.has(name))
     branes.push({values, state: selectedState, collapses})
   }
 
@@ -309,11 +309,11 @@ export async function matrixRuntime(sql: SQL): Promise<MatrixRuntimeSnapshot> {
     ok: true,
     version: 1,
     runtime: {
-      actorIdByBraneIndex,
-      braneIndexByActorId,
-      wimpSrcByActorId,
-      actorIdsByWimpSrc: [...actorIdsByWimpSrc.entries()].map(([src, actorIds]) => [src, [...actorIds]]),
-      runtimeFieldIndexByActorFieldId,
+      atomIdByBraneIndex,
+      braneIndexByAtomId,
+      wimpSrcByAtomId,
+      atomIdsByWimpSrc: [...atomIdsByWimpSrc.entries()].map(([src, atomIds]) => [src, [...atomIds]]),
+      runtimeFieldIndexByAtomFieldId,
     },
     data: {fields: dataFields, branes, stateNames},
     strong: {
@@ -321,7 +321,7 @@ export async function matrixRuntime(sql: SQL): Promise<MatrixRuntimeSnapshot> {
       wimpFieldIdsByRuntimeFieldIndex,
       braneIndexByWimpFieldId,
       topologyWimpFieldIds,
-      topologyActorFieldIds,
+      topologyAtomFieldIds,
     },
     weak: {
       stateMetaStateIdsByBraneIndex,

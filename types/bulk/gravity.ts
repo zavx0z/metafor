@@ -8,12 +8,12 @@ export interface BulkFieldsDefinition {
 }
 
 export interface GravityRuntimeBinding {
-  actorUuid: string
+  atomUuid: string
   fieldMap?: Record<string, string>
 }
 
-export interface RuntimeActorSnapshot {
-  actorUuid: string
+export interface RuntimeAtomSnapshot {
+  atomUuid: string
   fieldNames: string[]
   binding?: GravityRuntimeBinding
 }

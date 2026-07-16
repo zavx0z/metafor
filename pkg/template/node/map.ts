@@ -76,7 +76,7 @@ export const parseMap = (mapText: string, context: ParseContext = { pathStack: [
  * Создает NodeMap из обычного PartMap.
  */
 // ============================================================================
-// NODE CREATION FACTORIES
+// NODE CREATION FATOMIES
 // ============================================================================
 
 export const createNodeDataMap = (node: PartAttrMap, context: ParseContext = { pathStack: [], level: 0 }): NodeMap => {

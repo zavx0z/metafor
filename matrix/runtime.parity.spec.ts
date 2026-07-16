@@ -28,11 +28,11 @@ const runtimeSnapshot = (): MatrixRuntimeSnapshot => ({
   ok: true,
   version: 1,
   runtime: {
-    actorIdByBraneIndex: [17],
-    braneIndexByActorId: [[17, 0]],
-    wimpSrcByActorId: [[17, "owner/parity"]],
-    actorIdsByWimpSrc: [["owner/parity", [17]]],
-    runtimeFieldIndexByActorFieldId: [
+    atomIdByBraneIndex: [17],
+    braneIndexByAtomId: [[17, 0]],
+    wimpSrcByAtomId: [[17, "owner/parity"]],
+    atomIdsByWimpSrc: [["owner/parity", [17]]],
+    runtimeFieldIndexByAtomFieldId: [
       [17, 101, 0],
       [17, 102, 1],
     ],
@@ -55,7 +55,7 @@ const runtimeSnapshot = (): MatrixRuntimeSnapshot => ({
     wimpFieldIdsByRuntimeFieldIndex: [[1], [2]],
     braneIndexByWimpFieldId: [[1, 0], [2, 0]],
     topologyWimpFieldIds: [],
-    topologyActorFieldIds: [],
+    topologyAtomFieldIds: [],
   },
   weak: {
     stateMetaStateIdsByBraneIndex: [[201, 202, 203]],

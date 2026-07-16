@@ -5,8 +5,8 @@ import {buildBoundaryBulkManifest} from "./world.ts"
 const SRC = "owner/project"
 
 const createProjection = (): BulkRuntimeProjection => ({
-	actors: [
-		{id: 17, parentActor: null, parentTopology: null, wimp: SRC, position: 0},
+	atoms: [
+		{id: 17, parentAtom: null, parentTopology: null, wimp: SRC, position: 0},
 	],
 	topologies: [],
 	wimps: [{src: SRC, name: "Full screen"}],
@@ -18,9 +18,9 @@ const createProjection = (): BulkRuntimeProjection => ({
 	conditions: [],
 	processes: [],
 	reactions: [],
-	actorStates: [],
+	atomStates: [],
 	fieldEnumVariants: [],
-	actorValues: [],
+	atomValues: [],
 	values: [],
 	valueItems: [],
 	matterParticles: [],
@@ -33,6 +33,11 @@ describe("bulk мост Boundary -> Bulk manifest", () => {
 		const manifest = buildBoundaryBulkManifest(createProjection(), SRC)
 		const fieldParticle = manifest.fieldParticles[0]
 
+		expect(manifest.darkParticles[0]).toMatchObject({
+			darkParticleKind: "atom",
+			src: SRC,
+			metaSrc: SRC,
+		})
 		expect(fieldParticle).toBeDefined()
 		expect(fieldParticle?.fieldId).toBe(2)
 		expect(fieldParticle?.fieldKey).toBe("title")
@@ -51,7 +56,7 @@ describe("bulk мост Boundary -> Bulk manifest", () => {
 		)
 		projection.transitions.push({id: 31, wimp: SRC, fromState: 21, toState: 22, position: 0})
 		projection.conditions.push({id: 41, wimp: SRC, transition: 31, field: 2, position: 0, predicate: {eq: "go"}})
-		projection.actorStates.push({actor: 17, state: 21})
+		projection.atomStates.push({atom: 17, state: 21})
 
 		const manifest = buildBoundaryBulkManifest(projection, SRC)
 
@@ -72,11 +77,11 @@ describe("bulk мост Boundary -> Bulk manifest", () => {
 			{src: "owner/project/tree", name: "Git tree"},
 			{src: "zavx0z/other", name: "Other root"},
 		)
-		projection.actors.push(
-			{id: 18, parentActor: 17, parentTopology: null, wimp: "owner/project/tree", position: 0},
-			{id: 99, parentActor: null, parentTopology: null, wimp: "zavx0z/other", position: 1},
+		projection.atoms.push(
+			{id: 18, parentAtom: 17, parentTopology: null, wimp: "owner/project/tree", position: 0},
+			{id: 99, parentAtom: null, parentTopology: null, wimp: "zavx0z/other", position: 1},
 		)
-		projection.topologies.push({id: 77, parentActor: null, parentTopology: null, kind: "macho", position: 0})
+		projection.topologies.push({id: 77, parentAtom: null, parentTopology: null, kind: "macho", position: 0})
 
 		const manifest = buildBoundaryBulkManifest(projection, SRC)
 
@@ -101,8 +106,8 @@ describe("bulk мост Boundary -> Bulk manifest", () => {
 		)
 		projection.states.push({id: 21, wimp: SRC, name: "ошибка", position: 0})
 		projection.topologies.push(
-			{id: 51, parentActor: 17, parentTopology: null, kind: "fuzzy", position: 0},
-			{id: 52, parentActor: 17, parentTopology: null, kind: "axion", position: 1},
+			{id: 51, parentAtom: 17, parentTopology: null, kind: "fuzzy", position: 0},
+			{id: 52, parentAtom: 17, parentTopology: null, kind: "axion", position: 1},
 		)
 		projection.matterParticles.push(
 			{id: 61, wimp: SRC, parentParticle: null, particleKind: "fuzzy", edgeSlot: "root", particleOrder: 0},

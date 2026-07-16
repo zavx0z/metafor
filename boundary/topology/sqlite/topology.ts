@@ -3,7 +3,7 @@ import type { TopologyKind, TopologyRecord } from "@metafor/types/boundary/topol
 
 export const decodeTopologyRow = (row: Record<string, unknown>): TopologyRecord => ({
   id: Number(row.id),
-  parentActor: row.parent_actor === null || row.parent_actor === undefined ? null : Number(row.parent_actor),
+  parentAtom: row.parent_atom === null || row.parent_atom === undefined ? null : Number(row.parent_atom),
   parentTopology:
     row.parent_topology === null || row.parent_topology === undefined ? null : Number(row.parent_topology),
   kind: String(row.kind) as TopologyKind,
@@ -12,8 +12,8 @@ export const decodeTopologyRow = (row: Record<string, unknown>): TopologyRecord 
 
 /**
  * Дочерние topology-узлы, у которых parent — этот topology-узел.
- * Дочерние Wimp под этим topology лежат в `actor` table — читать через
- * `boundary.actor.<...>` параллельно.
+ * Дочерние Wimp под этим topology лежат в `atom` table — читать через
+ * `boundary.atom.<...>` параллельно.
  */
 export class TopologyChildren {
   constructor(
@@ -23,7 +23,7 @@ export class TopologyChildren {
 
   async all(): Promise<TopologyBase[]> {
     const rows = await this.sql<Array<Record<string, unknown>>>`
-      SELECT id, parent_actor, parent_topology, kind, position
+      SELECT id, parent_atom, parent_topology, kind, position
       FROM topology
       WHERE parent_topology = ${this.parentId}
       ORDER BY position
@@ -62,15 +62,15 @@ export abstract class TopologyBase {
     return Number(row.position)
   }
 
-  async parentRef(): Promise<{kind: "actor"; id: number} | {kind: "topology"; id: number} | null> {
+  async parentRef(): Promise<{kind: "atom"; id: number} | {kind: "topology"; id: number} | null> {
     const row = (
-      await this.sql<Array<{parent_actor: number | null; parent_topology: number | null}>>`
-        SELECT parent_actor, parent_topology FROM topology WHERE id = ${this.id} LIMIT 1
+      await this.sql<Array<{parent_atom: number | null; parent_topology: number | null}>>`
+        SELECT parent_atom, parent_topology FROM topology WHERE id = ${this.id} LIMIT 1
       `
     )[0]
     if (!row) throw new Error(`topology ${this.id} not found`)
-    if (row.parent_actor !== null && row.parent_actor !== undefined) {
-      return {kind: "actor", id: Number(row.parent_actor)}
+    if (row.parent_atom !== null && row.parent_atom !== undefined) {
+      return {kind: "atom", id: Number(row.parent_atom)}
     }
     if (row.parent_topology !== null && row.parent_topology !== undefined) {
       return {kind: "topology", id: Number(row.parent_topology)}
@@ -84,20 +84,20 @@ export class Fuzzy extends TopologyBase {
 
   /**
    * Возвращает выбранную ветвь Fuzzy либо `null`, если ветвь ещё не зафиксирована.
-   * Каждый из вариантов discriminated union: ветка может быть actor (Wimp) или другая topology.
+   * Каждый из вариантов discriminated union: ветка может быть atom (Wimp) или другая topology.
    */
-  async selected(): Promise<{kind: "actor"; id: number} | {kind: "topology"; id: number} | null> {
+  async selected(): Promise<{kind: "atom"; id: number} | {kind: "topology"; id: number} | null> {
     const row = (
-      await this.sql<Array<{selected_actor: number | null; selected_topology: number | null}>>`
-        SELECT selected_actor, selected_topology
+      await this.sql<Array<{selected_atom: number | null; selected_topology: number | null}>>`
+        SELECT selected_atom, selected_topology
         FROM topology_fuzzy_state
         WHERE topology = ${this.id}
         LIMIT 1
       `
     )[0]
     if (!row) return null
-    if (row.selected_actor !== null && row.selected_actor !== undefined) {
-      return {kind: "actor", id: Number(row.selected_actor)}
+    if (row.selected_atom !== null && row.selected_atom !== undefined) {
+      return {kind: "atom", id: Number(row.selected_atom)}
     }
     if (row.selected_topology !== null && row.selected_topology !== undefined) {
       return {kind: "topology", id: Number(row.selected_topology)}

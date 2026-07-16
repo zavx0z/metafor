@@ -46,14 +46,14 @@ describe("Boundary -> packed Matrix runtime", () => {
     await apply({part: "inflaton", op: "test", path: ROOT})
 
     const snapshot = await boundary.matrixRuntime()
-    const actorId = snapshot.runtime.actorIdByBraneIndex[0]!
+    const atomId = snapshot.runtime.atomIdByBraneIndex[0]!
     const fieldId = boundaryEntityId(`${ROOT}/fields/1`)
 
     expect(snapshot.ok).toBe(true)
     expect(snapshot.version).toBe(1)
-    expect(snapshot.runtime.actorIdByBraneIndex).toHaveLength(1)
-    expect(snapshot.runtime.wimpSrcByActorId).toEqual([[actorId, ROOT]])
-    expect(snapshot.runtime.runtimeFieldIndexByActorFieldId).toEqual([[actorId, fieldId, 0]])
+    expect(snapshot.runtime.atomIdByBraneIndex).toHaveLength(1)
+    expect(snapshot.runtime.wimpSrcByAtomId).toEqual([[atomId, ROOT]])
+    expect(snapshot.runtime.runtimeFieldIndexByAtomFieldId).toEqual([[atomId, fieldId, 0]])
     expect(snapshot.strong.runtimeFieldIndexByWimpFieldId).toEqual([[1, 0]])
     expect(snapshot.strong.wimpFieldIdsByRuntimeFieldIndex).toEqual([[1]])
     expect(snapshot.strong.braneIndexByWimpFieldId).toEqual([[1, 0]])
@@ -68,13 +68,13 @@ describe("Boundary -> packed Matrix runtime", () => {
     ])
     expect(snapshot.weak.stateHasProcessByBraneIndex).toEqual([[false, true]])
 
-    const actorCount = (await boundary.projection.sql<Array<{count: number}>>`
-      SELECT COUNT(*) AS count FROM actor
+    const atomCount = (await boundary.projection.sql<Array<{count: number}>>`
+      SELECT COUNT(*) AS count FROM atom
     `)[0]!.count
     const declarationCount = (await boundary.projection.sql<Array<{count: number}>>`
       SELECT COUNT(*) AS count FROM boundary_declaration_entity
     `)[0]!.count
-    expect(Number(actorCount)).toBe(1)
+    expect(Number(atomCount)).toBe(1)
     expect(Number(declarationCount)).toBe(7)
   })
 })

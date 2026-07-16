@@ -1,5 +1,5 @@
 {
-  "name": "@boundary/actor",
+  "name": "@boundary/atom",
   "type": "module",
   "exports": {
     ".": "./index.ts",

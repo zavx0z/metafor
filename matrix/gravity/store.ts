@@ -2,30 +2,30 @@ import type { MatrixGravityStore } from "@metafor/types/matrix/gravity"
 
 
 export const gravity$: MatrixGravityStore = {
-  activeActorIds: [],
-  actorIdToBraneIndex: new Map(),
-  braneIndexToActorId: [],
-  wimpSrcByActorId: new Map(),
-  actorIdsByWimpSrc: new Map(),
+  activeAtomIds: [],
+  atomIdToBraneIndex: new Map(),
+  braneIndexToAtomId: [],
+  wimpSrcByAtomId: new Map(),
+  atomIdsByWimpSrc: new Map(),
   structuralDirty: false,
 
-  hasActor(actorId: number): boolean {
-    return this.activeActorIds.includes(actorId)
+  hasAtom(atomId: number): boolean {
+    return this.activeAtomIds.includes(atomId)
   },
 
-  getBraneIndexByActorId(actorId: number): number | undefined {
-    return this.actorIdToBraneIndex.get(actorId)
+  getBraneIndexByAtomId(atomId: number): number | undefined {
+    return this.atomIdToBraneIndex.get(atomId)
   },
 
-  getActorId(braneIndex: number): number | undefined {
-    return this.braneIndexToActorId[braneIndex]
+  getAtomId(braneIndex: number): number | undefined {
+    return this.braneIndexToAtomId[braneIndex]
   },
 
-  getWimpSrcByActorId(actorId: number): string | undefined {
-    return this.wimpSrcByActorId.get(actorId)
+  getWimpSrcByAtomId(atomId: number): string | undefined {
+    return this.wimpSrcByAtomId.get(atomId)
   },
 
-  getActorIdsByWimpSrc(wimpSrc: string): number[] {
-    return [...(this.actorIdsByWimpSrc.get(wimpSrc) ?? [])]
+  getAtomIdsByWimpSrc(wimpSrc: string): number[] {
+    return [...(this.atomIdsByWimpSrc.get(wimpSrc) ?? [])]
   },
 }

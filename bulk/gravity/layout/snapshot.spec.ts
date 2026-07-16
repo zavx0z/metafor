@@ -25,7 +25,7 @@ const createDarkParticle = (
   orbitalComplexity?: BulkDarkParticleInput["orbitalComplexity"],
 ): BulkDarkParticleInput => ({
   darkParticleId,
-  darkParticleKind: "wimp",
+  darkParticleKind: "atom",
   src: String(darkParticleId),
   metaSrc: String(darkParticleId),
   label: String(darkParticleId),

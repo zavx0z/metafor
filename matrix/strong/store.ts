@@ -5,7 +5,7 @@ export const strong$: MatrixStrongStore = {
   wimpFieldIdsByRuntimeFieldIndex: [],
   braneIndexByWimpFieldId: new Map(),
   topologyWimpFieldIds: new Set(),
-  runtimeFieldIndexByActorFieldId: new Map(),
-  actorFieldIdsByRuntimeFieldIndex: [],
-  topologyActorFieldIds: new Set(),
+  runtimeFieldIndexByAtomFieldId: new Map(),
+  atomFieldIdsByRuntimeFieldIndex: [],
+  topologyAtomFieldIds: new Set(),
 }

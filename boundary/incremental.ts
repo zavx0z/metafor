@@ -5,7 +5,7 @@ import {resolveForceFieldsPayload} from "@metafor/types/force/fields"
 
 type Database = SQL | ReservedSQL
 type JsonRecord = Record<string, unknown>
-type RuntimeRef = {kind: "actor" | "topology"; id: number; ownerActor: number}
+type RuntimeRef = {kind: "atom" | "topology"; id: number; ownerAtom: number}
 
 const declarationSections = [
   "meta", "fields", "variants", "states", "transitions", "conditions",
@@ -99,7 +99,7 @@ const numericLocal = (address: InflatonAddress): number => address.localId === "
 
 const particleMessage = (particle: Particle): ForceMessage => ({parts: [particle]})
 
-const actorParentKey = (parent: RuntimeRef): string => `${parent.kind}/${parent.id}`
+const atomParentKey = (parent: RuntimeRef): string => `${parent.kind}/${parent.id}`
 
 const valueRecord = (id: number, value: unknown): JsonRecord => {
   if (value === null || value === undefined) return {id, kind: "null"}
@@ -113,7 +113,7 @@ const valueRecord = (id: number, value: unknown): JsonRecord => {
 export class BoundaryIncrementalStore {
   readonly declarations = new Map<string, unknown>()
   readonly childrenByParent = new Map<string, Set<string>>()
-  readonly actorIdsByDeclaration = new Map<string, Set<number>>()
+  readonly atomIdsByDeclaration = new Map<string, Set<number>>()
   readonly instanceIdsByTopology = new Map<string, Set<number>>()
   readonly originByInstance = new Map<string, string>()
   readonly parentByInstance = new Map<string, string>()
@@ -135,26 +135,26 @@ export class BoundaryIncrementalStore {
       );
       CREATE TABLE IF NOT EXISTS boundary_runtime_origin (
         sequence INTEGER PRIMARY KEY AUTOINCREMENT,
-        kind TEXT NOT NULL CHECK (kind IN ('actor', 'topology')),
+        kind TEXT NOT NULL CHECK (kind IN ('atom', 'topology')),
         runtime_id INTEGER NOT NULL,
         declaration_path TEXT NOT NULL,
         parent_key TEXT NOT NULL,
-        owner_actor INTEGER NOT NULL,
+        owner_atom INTEGER NOT NULL,
         ordinal INTEGER NOT NULL DEFAULT 0,
         UNIQUE (kind, runtime_id),
         UNIQUE (kind, declaration_path, parent_key, ordinal)
       );
-      CREATE TABLE IF NOT EXISTS boundary_actor_field (
+      CREATE TABLE IF NOT EXISTS boundary_atom_field (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        actor INTEGER NOT NULL,
+        atom INTEGER NOT NULL,
         field INTEGER NOT NULL,
         value_json TEXT NOT NULL,
-        UNIQUE (actor, field)
+        UNIQUE (atom, field)
       );
       CREATE INDEX IF NOT EXISTS boundary_origin_by_declaration
         ON boundary_runtime_origin (declaration_path);
       CREATE INDEX IF NOT EXISTS boundary_origin_by_owner
-        ON boundary_runtime_origin (owner_actor);
+        ON boundary_runtime_origin (owner_atom);
     `)
     const columns = await this.sql<Array<{name: string}>>`PRAGMA table_info(boundary_declaration_entity)`
     if (!columns.some((column) => column.name === "canonical_json")) {
@@ -234,12 +234,12 @@ export class BoundaryIncrementalStore {
         value: JSON.parse(row.canonical_json) as unknown,
       })
     }
-    for (const origin of await this.sql<Array<{kind: "actor" | "topology"; runtime_id: number}>>`
+    for (const origin of await this.sql<Array<{kind: "atom" | "topology"; runtime_id: number}>>`
       SELECT kind, runtime_id FROM boundary_runtime_origin ORDER BY sequence
     `) {
-      if (origin.kind === "actor") {
-        const entity = await this.actorEntity(this.sql, Number(origin.runtime_id))
-        if (entity) particles.push({part: "graviton", op: "add", path: `actor/${origin.runtime_id}`, value: entity})
+      if (origin.kind === "atom") {
+        const entity = await this.atomEntity(this.sql, Number(origin.runtime_id))
+        if (entity) particles.push({part: "graviton", op: "add", path: `atom/${origin.runtime_id}`, value: entity})
       } else {
         const entity = await this.topologyEntity(this.sql, Number(origin.runtime_id))
         if (entity) particles.push({part: "graviton", op: "add", path: `topology/${origin.runtime_id}`, value: entity})
@@ -256,14 +256,14 @@ export class BoundaryIncrementalStore {
       typeof part.path !== "number" ||
       !Number.isSafeInteger(part.path)
     ) return null
-    const actorId = part.path
+    const atomId = part.path
 
     const effects = await this.sql.begin(async (tx) => {
       const committed: Particle[] = []
       const currentState = (await tx<Array<{name: string}>>`
         SELECT state.name AS name
-          FROM actor_state JOIN state ON state.id = actor_state.metaState
-         WHERE actor_state.actor = ${actorId}
+          FROM atom_state JOIN state ON state.id = atom_state.metaState
+         WHERE atom_state.atom = ${atomId}
       `)[0]?.name
 
       for (const topology of await tx<Array<{runtime_id: number; declaration_path: string}>>`
@@ -272,13 +272,13 @@ export class BoundaryIncrementalStore {
           FROM boundary_runtime_origin
           JOIN topology ON topology.id = boundary_runtime_origin.runtime_id
          WHERE boundary_runtime_origin.kind = ${"topology"}
-           AND boundary_runtime_origin.owner_actor = ${actorId}
+           AND boundary_runtime_origin.owner_atom = ${atomId}
            AND topology.kind = ${"axion"}
          ORDER BY boundary_runtime_origin.sequence
       `) {
         const address = parseInflatonAddress(topology.declaration_path)
         if (!address) continue
-        const parent: RuntimeRef = {kind: "topology", id: Number(topology.runtime_id), ownerActor: actorId}
+        const parent: RuntimeRef = {kind: "topology", id: Number(topology.runtime_id), ownerAtom: atomId}
         const children = await this.matterRows(tx, address.src, address.localId)
         const selected: string[] = []
         for (const child of children) {
@@ -287,17 +287,17 @@ export class BoundaryIncrementalStore {
         const existing = (await tx<Array<{declaration_path: string}>>`
           SELECT declaration_path
             FROM boundary_runtime_origin
-           WHERE parent_key = ${actorParentKey(parent)}
+           WHERE parent_key = ${atomParentKey(parent)}
            ORDER BY declaration_path, ordinal
         `).map((row) => row.declaration_path)
         selected.sort()
         existing.sort()
         if (same(existing, selected)) continue
 
-        for (const child of await tx<Array<{kind: "actor" | "topology"; runtime_id: number}>>`
+        for (const child of await tx<Array<{kind: "atom" | "topology"; runtime_id: number}>>`
           SELECT kind, runtime_id
             FROM boundary_runtime_origin
-           WHERE parent_key = ${actorParentKey(parent)}
+           WHERE parent_key = ${atomParentKey(parent)}
            ORDER BY sequence DESC
         `) committed.push(...await this.removeRuntimeBranch(tx, child.kind, Number(child.runtime_id)))
 
@@ -324,7 +324,7 @@ export class BoundaryIncrementalStore {
     const effects: Particle[] = await this.sql.begin(async (tx): Promise<Particle[]> => {
       await tx`INSERT INTO boundary_root (src) VALUES (${src}) ON CONFLICT DO NOTHING`
       const exists = (await tx<Array<{ok: number}>>`SELECT 1 AS ok FROM wimp WHERE src = ${src}`)[0]
-      return exists ? await this.ensureRootActor(tx, src) : []
+      return exists ? await this.ensureRootAtom(tx, src) : []
     })
     await this.updateIndexes(effects)
     return effects.length === 0 ? null : {rootSrc: src, messages: effects.map(particleMessage)}
@@ -503,24 +503,24 @@ export class BoundaryIncrementalStore {
     if (address.section === "meta") {
       const requested = (await sql<Array<{ok: number}>>`SELECT 1 AS ok FROM boundary_root WHERE src = ${address.src}`)[0]
       const anyRoot = (await sql<Array<{ok: number}>>`
-        SELECT 1 AS ok FROM actor WHERE parent_actor IS NULL AND parent_topology IS NULL LIMIT 1
+        SELECT 1 AS ok FROM atom WHERE parent_atom IS NULL AND parent_topology IS NULL LIMIT 1
       `)[0]
-      if (requested || !anyRoot) effects.push(...await this.ensureRootActor(sql, address.src))
+      if (requested || !anyRoot) effects.push(...await this.ensureRootAtom(sql, address.src))
       return
     }
     if (address.section === "fields") {
       if (!isRecord(next) || !Object.prototype.hasOwnProperty.call(next, "default")) return
       const fieldId = boundaryEntityId(address.path)
-      for (const actor of await sql<Array<{id: number}>>`SELECT id FROM actor WHERE wimp = ${address.src}`) {
+      for (const atom of await sql<Array<{id: number}>>`SELECT id FROM atom WHERE wimp = ${address.src}`) {
         const found = (await sql<Array<{ok: number}>>`
-          SELECT 1 AS ok FROM boundary_actor_field WHERE actor = ${actor.id} AND field = ${fieldId}
+          SELECT 1 AS ok FROM boundary_atom_field WHERE atom = ${atom.id} AND field = ${fieldId}
         `)[0]
         if (found) continue
         await sql`
-          INSERT INTO boundary_actor_field (actor, field, value_json)
-          VALUES (${actor.id}, ${fieldId}, ${JSON.stringify(next.default)})
+          INSERT INTO boundary_atom_field (atom, field, value_json)
+          VALUES (${atom.id}, ${fieldId}, ${JSON.stringify(next.default)})
         `
-        effects.push({part: "gluon", op: "add", path: Number(actor.id), value: {fields: {[String(fieldId)]: clone(next.default)}}})
+        effects.push({part: "gluon", op: "add", path: Number(atom.id), value: {fields: {[String(fieldId)]: clone(next.default)}}})
       }
       return
     }
@@ -533,10 +533,10 @@ export class BoundaryIncrementalStore {
         return
       }
       if (previous.position !== next.position) {
-        for (const origin of await sql<Array<{kind: "actor" | "topology"; runtime_id: number}>>`
+        for (const origin of await sql<Array<{kind: "atom" | "topology"; runtime_id: number}>>`
           SELECT kind, runtime_id FROM boundary_runtime_origin WHERE declaration_path = ${address.path}
         `) {
-          const table = origin.kind === "actor" ? "actor" : "topology"
+          const table = origin.kind === "atom" ? "atom" : "topology"
           await sql.unsafe(`UPDATE ${table} SET position = ? WHERE id = ?`, [Number(next.position ?? 0), Number(origin.runtime_id)])
           effects.push({part: "graviton", op: "replace", path: `${origin.kind}/${origin.runtime_id}`, value: {position: Number(next.position ?? 0)}})
         }
@@ -558,15 +558,15 @@ export class BoundaryIncrementalStore {
     }
     if (address.section === "fields") {
       const field = boundaryEntityId(address.path)
-      for (const row of await sql<Array<{actor: number}>>`SELECT actor FROM boundary_actor_field WHERE field = ${field}`) {
-        effects.push({part: "gluon", op: "remove", path: Number(row.actor), value: {fields: {[String(field)]: null}}})
+      for (const row of await sql<Array<{atom: number}>>`SELECT atom FROM boundary_atom_field WHERE field = ${field}`) {
+        effects.push({part: "gluon", op: "remove", path: Number(row.atom), value: {fields: {[String(field)]: null}}})
       }
-      await sql`DELETE FROM boundary_actor_field WHERE field = ${field}`
+      await sql`DELETE FROM boundary_atom_field WHERE field = ${field}`
       return
     }
     if (address.section === "meta") {
-      for (const actor of await sql<Array<{id: number}>>`SELECT id FROM actor WHERE wimp = ${address.src}`) {
-        effects.push(...await this.removeRuntimeBranch(sql, "actor", Number(actor.id)))
+      for (const atom of await sql<Array<{id: number}>>`SELECT id FROM atom WHERE wimp = ${address.src}`) {
+        effects.push(...await this.removeRuntimeBranch(sql, "atom", Number(atom.id)))
       }
       await sql`DELETE FROM boundary_root WHERE src = ${address.src}`
       return
@@ -574,15 +574,15 @@ export class BoundaryIncrementalStore {
     void previous
   }
 
-  private async ensureRootActor(sql: Database, src: string): Promise<Particle[]> {
+  private async ensureRootAtom(sql: Database, src: string): Promise<Particle[]> {
     const existing = (await sql<Array<{id: number}>>`
-      SELECT id FROM actor WHERE wimp = ${src} AND parent_actor IS NULL AND parent_topology IS NULL LIMIT 1
+      SELECT id FROM atom WHERE wimp = ${src} AND parent_atom IS NULL AND parent_topology IS NULL LIMIT 1
     `)[0]
     if (existing) return []
-    return await this.createActor(sql, src, null, `${src}/meta`, 0)
+    return await this.createAtom(sql, src, null, `${src}/meta`, 0)
   }
 
-  private async createActor(
+  private async createAtom(
     sql: Database,
     src: string,
     parent: RuntimeRef | null,
@@ -590,25 +590,25 @@ export class BoundaryIncrementalStore {
     ordinal: number,
 	initialFields?: JsonRecord,
   ): Promise<Particle[]> {
-    const parentKey = parent ? actorParentKey(parent) : "root"
+    const parentKey = parent ? atomParentKey(parent) : "root"
     const found = (await sql<Array<{runtime_id: number}>>`
       SELECT runtime_id FROM boundary_runtime_origin
-      WHERE kind = ${"actor"} AND declaration_path = ${originPath} AND parent_key = ${parentKey} AND ordinal = ${ordinal}
+      WHERE kind = ${"atom"} AND declaration_path = ${originPath} AND parent_key = ${parentKey} AND ordinal = ${ordinal}
     `)[0]
     if (found) return []
     const position = Number((await sql<Array<{count: number}>>`
-      SELECT COUNT(*) AS count FROM actor
-      WHERE parent_actor IS ${parent?.kind === "actor" ? parent.id : null}
+      SELECT COUNT(*) AS count FROM atom
+      WHERE parent_atom IS ${parent?.kind === "atom" ? parent.id : null}
         AND parent_topology IS ${parent?.kind === "topology" ? parent.id : null}
     `)[0]?.count ?? 0)
-    const actor = Number((await sql<Array<{id: number}>>`
-      INSERT INTO actor (parent_actor, parent_topology, wimp, position)
-      VALUES (${parent?.kind === "actor" ? parent.id : null}, ${parent?.kind === "topology" ? parent.id : null}, ${src}, ${position})
+    const atom = Number((await sql<Array<{id: number}>>`
+      INSERT INTO atom (parent_atom, parent_topology, wimp, position)
+      VALUES (${parent?.kind === "atom" ? parent.id : null}, ${parent?.kind === "topology" ? parent.id : null}, ${src}, ${position})
       RETURNING id
     `)[0]!.id)
     await sql`
-      INSERT INTO boundary_runtime_origin (kind, runtime_id, declaration_path, parent_key, owner_actor, ordinal)
-      VALUES (${"actor"}, ${actor}, ${originPath}, ${parentKey}, ${actor}, ${ordinal})
+      INSERT INTO boundary_runtime_origin (kind, runtime_id, declaration_path, parent_key, owner_atom, ordinal)
+      VALUES (${"atom"}, ${atom}, ${originPath}, ${parentKey}, ${atom}, ${ordinal})
     `
 	const remainingInitialFields = new Set(Object.keys(initialFields ?? {}))
     for (const row of await sql<Array<{path: string; value_json: string}>>`
@@ -622,17 +622,17 @@ export class BoundaryIncrementalStore {
 	  const fieldValue = hasInitial ? initialFields?.[field.key] : field.default
 	  remainingInitialFields.delete(field.key)
       await sql`
-        INSERT INTO boundary_actor_field (actor, field, value_json)
-		VALUES (${actor}, ${boundaryEntityId(row.path)}, ${JSON.stringify(fieldValue)})
+        INSERT INTO boundary_atom_field (atom, field, value_json)
+		VALUES (${atom}, ${boundaryEntityId(row.path)}, ${JSON.stringify(fieldValue)})
       `
     }
 	if (remainingInitialFields.size > 0) {
 		throw new Error(`Matter fields for ${src} contain undeclared keys: ${[...remainingInitialFields].join(", ")}`)
 	}
-    const entity = await this.actorEntity(sql, actor)
-    const effects: Particle[] = entity ? [{part: "graviton", op: "add", path: `actor/${actor}`, value: entity}] : []
+    const entity = await this.atomEntity(sql, atom)
+    const effects: Particle[] = entity ? [{part: "graviton", op: "add", path: `atom/${atom}`, value: entity}] : []
     for (const row of await this.matterRows(sql, src, null)) {
-      effects.push(...await this.materializeMatter(sql, row.address, row.value, effects, {kind: "actor", id: actor, ownerActor: actor}))
+      effects.push(...await this.materializeMatter(sql, row.address, row.value, effects, {kind: "atom", id: atom, ownerAtom: atom}))
     }
     return effects
   }
@@ -644,7 +644,7 @@ export class BoundaryIncrementalStore {
     originPath: string,
     ordinal: number,
   ): Promise<Particle[]> {
-    const parentKey = actorParentKey(parent)
+    const parentKey = atomParentKey(parent)
     const found = (await sql<Array<{runtime_id: number}>>`
       SELECT runtime_id FROM boundary_runtime_origin
       WHERE kind = ${"topology"} AND declaration_path = ${originPath} AND parent_key = ${parentKey} AND ordinal = ${ordinal}
@@ -652,17 +652,17 @@ export class BoundaryIncrementalStore {
     if (found) return []
     const position = Number((await sql<Array<{count: number}>>`
       SELECT COUNT(*) AS count FROM topology
-      WHERE parent_actor IS ${parent.kind === "actor" ? parent.id : null}
+      WHERE parent_atom IS ${parent.kind === "atom" ? parent.id : null}
         AND parent_topology IS ${parent.kind === "topology" ? parent.id : null}
     `)[0]?.count ?? 0)
     const id = Number((await sql<Array<{id: number}>>`
-      INSERT INTO topology (parent_actor, parent_topology, kind, position)
-      VALUES (${parent.kind === "actor" ? parent.id : null}, ${parent.kind === "topology" ? parent.id : null}, ${kind}, ${position})
+      INSERT INTO topology (parent_atom, parent_topology, kind, position)
+      VALUES (${parent.kind === "atom" ? parent.id : null}, ${parent.kind === "topology" ? parent.id : null}, ${kind}, ${position})
       RETURNING id
     `)[0]!.id)
     await sql`
-      INSERT INTO boundary_runtime_origin (kind, runtime_id, declaration_path, parent_key, owner_actor, ordinal)
-      VALUES (${"topology"}, ${id}, ${originPath}, ${parentKey}, ${parent.ownerActor}, ${ordinal})
+      INSERT INTO boundary_runtime_origin (kind, runtime_id, declaration_path, parent_key, owner_atom, ordinal)
+      VALUES (${"topology"}, ${id}, ${originPath}, ${parentKey}, ${parent.ownerAtom}, ${ordinal})
     `
     const entity = await this.topologyEntity(sql, id)
     return entity ? [{part: "graviton", op: "add", path: `topology/${id}`, value: entity}] : []
@@ -686,7 +686,7 @@ export class BoundaryIncrementalStore {
 		  const binding = value.fieldsBinding
 		  let initialFields: JsonRecord | undefined
 		  if (typeof binding === "string") {
-			const resolved = await this.actorFieldByKey(sql, parent.ownerActor, binding)
+			const resolved = await this.atomFieldByKey(sql, parent.ownerAtom, binding)
 			if (isRecord(resolved)) initialFields = resolved
 		  } else if (isRecord(binding)) {
 			const paths = typeof binding.data === "string"
@@ -699,11 +699,11 @@ export class BoundaryIncrementalStore {
 			  if (path === "/state") {
 				values.push((await sql<Array<{name: string}>>`
 				  SELECT state.name AS name
-					FROM actor_state JOIN state ON state.id = actor_state.metaState
-				   WHERE actor_state.actor = ${parent.ownerActor}
+					FROM atom_state JOIN state ON state.id = atom_state.metaState
+				   WHERE atom_state.atom = ${parent.ownerAtom}
 				`)[0]?.name)
 			  } else {
-				values.push(await this.actorFieldByKey(sql, parent.ownerActor, path))
+				values.push(await this.atomFieldByKey(sql, parent.ownerAtom, path))
 			  }
 			}
 			const resolved = typeof binding.expr === "string"
@@ -711,7 +711,7 @@ export class BoundaryIncrementalStore {
 			  : values[0]
 			if (isRecord(resolved)) initialFields = resolved
 		  }
-		  created.push(...await this.createActor(sql, value.src, parent, address.path, ordinal, initialFields))
+		  created.push(...await this.createAtom(sql, value.src, parent, address.path, ordinal, initialFields))
           continue
         }
         if (value.kind !== "fuzzy" && value.kind !== "axion" && value.kind !== "macho") continue
@@ -722,7 +722,7 @@ export class BoundaryIncrementalStore {
         if (topologyId === null) continue
         for (const child of await this.matterRows(sql, address.src, address.localId)) {
           created.push(...await this.materializeMatter(sql, child.address, child.value, effects, {
-            kind: "topology", id: topologyId, ownerActor: parent.ownerActor,
+            kind: "topology", id: topologyId, ownerAtom: parent.ownerAtom,
           }))
         }
       }
@@ -732,14 +732,14 @@ export class BoundaryIncrementalStore {
 
   private async matterParents(sql: Database, address: InflatonAddress, value: JsonRecord): Promise<RuntimeRef[]> {
     if (value.parent == null) {
-      return (await sql<Array<{id: number}>>`SELECT id FROM actor WHERE wimp = ${address.src}`).map((row) => ({
-        kind: "actor" as const, id: Number(row.id), ownerActor: Number(row.id),
+      return (await sql<Array<{id: number}>>`SELECT id FROM atom WHERE wimp = ${address.src}`).map((row) => ({
+        kind: "atom" as const, id: Number(row.id), ownerAtom: Number(row.id),
       }))
     }
     const path = `${address.src}/matter/${String(value.parent)}`
-    return (await sql<Array<{kind: "actor" | "topology"; runtime_id: number; owner_actor: number}>>`
-      SELECT kind, runtime_id, owner_actor FROM boundary_runtime_origin WHERE declaration_path = ${path}
-    `).map((row) => ({kind: row.kind, id: Number(row.runtime_id), ownerActor: Number(row.owner_actor)}))
+    return (await sql<Array<{kind: "atom" | "topology"; runtime_id: number; owner_atom: number}>>`
+      SELECT kind, runtime_id, owner_atom FROM boundary_runtime_origin WHERE declaration_path = ${path}
+    `).map((row) => ({kind: row.kind, id: Number(row.runtime_id), ownerAtom: Number(row.owner_atom)}))
   }
 
   private async matterRows(sql: Database, src: string, parent: string | null): Promise<Array<{address: InflatonAddress; value: JsonRecord}>> {
@@ -759,14 +759,14 @@ export class BoundaryIncrementalStore {
     if (parent.kind !== "topology") return 1
     const topology = (await sql<Array<{kind: string}>>`SELECT kind FROM topology WHERE id = ${parent.id}`)[0]
     if (topology?.kind !== "macho") return 1
-    const origin = (await sql<Array<{declaration_path: string; owner_actor: number}>>`
-      SELECT declaration_path, owner_actor FROM boundary_runtime_origin WHERE kind = ${"topology"} AND runtime_id = ${parent.id}
+    const origin = (await sql<Array<{declaration_path: string; owner_atom: number}>>`
+      SELECT declaration_path, owner_atom FROM boundary_runtime_origin WHERE kind = ${"topology"} AND runtime_id = ${parent.id}
     `)[0]
     if (!origin) return 0
     const raw = await this.rawFromRow(sql, origin.declaration_path)
     const binding = isRecord(raw) && isRecord(raw.collectionBinding) ? raw.collectionBinding : null
     const value = binding && typeof binding.data === "string"
-      ? await this.actorFieldByKey(sql, Number(origin.owner_actor), binding.data)
+      ? await this.atomFieldByKey(sql, Number(origin.owner_atom), binding.data)
       : []
     return Array.isArray(value) ? value.length : 0
   }
@@ -775,8 +775,8 @@ export class BoundaryIncrementalStore {
     if (parent.kind !== "topology") return true
     const topology = (await sql<Array<{kind: string}>>`SELECT kind FROM topology WHERE id = ${parent.id}`)[0]
     if (!topology || topology.kind === "macho") return true
-    const origin = (await sql<Array<{declaration_path: string; owner_actor: number}>>`
-      SELECT declaration_path, owner_actor FROM boundary_runtime_origin WHERE kind = ${"topology"} AND runtime_id = ${parent.id}
+    const origin = (await sql<Array<{declaration_path: string; owner_atom: number}>>`
+      SELECT declaration_path, owner_atom FROM boundary_runtime_origin WHERE kind = ${"topology"} AND runtime_id = ${parent.id}
     `)[0]
     if (!origin) return false
     const raw = await this.rawFromRow(sql, origin.declaration_path)
@@ -785,11 +785,11 @@ export class BoundaryIncrementalStore {
     const current = binding && binding.data === "/state"
       ? (await sql<Array<{name: string}>>`
           SELECT state.name AS name
-            FROM actor_state JOIN state ON state.id = actor_state.metaState
-           WHERE actor_state.actor = ${Number(origin.owner_actor)}
+            FROM atom_state JOIN state ON state.id = atom_state.metaState
+           WHERE atom_state.atom = ${Number(origin.owner_atom)}
         `)[0]?.name
       : binding && typeof binding.data === "string"
-        ? await this.actorFieldByKey(sql, Number(origin.owner_actor), binding.data)
+        ? await this.atomFieldByKey(sql, Number(origin.owner_atom), binding.data)
         : undefined
     if (topology.kind === "axion") {
       const selected = binding && typeof binding.expr === "string"
@@ -807,8 +807,8 @@ export class BoundaryIncrementalStore {
     return true
   }
 
-  private async actorFieldByKey(sql: Database, actor: number, key: string): Promise<unknown> {
-    const head = (await sql<Array<{wimp: string}>>`SELECT wimp FROM actor WHERE id = ${actor}`)[0]
+  private async atomFieldByKey(sql: Database, atom: number, key: string): Promise<unknown> {
+    const head = (await sql<Array<{wimp: string}>>`SELECT wimp FROM atom WHERE id = ${atom}`)[0]
     if (!head) return undefined
     for (const row of await sql<Array<{path: string; value_json: string}>>`
       SELECT path, value_json FROM boundary_declaration_entity WHERE src = ${head.wimp} AND section = ${"fields"}
@@ -816,7 +816,7 @@ export class BoundaryIncrementalStore {
       const field = JSON.parse(row.value_json) as unknown
       if (!isRecord(field) || field.key !== key) continue
       const value = (await sql<Array<{value_json: string}>>`
-        SELECT value_json FROM boundary_actor_field WHERE actor = ${actor} AND field = ${boundaryEntityId(row.path)}
+        SELECT value_json FROM boundary_atom_field WHERE atom = ${atom} AND field = ${boundaryEntityId(row.path)}
       `)[0]
       return value ? JSON.parse(value.value_json) as unknown : undefined
     }
@@ -824,37 +824,37 @@ export class BoundaryIncrementalStore {
   }
 
   private async removeMatterInstances(sql: Database, path: string, effects: Particle[]): Promise<void> {
-    for (const origin of await sql<Array<{kind: "actor" | "topology"; runtime_id: number}>>`
+    for (const origin of await sql<Array<{kind: "atom" | "topology"; runtime_id: number}>>`
       SELECT kind, runtime_id FROM boundary_runtime_origin WHERE declaration_path = ${path} ORDER BY sequence DESC
     `) {
-      const table = origin.kind === "actor" ? "actor" : "topology"
+      const table = origin.kind === "atom" ? "atom" : "topology"
       const exists = (await sql.unsafe<Array<{ok: number}>>(`SELECT 1 AS ok FROM ${table} WHERE id = ?`, [origin.runtime_id]))[0]
       if (!exists) continue
       effects.push(...await this.removeRuntimeBranch(sql, origin.kind, Number(origin.runtime_id)))
     }
   }
 
-  private async removeRuntimeBranch(sql: Database, kind: "actor" | "topology", id: number): Promise<Particle[]> {
+  private async removeRuntimeBranch(sql: Database, kind: "atom" | "topology", id: number): Promise<Particle[]> {
     const particles: Particle[] = []
-    const visit = async (childKind: "actor" | "topology", childId: number): Promise<void> => {
+    const visit = async (childKind: "atom" | "topology", childId: number): Promise<void> => {
       for (const row of await sql<Array<{id: number}>>`
-        SELECT id FROM actor
-        WHERE parent_actor IS ${childKind === "actor" ? childId : null}
+        SELECT id FROM atom
+        WHERE parent_atom IS ${childKind === "atom" ? childId : null}
           AND parent_topology IS ${childKind === "topology" ? childId : null}
         ORDER BY id
-      `) await visit("actor", Number(row.id))
+      `) await visit("atom", Number(row.id))
       for (const row of await sql<Array<{id: number}>>`
         SELECT id FROM topology
-        WHERE parent_actor IS ${childKind === "actor" ? childId : null}
+        WHERE parent_atom IS ${childKind === "atom" ? childId : null}
           AND parent_topology IS ${childKind === "topology" ? childId : null}
         ORDER BY id
       `) await visit("topology", Number(row.id))
       particles.push({part: "graviton", op: "remove", path: `${childKind}/${childId}`})
       await sql`DELETE FROM boundary_runtime_origin WHERE kind = ${childKind} AND runtime_id = ${childId}`
-      if (childKind === "actor") await sql`DELETE FROM boundary_actor_field WHERE actor = ${childId}`
+      if (childKind === "atom") await sql`DELETE FROM boundary_atom_field WHERE atom = ${childId}`
     }
     await visit(kind, id)
-    if (kind === "actor") await sql`DELETE FROM actor WHERE id = ${id}`
+    if (kind === "atom") await sql`DELETE FROM atom WHERE id = ${id}`
     else await sql`DELETE FROM topology WHERE id = ${id}`
     return particles
   }
@@ -868,22 +868,22 @@ export class BoundaryIncrementalStore {
       for (const [rawField, value] of Object.entries(fields)) {
         const field = Number(rawField)
         if (!Number.isSafeInteger(field)) continue
-        if (part.op === "remove") await tx`DELETE FROM boundary_actor_field WHERE actor = ${part.path} AND field = ${field}`
+        if (part.op === "remove") await tx`DELETE FROM boundary_atom_field WHERE atom = ${part.path} AND field = ${field}`
         else {
           await tx`
-            INSERT INTO boundary_actor_field (actor, field, value_json)
+            INSERT INTO boundary_atom_field (atom, field, value_json)
             VALUES (${part.path}, ${field}, ${JSON.stringify(value)})
-            ON CONFLICT (actor, field) DO UPDATE SET value_json = excluded.value_json
+            ON CONFLICT (atom, field) DO UPDATE SET value_json = excluded.value_json
           `
         }
       }
       committed.push(clone(part))
       const changedFieldKeys = new Set<string>()
-      const actor = (await tx<Array<{wimp: string}>>`SELECT wimp FROM actor WHERE id = ${part.path}`)[0]
-      if (actor) {
+      const atom = (await tx<Array<{wimp: string}>>`SELECT wimp FROM atom WHERE id = ${part.path}`)[0]
+      if (atom) {
         for (const field of await tx<Array<{path: string; value_json: string}>>`
           SELECT path, value_json FROM boundary_declaration_entity
-           WHERE src = ${actor.wimp} AND section = ${"fields"}
+           WHERE src = ${atom.wimp} AND section = ${"fields"}
         `) {
           if (!Object.prototype.hasOwnProperty.call(fields, String(boundaryEntityId(field.path)))) continue
           const value = JSON.parse(field.value_json) as unknown
@@ -892,7 +892,7 @@ export class BoundaryIncrementalStore {
       }
       for (const topology of await tx<Array<{runtime_id: number; declaration_path: string}>>`
         SELECT runtime_id, declaration_path FROM boundary_runtime_origin
-        WHERE kind = ${"topology"} AND owner_actor = ${part.path}
+        WHERE kind = ${"topology"} AND owner_atom = ${part.path}
       `) {
         const raw = await this.rawFromRow(tx, topology.declaration_path)
         if (!isRecord(raw) || raw.kind === "axion") continue
@@ -902,8 +902,8 @@ export class BoundaryIncrementalStore {
             ? raw.collectionBinding
             : null
         if (!binding || typeof binding.data !== "string" || !changedFieldKeys.has(binding.data)) continue
-        for (const actor of await tx<Array<{id: number}>>`SELECT id FROM actor WHERE parent_topology = ${topology.runtime_id}`) {
-          committed.push(...await this.removeRuntimeBranch(tx, "actor", Number(actor.id)))
+        for (const atom of await tx<Array<{id: number}>>`SELECT id FROM atom WHERE parent_topology = ${topology.runtime_id}`) {
+          committed.push(...await this.removeRuntimeBranch(tx, "atom", Number(atom.id)))
         }
         for (const nested of await tx<Array<{id: number}>>`SELECT id FROM topology WHERE parent_topology = ${topology.runtime_id}`) {
           committed.push(...await this.removeRuntimeBranch(tx, "topology", Number(nested.id)))
@@ -913,7 +913,7 @@ export class BoundaryIncrementalStore {
         if (!address) continue
         for (const child of await this.matterRows(tx, address.src, address.localId)) {
           committed.push(...await this.materializeMatter(tx, child.address, child.value, committed, {
-            kind: "topology", id: Number(topology.runtime_id), ownerActor: Number(part.path),
+            kind: "topology", id: Number(topology.runtime_id), ownerAtom: Number(part.path),
           }))
         }
       }
@@ -923,47 +923,47 @@ export class BoundaryIncrementalStore {
     return {rootSrc: await this.rootSrc(), messages: effects.map(particleMessage)}
   }
 
-  private async actorEntity(sql: Database, id: number): Promise<JsonRecord | null> {
-    const actor = (await sql<Array<{id: number; parent_actor: number | null; parent_topology: number | null; wimp: string; position: number}>>`
-      SELECT id, parent_actor, parent_topology, wimp, position FROM actor WHERE id = ${id}
+  private async atomEntity(sql: Database, id: number): Promise<JsonRecord | null> {
+    const atom = (await sql<Array<{id: number; parent_atom: number | null; parent_topology: number | null; wimp: string; position: number}>>`
+      SELECT id, parent_atom, parent_topology, wimp, position FROM atom WHERE id = ${id}
     `)[0]
-    if (!actor) return null
-    const actorState = (await sql<Array<{metaState: number | null}>>`
-      SELECT metaState AS metaState FROM actor_state WHERE actor = ${id}
+    if (!atom) return null
+    const atomState = (await sql<Array<{metaState: number | null}>>`
+      SELECT metaState AS metaState FROM atom_state WHERE atom = ${id}
     `)[0]
-    const values: Array<{actor: number; field: number; value: number}> = []
+    const values: Array<{atom: number; field: number; value: number}> = []
     const records: JsonRecord[] = []
     const items: Array<{value: number; position: number; itemValue: string}> = []
     for (const row of await sql<Array<{id: number; field: number; value_json: string}>>`
-      SELECT id, field, value_json FROM boundary_actor_field WHERE actor = ${id} ORDER BY field
+      SELECT id, field, value_json FROM boundary_atom_field WHERE atom = ${id} ORDER BY field
     `) {
       const value = JSON.parse(row.value_json) as unknown
-      values.push({actor: id, field: Number(row.field), value: Number(row.id)})
+      values.push({atom: id, field: Number(row.field), value: Number(row.id)})
       records.push(valueRecord(Number(row.id), value))
       if (Array.isArray(value)) value.forEach((item, position) => items.push({value: Number(row.id), position, itemValue: String(item)}))
     }
     return {
-      actor: {
+      atom: {
         id,
-        parentActor: actor.parent_actor === null ? null : Number(actor.parent_actor),
-        parentTopology: actor.parent_topology === null ? null : Number(actor.parent_topology),
-        wimp: actor.wimp,
-        position: Number(actor.position),
+        parentAtom: atom.parent_atom === null ? null : Number(atom.parent_atom),
+        parentTopology: atom.parent_topology === null ? null : Number(atom.parent_topology),
+        wimp: atom.wimp,
+        position: Number(atom.position),
       },
       values,
       valueRecords: records,
       valueItems: items,
-      state: {actor: id, metaState: actorState?.metaState === null || actorState === undefined ? null : Number(actorState.metaState)},
+      state: {atom: id, metaState: atomState?.metaState === null || atomState === undefined ? null : Number(atomState.metaState)},
     }
   }
 
   private async topologyEntity(sql: Database, id: number): Promise<JsonRecord | null> {
-    const row = (await sql<Array<{id: number; parent_actor: number | null; parent_topology: number | null; kind: string; position: number}>>`
-      SELECT id, parent_actor, parent_topology, kind, position FROM topology WHERE id = ${id}
+    const row = (await sql<Array<{id: number; parent_atom: number | null; parent_topology: number | null; kind: string; position: number}>>`
+      SELECT id, parent_atom, parent_topology, kind, position FROM topology WHERE id = ${id}
     `)[0]
     return row ? {
       id,
-      parentActor: row.parent_actor === null ? null : Number(row.parent_actor),
+      parentAtom: row.parent_atom === null ? null : Number(row.parent_atom),
       parentTopology: row.parent_topology === null ? null : Number(row.parent_topology),
       kind: row.kind,
       position: Number(row.position),
@@ -972,12 +972,12 @@ export class BoundaryIncrementalStore {
 
   private async rootSrc(): Promise<string | null> {
     return (await this.sql<Array<{wimp: string}>>`
-      SELECT wimp FROM actor WHERE parent_actor IS NULL AND parent_topology IS NULL ORDER BY id LIMIT 1
+      SELECT wimp FROM atom WHERE parent_atom IS NULL AND parent_topology IS NULL ORDER BY id LIMIT 1
     `)[0]?.wimp ?? null
   }
 
   private async loadIndexes(): Promise<void> {
-    for (const row of await this.sql<Array<{kind: "actor" | "topology"; runtime_id: number; declaration_path: string; parent_key: string}>>`
+    for (const row of await this.sql<Array<{kind: "atom" | "topology"; runtime_id: number; declaration_path: string; parent_key: string}>>`
       SELECT kind, runtime_id, declaration_path, parent_key FROM boundary_runtime_origin ORDER BY sequence
     `) this.indexInstance(row.kind, Number(row.runtime_id), row.declaration_path, row.parent_key)
   }
@@ -985,9 +985,9 @@ export class BoundaryIncrementalStore {
   private async updateIndexes(effects: Particle[]): Promise<void> {
     for (const effect of effects) {
       if (effect.part !== "graviton" || typeof effect.path !== "string") continue
-      const match = /^(actor|topology)\/(\d+)$/.exec(effect.path)
+      const match = /^(atom|topology)\/(\d+)$/.exec(effect.path)
       if (!match) continue
-      const kind = match[1]! as "actor" | "topology"
+      const kind = match[1]! as "atom" | "topology"
       const id = Number(match[2])
       if (effect.op === "remove") {
         this.unindexInstance(kind, id)
@@ -1001,7 +1001,7 @@ export class BoundaryIncrementalStore {
     }
   }
 
-  private indexInstance(kind: "actor" | "topology", id: number, origin: string, parent: string): void {
+  private indexInstance(kind: "atom" | "topology", id: number, origin: string, parent: string): void {
     this.unindexInstance(kind, id)
     const key = `${kind}/${id}`
     this.originByInstance.set(key, origin)
@@ -1011,10 +1011,10 @@ export class BoundaryIncrementalStore {
       if (children) children.add(key)
       else this.childrenByParent.set(parent, new Set([key]))
     }
-    if (kind === "actor") {
-      const ids = this.actorIdsByDeclaration.get(origin)
+    if (kind === "atom") {
+      const ids = this.atomIdsByDeclaration.get(origin)
       if (ids) ids.add(id)
-      else this.actorIdsByDeclaration.set(origin, new Set([id]))
+      else this.atomIdsByDeclaration.set(origin, new Set([id]))
     } else {
       const ids = this.instanceIdsByTopology.get(origin)
       if (ids) ids.add(id)
@@ -1022,7 +1022,7 @@ export class BoundaryIncrementalStore {
     }
   }
 
-  private unindexInstance(kind: "actor" | "topology", id: number): void {
+  private unindexInstance(kind: "atom" | "topology", id: number): void {
     const key = `${kind}/${id}`
     const origin = this.originByInstance.get(key)
     const parent = this.parentByInstance.get(key)
@@ -1030,7 +1030,7 @@ export class BoundaryIncrementalStore {
       this.childrenByParent.get(parent)?.delete(key)
       if (this.childrenByParent.get(parent)?.size === 0) this.childrenByParent.delete(parent)
     }
-    if (origin && kind === "actor") this.actorIdsByDeclaration.get(origin)?.delete(id)
+    if (origin && kind === "atom") this.atomIdsByDeclaration.get(origin)?.delete(id)
     if (origin && kind === "topology") this.instanceIdsByTopology.get(origin)?.delete(id)
     this.originByInstance.delete(key)
     this.parentByInstance.delete(key)

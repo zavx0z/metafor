@@ -2,7 +2,7 @@ import {SQL} from "bun"
 import {mkdirSync} from "node:fs"
 import {dirname} from "node:path"
 import {BoundaryWimpSqlite} from "@boundary/wimp/sqlite"
-import {BoundaryActorSqlite} from "@boundary/actor/sqlite"
+import {BoundaryAtomSqlite} from "@boundary/atom/sqlite"
 import {BoundaryTopologySqlite} from "@boundary/topology/sqlite"
 import type {ForceMessage} from "@metafor/types/force/message"
 import {isReactionResultProposal} from "@metafor/types/force/reaction"
@@ -63,9 +63,9 @@ export const open = async (filename?: string) => {
     await sql.unsafe("PRAGMA busy_timeout = 5000;")
   }
 
-  // Topology precedes actor because both tables reference each other.
+  // Topology precedes atom because both tables reference each other.
   const topology = await BoundaryTopologySqlite.open(sql)
-  const actor = await BoundaryActorSqlite.open(sql)
+  const atom = await BoundaryAtomSqlite.open(sql)
   const wimp = await BoundaryWimpSqlite.open(sql)
   const projection = new BoundaryIncrementalStore(sql)
   await projection.init()
@@ -123,7 +123,7 @@ export const open = async (filename?: string) => {
 
   return {
     wimp,
-    actor,
+    atom,
     topology,
     projection,
     execution,

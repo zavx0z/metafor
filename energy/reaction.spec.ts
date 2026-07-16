@@ -21,9 +21,9 @@ const signal = (overrides: Partial<ReactionExecutionSignal> = {}): ReactionExecu
   kind: REACTION_SIGNAL_KIND,
   reactionExecutionId: "reaction-execution",
   reactionId: 701,
-  target: {actorId: 20, wimp: "target/meta", state: "idle"},
+  target: {atomId: 20, wimp: "target/meta", state: "idle"},
   source: {
-    actorId: 10,
+    atomId: 10,
     wimp: "source/meta",
     timestamp: 1_700_000_000_000,
     part: {op: "replace", path: "/context", value: {fields: {"1": 2}}},
@@ -87,7 +87,7 @@ describe("Energy Reaction claim protocol", () => {
       runtime.emit({parts: [{
         part: "photon",
         op: "test",
-        path: current.target.actorId,
+        path: current.target.atomId,
         from: current.reactionExecutionId,
         value: current,
       }]})
@@ -95,7 +95,7 @@ describe("Energy Reaction claim protocol", () => {
       expect(runtime.messages[0]?.parts[0]).toEqual({
         part: "z",
         op: "test",
-        path: current.target.actorId,
+        path: current.target.atomId,
         value: {
           kind: "reaction-claim",
           energy: "energy-reaction",
@@ -106,7 +106,7 @@ describe("Energy Reaction claim protocol", () => {
       runtime.emit({parts: [{
         part: "z",
         op: "copy",
-        path: current.target.actorId,
+        path: current.target.atomId,
         from: "energy-reaction",
         value: current,
       }]})
@@ -115,7 +115,7 @@ describe("Energy Reaction claim protocol", () => {
       expect(proposal).toEqual({
         part: "w+",
         op: "replace",
-        path: current.target.actorId,
+        path: current.target.atomId,
         from: "energy-reaction",
         value: {
           reactionExecutionId: current.reactionExecutionId,
@@ -136,12 +136,12 @@ describe("Energy Reaction claim protocol", () => {
       runtime.emit({parts: [{
         part: "photon",
         op: "test",
-        path: current.target.actorId,
+        path: current.target.atomId,
         from: current.reactionExecutionId,
         value: current,
       }]})
       await waitFor(() => runtime.messages.some((item) => item.parts[0]?.part === "z"))
-      runtime.emit({parts: [{part: "z", op: "copy", path: current.target.actorId, from: "energy-reaction", value: current}]})
+      runtime.emit({parts: [{part: "z", op: "copy", path: current.target.atomId, from: "energy-reaction", value: current}]})
       await waitFor(() => runtime.messages.some((item) => item.parts[0]?.part === "w-"))
       expect(runtime.messages.find((item) => item.parts[0]?.part === "w-")?.parts[0]?.value).toEqual({
         reactionExecutionId: current.reactionExecutionId,

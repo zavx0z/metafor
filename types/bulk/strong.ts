@@ -3,11 +3,11 @@ export interface StrongEntanglementField {
   fieldRef: string
   payloadUuids: string[]
   semanticKeys: string[]
-  representativeActorUuid: string
+  representativeAtomUuid: string
 }
 
 export interface StrongMembershipEntanglementBlock {
-  actorUuids: string[]
+  atomUuids: string[]
   scopeUuids: string[]
   semanticKeys: string[]
   fields: StrongEntanglementField[]

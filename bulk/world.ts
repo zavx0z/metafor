@@ -16,13 +16,13 @@ import {
 } from "@bulk/gravity/layout"
 import type { BulkRuntimeField, BulkRuntimeMatterBindingPath, BulkRuntimeMatterChildBindingPath, BulkRuntimeMatterParticle, BulkRuntimeProjection, BulkRuntimeValue } from "@metafor/types/bulk/runtime"
 import type { BulkLayoutSettings } from "@metafor/types/bulk/settings"
-import type { ActorRecord } from "@metafor/types/boundary/actor"
+import type { AtomRecord } from "@metafor/types/boundary/atom"
 import type { FieldEnumVariantRecord, ValueItemRecord } from "@metafor/types/boundary/value"
 import type { TopologyRecord } from "@metafor/types/boundary/topology"
 
-const wimpDarkParticleColor = {colorR: 0.4, colorG: 0.45, colorB: 0.98}
+const atomDarkParticleColor = {colorR: 0.4, colorG: 0.45, colorB: 0.98}
 const connectivityDarkParticleColors: Record<BulkDarkParticleKind, {colorR: number; colorG: number; colorB: number}> = {
-  wimp: wimpDarkParticleColor,
+  atom: atomDarkParticleColor,
   fuzzy: {colorR: 0.52, colorG: 0.88, colorB: 1},
   axion: {colorR: 1, colorG: 0.66, colorB: 0.36},
   macho: {colorR: 1, colorG: 0.38, colorB: 0.48},
@@ -101,11 +101,11 @@ const darkParticleNamespaceId = (id: number, offset: 0 | 1, label: string): numb
   return darkParticleId
 }
 
-const wimpDarkParticleIdFromActorId = (id: number): number => darkParticleNamespaceId(id, 0, "Actor")
+const atomDarkParticleIdFromAtomId = (id: number): number => darkParticleNamespaceId(id, 0, "Atom")
 const connectivityDarkParticleIdFromTopologyId = (id: number): number => darkParticleNamespaceId(id, 1, "Topology")
 
-const fieldParticleIdFromActorField = (actorId: number, fieldId: number): string =>
-  `atom:${actorId}:field:${fieldId}`
+const fieldParticleIdFromAtomField = (atomId: number, fieldId: number): string =>
+  `atom:${atomId}:field:${fieldId}`
 
 const valueText = (
   valueId: number | undefined,
@@ -155,7 +155,7 @@ export function buildBoundaryBulkManifest(
   settings: Partial<BulkLayoutSettings> = {},
 ): BulkManifest {
   const {
-    actors,
+    atoms,
     topologies,
     wimps,
     fields,
@@ -164,8 +164,8 @@ export function buildBoundaryBulkManifest(
     conditions,
     processes,
     reactions,
-    actorStates,
-    actorValues,
+    atomStates,
+    atomValues,
     values,
     valueItems,
     matterParticles,
@@ -173,7 +173,7 @@ export function buildBoundaryBulkManifest(
     matterChildWimpBindingPaths,
   } = projection
 
-  const actorById = new Map(actors.map((actor) => [actor.id, actor] as const))
+  const atomById = new Map(atoms.map((atom) => [atom.id, atom] as const))
   const topologyById = new Map(topologies.map((topology) => [topology.id, topology] as const))
   const wimpBySrc = new Map(wimps.map((wimp) => [wimp.src, wimp] as const))
   const fieldsByWimp = group(fields, (field) => field.wimp)
@@ -184,12 +184,12 @@ export function buildBoundaryBulkManifest(
   const reactionsByWimp = group(reactions, (reaction) => reaction.wimp)
   const fieldByWimpKey = new Map(fields.map((field) => [`${field.wimp}\0${field.key}`, field] as const))
   const enumVariantsByField = group(projection.fieldEnumVariants, (variant) => variant.field)
-  const actorValueByActorField = new Map(actorValues.map((entry) => [`${entry.actor}\0${entry.field}`, entry.value] as const))
+  const atomValueByAtomField = new Map(atomValues.map((entry) => [`${entry.atom}\0${entry.field}`, entry.value] as const))
   const valuesById = new Map(values.map((value) => [value.id, value] as const))
   const valueItemsById = group(valueItems, (item) => item.value)
-  const actorsByParentActor = group(actors, (actor) => actor.parentActor)
-  const actorsByParentTopology = group(actors, (actor) => actor.parentTopology)
-  const topologiesByParentActor = group(topologies, (topology) => topology.parentActor)
+  const atomsByParentAtom = group(atoms, (atom) => atom.parentAtom)
+  const atomsByParentTopology = group(atoms, (atom) => atom.parentTopology)
+  const topologiesByParentAtom = group(topologies, (topology) => topology.parentAtom)
   const topologiesByParentTopology = group(topologies, (topology) => topology.parentTopology)
   const matterParticlesByWimpParent = group(
     matterParticles,
@@ -199,7 +199,7 @@ export function buildBoundaryBulkManifest(
   const matterChildWimpBindingPathsByParticle = group(matterChildWimpBindingPaths, (entry) => entry.particle)
   const topologyLabelById = new Map<number, string>()
   const topologyPlanById = new Map<number, BulkRuntimeMatterParticle>()
-  const topologyActorById = new Map<number, ActorRecord>()
+  const topologyAtomById = new Map<number, AtomRecord>()
   const activityByDarkParticleId = new Map<number, BulkDarkParticleActivity>()
 
   const matterTopologyChildren = (wimp: string, parentMatterParticle: number | null): BulkRuntimeMatterParticle[] =>
@@ -257,10 +257,10 @@ export function buildBoundaryBulkManifest(
     reactions: reactionsByWimp.get(wimp)?.length ?? 0,
   })
 
-  const actorFieldValueText = (actor: ActorRecord, fieldKey: string): string | null => {
-    const field = fieldByWimpKey.get(`${actor.wimp}\0${fieldKey}`)
+  const atomFieldValueText = (atom: AtomRecord, fieldKey: string): string | null => {
+    const field = fieldByWimpKey.get(`${atom.wimp}\0${fieldKey}`)
     if (!field) return null
-    return valueText(actorValueByActorField.get(`${actor.id}\0${field.id}`), valuesById, valueItemsById)
+    return valueText(atomValueByAtomField.get(`${atom.id}\0${field.id}`), valuesById, valueItemsById)
   }
 
   const enumValuePosition = (field: BulkRuntimeField, value: string | null): number | null => {
@@ -268,8 +268,8 @@ export function buildBoundaryBulkManifest(
     return enumVariantsByField.get(field.id)?.find((variant: FieldEnumVariantRecord) => variant.itemValue === value)?.position ?? null
   }
 
-  const assignTopologyLabels = (actor: ActorRecord, runtimeTopologies: TopologyRecord[], parentMatterParticle: number | null): void => {
-    const wimp = actor.wimp
+  const assignTopologyLabels = (atom: AtomRecord, runtimeTopologies: TopologyRecord[], parentMatterParticle: number | null): void => {
+    const wimp = atom.wimp
     const plans = matterTopologyChildren(wimp, parentMatterParticle)
     const runtime = sortByPosition(runtimeTopologies)
     for (let index = 0; index < runtime.length; index++) {
@@ -277,22 +277,22 @@ export function buildBoundaryBulkManifest(
       const plan = plans[index]
       if (!plan) continue
       topologyPlanById.set(topology.id, plan)
-      topologyActorById.set(topology.id, actor)
+      topologyAtomById.set(topology.id, atom)
       const label = topologyPlanLabel(wimp, plan)
       if (label !== null) topologyLabelById.set(topology.id, label)
-      assignTopologyLabels(actor, topologiesByParentTopology.get(topology.id) ?? [], plan.id)
+      assignTopologyLabels(atom, topologiesByParentTopology.get(topology.id) ?? [], plan.id)
     }
   }
 
-  for (const actor of actors) {
-    assignTopologyLabels(actor, topologiesByParentActor.get(actor.id) ?? [], null)
+  for (const atom of atoms) {
+    assignTopologyLabels(atom, topologiesByParentAtom.get(atom.id) ?? [], null)
   }
 
   for (const topology of topologies) {
     if (topology.kind !== "fuzzy") continue
     const plan = topologyPlanById.get(topology.id)
-    const actor = topologyActorById.get(topology.id)
-    if (!plan || !actor) continue
+    const atom = topologyAtomById.get(topology.id)
+    if (!plan || !atom) continue
     const branchPlans = sortMatterParticles(matterParticlesByWimpParent.get(matterParentKey(plan.wimp, plan.id)) ?? [])
       .filter((particle) => particle.edgeSlot === "branch" && particle.particleKind === "wimp")
     if (branchPlans.length === 0) continue
@@ -300,58 +300,58 @@ export function buildBoundaryBulkManifest(
       .map((entry) => fieldKeyFromMatterPath(entry.path))
       .find((key): key is string => key !== null)
     if (!fieldKey) continue
-    const field = fieldByWimpKey.get(`${actor.wimp}\0${fieldKey}`)
-    const activeIndex = field?.type === "enum" ? enumValuePosition(field, actorFieldValueText(actor, fieldKey)) : null
-    const branchActors = sortByPosition(actorsByParentTopology.get(topology.id) ?? [])
-    branchActors.forEach((branchActor, index) => {
-      const darkParticleId = wimpDarkParticleIdFromActorId(branchActor.id)
+    const field = fieldByWimpKey.get(`${atom.wimp}\0${fieldKey}`)
+    const activeIndex = field?.type === "enum" ? enumValuePosition(field, atomFieldValueText(atom, fieldKey)) : null
+    const branchAtoms = sortByPosition(atomsByParentTopology.get(topology.id) ?? [])
+    branchAtoms.forEach((branchAtom, index) => {
+      const darkParticleId = atomDarkParticleIdFromAtomId(branchAtom.id)
       activityByDarkParticleId.set(darkParticleId, activeIndex !== null && index === activeIndex ? "active" : "inactive")
     })
   }
 
-  const fieldParticleInputFromBoundaryField = (actor: ActorRecord, field: BulkRuntimeField): BulkFieldParticleInput => {
+  const fieldParticleInputFromBoundaryField = (atom: AtomRecord, field: BulkRuntimeField): BulkFieldParticleInput => {
     const kind = fieldParticleKind(field.type)
     return {
-      fieldParticleId: fieldParticleIdFromActorField(actor.id, field.id),
+      fieldParticleId: fieldParticleIdFromAtomField(atom.id, field.id),
       fieldId: field.id,
       fieldKey: field.key,
       fieldLabel: field.label ?? field.key,
       fieldParticleKind: kind,
-      valueText: valueText(actorValueByActorField.get(`${actor.id}\0${field.id}`), valuesById, valueItemsById),
+      valueText: valueText(atomValueByAtomField.get(`${atom.id}\0${field.id}`), valuesById, valueItemsById),
       ...fieldParticleColor(kind),
     }
   }
 
   const childDarkParticleInputs = (
-    parent: {kind: "actor"; id: number} | {kind: "topology"; id: number},
+    parent: {kind: "atom"; id: number} | {kind: "topology"; id: number},
     visited: Set<string>,
     inheritedActivity: BulkDarkParticleActivity,
   ): BulkDarkParticleInput[] => {
-    const childActors = parent.kind === "actor" ? actorsByParentActor.get(parent.id) ?? [] : actorsByParentTopology.get(parent.id) ?? []
-    const childTopologies = parent.kind === "actor"
-      ? topologiesByParentActor.get(parent.id) ?? []
+    const childAtoms = parent.kind === "atom" ? atomsByParentAtom.get(parent.id) ?? [] : atomsByParentTopology.get(parent.id) ?? []
+    const childTopologies = parent.kind === "atom"
+      ? topologiesByParentAtom.get(parent.id) ?? []
       : topologiesByParentTopology.get(parent.id) ?? []
 
     return [
       ...sortByPosition(childTopologies).map((topology) => connectivityDarkParticleInputFromTopology(topology, visited, inheritedActivity)),
-      ...sortByPosition(childActors).map((actor) => wimpDarkParticleInputFromActor(actor, visited, inheritedActivity)),
+      ...sortByPosition(childAtoms).map((atom) => atomDarkParticleInputFromAtom(atom, visited, inheritedActivity)),
     ]
   }
 
-  const wimpDarkParticleInputFromActor = (actor: ActorRecord, visited: Set<string>, inheritedActivity: BulkDarkParticleActivity = "neutral"): BulkDarkParticleInput => {
-    const key = `actor:${actor.id}`
-    const darkParticleId = wimpDarkParticleIdFromActorId(actor.id)
+  const atomDarkParticleInputFromAtom = (atom: AtomRecord, visited: Set<string>, inheritedActivity: BulkDarkParticleActivity = "neutral"): BulkDarkParticleInput => {
+    const key = `atom:${atom.id}`
+    const darkParticleId = atomDarkParticleIdFromAtomId(atom.id)
     const activity = activityByDarkParticleId.get(darkParticleId) ?? inheritedActivity
     if (visited.has(key)) {
       return {
         darkParticleId,
-        darkParticleKind: "wimp",
-        src: actor.wimp,
-        metaSrc: actor.wimp,
-        label: wimpBySrc.get(actor.wimp)?.name ?? actor.wimp,
-        ...wimpDarkParticleColor,
+        darkParticleKind: "atom",
+        src: atom.wimp,
+        metaSrc: atom.wimp,
+        label: wimpBySrc.get(atom.wimp)?.name ?? atom.wimp,
+        ...atomDarkParticleColor,
         activity,
-        orbitalComplexity: orbitalComplexity(actor.wimp),
+        orbitalComplexity: orbitalComplexity(atom.wimp),
         fieldParticles: [],
         children: [],
       }
@@ -360,16 +360,16 @@ export function buildBoundaryBulkManifest(
     visited.add(key)
     return {
       darkParticleId,
-      darkParticleKind: "wimp",
-      src: actor.wimp,
-      metaSrc: actor.wimp,
-      label: wimpBySrc.get(actor.wimp)?.name ?? actor.wimp,
-      ...wimpDarkParticleColor,
+      darkParticleKind: "atom",
+      src: atom.wimp,
+      metaSrc: atom.wimp,
+      label: wimpBySrc.get(atom.wimp)?.name ?? atom.wimp,
+      ...atomDarkParticleColor,
       activity,
-      orbitalComplexity: orbitalComplexity(actor.wimp),
-      fieldParticles: (fieldsByWimp.get(actor.wimp) ?? [])
-        .map((field) => fieldParticleInputFromBoundaryField(actor, field)),
-      children: childDarkParticleInputs({kind: "actor", id: actor.id}, visited, activity),
+      orbitalComplexity: orbitalComplexity(atom.wimp),
+      fieldParticles: (fieldsByWimp.get(atom.wimp) ?? [])
+        .map((field) => fieldParticleInputFromBoundaryField(atom, field)),
+      children: childDarkParticleInputs({kind: "atom", id: atom.id}, visited, activity),
     }
   }
 
@@ -406,10 +406,10 @@ export function buildBoundaryBulkManifest(
     }
   }
 
-  const rootActors = actors.filter((actor) => actor.parentActor === null && actor.parentTopology === null)
-  const inputs = sortByPosition(rootActors.filter((actor) => actor.wimp === rootSrc))
-    .filter((actor) => actorById.has(actor.id))
-    .map((actor) => wimpDarkParticleInputFromActor(actor, new Set()))
+  const rootAtoms = atoms.filter((atom) => atom.parentAtom === null && atom.parentTopology === null)
+  const inputs = sortByPosition(rootAtoms.filter((atom) => atom.wimp === rootSrc))
+    .filter((atom) => atomById.has(atom.id))
+    .map((atom) => atomDarkParticleInputFromAtom(atom, new Set()))
 
   const manifest = scaleBulkManifestToRootOuterDiameter(
     createBulkManifestFromDarkParticleInputs(rootSrc, inputs, settings),
@@ -418,21 +418,21 @@ export function buildBoundaryBulkManifest(
   )
 
   const darkParticleById = new Map(manifest.darkParticles.map((particle) => [particle.darkParticleId, particle] as const))
-  const actorStateByActor = new Map(actorStates.map((state) => [state.actor, state.state] as const))
+  const atomStateByAtom = new Map(atomStates.map((state) => [state.atom, state.state] as const))
   const orbitalParticles: BulkOrbitalParticle[] = []
   const transitionChannels: BulkTransitionChannel[] = []
   const fieldProxies: BulkFieldProxy[] = []
   const relationChannels: BulkRelationChannel[] = []
 
-  for (const actor of actors) {
-    const parentDarkParticleId = wimpDarkParticleIdFromActorId(actor.id)
-    const atom = darkParticleById.get(parentDarkParticleId)
-    if (!atom) continue
-    const atomStates = sortByPosition(statesByWimp.get(actor.wimp) ?? [])
-    const atomTransitions = sortByPosition(transitionsByWimp.get(actor.wimp) ?? [])
+  for (const boundaryAtom of atoms) {
+    const parentDarkParticleId = atomDarkParticleIdFromAtomId(boundaryAtom.id)
+    const manifestedAtom = darkParticleById.get(parentDarkParticleId)
+    if (!manifestedAtom) continue
+    const atomStates = sortByPosition(statesByWimp.get(boundaryAtom.wimp) ?? [])
+    const atomTransitions = sortByPosition(transitionsByWimp.get(boundaryAtom.wimp) ?? [])
     const outgoing = group(atomTransitions, (transition) => transition.fromState)
     const stateById = new Map(atomStates.map((state) => [state.id, state] as const))
-    const currentStateId = actorStateByActor.get(actor.id) ?? null
+    const currentStateId = atomStateByAtom.get(boundaryAtom.id) ?? null
     const maxSleeveDepth = (stateId: number, path: Set<number>): number => {
       if (path.has(stateId)) return 0
       const nextPath = new Set(path).add(stateId)
@@ -447,11 +447,11 @@ export function buildBoundaryBulkManifest(
       const nextPath = new Set(path).add(stateId)
       for (const transition of outgoing.get(stateId) ?? []) countSleeveDepths(transition.toState, nextPath, depth + 1, counts)
     }
-    const atomInnerRadius = Math.max(0, atom.torusRadius - atom.torusTube)
-    const atomOuterRadius = atom.torusRadius + atom.torusTube
+    const atomInnerRadius = Math.max(0, manifestedAtom.torusRadius - manifestedAtom.torusTube)
+    const atomOuterRadius = manifestedAtom.torusRadius + manifestedAtom.torusTube
     const fieldRadius = manifest.fieldParticles.find((field) => field.parentDarkParticleId === parentDarkParticleId)?.sphereRadius
       ?? manifest.fieldParticles[0]?.sphereRadius
-      ?? Math.max(1, Math.min(atom.torusTube * 0.115, atom.torusRadius * 0.06))
+      ?? Math.max(1, Math.min(manifestedAtom.torusTube * 0.115, manifestedAtom.torusRadius * 0.06))
     const radiusCap = fieldRadius
     const layoutMargin = radiusCap * 1.45
     const sleeveStats = atomStates.map((state) => {
@@ -479,7 +479,7 @@ export function buildBoundaryBulkManifest(
     const stateOccurrencesByStateId = new Map<number, BulkOrbitalParticle[]>()
     const fieldProxyByOccurrenceField = new Map<string, BulkFieldProxy>()
     const ensureFieldProxy = (stateParticle: BulkOrbitalParticle, fieldId: number): BulkFieldProxy | null => {
-      const field = fields.find((candidate) => candidate.id === fieldId && candidate.wimp === actor.wimp)
+      const field = fields.find((candidate) => candidate.id === fieldId && candidate.wimp === boundaryAtom.wimp)
       if (!field) return null
       const key = `${stateParticle.orbitalParticleId}/field/${fieldId}`
       const existing = fieldProxyByOccurrenceField.get(key)
@@ -490,7 +490,7 @@ export function buildBoundaryBulkManifest(
       const color = fieldParticleColor(fieldParticleKind(field.type))
       const proxy: BulkFieldProxy = {
         fieldProxyId: key,
-        fieldParticleId: fieldParticleIdFromActorField(actor.id, field.id),
+        fieldParticleId: fieldParticleIdFromAtomField(boundaryAtom.id, field.id),
         fieldId,
         parentDarkParticleId,
         stateOrbitalParticleId: stateParticle.orbitalParticleId,
@@ -532,7 +532,7 @@ export function buildBoundaryBulkManifest(
       ): string => {
         const state = stateById.get(stateId)
         if (!state) return ""
-        const occurrenceId = `atom/${actor.id}/sleeve/${rootState.id}/state/${state.id}/path/${pathTransitions.join("-") || "root"}`
+        const occurrenceId = `atom/${boundaryAtom.id}/sleeve/${rootState.id}/state/${state.id}/path/${pathTransitions.join("-") || "root"}`
         const depth = pathTransitions.length
         const depthCount = stats.depthCounts.get(depth) ?? 1
         const depthIndex = depthIndexes.get(depth) ?? 0
@@ -560,7 +560,7 @@ export function buildBoundaryBulkManifest(
           relatedStateIds: [state.id],
           localX: Math.cos(angle) * distance,
           localY: Math.sin(angle) * distance,
-          localZ: terminal ? 0 : (rootIndex % 2 === 0 ? 1 : -1) * Math.min(atom.torusTube * 0.58, radius * (2.1 + depth * 0.25)),
+          localZ: terminal ? 0 : (rootIndex % 2 === 0 ? 1 : -1) * Math.min(manifestedAtom.torusTube * 0.58, radius * (2.1 + depth * 0.25)),
           sphereRadius: radius,
           colorR: activeSleeve ? 0.62 : 0.2,
           colorG: activeSleeve ? 0.96 : 0.68,
@@ -604,7 +604,7 @@ export function buildBoundaryBulkManifest(
     })
 
     const stateIdByName = new Map(atomStates.map((state) => [state.name, state.id] as const))
-    const atomAxions = sortByPosition((topologiesByParentActor.get(actor.id) ?? []).filter((topology) => topology.kind === "axion"))
+    const atomAxions = sortByPosition((topologiesByParentAtom.get(boundaryAtom.id) ?? []).filter((topology) => topology.kind === "axion"))
     atomAxions.forEach((topology) => {
       const anchor = darkParticleById.get(connectivityDarkParticleIdFromTopologyId(topology.id))
       if (!anchor) return
@@ -612,13 +612,13 @@ export function buildBoundaryBulkManifest(
       const stateName = label.startsWith("Axion · ") ? label.slice("Axion · ".length) : null
       const relatedState = stateName === null ? undefined : stateIdByName.get(stateName)
       const axionParticle: BulkOrbitalParticle = {
-        orbitalParticleId: `atom/${actor.id}/axion/${topology.id}`,
+        orbitalParticleId: `atom/${boundaryAtom.id}/axion/${topology.id}`,
         sourceId: topology.id,
         parentDarkParticleId,
         orbitalParticleKind: "axion",
         label,
         current: false,
-        active: (actorsByParentTopology.get(topology.id)?.length ?? 0) > 0,
+        active: (atomsByParentTopology.get(topology.id)?.length ?? 0) > 0,
         sleeveRootStateId: null,
         relatedStateIds: relatedState === undefined ? [] : [relatedState],
         localX: anchor.localX,
@@ -640,7 +640,7 @@ export function buildBoundaryBulkManifest(
         for (const path of paths) {
           const fieldKey = fieldKeyFromMatterPath(path)
           if (fieldKey === null) continue
-          const field = fieldByWimpKey.get(`${actor.wimp}\0${fieldKey}`)
+          const field = fieldByWimpKey.get(`${boundaryAtom.wimp}\0${fieldKey}`)
           if (field) fieldIds.add(field.id)
         }
       }
@@ -664,12 +664,12 @@ export function buildBoundaryBulkManifest(
         }
       }
     })
-    sortByPosition((processesByWimp.get(actor.wimp) ?? []).map((process, position) => ({...process, position}))).forEach((process, index) => {
+    sortByPosition((processesByWimp.get(boundaryAtom.wimp) ?? []).map((process, position) => ({...process, position}))).forEach((process, index) => {
       const relatedState = stateIdByName.get(process.state)
       const processRadius = radius * 1.12
-      const angle = (Math.PI * 2 * index) / Math.max(1, (processesByWimp.get(actor.wimp) ?? []).length) + Math.PI / 4
+      const angle = (Math.PI * 2 * index) / Math.max(1, (processesByWimp.get(boundaryAtom.wimp) ?? []).length) + Math.PI / 4
       const processParticle: BulkOrbitalParticle = {
-        orbitalParticleId: `atom/${actor.id}/${process.descriptor.type}/${process.id}`,
+        orbitalParticleId: `atom/${boundaryAtom.id}/${process.descriptor.type}/${process.id}`,
         sourceId: process.id,
         parentDarkParticleId,
         orbitalParticleKind: process.descriptor.type === "finally" ? "finally" : "process",
@@ -678,9 +678,9 @@ export function buildBoundaryBulkManifest(
         active: relatedState === currentStateId,
         sleeveRootStateId: null,
         relatedStateIds: relatedState === undefined ? [] : [relatedState],
-        localX: Math.cos(angle) * Math.max(processRadius * 2.8, atom.torusRadius * 0.18),
-        localY: Math.sin(angle) * Math.max(processRadius * 2.8, atom.torusRadius * 0.18),
-        localZ: -atom.torusTube * 0.28,
+        localX: Math.cos(angle) * Math.max(processRadius * 2.8, manifestedAtom.torusRadius * 0.18),
+        localY: Math.sin(angle) * Math.max(processRadius * 2.8, manifestedAtom.torusRadius * 0.18),
+        localZ: -manifestedAtom.torusTube * 0.28,
         sphereRadius: processRadius,
         colorR: process.descriptor.type === "finally" ? 1 : 0.72,
         colorG: process.descriptor.type === "finally" ? 0.22 : 0.46,
@@ -728,12 +728,12 @@ export function buildBoundaryBulkManifest(
       }
     })
 
-    const atomReactions = reactionsByWimp.get(actor.wimp) ?? []
+    const atomReactions = reactionsByWimp.get(boundaryAtom.wimp) ?? []
     atomReactions.forEach((reaction, index) => {
       const reactionRadius = radius * 1.18
       const angle = (Math.PI * 2 * index) / Math.max(1, atomReactions.length) - Math.PI / 3
       const reactionParticle: BulkOrbitalParticle = {
-        orbitalParticleId: `atom/${actor.id}/reaction/${reaction.id}`,
+        orbitalParticleId: `atom/${boundaryAtom.id}/reaction/${reaction.id}`,
         sourceId: reaction.id,
         parentDarkParticleId,
         orbitalParticleKind: "reaction",
@@ -742,9 +742,9 @@ export function buildBoundaryBulkManifest(
         active: reaction.states.length === 0 || (currentStateId !== null && reaction.states.includes(currentStateId)),
         sleeveRootStateId: null,
         relatedStateIds: [...reaction.states],
-        localX: Math.cos(angle) * (atom.torusRadius + atom.torusTube + reactionRadius * 2.4),
-        localY: Math.sin(angle) * (atom.torusRadius + atom.torusTube + reactionRadius * 2.4),
-        localZ: (index % 2 === 0 ? 1 : -1) * atom.torusTube * 0.35,
+        localX: Math.cos(angle) * (manifestedAtom.torusRadius + manifestedAtom.torusTube + reactionRadius * 2.4),
+        localY: Math.sin(angle) * (manifestedAtom.torusRadius + manifestedAtom.torusTube + reactionRadius * 2.4),
+        localZ: (index % 2 === 0 ? 1 : -1) * manifestedAtom.torusTube * 0.35,
         sphereRadius: reactionRadius,
         colorR: 1,
         colorG: 0.3,

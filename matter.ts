@@ -146,12 +146,12 @@ const validateNode = (node: NodeType, fields: MatterFields, location: string): v
     case "el":
       throw new Error(
         `Matter violation at "${location}": HTML element <${node.tag}> is not allowed in matter. ` +
-          `Matter declares actor topology only; move HTML structure into Bulk.`,
+          `Matter declares atom topology only; move HTML structure into Bulk.`,
       )
     case "text":
       throw new Error(
         `Matter violation at "${location}": text nodes are not allowed in matter. ` +
-          `Matter declares actor topology only; move text rendering into Bulk.`,
+          `Matter declares atom topology only; move text rendering into Bulk.`,
       )
   }
 }

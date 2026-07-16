@@ -19,19 +19,19 @@
 - declaration обычных fields и их defaults как часть WIMP source;
 - deterministic local declaration IDs;
 - передача schema/defaults через Inflaton;
-- отсутствие runtime actor values и Gluon mutation.
+- отсутствие runtime atom values и Gluon mutation.
 
 ### Boundary
 
 - canonical field declaration и defaults;
-- materialized actor values, изменяемые локальными patches;
+- materialized atom values, изменяемые локальными patches;
 - устойчивое представление value records на границе;
 - один derived runtime particle после commit каждого значения.
 
 ### Matrix
 
 - накопление compact values в локальном Matrix store;
-- применение actor-scoped `gluon` по `value.fields[fieldId]`;
+- применение atom-scoped `gluon` по `value.fields[fieldId]`;
 - вычисление переходов после изменения обычного field;
 - отсутствие прямого чтения Boundary.
 
@@ -39,7 +39,7 @@
 
 - проявление runtime values без владения canonical store;
 - наблюдаемое обновление обычных fields;
-- сохранение привязки значения к проявленной actor projection.
+- сохранение привязки значения к проявленной atom projection.
 
 ## Граница действия `Gluon`
 

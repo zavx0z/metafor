@@ -33,22 +33,22 @@
 
 - declaration topology как часть WIMP source,
 - `enum` variants и `array` schema с deterministic local IDs,
-- matter declaration `Fuzzy`/`Macho`/`Axion` без runtime actors,
+- matter declaration `Fuzzy`/`Macho`/`Axion` без runtime atoms,
 - передача declaration через Inflaton, а не через Higgs runtime patch.
 
 ### Boundary
 
 - canonical topology declaration и initial choice/multiplicity,
-- materialization actor/topology/value instances,
-- Macho expansion по runtime array value конкретного actor,
+- materialization atom/topology/value instances,
+- Macho expansion по runtime array value конкретного atom,
 - различение topology field и обычного field в runtime projection,
 - запрет внешней реактивной мутации `array`.
 
 ### Matrix
 
 - накопление topology markers в локальном runtime store,
-- применение actor-scoped `higgs` по `value.fields[fieldId]`,
-- отправка actor-scoped Higgs к Boundary для локального transaction.
+- применение atom-scoped `higgs` по `value.fields[fieldId]`,
+- отправка atom-scoped Higgs к Boundary для локального transaction.
 
 ### Bulk
 
@@ -90,8 +90,8 @@
 - такое изменение должно проходить через изменение `State`,
 - внешний мир может наблюдать результат изменения topology, но не должен напрямую вмешиваться в её разворачивание.
 
-Dark не может создать Macho child actors: multiplicity определяется current
-array value materialized actor. Этой identity и разворачиванием владеет
+Dark не может создать Macho child atoms: multiplicity определяется current
+array value materialized atom. Этой identity и разворачиванием владеет
 Boundary.
 
 Эти ограничения нужны, чтобы избежать неконтролируемого сцепления topology.
@@ -104,7 +104,7 @@ Boundary.
 - `Higgs boson` меняет topology,
 - `Photon` продолжает переносить `State`,
 - `Graviton` удерживает ту рамку отношения и локализации, в которой изменение topology получает место,
-- `Boundary` фиксирует actor value и перестраивает только зависимую ветвь,
+- `Boundary` фиксирует atom value и перестраивает только зависимую ветвь,
 - `Matrix` и `Bulk` применяют отдельные derived particles этой ветви.
 
 Dark не является runtime-наблюдателем этих изменений. Он читает source topology

@@ -208,7 +208,7 @@ const materializeContentAwareDarkParticleNode = (
   if (descriptor.darkParticleKind === "axion") {
     const orbit = placeChildrenOnTopologyOrbit(
       descriptor.darkParticleId,
-      nestedChildren.filter((child) => child.darkParticleKind === "wimp"),
+      nestedChildren.filter((child) => child.darkParticleKind === "atom"),
       sphereRadius * 0.72,
       padding,
     )

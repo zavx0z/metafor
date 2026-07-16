@@ -40,7 +40,7 @@ describe("Force impulse logger", () => {
       parts: [{
         part: "w+",
         op: "replace",
-        path: "actor/17",
+        path: "atom/17",
         value: {result: 2, token: "must-not-be-logged", nested: {apiKey: "hidden"}},
       }],
     }

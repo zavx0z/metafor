@@ -11,13 +11,13 @@ import {
   type ReactionResultProposal,
 } from "@metafor/types/force/reaction"
 import type {BoundaryIncrementalCommit} from "./incremental.ts"
-import {commitBoundaryActorFields} from "./world.ts"
+import {commitBoundaryAtomFields} from "./world.ts"
 
 type Database = SQL | ReservedSQL
 type JsonRecord = Record<string, unknown>
 
-type ActorStateRow = {
-  actorId: number
+type AtomStateRow = {
+  atomId: number
   wimp: string
   stateId: number
   stateName: string
@@ -25,7 +25,7 @@ type ActorStateRow = {
 
 type ReactionExecutionRow = {
   executionId: string
-  targetActor: number
+  targetAtom: number
   reaction: number
   targetState: string
   energy: string | null
@@ -65,7 +65,7 @@ export class BoundaryReactionStore {
     await this.sql.unsafe(`
       CREATE TABLE IF NOT EXISTS boundary_reaction_execution (
         execution_id TEXT PRIMARY KEY,
-        target_actor INTEGER NOT NULL,
+        target_atom INTEGER NOT NULL,
         reaction INTEGER NOT NULL,
         target_state TEXT NOT NULL,
         energy TEXT,
@@ -75,10 +75,10 @@ export class BoundaryReactionStore {
         result_json TEXT,
         created_at INTEGER NOT NULL DEFAULT (unixepoch()),
         committed_at INTEGER,
-        FOREIGN KEY (target_actor) REFERENCES actor (id) ON DELETE CASCADE
+        FOREIGN KEY (target_atom) REFERENCES atom (id) ON DELETE CASCADE
       );
       CREATE INDEX IF NOT EXISTS boundary_reaction_target_status
-        ON boundary_reaction_execution (target_actor, status);
+        ON boundary_reaction_execution (target_atom, status);
     `)
   }
 
@@ -104,34 +104,34 @@ export class BoundaryReactionStore {
       const part = committed.parts[0]
       if ((part.part !== "gluon" && part.part !== "higgs") ||
           (part.op !== "add" && part.op !== "replace" && part.op !== "remove")) continue
-      const sourceActorId = positiveId(part.path)
-      if (sourceActorId === null) continue
-      signals.push(...await this.deriveForFieldConsequence(sourceActorId, part))
+      const sourceAtomId = positiveId(part.path)
+      if (sourceAtomId === null) continue
+      signals.push(...await this.deriveForFieldConsequence(sourceAtomId, part))
     }
     return signals
   }
 
-  private async deriveForFieldConsequence(sourceActorId: number, part: Particle): Promise<ForceMessage[]> {
-    const source = await this.actorState(this.sql, sourceActorId)
+  private async deriveForFieldConsequence(sourceAtomId: number, part: Particle): Promise<ForceMessage[]> {
+    const source = await this.atomState(this.sql, sourceAtomId)
     if (!source) return []
 
-    const targets = await this.sql<ActorStateRow[]>`
-      SELECT actor.id AS actorId,
-             actor.wimp AS wimp,
+    const targets = await this.sql<AtomStateRow[]>`
+      SELECT atom.id AS atomId,
+             atom.wimp AS wimp,
              state.id AS stateId,
              state.name AS stateName
-        FROM actor
-        JOIN actor_state ON actor_state.actor = actor.id
-        JOIN state ON state.id = actor_state.metaState
-       WHERE actor.id <> ${sourceActorId}
-       ORDER BY actor.id
+        FROM atom
+        JOIN atom_state ON atom_state.atom = atom.id
+        JOIN state ON state.id = atom_state.metaState
+       WHERE atom.id <> ${sourceAtomId}
+       ORDER BY atom.id
     `
     const result: ForceMessage[] = []
     const reactionCache = new Map<string, CanonicalReaction[]>()
 
     for (const rawTarget of targets) {
-      const target: ActorStateRow = {
-        actorId: Number(rawTarget.actorId),
+      const target: AtomStateRow = {
+        atomId: Number(rawTarget.atomId),
         wimp: rawTarget.wimp,
         stateId: Number(rawTarget.stateId),
         stateName: rawTarget.stateName,
@@ -143,7 +143,7 @@ export class BoundaryReactionStore {
       }
       if (reactions.length === 0) continue
 
-      const value = await this.actorValues(this.sql, target.actorId, target.wimp)
+      const value = await this.atomValues(this.sql, target.atomId, target.wimp)
       const fieldKeys = await this.fieldKeys(this.sql, target.wimp)
 
       for (const reaction of reactions) {
@@ -163,12 +163,12 @@ export class BoundaryReactionStore {
           reactionExecutionId,
           reactionId: reaction.id,
           target: {
-            actorId: target.actorId,
+            atomId: target.atomId,
             wimp: target.wimp,
             state: target.stateName,
           },
           source: {
-            actorId: source.actorId,
+            atomId: source.atomId,
             wimp: source.wimp,
             timestamp: Date.now(),
             part: {
@@ -186,13 +186,13 @@ export class BoundaryReactionStore {
 
         await this.sql`
           INSERT INTO boundary_reaction_execution
-            (execution_id, target_actor, reaction, target_state, status, signal_json)
-          VALUES (${reactionExecutionId}, ${target.actorId}, ${reaction.id}, ${target.stateName}, ${"pending"}, ${JSON.stringify(signal)})
+            (execution_id, target_atom, reaction, target_state, status, signal_json)
+          VALUES (${reactionExecutionId}, ${target.atomId}, ${reaction.id}, ${target.stateName}, ${"pending"}, ${JSON.stringify(signal)})
         `
         result.push(message({
           part: "photon",
           op: "test",
-          path: target.actorId,
+          path: target.atomId,
           from: reactionExecutionId,
           value: signal,
         }))
@@ -231,7 +231,7 @@ export class BoundaryReactionStore {
       messages: [message({
         part: "z",
         op: "copy",
-        path: selected.target.actorId,
+        path: selected.target.atomId,
         from: energy,
         value: selected,
       })],
@@ -242,10 +242,10 @@ export class BoundaryReactionStore {
     part: Particle,
     proposal: ReactionResultProposal,
   ): Promise<BoundaryIncrementalCommit | null> {
-    const targetActorId = positiveId(part.path)
+    const targetAtomId = positiveId(part.path)
     const energy = typeof part.from === "string" ? part.from.trim() : ""
-    if (targetActorId === null || energy.length === 0) {
-      throw new Error("Reaction W result requires target Actor and Energy source")
+    if (targetAtomId === null || energy.length === 0) {
+      throw new Error("Reaction W result requires target Atom and Energy source")
     }
 
     const resultJson = JSON.stringify(proposal)
@@ -254,7 +254,7 @@ export class BoundaryReactionStore {
       if (!execution) throw new Error(`Unknown Reaction execution ${proposal.reactionExecutionId}`)
       if (execution.status !== "pending") {
         if (
-          execution.targetActor === targetActorId &&
+          execution.targetAtom === targetAtomId &&
           execution.reaction === proposal.reactionId &&
           execution.energy === energy &&
           execution.resultPart === part.part &&
@@ -262,14 +262,14 @@ export class BoundaryReactionStore {
         ) return null
         throw new Error(`Reaction execution ${proposal.reactionExecutionId} is already ${execution.status}`)
       }
-      if (execution.targetActor !== targetActorId || execution.reaction !== proposal.reactionId || execution.energy !== energy) {
+      if (execution.targetAtom !== targetAtomId || execution.reaction !== proposal.reactionId || execution.energy !== energy) {
         throw new Error(`Reaction result does not match selected execution ${proposal.reactionExecutionId}`)
       }
 
       const signalValue = JSON.parse(execution.signalJson) as unknown
       if (!isReactionExecutionSignal(signalValue)) throw new Error(`Invalid Reaction signal ${proposal.reactionExecutionId}`)
       const signal = signalValue
-      const target = await this.actorState(tx, targetActorId)
+      const target = await this.atomState(tx, targetAtomId)
       const reaction = target ? await this.reactionById(tx, target.wimp, proposal.reactionId) : null
       if (!target || !reaction || target.stateName !== execution.targetState || target.stateName !== signal.target.state ||
           !reaction.states.includes(target.stateId)) {
@@ -285,9 +285,9 @@ export class BoundaryReactionStore {
 
       const allowed = new Set(reaction.write)
       const fieldCommit = part.part === "w+"
-        ? await commitBoundaryActorFields(
+        ? await commitBoundaryAtomFields(
             tx,
-            targetActorId,
+            targetAtomId,
             target.wimp,
             allowed,
             proposal.fields,
@@ -320,7 +320,7 @@ export class BoundaryReactionStore {
       consequences.push(message({
         part: "gluon",
         op: "replace",
-        path: targetActorId,
+        path: targetAtomId,
         from: proposal.reactionExecutionId,
         value: {fields: committed.scalar},
       }))
@@ -329,7 +329,7 @@ export class BoundaryReactionStore {
       consequences.push(message({
         part: "higgs",
         op: "replace",
-        path: targetActorId,
+        path: targetAtomId,
         from: proposal.reactionExecutionId,
         value: {fields: committed.topology},
       }))
@@ -343,7 +343,7 @@ export class BoundaryReactionStore {
     consequences.push(message({
       part: part.part,
       op: "copy",
-      path: targetActorId,
+      path: targetAtomId,
       from: proposal.reactionExecutionId,
       value: acknowledgement,
     }))
@@ -351,43 +351,43 @@ export class BoundaryReactionStore {
   }
 
   private async supersedeForStateChange(part: Particle): Promise<void> {
-    const actorId = positiveId(part.path)
-    if (actorId === null) return
+    const atomId = positiveId(part.path)
+    if (atomId === null) return
     await this.sql`
       UPDATE boundary_reaction_execution
          SET status = ${"superseded"}
-       WHERE target_actor = ${actorId}
+       WHERE target_atom = ${atomId}
          AND status = ${"pending"}
     `
   }
 
-  private async actorState(sql: Database, actorId: number): Promise<ActorStateRow | null> {
-    const row = (await sql<ActorStateRow[]>`
-      SELECT actor.id AS actorId,
-             actor.wimp AS wimp,
+  private async atomState(sql: Database, atomId: number): Promise<AtomStateRow | null> {
+    const row = (await sql<AtomStateRow[]>`
+      SELECT atom.id AS atomId,
+             atom.wimp AS wimp,
              state.id AS stateId,
              state.name AS stateName
-        FROM actor
-        JOIN actor_state ON actor_state.actor = actor.id
-        JOIN state ON state.id = actor_state.metaState
-       WHERE actor.id = ${actorId}
+        FROM atom
+        JOIN atom_state ON atom_state.atom = atom.id
+        JOIN state ON state.id = atom_state.metaState
+       WHERE atom.id = ${atomId}
     `)[0]
     return row ? {
-      actorId: Number(row.actorId),
+      atomId: Number(row.atomId),
       wimp: row.wimp,
       stateId: Number(row.stateId),
       stateName: row.stateName,
     } : null
   }
 
-  private async actorValues(sql: Database, actorId: number, wimp: string): Promise<Record<string, unknown>> {
+  private async atomValues(sql: Database, atomId: number, wimp: string): Promise<Record<string, unknown>> {
     const value: Record<string, unknown> = {}
     for (const row of await sql<Array<{key: string; valueJson: string}>>`
       SELECT field.key AS key,
-             boundary_actor_field.value_json AS valueJson
+             boundary_atom_field.value_json AS valueJson
         FROM field
-        JOIN boundary_actor_field ON boundary_actor_field.field = field.id
-       WHERE boundary_actor_field.actor = ${actorId}
+        JOIN boundary_atom_field ON boundary_atom_field.field = field.id
+       WHERE boundary_atom_field.atom = ${atomId}
          AND field.wimp = ${wimp}
        ORDER BY field.local_id, field.id
     `) value[row.key] = JSON.parse(row.valueJson) as unknown
@@ -404,7 +404,7 @@ export class BoundaryReactionStore {
   private async execution(sql: Database, executionId: string): Promise<ReactionExecutionRow | null> {
     const row = (await sql<ReactionExecutionRow[]>`
       SELECT execution_id AS executionId,
-             target_actor AS targetActor,
+             target_atom AS targetAtom,
              reaction,
              target_state AS targetState,
              energy,
@@ -417,7 +417,7 @@ export class BoundaryReactionStore {
     `)[0]
     return row ? {
       ...row,
-      targetActor: Number(row.targetActor),
+      targetAtom: Number(row.targetAtom),
       reaction: Number(row.reaction),
     } : null
   }

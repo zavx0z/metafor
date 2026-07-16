@@ -15,12 +15,12 @@ export type ReactionExecutionSignal = {
   reactionExecutionId: string
   reactionId: number
   target: {
-    actorId: number
+    atomId: number
     wimp: string
     state: string
   }
   source: {
-    actorId: number
+    atomId: number
     wimp: string
     timestamp: number
     part: ReactionEventPart
@@ -64,8 +64,8 @@ export const isReactionExecutionId = (value: unknown): value is string =>
 export const isReactionExecutionSignal = (value: unknown): value is ReactionExecutionSignal => {
   if (!isRecord(value) || value.kind !== REACTION_SIGNAL_KIND) return false
   if (!isReactionExecutionId(value.reactionExecutionId) || !positiveId(value.reactionId)) return false
-  if (!isRecord(value.target) || !positiveId(value.target.actorId) || typeof value.target.wimp !== "string" || typeof value.target.state !== "string") return false
-  if (!isRecord(value.source) || !positiveId(value.source.actorId) || typeof value.source.wimp !== "string" || typeof value.source.timestamp !== "number" || !isRecord(value.source.part)) return false
+  if (!isRecord(value.target) || !positiveId(value.target.atomId) || typeof value.target.wimp !== "string" || typeof value.target.state !== "string") return false
+  if (!isRecord(value.source) || !positiveId(value.source.atomId) || typeof value.source.wimp !== "string" || typeof value.source.timestamp !== "number" || !isRecord(value.source.part)) return false
   if (!isRecord(value.value) || !Array.isArray(value.writeFields) || typeof value.cond !== "string" || typeof value.update !== "string") return false
   return value.writeFields.every((item) =>
     Array.isArray(item) && item.length === 2 && positiveId(item[0]) && typeof item[1] === "string",

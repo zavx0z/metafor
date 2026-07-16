@@ -55,7 +55,7 @@ Matrix -> apply result, unlock, continue
 При process-bound state Matrix:
 
 1. ставит lock;
-2. сохраняет frozen actor fields;
+2. сохраняет frozen atom fields;
 3. испускает:
 
 ```ts
@@ -67,7 +67,7 @@ Matrix не передаётся.
 
 ### Claim через Z
 
-Energy находит descriptor по `actor -> WIMP` и `WIMP + state`, проверяет
+Energy находит descriptor по `atom -> WIMP` и `WIMP + state`, проверяет
 env и отправляет:
 
 ```ts
@@ -129,7 +129,7 @@ transition.
 
 ## Addressing
 
-- `path = actor ID`;
+- `path = atom ID`;
 - fields находятся в `value.fields[fieldId]`;
 - Energy identity находится в `z test.value.energy` и `z copy.from`;
 - `processId`, `wimpId`, `executorId`, `token` не добавляются как
@@ -156,7 +156,7 @@ Weak частицы несут только управляющий резуль�
 
 - отдельные canonical process entities;
 - state/process binding;
-- поштучные actor/process consequences после commit.
+- поштучные atom/process consequences после commit.
 
 ### Matrix
 
@@ -167,8 +167,8 @@ Weak частицы несут только управляющий резуль�
 
 ### Energy
 
-- инкрементальный actor/process store;
-- actor/WIMP/process и parent-child индексы;
+- инкрементальный atom/process store;
+- atom/WIMP/process и parent-child индексы;
 - env check;
 - `z test`;
 - action/handler execution;

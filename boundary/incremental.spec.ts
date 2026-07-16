@@ -30,7 +30,7 @@ describe("Boundary incremental projection", () => {
     await apply(inflaton("test", ROOT))
     await apply(inflaton("add", `${ROOT}/meta`, {name: "Root"}))
     return Number((await boundary.projection.sql<Array<{id: number}>>`
-      SELECT id FROM actor WHERE wimp = ${ROOT} AND parent_actor IS NULL
+      SELECT id FROM atom WHERE wimp = ${ROOT} AND parent_atom IS NULL
     `)[0]!.id)
   }
 
@@ -80,23 +80,23 @@ describe("Boundary incremental projection", () => {
     await apply(inflaton("add", `${ROOT}/matter/2`, {parent: null, edgeSlot: "root", position: 1, kind: "wimp", src: PEER}))
 
     const before = await boundary.projection.sql<Array<{id: number; wimp: string}>>`
-      SELECT id, wimp FROM actor ORDER BY id
+      SELECT id, wimp FROM atom ORDER BY id
     `
-    const childId = Number(before.find((actor) => actor.wimp === CHILD)!.id)
-    const peerId = Number(before.find((actor) => actor.wimp === PEER)!.id)
-    const childObjectIds = boundary.projection.actorIdsByDeclaration.get(`${ROOT}/matter/1`)
+    const childId = Number(before.find((atom) => atom.wimp === CHILD)!.id)
+    const peerId = Number(before.find((atom) => atom.wimp === PEER)!.id)
+    const childObjectIds = boundary.projection.atomIdsByDeclaration.get(`${ROOT}/matter/1`)
 
     await apply(inflaton("replace", `${CHILD}/meta`, {name: "Renamed child"}))
-    expect((await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM actor WHERE wimp = ${CHILD}`)[0]!.id).toBe(childId)
-    expect(boundary.projection.actorIdsByDeclaration.get(`${ROOT}/matter/1`)).toBe(childObjectIds)
+    expect((await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM atom WHERE wimp = ${CHILD}`)[0]!.id).toBe(childId)
+    expect(boundary.projection.atomIdsByDeclaration.get(`${ROOT}/matter/1`)).toBe(childObjectIds)
 
     const removed = await apply(inflaton("remove", `${ROOT}/matter/1`))
-    expect(removed?.messages).toContainEqual({parts: [{part: "graviton", op: "remove", path: `actor/${childId}`}]})
-    expect(await boundary.projection.sql<Array<{id: number; wimp: string}>>`SELECT id, wimp FROM actor ORDER BY id`).toEqual([
+    expect(removed?.messages).toContainEqual({parts: [{part: "graviton", op: "remove", path: `atom/${childId}`}]})
+    expect(await boundary.projection.sql<Array<{id: number; wimp: string}>>`SELECT id, wimp FROM atom ORDER BY id`).toEqual([
       {id: rootId, wimp: ROOT},
       {id: peerId, wimp: PEER},
     ])
-    expect(boundary.projection.childrenByParent.get(`actor/${rootId}`)).toEqual(new Set([`actor/${peerId}`]))
+    expect(boundary.projection.childrenByParent.get(`atom/${rootId}`)).toEqual(new Set([`atom/${peerId}`]))
   })
 
 	test("materializes child Fields from the parent's declared Matter binding", async () => {
@@ -116,11 +116,11 @@ describe("Boundary incremental projection", () => {
 		}))
 
 		const childId = Number((await boundary.projection.sql<Array<{id: number}>>`
-			SELECT id FROM actor WHERE wimp = ${CHILD}
+			SELECT id FROM atom WHERE wimp = ${CHILD}
 		`)[0]!.id)
 		expect(rootId).toBeGreaterThan(0)
 		expect(await boundary.projection.sql<Array<{value: string}>>`
-			SELECT value_json AS value FROM boundary_actor_field WHERE actor = ${childId} ORDER BY field
+			SELECT value_json AS value FROM boundary_atom_field WHERE atom = ${childId} ORDER BY field
 		`).toEqual([{value: '"commit"'}, {value: '"--dry-run"'}])
 	})
 
@@ -142,14 +142,14 @@ describe("Boundary incremental projection", () => {
     }))
 
     const topologyId = Number((await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM topology WHERE kind = ${"macho"}`)[0]!.id)
-    const peerId = Number((await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM actor WHERE wimp = ${PEER}`)[0]!.id)
-    expect((await boundary.projection.sql`SELECT id FROM actor WHERE wimp = ${CHILD}`).length).toBe(2)
+    const peerId = Number((await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM atom WHERE wimp = ${PEER}`)[0]!.id)
+    expect((await boundary.projection.sql`SELECT id FROM atom WHERE wimp = ${CHILD}`).length).toBe(2)
 
     const commit = await apply({part: "higgs", op: "replace", path: rootId, value: {fields: {[String(fieldId)]: ["one"]}}})
 
     expect((await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM topology WHERE kind = ${"macho"}`)[0]!.id).toBe(topologyId)
-    expect((await boundary.projection.sql`SELECT id FROM actor WHERE wimp = ${CHILD}`).length).toBe(1)
-    expect((await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM actor WHERE wimp = ${PEER}`)[0]!.id).toBe(peerId)
+    expect((await boundary.projection.sql`SELECT id FROM atom WHERE wimp = ${CHILD}`).length).toBe(1)
+    expect((await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM atom WHERE wimp = ${PEER}`)[0]!.id).toBe(peerId)
     expect(commit?.messages).toContainEqual({parts: [{
       part: "higgs", op: "replace", path: `topology/${topologyId}`, value: {fields: {[String(fieldId)]: ["one"]}},
       from: expect.any(String),
@@ -179,28 +179,28 @@ describe("Boundary incremental projection", () => {
       SELECT id FROM topology WHERE kind = ${"axion"}
     `)[0]!.id)
     const fallbackId = Number((await boundary.projection.sql<Array<{id: number}>>`
-      SELECT id FROM actor WHERE wimp = ${PEER}
+      SELECT id FROM atom WHERE wimp = ${PEER}
     `)[0]!.id)
-    expect(await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM actor WHERE wimp = ${CHILD}`).toEqual([])
+    expect(await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM atom WHERE wimp = ${CHILD}`).toEqual([])
 
     const commit = await apply({part: "photon", op: "replace", path: rootId, value: "ready"})
 
     expect((await boundary.projection.sql<Array<{id: number}>>`
       SELECT id FROM topology WHERE kind = ${"axion"}
     `)[0]!.id).toBe(topologyId)
-    expect(await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM actor WHERE wimp = ${PEER}`).toEqual([])
-    expect((await boundary.projection.sql`SELECT id FROM actor WHERE wimp = ${CHILD}`).length).toBe(1)
-    expect(commit?.messages).toContainEqual({parts: [{part: "graviton", op: "remove", path: `actor/${fallbackId}`}]})
+    expect(await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM atom WHERE wimp = ${PEER}`).toEqual([])
+    expect((await boundary.projection.sql`SELECT id FROM atom WHERE wimp = ${CHILD}`).length).toBe(1)
+    expect(commit?.messages).toContainEqual({parts: [{part: "graviton", op: "remove", path: `atom/${fallbackId}`}]})
     expect(commit?.messages).toContainEqual({parts: [{
       part: "higgs", op: "replace", path: `topology/${topologyId}`, value: {state: "ready"},
     }]})
 
     const readyId = Number((await boundary.projection.sql<Array<{id: number}>>`
-      SELECT id FROM actor WHERE wimp = ${CHILD}
+      SELECT id FROM atom WHERE wimp = ${CHILD}
     `)[0]!.id)
     expect(await apply({part: "photon", op: "replace", path: rootId, value: "ready"})).toBeNull()
     expect((await boundary.projection.sql<Array<{id: number}>>`
-      SELECT id FROM actor WHERE wimp = ${CHILD}
+      SELECT id FROM atom WHERE wimp = ${CHILD}
     `)[0]!.id).toBe(readyId)
   })
 
@@ -253,7 +253,7 @@ describe("Boundary incremental projection", () => {
 
     expect(replay.length).toBeGreaterThan(2)
     expect(replay.every((message) => message.parts.length === 1)).toBe(true)
-    expect(replay.some((message) => message.parts[0].path === `actor/${rootId}`)).toBe(true)
+    expect(replay.some((message) => message.parts[0].path === `atom/${rootId}`)).toBe(true)
     expect(replay.some((message) => "type" in message || "snapshot" in message)).toBe(false)
   })
 

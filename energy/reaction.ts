@@ -91,9 +91,9 @@ const evaluateFilter = (signal: ReactionExecutionSignal): boolean => {
   if (typeof fn !== "function") throw new Error(`Reaction ${signal.reactionId} filter is not a function`)
   const conditions = fn({
     self: {
-      atom: String(signal.target.actorId),
+      atom: String(signal.target.atomId),
       meta: signal.target.wimp,
-      path: String(signal.target.actorId),
+      path: String(signal.target.atomId),
     },
     value: structuredClone(signal.value),
   }) as unknown
@@ -101,7 +101,7 @@ const evaluateFilter = (signal: ReactionExecutionSignal): boolean => {
 
   const actual: JsonRecord = {
     meta: signal.source.wimp,
-    atom: String(signal.source.actorId),
+    atom: String(signal.source.atomId),
     timestamp: signal.source.timestamp,
     op: signal.source.part.op,
     path: signal.source.part.path,
@@ -135,7 +135,7 @@ export async function executeReaction(
 
   const mass = massStore.get({
     energyId,
-    actorId: signal.target.actorId,
+    atomId: signal.target.atomId,
     wimp: signal.target.wimp,
     state: signal.target.state,
   })
@@ -146,14 +146,14 @@ export async function executeReaction(
     value: structuredClone(signal.value),
     mass,
     meta: signal.source.wimp,
-    atom: String(signal.source.actorId),
+    atom: String(signal.source.atomId),
     timestamp: signal.source.timestamp,
     part: structuredClone(signal.source.part),
     state: signal.target.state,
     self: {
-      atom: String(signal.target.actorId),
+      atom: String(signal.target.atomId),
       meta: signal.target.wimp,
-      path: String(signal.target.actorId),
+      path: String(signal.target.atomId),
     },
   })
   return {matched: true, fields}

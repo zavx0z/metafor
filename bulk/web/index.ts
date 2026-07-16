@@ -416,10 +416,10 @@ const forcePositiveInteger = (value: unknown): number | null => {
 	return Number.isSafeInteger(numeric) && numeric > 0 ? numeric : null
 }
 
-const forceActorDarkParticleId = (value: unknown): number | null => {
-	const actorId = forcePositiveInteger(value)
-	if (actorId === null) return null
-	const darkParticleId = actorId * 2
+const forceAtomDarkParticleId = (value: unknown): number | null => {
+	const atomId = forcePositiveInteger(value)
+	if (atomId === null) return null
+	const darkParticleId = atomId * 2
 	return Number.isSafeInteger(darkParticleId) ? darkParticleId : null
 }
 
@@ -992,9 +992,9 @@ const brightenColor = (color: Color, amount: number): Color => mixColor(color, n
 const resolveDarkParticleVisualState = (darkParticle: BulkDarkParticle): { color: Color; glowColor: Color; glowIntensity: number; opacity: number } => {
 	const baseColor = particleColor(darkParticle)
 	const root = darkParticle.parentDarkParticleId === null
-	const glowIntensity = root ? 0.95 : darkParticle.darkParticleKind === "wimp" ? 0.58 : 0.36
+	const glowIntensity = root ? 0.95 : darkParticle.darkParticleKind === "atom" ? 0.58 : 0.36
 	const opacity = activeRenderSettings.wireframeOpacity * (
-		root ? 1.25 : darkParticle.darkParticleKind === "wimp" ? 0.52 : 0.32
+		root ? 1.25 : darkParticle.darkParticleKind === "atom" ? 0.52 : 0.32
 	)
 	if (darkParticle.activity === "active") {
 		return {
@@ -2379,8 +2379,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return record.snapshot.fieldId === fieldId
 	}
 
-	const fieldParticleRecordMatchesForceActorAddress = (record: FieldParticleRenderRecord, actorDarkParticleId: number, fieldId: number): boolean => {
-		if (record.parentDarkParticleId !== actorDarkParticleId) return false
+	const fieldParticleRecordMatchesForceAtomAddress = (record: FieldParticleRenderRecord, atomDarkParticleId: number, fieldId: number): boolean => {
+		if (record.parentDarkParticleId !== atomDarkParticleId) return false
 		return record.snapshot.fieldId === fieldId
 	}
 
@@ -2446,15 +2446,15 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const applyGluonFieldsForce = (message: unknown): boolean => {
 		if (!isRecord(message) || message.part !== "gluon") return false
-		const actorDarkParticleId = forceActorDarkParticleId(message.path)
+		const atomDarkParticleId = forceAtomDarkParticleId(message.path)
 		const fields = resolveForceFieldsPayload(message.value)
-		if (actorDarkParticleId === null || fields === null) return false
+		if (atomDarkParticleId === null || fields === null) return false
 
 		let changed = false
 		for (const [address, rawValue] of Object.entries(fields)) {
 			const fieldId = resolveForceFieldId(address)
 			if (fieldId === null) continue
-			const records = [...fieldParticleRecords.values()].filter((record) => fieldParticleRecordMatchesForceActorAddress(record, actorDarkParticleId, fieldId))
+			const records = [...fieldParticleRecords.values()].filter((record) => fieldParticleRecordMatchesForceAtomAddress(record, atomDarkParticleId, fieldId))
 			if (message.op !== "replace" && message.op !== "remove") continue
 			for (const record of records) {
 				record.snapshot = {
@@ -3541,34 +3541,34 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		if (!new Set(["photon", "gluon", "higgs", "z", "w+", "w-"]).has(message.part)) return false
 
 		let targetObject: Object3D | null = null
-		const actorDarkParticleId = forceActorDarkParticleId(message.path)
+		const atomDarkParticleId = forceAtomDarkParticleId(message.path)
 		const value = isRecord(message.value) ? message.value : null
 		const sourceId = forcePositiveInteger(value?.processId) ?? forcePositiveInteger(value?.reactionId)
 		if (sourceId !== null) {
 			targetObject = [...orbitalParticleRecords.values()].find((record) => record.snapshot.sourceId === sourceId)?.node ?? null
 		}
-		if (!targetObject && message.part === "photon" && typeof message.value === "string" && actorDarkParticleId !== null) {
+		if (!targetObject && message.part === "photon" && typeof message.value === "string" && atomDarkParticleId !== null) {
 			targetObject = [...orbitalParticleRecords.values()].find((record) =>
-				record.snapshot.parentDarkParticleId === actorDarkParticleId &&
+				record.snapshot.parentDarkParticleId === atomDarkParticleId &&
 				record.snapshot.orbitalParticleKind === "state" &&
 				record.snapshot.label === message.value &&
 				record.snapshot.orbitalParticleId.endsWith("/root"),
 			)?.node ?? null
 		}
-		if (!targetObject && message.part === "gluon" && actorDarkParticleId !== null) {
+		if (!targetObject && message.part === "gluon" && atomDarkParticleId !== null) {
 			const fields = resolveForceFieldsPayload(message.value)
 			const firstFieldId = fields ? resolveForceFieldId(Object.keys(fields)[0] ?? "") : null
 			if (firstFieldId !== null) targetObject = [...fieldParticleRecords.values()].find((record) =>
-				record.parentDarkParticleId === actorDarkParticleId && record.snapshot.fieldId === firstFieldId,
+				record.parentDarkParticleId === atomDarkParticleId && record.snapshot.fieldId === firstFieldId,
 			)?.node ?? null
 		}
-		if (!targetObject && actorDarkParticleId !== null) targetObject = darkParticleRecords.get(actorDarkParticleId)?.container ?? null
+		if (!targetObject && atomDarkParticleId !== null) targetObject = darkParticleRecords.get(atomDarkParticleId)?.container ?? null
 		if (!targetObject) targetObject = [...darkParticleRecords.values()].find((record) => record.snapshot.parentDarkParticleId === null)?.container ?? null
 		if (!targetObject) return false
 
 		space.updateWorldMatrix()
 		const target = readObjectWorldPosition(targetObject, new Vector3()).clone()
-		const parent = actorDarkParticleId === null ? null : darkParticleRecords.get(actorDarkParticleId)
+		const parent = atomDarkParticleId === null ? null : darkParticleRecords.get(atomDarkParticleId)
 		const radius = Math.max(4, Math.min(14, (parent?.snapshot.torusTube ?? 60) * 0.08))
 		const colors: Record<string, Color> = {
 			photon: new Color(1, 0.94, 0.28, 0.94),

@@ -21,7 +21,7 @@ import {executeReaction} from "./reaction.ts"
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
-const parseActorIdPath = (path: unknown): number | null =>
+const parseAtomIdPath = (path: unknown): number | null =>
   typeof path === "number" && Number.isSafeInteger(path) && path > 0 ? path : null
 
 const readEnergyId = (): string =>
@@ -35,7 +35,7 @@ export function createInMemoryEnergyMassStore(): EnergyMassStore {
 
   return {
     get(ctx: EnergyMassContext) {
-      const key = `${ctx.wimp}\0${ctx.actorId}`
+      const key = `${ctx.wimp}\0${ctx.atomId}`
       let mass = masses.get(key)
       if (!mass) {
         mass = {}
@@ -139,7 +139,7 @@ const executeProcess = async (
   fields: Record<string, unknown>,
   massStore: EnergyMassStore,
 ): Promise<unknown> => {
-  const mass = massStore.get({energyId, actorId: pending.actorId, wimp: pending.wimp, state: pending.state})
+  const mass = massStore.get({energyId, atomId: pending.atomId, wimp: pending.wimp, state: pending.state})
   if (pending.descriptor.type === "finally") {
     const fn = (0, eval)(`(${rewriteWrapperDynamicImports(pending.descriptor.before.src, pending.wimp)})`)
     if (typeof fn !== "function") throw new Error("Energy finally before did not evaluate to a function")
@@ -151,9 +151,9 @@ const executeProcess = async (
     value: buildActionValue(fields, pending.descriptor.action.readFields),
     mass,
     self: {
-      atom: String(pending.actorId),
+      atom: String(pending.atomId),
       meta: pending.wimp,
-      path: String(pending.actorId),
+      path: String(pending.atomId),
     },
   }
 
@@ -180,8 +180,8 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
   const ownsMassStore = options.massStore === undefined
   const massStore = options.massStore ?? createInMemoryEnergyMassStore()
   const catalog = new EnergyCatalogStore()
-  const pendingByActorId = new Map<number, PendingEnergyProcess>()
-  const runningActorIds = new Set<number>()
+  const pendingByAtomId = new Map<number, PendingEnergyProcess>()
+  const runningAtomIds = new Set<number>()
   const pendingReactions = new Map<string, ReactionExecutionSignal>()
   const runningReactionIds = new Set<string>()
 
@@ -193,7 +193,7 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
     force.impulse({parts: [{
       part,
       op: "replace",
-      path: signal.target.actorId,
+      path: signal.target.atomId,
       from: energyId,
       value: proposal,
     }]})
@@ -203,12 +203,12 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
     const part = message.parts[0]
     if (part.part === "graviton") {
       const change = catalog.apply(part)
-      for (const actorId of change.affectedActorIds) {
-        const pending = pendingByActorId.get(actorId)
+      for (const atomId of change.affectedAtomIds) {
+        const pending = pendingByAtomId.get(atomId)
         if (!pending) continue
-        const actorWimp = catalog.actorWimp(actorId)
-        const process = actorWimp && catalog.process(actorWimp, pending.state)
-        if (!process || process.descriptor !== pending.descriptor) pendingByActorId.delete(actorId)
+        const atomWimp = catalog.atomWimp(atomId)
+        const process = atomWimp && catalog.process(atomWimp, pending.state)
+        if (!process || process.descriptor !== pending.descriptor) pendingByAtomId.delete(atomId)
       }
       return
     }
@@ -216,52 +216,52 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
     switch (part.part) {
       case "photon": {
         if (part.op !== "test") break
-        const actorId = parseActorIdPath(part.path)
-        if (actorId === null) break
+        const atomId = parseAtomIdPath(part.path)
+        if (atomId === null) break
 
         if (isReactionExecutionSignal(part.value)) {
           const signal = part.value
-          if (signal.target.actorId !== actorId || part.from !== signal.reactionExecutionId) break
+          if (signal.target.atomId !== atomId || part.from !== signal.reactionExecutionId) break
           pendingReactions.set(signal.reactionExecutionId, structuredClone(signal))
           const claim: ReactionExecutionClaim = {
             kind: REACTION_CLAIM_KIND,
             energy: energyId,
             reactionExecutionId: signal.reactionExecutionId,
           }
-          force.impulse({parts: [{part: "z", op: "test", path: actorId, value: claim}]})
+          force.impulse({parts: [{part: "z", op: "test", path: atomId, value: claim}]})
           break
         }
 
         if (typeof part.value !== "string" || typeof part.from !== "string" || part.from.trim().length === 0) break
-        const wimp = catalog.actorWimp(actorId)
+        const wimp = catalog.atomWimp(atomId)
         if (wimp === undefined) break
         const process = catalog.process(wimp, part.value)
         const descriptor = process?.descriptor
         if (!process || !descriptor || !canExecuteInRuntime(descriptor, runtimeKind)) break
 
         const pending: PendingEnergyProcess = {
-          actorId,
+          atomId,
           wimp,
           state: part.value,
           descriptor,
           processExecutionId: part.from,
           processId: process.id,
         }
-        pendingByActorId.set(actorId, pending)
+        pendingByAtomId.set(atomId, pending)
         const claim: ProcessExecutionClaim = {energy: energyId, processExecutionId: part.from}
-        force.impulse({parts: [{part: "z", op: "test", path: actorId, value: claim}]})
+        force.impulse({parts: [{part: "z", op: "test", path: atomId, value: claim}]})
         break
       }
 
       case "z": {
         if (part.op !== "copy") break
-        const actorId = parseActorIdPath(part.path)
-        if (actorId === null || part.from !== energyId) break
+        const atomId = parseAtomIdPath(part.path)
+        if (atomId === null || part.from !== energyId) break
 
         if (isReactionExecutionSignal(part.value)) {
           const signal = part.value
           const pending = pendingReactions.get(signal.reactionExecutionId)
-          if (!pending || pending.target.actorId !== actorId || runningReactionIds.has(signal.reactionExecutionId)) break
+          if (!pending || pending.target.atomId !== atomId || runningReactionIds.has(signal.reactionExecutionId)) break
           runningReactionIds.add(signal.reactionExecutionId)
           void executeReaction(signal, energyId, massStore)
             .then((result) => {
@@ -299,11 +299,11 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
 
         if (!isRecord(part.value) || !isRecord(part.value.fields) || typeof part.value.processExecutionId !== "string") break
         const grant = part.value as unknown as ProcessExecutionGrant
-        if (runningActorIds.has(actorId)) break
-        const pending = pendingByActorId.get(actorId)
+        if (runningAtomIds.has(atomId)) break
+        const pending = pendingByAtomId.get(atomId)
         if (!pending || pending.processExecutionId !== grant.processExecutionId) break
 
-        runningActorIds.add(actorId)
+        runningAtomIds.add(atomId)
         void executeProcess(pending, energyId, grant.fields, massStore)
           .then(async (data) => {
             if (pending.descriptor.type === "finally") {
@@ -312,7 +312,7 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
                 processId: pending.processId,
                 fields: {},
               }
-              force.impulse({parts: [{part: "w+", op: "replace", path: actorId, from: energyId, value: proposal}]})
+              force.impulse({parts: [{part: "w+", op: "replace", path: atomId, from: energyId, value: proposal}]})
               return
             }
             let fields: Record<string, unknown>
@@ -325,7 +325,7 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
                 fields: {},
                 error: toError(error).message,
               }
-              force.impulse({parts: [{part: "w-", op: "replace", path: actorId, from: energyId, value: proposal}]})
+              force.impulse({parts: [{part: "w-", op: "replace", path: atomId, from: energyId, value: proposal}]})
               return
             }
             const proposal: ProcessResultProposal = {
@@ -333,7 +333,7 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
               processId: pending.processId,
               fields,
             }
-            force.impulse({parts: [{part: "w+", op: "replace", path: actorId, from: energyId, value: proposal}]})
+            force.impulse({parts: [{part: "w+", op: "replace", path: atomId, from: energyId, value: proposal}]})
           })
           .catch(async (thrown) => {
             const actionError = toError(thrown)
@@ -344,7 +344,7 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
                 fields: {},
                 error: actionError.message,
               }
-              force.impulse({parts: [{part: "w-", op: "replace", path: actorId, from: energyId, value: proposal}]})
+              force.impulse({parts: [{part: "w-", op: "replace", path: atomId, from: energyId, value: proposal}]})
               return
             }
             try {
@@ -355,7 +355,7 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
                 fields,
                 error: actionError.message,
               }
-              force.impulse({parts: [{part: "w-", op: "replace", path: actorId, from: energyId, value: proposal}]})
+              force.impulse({parts: [{part: "w-", op: "replace", path: atomId, from: energyId, value: proposal}]})
             } catch (handlerThrown) {
               const proposal: ProcessResultProposal = {
                 processExecutionId: pending.processExecutionId,
@@ -363,12 +363,12 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
                 fields: {},
                 error: toError(handlerThrown).message,
               }
-              force.impulse({parts: [{part: "w-", op: "replace", path: actorId, from: energyId, value: proposal}]})
+              force.impulse({parts: [{part: "w-", op: "replace", path: atomId, from: energyId, value: proposal}]})
             }
           })
           .finally(() => {
-            pendingByActorId.delete(actorId)
-            runningActorIds.delete(actorId)
+            pendingByAtomId.delete(atomId)
+            runningAtomIds.delete(atomId)
           })
         break
       }
@@ -377,8 +377,8 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
 
   return {
     close() {
-      pendingByActorId.clear()
-      runningActorIds.clear()
+      pendingByAtomId.clear()
+      runningAtomIds.clear()
       pendingReactions.clear()
       runningReactionIds.clear()
       if (ownsMassStore) massStore.clear?.()

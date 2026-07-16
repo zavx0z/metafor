@@ -2,11 +2,11 @@ import type {ReservedSQL, SQL} from "bun"
 import {resolveForceFieldId, resolveForceFieldsPayload} from "@metafor/types/force/fields"
 import type {ForceMessage} from "@metafor/types/force/message"
 import type {BoundaryIncrementalCommit} from "./incremental.ts"
-import {commitBoundaryActorFields} from "./world.ts"
+import {commitBoundaryAtomFields} from "./world.ts"
 
 type Database = SQL | ReservedSQL
 
-type ActorRow = {
+type AtomRow = {
   id: number
   wimp: string
 }
@@ -28,18 +28,18 @@ export class BoundaryInputStore {
     if (part.part !== "gluon" || part.from !== undefined) return undefined
     if (part.op !== "add" && part.op !== "replace" && part.op !== "remove") return undefined
 
-    const actorId = positiveId(part.path)
+    const atomId = positiveId(part.path)
     const fields = resolveForceFieldsPayload(part.value)
-    if (actorId === null || !fields || Object.keys(fields).length === 0) {
-      throw new Error("External Gluon requires an Actor path and at least one Field")
+    if (atomId === null || !fields || Object.keys(fields).length === 0) {
+      throw new Error("External Gluon requires an Atom path and at least one Field")
     }
 
     const committed = await this.sql.begin(async (tx) => {
-      const actor = await this.actor(tx, actorId)
-      if (!actor) throw new Error(`Cannot commit external Gluon for missing Actor ${actorId}`)
+      const atom = await this.atom(tx, atomId)
+      if (!atom) throw new Error(`Cannot commit external Gluon for missing Atom ${atomId}`)
 
       const rows = await tx<FieldRow[]>`
-        SELECT id, type FROM field WHERE wimp = ${actor.wimp}
+        SELECT id, type FROM field WHERE wimp = ${atom.wimp}
       `
       const scalarFields = new Set(
         rows
@@ -54,16 +54,16 @@ export class BoundaryInputStore {
           if (fieldId === null || !scalarFields.has(fieldId)) {
             throw new Error(`External Gluon cannot remove field ${address}`)
           }
-          await tx`DELETE FROM boundary_actor_field WHERE actor = ${actorId} AND field = ${fieldId}`
+          await tx`DELETE FROM boundary_atom_field WHERE atom = ${atomId} AND field = ${fieldId}`
           scalar[String(fieldId)] = value
         }
-        return {actor, scalar}
+        return {atom, scalar}
       }
 
-      const result = await commitBoundaryActorFields(
+      const result = await commitBoundaryAtomFields(
         tx,
-        actorId,
-        actor.wimp,
+        atomId,
+        atom.wimp,
         scalarFields,
         fields,
         "External Gluon",
@@ -71,25 +71,25 @@ export class BoundaryInputStore {
       if (Object.keys(result.topology).length > 0) {
         throw new Error("External Gluon cannot contain topology Fields")
       }
-      return {actor, scalar: result.scalar}
+      return {atom, scalar: result.scalar}
     })
 
     return {
-      rootSrc: committed.actor.wimp,
+      rootSrc: committed.atom.wimp,
       messages: [{
         parts: [{
           part: "gluon",
           op: part.op,
-          path: actorId,
+          path: atomId,
           value: {fields: committed.scalar},
         }],
       }],
     }
   }
 
-  private async actor(sql: Database, actorId: number): Promise<ActorRow | null> {
-    const row = (await sql<ActorRow[]>`
-      SELECT id, wimp FROM actor WHERE id = ${actorId}
+  private async atom(sql: Database, atomId: number): Promise<AtomRow | null> {
+    const row = (await sql<AtomRow[]>`
+      SELECT id, wimp FROM atom WHERE id = ${atomId}
     `)[0]
     return row ? {id: Number(row.id), wimp: row.wimp} : null
   }

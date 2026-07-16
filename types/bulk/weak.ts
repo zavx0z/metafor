@@ -1,4 +1,4 @@
-export interface BulkActorRecord {
+export interface BulkAtomRecord {
   uuid: string
   src: string
   parentUuid: string | null

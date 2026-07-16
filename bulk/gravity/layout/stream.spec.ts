@@ -20,7 +20,7 @@ const createDarkParticle = (
   fieldParticleIds: number[] = [],
 ): BulkDarkParticleInput => ({
   darkParticleId,
-  darkParticleKind: "wimp",
+  darkParticleKind: "atom",
   src: String(darkParticleId),
   metaSrc: String(darkParticleId),
   label: String(darkParticleId),

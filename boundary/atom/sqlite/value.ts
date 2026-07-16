@@ -1,5 +1,5 @@
 import type {SQL} from "bun"
-import type { ActorValueRecord, ValueItemRecord, ValueKind } from "@metafor/types/boundary/value"
+import type { AtomValueRecord, ValueItemRecord, ValueKind } from "@metafor/types/boundary/value"
 
 export abstract class Value {
   constructor(
@@ -9,11 +9,11 @@ export abstract class Value {
 
   abstract readonly kind: ValueKind
 
-  async owners(): Promise<ActorValueRecord[]> {
-    const rows = await this.sql<Array<{ actor: number; field: number; value: number }>>`
-      SELECT actor, field, value FROM actor_value WHERE value = ${this.id}
+  async owners(): Promise<AtomValueRecord[]> {
+    const rows = await this.sql<Array<{ atom: number; field: number; value: number }>>`
+      SELECT atom, field, value FROM atom_value WHERE value = ${this.id}
     `
-    return rows.map((row) => ({actor: Number(row.actor), field: Number(row.field), value: Number(row.value)}))
+    return rows.map((row) => ({atom: Number(row.atom), field: Number(row.field), value: Number(row.value)}))
   }
 
   static async get(sql: SQL, id: number): Promise<Value | null> {

@@ -22,7 +22,7 @@ const message = (part: Particle): ForceMessage => ({parts: [part]})
 
 describe("Boundary canonical Process result", () => {
   let boundary: BoundaryDatabase
-  let actorId: number
+  let atomId: number
 
   beforeEach(async () => {
     boundary = await open(":memory:")
@@ -68,11 +68,11 @@ describe("Boundary canonical Process result", () => {
     ]
 
     for (const part of declarations) await boundary.materialize(message(part))
-    const actor = (await boundary.projection.sql<Array<{id: number}>>`
-      SELECT id FROM actor WHERE wimp = ${ROOT} ORDER BY id LIMIT 1
+    const atom = (await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM atom WHERE wimp = ${ROOT} ORDER BY id LIMIT 1
     `)[0]
-    if (!actor) throw new Error("Boundary did not materialize root actor")
-    actorId = Number(actor.id)
+    if (!atom) throw new Error("Boundary did not materialize root atom")
+    atomId = Number(atom.id)
   })
 
   afterEach(async () => {
@@ -82,8 +82,8 @@ describe("Boundary canonical Process result", () => {
   const fieldValue = async (fieldId: number): Promise<unknown> => {
     const row = (await boundary.projection.sql<Array<{valueJson: string}>>`
       SELECT value_json AS valueJson
-        FROM boundary_actor_field
-       WHERE actor = ${actorId} AND field = ${fieldId}
+        FROM boundary_atom_field
+       WHERE atom = ${atomId} AND field = ${fieldId}
     `)[0]
     return row ? JSON.parse(row.valueJson) as unknown : undefined
   }
@@ -92,7 +92,7 @@ describe("Boundary canonical Process result", () => {
     await boundary.materialize(message({
       part: "photon",
       op: "test",
-      path: actorId,
+      path: atomId,
       from: processExecutionId,
       value: "ready",
     }))
@@ -107,7 +107,7 @@ describe("Boundary canonical Process result", () => {
     await boundary.materialize(message({
       part: "z",
       op: "copy",
-      path: actorId,
+      path: atomId,
       from: energy,
       value: grant,
     }))
@@ -125,7 +125,7 @@ describe("Boundary canonical Process result", () => {
     const commit = await boundary.materialize(message({
       part: "w+",
       op: "replace",
-      path: actorId,
+      path: atomId,
       from: ENERGY,
       value: proposal,
     }))
@@ -136,7 +136,7 @@ describe("Boundary canonical Process result", () => {
     expect(parts?.[0]).toEqual({
       part: "gluon",
       op: "replace",
-      path: actorId,
+      path: atomId,
       from: processExecutionId,
       value: {fields: {[String(OUTPUT)]: 2}},
     })
@@ -148,7 +148,7 @@ describe("Boundary canonical Process result", () => {
     expect(parts?.[1]).toEqual({
       part: "w+",
       op: "copy",
-      path: actorId,
+      path: atomId,
       from: processExecutionId,
       value: acknowledgement,
     })
@@ -156,7 +156,7 @@ describe("Boundary canonical Process result", () => {
     expect(await boundary.materialize(message({
       part: "w+",
       op: "replace",
-      path: actorId,
+      path: atomId,
       from: ENERGY,
       value: proposal,
     }))).toBeNull()
@@ -164,7 +164,7 @@ describe("Boundary canonical Process result", () => {
     await expect(boundary.materialize(message({
       part: "w+",
       op: "replace",
-      path: actorId,
+      path: atomId,
       from: ENERGY,
       value: {...proposal, fields: {[String(OUTPUT)]: 3}},
     }))).rejects.toThrow("already committed")
@@ -178,7 +178,7 @@ describe("Boundary canonical Process result", () => {
     await expect(boundary.materialize(message({
       part: "w+",
       op: "replace",
-      path: actorId,
+      path: atomId,
       from: ENERGY,
       value: {
         processExecutionId,
@@ -195,7 +195,7 @@ describe("Boundary canonical Process result", () => {
     const valid = await boundary.materialize(message({
       part: "w+",
       op: "replace",
-      path: actorId,
+      path: atomId,
       from: ENERGY,
       value: {
         processExecutionId,
@@ -211,7 +211,7 @@ describe("Boundary canonical Process result", () => {
     await expect(boundary.materialize(message({
       part: "w+",
       op: "replace",
-      path: actorId,
+      path: atomId,
       from: "energy-other",
       value: {
         processExecutionId: wrongEnergyExecution,
@@ -229,7 +229,7 @@ describe("Boundary canonical Process result", () => {
     const commit = await boundary.materialize(message({
       part: "w-",
       op: "replace",
-      path: actorId,
+      path: atomId,
       from: ENERGY,
       value: {
         processExecutionId,
@@ -243,7 +243,7 @@ describe("Boundary canonical Process result", () => {
     expect(commit?.messages.at(-1)?.parts[0]).toEqual({
       part: "w-",
       op: "copy",
-      path: actorId,
+      path: atomId,
       from: processExecutionId,
       value: {
         processExecutionId,
@@ -260,7 +260,7 @@ describe("Boundary canonical Process result", () => {
 		const commit = await boundary.materialize(message({
 			part: "w+",
 			op: "replace",
-			path: actorId,
+			path: atomId,
 			from: ENERGY,
 			value: {
 				processExecutionId,
@@ -271,7 +271,7 @@ describe("Boundary canonical Process result", () => {
 
 		expect(await fieldValue(OPERATION)).toBe("history")
 		expect((await boundary.projection.sql<Array<{wimp: string}>>`
-			SELECT wimp FROM actor WHERE wimp = ${HISTORY}
+			SELECT wimp FROM atom WHERE wimp = ${HISTORY}
 		`)).toEqual([{wimp: HISTORY}])
 		expect(commit?.messages.some((item) => item.parts[0]?.part === "graviton" && item.parts[0]?.op === "add")).toBe(true)
 	})

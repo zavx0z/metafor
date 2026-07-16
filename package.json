@@ -15,7 +15,7 @@
     "force",
     "dark",
     "boundary",
-    "boundary/actor",
+    "boundary/atom",
     "boundary/topology",
     "boundary/wimp",
     "matrix",

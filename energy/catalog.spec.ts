@@ -8,8 +8,8 @@ const part = (op: Particle["op"], path: string, value?: unknown, from?: string):
   ...(from !== undefined ? {from} : {}),
 })
 
-const actor = (id: number, wimp: string, parentActor: number | null = null) => ({
-  actor: {id, parentActor, parentTopology: null, wimp, position: id},
+const atom = (id: number, wimp: string, parentAtom: number | null = null) => ({
+  atom: {id, parentAtom, parentTopology: null, wimp, position: id},
 })
 
 const process = (id: number, wimp: string, state: string) => ({
@@ -37,44 +37,44 @@ describe("Energy incremental catalog", () => {
     expect(store.process("owner/a", "done")).toBe(done)
   })
 
-  test("actor parent patch reindexes locally and preserves peers", () => {
+  test("atom parent patch reindexes locally and preserves peers", () => {
     const store = new EnergyCatalogStore()
-    store.apply(part("add", "actor/1", actor(1, "owner/root")))
-    store.apply(part("add", "actor/2", actor(2, "owner/child", 1)))
-    store.apply(part("add", "actor/3", actor(3, "owner/root")))
-    const child = store.actors.get(2)
-    const peer = store.actors.get(3)
+    store.apply(part("add", "atom/1", atom(1, "owner/root")))
+    store.apply(part("add", "atom/2", atom(2, "owner/child", 1)))
+    store.apply(part("add", "atom/3", atom(3, "owner/root")))
+    const child = store.atoms.get(2)
+    const peer = store.atoms.get(3)
 
-    store.apply(part("replace", "actor/2", {actor: {parentActor: 3}}))
+    store.apply(part("replace", "atom/2", {atom: {parentAtom: 3}}))
 
-    expect(store.actors.get(2)).toBe(child)
-    expect(store.actors.get(3)).toBe(peer)
-    expect(store.childrenByParent.get("actor:1")).toBeUndefined()
-    expect(store.childrenByParent.get("actor:3")).toEqual(new Set(["actor:2"]))
+    expect(store.atoms.get(2)).toBe(child)
+    expect(store.atoms.get(3)).toBe(peer)
+    expect(store.childrenByParent.get("atom:1")).toBeUndefined()
+    expect(store.childrenByParent.get("atom:3")).toEqual(new Set(["atom:2"]))
   })
 
-  test("remove affects only process actors of the same WIMP", () => {
+  test("remove affects only process atoms of the same WIMP", () => {
     const store = new EnergyCatalogStore()
-    store.apply(part("add", "actor/1", actor(1, "owner/a")))
-    store.apply(part("add", "actor/2", actor(2, "owner/b")))
+    store.apply(part("add", "atom/1", atom(1, "owner/a")))
+    store.apply(part("add", "atom/2", atom(2, "owner/b")))
     store.apply(part("add", "declaration/owner/a/processes/1", process(101, "owner/a", "ready")))
 
     const change = store.apply(part("remove", "declaration/owner/a/processes/1"))
 
-    expect(change.affectedActorIds).toEqual([1])
-    expect(store.actors.has(2)).toBe(true)
+    expect(change.affectedAtomIds).toEqual([1])
+    expect(store.atoms.has(2)).toBe(true)
   })
 
   test("copy, move and test operate on one entity", () => {
     const store = new EnergyCatalogStore()
-    store.apply(part("add", "actor/1", actor(1, "owner/a")))
-    store.apply(part("copy", "actor/2", undefined, "actor/1"))
-    expect(store.actors.get(2)).not.toBe(store.actors.get(1))
+    store.apply(part("add", "atom/1", atom(1, "owner/a")))
+    store.apply(part("copy", "atom/2", undefined, "atom/1"))
+    expect(store.atoms.get(2)).not.toBe(store.atoms.get(1))
 
-    const original = store.actors.get(1)
-    store.apply(part("move", "actor/3", undefined, "actor/1"))
-    expect(store.actors.get(3)).toBe(original)
-    expect(() => store.apply(part("test", "actor/3", store.actors.get(3)))).not.toThrow()
-    expect(() => store.apply(part("test", "actor/3", {id: 9}))).toThrow("test failed")
+    const original = store.atoms.get(1)
+    store.apply(part("move", "atom/3", undefined, "atom/1"))
+    expect(store.atoms.get(3)).toBe(original)
+    expect(() => store.apply(part("test", "atom/3", store.atoms.get(3)))).not.toThrow()
+    expect(() => store.apply(part("test", "atom/3", {id: 9}))).toThrow("test failed")
   })
 })

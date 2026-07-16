@@ -67,12 +67,12 @@ const finallyProcessEntry = (
 })
 
 type TestCatalog = {
-  actors: Array<[number, string]>
+  atoms: Array<[number, string]>
   processes: EnergyProcessEntity[]
 }
 
 const createCatalog = (env: string[] = ["server"]): TestCatalog => ({
-  actors: [[17, "owner/process"]],
+  atoms: [[17, "owner/process"]],
   processes: [processEntry("ready", undefined, env)],
 })
 
@@ -98,13 +98,13 @@ const createHarness = (
   })
 
   const seed = (next: TestCatalog): void => {
-    for (const [actorId, wimp] of next.actors) {
+    for (const [atomId, wimp] of next.atoms) {
       void force.onImpulse({parts: [{
         part: "graviton",
         op: "add",
-        path: `actor/${actorId}`,
+        path: `atom/${atomId}`,
         value: {
-          actor: {id: actorId, parentActor: null, parentTopology: null, wimp, position: 0},
+          atom: {id: atomId, parentAtom: null, parentTopology: null, wimp, position: 0},
           values: [],
           valueRecords: [],
           valueItems: [],
@@ -255,8 +255,8 @@ describe("Energy process protocol", () => {
     }
   })
 
-  test("receives actor and process catalog through Graviton", async () => {
-    const harness = createHarness("energy-local", {actors: [], processes: []})
+  test("receives atom and process catalog through Graviton", async () => {
+    const harness = createHarness("energy-local", {atoms: [], processes: []})
     try {
       harness.emit({parts: [{
         part: "photon",
@@ -286,7 +286,7 @@ describe("Energy process protocol", () => {
     }
   })
 
-  test("does not claim missing or incompatible process", async () => {
+  test("does not claim missing or mismatched process", async () => {
     for (const harness of [
       createHarness("energy-local", {...createCatalog(), processes: []}),
       createHarness("energy-local", createCatalog(["browser"]), "server"),
@@ -327,7 +327,7 @@ describe("Energy process protocol", () => {
 
   test("executes wrapper and returns identified W+ proposal", async () => {
     const catalog: TestCatalog = {
-      actors: [[17, "owner/process"]],
+      atoms: [[17, "owner/process"]],
       processes: [processEntry("ready", {
         src: "./actions/ready.ts",
         wrapperSrc: "async ({value}) => { if (value.command !== 'commit') throw new Error('bad command') }",
@@ -346,7 +346,7 @@ describe("Energy process protocol", () => {
 
   test("success handler emits only declared fields", async () => {
     const catalog: TestCatalog = {
-      actors: [[17, "owner/process"]],
+      atoms: [[17, "owner/process"]],
       processes: [processEntry("ready", {
         src: "./actions/ready.ts",
         wrapperSrc: "async () => ({result: 'done'})",
@@ -438,7 +438,7 @@ describe("Energy process protocol", () => {
     ]
 
     for (const item of cases) {
-      const harness = createHarness("energy-local", {actors: [[17, "owner/process"]], processes: [item.process]})
+      const harness = createHarness("energy-local", {atoms: [[17, "owner/process"]], processes: [item.process]})
       try {
         const execution = await claimAndCopy(harness, "ready", {})
         await waitFor(() => collectParts(harness.messages, "w-", "replace").length > 0)
@@ -458,7 +458,7 @@ describe("Energy process protocol", () => {
 
   test("imported action receives the same params contract", async () => {
     const catalog: TestCatalog = {
-      actors: [[17, "owner/process"]],
+      atoms: [[17, "owner/process"]],
       processes: [processEntry("ready", {
         src: dataUrlAction(`
           export async function run(params) {
@@ -485,7 +485,7 @@ describe("Energy process protocol", () => {
 
   test("action value is keyed by field key, not field id", async () => {
     const catalog: TestCatalog = {
-      actors: [[17, "owner/process"]],
+      atoms: [[17, "owner/process"]],
       processes: [processEntry("ready", {
         src: "./actions/ready.ts",
         wrapperSrc: "async ({value}) => { if ('2' in value) throw new Error('field id leaked'); if (value.command !== 'commit') throw new Error('missing command') }",
@@ -514,9 +514,9 @@ describe("Energy process protocol", () => {
     }
   })
 
-  test("mass persists between executions for the same actor and WIMP", async () => {
+  test("mass persists between executions for the same atom and WIMP", async () => {
     const catalog: TestCatalog = {
-      actors: [[17, "owner/process"]],
+      atoms: [[17, "owner/process"]],
       processes: [
         processEntry("init", {
           src: "./actions/init.ts",
@@ -550,7 +550,7 @@ describe("Energy process protocol", () => {
     )
     const harness = createHarness(
       "energy-local",
-      {actors: [[17, "owner/process"]], processes: [process]},
+      {atoms: [[17, "owner/process"]], processes: [process]},
       "server",
       {get: () => mass},
     )
@@ -573,7 +573,7 @@ describe("Energy process protocol", () => {
     })
     const harness = createHarness(
       "energy-local",
-      {actors: [[17, "owner/process"]], processes: [process]},
+      {atoms: [[17, "owner/process"]], processes: [process]},
       "server",
       {get: () => mass},
     )

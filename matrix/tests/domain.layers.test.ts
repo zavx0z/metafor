@@ -48,7 +48,7 @@ describe("matrix domain layers", () => {
 
     expect(matrix$.fields).toHaveLength(1)
     expect(weak$.initialized).toBe(true)
-    expect(gravity$.activeActorIds).toEqual([])
+    expect(gravity$.activeAtomIds).toEqual([])
     expect(gravity$.structuralDirty).toBe(false)
 
     const changes = await update([[0, [[0, 20]]]])

@@ -82,13 +82,9 @@ export interface BulkRuntimeReaction {
 }
 
 export interface BulkRuntimeAtomState {
-  /** Legacy storage key; identifies the materialized Atom. */
-  actor: number
+  atom: number
   state: number | null
 }
-
-/** @deprecated Use BulkRuntimeAtomState. */
-export type BulkRuntimeActorState = BulkRuntimeAtomState
 
 export interface BulkRuntimeValue {
   id: number
@@ -112,8 +108,7 @@ export interface BulkRuntimeMatterChildBindingPath extends BulkRuntimeMatterBind
 
 /** Local Bulk projection assembled incrementally from ordinary particles. */
 export interface BulkRuntimeProjection {
-  /** Legacy projection key; values are materialized Atoms. */
-  actors: AtomRecord[]
+  atoms: AtomRecord[]
   topologies: TopologyRecord[]
   wimps: BulkRuntimeWimp[]
   fields: BulkRuntimeField[]
@@ -122,11 +117,9 @@ export interface BulkRuntimeProjection {
   conditions: BulkRuntimeCondition[]
   processes: BulkRuntimeProcess[]
   reactions: BulkRuntimeReaction[]
-  /** Legacy projection key; values are current Atom states. */
-  actorStates: BulkRuntimeAtomState[]
+  atomStates: BulkRuntimeAtomState[]
   fieldEnumVariants: FieldEnumVariantRecord[]
-  /** Legacy projection key; values belong to materialized Atoms. */
-  actorValues: AtomValueRecord[]
+  atomValues: AtomValueRecord[]
   values: BulkRuntimeValue[]
   valueItems: ValueItemRecord[]
   matterParticles: BulkRuntimeMatterParticle[]

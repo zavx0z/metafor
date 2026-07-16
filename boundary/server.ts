@@ -21,7 +21,7 @@ const publishMatrixRuntime = async (): Promise<void> => {
       value: snapshot,
     }],
   })
-  console.log(`[boundary] matrix runtime actors=${snapshot.runtime.actorIdByBraneIndex.length} fields=${snapshot.data.fields.length}`)
+  console.log(`[boundary] matrix runtime atoms=${snapshot.runtime.atomIdByBraneIndex.length} fields=${snapshot.data.fields.length}`)
 }
 
 force.onImpulse = async (message) => {

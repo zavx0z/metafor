@@ -1,4 +1,4 @@
-export type EnergyRuntimeActorRow = {id: number; wimp: string}
+export type EnergyRuntimeAtomRow = {id: number; wimp: string}
 
 export type EnergyRuntimeProcessActionRow = {
   wimp: string
@@ -33,7 +33,7 @@ export interface EnergyRuntimeProcessFinallyFieldAccessRow {
   fieldKey: string
 }
 
-export type BoundaryMatrixActorRow = {id: number; wimp: string; position: number}
+export type BoundaryMatrixAtomRow = {id: number; wimp: string; position: number}
 
 export type BoundaryMatrixFieldRow = {
   id: number

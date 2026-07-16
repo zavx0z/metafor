@@ -1,5 +1,5 @@
 export interface AtomValueRecord {
-  actor: number
+  atom: number
   field: number
   value: number
 }
@@ -12,14 +12,9 @@ export interface FieldEnumVariantRecord {
 }
 
 export interface AtomStateRecord {
-  actor: number
+  atom: number
   metaState: number | null
 }
-
-/** @deprecated Use AtomValueRecord. Kept only for storage/protocol compatibility. */
-export type ActorValueRecord = AtomValueRecord
-/** @deprecated Use AtomStateRecord. Kept only for storage/protocol compatibility. */
-export type ActorStateRecord = AtomStateRecord
 
 export type ScalarKind = "null" | "boolean" | "number" | "string" | "enum"
 

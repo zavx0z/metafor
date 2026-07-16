@@ -24,14 +24,14 @@ export class BoundaryTopologySqlite {
 
   /**
    * Создаёт topology-узел (Fuzzy/Axion/Macho). Polymorphic parent: ровно один из
-   * `parentActor`/`parentTopology` должен быть задан.
+   * `parentAtom`/`parentTopology` должен быть задан.
    * Position вычисляется автоматически как next среди siblings.
    */
   async create(input: TopologyInput): Promise<TopologyBase> {
     const siblingCount = (
       await this.sql<Array<{count: number}>>`
         SELECT COUNT(*) AS count FROM topology
-        WHERE parent_actor IS ${input.parentActor}
+        WHERE parent_atom IS ${input.parentAtom}
           AND parent_topology IS ${input.parentTopology}
       `
     )[0]?.count ?? 0
@@ -39,15 +39,15 @@ export class BoundaryTopologySqlite {
     const id = isStoredId(input.id)
       ? input.id
       : (await this.sql<Array<{id: number}>>`
-          INSERT INTO topology (parent_actor, parent_topology, kind, position)
-          VALUES (${input.parentActor}, ${input.parentTopology}, ${input.kind}, ${position})
+          INSERT INTO topology (parent_atom, parent_topology, kind, position)
+          VALUES (${input.parentAtom}, ${input.parentTopology}, ${input.kind}, ${position})
           RETURNING id
         `)[0]?.id
     if (!id) throw new Error("BoundaryTopologySqlite.create: insert did not return id")
     if (isStoredId(input.id)) {
       await this.sql`
-        INSERT INTO topology (id, parent_actor, parent_topology, kind, position)
-        VALUES (${id}, ${input.parentActor}, ${input.parentTopology}, ${input.kind}, ${position})
+        INSERT INTO topology (id, parent_atom, parent_topology, kind, position)
+        VALUES (${id}, ${input.parentAtom}, ${input.parentTopology}, ${input.kind}, ${position})
       `
     }
     const topology = {...input, id, position}
@@ -57,7 +57,7 @@ export class BoundaryTopologySqlite {
   async get(id: number): Promise<TopologyBase | null> {
     const row = (
       await this.sql<Array<Record<string, unknown>>>`
-        SELECT id, parent_actor, parent_topology, kind, position
+        SELECT id, parent_atom, parent_topology, kind, position
         FROM topology
         WHERE id = ${id}
         LIMIT 1
@@ -69,7 +69,7 @@ export class BoundaryTopologySqlite {
   async head(id: number): Promise<TopologyRecord | null> {
     const row = (
       await this.sql<Array<Record<string, unknown>>>`
-        SELECT id, parent_actor, parent_topology, kind, position
+        SELECT id, parent_atom, parent_topology, kind, position
         FROM topology
         WHERE id = ${id}
       `
@@ -78,13 +78,13 @@ export class BoundaryTopologySqlite {
   }
 
   /**
-   * Все topology-узлы, для которых указанный actor — родитель (parent_actor=actorId).
+   * Все topology-узлы, для которых указанный atom — родитель (parent_atom=atomId).
    */
-  async childrenOfActor(actorId: number): Promise<TopologyBase[]> {
+  async childrenOfAtom(atomId: number): Promise<TopologyBase[]> {
     const rows = await this.sql<Array<Record<string, unknown>>>`
-      SELECT id, parent_actor, parent_topology, kind, position
+      SELECT id, parent_atom, parent_topology, kind, position
       FROM topology
-      WHERE parent_actor = ${actorId}
+      WHERE parent_atom = ${atomId}
       ORDER BY position
     `
     return rows.map((row) => buildTopology(this.sql, decodeTopologyRow(row)))

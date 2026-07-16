@@ -36,7 +36,7 @@ const canonicalState = (row: StoredStateDeclaration): CanonicalState | null => {
  * Keeps the relational `state` projection aligned with incremental declarations.
  *
  * `boundary_declaration_entity` remains the declaration source of truth. The
- * relational row only gives `actor_state` a foreign-keyed canonical identity.
+ * relational row only gives `atom_state` a foreign-keyed canonical identity.
  * Triggers execute in the same SQLite transaction as declaration changes.
  */
 export async function initBoundaryStateDeclarations(sql: SQL): Promise<void> {

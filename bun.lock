@@ -25,15 +25,15 @@
     "boundary": {
       "name": "boundary",
       "dependencies": {
-        "@boundary/actor": "workspace:*",
+        "@boundary/atom": "workspace:*",
         "@boundary/topology": "workspace:*",
         "@boundary/wimp": "workspace:*",
         "@metafor/types": "workspace:*",
         "force": "workspace:*",
       },
     },
-    "boundary/actor": {
-      "name": "@boundary/actor",
+    "boundary/atom": {
+      "name": "@boundary/atom",
       "dependencies": {
         "@metafor/types": "workspace:*",
       },
@@ -198,7 +198,7 @@
     },
   },
   "packages": {
-    "@boundary/actor": ["@boundary/actor@workspace:boundary/actor"],
+    "@boundary/atom": ["@boundary/atom@workspace:boundary/atom"],
 
     "@boundary/topology": ["@boundary/topology@workspace:boundary/topology"],
 

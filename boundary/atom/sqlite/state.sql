@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS atom_state
+(
+    atom     INTEGER PRIMARY KEY,
+    metaState INTEGER,
+    FOREIGN KEY (atom) REFERENCES atom (id) ON DELETE CASCADE,
+    FOREIGN KEY (metaState) REFERENCES state (id) ON DELETE CASCADE
+);

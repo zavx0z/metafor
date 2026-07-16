@@ -4,7 +4,7 @@ import type { NodeType } from "@metafor/types/template/node/index"
 
 describe("meta", () => {
   describe("теги", () => {
-    describe("актор web-component", () => {
+    describe("атом web-component", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
@@ -31,7 +31,7 @@ describe("meta", () => {
       })
     })
 
-    describe("актор web-component с самозакрывающимся тегом", () => {
+    describe("атом web-component с самозакрывающимся тегом", () => {
       let elements: NodeType[]
 
       beforeAll(() => {

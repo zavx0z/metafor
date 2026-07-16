@@ -13,7 +13,7 @@ Root workspace graph задан явным списком в `package.json`:
 - transport: `force`;
 - domains: `dark`, `boundary`, `matrix`, `energy`, `bulk`;
 - domain packages: `dark/{gravity,strong}`,
-  `boundary/{actor,topology,wimp}`, `matrix/{gravity,strong,weak}`,
+  `boundary/{atom,topology,wimp}`, `matrix/{gravity,strong,weak}`,
   `bulk/{gravity,strong,weak}`;
 - reusable implementation: `pkg/engine`, `pkg/template`,
   `ui/{elements,components,hud}`, `fixture`;

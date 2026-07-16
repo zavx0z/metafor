@@ -1,4 +1,4 @@
 export {
   loadMatrixRuntimeSnapshot,
-  listMatrixRuntimeActorIds,
+  listMatrixRuntimeAtomIds,
 } from "./matrix.ts"

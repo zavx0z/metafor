@@ -11,7 +11,7 @@ const message = (part: Particle): ForceMessage => ({parts: [part]})
 
 describe("Boundary canonical State", () => {
   let boundary: BoundaryDatabase
-  let actorId: number
+  let atomId: number
 
   beforeEach(async () => {
     boundary = await open(":memory:")
@@ -36,11 +36,11 @@ describe("Boundary canonical State", () => {
       {part: "inflaton", op: "test", path: ROOT},
     ]
     for (const part of declarations) await boundary.materialize(message(part))
-    const actor = (await boundary.projection.sql<Array<{id: number}>>`
-      SELECT id FROM actor WHERE wimp = ${ROOT} ORDER BY id LIMIT 1
+    const atom = (await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM atom WHERE wimp = ${ROOT} ORDER BY id LIMIT 1
     `)[0]
-    if (!actor) throw new Error("Root actor was not materialized")
-    actorId = Number(actor.id)
+    if (!atom) throw new Error("Root atom was not materialized")
+    atomId = Number(atom.id)
   })
 
   afterEach(async () => {
@@ -50,15 +50,15 @@ describe("Boundary canonical State", () => {
   const stateName = async (): Promise<string | null> => {
     const row = (await boundary.projection.sql<Array<{name: string}>>`
       SELECT state.name
-        FROM actor_state
-        JOIN state ON state.id = actor_state.metaState
-       WHERE actor_state.actor = ${actorId}
+        FROM atom_state
+        JOIN state ON state.id = atom_state.metaState
+       WHERE atom_state.atom = ${atomId}
     `)[0]
     return row?.name ?? null
   }
 
   test("persists non-Process Photon and rebuilds Matrix from the canonical State", async () => {
-    await boundary.materialize(message({part: "photon", op: "replace", path: actorId, value: "idle"}))
+    await boundary.materialize(message({part: "photon", op: "replace", path: atomId, value: "idle"}))
     expect(await stateName()).toBe("idle")
 
     const snapshot = await boundary.matrixRuntime()
@@ -68,7 +68,7 @@ describe("Boundary canonical State", () => {
     await expect(boundary.materialize(message({
       part: "photon",
       op: "replace",
-      path: actorId,
+      path: atomId,
       value: "missing",
     }))).rejects.toThrow("Cannot commit State")
     expect(await stateName()).toBe("idle")
@@ -79,23 +79,23 @@ describe("Boundary canonical State", () => {
     await boundary.materialize(message({
       part: "photon",
       op: "test",
-      path: actorId,
+      path: atomId,
       from: processExecutionId,
       value: "ready",
     }))
 
     expect(await stateName()).toBe("ready")
     const execution = (await boundary.projection.sql<Array<{
-      actor: number
+      atom: number
       process: number
       state: string
       status: string
     }>>`
-      SELECT actor, process, state, status
+      SELECT atom, process, state, status
         FROM boundary_process_execution
        WHERE execution_id = ${processExecutionId}
     `)[0]
-    expect(execution).toEqual({actor: actorId, process: PROCESS, state: "ready", status: "pending"})
+    expect(execution).toEqual({atom: atomId, process: PROCESS, state: "ready", status: "pending"})
     expect((await boundary.matrixRuntime()).data.branes[0]?.state).toBe(1)
   })
 
@@ -104,12 +104,12 @@ describe("Boundary canonical State", () => {
     const processPhoton: Particle = {
       part: "photon",
       op: "test",
-      path: actorId,
+      path: atomId,
       from: processExecutionId,
       value: "ready",
     }
     await boundary.materialize(message(processPhoton))
-    await boundary.materialize(message({part: "photon", op: "replace", path: actorId, value: "complete"}))
+    await boundary.materialize(message({part: "photon", op: "replace", path: atomId, value: "complete"}))
 
     expect(await stateName()).toBe("complete")
     expect((await boundary.projection.sql<Array<{status: string}>>`
@@ -122,7 +122,7 @@ describe("Boundary canonical State", () => {
     await expect(boundary.materialize(message({
       part: "w+",
       op: "replace",
-      path: actorId,
+      path: atomId,
       from: "energy-stale",
       value: {
         processExecutionId,

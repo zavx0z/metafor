@@ -27,7 +27,7 @@ describe("graph", () => {
   })
 
   describe("appendChild()", () => {
-    test("добавляет корневой актор", () => {
+    test("добавляет корневой атом", () => {
       const uuid = "uuid-1"
       appendChild(null, uuid)
       setOrderKey(uuid, first())
@@ -93,7 +93,7 @@ describe("graph", () => {
   })
 
   describe("removeChild()", () => {
-    test("удаляет актора (дети остаются)", () => {
+    test("удаляет атома (дети остаются)", () => {
       const parent = "parent-1"
       const child = "child-1"
 
@@ -125,7 +125,7 @@ describe("graph", () => {
   })
 
   describe("replaceChild()", () => {
-    test("заменяет актора", () => {
+    test("заменяет атома", () => {
       const parent = "parent-1"
       const oldChild = "old-child"
       const newChild = "new-child"
@@ -198,7 +198,7 @@ describe("graph", () => {
   })
 
   describe("removeChildWithDescendants()", () => {
-    test("удаляет актора + все потомки рекурсивно", () => {
+    test("удаляет атома + все потомки рекурсивно", () => {
       const root = "root-1"
       const child1 = "child-1"
       const grandchild = "grandchild-1"
@@ -316,7 +316,7 @@ describe("graph", () => {
   })
 
   describe("computeIndexPath()", () => {
-    test("вычисляет путь для корневого актора", () => {
+    test("вычисляет путь для корневого атома", () => {
       const root = "root-1"
 
       appendChild(null, root)
@@ -326,7 +326,7 @@ describe("graph", () => {
       expect(path).toBe("0")
     })
 
-    test("вычисляет путь для дочернего актора", () => {
+    test("вычисляет путь для дочернего атома", () => {
       const parent = "parent-1"
       const child = "child-1"
 

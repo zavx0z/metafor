@@ -15,13 +15,13 @@ export type BoundaryFieldCommit = {
 
 /**
  * The only runtime path that turns computed Fields into materialized world data.
- * Callers provide an already validated Actor/WIMP and declared write set; this
+ * Callers provide an already validated Atom/WIMP and declared write set; this
  * function validates every address again and writes within the caller's SQLite
  * transaction.
  */
-export async function commitBoundaryActorFields(
+export async function commitBoundaryAtomFields(
   sql: Database,
-  actorId: number,
+  atomId: number,
   wimp: string,
   allowedFields: ReadonlySet<number>,
   proposedFields: Record<string, unknown>,
@@ -46,11 +46,11 @@ export async function commitBoundaryActorFields(
 
   for (const [fieldId, value] of fields) {
     const field = fieldById.get(fieldId)
-    if (!field) throw new Error(`Field ${fieldId} does not belong to actor ${actorId}`)
+    if (!field) throw new Error(`Field ${fieldId} does not belong to atom ${atomId}`)
     await sql`
-      INSERT INTO boundary_actor_field (actor, field, value_json)
-      VALUES (${actorId}, ${fieldId}, ${JSON.stringify(value)})
-      ON CONFLICT (actor, field) DO UPDATE SET value_json = excluded.value_json
+      INSERT INTO boundary_atom_field (atom, field, value_json)
+      VALUES (${atomId}, ${fieldId}, ${JSON.stringify(value)})
+      ON CONFLICT (atom, field) DO UPDATE SET value_json = excluded.value_json
     `
     const target = field.type === "enum" || field.type === "array" ? topology : scalar
     target[String(fieldId)] = value

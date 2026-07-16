@@ -11,7 +11,7 @@ const message = (part: Particle): ForceMessage => ({parts: [part]})
 
 describe("Boundary canonical external Field input", () => {
   let boundary: BoundaryDatabase
-  let actorId: number
+  let atomId: number
 
   beforeEach(async () => {
     boundary = await open(":memory:")
@@ -23,11 +23,11 @@ describe("Boundary canonical external Field input", () => {
       {part: "inflaton", op: "test", path: ROOT},
     ] as Particle[]) await boundary.materialize(message(part))
 
-    const actor = (await boundary.projection.sql<Array<{id: number}>>`
-      SELECT id FROM actor WHERE wimp = ${ROOT} ORDER BY id LIMIT 1
+    const atom = (await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM atom WHERE wimp = ${ROOT} ORDER BY id LIMIT 1
     `)[0]
-    if (!actor) throw new Error("Root Actor was not materialized")
-    actorId = Number(actor.id)
+    if (!atom) throw new Error("Root Atom was not materialized")
+    atomId = Number(atom.id)
   })
 
   afterEach(async () => {
@@ -37,8 +37,8 @@ describe("Boundary canonical external Field input", () => {
   const stored = async (field: number): Promise<unknown> => {
     const row = (await boundary.projection.sql<Array<{valueJson: string}>>`
       SELECT value_json AS valueJson
-        FROM boundary_actor_field
-       WHERE actor = ${actorId} AND field = ${field}
+        FROM boundary_atom_field
+       WHERE atom = ${atomId} AND field = ${field}
     `)[0]
     return row ? JSON.parse(row.valueJson) as unknown : undefined
   }
@@ -47,7 +47,7 @@ describe("Boundary canonical external Field input", () => {
     const commit = await boundary.materialize(message({
       part: "gluon",
       op: "replace",
-      path: actorId,
+      path: atomId,
       value: {fields: {[String(INPUT)]: 4}},
     }))
 
@@ -56,7 +56,7 @@ describe("Boundary canonical external Field input", () => {
     expect(commit?.messages[0]?.parts[0]).toEqual({
       part: "gluon",
       op: "replace",
-      path: actorId,
+      path: atomId,
       from: expect.stringMatching(/^boundary:/),
       value: {fields: {[String(INPUT)]: 4}},
     })
@@ -66,7 +66,7 @@ describe("Boundary canonical external Field input", () => {
     const commit = await boundary.materialize(message({
       part: "gluon",
       op: "replace",
-      path: actorId,
+      path: atomId,
       from: "boundary:existing",
       value: {fields: {[String(INPUT)]: 9}},
     }))
@@ -79,8 +79,8 @@ describe("Boundary canonical external Field input", () => {
     await expect(boundary.materialize(message({
       part: "gluon",
       op: "replace",
-      path: actorId,
-      value: {fields: {[String(INPUT)]: 3, [String(LINKS)]: [actorId]}},
+      path: atomId,
+      value: {fields: {[String(INPUT)]: 3, [String(LINKS)]: [atomId]}},
     }))).rejects.toThrow("cannot write field")
 
     expect(await stored(INPUT)).toBe(0)
@@ -91,13 +91,13 @@ describe("Boundary canonical external Field input", () => {
     await boundary.materialize(message({
       part: "gluon",
       op: "replace",
-      path: actorId,
+      path: atomId,
       value: {fields: {[String(INPUT)]: 5}},
     }))
     const commit = await boundary.materialize(message({
       part: "gluon",
       op: "remove",
-      path: actorId,
+      path: atomId,
       value: {fields: {[String(INPUT)]: null}},
     }))
 
@@ -105,7 +105,7 @@ describe("Boundary canonical external Field input", () => {
     expect(commit?.messages[0]?.parts[0]).toMatchObject({
       part: "gluon",
       op: "remove",
-      path: actorId,
+      path: atomId,
       from: expect.stringMatching(/^boundary:/),
     })
   })

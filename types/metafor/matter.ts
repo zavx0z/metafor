@@ -55,8 +55,7 @@ export interface FieldInit {
   key: string
   value: unknown
   source?: {
-    /** Legacy storage key; identifies the parent Atom. */
-    parentActorId: number
+    parentAtomId: number
     parentFieldKey: string
   }
 }
@@ -66,8 +65,8 @@ export interface Continuation {
   mass?: unknown
 }
 
-/** Runtime storage reference. `actor` currently identifies a materialized Atom. */
-export type ParticleRef = { kind: "actor"; id: number } | { kind: "topology"; id: number }
+/** Runtime storage reference. `atom` currently identifies a materialized Atom. */
+export type ParticleRef = { kind: "atom"; id: number } | { kind: "topology"; id: number }
 
 export interface BfsEntry {
   plan: MatterParticle

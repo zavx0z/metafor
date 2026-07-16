@@ -9,11 +9,11 @@ describe("Boundary SQLite domain", () => {
     `).map((row) => row.name)
 
     expect(tables).toContain("wimp")
-    expect(tables).toContain("actor")
+    expect(tables).toContain("atom")
     expect(tables).toContain("topology")
     expect(tables).toContain("boundary_declaration_entity")
     expect(tables).toContain("boundary_runtime_origin")
-    expect(tables).toContain("boundary_actor_field")
+    expect(tables).toContain("boundary_atom_field")
 
     await boundary.close()
     await boundary.close()

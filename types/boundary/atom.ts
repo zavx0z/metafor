@@ -2,7 +2,7 @@ import type { AtomStateRecord, AtomValueRecord, ValueItemRecord, ValueRecord } f
 
 export interface AtomRecord {
   id: number
-  parentActor: number | null
+  parentAtom: number | null
   parentTopology: number | null
   wimp: string
   position: number
@@ -10,14 +10,13 @@ export interface AtomRecord {
 
 export interface AtomInputRow {
   id?: number | undefined
-  parentActor: number | null
+  parentAtom: number | null
   parentTopology: number | null
   wimp: string
 }
 
 export interface AtomRows {
-  /** Legacy storage key; the value is the materialized Atom row. */
-  actor: AtomInputRow
+  atom: AtomInputRow
   values: AtomValueRecord[]
   valueRecords: ValueRecord[]
   valueItems: ValueItemRecord[]

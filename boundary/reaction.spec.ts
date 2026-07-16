@@ -17,8 +17,8 @@ const message = (part: Particle): ForceMessage => ({parts: [part]})
 
 describe("Boundary Reaction lifecycle", () => {
   let boundary: BoundaryDatabase
-  let sourceActorId: number
-  let targetActorId: number
+  let sourceAtomId: number
+  let targetAtomId: number
 
   beforeEach(async () => {
     boundary = await open(":memory:")
@@ -48,15 +48,15 @@ describe("Boundary Reaction lifecycle", () => {
     ]
     for (const part of declarations) await boundary.materialize(message(part))
 
-    const actors = await boundary.projection.sql<Array<{id: number; wimp: string}>>`
-      SELECT id, wimp FROM actor WHERE wimp IN (${SOURCE}, ${TARGET}) ORDER BY id
+    const atoms = await boundary.projection.sql<Array<{id: number; wimp: string}>>`
+      SELECT id, wimp FROM atom WHERE wimp IN (${SOURCE}, ${TARGET}) ORDER BY id
     `
-    sourceActorId = Number(actors.find((actor) => actor.wimp === SOURCE)?.id)
-    targetActorId = Number(actors.find((actor) => actor.wimp === TARGET)?.id)
-    if (!sourceActorId || !targetActorId) throw new Error("Reaction actors were not materialized")
+    sourceAtomId = Number(atoms.find((atom) => atom.wimp === SOURCE)?.id)
+    targetAtomId = Number(atoms.find((atom) => atom.wimp === TARGET)?.id)
+    if (!sourceAtomId || !targetAtomId) throw new Error("Reaction atoms were not materialized")
 
-    await boundary.materialize(message({part: "photon", op: "replace", path: sourceActorId, value: "idle"}))
-    await boundary.materialize(message({part: "photon", op: "replace", path: targetActorId, value: "idle"}))
+    await boundary.materialize(message({part: "photon", op: "replace", path: sourceAtomId, value: "idle"}))
+    await boundary.materialize(message({part: "photon", op: "replace", path: targetAtomId, value: "idle"}))
   })
 
   afterEach(async () => {
@@ -66,8 +66,8 @@ describe("Boundary Reaction lifecycle", () => {
   const targetValue = async (): Promise<unknown> => {
     const row = (await boundary.projection.sql<Array<{valueJson: string}>>`
       SELECT value_json AS valueJson
-        FROM boundary_actor_field
-       WHERE actor = ${targetActorId} AND field = ${TARGET_RESULT}
+        FROM boundary_atom_field
+       WHERE atom = ${targetAtomId} AND field = ${TARGET_RESULT}
     `)[0]
     return row ? JSON.parse(row.valueJson) as unknown : undefined
   }
@@ -76,7 +76,7 @@ describe("Boundary Reaction lifecycle", () => {
     const signals = await boundary.reaction.derive([message({
       part: "gluon",
       op: "replace",
-      path: sourceActorId,
+      path: sourceAtomId,
       from: "source-commit",
       value: {fields: {"1": 1}},
     })])
@@ -84,15 +84,15 @@ describe("Boundary Reaction lifecycle", () => {
     const signalPart = signals[0]!.parts[0]!
     expect(signalPart.part).toBe("photon")
     expect(signalPart.op).toBe("test")
-    expect(signalPart.path).toBe(targetActorId)
+    expect(signalPart.path).toBe(targetAtomId)
     return signalPart.value as ReactionExecutionSignal
   }
 
   test("selects one Energy and commits declared Reaction writes", async () => {
     const signal = await schedule()
     expect(signal.reactionId).toBe(TARGET_REACTION)
-    expect(signal.target).toEqual({actorId: targetActorId, wimp: TARGET, state: "idle"})
-    expect(signal.source.actorId).toBe(sourceActorId)
+    expect(signal.target).toEqual({atomId: targetAtomId, wimp: TARGET, state: "idle"})
+    expect(signal.source.atomId).toBe(sourceAtomId)
     expect(signal.writeFields).toEqual([[TARGET_RESULT, "result"]])
 
     const claim: ReactionExecutionClaim = {
@@ -100,11 +100,11 @@ describe("Boundary Reaction lifecycle", () => {
       energy: "energy-reaction",
       reactionExecutionId: signal.reactionExecutionId,
     }
-    const grant = await boundary.materialize(message({part: "z", op: "test", path: targetActorId, value: claim}))
+    const grant = await boundary.materialize(message({part: "z", op: "test", path: targetAtomId, value: claim}))
     expect(grant?.messages).toEqual([message({
       part: "z",
       op: "copy",
-      path: targetActorId,
+      path: targetAtomId,
       from: "energy-reaction",
       value: signal,
     })])
@@ -112,7 +112,7 @@ describe("Boundary Reaction lifecycle", () => {
     const losingClaim = await boundary.materialize(message({
       part: "z",
       op: "test",
-      path: targetActorId,
+      path: targetAtomId,
       value: {...claim, energy: "energy-other"},
     }))
     expect(losingClaim).toBeNull()
@@ -126,7 +126,7 @@ describe("Boundary Reaction lifecycle", () => {
     const commit = await boundary.materialize(message({
       part: "w+",
       op: "replace",
-      path: targetActorId,
+      path: targetAtomId,
       from: "energy-reaction",
       value: proposal,
     }))
@@ -135,14 +135,14 @@ describe("Boundary Reaction lifecycle", () => {
     expect(commit?.messages[0]?.parts[0]).toEqual({
       part: "gluon",
       op: "replace",
-      path: targetActorId,
+      path: targetAtomId,
       from: `reaction:${signal.reactionExecutionId}`,
       value: {fields: {[String(TARGET_RESULT)]: 2}},
     })
     expect(commit?.messages[1]?.parts[0]).toEqual({
       part: "w+",
       op: "copy",
-      path: targetActorId,
+      path: targetAtomId,
       from: signal.reactionExecutionId,
       value: {
         reactionExecutionId: signal.reactionExecutionId,
@@ -155,7 +155,7 @@ describe("Boundary Reaction lifecycle", () => {
     expect(await boundary.materialize(message({
       part: "w+",
       op: "replace",
-      path: targetActorId,
+      path: targetAtomId,
       from: "energy-reaction",
       value: proposal,
     }))).toBeNull()
@@ -168,11 +168,11 @@ describe("Boundary Reaction lifecycle", () => {
       energy: "energy-reaction",
       reactionExecutionId: signal.reactionExecutionId,
     }
-    await boundary.materialize(message({part: "z", op: "test", path: targetActorId, value: claim}))
+    await boundary.materialize(message({part: "z", op: "test", path: targetAtomId, value: claim}))
     const commit = await boundary.materialize(message({
       part: "w-",
       op: "replace",
-      path: targetActorId,
+      path: targetAtomId,
       from: "energy-reaction",
       value: {
         reactionExecutionId: signal.reactionExecutionId,
@@ -185,7 +185,7 @@ describe("Boundary Reaction lifecycle", () => {
     expect(commit?.messages).toEqual([message({
       part: "w-",
       op: "copy",
-      path: targetActorId,
+      path: targetAtomId,
       from: signal.reactionExecutionId,
       value: {
         reactionExecutionId: signal.reactionExecutionId,
@@ -203,12 +203,12 @@ describe("Boundary Reaction lifecycle", () => {
       energy: "energy-reaction",
       reactionExecutionId: signal.reactionExecutionId,
     }
-    await boundary.materialize(message({part: "z", op: "test", path: targetActorId, value: claim}))
+    await boundary.materialize(message({part: "z", op: "test", path: targetAtomId, value: claim}))
 
     await expect(boundary.materialize(message({
       part: "w+",
       op: "replace",
-      path: targetActorId,
+      path: targetAtomId,
       from: "energy-reaction",
       value: {
         reactionExecutionId: signal.reactionExecutionId,
@@ -219,7 +219,7 @@ describe("Boundary Reaction lifecycle", () => {
     }))).rejects.toThrow("cannot write field")
     expect(await targetValue()).toBe(0)
 
-    await boundary.materialize(message({part: "photon", op: "replace", path: targetActorId, value: "idle"}))
+    await boundary.materialize(message({part: "photon", op: "replace", path: targetAtomId, value: "idle"}))
     const status = (await boundary.projection.sql<Array<{status: string}>>`
       SELECT status FROM boundary_reaction_execution WHERE execution_id = ${signal.reactionExecutionId}
     `)[0]?.status

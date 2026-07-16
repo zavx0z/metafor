@@ -1,6 +1,6 @@
 export type EnergyMassContext = {
   energyId: string
-  actorId: number
+  atomId: number
   wimp: string
   state: string
 }

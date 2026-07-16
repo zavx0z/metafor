@@ -1,5 +1,5 @@
 /**
- * Модуль управления иерархией акторов.
+ * Модуль управления иерархией атомов.
  * @packageDocumentation
  *
  * Отвечает за управление древовидной структурой через childrenView и indexPath.
@@ -22,15 +22,15 @@ let indexPaths: Map<string, string> = new Map()
 let orderKeys: Map<string, Uint8Array> = new Map()
 
 /**
- * Добавляет актора в конец списка детей.
+ * Добавляет атома в конец списка детей.
  *
  * @param parentUuid - UUID родителя (null для корневого уровня)
- * @param childUuid - UUID дочернего актора
+ * @param childUuid - UUID дочернего атома
  *
  * @example
  * ```typescript
- * appendChild(null, "uuid-1")  // корневой актор
- * appendChild("uuid-1", "uuid-2")  // дочерний актор
+ * appendChild(null, "uuid-1")  // корневой атом
+ * appendChild("uuid-1", "uuid-2")  // дочерний атом
  * ```
  */
 export function appendChild(parentUuid: string | null, childUuid: string): void {
@@ -46,10 +46,10 @@ export function appendChild(parentUuid: string | null, childUuid: string): void 
 }
 
 /**
- * Вставляет актора перед указанным sibling.
+ * Вставляет атома перед указанным sibling.
  *
  * @param parentUuid - UUID родителя (null для корневого уровня)
- * @param newChildUuid - UUID вставляемого актора
+ * @param newChildUuid - UUID вставляемого атома
  * @param referenceChildUuid - UUID sibling, перед которым вставляем
  *
  * @example
@@ -80,10 +80,10 @@ export function insertBefore(
 }
 
 /**
- * Удаляет актора из иерархии (без потомков).
+ * Удаляет атома из иерархии (без потомков).
  *
  * @param parentUuid - UUID родителя (null для корневого уровня)
- * @param childUuid - UUID дочернего актора
+ * @param childUuid - UUID дочернего атома
  *
  * @example
  * ```typescript
@@ -110,11 +110,11 @@ export function removeChild(parentUuid: string | null, childUuid: string): void 
 }
 
 /**
- * Заменяет одного актора на другого.
+ * Заменяет одного атома на другого.
  *
  * @param parentUuid - UUID родителя (null для корневого уровня)
- * @param newChildUuid - UUID нового актора
- * @param oldChildUuid - UUID заменяемого актора
+ * @param newChildUuid - UUID нового атома
+ * @param oldChildUuid - UUID заменяемого атома
  *
  * @example
  * ```typescript
@@ -148,9 +148,9 @@ export function replaceChild(
 }
 
 /**
- * Перемещает актора к новому родителю.
+ * Перемещает атома к новому родителю.
  *
- * @param childUuid - UUID перемещаемого актора
+ * @param childUuid - UUID перемещаемого атома
  * @param newParentUuid - UUID нового родителя (null для корня)
  *
  * @example
@@ -196,10 +196,10 @@ export function moveChild(
 }
 
 /**
- * Удаляет актора и всех потомков.
+ * Удаляет атома и всех потомков.
  *
  * @param parentUuid - UUID родителя (null для корневого уровня)
- * @param childUuid - UUID дочернего актора
+ * @param childUuid - UUID дочернего атома
  *
  * @example
  * ```typescript
@@ -216,7 +216,7 @@ export function removeChildWithDescendants(
     removeChildWithDescendants(childUuid, grandchild)
   }
 
-  // Удаляем самого актора
+  // Удаляем самого атома
   removeChild(parentUuid, childUuid)
 }
 
@@ -237,7 +237,7 @@ export function hasChildren(parentUuid: string): boolean {
 }
 
 /**
- * Получает детей актора.
+ * Получает детей атома.
  *
  * @param parentUuid - UUID родителя
  * @returns массив UUID детей в порядке orderKey
@@ -264,9 +264,9 @@ export function getChildren(parentUuid: string): string[] {
 }
 
 /**
- * Получает корневые акторы.
+ * Получает корневые атомы.
  *
- * @returns массив UUID корневых акторов
+ * @returns массив UUID корневых атомов
  *
  * @example
  * ```typescript
@@ -278,9 +278,9 @@ export function getRoots(): string[] {
 }
 
 /**
- * Получает индекс-путь актора.
+ * Получает индекс-путь атома.
  *
- * @param uuid - UUID актора
+ * @param uuid - UUID атома
  * @returns indexPath строка "0/1/2" или undefined если не найден
  *
  * @example
@@ -296,7 +296,7 @@ export function getIndexPathByUuid(uuid: string): string | undefined {
  * Получает uuid по индекс-пути.
  *
  * @param indexPath - путь "0/1/2"
- * @returns uuid актора или undefined если не найден
+ * @returns uuid атома или undefined если не найден
  *
  * @example
  * ```typescript
@@ -313,10 +313,10 @@ export function getUuidByIndexPath(indexPath: string): string | undefined {
 }
 
 /**
- * Вычисляет индекс-путь для нового актора.
+ * Вычисляет индекс-путь для нового атома.
  *
  * @param parentUuid - UUID родителя (null для корневого уровня)
- * @param childUuid - UUID дочернего актора
+ * @param childUuid - UUID дочернего атома
  * @returns indexPath строка "0/1/2"
  *
  * @example
@@ -349,9 +349,9 @@ export function computeIndexPath(
 }
 
 /**
- * Устанавливает orderKey для актора.
+ * Устанавливает orderKey для атома.
  *
- * @param uuid - UUID актора
+ * @param uuid - UUID атома
  * @param key - orderKey
  */
 export function setOrderKey(uuid: string, key: Uint8Array): void {

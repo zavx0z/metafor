@@ -94,7 +94,7 @@ describe("Force transport", () => {
     expect(echoedToDark).toBe(false)
 
     const httpMessage: ForceMessage = {
-      parts: [{part: "graviton", op: "replace", path: "owner/project", value: {actor: 17}}],
+      parts: [{part: "graviton", op: "replace", path: "owner/project", value: {atom: 17}}],
     }
     const darkHttpDelivery = nextMessage(dark)
     const boundaryHttpDelivery = nextMessage(boundary)

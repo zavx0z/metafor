@@ -1,7 +1,0 @@
-CREATE TABLE IF NOT EXISTS actor_state
-(
-    actor     INTEGER PRIMARY KEY,
-    metaState INTEGER,
-    FOREIGN KEY (actor) REFERENCES actor (id) ON DELETE CASCADE,
-    FOREIGN KEY (metaState) REFERENCES state (id) ON DELETE CASCADE
-);

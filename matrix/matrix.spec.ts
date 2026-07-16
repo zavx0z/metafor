@@ -48,11 +48,11 @@ const runtimeSnapshot = (): MatrixRuntimeSnapshot => ({
   ok: true,
   version: 1,
   runtime: {
-    actorIdByBraneIndex: [17],
-    braneIndexByActorId: [[17, 0]],
-    wimpSrcByActorId: [[17, "owner/process"]],
-    actorIdsByWimpSrc: [["owner/process", [17]]],
-    runtimeFieldIndexByActorFieldId: [[17, 101, 0], [17, 102, 1]],
+    atomIdByBraneIndex: [17],
+    braneIndexByAtomId: [[17, 0]],
+    wimpSrcByAtomId: [[17, "owner/process"]],
+    atomIdsByWimpSrc: [["owner/process", [17]]],
+    runtimeFieldIndexByAtomFieldId: [[17, 101, 0], [17, 102, 1]],
   },
   data: {
     fields: [{type: 0}, {type: 3}],
@@ -72,7 +72,7 @@ const runtimeSnapshot = (): MatrixRuntimeSnapshot => ({
     wimpFieldIdsByRuntimeFieldIndex: [[1], [2]],
     braneIndexByWimpFieldId: [[1, 0], [2, 0]],
     topologyWimpFieldIds: [],
-    topologyActorFieldIds: [],
+    topologyAtomFieldIds: [],
   },
   weak: {
     stateMetaStateIdsByBraneIndex: [[201, 202, 203]],
@@ -84,11 +84,11 @@ const emptyRuntimeSnapshot = (): MatrixRuntimeSnapshot => ({
   ok: true,
   version: 1,
   runtime: {
-    actorIdByBraneIndex: [],
-    braneIndexByActorId: [],
-    wimpSrcByActorId: [],
-    actorIdsByWimpSrc: [],
-    runtimeFieldIndexByActorFieldId: [],
+    atomIdByBraneIndex: [],
+    braneIndexByAtomId: [],
+    wimpSrcByAtomId: [],
+    atomIdsByWimpSrc: [],
+    runtimeFieldIndexByAtomFieldId: [],
   },
   data: {fields: [], branes: [], stateNames: []},
   strong: {
@@ -96,7 +96,7 @@ const emptyRuntimeSnapshot = (): MatrixRuntimeSnapshot => ({
     wimpFieldIdsByRuntimeFieldIndex: [],
     braneIndexByWimpFieldId: [],
     topologyWimpFieldIds: [],
-    topologyActorFieldIds: [],
+    topologyAtomFieldIds: [],
   },
   weak: {
     stateMetaStateIdsByBraneIndex: [],
@@ -118,7 +118,7 @@ describe("Matrix packed Force runtime", () => {
       value: emptyRuntimeSnapshot(),
     })
     await settle()
-    expect(runtime.listMatrixRuntimeActorIds()).toEqual([])
+    expect(runtime.listMatrixRuntimeAtomIds()).toEqual([])
     expect(weak$.initialized).toBe(true)
     expect(weak$.mode).toBe("cpu")
 
@@ -132,7 +132,7 @@ describe("Matrix packed Force runtime", () => {
     expect(await waitForPart(client, (part) => part.part === "photon" && part.value === "idle", fromBootstrap)).toEqual({
       part: "photon", op: "replace", path: 17, value: "idle",
     })
-    expect(runtime.listMatrixRuntimeActorIds()).toEqual([17])
+    expect(runtime.listMatrixRuntimeAtomIds()).toEqual([17])
     expect(weak$.mode).toBe("cpu")
 
     const fromField = fixture.messages.length
@@ -222,7 +222,7 @@ describe("Matrix packed Force runtime", () => {
     const source = await Bun.file(join(import.meta.dir, "matrix.ts")).text()
     expect(source).not.toContain("MatrixProjectionStore")
     expect(source).not.toContain("comparePredicate")
-    expect(source).not.toContain("evaluateIncrementalActor")
+    expect(source).not.toContain("evaluateIncrementalAtom")
     expect(source).toContain("weakRunStep")
     expect(source).toContain("MATRIX_RUNTIME_PATH")
   })

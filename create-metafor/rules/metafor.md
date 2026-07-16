@@ -370,7 +370,7 @@ return { group: group as "start" | "work" | "examine" }
 
 ---
 
-## Matter — иерархия акторов
+## Matter — иерархия атомов
 
 ```typescript
 .matter(({ state, value, html }) => html`
@@ -390,18 +390,18 @@ return { group: group as "start" | "work" | "examine" }
 
 **Правила:**
 
-- Matter описывает только иерархию акторов, а не локальную HTML-разметку
+- Matter описывает только иерархию атомов, а не локальную HTML-разметку
 - Теги `<meta-for>` самозакрывающиеся: `<meta-for src="..." />`
 - Поля передаются через атрибут `fields={{ ... }}`
 - Если fields === null, ничего не рендерится
-- Ошибки отображаются через отдельный актор
+- Ошибки отображаются через отдельный атом
 - В сериализованном matter допустимы только topology-узлы: `meta`, `log`, `cond`, `map`
 - `&&` и тернарный `? :` допустимы только если их basis — `state` или `enum`
 - `map()` в matter допустим только по `array`-полю topology
 - Динамический `src` допустим только если он зависит от одного статического `enum`-поля
-- Если dynamic `src` уже зависит от `enum`, не оборачивай его в `value.mode && ...`: direct `<meta-for src="...${value.mode}" />` достаточно, `null` не должен материализовать актор `...-null`
+- Если dynamic `src` уже зависит от `enum`, не оборачивай его в `value.mode && ...`: direct `<meta-for src="...${value.mode}" />` достаточно, `null` не должен материализовать атом `...-null`
 - Не поднимай в topology branch-choice по `boolean`, `string`, `number` или `mass`
-- Не рендери в matter `div`, `span`, `button`, текст и прочие HTML-элементы — это не акторы
+- Не рендери в matter `div`, `span`, `button`, текст и прочие HTML-элементы — это не атомы
 
 **Topology-семантика в matter:**
 
@@ -440,7 +440,7 @@ return { group: group as "start" | "work" | "examine" }
 
 ---
 
-## Пример актора
+## Пример атома
 
 ```typescript
 export default MetaFor("git")
@@ -535,7 +535,7 @@ export default async function action({
 2. Имя: `MetaFor("<name>")`
 3. Enum: всегда с `label`
 4. Импорт в `meta.ts` не нужен: `MetaFor` предоставляет DSL-среда
-5. Bulk: только `<meta-for>` для иерархии акторов
+5. Bulk: только `<meta-for>` для иерархии атомов
 6. Цепочка: все методы обязательны (даже пустые)
 7. **Action-модули:** логика действий в отдельных файлах `actions/*.ts`
 8. **Структура action:** `import("...")` + `return`

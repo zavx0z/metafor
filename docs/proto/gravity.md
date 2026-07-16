@@ -30,24 +30,24 @@ Inflaton и Graviton не являются двумя именами одной 
 - declaration скрытой связности,
 - отношения Wimp/Fuzzy/Macho/Axion до materialization,
 - deterministic declaration addressing по WIMP SRC и local ID,
-- отсутствие actor/topology/value instances.
+- отсутствие atom/topology/value instances.
 
 ### Boundary
 
 - canonical current world,
-- создание actor/topology/value identity,
+- создание atom/topology/value identity,
 - адресуемая materialized hierarchy,
 - испускание поштучных Graviton consequences после commit.
 
 ### Matrix
 
-- инкрементальный actor/brane store с parent-child индексами,
+- инкрементальный atom/brane store с parent-child индексами,
 - локализация state transition без чтения Boundary.
 
 ### Bulk
 
 - проявленная структурная раскладка,
-- геометрия акторов,
+- геометрия атомов,
 - пространственная раскладка исполнения,
 - наблюдаемая локализация проявленной формы.
 

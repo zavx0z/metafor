@@ -4,7 +4,6 @@ import type { BulkRenderSettings, SettingsSnapshot } from "@metafor/types/bulk/s
 import type { BulkHudController, BulkHudSettingsSnapshot, BulkViewportWithHud } from "@metafor/types/bulk/hud"
 import {Force} from "force"
 import {createBulkViewport} from "bulk/web"
-import {manifestAtoms} from "./atom.ts"
 import {buildBoundaryBulkManifest} from "./world.ts"
 import {
 	BULK_LAYOUT_SETTING_KEYS,
@@ -45,7 +44,7 @@ const applyProjectionWorld = (
 ): void => {
 	if (!bulkViewport) return
 
-	bulkViewport.applyManifestPatch(manifestAtoms(buildBoundaryBulkManifest(projection.view(), src, layoutSettings)))
+	bulkViewport.applyManifestPatch(buildBoundaryBulkManifest(projection.view(), src, layoutSettings))
 	if (pendingSceneState && pendingSceneState.src === src) {
 		lastAppliedSceneState = pendingSceneState
 		pendingSceneState = null

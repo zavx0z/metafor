@@ -8,39 +8,39 @@ const part = (op: Particle["op"], path: string, value?: unknown, from?: string):
   ...(from !== undefined ? {from} : {}),
 })
 
-const actor = (id: number, wimp: string, parentActor: number | null = null) => ({
-  actor: {id, parentActor, parentTopology: null, wimp, position: id},
+const atom = (id: number, wimp: string, parentAtom: number | null = null) => ({
+  atom: {id, parentAtom, parentTopology: null, wimp, position: id},
   values: [], valueRecords: [], valueItems: [], state: null,
 })
 
 describe("Bulk incremental projection", () => {
-  test("local actor replacement retains scene entity identity and peer identity", () => {
+  test("local atom replacement retains scene entity identity and peer identity", () => {
     const store = new BulkProjectionStore()
-    store.apply(part("add", "actor/1", actor(1, "owner/root")))
-    store.apply(part("add", "actor/2", actor(2, "owner/child", 1)))
-    store.apply(part("add", "actor/3", actor(3, "owner/peer")))
-    const child = store.actors.get(2)
-    const peer = store.actors.get(3)
+    store.apply(part("add", "atom/1", atom(1, "owner/root")))
+    store.apply(part("add", "atom/2", atom(2, "owner/child", 1)))
+    store.apply(part("add", "atom/3", atom(3, "owner/peer")))
+    const child = store.atoms.get(2)
+    const peer = store.atoms.get(3)
 
-    store.apply(part("replace", "actor/2", {actor: {position: 8}}))
+    store.apply(part("replace", "atom/2", {atom: {position: 8}}))
 
-    expect(store.actors.get(2)).toBe(child)
-    expect(store.actors.get(2)?.position).toBe(8)
-    expect(store.actors.get(3)).toBe(peer)
+    expect(store.atoms.get(2)).toBe(child)
+    expect(store.atoms.get(2)?.position).toBe(8)
+    expect(store.atoms.get(3)).toBe(peer)
   })
 
   test("parent-child indexes move one branch without recreating it", () => {
     const store = new BulkProjectionStore()
-    store.apply(part("add", "actor/1", actor(1, "owner/root")))
-    store.apply(part("add", "actor/2", actor(2, "owner/child", 1)))
-    store.apply(part("add", "actor/3", actor(3, "owner/root")))
-    const child = store.actors.get(2)
+    store.apply(part("add", "atom/1", atom(1, "owner/root")))
+    store.apply(part("add", "atom/2", atom(2, "owner/child", 1)))
+    store.apply(part("add", "atom/3", atom(3, "owner/root")))
+    const child = store.atoms.get(2)
 
-    store.apply(part("replace", "actor/2", {actor: {parentActor: 3}}))
+    store.apply(part("replace", "atom/2", {atom: {parentAtom: 3}}))
 
-    expect(store.actors.get(2)).toBe(child)
-    expect(store.childrenByParent.get("actor:1")).toBeUndefined()
-    expect(store.childrenByParent.get("actor:3")).toEqual(new Set(["actor:2"]))
+    expect(store.atoms.get(2)).toBe(child)
+    expect(store.childrenByParent.get("atom:1")).toBeUndefined()
+    expect(store.childrenByParent.get("atom:3")).toEqual(new Set(["atom:2"]))
   })
 
   test("declaration patch updates only its canonical record in place", () => {
@@ -58,13 +58,13 @@ describe("Bulk incremental projection", () => {
     expect(store.fields.get(102)).toBe(peer)
   })
 
-  test("gluon changes one actor value without structural rebuild", () => {
+  test("gluon changes one atom value without structural rebuild", () => {
     const store = new BulkProjectionStore()
-    store.apply(part("add", "actor/1", actor(1, "owner/root")))
+    store.apply(part("add", "atom/1", atom(1, "owner/root")))
     const change = store.apply({part: "gluon", op: "replace", path: 1, value: {fields: {"101": "new"}}})
 
-    expect(change).toEqual({changed: true, affectedActorIds: [1], structural: false})
-    const binding = store.actorValues.get(["1", "101"].join("\0"))
+    expect(change).toEqual({changed: true, affectedAtomIds: [1], structural: false})
+    const binding = store.atomValues.get(["1", "101"].join("\0"))
     expect(binding).toBeDefined()
     expect(store.values.get(binding!.value)?.textValue).toBe("new")
   })
@@ -73,43 +73,43 @@ describe("Bulk incremental projection", () => {
     const store = new BulkProjectionStore()
     store.apply(part("add", "declaration/owner/root/states/1", {id: 201, wimp: "owner/root", name: "idle", position: 0}))
     store.apply(part("add", "declaration/owner/root/states/2", {id: 202, wimp: "owner/root", name: "ready", position: 1}))
-    store.apply(part("add", "actor/1", {...actor(1, "owner/root"), state: {actor: 1, metaState: 201}}))
+    store.apply(part("add", "atom/1", {...atom(1, "owner/root"), state: {atom: 1, metaState: 201}}))
 
-    expect(store.actorStates.get(1)?.state).toBe(201)
+    expect(store.atomStates.get(1)?.state).toBe(201)
     expect(store.apply({part: "photon", op: "replace", path: 1, value: "ready"})).toEqual({
       changed: true,
-      affectedActorIds: [1],
+      affectedAtomIds: [1],
       structural: false,
     })
-    expect(store.actorStates.get(1)?.state).toBe(202)
+    expect(store.atomStates.get(1)?.state).toBe(202)
   })
 
   test("remove drops one branch while retaining an unrelated root", () => {
     const store = new BulkProjectionStore()
-    store.apply(part("add", "actor/1", actor(1, "owner/root")))
-    store.apply(part("add", "actor/2", actor(2, "owner/child", 1)))
-    store.apply(part("add", "actor/3", actor(3, "owner/peer")))
-    const peer = store.actors.get(3)
+    store.apply(part("add", "atom/1", atom(1, "owner/root")))
+    store.apply(part("add", "atom/2", atom(2, "owner/child", 1)))
+    store.apply(part("add", "atom/3", atom(3, "owner/peer")))
+    const peer = store.atoms.get(3)
 
-    store.apply(part("remove", "actor/1"))
+    store.apply(part("remove", "atom/1"))
 
-    expect(store.actors.has(1)).toBe(false)
-    expect(store.actors.has(2)).toBe(false)
-    expect(store.actors.get(3)).toBe(peer)
+    expect(store.atoms.has(1)).toBe(false)
+    expect(store.atoms.has(2)).toBe(false)
+    expect(store.atoms.get(3)).toBe(peer)
   })
 
   test("copy, move and test keep operations granular", () => {
     const store = new BulkProjectionStore()
-    store.apply(part("add", "actor/1", {...actor(1, "owner/root"), state: {actor: 1, metaState: 201}}))
-    store.apply(part("copy", "actor/2", undefined, "actor/1"))
-    expect(store.actors.get(2)).not.toBe(store.actors.get(1))
+    store.apply(part("add", "atom/1", {...atom(1, "owner/root"), state: {atom: 1, metaState: 201}}))
+    store.apply(part("copy", "atom/2", undefined, "atom/1"))
+    expect(store.atoms.get(2)).not.toBe(store.atoms.get(1))
 
-    const original = store.actors.get(1)
-    store.apply(part("move", "actor/3", undefined, "actor/1"))
-    expect(store.actors.get(3)).toBe(original)
-    expect(store.actorStates.get(1)).toBeUndefined()
-    expect(store.actorStates.get(3)).toEqual({actor: 3, state: 201})
-    expect(() => store.apply(part("test", "actor/3", store.actors.get(3)))).not.toThrow()
-    expect(() => store.apply(part("test", "actor/3", {id: 99}))).toThrow("test failed")
+    const original = store.atoms.get(1)
+    store.apply(part("move", "atom/3", undefined, "atom/1"))
+    expect(store.atoms.get(3)).toBe(original)
+    expect(store.atomStates.get(1)).toBeUndefined()
+    expect(store.atomStates.get(3)).toEqual({atom: 3, state: 201})
+    expect(() => store.apply(part("test", "atom/3", store.atoms.get(3)))).not.toThrow()
+    expect(() => store.apply(part("test", "atom/3", {id: 99}))).toThrow("test failed")
   })
 })

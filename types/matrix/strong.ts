@@ -6,9 +6,9 @@ export interface MatrixStrongStore {
   wimpFieldIdsByRuntimeFieldIndex: number[][]
   braneIndexByWimpFieldId: Map<number, number>
   topologyWimpFieldIds: Set<number>
-  runtimeFieldIndexByActorFieldId: Map<string, number>
-  actorFieldIdsByRuntimeFieldIndex: Array<Array<[actorId: number, fieldId: number]>>
-  topologyActorFieldIds: Set<string>
+  runtimeFieldIndexByAtomFieldId: Map<string, number>
+  atomFieldIdsByRuntimeFieldIndex: Array<Array<[atomId: number, fieldId: number]>>
+  topologyAtomFieldIds: Set<string>
 }
 
 export interface StringInterner {

@@ -1,7 +1,7 @@
 import type {SQL} from "bun"
-import type { ActorRecord, ActorRows } from "@metafor/types/boundary/actor"
-import type { ActorStateRecord, ActorValueRecord, ValueItemRecord, ValueRecord } from "@metafor/types/boundary/value"
-import {ActorFieldValue} from "./actor_value.ts"
+import type { AtomRecord, AtomRows } from "@metafor/types/boundary/atom"
+import type { AtomStateRecord, AtomValueRecord, ValueItemRecord, ValueRecord } from "@metafor/types/boundary/value"
+import {AtomFieldValue} from "./atom_value.ts"
 
 const isStoredId = (id: number | null | undefined): id is number =>
   typeof id === "number" && Number.isInteger(id) && id > 0
@@ -33,44 +33,44 @@ const writeValueScalar = async (sql: SQL, value: ValueRecord): Promise<void> => 
   }
 }
 
-export const decodeActorRow = (row: Record<string, unknown>): ActorRecord => ({
+export const decodeAtomRow = (row: Record<string, unknown>): AtomRecord => ({
   id: Number(row.id),
-  parentActor: row.parent_actor === null || row.parent_actor === undefined ? null : Number(row.parent_actor),
+  parentAtom: row.parent_atom === null || row.parent_atom === undefined ? null : Number(row.parent_atom),
   parentTopology: row.parent_topology === null || row.parent_topology === undefined ? null : Number(row.parent_topology),
   wimp: String(row.wimp),
   position: Number(row.position),
 })
 
 /**
- * Дочерние акторы (Wimp под Wimp). Для смешанных детей с topology-узлами
+ * Дочерние атомы (Wimp под Wimp). Для смешанных детей с topology-узлами
  * читать также `topology` table напрямую — runtime tree polymorphic.
  */
-export class ActorChildren {
+export class AtomChildren {
   constructor(
     private readonly sql: SQL,
     private readonly parentId: number,
   ) {}
 
-  async all(): Promise<Actor[]> {
+  async all(): Promise<Atom[]> {
     const rows = await this.sql<Array<{id: number}>>`
-      SELECT id FROM actor WHERE parent_actor = ${this.parentId} ORDER BY position
+      SELECT id FROM atom WHERE parent_atom = ${this.parentId} ORDER BY position
     `
-    return rows.map((row) => new Actor(this.sql, Number(row.id)))
+    return rows.map((row) => new Atom(this.sql, Number(row.id)))
   }
 
-  async get({id}: {id: number}): Promise<Actor | null> {
+  async get({id}: {id: number}): Promise<Atom | null> {
     const row = (
       await this.sql<Array<{ok: number}>>`
-        SELECT 1 AS ok FROM actor WHERE id = ${id} AND parent_actor = ${this.parentId} LIMIT 1
+        SELECT 1 AS ok FROM atom WHERE id = ${id} AND parent_atom = ${this.parentId} LIMIT 1
       `
     )[0]
-    return row ? new Actor(this.sql, id) : null
+    return row ? new Atom(this.sql, id) : null
   }
 
   async count(): Promise<number> {
     const row = (
       await this.sql<Array<{count: number}>>`
-        SELECT COUNT(*) AS count FROM actor WHERE parent_actor = ${this.parentId}
+        SELECT COUNT(*) AS count FROM atom WHERE parent_atom = ${this.parentId}
       `
     )[0]
     return row?.count ?? 0
@@ -79,34 +79,34 @@ export class ActorChildren {
   async exists(): Promise<boolean> {
     const row = (
       await this.sql<Array<{ok: number}>>`
-        SELECT 1 AS ok FROM actor WHERE parent_actor = ${this.parentId} LIMIT 1
+        SELECT 1 AS ok FROM atom WHERE parent_atom = ${this.parentId} LIMIT 1
       `
     )[0]
     return row !== undefined
   }
 }
 
-export class ActorValues {
+export class AtomValues {
   constructor(
     private readonly sql: SQL,
-    private readonly actorId: number,
+    private readonly atomId: number,
   ) {}
 
-  async all(): Promise<ActorFieldValue[]> {
+  async all(): Promise<AtomFieldValue[]> {
     const rows = await this.sql<Array<{field: number}>>`
-      SELECT field FROM actor_value WHERE actor = ${this.actorId}
+      SELECT field FROM atom_value WHERE atom = ${this.atomId}
     `
-    return rows.map((row) => new ActorFieldValue(this.sql, this.actorId, Number(row.field)))
+    return rows.map((row) => new AtomFieldValue(this.sql, this.atomId, Number(row.field)))
   }
 
-  async get({field}: {field: number}): Promise<ActorFieldValue | null> {
-    return ActorFieldValue.get(this.sql, this.actorId, field)
+  async get({field}: {field: number}): Promise<AtomFieldValue | null> {
+    return AtomFieldValue.get(this.sql, this.atomId, field)
   }
 
   async count(): Promise<number> {
     const row = (
       await this.sql<Array<{count: number}>>`
-        SELECT COUNT(*) AS count FROM actor_value WHERE actor = ${this.actorId}
+        SELECT COUNT(*) AS count FROM atom_value WHERE atom = ${this.atomId}
       `
     )[0]
     return row?.count ?? 0
@@ -114,36 +114,36 @@ export class ActorValues {
 }
 
 /**
- * Корневые акторы — те, у которых нет ни actor-родителя, ни topology-родителя.
+ * Корневые атомы — те, у которых нет ни atom-родителя, ни topology-родителя.
  */
-export class ActorRoots {
+export class AtomRoots {
   constructor(private readonly sql: SQL) {}
 
-  async all(): Promise<Actor[]> {
+  async all(): Promise<Atom[]> {
     const rows = await this.sql<Array<{id: number}>>`
-      SELECT id FROM actor
-      WHERE parent_actor IS NULL AND parent_topology IS NULL
+      SELECT id FROM atom
+      WHERE parent_atom IS NULL AND parent_topology IS NULL
       ORDER BY position
     `
-    return rows.map((row) => new Actor(this.sql, Number(row.id)))
+    return rows.map((row) => new Atom(this.sql, Number(row.id)))
   }
 
-  async get({id}: {id: number}): Promise<Actor | null> {
+  async get({id}: {id: number}): Promise<Atom | null> {
     const row = (
       await this.sql<Array<{ok: number}>>`
-        SELECT 1 AS ok FROM actor
-        WHERE id = ${id} AND parent_actor IS NULL AND parent_topology IS NULL
+        SELECT 1 AS ok FROM atom
+        WHERE id = ${id} AND parent_atom IS NULL AND parent_topology IS NULL
         LIMIT 1
       `
     )[0]
-    return row ? new Actor(this.sql, id) : null
+    return row ? new Atom(this.sql, id) : null
   }
 
   async count(): Promise<number> {
     const row = (
       await this.sql<Array<{count: number}>>`
-        SELECT COUNT(*) AS count FROM actor
-        WHERE parent_actor IS NULL AND parent_topology IS NULL
+        SELECT COUNT(*) AS count FROM atom
+        WHERE parent_atom IS NULL AND parent_topology IS NULL
       `
     )[0]
     return row?.count ?? 0
@@ -152,8 +152,8 @@ export class ActorRoots {
   async exists(): Promise<boolean> {
     const row = (
       await this.sql<Array<{ok: number}>>`
-        SELECT 1 AS ok FROM actor
-        WHERE parent_actor IS NULL AND parent_topology IS NULL
+        SELECT 1 AS ok FROM atom
+        WHERE parent_atom IS NULL AND parent_topology IS NULL
         LIMIT 1
       `
     )[0]
@@ -161,55 +161,55 @@ export class ActorRoots {
   }
 }
 
-export class Actor {
-  readonly children: ActorChildren
-  readonly values: ActorValues
+export class Atom {
+  readonly children: AtomChildren
+  readonly values: AtomValues
 
   constructor(
     private readonly sql: SQL,
     readonly id: number,
   ) {
-    this.children = new ActorChildren(sql, id)
-    this.values = new ActorValues(sql, id)
+    this.children = new AtomChildren(sql, id)
+    this.values = new AtomValues(sql, id)
   }
 
   /**
-   * Записывает actor row + actor_value-связи + value-records + actor_state одной транзакцией.
-   * Идемпотентно по `actor.id`: повторная запись делает DELETE+INSERT, оставляет orphan-value cleanup.
+   * Записывает atom row + atom_value-связи + value-records + atom_state одной транзакцией.
+   * Идемпотентно по `atom.id`: повторная запись делает DELETE+INSERT, оставляет orphan-value cleanup.
    */
-  static async writeRows(sql: SQL, rows: ActorRows): Promise<number> {
+  static async writeRows(sql: SQL, rows: AtomRows): Promise<number> {
     return await sql.begin(async (tx) => {
-      const inputActorId = rows.actor.id
-      const collected = isStoredId(inputActorId)
-        ? await tx<Array<{value: number}>>`SELECT value FROM actor_value WHERE actor = ${inputActorId}`
+      const inputAtomId = rows.atom.id
+      const collected = isStoredId(inputAtomId)
+        ? await tx<Array<{value: number}>>`SELECT value FROM atom_value WHERE atom = ${inputAtomId}`
         : []
       const oldValueIds = collected.map((r) => r.value)
-      if (isStoredId(inputActorId)) await tx`DELETE FROM actor WHERE id = ${inputActorId}`
+      if (isStoredId(inputAtomId)) await tx`DELETE FROM atom WHERE id = ${inputAtomId}`
 
       // position = next среди siblings по polymorphic parent
       const siblingCount = (
         await tx<Array<{count: number}>>`
-          SELECT COUNT(*) AS count FROM actor
-          WHERE parent_actor IS ${rows.actor.parentActor}
-            AND parent_topology IS ${rows.actor.parentTopology}
+          SELECT COUNT(*) AS count FROM atom
+          WHERE parent_atom IS ${rows.atom.parentAtom}
+            AND parent_topology IS ${rows.atom.parentTopology}
         `
       )[0]?.count ?? 0
       const position = Number(siblingCount)
 
-      const actorId = isStoredId(inputActorId)
-        ? inputActorId
+      const atomId = isStoredId(inputAtomId)
+        ? inputAtomId
         : (await tx<Array<{id: number}>>`
-            INSERT INTO actor (parent_actor, parent_topology, wimp, position)
-            VALUES (${rows.actor.parentActor}, ${rows.actor.parentTopology}, ${rows.actor.wimp}, ${position})
+            INSERT INTO atom (parent_atom, parent_topology, wimp, position)
+            VALUES (${rows.atom.parentAtom}, ${rows.atom.parentTopology}, ${rows.atom.wimp}, ${position})
             RETURNING id
           `)[0]?.id
-      if (!actorId) throw new Error("Actor.writeRows: actor insert did not return id")
+      if (!atomId) throw new Error("Atom.writeRows: atom insert did not return id")
 
-      if (isStoredId(inputActorId)) {
+      if (isStoredId(inputAtomId)) {
         await tx`
-          INSERT INTO actor (id, parent_actor, parent_topology, wimp, position)
-          VALUES (${actorId}, ${rows.actor.parentActor}, ${rows.actor.parentTopology},
-                  ${rows.actor.wimp}, ${position})
+          INSERT INTO atom (id, parent_atom, parent_topology, wimp, position)
+          VALUES (${atomId}, ${rows.atom.parentAtom}, ${rows.atom.parentTopology},
+                  ${rows.atom.wimp}, ${position})
         `
       }
 
@@ -219,7 +219,7 @@ export class Actor {
         const mapped = valueIdMap.get(id)
         if (mapped !== undefined) return mapped
         if (isStoredId(id)) return id
-        throw new Error(`Actor.writeRows: unresolved temporary value id ${id}`)
+        throw new Error(`Atom.writeRows: unresolved temporary value id ${id}`)
       }
 
       for (const v of rows.valueRecords) {
@@ -229,7 +229,7 @@ export class Actor {
               INSERT INTO value (kind) VALUES (${v.kind})
               RETURNING id
             `)[0]?.id
-        if (!valueId) throw new Error("Actor.writeRows: value insert did not return id")
+        if (!valueId) throw new Error("Atom.writeRows: value insert did not return id")
         if (!isStoredId(v.id)) valueIdMap.set(v.id, valueId)
 
         if (isStoredId(v.id)) {
@@ -255,58 +255,58 @@ export class Actor {
         `
       }
 
-      // связи actor_value
+      // связи atom_value
       for (const av of rows.values) {
-        await tx`INSERT INTO actor_value (actor, field, value) VALUES (${actorId}, ${av.field}, ${resolveValueId(av.value)})`
+        await tx`INSERT INTO atom_value (atom, field, value) VALUES (${atomId}, ${av.field}, ${resolveValueId(av.value)})`
       }
 
       // metaState может быть NULL, если у meta нет superposition
-      await tx`INSERT INTO actor_state (actor, metaState) VALUES (${actorId}, ${rows.state.metaState})`
+      await tx`INSERT INTO atom_state (atom, metaState) VALUES (${atomId}, ${rows.state.metaState})`
 
-      // подчистить orphan-value (которые после удаления актора больше никем не делятся)
+      // подчистить orphan-value (которые после удаления атома больше никем не делятся)
       for (const valueId of oldValueIds) {
         await tx`
-          DELETE FROM value WHERE id = ${valueId} AND NOT EXISTS (SELECT 1 FROM actor_value WHERE value = id)
+          DELETE FROM value WHERE id = ${valueId} AND NOT EXISTS (SELECT 1 FROM atom_value WHERE value = id)
         `
       }
-      return actorId
+      return atomId
     })
   }
 
   async wimp(): Promise<string> {
     const row = (
       await this.sql<Array<{wimp: string}>>`
-        SELECT wimp FROM actor WHERE id = ${this.id} LIMIT 1
+        SELECT wimp FROM atom WHERE id = ${this.id} LIMIT 1
       `
     )[0]
-    if (!row) throw new Error(`actor ${this.id} not found`)
+    if (!row) throw new Error(`atom ${this.id} not found`)
     return String(row.wimp)
   }
 
   async position(): Promise<number> {
     const row = (
       await this.sql<Array<{position: number}>>`
-        SELECT position FROM actor WHERE id = ${this.id} LIMIT 1
+        SELECT position FROM atom WHERE id = ${this.id} LIMIT 1
       `
     )[0]
-    if (!row) throw new Error(`actor ${this.id} not found`)
+    if (!row) throw new Error(`atom ${this.id} not found`)
     return Number(row.position)
   }
 
   /**
-   * Возвращает `parentActor`/`parentTopology` id. Если у актора есть родитель-actor —
-   * вернётся `Actor`-ORM. Если родитель — topology-узел, нужно получать его через
+   * Возвращает `parentAtom`/`parentTopology` id. Если у атома есть родитель-atom —
+   * вернётся `Atom`-ORM. Если родитель — topology-узел, нужно получать его через
    * `boundary.topology.get(parentTopology)` (избегаем cross-package import).
    */
-  async parentRef(): Promise<{kind: "actor"; id: number} | {kind: "topology"; id: number} | null> {
+  async parentRef(): Promise<{kind: "atom"; id: number} | {kind: "topology"; id: number} | null> {
     const row = (
-      await this.sql<Array<{parent_actor: number | null; parent_topology: number | null}>>`
-        SELECT parent_actor, parent_topology FROM actor WHERE id = ${this.id} LIMIT 1
+      await this.sql<Array<{parent_atom: number | null; parent_topology: number | null}>>`
+        SELECT parent_atom, parent_topology FROM atom WHERE id = ${this.id} LIMIT 1
       `
     )[0]
-    if (!row) throw new Error(`actor ${this.id} not found`)
-    if (row.parent_actor !== null && row.parent_actor !== undefined) {
-      return {kind: "actor", id: Number(row.parent_actor)}
+    if (!row) throw new Error(`atom ${this.id} not found`)
+    if (row.parent_atom !== null && row.parent_atom !== undefined) {
+      return {kind: "atom", id: Number(row.parent_atom)}
     }
     if (row.parent_topology !== null && row.parent_topology !== undefined) {
       return {kind: "topology", id: Number(row.parent_topology)}
@@ -314,35 +314,35 @@ export class Actor {
     return null
   }
 
-  /** Удобный метод когда заведомо известно что родитель — другой actor (wimp под wimp). */
-  async parent(): Promise<Actor | null> {
+  /** Удобный метод когда заведомо известно что родитель — другой atom (wimp под wimp). */
+  async parent(): Promise<Atom | null> {
     const ref = await this.parentRef()
-    return ref?.kind === "actor" ? new Actor(this.sql, ref.id) : null
+    return ref?.kind === "atom" ? new Atom(this.sql, ref.id) : null
   }
 
-  async state(): Promise<ActorStateRecord | null> {
+  async state(): Promise<AtomStateRecord | null> {
     const row = (
-      await this.sql<Array<{actor: number; metaState: number | null}>>`
-        SELECT actor, metaState FROM actor_state WHERE actor = ${this.id} LIMIT 1
+      await this.sql<Array<{atom: number; metaState: number | null}>>`
+        SELECT atom, metaState FROM atom_state WHERE atom = ${this.id} LIMIT 1
       `
     )[0]
     if (!row) return null
-    return {actor: Number(row.actor), metaState: row.metaState === null ? null : Number(row.metaState)}
+    return {atom: Number(row.atom), metaState: row.metaState === null ? null : Number(row.metaState)}
   }
 
-  async rows(): Promise<ActorRows> {
-    const actorRow = (
+  async rows(): Promise<AtomRows> {
+    const atomRow = (
       await this.sql<Array<Record<string, unknown>>>`
-        SELECT id, parent_actor, parent_topology, wimp, position FROM actor WHERE id = ${this.id}
+        SELECT id, parent_atom, parent_topology, wimp, position FROM atom WHERE id = ${this.id}
       `
     )[0]
-    if (!actorRow) throw new Error(`actor ${this.id} not found`)
+    if (!atomRow) throw new Error(`atom ${this.id} not found`)
 
-    const actorValueRows = await this.sql<Array<{actor: number; field: number; value: number}>>`
-      SELECT actor, field, value FROM actor_value WHERE actor = ${this.id}
+    const atomValueRows = await this.sql<Array<{atom: number; field: number; value: number}>>`
+      SELECT atom, field, value FROM atom_value WHERE atom = ${this.id}
     `
-    const values: ActorValueRecord[] = actorValueRows.map((row) => ({
-      actor: Number(row.actor),
+    const values: AtomValueRecord[] = atomValueRows.map((row) => ({
+      atom: Number(row.atom),
       field: Number(row.field),
       value: Number(row.value),
     }))
@@ -408,19 +408,19 @@ export class Actor {
     }
 
     const stateRow = (
-      await this.sql<Array<{actor: number; metaState: number | null}>>`
-        SELECT actor, metaState FROM actor_state WHERE actor = ${this.id} LIMIT 1
+      await this.sql<Array<{atom: number; metaState: number | null}>>`
+        SELECT atom, metaState FROM atom_state WHERE atom = ${this.id} LIMIT 1
       `
     )[0]
-    if (!stateRow) throw new Error(`actor_state ${this.id} not found`)
+    if (!stateRow) throw new Error(`atom_state ${this.id} not found`)
 
     return {
-      actor: decodeActorRow(actorRow),
+      atom: decodeAtomRow(atomRow),
       values,
       valueRecords,
       valueItems,
       state: {
-        actor: Number(stateRow.actor),
+        atom: Number(stateRow.atom),
         metaState: stateRow.metaState === null ? null : Number(stateRow.metaState),
       },
     }

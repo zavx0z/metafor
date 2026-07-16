@@ -33,7 +33,7 @@ import {Force} from "force"
 const force = new Force("matrix")
 const writeGate: AsyncGate = {pending: null}
 const updateGate: AsyncGate = {pending: null}
-const pendingProcessExecutionsByActorId = new Map<number, MatrixPendingProcessExecution>()
+const pendingProcessExecutionsByAtomId = new Map<number, MatrixPendingProcessExecution>()
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -46,13 +46,13 @@ const isMatrixRuntimeSnapshot = (value: unknown): value is MatrixRuntimeSnapshot
   isRecord(value.data) &&
   isRecord(value.strong) &&
   isRecord(value.weak) &&
-  Array.isArray(value.runtime.actorIdByBraneIndex) &&
+  Array.isArray(value.runtime.atomIdByBraneIndex) &&
   Array.isArray(value.data.fields) &&
   Array.isArray(value.data.branes) &&
   Array.isArray(value.data.stateNames)
 
-const actorFieldKey = (actorId: number, fieldId: number): string =>
-  `${actorId}\0${fieldId}`
+const atomFieldKey = (atomId: number, fieldId: number): string =>
+  `${atomId}\0${fieldId}`
 
 const runExclusive = async <T>(gate: AsyncGate, task: () => Promise<T>): Promise<T> => {
   const previous = gate.pending
@@ -101,11 +101,11 @@ export const applyPreparedData = (prepared: MatrixData): void => {
 }
 
 const clearGravityRuntime = (): void => {
-  gravity$.activeActorIds = []
-  gravity$.actorIdToBraneIndex.clear()
-  gravity$.braneIndexToActorId = []
-  gravity$.wimpSrcByActorId.clear()
-  gravity$.actorIdsByWimpSrc.clear()
+  gravity$.activeAtomIds = []
+  gravity$.atomIdToBraneIndex.clear()
+  gravity$.braneIndexToAtomId = []
+  gravity$.wimpSrcByAtomId.clear()
+  gravity$.atomIdsByWimpSrc.clear()
   gravity$.structuralDirty = false
 }
 
@@ -114,24 +114,24 @@ const clearStrongRuntime = (): void => {
   strong$.wimpFieldIdsByRuntimeFieldIndex = []
   strong$.braneIndexByWimpFieldId.clear()
   strong$.topologyWimpFieldIds.clear()
-  strong$.runtimeFieldIndexByActorFieldId.clear()
-  strong$.actorFieldIdsByRuntimeFieldIndex = []
-  strong$.topologyActorFieldIds.clear()
+  strong$.runtimeFieldIndexByAtomFieldId.clear()
+  strong$.atomFieldIdsByRuntimeFieldIndex = []
+  strong$.topologyAtomFieldIds.clear()
 }
 
 const clearRuntime = (): void => {
-  pendingProcessExecutionsByActorId.clear()
+  pendingProcessExecutionsByAtomId.clear()
   weak$.dispose()
   applyPreparedData(emptyPreparedData())
   clearGravityRuntime()
   clearStrongRuntime()
 }
 
-const parseActorIdPath = (path: Particle["path"]): number | null =>
+const parseAtomIdPath = (path: Particle["path"]): number | null =>
   typeof path === "number" && Number.isSafeInteger(path) && path > 0 ? path : null
 
-const isTopologyCompatibleActorField = (actorId: number, fieldId: number, runtimeFieldIndex: number): boolean => {
-  if (strong$.topologyActorFieldIds.has(actorFieldKey(actorId, fieldId))) return true
+const isTopologyCompatibleAtomField = (atomId: number, fieldId: number, runtimeFieldIndex: number): boolean => {
+  if (strong$.topologyAtomFieldIds.has(atomFieldKey(atomId, fieldId))) return true
   const field = matrix$.fields[runtimeFieldIndex]
   return field?.enum !== undefined || field?.type === FieldType.ARRAY_PTR
 }
@@ -144,7 +144,7 @@ const defaultRuntimeFieldValue = (field: MatrixFieldRecord): unknown => {
   return 0
 }
 
-const collectActorFieldUpdates = (
+const collectAtomFieldUpdates = (
   parts: Particle[],
   kind: "gluon" | "higgs",
 ): Array<[braneIndex: number, fieldUpdates: Array<[fieldIndex: number, value: unknown]>]> => {
@@ -152,9 +152,9 @@ const collectActorFieldUpdates = (
 
   for (const part of parts) {
     if (part.part !== kind || (part.op !== "replace" && part.op !== "remove" && part.op !== "add")) continue
-    const actorId = parseActorIdPath(part.path)
-    if (actorId === null) continue
-    const braneIndex = gravity$.getBraneIndexByActorId(actorId)
+    const atomId = parseAtomIdPath(part.path)
+    if (atomId === null) continue
+    const braneIndex = gravity$.getBraneIndexByAtomId(atomId)
     if (braneIndex === undefined) continue
     const fields = resolveForceFieldsPayload(part.value)
     if (fields === null) continue
@@ -162,11 +162,11 @@ const collectActorFieldUpdates = (
     for (const [address, value] of Object.entries(fields)) {
       const fieldId = resolveForceFieldId(address)
       if (fieldId === null) continue
-      const runtimeFieldIndex = strong$.runtimeFieldIndexByActorFieldId.get(actorFieldKey(actorId, fieldId))
+      const runtimeFieldIndex = strong$.runtimeFieldIndexByAtomFieldId.get(atomFieldKey(atomId, fieldId))
       if (runtimeFieldIndex === undefined) continue
       const field = matrix$.fields[runtimeFieldIndex]
       if (!field) continue
-      const isTopology = isTopologyCompatibleActorField(actorId, fieldId, runtimeFieldIndex)
+      const isTopology = isTopologyCompatibleAtomField(atomId, fieldId, runtimeFieldIndex)
       if (kind === "gluon" && isTopology) continue
       if (kind === "higgs" && !isTopology) continue
 
@@ -187,7 +187,7 @@ const markHiggsClassScopeDirty = (parts: Particle[]): void => {
     const fields = resolveForceFieldsPayload(part.value)
     if (fields === null) continue
     if (!Object.keys(fields).some((address) => resolveForceFieldId(address) !== null)) continue
-    if (gravity$.getActorIdsByWimpSrc(part.path).length === 0) continue
+    if (gravity$.getAtomIdsByWimpSrc(part.path).length === 0) continue
     gravity$.structuralDirty = true
   }
 }
@@ -203,12 +203,12 @@ const applyRuntimeFieldParts = async (
     ? parts[0]!.from
     : null
   if (committedExecutionId) {
-    const actorId = parseActorIdPath(parts[0]!.path)
-    const pending = actorId === null ? undefined : pendingProcessExecutionsByActorId.get(actorId)
+    const atomId = parseAtomIdPath(parts[0]!.path)
+    const pending = atomId === null ? undefined : pendingProcessExecutionsByAtomId.get(atomId)
     if (!pending || pending.processExecutionId !== committedExecutionId) return []
   }
 
-  const updates = collectActorFieldUpdates(parts, kind)
+  const updates = collectAtomFieldUpdates(parts, kind)
   if (updates.length === 0) return []
   return await update(updates, {
     retriggerProcessStates: committedExecutionId === null,
@@ -217,29 +217,29 @@ const applyRuntimeFieldParts = async (
 
 const publishPhotonChanges = (changes: [number, number][]): void => {
   for (const [braneIndex, stateIndex] of changes) {
-    const actorId = gravity$.getActorId(braneIndex)
-    if (actorId === undefined) continue
+    const atomId = gravity$.getAtomId(braneIndex)
+    if (atomId === undefined) continue
     const stateName = matrix$.getStateName(braneIndex, stateIndex)
     if (!stateName) continue
 
     const hasProcess = weak$.stateHasProcessByBraneIndex[braneIndex]?.[stateIndex] === true
-    const pending = hasProcess ? pendingProcessExecutionsByActorId.get(actorId) : undefined
+    const pending = hasProcess ? pendingProcessExecutionsByAtomId.get(atomId) : undefined
     force.impulse({parts: [{
       part: "photon",
       op: hasProcess ? "test" : "replace",
-      path: actorId,
+      path: atomId,
       ...(pending ? {from: pending.processExecutionId} : {}),
       value: stateName,
     }]})
   }
 }
 
-const collectProcessExecutionFields = (actorId: number, braneIndex: number): Record<string, unknown> => {
+const collectProcessExecutionFields = (atomId: number, braneIndex: number): Record<string, unknown> => {
   const fields: Record<string, unknown> = {}
 
-  for (let runtimeFieldIndex = 0; runtimeFieldIndex < strong$.actorFieldIdsByRuntimeFieldIndex.length; runtimeFieldIndex++) {
-    for (const [fieldActorId, fieldId] of strong$.actorFieldIdsByRuntimeFieldIndex[runtimeFieldIndex] ?? []) {
-      if (fieldActorId !== actorId) continue
+  for (let runtimeFieldIndex = 0; runtimeFieldIndex < strong$.atomFieldIdsByRuntimeFieldIndex.length; runtimeFieldIndex++) {
+    for (const [fieldAtomId, fieldId] of strong$.atomFieldIdsByRuntimeFieldIndex[runtimeFieldIndex] ?? []) {
+      if (fieldAtomId !== atomId) continue
       const value = matrix$.getFieldValue(braneIndex, runtimeFieldIndex)
       if (value === undefined) continue
       const field = matrix$.fields[runtimeFieldIndex]
@@ -262,19 +262,19 @@ const cloneProcessExecutionFields = (fields: Record<string, unknown>): Record<st
   structuredClone(fields) as Record<string, unknown>
 
 const rememberPendingProcessExecution = (braneIndex: number, stateIndex: number): void => {
-  const actorId = gravity$.getActorId(braneIndex)
-  if (actorId === undefined) return
-  pendingProcessExecutionsByActorId.set(actorId, {
+  const atomId = gravity$.getAtomId(braneIndex)
+  if (atomId === undefined) return
+  pendingProcessExecutionsByAtomId.set(atomId, {
     braneIndex,
     stateIndex,
     processExecutionId: crypto.randomUUID(),
-    fields: cloneProcessExecutionFields(collectProcessExecutionFields(actorId, braneIndex)),
+    fields: cloneProcessExecutionFields(collectProcessExecutionFields(atomId, braneIndex)),
   })
 }
 
 const clearPendingProcessExecution = (braneIndex: number): void => {
-  const actorId = gravity$.getActorId(braneIndex)
-  if (actorId !== undefined) pendingProcessExecutionsByActorId.delete(actorId)
+  const atomId = gravity$.getAtomId(braneIndex)
+  if (atomId !== undefined) pendingProcessExecutionsByAtomId.delete(atomId)
 }
 
 const syncProcessLocksForChanges = (changes: [number, number][], stateChanges: [number, number][]): void => {
@@ -310,9 +310,9 @@ const currentBraneHasProcess = (braneIndex: number): boolean => {
 
 const applyEnergyExecutionRequest = (part: Particle): void => {
   if (part.part !== "z" || part.op !== "test") return
-  const actorId = parseActorIdPath(part.path)
-  if (actorId === null) return
-  const braneIndex = gravity$.getBraneIndexByActorId(actorId)
+  const atomId = parseAtomIdPath(part.path)
+  if (atomId === null) return
+  const braneIndex = gravity$.getBraneIndexByAtomId(atomId)
   if (braneIndex === undefined) return
   const brane = matrix$.branes[braneIndex]
   if (!brane?.lock) return
@@ -320,7 +320,7 @@ const applyEnergyExecutionRequest = (part: Particle): void => {
   const stateIndex = matrix$.states[braneIndex]
   if (stateIndex === undefined || !currentBraneHasProcess(braneIndex)) return
 
-  const pending = pendingProcessExecutionsByActorId.get(actorId)
+  const pending = pendingProcessExecutionsByAtomId.get(atomId)
   if (
     !pending ||
     pending.braneIndex !== braneIndex ||
@@ -346,7 +346,7 @@ const applyEnergyExecutionRequest = (part: Particle): void => {
   force.impulse({parts: [{
     part: "z",
     op: "copy",
-    path: actorId,
+    path: atomId,
     from: energy,
     value: grant,
   }]})
@@ -354,14 +354,14 @@ const applyEnergyExecutionRequest = (part: Particle): void => {
 
 const applyCommittedWeakResult = async (part: Particle): Promise<boolean> => {
   if ((part.part !== "w+" && part.part !== "w-") || part.op !== "copy") return false
-  const actorId = parseActorIdPath(part.path)
-  if (actorId === null) return false
-  const braneIndex = gravity$.getBraneIndexByActorId(actorId)
+  const atomId = parseAtomIdPath(part.path)
+  if (atomId === null) return false
+  const braneIndex = gravity$.getBraneIndexByAtomId(atomId)
   if (braneIndex === undefined) return true
   const brane = matrix$.branes[braneIndex]
   if (!brane?.lock || !currentBraneHasProcess(braneIndex)) return true
 
-  const pending = pendingProcessExecutionsByActorId.get(actorId)
+  const pending = pendingProcessExecutionsByAtomId.get(atomId)
   if (!pending?.acceptedEnergy || !isRecord(part.value)) return true
   const commit = part.value as Partial<ProcessResultCommit>
   if (
@@ -371,7 +371,7 @@ const applyCommittedWeakResult = async (part: Particle): Promise<boolean> => {
     typeof commit.processId !== "number"
   ) return true
 
-  pendingProcessExecutionsByActorId.delete(actorId)
+  pendingProcessExecutionsByAtomId.delete(atomId)
   await update([[braneIndex, [], false]], {
     retriggerProcessStates: false,
     skipProcessRetriggerBraneIndexes: [braneIndex],
@@ -383,8 +383,8 @@ export function prepareData(data: MatrixInputData): MatrixData {
   return assembleStoredMatrixData(flattenMatrixData(data))
 }
 
-export function listMatrixRuntimeActorIds(): number[] {
-  return [...gravity$.activeActorIds]
+export function listMatrixRuntimeAtomIds(): number[] {
+  return [...gravity$.activeAtomIds]
 }
 
 export async function loadMatrixRuntimeSnapshot(snapshot: MatrixRuntimeSnapshot): Promise<void> {
@@ -398,12 +398,12 @@ export async function loadMatrixRuntimeSnapshot(snapshot: MatrixRuntimeSnapshot)
 
     await weakInit(matrix$)
 
-    gravity$.activeActorIds = [...snapshot.runtime.actorIdByBraneIndex]
-    gravity$.braneIndexToActorId = [...snapshot.runtime.actorIdByBraneIndex]
-    gravity$.actorIdToBraneIndex = new Map(snapshot.runtime.braneIndexByActorId)
-    gravity$.wimpSrcByActorId = new Map(snapshot.runtime.wimpSrcByActorId)
-    gravity$.actorIdsByWimpSrc = new Map(
-      snapshot.runtime.actorIdsByWimpSrc.map(([src, actorIds]) => [src, [...actorIds]]),
+    gravity$.activeAtomIds = [...snapshot.runtime.atomIdByBraneIndex]
+    gravity$.braneIndexToAtomId = [...snapshot.runtime.atomIdByBraneIndex]
+    gravity$.atomIdToBraneIndex = new Map(snapshot.runtime.braneIndexByAtomId)
+    gravity$.wimpSrcByAtomId = new Map(snapshot.runtime.wimpSrcByAtomId)
+    gravity$.atomIdsByWimpSrc = new Map(
+      snapshot.runtime.atomIdsByWimpSrc.map(([src, atomIds]) => [src, [...atomIds]]),
     )
     gravity$.structuralDirty = false
 
@@ -411,20 +411,20 @@ export async function loadMatrixRuntimeSnapshot(snapshot: MatrixRuntimeSnapshot)
     strong$.wimpFieldIdsByRuntimeFieldIndex = snapshot.strong.wimpFieldIdsByRuntimeFieldIndex.map((ids) => [...ids])
     strong$.braneIndexByWimpFieldId = new Map(snapshot.strong.braneIndexByWimpFieldId)
     strong$.topologyWimpFieldIds = new Set(snapshot.strong.topologyWimpFieldIds)
-    strong$.runtimeFieldIndexByActorFieldId = new Map(
-      snapshot.runtime.runtimeFieldIndexByActorFieldId.map(([actorId, fieldId, runtimeFieldIndex]) => [
-        actorFieldKey(actorId, fieldId),
+    strong$.runtimeFieldIndexByAtomFieldId = new Map(
+      snapshot.runtime.runtimeFieldIndexByAtomFieldId.map(([atomId, fieldId, runtimeFieldIndex]) => [
+        atomFieldKey(atomId, fieldId),
         runtimeFieldIndex,
       ]),
     )
-    strong$.actorFieldIdsByRuntimeFieldIndex = []
-    for (const [actorId, fieldId, runtimeFieldIndex] of snapshot.runtime.runtimeFieldIndexByActorFieldId) {
-      const bucket = strong$.actorFieldIdsByRuntimeFieldIndex[runtimeFieldIndex]
-      if (bucket) bucket.push([actorId, fieldId])
-      else strong$.actorFieldIdsByRuntimeFieldIndex[runtimeFieldIndex] = [[actorId, fieldId]]
+    strong$.atomFieldIdsByRuntimeFieldIndex = []
+    for (const [atomId, fieldId, runtimeFieldIndex] of snapshot.runtime.runtimeFieldIndexByAtomFieldId) {
+      const bucket = strong$.atomFieldIdsByRuntimeFieldIndex[runtimeFieldIndex]
+      if (bucket) bucket.push([atomId, fieldId])
+      else strong$.atomFieldIdsByRuntimeFieldIndex[runtimeFieldIndex] = [[atomId, fieldId]]
     }
-    strong$.topologyActorFieldIds = new Set(
-      snapshot.strong.topologyActorFieldIds.map(([actorId, fieldId]) => actorFieldKey(actorId, fieldId)),
+    strong$.topologyAtomFieldIds = new Set(
+      snapshot.strong.topologyAtomFieldIds.map(([atomId, fieldId]) => atomFieldKey(atomId, fieldId)),
     )
 
     weak$.stateMetaStateIdsByBraneIndex = snapshot.weak.stateMetaStateIdsByBraneIndex.map((ids) => [...ids])
@@ -437,7 +437,7 @@ export async function loadMatrixRuntimeSnapshot(snapshot: MatrixRuntimeSnapshot)
     }
 
     console.log(
-      `[matrix] runtime loaded actors=${snapshot.runtime.actorIdByBraneIndex.length} fields=${snapshot.data.fields.length} backend=${weak$.mode}`,
+      `[matrix] runtime loaded atoms=${snapshot.runtime.atomIdByBraneIndex.length} fields=${snapshot.data.fields.length} backend=${weak$.mode}`,
     )
   })
 }
@@ -526,8 +526,8 @@ export async function update(
         weakUpdates.push({kind: "field", braneIndex, fieldIndex})
         affectedBraneIndexes.add(braneIndex)
 
-        for (const [actorId] of strong$.actorFieldIdsByRuntimeFieldIndex[fieldIndex] ?? []) {
-          const affectedBraneIndex = gravity$.getBraneIndexByActorId(actorId)
+        for (const [atomId] of strong$.atomFieldIdsByRuntimeFieldIndex[fieldIndex] ?? []) {
+          const affectedBraneIndex = gravity$.getBraneIndexByAtomId(atomId)
           if (affectedBraneIndex !== undefined) affectedBraneIndexes.add(affectedBraneIndex)
         }
         for (const wimpFieldId of strong$.wimpFieldIdsByRuntimeFieldIndex[fieldIndex] ?? []) {
