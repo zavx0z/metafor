@@ -1,3 +1,4 @@
+import type { BulkManifest } from "@metafor/types/bulk/manifest"
 import type { BulkLayoutSettings } from "@metafor/types/bulk/settings"
 import type { BulkViewportStats } from "@metafor/types/bulk/viewport"
 import type { BulkRenderSettings, SettingsSnapshot } from "@metafor/types/bulk/settings"
@@ -34,6 +35,15 @@ const SETTINGS_LOAD_TIMEOUT_MS = 1_200
 const force = new Force("bulk")
 let forceConnected = false
 
+const manifestAtoms = (manifest: BulkManifest): BulkManifest => ({
+	...manifest,
+	darkParticles: manifest.darkParticles.map((particle) =>
+		particle.darkParticleKind === "wimp"
+			? {...particle, darkParticleKind: "atom" as const}
+			: particle
+	),
+})
+
 const updateBulkStats = (stats: BulkViewportStats): void => {
 	hud?.setStats(stats)
 }
@@ -44,7 +54,7 @@ const applyProjectionWorld = (
 ): void => {
 	if (!bulkViewport) return
 
-	bulkViewport.applyManifestPatch(buildBoundaryBulkManifest(projection.view(), src, layoutSettings))
+	bulkViewport.applyManifestPatch(manifestAtoms(buildBoundaryBulkManifest(projection.view(), src, layoutSettings)))
 	if (pendingSceneState && pendingSceneState.src === src) {
 		lastAppliedSceneState = pendingSceneState
 		pendingSceneState = null
