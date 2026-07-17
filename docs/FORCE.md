@@ -1,8 +1,10 @@
-# Force: реализованный contract
+# Central Force: реализованный contract
 
 Концептуальная семантика Force принадлежит
 [репозиторию `zavx0z/concept`](https://github.com/zavx0z/concept). Ниже описан
-только contract, который проверяет и исполняет текущий runtime.
+только contract, который проверяет и исполняет текущий runtime. Корневой
+`force/` является ingress и transport между локальными силами доменов, а не
+реализацией всей Force.
 
 ## Server endpoints
 
@@ -24,9 +26,10 @@ interface ForceMessage {
 }
 ```
 
-Runtime validator разрешает particle keys `part`, `op`, `path`, `value` и
-`from`. `path` обязателен и имеет тип `string | number`; `from`, если
-присутствует, имеет тот же тип.
+Runtime validator разрешает particle keys `part`, `op`, `path`, `ts`, `value` и
+`from`. `path` и `ts` обязательны. `path` имеет тип `string | number`; `ts` —
+неотрицательное целое время источника в миллисекундах Unix. `from`, если
+присутствует, имеет тип `string | number`.
 
 | Field  | Реализованные значения                                              |
 | ------ | ------------------------------------------------------------------- |
@@ -54,7 +57,7 @@ Force server не открывает domain storage. Порядок обхода
 обычные markers:
 
 ```ts
-{parts: [{part: "z", op: "test", path: "force/replay/<domain>/<id>"}]}
+{parts: [{part: "z", op: "test", path: "force/replay/<domain>/<id>", ts: 1710000000000}]}
 ```
 
 Bun transport также отправляет marker своего domain после открытия socket.
@@ -81,3 +84,17 @@ snapshot/create/replay вопросы и не объявляет существ�
 
 `METAFOR_LOG_IMPULSES=0|compact|full` управляет детализацией. Дополнительные
 фильтры: `METAFOR_LOG_DOMAINS` и `METAFOR_LOG_PARTS`.
+
+Logger является независимой диагностикой. Его записи не отправляются в Bulk как
+отдельный trace protocol и не становятся историей Вселенной.
+
+## Известное расхождение с целевым contract
+
+В текущем runtime обязательным уже является `ts`, но `by` ещё не реализован.
+HTTP ingress пока принимает тот же `ForceMessage`, что и внутренние домены, и не
+назначает доверенный `by: agent`. Большая часть WebSocket delivery остаётся
+broadcast, поэтому закон релевантности `inflaton/add → Dark only` ещё не
+реализован.
+
+Следующий узкий шаг должен устранить именно эти расхождения, не добавляя causal
+parent, trace envelope или renderer instructions в Particle.
