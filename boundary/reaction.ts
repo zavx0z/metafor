@@ -170,10 +170,10 @@ export class BoundaryReactionStore {
           source: {
             atomId: source.atomId,
             wimp: source.wimp,
-            timestamp: Date.now(),
             part: {
               op: part.op,
               path: "/context",
+              ts: part.ts,
               ...(part.from === undefined ? {} : {from: part.from}),
               ...(part.value === undefined ? {} : {value: structuredClone(part.value)}),
             },
@@ -193,6 +193,7 @@ export class BoundaryReactionStore {
           part: "photon",
           op: "test",
           path: target.atomId,
+          ts: Date.now(),
           from: reactionExecutionId,
           value: signal,
         }))
@@ -232,6 +233,7 @@ export class BoundaryReactionStore {
         part: "z",
         op: "copy",
         path: selected.target.atomId,
+        ts: Date.now(),
         from: energy,
         value: selected,
       })],
@@ -321,6 +323,7 @@ export class BoundaryReactionStore {
         part: "gluon",
         op: "replace",
         path: targetAtomId,
+        ts: Date.now(),
         from: proposal.reactionExecutionId,
         value: {fields: committed.scalar},
       }))
@@ -330,6 +333,7 @@ export class BoundaryReactionStore {
         part: "higgs",
         op: "replace",
         path: targetAtomId,
+        ts: Date.now(),
         from: proposal.reactionExecutionId,
         value: {fields: committed.topology},
       }))
@@ -344,6 +348,7 @@ export class BoundaryReactionStore {
       part: part.part,
       op: "copy",
       path: targetAtomId,
+      ts: Date.now(),
       from: proposal.reactionExecutionId,
       value: acknowledgement,
     }))

@@ -18,6 +18,7 @@ const publishMatrixRuntime = async (): Promise<void> => {
       part: "graviton",
       op: "replace",
       path: MATRIX_RUNTIME_PATH,
+      ts: Date.now(),
       value: snapshot,
     }],
   })

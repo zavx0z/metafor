@@ -9,6 +9,10 @@ import {
 import {startEnergyProtocol} from "./energy.ts"
 import {executeReaction, matchesCondition} from "./reaction.ts"
 
+type ParticleInput = Omit<ForceMessage["parts"][0], "ts"> & {ts?: number}
+type ForceMessageInput = {parts: [ParticleInput]}
+const message = (input: ForceMessageInput): ForceMessage => ({parts: [{ts: 1, ...input.parts[0]}] as ForceMessage["parts"]})
+
 const waitFor = async (predicate: () => boolean): Promise<void> => {
   const deadline = Date.now() + 2_000
   while (!predicate()) {
@@ -25,8 +29,7 @@ const signal = (overrides: Partial<ReactionExecutionSignal> = {}): ReactionExecu
   source: {
     atomId: 10,
     wimp: "source/meta",
-    timestamp: 1_700_000_000_000,
-    part: {op: "replace", path: "/context", value: {fields: {"1": 2}}},
+    part: {op: "replace", path: "/context", ts: 1_700_000_000_000, value: {fields: {"1": 2}}},
   },
   value: {count: 1, result: 0},
   writeFields: [[202, "result"]],
@@ -71,8 +74,8 @@ describe("Energy Reaction claim protocol", () => {
     const protocol = startEnergyProtocol({force, energyId: "energy-reaction", runtimeKind: "server"})
     return {
       messages,
-      emit(message: ForceMessage) {
-        void force.onImpulse(structuredClone(message))
+      emit(input: ForceMessageInput) {
+        void force.onImpulse(structuredClone(message(input)))
       },
       close() {
         protocol.close()
@@ -96,6 +99,7 @@ describe("Energy Reaction claim protocol", () => {
         part: "z",
         op: "test",
         path: current.target.atomId,
+        ts: expect.any(Number),
         value: {
           kind: "reaction-claim",
           energy: "energy-reaction",
@@ -116,6 +120,7 @@ describe("Energy Reaction claim protocol", () => {
         part: "w+",
         op: "replace",
         path: current.target.atomId,
+        ts: expect.any(Number),
         from: "energy-reaction",
         value: {
           reactionExecutionId: current.reactionExecutionId,

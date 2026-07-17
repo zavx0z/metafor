@@ -70,9 +70,11 @@ describe("Dark incremental Inflaton projection", () => {
       .map(({message}) => message)
   }
 
-  const particles = (messages: ForceMessage[]): Particle[] => messages.map((message) => {
+  const particles = (messages: ForceMessage[]): Array<Omit<Particle, "ts">> => messages.map((message) => {
     expect(message.parts).toHaveLength(1)
-    return message.parts[0]!
+    const {ts, ...particle} = message.parts[0]!
+    expect(Number.isSafeInteger(ts)).toBe(true)
+    return particle
   })
 
   test("cold read emits one add impulse per entity in dependency and root-first order", async () => {
@@ -330,7 +332,7 @@ describe("Dark incremental Inflaton projection", () => {
   test("boundary reconnect replays the local projection as granular idempotent adds", async () => {
     const fromIndex = fixture.messages.length
     fixture.impulse("dark", {
-      parts: [{part: "z", op: "test", path: forceReplayPath("boundary", "boundary-reconnect")}],
+      parts: [{part: "z", op: "test", path: forceReplayPath("boundary", "boundary-reconnect"), ts: 1}],
     })
     await fixture.waitForMessage(
       ({domain, message}) => domain === "dark" && message.parts[0]?.part === "inflaton" &&

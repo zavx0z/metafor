@@ -17,6 +17,7 @@
     "./force/fields": "./force/fields.ts",
     "./force/execution": "./force/execution.ts",
     "./force/reaction": "./force/reaction.ts",
+    "./force/validation": "./force/validation.ts",
     "./boundary/atom": "./boundary/atom.ts",
     "./boundary/value": "./boundary/value.ts",
     "./boundary/topology": "./boundary/topology.ts",

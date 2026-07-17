@@ -1,32 +1,10 @@
 import type {ServerWebSocket} from "bun"
 import type {ForceMessage} from "@metafor/types/force/message"
-import type {Particle} from "@metafor/types/force/particle"
 import {forceReplayPath} from "@metafor/types/force/replay"
+import {isForceMessage} from "@metafor/types/force/validation"
 import {logImpulse} from "./core/log"
 
 const clients = new Map<ServerWebSocket<{domain?: string; id?: string}>, {domain: string; id: string}>()
-
-const particleParts = new Set(["inflaton", "graviton", "photon", "gluon", "higgs", "w+", "w-", "z"])
-const particleOperations = new Set(["add", "remove", "replace", "move", "copy", "test"])
-const particleKeys = new Set(["part", "op", "path", "value", "from"])
-
-const isParticle = (value: unknown): value is Particle => {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return false
-  const particle = value as Partial<Particle>
-  return Object.keys(value).every((key) => particleKeys.has(key)) &&
-    typeof particle.part === "string" && particleParts.has(particle.part) &&
-    typeof particle.op === "string" && particleOperations.has(particle.op) &&
-    (typeof particle.path === "string" || typeof particle.path === "number") &&
-    (particle.from === undefined || typeof particle.from === "string" || typeof particle.from === "number")
-}
-
-const isForceMessage = (value: unknown): value is ForceMessage =>
-  typeof value === "object" && value !== null &&
-  (value as {type?: unknown}).type === undefined &&
-  Object.keys(value).length === 1 &&
-  Array.isArray((value as {parts?: unknown}).parts) &&
-  (value as {parts: unknown[]}).parts.length === 1 &&
-  isParticle((value as {parts: unknown[]}).parts[0])
 
 const isUncommittedWorldMutation = (message: ForceMessage): boolean => {
   const part = message.parts[0]
@@ -108,12 +86,12 @@ export const server = Bun.serve<{domain?: string; id?: string}>({
         ws.data.id = message.id
         console.log(`[force] connected: ${message.domain} ${message.id}`)
         const joiningReplayRequest = {
-          parts: [{part: "z", op: "test", path: forceReplayPath(message.domain, message.id)}],
+          parts: [{part: "z", op: "test", path: forceReplayPath(message.domain, message.id), ts: Date.now()}],
         } satisfies ForceMessage
         for (const [socket, client] of clients) {
           if (socket === ws || socket.readyState !== WebSocket.OPEN) continue
           const existingReplayRequest = {
-            parts: [{part: "z", op: "test", path: forceReplayPath(client.domain, client.id)}],
+            parts: [{part: "z", op: "test", path: forceReplayPath(client.domain, client.id), ts: Date.now()}],
           } satisfies ForceMessage
           logImpulse("force", "->", existingReplayRequest)
           ws.send(JSON.stringify(existingReplayRequest))

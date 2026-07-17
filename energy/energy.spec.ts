@@ -16,6 +16,10 @@ import type {ForceMessage} from "@metafor/types/force/message"
 import type {Particle} from "@metafor/types/force/particle"
 import {startEnergyProtocol} from "./energy.ts"
 
+type ParticleInput = Omit<Particle, "ts"> & {ts?: number}
+type ForceMessageInput = {parts: [ParticleInput]}
+const message = (input: ForceMessageInput): ForceMessage => ({parts: [{ts: 1, ...input.parts[0]}] as [Particle]})
+
 const waitFor = async (predicate: () => boolean): Promise<void> => {
   const deadline = Date.now() + 1000
   while (!predicate()) {
@@ -99,7 +103,7 @@ const createHarness = (
 
   const seed = (next: TestCatalog): void => {
     for (const [atomId, wimp] of next.atoms) {
-      void force.onImpulse({parts: [{
+      void force.onImpulse(message({parts: [{
         part: "graviton",
         op: "add",
         path: `atom/${atomId}`,
@@ -110,16 +114,16 @@ const createHarness = (
           valueItems: [],
           state: null,
         },
-      }]})
+      }]}))
     }
     next.processes.forEach((process, index) => {
       processByState.set(process.state, process)
-      void force.onImpulse({parts: [{
+      void force.onImpulse(message({parts: [{
         part: "graviton",
         op: "add",
         path: `declaration/${process.wimp}/processes/${index + 1}`,
         value: structuredClone(process),
-      }]})
+      }]}))
     })
   }
   seed(catalog)
@@ -130,8 +134,8 @@ const createHarness = (
     seed(next: TestCatalog) {
       seed(structuredClone(next))
     },
-    emit(message: ForceMessage) {
-      void force.onImpulse(structuredClone(message))
+    emit(input: ForceMessageInput) {
+      void force.onImpulse(structuredClone(message(input)))
     },
     processId(state: string): number {
       const process = processByState.get(state)
@@ -175,6 +179,7 @@ const claimAndCopy = async (
     part: "z",
     op: "test",
     path: 17,
+    ts: expect.any(Number),
     value: {energy: harness.energyId, processExecutionId} satisfies ProcessExecutionClaim,
   })
 
@@ -207,6 +212,7 @@ const expectProposal = (
     part,
     op: "replace",
     path: 17,
+    ts: expect.any(Number),
     from: harness.energyId,
     value: proposal,
   })
@@ -248,6 +254,7 @@ describe("Energy process protocol", () => {
         part: "z",
         op: "test",
         path: 17,
+        ts: expect.any(Number),
         value: {energy: harness.energyId, processExecutionId},
       })
     } finally {

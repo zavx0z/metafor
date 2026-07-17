@@ -256,6 +256,7 @@ const add = (item: DeclarationEntity): Particle => ({
   part: "inflaton",
   op: "add",
   path: item.path,
+  ts: Date.now(),
   value: item.value,
 })
 
@@ -263,6 +264,7 @@ const remove = (item: DeclarationEntity): Particle => ({
   part: "inflaton",
   op: "remove",
   path: item.path,
+  ts: Date.now(),
 })
 
 const emitChanges = (
@@ -293,6 +295,7 @@ const emitChanges = (
       part: "inflaton",
       op: "replace",
       path: item.path,
+      ts: Date.now(),
       value: changedProperties(current.value, item.value),
     })
   }
@@ -367,7 +370,7 @@ export async function matter(src: string, readMeta: MetaLoader = loadMeta): Prom
 
   for (const address of previousOrder) if (!retained.has(address)) projection.delete(address)
   for (const [address, current] of next) projection.set(address, current)
-  emit({part: "inflaton", op: "test", path: src})
+  emit({part: "inflaton", op: "test", path: src, ts: Date.now()})
 }
 
 const replay = (): void => {
@@ -386,7 +389,7 @@ const replay = (): void => {
       if (item.section === "matter") emit(add(item))
     }
   }
-  for (const root of roots) emit({part: "inflaton", op: "test", path: root})
+  for (const root of roots) emit({part: "inflaton", op: "test", path: root, ts: Date.now()})
 }
 
 force.onImpulse = async (impulse) => {

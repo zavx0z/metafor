@@ -192,7 +192,7 @@ export class BoundaryIncrementalStore {
         await this.removeLocalConsequences(tx, address, previous, committed)
         await tx`DELETE FROM boundary_declaration_entity WHERE path = ${address.path}`
         await this.persistRichDeclaration(tx, address, undefined)
-        committed.push({part: "graviton", op: "remove", path: gravitonDeclarationPath(address)})
+        committed.push({part: "graviton", op: "remove", path: gravitonDeclarationPath(address), ts: Date.now()})
         return committed
       }
 
@@ -209,6 +209,7 @@ export class BoundaryIncrementalStore {
         part: "graviton",
         op: operation,
         path: gravitonDeclarationPath(address),
+        ts: Date.now(),
         value: operation === "replace" ? delta(previousCanonical, canonical) : canonical,
       })
       await this.addOrPatchLocalConsequences(tx, address, previous, next, operation as "add" | "replace", committed)
@@ -231,6 +232,7 @@ export class BoundaryIncrementalStore {
         part: "graviton",
         op: "add",
         path: gravitonDeclarationPath({src: row.src, section: row.section, localId: row.local_id, path: row.path}),
+        ts: Date.now(),
         value: JSON.parse(row.canonical_json) as unknown,
       })
     }
@@ -239,10 +241,10 @@ export class BoundaryIncrementalStore {
     `) {
       if (origin.kind === "atom") {
         const entity = await this.atomEntity(this.sql, Number(origin.runtime_id))
-        if (entity) particles.push({part: "graviton", op: "add", path: `atom/${origin.runtime_id}`, value: entity})
+        if (entity) particles.push({part: "graviton", op: "add", path: `atom/${origin.runtime_id}`, ts: Date.now(), value: entity})
       } else {
         const entity = await this.topologyEntity(this.sql, Number(origin.runtime_id))
-        if (entity) particles.push({part: "graviton", op: "add", path: `topology/${origin.runtime_id}`, value: entity})
+        if (entity) particles.push({part: "graviton", op: "add", path: `topology/${origin.runtime_id}`, ts: Date.now(), value: entity})
       }
     }
     return particles.map(particleMessage)
@@ -305,6 +307,7 @@ export class BoundaryIncrementalStore {
           part: "higgs",
           op: "replace",
           path: `topology/${topology.runtime_id}`,
+          ts: Date.now(),
           value: {state: currentState ?? null},
         })
         for (const child of children) {
@@ -520,7 +523,7 @@ export class BoundaryIncrementalStore {
           INSERT INTO boundary_atom_field (atom, field, value_json)
           VALUES (${atom.id}, ${fieldId}, ${JSON.stringify(next.default)})
         `
-        effects.push({part: "gluon", op: "add", path: Number(atom.id), value: {fields: {[String(fieldId)]: clone(next.default)}}})
+        effects.push({part: "gluon", op: "add", path: Number(atom.id), ts: Date.now(), value: {fields: {[String(fieldId)]: clone(next.default)}}})
       }
       return
     }
@@ -538,7 +541,7 @@ export class BoundaryIncrementalStore {
         `) {
           const table = origin.kind === "atom" ? "atom" : "topology"
           await sql.unsafe(`UPDATE ${table} SET position = ? WHERE id = ?`, [Number(next.position ?? 0), Number(origin.runtime_id)])
-          effects.push({part: "graviton", op: "replace", path: `${origin.kind}/${origin.runtime_id}`, value: {position: Number(next.position ?? 0)}})
+          effects.push({part: "graviton", op: "replace", path: `${origin.kind}/${origin.runtime_id}`, ts: Date.now(), value: {position: Number(next.position ?? 0)}})
         }
       }
       return
@@ -559,7 +562,7 @@ export class BoundaryIncrementalStore {
     if (address.section === "fields") {
       const field = boundaryEntityId(address.path)
       for (const row of await sql<Array<{atom: number}>>`SELECT atom FROM boundary_atom_field WHERE field = ${field}`) {
-        effects.push({part: "gluon", op: "remove", path: Number(row.atom), value: {fields: {[String(field)]: null}}})
+        effects.push({part: "gluon", op: "remove", path: Number(row.atom), ts: Date.now(), value: {fields: {[String(field)]: null}}})
       }
       await sql`DELETE FROM boundary_atom_field WHERE field = ${field}`
       return
@@ -630,7 +633,7 @@ export class BoundaryIncrementalStore {
 		throw new Error(`Matter fields for ${src} contain undeclared keys: ${[...remainingInitialFields].join(", ")}`)
 	}
     const entity = await this.atomEntity(sql, atom)
-    const effects: Particle[] = entity ? [{part: "graviton", op: "add", path: `atom/${atom}`, value: entity}] : []
+    const effects: Particle[] = entity ? [{part: "graviton", op: "add", path: `atom/${atom}`, ts: Date.now(), value: entity}] : []
     for (const row of await this.matterRows(sql, src, null)) {
       effects.push(...await this.materializeMatter(sql, row.address, row.value, effects, {kind: "atom", id: atom, ownerAtom: atom}))
     }
@@ -665,7 +668,7 @@ export class BoundaryIncrementalStore {
       VALUES (${"topology"}, ${id}, ${originPath}, ${parentKey}, ${parent.ownerAtom}, ${ordinal})
     `
     const entity = await this.topologyEntity(sql, id)
-    return entity ? [{part: "graviton", op: "add", path: `topology/${id}`, value: entity}] : []
+    return entity ? [{part: "graviton", op: "add", path: `topology/${id}`, ts: Date.now(), value: entity}] : []
   }
 
   private async materializeMatter(
@@ -849,7 +852,7 @@ export class BoundaryIncrementalStore {
           AND parent_topology IS ${childKind === "topology" ? childId : null}
         ORDER BY id
       `) await visit("topology", Number(row.id))
-      particles.push({part: "graviton", op: "remove", path: `${childKind}/${childId}`})
+      particles.push({part: "graviton", op: "remove", path: `${childKind}/${childId}`, ts: Date.now()})
       await sql`DELETE FROM boundary_runtime_origin WHERE kind = ${childKind} AND runtime_id = ${childId}`
       if (childKind === "atom") await sql`DELETE FROM boundary_atom_field WHERE atom = ${childId}`
     }
@@ -877,7 +880,7 @@ export class BoundaryIncrementalStore {
           `
         }
       }
-      committed.push(clone(part))
+      committed.push({...clone(part), ts: Date.now()})
       const changedFieldKeys = new Set<string>()
       const atom = (await tx<Array<{wimp: string}>>`SELECT wimp FROM atom WHERE id = ${part.path}`)[0]
       if (atom) {
@@ -908,7 +911,7 @@ export class BoundaryIncrementalStore {
         for (const nested of await tx<Array<{id: number}>>`SELECT id FROM topology WHERE parent_topology = ${topology.runtime_id}`) {
           committed.push(...await this.removeRuntimeBranch(tx, "topology", Number(nested.id)))
         }
-        committed.push({part: "higgs", op: "replace", path: `topology/${topology.runtime_id}`, value: {fields: clone(fields)}})
+        committed.push({part: "higgs", op: "replace", path: `topology/${topology.runtime_id}`, ts: Date.now(), value: {fields: clone(fields)}})
         const address = parseInflatonAddress(topology.declaration_path)
         if (!address) continue
         for (const child of await this.matterRows(tx, address.src, address.localId)) {

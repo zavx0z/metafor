@@ -102,7 +102,7 @@ const evaluateFilter = (signal: ReactionExecutionSignal): boolean => {
   const actual: JsonRecord = {
     meta: signal.source.wimp,
     atom: String(signal.source.atomId),
-    timestamp: signal.source.timestamp,
+    timestamp: signal.source.part.ts,
     op: signal.source.part.op,
     path: signal.source.part.path,
     value: signal.source.part.value,
@@ -147,7 +147,7 @@ export async function executeReaction(
     mass,
     meta: signal.source.wimp,
     atom: String(signal.source.atomId),
-    timestamp: signal.source.timestamp,
+    timestamp: signal.source.part.ts,
     part: structuredClone(signal.source.part),
     state: signal.target.state,
     self: {

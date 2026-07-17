@@ -16,11 +16,22 @@ Root workspace graph задан явным списком в `package.json`:
   `boundary/{atom,topology,wimp}`, `matrix/{gravity,strong,weak}`,
   `bulk/{gravity,strong,weak}`;
 - reusable implementation: `pkg/engine`, `pkg/template`,
-  `ui/{elements,components,hud}`, `fixture`;
+  `pkg/ui/{elements,components,hud}`, `fixture`;
 - constructor and operational DSL: `create-metafor`.
 
 Каталог `github/` остаётся локальной площадкой для временных Meta, но не
 является workspace и не содержит subrepository configuration.
+
+## Архитектурное чтение
+
+Package graph нельзя читать как полную онтологию. Каноническая проекция имеет
+вид `Domain × Force × Entity`: силы локально проявляются внутри доменов, а
+корневой `force` реализует только текущий внешний ingress и междоменную связь.
+Он не является всей Force.
+
+Сохранившиеся domain packages `gravity`, `strong` и `weak` подтверждают это
+измерение, но их текущий неполный состав ещё не является завершённой таблицей
+сил. Возвращать обязанности старых реализаций только по имени каталога нельзя.
 
 ## Runtime entries
 
@@ -71,6 +82,17 @@ Android и WebRTC application paths были отключёнными product-sp
 Legacy manifestation evidence, State occurrences, Conditions, relations,
 projections и visual implementation остаются доступными для последующего
 MF-000 D-5 audit. Cleanup не устанавливает новых visual laws.
+
+Текущий renderer уже умеет останавливаться, когда нет движения, а обычное
+значение настройки движения по умолчанию выключено. Однако настройка всё ещё
+может запустить постоянную декоративную анимацию. Это расхождение с
+каноническим render-on-demand: в целевой модели следующий кадр запрашивается
+только из-за релевантного Impulse, изменения `ViewPoint` или незавершённого
+конечного проявления.
+
+Текущий `ViewPoint` привязан к DOM element. Смысловой контракт должен стать
+platform-neutral, чтобы одна точка наблюдения могла представлять обычный экран,
+телефон, WebXR, AR или VR без изменения законов Bulk.
 
 ## Create MetaFor
 

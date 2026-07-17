@@ -18,7 +18,8 @@ const PROCESS = boundaryEntityId(`${ROOT}/processes/1`)
 const ENERGY = "energy-test"
 const HISTORY = "test/execution-history"
 
-const message = (part: Particle): ForceMessage => ({parts: [part]})
+type ParticleInput = Omit<Particle, "ts"> & {ts?: number}
+const message = (part: ParticleInput): ForceMessage => ({parts: [{ts: 1, ...part}] as [Particle]})
 
 describe("Boundary canonical Process result", () => {
   let boundary: BoundaryDatabase
@@ -27,7 +28,7 @@ describe("Boundary canonical Process result", () => {
   beforeEach(async () => {
     boundary = await open(":memory:")
 
-    const declarations: Particle[] = [
+    const declarations: ParticleInput[] = [
       {part: "inflaton", op: "add", path: `${ROOT}/meta`, value: {name: "Execution"}},
       {part: "inflaton", op: "add", path: `${ROOT}/fields/1`, value: {key: "input", type: "number", default: 0}},
       {part: "inflaton", op: "add", path: `${ROOT}/fields/2`, value: {key: "output", type: "number", default: 0}},
@@ -137,6 +138,7 @@ describe("Boundary canonical Process result", () => {
       part: "gluon",
       op: "replace",
       path: atomId,
+      ts: expect.any(Number),
       from: processExecutionId,
       value: {fields: {[String(OUTPUT)]: 2}},
     })
@@ -149,6 +151,7 @@ describe("Boundary canonical Process result", () => {
       part: "w+",
       op: "copy",
       path: atomId,
+      ts: expect.any(Number),
       from: processExecutionId,
       value: acknowledgement,
     })
@@ -244,6 +247,7 @@ describe("Boundary canonical Process result", () => {
       part: "w-",
       op: "copy",
       path: atomId,
+      ts: expect.any(Number),
       from: processExecutionId,
       value: {
         processExecutionId,

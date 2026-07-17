@@ -1,5 +1,6 @@
 import type {ServerWebSocket} from "bun"
 import type {ForceMessage} from "@metafor/types/force/message"
+import {isForceMessage} from "@metafor/types/force/validation"
 
 type ForceSocketData = {
   domain?: string
@@ -33,11 +34,6 @@ export type ForceTestFixture = {
   impulse(target: ForceTestClient | string, message: ForceMessage): void
   close(): void
 }
-
-const isForceMessage = (value: unknown): value is ForceMessage =>
-  typeof value === "object" && value !== null &&
-  Array.isArray((value as {parts?: unknown}).parts) &&
-  (value as {parts: unknown[]}).parts.length === 1
 
 export function createForceTestFixture(): ForceTestFixture {
   const clients: ForceTestClient[] = []

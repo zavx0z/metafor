@@ -79,7 +79,7 @@ describe("Force transport", () => {
       connect("boundary", "boundary-test"),
     ])
     const wsMessage: ForceMessage = {
-      parts: [{part: "inflaton", op: "test", path: "owner/project"}],
+      parts: [{part: "inflaton", op: "test", path: "owner/project", ts: 1_700_000_000_000}],
     }
     const boundaryWsDelivery = nextMessage(boundary)
     let echoedToDark = false
@@ -94,7 +94,7 @@ describe("Force transport", () => {
     expect(echoedToDark).toBe(false)
 
     const httpMessage: ForceMessage = {
-      parts: [{part: "graviton", op: "replace", path: "owner/project", value: {atom: 17}}],
+      parts: [{part: "graviton", op: "replace", path: "owner/project", ts: 1_700_000_000_001, value: {atom: 17}}],
     }
     const darkHttpDelivery = nextMessage(dark)
     const boundaryHttpDelivery = nextMessage(boundary)
@@ -137,7 +137,7 @@ describe("Force transport", () => {
     await Bun.sleep(25)
 
     const input: ForceMessage = {
-      parts: [{part: "gluon", op: "replace", path: 17, value: {fields: {101: 1}}}],
+      parts: [{part: "gluon", op: "replace", path: 17, ts: 1_700_000_000_002, value: {fields: {101: 1}}}],
     }
     const boundaryDelivery = nextMatchingMessage(boundary, (message) =>
       message.parts[0]?.part === "gluon" && message.parts[0].path === 17,
@@ -161,7 +161,7 @@ describe("Force transport", () => {
     expect(uncommittedReachedMatrix).toBe(false)
 
     const committed: ForceMessage = {
-      parts: [{part: "gluon", op: "replace", path: 17, from: "boundary:test", value: {fields: {101: 1}}}],
+      parts: [{part: "gluon", op: "replace", path: 17, ts: 1_700_000_000_003, from: "boundary:test", value: {fields: {101: 1}}}],
     }
     const matrixDelivery = nextMatchingMessage(matrix, (message) => message.parts[0]?.from === "boundary:test")
     boundary.send(JSON.stringify(committed))
@@ -180,7 +180,7 @@ describe("Force transport", () => {
     await connect("matrix", "matrix-replay-order")
 
     expect(await matrixReplay).toEqual({
-      parts: [{part: "z", op: "test", path: "force/replay/matrix/matrix-replay-order"}],
+      parts: [{part: "z", op: "test", path: "force/replay/matrix/matrix-replay-order", ts: expect.any(Number)}],
     })
   })
 
@@ -195,7 +195,7 @@ describe("Force transport", () => {
     expect(await response.json()).toEqual({ok: false, error: "body must be a plain ForceMessage with exactly one minimal particle"})
   })
 
-  test("rejects create, snapshots, batches, and non-minimal particles", async () => {
+  test("rejects create, snapshots, batches, missing timestamps, and non-minimal particles", async () => {
     for (const body of [
       {type: "create", domain: "matrix", snapshot: {}},
       {type: "snapshot", snapshot: {}},
@@ -204,7 +204,9 @@ describe("Force transport", () => {
         {part: "photon", op: "test", path: 1},
         {part: "photon", op: "test", path: 2},
       ]},
-      {parts: [{part: "photon", op: "test", path: 1, domain: "matrix"}]},
+      {parts: [{part: "photon", op: "test", path: 1}]},
+      {parts: [{part: "photon", op: "test", path: 1, ts: "now"}]},
+      {parts: [{part: "photon", op: "test", path: 1, ts: 1, domain: "matrix"}]},
     ]) {
       const response = await fetch(`${server.url}force`, {
         method: "POST",

@@ -5,6 +5,7 @@ import {boundaryEntityId} from "../incremental.ts"
 import {open, type BoundaryDatabase} from "../sqlite.ts"
 
 const ROOT = "owner/runtime"
+type ParticleInput = Omit<Particle, "ts"> & {ts?: number}
 
 describe("Boundary -> packed Matrix runtime", () => {
   let boundary: BoundaryDatabase
@@ -17,8 +18,8 @@ describe("Boundary -> packed Matrix runtime", () => {
     await boundary.close()
   })
 
-  const apply = async (particle: Particle): Promise<void> => {
-    await boundary.materialize({parts: [particle]})
+  const apply = async (particle: ParticleInput): Promise<void> => {
+    await boundary.materialize({parts: [{ts: 1, ...particle}] as [Particle]})
   }
 
   const declaration = async (section: string, localId: string, value: unknown): Promise<void> => {

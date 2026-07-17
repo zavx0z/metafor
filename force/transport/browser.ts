@@ -1,5 +1,6 @@
 import type {ForceMessage} from "@metafor/types/force/message"
 import {forceReplayPath} from "@metafor/types/force/replay"
+import {isForceMessage} from "@metafor/types/force/validation"
 import {ForceBase} from "../core/base"
 import {logImpulse} from "../core/log"
 
@@ -34,7 +35,7 @@ export class Force extends ForceBase {
         if (message) this.#send(socket, message)
       }
       this.#send(socket, {
-        parts: [{part: "z", op: "test", path: forceReplayPath(this.domain, this.id)}],
+        parts: [{part: "z", op: "test", path: forceReplayPath(this.domain, this.id), ts: Date.now()}],
       } satisfies ForceMessage)
     }
     socket.onmessage = (event) => {
@@ -44,14 +45,8 @@ export class Force extends ForceBase {
       } catch {
         return
       }
-      if (
-        typeof impulse !== "object" ||
-        impulse === null ||
-        (impulse as {type?: unknown}).type !== undefined ||
-        !Array.isArray((impulse as {parts?: unknown}).parts) ||
-        (impulse as {parts: unknown[]}).parts.length !== 1
-      ) return
-      const message = impulse as ForceMessage
+      if (!isForceMessage(impulse)) return
+      const message = impulse
       logImpulse(this.domain, "<-", message)
       this.emitImpulse(message)
     }

@@ -228,6 +228,7 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
       part: "photon",
       op: hasProcess ? "test" : "replace",
       path: atomId,
+      ts: Date.now(),
       ...(pending ? {from: pending.processExecutionId} : {}),
       value: stateName,
     }]})
@@ -347,6 +348,7 @@ const applyEnergyExecutionRequest = (part: Particle): void => {
     part: "z",
     op: "copy",
     path: atomId,
+    ts: Date.now(),
     from: energy,
     value: grant,
   }]})

@@ -7,7 +7,8 @@ import {open, type BoundaryDatabase} from "./sqlite.ts"
 const ROOT = "test/state"
 const PROCESS = boundaryEntityId(`${ROOT}/processes/1`)
 const OUTPUT = boundaryEntityId(`${ROOT}/fields/1`)
-const message = (part: Particle): ForceMessage => ({parts: [part]})
+type ParticleInput = Omit<Particle, "ts"> & {ts?: number}
+const message = (part: ParticleInput): ForceMessage => ({parts: [{ts: 1, ...part}] as [Particle]})
 
 describe("Boundary canonical State", () => {
   let boundary: BoundaryDatabase
@@ -15,7 +16,7 @@ describe("Boundary canonical State", () => {
 
   beforeEach(async () => {
     boundary = await open(":memory:")
-    const declarations: Particle[] = [
+    const declarations: ParticleInput[] = [
       {part: "inflaton", op: "add", path: `${ROOT}/meta`, value: {name: "State"}},
       {part: "inflaton", op: "add", path: `${ROOT}/fields/1`, value: {key: "output", type: "number", default: 0}},
       {part: "inflaton", op: "add", path: `${ROOT}/states/1`, value: {name: "idle", position: 0}},
@@ -101,7 +102,7 @@ describe("Boundary canonical State", () => {
 
   test("supersedes stale Process and delayed duplicate cannot restore its State", async () => {
     const processExecutionId = "state-stale"
-    const processPhoton: Particle = {
+    const processPhoton: ParticleInput = {
       part: "photon",
       op: "test",
       path: atomId,

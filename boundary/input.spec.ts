@@ -7,7 +7,8 @@ import {open, type BoundaryDatabase} from "./sqlite.ts"
 const ROOT = "test/external-input"
 const INPUT = boundaryEntityId(`${ROOT}/fields/1`)
 const LINKS = boundaryEntityId(`${ROOT}/fields/2`)
-const message = (part: Particle): ForceMessage => ({parts: [part]})
+type ParticleInput = Omit<Particle, "ts"> & {ts?: number}
+const message = (part: ParticleInput): ForceMessage => ({parts: [{ts: 1, ...part}] as [Particle]})
 
 describe("Boundary canonical external Field input", () => {
   let boundary: BoundaryDatabase
@@ -21,7 +22,7 @@ describe("Boundary canonical external Field input", () => {
       {part: "inflaton", op: "add", path: `${ROOT}/fields/2`, value: {key: "links", type: "array", default: []}},
       {part: "inflaton", op: "add", path: `${ROOT}/states/1`, value: {name: "idle", position: 0}},
       {part: "inflaton", op: "test", path: ROOT},
-    ] as Particle[]) await boundary.materialize(message(part))
+    ] as ParticleInput[]) await boundary.materialize(message(part))
 
     const atom = (await boundary.projection.sql<Array<{id: number}>>`
       SELECT id FROM atom WHERE wimp = ${ROOT} ORDER BY id LIMIT 1
@@ -57,6 +58,7 @@ describe("Boundary canonical external Field input", () => {
       part: "gluon",
       op: "replace",
       path: atomId,
+      ts: expect.any(Number),
       from: expect.stringMatching(/^boundary:/),
       value: {fields: {[String(INPUT)]: 4}},
     })

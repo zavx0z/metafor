@@ -99,18 +99,19 @@ const verifyRawOrderedTransport = async (Force: ForceConstructor, domain: string
   expect(connectionStates).toEqual([false, true])
   expect(socket.sent).toEqual([
     {type: "register", domain, id: `${domain}-${domain.startsWith("browser") ? "web" : "local"}`},
-    {parts: [{part: "z", op: "test", path: `force/replay/${domain}/${domain}-${domain.startsWith("browser") ? "web" : "local"}`}]},
+    {parts: [{part: "z", op: "test", path: `force/replay/${domain}/${domain}-${domain.startsWith("browser") ? "web" : "local"}`, ts: expect.any(Number)}]},
   ])
 
-  socket.receive({type: "force", parts: [{part: "photon", op: "test", path: 1}]})
+  socket.receive({type: "force", parts: [{part: "photon", op: "test", path: 1, ts: 1}]})
   socket.receive({type: "snapshot", revision: 0})
   socket.receive({type: "create", snapshot: {revision: 0}})
   socket.receive({type: "error", error: "legacy"})
+  socket.receive({parts: [{part: "photon", op: "test", path: 9}]})
   await Bun.sleep(0)
   expect(order).toEqual([])
 
-  socket.receive({parts: [{part: "photon", op: "test", path: 1}]})
-  socket.receive({parts: [{part: "photon", op: "test", path: 2}]})
+  socket.receive({parts: [{part: "photon", op: "test", path: 1, ts: 1}]})
+  socket.receive({parts: [{part: "photon", op: "test", path: 2, ts: 2}]})
 
   await waitFor(() => order.includes("impulse:1:start"))
   await Bun.sleep(0)
@@ -142,8 +143,8 @@ const verifyOrdinaryImpulseOrder = async (Force: ForceConstructor, domain: strin
     order.push(`impulse:${path}:end`)
   }
 
-  socket.receive({parts: [{part: "photon", op: "test", path: 1}]})
-  socket.receive({parts: [{part: "photon", op: "test", path: 2}]})
+  socket.receive({parts: [{part: "photon", op: "test", path: 1, ts: 1}]})
+  socket.receive({parts: [{part: "photon", op: "test", path: 2, ts: 2}]})
 
   await waitFor(() => order.includes("impulse:1:start"))
   await Bun.sleep(0)
@@ -163,7 +164,7 @@ const verifyEarlyReplayBuffer = async (Force: ForceConstructor, domain: string):
   const force = new Force(domain)
   const socket = sockets.at(-1)!
   const replay: ForceMessage = {
-    parts: [{part: "z", op: "test", path: `force/replay/${domain}/peer`}],
+    parts: [{part: "z", op: "test", path: `force/replay/${domain}/peer`, ts: 1}],
   }
   const received: ForceMessage[] = []
 

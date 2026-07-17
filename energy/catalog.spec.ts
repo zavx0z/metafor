@@ -3,7 +3,7 @@ import type {Particle} from "@metafor/types/force/particle"
 import {EnergyCatalogStore} from "./catalog.ts"
 
 const part = (op: Particle["op"], path: string, value?: unknown, from?: string): Particle => ({
-  part: "graviton", op, path,
+  part: "graviton", op, path, ts: 1,
   ...(value !== undefined ? {value} : {}),
   ...(from !== undefined ? {from} : {}),
 })

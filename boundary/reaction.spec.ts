@@ -13,7 +13,8 @@ const SOURCE = "test/reaction-source"
 const TARGET = "test/reaction-target"
 const TARGET_RESULT = boundaryEntityId(`${TARGET}/fields/1`)
 const TARGET_REACTION = boundaryEntityId(`${TARGET}/reactions/1`)
-const message = (part: Particle): ForceMessage => ({parts: [part]})
+type ParticleInput = Omit<Particle, "ts"> & {ts?: number}
+const message = (part: ParticleInput): ForceMessage => ({parts: [{ts: 1, ...part}] as [Particle]})
 
 describe("Boundary Reaction lifecycle", () => {
   let boundary: BoundaryDatabase
@@ -22,7 +23,7 @@ describe("Boundary Reaction lifecycle", () => {
 
   beforeEach(async () => {
     boundary = await open(":memory:")
-    const declarations: Particle[] = [
+    const declarations: ParticleInput[] = [
       {part: "inflaton", op: "add", path: `${SOURCE}/meta`, value: {name: "Source"}},
       {part: "inflaton", op: "add", path: `${SOURCE}/fields/1`, value: {key: "value", type: "number", default: 0}},
       {part: "inflaton", op: "add", path: `${SOURCE}/states/1`, value: {name: "idle", position: 0}},
@@ -93,6 +94,7 @@ describe("Boundary Reaction lifecycle", () => {
     expect(signal.reactionId).toBe(TARGET_REACTION)
     expect(signal.target).toEqual({atomId: targetAtomId, wimp: TARGET, state: "idle"})
     expect(signal.source.atomId).toBe(sourceAtomId)
+    expect(signal.source.part.ts).toBe(1)
     expect(signal.writeFields).toEqual([[TARGET_RESULT, "result"]])
 
     const claim: ReactionExecutionClaim = {
@@ -105,6 +107,7 @@ describe("Boundary Reaction lifecycle", () => {
       part: "z",
       op: "copy",
       path: targetAtomId,
+      ts: expect.any(Number),
       from: "energy-reaction",
       value: signal,
     })])
@@ -136,6 +139,7 @@ describe("Boundary Reaction lifecycle", () => {
       part: "gluon",
       op: "replace",
       path: targetAtomId,
+      ts: expect.any(Number),
       from: `reaction:${signal.reactionExecutionId}`,
       value: {fields: {[String(TARGET_RESULT)]: 2}},
     })
@@ -143,6 +147,7 @@ describe("Boundary Reaction lifecycle", () => {
       part: "w+",
       op: "copy",
       path: targetAtomId,
+      ts: expect.any(Number),
       from: signal.reactionExecutionId,
       value: {
         reactionExecutionId: signal.reactionExecutionId,
@@ -186,6 +191,7 @@ describe("Boundary Reaction lifecycle", () => {
       part: "w-",
       op: "copy",
       path: targetAtomId,
+      ts: expect.any(Number),
       from: signal.reactionExecutionId,
       value: {
         reactionExecutionId: signal.reactionExecutionId,

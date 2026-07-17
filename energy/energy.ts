@@ -194,6 +194,7 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
       part,
       op: "replace",
       path: signal.target.atomId,
+      ts: Date.now(),
       from: energyId,
       value: proposal,
     }]})
@@ -228,7 +229,7 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
             energy: energyId,
             reactionExecutionId: signal.reactionExecutionId,
           }
-          force.impulse({parts: [{part: "z", op: "test", path: atomId, value: claim}]})
+          force.impulse({parts: [{part: "z", op: "test", path: atomId, ts: Date.now(), value: claim}]})
           break
         }
 
@@ -249,7 +250,7 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
         }
         pendingByAtomId.set(atomId, pending)
         const claim: ProcessExecutionClaim = {energy: energyId, processExecutionId: part.from}
-        force.impulse({parts: [{part: "z", op: "test", path: atomId, value: claim}]})
+        force.impulse({parts: [{part: "z", op: "test", path: atomId, ts: Date.now(), value: claim}]})
         break
       }
 
@@ -312,7 +313,7 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
                 processId: pending.processId,
                 fields: {},
               }
-              force.impulse({parts: [{part: "w+", op: "replace", path: atomId, from: energyId, value: proposal}]})
+              force.impulse({parts: [{part: "w+", op: "replace", path: atomId, ts: Date.now(), from: energyId, value: proposal}]})
               return
             }
             let fields: Record<string, unknown>
@@ -325,7 +326,7 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
                 fields: {},
                 error: toError(error).message,
               }
-              force.impulse({parts: [{part: "w-", op: "replace", path: atomId, from: energyId, value: proposal}]})
+              force.impulse({parts: [{part: "w-", op: "replace", path: atomId, ts: Date.now(), from: energyId, value: proposal}]})
               return
             }
             const proposal: ProcessResultProposal = {
@@ -333,7 +334,7 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
               processId: pending.processId,
               fields,
             }
-            force.impulse({parts: [{part: "w+", op: "replace", path: atomId, from: energyId, value: proposal}]})
+            force.impulse({parts: [{part: "w+", op: "replace", path: atomId, ts: Date.now(), from: energyId, value: proposal}]})
           })
           .catch(async (thrown) => {
             const actionError = toError(thrown)
@@ -344,7 +345,7 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
                 fields: {},
                 error: actionError.message,
               }
-              force.impulse({parts: [{part: "w-", op: "replace", path: atomId, from: energyId, value: proposal}]})
+              force.impulse({parts: [{part: "w-", op: "replace", path: atomId, ts: Date.now(), from: energyId, value: proposal}]})
               return
             }
             try {
@@ -355,7 +356,7 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
                 fields,
                 error: actionError.message,
               }
-              force.impulse({parts: [{part: "w-", op: "replace", path: atomId, from: energyId, value: proposal}]})
+              force.impulse({parts: [{part: "w-", op: "replace", path: atomId, ts: Date.now(), from: energyId, value: proposal}]})
             } catch (handlerThrown) {
               const proposal: ProcessResultProposal = {
                 processExecutionId: pending.processExecutionId,
@@ -363,7 +364,7 @@ export function startEnergyProtocol(options: EnergyProtocolOptions = {}): Energy
                 fields: {},
                 error: toError(handlerThrown).message,
               }
-              force.impulse({parts: [{part: "w-", op: "replace", path: atomId, from: energyId, value: proposal}]})
+              force.impulse({parts: [{part: "w-", op: "replace", path: atomId, ts: Date.now(), from: energyId, value: proposal}]})
             }
           })
           .finally(() => {

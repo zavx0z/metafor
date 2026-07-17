@@ -3,7 +3,7 @@ import type {Particle} from "@metafor/types/force/particle"
 import {BulkProjectionStore} from "./projection.ts"
 
 const part = (op: Particle["op"], path: string, value?: unknown, from?: string): Particle => ({
-  part: "graviton", op, path,
+  part: "graviton", op, path, ts: 1,
   ...(value !== undefined ? {value} : {}),
   ...(from !== undefined ? {from} : {}),
 })
@@ -61,7 +61,7 @@ describe("Bulk incremental projection", () => {
   test("gluon changes one atom value without structural rebuild", () => {
     const store = new BulkProjectionStore()
     store.apply(part("add", "atom/1", atom(1, "owner/root")))
-    const change = store.apply({part: "gluon", op: "replace", path: 1, value: {fields: {"101": "new"}}})
+    const change = store.apply({part: "gluon", op: "replace", path: 1, ts: 1, value: {fields: {"101": "new"}}})
 
     expect(change).toEqual({changed: true, affectedAtomIds: [1], structural: false})
     const binding = store.atomValues.get(["1", "101"].join("\0"))
@@ -76,7 +76,7 @@ describe("Bulk incremental projection", () => {
     store.apply(part("add", "atom/1", {...atom(1, "owner/root"), state: {atom: 1, metaState: 201}}))
 
     expect(store.atomStates.get(1)?.state).toBe(201)
-    expect(store.apply({part: "photon", op: "replace", path: 1, value: "ready"})).toEqual({
+    expect(store.apply({part: "photon", op: "replace", path: 1, ts: 1, value: "ready"})).toEqual({
       changed: true,
       affectedAtomIds: [1],
       structural: false,

@@ -81,6 +81,7 @@ export class BoundaryInputStore {
           part: "gluon",
           op: part.op,
           path: atomId,
+          ts: Date.now(),
           value: {fields: committed.scalar},
         }],
       }],

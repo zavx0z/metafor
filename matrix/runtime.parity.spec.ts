@@ -23,6 +23,7 @@ const previousBackend = Bun.env.METAFOR_WEAK_BACKEND
 const previousDevice = GPU._device
 const PROCESS_ID = 501
 const ENERGY_ID = "energy-parity"
+type ParticleInput = Omit<Particle, "ts"> & {ts?: number}
 
 const runtimeSnapshot = (): MatrixRuntimeSnapshot => ({
   ok: true,
@@ -89,8 +90,8 @@ const waitForRuntime = async (predicate: () => boolean, timeoutMs = 10_000): Pro
 const send = (
   fixture: ForceTestFixture,
   client: ForceTestClient,
-  particle: Particle,
-): void => fixture.impulse(client, {parts: [particle]})
+  particle: ParticleInput,
+): void => fixture.impulse(client, {parts: [{ts: 1, ...particle}] as [Particle]})
 
 const waitForPart = async (
   fixture: ForceTestFixture,

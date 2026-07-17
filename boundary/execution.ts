@@ -283,6 +283,7 @@ export class BoundaryExecutionStore {
         part: "gluon",
         op: "replace",
         path: atomId,
+        ts: Date.now(),
         from: proposal.processExecutionId,
         value: {fields: committed.scalar},
       }))
@@ -292,6 +293,7 @@ export class BoundaryExecutionStore {
         part: "higgs",
         op: "replace",
         path: atomId,
+        ts: Date.now(),
         from: proposal.processExecutionId,
         value: {fields: committed.topology},
       }))
@@ -305,6 +307,7 @@ export class BoundaryExecutionStore {
       part: part.part,
       op: "copy",
       path: atomId,
+      ts: Date.now(),
       from: proposal.processExecutionId,
       value: acknowledgement,
     }))

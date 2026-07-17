@@ -109,6 +109,7 @@ export const formatImpulseLog = (
     particle.part,
     particle.op,
     `path=${formatPath(particle.path)}`,
+    `ts=${particle.ts}`,
   ]
   if (particle.from !== undefined) fields.push(`from=${formatPath(particle.from)}`)
   if (particle.value !== undefined) fields.push(`value=${safeSerialize(particle.value, DEFAULT_COMPACT_LIMIT)}`)

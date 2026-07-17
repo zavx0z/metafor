@@ -12,6 +12,7 @@ import {weak$} from "./weak"
 
 let fixture: ForceTestFixture
 const previousBackend = Bun.env.METAFOR_WEAK_BACKEND
+type ParticleInput = Omit<Particle, "ts"> & {ts?: number}
 
 beforeAll(() => {
   Bun.env.METAFOR_WEAK_BACKEND = "cpu"
@@ -29,8 +30,8 @@ const settle = async (): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, 0))
 }
 
-const send = (client: ForceTestClient, particle: Particle): void =>
-  fixture.impulse(client, {parts: [particle]})
+const send = (client: ForceTestClient, particle: ParticleInput): void =>
+  fixture.impulse(client, {parts: [{ts: 1, ...particle}] as [Particle]})
 
 const waitForPart = async (
   client: ForceTestClient,
@@ -130,7 +131,7 @@ describe("Matrix packed Force runtime", () => {
       value: runtimeSnapshot(),
     })
     expect(await waitForPart(client, (part) => part.part === "photon" && part.value === "idle", fromBootstrap)).toEqual({
-      part: "photon", op: "replace", path: 17, value: "idle",
+      part: "photon", op: "replace", path: 17, ts: expect.any(Number), value: "idle",
     })
     expect(runtime.listMatrixRuntimeAtomIds()).toEqual([17])
     expect(weak$.mode).toBe("cpu")
@@ -159,6 +160,7 @@ describe("Matrix packed Force runtime", () => {
       part: "z",
       op: "copy",
       path: 17,
+      ts: expect.any(Number),
       from: "energy-local",
       value: {
         processExecutionId,
@@ -213,7 +215,7 @@ describe("Matrix packed Force runtime", () => {
       value: commit,
     })
     expect(await waitForPart(client, (part) => part.part === "photon" && part.value === "done", fromCommit)).toEqual({
-      part: "photon", op: "replace", path: 17, value: "done",
+      part: "photon", op: "replace", path: 17, ts: expect.any(Number), value: "done",
     })
     expect(runtime.matrix$.branes[0]?.lock).toBe(false)
   })
