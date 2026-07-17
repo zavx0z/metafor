@@ -1,5 +1,34 @@
-import type { Particle } from "./particle.ts"
+import type {ForcePartInput, Particle, SourcedParticle} from "./particle.ts"
 
 export interface ForceMessage {
   parts: [Particle]
+}
+
+/** Сообщение на проводе Force: источник уже назначен и обязателен. */
+export interface SourcedForceMessage extends ForceMessage {
+  parts: [SourcedParticle]
+}
+
+export interface ForceMessageInput {
+  parts: [ForcePartInput]
+}
+
+export interface AgentIngressMessage {
+  parts: [{
+    part: "inflaton"
+    op: "add"
+    path: string
+    ts: number
+    value: {name: string; desc?: string | null}
+  }]
+}
+
+export const sourceForceMessage = (message: ForceMessageInput, by: string): SourcedForceMessage => ({
+  parts: [{...message.parts[0], by}],
+})
+
+/** Возвращает Patch в состояние до испускания, не доверяя входному `by`. */
+export const unsourceForceMessage = (message: ForceMessage): ForceMessageInput => {
+  const {by: _by, ...part} = message.parts[0]
+  return {parts: [part]}
 }

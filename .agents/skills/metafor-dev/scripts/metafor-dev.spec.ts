@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 
-import { buildImpact, validateSkill } from "./metafor-dev.mjs"
+import { buildImpact, buildInflatonAddMessage, validateSkill } from "./metafor-dev.mjs"
 
 describe("MetaFor Dev contour", () => {
   test("maps Force changes to focused tests and the Inflaton live scenario", () => {
@@ -19,7 +19,7 @@ describe("MetaFor Dev contour", () => {
     expect(impact.ok).toBe(true)
     expect(impact.areas).toEqual(["bulk-manifestation"])
     expect(impact.automated).toContain("bun test ./pkg/ui")
-    expect(impact.live).toEqual(["bulk-baseline"])
+    expect(impact.live).toEqual(["bulk-baseline", "inflaton-add"])
     expect(impact.skillSurfaces).toContain("visual acceptance")
   })
 
@@ -41,5 +41,11 @@ describe("MetaFor Dev contour", () => {
 
   test("validates the repository-local skill contour", () => {
     expect(validateSkill()).toMatchObject({ ok: true, errors: [] })
+  })
+
+  test("builds the one trusted external Particle without caller-supplied by", () => {
+    expect(buildInflatonAddMessage(42)).toEqual({
+      parts: [{part: "inflaton", op: "add", path: "capsule/meta", ts: 42, value: {name: "Capsule"}}],
+    })
   })
 })

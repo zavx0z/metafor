@@ -79,6 +79,7 @@ export type BulkHudOptions = {
 export type BulkHudController = {
   currentSrc(): string
   relayout(): void
+  setSrc(src: string): void
   setBusy(busy: boolean): void
   setConnectionStatus(online: boolean): void
   setStats(stats: BulkViewportStats): void

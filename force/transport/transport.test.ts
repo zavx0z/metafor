@@ -1,10 +1,11 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
-import type {ForceMessage} from "@metafor/types/force/message"
+import type {ForceMessage, ForceMessageInput} from "@metafor/types/force/message"
 
 type ForceConstructor = new (domain: string) => {
   readonly connected: boolean
   onConnectionChange: (connected: boolean) => void
   onImpulse: (message: ForceMessage) => void | Promise<void>
+  impulse: (message: ForceMessageInput) => void
 }
 
 const sockets: FakeWebSocket[] = []
@@ -99,10 +100,10 @@ const verifyRawOrderedTransport = async (Force: ForceConstructor, domain: string
   expect(connectionStates).toEqual([false, true])
   expect(socket.sent).toEqual([
     {type: "register", domain, id: `${domain}-${domain.startsWith("browser") ? "web" : "local"}`},
-    {parts: [{part: "z", op: "test", path: `force/replay/${domain}/${domain}-${domain.startsWith("browser") ? "web" : "local"}`, ts: expect.any(Number)}]},
+    {parts: [{part: "z", op: "test", path: `force/replay/${domain}/${domain}-${domain.startsWith("browser") ? "web" : "local"}`, by: domain, ts: expect.any(Number)}]},
   ])
 
-  socket.receive({type: "force", parts: [{part: "photon", op: "test", path: 1, ts: 1}]})
+  socket.receive({type: "force", parts: [{part: "photon", op: "test", path: 1, by: "matrix", ts: 1}]})
   socket.receive({type: "snapshot", revision: 0})
   socket.receive({type: "create", snapshot: {revision: 0}})
   socket.receive({type: "error", error: "legacy"})
@@ -110,8 +111,8 @@ const verifyRawOrderedTransport = async (Force: ForceConstructor, domain: string
   await Bun.sleep(0)
   expect(order).toEqual([])
 
-  socket.receive({parts: [{part: "photon", op: "test", path: 1, ts: 1}]})
-  socket.receive({parts: [{part: "photon", op: "test", path: 2, ts: 2}]})
+  socket.receive({parts: [{part: "photon", op: "test", path: 1, by: "matrix", ts: 1}]})
+  socket.receive({parts: [{part: "photon", op: "test", path: 2, by: "matrix", ts: 2}]})
 
   await waitFor(() => order.includes("impulse:1:start"))
   await Bun.sleep(0)
@@ -143,8 +144,8 @@ const verifyOrdinaryImpulseOrder = async (Force: ForceConstructor, domain: strin
     order.push(`impulse:${path}:end`)
   }
 
-  socket.receive({parts: [{part: "photon", op: "test", path: 1, ts: 1}]})
-  socket.receive({parts: [{part: "photon", op: "test", path: 2, ts: 2}]})
+  socket.receive({parts: [{part: "photon", op: "test", path: 1, by: "matrix", ts: 1}]})
+  socket.receive({parts: [{part: "photon", op: "test", path: 2, by: "matrix", ts: 2}]})
 
   await waitFor(() => order.includes("impulse:1:start"))
   await Bun.sleep(0)
@@ -164,7 +165,7 @@ const verifyEarlyReplayBuffer = async (Force: ForceConstructor, domain: string):
   const force = new Force(domain)
   const socket = sockets.at(-1)!
   const replay: ForceMessage = {
-    parts: [{part: "z", op: "test", path: `force/replay/${domain}/peer`, ts: 1}],
+    parts: [{part: "z", op: "test", path: `force/replay/${domain}/peer`, by: "force", ts: 1}],
   }
   const received: ForceMessage[] = []
 
@@ -178,6 +179,19 @@ const verifyEarlyReplayBuffer = async (Force: ForceConstructor, domain: string):
 
   await waitFor(() => received.length === 1)
   expect(received).toEqual([replay])
+}
+
+const verifyOutgoingSource = async (Force: ForceConstructor, domain: string): Promise<void> => {
+  const force = new Force(domain)
+  const socket = sockets.at(-1)!
+  await waitFor(() => socket.sent.length === 2)
+
+  force.impulse({parts: [{part: "inflaton", op: "add", path: "capsule/meta", ts: 42, value: {name: "Capsule"}}]})
+
+  await waitFor(() => socket.sent.length === 3)
+  expect(socket.sent[2]).toEqual({
+    parts: [{part: "inflaton", op: "add", path: "capsule/meta", by: domain, ts: 42, value: {name: "Capsule"}}],
+  })
 }
 
 describe("Force runtime transports", () => {
@@ -203,5 +217,13 @@ describe("Force runtime transports", () => {
 
   test("browser buffers replay received before runtime installs its handler", async () => {
     await verifyEarlyReplayBuffer(BrowserForce, "browser-early-replay")
+  })
+
+  test("Bun assigns its domain while preserving the outgoing timestamp", async () => {
+    await verifyOutgoingSource(BunForce, "dark")
+  })
+
+  test("browser assigns its domain while preserving the outgoing timestamp", async () => {
+    await verifyOutgoingSource(BrowserForce, "bulk")
   })
 })

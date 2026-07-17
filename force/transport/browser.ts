@@ -1,4 +1,4 @@
-import type {ForceMessage} from "@metafor/types/force/message"
+import {sourceForceMessage, type ForceMessageInput, type SourcedForceMessage} from "@metafor/types/force/message"
 import {forceReplayPath} from "@metafor/types/force/replay"
 import {isForceMessage} from "@metafor/types/force/validation"
 import {ForceBase} from "../core/base"
@@ -12,7 +12,7 @@ export class Force extends ForceBase {
   #socket: WebSocket
   #reconnectTimer: ReturnType<typeof setTimeout> | undefined
   #closed = false
-  #outbox: ForceMessage[] = []
+  #outbox: SourcedForceMessage[] = []
   override onDestroy?: () => void | Promise<void>
   override readonly id: string
 
@@ -34,9 +34,9 @@ export class Force extends ForceBase {
         const message = this.#outbox.shift()
         if (message) this.#send(socket, message)
       }
-      this.#send(socket, {
+      this.#send(socket, sourceForceMessage({
         parts: [{part: "z", op: "test", path: forceReplayPath(this.domain, this.id), ts: Date.now()}],
-      } satisfies ForceMessage)
+      }, this.domain))
     }
     socket.onmessage = (event) => {
       let impulse: unknown
@@ -58,7 +58,8 @@ export class Force extends ForceBase {
     return socket
   }
 
-  override impulse(message: ForceMessage): void {
+  override impulse(input: ForceMessageInput): void {
+    const message = sourceForceMessage(input, this.domain)
     if (this.#socket.readyState !== WebSocket.OPEN) {
       this.#outbox.push(message)
       return
@@ -66,7 +67,7 @@ export class Force extends ForceBase {
     this.#send(this.#socket, message)
   }
 
-  #send(socket: WebSocket, message: ForceMessage): void {
+  #send(socket: WebSocket, message: SourcedForceMessage): void {
     logImpulse(this.domain, "->", message)
     socket.send(JSON.stringify(message))
   }

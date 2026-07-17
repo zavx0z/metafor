@@ -250,7 +250,10 @@ const declaration = (src: string, dsl: MetaDSL): WimpProjection => {
   return {entities, children}
 }
 
-const emit = (particle: Particle): void => force.impulse({parts: [particle]})
+const emit = (particle: Particle): void => {
+  const {by: _by, ...input} = particle
+  force.impulse({parts: [input]})
+}
 
 const add = (item: DeclarationEntity): Particle => ({
   part: "inflaton",
@@ -392,8 +395,45 @@ const replay = (): void => {
   for (const root of roots) emit({part: "inflaton", op: "test", path: root, ts: Date.now()})
 }
 
+/**
+ * Applies the first trusted external declaration to Dark's local projection.
+ * The same minimal Patch is then emitted by Dark; `ts` is deliberately kept.
+ */
+export const applyAgentInflaton = (part: Particle): boolean => {
+  if (
+    part.by !== "agent" ||
+    part.part !== "inflaton" ||
+    part.op !== "add" ||
+    typeof part.path !== "string" ||
+    !part.path.endsWith("/meta") ||
+    !isRecord(part.value) ||
+    typeof part.value.name !== "string" ||
+    part.value.name.trim().length === 0
+  ) return false
+
+  const src = part.path.slice(0, -"/meta".length)
+  if (!src) return false
+  const current = projection.get(src)
+  const meta = entity(src, "meta", part.value)
+  projection.set(src, {
+    entities: [...(current?.entities.filter((item) => item.path !== meta.path) ?? []), meta],
+    children: current?.children ?? [],
+  })
+  roots.add(src)
+  emit({
+    part: part.part,
+    op: part.op,
+    path: part.path,
+    ts: part.ts,
+    value: meta.value,
+  })
+  emit({part: "inflaton", op: "test", path: src, ts: part.ts})
+  return true
+}
+
 force.onImpulse = async (impulse) => {
   for (const part of impulse.parts) {
+    if (applyAgentInflaton(part)) continue
     if (part.part === "inflaton" && part.op === "test" && typeof part.path === "string") {
       await matter(part.path)
       continue

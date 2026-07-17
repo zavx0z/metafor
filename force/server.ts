@@ -1,10 +1,17 @@
 import type {ServerWebSocket} from "bun"
-import type {ForceMessage} from "@metafor/types/force/message"
+import {sourceForceMessage, type ForceMessage} from "@metafor/types/force/message"
 import {forceReplayPath} from "@metafor/types/force/replay"
-import {isForceMessage} from "@metafor/types/force/validation"
+import {isAgentIngressMessage, isForceMessage} from "@metafor/types/force/validation"
 import {logImpulse} from "./core/log"
 
-const clients = new Map<ServerWebSocket<{domain?: string; id?: string}>, {domain: string; id: string}>()
+type ForceSocket = ServerWebSocket<{domain?: string; id?: string}>
+type ForceClient = {domain: string; id: string}
+type ForceRuntime = typeof globalThis & {__metaforForceClients?: Map<ForceSocket, ForceClient>}
+
+// Bun hot reload keeps the WebSocket sessions alive. Keep their registry alive with
+// them, otherwise Force can have open domain sockets that a reloaded module cannot see.
+const runtime = globalThis as ForceRuntime
+const clients = runtime.__metaforForceClients ??= new Map<ForceSocket, ForceClient>()
 
 const isUncommittedWorldMutation = (message: ForceMessage): boolean => {
   const part = message.parts[0]
@@ -13,23 +20,43 @@ const isUncommittedWorldMutation = (message: ForceMessage): boolean => {
     part.from === undefined
 }
 
+const relevantDomains = (message: ForceMessage, originDomain?: string): Set<string> | null => {
+  const part = message.parts[0]
+  if (part.by === "agent" && part.part === "inflaton") return new Set(["dark", "bulk"])
+  if (part.by === "dark" && part.part === "inflaton") return new Set(["boundary", "bulk"])
+  if (isUncommittedWorldMutation(message) && originDomain !== "boundary") return new Set(["boundary"])
+  return null
+}
+
+const connectedDomains = (): Set<string> => {
+  const domains = new Set<string>()
+  for (const [socket, client] of clients) {
+    if (socket.readyState !== WebSocket.OPEN) {
+      clients.delete(socket)
+      continue
+    }
+    domains.add(client.domain)
+  }
+  return domains
+}
+
 const deliverImpulse = (
   message: ForceMessage,
-  origin?: ServerWebSocket<{domain?: string; id?: string}>,
-): number => {
+  origin?: ForceSocket,
+): string[] => {
   const source = origin?.data.domain ? `force:${origin.data.domain}` : "force:http"
   logImpulse(source, "<-", message)
   const payload = JSON.stringify(message)
-  const boundaryOnly = isUncommittedWorldMutation(message) && origin?.data.domain !== "boundary"
-  let delivered = 0
+  const domains = relevantDomains(message, origin?.data.domain)
+  const delivered = new Set<string>()
 
   for (const [socket, client] of clients) {
     if (socket === origin || socket.readyState !== WebSocket.OPEN) continue
-    if (boundaryOnly && client.domain !== "boundary") continue
+    if (domains && !domains.has(client.domain)) continue
     socket.send(payload)
-    delivered++
+    delivered.add(client.domain)
   }
-  return delivered
+  return [...delivered].sort()
 }
 
 export const server = Bun.serve<{domain?: string; id?: string}>({
@@ -37,7 +64,11 @@ export const server = Bun.serve<{domain?: string; id?: string}>({
   routes: {
     "/health": {
       GET() {
-        return Response.json({ok: true, domain: "force"})
+        return Response.json({
+          ok: true,
+          domain: "force",
+          connectedDomains: [...connectedDomains()].sort(),
+        })
       },
     },
     "/force": {
@@ -48,14 +79,21 @@ export const server = Bun.serve<{domain?: string; id?: string}>({
         } catch (error) {
           return Response.json({ok: false, error: error instanceof Error ? error.message : String(error)}, {status: 400})
         }
-        if (!isForceMessage(payload)) {
-          return Response.json({ok: false, error: "body must be a plain ForceMessage with exactly one minimal particle"}, {status: 400})
+        if (!isAgentIngressMessage(payload)) {
+          return Response.json({
+            ok: false,
+            error: "body must be one unsourced inflaton/add for a Meta declaration with a valid ts and name",
+          }, {status: 400})
         }
-        const delivered = deliverImpulse(payload)
-        if (isUncommittedWorldMutation(payload) && delivered === 0) {
-          return Response.json({ok: false, error: "Boundary is unavailable for canonical world mutation"}, {status: 503})
+        const required = ["bulk", "dark"]
+        const available = connectedDomains()
+        const missing = required.filter((domain) => !available.has(domain))
+        if (missing.length > 0) {
+          return Response.json({ok: false, error: `required Force domains are unavailable: ${missing.join(", ")}`}, {status: 503})
         }
-        return Response.json({ok: true, parts: 1})
+        const message = sourceForceMessage(payload, "agent")
+        const delivered = deliverImpulse(message)
+        return Response.json({ok: true, parts: 1, delivered, particle: message.parts[0]})
       },
     },
     "/ws": {
@@ -86,12 +124,12 @@ export const server = Bun.serve<{domain?: string; id?: string}>({
         ws.data.id = message.id
         console.log(`[force] connected: ${message.domain} ${message.id}`)
         const joiningReplayRequest = {
-          parts: [{part: "z", op: "test", path: forceReplayPath(message.domain, message.id), ts: Date.now()}],
+          parts: [{part: "z", op: "test", path: forceReplayPath(message.domain, message.id), by: "force", ts: Date.now()}],
         } satisfies ForceMessage
         for (const [socket, client] of clients) {
           if (socket === ws || socket.readyState !== WebSocket.OPEN) continue
           const existingReplayRequest = {
-            parts: [{part: "z", op: "test", path: forceReplayPath(client.domain, client.id), ts: Date.now()}],
+            parts: [{part: "z", op: "test", path: forceReplayPath(client.domain, client.id), by: "force", ts: Date.now()}],
           } satisfies ForceMessage
           logImpulse("force", "->", existingReplayRequest)
           ws.send(JSON.stringify(existingReplayRequest))
@@ -100,7 +138,8 @@ export const server = Bun.serve<{domain?: string; id?: string}>({
         }
         return
       }
-      if (isForceMessage(payload)) deliverImpulse(payload, ws)
+      const client = clients.get(ws)
+      if (client && isForceMessage(payload) && payload.parts[0].by === client.domain) deliverImpulse(payload, ws)
     },
   },
 })

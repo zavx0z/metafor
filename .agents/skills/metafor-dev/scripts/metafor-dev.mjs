@@ -9,6 +9,7 @@ import { homedir } from "node:os"
 import { dirname, join, relative, resolve } from "node:path"
 import { spawnSync } from "node:child_process"
 import { fileURLToPath } from "node:url"
+import {Database} from "bun:sqlite"
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url))
 export const skillRoot = resolve(scriptDirectory, "..")
@@ -69,7 +70,7 @@ const impactRules = [
     area: "bulk-manifestation",
     matches: (path) => ["bulk/", "pkg/engine/", "pkg/ui/", "ui/"].some((prefix) => path.startsWith(prefix)),
     automated: ["bun test bulk", "bun test ./pkg/ui", "bun run typecheck"],
-    live: ["bulk-baseline"],
+    live: ["bulk-baseline", "inflaton-add"],
     skillSurfaces: ["visual acceptance", "runtime"],
   },
   {
@@ -257,13 +258,117 @@ const emit = (payload, exitCode = 0) => {
   process.exitCode = exitCode
 }
 
+const delay = (milliseconds) => new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds))
+
+export const buildInflatonAddMessage = (ts) => ({
+  parts: [{part: "inflaton", op: "add", path: "capsule/meta", ts, value: {name: "Capsule"}}],
+})
+
+const runInflatonAdd = async () => {
+  const world = runWorld(["status"])
+  if (world.payload.ok !== true) {
+    return {
+      payload: {
+        schema: "metafor-dev/run@1",
+        ok: false,
+        scenario: "inflaton-add",
+        step: "runtime-not-ready",
+        world: world.payload,
+      },
+      exitCode: 1,
+    }
+  }
+
+  const ts = Date.now()
+  const request = buildInflatonAddMessage(ts)
+  let response
+  let responseBody
+  try {
+    response = await fetch("http://127.0.0.1:4000/force", {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify(request),
+    })
+    responseBody = await response.json()
+  } catch (error) {
+    return {
+      payload: {
+        schema: "metafor-dev/run@1",
+        ok: false,
+        scenario: "inflaton-add",
+        step: "ingress-failed",
+        request,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      exitCode: 1,
+    }
+  }
+
+  const ingressOk = response.ok && responseBody?.ok === true &&
+    responseBody?.particle?.by === "agent" && responseBody?.particle?.ts === ts &&
+    Array.isArray(responseBody?.delivered) &&
+    responseBody.delivered.includes("dark") && responseBody.delivered.includes("bulk")
+  if (!ingressOk) {
+    return {
+      payload: {
+        schema: "metafor-dev/run@1",
+        ok: false,
+        scenario: "inflaton-add",
+        step: "ingress-rejected",
+        request,
+        response: {status: response.status, body: responseBody},
+      },
+      exitCode: 1,
+    }
+  }
+
+  const databasePath = join(repositoryRoot, ".metafor/dev.sqlite")
+  const deadline = Date.now() + 5_000
+  let atom = null
+  while (Date.now() < deadline) {
+    if (existsSync(databasePath)) {
+      const database = new Database(databasePath, {readonly: true})
+      try {
+        atom = database.query(`
+          SELECT atom.id, atom.wimp, wimp.name, atom.position
+            FROM atom JOIN wimp ON wimp.src = atom.wimp
+           WHERE atom.wimp = ? AND atom.parent_atom IS NULL AND atom.parent_topology IS NULL
+           ORDER BY atom.id LIMIT 1
+        `).get("capsule")
+      } finally {
+        database.close()
+      }
+      if (atom?.name === "Capsule") break
+    }
+    await delay(50)
+  }
+
+  const ok = atom?.name === "Capsule"
+  return {
+    payload: {
+      schema: "metafor-dev/run@1",
+      ok,
+      scenario: "inflaton-add",
+      step: ok ? "browser-checkpoint-required" : "materialization-timeout",
+      request,
+      ingress: responseBody,
+      canonical: atom,
+      target: "http://localhost:4004/",
+      checkpoint: ok
+        ? "Use the Codex in-app browser to confirm the Capsule Atom and its transient Particle manifestation."
+        : "Inspect the owned contour logs for the missing Dark or Boundary stage.",
+    },
+    exitCode: ok ? 0 : 1,
+  }
+}
+
 const parseExplicitPaths = (args) => {
   const index = args.indexOf("--paths")
   if (index < 0) return undefined
   return args.slice(index + 1).filter((arg) => !arg.startsWith("--"))
 }
 
-const main = () => {
+const main = async () => {
   const [command = "doctor", ...args] = process.argv.slice(2)
 
   if (command === "validate") {
@@ -323,14 +428,8 @@ const main = () => {
     }
 
     if (scenario === "inflaton-add") {
-      emit({
-        schema: "metafor-dev/run@1",
-        ok: false,
-        scenario,
-        step: "blocked",
-        reason: "The external Force ingress contract is the current milestone and is not yet safe to automate.",
-        reference: ".agents/skills/metafor-dev/references/current-milestone.md",
-      }, 2)
+      const result = await runInflatonAdd()
+      emit(result.payload, result.exitCode)
       return
     }
 
@@ -351,4 +450,8 @@ const main = () => {
   }, 2)
 }
 
-if (import.meta.main) main()
+if (import.meta.main) void main().catch((error) => emit({
+  schema: "metafor-dev/cli@1",
+  ok: false,
+  error: error instanceof Error ? error.message : String(error),
+}, 1))

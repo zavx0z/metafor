@@ -5,7 +5,7 @@ import type {
   ProcessResultCommit,
   ProcessResultProposal,
 } from "@metafor/types/force/execution"
-import type {Particle} from "@metafor/types/force/particle"
+import type {Particle, SourcedParticle} from "@metafor/types/force/particle"
 import {
   MATRIX_RUNTIME_PATH,
   STATE_UNDEFINED,
@@ -23,7 +23,7 @@ const previousBackend = Bun.env.METAFOR_WEAK_BACKEND
 const previousDevice = GPU._device
 const PROCESS_ID = 501
 const ENERGY_ID = "energy-parity"
-type ParticleInput = Omit<Particle, "ts"> & {ts?: number}
+type ParticleInput = Omit<SourcedParticle, "ts"> & {ts?: number}
 
 const runtimeSnapshot = (): MatrixRuntimeSnapshot => ({
   ok: true,
@@ -131,6 +131,7 @@ const runScenario = async (backend: "cpu" | "gpu"): Promise<RuntimeTrace> => {
       part: "graviton",
       op: "replace",
       path: MATRIX_RUNTIME_PATH,
+      by: "boundary",
       value: runtimeSnapshot(),
     })
     const idle = await waitForPart(
@@ -147,6 +148,7 @@ const runScenario = async (backend: "cpu" | "gpu"): Promise<RuntimeTrace> => {
       part: "gluon",
       op: "replace",
       path: 17,
+      by: "boundary",
       value: {fields: {"101": 1}},
     })
     const ready = await waitForPart(
@@ -166,6 +168,7 @@ const runScenario = async (backend: "cpu" | "gpu"): Promise<RuntimeTrace> => {
       part: "z",
       op: "test",
       path: 17,
+      by: "energy",
       value: claim,
     })
     const copy = await waitForPart(
@@ -188,6 +191,7 @@ const runScenario = async (backend: "cpu" | "gpu"): Promise<RuntimeTrace> => {
       part: "w+",
       op: "replace",
       path: 17,
+      by: "energy",
       from: ENERGY_ID,
       value: proposal,
     })
@@ -200,6 +204,7 @@ const runScenario = async (backend: "cpu" | "gpu"): Promise<RuntimeTrace> => {
       part: "gluon",
       op: "replace",
       path: 17,
+      by: "boundary",
       from: processExecutionId,
       value: {fields: {"102": 2}},
     })
@@ -217,6 +222,7 @@ const runScenario = async (backend: "cpu" | "gpu"): Promise<RuntimeTrace> => {
       part: "w+",
       op: "copy",
       path: 17,
+      by: "boundary",
       from: processExecutionId,
       value: commit,
     })

@@ -1,25 +1,38 @@
-import type {ForceMessage} from "./message.ts"
-import {isParticleTimestamp, type Particle} from "./particle.ts"
+import type {AgentIngressMessage, SourcedForceMessage} from "./message.ts"
+import {isParticleSource, isParticleTimestamp, type SourcedParticle} from "./particle.ts"
 
 const particleParts = new Set(["inflaton", "graviton", "photon", "gluon", "higgs", "w+", "w-", "z"])
 const particleOperations = new Set(["add", "remove", "replace", "move", "copy", "test"])
-const particleKeys = new Set(["part", "op", "path", "ts", "value", "from"])
+const particleKeys = new Set(["part", "op", "path", "by", "ts", "value", "from"])
 
-export const isParticle = (value: unknown): value is Particle => {
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+
+export const isParticle = (value: unknown): value is SourcedParticle => {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false
-  const particle = value as Partial<Particle>
+  const particle = value as Partial<SourcedParticle>
   return Object.keys(value).every((key) => particleKeys.has(key)) &&
     typeof particle.part === "string" && particleParts.has(particle.part) &&
     typeof particle.op === "string" && particleOperations.has(particle.op) &&
     (typeof particle.path === "string" || typeof particle.path === "number") &&
+    isParticleSource(particle.by) &&
     isParticleTimestamp(particle.ts) &&
     (particle.from === undefined || typeof particle.from === "string" || typeof particle.from === "number")
 }
 
-export const isForceMessage = (value: unknown): value is ForceMessage =>
+export const isForceMessage = (value: unknown): value is SourcedForceMessage =>
   typeof value === "object" && value !== null &&
   (value as {type?: unknown}).type === undefined &&
   Object.keys(value).length === 1 &&
   Array.isArray((value as {parts?: unknown}).parts) &&
   (value as {parts: unknown[]}).parts.length === 1 &&
   isParticle((value as {parts: unknown[]}).parts[0])
+
+export const isAgentIngressMessage = (value: unknown): value is AgentIngressMessage => {
+  if (!isRecord(value) || Object.keys(value).length !== 1 || !Array.isArray(value.parts) || value.parts.length !== 1) return false
+  const part = value.parts[0]
+  if (!isRecord(part) || !Object.keys(part).every((key) => ["part", "op", "path", "ts", "value"].includes(key))) return false
+  if (part.part !== "inflaton" || part.op !== "add" || typeof part.path !== "string" || !/^.+\/meta$/.test(part.path)) return false
+  if (!isParticleTimestamp(part.ts) || !isRecord(part.value) || typeof part.value.name !== "string" || part.value.name.trim().length === 0) return false
+  return part.value.desc === undefined || part.value.desc === null || typeof part.value.desc === "string"
+}

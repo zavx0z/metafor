@@ -109,6 +109,7 @@ export const formatImpulseLog = (
     particle.part,
     particle.op,
     `path=${formatPath(particle.path)}`,
+    `by=${particle.by}`,
     `ts=${particle.ts}`,
   ]
   if (particle.from !== undefined) fields.push(`from=${formatPath(particle.from)}`)

@@ -1,6 +1,7 @@
 import {mkdir} from "node:fs/promises"
 import {dirname, join, resolve} from "node:path"
 import {Force} from "force"
+import {unsourceForceMessage} from "@metafor/types/force/message"
 import {parseForceReplayPath} from "@metafor/types/force/replay"
 import {MATRIX_RUNTIME_PATH} from "@metafor/types/matrix/runtime"
 import {open} from "./sqlite.ts"
@@ -27,6 +28,10 @@ const publishMatrixRuntime = async (): Promise<void> => {
 
 force.onImpulse = async (message) => {
   const part = message.parts[0]
+  if (part.part === "inflaton" && part.by !== "dark") {
+    console.warn(`[boundary] ignored inflaton from ${part.by ?? "unknown"}`)
+    return
+  }
   if (part.part === "z" && part.op === "test") {
     const request = parseForceReplayPath(part.path)
     if (request) {
@@ -35,7 +40,7 @@ force.onImpulse = async (message) => {
         return
       }
       if (request.domain === "energy" || request.domain === "bulk") {
-        for (const replay of await boundary.replay()) force.impulse(replay)
+        for (const replay of await boundary.replay()) force.impulse(unsourceForceMessage(replay))
       }
       return
     }
@@ -43,7 +48,7 @@ force.onImpulse = async (message) => {
 
   const commit = await boundary.materialize(message)
   if (commit) {
-    for (const derived of commit.messages) force.impulse(derived)
+    for (const derived of commit.messages) force.impulse(unsourceForceMessage(derived))
     console.log(`[boundary] committed ${commit.rootSrc ?? "declaration"} impulses=${commit.messages.length}`)
   }
 

@@ -1,7 +1,7 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import {join} from "node:path"
 import type {ProcessResultCommit, ProcessResultProposal} from "@metafor/types/force/execution"
-import type {Particle} from "@metafor/types/force/particle"
+import type {Particle, SourcedParticle} from "@metafor/types/force/particle"
 import {
   MATRIX_RUNTIME_PATH,
   STATE_UNDEFINED,
@@ -12,7 +12,7 @@ import {weak$} from "./weak"
 
 let fixture: ForceTestFixture
 const previousBackend = Bun.env.METAFOR_WEAK_BACKEND
-type ParticleInput = Omit<Particle, "ts"> & {ts?: number}
+type ParticleInput = Omit<SourcedParticle, "ts"> & {ts?: number}
 
 beforeAll(() => {
   Bun.env.METAFOR_WEAK_BACKEND = "cpu"
@@ -116,6 +116,7 @@ describe("Matrix packed Force runtime", () => {
       part: "graviton",
       op: "replace",
       path: MATRIX_RUNTIME_PATH,
+      by: "boundary",
       value: emptyRuntimeSnapshot(),
     })
     await settle()
@@ -128,10 +129,11 @@ describe("Matrix packed Force runtime", () => {
       part: "graviton",
       op: "replace",
       path: MATRIX_RUNTIME_PATH,
+      by: "boundary",
       value: runtimeSnapshot(),
     })
     expect(await waitForPart(client, (part) => part.part === "photon" && part.value === "idle", fromBootstrap)).toEqual({
-      part: "photon", op: "replace", path: 17, ts: expect.any(Number), value: "idle",
+      part: "photon", op: "replace", path: 17, by: "matrix", ts: expect.any(Number), value: "idle",
     })
     expect(runtime.listMatrixRuntimeAtomIds()).toEqual([17])
     expect(weak$.mode).toBe("cpu")
@@ -141,6 +143,7 @@ describe("Matrix packed Force runtime", () => {
       part: "gluon",
       op: "replace",
       path: 17,
+      by: "boundary",
       value: {fields: {"101": 11, "102": "git commit --dry-run -m capsule"}},
     })
     const ready = await waitForPart(client, (part) => part.part === "photon" && part.op === "test", fromField)
@@ -154,12 +157,14 @@ describe("Matrix packed Force runtime", () => {
       part: "z",
       op: "test",
       path: 17,
+      by: "energy",
       value: {energy: "energy-local", processExecutionId},
     })
     expect(await waitForPart(client, (part) => part.part === "z" && part.op === "copy", fromClaim)).toEqual({
       part: "z",
       op: "copy",
       path: 17,
+      by: "matrix",
       ts: expect.any(Number),
       from: "energy-local",
       value: {
@@ -178,6 +183,7 @@ describe("Matrix packed Force runtime", () => {
       part: "w+",
       op: "replace",
       path: 17,
+      by: "energy",
       from: "energy-local",
       value: proposal,
     })
@@ -192,6 +198,7 @@ describe("Matrix packed Force runtime", () => {
       part: "gluon",
       op: "replace",
       path: 17,
+      by: "boundary",
       from: processExecutionId,
       value: {fields: {"101": 12}},
     })
@@ -211,11 +218,12 @@ describe("Matrix packed Force runtime", () => {
       part: "w+",
       op: "copy",
       path: 17,
+      by: "boundary",
       from: processExecutionId,
       value: commit,
     })
     expect(await waitForPart(client, (part) => part.part === "photon" && part.value === "done", fromCommit)).toEqual({
-      part: "photon", op: "replace", path: 17, ts: expect.any(Number), value: "done",
+      part: "photon", op: "replace", path: 17, by: "matrix", ts: expect.any(Number), value: "done",
     })
     expect(runtime.matrix$.branes[0]?.lock).toBe(false)
   })

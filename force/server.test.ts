@@ -1,23 +1,12 @@
-import {afterAll, beforeAll, describe, expect, test} from "bun:test"
+import {afterAll, afterEach, beforeAll, describe, expect, test} from "bun:test"
 import type {ForceMessage} from "@metafor/types/force/message"
 
 type ForceSocketData = {domain?: string; id?: string}
 
+const ingressError = "body must be one unsourced inflaton/add for a Meta declaration with a valid ts and name"
 let previousPort: string | undefined
 let server: Bun.Server<ForceSocketData>
 const sockets = new Set<WebSocket>()
-
-const nextMessage = (socket: WebSocket): Promise<unknown> => new Promise((resolve, reject) => {
-  const timeout = setTimeout(() => {
-    socket.removeEventListener("message", onMessage)
-    reject(new Error("Timed out waiting for Force message"))
-  }, 1000)
-  const onMessage = (event: MessageEvent) => {
-    clearTimeout(timeout)
-    resolve(JSON.parse(String(event.data)) as unknown)
-  }
-  socket.addEventListener("message", onMessage, {once: true})
-})
 
 const nextMatchingMessage = (
   socket: WebSocket,
@@ -26,7 +15,7 @@ const nextMatchingMessage = (
   const timeout = setTimeout(() => {
     socket.removeEventListener("message", onMessage)
     reject(new Error("Timed out waiting for matching Force message"))
-  }, 1000)
+  }, 1_000)
   const onMessage = (event: MessageEvent) => {
     const value = JSON.parse(String(event.data)) as unknown
     if (typeof value !== "object" || value === null || !Array.isArray((value as {parts?: unknown}).parts)) return
@@ -39,12 +28,21 @@ const nextMatchingMessage = (
   socket.addEventListener("message", onMessage)
 })
 
+const watchFor = (socket: WebSocket, predicate: (message: ForceMessage) => boolean): (() => boolean) => {
+  let seen = false
+  socket.addEventListener("message", (event) => {
+    const value = JSON.parse(String(event.data)) as ForceMessage
+    if (predicate(value)) seen = true
+  })
+  return () => seen
+}
+
 const connect = (domain: string, id: string): Promise<WebSocket> => new Promise((resolve, reject) => {
   const address = new URL("/ws", server.url)
   address.protocol = "ws:"
   const socket = new WebSocket(address)
   sockets.add(socket)
-  const timeout = setTimeout(() => reject(new Error(`Timed out connecting Force client: ${domain}`)), 1000)
+  const timeout = setTimeout(() => reject(new Error(`Timed out connecting Force client: ${domain}`)), 1_000)
   socket.addEventListener("open", () => {
     socket.send(JSON.stringify({type: "register", domain, id}))
     setTimeout(() => {
@@ -58,185 +56,187 @@ const connect = (domain: string, id: string): Promise<WebSocket> => new Promise(
   }, {once: true})
 })
 
+const postIngress = (body: unknown): Promise<Response> => fetch(new URL("/force", server.url), {
+  method: "POST",
+  headers: {"content-type": "application/json"},
+  body: JSON.stringify(body),
+})
+
+const getHealth = async (): Promise<unknown> => (await fetch(new URL("/health", server.url))).json()
+
 beforeAll(async () => {
   previousPort = Bun.env.PORT
   Bun.env.PORT = "0"
   server = (await import("./server.ts")).server
 })
 
-afterAll(() => {
+afterEach(async () => {
   for (const socket of sockets) socket.close()
   sockets.clear()
+  await Bun.sleep(20)
+})
+
+afterAll(() => {
   server.stop(true)
   if (previousPort === undefined) delete Bun.env.PORT
   else Bun.env.PORT = previousPort
 })
 
-describe("Force transport", () => {
-  test("is stateless and broadcasts one-particle ForceMessages over WS and HTTP", async () => {
-    const [dark, boundary] = await Promise.all([
-      connect("dark", "dark-test"),
-      connect("boundary", "boundary-test"),
+describe("Force trusted ingress", () => {
+  test("reports only currently connected domains", async () => {
+    const dark = await connect("dark", "dark-health")
+    await connect("bulk", "bulk-health")
+
+    expect(await getHealth()).toEqual({
+      ok: true,
+      domain: "force",
+      connectedDomains: ["bulk", "dark"],
+    })
+
+    dark.close()
+    await Bun.sleep(20)
+    expect(await getHealth()).toEqual({
+      ok: true,
+      domain: "force",
+      connectedDomains: ["bulk"],
+    })
+  })
+
+  test("requires Dark and Bulk before accepting an external Particle", async () => {
+    await connect("dark", "dark-only")
+    const response = await postIngress({
+      parts: [{part: "inflaton", op: "add", path: "capsule/meta", ts: 1_700_000_000_000, value: {name: "Capsule"}}],
+    })
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({ok: false, error: "required Force domains are unavailable: bulk"})
+  })
+
+  test("marks an external Inflaton as agent and routes raw only to Dark and Bulk", async () => {
+    const [dark, bulk, boundary, matrix] = await Promise.all([
+      connect("dark", "dark-ingress"),
+      connect("bulk", "bulk-ingress"),
+      connect("boundary", "boundary-ingress"),
+      connect("matrix", "matrix-ingress"),
     ])
-    const wsMessage: ForceMessage = {
-      parts: [{part: "inflaton", op: "test", path: "owner/project", ts: 1_700_000_000_000}],
-    }
-    const boundaryWsDelivery = nextMessage(boundary)
-    let echoedToDark = false
-    dark.addEventListener("message", () => {
-      echoedToDark = true
-    }, {once: true})
+    await Bun.sleep(20)
+    const ts = 1_700_000_000_001
+    const isCapsule = (message: ForceMessage) => message.parts[0]?.path === "capsule/meta" && message.parts[0].ts === ts
+    const darkDelivery = nextMatchingMessage(dark, isCapsule)
+    const bulkDelivery = nextMatchingMessage(bulk, isCapsule)
+    const reachedBoundary = watchFor(boundary, isCapsule)
+    const reachedMatrix = watchFor(matrix, isCapsule)
 
-    dark.send(JSON.stringify(wsMessage))
-
-    expect(await boundaryWsDelivery).toEqual(wsMessage)
-    await Bun.sleep(25)
-    expect(echoedToDark).toBe(false)
-
-    const httpMessage: ForceMessage = {
-      parts: [{part: "graviton", op: "replace", path: "owner/project", ts: 1_700_000_000_001, value: {atom: 17}}],
-    }
-    const darkHttpDelivery = nextMessage(dark)
-    const boundaryHttpDelivery = nextMessage(boundary)
-    const response = await fetch(new URL("/force", server.url), {
-      method: "POST",
-      headers: {"content-type": "application/json"},
-      body: JSON.stringify(httpMessage),
+    const response = await postIngress({
+      parts: [{part: "inflaton", op: "add", path: "capsule/meta", ts, value: {name: "Capsule"}}],
     })
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ok: true, parts: 1})
-    expect(await darkHttpDelivery).toEqual(httpMessage)
-    expect(await boundaryHttpDelivery).toEqual(httpMessage)
-
-    const lateAddress = new URL("/ws", server.url)
-    lateAddress.protocol = "ws:"
-    const lateBoundary = new WebSocket(lateAddress)
-    sockets.add(lateBoundary)
-    const lifecycleDelivery = nextMessage(lateBoundary)
-    await new Promise<void>((resolve, reject) => {
-      lateBoundary.addEventListener("open", () => {
-        lateBoundary.send(JSON.stringify({type: "register", domain: "boundary", id: "boundary-late"}))
-        resolve()
-      }, {once: true})
-      lateBoundary.addEventListener("error", () => reject(new Error("Failed connecting late Force client")), {once: true})
+    expect(await response.json()).toEqual({
+      ok: true,
+      parts: 1,
+      delivered: ["bulk", "dark"],
+      particle: {part: "inflaton", op: "add", path: "capsule/meta", ts, value: {name: "Capsule"}, by: "agent"},
     })
-    const lifecycle = await lifecycleDelivery as ForceMessage
-    expect(lifecycle.parts).toHaveLength(1)
-    expect(lifecycle.parts[0]).toMatchObject({part: "z", op: "test"})
-    expect(String(lifecycle.parts[0].path)).toStartWith("force/replay/")
-    expect(lifecycle).not.toEqual(wsMessage)
-    expect(lifecycle).not.toEqual(httpMessage)
+    const expected: ForceMessage = {parts: [{part: "inflaton", op: "add", path: "capsule/meta", ts, value: {name: "Capsule"}, by: "agent"}]}
+    expect(await darkDelivery).toEqual(expected)
+    expect(await bulkDelivery).toEqual(expected)
+    await Bun.sleep(25)
+    expect(reachedBoundary()).toBe(false)
+    expect(reachedMatrix()).toBe(false)
+  })
+
+  test("rejects caller-supplied sources and every shape outside the initial Meta add", async () => {
+    for (const body of [
+      null,
+      {parts: [{part: "inflaton", op: "add", path: "capsule/meta", by: "dark", ts: 1, value: {name: "Capsule"}}]},
+      {parts: [{part: "inflaton", op: "replace", path: "capsule/meta", ts: 1, value: {name: "Capsule"}}]},
+      {parts: [{part: "inflaton", op: "add", path: "capsule/fields/name", ts: 1, value: {name: "Capsule"}}]},
+      {parts: [{part: "inflaton", op: "add", path: "capsule/meta", value: {name: "Capsule"}}]},
+      {parts: [{part: "inflaton", op: "add", path: "capsule/meta", ts: 1, value: {name: ""}}]},
+      {parts: [
+        {part: "inflaton", op: "add", path: "capsule/meta", ts: 1, value: {name: "Capsule"}},
+        {part: "inflaton", op: "add", path: "other/meta", ts: 1, value: {name: "Other"}},
+      ]},
+    ]) {
+      const response = await postIngress(body)
+      expect(response.status).toBe(400)
+      expect(await response.json()).toEqual({ok: false, error: ingressError})
+    }
+  })
+})
+
+describe("Force domain routing", () => {
+  test("accepts Dark re-emission, preserves ts, and routes it only to Boundary and Bulk", async () => {
+    const [dark, bulk, boundary, matrix] = await Promise.all([
+      connect("dark", "dark-reemit"),
+      connect("bulk", "bulk-reemit"),
+      connect("boundary", "boundary-reemit"),
+      connect("matrix", "matrix-reemit"),
+    ])
+    await Bun.sleep(20)
+    const ts = 1_700_000_000_002
+    const message: ForceMessage = {
+      parts: [{part: "inflaton", op: "add", path: "capsule/meta", by: "dark", ts, value: {name: "Capsule"}}],
+    }
+    const matches = (candidate: ForceMessage) => candidate.parts[0]?.path === "capsule/meta" && candidate.parts[0].ts === ts
+    const boundaryDelivery = nextMatchingMessage(boundary, matches)
+    const bulkDelivery = nextMatchingMessage(bulk, matches)
+    const reachedMatrix = watchFor(matrix, matches)
+
+    dark.send(JSON.stringify(message))
+
+    expect(await boundaryDelivery).toEqual(message)
+    expect(await bulkDelivery).toEqual(message)
+    await Bun.sleep(25)
+    expect(reachedMatrix()).toBe(false)
+  })
+
+  test("drops a domain message whose by does not match the registered origin", async () => {
+    const [dark, bulk] = await Promise.all([
+      connect("dark", "dark-spoof"),
+      connect("bulk", "bulk-spoof"),
+    ])
+    await Bun.sleep(20)
+    const spoofed = {parts: [{part: "inflaton", op: "add", path: "spoof/meta", by: "agent", ts: 7, value: {name: "Spoof"}}]}
+    const reachedBulk = watchFor(bulk, (message) => message.parts[0]?.path === "spoof/meta")
+
+    dark.send(JSON.stringify(spoofed))
+    await Bun.sleep(25)
+
+    expect(reachedBulk()).toBe(false)
   })
 
   test("routes uncommitted Field mutations only to Boundary", async () => {
-    const [boundary, matrix] = await Promise.all([
-      connect("boundary", "boundary-routing"),
-      connect("matrix", "matrix-routing"),
+    const [boundary, matrix, bulk] = await Promise.all([
+      connect("boundary", "boundary-fields"),
+      connect("matrix", "matrix-fields"),
+      connect("bulk", "bulk-fields"),
     ])
-    await Bun.sleep(25)
-
+    await Bun.sleep(20)
     const input: ForceMessage = {
-      parts: [{part: "gluon", op: "replace", path: 17, ts: 1_700_000_000_002, value: {fields: {101: 1}}}],
+      parts: [{part: "gluon", op: "replace", path: 17, by: "matrix", ts: 8, value: {fields: {101: 1}}}],
     }
-    const boundaryDelivery = nextMatchingMessage(boundary, (message) =>
-      message.parts[0]?.part === "gluon" && message.parts[0].path === 17,
-    )
-    let uncommittedReachedMatrix = false
-    const matrixListener = (event: MessageEvent) => {
-      const message = JSON.parse(String(event.data)) as ForceMessage
-      const part = message.parts[0]
-      if (part?.part === "gluon" && part.path === 17 && part.from === undefined) uncommittedReachedMatrix = true
-    }
-    matrix.addEventListener("message", matrixListener)
+    const boundaryDelivery = nextMatchingMessage(boundary, (message) => message.parts[0]?.path === 17)
+    const reachedBulk = watchFor(bulk, (message) => message.parts[0]?.path === 17 && message.parts[0].from === undefined)
 
-    const response = await fetch(new URL("/force", server.url), {
-      method: "POST",
-      headers: {"content-type": "application/json"},
-      body: JSON.stringify(input),
-    })
-    expect(response.status).toBe(200)
+    matrix.send(JSON.stringify(input))
+
     expect(await boundaryDelivery).toEqual(input)
     await Bun.sleep(25)
-    expect(uncommittedReachedMatrix).toBe(false)
-
-    const committed: ForceMessage = {
-      parts: [{part: "gluon", op: "replace", path: 17, ts: 1_700_000_000_003, from: "boundary:test", value: {fields: {101: 1}}}],
-    }
-    const matrixDelivery = nextMatchingMessage(matrix, (message) => message.parts[0]?.from === "boundary:test")
-    boundary.send(JSON.stringify(committed))
-    expect(await matrixDelivery).toEqual(committed)
-    matrix.removeEventListener("message", matrixListener)
+    expect(reachedBulk()).toBe(false)
   })
 
-  test("notifies existing clients when a new domain requests replay", async () => {
-    const boundary = await connect("boundary", "boundary-replay-order")
-    const matrixReplay = nextMatchingMessage(boundary, (message) =>
-      message.parts[0]?.part === "z" &&
-      message.parts[0].op === "test" &&
-      message.parts[0].path === "force/replay/matrix/matrix-replay-order",
+  test("marks Force replay requests with by force", async () => {
+    const boundary = await connect("boundary", "boundary-replay")
+    const replay = nextMatchingMessage(boundary, (message) =>
+      message.parts[0]?.path === "force/replay/matrix/matrix-replay",
     )
 
-    await connect("matrix", "matrix-replay-order")
+    await connect("matrix", "matrix-replay")
 
-    expect(await matrixReplay).toEqual({
-      parts: [{part: "z", op: "test", path: "force/replay/matrix/matrix-replay-order", ts: expect.any(Number)}],
+    expect(await replay).toEqual({
+      parts: [{part: "z", op: "test", path: "force/replay/matrix/matrix-replay", by: "force", ts: expect.any(Number)}],
     })
-  })
-
-  test("rejects an HTTP payload without parts", async () => {
-    const response = await fetch(new URL("/force", server.url), {
-      method: "POST",
-      headers: {"content-type": "application/json"},
-      body: "null",
-    })
-
-    expect(response.status).toBe(400)
-    expect(await response.json()).toEqual({ok: false, error: "body must be a plain ForceMessage with exactly one minimal particle"})
-  })
-
-  test("rejects create, snapshots, batches, missing timestamps, and non-minimal particles", async () => {
-    for (const body of [
-      {type: "create", domain: "matrix", snapshot: {}},
-      {type: "snapshot", snapshot: {}},
-      {parts: []},
-      {parts: [
-        {part: "photon", op: "test", path: 1},
-        {part: "photon", op: "test", path: 2},
-      ]},
-      {parts: [{part: "photon", op: "test", path: 1}]},
-      {parts: [{part: "photon", op: "test", path: 1, ts: "now"}]},
-      {parts: [{part: "photon", op: "test", path: 1, ts: 1, domain: "matrix"}]},
-    ]) {
-      const response = await fetch(`${server.url}force`, {
-        method: "POST",
-        headers: {"content-type": "application/json"},
-        body: JSON.stringify(body),
-      })
-
-      expect(response.status).toBe(400)
-      expect(await response.json()).toEqual({
-        ok: false,
-        error: "body must be a plain ForceMessage with exactly one minimal particle",
-      })
-    }
-  })
-
-  test("drops invalid WebSocket batches and create payloads", async () => {
-    const [dark, boundary] = await Promise.all([
-      connect("dark", "dark-invalid"),
-      connect("boundary", "boundary-invalid"),
-    ])
-    const received: unknown[] = []
-    boundary.addEventListener("message", (event) => received.push(JSON.parse(String(event.data)) as unknown))
-
-    dark.send(JSON.stringify({parts: [
-      {part: "inflaton", op: "add", path: "owner/a/meta", value: {name: "A"}},
-      {part: "inflaton", op: "add", path: "owner/b/meta", value: {name: "B"}},
-    ]}))
-    dark.send(JSON.stringify({type: "create", domain: "boundary", snapshot: {world: true}}))
-
-    await Bun.sleep(25)
-    expect(received).toEqual([])
   })
 })

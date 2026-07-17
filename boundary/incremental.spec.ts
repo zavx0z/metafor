@@ -76,6 +76,44 @@ describe("Boundary incremental projection", () => {
     })
   })
 
+  test("materializes Capsule as a named root Atom in an already populated Universe", async () => {
+    await declareRoot()
+    const ts = 1_700_000_000_123
+    const declaration = await boundary.materialize({parts: [{
+      part: "inflaton",
+      op: "add",
+      path: "capsule/meta",
+      by: "dark",
+      ts,
+      value: {name: "Capsule"},
+    }]})
+    expect(declaration?.messages.some((message) => message.parts[0].path === "atom/2")).toBe(false)
+
+    const materialized = await boundary.materialize({parts: [{
+      part: "inflaton",
+      op: "test",
+      path: "capsule",
+      by: "dark",
+      ts,
+    }]})
+
+    const atom = (await boundary.projection.sql<Array<{id: number; wimp: string; name: string}>>`
+      SELECT atom.id, atom.wimp, wimp.name
+        FROM atom JOIN wimp ON wimp.src = atom.wimp
+       WHERE atom.wimp = ${"capsule"} AND atom.parent_atom IS NULL AND atom.parent_topology IS NULL
+    `)[0]
+    expect(atom).toEqual({id: expect.any(Number), wimp: "capsule", name: "Capsule"})
+    expect(materialized?.messages).toContainEqual({parts: [{
+      part: "graviton",
+      op: "add",
+      path: `atom/${atom!.id}`,
+      ts: expect.any(Number),
+      value: expect.objectContaining({
+        atom: expect.objectContaining({id: atom!.id, wimp: "capsule"}),
+      }),
+    }]})
+  })
+
   test("removing one child branch preserves root, sibling and their identities", async () => {
     const rootId = await declareRoot()
     await apply(inflaton("add", `${CHILD}/meta`, {name: "Child"}))

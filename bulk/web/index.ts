@@ -38,6 +38,7 @@ import type {
 } from "@metafor/types/bulk/hud"
 import type { BulkLayoutSettings, BulkRenderSettings } from "@metafor/types/bulk/settings"
 import type { SurfaceArcLimits, TextExtents } from "@metafor/types/bulk/text"
+import type {Particle} from "@metafor/types/force/particle"
 import { normalizeBulkLayoutSettings } from "@bulk/gravity/layout"
 import {
 	DEFAULT_BULK_SETTINGS,
@@ -131,6 +132,7 @@ import {
 } from "./constants"
 import { computeLerpFactor, easeOutCubic, getDistanceToSegmentPx, mixScalar } from "./math"
 import { resolveForceFieldId, resolveForceFieldsPayload } from "@metafor/types/force/fields"
+import {resolveForceImpulseTiming, resolveForceImpulseVisual} from "./force-protocol"
 
 const torusWireframeCache = new Map<string, BufferGeometry>()
 const sphereWireframeCache = new Map<string, BufferGeometry>()
@@ -3537,8 +3539,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const spawnImpulseParticle = (message: unknown): boolean => {
-		if (!isRecord(message) || typeof message.part !== "string") return false
-		if (!new Set(["photon", "gluon", "higgs", "z", "w+", "w-"]).has(message.part)) return false
+		if (!isRecord(message) || typeof message.part !== "string" || typeof message.op !== "string" || typeof message.ts !== "number") return false
+		if (!new Set(["inflaton", "graviton", "photon", "gluon", "higgs", "z", "w+", "w-"]).has(message.part)) return false
 
 		let targetObject: Object3D | null = null
 		const atomDarkParticleId = forceAtomDarkParticleId(message.path)
@@ -3564,30 +3566,39 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		}
 		if (!targetObject && atomDarkParticleId !== null) targetObject = darkParticleRecords.get(atomDarkParticleId)?.container ?? null
 		if (!targetObject) targetObject = [...darkParticleRecords.values()].find((record) => record.snapshot.parentDarkParticleId === null)?.container ?? null
-		if (!targetObject) return false
 
 		space.updateWorldMatrix()
-		const target = readObjectWorldPosition(targetObject, new Vector3()).clone()
+		const target = targetObject
+			? readObjectWorldPosition(targetObject, new Vector3()).clone()
+			: viewPoint.getTarget().clone()
 		const parent = atomDarkParticleId === null ? null : darkParticleRecords.get(atomDarkParticleId)
 		const radius = Math.max(4, Math.min(14, (parent?.snapshot.torusTube ?? 60) * 0.08))
-		const colors: Record<string, Color> = {
-			photon: new Color(1, 0.94, 0.28, 0.94),
-			gluon: new Color(0.2, 1, 0.58, 0.94),
-			higgs: new Color(1, 0.52, 0.18, 0.94),
-			z: new Color(0.68, 0.42, 1, 0.94),
-			"w+": new Color(0.24, 0.92, 1, 0.94),
-			"w-": new Color(1, 0.22, 0.28, 0.94),
-		}
+		const part = message as unknown as Particle
+		const law = resolveForceImpulseVisual(part)
+		const timing = resolveForceImpulseTiming(part, Date.now())
+		if (timing === null) return false
 		const node = new Mesh(
 			getSphereSurfaceGeometry(radius, 0),
-			new MeshBasicMaterial({color: colors[message.part] ?? new Color(1, 1, 1, 0.94)}),
+			new MeshBasicMaterial({color: new Color(...law.color)}),
 		)
-		const start = target.clone().add(new Vector3(radius * 5, -radius * 3, radius * 8))
+		const targetOffset = new Vector3(...law.targetOffset).multiplyScalar(radius)
+		target.add(targetOffset)
+		const start = target.clone().add(new Vector3(
+			(law.startOffset[0] - law.targetOffset[0]) * radius,
+			(law.startOffset[1] - law.targetOffset[1]) * radius,
+			(law.startOffset[2] - law.targetOffset[2]) * radius,
+		))
 		node.position.copy(start)
 		node.updateMatrix()
 		space.add(node)
-		impulseRecords.push({node, start, target, startedAtMs: performance.now(), durationMs: 900})
-		requestRenderLoop(950)
+		impulseRecords.push({
+			node,
+			start,
+			target,
+			startedAtMs: performance.now() - timing.elapsedMs,
+			durationMs: law.durationMs,
+		})
+		requestRenderLoop(timing.remainingMs + 32)
 		return true
 	}
 

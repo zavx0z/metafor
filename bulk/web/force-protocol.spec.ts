@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { resolveForceFieldId, resolveForceFieldsPayload } from "./force-protocol"
+import { materializedRootSrc, observedRootSrc, resolveForceFieldId, resolveForceFieldsPayload, resolveForceImpulseTiming, resolveForceImpulseVisual } from "./force-protocol"
 
 describe("bulk/web Force protocol adapter", () => {
 	test("accepts protocol field patches from value.fields", () => {
@@ -25,5 +25,52 @@ describe("bulk/web Force protocol adapter", () => {
 		expect(resolveForceFieldId("")).toBeNull()
 		expect(resolveForceFieldId("0")).toBeNull()
 		expect(resolveForceFieldId("-1")).toBeNull()
+	})
+
+	test("derives the agent, Dark and Boundary stages from the same minimal Particle fields", () => {
+		const ts = 1_700_000_000_000
+		const agent = resolveForceImpulseVisual({part: "inflaton", op: "add", path: "capsule/meta", by: "agent", ts, value: {name: "Capsule"}})
+		const dark = resolveForceImpulseVisual({part: "inflaton", op: "add", path: "capsule/meta", by: "dark", ts, value: {name: "Capsule"}})
+		const boundary = resolveForceImpulseVisual({part: "graviton", op: "add", path: "atom/7", by: "boundary", ts, value: {atom: {id: 7, wimp: "capsule"}}})
+
+		expect(agent.targetOffset).toEqual(dark.startOffset)
+		expect(dark.targetOffset).toEqual([0, 0, 0])
+		expect(boundary.targetOffset).toEqual([0, 0, 0])
+		expect(agent.color).toEqual(dark.color)
+		expect(boundary.color).not.toEqual(dark.color)
+	})
+
+	test("continues only an active phase and never replays a completed Particle", () => {
+		const part = {part: "inflaton", op: "add", path: "capsule/meta", by: "dark", ts: 1_000, value: {name: "Capsule"}} as const
+		expect(resolveForceImpulseTiming(part, 1_000)).toEqual({elapsedMs: -120, remainingMs: 840})
+		expect(resolveForceImpulseTiming(part, 1_220)).toEqual({elapsedMs: 100, remainingMs: 620})
+		expect(resolveForceImpulseTiming(part, 1_840)).toBeNull()
+	})
+
+	test("selects only a newly materialized root Atom as the next observed scene", () => {
+		expect(materializedRootSrc({
+			part: "graviton",
+			op: "add",
+			path: "atom/7",
+			by: "boundary",
+			ts: 1,
+			value: {atom: {id: 7, wimp: "capsule", parentAtom: null, parentTopology: null}},
+		})).toBe("capsule")
+		expect(materializedRootSrc({
+			part: "graviton",
+			op: "add",
+			path: "atom/8",
+			by: "boundary",
+			ts: 1,
+			value: {atom: {id: 8, wimp: "child", parentAtom: 7, parentTopology: null}},
+		})).toBeNull()
+		expect(observedRootSrc({
+			part: "graviton",
+			op: "add",
+			path: "declaration/capsule/meta",
+			by: "boundary",
+			ts: 2,
+			value: {name: "Capsule"},
+		}, new Set(["capsule"]))).toBe("capsule")
 	})
 })

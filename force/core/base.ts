@@ -1,4 +1,4 @@
-import type {ForceMessage} from "@metafor/types/force/message"
+import type {ForceMessage, ForceMessageInput} from "@metafor/types/force/message"
 
 /**
  * Абстрактный публичный контракт Force.
@@ -91,7 +91,7 @@ export abstract class ForceBase {
   abstract onDestroy?: () => void | Promise<void>
 
   /** Отправляет один чистый ForceMessage в transport. */
-  abstract impulse(message: ForceMessage): void
+  abstract impulse(message: ForceMessageInput): void
 
   /** Передаёт transport message runtime-обработчику с сохранением порядка. */
   protected emitImpulse(impulse: ForceMessage): void {

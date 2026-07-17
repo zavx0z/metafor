@@ -24,14 +24,14 @@ afterEach(() => {
 describe("Force impulse logger", () => {
   test("formats one minimal particle as a compact ordered server line", () => {
     const message: ForceMessage = {
-      parts: [{part: "gluon", op: "replace", path: 17, ts: 1_700_000_000_000, from: "source", value: {3: 1}}],
+      parts: [{part: "gluon", op: "replace", path: 17, by: "matrix", ts: 1_700_000_000_000, from: "source", value: {3: 1}}],
     }
 
     expect(formatImpulseLog("matrix", "<-", message, {
       mode: "compact",
       now: new Date("2026-07-11T20:41:03.221Z"),
     })).toBe(
-      "[2026-07-11T20:41:03.221Z] matrix <- gluon replace path=17 ts=1700000000000 from=\"source\" value={\"3\":1}",
+      "[2026-07-11T20:41:03.221Z] matrix <- gluon replace path=17 by=matrix ts=1700000000000 from=\"source\" value={\"3\":1}",
     )
   })
 
@@ -41,6 +41,7 @@ describe("Force impulse logger", () => {
         part: "w+",
         op: "replace",
         path: "atom/17",
+        by: "energy",
         ts: 1_700_000_000_001,
         value: {result: 2, token: "must-not-be-logged", nested: {apiKey: "hidden"}},
       }],
@@ -60,7 +61,7 @@ describe("Force impulse logger", () => {
   test("does not truncate large messages in full mode", () => {
     const marker = "complete-tail-marker"
     const message: ForceMessage = {
-      parts: [{part: "graviton", op: "replace", path: "runtime/test", ts: 1_700_000_000_002, value: `${"x".repeat(5_000)}${marker}`}],
+      parts: [{part: "graviton", op: "replace", path: "runtime/test", by: "boundary", ts: 1_700_000_000_002, value: `${"x".repeat(5_000)}${marker}`}],
     }
 
     const line = formatImpulseLog("boundary", "->", message, {
@@ -77,7 +78,7 @@ describe("Force impulse logger", () => {
     Bun.env.METAFOR_LOG_DOMAINS = "matrix,energy"
     Bun.env.METAFOR_LOG_PARTS = "photon,w+"
     const message: ForceMessage = {
-      parts: [{part: "gluon", op: "replace", path: 17, ts: 1_700_000_000_003, value: {3: 1}}],
+      parts: [{part: "gluon", op: "replace", path: 17, by: "matrix", ts: 1_700_000_000_003, value: {3: 1}}],
     }
     const before = structuredClone(message)
 
@@ -87,7 +88,7 @@ describe("Force impulse logger", () => {
 
   test("supports an explicit off mode", () => {
     const message: ForceMessage = {
-      parts: [{part: "photon", op: "test", path: 17, ts: 1_700_000_000_004, value: "ready"}],
+      parts: [{part: "photon", op: "test", path: 17, by: "matrix", ts: 1_700_000_000_004, value: "ready"}],
     }
 
     expect(formatImpulseLog("matrix", "->", message, {mode: "off"})).toBeNull()

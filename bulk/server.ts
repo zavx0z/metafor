@@ -1,5 +1,6 @@
 import {file, type ServerWebSocket} from "bun"
 import type {ForceMessage} from "@metafor/types/force/message"
+import {unsourceForceMessage} from "@metafor/types/force/message"
 import index from "./index.html"
 import {Force} from "force"
 
@@ -65,7 +66,7 @@ const server = Bun.serve<BrowserClient>({
       if (Array.isArray((payload as {parts?: unknown}).parts) && (payload as {parts: unknown[]}).parts.length === 1) {
         const message = payload as ForceMessage
         console.log(`[bulk] browser -> force part=${message.parts[0].part}`)
-        force.impulse(message)
+        force.impulse(unsourceForceMessage(message))
         return
       }
 

@@ -14,6 +14,7 @@ import {
 } from "bulk/settings"
 import {installBulkHud} from "./hud.ts"
 import {BulkProjectionStore} from "./projection.ts"
+import {observedRootSrc} from "./web/force-protocol.ts"
 
 const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement | null
 if (bulkCanvas === null) throw new Error("bulk-canvas not found")
@@ -232,8 +233,17 @@ force.onConnectionChange = (connected) => {
 force.onImpulse = (forceMessage) => {
 	const part = forceMessage.parts[0]
 	const change = projection.apply(part)
-	bulkViewport?.handleForce(part.part, part)
+	const rootSrcs = new Set([...projection.atoms.values()]
+		.filter((atom) => atom.parentAtom === null && atom.parentTopology === null)
+		.map((atom) => atom.wimp))
+	const nextRootSrc = observedRootSrc(part, rootSrcs)
+	if (nextRootSrc !== null) {
+		activeSrc = nextRootSrc
+		hud?.setSrc(nextRootSrc)
+		flushPersistSettings()
+	}
 	if (change.changed) applyProjectionWorld(activeSrc, activeSettings.layoutSettings)
+	bulkViewport?.handleForce(part.part, part)
 }
 
 function cloneSettings(settings: BulkHudSettingsSnapshot): BulkHudSettingsSnapshot {

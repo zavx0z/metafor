@@ -5,10 +5,15 @@ export type ParticleOperation = "add" | "remove" | "replace" | "move" | "copy" |
 export const isParticleTimestamp = (value: unknown): value is number =>
   typeof value === "number" && Number.isSafeInteger(value) && value >= 0
 
+export const isParticleSource = (value: unknown): value is string =>
+  typeof value === "string" && /^[a-z][a-z0-9-]*$/.test(value)
+
 export interface Particle {
   part: Part
   op: ParticleOperation
   path: string | number
+  /** Источник назначается локальной Force только в момент испускания. */
+  by?: string
   ts: number
   value?: unknown
   from?: string | number
@@ -19,4 +24,8 @@ export interface PhotonPayload {
   path: string | number
 }
 
-export type ForcePartInput = Pick<Particle, "part" | "op" | "path" | "ts" | "value" | "from">
+export interface SourcedParticle extends Particle {
+  by: string
+}
+
+export type ForcePartInput = Omit<Particle, "by"> & {by?: never}

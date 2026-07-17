@@ -89,6 +89,10 @@ class BulkHud implements BulkHudController {
 		return this.#src
 	}
 
+	setSrc(src: string): void {
+		this.setSrcDraft(src)
+	}
+
 	settingsSnapshot(): BulkHudSettingsSnapshot {
 		return cloneSettings(this.#settings)
 	}
