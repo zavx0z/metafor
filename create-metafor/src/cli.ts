@@ -129,7 +129,7 @@ mkdirSync(`${packagePath}/src`, { recursive: true })
 
 // Генерация meta.ts
 const metaContent = generateMetaFile(packageName, desc!, t.errorLabel)
-writeFileSync(`${packagePath}/src/meta.ts`, metaContent)
+writeFileSync(`${packagePath}/meta.ts`, metaContent)
 
 // Генерация локальных деклараций DSL-глобалов
 writeFileSync(`${packagePath}/src/metafor.d.ts`, generateMetaforTypesFile())
@@ -165,7 +165,7 @@ if (isGitInstalled()) {
 }
 
 console.log(`${t.created} ${packageName}`)
-console.log(`   📄 ${packagePath}/src/meta.ts`)
+console.log(`   📄 ${packagePath}/meta.ts`)
 console.log(`   📄 ${packagePath}/src/metafor.d.ts`)
 console.log(`   📄 ${packagePath}/package.json`)
 console.log(`   📄 ${packagePath}/tsconfig.json`)

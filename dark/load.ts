@@ -16,12 +16,7 @@ export const loadMeta = async (address: string): Promise<MetaDSL> => {
   const sourcePath = new URL(`${metaPath(address)}/${MODULE}`, import.meta.url).href
   try {
     return await importMeta(sourcePath)
-  } catch (primaryError) {
-    const fallbackPath = new URL(`${metaPath(address)}/src/${MODULE}`, import.meta.url).href
-    try {
-      return await importMeta(fallbackPath)
-    } catch (fallbackError) {
-      throw new Error(`Не удалось загрузить DSL: ${sourcePath} — ${errorMessage(primaryError)}; ${fallbackPath} — ${errorMessage(fallbackError)}`)
-    }
+  } catch (error) {
+    throw new Error(`Не удалось загрузить DSL: ${sourcePath} — ${errorMessage(error)}`)
   }
 }

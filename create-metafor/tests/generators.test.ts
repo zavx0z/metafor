@@ -78,6 +78,7 @@ describe("generatePackageJsonFile", () => {
     expect(parsed.version).toBe("0.1.0")
     expect(parsed.type).toBe("module")
     expect(parsed.private).toBe(true)
+    expect(parsed.exports["."]).toBe("./meta.ts")
   })
 
   test("не должен генерировать зависимость на непубликованный runtime", () => {
@@ -91,7 +92,7 @@ describe("generatePackageJsonFile", () => {
     const result = generatePackageJsonFile("auth", "Auth", "Test User")
     const parsed = JSON.parse(result)
 
-    expect(parsed.scripts.build).toBe("bun build src/meta.ts --outdir dist --target browser --format=esm")
+    expect(parsed.scripts.build).toBe("bun build meta.ts --outdir dist --target browser --format=esm")
     expect(parsed.devDependencies["@types/bun"]).toBe("^1.3.14")
     expect(parsed.devDependencies["@types/node"]).toBe("^25.5.0")
   })

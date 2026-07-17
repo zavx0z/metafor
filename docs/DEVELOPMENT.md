@@ -106,7 +106,7 @@ WebGPU suite запускается отдельно при доступном a
 tmpdir="$(mktemp -d)"
 bun run --filter create-metafor build
 bun create-metafor/dist/cli.js smoke-meta --dir "$tmpdir" --lang en
-bun build "$tmpdir/smoke-meta/src/meta.ts" --outdir "$tmpdir/smoke-meta/dist" --target browser --format esm
+bun build "$tmpdir/smoke-meta/meta.ts" --outdir "$tmpdir/smoke-meta/dist" --target browser --format esm
 rm -rf "$tmpdir"
 ```
 

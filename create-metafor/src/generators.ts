@@ -74,7 +74,7 @@ export function generatePackageJsonFile(
     packageNameJson: jsString(`@zavx0z/${name}`),
     descriptionJson: jsString(description),
     authorJson: jsString(author),
-    buildScriptJson: jsString("bun build src/meta.ts --outdir dist --target browser --format=esm"),
+    buildScriptJson: jsString("bun build meta.ts --outdir dist --target browser --format=esm"),
   })
 }
 
