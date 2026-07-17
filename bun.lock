@@ -169,10 +169,7 @@
         "@metafor/types": "workspace:*",
       },
     },
-    "types": {
-      "name": "@metafor/types",
-    },
-    "ui/components": {
+    "pkg/ui/components": {
       "name": "@ui/components",
       "version": "0.0.1",
       "dependencies": {
@@ -180,14 +177,14 @@
         "@ui/elements": "workspace:*",
       },
     },
-    "ui/elements": {
+    "pkg/ui/elements": {
       "name": "@ui/elements",
       "version": "0.0.1",
       "dependencies": {
         "@metafor/engine": "workspace:*",
       },
     },
-    "ui/hud": {
+    "pkg/ui/hud": {
       "name": "@ui/hud",
       "version": "0.0.1",
       "dependencies": {
@@ -195,6 +192,9 @@
         "@ui/components": "workspace:*",
         "@ui/elements": "workspace:*",
       },
+    },
+    "types": {
+      "name": "@metafor/types",
     },
   },
   "packages": {
@@ -246,11 +246,11 @@
 
     "@types/unist": ["@types/unist@3.0.3", "https://registry.yarnpkg.com/@types/unist/-/unist-3.0.3.tgz", {}, "sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q=="],
 
-    "@ui/components": ["@ui/components@workspace:ui/components"],
+    "@ui/components": ["@ui/components@workspace:pkg/ui/components"],
 
-    "@ui/elements": ["@ui/elements@workspace:ui/elements"],
+    "@ui/elements": ["@ui/elements@workspace:pkg/ui/elements"],
 
-    "@ui/hud": ["@ui/hud@workspace:ui/hud"],
+    "@ui/hud": ["@ui/hud@workspace:pkg/ui/hud"],
 
     "@webgpu/types": ["@webgpu/types@0.1.68", "https://registry.yarnpkg.com/@webgpu/types/-/types-0.1.68.tgz", {}, "sha512-3ab1B59Ojb6RwjOspYLsTpCzbNB3ZaamIAxBMmvnNkiDoLTZUOBXZ9p5nAYVEkQlDdf6qAZWi1pqj9+ypiqznA=="],
 

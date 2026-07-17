@@ -7,19 +7,19 @@ editor overlay'и) предсказуемую раскладку в термин
 
 ## Что это и что это НЕ
 
-| Слой | Файл | Что умеет |
-| --- | --- | --- |
-| Low-level primitive | `ui/elements/flex.ts` (`flexRow`, `flexColumn`) | px main-axis + `"grow"` поровну, px cross-axis |
-| Browser-like adapter | `ui/elements/flexCss.ts` (`flexRowCss`, `flexColumnCss`) | px, `%`, `fr` (с весами), `grow`/`auto`, padding, gap, align, justify |
+| Слой                 | Файл                                                         | Что умеет                                                             |
+| -------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------- |
+| Low-level primitive  | `pkg/ui/elements/flex.ts` (`flexRow`, `flexColumn`)          | px main-axis + `"grow"` поровну, px cross-axis                        |
+| Browser-like adapter | `pkg/ui/elements/flexCss.ts` (`flexRowCss`, `flexColumnCss`) | px, `%`, `fr` (с весами), `grow`/`auto`, padding, gap, align, justify |
 
 Это **не полный CSS Flexbox**: нет intrinsic layout, `flex-shrink`,
 wrapping, baseline, `min-content`/`max-content`. Нам нужен компактный,
 предсказуемый subset для WebGPU UI.
 
-| API | number | percent | fr (с весами) | use case |
-| --- | ---: | ---: | ---: | --- |
-| `flexRow` / `flexColumn` | px | — | только `"grow"` (поровну) | low-level pixel-precise widgets |
-| `flexRowCss` / `flexColumnCss` | px | да | да | templates, magazines, editor, overlay |
+| API                            | number | percent | fr (с весами)             | use case                              |
+| ------------------------------ | ------ | ------- | ------------------------- | ------------------------------------- |
+| `flexRow` / `flexColumn`       | px     | —       | только `"grow"` (поровну) | low-level pixel-precise widgets       |
+| `flexRowCss` / `flexColumnCss` | px     | да      | да                        | templates, magazines, editor, overlay |
 
 `flex.ts` остаётся самостоятельным primitive — его никто не ломает.
 Используйте его там, где раскладка делается «по пикселям» (тулбары,
@@ -41,18 +41,18 @@ type UiSize =
   | { fr: number }
 ```
 
-| Запись | Значение |
-| --- | --- |
-| `120` | 120 logical px |
-| `{ px: 120 }` | 120 logical px |
-| `"42%"` | 42% от parent axis (inner после padding) |
-| `{ percent: 42 }` | то же |
-| `{ ratio: 0.42 }` | то же (0..1 как доля) |
-| `"1fr"` | одна доля остатка |
-| `"2fr"` | две доли остатка |
-| `{ fr: 1 }` | то же |
-| `"grow"` | alias для `"1fr"` |
-| `"auto"` | пока alias для `"grow"`; intrinsic auto-size не реализован |
+| Запись            | Значение                                                   |
+| ----------------- | ---------------------------------------------------------- |
+| `120`             | 120 logical px                                             |
+| `{ px: 120 }`     | 120 logical px                                             |
+| `"42%"`           | 42% от parent axis (inner после padding)                   |
+| `{ percent: 42 }` | то же                                                      |
+| `{ ratio: 0.42 }` | то же (0..1 как доля)                                      |
+| `"1fr"`           | одна доля остатка                                          |
+| `"2fr"`           | две доли остатка                                           |
+| `{ fr: 1 }`       | то же                                                      |
+| `"grow"`          | alias для `"1fr"`                                          |
+| `"auto"`          | пока alias для `"grow"`; intrinsic auto-size не реализован |
 
 **Важно:** `number` остаётся **logical px**, как и в низкоуровневом `flex.ts`.
 Не интерпретируем `0.42` как «42%». Чтобы попросить процент — пишите явно
@@ -213,6 +213,6 @@ flexRowCss({
 
 ## Связанные файлы
 
-- `ui/elements/flex.ts` — низкоуровневый primitive
-- `ui/elements/flexCss.ts` — этот adapter
-- `ui/elements/flexCss.test.ts` — unit-тесты
+- `pkg/ui/elements/flex.ts` — низкоуровневый primitive
+- `pkg/ui/elements/flexCss.ts` — этот adapter
+- `pkg/ui/elements/flexCss.test.ts` — unit-тесты

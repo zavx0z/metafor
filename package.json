@@ -31,9 +31,9 @@
     "dark/strong",
     "pkg/engine",
     "pkg/template",
-    "ui/elements",
-    "ui/components",
-    "ui/hud",
+    "pkg/ui/elements",
+    "pkg/ui/components",
+    "pkg/ui/hud",
     "fixture",
     "create-metafor"
   ],
