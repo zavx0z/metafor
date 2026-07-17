@@ -14,12 +14,22 @@ describe("MetaFor Dev contour", () => {
   })
 
   test("maps Bulk changes to visual acceptance", () => {
-    const impact = buildImpact(["bulk/projection.ts", "pkg/ui/elements/div.ts"])
+    const impact = buildImpact(["bulk/projection.ts", "pkg/ui/elements/div.ts", "ui/elements/div.ts"])
 
     expect(impact.ok).toBe(true)
     expect(impact.areas).toEqual(["bulk-manifestation"])
+    expect(impact.automated).toContain("bun test ./pkg/ui")
     expect(impact.live).toEqual(["bulk-baseline"])
     expect(impact.skillSurfaces).toContain("visual acceptance")
+  })
+
+  test("maps the project generator and root working documentation", () => {
+    const impact = buildImpact(["types/package.json", "create-metafor/src/cli.ts", "TODO_FORCE_BULK.md"])
+
+    expect(impact.ok).toBe(true)
+    expect(impact.areas).toEqual(["types-contract", "project-generator", "project-documentation"])
+    expect(impact.automated).toContain("bun test ./create-metafor")
+    expect(impact.skillSurfaces).toContain("runtime when the generated project contract changes")
   })
 
   test("refuses to hide an unmapped project surface", () => {
