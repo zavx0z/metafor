@@ -53,15 +53,18 @@ Bun processes. Они не загружают Meta автоматически.
 - Domain transports подключаются к `ws://127.0.0.1:4000/ws`, если
   `FORCE_ADDRESS` не задан.
 - Domain handlers применяют входные particles к собственным runtime structures.
-- `boundary/server.ts` открывает SQLite и публикует результаты реализованных
-  materialization/replay paths через Force.
+- Dark читает внешний `github/<src>/meta.ts` в ширину и испускает отдельные
+  декларационные Particle по мере чтения; Meta не становится внутренней
+  сущностью.
+- `boundary/server.ts` открывает SQLite, материализует Particle в
+  нормализованные реляционные таблицы и публикует результаты через Force.
 - `bulk/server.ts` обслуживает web entry, шрифт, browser WebSocket и связывает
   browser manifestation с Force.
 - Matrix weak backend выбирается через `METAFOR_WEAK_BACKEND=auto|cpu|gpu`.
 
-Это описание фиксирует поведение кода, а не объявляет его канонически верным.
-В частности, существующие snapshot/create/replay-related paths не
-переопределяются этой cleanup-задачей.
+Декларационный `path` является категорией (`wimp`, `field`, `state`, `matter` и
+так далее), а не slash-адресом дерева Meta. WIMP идентифицируется своим `src`;
+вложенные сущности — парой WIMP SRC и локального числового индекса.
 
 ## Persistence
 
@@ -72,23 +75,30 @@ Boundary development server по умолчанию использует
 Boundary suites открывают изолированные `:memory:` databases и закрывают их в
 `afterEach`. Они не используют development database.
 
+Boundary не хранит Meta-файл, JSON-зеркало декларации или второй snapshot
+мира. WIMP, Field, Variant, State, Transition, Condition, Process, Reaction,
+Matter, Mass и materialized Atom/Topology/Value разложены по отдельным связанным
+таблицам. Производные runtime-проекции можно восстановить из этих отношений.
+
 ## Bulk и renderer
 
 Сохранены source-backed world projection, generic viewport, navigation,
-fullscreen, HUD, retained UI packages и WebGPU renderer. Удалённые bot, phone,
-Android и WebRTC application paths были отключёнными product-specific ветками и
-не входили в причинный runtime contour.
+fullscreen и WebGPU renderer. HUD ограничен кнопкой полноэкранного режима:
+пользовательских настроек изображения, ручного выбора Root SRC, статуса и
+пересчёта сцены в нём нет. Удалённые bot, phone, Android и WebRTC application
+paths были отключёнными product-specific ветками и не входили в причинный
+runtime contour.
 
 Legacy manifestation evidence, State occurrences, Conditions, relations,
 projections и visual implementation остаются доступными для последующего
 MF-000 D-5 audit. Cleanup не устанавливает новых visual laws.
 
-Текущий renderer уже умеет останавливаться, когда нет движения, а обычное
-значение настройки движения по умолчанию выключено. Однако настройка всё ещё
-может запустить постоянную декоративную анимацию. Это расхождение с
-каноническим render-on-demand: в целевой модели следующий кадр запрашивается
-только из-за релевантного Impulse, изменения `ViewPoint` или незавершённого
-конечного проявления.
+Визуальные законы задаются только в коде и не сохраняются в browser storage.
+Постоянная декоративная анимация программно выключена. Renderer останавливается,
+когда движение завершено; следующий кадр запрашивается из-за релевантного
+Impulse, изменения `ViewPoint` или незавершённого конечного проявления. Новая
+корневая Particle детерминированно переключает наблюдение на материализованный
+Atom без ручной команды из интерфейса.
 
 Текущий `ViewPoint` привязан к DOM element. Смысловой контракт должен стать
 platform-neutral, чтобы одна точка наблюдения могла представлять обычный экран,

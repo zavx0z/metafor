@@ -186,11 +186,11 @@ const verifyOutgoingSource = async (Force: ForceConstructor, domain: string): Pr
   const socket = sockets.at(-1)!
   await waitFor(() => socket.sent.length === 2)
 
-  force.impulse({parts: [{part: "inflaton", op: "add", path: "capsule/meta", ts: 42, value: {name: "Capsule"}}]})
+  force.impulse({parts: [{part: "inflaton", op: "add", path: "wimp", ts: 42, value: {src: "capsule", name: "Capsule"}}]})
 
   await waitFor(() => socket.sent.length === 3)
   expect(socket.sent[2]).toEqual({
-    parts: [{part: "inflaton", op: "add", path: "capsule/meta", by: domain, ts: 42, value: {name: "Capsule"}}],
+    parts: [{part: "inflaton", op: "add", path: "wimp", by: domain, ts: 42, value: {src: "capsule", name: "Capsule"}}],
   })
 }
 

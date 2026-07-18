@@ -12,8 +12,8 @@ const atom = (id: number, wimp: string, parentAtom: number | null = null) => ({
   atom: {id, parentAtom, parentTopology: null, wimp, position: id},
 })
 
-const process = (id: number, wimp: string, state: string) => ({
-  id, wimp, state,
+const process = (id: number, localId: number, wimp: string, state: string) => ({
+  id, localId, wimp, state,
   descriptor: {
     type: "action" as const,
     key: state,
@@ -25,12 +25,15 @@ const process = (id: number, wimp: string, state: string) => ({
 describe("Energy incremental catalog", () => {
   test("process replace retains its identity and does not recreate another process", () => {
     const store = new EnergyCatalogStore()
-    store.apply(part("add", "declaration/owner/a/processes/1", process(101, "owner/a", "ready")))
-    store.apply(part("add", "declaration/owner/a/processes/2", process(102, "owner/a", "done")))
+    store.apply(part("add", "process", process(101, 1, "owner/a", "ready")))
+    store.apply(part("add", "process", process(102, 2, "owner/a", "done")))
     const ready = store.process("owner/a", "ready")
     const done = store.process("owner/a", "done")
 
-    store.apply(part("replace", "declaration/owner/a/processes/1", {descriptor: {env: ["worker"]}}))
+    store.apply(part("replace", "process", {
+      ...process(101, 1, "owner/a", "ready"),
+      descriptor: {...process(101, 1, "owner/a", "ready").descriptor, env: ["worker"]},
+    }))
 
     expect(store.process("owner/a", "ready")).toBe(ready)
     expect(store.process("owner/a", "ready")?.descriptor.env).toEqual(["worker"])
@@ -57,9 +60,9 @@ describe("Energy incremental catalog", () => {
     const store = new EnergyCatalogStore()
     store.apply(part("add", "atom/1", atom(1, "owner/a")))
     store.apply(part("add", "atom/2", atom(2, "owner/b")))
-    store.apply(part("add", "declaration/owner/a/processes/1", process(101, "owner/a", "ready")))
+    store.apply(part("add", "process", process(101, 1, "owner/a", "ready")))
 
-    const change = store.apply(part("remove", "declaration/owner/a/processes/1"))
+    const change = store.apply(part("remove", "process", process(101, 1, "owner/a", "ready")))
 
     expect(change.affectedAtomIds).toEqual([1])
     expect(store.atoms.has(2)).toBe(true)

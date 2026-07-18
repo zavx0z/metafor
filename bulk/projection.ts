@@ -48,20 +48,36 @@ const patch = (target: Record<string, unknown>, delta: Record<string, unknown>):
   }
 }
 
-const address = (raw: unknown): Address | null => {
+const categoricalSection: Record<string, DeclarationSection> = {
+  wimp: "meta",
+  field: "fields",
+  variant: "variants",
+  state: "states",
+  transition: "transitions",
+  condition: "conditions",
+  process: "processes",
+  reaction: "reactions",
+  matter: "matter",
+  mass: "mass",
+  bulk: "bulk",
+}
+
+const address = (raw: unknown, value?: unknown): Address | null => {
   if (typeof raw !== "string") return null
   const path = raw.replace(/^\/+/, "")
   const atom = /^atom\/(\d+)$/.exec(path)
   if (atom) return {kind: "atom", id: Number(atom[1])}
   const topology = /^topology\/(\d+)$/.exec(path)
   if (topology) return {kind: "topology", id: Number(topology[1])}
-  const declaration = new RegExp(`^declaration/(.+)/(${declarationSections.join("|")})(?:/([^/]+))?$`).exec(path)
-  return declaration ? {
-    kind: "declaration",
-    src: declaration[1]!,
-    section: declaration[2]! as DeclarationSection,
-    localId: declaration[3] ?? "0",
-  } : null
+  const section = categoricalSection[path]
+  if (!section || !isRecord(value)) return null
+  if (path === "wimp") {
+    return typeof value.src === "string" ? {kind: "declaration", src: value.src, section, localId: "0"} : null
+  }
+  const localId = Number.isSafeInteger(value.localId) ? Number(value.localId) : null
+  return typeof value.wimp === "string" && localId !== null && localId > 0
+    ? {kind: "declaration", src: value.wimp, section, localId: String(localId)}
+    : null
 }
 
 const parentKey = (entity: {parentAtom?: unknown; parentTopology?: unknown}): string | null => {
@@ -117,7 +133,7 @@ export class BulkProjectionStore {
     if (part.part === "gluon") return this.applyGluon(part)
     if (part.part === "photon") return this.applyPhoton(part)
     if (part.part !== "graviton") return {changed: false, affectedAtomIds: [], structural: false}
-    const target = address(part.path)
+    const target = address(part.path, part.value)
     if (!target) return {changed: false, affectedAtomIds: [], structural: false}
     if (part.op === "test") {
       if (part.value !== undefined && !same(this.read(target), part.value)) throw new Error(`Bulk projection test failed at ${String(part.path)}`)

@@ -11,15 +11,18 @@ export type EnergyCatalogChange = {changed: boolean; affectedAtomIds: number[]}
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
-const address = (path: unknown): Address | null => {
+const address = (path: unknown, value?: unknown): Address | null => {
   if (typeof path !== "string") return null
   const normalized = path.replace(/^\/+/, "")
   const atom = /^atom\/(\d+)$/.exec(normalized)
   if (atom) return {kind: "atom", id: Number(atom[1])}
   const topology = /^topology\/(\d+)$/.exec(normalized)
   if (topology) return {kind: "topology", id: Number(topology[1])}
-  const process = /^declaration\/(.+)\/processes\/([^/]+)$/.exec(normalized)
-  return process ? {kind: "process", src: process[1]!, localId: process[2]!} : null
+  if (
+    normalized === "process" && isRecord(value) && typeof value.wimp === "string" &&
+    Number.isSafeInteger(value.localId) && Number(value.localId) > 0
+  ) return {kind: "process", src: value.wimp, localId: String(value.localId)}
+  return null
 }
 
 const clone = <T>(value: T): T => structuredClone(value)
@@ -66,7 +69,7 @@ export class EnergyCatalogStore {
 
   apply(part: Particle): EnergyCatalogChange {
     if (part.part !== "graviton") return {changed: false, affectedAtomIds: []}
-    const target = address(part.path)
+    const target = address(part.path, part.value)
     if (!target) return {changed: false, affectedAtomIds: []}
     if (part.op === "test") {
       if (part.value !== undefined && !same(this.read(target), part.value)) throw new Error(`Energy catalog test failed at ${String(part.path)}`)

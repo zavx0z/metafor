@@ -1,28 +1,33 @@
 import {afterEach, beforeEach, describe, expect, test} from "bun:test"
 import type {ForceMessage} from "@metafor/types/force/message"
 import type {Particle} from "@metafor/types/force/particle"
-import {boundaryEntityId} from "./incremental.ts"
 import {open, type BoundaryDatabase} from "./sqlite.ts"
+import {readBoundaryValue} from "./world.ts"
 
 const ROOT = "test/external-input"
-const INPUT = boundaryEntityId(`${ROOT}/fields/1`)
-const LINKS = boundaryEntityId(`${ROOT}/fields/2`)
 type ParticleInput = Omit<Particle, "ts"> & {ts?: number}
 const message = (part: ParticleInput): ForceMessage => ({parts: [{ts: 1, ...part}] as [Particle]})
 
 describe("Boundary canonical external Field input", () => {
   let boundary: BoundaryDatabase
   let atomId: number
+  let INPUT: number
+  let LINKS: number
 
   beforeEach(async () => {
     boundary = await open(":memory:")
     for (const part of [
-      {part: "inflaton", op: "add", path: `${ROOT}/meta`, value: {name: "External Input"}},
-      {part: "inflaton", op: "add", path: `${ROOT}/fields/1`, value: {key: "input", type: "number", default: 0}},
-      {part: "inflaton", op: "add", path: `${ROOT}/fields/2`, value: {key: "links", type: "array", default: []}},
-      {part: "inflaton", op: "add", path: `${ROOT}/states/1`, value: {name: "idle", position: 0}},
-      {part: "inflaton", op: "test", path: ROOT},
+      {part: "inflaton", op: "add", path: "wimp", value: {src: ROOT, name: "External Input"}},
+      {part: "inflaton", op: "add", path: "field", value: {wimp: ROOT, id: 1, key: "input", type: "number", default: 0}},
+      {part: "inflaton", op: "add", path: "field", value: {wimp: ROOT, id: 2, key: "links", type: "array", default: []}},
+      {part: "inflaton", op: "add", path: "state", value: {wimp: ROOT, id: 1, name: "idle", position: 0}},
     ] as ParticleInput[]) await boundary.materialize(message(part))
+
+    const fields = await boundary.projection.sql<Array<{id: number; localId: number}>>`
+      SELECT id, local_id AS localId FROM field WHERE wimp = ${ROOT} ORDER BY local_id
+    `
+    INPUT = Number(fields[0]!.id)
+    LINKS = Number(fields[1]!.id)
 
     const atom = (await boundary.projection.sql<Array<{id: number}>>`
       SELECT id FROM atom WHERE wimp = ${ROOT} ORDER BY id LIMIT 1
@@ -36,12 +41,11 @@ describe("Boundary canonical external Field input", () => {
   })
 
   const stored = async (field: number): Promise<unknown> => {
-    const row = (await boundary.projection.sql<Array<{valueJson: string}>>`
-      SELECT value_json AS valueJson
-        FROM boundary_atom_field
+    const row = (await boundary.projection.sql<Array<{value: number}>>`
+      SELECT value FROM atom_value
        WHERE atom = ${atomId} AND field = ${field}
     `)[0]
-    return row ? JSON.parse(row.valueJson) as unknown : undefined
+    return row ? await readBoundaryValue(boundary.projection.sql, Number(row.value)) : undefined
   }
 
   test("commits an external Gluon before emitting its canonical consequence", async () => {

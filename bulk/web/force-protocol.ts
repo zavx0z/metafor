@@ -18,6 +18,10 @@ export type ForceImpulseTiming = {
 	remainingMs: number
 }
 
+const IMPULSE_MIN_RADIUS_MM = 2
+const IMPULSE_MAX_RADIUS_MM = 20
+const IMPULSE_TARGET_SCALE_RATIO = 0.12
+
 const colors: Record<Particle["part"], [number, number, number, number]> = {
 	inflaton: [0.98, 0.28, 0.92, 0.94],
 	graviton: [0.36, 0.74, 1, 0.94],
@@ -41,6 +45,17 @@ export const resolveForceImpulseVisual = (part: Particle): ForceImpulseVisual =>
 		return {color: colors.graviton, delayMs: 160, durationMs: 760, startOffset: [5, 2, 5], targetOffset: [0, 0, 0]}
 	}
 	return {color: colors[part.part], delayMs: 0, durationMs: 900, startOffset: [5, -3, 8], targetOffset: [0, 0, 0]}
+}
+
+/** Keeps a transient readable at the scale of the object it manifests around. */
+export const resolveForceImpulseRadius = (targetScaleMm: number): number => {
+	const scale = Number.isFinite(targetScaleMm) && targetScaleMm > 0
+		? targetScaleMm
+		: IMPULSE_MIN_RADIUS_MM / IMPULSE_TARGET_SCALE_RATIO
+	return Math.max(
+		IMPULSE_MIN_RADIUS_MM,
+		Math.min(IMPULSE_MAX_RADIUS_MM, scale * IMPULSE_TARGET_SCALE_RATIO),
+	)
 }
 
 /** Resolves the current phase without turning an already completed Particle into replay. */
@@ -71,7 +86,8 @@ export const materializedRootSrc = (part: Particle): string | null => {
 export const observedRootSrc = (part: Particle, existingRootSrcs: ReadonlySet<string>): string | null => {
 	const materialized = materializedRootSrc(part)
 	if (materialized !== null) return materialized
-	if (part.part !== "graviton" || part.op !== "add" || typeof part.path !== "string") return null
-	const declaration = /^declaration\/(.+)\/meta$/.exec(part.path)
-	return declaration && existingRootSrcs.has(declaration[1]!) ? declaration[1]! : null
+	if (part.part !== "graviton" || part.op !== "add" || part.path !== "wimp") return null
+	if (typeof part.value !== "object" || part.value === null || Array.isArray(part.value)) return null
+	const src = (part.value as Record<string, unknown>).src
+	return typeof src === "string" && existingRootSrcs.has(src) ? src : null
 }

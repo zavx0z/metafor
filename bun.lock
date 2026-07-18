@@ -13,7 +13,6 @@
         "@webgpu/types": "^0.1.68",
         "bun-webgpu": "^0.1.6",
         "dts-bundle-generator": "^9.5.1",
-        "fake-indexeddb": "^6.2.5",
         "typedoc": "^0.28.18",
         "typedoc-plugin-merge-modules": "^7.0.0",
         "typescript": "^6.0.2",
@@ -299,8 +298,6 @@
     "entities": ["entities@4.5.0", "https://registry.yarnpkg.com/entities/-/entities-4.5.0.tgz", {}, "sha512-V0hjH4dGPh9Ao5p0MoRY6BVqtwCjhz6vI5LT8AJ55H+4g9/4vbHx1I54fS0XuclLhDHArPQCiMjDxjaL8fPxhw=="],
 
     "escalade": ["escalade@3.2.0", "https://registry.yarnpkg.com/escalade/-/escalade-3.2.0.tgz", {}, "sha512-WUj2qlxaQtO4g6Pq5c29GTcWGDyd8itL8zTlipgECz3JesAiiOKotd8JU6otB3PACgG6xkJUyVhboMS+bje/jA=="],
-
-    "fake-indexeddb": ["fake-indexeddb@6.2.5", "", {}, "sha512-CGnyrvbhPlWYMngksqrSSUT1BAVP49dZocrHuK0SvtR0D5TMs5wP0o3j7jexDJW01KSadjBp1M/71o/KR3nD1w=="],
 
     "fixture": ["fixture@workspace:fixture"],
 

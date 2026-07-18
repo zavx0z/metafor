@@ -31,8 +31,19 @@ export const isForceMessage = (value: unknown): value is SourcedForceMessage =>
 export const isAgentIngressMessage = (value: unknown): value is AgentIngressMessage => {
   if (!isRecord(value) || Object.keys(value).length !== 1 || !Array.isArray(value.parts) || value.parts.length !== 1) return false
   const part = value.parts[0]
-  if (!isRecord(part) || !Object.keys(part).every((key) => ["part", "op", "path", "ts", "value"].includes(key))) return false
-  if (part.part !== "inflaton" || part.op !== "add" || typeof part.path !== "string" || !/^.+\/meta$/.test(part.path)) return false
-  if (!isParticleTimestamp(part.ts) || !isRecord(part.value) || typeof part.value.name !== "string" || part.value.name.trim().length === 0) return false
+  if (!isRecord(part) || part.part !== "inflaton" || typeof part.path !== "string" || !isParticleTimestamp(part.ts)) return false
+
+  if (part.op === "test") {
+    const segments = part.path.split("/")
+    return Object.keys(part).every((key) => ["part", "op", "path", "ts"].includes(key)) &&
+      segments.every((segment) => segment.length > 0 && segment !== "." && segment !== ".." && /^[a-zA-Z0-9._-]+$/.test(segment))
+  }
+
+  if (part.op !== "add" || !Object.keys(part).every((key) => ["part", "op", "path", "ts", "value"].includes(key))) return false
+  if (
+    part.path !== "wimp" || !isRecord(part.value) ||
+    typeof part.value.src !== "string" || part.value.src.trim().length === 0 ||
+    typeof part.value.name !== "string" || part.value.name.trim().length === 0
+  ) return false
   return part.value.desc === undefined || part.value.desc === null || typeof part.value.desc === "string"
 }

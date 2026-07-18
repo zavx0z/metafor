@@ -1,40 +1,38 @@
 import {afterEach, beforeEach, describe, expect, test} from "bun:test"
 import type {ForceMessage} from "@metafor/types/force/message"
 import type {Particle} from "@metafor/types/force/particle"
-import {boundaryEntityId} from "./incremental.ts"
 import {open, type BoundaryDatabase} from "./sqlite.ts"
 
 const ROOT = "test/state"
-const PROCESS = boundaryEntityId(`${ROOT}/processes/1`)
-const OUTPUT = boundaryEntityId(`${ROOT}/fields/1`)
 type ParticleInput = Omit<Particle, "ts"> & {ts?: number}
 const message = (part: ParticleInput): ForceMessage => ({parts: [{ts: 1, ...part}] as [Particle]})
 
 describe("Boundary canonical State", () => {
   let boundary: BoundaryDatabase
   let atomId: number
+  let PROCESS: number
+  let OUTPUT: number
 
   beforeEach(async () => {
     boundary = await open(":memory:")
     const declarations: ParticleInput[] = [
-      {part: "inflaton", op: "add", path: `${ROOT}/meta`, value: {name: "State"}},
-      {part: "inflaton", op: "add", path: `${ROOT}/fields/1`, value: {key: "output", type: "number", default: 0}},
-      {part: "inflaton", op: "add", path: `${ROOT}/states/1`, value: {name: "idle", position: 0}},
-      {part: "inflaton", op: "add", path: `${ROOT}/states/2`, value: {name: "ready", position: 1}},
-      {part: "inflaton", op: "add", path: `${ROOT}/states/3`, value: {name: "complete", position: 2}},
+      {part: "inflaton", op: "add", path: "wimp", value: {src: ROOT, name: "State"}},
+      {part: "inflaton", op: "add", path: "field", value: {wimp: ROOT, id: 1, key: "output", type: "number", default: 0}},
+      {part: "inflaton", op: "add", path: "state", value: {wimp: ROOT, id: 1, name: "idle", position: 0}},
+      {part: "inflaton", op: "add", path: "state", value: {wimp: ROOT, id: 2, name: "ready", position: 1}},
+      {part: "inflaton", op: "add", path: "state", value: {wimp: ROOT, id: 3, name: "complete", position: 2}},
       {
         part: "inflaton",
         op: "add",
-        path: `${ROOT}/processes/1`,
+        path: "process",
         value: {
-          key: "ready",
+          wimp: ROOT, id: 1, key: "ready",
           type: "action",
           env: ["server"],
           action: {src: "./ready.ts", read: []},
-          success: {src: "({update}) => update({output: 2})", read: ["1"], write: ["1"]},
+          success: {src: "({update}) => update({output: 2})", read: [1], write: [1]},
         },
       },
-      {part: "inflaton", op: "test", path: ROOT},
     ]
     for (const part of declarations) await boundary.materialize(message(part))
     const atom = (await boundary.projection.sql<Array<{id: number}>>`
@@ -42,6 +40,8 @@ describe("Boundary canonical State", () => {
     `)[0]
     if (!atom) throw new Error("Root atom was not materialized")
     atomId = Number(atom.id)
+    PROCESS = Number((await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM process WHERE wimp = ${ROOT} AND local_id = ${1}`)[0]!.id)
+    OUTPUT = Number((await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM field WHERE wimp = ${ROOT} AND local_id = ${1}`)[0]!.id)
   })
 
   afterEach(async () => {

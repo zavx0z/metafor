@@ -104,6 +104,21 @@ const expectFieldNucleiHaveNoIntersections = (manifest: BulkManifest): void => {
 }
 
 describe("bulk/gravity/layout manifest", () => {
+  test("пустой Atom получает классический тор 2:1 без избыточной центральной пустоты", () => {
+    const manifest = scaleBulkManifestToRootOuterDiameter(
+      createBulkManifestFromDarkParticleInputs("empty", [createDarkParticle(1)]),
+    )
+    const root = getDarkParticle(manifest, 1)
+
+    expect(manifest.fieldParticles).toHaveLength(0)
+    expect(getOuterRadius(root) * 2).toBeCloseTo(100, 6)
+    expect(root.torusRadius / root.torusTube).toBeCloseTo(2, 6)
+    expect(getInnerRadius(root) * 2).toBeCloseTo(
+      DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG.rootOuterDiameterMm / 3,
+      6,
+    )
+  })
+
   test("строит Z-up torus layout и держит Fields в компактных трехмерных ядрах", () => {
     const manifest = createBulkManifestFromDarkParticleInputs("root", [
       createDarkParticle(1, [

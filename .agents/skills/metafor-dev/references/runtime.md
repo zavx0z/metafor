@@ -30,7 +30,12 @@
 ## Состояние
 
 - Boundary по умолчанию использует `.metafor/dev.sqlite`.
-- Root-команды не загружают Meta автоматически.
+- `run meta-read <src>` отправляет входной `inflaton/test` через Force и запускает
+  чтение корневого `github/<src>/meta.ts` в Dark. Сам `test` остаётся входной
+  операцией и не испускается Dark как завершающий маркер.
+- Owned-контур передаёт Dark `METAFOR_META_ROOT` на каталог fixtures в skill.
+  `run meta-read capsule --fixture capsule` читает его без runtime-копии в
+  `github/`; обычный WIMP SRC по-прежнему читается из `github/<src>/meta.ts`.
 - Пустой Bulk после успешного запуска является допустимым исходным состоянием.
 - Matrix health должен показывать `initialized: true`; основной backend — GPU.
 - Structured logs являются диагностикой транспорта, но не источником

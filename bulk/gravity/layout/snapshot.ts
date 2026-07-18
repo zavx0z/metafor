@@ -7,6 +7,7 @@ import {
 } from "./settings"
 
 const snapshotLayoutConfig = DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG
+const CLASSIC_EMPTY_TORUS_MAJOR_TO_TUBE_RATIO = 2
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5))
 
 const cloneFieldParticleInput = (
@@ -247,6 +248,7 @@ const materializeContentAwareDarkParticleNode = (
     children: nestedChildren,
     contentWeight,
     fieldParticles,
+    isEmpty: fieldParticles.length === 0 && nestedChildren.length === 0 && orbitalWeight === 0,
     depthFromRoot,
     innerRadius,
     outerRadius,
@@ -333,12 +335,18 @@ const placeSharedFieldNucleusAndTori = (
   )
 
   const nucleusRadius = placeFieldNucleus(fields, padding)
-  const innerRadius = nucleusRadius > 0 ? nucleusRadius + padding : settings.rootInnerDiameterMm / 2
-  const outerRadius = innerRadius + Math.max(
+  const radialBandWidth = Math.max(
     sphereRadius * 8,
     sharedCenterBandDemand(root, sphereRadius, padding),
     sphereRadius * Math.sqrt(root.contentWeight) * 1.8,
   )
+  const usesClassicEmptyProfile = root.isEmpty
+  const innerRadius = nucleusRadius > 0
+    ? nucleusRadius + padding
+    : usesClassicEmptyProfile
+      ? radialBandWidth * (CLASSIC_EMPTY_TORUS_MAJOR_TO_TUBE_RATIO - 1) / 2
+      : settings.rootInnerDiameterMm / 2
+  const outerRadius = innerRadius + radialBandWidth
   placeSharedCenterBands(root, innerRadius, outerRadius, sphereRadius, padding)
 }
 const flattenDarkParticleNode = (

@@ -8,10 +8,8 @@ import type {
   VirtualInput,
 } from "@ui/elements"
 import type { BulkFieldParticle } from "./manifest.ts"
-import type { BulkLayoutSettings, BulkRenderSettings } from "./settings.ts"
 import type {
   BulkViewportController,
-  BulkViewportStats,
 } from "./viewport.ts"
 
 export interface BulkViewportHudController {
@@ -62,30 +60,10 @@ export type BulkHudSurfaceSlot = {
   windowOrder: number
 }
 
-export type BulkHudSettingsSnapshot = {
-  layoutSettings: Partial<BulkLayoutSettings>
-  renderSettings: Partial<BulkRenderSettings>
-}
-
 export type BulkHudOptions = {
   viewport: BulkViewportWithHud
-  initialSrc: string
-  initialSettings: BulkHudSettingsSnapshot
-  onApply(src: string, settings: BulkHudSettingsSnapshot): void
-  onRenderSettingsChange(settings: Partial<BulkRenderSettings>): void
-  onSettingsPersist(settings: BulkHudSettingsSnapshot): void
 }
 
 export type BulkHudController = {
-  currentSrc(): string
   relayout(): void
-  setSrc(src: string): void
-  setBusy(busy: boolean): void
-  setConnectionStatus(online: boolean): void
-  setStats(stats: BulkViewportStats): void
-  settingsSnapshot(): BulkHudSettingsSnapshot
 }
-
-export type SettingsTab = "scene" | "geometry" | "render"
-export type DockButtonKind = "settings" | "fullscreen"
-export type SettingsPanelState = {open?: boolean; tab?: SettingsTab; scroll?: Partial<Record<SettingsTab, number>>}

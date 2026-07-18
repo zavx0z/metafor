@@ -10,7 +10,6 @@ import {BoundaryIncrementalStore, type BoundaryIncrementalCommit} from "./increm
 import {BoundaryExecutionStore} from "./execution.ts"
 import {BoundaryReactionStore} from "./reaction.ts"
 import {BoundaryInputStore} from "./input.ts"
-import {initBoundaryStateDeclarations} from "./state-declaration.ts"
 import {matrixRuntime} from "./runtime/matrix.ts"
 
 const isFieldConsequence = (message: ForceMessage): boolean => {
@@ -69,7 +68,6 @@ export const open = async (filename?: string) => {
   const wimp = await BoundaryWimpSqlite.open(sql)
   const projection = new BoundaryIncrementalStore(sql)
   await projection.init()
-  await initBoundaryStateDeclarations(sql)
   const execution = new BoundaryExecutionStore(sql)
   await execution.init()
   const reaction = new BoundaryReactionStore(sql)

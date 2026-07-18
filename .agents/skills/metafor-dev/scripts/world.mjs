@@ -161,6 +161,7 @@ const start = async () => {
     env: {
       ...process.env,
       METAFOR_LOG_IMPULSES: process.env.METAFOR_LOG_IMPULSES ?? "compact",
+      METAFOR_META_ROOT: process.env.METAFOR_META_ROOT ?? join(repositoryRoot, ".agents/skills/metafor-dev/fixtures"),
       METAFOR_WEAK_BACKEND: process.env.METAFOR_WEAK_BACKEND ?? "gpu",
     },
     stdio: ["ignore", descriptor, descriptor],

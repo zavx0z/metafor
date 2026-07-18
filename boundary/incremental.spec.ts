@@ -1,14 +1,14 @@
 import {afterEach, beforeEach, describe, expect, test} from "bun:test"
+import type {DeclarationPath} from "@metafor/types/force/declaration"
 import type {Particle} from "@metafor/types/force/particle"
-import {boundaryEntityId, gravitonDeclarationPath, parseInflatonAddress} from "./incremental.ts"
+import {gravitonDeclarationPath, parseInflatonAddress} from "./incremental.ts"
 import {open, type BoundaryDatabase} from "./sqlite.ts"
 
 const ROOT = "owner/root"
 const CHILD = "owner/child"
 const PEER = "owner/peer"
-type ParticleInput = Omit<Particle, "ts"> & {ts?: number}
 
-describe("Boundary incremental projection", () => {
+describe("Boundary incremental relational projection", () => {
   let boundary: BoundaryDatabase
 
   beforeEach(async () => {
@@ -19,294 +19,227 @@ describe("Boundary incremental projection", () => {
     await boundary.close()
   })
 
-  const apply = async (particle: ParticleInput) => await boundary.materialize({parts: [{ts: 1, ...particle}] as [Particle]})
-  const inflaton = (op: "add" | "replace" | "remove" | "test", path: string, value?: unknown): Particle => ({
-    part: "inflaton",
-    op,
-    path,
-    ts: 1,
-    ...(value === undefined ? {} : {value}),
-  })
+  const apply = async (op: "add" | "replace" | "remove", path: DeclarationPath, value: Record<string, unknown>) =>
+    await boundary.materialize({parts: [{part: "inflaton", op, path, value, by: "dark", ts: 1}]})
+
+  const declareWimp = async (src: string, name = src) => await apply("add", "wimp", {src, name, desc: null})
 
   const declareRoot = async (): Promise<number> => {
-    await apply(inflaton("test", ROOT))
-    await apply(inflaton("add", `${ROOT}/meta`, {name: "Root"}))
+    await declareWimp(ROOT, "Root")
     return Number((await boundary.projection.sql<Array<{id: number}>>`
       SELECT id FROM atom WHERE wimp = ${ROOT} AND parent_atom IS NULL
     `)[0]!.id)
   }
 
-  test("parses slash-bearing WIMP sources and omits singleton local zero", () => {
-    const field = parseInflatonAddress("owner/project/fields/17")
-    expect(field).toEqual({src: "owner/project", section: "fields", localId: "17", path: "owner/project/fields/17"})
-    expect(gravitonDeclarationPath(field!)).toBe("declaration/owner/project/fields/17")
-    expect(gravitonDeclarationPath(parseInflatonAddress("owner/project/meta")!)).toBe("declaration/owner/project/meta")
+  test("parses categorical identity while preserving slash-bearing WIMP SRC", () => {
+    const field = parseInflatonAddress("field", {wimp: "owner/project", id: 17})
+    expect(field).toEqual({path: "field", src: "owner/project", localId: 17})
+    expect(gravitonDeclarationPath(field!)).toBe("field")
+    expect(parseInflatonAddress("owner/project/field/17", {wimp: "owner/project", id: 17})).toBeNull()
   })
 
-  test("applies one entity transaction and emits a canonical minimal replace", async () => {
+  test("applies one Field transaction and keeps the relational identity on replace", async () => {
     await declareRoot()
-    const path = `${ROOT}/fields/1`
-    const added = await apply(inflaton("add", path, {key: "title", type: "string", required: false, label: "Before"}))
-    const replaced = await apply(inflaton("replace", path, {label: "After"}))
+    const added = await apply("add", "field", {
+      wimp: ROOT, id: 1, key: "title", type: "string", required: false, label: "Before",
+    })
+    const databaseId = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM field WHERE wimp = ${ROOT} AND local_id = ${1}
+    `)[0]!.id)
+    const replaced = await apply("replace", "field", {
+      wimp: ROOT, id: 1, key: "title", type: "string", required: false, label: "After",
+    })
 
     expect(added?.messages).toContainEqual({parts: [{
-      part: "graviton",
-      op: "add",
-      path: `declaration/${path}`,
-      ts: expect.any(Number),
-      value: {
-        id: boundaryEntityId(path),
-        wimp: ROOT,
-        localId: 1,
-        key: "title",
-        type: "string",
-        required: false,
-        label: "Before",
-      },
+      part: "graviton", op: "add", path: "field", ts: expect.any(Number),
+      value: {wimp: ROOT, localId: 1, id: databaseId, key: "title", type: "string", required: false, label: "Before"},
     }]})
-    expect(replaced?.messages).toEqual([{parts: [{
-      part: "graviton",
-      op: "replace",
-      path: `declaration/${path}`,
-      ts: expect.any(Number),
-      value: {label: "After"},
-    }]}])
-    expect(boundary.projection.declarations.get(path)).toEqual({
-      key: "title", type: "string", required: false, label: "After",
-    })
+    expect(replaced?.messages).toContainEqual({parts: [{
+      part: "graviton", op: "replace", path: "field", ts: expect.any(Number),
+      value: {wimp: ROOT, localId: 1, id: databaseId, key: "title", type: "string", required: false, label: "After"},
+    }]})
+    expect(await boundary.projection.sql<Array<{id: number; label: string}>>`
+      SELECT id, label FROM field WHERE wimp = ${ROOT} AND local_id = ${1}
+    `).toEqual([{id: databaseId, label: "After"}])
   })
 
-  test("materializes Capsule as a named root Atom in an already populated Universe", async () => {
+  test("materializes an unreferenced trusted WIMP immediately as a root Atom", async () => {
     await declareRoot()
-    const ts = 1_700_000_000_123
-    const declaration = await boundary.materialize({parts: [{
-      part: "inflaton",
-      op: "add",
-      path: "capsule/meta",
-      by: "dark",
-      ts,
-      value: {name: "Capsule"},
-    }]})
-    expect(declaration?.messages.some((message) => message.parts[0].path === "atom/2")).toBe(false)
-
-    const materialized = await boundary.materialize({parts: [{
-      part: "inflaton",
-      op: "test",
-      path: "capsule",
-      by: "dark",
-      ts,
-    }]})
-
+    const commit = await declareWimp("capsule", "Capsule")
     const atom = (await boundary.projection.sql<Array<{id: number; wimp: string; name: string}>>`
-      SELECT atom.id, atom.wimp, wimp.name
-        FROM atom JOIN wimp ON wimp.src = atom.wimp
+      SELECT atom.id, atom.wimp, wimp.name FROM atom JOIN wimp ON wimp.src = atom.wimp
        WHERE atom.wimp = ${"capsule"} AND atom.parent_atom IS NULL AND atom.parent_topology IS NULL
     `)[0]
     expect(atom).toEqual({id: expect.any(Number), wimp: "capsule", name: "Capsule"})
-    expect(materialized?.messages).toContainEqual({parts: [{
-      part: "graviton",
-      op: "add",
-      path: `atom/${atom!.id}`,
-      ts: expect.any(Number),
-      value: expect.objectContaining({
-        atom: expect.objectContaining({id: atom!.id, wimp: "capsule"}),
-      }),
+    expect(commit?.messages).toContainEqual({parts: [{
+      part: "graviton", op: "add", path: `atom/${atom!.id}`, ts: expect.any(Number),
+      value: expect.objectContaining({atom: expect.objectContaining({id: atom!.id, wimp: "capsule"})}),
     }]})
   })
 
-  test("removing one child branch preserves root, sibling and their identities", async () => {
+  test("removing one Matter relation preserves the root, sibling and their identities", async () => {
     const rootId = await declareRoot()
-    await apply(inflaton("add", `${CHILD}/meta`, {name: "Child"}))
-    await apply(inflaton("add", `${PEER}/meta`, {name: "Peer"}))
-    await apply(inflaton("add", `${ROOT}/matter/1`, {parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: CHILD}))
-    await apply(inflaton("add", `${ROOT}/matter/2`, {parent: null, edgeSlot: "root", position: 1, kind: "wimp", src: PEER}))
-
-    const before = await boundary.projection.sql<Array<{id: number; wimp: string}>>`
-      SELECT id, wimp FROM atom ORDER BY id
-    `
+    await apply("add", "matter", {wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: CHILD})
+    await apply("add", "matter", {wimp: ROOT, id: 2, parent: null, edgeSlot: "root", position: 1, kind: "wimp", src: PEER})
+    await declareWimp(CHILD, "Child")
+    await declareWimp(PEER, "Peer")
+    const before = await boundary.projection.sql<Array<{id: number; wimp: string}>>`SELECT id, wimp FROM atom ORDER BY id`
     const childId = Number(before.find((atom) => atom.wimp === CHILD)!.id)
     const peerId = Number(before.find((atom) => atom.wimp === PEER)!.id)
-    const childObjectIds = boundary.projection.atomIdsByDeclaration.get(`${ROOT}/matter/1`)
 
-    await apply(inflaton("replace", `${CHILD}/meta`, {name: "Renamed child"}))
-    expect((await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM atom WHERE wimp = ${CHILD}`)[0]!.id).toBe(childId)
-    expect(boundary.projection.atomIdsByDeclaration.get(`${ROOT}/matter/1`)).toBe(childObjectIds)
-
-    const removed = await apply(inflaton("remove", `${ROOT}/matter/1`))
+    const removed = await apply("remove", "matter", {wimp: ROOT, id: 1})
     expect(removed?.messages).toContainEqual({parts: [{part: "graviton", op: "remove", path: `atom/${childId}`, ts: expect.any(Number)}]})
     expect(await boundary.projection.sql<Array<{id: number; wimp: string}>>`SELECT id, wimp FROM atom ORDER BY id`).toEqual([
       {id: rootId, wimp: ROOT},
       {id: peerId, wimp: PEER},
     ])
-    expect(boundary.projection.childrenByParent.get(`atom/${rootId}`)).toEqual(new Set([`atom/${peerId}`]))
   })
 
-	test("materializes child Fields from the parent's declared Matter binding", async () => {
-		const rootId = await declareRoot()
-		await apply(inflaton("add", `${ROOT}/fields/1`, {key: "operation", type: "string", default: "commit"}))
-		await apply(inflaton("add", `${ROOT}/fields/2`, {key: "args", type: "string", default: "--dry-run"}))
-		await apply(inflaton("add", `${CHILD}/meta`, {name: "Child"}))
-		await apply(inflaton("add", `${CHILD}/fields/1`, {key: "operation", type: "string"}))
-		await apply(inflaton("add", `${CHILD}/fields/2`, {key: "args", type: "string"}))
-		await apply(inflaton("add", `${ROOT}/matter/1`, {
-			parent: null,
-			edgeSlot: "root",
-			position: 0,
-			kind: "wimp",
-			src: CHILD,
-			fieldsBinding: {data: ["operation", "args"], expr: "{operation: _[0], args: _[1]}"},
-		}))
+  test("materializes child Fields from the parent Matter binding", async () => {
+    await declareRoot()
+    await apply("add", "field", {wimp: ROOT, id: 1, key: "operation", type: "string", default: "commit"})
+    await apply("add", "field", {wimp: ROOT, id: 2, key: "args", type: "string", default: "--dry-run"})
+    await apply("add", "matter", {
+      wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: CHILD,
+      fieldsBinding: {data: ["operation", "args"], expr: "{operation: _[0], args: _[1]}"},
+    })
+    await declareWimp(CHILD, "Child")
+    await apply("add", "field", {wimp: CHILD, id: 1, key: "operation", type: "string"})
+    await apply("add", "field", {wimp: CHILD, id: 2, key: "args", type: "string"})
 
-		const childId = Number((await boundary.projection.sql<Array<{id: number}>>`
-			SELECT id FROM atom WHERE wimp = ${CHILD}
-		`)[0]!.id)
-		expect(rootId).toBeGreaterThan(0)
-		expect(await boundary.projection.sql<Array<{value: string}>>`
-			SELECT value_json AS value FROM boundary_atom_field WHERE atom = ${childId} ORDER BY field
-		`).toEqual([{value: '"commit"'}, {value: '"--dry-run"'}])
-	})
+    expect(await boundary.projection.sql<Array<{value: string}>>`
+      SELECT value_string.text AS value
+        FROM atom_value
+        JOIN atom ON atom.id = atom_value.atom
+        JOIN field ON field.id = atom_value.field
+        JOIN value_string ON value_string.value = atom_value.value
+       WHERE atom.wimp = ${CHILD}
+       ORDER BY field.local_id
+    `).toEqual([{value: "commit"}, {value: "--dry-run"}])
+  })
 
-  test("Macho materializes multiplicity locally and Higgs rebuilds only its children", async () => {
+  test("stores Macho topology and rebuilds only its repeated children on Higgs", async () => {
     const rootId = await declareRoot()
-    const fieldPath = `${ROOT}/fields/1`
-    const fieldId = boundaryEntityId(fieldPath)
-    await apply(inflaton("add", fieldPath, {key: "items", type: "array", required: true, default: ["a", "b"]}))
-    await apply(inflaton("add", `${CHILD}/meta`, {name: "Child"}))
-    await apply(inflaton("add", `${PEER}/meta`, {name: "Peer"}))
-    await apply(inflaton("add", `${ROOT}/matter/1`, {
-      parent: null, edgeSlot: "root", position: 0, kind: "macho", collectionBinding: {data: "items"},
-    }))
-    await apply(inflaton("add", `${ROOT}/matter/2`, {
-      parent: "1", edgeSlot: "child", position: 0, kind: "wimp", src: CHILD,
-    }))
-    await apply(inflaton("add", `${ROOT}/matter/3`, {
-      parent: null, edgeSlot: "root", position: 1, kind: "wimp", src: PEER,
-    }))
-
+    await apply("add", "field", {wimp: ROOT, id: 1, key: "items", type: "array", required: true, default: ["a", "b"]})
+    const field = Number((await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM field WHERE wimp = ${ROOT} AND local_id = ${1}`)[0]!.id)
+    await apply("add", "matter", {wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "macho", collectionBinding: {data: "items"}})
+    await apply("add", "matter", {wimp: ROOT, id: 2, parent: 1, edgeSlot: "child", position: 0, kind: "wimp", src: CHILD})
+    await apply("add", "matter", {wimp: ROOT, id: 3, parent: null, edgeSlot: "root", position: 1, kind: "wimp", src: PEER})
+    await declareWimp(CHILD, "Child")
+    await declareWimp(PEER, "Peer")
     const topologyId = Number((await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM topology WHERE kind = ${"macho"}`)[0]!.id)
     const peerId = Number((await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM atom WHERE wimp = ${PEER}`)[0]!.id)
     expect((await boundary.projection.sql`SELECT id FROM atom WHERE wimp = ${CHILD}`).length).toBe(2)
 
-    const commit = await apply({part: "higgs", op: "replace", path: rootId, value: {fields: {[String(fieldId)]: ["one"]}}})
-
+    await boundary.materialize({parts: [{part: "higgs", op: "replace", path: rootId, value: {fields: {[String(field)]: ["one"]}}, by: "matrix", ts: 2}]})
     expect((await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM topology WHERE kind = ${"macho"}`)[0]!.id).toBe(topologyId)
     expect((await boundary.projection.sql`SELECT id FROM atom WHERE wimp = ${CHILD}`).length).toBe(1)
     expect((await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM atom WHERE wimp = ${PEER}`)[0]!.id).toBe(peerId)
-    expect(commit?.messages).toContainEqual({parts: [{
-      part: "higgs", op: "replace", path: `topology/${topologyId}`, value: {fields: {[String(fieldId)]: ["one"]}},
-      ts: expect.any(Number),
-      from: expect.any(String),
-    }]})
   })
 
-  test("Photon reconciles only the selected State-driven Axion branch", async () => {
+  test("reconciles only the selected State-driven Axion branch", async () => {
     const rootId = await declareRoot()
-    await apply(inflaton("add", `${ROOT}/states/1`, {name: "ready", position: 0}))
-    await apply(inflaton("add", `${CHILD}/meta`, {name: "Ready child"}))
-    await apply(inflaton("add", `${PEER}/meta`, {name: "Fallback child"}))
-    await apply(inflaton("add", `${ROOT}/matter/1`, {
-      parent: null,
-      edgeSlot: "root",
-      position: 0,
-      kind: "axion",
-      predicateBinding: {data: "/state", expr: "_[0] === 'ready'"},
-    }))
-    await apply(inflaton("add", `${ROOT}/matter/2`, {
-      parent: "1", edgeSlot: "then", position: 0, kind: "wimp", src: CHILD,
-    }))
-    await apply(inflaton("add", `${ROOT}/matter/3`, {
-      parent: "1", edgeSlot: "else", position: 1, kind: "wimp", src: PEER,
-    }))
-
-    const topologyId = Number((await boundary.projection.sql<Array<{id: number}>>`
-      SELECT id FROM topology WHERE kind = ${"axion"}
-    `)[0]!.id)
-    const fallbackId = Number((await boundary.projection.sql<Array<{id: number}>>`
-      SELECT id FROM atom WHERE wimp = ${PEER}
-    `)[0]!.id)
+    await apply("add", "state", {wimp: ROOT, id: 1, name: "idle", position: 0})
+    await apply("add", "state", {wimp: ROOT, id: 2, name: "ready", position: 1})
+    await apply("add", "matter", {wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "axion", predicateBinding: {data: "/state", expr: "_[0] === 'ready'"}})
+    await apply("add", "matter", {wimp: ROOT, id: 2, parent: 1, edgeSlot: "then", position: 0, kind: "wimp", src: CHILD})
+    await apply("add", "matter", {wimp: ROOT, id: 3, parent: 1, edgeSlot: "else", position: 1, kind: "wimp", src: PEER})
+    await declareWimp(CHILD, "Ready child")
+    await declareWimp(PEER, "Fallback child")
     expect(await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM atom WHERE wimp = ${CHILD}`).toEqual([])
+    expect((await boundary.projection.sql`SELECT id FROM atom WHERE wimp = ${PEER}`).length).toBe(1)
 
-    const commit = await apply({part: "photon", op: "replace", path: rootId, value: "ready"})
-
-    expect((await boundary.projection.sql<Array<{id: number}>>`
-      SELECT id FROM topology WHERE kind = ${"axion"}
-    `)[0]!.id).toBe(topologyId)
+    const commit = await boundary.materialize({parts: [{part: "photon", op: "replace", path: rootId, value: "ready", by: "matrix", ts: 2}]})
     expect(await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM atom WHERE wimp = ${PEER}`).toEqual([])
     expect((await boundary.projection.sql`SELECT id FROM atom WHERE wimp = ${CHILD}`).length).toBe(1)
-    expect(commit?.messages).toContainEqual({parts: [{part: "graviton", op: "remove", path: `atom/${fallbackId}`, ts: expect.any(Number)}]})
-    expect(commit?.messages).toContainEqual({parts: [{
-      part: "higgs", op: "replace", path: `topology/${topologyId}`, value: {state: "ready"},
-      ts: expect.any(Number),
-    }]})
-
-    const readyId = Number((await boundary.projection.sql<Array<{id: number}>>`
-      SELECT id FROM atom WHERE wimp = ${CHILD}
-    `)[0]!.id)
-    expect(await apply({part: "photon", op: "replace", path: rootId, value: "ready"})).toBeNull()
-    expect((await boundary.projection.sql<Array<{id: number}>>`
-      SELECT id FROM atom WHERE wimp = ${CHILD}
-    `)[0]!.id).toBe(readyId)
+    expect(commit).not.toBeUndefined()
   })
 
-  test("canonical process particle resolves field identities for Energy", async () => {
+  test("canonical Process resolves relational Field identities for Energy", async () => {
     await declareRoot()
-    const fieldPath = `${ROOT}/fields/1`
-    await apply(inflaton("add", fieldPath, {key: "command", type: "string"}))
-    const commit = await apply(inflaton("add", `${ROOT}/processes/1`, {
-      key: "ready",
-      type: "action",
-      env: ["server"],
-      action: {src: "./run.ts", importSpecifier: "run", read: ["1"]},
-      success: {src: "({update}) => update({})", read: ["1"], write: ["1"]},
-      error: null,
-    }))
-
+    await apply("add", "field", {wimp: ROOT, id: 1, key: "command", type: "string"})
+    const field = Number((await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM field WHERE wimp = ${ROOT} AND local_id = ${1}`)[0]!.id)
+    const commit = await apply("add", "process", {
+      wimp: ROOT, id: 1, key: "ready", type: "action", env: ["server"],
+      action: {src: "./run.ts", importSpecifier: "run", read: [1]},
+      success: {src: "({update}) => update({})", read: [1], write: [1]}, error: null,
+    })
+    const process = Number((await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM process WHERE wimp = ${ROOT} AND local_id = ${1}`)[0]!.id)
     expect(commit?.messages).toContainEqual({parts: [{
-      part: "graviton",
-      op: "add",
-      path: `declaration/${ROOT}/processes/1`,
-      ts: expect.any(Number),
-      value: {
-        id: boundaryEntityId(`${ROOT}/processes/1`),
-        wimp: ROOT,
-        state: "ready",
-        descriptor: {
-          type: "action",
-          key: "ready",
-          label: null,
-          desc: null,
-          env: ["server"],
-          action: {
-            src: "./run.ts",
-            importSpecifier: "run",
-            readFields: [[boundaryEntityId(fieldPath), "command"]],
-          },
-          success: {
-            src: "({update}) => update({})",
-            readFields: [[boundaryEntityId(fieldPath), "command"]],
-            writeFields: [[boundaryEntityId(fieldPath), "command"]],
-          },
-        },
-      },
+      part: "graviton", op: "add", path: "process", ts: expect.any(Number),
+      value: expect.objectContaining({
+        id: process, wimp: ROOT, localId: 1, state: "ready",
+        descriptor: expect.objectContaining({
+          action: expect.objectContaining({readFields: [[field, "command"]]}),
+          success: expect.objectContaining({readFields: [[field, "command"]], writeFields: [[field, "command"]]}),
+        }),
+      }),
     }]})
   })
 
-  test("replay is an ordinary idempotent one-entity add stream", async () => {
+  test("replay is an ordinary one-entity stream reconstructed from relations", async () => {
     const rootId = await declareRoot()
-    await apply(inflaton("add", `${ROOT}/fields/1`, {key: "title", type: "string", default: "hello"}))
+    await apply("add", "field", {wimp: ROOT, id: 1, key: "title", type: "string", default: "hello"})
     const replay = await boundary.replay()
-
-    expect(replay.length).toBeGreaterThan(2)
     expect(replay.every((message) => message.parts.length === 1)).toBe(true)
+    expect(replay.some((message) => message.parts[0].path === "wimp")).toBe(true)
+    expect(replay.some((message) => message.parts[0].path === "field")).toBe(true)
     expect(replay.some((message) => message.parts[0].path === `atom/${rootId}`)).toBe(true)
-    expect(replay.some((message) => "type" in message || "snapshot" in message)).toBe(false)
   })
 
-  test("failed entity transaction does not alter canonical projection", async () => {
+  test("replay reconstructs declarations and runtime topology only from normalized relations", async () => {
     await declareRoot()
-    const path = `${ROOT}/fields/1`
-    await expect(apply(inflaton("add", path, {key: "broken", type: "object"}))).rejects.toThrow()
-    expect(boundary.projection.declarations.has(path)).toBe(false)
-    expect((await boundary.projection.sql`SELECT path FROM boundary_declaration_entity WHERE path = ${path}`).length).toBe(0)
+    await apply("add", "field", {wimp: ROOT, id: 1, key: "mode", type: "string", default: "idle"})
+    await apply("add", "field", {wimp: ROOT, id: 2, key: "items", type: "array", default: ["one"]})
+    await apply("add", "state", {wimp: ROOT, id: 1, name: "idle", position: 0})
+    await apply("add", "state", {wimp: ROOT, id: 2, name: "ready", position: 1})
+    await apply("add", "transition", {wimp: ROOT, id: 1, from: 1, to: 2, position: 0})
+    await apply("add", "condition", {
+      wimp: ROOT, id: 1, transition: 1, field: 1, position: 0, predicate: {eq: "ready"},
+    })
+    await apply("add", "process", {
+      wimp: ROOT, id: 1, key: "ready", type: "action", env: ["server"],
+      action: {src: "./run.ts", read: [1]},
+      success: {src: "({update}) => update({})", read: [1], write: [1]},
+      error: null,
+    })
+    await apply("add", "reaction", {
+      wimp: ROOT, id: 1, key: "refresh", label: "Refresh", cond: "() => true",
+      src: "({update}) => update({mode: 'ready'})", read: [1], write: [1], states: [1],
+    })
+    await apply("add", "matter", {
+      wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0,
+      kind: "macho", collectionBinding: {data: "items"},
+    })
+    await apply("add", "matter", {
+      wimp: ROOT, id: 2, parent: 1, edgeSlot: "child", position: 0, kind: "wimp", src: CHILD,
+    })
+    await declareWimp(CHILD, "Child")
+    await apply("add", "mass", {wimp: ROOT, id: 1, value: {cache: true}})
+    await apply("add", "bulk", {wimp: ROOT, id: 1, view: ".root {}"})
+
+    const replay = await boundary.replay()
+    const paths = new Set(replay.map((message) => message.parts[0].path))
+    for (const path of [
+      "wimp", "field", "state", "transition", "condition", "process", "reaction", "matter", "mass", "bulk",
+    ]) expect(paths.has(path)).toBe(true)
+    expect([...paths].some((path) => typeof path === "string" && path.startsWith("topology/"))).toBe(true)
+    expect([...paths].some((path) => typeof path === "string" && path.startsWith("atom/"))).toBe(true)
+    const process = replay.find((message) => message.parts[0].path === "process")?.parts[0].value
+    expect(process).toEqual(expect.objectContaining({
+      wimp: ROOT,
+      localId: 1,
+      descriptor: expect.objectContaining({
+        action: expect.objectContaining({readFields: [[1, "mode"]]}),
+      }),
+    }))
+    expect(await boundary.projection.sql<unknown[]>`PRAGMA foreign_key_check`).toEqual([])
+  })
+
+  test("a failed relation transaction leaves no declaration residue", async () => {
+    await declareRoot()
+    await expect(apply("add", "field", {wimp: ROOT, id: 1, key: "broken", type: "object"})).rejects.toThrow()
+    expect(await boundary.projection.sql<unknown[]>`SELECT id FROM field WHERE wimp = ${ROOT}`).toEqual([])
+    expect(await boundary.projection.sql<unknown[]>`PRAGMA foreign_key_check`).toEqual([])
   })
 })

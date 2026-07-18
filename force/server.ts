@@ -82,7 +82,7 @@ export const server = Bun.serve<{domain?: string; id?: string}>({
         if (!isAgentIngressMessage(payload)) {
           return Response.json({
             ok: false,
-            error: "body must be one unsourced inflaton/add for a Meta declaration with a valid ts and name",
+            error: "body must be one supported unsourced Inflaton with a valid path and ts",
           }, {status: 400})
         }
         const required = ["bulk", "dark"]

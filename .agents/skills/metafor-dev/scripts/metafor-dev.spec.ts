@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 
-import { buildImpact, buildInflatonAddMessage, validateSkill } from "./metafor-dev.mjs"
+import { buildImpact, buildInflatonAddMessage, buildInflatonTestMessage, validateSkill } from "./metafor-dev.mjs"
 
 describe("MetaFor Dev contour", () => {
   test("maps Force changes to focused tests and the Inflaton live scenario", () => {
@@ -9,7 +9,7 @@ describe("MetaFor Dev contour", () => {
     expect(impact.ok).toBe(true)
     expect(impact.areas).toEqual(["force-contract"])
     expect(impact.automated).toContain("bun test force")
-    expect(impact.live).toEqual(["inflaton-add"])
+    expect(impact.live).toEqual(["inflaton-add", "meta-read"])
     expect(impact.skillSurfaces).toContain("current milestone")
   })
 
@@ -45,7 +45,13 @@ describe("MetaFor Dev contour", () => {
 
   test("builds the one trusted external Particle without caller-supplied by", () => {
     expect(buildInflatonAddMessage(42)).toEqual({
-      parts: [{part: "inflaton", op: "add", path: "capsule/meta", ts: 42, value: {name: "Capsule"}}],
+      parts: [{part: "inflaton", op: "add", path: "wimp", ts: 42, value: {src: "capsule", name: "Capsule"}}],
+    })
+  })
+
+  test("builds the root Meta read trigger without a terminal marker payload", () => {
+    expect(buildInflatonTestMessage("owner/root", 43)).toEqual({
+      parts: [{part: "inflaton", op: "test", path: "owner/root", ts: 43}],
     })
   })
 })

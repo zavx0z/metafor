@@ -13,13 +13,6 @@ import {
 
 type JsonRecord = Record<string, unknown>
 
-type DeclarationRow = {
-  src: string
-  section: string
-  localId: string
-  canonicalJson: string
-}
-
 type AtomRow = {
   id: number
   wimp: string
@@ -28,7 +21,7 @@ type AtomRow = {
 type AtomFieldRow = {
   atom: number
   field: number
-  valueJson: string
+  value: unknown
 }
 
 type AtomStateRow = {
@@ -136,38 +129,146 @@ const predicateValue = (condition: JsonRecord): MatrixConditionValue => {
   throw new Error(`Unsupported Matrix condition predicate: ${JSON.stringify(raw)}`)
 }
 
+const readValue = async (sql: SQL, id: number): Promise<unknown> => {
+  const kind = (await sql<Array<{kind: string}>>`SELECT kind FROM value WHERE id = ${id}`)[0]?.kind
+  if (kind === undefined || kind === "null") return null
+  if (kind === "boolean") return (await sql<Array<{value: number}>>`
+    SELECT boolean AS value FROM value_boolean WHERE value = ${id}
+  `)[0]?.value === 1
+  if (kind === "number") return Number((await sql<Array<{value: number}>>`
+    SELECT number AS value FROM value_number WHERE value = ${id}
+  `)[0]?.value ?? 0)
+  if (kind === "string") return (await sql<Array<{value: string}>>`
+    SELECT text AS value FROM value_string WHERE value = ${id}
+  `)[0]?.value ?? ""
+  if (kind === "enum") return (await sql<Array<{value: string}>>`
+    SELECT variant.item_value AS value
+      FROM value_enum JOIN field_enum_variant AS variant ON variant.id = value_enum.variant
+     WHERE value_enum.value = ${id}
+  `)[0]?.value ?? null
+  return (await sql<Array<{value: string}>>`
+    SELECT item_value AS value FROM value_list_item WHERE value = ${id} ORDER BY position
+  `).map((row) => row.value)
+}
+
+const fieldDefaultValue = async (sql: SQL, field: {id: number; type: string}): Promise<{exists: boolean; value?: unknown}> => {
+  const exists = (await sql<Array<{ok: number}>>`SELECT 1 AS ok FROM field_default WHERE field = ${field.id}`)[0]
+  if (!exists) return {exists: false}
+  if (field.type === "string") return {exists: true, value: (await sql<Array<{value: string}>>`
+    SELECT default_value AS value FROM field_string_default WHERE field = ${field.id}
+  `)[0]?.value ?? ""}
+  if (field.type === "number") return {exists: true, value: Number((await sql<Array<{value: number}>>`
+    SELECT default_value AS value FROM field_number_default WHERE field = ${field.id}
+  `)[0]?.value ?? 0)}
+  if (field.type === "boolean") return {exists: true, value: (await sql<Array<{value: number}>>`
+    SELECT default_value AS value FROM field_boolean_default WHERE field = ${field.id}
+  `)[0]?.value === 1}
+  if (field.type === "enum") return {exists: true, value: (await sql<Array<{value: string}>>`
+    SELECT variant.item_value AS value
+      FROM field_enum_default AS default_value
+      JOIN field_enum_variant AS variant ON variant.id = default_value.variant
+     WHERE default_value.field = ${field.id}
+  `)[0]?.value ?? null}
+  return {exists: true, value: (await sql<Array<{value: string}>>`
+    SELECT item_value AS value FROM field_array_default_item WHERE field = ${field.id} ORDER BY position
+  `).map((row) => row.value)}
+}
+
+const conditionPredicate = async (sql: SQL, condition: number): Promise<JsonRecord> => {
+  const result: JsonRecord = {}
+  for (const row of await sql<Array<{
+    id: number; operator: string; valueKind: string; valueBoolean: number | null;
+    valueNumber: number | null; valueText: string | null; valueVariant: number | null
+  }>>`
+    SELECT id, operator, value_kind AS valueKind, value_boolean AS valueBoolean,
+           value_number AS valueNumber, value_text AS valueText, value_variant AS valueVariant
+      FROM condition_predicate WHERE condition = ${condition} ORDER BY predicate_order
+  `) {
+    const operator = row.operator === "neq" ? "notEq"
+      : row.operator === "not_in" ? "notIn"
+        : row.operator === "not_include" ? "notInclude"
+          : row.operator === "is_empty" ? "isEmpty"
+            : row.operator
+    let value: unknown = null
+    if (row.valueKind === "boolean") value = row.valueBoolean === 1
+    else if (row.valueKind === "number") value = row.valueNumber
+    else if (row.valueKind === "string") value = row.valueText
+    else if (row.valueKind === "enum") value = (await sql<Array<{value: string}>>`
+      SELECT item_value AS value FROM field_enum_variant WHERE id = ${row.valueVariant}
+    `)[0]?.value ?? null
+    else if (row.valueKind === "list") value = (await sql<Array<{valueKind: string; valueBoolean: number | null; valueNumber: number | null; valueText: string | null}>>`
+      SELECT value_kind AS valueKind, value_boolean AS valueBoolean, value_number AS valueNumber, value_text AS valueText
+        FROM condition_list_item WHERE predicate = ${row.id} ORDER BY item_order
+    `).map((item) => item.valueKind === "boolean" ? item.valueBoolean === 1 : item.valueKind === "number" ? item.valueNumber : item.valueKind === "string" ? item.valueText : null)
+    result[operator] = value
+  }
+  return result
+}
+
+const relationalDeclarations = async (sql: SQL): Promise<DeclarationRecord[]> => {
+  const declarations: DeclarationRecord[] = []
+  for (const row of await sql<Array<{
+    id: number; src: string; localId: number; key: string; type: string; required: number; label: string | null
+  }>>`
+    SELECT id, wimp AS src, local_id AS localId, key, type, required, label
+      FROM field ORDER BY wimp, local_id
+  `) {
+    const fallback = await fieldDefaultValue(sql, row)
+    declarations.push({
+      src: row.src, section: "fields", localId: String(row.localId),
+      value: {
+        id: Number(row.id), wimp: row.src, localId: Number(row.localId), key: row.key,
+        type: row.type, required: row.required === 1, label: row.label,
+        ...(fallback.exists ? {default: fallback.value} : {}),
+      },
+    })
+  }
+  for (const row of await sql<Array<{id: number; src: string; localId: number; field: number; position: number; itemValue: string}>>`
+    SELECT id, wimp AS src, local_id AS localId, field, position, item_value AS itemValue
+      FROM field_enum_variant ORDER BY wimp, local_id
+  `) declarations.push({src: row.src, section: "variants", localId: String(row.localId), value: {...row}})
+  for (const row of await sql<Array<{id: number; src: string; localId: number; name: string; position: number}>>`
+    SELECT id, wimp AS src, local_id AS localId, name, position FROM state ORDER BY wimp, local_id
+  `) declarations.push({src: row.src, section: "states", localId: String(row.localId), value: {...row}})
+  for (const row of await sql<Array<{id: number; src: string; localId: number; fromState: number; toState: number; position: number}>>`
+    SELECT id, wimp AS src, local_id AS localId, from_state AS fromState, to_state AS toState, position
+      FROM transition ORDER BY wimp, local_id
+  `) declarations.push({src: row.src, section: "transitions", localId: String(row.localId), value: {...row}})
+  for (const row of await sql<Array<{id: number; src: string; localId: number; transition: number; field: number; position: number}>>`
+    SELECT id, wimp AS src, local_id AS localId, transition, field, position
+      FROM condition ORDER BY wimp, local_id
+  `) declarations.push({
+    src: row.src, section: "conditions", localId: String(row.localId),
+    value: {...row, predicate: await conditionPredicate(sql, Number(row.id))},
+  })
+  for (const row of await sql<Array<{id: number; src: string; localId: number; key: string}>>`
+    SELECT id, wimp AS src, local_id AS localId, key FROM process ORDER BY wimp, local_id
+  `) declarations.push({src: row.src, section: "processes", localId: String(row.localId), value: {...row, state: row.key}})
+  return declarations
+}
+
 /**
  * Builds a target-specific, fully derived bootstrap projection for Matrix.
  * Boundary remains the canonical materialized world; Matrix may discard and
  * rebuild this value at any time.
  */
 export async function matrixRuntime(sql: SQL): Promise<MatrixRuntimeSnapshot> {
-  const declarationRows = await sql<DeclarationRow[]>`
-    SELECT src, section, local_id AS localId, canonical_json AS canonicalJson
-      FROM boundary_declaration_entity
-     ORDER BY rowid
-  `
   const atoms = await sql<AtomRow[]>`
     SELECT id, wimp FROM atom ORDER BY id
   `
-  const atomFields = await sql<AtomFieldRow[]>`
-    SELECT atom, field, value_json AS valueJson
-      FROM boundary_atom_field
-     ORDER BY atom, field
-  `
+  const atomFields: AtomFieldRow[] = []
+  for (const row of await sql<Array<{atom: number; field: number; valueId: number}>>`
+    SELECT atom, field, value AS valueId FROM atom_value ORDER BY atom, field
+  `) atomFields.push({atom: Number(row.atom), field: Number(row.field), value: await readValue(sql, Number(row.valueId))})
   const atomStates = await sql<AtomStateRow[]>`
     SELECT atom, metaState FROM atom_state ORDER BY atom
   `
 
-  const declarations: DeclarationRecord[] = declarationRows.map((row) => {
-    const value = JSON.parse(row.canonicalJson) as unknown
-    if (!isRecord(value)) throw new Error(`Boundary declaration ${row.src}/${row.section}/${row.localId} is not an object`)
-    return {src: row.src, section: row.section, localId: row.localId, value}
-  })
+  const declarations = await relationalDeclarations(sql)
 
   const declarationsByWimpSection = group(declarations, (item) => `${item.src}\0${item.section}`)
   const valuesByAtomField = new Map(
-    atomFields.map((row) => [`${Number(row.atom)}\0${Number(row.field)}`, JSON.parse(row.valueJson) as unknown] as const),
+    atomFields.map((row) => [`${Number(row.atom)}\0${Number(row.field)}`, row.value] as const),
   )
   const selectedStateByAtom = new Map(atomStates.map((row) => [Number(row.atom), row.metaState] as const))
 

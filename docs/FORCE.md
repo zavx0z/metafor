@@ -9,7 +9,8 @@
 ## Server endpoints
 
 - `GET /health` возвращает `{ok:true, domain:"force"}`.
-- `POST /force` принимает один plain `ForceMessage`.
+- `POST /force` принимает один поддержанный внешний `AgentIngressMessage` без
+  доверенного `by`.
 - `GET /ws` обновляет соединение до WebSocket.
 
 WebSocket registration имеет форму:
@@ -26,9 +27,10 @@ interface ForceMessage {
 }
 ```
 
-Runtime validator разрешает particle keys `part`, `op`, `path`, `ts`, `value` и
-`from`. `path` и `ts` обязательны. `path` имеет тип `string | number`; `ts` —
-неотрицательное целое время источника в миллисекундах Unix. `from`, если
+Runtime validator разрешает particle keys `part`, `op`, `path`, `by`, `ts`,
+`value` и `from`. `path`, `by` и `ts` обязательны во внутреннем сообщении.
+`path` имеет тип `string | number`; `ts` — неотрицательное целое время источника
+в миллисекундах Unix. `from`, если
 присутствует, имеет тип `string | number`.
 
 | Field  | Реализованные значения                                              |
@@ -39,10 +41,26 @@ Runtime validator разрешает particle keys `part`, `op`, `path`, `ts`, `
 Payload с дополнительными top-level keys, `type`, нулём или несколькими
 particles получает HTTP 400 или игнорируется WebSocket handler.
 
+## Внешний ingress
+
+`POST /force` принимает одну поддержанную Particle без `by`. Force назначает ей
+доверенный источник `by: agent`; вызывающий не может назначить источник себе.
+Сейчас разрешены два узких входа:
+
+- `inflaton/add` с категорией `path: "wimp"` и минимальным WIMP в `value`;
+- `inflaton/test` с корневым WIMP SRC в `path`, запускающий чтение внешнего
+  Meta-пакета в Dark.
+
+Оба входа доставляются Dark и Bulk. Boundary не получает исходную agent
+Particle. Dark сохраняет её `ts`, а сформированные им декларационные Particle
+испускает с `by: dark` через Force в Boundary и Bulk.
+
 ## Delivery
 
-WebSocket-origin message отправляется всем открытым зарегистрированным sockets,
-кроме origin. HTTP-origin message не имеет исключаемого socket.
+По умолчанию WebSocket-origin message отправляется всем открытым
+зарегистрированным sockets, кроме origin. Для поддержанных Inflaton действует
+адресный закон: agent Inflaton получает только Dark и Bulk, Dark Inflaton —
+только Boundary и Bulk.
 
 Uncommitted `gluon`/`higgs` mutation без `from` доставляется только
 зарегистрированному Boundary. Если HTTP mutation некому доставить, server
@@ -57,7 +75,7 @@ Force server не открывает domain storage. Порядок обхода
 обычные markers:
 
 ```ts
-{parts: [{part: "z", op: "test", path: "force/replay/<domain>/<id>", ts: 1710000000000}]}
+{parts: [{part: "z", op: "test", path: "force/replay/<domain>/<id>", by: "force", ts: 1710000000000}]}
 ```
 
 Bun transport также отправляет marker своего domain после открытия socket.
@@ -88,13 +106,6 @@ snapshot/create/replay вопросы и не объявляет существ�
 Logger является независимой диагностикой. Его записи не отправляются в Bulk как
 отдельный trace protocol и не становятся историей Вселенной.
 
-## Известное расхождение с целевым contract
-
-В текущем runtime обязательным уже является `ts`, но `by` ещё не реализован.
-HTTP ingress пока принимает тот же `ForceMessage`, что и внутренние домены, и не
-назначает доверенный `by: agent`. Большая часть WebSocket delivery остаётся
-broadcast, поэтому закон релевантности `inflaton/add → Dark only` ещё не
-реализован.
-
-Следующий узкий шаг должен устранить именно эти расхождения, не добавляя causal
-parent, trace envelope или renderer instructions в Particle.
+Force не добавляет causal parent, trace envelope или renderer instructions.
+Bulk выводит причинное проявление из обычной Particle, текущего состояния,
+времени и Viewpoint.

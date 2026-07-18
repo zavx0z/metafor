@@ -12,6 +12,7 @@
     "./metafor/matter": "./metafor/matter.ts",
     "./metafor/schema": "./metafor/schema.ts",
     "./force/particle": "./force/particle.ts",
+    "./force/declaration": "./force/declaration.ts",
     "./force/message": "./force/message.ts",
     "./force/replay": "./force/replay.ts",
     "./force/fields": "./force/fields.ts",

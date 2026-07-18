@@ -23,6 +23,8 @@
   ошибки bootstrap и runtime evidence;
 - отсутствие новых browser errors;
 - соединение browser Bulk с Force по runtime evidence.
+- отсутствие панели Settings/Scene, статуса, Root SRC и ручного пересчёта;
+- из служебного HUD допустима только кнопка полноэкранного режима.
 
 Пустая сетка допустима, пока Meta не загружена. Чёрный экран без canvas,
 ошибка WebGPU или отсутствующее соединение — неуспешная приёмка.
@@ -42,6 +44,10 @@
 Boundary не должен предметно получать raw agent Inflaton, но Bulk должен
 проявлять его путь к Dark. Наблюдение не превращает raw Particle в canonical
 world state.
+
+Для `meta-read` исходный `inflaton/test` должен проявиться только как вход к
+Dark. Затем Bulk показывает отдельные сформированные Dark частицы по мере
+послойного чтения; отдельного завершающего `inflaton/test` быть не должно.
 
 ## Evidence
 

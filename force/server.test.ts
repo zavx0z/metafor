@@ -3,7 +3,7 @@ import type {ForceMessage} from "@metafor/types/force/message"
 
 type ForceSocketData = {domain?: string; id?: string}
 
-const ingressError = "body must be one unsourced inflaton/add for a Meta declaration with a valid ts and name"
+const ingressError = "body must be one supported unsourced Inflaton with a valid path and ts"
 let previousPort: string | undefined
 let server: Bun.Server<ForceSocketData>
 const sockets = new Set<WebSocket>()
@@ -105,7 +105,7 @@ describe("Force trusted ingress", () => {
   test("requires Dark and Bulk before accepting an external Particle", async () => {
     await connect("dark", "dark-only")
     const response = await postIngress({
-      parts: [{part: "inflaton", op: "add", path: "capsule/meta", ts: 1_700_000_000_000, value: {name: "Capsule"}}],
+      parts: [{part: "inflaton", op: "add", path: "wimp", ts: 1_700_000_000_000, value: {src: "capsule", name: "Capsule"}}],
     })
 
     expect(response.status).toBe(503)
@@ -121,14 +121,14 @@ describe("Force trusted ingress", () => {
     ])
     await Bun.sleep(20)
     const ts = 1_700_000_000_001
-    const isCapsule = (message: ForceMessage) => message.parts[0]?.path === "capsule/meta" && message.parts[0].ts === ts
+    const isCapsule = (message: ForceMessage) => message.parts[0]?.path === "wimp" && message.parts[0].ts === ts
     const darkDelivery = nextMatchingMessage(dark, isCapsule)
     const bulkDelivery = nextMatchingMessage(bulk, isCapsule)
     const reachedBoundary = watchFor(boundary, isCapsule)
     const reachedMatrix = watchFor(matrix, isCapsule)
 
     const response = await postIngress({
-      parts: [{part: "inflaton", op: "add", path: "capsule/meta", ts, value: {name: "Capsule"}}],
+      parts: [{part: "inflaton", op: "add", path: "wimp", ts, value: {src: "capsule", name: "Capsule"}}],
     })
 
     expect(response.status).toBe(200)
@@ -136,9 +136,9 @@ describe("Force trusted ingress", () => {
       ok: true,
       parts: 1,
       delivered: ["bulk", "dark"],
-      particle: {part: "inflaton", op: "add", path: "capsule/meta", ts, value: {name: "Capsule"}, by: "agent"},
+      particle: {part: "inflaton", op: "add", path: "wimp", ts, value: {src: "capsule", name: "Capsule"}, by: "agent"},
     })
-    const expected: ForceMessage = {parts: [{part: "inflaton", op: "add", path: "capsule/meta", ts, value: {name: "Capsule"}, by: "agent"}]}
+    const expected: ForceMessage = {parts: [{part: "inflaton", op: "add", path: "wimp", ts, value: {src: "capsule", name: "Capsule"}, by: "agent"}]}
     expect(await darkDelivery).toEqual(expected)
     expect(await bulkDelivery).toEqual(expected)
     await Bun.sleep(25)
@@ -146,17 +146,53 @@ describe("Force trusted ingress", () => {
     expect(reachedMatrix()).toBe(false)
   })
 
-  test("rejects caller-supplied sources and every shape outside the initial Meta add", async () => {
+  test("accepts a root Meta read trigger and routes it only to Dark and Bulk", async () => {
+    const [dark, bulk, boundary] = await Promise.all([
+      connect("dark", "dark-meta-read"),
+      connect("bulk", "bulk-meta-read"),
+      connect("boundary", "boundary-meta-read"),
+    ])
+    await Bun.sleep(20)
+    const ts = 1_700_000_000_003
+    const matches = (message: ForceMessage) => message.parts[0]?.path === "owner/root" && message.parts[0].ts === ts
+    const darkDelivery = nextMatchingMessage(dark, matches)
+    const bulkDelivery = nextMatchingMessage(bulk, matches)
+    const reachedBoundary = watchFor(boundary, matches)
+
+    const response = await postIngress({
+      parts: [{part: "inflaton", op: "test", path: "owner/root", ts}],
+    })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      ok: true,
+      parts: 1,
+      delivered: ["bulk", "dark"],
+      particle: {part: "inflaton", op: "test", path: "owner/root", ts, by: "agent"},
+    })
+    const expected: ForceMessage = {
+      parts: [{part: "inflaton", op: "test", path: "owner/root", ts, by: "agent"}],
+    }
+    expect(await darkDelivery).toEqual(expected)
+    expect(await bulkDelivery).toEqual(expected)
+    await Bun.sleep(25)
+    expect(reachedBoundary()).toBe(false)
+  })
+
+  test("rejects caller-supplied sources and every unsupported ingress shape", async () => {
     for (const body of [
       null,
-      {parts: [{part: "inflaton", op: "add", path: "capsule/meta", by: "dark", ts: 1, value: {name: "Capsule"}}]},
-      {parts: [{part: "inflaton", op: "replace", path: "capsule/meta", ts: 1, value: {name: "Capsule"}}]},
+      {parts: [{part: "inflaton", op: "add", path: "wimp", by: "dark", ts: 1, value: {src: "capsule", name: "Capsule"}}]},
+      {parts: [{part: "inflaton", op: "replace", path: "wimp", ts: 1, value: {src: "capsule", name: "Capsule"}}]},
       {parts: [{part: "inflaton", op: "add", path: "capsule/fields/name", ts: 1, value: {name: "Capsule"}}]},
-      {parts: [{part: "inflaton", op: "add", path: "capsule/meta", value: {name: "Capsule"}}]},
-      {parts: [{part: "inflaton", op: "add", path: "capsule/meta", ts: 1, value: {name: ""}}]},
+      {parts: [{part: "inflaton", op: "add", path: "wimp", value: {src: "capsule", name: "Capsule"}}]},
+      {parts: [{part: "inflaton", op: "add", path: "wimp", ts: 1, value: {src: "capsule", name: ""}}]},
+      {parts: [{part: "inflaton", op: "add", path: "wimp", ts: 1, value: {src: "", name: "Capsule"}}]},
+      {parts: [{part: "inflaton", op: "test", path: "../outside", ts: 1}]},
+      {parts: [{part: "inflaton", op: "test", path: "owner/root", ts: 1, value: {}}]},
       {parts: [
-        {part: "inflaton", op: "add", path: "capsule/meta", ts: 1, value: {name: "Capsule"}},
-        {part: "inflaton", op: "add", path: "other/meta", ts: 1, value: {name: "Other"}},
+        {part: "inflaton", op: "add", path: "wimp", ts: 1, value: {src: "capsule", name: "Capsule"}},
+        {part: "inflaton", op: "add", path: "wimp", ts: 1, value: {src: "other", name: "Other"}},
       ]},
     ]) {
       const response = await postIngress(body)
@@ -177,9 +213,9 @@ describe("Force domain routing", () => {
     await Bun.sleep(20)
     const ts = 1_700_000_000_002
     const message: ForceMessage = {
-      parts: [{part: "inflaton", op: "add", path: "capsule/meta", by: "dark", ts, value: {name: "Capsule"}}],
+      parts: [{part: "inflaton", op: "add", path: "wimp", by: "dark", ts, value: {src: "capsule", name: "Capsule"}}],
     }
-    const matches = (candidate: ForceMessage) => candidate.parts[0]?.path === "capsule/meta" && candidate.parts[0].ts === ts
+    const matches = (candidate: ForceMessage) => candidate.parts[0]?.path === "wimp" && candidate.parts[0].ts === ts
     const boundaryDelivery = nextMatchingMessage(boundary, matches)
     const bulkDelivery = nextMatchingMessage(bulk, matches)
     const reachedMatrix = watchFor(matrix, matches)
@@ -198,8 +234,8 @@ describe("Force domain routing", () => {
       connect("bulk", "bulk-spoof"),
     ])
     await Bun.sleep(20)
-    const spoofed = {parts: [{part: "inflaton", op: "add", path: "spoof/meta", by: "agent", ts: 7, value: {name: "Spoof"}}]}
-    const reachedBulk = watchFor(bulk, (message) => message.parts[0]?.path === "spoof/meta")
+    const spoofed = {parts: [{part: "inflaton", op: "add", path: "wimp", by: "agent", ts: 7, value: {src: "spoof", name: "Spoof"}}]}
+    const reachedBulk = watchFor(bulk, (message) => message.parts[0]?.path === "wimp")
 
     dark.send(JSON.stringify(spoofed))
     await Bun.sleep(25)

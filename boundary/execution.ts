@@ -370,19 +370,67 @@ export class BoundaryExecutionStore {
 
   private async processes(sql: Database, wimp: string): Promise<CanonicalProcess[]> {
     const result: CanonicalProcess[] = []
-    for (const row of await sql<Array<{canonicalJson: string}>>`
-      SELECT canonical_json AS canonicalJson
-        FROM boundary_declaration_entity
-       WHERE src = ${wimp} AND section = ${"processes"}
-       ORDER BY CAST(local_id AS INTEGER)
+    for (const row of await sql<Array<{
+      id: number; key: string; type: "action" | "finally"; label: string | null; desc: string | null
+    }>>`
+      SELECT id, key, type, label, desc FROM process WHERE wimp = ${wimp} ORDER BY local_id, id
     `) {
-      const value = JSON.parse(row.canonicalJson) as unknown
-      if (!isRecord(value) || positiveId(value.id) === null || typeof value.state !== "string" || !isRecord(value.descriptor)) continue
+      const env = (await sql<Array<{env: string}>>`SELECT env FROM process_env WHERE process = ${row.id} ORDER BY env`).map((item) => item.env)
+      const fields = async (
+        table: "process_action_read" | "process_action_write" | "process_finally_read",
+        phase?: string,
+      ): Promise<Array<[number, string]>> => {
+        const rows = table === "process_finally_read"
+          ? await sql<Array<{id: number; key: string}>>`
+              SELECT field.id, field.key FROM process_finally_read AS link
+              JOIN field ON field.id = link.field WHERE link.process = ${row.id} ORDER BY field.id
+            `
+          : await sql.unsafe<Array<{id: number; key: string}>>(
+              `SELECT field.id, field.key FROM ${table} AS link JOIN field ON field.id = link.field WHERE link.process = ? AND link.phase = ? ORDER BY field.id`,
+              [row.id, phase],
+            )
+        return rows.map((field) => [Number(field.id), field.key])
+      }
+      let descriptor: JsonRecord
+      if (row.type === "finally") {
+        const before = (await sql<Array<{src: string}>>`SELECT before AS src FROM process_finally WHERE process = ${row.id}`)[0]
+        descriptor = {
+          type: "finally", key: row.key, label: row.label, desc: row.desc, env,
+          before: {src: before?.src ?? "", readFields: await fields("process_finally_read")},
+        }
+      } else {
+        const action = (await sql<Array<{
+          src: string; importSpecifier: string | null; wrapperSrc: string | null; success: string | null; error: string | null
+        }>>`
+          SELECT action AS src, action_import_specifier AS importSpecifier,
+                 action_wrapper_src AS wrapperSrc, success, error
+            FROM process_action WHERE process = ${row.id}
+        `)[0]
+        if (!action) continue
+        const handler = async (phase: "success" | "error", src: string | null): Promise<JsonRecord | undefined> => src === null ? undefined : ({
+          src,
+          readFields: await fields("process_action_read", phase),
+          writeFields: await fields("process_action_write", phase),
+        })
+        const success = await handler("success", action.success)
+        const error = await handler("error", action.error)
+        descriptor = {
+          type: "action", key: row.key, label: row.label, desc: row.desc, env,
+          action: {
+            src: action.src,
+            ...(action.importSpecifier ? {importSpecifier: action.importSpecifier} : {}),
+            ...(action.wrapperSrc ? {wrapperSrc: action.wrapperSrc} : {}),
+            readFields: await fields("process_action_read", "action"),
+          },
+          ...(success ? {success} : {}),
+          ...(error ? {error} : {}),
+        }
+      }
       result.push({
-        id: value.id as number,
+        id: Number(row.id),
         wimp,
-        state: value.state,
-        descriptor: value.descriptor,
+        state: row.key,
+        descriptor,
       })
     }
     return result

@@ -1,4 +1,5 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
+import type {DeclarationPath} from "@metafor/types/force/declaration"
 import type {ForceMessage} from "@metafor/types/force/message"
 import type {Particle} from "@metafor/types/force/particle"
 import {forceReplayPath} from "@metafor/types/force/replay"
@@ -35,13 +36,32 @@ const loader = (declarations: Map<string, MetaDSL>) => async (src: string): Prom
   return structuredClone(declaration)
 }
 
+type BareParticle = Omit<Particle, "ts" | "by">
+
+const bare = (part: Particle): BareParticle => {
+  const {ts, by: _by, ...value} = part
+  expect(Number.isSafeInteger(ts)).toBe(true)
+  return value
+}
+
+const matches = (
+  part: BareParticle,
+  path: DeclarationPath,
+  wimp: string,
+  id?: number,
+): boolean => part.path === path && isRecord(part.value) && (
+  path === "wimp"
+    ? part.value.src === wimp
+    : part.value.wimp === wimp && part.value.id === id
+)
+
 describe("Dark incremental Inflaton projection", () => {
   let fixture: ForceTestFixture
-  let matter: typeof import("./dark.ts").matter
+  let matterParticles: typeof import("./dark.ts").matterParticles
 
   beforeAll(async () => {
     fixture = createForceTestFixture()
-    ;({matter} = await import("./dark.ts"))
+    ;({matterParticles} = await import("./dark.ts"))
     await fixture.waitForClient("dark", 5_000)
     await fixture.waitForMessage(
       ({domain, message}) => domain === "dark" && message.parts[0]?.part === "z" &&
@@ -53,78 +73,54 @@ describe("Dark incremental Inflaton projection", () => {
 
   afterAll(() => fixture.close())
 
-  const run = async (root: string, action: () => Promise<void>): Promise<ForceMessage[]> => {
-    const fromIndex = fixture.messages.length
-    await action()
-    await fixture.waitForMessage(
-      ({domain, message}) => domain === "dark" &&
-        message.parts.length === 1 &&
-        message.parts[0]?.part === "inflaton" &&
-        message.parts[0]?.op === "test" &&
-        message.parts[0]?.path === root,
-      fromIndex,
-      5_000,
-    )
-    return fixture.messages.slice(fromIndex)
-      .filter(({domain}) => domain === "dark")
-      .map(({message}) => message)
+  const read = async (root: string, load: (src: string) => Promise<MetaDSL>): Promise<BareParticle[]> => {
+    const result: BareParticle[] = []
+    for await (const part of matterParticles(root, load)) result.push(bare(part))
+    return result
   }
 
-  const particles = (messages: ForceMessage[]): Array<Omit<Particle, "ts" | "by">> => messages.map((message) => {
+  const forceParticles = (messages: ForceMessage[]): BareParticle[] => messages.map((message) => {
     expect(message.parts).toHaveLength(1)
-    const {ts, by, ...particle} = message.parts[0]!
-    expect(Number.isSafeInteger(ts)).toBe(true)
-    expect(by).toBe("dark")
-    return particle
+    expect(message.parts[0]!.by).toBe("dark")
+    return bare(message.parts[0]!)
   })
 
-  test("agent Meta add is applied locally and re-emitted by Dark with the original timestamp", async () => {
+  test("agent WIMP add is applied locally and re-emitted by Dark with the original timestamp", async () => {
     const fromIndex = fixture.messages.length
     const ts = 1_700_000_000_123
     fixture.impulse("dark", {
       parts: [{
         part: "inflaton",
         op: "add",
-        path: "capsule/meta",
+        path: "wimp",
         by: "agent",
         ts,
-        value: {name: "Capsule"},
+        value: {src: "capsule", name: "Capsule"},
       }],
     })
 
     const emitted = await fixture.waitForMessage(
       ({domain, message}) => domain === "dark" &&
-        message.parts[0]?.part === "inflaton" &&
-        message.parts[0].path === "capsule/meta" &&
+        message.parts[0]?.part === "inflaton" && message.parts[0].path === "wimp" &&
+        isRecord(message.parts[0].value) && message.parts[0].value.src === "capsule" &&
         message.parts[0].by === "dark",
       fromIndex,
       5_000,
     )
-
-    expect(emitted.message).toEqual({
-      parts: [{
-        part: "inflaton",
-        op: "add",
-        path: "capsule/meta",
-        by: "dark",
-        ts,
-        value: {name: "Capsule"},
-      }],
-    })
-    const rootRequest = await fixture.waitForMessage(
-      ({domain, message}) => domain === "dark" &&
-        message.parts[0]?.part === "inflaton" &&
-        message.parts[0].op === "test" &&
-        message.parts[0].path === "capsule",
-      fromIndex,
-      5_000,
-    )
-    expect(rootRequest.message).toEqual({
-      parts: [{part: "inflaton", op: "test", path: "capsule", by: "dark", ts}],
-    })
+    expect(emitted.message).toEqual({parts: [{
+      part: "inflaton",
+      op: "add",
+      path: "wimp",
+      by: "dark",
+      ts,
+      value: {src: "capsule", name: "Capsule", desc: null},
+    }]})
+    expect(fixture.messages.slice(fromIndex).some(({domain, message}) =>
+      domain === "dark" && message.parts[0]?.part === "inflaton" && message.parts[0].op === "test"
+    )).toBe(false)
   })
 
-  test("cold read emits one add impulse per entity in dependency and root-first order", async () => {
+  test("cold read emits categorical entities root-first and the WIMP edge before its child", async () => {
     const root = "test/dark-cold-root"
     const child = "test/dark-cold-child"
     const declarations = new Map<string, MetaDSL>([
@@ -144,40 +140,99 @@ describe("Dark incremental Inflaton projection", () => {
       })],
       [child, dsl({name: "Child", fields: [{key: "label", type: "string"}]})],
     ])
+    const additions = await read(root, loader(declarations))
 
-    const result = particles(await run(root, () => matter(root, loader(declarations))))
-    const marker = result.at(-1)!
-    const additions = result.slice(0, -1)
-
-    expect(marker).toEqual({part: "inflaton", op: "test", path: root})
     expect(additions.every((part) => part.part === "inflaton" && part.op === "add")).toBe(true)
-    expect(additions.map((part) => part.path).slice(0, 8)).toEqual([
-      `${root}/meta`,
-      `${root}/fields/1`,
-      `${root}/fields/2`,
-      `${root}/variants/1`,
-      `${root}/variants/2`,
-      `${root}/states/1`,
-      `${root}/states/2`,
-      `${root}/transitions/1`,
+    expect(additions.map((part) => part.path).slice(0, 9)).toEqual([
+      "wimp", "field", "variant", "variant", "field", "state", "state", "transition", "condition",
     ])
-    expect(additions.find((part) => part.path === `${root}/conditions/1`)?.value).toEqual({
-      transition: "1",
-      field: "1",
+    expect(additions.find((part) => matches(part, "condition", root, 1))?.value).toEqual({
+      wimp: root,
+      id: 1,
+      transition: 1,
+      field: 1,
       position: 0,
       predicate: {eq: "ready"},
     })
-
-    const rootMatter = additions.findIndex((part) => part.path === `${root}/matter/1`)
-    const childMeta = additions.findIndex((part) => part.path === `${child}/meta`)
+    const rootMatter = additions.findIndex((part) => matches(part, "matter", root, 1))
+    const childWimp = additions.findIndex((part) => matches(part, "wimp", child))
+    const childField = additions.findIndex((part) => matches(part, "field", child, 1))
     expect(rootMatter).toBeGreaterThan(-1)
-    expect(childMeta).toBeGreaterThan(-1)
-    expect(rootMatter).toBeGreaterThan(childMeta)
-    expect(additions.some((part) => part.path === root)).toBe(false)
+    expect(rootMatter).toBeLessThan(childWimp)
+    expect(childWimp).toBeLessThan(childField)
+    expect(additions.some((part) => part.op === "test")).toBe(false)
     expect(additions.some((part) => isSectionSnapshot(part.value))).toBe(false)
   })
 
-  test("repeated reads skip unchanged subtrees and replace only changed properties", async () => {
+  test("yields the parent WIMP edge before the next WIMP layer starts loading", async () => {
+    const root = "test/dark-stream-root"
+    const child = "test/dark-stream-child"
+    let childStarted = false
+    const stream = matterParticles(root, async (src) => {
+      if (src === root) return dsl({name: "Streaming root", matter: [{kind: "wimp", src: child}]})
+      childStarted = true
+      return dsl({name: "Streaming child"})
+    })
+
+    const parent = bare((await stream.next()).value!)
+    const edge = bare((await stream.next()).value!)
+    expect(matches(parent, "wimp", root)).toBe(true)
+    expect(matches(edge, "matter", root, 1)).toBe(true)
+    expect(childStarted).toBe(false)
+    const childWimp = bare((await stream.next()).value!)
+    expect(childStarted).toBe(true)
+    expect(matches(childWimp, "wimp", child)).toBe(true)
+    expect((await stream.next()).done).toBe(true)
+  })
+
+  test("yields dependency-free topology and its WIMP edge before loading the target", async () => {
+    const root = "test/dark-topology-root"
+    const child = "test/dark-topology-child"
+    let childStarted = false
+    const stream = matterParticles(root, async (src) => {
+      if (src === root) return dsl({
+        name: "Topology root",
+        fields: [{key: "items", type: "array", default: ["one"]}],
+        matter: [{
+          kind: "macho",
+          collectionBinding: {data: "items"},
+          children: [{edgeSlot: "child", particle: {kind: "wimp", src: child}}],
+        }],
+      })
+      childStarted = true
+      return dsl({name: "Topology child"})
+    })
+
+    const ready: BareParticle[] = []
+    for (let index = 0; index < 4; index++) ready.push(bare((await stream.next()).value!))
+    expect(ready.some((part) => matches(part, "matter", root, 1))).toBe(true)
+    expect(ready.some((part) => matches(part, "matter", root, 2))).toBe(true)
+    expect(childStarted).toBe(false)
+    expect(matches(bare((await stream.next()).value!), "wimp", child)).toBe(true)
+    expect(childStarted).toBe(true)
+    expect((await stream.next()).done).toBe(true)
+  })
+
+  test("reads sibling WIMPs before descendants of the next breadth-first layer", async () => {
+    const root = "test/dark-bfs-root"
+    const left = "test/dark-bfs-left"
+    const right = "test/dark-bfs-right"
+    const leaf = "test/dark-bfs-leaf"
+    const declarations = new Map<string, MetaDSL>([
+      [root, dsl({name: "Root", matter: [{kind: "wimp", src: left}, {kind: "wimp", src: right}]})],
+      [left, dsl({name: "Left", matter: [{kind: "wimp", src: leaf}]})],
+      [right, dsl({name: "Right"})],
+      [leaf, dsl({name: "Leaf"})],
+    ])
+    const readOrder: string[] = []
+    await read(root, async (src) => {
+      readOrder.push(src)
+      return await loader(declarations)(src)
+    })
+    expect(readOrder).toEqual([root, left, right, leaf])
+  })
+
+  test("repeated reads skip unchanged subtrees and replace one complete entity", async () => {
     const root = "test/dark-diff-root"
     const child = "test/dark-diff-child"
     const declarations = new Map<string, MetaDSL>([
@@ -191,9 +246,8 @@ describe("Dark incremental Inflaton projection", () => {
       })],
       [child, dsl({name: "Child", fields: [{key: "stable", type: "boolean"}]})],
     ])
-    const read = loader(declarations)
-    await run(root, () => matter(root, read))
-
+    const load = loader(declarations)
+    await read(root, load)
     declarations.set(root, dsl({
       name: "Root",
       fields: [
@@ -202,39 +256,23 @@ describe("Dark incremental Inflaton projection", () => {
       ],
       matter: [{kind: "wimp", src: child}],
     }))
-    const changed = particles(await run(root, () => matter(root, read)))
-
-    expect(changed).toEqual([
-      {
-        part: "inflaton",
-        op: "replace",
-        path: `${root}/fields/1`,
-        value: {label: "After"},
-      },
-      {part: "inflaton", op: "test", path: root},
-    ])
-    expect(changed.some((part) => String(part.path).startsWith(`${child}/`))).toBe(false)
-    expect(changed.some((part) => part.path === `${root}/fields/2`)).toBe(false)
-
-    expect(particles(await run(root, () => matter(root, read)))).toEqual([
-      {part: "inflaton", op: "test", path: root},
-    ])
+    expect(await read(root, load)).toEqual([{
+      part: "inflaton",
+      op: "replace",
+      path: "field",
+      value: {wimp: root, id: 1, key: "title", type: "string", label: "After"},
+    }])
+    expect(await read(root, load)).toEqual([])
   })
 
-  test("appends and removes one entity without changing existing identity", async () => {
+  test("appends and removes one entity without changing existing local identities", async () => {
     const root = "test/dark-identity"
-    const declarations = new Map<string, MetaDSL>([
-      [root, dsl({
-        name: "Identity",
-        fields: [
-          {key: "first", type: "string"},
-          {key: "second", type: "number"},
-        ],
-      })],
-    ])
-    const read = loader(declarations)
-    await run(root, () => matter(root, read))
-
+    const declarations = new Map<string, MetaDSL>([[root, dsl({
+      name: "Identity",
+      fields: [{key: "first", type: "string"}, {key: "second", type: "number"}],
+    })]])
+    const load = loader(declarations)
+    await read(root, load)
     declarations.set(root, dsl({
       name: "Identity",
       fields: [
@@ -243,58 +281,37 @@ describe("Dark incremental Inflaton projection", () => {
         {key: "third", type: "boolean"},
       ],
     }))
-    expect(particles(await run(root, () => matter(root, read)))).toEqual([
-      {
-        part: "inflaton",
-        op: "add",
-        path: `${root}/fields/3`,
-        value: {key: "third", type: "boolean"},
-      },
-      {part: "inflaton", op: "test", path: root},
-    ])
-
+    expect(await read(root, load)).toEqual([{
+      part: "inflaton", op: "add", path: "field",
+      value: {wimp: root, id: 3, key: "third", type: "boolean"},
+    }])
     declarations.set(root, dsl({
       name: "Identity",
-      fields: [
-        {key: "first", type: "string"},
-        {key: "second", type: "number"},
-      ],
+      fields: [{key: "first", type: "string"}, {key: "second", type: "number"}],
     }))
-    const removed = particles(await run(root, () => matter(root, read)))
-    expect(removed).toEqual([
-      {part: "inflaton", op: "remove", path: `${root}/fields/3`},
-      {part: "inflaton", op: "test", path: root},
-    ])
-    expect(Object.hasOwn(removed[0]!, "value")).toBe(false)
+    expect(await read(root, load)).toEqual([{
+      part: "inflaton", op: "remove", path: "field", value: {wimp: root, id: 3},
+    }])
   })
 
   test("optional singleton declarations use add and remove instead of null placeholders", async () => {
     const root = "test/dark-singletons"
     const declarations = new Map<string, MetaDSL>([[root, dsl({name: "Singletons"})]])
-    const read = loader(declarations)
-    const cold = particles(await run(root, () => matter(root, read)))
-    expect(cold.some((part) => part.path === `${root}/mass` || part.path === `${root}/bulk`)).toBe(false)
-
-    declarations.set(root, dsl({
-      name: "Singletons",
-      mass: {cache: true},
-      bulk: {view: ".single {}"},
-    }))
-    expect(particles(await run(root, () => matter(root, read)))).toEqual([
-      {part: "inflaton", op: "add", path: `${root}/mass`, value: {cache: true}},
-      {part: "inflaton", op: "add", path: `${root}/bulk`, value: {view: ".single {}"}},
-      {part: "inflaton", op: "test", path: root},
+    const load = loader(declarations)
+    expect((await read(root, load)).some((part) => part.path === "mass" || part.path === "bulk")).toBe(false)
+    declarations.set(root, dsl({name: "Singletons", mass: {cache: true}, bulk: {view: ".single {}"}}))
+    expect(await read(root, load)).toEqual([
+      {part: "inflaton", op: "add", path: "mass", value: {wimp: root, id: 1, value: {cache: true}}},
+      {part: "inflaton", op: "add", path: "bulk", value: {wimp: root, id: 1, view: ".single {}"}},
     ])
-
     declarations.set(root, dsl({name: "Singletons"}))
-    expect(particles(await run(root, () => matter(root, read)))).toEqual([
-      {part: "inflaton", op: "remove", path: `${root}/bulk`},
-      {part: "inflaton", op: "remove", path: `${root}/mass`},
-      {part: "inflaton", op: "test", path: root},
+    expect(await read(root, load)).toEqual([
+      {part: "inflaton", op: "remove", path: "bulk", value: {wimp: root, id: 1}},
+      {part: "inflaton", op: "remove", path: "mass", value: {wimp: root, id: 1}},
     ])
   })
 
-  test("removing a branch detaches parent edges before child declarations", async () => {
+  test("removing a branch detaches parent Matter before child declarations", async () => {
     const root = "test/dark-tree-root"
     const child = "test/dark-tree-child"
     const leaf = "test/dark-tree-leaf"
@@ -303,31 +320,28 @@ describe("Dark incremental Inflaton projection", () => {
       [child, dsl({name: "Child", matter: [{kind: "wimp", src: leaf}]})],
       [leaf, dsl({name: "Leaf"})],
     ])
-    const read = loader(declarations)
-    const added = particles(await run(root, () => matter(root, read)))
-    expect(added.findIndex((part) => part.path === `${root}/meta`)).toBeLessThan(
-      added.findIndex((part) => part.path === `${child}/meta`),
+    const load = loader(declarations)
+    const added = await read(root, load)
+    expect(added.findIndex((part) => matches(part, "matter", root, 1))).toBeLessThan(
+      added.findIndex((part) => matches(part, "wimp", child)),
     )
-    expect(added.findIndex((part) => part.path === `${child}/meta`)).toBeLessThan(
-      added.findIndex((part) => part.path === `${leaf}/meta`),
+    expect(added.findIndex((part) => matches(part, "matter", child, 1))).toBeLessThan(
+      added.findIndex((part) => matches(part, "wimp", leaf)),
     )
 
     declarations.set(root, dsl({name: "Root", matter: []}))
-    const removed = particles(await run(root, () => matter(root, read))).filter((part) => part.op === "remove")
-    const rootEdge = removed.findIndex((part) => part.path === `${root}/matter/1`)
-    const childEdge = removed.findIndex((part) => part.path === `${child}/matter/1`)
-    const firstLeaf = removed.findIndex((part) => String(part.path).startsWith(`${leaf}/`))
-    const firstChildDeclaration = removed.findIndex((part) =>
-      String(part.path).startsWith(`${child}/`) && part.path !== `${child}/matter/1`
-    )
-
+    const removed = (await read(root, load)).filter((part) => part.op === "remove")
+    const rootEdge = removed.findIndex((part) => matches(part, "matter", root, 1))
+    const childEdge = removed.findIndex((part) => matches(part, "matter", child, 1))
+    const leafWimp = removed.findIndex((part) => matches(part, "wimp", leaf))
+    const childWimp = removed.findIndex((part) => matches(part, "wimp", child))
     expect(rootEdge).toBeGreaterThan(-1)
     expect(childEdge).toBeGreaterThan(rootEdge)
-    expect(firstLeaf).toBeGreaterThan(childEdge)
-    expect(firstChildDeclaration).toBeGreaterThan(firstLeaf)
+    expect(leafWimp).toBeGreaterThan(childEdge)
+    expect(childWimp).toBeGreaterThan(leafWimp)
   })
 
-  test("retargeting a parent edge creates the new child before replacing the edge and removing the old child", async () => {
+  test("retargeting emits the changed edge before reading the new child and then removes the old child", async () => {
     const root = "test/dark-retarget-root"
     const oldChild = "test/dark-retarget-old"
     const newChild = "test/dark-retarget-new"
@@ -336,23 +350,18 @@ describe("Dark incremental Inflaton projection", () => {
       [oldChild, dsl({name: "Old"})],
       [newChild, dsl({name: "New"})],
     ])
-    const read = loader(declarations)
-    await run(root, () => matter(root, read))
-
+    const load = loader(declarations)
+    await read(root, load)
     declarations.set(root, dsl({name: "Root", matter: [{kind: "wimp", src: newChild}]}))
-    const changed = particles(await run(root, () => matter(root, read)))
-    const newMeta = changed.findIndex((part) => part.path === `${newChild}/meta` && part.op === "add")
-    const edge = changed.findIndex((part) => part.path === `${root}/matter/1` && part.op === "replace")
-    const oldMeta = changed.findIndex((part) => part.path === `${oldChild}/meta` && part.op === "remove")
-
-    expect(newMeta).toBeGreaterThan(-1)
-    expect(edge).toBeGreaterThan(newMeta)
-    expect(oldMeta).toBeGreaterThan(edge)
-    expect(changed[edge]).toEqual({
-      part: "inflaton",
-      op: "replace",
-      path: `${root}/matter/1`,
-      value: {src: newChild},
+    const changed = await read(root, load)
+    const edge = changed.findIndex((part) => matches(part, "matter", root, 1) && part.op === "replace")
+    const newWimp = changed.findIndex((part) => matches(part, "wimp", newChild) && part.op === "add")
+    const oldWimp = changed.findIndex((part) => matches(part, "wimp", oldChild) && part.op === "remove")
+    expect(edge).toBeGreaterThan(-1)
+    expect(edge).toBeLessThan(newWimp)
+    expect(newWimp).toBeLessThan(oldWimp)
+    expect(changed[edge]?.value).toEqual({
+      wimp: root, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: newChild,
     })
   })
 
@@ -365,44 +374,42 @@ describe("Dark incremental Inflaton projection", () => {
       [rootB, dsl({name: "B", matter: [{kind: "wimp", src: child}]})],
       [child, dsl({name: "Shared", fields: [{key: "value", type: "string"}]})],
     ])
-    const read = loader(declarations)
-    await run(rootA, () => matter(rootA, read))
-    const secondRoot = particles(await run(rootB, () => matter(rootB, read)))
-    expect(secondRoot.some((part) => String(part.path).startsWith(`${child}/`))).toBe(false)
-
+    const load = loader(declarations)
+    await read(rootA, load)
+    const secondRoot = await read(rootB, load)
+    expect(secondRoot.some((part) => matches(part, "wimp", child) || matches(part, "field", child, 1))).toBe(false)
     declarations.set(rootA, dsl({name: "A", matter: []}))
-    const detached = particles(await run(rootA, () => matter(rootA, read)))
-    expect(detached.some((part) => String(part.path).startsWith(`${child}/`))).toBe(false)
-    expect(detached).toContainEqual({part: "inflaton", op: "remove", path: `${rootA}/matter/1`})
+    const detached = await read(rootA, load)
+    expect(detached.some((part) => matches(part, "wimp", child) || matches(part, "field", child, 1))).toBe(false)
+    expect(detached).toContainEqual({
+      part: "inflaton", op: "remove", path: "matter", value: {wimp: rootA, id: 1},
+    })
   })
 
-  test("boundary reconnect replays the local projection as granular idempotent adds", async () => {
+  test("boundary reconnect replays the local projection as categorical idempotent adds", async () => {
     const fromIndex = fixture.messages.length
     fixture.impulse("dark", {
       parts: [{part: "z", op: "test", path: forceReplayPath("boundary", "boundary-reconnect"), by: "force", ts: 1}],
     })
     await fixture.waitForMessage(
       ({domain, message}) => domain === "dark" && message.parts[0]?.part === "inflaton" &&
-        message.parts[0]?.op === "test" && message.parts[0]?.path === "test/dark-owner-b",
+        message.parts[0]?.op === "add" && message.parts[0]?.path === "matter" &&
+        isRecord(message.parts[0].value) && message.parts[0].value.wimp === "test/dark-owner-b",
       fromIndex,
       5_000,
     )
-    const replay = particles(fixture.messages.slice(fromIndex)
+    await Bun.sleep(10)
+    const replay = forceParticles(fixture.messages.slice(fromIndex)
       .filter(({domain}) => domain === "dark")
       .map(({message}) => message))
-    const additions = replay.filter((part) => part.op === "add")
-
-    expect(additions.length).toBeGreaterThan(0)
-    expect(additions.every((part) => part.part === "inflaton" && part.op === "add")).toBe(true)
-    expect(additions.some((part) => part.path === "test/dark-diff-root/fields/1" &&
+    expect(replay.length).toBeGreaterThan(0)
+    expect(replay.every((part) => part.part === "inflaton" && part.op === "add")).toBe(true)
+    expect(replay.some((part) => matches(part, "field", "test/dark-diff-root", 1) &&
       isRecord(part.value) && part.value.label === "After")).toBe(true)
-    expect(replay.some((part) => part.op === "replace" || part.op === "remove")).toBe(false)
-    expect(replay.findIndex((part) => part.path === "test/dark-retarget-new/meta")).toBeLessThan(
-      replay.findIndex((part) => part.path === "test/dark-retarget-root/matter/1"),
+    expect(replay.findIndex((part) => matches(part, "matter", "test/dark-retarget-root", 1))).toBeLessThan(
+      replay.findIndex((part) => matches(part, "wimp", "test/dark-retarget-new")),
     )
-    expect(replay.findLastIndex((part) => part.op === "add")).toBeLessThan(
-      replay.findIndex((part) => part.part === "inflaton" && part.op === "test"),
-    )
+    expect(replay.some((part) => part.op === "test" || part.op === "replace" || part.op === "remove")).toBe(false)
   })
 })
 

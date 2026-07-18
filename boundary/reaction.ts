@@ -11,7 +11,7 @@ import {
   type ReactionResultProposal,
 } from "@metafor/types/force/reaction"
 import type {BoundaryIncrementalCommit} from "./incremental.ts"
-import {commitBoundaryAtomFields} from "./world.ts"
+import {commitBoundaryAtomFields, readBoundaryValue} from "./world.ts"
 
 type Database = SQL | ReservedSQL
 type JsonRecord = Record<string, unknown>
@@ -387,15 +387,13 @@ export class BoundaryReactionStore {
 
   private async atomValues(sql: Database, atomId: number, wimp: string): Promise<Record<string, unknown>> {
     const value: Record<string, unknown> = {}
-    for (const row of await sql<Array<{key: string; valueJson: string}>>`
-      SELECT field.key AS key,
-             boundary_atom_field.value_json AS valueJson
-        FROM field
-        JOIN boundary_atom_field ON boundary_atom_field.field = field.id
-       WHERE boundary_atom_field.atom = ${atomId}
+    for (const row of await sql<Array<{key: string; valueId: number}>>`
+      SELECT field.key AS key, atom_value.value AS valueId
+        FROM field JOIN atom_value ON atom_value.field = field.id
+       WHERE atom_value.atom = ${atomId}
          AND field.wimp = ${wimp}
        ORDER BY field.local_id, field.id
-    `) value[row.key] = JSON.parse(row.valueJson) as unknown
+    `) value[row.key] = await readBoundaryValue(sql, Number(row.valueId))
     return value
   }
 
@@ -434,25 +432,18 @@ export class BoundaryReactionStore {
 
   private async reactions(sql: Database, wimp: string): Promise<CanonicalReaction[]> {
     const result: CanonicalReaction[] = []
-    for (const row of await sql<Array<{canonicalJson: string}>>`
-      SELECT canonical_json AS canonicalJson
-        FROM boundary_declaration_entity
-       WHERE src = ${wimp} AND section = ${"reactions"}
-       ORDER BY CAST(local_id AS INTEGER)
+    for (const row of await sql<Array<{id: number; cond: string; updateSource: string}>>`
+      SELECT id, cond_source AS cond, update_source AS updateSource
+        FROM reaction WHERE wimp = ${wimp} ORDER BY local_id, id
     `) {
-      const value = JSON.parse(row.canonicalJson) as unknown
-      if (!isRecord(value) || positiveId(value.id) === null || typeof value.cond !== "string" || typeof value.src !== "string") continue
-      const numbers = (items: unknown): number[] => Array.isArray(items)
-        ? items.filter((item): item is number => positiveId(item) !== null)
-        : []
       result.push({
-        id: value.id as number,
+        id: Number(row.id),
         wimp,
-        cond: value.cond,
-        update: value.src,
-        read: numbers(value.read),
-        write: numbers(value.write),
-        states: numbers(value.states),
+        cond: row.cond,
+        update: row.updateSource,
+        read: (await sql<Array<{field: number}>>`SELECT field FROM reaction_read WHERE reaction = ${row.id}`).map((item) => Number(item.field)),
+        write: (await sql<Array<{field: number}>>`SELECT field FROM reaction_write WHERE reaction = ${row.id}`).map((item) => Number(item.field)),
+        states: (await sql<Array<{state: number}>>`SELECT state FROM reaction_state WHERE reaction = ${row.id}`).map((item) => Number(item.state)),
       })
     }
     return result

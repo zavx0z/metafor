@@ -38,15 +38,19 @@ BOUNDARY_PATH=/absolute/path/boundary.sqlite bun run --filter boundary start
 
 ## Реализованные handlers
 
+- `inflaton` от Dark по одной сущности изменяет нормализованные таблицы;
+- после каждого такого commit Boundary публикует производную Matrix runtime,
+  потому что завершающей Particle у потока нет;
 - replay marker для Matrix вызывает `matrixRuntime()` и отправляет
   `graviton/replace` по `runtime/matrix`;
 - replay marker для Energy или Bulk отправляет результат `boundary.replay()`
   по одному message;
-- остальные messages проходят через `materialize()`;
-- terminal non-replay `inflaton/test` вызывает публикацию Matrix runtime.
+- остальные messages проходят через `materialize()`.
 
-Это наблюдаемое поведение исходного runtime. Cleanup не меняет его и не решает
-открытые snapshot/create/replay вопросы.
+Meta-файл в Boundary не попадает. Здесь нет внутренней сущности Meta, JSON-копии
+декларации и slash-пути, кодирующего её дерево. WIMP хранится по своему `src`, а
+его Fields, States, Processes, Matter и остальные декларационные сущности — в
+отдельных реляционных таблицах по детерминированным локальным индексам.
 
 ## Низкоуровневый API
 

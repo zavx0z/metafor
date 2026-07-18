@@ -132,7 +132,11 @@ import {
 } from "./constants"
 import { computeLerpFactor, easeOutCubic, getDistanceToSegmentPx, mixScalar } from "./math"
 import { resolveForceFieldId, resolveForceFieldsPayload } from "@metafor/types/force/fields"
-import {resolveForceImpulseTiming, resolveForceImpulseVisual} from "./force-protocol"
+import {
+	resolveForceImpulseRadius,
+	resolveForceImpulseTiming,
+	resolveForceImpulseVisual,
+} from "./force-protocol"
 
 const torusWireframeCache = new Map<string, BufferGeometry>()
 const sphereWireframeCache = new Map<string, BufferGeometry>()
@@ -2825,35 +2829,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 	}
 
-	const refreshSceneForSettings = (): void => {
-		for (const record of darkParticleRecords.values()) {
-			refreshDarkParticleRecordGeometryAndMaterial(record)
-			applyDarkParticleRecordScale(record)
-	}
-
-		for (const record of fieldParticleRecords.values()) {
-			refreshFieldParticleRecordOrientation(record)
-			refreshFieldParticleRecordGeometryAndMaterial(record)
-			applyFieldParticleRecordScale(record)
-		}
-
-		for (const record of orbitalParticleRecords.values()) {
-			const parent = darkParticleRecords.get(record.snapshot.parentDarkParticleId)
-			const visual = orbitalMaterialVisual(record.snapshot)
-			record.node.geometry = getSphereWireframeGeometry(record.snapshot.sphereRadius, (parent?.snapshot.depth ?? 0) + 1)
-			record.material.color.copy(visual.color)
-			record.material.glowColor?.copy(visual.glowColor)
-			record.material.glowIntensity = visual.glowIntensity
-		}
-		for (const record of fieldProxyRecords.values()) orientFieldProxy(record)
-		for (const record of transitionChannelRecords.values()) record.line.geometry = transitionGeometry(record.snapshot)
-		for (const record of relationChannelRecords.values()) record.line.geometry = relationGeometry(record.snapshot)
-
-		syncLabelRecords()
-		syncFieldParticleBillboardRecords()
-		requestRenderLoop(INPUT_RENDER_WAKE_MS)
-	}
-
 	const applyManifestPatchToScene = (nextManifest: BulkManifest): void => {
 		manifest = nextManifest
 		const patch = sceneProjection.apply(nextManifest)
@@ -3543,36 +3518,52 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		if (!new Set(["inflaton", "graviton", "photon", "gluon", "higgs", "z", "w+", "w-"]).has(message.part)) return false
 
 		let targetObject: Object3D | null = null
+		let targetScaleMm = 0
 		const atomDarkParticleId = forceAtomDarkParticleId(message.path)
 		const value = isRecord(message.value) ? message.value : null
 		const sourceId = forcePositiveInteger(value?.processId) ?? forcePositiveInteger(value?.reactionId)
 		if (sourceId !== null) {
-			targetObject = [...orbitalParticleRecords.values()].find((record) => record.snapshot.sourceId === sourceId)?.node ?? null
+			const record = [...orbitalParticleRecords.values()].find((candidate) => candidate.snapshot.sourceId === sourceId)
+			targetObject = record?.node ?? null
+			targetScaleMm = record?.snapshot.sphereRadius ?? targetScaleMm
 		}
 		if (!targetObject && message.part === "photon" && typeof message.value === "string" && atomDarkParticleId !== null) {
-			targetObject = [...orbitalParticleRecords.values()].find((record) =>
-				record.snapshot.parentDarkParticleId === atomDarkParticleId &&
-				record.snapshot.orbitalParticleKind === "state" &&
-				record.snapshot.label === message.value &&
-				record.snapshot.orbitalParticleId.endsWith("/root"),
-			)?.node ?? null
+			const record = [...orbitalParticleRecords.values()].find((candidate) =>
+				candidate.snapshot.parentDarkParticleId === atomDarkParticleId &&
+				candidate.snapshot.orbitalParticleKind === "state" &&
+				candidate.snapshot.label === message.value &&
+				candidate.snapshot.orbitalParticleId.endsWith("/root"),
+			)
+			targetObject = record?.node ?? null
+			targetScaleMm = record?.snapshot.sphereRadius ?? targetScaleMm
 		}
 		if (!targetObject && message.part === "gluon" && atomDarkParticleId !== null) {
 			const fields = resolveForceFieldsPayload(message.value)
 			const firstFieldId = fields ? resolveForceFieldId(Object.keys(fields)[0] ?? "") : null
-			if (firstFieldId !== null) targetObject = [...fieldParticleRecords.values()].find((record) =>
-				record.parentDarkParticleId === atomDarkParticleId && record.snapshot.fieldId === firstFieldId,
-			)?.node ?? null
+			if (firstFieldId !== null) {
+				const record = [...fieldParticleRecords.values()].find((candidate) =>
+					candidate.parentDarkParticleId === atomDarkParticleId && candidate.snapshot.fieldId === firstFieldId,
+				)
+				targetObject = record?.node ?? null
+				targetScaleMm = record?.snapshot.sphereRadius ?? targetScaleMm
+			}
 		}
-		if (!targetObject && atomDarkParticleId !== null) targetObject = darkParticleRecords.get(atomDarkParticleId)?.container ?? null
-		if (!targetObject) targetObject = [...darkParticleRecords.values()].find((record) => record.snapshot.parentDarkParticleId === null)?.container ?? null
+		if (!targetObject && atomDarkParticleId !== null) {
+			const record = darkParticleRecords.get(atomDarkParticleId)
+			targetObject = record?.container ?? null
+			targetScaleMm = record?.snapshot.torusTube ?? targetScaleMm
+		}
+		if (!targetObject) {
+			const record = [...darkParticleRecords.values()].find((candidate) => candidate.snapshot.parentDarkParticleId === null)
+			targetObject = record?.container ?? null
+			targetScaleMm = record?.snapshot.torusTube ?? targetScaleMm
+		}
 
 		space.updateWorldMatrix()
 		const target = targetObject
 			? readObjectWorldPosition(targetObject, new Vector3()).clone()
 			: viewPoint.getTarget().clone()
-		const parent = atomDarkParticleId === null ? null : darkParticleRecords.get(atomDarkParticleId)
-		const radius = Math.max(4, Math.min(14, (parent?.snapshot.torusTube ?? 60) * 0.08))
+		const radius = resolveForceImpulseRadius(targetScaleMm)
 		const part = message as unknown as Particle
 		const law = resolveForceImpulseVisual(part)
 		const timing = resolveForceImpulseTiming(part, Date.now())
@@ -4422,36 +4413,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			animationSuspended = suspended
 			lastAnimationTimestamp = 0
 			if (!suspended && activeRenderSettings.animationEnabled) requestRenderLoop()
-		},
-		setLayoutSettings(settings: Partial<BulkLayoutSettings>) {
-			activeLayoutSettings = normalizeBulkLayoutSettings({
-				...activeLayoutSettings,
-				...settings,
-			})
-			rebuildLevelResolver()
-			torusWireframeCache.clear()
-			sphereWireframeCache.clear()
-			sphereSurfaceCache.clear()
-			refreshSceneForSettings()
-		},
-		setRenderSettings(settings: Partial<BulkRenderSettings>) {
-			const nextBaseDepth = settings.baseDepth !== undefined ? settings.baseDepth : activeRenderSettings.baseDepth
-			const wasCosmosMotionEnabled = activeRenderSettings.animationEnabled
-			activeRenderSettings = normalizeBulkRenderSettings({
-				...activeRenderSettings,
-				...settings,
-				baseDepth: nextBaseDepth,
-			})
-			if (wasCosmosMotionEnabled && !activeRenderSettings.animationEnabled) {
-				for (const record of darkParticleRecords.values()) record.cosmosOrbitAngle = 0
-				for (const record of fieldParticleRecords.values()) record.cosmosOrbitAngle = 0
-			}
-			rebuildLevelResolver()
-			if (settings.baseDepth !== undefined) activeDarkParticleId = null
-			torusWireframeCache.clear()
-			sphereWireframeCache.clear()
-			sphereSurfaceCache.clear()
-			refreshSceneForSettings()
 		},
 		setSize(width: number, height: number) {
 			const viewportSizeChanged = Math.abs(width - rootFitViewportWidth) > 0.5 || Math.abs(height - rootFitViewportHeight) > 0.5

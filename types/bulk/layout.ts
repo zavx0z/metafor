@@ -1,7 +1,6 @@
 import type { BulkDarkParticle, BulkDarkParticleInput, BulkFieldParticle } from "./manifest.ts"
 
 export interface BulkLayoutSnapshotConfig {
-  deepestFieldSphereRadiusMm: number
   nestingCoefficient: number
   packingDensityCoefficient: number
   rootOuterDiameterMm: number
@@ -26,6 +25,7 @@ export interface LayoutDarkParticleNode extends Omit<BulkDarkParticle, "parentDa
   children: LayoutDarkParticleNode[]
   contentWeight: number
   fieldParticles: LayoutFieldParticleNode[]
+  isEmpty: boolean
   depthFromRoot: number
   innerRadius: number
   outerRadius: number

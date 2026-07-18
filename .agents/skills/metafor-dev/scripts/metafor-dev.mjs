@@ -1,10 +1,6 @@
 #!/usr/bin/env bun
 
-import {
-  existsSync,
-  readdirSync,
-  readFileSync,
-} from "node:fs"
+import {existsSync, readdirSync, readFileSync} from "node:fs"
 import { homedir } from "node:os"
 import { dirname, join, relative, resolve } from "node:path"
 import { spawnSync } from "node:child_process"
@@ -19,6 +15,7 @@ const worldScript = join(scriptDirectory, "world.mjs")
 const expectedFiles = [
   "SKILL.md",
   "agents/openai.yaml",
+  "fixtures/capsule/meta.ts",
   "references/current-milestone.md",
   "references/runtime.md",
   "references/visual-acceptance.md",
@@ -42,14 +39,14 @@ const impactRules = [
     area: "force-contract",
     matches: (path) => path.startsWith("force/") || path.startsWith("types/force/"),
     automated: ["bun test force", "bun run typecheck"],
-    live: ["inflaton-add"],
+    live: ["inflaton-add", "meta-read"],
     skillSurfaces: ["current milestone", "runtime", "visual acceptance"],
   },
   {
     area: "dark-materialization",
     matches: (path) => path.startsWith("dark/"),
     automated: ["bun test dark", "bun run typecheck"],
-    live: ["inflaton-add"],
+    live: ["meta-read"],
     skillSurfaces: ["current milestone", "runtime"],
   },
   {
@@ -261,7 +258,11 @@ const emit = (payload, exitCode = 0) => {
 const delay = (milliseconds) => new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds))
 
 export const buildInflatonAddMessage = (ts) => ({
-  parts: [{part: "inflaton", op: "add", path: "capsule/meta", ts, value: {name: "Capsule"}}],
+  parts: [{part: "inflaton", op: "add", path: "wimp", ts, value: {src: "capsule", name: "Capsule"}}],
+})
+
+export const buildInflatonTestMessage = (src, ts) => ({
+  parts: [{part: "inflaton", op: "test", path: src, ts}],
 })
 
 const runInflatonAdd = async () => {
@@ -362,6 +363,172 @@ const runInflatonAdd = async () => {
   }
 }
 
+const canonicalWimpSource = (src) => typeof src === "string" && src.length > 0 &&
+  src.split("/").every((segment) => segment.length > 0 && segment !== "." && segment !== ".." && /^[a-zA-Z0-9._-]+$/.test(segment))
+
+const fixtureSource = (name) => join(skillRoot, "fixtures", name, "meta.ts")
+
+const runMetaRead = async (src, args = []) => {
+  if (!canonicalWimpSource(src)) {
+    return {
+      payload: {
+        schema: "metafor-dev/run@1",
+        ok: false,
+        scenario: "meta-read",
+        step: "invalid-source",
+        error: "meta-read requires one canonical WIMP source path",
+      },
+      exitCode: 2,
+    }
+  }
+
+  const fixtureIndex = args.indexOf("--fixture")
+  const fixture = fixtureIndex >= 0 ? args[fixtureIndex + 1] : undefined
+  if (fixture !== undefined && fixture !== src) {
+    return {
+      payload: {
+        schema: "metafor-dev/run@1",
+        ok: false,
+        scenario: "meta-read",
+        step: "fixture-source-mismatch",
+        src,
+        fixture,
+        error: "fixture name must equal the WIMP source used by the acceptance scenario",
+      },
+      exitCode: 2,
+    }
+  }
+  const modulePath = fixture === undefined
+    ? join(repositoryRoot, "github", src, "meta.ts")
+    : fixtureSource(fixture)
+  if (fixture !== undefined && !existsSync(modulePath)) {
+      return {
+        payload: {
+          schema: "metafor-dev/run@1",
+          ok: false,
+          scenario: "meta-read",
+          step: "fixture-not-found",
+          src,
+          fixture,
+          expectedModule: relative(repositoryRoot, modulePath),
+        },
+        exitCode: 2,
+      }
+  }
+  if (!existsSync(modulePath)) {
+    return {
+      payload: {
+        schema: "metafor-dev/run@1",
+        ok: false,
+        scenario: "meta-read",
+        step: "source-not-found",
+        src,
+        expectedModule: relative(repositoryRoot, modulePath),
+      },
+      exitCode: 2,
+    }
+  }
+
+  const world = runWorld(["status"])
+  if (world.payload.ok !== true) {
+    return {
+      payload: {
+        schema: "metafor-dev/run@1",
+        ok: false,
+        scenario: "meta-read",
+        step: "runtime-not-ready",
+        src,
+        world: world.payload,
+      },
+      exitCode: 1,
+    }
+  }
+
+  const ts = Date.now()
+  const request = buildInflatonTestMessage(src, ts)
+  let response
+  let responseBody
+  try {
+    response = await fetch("http://127.0.0.1:4000/force", {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify(request),
+    })
+    responseBody = await response.json()
+  } catch (error) {
+    return {
+      payload: {
+        schema: "metafor-dev/run@1",
+        ok: false,
+        scenario: "meta-read",
+        step: "ingress-failed",
+        src,
+        request,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      exitCode: 1,
+    }
+  }
+
+  const ingressOk = response.ok && responseBody?.ok === true &&
+    responseBody?.particle?.part === "inflaton" && responseBody?.particle?.op === "test" &&
+    responseBody?.particle?.path === src && responseBody?.particle?.by === "agent" &&
+    responseBody?.particle?.ts === ts && Array.isArray(responseBody?.delivered) &&
+    responseBody.delivered.includes("dark") && responseBody.delivered.includes("bulk")
+  if (!ingressOk) {
+    return {
+      payload: {
+        schema: "metafor-dev/run@1",
+        ok: false,
+        scenario: "meta-read",
+        step: "ingress-rejected",
+        src,
+        request,
+        response: {status: response.status, body: responseBody},
+      },
+      exitCode: 1,
+    }
+  }
+
+  const databasePath = join(repositoryRoot, ".metafor/dev.sqlite")
+  const deadline = Date.now() + 5_000
+  let canonical = null
+  while (Date.now() < deadline) {
+    if (existsSync(databasePath)) {
+      const database = new Database(databasePath, {readonly: true})
+      try {
+        const wimp = database.query("SELECT src, name FROM wimp WHERE src = ?").get(src)
+        const atoms = database.query("SELECT id, parent_atom, parent_topology FROM atom WHERE wimp = ? ORDER BY id").all(src)
+        if (wimp) canonical = {wimp, atoms}
+      } finally {
+        database.close()
+      }
+      if (canonical) break
+    }
+    await delay(50)
+  }
+
+  const ok = canonical !== null
+  return {
+    payload: {
+      schema: "metafor-dev/run@1",
+      ok,
+      scenario: "meta-read",
+      step: ok ? "browser-checkpoint-required" : "projection-timeout",
+      src,
+      ...(fixture ? {fixture: {name: fixture, module: relative(repositoryRoot, modulePath)}} : {}),
+      request,
+      ingress: responseBody,
+      canonical,
+      target: "http://localhost:4004/",
+      checkpoint: ok
+        ? "Use the Codex in-app browser to confirm the generated Inflaton manifestations and resulting projection."
+        : "Inspect the owned contour logs for the missing Dark read or Boundary projection.",
+    },
+    exitCode: ok ? 0 : 1,
+  }
+}
+
 const parseExplicitPaths = (args) => {
   const index = args.indexOf("--paths")
   if (index < 0) return undefined
@@ -433,11 +600,17 @@ const main = async () => {
       return
     }
 
+    if (scenario === "meta-read") {
+      const result = await runMetaRead(step === "status" ? undefined : step, scenarioArgs)
+      emit(result.payload, result.exitCode)
+      return
+    }
+
     emit({
       schema: "metafor-dev/run@1",
       ok: false,
       error: `Unknown scenario: ${scenario ?? "(missing)"}`,
-      scenarios: ["world status|start|stop|logs", "bulk-baseline", "inflaton-add"],
+      scenarios: ["world status|start|stop|logs", "bulk-baseline", "inflaton-add", "meta-read <src> [--fixture capsule]"],
     }, 2)
     return
   }

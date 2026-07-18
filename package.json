@@ -43,7 +43,6 @@
     "@webgpu/types": "^0.1.68",
     "bun-webgpu": "^0.1.6",
     "dts-bundle-generator": "^9.5.1",
-    "fake-indexeddb": "^6.2.5",
     "typedoc": "^0.28.18",
     "typedoc-plugin-merge-modules": "^7.0.0",
     "typescript": "^6.0.2"

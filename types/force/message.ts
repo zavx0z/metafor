@@ -13,13 +13,20 @@ export interface ForceMessageInput {
   parts: [ForcePartInput]
 }
 
-export interface AgentIngressMessage {
+export type AgentIngressMessage = {
   parts: [{
     part: "inflaton"
     op: "add"
+    path: "wimp"
+    ts: number
+    value: {src: string; name: string; desc?: string | null}
+  }]
+} | {
+  parts: [{
+    part: "inflaton"
+    op: "test"
     path: string
     ts: number
-    value: {name: string; desc?: string | null}
   }]
 }
 

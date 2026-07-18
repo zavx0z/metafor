@@ -1,6 +1,5 @@
 import type { Color, LineGlowMaterial, LineSegments, Object3D, Text, TextMaterial, Vector3 } from "@metafor/engine"
 import type { BulkDarkParticle, BulkFieldParticle, BulkManifest } from "./manifest.ts"
-import type { BulkLayoutSettings, BulkRenderSettings } from "./settings.ts"
 import type { TextExtents } from "./text.ts"
 
 export interface BulkDarkParticlePickTarget {
@@ -113,8 +112,6 @@ export interface BulkViewportController {
   dispose(): void
   handleForce(_channel: string, _message: unknown): void
   setAnimationSuspended(suspended: boolean): void
-  setLayoutSettings(settings: Partial<BulkLayoutSettings>): void
-  setRenderSettings(settings: Partial<BulkRenderSettings>): void
   setSize(width: number, height: number): void
   /** Applies a manifest diff while retaining all unchanged render records. */
   applyManifestPatch(manifest: BulkManifest): void

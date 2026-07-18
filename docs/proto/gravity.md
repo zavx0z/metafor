@@ -13,7 +13,8 @@
 связность и геометрическую различимость. В текущем междоменном protocol
 Graviton испускает Boundary после commit current world.
 
-Source/meta declaration переносится отдельно через `Inflaton`:
+Отдельные сущности, прочитанные из внешней Meta-декларации, переносятся через
+`Inflaton`:
 
 ```text
 Dark -> inflaton -> Force -> Boundary declaration/materialization

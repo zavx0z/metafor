@@ -50,18 +50,10 @@ force.onImpulse = async (message) => {
   if (commit) {
     for (const derived of commit.messages) force.impulse(unsourceForceMessage(derived))
     console.log(`[boundary] committed ${commit.rootSrc ?? "declaration"} impulses=${commit.messages.length}`)
-  }
-
-  // Dark emits this terminal Inflaton after a coherent declaration/Matter batch.
-  // Rebuild the derived packed projection once, after Boundary has committed all
-  // preceding particles. Matrix never reads Boundary storage directly.
-  if (
-    part.part === "inflaton" &&
-    part.op === "test" &&
-    typeof part.path === "string" &&
-    !part.path.startsWith("force/replay/")
-  ) {
-    await publishMatrixRuntime()
+    // There is no terminal Inflaton. Every committed declaration entity is a
+    // complete relational step, so Matrix receives the new derived projection
+    // immediately after that step.
+    if (part.part === "inflaton") await publishMatrixRuntime()
   }
 }
 

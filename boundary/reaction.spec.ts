@@ -6,13 +6,11 @@ import {
   type ReactionExecutionSignal,
   type ReactionResultProposal,
 } from "@metafor/types/force/reaction"
-import {boundaryEntityId} from "./incremental.ts"
 import {open, type BoundaryDatabase} from "./sqlite.ts"
+import {readBoundaryValue} from "./world.ts"
 
 const SOURCE = "test/reaction-source"
 const TARGET = "test/reaction-target"
-const TARGET_RESULT = boundaryEntityId(`${TARGET}/fields/1`)
-const TARGET_REACTION = boundaryEntityId(`${TARGET}/reactions/1`)
 type ParticleInput = Omit<Particle, "ts"> & {ts?: number}
 const message = (part: ParticleInput): ForceMessage => ({parts: [{ts: 1, ...part}] as [Particle]})
 
@@ -20,34 +18,43 @@ describe("Boundary Reaction lifecycle", () => {
   let boundary: BoundaryDatabase
   let sourceAtomId: number
   let targetAtomId: number
+  let TARGET_RESULT: number
+  let TARGET_REACTION: number
 
   beforeEach(async () => {
     boundary = await open(":memory:")
     const declarations: ParticleInput[] = [
-      {part: "inflaton", op: "add", path: `${SOURCE}/meta`, value: {name: "Source"}},
-      {part: "inflaton", op: "add", path: `${SOURCE}/fields/1`, value: {key: "value", type: "number", default: 0}},
-      {part: "inflaton", op: "add", path: `${SOURCE}/states/1`, value: {name: "idle", position: 0}},
-      {part: "inflaton", op: "test", path: SOURCE},
-      {part: "inflaton", op: "add", path: `${TARGET}/meta`, value: {name: "Target"}},
-      {part: "inflaton", op: "add", path: `${TARGET}/fields/1`, value: {key: "result", type: "number", default: 0}},
-      {part: "inflaton", op: "add", path: `${TARGET}/states/1`, value: {name: "idle", position: 0}},
+      {part: "inflaton", op: "add", path: "wimp", value: {src: SOURCE, name: "Source"}},
+      {part: "inflaton", op: "add", path: "field", value: {wimp: SOURCE, id: 1, key: "value", type: "number", default: 0}},
+      {part: "inflaton", op: "add", path: "state", value: {wimp: SOURCE, id: 1, name: "idle", position: 0}},
+      {part: "inflaton", op: "add", path: "wimp", value: {src: TARGET, name: "Target"}},
+      {part: "inflaton", op: "add", path: "field", value: {wimp: TARGET, id: 1, key: "result", type: "number", default: 0}},
+      {part: "inflaton", op: "add", path: "state", value: {wimp: TARGET, id: 1, name: "idle", position: 0}},
       {
         part: "inflaton",
         op: "add",
-        path: `${TARGET}/reactions/1`,
+        path: "reaction",
         value: {
+          wimp: TARGET,
+          id: 1,
           key: "source-change",
           label: "Source changed",
           cond: "() => ({meta: 'test/reaction-source', op: 'replace', path: '/context'})",
           src: "({update}) => update({result: 2})",
-          read: ["1"],
-          write: ["1"],
-          states: ["1"],
+          read: [1],
+          write: [1],
+          states: [1],
         },
       },
-      {part: "inflaton", op: "test", path: TARGET},
     ]
     for (const part of declarations) await boundary.materialize(message(part))
+
+    TARGET_RESULT = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM field WHERE wimp = ${TARGET} AND local_id = 1
+    `)[0]?.id)
+    TARGET_REACTION = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM reaction WHERE wimp = ${TARGET} AND local_id = 1
+    `)[0]?.id)
 
     const atoms = await boundary.projection.sql<Array<{id: number; wimp: string}>>`
       SELECT id, wimp FROM atom WHERE wimp IN (${SOURCE}, ${TARGET}) ORDER BY id
@@ -65,12 +72,12 @@ describe("Boundary Reaction lifecycle", () => {
   })
 
   const targetValue = async (): Promise<unknown> => {
-    const row = (await boundary.projection.sql<Array<{valueJson: string}>>`
-      SELECT value_json AS valueJson
-        FROM boundary_atom_field
+    const row = (await boundary.projection.sql<Array<{value: number}>>`
+      SELECT value
+        FROM atom_value
        WHERE atom = ${targetAtomId} AND field = ${TARGET_RESULT}
     `)[0]
-    return row ? JSON.parse(row.valueJson) as unknown : undefined
+    return row ? await readBoundaryValue(boundary.projection.sql, Number(row.value)) : undefined
   }
 
   const schedule = async (): Promise<ReactionExecutionSignal> => {

@@ -19,8 +19,8 @@ MetaFor — открытая эволюционирующая среда, в к�
 
 Текущий контур состоит из пяти доменных проекций:
 
-- `Dark` — declaration, скрытая связность и эволюция Meta;
-- `Boundary` — каноническая materialized persistence;
+- `Dark` — чтение внешних Meta-деклараций, скрытая связность и история;
+- `Boundary` — каноническая реляционная materialized persistence;
 - `Matrix` — детерминированное вычисление State и Transition;
 - `Energy` — исполнение Process, Reaction и локальная Mass;
 - `Bulk` — WebGPU manifestation и наблюдаемая форма.
@@ -64,7 +64,9 @@ bun install
 ```
 
 Ядро запускается без встроенной Meta. Текущие итерационные Meta создаются в
-`github/<owner>/<name>/meta.ts` и загружаются явно через Dark.
+`github/<owner>/<name>/meta.ts` и читаются явно через Dark. Meta остаётся
+внешней декларацией: внутрь Вселенной входят только сформированные из неё WIMP,
+Field, State, Matter и другие отдельные сущности.
 
 ## Запуск доменов
 

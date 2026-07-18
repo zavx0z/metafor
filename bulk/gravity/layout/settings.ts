@@ -2,7 +2,7 @@ import type { BulkLayoutSnapshotConfig } from "@metafor/types/bulk/layout"
 import type { BulkLayoutSettings } from "@metafor/types/bulk/settings"
 import type { LevelGeometrySettings } from "@metafor/types/bulk/level"
 
-/** Базовые размеры root Dark particle; rootInnerDiameterMm остаётся fallback-ом для Atom без Fields. */
+/** Базовые размеры root Dark particle; rootInnerDiameterMm — fallback для непустого Atom без Fields. */
 export const DEFAULT_BULK_LAYOUT_SETTINGS: BulkLayoutSettings = {
   orbitEdgeGapMm: 0,
   rootInnerDiameterMm: 1000,
@@ -11,10 +11,9 @@ export const DEFAULT_BULK_LAYOUT_SETTINGS: BulkLayoutSettings = {
 
 /** Нередактируемый snapshot-контракт layout-а: целевой диаметр root, плотности, минимумы. */
 export const DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG: BulkLayoutSnapshotConfig = {
-  deepestFieldSphereRadiusMm: 50,
   nestingCoefficient: 0.1,
   packingDensityCoefficient: 1.12,
-  rootOuterDiameterMm: 4000,
+  rootOuterDiameterMm: 100,
   sphereMinScaleFactor: 0.5,
 }
 

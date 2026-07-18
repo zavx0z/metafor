@@ -121,8 +121,8 @@ const createHarness = (
       void force.onImpulse(message({parts: [{
         part: "graviton",
         op: "add",
-        path: `declaration/${process.wimp}/processes/${index + 1}`,
-        value: structuredClone(process),
+        path: "process",
+        value: {...structuredClone(process), localId: index + 1},
       }]}))
     })
   }

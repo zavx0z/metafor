@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { materializedRootSrc, observedRootSrc, resolveForceFieldId, resolveForceFieldsPayload, resolveForceImpulseTiming, resolveForceImpulseVisual } from "./force-protocol"
+import { materializedRootSrc, observedRootSrc, resolveForceFieldId, resolveForceFieldsPayload, resolveForceImpulseRadius, resolveForceImpulseTiming, resolveForceImpulseVisual } from "./force-protocol"
 
 describe("bulk/web Force protocol adapter", () => {
 	test("accepts protocol field patches from value.fields", () => {
@@ -29,8 +29,8 @@ describe("bulk/web Force protocol adapter", () => {
 
 	test("derives the agent, Dark and Boundary stages from the same minimal Particle fields", () => {
 		const ts = 1_700_000_000_000
-		const agent = resolveForceImpulseVisual({part: "inflaton", op: "add", path: "capsule/meta", by: "agent", ts, value: {name: "Capsule"}})
-		const dark = resolveForceImpulseVisual({part: "inflaton", op: "add", path: "capsule/meta", by: "dark", ts, value: {name: "Capsule"}})
+		const agent = resolveForceImpulseVisual({part: "inflaton", op: "add", path: "wimp", by: "agent", ts, value: {src: "capsule", name: "Capsule"}})
+		const dark = resolveForceImpulseVisual({part: "inflaton", op: "add", path: "wimp", by: "dark", ts, value: {src: "capsule", name: "Capsule"}})
 		const boundary = resolveForceImpulseVisual({part: "graviton", op: "add", path: "atom/7", by: "boundary", ts, value: {atom: {id: 7, wimp: "capsule"}}})
 
 		expect(agent.targetOffset).toEqual(dark.startOffset)
@@ -41,10 +41,16 @@ describe("bulk/web Force protocol adapter", () => {
 	})
 
 	test("continues only an active phase and never replays a completed Particle", () => {
-		const part = {part: "inflaton", op: "add", path: "capsule/meta", by: "dark", ts: 1_000, value: {name: "Capsule"}} as const
+		const part = {part: "inflaton", op: "add", path: "wimp", by: "dark", ts: 1_000, value: {src: "capsule", name: "Capsule"}} as const
 		expect(resolveForceImpulseTiming(part, 1_000)).toEqual({elapsedMs: -120, remainingMs: 840})
 		expect(resolveForceImpulseTiming(part, 1_220)).toEqual({elapsedMs: 100, remainingMs: 620})
 		expect(resolveForceImpulseTiming(part, 1_840)).toBeNull()
+	})
+
+	test("scales a transient to the manifested target instead of a fixed tiny radius", () => {
+		expect(resolveForceImpulseRadius(50)).toBe(6)
+		expect(resolveForceImpulseRadius(1_000)).toBe(20)
+		expect(resolveForceImpulseRadius(Number.NaN)).toBe(2)
 	})
 
 	test("selects only a newly materialized root Atom as the next observed scene", () => {
@@ -67,10 +73,10 @@ describe("bulk/web Force protocol adapter", () => {
 		expect(observedRootSrc({
 			part: "graviton",
 			op: "add",
-			path: "declaration/capsule/meta",
+			path: "wimp",
 			by: "boundary",
 			ts: 2,
-			value: {name: "Capsule"},
+			value: {src: "capsule", name: "Capsule"},
 		}, new Set(["capsule"]))).toBe("capsule")
 	})
 })

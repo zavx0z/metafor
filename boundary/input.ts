@@ -54,7 +54,9 @@ export class BoundaryInputStore {
           if (fieldId === null || !scalarFields.has(fieldId)) {
             throw new Error(`External Gluon cannot remove field ${address}`)
           }
-          await tx`DELETE FROM boundary_atom_field WHERE atom = ${atomId} AND field = ${fieldId}`
+          const previous = (await tx<Array<{value: number}>>`SELECT value FROM atom_value WHERE atom = ${atomId} AND field = ${fieldId}`)[0]
+          await tx`DELETE FROM atom_value WHERE atom = ${atomId} AND field = ${fieldId}`
+          if (previous) await tx`DELETE FROM value WHERE id = ${previous.value}`
           scalar[String(fieldId)] = value
         }
         return {atom, scalar}

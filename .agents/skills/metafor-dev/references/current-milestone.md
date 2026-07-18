@@ -1,63 +1,72 @@
-# Текущий milestone: один наблюдаемый Inflaton
+# Текущий milestone: послойное чтение Meta
 
-Этот файл задаёт порядок разработки, но не заменяет canonical concept и
-проектные контракты.
-
-## Статус
-
-Завершён 17 июля 2026 года. Через внешний ingress Force создан корневой Atom
-`Capsule`; один исходный `ts` прослежен от `by: agent` до переиспускания
-`by: dark`, raw Particle не попала в Boundary, а Atom и переходный импульс
-проявились в Bulk для текущего Viewpoint.
-
-Следующий milestone не открыт: конкретный следующий тип операции выбирается
-отдельно перед началом следующего изменения runtime.
+Этот файл задаёт порядок разработки, но не заменяет project documentation.
 
 ## Результат
 
-Провести один внешний `inflaton/add` по пути:
+Входной `inflaton/test <root-src>` проходит через endpoint Force только в Dark
+и Bulk. Dark читает корневой Meta-пакет и достижимые WIMP-источники в ширину,
+по слоям, немедленно испуская каждую готовую декларационную частицу.
 
 ```text
-agent → central Force → Dark → central Force → Boundary
-          ↘ Bulk            ↘ Bulk
+agent inflaton/test
+  → Force
+  → Dark
+  → root declaration particles
+  → next WIMP layer declarations
+  → released Matter references
 ```
 
-Bulk проявляет причинный путь для текущего Viewpoint без отдельного trace
-envelope. Boundary не получает raw agent Inflaton.
+`inflaton/test` является только командой чтения. Dark не испускает его в конце
+и не использует как commit, barrier или признак завершения.
 
-## Последовательность
+## Закон испускания
 
-1. Завершить минимальный Particle contract с обязательными `by` и `ts`.
-2. Отделить внешний ingress payload от доверенного внутреннего сообщения.
-3. На ingress назначить `by: agent`, сохранив входной `ts`.
-4. Ввести один закон релевантности: raw `inflaton/add` применяется только Dark,
-   но может проявляться локальной силой Bulk.
-5. Dark применяет Patch и штатно испускает его с `by: dark`, не меняя `ts`.
-6. Доказать тестом, что Boundary не получает raw `by: agent` Inflaton.
-7. Добавить минимальное GPU-проявление Inflaton в Bulk без локальной истории.
-8. Провести живой сценарий и показать весь путь в браузере Codex.
+- Meta остаётся внешним файлом и не становится Particle или сущностью
+  Вселенной;
+- WIMP, Fields, Variants, States, Transitions, Conditions, Processes,
+  Reactions, Matter, Mass и Bulk испускаются по одному, как только локальные
+  данные конкретной сущности уже прочитаны;
+- Matter topology (`fuzzy`, `axion`, `macho`) и Matter-ссылка `kind: "wimp"`
+  испускаются до начала чтения целевого дочернего WIMP;
+- дочерние WIMP одного слоя читаются до WIMP следующего слоя;
+- удаление недостижимых деклараций ждёт завершения обхода, потому что только
+  тогда известна новая достижимость.
 
 ## Не вводить на этом этапе
 
-- источник `user`;
-- `causedBy`, parent id или иной causal metadata;
-- отдельный trace protocol;
-- постоянный render loop;
-- широкую таблицу всех сил всех доменов;
-- протокол обмена между Вселенными;
-- полную platform-neutral переработку Viewpoint.
+- завершающий `inflaton/test`;
+- batch всего достижимого графа перед первым испусканием;
+- полный snapshot секции вместо отдельных Patch;
+- постоянное временное хранилище готовых деклараций;
+- trace envelope или causal metadata;
+- отдельную команду commit/barrier.
 
-## Критерий завершения
+## Автоматическое доказательство
 
-- runtime отклоняет Particle без валидных `by` и `ts`;
-- внешний payload не назначает себе доверенный `by`;
-- Dark сохраняет исходный `ts` и испускает `by: dark`;
-- Boundary никогда не получает raw agent Inflaton;
-- Bulk проявляет путь из обычных минимальных Impulse;
-- в покое нет постоянной перерисовки;
-- узкие автотесты и typecheck зелёные;
-- пользователь видит живой результат в Bulk без обязательного чтения логов.
+- родительский Inflaton виден до завершения загрузки дочернего WIMP;
+- порядок чтения `root → siblings → descendants`;
+- topology и WIMP-ребро выходят до начала чтения дочернего WIMP;
+- WIMP одного слоя читаются раньше их потомков следующего слоя;
+- повторное чтение испускает только изменения;
+- removals сохраняют порядок отсоединения;
+- завершающего `inflaton/test` нет.
 
-После доказательства открывать следующий тип операции отдельно: следующий
-`add`, затем `replace`, затем `remove` и только потом dependency waiting и
-послойное чтение Meta.
+## Живая приёмка
+
+```bash
+bun .agents/skills/metafor-dev/scripts/metafor-dev.mjs run meta-read <src>
+```
+
+Для воспроизводимой приёмки Capsule без файлов в продуктовой площадке:
+
+```bash
+bun .agents/skills/metafor-dev/scripts/metafor-dev.mjs run meta-read capsule --fixture capsule
+```
+
+Owned-контур передаёт Dark внешний корень fixture непосредственно из skill.
+Никакая runtime-копия не появляется в продуктовой площадке и hot-reload Dark не
+запускается. Внутрь Вселенной Meta-файл не переносится.
+
+После machine-checkpoint открыть Bulk в браузере Codex и подтвердить видимый
+входной импульс, последовательные Dark Inflaton и итоговую проекцию.

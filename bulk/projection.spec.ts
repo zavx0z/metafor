@@ -45,13 +45,13 @@ describe("Bulk incremental projection", () => {
 
   test("declaration patch updates only its canonical record in place", () => {
     const store = new BulkProjectionStore()
-    store.apply(part("add", "declaration/owner/root/meta/0", {id: 1, src: "owner/root", name: "Root"}))
-    store.apply(part("add", "declaration/owner/root/fields/1", {id: 101, wimp: "owner/root", key: "name", type: "string", label: "Name"}))
-    store.apply(part("add", "declaration/owner/root/fields/2", {id: 102, wimp: "owner/root", key: "count", type: "number", label: "Count"}))
+    store.apply(part("add", "wimp", {src: "owner/root", name: "Root"}))
+    store.apply(part("add", "field", {id: 101, localId: 1, wimp: "owner/root", key: "name", type: "string", label: "Name"}))
+    store.apply(part("add", "field", {id: 102, localId: 2, wimp: "owner/root", key: "count", type: "number", label: "Count"}))
     const field = store.fields.get(101)
     const peer = store.fields.get(102)
 
-    store.apply(part("replace", "declaration/owner/root/fields/1", {label: "Title"}))
+    store.apply(part("replace", "field", {id: 101, localId: 1, wimp: "owner/root", key: "name", type: "string", label: "Title"}))
 
     expect(store.fields.get(101)).toBe(field)
     expect(store.fields.get(101)?.label).toBe("Title")
@@ -71,8 +71,8 @@ describe("Bulk incremental projection", () => {
 
   test("replay and Photon keep the Atom current State in the same projection", () => {
     const store = new BulkProjectionStore()
-    store.apply(part("add", "declaration/owner/root/states/1", {id: 201, wimp: "owner/root", name: "idle", position: 0}))
-    store.apply(part("add", "declaration/owner/root/states/2", {id: 202, wimp: "owner/root", name: "ready", position: 1}))
+    store.apply(part("add", "state", {id: 201, localId: 1, wimp: "owner/root", name: "idle", position: 0}))
+    store.apply(part("add", "state", {id: 202, localId: 2, wimp: "owner/root", name: "ready", position: 1}))
     store.apply(part("add", "atom/1", {...atom(1, "owner/root"), state: {atom: 1, metaState: 201}}))
 
     expect(store.atomStates.get(1)?.state).toBe(201)
