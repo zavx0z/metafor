@@ -22,6 +22,11 @@ bun .agents/skills/metafor-dev/scripts/metafor-dev.mjs impact --check --paths <p
 Внутренние helper-скрипты skill напрямую не вызывать. Сначала нужны
 детерминированные тесты и сборки, затем относящаяся к изменению живая приёмка.
 
+Поле `owner` контура имеет значения `interpreter`, `metafor-dev`, `external`
+или `none`. `owner: interpreter` — штатный development-контур: его используют
+как есть и не закрывают ради смены владельца. `run world start` допустим только
+при `owner: none`, а автоматический stop — только при `owner: metafor-dev`.
+
 При изменении команд, портов, health-контрактов, генераторов, host-инструментов
 или пользовательского сценария одновременно обновлять MetaFor Dev. В проектном
 коде оставлять продукт и автотесты; development-обвязку размещать в skill.

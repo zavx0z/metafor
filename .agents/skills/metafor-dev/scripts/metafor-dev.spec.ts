@@ -1,8 +1,23 @@
 import { describe, expect, test } from "bun:test"
 
 import { buildImpact, buildInflatonAddMessage, buildInflatonTestMessage, validateSkill } from "./metafor-dev.mjs"
+import { classifyWorldOwner } from "./world-owner.mjs"
 
 describe("MetaFor Dev contour", () => {
+  test("distinguishes every runtime process owner without an ambiguous boolean", () => {
+    expect(classifyWorldOwner({metaforDevOwned: true})).toBe("metafor-dev")
+    expect(classifyWorldOwner({interpreterServices: ["force", "dark"]})).toBe("interpreter")
+    expect(classifyWorldOwner({healthyServices: ["force"]})).toBe("external")
+    expect(classifyWorldOwner({})).toBe("none")
+  })
+
+  test("treats mixed Interpreter and unknown listeners as external", () => {
+    expect(classifyWorldOwner({
+      interpreterServices: ["force"],
+      healthyServices: ["force", "dark"],
+    })).toBe("external")
+  })
+
   test("maps Force transport and relay changes to focused tests and live stories", () => {
     const impact = buildImpact(["force/server.ts", "types/force/particle.ts"])
 

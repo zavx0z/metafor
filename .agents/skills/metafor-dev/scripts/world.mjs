@@ -5,21 +5,22 @@ import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { spawn } from "node:child_process"
+import {classifyWorldOwner, readInterpreterServices} from "./world-owner.mjs"
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url))
 const repositoryRoot = resolve(scriptDirectory, "../../../..")
-const owner = typeof process.getuid === "function" ? process.getuid() : "user"
-const runtimeDirectory = join(tmpdir(), `metafor-dev-${owner}`)
+const userId = typeof process.getuid === "function" ? process.getuid() : "user"
+const runtimeDirectory = join(tmpdir(), `metafor-dev-${userId}`)
 const statePath = join(runtimeDirectory, "world.json")
 const logPath = join(runtimeDirectory, "world.log")
 
 const services = [
-  { name: "force", port: 4000 },
-  { name: "boundary", port: 4001 },
-  { name: "dark", port: 4002 },
-  { name: "matrix", port: 4003 },
-  { name: "bulk", port: 4004 },
-  { name: "energy", port: 4005 },
+  { name: "force", port: 4000, modulePath: "force/server.ts" },
+  { name: "boundary", port: 4001, modulePath: "boundary/server.ts" },
+  { name: "dark", port: 4002, modulePath: "dark/server.ts" },
+  { name: "matrix", port: 4003, modulePath: "matrix/server.ts" },
+  { name: "bulk", port: 4004, modulePath: "bulk/server.ts" },
+  { name: "energy", port: 4005, modulePath: "energy/server.ts" },
 ]
 
 const delay = (milliseconds) => new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds))
@@ -106,18 +107,38 @@ const processExists = (pid) => {
   }
 }
 
-const getOwnership = () => {
+const getManagedProcess = () => {
   const state = readJson(statePath)
 
   if (!state || state.root !== repositoryRoot || !processExists(state.pid)) {
-    return { owned: false }
+    return undefined
   }
 
   return {
-    owned: true,
     pid: state.pid,
     startedAt: state.startedAt,
     log: state.log,
+  }
+}
+
+const describeWorld = (result) => {
+  const managedProcess = getManagedProcess()
+  const healthyServices = Object.values(result.services)
+    .filter((service) => service.healthy)
+    .map((service) => service.name)
+  const interpreterServices = managedProcess
+    ? []
+    : readInterpreterServices({repositoryRoot, services})
+  const owner = classifyWorldOwner({
+    metaforDevOwned: managedProcess !== undefined,
+    interpreterServices,
+    healthyServices,
+  })
+
+  return {
+    ...result,
+    owner,
+    ...(managedProcess ? {managedProcess} : {}),
   }
 }
 
@@ -129,26 +150,29 @@ const tail = (path, lineCount) => {
 const status = async () => {
   const result = await getStatus()
 
-  emit({
-    ...result,
-    ownership: getOwnership(),
-  }, result.state === "partial" || result.state === "starting" ? 2 : 0)
+  emit(describeWorld(result), result.state === "partial" || result.state === "starting" ? 2 : 0)
 }
 
 const start = async () => {
-  const before = await getStatus()
+  const before = describeWorld(await getStatus())
 
   if (before.state === "running") {
-    emit({ ...before, action: "already-running", ownership: getOwnership() })
+    emit({ ...before, action: "already-running" })
     return
   }
 
-  if (before.state !== "stopped") {
+  if (before.owner !== "none" || before.state !== "stopped") {
     emit({
       ...before,
       action: "refused",
-      reason: before.state === "partial" ? "partial-contour" : "contour-not-ready",
-      hint: "Do not start a second contour. Inspect existing listeners and processes.",
+      reason: before.owner === "interpreter"
+        ? "interpreter-contour-active"
+        : before.state === "partial"
+          ? "partial-contour"
+          : "contour-not-ready",
+      hint: before.owner === "interpreter"
+        ? "Use the existing Interpreter contour; do not replace its processes."
+        : "Do not start a second contour. Inspect existing listeners and processes.",
     }, 2)
     return
   }
@@ -183,7 +207,7 @@ const start = async () => {
     const current = await getStatus()
 
     if (current.state === "running") {
-      emit({ ...current, action: "started", ownership: { owned: true, ...state } })
+      emit({ ...describeWorld(current), action: "started" })
       return
     }
 
@@ -191,10 +215,9 @@ const start = async () => {
   }
 
   emit({
-    ...(await getStatus()),
+    ...describeWorld(await getStatus()),
     action: "failed",
     reason: "contour-did-not-become-healthy",
-    ownership: { owned: processExists(child.pid), ...state },
     logTail: tail(logPath, 40),
   }, 1)
 }
@@ -225,14 +248,14 @@ const logs = () => {
 }
 
 const stop = async () => {
-  const state = readJson(statePath)
+  const state = getManagedProcess()
 
-  if (!state || state.root !== repositoryRoot || !processExists(state.pid)) {
+  if (!state) {
     emit({
-      ...(await getStatus()),
+      ...describeWorld(await getStatus()),
       ok: false,
       action: "refused",
-      reason: "contour-not-owned-by-skill",
+      reason: "contour-not-owned-by-metafor-dev",
     }, 2)
     return
   }
@@ -249,28 +272,31 @@ const stop = async () => {
     const current = await getStatus()
     if (!processExists(state.pid) && current.state === "stopped") {
       rmSync(statePath, { force: true })
-      emit({ ...current, action: "stopped", ownership: { owned: false } })
+      emit({ ...current, action: "stopped", owner: "none" })
       return
     }
   }
 
   emit({
-    ...(await getStatus()),
+    ...describeWorld(await getStatus()),
     action: "timeout",
     reason: "owned-process-did-not-stop-after-sigterm",
-    ownership: { owned: true, pid: state.pid, log: state.log },
   }, 1)
 }
 
-const command = process.argv[2] ?? "status"
+const main = async () => {
+  const command = process.argv[2] ?? "status"
 
-if (command === "status") await status()
-else if (command === "start") await start()
-else if (command === "logs") logs()
-else if (command === "stop") await stop()
-else emit({
-  schema: "metafor-dev/world@1",
-  ok: false,
-  error: `Unknown command: ${command}`,
-  commands: ["status", "start", "logs", "stop"],
-}, 2)
+  if (command === "status") await status()
+  else if (command === "start") await start()
+  else if (command === "logs") logs()
+  else if (command === "stop") await stop()
+  else emit({
+    schema: "metafor-dev/world@1",
+    ok: false,
+    error: `Unknown command: ${command}`,
+    commands: ["status", "start", "logs", "stop"],
+  }, 2)
+}
+
+if (import.meta.main) await main()

@@ -80,7 +80,9 @@ bun run check
 
 ## Живая приёмка
 
-После автоматических проверок выполнить `run world start`, `run inflaton-add` и
-`run meta-read`. Force health должен показать `running` и пять
-`connectedDomains`; Bulk должен проявить причинный результат. После приёмки
-остановить только контур, которым владеет MetaFor Dev.
+После автоматических проверок использовать существующий `owner: interpreter`
+или выполнить `run world start` только при `owner: none`, затем запустить
+`run inflaton-add` и `run meta-read`. Force health должен показать `running` и
+пять `connectedDomains`; Bulk должен проявить причинный результат. После
+приёмки остановить только `owner: metafor-dev`; Interpreter-контур оставить
+работать.

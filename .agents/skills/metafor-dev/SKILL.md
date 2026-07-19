@@ -32,14 +32,19 @@ description: "Поэтапная разработка MetaFor через Codex: 
    bun .agents/skills/metafor-dev/scripts/metafor-dev.mjs doctor
    ```
 
-5. Если все сервисы остановлены и runtime нужен для задачи, запустить их:
+   Поле `owner` имеет только четыре значения: `interpreter`, `metafor-dev`,
+   `external`, `none`. Interpreter-контур является штатным development-контуром
+   и не заменяется ради передачи владения MetaFor Dev.
+5. Только при `owner: none`, если runtime нужен для задачи, запустить его:
 
    ```bash
    bun .agents/skills/metafor-dev/scripts/metafor-dev.mjs run world start
    ```
 
-6. Если поднята только часть сервисов, не запускать второй контур. Сначала
-   диагностировать владельцев портов и существующие процессы.
+6. При `owner: interpreter` использовать существующие процессы и управлять ими
+   через Interpreter. При `owner: external` ничего не останавливать
+   автоматически. Если поднята только часть сервисов, не запускать второй
+   контур.
 7. Для текущего этапа прочитать
    [`references/current-milestone.md`](references/current-milestone.md). Не
    загружать остальные references без соответствующей задачи.
@@ -49,6 +54,13 @@ description: "Поэтапная разработка MetaFor через Codex: 
 ### Запуск или диагностика
 
 - Использовать `metafor-dev.mjs doctor` как первый machine-readable evidence.
+- Интерпретировать `owner` буквально:
+  - `interpreter` — штатный контур разработки, использовать без смены владельца;
+  - `metafor-dev` — process group, которой может управлять MetaFor Dev;
+  - `external` — неизвестный или смешанный владелец, не останавливать;
+  - `none` — процессов контура нет, запуск разрешён.
+- Перед решениями о портах сверять Interpreter `process.list`. Не закрывать его
+  модули только ради запуска того же контура через MetaFor Dev.
 - Использовать `metafor-dev.mjs run world logs` только для контура, запущенного
   этим skill.
 - Использовать `metafor-dev.mjs run world stop` только для процесса, которым
