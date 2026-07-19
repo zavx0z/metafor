@@ -1,16 +1,14 @@
 import type {ServerWebSocket} from "bun"
-import type {ForceMessage} from "@metafor/types/force/message"
-import {isForceMessage} from "@metafor/types/force/validation"
+import type {ForceMessage, SourcedForceMessage} from "@metafor/types/force/message"
 
 type ForceSocketData = {
-  domain?: string
-  id?: string
+  domain: string
+  id: string
 }
 
 export type ForceTestClient = {
   domain: string
   id: string
-  socket: ServerWebSocket<ForceSocketData>
 }
 
 export type ForceTestMessage = {
@@ -35,12 +33,22 @@ export type ForceTestFixture = {
   close(): void
 }
 
+type InternalClient = ForceTestClient & {
+  socket: ServerWebSocket<ForceSocketData>
+}
+
+/**
+ * Поднимает настоящий WebSocket transport для старых доменных unit fixtures.
+ *
+ * Identity домена читается из HTTP Upgrade. После открытия сокета fixture и
+ * транспортные клиенты обмениваются только одной Particle без register или
+ * replay payload.
+ */
 export function createForceTestFixture(): ForceTestFixture {
-  const clients: ForceTestClient[] = []
+  const clients: InternalClient[] = []
   const messages: ForceTestMessage[] = []
   const previousForceAddress = Bun.env.FORCE_ADDRESS
   const previousForceReconnect = Bun.env.FORCE_RECONNECT
-  let closed = false
   const clientWaiters = new Set<{
     domain: string
     resolve(client: ForceTestClient): void
@@ -54,6 +62,7 @@ export function createForceTestFixture(): ForceTestFixture {
     reject(error: Error): void
     timer: ReturnType<typeof setTimeout>
   }>()
+  let closed = false
 
   let server: Bun.Server<ForceSocketData> | undefined
   let lastError: unknown
@@ -61,64 +70,50 @@ export function createForceTestFixture(): ForceTestFixture {
     try {
       server = Bun.serve<ForceSocketData>({
         hostname: "127.0.0.1",
-        port: 45000 + Math.floor(Math.random() * 10000),
+        port: 45_000 + Math.floor(Math.random() * 10_000),
         routes: {
           "/ws": {
             GET(req: Bun.BunRequest<"/ws">, server: Bun.Server<ForceSocketData>) {
-              const upgraded = server.upgrade(req, {data: {}})
+              const url = new URL(req.url)
+              const domain = url.searchParams.get("domain")
+              const id = url.searchParams.get("id")
+              if (!domain || !id) return new Response("Force channel identity is required", {status: 400})
+              const upgraded = server.upgrade(req, {data: {domain, id}})
               return upgraded ? undefined : new Response("WebSocket upgrade failed", {status: 426})
             },
           },
         },
         websocket: {
+          open(ws) {
+            const client: InternalClient = {...ws.data, socket: ws}
+            clients.push(client)
+            for (const waiter of [...clientWaiters]) {
+              if (waiter.domain !== client.domain) continue
+              clearTimeout(waiter.timer)
+              clientWaiters.delete(waiter)
+              waiter.resolve(client)
+            }
+          },
           close(ws) {
             const index = clients.findIndex((client) => client.socket === ws)
             if (index !== -1) clients.splice(index, 1)
           },
           message(ws, raw) {
-            let payload: unknown
+            let message: SourcedForceMessage
             try {
-              payload = JSON.parse(String(raw)) as unknown
+              message = JSON.parse(String(raw)) as SourcedForceMessage
             } catch {
               return
             }
-
-            if (
-              typeof payload === "object" &&
-              payload !== null &&
-              (payload as {type?: unknown}).type === "register" &&
-              typeof (payload as {domain?: unknown}).domain === "string" &&
-              typeof (payload as {id?: unknown}).id === "string"
-            ) {
-              const client: ForceTestClient = {
-                domain: (payload as {domain: string}).domain,
-                id: (payload as {id: string}).id,
-                socket: ws,
-              }
-              ws.data.domain = client.domain
-              ws.data.id = client.id
-              clients.push(client)
-
-              for (const waiter of [...clientWaiters]) {
-                if (waiter.domain !== client.domain) continue
-                clearTimeout(waiter.timer)
-                clientWaiters.delete(waiter)
-                waiter.resolve(client)
-              }
-              return
-            }
-
-            if (!isForceMessage(payload)) return
-            const client = clients.find((client) => client.socket === ws)
+            const client = clients.find((candidate) => candidate.socket === ws)
             if (!client) return
-            const message: ForceTestMessage = {
+            const entry: ForceTestMessage = {
               client,
               domain: client.domain,
               id: client.id,
-              message: payload,
+              message,
             }
-            messages.push(message)
-
+            messages.push(entry)
             for (const waiter of [...messageWaiters]) {
               const match = messages.slice(waiter.fromIndex).find(waiter.predicate)
               if (!match) continue
@@ -139,15 +134,17 @@ export function createForceTestFixture(): ForceTestFixture {
     throw lastError instanceof Error ? lastError : new Error("Failed to start Force test fixture")
   }
 
-  const resolveClient = (target: ForceTestClient | string): ForceTestClient => {
-    if (typeof target !== "string") return target
-    const client = [...clients].reverse().find((client) => client.domain === target && client.socket.readyState === WebSocket.OPEN)
+  const resolveClient = (target: ForceTestClient | string): InternalClient => {
+    if (typeof target !== "string") {
+      const client = clients.find((candidate) => candidate === target)
+      if (client) return client
+      throw new Error(`Force test client is not connected: ${target.domain}`)
+    }
+    const client = [...clients].reverse().find((candidate) =>
+      candidate.domain === target && candidate.socket.readyState === WebSocket.OPEN
+    )
     if (!client) throw new Error(`Force test client is not connected: ${target}`)
     return client
-  }
-
-  const send = (target: ForceTestClient | string, payload: unknown): void => {
-    resolveClient(target).socket.send(JSON.stringify(payload))
   }
 
   const address = `ws://127.0.0.1:${new URL(server.url.href).port}/ws`
@@ -158,13 +155,12 @@ export function createForceTestFixture(): ForceTestFixture {
     address,
     clients,
     messages,
-    waitForClient(domain, timeoutMs = 1000) {
-      const client = clients.find((client) => client.domain === domain)
-      if (client) return Promise.resolve(client)
-      return this.nextClient(domain, timeoutMs)
+    waitForClient(domain, timeoutMs = 1_000) {
+      const client = clients.find((candidate) => candidate.domain === domain)
+      return client ? Promise.resolve(client) : this.nextClient(domain, timeoutMs)
     },
-    nextClient(domain, timeoutMs = 1000) {
-      return new Promise<ForceTestClient>((resolve, reject) => {
+    nextClient(domain, timeoutMs = 1_000) {
+      return new Promise((resolve, reject) => {
         const waiter = {
           domain,
           resolve,
@@ -177,10 +173,10 @@ export function createForceTestFixture(): ForceTestFixture {
         clientWaiters.add(waiter)
       })
     },
-    waitForMessage(predicate, fromIndex = 0, timeoutMs = 1000) {
+    waitForMessage(predicate, fromIndex = 0, timeoutMs = 1_000) {
       const match = messages.slice(fromIndex).find(predicate)
       if (match) return Promise.resolve(match)
-      return new Promise<ForceTestMessage>((resolve, reject) => {
+      return new Promise((resolve, reject) => {
         const waiter = {
           fromIndex,
           predicate,
@@ -195,7 +191,7 @@ export function createForceTestFixture(): ForceTestFixture {
       })
     },
     impulse(target, message) {
-      send(target, message)
+      resolveClient(target).socket.send(JSON.stringify(message))
     },
     close() {
       if (closed) return

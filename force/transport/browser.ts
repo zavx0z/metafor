@@ -1,10 +1,14 @@
 import {sourceForceMessage, type ForceMessageInput, type SourcedForceMessage} from "@metafor/types/force/message"
 import {forceReplayPath} from "@metafor/types/force/replay"
-import {isForceMessage} from "@metafor/types/force/validation"
-import {ForceBase} from "../core/base"
-import {logImpulse} from "../core/log"
+import {logImpulse} from "../src/log"
+import {ForceBase} from "./base"
 
-const FORCE_BROWSER_ADDRESS = `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`
+const forceBrowserAddress = (domain: string, id: string): string => {
+  const address = new URL(`${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`)
+  address.searchParams.set("domain", domain)
+  address.searchParams.set("id", id)
+  return address.href
+}
 
 export class Force extends ForceBase {
   static #instance: Force | undefined
@@ -25,9 +29,8 @@ export class Force extends ForceBase {
   }
 
   #connect(): WebSocket {
-    const socket = new WebSocket(FORCE_BROWSER_ADDRESS)
+    const socket = new WebSocket(forceBrowserAddress(this.domain, this.id))
     socket.onopen = () => {
-      socket.send(JSON.stringify({type: "register", domain: this.domain, id: this.id}))
       this.emitConnection(true)
       console.log(`[${this.domain}] connected to Force`)
       while (this.#outbox.length > 0 && socket.readyState === WebSocket.OPEN) {
@@ -39,16 +42,14 @@ export class Force extends ForceBase {
       }, this.domain))
     }
     socket.onmessage = (event) => {
-      let impulse: unknown
+      let impulse: SourcedForceMessage
       try {
-        impulse = JSON.parse(String(event.data)) as unknown
+        impulse = JSON.parse(String(event.data)) as SourcedForceMessage
       } catch {
         return
       }
-      if (!isForceMessage(impulse)) return
-      const message = impulse
-      logImpulse(this.domain, "<-", message)
-      this.emitImpulse(message)
+      logImpulse(this.domain, "<-", impulse)
+      this.emitImpulse(impulse)
     }
     socket.onclose = () => {
       this.emitConnection(false)

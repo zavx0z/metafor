@@ -13,23 +13,6 @@ export interface ForceMessageInput {
   parts: [ForcePartInput]
 }
 
-export type AgentIngressMessage = {
-  parts: [{
-    part: "inflaton"
-    op: "add"
-    path: "wimp"
-    ts: number
-    value: {src: string; name: string; desc?: string | null}
-  }]
-} | {
-  parts: [{
-    part: "inflaton"
-    op: "test"
-    path: string
-    ts: number
-  }]
-}
-
 export const sourceForceMessage = (message: ForceMessageInput, by: string): SourcedForceMessage => ({
   parts: [{...message.parts[0], by}],
 })

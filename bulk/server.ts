@@ -4,7 +4,7 @@ import {unsourceForceMessage} from "@metafor/types/force/message"
 import index from "./index.html"
 import {Force} from "force"
 
-type BrowserClient = {domain?: string; id?: string}
+type BrowserClient = {domain: string; id: string}
 
 const browserClients = new Set<ServerWebSocket<BrowserClient>>()
 const force = new Force("bulk")
@@ -25,52 +25,35 @@ const server = Bun.serve<BrowserClient>({
     },
     "/ws": {
       GET(req: Bun.BunRequest<"/ws">, server: Bun.Server<BrowserClient>) {
-        const upgraded = server.upgrade(req, {data: {}})
+        const url = new URL(req.url)
+        const domain = url.searchParams.get("domain")
+        const id = url.searchParams.get("id")
+        if (!domain || !id) return new Response("Bulk channel identity is required", {status: 400})
+        const upgraded = server.upgrade(req, {data: {domain, id}})
         return upgraded ? undefined : new Response("WebSocket upgrade failed", {status: 426})
       },
     },
     "/engine-static/JetBrainsMono-Bold.ttf": file(new URL("../pkg/engine/static/JetBrainsMono-Bold.ttf", import.meta.url)),
   },
   websocket: {
+    open(ws) {
+      browserClients.add(ws)
+      console.log(`[bulk] browser connected ${ws.data.domain} ${ws.data.id}`)
+    },
     close(ws) {
       browserClients.delete(ws)
-      if (ws.data.domain && ws.data.id) console.log(`[bulk] browser disconnected ${ws.data.domain} ${ws.data.id}`)
+      console.log(`[bulk] browser disconnected ${ws.data.domain} ${ws.data.id}`)
     },
     message(ws, raw) {
-      let payload: unknown
+      let message: ForceMessage
       try {
-        payload = JSON.parse(String(raw)) as unknown
+        message = JSON.parse(String(raw)) as ForceMessage
       } catch {
-        sendBrowser(ws, {type: "error", error: "invalid json"})
+        ws.close()
         return
       }
-
-      if (typeof payload !== "object" || payload === null) {
-        sendBrowser(ws, {type: "error", error: "invalid message"})
-        return
-      }
-
-      if ((payload as {type?: unknown}).type === "register") {
-        const {domain, id} = payload as {domain?: unknown; id?: unknown}
-        if (typeof domain !== "string" || typeof id !== "string") {
-          sendBrowser(ws, {type: "error", error: "invalid register"})
-          return
-        }
-        ws.data.domain = domain
-        ws.data.id = id
-        browserClients.add(ws)
-        console.log(`[bulk] browser connected ${domain} ${id}`)
-        return
-      }
-
-      if (Array.isArray((payload as {parts?: unknown}).parts) && (payload as {parts: unknown[]}).parts.length === 1) {
-        const message = payload as ForceMessage
-        console.log(`[bulk] browser -> force part=${message.parts[0].part}`)
-        force.impulse(unsourceForceMessage(message))
-        return
-      }
-
-      sendBrowser(ws, {type: "error", error: "unsupported message"})
+      console.log(`[bulk] browser -> force part=${message.parts[0].part}`)
+      force.impulse(unsourceForceMessage(message))
     },
   },
 })

@@ -5,9 +5,6 @@ export type ParticleOperation = "add" | "remove" | "replace" | "move" | "copy" |
 export const isParticleTimestamp = (value: unknown): value is number =>
   typeof value === "number" && Number.isSafeInteger(value) && value >= 0
 
-export const isParticleSource = (value: unknown): value is string =>
-  typeof value === "string" && /^[a-z][a-z0-9-]*$/.test(value)
-
 export interface Particle {
   part: Part
   op: ParticleOperation

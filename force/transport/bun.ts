@@ -1,8 +1,7 @@
 import {sourceForceMessage, type ForceMessageInput, type SourcedForceMessage} from "@metafor/types/force/message"
 import {forceReplayPath} from "@metafor/types/force/replay"
-import {isForceMessage} from "@metafor/types/force/validation"
-import {ForceBase} from "../core/base"
-import {logImpulse} from "../core/log"
+import {logImpulse} from "../src/log"
+import {ForceBase} from "./base"
 
 const FORCE_DEFAULT_ADDRESS = "ws://127.0.0.1:4000/ws"
 
@@ -22,7 +21,10 @@ export class Force extends ForceBase {
   constructor(override readonly domain: string) {
     super()
     this.id = `${domain}-local`
-    this.#address = Bun.env.FORCE_ADDRESS?.trim() || FORCE_DEFAULT_ADDRESS
+    const address = new URL(Bun.env.FORCE_ADDRESS?.trim() || FORCE_DEFAULT_ADDRESS)
+    address.searchParams.set("domain", domain)
+    address.searchParams.set("id", this.id)
+    this.#address = address.href
     if (Force.#instance) Force.#instance.#closeTransport()
     Force.#instance = this
     Force.#shutdown = undefined
@@ -47,7 +49,6 @@ export class Force extends ForceBase {
   #connect(): WebSocket {
     const socket = new WebSocket(this.#address)
     socket.onopen = () => {
-      socket.send(JSON.stringify({type: "register", domain: this.domain, id: this.id}))
       this.emitConnection(true)
       console.log(`[${this.domain}] connected to Force`)
       while (this.#outbox.length > 0 && socket.readyState === WebSocket.OPEN) {
@@ -67,16 +68,14 @@ export class Force extends ForceBase {
           : ArrayBuffer.isView(data)
             ? new TextDecoder().decode(data)
             : String(data)
-      let impulse: unknown
+      let impulse: SourcedForceMessage
       try {
-        impulse = JSON.parse(text) as unknown
+        impulse = JSON.parse(text) as SourcedForceMessage
       } catch {
         return
       }
-      if (!isForceMessage(impulse)) return
-      const message = impulse
-      logImpulse(this.domain, "<-", message)
-      this.emitImpulse(message)
+      logImpulse(this.domain, "<-", impulse)
+      this.emitImpulse(impulse)
     }
     socket.onclose = () => {
       this.emitConnection(false)
