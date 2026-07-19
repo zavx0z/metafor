@@ -1,25 +1,29 @@
-# Central Force: реализованный contract
+# Force: текущая реализация
 
-Концептуальная семантика Force принадлежит
-[репозиторию `zavx0z/concept`](https://github.com/zavx0z/concept). Ниже описан
-только contract, который проверяет и исполняет текущий runtime. Корневой
-`force/` является ingress и transport между локальными силами доменов, а не
-реализацией всей Force.
+Концептуальная семантика Force принадлежит репозиторию `zavx0z/concept`. Этот
+файл описывает реализованную границу центрального Force.
 
-## Server endpoints
+## Relay и transport
 
-- `GET /health` возвращает `{ok:true, domain:"force"}`.
-- `POST /force` принимает один поддержанный внешний `AgentIngressMessage` без
-  доверенного `by`.
-- `GET /ws` обновляет соединение до WebSocket.
+`force/force.ts` — runtime relay. Он получает одну типизированную Particle,
+применяет вшитые routing laws и вызывает готовые каналы Store. В этом модуле нет
+WebSocket client, server lifecycle или transport mock.
 
-WebSocket registration имеет форму:
+Экспортируемый пакетами доменов `new Force(domain)` — транспортный клиент из
+`force/transport/`. Он сохраняет прежний WebSocket transport, порядок входящих
+Particle, outbox до открытия и reconnect физического соединения.
 
-```json
-{"type":"register","domain":"matrix","id":"matrix-local"}
-```
+Корневой package `force` экспортирует только этот transport client. Relay,
+Store, Монада и их внутренние типы импортируются относительно внутри package;
+fixtures доступны отдельно через test-only subpath `force/fixture`.
 
-Обычный message не содержит `type` и имеет ровно один элемент `parts`:
+## Создание канала
+
+Доменный transport добавляет `domain` и `id` в HTTP Upgrade URL. Force server
+читает identity до открытия WebSocket и оборачивает физический socket в канал
+соответствующего домена. Отдельного WebSocket-сообщения `register` нет.
+
+После Upgrade WebSocket передаёт только:
 
 ```ts
 interface ForceMessage {
@@ -27,85 +31,32 @@ interface ForceMessage {
 }
 ```
 
-Runtime validator разрешает particle keys `part`, `op`, `path`, `by`, `ts`,
-`value` и `from`. `path`, `by` и `ts` обязательны во внутреннем сообщении.
-`path` имеет тип `string | number`; `ts` — неотрицательное целое время источника
-в миллисекундах Unix. `from`, если
-присутствует, имеет тип `string | number`.
+Readiness, health, snapshot, replay, pause, error и прочие служебные payload по
+этому каналу не передаются. JSON decoding остаётся технической операцией
+transport-а; повторной Particle-валидации в Монаде и relay нет.
 
-| Field  | Реализованные значения                                              |
-| ------ | ------------------------------------------------------------------- |
-| `part` | `inflaton`, `graviton`, `photon`, `gluon`, `higgs`, `w+`, `w-`, `z` |
-| `op`   | `add`, `remove`, `replace`, `move`, `copy`, `test`                  |
+Переходное исключение — уже существующая Particle `z/test force/replay/...`,
+которую старые transport clients пока испускают после подключения. Монада
+временно поглощает её до relay. Это мок миграционного этапа, а не протокол
+восстановления.
 
-Payload с дополнительными top-level keys, `type`, нулём или несколькими
-particles получает HTTP 400 или игнорируется WebSocket handler.
+## Server lifecycle
 
-## Внешний ingress
+Монада Force получает пять заранее созданных transport-каналов и ждёт
+физического подключения Dark, Boundary, Matrix, Energy и Bulk. Только после
+готовности всех пяти `GET /health` возвращает `running`, а relay принимает
+Particle.
 
-`POST /force` принимает одну поддержанную Particle без `by`. Force назначает ей
-доверенный источник `by: agent`; вызывающий не может назначить источник себе.
-Сейчас разрешены два узких входа:
+Потеря последнего соединения любого обязательного домена переводит Монаду в
+`error` и закрывает общий relay gate. Transport может физически попытаться
+подключиться повторно, но это не перезапускает runtime и не снимает ошибку.
 
-- `inflaton/add` с категорией `path: "wimp"` и минимальным WIMP в `value`;
-- `inflaton/test` с корневым WIMP SRC в `path`, запускающий чтение внешнего
-  Meta-пакета в Dark.
+## Routing laws
 
-Оба входа доставляются Dark и Bulk. Boundary не получает исходную agent
-Particle. Dark сохраняет её `ts`, а сформированные им декларационные Particle
-испускает с `by: dark` через Force в Boundary и Bulk.
+- agent Inflaton доставляется Dark и Bulk;
+- Dark Inflaton доставляется Boundary и Bulk;
+- uncommitted `gluon`/`higgs` mutation без `from` доставляется Boundary;
+- остальные Particle доставляются всем доменам, кроме канала происхождения.
 
-## Delivery
-
-По умолчанию WebSocket-origin message отправляется всем открытым
-зарегистрированным sockets, кроме origin. Для поддержанных Inflaton действует
-адресный закон: agent Inflaton получает только Dark и Bulk, Dark Inflaton —
-только Boundary и Bulk.
-
-Uncommitted `gluon`/`higgs` mutation без `from` доставляется только
-зарегистрированному Boundary. Если HTTP mutation некому доставить, server
-возвращает 503.
-
-Force server не открывает domain storage. Порядок обхода получателей определяется
-текущим insertion order `Map`.
-
-## Registration и replay markers
-
-При регистрации server обменивает между новым и уже подключёнными consumers
-обычные markers:
-
-```ts
-{parts: [{part: "z", op: "test", path: "force/replay/<domain>/<id>", by: "force", ts: 1710000000000}]}
-```
-
-Bun transport также отправляет marker своего domain после открытия socket.
-Конкретные ответы на marker реализованы domain handlers, не Force storage.
-
-Этот раздел фиксирует наблюдаемое поведение. Он не разрешает открытые
-snapshot/create/replay вопросы и не объявляет существующий механизм
-каноническим.
-
-## Client transport
-
-`new Force(domain)`:
-
-- использует `FORCE_ADDRESS` или `ws://127.0.0.1:4000/ws`;
-- буферизует outgoing messages до открытия socket;
-- переподключается через 500 ms;
-- не переподключается при `FORCE_RECONNECT=0`;
-- публикует текущее состояние регистрации через `connected` и
-  `onConnectionChange` независимо от causal impulse-потока;
-- вызывает `onImpulse` для принятого single-particle message;
-- вызывает optional `onDestroy` при shutdown.
-
-## Наблюдаемость
-
-`METAFOR_LOG_IMPULSES=0|compact|full` управляет детализацией. Дополнительные
-фильтры: `METAFOR_LOG_DOMAINS` и `METAFOR_LOG_PARTS`.
-
-Logger является независимой диагностикой. Его записи не отправляются в Bulk как
-отдельный trace protocol и не становятся историей Вселенной.
-
-Force не добавляет causal parent, trace envelope или renderer instructions.
-Bulk выводит причинное проявление из обычной Particle, текущего состояния,
-времени и Viewpoint.
+Настоящий числовой `z/test` Energy не совпадает с replay path и остаётся обычной
+Particle.

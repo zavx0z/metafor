@@ -49,9 +49,14 @@ Bun processes. Они не загружают Meta автоматически.
 
 ## Реализованное соединение
 
-- `force/server.ts` принимает HTTP и WebSocket `ForceMessage`.
+- `force/server.ts` принимает REST и создаёт пять доменных WebSocket-каналов.
 - Domain transports подключаются к `ws://127.0.0.1:4000/ws`, если
-  `FORCE_ADDRESS` не задан.
+  `FORCE_ADDRESS` не задан; `domain/id` передаются в HTTP Upgrade query.
+- После Upgrade по WebSocket идут только Particle без register или readiness
+  messages. Старый `z/test force/replay/...` временно поглощается Монадой и не
+  достигает relay.
+- `force/force.ts` является только relay и перенаправляет Particle по готовым
+  каналам Store.
 - Domain handlers применяют входные particles к собственным runtime structures.
 - Dark читает внешний `github/<src>/meta.ts` в ширину и испускает отдельные
   декларационные Particle по мере чтения; Meta не становится внутренней
