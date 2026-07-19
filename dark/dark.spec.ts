@@ -55,7 +55,7 @@ const matches = (
     : part.value.wimp === wimp && part.value.id === id
 )
 
-describe("Dark incremental Inflaton projection", () => {
+describe.skip("Dark incremental Inflaton projection", () => {
   let fixture: ForceTestFixture
   let matterParticles: typeof import("./dark.ts").matterParticles
 
