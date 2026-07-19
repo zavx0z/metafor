@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test"
 import { buildImpact, buildInflatonAddMessage, buildInflatonTestMessage, validateSkill } from "./metafor-dev.mjs"
 
 describe("MetaFor Dev contour", () => {
-  test("maps Force changes to focused tests and the Inflaton live scenario", () => {
+  test("maps Force transport and relay changes to focused tests and live stories", () => {
     const impact = buildImpact(["force/server.ts", "types/force/particle.ts"])
 
     expect(impact.ok).toBe(true)

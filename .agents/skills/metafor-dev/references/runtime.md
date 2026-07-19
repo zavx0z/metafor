@@ -2,6 +2,25 @@
 
 Читайте этот файл только при запуске или диагностике development-контура.
 
+## Force health
+
+`GET /health` Force возвращает server state Монады:
+
+```json
+{
+  "ok": true,
+  "domain": "force",
+  "state": "running",
+  "requiredDomains": ["dark", "boundary", "matrix", "energy", "bulk"],
+  "connectedDomains": ["dark", "boundary", "matrix", "energy", "bulk"],
+  "error": null
+}
+```
+
+Identity физического доменного канала передаётся в HTTP Upgrade. После открытия
+WebSocket transport несёт только Particle без register/readiness frames. Старый
+`z/test force/replay/...` временно поглощается Монадой до relay.
+
 ## Карта сервисов
 
 | Домен | Порт | Health |

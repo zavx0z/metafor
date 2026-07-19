@@ -1,72 +1,86 @@
-# Текущий milestone: послойное чтение Meta
+# Текущий milestone: Монада, transport и relay Force
 
-Этот файл задаёт порядок разработки, но не заменяет project documentation.
+Этот файл задаёт текущую узкую проверку и не заменяет каноническую концепцию.
 
 ## Результат
 
-Входной `inflaton/test <root-src>` проходит через endpoint Force только в Dark
-и Bulk. Dark читает корневой Meta-пакет и достижимые WIMP-источники в ширину,
-по слоям, немедленно испуская каждую готовую декларационную частицу.
+Изменяется только домен Force:
 
 ```text
-agent inflaton/test
-  → Force
-  → Dark
-  → root declaration particles
-  → next WIMP layer declarations
-  → released Matter references
+Bun/browser Force transport
+→ identity в HTTP Upgrade
+→ пять физических Particle-каналов в force$
+→ relay force.ts
+→ адресная доставка доменам
 ```
 
-`inflaton/test` является только командой чтения. Dark не испускает его в конце
-и не использует как commit, barrier или признак завершения.
+Dark, Boundary, Matrix, Energy и Bulk продолжают пользоваться прежним публичным
+`new Force(domain)`. Их runtime на этом этапе не переносится на собственные
+Монады.
 
-## Закон испускания
+## Граница модулей
 
-- Meta остаётся внешним файлом и не становится Particle или сущностью
-  Вселенной;
-- WIMP, Fields, Variants, States, Transitions, Conditions, Processes,
-  Reactions, Matter, Mass и Bulk испускаются по одному, как только локальные
-  данные конкретной сущности уже прочитаны;
-- Matter topology (`fuzzy`, `axion`, `macho`) и Matter-ссылка `kind: "wimp"`
-  испускаются до начала чтения целевого дочернего WIMP;
-- дочерние WIMP одного слоя читаются до WIMP следующего слоя;
-- удаление недостижимых деклараций ждёт завершения обхода, потому что только
-  тогда известна новая достижимость.
+- `force/force.ts` — только relay и вшитые законы перенаправления;
+- `force/store.ts` — только каналы пяти обязательных доменов;
+- `force/transport/` — общий контракт и прежние Bun/browser WebSocket adapters доменов;
+- `force/monad.ts` — server state, readiness, общий gate и fail-stop;
+- `force/server.ts` — REST/WebSocket/process events, отображённые на Монаду;
+- `force/src/` — техническое создание физических каналов и логирование;
+- `force/fixture.ts` — отдельный test-only contract;
+- `force/index.ts` — только публичный transport client `Force`.
 
-## Не вводить на этом этапе
+## Закон WebSocket-канала
 
-- завершающий `inflaton/test`;
-- batch всего достижимого графа перед первым испусканием;
-- полный snapshot секции вместо отдельных Patch;
-- постоянное временное хранилище готовых деклараций;
-- trace envelope или causal metadata;
-- отдельную команду commit/barrier.
+Identity `domain/id` передаётся как часть HTTP Upgrade до открытия канала. После
+Upgrade по WebSocket передаётся только одна типизированная Particle.
+
+Не вводить в WebSocket отдельные служебные frames:
+
+- `register`;
+- readiness или health messages;
+- snapshot или domain replay payload;
+- `paused`, error или другую служебную Particle.
+
+До отдельной миграции прежние transport clients ещё испускают обычную Particle
+`z/test force/replay/...`. Это известный старый путь: Монада временно поглощает
+его на domain ingress и возвращает пустую доставку. Relay и другие домены его не
+видят. Исходные replay-тесты сохраняются как `skip`, а не переписываются под мок.
+
+Transport сохраняет прежние физическое соединение, упорядочивание, outbox до
+открытия и попытку reconnect. Эти механизмы не являются автоматическим
+восстановлением Вселенной: после потери обязательного домена Монада остаётся в
+`error`, закрывает общий relay gate и требует нового server lifecycle.
+
+Канал валиден по конструкции. Монада и relay не проверяют повторно форму
+Particle и не сравнивают её `by` с именем канала. Временный мок Монады распознаёт
+только старый replay path. Настоящий числовой `z/test` Energy остаётся обычной
+Particle.
 
 ## Автоматическое доказательство
 
-- родительский Inflaton виден до завершения загрузки дочернего WIMP;
-- порядок чтения `root → siblings → descendants`;
-- topology и WIMP-ребро выходят до начала чтения дочернего WIMP;
-- WIMP одного слоя читаются раньше их потомков следующего слоя;
-- повторное чтение испускает только изменения;
-- removals сохраняют порядок отсоединения;
-- завершающего `inflaton/test` нет.
+```bash
+bun test force
+bun run typecheck
+bun run check
+```
+
+Тесты должны доказать:
+
+- transport client передаёт identity в Upgrade и не испускает service frames;
+- Монада поглощает старый `z/test force/replay/...`, но пропускает числовой
+  `z/test` Energy;
+- Store содержит пять физических доменных каналов;
+- relay применяет текущие routing laws;
+- Монада разрешает runtime после подключения всех доменов;
+- потеря любого работающего канала выполняет fail-stop без error Particle;
+- unit-тесты импортируют relay, Store, Монаду, server и adapters относительно;
+- public-contract test доказывает, что корневой `force` открывает `Force`, но не
+  внутренние symbols;
+- переходная fixture старых доменов использует настоящий WebSocket transport.
 
 ## Живая приёмка
 
-```bash
-bun .agents/skills/metafor-dev/scripts/metafor-dev.mjs run meta-read <src>
-```
-
-Для воспроизводимой приёмки Capsule без файлов в продуктовой площадке:
-
-```bash
-bun .agents/skills/metafor-dev/scripts/metafor-dev.mjs run meta-read capsule --fixture capsule
-```
-
-Owned-контур передаёт Dark внешний корень fixture непосредственно из skill.
-Никакая runtime-копия не появляется в продуктовой площадке и hot-reload Dark не
-запускается. Внутрь Вселенной Meta-файл не переносится.
-
-После machine-checkpoint открыть Bulk в браузере Codex и подтвердить видимый
-входной импульс, последовательные Dark Inflaton и итоговую проекцию.
+После автоматических проверок выполнить `run world start`, `run inflaton-add` и
+`run meta-read`. Force health должен показать `running` и пять
+`connectedDomains`; Bulk должен проявить причинный результат. После приёмки
+остановить только контур, которым владеет MetaFor Dev.

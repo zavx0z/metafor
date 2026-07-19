@@ -17,6 +17,7 @@ const expectedFiles = [
   "agents/openai.yaml",
   "fixtures/capsule/meta.ts",
   "references/current-milestone.md",
+  "references/module-boundaries.md",
   "references/runtime.md",
   "references/visual-acceptance.md",
   "scripts/metafor-dev.mjs",

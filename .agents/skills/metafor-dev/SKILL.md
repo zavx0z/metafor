@@ -21,21 +21,26 @@ description: "Поэтапная разработка MetaFor через Codex: 
    bun .agents/skills/metafor-dev/scripts/metafor-dev.mjs impact --check --paths <paths...>
    ```
 
-3. Проверить контур через единую CLI-точку, не читая внутренний helper:
+3. При изменении TypeScript modules, tests, package API, `index.ts`, `exports`
+   или dependencies прочитать
+   [`references/module-boundaries.md`](references/module-boundaries.md). До
+   редактирования классифицировать каждый затронутый symbol как public API,
+   internal implementation, shared type или test-only fixture.
+4. Проверить контур через единую CLI-точку, не читая внутренний helper:
 
    ```bash
    bun .agents/skills/metafor-dev/scripts/metafor-dev.mjs doctor
    ```
 
-4. Если все сервисы остановлены и runtime нужен для задачи, запустить их:
+5. Если все сервисы остановлены и runtime нужен для задачи, запустить их:
 
    ```bash
    bun .agents/skills/metafor-dev/scripts/metafor-dev.mjs run world start
    ```
 
-5. Если поднята только часть сервисов, не запускать второй контур. Сначала
+6. Если поднята только часть сервисов, не запускать второй контур. Сначала
    диагностировать владельцев портов и существующие процессы.
-6. Для текущего этапа прочитать
+7. Для текущего этапа прочитать
    [`references/current-milestone.md`](references/current-milestone.md). Не
    загружать остальные references без соответствующей задачи.
 
@@ -63,7 +68,9 @@ description: "Поэтапная разработка MetaFor через Codex: 
 
 ### Изменение runtime
 
-1. Прочитать только относящиеся к шагу project docs и canonical concept.
+1. Прочитать только относящиеся к шагу project docs и canonical concept. Для
+   изменения module/package boundary обязательно применить
+   [`references/module-boundaries.md`](references/module-boundaries.md).
 2. Сформулировать один проверяемый результат и запрещённые побочные пути.
 3. Сначала добавить или уточнить автоматический тест.
 4. Выполнить минимальное изменение без широкого рефакторинга доменов.
@@ -87,6 +94,9 @@ description: "Поэтапная разработка MetaFor через Codex: 
 
 - Не копировать в skill онтологию: она принадлежит canonical concept и project
   documentation.
+- Не расширять главный package `index.ts` для удобства unit-теста и не обходить
+  изоляцию доменов production-importом. Точные operational rules находятся в
+  [`references/module-boundaries.md`](references/module-boundaries.md).
 - Не превращать diagnostics logger в Particle protocol или историю Bulk.
 - Не добавлять в Particle trace envelope, causal parent или renderer commands.
 - Не считать пустую сцену ошибкой, если Meta ещё не загружена.
