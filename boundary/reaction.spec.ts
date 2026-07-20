@@ -1,11 +1,11 @@
 import {afterEach, beforeEach, describe, expect, test} from "bun:test"
-import type {ForceMessage} from "@metafor/types/force/message"
-import type {Particle} from "@metafor/types/force/particle"
+import type {ForceMessage} from "shared/protocol/force/message"
+import type {Particle} from "shared/protocol/force/particle"
 import {
   type ReactionExecutionClaim,
   type ReactionExecutionSignal,
   type ReactionResultProposal,
-} from "@metafor/types/force/reaction"
+} from "shared/protocol/force/reaction"
 import {open, type BoundaryDatabase} from "./sqlite.ts"
 import {readBoundaryValue} from "./world.ts"
 

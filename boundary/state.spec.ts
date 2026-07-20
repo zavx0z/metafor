@@ -1,6 +1,6 @@
 import {afterEach, beforeEach, describe, expect, test} from "bun:test"
-import type {ForceMessage} from "@metafor/types/force/message"
-import type {Particle} from "@metafor/types/force/particle"
+import type {ForceMessage} from "shared/protocol/force/message"
+import type {Particle} from "shared/protocol/force/particle"
 import {open, type BoundaryDatabase} from "./sqlite.ts"
 
 const ROOT = "test/state"
@@ -58,13 +58,18 @@ describe("Boundary canonical State", () => {
     return row?.name ?? null
   }
 
-  test("persists non-Process Photon and rebuilds Matrix from the canonical State", async () => {
+  test("persists non-Process Photon and exposes the canonical State for domain birth", async () => {
     await boundary.materialize(message({part: "photon", op: "replace", path: atomId, value: "idle"}))
     expect(await stateName()).toBe("idle")
 
-    const snapshot = await boundary.matrixRuntime()
-    expect(snapshot.data.stateNames).toEqual([["idle", "ready", "complete"]])
-    expect(snapshot.data.branes[0]?.state).toBe(0)
+    const initial = await boundary.initialState()
+    expect(initial.declarations.filter((item) => item.section === "states").map((item) => item.value.name)).toEqual([
+      "idle",
+      "ready",
+      "complete",
+    ])
+    const idle = initial.declarations.find((item) => item.section === "states" && item.value.name === "idle")
+    expect(initial.atoms[0]?.state).toBe(Number(idle?.value.id))
 
     await expect(boundary.materialize(message({
       part: "photon",
@@ -97,7 +102,9 @@ describe("Boundary canonical State", () => {
        WHERE execution_id = ${processExecutionId}
     `)[0]
     expect(execution).toEqual({atom: atomId, process: PROCESS, state: "ready", status: "pending"})
-    expect((await boundary.matrixRuntime()).data.branes[0]?.state).toBe(1)
+    const initial = await boundary.initialState()
+    const ready = initial.declarations.find((item) => item.section === "states" && item.value.name === "ready")
+    expect(initial.atoms[0]?.state).toBe(Number(ready?.value.id))
   })
 
   test("supersedes stale Process and delayed duplicate cannot restore its State", async () => {

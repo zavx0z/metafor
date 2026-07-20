@@ -1,6 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import type {MetaDSL} from "@metafor/types/metafor/schema"
-import type {Particle} from "@metafor/types/force/particle"
+import type {Particle} from "shared/protocol/force/particle"
 import {matterParticles} from "./dark.ts"
 
 const declaration = (input: Partial<MetaDSL> & Pick<MetaDSL, "name">): MetaDSL => ({

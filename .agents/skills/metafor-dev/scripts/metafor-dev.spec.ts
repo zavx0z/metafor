@@ -28,6 +28,16 @@ describe("MetaFor Dev contour", () => {
     expect(impact.skillSurfaces).toContain("current milestone")
   })
 
+  test("maps shared transport and protocol to every affected live boundary", () => {
+    const impact = buildImpact(["shared/transport/force/server.ts", "shared/protocol/monad/rpc.ts"])
+
+    expect(impact.ok).toBe(true)
+    expect(impact.areas).toEqual(["shared-contract"])
+    expect(impact.automated).toContain("bun test shared")
+    expect(impact.live).toEqual(["inflaton-add", "meta-read", "bulk-baseline"])
+    expect(impact.skillSurfaces).toContain("module boundaries")
+  })
+
   test("maps Bulk changes to visual acceptance", () => {
     const impact = buildImpact(["bulk/projection.ts", "pkg/ui/elements/div.ts", "ui/elements/div.ts"])
 

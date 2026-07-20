@@ -1,5 +1,5 @@
 import type {ServerWebSocket} from "bun"
-import type {ForceMessage, SourcedForceMessage} from "@metafor/types/force/message"
+import type {ForceMessage, SourcedForceMessage} from "shared/protocol/force/message"
 
 type ForceSocketData = {
   domain: string

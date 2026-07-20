@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@metafor/types": "workspace:*",
-    "force": "workspace:*",
+    "shared": "workspace:*",
     "@boundary/atom": "workspace:*",
     "@boundary/topology": "workspace:*",
     "@boundary/wimp": "workspace:*"

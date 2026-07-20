@@ -1,88 +1,106 @@
-# Текущий milestone: Монада, transport и relay Force
+# Текущий milestone: первоначальное рождение Matrix через Force RPC
 
 Этот файл задаёт текущую узкую проверку и не заменяет каноническую концепцию.
 
 ## Результат
 
-Изменяется только домен Force:
+Matrix получает первоначальное каноническое состояние через service-plane до
+подключения своего realtime Particle-канала:
 
 ```text
-Bun/browser Force transport
-→ identity в HTTP Upgrade
-→ пять физических Particle-каналов в force$
-→ relay force.ts
-→ адресная доставка доменам
+Boundary Monad HTTP provider
+        ⇅
+transport adapter (сейчас REST, позднее возможен WebRTC DataChannel)
+        ⇅
+MonadRouter
+        ⇅
+transport adapter (сейчас REST, позднее возможен WebRTC DataChannel)
+        ⇅
+Matrix Monad → Matrix Store/Weak → Matrix Particle runtime
 ```
 
-Dark, Boundary, Matrix, Energy и Bulk продолжают пользоваться прежним публичным
-`new Force(domain)`. Их runtime на этом этапе не переносится на собственные
-Монады.
+Force остаётся единой физической точкой межмонадной маршрутизации. `MonadRouter`
+прикрепляет source из `MonadChannel`, проверяет регистрацию target/method и
+коррелирует ответ, но не интерпретирует канонические строки Boundary и Matrix
+projection. Identity `MonadChannel` не ограничена пятью runtime-доменами.
 
-## Граница модулей
+## Ownership и порядок рождения
 
-- `force/force.ts` — только relay и вшитые законы перенаправления;
-- `force/store.ts` — только каналы пяти обязательных доменов;
-- `force/transport/` — общий контракт и прежние Bun/browser WebSocket adapters доменов;
-- `force/monad.ts` — server state, readiness, общий gate и fail-stop;
-- `force/server.ts` — REST/WebSocket/process events, отображённые на Монаду;
-- `force/src/` — техническое создание физических каналов и логирование;
-- `force/fixture.ts` — отдельный test-only contract;
-- `force/index.ts` — только публичный transport client `Force`.
+- `boundary/initial.ts` читает нормализованные канонические строки Boundary;
+- `boundary/monad.ts` предоставляет `boundary.initialState.read` и регистрирует
+  provider в Force;
+- `force/monad.ts` содержит только `ForceLifecycle` пяти `ForceChannel`, gate и
+  fail-stop, без RPC и physical transport;
+- `force/rpc.ts` содержит transport-neutral `MonadRouter`;
+- `shared/transport/monad/{server,web}.ts` условно экспортируют единый REST
+  adapter API;
+- `shared/transport/force/{server,web}.ts` условно экспортируют единый Particle
+  transport API;
+- `shared/protocol/{force,monad}` владеет единым wire contract без environment
+  forks;
+- `matrix/monad.ts` запрашивает первоначальное состояние через Force;
+- `matrix/birth.ts` владеет преобразованием в Matrix Store/Strong/Weak;
+- только после подготовки постоянного Store `matrix/server.ts` динамически
+  рождает runtime и подключает `Force("matrix")`.
 
-## Закон WebSocket-канала
+Force RPC routes доступны в состоянии `starting`; Particle relay по-прежнему
+открывается только после готовности пяти доменных каналов.
 
-Identity `domain/id` передаётся как часть HTTP Upgrade до открытия канала. После
-Upgrade по WebSocket передаётся только одна типизированная Particle.
+## Неподвижная Particle-граница
 
-Не вводить в WebSocket отдельные служебные frames:
+По WebSocket после Upgrade передаётся только одна типизированная Particle.
+Нельзя добавлять service frames, snapshot payload или RPC envelope в realtime
+канал. Открытие transport-а не испускает bootstrap Particle; Matrix не принимает
+`runtime/matrix` snapshot и рождается только из service-plane initial state.
 
-- `register`;
-- readiness или health messages;
-- snapshot или domain replay payload;
-- `paused`, error или другую служебную Particle.
+## Public boundaries
 
-До отдельной миграции прежние transport clients ещё испускают обычную Particle
-`z/test force/replay/...`. Это известный старый путь: Монада временно поглощает
-его на domain ingress и возвращает пустую доставку. Relay и другие домены его не
-видят. Исходные replay-тесты сохраняются как `skip`, а не переписываются под мок.
-
-Transport сохраняет прежние физическое соединение, упорядочивание, outbox до
-открытия и попытку reconnect. Эти механизмы не являются автоматическим
-восстановлением Вселенной: после потери обязательного домена Монада остаётся в
-`error`, закрывает общий relay gate и требует нового server lifecycle.
-
-Канал валиден по конструкции. Монада и relay не проверяют повторно форму
-Particle и не сравнивают её `by` с именем канала. Временный мок Монады распознаёт
-только старый replay path. Настоящий числовой `z/test` Energy остаётся обычной
-Particle.
+- `shared/transport/force` экспортирует выбранный средой Particle client;
+- `shared/transport/monad` экспортирует выбранный средой REST client;
+- `MonadRouter` и server assembly остаются private; transport adapters
+  экспортируются только из `shared/transport/monad`;
+- общие RPC types находятся в `shared/protocol/monad/rpc`;
+- общие Particle types находятся в `shared/protocol/force/*`;
+- Boundary initial-state contract находится в
+  `@metafor/types/boundary/initial`;
+- production domain не импортирует implementation другого domain.
 
 ## Автоматическое доказательство
 
 ```bash
+bun test shared
 bun test force
+bun test boundary
+bun test matrix
 bun run typecheck
 bun run check
 ```
 
 Тесты должны доказать:
 
-- transport client передаёт identity в Upgrade и не испускает service frames;
-- Монада поглощает старый `z/test force/replay/...`, но пропускает числовой
-  `z/test` Energy;
-- Store содержит пять физических доменных каналов;
-- relay применяет текущие routing laws;
-- Монада разрешает runtime после подключения всех доменов;
-- потеря любого работающего канала выполняет fail-stop без error Particle;
-- unit-тесты импортируют relay, Store, Монаду, server и adapters относительно;
-- public-contract test доказывает, что корневой `force` открывает `Force`, но не
-  внутренние symbols;
-- переходная fixture старых доменов использует настоящий WebSocket transport.
+- Force RPC маршрутизирует по provider/method, прикрепляет trusted source и
+  проверяет correlation id;
+- RPC доступен при `state: "starting"` и не создаёт Particle frames;
+- Bun/browser Force transports передают identity только в HTTP Upgrade и не
+  испускают служебный `z/test` после подключения;
+- `shared/package.json` выбирает server/web transports через conditional
+  exports, сохраняя один public import и один protocol;
+- Boundary возвращает canonical rows, не Matrix-packed snapshot;
+- Matrix сама собирает Store/Strong/Weak до рождения runtime;
+- realtime incremental Particle handling Matrix остаётся прежним;
+- строгая CPU/WebGPU parity остаётся зелёной.
 
 ## Живая приёмка
 
-После автоматических проверок использовать существующий `owner: interpreter`
-или выполнить `run world start` только при `owner: none`, затем запустить
-`run inflaton-add` и `run meta-read`. Force health должен показать `running` и
-пять `connectedDomains`; Bulk должен проявить причинный результат. После
-приёмки остановить только `owner: metafor-dev`; Interpreter-контур оставить
-работать.
+Использовать существующий `owner: interpreter`; не перезапускать весь контур и
+не менять владельца. После точечных restart затронутых процессов проверить:
+
+```bash
+bun .agents/skills/metafor-dev/scripts/metafor-dev.mjs doctor
+bun .agents/skills/metafor-dev/scripts/metafor-dev.mjs run inflaton-add
+bun .agents/skills/metafor-dev/scripts/metafor-dev.mjs run meta-read capsule --fixture capsule
+```
+
+Ожидается `healthy: 6`, `ready: 6`, Force `running`, Boundary `rpc: "ready"`,
+Matrix `rpc: "ready"` и `initialized: true`. Bulk visual acceptance проверяется
+отдельно и не входит в milestone рождения Matrix через RPC.

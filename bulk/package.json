@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@metafor/types": "workspace:*",
-    "force": "workspace:*",
+    "shared": "workspace:*",
     "@bulk/gravity": "workspace:*",
     "@bulk/strong": "workspace:*",
     "@bulk/weak": "workspace:*",

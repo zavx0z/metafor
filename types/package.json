@@ -11,19 +11,13 @@
     "./metafor/reactions": "./metafor/reactions.ts",
     "./metafor/matter": "./metafor/matter.ts",
     "./metafor/schema": "./metafor/schema.ts",
-    "./force/particle": "./force/particle.ts",
-    "./force/declaration": "./force/declaration.ts",
-    "./force/message": "./force/message.ts",
-    "./force/replay": "./force/replay.ts",
-    "./force/fields": "./force/fields.ts",
-    "./force/execution": "./force/execution.ts",
-    "./force/reaction": "./force/reaction.ts",
     "./boundary/atom": "./boundary/atom.ts",
     "./boundary/value": "./boundary/value.ts",
     "./boundary/topology": "./boundary/topology.ts",
     "./boundary/wimp": "./boundary/wimp.ts",
     "./boundary/matter": "./boundary/matter.ts",
     "./boundary/runtime": "./boundary/runtime.ts",
+    "./boundary/initial": "./boundary/initial.ts",
     "./matrix/data": "./matrix/data.ts",
     "./matrix/store": "./matrix/store.ts",
     "./matrix/runtime": "./matrix/runtime.ts",
@@ -66,5 +60,8 @@
     "./template/node/map": "./template/node/map.ts",
     "./template/node/meta": "./template/node/meta.ts",
     "./template/node/text": "./template/node/text.ts"
+  },
+  "dependencies": {
+    "shared": "workspace:*"
   }
 }

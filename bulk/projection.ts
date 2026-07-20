@@ -16,8 +16,8 @@ import type {
   BulkRuntimeValue,
   BulkRuntimeWimp,
 } from "@metafor/types/bulk/runtime"
-import type {Particle} from "@metafor/types/force/particle"
-import {resolveForceFieldId, resolveForceFieldsPayload} from "@metafor/types/force/fields"
+import type {Particle} from "shared/protocol/force/particle"
+import {resolveForceFieldId, resolveForceFieldsPayload} from "shared/protocol/force/fields"
 
 const declarationSections = ["meta", "fields", "variants", "states", "transitions", "conditions", "processes", "reactions", "matter", "mass", "bulk"] as const
 type DeclarationSection = typeof declarationSections[number]

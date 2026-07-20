@@ -1,5 +1,5 @@
 import type {ServerWebSocket} from "bun"
-import type {SourcedForceMessage} from "@metafor/types/force/message"
+import type {SourcedForceMessage} from "shared/protocol/force/message"
 import {forceDomains, type ForceDomain, type ForceStore} from "../store.ts"
 
 export type ForceSocketData = {
@@ -23,7 +23,7 @@ export type ForceWebSocketChannels = {
  *
  * Функция обслуживает только transport: identity HTTP Upgrade, набор открытых
  * сокетов и JSON-кодирование одной Particle. Решения о server state, готовности
- * и fail-stop принимает Монада.
+ * и fail-stop принимает `ForceLifecycle`.
  */
 export function createForceWebSocketChannels(): ForceWebSocketChannels {
   const sockets = Object.fromEntries(

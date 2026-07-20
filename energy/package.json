@@ -15,6 +15,6 @@
   },
   "dependencies": {
     "@metafor/types": "workspace:*",
-    "force": "workspace:*"
+    "shared": "workspace:*"
   }
 }

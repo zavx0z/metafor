@@ -1,4 +1,4 @@
-import type {SourcedForceMessage} from "@metafor/types/force/message"
+import type {SourcedForceMessage} from "shared/protocol/force/message"
 import {force$, forceDomains, type ForceDomain, type ForceStore} from "./store.ts"
 
 export type ForceOrigin = ForceDomain | "agent"
@@ -24,7 +24,7 @@ const relevantDomains = (message: SourcedForceMessage, origin: ForceOrigin): Set
  * Закон канала уже гарантирует, что сюда попадает одна Particle с назначенным
  * источником. Runtime не проверяет это условие повторно: он только определяет
  * нужные домены и передаёт Particle в уже существующие каналы Store. Все решения
- * серверного жизненного цикла принимает Монада до вызова этой функции.
+ * серверного жизненного цикла принимает `ForceLifecycle` до вызова этой функции.
  */
 export function routeParticle(message: SourcedForceMessage, origin: ForceOrigin): ForceDomain[] {
   const relevant = relevantDomains(message, origin)

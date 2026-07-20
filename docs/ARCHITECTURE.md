@@ -9,8 +9,9 @@ concept.
 
 Root workspace graph задан явным списком в `package.json`:
 
-- contracts: `types`;
-- transport: `force`;
+- domain contracts: `types`;
+- shared wire protocols и server/web transports: `shared`;
+- central relay, `ForceLifecycle` и `MonadRouter`: `force`;
 - domains: `dark`, `boundary`, `matrix`, `energy`, `bulk`;
 - domain packages: `dark/{gravity,strong}`,
   `boundary/{atom,topology,wimp}`, `matrix/{gravity,strong,weak}`,
@@ -50,11 +51,11 @@ Bun processes. Они не загружают Meta автоматически.
 ## Реализованное соединение
 
 - `force/server.ts` принимает REST и создаёт пять доменных WebSocket-каналов.
-- Domain transports подключаются к `ws://127.0.0.1:4000/ws`, если
+- Domain transports из `shared/transport/force` подключаются к
+  `ws://127.0.0.1:4000/ws`, если
   `FORCE_ADDRESS` не задан; `domain/id` передаются в HTTP Upgrade query.
-- После Upgrade по WebSocket идут только Particle без register или readiness
-  messages. Старый `z/test force/replay/...` временно поглощается Монадой и не
-  достигает relay.
+- После Upgrade по WebSocket идут только Particle без register, readiness или
+  bootstrap messages; само подключение Particle не создаёт.
 - `force/force.ts` является только relay и перенаправляет Particle по готовым
   каналам Store.
 - Domain handlers применяют входные particles к собственным runtime structures.

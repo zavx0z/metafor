@@ -1,8 +1,7 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
-import type {DeclarationPath} from "@metafor/types/force/declaration"
-import type {ForceMessage} from "@metafor/types/force/message"
-import type {Particle} from "@metafor/types/force/particle"
-import {forceReplayPath} from "@metafor/types/force/replay"
+import type {DeclarationPath} from "shared/protocol/force/declaration"
+import type {ForceMessage} from "shared/protocol/force/message"
+import type {Particle} from "shared/protocol/force/particle"
 import type {MatterParticle} from "@metafor/types/metafor/matter"
 import type {MetaDSL} from "@metafor/types/metafor/schema"
 import {createForceTestFixture, type ForceTestFixture} from "force/fixture"
@@ -55,7 +54,7 @@ const matches = (
     : part.value.wimp === wimp && part.value.id === id
 )
 
-describe.skip("Dark incremental Inflaton projection", () => {
+describe("Dark incremental Inflaton projection", () => {
   let fixture: ForceTestFixture
   let matterParticles: typeof import("./dark.ts").matterParticles
 
@@ -63,12 +62,6 @@ describe.skip("Dark incremental Inflaton projection", () => {
     fixture = createForceTestFixture()
     ;({matterParticles} = await import("./dark.ts"))
     await fixture.waitForClient("dark", 5_000)
-    await fixture.waitForMessage(
-      ({domain, message}) => domain === "dark" && message.parts[0]?.part === "z" &&
-        message.parts[0]?.op === "test" && String(message.parts[0]?.path).startsWith("force/replay/dark/"),
-      0,
-      5_000,
-    )
   })
 
   afterAll(() => fixture.close())
@@ -386,31 +379,6 @@ describe.skip("Dark incremental Inflaton projection", () => {
     })
   })
 
-  test("boundary reconnect replays the local projection as categorical idempotent adds", async () => {
-    const fromIndex = fixture.messages.length
-    fixture.impulse("dark", {
-      parts: [{part: "z", op: "test", path: forceReplayPath("boundary", "boundary-reconnect"), by: "force", ts: 1}],
-    })
-    await fixture.waitForMessage(
-      ({domain, message}) => domain === "dark" && message.parts[0]?.part === "inflaton" &&
-        message.parts[0]?.op === "add" && message.parts[0]?.path === "matter" &&
-        isRecord(message.parts[0].value) && message.parts[0].value.wimp === "test/dark-owner-b",
-      fromIndex,
-      5_000,
-    )
-    await Bun.sleep(10)
-    const replay = forceParticles(fixture.messages.slice(fromIndex)
-      .filter(({domain}) => domain === "dark")
-      .map(({message}) => message))
-    expect(replay.length).toBeGreaterThan(0)
-    expect(replay.every((part) => part.part === "inflaton" && part.op === "add")).toBe(true)
-    expect(replay.some((part) => matches(part, "field", "test/dark-diff-root", 1) &&
-      isRecord(part.value) && part.value.label === "After")).toBe(true)
-    expect(replay.findIndex((part) => matches(part, "matter", "test/dark-retarget-root", 1))).toBeLessThan(
-      replay.findIndex((part) => matches(part, "wimp", "test/dark-retarget-new")),
-    )
-    expect(replay.some((part) => part.op === "test" || part.op === "replace" || part.op === "remove")).toBe(false)
-  })
 })
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

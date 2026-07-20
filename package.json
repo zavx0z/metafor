@@ -12,6 +12,7 @@
   },
   "workspaces": [
     "types",
+    "shared",
     "force",
     "dark",
     "boundary",
@@ -48,7 +49,8 @@
     "typescript": "^6.0.2"
   },
   "dependencies": {
-    "@metafor/types": "workspace:*"
+    "@metafor/types": "workspace:*",
+    "shared": "workspace:*"
   },
   "peerDependencies": {
     "typescript": "^6.0.2"

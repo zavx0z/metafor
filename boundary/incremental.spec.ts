@@ -1,6 +1,6 @@
 import {afterEach, beforeEach, describe, expect, test} from "bun:test"
-import type {DeclarationPath} from "@metafor/types/force/declaration"
-import type {Particle} from "@metafor/types/force/particle"
+import type {DeclarationPath} from "shared/protocol/force/declaration"
+import type {Particle} from "shared/protocol/force/particle"
 import {gravitonDeclarationPath, parseInflatonAddress} from "./incremental.ts"
 import {open, type BoundaryDatabase} from "./sqlite.ts"
 

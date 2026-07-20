@@ -1,5 +1,5 @@
 import type { BulkViewportWithHud } from "@metafor/types/bulk/hud"
-import { Force } from "force"
+import { Force } from "shared/transport/force"
 import { createBulkViewport } from "bulk/web"
 import { DEFAULT_BULK_SCENE_SRC, DEFAULT_BULK_SETTINGS } from "bulk/settings"
 import { installBulkHud } from "./hud.ts"

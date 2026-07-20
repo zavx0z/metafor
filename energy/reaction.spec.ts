@@ -1,11 +1,11 @@
 import {describe, expect, test} from "bun:test"
 import type {EnergyForce} from "@metafor/types/energy/protocol"
-import type {ForceMessage} from "@metafor/types/force/message"
+import type {ForceMessage} from "shared/protocol/force/message"
 import {
   REACTION_SIGNAL_KIND,
   type ReactionExecutionSignal,
   type ReactionResultProposal,
-} from "@metafor/types/force/reaction"
+} from "shared/protocol/force/reaction"
 import {startEnergyProtocol} from "./energy.ts"
 import {executeReaction, matchesCondition} from "./reaction.ts"
 

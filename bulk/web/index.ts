@@ -38,7 +38,7 @@ import type {
 } from "@metafor/types/bulk/hud"
 import type { BulkLayoutSettings, BulkRenderSettings } from "@metafor/types/bulk/settings"
 import type { SurfaceArcLimits, TextExtents } from "@metafor/types/bulk/text"
-import type {Particle} from "@metafor/types/force/particle"
+import type {Particle} from "shared/protocol/force/particle"
 import { normalizeBulkLayoutSettings } from "@bulk/gravity/layout"
 import {
 	DEFAULT_BULK_SETTINGS,
@@ -131,7 +131,7 @@ import {
 	THEME_TERTIARY_GLOW,
 } from "./constants"
 import { computeLerpFactor, easeOutCubic, getDistanceToSegmentPx, mixScalar } from "./math"
-import { resolveForceFieldId, resolveForceFieldsPayload } from "@metafor/types/force/fields"
+import { resolveForceFieldId, resolveForceFieldsPayload } from "shared/protocol/force/fields"
 import {
 	resolveForceImpulseRadius,
 	resolveForceImpulseTiming,

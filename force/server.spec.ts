@@ -1,6 +1,7 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
-import type {ForceMessage} from "@metafor/types/force/message"
-import type {ForceMonad} from "./monad.ts"
+import type {ForceMessage} from "shared/protocol/force/message"
+import {MONAD_RPC_VERSION, type RoutedMonadRpcCall} from "shared/protocol/monad/rpc"
+import type {ForceLifecycle} from "./monad.ts"
 import type {ForceDomain} from "./store.ts"
 
 type ConnectedClient = {
@@ -10,7 +11,9 @@ type ConnectedClient = {
 
 let previousPort: string | undefined
 let server: Bun.Server<unknown>
-let monad: ForceMonad
+let lifecycle: ForceLifecycle
+let providerServer: Bun.Server<unknown>
+const rpcCalls: RoutedMonadRpcCall[] = []
 const clients: ConnectedClient[] = []
 
 const waitFor = async (predicate: () => boolean | Promise<boolean>): Promise<void> => {
@@ -45,22 +48,147 @@ const connect = (domain: ForceDomain): Promise<ConnectedClient> => new Promise((
 })
 
 beforeAll(async () => {
+  providerServer = Bun.serve({
+    port: 0,
+    routes: {
+      "/rpc": {
+        async POST(request) {
+          const call = await request.json() as RoutedMonadRpcCall
+          rpcCalls.push(call)
+          if ((call.params as {fail?: unknown}).fail === true) {
+            return Response.json({
+              version: MONAD_RPC_VERSION,
+              id: call.id,
+              ok: false,
+              error: {code: "method_error", message: "Boundary read failed"},
+            }, {status: 500})
+          }
+          return Response.json({
+            version: MONAD_RPC_VERSION,
+            id: call.id,
+            ok: true,
+            result: {version: 1, atoms: [], declarations: []},
+          })
+        },
+      },
+    },
+  })
   previousPort = Bun.env.PORT
   Bun.env.PORT = "0"
   const module = await import(`./server.ts?test=${crypto.randomUUID()}`)
   server = module.server
-  monad = module.monad
+  lifecycle = module.lifecycle
 })
 
 afterAll(() => {
-  monad.onServerStopping()
+  lifecycle.stop()
   for (const client of clients) client.socket.close()
   server.stop(true)
+  providerServer.stop(true)
   if (previousPort === undefined) delete Bun.env.PORT
   else Bun.env.PORT = previousPort
 })
 
 describe("Force server transport and relay", () => {
+  test("routes Monad RPC over REST while the Particle runtime is still starting", async () => {
+    const registration = await fetch(new URL("/monad/providers/boundary", server.url), {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify({
+        version: MONAD_RPC_VERSION,
+        methods: ["boundary.initialState.read"],
+        endpoint: new URL("/rpc", providerServer.url),
+      }),
+    })
+    expect(registration.status).toBe(200)
+
+    const response = await fetch(new URL("/monad/rpc/interpreter", server.url), {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify({
+        version: MONAD_RPC_VERSION,
+        id: "matrix-birth-server",
+        target: "boundary",
+        method: "boundary.initialState.read",
+        params: {},
+      }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      version: MONAD_RPC_VERSION,
+      id: "matrix-birth-server",
+      ok: true,
+      result: {version: 1, atoms: [], declarations: []},
+    })
+    expect(rpcCalls[0]).toEqual({
+      version: MONAD_RPC_VERSION,
+      id: "matrix-birth-server",
+      source: "interpreter",
+      target: "boundary",
+      method: "boundary.initialState.read",
+      params: {},
+    })
+
+    const administration = await fetch(new URL("/monad/providers/administration", server.url), {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify({
+        version: MONAD_RPC_VERSION,
+        methods: ["administration.health.read"],
+        endpoint: new URL("/rpc", providerServer.url),
+      }),
+    })
+    expect(administration.status).toBe(200)
+    expect(await administration.json()).toEqual({
+      ok: true,
+      identity: "administration",
+      methods: ["administration.health.read"],
+    })
+
+    const administrativeResponse = await fetch(new URL("/monad/rpc/interpreter", server.url), {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify({
+        version: MONAD_RPC_VERSION,
+        id: "administration-health",
+        target: "administration",
+        method: "administration.health.read",
+        params: {},
+      }),
+    })
+    expect(administrativeResponse.status).toBe(200)
+    expect(rpcCalls[1]).toMatchObject({
+      id: "administration-health",
+      source: "interpreter",
+      target: "administration",
+      method: "administration.health.read",
+    })
+
+    const failed = await fetch(new URL("/monad/rpc/matrix", server.url), {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify({
+        version: MONAD_RPC_VERSION,
+        id: "matrix-birth-failed",
+        target: "boundary",
+        method: "boundary.initialState.read",
+        params: {fail: true},
+      }),
+    })
+    expect(failed.status).toBe(502)
+    expect(await failed.json()).toEqual({
+      version: MONAD_RPC_VERSION,
+      id: "matrix-birth-failed",
+      ok: false,
+      error: {code: "method_error", message: "Boundary read failed"},
+    })
+
+    const health = await fetch(new URL("/health", server.url))
+    expect(health.status).toBe(503)
+    expect(await health.json()).toMatchObject({state: "starting", connectedDomains: []})
+  })
+
   test("builds five channels through HTTP Upgrade and relays only Particle frames", async () => {
     const before = await fetch(new URL("/health", server.url))
     expect(before.status).toBe(503)

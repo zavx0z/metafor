@@ -1,6 +1,6 @@
 import {afterEach, beforeEach, describe, expect, test} from "bun:test"
-import type {ForceMessage} from "@metafor/types/force/message"
-import {formatImpulseLog} from "./log"
+import type {ForceMessage} from "../../protocol/force/message.ts"
+import {formatImpulseLog} from "./log.ts"
 
 const ENV_NAMES = ["METAFOR_LOG_IMPULSES", "METAFOR_LOG_DOMAINS", "METAFOR_LOG_PARTS"] as const
 const previous = new Map<string, string | undefined>()

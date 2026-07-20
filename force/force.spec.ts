@@ -1,10 +1,10 @@
 import {beforeEach, describe, expect, test} from "bun:test"
-import type {SourcedForceMessage} from "@metafor/types/force/message"
+import type {SourcedForceMessage} from "shared/protocol/force/message"
 import {routeParticle} from "./force.ts"
-import {ForceMonad} from "./monad.ts"
+import {ForceLifecycle} from "./monad.ts"
 import {force$, forceDomains, type ForceDomain, type ForceStore} from "./store.ts"
 
-let monad: ForceMonad
+let lifecycle: ForceLifecycle
 let recording: ReturnType<typeof createRecordingChannels>
 
 const createRecordingChannels = () => {
@@ -25,9 +25,9 @@ const createRecordingChannels = () => {
 
 beforeEach(() => {
   recording = createRecordingChannels()
-  monad = new ForceMonad()
-  monad.onServerStarted(recording.channels)
-  for (const domain of forceDomains) monad.onDomainChannelReady(domain)
+  lifecycle = new ForceLifecycle()
+  lifecycle.start(recording.channels)
+  for (const domain of forceDomains) lifecycle.channelReady(domain)
 })
 
 describe("Force runtime", () => {

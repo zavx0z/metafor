@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import type {Particle} from "@metafor/types/force/particle"
+import type {Particle} from "shared/protocol/force/particle"
 import {BulkProjectionStore} from "./projection.ts"
 
 const part = (op: Particle["op"], path: string, value?: unknown, from?: string): Particle => ({
@@ -112,4 +112,5 @@ describe("Bulk incremental projection", () => {
     expect(() => store.apply(part("test", "atom/3", store.atoms.get(3)))).not.toThrow()
     expect(() => store.apply(part("test", "atom/3", {id: 99}))).toThrow("test failed")
   })
+
 })

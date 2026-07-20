@@ -4,7 +4,7 @@
 
 ## Force health
 
-`GET /health` Force возвращает server state Монады:
+`GET /health` Force возвращает состояние `ForceLifecycle`:
 
 ```json
 {
@@ -18,8 +18,13 @@
 ```
 
 Identity физического доменного канала передаётся в HTTP Upgrade. После открытия
-WebSocket transport несёт только Particle без register/readiness frames. Старый
-`z/test force/replay/...` временно поглощается Монадой до relay.
+WebSocket transport несёт только Particle без register/readiness frames и не
+испускает bootstrap Particle от самого факта подключения.
+
+Отдельные `POST /monad/providers/:domain` и `POST /monad/rpc/:source` образуют
+service-plane Монад. Они доступны, пока Force ещё `starting`, и не зависят от
+общего Particle relay gate. Текущий физический adapter — REST; transport-neutral
+router допускает последующий WebRTC DataChannel.
 
 ## Карта сервисов
 
@@ -62,7 +67,9 @@ WebSocket transport несёт только Particle без register/readiness f
   `run meta-read capsule --fixture capsule` читает его без runtime-копии в
   `github/`; обычный WIMP SRC по-прежнему читается из `github/<src>/meta.ts`.
 - Пустой Bulk после успешного запуска является допустимым исходным состоянием.
-- Matrix health должен показывать `initialized: true`; основной backend — GPU.
+- Boundary health должен показывать `rpc: "ready"` после регистрации provider.
+- Matrix health должен показывать `initialized: true` и `rpc: "ready"`;
+  основной backend — GPU.
 - Structured logs являются диагностикой транспорта, но не источником
   визуальной или онтологической истины.
 

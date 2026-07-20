@@ -1,19 +1,13 @@
 import {beforeEach, describe, expect, test} from "bun:test"
-import type {SourcedForceMessage} from "@metafor/types/force/message"
-import {ForceMonad} from "./monad.ts"
+import type {ForceMessageInput, SourcedForceMessage} from "shared/protocol/force/message"
+import {ForceLifecycle} from "./monad.ts"
 import {forceDomains, type ForceDomain, type ForceStore} from "./store.ts"
 
-const request = (body: unknown): Request => new Request("http://force.test/force", {
-  method: "POST",
-  headers: {"content-type": "application/json"},
-  body: JSON.stringify(body),
-})
-
-const agentInflaton = (ts: number) => ({
+const agentInflaton = (ts: number): ForceMessageInput => ({
   parts: [{part: "inflaton", op: "add", path: "wimp", ts, value: {src: "capsule", name: "Capsule"}}],
 })
 
-let monad: ForceMonad
+let lifecycle: ForceLifecycle
 let recording: ReturnType<typeof createRecordingChannels>
 
 const createRecordingChannels = () => {
@@ -34,17 +28,17 @@ const createRecordingChannels = () => {
 
 beforeEach(() => {
   recording = createRecordingChannels()
-  monad = new ForceMonad()
+  lifecycle = new ForceLifecycle()
 })
 
 const start = (): void => {
-  monad.onServerStarted(recording.channels)
-  for (const domain of forceDomains) monad.onDomainChannelReady(domain)
+  lifecycle.start(recording.channels)
+  for (const domain of forceDomains) lifecycle.channelReady(domain)
 }
 
-describe("Force Monad", () => {
-  test("enters running only after all five prepared channels are connected", async () => {
-    expect(await monad.onHealthRequested().json()).toEqual({
+describe("ForceLifecycle", () => {
+  test("enters running only after all five prepared channels are connected", () => {
+    expect(lifecycle.status()).toEqual({
       ok: false,
       domain: "force",
       state: "created",
@@ -53,9 +47,9 @@ describe("Force Monad", () => {
       error: null,
     })
 
-    expect(monad.onServerStarted(recording.channels)).toMatchObject({ok: false, state: "starting"})
-    for (const domain of forceDomains) monad.onDomainChannelReady(domain)
-    expect(await monad.onHealthRequested().json()).toEqual({
+    expect(lifecycle.start(recording.channels)).toMatchObject({ok: false, state: "starting"})
+    for (const domain of forceDomains) lifecycle.channelReady(domain)
+    expect(lifecycle.status()).toEqual({
       ok: true,
       domain: "force",
       state: "running",
@@ -65,15 +59,14 @@ describe("Force Monad", () => {
     })
   })
 
-  test("accepts an agent Particle only in running state", async () => {
-    const beforeStart = await monad.onAgentParticleReceived(request(agentInflaton(1)))
-    expect(beforeStart.status).toBe(503)
+  test("accepts an agent Particle only in running state", () => {
+    expect(lifecycle.acceptAgentParticle(agentInflaton(1))).toMatchObject({
+      ok: false,
+      reason: "not_running",
+    })
 
     start()
-    const response = await monad.onAgentParticleReceived(request(agentInflaton(2)))
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
+    expect(lifecycle.acceptAgentParticle(agentInflaton(2))).toEqual({
       ok: true,
       delivered: ["dark", "bulk"],
       particle: {
@@ -87,57 +80,39 @@ describe("Force Monad", () => {
     })
   })
 
-  test("temporarily mocks legacy Force replay z/test at domain ingress", () => {
-    start()
-    const replay: SourcedForceMessage = {
-      parts: [{
-        part: "z",
-        op: "test",
-        path: "force/replay/boundary/boundary-local",
-        by: "dark",
-        ts: 3,
-      }],
-    }
-
-    expect(monad.onDomainParticleReceived("dark", replay)).toEqual({ok: true, delivered: []})
-    for (const domain of forceDomains) expect(recording.deliveries(domain)).toEqual([])
-  })
-
-  test("does not mock a real numeric Energy z/test", () => {
+  test("routes a numeric Energy z/test as an ordinary Particle", () => {
     start()
     const claim: SourcedForceMessage = {
       parts: [{part: "z", op: "test", path: 17, by: "energy", ts: 4, value: {energy: "energy-local"}}],
     }
 
-    expect(monad.onDomainParticleReceived("energy", claim)).toEqual({
+    expect(lifecycle.acceptParticle("energy", claim)).toEqual({
       ok: true,
       delivered: ["dark", "boundary", "matrix", "bulk"],
     })
   })
 
-  test("owns fail-stop when one domain channel is destroyed", async () => {
+  test("owns fail-stop when one domain channel is destroyed", () => {
     start()
-    const accepted = await monad.onAgentParticleReceived(request(agentInflaton(3)))
-    expect(accepted.status).toBe(200)
+    expect(lifecycle.acceptAgentParticle(agentInflaton(3)).ok).toBe(true)
     const darkBefore = recording.deliveries("dark")
     const bulkBefore = recording.deliveries("bulk")
 
-    monad.onDomainChannelDestroyed("matrix", new Error("channel closed"))
+    lifecycle.channelDestroyed("matrix", new Error("channel closed"))
 
-    const blocked = await monad.onAgentParticleReceived(request(agentInflaton(4)))
-    expect(blocked.status).toBe(503)
-    expect(await blocked.json()).toEqual({
+    expect(lifecycle.acceptAgentParticle(agentInflaton(4))).toEqual({
       ok: false,
+      reason: "not_running",
       error: "Force stopped: matrix channel was destroyed: channel closed",
     })
     expect(recording.deliveries("dark")).toEqual(darkBefore)
     expect(recording.deliveries("bulk")).toEqual(bulkBefore)
-    expect(monad.onServerStarted(recording.channels)).toMatchObject({ok: false, state: "error"})
+    expect(lifecycle.start(recording.channels)).toMatchObject({ok: false, state: "error"})
   })
 
   test("does not express fail-stop as a Particle", () => {
     start()
-    monad.onDomainChannelDestroyed("energy", "connection lost")
+    lifecycle.channelDestroyed("energy", "connection lost")
 
     for (const domain of ["dark", "boundary", "matrix", "energy", "bulk"] as const) {
       expect(recording.deliveries(domain)).toEqual([])

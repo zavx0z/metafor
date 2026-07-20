@@ -1,7 +1,6 @@
-import {sourceForceMessage, type ForceMessageInput, type SourcedForceMessage} from "@metafor/types/force/message"
-import {forceReplayPath} from "@metafor/types/force/replay"
-import {logImpulse} from "../src/log"
-import {ForceBase} from "./base"
+import {sourceForceMessage, type ForceMessageInput, type SourcedForceMessage} from "../../protocol/force/message.ts"
+import {logImpulse} from "./log.ts"
+import {ForceBase} from "./base.ts"
 
 const FORCE_DEFAULT_ADDRESS = "ws://127.0.0.1:4000/ws"
 
@@ -55,9 +54,6 @@ export class Force extends ForceBase {
         const message = this.#outbox.shift()
         if (message) this.#send(socket, message)
       }
-      this.#send(socket, sourceForceMessage({
-        parts: [{part: "z", op: "test", path: forceReplayPath(this.domain, this.id), ts: Date.now()}],
-      }, this.domain))
     }
     socket.onmessage = (event) => {
       const data = event.data

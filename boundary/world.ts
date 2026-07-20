@@ -1,5 +1,5 @@
 import type {ReservedSQL, SQL} from "bun"
-import {resolveForceFieldId} from "@metafor/types/force/fields"
+import {resolveForceFieldId} from "shared/protocol/force/fields"
 
 type Database = SQL | ReservedSQL
 

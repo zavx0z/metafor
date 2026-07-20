@@ -1,5 +1,5 @@
 import type {EnergyAtomEntity, EnergyProcessEntity} from "@metafor/types/energy/catalog"
-import type {Particle} from "@metafor/types/force/particle"
+import type {Particle} from "shared/protocol/force/particle"
 
 type Address =
   | {kind: "atom"; id: number}

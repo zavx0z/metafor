@@ -4,13 +4,9 @@ import type {
   ProcessExecutionGrant,
   ProcessResultCommit,
   ProcessResultProposal,
-} from "@metafor/types/force/execution"
-import type {Particle, SourcedParticle} from "@metafor/types/force/particle"
-import {
-  MATRIX_RUNTIME_PATH,
-  STATE_UNDEFINED,
-  type MatrixRuntimeSnapshot,
-} from "@metafor/types/matrix/runtime"
+} from "shared/protocol/force/execution"
+import type {Particle, SourcedParticle} from "shared/protocol/force/particle"
+import type {BoundaryInitialState} from "@metafor/types/boundary/initial"
 import {
   createForceTestFixture,
   type ForceTestClient,
@@ -18,6 +14,7 @@ import {
 } from "force/fixture"
 import {GPU, ensureGPUDevice} from "./weak/device.ts"
 import {weak$} from "./weak"
+import {prepareMatrixBirth} from "./birth.ts"
 
 const previousBackend = Bun.env.METAFOR_WEAK_BACKEND
 const previousDevice = GPU._device
@@ -25,43 +22,26 @@ const PROCESS_ID = 501
 const ENERGY_ID = "energy-parity"
 type ParticleInput = Omit<SourcedParticle, "ts"> & {ts?: number}
 
-const runtimeSnapshot = (): MatrixRuntimeSnapshot => ({
-  ok: true,
+const runtimeInitialState = (): BoundaryInitialState => ({
   version: 1,
-  runtime: {
-    atomIdByBraneIndex: [17],
-    braneIndexByAtomId: [[17, 0]],
-    wimpSrcByAtomId: [[17, "owner/parity"]],
-    atomIdsByWimpSrc: [["owner/parity", [17]]],
-    runtimeFieldIndexByAtomFieldId: [
-      [17, 101, 0],
-      [17, 102, 1],
-    ],
-  },
-  data: {
-    fields: [{type: 0}, {type: 0}],
-    branes: [{
-      values: [[0, 0], [1, 0]],
-      state: STATE_UNDEFINED,
-      collapses: [
-        [[1, {0: {eq: 1}}]],
-        [[2, {1: {eq: 2}}]],
-        [],
-      ],
-    }],
-    stateNames: [["idle", "ready", "complete"]],
-  },
-  strong: {
-    runtimeFieldIndexByWimpFieldId: [[1, 0], [2, 1]],
-    wimpFieldIdsByRuntimeFieldIndex: [[1], [2]],
-    braneIndexByWimpFieldId: [[1, 0], [2, 0]],
-    topologyWimpFieldIds: [],
-    topologyAtomFieldIds: [],
-  },
-  weak: {
-    stateMetaStateIdsByBraneIndex: [[201, 202, 203]],
-    stateHasProcessByBraneIndex: [[false, true, false]],
-  },
+  atoms: [{
+    id: 17,
+    wimp: "owner/parity",
+    values: [{field: 101, value: 0}, {field: 102, value: 0}],
+    state: null,
+  }],
+  declarations: [
+    {src: "owner/parity", section: "fields", localId: "1", value: {id: 101, key: "input", type: "number", default: 0, position: 0}},
+    {src: "owner/parity", section: "fields", localId: "2", value: {id: 102, key: "output", type: "number", default: 0, position: 1}},
+    {src: "owner/parity", section: "states", localId: "1", value: {id: 201, name: "idle", position: 0}},
+    {src: "owner/parity", section: "states", localId: "2", value: {id: 202, name: "ready", position: 1}},
+    {src: "owner/parity", section: "states", localId: "3", value: {id: 203, name: "complete", position: 2}},
+    {src: "owner/parity", section: "transitions", localId: "1", value: {id: 301, fromState: 201, toState: 202, position: 0}},
+    {src: "owner/parity", section: "transitions", localId: "2", value: {id: 302, fromState: 202, toState: 203, position: 1}},
+    {src: "owner/parity", section: "conditions", localId: "1", value: {id: 401, transition: 301, field: 101, position: 0, predicate: {eq: 1}}},
+    {src: "owner/parity", section: "conditions", localId: "2", value: {id: 402, transition: 302, field: 102, position: 1, predicate: {eq: 2}}},
+    {src: "owner/parity", section: "processes", localId: "1", value: {id: PROCESS_ID, key: "ready", state: "ready"}},
+  ],
 })
 
 type RuntimeTrace = {
@@ -112,6 +92,8 @@ const runScenario = async (backend: "cpu" | "gpu"): Promise<RuntimeTrace> => {
   const fixture = createForceTestFixture()
 
   try {
+    await prepareMatrixBirth(runtimeInitialState())
+    let from = fixture.messages.length
     const waiting = fixture.nextClient("matrix", 10_000)
     const runtime = await import(`./matrix.ts?runtime-parity=${backend}-${crypto.randomUUID()}`) as MatrixRuntimeModule
     const client = await waiting
@@ -126,14 +108,6 @@ const runScenario = async (backend: "cpu" | "gpu"): Promise<RuntimeTrace> => {
       states.push(stateIndex === undefined ? "missing" : runtime.matrix$.getStateName(0, stateIndex) ?? "missing")
     }
 
-    let from = fixture.messages.length
-    send(fixture, client, {
-      part: "graviton",
-      op: "replace",
-      path: MATRIX_RUNTIME_PATH,
-      by: "boundary",
-      value: runtimeSnapshot(),
-    })
     const idle = await waitForPart(
       fixture,
       client,

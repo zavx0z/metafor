@@ -1,4 +1,4 @@
-import type {ForceMessage, ForceMessageInput} from "@metafor/types/force/message"
+import type {ForceMessage, ForceMessageInput} from "../../protocol/force/message.ts"
 
 /**
  * Общий публичный контракт транспортного клиента Force.
@@ -11,8 +11,7 @@ import type {ForceMessage, ForceMessageInput} from "@metafor/types/force/message
  *
  * Identity `domain/id` передаётся серверу во время HTTP Upgrade. После открытия
  * WebSocket по каналу идут только `{parts: [particle]}`: register, readiness и
- * другие служебные payload отсутствуют. Старый replay `z/test` временно остаётся
- * обычной Particle и поглощается Монадой на серверной границе.
+ * другие служебные payload отсутствуют.
  */
 export abstract class ForceBase {
   #connected = false

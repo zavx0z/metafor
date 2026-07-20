@@ -1,8 +1,8 @@
 import {file, type ServerWebSocket} from "bun"
-import type {ForceMessage} from "@metafor/types/force/message"
-import {unsourceForceMessage} from "@metafor/types/force/message"
+import type {ForceMessage} from "shared/protocol/force/message"
+import {unsourceForceMessage} from "shared/protocol/force/message"
 import index from "./index.html"
-import {Force} from "force"
+import {Force} from "shared/transport/force"
 
 type BrowserClient = {domain: string; id: string}
 

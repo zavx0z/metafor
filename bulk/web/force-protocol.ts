@@ -1,9 +1,9 @@
 export {
 	resolveForceFieldId,
 	resolveForceFieldsPayload,
-} from "@metafor/types/force/fields"
+} from "shared/protocol/force/fields"
 
-import type {Particle} from "@metafor/types/force/particle"
+import type {Particle} from "shared/protocol/force/particle"
 
 export type ForceImpulseVisual = {
 	color: [number, number, number, number]

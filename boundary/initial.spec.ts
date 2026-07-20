@@ -1,12 +1,11 @@
 import {afterEach, beforeEach, describe, expect, test} from "bun:test"
-import type {Particle} from "@metafor/types/force/particle"
-import {STATE_UNDEFINED} from "@metafor/types/matrix/runtime"
-import {open, type BoundaryDatabase} from "../sqlite.ts"
+import type {Particle} from "shared/protocol/force/particle"
+import {open, type BoundaryDatabase} from "./sqlite.ts"
 
 const ROOT = "owner/runtime"
 type ParticleInput = Omit<Particle, "ts"> & {ts?: number}
 
-describe("Boundary -> packed Matrix runtime", () => {
+describe("Boundary canonical initial state", () => {
   let boundary: BoundaryDatabase
 
   beforeEach(async () => {
@@ -30,7 +29,7 @@ describe("Boundary -> packed Matrix runtime", () => {
     })
   }
 
-  test("derives one Weak-ready brane without creating a second world store", async () => {
+  test("returns normalized source rows without preparing a Matrix Store", async () => {
     await apply({part: "inflaton", op: "add", path: "wimp", value: {src: ROOT, name: "Runtime"}})
     await declaration("field", 1, {key: "input", type: "number", default: 0, position: 0})
     await declaration("state", 1, {name: "idle", position: 0})
@@ -44,28 +43,30 @@ describe("Boundary -> packed Matrix runtime", () => {
       action: {src: "./run.ts", read: [1]},
     })
 
-    const snapshot = await boundary.matrixRuntime()
-    const atomId = snapshot.runtime.atomIdByBraneIndex[0]!
+    const initial = await boundary.initialState()
+    const atomId = initial.atoms[0]!.id
     const fieldId = Number((await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM field WHERE wimp = ${ROOT} AND local_id = ${1}`)[0]!.id)
 
-    expect(snapshot.ok).toBe(true)
-    expect(snapshot.version).toBe(1)
-    expect(snapshot.runtime.atomIdByBraneIndex).toHaveLength(1)
-    expect(snapshot.runtime.wimpSrcByAtomId).toEqual([[atomId, ROOT]])
-    expect(snapshot.runtime.runtimeFieldIndexByAtomFieldId).toEqual([[atomId, fieldId, 0]])
-    expect(snapshot.strong.runtimeFieldIndexByWimpFieldId).toEqual([[1, 0]])
-    expect(snapshot.strong.wimpFieldIdsByRuntimeFieldIndex).toEqual([[1]])
-    expect(snapshot.strong.braneIndexByWimpFieldId).toEqual([[1, 0]])
-    expect(snapshot.data.fields).toEqual([{type: 0}])
-    expect(snapshot.data.branes).toHaveLength(1)
-    expect(snapshot.data.branes[0]!.values).toEqual([[0, 0]])
-    expect(snapshot.data.branes[0]!.state).toBe(STATE_UNDEFINED)
-    expect(snapshot.data.stateNames).toEqual([["idle", "ready"]])
-    expect(snapshot.data.branes[0]!.collapses).toEqual([
-      [[1, {0: {eq: 1}}]],
-      [],
+    expect(initial.version).toBe(1)
+    expect(initial.atoms).toEqual([{
+      id: atomId,
+      wimp: ROOT,
+      values: [{field: fieldId, value: 0}],
+      state: null,
+    }])
+    expect(initial.declarations.find((item) => item.section === "fields")?.value).toMatchObject({
+      id: fieldId,
+      wimp: ROOT,
+      key: "input",
+      type: "number",
+      default: 0,
+    })
+    expect(initial.declarations.filter((item) => item.section === "states").map((item) => item.value.name)).toEqual([
+      "idle",
+      "ready",
     ])
-    expect(snapshot.weak.stateHasProcessByBraneIndex).toEqual([[false, true]])
+    expect(initial.declarations.find((item) => item.section === "conditions")?.value.predicate).toEqual({eq: 1})
+    expect(initial.declarations.find((item) => item.section === "processes")?.value.state).toBe("ready")
 
     const atomCount = (await boundary.projection.sql<Array<{count: number}>>`
       SELECT COUNT(*) AS count FROM atom

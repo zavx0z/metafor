@@ -20,9 +20,11 @@
 
 - Предметный домен не импортирует runtime-функции, Store, fixtures или
   внутренние типы другого предметного домена.
-- Междоменное runtime-взаимодействие проходит через Particle и Force.
-- Общий transport client импортируется из настоящего public API package
-  `force`.
+- Realtime предметные consequences проходят через Particle и Force.
+- Service-plane взаимодействие Монад проходит через transport-neutral Force
+  RPC; текущий REST adapter не является новым видом Particle.
+- Общие transports импортируются из public subpaths
+  `shared/transport/{force,monad}`.
 - Внутри package implementation импортируется относительно из точного
   модуля-владельца, а не через собственный `index.ts`.
 - Внешний production-consumer использует только объявленный public API и не
@@ -47,19 +49,28 @@
 - Только отдельный public-contract test импортирует корневой package как внешний
   consumer и проверяет точный набор его exports.
 
-## Текущий Force contract
+## Текущий shared/Force contract
 
-Для package `force`:
+Для packages `shared` и `force`:
 
-- `force/index.ts` экспортирует только transport client `Force`;
+- `shared/transport/force` условно экспортирует server/web implementation
+  transport client `Force`;
+- `shared/transport/monad` условно экспортирует server/web implementation REST
+  adapter `MonadRpcClient` и provider transport;
+- conditional export выбирает physical adapter, но не меняет его public API;
 - Dark, Boundary, Matrix, Energy и Bulk используют `import {Force} from
-  "force"`;
-- relay `routeParticle`, `force$`, `forceDomains`, Store, Монада и внутренние
-  типы не экспортируются из корневого package;
+  "shared/transport/force"`;
+- доменная Монада использует `import {MonadRpcClient} from
+  "shared/transport/monad"`;
+- relay `routeParticle`, `force$`, `forceDomains`, Store, `ForceLifecycle`,
+  `MonadRouter` и внутренние
+  типы остаются internal package `force`;
 - Force unit tests импортируют `force.ts`, `store.ts`, `monad.ts`, `server.ts` и
-  `transport/*` относительно;
+  `rpc.ts` относительно;
 - `force/fixture` является отдельным test-only subpath;
-- типы импортируются напрямую из `@metafor/types/force/*`.
+- Particle protocol импортируется напрямую из `shared/protocol/force/*`, RPC
+  envelope — из `shared/protocol/monad/rpc`, а canonical initial-state
+  contract — из `@metafor/types/boundary/initial`.
 
 ## Review checklist
 

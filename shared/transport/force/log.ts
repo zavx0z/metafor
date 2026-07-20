@@ -1,5 +1,5 @@
-import type {ForceMessage} from "@metafor/types/force/message"
-import type {Particle} from "@metafor/types/force/particle"
+import type {ForceMessage} from "../../protocol/force/message.ts"
+import type {Particle} from "../../protocol/force/particle.ts"
 
 export type ImpulseLogDirection = "<-" | "->"
 export type ImpulseLogMode = "off" | "compact" | "full"

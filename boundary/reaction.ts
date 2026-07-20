@@ -1,6 +1,6 @@
 import type {ReservedSQL, SQL} from "bun"
-import type {ForceMessage} from "@metafor/types/force/message"
-import type {Particle} from "@metafor/types/force/particle"
+import type {ForceMessage} from "shared/protocol/force/message"
+import type {Particle} from "shared/protocol/force/particle"
 import {
   REACTION_SIGNAL_KIND,
   isReactionExecutionClaim,
@@ -9,7 +9,7 @@ import {
   type ReactionExecutionSignal,
   type ReactionResultCommit,
   type ReactionResultProposal,
-} from "@metafor/types/force/reaction"
+} from "shared/protocol/force/reaction"
 import type {BoundaryIncrementalCommit} from "./incremental.ts"
 import {commitBoundaryAtomFields, readBoundaryValue} from "./world.ts"
 

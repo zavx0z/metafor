@@ -4,13 +4,13 @@ import {dirname} from "node:path"
 import {BoundaryWimpSqlite} from "@boundary/wimp/sqlite"
 import {BoundaryAtomSqlite} from "@boundary/atom/sqlite"
 import {BoundaryTopologySqlite} from "@boundary/topology/sqlite"
-import type {ForceMessage} from "@metafor/types/force/message"
-import {isReactionResultProposal} from "@metafor/types/force/reaction"
+import type {ForceMessage} from "shared/protocol/force/message"
+import {isReactionResultProposal} from "shared/protocol/force/reaction"
 import {BoundaryIncrementalStore, type BoundaryIncrementalCommit} from "./incremental.ts"
 import {BoundaryExecutionStore} from "./execution.ts"
 import {BoundaryReactionStore} from "./reaction.ts"
 import {BoundaryInputStore} from "./input.ts"
-import {matrixRuntime} from "./runtime/matrix.ts"
+import {readBoundaryInitialState} from "./initial.ts"
 
 const isFieldConsequence = (message: ForceMessage): boolean => {
   const part = message.parts[0]
@@ -129,7 +129,7 @@ export const open = async (filename?: string) => {
     input,
     replay: () => projection.replay(),
     materialize,
-    matrixRuntime: () => matrixRuntime(sql),
+    initialState: () => readBoundaryInitialState(sql),
     async close() {
       try {
         if (fileBacked) await sql.unsafe("PRAGMA wal_checkpoint(TRUNCATE);")

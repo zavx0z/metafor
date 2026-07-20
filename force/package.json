@@ -2,16 +2,7 @@
   "name": "force",
   "version": "0.0.1",
   "type": "module",
-  "main": "index.ts",
-  "imports": {
-    "#force/transport": {
-      "browser": "./transport/browser.ts",
-      "bun": "./transport/bun.ts",
-      "default": "./transport/browser.ts"
-    }
-  },
   "exports": {
-    ".": "./index.ts",
     "./fixture": "./fixture.ts"
   },
   "private": true,
@@ -20,6 +11,6 @@
     "start": "bun server.ts"
   },
   "dependencies": {
-    "@metafor/types": "workspace:*"
+    "shared": "workspace:*"
   }
 }

@@ -11,10 +11,12 @@
 1. выбирает database path;
 2. создаёт parent directory;
 3. открывает SQLite через `boundary/sqlite.ts`;
-4. подключает `Force("boundary")`;
-5. применяет входные messages через `boundary.materialize(message)`;
-6. отправляет возвращённые messages после commit;
-7. закрывает server и database через Force shutdown hook.
+4. поднимает Boundary Monad HTTP endpoint;
+5. регистрирует в Force RPC метод первоначального чтения;
+6. подключает Particle transport `Force("boundary")`;
+7. применяет входные messages через `boundary.materialize(message)`;
+8. отправляет возвращённые messages после commit;
+9. закрывает server и database через Force shutdown hook.
 
 Приоритет пути:
 
@@ -22,7 +24,8 @@
 2. `BOUNDARY_PATH`;
 3. `.metafor/dev.sqlite` в корне репозитория.
 
-Health response содержит фактически открытый absolute database path.
+Health response содержит фактически открытый absolute database path и состояние
+регистрации `rpc`.
 
 ## Development и tests
 
@@ -39,12 +42,11 @@ BOUNDARY_PATH=/absolute/path/boundary.sqlite bun run --filter boundary start
 ## Реализованные handlers
 
 - `inflaton` от Dark по одной сущности изменяет нормализованные таблицы;
-- после каждого такого commit Boundary публикует производную Matrix runtime,
-  потому что завершающей Particle у потока нет;
-- replay marker для Matrix вызывает `matrixRuntime()` и отправляет
-  `graviton/replace` по `runtime/matrix`;
-- replay marker для Energy или Bulk отправляет результат `boundary.replay()`
-  по одному message;
+- обычные канонические consequences после commit продолжают идти как Particle;
+- `boundary.initialState.read` через Force RPC возвращает нормализованные
+  канонические строки для первоначального рождения Matrix;
+- Boundary не собирает Matrix Store/Weak и не отправляет стартовый snapshot как
+  `graviton/replace`;
 - остальные messages проходят через `materialize()`.
 
 Meta-файл в Boundary не попадает. Здесь нет внутренней сущности Meta, JSON-копии

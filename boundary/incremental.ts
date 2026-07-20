@@ -2,10 +2,10 @@ import type {ReservedSQL, SQL} from "bun"
 import {
   isDeclarationPath,
   type DeclarationPath,
-} from "@metafor/types/force/declaration"
-import {resolveForceFieldsPayload} from "@metafor/types/force/fields"
-import type {ForceMessage} from "@metafor/types/force/message"
-import type {Particle} from "@metafor/types/force/particle"
+} from "shared/protocol/force/declaration"
+import {resolveForceFieldsPayload} from "shared/protocol/force/fields"
+import type {ForceMessage} from "shared/protocol/force/message"
+import type {Particle} from "shared/protocol/force/particle"
 import type {MatterBindingValue, MatterEdgeSlot, MatterParticleKind} from "@metafor/types/metafor/matter"
 import type {MetaFieldDSL} from "@metafor/types/metafor/schema"
 import {

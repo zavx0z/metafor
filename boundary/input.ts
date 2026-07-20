@@ -1,6 +1,6 @@
 import type {ReservedSQL, SQL} from "bun"
-import {resolveForceFieldId, resolveForceFieldsPayload} from "@metafor/types/force/fields"
-import type {ForceMessage} from "@metafor/types/force/message"
+import {resolveForceFieldId, resolveForceFieldsPayload} from "shared/protocol/force/fields"
+import type {ForceMessage} from "shared/protocol/force/message"
 import type {BoundaryIncrementalCommit} from "./incremental.ts"
 import {commitBoundaryAtomFields} from "./world.ts"
 

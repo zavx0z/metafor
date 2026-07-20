@@ -60,10 +60,10 @@ describe("Boundary relational declaration materialization", () => {
       JOIN field ON field.id = atom_value.field
       JOIN value_string ON value_string.value = atom_value.value
     `).toEqual([{key: "title", text: "Capsule"}])
-    const matrix = await boundary.matrixRuntime()
-    expect(matrix.runtime.atomIdByBraneIndex).toHaveLength(1)
-    expect(matrix.data.fields).toHaveLength(1)
-    expect(matrix.data.branes[0]?.values[0]?.[1]).toBe("Capsule")
+    const initial = await boundary.initialState()
+    expect(initial.atoms).toHaveLength(1)
+    expect(initial.declarations.filter((item) => item.section === "fields")).toHaveLength(1)
+    expect(initial.atoms[0]?.values[0]?.value).toBe("Capsule")
     expect(await boundary.projection.sql<unknown[]>`PRAGMA foreign_key_check`).toEqual([])
   })
 

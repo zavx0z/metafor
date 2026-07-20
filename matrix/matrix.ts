@@ -1,7 +1,7 @@
 /**
  * Matrix — доменный оркестратор детерминированного перехода состояний.
  *
- * Boundary передаёт Matrix производный packed bootstrap. После загрузки все
+ * Монада рождает Matrix с уже подготовленным packed Store. После рождения все
  * runtime-изменения идут через один pipeline `gravity → strong → weak`.
  * WebGPU является основным параллельным backend, CPU — fallback/reference.
  */
@@ -10,46 +10,28 @@ import {gravity$} from "@matrix/gravity/store.ts"
 import {matrix$} from "./store"
 import type {MatrixData, MatrixFieldValueRecord, MatrixStore, MatrixValue} from "@metafor/types/matrix/store"
 import type {MatrixFieldRecord, MatrixInputData} from "@metafor/types/matrix/data"
-import {
-  MATRIX_RUNTIME_PATH,
-  type AsyncGate,
-  type MatrixPendingProcessExecution,
-  type MatrixRuntimeSnapshot,
-  type MatrixUpdateOptions,
-} from "@metafor/types/matrix/runtime"
+import type {AsyncGate, MatrixPendingProcessExecution, MatrixUpdateOptions} from "@metafor/types/matrix/runtime"
 import type {
   ProcessExecutionClaim,
   ProcessExecutionGrant,
   ProcessResultCommit,
-} from "@metafor/types/force/execution"
-import {isProcessExecutionId} from "@metafor/types/force/execution"
+} from "shared/protocol/force/execution"
+import {isProcessExecutionId} from "shared/protocol/force/execution"
 import {FieldType, flattenMatrixData, validateData} from "@matrix/gravity"
 import {createStoredStringInterner, normalizeFieldValue, assembleStoredMatrixData, strong$} from "@matrix/strong"
 import {StepMode, weakHeapUpdate, weakInit, weakRunStep, weak$} from "@matrix/weak"
-import {resolveForceFieldId, resolveForceFieldsPayload} from "@metafor/types/force/fields"
-import type {Particle} from "@metafor/types/force/particle"
-import {Force} from "force"
+import {resolveForceFieldId, resolveForceFieldsPayload} from "shared/protocol/force/fields"
+import type {Particle} from "shared/protocol/force/particle"
+import {Force} from "shared/transport/force"
+import {consumePreparedMatrixBirth} from "./birth.ts"
 
-const force = new Force("matrix")
+let force: Force
 const writeGate: AsyncGate = {pending: null}
 const updateGate: AsyncGate = {pending: null}
 const pendingProcessExecutionsByAtomId = new Map<number, MatrixPendingProcessExecution>()
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
-
-const isMatrixRuntimeSnapshot = (value: unknown): value is MatrixRuntimeSnapshot =>
-  isRecord(value) &&
-  value.ok === true &&
-  value.version === 1 &&
-  isRecord(value.runtime) &&
-  isRecord(value.data) &&
-  isRecord(value.strong) &&
-  isRecord(value.weak) &&
-  Array.isArray(value.runtime.atomIdByBraneIndex) &&
-  Array.isArray(value.data.fields) &&
-  Array.isArray(value.data.branes) &&
-  Array.isArray(value.data.stateNames)
 
 const atomFieldKey = (atomId: number, fieldId: number): string =>
   `${atomId}\0${fieldId}`
@@ -389,61 +371,6 @@ export function listMatrixRuntimeAtomIds(): number[] {
   return [...gravity$.activeAtomIds]
 }
 
-export async function loadMatrixRuntimeSnapshot(snapshot: MatrixRuntimeSnapshot): Promise<void> {
-  if (!isMatrixRuntimeSnapshot(snapshot)) throw new Error("Invalid Matrix runtime snapshot")
-  validateData(snapshot.data)
-
-  await runExclusive(writeGate, async () => {
-    clearRuntime()
-    const prepared = prepareData(snapshot.data)
-    applyPreparedData(prepared)
-
-    await weakInit(matrix$)
-
-    gravity$.activeAtomIds = [...snapshot.runtime.atomIdByBraneIndex]
-    gravity$.braneIndexToAtomId = [...snapshot.runtime.atomIdByBraneIndex]
-    gravity$.atomIdToBraneIndex = new Map(snapshot.runtime.braneIndexByAtomId)
-    gravity$.wimpSrcByAtomId = new Map(snapshot.runtime.wimpSrcByAtomId)
-    gravity$.atomIdsByWimpSrc = new Map(
-      snapshot.runtime.atomIdsByWimpSrc.map(([src, atomIds]) => [src, [...atomIds]]),
-    )
-    gravity$.structuralDirty = false
-
-    strong$.runtimeFieldIndexByWimpFieldId = new Map(snapshot.strong.runtimeFieldIndexByWimpFieldId)
-    strong$.wimpFieldIdsByRuntimeFieldIndex = snapshot.strong.wimpFieldIdsByRuntimeFieldIndex.map((ids) => [...ids])
-    strong$.braneIndexByWimpFieldId = new Map(snapshot.strong.braneIndexByWimpFieldId)
-    strong$.topologyWimpFieldIds = new Set(snapshot.strong.topologyWimpFieldIds)
-    strong$.runtimeFieldIndexByAtomFieldId = new Map(
-      snapshot.runtime.runtimeFieldIndexByAtomFieldId.map(([atomId, fieldId, runtimeFieldIndex]) => [
-        atomFieldKey(atomId, fieldId),
-        runtimeFieldIndex,
-      ]),
-    )
-    strong$.atomFieldIdsByRuntimeFieldIndex = []
-    for (const [atomId, fieldId, runtimeFieldIndex] of snapshot.runtime.runtimeFieldIndexByAtomFieldId) {
-      const bucket = strong$.atomFieldIdsByRuntimeFieldIndex[runtimeFieldIndex]
-      if (bucket) bucket.push([atomId, fieldId])
-      else strong$.atomFieldIdsByRuntimeFieldIndex[runtimeFieldIndex] = [[atomId, fieldId]]
-    }
-    strong$.topologyAtomFieldIds = new Set(
-      snapshot.strong.topologyAtomFieldIds.map(([atomId, fieldId]) => atomFieldKey(atomId, fieldId)),
-    )
-
-    weak$.stateMetaStateIdsByBraneIndex = snapshot.weak.stateMetaStateIdsByBraneIndex.map((ids) => [...ids])
-    weak$.stateHasProcessByBraneIndex = snapshot.weak.stateHasProcessByBraneIndex.map((items) => [...items])
-
-    if (weak$.initialized) {
-      const changes = await weakRunStep(StepMode.UndefinedOnly)
-      syncProcessLocksForChanges(changes, changes)
-      publishPhotonChanges(changes)
-    }
-
-    console.log(
-      `[matrix] runtime loaded atoms=${snapshot.runtime.atomIdByBraneIndex.length} fields=${snapshot.data.fields.length} backend=${weak$.mode}`,
-    )
-  })
-}
-
 const collectProcessStateRetriggers = (
   updatedBraneIndexes: Iterable<number>,
   changes: [number, number][],
@@ -482,7 +409,7 @@ export async function write(data: MatrixInputData): Promise<[number, number][]> 
 
 function requireInitializedStore(store$: MatrixStore): void {
   if (!store$.fields.length && !store$.branes.length) {
-    throw new Error("Store not initialized. Call write() or loadMatrixRuntimeSnapshot() first.")
+    throw new Error("Store not initialized. Matrix must be born or write() must be called first.")
   }
   if (!weak$.initialized) throw new Error("Weak runtime not initialized")
 }
@@ -573,18 +500,14 @@ export function unlock(indexes: number[]): void {
   weakHeapUpdate(weakUpdates)
 }
 
+const birthChanges = consumePreparedMatrixBirth()
+  ? await weakRunStep(StepMode.UndefinedOnly)
+  : []
+if (birthChanges.length > 0) syncProcessLocksForChanges(birthChanges, birthChanges)
+
+force = new Force("matrix")
 force.onImpulse = async (impulse) => {
   const part = impulse.parts[0]
-
-  if (
-    part.part === "graviton" &&
-    part.op === "replace" &&
-    part.path === MATRIX_RUNTIME_PATH
-  ) {
-    if (!isMatrixRuntimeSnapshot(part.value)) throw new Error("Boundary sent an invalid Matrix runtime snapshot")
-    await loadMatrixRuntimeSnapshot(part.value)
-    return
-  }
 
   if (part.part === "gluon" || part.part === "higgs") {
     await applyRuntimeFieldParts([part], part.part)
@@ -598,6 +521,8 @@ force.onImpulse = async (impulse) => {
     await applyCommittedWeakResult(part)
   }
 }
+
+if (birthChanges.length > 0) publishPhotonChanges(birthChanges)
 
 export {FieldType} from "./gravity"
 export {gravity$}

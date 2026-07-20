@@ -1,13 +1,10 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import {join} from "node:path"
-import type {ProcessResultCommit, ProcessResultProposal} from "@metafor/types/force/execution"
-import type {Particle, SourcedParticle} from "@metafor/types/force/particle"
-import {
-  MATRIX_RUNTIME_PATH,
-  STATE_UNDEFINED,
-  type MatrixRuntimeSnapshot,
-} from "@metafor/types/matrix/runtime"
+import type {ProcessResultCommit, ProcessResultProposal} from "shared/protocol/force/execution"
+import type {Particle, SourcedParticle} from "shared/protocol/force/particle"
+import type {BoundaryInitialState} from "@metafor/types/boundary/initial"
 import {createForceTestFixture, type ForceTestClient, type ForceTestFixture} from "force/fixture"
+import {prepareMatrixBirth} from "./birth.ts"
 import {weak$} from "./weak"
 
 let fixture: ForceTestFixture
@@ -45,93 +42,35 @@ const waitForPart = async (
   return entry.message.parts[0]
 }
 
-const runtimeSnapshot = (): MatrixRuntimeSnapshot => ({
-  ok: true,
+const runtimeInitialState = (): BoundaryInitialState => ({
   version: 1,
-  runtime: {
-    atomIdByBraneIndex: [17],
-    braneIndexByAtomId: [[17, 0]],
-    wimpSrcByAtomId: [[17, "owner/process"]],
-    atomIdsByWimpSrc: [["owner/process", [17]]],
-    runtimeFieldIndexByAtomFieldId: [[17, 101, 0], [17, 102, 1]],
-  },
-  data: {
-    fields: [{type: 0}, {type: 3}],
-    branes: [{
-      values: [[0, 0], [1, ""]],
-      state: STATE_UNDEFINED,
-      collapses: [
-        [[1, {0: {gt: 10}}]],
-        [[2, {0: {gt: 11}}]],
-        [],
-      ],
-    }],
-    stateNames: [["idle", "ready", "done"]],
-  },
-  strong: {
-    runtimeFieldIndexByWimpFieldId: [[1, 0], [2, 1]],
-    wimpFieldIdsByRuntimeFieldIndex: [[1], [2]],
-    braneIndexByWimpFieldId: [[1, 0], [2, 0]],
-    topologyWimpFieldIds: [],
-    topologyAtomFieldIds: [],
-  },
-  weak: {
-    stateMetaStateIdsByBraneIndex: [[201, 202, 203]],
-    stateHasProcessByBraneIndex: [[false, true, false]],
-  },
-})
-
-const emptyRuntimeSnapshot = (): MatrixRuntimeSnapshot => ({
-  ok: true,
-  version: 1,
-  runtime: {
-    atomIdByBraneIndex: [],
-    braneIndexByAtomId: [],
-    wimpSrcByAtomId: [],
-    atomIdsByWimpSrc: [],
-    runtimeFieldIndexByAtomFieldId: [],
-  },
-  data: {fields: [], branes: [], stateNames: []},
-  strong: {
-    runtimeFieldIndexByWimpFieldId: [],
-    wimpFieldIdsByRuntimeFieldIndex: [],
-    braneIndexByWimpFieldId: [],
-    topologyWimpFieldIds: [],
-    topologyAtomFieldIds: [],
-  },
-  weak: {
-    stateMetaStateIdsByBraneIndex: [],
-    stateHasProcessByBraneIndex: [],
-  },
+  atoms: [{
+    id: 17,
+    wimp: "owner/process",
+    values: [{field: 101, value: 0}, {field: 102, value: ""}],
+    state: null,
+  }],
+  declarations: [
+    {src: "owner/process", section: "fields", localId: "1", value: {id: 101, key: "input", type: "number", default: 0, position: 0}},
+    {src: "owner/process", section: "fields", localId: "2", value: {id: 102, key: "command", type: "string", default: "", position: 1}},
+    {src: "owner/process", section: "states", localId: "1", value: {id: 201, name: "idle", position: 0}},
+    {src: "owner/process", section: "states", localId: "2", value: {id: 202, name: "ready", position: 1}},
+    {src: "owner/process", section: "states", localId: "3", value: {id: 203, name: "done", position: 2}},
+    {src: "owner/process", section: "transitions", localId: "1", value: {id: 301, fromState: 201, toState: 202, position: 0}},
+    {src: "owner/process", section: "transitions", localId: "2", value: {id: 302, fromState: 202, toState: 203, position: 1}},
+    {src: "owner/process", section: "conditions", localId: "1", value: {id: 401, transition: 301, field: 101, position: 0, predicate: {gt: 10}}},
+    {src: "owner/process", section: "conditions", localId: "2", value: {id: 402, transition: 302, field: 101, position: 1, predicate: {gt: 11}}},
+    {src: "owner/process", section: "processes", localId: "1", value: {id: 501, key: "ready", state: "ready"}},
+  ],
 })
 
 describe("Matrix packed Force runtime", () => {
   test("waits for Boundary commit before applying Energy W result", async () => {
+    await prepareMatrixBirth(runtimeInitialState())
+    const fromBootstrap = fixture.messages.length
     const waiting = fixture.nextClient("matrix")
     const runtime = await import(`./matrix.ts?packed-force-test=${crypto.randomUUID()}`)
     const client = await waiting
-    await settle()
-
-    send(client, {
-      part: "graviton",
-      op: "replace",
-      path: MATRIX_RUNTIME_PATH,
-      by: "boundary",
-      value: emptyRuntimeSnapshot(),
-    })
-    await settle()
-    expect(runtime.listMatrixRuntimeAtomIds()).toEqual([])
-    expect(weak$.initialized).toBe(true)
-    expect(weak$.mode).toBe("cpu")
-
-    const fromBootstrap = fixture.messages.length
-    send(client, {
-      part: "graviton",
-      op: "replace",
-      path: MATRIX_RUNTIME_PATH,
-      by: "boundary",
-      value: runtimeSnapshot(),
-    })
     expect(await waitForPart(client, (part) => part.part === "photon" && part.value === "idle", fromBootstrap)).toEqual({
       part: "photon", op: "replace", path: 17, by: "matrix", ts: expect.any(Number), value: "idle",
     })
@@ -234,6 +173,8 @@ describe("Matrix packed Force runtime", () => {
     expect(source).not.toContain("comparePredicate")
     expect(source).not.toContain("evaluateIncrementalAtom")
     expect(source).toContain("weakRunStep")
-    expect(source).toContain("MATRIX_RUNTIME_PATH")
+    expect(source).not.toContain("MATRIX_RUNTIME_PATH")
+    expect(source).not.toContain("loadMatrixRuntimeSnapshot")
+    expect(source).toContain("consumePreparedMatrixBirth")
   })
 })

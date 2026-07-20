@@ -11,9 +11,9 @@ import type {
   ProcessExecutionClaim,
   ProcessExecutionGrant,
   ProcessResultProposal,
-} from "@metafor/types/force/execution"
-import type {ForceMessage} from "@metafor/types/force/message"
-import type {Particle} from "@metafor/types/force/particle"
+} from "shared/protocol/force/execution"
+import type {ForceMessage} from "shared/protocol/force/message"
+import type {Particle} from "shared/protocol/force/particle"
 import {startEnergyProtocol} from "./energy.ts"
 
 type ParticleInput = Omit<Particle, "ts"> & {ts?: number}

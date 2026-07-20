@@ -1,11 +1,8 @@
 import type {MatrixInputData} from "./data.ts"
-import type {ProcessExecutionId} from "../force/execution.ts"
+import type {ProcessExecutionId} from "shared/protocol/force/execution"
 
 export const STATE_UNDEFINED = -1
 export const STATE_NONE = -2
-
-/** Boundary emits this target-specific derived projection to bootstrap Matrix. */
-export const MATRIX_RUNTIME_PATH = "runtime/matrix" as const
 
 export interface MatrixRuntimeAtom {
   id: number
@@ -54,9 +51,8 @@ export interface MatrixRuntimeTopology {
 }
 
 /**
- * Derived, target-specific bootstrap projection for the packed Matrix runtime.
- * Boundary remains the canonical world store; this snapshot can always be
- * rebuilt from its current materialization and declarations.
+ * Matrix-internal derived projection built by its Monad from canonical
+ * Boundary initial data before runtime birth.
  *
  * Atom-prefixed keys identify materialized Atoms throughout the wire format.
  */

@@ -1,0 +1,28 @@
+{
+  "name": "shared",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "exports": {
+    "./transport/force": {
+      "browser": "./transport/force/web.ts",
+      "bun": "./transport/force/server.ts",
+      "node": "./transport/force/server.ts",
+      "default": "./transport/force/web.ts"
+    },
+    "./transport/force/log": "./transport/force/log.ts",
+    "./transport/monad": {
+      "browser": "./transport/monad/web.ts",
+      "bun": "./transport/monad/server.ts",
+      "node": "./transport/monad/server.ts",
+      "default": "./transport/monad/web.ts"
+    },
+    "./protocol/force/declaration": "./protocol/force/declaration.ts",
+    "./protocol/force/execution": "./protocol/force/execution.ts",
+    "./protocol/force/fields": "./protocol/force/fields.ts",
+    "./protocol/force/message": "./protocol/force/message.ts",
+    "./protocol/force/particle": "./protocol/force/particle.ts",
+    "./protocol/force/reaction": "./protocol/force/reaction.ts",
+    "./protocol/monad/rpc": "./protocol/monad/rpc.ts"
+  }
+}

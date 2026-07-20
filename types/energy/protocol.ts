@@ -1,5 +1,5 @@
 import type { EnergyMassStore } from "./mass.ts"
-import type { ForceMessage } from "../force/message.ts"
+import type {ForceMessage} from "shared/protocol/force/message"
 
 export type EnergyProtocol = {
   close(): void

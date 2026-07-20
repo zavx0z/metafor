@@ -1,10 +1,9 @@
 import ".."
-import type {DeclarationPath} from "@metafor/types/force/declaration"
-import type {Particle} from "@metafor/types/force/particle"
-import {parseForceReplayPath} from "@metafor/types/force/replay"
+import type {DeclarationPath} from "shared/protocol/force/declaration"
+import type {Particle} from "shared/protocol/force/particle"
 import type {MatterEdgeSlot, MatterParticle} from "@metafor/types/metafor/matter"
 import type {MetaDSL} from "@metafor/types/metafor/schema"
-import {Force} from "force"
+import {Force} from "shared/transport/force"
 import {loadMeta} from "./load.ts"
 
 type MetaLoader = (src: string) => Promise<MetaDSL>
@@ -321,14 +320,6 @@ export async function matter(src: string, readMeta: MetaLoader = loadMeta): Prom
   for await (const particle of matterParticles(src, readMeta)) emit(particle)
 }
 
-const replay = (): void => {
-  for (const src of projectionOrder(projection, false)) {
-    const current = projection.get(src)
-    if (!current) continue
-    for (const item of current.entities) emit(add(item))
-  }
-}
-
 /** Applies the first trusted agent WIMP declaration and preserves its timestamp. */
 export const applyAgentInflaton = (part: Particle): boolean => {
   if (
@@ -356,8 +347,5 @@ force.onImpulse = async (impulse) => {
       await matter(part.path)
       continue
     }
-    if (part.part !== "z" || part.op !== "test") continue
-    const request = parseForceReplayPath(part.path)
-    if (request?.domain === "boundary") replay()
   }
 }

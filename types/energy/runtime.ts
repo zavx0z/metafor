@@ -1,4 +1,4 @@
-import type {ProcessExecutionId} from "../force/execution.ts"
+import type {ProcessExecutionId} from "shared/protocol/force/execution"
 import type {EnergyProcessDescriptor} from "./process.ts"
 
 export type PendingEnergyProcess = {

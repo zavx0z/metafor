@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import type {Particle} from "@metafor/types/force/particle"
+import type {Particle} from "shared/protocol/force/particle"
 import {EnergyCatalogStore} from "./catalog.ts"
 
 const part = (op: Particle["op"], path: string, value?: unknown, from?: string): Particle => ({

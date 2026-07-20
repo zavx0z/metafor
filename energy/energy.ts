@@ -5,16 +5,16 @@ import type {EnergyHandlerDescriptor, EnergyProcessDescriptor} from "@metafor/ty
 import type {EnergyMassContext, EnergyMassStore} from "@metafor/types/energy/mass"
 import type {EnergyProtocol, EnergyProtocolOptions} from "@metafor/types/energy/protocol"
 import type {EnergyActionParams, PendingEnergyProcess} from "@metafor/types/energy/runtime"
-import type {ProcessExecutionClaim, ProcessExecutionGrant, ProcessResultProposal} from "@metafor/types/force/execution"
-import type {ForceMessage} from "@metafor/types/force/message"
+import type {ProcessExecutionClaim, ProcessExecutionGrant, ProcessResultProposal} from "shared/protocol/force/execution"
+import type {ForceMessage} from "shared/protocol/force/message"
 import {
   REACTION_CLAIM_KIND,
   isReactionExecutionSignal,
   type ReactionExecutionClaim,
   type ReactionExecutionSignal,
   type ReactionResultProposal,
-} from "@metafor/types/force/reaction"
-import {Force} from "force"
+} from "shared/protocol/force/reaction"
+import {Force} from "shared/transport/force"
 import {EnergyCatalogStore} from "./catalog.ts"
 import {executeReaction} from "./reaction.ts"
 

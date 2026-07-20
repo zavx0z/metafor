@@ -37,6 +37,13 @@ const impactRules = [
     skillSurfaces: ["SKILL.md", "project agent rule"],
   },
   {
+    area: "shared-contract",
+    matches: (path) => path.startsWith("shared/"),
+    automated: ["bun test shared", "bun run typecheck"],
+    live: ["inflaton-add", "meta-read", "bulk-baseline"],
+    skillSurfaces: ["current milestone", "runtime", "visual acceptance", "module boundaries"],
+  },
+  {
     area: "force-contract",
     matches: (path) => path.startsWith("force/") || path.startsWith("types/force/"),
     automated: ["bun test force", "bun run typecheck"],

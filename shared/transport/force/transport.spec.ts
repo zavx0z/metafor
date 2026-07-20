@@ -1,7 +1,7 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
-import type {ForceMessage, ForceMessageInput} from "@metafor/types/force/message"
+import type {ForceMessage, ForceMessageInput} from "../../protocol/force/message.ts"
 
-describe.skip("Legacy Force transport replay contract", () => {
+describe("Force transport adapters", () => {
 
 type ForceConstructor = new (domain: string) => {
   readonly connected: boolean
@@ -60,8 +60,8 @@ beforeAll(async () => {
     configurable: true,
     value: FakeWebSocket,
   })
-  BrowserForce = (await import("./browser.ts")).Force
-  BunForce = (await import("./bun.ts")).Force
+  BrowserForce = (await import("./web.ts")).Force
+  BunForce = (await import("./server.ts")).Force
 })
 
 afterAll(() => {
@@ -97,21 +97,13 @@ const verifyRawOrderedTransport = async (Force: ForceConstructor, domain: string
     order.push(`impulse:${path}:end`)
   }
 
-  await waitFor(() => socket.sent.length === 2)
+  await waitFor(() => force.connected)
   expect(force.connected).toBe(true)
   expect(connectionStates).toEqual([false, true])
-  expect(socket.sent).toEqual([
-    {type: "register", domain, id: `${domain}-${domain.startsWith("browser") ? "web" : "local"}`},
-    {parts: [{part: "z", op: "test", path: `force/replay/${domain}/${domain}-${domain.startsWith("browser") ? "web" : "local"}`, by: domain, ts: expect.any(Number)}]},
-  ])
-
-  socket.receive({type: "force", parts: [{part: "photon", op: "test", path: 1, by: "matrix", ts: 1}]})
-  socket.receive({type: "snapshot", revision: 0})
-  socket.receive({type: "create", snapshot: {revision: 0}})
-  socket.receive({type: "error", error: "legacy"})
-  socket.receive({parts: [{part: "photon", op: "test", path: 9}]})
-  await Bun.sleep(0)
-  expect(order).toEqual([])
+  const address = new URL(socket.url)
+  expect(address.searchParams.get("domain")).toBe(domain)
+  expect(address.searchParams.get("id")).toBe(`${domain}-${domain.startsWith("browser") ? "web" : "local"}`)
+  expect(socket.sent).toEqual([])
 
   socket.receive({parts: [{part: "photon", op: "test", path: 1, by: "matrix", ts: 1}]})
   socket.receive({parts: [{part: "photon", op: "test", path: 2, by: "matrix", ts: 2}]})
@@ -163,15 +155,15 @@ const verifyOrdinaryImpulseOrder = async (Force: ForceConstructor, domain: strin
   ])
 }
 
-const verifyEarlyReplayBuffer = async (Force: ForceConstructor, domain: string): Promise<void> => {
+const verifyEarlyParticleBuffer = async (Force: ForceConstructor, domain: string): Promise<void> => {
   const force = new Force(domain)
   const socket = sockets.at(-1)!
-  const replay: ForceMessage = {
-    parts: [{part: "z", op: "test", path: `force/replay/${domain}/peer`, by: "force", ts: 1}],
+  const particle: ForceMessage = {
+    parts: [{part: "photon", op: "test", path: 1, by: "matrix", ts: 1}],
   }
   const received: ForceMessage[] = []
 
-  socket.receive(replay)
+  socket.receive(particle)
   await Bun.sleep(0)
   expect(received).toEqual([])
 
@@ -180,28 +172,28 @@ const verifyEarlyReplayBuffer = async (Force: ForceConstructor, domain: string):
   }
 
   await waitFor(() => received.length === 1)
-  expect(received).toEqual([replay])
+  expect(received).toEqual([particle])
 }
 
 const verifyOutgoingSource = async (Force: ForceConstructor, domain: string): Promise<void> => {
   const force = new Force(domain)
   const socket = sockets.at(-1)!
-  await waitFor(() => socket.sent.length === 2)
+  await waitFor(() => force.connected)
 
   force.impulse({parts: [{part: "inflaton", op: "add", path: "wimp", ts: 42, value: {src: "capsule", name: "Capsule"}}]})
 
-  await waitFor(() => socket.sent.length === 3)
-  expect(socket.sent[2]).toEqual({
+  await waitFor(() => socket.sent.length === 1)
+  expect(socket.sent[0]).toEqual({
     parts: [{part: "inflaton", op: "add", path: "wimp", by: domain, ts: 42, value: {src: "capsule", name: "Capsule"}}],
   })
 }
 
 describe("Force runtime transports", () => {
-  test("Bun requests replay and serializes raw ForceMessages", async () => {
+  test("Bun sends identity only in Upgrade and serializes raw ForceMessages", async () => {
     await verifyRawOrderedTransport(BunForce, "bun-test")
   })
 
-  test("browser requests replay, serializes particles, and rejects legacy wrappers", async () => {
+  test("browser sends identity only in Upgrade and serializes raw ForceMessages", async () => {
     await verifyRawOrderedTransport(BrowserForce, "browser-test")
   })
 
@@ -213,12 +205,12 @@ describe("Force runtime transports", () => {
     await verifyOrdinaryImpulseOrder(BrowserForce, "browser-ordinary-test")
   })
 
-  test("Bun buffers replay received before runtime installs its handler", async () => {
-    await verifyEarlyReplayBuffer(BunForce, "bun-early-replay")
+  test("Bun buffers a Particle received before runtime installs its handler", async () => {
+    await verifyEarlyParticleBuffer(BunForce, "bun-early-particle")
   })
 
-  test("browser buffers replay received before runtime installs its handler", async () => {
-    await verifyEarlyReplayBuffer(BrowserForce, "browser-early-replay")
+  test("browser buffers a Particle received before runtime installs its handler", async () => {
+    await verifyEarlyParticleBuffer(BrowserForce, "browser-early-particle")
   })
 
   test("Bun assigns its domain while preserving the outgoing timestamp", async () => {
