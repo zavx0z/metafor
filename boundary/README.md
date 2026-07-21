@@ -11,12 +11,13 @@
 1. выбирает database path;
 2. создаёт parent directory;
 3. открывает SQLite через `boundary/sqlite.ts`;
-4. поднимает Boundary Monad HTTP endpoint;
-5. регистрирует в Force RPC метод первоначального чтения;
+4. поднимает REST adapter постоянного Boundary `MonadChannel`;
+5. подключает к нему transport-neutral RPC peer с методом первоначального чтения;
 6. подключает Particle transport `Force("boundary")`;
 7. применяет входные messages через `boundary.materialize(message)`;
 8. отправляет возвращённые messages после commit;
-9. закрывает server и database через Force shutdown hook.
+9. при shutdown закрывает Monad-канал, затем закрывает server
+   и database через Force shutdown hook.
 
 Приоритет пути:
 

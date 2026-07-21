@@ -40,3 +40,43 @@ export type MonadRpcFailure = {
 }
 
 export type MonadRpcResponse<T = unknown> = MonadRpcSuccess<T> | MonadRpcFailure
+
+/** Any RPC message carried by a logical MonadChannel. */
+export type MonadRpcMessage = MonadRpcCall | RoutedMonadRpcCall | MonadRpcResponse
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+
+const nonEmptyText = (value: unknown): value is string =>
+  typeof value === "string" && value.trim().length > 0
+
+export const isMonadRpcCall = (value: unknown): value is MonadRpcCall =>
+  isRecord(value) &&
+  value.version === MONAD_RPC_VERSION &&
+  nonEmptyText(value.id) &&
+  nonEmptyText(value.target) &&
+  nonEmptyText(value.method) &&
+  Object.prototype.hasOwnProperty.call(value, "params")
+
+export const isRoutedMonadRpcCall = (value: unknown): value is RoutedMonadRpcCall =>
+  isMonadRpcCall(value) && isRecord(value) && nonEmptyText((value as Record<string, unknown>).source)
+
+export const isMonadRpcResponse = (value: unknown): value is MonadRpcResponse => {
+  if (!isRecord(value) || value.version !== MONAD_RPC_VERSION || !nonEmptyText(value.id)) return false
+  if (value.ok === true) return Object.prototype.hasOwnProperty.call(value, "result")
+  return value.ok === false &&
+    isRecord(value.error) &&
+    nonEmptyText(value.error.code) &&
+    nonEmptyText(value.error.message)
+}
+
+export const monadRpcFailure = (
+  id: string,
+  code: MonadRpcErrorCode,
+  message: string,
+): MonadRpcFailure => ({
+  version: MONAD_RPC_VERSION,
+  id,
+  ok: false,
+  error: {code, message},
+})

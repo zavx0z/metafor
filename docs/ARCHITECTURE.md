@@ -54,6 +54,10 @@ Bun processes. Они не загружают Meta автоматически.
 - Domain transports из `shared/transport/force` подключаются к
   `ws://127.0.0.1:4000/ws`, если
   `FORCE_ADDRESS` не задан; `domain/id` передаются в HTTP Upgrade query.
+- Domain Monads открывают отдельный локальный REST-канал к Force; его identity
+  и method capabilities сохраняются сервером за непрозрачным токеном. Над
+  каналом `MonadRpcPeer` одинаково обслуживает исходящие и входящие RPC, а
+  закрытие удаляет канал из `MonadRouter`.
 - После Upgrade по WebSocket идут только Particle без register, readiness или
   bootstrap messages; само подключение Particle не создаёт.
 - `force/force.ts` является только relay и перенаправляет Particle по готовым

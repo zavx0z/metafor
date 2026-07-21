@@ -1,25 +1,30 @@
 import {logImpulse} from "shared/transport/force/log"
 import type {ForceMessageInput} from "shared/protocol/force/message"
-import {createHttpMonadChannel, normalizeMonadIdentity, readHttpProviderRegistration} from "shared/transport/monad"
+import {MONAD_RPC_VERSION, type MonadRpcResponse} from "shared/protocol/monad/rpc"
+import {
+  createHttpMonadChannelRegistry,
+  isLoopbackAddress,
+  readHttpMonadChannelOpening,
+} from "shared/transport/monad"
 import {ForceLifecycle} from "./monad.ts"
 import {createForceWebSocketChannels, type ForceSocketData} from "./src/websocket.ts"
-import {MonadRouter, isMonadRpcCall} from "./rpc.ts"
+import {MonadRouter} from "./rpc.ts"
 import {readJson} from "./src/http.ts"
 
 const transport = createForceWebSocketChannels()
 export const lifecycle = new ForceLifecycle()
 export const router = new MonadRouter()
+const monadChannels = createHttpMonadChannelRegistry({
+  opened(channel) {
+    router.attach(channel)
+  },
+  closed(channel) {
+    router.detach(channel)
+  },
+})
 lifecycle.start(transport.channels)
 
-const readMonadIdentity = (value: string): string | null => {
-  try {
-    return normalizeMonadIdentity(value)
-  } catch {
-    return null
-  }
-}
-
-const rpcStatus = (response: Awaited<ReturnType<MonadRouter["route"]>>): number => {
+const rpcStatus = (response: MonadRpcResponse): number => {
   if (response.ok) return 200
   if (response.error.code === "provider_unavailable") return 503
   if (response.error.code === "method_unavailable") return 404
@@ -48,30 +53,35 @@ export const server = Bun.serve<ForceSocketData>({
         return Response.json(decision, {status: decision.ok ? 200 : decision.reason === "not_running" ? 503 : 500})
       },
     },
-    "/monad/providers/:identity": {
-      async POST(request: Bun.BunRequest<"/monad/providers/:identity">) {
-        const identity = readMonadIdentity(request.params.identity)
-        if (!identity) return Response.json({ok: false, error: "Monad channel identity is required"}, {status: 400})
+    "/monad/channels": {
+      async POST(request: Request) {
+        if (!isLoopbackAddress(server.requestIP(request)?.address)) {
+          return Response.json({ok: false, error: "Monad REST channels are local-only"}, {status: 403})
+        }
         const payload = await readJson<unknown>(request)
         if (!payload.ok) return Response.json({ok: false, error: payload.error}, {status: 400})
-        const registration = readHttpProviderRegistration(payload.value)
-        if (!registration) return Response.json({ok: false, error: "Invalid HTTP Monad RPC provider"}, {status: 400})
-        router.register(createHttpMonadChannel(identity, registration.endpoint), registration.methods)
-        return Response.json({ok: true, identity, methods: registration.methods})
+        const opening = readHttpMonadChannelOpening(payload.value)
+        if (!opening) return Response.json({ok: false, error: "Invalid Monad channel opening"}, {status: 400})
+        const session = await monadChannels.open(opening)
+        return Response.json({version: MONAD_RPC_VERSION, channel: session.token}, {status: 201})
       },
     },
-    "/monad/rpc/:source": {
-      async POST(request: Bun.BunRequest<"/monad/rpc/:source">) {
-        const source = request.params.source
-        const identity = readMonadIdentity(source)
-        if (!identity) return Response.json({ok: false, error: "Monad channel identity is required"}, {status: 400})
+    "/monad/rpc": {
+      async POST(request: Request) {
+        const session = monadChannels.read(request)
+        if (!session) return Response.json({ok: false, error: "Monad channel is required"}, {status: 401})
         const payload = await readJson<unknown>(request)
         if (!payload.ok) return Response.json({ok: false, error: payload.error}, {status: 400})
-        if (!isMonadRpcCall(payload.value)) {
-          return Response.json({ok: false, error: "Invalid Monad RPC call"}, {status: 400})
-        }
-        const response = await router.route(identity, payload.value)
+        const response = await monadChannels.receive(session, payload.value)
         return Response.json(response, {status: rpcStatus(response)})
+      },
+    },
+    "/monad/channel": {
+      async DELETE(request: Request) {
+        const session = monadChannels.read(request)
+        if (!session) return Response.json({ok: false, error: "Monad channel is required"}, {status: 401})
+        await monadChannels.close(session)
+        return Response.json({ok: true})
       },
     },
     "/ws": {
@@ -100,15 +110,16 @@ export const server = Bun.serve<ForceSocketData>({
         logImpulse(`force:${socket.data.domain}`, "<-", particle)
         lifecycle.acceptParticle(socket.data.domain, particle)
       } catch (error) {
-        lifecycle.channelDestroyed(socket.data.domain, error)
+        console.error(`[force] could not decode ${socket.data.domain} Particle`, error)
         socket.close()
       }
     },
   },
 })
 
-const stop = (): void => {
+const stop = async (): Promise<void> => {
   lifecycle.stop()
+  await monadChannels.closeAll(new Error("Force server stopped"))
   transport.close()
   server.stop(true)
 }

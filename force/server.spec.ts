@@ -47,6 +47,44 @@ const connect = (domain: ForceDomain): Promise<ConnectedClient> => new Promise((
   }, {once: true})
 })
 
+const openMonadChannel = async (
+  identity: string,
+  methods: readonly string[] = [],
+  endpoint?: URL,
+): Promise<string> => {
+  const response = await fetch(new URL("/monad/channels", server.url), {
+    method: "POST",
+    headers: {"content-type": "application/json"},
+    body: JSON.stringify({
+      version: MONAD_RPC_VERSION,
+      identity,
+      methods,
+      ...(endpoint === undefined ? {} : {endpoint, callback: `${identity}-callback`}),
+    }),
+  })
+  expect(response.status).toBe(201)
+  const payload = await response.json() as {channel: string}
+  expect(payload.channel).toBeString()
+  return payload.channel
+}
+
+const monadRequest = (
+  path: "/monad/rpc" | "/monad/channel",
+  channel: string,
+  method: "POST" | "DELETE",
+  body?: unknown,
+): Promise<Response> => {
+  const init: RequestInit = {
+    method,
+    headers: {
+      authorization: `Bearer ${channel}`,
+      ...(body === undefined ? {} : {"content-type": "application/json"}),
+    },
+  }
+  if (body !== undefined) init.body = JSON.stringify(body)
+  return fetch(new URL(path, server.url), init)
+}
+
 beforeAll(async () => {
   providerServer = Bun.serve({
     port: 0,
@@ -90,28 +128,21 @@ afterAll(() => {
 })
 
 describe("Force server transport and relay", () => {
-  test("routes Monad RPC over REST while the Particle runtime is still starting", async () => {
-    const registration = await fetch(new URL("/monad/providers/boundary", server.url), {
-      method: "POST",
-      headers: {"content-type": "application/json"},
-      body: JSON.stringify({
-        version: MONAD_RPC_VERSION,
-        methods: ["boundary.initialState.read"],
-        endpoint: new URL("/rpc", providerServer.url),
-      }),
-    })
-    expect(registration.status).toBe(200)
+  test("binds Monad identity to one duplex REST channel and removes it on close", async () => {
+    const boundaryChannel = await openMonadChannel(
+      "boundary",
+      ["boundary.initialState.read"],
+      new URL("/rpc", providerServer.url),
+    )
+    const interpreterChannel = await openMonadChannel("interpreter")
 
-    const response = await fetch(new URL("/monad/rpc/interpreter", server.url), {
-      method: "POST",
-      headers: {"content-type": "application/json"},
-      body: JSON.stringify({
+    const response = await monadRequest("/monad/rpc", interpreterChannel, "POST", {
         version: MONAD_RPC_VERSION,
         id: "matrix-birth-server",
+        source: "forged-source",
         target: "boundary",
         method: "boundary.initialState.read",
         params: {},
-      }),
     })
 
     expect(response.status).toBe(200)
@@ -130,32 +161,18 @@ describe("Force server transport and relay", () => {
       params: {},
     })
 
-    const administration = await fetch(new URL("/monad/providers/administration", server.url), {
-      method: "POST",
-      headers: {"content-type": "application/json"},
-      body: JSON.stringify({
-        version: MONAD_RPC_VERSION,
-        methods: ["administration.health.read"],
-        endpoint: new URL("/rpc", providerServer.url),
-      }),
-    })
-    expect(administration.status).toBe(200)
-    expect(await administration.json()).toEqual({
-      ok: true,
-      identity: "administration",
-      methods: ["administration.health.read"],
-    })
+    await openMonadChannel(
+      "administration",
+      ["administration.health.read"],
+      new URL("/rpc", providerServer.url),
+    )
 
-    const administrativeResponse = await fetch(new URL("/monad/rpc/interpreter", server.url), {
-      method: "POST",
-      headers: {"content-type": "application/json"},
-      body: JSON.stringify({
+    const administrativeResponse = await monadRequest("/monad/rpc", interpreterChannel, "POST", {
         version: MONAD_RPC_VERSION,
         id: "administration-health",
         target: "administration",
         method: "administration.health.read",
         params: {},
-      }),
     })
     expect(administrativeResponse.status).toBe(200)
     expect(rpcCalls[1]).toMatchObject({
@@ -165,16 +182,13 @@ describe("Force server transport and relay", () => {
       method: "administration.health.read",
     })
 
-    const failed = await fetch(new URL("/monad/rpc/matrix", server.url), {
-      method: "POST",
-      headers: {"content-type": "application/json"},
-      body: JSON.stringify({
+    const matrixChannel = await openMonadChannel("matrix")
+    const failed = await monadRequest("/monad/rpc", matrixChannel, "POST", {
         version: MONAD_RPC_VERSION,
         id: "matrix-birth-failed",
         target: "boundary",
         method: "boundary.initialState.read",
         params: {fail: true},
-      }),
     })
     expect(failed.status).toBe(502)
     expect(await failed.json()).toEqual({
@@ -182,6 +196,34 @@ describe("Force server transport and relay", () => {
       id: "matrix-birth-failed",
       ok: false,
       error: {code: "method_error", message: "Boundary read failed"},
+    })
+
+    const unauthorized = await fetch(new URL("/monad/rpc", server.url), {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify({
+        version: MONAD_RPC_VERSION,
+        id: "forged",
+        target: "boundary",
+        method: "boundary.initialState.read",
+        params: {},
+      }),
+    })
+    expect(unauthorized.status).toBe(401)
+
+    const closed = await monadRequest("/monad/channel", boundaryChannel, "DELETE")
+    expect(closed.status).toBe(200)
+    const unavailable = await monadRequest("/monad/rpc", interpreterChannel, "POST", {
+      version: MONAD_RPC_VERSION,
+      id: "after-boundary-close",
+      target: "boundary",
+      method: "boundary.initialState.read",
+      params: {},
+    })
+    expect(unavailable.status).toBe(503)
+    expect(await unavailable.json()).toMatchObject({
+      ok: false,
+      error: {code: "provider_unavailable"},
     })
 
     const health = await fetch(new URL("/health", server.url))

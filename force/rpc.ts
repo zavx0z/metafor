@@ -1,92 +1,118 @@
 import {
-  MONAD_RPC_VERSION,
+  isMonadRpcCall,
+  isMonadRpcResponse,
+  monadRpcFailure,
   type MonadRpcCall,
-  type MonadRpcErrorCode,
-  type MonadRpcFailure,
+  type MonadRpcMessage,
   type MonadRpcResponse,
 } from "shared/protocol/monad/rpc"
-import type {MonadChannel} from "shared/transport/monad"
+import {
+  MonadRpcRemoteError,
+  type MonadChannel,
+} from "shared/transport/monad"
 
-type Provider = {
-  methods: Set<string>
+type AttachedChannel = {
   channel: MonadChannel
+  methods: Set<string>
+  unsubscribe: () => void
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value)
-
-const nonEmptyText = (value: unknown): value is string =>
-  typeof value === "string" && value.trim().length > 0
-
-export const isMonadRpcCall = (value: unknown): value is MonadRpcCall =>
-  isRecord(value) &&
-  value.version === MONAD_RPC_VERSION &&
-  nonEmptyText(value.id) &&
-  nonEmptyText(value.target) &&
-  nonEmptyText(value.method) &&
-  Object.prototype.hasOwnProperty.call(value, "params")
-
-export const isMonadRpcResponse = (value: unknown): value is MonadRpcResponse => {
-  if (!isRecord(value) || value.version !== MONAD_RPC_VERSION || !nonEmptyText(value.id)) return false
-  if (value.ok === true) return Object.prototype.hasOwnProperty.call(value, "result")
-  return value.ok === false && isRecord(value.error) && nonEmptyText(value.error.code) && nonEmptyText(value.error.message)
+type PendingRoute = {
+  source: MonadChannel
+  target: MonadChannel
 }
-
-const failure = (id: string, code: MonadRpcErrorCode, message: string): MonadRpcFailure => ({
-  version: MONAD_RPC_VERSION,
-  id,
-  ok: false,
-  error: {code, message},
-})
 
 /**
- * Transport-neutral service router between domain Monads.
+ * Transport-neutral service router between permanent MonadChannels.
  *
- * A transport registers a provider channel. The router attaches the channel
- * source identity, correlates the response and never interprets domain data.
+ * The router attaches source identity from the incoming channel, checks the
+ * target capabilities and routes the correlated response back through the
+ * source channel. It knows nothing about REST, WebRTC or domain data.
  */
 export class MonadRouter {
-  #providers = new Map<string, Provider>()
+  readonly #attached = new Map<string, AttachedChannel>()
+  readonly #pending = new Map<string, PendingRoute>()
 
-  register(channel: MonadChannel, methods: readonly string[]): void {
-    const normalizedIdentity = channel.identity.trim()
-    const normalizedMethods = methods.map((method) => method.trim()).filter(Boolean)
-    if (!normalizedIdentity) throw new Error("Monad RPC provider identity is required")
-    if (normalizedMethods.length === 0) throw new Error("Monad RPC provider must expose at least one method")
-    this.#providers.set(normalizedIdentity, {methods: new Set(normalizedMethods), channel})
-  }
-
-  unregister(identity: string): void {
-    this.#providers.delete(identity)
-  }
-
-  providers(): Array<{identity: string; methods: string[]}> {
-    return [...this.#providers.entries()].map(([identity, provider]) => ({
-      identity,
-      methods: [...provider.methods].sort(),
-    }))
-  }
-
-  async route(source: string, call: MonadRpcCall): Promise<MonadRpcResponse> {
-    const provider = this.#providers.get(call.target)
-    if (!provider) {
-      return failure(call.id, "provider_unavailable", `Monad RPC provider is unavailable: ${call.target}`)
+  attach(channel: MonadChannel): void {
+    const identity = channel.identity.trim()
+    if (!identity) throw new Error("Monad channel identity is required")
+    const previous = this.#attached.get(identity)
+    if (previous?.channel === channel) return
+    previous?.unsubscribe()
+    const attached: AttachedChannel = {
+      channel,
+      methods: new Set(channel.methods.map((method) => method.trim()).filter(Boolean)),
+      unsubscribe: () => {},
     }
-    if (!provider.methods.has(call.method)) {
-      return failure(call.id, "method_unavailable", `Monad RPC method is unavailable: ${call.method}`)
+    attached.unsubscribe = channel.subscribe((message) => this.#receive(channel, message))
+    this.#attached.set(identity, attached)
+  }
+
+  detach(channel: MonadChannel): boolean {
+    const attached = this.#attached.get(channel.identity)
+    if (attached?.channel !== channel) return false
+    attached.unsubscribe()
+    this.#attached.delete(channel.identity)
+    for (const [id, pending] of this.#pending) {
+      if (pending.source === channel) {
+        this.#pending.delete(id)
+        continue
+      }
+      if (pending.target === channel) {
+        this.#pending.delete(id)
+        void pending.source.send(monadRpcFailure(id, "provider_unavailable", `Monad RPC provider is unavailable: ${channel.identity}`))
+      }
+    }
+    return true
+  }
+
+  channels(): Array<{identity: string; methods: string[]}> {
+    return [...this.#attached.values()]
+      .map(({channel, methods}) => ({identity: channel.identity, methods: [...methods].sort()}))
+      .sort((left, right) => left.identity.localeCompare(right.identity))
+  }
+
+  async #receive(channel: MonadChannel, message: MonadRpcMessage): Promise<void> {
+    if (this.#attached.get(channel.identity)?.channel !== channel) return
+    if (isMonadRpcResponse(message)) {
+      await this.#routeResponse(channel, message)
+      return
+    }
+    if (isMonadRpcCall(message)) await this.#routeCall(channel, message)
+  }
+
+  async #routeCall(source: MonadChannel, call: MonadRpcCall): Promise<void> {
+    if (this.#pending.has(call.id)) {
+      await source.send(monadRpcFailure(call.id, "invalid_request", `Monad RPC call id is already pending: ${call.id}`))
+      return
+    }
+    const target = this.#attached.get(call.target)
+    if (!target) {
+      await source.send(monadRpcFailure(call.id, "provider_unavailable", `Monad RPC provider is unavailable: ${call.target}`))
+      return
+    }
+    if (!target.methods.has(call.method)) {
+      await source.send(monadRpcFailure(call.id, "method_unavailable", `Monad RPC method is unavailable: ${call.method}`))
+      return
     }
 
-    let response: MonadRpcResponse
+    this.#pending.set(call.id, {source, target: target.channel})
     try {
-      response = await provider.channel.invoke({...call, source})
+      await target.channel.send({...call, source: source.identity})
     } catch (error) {
+      const pending = this.#pending.get(call.id)
+      if (!pending || pending.source !== source || pending.target !== target.channel) return
+      this.#pending.delete(call.id)
+      const code = error instanceof MonadRpcRemoteError ? error.code : "transport_error"
       const reason = error instanceof Error ? error.message : String(error)
-      return failure(call.id, "transport_error", `${call.target} transport failed: ${reason}`)
+      await source.send(monadRpcFailure(call.id, code, `${call.target} transport failed: ${reason}`))
     }
+  }
 
-    if (!isMonadRpcResponse(response) || response.id !== call.id) {
-      return failure(call.id, "invalid_response", `${call.target} returned an invalid RPC response`)
-    }
-    return response
+  async #routeResponse(target: MonadChannel, response: MonadRpcResponse): Promise<void> {
+    const pending = this.#pending.get(response.id)
+    if (!pending || pending.target !== target) return
+    this.#pending.delete(response.id)
+    await pending.source.send(response)
   }
 }

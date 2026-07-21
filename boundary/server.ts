@@ -1,7 +1,7 @@
 import {mkdir} from "node:fs/promises"
 import {dirname, join, resolve} from "node:path"
 import {Force} from "shared/transport/force"
-import {MonadRpcClient} from "shared/transport/monad"
+import {MonadRpcPeer, MonadTransport} from "shared/transport/monad"
 import {unsourceForceMessage} from "shared/protocol/force/message"
 import {BoundaryMonad} from "./monad.ts"
 import {open} from "./sqlite.ts"
@@ -11,6 +11,9 @@ const filename = resolve(configuredFilename || join(import.meta.dir, "..", ".met
 await mkdir(dirname(filename), {recursive: true})
 const boundary = await open(filename)
 const monad = new BoundaryMonad(boundary)
+const transport = new MonadTransport("boundary")
+const rpc = new MonadRpcPeer(transport.channel)
+monad.onServerStarted(rpc)
 
 const server = Bun.serve({
   port: Number(Bun.env.PORT ?? 4001),
@@ -20,23 +23,38 @@ const server = Bun.serve({
         return monad.onHealthRequested(filename)
       },
     },
-    "/monad/rpc": {
+    "/monad/channel": {
       POST(request) {
-        return monad.onRpcRequested(request)
+        return transport.receive(request)
       },
     },
   },
 })
 
-const close = async (): Promise<void> => {
-  monad.onServerStopping()
-  server.stop()
-  await boundary.close()
+let closing: Promise<void> | null = null
+const close = (): Promise<void> => {
+  if (closing) return closing
+  closing = (async () => {
+    monad.onServerStopping()
+    rpc.close()
+    try {
+      await transport.close()
+    } catch (error) {
+      console.error("[boundary] Monad channel close failed", error)
+    }
+    server.stop()
+    await boundary.close()
+  })()
+  return closing
 }
 
 try {
-  const rpc = new MonadRpcClient("boundary")
-  await monad.onServerStarted(rpc, new URL("/monad/rpc", server.url))
+  await transport.open({
+    methods: rpc.methods(),
+    endpoint: new URL("/monad/channel", server.url),
+    waitMs: 30_000,
+  })
+  monad.onChannelOpened()
 
   const force = new Force("boundary")
   force.onImpulse = async (message) => {
@@ -54,7 +72,16 @@ try {
   }
   force.onDestroy = close
 } catch (error) {
-  console.error("[boundary] Monad RPC registration failed", error)
+  monad.onChannelFailed(error)
+  try {
+    await transport.close()
+  } catch (closeError) {
+    console.error("[boundary] Monad channel close failed", closeError)
+  }
+  console.error("[boundary] Monad channel opening failed", error)
 }
+
+process.once("SIGINT", close)
+process.once("SIGTERM", close)
 
 console.log(`[boundary] listening on ${server.url} database=${filename}`)

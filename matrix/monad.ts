@@ -2,7 +2,7 @@ import {
   BOUNDARY_INITIAL_STATE_METHOD,
   type BoundaryInitialState,
 } from "@metafor/types/boundary/initial"
-import type {MonadRpcClient} from "shared/transport/monad"
+import type {MonadRpcPeer} from "shared/transport/monad"
 import {weak$} from "@matrix/weak"
 import {prepareMatrixBirth} from "./birth.ts"
 
@@ -13,11 +13,11 @@ export class MatrixMonad {
   #state: MatrixMonadState = "created"
   #error: string | null = null
 
-  async onServerStarted(client: MonadRpcClient): Promise<{atoms: number; fields: number; backend: string}> {
+  async onServerStarted(peer: MonadRpcPeer): Promise<{atoms: number; fields: number; backend: string}> {
     if (this.#state !== "created") throw new Error(`Matrix Monad cannot prepare from state: ${this.#state}`)
     this.#state = "preparing"
     try {
-      const initial = await client.invoke<BoundaryInitialState>(
+      const initial = await peer.call<BoundaryInitialState>(
         "boundary",
         BOUNDARY_INITIAL_STATE_METHOD,
         {},

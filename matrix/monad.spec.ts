@@ -19,15 +19,15 @@ afterAll(() => {
 describe("Matrix Monad", () => {
   test("requests Boundary through RPC and prepares before runtime birth", async () => {
     const calls: unknown[] = []
-    const client = {
-      async invoke(target: string, method: string, params: unknown, options: unknown) {
+    const peer = {
+      async call(target: string, method: string, params: unknown, options: unknown) {
         calls.push({target, method, params, options})
         return {version: 1, atoms: [], declarations: []}
       },
     }
     const monad = new MatrixMonad()
 
-    await expect(monad.onServerStarted(client as never)).resolves.toEqual({atoms: 0, fields: 0, backend: "cpu"})
+    await expect(monad.onServerStarted(peer as never)).resolves.toEqual({atoms: 0, fields: 0, backend: "cpu"})
     expect(calls).toEqual([{
       target: "boundary",
       method: BOUNDARY_INITIAL_STATE_METHOD,

@@ -54,9 +54,19 @@ relay принимает Particle.
 
 ## MonadRouter
 
-Служебные RPC проходят через отдельные `MonadChannel`. Их identity не ограничена
-пятью runtime-доменами. `MonadRouter` проверяет provider/method, передаёт запрос и
-возвращает коррелированный ответ, не управляя `ForceLifecycle` и runtime Force.
+Служебные RPC проходят через отдельные постоянные `MonadChannel`. Их identity не
+ограничена пятью runtime-доменами. Канал умеет только `send`, `subscribe` и
+`close`; он не является client или provider. Каждая Монада использует
+`MonadRpcPeer` над своим каналом и может одновременно вызывать чужие методы и
+предоставлять собственные.
+
+Первый REST adapter открывает `MonadChannel` только локальному серверному
+процессу, один раз связывает identity/capabilities с непрозрачным токеном и затем
+получает source из состояния этого канала. RPC payload не может объявить или
+подменить source. `MonadRouter` маршрутизирует call в target channel и response
+обратно в source channel по correlation id, не управляя `ForceLifecycle` и
+runtime Force. Для межхостового transport-а потребуется собственная авторизация
+identity при создании канала.
 
 ## Routing laws
 

@@ -8,32 +8,42 @@ Matrix получает первоначальное каноническое с
 подключения своего realtime Particle-канала:
 
 ```text
-Boundary Monad HTTP provider
-        ⇅
-transport adapter (сейчас REST, позднее возможен WebRTC DataChannel)
-        ⇅
-MonadRouter
-        ⇅
-transport adapter (сейчас REST, позднее возможен WebRTC DataChannel)
-        ⇅
-Matrix Monad → Matrix Store/Weak → Matrix Particle runtime
+Boundary Monad ↔ Boundary MonadRpcPeer ↔ Boundary MonadChannel
+                                              ⇅
+                    transport adapter (сейчас REST, позднее WebRTC DataChannel)
+                                              ⇅
+                                         MonadRouter
+                                              ⇅
+                    transport adapter (сейчас REST, позднее WebRTC DataChannel)
+                                              ⇅
+Matrix Monad ↔ Matrix MonadRpcPeer ↔ Matrix MonadChannel
+        ↓
+Matrix Store/Weak → Matrix Particle runtime
 ```
 
 Force остаётся единой физической точкой межмонадной маршрутизации. `MonadRouter`
-прикрепляет source из `MonadChannel`, проверяет регистрацию target/method и
-коррелирует ответ, но не интерпретирует канонические строки Boundary и Matrix
-projection. Identity `MonadChannel` не ограничена пятью runtime-доменами.
+прикрепляет source из `MonadChannel`, проверяет target/method capabilities и
+коррелирует ответ между двумя каналами, но не интерпретирует канонические строки
+Boundary и Matrix projection. Identity `MonadChannel` не ограничена пятью
+runtime-доменами.
+
+Текущий REST adapter принимает identity один раз при локальном открытии канала и
+возвращает непрозрачный токен. Method capabilities и callback endpoint
+объявляются при том же открытии; отдельной client/provider registration нет.
+RPC и close используют только токен. Source берётся из серверного состояния
+канала, а закрытие удаляет сам канал из Router. Такая модель доверяет
+loopback-границе и не объявляется межхостовой аутентификацией.
 
 ## Ownership и порядок рождения
 
 - `boundary/initial.ts` читает нормализованные канонические строки Boundary;
-- `boundary/monad.ts` предоставляет `boundary.initialState.read` и регистрирует
-  provider в Force;
+- `boundary/monad.ts` предоставляет `boundary.initialState.read` через
+  transport-neutral `MonadRpcPeer` и не знает о REST;
 - `force/monad.ts` содержит только `ForceLifecycle` пяти `ForceChannel`, gate и
   fail-stop, без RPC и physical transport;
 - `force/rpc.ts` содержит transport-neutral `MonadRouter`;
-- `shared/transport/monad/{server,web}.ts` условно экспортируют единый REST
-  adapter API;
+- `shared/transport/monad` владеет `MonadChannel`, `MonadRpcPeer` и текущим REST
+  adapter; замена adapter не меняет Монады и Router;
 - `shared/transport/force/{server,web}.ts` условно экспортируют единый Particle
   transport API;
 - `shared/protocol/{force,monad}` владеет единым wire contract без environment
@@ -56,7 +66,8 @@ Force RPC routes доступны в состоянии `starting`; Particle rel
 ## Public boundaries
 
 - `shared/transport/force` экспортирует выбранный средой Particle client;
-- `shared/transport/monad` экспортирует выбранный средой REST client;
+- `shared/transport/monad` экспортирует выбранный средой `MonadTransport`, общий
+  `MonadChannel` и transport-neutral `MonadRpcPeer`;
 - `MonadRouter` и server assembly остаются private; transport adapters
   экспортируются только из `shared/transport/monad`;
 - общие RPC types находятся в `shared/protocol/monad/rpc`;
@@ -78,8 +89,13 @@ bun run check
 
 Тесты должны доказать:
 
-- Force RPC маршрутизирует по provider/method, прикрепляет trusted source и
-  проверяет correlation id;
+- Force RPC маршрутизирует call/response между постоянными каналами, прикрепляет
+  source открытого канала и проверяет target/method/correlation id;
+- одна Монада может через тот же канал и вызывать методы, и предоставлять их;
+- запрос без токена канала отклоняется, а закрытие удаляет только текущий канал
+  конкретной identity;
+- Boundary и Matrix Monads не используют `Request`, `Response`, endpoint или
+  REST-specific client;
 - RPC доступен при `state: "starting"` и не создаёт Particle frames;
 - Bun/browser Force transports передают identity только в HTTP Upgrade и не
   испускают служебный `z/test` после подключения;
@@ -92,8 +108,9 @@ bun run check
 
 ## Живая приёмка
 
-Использовать существующий `owner: interpreter`; не перезапускать весь контур и
-не менять владельца. После точечных restart затронутых процессов проверить:
+Следовать `owner` из `doctor`: существующий Interpreter-контур не заменять, а при
+`owner: none` запускать контур через `run world start`. После обновления
+затронутых процессов проверить:
 
 ```bash
 bun .agents/skills/metafor-dev/scripts/metafor-dev.mjs doctor

@@ -23,6 +23,10 @@
 - Realtime предметные consequences проходят через Particle и Force.
 - Service-plane взаимодействие Монад проходит через transport-neutral Force
   RPC; текущий REST adapter не является новым видом Particle.
+- Identity REST `MonadChannel` связывается с токеном при локальном открытии;
+  source не передаётся в URL или payload отдельного RPC.
+- Доменная Монада зависит только от `MonadRpcPeer`; `Request`, `Response`, REST
+  endpoint и channel token остаются server/transport implementation.
 - Общие transports импортируются из public subpaths
   `shared/transport/{force,monad}`.
 - Внутри package implementation импортируется относительно из точного
@@ -55,13 +59,13 @@
 
 - `shared/transport/force` условно экспортирует server/web implementation
   transport client `Force`;
-- `shared/transport/monad` условно экспортирует server/web implementation REST
-  adapter `MonadRpcClient` и provider transport;
+- `shared/transport/monad` условно экспортирует server/web implementation
+  `MonadTransport`, общий `MonadChannel` и transport-neutral `MonadRpcPeer`;
 - conditional export выбирает physical adapter, но не меняет его public API;
 - Dark, Boundary, Matrix, Energy и Bulk используют `import {Force} from
   "shared/transport/force"`;
-- доменная Монада использует `import {MonadRpcClient} from
-  "shared/transport/monad"`;
+- server домена создаёт `MonadTransport`, а доменная Монада получает
+  `MonadRpcPeer` из `shared/transport/monad`;
 - relay `routeParticle`, `force$`, `forceDomains`, Store, `ForceLifecycle`,
   `MonadRouter` и внутренние
   типы остаются internal package `force`;

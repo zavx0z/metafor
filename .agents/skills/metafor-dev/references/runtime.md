@@ -21,10 +21,15 @@ Identity физического доменного канала передаёт
 WebSocket transport несёт только Particle без register/readiness frames и не
 испускает bootstrap Particle от самого факта подключения.
 
-Отдельные `POST /monad/providers/:domain` и `POST /monad/rpc/:source` образуют
-service-plane Монад. Они доступны, пока Force ещё `starting`, и не зависят от
-общего Particle relay gate. Текущий физический adapter — REST; transport-neutral
-router допускает последующий WebRTC DataChannel.
+Service-plane Монад открывает локальный канал через `POST /monad/channels`.
+Identity, method capabilities и callback объявляются только при создании.
+Полученный токен используется в Bearer header для `POST /monad/rpc` и
+`DELETE /monad/channel`; identity не повторяется в URL или RPC payload.
+Отдельной provider registration нет: один постоянный канал одновременно несёт
+исходящие call и входящие routed call/response. Эти routes доступны, пока Force
+ещё `starting`, и не зависят от общего Particle relay gate. Текущий физический
+adapter — REST; те же `MonadChannel`, `MonadRpcPeer` и `MonadRouter` допускают
+последующий WebRTC DataChannel.
 
 ## Карта сервисов
 
@@ -67,7 +72,7 @@ router допускает последующий WebRTC DataChannel.
   `run meta-read capsule --fixture capsule` читает его без runtime-копии в
   `github/`; обычный WIMP SRC по-прежнему читается из `github/<src>/meta.ts`.
 - Пустой Bulk после успешного запуска является допустимым исходным состоянием.
-- Boundary health должен показывать `rpc: "ready"` после регистрации provider.
+- Boundary health должен показывать `rpc: "ready"` после открытия MonadChannel.
 - Matrix health должен показывать `initialized: true` и `rpc: "ready"`;
   основной backend — GPU.
 - Structured logs являются диагностикой транспорта, но не источником

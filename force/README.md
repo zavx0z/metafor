@@ -10,29 +10,37 @@ package `shared`.
 - `monad.ts` — `ForceLifecycle`: готовность пяти `ForceChannel`, общий gate и
   fail-stop; он не занимается RPC и не знает физический transport.
 - `rpc.ts` — transport-neutral `MonadRouter`; он знает только
-  source, target, method, correlation id и зарегистрированный provider.
+  каналы, source, target, capabilities method и correlation id.
 - `server.ts` — REST, HTTP Upgrade, WebSocket и process events.
 - `src/` — техническое создание серверных физических каналов и HTTP parsing.
 - `fixture.ts` — отдельный test-only contract.
 
-Домены импортируют `Force` из `shared/transport/force`, а доменные Монады —
-`MonadRpcClient` из `shared/transport/monad`. `shared/package.json` выбирает
-server или web implementation через conditional exports. Particle и RPC
-envelopes импортируются из `shared/protocol/{force,monad}`.
+Домены импортируют `Force` из `shared/transport/force`. Сервер домена создаёт
+`MonadTransport`, а Монада получает только transport-neutral `MonadRpcPeer` над
+его постоянным `MonadChannel`. `shared/package.json` выбирает server или web
+implementation через conditional exports. Particle и RPC envelopes
+импортируются из `shared/protocol/{force,monad}`.
 
 Transport сохраняет прежнее физическое соединение. Identity `domain/id`
 передаётся серверу в HTTP Upgrade; после открытия WebSocket по нему идут только
 Particle. `register`, readiness, replay, snapshot, error и другие служебные
 payload не являются сообщениями канала.
 
-Service-plane RPC не входит в Particle WebSocket. Сейчас Монада
-регистрирует HTTP endpoint в `POST /monad/providers/:identity`, а consumer
-вызывает `POST /monad/rpc/:source`. Force добавляет доверенный source, проверяет
-target/method и коррелирует ответ, не интерпретируя предметные данные. Эти
-маршруты доступны уже в состоянии `starting`, поэтому первоначальное состояние
-можно получить до подключения Matrix к Particle-каналу. REST является первым
-adapter-ом из `shared/transport/monad`: router contract не привязан к нему и
-допускает WebRTC DataChannel без изменения Particle-протокола.
+Service-plane RPC не входит в Particle WebSocket. Сейчас transport один раз
+открывает локальный REST-канал через `POST /monad/channels`, передавая identity,
+capabilities и callback endpoint только при создании. Force связывает канал с
+непрозрачным токеном. Последующие `POST /monad/rpc` и
+`DELETE /monad/channel` используют только токен: source не читается из URL или
+RPC payload. Один канал может одновременно инициировать вызовы и предоставлять
+методы; отдельных client/provider registrations нет.
+
+Текущий REST adapter доверяет локальной серверной границе: открыть канал можно
+только с loopback-адреса. Это не самостоятельная межхостовая аутентификация.
+Следующий физический transport обязан устанавливать и авторизовать identity при
+создании своего `MonadChannel`; channel, peer и router contracts от REST не
+зависят. Маршруты
+доступны уже в состоянии `starting`, поэтому первоначальное состояние можно
+получить до подключения Matrix к Particle-каналу.
 
 Сервер оборачивает соединения пяти обязательных доменов в `ForceChannel` Store
 `force$`. `ForceLifecycle` открывает relay gate только после готовности всех

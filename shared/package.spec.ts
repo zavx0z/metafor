@@ -8,13 +8,18 @@ describe("shared package public API", () => {
     expect(Object.keys(force)).toEqual(["Force"])
     expect(force.Force).toBeFunction()
     expect(Object.keys(monad).sort()).toEqual([
-      "MonadRpcClient",
+      "MonadRpcPeer",
       "MonadRpcRemoteError",
-      "createHttpMonadChannel",
+      "MonadTransport",
+      "createHttpMonadChannelRegistry",
+      "isLoopbackAddress",
       "normalizeMonadIdentity",
-      "readHttpProviderRegistration",
+      "readBearerToken",
+      "readHttpMonadChannel",
+      "readHttpMonadChannelOpening",
     ])
-    expect(monad.MonadRpcClient).toBeFunction()
+    expect(monad.MonadTransport).toBeFunction()
+    expect(monad.MonadRpcPeer).toBeFunction()
   })
 
   test("keeps server and web implementations behind the same conditional exports", async () => {
