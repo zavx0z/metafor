@@ -10,11 +10,11 @@ Matrix получает первоначальное каноническое с
 ```text
 Boundary Monad ↔ Boundary MonadRpcPeer ↔ Boundary MonadChannel
                                               ⇅
-                    transport adapter (сейчас REST, позднее WebRTC DataChannel)
+                    transport adapter (сейчас REST; будущая замена вне milestone)
                                               ⇅
                                          MonadRouter
                                               ⇅
-                    transport adapter (сейчас REST, позднее WebRTC DataChannel)
+                    transport adapter (сейчас REST; будущая замена вне milestone)
                                               ⇅
 Matrix Monad ↔ Matrix MonadRpcPeer ↔ Matrix MonadChannel
         ↓
@@ -49,12 +49,24 @@ loopback-границе и не объявляется межхостовой а
 - `shared/protocol/{force,monad}` владеет единым wire contract без environment
   forks;
 - `matrix/monad.ts` запрашивает первоначальное состояние через Force;
+- `matrix/birth-order.ts` ждёт готовности `ForceChannel` Dark, Boundary, Energy
+  и Bulk до initial RPC и не позволяет существующему Matrix channel выдать себя
+  за готовность текущего процесса;
 - `matrix/birth.ts` владеет преобразованием в Matrix Store/Strong/Weak;
 - только после подготовки постоянного Store `matrix/server.ts` динамически
   рождает runtime и подключает `Force("matrix")`.
 
 Force RPC routes доступны в состоянии `starting`; Particle relay по-прежнему
-открывается только после готовности пяти доменных каналов.
+открывается только после готовности пяти доменных каналов. Matrix runtime
+рождается последним: его первая Weak evaluation может сразу испустить process
+work, поэтому остальные четыре runtime-получателя уже должны существовать.
+Порядок старта OS/Bun processes сам по себе не считается такой гарантией.
+
+Разрушение только служебного `MonadChannel` отсоединяет identity от
+`MonadRouter` и делает новые RPC-вызовы недоступными. Оно не меняет состояние
+`ForceLifecycle`; уже рождённый runtime продолжает жить. Если физическая авария
+одновременно разрушает обязательный `ForceChannel`, применяется отдельный
+realtime fail-stop закон.
 
 ## Неподвижная Particle-граница
 
@@ -103,6 +115,8 @@ bun run check
   exports, сохраняя один public import и один protocol;
 - Boundary возвращает canonical rows, не Matrix-packed snapshot;
 - Matrix сама собирает Store/Strong/Weak до рождения runtime;
+- Matrix ждёт остальные четыре `ForceChannel` и открывает свой realtime channel
+  последним;
 - realtime incremental Particle handling Matrix остаётся прежним;
 - строгая CPU/WebGPU parity остаётся зелёной.
 
@@ -120,4 +134,5 @@ bun .agents/skills/metafor-dev/scripts/metafor-dev.mjs run meta-read capsule --f
 
 Ожидается `healthy: 6`, `ready: 6`, Force `running`, Boundary `rpc: "ready"`,
 Matrix `rpc: "ready"` и `initialized: true`. Bulk visual acceptance проверяется
-отдельно и не входит в milestone рождения Matrix через RPC.
+свежим `inflaton-add` без перезагрузки страницы: новый Atom должен появиться в
+уже открытом Bulk.

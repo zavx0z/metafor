@@ -48,6 +48,13 @@ Package graph нельзя читать как полную онтологию. 
 Root scripts запускают эти entries либо в hot development mode, либо обычными
 Bun processes. Они не загружают Meta автоматически.
 
+Порядок рождения runtime задаётся не порядком запуска Bun processes. Matrix
+server ждёт, пока Force увидит готовые `ForceChannel` Dark, Boundary, Energy и
+Bulk, затем получает final initial state Boundary, готовит Store/Weak и только
+после этого рождает Matrix runtime. Созданный при импорте `Force("matrix")`
+становится пятым каналом и открывает общий realtime gate. Это необходимо,
+потому что первая Weak evaluation уже может испустить process work.
+
 ## Реализованное соединение
 
 - `force/server.ts` принимает REST и создаёт пять доменных WebSocket-каналов.
@@ -58,6 +65,9 @@ Bun processes. Они не загружают Meta автоматически.
   и method capabilities сохраняются сервером за непрозрачным токеном. Над
   каналом `MonadRpcPeer` одинаково обслуживает исходящие и входящие RPC, а
   закрытие удаляет канал из `MonadRouter`.
+- Потеря только `MonadChannel` делает RPC этой identity недоступным, но не
+  останавливает уже рождённый runtime. Fail-stop вызывается потерей одного из
+  пяти обязательных realtime `ForceChannel`.
 - После Upgrade по WebSocket идут только Particle без register, readiness или
   bootstrap messages; само подключение Particle не создаёт.
 - `force/force.ts` является только relay и перенаправляет Particle по готовым
