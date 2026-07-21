@@ -6,6 +6,6 @@ export default {
   ],
   superposition: [],
   matter: [
-    {kind: "wimp", src: "capsule/alpha/leaf"},
+    {kind: "wimp", src: "zavx0z/capsule/leaf"},
   ],
 }

@@ -61,7 +61,7 @@
     "start:core": "bun run --parallel --filter force --filter boundary --filter dark --filter matrix --filter energy start",
     "start:world": "bun run --parallel --filter force --filter boundary --filter dark --filter matrix --filter energy --filter bulk start",
     "logs:core": "METAFOR_LOG_IMPULSES=full bun run dev:core",
-    "test": "FORCE_ADDRESS=ws://127.0.0.1:1 FORCE_RECONNECT=0 bun test",
+    "test": "FORCE_ADDRESS=ws://127.0.0.1:1 FORCE_RECONNECT=0 bun test --path-ignore-patterns='cluster/**'",
     "typecheck": "tsc --noEmit --pretty false",
     "check": "bun run typecheck && bun run test",
     "build": "bun run build:prod && bun run build:dev",

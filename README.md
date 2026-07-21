@@ -63,10 +63,18 @@ Boundary может передать Matrix производную `runtime/matr
 bun install
 ```
 
-Ядро запускается без встроенной Meta. Текущие итерационные Meta создаются в
-`github/<owner>/<name>/meta.ts` и читаются явно через Dark. Meta остаётся
-внешней декларацией: внутрь Вселенной входят только сформированные из неё WIMP,
-Field, State, Matter и другие отдельные сущности.
+Ядро запускается без встроенной Meta. Внешний физический Cluster хранит Galaxy-
+владельцев и их Atom-репозитории:
+
+```text
+cluster/<owner>/<repository>/meta.ts
+cluster/<owner>/<repository>/<meta-package>/meta.ts
+```
+
+Dark принимает WIMP `src` `<owner>/<repository>` для корневого Atom либо
+`<owner>/<repository>/<meta-package>` для внутреннего Atom. `cluster/` в `src`
+не входит. Meta остаётся внешней декларацией: внутрь Вселенной входят только
+сформированные из неё WIMP, Field, State, Matter и другие отдельные сущности.
 
 ## Запуск доменов
 

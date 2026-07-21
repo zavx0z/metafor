@@ -78,9 +78,11 @@ bun run check
 3. На непустом Boundary подтвердить содержательный cold-start до новой Particle.
 4. Выполнить `run inflaton-add`: уникальный свежий Atom должен появиться в уже
    открытом canvas без reload.
-5. Выполнить `run meta-read capsule --fixture capsule`: acceptance fixture
-   materialize реальное дерево `Capsule → Alpha/Beta → Leaf` с собственными
-   Fields каждого Atom.
+5. Выполнить `run meta-read zavx0z/capsule --fixture capsule`: acceptance fixture
+   читает корневой Atom по двухсегментному `src`, внутренние Meta-пакеты по
+   трёхсегментным `src` и materialize реальное дерево
+   `Capsule → Alpha/Beta → Leaf` с собственными Fields каждого Atom. Физически
+   `alpha`, `beta` и runtime-дочерний `leaf` лежат соседями в корне fixture.
 6. Подтвердить root manifestation, затем приблизить `Alpha` через Viewpoint:
    тот же локальный закон и общая подпись должны стать читаемыми только за счёт
    проекции камеры.

@@ -35,7 +35,7 @@ export interface NodeMeta extends Attributes {
   tag: string
   /** Тип узла - всегда "meta" для мета-узлов */
   type: "meta"
-  /** src атрибут для meta-компонентов (hub-адрес вида owner/path) */
+  /** src корневого или внутреннего Atom: owner/repository[/meta-package] */
   src: string | ValueDynamic | ValueVariable
   /** Дочерние элементы (опционально) */
   child?: NodeType[]
@@ -47,7 +47,7 @@ export interface NodeMeta extends Attributes {
 export interface PartAttrMeta extends AttrNodeElement {
   /** Тип узла */
   type: "meta"
-  /** src атрибут для meta-компонентов (hub-адрес вида owner/path) - опционален, т.к. извлекается из string */
+  /** src вида owner/repository[/meta-package]; опционален, т.к. извлекается из string */
   src?: string | ValueDynamic | ValueVariable
   /** mass объекты */
   mass?: string

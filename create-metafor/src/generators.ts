@@ -61,19 +61,36 @@ export function generateTodoFile(name: string, description: string): string {
   })
 }
 
+export interface MetaPackageIdentity {
+  owner: string
+  repository: string
+  metaPackage?: string
+}
+
+export function npmPackageName(identity: MetaPackageIdentity): string {
+  const scope = identity.owner.toLowerCase()
+  const repository = identity.repository.toLowerCase()
+  const name = identity.metaPackage
+    ? `${repository}-${identity.metaPackage.toLowerCase()}`
+    : repository
+  return `@${scope}/${name}`
+}
+
 /**
- * Сгенерировать package.json
+ * Сгенерировать package.json. WIMP src и npm name намеренно имеют разные
+ * грамматики: npm не допускает второй slash после @scope/package.
  */
 export function generatePackageJsonFile(
-  name: string,
+  identity: MetaPackageIdentity,
   description: string,
-  author: string
+  author: string,
 ): string {
   const template = loadTemplate("package.json")
   return render(template, {
-    packageNameJson: jsString(`@zavx0z/${name}`),
+    packageNameJson: jsString(npmPackageName(identity)),
     descriptionJson: jsString(description),
     authorJson: jsString(author),
+    workspacesEntry: identity.metaPackage ? "" : '"workspaces": ["*"],',
     buildScriptJson: jsString("bun build meta.ts --outdir dist --target browser --format=esm"),
   })
 }
@@ -110,8 +127,9 @@ function escapeHtml(str: string): string {
 export function generateIndexHtmlFile(
   name: string,
   description: string,
-  htmlLang: string
+  htmlLang: string,
+  source: string,
 ): string {
   const template = loadTemplate("index.html")
-  return render(template, { name, description: escapeHtml(description), lang: htmlLang })
+  return render(template, { name, description: escapeHtml(description), lang: htmlLang, source })
 }

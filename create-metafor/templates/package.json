@@ -5,6 +5,7 @@
   "author": {{authorJson}},
   "type": "module",
   "private": true,
+  {{workspacesEntry}}
   "exports": {
     ".": "./meta.ts"
   },

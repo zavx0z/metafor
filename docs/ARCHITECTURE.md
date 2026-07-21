@@ -20,8 +20,9 @@ Root workspace graph задан явным списком в `package.json`:
   `pkg/ui/{elements,components,hud}`, `fixture`;
 - constructor and operational DSL: `create-metafor`.
 
-Каталог `github/` остаётся локальной площадкой для временных Meta, но не
-является workspace и не содержит subrepository configuration.
+Игнорируемый каталог `cluster/` является физическим resolver root внешних Meta,
+но не workspace. Его непосредственные каталоги представляют Galaxy-владельцев,
+а их Git-репозитории — корневые Atom и монорепозитории внутренних Meta-пакетов.
 
 ## Архитектурное чтение
 
@@ -73,9 +74,10 @@ Bulk, затем получает final initial state Boundary, готовит S
 - `force/force.ts` является только relay и перенаправляет Particle по готовым
   каналам Store.
 - Domain handlers применяют входные particles к собственным runtime structures.
-- Dark читает внешний `github/<src>/meta.ts` в ширину и испускает отдельные
+- Dark читает внешний `cluster/<src>/meta.ts` в ширину и испускает отдельные
   декларационные Particle по мере чтения; Meta не становится внутренней
-  сущностью.
+  сущностью. Canonical `src` имеет форму `<owner>/<repository>` либо
+  `<owner>/<repository>/<meta-package>`.
 - `boundary/server.ts` открывает SQLite, материализует Particle в
   нормализованные реляционные таблицы и публикует результаты через Force.
 - `bulk/server.ts` обслуживает web entry, шрифт, browser WebSocket и связывает
@@ -126,5 +128,7 @@ platform-neutral, чтобы одна точка наблюдения могла
 
 ## Create MetaFor
 
-`create-metafor` остаётся активным workspace и CLI. Его templates, generator
-tests и `rules/metafor.md` проверяются локально вместе с остальным runtime.
+`create-metafor` остаётся активным workspace и CLI. В Galaxy-каталоге он создаёт
+корневой Atom с собственным Git; в существующем Atom-репозитории — внутренний
+Meta-пакет без nested Git. Его templates, generator tests и
+`rules/metafor.md` проверяются локально вместе с остальным runtime.

@@ -9,8 +9,8 @@ bun install --frozen-lockfile
 ```
 
 Workspace graph задан явным списком в root `package.json`. Рекурсивные globs не
-используются, поэтому templates, `github/` и случайные package files не
-становятся workspace автоматически.
+используются, поэтому templates, игнорируемый `cluster/` и внешние Atom-пакеты
+не становятся workspace MetaFor автоматически.
 
 ## Запуск
 
@@ -76,8 +76,9 @@ bun run test
 bun run check
 ```
 
-`bun run test` задаёт недоступный `FORCE_ADDRESS` и отключает reconnect, чтобы
-случайно запущенный development contour не влиял на suites.
+`bun run test` задаёт недоступный `FORCE_ADDRESS`, отключает reconnect и
+исключает `cluster/**` из test discovery, чтобы случайно запущенный development
+contour и тесты внешних Atom-репозиториев не влияли на suites MetaFor.
 
 Критические suites можно запускать отдельно:
 
@@ -104,11 +105,15 @@ WebGPU suite запускается отдельно при доступном a
 
 ```bash
 tmpdir="$(mktemp -d)"
+mkdir -p "$tmpdir/cluster/zavx0z"
 bun run --filter create-metafor build
-bun create-metafor/dist/cli.js smoke-meta --dir "$tmpdir" --lang en
-bun build "$tmpdir/smoke-meta/meta.ts" --outdir "$tmpdir/smoke-meta/dist" --target browser --format esm
+bun create-metafor/dist/cli.js capsule --dir "$tmpdir/cluster/zavx0z" --lang en
+bun create-metafor/dist/cli.js profile --dir "$tmpdir/cluster/zavx0z/capsule" --lang en
+bun build "$tmpdir/cluster/zavx0z/capsule/meta.ts" --outdir "$tmpdir/dist" --target browser --format esm
 rm -rf "$tmpdir"
 ```
 
-Каталог `github/` остаётся пустой локальной площадкой для следующих
-итерационных Meta и не является workspace или submodule.
+Каталог `cluster/` является локальным resolver root, не входит в WIMP `src`, не
+является workspace и игнорируется внешним репозиторием MetaFor. Git существует
+только на уровне каждого Atom-репозитория `cluster/<owner>/<repository>`;
+внутренние Meta-пакеты не являются submodule или nested repository.

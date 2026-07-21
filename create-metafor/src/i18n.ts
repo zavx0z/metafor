@@ -16,8 +16,11 @@ export interface I18nStrings {
   exampleWithDir: string
   creating: string
   description: string
+  kind: string
+  rootAtom: string
+  internalAtom: string
   path: string
-  installing: string
+  source: string
   created: string
   toBuild: string
   defaultDesc: string
@@ -25,6 +28,11 @@ export interface I18nStrings {
   htmlLang: string
   helpNoteName: string
   helpNoteOptions: string
+  errorPackageName: string
+  errorCreationRoot: string
+  errorExists: string
+  errorGitRequired: string
+  errorGitInit: string
 }
 
 const ru: I18nStrings = {
@@ -34,15 +42,18 @@ const ru: I18nStrings = {
   helpExamples: "Примеры:",
   optionName: "Имя Мета",
   optionDesc: "Описание Мета",
-  optionDir: "Директория для создания",
+  optionDir: "Galaxy-владелец или существующий Atom-репозиторий",
   optionLang: "Язык вывода (ru|en)",
   exampleCreate: "Создать Мета",
   exampleWithDesc: "Создать с описанием",
   exampleWithDir: "Создать в другой директории",
   creating: "Создание Мета:",
   description: "Описание:",
+  kind: "Роль:",
+  rootAtom: "корневой Atom-репозиторий",
+  internalAtom: "внутренний Atom Meta-пакет",
   path: "Путь:",
-  installing: "Установка зависимостей:",
+  source: "WIMP src:",
   created: "✅ Создана",
   toBuild: "📦 Для сборки:",
   defaultDesc: "MetaFor",
@@ -50,6 +61,11 @@ const ru: I18nStrings = {
   htmlLang: "ru",
   helpNoteName: "<name> — имя Мета (обязательно)",
   helpNoteOptions: "[options] — необязательные опции",
+  errorPackageName: "Имя Meta-пакета должно быть одним нижнерегистровым сегментом без slash",
+  errorCreationRoot: "--dir должен указывать на cluster/<owner> либо существующий Git-репозиторий cluster/<owner>/<repository>",
+  errorExists: "Meta-пакет уже существует",
+  errorGitRequired: "Для создания корневого Atom-репозитория требуется Git",
+  errorGitInit: "Не удалось инициализировать и зафиксировать корневой Git-репозиторий",
 }
 
 const en: I18nStrings = {
@@ -59,15 +75,18 @@ const en: I18nStrings = {
   helpExamples: "Examples:",
   optionName: "Meta name",
   optionDesc: "Meta description",
-  optionDir: "Output directory",
+  optionDir: "Galaxy owner or existing Atom repository",
   optionLang: "Output language (ru|en)",
   exampleCreate: "Create Meta",
   exampleWithDesc: "Create with description",
   exampleWithDir: "Create in custom directory",
   creating: "Creating Meta:",
   description: "Description:",
+  kind: "Role:",
+  rootAtom: "root Atom repository",
+  internalAtom: "internal Atom Meta-package",
   path: "Path:",
-  installing: "Installing dependencies:",
+  source: "WIMP src:",
   created: "✅ Created",
   toBuild: "📦 To build:",
   defaultDesc: "MetaFor",
@@ -75,6 +94,11 @@ const en: I18nStrings = {
   htmlLang: "en",
   helpNoteName: "<name> — Meta name (required)",
   helpNoteOptions: "[options] — optional options",
+  errorPackageName: "Meta-package name must be one lowercase segment without slashes",
+  errorCreationRoot: "--dir must point to cluster/<owner> or an existing Git repository at cluster/<owner>/<repository>",
+  errorExists: "Meta-package already exists",
+  errorGitRequired: "Git is required to create a root Atom repository",
+  errorGitInit: "Could not initialize and commit the root Git repository",
 }
 
 export const translations: Record<Lang, I18nStrings> = {

@@ -33,14 +33,14 @@ adapter — REST; те же `MonadChannel`, `MonadRpcPeer` и `MonadRouter` до
 
 ## Карта сервисов
 
-| Домен | Порт | Health |
-| --- | ---: | --- |
-| Force | 4000 | `GET /health` |
+| Домен    | Порт | Health        |
+| -------- | ---- | ------------- |
+| Force    | 4000 | `GET /health` |
 | Boundary | 4001 | `GET /health` |
-| Dark | 4002 | `GET /health` |
-| Matrix | 4003 | `GET /health` |
-| Bulk | 4004 | `GET /health` |
-| Energy | 4005 | `GET /health` |
+| Dark     | 4002 | `GET /health` |
+| Matrix   | 4003 | `GET /health` |
+| Bulk     | 4004 | `GET /health` |
+| Energy   | 4005 | `GET /health` |
 
 Штатный полный запуск: `bun run dev:world`. Skill запускает его с
 `METAFOR_WEAK_BACKEND=gpu` и компактными impulse-логами, если переменные не
@@ -66,11 +66,13 @@ adapter — REST; те же `MonadChannel`, `MonadRpcPeer` и `MonadRouter` до
 
 - Boundary по умолчанию использует `.metafor/dev.sqlite`.
 - `run meta-read <src>` отправляет входной `inflaton/test` через Force и запускает
-  чтение корневого `github/<src>/meta.ts` в Dark. Сам `test` остаётся входной
-  операцией и не испускается Dark как завершающий маркер.
+  чтение `cluster/<src>/meta.ts` в Dark. Корневой Atom имеет `src`
+  `<owner>/<repository>`, внутренний —
+  `<owner>/<repository>/<meta-package>`. Сам `test` остаётся входной операцией и
+  не испускается Dark как завершающий маркер.
 - Owned-контур передаёт Dark `METAFOR_META_ROOT` на каталог fixtures в skill.
-  `run meta-read capsule --fixture capsule` читает его без runtime-копии в
-  `github/`; обычный WIMP SRC по-прежнему читается из `github/<src>/meta.ts`.
+  `run meta-read zavx0z/capsule --fixture capsule` читает его без runtime-копии
+  в `cluster/`; обычный WIMP SRC читается из `cluster/<src>/meta.ts`.
 - Пустой Bulk после успешного запуска является допустимым исходным состоянием.
 - Boundary health должен показывать `rpc: "ready"` после открытия MonadChannel.
 - Matrix health должен показывать `initialized: true` и `rpc: "ready"`;

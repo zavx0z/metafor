@@ -15,10 +15,10 @@ const worldScript = join(scriptDirectory, "world.mjs")
 const expectedFiles = [
   "SKILL.md",
   "agents/openai.yaml",
-  "fixtures/capsule/alpha/leaf/meta.ts",
-  "fixtures/capsule/alpha/meta.ts",
-  "fixtures/capsule/beta/meta.ts",
-  "fixtures/capsule/meta.ts",
+  "fixtures/zavx0z/capsule/alpha/meta.ts",
+  "fixtures/zavx0z/capsule/beta/meta.ts",
+  "fixtures/zavx0z/capsule/leaf/meta.ts",
+  "fixtures/zavx0z/capsule/meta.ts",
   "references/current-milestone.md",
   "references/module-boundaries.md",
   "references/runtime.md",
@@ -96,11 +96,25 @@ const impactRules = [
     skillSurfaces: ["runtime"],
   },
   {
+    area: "source-cluster",
+    matches: (path) => path === ".gitignore" || path.endsWith("/.gitkeep") || path.startsWith("cluster/"),
+    automated: ["bun run typecheck"],
+    live: ["meta-read"],
+    skillSurfaces: ["current milestone", "runtime"],
+  },
+  {
     area: "types-contract",
     matches: (path) => path.startsWith("types/") && !path.startsWith("types/force/"),
     automated: ["bun run typecheck"],
     live: [],
     skillSurfaces: ["current milestone when a Particle contract changes"],
+  },
+  {
+    area: "matter-template",
+    matches: (path) => path.startsWith("pkg/template/"),
+    automated: ["bun test ./pkg/template", "bun run typecheck"],
+    live: ["meta-read"],
+    skillSurfaces: ["current milestone", "runtime"],
   },
   {
     area: "project-generator",
@@ -376,10 +390,18 @@ const runInflatonAdd = async () => {
   }
 }
 
-const canonicalWimpSource = (src) => typeof src === "string" && src.length > 0 &&
-  src.split("/").every((segment) => segment.length > 0 && segment !== "." && segment !== ".." && /^[a-zA-Z0-9._-]+$/.test(segment))
+export const canonicalWimpSource = (src) => {
+  if (typeof src !== "string" || src.length === 0) return false
+  const segments = src.split("/")
+  return (segments.length === 2 || segments.length === 3) &&
+    segments.every((segment) => /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(segment))
+}
 
-const fixtureSource = (name) => join(skillRoot, "fixtures", name, "meta.ts")
+const acceptanceFixtures = {
+  capsule: {src: "zavx0z/capsule"},
+}
+
+const fixtureSource = (src) => join(skillRoot, "fixtures", src, "meta.ts")
 
 const runMetaRead = async (src, args = []) => {
   if (!canonicalWimpSource(src)) {
@@ -389,7 +411,7 @@ const runMetaRead = async (src, args = []) => {
         ok: false,
         scenario: "meta-read",
         step: "invalid-source",
-        error: "meta-read requires one canonical WIMP source path",
+        error: "meta-read requires <owner>/<repository>[/<meta-package>]",
       },
       exitCode: 2,
     }
@@ -397,7 +419,22 @@ const runMetaRead = async (src, args = []) => {
 
   const fixtureIndex = args.indexOf("--fixture")
   const fixture = fixtureIndex >= 0 ? args[fixtureIndex + 1] : undefined
-  if (fixture !== undefined && fixture !== src) {
+  const fixtureConfig = fixture === undefined ? undefined : acceptanceFixtures[fixture]
+  if (fixture !== undefined && fixtureConfig === undefined) {
+    return {
+      payload: {
+        schema: "metafor-dev/run@1",
+        ok: false,
+        scenario: "meta-read",
+        step: "unknown-fixture",
+        src,
+        fixture,
+        availableFixtures: Object.keys(acceptanceFixtures),
+      },
+      exitCode: 2,
+    }
+  }
+  if (fixtureConfig !== undefined && fixtureConfig.src !== src) {
     return {
       payload: {
         schema: "metafor-dev/run@1",
@@ -406,14 +443,14 @@ const runMetaRead = async (src, args = []) => {
         step: "fixture-source-mismatch",
         src,
         fixture,
-        error: "fixture name must equal the WIMP source used by the acceptance scenario",
+        error: `fixture ${fixture} requires WIMP source ${fixtureConfig.src}`,
       },
       exitCode: 2,
     }
   }
   const modulePath = fixture === undefined
-    ? join(repositoryRoot, "github", src, "meta.ts")
-    : fixtureSource(fixture)
+    ? join(repositoryRoot, "cluster", src, "meta.ts")
+    : fixtureSource(fixtureConfig.src)
   if (fixture !== undefined && !existsSync(modulePath)) {
       return {
         payload: {
@@ -623,7 +660,7 @@ const main = async () => {
       schema: "metafor-dev/run@1",
       ok: false,
       error: `Unknown scenario: ${scenario ?? "(missing)"}`,
-      scenarios: ["world status|start|stop|logs", "bulk-baseline", "inflaton-add", "meta-read <src> [--fixture capsule]"],
+      scenarios: ["world status|start|stop|logs", "bulk-baseline", "inflaton-add", "meta-read <owner>/<repository>[/<meta-package>] [--fixture capsule]"],
     }, 2)
     return
   }

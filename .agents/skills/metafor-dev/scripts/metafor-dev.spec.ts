@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test"
 
-import { buildImpact, buildInflatonAddMessage, buildInflatonTestMessage, validateSkill } from "./metafor-dev.mjs"
+import {
+  buildImpact,
+  buildInflatonAddMessage,
+  buildInflatonTestMessage,
+  canonicalWimpSource,
+  validateSkill,
+} from "./metafor-dev.mjs"
 import { classifyWorldOwner, interpreterProcessMatchesService } from "./world-owner.mjs"
 
 describe("MetaFor Dev contour", () => {
@@ -94,6 +100,24 @@ describe("MetaFor Dev contour", () => {
     expect(impact.skillSurfaces).toContain("runtime when the generated project contract changes")
   })
 
+  test("maps the physical Cluster boundary without treating it as a workspace", () => {
+    const impact = buildImpact([".gitignore", "legacy/.gitkeep", "tsconfig.json"])
+
+    expect(impact.ok).toBe(true)
+    expect(impact.areas).toEqual(["source-cluster", "workspace-contract"])
+    expect(impact.live).toEqual(["meta-read", "bulk-baseline"])
+    expect(impact.skillSurfaces).toContain("runtime")
+  })
+
+  test("maps static Matter src validation to template tests and Meta read", () => {
+    const impact = buildImpact(["pkg/template/node/meta.ts"])
+
+    expect(impact.ok).toBe(true)
+    expect(impact.areas).toEqual(["matter-template"])
+    expect(impact.automated).toEqual(["bun test ./pkg/template", "bun run typecheck"])
+    expect(impact.live).toEqual(["meta-read"])
+  })
+
   test("refuses to hide an unmapped project surface", () => {
     const impact = buildImpact(["unknown/new-runtime.ts"])
 
@@ -118,5 +142,13 @@ describe("MetaFor Dev contour", () => {
     expect(buildInflatonTestMessage("owner/root", 43)).toEqual({
       parts: [{part: "inflaton", op: "test", path: "owner/root", ts: 43}],
     })
+  })
+
+  test("accepts only root Atom and internal Atom WIMP sources", () => {
+    expect(canonicalWimpSource("zavx0z/capsule")).toBe(true)
+    expect(canonicalWimpSource("zavx0z/capsule/profile")).toBe(true)
+    expect(canonicalWimpSource("capsule")).toBe(false)
+    expect(canonicalWimpSource("zavx0z/capsule/profile/nested")).toBe(false)
+    expect(canonicalWimpSource("zavx0z/capsule/../profile")).toBe(false)
   })
 })

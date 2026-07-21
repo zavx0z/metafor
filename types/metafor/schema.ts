@@ -140,7 +140,7 @@ export interface Mass {
  * - `bulk()` - определение bulk-view компонента
  *
  * Для `matter` dynamic `src`, зависящий от `enum`, должен писаться напрямую:
- * `<meta-for src="demo/${value.mode}" />`.
+ * `<meta-for src="demo/app/${value.mode}" />`.
  * Дополнительный `value.mode && ...` для защиты от `null` не нужен.
  *
  * @example
@@ -153,8 +153,8 @@ export interface Mass {
  *   .reactions((reaction) => [...])
  *   .matter(({ value, html }) => html`
  *     ${value.mode === "summary"
- *       ? html`<meta-for src="demo/summary" />`
- *       : html`<meta-for src="demo/details" />`}
+ *       ? html`<meta-for src="demo/app/summary" />`
+ *       : html`<meta-for src="demo/app/details" />`}
  *   `)
  *   .bulk()
  * ```
@@ -296,7 +296,7 @@ export type MetaForFn = (
              *   .mass(...)
              *   .processes(...)
              *   .reactions(...)
-             *   .matter(({ state, html }) => html`${state === "idle" && html`<meta-for src="demo/panel" />`}`)
+             *   .matter(({ state, html }) => html`${state === "idle" && html`<meta-for src="demo/app/panel" />`}`)
              *   .bulk({
              *     view: ({ css }) => css`.container { color: blue; }`
              *   })
@@ -357,8 +357,8 @@ declare global {
    *   .reactions((reaction) => [...])
    *   .matter(({ value, html }) => html`
    *     ${value.mode === "summary"
-   *       ? html`<meta-for src="demo/summary" />`
-   *       : html`<meta-for src="demo/details" />`}
+   *       ? html`<meta-for src="demo/app/summary" />`
+   *       : html`<meta-for src="demo/app/details" />`}
    *   `)
    *   .bulk()
    * ```
@@ -407,21 +407,21 @@ export interface MetaForConfig {
  * ```ts
  * // Иерархия атомов на основе состояния
  * matter: ({ state, html }) => html`
- *   ${state === "коммит" && html`<meta-for src="demo/status" fields=${{ message: "В процессе..." }} />`}
- *   ${state === "завершено" && html`<meta-for src="demo/success" fields=${{ message: "Готово!" }} />`}
- *   ${state === "ошибка" && html`<meta-for src="demo/error" fields=${{ message: "Ошибка" }} />`}
+ *   ${state === "коммит" && html`<meta-for src="demo/app/status" fields=${{ message: "В процессе..." }} />`}
+ *   ${state === "завершено" && html`<meta-for src="demo/app/success" fields=${{ message: "Готово!" }} />`}
+ *   ${state === "ошибка" && html`<meta-for src="demo/app/error" fields=${{ message: "Ошибка" }} />`}
  * `
  *
  * // Передача данных дочернему атому
  * matter: ({ value, html }) => html`
- *   <meta-for src="demo/child" fields=${{ data: value.data }} />
+ *   <meta-for src="demo/app/child" fields=${{ data: value.data }} />
  * `
  *
  * // Несколько атомов в иерархии
  * matter: ({ html }) => html`
- *   <meta-for src="demo/header" />
- *   <meta-for src="demo/content" />
- *   <meta-for src="demo/footer" />
+ *   <meta-for src="demo/app/header" />
+ *   <meta-for src="demo/app/content" />
+ *   <meta-for src="demo/app/footer" />
  * `
  * ```
  */

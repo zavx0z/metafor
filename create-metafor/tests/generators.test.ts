@@ -4,6 +4,7 @@ import {
   generateMetaforTypesFile,
   generateTodoFile,
   generatePackageJsonFile,
+  npmPackageName,
   generateGitignoreFile,
   generateIndexHtmlFile,
   generateTsconfigFile,
@@ -68,28 +69,42 @@ describe("generateTodoFile", () => {
 })
 
 describe("generatePackageJsonFile", () => {
-  test("должен генерировать package.json с правильными подстановками", () => {
-    const result = generatePackageJsonFile("auth", "Авторизация", "John Doe")
+  test("должен генерировать корневой package.json с npm scope владельца", () => {
+    const result = generatePackageJsonFile(
+      {owner: "zavx0z", repository: "capsule"},
+      "Капсула",
+      "zavx0z",
+    )
     const parsed = JSON.parse(result)
-    
-    expect(parsed.name).toBe("@zavx0z/auth")
-    expect(parsed.description).toBe("Авторизация")
-    expect(parsed.author).toBe("John Doe")
+
+    expect(parsed.name).toBe("@zavx0z/capsule")
+    expect(parsed.description).toBe("Капсула")
+    expect(parsed.author).toBe("zavx0z")
+    expect(parsed.workspaces).toEqual(["*"])
     expect(parsed.version).toBe("0.1.0")
     expect(parsed.type).toBe("module")
     expect(parsed.private).toBe(true)
     expect(parsed.exports["."]).toBe("./meta.ts")
   })
 
+  test("должен разворачивать внутренний src в плоское валидное npm-имя", () => {
+    const identity = {owner: "zavx0z", repository: "capsule", metaPackage: "profile"}
+    const parsed = JSON.parse(generatePackageJsonFile(identity, "Профиль", "zavx0z"))
+
+    expect(npmPackageName(identity)).toBe("@zavx0z/capsule-profile")
+    expect(parsed.name).toBe("@zavx0z/capsule-profile")
+    expect(parsed.workspaces).toBeUndefined()
+  })
+
   test("не должен генерировать зависимость на непубликованный runtime", () => {
-    const result = generatePackageJsonFile("auth", "Auth", "Test User")
+    const result = generatePackageJsonFile({owner: "zavx0z", repository: "capsule"}, "Auth", "zavx0z")
     const parsed = JSON.parse(result)
 
     expect(parsed.dependencies).toBeUndefined()
   })
 
   test("должен генерировать package.json с правильным scripts", () => {
-    const result = generatePackageJsonFile("auth", "Auth", "Test User")
+    const result = generatePackageJsonFile({owner: "zavx0z", repository: "capsule"}, "Auth", "zavx0z")
     const parsed = JSON.parse(result)
 
     expect(parsed.scripts.build).toBe("bun build meta.ts --outdir dist --target browser --format=esm")
@@ -98,7 +113,11 @@ describe("generatePackageJsonFile", () => {
   })
 
   test("должен безопасно генерировать JSON-строки", () => {
-    const result = generatePackageJsonFile("auth", "Auth \"quoted\"", "Test \"User\"")
+    const result = generatePackageJsonFile(
+      {owner: "zavx0z", repository: "capsule", metaPackage: "auth"},
+      "Auth \"quoted\"",
+      "Test \"User\"",
+    )
     const parsed = JSON.parse(result)
 
     expect(parsed.description).toBe("Auth \"quoted\"")
@@ -132,22 +151,22 @@ describe("generateTsconfigFile", () => {
 
 describe("generateIndexHtmlFile", () => {
   test("должен генерировать index.html с правильными подстановками", () => {
-    const result = generateIndexHtmlFile("auth", "Авторизация", "ru")
+    const result = generateIndexHtmlFile("auth", "Авторизация", "ru", "zavx0z/capsule/auth")
     
     expect(result).toContain('lang="ru"')
     expect(result).toContain("<title>Авторизация</title>")
-    expect(result).toContain('src="auth"')
+    expect(result).toContain('src="zavx0z/capsule/auth"')
   })
 
   test("должен генерировать index.html с английским языком", () => {
-    const result = generateIndexHtmlFile("auth", "Authentication", "en")
+    const result = generateIndexHtmlFile("auth", "Authentication", "en", "zavx0z/capsule/auth")
     
     expect(result).toContain('lang="en"')
     expect(result).toContain("<title>Authentication</title>")
   })
 
   test("должен экранировать HTML в description", () => {
-    const result = generateIndexHtmlFile("test", "<script>alert('xss')</script>", "en")
+    const result = generateIndexHtmlFile("test", "<script>alert('xss')</script>", "en", "zavx0z/capsule/test")
     
     expect(result).toContain("&lt;script&gt;")
     expect(result).toContain("&lt;/script&gt;")

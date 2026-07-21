@@ -2,8 +2,8 @@ import { describe, test, expect } from "bun:test"
 import { parse } from "../../../index.ts"
 
 describe("meta > src атрибут", () => {
-  describe("валидные hub-адреса", () => {
-    test("простой hub-адрес", () => {
+  describe("валидные WIMP-адреса", () => {
+    test("корневой Atom-репозиторий", () => {
       const result = parse(({ html }) => {
         html`<meta-for src="owner/project"></meta-for>`
       })
@@ -15,19 +15,19 @@ describe("meta > src атрибут", () => {
       })
     })
 
-    test("hub-адрес с подпутём", () => {
+    test("внутренний Atom Meta-пакет", () => {
       const result = parse(({ html }) => {
-        html`<meta-for src="owner/project/sub/path"></meta-for>`
+        html`<meta-for src="owner/project/profile"></meta-for>`
       })
       expect(result).toHaveLength(1)
       expect(result[0]).toMatchObject({
         type: "meta",
         tag: "meta-for",
-        src: "owner/project/sub/path",
+        src: "owner/project/profile",
       })
     })
 
-    test("hub-адрес с дефисами", () => {
+    test("адрес с дефисами", () => {
       const result = parse(({ html }) => {
         html`<meta-for src="my-org/my-repo"></meta-for>`
       })
@@ -39,7 +39,7 @@ describe("meta > src атрибут", () => {
       })
     })
 
-    test("hub-адрес с подчёркиваниями", () => {
+    test("адрес с подчёркиваниями", () => {
       const result = parse(({ html }) => {
         html`<meta-for src="user_name/repo_name"></meta-for>`
       })
@@ -52,7 +52,7 @@ describe("meta > src атрибут", () => {
     })
   })
 
-  describe("невалидные hub-адреса", () => {
+  describe("невалидные WIMP-адреса", () => {
     test("src с относительным путём ./", () => {
       expect(() => {
         parse(({ html }) => {
@@ -81,6 +81,14 @@ describe("meta > src атрибут", () => {
       expect(() => {
         parse(({ html }) => {
           html`<meta-for src="repo"></meta-for>`
+        })
+      }).toThrow(/Невалидный src/)
+    })
+
+    test("src с четвёртым сегментом", () => {
+      expect(() => {
+        parse(({ html }) => {
+          html`<meta-for src="owner/project/profile/nested"></meta-for>`
         })
       }).toThrow(/Невалидный src/)
     })

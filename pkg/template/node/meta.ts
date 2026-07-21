@@ -6,19 +6,22 @@ import type { NodeMeta } from "@metafor/types/template/node/meta"
 
 /**
  * Валидирует src атрибут в meta узлах.
- * src должен быть hub-адресом вида owner/path (например, owner/project).
+ * src должен адресовать корневой или внутренний Atom:
+ * owner/repository[/meta-package].
  *
  * @param src - Значение src атрибута
  * @param path - Путь узла для сообщения об ошибке
  * @throws Error если src невалиден
  */
 function validateSrc(src: string, path: string): void {
-  // Hub-адрес: owner/path (минимум один слэш, нет ведущих ./ или ../)
-  const hubAddressRegex = /^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_/-]+$/
-  if (!hubAddressRegex.test(src)) {
+  const segments = src.split("/")
+  const segment = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/
+  const valid = (segments.length === 2 || segments.length === 3) &&
+    segments.every((value) => segment.test(value))
+  if (!valid) {
     throw new Error(
       `Невалидный src в meta узле "${path}": "${src}". ` +
-        `src должен быть hub-адресом вида owner/path (например, owner/project).`,
+        "Ожидается owner/repository[/meta-package].",
     )
   }
 }
@@ -45,7 +48,7 @@ export const createNodeDataMeta = (
   if (src === undefined || src === null || src === "") {
     throw new Error(
       `Отсутствует обязательный атрибут src в meta узле "${srcPath}". ` +
-        `meta-узел должен иметь атрибут src с hub-адресом вида owner/path.`,
+        "meta-узел должен иметь src вида owner/repository[/meta-package].",
     )
   }
 

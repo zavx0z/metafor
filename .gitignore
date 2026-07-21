@@ -21,3 +21,4 @@ old
 **/Снимок экрана*.png
 task/*.png
 **/.metafor/**/*
+/cluster/
