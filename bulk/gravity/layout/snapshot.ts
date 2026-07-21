@@ -7,7 +7,6 @@ import {
 } from "./settings"
 
 const snapshotLayoutConfig = DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG
-const CLASSIC_EMPTY_TORUS_MAJOR_TO_TUBE_RATIO = 2
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5))
 
 const cloneFieldParticleInput = (
@@ -84,13 +83,9 @@ const placeOrbitItemsByBands = (
     outerBoundary: outerBoundary + paddingMm,
   }
 }
-const createDarkParticleInputNode = (
-  descriptor: BulkDarkParticleInput,
-  depthFromRoot: number,
-): DarkParticleInputNode => ({
+const createDarkParticleInputNode = (descriptor: BulkDarkParticleInput): DarkParticleInputNode => ({
   descriptor,
-  depthFromRoot,
-  children: descriptor.children.map((child) => createDarkParticleInputNode(child, depthFromRoot + 1)),
+  children: descriptor.children.map(createDarkParticleInputNode),
 })
 
 const latticePoints = (count: number): Array<[number, number, number]> => {
@@ -115,121 +110,91 @@ const latticePoints = (count: number): Array<[number, number, number]> => {
   return points.slice(0, count)
 }
 
-const placeFieldNucleus = (
-  fields: LayoutFieldParticleNode[],
+const fieldNucleusOuterRadius = (count: number, sphereRadius: number, padding: number): number => {
+  const spacing = sphereRadius * 2 + Math.min(padding, sphereRadius * 0.2)
+  return latticePoints(count).reduce(
+    (outer, point) => Math.max(outer, Math.hypot(...point) * spacing + sphereRadius),
+    0,
+  )
+}
+
+const fitFieldSphereRadius = (
+  count: number,
+  requestedRadius: number,
+  availableRadius: number,
   padding: number,
 ): number => {
+  if (count <= 0) return requestedRadius
+  const limit = Math.max(0.001, availableRadius)
+  let low = 0.001
+  let high = Math.max(low, requestedRadius)
+  if (fieldNucleusOuterRadius(count, high, padding) <= limit) return high
+  for (let iteration = 0; iteration < 48; iteration += 1) {
+    const middle = (low + high) / 2
+    if (fieldNucleusOuterRadius(count, middle, padding) <= limit) low = middle
+    else high = middle
+  }
+  return low
+}
+
+const placeFieldNucleus = (fields: LayoutFieldParticleNode[], padding: number): void => {
   const points = latticePoints(fields.length)
-  const requestedRadius = fields[0]?.sphereRadius ?? 0
-  const spacing = requestedRadius * 2 + Math.min(padding, requestedRadius * 0.2)
-  let outerRadius = 0
+  const sphereRadius = fields[0]?.sphereRadius ?? 0
+  const spacing = sphereRadius * 2 + Math.min(padding, sphereRadius * 0.2)
   fields.forEach((field, index) => {
     const point = points[index] ?? [0, 0, 0]
     field.localX = point[0] * spacing
     field.localY = point[1] * spacing
     field.localZ = point[2] * spacing
-    outerRadius = Math.max(outerRadius, Math.hypot(field.localX, field.localY, field.localZ) + field.sphereRadius)
   })
-  return outerRadius
 }
 
-const targetWimpExtent = (particle: LayoutDarkParticleNode, baseRadius: number): number =>
-  baseRadius * 2.2 * Math.max(0.95, Math.min(1.65, 0.86 + Math.log2(1 + particle.contentWeight) * 0.12))
+const placeChildrenByFractalLaw = (node: LayoutDarkParticleNode, padding: number): void => {
+  const children = [...node.children].sort((left, right) => left.darkParticleId - right.darkParticleId)
+  if (children.length === 0) return
+  const density = Math.max(1, snapshotLayoutConfig.packingDensityCoefficient)
+  const levelExtent = node.outerRadius * snapshotLayoutConfig.nestingCoefficient
+  const edgePadding = Math.min(Math.max(0, padding), node.torusTube * 0.25)
+  const availableRadius = Math.max(0.001, node.innerRadius - edgePadding)
+  const separationSin = children.length === 1 ? 1 : Math.sin(Math.PI / children.length)
+  const separationExtent = availableRadius * separationSin / (density + separationSin)
+  const childOuterExtent = Math.max(0.001, Math.min(levelExtent, availableRadius, separationExtent))
+  const orbitRadius = availableRadius - childOuterExtent * density
+  const phase = hashAngle(`${node.darkParticleId}:${children.map((child) => child.darkParticleId).join(":")}`)
 
-const placeChildrenOnTopologyOrbit = (
-  topologyId: number,
-  children: LayoutDarkParticleNode[],
-  baseRadius: number,
-  padding: number,
-): {radius: number; tube: number} => {
-  if (children.length === 0) {
-    return {radius: baseRadius * 1.6, tube: baseRadius * 0.55}
-  }
-  const sorted = [...children].sort((left, right) =>
-    left.contentWeight - right.contentWeight || left.darkParticleId - right.darkParticleId,
-  )
-  const extents = sorted.map((child) => {
-    const target = targetWimpExtent(child, baseRadius)
-    child.torusScale = target / Math.max(1, child.outerRadius)
-    return target
-  })
-  const maxExtent = Math.max(...extents)
-  const circumferenceRadius = extents.reduce((sum, extent) => sum + extent * 2 + padding, 0) / (Math.PI * 2)
-  const collisionRadius = sorted.length <= 1
-    ? baseRadius * 2.2 + maxExtent
-    : maxExtent / Math.max(0.08, Math.sin(Math.PI / sorted.length)) + padding
-  const firstOrbitRadius = Math.max(baseRadius * 2.2 + maxExtent, circumferenceRadius, collisionRadius)
-  const radialSpread = sorted.length <= 1 ? 0 : maxExtent + padding
-  const phase = hashAngle(`${topologyId}:${sorted.map((child) => child.darkParticleId).join(":")}`)
-  sorted.forEach((child, index) => {
-    const angle = phase + (Math.PI * 2 * index) / sorted.length
-    const radius = firstOrbitRadius + radialSpread * index / Math.max(1, sorted.length - 1)
-    child.localX = Math.cos(angle) * radius
-    child.localY = Math.sin(angle) * radius
+  children.forEach((child, index) => {
+    const angle = phase + (Math.PI * 2 * index) / children.length
+    child.localX = Math.cos(angle) * orbitRadius
+    child.localY = Math.sin(angle) * orbitRadius
     child.localZ = 0
+    child.torusScale = childOuterExtent / Math.max(0.001, child.outerRadius)
   })
-  const innerBoundary = Math.min(...sorted.map((child, index) =>
-    Math.hypot(child.localX, child.localY) - extents[index]! - padding,
-  ))
-  const outerBoundary = Math.max(...sorted.map((child, index) =>
-    Math.hypot(child.localX, child.localY) + extents[index]! + padding,
-  ))
-  return {
-    radius: (innerBoundary + outerBoundary) / 2,
-    tube: (outerBoundary - innerBoundary) / 2,
-  }
 }
 
-const materializeContentAwareDarkParticleNode = (
+const materializeFractalDarkParticleNode = (
   node: DarkParticleInputNode,
   settings: BulkLayoutSettings,
 ): LayoutDarkParticleNode => {
-  const nestedChildren = node.children.map((child) => materializeContentAwareDarkParticleNode(child, settings))
-  const depthFromRoot = node.depthFromRoot
   const descriptor = node.descriptor
-  const sphereRadius = settings.rootSphereRadiusMm
-  const padding = Math.max(settings.orbitEdgeGapMm, sphereRadius * 0.18)
-  const fieldParticles: LayoutFieldParticleNode[] = [...descriptor.fieldParticles]
+  const outerRadius = snapshotLayoutConfig.rootOuterDiameterMm / 2
+  const innerRadius = Math.min(outerRadius * 0.9, Math.max(0.001, settings.rootInnerDiameterMm / 2))
+  const torusRadius = (innerRadius + outerRadius) / 2
+  const torusTube = (outerRadius - innerRadius) / 2
+  const padding = Math.max(0, settings.orbitEdgeGapMm)
+  const sortedFields = [...descriptor.fieldParticles]
     .sort((left, right) => left.fieldId - right.fieldId || left.fieldParticleId.localeCompare(right.fieldParticleId))
-    .map((fieldParticle) => cloneFieldParticleInput(descriptor, fieldParticle, sphereRadius))
+  const sphereRadius = fitFieldSphereRadius(
+    sortedFields.length,
+    settings.rootSphereRadiusMm,
+    Math.max(0.001, innerRadius - Math.min(padding, innerRadius * 0.1)),
+    padding,
+  )
+  const fieldParticles = sortedFields.map((fieldParticle) =>
+    cloneFieldParticleInput(descriptor, fieldParticle, sphereRadius))
+  placeFieldNucleus(fieldParticles, padding)
 
-  const nucleusRadius = placeFieldNucleus(fieldParticles, padding)
-  const childWeight = nestedChildren.reduce((sum, child) => sum + child.contentWeight * 0.28, 0)
-  const ownComplexity = descriptor.orbitalComplexity
-  const orbitalWeight = ownComplexity
-    ? ownComplexity.states + ownComplexity.transitions * 0.7 + ownComplexity.processes * 1.35 + ownComplexity.reactions * 1.6
-    : 0
-  const contentWeight = Math.max(1, fieldParticles.length + orbitalWeight + childWeight)
-
-  let torusRadius: number
-  let torusTube: number
-  let innerRadius: number
-  let outerRadius: number
-
-  if (descriptor.darkParticleKind === "axion") {
-    const orbit = placeChildrenOnTopologyOrbit(
-      descriptor.darkParticleId,
-      nestedChildren.filter((child) => child.darkParticleKind === "atom"),
-      sphereRadius * 0.72,
-      padding,
-    )
-    torusRadius = orbit.radius
-    torusTube = Math.max(sphereRadius * 0.55, orbit.tube)
-    innerRadius = torusRadius - torusTube
-    outerRadius = torusRadius + torusTube
-  } else {
-    innerRadius = nucleusRadius > 0
-      ? nucleusRadius + padding
-      : depthFromRoot === 0
-        ? settings.rootInnerDiameterMm / 2
-        : sphereRadius * 2.3
-    const orbitalTube = sphereRadius * Math.max(2.15, Math.sqrt(Math.max(1, orbitalWeight)) * 0.72)
-    outerRadius = innerRadius + Math.max(sphereRadius * 2.4, orbitalTube * 2)
-    torusRadius = (innerRadius + outerRadius) / 2
-    torusTube = (outerRadius - innerRadius) / 2
-  }
-
-  return {
+  const children = node.children.map((child) => materializeFractalDarkParticleNode(child, settings))
+  const materialized: LayoutDarkParticleNode = {
     darkParticleId: descriptor.darkParticleId,
     darkParticleKind: descriptor.darkParticleKind,
     src: descriptor.src,
@@ -245,109 +210,13 @@ const materializeContentAwareDarkParticleNode = (
     colorG: descriptor.colorG,
     colorB: descriptor.colorB,
     activity: descriptor.activity ?? "neutral",
-    children: nestedChildren,
-    contentWeight,
+    children,
     fieldParticles,
-    isEmpty: fieldParticles.length === 0 && nestedChildren.length === 0 && orbitalWeight === 0,
-    depthFromRoot,
     innerRadius,
     outerRadius,
   }
-}
-
-const sharedCenterChildren = (node: LayoutDarkParticleNode): LayoutDarkParticleNode[] =>
-  node.children
-    .filter((child) => child.darkParticleKind !== "axion")
-    .sort((left, right) => left.contentWeight - right.contentWeight || left.darkParticleId - right.darkParticleId)
-
-const sharedCenterBandDemand = (
-  node: LayoutDarkParticleNode,
-  sphereRadius: number,
-  padding: number,
-): number => {
-  const children = sharedCenterChildren(node)
-  const ownMinimum = Math.max(sphereRadius * 2.4, node.outerRadius - node.innerRadius)
-  const childrenMinimum = children.length === 0
-    ? 0
-    : children.reduce((sum, child) => sum + sharedCenterBandDemand(child, sphereRadius, padding), 0) +
-      padding * Math.max(0, children.length - 1)
-  return Math.max(ownMinimum, childrenMinimum) + sphereRadius * 2.4
-}
-
-const placeSharedCenterBands = (
-  node: LayoutDarkParticleNode,
-  innerRadius: number,
-  outerRadius: number,
-  sphereRadius: number,
-  padding: number,
-): void => {
-  node.localX = 0
-  node.localY = 0
-  node.localZ = 0
-  node.torusScale = 1
-  node.innerRadius = innerRadius
-  node.outerRadius = outerRadius
-  node.torusRadius = (innerRadius + outerRadius) / 2
-  node.torusTube = (outerRadius - innerRadius) / 2
-
-  const children = sharedCenterChildren(node)
-  if (children.length > 0) {
-    const demands = children.map((child) => sharedCenterBandDemand(child, sphereRadius, padding))
-    const totalDemand = demands.reduce((sum, demand) => sum + demand, 0)
-    const edgeInset = Math.min(sphereRadius * 1.2, (outerRadius - innerRadius) * 0.18)
-    const usableWidth = Math.max(1, outerRadius - innerRadius - edgeInset * 2 - padding * Math.max(0, children.length - 1))
-    const scale = Math.min(1, usableWidth / Math.max(1, totalDemand))
-    let cursor = innerRadius + edgeInset
-    children.forEach((child, index) => {
-      const width = demands[index]! * scale
-      placeSharedCenterBands(child, cursor, cursor + width, sphereRadius, padding)
-      cursor += width + padding
-    })
-  }
-
-  const axions = node.children.filter((child) => child.darkParticleKind === "axion")
-  const axionOrbit = innerRadius + (outerRadius - innerRadius) * 0.34
-  axions.forEach((child, index) => {
-    const angle = hashAngle(`${node.darkParticleId}:axion:${child.darkParticleId}`)
-    child.torusScale = 1
-    child.localX = Math.cos(angle) * axionOrbit
-    child.localY = Math.sin(angle) * axionOrbit
-    child.localZ = (index % 2 === 0 ? 1 : -1) * (outerRadius - innerRadius) * 0.12
-  })
-}
-
-const placeSharedFieldNucleusAndTori = (
-  root: LayoutDarkParticleNode,
-  settings: BulkLayoutSettings,
-): void => {
-  const sphereRadius = settings.rootSphereRadiusMm
-  const padding = Math.max(settings.orbitEdgeGapMm, sphereRadius * 0.18)
-  const fields: LayoutFieldParticleNode[] = []
-  const collect = (node: LayoutDarkParticleNode): void => {
-    fields.push(...node.fieldParticles)
-    sharedCenterChildren(node).forEach(collect)
-  }
-  collect(root)
-  fields.sort((left, right) =>
-    left.parentDarkParticleId - right.parentDarkParticleId ||
-    left.fieldId - right.fieldId ||
-    left.fieldParticleId.localeCompare(right.fieldParticleId),
-  )
-
-  const nucleusRadius = placeFieldNucleus(fields, padding)
-  const radialBandWidth = Math.max(
-    sphereRadius * 8,
-    sharedCenterBandDemand(root, sphereRadius, padding),
-    sphereRadius * Math.sqrt(root.contentWeight) * 1.8,
-  )
-  const usesClassicEmptyProfile = root.isEmpty
-  const innerRadius = nucleusRadius > 0
-    ? nucleusRadius + padding
-    : usesClassicEmptyProfile
-      ? radialBandWidth * (CLASSIC_EMPTY_TORUS_MAJOR_TO_TUBE_RATIO - 1) / 2
-      : settings.rootInnerDiameterMm / 2
-  const outerRadius = innerRadius + radialBandWidth
-  placeSharedCenterBands(root, innerRadius, outerRadius, sphereRadius, padding)
+  placeChildrenByFractalLaw(materialized, padding)
+  return materialized
 }
 const flattenDarkParticleNode = (
   node: LayoutDarkParticleNode,
@@ -407,10 +276,10 @@ const flattenDarkParticleNode = (
  *
  * Layout law:
  * - the scene stays `Z-up`;
- * - all Fields of one static WIMP/Fuzzy/MACHO subtree form one compact three-dimensional nucleus;
- * - enum/array topology is present in that nucleus through its real Field sphere;
- * - static WIMP, Fuzzy and MACHO tori share the root center and occupy nested radial bands inside the parent torus volume;
- * - topology-owned WIMPs stay inside those bands and never become fake nucleus Fields;
+ * - one local Atom law is repeated fractally at every materialized level;
+ * - a child uniform transform scales its torus, label anchor, Fields and complete subtree;
+ * - descendants are packed inside a fixed parent envelope and never resize it;
+ * - topology-owned WIMPs retain the real Boundary relation and never become fake nucleus Fields;
  * - State/Process/Reaction geometry is added later from the real Boundary declarations.
  */
 export const createBulkManifestFromDarkParticleInputs = (
@@ -419,9 +288,8 @@ export const createBulkManifestFromDarkParticleInputs = (
   settings: Partial<BulkLayoutSettings> = {},
 ): BulkManifest => {
   const resolvedSettings = normalizeBulkLayoutSettings(settings)
-  const inputRoots = roots.map((root) => createDarkParticleInputNode(root, 0))
-  const materializedRoots = inputRoots.map((root) => materializeContentAwareDarkParticleNode(root, resolvedSettings))
-  materializedRoots.forEach((root) => placeSharedFieldNucleusAndTori(root, resolvedSettings))
+  const inputRoots = roots.map(createDarkParticleInputNode)
+  const materializedRoots = inputRoots.map((root) => materializeFractalDarkParticleNode(root, resolvedSettings))
   const [mainRoot, ...otherRoots] = materializedRoots
   if (mainRoot) {
     mainRoot.localX = 0
@@ -458,9 +326,8 @@ export const createBulkManifestFromDarkParticleInputs = (
 /**
  * Uniformly scales a manifest so the main root Dark particle keeps the fixed outer torus diameter.
  *
- * The scale is applied globally to the whole manifest. Local subtree correction is intentionally not
- * performed: bottom-up topology has already been calculated during materialization, and reflowing
- * after scale would break the contract where children define parent size.
+ * The scale changes only the physical unit of the already top-down manifestation. Recursive local
+ * transforms remain unchanged, so the same one-level Atom law continues fractally at every depth.
  */
 export const scaleBulkManifestToRootOuterDiameter = (
   manifest: BulkManifest,

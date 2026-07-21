@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { computeLerpFactor, easeOutCubic, getDistanceToSegmentPx, mixScalar } from "./math"
+import { computeLerpFactor, easeOutCubic, getDistanceToSegmentPx, manifestLocalLength, mixScalar } from "./math"
 
 describe("bulk/web/math", () => {
   test("mixScalar линейно интерполирует", () => {
@@ -22,6 +22,14 @@ describe("bulk/web/math", () => {
     expect(computeLerpFactor(1000, 100)).toBeGreaterThan(0.99)
     expect(computeLerpFactor(50, 100)).toBeGreaterThan(0)
     expect(computeLerpFactor(50, 100)).toBeLessThan(1)
+  })
+
+  test("тор, подпись и содержимое получают один унаследованный scale Atom", () => {
+    const inheritedAtomScale = 0.1
+
+    expect(manifestLocalLength(50, inheritedAtomScale)).toBeCloseTo(5, 6)
+    expect(manifestLocalLength(2, inheritedAtomScale)).toBeCloseTo(0.2, 6)
+    expect(manifestLocalLength(5, inheritedAtomScale)).toBeCloseTo(0.5, 6)
   })
 
   test("getDistanceToSegmentPx — расстояние до точки, отрезка-вырожденного, до отрезка", () => {

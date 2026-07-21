@@ -19,7 +19,7 @@ describe("Bulk observer handoff", () => {
     expect(handoffs.take(session)).toBeNull()
   })
 
-  test("expires an abandoned session instead of retaining an observer world", () => {
+  test("expires an abandoned session instead of retaining an observer manifestation", () => {
     let now = 10
     const handoffs = new BulkObserverHandoffs({ttlMs: 5, now: () => now})
     const session = handoffs.open()

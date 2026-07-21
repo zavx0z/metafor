@@ -2,11 +2,11 @@ import {describe, expect, test} from "bun:test"
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
 import {BulkSceneStore} from "./scene.ts"
 
-const manifest = (secondLabel = "two"): BulkManifest => ({
+const manifest = (secondLabel = "two", childScale = 0.25): BulkManifest => ({
   rootSrc: "owner/root",
   darkParticles: [1, 2].map((id) => ({
     darkParticleId: id,
-    parentDarkParticleId: null,
+    parentDarkParticleId: id === 1 ? null : 1,
     darkParticleKind: "atom",
     src: `owner/${id}`,
     metaSrc: `owner/${id}`,
@@ -16,7 +16,7 @@ const manifest = (secondLabel = "two"): BulkManifest => ({
     localX: id,
     localY: 0,
     localZ: 0,
-    torusScale: 1,
+    torusScale: id === 1 ? 1 : childScale,
     torusRadius: 10,
     torusTube: 1,
     colorR: 1,
@@ -51,5 +51,17 @@ describe("Bulk live Atom scene patch gate", () => {
 
     expect(patch.removedDarkParticleIds).toEqual([2])
     expect(store.darkParticles.get(1)).toBe(first)
+  })
+
+  test("a child transform update does not emit or recreate its unchanged parent", () => {
+    const store = new BulkSceneStore()
+    store.apply(manifest())
+    const parent = store.darkParticles.get(1)
+
+    const patch = store.apply(manifest("two", 0.125))
+
+    expect(patch.darkParticleIds).toEqual([2])
+    expect(store.darkParticles.get(1)).toBe(parent)
+    expect(store.darkParticles.get(2)?.torusScale).toBe(0.125)
   })
 })

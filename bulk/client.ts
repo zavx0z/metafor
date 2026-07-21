@@ -6,7 +6,7 @@ import { DEFAULT_BULK_SCENE_SRC, DEFAULT_BULK_SETTINGS } from "bulk/settings"
 import { installBulkHud } from "./hud.ts"
 import { BulkProjectionStore } from "./projection.ts"
 import { observedRootSrc } from "./web/force-protocol.ts"
-import { buildBoundaryBulkManifest } from "./world.ts"
+import { buildBulkManifestation } from "./manifestation.ts"
 
 const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement | null
 if (bulkCanvas === null) throw new Error("bulk-canvas not found")
@@ -15,10 +15,10 @@ let bulkViewport: BulkViewportWithHud | null = null
 const projection = new BulkProjectionStore()
 let activeSrc = DEFAULT_BULK_SCENE_SRC
 
-const applyProjectionWorld = (src: string): void => {
+const applyProjectionManifestation = (src: string): void => {
 	if (!bulkViewport) return
 	bulkViewport.applyManifestPatch(
-		buildBoundaryBulkManifest(projection.view(), src, DEFAULT_BULK_SETTINGS.layout),
+		buildBulkManifestation(projection.view(), src, DEFAULT_BULK_SETTINGS.layout),
 	)
 }
 
@@ -68,7 +68,7 @@ const receiveImpulse = (forceMessage: Parameters<Force["onImpulse"]>[0]): void =
 	)
 	const nextRootSrc = observedRootSrc(part, rootSrcs)
 	if (nextRootSrc !== null) activeSrc = nextRootSrc
-	if (change.changed) applyProjectionWorld(activeSrc)
+	if (change.changed) applyProjectionManifestation(activeSrc)
 	bulkViewport?.handleForce(part.part, part)
 }
 

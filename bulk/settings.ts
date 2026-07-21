@@ -38,7 +38,7 @@ export const bulkLayoutConfig: BulkLayoutConfig = {
     camera: {
       fovRad: (2 * Math.PI) / 5,
       // FIXME(deep-space): текущий диапазон near/far рассчитан на сцену, где
-      // 1 world unit = 1 mm. Для более глубокого пространства нельзя просто
+      // 1 scene unit = 1 mm. Для более глубокого пространства нельзя просто
       // увеличивать `far`: отдельно понадобятся dynamic near/far, split frustum
       // или origin rebasing. Пока не реализовывать — только фиксируем ограничение.
       near: 1,

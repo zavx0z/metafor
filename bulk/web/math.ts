@@ -23,6 +23,10 @@ export const computeLerpFactor = (deltaMs: number, smoothingMs: number): number 
   return 1 - Math.exp(-deltaMs / Math.max(1, smoothingMs))
 }
 
+/** Применяет единый унаследованный scale Atom к любой его локальной длине. */
+export const manifestLocalLength = (localLength: number, inheritedAtomScale: number): number =>
+  localLength * Math.max(Math.abs(inheritedAtomScale), 1e-6)
+
 /**
  * Расстояние в пикселях от точки до отрезка `[start, end]` в 2D-проекции.
  *

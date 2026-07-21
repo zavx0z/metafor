@@ -23,10 +23,7 @@ export interface LayoutFieldParticleNode extends BulkFieldParticle {
 
 export interface LayoutDarkParticleNode extends Omit<BulkDarkParticle, "parentDarkParticleId" | "depth" | "darkParticleOrder"> {
   children: LayoutDarkParticleNode[]
-  contentWeight: number
   fieldParticles: LayoutFieldParticleNode[]
-  isEmpty: boolean
-  depthFromRoot: number
   innerRadius: number
   outerRadius: number
 }
@@ -34,7 +31,6 @@ export interface LayoutDarkParticleNode extends Omit<BulkDarkParticle, "parentDa
 export interface DarkParticleInputNode {
   descriptor: BulkDarkParticleInput
   children: DarkParticleInputNode[]
-  depthFromRoot: number
 }
 
 export type OrbitItem =

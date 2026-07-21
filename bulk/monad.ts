@@ -9,7 +9,7 @@ import type {MonadRpcPeer} from "shared/transport/monad"
 import {DEFAULT_BULK_SCENE_SRC, DEFAULT_BULK_SETTINGS} from "./settings.ts"
 import {BulkProjectionStore} from "./projection.ts"
 import {observedRootSrc} from "./web/force-protocol.ts"
-import {buildBoundaryBulkManifest} from "./world.ts"
+import {buildBulkManifestation} from "./manifestation.ts"
 
 export type BulkMonadState = "created" | "loading" | "prepared" | "ready" | "error" | "stopped"
 
@@ -85,7 +85,7 @@ export class BulkMonad {
       throughTs: this.#throughTs,
       rootSrc: this.#activeSrc,
       projection,
-      manifest: buildBoundaryBulkManifest(projection.runtime, this.#activeSrc, DEFAULT_BULK_SETTINGS.layout),
+      manifest: buildBulkManifestation(projection.runtime, this.#activeSrc, DEFAULT_BULK_SETTINGS.layout),
     }
   }
 

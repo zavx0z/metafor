@@ -149,7 +149,7 @@ const fieldKeyFromMatterPath = (path: string): string | null => {
   return path
 }
 
-export function buildBoundaryBulkManifest(
+export function buildBulkManifestation(
   projection: BulkRuntimeProjection,
   rootSrc: string,
   settings: Partial<BulkLayoutSettings> = {},
@@ -250,13 +250,6 @@ export function buildBoundaryBulkManifest(
     return `Axion · ${stateName}`
   }
 
-  const orbitalComplexity = (wimp: string): NonNullable<BulkDarkParticleInput["orbitalComplexity"]> => ({
-    states: statesByWimp.get(wimp)?.length ?? 0,
-    transitions: transitionsByWimp.get(wimp)?.length ?? 0,
-    processes: processesByWimp.get(wimp)?.length ?? 0,
-    reactions: reactionsByWimp.get(wimp)?.length ?? 0,
-  })
-
   const atomFieldValueText = (atom: AtomRecord, fieldKey: string): string | null => {
     const field = fieldByWimpKey.get(`${atom.wimp}\0${fieldKey}`)
     if (!field) return null
@@ -351,7 +344,6 @@ export function buildBoundaryBulkManifest(
         label: wimpBySrc.get(atom.wimp)?.name ?? atom.wimp,
         ...atomDarkParticleColor,
         activity,
-        orbitalComplexity: orbitalComplexity(atom.wimp),
         fieldParticles: [],
         children: [],
       }
@@ -366,7 +358,6 @@ export function buildBoundaryBulkManifest(
       label: wimpBySrc.get(atom.wimp)?.name ?? atom.wimp,
       ...atomDarkParticleColor,
       activity,
-      orbitalComplexity: orbitalComplexity(atom.wimp),
       fieldParticles: (fieldsByWimp.get(atom.wimp) ?? [])
         .map((field) => fieldParticleInputFromBoundaryField(atom, field)),
       children: childDarkParticleInputs({kind: "atom", id: atom.id}, visited, activity),

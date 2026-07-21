@@ -49,13 +49,13 @@ export const resolveLevelGeometry = ({
   const sphereMaxDiameterMm = maxObjectDiameterMm
   const sphereMinDiameterMm = maxObjectDiameterMm * settings.sphereMinScaleFactor
 
-  // Диаметр сферы определяется только на root (через rootSphereRadiusMm), вглубь — пропорционально через maxObjectDiameter.
+  // Радиус сферы определяется только на root (через rootSphereRadiusMm), вглубь — общим scale уровня.
   const rootMaxObjectDiameterMm = settings.rootOuterDiameterMm * settings.nestingCoefficient
   const sphereScaleFactor = Math.min(
     1,
     Math.max(
       settings.sphereMinScaleFactor,
-      settings.rootSphereRadiusMm / Math.max(rootMaxObjectDiameterMm, MIN_POSITIVE),
+      (settings.rootSphereRadiusMm * 2) / Math.max(rootMaxObjectDiameterMm, MIN_POSITIVE),
     ),
   )
   const sphereDiameterMm = maxObjectDiameterMm * sphereScaleFactor

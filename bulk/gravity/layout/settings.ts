@@ -2,11 +2,11 @@ import type { BulkLayoutSnapshotConfig } from "@metafor/types/bulk/layout"
 import type { BulkLayoutSettings } from "@metafor/types/bulk/settings"
 import type { LevelGeometrySettings } from "@metafor/types/bulk/level"
 
-/** Базовые размеры root Dark particle; rootInnerDiameterMm — fallback для непустого Atom без Fields. */
+/** Одноуровневый локальный закон Atom; каждый следующий уровень наследует его через uniform scale. */
 export const DEFAULT_BULK_LAYOUT_SETTINGS: BulkLayoutSettings = {
   orbitEdgeGapMm: 0,
-  rootInnerDiameterMm: 1000,
-  rootSphereRadiusMm: 50,
+  rootInnerDiameterMm: 100 / 3,
+  rootSphereRadiusMm: 5,
 }
 
 /** Нередактируемый snapshot-контракт layout-а: целевой диаметр root, плотности, минимумы. */
@@ -18,7 +18,7 @@ export const DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG: BulkLayoutSnapshotConfig = {
 }
 
 /**
- * Нормализует частичные layout-настройки в безопасный bottom-up контракт.
+ * Нормализует частичные layout-настройки в безопасный рекурсивный контракт.
  *
  * Некорректные и неположительные значения заменяются на {@link DEFAULT_BULK_LAYOUT_SETTINGS}.
  */
@@ -32,11 +32,11 @@ export const normalizeBulkLayoutSettings = (
       : DEFAULT_BULK_LAYOUT_SETTINGS.orbitEdgeGapMm,
   rootInnerDiameterMm:
     Number.isFinite(settings.rootInnerDiameterMm) && (settings.rootInnerDiameterMm ?? 0) > 0
-      ? settings.rootInnerDiameterMm!
+      ? Math.min(settings.rootInnerDiameterMm!, config.rootOuterDiameterMm * 0.9)
       : DEFAULT_BULK_LAYOUT_SETTINGS.rootInnerDiameterMm,
   rootSphereRadiusMm:
     Number.isFinite(settings.rootSphereRadiusMm) && (settings.rootSphereRadiusMm ?? 0) > 0
-      ? Math.min(settings.rootSphereRadiusMm!, config.rootOuterDiameterMm)
+      ? Math.min(settings.rootSphereRadiusMm!, config.rootOuterDiameterMm / 2)
       : DEFAULT_BULK_LAYOUT_SETTINGS.rootSphereRadiusMm,
 })
 

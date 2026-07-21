@@ -15,6 +15,9 @@ const worldScript = join(scriptDirectory, "world.mjs")
 const expectedFiles = [
   "SKILL.md",
   "agents/openai.yaml",
+  "fixtures/capsule/alpha/leaf/meta.ts",
+  "fixtures/capsule/alpha/meta.ts",
+  "fixtures/capsule/beta/meta.ts",
   "fixtures/capsule/meta.ts",
   "references/current-milestone.md",
   "references/module-boundaries.md",

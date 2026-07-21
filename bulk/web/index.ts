@@ -130,7 +130,7 @@ import {
 	THEME_TERTIARY,
 	THEME_TERTIARY_GLOW,
 } from "./constants"
-import { computeLerpFactor, easeOutCubic, getDistanceToSegmentPx, mixScalar } from "./math"
+import { computeLerpFactor, easeOutCubic, getDistanceToSegmentPx, manifestLocalLength, mixScalar } from "./math"
 import { resolveForceFieldId, resolveForceFieldsPayload } from "shared/protocol/force/fields"
 import {
 	resolveForceImpulseRadius,
@@ -826,21 +826,20 @@ class BulkRadialMenuPane extends UiSurface {
 	}
 }
 
-const readObjectWorldPosition = (object: Object3D, target: Vector3): Vector3 => {
+const readObjectScenePosition = (object: Object3D, target: Vector3): Vector3 => {
 	const elements = object.matrixWorld.elements
 	return target.set(elements[12] ?? 0, elements[13] ?? 0, elements[14] ?? 0)
 }
 
 const resolveFieldParticlePeerLevelMetrics = (
 	record: FieldParticleRenderRecord,
-	_parentDarkParticleRecord: DarkParticleRenderRecord | undefined,
 ): { metricDepth: number; metricRadius: number } => {
-	const metricDepth = record.depth
+	const metricDepth = 0
 	return {
 			metricDepth,
 			metricRadius: resolveOuterRadiusFromSphereRadius(
 				metricDepth,
-			toBulkLevelGeometrySettings(activeLayoutSettings),
+				toBulkLevelGeometrySettings(activeLayoutSettings),
 				record.snapshot.sphereRadius,
 			),
 	}
@@ -1668,11 +1667,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	workspace.updateMatrix()
 	space.add(workspace)
 
-	const labelsLayer = new Object3D()
-	labelsLayer.frustumCulled = false
-	labelsLayer.updateMatrix()
-	space.add(labelsLayer)
-
 	const fieldBillboardsLayer = new Object3D()
 	fieldBillboardsLayer.frustumCulled = false
 	fieldBillboardsLayer.updateMatrix()
@@ -1718,9 +1712,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const fadingRemovalRecords: FadingRemovalRecord[] = []
 	const labelRecords = new Map<string, LabelRenderRecord>()
 	const fadingLabelRemovalRecords: FadingLabelRemovalRecord[] = []
-	const reusableWorldPosition = new Vector3()
-	const reusableWorldScale = new Vector3()
-	const reusableWorldQuaternion = new Quaternion()
+	const reusableScenePosition = new Vector3()
+	const reusableInheritedScale = new Vector3()
+	const reusableSceneQuaternion = new Quaternion()
 	const reusableLabelNormal = new Vector3()
 	const reusableLabelRight = new Vector3()
 	const reusableLabelPos = new Vector3()
@@ -1735,8 +1729,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const reusableScaledOffset = new Vector3()
 	const reusableLabelMatrix = new Matrix4()
 	const reusableLabelCurveQuaternion = new Quaternion()
-	const reusableLabelCurveWorldMatrix = new Matrix4()
-	const reusableLabelCurveWorldScale = new Vector3()
+	const reusableLabelCurveSceneMatrix = new Matrix4()
+	const reusableLabelCurveInheritedScale = new Vector3()
 	const reusableLabelCurveLocalMatrix = new Matrix4()
 	const reusableLabelCurveLocalPosition = new Vector3()
 	const reusableLabelCurveLocalQuaternion = new Quaternion()
@@ -2479,9 +2473,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const resolveFieldBillboardSize = (
 		field: BulkFieldParticle,
-		worldScale = 1,
+		inheritedScale = 1,
 	): {widthMm: number; heightMm: number; pixelScale: number} => {
-		const sphereRadiusMm = Math.max(0.5, field.sphereRadius * Math.max(Math.abs(worldScale), 1e-6))
+		const sphereRadiusMm = Math.max(0.5, field.sphereRadius * Math.max(Math.abs(inheritedScale), 1e-6))
 		const radiusRatio = FIELD_BILLBOARD_BORDER_RADIUS_PX / FIELD_BILLBOARD_PIXEL_WIDTH
 		const cornerDenominator = 1 / Math.SQRT2 - radiusRatio * (Math.SQRT2 - 1)
 		const sideMm = sphereRadiusMm / Math.max(cornerDenominator, 1e-6)
@@ -2571,12 +2565,12 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		existing.surface.flushPendingRender()
 	}
 
-	const resizeFieldBillboardToWorldSphere = (
+	const resizeFieldBillboardToManifestedSphere = (
 		tracker: FieldParticleBillboardRecord,
 		field: BulkFieldParticle,
-		worldScale: number,
+		inheritedScale: number,
 	): void => {
-		const size = resolveFieldBillboardSize(field, worldScale)
+		const size = resolveFieldBillboardSize(field, inheritedScale)
 		if (
 			Math.abs(tracker.widthMm - size.widthMm) <= 1e-4 &&
 			Math.abs(tracker.heightMm - size.heightMm) <= 1e-4 &&
@@ -2634,7 +2628,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		if (!text) return null
 
 		const metricRadius = record.snapshot.torusRadius + record.snapshot.torusTube
-		const offset = resolveSurfaceOffsetMm(record.snapshot.depth, metricRadius)
+		const metricDepth = 0
+		const offset = resolveSurfaceOffsetMm(metricDepth, metricRadius)
 
 		return {
 			anchorObject: record.container,
@@ -2642,7 +2637,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			depth: record.snapshot.depth,
 			key: `darkParticle:${record.snapshot.darkParticleId}`,
 			kind: "darkParticle",
-			metricDepth: record.snapshot.depth,
+			metricDepth,
 			metricRadius,
 			offset,
 			torusRadius: record.snapshot.torusRadius,
@@ -2660,8 +2655,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		if (!text) return null
 
 		const sphereRadiusMm = record.snapshot.sphereRadius
-		const parentDarkParticleRecord = darkParticleRecords.get(record.parentDarkParticleId)
-		const { metricDepth, metricRadius } = resolveFieldParticlePeerLevelMetrics(record, parentDarkParticleRecord)
+		const { metricDepth, metricRadius } = resolveFieldParticlePeerLevelMetrics(record)
 		const offset = resolveSurfaceOffsetMm(metricDepth, metricRadius)
 
 		return {
@@ -2696,9 +2690,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			depth,
 			key: `orbitalParticle:${record.snapshot.orbitalParticleId}`,
 			kind: "orbitalParticle",
-			metricDepth: depth,
+			metricDepth: 0,
 			metricRadius: record.snapshot.sphereRadius,
-			offset: resolveSurfaceOffsetMm(depth, record.snapshot.sphereRadius),
+			offset: resolveSurfaceOffsetMm(0, record.snapshot.sphereRadius),
 			torusRadius: 0,
 			torusTube: 0,
 			sphereRadius: record.snapshot.sphereRadius,
@@ -2734,7 +2728,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			container.scale.set(initialScale, initialScale, initialScale)
 			container.updateMatrix()
 			visual.material.opacity = 0
-			labelsLayer.add(container)
+			spec.anchorObject.add(container)
 			labelRecords.set(spec.key, {
 				anchorObject: spec.anchorObject,
 				container,
@@ -2946,7 +2940,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		})
 	}
 
-	const projectWorldToClientPoint = (manifestPoint: Vector3): { x: number; y: number } | null => {
+	const projectSceneToClientPoint = (manifestPoint: Vector3): { x: number; y: number } | null => {
 		const rect = options.canvas.getBoundingClientRect()
 		if (rect.width <= 0 || rect.height <= 0) return null
 
@@ -2974,14 +2968,14 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		let bestDistance = Number.POSITIVE_INFINITY
 
 		for (let index = 0; index <= positions.length - 6; index += 6) {
-			const startPoint = projectWorldToClientPoint(
+			const startPoint = projectSceneToClientPoint(
 				new Vector3(
 					center.x + (positions[index] ?? 0),
 					center.y + (positions[index + 1] ?? 0),
 					center.z + (positions[index + 2] ?? 0),
 				),
 			)
-			const endPoint = projectWorldToClientPoint(
+			const endPoint = projectSceneToClientPoint(
 				new Vector3(
 					center.x + (positions[index + 3] ?? 0),
 					center.y + (positions[index + 4] ?? 0),
@@ -3005,7 +2999,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		clientX: number,
 		clientY: number,
 	): number | null => {
-		const centerPoint = projectWorldToClientPoint(center)
+		const centerPoint = projectSceneToClientPoint(center)
 		if (!centerPoint) return null
 
 		const cameraForward = viewPoint.getTarget().clone().sub(viewPoint.position).normalize()
@@ -3013,8 +3007,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		const cameraUp = cameraRight.clone().cross(cameraForward).normalize()
 		if (cameraRight.length() <= 1e-6 || cameraUp.length() <= 1e-6) return null
 
-		const rightPoint = projectWorldToClientPoint(center.clone().add(cameraRight.multiplyScalar(radius)))
-		const upPoint = projectWorldToClientPoint(center.clone().add(cameraUp.multiplyScalar(radius)))
+		const rightPoint = projectSceneToClientPoint(center.clone().add(cameraRight.multiplyScalar(radius)))
+		const upPoint = projectSceneToClientPoint(center.clone().add(cameraUp.multiplyScalar(radius)))
 		if (!rightPoint && !upPoint) return null
 
 		const projectedRadius = Math.max(
@@ -3035,14 +3029,14 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	): number | null => {
 		const outerRadius = Math.max(0, torusRadius + torusTube)
 		const innerRadius = Math.max(0, torusRadius - torusTube)
-		const centerPoint = projectWorldToClientPoint(center)
+		const centerPoint = projectSceneToClientPoint(center)
 		if (!centerPoint) return null
 		const outerEdgeDistance = resolveProjectedSphereDistancePx(center, outerRadius, clientX, clientY)
 		if (outerEdgeDistance === null) return null
 		const cameraForward = viewPoint.getTarget().clone().sub(viewPoint.position).normalize()
 		const cameraRight = cameraForward.clone().cross(viewPoint.getUp()).normalize()
 		if (cameraRight.length() <= 1e-6 || innerRadius <= 1e-6) return outerEdgeDistance
-		const innerPoint = projectWorldToClientPoint(center.clone().add(cameraRight.multiplyScalar(innerRadius)))
+		const innerPoint = projectSceneToClientPoint(center.clone().add(cameraRight.multiplyScalar(innerRadius)))
 		if (!innerPoint) return outerEdgeDistance
 		const distanceFromCenter = Math.hypot(clientX - centerPoint.x, clientY - centerPoint.y)
 		const projectedInnerRadius = Math.hypot(innerPoint.x - centerPoint.x, innerPoint.y - centerPoint.y)
@@ -3053,28 +3047,28 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const syncPickTargetsFromScene = (): void => {
 		for (const record of darkParticleRecords.values()) {
 			record.container.matrixWorld.decompose(
-				reusableWorldPosition,
-				reusableWorldQuaternion,
-				reusableWorldScale,
+				reusableScenePosition,
+				reusableSceneQuaternion,
+				reusableInheritedScale,
 			)
-			record.pickTarget.center.copy(reusableWorldPosition)
+			record.pickTarget.center.copy(reusableScenePosition)
 			if (record.pickTarget.kind === "darkParticle") {
-				record.pickTarget.torusRadius = record.snapshot.torusRadius * reusableWorldScale.x
-				record.pickTarget.torusTube = record.snapshot.torusTube * reusableWorldScale.x
+				record.pickTarget.torusRadius = record.snapshot.torusRadius * reusableInheritedScale.x
+				record.pickTarget.torusTube = record.snapshot.torusTube * reusableInheritedScale.x
 				record.pickTarget.outerRadius =
-					(record.snapshot.torusRadius + record.snapshot.torusTube) * reusableWorldScale.x
+					(record.snapshot.torusRadius + record.snapshot.torusTube) * reusableInheritedScale.x
 			}
 	}
 
 		for (const record of fieldParticleRecords.values()) {
 			record.node.matrixWorld.decompose(
-				reusableWorldPosition,
-				reusableWorldQuaternion,
-				reusableWorldScale,
+				reusableScenePosition,
+				reusableSceneQuaternion,
+				reusableInheritedScale,
 			)
-			record.pickTarget.center.copy(reusableWorldPosition)
+			record.pickTarget.center.copy(reusableScenePosition)
 			if (record.pickTarget.kind === "fieldParticle") {
-				record.pickTarget.sphereRadius = record.snapshot.sphereRadius * reusableWorldScale.x
+				record.pickTarget.sphereRadius = record.snapshot.sphereRadius * reusableInheritedScale.x
 				record.pickTarget.outerRadius = record.pickTarget.sphereRadius
 			}
 	}
@@ -3152,7 +3146,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		)
 	}
 
-	const updateSceneWorldState = (): void => {
+	const updateManifestationSceneState = (): void => {
 		space.updateWorldMatrix()
 		syncPickTargetsFromScene()
 	}
@@ -3191,7 +3185,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		const rootDarkParticle = rootDarkParticleForViewportFit()
 		if (rootDarkParticle === null) return
 		space.updateWorldMatrix()
-		const rootCenter = rootDarkParticleWorldCenter(rootDarkParticle)
+		const rootCenter = rootDarkParticleSceneCenter(rootDarkParticle)
 		const rootPoints = darkParticleRecordViewportFitPoints(rootDarkParticle)
 		const rootOuterRadius = rootPoints.reduce(
 			(maxRadius, point) => Math.max(maxRadius, point.distanceTo(rootCenter)),
@@ -3224,7 +3218,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		if (navigationState || focusedViewportFitTargetKey === null) return false
 		viewPoint.alignUpToWorldZ()
 		viewPoint.update()
-		updateSceneWorldState()
+		updateManifestationSceneState()
 		updateFieldBillboardTrackers()
 		space.updateWorldMatrix()
 		const fitTarget = fitTargetForPickTargetKey(focusedViewportFitTargetKey)
@@ -3272,7 +3266,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				positions[index + 2] ?? 0,
 			).applyMatrix4(record.torus.matrixWorld)
 			if (Math.abs(record.currentTransitionScale - 1) > 1e-6) {
-				const center = rootDarkParticleWorldCenter(record)
+				const center = rootDarkParticleSceneCenter(record)
 				point.sub(center).multiplyScalar(1 / record.currentTransitionScale).add(center)
 			}
 			points.push(point)
@@ -3309,7 +3303,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return points
 	}
 
-	const rootDarkParticleWorldCenter = (record: DarkParticleRenderRecord): Vector3 => {
+	const rootDarkParticleSceneCenter = (record: DarkParticleRenderRecord): Vector3 => {
 		const elements = record.container.matrixWorld.elements
 		return new Vector3(elements[12] ?? 0, elements[13] ?? 0, elements[14] ?? 0)
 	}
@@ -3341,7 +3335,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		const rect = options.canvas.getBoundingClientRect()
 		if (rect.width <= 0 || rect.height <= 0) return null
 
-		updateSceneWorldState()
+		updateManifestationSceneState()
 
 		raycaster.setFromCamera(
 			{
@@ -3383,7 +3377,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		const directTarget = pickTargetAtClientPoint(clientX, clientY, true)
 		if (directTarget) return directTarget
 
-		updateSceneWorldState()
+		updateManifestationSceneState()
 		let bestTarget: HoverablePickTarget | null = null
 		let bestScore = Number.POSITIVE_INFINITY
 
@@ -3405,7 +3399,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		const fallback = fallbackClientX !== undefined && fallbackClientY !== undefined
 			? {x: fallbackClientX, y: fallbackClientY}
 			: null
-		const centerPoint = projectWorldToClientPoint(target.center) ?? fallback
+		const centerPoint = projectSceneToClientPoint(target.center) ?? fallback
 		if (centerPoint === null) return null
 		return {
 			x: centerPoint.x - canvasRect.left,
@@ -3422,7 +3416,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const openRadialMenuForTarget = (target: HoverablePickTarget, fallbackClientX: number, fallbackClientY: number): void => {
 		cancelNavigation()
-		updateSceneWorldState()
+		updateManifestationSceneState()
 		const center = radialMenuCenterForTarget(target, fallbackClientX, fallbackClientY)
 		if (center === null) return
 		setHoveredPickTarget(target)
@@ -3454,7 +3448,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const applyNavigationFrame = (timestamp: number): void => {
 		if (!navigationState) return
 		viewPoint.alignUpToWorldZ()
-		updateSceneWorldState()
+		updateManifestationSceneState()
 
 		const nextFocus = resolveNavigationFocusTarget()
 		if (!nextFocus) {
@@ -3497,7 +3491,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		focusedViewportFitTargetKey = getPickTargetKey(target)
 		viewPoint.alignUpToWorldZ()
 		viewPoint.update()
-		updateSceneWorldState()
+		updateManifestationSceneState()
 		updateFieldBillboardTrackers()
 		space.updateWorldMatrix()
 		const fitTarget = fitTargetForPickTarget(target)
@@ -3561,7 +3555,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 		space.updateWorldMatrix()
 		const target = targetObject
-			? readObjectWorldPosition(targetObject, new Vector3()).clone()
+			? readObjectScenePosition(targetObject, new Vector3()).clone()
 			: viewPoint.getTarget().clone()
 		const radius = resolveForceImpulseRadius(targetScaleMm)
 		const part = message as unknown as Particle
@@ -3780,15 +3774,15 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 		for (const tracker of labelRecords.values()) {
 			tracker.anchorObject.matrixWorld.decompose(
-				reusableWorldPosition,
-				reusableWorldQuaternion,
-				reusableWorldScale,
+				reusableScenePosition,
+				reusableSceneQuaternion,
+				reusableInheritedScale,
 			)
-			const worldScale = Math.max(Math.abs(reusableWorldScale.x), 1e-6)
-			const torusRadius = tracker.torusRadius * worldScale
-			const torusTube = tracker.torusTube * worldScale
-			const sphereRadius = tracker.sphereRadius * worldScale
-			const offset = tracker.offset * worldScale
+			const inheritedScale = manifestLocalLength(1, reusableInheritedScale.x)
+			const torusRadius = tracker.torusRadius
+			const torusTube = tracker.torusTube
+			const sphereRadius = tracker.sphereRadius
+			const offset = tracker.offset
 			const normal = reusableLabelNormal
 			const right = reusableLabelRight
 			const labelPos = reusableLabelPos
@@ -3799,7 +3793,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			// по меридиану — вертикальная позиция камеры игнорируется.
 			const toCameraXy = reusableLabelToCamera
 				.copy(cameraPos)
-				.sub(reusableWorldPosition)
+				.sub(reusableScenePosition)
 			const cameraDistanceMm = toCameraXy.length()
 			const majorDir = reusableMajorDir.set(toCameraXy.x, toCameraXy.y, 0)
 			if (majorDir.length() < 1e-6) majorDir.set(1, 0, 0)
@@ -3814,19 +3808,19 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				// Метка на внешнем экваторе тубы, `outerRing = torusRadius + torusTube + offset`.
 				const outerRing = torusRadius + torusTube + offset
 				labelPos
-					.copy(reusableWorldPosition)
-					.add(reusableScaledOffset.copy(majorDir).multiplyScalar(outerRing))
+					.copy(reusableScenePosition)
+					.add(reusableScaledOffset.copy(majorDir).multiplyScalar(manifestLocalLength(outerRing, inheritedScale)))
 				curveRadiusMm = Math.max(outerRing, 1e-6)
 			} else {
 				// Метка на горизонтальном поясе сферы, `radius = sphereRadius + offset`.
 				const beltRadius = sphereRadius + offset
 				labelPos
-					.copy(reusableWorldPosition)
-					.add(reusableScaledOffset.copy(majorDir).multiplyScalar(beltRadius))
+					.copy(reusableScenePosition)
+					.add(reusableScaledOffset.copy(majorDir).multiplyScalar(manifestLocalLength(beltRadius, inheritedScale)))
 				curveRadiusMm = Math.max(beltRadius, 1e-6)
 			}
 
-			// Вектор "вверх" — мировая вертикаль; метка не наклоняется с камерой.
+			// Вектор "вверх" — вертикаль сцены; метка не наклоняется с камерой.
 			const up = reusableLabelUp.set(0, 0, 1)
 
 			// Строим ориентацию из базиса.
@@ -3863,7 +3857,10 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				const fieldParticleId = tracker.key.slice("fieldParticle:".length)
 				fieldBillboard = fieldParticleRecords.has(fieldParticleId) ? fieldParticleBillboardRecords.get(fieldParticleId) : undefined
 				if (fieldBillboard !== undefined) {
-					surfaceTitleAmount = resolveFieldLabelTitleMorph(cameraDistanceMm, Math.max(sphereRadius, 1e-6))
+					surfaceTitleAmount = resolveFieldLabelTitleMorph(
+						cameraDistanceMm,
+						Math.max(sphereRadius * inheritedScale, 1e-6),
+					)
 				}
 			}
 
@@ -3887,11 +3884,12 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 					fieldBillboard.heightMm / 2 -
 					(FIELD_BILLBOARD_TITLE_Y_PX + FIELD_BILLBOARD_TITLE_FONT_PX) * fieldBillboard.pixelScale
 
-				reusableLabelCurveWorldScale.set(tracker.currentScale, tracker.currentScale, tracker.currentScale)
-				reusableLabelCurveWorldMatrix.compose(labelPos, curveQuaternion, reusableLabelCurveWorldScale)
+				const manifestedLabelScale = manifestLocalLength(tracker.currentScale, inheritedScale)
+				reusableLabelCurveInheritedScale.set(manifestedLabelScale, manifestedLabelScale, manifestedLabelScale)
+				reusableLabelCurveSceneMatrix.compose(labelPos, curveQuaternion, reusableLabelCurveInheritedScale)
 				reusableLabelCurveLocalMatrix.multiplyMatrices(
 					reusableBillboardInverseMatrix.copy(fieldBillboard.container.matrixWorld).invert(),
-					reusableLabelCurveWorldMatrix,
+					reusableLabelCurveSceneMatrix,
 				)
 				reusableLabelCurveLocalMatrix.decompose(
 					reusableLabelCurveLocalPosition,
@@ -3940,12 +3938,19 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				continue
 			}
 
-			if (tracker.container.parent !== labelsLayer) {
-				labelsLayer.add(tracker.container)
-			}
-			tracker.container.position.copy(labelPos)
-			tracker.container.quaternion.copy(curveQuaternion)
-			tracker.container.scale.set(tracker.currentScale, tracker.currentScale, tracker.currentScale)
+			if (tracker.container.parent !== tracker.anchorObject) tracker.anchorObject.add(tracker.container)
+			const manifestedLabelScale = manifestLocalLength(tracker.currentScale, inheritedScale)
+			reusableLabelCurveInheritedScale.set(manifestedLabelScale, manifestedLabelScale, manifestedLabelScale)
+			reusableLabelCurveSceneMatrix.compose(labelPos, curveQuaternion, reusableLabelCurveInheritedScale)
+			reusableLabelCurveLocalMatrix.multiplyMatrices(
+				reusableBillboardInverseMatrix.copy(tracker.anchorObject.matrixWorld).invert(),
+				reusableLabelCurveSceneMatrix,
+			)
+			reusableLabelCurveLocalMatrix.decompose(
+				tracker.container.position,
+				tracker.container.quaternion,
+				tracker.container.scale,
+			)
 			tracker.material.opacity = tracker.currentOpacity
 			bendTextAroundEquator({
 				geometry: tracker.textNode.stencilGeometry,
@@ -3970,22 +3975,22 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 		for (const tracker of fieldParticleBillboardRecords.values()) {
 			tracker.anchorObject.matrixWorld.decompose(
-				reusableWorldPosition,
-				reusableWorldQuaternion,
-				reusableWorldScale,
+				reusableScenePosition,
+				reusableSceneQuaternion,
+				reusableInheritedScale,
 			)
 			const fieldRecord = fieldParticleRecords.get(tracker.fieldParticleId)
-			const worldScale = Math.max(Math.abs(reusableWorldScale.x), 1e-6)
-			const normal = reusableBillboardNormal.copy(cameraPos).sub(reusableWorldPosition)
+			const inheritedScale = Math.max(Math.abs(reusableInheritedScale.x), 1e-6)
+			const normal = reusableBillboardNormal.copy(cameraPos).sub(reusableScenePosition)
 			const cameraDistanceMm = normal.length()
 			if (cameraDistanceMm <= 1e-6) normal.set(0, -1, 0)
 			normal.normalize()
 			if (fieldRecord) {
-				const sphereRadiusMm = Math.max(0.5, fieldRecord.snapshot.sphereRadius * worldScale)
+				const sphereRadiusMm = Math.max(0.5, fieldRecord.snapshot.sphereRadius * inheritedScale)
 				tracker.surface.setMode(
 					resolveFieldLabelTitleMorph(cameraDistanceMm, sphereRadiusMm) > 0 ? "surface" : "summary",
 				)
-				resizeFieldBillboardToWorldSphere(tracker, fieldRecord.snapshot, worldScale)
+				resizeFieldBillboardToManifestedSphere(tracker, fieldRecord.snapshot, inheritedScale)
 			}
 
 			let up = reusableBillboardUp.set(0, 0, 1)
@@ -3998,7 +4003,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			up.crossVectors(normal, right).normalize()
 
 			tracker.container.position
-				.copy(reusableWorldPosition)
+				.copy(reusableScenePosition)
 
 			const matrix = reusableBillboardMatrix
 			const e = matrix.elements
@@ -4325,7 +4330,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 		const hasPendingMotion = updateAnimatedRecords(deltaMs)
 		const hasCosmosMotion = updateCosmosAnimation(deltaMs)
-		updateSceneWorldState()
+		updateManifestationSceneState()
 		applyNavigationFrame(timestamp)
 		syncRadialMenuAnchor()
 

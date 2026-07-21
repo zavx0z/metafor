@@ -22,7 +22,6 @@ const createDarkParticle = (
   darkParticleId: number,
   children: BulkDarkParticleInput[] = [],
   fieldParticleIds: number[] = [],
-  orbitalComplexity?: BulkDarkParticleInput["orbitalComplexity"],
 ): BulkDarkParticleInput => ({
   darkParticleId,
   darkParticleKind: "atom",
@@ -34,7 +33,6 @@ const createDarkParticle = (
   colorB: 0.98,
   fieldParticles: fieldParticleIds.map(createFieldParticle),
   children,
-  ...(orbitalComplexity === undefined ? {} : {orbitalComplexity}),
 })
 
 const createTopologyParticle = (
@@ -75,6 +73,81 @@ const getFieldParticle = (manifest: BulkManifest, fieldParticleId: string): Bulk
   return fieldParticle!
 }
 
+type ManifestedDarkParticleGeometry = {
+  center: [number, number, number]
+  outerRadius: number
+  scale: number
+}
+
+const manifestedDarkParticleGeometry = (
+  manifest: BulkManifest,
+  darkParticleId: number,
+  cache = new Map<number, ManifestedDarkParticleGeometry>(),
+): ManifestedDarkParticleGeometry => {
+  const cached = cache.get(darkParticleId)
+  if (cached) return cached
+  const particle = getDarkParticle(manifest, darkParticleId)
+  const parent = particle.parentDarkParticleId === null
+    ? {center: [0, 0, 0] as [number, number, number], scale: 1}
+    : manifestedDarkParticleGeometry(manifest, particle.parentDarkParticleId, cache)
+  const scale = parent.scale * particle.torusScale
+  const result = {
+    center: [
+      parent.center[0] + particle.localX * parent.scale,
+      parent.center[1] + particle.localY * parent.scale,
+      parent.center[2] + particle.localZ * parent.scale,
+    ] as [number, number, number],
+    outerRadius: getOuterRadius(particle) * scale,
+    scale,
+  }
+  cache.set(darkParticleId, result)
+  return result
+}
+
+const distance = (left: [number, number, number], right: [number, number, number]): number =>
+  Math.hypot(left[0] - right[0], left[1] - right[1], left[2] - right[2])
+
+const expectSubtreesInsideParents = (manifest: BulkManifest): void => {
+  const childrenByParent = new Map<number, number[]>()
+  for (const particle of manifest.darkParticles) {
+    if (particle.parentDarkParticleId === null) continue
+    const children = childrenByParent.get(particle.parentDarkParticleId)
+    if (children) children.push(particle.darkParticleId)
+    else childrenByParent.set(particle.parentDarkParticleId, [particle.darkParticleId])
+  }
+  const cache = new Map<number, ManifestedDarkParticleGeometry>()
+
+  for (const child of manifest.darkParticles.filter((particle) => particle.parentDarkParticleId !== null)) {
+    const parent = manifestedDarkParticleGeometry(manifest, child.parentDarkParticleId!, cache)
+    const subtreeIds = new Set<number>()
+    const queue = [child.darkParticleId]
+    while (queue.length > 0) {
+      const current = queue.shift()!
+      if (subtreeIds.has(current)) continue
+      subtreeIds.add(current)
+      queue.push(...(childrenByParent.get(current) ?? []))
+    }
+
+    for (const descendantId of subtreeIds) {
+      const descendant = manifestedDarkParticleGeometry(manifest, descendantId, cache)
+      expect(distance(parent.center, descendant.center) + descendant.outerRadius).toBeLessThanOrEqual(
+        parent.outerRadius + 0.001,
+      )
+    }
+    for (const field of manifest.fieldParticles.filter((particle) => subtreeIds.has(particle.parentDarkParticleId))) {
+      const fieldParent = manifestedDarkParticleGeometry(manifest, field.parentDarkParticleId, cache)
+      const fieldCenter: [number, number, number] = [
+        fieldParent.center[0] + field.localX * fieldParent.scale,
+        fieldParent.center[1] + field.localY * fieldParent.scale,
+        fieldParent.center[2] + field.localZ * fieldParent.scale,
+      ]
+      expect(distance(parent.center, fieldCenter) + field.sphereRadius * fieldParent.scale).toBeLessThanOrEqual(
+        parent.outerRadius + 0.001,
+      )
+    }
+  }
+}
+
 const expectFieldNucleiInsideParents = (manifest: BulkManifest): void => {
   const darkParticlesById = new Map(manifest.darkParticles.map((darkParticle) => [darkParticle.darkParticleId, darkParticle]))
   for (const fieldParticle of manifest.fieldParticles) {
@@ -89,16 +162,31 @@ const expectFieldNucleiInsideParents = (manifest: BulkManifest): void => {
 }
 
 const expectFieldNucleiHaveNoIntersections = (manifest: BulkManifest): void => {
+  const cache = new Map<number, ManifestedDarkParticleGeometry>()
   for (let leftIndex = 0; leftIndex < manifest.fieldParticles.length; leftIndex += 1) {
     for (let rightIndex = leftIndex + 1; rightIndex < manifest.fieldParticles.length; rightIndex += 1) {
       const left = manifest.fieldParticles[leftIndex]!
       const right = manifest.fieldParticles[rightIndex]!
+      const leftParent = manifestedDarkParticleGeometry(manifest, left.parentDarkParticleId, cache)
+      const rightParent = manifestedDarkParticleGeometry(manifest, right.parentDarkParticleId, cache)
+      const leftCenter: [number, number, number] = [
+        leftParent.center[0] + left.localX * leftParent.scale,
+        leftParent.center[1] + left.localY * leftParent.scale,
+        leftParent.center[2] + left.localZ * leftParent.scale,
+      ]
+      const rightCenter: [number, number, number] = [
+        rightParent.center[0] + right.localX * rightParent.scale,
+        rightParent.center[1] + right.localY * rightParent.scale,
+        rightParent.center[2] + right.localZ * rightParent.scale,
+      ]
       const distance = Math.hypot(
-        left.localX - right.localX,
-        left.localY - right.localY,
-        left.localZ - right.localZ,
+        leftCenter[0] - rightCenter[0],
+        leftCenter[1] - rightCenter[1],
+        leftCenter[2] - rightCenter[2],
       )
-      expect(distance).toBeGreaterThanOrEqual(left.sphereRadius + right.sphereRadius - 0.001)
+      expect(distance).toBeGreaterThanOrEqual(
+        left.sphereRadius * leftParent.scale + right.sphereRadius * rightParent.scale - 0.001,
+      )
     }
   }
 }
@@ -119,14 +207,10 @@ describe("bulk/gravity/layout manifest", () => {
     )
   })
 
-  test("строит Z-up torus layout и держит Fields в компактных трехмерных ядрах", () => {
-    const manifest = createBulkManifestFromDarkParticleInputs("root", [
-      createDarkParticle(1, [
-        createDarkParticle(2, [
-          createDarkParticle(3, [], [103]),
-        ], [102]),
-      ], [101]),
-    ])
+  test("строит рекурсивный Z-up layout с меньшим manifested extent на каждом уровне", () => {
+    const manifest = scaleBulkManifestToRootOuterDiameter(createBulkManifestFromDarkParticleInputs("root", [
+      createDarkParticle(1, [createDarkParticle(2, [createDarkParticle(3, [], [103])], [102])], [101]),
+    ]))
 
     const root = getDarkParticle(manifest, 1)
     const child = getDarkParticle(manifest, 2)
@@ -141,21 +225,32 @@ describe("bulk/gravity/layout manifest", () => {
     expect(getOuterRadius(root)).toBeGreaterThan(0)
     expect(getOuterRadius(child)).toBeGreaterThan(0)
     expect(getOuterRadius(leaf)).toBeGreaterThan(0)
+    expect(getOuterRadius(child)).toBeCloseTo(getOuterRadius(root), 6)
+    expect(getOuterRadius(leaf)).toBeCloseTo(getOuterRadius(root), 6)
+    expect(child.torusRadius).toBeCloseTo(root.torusRadius, 6)
+    expect(leaf.torusRadius).toBeCloseTo(root.torusRadius, 6)
+    expect(child.torusTube).toBeCloseTo(root.torusTube, 6)
+    expect(leaf.torusTube).toBeCloseTo(root.torusTube, 6)
     expect(rootField.sphereRadius).toBe(childField.sphereRadius)
     expect(childField.sphereRadius).toBe(leafField.sphereRadius)
     expect(manifest.darkParticles.every((darkParticle) => darkParticle.localZ === 0)).toBe(true)
     expect(rootField.localX).toBe(0)
     expect(rootField.localY).toBe(0)
     expect(rootField.localZ).toBe(0)
-    expect(getInnerRadius(child)).toBeGreaterThan(getInnerRadius(root))
-    expect(getInnerRadius(leaf)).toBeGreaterThan(getInnerRadius(child))
-    expect(getOuterRadius(leaf)).toBeLessThan(getOuterRadius(child))
-    expect(getOuterRadius(child)).toBeLessThan(getOuterRadius(root))
+    expect(manifestedDarkParticleGeometry(manifest, child.darkParticleId).outerRadius).toBeLessThan(
+      manifestedDarkParticleGeometry(manifest, root.darkParticleId).outerRadius,
+    )
+    expect(manifestedDarkParticleGeometry(manifest, leaf.darkParticleId).outerRadius).toBeLessThan(
+      manifestedDarkParticleGeometry(manifest, child.darkParticleId).outerRadius,
+    )
+    expect(child.torusScale).toBeLessThan(1)
+    expect(leaf.torusScale).toBeLessThan(1)
+    expectSubtreesInsideParents(manifest)
     expectFieldNucleiInsideParents(manifest)
     expectFieldNucleiHaveNoIntersections(manifest)
   })
 
-  test("топологический тор расширяется от числа вложенных WIMP и не превращает их в Fields", () => {
+  test("потомки не расширяют внешний envelope родителя и не превращаются в Fields", () => {
     const compact = createBulkManifestFromDarkParticleInputs("compact", [
       createDarkParticle(1, [createTopologyParticle(20, "fuzzy", [createDarkParticle(2, [], [101])])]),
     ])
@@ -176,17 +271,20 @@ describe("bulk/gravity/layout manifest", () => {
       ])]),
     ])
 
-    expect(getVisualOuterRadius(getDarkParticle(expanded, 20))).toBeGreaterThan(
-      getVisualOuterRadius(getDarkParticle(compact, 20)),
-    )
+    expect(getDarkParticle(expanded, 20)).toMatchObject({
+      torusRadius: getDarkParticle(compact, 20).torusRadius,
+      torusTube: getDarkParticle(compact, 20).torusTube,
+      torusScale: getDarkParticle(compact, 20).torusScale,
+    })
     expect(expanded.darkParticles).toHaveLength(14)
     expect(expanded.fieldParticles).toHaveLength(12)
     expect(expanded.darkParticles.filter((particle) => particle.parentDarkParticleId === 20)).toHaveLength(12)
+    expectSubtreesInsideParents(expanded)
     expectFieldNucleiInsideParents(expanded)
     expectFieldNucleiHaveNoIntersections(expanded)
   })
 
-  test("Fuzzy и MACHO занимают собственные полосы в объеме root-тора и сохраняют общий центр", () => {
+  test("Fuzzy и MACHO детерминированно упакованы внутри root вместо общего плоского центра", () => {
     const manifest = createBulkManifestFromDarkParticleInputs("root", [
       createDarkParticle(1, [
         createTopologyParticle(20, "fuzzy", [createDarkParticle(2, [], [102])]),
@@ -201,27 +299,21 @@ describe("bulk/gravity/layout manifest", () => {
     const fuzzy = getDarkParticle(manifest, 20)
     const macho = getDarkParticle(manifest, 30)
 
-    expect(fuzzy.localX).toBe(0)
-    expect(fuzzy.localY).toBe(0)
-    expect(macho.localX).toBe(0)
-    expect(macho.localY).toBe(0)
-    expect(getInnerRadius(fuzzy)).toBeGreaterThan(getInnerRadius(root))
-    expect(getInnerRadius(macho)).toBeGreaterThan(getOuterRadius(fuzzy))
-    expect(getOuterRadius(macho)).toBeLessThan(getOuterRadius(root))
+    expect(Math.hypot(fuzzy.localX, fuzzy.localY, fuzzy.localZ)).toBeGreaterThan(0)
+    expect(Math.hypot(macho.localX, macho.localY, macho.localZ)).toBeGreaterThan(0)
+    expect([fuzzy.localX, fuzzy.localY, fuzzy.localZ]).not.toEqual([macho.localX, macho.localY, macho.localZ])
+    expect(fuzzy.torusScale).toBeLessThan(1)
+    expect(macho.torusScale).toBeLessThan(1)
+    expectSubtreesInsideParents(manifest)
     expectFieldNucleiInsideParents(manifest)
     expectFieldNucleiHaveNoIntersections(manifest)
   })
 
-  test("содержательно более крупный WIMP получает больший visual extent независимо от depth", () => {
+  test("каждый sibling повторяет тот же фрактальный закон Atom в одном parent allocation", () => {
     const manifest = createBulkManifestFromDarkParticleInputs("root", [
       createDarkParticle(1, [createTopologyParticle(20, "macho", [
         createDarkParticle(2, [createDarkParticle(4, [], [101])]),
-        createDarkParticle(3, [], [102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113], {
-          states: 18,
-          transitions: 36,
-          processes: 4,
-          reactions: 2,
-        }),
+        createDarkParticle(3, [], [102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113]),
       ])]),
     ])
 
@@ -229,12 +321,12 @@ describe("bulk/gravity/layout manifest", () => {
     const childB = getDarkParticle(manifest, 3)
 
     expect(childA.depth).toBe(childB.depth)
-    expect(getVisualOuterRadius(childB)).toBeGreaterThan(getVisualOuterRadius(childA))
-    expect(childA.localX).toBe(0)
-    expect(childA.localY).toBe(0)
-    expect(childB.localX).toBe(0)
-    expect(childB.localY).toBe(0)
-    expect(getInnerRadius(childB)).toBeGreaterThan(getInnerRadius(childA))
+    expect(getVisualOuterRadius(childB)).toBeCloseTo(getVisualOuterRadius(childA), 6)
+    expect(childB.torusScale).toBeCloseTo(childA.torusScale, 6)
+    expect(childB.torusRadius).toBeCloseTo(childA.torusRadius, 6)
+    expect(childB.torusTube).toBeCloseTo(childA.torusTube, 6)
+    expect([childA.localX, childA.localY, childA.localZ]).not.toEqual([childB.localX, childB.localY, childB.localZ])
+    expectSubtreesInsideParents(manifest)
     expectFieldNucleiInsideParents(manifest)
     expectFieldNucleiHaveNoIntersections(manifest)
   })
@@ -286,12 +378,14 @@ describe("bulk/gravity/layout manifest", () => {
       spaced.fieldParticles[0]!.localZ - spaced.fieldParticles[1]!.localZ,
     )
 
-    expect(spacedDistance).toBeGreaterThan(compactDistance)
+    const compactEdgeGap = compactDistance - compact.fieldParticles[0]!.sphereRadius - compact.fieldParticles[1]!.sphereRadius
+    const spacedEdgeGap = spacedDistance - spaced.fieldParticles[0]!.sphereRadius - spaced.fieldParticles[1]!.sphereRadius
+    expect(spacedEdgeGap).toBeGreaterThan(compactEdgeGap)
     expectFieldNucleiInsideParents(spaced)
     expectFieldNucleiHaveNoIntersections(spaced)
   })
 
-  test("Field-ядро определяет общий внутренний диаметр и не оставляет вокруг себя фиксированную пустоту", () => {
+  test("Field-ядро уплотняется внутри фиксированного Atom envelope", () => {
     const manifest = createBulkManifestFromDarkParticleInputs(
       "root",
       [
@@ -303,12 +397,13 @@ describe("bulk/gravity/layout manifest", () => {
       { rootInnerDiameterMm: 1800 },
     )
     const root = getDarkParticle(manifest, 1)
-    const nucleusOuterRadius = manifest.fieldParticles.reduce((max, field) => Math.max(
-      max,
-      Math.hypot(field.localX, field.localY, field.localZ) + field.sphereRadius,
-    ), 0)
-    expect(getInnerRadius(root)).toBeCloseTo(nucleusOuterRadius + 50 * 0.18, 6)
-    expect(getInnerRadius(root)).toBeLessThan(900)
+    const sparse = createBulkManifestFromDarkParticleInputs("root", [createDarkParticle(1, [], [100])], {
+      rootInnerDiameterMm: 1800,
+    })
+    expect(root.torusRadius).toBeCloseTo(getDarkParticle(sparse, 1).torusRadius, 6)
+    expect(root.torusTube).toBeCloseTo(getDarkParticle(sparse, 1).torusTube, 6)
+    expectFieldNucleiInsideParents(manifest)
+    expectFieldNucleiHaveNoIntersections(manifest)
     expect(getInnerRadius(getDarkParticle(manifest, 2))).toBeGreaterThan(0)
     expect(getInnerRadius(getDarkParticle(manifest, 3))).toBeGreaterThan(0)
   })
@@ -342,6 +437,20 @@ describe("bulk/gravity/layout manifest", () => {
     )
     expectFieldNucleiInsideParents(normalized)
     expectFieldNucleiHaveNoIntersections(normalized)
+  })
+
+  test("одинаковый materialized tree всегда даёт ту же рекурсивную геометрию", () => {
+    const input = createDarkParticle(1, [
+      createDarkParticle(2, [createDarkParticle(4, [], [104])], [102]),
+      createDarkParticle(3, [], [103]),
+    ], [101])
+
+    const first = scaleBulkManifestToRootOuterDiameter(createBulkManifestFromDarkParticleInputs("root", [input]))
+    const second = scaleBulkManifestToRootOuterDiameter(createBulkManifestFromDarkParticleInputs("root", [input]))
+
+    expect(second).toEqual(first)
+    expect(getOuterRadius(getDarkParticle(first, 1)) * 2).toBeCloseTo(100, 6)
+    expectSubtreesInsideParents(first)
   })
 
   test("первый root Dark particle остается в центре, остальные root Dark particles уходят на внешнюю orbit band", () => {

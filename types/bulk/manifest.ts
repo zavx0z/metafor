@@ -160,12 +160,6 @@ export interface BulkDarkParticleInput {
   colorG: number
   colorB: number
   activity?: BulkDarkParticleActivity
-  orbitalComplexity?: {
-    states: number
-    transitions: number
-    processes: number
-    reactions: number
-  }
   fieldParticles: BulkFieldParticleInput[]
   children: BulkDarkParticleInput[]
 }

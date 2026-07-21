@@ -1,6 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import type { BulkRuntimeProjection } from "@metafor/types/bulk/runtime"
-import {buildBoundaryBulkManifest} from "./world.ts"
+import {buildBulkManifestation} from "./manifestation.ts"
 
 const SRC = "owner/project"
 
@@ -28,9 +28,9 @@ const createProjection = (): BulkRuntimeProjection => ({
 	matterChildWimpBindingPaths: [],
 })
 
-describe("bulk мост Boundary -> Bulk manifest", () => {
+describe("Boundary projection -> Bulk manifestation", () => {
 	test("передаёт Boundary field ID отдельно от Bulk field particle ID", () => {
-		const manifest = buildBoundaryBulkManifest(createProjection(), SRC)
+		const manifest = buildBulkManifestation(createProjection(), SRC)
 		const fieldParticle = manifest.fieldParticles[0]
 
 		expect(manifest.darkParticles[0]).toMatchObject({
@@ -58,7 +58,7 @@ describe("bulk мост Boundary -> Bulk manifest", () => {
 		projection.conditions.push({id: 41, wimp: SRC, transition: 31, field: 2, position: 0, predicate: {eq: "go"}})
 		projection.atomStates.push({atom: 17, state: 21})
 
-		const manifest = buildBoundaryBulkManifest(projection, SRC)
+		const manifest = buildBulkManifestation(projection, SRC)
 
 		expect(manifest.fieldParticles.map((field) => field.fieldParticleKind)).toContain("enum")
 		expect(manifest.fieldParticles.map((field) => field.fieldParticleKind)).toContain("array")
@@ -69,6 +69,28 @@ describe("bulk мост Boundary -> Bulk manifest", () => {
 		expect(stateParticles.some((particle) => particle.sphereRadius < fieldRadius)).toBe(true)
 		expect(manifest.orbitalParticles?.some((particle) => particle.sourceId === 21 && particle.current)).toBe(true)
 		expect(manifest.transitionChannels?.some((channel) => channel.sourceId === 31 && channel.conditionFieldIds[0] === 2)).toBe(true)
+	})
+
+	test("orbital content does not expand the Atom torus envelope", () => {
+		const sparse = buildBulkManifestation(createProjection(), SRC)
+		const projection = createProjection()
+		projection.states.push(
+			{id: 21, wimp: SRC, name: "idle", position: 0},
+			{id: 22, wimp: SRC, name: "ready", position: 1},
+			{id: 23, wimp: SRC, name: "done", position: 2},
+		)
+		projection.transitions.push(
+			{id: 31, wimp: SRC, fromState: 21, toState: 22, position: 0},
+			{id: 32, wimp: SRC, fromState: 22, toState: 23, position: 1},
+		)
+		const rich = buildBulkManifestation(projection, SRC)
+
+		expect(rich.orbitalParticles?.length).toBeGreaterThan(0)
+		expect(rich.darkParticles[0]).toMatchObject({
+			torusRadius: sparse.darkParticles[0]?.torusRadius,
+			torusTube: sparse.darkParticles[0]?.torusTube,
+			torusScale: sparse.darkParticles[0]?.torusScale,
+		})
 	})
 
 	test("строит сцену только из выбранного root WIMP и его реальных descendants", () => {
@@ -83,15 +105,18 @@ describe("bulk мост Boundary -> Bulk manifest", () => {
 		)
 		projection.topologies.push({id: 77, parentAtom: null, parentTopology: null, kind: "macho", position: 0})
 
-		const manifest = buildBoundaryBulkManifest(projection, SRC)
+		const manifest = buildBulkManifestation(projection, SRC)
+		const root = manifest.darkParticles.find((particle) => particle.src === SRC)
+		const child = manifest.darkParticles.find((particle) => particle.src === "owner/project/tree")
 
 		expect(manifest.darkParticles.map((particle) => particle.src)).toEqual([SRC, "owner/project/tree"])
+		expect(child?.parentDarkParticleId).toBe(root?.darkParticleId)
 		expect(manifest.darkParticles.some((particle) => particle.darkParticleId === 99 * 2)).toBe(false)
 		expect(manifest.darkParticles.some((particle) => particle.darkParticleId === 77 * 2 + 1)).toBe(false)
 	})
 
 	test("не подменяет отсутствующий requested root посторонними root-сценами", () => {
-		const manifest = buildBoundaryBulkManifest(createProjection(), "zavx0z/missing")
+		const manifest = buildBulkManifestation(createProjection(), "zavx0z/missing")
 
 		expect(manifest.rootSrc).toBe("zavx0z/missing")
 		expect(manifest.darkParticles).toEqual([])
@@ -132,7 +157,7 @@ describe("bulk мост Boundary -> Bulk manifest", () => {
 		)
 		projection.matterTopologyBindingPaths.push({wimp: SRC, particle: 61, depOrder: 0, path: "mode"})
 
-		const manifest = buildBoundaryBulkManifest(projection, SRC)
+		const manifest = buildBulkManifestation(projection, SRC)
 		const fuzzy = manifest.darkParticles.find((particle) => particle.darkParticleKind === "fuzzy")
 		const axionAnchor = manifest.darkParticles.find((particle) => particle.darkParticleKind === "axion")
 		const axions = manifest.orbitalParticles?.filter((particle) => particle.orbitalParticleKind === "axion") ?? []
@@ -165,7 +190,7 @@ describe("bulk мост Boundary -> Bulk manifest", () => {
 			{id: 35, wimp: SRC, fromState: 24, toState: 21, position: 4},
 		)
 
-		const manifest = buildBoundaryBulkManifest(projection, SRC)
+		const manifest = buildBulkManifestation(projection, SRC)
 		const states = manifest.orbitalParticles?.filter((particle) => particle.orbitalParticleKind === "state") ?? []
 		const positions = new Set(states.map((particle) =>
 			`${particle.localX.toFixed(6)}:${particle.localY.toFixed(6)}:${particle.localZ.toFixed(6)}`,
