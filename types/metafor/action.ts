@@ -1,10 +1,15 @@
 import type { Fields, Values } from "./fields.ts"
-import type { Mass, Self } from "./schema.ts"
+import type { Energy, Mass, Self } from "./schema.ts"
 
 /**
  * Параметры для action.
  */
-export interface ActionParams<ɸ extends Fields, m extends Mass, v = Values<ɸ>> {
+export interface ActionParams<
+  ɸ extends Fields,
+  m extends Mass,
+  v = Values<ɸ>,
+  e extends Energy = Energy,
+> {
   /**
    * Декларация полей (схема, тип, валидатор).
    * Используется для валидации и доступа к типам полей.
@@ -16,6 +21,8 @@ export interface ActionParams<ɸ extends Fields, m extends Mass, v = Values<ɸ>>
   value: v
   /** Масса */
   mass: m
+  /** Живые runtime-сущности Energy */
+  energy: e
   /** Полный идентификатор атома */
   self: Self
 }

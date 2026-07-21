@@ -1,4 +1,4 @@
-import { normalizeFunctionString, parseFunction } from "./action.ts"
+import { extractModuleSrc, normalizeFunctionString, parseFunction, validateActionStructure } from "./action.ts"
 import type { Fields } from "@metafor/types/metafor/fields"
 import type {
   FinallyChainResult,
@@ -7,19 +7,19 @@ import type {
   FinallyRuntimeResult,
   ParsedFinally,
 } from "@metafor/types/metafor/finally"
-import type { Mass } from "@metafor/types/metafor/schema"
+import type { Energy, Mass } from "@metafor/types/metafor/schema"
 
 const FINALLY_TYPE: ParsedFinally["type"] = "finally"
 
-export function createFinallyChain<ɸ extends Fields = Fields, m extends Mass = Mass, s extends string = string>(
+export function createFinallyChain<ɸ extends Fields = Fields, m extends Mass = Mass, s extends string = string, e extends Energy = Energy>(
   state: s,
   config?: FinallyConfig,
-): FinallyChainResult<ɸ, m, s>
-export function createFinallyChain<ɸ extends Fields = Fields, m extends Mass = Mass, s extends string = string>(
+): FinallyChainResult<ɸ, m, s, e>
+export function createFinallyChain<ɸ extends Fields = Fields, m extends Mass = Mass, s extends string = string, e extends Energy = Energy>(
   state: s,
   config?: FinallyConfig,
-): FinallyChainResult<ɸ, m, s> {
-  const result: FinallyRuntimeResult<m, s> = {
+): FinallyChainResult<ɸ, m, s, e> {
+  const result: FinallyRuntimeResult<m, s, e> = {
     type: FINALLY_TYPE,
     state,
     ...(config?.label ? { label: config.label } : {}),
@@ -27,7 +27,7 @@ export function createFinallyChain<ɸ extends Fields = Fields, m extends Mass = 
     ...(config?.env ? { env: config.env } : {}),
   }
 
-  const chain: FinallyChainResult<ɸ, m, s> = {
+  const chain: FinallyChainResult<ɸ, m, s, e> = {
     type: FINALLY_TYPE,
     before: (handler) => {
       result.before = handler
@@ -39,7 +39,15 @@ export function createFinallyChain<ɸ extends Fields = Fields, m extends Mass = 
   return chain
 }
 
-export const parseFinally = <m extends Mass = Mass>(process: FinallyInput<m>): ParsedFinally => {
+export const parseFinally = <m extends Mass = Mass, e extends Energy = Energy>(process: FinallyInput<m, e>): ParsedFinally => {
+  if (process.before) {
+    const validation = validateActionStructure(process.before)
+    if (!validation.valid || extractModuleSrc(process.before) === null) {
+      throw new Error(
+        `Невалидная структура destroy.before: ${validation.error ?? 'функция должна содержать import("...") внешнего cleanup-модуля'}`,
+      )
+    }
+  }
   const parsed = process.before ? parseFunction(process.before, false) : { read: [] }
 
   return {
@@ -54,9 +62,9 @@ export const parseFinally = <m extends Mass = Mass>(process: FinallyInput<m>): P
   }
 }
 
-export const isFinallyChain = <ɸ extends Fields = Fields, m extends Mass = Mass, s extends string = string>(
+export const isFinallyChain = <ɸ extends Fields = Fields, m extends Mass = Mass, s extends string = string, e extends Energy = Energy>(
   value: unknown,
-): value is FinallyChainResult<ɸ, m, s> => {
+): value is FinallyChainResult<ɸ, m, s, e> => {
   if (!value || typeof value !== "object") return false
 
   const candidate = value as { type?: unknown; getResult?: unknown }

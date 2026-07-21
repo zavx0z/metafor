@@ -77,9 +77,11 @@ CREATE TABLE IF NOT EXISTS matter_particle_wimp
     src            TEXT NOT NULL CHECK (length(trim(src)) > 0),
     fields_binding INTEGER,
     mass_binding   INTEGER,
+    energy_binding INTEGER,
     FOREIGN KEY (particle) REFERENCES matter_particle (id) ON DELETE CASCADE,
     FOREIGN KEY (fields_binding) REFERENCES matter_binding (id) ON DELETE CASCADE,
-    FOREIGN KEY (mass_binding) REFERENCES matter_binding (id) ON DELETE CASCADE
+    FOREIGN KEY (mass_binding) REFERENCES matter_binding (id) ON DELETE CASCADE,
+    FOREIGN KEY (energy_binding) REFERENCES matter_binding (id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS matter_particle_fuzzy

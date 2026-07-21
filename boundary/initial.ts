@@ -13,6 +13,7 @@ type AtomRow = {
 type AtomFieldRow = {
   atom: number
   field: number
+  valueId: number
   value: unknown
 }
 
@@ -147,15 +148,20 @@ export async function readBoundaryInitialState(sql: SQL): Promise<BoundaryInitia
   const atomFields: AtomFieldRow[] = []
   for (const row of await sql<Array<{atom: number; field: number; valueId: number}>>`
     SELECT atom, field, value AS valueId FROM atom_value ORDER BY atom, field
-  `) atomFields.push({atom: Number(row.atom), field: Number(row.field), value: await readValue(sql, Number(row.valueId))})
+  `) atomFields.push({
+    atom: Number(row.atom),
+    field: Number(row.field),
+    valueId: Number(row.valueId),
+    value: await readValue(sql, Number(row.valueId)),
+  })
   const atomStates = await sql<AtomStateRow[]>`
     SELECT atom, metaState FROM atom_state ORDER BY atom
   `
 
-  const valuesByAtom = new Map<number, Array<{field: number; value: unknown}>>()
+  const valuesByAtom = new Map<number, Array<{field: number; valueId: number; value: unknown}>>()
   for (const row of atomFields) {
     const values = valuesByAtom.get(row.atom)
-    const value = {field: row.field, value: structuredClone(row.value)}
+    const value = {field: row.field, valueId: row.valueId, value: structuredClone(row.value)}
     if (values) values.push(value)
     else valuesByAtom.set(row.atom, [value])
   }

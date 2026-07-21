@@ -295,7 +295,7 @@ export class BoundaryReactionStore {
             proposal.fields,
             `Reaction ${proposal.reactionId}`,
           )
-        : {scalar: {}, topology: {}}
+        : {scalar: {}, topology: {}, aliases: []}
 
       const status: ReactionExecutionRow["status"] = part.part === "w+"
         ? "committed"
@@ -318,12 +318,13 @@ export class BoundaryReactionStore {
 
     if (!committed) return null
     const consequences: ForceMessage[] = []
+    const ts = Date.now()
     if (Object.keys(committed.scalar).length > 0) {
       consequences.push(message({
         part: "gluon",
         op: "replace",
         path: targetAtomId,
-        ts: Date.now(),
+        ts,
         from: proposal.reactionExecutionId,
         value: {fields: committed.scalar},
       }))
@@ -333,9 +334,27 @@ export class BoundaryReactionStore {
         part: "higgs",
         op: "replace",
         path: targetAtomId,
-        ts: Date.now(),
+        ts,
         from: proposal.reactionExecutionId,
         value: {fields: committed.topology},
+      }))
+    }
+    for (const alias of committed.aliases) {
+      if (Object.keys(alias.scalar).length > 0) consequences.push(message({
+        part: "gluon",
+        op: "replace",
+        path: alias.atom,
+        ts,
+        from: proposal.reactionExecutionId,
+        value: {fields: alias.scalar},
+      }))
+      if (Object.keys(alias.topology).length > 0) consequences.push(message({
+        part: "higgs",
+        op: "replace",
+        path: alias.atom,
+        ts,
+        from: proposal.reactionExecutionId,
+        value: {fields: alias.topology},
       }))
     }
     const acknowledgement: ReactionResultCommit = {
@@ -348,7 +367,7 @@ export class BoundaryReactionStore {
       part: part.part,
       op: "copy",
       path: targetAtomId,
-      ts: Date.now(),
+      ts,
       from: proposal.reactionExecutionId,
       value: acknowledgement,
     }))

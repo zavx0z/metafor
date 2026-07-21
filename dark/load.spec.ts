@@ -1,7 +1,7 @@
 import {describe, expect, test} from "bun:test"
 import {resolve} from "node:path"
 
-import {canonicalMetaSource, resolveMetaPath} from "./load.ts"
+import {canonicalMetaSource, metaImportSpecifier, resolveMetaPath} from "./load.ts"
 
 describe("Dark Meta source addressing", () => {
   test("accepts a root Atom or one internal Meta-package segment", () => {
@@ -15,19 +15,28 @@ describe("Dark Meta source addressing", () => {
   })
 
   test("resolves src below the physical cluster root", () => {
-    const root = resolve("/tmp", "metafor-cluster")
+    const root = resolve(import.meta.dir, "..", "cluster")
 
-    expect(resolveMetaPath("zavx0z/capsule", root)).toBe(
+    expect(resolveMetaPath("zavx0z/capsule")).toBe(
       resolve(root, "zavx0z", "capsule", "meta.ts"),
     )
-    expect(resolveMetaPath("zavx0z/capsule/profile", root)).toBe(
+    expect(resolveMetaPath("zavx0z/capsule/profile")).toBe(
       resolve(root, "zavx0z", "capsule", "profile", "meta.ts"),
     )
   })
 
   test("rejects noncanonical sources before filesystem access", () => {
-    expect(() => resolveMetaPath("capsule", "/tmp/cluster")).toThrow(
+    expect(() => resolveMetaPath("capsule")).toThrow(
       "Ожидается <github-user>/<repository>[/<meta-package>]",
     )
+  })
+
+  test("gives every test read a fresh ESM module identity", () => {
+    const first = metaImportSpecifier("zavx0z/capsule", "read-1")
+    const second = metaImportSpecifier("zavx0z/capsule", "read-2")
+
+    expect(first).not.toBe(second)
+    expect(first).toContain("/cluster/zavx0z/capsule/meta.ts?metafor-read=read-1")
+    expect(second).toContain("/cluster/zavx0z/capsule/meta.ts?metafor-read=read-2")
   })
 })

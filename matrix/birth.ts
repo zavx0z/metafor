@@ -15,6 +15,7 @@ import {gravity$} from "@matrix/gravity/store.ts"
 import {assembleStoredMatrixData, strong$} from "@matrix/strong"
 import {weak$, weakInit} from "@matrix/weak"
 import {matrix$} from "./store.ts"
+import {hydrateMatrixProjection, readMatrixProjection} from "./projection.ts"
 
 type JsonRecord = Record<string, unknown>
 
@@ -117,7 +118,7 @@ const predicateValue = (condition: JsonRecord): MatrixConditionValue => {
 export function buildMatrixRuntime(initial: BoundaryInitialState): MatrixRuntimeSnapshot {
   const declarationsByWimpSection = group(initial.declarations, (item) => `${item.src}\0${item.section}`)
   const valuesByAtomField = new Map(
-    initial.atoms.flatMap((atom) => atom.values.map((value) => [`${atom.id}\0${value.field}`, value.value] as const)),
+    initial.atoms.flatMap((atom) => atom.values.map((value) => [`${atom.id}\0${value.field}`, value] as const)),
   )
 
   const enumVariantRecordsByField = new Map<number, BoundaryInitialDeclaration[]>()
@@ -136,7 +137,96 @@ export function buildMatrixRuntime(initial: BoundaryInitialState): MatrixRuntime
     )
   }
 
+  type PreparedField = {
+    atomId: number
+    braneIndex: number
+    wimp: string
+    fieldId: number
+    key: string
+    declaration: BoundaryInitialDeclaration
+    valueId: number | null
+    value: MatrixBraneValue
+    runtimeFieldIndex?: number
+    wimpFieldId?: number
+  }
+  const preparedFields: PreparedField[] = []
+  for (let braneIndex = 0; braneIndex < initial.atoms.length; braneIndex++) {
+    const atom = initial.atoms[braneIndex]!
+    for (const declaration of sortByPosition(declarationsByWimpSection.get(`${atom.wimp}\0fields`) ?? [])) {
+      const fieldId = integer(declaration.value.id)
+      if (fieldId === null) continue
+      const stored = valuesByAtomField.get(`${atom.id}\0${fieldId}`)
+      const variants = enumValuesByField.get(fieldId) ?? []
+      preparedFields.push({
+        atomId: atom.id,
+        braneIndex,
+        wimp: atom.wimp,
+        fieldId,
+        key: text(declaration.value.key) ?? String(fieldId),
+        declaration,
+        valueId: stored ? stored.valueId : null,
+        value: stored === undefined
+          ? fallbackFieldValue(declaration.value, variants)
+          : matrixBraneValue(clone(stored.value)),
+      })
+    }
+  }
+
+  const sharedMembersByValueId = new Map<number, PreparedField[]>()
+  for (const field of preparedFields) {
+    if (field.valueId === null) continue
+    const members = sharedMembersByValueId.get(field.valueId)
+    if (members) members.push(field)
+    else sharedMembersByValueId.set(field.valueId, [field])
+  }
+  for (const [valueId, members] of [...sharedMembersByValueId]) {
+    if (members.length < 2) {
+      sharedMembersByValueId.delete(valueId)
+      continue
+    }
+    const types = new Set(members.map((field) => String(field.declaration.value.type)))
+    const branes = new Set(members.map((field) => field.braneIndex))
+    if (types.size !== 1 || branes.size !== members.length || !["string", "number", "boolean"].includes([...types][0] ?? "")) {
+      throw new Error(`Boundary shared value ${valueId} is not a valid ordinary Field entanglement family`)
+    }
+  }
+
   const dataFields: MatrixFieldRecord[] = []
+  const sharedRuntimeFieldIndexByValueId = new Map<number, number>()
+  let nextProjectionFieldId = 1
+  for (const field of preparedFields) {
+    let runtimeFieldIndex = field.valueId === null
+      ? undefined
+      : sharedRuntimeFieldIndexByValueId.get(field.valueId)
+    if (runtimeFieldIndex === undefined) {
+      runtimeFieldIndex = dataFields.length
+      dataFields.push(matrixField(field.declaration.value, enumValuesByField.get(field.fieldId) ?? []))
+      if (field.valueId !== null && sharedMembersByValueId.has(field.valueId)) {
+        sharedRuntimeFieldIndexByValueId.set(field.valueId, runtimeFieldIndex)
+      }
+    }
+    field.runtimeFieldIndex = runtimeFieldIndex
+    field.wimpFieldId = nextProjectionFieldId++
+  }
+  const preparedFieldByAtomField = new Map(
+    preparedFields.map((field) => [`${field.atomId}\0${field.fieldId}`, field] as const),
+  )
+  const entanglement = {
+    blocks: [...sharedMembersByValueId.entries()].map(([valueId, members]) => {
+      const representative = members[0]!
+      return {
+        key: `value:${valueId}`,
+        braneIndices: members.map((field) => field.braneIndex).sort((left, right) => left - right),
+        fields: [{
+          fieldIndex: representative.runtimeFieldIndex!,
+          fieldName: representative.key,
+          payloadIds: members.map((field) => `atom:${field.atomId}/field:${field.fieldId}`).sort(),
+          semanticKeys: Array.from(new Set(members.map((field) => `${field.wimp}:${field.key}`))).sort(),
+          representativeBraneIndex: representative.braneIndex,
+        }],
+      }
+    }),
+  }
   const branes: MatrixInputBrane[] = []
   const stateNames: string[][] = []
   const atomIdByBraneIndex: number[] = []
@@ -152,8 +242,6 @@ export function buildMatrixRuntime(initial: BoundaryInitialState): MatrixRuntime
   const stateMetaStateIdsByBraneIndex: number[][] = []
   const stateHasProcessByBraneIndex: boolean[][] = []
   const runtimeFieldIndexByAtomField = new Map<string, number>()
-  let nextProjectionFieldId = 1
-
   for (let braneIndex = 0; braneIndex < initial.atoms.length; braneIndex++) {
     const atom = initial.atoms[braneIndex]!
     const fieldRecords = sortByPosition(declarationsByWimpSection.get(`${atom.wimp}\0fields`) ?? [])
@@ -173,20 +261,18 @@ export function buildMatrixRuntime(initial: BoundaryInitialState): MatrixRuntime
     for (const fieldRecord of fieldRecords) {
       const fieldId = integer(fieldRecord.value.id)
       if (fieldId === null) continue
-      const runtimeFieldIndex = dataFields.length
-      const variants = enumValuesByField.get(fieldId) ?? []
-      const storedValue = valuesByAtomField.get(`${atom.id}\0${fieldId}`)
-      const value = storedValue === undefined
-        ? fallbackFieldValue(fieldRecord.value, variants)
-        : matrixBraneValue(clone(storedValue))
-      const wimpFieldId = nextProjectionFieldId++
+      const prepared = preparedFieldByAtomField.get(`${atom.id}\0${fieldId}`)
+      if (!prepared || prepared.runtimeFieldIndex === undefined || prepared.wimpFieldId === undefined) continue
+      const runtimeFieldIndex = prepared.runtimeFieldIndex
+      const wimpFieldId = prepared.wimpFieldId
 
-      dataFields.push(matrixField(fieldRecord.value, variants))
-      values.push([runtimeFieldIndex, value])
+      values.push([runtimeFieldIndex, prepared.value])
       runtimeFieldIndexByAtomField.set(`${atom.id}\0${fieldId}`, runtimeFieldIndex)
       runtimeFieldIndexByAtomFieldId.push([atom.id, fieldId, runtimeFieldIndex])
       runtimeFieldIndexByWimpFieldId.push([wimpFieldId, runtimeFieldIndex])
-      wimpFieldIdsByRuntimeFieldIndex[runtimeFieldIndex] = [wimpFieldId]
+      const wimpFieldIds = wimpFieldIdsByRuntimeFieldIndex[runtimeFieldIndex]
+      if (wimpFieldIds) wimpFieldIds.push(wimpFieldId)
+      else wimpFieldIdsByRuntimeFieldIndex[runtimeFieldIndex] = [wimpFieldId]
       braneIndexByWimpFieldId.push([wimpFieldId, braneIndex])
 
       if (fieldRecord.value.type === "enum" || fieldRecord.value.type === "array") {
@@ -251,7 +337,12 @@ export function buildMatrixRuntime(initial: BoundaryInitialState): MatrixRuntime
       atomIdsByWimpSrc: [...atomIdsByWimpSrc.entries()].map(([src, atomIds]) => [src, [...atomIds]]),
       runtimeFieldIndexByAtomFieldId,
     },
-    data: {fields: dataFields, branes, stateNames},
+    data: {
+      fields: dataFields,
+      branes,
+      stateNames,
+      ...(entanglement.blocks.length > 0 ? {entanglement} : {}),
+    },
     strong: {
       runtimeFieldIndexByWimpFieldId,
       wimpFieldIdsByRuntimeFieldIndex,
@@ -304,8 +395,10 @@ const resetStores = (): void => {
 
 let preparedBirth = false
 
-/** Matrix Monad prepares the permanent Store and Weak resources before runtime birth. */
-export async function prepareMatrixBirth(value: unknown): Promise<{atoms: number; fields: number; backend: string}> {
+const prepareMatrixProjection = async (
+  value: unknown,
+  markBirth: boolean,
+): Promise<{atoms: number; fields: number; backend: string}> => {
   if (!isBoundaryInitialState(value)) throw new Error("Boundary returned invalid initial state")
   const snapshot = buildMatrixRuntime(value)
   validateData(snapshot.data)
@@ -341,13 +434,25 @@ export async function prepareMatrixBirth(value: unknown): Promise<{atoms: number
   )
   weak$.stateMetaStateIdsByBraneIndex = snapshot.weak.stateMetaStateIdsByBraneIndex.map((ids) => [...ids])
   weak$.stateHasProcessByBraneIndex = snapshot.weak.stateHasProcessByBraneIndex.map((items) => [...items])
-  preparedBirth = true
+  if (markBirth) preparedBirth = true
 
   return {
     atoms: snapshot.runtime.atomIdByBraneIndex.length,
     fields: snapshot.data.fields.length,
     backend: weak$.mode,
   }
+}
+
+/** Matrix Monad prepares the permanent Store and Weak resources before runtime birth. */
+export async function prepareMatrixBirth(value: unknown): Promise<{atoms: number; fields: number; backend: string}> {
+  if (!isBoundaryInitialState(value)) throw new Error("Boundary returned invalid initial state")
+  hydrateMatrixProjection(value)
+  return await prepareMatrixProjection(value, true)
+}
+
+/** Rebuilds packed CPU/GPU layout from Matrix's live canonical projection. */
+export async function reprepareMatrixRuntime(): Promise<{atoms: number; fields: number; backend: string}> {
+  return await prepareMatrixProjection(readMatrixProjection(), false)
 }
 
 /** Consumed exactly once by the newly born runtime module. */

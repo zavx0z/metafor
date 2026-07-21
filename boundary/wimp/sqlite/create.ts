@@ -6,59 +6,44 @@ import type { MatterBindingValue, MatterEdgeSlot, MatterParticle } from "@metafo
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
+const EXECUTABLE_BINDING_RE = /=>|\bfunction\b|\bnew\s+|(?:\b[$A-Z_a-z][$\w]*|\]|\))\s*(?:\?\.)?\s*\(/
+
+export const validateRuntimeMatterBinding = (
+  value: unknown,
+  domain: "mass" | "energy",
+  label: string,
+): void => {
+  if (value === undefined || value === null) return
+  if (typeof value === "string") {
+    const source = value.trim()
+    if (!source.startsWith("{") || !source.endsWith("}") || EXECUTABLE_BINDING_RE.test(source)) {
+      throw new Error(`${label} must be a pure object projection`)
+    }
+    return
+  }
+  if (!isRecord(value)) throw new Error(`${label} must be a binding descriptor`)
+
+  const rawPaths = value.data === undefined
+    ? []
+    : Array.isArray(value.data) ? value.data : [value.data]
+  if (rawPaths.length === 0 || rawPaths.some((path) => typeof path !== "string")) {
+    throw new Error(`${label} must declare a /${domain} dependency`)
+  }
+  for (const path of rawPaths as string[]) {
+    const validRoot = path === `/${domain}` || path.startsWith(`/${domain}/`)
+    if (!validRoot || path.includes("[item]") || path.includes("[index]") || path.includes("../")) {
+      throw new Error(`${label} dependency must use /${domain}[/...] without map-relative context`)
+    }
+  }
+  if (value.expr !== undefined && (
+    typeof value.expr !== "string" || EXECUTABLE_BINDING_RE.test(value.expr)
+  )) throw new Error(`${label} must not create executable resources`)
+}
+
 const insertId = async (rows: Promise<Array<{id: number}>>, label: string): Promise<number> => {
   const row = (await rows)[0]
   if (!row) throw new Error(`${label}: insert did not return id`)
   return row.id
-}
-
-export const insertMassValue = async (
-  sql: SQL | ReservedSQL,
-  src: string,
-  value: unknown,
-  parentValue: number | null,
-  entryKey: string | null,
-  entryOrder: number | null,
-): Promise<number> => {
-  const kind = Array.isArray(value)
-    ? "array"
-    : isRecord(value)
-      ? "object"
-      : typeof value === "string"
-        ? "string"
-        : typeof value === "number"
-          ? "number"
-          : typeof value === "boolean"
-            ? "boolean"
-            : "null"
-
-  const id = await insertId(sql<Array<{id: number}>>`
-    INSERT INTO wimp_mass_value
-      (wimp, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value)
-    VALUES (
-      ${src},
-      ${parentValue},
-      ${kind},
-      ${entryKey},
-      ${entryOrder},
-      ${kind === "string" ? String(value) : null},
-      ${kind === "number" ? Number(value) : null},
-      ${kind === "boolean" ? (value ? 1 : 0) : null}
-    )
-    RETURNING id
-  `, "insertMassValue")
-
-  if (Array.isArray(value)) {
-    for (let index = 0; index < value.length; index++) {
-      await insertMassValue(sql, src, value[index], id, null, index)
-    }
-  } else if (isRecord(value)) {
-    for (const [childKey, childValue] of Object.entries(value)) {
-      await insertMassValue(sql, src, childValue, id, childKey, null)
-    }
-  }
-
-  return id
 }
 
 export const insertFieldDefault = async (
@@ -416,9 +401,16 @@ const insertMatterParticle = async (
   `, "insertMatterParticle")
 
   if (particle.kind === "wimp") {
+    validateRuntimeMatterBinding(particle.massBinding, "mass", "Matter massBinding")
+    validateRuntimeMatterBinding(particle.energyBinding, "energy", "Matter energyBinding")
     await sql`
-      INSERT INTO matter_particle_wimp (particle, src, fields_binding, mass_binding)
-      VALUES (${id}, ${particle.src}, ${await insertMatterBinding(sql, src, particle.fieldsBinding)}, ${await insertMatterBinding(sql, src, particle.massBinding)})
+      INSERT INTO matter_particle_wimp (particle, src, fields_binding, mass_binding, energy_binding)
+      VALUES (
+        ${id}, ${particle.src},
+        ${await insertMatterBinding(sql, src, particle.fieldsBinding)},
+        ${await insertMatterBinding(sql, src, particle.massBinding)},
+        ${await insertMatterBinding(sql, src, particle.energyBinding)}
+      )
     `
   } else if (particle.kind === "fuzzy") {
     await sql`
@@ -457,7 +449,6 @@ export const writeWimpCreate = async (sql: SQL | ReservedSQL, src: string, input
     VALUES (${src}, ${input.name ?? null}, ${input.desc ?? null}, ${input.bulk?.view ?? null})
   `
 
-  if (input.mass !== undefined) await insertMassValue(sql, src, input.mass, null, null, null)
   const fieldIds = await insertFields(sql, src, input.fields ?? [])
   const stateIds = await insertStates(sql, src, fieldIds, input.superposition ?? [])
   await insertProcesses(sql, src, fieldIds, input.processes ?? [])

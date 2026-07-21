@@ -20,11 +20,9 @@ const assertMetaSource = (address: string): void => {
   }
 }
 
-const defaultMetaRoot = (): string => resolve(import.meta.dir, "..", CLUSTER)
-
-export const resolveMetaPath = (address: string, root?: string): string => {
+export const resolveMetaPath = (address: string): string => {
   assertMetaSource(address)
-  return resolve(root?.trim() || defaultMetaRoot(), address, MODULE)
+  return resolve(import.meta.dir, "..", CLUSTER, address, MODULE)
 }
 
 const importMeta = async (sourcePath: string): Promise<MetaDSL> => {
@@ -35,8 +33,14 @@ const importMeta = async (sourcePath: string): Promise<MetaDSL> => {
 const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
 
+export const metaImportSpecifier = (address: string, readId = `${Date.now()}-${crypto.randomUUID()}`): string => {
+  const sourceUrl = pathToFileURL(resolveMetaPath(address))
+  sourceUrl.searchParams.set("metafor-read", readId)
+  return sourceUrl.href
+}
+
 export const loadMeta = async (address: string): Promise<MetaDSL> => {
-  const sourcePath = pathToFileURL(resolveMetaPath(address, Bun.env.METAFOR_META_ROOT)).href
+  const sourcePath = metaImportSpecifier(address)
   try {
     return await importMeta(sourcePath)
   } catch (error) {

@@ -57,6 +57,28 @@ Meta-файл в Boundary не попадает. Здесь нет внутре�
 его Fields, States, Processes, Matter и остальные декларационные сущности — в
 отдельных реляционных таблицах по детерминированным локальным индексам.
 
+## Field binding
+
+Прямой ordinary scalar binding из Matter хранится не как вычисленное стартовое
+значение. Parent и child `atom_value` ссылаются на один `value`, а таблица
+`atom_field_source` сохраняет направленное отношение
+`child Atom/Field → parent Atom/Field`. Запись любого участника обновляет общий
+value record на месте и после commit выпускает atom-addressed Gluon для каждого
+владельца с одним `ts`. Поэтому siblings, связанные с тем же parent Field,
+видят ту же запись в том же параллельном time step.
+
+`boundary.initialState.read` возвращает `valueId` вместе со значением. Matrix
+строит prepared entanglement только по этой canonical identity и не связывает
+случайно равные значения. Связь переживает закрытие и повторное открытие SQLite
+без нового Graviton. Computed Field expression получает отдельный value; `enum`
+и `array` остаются topology Fields и shared scalar value не образуют.
+
+In-place замена `fieldsBinding` materialized Matter edge перестраивает
+`atom_field_source` и `atom_value` в одной Boundary transaction. Следующий Atom
+Graviton содержит новые value identities; Matrix обновляет локальную canonical
+projection и заново готовит packed shared layout и Weak backend до следующего
+такта.
+
 ## Низкоуровневый API
 
 ```ts

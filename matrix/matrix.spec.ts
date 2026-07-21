@@ -47,7 +47,7 @@ const runtimeInitialState = (): BoundaryInitialState => ({
   atoms: [{
     id: 17,
     wimp: "owner/process",
-    values: [{field: 101, value: 0}, {field: 102, value: ""}],
+    values: [{field: 101, valueId: 1001, value: 0}, {field: 102, valueId: 1002, value: ""}],
     state: null,
   }],
   declarations: [

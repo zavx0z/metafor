@@ -23,7 +23,7 @@ import type {
 import type {Particle} from "shared/protocol/force/particle"
 import {resolveForceFieldId, resolveForceFieldsPayload} from "shared/protocol/force/fields"
 
-const declarationSections = ["meta", "fields", "variants", "states", "transitions", "conditions", "processes", "reactions", "matter", "mass", "bulk"] as const
+const declarationSections = ["meta", "fields", "variants", "states", "transitions", "conditions", "processes", "reactions", "matter", "bulk"] as const
 type DeclarationSection = typeof declarationSections[number]
 type Address =
   | {kind: "atom"; id: number}
@@ -62,7 +62,6 @@ const categoricalSection: Record<string, DeclarationSection> = {
   process: "processes",
   reaction: "reactions",
   matter: "matter",
-  mass: "mass",
   bulk: "bulk",
 }
 
@@ -446,6 +445,7 @@ export class BulkProjectionStore {
     const fields = resolveForceFieldsPayload(part.value)
     if (!fields) return {changed: false, affectedAtomIds: [], structural: false}
     let changed = false
+    const affectedAtomIds = new Set<number>()
     for (const [rawField, rawValue] of Object.entries(fields)) {
       const field = resolveForceFieldId(rawField)
       if (field === null) continue
@@ -460,6 +460,7 @@ export class BulkProjectionStore {
         }
       } else if (part.op === "add" || part.op === "replace") {
         const valueId = binding?.value ?? this.nextValueId++
+        if (binding && same(currentRawValue(this.values.get(valueId), this.valueItems), rawValue)) continue
         const next = runtimeValue(valueId, rawValue)
         const current = this.values.get(valueId)
         if (current) patch(current as unknown as Record<string, unknown>, next as unknown as Record<string, unknown>)
@@ -467,12 +468,13 @@ export class BulkProjectionStore {
         if (!binding) this.atomValues.set(key, {atom: part.path, field, value: valueId})
         for (const itemKey of [...this.valueItems.keys()]) if (itemKey.startsWith(`${valueId}\0`)) this.valueItems.delete(itemKey)
         if (Array.isArray(rawValue)) rawValue.forEach((item, position) => this.valueItems.set(`${valueId}\0${position}`, {value: valueId, position, itemValue: String(item)}))
+        for (const alias of this.atomValues.values()) if (alias.value === valueId) affectedAtomIds.add(alias.atom)
         changed = true
       } else if (part.op === "test" && !same(currentRawValue(binding && this.values.get(binding.value), this.valueItems), rawValue)) {
         throw new Error(`Bulk value test failed for atom ${part.path}, field ${field}`)
       }
     }
-    return {changed, affectedAtomIds: changed ? [part.path] : [], structural: false}
+    return {changed, affectedAtomIds: changed ? [...affectedAtomIds] : [], structural: false}
   }
 
   private applyPhoton(part: Particle): BulkProjectionChange {

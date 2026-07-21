@@ -26,7 +26,8 @@ import type { ExecuteParams } from "@metafor/types/bulk/weak"
  *   self: { atom: "test", path: "0", meta: "meta" },
  *   field: { count: { type: "number" } },
  *   value: { count: 42 },
- *   mass: { counter: 0 }
+ *   mass: { counter: 0 },
+ *   energy: { channel }
  * })
  * ```
  */
@@ -42,6 +43,7 @@ export function executeProcess(params: ExecuteParams): Promise<any> {
         field: params.field,
         value: params.value,
         mass: params.mass,
+        energy: params.energy,
       })
 
       if (result instanceof Promise) {

@@ -44,11 +44,12 @@
  *     loaded: null,
  *   })
  *   .mass({ users: [] })
+ *   .energy(() => ({ socket: null as unknown as WebSocket }))
  *   .processes((process) => [
  *     process("loading")
- *       .action(async ({ value }) => {
- *         const response = await fetch(`/api/users/${value.userId}`)
- *         return await response.json()
+ *       .action(async ({ energy, field, mass, self, value }) => {
+ *         const mod = await import("./actions/loadUser.ts")
+ *         return mod.default({ energy, field, mass, self, value })
  *       })
  *       .success(({ update }) => update({ mode: "details" }))
  *   ])
@@ -88,9 +89,19 @@ import type { ProcessesDeclaration } from "@metafor/types/metafor/process"
 import { serializeStyle } from "./style.ts"
 import type { MatterDeclaration } from "@metafor/types/metafor/matter"
 
-import type { MetaForConfig, BulkDeclaration, MetaDSL, BulkSchema, Mass } from "@metafor/types/metafor/schema"
+import type {
+  MetaForConfig,
+  BulkDeclaration,
+  MetaDSL,
+  BulkSchema,
+  Energy,
+  EnergyDeclaration,
+  Mass,
+  MassDeclaration,
+  MetaForFn,
+} from "@metafor/types/metafor/schema"
 
-globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
+const createMetaForRuntime = function (name: string, config?: MetaForConfig) {
   const desc = config?.desc
   const dev = config?.dev ?? globalThis.DEV ?? false
   return {
@@ -105,48 +116,52 @@ globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
           const normalizedSuperposition = superposition as SuperpositionInput<ɸ, ψ>
           validateNoUnconditionalCycles(normalizedSuperposition)
           return {
-            mass<m extends Mass>(mass?: m) {
-              const dslFields = Object.entries(fields).map(([key, definition]) => ({key, ...definition}))
-              const dslSuperposition = Object.entries(normalizedSuperposition).map(([name, transitions]) => ({name, transitions}))
-              const schema: MetaDSL<ɸ, 𝛴, m> = {
-                name,
-                superposition: dslSuperposition,
-                fields: dslFields,
-                mass: mass || ({} as m),
-              }
-              if (desc) schema.desc = desc
+            mass<m extends Mass>(mass?: m & MassDeclaration<m>) {
               return {
-                processes(process: ProcessesDeclaration<ɸ, 𝛴, m, ψ> = () => []) {
-                  const processes = processesSchema(process)
-                  if (processes) {
-                    schema.processes = Object.entries(processes).map(([key, declaration]) => ({key, declaration}))
+                energy<e extends Energy>(_energy: () => e & EnergyDeclaration<e>) {
+                  const dslFields = Object.entries(fields).map(([key, definition]) => ({key, ...definition}))
+                  const dslSuperposition = Object.entries(normalizedSuperposition).map(([name, transitions]) => ({name, transitions}))
+                  const schema: MetaDSL<ɸ, 𝛴, m, e> = {
+                    name,
+                    superposition: dslSuperposition,
+                    fields: dslFields,
+                    mass: mass ?? ({} as m),
                   }
+                  if (desc) schema.desc = desc
                   return {
-                    reactions(reaction: ReactionsDeclaration<ɸ, 𝛴, m> = () => []) {
-                      const reactions = reactionsSchema(reaction)
-                      if (reactions) {
-                        schema.reactions = Object.entries(reactions.reactions).map(([key, config]) => ({
-                          key,
-                          label: config.label,
-                          desc: config.desc ?? null,
-                          cond: config.cond,
-                          src: config.src,
-                          read: config.read ?? [],
-                          write: config.write ?? [],
-                          states: Object.entries(reactions.superposition)
-                            .filter(([, reactionIds]) => reactionIds.includes(key))
-                            .map(([state]) => state),
-                        }))
+                    processes(process: ProcessesDeclaration<ɸ, 𝛴, m, ψ, e> = () => []) {
+                      const processes = processesSchema(process, Object.keys(fields))
+                      if (processes) {
+                        schema.processes = Object.entries(processes).map(([key, declaration]) => ({key, declaration}))
                       }
                       return {
-                        matter(matter?: MatterDeclaration<ɸ, m, 𝛴>) {
-                          if (matter) schema.matter = parseMatter(matter, fields, name)
+                        reactions(reaction: ReactionsDeclaration<ɸ, 𝛴, m> = () => []) {
+                          const reactions = reactionsSchema(reaction)
+                          if (reactions) {
+                            schema.reactions = Object.entries(reactions.reactions).map(([key, config]) => ({
+                              key,
+                              label: config.label,
+                              desc: config.desc ?? null,
+                              cond: config.cond,
+                              src: config.src,
+                              read: config.read ?? [],
+                              write: config.write ?? [],
+                              states: Object.entries(reactions.superposition)
+                                .filter(([, reactionIds]) => reactionIds.includes(key))
+                                .map(([state]) => state),
+                            }))
+                          }
                           return {
-                            bulk(bulk?: BulkDeclaration): MetaDSL<ɸ, 𝛴, m> {
-                              if (bulk && "view" in bulk) {
-                                schema.bulk = { view: serializeStyle(bulk.view as any) } as BulkSchema
+                            matter(matter?: MatterDeclaration<ɸ, m, 𝛴, e>) {
+                              if (matter) schema.matter = parseMatter(matter, fields, name)
+                              return {
+                                bulk(bulk?: BulkDeclaration): MetaDSL<ɸ, 𝛴, m, e> {
+                                  if (bulk && "view" in bulk) {
+                                    schema.bulk = { view: serializeStyle(bulk.view as any) } as BulkSchema
+                                  }
+                                  return schema
+                                },
                               }
-                              return schema
                             },
                           }
                         },
@@ -162,4 +177,9 @@ globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
     },
   }
 }
+
+// The public MetaForFn declaration remains the single strict DSL contract.
+// Keeping the runtime builder non-contextual prevents TypeScript from recursively
+// expanding that contract while it infers every intermediate implementation object.
+globalThis.MetaFor = createMetaForRuntime as MetaForFn
 export const MetaFor = globalThis.MetaFor

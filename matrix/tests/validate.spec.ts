@@ -101,6 +101,24 @@ describe("validateData — валидация входных данных", () =
     expect(() => validateData(data)).not.toThrow()
   })
 
+  test("должен принимать null как отсутствие optional значения любого Field", () => {
+    const data: MatrixInputData = {
+      fields: [
+        {type: FieldType.STRING_PTR},
+        {type: FieldType.F32},
+        {type: FieldType.BOOL},
+        {type: FieldType.ARRAY_PTR, elementType: "string"},
+        {type: FieldType.U32, enum: ["idle", "active"]},
+      ],
+      branes: [{
+        values: [[0, null], [1, null], [2, null], [3, null], [4, null]],
+        state: 0,
+        collapses: [[null]],
+      }],
+    }
+    expect(() => validateData(data)).not.toThrow()
+  })
+
   test("должен бросать ошибку для невалидного target state", () => {
     const data: MatrixInputData = {
       fields: [{ type: FieldType.F32 }],

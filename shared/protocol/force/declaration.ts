@@ -8,7 +8,6 @@ export const declarationPaths = [
   "process",
   "reaction",
   "matter",
-  "mass",
   "bulk",
 ] as const
 

@@ -10,7 +10,7 @@ import {
 import type {FinallyConfig} from "@metafor/types/metafor/finally"
 import {createFinallyChain, isFinallyChain, parseFinally} from "./finally.ts"
 import type {Fields, Values} from "@metafor/types/metafor/fields"
-import {Initiator, type Mass} from "@metafor/types/metafor/schema"
+import {Initiator, type Energy, type Mass} from "@metafor/types/metafor/schema"
 import {
   ProcessType,
   type ActionChain,
@@ -26,17 +26,17 @@ import {
   type ProcessesSchema,
 } from "@metafor/types/metafor/process"
 
-export function createProcessChain<ɸ extends Fields, m extends Mass, v extends Values<ɸ> = Values<ɸ>, s extends string = string>(
+export function createProcessChain<ɸ extends Fields, m extends Mass, v extends Values<ɸ> = Values<ɸ>, s extends string = string, e extends Energy = Energy>(
   state: s,
   config?: ProcessConfig,
-): ProcessChain<ɸ, m, v, s>
-export function createProcessChain<ɸ extends Fields, m extends Mass, v extends Values<ɸ> = Values<ɸ>, s extends string = string>(
+): ProcessChain<ɸ, m, v, s, e>
+export function createProcessChain<ɸ extends Fields, m extends Mass, v extends Values<ɸ> = Values<ɸ>, s extends string = string, e extends Energy = Energy>(
   state: s,
   config?: ProcessConfig,
-): ProcessChain<ɸ, m, v, s> {
+): ProcessChain<ɸ, m, v, s, e> {
   return {
-    action: <Res>(fn: (params: ActionParams<ɸ, m, v>) => Res | Promise<Res>): ProcessChainResult<ɸ, m, Res, v, s> => {
-      const result: ProcessRuntimeResult<ɸ, m, Res, v, s> = {
+    action: <Res>(fn: (params: ActionParams<ɸ, m, v, e>) => Res | Promise<Res>): ProcessChainResult<ɸ, m, Res, v, s, e> => {
+      const result: ProcessRuntimeResult<ɸ, m, Res, v, s, e> = {
         type: ProcessType.ACTION,
         state,
         action: fn,
@@ -45,7 +45,7 @@ export function createProcessChain<ɸ extends Fields, m extends Mass, v extends 
         ...(config?.env ? {env: config.env} : {}),
       }
 
-      const chain: ProcessChainResult<ɸ, m, Res, v, s> = {
+      const chain: ProcessChainResult<ɸ, m, Res, v, s, e> = {
         type: ProcessType.ACTION,
         success: (handler) => {
           result.success = handler
@@ -63,9 +63,9 @@ export function createProcessChain<ɸ extends Fields, m extends Mass, v extends 
   }
 }
 
-const isProcessChain = <ɸ extends Fields, m extends Mass, v extends Values<ɸ> = Values<ɸ>, s extends string = string>(
+const isProcessChain = <ɸ extends Fields, m extends Mass, v extends Values<ɸ> = Values<ɸ>, s extends string = string, e extends Energy = Energy>(
   value: unknown,
-): value is ProcessChainLike<ɸ, m, v, s> => {
+): value is ProcessChainLike<ɸ, m, v, s, e> => {
   if (!value || typeof value !== "object") return false
 
   const candidate = value as { type?: unknown; getResult?: unknown }
@@ -83,8 +83,9 @@ const isProcessChain = <ɸ extends Fields, m extends Mass, v extends Values<ɸ> 
  * @returns Распарсенный процесс с информацией о полях, путём к модулю action и именем экспорта
  * @throws Error если структура action функции не соответствует требованиям
  */
-export function parseProcess<ɸ extends Fields, m extends Mass, Res = any, v extends Values<ɸ> = Values<ɸ>, s extends string = string>(
-  process: Process<ɸ, m, Res, v, s>,
+export function parseProcess<ɸ extends Fields, m extends Mass, Res = any, v extends Values<ɸ> = Values<ɸ>, s extends string = string, e extends Energy = Energy>(
+  process: Process<ɸ, m, Res, v, s, e>,
+  declaredFields: readonly string[] = [],
 ): ParsedProcess {
   const validation = validateActionStructure(process.action)
   if (!validation.valid) {
@@ -94,6 +95,7 @@ export function parseProcess<ɸ extends Fields, m extends Mass, Res = any, v ext
   const modulePath = extractModuleSrc(process.action)
   const importSpecifier = extractImportSpecifier(process.action)
   const parsedAction = parseFunction(process.action, false)
+  const actionRead = [...new Set([...declaredFields, ...parsedAction.read])]
 
   const result: ParsedProcess = {
     type: ProcessType.ACTION,
@@ -101,7 +103,7 @@ export function parseProcess<ɸ extends Fields, m extends Mass, Res = any, v ext
       src: modulePath ?? "",
       ...(importSpecifier ? {importSpecifier} : {}),
       wrapperSrc: normalizeFunctionString(process.action.toString()),
-      ...(parsedAction.read.length > 0 ? {read: parsedAction.read} : {}),
+      ...(actionRead.length > 0 ? {read: actionRead} : {}),
     },
     ...(process.label ? {label: process.label} : {}),
     ...(process.desc ? {desc: process.desc} : {}),
@@ -142,13 +144,15 @@ export const processesSchema = <
   𝛴 extends string,
   m extends Mass,
   ψ = never,
+  e extends Energy = Energy,
 >(
-  processes: ProcessesDeclaration<ɸ, 𝛴, m, ψ>,
+  processes: ProcessesDeclaration<ɸ, 𝛴, m, ψ, e>,
+  declaredFields: readonly string[] = [],
 ): ProcessesSchema => {
-  const processFactory: Parameters<ProcessesDeclaration<ɸ, 𝛴, m, ψ>>[0] = ((state: string, config?: ProcessConfig) =>
-    createProcessChain<ɸ, m, Values<ɸ>, string>(state, config)) as Parameters<ProcessesDeclaration<ɸ, 𝛴, m, ψ>>[0]
-  const destroyFactory: Parameters<ProcessesDeclaration<ɸ, 𝛴, m, ψ>>[1] = ((state: string, config?: FinallyConfig) =>
-    createFinallyChain<ɸ, m, string>(state, config)) as Parameters<ProcessesDeclaration<ɸ, 𝛴, m, ψ>>[1]
+  const processFactory: Parameters<ProcessesDeclaration<ɸ, 𝛴, m, ψ, e>>[0] = ((state: string, config?: ProcessConfig) =>
+    createProcessChain<ɸ, m, Values<ɸ>, string, e>(state, config)) as Parameters<ProcessesDeclaration<ɸ, 𝛴, m, ψ, e>>[0]
+  const destroyFactory: Parameters<ProcessesDeclaration<ɸ, 𝛴, m, ψ, e>>[1] = ((state: string, config?: FinallyConfig) =>
+    createFinallyChain<ɸ, m, string, e>(state, config)) as Parameters<ProcessesDeclaration<ɸ, 𝛴, m, ψ, e>>[1]
   const chains = processes(processFactory, destroyFactory)
   const result: ProcessesSchema = {}
 
@@ -157,25 +161,25 @@ export const processesSchema = <
       throw new Error(`Процесс для суперпозиции "${key}" уже определен`)
     }
 
-    if (isFinallyChain<ɸ, m>(chain)) {
+    if (isFinallyChain<ɸ, m, string, e>(chain)) {
       result[key] = parseFinally(chain.getResult())
       return
     }
 
-    if (isProcessChain<ɸ, m>(chain)) {
-      result[key] = parseProcess(chain.getResult())
+    if (isProcessChain<ɸ, m, Values<ɸ>, string, e>(chain)) {
+      result[key] = parseProcess(chain.getResult(), declaredFields)
     }
   }
 
-  for (const chain of chains as ProcessesList<ɸ, 𝛴, m, ψ>) {
+  for (const chain of chains as ProcessesList<ɸ, 𝛴, m, ψ, e>) {
     if (!chain) continue
 
-    if (isFinallyChain<ɸ, m>(chain)) {
+    if (isFinallyChain<ɸ, m, string, e>(chain)) {
       assignParsedChain(chain.getResult().state, chain)
       continue
     }
 
-    if (isProcessChain<ɸ, m>(chain)) {
+    if (isProcessChain<ɸ, m, Values<ɸ>, string, e>(chain)) {
       assignParsedChain(chain.getResult().state, chain)
     }
   }

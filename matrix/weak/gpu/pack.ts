@@ -116,6 +116,9 @@ export function encodeValue(value: MatrixValue, ctx: GpuPackContext): MatrixEnco
   }
 
   if (ctx.type === VALUE_TYPE.ARRAY) {
+    if (value === 0) {
+      return { value1: 0, value2: 0 }
+    }
     if (!Array.isArray(value)) {
       throw new Error(`Expected array for VALUE_TYPE.ARRAY, got ${typeof value}`)
     }

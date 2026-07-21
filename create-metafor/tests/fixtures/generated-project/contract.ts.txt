@@ -1,0 +1,195 @@
+export {}
+
+MetaFor("invalid-mass-function")
+  .fields(() => ({}))
+  .superposition({})
+  .mass({
+    // @ts-expect-error Mass contains material, not executable functions
+    execute: () => true,
+    // @ts-expect-error nullable union still contains an executable function
+    optionalExecute: null as null | (() => boolean),
+    // @ts-expect-error Map is not serializable Mass
+    profiles: new Map<string, { id: string }>(),
+    // @ts-expect-error a live WebSocket belongs to Energy
+    socket: null as unknown as WebSocket,
+    // @ts-expect-error a nested function is not serializable Mass
+    nested: { execute: () => true },
+  })
+
+MetaFor("strict-generated-contract")
+  .fields((field) => ({
+    command: field.string.optional(),
+    mode: field.enum("idle", "active").required("idle"),
+    attempts: field.number.required(0),
+    enabled: field.boolean.required(false),
+    topology: field.array.required([]),
+    error: field.string.optional(),
+  }))
+  .superposition({
+    idle: {
+      active: {
+        command: { null: false },
+        mode: { eq: "active" },
+      },
+      mixed: {
+        command: { null: false },
+      },
+    },
+    retry: {
+      active: {
+        command: { null: false },
+      },
+      mixed: {},
+    },
+    active: { done: {} },
+    mixed: { done: {} },
+    done: null,
+  })
+  .mass({
+    attempts: 0,
+    profile: null as { id: string } | null,
+  })
+  .energy(() => ({
+    channel: null as unknown as BroadcastChannel,
+    socket: null as unknown as WebSocket,
+  }))
+  .processes((process, destroy) => [
+    process("active", { env: ["server"] })
+      .action(async ({ energy, field, mass, self, value }) => {
+        const mod = await import("./actions/start.ts")
+        return mod.default({ energy, field, mass, self, value })
+      })
+      .success(({ data, update }) => {
+        const profileId: string = data.profileId
+        const attempts: number = data.attempts
+        update({ attempts, mode: "active" })
+        void profileId
+
+        // @ts-expect-error action result keeps its exact inferred shape
+        data.missing
+        // @ts-expect-error Update accepts only declared Field keys
+        update({ missing: 1 })
+        // @ts-expect-error Update value must match the declared Field
+        update({ attempts: data.profileId })
+      })
+      .error(({ error, update }) => {
+        const message: string = error.message
+        update({ error: message })
+
+        // @ts-expect-error error branch receives Error, not success data
+        error.profileId
+      }),
+    process("active").action(async ({ field }) => {
+      const mod = await import("./actions/probe.ts")
+      // @ts-expect-error action field contains only declared Fields
+      return mod.default(field.missing)
+    }),
+    process("active").action(async ({ value }) => {
+      const mod = await import("./actions/probe.ts")
+      // @ts-expect-error action value contains only declared Values
+      return mod.default(value.missing)
+    }),
+    process("active").action(async ({ mass }) => {
+      const mod = await import("./actions/probe.ts")
+      // @ts-expect-error Mass does not receive Energy keys
+      return mod.default(mass.socket)
+    }),
+    process("active").action(async ({ energy }) => {
+      const mod = await import("./actions/probe.ts")
+      // @ts-expect-error Energy does not receive Mass keys
+      return mod.default(energy.attempts)
+    }),
+    process("mixed").action(async ({ value }) => {
+      const mod = await import("./actions/probe.ts")
+      // @ts-expect-error mixed incoming waves keep the optional value nullable
+      return mod.default(value.command satisfies string)
+    }),
+    destroy("done", { env: ["server"] }).before(async ({ energy, mass }) => {
+      const mod = await import("./actions/release.ts")
+      return mod.default({ energy, mass })
+    }),
+    destroy("done").before(async ({ mass }) => {
+      const mod = await import("./actions/probe.ts")
+      // @ts-expect-error destroy keeps exact Mass without Energy keys
+      return mod.default(mass.socket)
+    }),
+    destroy("done").before(async ({ energy }) => {
+      const mod = await import("./actions/probe.ts")
+      // @ts-expect-error destroy keeps exact Energy without Mass keys
+      return mod.default(energy.attempts)
+    }),
+  ])
+  .reactions(() => [])
+  .matter(({ energy, html, mass, state, update, value }) => {
+    const currentState: "idle" | "retry" | "active" | "mixed" | "done" = state
+    const currentMode: "idle" | "active" = value.mode
+    const attempts: number = mass.attempts
+    const socket: WebSocket = energy.socket
+    update({ attempts })
+    void currentState
+    void currentMode
+    void socket
+
+    // @ts-expect-error Matter Mass does not receive Energy keys
+    mass.socket
+    // @ts-expect-error Matter Energy does not receive Mass keys
+    energy.attempts
+
+    return html`<meta-for
+      src="owner/project/child"
+      mass=${mass}
+      energy=${energy}
+    />`
+  })
+  .bulk({ view: ({ css }) => css`` })
+
+MetaFor("invalid-enum-default").fields((field) => ({
+  // @ts-expect-error enum default must be one of its literal values
+  mode: field.enum("idle", "active").required("missing"),
+}))
+
+MetaFor("invalid-energy-function")
+  .fields(() => ({}))
+  .superposition({})
+  .mass({})
+  .energy(() => ({
+    // @ts-expect-error Energy declares entities, not functions or factories
+    connect: () => new WebSocket("ws://127.0.0.1"),
+  }))
+
+MetaFor("invalid-process-state")
+  .fields(() => ({}))
+  .superposition({ idle: null })
+  .mass({})
+  .energy(() => ({}))
+  .processes((process, destroy) => [
+    // @ts-expect-error process state must be declared by Superposition
+    process("missing").action(() => ({})),
+    // @ts-expect-error destroy state must be declared by Superposition
+    destroy("missing"),
+  ])
+
+MetaFor("invalid-target")
+  .fields((field) => ({ name: field.string.optional() }))
+  // @ts-expect-error transition target must be a declared state
+  .superposition({ idle: { missing: {} } })
+
+MetaFor("invalid-wave-field")
+  .fields((field) => ({ name: field.string.optional() }))
+  // @ts-expect-error transition wave may use only declared Fields
+  .superposition({ idle: { ready: { missing: { eq: "value" } } }, ready: null })
+
+MetaFor("invalid-condition-operator")
+  .fields((field) => ({ name: field.string.optional() }))
+  // @ts-expect-error condition operator must belong to the Field type
+  .superposition({ idle: { ready: { name: { unknown: true } } }, ready: null })
+
+MetaFor("invalid-enum-condition")
+  .fields((field) => ({ mode: field.enum("idle", "active").required("idle") }))
+  // @ts-expect-error enum condition keeps the declared literal union
+  .superposition({ idle: { ready: { mode: { eq: "missing" } } }, ready: null })
+
+MetaFor("invalid-self-transition")
+  .fields((field) => ({ requested: field.boolean.required(false) }))
+  // @ts-expect-error self-transition is forbidden even when it has a Field guard
+  .superposition({ idle: { idle: { requested: { eq: true } } } })

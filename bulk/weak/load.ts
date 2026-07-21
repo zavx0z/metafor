@@ -7,7 +7,7 @@
  * @packageDocumentation
  */
 import type {Fields} from "@metafor/types/metafor/fields"
-import type {Mass} from "@metafor/types/metafor/schema"
+import type {Energy, Mass} from "@metafor/types/metafor/schema"
 import type { ActionFn, ProcessConfig } from "@metafor/types/bulk/weak"
 
 /**
@@ -29,9 +29,9 @@ import type { ActionFn, ProcessConfig } from "@metafor/types/bulk/weak"
  * const actionFn = await loadAction("./actions/loader.ts")
  * ```
  */
-export async function loadAction<ɸ extends Fields, m extends Mass>(
+export async function loadAction<ɸ extends Fields, m extends Mass, e extends Energy = Energy>(
   config: ProcessConfig | string,
-): Promise<ActionFn<ɸ, m, any>> {
+): Promise<ActionFn<ɸ, m, any, e>> {
   // Нормализация конфигурации
   const moduleSrc = typeof config === "string" ? config : config.src
   const importSpecifier = typeof config === "string" ? undefined : config.importSpecifier
@@ -40,7 +40,7 @@ export async function loadAction<ɸ extends Fields, m extends Mass>(
   const mod = await import(moduleSrc)
 
   // Получение экспортированной функции
-  let actionFn: ActionFn<ɸ, m, any> | undefined
+  let actionFn: ActionFn<ɸ, m, any, e> | undefined
 
   if (importSpecifier) {
     actionFn = mod[importSpecifier]

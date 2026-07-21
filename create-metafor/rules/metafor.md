@@ -7,6 +7,7 @@ export default MetaFor("<name>")
   .fields((field) => ({}))
   .superposition({})
   .mass({})
+  .energy(() => ({}))
   .processes((process, destroy) => [])
   .reactions((reaction) => [])
   .matter(({ state, value, html }) => html``)
@@ -15,7 +16,7 @@ export default MetaFor("<name>")
   })
 ```
 
-**Порядок вызовов:** `fields → superposition → mass → processes → reactions → matter → bulk`
+**Порядок вызовов:** `fields → superposition → mass → energy → processes → reactions → matter → bulk`
 
 `MetaFor` в `meta.ts` предоставляется DSL-средой как глобал; локальный `import "metafor"` не нужен. Обычные TypeScript-модули действий могут импортировать типы явно: `import type { ActionParams } from "@metafor/types/metafor/action"`.
 
@@ -86,6 +87,9 @@ export default MetaFor("<name>")
 - Имена на русском языке
 - Описательные имена: `ожидание`, `загрузка`, `успех`, `ошибка`
 - Для имён с пробелами использовать кавычки: `"рабочие деревья"`, `"режим редактирования"`
+- Самопереход запрещён даже с условием: `готов: { готов: {...} }` недопустим
+- Повторение проходит через отдельное содержательное состояние:
+  `готов → создание снимка → готов`
 
 ```typescript
 .superposition({
@@ -115,6 +119,41 @@ export default MetaFor("<name>")
   "ошибка": {
     "получение команды": { error: null },  // ✅ Сброс ошибки (краткая форма)
   },
+})
+```
+
+Fields управляют работой Atom. Внешний агент или родитель задаёт значение Field,
+после чего Superposition разрешает состояние с Process. Не вызывай action
+напрямую и не добавляй скрытый imperative API поверх Atom.
+
+```typescript
+.fields((field) => ({
+  profileAddress: field.string.optional({ label: "Адрес сохранённого профиля" }),
+  browserInstanceId: field.string.optional({ label: "Экземпляр браузера" }),
+  rtcConnected: field.boolean.required(false, { label: "WebRTC подключён" }),
+  screenshotPath: field.string.optional({ label: "Путь нового снимка" }),
+  error: field.string.optional({ label: "Ошибка" }),
+}))
+.superposition({
+  "ожидание профиля": {
+    "запуск браузера": { profileAddress: { null: false } },
+  },
+  "запуск браузера": {
+    "ошибка": { error: { null: false } },
+    "подключение WebRTC": { browserInstanceId: { null: false } },
+  },
+  "подключение WebRTC": {
+    "ошибка": { error: { null: false } },
+    "браузер готов": { rtcConnected: { eq: true } },
+  },
+  "браузер готов": {
+    "создание снимка": { screenshotPath: { null: false } },
+  },
+  "создание снимка": {
+    "ошибка": { error: { null: false } },
+    "браузер готов": { screenshotPath: { null: true } },
+  },
+  "ошибка": null,
 })
 ```
 
@@ -154,11 +193,14 @@ export default MetaFor("<name>")
 **Process:**
 
 ```typescript
+.energy(() => ({
+  channel: null as unknown as BroadcastChannel,
+}))
 .processes((process) => [
   process("определение операции")
-    .action(async ({ mass, value }) => {
+    .action(async ({ energy, field, mass, self, value }) => {
       const mod = await import("./actions/detectOperation.ts")
-      return mod.default({ mass, value })
+      return mod.default({ energy, field, mass, self, value })
     })
     .success(({ update, data }) => update(data))
     .error(({ update, error }) => update({ error: error.message })),
@@ -200,9 +242,9 @@ export default MetaFor("<name>")
 ```typescript
 .processes((process) => [
   process("загрузка")
-    .action(async ({ value }) => {
+    .action(async ({ energy, field, mass, self, value }) => {
       const mod = await import("./actions/fetchData.ts")
-      return mod.default({ value })
+      return mod.default({ energy, field, mass, self, value })
     })
     .success(({ update, data }) => {
       update({ data })  // Финальное обновление
@@ -215,14 +257,20 @@ export default MetaFor("<name>")
 
 ---
 
-## Mass — сложные данные
+## Mass — изменяемый рабочий материал
 
 ```typescript
 .mass({
-  users: new Map(),
-  socket: null as WebSocket | null,
+  profiles: {} as Record<string, { id: string }>,
+  attempts: 0,
 })
 ```
+
+Mass содержит только сериализуемые данные и материал, которые Process читает и
+изменяет: примитивы, массивы, чистые object-значения, payload, диагностику и
+адреса файлов. В Mass нельзя помещать `Map`, `Set`, функции, фабрики,
+`MediaStream`, track, `RTCDataChannel`, socket, peer connection, decoder или
+другие runtime handles. Живые сущности относятся к Energy.
 
 Если нет сложных данных:
 
@@ -232,14 +280,110 @@ export default MetaFor("<name>")
 
 ---
 
+## Energy — живые runtime-сущности
+
+```typescript
+.energy(() => ({
+  channel: null as unknown as BroadcastChannel,
+  socket: null as unknown as WebSocket,
+  mediaStream: null as unknown as MediaStream,
+  dataChannel: null as unknown as RTCDataChannel,
+}))
+```
+
+Energy declaration задаёт только постоянные TypeScript-типы сущностей. `null`
+здесь является физическим placeholder декларации; двойной `as unknown as`
+сохраняет итоговый тип ненулевым. Реальный `BroadcastChannel` или `WebSocket`
+создаётся action-модулем, помещается в `energy` процессом и освобождается
+`destroy`-процессом.
+
+Callback `.energy()` существует только для TypeScript inference. Runtime его не
+вызывает, не вычисляет placeholder-объект и не добавляет Energy declaration в
+MetaDSL/WIMP.
+
+Внутри `.energy()` запрещены:
+
+- функции и фабрики;
+- `new WebSocket(...)`, `new BroadcastChannel(...)` и другие side effects;
+- `fetch`, чтение файлов и установление соединений;
+- nullable union вроде `WebSocket | null`, скрывающий lifecycle-ошибку.
+
+Если Energy не нужна, секция всё равно остаётся обязательной:
+
+```typescript
+.energy(() => ({}))
+```
+
+---
+
+## Практический Browser Atom
+
+Минимальный Browser Atom не имеет команды «запустить браузер». Его endpoint
+изменяет Fields:
+
+1. `profileAddress` получает адрес сохранённого профиля;
+2. переход разрешает `запуск браузера`, а внешний action-модуль напрямую
+   использует библиотеки Capsule и запускает профиль без HTTP lifecycle API;
+3. следующий Process поднимает endpoint Вселенной, использует серверный
+   `werift` и помещает `MediaStream`, video track, `RTCDataChannel`, peer и
+   decoder в Energy;
+4. `screenshotPath` получает путь и разрешает `создание снимка`;
+5. Process декодирует текущий кадр, записывает файл, а success очищает
+   `screenshotPath`;
+6. Atom переходит обратно в `браузер готов` и ждёт следующего изменения Field.
+
+```typescript
+.mass({
+  lastMessage: null as null | string,
+})
+.energy(() => ({
+  stream: null as unknown as MediaStream,
+  videoTrack: null as unknown as MediaStreamTrack,
+  dataChannel: null as unknown as RTCDataChannel,
+  peer: null as unknown as RTCPeerConnection,
+}))
+.processes((process) => [
+  process("запуск браузера", { env: ["server"] })
+    .action(async ({ energy, field, mass, self, value }) => {
+      const mod = await import("./actions/launch-browser.ts")
+      return mod.default({ energy, field, mass, self, value })
+    })
+    .success(({ update, data }) => update(data))
+    .error(({ update, error }) => update({ error: error.message })),
+  process("подключение WebRTC", { env: ["server"] })
+    .action(async ({ energy, field, mass, self, value }) => {
+      const mod = await import("./actions/connect-webrtc.ts")
+      return mod.default({ energy, field, mass, self, value })
+    })
+    .success(({ update }) => update({ rtcConnected: true }))
+    .error(({ update, error }) => update({ error: error.message })),
+  process("создание снимка", { env: ["server"] })
+    .action(async ({ energy, field, mass, self, value }) => {
+      const mod = await import("./actions/write-screenshot.ts")
+      return mod.default({ energy, field, mass, self, value })
+    })
+    .success(({ update }) => update({ screenshotPath: null }))
+    .error(({ update, error }) => update({ error: error.message })),
+])
+```
+
+Если подключение, ожидание сообщений и управление браузером разделяются на
+дочерние Atom, родитель передаёт им нужные Fields, сериализуемую Mass и живую
+Energy раздельными bindings. Исходный путь Meta-пакета не задаёт runtime-
+вложенность; граф задаёт Matter.
+
+---
+
 ## Processes — process(state, action/success/error) destroy(state)
 
 **Параметры process:**
 
 | Параметр | Описание                                          |
 | -------- | ------------------------------------------------- |
+| `field`  | **Fields** — типизированные декларации полей      |
 | `value`  | **Значения полей** — текущие данные атома         |
-| `mass`   | **Масса** — сложные данные и зависимости от среды |
+| `mass`   | **Mass** — изменяемый рабочий материал            |
+| `energy` | **Energy** — живые runtime-сущности               |
 | `self`   | **Идентификатор** — полный путь к атому           |
 
 **Принцип:**
@@ -254,18 +398,28 @@ export default MetaFor("<name>")
 ```typescript
 // actions/fetchUser.ts
 import type { ActionParams } from "@metafor/types/metafor/action"
+import type { FieldType } from "@metafor/types/metafor/fields"
 
 export interface FetchUserResult {
   name: string
   email: string
 }
 
+type FetchUserFields = { id: FieldType<"number", true, number> }
+type FetchUserValue = { id: number }
+type FetchUserMass = { cache: Map<number, FetchUserResult> }
+type FetchUserEnergy = { client: { get(url: string): Promise<Response> } }
+
 export default async function action({
   field,
   value,
-}: ActionParams<{ id: { type: "number" } }, {}>): Promise<FetchUserResult> {
+  mass,
+  energy,
+}: ActionParams<FetchUserFields, FetchUserMass, FetchUserValue, FetchUserEnergy>): Promise<FetchUserResult> {
   // field.id — декларация поля (схема)
   // value.id — значение поля (данные)
+  // mass — изменяемый рабочий материал
+  // energy — живые сущности текущего Energy runtime
   const res = await fetch(`/api/users/${value.id}`)
   return await res.json()
 }
@@ -277,7 +431,8 @@ export default async function action({
 | -------- | ------------------------------------------------------------- |
 | `field`  | **Декларация полей** — схема, тип, валидатор (из `.fields()`) |
 | `value`  | **Значения полей** — текущие данные атома                     |
-| `mass`   | **Масса** — сложные данные и зависимости от среды             |
+| `mass`   | **Mass** — изменяемый рабочий материал                        |
+| `energy` | **Energy** — живые runtime-сущности                           |
 | `self`   | **Идентификатор** — полный путь к атому                       |
 
 **Принцип:**
@@ -287,18 +442,28 @@ export default async function action({
 
 **Правила:**
 
-1. **Первая строка:** `import("...")` для загрузки модуля
-2. **Последняя строка:** `return` для возврата результата
+1. **Первая и единственная подготовительная инструкция:** `await import("...")`
+2. **Следующая и последняя инструкция:** direct `return` вызова export этого модуля
 3. **Любое имя экспорта:** `default`, `action`, `process`, `load`, `run`, `execute`
+
+Между `import` и `return` нельзя объявлять промежуточные вычисления, менять
+`mass`/`energy` или выполнять cleanup. Runtime-валидатор отклоняет такой mixed
+wrapper. В аргументах внешнего вызова разрешено только декларативное wiring
+готовых значений: никаких spread/iterator, вложенных вызовов, присваиваний,
+coercion/operators, `new`, `await` или других side effects. Сигнатура wrapper — только простая
+деструктуризация имён без default/rest. Вся исполняемая логика принадлежит
+импортированному модулю. Computed keys/access и глобальные значения также не
+входят в wiring: используются только параметры wrapper, их прямые свойства,
+object-поля и примитивные литералы.
 
 ### Пример в meta.ts
 
 ```typescript
 .processes((process, destroy) => [
   process("loading", { label: "Загрузка", env: ["browser", "node"] })
-    .action(async ({ value }) => {
+    .action(async ({ energy, field, mass, self, value }) => {
       const mod = await import("./actions/fetchUser.ts")
-      return mod.default({ value })
+      return mod.default({ energy, field, mass, self, value })
     })
     .success(({ update, data }) => update({ name: data.name }))
     .error(({ update, error }) => update({ error: error.message })),
@@ -306,6 +471,19 @@ export default async function action({
 ```
 
 **Примечание:** `success` и `error` обработчики остаются inline в DSL. Только `action` выносится в отдельный модуль.
+
+`destroy` также не содержит cleanup-логику внутри декларации. Он динамически
+импортирует отдельный модуль, которому передаются раздельные `energy` и `mass`:
+
+```typescript
+destroy("остановка", { env: ["server"] }).before(async ({ energy, mass }) => {
+  const mod = await import("./actions/release.ts")
+  return mod.default({ energy, mass })
+})
+```
+
+После `before` Energy runtime удаляет набор живых сущностей этого Atom. Mass
+имеет отдельное хранилище и отдельный lifecycle.
 
 **Параметры process:**
 
@@ -331,15 +509,35 @@ process("loading", { env: ["any"] })
 **Типизация возвращаемого значения:**
 
 ```typescript
-// ✅ Через NonNullable<typeof value.field>
-.action(async ({ value }) => {
+// meta.ts: wrapper только передаёт точные типы внешнему модулю
+.action(async ({ energy, field, mass, self, value }) => {
   const mod = await import("./actions/getGroup.ts")
-  const group = mod.default(mass.command)
-  return { group: group as NonNullable<typeof value.group> }
+  return mod.default({ energy, field, mass, self, value })
 })
+```
+
+```typescript
+// actions/getGroup.ts: результат выводится из точного типа Value
+type GroupValue = {
+  group: "start" | "work" | "examine" | null
+}
+type GroupParams = {
+  field: Record<string, unknown>
+  value: GroupValue
+  mass: Record<string, never>
+  energy: Record<string, never>
+  self: { atom: string; meta: string; path: string }
+}
+
+export default async function action({
+  value,
+}: GroupParams): Promise<{ group: NonNullable<GroupValue["group"]> }> {
+  const group = await detectGroup()
+  return { group }
+}
 
 // ❌ Не хардкодить строковый литерал
-return { group: group as "start" | "work" | "examine" }
+return { group: group as "start" }
 ```
 
 Если процессов нет:
@@ -370,13 +568,15 @@ return { group: group as "start" | "work" | "examine" }
 
 ---
 
-## Matter — иерархия атомов
+## Matter — иерархия и runtime bindings атомов
 
 ```typescript
-.matter(({ state, value, html }) => html`
+.matter(({ state, value, mass, energy, html }) => html`
   <meta-for
     src="owner/project/${value.operation}"
-    fields=${{ command: value.command, args: value.args }} />
+    fields=${{ command: value.command, args: value.args }}
+    mass=${{ cache: mass.cache }}
+    energy=${{ socket: energy.socket }} />
   ${state === "ошибка" && html`
     <meta-for
       src="owner/project/error"
@@ -393,6 +593,32 @@ return { group: group as "start" | "work" | "examine" }
 - Matter описывает только иерархию атомов, а не локальную HTML-разметку
 - Теги `<meta-for>` самозакрывающиеся: `<meta-for src="..." />`
 - Поля передаются через атрибут `fields={{ ... }}`
+- Точная прямая передача ordinary scalar Field, например
+  `fields=${{ path: value.screenshotPath }}`, создаёт shared canonical Value:
+  ребёнок, родитель и другие связанные siblings изменяют одну величину
+- Любое вычисление (`+`, template, condition, несколько dependencies) создаёт
+  независимый дочерний Field; одинаковые текущие значения сами по себе Fields
+  не связывают
+- `enum` и `array` являются topology Fields и в entanglement не участвуют
+- Рабочая Mass передаётся отдельно через `mass=${...}`, живые Energy-сущности —
+  через `energy=${...}`
+- Для передачи всего родительского store используй `mass=${mass}` или
+  `energy=${energy}`; это exact-reference alias внутри одного Energy runtime
+- `mass` binding может зависеть только от `mass`, а `energy` binding — только от
+  `energy`; не смешивай домены и не помещай в binding функции, `new`, I/O или
+  создание соединений
+- Для Mass/Energy в SQLite фиксируются только `massBinding` и `energyBinding`
+  descriptors; значения и живые объекты остаются в локальных Energy stores
+- Для прямого Field binding Boundary отдельно фиксирует source relation и общий
+  Value identity. Это canonical Field data, а не Mass/Energy object
+- `fields` expression materialized Matter edge можно заменить на лету:
+  Boundary перестраивает source/value relation, Graviton переносит новый Atom
+  projection, а Matrix заново готовит shared CPU/GPU layout до следующего такта
+- Установленный binding не вычисляется на каждом claim; его инвалидирует
+  Graviton, изменивший Matter continuation ребёнка или отношение Atom/Topology
+  к owning parent
+- Если dependency ещё не создана, дочерний Process не claim-ится до следующего
+  релевантного trigger
 - Если fields === null, ничего не рендерится
 - Ошибки отображаются через отдельный атом
 - В сериализованном matter допустимы только topology-узлы: `meta`, `log`, `cond`, `map`
@@ -402,6 +628,25 @@ return { group: group as "start" | "work" | "examine" }
 - Если dynamic `src` уже зависит от `enum`, не оборачивай его в `value.mode && ...`: direct `<meta-for src="...${value.mode}" />` достаточно, `null` не должен материализовать атом `...-null`
 - Не поднимай в topology branch-choice по `boolean`, `string`, `number` или `mass`
 - Не рендери в matter `div`, `span`, `button`, текст и прочие HTML-элементы — это не атомы
+
+Пример обратной записи без отдельного RPC:
+
+```typescript
+// Родитель
+.matter(({ value, html }) => html`
+  <meta-for
+    src="zavx0z/capsule/screenshot"
+    fields=${{ path: value.screenshotPath }} />
+`)
+
+// Дочерний Process после записи файла
+.success(({ update }) => update({ path: null }))
+```
+
+`path` ребёнка и `screenshotPath` родителя — одна каноническая величина.
+Очистка ребёнком очищает родителя и разрешает переходы всех Atom, читающих эту
+величину, в одном параллельном time step. Если написать
+`path: value.screenshotPath + ""`, это уже computed-copy без обратной связи.
 
 **Topology-семантика в matter:**
 
@@ -465,18 +710,13 @@ export default MetaFor("git")
       "получение команды": { error: null },
     },
   })
-  .mass({
-    patterns: {
-      start: /^(clone|init)$/,
-      work: /^(add|mv|restore)$/,
-      examine: /^(show|status|diff)$/,
-    },
-  })
+  .mass({ attempts: 0 })
+  .energy(() => ({}))
   .processes((process) => [
     process("определение операции")
-      .action(async ({ mass, value }) => {
+      .action(async ({ energy, field, mass, self, value }) => {
         const mod = await import("./actions/detectOperation.ts")
-        return mod.default({ mass, value })
+        return mod.default({ energy, field, mass, self, value })
       })
       .success(({ update, data }) => update(data))
       .error(({ update, error }) => update({ error: error.message })),
@@ -487,6 +727,7 @@ export default MetaFor("git")
       })
       .success(({ update }) => update({ operation: null })),
   ])
+  .reactions(() => [])
   .matter(({ state, value, html }) => html`
     <meta-for src="owner/project/${value.operation}" fields=${{ command: value.command }} />
     ${state === "ошибка" && html`
@@ -501,6 +742,7 @@ export default MetaFor("git")
 ```typescript
 // actions/detectOperation.ts
 import type { ActionParams } from "@metafor/types/metafor/action"
+import type { FieldType } from "@metafor/types/metafor/fields"
 
 interface DetectOperationValue {
   command?: string | null
@@ -510,14 +752,35 @@ interface DetectOperationResult {
   operation: "start" | "work" | "examine"
 }
 
+type GitFields = {
+  operation: FieldType<"enum", false, undefined, readonly ["start", "work", "examine"]>
+  error: FieldType<"string">
+  command: FieldType<"string">
+  args: FieldType<"string">
+}
+type GitValue = {
+  operation: "start" | "work" | "examine" | null
+  error: string | null
+  command: string | null
+  args: string | null
+}
+type GitMass = { attempts: number }
+type GitEnergy = Record<never, never>
+
 export default async function action({
   mass,
+  energy,
   value,
-}: ActionParams<{}, { patterns: Record<string, RegExp> }>): Promise<DetectOperationResult> {
+}: ActionParams<GitFields, GitMass, GitValue, GitEnergy>): Promise<DetectOperationResult> {
   const command = value.command?.split(" ")[0]
   if (!command) throw new Error("Команда не указана")
-  
-  for (const [key, regex] of Object.entries(mass.patterns)) {
+
+  const patterns = {
+    start: /^(clone|init)$/,
+    work: /^(add|mv|restore)$/,
+    examine: /^(show|status|diff)$/,
+  } as const
+  for (const [key, regex] of Object.entries(patterns)) {
     if (regex.test(command)) {
       return { operation: key as "start" | "work" | "examine" }
     }
@@ -539,10 +802,13 @@ export default async function action({
 6. Цепочка: все методы обязательны (даже пустые)
 7. **Action-модули:** логика действий в отдельных файлах `actions/*.ts`
 8. **Структура action:** `import("...")` + `return`
+9. **Работа запускается Fields:** значение Field разрешает переход и Process
+10. **Без самопереходов:** цикл всегда проходит через другое состояние
+11. **Mass сериализуема:** все живые handles находятся только в Energy
 
 ---
 
-## Весь код внутри MetaFor
+## Декларация в MetaFor, исполнение в модулях
 
 **Нельзя:**
 
@@ -557,25 +823,29 @@ export default MetaFor("git")...
 **Можно:**
 
 ```typescript
-// ✅ Всё внутри .mass()
+// ✅ В MetaFor только данные Mass и типы Energy
 export default MetaFor("git")
   .mass({
-    patterns: {
-      start: /^(clone|init)$/,
-      work: /^(add|mv|restore)$/,
-    },
+    attempts: 0,
   })
+  .energy(() => ({
+    socket: null as unknown as WebSocket,
+  }))
   .processes((process) => [
     process("определение операции")
-      .action(async ({ mass, value }) => {
+      .action(async ({ energy, field, mass, self, value }) => {
         const mod = await import("./actions/detectOperation.ts")
-        return mod.default({ mass, value })
+        return mod.default({ energy, field, mass, self, value })
       })
       .success(({ update, data }) => update(data))
   ])
 ```
 
-**Правило:** Все данные, функции, паттерны — только внутри `.mass()`, `.processes()`, `.fields()` **или в отдельных action-модулях**.
+**Правило:** `.fields()`, `.mass()` и `.energy()` содержат декларативные данные
+и типы. Любые функции, алгоритмы, подключения, паттерны исполнения и cleanup
+живут только в отдельных action-модулях. Inline callback процесса является
+тонким wrapper: `import("...")` и `return`.
+Его аргументы только передают готовые значения и не исполняют логику.
 
 **Action-модули:**
 
@@ -665,17 +935,13 @@ export default MetaFor("git")
       "получение команды": { error: null },
     },
   })
-  .mass({
-    patterns: {
-      start: /^(clone|init)$/,
-      work: /^(add|mv|restore)$/,
-    },
-  })
+  .mass({ attempts: 0 })
+  .energy(() => ({}))
   .processes((process) => [
     process("определение операции")
-      .action(async ({ mass, value }) => {
+      .action(async ({ energy, field, mass, self, value }) => {
         const mod = await import("./actions/detectOperation.ts")
-        return mod.default({ mass, value })
+        return mod.default({ energy, field, mass, self, value })
       })
       .success(({ update, data }) => update(data))
       .error(({ update, error }) => update({ error: error.message })),
@@ -686,6 +952,7 @@ export default MetaFor("git")
       })
       .success(({ update }) => update({ operation: null })),
   ])
+  .reactions(() => [])
   .matter(({ value, html }) => html`
     ${value.operation === "start" && html`
       <meta-for src="owner/project/start" fields=${{ command: value.command, args: value.args }} />
@@ -702,6 +969,7 @@ export default MetaFor("git")
 ```typescript
 // actions/detectOperation.ts
 import type { ActionParams } from "@metafor/types/metafor/action"
+import type { FieldType } from "@metafor/types/metafor/fields"
 
 interface DetectOperationValue {
   command?: string | null
@@ -711,17 +979,35 @@ interface DetectOperationResult {
   operation: "start" | "work"
 }
 
+type GitFields = {
+  operation: FieldType<"enum", false, undefined, readonly ["start", "work"]>
+  command: FieldType<"string">
+  args: FieldType<"string">
+}
+type GitValue = {
+  operation: "start" | "work" | null
+  command: string | null
+  args: string | null
+}
+type GitMass = { attempts: number }
+type GitEnergy = Record<never, never>
+
 export default async function action({
   mass,
+  energy,
   field,
   value,
-}: ActionParams<{}, { patterns: Record<string, RegExp> }>): Promise<DetectOperationResult> {
+}: ActionParams<GitFields, GitMass, GitValue, GitEnergy>): Promise<DetectOperationResult> {
   // field — декларация полей (схема)
   // value — значения полей (данные)
   const command = value.command?.split(" ")[0]
   if (!command) throw new Error("Команда не указана")
 
-  for (const [key, regex] of Object.entries(mass.patterns)) {
+  const patterns = {
+    start: /^(clone|init)$/,
+    work: /^(add|mv|restore)$/,
+  } as const
+  for (const [key, regex] of Object.entries(patterns)) {
     if (regex.test(command)) {
       return { operation: key as "start" | "work" }
     }

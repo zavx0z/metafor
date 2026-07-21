@@ -55,11 +55,22 @@ export class BoundaryInputStore {
             throw new Error(`External Gluon cannot remove field ${address}`)
           }
           const previous = (await tx<Array<{value: number}>>`SELECT value FROM atom_value WHERE atom = ${atomId} AND field = ${fieldId}`)[0]
+          if (previous) {
+            const references = Number((await tx<Array<{count: number}>>`
+              SELECT COUNT(*) AS count FROM atom_value WHERE value = ${previous.value}
+            `)[0]?.count ?? 0)
+            if (references > 1) {
+              throw new Error(`External Gluon cannot remove entangled field ${address}; replace it with null or remove the Matter relation`)
+            }
+          }
           await tx`DELETE FROM atom_value WHERE atom = ${atomId} AND field = ${fieldId}`
-          if (previous) await tx`DELETE FROM value WHERE id = ${previous.value}`
+          if (previous) await tx`
+            DELETE FROM value WHERE id = ${previous.value}
+              AND NOT EXISTS (SELECT 1 FROM atom_value WHERE atom_value.value = ${previous.value})
+          `
           scalar[String(fieldId)] = value
         }
-        return {atom, scalar}
+        return {atom, scalar, topology: {}, aliases: []}
       }
 
       const result = await commitBoundaryAtomFields(
@@ -73,20 +84,30 @@ export class BoundaryInputStore {
       if (Object.keys(result.topology).length > 0) {
         throw new Error("External Gluon cannot contain topology Fields")
       }
-      return {atom, scalar: result.scalar}
+      return {atom, ...result}
     })
 
+    const ts = Date.now()
+    const messages: BoundaryIncrementalCommit["messages"] = []
+    if (Object.keys(committed.scalar).length > 0) messages.push({parts: [{
+      part: "gluon",
+      op: part.op,
+      path: atomId,
+      ts,
+      value: {fields: committed.scalar},
+    }]})
+    for (const alias of committed.aliases) {
+      if (Object.keys(alias.scalar).length > 0) messages.push({parts: [{
+        part: "gluon",
+        op: "replace",
+        path: alias.atom,
+        ts,
+        value: {fields: alias.scalar},
+      }]})
+    }
     return {
       rootSrc: committed.atom.wimp,
-      messages: [{
-        parts: [{
-          part: "gluon",
-          op: part.op,
-          path: atomId,
-          ts: Date.now(),
-          value: {fields: committed.scalar},
-        }],
-      }],
+      messages,
     }
   }
 

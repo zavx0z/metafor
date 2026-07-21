@@ -8,10 +8,11 @@ export interface BulkAtomRecord {
 
 export interface ExecuteParams {
   action: Function
-  self?: { atom: string; meta: string; path: string }
-  field?: Record<string, unknown>
-  value?: Record<string, unknown>
-  mass?: Record<string, unknown>
+  self: { atom: string; meta: string; path: string }
+  field: Record<string, unknown>
+  value: Record<string, unknown>
+  mass: Record<string, unknown>
+  energy: Record<string, unknown>
 }
 
 export interface ProcessConfig {
@@ -19,11 +20,17 @@ export interface ProcessConfig {
   importSpecifier?: string
 }
 
-export type ActionFn<ɸ = Record<string, unknown>, m = Record<string, unknown>, Res = unknown> = (params: {
+export type ActionFn<
+  ɸ = Record<string, unknown>,
+  m = Record<string, unknown>,
+  Res = unknown,
+  e = Record<string, unknown>,
+> = (params: {
   self: { atom: string; meta: string; path: string }
   field: ɸ
   value: Record<string, unknown>
   mass: m
+  energy: e
 }) => Res | Promise<Res>
 
 export interface WeakStoreState {

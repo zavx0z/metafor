@@ -10,6 +10,7 @@ describe("matter validation", () => {
       }))
       .superposition({ idle: null })
       .mass({})
+      .energy(() => ({}))
       .processes()
       .reactions()
       .matter(
@@ -30,6 +31,76 @@ describe("matter validation", () => {
     expect(dynamicChild.fieldsBinding.data).toBe("title")
   })
 
+  test("проецирует отдельные Mass и Energy bindings дочернего Atom", () => {
+    const schema = MetaFor("matter-runtime-bindings")
+      .fields((field) => ({title: field.string.required("draft")}))
+      .superposition({idle: null})
+      .mass({cache: {title: "cached"}})
+      .energy(() => ({socket: null as unknown as WebSocket}))
+      .processes()
+      .reactions()
+      .matter(({mass, energy, html}) => html`
+        <meta-for
+          src="demo/child"
+          mass=${{cache: mass.cache}}
+          energy=${{socket: energy.socket}}
+        />
+      `)
+      .bulk()
+
+    expect(schema.matter).toEqual([{
+      kind: "wimp",
+      src: "demo/child",
+      massBinding: {data: "/mass/cache", expr: "{ cache: _[0] }"},
+      energyBinding: {data: "/energy/socket", expr: "{ socket: _[0] }"},
+    }])
+  })
+
+  test("поддерживает прямые aliases полных Mass и Energy stores", () => {
+    const schema = MetaFor("matter-runtime-aliases")
+      .fields(() => ({}))
+      .superposition({idle: null})
+      .mass({cache: {ready: true}})
+      .energy(() => ({socket: null as unknown as WebSocket}))
+      .processes()
+      .reactions()
+      .matter(({mass, energy, html}) => html`<meta-for src="demo/child" mass=${mass} energy=${energy} />`)
+      .bulk()
+
+    expect(schema.matter).toEqual([{
+      kind: "wimp",
+      src: "demo/child",
+      massBinding: {data: "/mass"},
+      energyBinding: {data: "/energy"},
+    }])
+  })
+
+  test("запрещает смешивать Mass/Energy paths и помещать функции в runtime binding", () => {
+    expect(() =>
+      MetaFor("invalid-runtime-binding-domain")
+        .fields(() => ({}))
+        .superposition({idle: null})
+        .mass({cache: {ready: true}})
+        .energy(() => ({socket: null as unknown as WebSocket}))
+        .processes()
+        .reactions()
+        .matter(({energy, html}) => html`<meta-for src="demo/child" mass=${{socket: energy.socket}} />`)
+        .bulk(),
+    ).toThrow("mass binding dependency \"/energy/socket\" must use /mass")
+
+    expect(() =>
+      MetaFor("invalid-runtime-binding-function")
+        .fields(() => ({}))
+        .superposition({idle: null})
+        .mass({})
+        .energy(() => ({socket: null as unknown as WebSocket}))
+        .processes()
+        .reactions()
+        .matter(({energy, html}) => html`<meta-for src="demo/child" energy=${{socket: () => energy.socket}} />`)
+        .bulk(),
+    ).toThrow("energy binding must not create or call executable resources")
+  })
+
   test("разводит Axion по state, Fuzzy по dynamic enum src и Macho по array", () => {
     expect(() =>
       MetaFor("valid-matter")
@@ -44,6 +115,7 @@ describe("matter validation", () => {
           готово: null,
         })
         .mass({})
+        .energy(() => ({}))
         .processes()
         .reactions()
         .matter(
@@ -66,6 +138,7 @@ describe("matter validation", () => {
         }))
         .superposition({})
         .mass({})
+        .energy(() => ({}))
         .processes()
         .reactions()
         .matter(({ value, html }) => html`<meta-for src="demo/${value.operation}" fields=${{ args: value.args }} />`)
@@ -81,6 +154,7 @@ describe("matter validation", () => {
         }))
         .superposition({ idle: null })
         .mass({})
+        .energy(() => ({}))
         .processes()
         .reactions()
         .matter(({ value, html }) => html`<div>${value.name}</div>`)
@@ -98,6 +172,7 @@ describe("matter validation", () => {
         }))
         .superposition({ idle: null })
         .mass({})
+        .energy(() => ({}))
         .processes()
         .reactions()
         .matter(({ value, html }) => html`${value.name}`)
@@ -115,6 +190,7 @@ describe("matter validation", () => {
         }))
         .superposition({ idle: null })
         .mass({})
+        .energy(() => ({}))
         .processes()
         .reactions()
         .matter(({ value, html }) => html`${value.error && html`<meta-for src="demo/error" />`}`)
@@ -132,6 +208,7 @@ describe("matter validation", () => {
         }))
         .superposition({})
         .mass({})
+        .energy(() => ({}))
         .processes()
         .reactions()
         .matter(({ value, html }) => html`${value.operation && html`<meta-for src="demo/${value.operation}" />`}`)
@@ -153,6 +230,7 @@ describe("matter validation", () => {
             active: true,
           },
         })
+        .energy(() => ({}))
         .processes()
         .reactions()
         .matter(
@@ -172,6 +250,7 @@ describe("matter validation", () => {
         }))
         .superposition({ idle: null })
         .mass({})
+        .energy(() => ({}))
         .processes()
         .reactions()
         .matter(({ value, html }) =>
@@ -191,6 +270,7 @@ describe("matter validation", () => {
         }))
         .superposition({ idle: null })
         .mass({})
+        .energy(() => ({}))
         .processes()
         .reactions()
         .matter(({ value, html }) => html`<meta-for src="${value.target}" />`)

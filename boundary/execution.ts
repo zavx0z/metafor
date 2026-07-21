@@ -278,12 +278,13 @@ export class BoundaryExecutionStore {
 
     if (!committed) return null
     const consequences: ForceMessage[] = []
+    const ts = Date.now()
     if (Object.keys(committed.scalar).length > 0) {
       consequences.push(message({
         part: "gluon",
         op: "replace",
         path: atomId,
-        ts: Date.now(),
+        ts,
         from: proposal.processExecutionId,
         value: {fields: committed.scalar},
       }))
@@ -293,9 +294,27 @@ export class BoundaryExecutionStore {
         part: "higgs",
         op: "replace",
         path: atomId,
-        ts: Date.now(),
+        ts,
         from: proposal.processExecutionId,
         value: {fields: committed.topology},
+      }))
+    }
+    for (const alias of committed.aliases) {
+      if (Object.keys(alias.scalar).length > 0) consequences.push(message({
+        part: "gluon",
+        op: "replace",
+        path: alias.atom,
+        ts,
+        from: proposal.processExecutionId,
+        value: {fields: alias.scalar},
+      }))
+      if (Object.keys(alias.topology).length > 0) consequences.push(message({
+        part: "higgs",
+        op: "replace",
+        path: alias.atom,
+        ts,
+        from: proposal.processExecutionId,
+        value: {fields: alias.topology},
       }))
     }
     const acknowledgement: ProcessResultCommit = {
@@ -307,7 +326,7 @@ export class BoundaryExecutionStore {
       part: part.part,
       op: "copy",
       path: atomId,
-      ts: Date.now(),
+      ts,
       from: proposal.processExecutionId,
       value: acknowledgement,
     }))

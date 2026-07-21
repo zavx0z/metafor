@@ -1,4 +1,4 @@
-import type { MatterParticleKind } from "../metafor/matter.ts"
+import type { MatterBindingValue, MatterParticleKind } from "../metafor/matter.ts"
 import type { AtomRecord } from "../boundary/atom.ts"
 import type { AtomValueRecord, FieldEnumVariantRecord, ValueItemRecord } from "../boundary/value.ts"
 import type { TopologyRecord } from "../boundary/topology.ts"
@@ -18,6 +18,8 @@ export interface BulkRuntimeMatterParticle {
     data: string | string[]
     expr: string
   }
+  massBinding?: MatterBindingValue
+  energyBinding?: MatterBindingValue
 }
 
 export interface BulkRuntimeWimp {

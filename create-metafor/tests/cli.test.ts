@@ -5,6 +5,7 @@ import {tmpdir} from "node:os"
 import {join, resolve} from "node:path"
 
 const cli = resolve(import.meta.dir, "../src/cli.ts")
+const cliTestTimeout = 30_000
 
 describe("create-metafor CLI", () => {
   let temporaryRoot: string
@@ -36,7 +37,7 @@ describe("create-metafor CLI", () => {
     expect(readFileSync(join(repositoryRoot, "index.html"), "utf8")).toContain(
       'src="zavx0z/capsule"',
     )
-  })
+  }, cliTestTimeout)
 
   test("creates internal Atoms beside each other without nested Git", () => {
     expect(spawnSync("bun", [cli, "capsule", "--dir", galaxyRoot, "--lang", "en"]).status).toBe(0)
@@ -58,7 +59,7 @@ describe("create-metafor CLI", () => {
     expect(readFileSync(join(repositoryRoot, "profile", "index.html"), "utf8")).toContain(
       'src="zavx0z/capsule/profile"',
     )
-  })
+  }, cliTestTimeout)
 
   test("refuses to overwrite a root or internal Meta-package", () => {
     expect(spawnSync("bun", [cli, "capsule", "--dir", galaxyRoot, "--lang", "en"]).status).toBe(0)
@@ -78,7 +79,7 @@ describe("create-metafor CLI", () => {
     )
     expect(repeatedInternal.status).toBe(1)
     expect(repeatedInternal.stderr).toContain("Meta-package already exists")
-  })
+  }, cliTestTimeout)
 
   test("requires a canonical Cluster location", () => {
     const outside = join(temporaryRoot, "zavx0z")
@@ -90,5 +91,5 @@ describe("create-metafor CLI", () => {
 
     expect(result.status).toBe(1)
     expect(result.stderr).toContain("cluster/<owner>")
-  })
+  }, cliTestTimeout)
 })

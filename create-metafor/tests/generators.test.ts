@@ -31,6 +31,7 @@ describe("generateMetaFile", () => {
 
     expect(result).toContain(".superposition({})")
     expect(result).toContain(".mass({})")
+    expect(result).toContain(".energy(() => ({}))")
     expect(result).toContain(".processes(() => [])")
     expect(result).toContain(".reactions(() => [])")
     expect(result).not.toContain("fullscreen")
@@ -51,7 +52,15 @@ describe("generateMetaforTypesFile", () => {
 
     expect(result).toContain("var MetaFor: MetaForFn")
     expect(result).toContain("type MetaForFieldBuilder")
-    expect(result).not.toContain("from \"../")
+    expect(result).toContain("type MetaForValues")
+    expect(result).toContain("type MetaForSuperpositionInputCheck")
+    expect(result).toContain("type MetaForProcessValue")
+    expect(result).toContain("energy<Energy extends Record<string, unknown>>")
+    expect(result).toContain("MetaForEnergyDeclaration<Energy>")
+    expect(result).toContain("energy: Energy")
+    expect(result).toContain("destroy: <State extends MetaForStateKeys<Superposition>>")
+    expect(result).not.toMatch(/^\s*import\b/m)
+    expect(result).not.toMatch(/\bfrom\s+["']/)
   })
 })
 
@@ -143,6 +152,8 @@ describe("generateTsconfigFile", () => {
     const parsed = JSON.parse(result)
 
     expect(parsed.compilerOptions.strict).toBe(true)
+    expect(parsed.compilerOptions.exactOptionalPropertyTypes).toBe(true)
+    expect(parsed.compilerOptions.noUncheckedIndexedAccess).toBe(true)
     expect(parsed.compilerOptions.allowImportingTsExtensions).toBe(true)
     expect(parsed.compilerOptions.types).toEqual(["bun", "node"])
     expect(parsed.include).toBeUndefined()

@@ -33,13 +33,21 @@ export interface MatrixRuntimeValueItem {
   itemValue: string
 }
 
+export interface MatrixRuntimeFieldSource {
+  childAtom: number
+  childField: number
+  parentAtom: number
+  parentField: number
+}
+
 /** One Atom is the largest structural entity Boundary exposes incrementally. */
 export interface MatrixRuntimeAtomEntity {
   atom: MatrixRuntimeAtom
   values: MatrixRuntimeAtomValue[]
   valueRecords: MatrixRuntimeValueRecord[]
   valueItems: MatrixRuntimeValueItem[]
-  state: string | null
+  fieldSources?: MatrixRuntimeFieldSource[]
+  state: {atom: number; metaState: number | null}
 }
 
 export interface MatrixRuntimeTopology {
@@ -67,7 +75,8 @@ export interface MatrixRuntimeSnapshot {
     /** Canonical Matrix field identity remains the explicit Atom/Field pair. */
     runtimeFieldIndexByAtomFieldId: Array<[atomId: number, fieldId: number, runtimeFieldIndex: number]>
   }
-  data: Required<Pick<MatrixInputData, "fields" | "branes" | "stateNames">>
+  data: Required<Pick<MatrixInputData, "fields" | "branes" | "stateNames">> &
+    Pick<MatrixInputData, "entanglement">
   /**
    * Compact addresses below are scoped to this rebuildable projection. They
    * are not canonical Boundary IDs and may be regenerated with the snapshot.

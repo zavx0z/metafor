@@ -11,6 +11,12 @@ type FieldRow = {
 export type BoundaryFieldCommit = {
   scalar: Record<string, unknown>
   topology: Record<string, unknown>
+  aliases: Array<{
+    atom: number
+    wimp: string
+    scalar: Record<string, unknown>
+    topology: Record<string, unknown>
+  }>
 }
 
 const insertedId = async (rows: Promise<Array<{id: number}>>, label: string): Promise<number> => {
@@ -37,16 +43,26 @@ export async function writeBoundaryAtomValue(
   atomId: number,
   field: FieldRow,
   raw: unknown,
-): Promise<void> {
+): Promise<number> {
   const previous = (await sql<Array<{value: number}>>`SELECT value FROM atom_value WHERE atom = ${atomId} AND field = ${field.id}`)[0]
-  if (previous) await sql`DELETE FROM atom_value WHERE atom = ${atomId} AND field = ${field.id}`
   const kind = raw === null || raw === undefined ? "null"
     : field.type === "boolean" ? "boolean"
       : field.type === "number" ? "number"
         : field.type === "enum" ? "enum"
           : field.type === "array" ? "list"
             : "string"
-  const value = await insertedId(sql<Array<{id: number}>>`INSERT INTO value (kind) VALUES (${kind}) RETURNING id`, "Boundary value")
+  const value = previous?.value ?? await insertedId(
+    sql<Array<{id: number}>>`INSERT INTO value (kind) VALUES (${kind}) RETURNING id`,
+    "Boundary value",
+  )
+  if (previous) {
+    await sql`DELETE FROM value_boolean WHERE value = ${value}`
+    await sql`DELETE FROM value_number WHERE value = ${value}`
+    await sql`DELETE FROM value_string WHERE value = ${value}`
+    await sql`DELETE FROM value_enum WHERE value = ${value}`
+    await sql`DELETE FROM value_list_item WHERE value = ${value}`
+    await sql`UPDATE value SET kind = ${kind} WHERE id = ${value}`
+  }
   if (kind === "boolean") await sql`INSERT INTO value_boolean (value, boolean) VALUES (${value}, ${raw ? 1 : 0})`
   else if (kind === "number") await sql`INSERT INTO value_number (value, number) VALUES (${value}, ${Number(raw)})`
   else if (kind === "string") await sql`INSERT INTO value_string (value, text) VALUES (${value}, ${String(raw)})`
@@ -61,8 +77,8 @@ export async function writeBoundaryAtomValue(
       await sql`INSERT INTO value_list_item (value, position, item_value) VALUES (${value}, ${position}, ${String((raw as unknown[])[position])})`
     }
   }
-  await sql`INSERT INTO atom_value (atom, field, value) VALUES (${atomId}, ${field.id}, ${value})`
-  if (previous) await sql`DELETE FROM value WHERE id = ${previous.value}`
+  if (!previous) await sql`INSERT INTO atom_value (atom, field, value) VALUES (${atomId}, ${field.id}, ${value})`
+  return value
 }
 
 /**
@@ -93,16 +109,47 @@ export async function commitBoundaryAtomFields(
     SELECT id, type FROM field WHERE wimp = ${wimp}
   `
   const fieldById = new Map(fieldRows.map((field) => [Number(field.id), field]))
-  const scalar: Record<string, unknown> = {}
-  const topology: Record<string, unknown> = {}
+  const targets = new Map<number, {
+    atom: number
+    wimp: string
+    scalar: Record<string, unknown>
+    topology: Record<string, unknown>
+  }>()
+  const target = (targetAtom: number, targetWimp: string) => {
+    const current = targets.get(targetAtom)
+    if (current) return current
+    const created: {
+      atom: number
+      wimp: string
+      scalar: Record<string, unknown>
+      topology: Record<string, unknown>
+    } = {atom: targetAtom, wimp: targetWimp, scalar: {}, topology: {}}
+    targets.set(targetAtom, created)
+    return created
+  }
 
   for (const [fieldId, value] of fields) {
     const field = fieldById.get(fieldId)
     if (!field) throw new Error(`Field ${fieldId} does not belong to atom ${atomId}`)
-    await writeBoundaryAtomValue(sql, atomId, field, value)
-    const target = field.type === "enum" || field.type === "array" ? topology : scalar
-    target[String(fieldId)] = value
+    const valueId = await writeBoundaryAtomValue(sql, atomId, field, value)
+    for (const owner of await sql<Array<{atom: number; field: number; wimp: string; type: FieldRow["type"]}>>`
+      SELECT atom_value.atom, atom_value.field, atom.wimp, field.type
+        FROM atom_value
+        JOIN atom ON atom.id = atom_value.atom
+        JOIN field ON field.id = atom_value.field
+       WHERE atom_value.value = ${valueId}
+       ORDER BY atom_value.atom, atom_value.field
+    `) {
+      const committed = target(Number(owner.atom), owner.wimp)
+      const domain = owner.type === "enum" || owner.type === "array" ? committed.topology : committed.scalar
+      domain[String(owner.field)] = value
+    }
   }
 
-  return {scalar, topology}
+  const own = target(atomId, wimp)
+  return {
+    scalar: own.scalar,
+    topology: own.topology,
+    aliases: [...targets.values()].filter((item) => item.atom !== atomId),
+  }
 }

@@ -22,6 +22,7 @@ export interface WimpParticleRow {
   src: string
   fields_binding: number | null
   mass_binding: number | null
+  energy_binding: number | null
 }
 
 export interface FuzzyParticleRow {

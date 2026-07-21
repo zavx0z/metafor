@@ -21,6 +21,7 @@ describe("executeProcess", () => {
       field: { name: { type: "string" }, value: { type: "number" } },
       value: { name: "test", value: 42 },
       mass: { counter: 0 },
+      energy: {},
     }
 
     const result = await executeProcess(params)
@@ -40,6 +41,7 @@ describe("executeProcess", () => {
       field: { userId: { type: "number" } },
       value: { userId: 123 },
       mass: {},
+      energy: {},
     }
 
     const result = await executeProcess(params)
@@ -55,6 +57,7 @@ describe("executeProcess", () => {
       field: {},
       value: {},
       mass: {},
+      energy: {},
     }
 
     await expect(executeProcess(params)).rejects.toThrow("Нечего делать!")
@@ -71,6 +74,7 @@ describe("executeProcess", () => {
       field: {},
       value: {},
       mass: {},
+      energy: {},
     }
 
     await expect(executeProcess(params)).rejects.toThrow("Ошибка выполнения")
@@ -87,6 +91,7 @@ describe("executeProcess", () => {
       field: {},
       value: {},
       mass: {},
+      energy: {},
     }
 
     await expect(executeProcess(params)).rejects.toThrow()
@@ -103,6 +108,7 @@ describe("executeProcess", () => {
       field: {},
       value: {},
       mass: {},
+      energy: {},
     }
 
     await expect(executeProcess(params)).rejects.toThrow("Явная ошибка")
@@ -119,6 +125,7 @@ describe("executeProcess", () => {
       field: {},
       value: {},
       mass: {},
+      energy: {},
     }
 
     await expect(executeProcess(params)).rejects.toThrow("Асинхронная ошибка")
@@ -131,6 +138,7 @@ describe("executeProcess", () => {
         hasField: !!params.field,
         hasValue: !!params.value,
         hasMass: !!params.mass,
+        hasEnergy: !!params.energy,
       }
     })
 
@@ -140,16 +148,18 @@ describe("executeProcess", () => {
       field: { count: { type: "number" } },
       value: { count: 42 },
       mass: { counter: 1 },
+      energy: {channel: "open"},
     }
 
     const result = await executeProcess(params)
 
-    expect(result).toEqual({ hasSelf: true, hasField: true, hasValue: true, hasMass: true })
+    expect(result).toEqual({ hasSelf: true, hasField: true, hasValue: true, hasMass: true, hasEnergy: true })
     expect(mockAction).toHaveBeenCalledWith({
       self: { atom: "test", path: "0", meta: "test" },
       field: { count: { type: "number" } },
       value: { count: 42 },
       mass: { counter: 1 },
+      energy: {channel: "open"},
     })
   })
 })

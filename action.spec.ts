@@ -311,12 +311,100 @@ describe("Парсер action-функций", () => {
       const fn = async ({ value }: any) => {
         // @ts-expect-error — тестовый импорт
         const mod = await import("./mod.ts")
-        const result = mod.process(value)
-        return result
+        return mod.process(value)
       }
       const result = validateActionStructure(fn)
       expect(result.valid).toBe(true)
       expect(result.error).toBeUndefined()
+    })
+
+    test("отклоняет inline-логику между import и вызовом внешнего модуля", () => {
+      const fn = async ({ value }: any) => {
+        // @ts-expect-error — тестовый импорт
+        const mod = await import("./mod.ts")
+        value.changed = true
+        return mod.process(value)
+      }
+      const result = validateActionStructure(fn)
+      expect(result.valid).toBe(false)
+      expect(result.error).toContain("direct return")
+    })
+
+    test("отклоняет скрытую мутацию внутри аргумента внешнего вызова", () => {
+      const fn = async ({mass}: any) => {
+        // @ts-expect-error — тестовый импорт
+        const mod = await import("./mod.ts")
+        return mod.default((mass.changed = true, {mass}))
+      }
+      const result = validateActionStructure(fn)
+      expect(result.valid).toBe(false)
+      expect(result.error).toContain("inline")
+    })
+
+    test("отклоняет вложенный вызов внутри аргумента внешнего вызова", () => {
+      const fn = async ({value}: any) => {
+        // @ts-expect-error — тестовый импорт
+        const mod = await import("./mod.ts")
+        return mod.default({value: structuredClone(value)})
+      }
+      const result = validateActionStructure(fn)
+      expect(result.valid).toBe(false)
+      expect(result.error).toContain("inline")
+    })
+
+    test("отклоняет spread, исполняющий iterator внутри аргумента", () => {
+      const fn = async ({mass}: any) => {
+        // @ts-expect-error — тестовый импорт
+        const mod = await import("./mod.ts")
+        return mod.default([...mass.iterable])
+      }
+      const result = validateActionStructure(fn)
+      expect(result.valid).toBe(false)
+      expect(result.error).toContain("inline")
+    })
+
+    test("отклоняет исполняемый default в сигнатуре wrapper", () => {
+      const fn = async ({mass, probe = (mass.changed = true, 0)}: any) => {
+        // @ts-expect-error — тестовый импорт
+        const mod = await import("./mod.ts")
+        return mod.default({mass, probe})
+      }
+      const result = validateActionStructure(fn)
+      expect(result.valid).toBe(false)
+      expect(result.error).toContain("без default")
+    })
+
+    test("отклоняет coercion, способный вызвать Symbol.toPrimitive", () => {
+      const fn = async ({mass}: any) => {
+        // @ts-expect-error — тестовый импорт
+        const mod = await import("./mod.ts")
+        return mod.default({value: +mass.coercible})
+      }
+      const result = validateActionStructure(fn)
+      expect(result.valid).toBe(false)
+      expect(result.error).toContain("coercion")
+    })
+
+    test("отклоняет word-operator, способный вызвать Symbol.hasInstance", () => {
+      const fn = async ({mass}: any) => {
+        // @ts-expect-error — тестовый импорт
+        const mod = await import("./mod.ts")
+        return mod.default({matched: mass.subject instanceof mass.matcher})
+      }
+      const result = validateActionStructure(fn)
+      expect(result.valid).toBe(false)
+      expect(result.error).toContain("instanceof")
+    })
+
+    test("отклоняет computed key с исполняемым property coercion", () => {
+      const fn = async ({mass, value}: any) => {
+        // @ts-expect-error — тестовый импорт
+        const mod = await import("./mod.ts")
+        return mod.default({[mass.coercible]: value})
+      }
+      const result = validateActionStructure(fn)
+      expect(result.valid).toBe(false)
+      expect(result.error).toContain("inline")
     })
 
     test("невалидная функция без import", () => {

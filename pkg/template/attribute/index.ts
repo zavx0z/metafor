@@ -402,6 +402,7 @@ export const parseAttributes = (
   style?: string
   fields?: string
   mass?: string
+  energy?: string
 } => {
   const len = inside.length
   let i = 0
@@ -414,6 +415,7 @@ export const parseAttributes = (
     style?: string
     fields?: string
     mass?: string
+    energy?: string
   } = {}
 
   const ensure = {
@@ -424,6 +426,7 @@ export const parseAttributes = (
     style: () => (result.style ??= ""),
     fields: () => (result.fields ??= ""),
     mass: () => (result.mass ??= ""),
+    energy: () => (result.energy ??= ""),
   }
 
   while (i < len) {
@@ -527,8 +530,8 @@ export const parseAttributes = (
       continue
     }
 
-    // fields и mass для meta-компонентов - обрабатываем как объекты
-    if (name === "fields" || name === "mass") {
+    // fields, mass и energy для meta-компонентов - обрабатываем как объекты
+    if (name === "fields" || name === "mass" || name === "energy") {
       while (i < len && /\s/.test(inside[i] || "")) i++
 
       const { value, nextIndex } = readAttributeValue(inside, i)
@@ -542,16 +545,18 @@ export const parseAttributes = (
           : formatExpression(value.slice(2, -1))
         : "{}"
 
-      // Не добавляем пустые mass и fields атрибуты
+      // Не добавляем пустые fields, mass и energy атрибуты
       if (objectValue === "{}") {
         continue
       }
 
-      // Для meta-компонентов fields и mass будут обработаны отдельно
+      // Для meta-компонентов fields, mass и energy будут обработаны отдельно
       if (name === "fields") {
         result.fields = objectValue
-      } else {
+      } else if (name === "mass") {
         result.mass = objectValue
+      } else {
+        result.energy = objectValue
       }
       continue
     }

@@ -26,8 +26,15 @@ process declaration вместе с:
 Boundary передаёт каждый process descriptor отдельным declaration Graviton.
 Energy инкрементально индексирует descriptors с success/error handlers и
 finally descriptor с `before`. Для finally Energy выполняет
-`before({mass})` и возвращает `w+` с пустым write-set либо `w-` с ошибкой.
+`before({energy, mass})`, затем освобождает локальные Energy-сущности и
+возвращает `w+` с пустым write-set либо `w-` с ошибкой.
 Matrix не получает ни один из этих descriptors.
+
+Matter declaration отдельно хранит `massBinding` и `energyBinding` WIMP edge.
+Boundary/SQLite переносит с child Atom только эти сериализуемые descriptors.
+Перед `z test` ребёнка Energy разрешает их локально из Mass/Energy stores
+ближайшего owning parent Atom. Неразрешённая dependency означает отсутствие
+claim, а не передачу live value через Force.
 
 ## Runtime protocol
 
@@ -94,11 +101,20 @@ Matrix принимает первого подходящего исполнит
 Energy исполняет descriptor из своего локального store. Action получает:
 
 ```ts
-{field, value, mass, self}
+{field, value, mass, energy, self}
 ```
 
 `value` адресован field keys, хотя Force runtime particles адресуют fields по
-`fieldId`. `mass` принадлежит Energy и не переносится в Matrix.
+`fieldId`. Рабочая `mass` и живые сущности `energy` принадлежат Energy runtime,
+лежат в разных stores и не переносятся в Matrix. Обычный Process создаёт и
+использует сущности через `energy`; finally/destroy получает оба объекта и
+освобождает Energy даже при ошибке cleanup-handler.
+
+Для Matter child прямой descriptor `/mass` или `/energy` связывает тот же
+родительский объект (`===`). Object projection создаёт оболочку ребёнка, но
+сохраняет ссылки на выбранные значения. `massBinding` не может читать
+`/energy`, `energyBinding` — `/mass`; map-relative paths и исполняемый код в
+binding запрещены.
 
 Успех:
 
@@ -139,7 +155,7 @@ transition.
 ## Данные инструментов
 
 Weak частицы несут только управляющий результат и компактный write-set.
-Текущая in-memory Energy mass подходит для compact process-local data.
+Текущая in-memory Energy Mass подходит для compact process-local data.
 Содержимое файлов, stdout/stderr и другие большие tool results должны
 сохраняться в filesystem-backed operation mass/artifacts. Matrix и Force не
 превращаются в хранилище результата.
@@ -172,7 +188,8 @@ Weak частицы несут только управляющий резуль�
 - env check;
 - `z test`;
 - action/handler execution;
-- runtime mass;
+- отдельные runtime Mass и Energy stores;
+- release Energy после finally/destroy;
 - `w+`/`w-`.
 
 ### Bulk

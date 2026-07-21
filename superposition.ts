@@ -31,6 +31,11 @@ export function validateNoUnconditionalCycles<𝛴 extends string, ɸ extends Fi
   for (const [from, transitions] of Object.entries(superposition)) {
     graph[from] = []
     for (const [to, cond] of Object.entries(transitions || {})) {
+      if (from === to) {
+        throw new Error(
+          `В конфигурации superposition запрещён самопереход состояния "${from}". Добавьте отдельное содержательное состояние цикла.`
+        )
+      }
       // Если условие отсутствует или пустое — считаем безусловным переходом
       if (cond == null || (typeof cond === "object" && Object.keys(cond).length === 0)) {
         graph[from].push(to)

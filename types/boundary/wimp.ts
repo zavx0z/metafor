@@ -13,23 +13,11 @@ export interface WimpCreateInput {
   name?: string | null | undefined
   desc?: string | null | undefined
   bulk?: MetaDSL["bulk"] | null | undefined
-  mass?: MetaDSL["mass"]
   fields?: readonly MetaFieldDSL[] | undefined
   superposition?: readonly MetaSuperpositionDSL[] | undefined
   processes?: readonly WimpCreateProcessInput[] | undefined
   reactions?: readonly MetaReactionDSL[] | undefined
   matter?: readonly MatterParticle[] | undefined
-}
-
-export interface WimpMassValueRow {
-  id: number
-  parent_value: number | null
-  value_kind: "object" | "array" | "string" | "number" | "boolean" | "null"
-  entry_key: string | null
-  entry_order: number | null
-  text_value: string | null
-  number_value: number | null
-  boolean_value: number | null
 }
 
 export interface WimpReactionRow {

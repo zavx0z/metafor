@@ -1,0 +1,17 @@
+type ReleaseParams = {
+  mass: {
+    attempts: number
+    profile: { id: string } | null
+  }
+  energy: {
+    channel: BroadcastChannel
+    socket: WebSocket
+  }
+}
+
+export default async function release({ energy, mass }: ReleaseParams) {
+  void energy.channel
+  void energy.socket
+  void mass.attempts
+  void mass.profile
+}

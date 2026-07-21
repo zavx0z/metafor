@@ -1,4 +1,5 @@
 import type { EnergyMassStore } from "./mass.ts"
+import type {EnergyRuntimeStore} from "./energy.ts"
 import type {ForceMessage} from "shared/protocol/force/message"
 
 export type EnergyProtocol = {
@@ -15,4 +16,5 @@ export type EnergyProtocolOptions = {
   energyId?: string
   runtimeKind?: string
   massStore?: EnergyMassStore
+  energyStore?: EnergyRuntimeStore
 }

@@ -6,6 +6,8 @@
     "allowImportingTsExtensions": true,
     "types": ["bun", "node"],
     "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
     "skipLibCheck": true,
     "noEmit": true
   }

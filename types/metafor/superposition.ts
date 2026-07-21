@@ -97,9 +97,9 @@ export type CondEnumRequired<E extends readonly (string | number)[]> =
       /** Не равно указанному значению */
       notEq?: E[number]
       /** Одно из указанных значений */
-      oneOf?: E[number][]
+      oneOf?: readonly E[number][]
       /** Не одно из указанных значений */
-      notOneOf?: E[number][]
+      notOneOf?: readonly E[number][]
     }
 
 /**
@@ -141,9 +141,9 @@ export type CondEnumOptional<E extends readonly (string | number)[]> =
       /** Не равно указанному значению */
       notEq?: E[number]
       /** Одно из указанных значений */
-      oneOf?: E[number][]
+      oneOf?: readonly E[number][]
       /** Не одно из указанных значений */
-      notOneOf?: E[number][]
+      notOneOf?: readonly E[number][]
     }
 
 /**
@@ -537,13 +537,22 @@ export type ConditionOptional<T> = T extends boolean
             : T extends object
               ? { includeKey?: string }
               : never
+
+type FieldCondition<F extends Fields[string]> = F extends FieldType<"enum", infer R, any, infer E>
+  ? E extends readonly string[]
+    ? R extends true
+      ? CondEnumRequired<E>
+      : CondEnumOptional<E>
+    : never
+  : F extends FieldType<any, true, any, any>
+    ? Condition<F extends FieldType<any, any, any, any> ? Values<{value: F}>["value"] : never>
+    : ConditionOptional<F extends FieldType<any, any, any, any> ? Values<{value: F}>["value"] : never>
+
 /**
  * Условие контекстного поля
  */
 export type Wave<ɸ extends Fields = Fields> = {
-  [K in keyof Partial<ɸ>]: ɸ[K] extends FieldType<any, true, any, any>
-    ? Condition<Values<ɸ>[K]>
-    : ConditionOptional<Values<ɸ>[K]>
+  [K in keyof Partial<ɸ>]: FieldCondition<ɸ[K]>
 }
 /**
  * Состояние в которое можно перейти с условиями
@@ -551,14 +560,63 @@ export type Wave<ɸ extends Fields = Fields> = {
 export type Transitions<To extends string = string, ɸ extends Fields = Fields> = {
   [K in To]?: Wave<ɸ>
 }
-export type Superposition<𝛴 extends string = string, ɸ extends Fields = Fields> = Record<𝛴, Transitions<𝛴, ɸ> | null>
+export type Superposition<𝛴 extends string = string, ɸ extends Fields = Fields> = {
+  [From in 𝛴]: Transitions<Exclude<𝛴, From>, ɸ> | null
+}
 
 export type SuperpositionStateKeys<ψ> = Extract<keyof ψ, string>
 
 export type SuperpositionInput<ɸ extends Fields, ψ extends Record<string, unknown>> = ψ & Superposition<SuperpositionStateKeys<ψ>, ɸ>
 
+type KeysOfObjectUnion<T> = T extends unknown ? T extends object ? keyof T : never : never
+
+type ConditionIsExact<Actual, Expected> = Actual extends Expected
+  ? Actual extends object
+    ? Exclude<keyof Actual, KeysOfObjectUnion<Expected>> extends never ? true : false
+    : true
+  : false
+
+type WaveIsExact<ɸ extends Fields, Actual> = Actual extends object
+  ? Exclude<keyof Actual, keyof ɸ> extends never
+    ? {
+        [K in keyof Actual]: K extends keyof ɸ ? ConditionIsExact<Actual[K], FieldCondition<ɸ[K]>> : false
+      }[keyof Actual] extends infer Results
+        ? false extends Results ? false : true
+        : never
+    : false
+  : false
+
+type TransitionsAreExact<
+  ɸ extends Fields,
+  ψ extends Record<string, unknown>,
+  From extends string,
+  Actual,
+> = Actual extends null
+  ? true
+  : Actual extends object
+    ? From extends keyof Actual
+      ? false
+      : Exclude<keyof Actual, Exclude<SuperpositionStateKeys<ψ>, From>> extends never
+      ? {
+          [K in keyof Actual]: WaveIsExact<ɸ, Actual[K]>
+        }[keyof Actual] extends infer Results
+          ? false extends Results ? false : true
+          : never
+      : false
+    : false
+
+type SuperpositionIsExact<ɸ extends Fields, ψ extends Record<string, unknown>> = {
+  [K in keyof ψ]: K extends string ? TransitionsAreExact<ɸ, ψ, K, ψ[K]> : false
+}[keyof ψ] extends infer Results
+  ? false extends Results ? false : true
+  : never
+
 export type SuperpositionInputCheck<ɸ extends Fields, ψ extends Record<string, unknown>> =
-  ψ extends Superposition<SuperpositionStateKeys<ψ>, ɸ> ? [] : [superposition: Superposition<SuperpositionStateKeys<ψ>, ɸ>]
+  ψ extends Superposition<SuperpositionStateKeys<ψ>, ɸ>
+    ? SuperpositionIsExact<ɸ, ψ> extends true
+      ? []
+      : [superposition: Superposition<SuperpositionStateKeys<ψ>, ɸ>]
+    : [superposition: Superposition<SuperpositionStateKeys<ψ>, ɸ>]
 
 type IncomingTransitionWave<ψ, Target extends string> = {
   [From in SuperpositionStateKeys<ψ>]:

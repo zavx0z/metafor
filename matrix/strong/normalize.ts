@@ -30,6 +30,9 @@ export function normalizeFieldValue(
       }
       return stringInterner.intern(value)
     case FieldType.ARRAY_PTR:
+      if (value === null) {
+        return 0
+      }
       if (!Array.isArray(value)) {
         throw new Error(`Expected array for ARRAY_PTR, got ${typeof value}`)
       }

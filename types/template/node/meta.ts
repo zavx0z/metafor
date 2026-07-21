@@ -16,9 +16,9 @@ import type { NodeType } from "./index.ts"
  * </meta-for>
  * ```
  *
- * @example Мета-элемент с mass и fields
+ * @example Мета-элемент с mass, energy и fields
  * ```html
- * <meta-widget mass=${mass.widgetConfig} fields=${fields.userData}>
+ * <meta-widget mass=${mass.widgetConfig} energy=${energy.channel} fields=${fields.userData}>
  * </meta-widget>
  * ```
  *
@@ -27,7 +27,7 @@ import type { NodeType } from "./index.ts"
  * - `tag` - имя мета-тега
  * - `child` - дочерние элементы (опционально)
  * - Атрибуты: `event`, `boolean`, `array`, `string`, `style`
- * - Свойства: `mass`, `fields`
+ * - Свойства: `mass`, `energy`, `fields`
  */
 
 export interface NodeMeta extends Attributes {
@@ -41,6 +41,8 @@ export interface NodeMeta extends Attributes {
   child?: NodeType[]
   /** mass свойство для meta-компонентов (передача mass объекта) */
   mass?: string | ValueDynamic | ValueVariable
+  /** energy свойство для meta-компонентов (передача живых Energy-сущностей) */
+  energy?: string | ValueDynamic | ValueVariable
   /** fields свойство для meta-компонентов (передача fields объекта) */
   fields?: string | ValueDynamic | ValueVariable
 }
@@ -51,6 +53,8 @@ export interface PartAttrMeta extends AttrNodeElement {
   src?: string | ValueDynamic | ValueVariable
   /** mass объекты */
   mass?: string
+  /** energy объекты */
+  energy?: string
   /** fields объекты */
   fields?: string
 }

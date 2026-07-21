@@ -7,6 +7,10 @@ const agentInflaton = (ts: number): ForceMessageInput => ({
   parts: [{part: "inflaton", op: "add", path: "wimp", ts, value: {src: "capsule", name: "Capsule"}}],
 })
 
+const agentRemove = (ts: number): ForceMessageInput => ({
+  parts: [{part: "inflaton", op: "remove", path: "wimp", ts, value: {src: "zavx0z/capsule"}}],
+})
+
 let lifecycle: ForceLifecycle
 let recording: ReturnType<typeof createRecordingChannels>
 
@@ -76,6 +80,23 @@ describe("ForceLifecycle", () => {
         by: "agent",
         ts: 2,
         value: {src: "capsule", name: "Capsule"},
+      },
+    })
+  })
+
+  test("accepts and sources the agent WIMP remove through the same Force Monad ingress", () => {
+    start()
+
+    expect(lifecycle.acceptAgentParticle(agentRemove(5))).toEqual({
+      ok: true,
+      delivered: ["dark", "bulk"],
+      particle: {
+        part: "inflaton",
+        op: "remove",
+        path: "wimp",
+        by: "agent",
+        ts: 5,
+        value: {src: "zavx0z/capsule"},
       },
     })
   })

@@ -24,13 +24,17 @@
 ### Boundary
 
 - canonical field declaration и defaults;
-- materialized atom values, изменяемые локальными patches;
+- materialized atom values, включая shared Value identity direct bindings;
+- persisted source relation `child Atom/Field → parent Atom/Field`;
 - устойчивое представление value records на границе;
-- один derived runtime particle после commit каждого значения.
+- atom-addressed derived particles всех участников после одного commit и с
+  одним `ts`.
 
 ### Matrix
 
 - накопление compact values в локальном Matrix store;
+- prepared entanglement только из canonical Boundary identity, не из равенства
+  payload;
 - применение atom-scoped `gluon` по `value.fields[fieldId]`;
 - вычисление переходов после изменения обычного field;
 - отсутствие прямого чтения Boundary.
@@ -60,6 +64,12 @@ AST может разворачивать `enum` и `array` в конкретн�
 
 В MetaFor обычный `Field` является носителем значения.
 Если изменяется обычное значение, это изменение проводится через `Gluon`.
+
+Точная прямая Matter-передача ordinary Field создаёт общую величину. Parent,
+child и siblings могут иметь разные Field declaration identities, но их
+materialized Atom/Field pairs указывают на один canonical Value. Запись любого
+участника распространяется всем участникам одним параллельным time step.
+Computed expression всегда создаёт новую независимую величину.
 
 Иначе говоря:
 

@@ -57,6 +57,10 @@ export function validateData(data: MatrixInputData): void {
 
       const field = data.fields![fieldIndex]!
 
+      // Optional Boundary Fields use null until a value exists. Pointer fields
+      // encode it as zero and scalar fields keep their existing zero-value law.
+      if (value === null) return
+
       // Проверка enum значений (строка допустима для enum полей)
       if (field.enum && typeof value === "string") {
         if (!field.enum.includes(value)) {

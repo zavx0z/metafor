@@ -1,5 +1,4 @@
 import wimpSchemaSql from "./wimp.sql" with {type: "text"}
-import massSchemaSql from "./mass.sql" with {type: "text"}
 import fieldSchemaSql from "./fields/field.sql" with {type: "text"}
 import fieldStringSchemaSql from "./fields/string.sql" with {type: "text"}
 import fieldNumberSchemaSql from "./fields/number.sql" with {type: "text"}
@@ -27,7 +26,6 @@ export class BoundaryWimpSqlite {
     await sql.unsafe(
       [
         wimpSchemaSql,
-        massSchemaSql,
         fieldSchemaSql,
         fieldStringSchemaSql,
         fieldNumberSchemaSql,
@@ -49,6 +47,14 @@ export class BoundaryWimpSqlite {
         .join("\n\n")
         .trim(),
     )
+    const matterWimpColumns = await sql.unsafe<Array<{name: string}>>(
+      "PRAGMA table_info(matter_particle_wimp)",
+    )
+    if (!matterWimpColumns.some((column) => column.name === "energy_binding")) {
+      await sql.unsafe(
+        "ALTER TABLE matter_particle_wimp ADD COLUMN energy_binding INTEGER REFERENCES matter_binding(id) ON DELETE CASCADE",
+      )
+    }
     return new BoundaryWimpSqlite(sql)
   }
 

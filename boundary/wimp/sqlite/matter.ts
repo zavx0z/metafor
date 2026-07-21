@@ -2,6 +2,7 @@ import type {SQL} from "bun"
 import type { AxionParticleRow, FuzzyParticleRow, MachoParticleRow, MatterBindingRow, MatterParticleRow, WimpParticleRow } from "@metafor/types/boundary/matter"
 import type { MatterBindingValue, MatterEdgeSlot, MatterParticle, MatterParticleKind } from "@metafor/types/metafor/matter"
 import type {Wimp} from "./wimp.ts"
+import {validateRuntimeMatterBinding} from "./create.ts"
 
 const hasMatter = async (sql: SQL, src: string): Promise<boolean> => {
   const rows = await sql`SELECT 1 AS one FROM matter_particle WHERE wimp = ${src} LIMIT 1`
@@ -85,11 +86,12 @@ const insertWimpParticle = async (
   childWimpSrc: string,
   fieldsBinding: number | undefined,
   massBinding: number | undefined,
+  energyBinding: number | undefined,
 ): Promise<number> => {
   const particleId = await insertParticle(sql, wimpSrc, "wimp", parentParticle, edgeSlot, particleOrder)
   await sql`
-    INSERT INTO matter_particle_wimp (particle, src, fields_binding, mass_binding)
-    VALUES (${particleId}, ${childWimpSrc}, ${fieldsBinding ?? null}, ${massBinding ?? null})
+    INSERT INTO matter_particle_wimp (particle, src, fields_binding, mass_binding, energy_binding)
+    VALUES (${particleId}, ${childWimpSrc}, ${fieldsBinding ?? null}, ${massBinding ?? null}, ${energyBinding ?? null})
   `
   return particleId
 }
@@ -206,12 +208,14 @@ const buildParticleModel = (
     if (!wimpRow) throw new Error(`Wimp particle row "${row.id}" is not found in canonical SQLite projection`)
     const fieldsBinding = wimpRow.fields_binding !== null ? getBinding(wimpRow.fields_binding) : undefined
     const massBinding = wimpRow.mass_binding !== null ? getBinding(wimpRow.mass_binding) : undefined
+    const energyBinding = wimpRow.energy_binding !== null ? getBinding(wimpRow.energy_binding) : undefined
 
     return {
       kind: "wimp",
       src: wimpRow.src,
       ...(fieldsBinding !== undefined ? {fieldsBinding} : {}),
       ...(massBinding !== undefined ? {massBinding} : {}),
+      ...(energyBinding !== undefined ? {energyBinding} : {}),
       ...(children.length > 0 ? {children} : {}),
     }
   }
@@ -276,7 +280,7 @@ const getMatterParticles = async (sql: SQL, src: string): Promise<MatterParticle
   const wimpRows = new Map(
     (
       await sql<WimpParticleRow[]>`
-        SELECT particle, src, fields_binding, mass_binding
+        SELECT particle, src, fields_binding, mass_binding, energy_binding
         FROM matter_particle_wimp
         WHERE particle IN (SELECT id FROM matter_particle WHERE wimp = ${src})
       `
@@ -331,12 +335,26 @@ const insertWimpAt = async (
   src: string,
   fieldsBindingValue: MatterBindingValue | undefined,
   massBindingValue: MatterBindingValue | undefined,
+  energyBindingValue: MatterBindingValue | undefined,
 ): Promise<number> => {
+  validateRuntimeMatterBinding(massBindingValue, "mass", "Matter massBinding")
+  validateRuntimeMatterBinding(energyBindingValue, "energy", "Matter energyBinding")
   const fieldsBinding = await insertBinding(wimp.sql, wimp.src, fieldsBindingValue)
   const massBinding = await insertBinding(wimp.sql, wimp.src, massBindingValue)
+  const energyBinding = await insertBinding(wimp.sql, wimp.src, energyBindingValue)
   const particleOrder =
     parentParticle === null ? await countRootParticles(wimp.sql, wimp.src) : await countChildParticles(wimp.sql, parentParticle)
-  return insertWimpParticle(wimp.sql, wimp.src, parentParticle, edgeSlot, particleOrder, src, fieldsBinding, massBinding)
+  return insertWimpParticle(
+    wimp.sql,
+    wimp.src,
+    parentParticle,
+    edgeSlot,
+    particleOrder,
+    src,
+    fieldsBinding,
+    massBinding,
+    energyBinding,
+  )
 }
 
 const insertFuzzyAt = async (
@@ -451,6 +469,7 @@ export class MatterChildren {
     src: string
     fieldsBinding?: MatterBindingValue | undefined
     massBinding?: MatterBindingValue | undefined
+    energyBinding?: MatterBindingValue | undefined
   }): Promise<MatterWimpParticle> {
     const id = await insertWimpAt(
       this.particle.matter.parent,
@@ -459,6 +478,7 @@ export class MatterChildren {
       input.src,
       input.fieldsBinding,
       input.massBinding,
+      input.energyBinding,
     )
     return new MatterWimpParticle(this.particle.matter, id, input.src)
   }
@@ -528,8 +548,17 @@ export class Matter {
     src: string
     fieldsBinding?: MatterBindingValue | undefined
     massBinding?: MatterBindingValue | undefined
+    energyBinding?: MatterBindingValue | undefined
   }): Promise<MatterWimpParticle> {
-    const id = await insertWimpAt(this.parent, null, "root", input.src, input.fieldsBinding, input.massBinding)
+    const id = await insertWimpAt(
+      this.parent,
+      null,
+      "root",
+      input.src,
+      input.fieldsBinding,
+      input.massBinding,
+      input.energyBinding,
+    )
     return new MatterWimpParticle(this, id, input.src)
   }
 

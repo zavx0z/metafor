@@ -1,6 +1,6 @@
 import type {Fields, Update, Values} from "./fields.ts"
 import type {ActionParams} from "./action.ts"
-import type {Mass} from "./schema.ts"
+import type {Energy, Mass} from "./schema.ts"
 import type {FinallyChain, FinallyConfig, ParsedFinally} from "./finally.ts"
 import type {SuperpositionProcessValue} from "./superposition.ts"
 
@@ -15,16 +15,18 @@ interface ProcessFactory<
   𝛴 extends string,
   m extends Mass,
   ψ,
+  e extends Energy,
 > {
-  <S extends 𝛴>(state: S, config?: ProcessConfig): ProcessChain<ɸ, m, SuperpositionProcessValue<ɸ, ψ, S>, S>
+  <S extends 𝛴>(state: S, config?: ProcessConfig): ProcessChain<ɸ, m, SuperpositionProcessValue<ɸ, ψ, S>, S, e>
 }
 
 interface DestroyFactory<
   ɸ extends Fields,
   𝛴 extends string,
   m extends Mass,
+  e extends Energy,
 > {
-  <S extends 𝛴>(state: S, config?: FinallyConfig): FinallyChain<ɸ, m, S>
+  <S extends 𝛴>(state: S, config?: FinallyConfig): FinallyChain<ɸ, m, S, e>
 }
 
 export interface Process<
@@ -33,9 +35,10 @@ export interface Process<
   Res = any,
   v extends Values<ɸ> = Values<ɸ>,
   s extends string = string,
+  e extends Energy = Energy,
 > extends ProcessStateMarker<s> {
   type: ProcessType.ACTION
-  action: (params: ActionParams<ɸ, m, v>) => Res | Promise<Res>
+  action: (params: ActionParams<ɸ, m, v, e>) => Res | Promise<Res>
   success?: (params: { update: Update<ɸ>; data: Res }) => void
   error?: (params: { update: Update<ɸ>; error: Error }) => void
   label?: string
@@ -48,8 +51,9 @@ export interface ProcessChain<
   m extends Mass,
   v extends Values<ɸ> = Values<ɸ>,
   s extends string = string,
+  e extends Energy = Energy,
 > {
-  action: <Res>(fn: (params: ActionParams<ɸ, m, v>) => Res | Promise<Res>) => ActionChainByState<s, ɸ, m, Res, v>
+  action: <Res>(fn: (params: ActionParams<ɸ, m, v, e>) => Res | Promise<Res>) => ActionChainByState<s, ɸ, m, Res, v, e>
 }
 
 interface ActionChainByState<
@@ -58,9 +62,10 @@ interface ActionChainByState<
   m extends Mass,
   Res,
   v,
+  e extends Energy,
 > extends ProcessStateMarker<s> {
-  success: (handler: (params: { update: Update<ɸ>; data: Res }) => void) => ActionChainByState<s, ɸ, m, Res, v>
-  error: (handler: (params: { update: Update<ɸ>; error: Error }) => void) => ActionChainByState<s, ɸ, m, Res, v>
+  success: (handler: (params: { update: Update<ɸ>; data: Res }) => void) => ActionChainByState<s, ɸ, m, Res, v, e>
+  error: (handler: (params: { update: Update<ɸ>; error: Error }) => void) => ActionChainByState<s, ɸ, m, Res, v, e>
 }
 
 /**
@@ -75,20 +80,13 @@ interface ActionChainByState<
  *
  * @example
  * ```typescript
- * const process: Process<MyFields, MyMass, { userId: number }> = {
- *   label: "Авторизация",
- *   desc: "Процесс входа пользователя",
- *   action: async ({ value, mass, self }) => {
- *     // Логика авторизации с доступом ко всем параметрам
- *     return { userId: 123 }
- *   },
- *   success: ({ update, data }) => {
- *     update({ userId: data.userId, isAuthenticated: true })
- *   },
- *   error: ({ update, error }) => {
- *     update({ error: error.message })
- *   }
- * }
+ * process("loading")
+ *   .action(async ({ energy, field, mass, self, value }) => {
+ *     const mod = await import("./actions/login.ts")
+ *     return mod.default({ energy, field, mass, self, value })
+ *   })
+ *   .success(({ update, data }) => update({ userId: data.userId }))
+ *   .error(({ update, error }) => update({ error: error.message }))
  * ```
  */
 /**
@@ -104,7 +102,10 @@ interface ActionChainByState<
  *   label: "my_process",
  *   desc: "Описание процесса"
  * })
- *   .action(({ value }) => ({ name: value.name }))
+ *   .action(async ({ energy, field, mass, self, value }) => {
+ *     const mod = await import("./actions/load.ts")
+ *     return mod.default({ energy, field, mass, self, value })
+ *   })
  *   .success(({ update, data }) => update({ name: data.name }))
  *   .error(({ update, error }) => update({ name: error.message }))
  *
@@ -116,11 +117,12 @@ export type ProcessesList<
   𝛴 extends string = string,
   m extends Mass = Mass,
   ψ = never,
+  e extends Energy = Energy,
 > = readonly (
   | {
   [S in 𝛴]:
-  | ActionChain<ɸ, m, any, SuperpositionProcessValue<ɸ, ψ, S>, S>
-  | FinallyChain<ɸ, m, S>
+  | ActionChain<ɸ, m, any, SuperpositionProcessValue<ɸ, ψ, S>, S, e>
+  | FinallyChain<ɸ, m, S, e>
 }[𝛴]
   )[]
 
@@ -140,10 +142,11 @@ export type ProcessesDeclaration<
   𝛴 extends string = string,
   m extends Mass = Mass,
   ψ = never,
+  e extends Energy = Energy,
 > = (
-  process: ProcessFactory<ɸ, 𝛴, m, ψ>,
-  destroy: DestroyFactory<ɸ, 𝛴, m>,
-) => ProcessesList<ɸ, 𝛴, m, ψ>
+  process: ProcessFactory<ɸ, 𝛴, m, ψ, e>,
+  destroy: DestroyFactory<ɸ, 𝛴, m, e>,
+) => ProcessesList<ɸ, 𝛴, m, ψ, e>
 
 /**
  * Обработчик действия процесса.
@@ -247,10 +250,9 @@ export interface ProcessConfig extends BaseProcessConfig {
  *
  * @example
  * ```typescript
- * const chain = action(({ value, mass, schema, self, destroy }) => {
- *   // Доступ ко всем параметрам процесса
- *   // destroy() доступен в процессах
- *   return { name: value.name }
+ * const chain = process("loading").action(async ({ energy, field, mass, self, value }) => {
+ *   const mod = await import("./actions/load.ts")
+ *   return mod.default({ energy, field, mass, self, value })
  * })
  *   .success(({ update, data }) => update({ name: data.name }))
  *   .error(({ update, error }) => update({ name: error.message }))
@@ -264,26 +266,28 @@ export interface ActionChain<
   Res,
   v extends Values<ɸ> = Values<ɸ>,
   s extends string = string,
-> extends ActionChainByState<s, ɸ, m, Res, v> {}
+  e extends Energy = Energy,
+> extends ActionChainByState<s, ɸ, m, Res, v, e> {}
 
-export type ProcessChainResult<ɸ extends Fields, m extends Mass, Res, v extends Values<ɸ>, s extends string> = ActionChain<
+export type ProcessChainResult<ɸ extends Fields, m extends Mass, Res, v extends Values<ɸ>, s extends string, e extends Energy = Energy> = ActionChain<
   ɸ,
   m,
   Res,
   v,
-  s
+  s,
+  e
 > & {
   readonly type: ProcessType.ACTION
-  getResult: () => Process<ɸ, m, Res, v, s>
+  getResult: () => Process<ɸ, m, Res, v, s, e>
 }
 
-export type ProcessRuntimeResult<ɸ extends Fields, m extends Mass, Res, v extends Values<ɸ>, s extends string> =
-  Process<ɸ, m, Res, v, s>
+export type ProcessRuntimeResult<ɸ extends Fields, m extends Mass, Res, v extends Values<ɸ>, s extends string, e extends Energy = Energy> =
+  Process<ɸ, m, Res, v, s, e>
   & {
   state: s
 }
 
-export type ProcessChainLike<ɸ extends Fields, m extends Mass, v extends Values<ɸ> = Values<ɸ>, s extends string = string> = {
+export type ProcessChainLike<ɸ extends Fields, m extends Mass, v extends Values<ɸ> = Values<ɸ>, s extends string = string, e extends Energy = Energy> = {
   readonly type: ProcessType.ACTION
-  getResult: () => ProcessRuntimeResult<ɸ, m, unknown, v, s>
+  getResult: () => ProcessRuntimeResult<ɸ, m, unknown, v, s, e>
 }

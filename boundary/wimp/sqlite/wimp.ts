@@ -4,7 +4,6 @@ import {States} from "./states/index.ts"
 import {Processes} from "./processes/index.ts"
 import {Reactions} from "./reactions.ts"
 import {Matter} from "./matter.ts"
-import {Mass} from "./mass.ts"
 import {Bulk} from "./bulk.ts"
 
 export class Wimp {
@@ -13,7 +12,6 @@ export class Wimp {
   readonly processes: Processes
   readonly reactions: Reactions
   readonly matter: Matter
-  readonly mass: Mass
   readonly bulk: Bulk
   readonly name: Name
   readonly desc: Desc
@@ -27,7 +25,6 @@ export class Wimp {
     this.processes = new Processes(this)
     this.reactions = new Reactions(this)
     this.matter = new Matter(this)
-    this.mass = new Mass(this)
     this.bulk = new Bulk(this)
     this.name = new Name(this)
     this.desc = new Desc(this)

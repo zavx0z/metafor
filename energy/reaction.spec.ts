@@ -6,6 +6,7 @@ import {
   type ReactionExecutionSignal,
   type ReactionResultProposal,
 } from "shared/protocol/force/reaction"
+import {EnergyCatalogStore} from "./catalog.ts"
 import {startEnergyProtocol} from "./energy.ts"
 import {executeReaction, matchesCondition} from "./reaction.ts"
 
@@ -51,13 +52,13 @@ describe("Reaction condition evaluator", () => {
     const mass: Record<string, unknown> = {}
     const result = await executeReaction(signal({
       update: "({update, mass}) => { mass.runs = Number(mass.runs ?? 0) + 1; update({result: mass.runs, ignored: 9}) }",
-    }), "energy-test", {get: () => mass})
+    }), "energy-test", {get: () => mass, bind: () => {}})
     expect(result).toEqual({matched: true, fields: {"202": 1}})
     expect(mass).toEqual({runs: 1})
 
     const skipped = await executeReaction(signal({
       cond: "() => ({meta: 'different/meta'})",
-    }), "energy-test", {get: () => mass})
+    }), "energy-test", {get: () => mass, bind: () => {}})
     expect(skipped).toEqual({matched: false, fields: {}})
   })
 })
@@ -71,7 +72,12 @@ describe("Energy Reaction claim protocol", () => {
         messages.push(structuredClone(message))
       },
     }
-    const protocol = startEnergyProtocol({force, energyId: "energy-reaction", runtimeKind: "server"})
+    const protocol = startEnergyProtocol({
+      force,
+      catalog: new EnergyCatalogStore(),
+      energyId: "energy-reaction",
+      runtimeKind: "server",
+    })
     return {
       messages,
       emit(input: ForceMessageInput) {

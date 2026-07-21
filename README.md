@@ -22,10 +22,58 @@ MetaFor — открытая эволюционирующая среда, в к�
 - `Dark` — чтение внешних Meta-деклараций, скрытая связность и история;
 - `Boundary` — каноническая реляционная materialized persistence;
 - `Matrix` — детерминированное вычисление State и Transition;
-- `Energy` — исполнение Process, Reaction и локальная Mass;
+- `Energy` — исполнение Process и Reaction, живые runtime-сущности и отдельная
+  рабочая Mass;
 - `Bulk` — WebGPU manifestation и наблюдаемая форма.
 
 `Force` переносит по одной минимальной `Particle` в одном `ForceMessage`.
+
+Строго типизированная Meta-декларация разделяет два runtime-домена:
+
+```typescript
+.mass({ profiles: new Map(), attempts: 0 })
+.energy(() => ({
+  socket: null as unknown as WebSocket,
+}))
+```
+
+`Mass` — изменяемый рабочий материал. `Energy` — постоянно типизированные живые
+сущности, которые создаются внешними action-модулями и освобождаются через
+`destroy`. Callback `.energy()` нужен только TypeScript для вывода типов:
+runtime его не вызывает и не добавляет Energy в MetaDSL/WIMP. В декларации нет
+функций, фабрик и side effects; inline action и destroy только динамически
+импортируют исполняемый модуль и возвращают его результат. Аргументы вызова —
+только декларативное wiring: spread/iterator, вложенные вызовы и мутации в них
+запрещены; параметры wrapper не содержат default/rest.
+
+Matter передаёт дочернему Atom оба runtime-контекста раздельно:
+
+```typescript
+.matter(({ mass, energy, html }) => html`
+  <meta-for
+    src="zavx0z/capsule/profile"
+    mass=${{ profiles: mass.profiles }}
+    energy=${{ socket: energy.socket }}
+  />
+`)
+```
+
+Boundary/SQLite хранит только сериализуемые `massBinding` и `energyBinding`
+этого Matter edge. Перед claim дочернего Process Energy локально разрешает их из
+stores ближайшего owning parent Atom. Прямые `mass=${mass}` и
+`energy=${energy}` сохраняют identity объектов; сами Mass, Energy-сущности и
+runtime-ссылки не проходят через Force и не записываются в Boundary.
+
+При cold start Energy сначала через собственную Monad получает полную canonical
+проекцию Boundary и гидратирует локальный catalog
+Atom/Topology/Field/Variant/Process и оба binding descriptor. Только после
+этого она открывает обязательный ForceChannel; после рождения RPC на claim нет,
+а изменения приходят обычными Graviton. Такой Graviton немедленно rebind-ит уже
+проявленные aliases и отменяет pending claim старой связи.
+
+Initial cut не требует replay/control frame: пока Matrix не подключена
+последней, Force остаётся в `starting` и отклоняет Particle как от агента, так и
+от доменных channels.
 
 ```text
 external input
@@ -104,6 +152,7 @@ Matrix backend задаётся через `METAFOR_WEAK_BACKEND=auto|cpu|gpu`.
 
 ```bash
 bun run check
+bun run typecheck:expect-errors
 ```
 
 ## Активная граница репозитория

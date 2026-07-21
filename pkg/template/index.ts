@@ -34,7 +34,7 @@ import type { NodeType } from "@metafor/types/template/node/index"
 import { extractHtmlElements } from "./parser.ts"
 import type { Fields } from "@metafor/types/metafor/fields"
 import type { MatterDefinitionParams } from "@metafor/types/metafor/matter"
-import type { Mass } from "@metafor/types/metafor/schema"
+import type { Energy, Mass } from "@metafor/types/metafor/schema"
 
 /**
  * Парсит HTML-шаблон и возвращает обогащенную иерархию с метаданными о путях к данным.
@@ -56,8 +56,13 @@ import type { Mass } from "@metafor/types/metafor/schema"
  * `)
  * ```
  */
-export const parse = <ɸ extends Fields = Fields, m extends Mass = Mass, 𝛴 extends string = string>(
-  template: (params: MatterDefinitionParams<ɸ, m, 𝛴>) => void,
+export const parse = <
+  ɸ extends Fields = Fields,
+  m extends Mass = Mass,
+  𝛴 extends string = string,
+  e extends Energy = Energy,
+>(
+  template: (params: MatterDefinitionParams<ɸ, m, 𝛴, e>) => void,
 ): NodeType[] => {
   const mainHtml = extractMainHtmlBlock(template)
   const hierarchy = extractHtmlElements(mainHtml)
@@ -65,7 +70,7 @@ export const parse = <ɸ extends Fields = Fields, m extends Mass = Mass, 𝛴 ex
   return hierarchy.map((node) => createNode(node, context))
 }
 
-const extractMainHtmlBlock = (template: (params: MatterDefinitionParams<any, any, any>) => void): string => {
+const extractMainHtmlBlock = (template: (params: MatterDefinitionParams<any, any, any, any>) => void): string => {
   const src = Function.prototype.toString.call(template)
   const firstIndex = src.indexOf("html`")
   if (firstIndex === -1) throw new Error("функция template не содержит html`")

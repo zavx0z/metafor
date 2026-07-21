@@ -25,6 +25,13 @@ describe("Matrix birth order", () => {
     }))).rejects.toThrow("already connected")
   })
 
+  test("does not admit Matrix before the hydrated Energy ForceChannel is connected", async () => {
+    await expect(waitForMatrixBirthGate(
+      async () => ({state: "starting", connectedDomains: ["dark", "boundary", "bulk"]}),
+      {waitMs: 2, retryMs: 1},
+    )).rejects.toThrow("waiting for ForceChannels: energy")
+  })
+
   test("rejects a Force lifecycle that already failed", async () => {
     await expect(waitForMatrixBirthGate(async () => ({
       state: "error",

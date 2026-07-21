@@ -11,7 +11,6 @@ export type BulkProjectionDeclarationSection =
   | "processes"
   | "reactions"
   | "matter"
-  | "mass"
   | "bulk"
 
 export type BulkProjectionDeclaration = {

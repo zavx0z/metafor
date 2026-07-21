@@ -14,6 +14,7 @@ export type EnergyActionParams = {
   field: Record<string, unknown>
   value: Record<string, unknown>
   mass: Record<string, unknown>
+  energy: Record<string, unknown>
   self: {
     atom: string
     meta: string

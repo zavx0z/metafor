@@ -49,12 +49,18 @@ Package graph нельзя читать как полную онтологию. 
 Root scripts запускают эти entries либо в hot development mode, либо обычными
 Bun processes. Они не загружают Meta автоматически.
 
-Порядок рождения runtime задаётся не порядком запуска Bun processes. Matrix
-server ждёт, пока Force увидит готовые `ForceChannel` Dark, Boundary, Energy и
-Bulk, затем получает final initial state Boundary, готовит Store/Weak и только
-после этого рождает Matrix runtime. Созданный при импорте `Force("matrix")`
-становится пятым каналом и открывает общий realtime gate. Это необходимо,
-потому что первая Weak evaluation уже может испустить process work.
+Порядок рождения runtime задаётся не порядком запуска Bun processes. До своего
+ForceChannel Energy открывает MonadChannel, читает
+`boundary.initialProjection.read` и гидратит постоянный локальный catalog
+Atom/Topology/Field/Variant/Process/continuation. Только затем Energy создаёт
+ForceChannel.
+Matrix server ждёт, пока Force увидит готовые `ForceChannel` Dark, Boundary,
+Energy и Bulk, затем получает final initial state Boundary, готовит Store/Weak
+и только после этого рождает Matrix runtime. Поэтому присутствие Energy в
+Matrix birth gate уже означает завершённую cold hydration. Созданный при
+импорте `Force("matrix")` становится пятым каналом и открывает общий realtime
+gate. Это необходимо, потому что первая Weak evaluation уже может испустить
+process work.
 
 ## Реализованное соединение
 
@@ -80,9 +86,87 @@ Bulk, затем получает final initial state Boundary, готовит S
   `<owner>/<repository>/<meta-package>`.
 - `boundary/server.ts` открывает SQLite, материализует Particle в
   нормализованные реляционные таблицы и публикует результаты через Force.
+- `energy/server.ts` читает полный текущий Boundary projection через Monad,
+  локально готовит `EnergyCatalogStore` и только после этого открывает
+  обязательный realtime ForceChannel. На каждый claim RPC не выполняется.
 - `bulk/server.ts` обслуживает web entry, шрифт, browser WebSocket и связывает
   browser manifestation с Force.
 - Matrix weak backend выбирается через `METAFOR_WEAK_BACKEND=auto|cpu|gpu`.
+
+## Energy и Mass в DSL/runtime
+
+Цепочка MetaFor имеет обязательный порядок `fields → superposition → mass →
+energy → processes → reactions → matter → bulk`. `Mass` задаёт тип изменяемого
+рабочего материала. Следующая декларация `energy(() => ({...}))` задаёт только
+постоянные TypeScript-типы живых runtime-сущностей. Runtime callback не вызывает
+и не сохраняет его результат в MetaDSL; функции и создание соединений внутри
+декларации запрещены.
+
+Action получает раздельные `{field, value, mass, energy, self}`. Реализация
+action находится во внешнем ESM-модуле, подключаемом динамическим `import()`;
+inline wrapper только передаёт готовые значения без spread/iterator, вложенных
+вызовов и мутаций, а его параметры не содержат default/rest.
+Energy runtime хранит Mass и Energy в разных локальных stores. Обычный Process
+может создать или заменить сущность в `energy`; `destroy.before({mass, energy})`
+освобождает её, после чего Energy runtime удаляет весь набор живых сущностей
+этого Atom. Удаление Energy не очищает Mass автоматически.
+
+`.mass()` остаётся типовым контрактом DSL и не становится WIMP declaration:
+Dark не испускает для неё Inflaton. Автоматическая hydration placeholder-объекта
+из Meta в локальный `EnergyMassStore` не выполняется. Реальную рабочую Mass
+создаёт и изменяет action в Energy runtime; большие результаты
+материализуются во внешнем долговечном storage и проходят через runtime только
+по address/identity.
+
+Matter WIMP edge может содержать два независимых runtime binding: `massBinding`
+и `energyBinding`. Boundary сохраняет их в SQLite как FK на нормализованные
+binding descriptors и прикладывает descriptors к materialized child Atom в
+`continuation`. Live values в Boundary/Force не попадают. Перед claim процесса
+ребёнка Energy находит ближайший owning parent Atom, локально разрешает
+`/mass[/...]` и `/energy[/...]` в его stores и связывает результат с stores
+ребёнка. После успешного разрешения binding не пересчитывается на каждом claim:
+Graviton, изменивший continuation ребёнка или отношение Atom/Topology к owning
+parent, немедленно переустанавливает уже проявленные aliases и отменяет pending
+claim старой связи. Прямой root alias сохраняет object identity. Пока
+зависимость равна `undefined`, binding не установлен и этот Energy не claim-ит
+ребёнка.
+
+Cold projection через Monad содержит только сериализуемые canonical entities и
+binding descriptors. Живые объекты Mass/Energy создаются и остаются в локальных
+Energy stores; ни Monad, ни Force их не переносят. После рождения изменение
+continuation или owning-parent relation переустанавливает binding только по
+обычному Graviton, включая изменение владельца через Topology.
+
+Между initial projection и рождением Energy не нужен отдельный handoff frame:
+общий Force до подключения последней Matrix остаётся в `starting` и не
+пропускает Particle ни от агента, ни от доменного ForceChannel.
+
+## Field binding и Matrix entanglement
+
+`fields=${...}` не является третьим Energy runtime binding. Точная top-level
+пара `childKey: parentField` для `string`/`number`/`boolean` материализуется в
+Boundary как один shared `Value` identity и нормализованное отношение
+`atom_field_source`. Запись из parent, child или sibling обновляет общий value
+record, а Boundary выпускает отдельные atom-addressed Gluon consequences с
+одним `ts`; внутри такого time step sequence нет.
+
+Initial Matrix projection содержит `valueId`. `matrix/birth.ts` группирует
+только явно общую identity, создаёт один runtime field record и strong mappings
+для каждого Atom/Field. Равенство payload без общей identity связь не создаёт.
+Computed expressions получают отдельные values; `enum` и `array` обслуживаются
+как topology Fields и в shared block не входят.
+
+Live in-place replacement `fieldsBinding` поддерживается структурным тактом.
+Boundary атомарно перестраивает source/value relation и испускает полный Atom
+Graviton. Matrix применяет его к своей локальной canonical projection, заново
+собирает packed Store/shared blocks и переинициализирует CPU/GPU Weak до
+следующего вычислительного такта.
+
+TODO (оптимизация, не семантический пробел): заменить полную re-preparation
+packed Store при таком Graviton на инкрементальное перемещение только
+изменившихся shared blocks. Оптимизация обязана сохранить тот же атомарный
+Boundary transaction, canonical `valueId`, отсутствие промежуточного layout и
+одинаковое поведение CPU/GPU.
 
 Декларационный `path` является категорией (`wimp`, `field`, `state`, `matter` и
 так далее), а не slash-адресом дерева Meta. WIMP идентифицируется своим `src`;
@@ -99,8 +183,10 @@ Boundary suites открывают изолированные `:memory:` databas
 
 Boundary не хранит Meta-файл, JSON-зеркало декларации или второй snapshot
 мира. WIMP, Field, Variant, State, Transition, Condition, Process, Reaction,
-Matter, Mass и materialized Atom/Topology/Value разложены по отдельным связанным
-таблицам. Производные runtime-проекции можно восстановить из этих отношений.
+Matter, binding descriptors, Field source relations и materialized
+Atom/Topology/Value разложены по отдельным связанным таблицам. Рабочая Mass в
+Boundary отсутствует. Производные runtime-проекции можно восстановить из этих
+отношений.
 
 ## Bulk и renderer
 

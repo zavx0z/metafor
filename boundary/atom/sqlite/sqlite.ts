@@ -2,6 +2,7 @@ import type {SQL} from "bun"
 import atomSql from "./atom.sql" with {type: "text"}
 import valueSql from "./value.sql" with {type: "text"}
 import atomValueSql from "./atom_value.sql" with {type: "text"}
+import fieldSourceSql from "./field_source.sql" with {type: "text"}
 import stateSql from "./state.sql" with {type: "text"}
 import {Atom, AtomRoots, decodeAtomRow} from "./atom.ts"
 import {Value} from "./value.ts"
@@ -29,7 +30,7 @@ export class BoundaryAtomSqlite {
 
   static async open(sql: SQL): Promise<BoundaryAtomSqlite> {
     await sql.unsafe(
-      [atomSql, valueSql, atomValueSql, stateSql]
+      [atomSql, valueSql, atomValueSql, fieldSourceSql, stateSql]
         .map((sql) => sql.trim())
         .filter(Boolean)
         .join("\n\n")

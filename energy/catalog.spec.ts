@@ -23,6 +23,24 @@ const process = (id: number, localId: number, wimp: string, state: string) => ({
 })
 
 describe("Energy incremental catalog", () => {
+  test("hydrates canonical Fields and enum variants for the external action contract", () => {
+    const catalog = new EnergyCatalogStore()
+    catalog.apply(part("add", "field", {
+      id: 3, wimp: "owner/process", localId: 1, key: "mode", type: "enum",
+      required: true, label: "Mode", default: "idle",
+    }))
+    catalog.apply(part("add", "variant", {
+      id: 7, wimp: "owner/process", localId: 1, field: 3, position: 0, itemValue: "idle",
+    }))
+    catalog.apply(part("add", "variant", {
+      id: 8, wimp: "owner/process", localId: 2, field: 3, position: 1, itemValue: "ready",
+    }))
+
+    expect(catalog.fieldSchema("owner/process")).toEqual({
+      mode: {type: "enum", required: true, default: "idle", label: "Mode", values: ["idle", "ready"]},
+    })
+  })
+
   test("process replace retains its identity and does not recreate another process", () => {
     const store = new EnergyCatalogStore()
     store.apply(part("add", "process", process(101, 1, "owner/a", "ready")))
@@ -45,15 +63,58 @@ describe("Energy incremental catalog", () => {
     store.apply(part("add", "atom/1", atom(1, "owner/root")))
     store.apply(part("add", "atom/2", atom(2, "owner/child", 1)))
     store.apply(part("add", "atom/3", atom(3, "owner/root")))
+    store.apply(part("add", "atom/4", atom(4, "owner/grandchild", 2)))
     const child = store.atoms.get(2)
     const peer = store.atoms.get(3)
 
-    store.apply(part("replace", "atom/2", {atom: {parentAtom: 3}}))
+    const change = store.apply(part("replace", "atom/2", {atom: {parentAtom: 3}}))
 
+    expect(change.affectedAtomIds).toEqual([2, 4])
     expect(store.atoms.get(2)).toBe(child)
     expect(store.atoms.get(3)).toBe(peer)
     expect(store.childrenByParent.get("atom:1")).toBeUndefined()
     expect(store.childrenByParent.get("atom:3")).toEqual(new Set(["atom:2"]))
+  })
+
+  test("keeps Matter continuation separate and resolves the owning Atom through topology", () => {
+    const store = new EnergyCatalogStore()
+    store.apply(part("add", "atom/1", atom(1, "owner/root")))
+    store.apply(part("add", "topology/7", {
+      id: 7,
+      parentAtom: 1,
+      parentTopology: null,
+      kind: "axion",
+      position: 0,
+    }))
+    store.apply(part("add", "atom/2", {
+      atom: {id: 2, parentAtom: null, parentTopology: 7, wimp: "owner/child", position: 0},
+      continuation: {
+        massBinding: {data: "/mass/cache"},
+        energyBinding: {data: "/energy/socket"},
+      },
+    }))
+
+    expect(store.parentAtom(2)).toBe(store.atoms.get(1))
+    expect(store.continuation(2)).toEqual({
+      massBinding: {data: "/mass/cache"},
+      energyBinding: {data: "/energy/socket"},
+    })
+    expect("continuation" in store.atoms.get(2)!).toBe(false)
+
+    const topologyChange = store.apply(part("replace", "topology/7", {
+      id: 7,
+      parentAtom: 1,
+      parentTopology: null,
+      kind: "axion",
+      position: 1,
+    }))
+    expect(topologyChange.affectedAtomIds).toEqual([2])
+
+    store.apply(part("replace", "atom/2", {
+      atom: {id: 2, parentAtom: null, parentTopology: 7, wimp: "owner/child", position: 0},
+      continuation: {},
+    }))
+    expect(store.continuation(2)).toEqual({})
   })
 
   test("remove affects only process atoms of the same WIMP", () => {

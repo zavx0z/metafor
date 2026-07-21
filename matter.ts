@@ -1,7 +1,7 @@
 import { parse } from "@metafor/template"
 import type { Fields } from "@metafor/types/metafor/fields"
 import type { MatterDeclaration, MatterFields, MatterSchema, MatterTemplateSchema, TopologyBasis } from "@metafor/types/metafor/matter"
-import type { Mass } from "@metafor/types/metafor/schema"
+import type { Energy, Mass } from "@metafor/types/metafor/schema"
 import type { MatterBindingValue, MatterChild, MatterParticle } from "@metafor/types/metafor/matter"
 import type { NodeType } from "@metafor/types/template/node/index"
 import type { NodeCondition } from "@metafor/types/template/node/condition"
@@ -10,6 +10,7 @@ import type { NodeMap } from "@metafor/types/template/node/map"
 import type { NodeMeta } from "@metafor/types/template/node/meta"
 
 const HUB_ADDRESS_RE = /^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_/-]+$/
+const EXECUTABLE_BINDING_RE = /=>|\bfunction\b|\bnew\s+|(?:\b[$A-Z_a-z][$\w]*|\]|\))\s*(?:\?\.)?\s*\(/
 
 const FIELD_PATH_PREFIXES = ["/value/", "/fields/"] as const
 
@@ -39,7 +40,8 @@ const extractFieldKey = (path: string): string | undefined => {
 
 const resolveTopologyBasis = (path: string, fields: MatterFields): TopologyBasis => {
   if (path === "/state") return "state"
-  if (path.startsWith("/mass/")) return "mass"
+  if (path === "/mass" || path.startsWith("/mass/")) return "mass"
+  if (path === "/energy" || path.startsWith("/energy/")) return "energy"
 
   const key = extractFieldKey(path)
   if (!key) return "unknown"
@@ -56,6 +58,7 @@ const describeBasis = (path: string, fields: MatterFields): string => {
   const basis = resolveTopologyBasis(path, fields)
   if (basis === "state") return 'state "/state"'
   if (basis === "mass") return `mass path "${path}"`
+  if (basis === "energy") return `energy path "${path}"`
   if (basis === "unknown") return `unsupported path "${path}"`
 
   const key = extractFieldKey(path)
@@ -96,6 +99,37 @@ const validateStaticSrc = (src: string, location: string): void => {
   }
 }
 
+const validateRuntimeBinding = (
+  binding: MatterBindingValue | undefined,
+  domain: "mass" | "energy",
+  location: string,
+): void => {
+  if (binding === undefined) return
+  if (typeof binding === "string") {
+    const source = binding.trim()
+    if (!source.startsWith("{") || !source.endsWith("}") || EXECUTABLE_BINDING_RE.test(source)) {
+      throw new Error(`Matter violation at "${location}": ${domain} binding must be a pure object projection.`)
+    }
+    return
+  }
+
+  const paths = binding.data === undefined ? [] : toPathList(binding.data)
+  if (paths.length === 0) {
+    throw new Error(`Matter violation at "${location}": ${domain} binding must declare a /${domain} dependency.`)
+  }
+  for (const path of paths) {
+    const validRoot = path === `/${domain}` || path.startsWith(`/${domain}/`)
+    if (!validRoot || path.includes("[item]") || path.includes("[index]") || path.includes("../")) {
+      throw new Error(
+        `Matter violation at "${location}": ${domain} binding dependency "${path}" must use /${domain}[/...] without map-relative context.`,
+      )
+    }
+  }
+  if (binding.expr !== undefined && EXECUTABLE_BINDING_RE.test(binding.expr)) {
+    throw new Error(`Matter violation at "${location}": ${domain} binding must not create or call executable resources.`)
+  }
+}
+
 const validateDynamicSrc = (src: Exclude<NodeMeta["src"], string>, fields: MatterFields, location: string): void => {
   if (!src.data) {
     throw new Error(`Matter violation at "${location}": dynamic src must have data expression.`)
@@ -119,10 +153,11 @@ const validateMetaNode = (node: NodeMeta, fields: MatterFields, location: string
 
   if (typeof node.src === "string") {
     validateStaticSrc(node.src, `${location}.src`)
-    return
+  } else {
+    validateDynamicSrc(node.src, fields, `${location}.src`)
   }
-
-  validateDynamicSrc(node.src, fields, `${location}.src`)
+  validateRuntimeBinding(node.mass, "mass", `${location}.mass`)
+  validateRuntimeBinding(node.energy, "energy", `${location}.energy`)
 }
 
 const validateNode = (node: NodeType, fields: MatterFields, location: string): void => {
@@ -164,6 +199,7 @@ const normalizeMatterNode = (node: NodeType): NodeType => {
         src: normalizeMatterBinding(node.src),
         ...(node.fields !== undefined ? {fields: normalizeMatterBinding(node.fields)} : {}),
         ...(node.mass !== undefined ? {mass: normalizeMatterBinding(node.mass)} : {}),
+        ...(node.energy !== undefined ? {energy: normalizeMatterBinding(node.energy)} : {}),
         ...(node.child !== undefined ? {child: node.child.map(normalizeMatterNode)} : {}),
       }
     case "log":
@@ -225,6 +261,7 @@ const projectMatterNode = (fields: MatterFields, node: NodeType): MatterParticle
       src: string | { data?: string | string[]; expr?: string }
       fields?: MatterBindingValue
       mass?: MatterBindingValue
+      energy?: MatterBindingValue
       child?: NodeType[]
     }
     const children = childRelations(fields, metaNode.child)
@@ -236,6 +273,7 @@ const projectMatterNode = (fields: MatterFields, node: NodeType): MatterParticle
           src: metaNode.src,
           ...(metaNode.fields !== undefined ? {fieldsBinding: metaNode.fields} : {}),
           ...(metaNode.mass !== undefined ? {massBinding: metaNode.mass} : {}),
+          ...(metaNode.energy !== undefined ? {energyBinding: metaNode.energy} : {}),
           ...(children !== undefined ? {children} : {}),
         },
       ]
@@ -253,6 +291,7 @@ const projectMatterNode = (fields: MatterFields, node: NodeType): MatterParticle
             src,
             ...(metaNode.fields !== undefined ? {fieldsBinding: metaNode.fields} : {}),
             ...(metaNode.mass !== undefined ? {massBinding: metaNode.mass} : {}),
+            ...(metaNode.energy !== undefined ? {energyBinding: metaNode.energy} : {}),
             ...(children !== undefined ? {children} : {}),
           },
         })),
@@ -304,8 +343,13 @@ const projectMatterNode = (fields: MatterFields, node: NodeType): MatterParticle
   return []
 }
 
-export const parseMatter = <ɸ extends Fields = Fields, m extends Mass = Mass, 𝛴 extends string = string>(
-  matter: MatterDeclaration<ɸ, m, 𝛴>,
+export const parseMatter = <
+  ɸ extends Fields = Fields,
+  m extends Mass = Mass,
+  𝛴 extends string = string,
+  e extends Energy = Energy,
+>(
+  matter: MatterDeclaration<ɸ, m, 𝛴, e>,
   fields: MatterFields,
   metaName?: string,
 ): MatterSchema => {

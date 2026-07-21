@@ -3,6 +3,36 @@ import { parse } from "../../../index.ts"
 import type { NodeType } from "@metafor/types/template/node/index"
 
 describe("value/mass в атрибутах", () => {
+  describe("energy с динамическими значениями", () => {
+    it("сохраняет отдельный Energy binding", () => {
+      expect(parse(
+        ({html, energy}) => html`<meta-for src="test/energy-dynamic" energy=${{socket: energy.socket}} />`,
+      )).toEqual([
+        {
+          tag: "meta-for",
+          type: "meta",
+          src: "test/energy-dynamic",
+          energy: {
+            data: "/energy/socket",
+            expr: "{ socket: _[0] }",
+          },
+        },
+      ])
+    })
+
+    it("сохраняет прямые aliases полных Mass и Energy stores", () => {
+      expect(parse(
+        ({html, mass, energy}) => html`<meta-for src="test/runtime-aliases" mass=${mass} energy=${energy} />`,
+      )).toEqual([{
+        tag: "meta-for",
+        type: "meta",
+        src: "test/runtime-aliases",
+        mass: {data: "/mass"},
+        energy: {data: "/energy"},
+      }])
+    })
+  })
+
   describe("mass с динамическими значениями", () => {
     let elements: NodeType[]
 

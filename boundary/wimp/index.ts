@@ -28,4 +28,3 @@ export {
   MatterMachoParticle,
   MatterChildren,
 } from "./sqlite/matter.ts"
-export {Mass} from "./sqlite/mass.ts"

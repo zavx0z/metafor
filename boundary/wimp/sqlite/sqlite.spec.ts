@@ -4,7 +4,6 @@ import { BoundaryWimpSqlite } from "./sqlite.ts"
 
 const metaforDslTableNames = [
   "wimp",
-  "wimp_mass_value",
   "field",
   "field_default",
   "field_string_default",
@@ -39,11 +38,6 @@ const metaforDslTableNames = [
 ] as const
 
 const metaforDslIndexNames = [
-  "wimp_mass_root_by_wimp",
-  "wimp_mass_object_entry",
-  "wimp_mass_array_entry",
-  "wimp_mass_by_wimp",
-  "wimp_mass_by_parent",
   "field_by_wimp",
   "state_by_wimp",
   "condition_by_transition",
@@ -88,7 +82,6 @@ describe("sqlite ddl", () => {
         name: "Alpha",
         desc: "Demo",
         bulk: {view: ".root {}"},
-        mass: {title: "draft"},
         fields: [
           {key: "title", type: "string", required: true, default: "draft"},
           {key: "status", type: "enum", required: true, values: ["open", "closed"], default: "open"},
@@ -131,6 +124,8 @@ describe("sqlite ddl", () => {
                   kind: "wimp",
                   src: "alpha/child",
                   fieldsBinding: {data: "status", expr: "{ status: _[0] }"},
+                  massBinding: {data: "/mass/cache", expr: "{ cache: _[0] }"},
+                  energyBinding: {data: "/energy/socket", expr: "{ socket: _[0] }"},
                 },
               },
             ],
@@ -141,7 +136,6 @@ describe("sqlite ddl", () => {
       expect(await wimp.name.get()).toBe("Alpha")
       expect(await wimp.desc.get()).toBe("Demo")
       expect(await wimp.fields.count()).toBe(2)
-      expect(await wimp.mass.exists()).toBe(true)
       expect(await wimp.states.count()).toBe(2)
       expect(await wimp.processes.count()).toBe(1)
       expect(await wimp.reactions.count()).toBe(1)
@@ -158,6 +152,8 @@ describe("sqlite ddl", () => {
                 kind: "wimp",
                 src: "alpha/child",
                 fieldsBinding: {data: "status", expr: "{ status: _[0] }"},
+                massBinding: {data: "/mass/cache", expr: "{ cache: _[0] }"},
+                energyBinding: {data: "/energy/socket", expr: "{ socket: _[0] }"},
               },
             },
           ],
@@ -205,9 +201,25 @@ describe("sqlite ddl", () => {
     expect(triggers).toEqual([])
   })
 
+  test("добавляет energy_binding в существующую таблицу Matter WIMP без потери mass_binding", async () => {
+    await db.unsafe(`
+      DROP TABLE matter_particle_wimp;
+      CREATE TABLE matter_particle_wimp (
+        particle INTEGER PRIMARY KEY,
+        src TEXT NOT NULL,
+        fields_binding INTEGER,
+        mass_binding INTEGER
+      );
+    `)
+
+    wimps = await BoundaryWimpSqlite.open(db)
+
+    expect(((await db.unsafe(`PRAGMA table_info(matter_particle_wimp)`)) as Array<{name: string}>).map((row) => row.name))
+      .toEqual(["particle", "src", "fields_binding", "mass_binding", "energy_binding"])
+  })
+
   test("держит entity-таблицы на id и child/subtype tables без parent-derived дублей", async () => {
     const wimpColumns = ((await db.unsafe(`PRAGMA table_info(wimp)`)) as Array<{ name: string }>).map((row) => row.name)
-    const wimpMassColumns = ((await db.unsafe(`PRAGMA table_info(wimp_mass_value)`)) as Array<{ name: string }>).map((row) => row.name)
     const fieldColumns = ((await db.unsafe(`PRAGMA table_info(field)`)) as Array<{ name: string }>).map((row) => row.name)
     const fieldDefaultColumns = (
       (await db.unsafe(`PRAGMA table_info(field_default)`)) as Array<{ name: string }>
@@ -273,17 +285,6 @@ describe("sqlite ddl", () => {
       "desc",
       "view_css",
     ])
-    expect(wimpMassColumns).toEqual([
-      "id",
-      "wimp",
-      "parent_value",
-      "value_kind",
-      "entry_key",
-      "entry_order",
-      "text_value",
-      "number_value",
-      "boolean_value",
-    ])
     expect(fieldColumns).toEqual(["id", "wimp", "local_id", "key", "type", "required", "label"])
     expect(fieldDefaultColumns).toEqual(["field"])
     expect(fieldArrayItemColumns).toEqual(["id", "field", "position", "item_value"])
@@ -328,7 +329,7 @@ describe("sqlite ddl", () => {
     expect(reactionStateColumns).toEqual(["reaction", "state"])
 
     expect(matterParticleColumns).toEqual(["id", "wimp", "local_id", "parent_particle", "particle_kind", "edge_slot", "particle_order"])
-    expect(matterParticleWimpColumns).toEqual(["particle", "src", "fields_binding", "mass_binding"])
+    expect(matterParticleWimpColumns).toEqual(["particle", "src", "fields_binding", "mass_binding", "energy_binding"])
     expect(matterParticleFuzzyColumns).toEqual(["particle", "fuzzy_kind", "predicate_binding"])
     expect(matterParticleAxionColumns).toEqual(["particle", "predicate_binding"])
     expect(matterParticleMachoColumns).toEqual(["particle", "collection_binding"])
@@ -336,22 +337,6 @@ describe("sqlite ddl", () => {
 
   test("держит только structural constraints через FK UNIQUE CHECK", async () => {
     await db`INSERT INTO wimp(src) VALUES (${"alpha/meta"})`
-
-    await db`INSERT INTO wimp_mass_value(id, wimp, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value)
-             VALUES (${1}, ${"alpha/meta"}, ${null}, ${"object"}, ${null}, ${null}, ${null}, ${null}, ${null})`
-
-    await expect(async () => {
-      await db`INSERT INTO wimp_mass_value(id, wimp, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value)
-               VALUES (${2}, ${"alpha/meta"}, ${null}, ${"object"}, ${null}, ${null}, ${null}, ${null}, ${null})`
-    }).toThrow()
-
-    await db`INSERT INTO wimp_mass_value(id, wimp, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value)
-             VALUES (${3}, ${"alpha/meta"}, ${1}, ${"string"}, ${"title"}, ${null}, ${"draft"}, ${null}, ${null})`
-
-    await expect(async () => {
-      await db`INSERT INTO wimp_mass_value(id, wimp, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value)
-               VALUES (${4}, ${"alpha/meta"}, ${1}, ${"string"}, ${"title"}, ${null}, ${"copy"}, ${null}, ${null})`
-    }).toThrow()
 
     await db`INSERT INTO field(id, wimp, key, type, required)
              VALUES (${10}, ${"alpha/meta"}, ${"title"}, ${"string"}, ${1})`
@@ -531,8 +516,8 @@ describe("sqlite ddl", () => {
     await db`INSERT INTO matter_particle_fuzzy(particle, fuzzy_kind, predicate_binding)
              VALUES (${3}, ${"dynamic-meta"}, ${2})`
 
-    await db`INSERT INTO matter_particle_wimp(particle, src, fields_binding, mass_binding)
-             VALUES (${2}, ${"beta/root"}, ${1}, ${null})`
+    await db`INSERT INTO matter_particle_wimp(particle, src, fields_binding, mass_binding, energy_binding)
+             VALUES (${2}, ${"beta/root"}, ${1}, ${null}, ${2})`
 
     await expect(async () => {
       await db`INSERT INTO matter_particle(id, wimp, parent_particle, particle_kind, edge_slot, particle_order)

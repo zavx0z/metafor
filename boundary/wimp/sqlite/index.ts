@@ -30,4 +30,3 @@ export {
   MatterMachoParticle,
   MatterChildren,
 } from "./matter.ts"
-export { Mass } from "./mass.ts"

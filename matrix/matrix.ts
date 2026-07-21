@@ -23,7 +23,8 @@ import {StepMode, weakHeapUpdate, weakInit, weakRunStep, weak$} from "@matrix/we
 import {resolveForceFieldId, resolveForceFieldsPayload} from "shared/protocol/force/fields"
 import type {Particle} from "shared/protocol/force/particle"
 import {Force} from "shared/transport/force"
-import {consumePreparedMatrixBirth} from "./birth.ts"
+import {consumePreparedMatrixBirth, reprepareMatrixRuntime} from "./birth.ts"
+import {applyMatrixProjectionParticle, recordMatrixProjectionState} from "./projection.ts"
 
 let force: Force
 const writeGate: AsyncGate = {pending: null}
@@ -32,6 +33,12 @@ const pendingProcessExecutionsByAtomId = new Map<number, MatrixPendingProcessExe
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
+
+const sameMatrixValue = (left: MatrixValue, right: MatrixValue): boolean =>
+  Object.is(left, right) || (
+    Array.isArray(left) && Array.isArray(right) &&
+    left.length === right.length && left.every((value, index) => Object.is(value, right[index]))
+  )
 
 const atomFieldKey = (atomId: number, fieldId: number): string =>
   `${atomId}\0${fieldId}`
@@ -203,6 +210,10 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
     if (atomId === undefined) continue
     const stateName = matrix$.getStateName(braneIndex, stateIndex)
     if (!stateName) continue
+    recordMatrixProjectionState(
+      atomId,
+      weak$.stateMetaStateIdsByBraneIndex[braneIndex]?.[stateIndex] ?? null,
+    )
 
     const hasProcess = weak$.stateHasProcessByBraneIndex[braneIndex]?.[stateIndex] === true
     const pending = hasProcess ? pendingProcessExecutionsByAtomId.get(atomId) : undefined
@@ -214,6 +225,33 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
       ...(pending ? {from: pending.processExecutionId} : {}),
       value: stateName,
     }]})
+  }
+}
+
+const currentProcessStates = (): [number, number][] => {
+  const result: [number, number][] = []
+  for (let braneIndex = 0; braneIndex < matrix$.branes.length; braneIndex++) {
+    const stateIndex = matrix$.states[braneIndex]
+    if (stateIndex === undefined) continue
+    if (weak$.stateHasProcessByBraneIndex[braneIndex]?.[stateIndex] === true) {
+      result.push([braneIndex, stateIndex])
+    }
+  }
+  return result
+}
+
+const applyStructuralProjection = async (): Promise<void> => {
+  pendingProcessExecutionsByAtomId.clear()
+  await reprepareMatrixRuntime()
+  const stateChanges = await weakRunStep(StepMode.UndefinedOnly)
+  const targets = new Map<string, [number, number]>()
+  for (const change of [...stateChanges, ...currentProcessStates()]) {
+    targets.set(`${change[0]}\0${change[1]}`, change)
+  }
+  const photonTargets = [...targets.values()]
+  if (photonTargets.length > 0) {
+    syncProcessLocksForChanges(photonTargets, stateChanges)
+    publishPhotonChanges(photonTargets)
   }
 }
 
@@ -437,21 +475,28 @@ export async function update(
       {kind: "lock"; braneIndex: number; value: boolean}
     > = []
     const affectedBraneIndexes = new Set<number>()
+    let explicitTick = false
 
     for (const [braneIndex, fieldUpdates, lock] of updates) {
       const brane = matrix$.branes[braneIndex]
       if (!brane) throw new Error(`Brane index out of range: ${braneIndex}`)
+      if (fieldUpdates.length === 0 && lock === undefined) explicitTick = true
+      if (lock !== undefined) explicitTick = true
 
       if (lock !== undefined) {
-        brane.lock = lock
-        weakUpdates.push({kind: "lock", braneIndex, value: lock})
+        if (brane.lock !== lock) {
+          brane.lock = lock
+          weakUpdates.push({kind: "lock", braneIndex, value: lock})
+        }
       }
 
       for (const [fieldIndex, value] of fieldUpdates) {
         const field = matrix$.fields[fieldIndex]
         if (!field) throw new Error(`Field ${fieldIndex} not defined`)
         const record = findMutableFieldRecord(matrix$, braneIndex, fieldIndex)
-        record.value = normalizeFieldValue(value, field, stringInterner)
+        const next = normalizeFieldValue(value, field, stringInterner)
+        if (sameMatrixValue(record.value, next)) continue
+        record.value = next
         weakUpdates.push({kind: "field", braneIndex, fieldIndex})
         affectedBraneIndexes.add(braneIndex)
 
@@ -466,6 +511,7 @@ export async function update(
       }
     }
 
+    if (weakUpdates.length === 0 && !explicitTick) return []
     weakHeapUpdate(weakUpdates)
     const changes = await weakRunStep()
     const photonTargets = options.retriggerProcessStates === false
@@ -508,6 +554,12 @@ if (birthChanges.length > 0) syncProcessLocksForChanges(birthChanges, birthChang
 force = new Force("matrix")
 force.onImpulse = async (impulse) => {
   const part = impulse.parts[0]
+  const projection = applyMatrixProjectionParticle(part)
+
+  if (projection.structural) {
+    await applyStructuralProjection()
+    return
+  }
 
   if (part.part === "gluon" || part.part === "higgs") {
     await applyRuntimeFieldParts([part], part.part)

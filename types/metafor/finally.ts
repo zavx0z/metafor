@@ -1,5 +1,5 @@
 import type { Fields } from "./fields.ts"
-import type { Mass } from "./schema.ts"
+import type { Energy, Mass } from "./schema.ts"
 import type { ExecutionEnv, ParsedActionHandler } from "./process.ts"
 
 declare const FinallyStateBrand: unique symbol
@@ -23,8 +23,13 @@ export interface FinallyConfig extends BaseFinallyConfig {
 /**
  * Цепочка для декларации finally-процесса.
  */
-export interface FinallyChain<ɸ extends Fields = Fields, m extends Mass = Mass, s extends string = string> extends FinallyStateMarker<s> {
-  before: (handler: ({ mass }: { mass: m }) => void | Promise<void>) => FinallyChain<ɸ, m, s>
+export interface FinallyChain<
+  ɸ extends Fields = Fields,
+  m extends Mass = Mass,
+  s extends string = string,
+  e extends Energy = Energy,
+> extends FinallyStateMarker<s> {
+  before: (handler: ({ mass, energy }: { mass: m; energy: e }) => void | Promise<void>) => FinallyChain<ɸ, m, s, e>
 }
 
 /**
@@ -41,25 +46,28 @@ export interface ParsedFinally {
   before: ParsedActionHandler
 }
 
-export type FinallyBeforeHandler<m extends Mass> = ({ mass }: { mass: m }) => void | Promise<void>
+export type FinallyBeforeHandler<m extends Mass, e extends Energy = Energy> = (
+  { mass, energy }: { mass: m; energy: e },
+) => void | Promise<void>
 
-export type FinallyInput<m extends Mass> = {
+export type FinallyInput<m extends Mass, e extends Energy = Energy> = {
   type: ParsedFinally["type"]
   label?: string
   desc?: string
   env?: ExecutionEnv[]
-  before?: FinallyBeforeHandler<m>
+  before?: FinallyBeforeHandler<m, e>
 }
 
-export type FinallyRuntimeResult<m extends Mass, s extends string = string> = FinallyInput<m> & {
+export type FinallyRuntimeResult<m extends Mass, s extends string = string, e extends Energy = Energy> = FinallyInput<m, e> & {
   state: s
 }
 
-export type FinallyChainResult<ɸ extends Fields = Fields, m extends Mass = Mass, s extends string = string> = FinallyChain<
+export type FinallyChainResult<ɸ extends Fields = Fields, m extends Mass = Mass, s extends string = string, e extends Energy = Energy> = FinallyChain<
   ɸ,
   m,
-  s
+  s,
+  e
 > & {
   readonly type: ParsedFinally["type"]
-  getResult: () => FinallyRuntimeResult<m, s>
+  getResult: () => FinallyRuntimeResult<m, s, e>
 }

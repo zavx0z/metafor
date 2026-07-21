@@ -1,9 +1,17 @@
-import type {EnergyAtomEntity, EnergyProcessEntity} from "@metafor/types/energy/catalog"
+import type {
+  EnergyAtomContinuation,
+  EnergyAtomEntity,
+  EnergyFieldEntity,
+  EnergyProcessEntity,
+  EnergyVariantEntity,
+} from "@metafor/types/energy/catalog"
 import type {Particle} from "shared/protocol/force/particle"
 
 type Address =
   | {kind: "atom"; id: number}
   | {kind: "topology"; id: number}
+  | {kind: "field"; id: number}
+  | {kind: "variant"; id: number}
   | {kind: "process"; src: string; localId: string}
 
 export type EnergyCatalogChange = {changed: boolean; affectedAtomIds: number[]}
@@ -18,6 +26,10 @@ const address = (path: unknown, value?: unknown): Address | null => {
   if (atom) return {kind: "atom", id: Number(atom[1])}
   const topology = /^topology\/(\d+)$/.exec(normalized)
   if (topology) return {kind: "topology", id: Number(topology[1])}
+  if (
+    (normalized === "field" || normalized === "variant") && isRecord(value) &&
+    Number.isSafeInteger(value.id) && Number(value.id) > 0
+  ) return {kind: normalized, id: Number(value.id)}
   if (
     normalized === "process" && isRecord(value) && typeof value.wimp === "string" &&
     Number.isSafeInteger(value.localId) && Number(value.localId) > 0
@@ -48,9 +60,33 @@ const atomFromValue = (value: unknown): EnergyAtomEntity | null => {
   return clone(atom as unknown as EnergyAtomEntity)
 }
 
+const continuationFromValue = (value: unknown): EnergyAtomContinuation | undefined => {
+  if (!isRecord(value) || !isRecord(value.continuation)) return
+  return clone(value.continuation as EnergyAtomContinuation)
+}
+
 const processFromValue = (value: unknown): EnergyProcessEntity | null => {
   if (!isRecord(value) || typeof value.id !== "number" || typeof value.wimp !== "string" || typeof value.state !== "string" || !isRecord(value.descriptor)) return null
   return clone(value as unknown as EnergyProcessEntity)
+}
+
+const fieldFromValue = (value: unknown): EnergyFieldEntity | null => {
+  if (
+    !isRecord(value) || typeof value.id !== "number" || typeof value.wimp !== "string" ||
+    typeof value.localId !== "number" || typeof value.key !== "string" ||
+    !["string", "number", "boolean", "array", "enum"].includes(String(value.type)) ||
+    typeof value.required !== "boolean"
+  ) return null
+  return clone(value as unknown as EnergyFieldEntity)
+}
+
+const variantFromValue = (value: unknown): EnergyVariantEntity | null => {
+  if (
+    !isRecord(value) || typeof value.id !== "number" || typeof value.wimp !== "string" ||
+    typeof value.localId !== "number" || typeof value.field !== "number" ||
+    typeof value.position !== "number" || typeof value.itemValue !== "string"
+  ) return null
+  return clone(value as unknown as EnergyVariantEntity)
 }
 
 const parentKey = (entity: {parentAtom?: unknown; parentTopology?: unknown}): string | null => {
@@ -61,10 +97,15 @@ const parentKey = (entity: {parentAtom?: unknown; parentTopology?: unknown}): st
 /** Incremental process/atom catalog owned by one Energy runtime. */
 export class EnergyCatalogStore {
   readonly atoms = new Map<number, EnergyAtomEntity>()
+  readonly continuations = new Map<number, EnergyAtomContinuation>()
   readonly topologies = new Map<number, Record<string, unknown>>()
+  readonly fields = new Map<number, EnergyFieldEntity>()
+  readonly variants = new Map<number, EnergyVariantEntity>()
   readonly processes = new Map<string, EnergyProcessEntity>()
   readonly atomIdsByWimp = new Map<string, Set<number>>()
   readonly processKeysByWimp = new Map<string, Set<string>>()
+  readonly fieldIdsByWimp = new Map<string, Set<number>>()
+  readonly variantIdsByField = new Map<number, Set<number>>()
   readonly childrenByParent = new Map<string, Set<string>>()
 
   apply(part: Particle): EnergyCatalogChange {
@@ -85,6 +126,28 @@ export class EnergyCatalogStore {
     return this.atoms.get(atomId)?.wimp
   }
 
+  /** Nearest owning parent Atom, including children born below a topology node. */
+  parentAtom(atomId: number): EnergyAtomEntity | undefined {
+    const atom = this.atoms.get(atomId)
+    if (!atom) return
+    if (typeof atom.parentAtom === "number") return this.atoms.get(atom.parentAtom)
+    if (typeof atom.parentTopology !== "number") return
+
+    const visited = new Set<number>()
+    let topologyId: number | undefined = atom.parentTopology
+    while (topologyId !== undefined && !visited.has(topologyId)) {
+      visited.add(topologyId)
+      const topology = this.topologies.get(topologyId)
+      if (!topology) return
+      if (typeof topology.parentAtom === "number") return this.atoms.get(topology.parentAtom)
+      topologyId = typeof topology.parentTopology === "number" ? topology.parentTopology : undefined
+    }
+  }
+
+  continuation(atomId: number): EnergyAtomContinuation | undefined {
+    return this.continuations.get(atomId)
+  }
+
   process(wimp: string, state: string): EnergyProcessEntity | undefined {
     for (const key of this.processKeysByWimp.get(wimp) ?? []) {
       const process = this.processes.get(key)
@@ -93,28 +156,57 @@ export class EnergyCatalogStore {
     return undefined
   }
 
+  fieldSchema(wimp: string): Record<string, Record<string, unknown>> {
+    const schema: Record<string, Record<string, unknown>> = {}
+    for (const id of this.fieldIdsByWimp.get(wimp) ?? []) {
+      const field = this.fields.get(id)
+      if (!field) continue
+      const definition: Record<string, unknown> = {
+        type: field.type,
+        ...(field.required ? {required: true} : {}),
+        ...(field.default !== undefined ? {default: clone(field.default)} : {}),
+        ...(typeof field.label === "string" ? {label: field.label} : {}),
+      }
+      if (field.type === "enum") {
+        definition.values = [...(this.variantIdsByField.get(field.id) ?? [])]
+          .map((variantId) => this.variants.get(variantId))
+          .filter((variant): variant is EnergyVariantEntity => variant !== undefined)
+          .sort((left, right) => left.position - right.position)
+          .map((variant) => variant.itemValue)
+      }
+      schema[field.key] = definition
+    }
+    return schema
+  }
+
   private read(target: Address): unknown {
     if (target.kind === "atom") return this.atoms.get(target.id)
     if (target.kind === "topology") return this.topologies.get(target.id)
+    if (target.kind === "field") return this.fields.get(target.id)
+    if (target.kind === "variant") return this.variants.get(target.id)
     return this.processes.get(`${target.src}\0${target.localId}`)
   }
 
   private upsert(target: Address, value: unknown): EnergyCatalogChange {
     if (target.kind === "atom") {
       const next = atomFromValue(value)
+      const nextContinuation = continuationFromValue(value)
       const current = this.atoms.get(target.id)
       if (current) {
         const delta = isRecord(value) && isRecord(value.atom) ? value.atom : value
-        if (!isRecord(delta) || same(current, delta)) return {changed: false, affectedAtomIds: []}
+        const continuationChanged = nextContinuation !== undefined && !same(this.continuations.get(target.id), nextContinuation)
+        if (!isRecord(delta) || (same(current, delta) && !continuationChanged)) return {changed: false, affectedAtomIds: []}
         this.unlinkAtom(current)
-        patch(current as unknown as Record<string, unknown>, delta)
+        if (!same(current, delta)) patch(current as unknown as Record<string, unknown>, delta)
+        if (nextContinuation !== undefined) this.continuations.set(target.id, nextContinuation)
         this.linkAtom(current)
-        return {changed: true, affectedAtomIds: [target.id]}
+        return {changed: true, affectedAtomIds: this.descendantAtoms(`atom:${target.id}`)}
       }
       if (!next || next.id !== target.id) return {changed: false, affectedAtomIds: []}
       this.atoms.set(target.id, next)
+      if (nextContinuation !== undefined) this.continuations.set(target.id, nextContinuation)
       this.linkAtom(next)
-      return {changed: true, affectedAtomIds: [target.id]}
+      return {changed: true, affectedAtomIds: this.descendantAtoms(`atom:${target.id}`)}
     }
     if (target.kind === "topology") {
       if (!isRecord(value)) return {changed: false, affectedAtomIds: []}
@@ -130,6 +222,36 @@ export class EnergyCatalogStore {
         this.linkChild("topology", target.id, next)
       }
       return {changed: true, affectedAtomIds: this.descendantAtoms(`topology:${target.id}`)}
+    }
+    if (target.kind === "field") {
+      const next = fieldFromValue(value)
+      const current = this.fields.get(target.id)
+      if (current) {
+        if (!isRecord(value) || same(current, value)) return {changed: false, affectedAtomIds: []}
+        this.unindexField(current)
+        patch(current as unknown as Record<string, unknown>, value)
+        this.indexField(current)
+        return {changed: true, affectedAtomIds: [...(this.atomIdsByWimp.get(current.wimp) ?? [])]}
+      }
+      if (!next || next.id !== target.id) return {changed: false, affectedAtomIds: []}
+      this.fields.set(target.id, next)
+      this.indexField(next)
+      return {changed: true, affectedAtomIds: [...(this.atomIdsByWimp.get(next.wimp) ?? [])]}
+    }
+    if (target.kind === "variant") {
+      const next = variantFromValue(value)
+      const current = this.variants.get(target.id)
+      if (current) {
+        if (!isRecord(value) || same(current, value)) return {changed: false, affectedAtomIds: []}
+        this.unindexVariant(current)
+        patch(current as unknown as Record<string, unknown>, value)
+        this.indexVariant(current)
+        return {changed: true, affectedAtomIds: [...(this.atomIdsByWimp.get(current.wimp) ?? [])]}
+      }
+      if (!next || next.id !== target.id) return {changed: false, affectedAtomIds: []}
+      this.variants.set(target.id, next)
+      this.indexVariant(next)
+      return {changed: true, affectedAtomIds: [...(this.atomIdsByWimp.get(next.wimp) ?? [])]}
     }
     const next = processFromValue(value)
     const key = `${target.src}\0${target.localId}`
@@ -151,6 +273,25 @@ export class EnergyCatalogStore {
   }
 
   private remove(target: Address): EnergyCatalogChange {
+    if (target.kind === "field") {
+      const current = this.fields.get(target.id)
+      if (!current) return {changed: false, affectedAtomIds: []}
+      this.unindexField(current)
+      this.fields.delete(target.id)
+      for (const variantId of [...(this.variantIdsByField.get(target.id) ?? [])]) {
+        const variant = this.variants.get(variantId)
+        if (variant) this.unindexVariant(variant)
+        this.variants.delete(variantId)
+      }
+      return {changed: true, affectedAtomIds: [...(this.atomIdsByWimp.get(current.wimp) ?? [])]}
+    }
+    if (target.kind === "variant") {
+      const current = this.variants.get(target.id)
+      if (!current) return {changed: false, affectedAtomIds: []}
+      this.unindexVariant(current)
+      this.variants.delete(target.id)
+      return {changed: true, affectedAtomIds: [...(this.atomIdsByWimp.get(current.wimp) ?? [])]}
+    }
     if (target.kind === "process") {
       const key = `${target.src}\0${target.localId}`
       const current = this.processes.get(key)
@@ -175,15 +316,23 @@ export class EnergyCatalogStore {
     if (part.op === "copy") {
       const copied = clone(current)
       if ((target.kind === "atom" || target.kind === "topology") && isRecord(copied)) copied.id = target.id
-      return this.upsert(target, copied)
+      return target.kind === "atom" && source.kind === "atom"
+        ? this.upsert(target, {
+            atom: copied,
+            ...(this.continuations.has(source.id) ? {continuation: clone(this.continuations.get(source.id)!)} : {}),
+          })
+        : this.upsert(target, copied)
     }
     if (source.kind === "atom" && target.kind === "atom") {
       const atom = current as EnergyAtomEntity
       const affected = this.descendantAtoms(`atom:${source.id}`)
       this.unlinkAtom(atom)
       this.atoms.delete(source.id)
+      const continuation = this.continuations.get(source.id)
+      this.continuations.delete(source.id)
       atom.id = target.id
       this.atoms.set(target.id, atom)
+      if (continuation !== undefined) this.continuations.set(target.id, continuation)
       this.linkAtom(atom)
       this.rekeyChildren("atom", source.id, target.id)
       return {changed: true, affectedAtomIds: [...new Set([source.id, target.id, ...affected.filter((id) => id !== source.id)])]}
@@ -197,6 +346,9 @@ export class EnergyCatalogStore {
       this.linkChild("topology", target.id, topology)
       this.rekeyChildren("topology", source.id, target.id)
       return {changed: true, affectedAtomIds: this.descendantAtoms(`topology:${target.id}`)}
+    }
+    if (source.kind === "field" || source.kind === "variant" || target.kind === "field" || target.kind === "variant") {
+      return {changed: false, affectedAtomIds: []}
     }
     if (source.kind === "process" && target.kind === "process") {
       const sourceKey = `${source.src}\0${source.localId}`
@@ -215,6 +367,28 @@ export class EnergyCatalogStore {
     const keys = this.processKeysByWimp.get(process.wimp)
     if (keys) keys.add(key)
     else this.processKeysByWimp.set(process.wimp, new Set([key]))
+  }
+
+  private indexField(field: EnergyFieldEntity): void {
+    const ids = this.fieldIdsByWimp.get(field.wimp)
+    if (ids) ids.add(field.id)
+    else this.fieldIdsByWimp.set(field.wimp, new Set([field.id]))
+  }
+
+  private unindexField(field: EnergyFieldEntity): void {
+    this.fieldIdsByWimp.get(field.wimp)?.delete(field.id)
+    if (this.fieldIdsByWimp.get(field.wimp)?.size === 0) this.fieldIdsByWimp.delete(field.wimp)
+  }
+
+  private indexVariant(variant: EnergyVariantEntity): void {
+    const ids = this.variantIdsByField.get(variant.field)
+    if (ids) ids.add(variant.id)
+    else this.variantIdsByField.set(variant.field, new Set([variant.id]))
+  }
+
+  private unindexVariant(variant: EnergyVariantEntity): void {
+    this.variantIdsByField.get(variant.field)?.delete(variant.id)
+    if (this.variantIdsByField.get(variant.field)?.size === 0) this.variantIdsByField.delete(variant.field)
   }
 
   private linkAtom(atom: EnergyAtomEntity): void {
@@ -248,7 +422,7 @@ export class EnergyCatalogStore {
   private descendantAtoms(key: string): number[] {
     const found: number[] = []
     const visit = (next: string): void => {
-      if (next.startsWith("atom:")) found.push(Number(next.slice(6)))
+      if (next.startsWith("atom:")) found.push(Number(next.slice(5)))
       for (const child of this.childrenByParent.get(next) ?? []) visit(child)
     }
     visit(key)
@@ -280,6 +454,7 @@ export class EnergyCatalogStore {
       const atom = this.atoms.get(id)
       if (atom) this.unlinkAtom(atom)
       this.atoms.delete(id)
+      this.continuations.delete(id)
     } else {
       const topology = this.topologies.get(id)
       if (topology) this.unlinkChild(kind, id, topology)

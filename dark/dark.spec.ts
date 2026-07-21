@@ -1,10 +1,14 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
+import {mkdtempSync, rmSync} from "node:fs"
+import {tmpdir} from "node:os"
+import {join} from "node:path"
 import type {DeclarationPath} from "shared/protocol/force/declaration"
 import type {ForceMessage} from "shared/protocol/force/message"
 import type {Particle} from "shared/protocol/force/particle"
 import type {MatterParticle} from "@metafor/types/metafor/matter"
 import type {MetaDSL} from "@metafor/types/metafor/schema"
 import {createForceTestFixture, type ForceTestFixture} from "force/fixture"
+import {DarkHistory} from "./history.ts"
 
 const dsl = ({
   name,
@@ -12,6 +16,7 @@ const dsl = ({
   states = [],
   matter,
   mass,
+  energy,
   bulk,
 }: {
   name: string
@@ -19,6 +24,7 @@ const dsl = ({
   states?: Record<string, unknown>[]
   matter?: MatterParticle[]
   mass?: Record<string, unknown>
+  energy?: Record<string, unknown>
   bulk?: {view: string}
 }): MetaDSL => ({
   name,
@@ -26,6 +32,7 @@ const dsl = ({
   superposition: states,
   matter,
   mass,
+  energy,
   bulk,
 }) as unknown as MetaDSL
 
@@ -57,14 +64,21 @@ const matches = (
 describe("Dark incremental Inflaton projection", () => {
   let fixture: ForceTestFixture
   let matterParticles: typeof import("./dark.ts").matterParticles
+  let historyDirectory: string
 
   beforeAll(async () => {
     fixture = createForceTestFixture()
-    ;({matterParticles} = await import("./dark.ts"))
+    const dark = await import("./dark.ts")
+    matterParticles = dark.matterParticles
+    historyDirectory = mkdtempSync(join(tmpdir(), "metafor-dark-runtime-"))
+    dark.startDarkRuntime(new DarkHistory(join(historyDirectory, "particles.jsonl")))
     await fixture.waitForClient("dark", 5_000)
   })
 
-  afterAll(() => fixture.close())
+  afterAll(() => {
+    fixture.close()
+    rmSync(historyDirectory, {recursive: true, force: true})
+  })
 
   const read = async (root: string, load: (src: string) => Promise<MetaDSL>): Promise<BareParticle[]> => {
     const result: BareParticle[] = []
@@ -113,6 +127,37 @@ describe("Dark incremental Inflaton projection", () => {
     )).toBe(false)
   })
 
+  test("agent root WIMP remove is re-emitted by Dark for Boundary with the original timestamp", async () => {
+    const fromIndex = fixture.messages.length
+    const ts = 1_700_000_000_124
+    fixture.impulse("dark", {
+      parts: [{
+        part: "inflaton",
+        op: "remove",
+        path: "wimp",
+        by: "agent",
+        ts,
+        value: {src: "zavx0z/capsule"},
+      }],
+    })
+
+    const emitted = await fixture.waitForMessage(
+      ({domain, message}) => domain === "dark" &&
+        message.parts[0]?.part === "inflaton" && message.parts[0].op === "remove" &&
+        message.parts[0].path === "wimp" && message.parts[0].by === "dark",
+      fromIndex,
+      1_000,
+    )
+    expect(emitted.message).toEqual({parts: [{
+      part: "inflaton",
+      op: "remove",
+      path: "wimp",
+      by: "dark",
+      ts,
+      value: {src: "zavx0z/capsule"},
+    }]})
+  })
+
   test("cold read emits categorical entities root-first and the WIMP edge before its child", async () => {
     const root = "test/dark-cold-root"
     const child = "test/dark-cold-child"
@@ -127,7 +172,12 @@ describe("Dark incremental Inflaton projection", () => {
           {name: "idle", transitions: {ready: {mode: {eq: "ready"}}}},
           {name: "ready"},
         ],
-        matter: [{kind: "wimp", src: child}],
+        matter: [{
+          kind: "wimp",
+          src: child,
+          massBinding: {data: "/mass/cache", expr: "{cache: _[0]}"},
+          energyBinding: {data: "/energy/socket", expr: "{socket: _[0]}"},
+        }],
         mass: {ready: true},
         bulk: {view: ".root {}"},
       })],
@@ -151,6 +201,17 @@ describe("Dark incremental Inflaton projection", () => {
     const childWimp = additions.findIndex((part) => matches(part, "wimp", child))
     const childField = additions.findIndex((part) => matches(part, "field", child, 1))
     expect(rootMatter).toBeGreaterThan(-1)
+    expect(additions[rootMatter]?.value).toEqual({
+      wimp: root,
+      id: 1,
+      parent: null,
+      edgeSlot: "root",
+      position: 0,
+      kind: "wimp",
+      src: child,
+      massBinding: {data: "/mass/cache", expr: "{cache: _[0]}"},
+      energyBinding: {data: "/energy/socket", expr: "{socket: _[0]}"},
+    })
     expect(rootMatter).toBeLessThan(childWimp)
     expect(childWimp).toBeLessThan(childField)
     expect(additions.some((part) => part.op === "test")).toBe(false)
@@ -287,20 +348,23 @@ describe("Dark incremental Inflaton projection", () => {
     }])
   })
 
-  test("optional singleton declarations use add and remove instead of null placeholders", async () => {
+  test("keeps working Mass and Energy types out of WIMP declarations", async () => {
     const root = "test/dark-singletons"
     const declarations = new Map<string, MetaDSL>([[root, dsl({name: "Singletons"})]])
     const load = loader(declarations)
     expect((await read(root, load)).some((part) => part.path === "mass" || part.path === "bulk")).toBe(false)
-    declarations.set(root, dsl({name: "Singletons", mass: {cache: true}, bulk: {view: ".single {}"}}))
+    declarations.set(root, dsl({
+      name: "Singletons",
+      mass: {cache: true},
+      energy: {socket: "type-placeholder"},
+      bulk: {view: ".single {}"},
+    }))
     expect(await read(root, load)).toEqual([
-      {part: "inflaton", op: "add", path: "mass", value: {wimp: root, id: 1, value: {cache: true}}},
       {part: "inflaton", op: "add", path: "bulk", value: {wimp: root, id: 1, view: ".single {}"}},
     ])
     declarations.set(root, dsl({name: "Singletons"}))
     expect(await read(root, load)).toEqual([
       {part: "inflaton", op: "remove", path: "bulk", value: {wimp: root, id: 1}},
-      {part: "inflaton", op: "remove", path: "mass", value: {wimp: root, id: 1}},
     ])
   })
 

@@ -1,10 +1,11 @@
 import ".."
 import type {DeclarationPath} from "shared/protocol/force/declaration"
-import type {Particle} from "shared/protocol/force/particle"
+import type {Particle, SourcedParticle} from "shared/protocol/force/particle"
 import type {MatterEdgeSlot, MatterParticle} from "@metafor/types/metafor/matter"
 import type {MetaDSL} from "@metafor/types/metafor/schema"
 import {Force} from "shared/transport/force"
-import {loadMeta} from "./load.ts"
+import type {DarkHistory} from "./history.ts"
+import {canonicalMetaSource, loadMeta} from "./load.ts"
 
 type MetaLoader = (src: string) => Promise<MetaDSL>
 
@@ -19,12 +20,15 @@ type WimpProjection = {
   children: string[]
 }
 
-const force = new Force("dark")
 const projection = new Map<string, WimpProjection>()
 const roots = new Set<string>()
+let runtime: {force: Force; history: DarkHistory} | null = null
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
+
+const canonicalRootSource = (value: string): boolean =>
+  value.split("/").length === 2 && canonicalMetaSource(value)
 
 const jsonRecord = (value: Record<string, unknown>): Record<string, unknown> =>
   JSON.parse(JSON.stringify(value)) as Record<string, unknown>
@@ -205,14 +209,15 @@ const declaration = (src: string, dsl: MetaDSL): WimpProjection => {
     frontier = next
   }
 
-  if (dsl.mass !== undefined) entities.push(localEntity("mass", src, 1, {value: dsl.mass}))
   if (dsl.bulk !== undefined) entities.push(localEntity("bulk", src, 1, {...dsl.bulk}))
   return {entities, children}
 }
 
 const emit = (particle: Particle): void => {
+  if (!runtime) throw new Error("Dark runtime has not been born")
   const {by: _by, ...input} = particle
-  force.impulse({parts: [input]})
+  runtime.history.record("outgoing", {...input, by: "dark"} as SourcedParticle)
+  runtime.force.impulse({parts: [input]})
 }
 
 const add = (item: DeclarationEntity, ts = Date.now()): Particle => ({
@@ -323,6 +328,23 @@ export async function matter(src: string, readMeta: MetaLoader = loadMeta): Prom
 /** Applies the first trusted agent WIMP declaration and preserves its timestamp. */
 export const applyAgentInflaton = (part: Particle): boolean => {
   if (
+    part.by === "agent" && part.part === "inflaton" && part.op === "remove" && part.path === "wimp" &&
+    isRecord(part.value) && typeof part.value.src === "string" && canonicalRootSource(part.value.src)
+  ) {
+    const src = part.value.src
+    for (const address of [...projection.keys()]) {
+      if (address === src || address.startsWith(`${src}/`)) projection.delete(address)
+    }
+    for (const root of [...roots]) {
+      if (root === src || root.startsWith(`${src}/`)) roots.delete(root)
+    }
+    for (const current of projection.values()) {
+      current.children = current.children.filter((child) => child !== src && !child.startsWith(`${src}/`))
+    }
+    emit({part: "inflaton", op: "remove", path: "wimp", ts: part.ts, value: {src}})
+    return true
+  }
+  if (
     part.by !== "agent" || part.part !== "inflaton" || part.op !== "add" || part.path !== "wimp" ||
     !isRecord(part.value) || typeof part.value.src !== "string" || part.value.src.trim().length === 0 ||
     typeof part.value.name !== "string" || part.value.name.trim().length === 0
@@ -340,12 +362,23 @@ export const applyAgentInflaton = (part: Particle): boolean => {
   return true
 }
 
-force.onImpulse = async (impulse) => {
-  for (const part of impulse.parts) {
-    if (applyAgentInflaton(part)) continue
-    if (part.part === "inflaton" && part.op === "test" && typeof part.path === "string") {
-      await matter(part.path)
-      continue
+/** Creates Dark's Force channel only after its Monad and history are ready. */
+export const startDarkRuntime = (history: DarkHistory): Force => {
+  if (runtime) return runtime.force
+  const force = new Force("dark")
+  runtime = {force, history}
+  force.onImpulse = async (impulse) => {
+    for (const part of impulse.parts) {
+      if (typeof part.by !== "string" || part.by.length === 0) {
+        throw new Error("Dark received an unsourced Particle")
+      }
+      history.record("incoming", {...part, by: part.by})
+      if (applyAgentInflaton(part)) continue
+      if (part.part === "inflaton" && part.op === "test" && typeof part.path === "string") {
+        await matter(part.path)
+        continue
+      }
     }
   }
+  return force
 }

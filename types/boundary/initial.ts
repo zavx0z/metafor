@@ -12,7 +12,12 @@ export type BoundaryInitialDeclaration = {
 export type BoundaryInitialAtom = {
   id: number
   wimp: string
-  values: Array<{field: number; value: unknown}>
+  values: Array<{
+    field: number
+    /** Canonical Boundary value identity. Equal IDs are an explicit shared Field relation. */
+    valueId: number
+    value: unknown
+  }>
   state: number | null
 }
 

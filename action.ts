@@ -12,12 +12,6 @@ const PATTERN_ARROW = /^\s*(\([^)]+\))\s*=>/
  */
 const PATTERN_IMPORT = /import\s*\(\s*["']([^"']+)["']\s*\)/
 
-/**
- * Паттерн для поиска операторов return в коде функции.
- * Соответствует явным return statement (не стрелочные функции =>).
- */
-const PATTERN_RETURN = /\breturn\s+[^;]+;?/
-
 export const pattern = {
   dot: /value\.(\w+)/g,
   destructParams: /value:\s*{([^}]+)}/g,
@@ -308,15 +302,9 @@ export function extractImportSpecifier(fn: Function): string | null {
 /**
  * Валидирует структуру функции действия.
  *
- * Проверяет, что функция соответствует требуемому паттерну:
- * 1. Первая значимая строка — import("...") для загрузки модуля
- * 2. Последняя значимая строка — return для возврата результата
- *
- * Из-за транспиляции порядок строк может нарушаться, поэтому валидация
- * проверяет только наличие import и return в теле функции.
- *
- * Функции без тела (пустые заглушки) и стрелочные функции с неявным return
- * считаются валидными.
+ * Проверяет точный declarative wrapper: единственная инструкция import внешнего
+ * модуля и следующий за ней direct return вызова его export. Любая inline-
+ * логика рядом с import запрещена.
  *
  * @param fn - Функция для валидации
  * @returns Результат валидации с флагом valid и опциональным сообщением об ошибке
@@ -326,13 +314,8 @@ export function extractImportSpecifier(fn: Function): string | null {
  * // Валидно — с import и return
  * validateActionStructure(async ({ value }) => {
  *   const mod = await import("./mod.ts")
- *   const result = mod.process(value)
- *   return result
+ *   return mod.process(value)
  * })
- * // => { valid: true }
- *
- * // Валидно — пустая функция-заглушка
- * validateActionStructure(() => ({}))
  * // => { valid: true }
  *
  * // Невалидно — нет import
@@ -349,34 +332,130 @@ export function validateActionStructure(fn: Function): ActionStructureValidation
     .replace(/\/\/.*$/gm, "")
     .trim()
 
-  // Проверка на пустую функцию-заглушку
-  // Пустое тело: () => {} или () => ({})
-  const isEmptyStub =
-    /^\s*\([^)]*\)\s*=>\s*\{\s*}\s*$/.test(normalizedCode) ||
-    /^\s*\([^)]*\)\s*=>\s*\(\{}\)\s*$/.test(normalizedCode)
-
-  if (isEmptyStub) {
-    return { valid: true }
-  }
-
-  // Проверка наличия import
-  const importMatch = normalizedCode.match(PATTERN_IMPORT)
-  if (!importMatch) {
+  const arrow = normalizedCode.indexOf("=>")
+  const signature = arrow < 0
+    ? ""
+    : normalizedCode.slice(0, arrow).trim().replace(/^async\s+/, "")
+  const signatureMatch = /^\(\s*\{\s*((?:[a-zA-Z_$][\w$]*(?:\s*,\s*[a-zA-Z_$][\w$]*)*\s*,?)?)\}\s*\)$/.exec(signature)
+  if (!signatureMatch) {
     return {
       valid: false,
-      error:
-        'Функция должна содержать import("...") для загрузки модуля',
+      error: "Wrapper принимает только простую деструктуризацию имён без default, alias или rest",
+    }
+  }
+  const wrapperBindings = new Set(
+    (signatureMatch[1] ?? "").split(",").map((binding) => binding.trim()).filter(Boolean),
+  )
+  const body = arrow < 0 ? "" : normalizedCode.slice(arrow + 2).trim()
+  if (!body.startsWith("{") || !body.endsWith("}")) {
+    return {
+      valid: false,
+      error: "Функция должна быть block-wrapper с import внешнего модуля и direct return его export",
     }
   }
 
-  // Проверка наличия return
-  const returnMatch = normalizedCode.match(PATTERN_RETURN)
-  if (!returnMatch) {
-    return {
-      valid: false,
-      error:
-        'Функция должна содержать return для возврата результата',
+  const statements = body.slice(1, -1).trim()
+  const directImportCall = /^return\s+(?:await\s+)?\(await\s+import\s*\(\s*["'][^"']+["']\s*\)\)(?:\.[a-zA-Z_$][\w$]*|\[["'][a-zA-Z_$][\w$]*["']\])\s*\(/.exec(statements)
+  const importStatement = /^(?:const|let|var)\s+(\{[^}]+\}|[a-zA-Z_$][\w$]*)\s*=\s*await\s+import\s*\(\s*["'][^"']+["']\s*\)\s*;?/.exec(statements)
+  let remainder = statements
+  let callStart = directImportCall ? directImportCall[0].length - 1 : -1
+  if (!directImportCall) {
+    if (!importStatement?.[1]) {
+      return {
+        valid: false,
+        error: 'Wrapper должен содержать await import("...") и direct return вызова его export',
+      }
     }
+
+    const binding = importStatement[1].trim()
+    remainder = statements.slice(importStatement[0].length).trim()
+    const returnedCall = /^return\s+(?:await\s+)?([a-zA-Z_$][\w$]*(?:\.[a-zA-Z_$][\w$]*|\[["'][a-zA-Z_$][\w$]*["']\])?)\s*\(/.exec(remainder)
+    if (!returnedCall?.[1]) {
+      return {
+        valid: false,
+        error: "После import должен сразу следовать direct return вызова export внешнего модуля",
+      }
+    }
+
+    const namespace = /^([a-zA-Z_$][\w$]*)/.exec(returnedCall[1])?.[1]
+    const allowedBindings = binding.startsWith("{")
+      ? binding.slice(1, -1).split(",").map((entry) => entry.trim().split(":").at(-1)?.trim()).filter(Boolean)
+      : [binding]
+    if (!namespace || !allowedBindings.includes(namespace)) {
+      return {valid: false, error: "return должен вызывать export импортированного модуля"}
+    }
+    callStart = returnedCall[0].length - 1
+  }
+
+  let depth = 0
+  let quote = ""
+  let escaped = false
+  let callEnd = -1
+  for (let index = callStart; index < remainder.length; index += 1) {
+    const char = remainder[index]!
+    if (quote) {
+      if (escaped) escaped = false
+      else if (char === "\\") escaped = true
+      else if (char === quote) quote = ""
+      continue
+    }
+    if (char === '"' || char === "'" || char === "`") {
+      quote = char
+      continue
+    }
+    if (char === "(") depth += 1
+    else if (char === ")") {
+      depth -= 1
+      if (depth === 0) {
+        callEnd = index
+        break
+      }
+    }
+  }
+  if (callEnd < 0 || !/^\s*;?\s*$/.test(remainder.slice(callEnd + 1))) {
+    return {valid: false, error: "Wrapper не должен содержать inline-логику после вызова внешнего модуля"}
+  }
+
+  const argumentsSource = remainder.slice(callStart + 1, callEnd)
+  let argumentsWithoutStrings = ""
+  let argumentQuote = ""
+  let argumentEscaped = false
+  for (let index = 0; index < argumentsSource.length; index += 1) {
+    const char = argumentsSource[index]!
+    if (argumentQuote) {
+      if (argumentEscaped) argumentEscaped = false
+      else if (char === "\\") argumentEscaped = true
+      else if (char === argumentQuote) argumentQuote = ""
+      argumentsWithoutStrings += " "
+      continue
+    }
+    if (char === '"' || char === "'") {
+      argumentQuote = char
+      argumentsWithoutStrings += " "
+      continue
+    }
+    if (argumentsSource.slice(index, index + 3) === "...") {
+      return {valid: false, error: "Аргументы wrapper не должны исполнять spread/iterator"}
+    }
+    if (char === "`" || char === "(" || char === ")" || char === "[" || char === "]" || char === ";") {
+      return {valid: false, error: "Аргументы wrapper должны быть только декларативным wiring без inline-исполнения"}
+    }
+    if (/[+\-*/%~!<>=&|^?]/.test(char)) {
+      return {valid: false, error: "Аргументы wrapper не должны содержать operators, coercion или inline-логику"}
+    }
+    argumentsWithoutStrings += char
+  }
+  if (/\b(?:await|new|yield|delete|void|function|class|throw)\b/.test(argumentsWithoutStrings)) {
+    return {valid: false, error: "Аргументы wrapper не должны содержать исполняемые выражения"}
+  }
+  const literalIdentifiers = new Set(["true", "false", "null", "undefined", "NaN", "Infinity"])
+  for (const token of argumentsWithoutStrings.matchAll(/[a-zA-Z_$][\w$]*/g)) {
+    const name = token[0]
+    const index = token.index ?? 0
+    const previous = argumentsWithoutStrings.slice(0, index).trimEnd().at(-1)
+    const next = argumentsWithoutStrings.slice(index + name.length).trimStart()[0]
+    if (previous === "." || next === ":" || wrapperBindings.has(name) || literalIdentifiers.has(name)) continue
+    return {valid: false, error: `Аргументы wrapper содержат не declarative wiring: ${name}`}
   }
 
   return { valid: true }

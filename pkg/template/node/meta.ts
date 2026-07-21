@@ -4,6 +4,15 @@ import { createNode } from "./index.ts"
 import type { ParseContext } from "@metafor/types/template/parser"
 import type { NodeMeta } from "@metafor/types/template/node/meta"
 
+const processRuntimeBinding = (
+  source: string,
+  domain: "mass" | "energy",
+  context: ParseContext,
+): NonNullable<NodeMeta[typeof domain]> =>
+  source.trim() === domain
+    ? {data: `/${domain}`}
+    : processSemanticAttributes(source, context) || source
+
 /**
  * Валидирует src атрибут в meta узлах.
  * src должен адресовать корневой или внутренний Atom:
@@ -67,7 +76,10 @@ export const createNodeDataMeta = (
 
   // Обрабатываем семантические атрибуты
   if ("mass" in node && node.mass) {
-    result.mass = processSemanticAttributes(node.mass, context) || node.mass
+    result.mass = processRuntimeBinding(node.mass, "mass", context)
+  }
+  if ("energy" in node && node.energy) {
+    result.energy = processRuntimeBinding(node.energy, "energy", context)
   }
   if ("fields" in node && node.fields) {
     result.fields = processSemanticAttributes(node.fields, context) || node.fields

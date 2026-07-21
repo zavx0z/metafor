@@ -1,5 +1,5 @@
 import type { Fields, Update, Values } from "./fields.ts"
-import type { Mass } from "./schema.ts"
+import type { Energy, Mass } from "./schema.ts"
 import type { NodeType } from "../template/node/index.ts"
 
 export type MatterBindingValue =
@@ -9,7 +9,7 @@ export type MatterBindingValue =
       expr?: string
     }
 
-export type TopologyBasis = "state" | "enum" | "array" | "ordinary" | "mass" | "unknown"
+export type TopologyBasis = "state" | "enum" | "array" | "ordinary" | "mass" | "energy" | "unknown"
 
 export type MatterParticleKind = "wimp" | "fuzzy" | "axion" | "macho"
 
@@ -27,6 +27,7 @@ export interface MatterWimp {
   src: string
   fieldsBinding?: MatterBindingValue
   massBinding?: MatterBindingValue
+  energyBinding?: MatterBindingValue
   children?: MatterChild[]
 }
 
@@ -62,7 +63,8 @@ export interface FieldInit {
 
 export interface Continuation {
   fieldInits?: FieldInit[]
-  mass?: unknown
+  massBinding?: MatterBindingValue
+  energyBinding?: MatterBindingValue
 }
 
 /** Runtime storage reference. `atom` currently identifies a materialized Atom. */
@@ -102,7 +104,8 @@ export interface MatterFields {
  * - `html` — шаблонизация для `<meta-for>` элементов
  * - `value` — данные Atom для передачи дочерним Atom
  * - `update` — функция обновления контекста
- * - `mass` — масса для сложных данных и зависимостей от среды
+ * - `mass` — изменяемый рабочий материал
+ * - `energy` — живые runtime-сущности Energy
  *
  * Matter описывает только порождение и topology Atom.
  * State-условия создают Axion, dynamic enum src создаёт Fuzzy, array map создаёт Macho.
@@ -130,7 +133,12 @@ export interface MatterFields {
  * `
  * ```
  */
-export type MatterDefinitionParams<ɸ extends Fields = Fields, m extends Mass = Mass, 𝛴 extends string = string> = {
+export type MatterDefinitionParams<
+  ɸ extends Fields = Fields,
+  m extends Mass = Mass,
+  𝛴 extends string = string,
+  e extends Energy = Energy,
+> = {
   /**
    * Функция для обновления контекста Atom.
    * Используется в обработчиках событий для изменения состояния.
@@ -148,11 +156,15 @@ export type MatterDefinitionParams<ɸ extends Fields = Fields, m extends Mass = 
    */
   value: Values<ɸ>
   /**
-   * Масса Atom для сложных данных и зависимостей от среды.
-   * Содержит объекты, массивы и структуры, которые не помещаются в контекст.
-   * Масса определяет локализацию процесса и не сериализуется в Boundary.
+   * Изменяемый рабочий материал Atom.
+   * Он не является местом хранения живых Energy-сущностей.
    */
   mass: m
+  /**
+   * Постоянно типизированные живые сущности Energy родительского Atom.
+   * Используются только как источник `energy=${...}` binding для дочернего Atom.
+   */
+  energy: e
   /**
    * Текущее состояние автомата Atom.
    * Строка из `.superposition(...)`, используется для условий matter.
@@ -186,6 +198,11 @@ export type MatterDefinitionParams<ɸ extends Fields = Fields, m extends Mass = 
 /**
  * Тип matter-декларации для topology и порождения Atom.
  */
-export type MatterDeclaration<ɸ extends Fields = Fields, m extends Mass = Mass, 𝛴 extends string = string> = (
-  params: MatterDefinitionParams<ɸ, m, 𝛴>,
+export type MatterDeclaration<
+  ɸ extends Fields = Fields,
+  m extends Mass = Mass,
+  𝛴 extends string = string,
+  e extends Energy = Energy,
+> = (
+  params: MatterDefinitionParams<ɸ, m, 𝛴, e>,
 ) => void

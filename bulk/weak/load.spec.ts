@@ -22,6 +22,7 @@ describe("loadAction", () => {
       field: { name: { type: "string" } },
       value: { name: "test" },
       mass: {},
+      energy: {},
     })
     expect(result).toEqual({ processed: true, data: "test", field: true })
   })
@@ -37,6 +38,7 @@ describe("loadAction", () => {
       field: { count: { type: "number" } },
       value: { count: 42 },
       mass: {},
+      energy: {},
     })
     expect(result).toEqual({ committed: 42, field: true })
   })
@@ -49,6 +51,7 @@ describe("loadAction", () => {
       field: { name: { type: "string" } },
       value: { name: "hello" },
       mass: {},
+      energy: {},
     })
     expect(result).toEqual({ processed: true, data: "hello", field: true })
   })

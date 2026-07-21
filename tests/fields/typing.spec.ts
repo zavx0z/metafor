@@ -35,9 +35,69 @@ describe("field typing", () => {
     update({ role: "guest" })
     // @ts-expect-error topology array is fixed to number[]
     update({ tags: ["a", "b"] })
+    // Восстановлено из исторического context/test/update.spec.ts.
+    // @ts-expect-error exactOptionalPropertyTypes запрещает undefined
+    update({ name: undefined })
     // @ts-expect-error optional enum still keeps literal union plus null
     const invalidValues: Values<typeof schema> = { ...values, mode: "draft" }
     void invalidValues
+
+    // Восстановлено из исторического context/test/context.spec.ts.
+    // @ts-expect-error enum принимает только непустой список строк
+    fieldSchema((field) => ({ invalid: field.enum(true, false).optional() }))
+    // @ts-expect-error enum принимает только непустой список строк
+    fieldSchema((field) => ({ invalid: field.enum({}).optional() }))
+  })
+
+  test("проверяет точные Fields, состояния и enum-условия Superposition", () => {
+    const valid = MetaFor("typing-exact-superposition")
+      .fields((field) => ({
+        role: field.enum("user", "admin").required("user"),
+        command: field.string.optional(),
+      }))
+      .superposition({
+        idle: {
+          ready: {
+            role: { oneOf: ["user", "admin"] },
+            command: { null: false },
+          },
+        },
+        ready: null,
+      })
+      .mass({})
+      .energy(() => ({}))
+      .processes(() => [])
+      .reactions(() => [])
+      .matter()
+      .bulk()
+    expect(valid.superposition).toHaveLength(2)
+
+    const invalidEnum = MetaFor("typing-invalid-enum")
+      .fields((field) => ({ role: field.enum("user", "admin").required("user") }))
+    // @ts-expect-error enum-condition сохраняет литеральный union вариантов
+    invalidEnum.superposition({ idle: { ready: { role: { eq: "guest" } } }, ready: null })
+
+    const invalidOperator = MetaFor("typing-invalid-operator")
+      .fields((field) => ({ command: field.string.optional() }))
+    // @ts-expect-error неизвестный оператор условия запрещён
+    invalidOperator.superposition({ idle: { ready: { command: { unknown: true } } }, ready: null })
+
+    const invalidField = MetaFor("typing-invalid-field")
+      .fields((field) => ({ command: field.string.optional() }))
+    // @ts-expect-error transition ссылается только на объявленные Fields
+    invalidField.superposition({ idle: { ready: { missing: { null: false } } }, ready: null })
+
+    const invalidState = MetaFor("typing-invalid-state")
+      .fields((field) => ({ command: field.string.optional() }))
+    // @ts-expect-error transition ссылается только на состояния этой Superposition
+    invalidState.superposition({ idle: { missing: { command: { null: false } } }, ready: null })
+
+    const invalidSelfTransition = MetaFor("typing-invalid-self-transition")
+      .fields((field) => ({ command: field.string.optional() }))
+    if (false) {
+      // @ts-expect-error самопереход запрещён даже при условии на Field
+      invalidSelfTransition.superposition({ idle: { idle: { command: { null: false } } } })
+    }
   })
 
   test("прокидывает refinement superposition в процессы", () => {
@@ -57,19 +117,17 @@ describe("field typing", () => {
         ready: null,
       })
       .mass({})
+      .energy(() => ({}))
       .processes((process) => [
         process("ready", { env: ["any"] })
           .action(async ({ value }) => {
-            const mod = await import("../../process.ts")
-            void mod
-            const command: string = value.command
-            // @ts-expect-error command уже не nullable
-            const nullOnly: null = value.command
-
-            return {
-              command,
+            const probe = await import("../types/fixtures/probe.ts")
+            return probe.default({
+              command: value.command satisfies string,
+              // @ts-expect-error command уже не nullable
+              nullOnly: value.command satisfies null,
               operation: value.operation,
-            }
+            })
           })
           .success(({ update, data }) => {
             const command: string = data.command
@@ -98,18 +156,16 @@ describe("field typing", () => {
         ready: null,
       })
       .mass({})
+      .energy(() => ({}))
       .processes((process) => [
         process("ready").action(async ({ value }) => {
-          const mod = await import("../../process.ts")
-          void mod
-          const maybeCommand: string | null = value.command
-          // @ts-expect-error не все входы гарантируют non-null
-          const command: string = value.command
-
-          return {
+          const probe = await import("../types/fixtures/probe.ts")
+          return probe.default({
             operation: value.operation,
-            command: maybeCommand,
-          }
+            maybeCommand: value.command satisfies string | null,
+            // @ts-expect-error не все входы гарантируют non-null
+            command: value.command satisfies string,
+          })
         }),
       ])
   })
@@ -124,18 +180,16 @@ describe("field typing", () => {
         ready: null,
       })
       .mass({})
+      .energy(() => ({}))
       .processes((process) => [
         process("ready").action(async ({ value }) => {
-          const mod = await import("../../process.ts")
-          void mod
-          const maybeCommand: string | null = value.command
-          // @ts-expect-error без входящих guard-ов narrowing быть не должно
-          const command: string = value.command
-
-          return {
+          const probe = await import("../types/fixtures/probe.ts")
+          return probe.default({
             operation: value.operation,
-            command: maybeCommand,
-          }
+            maybeCommand: value.command satisfies string | null,
+            // @ts-expect-error без входящих guard-ов narrowing быть не должно
+            command: value.command satisfies string,
+          })
         }),
       ])
   })

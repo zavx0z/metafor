@@ -1,0 +1,38 @@
+type StartParams = {
+  field: {
+    command: { type: "string" }
+    mode: { type: "enum" }
+    attempts: { type: "number" }
+    enabled: { type: "boolean" }
+    topology: { type: "array" }
+    error: { type: "string" }
+  }
+  value: {
+    command: string
+    mode: "idle" | "active"
+    attempts: number
+    enabled: boolean
+    topology: number[]
+    error: string | null
+  }
+  mass: {
+    attempts: number
+    profile: { id: string } | null
+  }
+  energy: {
+    channel: BroadcastChannel
+    socket: WebSocket
+  }
+  self: {
+    atom: string
+    meta: string
+    path: string
+  }
+}
+
+export default async function start({ mass, value }: StartParams) {
+  return {
+    profileId: mass.profile?.id ?? value.command,
+    attempts: mass.attempts + 1,
+  }
+}

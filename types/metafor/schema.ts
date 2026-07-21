@@ -97,32 +97,78 @@ export interface Self {
   path: string
 }
 /**
- * Масса атома — мера взаимодействия со средой исполнения
+ * Mass — сериализуемый изменяемый рабочий материал исполнения.
  *
- * Масса накапливается в процессе исполнения и определяет локализацию процесса:
- * - Зависимости от среды (WebSocket, DOM, Database API)
- * - Временные структуры данных для вычислений
- * - Кэши, актуальные только в runtime
- * - Общие ресурсы в иерархии атомов
+ * Process читает и изменяет Mass, получая из неё промежуточные данные,
+ * накопленные результаты и материализуемые артефакты. Живые runtime-сущности
+ * среды (WebSocket, BroadcastChannel и подобные ресурсы) принадлежат Energy.
  *
  * Масса не сериализуется в Boundary — она проявляется только в Volume.
  *
  * @example
  * ```typescript
- * const mass: Mass = {
- *   socket: null as WebSocket | null,
- *   cache: new Map(),
- * }
+ * const mass: Mass = { profiles: {}, attempts: 0 }
  * ```
  */
 export interface Mass {
   [key: string]: any
 }
 
+type ExecutableValue = (...args: any[]) => any
+
+type IsAny<T> = 0 extends (1 & T) ? true : false
+
+type SerializableMassResult<T> = IsAny<T> extends true
+  ? false
+  : T extends null | string | number | boolean
+    ? true
+    : T extends readonly (infer Item)[]
+      ? IsSerializableMassValue<Item>
+      : T extends ExecutableValue
+        ? false
+        : T extends object
+          ? Extract<keyof T, symbol> extends never
+            ? Extract<T[keyof T], ExecutableValue> extends never
+              ? false extends {
+                  [K in keyof T]-?: IsSerializableMassValue<T[K]>
+                }[keyof T]
+                ? false
+                : true
+              : false
+            : false
+          : false
+
+type IsSerializableMassValue<T> = IsAny<T> extends true
+  ? false
+  : false extends (T extends unknown ? SerializableMassResult<T> : never)
+    ? false
+    : true
+
+export type MassDeclaration<m extends Mass> = {
+  [K in keyof m]: IsSerializableMassValue<m[K]> extends true ? m[K] : never
+}
+
+/**
+ * Energy — постоянно типизированный набор живых runtime-сущностей Process.
+ *
+ * DSL объявляет только типы этих сущностей. Реальные значения создаются
+ * action-модулями и освобождаются destroy-процессом; функции не являются
+ * допустимыми значениями верхнего уровня Energy declaration.
+ */
+export interface Energy {
+  [key: string]: any
+}
+
+export type EnergyDeclaration<e extends Energy> = {
+  [K in keyof e]: [Extract<e[K], ExecutableValue>] extends [never] ? e[K] : never
+}
+
+declare const MetaDSLEnergyType: unique symbol
+
 /**
  * MetaFor — фабрика для создания web-компонента-атома конечного автомата
  * @param name - имя атома (используется для создания тега `meta-${name}`)
- * @returns chain API: fields() -> superposition() -> mass() -> processes() -> reactions() -> matter() -> bulk()
+ * @returns chain API: fields() -> superposition() -> mass() -> energy() -> processes() -> reactions() -> matter() -> bulk()
  *
  * **Важно:** Итоговый тег компонента формируется как `meta-${name}`,
  * где name — это имя компонента, переданное в конструктор.
@@ -133,7 +179,8 @@ export interface Mass {
  * Предоставляет цепочку методов для настройки компонента:
  * - `fields()` - определение типизированных полей
  * - `superposition()` - определение суперпозиции состояний
- * - `mass()` - настройка массы для сложных данных и зависимостей от среды
+ * - `mass()` - декларация изменяемого рабочего материала
+ * - `energy()` - декларация типов живых runtime-сущностей
  * - `processes()` - определение процессов (действий)
  * - `reactions()` - определение реакций на события
  * - `matter()` - определение иерархии атомов компонента
@@ -149,6 +196,7 @@ export interface Mass {
  *   .fields((field) => ({ mode: field.enum("summary", "details").required("summary") }))
  *   .superposition({ idle: { loading: {} } })
  *   .mass({ users: [] })
+ *   .energy(() => ({ socket: null as unknown as WebSocket }))
  *   .processes((process) => [process("loading").action(...)])
  *   .reactions((reaction) => [...])
  *   .matter(({ value, html }) => html`
@@ -205,20 +253,13 @@ export type MetaForFn = (
       /**
        * Регистрирует mass объект для автомата.
        *
-       * Mass — это мера взаимодействия со средой исполнения.
-       * Масса накапливается в процессе исполнения и определяет локализацию процесса.
-       * Mass доступен во всех процессах и реакциях.
+       * Mass — изменяемый рабочий материал Process.
+       * Mass доступен в процессах, destroy, реакциях и Matter.
        *
-       * @returns chain API для вызова .processes(...)
+       * @returns chain API для вызова .energy(...)
        *
        * @example
        * ```typescript
-       * // Вариант 1: Функция
-       * .mass(() => ({
-       *   users: [],
-       * }))
-       *
-       * // Вариант 2: Простой объект
        * .mass({
        *   users: [],
        *   settings: { theme: 'dark' },
@@ -228,8 +269,27 @@ export type MetaForFn = (
        * @param mass
        */
       mass<m extends Mass>(
-        mass?: m,
+        mass?: m & MassDeclaration<m>,
       ): {
+        /**
+         * Объявляет постоянно типизированные runtime-сущности Energy.
+         *
+         * Callback существует только для TypeScript inference и никогда не
+         * вызывается runtime. Поэтому он не создаёт placeholder-объект,
+         * соединения или функции: реальные сущности создаются во внешних
+         * action-модулях и освобождаются через destroy.
+         *
+         * @example
+         * ```typescript
+         * .energy(() => ({
+         *   channel: null as unknown as BroadcastChannel,
+         *   socket: null as unknown as WebSocket,
+         * }))
+         * ```
+         */
+        energy<e extends Energy>(
+          energy: () => e & EnergyDeclaration<e>,
+        ): {
         /**
          * Регистрирует процессы автомата для нужных состояний.
          *
@@ -249,7 +309,7 @@ export type MetaForFn = (
          *
          * @returns Массив процессов и destroy-хуков только для нужных суперпозиций
          */
-        processes(process?: ProcessesDeclaration<ɸ, SuperpositionStateKeys<ψ>, m, ψ>): {
+        processes(process?: ProcessesDeclaration<ɸ, SuperpositionStateKeys<ψ>, m, ψ, e>): {
           /**
            * Регистрирует карту реакций для автомата.
            *
@@ -305,17 +365,18 @@ export type MetaForFn = (
              * document.body.innerHTML = `<meta-my-component></meta-my-component>`
              * ```
              */
-            matter(matter?: MatterDeclaration<ɸ, m, SuperpositionStateKeys<ψ>>): {
+            matter(matter?: MatterDeclaration<ɸ, m, SuperpositionStateKeys<ψ>, e>): {
               /**
                * Регистрирует bulk-view конфигурацию компонента и завершает конфигурацию.
                *
                * @param bulk Конфигурация bulk-view
                * @returns Компонент для создания элемента с тегом `meta-${name}`
                */
-              bulk(bulk?: BulkDeclaration): MetaDSL<ɸ, SuperpositionStateKeys<ψ>, m>
+              bulk(bulk?: BulkDeclaration): MetaDSL<ɸ, SuperpositionStateKeys<ψ>, m, e>
             }
           }
         }
+      }
       }
     }
   }
@@ -329,7 +390,7 @@ declare global {
   /**
    * MetaFor — фабрика для создания web-компонента-атома конечного автомата
    * @param name - имя атома (используется для создания тега `meta-${name}`)
-   * @returns chain API: fields() -> superposition() -> mass() -> processes() -> reactions() -> matter() -> bulk()
+   * @returns chain API: fields() -> superposition() -> mass() -> energy() -> processes() -> reactions() -> matter() -> bulk()
    *
    * **Важно:** Итоговый тег компонента формируется как `meta-${name}`,
    * где name — это имя компонента, переданное в конструктор.
@@ -341,7 +402,8 @@ declare global {
    * Предоставляет цепочку методов для настройки компонента:
    * - `fields()` - определение типизированных полей
    * - `superposition()` - определение суперпозиции состояний
-   * - `mass()` - настройка массы для сложных данных и зависимостей от среды
+   * - `mass()` - декларация типа изменяемого рабочего материала
+   * - `energy()` - декларация типов живых runtime-сущностей
    * - `processes()` - определение процессов (действий)
    * - `reactions()` - определение реакций на события
  * - `matter()` - определение иерархии атомов компонента
@@ -353,6 +415,7 @@ declare global {
    *   .fields((field) => ({ mode: field.enum("summary", "details").required("summary") }))
    *   .superposition({ idle: { loading: {} } })
    *   .mass({ users: [] })
+   *   .energy(() => ({ socket: null as unknown as WebSocket }))
    *   .processes((process) => [process("loading").action(...)])
    *   .reactions((reaction) => [...])
    *   .matter(({ value, html }) => html`
@@ -397,7 +460,7 @@ export interface MetaForConfig {
  * - `html` — шаблонизация для `<meta-for>` элементов
  * - `value` — данные атома для передачи дочерним атомам
  * - `update` — функция обновления контекста
- * - `mass` — масса для сложных данных и зависимостей от среды
+ * - `mass` — изменяемый рабочий материал
  *
  * Matter описывает только иерархию атомов.
  * Выбор topology в matter допускается только по `state`, `enum` и `array`.
@@ -451,11 +514,12 @@ export interface BulkDeclaration {
  * Схема компонента MetaFor
  *
  * Определяет полную структуру компонента включая поля, суперпозицию,
- * процессы, реакции и массу. Используется для создания атомов.
+ * процессы, реакции, Mass и Energy declaration. Используется для создания атомов.
  *
  * @template ɸ - Тип полей (схема полей)
  * @template 𝛴 - Тип состояний (строковые литералы)
- * @template m - Тип массы (объект для сложных данных и зависимостей от среды)
+ * @template m - Тип изменяемого рабочего материала Mass
+ * @template e - Тип runtime-сущностей Energy
  *
  * @example
  * ```typescript
@@ -463,11 +527,17 @@ export interface BulkDeclaration {
  *   name: "user-profile",
  *   fields: [{ key: "name", type: "string", required: true, default: "" }],
  *   superposition: [{ name: "idle", transitions: { loading: {} } }],
- *   mass: { users: [] }
+ *   mass: { users: [] },
+ *   // Energy declaration не является runtime-полем MetaDSL.
  * }
  * ```
  */
-export interface MetaDSL<ɸ extends Fields = Fields, 𝛴 extends string = string, m extends Mass = {}> {
+export interface MetaDSL<
+  ɸ extends Fields = Fields,
+  𝛴 extends string = string,
+  m extends Mass = {},
+  e extends Energy = {},
+> {
   /** Название компонента */
   name: string
   /** Описание компонента */
@@ -486,4 +556,6 @@ export interface MetaDSL<ɸ extends Fields = Fields, 𝛴 extends string = strin
   bulk?: BulkSchema
   /** Масса */
   mass?: m
+  /** Phantom-type Energy declaration; runtime-поля и сериализации не создаёт. */
+  readonly [MetaDSLEnergyType]?: e
 }

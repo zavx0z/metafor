@@ -6,14 +6,15 @@ import {
 import {resolveForceFieldsPayload} from "shared/protocol/force/fields"
 import type {ForceMessage} from "shared/protocol/force/message"
 import type {Particle} from "shared/protocol/force/particle"
-import type {MatterBindingValue, MatterEdgeSlot, MatterParticleKind} from "@metafor/types/metafor/matter"
+import type {FieldInit, MatterBindingValue, MatterEdgeSlot, MatterParticleKind} from "@metafor/types/metafor/matter"
 import type {MetaFieldDSL} from "@metafor/types/metafor/schema"
 import {
   insertFieldDefault,
-  insertMassValue,
   insertMatterBinding,
   insertPredicateGroup,
+  validateRuntimeMatterBinding,
 } from "./wimp/sqlite/create.ts"
+import {writeBoundaryAtomValue} from "./world.ts"
 
 type Database = SQL | ReservedSQL
 type JsonRecord = Record<string, unknown>
@@ -59,10 +60,73 @@ const nonNegativeInteger = (value: unknown, label: string): number => {
 }
 
 const clone = <T>(value: T): T => structuredClone(value)
+const sameJson = (left: unknown, right: unknown): boolean =>
+  JSON.stringify(left ?? null) === JSON.stringify(right ?? null)
 const particleMessage = (particle: Particle): ForceMessage => ({parts: [particle]})
+const isRootWimpSource = (src: string): boolean => src.split("/").length === 2
+const belongsToWimpRoot = (src: string, root: string): boolean => src === root || src.startsWith(`${root}/`)
 
 const identityKey = (path: DeclarationPath, src: string, localId: number): string =>
   `${path}\u0000${src}\u0000${localId}`
+
+const fieldBindingEntries = (expr: string): string[] => {
+  const source = expr.trim()
+  if (!source.startsWith("{") || !source.endsWith("}")) return []
+  const body = source.slice(1, -1)
+  const entries: string[] = []
+  let start = 0
+  let braces = 0
+  let brackets = 0
+  let parentheses = 0
+  let quote: "\"" | "'" | "`" | null = null
+  let escaped = false
+  for (let index = 0; index < body.length; index++) {
+    const character = body[index]!
+    if (quote !== null) {
+      if (escaped) escaped = false
+      else if (character === "\\") escaped = true
+      else if (character === quote) quote = null
+      continue
+    }
+    if (character === "\"" || character === "'" || character === "`") {
+      quote = character
+      continue
+    }
+    if (character === "{") braces++
+    else if (character === "}") braces--
+    else if (character === "[") brackets++
+    else if (character === "]") brackets--
+    else if (character === "(") parentheses++
+    else if (character === ")") parentheses--
+    else if (character === "," && braces === 0 && brackets === 0 && parentheses === 0) {
+      const entry = body.slice(start, index).trim()
+      if (entry) entries.push(entry)
+      start = index + 1
+    }
+  }
+  const tail = body.slice(start).trim()
+  if (tail) entries.push(tail)
+  return entries
+}
+
+const directFieldBindingSources = (expr: string): Map<string, number> => {
+  const result = new Map<string, number>()
+  for (const entry of fieldBindingEntries(expr)) {
+    const match = /^(?:([A-Za-z_$][\w$]*)|"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)')\s*:\s*_\[(\d+)\]$/.exec(entry)
+    if (!match) continue
+    const key = match[1] ?? match[2] ?? match[3]
+    const dependency = Number(match[4])
+    if (key !== undefined && Number.isSafeInteger(dependency)) result.set(key, dependency)
+  }
+  return result
+}
+
+const entangleableFieldType = (type: StoredField["type"]): boolean =>
+  type === "string" || type === "number" || type === "boolean"
+
+const deleteUnreferencedValue = async (sql: Database, value: number): Promise<void> => {
+  await sql`DELETE FROM value WHERE id = ${value} AND NOT EXISTS (SELECT 1 FROM atom_value WHERE atom_value.value = ${value})`
+}
 
 const runtimeKey = (kind: "atom" | "topology", id: number): string => `${kind}/${id}`
 const parentKey = (parent: RuntimeRef | null): string => parent ? runtimeKey(parent.kind, parent.id) : "root"
@@ -152,6 +216,7 @@ type StoredMatter = {
   targetSrc: string | null
   fieldsBinding: number | null
   massBinding: number | null
+  energyBinding: number | null
   fuzzyKind: string | null
   predicateBinding: number | null
   collectionBinding: number | null
@@ -191,6 +256,9 @@ export class BoundaryIncrementalStore {
       })
     }
     await this.sql.unsafe(`
+      -- WIMP MassDeclaration was replaced by the local EnergyMassStore.
+      -- The legacy table has no canonical owner and must not survive restart.
+      DROP TABLE IF EXISTS wimp_mass_value;
       DROP TABLE IF EXISTS boundary_atom_field;
       DROP TABLE IF EXISTS boundary_declaration_entity;
       DROP TABLE IF EXISTS boundary_root;
@@ -231,10 +299,42 @@ export class BoundaryIncrementalStore {
     const address = parseInflatonAddress(part.path, part.value)
     if (!address) throw new Error(`Invalid categorical Inflaton identity: ${String(part.path)}`)
     const input = record(part.value, `${address.path} value`)
+    const repositoryRemoval = part.op === "remove" && address.path === "wimp" && isRootWimpSource(address.src)
+      ? await this.repositoryRemovalEffects(address.src)
+      : null
 
     const effects = await this.sql.begin(async (tx): Promise<Particle[]> => {
       const committed: Particle[] = []
       if (part.op === "remove") {
+        if (repositoryRemoval) {
+          const valueIds = await tx<Array<{id: number}>>`
+            SELECT DISTINCT atom_value.value AS id
+              FROM atom_value
+              JOIN atom ON atom.id = atom_value.atom
+             WHERE atom.wimp = ${address.src}
+                OR substr(atom.wimp, 1, ${address.src.length + 1}) = ${`${address.src}/`}
+          `
+          await tx`
+            DELETE FROM boundary_runtime_origin
+             WHERE declaration_wimp = ${address.src}
+                OR substr(declaration_wimp, 1, ${address.src.length + 1}) = ${`${address.src}/`}
+                OR (
+                  kind = ${"atom"}
+                  AND runtime_id IN (
+                    SELECT id FROM atom
+                     WHERE wimp = ${address.src}
+                        OR substr(wimp, 1, ${address.src.length + 1}) = ${`${address.src}/`}
+                  )
+                )
+          `
+          await tx`
+            DELETE FROM wimp
+             WHERE src = ${address.src}
+                OR substr(src, 1, ${address.src.length + 1}) = ${`${address.src}/`}
+          `
+          for (const value of valueIds) await deleteUnreferencedValue(tx, Number(value.id))
+          return repositoryRemoval
+        }
         const previous = await this.canonical(tx, address, input)
         await this.removeRuntimeConsequences(tx, address, committed)
         await this.removeDeclaration(tx, address)
@@ -248,7 +348,14 @@ export class BoundaryIncrementalStore {
         return committed
       }
 
+      let rebindMatterFields = false
+      if (part.op === "replace" && address.path === "matter") {
+        const previousMatter = await this.matterEntity(tx, address.src, address.localId)
+        rebindMatterFields = !sameJson(previousMatter?.fieldsBinding, input.fieldsBinding)
+      }
+
       await this.persist(tx, address, input)
+      if (rebindMatterFields) await this.rebindMatterFieldValues(tx, address)
       const canonical = await this.canonical(tx, address, input)
       committed.push({
         part: "graviton",
@@ -262,6 +369,12 @@ export class BoundaryIncrementalStore {
     })
 
     await this.updateIndexes(effects)
+    if (repositoryRemoval) {
+      for (const key of [...this.pendingEnumDefaults.keys()]) {
+        const src = key.split("\u0000")[1]
+        if (src && belongsToWimpRoot(src, address.src)) this.pendingEnumDefaults.delete(key)
+      }
+    }
     return {rootSrc: await this.rootSrc(), messages: effects.map(particleMessage)}
   }
 
@@ -314,12 +427,6 @@ export class BoundaryIncrementalStore {
       const entity = await this.matterEntity(this.sql, row.wimp, Number(row.localId))
       if (entity) append("matter", entity)
     }
-    for (const row of await this.sql<Array<{wimp: string}>>`
-      SELECT DISTINCT wimp FROM wimp_mass_value ORDER BY wimp
-    `) {
-      const value = await this.massValue(this.sql, row.wimp, null)
-      append("mass", {wimp: row.wimp, localId: 1, id: 1, value})
-    }
     for (const row of await this.sql<Array<{src: string; view: string}>>`
       SELECT src, view_css AS view FROM wimp WHERE view_css IS NOT NULL ORDER BY rowid
     `) append("bulk", {wimp: row.src, localId: 1, id: 1, view: row.view})
@@ -334,6 +441,32 @@ export class BoundaryIncrementalStore {
       if (entity) particles.push({part: "graviton", op: "add", path: `${origin.kind}/${id}`, ts: Date.now(), value: entity})
     }
     return particles.map(particleMessage)
+  }
+
+  private async repositoryRemovalEffects(root: string): Promise<Particle[]> {
+    const runtimePaths = new Set((await this.sql<Array<{kind: string; runtimeId: number}>>`
+      SELECT kind, runtime_id AS runtimeId
+        FROM boundary_runtime_origin
+       WHERE declaration_wimp = ${root}
+          OR substr(declaration_wimp, 1, ${root.length + 1}) = ${`${root}/`}
+       ORDER BY sequence
+    `).map((row) => `${row.kind}/${Number(row.runtimeId)}`))
+    const sourceOf = (part: Particle): string | null => {
+      if (!isRecord(part.value)) return null
+      if (part.path === "wimp") return typeof part.value.src === "string" ? part.value.src : null
+      return typeof part.value.wimp === "string" ? part.value.wimp : null
+    }
+    const scoped = (await this.replay())
+      .map((message) => message.parts[0])
+      .filter((part) =>
+        (typeof part.path === "string" && runtimePaths.has(part.path)) ||
+        (sourceOf(part) !== null && belongsToWimpRoot(sourceOf(part)!, root)),
+      )
+    return scoped.toReversed().map((part) => ({
+      ...clone(part),
+      op: "remove",
+      ts: Date.now(),
+    }))
   }
 
   async reconcileStateMatter(part: Particle): Promise<BoundaryIncrementalCommit | null> {
@@ -504,13 +637,6 @@ export class BoundaryIncrementalStore {
       await this.persistMatter(sql, address, value)
       return
     }
-    if (address.path === "mass") {
-      await sql`DELETE FROM wimp_mass_value WHERE wimp = ${address.src}`
-      const mass = Object.hasOwn(value, "value") ? value.value : value
-      if (!isRecord(mass)) throw new Error(`${address.src} mass must be an object`)
-      await insertMassValue(sql, address.src, mass, null, null, null)
-      return
-    }
     const view = typeof value.view === "string" ? value.view : null
     await sql`UPDATE wimp SET view_css = ${view} WHERE src = ${address.src}`
   }
@@ -633,12 +759,15 @@ export class BoundaryIncrementalStore {
       ) RETURNING id
     `, "Matter")
     if (kind === "wimp") {
+      validateRuntimeMatterBinding(value.massBinding, "mass", "matter.massBinding")
+      validateRuntimeMatterBinding(value.energyBinding, "energy", "matter.energyBinding")
       await sql`
-        INSERT INTO matter_particle_wimp (particle, src, fields_binding, mass_binding)
+        INSERT INTO matter_particle_wimp (particle, src, fields_binding, mass_binding, energy_binding)
         VALUES (
           ${id}, ${requiredString(value.src, "matter.src")},
           ${await storeBinding(sql, address.src, value.fieldsBinding)},
-          ${await storeBinding(sql, address.src, value.massBinding)}
+          ${await storeBinding(sql, address.src, value.massBinding)},
+          ${await storeBinding(sql, address.src, value.energyBinding)}
         )
       `
     } else if (kind === "fuzzy") {
@@ -661,9 +790,10 @@ export class BoundaryIncrementalStore {
 
   private async matterBindingIds(sql: Database, particle: number): Promise<number[]> {
     const row = (await sql<Array<{
-      fields: number | null; mass: number | null; fuzzy: number | null; axion: number | null; macho: number | null
+      fields: number | null; mass: number | null; energy: number | null;
+      fuzzy: number | null; axion: number | null; macho: number | null
     }>>`
-      SELECT w.fields_binding AS fields, w.mass_binding AS mass,
+      SELECT w.fields_binding AS fields, w.mass_binding AS mass, w.energy_binding AS energy,
              f.predicate_binding AS fuzzy, a.predicate_binding AS axion,
              m.collection_binding AS macho
         FROM matter_particle AS p
@@ -673,7 +803,9 @@ export class BoundaryIncrementalStore {
         LEFT JOIN matter_particle_macho AS m ON m.particle = p.id
        WHERE p.id = ${particle}
     `)[0]
-    return row ? [row.fields, row.mass, row.fuzzy, row.axion, row.macho].filter((id): id is number => id !== null) : []
+    return row
+      ? [row.fields, row.mass, row.energy, row.fuzzy, row.axion, row.macho].filter((id): id is number => id !== null)
+      : []
   }
 
   private async removeDeclaration(sql: Database, address: InflatonAddress): Promise<void> {
@@ -686,7 +818,7 @@ export class BoundaryIncrementalStore {
       if (row) {
         const values = await sql<Array<{value: number}>>`SELECT value FROM atom_value WHERE field = ${row.id}`
         await sql`DELETE FROM field WHERE id = ${row.id}`
-        for (const value of values) await sql`DELETE FROM value WHERE id = ${value.value}`
+        for (const value of values) await deleteUnreferencedValue(sql, Number(value.value))
       }
       this.pendingEnumDefaults.delete(identityKey("field", address.src, address.localId))
       return
@@ -704,8 +836,7 @@ export class BoundaryIncrementalStore {
         await sql`DELETE FROM matter_particle WHERE id = ${row.id}`
         for (const binding of bindings) await sql`DELETE FROM matter_binding WHERE id = ${binding}`
       }
-    } else if (address.path === "mass") await sql`DELETE FROM wimp_mass_value WHERE wimp = ${address.src}`
-    else await sql`UPDATE wimp SET view_css = NULL WHERE src = ${address.src}`
+    } else await sql`UPDATE wimp SET view_css = NULL WHERE src = ${address.src}`
   }
 
   private async canonical(sql: Database, address: InflatonAddress, input: JsonRecord): Promise<JsonRecord | null> {
@@ -914,7 +1045,25 @@ export class BoundaryIncrementalStore {
     if (address.path === "state") {
       return
     }
-    if (address.path === "matter") effects.push(...await this.materializeMatter(sql, address))
+    if (address.path === "matter") {
+      effects.push(...await this.materializeMatter(sql, address))
+      const emitted = new Set(effects.flatMap((effect) =>
+        effect.part === "graviton" && typeof effect.path === "string" && effect.path.startsWith("atom/")
+          ? [effect.path]
+          : [],
+      ))
+      for (const origin of await sql<Array<{runtimeId: number}>>`
+        SELECT runtime_id AS runtimeId FROM boundary_runtime_origin
+         WHERE kind = ${"atom"} AND declaration_kind = ${"matter"}
+           AND declaration_wimp = ${address.src} AND declaration_local_id = ${address.localId}
+         ORDER BY sequence
+      `) {
+        const path = `atom/${Number(origin.runtimeId)}`
+        if (emitted.has(path)) continue
+        const entity = await this.atomEntity(sql, Number(origin.runtimeId))
+        if (entity) effects.push({part: "graviton", op: "replace", path, ts: Date.now(), value: entity})
+      }
+    }
   }
 
   private async removeRuntimeConsequences(sql: Database, address: InflatonAddress, effects: Particle[]): Promise<void> {
@@ -1002,7 +1151,7 @@ export class BoundaryIncrementalStore {
     declarationWimp: string,
     declarationLocalId: number,
     ordinal: number,
-    initialFields: JsonRecord = {},
+    fieldInits: FieldInit[] = [],
   ): Promise<Particle[]> {
     const parentKind = parent?.kind ?? "root"
     const parentRuntimeId = parent?.id ?? 0
@@ -1015,12 +1164,36 @@ export class BoundaryIncrementalStore {
     if (found) return []
     const exists = (await sql<Array<{ok: number}>>`SELECT 1 AS ok FROM wimp WHERE src = ${src}`)[0]
     if (!exists) return []
-    const suppliedKeys = Object.keys(initialFields)
+    const initialFields = new Map(fieldInits.map((field) => [field.key, field] as const))
+    const suppliedKeys = [...initialFields.keys()]
+    const declaredFields = await sql<Array<StoredField>>`
+      SELECT id, wimp, local_id AS localId, key, type, required FROM field WHERE wimp = ${src} ORDER BY local_id
+    `
     if (suppliedKeys.length > 0) {
-      const declaredKeys = new Set((await sql<Array<{key: string}>>`
-        SELECT key FROM field WHERE wimp = ${src}
-      `).map((field) => field.key))
+      const declaredKeys = new Set(declaredFields.map((field) => field.key))
       if (suppliedKeys.some((key) => !declaredKeys.has(key))) return []
+    }
+    const sourceByTarget = new Map<string, {field: StoredField; value: number}>()
+    for (const init of fieldInits) {
+      if (!init.source) continue
+      const target = declaredFields.find((field) => field.key === init.key)
+      const source = (await sql<Array<StoredField & {value: number}>>`
+        SELECT field.id, field.wimp, field.local_id AS localId, field.key, field.type, field.required,
+               atom_value.value
+          FROM field
+          JOIN atom_value ON atom_value.field = field.id
+         WHERE atom_value.atom = ${init.source.parentAtomId}
+           AND field.key = ${init.source.parentFieldKey}
+         LIMIT 1
+      `)[0]
+      if (!target || !source) return []
+      if (!entangleableFieldType(target.type) || !entangleableFieldType(source.type)) {
+        throw new Error(`Matter Field binding ${init.source.parentFieldKey} -> ${init.key} cannot entangle topology Fields`)
+      }
+      if (target.type !== source.type) {
+        throw new Error(`Matter Field binding ${init.source.parentFieldKey} -> ${init.key} requires the same Field type`)
+      }
+      sourceByTarget.set(init.key, {field: source, value: Number(source.value)})
     }
     const position = Number((await sql<Array<{count: number}>>`
       SELECT COUNT(*) AS count FROM atom
@@ -1041,14 +1214,20 @@ export class BoundaryIncrementalStore {
         ${parentKind}, ${parentRuntimeId}, ${atom}, ${ordinal}
       )
     `
-    const remaining = new Set(Object.keys(initialFields))
-    for (const field of await sql<Array<StoredField>>`
-      SELECT id, wimp, local_id AS localId, key, type, required FROM field WHERE wimp = ${src} ORDER BY local_id
-    `) {
-      const supplied = Object.hasOwn(initialFields, field.key)
+    const remaining = new Set(initialFields.keys())
+    for (const field of declaredFields) {
+      const supplied = initialFields.has(field.key)
       if (supplied) remaining.delete(field.key)
       if (supplied) {
-        await this.setAtomValue(sql, atom, field, initialFields[field.key])
+        const init = initialFields.get(field.key)!
+        const source = sourceByTarget.get(field.key)
+        if (source) {
+          await sql`INSERT INTO atom_value (atom, field, value) VALUES (${atom}, ${field.id}, ${source.value})`
+          await sql`
+            INSERT INTO atom_field_source (child_atom, child_field, parent_atom, parent_field)
+            VALUES (${atom}, ${field.id}, ${init.source!.parentAtomId}, ${source.field.id})
+          `
+        } else await this.setAtomValue(sql, atom, field, init.value)
         continue
       }
       const fallback = await this.fieldDefault(sql, field)
@@ -1087,37 +1266,7 @@ export class BoundaryIncrementalStore {
   }
 
   private async setAtomValue(sql: Database, atom: number, field: StoredField, raw: unknown): Promise<number> {
-    const previous = (await sql<Array<{value: number}>>`SELECT value FROM atom_value WHERE atom = ${atom} AND field = ${field.id}`)[0]
-    if (previous) await sql`DELETE FROM atom_value WHERE atom = ${atom} AND field = ${field.id}`
-    const value = await insertedId(sql<Array<{id: number}>>`INSERT INTO value (kind) VALUES (${this.valueKind(field.type, raw)}) RETURNING id`, "Atom value")
-    if (raw !== null && raw !== undefined) {
-      if (field.type === "boolean") await sql`INSERT INTO value_boolean (value, boolean) VALUES (${value}, ${raw ? 1 : 0})`
-      else if (field.type === "number") await sql`INSERT INTO value_number (value, number) VALUES (${value}, ${Number(raw)})`
-      else if (field.type === "string") await sql`INSERT INTO value_string (value, text) VALUES (${value}, ${String(raw)})`
-      else if (field.type === "enum") {
-        const variant = (await sql<Array<{id: number}>>`
-          SELECT id FROM field_enum_variant WHERE field = ${field.id} AND item_value = ${String(raw)} LIMIT 1
-        `)[0]
-        if (!variant) throw new Error(`Unknown enum variant "${String(raw)}" for field ${field.id}`)
-        await sql`INSERT INTO value_enum (value, variant) VALUES (${value}, ${variant.id})`
-      } else {
-        for (let position = 0; position < (Array.isArray(raw) ? raw.length : 0); position++) {
-          await sql`INSERT INTO value_list_item (value, position, item_value) VALUES (${value}, ${position}, ${String((raw as unknown[])[position])})`
-        }
-      }
-    }
-    await sql`INSERT INTO atom_value (atom, field, value) VALUES (${atom}, ${field.id}, ${value})`
-    if (previous) await sql`DELETE FROM value WHERE id = ${previous.value}`
-    return value
-  }
-
-  private valueKind(type: StoredField["type"], raw: unknown): "null" | "boolean" | "number" | "string" | "enum" | "list" {
-    if (raw === null || raw === undefined) return "null"
-    if (type === "boolean") return "boolean"
-    if (type === "number") return "number"
-    if (type === "enum") return "enum"
-    if (type === "array") return "list"
-    return "string"
+    return await writeBoundaryAtomValue(sql, atom, field, raw)
   }
 
   private async materializeMatter(
@@ -1171,7 +1320,7 @@ export class BoundaryIncrementalStore {
     const row = (await sql<Array<{
       id: number; wimp: string; localId: number; parentLocalId: number | null;
       kind: MatterParticleKind; edgeSlot: MatterEdgeSlot; position: number;
-      targetSrc: string | null; fieldsBinding: number | null; massBinding: number | null;
+      targetSrc: string | null; fieldsBinding: number | null; massBinding: number | null; energyBinding: number | null;
       fuzzyKind: string | null; fuzzyBinding: number | null; axionBinding: number | null;
       collectionBinding: number | null;
     }>>`
@@ -1180,7 +1329,7 @@ export class BoundaryIncrementalStore {
              particle.particle_kind AS kind, particle.edge_slot AS edgeSlot,
              particle.particle_order AS position,
              wimp_edge.src AS targetSrc, wimp_edge.fields_binding AS fieldsBinding,
-             wimp_edge.mass_binding AS massBinding,
+             wimp_edge.mass_binding AS massBinding, wimp_edge.energy_binding AS energyBinding,
              fuzzy.fuzzy_kind AS fuzzyKind, fuzzy.predicate_binding AS fuzzyBinding,
              axion.predicate_binding AS axionBinding,
              macho.collection_binding AS collectionBinding
@@ -1203,6 +1352,7 @@ export class BoundaryIncrementalStore {
       targetSrc: row.targetSrc,
       fieldsBinding: row.fieldsBinding === null ? null : Number(row.fieldsBinding),
       massBinding: row.massBinding === null ? null : Number(row.massBinding),
+      energyBinding: row.energyBinding === null ? null : Number(row.energyBinding),
       fuzzyKind: row.fuzzyKind,
       predicateBinding: row.fuzzyBinding === null
         ? row.axionBinding === null ? null : Number(row.axionBinding)
@@ -1235,8 +1385,10 @@ export class BoundaryIncrementalStore {
       result.src = matter.targetSrc
       const fieldsBinding = await this.bindingDeclaration(sql, matter.fieldsBinding)
       const massBinding = await this.bindingDeclaration(sql, matter.massBinding)
+      const energyBinding = await this.bindingDeclaration(sql, matter.energyBinding)
       if (fieldsBinding !== undefined) result.fieldsBinding = fieldsBinding
       if (massBinding !== undefined) result.massBinding = massBinding
+      if (energyBinding !== undefined) result.energyBinding = energyBinding
     } else if (matter.kind === "fuzzy") {
       result.fuzzyKind = matter.fuzzyKind
       result.predicateBinding = await this.bindingDeclaration(sql, matter.predicateBinding)
@@ -1344,15 +1496,134 @@ export class BoundaryIncrementalStore {
     }
   }
 
-  private async resolveInitialFields(sql: Database, bindingId: number | null, ownerAtom: number): Promise<JsonRecord> {
-    if (bindingId === null) return {}
+  private async resolveInitialFields(sql: Database, bindingId: number | null, ownerAtom: number): Promise<FieldInit[]> {
+    if (bindingId === null) return []
     const binding = await this.binding(sql, bindingId, ownerAtom)
-    if (isRecord(binding)) return binding
-    if (typeof binding === "string") {
-      const indirect = await this.atomFieldByKey(sql, ownerAtom, binding)
-      return isRecord(indirect) ? indirect : {}
+    const indirect = typeof binding === "string"
+      ? await this.atomFieldByKey(sql, ownerAtom, binding)
+      : undefined
+    const initial: JsonRecord = isRecord(binding) ? binding : isRecord(indirect) ? indirect : {}
+    const sources = await this.directFieldSources(sql, bindingId)
+    return Object.entries(initial).map(([key, value]) => ({
+      key,
+      value: clone(value),
+      ...(sources.has(key) ? {source: {parentAtomId: ownerAtom, parentFieldKey: sources.get(key)!}} : {}),
+    }))
+  }
+
+  private async rebindMatterFieldValues(sql: Database, address: InflatonAddress): Promise<void> {
+    const matter = await this.matter(sql, address.src, address.localId)
+    if (!matter || matter.kind !== "wimp") return
+
+    for (const origin of await sql<Array<{atom: number; ownerAtom: number | null}>>`
+      SELECT origin.runtime_id AS atom,
+             COALESCE(child.parent_atom, topology_origin.owner_atom) AS ownerAtom
+        FROM boundary_runtime_origin AS origin
+        JOIN atom AS child ON child.id = origin.runtime_id
+        LEFT JOIN boundary_runtime_origin AS topology_origin
+          ON topology_origin.kind = ${"topology"}
+         AND topology_origin.runtime_id = child.parent_topology
+       WHERE origin.kind = ${"atom"}
+         AND origin.declaration_kind = ${"matter"}
+         AND origin.declaration_wimp = ${address.src}
+         AND origin.declaration_local_id = ${address.localId}
+       ORDER BY origin.sequence
+    `) {
+      const atomId = Number(origin.atom)
+      if (origin.ownerAtom === null) continue
+      const ownerAtom = Number(origin.ownerAtom)
+      const atom = (await sql<Array<{wimp: string}>>`SELECT wimp FROM atom WHERE id = ${atomId}`)[0]
+      if (!atom) continue
+      const fields = await sql<Array<StoredField>>`
+        SELECT id, wimp, local_id AS localId, key, type, required
+          FROM field
+         WHERE wimp = ${atom.wimp}
+         ORDER BY local_id
+      `
+      const fieldByKey = new Map(fields.map((field) => [field.key, field]))
+      const initial = await this.resolveInitialFields(sql, matter.fieldsBinding, ownerAtom)
+      const desiredFieldIds = new Set<number>()
+
+      for (const init of initial) {
+        const target = fieldByKey.get(init.key)
+        if (!target) throw new Error(`Matter Field binding target ${atom.wimp}.${init.key} is not declared`)
+        desiredFieldIds.add(Number(target.id))
+        const previous = (await sql<Array<{value: number}>>`
+          SELECT value FROM atom_value WHERE atom = ${atomId} AND field = ${target.id}
+        `)[0]
+
+        if (init.source) {
+          const source = (await sql<Array<StoredField & {value: number}>>`
+            SELECT field.id, field.wimp, field.local_id AS localId, field.key, field.type, field.required,
+                   atom_value.value
+              FROM field
+              JOIN atom_value ON atom_value.field = field.id
+             WHERE atom_value.atom = ${init.source.parentAtomId}
+               AND field.key = ${init.source.parentFieldKey}
+             LIMIT 1
+          `)[0]
+          if (!source) throw new Error(`Matter Field source ${init.source.parentFieldKey} is not materialized`)
+          if (!entangleableFieldType(target.type) || !entangleableFieldType(source.type)) {
+            throw new Error(`Matter Field binding ${init.source.parentFieldKey} -> ${init.key} cannot entangle topology Fields`)
+          }
+          if (target.type !== source.type) {
+            throw new Error(`Matter Field binding ${init.source.parentFieldKey} -> ${init.key} requires the same Field type`)
+          }
+          await sql`
+            INSERT INTO atom_value (atom, field, value)
+            VALUES (${atomId}, ${target.id}, ${source.value})
+            ON CONFLICT (atom, field) DO UPDATE SET value = excluded.value
+          `
+          await sql`
+            INSERT INTO atom_field_source (child_atom, child_field, parent_atom, parent_field)
+            VALUES (${atomId}, ${target.id}, ${init.source.parentAtomId}, ${source.id})
+            ON CONFLICT (child_atom, child_field) DO UPDATE SET
+              parent_atom = excluded.parent_atom,
+              parent_field = excluded.parent_field
+          `
+        } else {
+          await sql`DELETE FROM atom_field_source WHERE child_atom = ${atomId} AND child_field = ${target.id}`
+          await sql`DELETE FROM atom_value WHERE atom = ${atomId} AND field = ${target.id}`
+          await this.setAtomValue(sql, atomId, target, init.value)
+        }
+        if (previous) await deleteUnreferencedValue(sql, Number(previous.value))
+      }
+
+      for (const source of await sql<Array<{field: number; value: number}>>`
+        SELECT relation.child_field AS field, atom_value.value
+          FROM atom_field_source AS relation
+          JOIN atom_value
+            ON atom_value.atom = relation.child_atom
+           AND atom_value.field = relation.child_field
+         WHERE relation.child_atom = ${atomId}
+      `) {
+        const fieldId = Number(source.field)
+        if (desiredFieldIds.has(fieldId)) continue
+        const field = fields.find((candidate) => Number(candidate.id) === fieldId)
+        if (!field) continue
+        const value = await this.readValue(sql, Number(source.value), field.type)
+        await sql`DELETE FROM atom_field_source WHERE child_atom = ${atomId} AND child_field = ${fieldId}`
+        await sql`DELETE FROM atom_value WHERE atom = ${atomId} AND field = ${fieldId}`
+        await this.setAtomValue(sql, atomId, field, value)
+        await deleteUnreferencedValue(sql, Number(source.value))
+      }
     }
-    return {}
+  }
+
+  private async directFieldSources(sql: Database, bindingId: number): Promise<Map<string, string>> {
+    const binding = (await sql<Array<{kind: string; expr: string | null}>>`
+      SELECT binding_kind AS kind, expr FROM matter_binding WHERE id = ${bindingId}
+    `)[0]
+    if (binding?.kind !== "dynamic" || binding.expr === null) return new Map()
+    const dependencies = new Map((await sql<Array<{order: number; path: string}>>`
+      SELECT dep_order AS "order", path FROM matter_binding_dep WHERE binding = ${bindingId} ORDER BY dep_order
+    `).map((dependency) => [Number(dependency.order), dependency.path] as const))
+    const result = new Map<string, string>()
+    for (const [target, dependency] of directFieldBindingSources(binding.expr)) {
+      const path = dependencies.get(dependency)
+      if (path && !path.startsWith("/") && !path.includes("/") && !path.includes("[")) result.set(target, path)
+    }
+    return result
   }
 
   private async bindingValues(sql: Database, bindingId: number, ownerAtom: number): Promise<unknown[]> {
@@ -1453,61 +1724,6 @@ export class BoundaryIncrementalStore {
     return items
   }
 
-  private async massValue(sql: Database, src: string, parent: number | null): Promise<unknown> {
-    const rows = await sql<Array<{
-      id: number; kind: string; entryKey: string | null; entryOrder: number | null;
-      textValue: string | null; numberValue: number | null; booleanValue: number | null;
-    }>>`
-      SELECT id, value_kind AS kind, entry_key AS entryKey, entry_order AS entryOrder,
-             text_value AS textValue, number_value AS numberValue, boolean_value AS booleanValue
-        FROM wimp_mass_value
-       WHERE wimp = ${src} AND parent_value IS ${parent}
-       ORDER BY COALESCE(entry_order, 0), id
-    `
-    const decode = async (row: typeof rows[number]): Promise<unknown> => {
-      if (row.kind === "string") return row.textValue ?? ""
-      if (row.kind === "number") return Number(row.numberValue ?? 0)
-      if (row.kind === "boolean") return row.booleanValue === 1
-      if (row.kind === "null") return null
-      if (row.kind === "array") return await this.massValue(sql, src, Number(row.id))
-      const object: JsonRecord = {}
-      for (const child of await sql<Array<{entryKey: string | null; id: number}>>`
-        SELECT entry_key AS entryKey, id FROM wimp_mass_value
-         WHERE wimp = ${src} AND parent_value = ${row.id} ORDER BY id
-      `) {
-        if (child.entryKey === null) continue
-        const value = await this.massValueById(sql, Number(child.id))
-        object[child.entryKey] = value
-      }
-      return object
-    }
-    if (parent !== null) return await Promise.all(rows.map(decode))
-    return rows[0] ? await decode(rows[0]) : null
-  }
-
-  private async massValueById(sql: Database, id: number): Promise<unknown> {
-    const row = (await sql<Array<{
-      wimp: string; kind: string; textValue: string | null; numberValue: number | null; booleanValue: number | null;
-    }>>`
-      SELECT wimp, value_kind AS kind, text_value AS textValue,
-             number_value AS numberValue, boolean_value AS booleanValue
-        FROM wimp_mass_value WHERE id = ${id}
-    `)[0]
-    if (!row) return null
-    if (row.kind === "string") return row.textValue ?? ""
-    if (row.kind === "number") return Number(row.numberValue ?? 0)
-    if (row.kind === "boolean") return row.booleanValue === 1
-    if (row.kind === "null") return null
-    const children = await sql<Array<{id: number; entryKey: string | null}>>`
-      SELECT id, entry_key AS entryKey FROM wimp_mass_value WHERE parent_value = ${id}
-       ORDER BY COALESCE(entry_order, 0), id
-    `
-    if (row.kind === "array") return await Promise.all(children.map((child) => this.massValueById(sql, Number(child.id))))
-    const object: JsonRecord = {}
-    for (const child of children) if (child.entryKey !== null) object[child.entryKey] = await this.massValueById(sql, Number(child.id))
-    return object
-  }
-
   private async removeMatterInstances(sql: Database, address: InflatonAddress): Promise<Particle[]> {
     const effects: Particle[] = []
     for (const origin of await sql<Array<{kind: "atom" | "topology"; runtime_id: number}>>`
@@ -1534,7 +1750,7 @@ export class BoundaryIncrementalStore {
       await sql`DELETE FROM boundary_runtime_origin WHERE kind = ${childKind} AND runtime_id = ${childId}`
       if (childKind === "atom") await sql`DELETE FROM atom WHERE id = ${childId}`
       else await sql`DELETE FROM topology WHERE id = ${childId}`
-      for (const value of values) await sql`DELETE FROM value WHERE id = ${value.value}`
+      for (const value of values) await deleteUnreferencedValue(sql, Number(value.value))
     }
     await visit(kind, id)
     return effects
@@ -1560,7 +1776,7 @@ export class BoundaryIncrementalStore {
         if (part.op === "remove") {
           const previous = (await tx<Array<{value: number}>>`SELECT value FROM atom_value WHERE atom = ${atomId} AND field = ${id}`)[0]
           await tx`DELETE FROM atom_value WHERE atom = ${atomId} AND field = ${id}`
-          if (previous) await tx`DELETE FROM value WHERE id = ${previous.value}`
+          if (previous) await deleteUnreferencedValue(tx, Number(previous.value))
         } else await this.setAtomValue(tx, atomId, field, raw)
       }
       committed.push({...clone(part), ts: Date.now()})
@@ -1646,6 +1862,32 @@ export class BoundaryIncrementalStore {
       }
     }
     const selected = (await sql<Array<{metaState: number | null}>>`SELECT metaState FROM atom_state WHERE atom = ${id}`)[0]?.metaState ?? null
+    const origin = (await sql<Array<{
+      declarationKind: "wimp" | "matter"; declarationWimp: string; declarationLocalId: number
+    }>>`
+      SELECT declaration_kind AS declarationKind, declaration_wimp AS declarationWimp,
+             declaration_local_id AS declarationLocalId
+        FROM boundary_runtime_origin
+       WHERE kind = ${"atom"} AND runtime_id = ${id}
+    `)[0]
+    const continuation = origin?.declarationKind === "matter"
+      ? await this.matter(sql, origin.declarationWimp, Number(origin.declarationLocalId))
+      : null
+    const massBinding = continuation?.kind === "wimp"
+      ? await this.bindingDeclaration(sql, continuation.massBinding)
+      : undefined
+    const energyBinding = continuation?.kind === "wimp"
+      ? await this.bindingDeclaration(sql, continuation.energyBinding)
+      : undefined
+    const fieldSources = await sql<Array<{
+      childAtom: number; childField: number; parentAtom: number; parentField: number
+    }>>`
+      SELECT child_atom AS childAtom, child_field AS childField,
+             parent_atom AS parentAtom, parent_field AS parentField
+        FROM atom_field_source
+       WHERE child_atom = ${id}
+       ORDER BY child_field
+    `
     return {
       atom: {
         id,
@@ -1654,9 +1896,20 @@ export class BoundaryIncrementalStore {
         wimp: atom.wimp,
         position: Number(atom.position),
       },
+      ...(
+        continuation?.kind === "wimp"
+          ? {
+              continuation: {
+                ...(massBinding !== undefined ? {massBinding} : {}),
+                ...(energyBinding !== undefined ? {energyBinding} : {}),
+              },
+            }
+          : {}
+      ),
       values,
       valueRecords,
       valueItems,
+      ...(fieldSources.length > 0 ? {fieldSources} : {}),
       state: {atom: id, metaState: selected === null ? null : Number(selected)},
     }
   }

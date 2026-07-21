@@ -15,8 +15,9 @@ describe("finally-процессы", () => {
         label: "Очистка",
         desc: "Очистка ресурсов",
         env: ["node"],
-      }).before(({ mass }) => {
-        mass.cleanup = true
+      }).before(async ({ mass, energy }) => {
+        const cleanup = await import("./tests/types/fixtures/finally-cleanup.ts")
+        return cleanup.release({mass, energy})
       }),
     ]
 
@@ -37,8 +38,9 @@ describe("finally-процессы", () => {
         label: "Очистка",
         desc: "Очистка ресурсов",
         env: ["node", "worker"],
-      }).before(({ mass }) => {
-        mass.cleanup = true
+      }).before(async ({ mass, energy }) => {
+        const cleanup = await import("./tests/types/fixtures/finally-cleanup.ts")
+        return cleanup.release({mass, energy})
       }),
     ]
 
@@ -48,7 +50,7 @@ describe("finally-процессы", () => {
     expect(snapshot.cleanup!.label).toBe("Очистка")
     expect(snapshot.cleanup!.desc).toBe("Очистка ресурсов")
     expect(snapshot.cleanup!.env).toEqual(["node", "worker"])
-    expect((snapshot.cleanup as { before: { src: string } }).before.src).toContain("mass.cleanup = true")
+    expect((snapshot.cleanup as { before: { src: string } }).before.src).toContain("import(\"./tests/types/fixtures/finally-cleanup.ts\")")
   })
 
   test("несколько destroy процессов", () => {
@@ -63,15 +65,18 @@ describe("finally-процессы", () => {
       "cleanup" | "finalize" | "simple" | "nonRecursive",
       { cleanup: boolean; bar: number }
     > = (process, destroy) => [
-      destroy("cleanup", { label: "Очистка ресурсов", desc: "Удаляет временные данные" }).before(({ mass }) => {
-        mass.cleanup = true
+      destroy("cleanup", { label: "Очистка ресурсов", desc: "Удаляет временные данные" }).before(async ({ mass, energy }) => {
+        const cleanup = await import("./tests/types/fixtures/finally-cleanup.ts")
+        return cleanup.release({mass, energy})
       }),
-      destroy("finalize", { label: "Финализация" }).before(({ mass }) => {
-        mass.bar = 999
+      destroy("finalize", { label: "Финализация" }).before(async ({ mass, energy }) => {
+        const cleanup = await import("./tests/types/fixtures/finally-cleanup.ts")
+        return cleanup.release({mass, energy})
       }),
       destroy("simple", { label: "Простое удаление" }),
-      destroy("nonRecursive", { label: "Не рекурсивное удаление" }).before(({ mass }) => {
-        mass.bar = 0
+      destroy("nonRecursive", { label: "Не рекурсивное удаление" }).before(async ({ mass, energy }) => {
+        const cleanup = await import("./tests/types/fixtures/finally-cleanup.ts")
+        return cleanup.release({mass, energy})
       }),
     ]
 
@@ -81,12 +86,12 @@ describe("finally-процессы", () => {
     expect((snapshot.cleanup!.type as string)).toBe("finally")
     expect(snapshot.cleanup!.label).toBe("Очистка ресурсов")
     expect(snapshot.cleanup!.desc).toBe("Удаляет временные данные")
-    expect((snapshot.cleanup as { before: { src: string } }).before.src).toContain("mass.cleanup = true")
+    expect((snapshot.cleanup as { before: { src: string } }).before.src).toContain("finally-cleanup.ts")
 
     expect(snapshot.finalize).toBeDefined()
     expect((snapshot.finalize!.type as string)).toBe("finally")
     expect(snapshot.finalize!.label).toBe("Финализация")
-    expect((snapshot.finalize as { before: { src: string } }).before.src).toContain("mass.bar = 999")
+    expect((snapshot.finalize as { before: { src: string } }).before.src).toContain("finally-cleanup.ts")
 
     expect(snapshot.simple).toBeDefined()
     expect((snapshot.simple!.type as string)).toBe("finally")
@@ -95,7 +100,7 @@ describe("finally-процессы", () => {
     expect(snapshot.nonRecursive).toBeDefined()
     expect((snapshot.nonRecursive!.type as string)).toBe("finally")
     expect(snapshot.nonRecursive!.label).toBe("Не рекурсивное удаление")
-    expect((snapshot.nonRecursive as { before: { src: string } }).before.src).toContain("mass.bar = 0")
+    expect((snapshot.nonRecursive as { before: { src: string } }).before.src).toContain("finally-cleanup.ts")
   })
 
   test("parseFinally нормализует before handler", () => {
@@ -104,8 +109,9 @@ describe("finally-процессы", () => {
       label: "Cleanup",
       desc: "before hook",
       env: ["node"],
-      before: ({ mass }: { mass: { cleanup: boolean } }) => {
-        mass.cleanup = true
+      before: async ({ mass, energy }) => {
+        const cleanup = await import("./tests/types/fixtures/finally-cleanup.ts")
+        return cleanup.release({mass, energy})
       },
     })
 
@@ -115,8 +121,65 @@ describe("finally-процессы", () => {
       desc: "before hook",
       env: ["node"],
       before: {
-        src: expect.stringContaining("mass.cleanup = true"),
+        src: expect.stringContaining("finally-cleanup.ts"),
       },
     })
+  })
+
+  test("destroy.before отклоняет inline cleanup-логику", () => {
+    expect(() => parseFinally<{cleanup: boolean}>({
+      type: "finally",
+      before: ({mass}) => {
+        mass.cleanup = true
+      },
+    })).toThrow("destroy.before")
+  })
+
+  test("destroy.before отклоняет import без возврата результата cleanup-модуля", () => {
+    expect(() => parseFinally<{cleanup: boolean}>({
+      type: "finally",
+      before: async ({mass, energy}) => {
+        const cleanup = await import("./tests/types/fixtures/finally-cleanup.ts")
+        void cleanup.release({mass, energy})
+      },
+    })).toThrow("destroy.before")
+  })
+
+  test("destroy.before отклоняет пустую inline-заглушку", () => {
+    expect(() => parseFinally({
+      type: "finally",
+      before: () => {},
+    })).toThrow("destroy.before")
+  })
+
+  test("destroy.before отклоняет cleanup-логику рядом с import", () => {
+    expect(() => parseFinally<{cleanup: boolean}>({
+      type: "finally",
+      before: async ({mass, energy}) => {
+        const cleanup = await import("./tests/types/fixtures/finally-cleanup.ts")
+        mass.cleanup = true
+        return cleanup.release({mass, energy})
+      },
+    })).toThrow("destroy.before")
+  })
+
+  test("destroy.before отклоняет мутацию внутри аргумента cleanup-вызова", () => {
+    expect(() => parseFinally<{cleanup: boolean}>({
+      type: "finally",
+      before: async ({mass, energy}) => {
+        const cleanup = await import("./tests/types/fixtures/finally-cleanup.ts")
+        return cleanup.release((mass.cleanup = true, {mass, energy}))
+      },
+    })).toThrow("destroy.before")
+  })
+
+  test("destroy.before отклоняет исполняемый default в сигнатуре wrapper", () => {
+    expect(() => parseFinally<{cleanup: boolean}>({
+      type: "finally",
+      before: async ({mass, energy, probe = (mass.cleanup = true, 0)}: any) => {
+        const cleanup = await import("./tests/types/fixtures/finally-cleanup.ts")
+        return cleanup.release({mass, energy})
+      },
+    })).toThrow("destroy.before")
   })
 })

@@ -46,12 +46,15 @@ describe("Boundary canonical initial state", () => {
     const initial = await boundary.initialState()
     const atomId = initial.atoms[0]!.id
     const fieldId = Number((await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM field WHERE wimp = ${ROOT} AND local_id = ${1}`)[0]!.id)
+    const valueId = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT value AS id FROM atom_value WHERE atom = ${atomId} AND field = ${fieldId}
+    `)[0]!.id)
 
     expect(initial.version).toBe(1)
     expect(initial.atoms).toEqual([{
       id: atomId,
       wimp: ROOT,
-      values: [{field: fieldId, value: 0}],
+      values: [{field: fieldId, valueId, value: 0}],
       state: null,
     }])
     expect(initial.declarations.find((item) => item.section === "fields")?.value).toMatchObject({
