@@ -46,6 +46,8 @@ BOUNDARY_PATH=/absolute/path/boundary.sqlite bun run --filter boundary start
 - обычные канонические consequences после commit продолжают идти как Particle;
 - `boundary.initialState.read` через Force RPC возвращает нормализованные
   канонические строки для первоначального рождения Matrix;
+- `boundary.initialProjection.read` через тот же RPC возвращает полный текущий
+  канонический projection без `ts` и `by` для рождения постоянного Bulk Store;
 - Boundary не собирает Matrix Store/Weak и не отправляет стартовый snapshot как
   `graviton/replace`;
 - остальные messages проходят через `materialize()`.

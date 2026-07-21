@@ -1,3 +1,5 @@
+import type {Particle} from "shared/protocol/force/particle"
+
 /** One normalized Boundary declaration required to prepare a domain Store. */
 export type BoundaryInitialDeclaration = {
   src: string
@@ -22,3 +24,14 @@ export type BoundaryInitialState = {
 }
 
 export const BOUNDARY_INITIAL_STATE_METHOD = "boundary.initialState.read" as const
+
+/** One current canonical projection entry carried by RPC, not by Force. */
+export type BoundaryInitialProjectionEntry = Omit<Particle, "by" | "ts">
+
+/** Complete current Boundary projection used to prepare a domain Store. */
+export type BoundaryInitialProjection = {
+  version: 1
+  entries: BoundaryInitialProjectionEntry[]
+}
+
+export const BOUNDARY_INITIAL_PROJECTION_METHOD = "boundary.initialProjection.read" as const

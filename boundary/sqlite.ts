@@ -11,6 +11,7 @@ import {BoundaryExecutionStore} from "./execution.ts"
 import {BoundaryReactionStore} from "./reaction.ts"
 import {BoundaryInputStore} from "./input.ts"
 import {readBoundaryInitialState} from "./initial.ts"
+import type {BoundaryInitialProjection} from "@metafor/types/boundary/initial"
 
 const isFieldConsequence = (message: ForceMessage): boolean => {
   const part = message.parts[0]
@@ -130,6 +131,13 @@ export const open = async (filename?: string) => {
     replay: () => projection.replay(),
     materialize,
     initialState: () => readBoundaryInitialState(sql),
+    initialProjection: async (): Promise<BoundaryInitialProjection> => ({
+      version: 1,
+      entries: (await projection.replay()).map((message) => {
+        const {by: _by, ts: _ts, ...entry} = message.parts[0]
+        return entry
+      }),
+    }),
     async close() {
       try {
         if (fileBacked) await sql.unsafe("PRAGMA wal_checkpoint(TRUNCATE);")

@@ -29,6 +29,7 @@
     "./matrix/gpu": "./matrix/gpu.ts",
     "./matrix/cpu": "./matrix/cpu.ts",
     "./bulk/manifest": "./bulk/manifest.ts",
+    "./bulk/initial": "./bulk/initial.ts",
     "./bulk/runtime": "./bulk/runtime.ts",
     "./bulk/protocol": "./bulk/protocol.ts",
     "./bulk/layout": "./bulk/layout.ts",

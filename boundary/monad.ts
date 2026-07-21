@@ -1,4 +1,7 @@
-import {BOUNDARY_INITIAL_STATE_METHOD} from "@metafor/types/boundary/initial"
+import {
+  BOUNDARY_INITIAL_PROJECTION_METHOD,
+  BOUNDARY_INITIAL_STATE_METHOD,
+} from "@metafor/types/boundary/initial"
 import type {MonadRpcPeer} from "shared/transport/monad"
 import type {BoundaryDatabase} from "./sqlite.ts"
 
@@ -15,6 +18,7 @@ export class BoundaryMonad {
     if (this.#state !== "created") return
     this.#state = "registering"
     peer.expose(BOUNDARY_INITIAL_STATE_METHOD, async () => await this.boundary.initialState())
+    peer.expose(BOUNDARY_INITIAL_PROJECTION_METHOD, async () => await this.boundary.initialProjection())
   }
 
   onChannelOpened(): void {

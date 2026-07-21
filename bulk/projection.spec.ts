@@ -113,4 +113,21 @@ describe("Bulk incremental projection", () => {
     expect(() => store.apply(part("test", "atom/3", {id: 99}))).toThrow("test failed")
   })
 
+  test("snapshot hydrates a new Store that can continue ordinary Particle updates", () => {
+    const original = new BulkProjectionStore()
+    original.apply(part("add", "wimp", {src: "owner/root", name: "Root"}))
+    original.apply(part("add", "field", {id: 101, localId: 1, wimp: "owner/root", key: "name", type: "string", label: "Name"}))
+    original.apply(part("add", "atom/1", atom(1, "owner/root")))
+
+    const hydrated = new BulkProjectionStore()
+    hydrated.hydrate(original.snapshot())
+    hydrated.apply(part("remove", "field", {wimp: "owner/root", localId: 1}))
+
+    expect(hydrated.view()).toEqual(expect.objectContaining({
+      atoms: original.view().atoms,
+      wimps: original.view().wimps,
+      fields: [],
+    }))
+  })
+
 })

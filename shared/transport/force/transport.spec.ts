@@ -220,5 +220,21 @@ describe("Force runtime transports", () => {
   test("browser assigns its domain while preserving the outgoing timestamp", async () => {
     await verifyOutgoingSource(BrowserForce, "bulk")
   })
+
+  test("browser carries observer identity in Upgrade without adding a realtime frame", async () => {
+    const ForceWithOptions = BrowserForce as unknown as new (
+      domain: string,
+      options: {id: string; parameters: Record<string, string>},
+    ) => InstanceType<ForceConstructor>
+    const force = new ForceWithOptions("bulk", {id: "observer-1", parameters: {session: "handoff-1"}})
+    const socket = sockets.at(-1)!
+    await waitFor(() => force.connected)
+
+    const address = new URL(socket.url)
+    expect(address.searchParams.get("domain")).toBe("bulk")
+    expect(address.searchParams.get("id")).toBe("observer-1")
+    expect(address.searchParams.get("session")).toBe("handoff-1")
+    expect(socket.sent).toEqual([])
+  })
 })
 })

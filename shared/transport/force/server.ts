@@ -1,6 +1,8 @@
 import {sourceForceMessage, type ForceMessageInput, type SourcedForceMessage} from "../../protocol/force/message.ts"
 import {logImpulse} from "./log.ts"
-import {ForceBase} from "./base.ts"
+import {ForceBase, type ForceTransportOptions} from "./base.ts"
+
+export type {ForceTransportOptions} from "./base.ts"
 
 const FORCE_DEFAULT_ADDRESS = "ws://127.0.0.1:4000/ws"
 
@@ -17,10 +19,11 @@ export class Force extends ForceBase {
   override onDestroy?: () => void | Promise<void>
   override readonly id: string
 
-  constructor(override readonly domain: string) {
+  constructor(override readonly domain: string, options: ForceTransportOptions = {}) {
     super()
-    this.id = `${domain}-local`
+    this.id = options.id?.trim() || `${domain}-local`
     const address = new URL(Bun.env.FORCE_ADDRESS?.trim() || FORCE_DEFAULT_ADDRESS)
+    for (const [key, value] of Object.entries(options.parameters ?? {})) address.searchParams.set(key, value)
     address.searchParams.set("domain", domain)
     address.searchParams.set("id", this.id)
     this.#address = address.href

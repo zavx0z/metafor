@@ -1,5 +1,8 @@
 import {afterEach, beforeEach, describe, expect, test} from "bun:test"
-import {BOUNDARY_INITIAL_STATE_METHOD} from "@metafor/types/boundary/initial"
+import {
+  BOUNDARY_INITIAL_PROJECTION_METHOD,
+  BOUNDARY_INITIAL_STATE_METHOD,
+} from "@metafor/types/boundary/initial"
 import {
   MonadRpcPeer,
   type MonadChannel,
@@ -50,7 +53,10 @@ describe("Boundary Monad", () => {
     const peer = new MonadRpcPeer(channel)
 
     monad.onServerStarted(peer)
-    expect(peer.methods()).toEqual([BOUNDARY_INITIAL_STATE_METHOD])
+    expect(peer.methods()).toEqual([
+      BOUNDARY_INITIAL_PROJECTION_METHOD,
+      BOUNDARY_INITIAL_STATE_METHOD,
+    ])
     expect(await monad.onHealthRequested(":memory:").json()).toMatchObject({rpc: "registering"})
 
     monad.onChannelOpened()
@@ -71,5 +77,21 @@ describe("Boundary Monad", () => {
       ok: true,
       result: {version: 1, atoms: [], declarations: []},
     }])
+
+    await channel.receive({
+      version: MONAD_RPC_VERSION,
+      id: "bulk-birth",
+      source: "bulk",
+      target: "boundary",
+      method: BOUNDARY_INITIAL_PROJECTION_METHOD,
+      params: {},
+    })
+
+    expect(channel.sent[1]).toEqual({
+      version: MONAD_RPC_VERSION,
+      id: "bulk-birth",
+      ok: true,
+      result: {version: 1, entries: []},
+    })
   })
 })

@@ -1,4 +1,5 @@
 import type { BulkViewportWithHud } from "@metafor/types/bulk/hud"
+import type {BulkInitialPackage} from "@metafor/types/bulk/initial"
 import { Force } from "shared/transport/force"
 import { createBulkViewport } from "bulk/web"
 import { DEFAULT_BULK_SCENE_SRC, DEFAULT_BULK_SETTINGS } from "bulk/settings"
@@ -13,8 +14,6 @@ if (bulkCanvas === null) throw new Error("bulk-canvas not found")
 let bulkViewport: BulkViewportWithHud | null = null
 const projection = new BulkProjectionStore()
 let activeSrc = DEFAULT_BULK_SCENE_SRC
-
-const force = new Force("bulk")
 
 const applyProjectionWorld = (src: string): void => {
 	if (!bulkViewport) return
@@ -44,8 +43,6 @@ const initBulkViewport = async (): Promise<void> => {
 		height: Math.max(1, Math.floor(rect.height)),
 	})
 	installBulkHud({viewport: bulkViewport})
-	applyProjectionWorld(activeSrc)
-
 	const resizeBulkViewport = (): void => {
 		if (!bulkViewport) return
 		const rect = bulkCanvas.getBoundingClientRect()
@@ -61,9 +58,7 @@ const initBulkViewport = async (): Promise<void> => {
 	window.visualViewport?.addEventListener("resize", resizeBulkViewport)
 }
 
-void initBulkViewport()
-
-force.onImpulse = (forceMessage) => {
+const receiveImpulse = (forceMessage: Parameters<Force["onImpulse"]>[0]): void => {
 	const part = forceMessage.parts[0]
 	const change = projection.apply(part)
 	const rootSrcs = new Set(
@@ -76,3 +71,25 @@ force.onImpulse = (forceMessage) => {
 	if (change.changed) applyProjectionWorld(activeSrc)
 	bulkViewport?.handleForce(part.part, part)
 }
+
+const readInitialPackage = async (): Promise<BulkInitialPackage> => {
+	const response = await fetch("/initial", {method: "POST"})
+	if (!response.ok) throw new Error(`Bulk initial package failed: ${response.status} ${await response.text()}`)
+	return await response.json() as BulkInitialPackage
+}
+
+const start = async (): Promise<void> => {
+	await initBulkViewport()
+	const initial = await readInitialPackage()
+	projection.hydrate(initial.projection)
+	activeSrc = initial.rootSrc
+	bulkViewport?.applyManifestPatch(initial.manifest)
+
+	const force = new Force("bulk", {
+		id: `bulk-web-${crypto.randomUUID()}`,
+		parameters: {session: initial.session},
+	})
+	force.onImpulse = receiveImpulse
+}
+
+void start().catch((error) => console.error("[bulk] initialization failed", error))

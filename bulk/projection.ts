@@ -16,6 +16,10 @@ import type {
   BulkRuntimeValue,
   BulkRuntimeWimp,
 } from "@metafor/types/bulk/runtime"
+import type {
+  BulkProjectionDeclaration,
+  BulkProjectionSnapshot,
+} from "@metafor/types/bulk/initial"
 import type {Particle} from "shared/protocol/force/particle"
 import {resolveForceFieldId, resolveForceFieldsPayload} from "shared/protocol/force/fields"
 
@@ -165,6 +169,80 @@ export class BulkProjectionStore {
       matterTopologyBindingPaths: [...this.matterTopologyBindingPaths.values()],
       matterChildWimpBindingPaths: [...this.matterChildWimpBindingPaths.values()],
     }
+  }
+
+  snapshot(): BulkProjectionSnapshot {
+    const declarations: BulkProjectionDeclaration[] = []
+    for (const [src, sections] of this.declarations) {
+      for (const [section, records] of sections) {
+        for (const [localId, value] of records) {
+          declarations.push({src, section, localId, value: clone(value)})
+        }
+      }
+    }
+    return {runtime: clone(this.view()), declarations}
+  }
+
+  hydrate(snapshot: BulkProjectionSnapshot): void {
+    this.atoms.clear()
+    this.topologies.clear()
+    this.wimps.clear()
+    this.fields.clear()
+    this.states.clear()
+    this.transitions.clear()
+    this.conditions.clear()
+    this.processes.clear()
+    this.reactions.clear()
+    this.atomStates.clear()
+    this.variants.clear()
+    this.atomValues.clear()
+    this.values.clear()
+    this.valueItems.clear()
+    this.matterParticles.clear()
+    this.matterTopologyBindingPaths.clear()
+    this.matterChildWimpBindingPaths.clear()
+    this.declarations.clear()
+    this.childrenByParent.clear()
+    this.atomIdsByWimp.clear()
+
+    const runtime = clone(snapshot.runtime)
+    for (const atom of runtime.atoms) this.atoms.set(atom.id, atom)
+    for (const topology of runtime.topologies) this.topologies.set(topology.id, topology)
+    for (const wimp of runtime.wimps) this.wimps.set(wimp.src, wimp)
+    for (const field of runtime.fields) this.fields.set(field.id, field)
+    for (const state of runtime.states) this.states.set(state.id, state)
+    for (const transition of runtime.transitions) this.transitions.set(transition.id, transition)
+    for (const condition of runtime.conditions) this.conditions.set(condition.id, condition)
+    for (const process of runtime.processes) this.processes.set(process.id, process)
+    for (const reaction of runtime.reactions) this.reactions.set(reaction.id, reaction)
+    for (const state of runtime.atomStates) this.atomStates.set(state.atom, state)
+    for (const variant of runtime.fieldEnumVariants) this.variants.set(variant.id, variant)
+    for (const binding of runtime.atomValues) this.atomValues.set(`${binding.atom}\0${binding.field}`, binding)
+    for (const value of runtime.values) this.values.set(value.id, value)
+    for (const item of runtime.valueItems) this.valueItems.set(`${item.value}\0${item.position}`, item)
+    for (const particle of runtime.matterParticles) this.matterParticles.set(particle.id, particle)
+    for (const binding of runtime.matterTopologyBindingPaths) {
+      this.matterTopologyBindingPaths.set(`${binding.particle}\0${binding.depOrder}`, binding)
+    }
+    for (const binding of runtime.matterChildWimpBindingPaths) {
+      this.matterChildWimpBindingPaths.set(`${binding.particle}\0${binding.childOrder}\0${binding.depOrder}`, binding)
+    }
+    for (const declaration of snapshot.declarations) {
+      let sections = this.declarations.get(declaration.src)
+      if (!sections) {
+        sections = new Map()
+        this.declarations.set(declaration.src, sections)
+      }
+      let records = sections.get(declaration.section)
+      if (!records) {
+        records = new Map()
+        sections.set(declaration.section, records)
+      }
+      records.set(declaration.localId, clone(declaration.value))
+    }
+    for (const topology of this.topologies.values()) this.link("topology", topology.id, topology)
+    for (const atom of this.atoms.values()) this.link("atom", atom.id, atom)
+    this.nextValueId = Math.max(0, ...this.values.keys()) + 1
   }
 
   private read(target: Address): unknown {

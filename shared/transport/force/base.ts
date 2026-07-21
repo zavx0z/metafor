@@ -1,5 +1,10 @@
 import type {ForceMessage, ForceMessageInput} from "../../protocol/force/message.ts"
 
+export type ForceTransportOptions = {
+  id?: string
+  parameters?: Readonly<Record<string, string>>
+}
+
 /**
  * Общий публичный контракт транспортного клиента Force.
  *

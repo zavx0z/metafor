@@ -1,9 +1,12 @@
 import {sourceForceMessage, type ForceMessageInput, type SourcedForceMessage} from "../../protocol/force/message.ts"
 import {logImpulse} from "./log.ts"
-import {ForceBase} from "./base.ts"
+import {ForceBase, type ForceTransportOptions} from "./base.ts"
 
-const forceBrowserAddress = (domain: string, id: string): string => {
+export type {ForceTransportOptions} from "./base.ts"
+
+const forceBrowserAddress = (domain: string, id: string, parameters: Readonly<Record<string, string>>): string => {
   const address = new URL(`${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`)
+  for (const [key, value] of Object.entries(parameters)) address.searchParams.set(key, value)
   address.searchParams.set("domain", domain)
   address.searchParams.set("id", id)
   return address.href
@@ -19,16 +22,19 @@ export class Force extends ForceBase {
   override onDestroy?: () => void | Promise<void>
   override readonly id: string
 
-  constructor(override readonly domain: string) {
+  constructor(override readonly domain: string, options: ForceTransportOptions = {}) {
     super()
-    this.id = `${domain}-web`
+    this.id = options.id?.trim() || `${domain}-web`
     if (Force.#instance) Force.#instance.#closeTransport()
     Force.#instance = this
-    this.#socket = this.#connect()
+    this.#socket = this.#connect(options.parameters ?? {})
   }
 
-  #connect(): WebSocket {
-    const socket = new WebSocket(forceBrowserAddress(this.domain, this.id))
+  #parameters: Readonly<Record<string, string>> = {}
+
+  #connect(parameters: Readonly<Record<string, string>> = this.#parameters): WebSocket {
+    this.#parameters = parameters
+    const socket = new WebSocket(forceBrowserAddress(this.domain, this.id, parameters))
     socket.onopen = () => {
       this.emitConnection(true)
       console.log(`[${this.domain}] connected to Force`)

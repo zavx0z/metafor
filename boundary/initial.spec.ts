@@ -83,4 +83,17 @@ describe("Boundary canonical initial state", () => {
     expect(Number(atomCount)).toBe(1)
     expect(Number(declarationCount)).toBe(7)
   })
+
+  test("returns the complete current projection as timestamp-free service data", async () => {
+    await apply({part: "inflaton", op: "add", path: "wimp", value: {src: ROOT, name: "Runtime"}})
+    await declaration("field", 1, {key: "input", type: "number", default: 0, position: 0})
+
+    const initial = await boundary.initialProjection()
+
+    expect(initial.version).toBe(1)
+    expect(initial.entries.some((entry) => entry.path === "wimp")).toBe(true)
+    expect(initial.entries.some((entry) => entry.path === "field")).toBe(true)
+    expect(initial.entries.some((entry) => typeof entry.path === "string" && entry.path.startsWith("atom/"))).toBe(true)
+    expect(initial.entries.every((entry) => !("ts" in entry) && !("by" in entry))).toBe(true)
+  })
 })
