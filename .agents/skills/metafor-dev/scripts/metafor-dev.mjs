@@ -265,8 +265,8 @@ const emit = (payload, exitCode = 0) => {
 
 const delay = (milliseconds) => new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds))
 
-export const buildInflatonAddMessage = (ts) => ({
-  parts: [{part: "inflaton", op: "add", path: "wimp", ts, value: {src: "capsule", name: "Capsule"}}],
+export const buildInflatonAddMessage = (ts, src = "capsule") => ({
+  parts: [{part: "inflaton", op: "add", path: "wimp", ts, value: {src, name: "Capsule"}}],
 })
 
 export const buildInflatonTestMessage = (src, ts) => ({
@@ -289,7 +289,8 @@ const runInflatonAdd = async () => {
   }
 
   const ts = Date.now()
-  const request = buildInflatonAddMessage(ts)
+  const src = `capsule-${ts}`
+  const request = buildInflatonAddMessage(ts, src)
   let response
   let responseBody
   try {
@@ -343,7 +344,7 @@ const runInflatonAdd = async () => {
             FROM atom JOIN wimp ON wimp.src = atom.wimp
            WHERE atom.wimp = ? AND atom.parent_atom IS NULL AND atom.parent_topology IS NULL
            ORDER BY atom.id LIMIT 1
-        `).get("capsule")
+        `).get(src)
       } finally {
         database.close()
       }
@@ -360,11 +361,12 @@ const runInflatonAdd = async () => {
       scenario: "inflaton-add",
       step: ok ? "browser-checkpoint-required" : "materialization-timeout",
       request,
+      src,
       ingress: responseBody,
       canonical: atom,
       target: "http://localhost:4004/",
       checkpoint: ok
-        ? "Use the Codex in-app browser to confirm the Capsule Atom and its transient Particle manifestation."
+        ? `Use the browser to confirm the fresh Capsule Atom ${src} and its transient Particle manifestation.`
         : "Inspect the owned contour logs for the missing Dark or Boundary stage.",
     },
     exitCode: ok ? 0 : 1,

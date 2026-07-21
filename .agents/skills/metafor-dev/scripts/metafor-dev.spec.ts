@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 
 import { buildImpact, buildInflatonAddMessage, buildInflatonTestMessage, validateSkill } from "./metafor-dev.mjs"
-import { classifyWorldOwner } from "./world-owner.mjs"
+import { classifyWorldOwner, interpreterProcessMatchesService } from "./world-owner.mjs"
 
 describe("MetaFor Dev contour", () => {
   test("distinguishes every runtime process owner without an ambiguous boolean", () => {
@@ -16,6 +16,43 @@ describe("MetaFor Dev contour", () => {
       interpreterServices: ["force"],
       healthyServices: ["force", "dark"],
     })).toBe("external")
+  })
+
+  test("recognizes Interpreter modules from the Bun command when modulePath is absent", () => {
+    const repositoryRoot = "/workspace/metafor"
+    const service = {name: "force", modulePath: "force/server.ts"}
+    const processState = {
+      id: "force",
+      modulePath: null,
+      target: {
+        state: "running",
+        cwd: repositoryRoot,
+        command: ["bun", "--inspect=ws://127.0.0.1:6717/", "--hot", "force/server.ts"],
+      },
+    }
+
+    expect(interpreterProcessMatchesService({processState, service, repositoryRoot})).toBe(true)
+    expect(interpreterProcessMatchesService({
+      processState: {...processState, target: {...processState.target, command: ["bun", "dark/server.ts"]}},
+      service,
+      repositoryRoot,
+    })).toBe(false)
+  })
+
+  test("keeps an explicit mismatched Interpreter modulePath external", () => {
+    const repositoryRoot = "/workspace/metafor"
+    const service = {name: "force", modulePath: "force/server.ts"}
+    const processState = {
+      id: "force",
+      modulePath: "dark/server.ts",
+      target: {
+        state: "running",
+        cwd: repositoryRoot,
+        command: ["bun", "force/server.ts"],
+      },
+    }
+
+    expect(interpreterProcessMatchesService({processState, service, repositoryRoot})).toBe(false)
   })
 
   test("maps Force transport and relay changes to focused tests and live stories", () => {
@@ -71,6 +108,9 @@ describe("MetaFor Dev contour", () => {
   test("builds the one trusted external Particle without caller-supplied by", () => {
     expect(buildInflatonAddMessage(42)).toEqual({
       parts: [{part: "inflaton", op: "add", path: "wimp", ts: 42, value: {src: "capsule", name: "Capsule"}}],
+    })
+    expect(buildInflatonAddMessage(43, "capsule-43")).toEqual({
+      parts: [{part: "inflaton", op: "add", path: "wimp", ts: 43, value: {src: "capsule-43", name: "Capsule"}}],
     })
   })
 

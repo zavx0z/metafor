@@ -44,6 +44,27 @@ const findInterpreterClient = () => {
   return undefined
 }
 
+export const interpreterProcessMatchesService = ({processState, service, repositoryRoot}) => {
+  if (processState?.id !== service?.name) return false
+  if (processState?.target?.state !== "running") return false
+
+  const root = resolve(repositoryRoot)
+  const targetCwd = processState?.target?.cwd
+  if (typeof targetCwd !== "string" || resolve(targetCwd) !== root) return false
+
+  const expectedModulePath = resolve(root, service.modulePath)
+  if (typeof processState.modulePath === "string" && processState.modulePath.trim()) {
+    return resolve(root, processState.modulePath) === expectedModulePath
+  }
+
+  const command = Array.isArray(processState?.target?.command) ? processState.target.command : []
+  return command.some((argument) => (
+    typeof argument === "string"
+    && !argument.startsWith("-")
+    && resolve(root, argument) === expectedModulePath
+  ))
+}
+
 /** Читает только зарегистрированные Interpreter процессы текущего проекта. */
 export const readInterpreterServices = ({repositoryRoot, services}) => {
   const client = findInterpreterClient()
@@ -61,14 +82,12 @@ export const readInterpreterServices = ({repositoryRoot, services}) => {
   try {
     const payload = JSON.parse(result.stdout)
     const processes = Array.isArray(payload?.result?.processes) ? payload.result.processes : []
-    const expected = new Map(services.map(({name, modulePath}) => [name, modulePath]))
+    const expected = new Map(services.map((service) => [service.name, service]))
     const owned = new Set()
 
     for (const processState of processes) {
-      const modulePath = expected.get(processState?.id)
-      if (!modulePath || processState.modulePath !== modulePath) continue
-      if (processState?.target?.state !== "running") continue
-      if (resolve(processState?.target?.cwd ?? "") !== repositoryRoot) continue
+      const service = expected.get(processState?.id)
+      if (!service || !interpreterProcessMatchesService({processState, service, repositoryRoot})) continue
       owned.add(processState.id)
     }
 
