@@ -3,8 +3,12 @@ import { describe, expect, test } from "bun:test"
 import {
   buildImpact,
   buildInflatonAddMessage,
+  buildInflatonRemoveMessage,
   buildInflatonTestMessage,
   canonicalWimpSource,
+  parseDarkHistoryReadArgs,
+  resolveMetaReadSource,
+  universeResetPaths,
   validateSkill,
 } from "./metafor-dev.mjs"
 import { classifyWorldOwner, interpreterProcessMatchesService } from "./world-owner.mjs"
@@ -81,6 +85,34 @@ describe("MetaFor Dev contour", () => {
     expect(impact.skillSurfaces).toContain("module boundaries")
   })
 
+  test("maps Boundary to its exact directory without matching ignored Cluster repositories", () => {
+    const impact = buildImpact(["boundary/incremental.ts"])
+
+    expect(impact.ok).toBe(true)
+    expect(impact.areas).toEqual(["boundary-projection"])
+    expect(impact.automated).toContain("bun test ./boundary")
+    expect(impact.automated).not.toContain("bun test boundary")
+  })
+
+  test("maps the Energy cold-start integration proof to the Energy runtime", () => {
+    const impact = buildImpact(["energy.cold-start.spec.ts"])
+
+    expect(impact.ok).toBe(true)
+    expect(impact.areas).toEqual(["energy-runtime"])
+    expect(impact.automated).toContain("bun test energy")
+    expect(impact.unmappedPaths).toEqual([])
+  })
+
+  test("maps the Field entanglement cold-start proof across Boundary and Matrix", () => {
+    const impact = buildImpact(["field-entanglement.cold-start.spec.ts"])
+
+    expect(impact.ok).toBe(true)
+    expect(impact.areas).toEqual(["field-entanglement-integration"])
+    expect(impact.automated).toEqual(["bun test ./boundary", "bun test matrix", "bun run typecheck"])
+    expect(impact.live).toEqual(["inflaton-add", "bulk-baseline"])
+    expect(impact.unmappedPaths).toEqual([])
+  })
+
   test("maps Bulk changes to visual acceptance", () => {
     const impact = buildImpact(["bulk/projection.ts", "pkg/ui/elements/div.ts", "ui/elements/div.ts"])
 
@@ -98,6 +130,25 @@ describe("MetaFor Dev contour", () => {
     expect(impact.areas).toEqual(["types-contract", "project-generator", "project-documentation"])
     expect(impact.automated).toContain("bun test ./create-metafor")
     expect(impact.skillSurfaces).toContain("runtime when the generated project contract changes")
+  })
+
+  test("maps the root DSL and strict type suites to the types contract", () => {
+    const impact = buildImpact([
+      "metafor.ts",
+      "matter.spec.ts",
+      "process.ts",
+      "tests/fields/typing.spec.ts",
+      "tests/types/processes.typing.spec.ts",
+    ])
+
+    expect(impact.ok).toBe(true)
+    expect(impact.areas).toEqual(["types-contract"])
+    expect(impact.automated).toEqual([
+      "bun run typecheck",
+      "bun run typecheck:expect-errors",
+      "bun test ./action.spec.ts ./finally.spec.ts ./matter.spec.ts ./process.spec.ts ./reactions.spec.ts ./tests/fields ./tests/types",
+    ])
+    expect(impact.unmappedPaths).toEqual([])
   })
 
   test("maps the physical Cluster boundary without treating it as a workspace", () => {
@@ -144,11 +195,43 @@ describe("MetaFor Dev contour", () => {
     })
   })
 
+  test("builds the root Boundary cleanup with the existing Inflaton remove protocol", () => {
+    expect(buildInflatonRemoveMessage("zavx0z/capsule", 44)).toEqual({
+      parts: [{part: "inflaton", op: "remove", path: "wimp", ts: 44, value: {src: "zavx0z/capsule"}}],
+    })
+  })
+
+  test("builds a Dark history request in parallel time-step coordinates", () => {
+    expect(parseDarkHistoryReadArgs([
+      "--from-ts", "42",
+      "--to-ts", "84",
+      "--limit-steps", "3",
+    ])).toEqual({fromTs: 42, toTs: 84, limitSteps: 3})
+    expect(() => parseDarkHistoryReadArgs(["--limit-steps", "0"])).toThrow("greater than zero")
+    expect(() => parseDarkHistoryReadArgs(["--from-ts", "84", "--to-ts", "42"]))
+      .toThrow("greater than or equal")
+  })
+
+  test("limits universe reset to the exact persistent files owned by the dev contour", () => {
+    expect(universeResetPaths().map((path) => path.slice(path.lastIndexOf("/.metafor/")))).toEqual([
+      "/.metafor/dev.sqlite",
+      "/.metafor/dev.sqlite-shm",
+      "/.metafor/dev.sqlite-wal",
+      "/.metafor/dark-history.jsonl",
+    ])
+  })
+
   test("accepts only root Atom and internal Atom WIMP sources", () => {
     expect(canonicalWimpSource("zavx0z/capsule")).toBe(true)
     expect(canonicalWimpSource("zavx0z/capsule/profile")).toBe(true)
     expect(canonicalWimpSource("capsule")).toBe(false)
     expect(canonicalWimpSource("zavx0z/capsule/profile/nested")).toBe(false)
     expect(canonicalWimpSource("zavx0z/capsule/../profile")).toBe(false)
+  })
+
+  test("reads every WIMP from the one physical Cluster root", () => {
+    const ordinary = resolveMetaReadSource("zavx0z/capsule")
+
+    expect(ordinary.modulePath.endsWith("/cluster/zavx0z/capsule/meta.ts")).toBe(true)
   })
 })

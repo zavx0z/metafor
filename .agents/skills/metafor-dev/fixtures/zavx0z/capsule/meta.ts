@@ -6,7 +6,12 @@ export default {
   ],
   superposition: [],
   matter: [
-    {kind: "wimp", src: "zavx0z/capsule/alpha"},
+    {
+      kind: "wimp",
+      src: "zavx0z/capsule/alpha",
+      massBinding: {data: "/mass"},
+      energyBinding: {data: "/energy"},
+    },
     {kind: "wimp", src: "zavx0z/capsule/beta"},
   ],
 }

@@ -63,8 +63,22 @@ description: "Поэтапная разработка MetaFor через Codex: 
   модули только ради запуска того же контура через MetaFor Dev.
 - Использовать `metafor-dev.mjs run world logs` только для контура, запущенного
   этим skill.
+- Для чистого повторного чтения одного репозитория использовать существующий
+  протокол последовательно: `run meta-remove <owner>/<repository>`, затем
+  `run meta-read <owner>/<repository>`. Не удалять SQLite вручную и не вводить
+  отдельную Particle operation.
+- Для чтения сохранённых Dark patches использовать Monad RPC:
+  `run dark-history read [--from-ts <ts>] [--limit-steps <count>]`. Один `ts`
+  является параллельным time step и не разрезается пагинацией. Команда
+  `run dark-history clear --confirm` очищает только летопись Dark, не Boundary и
+  не всю Вселенную.
 - Использовать `metafor-dev.mjs run world stop` только для процесса, которым
   владеет state-файл skill. Никогда не останавливать найденный чужой контур.
+- Полный dev-reset выполнять только явной командой
+  `metafor-dev.mjs run world reset --confirm`. Она останавливает только
+  принадлежащий skill контур, удаляет exact Boundary SQLite/WAL/SHM и Dark
+  history, затем запускает пустую Вселенную. Evidence и `cluster/` не входят в
+  область удаления.
 - При неполном или ошибочном запуске прочитать
   [`references/runtime.md`](references/runtime.md).
 

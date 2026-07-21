@@ -47,6 +47,10 @@ Atom и LOD глубоких уровней остаются параметра�
 - Boundary ничего не фильтрует.
 - Monad RPC, ForceChannel и realtime Particle protocol не изменены.
 - Handoff между initial package и WebSocket сохранён.
+- Direct ordinary Field binding является persisted shared Value, а не initial
+  copy; Bulk получает одинаковый canonical value identity для всех участников.
+- Live replacement materialized `fieldsBinding` выполняется структурным тактом:
+  Boundary rebind → Atom Graviton → Matrix packed CPU/GPU re-preparation.
 - Dark reconnect, WebRTC и отдельная декоративная иерархия не входят в milestone.
 
 ## Автоматическое доказательство
@@ -72,20 +76,20 @@ bun run check
 
 ## Живая приёмка
 
-1. Проверить `doctor`: шесть сервисов healthy/ready, Bulk и Matrix initialized,
-   Monad RPC ready.
+1. Проверить `doctor`: шесть сервисов healthy/ready, Bulk, Energy и Matrix
+   initialized, Monad RPC ready. Energy считается ready только после Monad
+   cold hydration и открытия её ForceChannel.
 2. Открыть точную вкладку `http://localhost:4004/` через `@meta/macos` REST API.
 3. На непустом Boundary подтвердить содержательный cold-start до новой Particle.
 4. Выполнить `run inflaton-add`: уникальный свежий Atom должен появиться в уже
    открытом canvas без reload.
-5. Выполнить `run meta-read zavx0z/capsule --fixture capsule`: acceptance fixture
-   читает корневой Atom по двухсегментному `src`, внутренние Meta-пакеты по
-   трёхсегментным `src` и materialize реальное дерево
-   `Capsule → Alpha/Beta → Leaf` с собственными Fields каждого Atom. Физически
-   `alpha`, `beta` и runtime-дочерний `leaf` лежат соседями в корне fixture.
-6. Подтвердить root manifestation, затем приблизить `Alpha` через Viewpoint:
-   тот же локальный закон и общая подпись должны стать читаемыми только за счёт
-   проекции камеры.
+5. Перед повторным чтением Capsule выполнить
+   `run meta-remove zavx0z/capsule`, затем
+   `run meta-read zavx0z/capsule`. Dark читает только физический
+   `cluster/zavx0z/capsule/meta.ts` и соседние внутренние Meta-пакеты, а
+   Boundary не сохраняет прежний репозиторный контур.
+6. Подтвердить root manifestation и достижимые внутренние Atom текущей Capsule
+   через Viewpoint.
 7. Повторно открыть Bulk без новой Particle и подтвердить тот же recursive tree
    в initial package.
 

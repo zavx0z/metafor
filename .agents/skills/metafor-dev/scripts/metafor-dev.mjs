@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import {existsSync, readdirSync, readFileSync} from "node:fs"
+import {existsSync, readdirSync, readFileSync, rmSync} from "node:fs"
 import { homedir } from "node:os"
 import { dirname, join, relative, resolve } from "node:path"
 import { spawnSync } from "node:child_process"
@@ -15,10 +15,6 @@ const worldScript = join(scriptDirectory, "world.mjs")
 const expectedFiles = [
   "SKILL.md",
   "agents/openai.yaml",
-  "fixtures/zavx0z/capsule/alpha/meta.ts",
-  "fixtures/zavx0z/capsule/beta/meta.ts",
-  "fixtures/zavx0z/capsule/leaf/meta.ts",
-  "fixtures/zavx0z/capsule/meta.ts",
   "references/current-milestone.md",
   "references/module-boundaries.md",
   "references/runtime.md",
@@ -63,7 +59,7 @@ const impactRules = [
   {
     area: "boundary-projection",
     matches: (path) => path.startsWith("boundary/"),
-    automated: ["bun test boundary", "bun run typecheck"],
+    automated: ["bun test ./boundary", "bun run typecheck"],
     live: ["inflaton-add"],
     skillSurfaces: ["current milestone", "runtime"],
   },
@@ -83,10 +79,17 @@ const impactRules = [
   },
   {
     area: "energy-runtime",
-    matches: (path) => path.startsWith("energy/"),
+    matches: (path) => path.startsWith("energy/") || path === "energy.cold-start.spec.ts",
     automated: ["bun test energy", "bun run typecheck"],
     live: ["bulk-baseline"],
     skillSurfaces: ["runtime", "visual acceptance"],
+  },
+  {
+    area: "field-entanglement-integration",
+    matches: (path) => path === "field-entanglement.cold-start.spec.ts",
+    automated: ["bun test ./boundary", "bun test matrix", "bun run typecheck"],
+    live: ["inflaton-add", "bulk-baseline"],
+    skillSurfaces: ["current milestone", "runtime", "visual acceptance"],
   },
   {
     area: "workspace-contract",
@@ -104,8 +107,34 @@ const impactRules = [
   },
   {
     area: "types-contract",
-    matches: (path) => path.startsWith("types/") && !path.startsWith("types/force/"),
-    automated: ["bun run typecheck"],
+    matches: (path) =>
+      (path.startsWith("types/") && !path.startsWith("types/force/")) ||
+      [
+        "action.ts",
+        "fields.ts",
+        "finally.ts",
+        "matter.ts",
+        "metafor.ts",
+        "process.ts",
+        "reactions.ts",
+        "style.ts",
+        "superposition.ts",
+      ].includes(path) ||
+      [
+        "action.spec.ts",
+        "finally.spec.ts",
+        "matter.spec.ts",
+        "metafor.spec.ts",
+        "process.spec.ts",
+        "reactions.spec.ts",
+      ].includes(path) ||
+      path === "tests/fields/typing.spec.ts" ||
+      path.startsWith("tests/types/"),
+    automated: [
+      "bun run typecheck",
+      "bun run typecheck:expect-errors",
+      "bun test ./action.spec.ts ./finally.spec.ts ./matter.spec.ts ./process.spec.ts ./reactions.spec.ts ./tests/fields ./tests/types",
+    ],
     live: [],
     skillSurfaces: ["current milestone when a Particle contract changes"],
   },
@@ -290,6 +319,10 @@ export const buildInflatonTestMessage = (src, ts) => ({
   parts: [{part: "inflaton", op: "test", path: src, ts}],
 })
 
+export const buildInflatonRemoveMessage = (src, ts) => ({
+  parts: [{part: "inflaton", op: "remove", path: "wimp", ts, value: {src}}],
+})
+
 const runInflatonAdd = async () => {
   const world = runWorld(["status"])
   if (world.payload.ok !== true) {
@@ -397,13 +430,128 @@ export const canonicalWimpSource = (src) => {
     segments.every((segment) => /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(segment))
 }
 
-const acceptanceFixtures = {
-  capsule: {src: "zavx0z/capsule"},
+export const canonicalRootWimpSource = (src) =>
+  canonicalWimpSource(src) && src.split("/").length === 2
+
+export const resolveMetaReadSource = (src) => ({
+  modulePath: join(repositoryRoot, "cluster", src, "meta.ts"),
+})
+
+const runMetaRemove = async (src) => {
+  if (!canonicalRootWimpSource(src)) {
+    return {
+      payload: {
+        schema: "metafor-dev/run@1",
+        ok: false,
+        scenario: "meta-remove",
+        step: "invalid-source",
+        error: "meta-remove requires a root <owner>/<repository> WIMP source",
+      },
+      exitCode: 2,
+    }
+  }
+
+  const world = runWorld(["status"])
+  if (world.payload.ok !== true) {
+    return {
+      payload: {
+        schema: "metafor-dev/run@1",
+        ok: false,
+        scenario: "meta-remove",
+        step: "runtime-not-ready",
+        src,
+        world: world.payload,
+      },
+      exitCode: 1,
+    }
+  }
+
+  const ts = Date.now()
+  const request = buildInflatonRemoveMessage(src, ts)
+  let response
+  let responseBody
+  try {
+    response = await fetch("http://127.0.0.1:4000/force", {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify(request),
+    })
+    responseBody = await response.json()
+  } catch (error) {
+    return {
+      payload: {
+        schema: "metafor-dev/run@1",
+        ok: false,
+        scenario: "meta-remove",
+        step: "ingress-failed",
+        src,
+        request,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      exitCode: 1,
+    }
+  }
+
+  const ingressOk = response.ok && responseBody?.ok === true &&
+    responseBody?.particle?.part === "inflaton" && responseBody?.particle?.op === "remove" &&
+    responseBody?.particle?.path === "wimp" && responseBody?.particle?.value?.src === src &&
+    responseBody?.particle?.by === "agent" && responseBody?.particle?.ts === ts &&
+    Array.isArray(responseBody?.delivered) && responseBody.delivered.includes("dark") &&
+    responseBody.delivered.includes("bulk")
+  if (!ingressOk) {
+    return {
+      payload: {
+        schema: "metafor-dev/run@1",
+        ok: false,
+        scenario: "meta-remove",
+        step: "ingress-rejected",
+        src,
+        request,
+        response: {status: response.status, body: responseBody},
+      },
+      exitCode: 1,
+    }
+  }
+
+  const databasePath = join(repositoryRoot, ".metafor/dev.sqlite")
+  const deadline = Date.now() + 5_000
+  let remaining = null
+  while (Date.now() < deadline) {
+    if (existsSync(databasePath)) {
+      const database = new Database(databasePath, {readonly: true})
+      try {
+        remaining = database.query(`
+          SELECT
+            (SELECT COUNT(*) FROM wimp
+              WHERE src = ? OR substr(src, 1, ?) = ?) AS wimps,
+            (SELECT COUNT(*) FROM atom
+              WHERE wimp = ? OR substr(wimp, 1, ?) = ?) AS atoms
+        `).get(src, src.length + 1, `${src}/`, src, src.length + 1, `${src}/`)
+      } finally {
+        database.close()
+      }
+      if (remaining?.wimps === 0 && remaining?.atoms === 0) break
+    }
+    await delay(50)
+  }
+
+  const ok = remaining?.wimps === 0 && remaining?.atoms === 0
+  return {
+    payload: {
+      schema: "metafor-dev/run@1",
+      ok,
+      scenario: "meta-remove",
+      step: ok ? "boundary-cleared" : "removal-timeout",
+      src,
+      request,
+      ingress: responseBody,
+      canonical: remaining,
+    },
+    exitCode: ok ? 0 : 1,
+  }
 }
 
-const fixtureSource = (src) => join(skillRoot, "fixtures", src, "meta.ts")
-
-const runMetaRead = async (src, args = []) => {
+const runMetaRead = async (src) => {
   if (!canonicalWimpSource(src)) {
     return {
       payload: {
@@ -417,54 +565,7 @@ const runMetaRead = async (src, args = []) => {
     }
   }
 
-  const fixtureIndex = args.indexOf("--fixture")
-  const fixture = fixtureIndex >= 0 ? args[fixtureIndex + 1] : undefined
-  const fixtureConfig = fixture === undefined ? undefined : acceptanceFixtures[fixture]
-  if (fixture !== undefined && fixtureConfig === undefined) {
-    return {
-      payload: {
-        schema: "metafor-dev/run@1",
-        ok: false,
-        scenario: "meta-read",
-        step: "unknown-fixture",
-        src,
-        fixture,
-        availableFixtures: Object.keys(acceptanceFixtures),
-      },
-      exitCode: 2,
-    }
-  }
-  if (fixtureConfig !== undefined && fixtureConfig.src !== src) {
-    return {
-      payload: {
-        schema: "metafor-dev/run@1",
-        ok: false,
-        scenario: "meta-read",
-        step: "fixture-source-mismatch",
-        src,
-        fixture,
-        error: `fixture ${fixture} requires WIMP source ${fixtureConfig.src}`,
-      },
-      exitCode: 2,
-    }
-  }
-  const modulePath = fixture === undefined
-    ? join(repositoryRoot, "cluster", src, "meta.ts")
-    : fixtureSource(fixtureConfig.src)
-  if (fixture !== undefined && !existsSync(modulePath)) {
-      return {
-        payload: {
-          schema: "metafor-dev/run@1",
-          ok: false,
-          scenario: "meta-read",
-          step: "fixture-not-found",
-          src,
-          fixture,
-          expectedModule: relative(repositoryRoot, modulePath),
-        },
-        exitCode: 2,
-      }
-  }
+  const {modulePath} = resolveMetaReadSource(src)
   if (!existsSync(modulePath)) {
     return {
       payload: {
@@ -493,7 +594,6 @@ const runMetaRead = async (src, args = []) => {
       exitCode: 1,
     }
   }
-
   const ts = Date.now()
   const request = buildInflatonTestMessage(src, ts)
   let response
@@ -543,22 +643,43 @@ const runMetaRead = async (src, args = []) => {
   const databasePath = join(repositoryRoot, ".metafor/dev.sqlite")
   const deadline = Date.now() + 5_000
   let canonical = null
+  let projectionReady = false
   while (Date.now() < deadline) {
     if (existsSync(databasePath)) {
       const database = new Database(databasePath, {readonly: true})
       try {
         const wimp = database.query("SELECT src, name FROM wimp WHERE src = ?").get(src)
         const atoms = database.query("SELECT id, parent_atom, parent_topology FROM atom WHERE wimp = ? ORDER BY id").all(src)
-        if (wimp) canonical = {wimp, atoms}
+        const runtimeBindings = database.query(`
+          SELECT target.src,
+                 target.mass_binding AS massBinding,
+                 mass_dep.path AS massPath,
+                 target.energy_binding AS energyBinding,
+                 energy_dep.path AS energyPath
+            FROM matter_particle
+            JOIN matter_particle_wimp AS target ON target.particle = matter_particle.id
+            LEFT JOIN matter_binding_dep AS mass_dep
+              ON mass_dep.binding = target.mass_binding AND mass_dep.dep_order = 0
+            LEFT JOIN matter_binding_dep AS energy_dep
+              ON energy_dep.binding = target.energy_binding AND energy_dep.dep_order = 0
+           WHERE matter_particle.wimp = ?
+             AND target.mass_binding IS NOT NULL
+             AND target.energy_binding IS NOT NULL
+           ORDER BY matter_particle.local_id
+        `).all(src)
+        if (wimp) {
+          canonical = {wimp, atoms, runtimeBindings}
+          projectionReady = true
+        }
       } finally {
         database.close()
       }
-      if (canonical) break
+      if (projectionReady) break
     }
     await delay(50)
   }
 
-  const ok = canonical !== null
+  const ok = canonical !== null && projectionReady
   return {
     payload: {
       schema: "metafor-dev/run@1",
@@ -566,7 +687,6 @@ const runMetaRead = async (src, args = []) => {
       scenario: "meta-read",
       step: ok ? "browser-checkpoint-required" : "projection-timeout",
       src,
-      ...(fixture ? {fixture: {name: fixture, module: relative(repositoryRoot, modulePath)}} : {}),
       request,
       ingress: responseBody,
       canonical,
@@ -576,6 +696,167 @@ const runMetaRead = async (src, args = []) => {
         : "Inspect the owned contour logs for the missing Dark read or Boundary projection.",
     },
     exitCode: ok ? 0 : 1,
+  }
+}
+
+const readNumberFlag = (args, flag) => {
+  const index = args.indexOf(flag)
+  if (index < 0) return undefined
+  const raw = args[index + 1]
+  const value = raw === undefined ? Number.NaN : Number(raw)
+  if (!Number.isSafeInteger(value) || value < 0) throw new Error(`${flag} requires a non-negative safe integer`)
+  return value
+}
+
+export const parseDarkHistoryReadArgs = (args) => {
+  const fromTs = readNumberFlag(args, "--from-ts")
+  const toTs = readNumberFlag(args, "--to-ts")
+  const limitSteps = readNumberFlag(args, "--limit-steps")
+  if (limitSteps === 0) throw new Error("--limit-steps must be greater than zero")
+  if (fromTs !== undefined && toTs !== undefined && toTs < fromTs) {
+    throw new Error("--to-ts must be greater than or equal to --from-ts")
+  }
+  return {
+    ...(fromTs === undefined ? {} : {fromTs}),
+    ...(toTs === undefined ? {} : {toTs}),
+    ...(limitSteps === undefined ? {} : {limitSteps}),
+  }
+}
+
+const callDarkHistory = async (method, params) => {
+  const {MonadRpcPeer, MonadTransport} = await import("shared/transport/monad")
+  const identity = `metafor-dev-${process.pid}-${crypto.randomUUID()}`
+  const transport = new MonadTransport(identity)
+  const rpc = new MonadRpcPeer(transport.channel)
+  await transport.open({requestTimeoutMs: 5_000})
+  try {
+    return await rpc.call("dark", method, params, {waitMs: 5_000, retryMs: 50})
+  } finally {
+    rpc.close()
+    await transport.close()
+  }
+}
+
+const runDarkHistory = async (step, args) => {
+  const world = runWorld(["status"])
+  if (world.payload.ok !== true) {
+    return {
+      payload: {
+        schema: "metafor-dev/run@1",
+        ok: false,
+        scenario: "dark-history",
+        step: "runtime-not-ready",
+        world: world.payload,
+      },
+      exitCode: 1,
+    }
+  }
+
+  if (step === "read") {
+    const {DARK_HISTORY_READ_METHOD} = await import("@metafor/types/dark/history")
+    const params = parseDarkHistoryReadArgs(args)
+    const result = await callDarkHistory(DARK_HISTORY_READ_METHOD, params)
+    return {
+      payload: {schema: "metafor-dev/run@1", ok: true, scenario: "dark-history", step, params, result},
+      exitCode: 0,
+    }
+  }
+
+  if (step === "clear") {
+    if (!args.includes("--confirm")) {
+      return {
+        payload: {
+          schema: "metafor-dev/run@1",
+          ok: false,
+          scenario: "dark-history",
+          step,
+          error: "dark-history clear requires --confirm",
+        },
+        exitCode: 2,
+      }
+    }
+    const {DARK_HISTORY_CLEAR_METHOD} = await import("@metafor/types/dark/history")
+    const result = await callDarkHistory(DARK_HISTORY_CLEAR_METHOD, {confirm: "clear-dark-history"})
+    return {
+      payload: {schema: "metafor-dev/run@1", ok: true, scenario: "dark-history", step, result},
+      exitCode: 0,
+    }
+  }
+
+  return {
+    payload: {
+      schema: "metafor-dev/run@1",
+      ok: false,
+      scenario: "dark-history",
+      step,
+      error: "dark-history supports read or clear",
+    },
+    exitCode: 2,
+  }
+}
+
+export const universeResetPaths = () => {
+  const stateRoot = resolve(repositoryRoot, ".metafor")
+  const boundary = resolve(stateRoot, "dev.sqlite")
+  return [
+    boundary,
+    `${boundary}-shm`,
+    `${boundary}-wal`,
+    resolve(stateRoot, "dark-history.jsonl"),
+  ]
+}
+
+const runUniverseReset = () => {
+  const before = runWorld(["status"])
+  const owner = before.payload.owner
+  const state = before.payload.state
+  if (owner !== "metafor-dev" && !(owner === "none" && state === "stopped")) {
+    return {
+      payload: {
+        schema: "metafor-dev/run@1",
+        ok: false,
+        scenario: "world",
+        step: "reset",
+        error: "world reset requires a stopped contour or owner metafor-dev",
+        world: before.payload,
+      },
+      exitCode: 2,
+    }
+  }
+
+  let stopped = before
+  if (owner === "metafor-dev") stopped = runWorld(["stop"])
+  if (stopped.payload.state !== "stopped") {
+    return {
+      payload: {
+        schema: "metafor-dev/run@1",
+        ok: false,
+        scenario: "world",
+        step: "reset",
+        error: "owned contour did not stop; persistent state was not touched",
+        world: stopped.payload,
+      },
+      exitCode: 1,
+    }
+  }
+
+  const removed = []
+  for (const path of universeResetPaths()) {
+    if (!existsSync(path)) continue
+    rmSync(path, {force: true})
+    removed.push(relative(repositoryRoot, path))
+  }
+  const started = runWorld(["start"])
+  return {
+    payload: {
+      schema: "metafor-dev/run@1",
+      ok: started.payload.ok === true,
+      scenario: "world",
+      step: "reset",
+      removed,
+      result: started.payload,
+    },
+    exitCode: started.exitCode,
   }
 }
 
@@ -612,6 +893,22 @@ const main = async () => {
 
   if (command === "run") {
     const [scenario, step = "status", ...scenarioArgs] = args
+
+    if (scenario === "world" && step === "reset") {
+      if (!scenarioArgs.includes("--confirm")) {
+        emit({
+          schema: "metafor-dev/run@1",
+          ok: false,
+          scenario,
+          step,
+          error: "world reset requires --confirm",
+        }, 2)
+        return
+      }
+      const result = runUniverseReset()
+      emit(result.payload, result.exitCode)
+      return
+    }
 
     if (scenario === "world" && ["status", "start", "stop", "logs"].includes(step)) {
       const world = runWorld([step, ...scenarioArgs])
@@ -651,7 +948,19 @@ const main = async () => {
     }
 
     if (scenario === "meta-read") {
-      const result = await runMetaRead(step === "status" ? undefined : step, scenarioArgs)
+      const result = await runMetaRead(step === "status" ? undefined : step)
+      emit(result.payload, result.exitCode)
+      return
+    }
+
+    if (scenario === "meta-remove") {
+      const result = await runMetaRemove(step === "status" ? undefined : step)
+      emit(result.payload, result.exitCode)
+      return
+    }
+
+    if (scenario === "dark-history") {
+      const result = await runDarkHistory(step, scenarioArgs)
       emit(result.payload, result.exitCode)
       return
     }
@@ -660,7 +969,7 @@ const main = async () => {
       schema: "metafor-dev/run@1",
       ok: false,
       error: `Unknown scenario: ${scenario ?? "(missing)"}`,
-      scenarios: ["world status|start|stop|logs", "bulk-baseline", "inflaton-add", "meta-read <owner>/<repository>[/<meta-package>] [--fixture capsule]"],
+      scenarios: ["world status|start|stop|logs|reset --confirm", "bulk-baseline", "inflaton-add", "meta-read <owner>/<repository>[/<meta-package>]", "meta-remove <owner>/<repository>", "dark-history read|clear"],
     }, 2)
     return
   }

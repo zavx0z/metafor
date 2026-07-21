@@ -70,13 +70,38 @@ adapter — REST; те же `MonadChannel`, `MonadRpcPeer` и `MonadRouter` до
   `<owner>/<repository>`, внутренний —
   `<owner>/<repository>/<meta-package>`. Сам `test` остаётся входной операцией и
   не испускается Dark как завершающий маркер.
-- Owned-контур передаёт Dark `METAFOR_META_ROOT` на каталог fixtures в skill.
-  `run meta-read zavx0z/capsule --fixture capsule` читает его без runtime-копии
-  в `cluster/`; обычный WIMP SRC читается из `cluster/<src>/meta.ts`.
+- У Dark нет настраиваемого meta root: физический resolver всегда один —
+  `<repository>/cluster`. Каждый `inflaton/test` выполняет свежее чтение модуля,
+  а не возвращает прежний ESM-cache.
+- `run meta-remove <owner>/<repository>` отправляет через тот же agent ingress
+  обычный `inflaton/remove path=wimp`. Dark сохраняет протокол и provenance;
+  Boundary удаляет корневой WIMP вместе с внутренними WIMP этого репозитория,
+  не затрагивая другие репозитории.
+- `run dark-history read` открывает отдельный MonadChannel инструмента и читает
+  сохранённые patches через `dark.history.read`. Ответ группируется по `ts`:
+  одинаковый `ts` является одним параллельным time step, дополнительного
+  sequence нет.
+- `run dark-history clear --confirm` вызывает `dark.history.clear` и очищает
+  только журнал Dark. Это не reset canonical Boundary или локальных Stores
+  других доменов.
+- `run world reset --confirm` является полным dev-reset: только после остановки
+  принадлежащего MetaFor Dev контура удаляются `.metafor/dev.sqlite`, его
+  `-wal`/`-shm` и `.metafor/dark-history.jsonl`, затем мир запускается заново.
+  Live-RPC очистки Boundary запрещён, потому что оставил бы Matrix/Energy со
+  старыми Stores. Каталог evidence и физический `cluster/` не удаляются.
 - Пустой Bulk после успешного запуска является допустимым исходным состоянием.
 - Boundary health должен показывать `rpc: "ready"` после открытия MonadChannel.
+- Energy health должен показывать `initialized: true` и `rpc: "ready"`: это
+  доказывает, что initial Boundary projection локально гидратирован до открытия
+  Energy ForceChannel.
 - Matrix health должен показывать `initialized: true` и `rpc: "ready"`;
   основной backend — GPU.
+- `fields=${...}` direct scalar binding хранится Boundary как один shared Value
+  и `atom_field_source`. При cold start Matrix восстанавливает shared layout из
+  `valueId`; равные payload без общей identity не entangle.
+- In-place replacement `fieldsBinding` materialized Matter edge перестраивает
+  Boundary source/value relation; Atom Graviton заставляет Matrix заново
+  подготовить packed shared layout и CPU/GPU Weak до следующего такта.
 - Structured logs являются диагностикой транспорта, но не источником
   визуальной или онтологической истины.
 
