@@ -65,7 +65,7 @@ describe("field typing", () => {
         ready: null,
       })
       .mass({})
-      .energy(() => ({}))
+      .energy()
       .processes(() => [])
       .reactions(() => [])
       .matter()
@@ -117,7 +117,7 @@ describe("field typing", () => {
         ready: null,
       })
       .mass({})
-      .energy(() => ({}))
+      .energy()
       .processes((process) => [
         process("ready", { env: ["any"] })
           .action(async ({ value }) => {
@@ -156,7 +156,7 @@ describe("field typing", () => {
         ready: null,
       })
       .mass({})
-      .energy(() => ({}))
+      .energy()
       .processes((process) => [
         process("ready").action(async ({ value }) => {
           const probe = await import("../types/fixtures/probe.ts")
@@ -180,7 +180,7 @@ describe("field typing", () => {
         ready: null,
       })
       .mass({})
-      .energy(() => ({}))
+      .energy()
       .processes((process) => [
         process("ready").action(async ({ value }) => {
           const probe = await import("../types/fixtures/probe.ts")

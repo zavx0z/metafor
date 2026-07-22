@@ -44,7 +44,7 @@
  *     loaded: null,
  *   })
  *   .mass({ users: [] })
- *   .energy(() => ({ socket: null as unknown as WebSocket }))
+ *   .energy<{socket: WebSocket}>()
  *   .processes((process) => [
  *     process("loading")
  *       .action(async ({ energy, field, mass, self, signal, value }) => {
@@ -95,7 +95,7 @@ import type {
   MetaDSL,
   BulkSchema,
   Energy,
-  EnergyDeclaration,
+  EnergyInputCheck,
   Mass,
   MassDeclaration,
   MetaForFn,
@@ -118,7 +118,8 @@ const createMetaForRuntime = function (name: string, config?: MetaForConfig) {
           return {
             mass<m extends Mass>(mass?: m & MassDeclaration<m>) {
               return {
-                energy<e extends Energy>(_energy: () => e & EnergyDeclaration<e>) {
+                energy<e extends Energy = {}>(..._check: EnergyInputCheck<e>) {
+                  void _check
                   const dslFields = Object.entries(fields).map(([key, definition]) => ({key, ...definition}))
                   const dslSuperposition = Object.entries(normalizedSuperposition).map(([name, transitions]) => ({name, transitions}))
                   const schema: MetaDSL<ɸ, 𝛴, m, e> = {

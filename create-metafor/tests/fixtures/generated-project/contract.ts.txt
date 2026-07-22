@@ -49,10 +49,10 @@ MetaFor("strict-generated-contract")
     attempts: 0,
     profile: null as { id: string } | null,
   })
-  .energy(() => ({
-    channel: null as unknown as BroadcastChannel,
-    socket: null as unknown as WebSocket,
-  }))
+  .energy<{
+    channel: BroadcastChannel
+    socket: WebSocket
+  }>()
   .processes((process, destroy) => [
     process("active", { env: ["server"] })
       .action(async ({ energy, field, mass, self, signal, value }) => {
@@ -152,16 +152,21 @@ MetaFor("invalid-energy-function")
   .fields(() => ({}))
   .superposition({})
   .mass({})
-  .energy(() => ({
-    // @ts-expect-error Energy declares entities, not functions or factories
-    connect: () => new WebSocket("ws://127.0.0.1"),
-  }))
+  // @ts-expect-error Energy declares entities, not functions or factories
+  .energy<{ connect: () => WebSocket }>()
+
+MetaFor("invalid-energy-object")
+  .fields(() => ({}))
+  .superposition({})
+  .mass({})
+  // @ts-expect-error Energy is a generic type declaration, not a runtime object
+  .energy({ socket: null as unknown as WebSocket })
 
 MetaFor("invalid-process-state")
   .fields(() => ({}))
   .superposition({ idle: null })
   .mass({})
-  .energy(() => ({}))
+  .energy()
   .processes((process, destroy) => [
     // @ts-expect-error process state must be declared by Superposition
     process("missing").action(() => ({})),

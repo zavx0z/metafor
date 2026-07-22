@@ -333,6 +333,9 @@ type MetaForEnergyDeclaration<Energy extends Record<string, unknown>> = {
     : never
 }
 
+type MetaForEnergyInputCheck<Energy extends Record<string, unknown>> =
+  Energy extends MetaForEnergyDeclaration<Energy> ? [] : [energy: never]
+
 type MetaForIsAny<Value> = 0 extends (1 & Value) ? true : false
 
 type MetaForSerializableMassResult<Value> = MetaForIsAny<Value> extends true
@@ -513,8 +516,8 @@ type MetaForEnergyStage<
   Superposition,
   Mass,
 > = {
-  energy<Energy extends Record<string, unknown>>(
-    callback: () => Energy & MetaForEnergyDeclaration<Energy>,
+  energy<Energy extends Record<string, unknown> = {}>(
+    ...check: MetaForEnergyInputCheck<Energy>
   ): MetaForProcessStage<Fields, Superposition, Mass, Energy>
 }
 

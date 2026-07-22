@@ -31,16 +31,14 @@ MetaFor — открытая эволюционирующая среда, в к�
 
 ```typescript
 .mass({ profiles: new Map(), attempts: 0 })
-.energy(() => ({
-  socket: null as unknown as WebSocket,
-}))
+.energy<{socket: WebSocket}>()
 ```
 
 `Mass` — изменяемый рабочий материал. `Energy` — постоянно типизированные живые
 сущности, которые создаются внешними action-модулями и освобождаются через
-`destroy`. Callback `.energy()` нужен только TypeScript для вывода типов:
-runtime его не вызывает и не добавляет Energy в MetaDSL/WIMP. В декларации нет
-функций, фабрик и side effects; inline action и destroy только динамически
+`destroy`. Generic `.energy<EnergyType>()` нужен только TypeScript: runtime не
+получает объект и не добавляет Energy в MetaDSL/WIMP. В типе нет функций верхнего
+уровня; inline action и destroy только динамически
 импортируют исполняемый модуль и возвращают его результат. Аргументы вызова —
 только декларативное wiring: spread/iterator, вложенные вызовы и мутации в них
 запрещены; параметры wrapper не содержат default/rest.

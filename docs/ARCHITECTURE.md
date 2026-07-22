@@ -99,10 +99,9 @@ process work.
 
 Цепочка MetaFor имеет обязательный порядок `fields → superposition → mass →
 energy → processes → reactions → matter → bulk`. `Mass` задаёт тип изменяемого
-рабочего материала. Следующая декларация `energy(() => ({...}))` задаёт только
-постоянные TypeScript-типы живых runtime-сущностей. Runtime callback не вызывает
-и не сохраняет его результат в MetaDSL; функции и создание соединений внутри
-декларации запрещены.
+рабочего материала. Следующая декларация `energy<EnergyType>()` задаёт только
+постоянные TypeScript-типы живых runtime-сущностей. Она не принимает runtime-
+объект и не добавляет значение Energy в MetaDSL; функции в типе запрещены.
 
 Action получает раздельные `{field, value, mass, energy, self}`. Реализация
 action находится во внешнем ESM-модуле, подключаемом динамическим `import()`;

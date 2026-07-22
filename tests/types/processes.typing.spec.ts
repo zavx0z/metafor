@@ -25,10 +25,10 @@ const declareStrictProcessContract = () =>
       profile: null as {id: string} | null,
       attempts: 0,
     })
-    .energy(() => ({
-      channel: null as unknown as BroadcastChannel,
-      socket: null as unknown as WebSocket,
-    }))
+    .energy<{
+      channel: BroadcastChannel
+      socket: WebSocket
+    }>()
     .processes((process, destroy) => [
       process("ready", {env: ["server"]})
         .action(async ({energy, field, mass, self, signal, value}) => {
@@ -133,10 +133,16 @@ const declareInvalidEnergyFunction = () =>
     .fields(() => ({}))
     .superposition({})
     .mass({})
-    .energy(() => ({
-      // @ts-expect-error Energy содержит сущности, а не функции или фабрики
-      connect: () => new WebSocket("ws://127.0.0.1"),
-    }))
+    // @ts-expect-error Energy содержит сущности, а не функции или фабрики
+    .energy<{connect: () => WebSocket}>()
+
+const declareInvalidEnergyObject = () =>
+  MetaFor("invalid-energy-object")
+    .fields(() => ({}))
+    .superposition({})
+    .mass({})
+    // @ts-expect-error Energy объявляется generic-типом, а не runtime-объектом
+    .energy({socket: null as unknown as WebSocket})
 
 const declareInvalidMassFunction = () =>
   MetaFor("invalid-mass-function")
@@ -162,7 +168,7 @@ const declareInvalidProcessState = () =>
     .fields(() => ({}))
     .superposition({idle: null})
     .mass({})
-    .energy(() => ({}))
+    .energy()
     .processes((process, destroy) => [
       // @ts-expect-error Process обязан принадлежать состоянию Superposition
       process("missing").action(() => ({})),
@@ -177,6 +183,7 @@ describe("strict process typing", () => {
 
   test("keeps negative declarations in the TypeScript program", () => {
     expect(typeof declareInvalidEnergyFunction).toBe("function")
+    expect(typeof declareInvalidEnergyObject).toBe("function")
     expect(typeof declareInvalidMassFunction).toBe("function")
     expect(typeof declareInvalidProcessState).toBe("function")
   })

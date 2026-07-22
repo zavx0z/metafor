@@ -3,22 +3,17 @@ import {MetaFor} from "./metafor.ts"
 
 describe("MetaFor Energy declaration", () => {
   test("keeps Energy as a type-only declaration separate from mutable Mass", () => {
-    let declarationsExecuted = 0
     const schema = MetaFor("energy-declaration")
       .fields(() => ({}))
       .superposition({})
       .mass({attempts: 0})
-      .energy(() => {
-        declarationsExecuted += 1
-        return {socket: null as unknown as WebSocket}
-      })
+      .energy<{socket: WebSocket}>()
       .processes(() => [])
       .reactions(() => [])
       .matter()
       .bulk()
 
     expect(schema.mass).toEqual({attempts: 0})
-    expect(declarationsExecuted).toBe(0)
     expect("energy" in schema).toBe(false)
   })
 
@@ -31,18 +26,13 @@ describe("MetaFor Energy declaration", () => {
     })).toThrow('запрещён самопереход состояния "ready"')
   })
 
-  test("does not execute an untyped Energy callback either", () => {
-    let executed = false
+  test("creates no runtime Energy value for an empty declaration", () => {
     const builder = MetaFor("invalid-energy-runtime")
       .fields(() => ({}))
       .superposition({})
       .mass({})
-      .energy((() => {
-        executed = true
-        throw new Error("Energy declaration executed")
-      }) as any)
+      .energy()
 
-    expect(executed).toBe(false)
     expect(builder).toHaveProperty("processes")
   })
 
@@ -54,7 +44,7 @@ describe("MetaFor Energy declaration", () => {
       }))
       .superposition({ready: null})
       .mass({})
-      .energy(() => ({}))
+      .energy()
       .processes((process) => [
         process("ready").action(async ({field, value}) => {
           const probe = await import("./tests/types/fixtures/probe.ts")

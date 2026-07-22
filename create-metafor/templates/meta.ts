@@ -4,7 +4,7 @@ export default MetaFor(/* @template nameJson */ "", { desc: /* @template descrip
   }))
   .superposition({})
   .mass({})
-  .energy(() => ({}))
+  .energy()
   .processes(() => [])
   .reactions(() => [])
   .matter(({ html }) => html``)

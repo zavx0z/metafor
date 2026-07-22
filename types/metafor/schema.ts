@@ -163,6 +163,9 @@ export type EnergyDeclaration<e extends Energy> = {
   [K in keyof e]: [Extract<e[K], ExecutableValue>] extends [never] ? e[K] : never
 }
 
+export type EnergyInputCheck<e extends Energy> =
+  e extends EnergyDeclaration<e> ? [] : [energy: never]
+
 declare const MetaDSLEnergyType: unique symbol
 
 /**
@@ -196,7 +199,7 @@ declare const MetaDSLEnergyType: unique symbol
  *   .fields((field) => ({ mode: field.enum("summary", "details").required("summary") }))
  *   .superposition({ idle: { loading: {} } })
  *   .mass({ users: [] })
- *   .energy(() => ({ socket: null as unknown as WebSocket }))
+ *   .energy<{socket: WebSocket}>()
  *   .processes((process) => [process("loading").action(...)])
  *   .reactions((reaction) => [...])
  *   .matter(({ value, html }) => html`
@@ -274,21 +277,20 @@ export type MetaForFn = (
         /**
          * Объявляет постоянно типизированные runtime-сущности Energy.
          *
-         * Callback существует только для TypeScript inference и никогда не
-         * вызывается runtime. Поэтому он не создаёт placeholder-объект,
-         * соединения или функции: реальные сущности создаются во внешних
-         * action-модулях и освобождаются через destroy.
+         * Generic существует только для TypeScript и не создаёт runtime-объект,
+         * placeholder, соединение или функцию. Реальные сущности создаются во
+         * внешних action-модулях и освобождаются через destroy.
          *
          * @example
          * ```typescript
-         * .energy(() => ({
-         *   channel: null as unknown as BroadcastChannel,
-         *   socket: null as unknown as WebSocket,
-         * }))
+         * .energy<{
+         *   channel: BroadcastChannel
+         *   socket: WebSocket
+         * }>()
          * ```
          */
-        energy<e extends Energy>(
-          energy: () => e & EnergyDeclaration<e>,
+        energy<e extends Energy = {}>(
+          ..._check: EnergyInputCheck<e>
         ): {
         /**
          * Регистрирует процессы автомата для нужных состояний.
@@ -415,7 +417,7 @@ declare global {
    *   .fields((field) => ({ mode: field.enum("summary", "details").required("summary") }))
    *   .superposition({ idle: { loading: {} } })
    *   .mass({ users: [] })
-   *   .energy(() => ({ socket: null as unknown as WebSocket }))
+   *   .energy<{socket: WebSocket}>()
    *   .processes((process) => [process("loading").action(...)])
    *   .reactions((reaction) => [...])
    *   .matter(({ value, html }) => html`

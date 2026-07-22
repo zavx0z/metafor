@@ -7,7 +7,7 @@ export default MetaFor("<name>")
   .fields((field) => ({}))
   .superposition({})
   .mass({})
-  .energy(() => ({}))
+  .energy()
   .processes((process, destroy) => [])
   .reactions((reaction) => [])
   .matter(({ state, value, html }) => html``)
@@ -193,9 +193,9 @@ Fields управляют работой Atom. Внешний агент или 
 **Process:**
 
 ```typescript
-.energy(() => ({
-  channel: null as unknown as BroadcastChannel,
-}))
+.energy<{
+  channel: BroadcastChannel
+}>()
 .processes((process) => [
   process("определение операции")
     .action(async ({ energy, field, mass, self, signal, value }) => {
@@ -283,25 +283,21 @@ Mass содержит только сериализуемые данные и м
 ## Energy — живые runtime-сущности
 
 ```typescript
-.energy(() => ({
-  channel: null as unknown as BroadcastChannel,
-  socket: null as unknown as WebSocket,
-  mediaStream: null as unknown as MediaStream,
-  dataChannel: null as unknown as RTCDataChannel,
-}))
+.energy<{
+  channel: BroadcastChannel
+  socket: WebSocket
+  mediaStream: MediaStream
+  dataChannel: RTCDataChannel
+}>()
 ```
 
-Energy declaration задаёт только постоянные TypeScript-типы сущностей. `null`
-здесь является физическим placeholder декларации; двойной `as unknown as`
-сохраняет итоговый тип ненулевым. Реальный `BroadcastChannel` или `WebSocket`
-создаётся action-модулем, помещается в `energy` процессом и освобождается
-`destroy`-процессом.
+Energy declaration задаёт только постоянные TypeScript-типы сущностей. Generic
+не существует в JavaScript, поэтому DSL не создаёт фиктивный объект и не
+хранит `null` вместо живых сущностей. Реальный `BroadcastChannel` или
+`WebSocket` создаётся action-модулем, помещается в `energy` процессом и
+освобождается `destroy`-процессом.
 
-Callback `.energy()` существует только для TypeScript inference. Runtime его не
-вызывает, не вычисляет placeholder-объект и не добавляет Energy declaration в
-MetaDSL/WIMP.
-
-Внутри `.energy()` запрещены:
+В типе `.energy<EnergyType>()` запрещены:
 
 - функции и фабрики;
 - `new WebSocket(...)`, `new BroadcastChannel(...)` и другие side effects;
@@ -311,7 +307,7 @@ MetaDSL/WIMP.
 Если Energy не нужна, секция всё равно остаётся обязательной:
 
 ```typescript
-.energy(() => ({}))
+.energy()
 ```
 
 ---
@@ -729,7 +725,7 @@ export default MetaFor("git")
     },
   })
   .mass({ attempts: 0 })
-  .energy(() => ({}))
+  .energy()
   .processes((process) => [
     process("определение операции")
       .action(async ({ energy, field, mass, self, signal, value }) => {
@@ -846,9 +842,9 @@ export default MetaFor("git")
   .mass({
     attempts: 0,
   })
-  .energy(() => ({
-    socket: null as unknown as WebSocket,
-  }))
+  .energy<{
+    socket: WebSocket
+  }>()
   .processes((process) => [
     process("определение операции")
       .action(async ({ energy, field, mass, self, signal, value }) => {
@@ -859,10 +855,11 @@ export default MetaFor("git")
   ])
 ```
 
-**Правило:** `.fields()`, `.mass()` и `.energy()` содержат декларативные данные
-и типы. Любые функции, алгоритмы, подключения, паттерны исполнения и cleanup
-живут только в отдельных action-модулях. Inline callback процесса является
-тонким wrapper: `import("...")` и `return`.
+**Правило:** `.fields()` и `.mass()` содержат декларативные данные, а
+`.energy<EnergyType>()` — только TypeScript-типы. Любые функции, алгоритмы,
+подключения, паттерны исполнения и cleanup живут только в отдельных
+action-модулях. Inline callback процесса является тонким wrapper:
+`import("...")` и `return`.
 Его аргументы только передают готовые значения и не исполняют логику.
 
 **Action-модули:**
@@ -954,7 +951,7 @@ export default MetaFor("git")
     },
   })
   .mass({ attempts: 0 })
-  .energy(() => ({}))
+  .energy()
   .processes((process) => [
     process("определение операции")
       .action(async ({ energy, field, mass, self, signal, value }) => {
