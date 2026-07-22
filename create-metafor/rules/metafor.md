@@ -272,6 +272,11 @@ Mass содержит только сериализуемые данные и м
 `MediaStream`, track, `RTCDataChannel`, socket, peer connection, decoder или
 другие runtime handles. Живые сущности относятся к Energy.
 
+Mass принадлежит Energy, но её целевое хранилище находится на filesystem и
+сохраняет версии. Она не передаётся через Force/Boundary/Matrix. Storage identity
+нельзя выводить только из Atom ID: прямые Matter aliases могут разделять один
+Mass-object между несколькими Atom.
+
 Если нет сложных данных:
 
 ```typescript
@@ -376,7 +381,8 @@ canonical `ts`, а Matrix разрешает все подходящие пер�
 Каждый Process по-прежнему использует только тонкий wrapper `dynamic import →
 direct return`. `.mass()` задаёт сериализуемый типовой контракт, но runtime не
 гидратирует его placeholder автоматически: первый owning action создаёт рабочий
-Mass-object в локальном Energy store. Дочерние прямые `mass=${mass}` и
+Mass-object в Energy store. Текущий in-memory adapter должен быть заменён
+filesystem-backed versioned store без изменения DSL. Дочерние прямые `mass=${mass}` и
 `energy=${energy}` сохраняют identity. Исходный путь Meta-пакета не задаёт
 runtime-вложенность; граф задаёт Matter. Постоянный WebRTC listener остаётся в
 Energy между тактами: возвращение Screenshot/Control Atom в ожидание не

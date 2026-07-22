@@ -28,6 +28,17 @@ TypeScript:
 .energy<{connect: () => WebSocket}>()
 ```
 
+## Закон хранения Mass
+
+Mass принадлежит Energy, остаётся сериализуемой и хранится на filesystem под
+версионированием. Она не проходит через Force, Matrix или Boundary. Простой путь
+`directory = Atom ID` недостаточен: прямые Matter aliases могут разделять одну
+Mass между несколькими Atom, поэтому сначала требуется устойчивая storage
+identity общей Mass.
+
+Текущий in-memory `EnergyMassStore` не реализует этот закон полностью. Это
+отложенный implementation gap, а не разрешение считать Mass эфемерной.
+
 ## Закон результата Process
 
 Energy исполняет descriptor и отправляет `w+`/`w-` как proposal с
@@ -72,6 +83,7 @@ Reaction результаты удалённого Atom подавляются.
 
 - generic сохраняет точные типы сущностей в action, destroy и Matter;
 - Mass и Energy не смешиваются;
+- Mass filesystem-backed, versioned и сохраняет shared identity;
 - runtime-объект нельзя передать аргументом `.energy(...)`;
 - функция верхнего уровня отклоняется;
 - вызов не добавляет Energy value в MetaDSL;

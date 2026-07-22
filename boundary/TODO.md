@@ -65,5 +65,5 @@
 
 ## Приёмка и документация запуска
 
-- Пройти живой smoke через обычный `start:world`: Browser Process → Screenshot
+- Пройти живой smoke через обычный `runtime:universe`: Browser Process → Screenshot
   и Control; сохранить проверяемые результаты.

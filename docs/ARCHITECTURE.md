@@ -50,9 +50,10 @@ Root scripts запускают entries только как обычные Bun p
 перезагрузка несовместима с Matrix-last causal cut. Запуск не загружает Meta
 автоматически.
 
-Полный runtime запускается через `bun run start:world`. `start:core` не включает
-Bulk и остаётся только диагностической командой: Matrix ждёт этот обязательный
-канал, поэтому сокращённый набор не проходит общий birth gate.
+Полная Вселенная запускается через `bun run runtime:universe`. Launcher рождает
+все пять обязательных доменов и Matrix последней; сокращённого рабочего `world`
+contour нет. `runtime:universe:once` проверяет тот же birth gate и завершает
+запущенные процессы после рождения.
 
 Порядок рождения runtime задаётся не порядком запуска Bun processes. До своего
 ForceChannel Energy открывает MonadChannel, читает
@@ -96,9 +97,9 @@ process work.
   обязательный realtime ForceChannel. На каждый claim RPC не выполняется.
 - `bulk/server.ts` обслуживает web entry, шрифт, browser WebSocket и связывает
   browser manifestation с Force.
-- Matrix weak backend по умолчанию — строгий `gpu`; отсутствие WebGPU завершает
-  рождение ошибкой. `auto` явно разрешает CPU fallback, `cpu` принудительно
-  выбирает reference backend.
+- Matrix weak backend по умолчанию — `auto`: WebGPU при доступности, иначе CPU.
+  `gpu` является явным строгим режимом, `cpu` принудительно выбирает reference
+  backend.
 
 ## Energy и Mass в DSL/runtime
 
@@ -118,11 +119,11 @@ Energy runtime хранит Mass и Energy в разных локальных st
 этого Atom. Удаление Energy не очищает Mass автоматически.
 
 `.mass()` остаётся типовым контрактом DSL и не становится WIMP declaration:
-Dark не испускает для неё Inflaton. Автоматическая hydration placeholder-объекта
-из Meta в локальный `EnergyMassStore` не выполняется. Реальную рабочую Mass
-создаёт и изменяет action в Energy runtime; большие результаты
-материализуются во внешнем долговечном storage и проходят через runtime только
-по address/identity.
+Dark не испускает для неё Inflaton. Реальную рабочую Mass создаёт и изменяет
+action, но владеет ею Energy. Каноническое целевое хранение Mass находится на
+filesystem и сохраняет версии; Force, Matrix и Boundary содержимое Mass не
+переносят. Текущий `EnergyMassStore` в памяти — незакрытый implementation gap,
+а не окончательный lifecycle.
 
 Matter WIMP edge может содержать два независимых runtime binding: `massBinding`
 и `energyBinding`. Boundary сохраняет их в SQLite как FK на нормализованные

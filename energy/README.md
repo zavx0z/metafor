@@ -4,7 +4,8 @@ Energy исполняет Process/Reaction и владеет локальным�
 сущностями. Проверяемые законы находятся в
 [`docs/domains/ENERGY.md`](../docs/domains/ENERGY.md), Process wire flow — в
 [`docs/proto/weak.md`](../docs/proto/weak.md), общая карта — в
-[`docs/README.md`](../docs/README.md).
+[`docs/README.md`](../docs/README.md), незакрытая реализация — в
+[`TODO.md`](TODO.md).
 
 Этот README описывает только точки реализации и не создаёт второй контракт.
 
@@ -36,9 +37,9 @@ Action invocation имеет форму:
 await fn({field, value, mass, energy, self, signal})
 ```
 
-Mass и Energy хранятся раздельно и не проходят через Force/Boundary. Текущая
-default Mass находится в памяти и живёт до `close()`; filesystem persistence не
-реализована и не должна подразумеваться документацией.
+Mass и Energy хранятся раздельно и не проходят через Force/Boundary. Целевой
+Mass store находится на filesystem и сохраняет версии. Текущий default store в
+памяти — временный implementation gap, перечисленный в `TODO.md`.
 
 ## Проверка
 

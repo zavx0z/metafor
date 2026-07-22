@@ -4,8 +4,12 @@ import {resolveWeakModeFor} from "./device.ts"
 const availableDevice = async (): Promise<GPUDevice> => ({} as GPUDevice)
 
 describe("Weak backend policy", () => {
-  test("GPU is the strict default when a WebGPU device is available", async () => {
+  test("auto is the default and prefers WebGPU when it is available", async () => {
     expect(await resolveWeakModeFor(undefined, availableDevice)).toBe("gpu")
+  })
+
+  test("auto default falls back to CPU when WebGPU is unavailable", async () => {
+    expect(await resolveWeakModeFor(undefined, async () => null)).toBe("cpu")
   })
 
   test("CPU remains an explicit deterministic fallback", async () => {
@@ -18,11 +22,15 @@ describe("Weak backend policy", () => {
     expect(await resolveWeakModeFor("gpu", availableDevice)).toBe("gpu")
   })
 
+  test("strict GPU mode fails when WebGPU is unavailable", async () => {
+    await expect(resolveWeakModeFor("gpu", async () => null)).rejects.toThrow("GPU-устройство недоступно")
+  })
+
   test("auto explicitly prefers an available WebGPU device", async () => {
     expect(await resolveWeakModeFor("auto", availableDevice)).toBe("gpu")
   })
 
-  test("unknown values keep the strict GPU default instead of enabling fallback", async () => {
-    expect(await resolveWeakModeFor("unexpected", availableDevice)).toBe("gpu")
+  test("unknown values use the safe auto policy", async () => {
+    expect(await resolveWeakModeFor("unexpected", async () => null)).toBe("cpu")
   })
 })

@@ -14,29 +14,28 @@ Workspace graph задан явным списком в root `package.json`. Р�
 
 ## Запуск
 
-| Command               | Состав                 | Назначение              |
-| --------------------- | ---------------------- | ----------------------- |
-| `bun run start:world` | все пять доменов       | полный runtime contour  |
-| `bun run start:core`  | без Bulk               | узкая диагностика       |
-| `bun run logs:core`   | без Bulk               | диагностика с impulses  |
+| Command                          | Назначение                         |
+| -------------------------------- | ---------------------------------- |
+| `bun run runtime:universe`       | постоянный полный contour          |
+| `bun run runtime:universe:once`  | рождение полного contour и выход   |
+| `bun run runtime:universe:logs`  | полный contour с журналом impulses |
 
-Все команды запускаются параллельно одним Bun workspace runner и не загружают
-Meta автоматически. `start:core` не является сокращённым рабочим миром: без
-обязательного Bulk channel Matrix не рождается, а Force остаётся в `starting`.
-После изменения кода весь причинно связанный contour нужно явно остановить и
-запустить заново; частичная горячая перезагрузка доменов не поддерживается.
+Universe launcher рождает Force, затем Boundary, Dark, Energy и Bulk, а Matrix —
+последней. Он не загружает Meta автоматически. После изменения кода весь
+причинно связанный contour нужно явно остановить и запустить заново; частичная
+горячая перезагрузка доменов не поддерживается.
 
-Production default — строгий WebGPU:
+Production default — `auto`:
 
 ```bash
-bun run start:world
-METAFOR_WEAK_BACKEND=auto bun run start:world
-METAFOR_WEAK_BACKEND=cpu bun run start:world
+bun run runtime:universe
+METAFOR_WEAK_BACKEND=gpu bun run runtime:universe
+METAFOR_WEAK_BACKEND=cpu bun run runtime:universe
 ```
 
-Без env используется `gpu`; отсутствие WebGPU завершает рождение Matrix ошибкой.
-`auto` явно разрешает WebGPU-first выбор с CPU fallback. `cpu` принудительно
-выбирает детерминированный reference backend.
+Без env используется WebGPU-first выбор с CPU fallback. `gpu` требует WebGPU и
+завершает рождение ошибкой при его отсутствии. `cpu` принудительно выбирает
+детерминированный reference backend.
 
 ## Boundary persistence
 
@@ -49,7 +48,7 @@ Development database по умолчанию:
 Явный изолированный путь:
 
 ```bash
-BOUNDARY_PATH=/absolute/path/boundary.sqlite bun run start:world
+BOUNDARY_PATH=/absolute/path/boundary.sqlite bun run runtime:universe
 ```
 
 Первый позиционный аргумент `boundary/server.ts` имеет приоритет над
@@ -67,7 +66,7 @@ METAFOR_LOG_DOMAINS=force,boundary,matrix,energy
 METAFOR_LOG_PARTS=inflaton,graviton,gluon,higgs,photon,z,w+,w-
 ```
 
-`bun run logs:core` включает `METAFOR_LOG_IMPULSES=full`.
+`bun run runtime:universe:logs` включает `METAFOR_LOG_IMPULSES=full`.
 
 ## Локальная проверка
 
