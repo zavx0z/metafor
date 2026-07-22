@@ -687,6 +687,7 @@ export async function applyIncrementalMatrixProjection(
   const prepared = assembleStoredMatrixData(flattenMatrixData(snapshot.data))
   const preparedValuesByBrane = indexPreparedValues(prepared)
   const invalidatedWimps = new Set(change.invalidatedProcessWimps)
+  const explicitlyInvalidatedAtoms = new Set(change.invalidatedProcessAtomIds)
   const stats: IncrementalMatrixStats = {
     projectionAtoms: fragment.atoms.length,
     touchedBranes: affectedAtomIds.size,
@@ -889,7 +890,8 @@ export async function applyIncrementalMatrixProjection(
     const nextStateMetaStateIds = clone(snapshot.weak.stateMetaStateIdsByBraneIndex[fragmentBraneIndex] ?? [])
     const nextStateHasProcess = clone(snapshot.weak.stateHasProcessByBraneIndex[fragmentBraneIndex] ?? [])
     const nextMetaStateId = selectedState < 0 ? undefined : nextStateMetaStateIds[selectedState]
-    const processInvalidated = invalidatedWimps.has(atom.wimp) || previousWimp !== atom.wimp
+    const processInvalidated = explicitlyInvalidatedAtoms.has(atom.id) ||
+      invalidatedWimps.has(atom.wimp) || previousWimp !== atom.wimp
     const preserveLock = previousLock && !processInvalidated && previousMetaStateId !== undefined &&
       previousMetaStateId === nextMetaStateId && nextStateHasProcess[selectedState] === true
     if (previousLock && !preserveLock) invalidatedAtomIds.add(atom.id)

@@ -65,6 +65,10 @@ const continuationFromValue = (value: unknown): EnergyAtomContinuation | undefin
   return clone(value.continuation as EnergyAtomContinuation)
 }
 
+const isCanonicalAtomEnvelope = (value: unknown): boolean =>
+  isRecord(value) && isRecord(value.atom) && Array.isArray(value.values) &&
+  Array.isArray(value.valueRecords) && isRecord(value.state)
+
 const processFromValue = (value: unknown): EnergyProcessEntity | null => {
   if (!isRecord(value) || typeof value.id !== "number" || typeof value.wimp !== "string" || typeof value.state !== "string" || !isRecord(value.descriptor)) return null
   return clone(value as unknown as EnergyProcessEntity)
@@ -113,8 +117,14 @@ export class EnergyCatalogStore {
     if (part.part !== "graviton") return []
     if (part.op !== "add" && part.op !== "replace" && part.op !== "remove" && part.op !== "move" && part.op !== "copy") return []
     const target = address(part.path, part.value)
-    if (target?.kind === "atom") return this.descendantAtoms(`atom:${target.id}`)
-    if (target?.kind === "topology") return this.descendantAtoms(`topology:${target.id}`)
+    if (target?.kind === "atom") {
+      return part.op === "add" || part.op === "replace"
+        ? [target.id]
+        : this.descendantAtoms(`atom:${target.id}`)
+    }
+    if (target?.kind === "topology") {
+      return part.op === "remove" ? this.descendantAtoms(`topology:${target.id}`) : []
+    }
 
     if (target?.kind === "field") {
       const wimp = this.fields.get(target.id)?.wimp ?? this.wimpFromValue(part.value)
@@ -143,8 +153,11 @@ export class EnergyCatalogStore {
       if (part.op === "remove") return this.descendantAtoms(`atom:${target.id}`)
       const current = this.atoms.get(target.id)
       const next = atomFromValue(part.value)
-      return current && next && current.wimp !== next.wimp
-        ? this.descendantAtoms(`atom:${target.id}`)
+      return current && next && (
+        current.wimp !== next.wimp ||
+        (part.op === "replace" && isCanonicalAtomEnvelope(part.value))
+      )
+        ? [target.id]
         : []
     }
     if (target?.kind === "topology") return []
@@ -262,22 +275,31 @@ export class EnergyCatalogStore {
     if (target.kind === "atom") {
       const next = atomFromValue(value)
       const nextContinuation = continuationFromValue(value)
+      const canonicalEnvelope = isCanonicalAtomEnvelope(value)
       const current = this.atoms.get(target.id)
       if (current) {
         const delta = isRecord(value) && isRecord(value.atom) ? value.atom : value
-        const continuationChanged = nextContinuation !== undefined && !same(this.continuations.get(target.id), nextContinuation)
-        if (!isRecord(delta) || (same(current, delta) && !continuationChanged)) return {changed: false, affectedAtomIds: []}
+        const continuationChanged = canonicalEnvelope
+          ? !same(this.continuations.get(target.id), nextContinuation)
+          : nextContinuation !== undefined && !same(this.continuations.get(target.id), nextContinuation)
+        if (!isRecord(delta)) return {changed: false, affectedAtomIds: []}
+        if (same(current, delta) && !continuationChanged) {
+          return canonicalEnvelope
+            ? {changed: true, affectedAtomIds: [target.id]}
+            : {changed: false, affectedAtomIds: []}
+        }
         this.unlinkAtom(current)
         if (!same(current, delta)) patch(current as unknown as Record<string, unknown>, delta)
         if (nextContinuation !== undefined) this.continuations.set(target.id, nextContinuation)
+        else if (canonicalEnvelope) this.continuations.delete(target.id)
         this.linkAtom(current)
-        return {changed: true, affectedAtomIds: this.descendantAtoms(`atom:${target.id}`)}
+        return {changed: true, affectedAtomIds: [target.id]}
       }
       if (!next || next.id !== target.id) return {changed: false, affectedAtomIds: []}
       this.atoms.set(target.id, next)
       if (nextContinuation !== undefined) this.continuations.set(target.id, nextContinuation)
       this.linkAtom(next)
-      return {changed: true, affectedAtomIds: this.descendantAtoms(`atom:${target.id}`)}
+      return {changed: true, affectedAtomIds: [target.id]}
     }
     if (target.kind === "topology") {
       if (!isRecord(value)) return {changed: false, affectedAtomIds: []}
@@ -292,7 +314,7 @@ export class EnergyCatalogStore {
         this.topologies.set(target.id, next)
         this.linkChild("topology", target.id, next)
       }
-      return {changed: true, affectedAtomIds: this.descendantAtoms(`topology:${target.id}`)}
+      return {changed: true, affectedAtomIds: []}
     }
     if (target.kind === "field") {
       const next = fieldFromValue(value)
@@ -416,7 +438,7 @@ export class EnergyCatalogStore {
       this.topologies.set(target.id, topology)
       this.linkChild("topology", target.id, topology)
       this.rekeyChildren("topology", source.id, target.id)
-      return {changed: true, affectedAtomIds: this.descendantAtoms(`topology:${target.id}`)}
+      return {changed: true, affectedAtomIds: []}
     }
     if (source.kind === "field" || source.kind === "variant" || target.kind === "field" || target.kind === "variant") {
       return {changed: false, affectedAtomIds: []}

@@ -3,20 +3,14 @@
 Порядок: сначала доменная корректность, затем производительность и приёмка.
 Безопасность рассматривается последней отдельной очередью.
 
-## Два отложенных способа изменения
+## Два способа изменения
 
-### Изменение текущего WIMP для всех его Atom
+### Изменение текущего WIMP для всех его Atom — реализовано
 
-- Совместимый Matter fan-out уже находит все Atom WIMP по индексу, сохраняет их
-  ID и перестраивает только эти brane. Не заменять это полным world rebuild.
-- Реализовать настоящее live-перемещение Matter между родителями без удаления
-  Atom/Topology и без смены их identity.
-- Новые runtime instances создавать только для новых размещений. Исчезающие
-  размещения освобождать только по явному доменному lifecycle.
-- Использовать индексы `WIMP src → Atom IDs` и
-  `Matter declaration → runtime origins`, не сканировать весь мир.
-- Доделать reconcile для смены `parent`, `kind`, `src`, Macho cardinality и
-  Axion/Fuzzy branch, где одного in-place declaration update недостаточно.
+Desired-vs-existing reconcile сохраняет совместимые Atom/Topology, переносит
+их между родителями, обрабатывает смену `src`/controller и локально добавляет
+или удаляет Macho/Axion/Fuzzy placements. Identity повторений хранит полный
+Macho occurrence path; fan-out ограничен Atom изменённого WIMP.
 
 ### Приватный WIMP-клон для одного Atom
 

@@ -28,6 +28,20 @@ TypeScript:
 .energy<{connect: () => WebSocket}>()
 ```
 
+## Закон runtime-перестройки
+
+Canonical `atom/:id replace` полностью заменяет локальную runtime projection
+этого Atom. Отсутствующий `continuation` очищает прежние Mass/Energy bindings,
+а не оставляет их в catalog. Перед применением такого replace Energy мгновенно
+отсоединяет execution только этого Atom; перестраивает binding и лишь затем
+посылает старому action `AbortSignal`.
+
+Частичный Graviton другого Atom и добавление дочернего Atom не являются replace
+родителя и не перезапускают его Process. Сам `topology/:id replace` только
+обновляет структуру catalog и не перепривязывает дочерние runtime stores. Когда
+смена owner Topology действительно меняет Field/Mass/Energy binding ребёнка,
+Boundary следом публикует canonical replace именно этого дочернего Atom.
+
 ## Что обязаны доказывать тесты
 
 - generic сохраняет точные типы сущностей в action, destroy и Matter;
@@ -36,6 +50,8 @@ TypeScript:
 - функция верхнего уровня отклоняется;
 - вызов не добавляет Energy value в MetaDSL;
 - пустая `.energy()` оставляет Energy типом `{}`.
+- удаление continuation очищает catalog, а canonical Atom replace инвалидирует
+  только execution этого Atom.
 
 Публичный контракт находится в `types/metafor/schema.ts`, runtime-цепочка — в
 `metafor.ts`, проверки — в `metafor.spec.ts` и

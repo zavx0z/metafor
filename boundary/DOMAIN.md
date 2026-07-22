@@ -33,8 +33,8 @@ Boundary поэтому не удаляет базовую строку `matter_
 ## Два масштаба изменения
 
 Оба варианта ниже являются целевым доменным контрактом. Совместимое изменение
-текущего WIMP уже распространяется на все его Atom. Настоящий live-reparent и
-приватный клон одного Atom пока отложены.
+текущего WIMP, включая live-reparent, уже распространяется на все его Atom.
+Приватный клон одного Atom пока отложен.
 
 ### 1. Изменение текущего WIMP
 
@@ -113,12 +113,46 @@ Photon. Идентичный `replace` ничего не инвалидируе�
 такой action может ещё жить в фоне, но он отсоединён от протокола. Гарантированное
 hard-kill потребует отдельной изоляции выполнения.
 
-Настоящая смена `parent`, `kind`, WIMP `src` или topology-controller всё ещё
-требует desired-vs-existing reconciler. Она не считается закрытой текущим
-совместимым fan-out.
+## Identity при structural reconcile
+
+Runtime placement определяется ключом `scope Atom + Matter localId + путь
+повторений`. Путь повторений содержит ordinals всех внешних Macho, поэтому два
+одинаковых ребёнка в разных повторениях не смешиваются. Текущий родитель не
+входит в identity: live-reparent перемещает ту же сущность и сохраняет её ID.
+`scope Atom` — экземпляр WIMP, декларация которого создаёт placement; он
+хранится отдельно от `owner_atom`, используемого для runtime bindings.
+
+- смена `src` у WIMP Matter сохраняет Atom ID, переносит совместимые Field
+  values по одинаковым key/type и сохраняет State по имени, если он объявлен в
+  новом WIMP;
+- смена контроллера между Axion, Fuzzy и Macho сохраняет Topology ID;
+- переход WIMP Matter ↔ topology-controller меняет доменный вид
+  `Atom ↔ Topology`, поэтому старый runtime placement удаляется и создаётся
+  новый;
+- Macho без отдельного item identity сохраняет существующий prefix по ordinal:
+  рост добавляет хвост, сокращение удаляет хвост. Reorder элементов сам по себе
+  не переименовывает placements; стабильная identity элементов потребует
+  отдельного ключа коллекции.
+
+Reconciler строит desired children только внутри затронутых `scope Atom`,
+перемещает совпавшие placements, создаёт отсутствующие и удаляет лишние. Один
+Matter update не сканирует Atom посторонних WIMP. Если Topology переносится к
+другому owner Atom, неизменившиеся дочерние Atom сохраняют ID, но заново
+привязывают зависимые Field к новому владельцу; execution перезапускается только
+у действительно перепривязанного Atom.
+
+При удалении runtime Atom его pending и superseded executions переносятся в
+retired fence до SQL cascade. Поэтому поздние grant/result уже удалённого Atom
+распознаются как stale и игнорируются, а не становятся неизвестными execution.
+Уже летевшие State/Process Photon для отсутствующего Atom также считаются stale;
+неизвестный State или Process у существующего Atom остаётся ошибкой контракта.
+Удаление корневого WIMP обходит фактическое runtime-дерево: внешние WIMP
+declarations сохраняются, но их Atom внутри удаляемой ветки получают обычные
+remove-события, cleanup values и тот же retired fence.
 
 ## Проверка
 
-Регрессии доказывают in-place identity Matter, fan-out одного Matter на два
-materialized Atom, локальную Matrix-перестройку двух Atom одного WIMP и Energy
+Регрессии доказывают in-place identity Matter, live-reparent и rebind, смену
+WIMP `src`, Atom↔Topology, Axion↔Macho, вложенные Macho repetitions, cold-start
+миграцию scopes, fan-out одного Matter на несколько Atom и Energy
 `detach → rebuild → abort` без результата от старого execution.

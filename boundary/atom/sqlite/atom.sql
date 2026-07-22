@@ -17,3 +17,4 @@ CREATE TABLE IF NOT EXISTS atom
 
 CREATE INDEX IF NOT EXISTS atom_by_parent_atom ON atom (parent_atom);
 CREATE INDEX IF NOT EXISTS atom_by_parent_topology ON atom (parent_topology);
+CREATE INDEX IF NOT EXISTS atom_by_wimp ON atom (wimp);

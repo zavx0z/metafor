@@ -35,12 +35,14 @@ export type MatrixProjectionChange = {
   structural: boolean
   affectedAtomIds: number[]
   invalidatedProcessWimps: string[]
+  invalidatedProcessAtomIds: number[]
 }
 
 const unchanged = (): MatrixProjectionChange => ({
   structural: false,
   affectedAtomIds: [],
   invalidatedProcessWimps: [],
+  invalidatedProcessAtomIds: [],
 })
 
 const isRecord = (value: unknown): value is JsonRecord =>
@@ -328,7 +330,12 @@ const applyAtomGraviton = (part: Particle, atomId: number): MatrixProjectionChan
     atomArrayIndexById.delete(atomId)
     const affected = affectedByValueIds(valueIds)
     affected.add(atomId)
-    return {structural: true, affectedAtomIds: [...affected], invalidatedProcessWimps: []}
+    return {
+      structural: true,
+      affectedAtomIds: [...affected],
+      invalidatedProcessWimps: [],
+      invalidatedProcessAtomIds: [atomId],
+    }
   }
   if ((part.op !== "add" && part.op !== "replace") || !isRecord(part.value)) return unchanged()
   const atom = decodeAtomEntity(part.value, atomId)
@@ -336,7 +343,16 @@ const applyAtomGraviton = (part: Particle, atomId: number): MatrixProjectionChan
   for (const value of atom.values) valueIds.add(value.valueId)
   const sourceChange = synchronizeFieldSources(part.value, atom)
   for (const valueId of sourceChange.valueIds) valueIds.add(valueId)
-  if (previous && same(previous, atom) && !sourceChange.changed) return unchanged()
+  if (previous && same(previous, atom) && !sourceChange.changed) {
+    return part.op === "replace"
+      ? {
+          structural: true,
+          affectedAtomIds: [atomId],
+          invalidatedProcessWimps: [],
+          invalidatedProcessAtomIds: [atomId],
+        }
+      : unchanged()
+  }
   if (previous) unindexAtom(previous)
   if (index < 0) {
     atomArrayIndexById.set(atom.id, current.atoms.length)
@@ -346,7 +362,12 @@ const applyAtomGraviton = (part: Particle, atomId: number): MatrixProjectionChan
   const affected = affectedByValueIds(valueIds)
   affected.add(atomId)
   for (const parentAtomId of sourceChange.parentAtomIds) affected.add(parentAtomId)
-  return {structural: true, affectedAtomIds: [...affected], invalidatedProcessWimps: []}
+  return {
+    structural: true,
+    affectedAtomIds: [...affected],
+    invalidatedProcessWimps: [],
+    invalidatedProcessAtomIds: previous && part.op === "replace" ? [atomId] : [],
+  }
 }
 
 const applyDeclarationGraviton = (part: Particle): MatrixProjectionChange => {
@@ -356,6 +377,7 @@ const applyDeclarationGraviton = (part: Particle): MatrixProjectionChange => {
       structural: true,
       affectedAtomIds: affectedByWimp(part.value.src),
       invalidatedProcessWimps: [part.value.src],
+      invalidatedProcessAtomIds: [],
     }
   }
   if (part.path === "matter" && isRecord(part.value) && typeof part.value.wimp === "string") {
@@ -364,6 +386,7 @@ const applyDeclarationGraviton = (part: Particle): MatrixProjectionChange => {
       structural: true,
       affectedAtomIds: affectedByWimp(src),
       invalidatedProcessWimps: [src],
+      invalidatedProcessAtomIds: [],
     }
   }
   const section = declarationSection[part.path as keyof typeof declarationSection]
@@ -393,6 +416,7 @@ const applyDeclarationGraviton = (part: Particle): MatrixProjectionChange => {
       structural: true,
       affectedAtomIds: affectedByWimp(src),
       invalidatedProcessWimps: [src],
+      invalidatedProcessAtomIds: [],
     }
   }
   if (part.op !== "add" && part.op !== "replace") return unchanged()
@@ -428,6 +452,7 @@ const applyDeclarationGraviton = (part: Particle): MatrixProjectionChange => {
     structural: true,
     affectedAtomIds: affectedByWimp(src),
     invalidatedProcessWimps: [src],
+    invalidatedProcessAtomIds: [],
   }
 }
 

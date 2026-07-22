@@ -98,6 +98,13 @@ export class BoundaryExecutionStore {
       );
       CREATE INDEX IF NOT EXISTS boundary_execution_atom_status
         ON boundary_process_execution (atom, status);
+      CREATE TABLE IF NOT EXISTS boundary_retired_process_execution (
+        execution_id TEXT PRIMARY KEY,
+        atom INTEGER NOT NULL,
+        process INTEGER NOT NULL,
+        state TEXT NOT NULL,
+        energy TEXT
+      );
     `)
   }
 
@@ -120,8 +127,9 @@ export class BoundaryExecutionStore {
 
     await this.sql.begin(async (tx) => {
       const atom = await this.atom(tx, atomId)
-      const state = atom ? await this.stateForName(tx, atom.wimp, stateName) : null
-      if (!atom || !state) throw new Error(`Cannot commit State for atom=${atomId} state=${stateName}`)
+      if (!atom) return
+      const state = await this.stateForName(tx, atom.wimp, stateName)
+      if (!state) throw new Error(`Cannot commit State for atom=${atomId} state=${stateName}`)
 
       await tx`
         INSERT INTO atom_state (atom, metaState)
@@ -146,13 +154,19 @@ export class BoundaryExecutionStore {
 
     await this.sql.begin(async (tx) => {
       const atom = await this.atom(tx, atomId)
-      const state = atom ? await this.stateForName(tx, atom.wimp, stateName) : null
-      const process = atom ? await this.processForState(tx, atom.wimp, stateName) : null
-      if (!atom || !state || !process) {
+      if (!atom) return
+      const state = await this.stateForName(tx, atom.wimp, stateName)
+      const process = await this.processForState(tx, atom.wimp, stateName)
+      if (!state || !process) {
         throw new Error(`Cannot register process execution for atom=${atomId} state=${stateName}`)
       }
 
       const existing = await this.execution(tx, processExecutionId)
+      const retired = (await tx<Array<{ok: number}>>`
+        SELECT 1 AS ok FROM boundary_retired_process_execution
+         WHERE execution_id = ${processExecutionId}
+      `)[0]
+      if (retired) throw new Error(`Process execution identity collision: ${processExecutionId}`)
       if (existing) {
         if (existing.atom !== atomId || existing.process !== process.id || existing.state !== stateName) {
           throw new Error(`Process execution identity collision: ${processExecutionId}`)
@@ -202,6 +216,18 @@ export class BoundaryExecutionStore {
       RETURNING execution_id AS executionId
     `
     if (updated.length !== 1) {
+      const stale = (await this.sql<Array<{energy: string | null}>>`
+        SELECT energy
+          FROM boundary_process_execution
+         WHERE execution_id = ${grant.processExecutionId}
+           AND atom = ${atomId} AND status = ${"superseded"}
+        UNION ALL
+        SELECT energy
+          FROM boundary_retired_process_execution
+         WHERE execution_id = ${grant.processExecutionId} AND atom = ${atomId}
+         LIMIT 1
+      `)[0]
+      if (stale && (stale.energy === null || stale.energy === energy)) return null
       throw new Error(`Energy selection does not match pending execution ${grant.processExecutionId}`)
     }
     return null
@@ -220,7 +246,17 @@ export class BoundaryExecutionStore {
     const resultJson = JSON.stringify(proposal)
     const committed = await this.sql.begin(async (tx) => {
       const execution = await this.execution(tx, proposal.processExecutionId)
-      if (!execution) throw new Error(`Unknown process execution: ${proposal.processExecutionId}`)
+      if (!execution) {
+        const retired = (await tx<Array<{atom: number; process: number; energy: string | null}>>`
+          SELECT atom, process, energy FROM boundary_retired_process_execution
+           WHERE execution_id = ${proposal.processExecutionId}
+        `)[0]
+        if (
+          retired && Number(retired.atom) === atomId && Number(retired.process) === proposal.processId &&
+          retired.energy === energy
+        ) return null
+        throw new Error(`Unknown process execution: ${proposal.processExecutionId}`)
+      }
       if (execution.status !== "pending") {
         if (
           execution.status === "superseded" &&

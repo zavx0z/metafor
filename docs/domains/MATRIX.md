@@ -30,8 +30,10 @@ Store. Соседние Atom не перенумеровываются.
 
 Изменение декларации WIMP инвалидирует executions всех Atom только этого WIMP и
 создаёт им новые `processExecutionId`, если после перестройки они остаются в
-Process State. Удаление Atom или смена его State также отменяет только его
-pending execution. Graviton другого Atom/WIMP старую identity не трогает.
+Process State. Canonical `atom/:id replace` означает изменение runtime binding
+этого Atom и инвалидирует только его execution, даже если `atom.wimp` и State
+сохранились. Удаление Atom или смена его State также отменяет только его pending
+execution. Graviton другого Atom/WIMP старую identity не трогает.
 
 ## Store и Weak
 
@@ -75,6 +77,8 @@ Photon. Обычная стоимость structural update зависит от 
   а первоначальный `processExecutionId` успешно завершает работу;
 - Matter/declaration WIMP rebuild сохраняет Atom IDs, но создаёт новую Process
   identity только затронутым Atom;
+- live-reparent или смена continuation сохраняет Atom ID, но снимает его старый
+  lock и создаёт новую Process identity;
 - split shared Field не переписывает дедуплицированный граф соседнего Atom;
 - изменение любой декларации WIMP корректно инвалидирует старое execution;
 - изменение одного Atom в большой projection остаётся локальным;

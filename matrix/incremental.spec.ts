@@ -516,6 +516,43 @@ describe("Matrix incremental structural runtime", () => {
     expect(brane.lock).toBe(false)
   })
 
+  test("invalidates a locked execution when the same Atom is retargeted to another WIMP", async () => {
+    const initial: BoundaryInitialState = {
+      version: 1,
+      atoms: [{id: 17, wimp: "owner/old", values: [], state: 202}],
+      declarations: [
+        {src: "owner/old", section: "states", localId: "1", value: {id: 202, name: "ready", position: 0}},
+        {src: "owner/old", section: "processes", localId: "1", value: {id: 501, key: "ready", state: "ready"}},
+        {src: "owner/new", section: "states", localId: "1", value: {id: 302, name: "ready", position: 0}},
+        {src: "owner/new", section: "processes", localId: "1", value: {id: 601, key: "ready", state: "ready"}},
+      ],
+    }
+    await prepareMatrixBirth(initial)
+    const brane = matrix$.branes[0]!
+    brane.lock = true
+
+    const change = applyMatrixProjectionParticle({
+      part: "graviton",
+      op: "replace",
+      path: "atom/17",
+      by: "boundary",
+      ts: 2,
+      value: {
+        atom: {id: 17, parentAtom: null, parentTopology: null, wimp: "owner/new", position: 0},
+        values: [],
+        valueRecords: [],
+        valueItems: [],
+        state: {atom: 17, metaState: 302},
+      },
+    })
+    const result = await applyIncrementalMatrixProjection(change)
+
+    expect(change.invalidatedProcessAtomIds).toEqual([17])
+    expect(result.invalidatedAtomIds).toEqual([17])
+    expect(matrix$.branes[0]).toBe(brane)
+    expect(brane.lock).toBe(false)
+  })
+
   test("rebuilds every Atom of a changed WIMP and invalidates their old Processes only", async () => {
     const initial: BoundaryInitialState = {
       version: 1,

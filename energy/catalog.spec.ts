@@ -69,7 +69,7 @@ describe("Energy incremental catalog", () => {
 
     const change = store.apply(part("replace", "atom/2", {atom: {parentAtom: 3}}))
 
-    expect(change.affectedAtomIds).toEqual([2, 4])
+    expect(change.affectedAtomIds).toEqual([2])
     expect(store.atoms.get(2)).toBe(child)
     expect(store.atoms.get(3)).toBe(peer)
     expect(store.childrenByParent.get("atom:1")).toBeUndefined()
@@ -108,7 +108,7 @@ describe("Energy incremental catalog", () => {
       kind: "axion",
       position: 1,
     }))
-    expect(topologyChange.affectedAtomIds).toEqual([2])
+    expect(topologyChange.affectedAtomIds).toEqual([])
 
     store.apply(part("replace", "atom/2", {
       atom: {id: 2, parentAtom: null, parentTopology: 7, wimp: "owner/child", position: 0},
@@ -156,11 +156,64 @@ describe("Energy incremental catalog", () => {
     store.apply(part("add", "process", declaration))
 
     expect(store.invalidatedProcessAtomIds(part("replace", "atom/1", atom(1, "owner/a")))).toEqual([])
+    expect(store.invalidatedProcessAtomIds(part("replace", "atom/1", atom(1, "owner/b")))).toEqual([1])
     expect(store.invalidatedProcessAtomIds(part("replace", "process", declaration))).toEqual([1, 2])
     expect(store.invalidatedProcessAtomIds(part("replace", "matter", {
       wimp: "owner/a",
       localId: 1,
     }))).toEqual([1, 2])
+  })
+
+  test("clears a removed continuation and invalidates only that Atom", () => {
+    const store = new EnergyCatalogStore()
+    const withContinuation = {
+      ...atom(1, "owner/a"),
+      values: [],
+      valueRecords: [],
+      valueItems: [],
+      state: {atom: 1, metaState: null},
+      continuation: {massBinding: {cache: "old"}, energyBinding: {socket: "old"}},
+    }
+    const withoutContinuation = {
+      ...atom(1, "owner/a"),
+      values: [],
+      valueRecords: [],
+      valueItems: [],
+      state: {atom: 1, metaState: null},
+    }
+    store.apply(part("add", "atom/1", withContinuation))
+
+    expect(store.invalidatedProcessAtomIds(part("replace", "atom/1", withoutContinuation))).toEqual([1])
+    store.apply(part("replace", "atom/1", withoutContinuation))
+    expect(store.continuation(1)).toBeUndefined()
+  })
+
+  test("keeps a child outside its parent's canonical Atom replacement", () => {
+    const store = new EnergyCatalogStore()
+    const parent = {
+      ...atom(1, "owner/process"),
+      values: [],
+      valueRecords: [],
+      valueItems: [],
+      state: {atom: 1, metaState: null},
+    }
+    store.apply(part("add", "atom/1", parent))
+    store.apply(part("add", "atom/2", {
+      ...atom(2, "owner/process", 1),
+      values: [],
+      valueRecords: [],
+      valueItems: [],
+      state: {atom: 2, metaState: null},
+    }))
+
+    const replacement = part("replace", "atom/1", {
+      ...parent,
+      atom: {...parent.atom, position: 7},
+    })
+    expect(store.affectedAtomIds(replacement)).toEqual([1])
+    expect(store.invalidatedProcessAtomIds(replacement)).toEqual([1])
+    expect(store.apply(replacement).affectedAtomIds).toEqual([1])
+    expect(store.apply(part("replace", "atom/1", replacement.value)).affectedAtomIds).toEqual([1])
   })
 
   test("copy, move and test operate on one entity", () => {
