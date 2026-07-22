@@ -2,7 +2,11 @@ import {existsSync} from "node:fs"
 import {dirname, isAbsolute, resolve} from "node:path"
 import {pathToFileURL} from "node:url"
 import type {EnergyAtomEntity} from "@metafor/types/energy/catalog"
-import type {EnergyHandlerDescriptor, EnergyProcessDescriptor} from "@metafor/types/energy/process"
+import type {
+  EnergyFinallyProcessDescriptor,
+  EnergyHandlerDescriptor,
+  EnergyProcessDescriptor,
+} from "@metafor/types/energy/process"
 import type {EnergyRuntimeContext, EnergyRuntimeStore} from "@metafor/types/energy/energy"
 import type {EnergyMassContext, EnergyMassStore} from "@metafor/types/energy/mass"
 import type {EnergyProtocol, EnergyProtocolOptions} from "@metafor/types/energy/protocol"
@@ -204,6 +208,7 @@ const hydrateRuntimeBindings = (
   hydrated: Set<number>,
   massBound: Set<number>,
   energyBound: Set<number>,
+  activeEnergy: Set<number>,
   hydratedStates: Map<number, string>,
   visiting: Set<number> = new Set(),
 ): boolean => {
@@ -224,6 +229,7 @@ const hydrateRuntimeBindings = (
       hydrated,
       massBound,
       energyBound,
+      activeEnergy,
       hydratedStates,
       visiting,
     )) {
@@ -241,6 +247,7 @@ const hydrateRuntimeBindings = (
       mass: massStore.get(parentContext),
       energy: energyStore.get(parentContext),
     }
+    activeEnergy.add(parent.id)
     const mass = continuation?.massBinding === undefined
       ? undefined
       : evaluateRuntimeBinding(continuation.massBinding, scope, "mass")
@@ -260,8 +267,10 @@ const hydrateRuntimeBindings = (
     if (energy?.value) {
       energyStore.bind(childContext, energy.value)
       energyBound.add(atom.id)
+      activeEnergy.add(atom.id)
     } else if (energyBound.delete(atom.id)) {
       energyStore.bind(childContext, {})
+      activeEnergy.add(atom.id)
     }
   }
 
@@ -307,24 +316,14 @@ const executeProcessHandler = async (
 
 const executeProcess = async (
   pending: PendingEnergyProcess,
-  energyId: string,
   fields: Record<string, unknown>,
-  massStore: EnergyMassStore,
-  energyStore: EnergyRuntimeStore,
   catalog: EnergyCatalogStore,
   signal: AbortSignal,
+  mass: Record<string, unknown>,
+  energy: Record<string, unknown>,
 ): Promise<unknown> => {
-  const context = {energyId, atomId: pending.atomId, wimp: pending.wimp, state: pending.state}
-  const mass = massStore.get(context)
-  const energy = energyStore.get(context)
   if (pending.descriptor.type === "finally") {
-    try {
-      const fn = (0, eval)(`(${rewriteWrapperDynamicImports(pending.descriptor.before.src, pending.wimp)})`)
-      if (typeof fn !== "function") throw new Error("Energy finally before did not evaluate to a function")
-      return await fn({energy, mass, signal})
-    } finally {
-      if (!signal.aborted) energyStore.release(context)
-    }
+    return await executeFinally(pending.wimp, pending.descriptor, mass, energy, signal)
   }
 
   const params: EnergyActionParams = {
@@ -356,6 +355,26 @@ const executeProcess = async (
   return await fn(params)
 }
 
+const executeFinally = async (
+  wimp: string,
+  descriptor: EnergyFinallyProcessDescriptor,
+  mass: Record<string, unknown>,
+  energy: Record<string, unknown>,
+  signal: AbortSignal,
+): Promise<unknown> => {
+  const fn = (0, eval)(`(${rewriteWrapperDynamicImports(descriptor.before.src, wimp)})`)
+  if (typeof fn !== "function") throw new Error("Energy finally before did not evaluate to a function")
+  return await fn({energy, mass, signal})
+}
+
+type RetiredAtomDestroy = {
+  atomId: number
+  wimp: string
+  mass: Record<string, unknown>
+  energy: Record<string, unknown>
+  processes: Array<{state: string; descriptor: EnergyFinallyProcessDescriptor}>
+}
+
 export function startEnergyProtocol(options: StartEnergyProtocolOptions): EnergyProtocol {
   const force = options.force
   const energyId = options.energyId ?? readEnergyId()
@@ -369,10 +388,40 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
   const hydratedBindingStates = new Map<number, string>()
   const massBoundAtomIds = new Set<number>()
   const energyBoundAtomIds = new Set<number>()
+  const activeEnergyAtomIds = new Set<number>()
   const pendingByAtomId = new Map<number, PendingEnergyProcess>()
   const runningByAtomId = new Map<number, {pending: PendingEnergyProcess; controller: AbortController}>()
   const pendingReactions = new Map<string, ReactionExecutionSignal>()
   const runningReactionIds = new Set<string>()
+  const retiredDestroyControllers = new Set<AbortController>()
+  let retiredDestroyQueue = Promise.resolve()
+  let closed = false
+
+  const executeRetiredDestroy = async (retired: RetiredAtomDestroy): Promise<void> => {
+    const controller = new AbortController()
+    retiredDestroyControllers.add(controller)
+    try {
+      for (const process of retired.processes) {
+        if (controller.signal.aborted) break
+        try {
+          await executeFinally(retired.wimp, process.descriptor, retired.mass, retired.energy, controller.signal)
+        } catch (error) {
+          console.error(
+            `[energy] destroy failed atom=${retired.atomId} wimp=${retired.wimp} state=${process.state}: ${toError(error).message}`,
+          )
+        }
+      }
+    } finally {
+      retiredDestroyControllers.delete(controller)
+    }
+  }
+
+  const enqueueRetiredDestroy = (retired: RetiredAtomDestroy): void => {
+    retiredDestroyQueue = retiredDestroyQueue.then(async () => {
+      if (closed) return
+      await executeRetiredDestroy(retired)
+    })
+  }
 
   const emitReactionProposal = (
     part: "w+" | "w-",
@@ -394,12 +443,38 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
     if (part.part === "graviton") {
       const affectedBefore = catalog.affectedAtomIds(part)
       const invalidatedBefore = catalog.invalidatedProcessAtomIds(part)
+      const removedAtomIds = part.op === "remove" && typeof part.path === "string" &&
+        /^(?:atom|topology)\/\d+$/.test(part.path.replace(/^\/+/, ""))
+        ? affectedBefore
+        : []
+      const removedAtomIdSet = new Set(removedAtomIds)
 
       const previousBindings = new Map<number, {atom: EnergyAtomEntity; state: string}>()
       for (const atomId of hydratedBindingAtomIds) {
         const atom = catalog.atoms.get(atomId)
         const state = hydratedBindingStates.get(atomId)
         if (atom && state !== undefined) previousBindings.set(atomId, {atom: structuredClone(atom), state})
+      }
+      const retiredDestroys: RetiredAtomDestroy[] = []
+      for (const atomId of removedAtomIds) {
+        if (!activeEnergyAtomIds.has(atomId)) continue
+        const previous = previousBindings.get(atomId)
+        if (!previous) continue
+        const processes = catalog.destroyProcesses(previous.atom.wimp)
+          .filter((process) => process.descriptor.type === "finally" && canExecuteInRuntime(process.descriptor, runtimeKind))
+          .map((process) => ({
+            state: process.state,
+            descriptor: process.descriptor as EnergyFinallyProcessDescriptor,
+          }))
+        if (processes.length === 0) continue
+        const context = runtimeContext(energyId, previous.atom, previous.state)
+        retiredDestroys.push({
+          atomId,
+          wimp: previous.atom.wimp,
+          mass: massStore.get(context),
+          energy: energyStore.get(context),
+          processes,
+        })
       }
       const change = catalog.apply(part)
       if (!change.changed) return
@@ -416,6 +491,13 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
         runningByAtomId.delete(atomId)
         retiredControllers.push(running.controller)
       }
+      if (removedAtomIdSet.size > 0) {
+        for (const [reactionExecutionId, signal] of pendingReactions) {
+          if (!removedAtomIdSet.has(signal.target.atomId)) continue
+          pendingReactions.delete(reactionExecutionId)
+          runningReactionIds.delete(reactionExecutionId)
+        }
+      }
 
       try {
         for (const atomId of affectedAtomIds) {
@@ -425,8 +507,17 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
           if (!previous) continue
           const previousContext = runtimeContext(energyId, previous.atom, previous.state)
           if (massBoundAtomIds.delete(atomId)) massStore.bind(previousContext, {})
-          if (energyBoundAtomIds.delete(atomId)) energyStore.bind(previousContext, {})
-          else energyStore.release(previousContext)
+          if (removedAtomIdSet.has(atomId)) {
+            energyBoundAtomIds.delete(atomId)
+            activeEnergyAtomIds.delete(atomId)
+            energyStore.release(previousContext)
+          } else if (energyBoundAtomIds.delete(atomId)) {
+            energyStore.bind(previousContext, {})
+            activeEnergyAtomIds.add(atomId)
+          } else {
+            activeEnergyAtomIds.delete(atomId)
+            energyStore.release(previousContext)
+          }
         }
         for (const atomId of affectedAtomIds) {
           const previous = previousBindings.get(atomId)
@@ -442,6 +533,7 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
             hydratedBindingAtomIds,
             massBoundAtomIds,
             energyBoundAtomIds,
+            activeEnergyAtomIds,
             hydratedBindingStates,
           )
         }
@@ -450,6 +542,7 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
           controller.abort(new Error("Process execution detached by Energy rebuild"))
         }
       }
+      for (const retired of retiredDestroys) enqueueRetiredDestroy(retired)
       return
     }
 
@@ -489,6 +582,7 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
           hydratedBindingAtomIds,
           massBoundAtomIds,
           energyBoundAtomIds,
+          activeEnergyAtomIds,
           hydratedBindingStates,
         )) break
 
@@ -518,6 +612,7 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
           runningReactionIds.add(signal.reactionExecutionId)
           void executeReaction(signal, energyId, massStore)
             .then((result) => {
+              if (!pendingReactions.has(signal.reactionExecutionId) || !runningReactionIds.has(signal.reactionExecutionId)) return
               if (!result.matched) {
                 emitReactionProposal("w-", signal, {
                   reactionExecutionId: signal.reactionExecutionId,
@@ -535,6 +630,7 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
               })
             })
             .catch((thrown) => {
+              if (!pendingReactions.has(signal.reactionExecutionId) || !runningReactionIds.has(signal.reactionExecutionId)) return
               emitReactionProposal("w-", signal, {
                 reactionExecutionId: signal.reactionExecutionId,
                 reactionId: signal.reactionId,
@@ -558,11 +654,15 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
 
         const controller = new AbortController()
         runningByAtomId.set(atomId, {pending, controller})
+        const context = {energyId, atomId: pending.atomId, wimp: pending.wimp, state: pending.state}
+        const mass = massStore.get(context)
+        const energy = energyStore.get(context)
+        activeEnergyAtomIds.add(atomId)
         const isCurrent = (): boolean => {
           const running = runningByAtomId.get(atomId)
           return running?.pending.processExecutionId === pending.processExecutionId && !controller.signal.aborted
         }
-        void executeProcess(pending, energyId, grant.fields, massStore, energyStore, catalog, controller.signal)
+        void executeProcess(pending, grant.fields, catalog, controller.signal, mass, energy)
           .then(async (data) => {
             if (!isCurrent()) return
             if (pending.descriptor.type === "finally") {
@@ -633,6 +733,11 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
             }
           })
           .finally(() => {
+            const isStillCurrent = runningByAtomId.get(atomId)?.pending.processExecutionId === pending.processExecutionId
+            if (pending.descriptor.type === "finally" && isStillCurrent) {
+              energyStore.release(context)
+              activeEnergyAtomIds.delete(atomId)
+            }
             if (pendingByAtomId.get(atomId)?.processExecutionId === pending.processExecutionId) {
               pendingByAtomId.delete(atomId)
             }
@@ -647,15 +752,19 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
 
   return {
     close() {
+      closed = true
       for (const running of runningByAtomId.values()) running.controller.abort(new Error("Energy protocol closed"))
       pendingByAtomId.clear()
       runningByAtomId.clear()
       pendingReactions.clear()
       runningReactionIds.clear()
+      for (const controller of retiredDestroyControllers) controller.abort(new Error("Energy protocol closed"))
+      retiredDestroyControllers.clear()
       hydratedBindingAtomIds.clear()
       hydratedBindingStates.clear()
       massBoundAtomIds.clear()
       energyBoundAtomIds.clear()
+      activeEnergyAtomIds.clear()
       if (ownsMassStore) massStore.clear?.()
       if (ownsEnergyStore) energyStore.clear?.()
       force.onImpulse = () => {}

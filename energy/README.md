@@ -95,6 +95,23 @@ identity. Поэтому старый Promise не может стереть н�
 физически прервать внутри общего JS isolate; его протокольный результат всё
 равно подавляется. Hard-kill требует отдельной runtime-изоляции.
 
+## Удаление Atom
+
+Boundary сообщает удаление обычным `graviton remove atom/:id`. Energy до
+изменения catalog удерживает ссылки старых Mass/Energy, затем синхронно
+освобождает активную generation, отсоединяет Process, вызывает abort и отдельно
+запускает все совместимые `destroy(...)` WIMP в порядке декларации.
+Асинхронные destroy идут очередью в порядке remove-событий: cleanup ребёнка
+завершается до cleanup родителя, но активная перестройка этой очереди не ждёт.
+
+Destroy при удалении работает в retired context: он не выпускает Process result
+и не обращается повторно к store по Atom ID. Поэтому async cleanup старого Atom
+не может удалить Energy нового Atom с тем же ID. Mass остаётся жить по своему
+lifecycle. Заимствованные через Matter binding handles должен закрывать только
+их владелец; destroy hooks обязаны быть идемпотентными. Ошибка отдельного hook
+логируется и не останавливает следующие, поэтому закрытие внешних ресурсов
+остаётся cooperative best-effort до появления отдельного lifecycle health.
+
 ## Matter bindings
 
 Этот раздел относится только к runtime `massBinding`/`energyBinding`. Field

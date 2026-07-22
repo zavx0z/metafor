@@ -32,8 +32,14 @@ Macho occurrence path; fan-out ограничен Atom изменённого WI
 
 - Локальный `detach → rebuild → abort` реализован: старый execution сразу
   освобождает Atom, новое не ждёт его остановки, старый result подавляется.
+- Явное удаление Atom/WIMP реализует `release → abort → destroy`: Boundary
+  публикует Atom remove снизу вверх, а Energy выполняет destroy на retired
+  Mass/Energy без блокировки повторного рождения того же Atom ID.
 - Перевести остальные долгие project actions на обязательное соблюдение
   `AbortSignal` и явный cleanup внешних handles.
+- Добавить отдельный lifecycle health/diagnostic для ошибок destroy: сейчас
+  cleanup cooperative best-effort, ошибка логируется, а следующие hooks
+  продолжаются.
 - Если потребуется гарантированный hard-kill произвольного JS, спроектировать
   изолированный worker/process runtime. `AbortSignal` в общем isolate даёт
   cooperative, а не физически принудительную остановку.
@@ -65,8 +71,6 @@ ID сохраняется, Boundary атомарно помечает `A` как
   либо отклонять несовместимый `replace` до записи.
 - Хранить pending enum default в Boundary, чтобы ожидание Variant переживало
   перезапуск процесса.
-- Явное удаление Atom/WIMP должно вызвать Energy `destroy`, отсоединить активное
-  execution и остановить его через тот же lifecycle, а не только SQL cascade.
 
 ## Производительность
 

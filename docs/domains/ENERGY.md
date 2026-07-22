@@ -42,6 +42,24 @@ Canonical `atom/:id replace` полностью заменяет локальн�
 смена owner Topology действительно меняет Field/Mass/Energy binding ребёнка,
 Boundary следом публикует canonical replace именно этого дочернего Atom.
 
+## Закон удаления
+
+`graviton remove atom/:id` является единственным сигналом физического удаления.
+Energy сначала сохраняет ссылки старой Mass/Energy generation и подходящие
+`destroy(...)`, затем удаляет Atom из активного catalog, освобождает runtime
+slot и Energy store, abort-ит старый action и запускает destroy асинхронно.
+
+Все destroy hooks WIMP, совместимые с текущим `env`, выполняются в порядке
+декларации на закрытом retired context. Cleanup удаляемой ветки завершает
+ребёнка до начала cleanup родителя, не блокируя освобождение и перестройку
+активного runtime. Они не требуют Photon/Z, не отправляют
+`w+`/`w-` и не могут освободить новую generation повторно созданного Atom с тем
+же ID. Ошибка destroy логируется, остальные hooks продолжаются: физическое
+закрытие внешнего ресурса cooperative и потому best-effort. Поздние Process и
+Reaction результаты удалённого Atom подавляются.
+Не гидратированный Atom не создаёт пустые Mass/Energy ради cleanup; Mass имеет
+отдельный lifetime и автоматически не удаляется.
+
 ## Что обязаны доказывать тесты
 
 - generic сохраняет точные типы сущностей в action, destroy и Matter;
@@ -52,6 +70,8 @@ Boundary следом публикует canonical replace именно этог
 - пустая `.energy()` оставляет Energy типом `{}`.
 - удаление continuation очищает catalog, а canonical Atom replace инвалидирует
   только execution этого Atom.
+- Atom remove освобождает активный slot до abort, выполняет destroy на старых
+  ссылках ровно один раз и не затрагивает новую generation того же ID.
 
 Публичный контракт находится в `types/metafor/schema.ts`, runtime-цепочка — в
 `metafor.ts`, проверки — в `metafor.spec.ts` и

@@ -113,6 +113,27 @@ Photon. Идентичный `replace` ничего не инвалидируе�
 такой action может ещё жить в фоне, но он отсоединён от протокола. Гарантированное
 hard-kill потребует отдельной изоляции выполнения.
 
+## Destroy при удалении Atom
+
+Boundary не создаёт отдельный служебный сигнал. В той же транзакции, где Atom
+исчезает из текущего мира, он retire-ит executions и после commit публикует
+канонический `graviton remove atom/:id`. Ветка публикуется снизу вверх: сначала
+дети, затем родитель.
+
+Energy читает этот remove до удаления Atom из локального catalog и сохраняет
+закрытый снимок старых Mass/Energy и всех `destroy(...)` данного WIMP, доступных
+в текущем runtime. Затем она сразу освобождает активный slot и Energy store,
+отсоединяет execution, вызывает ему abort и асинхронно выполняет destroy hooks
+в порядке декларации. Эти hooks не являются новым Matrix execution и не
+публикуют `w+`/`w-`.
+
+Поздний destroy работает только со старыми ссылками. Если Atom с тем же ID уже
+создан снова, его новая Energy generation не может быть освобождена старым
+cleanup. Mass автоматически не удаляется. Не проявленный в Energy Atom не
+создаёт пустые stores только ради destroy. Несколько destroy hooks должны быть
+идемпотентны; hook дочернего Atom не должен закрывать заимствованный через
+binding ресурс родителя, если он им не владеет.
+
 ## Identity при structural reconcile
 
 Runtime placement определяется ключом `scope Atom + Matter localId + путь
@@ -149,10 +170,17 @@ retired fence до SQL cascade. Поэтому поздние grant/result уж�
 Удаление корневого WIMP обходит фактическое runtime-дерево: внешние WIMP
 declarations сохраняются, но их Atom внутри удаляемой ветки получают обычные
 remove-события, cleanup values и тот же retired fence.
+Energy освобождает активный runtime сразу, а destroy выполняет отдельной
+очередью в порядке этих remove-событий: cleanup ребёнка должен завершиться до
+начала cleanup родителя. Ошибка destroy не откатывает удаление; она логируется,
+остальные hooks продолжаются, поэтому физическое закрытие внешнего ресурса
+остаётся cooperative best-effort до отдельного lifecycle health.
 
 ## Проверка
 
 Регрессии доказывают in-place identity Matter, live-reparent и rebind, смену
 WIMP `src`, Atom↔Topology, Axion↔Macho, вложенные Macho repetitions, cold-start
 миграцию scopes, fan-out одного Matter на несколько Atom и Energy
-`detach → rebuild → abort` без результата от старого execution.
+`detach → rebuild → abort` без результата от старого execution. Удаление ветки
+дополнительно доказывает `release → abort → destroy`, child-before-parent,
+изоляцию новой generation и подавление поздних Process/Reaction результатов.

@@ -58,6 +58,27 @@ describe("Energy incremental catalog", () => {
     expect(store.process("owner/a", "done")).toBe(done)
   })
 
+  test("returns destroy hooks by declaration local ID instead of arrival order", () => {
+    const store = new EnergyCatalogStore()
+    for (const localId of [3, 1, 2]) {
+      store.apply(part("add", "process", {
+        ...process(100 + localId, localId, "owner/a", `cleanup-${localId}`),
+        descriptor: {
+          type: "finally",
+          key: `cleanup-${localId}`,
+          env: ["server"],
+          before: {src: "async () => {}"},
+        },
+      }))
+    }
+
+    expect(store.destroyProcesses("owner/a").map(({state}) => state)).toEqual([
+      "cleanup-1",
+      "cleanup-2",
+      "cleanup-3",
+    ])
+  })
+
   test("atom parent patch reindexes locally and preserves peers", () => {
     const store = new EnergyCatalogStore()
     store.apply(part("add", "atom/1", atom(1, "owner/root")))

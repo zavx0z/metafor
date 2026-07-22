@@ -1,5 +1,5 @@
 import {Buffer} from "node:buffer"
-import {describe, expect, test} from "bun:test"
+import {describe, expect, spyOn, test} from "bun:test"
 import {mkdtemp, rm, writeFile} from "node:fs/promises"
 import {tmpdir} from "node:os"
 import {join, resolve} from "node:path"
@@ -812,6 +812,283 @@ describe("Energy process protocol", () => {
       }))
       expect(collectParts(harness.messages, "w-", "replace")).toEqual([])
     } finally {
+      harness.close()
+    }
+  })
+
+  test("removes an Atom before abort and runs its destroy against retired Mass and Energy", async () => {
+    const mass: Record<string, unknown> = {events: [] as string[]}
+    const energy: Record<string, unknown> = {socket: {ready: true}}
+    let releases = 0
+    const action = processEntry("ready", {
+      src: "./actions/wait-for-remove.ts",
+      wrapperSrc: `async ({mass, signal}) => {
+        mass.events.push("action:start")
+        await new Promise((resolve) => signal.addEventListener("abort", () => {
+          mass.events.push("action:abort")
+          resolve()
+        }, {once: true}))
+        mass.events.push("action:return")
+      }`,
+      readFields: [],
+    })
+    const destroy = finallyProcessEntry(
+      "cleanup",
+      `async ({energy, mass}) => {
+        if (!energy.socket?.ready) throw new Error("missing retired Energy")
+        mass.events.push("destroy")
+        energy.closed = true
+      }`,
+    )
+    const ignoredDestroy = finallyProcessEntry(
+      "browser-only-cleanup",
+      "async ({mass}) => { mass.events.push('wrong-runtime') }",
+      ["browser"],
+    )
+    const harness = createHarness(
+      "energy-local",
+      {atoms: [[17, "owner/process"]], processes: [action, destroy, ignoredDestroy]},
+      "server",
+      {get: () => mass, bind: () => {}},
+      {
+        get: () => energy,
+        bind: () => {},
+        release: () => {
+          releases++
+          ;(mass.events as string[]).push("energy:release")
+        },
+      },
+    )
+    try {
+      await claimAndCopy(harness, "ready", {})
+      await waitFor(() => (mass.events as string[]).includes("action:start"))
+      const claimsBeforeRemove = collectParts(harness.messages, "z", "test").length
+
+      harness.emit({parts: [{part: "graviton", op: "remove", path: "atom/17"}]})
+      await waitFor(() => (mass.events as string[]).includes("destroy"))
+      await sleep(0)
+
+      expect((mass.events as string[]).slice(0, 3)).toEqual([
+        "action:start",
+        "energy:release",
+        "action:abort",
+      ])
+      expect(mass.events).toContain("destroy")
+      expect(mass.events).toContain("action:return")
+      expect((mass.events as string[]).indexOf("destroy")).toBeGreaterThan(
+        (mass.events as string[]).indexOf("action:abort"),
+      )
+      expect(energy.closed).toBe(true)
+      expect(releases).toBe(1)
+      expect(collectParts(harness.messages, "w+", "replace")).toEqual([])
+      expect(collectParts(harness.messages, "w-", "replace")).toEqual([])
+
+      harness.emit({parts: [{part: "graviton", op: "remove", path: "atom/17"}]})
+      harness.emit({parts: [{part: "photon", op: "test", path: 17, from: "removed", value: "ready"}]})
+      await sleep(10)
+      expect(mass.events).not.toContain("wrong-runtime")
+      expect((mass.events as string[]).filter((event) => event === "destroy")).toHaveLength(1)
+      expect(collectParts(harness.messages, "z", "test")).toHaveLength(claimsBeforeRemove)
+    } finally {
+      harness.close()
+    }
+  })
+
+  test("keeps async destroy on the retired generation after the same Atom ID is re-added", async () => {
+    const mass: Record<string, unknown> = {runs: 0, events: [] as string[]}
+    const energies = new Map<number, Record<string, unknown>>()
+    const energyStore: EnergyRuntimeStore = {
+      get: ({atomId}) => {
+        const current = energies.get(atomId)
+        if (current) return current
+        const created: Record<string, unknown> = {}
+        energies.set(atomId, created)
+        return created
+      },
+      bind: ({atomId}, value) => void energies.set(atomId, value),
+      release: ({atomId}) => {
+        ;(mass.events as string[]).push("release")
+        energies.delete(atomId)
+      },
+    }
+    const action = processEntry("ready", {
+      src: "./actions/generation.ts",
+      wrapperSrc: `async ({energy, mass}) => {
+        mass.runs = Number(mass.runs) + 1
+        energy.generation = mass.runs === 1 ? "old" : "new"
+      }`,
+      readFields: [],
+    })
+    const destroy = finallyProcessEntry(
+      "cleanup-generation",
+      `async ({energy, mass}) => {
+        mass.events.push("destroy:start")
+        await new Promise((resolve) => { mass.finishDestroy = resolve })
+        energy.cleaned = true
+        mass.events.push("destroy:end")
+      }`,
+    )
+    const harness = createHarness(
+      "energy-local",
+      {atoms: [[17, "owner/process"]], processes: [action, destroy]},
+      "server",
+      {get: () => mass, bind: () => {}},
+      energyStore,
+    )
+    try {
+      await claimAndCopy(harness, "ready", {})
+      await waitFor(() => collectParts(harness.messages, "w+", "replace").length === 1)
+      const oldEnergy = energies.get(17)!
+      expect(oldEnergy.generation).toBe("old")
+
+      harness.emit({parts: [{part: "graviton", op: "remove", path: "atom/17"}]})
+      await waitFor(() => (mass.events as string[]).includes("destroy:start"))
+      expect(energies.has(17)).toBe(false)
+
+      harness.emit({parts: [{
+        part: "graviton",
+        op: "add",
+        path: "atom/17",
+        value: {
+          atom: {id: 17, parentAtom: null, parentTopology: null, wimp: "owner/process", position: 0},
+          values: [], valueRecords: [], valueItems: [], state: null,
+        },
+      }]})
+      await claimAndCopy(harness, "ready", {})
+      await waitFor(() => collectParts(harness.messages, "w+", "replace").length === 2)
+      const newEnergy = energies.get(17)!
+      expect(newEnergy).not.toBe(oldEnergy)
+      expect(newEnergy.generation).toBe("new")
+
+      ;(mass.finishDestroy as () => void)()
+      await waitFor(() => (mass.events as string[]).includes("destroy:end"))
+      expect(oldEnergy.cleaned).toBe(true)
+      expect(newEnergy.cleaned).toBeUndefined()
+      expect(energies.get(17)).toBe(newEnergy)
+    } finally {
+      harness.close()
+    }
+  })
+
+  test("does not create runtime stores when an unhydrated Atom is removed", async () => {
+    let massReads = 0
+    let energyReads = 0
+    let releases = 0
+    const harness = createHarness(
+      "energy-local",
+      {atoms: [[17, "owner/process"]], processes: [finallyProcessEntry("cleanup", "async () => {}")]},
+      "server",
+      {get: () => { massReads++; return {} }, bind: () => {}},
+      {get: () => { energyReads++; return {} }, bind: () => {}, release: () => { releases++ }},
+    )
+    try {
+      harness.emit({parts: [{part: "graviton", op: "remove", path: "atom/17"}]})
+      await sleep(0)
+      expect({massReads, energyReads, releases}).toEqual({massReads: 0, energyReads: 0, releases: 0})
+    } finally {
+      harness.close()
+    }
+  })
+
+  test("destroys a removed runtime branch child before parent without duplicate cleanup", async () => {
+    const order: number[] = []
+    let finishChild!: () => void
+    const childBarrier = new Promise<void>((resolve) => { finishChild = resolve })
+    const masses = new Map<number, Record<string, unknown>>([
+      [1, {atomId: 1, order, childBarrier}],
+      [17, {atomId: 17, order, childBarrier}],
+    ])
+    const energies = new Map<number, Record<string, unknown>>()
+    const action = processEntry("ready", {
+      src: "./actions/open.ts",
+      wrapperSrc: "async ({energy}) => { energy.open = true }",
+      readFields: [],
+    })
+    const destroy = finallyProcessEntry(
+      "cleanup-branch",
+      `async ({energy, mass}) => {
+        if (!energy.open) throw new Error("missing live Energy")
+        mass.order.push(mass.atomId)
+        if (mass.atomId === 17) await mass.childBarrier
+        mass.order.push(-mass.atomId)
+      }`,
+    )
+    const harness = createHarness(
+      "energy-local",
+      {
+        atoms: [[1, "owner/process"], [17, "owner/process", {parentAtom: 1}]],
+        processes: [action, destroy],
+      },
+      "server",
+      {get: ({atomId}) => masses.get(atomId)!, bind: ({atomId}, value) => void masses.set(atomId, value)},
+      {
+        get: ({atomId}) => {
+          const current = energies.get(atomId)
+          if (current) return current
+          const created: Record<string, unknown> = {}
+          energies.set(atomId, created)
+          return created
+        },
+        bind: ({atomId}, value) => void energies.set(atomId, value),
+        release: ({atomId}) => void energies.delete(atomId),
+      },
+    )
+    try {
+      await claimAndCopy(harness, "ready", {}, 1)
+      await claimAndCopy(harness, "ready", {}, 17)
+      await waitFor(() => collectParts(harness.messages, "w+", "replace").length === 2)
+
+      harness.emit({parts: [{part: "graviton", op: "remove", path: "atom/17"}]})
+      harness.emit({parts: [{part: "graviton", op: "remove", path: "atom/1"}]})
+      await waitFor(() => order.length === 1)
+      await sleep(0)
+      expect(order).toEqual([17])
+
+      finishChild()
+      await waitFor(() => order.length === 4)
+
+      expect(order).toEqual([17, -17, 1, -1])
+      expect(energies.size).toBe(0)
+      harness.emit({parts: [{part: "graviton", op: "remove", path: "atom/1"}]})
+      await sleep(0)
+      expect(order).toEqual([17, -17, 1, -1])
+    } finally {
+      harness.close()
+    }
+  })
+
+  test("continues ordered destroy hooks after one cleanup fails", async () => {
+    const mass: Record<string, unknown> = {events: [] as string[]}
+    const logged = spyOn(console, "error").mockImplementation(() => {})
+    const harness = createHarness(
+      "energy-local",
+      {
+        atoms: [[17, "owner/process"]],
+        processes: [
+          processEntry("ready", {
+            src: "./actions/open.ts",
+            wrapperSrc: "async ({energy}) => { energy.open = true }",
+            readFields: [],
+          }),
+          finallyProcessEntry("cleanup-first", "async ({mass}) => { mass.events.push('first'); throw new Error('first failed') }"),
+          finallyProcessEntry("cleanup-second", "async ({mass}) => { mass.events.push('second') }"),
+        ],
+      },
+      "server",
+      {get: () => mass, bind: () => {}},
+    )
+    try {
+      await claimAndCopy(harness, "ready", {})
+      await waitFor(() => collectParts(harness.messages, "w+", "replace").length === 1)
+      harness.emit({parts: [{part: "graviton", op: "remove", path: "atom/17"}]})
+      await waitFor(() => (mass.events as string[]).includes("second"))
+
+      expect(mass.events).toEqual(["first", "second"])
+      expect(logged).toHaveBeenCalledTimes(1)
+      expect(String(logged.mock.calls[0]?.[0])).toContain("state=cleanup-first: first failed")
+      expect(collectParts(harness.messages, "w-", "replace")).toEqual([])
+    } finally {
+      logged.mockRestore()
       harness.close()
     }
   })

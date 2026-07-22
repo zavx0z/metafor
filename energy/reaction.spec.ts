@@ -1,5 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import type {EnergyForce} from "@metafor/types/energy/protocol"
+import type {EnergyMassStore} from "@metafor/types/energy/mass"
 import type {ForceMessage} from "shared/protocol/force/message"
 import {
   REACTION_SIGNAL_KIND,
@@ -64,7 +65,7 @@ describe("Reaction condition evaluator", () => {
 })
 
 describe("Energy Reaction claim protocol", () => {
-  const harness = () => {
+  const harness = (massStore?: EnergyMassStore) => {
     const messages: ForceMessage[] = []
     const force: EnergyForce = {
       onImpulse: () => {},
@@ -77,6 +78,7 @@ describe("Energy Reaction claim protocol", () => {
       catalog: new EnergyCatalogStore(),
       energyId: "energy-reaction",
       runtimeKind: "server",
+      ...(massStore ? {massStore} : {}),
     })
     return {
       messages,
@@ -160,6 +162,53 @@ describe("Energy Reaction claim protocol", () => {
         matched: false,
         fields: {},
       })
+    } finally {
+      runtime.close()
+    }
+  })
+
+  test("drops a running Reaction result after its target Atom is removed", async () => {
+    const mass: Record<string, unknown> = {}
+    const runtime = harness({get: () => mass, bind: () => {}})
+    const current = signal({
+      update: `async ({update, mass}) => {
+        mass.started = true
+        await new Promise((resolve) => { mass.finish = resolve })
+        update({result: 9})
+      }`,
+    })
+    try {
+      runtime.emit({parts: [{
+        part: "graviton",
+        op: "add",
+        path: `atom/${current.target.atomId}`,
+        value: {
+          atom: {
+            id: current.target.atomId,
+            parentAtom: null,
+            parentTopology: null,
+            wimp: current.target.wimp,
+            position: 0,
+          },
+          values: [], valueRecords: [], valueItems: [], state: null,
+        },
+      }]})
+      runtime.emit({parts: [{
+        part: "photon", op: "test", path: current.target.atomId,
+        from: current.reactionExecutionId, value: current,
+      }]})
+      await waitFor(() => runtime.messages.some((item) => item.parts[0]?.part === "z"))
+      runtime.emit({parts: [{
+        part: "z", op: "copy", path: current.target.atomId,
+        from: "energy-reaction", value: current,
+      }]})
+      await waitFor(() => mass.started === true)
+
+      runtime.emit({parts: [{part: "graviton", op: "remove", path: `atom/${current.target.atomId}`}]})
+      ;(mass.finish as () => void)()
+      await Bun.sleep(10)
+
+      expect(runtime.messages.filter((item) => ["w+", "w-"].includes(item.parts[0]?.part ?? ""))).toEqual([])
     } finally {
       runtime.close()
     }

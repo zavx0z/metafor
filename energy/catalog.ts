@@ -234,6 +234,18 @@ export class EnergyCatalogStore {
     return undefined
   }
 
+  /** Teardown hooks declared by this WIMP, in canonical declaration order. */
+  destroyProcesses(wimp: string): EnergyProcessEntity[] {
+    const result: EnergyProcessEntity[] = []
+    const keys = [...(this.processKeysByWimp.get(wimp) ?? [])]
+      .sort((left, right) => Number(left.slice(left.lastIndexOf("\0") + 1)) - Number(right.slice(right.lastIndexOf("\0") + 1)))
+    for (const key of keys) {
+      const process = this.processes.get(key)
+      if (process?.descriptor.type === "finally") result.push(clone(process))
+    }
+    return result
+  }
+
   fieldSchema(wimp: string): Record<string, Record<string, unknown>> {
     const schema: Record<string, Record<string, unknown>> = {}
     for (const id of this.fieldIdsByWimp.get(wimp) ?? []) {
