@@ -10,10 +10,9 @@ MetaFor — открытая эволюционирующая среда, в к�
 приложения, память, пространство и действие могут существовать в одной причинной
 системе. Это не обвязка вокруг языковой модели и не очередной state manager.
 
-Каноническая логическая модель, математическая формализация бесконечно-конечного
-автомата и миссия проекта находятся в
-[`zavx0z/concept`](https://github.com/zavx0z/concept). Этот репозиторий содержит
-рабочую реализацию.
+Действующие архитектурные и доменные контракты ведутся в документации этого
+репозитория рядом с кодом и тестами. Внешний `zavx0z/concept` сохраняет историю
+и исследовательские материалы, но не переопределяет текущую реализацию.
 
 ## Архитектура ядра
 
@@ -126,25 +125,27 @@ Dark принимает WIMP `src` `<owner>/<repository>` для корнево�
 
 ## Запуск доменов
 
-Development core без автоматической загрузки Meta:
-
-```bash
-bun run dev:core
-```
-
-Development contour с Bulk:
-
-```bash
-bun run dev:world
-```
-
-Обычный non-hot запуск и полный журнал:
+Core без автоматической загрузки Meta:
 
 ```bash
 bun run start:core
+```
+
+Полный contour с Bulk:
+
+```bash
 bun run start:world
+```
+
+Запуск core с полным журналом:
+
+```bash
 bun run logs:core
 ```
+
+Домены запускаются обычными Bun processes. После изменения кода весь contour
+останавливается и запускается заново; частичная горячая перезагрузка не
+поддерживается.
 
 Matrix backend задаётся через `METAFOR_WEAK_BACKEND=auto|cpu|gpu`.
 
@@ -168,11 +169,12 @@ archive/pre-core-split-2026-07-11
 
 ## Документация
 
-- [Каноническая концепция](https://github.com/zavx0z/concept)
-- [Указатель канонической философии](docs/PHILOSOPHY.md)
-- [Указатель канонической онтологии](docs/ONTOLOGY.md)
 - [Архитектура](docs/ARCHITECTURE.md)
-- [Указатель canonical topology](docs/TOPOLOGY.md)
+- [Доменные контракты](docs/domains/README.md)
+- [Matrix](docs/domains/MATRIX.md)
+- [Философия](docs/PHILOSOPHY.md)
+- [Онтология](docs/ONTOLOGY.md)
+- [Topology](docs/TOPOLOGY.md)
 - [Force](docs/FORCE.md)
 - [Разработка](docs/DEVELOPMENT.md)
 - [Вклад](docs/CONTRIBUTING.md)

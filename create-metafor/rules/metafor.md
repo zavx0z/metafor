@@ -322,55 +322,69 @@ MetaDSL/WIMP.
 изменяет Fields:
 
 1. `profileAddress` получает адрес сохранённого профиля;
-2. переход разрешает `запуск браузера`, а внешний action-модуль напрямую
-   использует библиотеки Capsule и запускает профиль без HTTP lifecycle API;
-3. следующий Process поднимает endpoint Вселенной, использует серверный
-   `werift` и помещает `MediaStream`, video track, `RTCDataChannel`, peer и
-   decoder в Energy;
-4. `screenshotPath` получает путь и разрешает `создание снимка`;
-5. Process декодирует текущий кадр, записывает файл, а success очищает
-   `screenshotPath`;
-6. Atom переходит обратно в `браузер готов` и ждёт следующего изменения Field.
+2. Process `подготовка WebRTC` рождает минимальный Bun signaling endpoint;
+3. Process `запуск браузера` напрямую использует библиотеки Capsule и запускает
+   сохранённый профиль без HTTP lifecycle API;
+4. Process `подключение к браузеру` использует server-side `werift` и помещает
+   endpoint, session, `MediaStream`, video track, `RTCDataChannel`, peer,
+   decoder и очередь управления только в Energy;
+5. состояние `браузер готов` условно materialize соседние дочерние Meta-пакеты
+   `screenshot` и `control`, передавая им прямые Field-, Mass- и
+   Energy-bindings;
+6. `screenshotPath` разрешает дочерний цикл `ожидание снимка → создание снимка
+   → ожидание снимка`; success записывает PNG, сохраняет `lastScreenshotPath` и
+   очищает shared `screenshotPath`;
+7. `controlCommand` разрешает дочерний цикл `ожидание команды → отправка
+   команды → ожидание команды`; success сохраняет сериализуемый результат и
+   очищает shared `controlCommand`.
+
+Если несколько независимых намерений должны начаться в одном такте, endpoint
+передаёт их одним Gluon в `value.fields`. Boundary фиксирует такой patch одним
+canonical `ts`, а Matrix разрешает все подходящие переходы параллельно. Нельзя
+добавлять искусственный `sequence` между Screenshot и Control или ждать
+завершения одного Process перед запуском другого.
+
+Корневой `meta.ts`, `browser/meta.ts`, `screenshot/meta.ts` и
+`control/meta.ts` являются отдельными Meta-пакетами Atom. Их каталоги лежат
+рядом в одном репозитории; Matter topology не повторяется в файловом пути.
 
 ```typescript
-.mass({
-  lastMessage: null as null | string,
+// browser/meta.ts
+.superposition({
+  "ожидание профиля": {"подготовка WebRTC": {profileAddress: {null: false}}},
+  "подготовка WebRTC": {"запуск браузера": {rtcEndpoint: {null: false}}},
+  "запуск браузера": {"подключение к браузеру": {instanceId: {null: false}}},
+  "подключение к браузеру": {"браузер готов": {rtcConnected: {eq: true}}},
+  "браузер готов": {"остановка": {stopRequested: {eq: true}}},
+  "остановка": {"остановлен": {}},
+  "остановлен": null,
 })
-.energy(() => ({
-  stream: null as unknown as MediaStream,
-  videoTrack: null as unknown as MediaStreamTrack,
-  dataChannel: null as unknown as RTCDataChannel,
-  peer: null as unknown as RTCPeerConnection,
-}))
-.processes((process) => [
-  process("запуск браузера", { env: ["server"] })
-    .action(async ({ energy, field, mass, self, value }) => {
-      const mod = await import("./actions/launch-browser.ts")
-      return mod.default({ energy, field, mass, self, value })
-    })
-    .success(({ update, data }) => update(data))
-    .error(({ update, error }) => update({ error: error.message })),
-  process("подключение WebRTC", { env: ["server"] })
-    .action(async ({ energy, field, mass, self, value }) => {
-      const mod = await import("./actions/connect-webrtc.ts")
-      return mod.default({ energy, field, mass, self, value })
-    })
-    .success(({ update }) => update({ rtcConnected: true }))
-    .error(({ update, error }) => update({ error: error.message })),
-  process("создание снимка", { env: ["server"] })
-    .action(async ({ energy, field, mass, self, value }) => {
-      const mod = await import("./actions/write-screenshot.ts")
-      return mod.default({ energy, field, mass, self, value })
-    })
-    .success(({ update }) => update({ screenshotPath: null }))
-    .error(({ update, error }) => update({ error: error.message })),
-])
+.matter(({state, value, mass, energy, html}) => html`
+  ${state === "браузер готов" && html`
+    <meta-for
+      src="owner/capsule/screenshot"
+      fields=${{path: value.screenshotPath, lastPath: value.lastScreenshotPath}}
+      mass=${mass}
+      energy=${energy} />
+  `}
+  ${state === "браузер готов" && html`
+    <meta-for
+      src="owner/capsule/control"
+      fields=${{command: value.controlCommand, result: value.controlResult}}
+      mass=${mass}
+      energy=${energy} />
+  `}
+`)
 ```
 
-Если подключение, ожидание сообщений и управление браузером разделяются на
-дочерние Atom, родитель передаёт им нужные Fields, сериализуемую Mass и живую
-Energy раздельными bindings. Исходный путь Meta-пакета не задаёт runtime-
-вложенность; граф задаёт Matter.
+Каждый Process по-прежнему использует только тонкий wrapper `dynamic import →
+direct return`. `.mass()` задаёт сериализуемый типовой контракт, но runtime не
+гидратирует его placeholder автоматически: первый owning action создаёт рабочий
+Mass-object в локальном Energy store. Дочерние прямые `mass=${mass}` и
+`energy=${energy}` сохраняют identity. Исходный путь Meta-пакета не задаёт
+runtime-вложенность; граф задаёт Matter. Постоянный WebRTC listener остаётся в
+Energy между тактами: возвращение Screenshot/Control Atom в ожидание не
+переподключает socket, peer или DataChannel и не создаёт окно потери сообщения.
 
 ---
 

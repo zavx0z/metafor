@@ -1,4 +1,0 @@
-interface:
-  display_name: "MetaFor Dev"
-  short_description: "Запуск и приёмка development-контура MetaFor"
-  default_prompt: "Используй $metafor-dev, чтобы поднять контур MetaFor и провести визуальную приёмку Bulk."

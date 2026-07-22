@@ -14,16 +14,16 @@ Workspace graph задан явным списком в root `package.json`. Р�
 
 ## Запуск
 
-| Command               | Состав                 | Режим                   |
-| --------------------- | ---------------------- | ----------------------- |
-| `bun run dev:core`    | Force + 4 core domains | Bun `--hot`             |
-| `bun run dev:world`   | core + Bulk            | Bun `--hot`             |
-| `bun run start:core`  | Force + 4 core domains | обычный                 |
-| `bun run start:world` | core + Bulk            | обычный                 |
-| `bun run logs:core`   | core                   | hot + full impulse logs |
+| Command               | Состав                 | Режим             |
+| --------------------- | ---------------------- | ----------------- |
+| `bun run start:core`  | Force + 4 core domains | обычный           |
+| `bun run start:world` | core + Bulk            | обычный           |
+| `bun run logs:core`   | core                   | full impulse logs |
 
 Core domains: Boundary, Dark, Matrix и Energy. Все команды запускаются
 параллельно одним Bun workspace runner и не загружают Meta автоматически.
+После изменения кода весь contour нужно явно остановить и запустить заново;
+частичная горячая перезагрузка доменов не поддерживается.
 
 Matrix backend задаётся явно при необходимости:
 

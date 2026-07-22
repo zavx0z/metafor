@@ -56,11 +56,9 @@
     "typescript": "^6.0.2"
   },
   "scripts": {
-    "dev:core": "bun run --parallel --filter force --filter boundary --filter dark --filter matrix --filter energy dev",
-    "dev:world": "bun run --parallel --filter force --filter boundary --filter dark --filter matrix --filter energy --filter bulk dev",
     "start:core": "bun run --parallel --filter force --filter boundary --filter dark --filter matrix --filter energy start",
     "start:world": "bun run --parallel --filter force --filter boundary --filter dark --filter matrix --filter energy --filter bulk start",
-    "logs:core": "METAFOR_LOG_IMPULSES=full bun run dev:core",
+    "logs:core": "METAFOR_LOG_IMPULSES=full bun run start:core",
     "test": "FORCE_ADDRESS=ws://127.0.0.1:1 FORCE_RECONNECT=0 bun test --path-ignore-patterns='cluster/**'",
     "typecheck": "tsc --noEmit --pretty false",
     "typecheck:expect-errors": "bun ./tests/types/verify-expect-errors.ts",
