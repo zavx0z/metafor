@@ -4,6 +4,7 @@ import type {Particle} from "shared/protocol/force/particle"
 import {gravity$} from "@matrix/gravity/store.ts"
 import {strong$} from "@matrix/strong"
 import {StepMode, weak$, weakHeapUpdate, weakRunStep, weakStructuralUpdate} from "@matrix/weak"
+import {installTestGpuDevice} from "./weak/tests/shared/gpu.ts"
 import {prepareMatrixBirth} from "./birth.ts"
 import {applyIncrementalMatrixProjection} from "./incremental.ts"
 import {applyMatrixProjectionParticle, recordMatrixProjectionState} from "./projection.ts"
@@ -240,6 +241,7 @@ describe("Matrix incremental structural runtime", () => {
 
   test("keeps distinct shared blocks when one family splits into two", async () => {
     const run = async (backend: "cpu" | "gpu") => {
+      if (backend === "gpu") await installTestGpuDevice()
       Bun.env.METAFOR_WEAK_BACKEND = backend
       await prepareMatrixBirth(sharedSplitProjection())
       const runtime = weak$.runtime
@@ -281,6 +283,7 @@ describe("Matrix incremental structural runtime", () => {
 
   test("copy-on-writes a deduplicated graph when a shared Field splits", async () => {
     const run = async (backend: "cpu" | "gpu") => {
+      if (backend === "gpu") await installTestGpuDevice()
       Bun.env.METAFOR_WEAK_BACKEND = backend
       await prepareMatrixBirth(sharedGraphProjection())
       expect(matrix$.branes[0]?.stateOffset).toBe(matrix$.branes[1]?.stateOffset)
@@ -338,6 +341,7 @@ describe("Matrix incremental structural runtime", () => {
 
   test("preserves Variant identity across rename, reorder and unreferenced removal", async () => {
     const run = async (backend: "cpu" | "gpu") => {
+      if (backend === "gpu") await installTestGpuDevice()
       Bun.env.METAFOR_WEAK_BACKEND = backend
       await prepareMatrixBirth(enumProjection())
       const runtime = weak$.runtime
@@ -603,6 +607,7 @@ describe("Matrix incremental structural runtime", () => {
 
   test("keeps CPU and WebGPU structural traces identical without replacing either runtime", async () => {
     const run = async (backend: "cpu" | "gpu"): Promise<{birth: number[][]; added: number[][]; evolved: number[][]}> => {
+      if (backend === "gpu") await installTestGpuDevice()
       Bun.env.METAFOR_WEAK_BACKEND = backend
       await prepareMatrixBirth(statefulProjection())
       const runtime = weak$.runtime
@@ -636,6 +641,7 @@ describe("Matrix incremental structural runtime", () => {
   })
 
   test("compacts WebGPU structural heap churn without replacing runtime or pipeline", async () => {
+    await installTestGpuDevice()
     Bun.env.METAFOR_WEAK_BACKEND = "gpu"
     await prepareMatrixBirth(largeProjection(1))
     const runtime = weak$.runtime

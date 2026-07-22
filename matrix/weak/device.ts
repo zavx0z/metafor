@@ -67,11 +67,18 @@ export async function ensureGPUDevice(): Promise<GPUDevice | null> {
  */
 export async function resolveWeakMode(): Promise<WeakMode> {
   const maybeProcess = globalThis as {process?: {env?: Record<string, string | undefined>}}
-  const raw = (maybeProcess.process?.env?.METAFOR_WEAK_BACKEND ?? "gpu").trim().toLowerCase()
+  return await resolveWeakModeFor(maybeProcess.process?.env?.METAFOR_WEAK_BACKEND, ensureGPUDevice)
+}
+
+export async function resolveWeakModeFor(
+  preference: string | undefined,
+  acquireDevice: () => Promise<GPUDevice | null>,
+): Promise<WeakMode> {
+  const raw = (preference ?? "gpu").trim().toLowerCase()
   const configured: WeakBackendPreference = raw === "gpu" || raw === "cpu" || raw === "auto" ? raw : "gpu"
 
   if (configured === "gpu") {
-    const device = await ensureGPUDevice()
+    const device = await acquireDevice()
     if (!device) {
       throw new Error("METAFOR_WEAK_BACKEND=gpu, но GPU-устройство недоступно в текущей среде.")
     }
@@ -79,7 +86,7 @@ export async function resolveWeakMode(): Promise<WeakMode> {
   }
 
   if (configured === "auto") {
-    const device = await ensureGPUDevice()
+    const device = await acquireDevice()
     return device ? "gpu" : "cpu"
   }
 

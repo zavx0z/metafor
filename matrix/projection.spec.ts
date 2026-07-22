@@ -5,6 +5,7 @@ import {StepMode, weak$, weakRunStep, weakStructuralUpdate} from "@matrix/weak"
 import {strong$} from "@matrix/strong"
 import {gravity$} from "@matrix/gravity/store.ts"
 import {matrix$} from "./store.ts"
+import {installTestGpuDevice} from "./weak/tests/shared/gpu.ts"
 import {consumePreparedMatrixBirth, prepareMatrixBirth} from "./birth.ts"
 import {applyIncrementalMatrixProjection} from "./incremental.ts"
 import {applyMatrixProjectionParticle} from "./projection.ts"
@@ -167,6 +168,7 @@ describe("Matrix live structural Field projection", () => {
   })
 
   test("patches the live shared layout on the strict GPU backend", async () => {
+    await installTestGpuDevice()
     Bun.env.METAFOR_WEAK_BACKEND = "gpu"
     try {
       await prepareMatrixBirth(initialState())

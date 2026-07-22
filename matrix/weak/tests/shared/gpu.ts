@@ -1,4 +1,5 @@
 import { setupDevice } from "fixture"
+import {GPU} from "../../device.ts"
 
 const executableDevicePromiseKey = Symbol.for("@matrix/weak/tests/executable-gpu-device")
 
@@ -19,6 +20,13 @@ export async function createExecutableDevice(): Promise<GPUDevice> {
   })()
 
   return await global[executableDevicePromiseKey]
+}
+
+/** Installs the process-owned test device without giving a suite ownership of its lifecycle. */
+export async function installTestGpuDevice(): Promise<GPUDevice> {
+  const device = await createExecutableDevice()
+  GPU._device = device
+  return device
 }
 
 export async function flushRuntime(runtime: { pending?: Promise<unknown> }): Promise<void> {

@@ -2,15 +2,15 @@
  * Тесты для типа FLOAT.
  */
 import { test, expect, describe, beforeAll, afterEach } from "bun:test"
-import { setupDevice } from "fixture"
+import {installTestGpuDevice} from "../../weak/tests/shared/gpu.ts"
 import {write, update} from "../../matrix"
-import { GPU, weak$ } from "../../weak"
+import { weak$ } from "../../weak"
 import { FieldType } from "../../gravity"
 import type { MatrixCollapse } from "@metafor/types/matrix/data"
 
 describe("weak - тип FLOAT (число) с bun-webgpu", () => {
   beforeAll(async () => {
-    GPU._device = await setupDevice()
+    await installTestGpuDevice()
   })
 
   afterEach(() => {

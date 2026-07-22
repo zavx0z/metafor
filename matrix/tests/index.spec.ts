@@ -4,15 +4,15 @@
  */
 import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import {write, update} from "../matrix"
-import { GPU, weak$ } from "../weak"
-import { setupDevice } from "fixture"
+import { weak$ } from "../weak"
+import {installTestGpuDevice} from "../weak/tests/shared/gpu.ts"
 import { FieldType } from "../gravity"
 
 // ============================================================================
 // SETUP: GPU один раз перед всеми тестами
 // ============================================================================
 beforeAll(async () => {
-  GPU._device = await setupDevice()
+  await installTestGpuDevice()
 })
 
 // ============================================================================

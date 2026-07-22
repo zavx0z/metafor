@@ -12,12 +12,11 @@ import {
   type ForceTestClient,
   type ForceTestFixture,
 } from "force/fixture"
-import {GPU, ensureGPUDevice} from "./weak/device.ts"
+import {installTestGpuDevice} from "./weak/tests/shared/gpu.ts"
 import {weak$} from "./weak"
 import {prepareMatrixBirth} from "./birth.ts"
 
 const previousBackend = Bun.env.METAFOR_WEAK_BACKEND
-const previousDevice = GPU._device
 const PROCESS_ID = 501
 const ENERGY_ID = "energy-parity"
 type ParticleInput = Omit<SourcedParticle, "ts"> & {ts?: number}
@@ -288,8 +287,6 @@ afterAll(() => {
   weak$.dispose()
   if (previousBackend === undefined) delete Bun.env.METAFOR_WEAK_BACKEND
   else Bun.env.METAFOR_WEAK_BACKEND = previousBackend
-  if (GPU._device !== previousDevice) GPU._device?.destroy()
-  GPU._device = previousDevice
 })
 
 describe("Matrix CPU/WebGPU parity", () => {
@@ -303,8 +300,7 @@ describe("Matrix CPU/WebGPU parity", () => {
       frozenFields: {"101": 1, "102": 0},
     })
 
-    const device = await ensureGPUDevice()
-    if (!device) throw new Error("WebGPU adapter is unavailable; strict GPU parity cannot run")
+    const device = await installTestGpuDevice()
 
     console.log(`[matrix:parity] WebGPU features=${[...device.features].sort().join(",") || "none"}`)
     const gpu = await runScenario("gpu")
