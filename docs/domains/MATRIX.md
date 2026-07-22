@@ -31,9 +31,11 @@ Store. Соседние Atom не перенумеровываются.
 Изменение декларации WIMP инвалидирует executions всех Atom только этого WIMP и
 создаёт им новые `processExecutionId`, если после перестройки они остаются в
 Process State. Canonical `atom/:id replace` означает изменение runtime binding
-этого Atom и инвалидирует только его execution, даже если `atom.wimp` и State
-сохранились. Удаление Atom или смена его State также отменяет только его pending
-execution. Graviton другого Atom/WIMP старую identity не трогает.
+этого Atom и делает non-current только его execution, даже если `atom.wimp` и
+State сохранились. Удаление Atom или смена его State также делает non-current
+только его pending identity. Matrix не останавливает action: Energy отдельно
+отсоединяет старое execution и посылает ему cooperative abort после собственной
+перестройки. Graviton другого Atom/WIMP старую identity не трогает.
 
 ## Store и Weak
 

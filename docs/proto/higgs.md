@@ -48,7 +48,8 @@
 
 - накопление topology markers в локальном runtime store,
 - применение atom-scoped `higgs` по `value.fields[fieldId]`,
-- отправка atom-scoped Higgs к Boundary для локального transaction.
+- отправка непомеченного atom-scoped Higgs в Force; central routing доставляет
+  такую ещё не committed mutation только Boundary.
 
 ### Bulk
 
@@ -105,6 +106,7 @@ Boundary.
 - `Photon` продолжает переносить `State`,
 - `Graviton` удерживает ту рамку отношения и локализации, в которой изменение topology получает место,
 - `Boundary` фиксирует atom value и перестраивает только зависимую ветвь,
+- после commit `Boundary` выпускает canonical consequences,
 - `Matrix` и `Bulk` применяют отдельные derived particles этой ветви.
 
 Dark не является runtime-наблюдателем этих изменений. Он читает source topology

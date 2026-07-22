@@ -11,8 +11,8 @@ MetaFor — открытая эволюционирующая среда, в к�
 системе. Это не обвязка вокруг языковой модели и не очередной state manager.
 
 Действующие архитектурные и доменные контракты ведутся в документации этого
-репозитория рядом с кодом и тестами. Внешний `zavx0z/concept` сохраняет историю
-и исследовательские материалы, но не переопределяет текущую реализацию.
+репозитория рядом с кодом и тестами. Рабочая карта находится в
+[`docs/README.md`](docs/README.md); внешние материалы для разработки не нужны.
 
 ## Архитектура ядра
 
@@ -30,7 +30,7 @@ MetaFor — открытая эволюционирующая среда, в к�
 Строго типизированная Meta-декларация разделяет два runtime-домена:
 
 ```typescript
-.mass({ profiles: new Map(), attempts: 0 })
+.mass({ profiles: {}, attempts: 0 })
 .energy<{socket: WebSocket}>()
 ```
 
@@ -96,9 +96,8 @@ gravity → strong → weak
 детерминированным fallback/reference. Отдельного TypeScript evaluator и второй
 Matrix-проекции нет.
 
-Boundary может передать Matrix производную `runtime/matrix` projection для
-инициализации packed runtime. Она не является второй истиной: её можно удалить и
-полностью восстановить из Boundary.
+Matrix получает `boundary.initialState.read` и сама строит производный packed
+runtime. Boundary не хранит вторую Matrix-проекцию.
 
 ## Запуск ядра
 
@@ -123,29 +122,23 @@ Dark принимает WIMP `src` `<owner>/<repository>` для корнево�
 
 ## Запуск доменов
 
-Core без автоматической загрузки Meta:
-
-```bash
-bun run start:core
-```
-
-Полный contour с Bulk:
+Полный причинный contour:
 
 ```bash
 bun run start:world
 ```
 
-Запуск core с полным журналом:
-
-```bash
-bun run logs:core
-```
+`start:core` и `logs:core` не включают Bulk. Они пригодны только для узкой
+диагностики: Matrix ждёт обязательный Bulk channel, поэтому такой набор не
+переходит в полностью рождённый runtime.
 
 Домены запускаются обычными Bun processes. После изменения кода весь contour
 останавливается и запускается заново; частичная горячая перезагрузка не
 поддерживается.
 
-Matrix backend задаётся через `METAFOR_WEAK_BACKEND=auto|cpu|gpu`.
+Matrix по умолчанию использует строгий `gpu` и завершает рождение ошибкой, если
+WebGPU недоступен. `METAFOR_WEAK_BACKEND=auto` явно разрешает CPU fallback, а
+`cpu` принудительно выбирает reference backend.
 
 ## Проверка
 
@@ -167,13 +160,12 @@ archive/pre-core-split-2026-07-11
 
 ## Документация
 
+- [Карта документации](docs/README.md)
 - [Архитектура](docs/ARCHITECTURE.md)
 - [Доменные контракты](docs/domains/README.md)
 - [Matrix](docs/domains/MATRIX.md)
-- [Философия](docs/PHILOSOPHY.md)
-- [Онтология](docs/ONTOLOGY.md)
-- [Topology](docs/TOPOLOGY.md)
 - [Force](docs/FORCE.md)
+- [Meta-пакеты](docs/META_PACKAGES.md)
 - [Разработка](docs/DEVELOPMENT.md)
 - [Вклад](docs/CONTRIBUTING.md)
 

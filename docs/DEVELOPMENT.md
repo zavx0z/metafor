@@ -14,26 +14,29 @@ Workspace graph задан явным списком в root `package.json`. Р�
 
 ## Запуск
 
-| Command               | Состав                 | Режим             |
-| --------------------- | ---------------------- | ----------------- |
-| `bun run start:core`  | Force + 4 core domains | обычный           |
-| `bun run start:world` | core + Bulk            | обычный           |
-| `bun run logs:core`   | core                   | full impulse logs |
+| Command               | Состав                 | Назначение              |
+| --------------------- | ---------------------- | ----------------------- |
+| `bun run start:world` | все пять доменов       | полный runtime contour  |
+| `bun run start:core`  | без Bulk               | узкая диагностика       |
+| `bun run logs:core`   | без Bulk               | диагностика с impulses  |
 
-Core domains: Boundary, Dark, Matrix и Energy. Все команды запускаются
-параллельно одним Bun workspace runner и не загружают Meta автоматически.
-После изменения кода весь contour нужно явно остановить и запустить заново;
-частичная горячая перезагрузка доменов не поддерживается.
+Все команды запускаются параллельно одним Bun workspace runner и не загружают
+Meta автоматически. `start:core` не является сокращённым рабочим миром: без
+обязательного Bulk channel Matrix не рождается, а Force остаётся в `starting`.
+После изменения кода весь причинно связанный contour нужно явно остановить и
+запустить заново; частичная горячая перезагрузка доменов не поддерживается.
 
-Matrix backend задаётся явно при необходимости:
+Production default — строгий WebGPU:
 
 ```bash
-METAFOR_WEAK_BACKEND=cpu bun run start:core
-METAFOR_WEAK_BACKEND=gpu bun run start:core
+bun run start:world
+METAFOR_WEAK_BACKEND=auto bun run start:world
+METAFOR_WEAK_BACKEND=cpu bun run start:world
 ```
 
-Default `auto` использует доступный WebGPU adapter и сохраняет реализованный
-fallback runtime.
+Без env используется `gpu`; отсутствие WebGPU завершает рождение Matrix ошибкой.
+`auto` явно разрешает WebGPU-first выбор с CPU fallback. `cpu` принудительно
+выбирает детерминированный reference backend.
 
 ## Boundary persistence
 
@@ -46,7 +49,7 @@ Development database по умолчанию:
 Явный изолированный путь:
 
 ```bash
-BOUNDARY_PATH=/absolute/path/boundary.sqlite bun run start:core
+BOUNDARY_PATH=/absolute/path/boundary.sqlite bun run start:world
 ```
 
 Первый позиционный аргумент `boundary/server.ts` имеет приоритет над

@@ -1,9 +1,8 @@
 # Архитектура реализации
 
-Этот документ задаёт общую структуру текущего runtime. Проверяемые законы и
-границы отдельных доменов находятся в [`docs/domains`](domains/README.md) рядом
-с их кодом и тестами. Внешний `zavx0z/concept` остаётся историческим материалом
-и не переопределяет действующие контракты проекта.
+Этот документ задаёт общую структуру текущего runtime. Карта источников истины
+и точные документы-владельцы находятся в [`docs/README.md`](README.md). Для
+работы с реализацией внешняя документация не требуется.
 
 ## Активный package graph
 
@@ -51,6 +50,10 @@ Root scripts запускают entries только как обычные Bun p
 перезагрузка несовместима с Matrix-last causal cut. Запуск не загружает Meta
 автоматически.
 
+Полный runtime запускается через `bun run start:world`. `start:core` не включает
+Bulk и остаётся только диагностической командой: Matrix ждёт этот обязательный
+канал, поэтому сокращённый набор не проходит общий birth gate.
+
 Порядок рождения runtime задаётся не порядком запуска Bun processes. До своего
 ForceChannel Energy открывает MonadChannel, читает
 `boundary.initialProjection.read` и гидратит постоянный локальный catalog
@@ -93,7 +96,9 @@ process work.
   обязательный realtime ForceChannel. На каждый claim RPC не выполняется.
 - `bulk/server.ts` обслуживает web entry, шрифт, browser WebSocket и связывает
   browser manifestation с Force.
-- Matrix weak backend выбирается через `METAFOR_WEAK_BACKEND=auto|cpu|gpu`.
+- Matrix weak backend по умолчанию — строгий `gpu`; отсутствие WebGPU завершает
+  рождение ошибкой. `auto` явно разрешает CPU fallback, `cpu` принудительно
+  выбирает reference backend.
 
 ## Energy и Mass в DSL/runtime
 
@@ -103,7 +108,7 @@ energy → processes → reactions → matter → bulk`. `Mass` задаёт т�
 постоянные TypeScript-типы живых runtime-сущностей. Она не принимает runtime-
 объект и не добавляет значение Energy в MetaDSL; функции в типе запрещены.
 
-Action получает раздельные `{field, value, mass, energy, self}`. Реализация
+Action получает раздельные `{field, value, mass, energy, self, signal}`. Реализация
 action находится во внешнем ESM-модуле, подключаемом динамическим `import()`;
 inline wrapper только передаёт готовые значения без spread/iterator, вложенных
 вызовов и мутаций, а его параметры не содержат default/rest.

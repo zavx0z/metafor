@@ -1,87 +1,62 @@
-# Weak
+# Weak: Process protocol
 
-Weak отвечает за переход, claim, исполнение связанного процесса и возврат
-результата. Общий Force contract задан в [FORCE.md](../FORCE.md).
+Weak связывает State, выбор Energy, выполнение Process и канонический commit
+результата. Доменные законы находятся в документации
+[Matrix](../domains/MATRIX.md), [Energy](../domains/ENERGY.md) и
+[Boundary](../../boundary/DOMAIN.md); точные payload — в
+`shared/protocol/force/execution.ts`.
 
-## Каналы
-
-- `Z boson` — нейтральная медиция и выбор исполнителя;
-- `W boson` — завершение активного прохождения как `w+` или `w-`.
-
-`Photon` остаётся наблюдаемым state signal. Он запускает Weak process flow,
-но не становится W/Z channel.
-
-## Declaration
-
-Dark переносит process declaration через Inflaton. Boundary хранит canonical
-process declaration вместе с:
-
-- state binding;
-- env;
-- action source/import/wrapper;
-- action read fields;
-- success/error read/write fields;
-- finally/before handler.
-
-Boundary передаёт каждый process descriptor отдельным declaration Graviton.
-Energy инкрементально индексирует descriptors с success/error handlers и
-finally descriptor с `before`. Для finally Energy выполняет
-`before({energy, mass})`, затем освобождает локальные Energy-сущности и
-возвращает `w+` с пустым write-set либо `w-` с ошибкой.
-Matrix не получает ни один из этих descriptors.
-
-Matter declaration отдельно хранит `massBinding` и `energyBinding` WIMP edge.
-Boundary/SQLite переносит с child Atom только эти сериализуемые descriptors.
-Перед `z test` ребёнка Energy разрешает их локально из Mass/Energy stores
-ближайшего owning parent Atom. Неразрешённая dependency означает отсутствие
-claim, а не передачу live value через Force.
-
-## Runtime protocol
+## Один проход
 
 ```text
-Matrix -> photon/replace or photon/test
-Energy -> z test
-Matrix -> z copy
-Energy -> execute cached descriptor
-Energy -> w+ or w-
-Matrix -> apply result, unlock, continue
+Matrix   -> photon/test                         (начало execution)
+Energy   -> z/test                              (claim)
+Matrix   -> z/copy                              (grant)
+Energy   -> w+/w- replace                       (proposal)
+Boundary -> gluon/higgs replace + w+/w- copy    (commit)
+Matrix   -> снимает lock
 ```
 
-Все сообщения идут через один Force transport как обычные `{parts}`.
-`BroadcastChannel("force")` и direct Boundary read не являются частью
-протокола.
+Все частицы адресованы `path = atom ID`. У одного прохода есть созданный Matrix
+`processExecutionId`; он связывает все сообщения и не переиспользуется после
+перестройки Process.
 
-### Photon
+## 1. Начало
 
-При обычном state Matrix испускает:
+Matrix ставит lock, замораживает читаемые Fields и сообщает process-bound State:
 
 ```ts
-{part: "photon", op: "replace", path: 17, value: "ready"}
+{
+  part: "photon",
+  op: "test",
+  path: 17,
+  from: "execution-uuid",
+  value: "ready"
+}
 ```
 
-При process-bound state Matrix:
+Boundary регистрирует execution вместе с текущими Atom, State и Process.
+Energy находит descriptor по `atom -> WIMP` и `WIMP + state`. Matrix descriptor
+не получает.
 
-1. ставит lock;
-2. сохраняет frozen atom fields;
-3. испускает:
+## 2. Claim и grant
+
+Подходящая Energy отправляет:
 
 ```ts
-{part: "photon", op: "test", path: 17, value: "ready"}
+{
+  part: "z",
+  op: "test",
+  path: 17,
+  value: {
+    energy: "energy-local",
+    processExecutionId: "execution-uuid"
+  }
+}
 ```
 
-Matrix store знает только process-bound marker по state. Process descriptor в
-Matrix не передаётся.
-
-### Claim через Z
-
-Energy находит descriptor по `atom -> WIMP` и `WIMP + state`, проверяет
-env и отправляет:
-
-```ts
-{part: "z", op: "test", path: 17, value: {energy: "energy-local"}}
-```
-
-Matrix принимает первого подходящего исполнителя и отвечает:
+Matrix принимает только claim текущего locked execution и выбирает первого
+исполнителя:
 
 ```ts
 {
@@ -89,116 +64,81 @@ Matrix принимает первого подходящего исполнит
   op: "copy",
   path: 17,
   from: "energy-local",
-  value: {fields: {"2": "commit"}}
+  value: {
+    processExecutionId: "execution-uuid",
+    fields: {"2": "commit"}
+  }
 }
 ```
 
-`z copy` содержит frozen fields и не содержит process descriptor.
-Повторные claims после выбора игнорируются.
+Boundary запоминает выбранную Energy. Frozen Fields адресованы по canonical
+`fieldId`; Energy перед вызовом action преобразует их в значения по field key.
+Process descriptor через Z не передаётся.
 
-### Execution и W
+## 3. Proposal
 
-Energy исполняет descriptor из своего локального store. Action получает:
+Energy исполняет локально сохранённый descriptor. Action получает:
 
 ```ts
-{field, value, mass, energy, self}
+{field, value, mass, energy, self, signal}
 ```
 
-`value` адресован field keys, хотя Force runtime particles адресуют fields по
-`fieldId`. Рабочая `mass` и живые сущности `energy` принадлежат Energy runtime,
-лежат в разных stores и не переносятся в Matrix. Обычный Process создаёт и
-использует сущности через `energy`; finally/destroy получает оба объекта и
-освобождает Energy даже при ошибке cleanup-handler.
-
-Для Matter child прямой descriptor `/mass` или `/energy` связывает тот же
-родительский объект (`===`). Object projection создаёт оболочку ребёнка, но
-сохраняет ссылки на выбранные значения. `massBinding` не может читать
-`/energy`, `energyBinding` — `/mass`; map-relative paths и исполняемый код в
-binding запрещены.
-
-Успех:
+Success/error handler может записать только объявленные `writeFields`. Energy
+отправляет предложение Boundary:
 
 ```ts
 {
   part: "w+",
   op: "replace",
   path: 17,
-  value: {fields: {"3": "done"}}
+  from: "energy-local",
+  value: {
+    processExecutionId: "execution-uuid",
+    processId: 8,
+    fields: {"3": "done"}
+  }
 }
 ```
 
-Ошибка:
+Для ошибки используется `w-` и необязательный `error`. Это ещё не изменение
+канонического мира и не команда Matrix снять lock.
+
+## 4. Commit
+
+Boundary проверяет в одной транзакции:
+
+- execution существует и ещё pending;
+- Atom, Process и выбранная Energy совпадают;
+- State и Process declaration не изменились;
+- write-set содержит только разрешённые Fields.
+
+После записи Boundary выпускает по одной canonical consequence для изменённых
+Atom (`gluon` для scalar Fields, `higgs` для topology Fields) и подтверждение:
 
 ```ts
 {
-  part: "w-",
-  op: "replace",
+  part: "w+",
+  op: "copy",
   path: 17,
-  value: {error: "failed", fields: {"4": "failed"}}
+  from: "execution-uuid",
+  value: {
+    processExecutionId: "execution-uuid",
+    processId: 8,
+    energy: "energy-local"
+  }
 }
 ```
 
-Success/error handler может записать только fields, объявленные в его
-`writeFields`. Без handler или `update(...)` write-set остаётся пустым.
-После результата Matrix применяет write-set, снимает lock и продолжает
-transition.
+Matrix снимает lock только если identity подтверждения совпадает с её текущим
+execution и выбранной Energy. Запоздалый proposal заменённого execution не
+может изменить текущий мир или разблокировать новый Process.
 
-## Addressing
+## Runtime values
 
-- `path = atom ID`;
-- fields находятся в `value.fields[fieldId]`;
-- Energy identity находится в `z test.value.energy` и `z copy.from`;
-- `processId`, `wimpId`, `executorId`, `token` не добавляются как
-  top-level поля;
-- `/field/...` не является Weak path.
+Mass и живые Energy-сущности остаются в локальных stores Energy и не проходят
+через Force или Boundary. Matter binding передаёт только сериализуемые
+descriptors; child values разрешаются локально из owning parent Atom.
 
-## Данные инструментов
-
-Weak частицы несут только управляющий результат и компактный write-set.
-Текущая in-memory Energy Mass подходит для compact process-local data.
-Содержимое файлов, stdout/stderr и другие большие tool results должны
-сохраняться в filesystem-backed operation mass/artifacts. Matrix и Force не
-превращаются в хранилище результата.
-
-## Чтение по доменам
-
-### Dark
-
-- process/reaction declaration;
-- deterministic local declaration IDs;
-- отсутствие runtime claim и execution.
-
-### Boundary
-
-- отдельные canonical process entities;
-- state/process binding;
-- поштучные atom/process consequences после commit.
-
-### Matrix
-
-- state transition;
-- lock и frozen fields;
-- первый accepted Energy;
-- применение `w+`/`w-`.
-
-### Energy
-
-- инкрементальный atom/process store;
-- atom/WIMP/process и parent-child индексы;
-- env check;
-- `z test`;
-- action/handler execution;
-- отдельные runtime Mass и Energy stores;
-- release Energy после finally/destroy;
-- `w+`/`w-`.
-
-### Bulk
-
-- наблюдаемое проявление state/process/result без исполнения action.
-
-## Силовые различия
-
-- Weak не переносит state как сигнал — это Photon.
-- Weak не меняет ordinary field как Strong — это Gluon.
-- Weak не меняет topology — это Higgs boson.
-- Weak не материализует структуру — это Boundary/Graviton.
+Большие файлы, stdout/stderr и бинарные результаты также не следует переносить
+в W payload. Process записывает их во внешнее хранилище, а через Fields передаёт
+компактный address/identity.

@@ -28,6 +28,14 @@ TypeScript:
 .energy<{connect: () => WebSocket}>()
 ```
 
+## Закон результата Process
+
+Energy исполняет descriptor и отправляет `w+`/`w-` как proposal с
+`processExecutionId`, `processId` и разрешённым write-set. Она не записывает
+канонический мир и не снимает Matrix lock. Boundary проверяет и commit-ит
+proposal; Matrix завершает проход только по `w+/w- copy` от Boundary с той же
+execution identity.
+
 ## Закон runtime-перестройки
 
 Canonical `atom/:id replace` полностью заменяет локальную runtime projection
@@ -68,6 +76,7 @@ Reaction результаты удалённого Atom подавляются.
 - функция верхнего уровня отклоняется;
 - вызов не добавляет Energy value в MetaDSL;
 - пустая `.energy()` оставляет Energy типом `{}`.
+- W proposal не обходит Boundary и не снимает Matrix lock до commit.
 - удаление continuation очищает catalog, а canonical Atom replace инвалидирует
   только execution этого Atom.
 - Atom remove освобождает активный slot до abort, выполняет destroy на старых

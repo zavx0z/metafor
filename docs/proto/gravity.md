@@ -59,4 +59,5 @@ Inflaton и Graviton не являются двумя именами одной 
 - `Gravity` не изменяет поля topology; это делает `Higgs boson`.
 - `Gravity` не проводит переход между состояниями; это делает `Weak` через `W boson` и `Z boson`.
 - `Gravity` задаёт рамку отношения и локализации, в которой остальные изменения получают место, адресуемость и структурную согласованность.
-- replay одной identity является idempotent add, а не новым runtime instance.
+- повторная доставка одной canonical identity не создаёт второй runtime
+  instance.
