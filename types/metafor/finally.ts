@@ -29,7 +29,7 @@ export interface FinallyChain<
   s extends string = string,
   e extends Energy = Energy,
 > extends FinallyStateMarker<s> {
-  before: (handler: ({ mass, energy }: { mass: m; energy: e }) => void | Promise<void>) => FinallyChain<ɸ, m, s, e>
+  before: (handler: ({ mass, energy, signal }: { mass: m; energy: e; signal: AbortSignal }) => void | Promise<void>) => FinallyChain<ɸ, m, s, e>
 }
 
 /**
@@ -47,7 +47,7 @@ export interface ParsedFinally {
 }
 
 export type FinallyBeforeHandler<m extends Mass, e extends Energy = Energy> = (
-  { mass, energy }: { mass: m; energy: e },
+  { mass, energy, signal }: { mass: m; energy: e; signal: AbortSignal },
 ) => void | Promise<void>
 
 export type FinallyInput<m extends Mass, e extends Energy = Energy> = {

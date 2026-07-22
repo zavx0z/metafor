@@ -31,7 +31,7 @@ const declareStrictProcessContract = () =>
     }))
     .processes((process, destroy) => [
       process("ready", {env: ["server"]})
-        .action(async ({energy, field, mass, self, value}) => {
+        .action(async ({energy, field, mass, self, signal, value}) => {
           const action = await import("./fixtures/profile-action.ts")
           return action.startProfile({
             command: value.command,
@@ -49,6 +49,7 @@ const declareStrictProcessContract = () =>
               atom: self.atom satisfies string,
               meta: self.meta satisfies string,
               path: self.path satisfies string,
+              signal: signal satisfies AbortSignal,
               // @ts-expect-error Energy не смешивается с Mass
               invalidEnergy: mass.profile satisfies WebSocket,
               // @ts-expect-error Mass не получает поля Energy

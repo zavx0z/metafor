@@ -23,6 +23,7 @@ type StartParams = {
     channel: BroadcastChannel
     socket: WebSocket
   }
+  signal: AbortSignal
   self: {
     atom: string
     meta: string

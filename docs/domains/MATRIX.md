@@ -28,12 +28,10 @@ Structural Graviton затрагивает:
 освобождает brane slot; добавление переиспользует свободный slot либо расширяет
 Store. Соседние Atom не перенумеровываются.
 
-Изменение Process declaration инвалидирует только executions Atom этого WIMP.
-Удаление Atom или смена его State также отменяет только его pending execution.
-Во всех остальных случаях прежний `processExecutionId` продолжает обычный
-claim/result handshake. Выполняющийся State узнаётся по canonical Meta State ID,
-а не по позиции в массиве: если перед ним добавили другой State, внутренний
-`stateIndex` меняется, но execution остаётся тем же.
+Изменение декларации WIMP инвалидирует executions всех Atom только этого WIMP и
+создаёт им новые `processExecutionId`, если после перестройки они остаются в
+Process State. Удаление Atom или смена его State также отменяет только его
+pending execution. Graviton другого Atom/WIMP старую identity не трогает.
 
 ## Store и Weak
 
@@ -75,10 +73,10 @@ Photon. Обычная стоимость structural update зависит от 
   slot;
 - появление дочернего Atom во время активного Process не создаёт второй Photon,
   а первоначальный `processExecutionId` успешно завершает работу;
-- перестановка State сохраняет то же execution по Meta State ID и только
-  обновляет его внутренний индекс;
+- Matter/declaration WIMP rebuild сохраняет Atom IDs, но создаёт новую Process
+  identity только затронутым Atom;
 - split shared Field не переписывает дедуплицированный граф соседнего Atom;
-- изменение Process declaration корректно инвалидирует старое execution;
+- изменение любой декларации WIMP корректно инвалидирует старое execution;
 - изменение одного Atom в большой projection остаётся локальным;
 - повторные однотипные изменения не вызывают неограниченный рост Store;
 - CPU и WebGPU дают одинаковую трассу без замены runtime.

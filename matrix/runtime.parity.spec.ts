@@ -132,7 +132,7 @@ const runScenario = async (backend: "cpu" | "gpu"): Promise<RuntimeTrace> => {
       from,
     )
     expect(typeof ready.from).toBe("string")
-    const processExecutionId = String(ready.from)
+    let processExecutionId = String(ready.from)
     photons.push(`${ready.op}:${String(ready.value)}`)
     recordRuntime()
 
@@ -187,11 +187,16 @@ const runScenario = async (backend: "cpu" | "gpu"): Promise<RuntimeTrace> => {
     await waitForRuntime(() =>
       runtime.matrix$.states[0] === 2 && runtime.matrix$.getStateName(0, 2) === "ready",
     )
-    await settle()
-    expect(fixture.messages.slice(from).some((entry) => {
-      const part = entry.message.parts[0]
-      return entry.client === client && part.part === "photon" && part.path === 17
-    })).toBe(false)
+    const rebuiltReady = await waitForPart(
+      fixture,
+      client,
+      (part) => part.part === "photon" && part.op === "test" && part.path === 17 && part.value === "ready",
+      from,
+    )
+    expect(rebuiltReady.from).not.toBe(processExecutionId)
+    processExecutionId = String(rebuiltReady.from)
+    photons.push(`${rebuiltReady.op}:${String(rebuiltReady.value)}`)
+    recordRuntime()
     expect(runtime.matrix$.branes[0]?.lock).toBe(true)
 
     const claim: ProcessExecutionClaim = {energy: ENERGY_ID, processExecutionId}
@@ -292,9 +297,9 @@ describe("Matrix CPU/WebGPU parity", () => {
     const cpu = await runScenario("cpu")
     expect(cpu).toEqual({
       mode: "cpu",
-      photons: ["replace:idle", "test:ready", "replace:complete"],
-      locks: [false, true, false],
-      states: ["idle", "ready", "complete"],
+      photons: ["replace:idle", "test:ready", "test:ready", "replace:complete"],
+      locks: [false, true, true, false],
+      states: ["idle", "ready", "ready", "complete"],
       frozenFields: {"101": 1, "102": 0},
     })
 

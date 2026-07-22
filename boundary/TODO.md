@@ -7,18 +7,16 @@
 
 ### Изменение текущего WIMP для всех его Atom
 
-- После изменения Matter, Fields, States или Processes находить все Atom этого
-  WIMP и применять к каждому локальный structural diff.
-- Сохранять identity существующих Atom/Topology, совместимые values и State;
-  не реализовывать перестройку через полное удаление и создание.
+- Совместимый Matter fan-out уже находит все Atom WIMP по индексу, сохраняет их
+  ID и перестраивает только эти brane. Не заменять это полным world rebuild.
 - Реализовать настоящее live-перемещение Matter между родителями без удаления
   Atom/Topology и без смены их identity.
 - Новые runtime instances создавать только для новых размещений. Исчезающие
   размещения освобождать только по явному доменному lifecycle.
 - Использовать индексы `WIMP src → Atom IDs` и
   `Matter declaration → runtime origins`, не сканировать весь мир.
-- Покрыть fan-out тестом: два Atom одного WIMP получают изменение, сохраняют
-  IDs, а Atom другого WIMP остаётся неизменным.
+- Доделать reconcile для смены `parent`, `kind`, `src`, Macho cardinality и
+  Axion/Fuzzy branch, где одного in-place declaration update недостаточно.
 
 ### Приватный WIMP-клон для одного Atom
 
@@ -28,27 +26,36 @@
   ссылкой `baseSrc` на исходный WIMP.
 - Сохранять ID, values и State выбранного Atom при переключении его WIMP;
   остальные Atom исходного WIMP не менять.
+- До реализации зафиксировать единый restart scope для Matrix и Energy при
+  смене `atom.wimp`: только выбранный Atom либо явно вся его ветка. Обе стороны
+  обязаны использовать один и тот же набор, иначе execution зависнет.
 - Определить copy-on-write хранение неизменённых деклараций и lifecycle клона,
   когда владеющий Atom удалён или переключён обратно.
 - Покрыть cold-start: приватный clone `src`, его владелец и текущий мир Atom
   должны восстанавливаться из Boundary.
 
-## Динамическая структура без вмешательства в Process
+## Lifecycle Process при перестройке
 
-- Сохранить тот же `processExecutionId`, если на переносимом Atom уже работает
-  Process. Не отменять, не перезапускать и не помечать его `superseded`.
-- Покрыть смену `parent`, `kind`, WIMP `src`, Macho collection и Axion/Fuzzy
-  predicate. Сейчас один in-place SQL update не завершает эту runtime-семантику.
-- Убрать конфликтующие пути Matrix/Boundary Execution, где structural
-  invalidation удаляет pending execution или переводит его в `superseded`.
+- Локальный `detach → rebuild → abort` реализован: старый execution сразу
+  освобождает Atom, новое не ждёт его остановки, старый result подавляется.
+- Перевести остальные долгие project actions на обязательное соблюдение
+  `AbortSignal` и явный cleanup внешних handles.
+- Если потребуется гарантированный hard-kill произвольного JS, спроектировать
+  изолированный worker/process runtime. `AbortSignal` в общем isolate даёт
+  cooperative, а не физически принудительную остановку.
+- Для многочастичного Boundary commit определить явную конечную частицу/fence,
+  если практические тесты покажут недопустимое промежуточное execution. Ack от
+  Matrix к Energy для этого не вводить.
 
-Приёмочный пример: Browser Process выполняется, Matter переносится, Atom ID и
-`processExecutionId` остаются прежними, нет второго Photon и нет runtime
-`remove/add`; исходный результат Process затем нормально фиксируется.
+Приёмочный пример: Browser Process `A` выполняется, меняется Browser WIMP, Atom
+ID сохраняется, Boundary атомарно помечает `A` как `superseded`, Energy
+отсоединяет `A`, перестраивается и затем abort-ит его. Новый `B` запускается по
+своему Photon без ожидания `A`; поздний результат и `.finally()` от `A` не
+затрагивают `B`.
 
 Отдельный приёмочный пример fork: из двух Browser Atom только выбранный получает
-новый WIMP `src`; его текущий Process заканчивает работу на исходной декларации,
-следующий запускается на клоне, второй Browser Atom не меняется.
+новый WIMP `src`; его текущее execution отсоединяется, следующее запускается на
+клоне, второй Browser Atom не меняется.
 
 ## Force fail-stop
 
@@ -64,8 +71,8 @@
   либо отклонять несовместимый `replace` до записи.
 - Хранить pending enum default в Boundary, чтобы ожидание Variant переживало
   перезапуск процесса.
-- Явное удаление Atom/WIMP должно вызвать Energy `destroy`. Если Process ещё
-  выполняется, удаление не должно оборвать его скрытым каскадом.
+- Явное удаление Atom/WIMP должно вызвать Energy `destroy`, отсоединить активное
+  execution и остановить его через тот же lifecycle, а не только SQL cascade.
 
 ## Производительность
 
@@ -73,7 +80,8 @@
   накопленной истории строк.
 - Индексировать runtime Fields по Process вместо полного сканирования при каждом
   запуске.
-- Инвалидировать только точно изменённый Process, а не все executions WIMP.
+- Сохранять WIMP fan-out индексированным: стоимость зависит от числа Atom этого
+  WIMP, а не от размера всего мира.
 - Добавить длинные нагрузочные тесты на replace/reparent и доказать, что цена
   одного локального изменения не растёт вместе со всей сессией.
 

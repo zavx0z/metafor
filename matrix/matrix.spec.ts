@@ -88,7 +88,7 @@ describe("Matrix packed Force runtime", () => {
     const ready = await waitForPart(client, (part) => part.part === "photon" && part.op === "test", fromField)
     expect(ready).toMatchObject({part: "photon", op: "test", path: 17, value: "ready"})
     expect(typeof ready.from).toBe("string")
-    const processExecutionId = String(ready.from)
+    let processExecutionId = String(ready.from)
     expect(runtime.matrix$.branes[0]?.lock).toBe(true)
 
     const beforeStructural = fixture.messages.length
@@ -122,6 +122,35 @@ describe("Matrix packed Force runtime", () => {
       return entry.client === client && part.part === "photon" && part.path === 17
     })).toBe(false)
     expect(runtime.matrix$.branes[runtime.gravity$.getBraneIndexByAtomId(17)!]?.lock).toBe(true)
+
+    const previousProcessExecutionId = processExecutionId
+    const beforeWimpRebuild = fixture.messages.length
+    send(client, {
+      part: "graviton",
+      op: "replace",
+      path: "matter",
+      by: "boundary",
+      value: {wimp: "owner/process", localId: 1, id: 41, kind: "wimp", src: "owner/child"},
+    })
+    const rebuilt = await waitForPart(
+      client,
+      (part) => part.part === "photon" && part.op === "test" && part.path === 17,
+      beforeWimpRebuild,
+    )
+    expect(rebuilt).toMatchObject({part: "photon", op: "test", path: 17, value: "ready"})
+    expect(rebuilt.from).not.toBe(previousProcessExecutionId)
+    processExecutionId = String(rebuilt.from)
+
+    const fromStaleClaim = fixture.messages.length
+    send(client, {
+      part: "z",
+      op: "test",
+      path: 17,
+      by: "energy",
+      value: {energy: "energy-local", processExecutionId: previousProcessExecutionId},
+    })
+    await settle()
+    expect(fixture.messages.slice(fromStaleClaim).filter((entry) => entry.client === client)).toEqual([])
 
     const fromClaim = fixture.messages.length
     send(client, {

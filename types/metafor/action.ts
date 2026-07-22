@@ -23,6 +23,8 @@ export interface ActionParams<
   mass: m
   /** Живые runtime-сущности Energy */
   energy: e
+  /** Сигнал остановки старого execution после структурного перестроения. */
+  signal: AbortSignal
   /** Полный идентификатор атома */
   self: Self
 }

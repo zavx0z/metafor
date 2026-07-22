@@ -47,9 +47,9 @@
  *   .energy(() => ({ socket: null as unknown as WebSocket }))
  *   .processes((process) => [
  *     process("loading")
- *       .action(async ({ energy, field, mass, self, value }) => {
+ *       .action(async ({ energy, field, mass, self, signal, value }) => {
  *         const mod = await import("./actions/loadUser.ts")
- *         return mod.default({ energy, field, mass, self, value })
+ *         return mod.default({ energy, field, mass, self, signal, value })
  *       })
  *       .success(({ update }) => update({ mode: "details" }))
  *   ])

@@ -351,6 +351,21 @@ const applyAtomGraviton = (part: Particle, atomId: number): MatrixProjectionChan
 
 const applyDeclarationGraviton = (part: Particle): MatrixProjectionChange => {
   if (typeof part.path !== "string") return unchanged()
+  if (part.path === "wimp" && isRecord(part.value) && typeof part.value.src === "string") {
+    return {
+      structural: true,
+      affectedAtomIds: affectedByWimp(part.value.src),
+      invalidatedProcessWimps: [part.value.src],
+    }
+  }
+  if (part.path === "matter" && isRecord(part.value) && typeof part.value.wimp === "string") {
+    const src = part.value.wimp
+    return {
+      structural: true,
+      affectedAtomIds: affectedByWimp(src),
+      invalidatedProcessWimps: [src],
+    }
+  }
   const section = declarationSection[part.path as keyof typeof declarationSection]
   if (!section || !isRecord(part.value) || typeof part.value.wimp !== "string") return unchanged()
   const value = part.value
@@ -377,7 +392,7 @@ const applyDeclarationGraviton = (part: Particle): MatrixProjectionChange => {
     return {
       structural: true,
       affectedAtomIds: affectedByWimp(src),
-      invalidatedProcessWimps: section === "processes" ? [src] : [],
+      invalidatedProcessWimps: [src],
     }
   }
   if (part.op !== "add" && part.op !== "replace") return unchanged()
@@ -412,7 +427,7 @@ const applyDeclarationGraviton = (part: Particle): MatrixProjectionChange => {
   return {
     structural: true,
     affectedAtomIds: affectedByWimp(src),
-    invalidatedProcessWimps: section === "processes" ? [src] : [],
+    invalidatedProcessWimps: [src],
   }
 }
 

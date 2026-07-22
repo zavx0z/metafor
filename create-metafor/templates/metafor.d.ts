@@ -395,6 +395,7 @@ type MetaForActionParams<
   value: Value
   mass: Mass
   energy: Energy
+  signal: AbortSignal
   self: MetaForSelf
 }
 
@@ -429,7 +430,7 @@ type MetaForDestroyChain<
   Energy,
 > = MetaForStateItem<State> & {
   before(
-    callback: (params: { mass: Mass; energy: Energy }) => void | Promise<void>,
+    callback: (params: { mass: Mass; energy: Energy; signal: AbortSignal }) => void | Promise<void>,
   ): MetaForDestroyChain<State, Mass, Energy>
 }
 

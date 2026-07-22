@@ -81,9 +81,9 @@ interface ActionChainByState<
  * @example
  * ```typescript
  * process("loading")
- *   .action(async ({ energy, field, mass, self, value }) => {
+ *   .action(async ({ energy, field, mass, self, signal, value }) => {
  *     const mod = await import("./actions/login.ts")
- *     return mod.default({ energy, field, mass, self, value })
+ *     return mod.default({ energy, field, mass, self, signal, value })
  *   })
  *   .success(({ update, data }) => update({ userId: data.userId }))
  *   .error(({ update, error }) => update({ error: error.message }))
@@ -102,9 +102,9 @@ interface ActionChainByState<
  *   label: "my_process",
  *   desc: "Описание процесса"
  * })
- *   .action(async ({ energy, field, mass, self, value }) => {
+ *   .action(async ({ energy, field, mass, self, signal, value }) => {
  *     const mod = await import("./actions/load.ts")
- *     return mod.default({ energy, field, mass, self, value })
+ *     return mod.default({ energy, field, mass, self, signal, value })
  *   })
  *   .success(({ update, data }) => update({ name: data.name }))
  *   .error(({ update, error }) => update({ name: error.message }))
@@ -250,9 +250,9 @@ export interface ProcessConfig extends BaseProcessConfig {
  *
  * @example
  * ```typescript
- * const chain = process("loading").action(async ({ energy, field, mass, self, value }) => {
+ * const chain = process("loading").action(async ({ energy, field, mass, self, signal, value }) => {
  *   const mod = await import("./actions/load.ts")
- *   return mod.default({ energy, field, mass, self, value })
+ *   return mod.default({ energy, field, mass, self, signal, value })
  * })
  *   .success(({ update, data }) => update({ name: data.name }))
  *   .error(({ update, error }) => update({ name: error.message }))

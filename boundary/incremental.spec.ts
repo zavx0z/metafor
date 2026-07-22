@@ -256,6 +256,44 @@ describe("Boundary incremental relational projection", () => {
     expect(await boundary.projection.sql<unknown[]>`PRAGMA foreign_key_check`).toEqual([])
   })
 
+  test("rebinds every materialized instance when one WIMP Matter changes", async () => {
+    await declareRoot()
+    await declareWimp(PEER, "Host")
+    await apply("add", "matter", {
+      wimp: PEER, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: ROOT,
+    })
+    await apply("add", "matter", {
+      wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: CHILD,
+      massBinding: {data: "/mass"},
+    })
+    await declareWimp(CHILD, "Child")
+
+    const before = await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM atom WHERE wimp = ${CHILD} ORDER BY id
+    `
+    expect(before).toHaveLength(2)
+
+    const commit = await apply("replace", "matter", {
+      wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: CHILD,
+      massBinding: {data: "/mass"},
+      energyBinding: {data: "/energy"},
+    })
+    const rebuiltAtomIds = (commit?.messages ?? [])
+      .map((entry) => entry.parts[0])
+      .filter((part) => part.part === "graviton" && typeof part.path === "string" && part.path.startsWith("atom/"))
+      .map((part) => Number(String(part.path).slice("atom/".length)))
+      .sort((left, right) => left - right)
+
+    expect(rebuiltAtomIds).toEqual(before.map((row) => Number(row.id)))
+    expect(commit?.messages).toContainEqual({parts: [{
+      part: "graviton",
+      op: "replace",
+      path: "matter",
+      ts: expect.any(Number),
+      value: expect.objectContaining({wimp: ROOT, localId: 1}),
+    }]})
+  })
+
   test("reparents an unmaterialized Matter branch without changing declaration identities", async () => {
     await declareRoot()
     await apply("add", "matter", {

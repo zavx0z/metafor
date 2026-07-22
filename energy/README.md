@@ -29,6 +29,8 @@ Energy ведёт собственный инкрементальный store и
 - Energy принимает только `z copy`, где `from` совпадает с его `ENERGY_ID`;
 - Energy исполняет process descriptor из своего store через `wrapperSrc` или dynamic
   import action и публикует atom-addressed `w+` / `w-`;
+- WIMP-wide Graviton немедленно отсоединяет старые executions затронутых Atom,
+  перестраивает catalog/bindings и после этого abort-ит старые actions;
 - action success запускает success handler, если он есть; action throw запускает
   error handler, если он есть;
 - handlers собирают W write-set через `update(...)`, но в `value.fields`
@@ -66,7 +68,7 @@ Energy владеет двумя раздельными in-memory stores: изм
 Action invocation contract един для `wrapperSrc` и imported action:
 
 ```ts
-await fn({field, value, mass, energy, self})
+await fn({field, value, mass, energy, self, signal})
 ```
 
 `field` собирается из canonical Field/Variant текущего WIMP. `value` собирается
@@ -74,6 +76,24 @@ await fn({field, value, mass, energy, self})
 fieldId; стандартный wrapper, передающий весь `value`, объявляет читаемыми все
 Fields. `self` содержит `{atom, meta, path}` для atom.
 `mass` и `energy` всегда являются разными объектами.
+`signal` — `AbortSignal` текущего execution. Action обязан остановить ожидания и
+освободить свои внешние handles при abort.
+
+## Перестройка во время Process
+
+Energy не ждёт остановки старого action и не отправляет Matrix отдельный ack.
+На Graviton затронутого WIMP она сначала удаляет старое execution из текущего
+слота Atom, освобождает/перестраивает локальную Energy generation и bindings,
+а затем синхронно вызывает `AbortController.abort()`. Следующий Photon может
+запустить новое execution сразу: завершения старого action никто не ждёт.
+
+Старое completion проверяет `processExecutionId` перед success/error handler и
+перед каждым `w+`/`w-`; его `.finally()` удаляет map entry только при совпадении
+identity. Поэтому старый Promise не может стереть новое execution.
+
+Это cooperative stop. Произвольный action, игнорирующий `signal`, нельзя
+физически прервать внутри общего JS isolate; его протокольный результат всё
+равно подавляется. Hard-kill требует отдельной runtime-изоляции.
 
 ## Matter bindings
 
@@ -100,7 +120,7 @@ Materialized child Atom может прийти с sibling-`continuation`:
 ссылки выбранных значений. Успешно установленный binding не вычисляется на
 каждом claim: Graviton, изменивший Matter continuation ребёнка или отношение
 Atom/Topology к owning parent, немедленно переустанавливает проявленные aliases
-и отменяет pending claim старой связи. Если dependency ещё
+и отсоединяет pending/running execution старой связи. Если dependency ещё
 `undefined`, binding не считается установленным, Energy не отправляет claim и
 повторяет разрешение на следующем trigger. Ни live Mass, ни живые
 Energy-сущности через Force не передаются.

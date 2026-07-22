@@ -15,6 +15,8 @@ export type EnergyActionParams = {
   value: Record<string, unknown>
   mass: Record<string, unknown>
   energy: Record<string, unknown>
+  /** Aborted after this execution is detached for a structural rebuild. */
+  signal: AbortSignal
   self: {
     atom: string
     meta: string

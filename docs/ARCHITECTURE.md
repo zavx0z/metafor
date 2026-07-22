@@ -173,15 +173,12 @@ Graviton. Matrix находит затронутый Atom и его текущу
 освобождает slot, добавление переиспользует свободный slot и не сдвигает
 соседние Atom.
 
-Поэтому lock, `processExecutionId`, frozen Fields и accepted Energy активного
-Process не копируются через временное хранилище. Существующий Atom остаётся в
-том же brane object; его структурная часть при необходимости меняется на месте,
-а Process lifecycle сохраняется. Повторный Photon не возникает. Удаление Atom,
-смена его State или Graviton Process соответствующего WIMP локально
-инвалидирует pending execution. Простая перестановка declarations State не
-считается сменой State: выполняющийся State сопоставляется по canonical Meta
-State ID, а числовой `stateIndex` pending execution обновляется на новую
-позицию.
+При постороннем structural Graviton lock, `processExecutionId`, frozen Fields и
+accepted Energy активного Process сохраняются: например, появление дочернего
+Screenshot не перезапускает Browser. Но declaration/Matter rebuild самого WIMP
+локально инвалидирует executions всех его Atom. Atom остаётся в том же brane,
+Matrix выдаёт новую Process identity, а Energy выполняет
+`detach → rebuild → cooperative abort` старого action без междоменного ack.
 
 CPU читает обновлённый canonical Store напрямую. WebGPU сохраняет runtime и
 compute pipeline, обновляет только изменившиеся blocks/pointers и геометрически

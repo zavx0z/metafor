@@ -108,10 +108,75 @@ export class EnergyCatalogStore {
   readonly variantIdsByField = new Map<number, Set<number>>()
   readonly childrenByParent = new Map<string, Set<string>>()
 
+  /** Atom bindings whose local runtime projection can change with this Graviton. */
+  affectedAtomIds(part: Particle): number[] {
+    if (part.part !== "graviton") return []
+    if (part.op !== "add" && part.op !== "replace" && part.op !== "remove" && part.op !== "move" && part.op !== "copy") return []
+    const target = address(part.path, part.value)
+    if (target?.kind === "atom") return this.descendantAtoms(`atom:${target.id}`)
+    if (target?.kind === "topology") return this.descendantAtoms(`topology:${target.id}`)
+
+    if (target?.kind === "field") {
+      const wimp = this.fields.get(target.id)?.wimp ?? this.wimpFromValue(part.value)
+      return wimp === undefined ? [] : [...(this.atomIdsByWimp.get(wimp) ?? [])]
+    }
+    if (target?.kind === "variant") {
+      const wimp = this.variants.get(target.id)?.wimp ?? this.wimpFromValue(part.value)
+      return wimp === undefined ? [] : [...(this.atomIdsByWimp.get(wimp) ?? [])]
+    }
+    if (target?.kind === "process") {
+      const current = this.processes.get(`${target.src}\0${target.localId}`)
+      const wimp = current?.wimp ?? this.wimpFromValue(part.value)
+      return wimp === undefined ? [] : [...(this.atomIdsByWimp.get(wimp) ?? [])]
+    }
+
+    const wimp = this.wimpFromValue(part.value)
+    return wimp === undefined ? [] : [...(this.atomIdsByWimp.get(wimp) ?? [])]
+  }
+
+  /** Running Process slots invalidated by the same declaration scope as Matrix. */
+  invalidatedProcessAtomIds(part: Particle): number[] {
+    if (part.part !== "graviton") return []
+    if (part.op !== "add" && part.op !== "replace" && part.op !== "remove") return []
+    const target = address(part.path, part.value)
+    if (target?.kind === "atom") {
+      if (part.op === "remove") return this.descendantAtoms(`atom:${target.id}`)
+      const current = this.atoms.get(target.id)
+      const next = atomFromValue(part.value)
+      return current && next && current.wimp !== next.wimp
+        ? this.descendantAtoms(`atom:${target.id}`)
+        : []
+    }
+    if (target?.kind === "topology") return []
+    if (target?.kind === "field") {
+      const wimp = this.fields.get(target.id)?.wimp ?? this.wimpFromValue(part.value)
+      return wimp === undefined ? [] : [...(this.atomIdsByWimp.get(wimp) ?? [])]
+    }
+    if (target?.kind === "variant") {
+      const wimp = this.variants.get(target.id)?.wimp ?? this.wimpFromValue(part.value)
+      return wimp === undefined ? [] : [...(this.atomIdsByWimp.get(wimp) ?? [])]
+    }
+    if (target?.kind === "process") {
+      const current = this.processes.get(`${target.src}\0${target.localId}`)
+      const wimp = current?.wimp ?? this.wimpFromValue(part.value)
+      return wimp === undefined ? [] : [...(this.atomIdsByWimp.get(wimp) ?? [])]
+    }
+
+    const path = typeof part.path === "string" ? part.path.replace(/^\/+/, "") : ""
+    if (path !== "wimp" && path !== "matter" && path !== "state" && path !== "transition" && path !== "condition") return []
+    const wimp = this.wimpFromValue(part.value)
+    return wimp === undefined ? [] : [...(this.atomIdsByWimp.get(wimp) ?? [])]
+  }
+
   apply(part: Particle): EnergyCatalogChange {
     if (part.part !== "graviton") return {changed: false, affectedAtomIds: []}
     const target = address(part.path, part.value)
-    if (!target) return {changed: false, affectedAtomIds: []}
+    if (!target) {
+      const affectedAtomIds = this.affectedAtomIds(part)
+      return affectedAtomIds.length === 0
+        ? {changed: false, affectedAtomIds: []}
+        : {changed: true, affectedAtomIds}
+    }
     if (part.op === "test") {
       if (part.value !== undefined && !same(this.read(target), part.value)) throw new Error(`Energy catalog test failed at ${String(part.path)}`)
       return {changed: false, affectedAtomIds: []}
@@ -177,6 +242,12 @@ export class EnergyCatalogStore {
       schema[field.key] = definition
     }
     return schema
+  }
+
+  private wimpFromValue(value: unknown): string | undefined {
+    if (!isRecord(value)) return
+    if (typeof value.wimp === "string") return value.wimp
+    return typeof value.src === "string" ? value.src : undefined
   }
 
   private read(target: Address): unknown {

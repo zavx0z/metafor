@@ -198,9 +198,9 @@ Fields управляют работой Atom. Внешний агент или 
 }))
 .processes((process) => [
   process("определение операции")
-    .action(async ({ energy, field, mass, self, value }) => {
+    .action(async ({ energy, field, mass, self, signal, value }) => {
       const mod = await import("./actions/detectOperation.ts")
-      return mod.default({ energy, field, mass, self, value })
+      return mod.default({ energy, field, mass, self, signal, value })
     })
     .success(({ update, data }) => update(data))
     .error(({ update, error }) => update({ error: error.message })),
@@ -242,9 +242,9 @@ Fields управляют работой Atom. Внешний агент или 
 ```typescript
 .processes((process) => [
   process("загрузка")
-    .action(async ({ energy, field, mass, self, value }) => {
+    .action(async ({ energy, field, mass, self, signal, value }) => {
       const mod = await import("./actions/fetchData.ts")
-      return mod.default({ energy, field, mass, self, value })
+      return mod.default({ energy, field, mass, self, signal, value })
     })
     .success(({ update, data }) => {
       update({ data })  // Финальное обновление
@@ -398,6 +398,7 @@ Energy между тактами: возвращение Screenshot/Control Atom
 | `value`  | **Значения полей** — текущие данные атома         |
 | `mass`   | **Mass** — изменяемый рабочий материал            |
 | `energy` | **Energy** — живые runtime-сущности               |
+| `signal` | **AbortSignal** — остановка старого execution     |
 | `self`   | **Идентификатор** — полный путь к атому           |
 
 **Принцип:**
@@ -429,12 +430,13 @@ export default async function action({
   value,
   mass,
   energy,
+  signal,
 }: ActionParams<FetchUserFields, FetchUserMass, FetchUserValue, FetchUserEnergy>): Promise<FetchUserResult> {
   // field.id — декларация поля (схема)
   // value.id — значение поля (данные)
   // mass — изменяемый рабочий материал
   // energy — живые сущности текущего Energy runtime
-  const res = await fetch(`/api/users/${value.id}`)
+  const res = await fetch(`/api/users/${value.id}`, {signal})
   return await res.json()
 }
 ```
@@ -447,6 +449,7 @@ export default async function action({
 | `value`  | **Значения полей** — текущие данные атома                     |
 | `mass`   | **Mass** — изменяемый рабочий материал                        |
 | `energy` | **Energy** — живые runtime-сущности                           |
+| `signal` | **AbortSignal** — cooperative остановка execution             |
 | `self`   | **Идентификатор** — полный путь к атому                       |
 
 **Принцип:**
@@ -475,9 +478,9 @@ object-поля и примитивные литералы.
 ```typescript
 .processes((process, destroy) => [
   process("loading", { label: "Загрузка", env: ["browser", "node"] })
-    .action(async ({ energy, field, mass, self, value }) => {
+    .action(async ({ energy, field, mass, self, signal, value }) => {
       const mod = await import("./actions/fetchUser.ts")
-      return mod.default({ energy, field, mass, self, value })
+      return mod.default({ energy, field, mass, self, signal, value })
     })
     .success(({ update, data }) => update({ name: data.name }))
     .error(({ update, error }) => update({ error: error.message })),
@@ -524,9 +527,9 @@ process("loading", { env: ["any"] })
 
 ```typescript
 // meta.ts: wrapper только передаёт точные типы внешнему модулю
-.action(async ({ energy, field, mass, self, value }) => {
+.action(async ({ energy, field, mass, self, signal, value }) => {
   const mod = await import("./actions/getGroup.ts")
-  return mod.default({ energy, field, mass, self, value })
+  return mod.default({ energy, field, mass, self, signal, value })
 })
 ```
 
@@ -540,6 +543,7 @@ type GroupParams = {
   value: GroupValue
   mass: Record<string, never>
   energy: Record<string, never>
+  signal: AbortSignal
   self: { atom: string; meta: string; path: string }
 }
 
@@ -728,9 +732,9 @@ export default MetaFor("git")
   .energy(() => ({}))
   .processes((process) => [
     process("определение операции")
-      .action(async ({ energy, field, mass, self, value }) => {
+      .action(async ({ energy, field, mass, self, signal, value }) => {
         const mod = await import("./actions/detectOperation.ts")
-        return mod.default({ energy, field, mass, self, value })
+        return mod.default({ energy, field, mass, self, signal, value })
       })
       .success(({ update, data }) => update(data))
       .error(({ update, error }) => update({ error: error.message })),
@@ -847,9 +851,9 @@ export default MetaFor("git")
   }))
   .processes((process) => [
     process("определение операции")
-      .action(async ({ energy, field, mass, self, value }) => {
+      .action(async ({ energy, field, mass, self, signal, value }) => {
         const mod = await import("./actions/detectOperation.ts")
-        return mod.default({ energy, field, mass, self, value })
+        return mod.default({ energy, field, mass, self, signal, value })
       })
       .success(({ update, data }) => update(data))
   ])
@@ -953,9 +957,9 @@ export default MetaFor("git")
   .energy(() => ({}))
   .processes((process) => [
     process("определение операции")
-      .action(async ({ energy, field, mass, self, value }) => {
+      .action(async ({ energy, field, mass, self, signal, value }) => {
         const mod = await import("./actions/detectOperation.ts")
-        return mod.default({ energy, field, mass, self, value })
+        return mod.default({ energy, field, mass, self, signal, value })
       })
       .success(({ update, data }) => update(data))
       .error(({ update, error }) => update({ error: error.message })),

@@ -516,6 +516,54 @@ describe("Matrix incremental structural runtime", () => {
     expect(brane.lock).toBe(false)
   })
 
+  test("rebuilds every Atom of a changed WIMP and invalidates their old Processes only", async () => {
+    const initial: BoundaryInitialState = {
+      version: 1,
+      atoms: [
+        {id: 17, wimp: "owner/fanout", values: [], state: 202},
+        {id: 18, wimp: "owner/fanout", values: [], state: 202},
+        {id: 19, wimp: "owner/peer", values: [], state: 302},
+      ],
+      declarations: [
+        {src: "owner/fanout", section: "states", localId: "1", value: {id: 202, name: "ready", position: 0}},
+        {src: "owner/fanout", section: "processes", localId: "1", value: {id: 501, key: "ready", state: "ready"}},
+        {src: "owner/peer", section: "states", localId: "1", value: {id: 302, name: "ready", position: 0}},
+        {src: "owner/peer", section: "processes", localId: "1", value: {id: 601, key: "ready", state: "ready"}},
+      ],
+    }
+    await prepareMatrixBirth(initial)
+    const firstIndex = gravity$.getBraneIndexByAtomId(17)!
+    const secondIndex = gravity$.getBraneIndexByAtomId(18)!
+    const peerIndex = gravity$.getBraneIndexByAtomId(19)!
+    const first = matrix$.branes[firstIndex]!
+    const second = matrix$.branes[secondIndex]!
+    const peer = matrix$.branes[peerIndex]!
+    first.lock = true
+    second.lock = true
+    peer.lock = true
+
+    const change = applyMatrixProjectionParticle({
+      part: "graviton",
+      op: "replace",
+      path: "matter",
+      by: "boundary",
+      ts: 2,
+      value: {wimp: "owner/fanout", localId: 1, id: 41, kind: "wimp", src: "owner/child"},
+    })
+    const result = await applyIncrementalMatrixProjection(change)
+
+    expect(change.affectedAtomIds).toEqual([17, 18])
+    expect(change.invalidatedProcessWimps).toEqual(["owner/fanout"])
+    expect(result.stats.touchedBranes).toBe(2)
+    expect(result.stats.reusedBranes).toBe(2)
+    expect(result.invalidatedAtomIds).toEqual([17, 18])
+    expect(result.processCandidateBraneIndexes).toEqual([firstIndex, secondIndex])
+    expect(matrix$.branes[firstIndex]).toBe(first)
+    expect(matrix$.branes[secondIndex]).toBe(second)
+    expect(matrix$.branes[peerIndex]).toBe(peer)
+    expect(peer.lock).toBe(true)
+  })
+
   test("keeps CPU and WebGPU structural traces identical without replacing either runtime", async () => {
     const run = async (backend: "cpu" | "gpu"): Promise<{birth: number[][]; added: number[][]; evolved: number[][]}> => {
       Bun.env.METAFOR_WEAK_BACKEND = backend

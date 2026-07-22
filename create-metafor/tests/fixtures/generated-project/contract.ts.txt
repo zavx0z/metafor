@@ -55,9 +55,9 @@ MetaFor("strict-generated-contract")
   }))
   .processes((process, destroy) => [
     process("active", { env: ["server"] })
-      .action(async ({ energy, field, mass, self, value }) => {
+      .action(async ({ energy, field, mass, self, signal, value }) => {
         const mod = await import("./actions/start.ts")
-        return mod.default({ energy, field, mass, self, value })
+        return mod.default({ energy, field, mass, self, signal, value })
       })
       .success(({ data, update }) => {
         const profileId: string = data.profileId

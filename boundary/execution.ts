@@ -223,6 +223,12 @@ export class BoundaryExecutionStore {
       if (!execution) throw new Error(`Unknown process execution: ${proposal.processExecutionId}`)
       if (execution.status !== "pending") {
         if (
+          execution.status === "superseded" &&
+          execution.atom === atomId &&
+          execution.process === proposal.processId &&
+          execution.energy === energy
+        ) return null
+        if (
           execution.atom === atomId &&
           execution.process === proposal.processId &&
           execution.energy === energy &&

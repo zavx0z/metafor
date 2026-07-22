@@ -7,9 +7,10 @@
 Доменный контракт Boundary находится в [`DOMAIN.md`](./DOMAIN.md), а ещё не
 реализованные решения и проверки — в [`TODO.md`](./TODO.md).
 
-В контракте отдельно описаны два будущих масштаба изменения: обновление текущего
-WIMP с перестройкой всех его Atom и приватный WIMP-клон с новым `src` для одного
-конкретного Atom. Их runtime-реализация пока отложена.
+В контракте отдельно описаны два масштаба изменения: обновление текущего WIMP с
+перестройкой всех его Atom и приватный WIMP-клон с новым `src` для одного Atom.
+Совместимый fan-out текущего WIMP реализован; live-reparent и приватный clone
+остаются в TODO.
 
 ## Entry и storage
 
@@ -96,6 +97,11 @@ Matter, его subtype и bindings.
 Пример: замена `Browser.energyBinding` оставляет прежними `Browser`,
 `Screenshot`, `Control` и их связи. Каскадное удаление разрешено только для
 явного `inflaton/remove`.
+
+Matter Graviton является WIMP-wide rebuild marker для Matrix и Energy. Matrix
+перестраивает все Atom этого WIMP с прежними Atom IDs и новой Process identity.
+Energy немедленно отсоединяет старое execution, обновляет bindings и только
+после этого отправляет старому action cooperative abort.
 
 ## Низкоуровневый API
 

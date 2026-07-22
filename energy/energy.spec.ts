@@ -663,7 +663,7 @@ describe("Energy process protocol", () => {
     }
   })
 
-  test("keeps an established projection across Process Graviton changes", async () => {
+  test("rebuilds an established projection across Process Graviton changes", async () => {
     const firstCache = {version: 1}
     const secondCache = {version: 2}
     const firstSocket = {version: 1}
@@ -731,10 +731,161 @@ describe("Energy process protocol", () => {
       await claimAndCopy(harness, "ready", {})
       await waitFor(() => collectParts(harness.messages, "w+", "replace").length === 2)
 
-      expect(masses.get(17)).toBe(childMass)
-      expect(energies.get(17)).toBe(childEnergy)
-      expect(masses.get(17)?.cache).toBe(firstCache)
-      expect(energies.get(17)?.socket).toBe(firstSocket)
+      expect(masses.get(17)).not.toBe(childMass)
+      expect(energies.get(17)).not.toBe(childEnergy)
+      expect(masses.get(17)?.cache).toBe(secondCache)
+      expect(energies.get(17)?.socket).toBe(secondSocket)
+    } finally {
+      harness.close()
+    }
+  })
+
+  test("detaches immediately, rebuilds, then aborts the old Process without blocking its replacement", async () => {
+    const mass = {events: [] as string[]}
+    const energies = new Map<number, Record<string, unknown>>()
+    const massStore: EnergyMassStore = {
+      get: () => mass,
+      bind: () => {},
+    }
+    const energyStore: EnergyRuntimeStore = {
+      get: ({atomId}) => {
+        const current = energies.get(atomId)
+        if (current) return current
+        const created: Record<string, unknown> = {}
+        energies.set(atomId, created)
+        return created
+      },
+      bind: ({atomId}, value) => void energies.set(atomId, value),
+      release: ({atomId}) => {
+        mass.events.push("energy:release")
+        energies.delete(atomId)
+      },
+    }
+    const oldProcess = processEntry("ready", {
+      src: "./actions/old.ts",
+      wrapperSrc: `async ({mass, signal}) => {
+        mass.runs = Number(mass.runs ?? 0) + 1
+        if (mass.runs === 1) {
+          mass.events.push("old:start")
+          await new Promise((resolve) => signal?.addEventListener("abort", () => {
+            mass.events.push("old:stop")
+            resolve()
+          }, {once: true}))
+          mass.events.push("old:return")
+        } else {
+          mass.events.push("new:run")
+        }
+      }`,
+      readFields: [],
+    })
+    const harness = createHarness(
+      "energy-local",
+      {atoms: [[17, "owner/process"]], processes: [oldProcess]},
+      "server",
+      massStore,
+      energyStore,
+    )
+    try {
+      const oldExecution = await claimAndCopy(harness, "ready", {})
+      await waitFor(() => mass.events.includes("old:start"))
+
+      harness.emit({parts: [{
+        part: "graviton",
+        op: "replace",
+        path: "matter",
+        value: {wimp: "owner/process", localId: 1, id: 41, kind: "wimp", src: "owner/child"},
+      }]})
+
+      const newExecution = await claimAndCopy(harness, "ready", {})
+      await waitFor(() => collectParts(harness.messages, "w+", "replace").length === 1)
+      await waitFor(() => mass.events.includes("old:stop"))
+
+      expect(mass.events.indexOf("new:run")).toBeGreaterThan(-1)
+      expect(mass.events.indexOf("old:stop")).toBeGreaterThan(-1)
+      expect(mass.events.indexOf("energy:release")).toBeLessThan(mass.events.indexOf("old:stop"))
+      expect(collectParts(harness.messages, "w+", "replace")[0]?.value).toEqual(expect.objectContaining({
+        processExecutionId: newExecution.processExecutionId,
+      }))
+      expect(collectParts(harness.messages, "w+", "replace")[0]?.value).not.toEqual(expect.objectContaining({
+        processExecutionId: oldExecution.processExecutionId,
+      }))
+      expect(collectParts(harness.messages, "w-", "replace")).toEqual([])
+    } finally {
+      harness.close()
+    }
+  })
+
+  test("does not detach a running Process for an identical declaration", async () => {
+    const mass: Record<string, unknown> = {events: [] as string[]}
+    const process = processEntry("ready", {
+      src: "./actions/wait.ts",
+      wrapperSrc: `async ({mass, signal}) => {
+        await new Promise((resolve) => {
+          mass.finish = resolve
+          signal.addEventListener("abort", () => mass.events.push("abort"), {once: true})
+        })
+      }`,
+      readFields: [],
+    })
+    const harness = createHarness(
+      "energy-local",
+      {atoms: [[17, "owner/process"]], processes: [process]},
+      "server",
+      {get: () => mass, bind: () => {}},
+    )
+    try {
+      await claimAndCopy(harness, "ready", {})
+      await waitFor(() => typeof mass.finish === "function")
+      harness.emit({parts: [{
+        part: "graviton",
+        op: "replace",
+        path: "process",
+        value: structuredClone(process),
+      }]})
+      await sleep(0)
+
+      expect(mass.events).toEqual([])
+      ;(mass.finish as () => void)()
+      await waitFor(() => collectParts(harness.messages, "w+", "replace").length === 1)
+    } finally {
+      harness.close()
+    }
+  })
+
+  test("updates an Atom projection without detaching its Matrix-preserved Process", async () => {
+    const mass: Record<string, unknown> = {events: [] as string[]}
+    const process = processEntry("ready", {
+      src: "./actions/wait.ts",
+      wrapperSrc: `async ({mass, signal}) => {
+        await new Promise((resolve) => {
+          mass.finish = resolve
+          signal.addEventListener("abort", () => mass.events.push("abort"), {once: true})
+        })
+      }`,
+      readFields: [],
+    })
+    const harness = createHarness(
+      "energy-local",
+      {atoms: [[17, "owner/process"]], processes: [process]},
+      "server",
+      {get: () => mass, bind: () => {}},
+    )
+    try {
+      await claimAndCopy(harness, "ready", {})
+      await waitFor(() => typeof mass.finish === "function")
+      harness.emit({parts: [{
+        part: "graviton",
+        op: "replace",
+        path: "atom/17",
+        value: {
+          atom: {id: 17, parentAtom: null, parentTopology: null, wimp: "owner/process", position: 1},
+        },
+      }]})
+      await sleep(0)
+
+      expect(mass.events).toEqual([])
+      ;(mass.finish as () => void)()
+      await waitFor(() => collectParts(harness.messages, "w+", "replace").length === 1)
     } finally {
       harness.close()
     }
@@ -884,7 +1035,7 @@ describe("Energy process protocol", () => {
     }
   })
 
-  test("rebinds immediately on topology Graviton and rejects the stale pending grant", async () => {
+  test("rebinds immediately on topology Graviton and keeps the Matrix-preserved pending grant", async () => {
     const firstMass: Record<string, unknown> = {owner: "first"}
     const secondMass: Record<string, unknown> = {owner: "second"}
     const firstEnergy: Record<string, unknown> = {owner: "first"}
@@ -945,12 +1096,9 @@ describe("Energy process protocol", () => {
         part: "z", op: "copy", path: 17, from: "energy-local",
         value: {processExecutionId: staleExecutionId, fields: {}},
       }]})
-      await sleep(10)
-      expect(collectParts(harness.messages, "w+", "replace")).toEqual([])
+      await waitFor(() => collectParts(harness.messages, "w+", "replace").length === 1)
       expect(collectParts(harness.messages, "w-", "replace")).toEqual([])
 
-      await claimAndCopy(harness, "ready", {})
-      await waitFor(() => collectParts(harness.messages, "w+", "replace").length === 1)
       expect(secondMass.executions).toBe(1)
       expect(secondEnergy.executed).toBe(true)
       expect(firstMass.executions).toBeUndefined()

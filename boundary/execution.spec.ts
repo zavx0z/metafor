@@ -12,9 +12,20 @@ import {readBoundaryValue} from "./world.ts"
 const ROOT = "test/execution"
 const ENERGY = "energy-test"
 const HISTORY = "test/execution-history"
+const FOREIGN = "test/foreign-execution"
 
 type ParticleInput = Omit<Particle, "ts"> & {ts?: number}
 const message = (part: ParticleInput): ForceMessage => ({parts: [{ts: 1, ...part}] as [Particle]})
+const processDeclaration = (actionRead: number[] = [1]): Record<string, unknown> => ({
+  wimp: ROOT,
+  id: 1,
+  key: "ready",
+  type: "action",
+  env: ["server"],
+  action: {src: "./ready.ts", read: actionRead},
+  success: {src: "({update}) => update({output: 2})", read: [2], write: [2, 4]},
+  error: {src: "({update, error}) => update({error: error.message})", read: [3], write: [3]},
+})
 
 describe("Boundary canonical Process result", () => {
   let boundary: BoundaryDatabase
@@ -42,16 +53,7 @@ describe("Boundary canonical Process result", () => {
         part: "inflaton",
         op: "add",
         path: "process",
-        value: {
-          wimp: ROOT,
-          id: 1,
-          key: "ready",
-          type: "action",
-          env: ["server"],
-          action: {src: "./ready.ts", read: [1]},
-          success: {src: "({update}) => update({output: 2})", read: [2], write: [2, 4]},
-          error: {src: "({update, error}) => update({error: error.message})", read: [3], write: [3]},
-        },
+        value: processDeclaration(),
       },
       {part: "inflaton", op: "add", path: "matter", value: {
         wimp: ROOT,
@@ -106,11 +108,11 @@ describe("Boundary canonical Process result", () => {
     return row ? await readBoundaryValue(boundary.projection.sql, Number(row.value)) : undefined
   }
 
-  const beginExecution = async (processExecutionId: string, energy = ENERGY): Promise<void> => {
+  const beginExecution = async (processExecutionId: string, energy = ENERGY, targetAtomId = atomId): Promise<void> => {
     await boundary.materialize(message({
       part: "photon",
       op: "test",
-      path: atomId,
+      path: targetAtomId,
       from: processExecutionId,
       value: "ready",
     }))
@@ -125,7 +127,7 @@ describe("Boundary canonical Process result", () => {
     await boundary.materialize(message({
       part: "z",
       op: "copy",
-      path: atomId,
+      path: targetAtomId,
       from: energy,
       value: grant,
     }))
@@ -272,6 +274,161 @@ describe("Boundary canonical Process result", () => {
         energy: ENERGY,
       },
     })
+  })
+
+  test("supersedes an execution in the declaration transaction and drops its late result", async () => {
+    const oldExecution = "execution-before-rebuild"
+    await beginExecution(oldExecution)
+
+    const changed = await boundary.materialize(message({
+      part: "inflaton",
+      op: "replace",
+      path: "process",
+      value: {...processDeclaration(), label: "rebuilt"},
+    }))
+    expect(changed?.messages.some((item) => item.parts[0]?.part === "graviton")).toBe(true)
+    expect((await boundary.projection.sql<Array<{status: string}>>`
+      SELECT status FROM boundary_process_execution WHERE execution_id = ${oldExecution}
+    `)[0]?.status).toBe("superseded")
+
+    expect(await boundary.materialize(message({
+      part: "w+",
+      op: "replace",
+      path: atomId,
+      from: ENERGY,
+      value: {
+        processExecutionId: oldExecution,
+        processId: PROCESS,
+        fields: {[String(OUTPUT)]: 7},
+      } satisfies ProcessResultProposal,
+    }))).toBeNull()
+    expect(await fieldValue(OUTPUT)).toBe(0)
+
+    const newExecution = "execution-after-rebuild"
+    await beginExecution(newExecution)
+    expect((await boundary.materialize(message({
+      part: "w+",
+      op: "replace",
+      path: atomId,
+      from: ENERGY,
+      value: {
+        processExecutionId: newExecution,
+        processId: PROCESS,
+        fields: {[String(OUTPUT)]: 8},
+      } satisfies ProcessResultProposal,
+    })))?.messages).toHaveLength(2)
+    expect(await fieldValue(OUTPUT)).toBe(8)
+  })
+
+  test("supersedes every pending execution of the changed WIMP", async () => {
+    const secondAtom = Number((await boundary.projection.sql<Array<{id: number}>>`
+      INSERT INTO atom (parent_atom, parent_topology, wimp, position)
+      VALUES (NULL, NULL, ${ROOT}, 1)
+      RETURNING id
+    `)[0]?.id)
+    await beginExecution("execution-first-instance")
+    await beginExecution("execution-second-instance", ENERGY, secondAtom)
+    await boundary.materialize(message({
+      part: "inflaton", op: "add", path: "wimp", value: {src: FOREIGN, name: "Foreign"},
+    }))
+    await boundary.materialize(message({
+      part: "inflaton", op: "add", path: "state", value: {wimp: FOREIGN, id: 1, name: "ready", position: 0},
+    }))
+    await boundary.materialize(message({
+      part: "inflaton", op: "add", path: "process", value: {
+        wimp: FOREIGN,
+        id: 1,
+        key: "ready",
+        type: "action",
+        env: ["server"],
+        action: {src: "./ready.ts", read: []},
+      },
+    }))
+    const foreignAtom = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM atom WHERE wimp = ${FOREIGN} ORDER BY id LIMIT 1
+    `)[0]?.id)
+    await beginExecution("execution-foreign-instance", ENERGY, foreignAtom)
+
+    await boundary.materialize(message({
+      part: "inflaton",
+      op: "replace",
+      path: "process",
+      value: {...processDeclaration(), label: "all instances"},
+    }))
+
+    expect(await boundary.projection.sql<Array<{executionId: string; status: string}>>`
+      SELECT execution_id AS executionId, status
+        FROM boundary_process_execution
+       WHERE execution_id IN (
+         ${"execution-first-instance"},
+         ${"execution-foreign-instance"},
+         ${"execution-second-instance"}
+       )
+       ORDER BY execution_id
+    `).toEqual([
+      {executionId: "execution-first-instance", status: "superseded"},
+      {executionId: "execution-foreign-instance", status: "pending"},
+      {executionId: "execution-second-instance", status: "superseded"},
+    ])
+  })
+
+  test("keeps execution pending for an identical declaration", async () => {
+    const processExecutionId = "execution-identical-declaration"
+    await beginExecution(processExecutionId)
+
+    const unchanged = await boundary.materialize(message({
+      part: "inflaton",
+      op: "replace",
+      path: "process",
+      value: processDeclaration(),
+    }))
+    expect(unchanged?.messages).toEqual([])
+    expect((await boundary.projection.sql<Array<{status: string}>>`
+      SELECT status FROM boundary_process_execution WHERE execution_id = ${processExecutionId}
+    `)[0]?.status).toBe("pending")
+
+    const committed = await boundary.materialize(message({
+      part: "w+",
+      op: "replace",
+      path: atomId,
+      from: ENERGY,
+      value: {
+        processExecutionId,
+        processId: PROCESS,
+        fields: {[String(OUTPUT)]: 5},
+      } satisfies ProcessResultProposal,
+    }))
+    expect(committed?.messages).toHaveLength(2)
+    expect(await fieldValue(OUTPUT)).toBe(5)
+  })
+
+  test("rolls execution invalidation back when declaration persistence fails", async () => {
+    const processExecutionId = "execution-failed-declaration"
+    await beginExecution(processExecutionId)
+
+    await expect(boundary.materialize(message({
+      part: "inflaton",
+      op: "replace",
+      path: "process",
+      value: processDeclaration([999]),
+    }))).rejects.toThrow()
+    expect((await boundary.projection.sql<Array<{status: string}>>`
+      SELECT status FROM boundary_process_execution WHERE execution_id = ${processExecutionId}
+    `)[0]?.status).toBe("pending")
+
+    const committed = await boundary.materialize(message({
+      part: "w+",
+      op: "replace",
+      path: atomId,
+      from: ENERGY,
+      value: {
+        processExecutionId,
+        processId: PROCESS,
+        fields: {[String(OUTPUT)]: 6},
+      } satisfies ProcessResultProposal,
+    }))
+    expect(committed?.messages).toHaveLength(2)
+    expect(await fieldValue(OUTPUT)).toBe(6)
   })
 
 	test("materializes Fuzzy children in the same Process commit as an enum write", async () => {

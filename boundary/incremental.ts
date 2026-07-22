@@ -65,6 +65,16 @@ const sameJson = (left: unknown, right: unknown): boolean =>
 const particleMessage = (particle: Particle): ForceMessage => ({parts: [particle]})
 const isRootWimpSource = (src: string): boolean => src.split("/").length === 2
 const belongsToWimpRoot = (src: string, root: string): boolean => src === root || src.startsWith(`${root}/`)
+const processRestartPaths = new Set<DeclarationPath>([
+  "wimp",
+  "field",
+  "variant",
+  "state",
+  "transition",
+  "condition",
+  "process",
+  "matter",
+])
 
 const identityKey = (path: DeclarationPath, src: string, localId: number): string =>
   `${path}\u0000${src}\u0000${localId}`
@@ -305,6 +315,24 @@ export class BoundaryIncrementalStore {
 
     const effects = await this.sql.begin(async (tx): Promise<Particle[]> => {
       const committed: Particle[] = []
+      const supersedeCommittedWimps = async (): Promise<void> => {
+        const wimps = new Set<string>()
+        for (const effect of committed) {
+          if (effect.part !== "graviton" || typeof effect.path !== "string") continue
+          const path = effect.path.replace(/^\/+/, "") as DeclarationPath
+          if (!processRestartPaths.has(path) || !isRecord(effect.value)) continue
+          const src = path === "wimp" ? effect.value.src : effect.value.wimp
+          if (typeof src === "string") wimps.add(src)
+        }
+        for (const src of wimps) {
+          await tx`
+            UPDATE boundary_process_execution
+               SET status = ${"superseded"}
+             WHERE status = ${"pending"}
+               AND atom IN (SELECT id FROM atom WHERE wimp = ${src})
+          `
+        }
+      }
       if (part.op === "remove") {
         if (repositoryRemoval) {
           const valueIds = await tx<Array<{id: number}>>`
@@ -338,16 +366,20 @@ export class BoundaryIncrementalStore {
         const previous = await this.canonical(tx, address, input)
         await this.removeRuntimeConsequences(tx, address, committed)
         await this.removeDeclaration(tx, address)
-        committed.push({
-          part: "graviton",
-          op: "remove",
-          path: address.path,
-          ts: Date.now(),
-          value: previous ?? this.identity(address),
-        })
+        if (previous) {
+          committed.push({
+            part: "graviton",
+            op: "remove",
+            path: address.path,
+            ts: Date.now(),
+            value: previous,
+          })
+        }
+        await supersedeCommittedWimps()
         return committed
       }
 
+      const previous = await this.canonical(tx, address, input)
       let rebindMatterFields = false
       if (part.op === "replace" && address.path === "matter") {
         const previousMatter = await this.matterEntity(tx, address.src, address.localId)
@@ -364,13 +396,16 @@ export class BoundaryIncrementalStore {
       await this.persist(tx, address, input)
       if (rebindMatterFields) await this.rebindMatterFieldValues(tx, address)
       const canonical = await this.canonical(tx, address, input)
-      committed.push({
-        part: "graviton",
-        op: part.op,
-        path: address.path,
-        ts: Date.now(),
-        value: canonical,
-      })
+      const declarationChanged = !sameJson(previous, canonical)
+      if (declarationChanged) {
+        committed.push({
+          part: "graviton",
+          op: part.op,
+          path: address.path,
+          ts: Date.now(),
+          value: canonical,
+        })
+      }
       if (address.path === "variant" && restoredEnumDefault) {
         const localField = positiveInteger(input.field, "variant.field")
         const key = identityKey("field", address.src, localField)
@@ -385,7 +420,8 @@ export class BoundaryIncrementalStore {
           })
         }
       }
-      await this.addRuntimeConsequences(tx, address, input, committed)
+      if (declarationChanged) await this.addRuntimeConsequences(tx, address, input, committed)
+      await supersedeCommittedWimps()
       return committed
     })
 

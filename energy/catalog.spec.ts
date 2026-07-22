@@ -129,6 +129,40 @@ describe("Energy incremental catalog", () => {
     expect(store.atoms.has(2)).toBe(true)
   })
 
+  test("treats a Matter Graviton as a rebuild of every Atom of its WIMP", () => {
+    const store = new EnergyCatalogStore()
+    store.apply(part("add", "atom/1", atom(1, "owner/a")))
+    store.apply(part("add", "atom/2", atom(2, "owner/a")))
+    store.apply(part("add", "atom/3", atom(3, "owner/b")))
+
+    const change = store.apply(part("replace", "matter", {
+      id: 41,
+      localId: 1,
+      wimp: "owner/a",
+      kind: "wimp",
+      src: "owner/child",
+    }))
+
+    expect(change).toEqual({changed: true, affectedAtomIds: [1, 2]})
+    expect(store.atoms.has(3)).toBe(true)
+  })
+
+  test("invalidates Process only for Matrix restart scopes", () => {
+    const store = new EnergyCatalogStore()
+    store.apply(part("add", "atom/1", atom(1, "owner/a")))
+    store.apply(part("add", "atom/2", atom(2, "owner/a")))
+    store.apply(part("add", "atom/3", atom(3, "owner/b")))
+    const declaration = process(101, 1, "owner/a", "ready")
+    store.apply(part("add", "process", declaration))
+
+    expect(store.invalidatedProcessAtomIds(part("replace", "atom/1", atom(1, "owner/a")))).toEqual([])
+    expect(store.invalidatedProcessAtomIds(part("replace", "process", declaration))).toEqual([1, 2])
+    expect(store.invalidatedProcessAtomIds(part("replace", "matter", {
+      wimp: "owner/a",
+      localId: 1,
+    }))).toEqual([1, 2])
+  })
+
   test("copy, move and test operate on one entity", () => {
     const store = new EnergyCatalogStore()
     store.apply(part("add", "atom/1", atom(1, "owner/a")))
