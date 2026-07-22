@@ -16,12 +16,19 @@ export type WeakHeapUpdate =
       value: boolean
     }
 
+export type WeakStructuralUpdate = {
+  braneIndexes: number[]
+  sharedBlockIndexes: number[]
+  graphBraneIndexes: number[]
+}
+
 export interface WeakChanges extends Array<[number, number]> {}
 
 export interface WeakRuntime {
   step(mode?: WeakStepMode): void
   readChanges(): Promise<WeakChanges>
   heapUpdate(updates: WeakHeapUpdate[]): void
+  structuralUpdate(update: WeakStructuralUpdate): void
   clear(): void
   statesSnapshot(): number[]
 }

@@ -136,6 +136,64 @@ const runScenario = async (backend: "cpu" | "gpu"): Promise<RuntimeTrace> => {
     photons.push(`${ready.op}:${String(ready.value)}`)
     recordRuntime()
 
+    from = fixture.messages.length
+    send(fixture, client, {
+      part: "graviton",
+      op: "add",
+      path: "atom/18",
+      by: "boundary",
+      value: {
+        atom: {id: 18, parentAtom: 17, parentTopology: null, wimp: "owner/parity", position: 0},
+        values: [
+          {atom: 18, field: 101, value: 1003},
+          {atom: 18, field: 102, value: 1004},
+        ],
+        valueRecords: [
+          {id: 1003, kind: "number", number: 0},
+          {id: 1004, kind: "number", number: 0},
+        ],
+        valueItems: [],
+        state: {atom: 18, metaState: null},
+        fieldSources: [{childField: 102, parentAtom: 17, parentField: 102}],
+      },
+    })
+    await waitForPart(
+      fixture,
+      client,
+      (part) => part.part === "photon" && part.path === 18 && part.value === "idle",
+      from,
+    )
+    await settle()
+    expect(fixture.messages.slice(from).some((entry) => {
+      const part = entry.message.parts[0]
+      return entry.client === client && part.part === "photon" && part.path === 17
+    })).toBe(false)
+    expect(runtime.matrix$.branes[0]?.lock).toBe(true)
+
+    from = fixture.messages.length
+    send(fixture, client, {
+      part: "graviton",
+      op: "add",
+      path: "state",
+      by: "boundary",
+      value: {
+        wimp: "owner/parity",
+        localId: 4,
+        id: 204,
+        name: "before-idle",
+        position: -1,
+      },
+    })
+    await waitForRuntime(() =>
+      runtime.matrix$.states[0] === 2 && runtime.matrix$.getStateName(0, 2) === "ready",
+    )
+    await settle()
+    expect(fixture.messages.slice(from).some((entry) => {
+      const part = entry.message.parts[0]
+      return entry.client === client && part.part === "photon" && part.path === 17
+    })).toBe(false)
+    expect(runtime.matrix$.branes[0]?.lock).toBe(true)
+
     const claim: ProcessExecutionClaim = {energy: ENERGY_ID, processExecutionId}
     from = fixture.messages.length
     send(fixture, client, {

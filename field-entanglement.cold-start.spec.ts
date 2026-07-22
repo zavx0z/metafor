@@ -8,8 +8,8 @@ import {
   buildMatrixRuntime,
   consumePreparedMatrixBirth,
   prepareMatrixBirth,
-  reprepareMatrixRuntime,
 } from "./matrix/birth.ts"
+import {applyIncrementalMatrixProjection} from "./matrix/incremental.ts"
 import {applyMatrixProjectionParticle} from "./matrix/projection.ts"
 import {matrix$} from "./matrix/store.ts"
 import {weak$} from "./matrix/weak/index.ts"
@@ -99,8 +99,9 @@ describe("Field entanglement cold start", () => {
       message.parts[0].part === "graviton" && /^atom\/\d+$/.test(String(message.parts[0].path)),
     )?.parts[0]
     expect(computedAtom).toBeDefined()
-    expect(applyMatrixProjectionParticle(computedAtom!)).toEqual({structural: true})
-    await reprepareMatrixRuntime()
+    const computedChange = applyMatrixProjectionParticle(computedAtom!)
+    expect(computedChange).toMatchObject({structural: true})
+    await applyIncrementalMatrixProjection(computedChange)
     expect(matrix$.sharedBlocks).toHaveLength(0)
 
     const direct = await boundary.materialize({parts: [{
@@ -124,8 +125,9 @@ describe("Field entanglement cold start", () => {
       message.parts[0].part === "graviton" && /^atom\/\d+$/.test(String(message.parts[0].path)),
     )?.parts[0]
     expect(directAtom).toBeDefined()
-    expect(applyMatrixProjectionParticle(directAtom!)).toEqual({structural: true})
-    await reprepareMatrixRuntime()
+    const directChange = applyMatrixProjectionParticle(directAtom!)
+    expect(directChange).toMatchObject({structural: true})
+    await applyIncrementalMatrixProjection(directChange)
     expect(matrix$.sharedBlocks).toHaveLength(1)
     expect(consumePreparedMatrixBirth()).toBe(true)
   })

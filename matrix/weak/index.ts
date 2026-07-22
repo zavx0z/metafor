@@ -6,7 +6,7 @@
  */
 
 export {GPU} from "./device"
-export {weakInit, weakHeapUpdate, weakReadChanges, weakStep, weakRunStep, weak$} from "./weak"
+export {weakInit, weakHeapUpdate, weakReadChanges, weakStep, weakRunStep, weakStructuralUpdate, weak$} from "./weak"
 export {
   GPU_STATE_NONE,
   GPU_STATE_UNDEFINED,

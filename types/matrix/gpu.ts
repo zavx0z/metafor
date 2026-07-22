@@ -166,11 +166,20 @@ export interface GpuRuntimeContext {
   buffers: GpuBufferMap
   stagingBuffer: GPUBuffer
   braneCount: number
+  braneCapacity: number
   heapMirror: Uint32Array
   heapWords: number
   heapCapacityWords: number
   braneBlockPtrs: number[]
   sharedBlockPtrs: number[]
+  blockAllocationWordsByPtr: Map<number, number>
+  deadHeapWords: number
+  bytecodeOffsets: number[]
+  bytecodeWordsByBrane: number[]
+  bytecodeMirror: Uint32Array
+  bytecodeWords: number
+  bytecodeCapacityWords: number
+  deadBytecodeWords: number
   arraySlots: Map<number, ArrayHeapSlot>
   arrayFreeList: ArrayHeapSlot[]
   stringTableSize: number

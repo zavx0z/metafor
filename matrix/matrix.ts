@@ -19,12 +19,13 @@ import type {
 import {isProcessExecutionId} from "shared/protocol/force/execution"
 import {FieldType, flattenMatrixData, validateData} from "@matrix/gravity"
 import {createStoredStringInterner, normalizeFieldValue, assembleStoredMatrixData, strong$} from "@matrix/strong"
-import {StepMode, weakHeapUpdate, weakInit, weakRunStep, weak$} from "@matrix/weak"
+import {StepMode, weakHeapUpdate, weakInit, weakRunStep, weakStructuralUpdate, weak$} from "@matrix/weak"
 import {resolveForceFieldId, resolveForceFieldsPayload} from "shared/protocol/force/fields"
 import type {Particle} from "shared/protocol/force/particle"
 import {Force} from "shared/transport/force"
-import {consumePreparedMatrixBirth, reprepareMatrixRuntime} from "./birth.ts"
+import {consumePreparedMatrixBirth} from "./birth.ts"
 import {applyMatrixProjectionParticle, recordMatrixProjectionState} from "./projection.ts"
+import {applyIncrementalMatrixProjection} from "./incremental.ts"
 
 let force: Force
 const writeGate: AsyncGate = {pending: null}
@@ -228,25 +229,25 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
   }
 }
 
-const currentProcessStates = (): [number, number][] => {
-  const result: [number, number][] = []
-  for (let braneIndex = 0; braneIndex < matrix$.branes.length; braneIndex++) {
-    const stateIndex = matrix$.states[braneIndex]
-    if (stateIndex === undefined) continue
-    if (weak$.stateHasProcessByBraneIndex[braneIndex]?.[stateIndex] === true) {
-      result.push([braneIndex, stateIndex])
-    }
+const applyStructuralProjection = async (
+  projection: ReturnType<typeof applyMatrixProjectionParticle>,
+): Promise<void> => {
+  const incremental = await applyIncrementalMatrixProjection(projection)
+  for (const atomId of incremental.invalidatedAtomIds) pendingProcessExecutionsByAtomId.delete(atomId)
+  for (const preserved of incremental.preservedProcessStates) {
+    const pending = pendingProcessExecutionsByAtomId.get(preserved.atomId)
+    if (!pending || pending.braneIndex !== preserved.braneIndex) continue
+    pending.stateIndex = preserved.stateIndex
   }
-  return result
-}
-
-const applyStructuralProjection = async (): Promise<void> => {
-  pendingProcessExecutionsByAtomId.clear()
-  await reprepareMatrixRuntime()
+  weakStructuralUpdate(incremental.weakUpdate)
   const stateChanges = await weakRunStep(StepMode.UndefinedOnly)
   const targets = new Map<string, [number, number]>()
-  for (const change of [...stateChanges, ...currentProcessStates()]) {
+  for (const change of stateChanges) {
     targets.set(`${change[0]}\0${change[1]}`, change)
+  }
+  for (const braneIndex of incremental.processCandidateBraneIndexes) {
+    const stateIndex = matrix$.states[braneIndex]
+    if (stateIndex !== undefined) targets.set(`${braneIndex}\0${stateIndex}`, [braneIndex, stateIndex])
   }
   const photonTargets = [...targets.values()]
   if (photonTargets.length > 0) {
@@ -557,7 +558,7 @@ force.onImpulse = async (impulse) => {
   const projection = applyMatrixProjectionParticle(part)
 
   if (projection.structural) {
-    await applyStructuralProjection()
+    await applyStructuralProjection(projection)
     return
   }
 

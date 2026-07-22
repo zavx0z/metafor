@@ -89,6 +89,63 @@ describe("Boundary incremental relational projection", () => {
     `).toEqual([{id: databaseId, label: "After"}])
   })
 
+  test("publishes an enum default only after its Variant is committed", async () => {
+    await declareRoot()
+    const fieldCommit = await apply("add", "field", {
+      wimp: ROOT, id: 1, key: "mode", type: "enum", default: "old",
+    })
+    const fieldId = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM field WHERE wimp = ${ROOT} AND local_id = ${1}
+    `)[0]!.id)
+    const pendingField = fieldCommit?.messages
+      .map((message) => message.parts[0])
+      .find((part) => part.path === "field")
+    expect(pendingField?.value).not.toHaveProperty("default")
+    expect((await boundary.initialState()).declarations.find((item) => item.section === "fields")?.value)
+      .not.toHaveProperty("default")
+
+    const variantCommit = await apply("add", "variant", {
+      wimp: ROOT, id: 1, field: 1, position: 0, value: "old",
+    })
+    const variantId = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM field_enum_variant WHERE wimp = ${ROOT} AND local_id = ${1}
+    `)[0]!.id)
+    const ref = {kind: "enum", variant: variantId}
+    const particles = variantCommit?.messages.map((message) => message.parts[0]) ?? []
+    expect(particles).toContainEqual(expect.objectContaining({
+      part: "graviton",
+      op: "replace",
+      path: "field",
+      value: expect.objectContaining({id: fieldId, default: ref}),
+    }))
+    expect(particles).toContainEqual(expect.objectContaining({
+      part: "gluon",
+      op: "add",
+      value: {fields: {[String(fieldId)]: ref}},
+    }))
+    const initial = await boundary.initialState()
+    expect(initial.declarations.find((item) => item.section === "fields")?.value.default).toEqual(ref)
+    expect(initial.atoms[0]?.values[0]?.value).toEqual(ref)
+  })
+
+  test("rejects moving a Variant identity to another Field", async () => {
+    await declareRoot()
+    await apply("add", "field", {wimp: ROOT, id: 1, key: "left", type: "enum"})
+    await apply("add", "field", {wimp: ROOT, id: 2, key: "right", type: "enum"})
+    await apply("add", "variant", {wimp: ROOT, id: 1, field: 1, position: 0, value: "old"})
+
+    await expect(apply("replace", "variant", {
+      wimp: ROOT, id: 1, field: 2, position: 0, value: "old",
+    })).rejects.toThrow("Cannot move Variant")
+    const field = Number((await boundary.projection.sql<Array<{field: number}>>`
+      SELECT field FROM field_enum_variant WHERE wimp = ${ROOT} AND local_id = ${1}
+    `)[0]!.field)
+    const left = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM field WHERE wimp = ${ROOT} AND local_id = ${1}
+    `)[0]!.id)
+    expect(field).toBe(left)
+  })
+
   test("materializes an unreferenced trusted WIMP immediately as a root Atom", async () => {
     await declareRoot()
     const commit = await declareWimp("capsule", "Capsule")

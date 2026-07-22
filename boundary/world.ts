@@ -3,6 +3,14 @@ import {resolveForceFieldId} from "shared/protocol/force/fields"
 
 type Database = SQL | ReservedSQL
 
+const enumVariantId = (value: unknown): number | null => {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null
+  const candidate = (value as Record<string, unknown>).variant
+  return (value as Record<string, unknown>).kind === "enum" && Number.isSafeInteger(candidate)
+    ? Number(candidate)
+    : null
+}
+
 type FieldRow = {
   id: number
   type: "string" | "number" | "boolean" | "array" | "enum"
@@ -67,10 +75,18 @@ export async function writeBoundaryAtomValue(
   else if (kind === "number") await sql`INSERT INTO value_number (value, number) VALUES (${value}, ${Number(raw)})`
   else if (kind === "string") await sql`INSERT INTO value_string (value, text) VALUES (${value}, ${String(raw)})`
   else if (kind === "enum") {
-    const variant = (await sql<Array<{id: number}>>`
-      SELECT id FROM field_enum_variant WHERE field = ${field.id} AND item_value = ${String(raw)} LIMIT 1
-    `)[0]
-    if (!variant) throw new Error(`Unknown enum value ${String(raw)} for Field ${field.id}`)
+    const stableVariantId = enumVariantId(raw)
+    const variant = stableVariantId === null
+      ? (await sql<Array<{id: number}>>`
+        SELECT id FROM field_enum_variant WHERE field = ${field.id} AND item_value = ${String(raw)} LIMIT 1
+      `)[0]
+      : (await sql<Array<{id: number}>>`
+        SELECT id FROM field_enum_variant WHERE field = ${field.id} AND id = ${stableVariantId} LIMIT 1
+      `)[0]
+    if (!variant) {
+      const identity = stableVariantId === null ? String(raw) : `Variant ${stableVariantId}`
+      throw new Error(`Unknown enum value ${identity} for Field ${field.id}`)
+    }
     await sql`INSERT INTO value_enum (value, variant) VALUES (${value}, ${variant.id})`
   } else if (kind === "list") {
     for (let position = 0; position < (Array.isArray(raw) ? raw.length : 0); position++) {

@@ -1,6 +1,6 @@
 import type { CpuRuntimeContext, CpuRuntimeState } from "@metafor/types/matrix/cpu"
 import type { MatrixStore } from "@metafor/types/matrix/store"
-import type { WeakChanges, WeakHeapUpdate, WeakRuntime, WeakStepMode } from "@metafor/types/matrix/weak"
+import type { WeakChanges, WeakHeapUpdate, WeakRuntime, WeakStepMode, WeakStructuralUpdate } from "@metafor/types/matrix/weak"
 import { executeCpuStep } from "./step"
 import { StepMode } from "../constants"
 
@@ -29,6 +29,10 @@ export class CPUWeakRuntime implements WeakRuntime {
 
   heapUpdate(_updates: WeakHeapUpdate[]): void {
     // CPU runtime читает canonical Matrix store напрямую.
+  }
+
+  structuralUpdate(_update: WeakStructuralUpdate): void {
+    // Stable canonical Store уже содержит локально изменённые строки.
   }
 
   clear(): void {

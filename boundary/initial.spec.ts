@@ -20,7 +20,7 @@ describe("Boundary canonical initial state", () => {
     await boundary.materialize({parts: [{ts: 1, ...particle}] as [Particle]})
   }
 
-  const declaration = async (path: "field" | "state" | "transition" | "condition" | "process", localId: number, value: Record<string, unknown>): Promise<void> => {
+  const declaration = async (path: "field" | "variant" | "state" | "transition" | "condition" | "process", localId: number, value: Record<string, unknown>): Promise<void> => {
     await apply({
       part: "inflaton",
       op: "add",
@@ -98,5 +98,67 @@ describe("Boundary canonical initial state", () => {
     expect(initial.entries.some((entry) => entry.path === "field")).toBe(true)
     expect(initial.entries.some((entry) => typeof entry.path === "string" && entry.path.startsWith("atom/"))).toBe(true)
     expect(initial.entries.every((entry) => !("ts" in entry) && !("by" in entry))).toBe(true)
+  })
+
+  test("keeps canonical Variant identity in Atom, default and Condition values", async () => {
+    await apply({part: "inflaton", op: "add", path: "wimp", value: {src: ROOT, name: "Runtime"}})
+    await declaration("field", 1, {key: "mode", type: "enum", default: "old", position: 0})
+    await declaration("variant", 1, {field: 1, position: 0, value: "old"})
+    await declaration("variant", 2, {field: 1, position: 1, value: "other"})
+    await declaration("state", 1, {name: "idle", position: 0})
+    await declaration("state", 2, {name: "done", position: 1})
+    await declaration("transition", 1, {from: 1, to: 2, position: 0})
+    const variantId = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM field_enum_variant WHERE wimp = ${ROOT} AND local_id = ${1}
+    `)[0]!.id)
+    const ref = {kind: "enum", variant: variantId}
+    const conditionCommit = await boundary.materialize({parts: [{
+      part: "inflaton",
+      op: "add",
+      path: "condition",
+      value: {wimp: ROOT, id: 1, transition: 1, field: 1, position: 0, predicate: {eq: "old"}},
+      ts: 1,
+    }]})
+    expect(conditionCommit?.messages.map((message) => message.parts[0])).toContainEqual(expect.objectContaining({
+      part: "graviton",
+      path: "condition",
+      value: expect.objectContaining({predicate: {eq: ref}}),
+    }))
+
+    const initial = await boundary.initialState()
+    const variant = initial.declarations.find((item) =>
+      item.section === "variants" && item.value.itemValue === "old",
+    )
+    expect(Number(variant?.value.id)).toBe(variantId)
+
+    expect(initial.atoms[0]?.values[0]?.value).toEqual(ref)
+    expect(initial.declarations.find((item) => item.section === "fields")?.value.default).toEqual(ref)
+    expect(initial.declarations.find((item) => item.section === "conditions")?.value.predicate).toEqual({eq: ref})
+    const replay = await boundary.replay()
+    expect(replay.map((message) => message.parts[0])).toContainEqual(expect.objectContaining({
+      path: "field",
+      value: expect.objectContaining({default: ref}),
+    }))
+    expect(replay.map((message) => message.parts[0])).toContainEqual(expect.objectContaining({
+      path: "condition",
+      value: expect.objectContaining({predicate: {eq: ref}}),
+    }))
+
+    await expect(apply({
+      part: "inflaton",
+      op: "remove",
+      path: "variant",
+      value: {wimp: ROOT, id: 1},
+    })).rejects.toThrow("Cannot remove referenced Variant")
+    await expect(apply({
+      part: "inflaton",
+      op: "remove",
+      path: "variant",
+      value: {wimp: ROOT, id: 2},
+    })).resolves.toBeUndefined()
+
+    const afterRemoval = await boundary.initialState()
+    expect(afterRemoval.declarations.filter((item) => item.section === "variants")).toHaveLength(1)
+    expect(afterRemoval.atoms[0]?.values[0]?.value).toEqual(ref)
   })
 })

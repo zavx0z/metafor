@@ -1,9 +1,9 @@
 # Архитектура реализации
 
-Канонические ontology, causality, identity, cardinality и visual laws находятся
-в [`zavx0z/concept`](https://github.com/zavx0z/concept). Этот документ описывает
-только наблюдаемую структуру текущего runtime и не разрешает расхождения с
-concept.
+Этот документ задаёт общую структуру текущего runtime. Проверяемые законы и
+границы отдельных доменов находятся в [`docs/domains`](domains/README.md) рядом
+с их кодом и тестами. Внешний `zavx0z/concept` остаётся историческим материалом
+и не переопределяет действующие контракты проекта.
 
 ## Активный package graph
 
@@ -46,8 +46,10 @@ Package graph нельзя читать как полную онтологию. 
 | Bulk     | `bulk/server.ts`     | 4004         |
 | Energy   | `energy/server.ts`   | 4005         |
 
-Root scripts запускают эти entries либо в hot development mode, либо обычными
-Bun processes. Они не загружают Meta автоматически.
+Root scripts запускают entries только как обычные Bun processes. После изменения
+кода весь contour останавливается и запускается заново: частичная горячая
+перезагрузка несовместима с Matrix-last causal cut. Запуск не загружает Meta
+автоматически.
 
 Порядок рождения runtime задаётся не порядком запуска Bun processes. До своего
 ForceChannel Energy открывает MonadChannel, читает
@@ -143,6 +145,9 @@ continuation или owning-parent relation переустанавливает bi
 
 ## Field binding и Matrix entanglement
 
+Полный действующий контракт этого механизма находится в
+[доменной документации Matrix](domains/MATRIX.md).
+
 `fields=${...}` не является третьим Energy runtime binding. Точная top-level
 пара `childKey: parentField` для `string`/`number`/`boolean` материализуется в
 Boundary как один shared `Value` identity и нормализованное отношение
@@ -154,19 +159,53 @@ Initial Matrix projection содержит `valueId`. `matrix/birth.ts` груп
 только явно общую identity, создаёт один runtime field record и strong mappings
 для каждого Atom/Field. Равенство payload без общей identity связь не создаёт.
 Computed expressions получают отдельные values; `enum` и `array` обслуживаются
-как topology Fields и в shared block не входят.
+как topology Fields и в shared block не входят. Enum Atom values, defaults и
+Condition predicates несут canonical Variant ID; текст `itemValue` разрешается
+при сборке Matrix, поэтому rename/reorder Variant не теряет ссылку.
+Pending enum default не выходит в realtime до появления Variant. Referenced
+Variant нельзя удалить или перенести в другой Field.
 
 Live in-place replacement `fieldsBinding` поддерживается структурным тактом.
 Boundary атомарно перестраивает source/value relation и испускает полный Atom
-Graviton. Matrix применяет его к своей локальной canonical projection, заново
-собирает packed Store/shared blocks и переинициализирует CPU/GPU Weak до
-следующего вычислительного такта.
+Graviton. Matrix находит затронутый Atom и его текущую shared `valueId` family,
+а затем меняет только соответствующие Atom rows, shared blocks и графы. У
+остальных Atom сохраняются brane index, row и Process lifecycle. Удаление
+освобождает slot, добавление переиспользует свободный slot и не сдвигает
+соседние Atom.
 
-TODO (оптимизация, не семантический пробел): заменить полную re-preparation
-packed Store при таком Graviton на инкрементальное перемещение только
-изменившихся shared blocks. Оптимизация обязана сохранить тот же атомарный
-Boundary transaction, canonical `valueId`, отсутствие промежуточного layout и
-одинаковое поведение CPU/GPU.
+Поэтому lock, `processExecutionId`, frozen Fields и accepted Energy активного
+Process не копируются через временное хранилище. Существующий Atom остаётся в
+том же brane object; его структурная часть при необходимости меняется на месте,
+а Process lifecycle сохраняется. Повторный Photon не возникает. Удаление Atom,
+смена его State или Graviton Process соответствующего WIMP локально
+инвалидирует pending execution. Простая перестановка declarations State не
+считается сменой State: выполняющийся State сопоставляется по canonical Meta
+State ID, а числовой `stateIndex` pending execution обновляется на новую
+позицию.
+
+CPU читает обновлённый canonical Store напрямую. WebGPU сохраняет runtime и
+compute pipeline, обновляет только изменившиеся blocks/pointers и геометрически
+увеличивает buffers при нехватке capacity; накопившиеся неиспользуемые derived
+данные периодически уплотняются. Семантика и последовательность Photon должны
+оставаться одинаковыми на CPU и WebGPU. Canonical packed ranges также
+переиспользуют capacity и растут геометрически. Дедуплицированный несколькими
+Atom graph перед локальным изменением отделяется copy-on-write.
+
+## Browser Atom Capsule
+
+Первый рабочий application contour находится в игнорируемом внешнем
+`cluster/zavx0z/capsule`. Root Capsule передаёт Browser Atom прямые Fields, Mass
+и Energy. `profileAddress` запускает конечный lifecycle `подготовка WebRTC →
+запуск сохранённого профиля → подключение werift receiver → браузер готов`.
+Запуск использует библиотеки Capsule напрямую и не обращается к её HTTP
+lifecycle API.
+
+В готовом состоянии conditional Matter materialize Screenshot и Control Atom.
+Они используют постоянные video/DataChannel handles родителя через Energy,
+меняют только объявленные shared Fields и после одного действия возвращаются в
+состояние ожидания через отдельный transition. Mass содержит только
+сериализуемые сведения; `MediaStream`, track, peer, decoder, socket и
+DataChannel находятся только в Energy.
 
 Декларационный `path` является категорией (`wimp`, `field`, `state`, `matter` и
 так далее), а не slash-адресом дерева Meta. WIMP идентифицируется своим `src`;

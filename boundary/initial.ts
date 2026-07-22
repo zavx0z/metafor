@@ -2,6 +2,7 @@ import type {SQL} from "bun"
 import type {
   BoundaryInitialDeclaration,
   BoundaryInitialState,
+  BoundaryInitialVariantRef,
 } from "@metafor/types/boundary/initial"
 type JsonRecord = Record<string, unknown>
 
@@ -22,6 +23,8 @@ type AtomStateRow = {
   metaState: number | null
 }
 
+const variantRef = (variant: number): BoundaryInitialVariantRef => ({kind: "enum", variant})
+
 const readValue = async (sql: SQL, id: number): Promise<unknown> => {
   const kind = (await sql<Array<{kind: string}>>`SELECT kind FROM value WHERE id = ${id}`)[0]?.kind
   if (kind === undefined || kind === "null") return null
@@ -34,11 +37,12 @@ const readValue = async (sql: SQL, id: number): Promise<unknown> => {
   if (kind === "string") return (await sql<Array<{value: string}>>`
     SELECT text AS value FROM value_string WHERE value = ${id}
   `)[0]?.value ?? ""
-  if (kind === "enum") return (await sql<Array<{value: string}>>`
-    SELECT variant.item_value AS value
-      FROM value_enum JOIN field_enum_variant AS variant ON variant.id = value_enum.variant
-     WHERE value_enum.value = ${id}
-  `)[0]?.value ?? null
+  if (kind === "enum") {
+    const variant = (await sql<Array<{variant: number}>>`
+      SELECT variant FROM value_enum WHERE value = ${id}
+    `)[0]?.variant
+    return variant === undefined ? null : variantRef(Number(variant))
+  }
   return (await sql<Array<{value: string}>>`
     SELECT item_value AS value FROM value_list_item WHERE value = ${id} ORDER BY position
   `).map((row) => row.value)
@@ -56,12 +60,12 @@ const fieldDefaultValue = async (sql: SQL, field: {id: number; type: string}): P
   if (field.type === "boolean") return {exists: true, value: (await sql<Array<{value: number}>>`
     SELECT default_value AS value FROM field_boolean_default WHERE field = ${field.id}
   `)[0]?.value === 1}
-  if (field.type === "enum") return {exists: true, value: (await sql<Array<{value: string}>>`
-    SELECT variant.item_value AS value
-      FROM field_enum_default AS default_value
-      JOIN field_enum_variant AS variant ON variant.id = default_value.variant
-     WHERE default_value.field = ${field.id}
-  `)[0]?.value ?? null}
+  if (field.type === "enum") {
+    const variant = (await sql<Array<{variant: number}>>`
+      SELECT variant FROM field_enum_default WHERE field = ${field.id}
+    `)[0]?.variant
+    return {exists: true, value: variant === undefined ? null : variantRef(Number(variant))}
+  }
   return {exists: true, value: (await sql<Array<{value: string}>>`
     SELECT item_value AS value FROM field_array_default_item WHERE field = ${field.id} ORDER BY position
   `).map((row) => row.value)}
@@ -86,13 +90,23 @@ const conditionPredicate = async (sql: SQL, condition: number): Promise<JsonReco
     if (row.valueKind === "boolean") value = row.valueBoolean === 1
     else if (row.valueKind === "number") value = row.valueNumber
     else if (row.valueKind === "string") value = row.valueText
-    else if (row.valueKind === "enum") value = (await sql<Array<{value: string}>>`
-      SELECT item_value AS value FROM field_enum_variant WHERE id = ${row.valueVariant}
-    `)[0]?.value ?? null
-    else if (row.valueKind === "list") value = (await sql<Array<{valueKind: string; valueBoolean: number | null; valueNumber: number | null; valueText: string | null}>>`
-      SELECT value_kind AS valueKind, value_boolean AS valueBoolean, value_number AS valueNumber, value_text AS valueText
+    else if (row.valueKind === "enum") value = row.valueVariant === null ? null : variantRef(Number(row.valueVariant))
+    else if (row.valueKind === "list") value = (await sql<Array<{
+      valueKind: string; valueBoolean: number | null; valueNumber: number | null;
+      valueText: string | null; valueVariant: number | null
+    }>>`
+      SELECT value_kind AS valueKind, value_boolean AS valueBoolean, value_number AS valueNumber,
+             value_text AS valueText, value_variant AS valueVariant
         FROM condition_list_item WHERE predicate = ${row.id} ORDER BY item_order
-    `).map((item) => item.valueKind === "boolean" ? item.valueBoolean === 1 : item.valueKind === "number" ? item.valueNumber : item.valueKind === "string" ? item.valueText : null)
+    `).map((item) => item.valueKind === "boolean"
+      ? item.valueBoolean === 1
+      : item.valueKind === "number"
+        ? item.valueNumber
+        : item.valueKind === "string"
+          ? item.valueText
+          : item.valueKind === "enum" && item.valueVariant !== null
+            ? variantRef(Number(item.valueVariant))
+            : null)
     result[operator] = value
   }
   return result

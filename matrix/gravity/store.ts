@@ -10,7 +10,7 @@ export const gravity$: MatrixGravityStore = {
   structuralDirty: false,
 
   hasAtom(atomId: number): boolean {
-    return this.activeAtomIds.includes(atomId)
+    return this.atomIdToBraneIndex.has(atomId)
   },
 
   getBraneIndexByAtomId(atomId: number): number | undefined {

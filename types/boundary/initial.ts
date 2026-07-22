@@ -1,5 +1,8 @@
 import type {Particle} from "shared/protocol/force/particle"
 
+/** Stable canonical enum identity; itemValue is resolved from the current Variant declaration. */
+export type BoundaryInitialVariantRef = {kind: "enum"; variant: number}
+
 /** One normalized Boundary declaration required to prepare a domain Store. */
 export type BoundaryInitialDeclaration = {
   src: string
@@ -16,6 +19,7 @@ export type BoundaryInitialAtom = {
     field: number
     /** Canonical Boundary value identity. Equal IDs are an explicit shared Field relation. */
     valueId: number
+    /** Enum values use BoundaryInitialVariantRef; other Fields carry their scalar/list payload. */
     value: unknown
   }>
   state: number | null

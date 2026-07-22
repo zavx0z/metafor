@@ -128,16 +128,24 @@ const normalizeOperator = (operator: string): string => {
   return operator
 }
 
-const normalizeListItem = (value: unknown): {
+const normalizeListItem = async (sql: SQL | ReservedSQL, fieldId: number | undefined, value: unknown): Promise<{
   kind: "null" | "boolean" | "number" | "string" | "enum"
   booleanValue: number | null
   numberValue: number | null
   textValue: string | null
   variantValue: number | null
-} => {
+}> => {
   if (value === null) return {kind: "null", booleanValue: null, numberValue: null, textValue: null, variantValue: null}
   if (typeof value === "boolean") return {kind: "boolean", booleanValue: value ? 1 : 0, numberValue: null, textValue: null, variantValue: null}
   if (typeof value === "number") return {kind: "number", booleanValue: null, numberValue: value, textValue: null, variantValue: null}
+  if (fieldId !== undefined) {
+    const variant = (await sql<Array<{id: number}>>`
+      SELECT id FROM field_enum_variant WHERE field = ${fieldId} AND item_value = ${String(value)} LIMIT 1
+    `)[0]
+    if (variant) {
+      return {kind: "enum", booleanValue: null, numberValue: null, textValue: null, variantValue: Number(variant.id)}
+    }
+  }
   return {kind: "string", booleanValue: null, numberValue: null, textValue: String(value), variantValue: null}
 }
 
@@ -147,13 +155,14 @@ const insertPredicate = async (
   predicateOrder: number,
   op: string,
   value: unknown,
+  fieldId?: number,
 ): Promise<void> => {
   let operator = normalizeOperator(op)
   let valueKind: "null" | "boolean" | "number" | "string" | "enum" | "list" = "null"
   let valueBoolean: number | null = null
   let valueNumber: number | null = null
   let valueText: string | null = null
-  const valueVariant: number | null = null
+  let valueVariant: number | null = null
 
   if (op === "null") {
     operator = value === false ? "neq" : "eq"
@@ -166,8 +175,16 @@ const insertPredicate = async (
     valueKind = "number"
     valueNumber = value
   } else if (typeof value === "string") {
-    valueKind = "string"
-    valueText = value
+    const variant = fieldId === undefined ? undefined : (await sql<Array<{id: number}>>`
+      SELECT id FROM field_enum_variant WHERE field = ${fieldId} AND item_value = ${value} LIMIT 1
+    `)[0]
+    if (variant) {
+      valueKind = "enum"
+      valueVariant = Number(variant.id)
+    } else {
+      valueKind = "string"
+      valueText = value
+    }
   }
 
   const predicateId = await insertId(sql<Array<{id: number}>>`
@@ -181,7 +198,7 @@ const insertPredicate = async (
 
   if (valueKind !== "list" || !Array.isArray(value)) return
   for (let itemOrder = 0; itemOrder < value.length; itemOrder++) {
-    const item = normalizeListItem(value[itemOrder])
+    const item = await normalizeListItem(sql, fieldId, value[itemOrder])
     await sql`
       INSERT INTO condition_list_item
         (predicate, item_order, value_kind, value_boolean, value_number, value_text, value_variant)
@@ -190,13 +207,18 @@ const insertPredicate = async (
   }
 }
 
-export const insertPredicateGroup = async (sql: SQL | ReservedSQL, conditionId: number, predicateDsl: unknown): Promise<void> => {
+export const insertPredicateGroup = async (
+  sql: SQL | ReservedSQL,
+  conditionId: number,
+  predicateDsl: unknown,
+  fieldId?: number,
+): Promise<void> => {
   const normalized = normalizePredicate(predicateDsl)
   if (!normalized) return
 
   let predicateOrder = 0
   for (const [op, value] of Object.entries(normalized)) {
-    await insertPredicate(sql, conditionId, predicateOrder, op, value)
+    await insertPredicate(sql, conditionId, predicateOrder, op, value, fieldId)
     predicateOrder++
   }
 }
@@ -219,7 +241,7 @@ const insertConditions = async (
       VALUES (${transitionId}, ${fieldId}, ${position})
       RETURNING id
     `, "insertConditions")
-    await insertPredicateGroup(sql, conditionId, predicate)
+    await insertPredicateGroup(sql, conditionId, predicate, fieldId)
     position++
   }
 }

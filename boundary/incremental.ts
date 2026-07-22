@@ -222,7 +222,7 @@ type StoredMatter = {
   collectionBinding: number | null
 }
 
-type DefaultResult = {ready: true; value: unknown} | {ready: false}
+type DefaultResult = {ready: true; exists: boolean; value: unknown} | {ready: false}
 
 /** Boundary owns only normalized relations. Temporary defaults exist solely while an enum waits for its variants. */
 export class BoundaryIncrementalStore {
@@ -354,6 +354,13 @@ export class BoundaryIncrementalStore {
         rebindMatterFields = !sameJson(previousMatter?.fieldsBinding, input.fieldsBinding)
       }
 
+      const restoredEnumDefault = address.path === "variant"
+        ? this.pendingEnumDefaults.has(identityKey(
+          "field",
+          address.src,
+          positiveInteger(input.field, "variant.field"),
+        ))
+        : false
       await this.persist(tx, address, input)
       if (rebindMatterFields) await this.rebindMatterFieldValues(tx, address)
       const canonical = await this.canonical(tx, address, input)
@@ -364,6 +371,20 @@ export class BoundaryIncrementalStore {
         ts: Date.now(),
         value: canonical,
       })
+      if (address.path === "variant" && restoredEnumDefault) {
+        const localField = positiveInteger(input.field, "variant.field")
+        const key = identityKey("field", address.src, localField)
+        if (!this.pendingEnumDefaults.has(key)) {
+          const field = await this.canonical(tx, {path: "field", src: address.src, localId: localField}, {})
+          if (field) committed.push({
+            part: "graviton",
+            op: "replace",
+            path: "field",
+            ts: Date.now(),
+            value: field,
+          })
+        }
+      }
       await this.addRuntimeConsequences(tx, address, input, committed)
       return committed
     })
@@ -392,7 +413,11 @@ export class BoundaryIncrementalStore {
       SELECT id, wimp, local_id AS localId, key, type, required, label FROM field ORDER BY wimp, local_id
     `) {
       const defaultValue = await this.fieldDefault(this.sql, {...row, localId: Number(row.localId)})
-      append("field", {...row, required: row.required === 1, ...(defaultValue.ready ? {default: defaultValue.value} : {})})
+      append("field", {
+        ...row,
+        required: row.required === 1,
+        ...(defaultValue.ready && defaultValue.exists ? {default: defaultValue.value} : {}),
+      })
     }
     for (const row of await this.sql<Array<{id: number; wimp: string; localId: number; field: number; position: number; itemValue: string}>>`
       SELECT id, wimp, local_id AS localId, field, position, item_value AS itemValue
@@ -574,6 +599,12 @@ export class BoundaryIncrementalStore {
     }
     if (address.path === "variant") {
       const parentField = await fieldId(sql, address.src, positiveInteger(value.field, "variant.field"))
+      const previous = (await sql<Array<{field: number}>>`
+        SELECT field FROM field_enum_variant WHERE wimp = ${address.src} AND local_id = ${address.localId}
+      `)[0]
+      if (previous && Number(previous.field) !== parentField) {
+        throw new Error(`Cannot move Variant ${address.src}/${address.localId} to another Field`)
+      }
       await sql`
         INSERT INTO field_enum_variant (wimp, local_id, field, position, item_value)
         VALUES (
@@ -609,12 +640,13 @@ export class BoundaryIncrementalStore {
       return
     }
     if (address.path === "condition") {
+      const conditionFieldId = await fieldId(sql, address.src, positiveInteger(value.field, "condition.field"))
       const id = await insertedId(sql<Array<{id: number}>>`
         INSERT INTO condition (wimp, local_id, transition, field, position)
         VALUES (
           ${address.src}, ${address.localId},
           ${await transitionId(sql, address.src, positiveInteger(value.transition, "condition.transition"))},
-          ${await fieldId(sql, address.src, positiveInteger(value.field, "condition.field"))},
+          ${conditionFieldId},
           ${nonNegativeInteger(value.position, "condition.position")}
         )
         ON CONFLICT (wimp, local_id) DO UPDATE SET
@@ -622,7 +654,7 @@ export class BoundaryIncrementalStore {
         RETURNING id
       `, "Condition")
       await sql`DELETE FROM condition_predicate WHERE condition = ${id}`
-      await insertPredicateGroup(sql, id, value.predicate)
+      await insertPredicateGroup(sql, id, value.predicate, conditionFieldId)
       return
     }
     if (address.path === "process") {
@@ -823,8 +855,24 @@ export class BoundaryIncrementalStore {
       this.pendingEnumDefaults.delete(identityKey("field", address.src, address.localId))
       return
     }
-    if (address.path === "variant") await sql`DELETE FROM field_enum_variant WHERE wimp = ${address.src} AND local_id = ${address.localId}`
-    else if (address.path === "state") await sql`DELETE FROM state WHERE wimp = ${address.src} AND local_id = ${address.localId}`
+    if (address.path === "variant") {
+      const variant = (await sql<Array<{id: number}>>`
+        SELECT id FROM field_enum_variant WHERE wimp = ${address.src} AND local_id = ${address.localId}
+      `)[0]
+      if (variant) {
+        const references = (await sql<Array<{count: number}>>`
+          SELECT
+            (SELECT COUNT(*) FROM value_enum WHERE variant = ${variant.id}) +
+            (SELECT COUNT(*) FROM field_enum_default WHERE variant = ${variant.id}) +
+            (SELECT COUNT(*) FROM condition_predicate WHERE value_variant = ${variant.id}) +
+            (SELECT COUNT(*) FROM condition_list_item WHERE value_variant = ${variant.id}) AS count
+        `)[0]?.count ?? 0
+        if (Number(references) > 0) {
+          throw new Error(`Cannot remove referenced Variant ${address.src}/${address.localId}`)
+        }
+      }
+      await sql`DELETE FROM field_enum_variant WHERE wimp = ${address.src} AND local_id = ${address.localId}`
+    } else if (address.path === "state") await sql`DELETE FROM state WHERE wimp = ${address.src} AND local_id = ${address.localId}`
     else if (address.path === "transition") await sql`DELETE FROM transition WHERE wimp = ${address.src} AND local_id = ${address.localId}`
     else if (address.path === "condition") await sql`DELETE FROM condition WHERE wimp = ${address.src} AND local_id = ${address.localId}`
     else if (address.path === "process") await sql`DELETE FROM process WHERE wimp = ${address.src} AND local_id = ${address.localId}`
@@ -851,7 +899,18 @@ export class BoundaryIncrementalStore {
       const row = (await sql<Array<{id: number; key: string; type: string; required: number; label: string | null}>>`
         SELECT id, key, type, required, label FROM field WHERE wimp = ${address.src} AND local_id = ${address.localId}
       `)[0]
-      return row ? {...base, ...row, required: row.required === 1, ...(Object.hasOwn(input, "default") ? {default: clone(input.default)} : {})} : null
+      if (!row) return null
+      const fallback = await this.fieldDefault(sql, {
+        ...row,
+        wimp: address.src,
+        localId: address.localId,
+      } as StoredField)
+      return {
+        ...base,
+        ...row,
+        required: row.required === 1,
+        ...(fallback.ready && fallback.exists ? {default: fallback.value} : {}),
+      }
     }
     if (address.path === "variant") {
       const row = (await sql<Array<{id: number; field: number; position: number; itemValue: string}>>`
@@ -878,7 +937,7 @@ export class BoundaryIncrementalStore {
         SELECT id, transition, field, position FROM condition
          WHERE wimp = ${address.src} AND local_id = ${address.localId}
       `)[0]
-      return row ? {...base, ...row, predicate: clone(input.predicate)} : null
+      return row ? {...base, ...row, predicate: await this.conditionPredicate(sql, Number(row.id))} : null
     }
     if (address.path === "process") return await this.canonicalProcess(sql, address)
     if (address.path === "reaction") return await this.reactionEntity(sql, address.src, address.localId)
@@ -905,9 +964,9 @@ export class BoundaryIncrementalStore {
       if (row.valueKind === "boolean") value = row.valueBoolean === 1
       else if (row.valueKind === "number") value = row.valueNumber
       else if (row.valueKind === "string") value = row.valueText
-      else if (row.valueKind === "enum") value = (await sql<Array<{value: string}>>`
-        SELECT item_value AS value FROM field_enum_variant WHERE id = ${row.valueVariant}
-      `)[0]?.value ?? null
+      else if (row.valueKind === "enum") value = row.valueVariant === null
+        ? null
+        : {kind: "enum", variant: Number(row.valueVariant)}
       else if (row.valueKind === "list") value = (await sql<Array<{
         valueKind: string; valueBoolean: number | null; valueNumber: number | null;
         valueText: string | null; valueVariant: number | null;
@@ -918,7 +977,8 @@ export class BoundaryIncrementalStore {
       `).map((item) => item.valueKind === "boolean" ? item.valueBoolean === 1
         : item.valueKind === "number" ? item.valueNumber
           : item.valueKind === "string" ? item.valueText
-            : item.valueKind === "enum" ? item.valueVariant
+            : item.valueKind === "enum" && item.valueVariant !== null
+              ? {kind: "enum", variant: Number(item.valueVariant)}
               : null)
       result[operator] = value
     }
@@ -1116,22 +1176,27 @@ export class BoundaryIncrementalStore {
   private async fieldDefault(sql: Database, field: StoredField): Promise<DefaultResult> {
     if (this.pendingEnumDefaults.has(identityKey("field", field.wimp, field.localId))) return {ready: false}
     const exists = (await sql<Array<{ok: number}>>`SELECT 1 AS ok FROM field_default WHERE field = ${field.id}`)[0]
-    if (!exists) return {ready: true, value: null}
-    if (field.type === "string") return {ready: true, value: (await sql<Array<{value: string}>>`
+    if (!exists) return {ready: true, exists: false, value: null}
+    if (field.type === "string") return {ready: true, exists: true, value: (await sql<Array<{value: string}>>`
       SELECT default_value AS value FROM field_string_default WHERE field = ${field.id}
     `)[0]?.value ?? ""}
-    if (field.type === "number") return {ready: true, value: Number((await sql<Array<{value: number}>>`
+    if (field.type === "number") return {ready: true, exists: true, value: Number((await sql<Array<{value: number}>>`
       SELECT default_value AS value FROM field_number_default WHERE field = ${field.id}
     `)[0]?.value ?? 0)}
-    if (field.type === "boolean") return {ready: true, value: (await sql<Array<{value: number}>>`
+    if (field.type === "boolean") return {ready: true, exists: true, value: (await sql<Array<{value: number}>>`
       SELECT default_value AS value FROM field_boolean_default WHERE field = ${field.id}
     `)[0]?.value === 1}
-    if (field.type === "enum") return {ready: true, value: (await sql<Array<{value: string}>>`
-      SELECT variant.item_value AS value FROM field_enum_default AS default_value
-      JOIN field_enum_variant AS variant ON variant.id = default_value.variant
-      WHERE default_value.field = ${field.id}
-    `)[0]?.value ?? null}
-    return {ready: true, value: (await sql<Array<{value: string}>>`
+    if (field.type === "enum") {
+      const variant = (await sql<Array<{variant: number}>>`
+        SELECT variant FROM field_enum_default WHERE field = ${field.id}
+      `)[0]?.variant
+      return {
+        ready: true,
+        exists: true,
+        value: variant === undefined ? null : {kind: "enum", variant: Number(variant)},
+      }
+    }
+    return {ready: true, exists: true, value: (await sql<Array<{value: string}>>`
       SELECT item_value AS value FROM field_array_default_item WHERE field = ${field.id} ORDER BY position
     `).map((row) => row.value)}
   }

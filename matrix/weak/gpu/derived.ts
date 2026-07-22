@@ -11,7 +11,7 @@ import type { MatrixData, MatrixFieldValueRecord } from "@metafor/types/matrix/s
 import type { MatrixFieldRecord } from "@metafor/types/matrix/data"
 import { FIELD_TYPE, VALUE_TYPE } from "../constants"
 import { buildHeap } from "./layout-heap"
-import { compileFlattenedEnsemble } from "./bytecode"
+import { compileFlattenedEnsemble, compileFlattenedSuperposition } from "./bytecode"
 import { createPackContext, encodeValue, fieldTypeToBytecodeType } from "./pack"
 
 /** Собирает метаданные полей для производного кодирования. */
@@ -58,8 +58,13 @@ function groupTransitionConditions(
 }
 
 /** Преобразует канонические переходы в уплощённую форму для компиляции bytecode. */
-function toFlattenedTransitions(store: MatrixData): Array<{ transitions: GpuFlattenedTransition[][] }> {
-  return store.branes.map((brane) => ({
+function flattenedBraneTransitions(
+  store: MatrixData,
+  braneIndex: number,
+): {transitions: GpuFlattenedTransition[][]} {
+  const brane = store.branes[braneIndex]
+  if (!brane) return {transitions: []}
+  return {
     transitions: Array.from({ length: brane.stateCount }, (_, stateIndex) => {
       const state = store.stateTable[brane.stateOffset + stateIndex]
       if (!state) {
@@ -82,7 +87,20 @@ function toFlattenedTransitions(store: MatrixData): Array<{ transitions: GpuFlat
 
       return stateTransitions
     }),
-  }))
+  }
+}
+
+function toFlattenedTransitions(store: MatrixData): Array<{ transitions: GpuFlattenedTransition[][] }> {
+  return store.branes.map((_, braneIndex) => flattenedBraneTransitions(store, braneIndex))
+}
+
+/** Compiles only one structurally changed brane graph. */
+export function deriveWeakBraneBytecode(store: MatrixData, braneIndex: number): Uint32Array {
+  return compileFlattenedSuperposition(
+    flattenedBraneTransitions(store, braneIndex).transitions,
+    store.fields,
+    store.stringTable,
+  ).bytecode
 }
 
 /** Собирает значения полей shared-блоков из канонического store. */

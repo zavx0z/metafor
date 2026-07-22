@@ -1,12 +1,12 @@
 import shaderSource from "./evolution.wgsl" with { type: "text" }
 import type { ArrayHeapSlot, GpuRuntimeContext } from "@metafor/types/matrix/gpu"
-import type { MatrixStore, MatrixValue } from "@metafor/types/matrix/store"
-import type { WeakChanges, WeakHeapUpdate, WeakRuntime, WeakStepMode } from "@metafor/types/matrix/weak"
+import type { MatrixFieldValueRecord, MatrixStore, MatrixValue } from "@metafor/types/matrix/store"
+import type { WeakChanges, WeakHeapUpdate, WeakRuntime, WeakStepMode, WeakStructuralUpdate } from "@metafor/types/matrix/weak"
 import { FIELD_TYPE, VALUE_TYPE } from "../constants"
-import { deriveWeakData } from "./derived"
-import { findFieldValueOffset } from "./layout-heap"
-import { createPackContext, encodeValue } from "./pack"
-import { createStorageBuffer, createStorageBufferWithCapacity, destroyBuffers, nextCapacityWords } from "./buffer"
+import { deriveWeakBraneBytecode, deriveWeakData } from "./derived"
+import { findFieldValueOffset, packMeta } from "./layout-heap"
+import { createPackContext, encodeValue, fieldTypeToBytecodeType } from "./pack"
+import { createStorageBufferWithCapacity, destroyBuffers, nextCapacityWords } from "./buffer"
 import { createGpuRuntimeContext } from "./init"
 import { resolveStringTableBuffers } from "./layout"
 import { createBindGroup } from "./pipeline"
@@ -121,6 +121,89 @@ export class GPUWeakRuntime implements WeakRuntime {
     })
   }
 
+  structuralUpdate(update: WeakStructuralUpdate): void {
+    this.schedule(() => {
+      if (this.store$.stringTable.length !== this.context.stringTableSize) this.syncStringBuffers()
+      this.ensureBraneCapacity(this.store$.branes.length)
+
+      for (const sharedBlockIndex of new Set(update.sharedBlockIndexes)) {
+        this.retireBlock(this.context.sharedBlockPtrs[sharedBlockIndex])
+        const fields = this.collectSharedBlockFields(sharedBlockIndex)
+        if (!fields) {
+          delete this.context.sharedBlockPtrs[sharedBlockIndex]
+          continue
+        }
+        this.context.sharedBlockPtrs[sharedBlockIndex] = this.appendCanonicalBlock(fields, [], false)
+      }
+
+      for (const braneIndex of new Set(update.braneIndexes)) {
+        const brane = this.store$.branes[braneIndex]
+        if (!brane) continue
+        this.retireBlock(this.context.braneBlockPtrs[braneIndex])
+        const refs: number[] = []
+        for (let refIndex = brane.sharedBlockRefOffset; refIndex < brane.sharedBlockRefOffset + brane.sharedBlockRefCount; refIndex++) {
+          const sharedBlockIndex = this.store$.braneSharedBlockRefs[refIndex]
+          const ptr = sharedBlockIndex === undefined ? undefined : this.context.sharedBlockPtrs[sharedBlockIndex]
+          if (ptr !== undefined) refs.push(ptr)
+        }
+        const ptr = this.appendCanonicalBlock(this.collectBraneFields(braneIndex), refs, brane.lock)
+        this.context.braneBlockPtrs[braneIndex] = ptr
+        this.context.device.queue.writeBuffer(
+          this.context.buffers.braneBlockPtrs,
+          braneIndex * 4,
+          new Uint32Array([ptr]),
+        )
+        const state = this.store$.states[braneIndex] ?? 0
+        this.lastStates[braneIndex] = state
+        this.context.device.queue.writeBuffer(
+          this.context.buffers.states,
+          braneIndex * 4,
+          Uint32Array.from([state]),
+        )
+        this.context.device.queue.writeBuffer(
+          this.context.buffers.dirtyFlags,
+          braneIndex * 4,
+          new Uint32Array([0]),
+        )
+      }
+
+      for (const braneIndex of new Set(update.graphBraneIndexes)) {
+        this.context.deadBytecodeWords += this.context.bytecodeWordsByBrane[braneIndex] ?? 0
+        const bytecode = deriveWeakBraneBytecode(this.store$, braneIndex)
+        const words = bytecode.length > 0 ? bytecode : new Uint32Array(1)
+        const offset = this.context.bytecodeWords
+        this.ensureBytecodeCapacity(offset + words.length)
+        this.context.bytecodeMirror.set(words, offset)
+        this.context.device.queue.writeBuffer(
+          this.context.buffers.bytecode,
+          offset * 4,
+          words,
+        )
+        this.context.bytecodeWords += words.length
+        this.context.bytecodeOffsets[braneIndex] = offset
+        this.context.bytecodeWordsByBrane[braneIndex] = words.length
+        this.context.device.queue.writeBuffer(
+          this.context.buffers.bytecodeOffsets,
+          braneIndex * 4,
+          new Uint32Array([offset]),
+        )
+      }
+
+      this.context.braneCount = this.store$.branes.length
+      this.context.device.queue.writeBuffer(
+        this.context.buffers.uniforms,
+        0,
+        new Uint32Array([this.context.braneCount]),
+      )
+      if (this.context.deadHeapWords > Math.max(1024, Math.floor(this.context.heapWords / 2))) {
+        this.refreshHeapBuffers()
+      }
+      if (this.context.deadBytecodeWords > Math.max(1024, Math.floor(this.context.bytecodeWords / 2))) {
+        this.refreshBytecodeBuffers()
+      }
+    })
+  }
+
   clear(): void {
     this.lastStates = []
     this.schedule(() => destroyContext(this.context))
@@ -142,6 +225,171 @@ export class GPUWeakRuntime implements WeakRuntime {
     )
   }
 
+  private collectBraneFields(braneIndex: number): MatrixFieldValueRecord[] {
+    const brane = this.store$.branes[braneIndex]
+    if (!brane) return []
+    const fields: MatrixFieldValueRecord[] = []
+    for (let index = brane.localValueOffset; index < brane.localValueOffset + brane.localValueCount; index++) {
+      const field = this.store$.braneValues[index]
+      if (field) fields.push(field)
+    }
+    return fields
+  }
+
+  private collectSharedBlockFields(sharedBlockIndex: number): MatrixFieldValueRecord[] | null {
+    const block = this.store$.sharedBlocks[sharedBlockIndex]
+    if (!block) return null
+    const fields: MatrixFieldValueRecord[] = []
+    for (let index = block.valueOffset; index < block.valueOffset + block.valueCount; index++) {
+      const field = this.store$.sharedValues[index]
+      if (field) fields.push(field)
+    }
+    return fields
+  }
+
+  private appendCanonicalBlock(
+    fields: MatrixFieldValueRecord[],
+    sharedPtrs: number[],
+    lock: boolean,
+  ): number {
+    const blockWords = 3 + fields.length * 2 + sharedPtrs.length + fields.reduce((total, record) => {
+      const field = this.store$.fields[record.fieldIndex]
+      return total + (field?.type === FIELD_TYPE.STRING_PTR || field?.type === FIELD_TYPE.ARRAY_PTR ? 2 : 1)
+    }, 0)
+    const arrayWords = fields.reduce((total, record) => {
+      const field = this.store$.fields[record.fieldIndex]
+      return total + (field?.type === FIELD_TYPE.ARRAY_PTR && Array.isArray(record.value) && record.value.length > 0
+        ? 1 + record.value.length
+        : 0)
+    }, 0)
+    const blockPtr = this.context.heapWords
+    const end = blockPtr + blockWords + arrayWords
+    this.ensureHeapCapacity(end)
+    const heap = this.context.heapMirror
+    let arrayOffset = blockPtr + blockWords
+    const allocateHeap = (size: number): number => {
+      const ptr = arrayOffset
+      arrayOffset += size
+      return ptr
+    }
+
+    heap[blockPtr] = fields.length
+    heap[blockPtr + 1] = sharedPtrs.length
+    heap[blockPtr + 2] = lock ? 1 : 0
+    let descriptorOffset = blockPtr + 3
+    let valueOffset = blockPtr + 3 + fields.length * 2 + sharedPtrs.length
+    for (const record of fields) {
+      const field = this.store$.fields[record.fieldIndex]
+      if (!field) continue
+      const fieldType = fieldTypeToBytecodeType(field.type)
+      const fieldSize = field.type === FIELD_TYPE.STRING_PTR || field.type === FIELD_TYPE.ARRAY_PTR ? 2 : 1
+      const encoded = encodeValue(record.value, createPackContext(field, this.store$.stringTable, allocateHeap, heap))
+      heap[descriptorOffset++] = record.fieldIndex
+      heap[descriptorOffset++] = packMeta(fieldType, fieldSize, valueOffset - blockPtr)
+      heap[valueOffset++] = encoded.value1
+      if (fieldSize > 1) heap[valueOffset++] = encoded.value2
+      if (field.type === FIELD_TYPE.ARRAY_PTR && encoded.value1 !== 0 && Array.isArray(record.value)) {
+        this.context.arraySlots.set(valueOffset - fieldSize, {ptr: encoded.value1, size: 1 + record.value.length})
+      }
+    }
+    for (const ptr of sharedPtrs) heap[descriptorOffset++] = ptr
+    this.context.heapWords = end
+    this.context.blockAllocationWordsByPtr.set(blockPtr, end - blockPtr)
+    this.context.device.queue.writeBuffer(
+      this.context.buffers.heap,
+      blockPtr * 4,
+      heap.subarray(blockPtr, end),
+    )
+    return blockPtr
+  }
+
+  private retireBlock(ptr: number | undefined): void {
+    if (ptr === undefined) return
+    this.context.deadHeapWords += this.context.blockAllocationWordsByPtr.get(ptr) ?? 0
+    this.context.blockAllocationWordsByPtr.delete(ptr)
+  }
+
+  private ensureHeapCapacity(requiredWords: number): void {
+    if (requiredWords <= this.context.heapCapacityWords) return
+    const capacity = nextCapacityWords(requiredWords)
+    const mirror = new Uint32Array(capacity)
+    mirror.set(this.context.heapMirror.subarray(0, this.context.heapWords))
+    const previous = this.context.buffers.heap
+    this.context.buffers.heap = createStorageBufferWithCapacity(
+      this.context.device,
+      mirror.subarray(0, this.context.heapWords),
+      capacity,
+    )
+    this.context.heapMirror = mirror
+    this.context.heapCapacityWords = capacity
+    this.context.bindGroup = createBindGroup(this.context.device, this.context.pipeline, this.context.buffers)
+    destroyBuffers([previous])
+  }
+
+  private ensureBytecodeCapacity(requiredWords: number): void {
+    if (requiredWords <= this.context.bytecodeCapacityWords) return
+    const capacity = nextCapacityWords(requiredWords)
+    const mirror = new Uint32Array(capacity)
+    mirror.set(this.context.bytecodeMirror.subarray(0, this.context.bytecodeWords))
+    const previous = this.context.buffers.bytecode
+    this.context.buffers.bytecode = createStorageBufferWithCapacity(
+      this.context.device,
+      mirror.subarray(0, this.context.bytecodeWords),
+      capacity,
+    )
+    this.context.bytecodeMirror = mirror
+    this.context.bytecodeCapacityWords = capacity
+    this.context.bindGroup = createBindGroup(this.context.device, this.context.pipeline, this.context.buffers)
+    destroyBuffers([previous])
+  }
+
+  private ensureBraneCapacity(requiredBranes: number): void {
+    if (requiredBranes <= this.context.braneCapacity) return
+    const capacity = nextCapacityWords(requiredBranes)
+    const previous = {
+      braneBlockPtrs: this.context.buffers.braneBlockPtrs,
+      states: this.context.buffers.states,
+      dirtyFlags: this.context.buffers.dirtyFlags,
+      bytecodeOffsets: this.context.buffers.bytecodeOffsets,
+      stagingBuffer: this.context.stagingBuffer,
+    }
+    this.context.buffers.braneBlockPtrs = createStorageBufferWithCapacity(
+      this.context.device,
+      Uint32Array.from(this.context.braneBlockPtrs),
+      capacity,
+    )
+    this.context.buffers.states = createStorageBufferWithCapacity(
+      this.context.device,
+      Uint32Array.from(this.lastStates),
+      capacity,
+      true,
+    )
+    this.context.buffers.dirtyFlags = createStorageBufferWithCapacity(
+      this.context.device,
+      new Uint32Array(requiredBranes),
+      capacity,
+      true,
+    )
+    this.context.buffers.bytecodeOffsets = createStorageBufferWithCapacity(
+      this.context.device,
+      Uint32Array.from(this.context.bytecodeOffsets),
+      capacity,
+    )
+    this.context.stagingBuffer = this.context.device.createBuffer({
+      size: capacity * 8,
+      usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+    })
+    this.context.braneCapacity = capacity
+    this.context.bindGroup = createBindGroup(this.context.device, this.context.pipeline, this.context.buffers)
+    destroyBuffers([
+      previous.braneBlockPtrs,
+      previous.states,
+      previous.dirtyFlags,
+      previous.bytecodeOffsets,
+      previous.stagingBuffer,
+    ])
+  }
+
   private syncStringBuffers(): void {
     if (this.tryAppendStringBuffers()) {
       return
@@ -160,11 +408,13 @@ export class GPUWeakRuntime implements WeakRuntime {
       this.context.device,
       atlas.registry.length > 0 ? atlas.registry : new Uint32Array(1),
       nextStringRegistryCapacityWords,
+      true,
     )
     const nextStringHeap = createStorageBufferWithCapacity(
       this.context.device,
       atlas.heap.length > 0 ? atlas.heap : new Uint32Array(1),
       nextStringHeapCapacityWords,
+      true,
     )
     const previousStringRegistry = this.context.buffers.stringRegistry
     const previousStringHeap = this.context.buffers.stringHeap
@@ -293,7 +543,11 @@ export class GPUWeakRuntime implements WeakRuntime {
 
   private refreshHeapBuffers(): void {
     const nextDerived = deriveWeakData(this.store$)
-    const nextBraneBlockPtrs = createStorageBuffer(this.context.device, Uint32Array.from(nextDerived.blockPtrs))
+    const nextBraneBlockPtrs = createStorageBufferWithCapacity(
+      this.context.device,
+      Uint32Array.from(nextDerived.blockPtrs),
+      this.context.braneCapacity,
+    )
     const nextHeapWords = nextDerived.heap.length > 0 ? nextDerived.heap.length : 1
     const nextHeapCapacityWords = nextCapacityWords(nextHeapWords)
     const nextHeap = createStorageBufferWithCapacity(
@@ -322,8 +576,61 @@ export class GPUWeakRuntime implements WeakRuntime {
     )
     this.context.arrayFreeList = []
     this.context.stringTableSize = this.store$.stringTable.length
+    this.context.blockAllocationWordsByPtr = new Map(
+      [...nextDerived.sharedBlockPtrs, ...nextDerived.blockPtrs]
+        .map((ptr) => [ptr, this.packedBlockWords(nextDerived.heap, ptr)]),
+    )
+    this.context.deadHeapWords = 0
 
     destroyBuffers([previousBraneBlockPtrs, previousHeap])
+  }
+
+  private refreshBytecodeBuffers(): void {
+    const derived = deriveWeakData(this.store$)
+    const words = derived.bytecode.length > 0 ? derived.bytecode.length : 1
+    const capacity = nextCapacityWords(words)
+    const mirror = new Uint32Array(capacity)
+    mirror.set(derived.bytecode)
+    const previousBytecode = this.context.buffers.bytecode
+    const previousOffsets = this.context.buffers.bytecodeOffsets
+    this.context.buffers.bytecode = createStorageBufferWithCapacity(
+      this.context.device,
+      derived.bytecode.length > 0 ? derived.bytecode : new Uint32Array(1),
+      capacity,
+    )
+    this.context.buffers.bytecodeOffsets = createStorageBufferWithCapacity(
+      this.context.device,
+      derived.bytecodeOffsets.length > 0 ? derived.bytecodeOffsets : new Uint32Array(1),
+      this.context.braneCapacity,
+    )
+    this.context.bytecodeMirror = mirror
+    this.context.bytecodeWords = words
+    this.context.bytecodeCapacityWords = capacity
+    this.context.bytecodeOffsets = Array.from(derived.bytecodeOffsets)
+    this.context.bytecodeWordsByBrane = Array.from(
+      derived.bytecodeOffsets,
+      (offset, index) => (derived.bytecodeOffsets[index + 1] ?? derived.bytecode.length) - offset,
+    )
+    this.context.deadBytecodeWords = 0
+    this.context.bindGroup = createBindGroup(this.context.device, this.context.pipeline, this.context.buffers)
+    destroyBuffers([previousBytecode, previousOffsets])
+  }
+
+  private packedBlockWords(heap: Uint32Array, ptr: number): number {
+    const localCount = heap[ptr] ?? 0
+    const sharedCount = heap[ptr + 1] ?? 0
+    let words = 3 + localCount * 2 + sharedCount
+    for (let index = 0; index < localCount; index++) {
+      const fieldIndex = heap[ptr + 3 + index * 2] ?? -1
+      const packed = heap[ptr + 4 + index * 2] ?? 0
+      const size = (packed >>> 16) & 0xff
+      const offset = packed & 0xffff
+      words += size
+      if (this.store$.fields[fieldIndex]?.type !== FIELD_TYPE.ARRAY_PTR) continue
+      const arrayPtr = heap[ptr + offset] ?? 0
+      if (arrayPtr !== 0) words += 1 + (heap[arrayPtr] ?? 0)
+    }
+    return words
   }
 
   private tryApplyHeapUpdates(updates: WeakHeapUpdate[]): boolean {

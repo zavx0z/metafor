@@ -1,6 +1,7 @@
 import type {
   BoundaryInitialDeclaration,
   BoundaryInitialState,
+  BoundaryInitialVariantRef,
 } from "@metafor/types/boundary/initial"
 import type {MatrixConditionValue} from "@metafor/types/matrix/condition"
 import type {MatrixBraneValue, MatrixFieldRecord, MatrixInputBrane} from "@metafor/types/matrix/data"
@@ -15,7 +16,7 @@ import {gravity$} from "@matrix/gravity/store.ts"
 import {assembleStoredMatrixData, strong$} from "@matrix/strong"
 import {weak$, weakInit} from "@matrix/weak"
 import {matrix$} from "./store.ts"
-import {hydrateMatrixProjection, readMatrixProjection} from "./projection.ts"
+import {hydrateMatrixProjection} from "./projection.ts"
 
 type JsonRecord = Record<string, unknown>
 
@@ -45,6 +46,23 @@ const text = (value: unknown): string | null =>
   typeof value === "string" ? value : null
 
 const clone = <T>(value: T): T => structuredClone(value)
+
+const isVariantRef = (value: unknown): value is BoundaryInitialVariantRef =>
+  isRecord(value) && value.kind === "enum" && Number.isSafeInteger(value.variant)
+
+const resolveVariantReferences = (value: unknown, variants: Map<number, unknown>): unknown => {
+  if (isVariantRef(value)) {
+    if (!variants.has(value.variant)) throw new Error(`Boundary Variant ${value.variant} is missing`)
+    return clone(variants.get(value.variant))
+  }
+  if (Array.isArray(value)) return value.map((item) => resolveVariantReferences(item, variants))
+  if (isRecord(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, resolveVariantReferences(item, variants)]),
+    )
+  }
+  return clone(value)
+}
 
 const group = <T, K extends string | number>(rows: readonly T[], key: (row: T) => K): Map<K, T[]> => {
   const result = new Map<K, T[]>()
@@ -85,8 +103,14 @@ const inferArrayElementType = (field: JsonRecord): "number" | "string" | "boolea
   return "string"
 }
 
-const fallbackFieldValue = (field: JsonRecord, enumValues: readonly unknown[]): MatrixBraneValue => {
-  if (Object.prototype.hasOwnProperty.call(field, "default")) return matrixBraneValue(clone(field.default))
+const fallbackFieldValue = (
+  field: JsonRecord,
+  enumValues: readonly unknown[],
+  variants: Map<number, unknown>,
+): MatrixBraneValue => {
+  if (Object.prototype.hasOwnProperty.call(field, "default")) {
+    return matrixBraneValue(resolveVariantReferences(field.default, variants))
+  }
   if (field.type === "number") return 0
   if (field.type === "boolean") return false
   if (field.type === "array") return []
@@ -102,7 +126,7 @@ const matrixField = (field: JsonRecord, enumValues: readonly unknown[]): MatrixF
   return {type: fieldType.STRING_PTR}
 }
 
-const predicateValue = (condition: JsonRecord): MatrixConditionValue => {
+const predicateValue = (condition: JsonRecord, variants: Map<number, unknown>): MatrixConditionValue => {
   const raw = condition.predicate ?? condition.predicates ?? condition.value ?? null
   if (
     raw === null ||
@@ -110,7 +134,7 @@ const predicateValue = (condition: JsonRecord): MatrixConditionValue => {
     typeof raw === "boolean" ||
     typeof raw === "string" ||
     isRecord(raw)
-  ) return clone(raw) as MatrixConditionValue
+  ) return resolveVariantReferences(raw, variants) as MatrixConditionValue
   throw new Error(`Unsupported Matrix condition predicate: ${JSON.stringify(raw)}`)
 }
 
@@ -122,9 +146,12 @@ export function buildMatrixRuntime(initial: BoundaryInitialState): MatrixRuntime
   )
 
   const enumVariantRecordsByField = new Map<number, BoundaryInitialDeclaration[]>()
+  const enumValueByVariantId = new Map<number, unknown>()
   for (const variant of initial.declarations.filter((item) => item.section === "variants")) {
     const fieldId = integer(variant.value.field)
+    const variantId = integer(variant.value.id)
     if (fieldId === null) continue
+    if (variantId !== null) enumValueByVariantId.set(variantId, clone(variant.value.itemValue ?? variant.value.value ?? null))
     const bucket = enumVariantRecordsByField.get(fieldId)
     if (bucket) bucket.push(variant)
     else enumVariantRecordsByField.set(fieldId, [variant])
@@ -166,8 +193,8 @@ export function buildMatrixRuntime(initial: BoundaryInitialState): MatrixRuntime
         declaration,
         valueId: stored ? stored.valueId : null,
         value: stored === undefined
-          ? fallbackFieldValue(declaration.value, variants)
-          : matrixBraneValue(clone(stored.value)),
+          ? fallbackFieldValue(declaration.value, variants, enumValueByVariantId)
+          : matrixBraneValue(resolveVariantReferences(stored.value, enumValueByVariantId)),
       })
     }
   }
@@ -315,7 +342,7 @@ export function buildMatrixRuntime(initial: BoundaryInitialState): MatrixRuntime
           if (fieldId === null) continue
           const runtimeFieldIndex = runtimeFieldIndexByAtomField.get(`${atom.id}\0${fieldId}`)
           if (runtimeFieldIndex === undefined) continue
-          transitionConditions[runtimeFieldIndex] = predicateValue(condition.value)
+          transitionConditions[runtimeFieldIndex] = predicateValue(condition.value, enumValueByVariantId)
         }
         return [targetState, transitionConditions]
       }),
@@ -448,11 +475,6 @@ export async function prepareMatrixBirth(value: unknown): Promise<{atoms: number
   if (!isBoundaryInitialState(value)) throw new Error("Boundary returned invalid initial state")
   hydrateMatrixProjection(value)
   return await prepareMatrixProjection(value, true)
-}
-
-/** Rebuilds packed CPU/GPU layout from Matrix's live canonical projection. */
-export async function reprepareMatrixRuntime(): Promise<{atoms: number; fields: number; backend: string}> {
-  return await prepareMatrixProjection(readMatrixProjection(), false)
 }
 
 /** Consumed exactly once by the newly born runtime module. */

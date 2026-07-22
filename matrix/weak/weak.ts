@@ -1,5 +1,5 @@
 import type {MatrixStore} from "@metafor/types/matrix/store"
-import type {WeakChanges, WeakHeapUpdate, WeakStepMode} from "@metafor/types/matrix/weak"
+import type {WeakChanges, WeakHeapUpdate, WeakStepMode, WeakStructuralUpdate} from "@metafor/types/matrix/weak"
 import {createWeakRuntime} from "./factory"
 import {weak$} from "./store"
 import {StepMode} from "./constants"
@@ -59,6 +59,12 @@ export async function weakReadChanges(): Promise<WeakChanges> {
 export function weakHeapUpdate(updates: WeakHeapUpdate[]): void {
   if (!weak$.initialized || !weak$.runtime) throw new Error("Weak runtime not initialized")
   weak$.runtime.heapUpdate(updates)
+}
+
+/** Synchronizes locally changed structural rows without recreating the backend. */
+export function weakStructuralUpdate(update: WeakStructuralUpdate): void {
+  if (!weak$.initialized || !weak$.runtime) throw new Error("Weak runtime not initialized")
+  weak$.runtime.structuralUpdate(update)
 }
 
 /** Executes a Weak step and returns the changed states. */

@@ -91,6 +91,38 @@ describe("Matrix packed Force runtime", () => {
     const processExecutionId = String(ready.from)
     expect(runtime.matrix$.branes[0]?.lock).toBe(true)
 
+    const beforeStructural = fixture.messages.length
+    send(client, {
+      part: "graviton",
+      op: "add",
+      path: "atom/18",
+      by: "boundary",
+      value: {
+        atom: {id: 18, parentAtom: 17, parentTopology: null, wimp: "owner/process", position: 0},
+        values: [
+          {atom: 18, field: 101, value: 1003},
+          {atom: 18, field: 102, value: 1004},
+        ],
+        valueRecords: [
+          {id: 1003, kind: "number", number: 0},
+          {id: 1004, kind: "string", text: ""},
+        ],
+        valueItems: [],
+        state: {atom: 18, metaState: null},
+      },
+    })
+    expect(await waitForPart(
+      client,
+      (part) => part.part === "photon" && part.path === 18 && part.value === "idle",
+      beforeStructural,
+    )).toMatchObject({part: "photon", op: "replace", path: 18, value: "idle"})
+    await settle()
+    expect(fixture.messages.slice(beforeStructural).some((entry) => {
+      const part = entry.message.parts[0]
+      return entry.client === client && part.part === "photon" && part.path === 17
+    })).toBe(false)
+    expect(runtime.matrix$.branes[runtime.gravity$.getBraneIndexByAtomId(17)!]?.lock).toBe(true)
+
     const fromClaim = fixture.messages.length
     send(client, {
       part: "z",
@@ -176,5 +208,7 @@ describe("Matrix packed Force runtime", () => {
     expect(source).not.toContain("MATRIX_RUNTIME_PATH")
     expect(source).not.toContain("loadMatrixRuntimeSnapshot")
     expect(source).toContain("consumePreparedMatrixBirth")
+    expect(source).toContain("applyIncrementalMatrixProjection")
+    expect(source).not.toContain("reprepareMatrixRuntime")
   })
 })
