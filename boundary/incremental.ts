@@ -775,21 +775,39 @@ export class BoundaryIncrementalStore {
     if (kind !== "wimp" && kind !== "fuzzy" && kind !== "axion" && kind !== "macho") {
       throw new Error(`Unsupported Matter kind ${kind}`)
     }
-    const old = (await sql<Array<{id: number}>>`
-      SELECT id FROM matter_particle WHERE wimp = ${address.src} AND local_id = ${address.localId}
+    const parent = value.parent === null
+      ? null
+      : await matterId(sql, address.src, positiveInteger(value.parent, "matter.parent"))
+    const edgeSlot = requiredString(value.edgeSlot, "matter.edgeSlot") as MatterEdgeSlot
+    const position = nonNegativeInteger(value.position, "matter.position")
+    const old = (await sql<Array<{id: number; kind: MatterParticleKind}>>`
+      SELECT id, particle_kind AS kind
+        FROM matter_particle
+       WHERE wimp = ${address.src} AND local_id = ${address.localId}
     `)[0]
     const bindings = old ? await this.matterBindingIds(sql, Number(old.id)) : []
-    if (old) await sql`DELETE FROM matter_particle WHERE id = ${old.id}`
-    for (const binding of bindings) await sql`DELETE FROM matter_binding WHERE id = ${binding}`
-    const parent = value.parent === null ? null : await matterId(sql, address.src, positiveInteger(value.parent, "matter.parent"))
-    const id = await insertedId(sql<Array<{id: number}>>`
-      INSERT INTO matter_particle (wimp, local_id, parent_particle, particle_kind, edge_slot, particle_order)
-      VALUES (
-        ${address.src}, ${address.localId}, ${parent}, ${kind},
-        ${requiredString(value.edgeSlot, "matter.edgeSlot") as MatterEdgeSlot},
-        ${nonNegativeInteger(value.position, "matter.position")}
-      ) RETURNING id
-    `, "Matter")
+    let id: number
+    if (old) {
+      id = Number(old.id)
+      await this.assertMatterParentIsAcyclic(sql, address, id, parent)
+      if (old.kind === "wimp") await sql`DELETE FROM matter_particle_wimp WHERE particle = ${id}`
+      else if (old.kind === "fuzzy") await sql`DELETE FROM matter_particle_fuzzy WHERE particle = ${id}`
+      else if (old.kind === "axion") await sql`DELETE FROM matter_particle_axion WHERE particle = ${id}`
+      else await sql`DELETE FROM matter_particle_macho WHERE particle = ${id}`
+      await sql`
+        UPDATE matter_particle
+           SET parent_particle = ${parent}, particle_kind = ${kind},
+               edge_slot = ${edgeSlot}, particle_order = ${position}
+         WHERE id = ${id}
+      `
+      for (const binding of bindings) await sql`DELETE FROM matter_binding WHERE id = ${binding}`
+    } else {
+      id = await insertedId(sql<Array<{id: number}>>`
+        INSERT INTO matter_particle (wimp, local_id, parent_particle, particle_kind, edge_slot, particle_order)
+        VALUES (${address.src}, ${address.localId}, ${parent}, ${kind}, ${edgeSlot}, ${position})
+        RETURNING id
+      `, "Matter")
+    }
     if (kind === "wimp") {
       validateRuntimeMatterBinding(value.massBinding, "mass", "matter.massBinding")
       validateRuntimeMatterBinding(value.energyBinding, "energy", "matter.energyBinding")
@@ -818,6 +836,26 @@ export class BoundaryIncrementalStore {
       if (binding === null) throw new Error("Macho collectionBinding is required")
       await sql`INSERT INTO matter_particle_macho (particle, collection_binding) VALUES (${id}, ${binding})`
     }
+  }
+
+  private async assertMatterParentIsAcyclic(
+    sql: Database,
+    address: InflatonAddress,
+    particle: number,
+    parent: number | null,
+  ): Promise<void> {
+    if (parent === null) return
+    const cycle = (await sql<Array<{found: number}>>`
+      WITH RECURSIVE ancestors(id, parent_particle) AS (
+        SELECT id, parent_particle FROM matter_particle WHERE id = ${parent}
+        UNION
+        SELECT candidate.id, candidate.parent_particle
+          FROM matter_particle AS candidate
+          JOIN ancestors ON candidate.id = ancestors.parent_particle
+      )
+      SELECT 1 AS found FROM ancestors WHERE id = ${particle} LIMIT 1
+    `)[0]
+    if (cycle) throw new Error(`Matter ${address.src}#${address.localId} cannot be its own ancestor`)
   }
 
   private async matterBindingIds(sql: Database, particle: number): Promise<number[]> {

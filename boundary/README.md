@@ -4,6 +4,9 @@
 [`zavx0z/concept`](https://github.com/zavx0z/concept). Этот файл описывает
 только текущую Boundary implementation.
 
+Доменный контракт Boundary находится в [`DOMAIN.md`](./DOMAIN.md), а ещё не
+реализованные решения и проверки — в [`TODO.md`](./TODO.md).
+
 ## Entry и storage
 
 `boundary/server.ts`:
@@ -78,6 +81,17 @@ In-place замена `fieldsBinding` materialized Matter edge перестра�
 Graviton содержит новые value identities; Matrix обновляет локальную canonical
 projection и заново готовит packed shared layout и Weak backend до следующего
 такта.
+
+## Matter replace
+
+`inflaton/replace matter` обновляет существующий `matter_particle` на месте.
+Его database `id` не меняется, поэтому ссылки неизменённых дочерних Matter не
+разрываются и SQLite cascade не удаляет ветку. Меняется только строка самого
+Matter, его subtype и bindings.
+
+Пример: замена `Browser.energyBinding` оставляет прежними `Browser`,
+`Screenshot`, `Control` и их связи. Каскадное удаление разрешено только для
+явного `inflaton/remove`.
 
 ## Низкоуровневый API
 

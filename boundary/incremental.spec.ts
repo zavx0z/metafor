@@ -178,6 +178,220 @@ describe("Boundary incremental relational projection", () => {
     ])
   })
 
+  test("replaces a parent Matter in place without deleting its unchanged branch", async () => {
+    await declareRoot()
+    await apply("add", "field", {
+      wimp: ROOT, id: 1, key: "items", type: "array", required: true, default: ["one"],
+    })
+    await apply("add", "matter", {
+      wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0,
+      kind: "macho", collectionBinding: {data: "items"},
+    })
+    await apply("add", "matter", {
+      wimp: ROOT, id: 2, parent: 1, edgeSlot: "child", position: 0,
+      kind: "axion", predicateBinding: true,
+    })
+    await apply("add", "matter", {
+      wimp: ROOT, id: 3, parent: 2, edgeSlot: "then", position: 0, kind: "wimp", src: CHILD,
+    })
+    await declareWimp(CHILD, "Child")
+
+    const beforeMatter = await boundary.projection.sql<Array<{
+      id: number; localId: number; parent: number | null
+    }>>`
+      SELECT id, local_id AS localId, parent_particle AS parent
+        FROM matter_particle
+       WHERE wimp = ${ROOT}
+       ORDER BY local_id
+    `
+    const beforeRuntime = await boundary.projection.sql<Array<{
+      sequence: number; kind: string; runtimeId: number; localId: number
+    }>>`
+      SELECT sequence, kind, runtime_id AS runtimeId, declaration_local_id AS localId
+        FROM boundary_runtime_origin
+       WHERE declaration_kind = ${"matter"} AND declaration_wimp = ${ROOT}
+       ORDER BY sequence
+    `
+    const oldCollectionBinding = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT edge.collection_binding AS id
+        FROM matter_particle_macho AS edge
+        JOIN matter_particle AS particle ON particle.id = edge.particle
+       WHERE particle.wimp = ${ROOT} AND particle.local_id = ${1}
+    `)[0]!.id)
+
+    const replaced = await apply("replace", "matter", {
+      wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0,
+      kind: "macho", collectionBinding: {data: "items", expr: "_[0]"},
+    })
+
+    expect(beforeMatter).toHaveLength(3)
+    expect(beforeMatter[1]?.parent).toBe(beforeMatter[0]?.id)
+    expect(beforeMatter[2]?.parent).toBe(beforeMatter[1]?.id)
+    expect(await boundary.projection.sql<Array<{id: number; localId: number; parent: number | null}>>`
+      SELECT id, local_id AS localId, parent_particle AS parent
+        FROM matter_particle
+       WHERE wimp = ${ROOT}
+       ORDER BY local_id
+    `).toEqual(beforeMatter)
+    expect(await boundary.projection.sql<Array<{
+      sequence: number; kind: string; runtimeId: number; localId: number
+    }>>`
+      SELECT sequence, kind, runtime_id AS runtimeId, declaration_local_id AS localId
+        FROM boundary_runtime_origin
+       WHERE declaration_kind = ${"matter"} AND declaration_wimp = ${ROOT}
+       ORDER BY sequence
+    `).toEqual(beforeRuntime)
+    expect(replaced?.messages).toContainEqual({parts: [{
+      part: "graviton", op: "replace", path: "matter", ts: expect.any(Number),
+      value: expect.objectContaining({id: beforeMatter[0]!.id, localId: 1}),
+    }]})
+    expect((await boundary.replay()).filter((message) => message.parts[0].path === "matter")
+      .map((message) => (message.parts[0].value as {localId: number}).localId)).toEqual([1, 2, 3])
+    expect(await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM matter_binding WHERE id = ${oldCollectionBinding}
+    `).toEqual([])
+    expect(await boundary.projection.sql<Array<{count: number}>>`
+      SELECT COUNT(*) AS count FROM matter_binding WHERE wimp = ${ROOT}
+    `).toEqual([{count: 2}])
+    expect(await boundary.projection.sql<unknown[]>`PRAGMA foreign_key_check`).toEqual([])
+  })
+
+  test("reparents an unmaterialized Matter branch without changing declaration identities", async () => {
+    await declareRoot()
+    await apply("add", "matter", {
+      wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0,
+      kind: "axion", predicateBinding: true,
+    })
+    await apply("add", "matter", {
+      wimp: ROOT, id: 2, parent: null, edgeSlot: "root", position: 1,
+      kind: "axion", predicateBinding: true,
+    })
+    await apply("add", "matter", {
+      wimp: ROOT, id: 3, parent: 1, edgeSlot: "then", position: 0,
+      kind: "wimp", src: "missing/target",
+    })
+    await apply("add", "matter", {
+      wimp: ROOT, id: 4, parent: 3, edgeSlot: "child", position: 0,
+      kind: "wimp", src: "missing/leaf",
+    })
+    const before = await boundary.projection.sql<Array<{
+      id: number; localId: number; parent: number | null
+    }>>`
+      SELECT id, local_id AS localId, parent_particle AS parent
+        FROM matter_particle
+       WHERE wimp = ${ROOT}
+       ORDER BY local_id
+    `
+
+    await apply("replace", "matter", {
+      wimp: ROOT, id: 3, parent: 2, edgeSlot: "then", position: 0,
+      kind: "wimp", src: "missing/target",
+    })
+
+    const after = await boundary.projection.sql<Array<{
+      id: number; localId: number; parent: number | null
+    }>>`
+      SELECT id, local_id AS localId, parent_particle AS parent
+        FROM matter_particle
+       WHERE wimp = ${ROOT}
+       ORDER BY local_id
+    `
+    expect(after.map((matter) => matter.id)).toEqual(before.map((matter) => matter.id))
+    expect(after[2]?.parent).toBe(after[1]?.id)
+    expect(after[3]?.parent).toBe(after[2]?.id)
+    expect(await boundary.projection.sql<unknown[]>`
+      SELECT runtime_id FROM boundary_runtime_origin
+       WHERE declaration_kind = ${"matter"} AND declaration_wimp = ${ROOT}
+         AND declaration_local_id IN (${3}, ${4})
+    `).toEqual([])
+    expect(await boundary.projection.sql<unknown[]>`PRAGMA foreign_key_check`).toEqual([])
+  })
+
+  test("rejects a Matter parent cycle without changing the stored branch", async () => {
+    await declareRoot()
+    await apply("add", "field", {
+      wimp: ROOT, id: 1, key: "items", type: "array", required: true, default: ["one"],
+    })
+    await apply("add", "matter", {
+      wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0,
+      kind: "macho", collectionBinding: {data: "items"},
+    })
+    await apply("add", "matter", {
+      wimp: ROOT, id: 2, parent: 1, edgeSlot: "child", position: 0,
+      kind: "axion", predicateBinding: true,
+    })
+    const before = await boundary.projection.sql<Array<{
+      id: number; localId: number; parent: number | null; kind: string
+    }>>`
+      SELECT id, local_id AS localId, parent_particle AS parent, particle_kind AS kind
+        FROM matter_particle
+       WHERE wimp = ${ROOT}
+       ORDER BY local_id
+    `
+
+    await expect(apply("replace", "matter", {
+      wimp: ROOT, id: 1, parent: 2, edgeSlot: "child", position: 0,
+      kind: "macho", collectionBinding: {data: "items"},
+    })).rejects.toThrow("cannot be its own ancestor")
+
+    expect(await boundary.projection.sql<Array<{
+      id: number; localId: number; parent: number | null; kind: string
+    }>>`
+      SELECT id, local_id AS localId, parent_particle AS parent, particle_kind AS kind
+        FROM matter_particle
+       WHERE wimp = ${ROOT}
+       ORDER BY local_id
+    `).toEqual(before)
+    expect(await boundary.projection.sql<Array<{count: number}>>`
+      SELECT COUNT(*) AS count FROM matter_binding WHERE wimp = ${ROOT}
+    `).toEqual([{count: 2}])
+    expect(await boundary.projection.sql<unknown[]>`PRAGMA foreign_key_check`).toEqual([])
+  })
+
+  test("rolls back a failed Matter subtype rewrite with its child and binding intact", async () => {
+    await declareRoot()
+    await apply("add", "field", {
+      wimp: ROOT, id: 1, key: "items", type: "array", required: true, default: ["one"],
+    })
+    await apply("add", "matter", {
+      wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0,
+      kind: "macho", collectionBinding: {data: "items"},
+    })
+    await apply("add", "matter", {
+      wimp: ROOT, id: 2, parent: 1, edgeSlot: "child", position: 0, kind: "wimp", src: CHILD,
+    })
+    const beforeMatter = await boundary.projection.sql<Array<{
+      id: number; localId: number; parent: number | null; kind: string
+    }>>`
+      SELECT id, local_id AS localId, parent_particle AS parent, particle_kind AS kind
+        FROM matter_particle
+       WHERE wimp = ${ROOT}
+       ORDER BY local_id
+    `
+    const beforeBinding = await boundary.projection.sql<Array<{id: number}>>`
+      SELECT collection_binding AS id FROM matter_particle_macho
+       WHERE particle = ${beforeMatter[0]!.id}
+    `
+
+    await expect(apply("replace", "matter", {
+      wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "axion",
+    })).rejects.toThrow("Axion predicateBinding is required")
+
+    expect(await boundary.projection.sql<Array<{
+      id: number; localId: number; parent: number | null; kind: string
+    }>>`
+      SELECT id, local_id AS localId, parent_particle AS parent, particle_kind AS kind
+        FROM matter_particle
+       WHERE wimp = ${ROOT}
+       ORDER BY local_id
+    `).toEqual(beforeMatter)
+    expect(await boundary.projection.sql<Array<{id: number}>>`
+      SELECT collection_binding AS id FROM matter_particle_macho
+       WHERE particle = ${beforeMatter[0]!.id}
+    `).toEqual(beforeBinding)
+    expect(await boundary.projection.sql<unknown[]>`PRAGMA foreign_key_check`).toEqual([])
+  })
+
   test("removing a root WIMP clears its repository contour while preserving unrelated Boundary state", async () => {
     const internal = `${ROOT}/child`
     const originalRootId = await declareRoot()
