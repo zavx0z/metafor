@@ -30,14 +30,18 @@ TypeScript:
 
 ## Закон хранения Mass
 
-Mass принадлежит Energy, остаётся сериализуемой и хранится на filesystem под
-версионированием. Она не проходит через Force, Matrix или Boundary. Простой путь
-`directory = Atom ID` недостаточен: прямые Matter aliases могут разделять одну
-Mass между несколькими Atom, поэтому сначала требуется устойчивая storage
-identity общей Mass.
+Mass — filesystem Artifact Energy. Фабрика `.mass((mass) => ({profile:
+mass.json()}))` объявляет только ключ, format/MIME и описательную metadata.
+Boundary выдаёт независимый ID декларации и глобальный ID key-file; Atom хранит
+membership прямо в key ID, без aggregate Mass ID. Energy открывает только key,
+разрешённые в canonical Atom projection, по плоскому пути
+`<worktree>/mass/<key-id>`.
 
-Текущий in-memory `EnergyMassStore` не реализует этот закон полностью. Это
-отложенный implementation gap, а не разрешение считать Mass эфемерной.
+Один key ID владеет одним файлом. Whole и partial Matter binding переиспользуют
+эти ID; совпадающие bytes никогда не создают sharing. Detach создаёт новый key
+ID, Energy атомарно копирует файл, а Boundary меняет membership и удаляет source.
+Mass bytes, manifests и binding registries не проходят через Boundary, Force или
+Matrix. Runtime не создаёт и не удаляет key IDs.
 
 ## Закон результата Process
 

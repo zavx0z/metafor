@@ -5,10 +5,14 @@ import type { ReactionsSchema } from "./reactions.ts"
 import type { SuperpositionInputCheck, SuperpositionStateKeys } from "./superposition.ts"
 import type { ReactionsDeclaration } from "./reactions.ts"
 import type { ParticleOperation } from "shared/protocol/force/particle"
+import type {MassDeclarationDSL, MassDeclarations, MassFactory, MassValue} from "./mass.ts"
 
 export interface BulkSchema {
   view: string
 }
+
+export type {MassDeclaration, MassDeclarations, MassFactory, MassValue} from "./mass.ts"
+export type MetaMassDSL = MassDeclarationDSL
 
 /**
  * Подготовленное поле DSL с ключом, встроенным в значение.
@@ -144,7 +148,7 @@ type IsSerializableMassValue<T> = IsAny<T> extends true
     ? false
     : true
 
-export type MassDeclaration<m extends Mass> = {
+export type SerializableMassDeclaration<m extends Mass> = {
   [K in keyof m]: IsSerializableMassValue<m[K]> extends true ? m[K] : never
 }
 
@@ -272,7 +276,7 @@ export type MetaForFn = (
        * @param mass
        */
       mass<m extends Mass>(
-        mass?: m & MassDeclaration<m>,
+        mass: (m & SerializableMassDeclaration<m>) | ((factory: MassFactory) => MassDeclarations),
       ): {
         /**
          * Объявляет постоянно типизированные runtime-сущности Energy.
@@ -556,8 +560,8 @@ export interface MetaDSL<
   matter?: MatterSchema
   /** Канонический bulk-слой */
   bulk?: BulkSchema
-  /** Масса */
-  mass?: m
+  /** Normalized metadata-only Mass declarations. */
+  mass?: MetaMassDSL[]
   /** Phantom-type Energy declaration; runtime-поля и сериализации не создаёт. */
   readonly [MetaDSLEnergyType]?: e
 }

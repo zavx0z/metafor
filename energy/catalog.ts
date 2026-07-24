@@ -2,6 +2,7 @@ import type {
   EnergyAtomContinuation,
   EnergyAtomEntity,
   EnergyFieldEntity,
+  EnergyMassArtifact,
   EnergyProcessEntity,
   EnergyVariantEntity,
 } from "@metafor/types/energy/catalog"
@@ -65,6 +66,15 @@ const continuationFromValue = (value: unknown): EnergyAtomContinuation | undefin
   return clone(value.continuation as EnergyAtomContinuation)
 }
 
+const massFromValue = (value: unknown): EnergyMassArtifact[] => {
+  if (!isRecord(value) || !Array.isArray(value.mass)) return []
+  return value.mass.filter((item): item is EnergyMassArtifact => isRecord(item) &&
+    Number.isSafeInteger(item.id) && typeof item.key === "string" && typeof item.keyId === "string" &&
+    (item.format === "json" || item.format === "binary") && typeof item.mime === "string" &&
+    (typeof item.label === "string" || item.label === null) && (typeof item.description === "string" || item.description === null),
+  ).map((item) => structuredClone(item))
+}
+
 const isCanonicalAtomEnvelope = (value: unknown): boolean =>
   isRecord(value) && isRecord(value.atom) && Array.isArray(value.values) &&
   Array.isArray(value.valueRecords) && isRecord(value.state)
@@ -102,6 +112,7 @@ const parentKey = (entity: {parentAtom?: unknown; parentTopology?: unknown}): st
 export class EnergyCatalogStore {
   readonly atoms = new Map<number, EnergyAtomEntity>()
   readonly continuations = new Map<number, EnergyAtomContinuation>()
+  readonly massArtifacts = new Map<number, EnergyMassArtifact[]>()
   readonly topologies = new Map<number, Record<string, unknown>>()
   readonly fields = new Map<number, EnergyFieldEntity>()
   readonly variants = new Map<number, EnergyVariantEntity>()
@@ -226,6 +237,10 @@ export class EnergyCatalogStore {
     return this.continuations.get(atomId)
   }
 
+  mass(atomId: number): readonly EnergyMassArtifact[] {
+    return this.massArtifacts.get(atomId) ?? []
+  }
+
   process(wimp: string, state: string): EnergyProcessEntity | undefined {
     for (const key of this.processKeysByWimp.get(wimp) ?? []) {
       const process = this.processes.get(key)
@@ -304,12 +319,14 @@ export class EnergyCatalogStore {
         if (!same(current, delta)) patch(current as unknown as Record<string, unknown>, delta)
         if (nextContinuation !== undefined) this.continuations.set(target.id, nextContinuation)
         else if (canonicalEnvelope) this.continuations.delete(target.id)
+        if (canonicalEnvelope) this.massArtifacts.set(target.id, massFromValue(value))
         this.linkAtom(current)
         return {changed: true, affectedAtomIds: [target.id]}
       }
       if (!next || next.id !== target.id) return {changed: false, affectedAtomIds: []}
       this.atoms.set(target.id, next)
       if (nextContinuation !== undefined) this.continuations.set(target.id, nextContinuation)
+      this.massArtifacts.set(target.id, massFromValue(value))
       this.linkAtom(next)
       return {changed: true, affectedAtomIds: [target.id]}
     }
@@ -435,9 +452,12 @@ export class EnergyCatalogStore {
       this.atoms.delete(source.id)
       const continuation = this.continuations.get(source.id)
       this.continuations.delete(source.id)
+      const mass = this.massArtifacts.get(source.id)
+      this.massArtifacts.delete(source.id)
       atom.id = target.id
       this.atoms.set(target.id, atom)
       if (continuation !== undefined) this.continuations.set(target.id, continuation)
+      if (mass !== undefined) this.massArtifacts.set(target.id, mass)
       this.linkAtom(atom)
       this.rekeyChildren("atom", source.id, target.id)
       return {changed: true, affectedAtomIds: [...new Set([source.id, target.id, ...affected.filter((id) => id !== source.id)])]}
@@ -560,6 +580,7 @@ export class EnergyCatalogStore {
       if (atom) this.unlinkAtom(atom)
       this.atoms.delete(id)
       this.continuations.delete(id)
+      this.massArtifacts.delete(id)
     } else {
       const topology = this.topologies.get(id)
       if (topology) this.unlinkChild(kind, id, topology)

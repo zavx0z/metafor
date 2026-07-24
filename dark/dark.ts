@@ -63,7 +63,11 @@ const localEntity = (
 })
 
 const declaration = (src: string, dsl: MetaDSL): WimpProjection => {
-  const entities: DeclarationEntity[] = [wimpEntity(src, {name: dsl.name, desc: dsl.desc ?? null})]
+  const entities: DeclarationEntity[] = [wimpEntity(src, {
+    name: dsl.name,
+    desc: dsl.desc ?? null,
+    ...(Array.isArray(dsl.mass) ? {mass: dsl.mass} : {}),
+  })]
   const children: string[] = []
   const fieldIds = new Map<string, number>()
   const stateIds = new Map<string, number>()

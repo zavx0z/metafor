@@ -7,7 +7,7 @@ import {resolveForceFieldsPayload} from "shared/protocol/force/fields"
 import type {ForceMessage} from "shared/protocol/force/message"
 import type {Particle} from "shared/protocol/force/particle"
 import type {FieldInit, MatterBindingValue, MatterEdgeSlot, MatterParticleKind} from "@metafor/types/metafor/matter"
-import type {MetaFieldDSL} from "@metafor/types/metafor/schema"
+import type {MetaFieldDSL, MetaMassDSL} from "@metafor/types/metafor/schema"
 import {
   insertFieldDefault,
   insertMatterBinding,
@@ -15,6 +15,7 @@ import {
   validateRuntimeMatterBinding,
 } from "./wimp/sqlite/create.ts"
 import {writeBoundaryAtomValue} from "./world.ts"
+import {BoundaryMassStore} from "./mass.ts"
 
 type Database = SQL | ReservedSQL
 type JsonRecord = Record<string, unknown>
@@ -249,9 +250,14 @@ export class BoundaryIncrementalStore {
   readonly parentByInstance = new Map<string, string>()
   private readonly pendingEnumDefaults = new Map<string, unknown>()
 
-  constructor(readonly sql: SQL) {}
+  readonly mass: BoundaryMassStore
+
+  constructor(readonly sql: SQL) {
+    this.mass = new BoundaryMassStore(sql)
+  }
 
   async init(): Promise<void> {
+    await this.mass.init()
     const legacyOriginColumns = await this.sql.unsafe<Array<{name: string}>>(
       "PRAGMA table_info(boundary_runtime_origin)",
     )
@@ -374,6 +380,7 @@ export class BoundaryIncrementalStore {
           declaration_local_id, occurrence_key, kind
         );
     `)
+    await this.mass.ensureIndependentMemberships(this.sql)
     await this.loadIndexes()
   }
 
@@ -467,6 +474,7 @@ export class BoundaryIncrementalStore {
         ))
         : false
       await this.persist(tx, address, input)
+      await this.mass.ensureIndependentMemberships(tx)
       const canonical = await this.canonical(tx, address, input)
       const declarationChanged = !sameJson(previous, canonical)
       if (declarationChanged) {
@@ -493,6 +501,14 @@ export class BoundaryIncrementalStore {
         }
       }
       if (declarationChanged) await this.addRuntimeConsequences(tx, address, input, committed)
+      await this.mass.ensureIndependentMemberships(tx)
+      for (const effect of committed) {
+        if (effect.part !== "graviton" || effect.op === "remove" || typeof effect.path !== "string") continue
+        const match = /^atom\/(\d+)$/.exec(effect.path)
+        if (!match) continue
+        const entity = await this.atomEntity(tx, Number(match[1]))
+        if (entity) effect.value = entity
+      }
       if (declarationChanged && rebindMatterFields) {
         await this.rebindMatterFieldValues(tx, address)
         for (const effect of committed) {
@@ -723,6 +739,8 @@ export class BoundaryIncrementalStore {
         )
         ON CONFLICT (src) DO UPDATE SET name = excluded.name, desc = excluded.desc
       `
+      const declarations = Array.isArray(value.mass) ? value.mass : []
+      await this.mass.synchronizeDeclarations(sql, address.src, declarations as MetaMassDSL[])
       return
     }
     if (address.path === "field") {
@@ -1080,7 +1098,7 @@ export class BoundaryIncrementalStore {
       const row = (await sql<Array<{src: string; name: string | null; desc: string | null}>>`
         SELECT src, name, desc FROM wimp WHERE src = ${address.src}
       `)[0]
-      return row ?? null
+      return row ? {...row, mass: await this.mass.declarations(address.src, sql)} : null
     }
     const base = {wimp: address.src, localId: address.localId}
     if (address.path === "field") {
@@ -2672,6 +2690,7 @@ export class BoundaryIncrementalStore {
       valueItems,
       ...(fieldSources.length > 0 ? {fieldSources} : {}),
       state: {atom: id, metaState: selected === null ? null : Number(selected)},
+      mass: await this.mass.authorized(id, sql),
     }
   }
 

@@ -96,10 +96,9 @@ import type {
   BulkSchema,
   Energy,
   EnergyInputCheck,
-  Mass,
-  MassDeclaration,
   MetaForFn,
 } from "@metafor/types/metafor/schema"
+import {massFactory, normalizeMassDeclarations} from "./types/metafor/mass.ts"
 
 const createMetaForRuntime = function (name: string, config?: MetaForConfig) {
   const desc = config?.desc
@@ -116,7 +115,10 @@ const createMetaForRuntime = function (name: string, config?: MetaForConfig) {
           const normalizedSuperposition = superposition as SuperpositionInput<ɸ, ψ>
           validateNoUnconditionalCycles(normalizedSuperposition)
           return {
-            mass<m extends Mass>(mass?: m & MassDeclaration<m>) {
+            mass<m extends Record<string, unknown>>(
+              declaration: (mass: import("./types/metafor/mass.ts").MassFactory) => Record<string, import("./types/metafor/mass.ts").MassDeclaration> | m,
+            ) {
+              const mass = typeof declaration === "function" ? declaration(massFactory) : declaration
               return {
                 energy<e extends Energy = {}>(..._check: EnergyInputCheck<e>) {
                   void _check
@@ -126,7 +128,7 @@ const createMetaForRuntime = function (name: string, config?: MetaForConfig) {
                     name,
                     superposition: dslSuperposition,
                     fields: dslFields,
-                    mass: mass ?? ({} as m),
+                    ...(typeof declaration === "function" ? {mass: normalizeMassDeclarations(mass as Record<string, import("./types/metafor/mass.ts").MassDeclaration>)} : {}),
                   }
                   if (desc) schema.desc = desc
                   return {

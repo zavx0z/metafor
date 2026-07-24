@@ -118,12 +118,13 @@ Energy runtime хранит Mass и Energy в разных локальных st
 освобождает её, после чего Energy runtime удаляет весь набор живых сущностей
 этого Atom. Удаление Energy не очищает Mass автоматически.
 
-`.mass()` остаётся типовым контрактом DSL и не становится WIMP declaration:
-Dark не испускает для неё Inflaton. Реальную рабочую Mass создаёт и изменяет
-action, но владеет ею Energy. Каноническое целевое хранение Mass находится на
-filesystem и сохраняет версии; Force, Matrix и Boundary содержимое Mass не
-переносят. Текущий `EnergyMassStore` в памяти — незакрытый implementation gap,
-а не окончательный lifecycle.
+`.mass((mass) => ({artifact: mass.json()}))` — keyed factory. Dark вкладывает
+нормализованные metadata-only declarations в существующий WIMP Inflaton, не
+создавая Mass DeclarationPath или Particle. Boundary хранит declaration, global
+key, Atom/declaration membership и child-to-parent key source отдельно; это не
+Mass container и не Atom-to-Mass relation. Energy читает и пишет только flat
+worktree catalog `mass/<key-id>` атомарной заменой. Force и Matrix не получают
+Mass bytes или metadata.
 
 Matter WIMP edge может содержать два независимых runtime binding: `massBinding`
 и `energyBinding`. Boundary сохраняет их в SQLite как FK на нормализованные

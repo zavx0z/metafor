@@ -6,14 +6,16 @@ describe("MetaFor Energy declaration", () => {
     const schema = MetaFor("energy-declaration")
       .fields(() => ({}))
       .superposition({})
-      .mass({attempts: 0})
+      .mass((mass) => ({attempts: mass.json({label: "Attempts"})}))
       .energy<{socket: WebSocket}>()
       .processes(() => [])
       .reactions(() => [])
       .matter()
       .bulk()
 
-    expect(schema.mass).toEqual({attempts: 0})
+    expect(schema.mass).toEqual([{
+      key: "attempts", format: "json", mime: "application/json", label: "Attempts",
+    }])
     expect("energy" in schema).toBe(false)
   })
 
@@ -30,7 +32,7 @@ describe("MetaFor Energy declaration", () => {
     const builder = MetaFor("invalid-energy-runtime")
       .fields(() => ({}))
       .superposition({})
-      .mass({})
+      .mass(() => ({}))
       .energy()
 
     expect(builder).toHaveProperty("processes")
@@ -43,7 +45,7 @@ describe("MetaFor Energy declaration", () => {
         attempts: field.number.required(0),
       }))
       .superposition({ready: null})
-      .mass({})
+      .mass(() => ({}))
       .energy()
       .processes((process) => [
         process("ready").action(async ({field, value}) => {

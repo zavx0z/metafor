@@ -1,0 +1,25 @@
+import {describe, expect, test} from "bun:test"
+import {EnergyMassCatalog} from "./mass.ts"
+
+describe("Energy Mass file catalog", () => {
+  const key = "11111111-1111-4111-8111-111111111111"
+  const binary = "22222222-2222-4222-8222-222222222222"
+
+  test("round-trips JSON and raw bytes through flat key files", async () => {
+    const catalog = new EnergyMassCatalog()
+    const json = catalog.handle({keyId: key, format: "json", mime: "application/json"})
+    const raw = catalog.handle({keyId: binary, format: "binary", mime: "application/octet-stream"})
+    await json.write({ready: true})
+    await raw.write(new Uint8Array([0, 255, 4]))
+    expect(await json.readJson<{ready: boolean}>()).toEqual({ready: true})
+    expect([...await raw.readBytes()]).toEqual([0, 255, 4])
+    expect(json.mime).toBe("application/json")
+    expect(catalog.root.endsWith("/mass")).toBe(true)
+  })
+
+  test("rejects non-Boundary key paths", async () => {
+    const catalog = new EnergyMassCatalog()
+    await expect(catalog.write("../escape", "no")).rejects.toThrow("Boundary-issued")
+    await expect(catalog.write("/absolute", "no")).rejects.toThrow("Boundary-issued")
+  })
+})

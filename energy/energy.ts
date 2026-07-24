@@ -22,6 +22,7 @@ import {
   type ReactionResultProposal,
 } from "shared/protocol/force/reaction"
 import {EnergyCatalogStore} from "./catalog.ts"
+import {createFilesystemEnergyMassStore} from "./mass.ts"
 import {executeReaction} from "./reaction.ts"
 
 export type StartEnergyProtocolOptions = Omit<EnergyProtocolOptions, "force"> & {
@@ -380,7 +381,7 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
   const energyId = options.energyId ?? readEnergyId()
   const runtimeKind = options.runtimeKind ?? readRuntimeKind()
   const ownsMassStore = options.massStore === undefined
-  const massStore = options.massStore ?? createInMemoryEnergyMassStore()
+  const massStore = options.massStore ?? createFilesystemEnergyMassStore()
   const ownsEnergyStore = options.energyStore === undefined
   const energyStore = options.energyStore ?? createInMemoryEnergyRuntimeStore()
   const catalog = options.catalog
@@ -477,6 +478,10 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
         })
       }
       const change = catalog.apply(part)
+      for (const atomId of change.affectedAtomIds) {
+        const atom = catalog.atoms.get(atomId)
+        if (atom) massStore.authorize?.(runtimeContext(energyId, atom, ""), catalog.mass(atomId))
+      }
       if (!change.changed) return
       const affectedAtomIds = [...new Set([...affectedBefore, ...change.affectedAtomIds])]
       const invalidatedAtomIds = [...new Set([

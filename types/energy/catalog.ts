@@ -15,6 +15,17 @@ export interface EnergyAtomContinuation {
   energyBinding?: MatterBindingValue
 }
 
+/** Boundary-authorized key files only; a key ID is never derived from Atom ID. */
+export interface EnergyMassArtifact {
+  id: number
+  key: string
+  keyId: string
+  format: "json" | "binary"
+  mime: string
+  label: string | null
+  description: string | null
+}
+
 export interface EnergyProcessEntity {
   id: number
   wimp: string

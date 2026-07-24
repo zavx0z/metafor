@@ -17,6 +17,15 @@ Browser #10
 └── Control #12
 ```
 
+## Идентичность Mass Artifact
+
+Mass declaration WIMP-local: factory property key определяет declaration, а
+global key ID определяет ровно один файл `mass/<key-id>`. Boundary хранит
+Atom/declaration → key membership и child declaration → parent declaration
+source; aggregate Mass ID, Atom-to-Mass relation и bytes в SQLite запрещены.
+Direct whole/partial Matter binding переиспользует только существующие key IDs.
+Detach публикует новый key ID после атомарной file copy и удаляет source.
+
 Если меняется только `Browser.energyBinding`, после commit остаются те же
 `#10`, `#11`, `#12`. Дети по-прежнему ссылаются на `#10`.
 
