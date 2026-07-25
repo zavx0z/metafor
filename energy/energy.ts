@@ -171,10 +171,16 @@ const evaluateRuntimeBinding = (
 ): {ready: boolean; value?: Record<string, unknown>} => {
   if (domain === "mass") {
     if (typeof binding === "string") return {ready: false}
-    const paths = binding.data === undefined ? [] : Array.isArray(binding.data) ? binding.data : [binding.data]
-    if (paths.length !== 1) return {ready: false}
-    const resolved = readRuntimeBindingPath(scope, paths[0]!, "mass")
-    return resolved.ready && isRecord(resolved.value) ? {ready: true, value: resolved.value} : {ready: false}
+    const direct = binding.directMass
+    if (direct?.kind === "whole") return {ready: true, value: scope.mass}
+    if (direct?.kind !== "keys") return {ready: false}
+    const value: Record<string, unknown> = {}
+    for (const {target, source} of direct.entries) {
+      const sourceValue = scope.mass[source]
+      if (sourceValue === undefined) return {ready: false}
+      value[target] = sourceValue
+    }
+    return {ready: true, value}
   }
   if (typeof binding === "string") {
     let value: unknown

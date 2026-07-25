@@ -641,7 +641,7 @@ describe("Energy process protocol", () => {
         atoms: [
           [1, "owner/parent"],
           [17, "owner/process", {parentAtom: 1}, {
-            massBinding: {data: "/mass"},
+            massBinding: {data: "/mass", directMass: {kind: "whole"}},
             energyBinding: {data: "/energy"},
           }],
         ],
@@ -699,7 +699,11 @@ describe("Energy process protocol", () => {
         atoms: [
           [1, "owner/parent"],
           [17, "owner/process", {parentAtom: 1}, {
-            massBinding: {data: "/mass/cache", expr: "{cache: _[0]}"},
+            massBinding: {
+              data: "/mass/cache",
+              expr: "{cache: _[0]}",
+              directMass: {kind: "keys", entries: [{target: "cache", source: "cache"}]},
+            },
             energyBinding: {data: "/energy/socket", expr: "{socket: _[0]}"},
           }],
         ],
@@ -1266,7 +1270,7 @@ describe("Energy process protocol", () => {
         atoms: [
           [1, "owner/parent"],
           [17, "owner/process", {parentAtom: 1}, {
-            massBinding: {data: "/mass"},
+            massBinding: {data: "/mass", directMass: {kind: "whole"}},
             energyBinding: {data: "/energy"},
           }],
         ],
@@ -1342,7 +1346,7 @@ describe("Energy process protocol", () => {
           [1, "owner/first"],
           [2, "owner/second"],
           [17, "owner/process", {parentAtom: null, parentTopology: 7}, {
-            massBinding: {data: "/mass"},
+          massBinding: {data: "/mass", directMass: {kind: "whole"}},
             energyBinding: {data: "/energy"},
           }],
         ],
@@ -1382,7 +1386,7 @@ describe("Energy process protocol", () => {
         path: "atom/17",
         value: {
           atom: {id: 17, parentAtom: null, parentTopology: 7, wimp: "owner/process", position: 0},
-          continuation: {massBinding: {data: "/mass"}, energyBinding: {data: "/energy"}},
+          continuation: {massBinding: {data: "/mass", directMass: {kind: "whole"}}, energyBinding: {data: "/energy"}},
           values: [],
           valueRecords: [],
           valueItems: [],
@@ -1422,7 +1426,7 @@ describe("Energy process protocol", () => {
           [1, "owner/first"],
           [2, "owner/second"],
           [17, "owner/process", {parentAtom: null, parentTopology: 7}, {
-            massBinding: {data: "/mass"},
+            massBinding: {data: "/mass", directMass: {kind: "whole"}},
             energyBinding: {data: "/energy"},
           }],
         ],
@@ -1460,7 +1464,7 @@ describe("Energy process protocol", () => {
         part: "graviton", op: "replace", path: "atom/17",
         value: {
           atom: {id: 17, parentAtom: null, parentTopology: 7, wimp: "owner/process", position: 0},
-          continuation: {massBinding: {data: "/mass"}, energyBinding: {data: "/energy"}},
+          continuation: {massBinding: {data: "/mass", directMass: {kind: "whole"}}, energyBinding: {data: "/energy"}},
           values: [],
           valueRecords: [],
           valueItems: [],
